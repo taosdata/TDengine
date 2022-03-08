@@ -8366,7 +8366,7 @@ static int32_t doTagFunctionCheck(SQueryInfo* pQueryInfo) {
 
 int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* msg) {
   const char* msg1 = "functions/columns not allowed in group by query";
-  const char* msg2 = "projection query on columns not allowed";
+  //const char* msg2 = "projection query on columns not allowed";
   const char* msg3 = "group by/session/state_window not allowed on projection query";
   const char* msg4 = "retrieve tags not compatible with group by or interval query";
   const char* msg5 = "functions can not be mixed up";
@@ -8404,31 +8404,11 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
       SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
       int32_t   f = pExpr->base.functionId;
 
-      /*
-       * group by normal columns.
-       * Check if the column projection is identical to the group by column or not
-       */
-      if (f == TSDB_FUNC_PRJ && pExpr->base.colInfo.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-        bool qualified = false;
-        for (int32_t j = 0; j < pQueryInfo->groupbyExpr.numOfGroupCols; ++j) {
-          SColIndex* pColIndex = taosArrayGet(pQueryInfo->groupbyExpr.columnInfo, j);
-          if (pColIndex->colId == pExpr->base.colInfo.colId) {
-            qualified = true;
-            break;
-          }
-        }
-
-        if (!qualified) {
-          return invalidOperationMsg(msg, msg2);
-        }
-      }
-
       if (f < 0) {
         SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, -1 * f - 1);
         if (pUdfInfo->funcType == TSDB_UDF_TYPE_SCALAR) {
           return invalidOperationMsg(msg, msg1);
         }
-        
         continue;
       }
 
@@ -8442,11 +8422,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
                                          f == TSDB_FUNC_STATE_COUNT || f == TSDB_FUNC_STATE_DURATION)) {
         for (int32_t j = 0; j < pQueryInfo->groupbyExpr.numOfGroupCols; ++j) {
           SColIndex* pColIndex = taosArrayGet(pQueryInfo->groupbyExpr.columnInfo, j);
-          if (j == 0) {
-            if (pColIndex->colIndex != TSDB_TBNAME_COLUMN_INDEX) {
-              return invalidOperationMsg(msg, msg6);
-            }
-          } else if (!TSDB_COL_IS_TAG(pColIndex->flag)) {
+          if (pColIndex->colIndex != TSDB_TBNAME_COLUMN_INDEX) {
             return invalidOperationMsg(msg, msg6);
           }
         }
@@ -8454,18 +8430,6 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
 
       if (pQueryInfo->stateWindow && f == TSDB_FUNC_UNIQUE){
         return invalidOperationMsg(msg, msg7);
-      }
-
-      if (IS_MULTIOUTPUT(aAggs[f].status) && f != TSDB_FUNC_TOP && f != TSDB_FUNC_BOTTOM && f != TSDB_FUNC_DIFF &&
-          f != TSDB_FUNC_MAVG && f != TSDB_FUNC_CSUM && f != TSDB_FUNC_SAMPLE &&
-          f != TSDB_FUNC_DERIVATIVE && f != TSDB_FUNC_TAGPRJ && f != TSDB_FUNC_PRJ &&
-          f != TSDB_FUNC_UNIQUE && f != TSDB_FUNC_TAIL) {
-        return invalidOperationMsg(msg, msg1);
-      }
-
-
-      if (f == TSDB_FUNC_COUNT && pExpr->base.colInfo.colIndex == TSDB_TBNAME_COLUMN_INDEX) {
-        return invalidOperationMsg(msg, msg1);
       }
     }
 
