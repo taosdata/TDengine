@@ -40,24 +40,27 @@ typedef struct SMTbCursor  SMTbCursor;
 typedef struct SMCtbCursor SMCtbCursor;
 typedef struct SMSmaCursor SMSmaCursor;
 
-typedef SVCreateTbReq STbCfg;
-typedef STSma         SSmaCfg;
+typedef SVCreateTbReq   STbCfg;
+typedef SVCreateTSmaReq SSmaCfg;
 
 // SMeta operations
-SMeta *metaOpen(const char *path, const SMetaCfg *pMetaCfg, SMemAllocatorFactory *pMAF);
-void   metaClose(SMeta *pMeta);
-void   metaRemove(const char *path);
-int    metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg);
-int    metaDropTable(SMeta *pMeta, tb_uid_t uid);
-int    metaCommit(SMeta *pMeta);
+SMeta * metaOpen(const char *path, const SMetaCfg *pMetaCfg, SMemAllocatorFactory *pMAF);
+void    metaClose(SMeta *pMeta);
+void    metaRemove(const char *path);
+int     metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg);
+int     metaDropTable(SMeta *pMeta, tb_uid_t uid);
+int     metaCommit(SMeta *pMeta);
+int32_t metaCreateTSma(SMeta *pMeta, SSmaCfg *pCfg);
+int32_t metaDropTSma(SMeta *pMeta, char *indexName);
 
 // For Query
 STbCfg *        metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid);
 STbCfg *        metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid);
 SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline);
 STSchema *      metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver);
-SSmaCfg *       metaGetSmaInfoByName(SMeta *pMeta, const char *indexName);
+STSma *         metaGetSmaInfoByName(SMeta *pMeta, const char *indexName);
 STSmaWrapper *  metaGetSmaInfoByUid(SMeta *pMeta, tb_uid_t uid);
+SArray *        metaGetSmaTbUids(SMeta *pMeta, bool isDup);
 
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta);
 void        metaCloseTbCursor(SMTbCursor *pTbCur);

@@ -28,6 +28,30 @@ extern "C" {
 #include "syncRaft.h"
 #include "taosdef.h"
 
+// TLA+ Spec
+// HandleRequestVoteRequest(i, j, m) ==
+//    LET logOk == \/ m.mlastLogTerm > LastTerm(log[i])
+//                 \/ /\ m.mlastLogTerm = LastTerm(log[i])
+//                    /\ m.mlastLogIndex >= Len(log[i])
+//        grant == /\ m.mterm = currentTerm[i]
+//                 /\ logOk
+//                 /\ votedFor[i] \in {Nil, j}
+//    IN /\ m.mterm <= currentTerm[i]
+//       /\ \/ grant  /\ votedFor' = [votedFor EXCEPT ![i] = j]
+//          \/ ~grant /\ UNCHANGED votedFor
+//       /\ Reply([mtype        |-> RequestVoteResponse,
+//                 mterm        |-> currentTerm[i],
+//                 mvoteGranted |-> grant,
+//                 \* mlog is used just for the `elections' history variable for
+//                 \* the proof. It would not exist in a real implementation.
+//                 mlog         |-> log[i],
+//                 msource      |-> i,
+//                 mdest        |-> j],
+//                 m)
+//       /\ UNCHANGED <<state, currentTerm, candidateVars, leaderVars, logVars>>
+//
+int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg);
+
 #ifdef __cplusplus
 }
 #endif

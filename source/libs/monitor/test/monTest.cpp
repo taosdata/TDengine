@@ -22,6 +22,7 @@ class MonitorTest : public ::testing::Test {
     cfg.maxLogs = 2;
     cfg.port = 80;
     cfg.server = "localhost";
+    cfg.comp = 0;
     monInit(&cfg);
   }
 
@@ -44,6 +45,8 @@ class MonitorTest : public ::testing::Test {
 void MonitorTest::GetBasicInfo(SMonInfo *pMonitor, SMonBasicInfo *pInfo) {
   pInfo->dnode_id = 1;
   strcpy(pInfo->dnode_ep, "localhost");
+  pInfo->cluster_id = 6980428120398645172;
+  pInfo->protocol = 1;
 }
 
 void MonitorTest::GetClusterInfo(SMonInfo *pMonitor, SMonClusterInfo *pInfo) {

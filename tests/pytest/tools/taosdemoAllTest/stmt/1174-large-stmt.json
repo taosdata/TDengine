@@ -1,0 +1,45 @@
+{
+	"filetype": "insert",
+	"cfgdir": "/etc/taos",
+	"host": "192.168.1.103",
+	"port": 6030,
+	"user": "root",
+	"password": "taosdata",
+	"thread_count": 10,
+	"thread_count_create_tbl": 1,
+    "result_file": "1174.out",
+    "confirm_parameter_prompt": "no",
+	"num_of_records_per_req": 51,
+    "databases": [
+        {
+            "dbinfo": {
+			"name": "gdse",
+			"drop": "yes"
+		},
+		"super_tables": [{
+			"name": "model_1174",
+            "child_table_exists":"no",
+			"childtable_count": 1,
+			"childtable_prefix": "model_1174_",
+			"auto_create_table": "no",
+			"batch_create_tbl_num": 0,
+			"data_source": "sample",
+			"insert_mode": "stmt",
+			"insert_rate": 0,
+			"insert_rows": 2592000,
+			"interlace_rows": 1,
+			"multi_thread_write_one_tbl": "no",
+			"number_of_tbl_in_one_sql": 0,
+			"max_sql_len": 1048576,
+			"disorder_ratio": 0,
+			"disorder_range": 1000,
+			"timestamp_step": 1000,
+			"start_timestamp": "2021-05-01 00:00:00.000",
+			"sample_format": "csv",
+			"sample_file": "tools/taosdemoAllTest/1174.csv",
+			"tags_file": "tools/taosdemoAllTest/1174-tag.csv",
+			"columns": [{"type": "FLOAT", "count": 109}, {"type": "INT", "count": 4}, {"type": "FLOAT", "count": 8}, {"type": "INT", "count": 1}, {"type": "FLOAT", "count": 5}, {"type": "INT", "count": 47}, {"type": "BOOL", "count": 103}, {"type": "INT", "count": 2}, {"type": "TIMESTAMP", "count": 3}, {"type": "BOOL", "count": 28}, {"type": "INT", "count": 3}, {"type": "FLOAT", "count": 6}, {"type": "INT", "count": 1}, {"type": "FLOAT", "count": 7}, {"type": "BOOL", "count": 7}, {"type": "FLOAT", "count": 2}, {"type": "INT", "count": 3}, {"type": "FLOAT", "count": 3}, {"type": "INT", "count": 3}, {"type": "BOOL", "count": 1}],
+			"tags": [{"type": "INT", "count": 1}]
+		}]
+	}]
+}

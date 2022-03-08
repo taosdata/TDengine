@@ -28,6 +28,7 @@ STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta) {
   pReadHandle->sver = -1;
   pReadHandle->pSchema = NULL;
   pReadHandle->pSchemaWrapper = NULL;
+  pReadHandle->tbIdHash = NULL;
   return pReadHandle;
 }
 

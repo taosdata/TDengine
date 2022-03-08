@@ -94,8 +94,8 @@ TEST(testCase, tSmaEncodeDecodeTest) {
   }
 
   // resource release
-  tdDestroyTSma(&tSma, false);
-  tdDestroyTSmaWrapper(&dstTSmaWrapper, false);
+  tdDestroyTSma(&tSma);
+  tdDestroyTSmaWrapper(&dstTSmaWrapper);
 }
 
 TEST(testCase, tSma_DB_Put_Get_Del_Test) {
@@ -103,6 +103,7 @@ TEST(testCase, tSma_DB_Put_Get_Del_Test) {
   const char *smaIndexName2 = "sma_index_test_2";
   const char *smaTestDir = "./smaTest";
   const uint64_t tbUid = 1234567890;
+  const uint32_t nCntTSma = 2;
   // encode
   STSma tSma = {0};
   tSma.version = 0;
@@ -125,7 +126,7 @@ TEST(testCase, tSma_DB_Put_Get_Del_Test) {
   }
 
   SMeta *         pMeta = NULL;
-  SSmaCfg *       pSmaCfg = &tSma;
+  STSma *       pSmaCfg = &tSma;
   const SMetaCfg *pMetaCfg = &defaultMetaOptions;
 
   taosRemoveDir(smaTestDir);
@@ -146,20 +147,22 @@ TEST(testCase, tSma_DB_Put_Get_Del_Test) {
   metaSaveSmaToDB(pMeta, pSmaCfg);
 
   // get value by indexName
-  SSmaCfg *qSmaCfg = NULL;
+  STSma *qSmaCfg = NULL;
   qSmaCfg = metaGetSmaInfoByName(pMeta, smaIndexName1);
   assert(qSmaCfg != NULL);
   printf("name1 = %s\n", qSmaCfg->indexName);
   EXPECT_STRCASEEQ(qSmaCfg->indexName, smaIndexName1);
   EXPECT_EQ(qSmaCfg->tableUid, tSma.tableUid);
-  tdDestroyTSma(qSmaCfg, true);
+  tdDestroyTSma(qSmaCfg);
+  tfree(qSmaCfg);
 
   qSmaCfg = metaGetSmaInfoByName(pMeta, smaIndexName2);
   assert(qSmaCfg != NULL);
   printf("name2 = %s\n", qSmaCfg->indexName);
   EXPECT_STRCASEEQ(qSmaCfg->indexName, smaIndexName2);
   EXPECT_EQ(qSmaCfg->interval, tSma.interval);
-  tdDestroyTSma(qSmaCfg, true);
+  tdDestroyTSma(qSmaCfg);
+  tfree(qSmaCfg);
 
   // get index name by table uid
   SMSmaCursor *pSmaCur = metaOpenSmaCursor(pMeta, tbUid);
@@ -173,23 +176,36 @@ TEST(testCase, tSma_DB_Put_Get_Del_Test) {
     printf("indexName = %s\n", indexName);
     ++indexCnt;
   }
-  EXPECT_EQ(indexCnt, 2);
+  EXPECT_EQ(indexCnt, nCntTSma);
   metaCloseSmaCurosr(pSmaCur);
 
   // get wrapper by table uid
   STSmaWrapper *pSW = metaGetSmaInfoByUid(pMeta, tbUid);
   assert(pSW != NULL);
-  EXPECT_EQ(pSW->number, 2);
+  EXPECT_EQ(pSW->number, nCntTSma);
   EXPECT_STRCASEEQ(pSW->tSma->indexName, smaIndexName1);
   EXPECT_EQ(pSW->tSma->tableUid, tSma.tableUid);
   EXPECT_STRCASEEQ((pSW->tSma + 1)->indexName, smaIndexName2);
   EXPECT_EQ((pSW->tSma + 1)->tableUid, tSma.tableUid);
+  
+  tdDestroyTSmaWrapper(pSW);
+  tfree(pSW);
+
+  // get all sma table uids
+  SArray *pUids = metaGetSmaTbUids(pMeta, false);
+  assert(pUids != NULL);
+  for (uint32_t i = 0; i < taosArrayGetSize(pUids); ++i) {
+    printf("metaGetSmaTbUids: uid[%" PRIu32 "] = %" PRIi64 "\n", i, *(tb_uid_t *)taosArrayGet(pUids, i));
+    // printf("metaGetSmaTbUids: index[%" PRIu32 "] = %s", i, (char *)taosArrayGet(pUids, i));
+  }
+  EXPECT_EQ(taosArrayGetSize(pUids), 1);
+  taosArrayDestroy(pUids);
 
   // resource release
   metaRemoveSmaFromDb(pMeta, smaIndexName1);
   metaRemoveSmaFromDb(pMeta, smaIndexName2);
 
-  tdDestroyTSma(&tSma, false);
+  tdDestroyTSma(&tSma);
   metaClose(pMeta);
 }
 

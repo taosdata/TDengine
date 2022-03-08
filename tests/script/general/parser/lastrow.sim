@@ -1,0 +1,90 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
+system sh/exec.sh -n dnode1 -s start
+sleep 100
+sql connect
+
+$dbPrefix = lr_db
+$tbPrefix = lr_tb
+$stbPrefix = lr_stb
+$tbNum = 8
+$rowNum = 60 * 24
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 60000
+print ========== lastrow.sim
+$i = 0
+$db = $dbPrefix . $i
+$stb = $stbPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 smallint, c6 tinyint, c7 bool, c8 binary(10), c9 nchar(10)) tags(t1 int)
+
+$i = $tbNum
+while $i > 0
+  $tb = $tbPrefix . $i
+  sql create table $tb using $stb tags( $i )
+  $i = $i - 1
+endw 
+
+$ts = $ts0
+$i = 1
+while $i <= $tbNum
+  $x = 0
+  $tb = $tbPrefix . $i
+  while $x < $rowNum
+    $ts = $ts + $delta
+    $c6 =  $x / 128 
+    $c6 = $c6 * 128
+    $c6 = $x - $c6
+    $c3 = NULL
+    $xr = $x / 10
+    $xr = $xr * 10
+    $xr = $x - $xr
+    if $xr = 0 then
+       $c3 = $x
+    endi
+    sql insert into $tb values ( $ts , $x , NULL , $x , $x , $x , $c6 , true, 'BINARY', 'NCHAR' ) 
+    $x = $x + 1
+  endw 
+  $i = $i + 1
+endw
+
+print ====== test data created
+
+run general/parser/lastrow_query.sim
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 500
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+sql connect
+sleep 100
+
+run general/parser/lastrow_query.sim
+
+print =================== last_row + nested query
+sql use $db
+sql create table lr_nested(ts timestamp, f int)
+sql insert into lr_nested values(now, 1)
+sql insert into lr_nested values(now+1s, null)
+sql select last_row(*) from (select * from lr_nested)
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+sql select last_row(*) from (select f from lr_nested)
+if $rows != 1 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -542,7 +542,7 @@ int32_t taosFsyncFile(TdFilePtr pFile) {
   }
 
   if (pFile->fp != NULL) return fflush(pFile->fp);
-  if (pFile->fp >= 0) return fsync(pFile->fd);
+  if (pFile->fd >= 0) return fsync(pFile->fd);
 
   return 0;
 #endif

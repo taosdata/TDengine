@@ -16,6 +16,9 @@
 #ifndef _TD_SNODE_H_
 #define _TD_SNODE_H_
 
+#include "tmsg.h"
+#include "trpc.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

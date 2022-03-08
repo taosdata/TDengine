@@ -54,6 +54,7 @@ typedef struct {
   int32_t         maxLogs;
   const char     *server;
   uint16_t        port;
+  bool            comp;
   SMonState       state;
 } SMonitor;
 

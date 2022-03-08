@@ -1,0 +1,122 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 2
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 2
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 2
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 2
+
+system sh/cfg.sh -n dnode1 -c walLevel -v 2
+system sh/cfg.sh -n dnode2 -c walLevel -v 2
+system sh/cfg.sh -n dnode3 -c walLevel -v 2
+system sh/cfg.sh -n dnode4 -c walLevel -v 2
+
+system sh/cfg.sh -n dnode1 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode3 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode4 -c balanceInterval -v 10
+
+#system sh/cfg.sh -n dnode1 -c role -v 2
+#system sh/cfg.sh -n dnode2 -c role -v 2
+#system sh/cfg.sh -n dnode3 -c role -v 2
+#system sh/cfg.sh -n dnode4 -c role -v 2
+
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 4
+
+system sh/cfg.sh -n dnode1 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode2 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode3 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode4 -c arbitrator -v $arbitrator
+
+print ============== step0: start tarbitrator
+system sh/exec_tarbitrator.sh -s start
+
+print ============== step1: start dnode1, only deploy mnode
+system sh/exec.sh -n dnode1 -s start
+sleep 2000
+sql connect
+
+print ============== step2: start dnode2/dnode3 and add into cluster , then create database with replica 3, and create table to max tables
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+#system sh/exec.sh -n dnode4 -s start
+sql create dnode $hostname2
+sleep 2000
+sql create dnode $hostname3
+#sql create dnode $hostname4
+sleep 2000
+
+$totalTableNum = 4
+$sleepTimer = 3000
+
+$db = db
+sql create database $db replica 3
+sql use $db
+
+# create table , insert data
+$stb = stb
+sql create table $stb (ts timestamp, c1 int) tags(t1 int)
+$rowNum = 10
+$tblNum = $totalTableNum
+$totalRows = 0
+$tsStart = 1420041600000
+
+$i = 0
+while $i < $tblNum
+  $tb = tb . $i
+  sql create table $tb using $stb tags( $i )
+ 
+  $x = 0
+  while $x < $rowNum
+    $ts = $tsStart + $x
+    sql insert into $tb values ( $ts + 0a , $x ) ( $ts + 1a , $x ) ( $ts + 2a , $x ) ( $ts + 3a , $x ) ( $ts + 4a , $x ) ( $ts + 5a , $x ) ( $ts + 6a , $x ) ( $ts + 7a , $x ) ( $ts + 8a , $x ) ( $ts + 9a , $x ) 
+    $x = $x + 10
+  endw 
+  $totalRows = $totalRows + $x
+  print       info: inserted $x rows into $tb and totalRows: $totalRows
+  $i = $i + 1
+endw 
+
+sql select count(*) from $stb
+print data00:$data00  totalRows:$totalRows
+if $data00 != $totalRows then
+	return -1
+endi
+
+
+print ============== step3: stop dnode2
+system sh/exec.sh -n dnode2 -s stop
+sleep 2000
+
+sql show mnodes
+print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
+print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
+print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
+#print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
+$mnode1Status = $data2_1  
+$mnode2Status = $data2_2
+$mnode3Status = $data2_3  
+#$mnode4Status = $data2_4 
+
+if $mnode1Status != master then
+	return -1
+endi
+
+if $mnode2Status != offline then
+	return -1
+endi
+
+sql reset query cache
+sql select count(*) from $stb
+print data00:$data00  totalRows:$totalRows
+if $data00 != $totalRows then
+	return -1
+endi
+
+
