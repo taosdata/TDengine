@@ -11,6 +11,7 @@ add_executable(syncRaftStoreTest "")
 add_executable(syncEnqTest "")
 add_executable(syncIndexTest "")
 add_executable(syncInitTest "")
+add_executable(syncUtilTest "")
 
 
 target_sources(syncTest
@@ -64,6 +65,10 @@ target_sources(syncIndexTest
 target_sources(syncInitTest
     PRIVATE
     "syncInitTest.cpp"
+)
+target_sources(syncUtilTest
+    PRIVATE
+    "syncUtilTest.cpp"
 )
 
 
@@ -132,6 +137,11 @@ target_include_directories(syncInitTest
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(syncUtilTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 
 
 target_link_libraries(syncTest
@@ -183,6 +193,10 @@ target_link_libraries(syncIndexTest
     gtest_main
 )
 target_link_libraries(syncInitTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncUtilTest
     sync
     gtest_main
 )
