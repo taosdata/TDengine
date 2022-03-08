@@ -23,6 +23,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "cJSON.h"
 #include "sync.h"
 #include "taosdef.h"
 #include "tglobal.h"
@@ -189,6 +190,7 @@ typedef struct SSyncNode {
 
 SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo);
 void       syncNodeClose(SSyncNode* pSyncNode);
+cJSON*     syncNode2Json(const SSyncNode* pSyncNode);
 
 int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
 int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);

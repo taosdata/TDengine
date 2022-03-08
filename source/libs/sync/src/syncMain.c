@@ -170,6 +170,71 @@ void syncNodeClose(SSyncNode* pSyncNode) {
   free(pSyncNode);
 }
 
+cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
+  char   u64buf[128];
+  cJSON* pRoot = cJSON_CreateObject();
+
+  // init by SSyncInfo
+  cJSON_AddNumberToObject(pRoot, "vgId", pSyncNode->vgId);
+  cJSON_AddStringToObject(pRoot, "path", pSyncNode->path);
+  cJSON_AddStringToObject(pRoot, "walPath", pSyncNode->walPath);
+
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->rpcClient);
+  cJSON_AddStringToObject(pRoot, "rpcClient", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpSendMsg);
+  cJSON_AddStringToObject(pRoot, "FpSendMsg", u64buf);
+
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->queue);
+  cJSON_AddStringToObject(pRoot, "queue", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpEqMsg);
+  cJSON_AddStringToObject(pRoot, "FpEqMsg", u64buf);
+
+  // init internal
+  cJSON* pMe = syncUtilNodeInfo2Json(&pSyncNode->me);
+  cJSON_AddItemToObject(pRoot, "me", pMe);
+  cJSON* pRaftId = syncUtilRaftId2Json(&pSyncNode->raftId);
+  cJSON_AddItemToObject(pRoot, "raftId", pRaftId);
+
+  cJSON_AddNumberToObject(pRoot, "peersNum", pSyncNode->peersNum);
+  cJSON* pPeers = cJSON_CreateArray();
+  cJSON_AddItemToObject(pRoot, "peers", pPeers);
+  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+    cJSON_AddItemToArray(pPeers, syncUtilNodeInfo2Json(&pSyncNode->peers[i]));
+  }
+  cJSON* pPeersId = cJSON_CreateArray();
+  cJSON_AddItemToObject(pRoot, "peersId", pPeersId);
+  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+    cJSON_AddItemToArray(pPeersId, syncUtilRaftId2Json(&pSyncNode->peersId[i]));
+  }
+
+  cJSON_AddNumberToObject(pRoot, "replicaNum", pSyncNode->replicaNum);
+  cJSON* pReplicasId = cJSON_CreateArray();
+  cJSON_AddItemToObject(pRoot, "replicasId", pReplicasId);
+  for (int i = 0; i < pSyncNode->replicaNum; ++i) {
+    cJSON_AddItemToArray(pReplicasId, syncUtilRaftId2Json(&pSyncNode->replicasId[i]));
+  }
+
+  // raft algorithm
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pFsm);
+  cJSON_AddStringToObject(pRoot, "pFsm", u64buf);
+  cJSON_AddNumberToObject(pRoot, "quorum", pSyncNode->quorum);
+  cJSON* pLaderCache = syncUtilRaftId2Json(&pSyncNode->leaderCache);
+  cJSON_AddItemToObject(pRoot, "leaderCache", pLaderCache);
+
+  // tla+ server vars
+  cJSON_AddStringToObject(pRoot, "state", syncUtilState2String(pSyncNode->state));
+
+  // tla+ candidate vars
+
+  // tla+ leader vars
+
+  // tla+ log vars
+
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SSyncNode", pRoot);
+  return pJson;
+}
+
 int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
   SEpSet epSet;
   syncUtilraftId2EpSet(destRaftId, &epSet);

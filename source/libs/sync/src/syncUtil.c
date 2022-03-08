@@ -100,3 +100,45 @@ int32_t syncUtilRand(int32_t max) { return rand() % max; }
 int32_t syncUtilElectRandomMS() { ELECT_TIMER_MS_MIN + syncUtilRand(ELECT_TIMER_MS_RANGE); }
 
 int32_t syncUtilQuorum(int32_t replicaNum) { return replicaNum / 2 + 1; }
+
+cJSON* syncUtilNodeInfo2Json(const SNodeInfo* p) {
+  char   u64buf[128];
+  cJSON* pRoot = cJSON_CreateObject();
+
+  cJSON_AddStringToObject(pRoot, "nodeFqdn", p->nodeFqdn);
+  cJSON_AddNumberToObject(pRoot, "nodePort", p->nodePort);
+
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SNodeInfo", pRoot);
+  return pJson;
+}
+
+cJSON* syncUtilRaftId2Json(const SRaftId* p) {
+  char   u64buf[128];
+  cJSON* pRoot = cJSON_CreateObject();
+
+  snprintf(u64buf, sizeof(u64buf), "%lu", p->addr);
+  cJSON_AddStringToObject(pRoot, "addr", u64buf);
+  char     host[128];
+  uint16_t port;
+  syncUtilU642Addr(p->addr, host, sizeof(host), &port);
+  cJSON_AddStringToObject(pRoot, "host", host);
+  cJSON_AddNumberToObject(pRoot, "port", port);
+  cJSON_AddNumberToObject(pRoot, "vgId", p->vgId);
+
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SNodeInfo", pRoot);
+  return pJson;
+}
+
+const char* syncUtilState2String(ESyncState state) {
+  if (state == TAOS_SYNC_STATE_FOLLOWER) {
+    return "TAOS_SYNC_STATE_FOLLOWER";
+  } else if (state == TAOS_SYNC_STATE_CANDIDATE) {
+    return "TAOS_SYNC_STATE_CANDIDATE";
+  } else if (state == TAOS_SYNC_STATE_LEADER) {
+    return "TAOS_SYNC_STATE_LEADER";
+  } else {
+    return "TAOS_SYNC_STATE_UNKNOWN";
+  }
+}
