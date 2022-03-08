@@ -44,6 +44,7 @@ void syncUtilbufCopyDeep(const SSyncBuffer* src, SSyncBuffer* dest);
 // ---- misc ----
 int32_t syncUtilRand(int32_t max);
 int32_t syncUtilElectRandomMS();
+int32_t syncUtilQuorum(int32_t replicaNum);
 
 #ifdef __cplusplus
 }

@@ -98,3 +98,5 @@ void syncUtilbufCopyDeep(const SSyncBuffer* src, SSyncBuffer* dest) {
 int32_t syncUtilRand(int32_t max) { return rand() % max; }
 
 int32_t syncUtilElectRandomMS() { ELECT_TIMER_MS_MIN + syncUtilRand(ELECT_TIMER_MS_RANGE); }
+
+int32_t syncUtilQuorum(int32_t replicaNum) { return replicaNum / 2 + 1; }

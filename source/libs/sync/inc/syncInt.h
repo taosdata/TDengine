@@ -99,8 +99,8 @@ typedef struct SRaftStore SRaftStore;
 struct SVotesGranted;
 typedef struct SVotesGranted SVotesGranted;
 
-struct SVotesResponded;
-typedef struct SVotesResponded SVotesResponded;
+struct SVotesRespond;
+typedef struct SVotesRespond SVotesRespond;
 
 typedef struct SRaftId {
   SyncNodeId  addr;  // typedef uint64_t SyncNodeId;
@@ -112,6 +112,7 @@ typedef struct SSyncNode {
   SyncGroupId vgId;
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
+  char        walPath[TSDB_FILENAME_LEN];
   void*       rpcClient;
   int32_t (*FpSendMsg)(void* rpcClient, const SEpSet* pEpSet, SRpcMsg* pMsg);
   void* queue;
@@ -142,8 +143,8 @@ typedef struct SSyncNode {
   SRaftStore* pRaftStore;
 
   // tla+ candidate vars
-  SVotesGranted*   pVotesGranted;
-  SVotesResponded* pVotesResponded;
+  SVotesGranted* pVotesGranted;
+  SVotesRespond* pVotesRespond;
 
   // tla+ leader vars
   SHashObj* pNextIndex;
