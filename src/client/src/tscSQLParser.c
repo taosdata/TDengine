@@ -2476,7 +2476,7 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
 
-    if (index.columnIndex < 0 || index.columnIndex >= TSDB_MIN_VALID_COLUMN_INDEX) {
+    if (index.columnIndex < 0 && index.columnIndex >= TSDB_MIN_VALID_COLUMN_INDEX) {
       if (outerQuery) {
         STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
         int32_t         numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
@@ -3763,13 +3763,13 @@ static bool isTimeWindowToken(SStrToken* token, int16_t *columnIndex) {
   SStrToken tableToken = {0};
 
   extractTableNameFromToken(&tmpToken, &tableToken);
-  if (tmpToken.n == strlen(TSQL_TSWIN_START) && strncasecmp(TSQL_TSWIN_START, tmpToken.z, tmpToken.n)) {
+  if (tmpToken.n == strlen(TSQL_TSWIN_START) && strncasecmp(TSQL_TSWIN_START, tmpToken.z, tmpToken.n) == 0) {
     *columnIndex = TSDB_TSWIN_START_COLUMN_INDEX;
     return true;
-  } else if (tmpToken.n == strlen(TSQL_TSWIN_STOP) && strncasecmp(TSQL_TSWIN_STOP, tmpToken.z, tmpToken.n)) {
+  } else if (tmpToken.n == strlen(TSQL_TSWIN_STOP) && strncasecmp(TSQL_TSWIN_STOP, tmpToken.z, tmpToken.n) == 0) {
     *columnIndex = TSDB_TSWIN_STOP_COLUMN_INDEX;
     return true;
-  } else if (tmpToken.n == strlen(TSQL_TSWIN_DURATION) && strncasecmp(TSQL_TSWIN_DURATION, tmpToken.z, tmpToken.n)) {
+  } else if (tmpToken.n == strlen(TSQL_TSWIN_DURATION) && strncasecmp(TSQL_TSWIN_DURATION, tmpToken.z, tmpToken.n) == 0) {
     *columnIndex = TSDB_TSWIN_DURATION_COLUMN_INDEX;
     return true;
   } else {

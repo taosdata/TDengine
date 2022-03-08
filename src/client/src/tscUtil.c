@@ -2551,6 +2551,12 @@ SExprInfo* tscExprCreate(STableMetaInfo* pTableMetaInfo, int16_t functionId, SCo
     p->colInfo.colId = TSDB_TBNAME_COLUMN_INDEX;
     p->colBytes = s->bytes;
     p->colType  = s->type;
+  } else if (pColIndex->columnIndex > TSDB_TBNAME_COLUMN_INDEX &&
+             pColIndex->columnIndex <= TSDB_TBNAME_COLUMN_INDEX) {
+    SSchema* s = tGetTimeWindowColumnSchema(pColIndex->columnIndex);
+    p->colInfo.colId = s->colId;
+    p->colBytes = s->bytes;
+    p->colType  = s->type;
   } else if (pColIndex->columnIndex <= TSDB_UD_COLUMN_INDEX) {
     p->colInfo.colId = pColIndex->columnIndex;
     p->colBytes = size;
