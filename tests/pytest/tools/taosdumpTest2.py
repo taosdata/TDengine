@@ -17,6 +17,8 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 from util.dnodes import *
+import string
+import random
 
 
 class TDTestCase:
@@ -43,6 +45,13 @@ class TDTestCase:
                     buildPath = root[:len(root) - len("/build/bin")]
                     break
         return buildPath
+
+    def generateString(self, length):
+        chars = string.ascii_uppercase + string.ascii_lowercase
+        v = ""
+        for i in range(length):
+            v += random.choice(chars)
+        return v
 
     def run(self):
         tdSql.prepare()
@@ -90,6 +99,30 @@ class TDTestCase:
 
         tdSql.query("select count(*) from t1")
         tdSql.checkData(0, 0, self.numberOfRecords)
+
+        tdSql.execute("create database test")
+        tdSql.execute("use test")
+        tdSql.execute("create table stb(ts timestamp, c1 binary(16000), c2 binary(16000), c3 binary(10000)) tags(t1 nchar(256))")
+        tdSql.execute("insert into t1 using stb tags('t1') values(now, '%s', '%s', '%s')" % (self.generateString(16000), self.generateString(16000), self.generateString(10000)))
+        
+        os.system("rm /tmp/*.sql")
+        os.system("rm /tmp/*.avro*")
+        os.system("%staosdump -D test -o /tmp" % binPath)
+
+        tdSql.execute("drop database test")
+        tdSql.query("show databases")
+        tdSql.checkRows(0)
+
+        os.system("%staosdump -i /tmp" % binPath)
+
+        tdSql.execute("use test")
+        tdSql.error("show vnodes '' ")
+        tdSql.query("show stables")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 'stb')
+
+        tdSql.query("select * from stb")
+        tdSql.checkRows(1)
 
     def stop(self):
         tdSql.close()
