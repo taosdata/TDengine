@@ -2411,6 +2411,7 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
   const char* msg4 = "-> operate can only used in json type";
   const char* msg5 = "the right value of -> operation must be string";
   const char* msg6 = "select name is too long than 64, please use alias name";
+  const char* msg7 = "_wstart/_wstop/_wduraion can only be applied to time window query";
 
   int32_t startPos = (int32_t)tscNumOfExprs(pQueryInfo);
   int32_t tokenId = pItem->pNode->tokenId;
@@ -2511,6 +2512,9 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
           functionId = TSDB_FUNC_TAGPRJ;
           colType    = TSDB_COL_TAG;
         } else {
+          if (!timeWindowQuery) {
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
+          }
           colSchema  = *tGetTimeWindowColumnSchema(index.columnIndex);
           switch (index.columnIndex) {
             case TSDB_TSWIN_START_COLUMN_INDEX: {
