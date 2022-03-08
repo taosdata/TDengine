@@ -3623,6 +3623,10 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     if (pShowInfo->prefix.type == TK_STRING) {
       pShowInfo->prefix.n = stringProcess(pShowInfo->prefix.z, pShowInfo->prefix.n);
     }
+
+    if (pShowInfo->prefix.n <= 0) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+    }
   } 
   return TSDB_CODE_SUCCESS;
 }
