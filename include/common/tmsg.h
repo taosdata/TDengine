@@ -1871,15 +1871,27 @@ typedef struct {
 } STSma;              // Time-range-wise SMA
 
 typedef struct {
-  int8_t      msgType;  // 0 create, 1 recreate
-  STSma       tSma;
-  STimeWindow window;
-} SCreateTSmaMsg;
+  int64_t ver;  // use a general definition
+  STSma   tSma;
+} SVCreateTSmaReq;
 
 typedef struct {
-  STimeWindow window;
-  char        indexName[TSDB_INDEX_NAME_LEN + 1];
-} SDropTSmaMsg;
+  int8_t      type;  // 0 status report, 1 update data
+  char        indexName[TSDB_INDEX_NAME_LEN + 1]; // 
+  STimeWindow windows;
+} STSmaMsg;
+
+typedef struct {
+  int64_t ver;  // use a general definition
+  char    indexName[TSDB_INDEX_NAME_LEN + 1];
+} SVDropTSmaReq;
+typedef struct {
+} SVCreateTSmaRsp, SVDropTSmaRsp;
+
+int32_t tSerializeSVCreateTSmaReq(void** buf, SVCreateTSmaReq* pReq);
+void*   tDeserializeSVCreateTSmaReq(void* buf, SVCreateTSmaReq* pReq);
+int32_t tSerializeSVDropTSmaReq(void** buf, SVDropTSmaReq* pReq);
+void*   tDeserializeSVDropTSmaReq(void* buf, SVDropTSmaReq* pReq);
 
 typedef struct {
   STimeWindow tsWindow;     // [skey, ekey]
@@ -1901,22 +1913,18 @@ static FORCE_INLINE void tdDestroySmaData(STSmaData* pSmaData) {
   }
 }
 
-// RSma: Time-range-wise Rollup SMA
-// TODO: refactor when rSma grammar defined finally =>
+// RSma: Rollup SMA
 typedef struct {
   int64_t  interval;
   int32_t  retention;  // unit: day
   uint16_t days;       // unit: day
   int8_t   intervalUnit;
 } SSmaParams;
-// TODO: refactor when rSma grammar defined finally <=
 
 typedef struct {
-  // TODO: refactor to use the real schema =>
   STSma   tsma;
   float   xFilesFactor;
   SArray* smaParams;  // SSmaParams
-  // TODO: refactor to use the real schema <=
 } SRSma;
 
 typedef struct {

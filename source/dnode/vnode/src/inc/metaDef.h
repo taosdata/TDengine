@@ -33,7 +33,7 @@ int  metaOpenDB(SMeta* pMeta);
 void metaCloseDB(SMeta* pMeta);
 int  metaSaveTableToDB(SMeta* pMeta, STbCfg* pTbCfg);
 int  metaRemoveTableFromDb(SMeta* pMeta, tb_uid_t uid);
-int  metaSaveSmaToDB(SMeta* pMeta, SSmaCfg* pTbCfg);
+int  metaSaveSmaToDB(SMeta* pMeta, STSma* pTbCfg);
 int  metaRemoveSmaFromDb(SMeta* pMeta, const char* indexName);
 
 // SMetaCache

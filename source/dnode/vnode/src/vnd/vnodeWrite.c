@@ -69,7 +69,7 @@ int  vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
         // TODO: handle error
       }
 
-      // TODO: maybe need to clear the requst struct
+      // TODO: maybe need to clear the request struct
       free(vCreateTbReq.stbCfg.pSchema);
       free(vCreateTbReq.stbCfg.pTagSchema);
       free(vCreateTbReq.name);
@@ -133,13 +133,44 @@ int  vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
     } break;
     case TDMT_VND_CREATE_SMA: {  // timeRangeSMA
-      // 1. tdCreateSmaMeta(pVnode->pMeta,...);
-      // 2. tdCreateSmaDataInit();
-      // 3. tdCreateSmaData
+      SSmaCfg vCreateSmaReq = {0};
+      if (tDeserializeSVCreateTSmaReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateSmaReq) == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
+      }
+
+      if (metaCreateTSma(pVnode->pMeta, &vCreateSmaReq) < 0) {
+        // TODO: handle error
+        tdDestroyTSma(&vCreateSmaReq.tSma);
+        return -1;
+      }
+      // TODO: send msg to stream computing to create tSma
+      // if ((send msg to stream computing) < 0) {
+      //   tdDestroyTSma(&vCreateSmaReq);
+      //   return -1;
+      // }
+      tdDestroyTSma(&vCreateSmaReq.tSma);
+      // TODO: return directly or go on follow steps?
     } break;
     case TDMT_VND_CANCEL_SMA: {  // timeRangeSMA
     } break;
     case TDMT_VND_DROP_SMA: {  // timeRangeSMA
+      SVDropTSmaReq vDropSmaReq = {0};
+      if (tDeserializeSVDropTSmaReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vDropSmaReq) == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
+      }
+
+      if (metaDropTSma(pVnode->pMeta, vDropSmaReq.indexName) < 0) {
+        // TODO: handle error
+        return -1;
+      }
+      // TODO: send msg to stream computing to drop tSma
+      // if ((send msg to stream computing) < 0) {
+      //   tdDestroyTSma(&vCreateSmaReq);
+      //   return -1;
+      // }
+      // TODO: return directly or go on follow steps?
     } break;
     default:
       ASSERT(0);
