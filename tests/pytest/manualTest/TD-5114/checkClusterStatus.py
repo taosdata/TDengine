@@ -64,7 +64,9 @@ class TwoClients:
 
         version = sys.argv[2]
         tdSql.query("show variables") 
-        tdSql.checkData(6,1,"%s" % version) 
+        for i in range(tdSql.queryRows):
+            if (tdSql.queryResult[i][0] == "version" ):
+                tdSql.checkData(i,1,"%s" % version) 
 
 
 
