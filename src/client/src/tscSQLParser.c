@@ -3823,29 +3823,14 @@ int32_t doGetColumnIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColum
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
+  int16_t tsWinColumnIndex;
   if (isTablenameToken(pToken)) {
     pIndex->columnIndex = TSDB_TBNAME_COLUMN_INDEX;
   } else if (strlen(DEFAULT_PRIMARY_TIMESTAMP_COL_NAME) == pToken->n &&
             strncasecmp(pToken->z, DEFAULT_PRIMARY_TIMESTAMP_COL_NAME, pToken->n) == 0) {
     pIndex->columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX; // just make runtime happy, need fix java test case InsertSpecialCharacterJniTest
-  } else if (isTimeWindowToken(pToken, &pIndex->columnIndex)) {
-    switch (pIndex->columnIndex) {
-      case TSDB_TSWIN_START_COLUMN_INDEX: {
-        pQueryInfo->interval.winFlag |= TSDB_TSWIN_START_FLAG;
-        break;
-      }
-      case TSDB_TSWIN_STOP_COLUMN_INDEX: {
-        pQueryInfo->interval.winFlag |= TSDB_TSWIN_STOP_FLAG;
-        break;
-      }
-      case TSDB_TSWIN_DURATION_COLUMN_INDEX: {
-        pQueryInfo->interval.winFlag |= TSDB_TSWIN_DURATION_FLAG;
-        break;
-      }
-      default: {
-        break;
-      }
-    }
+  } else if (isTimeWindowToken(pToken, &tsWinColumnIndex)) {
+    pIndex->columnIndex = tsWinColumnIndex;
   } else {
     // not specify the table name, try to locate the table index by column name
     if (pIndex->tableIndex == COLUMN_INDEX_INITIAL_VAL) {
