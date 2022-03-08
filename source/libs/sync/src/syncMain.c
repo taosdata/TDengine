@@ -107,12 +107,12 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
     syncUtilnodeInfo2raftId(&pSyncInfo->syncCfg.nodeInfo[i], pSyncInfo->vgId, &pSyncNode->replicasId[i]);
   }
 
-  // raft algorithm
+  // init raft algorithm
   pSyncNode->pFsm = pSyncInfo->pFsm;
   pSyncNode->quorum = syncUtilQuorum(pSyncInfo->syncCfg.replicaNum);
   pSyncNode->leaderCache = EMPTY_RAFT_ID;
 
-  // life cycle
+  // init life cycle
 
   // init server vars
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
