@@ -965,6 +965,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->interval.intervalUnit = query.interval.intervalUnit;
   pQueryMsg->interval.slidingUnit  = query.interval.slidingUnit;
   pQueryMsg->interval.offsetUnit   = query.interval.offsetUnit;
+  pQueryMsg->interval.winFlag      = query.interval.winFlag;
 
   pQueryMsg->stableQuery      = query.stableQuery;
   pQueryMsg->topBotQuery      = query.topBotQuery;

@@ -95,6 +95,7 @@ typedef struct SInterval {
   int64_t interval;
   int64_t sliding;
   int64_t offset;
+  uint8_t winFlag;
 } SInterval;
 
 typedef struct SSessionWindow {

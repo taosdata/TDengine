@@ -276,7 +276,12 @@ do { \
 
 #define TSDB_MAX_REPLICA          5
 
-#define TSDB_TBNAME_COLUMN_INDEX        (-1)
+#define TSDB_TBNAME_COLUMN_INDEX          (-1)
+#define TSDB_TSWIN_START_COLUMN_INDEX     (-2)
+#define TSDB_TSWIN_STOP_COLUMN_INDEX      (-3)
+#define TSDB_TSWIN_DURATION_COLUMN_INDEX  (-4)
+#define TSDB_MIN_VALID_COLUMN_INDEX       (-4)
+
 #define TSDB_UD_COLUMN_INDEX            (-1000)
 #define TSDB_RES_COL_ID                 (-5000)
 
@@ -392,6 +397,10 @@ do { \
 #define TSDB_QUERY_TYPE_FILE_INSERT            0x400u    // insert data from file
 #define TSDB_QUERY_TYPE_STMT_INSERT            0x800u    // stmt insert type
 #define TSDB_QUERY_TYPE_NEST_SUBQUERY          0x1000u   // nested sub query
+
+#define TSDB_TSWIN_START_FLAG                  0x01u
+#define TSDB_TSWIN_STOP_FLAG                   0x02u
+#define TSDB_TSWIN_DURATION_FLAG               0x04u
 
 #define TSDB_QUERY_HAS_TYPE(x, _type)          (((x) & (_type)) != 0)
 #define TSDB_QUERY_SET_TYPE(x, _type)          ((x) |= (_type))
