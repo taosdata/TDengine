@@ -37,7 +37,7 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId);
 static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
 static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
 
-static void UpdateTerm(SyncTerm term);
+static void UpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
 static void syncNodeBecomeFollower(SSyncNode* pSyncNode);
 static void syncNodeBecomeLeader(SSyncNode* pSyncNode);
 static void syncNodeFollower2Candidate(SSyncNode* pSyncNode);
@@ -452,9 +452,38 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
   }
 }
 
-static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {}
+static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
+  SSyncNode* pSyncNode = (SSyncNode*)param;
+  if (atomic_load_64(&pSyncNode->heartbeatTimerLogicClockUser) <=
+      atomic_load_64(&pSyncNode->heartbeatTimerLogicClock)) {
+    SyncTimeout* pSyncMsg =
+        syncTimeoutBuild2(SYNC_TIMEOUT_HEARTBEAT, atomic_load_64(&pSyncNode->heartbeatTimerLogicClock),
+                          pSyncNode->heartbeatTimerMS, pSyncNode);
 
-static void UpdateTerm(SyncTerm term) {}
+    SRpcMsg rpcMsg;
+    syncTimeout2RpcMsg(pSyncMsg, &rpcMsg);
+    pSyncNode->FpEqMsg(pSyncNode->queue, &rpcMsg);
+    syncTimeoutDestroy(pSyncMsg);
+
+    // reset timer ms
+    // pSyncNode->heartbeatTimerMS += 100;
+
+    taosTmrReset(syncNodeEqHeartbeatTimer, pSyncNode->heartbeatTimerMS, pSyncNode, &gSyncEnv->pTimerManager,
+                 &pSyncNode->pHeartbeatTimer);
+  } else {
+    sTrace("syncNodeEqHeartbeatTimer: heartbeatTimerLogicClock:%lu, heartbeatTimerLogicClockUser:%lu",
+           pSyncNode->heartbeatTimerLogicClock, pSyncNode->heartbeatTimerLogicClockUser);
+  }
+}
+
+static void UpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
+  if (term > pSyncNode->pRaftStore->currentTerm) {
+    pSyncNode->pRaftStore->currentTerm = term;
+    pSyncNode->pRaftStore->voteFor = EMPTY_RAFT_ID;
+    raftStorePersist(pSyncNode->pRaftStore);
+    syncNodeBecomeFollower(pSyncNode);
+  }
+}
 
 static void syncNodeBecomeFollower(SSyncNode* pSyncNode) {
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {

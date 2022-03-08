@@ -28,11 +28,15 @@
 //             mdest         |-> j])
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 //
-int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode) {}
+int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode) {
+  int32_t ret = 0;
+  return ret;
+}
 
 int32_t syncNodeElect(SSyncNode* pSyncNode) {
   // start election
-  syncNodeRequestVotePeers(pSyncNode);
+  int32_t ret = syncNodeRequestVotePeers(pSyncNode);
+  return ret;
 }
 
 int32_t syncNodeRequestVote(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncRequestVote* pMsg) {

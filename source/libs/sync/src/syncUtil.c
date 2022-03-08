@@ -127,7 +127,7 @@ cJSON* syncUtilRaftId2Json(const SRaftId* p) {
   cJSON_AddNumberToObject(pRoot, "vgId", p->vgId);
 
   cJSON* pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SNodeInfo", pRoot);
+  cJSON_AddItemToObject(pJson, "SRaftId", pRoot);
   return pJson;
 }
 

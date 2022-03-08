@@ -155,7 +155,7 @@ typedef struct SSyncNode {
   SSyncLogStore* pLogStore;
   SyncIndex      commitIndex;
 
-  // timer
+  // ping timer
   tmr_h             pPingTimer;
   int32_t           pingTimerMS;
   uint64_t          pingTimerLogicClock;
@@ -163,6 +163,7 @@ typedef struct SSyncNode {
   TAOS_TMR_CALLBACK FpPingTimer;  // Timer Fp
   uint64_t          pingTimerCounter;
 
+  // elect timer
   tmr_h             pElectTimer;
   int32_t           electTimerMS;
   uint64_t          electTimerLogicClock;
@@ -170,6 +171,7 @@ typedef struct SSyncNode {
   TAOS_TMR_CALLBACK FpElectTimer;  // Timer Fp
   uint64_t          electTimerCounter;
 
+  // heartbeat timer
   tmr_h             pHeartbeatTimer;
   int32_t           heartbeatTimerMS;
   uint64_t          heartbeatTimerLogicClock;
