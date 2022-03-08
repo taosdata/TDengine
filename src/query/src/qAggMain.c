@@ -5647,8 +5647,8 @@ int32_t functionCompatList[] = {
     1,          1,        1,         1,       -1,      1,          1,           1,          5,          1,      1,
     // tid_tag, deriv,    csum,       mavg,        sample,
     6,          8,        -1,         -1,          -1,
-    // block_info,elapsed,histogram,unique,mode,tail
-    7,          1,        -1,        -1,      1,   -1
+    // block_info,elapsed,histogram,unique,mode,       tail,       tswin
+    7,          1,        -1,        -1,      1,       -1,         1
 };
 
 SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
