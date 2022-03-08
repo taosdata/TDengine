@@ -3079,7 +3079,8 @@ bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId) {
     return false;
   }
 
-  if (colId == TSDB_TBNAME_COLUMN_INDEX || colId <= TSDB_UD_COLUMN_INDEX) {
+  if ((colId <= TSDB_TBNAME_COLUMN_INDEX && colId >= TSDB_MIN_VALID_COLUMN_INDEX) ||
+      colId <= TSDB_UD_COLUMN_INDEX) {
     return true;
   }
 
