@@ -51,7 +51,7 @@
 #define COLUMN_INDEX_INITIAL_VAL (-2)
 #define COLUMN_INDEX_INITIALIZER \
   { COLUMN_INDEX_INITIAL_VAL, COLUMN_INDEX_INITIAL_VAL }
-#define COLUMN_INDEX_VALIDE(index) (((index).tableIndex >= 0) && ((index).columnIndex >= TSDB_TBNAME_COLUMN_INDEX))
+#define COLUMN_INDEX_VALID(index) (((index).tableIndex >= 0) && ((index).columnIndex >= TSDB_MIN_VALID_COLUMN_INDEX))
 #define TBNAME_LIST_SEP ","
 
 typedef struct SColumnList {  // todo refactor
@@ -2476,7 +2476,7 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
 
-    if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+    if (index.columnIndex < 0 || index.columnIndex >= TSDB_MIN_VALID_COLUMN_INDEX) {
       if (outerQuery) {
         STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
         int32_t         numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
@@ -2503,7 +2503,12 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
         /*SExprInfo* pExpr = */ tscAddFuncInSelectClause(pQueryInfo, startPos, TSDB_FUNC_PRJ, &index, &colSchema,
                                                          TSDB_COL_NORMAL, getNewResColId(pCmd));
       } else {
-        SSchema colSchema = *tGetTbnameColumnSchema();
+        SSchema colSchema;
+        if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+           colSchema = *tGetTbnameColumnSchema();
+        } else {
+           colSchema = *tGetTimeWindowColumnSchema(index.columnIndex);
+        }
         char    name[TSDB_COL_NAME_LEN] = {0};
         getColumnName(pItem, name, colSchema.name, sizeof(colSchema.name) - 1);
 
@@ -3858,7 +3863,7 @@ int32_t doGetColumnIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColum
     }
   }
 
-  if (COLUMN_INDEX_VALIDE(*pIndex)) {
+  if (COLUMN_INDEX_VALID(*pIndex)) {
     return TSDB_CODE_SUCCESS;
   } else {
     return TSDB_CODE_TSC_INVALID_OPERATION;
