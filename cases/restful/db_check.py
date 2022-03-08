@@ -64,6 +64,7 @@ class TestDB(TDCase):
         dbname = self.tdCom.get_long_name(len=10, mode="letters")
         self.tdRest.request(f'create database if not exists {dbname}')
         self.tdRest.error(f'create database {dbname}')
+        self.tdSql.checkEqual(self.tdRest.resp['desc'], "Database already exists")
         self.tdRest.error(f'create data base if not exists {dbname}')
         self.tdRest.error(f'create database i f not exists {dbname}')
         self.tdRest.error(f'cre ate database if not exists {dbname}')

@@ -22,9 +22,9 @@ class TestBool(TDCase):
         self.tdRest = TDRest()
 
     def illegal_insertsql_check(self):
-        '''
+        """
             mixed invalid symbol
-        '''
+        """
         dbname = self.tdCom.get_long_name(len=10, mode="letters")
         self.tdRest.request(f'create database if not exists {dbname}')
         stbname = self.tdCom.get_long_name(len=3, mode="letters")
@@ -53,9 +53,9 @@ class TestBool(TDCase):
         self.tdRest.request(f'drop database if exists {dbname}')
 
     def type_mismatch_check(self):
-        '''
+        """
             type mismatch check
-        '''
+        """
         dbname = self.tdCom.get_long_name(len=10, mode="letters")
         self.tdRest.request(f'create database if not exists {dbname}')
         self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
@@ -78,9 +78,24 @@ class TestBool(TDCase):
                 new_specified_column_insert_sql = base_specified_column_insert_sql.replace(str(i), replace_str)
                 self.tdRest.error(new_specified_column_insert_sql)
         
+    def duplicate_creation(self):
+        """
+        dumplicate create stb/tb
+        """
+        dbname = self.tdCom.get_long_name(len=10, mode="letters")
+        self.tdRest.request(f'create database if not exists {dbname}')
+        self.tdRest.request(f'create stable if not exists {dbname}.stb (ts timestamp, c1 int) tags (t1 int)')
+        self.tdRest.error(f'create stable {dbname}.stb (ts timestamp, c1 int) tags (t1 int)')
+        self.tdRest.error(f'create table {dbname}.stb (ts timestamp, c1 int) tags (t1 int)')
+        self.tdSql.checkEqual(self.tdRest.resp['desc'], "Table already exists")
+        self.tdRest.request(f'create table if not exists {dbname}.tb (ts timestamp, c1 int)')
+        self.tdRest.error(f'create table {dbname}.tb (ts timestamp, c1 int)')
+        self.tdSql.checkEqual(self.tdRest.resp['desc'], "Table already exists")
+
     def run(self):
         self.illegal_insertsql_check()
         self.type_mismatch_check()
+        self.duplicate_creation()
 
     def cleanup(self):
         pass
