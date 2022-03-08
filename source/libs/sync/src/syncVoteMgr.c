@@ -14,15 +14,25 @@
  */
 
 #include "syncVoteMgr.h"
+#include "syncUtil.h"
+
+// SVotesGranted -----------------------------
+static void voteGrantedClearVotes(SVotesGranted *pVotesGranted) {
+  memset(pVotesGranted->isGranted, 0, sizeof(pVotesGranted->isGranted));
+  pVotesGranted->votes = 0;
+}
 
 SVotesGranted *voteGrantedCreate(SSyncNode *pSyncNode) {
   SVotesGranted *pVotesGranted = malloc(sizeof(SVotesGranted));
   assert(pVotesGranted != NULL);
   memset(pVotesGranted, 0, sizeof(SVotesGranted));
 
-  pVotesGranted->quorum = pSyncNode->quorum;
+  pVotesGranted->replicas = &(pSyncNode->replicasId);
+  pVotesGranted->replicaNum = pSyncNode->replicaNum;
+  voteGrantedClearVotes(pVotesGranted);
+
   pVotesGranted->term = 0;
-  pVotesGranted->votes = 0;
+  pVotesGranted->quorum = pSyncNode->quorum;
   pVotesGranted->toLeader = false;
   pVotesGranted->pSyncNode = pSyncNode;
 
@@ -43,15 +53,73 @@ bool voteGrantedMajority(SVotesGranted *pVotesGranted) {
 void voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg) {
   assert(pMsg->voteGranted == true);
   assert(pMsg->term == pVotesGranted->term);
-  pVotesGranted->votes++;
+  assert(syncUtilSameId(&pVotesGranted->pSyncNode->myRaftId, &pMsg->destId));
+
+  int j = -1;
+  for (int i = 0; i < pVotesGranted->replicaNum; ++i) {
+    if (syncUtilSameId(&((*(pVotesGranted->replicas))[i]), &(pMsg->srcId))) {
+      j = i;
+      break;
+    }
+  }
+  assert(j != -1);
+  assert(j >= 0 && j < pVotesGranted->replicaNum);
+
+  if (pVotesGranted->isGranted[j] != true) {
+    ++(pVotesGranted->votes);
+    pVotesGranted->isGranted[j] = true;
+  }
+  assert(pVotesGranted->votes <= pVotesGranted->replicaNum);
 }
 
 void voteGrantedReset(SVotesGranted *pVotesGranted, SyncTerm term) {
   pVotesGranted->term = term;
-  pVotesGranted->votes = 0;
+  voteGrantedClearVotes(pVotesGranted);
   pVotesGranted->toLeader = false;
 }
 
+cJSON *voteGranted2Json(SVotesGranted *pVotesGranted) {
+  char   u64buf[128];
+  cJSON *pRoot = cJSON_CreateObject();
+
+  cJSON_AddNumberToObject(pRoot, "replicaNum", pVotesGranted->replicaNum);
+  cJSON *pReplicas = cJSON_CreateArray();
+  cJSON_AddItemToObject(pRoot, "replicas", pReplicas);
+  for (int i = 0; i < pVotesGranted->replicaNum; ++i) {
+    cJSON_AddItemToArray(pReplicas, syncUtilRaftId2Json(&(*(pVotesGranted->replicas))[i]));
+  }
+  int *arr = (int *)malloc(sizeof(int) * pVotesGranted->replicaNum);
+  for (int i = 0; i < pVotesGranted->replicaNum; ++i) {
+    arr[i] = pVotesGranted->isGranted[i];
+  }
+  cJSON *pIsGranted = cJSON_CreateIntArray(arr, pVotesGranted->replicaNum);
+  free(arr);
+  cJSON_AddItemToObject(pRoot, "isGranted", pIsGranted);
+
+  cJSON_AddNumberToObject(pRoot, "votes", pVotesGranted->votes);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pVotesGranted->term);
+  cJSON_AddStringToObject(pRoot, "term", u64buf);
+  cJSON_AddNumberToObject(pRoot, "quorum", pVotesGranted->quorum);
+  cJSON_AddNumberToObject(pRoot, "toLeader", pVotesGranted->toLeader);
+  snprintf(u64buf, sizeof(u64buf), "%p", pVotesGranted->pSyncNode);
+  cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
+
+  bool majority = voteGrantedMajority(pVotesGranted);
+  cJSON_AddNumberToObject(pRoot, "majority", majority);
+
+  cJSON *pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SVotesGranted", pRoot);
+  return pJson;
+}
+
+char *voteGranted2Str(SVotesGranted *pVotesGranted) {
+  cJSON *pJson = voteGranted2Json(pVotesGranted);
+  char * serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
+// SVotesRespond -----------------------------
 SVotesRespond *votesRespondCreate(SSyncNode *pSyncNode) {
   SVotesRespond *pVotesRespond = malloc(sizeof(SVotesRespond));
   assert(pVotesRespond != NULL);
@@ -63,6 +131,12 @@ SVotesRespond *votesRespondCreate(SSyncNode *pSyncNode) {
   pVotesRespond->pSyncNode = pSyncNode;
 
   return pVotesRespond;
+}
+
+void votesRespondDestory(SVotesRespond *pVotesRespond) {
+  if (pVotesRespond != NULL) {
+    free(pVotesRespond);
+  }
 }
 
 bool votesResponded(SVotesRespond *pVotesRespond, const SRaftId *pRaftId) {
