@@ -2407,7 +2407,7 @@ static int32_t doAddProjectionExprAndResultFields(SQueryInfo* pQueryInfo, SColum
 int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExprItem* pItem, bool outerQuery, bool timeWindowQuery) {
   const char* msg1 = "tag for normal table query is not allowed";
   const char* msg2 = "invalid column name";
-  const char* msg3 = "tbname not allowed in outer query";
+  const char* msg3 = "tbname/_wstart/_wstop/_wduration in outer query does not match inner query result";
   const char* msg4 = "-> operate can only used in json type";
   const char* msg5 = "the right value of -> operation must be string";
   const char* msg6 = "select name is too long than 64, please use alias name";
@@ -2486,7 +2486,14 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
         bool existed = false;
         SSchema* pSchema = pTableMetaInfo->pTableMeta->schema;
         for (int32_t i = 0; i < numOfCols; ++i) {
-          if (strncasecmp(pSchema[i].name, TSQL_TBNAME_L, tListLen(pSchema[i].name)) == 0) {
+          if ((strncasecmp(pSchema[i].name, TSQL_TBNAME_L, tListLen(pSchema[i].name)) == 0 &&
+              index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) ||
+              (strncasecmp(pSchema[i].name, TSQL_TSWIN_START, tListLen(pSchema[i].name)) == 0 &&
+              index.columnIndex == TSDB_TSWIN_START_COLUMN_INDEX) ||
+              (strncasecmp(pSchema[i].name, TSQL_TSWIN_STOP, tListLen(pSchema[i].name)) == 0 &&
+              index.columnIndex == TSDB_TSWIN_STOP_COLUMN_INDEX) ||
+              (strncasecmp(pSchema[i].name, TSQL_TSWIN_DURATION, tListLen(pSchema[i].name)) == 0 &&
+              index.columnIndex == TSDB_TSWIN_DURATION_COLUMN_INDEX)) {
             existed = true;
             index.columnIndex = i;
             break;
