@@ -1110,6 +1110,5 @@ TEST_F(IndexEnv2, testIndex_del) {
 
   index->WriteMultiMillonData("tag10", "xxxxxxxxxxxxxx", 100 * 10000);
   index->Del("tag10", "Hello", 17);
-
   EXPECT_EQ(97, index->SearchOne("tag10", "Hello"));
 }
