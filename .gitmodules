@@ -19,4 +19,4 @@
 	url = https://github.com/taosdata/taosadapter
 [submodule "examples/rust"]
 	path = examples/rust
-	url = https://github.com/sontianyi/tdengine-rust-bindings.git
+	url = https://github.com/songtianyi/tdengine-rust-bindings.git
