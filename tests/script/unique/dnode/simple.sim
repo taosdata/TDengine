@@ -1,0 +1,147 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+
+print ========== step1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create dnode $hostname2
+system sh/exec.sh -n dnode2 -s start
+sql create dnode $hostname3
+system sh/exec.sh -n dnode3 -s start
+sleep 2000
+
+sql create database d1 replica 2  
+sql create table d1.t1 (t timestamp, i int)
+sql insert into d1.t1 values(now+1s, 15)
+sql insert into d1.t1 values(now+2s, 14)
+sql insert into d1.t1 values(now+3s, 13)
+sql insert into d1.t1 values(now+4s, 12)
+sql insert into d1.t1 values(now+5s, 11)
+
+sql show dnodes
+print dnode1 openVnodes $data2_1
+print dnode2 openVnodes $data2_2
+print dnode3 openVnodes $data2_3
+print dnode4 openVnodes $data2_4
+if $data2_1 != 0 then
+	return -1
+endi
+if $data2_2 != 1 then
+	return -1
+endi
+if $data2_3 != 1 then
+	return -1
+endi
+if $data2_4 != null then
+	return -1
+endi
+
+print ========== step2
+sql create dnode $hostname4
+system sh/exec.sh -n dnode4 -s start
+sleep 2000
+
+sql show dnodes
+print dnode1 openVnodes $data2_1
+print dnode2 openVnodes $data2_2
+print dnode3 openVnodes $data2_3
+print dnode4 openVnodes $data2_4
+if $data2_1 != 0 then
+	return -1
+endi
+if $data2_2 != 1 then
+	return -1
+endi
+if $data2_3 != 1 then
+	return -1
+endi
+if $data2_4 != 0 then
+	return -1
+endi
+
+print ========== step3
+sql drop dnode $hostname2
+
+$x = 0
+show3: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 10 then
+		return -1
+	endi
+	
+sql show dnodes
+print dnode1 openVnodes $data2_1
+print dnode2 openVnodes $data2_2
+print dnode3 openVnodes $data2_3
+print dnode4 openVnodes $data2_4
+if $data2_1 != 0 then
+	goto show3
+endi
+if $data2_2 != null then
+	goto show3
+endi
+if $data2_3 != 1 then
+	goto show3
+endi
+if $data2_4 != 1 then
+	goto show3
+endi
+
+print ========== step4
+sql drop dnode $hostname3
+
+$x = 0
+show4: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 10 then
+		return -1
+	endi
+	
+sql show dnodes
+print dnode1 openVnodes $data2_1
+print dnode2 openVnodes $data2_2
+print dnode3 openVnodes $data2_3
+print dnode4 openVnodes $data2_4
+if $data2_1 != 1 then
+	goto show4
+endi
+if $data2_2 != null then
+	goto show4
+endi
+if $data2_3 != null then
+	goto show4
+endi
+if $data2_4 != 1 then
+	goto show4
+endi
+
+print ========== step5
+sql select * from d1.t1 order by t desc
+print $data01 $data11 $data21 $data31 $data41 
+if $data01 != 11 then
+  return -1
+endi
+if $data11 != 12 then
+  return -1
+endi
+if $data21 != 13 then
+  return -1
+endi
+if $data31 != 14 then
+  return -1
+endi
+if $data41 != 15 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT

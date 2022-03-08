@@ -58,7 +58,7 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseContext* pCtx, void** out
 
     SVgroupInfo* info = taosArrayGet(array, 0);
     pShowReq->head.vgId = htonl(info->vgId);
-    *pEpSet = info->epset;
+    *pEpSet = info->epSet;
 
     *outputLen  = sizeof(SVShowTablesReq);
     *output     = pShowReq;

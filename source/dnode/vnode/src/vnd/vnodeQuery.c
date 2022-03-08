@@ -29,7 +29,7 @@ int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   SReadHandle handle = {.reader = pVnode->pTsdb, .meta = pVnode->pMeta};
 
   switch (pMsg->msgType) {
-    case TDMT_VND_QUERY:{
+    case TDMT_VND_QUERY: {
       return qWorkerProcessQueryMsg(&handle, pVnode->pQuery, pMsg);
     }
     case TDMT_VND_QUERY_CONTINUE:
@@ -63,7 +63,7 @@ int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     case TDMT_VND_TABLE_META:
       return vnodeGetTableMeta(pVnode, pMsg);
     case TDMT_VND_CONSUME:
-      return tqProcessConsumeReq(pVnode->pTq, pMsg);
+      return tqProcessPollReq(pVnode->pTq, pMsg);
     default:
       vError("unknown msg type:%d in fetch queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;
@@ -71,8 +71,8 @@ int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 }
 
 static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
-  STbCfg *        pTbCfg = NULL;
-  STbCfg *        pStbCfg = NULL;
+  STbCfg         *pTbCfg = NULL;
+  STbCfg         *pStbCfg = NULL;
   tb_uid_t        uid;
   int32_t         nCols;
   int32_t         nTagCols;
@@ -204,9 +204,9 @@ static void freeItemHelper(void *pItem) {
  */
 static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
   SMTbCursor *pCur = metaOpenTbCursor(pVnode->pMeta);
-  SArray *    pArray = taosArrayInit(10, POINTER_BYTES);
+  SArray     *pArray = taosArrayInit(10, POINTER_BYTES);
 
-  char *  name = NULL;
+  char   *name = NULL;
   int32_t totalLen = 0;
   int32_t numOfTables = 0;
   while ((name = metaTbCursorNext(pCur)) != NULL) {
