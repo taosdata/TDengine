@@ -232,6 +232,8 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
                           int32_t *len, int32_t *interBytes, int16_t extLength, bool isSuperTable, SUdfInfo* pUdfInfo);
 int32_t isValidFunction(const char* name, int32_t len);
 
+bool isValidStateOper(char *oper, int32_t len);
+
 #define IS_STREAM_QUERY_VALID(x)  (((x)&TSDB_FUNCSTATE_STREAM) != 0)
 #define IS_MULTIOUTPUT(x)         (((x)&TSDB_FUNCSTATE_MO) != 0)
 #define IS_SINGLEOUTPUT(x)        (((x)&TSDB_FUNCSTATE_SO) != 0)

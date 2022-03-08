@@ -1125,7 +1125,8 @@ static int32_t checkInvalidExprForTimeWindow(SSqlCmd* pCmd, SQueryInfo* pQueryIn
     if (pExpr->base.functionId == TSDB_FUNC_COUNT && TSDB_COL_IS_TAG(pExpr->base.colInfo.flag)) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
-    if (pExpr->base.functionId == TSDB_FUNC_UNIQUE) {
+    if (pExpr->base.functionId == TSDB_FUNC_UNIQUE || pExpr->base.functionId == TSDB_FUNC_STATE_COUNT ||
+        pExpr->base.functionId == TSDB_FUNC_STATE_DURATION) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
   }
@@ -2878,7 +2879,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       // set the first column ts for diff query
-      if (functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE || functionId == TSDB_FUNC_CSUM) {
+      if (functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE || functionId == TSDB_FUNC_CSUM ||
+          functionId == TSDB_FUNC_STATE_COUNT || functionId == TSDB_FUNC_STATE_DURATION) {
         SColumnIndex indexTS = {.tableIndex = index.tableIndex, .columnIndex = 0};
         SExprInfo*   pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &indexTS, TSDB_DATA_TYPE_TIMESTAMP,
                                            TSDB_KEYSIZE, 0, TSDB_KEYSIZE, false);
@@ -2887,6 +2889,15 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         SColumnList ids = createColumnList(1, 0, 0);
         insertResultField(pQueryInfo, colIndex, &ids, TSDB_KEYSIZE, TSDB_DATA_TYPE_TIMESTAMP,
                           aAggs[TSDB_FUNC_TS_DUMMY].name, pExpr);
+      }
+
+      if (functionId == TSDB_FUNC_STATE_COUNT || functionId == TSDB_FUNC_STATE_DURATION) {
+        SExprInfo*   pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_PRJ, &index, pSchema->type,
+                                           pSchema->bytes, getNewResColId(pCmd), intermediateResSize, false);
+
+        SColumnList ids = createColumnList(1, index.tableIndex, index.columnIndex);
+        insertResultField(pQueryInfo, colIndex + 1, &ids, pExpr->base.resBytes, (int32_t)pExpr->base.resType,
+                          pExpr->base.aliasName, pExpr);
       }
 
       SExprInfo* pExpr = tscExprAppend(pQueryInfo, functionId, &index, resultType, resultSize, getNewResColId(pCmd),
@@ -2967,6 +2978,41 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           }
         }
         tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+      } else if (functionId == TSDB_FUNC_STATE_COUNT || functionId == TSDB_FUNC_STATE_DURATION) {
+        if (pParamElem[1].pNode->tokenId != TK_ID || !isValidStateOper(pParamElem[1].pNode->columnName.z, pParamElem[1].pNode->columnName.n)) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+        }
+        tscExprAddParams(&pExpr->base, pParamElem[1].pNode->columnName.z, TSDB_DATA_TYPE_BINARY, pParamElem[1].pNode->columnName.n);
+
+        if (pParamElem[2].pNode->tokenId != TK_INTEGER || pParamElem[2].pNode->tokenId != TK_FLOAT) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+        }
+        tVariantAssign(&pExpr->base.param[pExpr->base.numOfParams++], &pParamElem[2].pNode->value);
+
+        if (functionId == TSDB_FUNC_STATE_DURATION){
+          if (numOfParams == 4) {
+            // unit must be 1s 1m 1h
+            if (pParamElem[3].pNode->tokenId != TK_TIMESTAMP || (pParamElem[3].pNode->value.i64 != MILLISECOND_PER_SECOND * 1000000L &&
+                                                                 pParamElem[3].pNode->value.i64 != MILLISECOND_PER_MINUTE * 1000000L && pParamElem[3].pNode->value.i64 != MILLISECOND_PER_HOUR * 1000000L)) {
+              return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+            }
+            if (info.precision == TSDB_TIME_PRECISION_MILLI) {
+              pParamElem[3].pNode->value.i64 /= TSDB_TICK_PER_SECOND(TSDB_TIME_PRECISION_MICRO);
+            } else if (info.precision == TSDB_TIME_PRECISION_MICRO) {
+              pParamElem[3].pNode->value.i64 /= TSDB_TICK_PER_SECOND(TSDB_TIME_PRECISION_MILLI);
+            }
+
+            tVariantAssign(&pExpr->base.param[pExpr->base.numOfParams++], &pParamElem[3].pNode->value);
+          }else{
+            int64_t tmp = TSDB_TICK_PER_SECOND(TSDB_TIME_PRECISION_NANO);
+            if (info.precision == TSDB_TIME_PRECISION_MILLI) {
+              tmp /= TSDB_TICK_PER_SECOND(TSDB_TIME_PRECISION_MICRO);
+            } else if (info.precision == TSDB_TIME_PRECISION_MICRO) {
+              tmp /= TSDB_TICK_PER_SECOND(TSDB_TIME_PRECISION_MILLI);
+            }
+            tscExprAddParams(&pExpr->base, (char *)&tmp, TSDB_DATA_TYPE_BIGINT, sizeof(tmp));
+          }
+        }
       }
 
       SColumnList ids = createColumnList(1, index.tableIndex, index.columnIndex);
@@ -8428,7 +8474,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
         }
       }
 
-      if (pQueryInfo->stateWindow && f == TSDB_FUNC_UNIQUE){
+      if (pQueryInfo->stateWindow && (f == TSDB_FUNC_UNIQUE || f == TSDB_FUNC_STATE_COUNT || f == TSDB_FUNC_STATE_DURATION)){
         return invalidOperationMsg(msg, msg7);
       }
     }

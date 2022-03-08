@@ -2042,7 +2042,6 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
 
   pRuntimeEnv->prevGroupId = INT32_MIN;
-  pRuntimeEnv->pQueryAttr = pQueryAttr;
 
   pRuntimeEnv->pResultRowHashTable = taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   pRuntimeEnv->pResultRowListSet = taosHashInit(numOfTables * 10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
@@ -2303,10 +2302,10 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       case OP_Order: {
         if (pQueryAttr->pExpr2 != NULL) {
           pRuntimeEnv->proot = createOrderOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr2,
-                                                       pQueryAttr->numOfExpr2, &pQueryAttr->order);
+                                                       pQueryAttr->numOfExpr2, &pQueryAttr->order, pQueryAttr->originOrder);
         } else {
           pRuntimeEnv->proot = createOrderOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1,
-                                                       pQueryAttr->numOfOutput, &pQueryAttr->order);
+                                                       pQueryAttr->numOfOutput, &pQueryAttr->order, pQueryAttr->originOrder);
         }
         if (pRuntimeEnv->proot == NULL) {
           goto _clean;
@@ -2661,7 +2660,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bool
     return;
   }
 
-  if (pQueryAttr->groupbyColumn && pQueryAttr->order.order == TSDB_ORDER_DESC) {
+  if ((pQueryAttr->groupbyColumn || pQueryAttr->stateQuery) && pQueryAttr->order.order == TSDB_ORDER_DESC) {
     pQueryAttr->order.order = TSDB_ORDER_ASC;
     if (pQueryAttr->window.skey > pQueryAttr->window.ekey) {
       SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
@@ -3174,7 +3173,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
                                   pTableScanInfo->rowCellInfoOffset) != TSDB_CODE_SUCCESS) {
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
-    } else if (pQueryAttr->stableQuery && (!pQueryAttr->tsCompQuery) && (!pQueryAttr->diffQuery) && (!pQueryAttr->pointInterpQuery)) { // stable aggregate, not interval aggregate or normal column aggregate
+    } else if (pQueryAttr->stableQuery && (!pQueryAttr->tsCompQuery) && (!pQueryAttr->pointInterpQuery)) { // stable aggregate, not interval aggregate or normal column aggregate
       doSetTableGroupOutputBuf(pRuntimeEnv, pTableScanInfo->pResultRowInfo, pTableScanInfo->pCtx,
                                pTableScanInfo->rowCellInfoOffset, pTableScanInfo->numOfOutput,
                                pRuntimeEnv->current->groupIndex);
@@ -5849,7 +5848,7 @@ static SSDataBlock* doSort(void* param, bool* newgroup) {
   return (pInfo->pDataBlock->info.rows > 0)? pInfo->pDataBlock:NULL;
 }
 
-SOperatorInfo *createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, SOrderVal* pOrderVal) {
+SOperatorInfo *createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, SOrderVal* pOrderVal, uint32_t originOrder) {
   SOrderOperatorInfo* pInfo = calloc(1, sizeof(SOrderOperatorInfo));
   if (pInfo == NULL) {
     return NULL;
@@ -5879,7 +5878,7 @@ SOperatorInfo *createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
       }
 
       pDataBlock->info.numOfCols = numOfOutput;
-      pInfo->order = pOrderVal->order;
+      pInfo->order = originOrder;
       pInfo->pDataBlock = pDataBlock;
   }
 
@@ -9530,6 +9529,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   pQueryAttr->limit.offset    = pQueryMsg->offset;
   pQueryAttr->order.order     = pQueryMsg->order;
   pQueryAttr->order.orderColId = pQueryMsg->orderColId;
+  pQueryAttr->originOrder     = pQueryMsg->order;  // record the order previous
   pQueryAttr->pExpr1          = pExprs;
   pQueryAttr->pExpr2          = pSecExprs;
   pQueryAttr->numOfExpr2      = pQueryMsg->secondStageOutput;
@@ -9587,6 +9587,9 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
 
     if (pExprs[col].base.flist.filterInfo) {
       ++pQueryAttr->havingNum;
+    }
+    if (pExprs[col].base.functionId == TSDB_FUNC_STATE_COUNT || pExprs[col].base.functionId == TSDB_FUNC_STATE_DURATION){
+      pQueryAttr->stateQuery = true;
     }
   }
 

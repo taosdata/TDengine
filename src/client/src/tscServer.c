@@ -1184,7 +1184,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   tlv->len  = htonl(sizeof(int16_t) * 2);
   *(int16_t*)tlv->value = htons(pTableMeta->sversion);
   *(int16_t*)(tlv->value+sizeof(int16_t)) = htons(pTableMeta->tversion);
-  pMsg += sizeof(*tlv) + ntohl(tlv->len);
+  pMsg += sizeof(*tlv) + sizeof(int16_t) * 2;
 
   tlv = (STLV *)pMsg;
   tlv->type = htons(TLV_TYPE_END_MARK);
