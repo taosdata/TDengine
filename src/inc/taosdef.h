@@ -400,10 +400,6 @@ do { \
 #define TSDB_QUERY_TYPE_STMT_INSERT            0x800u    // stmt insert type
 #define TSDB_QUERY_TYPE_NEST_SUBQUERY          0x1000u   // nested sub query
 
-#define TSDB_TSWIN_START_FLAG                  0x01u
-#define TSDB_TSWIN_STOP_FLAG                   0x02u
-#define TSDB_TSWIN_DURATION_FLAG               0x04u
-
 #define TSDB_QUERY_HAS_TYPE(x, _type)          (((x) & (_type)) != 0)
 #define TSDB_QUERY_SET_TYPE(x, _type)          ((x) |= (_type))
 #define TSDB_QUERY_CLEAR_TYPE(x, _type)        ((x) &= (~_type))
