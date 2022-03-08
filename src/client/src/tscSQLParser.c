@@ -2478,7 +2478,7 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
     }
 
     //for tbname and other pseudo columns
-    if (index.columnIndex <= TSDB_TBNAME_COLUMN_INDEX && index.columnIndex >= TSDB_MIN_VALID_COLUMN_INDEX) {
+    if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX || TSDB_COL_IS_TSWIN_COL(index.columnIndex)) {
       if (outerQuery) {
         STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
         int32_t         numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);

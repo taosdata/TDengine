@@ -282,6 +282,8 @@ do { \
 #define TSDB_TSWIN_DURATION_COLUMN_INDEX  (-4)
 #define TSDB_MIN_VALID_COLUMN_INDEX       (-4)
 
+#define TSDB_COL_IS_TSWIN_COL(_i)       ((_i) <= TSDB_TSWIN_START_COLUMN_INDEX && (_i) >= TSDB_TSWIN_DURATION_COLUMN_INDEX)
+
 #define TSDB_UD_COLUMN_INDEX            (-1000)
 #define TSDB_RES_COL_ID                 (-5000)
 

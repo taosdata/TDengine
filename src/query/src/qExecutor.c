@@ -462,7 +462,7 @@ static bool isProjQuery(SQueryAttr *pQueryAttr) {
 
 static bool hasNull(SColIndex* pColIndex, SDataStatis *pStatis) {
   if (TSDB_COL_IS_TAG(pColIndex->flag) || TSDB_COL_IS_UD_COL(pColIndex->flag) ||
-      pColIndex->colId == PRIMARYKEY_TIMESTAMP_COL_INDEX || pColIndex->colId < TSDB_TBNAME_COLUMN_INDEX) {
+      TSDB_COL_IS_TSWIN_COL(pColIndex->colId) || pColIndex->colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
     return false;
   }
 
@@ -1192,7 +1192,7 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, 
       setArithParams((SScalarExprSupport*)pCtx[i].param[1].pz, &pOperator->pExpr[i], pBlock);
     } else {
       SColIndex* pCol = &pOperator->pExpr[i].base.colInfo;
-      if ((TSDB_COL_IS_NORMAL_COL(pCol->flag) && pCol->colId >= 0) || (pCtx[i].functionId == TSDB_FUNC_BLKINFO) ||
+      if ((TSDB_COL_IS_NORMAL_COL(pCol->flag) && !TSDB_COL_IS_TSWIN_COL(pCol->colId)) || (pCtx[i].functionId == TSDB_FUNC_BLKINFO) ||
           (TSDB_COL_IS_TAG(pCol->flag) && pOperator->pRuntimeEnv->scanFlag == MERGE_STAGE)) {
         SColIndex*       pColIndex = &pOperator->pExpr[i].base.colInfo;
         SColumnInfoData* p = taosArrayGet(pBlock->pDataBlock, pColIndex->colIndex);
@@ -1844,7 +1844,7 @@ static bool functionNeedToExecute(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx 
 void setBlockStatisInfo(SQLFunctionCtx *pCtx, SSDataBlock* pSDataBlock, SColIndex* pColIndex) {
   SDataStatis *pStatis = NULL;
 
-  if (pSDataBlock->pBlockStatis != NULL && TSDB_COL_IS_NORMAL_COL(pColIndex->flag) && pColIndex->colId >= 0) {
+  if (pSDataBlock->pBlockStatis != NULL && TSDB_COL_IS_NORMAL_COL(pColIndex->flag) && !TSDB_COL_IS_TSWIN_COL(pColIndex->colId)) {
     pStatis = &pSDataBlock->pBlockStatis[pColIndex->colIndex];
 
     pCtx->preAggVals.statis = *pStatis;
@@ -8391,8 +8391,8 @@ static int32_t getColumnIndexInSource(SQueriedTableInfo *pTableInfo, SSqlExpr *p
   int32_t j = 0;
 
   if (TSDB_COL_IS_TAG(pExpr->colInfo.flag)) {
-    if (pExpr->colInfo.colId <= TSDB_TBNAME_COLUMN_INDEX &&
-        pExpr->colInfo.colId >= TSDB_MIN_VALID_COLUMN_INDEX) {
+    if (pExpr->colInfo.colId == TSDB_TBNAME_COLUMN_INDEX ||
+        TSDB_COL_IS_TSWIN_COL(pExpr->colInfo.colId)) {
       return pExpr->colInfo.colId;
     }
 
@@ -9176,8 +9176,7 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
       SSchema* s = tGetTbnameColumnSchema();
       type = s->type;
       bytes = s->bytes;
-    } else if (pExprs[i].base.colInfo.colId < TSDB_TBNAME_COLUMN_INDEX &&
-               pExprs[i].base.colInfo.colId >= TSDB_MIN_VALID_COLUMN_INDEX &&
+    } else if (TSDB_COL_IS_TSWIN_COL(pExprs[i].base.colInfo.colId) &&
                (pExprs[i].base.functionId >= TSDB_FUNC_WSTART || pExprs[i].base.functionId <= TSDB_FUNC_WDURATION)) {
       SSchema* s = tGetTimeWindowColumnSchema(pExprs[i].base.colInfo.colId);
       type = s->type;

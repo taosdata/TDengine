@@ -5662,6 +5662,14 @@ static void wduration_function(SQLFunctionCtx *pCtx) {
   *(int64_t *)(pCtx->pOutput) = duration;
 }
 
+static void tswin_function_finalizer(SQLFunctionCtx *pCtx) {
+  SET_VAL(pCtx, pCtx->size, 1);
+  if (pCtx->stableQuery) {
+    *(int64_t *)(pCtx->pOutput) = *(int64_t *)pCtx->pInput;
+  }
+  doFinalizer(pCtx);
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////
 /*
  * function compatible list.
@@ -6201,7 +6209,7 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                               TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
                               function_setup,
                               wstart_function,
-                              noop1,
+                              tswin_function_finalizer,
                               noop1,
                               dataBlockRequired,
                           },
@@ -6213,7 +6221,7 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                               TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
                               function_setup,
                               wstop_function,
-                              noop1,
+                              tswin_function_finalizer,
                               noop1,
                               dataBlockRequired,
                           },
@@ -6225,7 +6233,7 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                               TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
                               function_setup,
                               wduration_function,
-                              noop1,
+                              tswin_function_finalizer,
                               noop1,
                               dataBlockRequired,
                           }
