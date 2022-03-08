@@ -2516,21 +2516,8 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
           }
           colSchema  = *tGetTimeWindowColumnSchema(index.columnIndex);
-          switch (index.columnIndex) {
-            case TSDB_TSWIN_START_COLUMN_INDEX: {
-              functionId = TSDB_FUNC_WSTART;
-              break;
-            }
-            case TSDB_TSWIN_STOP_COLUMN_INDEX: {
-              functionId = TSDB_FUNC_WSTOP;
-              break;
-            }
-            case TSDB_TSWIN_DURATION_COLUMN_INDEX: {
-              functionId = TSDB_FUNC_WDURATION;
-              break;
-            }
-          }
-          colType = TSDB_COL_NORMAL;
+          functionId = getTimeWindowFunctionID(index.columnIndex);
+          colType    = TSDB_COL_NORMAL;
         }
         char name[TSDB_COL_NAME_LEN] = {0};
         getColumnName(pItem, name, colSchema.name, sizeof(colSchema.name) - 1);

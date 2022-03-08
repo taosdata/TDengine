@@ -5627,6 +5627,22 @@ static void tail_func_finalizer(SQLFunctionCtx *pCtx) {
   doFinalizer(pCtx);
 }
 
+int16_t getTimeWindowFunctionID(int16_t colIndex) {
+  switch (colIndex) {
+    case TSDB_TSWIN_START_COLUMN_INDEX: {
+      return TSDB_FUNC_WSTART;
+    }
+    case TSDB_TSWIN_STOP_COLUMN_INDEX: {
+      return TSDB_FUNC_WSTOP;
+    }
+    case TSDB_TSWIN_DURATION_COLUMN_INDEX: {
+      return TSDB_FUNC_WDURATION;
+    }
+    default:
+      return TSDB_FUNC_INVALID_ID;
+  }
+}
+
 static void wstart_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, pCtx->size, 1);
   *(int64_t *)(pCtx->pOutput) = pCtx->startTs;
