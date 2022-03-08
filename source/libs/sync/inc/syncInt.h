@@ -120,11 +120,11 @@ typedef struct SSyncNode {
   int32_t (*FpEqMsg)(void* queue, SRpcMsg* pMsg);
 
   // init internal
-  SNodeInfo me;
-  SRaftId   raftId;
+  SNodeInfo myNodeInfo;
+  SRaftId   myRaftId;
 
   int32_t   peersNum;
-  SNodeInfo peers[TSDB_MAX_REPLICA];
+  SNodeInfo peersNodeInfo[TSDB_MAX_REPLICA];
   SRaftId   peersId[TSDB_MAX_REPLICA];
 
   int32_t replicaNum;

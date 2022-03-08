@@ -85,20 +85,20 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   pSyncNode->FpEqMsg = pSyncInfo->FpEqMsg;
 
   // init internal
-  pSyncNode->me = pSyncInfo->syncCfg.nodeInfo[pSyncInfo->syncCfg.myIndex];
-  syncUtilnodeInfo2raftId(&pSyncNode->me, pSyncInfo->vgId, &pSyncNode->raftId);
+  pSyncNode->myNodeInfo = pSyncInfo->syncCfg.nodeInfo[pSyncInfo->syncCfg.myIndex];
+  syncUtilnodeInfo2raftId(&pSyncNode->myNodeInfo, pSyncInfo->vgId, &pSyncNode->myRaftId);
 
   // init peersNum, peers, peersId
   pSyncNode->peersNum = pSyncInfo->syncCfg.replicaNum - 1;
   int j = 0;
   for (int i = 0; i < pSyncInfo->syncCfg.replicaNum; ++i) {
     if (i != pSyncInfo->syncCfg.myIndex) {
-      pSyncNode->peers[j] = pSyncInfo->syncCfg.nodeInfo[i];
+      pSyncNode->peersNodeInfo[j] = pSyncInfo->syncCfg.nodeInfo[i];
       j++;
     }
   }
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
-    syncUtilnodeInfo2raftId(&pSyncNode->peers[i], pSyncInfo->vgId, &pSyncNode->peersId[i]);
+    syncUtilnodeInfo2raftId(&pSyncNode->peersNodeInfo[i], pSyncInfo->vgId, &pSyncNode->peersId[i]);
   }
 
   // init replicaNum, replicasId
@@ -190,16 +190,16 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
   cJSON_AddStringToObject(pRoot, "FpEqMsg", u64buf);
 
   // init internal
-  cJSON* pMe = syncUtilNodeInfo2Json(&pSyncNode->me);
-  cJSON_AddItemToObject(pRoot, "me", pMe);
-  cJSON* pRaftId = syncUtilRaftId2Json(&pSyncNode->raftId);
-  cJSON_AddItemToObject(pRoot, "raftId", pRaftId);
+  cJSON* pMe = syncUtilNodeInfo2Json(&pSyncNode->myNodeInfo);
+  cJSON_AddItemToObject(pRoot, "myNodeInfo", pMe);
+  cJSON* pRaftId = syncUtilRaftId2Json(&pSyncNode->myRaftId);
+  cJSON_AddItemToObject(pRoot, "myRaftId", pRaftId);
 
   cJSON_AddNumberToObject(pRoot, "peersNum", pSyncNode->peersNum);
   cJSON* pPeers = cJSON_CreateArray();
-  cJSON_AddItemToObject(pRoot, "peers", pPeers);
+  cJSON_AddItemToObject(pRoot, "peersNodeInfo", pPeers);
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
-    cJSON_AddItemToArray(pPeers, syncUtilNodeInfo2Json(&pSyncNode->peers[i]));
+    cJSON_AddItemToArray(pPeers, syncUtilNodeInfo2Json(&pSyncNode->peersNodeInfo[i]));
   }
   cJSON* pPeersId = cJSON_CreateArray();
   cJSON_AddItemToObject(pRoot, "peersId", pPeersId);
@@ -222,7 +222,8 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
   cJSON_AddItemToObject(pRoot, "leaderCache", pLaderCache);
 
   // tla+ server vars
-  cJSON_AddStringToObject(pRoot, "state", syncUtilState2String(pSyncNode->state));
+  cJSON_AddNumberToObject(pRoot, "state", pSyncNode->state);
+  cJSON_AddStringToObject(pRoot, "state_str", syncUtilState2String(pSyncNode->state));
 
   // tla+ candidate vars
 
@@ -283,7 +284,7 @@ int32_t syncNodePingAll(SSyncNode* pSyncNode) {
   for (int i = 0; i < pSyncNode->syncCfg.replicaNum; ++i) {
     SRaftId destId;
     syncUtilnodeInfo2raftId(&pSyncNode->syncCfg.nodeInfo[i], pSyncNode->vgId, &destId);
-    SyncPing* pMsg = syncPingBuild3(&pSyncNode->raftId, &destId);
+    SyncPing* pMsg = syncPingBuild3(&pSyncNode->myRaftId, &destId);
     ret = syncNodePing(pSyncNode, &destId, pMsg);
     assert(ret == 0);
     syncPingDestroy(pMsg);
@@ -294,8 +295,8 @@ int32_t syncNodePingPeers(SSyncNode* pSyncNode) {
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
     SRaftId destId;
-    syncUtilnodeInfo2raftId(&pSyncNode->peers[i], pSyncNode->vgId, &destId);
-    SyncPing* pMsg = syncPingBuild3(&pSyncNode->raftId, &destId);
+    syncUtilnodeInfo2raftId(&pSyncNode->peersNodeInfo[i], pSyncNode->vgId, &destId);
+    SyncPing* pMsg = syncPingBuild3(&pSyncNode->myRaftId, &destId);
     ret = syncNodePing(pSyncNode, &destId, pMsg);
     assert(ret == 0);
     syncPingDestroy(pMsg);
@@ -304,7 +305,7 @@ int32_t syncNodePingPeers(SSyncNode* pSyncNode) {
 
 int32_t syncNodePingSelf(SSyncNode* pSyncNode) {
   int32_t   ret;
-  SyncPing* pMsg = syncPingBuild3(&pSyncNode->raftId, &pSyncNode->raftId);
+  SyncPing* pMsg = syncPingBuild3(&pSyncNode->myRaftId, &pSyncNode->myRaftId);
   ret = syncNodePing(pSyncNode, &pMsg->destId, pMsg);
   assert(ret == 0);
   syncPingDestroy(pMsg);
@@ -385,7 +386,7 @@ static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg) {
     cJSON_Delete(pJson);
   }
 
-  SyncPingReply* pMsgReply = syncPingReplyBuild3(&ths->raftId, &pMsg->srcId);
+  SyncPingReply* pMsgReply = syncPingReplyBuild3(&ths->myRaftId, &pMsg->srcId);
   SRpcMsg        rpcMsg;
   syncPingReply2RpcMsg(pMsgReply, &rpcMsg);
   syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg);
@@ -485,7 +486,7 @@ static void syncNodeBecomeFollower(SSyncNode* pSyncNode) {
 //
 static void syncNodeBecomeLeader(SSyncNode* pSyncNode) {
   pSyncNode->state = TAOS_SYNC_STATE_LEADER;
-  pSyncNode->leaderCache = pSyncNode->raftId;
+  pSyncNode->leaderCache = pSyncNode->myRaftId;
 
   // next Index +=1
   // match Index = 0;
