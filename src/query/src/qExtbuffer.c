@@ -394,16 +394,9 @@ int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t
          return 1;
         else if( len1 < len2)
          return -1;
-      }
-      // compare zero length
-      if (len1 == 0 && len2 == 0)
-        return 0;
-      if(len1 == 0)
-        return -1;
-      if(len2 == 0)
-        return 1;
+      } 
       // compare context
-      int32_t ret = strncmp(varDataVal(f1), varDataVal(f2), len1);
+      int32_t ret = strncmp(varDataVal(f1), varDataVal(f2), len1>len2 ? len1:len2);
       if (ret == 0) {
         return 0;
       }
@@ -420,15 +413,8 @@ int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t
         else if( len1 < len2)
          return -1;
       }
-      // compare zero length
-      if (len1 == 0 && len2 == 0)
-        return 0;
-      if(len1 == 0)
-        return -1;
-      if(len2 == 0)
-        return 1;
       // compare context  
-      int32_t ret = tasoUcs4Compare(varDataVal(f1), varDataVal(f2), len1);
+      int32_t ret = tasoUcs4Compare(varDataVal(f1), varDataVal(f2), len1>len2 ? len1:len2);
       if (ret == 0) {
         return 0;
       }
