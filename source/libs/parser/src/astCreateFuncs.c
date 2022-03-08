@@ -883,6 +883,16 @@ SNode* createDropTableStmt(SAstCreateContext* pCxt, SNodeList* pTables) {
   return (SNode*)pStmt;
 }
 
+SNode* createDropSuperTableStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable) {
+  SDropSuperTableStmt* pStmt = nodesMakeNode(QUERY_NODE_DROP_SUPER_TABLE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
+  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  nodesDestroyNode(pRealTable);
+  return (SNode*)pStmt;
+}
+
 SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
   SUseDatabaseStmt* pStmt = (SUseDatabaseStmt*)nodesMakeNode(QUERY_NODE_USE_DATABASE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
@@ -890,10 +900,18 @@ SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
   return (SNode*)pStmt;
 }
 
-SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type) {
-  SNode* pStmt = nodesMakeNode(type);;
+SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pDbName) {
+  if (!checkDbName(pCxt, pDbName)) {
+    return NULL;
+  }
+  SShowStmt* pStmt = nodesMakeNode(type);;
   CHECK_OUT_OF_MEM(pStmt);
-  return pStmt;
+  if (NULL != pDbName) {
+    strncpy(pStmt->dbName, pDbName->z, pDbName->n);
+  } else if (NULL != pCxt->pQueryCxt->db) {
+    strcpy(pStmt->dbName, pCxt->pQueryCxt->db);
+  }
+  return (SNode*)pStmt;
 }
 
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, const SToken* pUserName, const SToken* pPassword) {

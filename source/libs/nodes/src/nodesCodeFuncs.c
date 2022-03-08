@@ -1532,7 +1532,8 @@ static int32_t jsonToNodeObject(const SJson* pJson, const char* pName, SNode** p
 
 int32_t nodesNodeToString(const SNodeptr pNode, bool format, char** pStr, int32_t* pLen) {
   if (NULL == pNode || NULL == pStr || NULL == pLen) {
-    return TSDB_CODE_SUCCESS;
+    terrno = TSDB_CODE_FAILED;
+    return TSDB_CODE_FAILED;
   }
 
   SJson* pJson = tjsonCreateObject();
