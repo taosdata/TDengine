@@ -17,3 +17,6 @@
 [submodule "src/plugins/taosadapter"]
 	path = src/plugins/taosadapter
 	url = https://github.com/taosdata/taosadapter
+[submodule "examples/rust"]
+	path = examples/rust
+	url = https://github.com/sontianyi/tdengine-rust-bindings.git
