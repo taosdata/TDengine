@@ -24,12 +24,12 @@ extern "C" {
 
 extern uint32_t qDebugFlag;
 
-#define qFatal(...) do { if (qDebugFlag & DEBUG_FATAL) { taosPrintLog("QRY FATAL ", qDebugFlag, __VA_ARGS__); }}  while(0)
-#define qError(...) do { if (qDebugFlag & DEBUG_ERROR) { taosPrintLog("QRY ERROR ", qDebugFlag, __VA_ARGS__); }}  while(0)
-#define qWarn(...)  do { if (qDebugFlag & DEBUG_WARN)  { taosPrintLog("QRY WARN ",  qDebugFlag, __VA_ARGS__); }}   while(0)
-#define qInfo(...)  do { if (qDebugFlag & DEBUG_INFO)  { taosPrintLog("QRY ", qDebugFlag, __VA_ARGS__); }}        while(0)
-#define qDebug(...) do { if (qDebugFlag & DEBUG_DEBUG) { taosPrintLog("QRY ", qDebugFlag, __VA_ARGS__); }} while(0)
-#define qTrace(...) do { if (qDebugFlag & DEBUG_TRACE) { taosPrintLog("QRY ", qDebugFlag, __VA_ARGS__); }} while(0)
+#define qFatal(...) do { if (qDebugFlag & DEBUG_FATAL) { taosPrintLog("QRY FATAL ", qDebugFlag, __FILE__, __LINE__, __VA_ARGS__); }}  while(0)
+#define qError(...) do { if (qDebugFlag & DEBUG_ERROR) { taosPrintLog("QRY ERROR ", qDebugFlag, __FILE__, __LINE__, __VA_ARGS__); }}  while(0)
+#define qWarn(...)  do { if (qDebugFlag & DEBUG_WARN)  { taosPrintLog("QRY WARN ",  qDebugFlag, __FILE__, __LINE__, __VA_ARGS__); }}   while(0)
+#define qInfo(...)  do { if (qDebugFlag & DEBUG_INFO)  { taosPrintLog("QRY ", qDebugFlag, __FILE__, __LINE__, __VA_ARGS__); }}        while(0)
+#define qDebug(...) do { if (qDebugFlag & DEBUG_DEBUG) { taosPrintLog("QRY ", qDebugFlag, __FILE__, __LINE__, __VA_ARGS__); }} while(0)
+#define qTrace(...) do { if (qDebugFlag & DEBUG_TRACE) { taosPrintLog("QRY ", qDebugFlag, __FILE__, __LINE__, __VA_ARGS__); }} while(0)
 #define qDump(a, l) do { if (qDebugFlag & DEBUG_DUMP)  { taosDumpData((unsigned char *)a, l); }} while(0)
 
 #ifdef __cplusplus

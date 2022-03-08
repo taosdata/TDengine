@@ -6,37 +6,37 @@
 #define jniFatal(...)                                                            \
   {                                                                              \
     if (jniDebugFlag & DEBUG_FATAL) {                                            \
-      taosPrintLog("JNI FATAL ", tscEmbedded ? 255 : jniDebugFlag, __VA_ARGS__); \
+      taosPrintLog("JNI FATAL ", tscEmbedded ? 255 : jniDebugFlag, __FILE__, __LINE__, __VA_ARGS__); \
     }                                                                            \
   }
 #define jniError(...)                                                            \
   {                                                                              \
     if (jniDebugFlag & DEBUG_ERROR) {                                            \
-      taosPrintLog("JNI ERROR ", tscEmbedded ? 255 : jniDebugFlag, __VA_ARGS__); \
+      taosPrintLog("JNI ERROR ", tscEmbedded ? 255 : jniDebugFlag, __FILE__, __LINE__, __VA_ARGS__); \
     }                                                                            \
   }
 #define jniWarn(...)                                                            \
   {                                                                             \
     if (jniDebugFlag & DEBUG_WARN) {                                            \
-      taosPrintLog("JNI WARN ", tscEmbedded ? 255 : jniDebugFlag, __VA_ARGS__); \
+      taosPrintLog("JNI WARN ", tscEmbedded ? 255 : jniDebugFlag, __FILE__, __LINE__, __VA_ARGS__); \
     }                                                                           \
   }
 #define jniInfo(...)                                                       \
   {                                                                        \
     if (jniDebugFlag & DEBUG_INFO) {                                       \
-      taosPrintLog("JNI ", tscEmbedded ? 255 : jniDebugFlag, __VA_ARGS__); \
+      taosPrintLog("JNI ", tscEmbedded ? 255 : jniDebugFlag, __FILE__, __LINE__, __VA_ARGS__); \
     }                                                                      \
   }
 #define jniDebug(...)                                  \
   {                                                    \
     if (jniDebugFlag & DEBUG_DEBUG) {                  \
-      taosPrintLog("JNI ", jniDebugFlag, __VA_ARGS__); \
+      taosPrintLog("JNI ", jniDebugFlag, __FILE__, __LINE__, __VA_ARGS__); \
     }                                                  \
   }
 #define jniTrace(...)                                  \
   {                                                    \
     if (jniDebugFlag & DEBUG_TRACE) {                  \
-      taosPrintLog("JNI ", jniDebugFlag, __VA_ARGS__); \
+      taosPrintLog("JNI ", jniDebugFlag, __FILE__, __LINE__, __VA_ARGS__); \
     }                                                  \
   }
 

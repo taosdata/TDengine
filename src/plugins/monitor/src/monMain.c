@@ -27,12 +27,12 @@
 #include "monitor.h"
 #include "taoserror.h"
 
-#define monFatal(...) { if (monDebugFlag & DEBUG_FATAL) { taosPrintLog("MON FATAL ", 255, __VA_ARGS__); }}
-#define monError(...) { if (monDebugFlag & DEBUG_ERROR) { taosPrintLog("MON ERROR ", 255, __VA_ARGS__); }}
-#define monWarn(...)  { if (monDebugFlag & DEBUG_WARN)  { taosPrintLog("MON WARN ", 255, __VA_ARGS__); }}
-#define monInfo(...)  { if (monDebugFlag & DEBUG_INFO)  { taosPrintLog("MON ", 255, __VA_ARGS__); }}
-#define monDebug(...) { if (monDebugFlag & DEBUG_DEBUG) { taosPrintLog("MON ", monDebugFlag, __VA_ARGS__); }}
-#define monTrace(...) { if (monDebugFlag & DEBUG_TRACE) { taosPrintLog("MON ", monDebugFlag, __VA_ARGS__); }}
+#define monFatal(...) { if (monDebugFlag & DEBUG_FATAL) { taosPrintLog("MON FATAL ", 255, __FILE__, __LINE__, __VA_ARGS__); }}
+#define monError(...) { if (monDebugFlag & DEBUG_ERROR) { taosPrintLog("MON ERROR ", 255, __FILE__, __LINE__, __VA_ARGS__); }}
+#define monWarn(...)  { if (monDebugFlag & DEBUG_WARN)  { taosPrintLog("MON WARN ", 255, __FILE__, __LINE__, __VA_ARGS__); }}
+#define monInfo(...)  { if (monDebugFlag & DEBUG_INFO)  { taosPrintLog("MON ", 255, __FILE__, __LINE__, __VA_ARGS__); }}
+#define monDebug(...) { if (monDebugFlag & DEBUG_DEBUG) { taosPrintLog("MON ", monDebugFlag, __FILE__, __LINE__, __VA_ARGS__); }}
+#define monTrace(...) { if (monDebugFlag & DEBUG_TRACE) { taosPrintLog("MON ", monDebugFlag, __FILE__, __LINE__, __VA_ARGS__); }}
 
 #define SQL_LENGTH          4096
 #define LOG_LEN_STR         512
