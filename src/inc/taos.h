@@ -102,6 +102,9 @@ typedef struct setConfRet {
   #define DLL_EXPORT 
 #endif
 
+extern const char *pEpFirst;
+extern const char *pEpSecond;
+
 DLL_EXPORT int  taos_init();
 DLL_EXPORT void  taos_cleanup(void);
 DLL_EXPORT int   taos_options(TSDB_OPTION option, const void *arg, ...);

@@ -67,6 +67,9 @@ int8_t  tsEnableCoreFile = 0;
 int32_t tsMaxBinaryDisplayWidth = 30;
 int32_t tsShortcutFlag = 0;  // shortcut flag to facilitate debugging
 
+const char *pEpFirst = tsFirst;
+const char *pEpSecond = tsSecond;
+
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
  * metricmeta rsp, and multi-meter query rsp message body. The client compress the submit message to server.
