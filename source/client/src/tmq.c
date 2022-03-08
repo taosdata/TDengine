@@ -46,7 +46,7 @@ struct tmq_topic_vgroup_list_t {
 
 struct tmq_conf_t {
   char           clientId[256];
-  char           groupId[256];
+  char           groupId[TSDB_CGROUP_LEN];
   int8_t         auto_commit;
   int8_t         resetOffset;
   tmq_commit_cb* commit_cb;
@@ -56,7 +56,7 @@ struct tmq_conf_t {
 
 struct tmq_t {
   // conf
-  char           groupId[256];
+  char           groupId[TSDB_CGROUP_LEN];
   char           clientId[256];
   int8_t         autoCommit;
   int8_t         inWaiting;

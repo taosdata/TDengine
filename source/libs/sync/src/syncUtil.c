@@ -17,6 +17,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include "syncEnv.h"
 
 // ---- encode / decode
 uint64_t syncUtilAddr2U64(const char* host, uint16_t port) {
@@ -91,3 +92,9 @@ void syncUtilbufCopyDeep(const SSyncBuffer* src, SSyncBuffer* dest) {
   dest->data = malloc(dest->len);
   memcpy(dest->data, src->data, dest->len);
 }
+
+// ---- misc ----
+
+int32_t syncUtilRand(int32_t max) { return rand() % max; }
+
+int32_t syncUtilElectRandomMS() { ELECT_TIMER_MS_MIN + syncUtilRand(ELECT_TIMER_MS_RANGE); }

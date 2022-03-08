@@ -20,7 +20,30 @@ int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncBuffer* pBuf) {
 // get one log entry, user need to free pBuf->data
 int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncBuffer* pBuf) { return 0; }
 
-// update log store commit index with "index"
+// TLA+ Spec
+// \* Leader i advances its commitIndex.
+// \* This is done as a separate step from handling AppendEntries responses,
+// \* in part to minimize atomic regions, and in part so that leaders of
+// \* single-server clusters are able to mark entries committed.
+// AdvanceCommitIndex(i) ==
+//     /\ state[i] = Leader
+//     /\ LET \* The set of servers that agree up through index.
+//            Agree(index) == {i} \cup {k \in Server :
+//                                          matchIndex[i][k] >= index}
+//            \* The maximum indexes for which a quorum agrees
+//            agreeIndexes == {index \in 1..Len(log[i]) :
+//                                 Agree(index) \in Quorum}
+//            \* New value for commitIndex'[i]
+//            newCommitIndex ==
+//               IF /\ agreeIndexes /= {}
+//                  /\ log[i][Max(agreeIndexes)].term = currentTerm[i]
+//               THEN
+//                   Max(agreeIndexes)
+//               ELSE
+//                   commitIndex[i]
+//        IN commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
+//     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log>>
+//
 int32_t raftLogupdateCommitIndex(struct SSyncLogStore* pLogStore, SyncIndex index) { return 0; }
 
 // truncate log with index, entries after the given index (>index) will be deleted

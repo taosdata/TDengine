@@ -1,0 +1,142 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+print ======================== dnode1 start
+
+$dbPrefix = sr_db
+$tbPrefix = sr_tb
+$mtPrefix = sr_mt
+$stPrefix = sr_st
+$tbNum = 10
+$rowNum = 200
+$totalNum = 200
+
+print =============== step1
+
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+$st = $stPrefix . $i
+
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol int, tbcol2 float) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+  
+  $x = 0
+  $y = 0
+  while $y < $rowNum
+    $ms = $x . s
+    sql insert into $tb values (1626739200000 + $ms , $y , $y ) 
+    $x = $x + 1
+	$y = $y + 1
+  endw 
+ 
+  $i = $i + 1
+endw 
+
+sleep 100
+
+print =============== step2
+
+$i = 1
+$tb = $tbPrefix . $i
+$st = $stPrefix . $i
+sql select count(*), count(tbcol), count(tbcol2) from $tb interval(1d)
+sql create table $st as select count(*), count(tbcol), count(tbcol2) from $tb interval(10s)
+
+$i = 5
+$tb = $tbPrefix . $i
+$st = $stPrefix . $i
+sql select count(*), count(tbcol), count(tbcol2) from $tb interval(1d)
+sql create table $st as select count(*), count(tbcol), count(tbcol2) from $tb interval(10s)
+
+$i = 8
+$tb = $tbPrefix . $i
+$st = $stPrefix . $i
+sql select count(*), count(tbcol), count(tbcol2) from $tb interval(1d)
+sql create table $st as select count(*), count(tbcol), count(tbcol2) from $tb interval(10s)
+
+sql show tables
+if $rows != 13 then 
+  return -1
+endi
+
+print =============== step3
+sleep 2000
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 1000
+system sh/exec.sh -n dnode1 -s start
+
+print =============== step4
+print sleep 120 seconds
+sleep 120000 
+
+print =============== step5
+$i = 1
+$tb = $tbPrefix . $i
+$st = $stPrefix . $i
+sql select * from $tb
+print $tb ==> $rows $data00 $data01
+if $rows != $rowNum then 
+  return -1
+endi
+
+$i = 5
+$tb = $tbPrefix . $i
+$st = $stPrefix . $i
+sql select * from $tb
+print $tb ==> $rows $data00 $data01
+if $rows != $rowNum then 
+  return -1
+endi
+
+$i = 8
+$tb = $tbPrefix . $i
+$st = $stPrefix . $i
+sql select * from $tb
+print $tb ==> $rows $data00 $data01
+if $rows != $rowNum then 
+  return -1
+endi
+
+print =============== step6
+
+$i = 1
+$tb = $tbPrefix . $i
+$st = $stPrefix . $i
+sql select * from $st
+print $st ==> $rows $data00 $data01
+if $rows <= 1 then
+  return -1
+endi
+
+$i = 5
+$tb = $tbPrefix . $i
+$st = $stPrefix . $i
+sql select * from $st
+print $st ==> $rows $data00 $data01
+if $rows <= 1 then
+  return -1
+endi
+
+$i = 8
+$tb = $tbPrefix . $i
+$st = $stPrefix . $i
+sql select * from $st
+print $st ==> $rows $data00 $data01
+if $rows <= 1 then
+  return -1
+endi
+
+

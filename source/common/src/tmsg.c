@@ -2415,3 +2415,36 @@ int32_t tDecodeSMqCMCommitOffsetReq(SCoder *decoder, SMqCMCommitOffsetReq *pReq)
   tEndDecode(decoder);
   return 0;
 }
+
+int32_t tSerializeSVCreateTSmaReq(void **buf, SVCreateTSmaReq *pReq) {
+  int32_t tlen = 0;
+
+  tlen += taosEncodeFixedI64(buf, pReq->ver);
+  tlen += tEncodeTSma(buf, &pReq->tSma);
+
+  return tlen;
+}
+
+void *tDeserializeSVCreateTSmaReq(void *buf, SVCreateTSmaReq *pReq) {
+  buf = taosDecodeFixedI64(buf, &(pReq->ver));
+
+  if ((buf = tDecodeTSma(buf, &pReq->tSma)) == NULL) {
+    tdDestroyTSma(&pReq->tSma);
+  }
+  return buf;
+}
+
+int32_t tSerializeSVDropTSmaReq(void **buf, SVDropTSmaReq *pReq) {
+  int32_t tlen = 0;
+
+  tlen += taosEncodeFixedI64(buf, pReq->ver);
+  tlen += taosEncodeString(buf, pReq->indexName);
+
+  return tlen;
+}
+void *tDeserializeSVDropTSmaReq(void *buf, SVDropTSmaReq *pReq) {
+  buf = taosDecodeFixedI64(buf, &(pReq->ver));
+  buf = taosDecodeStringTo(buf, pReq->indexName);
+
+  return buf;
+}

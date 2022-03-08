@@ -45,6 +45,7 @@ int32_t monInit(const SMonCfg *pCfg) {
   tsMonitor.maxLogs = pCfg->maxLogs;
   tsMonitor.server = pCfg->server;
   tsMonitor.port = pCfg->port;
+  tsMonitor.comp = pCfg->comp;
   tsLogFp = monRecordLog;
   tsMonitor.state.time = taosGetTimestampMs();
   pthread_mutex_init(&tsMonitor.lock, NULL);
@@ -98,6 +99,9 @@ void monSetBasicInfo(SMonInfo *pMonitor, SMonBasicInfo *pInfo) {
   tjsonAddStringToObject(pJson, "ts", buf);
   tjsonAddDoubleToObject(pJson, "dnode_id", pInfo->dnode_id);
   tjsonAddStringToObject(pJson, "dnode_ep", pInfo->dnode_ep);
+  snprintf(buf, sizeof(buf), "%" PRId64, pInfo->cluster_id);
+  tjsonAddStringToObject(pJson, "cluster_id", buf);
+  tjsonAddDoubleToObject(pJson, "protocol", pInfo->protocol);
 }
 
 void monSetClusterInfo(SMonInfo *pMonitor, SMonClusterInfo *pInfo) {
@@ -375,7 +379,8 @@ void monSendReport(SMonInfo *pMonitor) {
 
   char *pCont = tjsonToString(pMonitor->pJson);
   if (pCont != NULL) {
-    taosSendHttpReport(tsMonitor.server, tsMonitor.port, pCont, strlen(pCont));
+    EHttpCompFlag flag = tsMonitor.comp ? HTTP_GZIP : HTTP_FLAT;
+    taosSendHttpReport(tsMonitor.server, tsMonitor.port, pCont, strlen(pCont), flag);
     free(pCont);
   }
 }

@@ -1,0 +1,346 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 0
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+print ============= step1
+
+sql create user read pass 'taosdata'
+sql create user write pass 'taosdata'
+sql create user manage pass 'taosdata'
+
+sql create user a PASS 'ade' privilege  -x step11
+  return -1
+step11:
+
+sql create user a PASS 'ade' privilege a -x step12
+  return -1
+step12:
+
+sql create user a PASS 'ade' privilege read -x step13
+  return -1
+step13:
+
+sql show accounts
+if $rows != 1 then 
+  return -1
+endi
+sql show users
+if $rows != 6 then 
+  return -1
+endi
+
+sql alter user read privilege read
+sql alter user write privilege write
+sql_error alter user manage privilege super
+
+print ============= step2
+sql close
+sql connect write
+sleep 2000
+
+sql create database d1
+sql create database d2
+sql create table d1.t1 (ts timestamp, i int)
+sql create table d2.t2 (ts timestamp, i int)
+sql insert into d1.t1 values(now, 1)
+sql insert into d2.t2 values(now, 1)
+sql insert into d2.t2 values(now+1s, 2)
+
+sql show accounts
+if $rows != 1 then 
+  return -1
+endi
+sql show users
+if $rows != 6 then 
+  return -1
+endi
+sql show databases
+if $rows != 2 then 
+  return -1
+endi
+sql select * from d1.t1
+if $rows != 1 then 
+  return -1
+endi
+sql select * from d2.t2
+if $rows != 2 then 
+  return -1
+endi
+
+sql create account t1 pass 'taosdata' -x step21
+  return -1
+step21:
+
+sql create user t1 pass 'taosdata' -x step22
+  return -1
+step22:
+
+sql alter user read pass 'taosdata' -x step23
+  return -1
+step23:
+
+sql create dnode $hostname2 -x step24
+  return -1
+step24:
+
+sql drop dnode $hostname2 -x step25
+  return -1
+step25:
+
+sql create mnode 192.168.0.2 -x step26
+  return -1
+step26:
+
+sql drop mnode 192.168.0.2 -x step27
+  return -1
+step27:
+
+sql drop account root -x step28
+  return -1 
+step28:
+
+sql alter user write pass 'taosdata'
+
+print ============= step3
+sql close
+sql connect read
+sleep 2000
+
+sql create database d3 -x step31
+  return -1
+step31:
+
+sql create table d1.t3 (ts timestamp, i int) -x step32
+  return -1
+step32:
+
+#sql insert into d1.t1 values(now, 2) -x step33
+#  return -1
+#step33:
+
+sql show accounts
+if $rows != 1 then 
+  return -1
+endi
+sql show users
+if $rows != 6 then 
+  return -1
+endi
+sql show databases
+if $rows != 2 then 
+  return -1
+endi
+sql select * from d1.t1
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from d2.t2
+if $rows != 2 then 
+  return -1
+endi
+
+sql sql create account t1 pass 'taosdata' -x step34
+  return -1
+step34:
+
+sql sql create user t1 pass 'taosdata' -x step35
+  return -1
+step35:
+
+print ============= step4
+sql close
+sql connect manage
+sleep 2000
+
+sql create database d3
+sql create database d4
+sql create table d3.t3 (ts timestamp, i int)
+sql create table d4.t4 (ts timestamp, i int)
+
+sql show accounts
+if $rows != 1 then 
+  return -1
+endi
+sql show users
+if $rows != 6 then 
+  return -1
+endi
+sql show databases
+if $rows != 4 then 
+  return -1
+endi
+sql select * from d1.t1
+if $rows != 1 then 
+  return -1
+endi
+sql select * from d2.t2
+if $rows != 2 then 
+  return -1
+endi
+
+sql create account other pass 'taosdata'  -x step41
+  return -1
+step41:  
+
+sql close
+sql connect
+sleep 2000
+sql create account other pass 'taosdata'
+
+print ============= step5
+sql close
+sql connect other
+sleep 2000
+sql create user read pass 'taosdata' -x step51
+  return -1
+step51:
+sql create other write pass 'taosdata' -x step52
+  return -1
+step52:
+
+sql create user oread pass 'taosdata'
+sql create user owrite pass 'taosdata'
+sql create user omanage pass 'taosdata' 
+
+sql show users
+print show users $rows
+if $rows != 5 then 
+  return -1
+endi
+
+sql alter user oread privilege read
+sql alter user owrite privilege write
+sql alter user oroot privilege super -x step53
+  return -1
+step53:
+sql alter user read privilege read -x step54
+  return -1
+step54:
+
+print ============= step6
+sql close
+sql connect owrite
+sleep 2000
+sql reset query cache
+sleep 1000
+sql create database d1
+sql create database d3
+sql create table d1.t1 (ts timestamp, i int)
+sql create table d3.t3 (ts timestamp, i int)
+sql insert into d1.t1 values(now, 11)
+sql insert into d3.t3 values(now, 11)
+sql insert into d3.t3 values(now+1s, 12)
+
+sql show databases
+if $rows != 2 then 
+  return -1
+endi
+sql select * from d1.t1
+if $rows != 1 then 
+  return -1
+endi
+sql select * from d2.t2 -x step6
+  return -1
+step6:
+sql select * from d3.t3
+if $rows != 2 then 
+  return -1
+endi
+
+sql sql create account t1 pass 'taosdata' -x step61
+  return -1
+step61:
+
+sql sql create user t1 pass 'taosdata' -x step62
+  return -1
+step62:
+
+print ============= step7
+sql close
+sql connect oread
+sleep 2000
+
+sql create database d7 -x step71
+  return -1
+step71:
+
+sql show databases
+if $rows != 2 then 
+  return -1
+endi
+sql select * from d1.t1
+if $rows != 1 then 
+  return -1
+endi
+sql select * from d2.t2 -x step72
+  return -1
+step72:
+sql select * from d3.t3
+if $rows != 2 then 
+  return -1
+endi
+
+sql sql create account t1 pass 'taosdata' -x step73
+  return -1
+step73:
+
+sql sql create user t1 pass 'taosdata' -x step74
+  return -1
+step74:
+
+print ============= step8
+sql close
+sql connect omanage
+sleep 2000
+
+sql create account t1 pass 'taosdata' -x step81
+  return -1
+step81:
+
+sql create database d4
+sql create table d4.t4 (ts timestamp, i int)
+
+sql show databases
+if $rows != 3 then 
+  return -1
+endi
+sql select * from d1.t1
+if $rows != 1 then 
+  return -1
+endi
+sql select * from d2.t2 -x step82
+  return -1
+step82:
+sql select * from d3.t3
+if $rows != 2 then 
+  return -1
+endi
+
+print ============= step9
+sql close
+sql connect
+sleep 2000
+sql show databases
+if $rows != 4 then 
+  return -1
+endi
+
+sql drop account other
+sql drop user read
+sql drop user manage
+sql drop user write
+
+sql close
+sql connect
+sleep 2000
+sql drop database d1
+sql drop database d2
+sql drop database d3
+sql drop database d4
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT

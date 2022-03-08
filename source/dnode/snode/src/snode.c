@@ -17,6 +17,7 @@
 
 SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
   SSnode *pSnode = calloc(1, sizeof(SSnode));
+  memcpy(&pSnode->cfg, pOption, sizeof(SSnodeOpt));
   return pSnode;
 }
 

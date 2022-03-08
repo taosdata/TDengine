@@ -1,0 +1,114 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 2
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 2
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 2
+
+print ============== step1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql show mnodes
+print dnode1 ==> $data2_1
+print dnode2 ==> $data2_2
+if $data2_1 != master then
+  return -1
+endi
+
+print ============== step2
+system sh/exec.sh -n dnode2 -s start
+sql create dnode $hostname2
+
+$x = 0
+show2: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then 
+		return -1
+	endi
+	
+sql show mnodes
+print dnode1 ==> $data2_1
+print dnode2 ==> $data2_2
+if $data2_1 != master then
+	goto show2
+endi
+if $data2_2 != slave then
+	goto show2
+endi
+
+print ============== step3
+sql_error drop dnode $hostname1 -x error1
+print should not drop master
+
+print ============== step4
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 3000
+sql_error show mnodes
+print error of no master
+
+print ============== step5
+sql_error drop dnode $hostname1
+print error of no master
+
+print ============== step6
+system sh/exec.sh -n dnode1 -s start
+sleep 2000
+sql close
+sql connect
+
+$x = 0
+show6: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then 
+		return -1
+	endi
+	
+sql show mnodes -x show6
+print dnode1 ==> $data2_1
+print dnode2 ==> $data2_2
+if $data2_1 != master then
+	goto show6
+endi
+if $data2_2 != slave then
+	goto show6
+endi
+
+print ============== step7
+system sh/exec.sh -n dnode3 -s start
+sql create dnode $hostname3
+
+$x = 0
+show7: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then 
+		return -1
+	endi
+	
+sql show mnodes
+print dnode1 ==> $data2_1
+print dnode2 ==> $data2_2
+print dnode3 ==> $data2_3
+if $data2_1 != master then
+	goto show7
+endi
+if $data2_2 != slave then
+	goto show7
+endi
+if $data3_3 != null then
+	goto show7
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

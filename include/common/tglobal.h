@@ -58,6 +58,7 @@ extern int32_t  tsMonitorInterval;
 extern char     tsMonitorFqdn[];
 extern uint16_t tsMonitorPort;
 extern int32_t  tsMonitorMaxLogs;
+extern bool     tsMonitorComp;
 
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
@@ -83,7 +84,6 @@ extern int64_t tsMaxRetentWindow;
 extern char version[];
 extern char compatible_version[];
 extern char gitinfo[];
-extern char gitinfoOfInternal[];
 extern char buildinfo[];
 
 // lossy

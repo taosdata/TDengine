@@ -754,7 +754,7 @@ typedef struct {
   int32_t  fsyncPeriod;
   uint32_t hashBegin;
   uint32_t hashEnd;
-  int8_t   hashMethod;  
+  int8_t   hashMethod;
   int8_t   walLevel;
   int8_t   precision;
   int8_t   compression;
@@ -765,7 +765,7 @@ typedef struct {
   int8_t   selfIndex;
   int8_t   streamMode;
   SReplica replicas[TSDB_MAX_REPLICA];
-  
+
 } SCreateVnodeReq, SAlterVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
@@ -1400,7 +1400,7 @@ typedef struct {
 typedef struct SMqCMGetSubEpReq {
   int64_t consumerId;
   int32_t epoch;
-  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char    cgroup[TSDB_CGROUP_LEN];
 } SMqCMGetSubEpReq;
 
 static FORCE_INLINE int32_t tEncodeSMsgHead(void** buf, const SMsgHead* pMsg) {
@@ -1700,7 +1700,7 @@ typedef struct {
   int32_t vgId;
   int64_t consumerId;
   char    topicName[TSDB_TOPIC_FNAME_LEN];
-  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char    cgroup[TSDB_CGROUP_LEN];
   char*   sql;
   char*   logicalPlan;
   char*   physicalPlan;
@@ -1763,7 +1763,7 @@ typedef struct {
   int32_t  vgId;
   int64_t  consumerId;
   char     topicName[TSDB_TOPIC_FNAME_LEN];
-  char     cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char     cgroup[TSDB_CGROUP_LEN];
 } SMqSetCVgRsp;
 
 typedef struct {
@@ -1771,14 +1771,14 @@ typedef struct {
   int32_t  vgId;
   int64_t  consumerId;
   char     topicName[TSDB_TOPIC_FNAME_LEN];
-  char     cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char     cgroup[TSDB_CGROUP_LEN];
 } SMqMVRebRsp;
 
 typedef struct {
   int32_t vgId;
   int64_t offset;
   char    topicName[TSDB_TOPIC_FNAME_LEN];
-  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char    cgroup[TSDB_CGROUP_LEN];
 } SMqOffset;
 
 typedef struct {
@@ -1883,15 +1883,27 @@ typedef struct {
 } STSma;              // Time-range-wise SMA
 
 typedef struct {
-  int8_t      msgType;  // 0 create, 1 recreate
-  STSma       tSma;
-  STimeWindow window;
-} SCreateTSmaMsg;
+  int64_t ver;  // use a general definition
+  STSma   tSma;
+} SVCreateTSmaReq;
 
 typedef struct {
-  STimeWindow window;
-  char        indexName[TSDB_INDEX_NAME_LEN + 1];
-} SDropTSmaMsg;
+  int8_t      type;  // 0 status report, 1 update data
+  char        indexName[TSDB_INDEX_NAME_LEN + 1]; // 
+  STimeWindow windows;
+} STSmaMsg;
+
+typedef struct {
+  int64_t ver;  // use a general definition
+  char    indexName[TSDB_INDEX_NAME_LEN + 1];
+} SVDropTSmaReq;
+typedef struct {
+} SVCreateTSmaRsp, SVDropTSmaRsp;
+
+int32_t tSerializeSVCreateTSmaReq(void** buf, SVCreateTSmaReq* pReq);
+void*   tDeserializeSVCreateTSmaReq(void* buf, SVCreateTSmaReq* pReq);
+int32_t tSerializeSVDropTSmaReq(void** buf, SVDropTSmaReq* pReq);
+void*   tDeserializeSVDropTSmaReq(void* buf, SVDropTSmaReq* pReq);
 
 typedef struct {
   STimeWindow tsWindow;     // [skey, ekey]
@@ -1913,22 +1925,18 @@ static FORCE_INLINE void tdDestroySmaData(STSmaData* pSmaData) {
   }
 }
 
-// RSma: Time-range-wise Rollup SMA
-// TODO: refactor when rSma grammar defined finally =>
+// RSma: Rollup SMA
 typedef struct {
   int64_t  interval;
   int32_t  retention;  // unit: day
   uint16_t days;       // unit: day
   int8_t   intervalUnit;
 } SSmaParams;
-// TODO: refactor when rSma grammar defined finally <=
 
 typedef struct {
-  // TODO: refactor to use the real schema =>
   STSma   tsma;
   float   xFilesFactor;
   SArray* smaParams;  // SSmaParams
-  // TODO: refactor to use the real schema <=
 } SRSma;
 
 typedef struct {
@@ -1936,26 +1944,20 @@ typedef struct {
   STSma*   tSma;
 } STSmaWrapper;
 
-static FORCE_INLINE void tdDestroyTSma(STSma* pSma, bool releaseSelf) {
+static FORCE_INLINE void tdDestroyTSma(STSma* pSma) {
   if (pSma) {
     tfree(pSma->colIds);
     tfree(pSma->funcIds);
-    if (releaseSelf) {
-      free(pSma);
-    }
   }
 }
 
-static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW, bool releaseSelf) {
+static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW) {
   if (pSW) {
     if (pSW->tSma) {
       for (uint32_t i = 0; i < pSW->number; ++i) {
-        tdDestroyTSma(pSW->tSma + i, false);
+        tdDestroyTSma(pSW->tSma + i);
       }
       tfree(pSW->tSma);
-    }
-    if (releaseSelf) {
-      free(pSW);
     }
   }
 }
@@ -2043,7 +2045,7 @@ static FORCE_INLINE void* tDecodeTSmaWrapper(void* buf, STSmaWrapper* pSW) {
   for (uint32_t i = 0; i < pSW->number; ++i) {
     if ((buf = tDecodeTSma(buf, pSW->tSma + i)) == NULL) {
       for (uint32_t j = i; j >= 0; --i) {
-        tdDestroyTSma(pSW->tSma + j, false);
+        tdDestroyTSma(pSW->tSma + j);
       }
       free(pSW->tSma);
       return NULL;
@@ -2092,7 +2094,7 @@ typedef struct {
   int64_t consumerId;
   int64_t blockingTime;
   int32_t epoch;
-  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char    cgroup[TSDB_CGROUP_LEN];
 
   int64_t currentOffset;
   char    topic[TSDB_TOPIC_FNAME_LEN];
@@ -2111,7 +2113,7 @@ typedef struct {
 
 typedef struct {
   int64_t consumerId;
-  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char    cgroup[TSDB_CGROUP_LEN];
   SArray* topics;  // SArray<SMqSubTopicEp>
 } SMqCMGetSubEpRsp;
 
