@@ -722,13 +722,13 @@ static SArray* tfileGetFileList(const char* path) {
   uint32_t version;
   SArray*  files = taosArrayInit(4, sizeof(void*));
 
-  DIR* dir = opendir(path);
-  if (NULL == dir) {
+  TdDirPtr pDir = taosOpenDir(path);
+  if (NULL == pDir) {
     return NULL;
   }
-  struct dirent* entry;
-  while ((entry = readdir(dir)) != NULL) {
-    char* file = entry->d_name;
+  TdDirEntryPtr pDirEntry;
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    char* file = taosGetDirEntryName(pDirEntry);
     if (0 != tfileParseFileName(file, &suid, buf, &version)) {
       continue;
     }
@@ -738,7 +738,7 @@ static SArray* tfileGetFileList(const char* path) {
     sprintf(buf, "%s/%s", path, file);
     taosArrayPush(files, &buf);
   }
-  closedir(dir);
+  taosCloseDir(pDir);
 
   taosArraySort(files, tfileCompare);
   tfileRmExpireFile(files);
