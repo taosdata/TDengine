@@ -639,6 +639,9 @@ int32_t schUpdateHbConnection(SQueryNodeEpId *epId, SSchHbTrans *trans) {
         SCH_ERR_RET(code);
       }
 
+      qDebug("hb connection updated, seqId:%" PRIx64 ", sId:%" PRIx64 ", nodeId:%d, fqdn:%s, port:%d, instance:%p, connection:%p",
+        trans->seqId, schMgmt.sId, epId->nodeId, epId->ep.fqdn, epId->ep.port, trans->trans.transInst, trans->trans.transHandle);
+      
       return TSDB_CODE_SUCCESS;
     }
 
@@ -659,6 +662,9 @@ int32_t schUpdateHbConnection(SQueryNodeEpId *epId, SSchHbTrans *trans) {
   memcpy(&hb->trans, &trans->trans, sizeof(trans->trans));
 
   SCH_UNLOCK(SCH_WRITE, &hb->lock);
+
+  qDebug("hb connection updated, seqId:%" PRIx64 ", sId:%" PRIx64 ", nodeId:%d, fqdn:%s, port:%d, instance:%p, connection:%p",
+    trans->seqId, schMgmt.sId, epId->nodeId, epId->ep.fqdn, epId->ep.port, trans->trans.transInst, trans->trans.transHandle);
   
   return TSDB_CODE_SUCCESS;
 }

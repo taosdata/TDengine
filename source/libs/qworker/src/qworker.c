@@ -547,7 +547,7 @@ int32_t qwGenerateSchHbRsp(SQWorkerMgmt *mgmt, SQWSchStatus *sch, SQWHbInfo *hbI
   void *pIter = taosHashIterate(sch->tasksHash, NULL);
   while (pIter) {
     SQWTaskStatus *taskStatus = (SQWTaskStatus *)pIter;
-    taosHashGetKey(pIter, &key, &keyLen);
+    key = taosHashGetKey(pIter, &keyLen);
 
     //TODO GET EXECUTOR API TO GET MORE INFO
 
@@ -1372,6 +1372,9 @@ int32_t qwProcessHb(SQWorkerMgmt *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
 
   rsp.seqId = sch->hbSeqId;
 
+  QW_DLOG("hb connection updated, seqId:%" PRIx64 ", sId:%" PRIx64 ", nodeId:%d, fqdn:%s, port:%d, connection:%p",
+    sch->hbSeqId, req->sId, req->epId.nodeId, req->epId.ep.fqdn, req->epId.ep.port, qwMsg->connection);
+
   qwReleaseScheduler(QW_READ, mgmt);
 
 _return:
@@ -1383,6 +1386,8 @@ _return:
 
 
 void qwProcessHbTimerEvent(void *param, void *tmrId) {
+  return;
+  
   SQWorkerMgmt *mgmt = (SQWorkerMgmt *)param;
   SQWSchStatus *sch = NULL;
   int32_t taskNum = 0;
@@ -1427,6 +1432,7 @@ _return:
   QW_UNLOCK(QW_READ, &mgmt->schLock);
 
   for (int32_t j = 0; j < i; ++j) {
+    QW_DLOG("hb on connection %p, taskNum:%d", rspList[j].connection, (rspList[j].rsp.taskStatus ? (int32_t)taosArrayGetSize(rspList[j].rsp.taskStatus) : 0));
     qwBuildAndSendHbRsp(rspList[j].connection, &rspList[j].rsp, code);
     tFreeSSchedulerHbRsp(&rspList[j].rsp);
   }
