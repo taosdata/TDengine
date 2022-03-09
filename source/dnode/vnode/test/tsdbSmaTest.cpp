@@ -20,6 +20,7 @@
 
 #include <metaDef.h>
 #include <tmsg.h>
+#include <tsdbDef.h>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -209,7 +210,7 @@ TEST(testCase, tSma_DB_Put_Get_Del_Test) {
   metaClose(pMeta);
 }
 
-#if 0
+#if 1
 TEST(testCase, tSmaInsertTest) {
   STSma     tSma = {0};
   STSmaData* pSmaData = NULL;

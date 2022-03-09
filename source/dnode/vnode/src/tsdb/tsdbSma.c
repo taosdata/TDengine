@@ -203,6 +203,23 @@ int32_t tsdbUpdateExpiredWindow(STsdb *pTsdb, char *msg) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t tsdbResetExpiredWindow(STsdb *pTsdb, const char *indexName, void *timeWindow) {
+  SSmaStatItem *pItem = NULL;
+
+  if (pTsdb->pSmaStat && pTsdb->pSmaStat->smaStatItems) {
+    pItem = (SSmaStatItem *)taosHashGet(pTsdb->pSmaStat->smaStatItems, indexName, strlen(indexName));
+  }
+
+  if (pItem != NULL) {
+    // TODO: reset time windows for the sma data blocks
+    while (true) {
+      TSKEY thisWindow = 0;
+      taosHashRemove(pItem->expiredWindows, &thisWindow, sizeof(thisWindow));
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 /**
  * @brief Judge the tSma storage level
  *
@@ -495,6 +512,9 @@ int32_t tsdbInsertTSmaDataImpl(STsdb *pTsdb, STSma *param, STSmaData *pData) {
     return terrno;
   }
 
+  // reset the SSmaStat
+  tsdbResetExpiredWindow(pTsdb, param->indexName, &pData->tsWindow);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -542,6 +562,10 @@ int32_t tsdbInsertRSmaDataImpl(STsdb *pTsdb, SRSma *param, STSmaData *pData) {
     TASSERT(0);
     return TSDB_CODE_INVALID_PARA;
   }
+
+  // reset the SSmaStat
+  tsdbResetExpiredWindow(pTsdb, param->tsma.indexName, &pData->tsWindow);
+
   // Step 4: finish
   return TSDB_CODE_SUCCESS;
 }

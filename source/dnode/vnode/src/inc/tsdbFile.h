@@ -58,8 +58,9 @@ typedef enum {
   TSDB_FILE_META,      // meta
   TSDB_FILE_TSMA,      // .tsma.${sma_index_name}, Time-range-wise SMA
   TSDB_FILE_RSMA,      // .rsma.${sma_index_name}, Time-range-wise Rollup SMA
-} TSDB_FILE_T;
+} E_TSDB_FILE_T;
 
+typedef int32_t TSDB_FILE_T;
 typedef enum {
   TSDB_FS_VER_0 = 0,
   TSDB_FS_VER_MAX,
