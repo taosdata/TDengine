@@ -1701,7 +1701,7 @@ class TdSuperTable:
             dbc.execute("DROP TaBLE {}".format(fullTableName))
         else:
             if not skipCheck:
-                raise CrashGenError("Cannot drop non-existant super table: {}".format(fullTableName))
+                raise CrashGenError("Cannot drop non-existant super table: {}".format(self._stName))
 
     def exists(self, dbc):
         dbc.execute("USE " + self._dbName)
