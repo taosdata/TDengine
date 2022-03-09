@@ -14,3 +14,13 @@
  */
 
 #include "tdbInt.h"
+
+int tdbPageInsertCell(SPage *pPage, int idx, u8 *pCell, int szCell) {
+  // TODO
+  return 0;
+}
+
+int tdbPageDropCell(SPage *pPage, int idx) {
+  // TODO
+  return 0;
+}

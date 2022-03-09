@@ -87,6 +87,10 @@ struct SPage {
 #define TDB_GET_PAGE_REF(pPage) atomic_load_32(&((pPage)->nRef))
 #endif
 
+// APIs
+int tdbPageInsertCell(SPage *pPage, int idx, u8 *pCell, int szCell);
+int tdbPageDropCell(SPage *pPage, int idx);
+
 #ifdef __cplusplus
 }
 #endif
