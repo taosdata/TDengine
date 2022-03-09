@@ -59,7 +59,7 @@ typedef struct STfsDir {
   SDiskID   did;
   char      dirname[TSDB_FILENAME_LEN];
   STfsFile  tfile;
-  DIR      *dir;
+  TdDirPtr  pDir;
   STfs     *pTfs;
 } STfsDir;
 

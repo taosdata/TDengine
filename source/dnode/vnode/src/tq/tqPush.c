@@ -73,7 +73,7 @@ STqStreamPusher* tqAddStreamPusher(STqPushMgr* pushMgr, int64_t streamId, SEpSet
   streamPusher->type = TQ_PUSHER_TYPE__STREAM;
   streamPusher->nodeType = 0;
   streamPusher->streamId = streamId;
-  memcpy(&streamPusher->epSet, pEpSet, sizeof(SEpSet));
+  /*memcpy(&streamPusher->epSet, pEpSet, sizeof(SEpSet));*/
 
   if (taosHashPut(pushMgr->pHash, &streamId, sizeof(int64_t), &streamPusher, sizeof(void*)) < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;

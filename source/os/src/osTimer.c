@@ -79,7 +79,7 @@ static void* timer_routine(void* arg) {
     struct kevent64_s kev[10] = {0};
     r = kevent64(timer_kq, NULL, 0, kev, sizeof(kev) / sizeof(kev[0]), 0, &to);
     if (r != 0) {
-      fprintf(stderr, "==%s[%d]%s()==kevent64 failed\n", basename(__FILE__), __LINE__, __func__);
+      fprintf(stderr, "==%s[%d]%s()==kevent64 failed\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__);
       abort();
     }
     timer_callback(SIGALRM);  // just mock
@@ -97,14 +97,14 @@ int taosInitTimer(void (*callback)(int), int ms) {
 
   timer_kq = kqueue();
   if (timer_kq == -1) {
-    fprintf(stderr, "==%s[%d]%s()==failed to create timer kq\n", basename(__FILE__), __LINE__, __func__);
+    fprintf(stderr, "==%s[%d]%s()==failed to create timer kq\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__);
     // since no caller of this func checks the return value for the moment
     abort();
   }
 
   r = pthread_create(&timer_thread, NULL, timer_routine, NULL);
   if (r) {
-    fprintf(stderr, "==%s[%d]%s()==failed to create timer thread\n", basename(__FILE__), __LINE__, __func__);
+    fprintf(stderr, "==%s[%d]%s()==failed to create timer thread\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__);
     // since no caller of this func checks the return value for the moment
     abort();
   }
@@ -116,7 +116,7 @@ void taosUninitTimer() {
   timer_stop = 1;
   r = pthread_join(timer_thread, NULL);
   if (r) {
-    fprintf(stderr, "==%s[%d]%s()==failed to join timer thread\n", basename(__FILE__), __LINE__, __func__);
+    fprintf(stderr, "==%s[%d]%s()==failed to join timer thread\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__);
     // since no caller of this func checks the return value for the moment
     abort();
   }
