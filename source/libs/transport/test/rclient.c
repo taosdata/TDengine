@@ -124,6 +124,7 @@ int main(int argc, char *argv[]) {
   rpcInit.ckey = "key";
   rpcInit.spi = 1;
   rpcInit.connType = TAOS_CONN_CLIENT;
+  rpcDebugFlag = 143;
 
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-p") == 0 && i < argc - 1) {

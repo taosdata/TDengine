@@ -18,6 +18,7 @@
 #include "transComm.h"
 
 typedef struct SSrvConn {
+  T_REF_DECLARE()
   uv_tcp_t*   pTcp;
   uv_write_t* pWriter;
   uv_timer_t* pTimer;
@@ -67,16 +68,19 @@ typedef struct SWorkThrdObj {
 } SWorkThrdObj;
 
 typedef struct SServerObj {
-  pthread_t      thread;
-  uv_tcp_t       server;
-  uv_loop_t*     loop;
+  pthread_t  thread;
+  uv_tcp_t   server;
+  uv_loop_t* loop;
+
+  // work thread info
   int            workerIdx;
   int            numOfThreads;
   SWorkThrdObj** pThreadObj;
-  uv_pipe_t**    pipe;
-  uint32_t       ip;
-  uint32_t       port;
-  uv_async_t*    pAcceptAsync;  // just to quit from from accept thread
+
+  uv_pipe_t** pipe;
+  uint32_t    ip;
+  uint32_t    port;
+  uv_async_t* pAcceptAsync;  // just to quit from from accept thread
 } SServerObj;
 
 static const char* notify = "a";
@@ -493,12 +497,10 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
   uv_tcp_init(pThrd->loop, pConn->pTcp);
   pConn->pTcp->data = pConn;
 
-  // uv_tcp_nodelay(pConn->pTcp, 1);
-  // uv_tcp_keepalive(pConn->pTcp, 1, 1);
-
-  // init write request, just
   pConn->pWriter = calloc(1, sizeof(uv_write_t));
   pConn->pWriter->data = pConn;
+
+  transSetConnOption((uv_tcp_t*)pConn->pTcp);
 
   if (uv_accept(q, (uv_stream_t*)(pConn->pTcp)) == 0) {
     uv_os_fd_t fd;

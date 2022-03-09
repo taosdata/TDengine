@@ -123,9 +123,8 @@ typedef struct {
 } SRpcReqContext;
 
 typedef struct {
-  SRpcInfo* pTransInst;  // associated SRpcInfo
-  SEpSet    epSet;       // ip list provided by app
-  void*     ahandle;     // handle provided by app
+  SEpSet epSet;    // ip list provided by app
+  void*  ahandle;  // handle provided by app
   // struct SRpcConn* pConn;     // pConn allocated
   tmsg_t   msgType;  // message type
   uint8_t* pCont;    // content provided by app
@@ -244,6 +243,7 @@ int  transDestroyBuffer(SConnBuffer* buf);
 int  transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
 bool transReadComplete(SConnBuffer* connBuf);
 
+int transSetConnOption(uv_tcp_t* stream);
 // int transPackMsg(SRpcMsg *rpcMsg, bool sercured, bool auth, char **msg, int32_t *msgLen);
 
 // int transUnpackMsg(char *msg, SRpcMsg *pMsg, bool );
