@@ -169,7 +169,7 @@ def get_cmds(args_list):
 
 def run_crash_gen(crash_cmds,result_file):
     os.system('echo "%s">>%s'%(crash_cmds,crash_gen_cmds_file))
-    os.system(crash_gen_cmds_file, core_path)
+    os.system("cp %s %s"%(crash_gen_cmds_file, core_path))
     os.system("%s>>%s"%(crash_cmds,result_file))
 
 def check_status(result_file):
