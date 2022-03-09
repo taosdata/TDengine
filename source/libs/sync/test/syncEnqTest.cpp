@@ -2,6 +2,7 @@
 #include "syncEnv.h"
 #include "syncIO.h"
 #include "syncInt.h"
+#include "syncMessage.h"
 #include "syncRaftStore.h"
 
 void logTest() {

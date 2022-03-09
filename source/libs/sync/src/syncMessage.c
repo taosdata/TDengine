@@ -14,7 +14,6 @@
  */
 
 #include "syncMessage.h"
-#include "syncRaft.h"
 #include "syncUtil.h"
 #include "tcoding.h"
 

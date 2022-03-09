@@ -45,8 +45,8 @@ void           voteGrantedDestroy(SVotesGranted *pVotesGranted);
 bool           voteGrantedMajority(SVotesGranted *pVotesGranted);
 void           voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg);
 void           voteGrantedReset(SVotesGranted *pVotesGranted, SyncTerm term);
-cJSON         *voteGranted2Json(SVotesGranted *pVotesGranted);
-char          *voteGranted2Str(SVotesGranted *pVotesGranted);
+cJSON *        voteGranted2Json(SVotesGranted *pVotesGranted);
+char *         voteGranted2Str(SVotesGranted *pVotesGranted);
 
 // SVotesRespond -----------------------------
 typedef struct SVotesRespond {
@@ -62,8 +62,8 @@ void           votesRespondDestory(SVotesRespond *pVotesRespond);
 bool           votesResponded(SVotesRespond *pVotesRespond, const SRaftId *pRaftId);
 void           votesRespondAdd(SVotesRespond *pVotesRespond, const SyncRequestVoteReply *pMsg);
 void           votesRespondReset(SVotesRespond *pVotesRespond, SyncTerm term);
-cJSON         *votesRespond2Json(SVotesRespond *pVotesRespond);
-char          *votesRespond2Str(SVotesRespond *pVotesRespond);
+cJSON *        votesRespond2Json(SVotesRespond *pVotesRespond);
+char *         votesRespond2Str(SVotesRespond *pVotesRespond);
 
 #ifdef __cplusplus
 }

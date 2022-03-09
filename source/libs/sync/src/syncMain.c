@@ -20,7 +20,6 @@
 #include "syncEnv.h"
 #include "syncIndexMgr.h"
 #include "syncInt.h"
-#include "syncRaft.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncRequestVote.h"
