@@ -20,6 +20,12 @@
 extern "C" {
 #endif
 
+typedef u8 SCell;
+
+typedef struct __attribute__((__packed__)) {
+  u8 cksm[4];
+} SPageFooter;
+
 typedef struct __attribute__((__packed__)) {
   u16   flags;
   u16   nCells;
@@ -38,15 +44,16 @@ struct SPage {
   TDB_PCACHE_PAGE
 
   // Fields below used by pager and am
-  SPageHdr *pPageHdr;
-  u16      *aCellIdx;
-  int       kLen;
-  int       vLen;
-  int       maxLocal;
-  int       minLocal;
-  int       nOverflow;
-  void     *apOvfl[4];
-  int       aiOvfl[4];
+  SPageHdr    *pPageHdr;
+  SPageFooter *pPageFooter;
+  u16         *aCellIdx;
+  int          kLen;
+  int          vLen;
+  int          maxLocal;
+  int          minLocal;
+  int          nOverflow;
+  void        *apOvfl[4];
+  int          aiOvfl[4];
 };
 
 // Macros
@@ -88,7 +95,7 @@ struct SPage {
 #endif
 
 // APIs
-int tdbPageInsertCell(SPage *pPage, int idx, u8 *pCell, int szCell);
+int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell);
 int tdbPageDropCell(SPage *pPage, int idx);
 
 #ifdef __cplusplus

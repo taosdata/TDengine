@@ -15,7 +15,7 @@
 
 #include "tdbInt.h"
 
-int tdbPageInsertCell(SPage *pPage, int idx, u8 *pCell, int szCell) {
+int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
   // TODO
   return 0;
 }
