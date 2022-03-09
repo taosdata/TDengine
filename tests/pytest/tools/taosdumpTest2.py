@@ -20,6 +20,7 @@ from util.dnodes import *
 import string
 import random
 
+
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
@@ -84,7 +85,7 @@ class TDTestCase:
             os.makedirs(self.tmpdir)
 
         os.system(
-            "%staosdump --databases db -o %s -B 16384 -y" %
+            "%staosdump --databases db -o %s -y" %
             (binPath, self.tmpdir))
 
         tdSql.execute("drop database db")
@@ -109,8 +110,13 @@ class TDTestCase:
         # test case for TS-1225
         tdSql.execute("create database test")
         tdSql.execute("use test")
-        tdSql.execute("create table stb(ts timestamp, c1 binary(16374), c2 binary(16374), c3 binary(16374)) tags(t1 nchar(256))")
-        tdSql.execute("insert into t1 using stb tags('t1') values(now, '%s', '%s', '%s')" % (self.generateString(16374), self.generateString(16374), self.generateString(16374)))
+        tdSql.execute(
+            "create table stb(ts timestamp, c1 binary(16374), c2 binary(16374), c3 binary(16374)) tags(t1 nchar(256))")
+        tdSql.execute(
+            "insert into t1 using stb tags('t1') values(now, '%s', '%s', '%s')" %
+            (self.generateString(16374),
+             self.generateString(16374),
+             self.generateString(16374)))
 
         os.system("rm /tmp/*.sql")
         os.system("rm /tmp/*.avro*")
