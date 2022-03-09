@@ -33,6 +33,7 @@ typedef struct {
   SDiskSize size;
 } SDiskSpace;
 
+bool    taosCheckSystemIsSmallEnd();
 void    taosGetSystemInfo();
 int32_t taosGetEmail(char *email, int32_t maxLen);
 int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen);
