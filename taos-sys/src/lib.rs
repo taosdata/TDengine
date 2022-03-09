@@ -1,5 +1,5 @@
 #![allow(non_camel_case_types)]
-use std::os::raw::*;
+use std::{ffi::CStr, os::raw::*};
 
 pub type TAOS = c_void;
 pub type TAOS_STMT = c_void;
@@ -7,12 +7,6 @@ pub type TAOS_RES = c_void;
 pub type TAOS_STREAM = c_void;
 pub type TAOS_SUB = c_void;
 pub type TAOS_ROW = *mut *mut c_void;
-
-pub type taos_async_fetch_cb =
-    unsafe extern "C" fn(param: *mut c_void, res: *mut TAOS_RES, rows: c_int);
-
-pub type taos_async_query_cb =
-    unsafe extern "C" fn(param: *mut c_void, res: *mut TAOS_RES, code: c_int);
 
 pub type taos_subscribe_cb =
     unsafe extern "C" fn(sub: *mut TAOS_SUB, res: *mut TAOS_RES, param: *mut c_void, code: c_int);
@@ -37,9 +31,22 @@ pub use basic::*;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct TAOS_FIELD {
-    pub name: [c_char; 65usize],
+    pub name: [u8; 65usize],
     pub type_: u8,
     pub bytes: i16,
+}
+
+impl TAOS_FIELD {
+    pub fn name(&self) -> &CStr {
+        CStr::from_bytes_with_nul(&self.name).expect("field name should always valid cstr")
+    }
+    pub fn type_(&self) -> TaosDataType {
+        self.type_.into()
+    }
+
+    pub fn bytes(&self) -> i16 {
+        self.bytes
+    }
 }
 
 #[repr(C)]
@@ -198,16 +205,8 @@ extern "C" {
 
 }
 
-extern "C" {
-    pub fn taos_fetch_rows_a(res: *mut TAOS_RES, fp: taos_async_fetch_cb, param: *mut c_void);
-
-    pub fn taos_query_a(
-        taos: *mut TAOS,
-        sql: *const c_char,
-        fp: taos_async_query_cb,
-        param: *mut c_void,
-    );
-}
+pub mod query_a;
+pub use query_a::*;
 
 extern "C" {
     pub fn taos_subscribe(
@@ -238,8 +237,8 @@ extern "C" {
     pub fn taos_close_stream(stream: *mut TAOS_STREAM);
 }
 
-mod sml;
-pub use sml::*;
+mod schemaless;
+pub use schemaless::*;
 
 mod tmq;
 pub use tmq::*;

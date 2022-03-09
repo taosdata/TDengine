@@ -1,8 +1,11 @@
 use std::os::raw::*;
 
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
+use num_enum::FromPrimitive;
+
+#[repr(i32)]
+#[derive(Debug, Copy, Clone, FromPrimitive)]
 pub enum TimestampPrecision {
+    #[num_enum(default)]
     Millisecond = 0,
     Microsecond,
     Nanosecond,
@@ -12,7 +15,7 @@ pub const TIMESTAMP_MILLISECOND: TimestampPrecision = TimestampPrecision::Millis
 pub const TIMESTAMP_MICROSECOND: TimestampPrecision = TimestampPrecision::Microsecond;
 pub const TIMESTAMP_NANOSECOND: TimestampPrecision = TimestampPrecision::Nanosecond;
 
-#[cfg(c_parse_time)]
+#[cfg(parse_time)]
 extern "C" {
     pub fn taos_parse_time(
         time_str: *const c_char,
@@ -22,7 +25,7 @@ extern "C" {
         daylight: i8, // if in daylight saving time (DST) { 1 } else { 0 }
     ) -> i32;
 }
-#[cfg(all(not(c_parse_time), feature = "backport"))]
+#[cfg(all(not(parse_time), feature = "backport"))]
 #[no_mangle]
 pub fn taos_parse_time(
     _time_str: *const c_char,
@@ -34,7 +37,7 @@ pub fn taos_parse_time(
     unimplemented!("the function is backport to old version but not implemented!")
 }
 #[test]
-#[cfg(c_parse_time)]
+#[cfg(parse_time)]
 fn test_parse_time() {
     use std::ffi::CString;
     let s = CString::new("2020-02-22 20:20:20").unwrap();

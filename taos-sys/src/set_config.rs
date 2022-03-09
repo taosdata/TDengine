@@ -17,7 +17,7 @@ pub struct SetConfRet {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum SET_CONF_RET_CODE {
     Succ = 0,
     ErrPart = -1,
