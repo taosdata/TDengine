@@ -544,7 +544,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
     // reset timer ms
     pSyncNode->electTimerMS = syncUtilElectRandomMS();
 
-    taosTmrReset(syncNodeEqPingTimer, pSyncNode->pingTimerMS, pSyncNode, &gSyncEnv->pTimerManager,
+    taosTmrReset(syncNodeEqPingTimer, pSyncNode->pingTimerMS, pSyncNode, gSyncEnv->pTimerManager,
                  &pSyncNode->pPingTimer);
   } else {
     sTrace("syncNodeEqElectTimer: electTimerLogicClock:%lu, electTimerLogicClockUser:%lu",
