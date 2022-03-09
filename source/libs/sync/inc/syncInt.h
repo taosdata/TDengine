@@ -103,6 +103,9 @@ typedef struct SVotesGranted SVotesGranted;
 struct SVotesRespond;
 typedef struct SVotesRespond SVotesRespond;
 
+struct SSyncIndexMgr;
+typedef struct SSyncIndexMgr SSyncIndexMgr;
+
 typedef struct SRaftId {
   SyncNodeId  addr;  // typedef uint64_t SyncNodeId;
   SyncGroupId vgId;  // typedef int32_t  SyncGroupId;
@@ -148,8 +151,8 @@ typedef struct SSyncNode {
   SVotesRespond* pVotesRespond;
 
   // tla+ leader vars
-  SHashObj* pNextIndex;
-  SHashObj* pMatchIndex;
+  SSyncIndexMgr* pNextIndex;
+  SSyncIndexMgr* pMatchIndex;
 
   // tla+ log vars
   SSyncLogStore* pLogStore;

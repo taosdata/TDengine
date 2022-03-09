@@ -81,8 +81,9 @@ cJSON *syncIndexMgr2Json(SSyncIndexMgr *pSyncIndexMgr) {
   for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
     arr[i] = pSyncIndexMgr->index[i];
   }
-  cJSON *pIsRespond = cJSON_CreateIntArray(arr, pSyncIndexMgr->replicaNum);
+  cJSON *pIndex = cJSON_CreateIntArray(arr, pSyncIndexMgr->replicaNum);
   free(arr);
+  cJSON_AddItemToObject(pRoot, "index", pIndex);
   snprintf(u64buf, sizeof(u64buf), "%p", pSyncIndexMgr->pSyncNode);
   cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
 
@@ -93,7 +94,7 @@ cJSON *syncIndexMgr2Json(SSyncIndexMgr *pSyncIndexMgr) {
 
 char *syncIndexMgr2Str(SSyncIndexMgr *pSyncIndexMgr) {
   cJSON *pJson = syncIndexMgr2Json(pSyncIndexMgr);
-  char  *serialized = cJSON_Print(pJson);
+  char * serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }

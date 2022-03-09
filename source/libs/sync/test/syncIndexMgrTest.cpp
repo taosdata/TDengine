@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#include "syncIndexMgr.h"
+//#include <gtest/gtest.h>
 #include <stdio.h>
 #include "syncEnv.h"
 #include "syncIO.h"
@@ -97,60 +98,44 @@ int main(int argc, char** argv) {
 
   initRaftId(pSyncNode);
 
-  SVotesGranted* pVotesGranted = voteGrantedCreate(pSyncNode);
-  assert(pVotesGranted != NULL);
+  SSyncIndexMgr* pSyncIndexMgr = syncIndexMgrCreate(pSyncNode);
+  assert(pSyncIndexMgr != NULL);
 
   printf("---------------------------------------\n");
   {
-    char* serialized = voteGranted2Str(pVotesGranted);
+    char* serialized = syncIndexMgr2Str(pSyncIndexMgr);
     assert(serialized != NULL);
     printf("%s\n", serialized);
     free(serialized);
   }
 
-  SyncTerm term = 1234;
+  syncIndexMgrSetIndex(pSyncIndexMgr, &ids[0], 100);
+  syncIndexMgrSetIndex(pSyncIndexMgr, &ids[1], 200);
+  syncIndexMgrSetIndex(pSyncIndexMgr, &ids[2], 300);
+
   printf("---------------------------------------\n");
-  voteGrantedReset(pVotesGranted, term);
   {
-    char* serialized = voteGranted2Str(pVotesGranted);
+    char* serialized = syncIndexMgr2Str(pSyncIndexMgr);
     assert(serialized != NULL);
     printf("%s\n", serialized);
     free(serialized);
   }
 
-  for (int i = 0; i < replicaNum; ++i) {
-    SyncRequestVoteReply* reply = SyncRequestVoteReplyBuild();
-    reply->destId = pSyncNode->myRaftId;
-    reply->srcId = ids[i];
-    reply->term = term;
-    reply->voteGranted = true;
-
-    voteGrantedVote(pVotesGranted, reply);
-    {
-      char* serialized = voteGranted2Str(pVotesGranted);
-      assert(serialized != NULL);
-      printf("%s\n", serialized);
-      free(serialized);
-    }
-
-    voteGrantedVote(pVotesGranted, reply);
-    {
-      char* serialized = voteGranted2Str(pVotesGranted);
-      assert(serialized != NULL);
-      printf("%s\n", serialized);
-      free(serialized);
-    }
+  printf("---------------------------------------\n");
+  for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
+    SyncIndex idx = syncIndexMgrGetIndex(pSyncIndexMgr, &ids[i]);
+    printf("index %d : %lu \n", i, idx);
   }
 
+  syncIndexMgrClear(pSyncIndexMgr);
   printf("---------------------------------------\n");
-  voteGrantedReset(pVotesGranted, 123456789);
   {
-    char* serialized = voteGranted2Str(pVotesGranted);
+    char* serialized = syncIndexMgr2Str(pSyncIndexMgr);
     assert(serialized != NULL);
     printf("%s\n", serialized);
     free(serialized);
   }
 
-  voteGrantedDestroy(pVotesGranted);
+  syncIndexMgrDestroy(pSyncIndexMgr);
   return 0;
 }
