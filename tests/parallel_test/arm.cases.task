@@ -1,0 +1,16 @@
+4,,pytest,python3 test.py -f insert/double.py 
+4,,pytest,python3 test.py -f insert/date.py 
+4,,pytest,python3 test.py -f insert/bug3654.py 
+4,,pytest,python3 test.py -f insert/bool.py 
+4,,pytest,python3 test.py -f insert/bigint.py 
+4,,pytest,python3 test.py -f insert/basic.py 
+4,,pytest,python3 test.py -f insert/alterTableAndInsert.py 
+4,,pytest,python3 test.py -f import_merge/importHeadPartOverlap.py 
+4,,pytest,python3 test.py -f functions/function_stddev_td2555.py 
+4,,pytest,python3 test.py -f dbmgmt/nanoSecondCheck.py 
+4,,pytest,python3 bug2265.py 
+4,,pytest,python3 test.py -f alter/alterTabAddTagWithNULL.py 
+4,,pytest,python3 test.py -f alter/alter_debugFlag.py 
+4,,pytest,python3 test.py -f alter/alter_create_exception.py 
+3,,pytest,python3 test.py -f tag_lite/binary.py 
+3,,pytest,python3 test.py -f query/filterAllIntTypes.py 
