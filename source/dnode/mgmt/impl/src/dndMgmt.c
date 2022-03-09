@@ -365,7 +365,7 @@ void dndSendStatusReq(SDnode *pDnode) {
   req.clusterId = pMgmt->clusterId;
   req.rebootTime = pMgmt->rebootTime;
   req.updateTime = pMgmt->updateTime;
-  req.numOfCores = tsNumOfCores;
+  taosGetCpuCores(&req.numOfCores);
   req.numOfSupportVnodes = pDnode->cfg.numOfSupportVnodes;
   memcpy(req.dnodeEp, pDnode->cfg.localEp, TSDB_EP_LEN);
 
