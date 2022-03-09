@@ -101,12 +101,12 @@ class DbConn:
         return dbName in dbs # TODO: super weird type mangling seen, once here
 
     def existsSuperTable(self, dbName, stName):
-        self.query(f"show {dbName}.stables")
+        self.query("show {}.stables".format(dbName))
         sts = [v[0] for v in self.getQueryResult()]
         return stName in sts
 
     def hasTables(self, dbName):
-        return self.query(f"show {dbName}.tables") > 0
+        return self.query("show {}.tables".format(dbName)) > 0
 
     def execute(self, sql):
         ''' Return the number of rows affected'''

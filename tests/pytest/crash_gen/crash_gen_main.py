@@ -1687,10 +1687,12 @@ class TdSuperTable:
     def __init__(self, stName, dbName):
         self._stName = stName
         self._dbName = dbName
-        self._fullTableName = dbName + '.' + stName
 
     def getName(self):
         return self._stName
+
+    def getFullTableName(self):
+        return self._dbName + '.' + self._stName
 
     def drop(self, dbc, skipCheck = False):
         dbName = self._dbName
@@ -1699,11 +1701,11 @@ class TdSuperTable:
             dbc.execute("DROP TaBLE {}".format(fullTableName))
         else:
             if not skipCheck:
-                raise CrashGenError("Cannot drop non-existant super table: {}".format(self._fullTableName))
+                raise CrashGenError("Cannot drop non-existant super table: {}".format(fullTableName))
 
     def exists(self, dbc):
         dbc.execute("USE " + self._dbName)
-        return dbc.existsSuperTable(self._dbName, self._fullTableName)
+        return dbc.existsSuperTable(self._dbName, self._stName)
 
     # TODO: odd semantic, create() method is usually static?
     def create(self, dbc, cols: TdColumns, tags: TdTags, dropIfExists = False):
@@ -1712,11 +1714,11 @@ class TdSuperTable:
         dbName = self._dbName
         dbc.execute("USE " + dbName)
         fullTableName = dbName + '.' + self._stName       
-        if dbc.existsSuperTable(self._dbName, self._fullTableName):
+        if dbc.existsSuperTable(dbName, self._stName):
             if dropIfExists: 
                 dbc.execute("DROP TAbLE {}".format(fullTableName))
             else: # error
-                raise CrashGenError("Cannot create super table, already exists: {}".format(self._fullTableName))
+                raise CrashGenError("Cannot create super table, already exists: {}".format(self._stName))
 
         # Now let's create
         sql = "CREATE TABLE {} ({})".format(
