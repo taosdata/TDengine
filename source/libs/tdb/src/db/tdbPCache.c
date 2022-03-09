@@ -188,7 +188,7 @@ static void tdbPCacheUnpinPage(SPage *pPage) {
 
   tdbPCacheLock(pCache);
 
-  nRef = TDB_PAGE_REF(pPage);
+  nRef = TDB_GET_PAGE_REF(pPage);
   ASSERT(nRef >= 0);
   if (nRef == 0) {
     // Add the page to LRU list

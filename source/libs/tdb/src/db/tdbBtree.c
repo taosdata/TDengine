@@ -450,12 +450,14 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
   return 0;
 }
 
-static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, bool isRoot) {
-#if 0
-  int i;
+static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, bool isRoot) {
+  int    nOldPages;
+  SPage *pOldPages[3];
+  int    nNewPages;
+  SPage *pNewPages[5];
 
-  i = pParent->pPageHdr->nCells + pParent->nOverFlow;
-#endif
+  // Find three or less sibling pages
+
   /* TODO */
   return 0;
 }
@@ -500,7 +502,7 @@ static int tdbBtreeBalance(SBtCursor *pCur) {
       // Generalized balance step
       pParent = pCur->pgStack[pCur->iPage - 1];
 
-      ret = tdbBtreeBalanceNonRoot(pCur->pBt, pParent, (iPage == 1));
+      ret = tdbBtreeBalanceNonRoot(pCur->pBt, pParent, pCur->idxStack[pCur->iPage - 1], (iPage == 1));
       if (ret < 0) {
         return -1;
       }

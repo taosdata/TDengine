@@ -32,26 +32,27 @@ typedef struct SPage SPage;
 struct SPage {
   pthread_spinlock_t lock;
   // Fields below used by page cache
-  void *   pData;
+  void    *pData;
   SPgid    pgid;
   u8       isAnchor;
   u8       isLocalPage;
   u8       isDirty;
   i32      nRef;
   SPCache *pCache;
-  SPage *  pFreeNext;
-  SPage *  pHashNext;
-  SPage *  pLruNext;
-  SPage *  pLruPrev;
-  SPage *  pDirtyNext;
-  SPager * pPager;
+  SPage   *pFreeNext;
+  SPage   *pHashNext;
+  SPage   *pLruNext;
+  SPage   *pLruPrev;
+  SPage   *pDirtyNext;
+  SPager  *pPager;
   // Fields below used by pager and am
   SPageHdr *pPageHdr;
-  u16 *     aCellIdx;
+  u16      *aCellIdx;
   int       kLen;
   int       vLen;
   int       maxLocal;
   int       minLocal;
+  int       nOverflow;
 };
 
 // For page lock
@@ -76,16 +77,16 @@ struct SPage {
     ret;                                               \
   })
 
-// For page ref (TODO: Need atomic operation)
+// For page ref
 #define TDB_INIT_PAGE_REF(pPage) ((pPage)->nRef = 0)
 #if 0
 #define TDB_REF_PAGE(pPage)   (++(pPage)->nRef)
 #define TDB_UNREF_PAGE(pPage) (--(pPage)->nRef)
-#define TDB_PAGE_REF(pPage)   ((pPage)->nRef)
+#define TDB_GET_PAGE_REF(pPage)   ((pPage)->nRef)
 #else
 #define TDB_REF_PAGE(pPage)   atomic_add_fetch_32(&((pPage)->nRef), 1)
 #define TDB_UNREF_PAGE(pPage) atomic_sub_fetch_32(&((pPage)->nRef), 1)
-#define TDB_PAGE_REF(pPage)   atomic_load_32(&((pPage)->nRef))
+#define TDB_GET_PAGE_REF(pPage)   atomic_load_32(&((pPage)->nRef))
 #endif
 
 #ifdef __cplusplus
