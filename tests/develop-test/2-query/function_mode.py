@@ -144,7 +144,7 @@ class TDTestCase:
         tdSql.checkData(1, 1, "d002")
 
         #group by tag
-        tdSql.query('select mode(ddouble) from smode group by location')
+        tdSql.query('select mode(ddouble) from smode group by location order by location desc')
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 4.982392323)
         tdSql.checkData(0, 1, "Beijing.haidian")

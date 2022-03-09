@@ -17,7 +17,6 @@ from util.log import tdLog
 from util.cases import tdCases
 from util.sql import tdSql
 import json
-import site
 
 
 class TDTestCase:
@@ -35,8 +34,6 @@ class TDTestCase:
 
     def run(self):
         tdSql.prepare()
-        print("print sitepackage path: ")
-        print(site.getsitepackages())
         print("============== STEP 1 ===== prepare data & validate json string")
         tdSql.error("create table if not exists jsons1(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50), dataStrBin binary(150)) tags(jtag json, tagint int)")
         tdSql.error("create table if not exists jsons1(ts timestamp, data json) tags(tagint int)")
