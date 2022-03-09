@@ -31,7 +31,7 @@ typedef struct __attribute__((__packed__)) {
 
 struct SPage {
   pthread_spinlock_t lock;
-  void              *pData;
+  u8                *pData;
   SPgid              pgid;
 
   // Fields used by SPCache
@@ -48,6 +48,10 @@ struct SPage {
   void     *apOvfl[4];
   int       aiOvfl[4];
 };
+
+// Macros
+#define TDB_PAGE_CELL_IDX_AT(pPage, idx) ((pPage)->aCellIdx[idx])
+#define TDB_PAGE_CELL_AT(pPage, idx)     ((pPage)->pData + TDB_PAGE_CELL_IDX_AT(pPage, idx))
 
 // For page lock
 #define P_LOCK_SUCC 0
