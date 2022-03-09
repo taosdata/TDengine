@@ -273,8 +273,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 
   if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_TAG_DUMMY ||
       functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAGPRJ ||
-      functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP || functionId == TSDB_FUNC_STATE_COUNT ||
-      functionId == TSDB_FUNC_STATE_DURATION)
+      functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP)
   {
     *type = (int16_t)dataType;
     *bytes = dataBytes;
@@ -646,7 +645,7 @@ bool isValidStateOper(char *oper, int32_t len){
          strncmp(oper, "ne", len) || strncmp(oper, "eq", len);
 }
 
-#define STATEOPER(OPER, COMP, TYPE) if (strncmp(oper->pz, OPER, oper->nLen)) {\
+#define STATEOPER(OPER, COMP, TYPE) if (strncmp(oper->pz, OPER, oper->nLen) == 0) {\
 if (pVar->nType == TSDB_DATA_TYPE_BIGINT && *(TYPE)data COMP pVar->i64) return true;\
 else if(pVar->nType == TSDB_DATA_TYPE_DOUBLE && *(TYPE)data COMP pVar->dKey) return true;\
 else return false;}
@@ -702,7 +701,7 @@ static bool isStateOperTrue(void *data, int16_t type, tVariant *oper, tVariant *
     }
 
     case TSDB_DATA_TYPE_UTINYINT: {
-      STATEJUDGE(uint16_t *)
+      STATEJUDGE(uint8_t *)
       break;
     }
     default:
@@ -5718,33 +5717,19 @@ static void state_count_function(SQLFunctionCtx *pCtx) {
   SStateInfo *pStateInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   void *data = GET_INPUT_DATA_LIST(pCtx);
-
-  int32_t notNullElems = 0;
-
-  TSKEY* pTimestamp = pCtx->ptsOutputBuf;
-  TSKEY* tsList = GET_TS_LIST(pCtx);
-
   int64_t *pOutput = (int64_t *)pCtx->pOutput;
 
-  for (int32_t i = 0; i < pCtx->size; i ++) {
+  for (int32_t i = 0; i < pCtx->size;  i++,pOutput++,data += pCtx->inputBytes) {
     if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
+      setNull(pOutput, TSDB_DATA_TYPE_BIGINT, 0);
       continue;
     }
     if (isStateOperTrue(data, pCtx->inputType, &pCtx->param[0], &pCtx->param[1])){
-      if ((pStateInfo->countPrev == 0 || pStateInfo->countPrev == -1)) {
-        *pOutput = 1;
-        pStateInfo->countPrev = 1;
-      }else{
-        *pOutput = ++pStateInfo->countPrev;
-      }
+      *pOutput = ++pStateInfo->countPrev;
     }else{
       *pOutput = -1;
+      pStateInfo->countPrev = 0;
     }
-    *pTimestamp = (tsList != NULL)? tsList[i]:0;
-    pOutput    += 1;
-    pTimestamp += 1;
-    data += i * pCtx->inputBytes;
-    notNullElems++;
   }
 
   for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
@@ -5753,7 +5738,7 @@ static void state_count_function(SQLFunctionCtx *pCtx) {
       aAggs[TSDB_FUNC_TAGPRJ].xFunction(tagCtx);
     }
   }
-  pResInfo->numOfRes += notNullElems;
+  pResInfo->numOfRes += pCtx->size;
 }
 
 static void state_duration_function(SQLFunctionCtx *pCtx) {
@@ -5761,35 +5746,25 @@ static void state_duration_function(SQLFunctionCtx *pCtx) {
   SStateInfo *pStateInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   void *data = GET_INPUT_DATA_LIST(pCtx);
-
-  int32_t notNullElems = 0;
-
-  TSKEY* pTimestamp = pCtx->ptsOutputBuf;
   TSKEY* tsList = GET_TS_LIST(pCtx);
-
   int64_t *pOutput = (int64_t *)pCtx->pOutput;
 
-  for (int32_t i = 0; i < pCtx->size; i ++) {
+  for (int32_t i = 0; i < pCtx->size; i++,pOutput++,data += pCtx->inputBytes) {
     if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
+      setNull(pOutput, TSDB_DATA_TYPE_BIGINT, 0);
       continue;
     }
-    *pTimestamp = (tsList != NULL)? tsList[i]:0;
     if (isStateOperTrue(data, pCtx->inputType, &pCtx->param[0], &pCtx->param[1])){
       if (pStateInfo->durationStart == 0) {
         *pOutput = 0;
-        pStateInfo->durationStart = *pTimestamp;
+        pStateInfo->durationStart = tsList[i];
       } else {
-        *pOutput = (*pTimestamp - pStateInfo->durationStart)/pCtx->param[2].i64;
+        *pOutput = (tsList[i] - pStateInfo->durationStart)/pCtx->param[2].i64;
       }
     } else{
       *pOutput = -1;
       pStateInfo->durationStart = 0;
     }
-
-    pOutput    += 1;
-    pTimestamp += 1;
-    data += i * pCtx->inputBytes;
-    notNullElems++;
   }
 
   for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
@@ -5798,7 +5773,7 @@ static void state_duration_function(SQLFunctionCtx *pCtx) {
       aAggs[TSDB_FUNC_TAGPRJ].xFunction(tagCtx);
     }
   }
-  pResInfo->numOfRes += notNullElems;
+  pResInfo->numOfRes += pCtx->size;
 }
 /////////////////////////////////////////////////////////////////////////////////////////////
 /*
@@ -5821,7 +5796,7 @@ int32_t functionCompatList[] = {
     // tid_tag, deriv,    csum,       mavg,        sample,
     6,          8,        -1,         -1,          -1,
     // block_info,elapsed,histogram,unique,mode,tail,  stateCount, stateDuration
-    7,          1,        -1,        -1,      1,   -1, -1,         -1,
+    7,          1,        -1,        -1,      1,   -1, 1,         1,
 };
 
 SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
@@ -6336,7 +6311,7 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                              "stateCount",
                              TSDB_FUNC_STATE_COUNT,
                              TSDB_FUNC_INVALID_ID,
-                             TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
+                             TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
                              function_setup,
                              state_count_function,
                              doFinalizer,
@@ -6348,7 +6323,7 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                              "stateDuration",
                              TSDB_FUNC_STATE_DURATION,
                              TSDB_FUNC_INVALID_ID,
-                             TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
+                             TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
                              function_setup,
                              state_duration_function,
                              doFinalizer,

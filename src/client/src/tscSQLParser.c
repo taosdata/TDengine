@@ -2804,7 +2804,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       // no parameters or more than one parameter for function
       if (pItem->pNode->Expr.paramList == NULL ||
           (functionId != TSDB_FUNC_LEASTSQR && functionId != TSDB_FUNC_DERIVATIVE && functionId != TSDB_FUNC_ELAPSED &&
-           functionId != TSDB_FUNC_DIFF && numOfParams != 1) ||
+           functionId != TSDB_FUNC_DIFF && functionId != TSDB_FUNC_STATE_COUNT && functionId != TSDB_FUNC_STATE_DURATION && numOfParams != 1) ||
           ((functionId == TSDB_FUNC_LEASTSQR || functionId == TSDB_FUNC_DERIVATIVE) && numOfParams != 3) ||
           (functionId == TSDB_FUNC_ELAPSED && numOfParams != 1 && numOfParams != 2) ||
           (functionId == TSDB_FUNC_DIFF && numOfParams != 1 && numOfParams != 2) ||
@@ -2879,8 +2879,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       // set the first column ts for diff query
-      if (functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE || functionId == TSDB_FUNC_CSUM ||
-          functionId == TSDB_FUNC_STATE_COUNT || functionId == TSDB_FUNC_STATE_DURATION) {
+      if (functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE || functionId == TSDB_FUNC_CSUM) {
         SColumnIndex indexTS = {.tableIndex = index.tableIndex, .columnIndex = 0};
         SExprInfo*   pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &indexTS, TSDB_DATA_TYPE_TIMESTAMP,
                                            TSDB_KEYSIZE, 0, TSDB_KEYSIZE, false);
@@ -2892,10 +2891,19 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       if (functionId == TSDB_FUNC_STATE_COUNT || functionId == TSDB_FUNC_STATE_DURATION) {
-        SExprInfo*   pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_PRJ, &index, pSchema->type,
-                                           pSchema->bytes, getNewResColId(pCmd), intermediateResSize, false);
+        SColumnIndex indexTS = {.tableIndex = index.tableIndex, .columnIndex = 0};
+        SExprInfo*   pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_PRJ, &indexTS, TSDB_DATA_TYPE_TIMESTAMP,
+                                           TSDB_KEYSIZE, 0, TSDB_KEYSIZE, false);
+        tstrncpy(pExpr->base.aliasName, aAggs[TSDB_FUNC_TS_DUMMY].name, sizeof(pExpr->base.aliasName));
 
-        SColumnList ids = createColumnList(1, index.tableIndex, index.columnIndex);
+        SColumnList ids = createColumnList(1, 0, 0);
+        insertResultField(pQueryInfo, colIndex, &ids, TSDB_KEYSIZE, TSDB_DATA_TYPE_TIMESTAMP,
+                          aAggs[TSDB_FUNC_TS].name, pExpr);
+
+        pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_PRJ, &index, pSchema->type,
+                                           pSchema->bytes, getNewResColId(pCmd), 0, false);
+        tstrncpy(pExpr->base.aliasName, pParamElem->pNode->columnName.z, pParamElem->pNode->columnName.n+1);
+        ids = createColumnList(1, index.tableIndex, index.columnIndex);
         insertResultField(pQueryInfo, colIndex + 1, &ids, pExpr->base.resBytes, (int32_t)pExpr->base.resType,
                           pExpr->base.aliasName, pExpr);
       }
@@ -2984,7 +2992,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         }
         tscExprAddParams(&pExpr->base, pParamElem[1].pNode->columnName.z, TSDB_DATA_TYPE_BINARY, pParamElem[1].pNode->columnName.n);
 
-        if (pParamElem[2].pNode->tokenId != TK_INTEGER || pParamElem[2].pNode->tokenId != TK_FLOAT) {
+        if (pParamElem[2].pNode->tokenId != TK_INTEGER && pParamElem[2].pNode->tokenId != TK_FLOAT) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
         }
         tVariantAssign(&pExpr->base.param[pExpr->base.numOfParams++], &pParamElem[2].pNode->value);
@@ -8209,7 +8217,8 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
   
     int16_t functionId = pExpr->base.functionId;
     if (functionId == TSDB_FUNC_TAGPRJ || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TS ||
-        functionId == TSDB_FUNC_SCALAR_EXPR || functionId == TSDB_FUNC_TS_DUMMY) {
+        functionId == TSDB_FUNC_SCALAR_EXPR || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_STATE_COUNT ||
+        functionId == TSDB_FUNC_STATE_DURATION) {
       continue;
     }
 
