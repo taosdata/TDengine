@@ -40,21 +40,21 @@ struct SPage {
   u8                *pData;
   SPgid              pgid;
   int                pageSize;
-
-  // Fields used by SPCache
-  TDB_PCACHE_PAGE
-
   // Fields below used by pager and am
   SPageHdr    *pPageHdr;
   SPageFooter *pPageFooter;
-  u16         *aCellIdx;
-  int          kLen;
-  int          vLen;
-  int          maxLocal;
-  int          minLocal;
-  int          nOverflow;
-  void        *apOvfl[4];
-  int          aiOvfl[4];
+
+  u16 *aCellIdx;
+
+  int   kLen;
+  int   vLen;
+  int   maxLocal;
+  int   minLocal;
+  int   nOverflow;
+  void *apOvfl[4];
+  int   aiOvfl[4];
+  // Fields used by SPCache
+  TDB_PCACHE_PAGE
 };
 
 // Macros

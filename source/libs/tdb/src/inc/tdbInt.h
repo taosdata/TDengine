@@ -71,8 +71,8 @@ static FORCE_INLINE int tdbCmprPgId(const void *p1, const void *p2) {
 #define TDB_IS_SAME_PAGE(pPgid1, pPgid2) (tdbCmprPgId(pPgid1, pPgid2) == 0)
 
 // pgsz_t
-#define TDB_MIN_PGSIZE       512
-#define TDB_MAX_PGSIZE       65536
+#define TDB_MIN_PGSIZE       512       // 512B
+#define TDB_MAX_PGSIZE       16777216  // 16M
 #define TDB_DEFAULT_PGSIZE   4096
 #define TDB_IS_PGSIZE_VLD(s) (((s) >= TDB_MIN_PGSIZE) && ((s) <= TDB_MAX_PGSIZE))
 
