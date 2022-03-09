@@ -70,7 +70,7 @@ typedef uint16_t tmsg_t;
 
 typedef enum {
   HEARTBEAT_TYPE_MQ = 0,
-  HEARTBEAT_TYPE_QUERY = 1,
+  HEARTBEAT_TYPE_QUERY,
   // types can be added here
   //
   HEARTBEAT_TYPE_MAX
@@ -424,9 +424,10 @@ typedef struct {
     int16_t slotId;
   };
 
-  int16_t           type;
-  int16_t           bytes;
-  SColumnFilterList flist;
+  int16_t   type;
+  int32_t   bytes;
+  uint8_t   precision;
+  uint8_t   scale;
 } SColumnInfo;
 
 typedef struct {
@@ -455,57 +456,6 @@ typedef struct {
   int64_t sliding;
   int64_t offset;
 } SInterval;
-
-typedef struct {
-  SMsgHead head;
-  char     version[TSDB_VERSION_LEN];
-
-  bool stableQuery;        // super table query or not
-  bool topBotQuery;        // TODO used bitwise flag
-  bool interpQuery;        // interp query or not
-  bool groupbyColumn;      // denote if this is a groupby normal column query
-  bool hasTagResults;      // if there are tag values in final result or not
-  bool timeWindowInterpo;  // if the time window start/end required interpolation
-  bool queryBlockDist;     // if query data block distribution
-  bool stabledev;          // super table stddev query
-  bool tsCompQuery;        // is tscomp query
-  bool simpleAgg;
-  bool pointInterpQuery;  // point interpolation query
-  bool needReverseScan;   // need reverse scan
-  bool stateWindow;       // state window flag
-
-  STimeWindow window;
-  int32_t     numOfTables;
-  int16_t     order;
-  int16_t     orderColId;
-  int16_t     numOfCols;  // the number of columns will be load from vnode
-  SInterval   interval;
-  //  SSessionWindow sw;            // session window
-  int16_t tagCondLen;      // tag length in current query
-  int16_t colCondLen;      // column length in current query
-  int16_t numOfGroupCols;  // num of group by columns
-  int16_t orderByIdx;
-  int16_t orderType;    // used in group by xx order by xxx
-  int64_t vgroupLimit;  // limit the number of rows for each table, used in order by + limit in stable projection query.
-  int16_t prjOrder;     // global order in super table projection query.
-  int64_t limit;
-  int64_t offset;
-  int32_t queryType;    // denote another query process
-  int16_t numOfOutput;  // final output columns numbers
-  int16_t fillType;     // interpolate type
-  int64_t fillVal;      // default value array list
-  int32_t secondStageOutput;
-  STsBufInfo  tsBuf;          // tsBuf info
-  int32_t     numOfTags;      // number of tags columns involved
-  int32_t     sqlstrLen;      // sql query string
-  int32_t     prevResultLen;  // previous result length
-  int32_t     numOfOperator;
-  int32_t     tableScanOperator;  // table scan operator. -1 means no scan operator
-  int32_t     udfNum;             // number of udf function
-  int32_t     udfContentOffset;
-  int32_t     udfContentLen;
-  SColumnInfo tableCols[];
-} SQueryTableReq;
 
 typedef struct {
   int32_t code;
@@ -696,6 +646,11 @@ typedef struct {
   int64_t totalStorage;
   int64_t compStorage;
   int64_t pointsWritten;
+  int64_t numOfSelectReqs;
+  int64_t numOfInsertReqs;
+  int64_t numOfInsertSuccessReqs;
+  int64_t numOfBatchInsertReqs;
+  int64_t numOfBatchInsertSuccessReqs;
 } SVnodeLoad;
 
 typedef struct {
@@ -766,7 +721,7 @@ typedef struct {
   int32_t  fsyncPeriod;
   uint32_t hashBegin;
   uint32_t hashEnd;
-  int8_t   hashMethod;  
+  int8_t   hashMethod;
   int8_t   walLevel;
   int8_t   precision;
   int8_t   compression;
@@ -777,7 +732,7 @@ typedef struct {
   int8_t   selfIndex;
   int8_t   streamMode;
   SReplica replicas[TSDB_MAX_REPLICA];
-  
+
 } SCreateVnodeReq, SAlterVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
@@ -898,6 +853,8 @@ int32_t tDeserializeSShowRsp(void* buf, int32_t bufLen, SShowRsp* pRsp);
 void    tFreeSShowRsp(SShowRsp* pRsp);
 
 typedef struct {
+  int32_t type;
+  char    db[TSDB_DB_FNAME_LEN];
   int64_t showId;
   int8_t  free;
 } SRetrieveTableReq;
@@ -925,6 +882,8 @@ int32_t tDeserializeSCreateDnodeReq(void* buf, int32_t bufLen, SCreateDnodeReq* 
 
 typedef struct {
   int32_t dnodeId;
+  char    fqdn[TSDB_FQDN_LEN];
+  int32_t port;
 } SDropDnodeReq;
 
 int32_t tSerializeSDropDnodeReq(void* buf, int32_t bufLen, SDropDnodeReq* pReq);
@@ -1450,7 +1409,7 @@ typedef struct {
 typedef struct SMqCMGetSubEpReq {
   int64_t consumerId;
   int32_t epoch;
-  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char    cgroup[TSDB_CGROUP_LEN];
 } SMqCMGetSubEpReq;
 
 static FORCE_INLINE int32_t tEncodeSMsgHead(void** buf, const SMsgHead* pMsg) {
@@ -1750,7 +1709,7 @@ typedef struct {
   int32_t vgId;
   int64_t consumerId;
   char    topicName[TSDB_TOPIC_FNAME_LEN];
-  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char    cgroup[TSDB_CGROUP_LEN];
   char*   sql;
   char*   logicalPlan;
   char*   physicalPlan;
@@ -1813,7 +1772,7 @@ typedef struct {
   int32_t  vgId;
   int64_t  consumerId;
   char     topicName[TSDB_TOPIC_FNAME_LEN];
-  char     cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char     cgroup[TSDB_CGROUP_LEN];
 } SMqSetCVgRsp;
 
 typedef struct {
@@ -1821,14 +1780,14 @@ typedef struct {
   int32_t  vgId;
   int64_t  consumerId;
   char     topicName[TSDB_TOPIC_FNAME_LEN];
-  char     cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char     cgroup[TSDB_CGROUP_LEN];
 } SMqMVRebRsp;
 
 typedef struct {
   int32_t vgId;
   int64_t offset;
   char    topicName[TSDB_TOPIC_FNAME_LEN];
-  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char    cgroup[TSDB_CGROUP_LEN];
 } SMqOffset;
 
 typedef struct {
@@ -1904,6 +1863,205 @@ static FORCE_INLINE void* tDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) 
   }
   return buf;
 }
+typedef enum {
+  TD_TIME_UNIT_UNKNOWN = -1,
+  TD_TIME_UNIT_YEAR = 0,
+  TD_TIME_UNIT_SEASON = 1,
+  TD_TIME_UNIT_MONTH = 2,
+  TD_TIME_UNIT_WEEK = 3,
+  TD_TIME_UNIT_DAY = 4,
+  TD_TIME_UNIT_HOUR = 5,
+  TD_TIME_UNIT_MINUTE = 6,
+  TD_TIME_UNIT_SEC = 7,
+  TD_TIME_UNIT_MILLISEC = 8,
+  TD_TIME_UNIT_MICROSEC = 9,
+  TD_TIME_UNIT_NANOSEC = 10
+} ETDTimeUnit;
+typedef struct {
+  uint8_t   version;  // for compatibility
+  uint8_t   intervalUnit;
+  uint8_t   slidingUnit;
+  char      indexName[TSDB_INDEX_NAME_LEN + 1];
+  col_id_t  numOfColIds;
+  uint16_t  numOfFuncIds;
+  uint64_t  tableUid;  // super/common table uid
+  int64_t   interval;
+  int64_t   sliding;
+  col_id_t* colIds;   // sorted column ids
+  uint16_t* funcIds;  // sorted sma function ids
+} STSma;              // Time-range-wise SMA
+
+typedef struct {
+  int64_t ver;  // use a general definition
+  STSma   tSma;
+} SVCreateTSmaReq;
+
+typedef struct {
+  int8_t      type;  // 0 status report, 1 update data
+  char        indexName[TSDB_INDEX_NAME_LEN + 1]; // 
+  STimeWindow windows;
+} STSmaMsg;
+
+typedef struct {
+  int64_t ver;  // use a general definition
+  char    indexName[TSDB_INDEX_NAME_LEN + 1];
+} SVDropTSmaReq;
+typedef struct {
+} SVCreateTSmaRsp, SVDropTSmaRsp;
+
+int32_t tSerializeSVCreateTSmaReq(void** buf, SVCreateTSmaReq* pReq);
+void*   tDeserializeSVCreateTSmaReq(void* buf, SVCreateTSmaReq* pReq);
+int32_t tSerializeSVDropTSmaReq(void** buf, SVDropTSmaReq* pReq);
+void*   tDeserializeSVDropTSmaReq(void* buf, SVDropTSmaReq* pReq);
+
+typedef struct {
+  STimeWindow tsWindow;     // [skey, ekey]
+  uint64_t    tableUid;     // sub/common table uid
+  int32_t     numOfBlocks;  // number of sma blocks for each column, total number is numOfBlocks*numOfColId
+  int32_t     dataLen;      // total data length
+  col_id_t*   colIds;       // e.g. 2,4,9,10
+  col_id_t    numOfColIds;  // e.g. 4
+  char        data[];       // the sma blocks
+} STSmaData;
+
+// TODO: move to the final location afte schema of STSma/STSmaData defined
+static FORCE_INLINE void tdDestroySmaData(STSmaData* pSmaData) {
+  if (pSmaData) {
+    if (pSmaData->colIds) {
+      tfree(pSmaData->colIds);
+    }
+    tfree(pSmaData);
+  }
+}
+
+// RSma: Rollup SMA
+typedef struct {
+  int64_t  interval;
+  int32_t  retention;  // unit: day
+  uint16_t days;       // unit: day
+  int8_t   intervalUnit;
+} SSmaParams;
+
+typedef struct {
+  STSma   tsma;
+  float   xFilesFactor;
+  SArray* smaParams;  // SSmaParams
+} SRSma;
+
+typedef struct {
+  uint32_t number;
+  STSma*   tSma;
+} STSmaWrapper;
+
+static FORCE_INLINE void tdDestroyTSma(STSma* pSma) {
+  if (pSma) {
+    tfree(pSma->colIds);
+    tfree(pSma->funcIds);
+  }
+}
+
+static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW) {
+  if (pSW) {
+    if (pSW->tSma) {
+      for (uint32_t i = 0; i < pSW->number; ++i) {
+        tdDestroyTSma(pSW->tSma + i);
+      }
+      tfree(pSW->tSma);
+    }
+  }
+}
+
+static FORCE_INLINE int32_t tEncodeTSma(void** buf, const STSma* pSma) {
+  int32_t tlen = 0;
+
+  tlen += taosEncodeFixedU8(buf, pSma->version);
+  tlen += taosEncodeFixedU8(buf, pSma->intervalUnit);
+  tlen += taosEncodeFixedU8(buf, pSma->slidingUnit);
+  tlen += taosEncodeString(buf, pSma->indexName);
+  tlen += taosEncodeFixedU16(buf, pSma->numOfColIds);
+  tlen += taosEncodeFixedU16(buf, pSma->numOfFuncIds);
+  tlen += taosEncodeFixedU64(buf, pSma->tableUid);
+  tlen += taosEncodeFixedI64(buf, pSma->interval);
+  tlen += taosEncodeFixedI64(buf, pSma->sliding);
+
+  for (col_id_t i = 0; i < pSma->numOfColIds; ++i) {
+    tlen += taosEncodeFixedU16(buf, *(pSma->colIds + i));
+  }
+
+  for (uint16_t i = 0; i < pSma->numOfFuncIds; ++i) {
+    tlen += taosEncodeFixedU16(buf, *(pSma->funcIds + i));
+  }
+
+  return tlen;
+}
+
+static FORCE_INLINE int32_t tEncodeTSmaWrapper(void** buf, const STSmaWrapper* pSW) {
+  int32_t tlen = 0;
+
+  tlen += taosEncodeFixedU32(buf, pSW->number);
+  for (uint32_t i = 0; i < pSW->number; ++i) {
+    tlen += tEncodeTSma(buf, pSW->tSma + i);
+  }
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeTSma(void* buf, STSma* pSma) {
+  buf = taosDecodeFixedU8(buf, &pSma->version);
+  buf = taosDecodeFixedU8(buf, &pSma->intervalUnit);
+  buf = taosDecodeFixedU8(buf, &pSma->slidingUnit);
+  buf = taosDecodeStringTo(buf, pSma->indexName);
+  buf = taosDecodeFixedU16(buf, &pSma->numOfColIds);
+  buf = taosDecodeFixedU16(buf, &pSma->numOfFuncIds);
+  buf = taosDecodeFixedU64(buf, &pSma->tableUid);
+  buf = taosDecodeFixedI64(buf, &pSma->interval);
+  buf = taosDecodeFixedI64(buf, &pSma->sliding);
+
+  if (pSma->numOfColIds > 0) {
+    pSma->colIds = (col_id_t*)calloc(pSma->numOfColIds, sizeof(STSma));
+    if (pSma->colIds == NULL) {
+      return NULL;
+    }
+    for (uint16_t i = 0; i < pSma->numOfColIds; ++i) {
+      buf = taosDecodeFixedU16(buf, pSma->colIds + i);
+    }
+  } else {
+    pSma->colIds = NULL;
+  }
+
+  if (pSma->numOfFuncIds > 0) {
+    pSma->funcIds = (uint16_t*)calloc(pSma->numOfFuncIds, sizeof(STSma));
+    if (pSma->funcIds == NULL) {
+      return NULL;
+    }
+    for (uint16_t i = 0; i < pSma->numOfFuncIds; ++i) {
+      buf = taosDecodeFixedU16(buf, pSma->funcIds + i);
+    }
+  } else {
+    pSma->funcIds = NULL;
+  }
+
+  return buf;
+}
+
+static FORCE_INLINE void* tDecodeTSmaWrapper(void* buf, STSmaWrapper* pSW) {
+  buf = taosDecodeFixedU32(buf, &pSW->number);
+
+  pSW->tSma = (STSma*)calloc(pSW->number, sizeof(STSma));
+  if (pSW->tSma == NULL) {
+    return NULL;
+  }
+
+  for (uint32_t i = 0; i < pSW->number; ++i) {
+    if ((buf = tDecodeTSma(buf, pSW->tSma + i)) == NULL) {
+      for (uint32_t j = i; j >= 0; --i) {
+        tdDestroyTSma(pSW->tSma + j);
+      }
+      free(pSW->tSma);
+      return NULL;
+    }
+  }
+  return buf;
+}
 
 typedef struct {
   int64_t uid;
@@ -1945,7 +2103,7 @@ typedef struct {
   int64_t consumerId;
   int64_t blockingTime;
   int32_t epoch;
-  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char    cgroup[TSDB_CGROUP_LEN];
 
   int64_t currentOffset;
   char    topic[TSDB_TOPIC_FNAME_LEN];
@@ -1964,7 +2122,7 @@ typedef struct {
 
 typedef struct {
   int64_t consumerId;
-  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char    cgroup[TSDB_CGROUP_LEN];
   SArray* topics;  // SArray<SMqSubTopicEp>
 } SMqCMGetSubEpRsp;
 

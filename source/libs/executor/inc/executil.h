@@ -68,7 +68,7 @@ typedef struct SResultRow {
 } SResultRow;
 
 typedef struct SResultRowInfo {
-  SResultRow  *pCurResult; // current active result row info
+  SList* pRows;
   SResultRow** pResult;    // result list
 //  int16_t      type:8;     // data type for hash key
   int32_t      size;       // number of result set
@@ -111,7 +111,6 @@ void    clearResultRow(struct STaskRuntimeEnv* pRuntimeEnv, SResultRow* pResultR
 struct SResultRowEntryInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_t* offset);
 
 void* destroyQueryFuncExpr(SExprInfo* pExprInfo, int32_t numOfExpr);
-void* freeColumnInfo(SColumnInfo* pColumnInfo, int32_t numOfCols);
 int32_t getRowNumForMultioutput(struct STaskAttr* pQueryAttr, bool topBottomQuery, bool stable);
 
 static FORCE_INLINE SResultRow *getResultRow(SResultRowInfo *pResultRowInfo, int32_t slot) {

@@ -33,7 +33,7 @@
 #include "taos.h"
 #include "tdef.h"
 #include "tvariant.h"
-#include "tep.h"
+#include "tdatablock.h"
 #include "trpc.h"
 #include "planner.h"
 #include "qworker.h"

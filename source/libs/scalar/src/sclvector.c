@@ -15,15 +15,15 @@
 
 #include "os.h"
 
-#include "ttypes.h"
-#include "sclvector.h"
-#include "tcompare.h"
-#include "querynodes.h"
+#include "filter.h"
 #include "filterInt.h"
 #include "query.h"
+#include "querynodes.h"
 #include "sclInt.h"
-#include "tep.h"
-#include "filter.h"
+#include "sclvector.h"
+#include "tcompare.h"
+#include "tdatablock.h"
+#include "ttypes.h"
 
 //GET_TYPED_DATA(v, double, pRight->type, (char *)&((right)[i]));                                
 

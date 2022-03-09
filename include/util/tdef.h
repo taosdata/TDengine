@@ -195,6 +195,7 @@ typedef enum ELogicConditionType {
 #define TSDB_NODE_NAME_LEN  64
 #define TSDB_TABLE_NAME_LEN 193  // it is a null-terminated string
 #define TSDB_TOPIC_NAME_LEN 193  // it is a null-terminated string
+#define TSDB_CGROUP_LEN     193  // it is a null-terminated string
 #define TSDB_DB_NAME_LEN    65
 #define TSDB_DB_FNAME_LEN   (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 
@@ -206,12 +207,12 @@ typedef enum ELogicConditionType {
 #define TSDB_FUNC_TYPE_AGGREGATE 2
 #define TSDB_FUNC_MAX_RETRIEVE   1024
 
+#define TSDB_INDEX_NAME_LEN      32
 #define TSDB_TYPE_STR_MAX_LEN    32
 #define TSDB_TABLE_FNAME_LEN     (TSDB_DB_FNAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_TOPIC_FNAME_LEN     TSDB_TABLE_FNAME_LEN
-#define TSDB_CONSUMER_GROUP_LEN  192
-#define TSDB_SUBSCRIBE_KEY_LEN   (TSDB_CONSUMER_GROUP_LEN + TSDB_TOPIC_FNAME_LEN + 2)
-#define TSDB_PARTITION_KEY_LEN   (TSDB_CONSUMER_GROUP_LEN + TSDB_TOPIC_FNAME_LEN + 2)
+#define TSDB_SUBSCRIBE_KEY_LEN   (TSDB_CGROUP_LEN + TSDB_TOPIC_FNAME_LEN + 2)
+#define TSDB_PARTITION_KEY_LEN   (TSDB_SUBSCRIBE_KEY_LEN + 20)
 #define TSDB_COL_NAME_LEN        65
 #define TSDB_MAX_SAVED_SQL_LEN   TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN         TSDB_PAYLOAD_SIZE
@@ -440,6 +441,8 @@ typedef struct {
   int32_t level;
   int32_t primary;
 } SDiskCfg;
+
+#define TMQ_SEPARATOR ':'
 
 #ifdef __cplusplus
 }

@@ -53,7 +53,7 @@ TEST(testCase, driverInit_Test) {
 //  taos_init();
 }
 
-#if 1
+#if 0
 TEST(testCase, connect_Test) {
 //  taos_options(TSDB_OPTION_CONFIGDIR, "/home/ubuntu/first/cfg");
 
@@ -571,15 +571,15 @@ TEST(testCase, projection_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 2");
-  if (taos_errno(pRes) != 0) {
-    printf("error in create db, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
+//  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 2");
+//  if (taos_errno(pRes) != 0) {
+//    printf("error in create db, reason:%s\n", taos_errstr(pRes));
+//  }
+//  taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "use abc1");
+  TAOS_RES* pRes = taos_query(pConn, "use abc1");
   taos_free_result(pRes);
-
+#if 0
   pRes = taos_query(pConn, "create stable st1 (ts timestamp, k int) tags(a int)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
@@ -592,7 +592,7 @@ TEST(testCase, projection_query_tables) {
   }
   taos_free_result(pRes);
 
-  for(int32_t i = 0; i < 10000000; ++i) {
+  for(int32_t i = 0; i < 10000; ++i) {
     char sql[512] = {0};
     sprintf(sql, "insert into tu values(now+%da, %d)", i, i);
     TAOS_RES* p = taos_query(pConn, sql);
@@ -602,8 +602,9 @@ TEST(testCase, projection_query_tables) {
 
     taos_free_result(p);
   }
+#endif
 
-  pRes = taos_query(pConn, "select * from tu");
+  pRes = taos_query(pConn, "select count(ts) from tu");
   if (taos_errno(pRes) != 0) {
     printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);
@@ -623,8 +624,8 @@ TEST(testCase, projection_query_tables) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
-#if 0
 
+#if 0
 TEST(testCase, projection_query_stables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);

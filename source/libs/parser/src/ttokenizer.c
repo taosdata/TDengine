@@ -30,6 +30,7 @@ typedef struct SKeyword {
 // keywords in sql string
 static SKeyword keywordTable[] = {
     {"ALL",           TK_ALL},
+    {"ALTER",         TK_ALTER},
     {"AND",           TK_AND},
     {"AS",            TK_AS},
     {"ASC",           TK_ASC},
@@ -49,7 +50,10 @@ static SKeyword keywordTable[] = {
     {"DAYS",          TK_DAYS},
     {"DESC",          TK_DESC},
     {"DISTINCT",      TK_DISTINCT},
+    {"DNODE",         TK_DNODE},
+    {"DNODES",        TK_DNODES},
     {"DOUBLE",        TK_DOUBLE},
+    {"DROP",          TK_DROP},
     {"EXISTS",        TK_EXISTS},
     // {"FILE",          TK_FILE},
     {"FILL",          TK_FILL},
@@ -85,11 +89,14 @@ static SKeyword keywordTable[] = {
     {"NOW",           TK_NOW},
     {"NULL",          TK_NULL},
     {"OFFSET",        TK_OFFSET},
-    {"PRECISION",     TK_PRECISION},
-    {"PREV",          TK_PREV},
     {"ON",            TK_ON},
     {"OR",            TK_OR},
     {"ORDER",         TK_ORDER},
+    {"PASS",          TK_PASS},
+    {"PORT",          TK_PORT},
+    {"PRECISION",     TK_PRECISION},
+    {"PRIVILEGE",     TK_PRIVILEGE},
+    {"PREV",          TK_PREV},
     {"QUORUM",        TK_QUORUM},
     {"REPLICA",       TK_REPLICA},
     {"SELECT",        TK_SELECT},
@@ -102,6 +109,7 @@ static SKeyword keywordTable[] = {
     {"SMALLINT",      TK_SMALLINT},
     {"SOFFSET",       TK_SOFFSET},
     {"STABLE",        TK_STABLE},
+    {"STABLES",       TK_STABLES},
     {"STATE_WINDOW",  TK_STATE_WINDOW},
     {"STREAM_MODE",   TK_STREAM_MODE},
     {"TABLE",         TK_TABLE},
@@ -113,6 +121,8 @@ static SKeyword keywordTable[] = {
     {"UNION",         TK_UNION},
     {"UNSIGNED",      TK_UNSIGNED},
     {"USE",           TK_USE},
+    {"USER",          TK_USER},
+    {"USERS",         TK_USERS},
     {"USING",         TK_USING},
     {"VALUES",        TK_VALUES},
     {"VARCHAR",       TK_VARCHAR},
@@ -145,9 +155,7 @@ static SKeyword keywordTable[] = {
     // {"UPLUS",        TK_UPLUS},
     // {"BITNOT",       TK_BITNOT},
     // {"MNODES",       TK_MNODES},
-    // {"DNODES",       TK_DNODES},
     // {"ACCOUNTS",     TK_ACCOUNTS},
-    // {"USERS",        TK_USERS},
     // {"MODULES",      TK_MODULES},
     // {"QUERIES",      TK_QUERIES},
     // {"CONNECTIONS",  TK_CONNECTIONS},
@@ -156,16 +164,9 @@ static SKeyword keywordTable[] = {
     // {"SCORES",       TK_SCORES},
     // {"GRANTS",       TK_GRANTS},
     // {"DOT",          TK_DOT},
-    // {"STABLES",      TK_STABLES},
-    // {"DROP",         TK_DROP},
-    // {"DNODE",        TK_DNODE},
-    // {"USER",         TK_USER},
     // {"ACCOUNT",      TK_ACCOUNT},
     // {"DESCRIBE",     TK_DESCRIBE},
     // {"SYNCDB",       TK_SYNCDB},
-    // {"ALTER",        TK_ALTER},
-    // {"PASS",         TK_PASS},
-    // {"PRIVILEGE",    TK_PRIVILEGE},
     // {"LOCAL",        TK_LOCAL},
     // {"PPS",          TK_PPS},
     // {"TSERIES",      TK_TSERIES},
@@ -235,7 +236,6 @@ static SKeyword keywordTable[] = {
     // {"OUTPUTTYPE",   TK_OUTPUTTYPE},
     // {"AGGREGATE",    TK_AGGREGATE},
     // {"BUFSIZE",      TK_BUFSIZE},
-    // {"PORT",         TK_PORT},
     // {"MODE",         TK_MODE},
 };
 
@@ -330,7 +330,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       return 1;
     }
     case ';': {
-      *tokenId = TK_SEMI;
+      *tokenId = TK_NK_SEMI;
       return 1;
     }
     case '+': {
@@ -537,7 +537,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       }
 
       if (seg == 4) {  // ip address
-        *tokenId = TK_IPTOKEN;
+        *tokenId = TK_NK_IPTOKEN;
         return i;
       }
 
@@ -648,7 +648,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
 #endif
   }
 
-  if (t0.type == TK_SEMI) {
+  if (t0.type == TK_NK_SEMI) {
     t0.n = 0;
     return t0;
   }

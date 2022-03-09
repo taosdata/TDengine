@@ -202,7 +202,7 @@ void tfsDirname(const STfsFile *pFile, char *dest) {
   tstrncpy(dest, dirname(tname), TSDB_FILENAME_LEN);
 }
 
-int32_t tfsRemoveFile(const STfsFile *pFile) { return remove(pFile->aname); }
+int32_t tfsRemoveFile(const STfsFile *pFile) { return taosRemoveFile(pFile->aname); }
 
 int32_t tfsCopyFile(const STfsFile *pFile1, const STfsFile *pFile2) {
   return taosCopyFile(pFile1->aname, pFile2->aname);

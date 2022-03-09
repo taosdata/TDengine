@@ -30,6 +30,5 @@ void dmnPrintVersion() {
 #endif
   printf("%s version: %s compatible_version: %s\n", releaseName, version, compatible_version);
   printf("gitinfo: %s\n", gitinfo);
-  printf("gitinfoI: %s\n", gitinfoOfInternal);
   printf("builuInfo: %s\n", buildinfo);
 }

@@ -15,10 +15,10 @@
 
 #include "mockCatalogService.h"
 
-#include "tep.h"
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include "tdatablock.h"
 
 #include "tname.h"
 #include "ttypes.h"
@@ -113,6 +113,7 @@ public:
     const char* tname = tNameGetTableName(pTableName);
     int32_t code = copyTableSchemaMeta(db, tname, &table);
     if (TSDB_CODE_SUCCESS != code) {
+      std::cout << "db : " << db << ", table :" << tname << std::endl;
       return code;
     }
     *pTableMeta = table.release();

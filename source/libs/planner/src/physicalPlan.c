@@ -96,7 +96,8 @@ static int32_t addDataBlockDesc(SPhysiPlanContext* pCxt, SNodeList* pList, SData
     SNode* pTarget = createTarget(pNode, pDataBlockDesc->dataBlockId, slotId);
     CHECK_ALLOC(pTarget, TSDB_CODE_OUT_OF_MEMORY);
     REPLACE_NODE(pTarget);
-  
+
+    pDataBlockDesc->resultRowSize += ((SSlotDescNode*)pSlot)->dataType.bytes;
     ++slotId;
   }
   return TSDB_CODE_SUCCESS;
@@ -545,10 +546,12 @@ static SSubplan* createPhysiSubplan(SPhysiPlanContext* pCxt, SSubLogicPlan* pLog
 static int32_t splitLogicPlan(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode, SSubLogicPlan** pSubLogicPlan) {
   *pSubLogicPlan = (SSubLogicPlan*)nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
   CHECK_ALLOC(*pSubLogicPlan, TSDB_CODE_OUT_OF_MEMORY);
-  // todo pSubplan->pNode = nodesCloneNode(pLogicNode);
-  (*pSubLogicPlan)->pNode = pLogicNode;
+  (*pSubLogicPlan)->pNode = nodesCloneNode(pLogicNode);
   if (QUERY_NODE_LOGIC_PLAN_VNODE_MODIF == nodeType(pLogicNode)) {
     (*pSubLogicPlan)->subplanType = SUBPLAN_TYPE_MODIFY;
+    TSWAP(((SVnodeModifLogicNode*)pLogicNode)->pDataBlocks, ((SVnodeModifLogicNode*)(*pSubLogicPlan)->pNode)->pDataBlocks, SArray*);
+  } else {
+    (*pSubLogicPlan)->subplanType = SUBPLAN_TYPE_MERGE;
   }
   // todo split
   return TSDB_CODE_SUCCESS;
@@ -573,8 +576,7 @@ static int32_t pushSubplan(SPhysiPlanContext* pCxt, SNodeptr pSubplan, int32_t l
 SSubLogicPlan* singleCloneSubLogicPlan(SPhysiPlanContext* pCxt, SSubLogicPlan* pSrc, int32_t level) {
   SSubLogicPlan* pDst = nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
   CHECK_ALLOC(pDst, NULL);
-  // todo pDst->pNode = nodesCloneNode(pSrc->pNode);
-  pDst->pNode = pSrc->pNode;
+  pDst->pNode = nodesCloneNode(pSrc->pNode);
   if (NULL == pDst->pNode) {
     nodesDestroyNode(pDst);
     return NULL;
@@ -689,6 +691,7 @@ int32_t createPhysiPlan(SPlanContext* pCxt, SLogicNode* pLogicNode, SQueryPlan**
   if (TSDB_CODE_SUCCESS == code) {
     code = buildPhysiPlan(&cxt, pLogicPlan, pPlan);
   }
-  nodesDestroyNode((SNode*)pLogicPlan);
+  nodesDestroyNode(pSubLogicPlan);
+  nodesDestroyNode(pLogicPlan);
   return code;
 }

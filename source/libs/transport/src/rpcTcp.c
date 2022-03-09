@@ -21,6 +21,7 @@
 #include "taoserror.h"
 #include "tutil.h"
 
+#ifndef USE_UV
 typedef struct SFdObj {
   void *             signature;
   SOCKET             fd;       // TCP socket FD
@@ -659,3 +660,4 @@ static void taosFreeFdObj(SFdObj *pFdObj) {
 
   tfree(pFdObj);
 }
+#endif

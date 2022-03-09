@@ -54,6 +54,12 @@ typedef struct SUseDatabaseStmt {
   char dbName[TSDB_DB_NAME_LEN];
 } SUseDatabaseStmt;
 
+typedef struct SDropDatabaseStmt {
+  ENodeType type;
+  char dbName[TSDB_DB_NAME_LEN];
+  bool ignoreNotExists;
+} SDropDatabaseStmt;
+
 typedef struct STableOptions {
   int32_t keep;
   int32_t ttl;
@@ -93,6 +99,61 @@ typedef struct SCreateMultiTableStmt {
   ENodeType type;
   SNodeList* pSubTables;
 } SCreateMultiTableStmt;
+
+typedef struct SDropTableClause {
+  ENodeType type;
+  char dbName[TSDB_DB_NAME_LEN];
+  char tableName[TSDB_TABLE_NAME_LEN];
+  bool ignoreNotExists;
+} SDropTableClause;
+
+typedef struct SDropTableStmt {
+  ENodeType type;
+  SNodeList* pTables;
+} SDropTableStmt;
+
+typedef struct SDropSuperTableStmt {
+  ENodeType type;
+  char dbName[TSDB_DB_NAME_LEN];
+  char tableName[TSDB_TABLE_NAME_LEN];
+  bool ignoreNotExists;
+} SDropSuperTableStmt;
+
+typedef struct SCreateUserStmt {
+  ENodeType type;
+  char useName[TSDB_USER_LEN];
+  char password[TSDB_USET_PASSWORD_LEN];
+} SCreateUserStmt;
+
+typedef struct SAlterUserStmt {
+  ENodeType type;
+  char useName[TSDB_USER_LEN];
+  char password[TSDB_USET_PASSWORD_LEN];
+  int8_t alterType;
+} SAlterUserStmt;
+
+typedef struct SDropUserStmt {
+  ENodeType type;
+  char useName[TSDB_USER_LEN];
+} SDropUserStmt;
+
+typedef struct SCreateDnodeStmt {
+  ENodeType type;
+  char fqdn[TSDB_FQDN_LEN];
+  int32_t port;
+} SCreateDnodeStmt;
+
+typedef struct SDropDnodeStmt {
+  ENodeType type;
+  int32_t dnodeId;
+  char fqdn[TSDB_FQDN_LEN];
+  int32_t port;
+} SDropDnodeStmt;
+
+typedef struct SShowStmt {
+  ENodeType type;
+  char dbName[TSDB_DB_NAME_LEN];
+} SShowStmt;
 
 #ifdef __cplusplus
 }

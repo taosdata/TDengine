@@ -49,7 +49,7 @@ void taosRemoveDir(const char *dirname) {
     if (de->d_type & DT_DIR) {
       taosRemoveDir(filename);
     } else {
-      (void)remove(filename);
+      (void)taosRemoveFile(filename);
       //printf("file:%s is removed\n", filename);
     }
   }
@@ -102,7 +102,7 @@ void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {
       if (fileSec <= 100) continue;
       int32_t days = (int32_t)(TABS(sec - fileSec) / 86400 + 1);
       if (days > keepDays) {
-        (void)remove(filename);
+        (void)taosRemoveFile(filename);
         //printf("file:%s is removed, days:%d keepDays:%d", filename, days, keepDays);
       } else {
         //printf("file:%s won't be removed, days:%d keepDays:%d", filename, days, keepDays);

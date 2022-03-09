@@ -16,11 +16,11 @@
 #include <tlog.h>
 #include "thash.h"
 //#include "queryLog.h"
-#include "tcompare.h"
+#include "filter.h"
 #include "filterInt.h"
 #include "sclInt.h"
-#include "filter.h"
-#include "tep.h"
+#include "tcompare.h"
+#include "tdatablock.h"
 
 OptrStr gOptrStr[] = {
   {0,                                      "invalid"},

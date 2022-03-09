@@ -34,8 +34,11 @@
     (pDst)->fldname = strdup((pSrc)->fldname); \
 	} while (0)
 
-#define COPY_NODE_FIELD(fldname) \
+#define CLONE_NODE_FIELD(fldname) \
 	do { \
+    if (NULL == (pSrc)->fldname) { \
+      break; \
+    } \
     (pDst)->fldname = nodesCloneNode((pSrc)->fldname); \
     if (NULL == (pDst)->fldname) { \
       nodesDestroyNode((SNode*)(pDst)); \
@@ -43,11 +46,30 @@
     } \
 	} while (0)
 
-#define COPY_NODE_LIST_FIELD(fldname) \
+#define CLONE_NODE_LIST_FIELD(fldname) \
 	do { \
+    if (NULL == (pSrc)->fldname) { \
+      break; \
+    } \
     (pDst)->fldname = nodesCloneList((pSrc)->fldname); \
     if (NULL == (pDst)->fldname) { \
       nodesDestroyNode((SNode*)(pDst)); \
+      return NULL; \
+    } \
+	} while (0)
+
+#define CLONE_OBJECT_FIELD(fldname, cloneFunc) \
+	do { \
+    (pDst)->fldname = cloneFunc((pSrc)->fldname); \
+    if (NULL == (pDst)->fldname) { \
+      nodesDestroyNode((SNode*)(pDst)); \
+      return NULL; \
+    } \
+	} while (0)
+
+#define COPY_BASE_OBJECT_FIELD(fldname, copyFunc) \
+	do { \
+    if (NULL == copyFunc(&((pSrc)->fldname), &((pDst)->fldname))) { \
       return NULL; \
     } \
 	} while (0)
@@ -62,7 +84,7 @@ static void dataTypeCopy(const SDataType* pSrc, SDataType* pDst) {
 static void exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   dataTypeCopy(&pSrc->resType, &pDst->resType);
   COPY_CHAR_ARRAY_FIELD(aliasName);
-  // COPY_NODE_LIST_FIELD(pAssociationList);
+  // CLONE_NODE_LIST_FIELD(pAssociationList);
 }
 
 static SNode* columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
@@ -73,7 +95,7 @@ static SNode* columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
   COPY_CHAR_ARRAY_FIELD(tableName);
   COPY_CHAR_ARRAY_FIELD(tableAlias);
   COPY_CHAR_ARRAY_FIELD(colName);
-  // COPY_NODE_FIELD(pProjectRef);
+  // CLONE_NODE_FIELD(pProjectRef);
   COPY_SCALAR_FIELD(dataBlockId);
   COPY_SCALAR_FIELD(slotId);
   return (SNode*)pDst;
@@ -125,15 +147,15 @@ static SNode* valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
 static SNode* operatorNodeCopy(const SOperatorNode* pSrc, SOperatorNode* pDst) {
   exprNodeCopy((const SExprNode*)pSrc, (SExprNode*)pDst);
   COPY_SCALAR_FIELD(opType);
-  COPY_NODE_FIELD(pLeft);
-  COPY_NODE_FIELD(pRight);
+  CLONE_NODE_FIELD(pLeft);
+  CLONE_NODE_FIELD(pRight);
   return (SNode*)pDst;
 }
 
 static SNode* logicConditionNodeCopy(const SLogicConditionNode* pSrc, SLogicConditionNode* pDst) {
   exprNodeCopy((const SExprNode*)pSrc, (SExprNode*)pDst);
   COPY_SCALAR_FIELD(condType);
-  COPY_NODE_LIST_FIELD(pParameterList);
+  CLONE_NODE_LIST_FIELD(pParameterList);
   return (SNode*)pDst;
 }
 
@@ -142,32 +164,89 @@ static SNode* functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) {
   COPY_CHAR_ARRAY_FIELD(functionName);
   COPY_SCALAR_FIELD(funcId);
   COPY_SCALAR_FIELD(funcType);
-  COPY_NODE_LIST_FIELD(pParameterList);
+  CLONE_NODE_LIST_FIELD(pParameterList);
   return (SNode*)pDst;
 }
 
 static SNode* targetNodeCopy(const STargetNode* pSrc, STargetNode* pDst) {
   COPY_SCALAR_FIELD(dataBlockId);
   COPY_SCALAR_FIELD(slotId);
-  COPY_NODE_FIELD(pExpr);
+  CLONE_NODE_FIELD(pExpr);
   return (SNode*)pDst;
 }
 
 static SNode* groupingSetNodeCopy(const SGroupingSetNode* pSrc, SGroupingSetNode* pDst) {
   COPY_SCALAR_FIELD(groupingSetType);
-  COPY_NODE_LIST_FIELD(pParameterList);
+  CLONE_NODE_LIST_FIELD(pParameterList);
+  return (SNode*)pDst;
+}
+
+static SNode* logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
+  COPY_SCALAR_FIELD(id);
+  CLONE_NODE_LIST_FIELD(pTargets);
+  CLONE_NODE_FIELD(pConditions);
+  CLONE_NODE_LIST_FIELD(pChildren);
+  return (SNode*)pDst;
+}
+
+static STableMeta* tableMetaClone(const STableMeta* pSrc) {
+  int32_t len = sizeof(STableMeta) + (pSrc->tableInfo.numOfTags + pSrc->tableInfo.numOfColumns) * sizeof(SSchema);
+  STableMeta* pDst = malloc(len);
+  if (NULL == pDst) {
+    return NULL;
+  }
+  memcpy(pDst, pSrc, len);
+  return pDst;
+}
+
+static SVgroupsInfo* vgroupsInfoClone(const SVgroupsInfo* pSrc) {
+  int32_t len = sizeof(SVgroupsInfo) + pSrc->numOfVgroups * sizeof(SVgroupInfo);
+  SVgroupsInfo* pDst = malloc(len);
+  if (NULL == pDst) {
+    return NULL;
+  }
+  memcpy(pDst, pSrc, len);
+  return pDst;
+}
+
+static SNode* logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  CLONE_NODE_LIST_FIELD(pScanCols);
+  CLONE_OBJECT_FIELD(pMeta, tableMetaClone);
+  CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
+  COPY_SCALAR_FIELD(scanType);
+  COPY_SCALAR_FIELD(scanFlag);
+  COPY_SCALAR_FIELD(scanRange);
+  return (SNode*)pDst;
+}
+
+static SNode* logicAggCopy(const SAggLogicNode* pSrc, SAggLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  CLONE_NODE_LIST_FIELD(pGroupKeys);
+  CLONE_NODE_LIST_FIELD(pAggFuncs);
+  return (SNode*)pDst;
+}
+
+static SNode* logicProjectCopy(const SProjectLogicNode* pSrc, SProjectLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  CLONE_NODE_LIST_FIELD(pProjections);
+  return (SNode*)pDst;
+}
+
+static SNode* logicVnodeModifCopy(const SVnodeModifLogicNode* pSrc, SVnodeModifLogicNode* pDst) {
+  COPY_SCALAR_FIELD(msgType);
   return (SNode*)pDst;
 }
 
 static SNode* logicSubplanCopy(const SSubLogicPlan* pSrc, SSubLogicPlan* pDst) {
-  COPY_NODE_FIELD(pNode);
+  CLONE_NODE_FIELD(pNode);
   COPY_SCALAR_FIELD(subplanType);
   return (SNode*)pDst;
 }
 
 static SNode* dataBlockDescCopy(const SDataBlockDescNode* pSrc, SDataBlockDescNode* pDst) {
   COPY_SCALAR_FIELD(dataBlockId);
-  COPY_NODE_LIST_FIELD(pSlots);
+  CLONE_NODE_LIST_FIELD(pSlots);
   COPY_SCALAR_FIELD(resultRowSize);
   COPY_SCALAR_FIELD(precision);
   return (SNode*)pDst;
@@ -217,13 +296,22 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
       return dataBlockDescCopy((const SDataBlockDescNode*)pNode, (SDataBlockDescNode*)pDst);
     case QUERY_NODE_SLOT_DESC:
       return slotDescCopy((const SSlotDescNode*)pNode, (SSlotDescNode*)pDst);
+    case QUERY_NODE_LOGIC_PLAN_SCAN:
+      return logicScanCopy((const SScanLogicNode*)pNode, (SScanLogicNode*)pDst);
+    case QUERY_NODE_LOGIC_PLAN_AGG:
+      return logicAggCopy((const SAggLogicNode*)pNode, (SAggLogicNode*)pDst);
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      return logicProjectCopy((const SProjectLogicNode*)pNode, (SProjectLogicNode*)pDst);
+    case QUERY_NODE_LOGIC_PLAN_VNODE_MODIF:
+      return logicVnodeModifCopy((const SVnodeModifLogicNode*)pNode, (SVnodeModifLogicNode*)pDst);
     case QUERY_NODE_LOGIC_SUBPLAN:
       return logicSubplanCopy((const SSubLogicPlan*)pNode, (SSubLogicPlan*)pDst);
     default:
       break;
   }
-  nodesWarn("nodesCloneNode unknown node = %s", nodesNodeName(nodeType(pNode)));
-  return pDst;
+  nodesDestroyNode(pDst);
+  nodesError("nodesCloneNode unknown node = %s", nodesNodeName(nodeType(pNode)));
+  return NULL;
 }
 
 SNodeList* nodesCloneList(const SNodeList* pList) {

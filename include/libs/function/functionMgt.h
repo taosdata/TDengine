@@ -102,22 +102,6 @@ struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
 struct STimeWindow;
 
-typedef struct SFuncExecEnv {
-  int32_t calcMemSize;
-} SFuncExecEnv;
-
-typedef bool (*FExecGetEnv)(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
-typedef bool (*FExecInit)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);
-typedef void (*FExecProcess)(struct SqlFunctionCtx *pCtx);
-typedef void (*FExecFinalize)(struct SqlFunctionCtx *pCtx);
-
-typedef struct SFuncExecFuncs {
-  FExecGetEnv getEnv;
-  FExecInit init;
-  FExecProcess process;
-  FExecFinalize finalize;
-} SFuncExecFuncs;
-
 typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 typedef struct SScalarFuncExecFuncs {

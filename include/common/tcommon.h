@@ -25,24 +25,6 @@
 extern "C" {
 #endif
 
-// typedef struct STimeWindow {
-//   TSKEY skey;
-//   TSKEY ekey;
-// } STimeWindow;
-
-// typedef struct {
-//   int32_t dataLen;
-//   char    name[TSDB_TABLE_FNAME_LEN];
-//   char   *data;
-// } STagData;
-
-// typedef struct SSchema {
-//   uint8_t type;
-//   char    name[TSDB_COL_NAME_LEN];
-//   int16_t colId;
-//   int16_t bytes;
-// } SSchema;
-
 enum {
   TMQ_CONF__RESET_OFFSET__LATEST = -1,
   TMQ_CONF__RESET_OFFSET__EARLIEAST = -2,
@@ -50,7 +32,8 @@ enum {
 };
 
 enum {
-  TMQ_MSG_TYPE__POLL_RSP = 0,
+  TMQ_MSG_TYPE__DUMMY = 0,
+  TMQ_MSG_TYPE__POLL_RSP,
   TMQ_MSG_TYPE__EP_RSP,
 };
 
@@ -73,8 +56,9 @@ typedef struct SColumnDataAgg {
 typedef struct SDataBlockInfo {
   STimeWindow window;
   int32_t     rows;
+  int32_t     tupleSize;
   int32_t     numOfCols;
-  int64_t     uid;
+  union {int64_t uid; int64_t blockId;};
 } SDataBlockInfo;
 
 typedef struct SConstantItem {
@@ -125,7 +109,7 @@ static FORCE_INLINE int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlo
     SColumnInfoData* pColData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
     tlen += taosEncodeFixedI16(buf, pColData->info.colId);
     tlen += taosEncodeFixedI16(buf, pColData->info.type);
-    tlen += taosEncodeFixedI16(buf, pColData->info.bytes);
+    tlen += taosEncodeFixedI32(buf, pColData->info.bytes);
     int32_t colSz = rows * pColData->info.bytes;
     tlen += taosEncodeBinary(buf, pColData->pData, colSz);
   }
@@ -144,7 +128,7 @@ static FORCE_INLINE void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock)
     SColumnInfoData data = {0};
     buf = taosDecodeFixedI16(buf, &data.info.colId);
     buf = taosDecodeFixedI16(buf, &data.info.type);
-    buf = taosDecodeFixedI16(buf, &data.info.bytes);
+    buf = taosDecodeFixedI32(buf, &data.info.bytes);
     int32_t colSz = pBlock->info.rows * data.info.bytes;
     buf = taosDecodeBinary(buf, (void**)&data.pData, colSz);
     taosArrayPush(pBlock->pDataBlock, &data);
@@ -229,10 +213,23 @@ static FORCE_INLINE void tDeleteSMqConsumeRsp(SMqConsumeRsp* pRsp) {
 //======================================================================================================================
 // the following structure shared by parser and executor
 typedef struct SColumn {
-  uint64_t    uid;
-  char        name[TSDB_COL_NAME_LEN];
-  int8_t      flag;  // column type: normal column, tag, or user-input column (integer/float/string)
-  SColumnInfo info;
+  union {
+    uint64_t uid;
+    int64_t  dataBlockId;
+  };
+
+  char   name[TSDB_COL_NAME_LEN];
+  int8_t flag;  // column type: normal column, tag, or user-input column (integer/float/string)
+  union {
+    int16_t colId;
+    int16_t slotId;
+  };
+
+  int16_t type;
+  int32_t bytes;
+  uint8_t precision;
+  uint8_t scale;
+  //  SColumnInfo info;
 } SColumn;
 
 typedef struct SLimit {
@@ -250,21 +247,24 @@ typedef struct SGroupbyExpr {
   bool    groupbyTag;  // group by tag or column
 } SGroupbyExpr;
 
-// the structure for sql function in select clause
-typedef struct SSqlExpr {
-  char    token[TSDB_COL_NAME_LEN];  // original token
-  SSchema resSchema;
+typedef struct SFunctParam {
+  int32_t  type;
+  SColumn *pCol;
+  SVariant param;
+} SFunctParam;
 
-  int32_t  numOfCols;
-  SColumn* pColumns;     // data columns that are required by query
-  int32_t  interBytes;   // inter result buffer size
-  int16_t  numOfParams;  // argument value of each function
-  SVariant param[3];     // parameters are not more than 3
-} SSqlExpr;
+// the structure for sql function in select clause
+typedef struct SExprBasicInfo {
+  SSchema      resSchema;    // TODO refactor
+  int32_t      interBytes;   // inter result buffer size, TODO remove it
+  int16_t      numOfParams;  // argument value of each function
+  SFunctParam *pParam;
+//  SVariant param[3];     // parameters are not more than 3
+} SExprBasicInfo;
 
 typedef struct SExprInfo {
-  struct SSqlExpr   base;
-  struct tExprNode* pExpr;
+  struct SExprBasicInfo  base;
+  struct tExprNode      *pExpr;
 } SExprInfo;
 
 typedef struct SStateWindow {
@@ -285,4 +285,4 @@ typedef struct SSessionWindow {
 }
 #endif
 
-#endif  /*_TD_COMMON_DEF_H_*/
+#endif /*_TD_COMMON_DEF_H_*/

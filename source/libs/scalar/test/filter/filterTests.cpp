@@ -33,12 +33,18 @@
 #include "taos.h"
 #include "tdef.h"
 #include "tvariant.h"
-#include "tep.h"
+#include "tdatablock.h"
 #include "stub.h"
 #include "scalar.h"
-#include "nodes.h"
-#include "tlog.h"
 #include "filter.h"
+#include "nodes.h"
+#include "scalar.h"
+#include "stub.h"
+#include "taos.h"
+#include "tdatablock.h"
+#include "tdef.h"
+#include "tlog.h"
+#include "tvariant.h"
 
 namespace {
 

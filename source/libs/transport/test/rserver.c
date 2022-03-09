@@ -181,7 +181,7 @@ int main(int argc, char *argv[]) {
 
   if (pDataFile != NULL) {
     taosCloseFile(&pDataFile);
-    remove(dataName);
+    taosRemoveFile(dataName);
   }
 
   return 0;

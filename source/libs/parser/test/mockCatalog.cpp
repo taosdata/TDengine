@@ -37,8 +37,8 @@ void generateTestT1(MockCatalogService* mcs) {
 void generateTestST1(MockCatalogService* mcs) {
   ITableBuilder& builder = mcs->createTableBuilder("test", "st1", TSDB_SUPER_TABLE, 3, 2)
       .setPrecision(TSDB_TIME_PRECISION_MILLI).addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
-      .addTag("tag1", TSDB_DATA_TYPE_INT).addTag("tag2", TSDB_DATA_TYPE_BINARY, 20)
-      .addColumn("c1", TSDB_DATA_TYPE_INT).addColumn("c2", TSDB_DATA_TYPE_BINARY, 20);
+      .addColumn("c1", TSDB_DATA_TYPE_INT).addColumn("c2", TSDB_DATA_TYPE_BINARY, 20)
+      .addTag("tag1", TSDB_DATA_TYPE_INT).addTag("tag2", TSDB_DATA_TYPE_BINARY, 20);
   builder.done();
   mcs->createSubTable("test", "st1", "st1s1", 1);
   mcs->createSubTable("test", "st1", "st1s2", 2);
@@ -60,6 +60,10 @@ int32_t __catalogGetTableHashVgroup(struct SCatalog* pCatalog, void *pRpc, const
 
 int32_t __catalogGetTableDistVgInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, SArray** pVgList) {
   return mockCatalogService->catalogGetTableDistVgInfo(pTableName, pVgList);
+}
+
+int32_t __catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* version, int64_t* dbId, int32_t *tableNum) {
+  return 0;
 }
 
 void initMetaDataEnv() {
@@ -100,6 +104,14 @@ void initMetaDataEnv() {
     any.get_global_func_addr_dynsym("^catalogGetTableDistVgInfo$", result);
     for (const auto& f : result) {
       stub.set(f.second, __catalogGetTableDistVgInfo);
+    }
+  }
+  {
+    AddrAny any("libcatalog.so");
+    std::map<std::string,void*> result;
+    any.get_global_func_addr_dynsym("^catalogGetDBVgVersion$", result);
+    for (const auto& f : result) {
+      stub.set(f.second, __catalogGetDBVgVersion);
     }
   }
 }

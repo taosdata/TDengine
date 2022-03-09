@@ -1007,11 +1007,32 @@ int32_t tDeserializeSMCreateDropQSBNodeReq(void *buf, int32_t bufLen, SMCreateQn
 }
 
 int32_t tSerializeSDropDnodeReq(void *buf, int32_t bufLen, SDropDnodeReq *pReq) {
-  return tSerializeSMCreateDropQSBNodeReq(buf, bufLen, (SMCreateQnodeReq *)pReq);
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->dnodeId) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->fqdn) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->port) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
 }
 
 int32_t tDeserializeSDropDnodeReq(void *buf, int32_t bufLen, SDropDnodeReq *pReq) {
-  return tDeserializeSMCreateDropQSBNodeReq(buf, bufLen, (SMCreateQnodeReq *)pReq);
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->dnodeId) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->fqdn) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->port) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tCoderClear(&decoder);
+  return 0;
 }
 
 int32_t tSerializeSMCreateDropMnodeReq(void *buf, int32_t bufLen, SMCreateMnodeReq *pReq) {
@@ -2602,5 +2623,35 @@ int32_t tDeserializeSSchedulerHbRsp(void *buf, int32_t bufLen, SSchedulerHbRsp *
 
 void tFreeSSchedulerHbRsp(SSchedulerHbRsp *pRsp) { taosArrayDestroy(pRsp->taskStatus); }
 
+int32_t tSerializeSVCreateTSmaReq(void **buf, SVCreateTSmaReq *pReq) {
+  int32_t tlen = 0;
 
+  tlen += taosEncodeFixedI64(buf, pReq->ver);
+  tlen += tEncodeTSma(buf, &pReq->tSma);
 
+  return tlen;
+}
+
+void *tDeserializeSVCreateTSmaReq(void *buf, SVCreateTSmaReq *pReq) {
+  buf = taosDecodeFixedI64(buf, &(pReq->ver));
+
+  if ((buf = tDecodeTSma(buf, &pReq->tSma)) == NULL) {
+    tdDestroyTSma(&pReq->tSma);
+  }
+  return buf;
+}
+
+int32_t tSerializeSVDropTSmaReq(void **buf, SVDropTSmaReq *pReq) {
+  int32_t tlen = 0;
+
+  tlen += taosEncodeFixedI64(buf, pReq->ver);
+  tlen += taosEncodeString(buf, pReq->indexName);
+
+  return tlen;
+}
+void *tDeserializeSVDropTSmaReq(void *buf, SVDropTSmaReq *pReq) {
+  buf = taosDecodeFixedI64(buf, &(pReq->ver));
+  buf = taosDecodeStringTo(buf, pReq->indexName);
+
+  return buf;
+}

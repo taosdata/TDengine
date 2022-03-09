@@ -28,27 +28,22 @@ extern "C" {
 #include "taosdef.h"
 
 // ---- encode / decode
-
 uint64_t syncUtilAddr2U64(const char* host, uint16_t port);
-
-void syncUtilU642Addr(uint64_t u64, char* host, size_t len, uint16_t* port);
-
-void syncUtilnodeInfo2EpSet(const SNodeInfo* pNodeInfo, SEpSet* pEpSet);
-
-void syncUtilraftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet);
-
-void syncUtilnodeInfo2raftId(const SNodeInfo* pNodeInfo, SyncGroupId vgId, SRaftId* raftId);
+void     syncUtilU642Addr(uint64_t u64, char* host, size_t len, uint16_t* port);
+void     syncUtilnodeInfo2EpSet(const SNodeInfo* pNodeInfo, SEpSet* pEpSet);
+void     syncUtilraftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet);
+void     syncUtilnodeInfo2raftId(const SNodeInfo* pNodeInfo, SyncGroupId vgId, SRaftId* raftId);
+bool     syncUtilSameId(const SRaftId* pId1, const SRaftId* pId2);
 
 // ---- SSyncBuffer ----
-#if 0
 void syncUtilbufBuild(SSyncBuffer* syncBuf, size_t len);
-
 void syncUtilbufDestroy(SSyncBuffer* syncBuf);
-
 void syncUtilbufCopy(const SSyncBuffer* src, SSyncBuffer* dest);
-
 void syncUtilbufCopyDeep(const SSyncBuffer* src, SSyncBuffer* dest);
-#endif
+
+// ---- misc ----
+int32_t syncUtilRand(int32_t max);
+int32_t syncUtilElectRandomMS();
 
 #ifdef __cplusplus
 }

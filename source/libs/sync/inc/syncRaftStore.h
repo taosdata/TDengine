@@ -32,28 +32,18 @@ extern "C" {
 #define RAFT_STORE_PATH_LEN 128
 
 typedef struct SRaftStore {
-  SyncTerm currentTerm;
-  SRaftId  voteFor;
-  // FileFd   fd;
+  SyncTerm  currentTerm;
+  SRaftId   voteFor;
   TdFilePtr pFile;
   char      path[RAFT_STORE_PATH_LEN];
 } SRaftStore;
 
 SRaftStore *raftStoreOpen(const char *path);
-
-static int32_t raftStoreInit(SRaftStore *pRaftStore);
-
-int32_t raftStoreClose(SRaftStore *pRaftStore);
-
-int32_t raftStorePersist(SRaftStore *pRaftStore);
-
-static bool raftStoreFileExist(char *path);
-
-int32_t raftStoreSerialize(SRaftStore *pRaftStore, char *buf, size_t len);
-
-int32_t raftStoreDeserialize(SRaftStore *pRaftStore, char *buf, size_t len);
-
-void raftStorePrint(SRaftStore *pRaftStore);
+int32_t     raftStoreClose(SRaftStore *pRaftStore);
+int32_t     raftStorePersist(SRaftStore *pRaftStore);
+int32_t     raftStoreSerialize(SRaftStore *pRaftStore, char *buf, size_t len);
+int32_t     raftStoreDeserialize(SRaftStore *pRaftStore, char *buf, size_t len);
+void        raftStorePrint(SRaftStore *pRaftStore);
 
 #ifdef __cplusplus
 }

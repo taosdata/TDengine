@@ -1,0 +1,93 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
+
+system sh/exec.sh -n dnode1 -s start
+sql connect
+sleep 100
+
+$dbPrefix = join_m_db
+$tbPrefix = join_tb
+$mtPrefix = join_mt
+$tbNum = 3
+$rowNum = 20000
+$totalNum = $tbNum * $rowNum
+
+print =============== join_manyBlocks.sim
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+$tstart = 100000
+
+sql drop database if exists $db -x step1
+step1:
+sql create database if not exists $db keep 36500
+
+sql use $db
+sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int, t2 binary(12))
+
+$mt1 = $mtPrefix . 1 . $i
+sql create table $mt1 (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int, t2 binary(12), t3 int)
+
+$i = 0
+$tbPrefix1 = join_1_tb
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  $tg2 = ' . abc
+  $tg2 = $tg2 . '
+  sql create table $tb using $mt tags( $i , $tg2 )
+
+  $tb1 = $tbPrefix1 . $i
+  $c = $i
+  $t3 = $i + 1
+
+  $binary = ' . abc
+  $binary = $binary . $i
+  $binary = $binary . '
+
+  print $binary
+  sql create table $tb1 using $mt1 tags( $i , $binary , $t3 )
+
+  $x = 0
+  while $x < $rowNum
+    $ms = $x . m
+    $c = $x / 100
+    $c = $c * 100
+    $c = $x - $c
+
+    $binary = ' . binary
+    $binary = $binary . $c
+    $binary = $binary . '
+
+    $nchar = ' . nchar
+    $nchar = $nchar . $c
+    $nchar = $nchar . '
+
+    sql insert into $tb values ($tstart , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar ) $tb1 values ($tstart , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
+
+    $tstart = $tstart + 1
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+  $tstart = 100000
+endw
+
+sleep 100
+
+print ===============join_manyblocks.sim
+print ==============> td-3313
+sql select join_mt0.ts,join_mt0.ts,join_mt0.t1 from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts and join_mt0.t1=join_mt1.t1;
+
+print $row
+if $row != 60000 then
+  print expect 60000, actual: $row
+  return -1
+endi
+
+print ======= second tags join

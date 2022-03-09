@@ -102,7 +102,6 @@ void tfileCacheDestroy(TFileCache* tcache) {
   if (tcache == NULL) {
     return;
   }
-
   // free table cache
   TFileReader** reader = taosHashIterate(tcache->tableCache, NULL);
   while (reader) {
@@ -185,12 +184,13 @@ void tfileReaderDestroy(TFileReader* reader) {
   free(reader);
 }
 
-int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SArray* result) {
+int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTempResult* tr) {
   SIndexTerm*     term = query->term;
   bool            hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON);
   EIndexQueryType qtype = query->qType;
 
-  int ret = -1;
+  SArray* result = taosArrayInit(16, sizeof(uint64_t));
+  int     ret = -1;
   // refactor to callback later
   if (qtype == QUERY_TERM) {
     uint64_t offset;
@@ -224,6 +224,10 @@ int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SArray* resul
     // handle later
   }
   tfileReaderUnRef(reader);
+
+  taosArrayAddAll(tr->total, result);
+  taosArrayDestroy(result);
+
   return ret;
 }
 
@@ -249,7 +253,7 @@ TFileReader* tfileReaderOpen(char* path, uint64_t suid, int32_t version, const c
   tfileGenFileFullName(fullname, path, suid, colName, version);
 
   WriterCtx* wc = writerCtxCreate(TFile, fullname, true, 1024 * 1024 * 1024);
-  indexInfo("open read file name:%s, size: %d", wc->file.buf, wc->file.size);
+  indexInfo("open read file name:%s, file size: %d", wc->file.buf, wc->file.size);
   if (wc == NULL) {
     return NULL;
   }
@@ -381,7 +385,7 @@ void indexTFileDestroy(IndexTFile* tfile) {
   free(tfile);
 }
 
-int indexTFileSearch(void* tfile, SIndexTermQuery* query, SArray* result) {
+int indexTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTempResult* result) {
   int ret = -1;
   if (tfile == NULL) {
     return ret;
@@ -429,6 +433,8 @@ static bool tfileIteratorNext(Iterate* iiter) {
     return false;
   }
 
+  iv->ver = 0;
+  iv->type = ADD_VALUE;  // value in tfile always ADD_VALUE
   iv->colVal = colVal;
   return true;
   // std::string key(ch, sz);
@@ -628,7 +634,7 @@ static int tfileReaderLoadFst(TFileReader* reader) {
   int64_t ts = taosGetTimestampUs();
   int32_t nread = ctx->readFrom(ctx, buf, fstSize, reader->header.fstOffset);
   int64_t cost = taosGetTimestampUs() - ts;
-  indexInfo("nread = %d, and fst offset=%d, size: %d, filename: %s, size: %d, time cost: %" PRId64 "us", nread,
+  indexInfo("nread = %d, and fst offset=%d, fst size: %d, filename: %s, file size: %d, time cost: %" PRId64 "us", nread,
             reader->header.fstOffset, fstSize, ctx->file.buf, ctx->file.size, cost);
   // we assuse fst size less than FST_MAX_SIZE
   assert(nread > 0 && nread <= fstSize);
