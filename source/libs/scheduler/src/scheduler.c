@@ -844,8 +844,8 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     int32_t readyNum = atomic_add_fetch_32(&par->childReady, 1);
 
     SCH_LOCK(SCH_WRITE, &par->lock);
-    SDownstreamSource source = {.taskId = pTask->taskId, .schedId = schMgmt.sId, .addr = pTask->succeedAddr};
-    qSetSubplanExecutionNode(par->plan, pTask->plan->id.templateId, &source);
+    SDownstreamSourceNode source = {.type = QUERY_NODE_DOWNSTREAM_SOURCE, .taskId = pTask->taskId, .schedId = schMgmt.sId, .addr = pTask->succeedAddr};
+    qSetSubplanExecutionNode(par->plan, pTask->plan->id.groupId, &source);
     SCH_UNLOCK(SCH_WRITE, &par->lock);
     
     if (SCH_TASK_READY_TO_LUNCH(readyNum, par)) {

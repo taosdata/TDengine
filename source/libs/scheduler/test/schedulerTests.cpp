@@ -99,7 +99,7 @@ void schtBuildQueryDag(SQueryPlan *dag) {
   SSubplan *mergePlan = (SSubplan *)calloc(1, sizeof(SSubplan));
 
   scanPlan->id.queryId = qId;
-  scanPlan->id.templateId = 0x0000000000000002;
+  scanPlan->id.groupId = 0x0000000000000002;
   scanPlan->id.subplanId = 0x0000000000000003;
   scanPlan->subplanType = SUBPLAN_TYPE_SCAN;
 
@@ -114,7 +114,7 @@ void schtBuildQueryDag(SQueryPlan *dag) {
   scanPlan->msgType = TDMT_VND_QUERY;
 
   mergePlan->id.queryId = qId;
-  mergePlan->id.templateId = schtMergeTemplateId;
+  mergePlan->id.groupId = schtMergeTemplateId;
   mergePlan->id.subplanId = 0x5555;
   mergePlan->subplanType = SUBPLAN_TYPE_MERGE;
   mergePlan->level = 0;
@@ -158,7 +158,7 @@ void schtBuildQueryFlowCtrlDag(SQueryPlan *dag) {
 
   for (int32_t i = 0; i < scanPlanNum; ++i) {
     scanPlan[i].id.queryId = qId;
-    scanPlan[i].id.templateId = 0x0000000000000002;
+    scanPlan[i].id.groupId = 0x0000000000000002;
     scanPlan[i].id.subplanId = 0x0000000000000003 + i;
     scanPlan[i].subplanType = SUBPLAN_TYPE_SCAN;
 
@@ -183,7 +183,7 @@ void schtBuildQueryFlowCtrlDag(SQueryPlan *dag) {
   }
 
   mergePlan->id.queryId = qId;
-  mergePlan->id.templateId = schtMergeTemplateId;
+  mergePlan->id.groupId = schtMergeTemplateId;
   mergePlan->id.subplanId = 0x5555;
   mergePlan->subplanType = SUBPLAN_TYPE_MERGE;
   mergePlan->level = 0;
@@ -216,7 +216,7 @@ void schtBuildInsertDag(SQueryPlan *dag) {
   SSubplan *insertPlan = (SSubplan *)calloc(2, sizeof(SSubplan));
 
   insertPlan[0].id.queryId = qId;
-  insertPlan[0].id.templateId = 0x0000000000000003;
+  insertPlan[0].id.groupId = 0x0000000000000003;
   insertPlan[0].id.subplanId = 0x0000000000000004;
   insertPlan[0].subplanType = SUBPLAN_TYPE_MODIFY;
   insertPlan[0].level = 0;
@@ -232,7 +232,7 @@ void schtBuildInsertDag(SQueryPlan *dag) {
   insertPlan[0].msgType = TDMT_VND_SUBMIT;
 
   insertPlan[1].id.queryId = qId;
-  insertPlan[1].id.templateId = 0x0000000000000003;
+  insertPlan[1].id.groupId = 0x0000000000000003;
   insertPlan[1].id.subplanId = 0x0000000000000005;
   insertPlan[1].subplanType = SUBPLAN_TYPE_MODIFY;
   insertPlan[1].level = 0;
@@ -263,7 +263,7 @@ int32_t schtPlanToString(const SSubplan *subplan, char** str, int32_t* len) {
   return 0;
 }
 
-void schtExecNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* ep) {
+void schtExecNode(SSubplan* subplan, uint64_t groupId, SQueryNodeAddr* ep) {
 
 }
 

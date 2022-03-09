@@ -31,14 +31,14 @@ typedef struct SPlanContext {
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList);
 
 // Set datasource of this subplan, multiple calls may be made to a subplan.
-// @subplan subplan to be schedule
-// @templateId templateId of a group of datasource subplans of this @subplan
-// @ep one execution location of this group of datasource subplans 
-void qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SDownstreamSource* pSource);
+// @pSubplan subplan to be schedule
+// @groupId id of a group of datasource subplans of this @pSubplan
+// @pSource one execution location of this group of datasource subplans 
+int32_t qSetSubplanExecutionNode(SSubplan* pSubplan, int32_t groupId, SDownstreamSourceNode* pSource);
 
 // Convert to subplan to string for the scheduler to send to the executor
-int32_t qSubPlanToString(const SSubplan* subplan, char** str, int32_t* len);
-int32_t qStringToSubplan(const char* str, SSubplan** subplan);
+int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen);
+int32_t qStringToSubplan(const char* pStr, SSubplan** pSubplan);
 
 char* qQueryPlanToString(const SQueryPlan* pPlan);
 SQueryPlan* qStringToQueryPlan(const char* pStr);

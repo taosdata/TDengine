@@ -129,6 +129,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SProjectLogicNode));
     case QUERY_NODE_LOGIC_PLAN_VNODE_MODIF:
       return makeNode(type, sizeof(SVnodeModifLogicNode));
+    case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
+      return makeNode(type, sizeof(SExchangeLogicNode));
     case QUERY_NODE_LOGIC_SUBPLAN:
       return makeNode(type, sizeof(SSubLogicPlan));
     case QUERY_NODE_LOGIC_PLAN:
