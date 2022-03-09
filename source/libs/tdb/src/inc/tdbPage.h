@@ -21,11 +21,12 @@ extern "C" {
 #endif
 
 typedef struct __attribute__((__packed__)) {
-  u16 flags;
-  u16 nCells;
-  u16 cellCont;
-  u16 freeCell;
-  u16 nFree;
+  u16   flags;
+  u16   nCells;
+  u16   cellCont;
+  u16   freeCell;
+  u16   nFree;
+  SPgno rChild;
 } SPageHdr;
 
 typedef struct SPage SPage;
@@ -53,6 +54,8 @@ struct SPage {
   int       maxLocal;
   int       minLocal;
   int       nOverflow;
+  void     *apOvfl[4];
+  int       aiOvfl[4];
 };
 
 // For page lock
@@ -80,13 +83,13 @@ struct SPage {
 // For page ref
 #define TDB_INIT_PAGE_REF(pPage) ((pPage)->nRef = 0)
 #if 0
-#define TDB_REF_PAGE(pPage)   (++(pPage)->nRef)
-#define TDB_UNREF_PAGE(pPage) (--(pPage)->nRef)
-#define TDB_GET_PAGE_REF(pPage)   ((pPage)->nRef)
+#define TDB_REF_PAGE(pPage)     (++(pPage)->nRef)
+#define TDB_UNREF_PAGE(pPage)   (--(pPage)->nRef)
+#define TDB_GET_PAGE_REF(pPage) ((pPage)->nRef)
 #else
-#define TDB_REF_PAGE(pPage)   atomic_add_fetch_32(&((pPage)->nRef), 1)
-#define TDB_UNREF_PAGE(pPage) atomic_sub_fetch_32(&((pPage)->nRef), 1)
-#define TDB_GET_PAGE_REF(pPage)   atomic_load_32(&((pPage)->nRef))
+#define TDB_REF_PAGE(pPage)     atomic_add_fetch_32(&((pPage)->nRef), 1)
+#define TDB_UNREF_PAGE(pPage)   atomic_sub_fetch_32(&((pPage)->nRef), 1)
+#define TDB_GET_PAGE_REF(pPage) atomic_load_32(&((pPage)->nRef))
 #endif
 
 #ifdef __cplusplus

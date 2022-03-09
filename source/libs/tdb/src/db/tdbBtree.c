@@ -450,15 +450,102 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
   return 0;
 }
 
-static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, bool isRoot) {
+static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
   int    nOldPages;
   SPage *pOldPages[3];
   int    nNewPages;
   SPage *pNewPages[5];
+  void  *pCell;
+  SPgno  pgno;
+  int    i;
+  int    nDiv;
+  int    ret;
+  SPage *pPage;
+  void  *pCellDiv[2];
 
-  // Find three or less sibling pages
+  {
+    // TODO: Find three or less sibling pages on either side
+    i = pParent->pPageHdr->nCells + pParent->nOverflow;
+    if (i < 1) {
+      nDiv = 0;
+    } else {
+      if (idx == 0) {
+        nDiv = 0;
+      } else if (idx == i) {
+        nDiv = i - 2;
+      } else {
+        nDiv = idx - 1;
+      }
+      i = 2;
+    }
+    nOldPages = i + 1;
 
-  /* TODO */
+    if (i + nDiv - pParent->nOverflow == pParent->pPageHdr->nCells) {
+      pgno = pParent->pPageHdr->rChild;
+    } else {
+      ASSERT(0);
+      // TODO
+      pgno = 0;
+    }
+    for (;;) {
+      ret = tdbPagerFetchPage(pBt->pPager, pgno, &pPage, tdbBtreeInitPage, pBt);
+      if (ret < 0) {
+        ASSERT(0);
+        return -1;
+      }
+
+      pOldPages[i] = pPage;
+
+      if ((i--) == 0) break;
+
+      if (pParent->nOverflow && i + nDiv == pParent->aiOvfl[0]) {
+        pCellDiv[i] = pParent->apOvfl[0];
+        // pgno = 0;
+        // szNew[i] = tdbPageCellSize(pPage, pCell);
+        pParent->nOverflow = 0;
+      } else {
+        // pCellDiv[i] = TDB_PAGE_CELL_AT(pPage, i + nDiv - pParent->nOverflow);
+        // pgno = 0;
+        // szNew[i] = tdbPageCellSize(pPage, pCell);
+
+        // Drop the cell from the page
+        // ret = tdbPageDropCell(pPage, i + nDiv - pParent->nOverflow, szNew[i]);
+        // if (ret < 0) {
+        //   return -1;
+        // }
+      }
+      /* code */
+    }
+  }
+
+  {
+      // TODO: Load all cells on the old page and the divider cells
+  }
+
+  {
+      // TODO: Get the number of pages needed to hold all cells
+  }
+
+  {
+      // TODO: Allocate enough new pages. Reuse old pages as much as possible
+  }
+
+  {
+      // TODO: Insert new divider cells into pParent
+  }
+
+  {
+      // TODO: Update the sibling pages
+  }
+
+  {
+      // TODO: Reset states
+  }
+
+  {
+    // TODO: Clear resources
+  }
+
   return 0;
 }
 
@@ -502,7 +589,7 @@ static int tdbBtreeBalance(SBtCursor *pCur) {
       // Generalized balance step
       pParent = pCur->pgStack[pCur->iPage - 1];
 
-      ret = tdbBtreeBalanceNonRoot(pCur->pBt, pParent, pCur->idxStack[pCur->iPage - 1], (iPage == 1));
+      ret = tdbBtreeBalanceNonRoot(pCur->pBt, pParent, pCur->idxStack[pCur->iPage - 1]);
       if (ret < 0) {
         return -1;
       }
