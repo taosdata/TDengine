@@ -16,12 +16,36 @@
 #include "tdbInt.h"
 
 int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg) {
-  // TODO
+  SPage *pPage;
+  u8    *ptr;
+  int    size;
+
+  *ppPage = NULL;
+  size = pageSize + sizeof(*pPage);
+
+  ptr = (u8 *)((*xMalloc)(arg, size));
+  if (pPage == NULL) {
+    return -1;
+  }
+
+  memset(ptr, 0, size);
+  pPage = (SPage *)(ptr + pageSize);
+
+  pPage->pData = ptr;
+  pPage->pageSize = pageSize;
+
+  /* TODO */
+
+  *ppPage = pPage;
   return 0;
 }
 
 int tdbPageDestroy(SPage *pPage, void (*xFree)(void *)) {
-  // TODO
+  u8 *ptr;
+
+  ptr = pPage->pData;
+  (*xFree)(ptr);
+
   return 0;
 }
 
