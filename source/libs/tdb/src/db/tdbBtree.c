@@ -525,12 +525,23 @@ static int tdbBtreeBalanceStep1(SBtreeBalanceHelper *pBlh) {
 }
 
 static int tdbBtreeBalanceStep2(SBtreeBalanceHelper *pBlh) {
-  // TODO
+  SPage *pPage;
+
+  for (int i = 0; i < pBlh->nOldPages; i++) {
+    pPage = pBlh->pOldPages[i];
+    /* code */
+  }
+
+  /* TODO */
+
   return 0;
 }
 
 static int tdbBtreeBalanceStep3(SBtreeBalanceHelper *pBlh) {
-  // TODO
+  for (int i = 0; i < pBlh->nOldPages; i++) {
+    /* code */
+  }
+
   return 0;
 }
 
