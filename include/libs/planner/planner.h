@@ -32,9 +32,9 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
 
 // Set datasource of this subplan, multiple calls may be made to a subplan.
 // @subplan subplan to be schedule
-// @templateId templateId of a group of datasource subplans of this @subplan
+// @groupId id of a group of datasource subplans of this @subplan
 // @ep one execution location of this group of datasource subplans 
-void qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SDownstreamSource* pSource);
+void qSetSubplanExecutionNode(SSubplan* subplan, int32_t groupId, SDownstreamSourceNode* pSource);
 
 // Convert to subplan to string for the scheduler to send to the executor
 int32_t qSubPlanToString(const SSubplan* subplan, char** str, int32_t* len);

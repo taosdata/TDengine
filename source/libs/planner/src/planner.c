@@ -34,7 +34,7 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   return code;
 }
 
-void qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SDownstreamSource* pSource) {
+void qSetSubplanExecutionNode(SSubplan* subplan, int32_t groupId, SDownstreamSourceNode* pSource) {
 
 }
 
@@ -62,5 +62,5 @@ SQueryPlan* qStringToQueryPlan(const char* pStr) {
 }
 
 void qDestroyQueryPlan(SQueryPlan* pPlan) {
-
+  nodesDestroyNode(pPlan);
 }

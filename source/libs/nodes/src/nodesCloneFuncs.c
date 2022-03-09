@@ -60,6 +60,9 @@
 
 #define CLONE_OBJECT_FIELD(fldname, cloneFunc) \
 	do { \
+    if (NULL == (pSrc)->fldname) { \
+      break; \
+    } \
     (pDst)->fldname = cloneFunc((pSrc)->fldname); \
     if (NULL == (pDst)->fldname) { \
       nodesDestroyNode((SNode*)(pDst)); \
@@ -234,7 +237,14 @@ static SNode* logicProjectCopy(const SProjectLogicNode* pSrc, SProjectLogicNode*
 }
 
 static SNode* logicVnodeModifCopy(const SVnodeModifLogicNode* pSrc, SVnodeModifLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(msgType);
+  return (SNode*)pDst;
+}
+
+static SNode* logicExchangeCopy(const SExchangeLogicNode* pSrc, SExchangeLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  COPY_SCALAR_FIELD(srcGroupId);
   return (SNode*)pDst;
 }
 
@@ -304,6 +314,8 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
       return logicProjectCopy((const SProjectLogicNode*)pNode, (SProjectLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_VNODE_MODIF:
       return logicVnodeModifCopy((const SVnodeModifLogicNode*)pNode, (SVnodeModifLogicNode*)pDst);
+    case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
+      return logicExchangeCopy((const SExchangeLogicNode*)pNode, (SExchangeLogicNode*)pDst);
     case QUERY_NODE_LOGIC_SUBPLAN:
       return logicSubplanCopy((const SSubLogicPlan*)pNode, (SSubLogicPlan*)pDst);
     default:

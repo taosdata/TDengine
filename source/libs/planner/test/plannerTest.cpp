@@ -137,6 +137,13 @@ TEST_F(PlannerTest, simple) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(PlannerTest, stSimple) {
+  setDatabase("root", "test");
+
+  bind("SELECT * FROM st1");
+  ASSERT_TRUE(run());
+}
+
 TEST_F(PlannerTest, groupBy) {
   setDatabase("root", "test");
 

@@ -4984,7 +4984,7 @@ static int32_t doSendFetchDataRequest(SExchangeInfo *pExchangeInfo, SExecTaskInf
     return pTaskInfo->code;
   }
 
-  SDownstreamSource *pSource = taosArrayGet(pExchangeInfo->pSources, sourceIndex);
+  SDownstreamSourceNode *pSource = taosArrayGet(pExchangeInfo->pSources, sourceIndex);
   SSourceDataInfo   *pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, sourceIndex);
 
   qDebug("%s build fetch msg and send to vgId:%d, ep:%s, taskId:0x%" PRIx64 ", %d/%" PRIzu,
@@ -5082,7 +5082,7 @@ static SSDataBlock* concurrentlyLoadRemoteDataImpl(SOperatorInfo *pOperator, SEx
       }
 
       SRetrieveTableRsp* pRsp = pDataInfo->pRsp;
-      SDownstreamSource* pSource = taosArrayGet(pExchangeInfo->pSources, i);
+      SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, i);
 
       SSDataBlock* pRes = pExchangeInfo->pResult;
 
@@ -5179,7 +5179,7 @@ static SSDataBlock* seqLoadRemoteData(SOperatorInfo *pOperator) {
     tsem_wait(&pExchangeInfo->ready);
 
     SSourceDataInfo* pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, pExchangeInfo->current);
-    SDownstreamSource* pSource = taosArrayGet(pExchangeInfo->pSources, pExchangeInfo->current);
+    SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, pExchangeInfo->current);
 
     SRetrieveTableRsp* pRsp = pDataInfo->pRsp;
     if (pRsp->numOfRows == 0) {

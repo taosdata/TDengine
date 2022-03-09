@@ -51,7 +51,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   }
 };
 
-const int funcMgtBuiltinsNum = (sizeof(funcMgtBuiltins) / sizeof(SBuiltinFuncDefinition));
+const int32_t funcMgtBuiltinsNum = (sizeof(funcMgtBuiltins) / sizeof(SBuiltinFuncDefinition));
 
 int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
   return TSDB_CODE_SUCCESS;
