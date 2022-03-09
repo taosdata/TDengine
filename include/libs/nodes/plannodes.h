@@ -105,7 +105,8 @@ typedef struct SSubLogicPlan {
 
 typedef struct SQueryLogicPlan {
   ENodeType type;;
-  SNodeList* pSubplans;
+  int32_t totalLevel;
+  SNodeList* pTopSubplans;
 } SQueryLogicPlan;
 
 typedef struct SSlotDescNode {
@@ -221,8 +222,8 @@ typedef struct SSubplan {
 typedef struct SQueryPlan {
   ENodeType type;;
   uint64_t queryId;
-  int32_t  numOfSubplans;
-  SNodeList* pSubplans; // SNodeListNode. The execution level of subplan, starting from 0.
+  int32_t numOfSubplans;
+  SNodeList* pSubplans; // Element is SNodeListNode. The execution level of subplan, starting from 0.
 } SQueryPlan;
 
 #ifdef __cplusplus
