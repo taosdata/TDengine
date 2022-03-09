@@ -14,46 +14,61 @@
  */
 
 #include "syncRaftLog.h"
+#include "wal.h"
 
-int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncBuffer* pBuf) { return 0; }
+SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
+  SSyncLogStore* pLogStore = malloc(sizeof(SSyncLogStore));
+  assert(pLogStore != NULL);
 
-// get one log entry, user need to free pBuf->data
-int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncBuffer* pBuf) { return 0; }
+  pLogStore->data = malloc(sizeof(SSyncLogStoreData));
+  assert(pLogStore->data != NULL);
 
-// TLA+ Spec
-// \* Leader i advances its commitIndex.
-// \* This is done as a separate step from handling AppendEntries responses,
-// \* in part to minimize atomic regions, and in part so that leaders of
-// \* single-server clusters are able to mark entries committed.
-// AdvanceCommitIndex(i) ==
-//     /\ state[i] = Leader
-//     /\ LET \* The set of servers that agree up through index.
-//            Agree(index) == {i} \cup {k \in Server :
-//                                          matchIndex[i][k] >= index}
-//            \* The maximum indexes for which a quorum agrees
-//            agreeIndexes == {index \in 1..Len(log[i]) :
-//                                 Agree(index) \in Quorum}
-//            \* New value for commitIndex'[i]
-//            newCommitIndex ==
-//               IF /\ agreeIndexes /= {}
-//                  /\ log[i][Max(agreeIndexes)].term = currentTerm[i]
-//               THEN
-//                   Max(agreeIndexes)
-//               ELSE
-//                   commitIndex[i]
-//        IN commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
-//     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log>>
-//
-int32_t raftLogupdateCommitIndex(struct SSyncLogStore* pLogStore, SyncIndex index) { return 0; }
+  SSyncLogStoreData* pData = pLogStore->data;
+  pData->pSyncNode = pSyncNode;
+  pData->pWal = pSyncNode->pWal;
 
-// truncate log with index, entries after the given index (>index) will be deleted
-int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex index) { return 0; }
+  pLogStore->appendEntry = logStoreAppendEntry;
+  pLogStore->getEntry = logStoreGetEntry;
+  pLogStore->truncate = logStoreTruncate;
+  pLogStore->getLastIndex = logStoreLastIndex;
+  pLogStore->getLastTerm = logStoreLastTerm;
+  pLogStore->updateCommitIndex = logStoreUpdateCommitIndex;
+  pLogStore->getCommitIndex = logStoreGetCommitIndex;
+}
 
-// return commit index of log
-SyncIndex raftLogGetCommitIndex(struct SSyncLogStore* pLogStore) { return 0; }
+void logStoreDestory(SSyncLogStore* pLogStore) {
+  if (pLogStore != NULL) {
+    free(pLogStore->data);
+    free(pLogStore);
+  }
+}
+
+// append one log entry
+int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SRpcMsg* pEntry) {}
+
+// get one log entry, user need to free pEntry->pCont
+int32_t logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index, SRpcMsg* pEntry) {}
+
+// truncate log with index, entries after the given index (>=index) will be deleted
+int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {}
 
 // return index of last entry
-SyncIndex raftLogGetLastIndex(struct SSyncLogStore* pLogStore) { return 0; }
+SyncIndex logStoreLastIndex(SSyncLogStore* pLogStore) {}
 
 // return term of last entry
-SyncTerm raftLogGetLastTerm(struct SSyncLogStore* pLogStore) { return 0; }
+SyncTerm logStoreLastTerm(SSyncLogStore* pLogStore) {}
+
+// update log store commit index with "index"
+int32_t logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {}
+
+// return commit index of log
+SyncIndex logStoreGetCommitIndex(SSyncLogStore* pLogStore) {}
+
+cJSON* logStore2Json(SSyncLogStore* pLogStore) {}
+
+char* logStore2Str(SSyncLogStore* pLogStore) {
+  cJSON* pJson = logStore2Json(pLogStore);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}

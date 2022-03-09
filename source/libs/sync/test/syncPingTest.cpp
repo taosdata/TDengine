@@ -26,7 +26,6 @@ SSyncNode* doSync(int myIndex) {
   syncInfo.FpEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./path");
-  snprintf(syncInfo.walPath, sizeof(syncInfo.walPath), "%s", "./wal_path");
 
   SSyncCfg* pCfg = &syncInfo.syncCfg;
   pCfg->myIndex = myIndex;

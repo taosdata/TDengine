@@ -27,10 +27,14 @@ extern "C" {
 #include "taosdef.h"
 
 typedef struct SSyncRaftEntry {
-  SyncTerm    term;
-  SyncIndex   index;
-  SSyncBuffer data;
-  int8_t      flag;
+  uint32_t  bytes;
+  uint32_t  msgType;
+  SyncTerm  term;
+  SyncIndex index;
+  int8_t    flag;
+  uint32_t  dataLen;
+  char      data[];
+
 } SSyncRaftEntry;
 
 #ifdef __cplusplus

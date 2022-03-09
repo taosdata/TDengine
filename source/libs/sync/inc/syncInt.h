@@ -116,7 +116,7 @@ typedef struct SSyncNode {
   SyncGroupId vgId;
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
-  char        walPath[TSDB_FILENAME_LEN];
+  SWal*       pWal;
   void*       rpcClient;
   int32_t (*FpSendMsg)(void* rpcClient, const SEpSet* pEpSet, SRpcMsg* pMsg);
   void* queue;

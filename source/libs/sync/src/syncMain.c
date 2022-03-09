@@ -18,8 +18,10 @@
 #include "syncAppendEntries.h"
 #include "syncAppendEntriesReply.h"
 #include "syncEnv.h"
+#include "syncIndexMgr.h"
 #include "syncInt.h"
 #include "syncRaft.h"
+#include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncRequestVote.h"
 #include "syncRequestVoteReply.h"
@@ -78,7 +80,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   pSyncNode->vgId = pSyncInfo->vgId;
   pSyncNode->syncCfg = pSyncInfo->syncCfg;
   memcpy(pSyncNode->path, pSyncInfo->path, sizeof(pSyncNode->path));
-  memcpy(pSyncNode->walPath, pSyncInfo->walPath, sizeof(pSyncNode->walPath));
+  pSyncNode->pWal = pSyncInfo->pWal;
   pSyncNode->rpcClient = pSyncInfo->rpcClient;
   pSyncNode->FpSendMsg = pSyncInfo->FpSendMsg;
   pSyncNode->queue = pSyncInfo->queue;
@@ -114,20 +116,26 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
 
   // init life cycle
 
-  // init server vars
+  // init TLA+ server vars
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
-  pSyncNode->pRaftStore = raftStoreOpen(pSyncInfo->walPath);
   assert(pSyncNode->pRaftStore != NULL);
 
-  // init candidate vars
+  // init TLA+ candidate vars
   pSyncNode->pVotesGranted = voteGrantedCreate(pSyncNode);
   assert(pSyncNode->pVotesGranted != NULL);
   pSyncNode->pVotesRespond = votesRespondCreate(pSyncNode);
   assert(pSyncNode->pVotesRespond != NULL);
 
-  // init leader vars
-  pSyncNode->pNextIndex = NULL;
-  pSyncNode->pMatchIndex = NULL;
+  // init TLA+ leader vars
+  pSyncNode->pNextIndex = syncIndexMgrCreate(pSyncNode);
+  assert(pSyncNode->pNextIndex != NULL);
+  pSyncNode->pMatchIndex = syncIndexMgrCreate(pSyncNode);
+  assert(pSyncNode->pMatchIndex != NULL);
+
+  // init TLA+ log vars
+  pSyncNode->pLogStore = logStoreCreate(pSyncNode);
+  assert(pSyncNode->pLogStore != NULL);
+  pSyncNode->commitIndex = 0;
 
   // init ping timer
   pSyncNode->pPingTimer = NULL;
@@ -177,7 +185,8 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
   // init by SSyncInfo
   cJSON_AddNumberToObject(pRoot, "vgId", pSyncNode->vgId);
   cJSON_AddStringToObject(pRoot, "path", pSyncNode->path);
-  cJSON_AddStringToObject(pRoot, "walPath", pSyncNode->walPath);
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pWal);
+  cJSON_AddStringToObject(pRoot, "pWal", u64buf);
 
   snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->rpcClient);
   cJSON_AddStringToObject(pRoot, "rpcClient", u64buf);
