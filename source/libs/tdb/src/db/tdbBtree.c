@@ -405,6 +405,16 @@ static int tdbBtreeInitPage(SPage *pPage, void *arg) {
 }
 
 #ifndef TDB_BTREE_BALANCE
+typedef struct {
+  SBTree *pBt;
+  SPage  *pParent;
+  int     idx;
+  i8      nOldPages;
+  SPage  *pOldPages[3];
+  i8      nNewPages;
+  SPage  *pNewPages[5];
+} SBtreeBalanceHelper;
+
 static int tdbBtreeCopyPageContent(SPage *pFrom, SPage *pTo) {
   /* TODO */
 
@@ -450,92 +460,138 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
   return 0;
 }
 
-static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
-  int    nOldPages;
-  SPage *pOldPages[3];
-  int    nNewPages;
-  SPage *pNewPages[5];
-  void  *pCell;
-  SPgno  pgno;
-  int    i;
-  int    nDiv;
-  int    ret;
-  SPage *pPage;
-  void  *pCellDiv[2];
-
-  {
-    // TODO: Find three or less sibling pages on either side
-    i = pParent->pPageHdr->nCells + pParent->nOverflow;
-    if (i < 1) {
+static int tdbBtreeBalanceStep1(SBtreeBalanceHelper *pBlh) {
+#if 0
+  // TODO: Find three or less sibling pages on either side
+  i = pParent->pPageHdr->nCells + pParent->nOverflow;
+  if (i < 1) {
+    nDiv = 0;
+  } else {
+    if (idx == 0) {
       nDiv = 0;
+    } else if (idx == i) {
+      nDiv = i - 2;
     } else {
-      if (idx == 0) {
-        nDiv = 0;
-      } else if (idx == i) {
-        nDiv = i - 2;
-      } else {
-        nDiv = idx - 1;
-      }
-      i = 2;
+      nDiv = idx - 1;
     }
-    nOldPages = i + 1;
+    i = 2;
+  }
+  nOldPages = i + 1;
 
-    if (i + nDiv - pParent->nOverflow == pParent->pPageHdr->nCells) {
-      pgno = pParent->pPageHdr->rChild;
-    } else {
+  if (i + nDiv - pParent->nOverflow == pParent->pPageHdr->nCells) {
+    pgno = pParent->pPageHdr->rChild;
+  } else {
+    ASSERT(0);
+    // TODO
+    pgno = 0;
+  }
+  for (;;) {
+    ret = tdbPagerFetchPage(pBt->pPager, pgno, &pPage, tdbBtreeInitPage, pBt);
+    if (ret < 0) {
       ASSERT(0);
-      // TODO
-      pgno = 0;
+      return -1;
     }
-    for (;;) {
-      ret = tdbPagerFetchPage(pBt->pPager, pgno, &pPage, tdbBtreeInitPage, pBt);
-      if (ret < 0) {
-        ASSERT(0);
-        return -1;
-      }
 
-      pOldPages[i] = pPage;
+    pOldPages[i] = pPage;
 
-      if ((i--) == 0) break;
+    if ((i--) == 0) break;
 
-      if (pParent->nOverflow && i + nDiv == pParent->aiOvfl[0]) {
-        pCellDiv[i] = pParent->apOvfl[0];
-        // pgno = 0;
-        // szNew[i] = tdbPageCellSize(pPage, pCell);
-        pParent->nOverflow = 0;
-      } else {
-        // pCellDiv[i] = TDB_PAGE_CELL_AT(pPage, i + nDiv - pParent->nOverflow);
-        // pgno = 0;
-        // szNew[i] = tdbPageCellSize(pPage, pCell);
+    if (pParent->nOverflow && i + nDiv == pParent->aiOvfl[0]) {
+      pCellDiv[i] = pParent->apOvfl[0];
+      // pgno = 0;
+      // szNew[i] = tdbPageCellSize(pPage, pCell);
+      pParent->nOverflow = 0;
+    } else {
+      // pCellDiv[i] = TDB_PAGE_CELL_AT(pPage, i + nDiv - pParent->nOverflow);
+      // pgno = 0;
+      // szNew[i] = tdbPageCellSize(pPage, pCell);
 
-        // Drop the cell from the page
-        // ret = tdbPageDropCell(pPage, i + nDiv - pParent->nOverflow, szNew[i]);
-        // if (ret < 0) {
-        //   return -1;
-        // }
-      }
-      /* code */
+      // Drop the cell from the page
+      // ret = tdbPageDropCell(pPage, i + nDiv - pParent->nOverflow, szNew[i]);
+      // if (ret < 0) {
+      //   return -1;
+      // }
     }
+    /* code */
   }
 
-  {
-      // TODO: Load all cells on the old page and the divider cells
+#endif
+  return 0;
+}
+
+static int tdbBtreeBalanceStep2(SBtreeBalanceHelper *pBlh) {
+  // TODO
+  return 0;
+}
+
+static int tdbBtreeBalanceStep3(SBtreeBalanceHelper *pBlh) {
+  // TODO
+  return 0;
+}
+
+static int tdbBtreeBalanceStep4(SBtreeBalanceHelper *pBlh) {
+  // TODO
+  return 0;
+}
+
+static int tdbBtreeBalanceStep5(SBtreeBalanceHelper *pBlh) {
+  // TODO
+  return 0;
+}
+
+static int tdbBtreeBalanceStep6(SBtreeBalanceHelper *pBlh) {
+  // TODO
+  return 0;
+}
+
+static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
+  int                 ret;
+  SBtreeBalanceHelper blh;
+
+  blh.pBt = pBt;
+  blh.pParent = pParent;
+  blh.idx = idx;
+
+  // Step 1: find two sibling pages and get engough info about the old pages
+  ret = tdbBtreeBalanceStep1(&blh);
+  if (ret < 0) {
+    ASSERT(0);
+    return -1;
   }
 
-  {
-      // TODO: Get the number of pages needed to hold all cells
+  // Step 2: Load all cells on the old page and the divider cells
+  ret = tdbBtreeBalanceStep2(&blh);
+  if (ret < 0) {
+    ASSERT(0);
+    return -1;
   }
 
-  {
-      // TODO: Allocate enough new pages. Reuse old pages as much as possible
+  // Step 3: Get the number of pages needed to hold all cells
+  ret = tdbBtreeBalanceStep3(&blh);
+  if (ret < 0) {
+    ASSERT(0);
+    return -1;
   }
 
-  {
-      // TODO: Insert new divider cells into pParent
+  // Step 4: Allocate enough new pages. Reuse old pages as much as possible
+  ret = tdbBtreeBalanceStep4(&blh);
+  if (ret < 0) {
+    ASSERT(0);
+    return -1;
   }
 
-  {
-      // TODO: Update the sibling pages
+  // Step 5: Insert new divider cells into pParent
+  ret = tdbBtreeBalanceStep5(&blh);
+  if (ret < 0) {
+    ASSERT(0);
+    return -1;
+  }
+
+  // Step 6: Update the sibling pages
+  ret = tdbBtreeBalanceStep6(&blh);
+  if (ret < 0) {
+    ASSERT(0);
+    return -1;
   }
 
   {
