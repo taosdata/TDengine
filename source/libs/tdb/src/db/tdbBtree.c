@@ -461,22 +461,29 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
 }
 
 static int tdbBtreeBalanceStep1(SBtreeBalanceHelper *pBlh) {
-#if 0
-  // TODO: Find three or less sibling pages on either side
+  int    i;
+  SPage *pParent;
+  int    nDiv;
+  SPgno  pgno;
+  SPage *pPage;
+  int    ret;
+
+  pParent = pBlh->pParent;
   i = pParent->pPageHdr->nCells + pParent->nOverflow;
+
   if (i < 1) {
     nDiv = 0;
   } else {
-    if (idx == 0) {
+    if (pBlh->idx == 0) {
       nDiv = 0;
-    } else if (idx == i) {
+    } else if (pBlh->idx == i) {
       nDiv = i - 2;
     } else {
-      nDiv = idx - 1;
+      nDiv = pBlh->idx - 1;
     }
     i = 2;
   }
-  nOldPages = i + 1;
+  pBlh->nOldPages = i + 1;
 
   if (i + nDiv - pParent->nOverflow == pParent->pPageHdr->nCells) {
     pgno = pParent->pPageHdr->rChild;
@@ -486,18 +493,18 @@ static int tdbBtreeBalanceStep1(SBtreeBalanceHelper *pBlh) {
     pgno = 0;
   }
   for (;;) {
-    ret = tdbPagerFetchPage(pBt->pPager, pgno, &pPage, tdbBtreeInitPage, pBt);
+    ret = tdbPagerFetchPage(pBlh->pBt->pPager, pgno, &pPage, tdbBtreeInitPage, pBlh->pBt);
     if (ret < 0) {
       ASSERT(0);
       return -1;
     }
 
-    pOldPages[i] = pPage;
+    pBlh->pOldPages[i] = pPage;
 
     if ((i--) == 0) break;
 
     if (pParent->nOverflow && i + nDiv == pParent->aiOvfl[0]) {
-      pCellDiv[i] = pParent->apOvfl[0];
+      // pCellDiv[i] = pParent->apOvfl[0];
       // pgno = 0;
       // szNew[i] = tdbPageCellSize(pPage, pCell);
       pParent->nOverflow = 0;
@@ -512,10 +519,8 @@ static int tdbBtreeBalanceStep1(SBtreeBalanceHelper *pBlh) {
       //   return -1;
       // }
     }
-    /* code */
   }
 
-#endif
   return 0;
 }
 

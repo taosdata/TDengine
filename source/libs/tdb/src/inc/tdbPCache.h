@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+#define TDB_PCACHE_PAGE
+
 int    tdbPCacheOpen(int pageSize, int cacheSize, int extraSize, SPCache **ppCache);
 int    tdbPCacheClose(SPCache *pCache);
 SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage);
