@@ -103,7 +103,7 @@ if [ $RET -eq 0 ]; then
         pkg_name=`basename $CLIENT_PKG`
         pkg_dir=`echo "$pkg_name"|sed "s/-Linux-x64.tar.gz//"`
         docker cp $CLIENT_PKG $container_name4:/home/
-        docker exec $container_name4 sh -c "cd /home;tar xzf $pkg_name;pip3 install /home/$pkg_dir/connector/python"
+        docker exec $container_name4 sh -c "cd /home;tar xzf $pkg_name;if [ -d /home/$pkg_dir/connector/python/linux/python3 ]; then pip3 install /home/$pkg_dir/connector/python/linux/python3; else pip3 install /home/$pkg_dir/connector/python; fi"
         RET=$?
     fi
 fi

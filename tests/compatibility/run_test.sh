@@ -116,6 +116,8 @@ docker exec $container_name4 taos -h $container_name1 -s "CREATE DNODE \"$contai
 docker exec $container_name2 service taosd start
 docker exec $container_name3 service taosd start
 
+sleep 10
+
 # show nodes
 docker exec $container_name4 taos -h $container_name1 -s "SHOW DNODES;"
 docker exec $container_name4 taos -h $container_name1 -s "SHOW MNODES;"
