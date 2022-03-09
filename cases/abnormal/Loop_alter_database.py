@@ -605,22 +605,27 @@ class TestDnodes(TDCase):
         return "wenzhouwww"
 
     def alter_db_query_task(self):
+        try:
+            self.tdSql.execute("drop database if exists testdb")
+            self.tdSql.execute("create database testdb")
+            self.tdSql.execute("use testdb")
+            self.tdSql.execute(
+                "create stable testdb.st (ts timestamp ,  value int) tags (ind int)")
+            self.tdSql.query("describe testdb.st")
 
-        self.tdSql.execute("drop database if exists testdb")
-        self.tdSql.execute("create database testdb")
-        self.tdSql.execute("use testdb")
-        self.tdSql.execute(
-            "create stable testdb.st (ts timestamp ,  value int) tags (ind int)")
-        self.tdSql.query("describe testdb.st")
-
-        # insert data
-        for cur in range(self.num):
-            self.tdSql.execute("insert into tb_%d using st tags(%d) values(%d, %d)" % (
-                cur, cur, self.ts+1000*cur, cur))
-            self.tdSql.execute("insert into tb_set using st tags(%d) values(%d, %d)" % (
-                cur, self.ts+1000*cur, cur))
-        self.threads_query_alter_tags()
-        self.query_run()
+            # insert data
+            for cur in range(self.num):
+                self.tdSql.execute("insert into tb_%d using st tags(%d) values(%d, %d)" % (
+                    cur, cur, self.ts+1000*cur, cur))
+                self.tdSql.execute("insert into tb_set using st tags(%d) values(%d, %d)" % (
+                    cur, self.ts+1000*cur, cur))
+            self.threads_query_alter_tags()
+            self.query_run()
+        except Exception as e:
+            if str(e).endswith("Timestamp data out of range"):
+                pass
+            else:
+                print(e)
 
     def per_alter_db_task(self, sleep_time: int):
     
@@ -660,9 +665,8 @@ class TestDnodes(TDCase):
                 alter_thread = threading.Thread(target=self.per_alter_db_task ,args = ((5,)))
                 # per 5 seconds alter database once , and use multi threading
                 thread_pools.append(alter_thread)
-                
-            for inst in thread_pools:
-                inst.start()
+                alter_thread.start()
+    
             for inst in thread_pools:
                 inst.join()
             inst_query.join()
@@ -672,7 +676,7 @@ class TestDnodes(TDCase):
 
     def run(self):
         self.Concurrency_alter_db()
-        
+
     def cleanup(self):
         pass
 
