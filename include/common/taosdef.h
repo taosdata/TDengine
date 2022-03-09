@@ -50,7 +50,7 @@ typedef enum {
   TSDB_CHECK_ITEM_MAX
 } ECheckItemType;
 
-typedef enum { TD_ROW_DISCARD_UPDATE = 0, TD_ROW_OVERWRITE_UPDATE = 1, TD_ROW_PARTIAL_UPDATE = 2} TDUpdateConfig;
+typedef enum { TD_ROW_DISCARD_UPDATE = 0, TD_ROW_OVERWRITE_UPDATE = 1, TD_ROW_PARTIAL_UPDATE = 2 } TDUpdateConfig;
 typedef enum {
   TSDB_STATIS_OK = 0,    // statis part exist and load successfully
   TSDB_STATIS_NONE = 1,  // statis part not exist
