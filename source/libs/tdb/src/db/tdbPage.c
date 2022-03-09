@@ -24,3 +24,13 @@ int tdbPageDropCell(SPage *pPage, int idx) {
   // TODO
   return 0;
 }
+
+static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell) {
+  // TODO
+  return 0;
+}
+
+static int tdbPageFree(SPage *pPage, int idx, SCell *pCell) {
+  // TODO
+  return 0;
+}
