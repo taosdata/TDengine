@@ -1048,6 +1048,7 @@ typedef struct SSubQueryMsg {
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
+  int64_t  refId;
   int8_t   taskType;
   uint32_t sqlLen;  // the query sql,
   uint32_t phyLen;
@@ -1094,19 +1095,57 @@ typedef struct {
 typedef struct {
   uint64_t queryId;
   uint64_t taskId;
+  int64_t  refId;
   int8_t   status;
 } STaskStatus;
 
 typedef struct {
-  uint32_t    num;
-  STaskStatus status[];
+  int64_t  refId;
+  SArray  *taskStatus;  //SArray<STaskStatus>
 } SSchedulerStatusRsp;
+
+typedef struct {
+  uint64_t queryId;
+  uint64_t taskId;
+  int8_t   action;
+} STaskAction;
+
+
+typedef struct SQueryNodeEpId {
+  int32_t nodeId;  // vgId or qnodeId
+  SEp     ep;
+} SQueryNodeEpId;
+
+
+typedef struct {
+  SMsgHead       header;
+  uint64_t       sId;
+  SQueryNodeEpId epId;
+  SArray        *taskAction;  //SArray<STaskAction>
+} SSchedulerHbReq;
+
+int32_t tSerializeSSchedulerHbReq(void *buf, int32_t bufLen, SSchedulerHbReq *pReq);
+int32_t tDeserializeSSchedulerHbReq(void *buf, int32_t bufLen, SSchedulerHbReq *pReq);
+void tFreeSSchedulerHbReq(SSchedulerHbReq *pReq);
+
+
+typedef struct {
+  uint64_t       seqId;
+  SQueryNodeEpId epId;
+  SArray        *taskStatus;  //SArray<STaskStatus>
+} SSchedulerHbRsp;
+
+int32_t tSerializeSSchedulerHbRsp(void *buf, int32_t bufLen, SSchedulerHbRsp *pRsp);
+int32_t tDeserializeSSchedulerHbRsp(void *buf, int32_t bufLen, SSchedulerHbRsp *pRsp);
+void tFreeSSchedulerHbRsp(SSchedulerHbRsp *pRsp);
+
 
 typedef struct {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
+  int64_t  refId;
 } STaskCancelReq;
 
 typedef struct {
@@ -1118,6 +1157,7 @@ typedef struct {
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
+  int64_t  refId;
 } STaskDropReq;
 
 typedef struct {

@@ -14,6 +14,13 @@
  */
 
 #include "qndInt.h"
+#include "query.h"
+#include "qworker.h"
+#include "executor.h"
+
+int32_t qnodePutReqToVQueryQ(SQnode* pQnode, struct SRpcMsg* pReq) {}
+void    qnodeSendReqToDnode(SQnode* pQnode, struct SEpSet* epSet, struct SRpcMsg* pReq) {}
+
 
 SQnode *qndOpen(const SQnodeOpt *pOption) {
   SQnode *pQnode = calloc(1, sizeof(SQnode));
@@ -23,7 +30,7 @@ SQnode *qndOpen(const SQnodeOpt *pOption) {
   }
 
   if (qWorkerInit(NODE_TYPE_QNODE, pQnode->qndId, NULL, (void **)&pQnode->pQuery, pQnode,
-                     (putReqToQueryQFp)vnodePutReqToVQueryQ, (sendReqToDnodeFp)vnodeSendReqToDnode)) {
+                     (putReqToQueryQFp)qnodePutReqToVQueryQ, (sendReqToDnodeFp)qnodeSendReqToDnode)) {
     tfree(pQnode);
     return NULL;
   }
@@ -32,7 +39,7 @@ SQnode *qndOpen(const SQnodeOpt *pOption) {
 }
 
 void qndClose(SQnode *pQnode) { 
-  qWorkerDestroy(&pQnode->pQuery);
+  qWorkerDestroy((void **)&pQnode->pQuery);
 
   free(pQnode); 
 }
@@ -55,7 +62,7 @@ int qnodeProcessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
     case TDMT_VND_QUERY_CONTINUE:
       return qWorkerProcessCQueryMsg(&handle, pQnode->pQuery, pMsg);
     default:
-      vError("unknown msg type:%d in query queue", pMsg->msgType);
+      qError("unknown msg type:%d in query queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;
   }
 }
@@ -84,7 +91,7 @@ int qnodeProcessFetchMsg(SQnode *pQnode, SRpcMsg *pMsg) {
     case TDMT_VND_CONSUME:
       //return tqProcessConsumeReq(pQnode->pTq, pMsg);
     default:
-      vError("unknown msg type:%d in fetch queue", pMsg->msgType);
+      qError("unknown msg type:%d in fetch queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;
   }
 }

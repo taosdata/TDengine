@@ -580,7 +580,7 @@ int32_t ctgGetQnodeListFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmt
 
   rpcSendRecv(pRpc, (SEpSet*)pMgmtEps, &rpcMsg, &rpcRsp);
   if (TSDB_CODE_SUCCESS != rpcRsp.code) {
-    ctgError("error rsp for qnode list, error:%s, db:%s", tstrerror(rpcRsp.code));
+    ctgError("error rsp for qnode list, error:%s", tstrerror(rpcRsp.code));
     CTG_ERR_RET(rpcRsp.code);
   }
 
@@ -590,7 +590,7 @@ int32_t ctgGetQnodeListFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmt
     CTG_ERR_RET(code);
   }
 
-  ctgDebug("Got qnode list from mnode, listNum:%d", taosArrayGetSize(*out));
+  ctgDebug("Got qnode list from mnode, listNum:%d", (int32_t)taosArrayGetSize(*out));
 
   return TSDB_CODE_SUCCESS;
 }

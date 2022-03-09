@@ -36,6 +36,7 @@ static int32_t  mndProcessDropQnodeRsp(SMnodeMsg *pRsp);
 static int32_t  mndGetQnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t  mndRetrieveQnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextQnode(SMnode *pMnode, void *pIter);
+static int32_t  mndProcessQnodeListReq(SMnodeMsg *pReq);
 
 int32_t mndInitQnode(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_QNODE,
@@ -447,8 +448,8 @@ static int32_t mndProcessQnodeListReq(SMnodeMsg *pReq) {
     goto QNODE_LIST_OVER;
   }
 
-  qlistRsp->epSetList = taosArrayInit(5, sizeof(SEpSet));
-  if (NULL == qlistRsp->epSetList) {
+  qlistRsp.epSetList = taosArrayInit(5, sizeof(SEpSet));
+  if (NULL == qlistRsp.epSetList) {
     mError("taosArrayInit epSet failed");
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto QNODE_LIST_OVER;
@@ -463,12 +464,12 @@ static int32_t mndProcessQnodeListReq(SMnodeMsg *pReq) {
     epSet.eps[0].port = pObj->pDnode->port;
     epSet.numOfEps = 1;
 
-    taosArrayPush(qlistRsp->epSetList, &epSet);
+    taosArrayPush(qlistRsp.epSetList, &epSet);
 
     numOfRows++;
     sdbRelease(pSdb, pObj);
 
-    if (qlistReq->rowNum > 0 && numOfRows >= qlistReq->rowNum) {
+    if (qlistReq.rowNum > 0 && numOfRows >= qlistReq.rowNum) {
       break;
     }
   }

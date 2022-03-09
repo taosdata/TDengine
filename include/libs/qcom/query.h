@@ -133,6 +133,7 @@ typedef struct SQueryNodeAddr {
   SEpSet  epset;
 } SQueryNodeAddr;
 
+
 typedef struct SQueryNodeStat {
   int32_t tableNum; // vg table number, unit is TSDB_TABLE_NUM_UNIT
 } SQueryNodeStat;

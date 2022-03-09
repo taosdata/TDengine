@@ -43,6 +43,12 @@ typedef struct SSchTrans {
   void *transHandle;
 } SSchTrans;
 
+typedef struct SSchHbTrans {
+  SRWLatch  lock;
+  uint64_t  seqId;
+  SSchTrans trans;
+} SSchHbTrans;
+
 typedef struct SSchApiStat {
 
 } SSchApiStat;
@@ -63,18 +69,19 @@ typedef struct SSchedulerStat {
 
 
 typedef struct SSchedulerMgmt {
-  uint64_t       taskId; // sequential taksId
-  uint64_t       sId;    // schedulerId
-  SSchedulerCfg  cfg;
-  int32_t        jobRef;
-  SSchedulerStat stat;
+  uint64_t        taskId; // sequential taksId
+  uint64_t        sId;    // schedulerId
+  SSchedulerCfg   cfg;
+  int32_t         jobRef;
+  SSchedulerStat  stat;
+  SHashObj       *hbConnections;
 } SSchedulerMgmt;
 
 typedef struct SSchCallbackParam {
   uint64_t queryId;
   int64_t  refId;
   uint64_t taskId;
-  SEpSet   epSet;
+  void    *transport;
 } SSchCallbackParam;
 
 typedef struct SSchFlowControl {
@@ -157,6 +164,10 @@ extern SSchedulerMgmt schMgmt;
 
 #define SCH_TASK_READY_TO_LUNCH(readyNum, task) ((readyNum) >= taosArrayGetSize((task)->children))
 
+#define SCH_TASK_ID(_task) ((_task) ? (_task)->taskId : -1)
+#define SCH_SET_TASK_LASTMSG_TYPE(_task, _type) do { if(_task) { atomic_store_32(&(_task)->lastMsgType, _type); } } while (0)
+#define SCH_GET_TASK_LASTMSG_TYPE(_task) ((_task) ? atomic_load_32(&(_task)->lastMsgType) : -1)
+
 #define SCH_IS_DATA_SRC_TASK(task) ((task)->plan->subplanType == SUBPLAN_TYPE_SCAN)
 #define SCH_TASK_NEED_WAIT_ALL(task) ((task)->plan->subplanType == SUBPLAN_TYPE_MODIFY)
 #define SCH_TASK_NO_NEED_DROP(task) ((task)->plan->subplanType == SUBPLAN_TYPE_MODIFY)
@@ -183,11 +194,11 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_JOB_DLOG(param, ...) qDebug("QID:0x%" PRIx64 " " param, pJob->queryId, __VA_ARGS__)
 
 #define SCH_TASK_ELOG(param, ...) \
-  qError("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, pJob->queryId, pTask->taskId, __VA_ARGS__)
+  qError("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, pJob->queryId, SCH_TASK_ID(pTask), __VA_ARGS__)
 #define SCH_TASK_DLOG(param, ...) \
-  qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, pJob->queryId, pTask->taskId, __VA_ARGS__)
+  qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, pJob->queryId, SCH_TASK_ID(pTask), __VA_ARGS__)
 #define SCH_TASK_WLOG(param, ...) \
-  qWarn("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, pJob->queryId, pTask->taskId, __VA_ARGS__)
+  qWarn("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, pJob->queryId, SCH_TASK_ID(pTask), __VA_ARGS__)
 
 #define SCH_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
 #define SCH_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)

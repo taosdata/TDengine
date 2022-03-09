@@ -106,7 +106,7 @@ int32_t qwSetTaskStatus(QW_FPARAMS_DEF, SQWTaskStatus *task, int8_t status) {
 }
 
 
-int32_t qwAddSchedulerImpl(QW_FPARAMS_DEF, int32_t rwType, SQWSchStatus **sch) {
+int32_t qwAddSchedulerImpl(SQWorkerMgmt *mgmt, uint64_t sId, int32_t rwType, SQWSchStatus **sch) {
   SQWSchStatus newSch = {0};
   newSch.tasksHash = taosHashInit(mgmt->cfg.maxSchTaskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (NULL == newSch.tasksHash) {
@@ -132,7 +132,7 @@ int32_t qwAddSchedulerImpl(QW_FPARAMS_DEF, int32_t rwType, SQWSchStatus **sch) {
   return TSDB_CODE_SUCCESS;  
 }
 
-int32_t qwAcquireSchedulerImpl(QW_FPARAMS_DEF, int32_t rwType, SQWSchStatus **sch, int32_t nOpt) {
+int32_t qwAcquireSchedulerImpl(SQWorkerMgmt *mgmt, uint64_t sId, int32_t rwType, SQWSchStatus **sch, int32_t nOpt) {
   while (true) {
     QW_LOCK(rwType, &mgmt->schLock);
     *sch = taosHashGet(mgmt->schHash, &sId, sizeof(sId));
@@ -140,7 +140,7 @@ int32_t qwAcquireSchedulerImpl(QW_FPARAMS_DEF, int32_t rwType, SQWSchStatus **sc
       QW_UNLOCK(rwType, &mgmt->schLock);
       
       if (QW_NOT_EXIST_ADD == nOpt) {
-        QW_ERR_RET(qwAddSchedulerImpl(QW_FPARAMS(), rwType, sch));
+        QW_ERR_RET(qwAddSchedulerImpl(mgmt, sId, rwType, sch));
 
         nOpt = QW_NOT_EXIST_RET_ERR;
         
@@ -148,7 +148,7 @@ int32_t qwAcquireSchedulerImpl(QW_FPARAMS_DEF, int32_t rwType, SQWSchStatus **sc
       } else if (QW_NOT_EXIST_RET_ERR == nOpt) {
         QW_RET(TSDB_CODE_QRY_SCH_NOT_EXIST);
       } else {
-        QW_TASK_ELOG("unknown notExistOpt:%d", nOpt);
+        QW_SCH_ELOG("unknown notExistOpt:%d", nOpt);
         QW_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
       }
     }
@@ -159,12 +159,12 @@ int32_t qwAcquireSchedulerImpl(QW_FPARAMS_DEF, int32_t rwType, SQWSchStatus **sc
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwAcquireAddScheduler(QW_FPARAMS_DEF, int32_t rwType, SQWSchStatus **sch) {
-  return qwAcquireSchedulerImpl(QW_FPARAMS(), rwType, sch, QW_NOT_EXIST_ADD);
+int32_t qwAcquireAddScheduler(SQWorkerMgmt *mgmt, uint64_t sId, int32_t rwType, SQWSchStatus **sch) {
+  return qwAcquireSchedulerImpl(mgmt, sId, rwType, sch, QW_NOT_EXIST_ADD);
 }
 
-int32_t qwAcquireScheduler(QW_FPARAMS_DEF, int32_t rwType, SQWSchStatus **sch) {
-  return qwAcquireSchedulerImpl(QW_FPARAMS(), rwType, sch, QW_NOT_EXIST_RET_ERR);
+int32_t qwAcquireScheduler(SQWorkerMgmt *mgmt, uint64_t sId, int32_t rwType, SQWSchStatus **sch) {
+  return qwAcquireSchedulerImpl(mgmt, sId, rwType, sch, QW_NOT_EXIST_RET_ERR);
 }
 
 void qwReleaseScheduler(int32_t rwType, SQWorkerMgmt *mgmt) {
@@ -196,6 +196,7 @@ int32_t qwAddTaskStatusImpl(QW_FPARAMS_DEF, SQWSchStatus *sch, int32_t rwType, i
 
   SQWTaskStatus ntask = {0};
   ntask.status = status;
+  ntask.refId = rId;
 
   QW_LOCK(QW_WRITE, &sch->tasksLock);
   code = taosHashPut(sch->tasksHash, id, sizeof(id), &ntask, sizeof(ntask));
@@ -225,7 +226,7 @@ int32_t qwAddTaskStatusImpl(QW_FPARAMS_DEF, SQWSchStatus *sch, int32_t rwType, i
 int32_t qwAddTaskStatus(QW_FPARAMS_DEF, int32_t status) {
   SQWSchStatus *tsch = NULL;
   int32_t code = 0;
-  QW_ERR_RET(qwAcquireAddScheduler(QW_FPARAMS(), QW_READ, &tsch));
+  QW_ERR_RET(qwAcquireAddScheduler(mgmt, sId, QW_READ, &tsch));
 
   QW_ERR_JRET(qwAddTaskStatusImpl(QW_FPARAMS(), tsch, 0, status, NULL));
 
@@ -411,7 +412,7 @@ int32_t qwDropTaskStatus(QW_FPARAMS_DEF) {
   char id[sizeof(qId) + sizeof(tId)] = {0};
   QW_SET_QTID(id, qId, tId);
 
-  if (qwAcquireScheduler(QW_FPARAMS(), QW_WRITE, &sch)) {
+  if (qwAcquireScheduler(mgmt, sId, QW_WRITE, &sch)) {
     QW_TASK_WLOG_E("scheduler does not exist");
     return TSDB_CODE_SUCCESS;
   }
@@ -443,7 +444,7 @@ int32_t qwUpdateTaskStatus(QW_FPARAMS_DEF, int8_t status) {
   SQWTaskStatus *task = NULL;
   int32_t code = 0;
 
-  QW_ERR_RET(qwAcquireScheduler(QW_FPARAMS(), QW_READ, &sch));
+  QW_ERR_RET(qwAcquireScheduler(mgmt, sId, QW_READ, &sch));
   QW_ERR_JRET(qwAcquireTaskStatus(QW_FPARAMS(), QW_READ, sch, &task));
 
   QW_ERR_JRET(qwSetTaskStatus(QW_FPARAMS(), task, status));
@@ -521,25 +522,27 @@ _return:
   QW_RET(code);
 }
 
-int32_t qwGenerateSchHbRsp(SQWorkerMgmt *mgmt, SQWSchStatus *sch, SSchedulerStatusRsp **rsp) {
+int32_t qwGenerateSchHbRsp(SQWorkerMgmt *mgmt, SQWSchStatus *sch, SQWHbInfo *hbInfo) {
   int32_t taskNum = 0;
 
   QW_LOCK(QW_READ, &sch->tasksLock);
   
   taskNum = taosHashGetSize(sch->tasksHash);
-  
-  int32_t size = sizeof(SSchedulerStatusRsp) + sizeof((*rsp)->status[0]) * taskNum;
-  *rsp = calloc(1, size);
-  if (NULL == *rsp) {
-    QW_SCH_ELOG("calloc %d failed", size);
+
+  hbInfo->rsp.taskStatus = taosArrayInit(taskNum, sizeof(STaskStatus));
+  if (NULL == hbInfo->rsp.taskStatus) {
     QW_UNLOCK(QW_READ, &sch->tasksLock);
-    
+    QW_ELOG("taosArrayInit taskStatus failed, num:%d", taskNum);
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
+
+  hbInfo->connection = sch->hbConnection;
+  hbInfo->rsp.seqId = -1;
 
   void *key = NULL;
   size_t keyLen = 0;
   int32_t i = 0;
+  STaskStatus status = {0};
 
   void *pIter = taosHashIterate(sch->tasksHash, NULL);
   while (pIter) {
@@ -548,16 +551,17 @@ int32_t qwGenerateSchHbRsp(SQWorkerMgmt *mgmt, SQWSchStatus *sch, SSchedulerStat
 
     //TODO GET EXECUTOR API TO GET MORE INFO
 
-    QW_GET_QTID(key, (*rsp)->status[i].queryId, (*rsp)->status[i].taskId);
-    (*rsp)->status[i].status = taskStatus->status;
+    QW_GET_QTID(key, status.queryId, status.taskId);
+    status.status = taskStatus->status;
+    status.refId = taskStatus->refId;
+    
+    taosArrayPush(hbInfo->rsp.taskStatus, &status);
     
     ++i;
     pIter = taosHashIterate(sch->tasksHash, pIter);
   }  
 
   QW_UNLOCK(QW_READ, &sch->tasksLock);
-
-  (*rsp)->num = taskNum;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1353,11 +1357,36 @@ _return:
   QW_RET(code);
 }
 
-void qwProcessHbTimer(void *param, void *tmrId) {
+int32_t qwProcessHb(SQWorkerMgmt *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
+  int32_t code = 0;
+  SSchedulerHbRsp rsp = {0};
+  SQWSchStatus *sch = NULL;
+  uint64_t seqId = 0;
+
+  memcpy(&rsp.epId, &req->epId, sizeof(req->epId));
+  
+  QW_ERR_JRET(qwAcquireAddScheduler(mgmt, req->sId, QW_READ, &sch));
+
+  atomic_store_ptr(&sch->hbConnection, qwMsg->connection);
+  ++sch->hbSeqId;
+
+  rsp.seqId = sch->hbSeqId;
+
+  qwReleaseScheduler(QW_READ, mgmt);
+
+_return:
+
+  qwBuildAndSendHbRsp(qwMsg->connection, &rsp, code);
+  
+  QW_RET(code);
+}
+
+
+void qwProcessHbTimerEvent(void *param, void *tmrId) {
   SQWorkerMgmt *mgmt = (SQWorkerMgmt *)param;
   SQWSchStatus *sch = NULL;
   int32_t taskNum = 0;
-  SSchedulerStatusRsp **rspList = NULL;
+  SQWHbInfo *rspList = NULL;
   int32_t code = 0;
 
   QW_LOCK(QW_READ, &mgmt->schLock);
@@ -1365,14 +1394,16 @@ void qwProcessHbTimer(void *param, void *tmrId) {
   int32_t schNum = taosHashGetSize(mgmt->schHash);
   if (schNum <= 0) {
     QW_UNLOCK(QW_READ, &mgmt->schLock);
-    return TSDB_CODE_SUCCESS;
+    taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer);
+    return;
   }
 
-  rspList = calloc(schNum, POINTER_BYTES);
+  rspList = calloc(schNum, sizeof(SQWHbInfo));
   if (NULL == rspList) {
     QW_UNLOCK(QW_READ, &mgmt->schLock);
-    QW_ELOG("calloc %d rsp pointer failed", schNum);
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    QW_ELOG("calloc %d SQWHbInfo failed", schNum);
+    taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer);
+    return;
   }
 
   void *key = NULL;
@@ -1396,13 +1427,13 @@ _return:
   QW_UNLOCK(QW_READ, &mgmt->schLock);
 
   for (int32_t j = 0; j < i; ++j) {
-    qwBuildAndSendStatusRsp(NULL, rspList[j]); //TODO SCHEDULER CONNECTION
-    tfree(rspList[j]);
+    qwBuildAndSendHbRsp(rspList[j].connection, &rspList[j].rsp, code);
+    tFreeSSchedulerHbRsp(&rspList[j].rsp);
   }
 
   tfree(rspList);
 
-  QW_RET(code);
+  taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer);  
 }
 
 int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, void *nodeObj,
@@ -1455,7 +1486,7 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qW
     QW_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  mgmt->hbTimer = taosTmrStart(qwProcessHbTimer, QW_DEFAULT_HEARTBEAT_MSEC, mgmt, mgmt->timer);
+  mgmt->hbTimer = taosTmrStart(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, mgmt, mgmt->timer);
   if (NULL == mgmt->hbTimer) {
     qError("start hb timer failed");
     QW_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -1491,6 +1522,9 @@ void qWorkerDestroy(void **qWorkerMgmt) {
   }
 
   SQWorkerMgmt *mgmt = *qWorkerMgmt;
+
+  taosTmrStopA(&mgmt->hbTimer);
+  taosTmrCleanUp(mgmt->timer);
   
   //TODO STOP ALL QUERY
 
@@ -1500,10 +1534,11 @@ void qWorkerDestroy(void **qWorkerMgmt) {
 }
 
 int32_t qwGetSchTasksStatus(SQWorkerMgmt *mgmt, uint64_t sId, SSchedulerStatusRsp **rsp) {
+/*
   SQWSchStatus *sch = NULL;
   int32_t taskNum = 0;
 
-  QW_ERR_RET(qwAcquireScheduler(QW_FPARAMS(), QW_READ, &sch));
+  QW_ERR_RET(qwAcquireScheduler(mgmt, sId, QW_READ, &sch));
   
   sch->lastAccessTs = taosGetTimestampSec();
 
@@ -1541,7 +1576,7 @@ int32_t qwGetSchTasksStatus(SQWorkerMgmt *mgmt, uint64_t sId, SSchedulerStatusRs
   qwReleaseScheduler(QW_READ, mgmt);
 
   (*rsp)->num = taskNum;
-
+*/
   return TSDB_CODE_SUCCESS;
 }
 
