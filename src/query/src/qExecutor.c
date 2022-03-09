@@ -2302,10 +2302,10 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       case OP_Order: {
         if (pQueryAttr->pExpr2 != NULL) {
           pRuntimeEnv->proot = createOrderOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr2,
-                                                       pQueryAttr->numOfExpr2, &pQueryAttr->order, pQueryAttr->originOrder);
+                                                       pQueryAttr->numOfExpr2, &pQueryAttr->order);
         } else {
           pRuntimeEnv->proot = createOrderOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1,
-                                                       pQueryAttr->numOfOutput, &pQueryAttr->order, pQueryAttr->originOrder);
+                                                       pQueryAttr->numOfOutput, &pQueryAttr->order);
         }
         if (pRuntimeEnv->proot == NULL) {
           goto _clean;
@@ -5845,7 +5845,7 @@ static SSDataBlock* doSort(void* param, bool* newgroup) {
   return (pInfo->pDataBlock->info.rows > 0)? pInfo->pDataBlock:NULL;
 }
 
-SOperatorInfo *createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, SOrderVal* pOrderVal, uint32_t originOrder) {
+SOperatorInfo *createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, SOrderVal* pOrderVal) {
   SOrderOperatorInfo* pInfo = calloc(1, sizeof(SOrderOperatorInfo));
   if (pInfo == NULL) {
     return NULL;
@@ -5875,7 +5875,7 @@ SOperatorInfo *createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
       }
 
       pDataBlock->info.numOfCols = numOfOutput;
-      pInfo->order = originOrder;
+      pInfo->order = pOrderVal->order;
       pInfo->pDataBlock = pDataBlock;
   }
 
@@ -9526,7 +9526,6 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   pQueryAttr->limit.offset    = pQueryMsg->offset;
   pQueryAttr->order.order     = pQueryMsg->order;
   pQueryAttr->order.orderColId = pQueryMsg->orderColId;
-  pQueryAttr->originOrder     = pQueryMsg->order;  // record the order previous
   pQueryAttr->pExpr1          = pExprs;
   pQueryAttr->pExpr2          = pSecExprs;
   pQueryAttr->numOfExpr2      = pQueryMsg->secondStageOutput;

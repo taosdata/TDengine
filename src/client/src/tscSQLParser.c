@@ -1113,7 +1113,7 @@ static int32_t addPrimaryTsColumnForTimeWindowQuery(SQueryInfo* pQueryInfo, SSql
 static int32_t checkInvalidExprForTimeWindow(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
   const char* msg1 = "invalid query expression";
   const char* msg2 = "top/bottom query does not support order by value in time window query";
-  const char* msg3 = "unique function does not supportted in time window query";
+  const char* msg3 = "unique/state function does not supportted in time window query";
 
   /*
    * invalid sql:
@@ -6774,7 +6774,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
   const char* msg8 = "only column in groupby clause allowed as order column";
   const char* msg10 = "not support distinct mixed with order by";
   const char* msg11 = "not support order with udf";
-  const char* msg12 = "order by tags not supported with diff/derivative/csum/mavg";
+  const char* msg12 = "order by tags not supported with diff/derivative/csum/mavg/stateCount/stateDuration";
   const char* msg13 = "order by json tag, key is too long";
   const char* msg14 = "order by json tag, must be json->'key'";
 
@@ -8429,8 +8429,8 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
   const char* msg3 = "group by/session/state_window not allowed on projection query";
   const char* msg4 = "retrieve tags not compatible with group by or interval query";
   const char* msg5 = "functions can not be mixed up";
-  const char* msg6 = "TWA/Diff/Derivative/Irate/CSum/MAvg/Elapsed only support group by tbname";
-  const char* msg7 = "unique function does not supportted in state window query";
+  const char* msg6 = "TWA/Diff/Derivative/Irate/CSum/MAvg/Elapsed/stateCount/stateDuration only support group by tbname";
+  const char* msg7 = "unique/state function does not supportted in state window query";
 
   // only retrieve tags, group by is not supportted
   if (tscQueryTags(pQueryInfo)) {
@@ -9524,12 +9524,23 @@ int32_t getHavingExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pSelectNode
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
+  pLeft->functionId = isValidFunction(pLeft->Expr.operand.z, pLeft->Expr.operand.n);
+  if (pLeft->functionId < 0) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+  }
+
   if (pLeft->Expr.paramList) {
     size_t size = taosArrayGetSize(pLeft->Expr.paramList);
     for (int32_t i = 0; i < size; i++) {
       tSqlExprItem* pParamItem = taosArrayGet(pLeft->Expr.paramList, i);
-
       tSqlExpr* pExpr1 = pParamItem->pNode;
+
+      if (pLeft->functionId == TSDB_FUNC_STATE_COUNT || pLeft->functionId == TSDB_FUNC_STATE_DURATION){
+        if (i == 1 && pExpr1->tokenId == TK_ID) continue;
+        if (pLeft->functionId == TSDB_FUNC_STATE_DURATION && i == 3 && pExpr1->tokenId == TK_TIMESTAMP)
+          continue;
+      }
+
       if (pExpr1->tokenId != TK_ALL &&
           pExpr1->tokenId != TK_ID &&
           pExpr1->tokenId != TK_STRING &&
@@ -9557,11 +9568,6 @@ int32_t getHavingExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pSelectNode
         }
       }
     }
-  }
-
-  pLeft->functionId = isValidFunction(pLeft->Expr.operand.z, pLeft->Expr.operand.n);
-  if (pLeft->functionId < 0) {
-    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
   return handleExprInHavingClause(pCmd, pQueryInfo, pSelectNodeList, pExpr, parentOptr);
@@ -10087,7 +10093,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
   const char* msg4 = "interval query not supported, since the result of sub query not include valid timestamp column";
   const char* msg5 = "only tag query not compatible with normal column filter";
   const char* msg6 = "not support stddev/percentile in the outer query yet";
-  const char* msg7 = "derivative/twa/rate/irate/diff/tail requires timestamp column exists in subquery";
+  const char* msg7 = "derivative/twa/rate/irate/diff/tail/stateCount/stateDuration requires timestamp column exists in subquery";
   const char* msg8 = "condition missing for join query";
   const char* msg9 = "not support 3 level select";
 
@@ -10170,7 +10176,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
         int32_t f = pExpr->base.functionId;
         if (f == TSDB_FUNC_DERIVATIVE || f == TSDB_FUNC_TWA || f == TSDB_FUNC_IRATE ||
             f == TSDB_FUNC_RATE       || f == TSDB_FUNC_DIFF || f == TSDB_FUNC_TAIL ||
-            f == TSDB_FUNC_STATE_DURATION) {
+            f == TSDB_FUNC_STATE_COUNT || f == TSDB_FUNC_STATE_DURATION) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
         }
       }

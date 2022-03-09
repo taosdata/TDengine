@@ -5083,7 +5083,6 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->limit             = pQueryInfo->limit;
   pQueryAttr->slimit            = pQueryInfo->slimit;
   pQueryAttr->order             = pQueryInfo->order;
-  pQueryAttr->originOrder       = pQueryInfo->order.order;
   pQueryAttr->fillType          = pQueryInfo->fillType;
   pQueryAttr->havingNum         = pQueryInfo->havingFieldNum;
   pQueryAttr->pUdfInfo          = pQueryInfo->pUdfInfo;

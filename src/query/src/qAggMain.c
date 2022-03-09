@@ -641,8 +641,8 @@ int32_t isValidFunction(const char* name, int32_t len) {
 }
 
 bool isValidStateOper(char *oper, int32_t len){
-  return strncmp(oper, "lt", len) || strncmp(oper, "gt", len) || strncmp(oper, "le", len) || strncmp(oper, "ge", len) ||
-         strncmp(oper, "ne", len) || strncmp(oper, "eq", len);
+  return strncmp(oper, "lt", len) == 0 || strncmp(oper, "gt", len) == 0 || strncmp(oper, "le", len) == 0 ||
+         strncmp(oper, "ge", len) == 0 || strncmp(oper, "ne", len) == 0 || strncmp(oper, "eq", len) == 0;
 }
 
 #define STATEOPER(OPER, COMP, TYPE) if (strncmp(oper->pz, OPER, oper->nLen) == 0) {\

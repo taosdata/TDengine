@@ -285,7 +285,6 @@ typedef struct SQueryAttr {
   int32_t          vgId;
   SArray          *pUdfInfo;             // no need to free
   int32_t          interBytesForGlobal;
-  uint32_t         originOrder;
 } SQueryAttr;
 
 typedef SSDataBlock* (*__operator_fn_t)(void* param, bool* newgroup);
@@ -650,7 +649,7 @@ SOperatorInfo* createFilterOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperator
                                         int32_t numOfOutput, SColumnInfo* pCols, int32_t numOfFilter);
 
 SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pUpstream, int32_t numOfUpstream, SSchema* pSchema, int32_t numOfOutput);
-SOperatorInfo* createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, SOrderVal* pOrderVal, uint32_t originOrder);
+SOperatorInfo* createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, SOrderVal* pOrderVal);
 
 SSDataBlock* doGlobalAggregate(void* param, bool* newgroup);
 SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup);
