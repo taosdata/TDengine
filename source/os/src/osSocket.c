@@ -827,6 +827,7 @@ int32_t taosGetFqdn(char *fqdn) {
   int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
   if (!result) {
     printf("failed to get fqdn, code:%d, reason:%s", ret, gai_strerror(ret));
+    assert(0);
     return -1;
   }
 
