@@ -317,7 +317,7 @@ TDengine 社区生态中也有一些非常友好的第三方连接器，可以�
 
 TDengine 的测试框架和所有测试例全部开源。
 
-点击 [这里](https://github.com/taosdata/tests/blob/develop/How-To-Run-Test-And-How-To-Add-New-Test-Case.md)，了解如何运行测试例和添加新的测试例。
+点击 [这里](https://github.com/taosdata/TDengine/blob/develop/tests/How-To-Run-Test-And-How-To-Add-New-Test-Case.md)，了解如何运行测试例和添加新的测试例。
 
 # 成为社区贡献者
 

@@ -5249,7 +5249,7 @@ static void copyRes(SQLFunctionCtx *pCtx, void *data, int32_t bytes) {
   char *tsOutput = pCtx->ptsOutputBuf;
   char *output = pCtx->pOutput;
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->param[3].i64);
-  char *tvp = data + (size * ((pCtx->param[3].i64 == TSDB_ORDER_ASC) ? 0 : len -1));
+  char *tvp = (char*)data + (size * ((pCtx->param[3].i64 == TSDB_ORDER_ASC) ? 0 : len -1));
   for (int32_t i = 0; i < len; ++i) {
     memcpy(tsOutput, tvp, sizeof(int64_t));
     memcpy(output, tvp + sizeof(int64_t), bytes);
@@ -5269,7 +5269,7 @@ static void copyRes(SQLFunctionCtx *pCtx, void *data, int32_t bytes) {
     pData[i] = pCtx->tagInfo.pTagCtxList[i]->pOutput;
   }
 
-  tvp = data + (size * ((pCtx->param[3].i64 == TSDB_ORDER_ASC) ? 0 : len -1));
+  tvp = (char*)data + (size * ((pCtx->param[3].i64 == TSDB_ORDER_ASC) ? 0 : len -1));
   for (int32_t i = 0; i < len; ++i) {
     int32_t offset = (int32_t)sizeof(int64_t) + bytes;
     for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
@@ -5681,7 +5681,7 @@ static void tail_func_finalizer(SQLFunctionCtx *pCtx) {
   }
 
 //  if(pCtx->stableQuery){
-    GET_RES_INFO(pCtx)->numOfRes = pRes->num - pCtx->param[1].i64;
+    GET_RES_INFO(pCtx)->numOfRes = pRes->num - (int32_t)pCtx->param[1].i64;
 //  }else{
 //    GET_RES_INFO(pCtx)->numOfRes = pRes->num;
 //  }
@@ -5696,7 +5696,7 @@ static void tail_func_finalizer(SQLFunctionCtx *pCtx) {
     return;
   }
   for(int32_t i = 0; i < GET_RES_INFO(pCtx)->numOfRes; i++){
-    memcpy(data + i * size, pRes->res[i], size);
+    memcpy((char*)data + i * size, pRes->res[i], size);
   }
 
   SortSupporter support = {0};

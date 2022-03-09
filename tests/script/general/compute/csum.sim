@@ -1,0 +1,262 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+sleep 200
+sql connect
+
+$dbPrefix = m_di_db
+$tbPrefix = m_di_tb
+$mtPrefix = m_di_mt
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+  
+  $x = 0
+  while $x < $rowNum
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+    sql insert into $tb values ($ms , $x ) 
+    $x = $x + 1
+  endw 
+ 
+  $i = $i + 1
+endw 
+
+sleep 100
+
+print =============== step2
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select csum(tbcol) from $tb
+print ===> $data11
+if $data11 != 1 then 
+  return -1
+endi
+
+print =============== step3
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+sql select csum(tbcol) from $tb where ts > $ms
+print ===> $data11
+if $data11 != 11 then 
+  return -1
+endi
+
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+sql select csum(tbcol) from $tb where ts <= $ms
+print ===> $data11
+if $data11 != 1 then 
+  return -1
+endi
+
+print =============== step4
+sql select csum(tbcol) as b from $tb
+print ===> $data11
+if $data11 != 1 then 
+  return -1
+endi
+
+print =============== step5
+sql select csum(tbcol) as b from $tb interval(1m) -x step5
+  return -1
+step5:
+
+print =============== step6
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+sql select csum(tbcol) as b from $tb where ts <= $ms interval(1m) -x step6
+  return -1
+step6:
+
+print =============== csum result overflow follow sum behavior
+sql create table overflow(ts timestamp, c1 bigint)
+sql insert into overflow values(now-1s, NULL)(now, 9223372036854775807)(now+1s, 9223372036854775807)
+sql select csum(c1) from overflow
+print $data00 , $data01, $data10, $data11
+if $data01 != 9223372036854775807 then
+  return -1
+endi
+if $data11 != -2 then
+  return -1
+endi
+
+print ==========>TD10758
+sql create database groupby_tbname
+sql use groupby_tbname
+sql create stable st(ts timestamp, c1 int) tags(t int);
+sql create table ct1 using st tags(1)
+sql insert into ct1 values(now, 1)(now+1s, 2)(now+2s, 3)
+sql create table ct2 using st tags(2)
+sql insert into ct2 values(now, 21)(now+1s, 22)(now+2s, 23)
+sql create table ct3 using st tags(3)
+sql insert into ct3 values(now, 31)(now+1s, 32)(now+2s, 33)
+
+sql select csum(c1),ts,tbname,t from ct1
+print $data10 , $data11 , $data12, $data13, $data14
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != 1 then
+  return -1
+endi
+sql select csum(c1),ts,tbname,t from st group by tbname
+print $data10 , $data11 , $data12, $data13, $data14
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != 1 then
+  return -1
+endi
+sql select diff(c1),ts,tbname,t from ct1
+print $data10 , $data11 , $data12, $data13, $data14
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != 1 then
+  return -1
+endi
+sql select diff(c1),ts,tbname,t from st group by tbname
+print $data10 , $data11 , $data12, $data13, $data14
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != 1 then
+  return -1
+endi
+sql select mavg(c1,2),ts,tbname,t from ct1
+print $data10 , $data11 , $data12, $data13, $data14
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != 1 then
+  return -1
+endi
+sql select mavg(c1,2),ts,tbname,t from st group by tbname
+print $data10 , $data11 , $data12, $data13, $data14
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != 1 then
+  return -1
+endi
+sql select derivative(c1,1s,0),ts,tbname,t from ct1
+print $data10 , $data11 , $data12, $data13, $data14
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != 1 then
+  return -1
+endi
+sql select derivative(c1,1s,0),ts,tbname,t from st group by tbname
+print $data10 , $data11 , $data12, $data13, $data14
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != 1 then
+  return -1
+endi
+
+sql select mavg(c1,2),tbname from st group by tbname
+print $data10 , $data11 , $data12 , $data13
+if $data12 != ct1 then
+  return -1
+endi
+if $data13 != ct1 then
+  return -1
+endi
+
+sql select diff(c1),tbname from st group by tbname
+print $data10 , $data11 , $data12 , $data13
+if $data12 != ct1 then
+  return -1
+endi
+if $data13 != ct1 then
+  return -1
+endi
+
+sql select csum(c1),tbname from st group by tbname
+print $data10 , $data11 , $data12, $data13, $data14
+print $data10 , $data11 , $data12 , $data13
+if $data12 != ct1 then
+  return -1
+endi
+if $data13 != ct1 then
+  return -1
+endi
+
+sql select csum(c1),t,tbname from st group by tbname limit 2
+print $data10 , $data11 , $data12 , $data13 , $data14
+print $data30 , $data31 , $data32 , $data33 , $data34
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != ct1 then
+  return -1
+endi
+if $data33 != ct2 then
+  return -1
+endi
+if $data34 != ct2 then
+  return -1
+endi
+
+sql select mavg(c1,2),t,tbname from st group by tbname limit 2
+print $data10 , $data11 , $data12 , $data13 , $data14
+print $data30 , $data31 , $data32 , $data33 , $data34
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != ct1 then
+  return -1
+endi
+if $data33 != ct2 then
+  return -1
+endi
+if $data34 != ct2 then
+  return -1
+endi
+sql select diff(c1),t,tbname from st group by tbname limit 2
+print $data10 , $data11 , $data12 , $data13 , $data14
+print $data30 , $data31 , $data32 , $data33 , $data34
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != ct1 then
+  return -1
+endi
+if $data33 != ct2 then
+  return -1
+endi
+if $data34 != ct2 then
+  return -1
+endi
+sql drop database groupby_tbname
+
+print =============== clear
+sql drop database $db
+sql show databases
+if $rows != 0 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

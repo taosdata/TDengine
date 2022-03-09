@@ -34,7 +34,7 @@ With TDengine, the most important thing is timestamp. When creating and insertin
 - Time Format: 'YYYY-MM-DD HH:mm:ss.MS', default in milliseconds. For example,'2017-08-12 18:52:58.128'
 - Internal Function **now** : this is the current time of the server
 - When inserting a record, if timestamp is NOW, then use the server current time.
-- Epch Time: a timestamp value can also be a long integer representing milliseconds since 1970-01-01 08:00:00.000.
+- Epoch Time: a timestamp value can also be a long integer representing milliseconds since 1970-01-01 08:00:00.000.
 - Arithmetic operations can be applied to timestamp. For example: now-2h represents a timestamp which is 2 hours ago from the current server time. Units include u( microsecond), a (milliseconds), s (seconds), m (minutes), h (hours), d (days), w (weeks). In `select * from t1 where ts > now-2w and ts <= now-1w`, which queries data of the whole week before two weeks. To specify the interval of down sampling, you can also use n(calendar month) and y(calendar year) as time units.
 
 TDengine's timestamp is set to millisecond accuracy by default. Microsecond/nanosecond accuracy can be set using CREATE DATABASE with PRECISION parameter. (Nanosecond resolution is supported from version 2.1.5.0 onwards.)
@@ -44,13 +44,13 @@ In TDengine, the following 10 data types can be used in data model of an ordinar
 |      | **Data Type** | **Bytes** | **Note**                                                     |
 | ---- | ------------- | --------- | ------------------------------------------------------------ |
 | 1    | TIMESTAMP     | 8         | Time stamp. Default in milliseconds, and support microseconds. Starting from 1970-01-01 00:00:00. 000 (UTC/GMT), the timing cannot be earlier than this time. |
-| 2    | INT           | 4         | A nullable integer type with a range of [-2^31+1, 2^31-1 ]   |
-| 3    | BIGINT        | 8         | A nullable integer type with a range of [-2^59, 2^59 ]       |
-| 4    | FLOAT         | 4         | A standard nullable float type with 6 -7 significant digits and a range of [-3.4E38, 3.4E38] |
-| 5    | DOUBLE        | 8         | A standard nullable double float type with 15-16 significant digits and a range of [-1.7E308, 1.7E308] |
+| 2    | INT           | 4         | A null-able integer type with a range of [-2^31+1, 2^31-1 ]   |
+| 3    | BIGINT        | 8         | A null-able integer type with a range of [-2^59, 2^59 ]       |
+| 4    | FLOAT         | 4         | A standard null-able float type with 6 -7 significant digits and a range of [-3.4E38, 3.4E38] |
+| 5    | DOUBLE        | 8         | A standard null-able double float type with 15-16 significant digits and a range of [-1.7E308, 1.7E308] |
 | 6    | BINARY        | Custom    | Used to record ASCII strings. Theoretically, the maximum length can be 16,374 bytes, but since each row of data can be up to 16K bytes, the actual limit is generally smaller than the theoretical value. Binary only supports string input, and single quotation marks are used at both ends of the string, otherwise all English will be automatically converted to lowercase. When using, the size must be specified. For example, binary (20) defines a string with a maximum length of 20 characters, and each character occupies 1 byte of storage space. In this case, if the user string exceeds 20 bytes, an error will be reported. For single quotation marks in strings, they can be represented by escape character backslash plus single quotation marks, that is\ '. |
-| 7    | SMALLINT      | 2         | A nullable integer type with a range of [-32767, 32767]      |
-| 8    | TINYINT       | 1         | A nullable integer type with a range of [-127, 127]          |
+| 7    | SMALLINT      | 2         | A null-able integer type with a range of [-32767, 32767]      |
+| 8    | TINYINT       | 1         | A null-able integer type with a range of [-127, 127]          |
 | 9    | BOOL          | 1         | Boolean type，{true, false}                                  |
 | 10   | NCHAR         | Custom    | Used to record non-ASCII strings, such as Chinese characters. Each nchar character takes up 4 bytes of storage space. Single quotation marks are used at both ends of the string, and escape characters are required for single quotation marks in the string, that is \’. When nchar is used, the string size must be specified. A column of type nchar (10) indicates that the string of this column stores up to 10 nchar characters, which will take up 40 bytes of space. If the length of the user string exceeds the declared length, an error will be reported. |
 | 11   | JSON          |           | Json type，only support for tag                                  |
@@ -147,7 +147,7 @@ Note:
   Note:
    1. The first field must be a timestamp, and system will set it as the primary key;
    2. The max length of table name is 192;
-   3. The length of each row of the table cannot exceed 16k characters;
+   3. The length of each row of the table cannot exceed 48K (it's 16K prior to 2.1.7.0) characters;
    4. Sub-table names can only consist of letters, numbers, and underscores, and cannot begin with numbers
    5. If the data type binary or nchar is used, the maximum number of bytes should be specified, such as binary (20), which means 20 bytes;
 
@@ -186,7 +186,7 @@ Note:
 - **Show all data table information under the current database**
 
     ```mysql
-    SHOW TABLES [LIKE tb_name_wildcar];
+    SHOW TABLES [LIKE tb_name_wildcard];
     ```
     Show all data table information under the current database.
     Note: Wildcard characters can be used to match names in like. The maximum length of this wildcard character string cannot exceed 24 bytes.
@@ -236,7 +236,7 @@ Note: In 2.0.15.0 and later versions, STABLE reserved words are supported. That 
     1. Data types of TAGS column cannot be timestamp;
     2. No duplicated TAGS column names;
     3. Reversed word cannot be used as a TAGS column name;
-    4. The maximum number of TAGS is 128, and at least 1 TAG allowed, with a total length of no more than 16k characters.
+    4. The maximum number of TAGS is 128, and at least 1 TAG allowed, with a total length of no more than 16K characters.
 
 - **Drop a STable**
 
@@ -409,7 +409,7 @@ SELECT select_expr [, select_expr ...]
 
 #### SELECT Clause
 
-A select clause can be a subquery of UNION and another query.
+A select clause can be a sub-query of UNION and another query.
 
 #### Wildcard character
 
@@ -532,7 +532,7 @@ However, renaming for one single column is not supported for `first(*)`,`last(*)
 
 #### List of STable
 
-The `FROM` keyword can be followed by a list of several tables (STables) or result of a subquery. 
+The `FROM` keyword can be followed by a list of several tables (STables) or result of a sub-query. 
 
 If you do not specify user's current database, you can use the database name before the table name to specify the database to which the table belongs. For example: `power.d1001` to use tables across databases.
 
@@ -686,10 +686,10 @@ Query OK, 1 row(s) in set (0.001091s)
     SELECT (col1 + col2) AS 'complex' FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND col2 > 1.2 LIMIT 10 OFFSET 5;
     ```
 
-- Query the records of past 10 minutes, the value of col2 is greater than 3.14, and output the result to the file /home/testoutpu.csv.
+- Query the records of past 10 minutes, the value of col2 is greater than 3.14, and output the result to the file /home/testoutput.csv.
 
     ```mysql
-    SELECT COUNT(*) FROM tb1 WHERE ts >= NOW - 10m AND col2 > 3.14 >> /home/testoutpu.csv;
+    SELECT COUNT(*) FROM tb1 WHERE ts >= NOW - 10m AND col2 > 3.14 >> /home/testoutput.csv;
     ```
 
 <a class="anchor" id="functions"></a>
@@ -1227,9 +1227,9 @@ SELECT AVG(current), MAX(current), LEASTSQUARES(current, start_val, step_val), P
 ## <a class="anchor" id="limitation"></a> TAOS SQL Boundary Restrictions
 
 - Max database name length is 32
-- Max length of table name is 192, and max length of each data row is 16k characters
+- Max length of table name is 192, and max length of each data row is 48K (it's 16K prior to 2.1.7.0) characters
 - Max length of column name is 64, max number of columns allowed is 1024, and min number of columns allowed is 2. The first column must be a timestamp
-- Max number of tags allowed is 128, down to 1, and total length of tags does not exceed 16k characters
+- Max number of tags allowed is 128, down to 1, and total length of tags does not exceed 16K characters
 - Max length of SQL statement is 65480 characters, but it can be modified by system configuration parameter maxSQLLength, and max length can be configured to 1M
 - Number of databases, STables and tables are not limited by system, but only limited by system resources
 
