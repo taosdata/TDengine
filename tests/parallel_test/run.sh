@@ -6,10 +6,11 @@ function usage() {
     echo -e "\t -t task file"
     echo -e "\t -b branch"
     echo -e "\t -l log dir"
+    echo -e "\t -o default timeout value"
     echo -e "\t -h help"
 }
 
-while getopts "m:t:b:l:h" opt; do
+while getopts "m:t:b:l:o:h" opt; do
     case $opt in
         m)
             config_file=$OPTARG
@@ -22,6 +23,9 @@ while getopts "m:t:b:l:h" opt; do
             ;;
         l)
             log_dir=$OPTARG
+            ;;
+        o)
+            timeout_param="-o $OPTARG"
             ;;
         h)
             usage
@@ -201,18 +205,21 @@ function run_thread() {
         if [ -z "$case_file" ]; then
             continue
         fi
-        case_file="$exec_dir/${case_file}.${index}.${thread_no}"
+        case_file="$exec_dir/${case_file}.${index}.${thread_no}.${count}"
         count=$(( count + 1 ))
         local case_path=`dirname "$case_file"`
         if [ ! -z "$case_path" ]; then
             mkdir -p $log_dir/$case_path
         fi
-        cmd="${runcase_script} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir}"
+        cmd="${runcase_script} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir} ${timeout_param}"
         # echo "$thread_no $count $cmd"
         local ret=0
         local redo_count=1
         start_time=`date +%s`
         while [ ${redo_count} -lt 6 ]; do
+            if [ -f $log_dir/$case_file.log ]; then
+                cp $log_dir/$case_file.log $log_dir/$case_file.${redo_count}.redolog
+            fi
             echo "${hosts[index]}-${thread_no} order:${count}, redo:${redo_count} task:${line}" >$log_dir/$case_file.log
             echo -e "\e[33m >>>>> \e[0m ${case_cmd}"
             date >>$log_dir/$case_file.log
@@ -220,6 +227,7 @@ function run_thread() {
             # ret=${PIPESTATUS[0]}
             $cmd >>$log_dir/$case_file.log 2>&1
             ret=$?
+            echo "${hosts[index]} `date` ret:${ret}" >>$log_dir/$case_file.log
             if [ $ret -eq 0 ]; then
                 break
             fi
