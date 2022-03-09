@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-#include <tep.h>
+#include <tdatablock.h>
 #include "taosdef.h"
 #include "trpc.h"
 
@@ -31,12 +31,10 @@ typedef int64_t  SyncIndex;
 typedef uint64_t SyncTerm;
 
 typedef enum {
-  TAOS_SYNC_STATE_FOLLOWER = 0,
-  TAOS_SYNC_STATE_CANDIDATE = 1,
-  TAOS_SYNC_STATE_LEADER = 2,
-} ESyncRole;
-
-typedef ESyncRole ESyncState;
+  TAOS_SYNC_STATE_FOLLOWER = 100,
+  TAOS_SYNC_STATE_CANDIDATE = 101,
+  TAOS_SYNC_STATE_LEADER = 102,
+} ESyncState;
 
 typedef struct SSyncBuffer {
   void*  data;
@@ -136,10 +134,13 @@ typedef struct SSyncInfo {
   SyncGroupId vgId;
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
+  char        walPath[TSDB_FILENAME_LEN];
   SSyncFSM*   pFsm;
 
   void* rpcClient;
   int32_t (*FpSendMsg)(void* rpcClient, const SEpSet* pEpSet, SRpcMsg* pMsg);
+  void* queue;
+  int32_t (*FpEqMsg)(void* queue, SRpcMsg* pMsg);
 
 } SSyncInfo;
 
@@ -149,13 +150,10 @@ typedef struct SSyncNode SSyncNode;
 int32_t syncInit();
 void    syncCleanUp();
 
-int64_t syncStart(const SSyncInfo* pSyncInfo);
-void    syncStop(int64_t rid);
-int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg);
-
-int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pBuf, bool isWeak);
-// int32_t syncForwardToPeer(int64_t rid, const SSyncBuffer* pBuf, bool isWeak);
-
+int64_t    syncStart(const SSyncInfo* pSyncInfo);
+void       syncStop(int64_t rid);
+int32_t    syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg);
+int32_t    syncForwardToPeer(int64_t rid, const SRpcMsg* pBuf, bool isWeak);
 ESyncState syncGetMyRole(int64_t rid);
 void       syncGetNodesRole(int64_t rid, SNodesRole* pNodeRole);
 

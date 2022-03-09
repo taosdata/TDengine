@@ -28,7 +28,7 @@ void Testbase::InitLog(const char* path) {
   wDebugFlag = 0;
   sDebugFlag = 0;
   tsdbDebugFlag = 0;
-  tscEmbeddedInUtil = 1;
+  tsLogEmbedded = 1;
   tsAsyncLog = 0;
 
   taosRemoveDir(path);

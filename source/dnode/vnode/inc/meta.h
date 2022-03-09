@@ -24,8 +24,8 @@
 extern "C" {
 #endif
 
-#define META_SUPER_TABLE TD_SUPER_TABLE
-#define META_CHILD_TABLE TD_CHILD_TABLE
+#define META_SUPER_TABLE  TD_SUPER_TABLE
+#define META_CHILD_TABLE  TD_CHILD_TABLE
 #define META_NORMAL_TABLE TD_NORMAL_TABLE
 
 // Types exported
@@ -38,22 +38,29 @@ typedef struct SMetaCfg {
 
 typedef struct SMTbCursor  SMTbCursor;
 typedef struct SMCtbCursor SMCtbCursor;
+typedef struct SMSmaCursor SMSmaCursor;
 
-typedef SVCreateTbReq STbCfg;
+typedef SVCreateTbReq   STbCfg;
+typedef SVCreateTSmaReq SSmaCfg;
 
 // SMeta operations
-SMeta *metaOpen(const char *path, const SMetaCfg *pMetaCfg, SMemAllocatorFactory *pMAF);
-void   metaClose(SMeta *pMeta);
-void   metaRemove(const char *path);
-int    metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg);
-int    metaDropTable(SMeta *pMeta, tb_uid_t uid);
-int    metaCommit(SMeta *pMeta);
+SMeta * metaOpen(const char *path, const SMetaCfg *pMetaCfg, SMemAllocatorFactory *pMAF);
+void    metaClose(SMeta *pMeta);
+void    metaRemove(const char *path);
+int     metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg);
+int     metaDropTable(SMeta *pMeta, tb_uid_t uid);
+int     metaCommit(SMeta *pMeta);
+int32_t metaCreateTSma(SMeta *pMeta, SSmaCfg *pCfg);
+int32_t metaDropTSma(SMeta *pMeta, char *indexName);
 
 // For Query
 STbCfg *        metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid);
 STbCfg *        metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid);
 SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline);
 STSchema *      metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver);
+STSma *         metaGetSmaInfoByName(SMeta *pMeta, const char *indexName);
+STSmaWrapper *  metaGetSmaInfoByUid(SMeta *pMeta, tb_uid_t uid);
+SArray *        metaGetSmaTbUids(SMeta *pMeta, bool isDup);
 
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta);
 void        metaCloseTbCursor(SMTbCursor *pTbCur);
@@ -62,6 +69,10 @@ char *      metaTbCursorNext(SMTbCursor *pTbCur);
 SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid);
 void         metaCloseCtbCurosr(SMCtbCursor *pCtbCur);
 tb_uid_t     metaCtbCursorNext(SMCtbCursor *pCtbCur);
+
+SMSmaCursor *metaOpenSmaCursor(SMeta *pMeta, tb_uid_t uid);
+void         metaCloseSmaCurosr(SMSmaCursor *pSmaCur);
+const char * metaSmaCursorNext(SMSmaCursor *pSmaCur);
 
 // Options
 void metaOptionsInit(SMetaCfg *pMetaCfg);

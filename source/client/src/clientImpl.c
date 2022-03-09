@@ -4,8 +4,8 @@
 #include "parser.h"
 #include "planner.h"
 #include "scheduler.h"
+#include "tdatablock.h"
 #include "tdef.h"
-#include "tep.h"
 #include "tglobal.h"
 #include "tmsgtype.h"
 #include "tpagedbuf.h"
@@ -517,7 +517,7 @@ void* doFetchRow(SRequestObj* pRequest) {
       SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
       SVgroupInfo*  pVgroupInfo = taosArrayGet(pShowReqInfo->pArray, pShowReqInfo->currentIndex);
 
-      epSet = pVgroupInfo->epset;
+      epSet = pVgroupInfo->epSet;
     } else if (pRequest->type == TDMT_VND_SHOW_TABLES_FETCH) {
       pRequest->type = TDMT_VND_SHOW_TABLES;
       SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
@@ -534,7 +534,7 @@ void* doFetchRow(SRequestObj* pRequest) {
       pRequest->body.requestMsg.pData = pShowReq;
 
       SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
-      epSet = pVgroupInfo->epset;
+      epSet = pVgroupInfo->epSet;
 
       int64_t  transporterId = 0;
       STscObj* pTscObj = pRequest->pTscObj;

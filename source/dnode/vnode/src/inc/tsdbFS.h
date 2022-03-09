@@ -18,6 +18,10 @@
 
 #include "tsdbFile.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // ================== TSDB global config
 extern bool tsdbForceKeepFile;
 
@@ -38,6 +42,10 @@ typedef struct {
 typedef struct {
   STsdbFSMeta meta;  // FS meta
   SArray *    df;    // data file array
+
+  // SArray *    v2f100.tsma.index_name
+  
+  SArray *    smaf;  // sma data file array    v2f1900.tsma.index_name
 } SFSStatus;
 
 typedef struct {
@@ -110,5 +118,9 @@ static FORCE_INLINE int tsdbUnLockFS(STsdbFS *pFs) {
   }
   return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _TD_TSDB_FS_H_ */

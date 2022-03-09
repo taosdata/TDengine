@@ -298,7 +298,7 @@ int32_t dndInit() {
     return -1;
   }
 
-  SMonCfg monCfg = {.maxLogs = tsMonitorMaxLogs, .port = tsMonitorPort, .server = tsMonitorFqdn};
+  SMonCfg monCfg = {.maxLogs = tsMonitorMaxLogs, .port = tsMonitorPort, .server = tsMonitorFqdn, .comp = tsMonitorComp};
   if (monInit(&monCfg) != 0) {
     dError("failed to init monitor since %s", terrstr());
     dndCleanup();
@@ -322,4 +322,13 @@ void dndCleanup() {
 
   taosStopCacheRefreshWorker();
   dInfo("dnode env is cleaned up");
+}
+
+int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {
+  tstrncpy(pInfo->logdir.name, tsLogDir, sizeof(pInfo->logdir.name));
+  pInfo->logdir.size = tsLogSpace.size;
+  tstrncpy(pInfo->tempdir.name, tsTempDir, sizeof(pInfo->tempdir.name));
+  pInfo->tempdir.size = tsTempSpace.size;
+
+  return tfsGetMonitorInfo(pDnode->pTfs, pInfo);
 }

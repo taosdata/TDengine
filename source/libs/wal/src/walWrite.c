@@ -34,9 +34,6 @@ int32_t walCommit(SWal *pWal, int64_t ver) {
 int32_t walRollback(SWal *pWal, int64_t ver) {
   int  code;
   char fnameStr[WAL_FILE_LEN];
-  if (ver == pWal->vers.lastVer) {
-    return 0;
-  }
   if (ver > pWal->vers.lastVer || ver < pWal->vers.commitVer) {
     terrno = TSDB_CODE_WAL_INVALID_VER;
     return -1;
@@ -55,9 +52,9 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
     int fileSetSize = taosArrayGetSize(pWal->fileInfoSet);
     for (int i = pWal->writeCur; i < fileSetSize; i++) {
       walBuildLogName(pWal, ((SWalFileInfo *)taosArrayGet(pWal->fileInfoSet, i))->firstVer, fnameStr);
-      remove(fnameStr);
+      taosRemoveFile(fnameStr);
       walBuildIdxName(pWal, ((SWalFileInfo *)taosArrayGet(pWal->fileInfoSet, i))->firstVer, fnameStr);
-      remove(fnameStr);
+      taosRemoveFile(fnameStr);
     }
     // pop from fileInfoSet
     taosArraySetSize(pWal->fileInfoSet, pWal->writeCur + 1);
@@ -162,8 +159,8 @@ int32_t walEndSnapshot(SWal *pWal) {
   }
   // iterate files, until the searched result
   for (SWalFileInfo *iter = pWal->fileInfoSet->pData; iter < pInfo; iter++) {
-    if ((pWal->cfg.retentionSize != -1 && pWal->totSize > pWal->cfg.retentionSize)
-        || (pWal->cfg.retentionPeriod != -1 && iter->closeTs + pWal->cfg.retentionPeriod > ts)) {
+    if ((pWal->cfg.retentionSize != -1 && pWal->totSize > pWal->cfg.retentionSize) ||
+        (pWal->cfg.retentionPeriod != -1 && iter->closeTs + pWal->cfg.retentionPeriod > ts)) {
       // delete according to file size or close time
       deleteCnt++;
       newTotSize -= iter->fileSize;
@@ -174,9 +171,9 @@ int32_t walEndSnapshot(SWal *pWal) {
   for (int i = 0; i < deleteCnt; i++) {
     SWalFileInfo *pInfo = taosArrayGet(pWal->fileInfoSet, i);
     walBuildLogName(pWal, pInfo->firstVer, fnameStr);
-    remove(fnameStr);
+    taosRemoveFile(fnameStr);
     walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
-    remove(fnameStr);
+    taosRemoveFile(fnameStr);
   }
 
   // make new array, remove files
@@ -279,6 +276,7 @@ int64_t walWrite(SWal *pWal, int64_t index, tmsg_t msgType, const void *body, in
   } else {
     // reject skip log or rewrite log
     // must truncate explicitly first
+    terrno = TSDB_CODE_WAL_INVALID_VER;
     return -1;
   }
   /*if (!tfValid(pWal->pWriteLogTFile)) return -1;*/
@@ -303,16 +301,18 @@ int64_t walWrite(SWal *pWal, int64_t index, tmsg_t msgType, const void *body, in
 
   if (taosWriteFile(pWal->pWriteLogTFile, &pWal->writeHead, sizeof(SWalHead)) != sizeof(SWalHead)) {
     // ftruncate
-    code = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
            strerror(errno));
+    return -1;
   }
 
   if (taosWriteFile(pWal->pWriteLogTFile, (char *)body, bodyLen) != bodyLen) {
     // ftruncate
-    code = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
            strerror(errno));
+    return -1;
   }
 
   code = walWriteIndex(pWal, index, offset);
@@ -329,7 +329,7 @@ int64_t walWrite(SWal *pWal, int64_t index, tmsg_t msgType, const void *body, in
 
   pthread_mutex_unlock(&pWal->mutex);
 
-  return code;
+  return 0;
 }
 
 void walFsync(SWal *pWal, bool forceFsync) {

@@ -28,6 +28,7 @@ static void    doSyncEnvStopTimer(SSyncEnv *pSyncEnv, tmr_h *pTimer);
 
 int32_t syncEnvStart() {
   int32_t ret;
+  srand(time(NULL));
   gSyncEnv = (SSyncEnv *)malloc(sizeof(SSyncEnv));
   assert(gSyncEnv != NULL);
   ret = doSyncEnvStart(gSyncEnv);

@@ -44,6 +44,7 @@ extern "C" {
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
+#include <sys/param.h>
 #include <unistd.h>
 #include <wchar.h>
 #include <wctype.h>

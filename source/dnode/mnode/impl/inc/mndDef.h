@@ -34,46 +34,6 @@
 extern "C" {
 #endif
 
-extern int32_t mDebugFlag;
-
-// mnode log function
-#define mFatal(...)                                 \
-  {                                                 \
-    if (mDebugFlag & DEBUG_FATAL) {                 \
-      taosPrintLog("MND FATAL ", 255, __VA_ARGS__); \
-    }                                               \
-  }
-#define mError(...)                                 \
-  {                                                 \
-    if (mDebugFlag & DEBUG_ERROR) {                 \
-      taosPrintLog("MND ERROR ", 255, __VA_ARGS__); \
-    }                                               \
-  }
-#define mWarn(...)                                 \
-  {                                                \
-    if (mDebugFlag & DEBUG_WARN) {                 \
-      taosPrintLog("MND WARN ", 255, __VA_ARGS__); \
-    }                                              \
-  }
-#define mInfo(...)                            \
-  {                                           \
-    if (mDebugFlag & DEBUG_INFO) {            \
-      taosPrintLog("MND ", 255, __VA_ARGS__); \
-    }                                         \
-  }
-#define mDebug(...)                                  \
-  {                                                  \
-    if (mDebugFlag & DEBUG_DEBUG) {                  \
-      taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); \
-    }                                                \
-  }
-#define mTrace(...)                                  \
-  {                                                  \
-    if (mDebugFlag & DEBUG_TRACE) {                  \
-      taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); \
-    }                                                \
-  }
-
 typedef enum {
   MND_AUTH_ACCT_START = 0,
   MND_AUTH_ACCT_USER,
@@ -634,7 +594,7 @@ typedef struct {
   int64_t  consumerId;
   int64_t  connId;
   SRWLatch lock;
-  char     cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char     cgroup[TSDB_CGROUP_LEN];
   SArray*  currentTopics;        // SArray<char*>
   SArray*  recentRemovedTopics;  // SArray<char*>
   int32_t  epoch;
@@ -700,6 +660,9 @@ static FORCE_INLINE void* tDecodeSMqConsumerObj(void* buf, SMqConsumerObj* pCons
   }
   return buf;
 }
+
+typedef struct {
+} SStreamScheduler;
 
 typedef struct SMnodeMsg {
   char    user[TSDB_USER_LEN];

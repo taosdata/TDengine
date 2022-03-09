@@ -365,7 +365,7 @@ int tsdbCreateDFile(STsdb *pRepo, SDFile *pDFile, bool updateHeader, TSDB_FILE_T
     if (errno == ENOENT) {
       // Try to create directory recursively
       char *s = strdup(TSDB_FILE_REL_NAME(pDFile));
-      if (tfsMkdirRecurAt(pRepo->pTfs, dirname(s), TSDB_FILE_DID(pDFile)) < 0) {
+      if (tfsMkdirRecurAt(pRepo->pTfs, taosDirName(s), TSDB_FILE_DID(pDFile)) < 0) {
         tfree(s);
         return -1;
       }
@@ -443,25 +443,24 @@ int tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo) {
 }
 
 static int tsdbScanAndTryFixDFile(STsdb *pRepo, SDFile *pDFile) {
-  struct stat dfstat;
   SDFile      df;
 
   tsdbInitDFileEx(&df, pDFile);
 
-  if (access(TSDB_FILE_FULL_NAME(pDFile), F_OK) != 0) {
+  if (!taosCheckExistFile(TSDB_FILE_FULL_NAME(pDFile))) {
     tsdbError("vgId:%d data file %s not exit, report to upper layer to fix it", REPO_ID(pRepo),
               TSDB_FILE_FULL_NAME(pDFile));
     // pRepo->state |= TSDB_STATE_BAD_DATA;
     TSDB_FILE_SET_STATE(pDFile, TSDB_FILE_STATE_BAD);
     return 0;
   }
-
-  if (stat(TSDB_FILE_FULL_NAME(&df), &dfstat) < 0) {
+  int64_t file_size = 0;
+  if (taosStatFile(TSDB_FILE_FULL_NAME(&df), &file_size, NULL) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
-  if (pDFile->info.size < dfstat.st_size) {
+  if (pDFile->info.size < file_size) {
     // if (tsdbOpenDFile(&df, O_WRONLY) < 0) {
     if (tsdbOpenDFile(&df, TD_FILE_WRITE) < 0) {
       return -1;
@@ -480,10 +479,10 @@ static int tsdbScanAndTryFixDFile(STsdb *pRepo, SDFile *pDFile) {
 
     tsdbCloseDFile(&df);
     tsdbInfo("vgId:%d file %s is truncated from %" PRId64 " to %" PRId64, REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile),
-             dfstat.st_size, pDFile->info.size);
-  } else if (pDFile->info.size > dfstat.st_size) {
+             file_size, pDFile->info.size);
+  } else if (pDFile->info.size > file_size) {
     tsdbError("vgId:%d data file %s has wrong size %" PRId64 " expected %" PRId64 ", report to upper layer to fix it",
-              REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile), dfstat.st_size, pDFile->info.size);
+              REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile), file_size, pDFile->info.size);
     // pRepo->state |= TSDB_STATE_BAD_DATA;
     TSDB_FILE_SET_STATE(pDFile, TSDB_FILE_STATE_BAD);
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;

@@ -22,23 +22,25 @@
 #include "ttimer.h"
 #include "tutil.h"
 
+#ifndef USE_UV
+
 #define RPC_MAX_UDP_CONNS 256
 #define RPC_MAX_UDP_PKTS 1000
 #define RPC_UDP_BUF_TIME 5  // mseconds
 #define RPC_MAX_UDP_SIZE 65480
 
 typedef struct {
-  int       index;
-  SOCKET    fd;
-  uint16_t  port;                   // peer port
-  uint16_t  localPort;              // local port
-  char      label[TSDB_LABEL_LEN];  // copy from udpConnSet;
-  pthread_t thread;
-  void *    hash;
-  void *    shandle;  // handle passed by upper layer during server initialization
-  void *    pSet;
-  void *(*processData)(SRecvInfo *pRecv);
-  char *buffer;  // buffer to receive data
+  int         index;
+  TdSocketPtr pSocket;
+  uint16_t    port;                   // peer port
+  uint16_t    localPort;              // local port
+  char        label[TSDB_LABEL_LEN];  // copy from udpConnSet;
+  pthread_t   thread;
+  void       *hash;
+  void       *shandle;  // handle passed by upper layer during server initialization
+  void       *pSet;
+  void       *(*processData)(SRecvInfo *pRecv);
+  char       *buffer;  // buffer to receive data
 } SUdpConn;
 
 typedef struct {
@@ -84,8 +86,8 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
   for (i = 0; i < threads; ++i) {
     pConn = pSet->udpConn + i;
     ownPort = (port ? port + i : 0);
-    pConn->fd = taosOpenUdpSocket(ip, ownPort);
-    if (pConn->fd < 0) {
+    pConn->pSocket = taosOpenUdpSocket(ip, ownPort);
+    if (pConn->pSocket == NULL) {
       tError("%s failed to open UDP socket %x:%hu", label, ip, port);
       break;
     }
@@ -98,7 +100,7 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
 
     struct sockaddr_in sin;
     unsigned int       addrlen = sizeof(sin);
-    if (getsockname(pConn->fd, (struct sockaddr *)&sin, &addrlen) == 0 && sin.sin_family == AF_INET &&
+    if (taosGetSocketName(pConn->pSocket, (struct sockaddr *)&sin, &addrlen) == 0 && sin.sin_family == AF_INET &&
         addrlen == sizeof(sin)) {
       pConn->localPort = (uint16_t)ntohs(sin.sin_port);
     }
@@ -136,9 +138,9 @@ void taosStopUdpConnection(void *handle) {
 
   for (int i = 0; i < pSet->threads; ++i) {
     pConn = pSet->udpConn + i;
-    if (pConn->fd >= 0) shutdown(pConn->fd, SHUT_RDWR);
-    if (pConn->fd >= 0) taosCloseSocket(pConn->fd);
-    pConn->fd = -1;
+    if (pConn->pSocket != NULL) taosShutDownSocketRDWR(pConn->pSocket);
+    if (pConn->pSocket != NULL) taosCloseSocket(&pConn->pSocket);
+    pConn->pSocket = NULL;
   }
 
   for (int i = 0; i < pSet->threads; ++i) {
@@ -161,7 +163,7 @@ void taosCleanUpUdpConnection(void *handle) {
 
   for (int i = 0; i < pSet->threads; ++i) {
     pConn = pSet->udpConn + i;
-    if (pConn->fd >= 0) taosCloseSocket(pConn->fd);
+    if (pConn->pSocket != NULL) taosCloseSocket(&pConn->pSocket);
   }
 
   tDebug("%s UDP is cleaned up", pSet->label);
@@ -197,13 +199,12 @@ static void *taosRecvUdpData(void *param) {
   setThreadName("recvUdpData");
 
   while (1) {
-    dataLen = recvfrom(pConn->fd, pConn->buffer, RPC_MAX_UDP_SIZE, 0, (struct sockaddr *)&sourceAdd, &addLen);
+    dataLen = taosReadFromSocket(pConn->pSocket, pConn->buffer, RPC_MAX_UDP_SIZE, 0, (struct sockaddr *)&sourceAdd, &addLen);
     if (dataLen <= 0) {
-      tDebug("%s UDP socket was closed, exiting(%s), dataLen:%d fd:%d", pConn->label, strerror(errno), (int32_t)dataLen,
-             pConn->fd);
+      tDebug("%s UDP socket was closed, exiting(%s), dataLen:%d", pConn->label, strerror(errno), (int32_t)dataLen);
 
       // for windows usage, remote shutdown also returns - 1 in windows client
-      if (pConn->fd == -1) {
+      if (pConn->pSocket == NULL) {
         break;
       } else {
         continue;
@@ -253,7 +254,8 @@ int taosSendUdpData(uint32_t ip, uint16_t port, void *data, int dataLen, void *c
   destAdd.sin_addr.s_addr = ip;
   destAdd.sin_port = htons(port);
 
-  int ret = (int)taosSendto(pConn->fd, data, (size_t)dataLen, 0, (struct sockaddr *)&destAdd, sizeof(destAdd));
+  int ret = taosSendto(pConn->pSocket, data, (size_t)dataLen, 0, (struct sockaddr *)&destAdd, sizeof(destAdd));
 
   return ret;
 }
+#endif

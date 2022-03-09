@@ -14,18 +14,31 @@
  */
 
 #include <gtest/gtest.h>
-#include <tglobal.h>
 #include <iostream>
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wsign-compare"
+#pragma GCC diagnostic ignored "-Wreturn-type"
+#pragma GCC diagnostic ignored "-Wformat"
+#include <addr_any.h>
+
 
 #include "os.h"
 
+#include "tglobal.h"
 #include "taos.h"
 #include "tdef.h"
 #include "tvariant.h"
 #include "catalog.h"
 #include "scheduler.h"
-#include "tep.h"
+#include "taos.h"
+#include "tdatablock.h"
+#include "tdef.h"
 #include "trpc.h"
+#include "tvariant.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -37,7 +50,6 @@
 
 #include "schedulerInt.h"
 #include "stub.h"
-#include "addr_any.h"
 #include "tref.h"
 
 namespace {
@@ -92,8 +104,8 @@ void schtBuildQueryDag(SQueryDag *dag) {
   scanPlan->type = QUERY_TYPE_SCAN;
 
   scanPlan->execNode.nodeId = 1;
-  scanPlan->execNode.epset.inUse = 0;
-  addEpIntoEpSet(&scanPlan->execNode.epset, "ep0", 6030);
+  scanPlan->execNode.epSet.inUse = 0;
+  addEpIntoEpSet(&scanPlan->execNode.epSet, "ep0", 6030);
 
   scanPlan->pChildren = NULL;
   scanPlan->level = 1;
@@ -106,7 +118,7 @@ void schtBuildQueryDag(SQueryDag *dag) {
   mergePlan->id.subplanId = 0x5555555555;
   mergePlan->type = QUERY_TYPE_MERGE;
   mergePlan->level = 0;
-  mergePlan->execNode.epset.numOfEps = 0;
+  mergePlan->execNode.epSet.numOfEps = 0;
 
   mergePlan->pChildren = taosArrayInit(1, POINTER_BYTES);
   mergePlan->pParents = NULL;
@@ -145,8 +157,8 @@ void schtBuildInsertDag(SQueryDag *dag) {
   insertPlan[0].level = 0;
 
   insertPlan[0].execNode.nodeId = 1;
-  insertPlan[0].execNode.epset.inUse = 0;
-  addEpIntoEpSet(&insertPlan[0].execNode.epset, "ep0", 6030);
+  insertPlan[0].execNode.epSet.inUse = 0;
+  addEpIntoEpSet(&insertPlan[0].execNode.epSet, "ep0", 6030);
 
   insertPlan[0].pChildren = NULL;
   insertPlan[0].pParents = NULL;
@@ -161,8 +173,8 @@ void schtBuildInsertDag(SQueryDag *dag) {
   insertPlan[1].level = 0;
 
   insertPlan[1].execNode.nodeId = 1;
-  insertPlan[1].execNode.epset.inUse = 0;
-  addEpIntoEpSet(&insertPlan[1].execNode.epset, "ep0", 6030);
+  insertPlan[1].execNode.epSet.inUse = 0;
+  addEpIntoEpSet(&insertPlan[1].execNode.epSet, "ep0", 6030);
 
   insertPlan[1].pChildren = NULL;
   insertPlan[1].pParents = NULL;

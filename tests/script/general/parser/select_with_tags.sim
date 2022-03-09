@@ -1,0 +1,926 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
+system sh/exec.sh -n dnode1 -s start
+sleep 100
+sql connect
+
+$dbPrefix = select_tags_db
+$tbPrefix = select_tags_tb
+$mtPrefix = select_tags_mt
+
+$tbNum = 16
+$rowNum = 800
+$totalNum = $tbNum * $rowNum
+
+print =============== select_with_tags.sim
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+$tstart = 100000
+
+sql drop database if exists $db -x step1
+step1:
+sql create database if not exists $db keep 36500
+sql use $db
+sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int, t2 binary(12), t3 int)
+
+$i = 0
+$j = 1
+
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  $tg2 = ' . abc
+  $tg2 = $tg2 . $i
+  $tg2 = $tg2 . '
+  sql create table $tb using $mt tags( $i , $tg2 , 123 )
+
+  $x = 0
+  while $x < $rowNum
+    $ms = $x . m
+    $c = $x / 100
+    $c = $c * 100
+    $c = $x - $c
+
+    $c1 = $c + $i
+
+    $binary = ' . binary
+    $binary = $binary . $c
+    $binary = $binary . '
+
+    $nchar = ' . nchar
+    $nchar = $nchar . $c
+    $nchar = $nchar . '
+
+    sql insert into $tb values ($tstart , $c1 , $c , $c , $c , $c , $c , $c , $binary , $nchar )
+    $tstart = $tstart + 1
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+  $j = $j + 10000
+  $tstart = 100000 + $j
+
+endw
+
+sleep 100
+
+
+#======================= only check first table tag, TD-4827
+sql select count(*) from $mt where t1 in (0)  
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != $rowNum then  
+  return -1;
+endi
+
+$secTag = ' . abc  
+$secTag = $secTag . 0
+$secTag = $secTag . '
+sql select count(*) from $mt where t2 =$secTag  and t1 in (0)   
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != $rowNum then  
+  return -1;
+endi
+
+#================================
+sql select ts from select_tags_mt0
+print $rows
+if $rows != 12800 then
+   return -1
+endi
+
+sql select first(ts), tbname, t1, t2 from select_tags_mt0;
+if $rows != 1 then
+   return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.000@ then
+   return -1
+endi
+
+if $data01 != @select_tags_tb0@ then
+   print expect: select_tags_tb0, actual: $data01
+   return -1
+endi
+
+if $data02 != 0 then
+   return -1
+endi
+
+if $data03 != @abc0@ then
+   return -1
+endi
+
+sql select last(ts), tbname, t1, t2 from select_tags_mt0;
+if $rows != 1 then
+   return -1
+endi
+
+if $data00 != @70-01-01 08:04:10.800@ then
+   return -1
+endi
+
+if $data01 != @select_tags_tb15@ then
+   return -1
+endi
+
+if $data02 != 15 then
+   return -1
+endi
+
+if $data03 != @abc15@ then
+   return -1
+endi
+
+sql select min(c1), tbname, t1, t2 from select_tags_mt0;
+if $rows != 1 then
+   return -1
+endi
+
+if $data00 != 0 then
+   return -1
+endi
+
+if $data01 != @select_tags_tb0@ then
+   return -1
+endi
+
+if $data02 != 0 then
+   return -1
+endi
+
+if $data03 != @abc0@ then
+   return -1
+endi
+
+sql select max(c1), tbname, t1, t2 from select_tags_mt0;
+if $rows != 1 then
+   return -1
+endi
+
+if $data00 != 114 then
+   return -1
+endi
+
+if $data01 != @select_tags_tb15@ then
+   return -1
+endi
+
+if $data02 != 15 then
+   return -1
+endi
+
+if $data03 != @abc15@ then
+   return -1
+endi
+
+sql select top(c6, 3) from select_tags_mt0 interval(10a)
+sql select top(c3,10) from select_tags_mt0 interval(10a) group by tbname,t1,t2
+sql select top(c6, 3) from select_tags_mt0 interval(10a) group by tbname;
+
+sql select top(c6, 10) from select_tags_mt0 interval(10a);
+if $rows != 12800 then
+  return -1
+endi
+
+sql select top(c1, 80), tbname, t1, t2 from select_tags_mt0;
+if $rows != 80 then
+   return -1
+endi
+
+if $data00 != @70-01-01 08:03:40.100@ then
+   return -1
+endi
+
+if $data10 != @70-01-01 08:03:40.200@ then
+   return -1
+endi
+
+if $data01 != 111 then
+   return -1
+endi
+
+if $data02 != @select_tags_tb12@ then
+   return -1
+endi
+
+if $data03 != 12 then
+   return -1
+endi
+
+if $data04 != @abc12@ then
+   return -1
+endi
+
+sql select top(c1, 80), tbname, t1, t2 from select_tags_mt0;
+if $rows != 80 then
+   return -1
+endi
+
+if $data00 != @70-01-01 08:03:40.100@ then
+   return -1
+endi
+
+if $data10 != @70-01-01 08:03:40.200@ then
+   return -1
+endi
+
+if $data01 != 111 then
+   return -1
+endi
+
+if $data02 != @select_tags_tb12@ then
+   return -1
+endi
+
+if $data03 != 12 then
+   return -1
+endi
+
+if $data04 != @abc12@ then
+   return -1
+endi
+
+sql select bottom(c1, 72), tbname, t1, t2 from select_tags_mt0;
+if $rows != 72 then
+   return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.000@ then
+   return -1
+endi
+
+if $data10 != @70-01-01 08:01:40.001@ then
+   return -1
+endi
+
+if $data01 != 0 then
+   return -1
+endi
+
+if $data02 != @select_tags_tb0@ then
+   return -1
+endi
+
+if $data03 != 0 then
+   return -1
+endi
+
+if $data04 != @abc0@ then
+   return -1
+endi
+
+sql select last_row(c1, c2), tbname, t1, t2 from select_tags_mt0;
+if $rows != 1 then
+   return -1
+endi
+
+if $data00 != 114 then
+   return -1
+endi
+
+print $data01
+if $data01 != 99.00000 then
+   return -1
+endi
+
+if $data02 != @select_tags_tb15@ then
+   return -1
+endi
+
+if $data03 != 15 then
+   return -1
+endi
+
+print ====== selectivity+tags+group by tags=======================
+sql select first(c1), tbname, t1, t2 from select_tags_mt0 group by tbname;
+if $rows != 16 then
+   return -1
+endi
+
+if $data00 != 0 then
+   return -1
+endi
+
+if $data10 != 1 then
+   return -1
+endi
+
+print $data01
+if $data01 != @select_tags_tb0@ then
+   return -1
+endi
+
+if $data11 != @select_tags_tb1@ then
+   return -1
+endi
+
+if $data02 != 0 then
+   return -1
+endi
+
+if $data03 != @abc0@ then
+   return -1
+endi
+
+if $data04 != @select_tags_tb0@ then
+   return -1
+endi
+
+sql select last_row(ts,c1), tbname, t1, t2 from select_tags_mt0 group by tbname;
+if $rows != 16 then
+   return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.799@ then
+   return -1
+endi
+
+if $data10 != @70-01-01 08:01:50.800@ then
+   return -1
+endi
+
+print $data01
+if $data01 != 99 then
+   return -1
+endi
+
+if $data11 != 100 then
+   return -1
+endi
+
+if $data02 != @select_tags_tb0@ then
+   return -1
+endi
+
+if $data03 != 0 then
+   return -1
+endi
+
+if $data04 != @abc0@ then
+   return -1
+endi
+
+sql select tbname,t1,t2 from select_tags_mt0;
+if $row != 16 then
+   return -1
+endi
+
+if $data00 != @select_tags_tb0@ then
+   return -1
+endi
+
+if $data01 != 0 then
+    return -1
+endi
+
+if $data02 != @abc0@ then
+    return -1
+endi
+
+if $data10 != @select_tags_tb1@ then
+   return -1
+endi
+
+if $data11 != 1 then
+   return -1
+endi
+
+if $data12 != @abc1@ then
+   return -1
+endi
+
+sql select tbname,ts from select_tags_mt0;
+if $row != 12800 then
+   return -1
+endi
+
+if $data00 != @select_tags_tb0@ then
+  return -1
+endi
+
+if $data10 != @select_tags_tb0@ then
+   return -1
+endi
+
+if $data01 != @70-01-01 08:01:40.000@ then
+  return -1
+endi
+
+if $data11 != @70-01-01 08:01:40.001@ then
+  return -1
+endi
+
+sql select top(c1, 100), tbname, t1, t2 from select_tags_mt0 where tbname in ('select_tags_tb0', 'select_tags_tb1') group by tbname;
+if $row != 200 then
+  return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.087@ then
+  return -1
+endi
+
+if $data10 != @70-01-01 08:01:40.088@ then
+  return -1
+endi
+
+if $data20 != @70-01-01 08:01:40.089@ then
+  return -1
+endi
+
+if $data90 != @70-01-01 08:01:40.096@ then
+  return -1
+endi
+
+if $data01 != 87 then
+  return -1
+endi
+
+if $data02 != @select_tags_tb0@ then
+  return -1
+endi
+
+if $data03 != 0 then
+  return -1
+endi
+
+if $data04 != @abc0@ then
+  return -1
+endi
+
+sql select top(c1, 2), t2 from select_tags_mt0 where tbname in ('select_tags_tb0', 'select_tags_tb1') group by tbname,t2;
+if $row != 4 then
+  return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.099@ then
+  return -1
+endi
+
+if $data01 != 99 then
+   return -1
+endi
+
+if $data02 != @abc0@ then
+   return -1
+endi
+
+if $data03 != @select_tags_tb0@ then
+   return -1
+endi
+
+if $data04 != @abc0@ then
+   return -1
+endi
+
+if $data10 != @70-01-01 08:01:40.199@ then
+  return -1
+endi
+
+if $data11 != 99 then
+   return -1
+endi
+
+if $data12 != @abc0@ then
+   return -1
+endi
+
+if $data13 != @select_tags_tb0@ then
+   return -1
+endi
+
+if $data14 != @abc0@ then
+   return -1
+endi
+
+if $data20 != @70-01-01 08:01:50.100@ then
+  return -1
+endi
+
+if $data21 != 100 then
+   return -1
+endi
+
+if $data22 != @abc1@ then
+   return -1
+endi
+
+if $data23 != @select_tags_tb1@ then
+   return -1
+endi
+
+if $data24 != @abc1@ then
+   return -1
+endi
+
+if $data30 != @70-01-01 08:01:50.200@ then
+  return -1
+endi
+
+if $data31 != 100 then
+   return -1
+endi
+
+if $data32 != @abc1@ then
+   return -1
+endi
+
+if $data33 != @select_tags_tb1@ then
+   return -1
+endi
+
+if $data34 != @abc1@ then
+   return -1
+endi
+
+
+# slimit /limit
+sql select top(c1, 2), t2 from select_tags_mt0 where tbname in ('select_tags_tb0', 'select_tags_tb1') group by tbname,t2 limit 2 offset 1;
+if $row != 2 then
+  return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.199@ then
+  return -1
+endi
+
+if $data01 != 99 then
+   return -1
+endi
+
+if $data02 != @abc0@ then
+   return -1
+endi
+
+if $data03 != @select_tags_tb0@ then
+   return -1
+endi
+
+if $data04 != @abc0@ then
+   return -1
+endi
+
+print ======= selectivity + tags + group by + tags + filter ===========================
+sql select first(c1), t1 from select_tags_mt0 where c1<=2 group by tbname;
+if $row != 3 then
+  return -1
+endi
+
+if $data00 != 0 then
+  return -1
+endi
+
+if $data01 != 0 then
+   return -1
+endi
+
+if $data02 != @select_tags_tb0@ then
+   return -1
+endi
+
+if $data10 != 1 then
+   return -1
+endi
+
+if $data11 != 1 then
+   return -1
+endi
+
+if $data12 != @select_tags_tb1@ then
+   return -1
+endi
+
+if $data20 != 2 then
+   return -1
+endi
+
+if $data21 != 2 then
+   return -1
+endi
+
+if $data22 != @select_tags_tb2@ then
+   return -1
+endi
+
+sql select first(c1), tbname from select_tags_mt0 where c1<=2 interval(1s);
+if $row != 3 then
+   return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.000@ then
+   return -1
+endi
+
+if $data01 != 0 then
+   return -1
+endi
+
+if $data02 != @select_tags_tb0@ then
+   return -1
+endi
+
+if $data10 != @70-01-01 08:01:50.000@ then
+   return -1
+endi
+
+if $data11 != 1 then
+   return -1
+endi
+
+if $data12 != @select_tags_tb1@ then
+   return -1
+endi
+
+if $data20 != @70-01-01 08:02:00.000@ then
+   return -1
+endi
+
+if $data21 != 2 then
+   return -1
+endi
+
+if $data22 != @select_tags_tb2@ then
+   return -1
+endi
+
+sql select first(ts),ts from select_tags_tb0 where c1<3
+if $row != 1 then
+   return -1
+endi
+
+if $data00 != $data01 then
+   return -1
+endi
+
+sql select last(ts),ts from select_tags_tb0 where c1<3
+if $row != 1 then
+   return -1
+endi
+
+if $data00 != $data01 then
+   return -1
+endi
+
+sql select first(ts), ts  from select_tags_tb1
+if $row != 1 then
+  return -1
+endi
+
+if $data01 != @70-01-01 08:01:50.001@ then
+  return -1
+endi
+
+print ======= selectivity + tags + group by + tags + filter + interval ================
+sql select first(c1), t2, t1, tbname from select_tags_mt0 where c1<=2 interval(1d) group by tbname;
+if $row != 3 then
+   return -1
+endi
+
+if $data00 != @70-01-01 00:00:00.000@ then
+   return -1
+endi
+
+if $data01 != 0 then
+   return -1
+endi
+
+if $data02 != @abc0@ then
+   return -1
+endi
+
+if $data03 != 0 then
+   return -1
+endi
+
+if $data04 != @select_tags_tb0@ then
+   return -1
+endi
+
+if $data05 != @select_tags_tb0@ then
+   return -1
+endi
+
+if $data15 != @select_tags_tb1@ then
+   return -1
+endi
+
+if $data25 != @select_tags_tb2@ then
+  return -1
+endi
+
+sql select top(c1, 5), t2 from select_tags_mt0 where c1<=2 interval(1d) group by tbname;
+if $row != 15 then
+   return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.002@ then
+  return -1
+endi
+
+if $data01 != 2 then
+   return -1
+endi
+
+if $data02 != @abc0@ then
+   return -1
+endi
+
+if $data03 != @select_tags_tb0@ then
+   return -1
+endi
+
+if $data90 != @70-01-01 08:01:50.402@ then
+   return -1
+endi
+
+if $data91 != 2 then
+   return -1
+endi
+
+if $data92 != @abc1@ then
+   return -1
+endi
+
+if $data93 != @select_tags_tb1@ then
+   return -1
+endi
+
+#if data
+sql select top(c1, 50), t2, t1, tbname from select_tags_mt0 where c1<=2 interval(1d) group by tbname;
+if $row != 48 then
+  return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.000@ then
+   return -1
+endi
+
+if $data01 != 0 then
+   return -1
+endi
+
+if $data02 != @abc0@ then
+   return -1
+endi
+
+if $data03 != 0 then
+   return -1
+endi
+
+if $data04 != @select_tags_tb0@ then
+   return -1
+endi
+
+if $data05 != @select_tags_tb0@ then
+  return -1
+endi
+
+if $data10 != @70-01-01 08:01:40.001@ then
+   return -1
+endi
+
+if $data11 != 1 then
+   return -1
+endi
+
+if $data12 != @abc0@ then
+   return -1
+endi
+
+if $data13 != 0 then
+   return -1
+endi
+
+if $data14 != @select_tags_tb0@ then
+   return -1
+endi
+
+if $data15 != @select_tags_tb0@ then
+  return -1
+endi
+
+if $data90 != @70-01-01 08:01:40.300@ then
+   return -1
+endi
+
+if $data91 != 0 then
+   return -1
+endi
+
+if $data92 != @abc0@ then
+   return -1
+endi
+
+if $data93 != 0 then
+   return -1
+endi
+
+if $data94 != @select_tags_tb0@ then
+   return -1
+endi
+
+if $data95 != @select_tags_tb0@ then
+  return -1
+endi
+
+sql select last(ts),TBNAME from select_tags_mt0 interval(1y)
+if $row != 1 then
+   return -1
+endi
+
+print TODO ======= selectivity + tags+ group by + tags + filter + interval + join===========
+
+print ==========================mix tag columns and group by columns======================
+sql select top(c1, 100), tbname from select_tags_mt0 where tbname in ('select_tags_tb0', 'select_tags_tb1') group by t3
+if $rows != 100 then
+  return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.094@ then
+  print expect: 70-01-01 08:01:40.094, actual: $data00
+  return -1
+endi
+
+if $data01 != 94 then
+  return -1
+endi
+
+if $data02 != @select_tags_tb0@ then
+  return -1
+endi
+
+if $data03 != 123 then
+  return -1
+endi
+
+if $data10 != @70-01-01 08:01:40.095@ then
+  return -1
+endi
+
+if $data11 != 95 then
+  return -1
+endi
+
+if $data12 != @select_tags_tb0@ then
+  return -1
+endi
+
+if $data13 != 123 then
+  return -1
+endi
+
+
+print ======error sql=============================================
+sql_error select first(*), tbname from select_tags_mt0;
+sql_error select first(ts), first(c1),tbname from select_tags_mt0;
+sql_error select first(ts), last(ts), tbname from select_tags_mt0;
+sql_error select last_row(*), first(ts), tbname, t1, t2 from select_tags_mt0;
+sql_error select tbname, last_row(*), t1, first(ts) from select_tags_mt0;
+sql_error select count(*), tbname from select_tags_mt0;
+sql_error select sum(c2), tbname from select_tags_mt0;
+sql_error select avg(c3), tbname from select_tags_mt0;
+sql_error select percentile(c3, 50), tbname from select_tags_mt0;
+sql_error select apercentile(c4, 50), tbname from select_tags_mt0;
+sql_error select spread(c2), tbname, t1 from select_tags_mt0;
+sql_error select stddev(c2), tbname from select_tags_mt0;
+sql_error select twa(c2), tbname from select_tags_mt0;
+sql_error select interp(c2), tbname from select_tags_mt0 where ts=100001;
+
+sql_error select t1,t2,tbname from select_tags_mt0 group by tbname;
+sql_error select count(tbname) from select_tags_mt0 interval(1d);
+sql_error select count(tbname) from select_tags_mt0 group by t1;
+sql_error select count(tbname),SUM(T1) from select_tags_mt0 interval(1d);
+sql_error select first(c1), count(*), t2, t1, tbname from select_tags_mt0 where c1<=2 interval(1d) group by tbname;
+sql_error select ts from select_tags_mt0 interval(1y);
+sql_error select count(*), tbname from select_tags_mt0 interval(1y);
+sql_error select tbname, t1 from select_tags_mt0 interval(1y);
+
+#===error sql + group by ===============================================
+#valid sql: select first(c1), last(c2), tbname from select_tags_mt0 group by tbname;
+#valid sql: select first(c1), last(c2), count(*), tbname from select_tags_mt0 group by tbname;
+#valid sql: select first(c1), last(c2), count(*) from select_tags_mt0 group by tbname, t1;
+#valid sql: select first(c1), tbname, t1 from select_tags_mt0 group by t2;
+
+print ==================================>TD-4231
+sql_error select t1,tbname from select_tags_mt0 where c1<0
+sql_error select t1,tbname from select_tags_mt0 where c1<0 and tbname in ('select_tags_tb12')
+
+sql select tbname from select_tags_mt0 where tbname in ('select_tags_tb12');
+
+sql_error select first(c1), last(c2), t1 from select_tags_mt0 group by tbname;
+sql_error select first(c1), last(c2), tbname, t2 from select_tags_mt0 group by tbname;
+sql_error select first(c1), count(*), t2, t1, tbname from select_tags_mt0 group by tbname;
+#valid sql: select first(c1), t2 from select_tags_mt0 group by tbname;
+
+#sql select first(ts), tbname from select_tags_mt0 group by tbname;
+#sql select count(c1) from select_tags_mt0 where c1=99 group by tbname;
+#sql select count(*),tbname from select_tags_mt0 group by tbname
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

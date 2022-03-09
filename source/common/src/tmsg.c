@@ -1481,7 +1481,7 @@ static int32_t tSerializeSUseDbRspImp(SCoder *pEncoder, SUseDbRsp *pRsp) {
     if (tEncodeI32(pEncoder, pVgInfo->vgId) < 0) return -1;
     if (tEncodeU32(pEncoder, pVgInfo->hashBegin) < 0) return -1;
     if (tEncodeU32(pEncoder, pVgInfo->hashEnd) < 0) return -1;
-    if (tEncodeSEpSet(pEncoder, &pVgInfo->epset) < 0) return -1;
+    if (tEncodeSEpSet(pEncoder, &pVgInfo->epSet) < 0) return -1;
   }
 
   return 0;
@@ -1541,7 +1541,7 @@ int32_t tDeserializeSUseDbRspImp(SCoder *pDecoder, SUseDbRsp *pRsp) {
     if (tDecodeI32(pDecoder, &vgInfo.vgId) < 0) return -1;
     if (tDecodeU32(pDecoder, &vgInfo.hashBegin) < 0) return -1;
     if (tDecodeU32(pDecoder, &vgInfo.hashEnd) < 0) return -1;
-    if (tDecodeSEpSet(pDecoder, &vgInfo.epset) < 0) return -1;
+    if (tDecodeSEpSet(pDecoder, &vgInfo.epSet) < 0) return -1;
     taosArrayPush(pRsp->pVgroupInfos, &vgInfo);
   }
 
@@ -2389,4 +2389,37 @@ int32_t tDecodeSMqCMCommitOffsetReq(SCoder *decoder, SMqCMCommitOffsetReq *pReq)
   }
   tEndDecode(decoder);
   return 0;
+}
+
+int32_t tSerializeSVCreateTSmaReq(void **buf, SVCreateTSmaReq *pReq) {
+  int32_t tlen = 0;
+
+  tlen += taosEncodeFixedI64(buf, pReq->ver);
+  tlen += tEncodeTSma(buf, &pReq->tSma);
+
+  return tlen;
+}
+
+void *tDeserializeSVCreateTSmaReq(void *buf, SVCreateTSmaReq *pReq) {
+  buf = taosDecodeFixedI64(buf, &(pReq->ver));
+
+  if ((buf = tDecodeTSma(buf, &pReq->tSma)) == NULL) {
+    tdDestroyTSma(&pReq->tSma);
+  }
+  return buf;
+}
+
+int32_t tSerializeSVDropTSmaReq(void **buf, SVDropTSmaReq *pReq) {
+  int32_t tlen = 0;
+
+  tlen += taosEncodeFixedI64(buf, pReq->ver);
+  tlen += taosEncodeString(buf, pReq->indexName);
+
+  return tlen;
+}
+void *tDeserializeSVDropTSmaReq(void *buf, SVDropTSmaReq *pReq) {
+  buf = taosDecodeFixedI64(buf, &(pReq->ver));
+  buf = taosDecodeStringTo(buf, pReq->indexName);
+
+  return buf;
 }

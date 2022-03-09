@@ -19,49 +19,52 @@
 #include "meta.h"
 #include "tlog.h"
 #include "tq.h"
-#include "trpc.h"
+#include "tqPush.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-extern int32_t tqDebugFlag;
+#define tqFatal(...)                                             \
+  {                                                              \
+    if (tqDebugFlag & DEBUG_FATAL) {                             \
+      taosPrintLog("TQ  FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); \
+    }                                                            \
+  }
 
-#define tqFatal(...)                                \
-  {                                                 \
-    if (tqDebugFlag & DEBUG_FATAL) {                \
-      taosPrintLog("TQ  FATAL ", 255, __VA_ARGS__); \
-    }                                               \
+#define tqError(...)                                             \
+  {                                                              \
+    if (tqDebugFlag & DEBUG_ERROR) {                             \
+      taosPrintLog("TQ  ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); \
+    }                                                            \
   }
-#define tqError(...)                                \
-  {                                                 \
-    if (tqDebugFlag & DEBUG_ERROR) {                \
-      taosPrintLog("TQ  ERROR ", 255, __VA_ARGS__); \
-    }                                               \
+
+#define tqWarn(...)                                            \
+  {                                                            \
+    if (tqDebugFlag & DEBUG_WARN) {                            \
+      taosPrintLog("TQ  WARN ", DEBUG_WARN, 255, __VA_ARGS__); \
+    }                                                          \
   }
-#define tqWarn(...)                                \
-  {                                                \
-    if (tqDebugFlag & DEBUG_WARN) {                \
-      taosPrintLog("TQ  WARN ", 255, __VA_ARGS__); \
-    }                                              \
+
+#define tqInfo(...)                                       \
+  {                                                       \
+    if (tqDebugFlag & DEBUG_INFO) {                       \
+      taosPrintLog("TQ  ", DEBUG_INFO, 255, __VA_ARGS__); \
+    }                                                     \
   }
-#define tqInfo(...)                           \
-  {                                           \
-    if (tqDebugFlag & DEBUG_INFO) {           \
-      taosPrintLog("TQ  ", 255, __VA_ARGS__); \
-    }                                         \
+
+#define tqDebug(...)                                               \
+  {                                                                \
+    if (tqDebugFlag & DEBUG_DEBUG) {                               \
+      taosPrintLog("TQ  ", DEBUG_DEBUG, tqDebugFlag, __VA_ARGS__); \
+    }                                                              \
   }
-#define tqDebug(...)                                  \
-  {                                                   \
-    if (tqDebugFlag & DEBUG_DEBUG) {                  \
-      taosPrintLog("TQ  ", tqDebugFlag, __VA_ARGS__); \
-    }                                                 \
-  }
-#define tqTrace(...)                                  \
-  {                                                   \
-    if (tqDebugFlag & DEBUG_TRACE) {                  \
-      taosPrintLog("TQ  ", tqDebugFlag, __VA_ARGS__); \
-    }                                                 \
+
+#define tqTrace(...)                                               \
+  {                                                                \
+    if (tqDebugFlag & DEBUG_TRACE) {                               \
+      taosPrintLog("TQ  ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); \
+    }                                                              \
   }
 
 #define TQ_BUFFER_SIZE 8
@@ -140,9 +143,7 @@ typedef struct {
   // topics that are not connectted
   STqMetaList* unconnectTopic;
 
-  // TODO:temporaral use, to be replaced by unified tfile
   TdFilePtr pFile;
-  // TODO:temporaral use, to be replaced by unified tfile
   TdFilePtr pIdxFile;
 
   char*          dirPath;
@@ -159,6 +160,7 @@ struct STQ {
   STqCfg*       tqConfig;
   STqMemRef     tqMemRef;
   STqMetaStore* tqMeta;
+  STqPushMgr*   tqPushMgr;
   SWal*         pWal;
   SMeta*        pVnodeMeta;
 };

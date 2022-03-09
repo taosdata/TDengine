@@ -9,6 +9,7 @@ project(
 set(CMAKE_SUPPORT_DIR "${CMAKE_SOURCE_DIR}/cmake")
 set(CMAKE_CONTRIB_DIR "${CMAKE_SOURCE_DIR}/contrib")
 include(${CMAKE_SUPPORT_DIR}/cmake.options)
+include(${CMAKE_SUPPORT_DIR}/cmake.version)
 
 SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -fPIC -gdwarf-2 -msse4.2 -mfma -g3")
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -fPIC -gdwarf-2 -msse4.2 -mfma -g3")

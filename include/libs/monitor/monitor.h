@@ -18,32 +18,40 @@
 
 #include "tarray.h"
 #include "tdef.h"
+#include "tlog.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#define MON_STATUS_LEN 8
+#define MON_ROLE_LEN   9
+#define MON_VER_LEN    12
+#define MON_LOG_LEN    1024
+
 typedef struct {
   int32_t dnode_id;
   char    dnode_ep[TSDB_EP_LEN];
+  int64_t cluster_id;
+  int32_t protocol;
 } SMonBasicInfo;
 
 typedef struct {
   int32_t dnode_id;
   char    dnode_ep[TSDB_EP_LEN];
-  char    status[8];
+  char    status[MON_STATUS_LEN];
 } SMonDnodeDesc;
 
 typedef struct {
   int32_t mnode_id;
   char    mnode_ep[TSDB_EP_LEN];
-  char    role[8];
+  char    role[MON_ROLE_LEN];
 } SMonMnodeDesc;
 
 typedef struct {
   char    first_ep[TSDB_EP_LEN];
   int32_t first_ep_dnode_id;
-  char    version[12];
+  char    version[MON_VER_LEN];
   float   master_uptime;     // day
   int32_t monitor_interval;  // sec
   int32_t vgroups_total;
@@ -57,19 +65,18 @@ typedef struct {
 
 typedef struct {
   int32_t dnode_id;
-  int8_t  vnode_online;
-  char    vnode_role[8];
+  char    vnode_role[MON_ROLE_LEN];
 } SMonVnodeDesc;
 
 typedef struct {
   int32_t       vgroup_id;
+  char          database_name[TSDB_DB_NAME_LEN];
+  int32_t       tables_num;
+  char          status[MON_STATUS_LEN];
   SMonVnodeDesc vnodes[TSDB_MAX_REPLICA];
 } SMonVgroupDesc;
 
 typedef struct {
-  char    database_name[TSDB_DB_NAME_LEN];
-  int32_t tables_num;
-  int8_t  status;
   SArray *vgroups;  // array of SMonVgroupDesc
 } SMonVgroupInfo;
 
@@ -81,50 +88,43 @@ typedef struct {
 
 typedef struct {
   float   uptime;  // day
-  float   cpu_engine;
-  float   cpu_system;
+  double  cpu_engine;
+  double  cpu_system;
   float   cpu_cores;
-  float   mem_engine;     // MB
-  float   mem_system;     // MB
-  float   mem_total;      // MB
-  float   disk_engine;    // GB
-  float   disk_used;      // GB
-  float   disk_total;     // GB
-  float   net_in;         // Kb/s
-  float   net_out;        // Kb/s
-  float   io_read;        // Mb/s
-  float   io_write;       // Mb/s
-  float   io_read_disk;   // Mb/s
-  float   io_write_disk;  // Mb/s
-  int32_t req_select;
-  float   req_select_rate;
-  int32_t req_insert;
-  int32_t req_insert_success;
-  float   req_insert_rate;
-  int32_t req_insert_batch;
-  int32_t req_insert_batch_success;
-  float   req_insert_batch_rate;
+  int64_t mem_engine;   // KB
+  int64_t mem_system;   // KB
+  int64_t mem_total;    // KB
+  int64_t disk_engine;  // Byte
+  int64_t disk_used;    // Byte
+  int64_t disk_total;   // Byte
+  int64_t net_in;       // bytes
+  int64_t net_out;      // bytes
+  int64_t io_read;      // bytes
+  int64_t io_write;     // bytes
+  int64_t io_read_disk;   // bytes
+  int64_t io_write_disk;  // bytes
+  int64_t req_select;
+  int64_t req_insert;
+  int64_t req_insert_success;
+  int64_t req_insert_batch;
+  int64_t req_insert_batch_success;
   int32_t errors;
   int32_t vnodes_num;
   int32_t masters;
-  int32_t has_mnode;
+  int8_t  has_mnode;
 } SMonDnodeInfo;
 
 typedef struct {
   char      name[TSDB_FILENAME_LEN];
-  int32_t   level;
+  int8_t    level;
   SDiskSize size;
 } SMonDiskDesc;
 
 typedef struct {
-  SArray *disks;  // array of SMonDiskDesc
+  SArray      *datadirs;  // array of SMonDiskDesc
+  SMonDiskDesc logdir;
+  SMonDiskDesc tempdir;
 } SMonDiskInfo;
-
-typedef struct {
-  int64_t ts;
-  int8_t  level;
-  char    content[1024];
-} SMonLogItem;
 
 typedef struct SMonInfo SMonInfo;
 
@@ -132,11 +132,12 @@ typedef struct {
   const char *server;
   uint16_t    port;
   int32_t     maxLogs;
+  bool        comp;
 } SMonCfg;
 
 int32_t monInit(const SMonCfg *pCfg);
 void    monCleanup();
-void    monAddLogItem(SMonLogItem *pItem);
+void    monRecordLog(int64_t ts, ELogLevel level, const char *content);
 
 SMonInfo *monCreateMonitorInfo();
 void      monSetBasicInfo(SMonInfo *pMonitor, SMonBasicInfo *pInfo);

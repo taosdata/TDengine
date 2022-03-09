@@ -64,10 +64,10 @@ static inline int64_t walScanLogGetLastVer(SWal* pWal) {
   char fnameStr[WAL_FILE_LEN];
   walBuildLogName(pWal, pLastFileInfo->firstVer, fnameStr);
 
-  struct stat statbuf;
-  stat(fnameStr, &statbuf);
-  int readSize = TMIN(WAL_MAX_SIZE + 2, statbuf.st_size);
-  pLastFileInfo->fileSize = statbuf.st_size;
+  int64_t file_size = 0;
+  taosStatFile(fnameStr, &file_size, NULL);
+  int readSize = TMIN(WAL_MAX_SIZE + 2, file_size);
+  pLastFileInfo->fileSize = file_size;
 
   TdFilePtr pFile = taosOpenFile(fnameStr, TD_FILE_READ);
   if (pFile == NULL) {
@@ -130,16 +130,16 @@ int walCheckAndRepairMeta(SWal* pWal) {
   regcomp(&logRegPattern, logPattern, REG_EXTENDED);
   regcomp(&idxRegPattern, idxPattern, REG_EXTENDED);
 
-  DIR* dir = opendir(pWal->path);
-  if (dir == NULL) {
+  TdDirPtr pDir = taosOpenDir(pWal->path);
+  if (pDir == NULL) {
     wError("vgId:%d, path:%s, failed to open since %s", pWal->cfg.vgId, pWal->path, strerror(errno));
     return -1;
   }
 
   // scan log files and build new meta
-  struct dirent* ent;
-  while ((ent = readdir(dir)) != NULL) {
-    char* name = basename(ent->d_name);
+  TdDirEntryPtr pDirEntry;
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
     int   code = regexec(&logRegPattern, name, 0, NULL, 0);
     if (code == 0) {
       SWalFileInfo fileInfo;
@@ -149,7 +149,7 @@ int walCheckAndRepairMeta(SWal* pWal) {
     }
   }
 
-  closedir(dir);
+  taosCloseDir(pDir);
   regfree(&logRegPattern);
   regfree(&idxRegPattern);
 
@@ -177,11 +177,11 @@ int walCheckAndRepairMeta(SWal* pWal) {
     SWalFileInfo *pLastFileInfo = taosArrayGet(pWal->fileInfoSet, newSz-1);
     char fnameStr[WAL_FILE_LEN];
     walBuildLogName(pWal, pLastFileInfo->firstVer, fnameStr);
-    struct stat statbuf;
-    stat(fnameStr, &statbuf);
+    int64_t file_size = 0;
+    taosStatFile(fnameStr, &file_size, NULL);
 
-    if (oldSz != newSz || pLastFileInfo->fileSize != statbuf.st_size) {
-      pLastFileInfo->fileSize = statbuf.st_size;
+    if (oldSz != newSz || pLastFileInfo->fileSize != file_size) {
+      pLastFileInfo->fileSize = file_size;
       pWal->vers.lastVer = walScanLogGetLastVer(pWal);
       ((SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet))->lastVer = pWal->vers.lastVer;
       ASSERT(pWal->vers.lastVer != -1);
@@ -337,25 +337,25 @@ static int walFindCurMetaVer(SWal* pWal) {
   regex_t     walMetaRegexPattern;
   regcomp(&walMetaRegexPattern, pattern, REG_EXTENDED);
 
-  DIR* dir = opendir(pWal->path);
-  if (dir == NULL) {
+  TdDirPtr pDir = taosOpenDir(pWal->path);
+  if (pDir == NULL) {
     wError("vgId:%d, path:%s, failed to open since %s", pWal->cfg.vgId, pWal->path, strerror(errno));
     return -1;
   }
 
-  struct dirent* ent;
+  TdDirEntryPtr pDirEntry;
 
   // find existing meta-ver[x].json
   int metaVer = -1;
-  while ((ent = readdir(dir)) != NULL) {
-    char* name = basename(ent->d_name);
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
     int   code = regexec(&walMetaRegexPattern, name, 0, NULL, 0);
     if (code == 0) {
       sscanf(name, "meta-ver%d", &metaVer);
       break;
     }
   }
-  closedir(dir);
+  taosCloseDir(pDir);
   regfree(&walMetaRegexPattern);
   return metaVer;
 }
@@ -379,7 +379,7 @@ int walSaveMeta(SWal* pWal) {
   // delete old file
   if (metaVer > -1) {
     walBuildMetaName(pWal, metaVer, fnameStr);
-    remove(fnameStr);
+    taosRemoveFile(fnameStr);
   }
   free(serialized);
   return 0;
@@ -395,9 +395,9 @@ int walLoadMeta(SWal* pWal) {
   char fnameStr[WAL_FILE_LEN];
   walBuildMetaName(pWal, metaVer, fnameStr);
   // read metafile
-  struct stat statbuf;
-  stat(fnameStr, &statbuf);
-  int   size = statbuf.st_size;
+  int64_t file_size = 0;
+  taosStatFile(fnameStr, &file_size, NULL);
+  int   size = (int)file_size;
   char* buf = malloc(size + 5);
   if (buf == NULL) {
     terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
