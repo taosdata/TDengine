@@ -362,8 +362,8 @@ typedef struct STaskParam {
   char*      tbnameCond;
   char*      prevResult;
   SArray*    pTableIdList;
-  SSqlExpr** pExpr;
-  SSqlExpr** pSecExpr;
+  SExprBasicInfo** pExpr;
+  SExprBasicInfo** pSecExpr;
   SExprInfo* pExprs;
   SExprInfo* pSecExprs;
 
@@ -448,7 +448,6 @@ typedef struct SOptrBasicInfo {
   int32_t*        rowCellInfoOffset;  // offset value for each row result cell info
   SqlFunctionCtx* pCtx;
   SSDataBlock*    pRes;
-  uint32_t        resRowSize;
   int32_t         capacity;
 } SOptrBasicInfo;
 
@@ -617,8 +616,8 @@ SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* 
 SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput,
                                            int32_t repeatTime, int32_t reverseTime, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
-SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
-SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
+SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
+SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream);
@@ -650,8 +649,6 @@ SOperatorInfo* createStatewindowOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOper
                                              int32_t numOfOutput);
 SOperatorInfo* createSLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr,
                                         int32_t numOfOutput, void* merger, bool multigroupResult);
-SOperatorInfo* createFilterOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr,
-                                        int32_t numOfOutput, SColumnInfo* pCols, int32_t numOfFilter);
 
 SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pdownstream, int32_t numOfDownstream, SSchema* pSchema,
                                       int32_t numOfOutput);
@@ -676,15 +673,7 @@ void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t* bufCapacity, int32_t numOf
 void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t* bufCapacity);
 void copyTsColoum(SSDataBlock* pRes, SqlFunctionCtx* pCtx, int32_t numOfOutput);
 
-int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExprInfo** pExprInfo, SSqlExpr** pExprMsg,
-                        SColumnInfo* pTagCols, int32_t queryType, void* pMsg, struct SUdfInfo* pUdfInfo);
-
-int32_t createIndirectQueryFuncExprFromMsg(SQueryTableReq* pQueryMsg, int32_t numOfOutput, SExprInfo** pExprInfo,
-                                           SSqlExpr** pExpr, SExprInfo* prevExpr, struct SUdfInfo* pUdfInfo);
-
 int32_t createQueryFilter(char* data, uint16_t len, SFilterInfo** pFilters);
-
-SGroupbyExpr* createGroupbyExprFromMsg(SQueryTableReq* pQueryMsg, SColIndex* pColIndex, int32_t* code);
 
 int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, void* sourceOptr, SQInfo* pQInfo, STaskParam* param, char* start,
                   int32_t prevResultLen, void* merger);

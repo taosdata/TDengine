@@ -424,9 +424,10 @@ typedef struct {
     int16_t slotId;
   };
 
-  int16_t           type;
-  int16_t           bytes;
-  SColumnFilterList flist;
+  int16_t   type;
+  int32_t   bytes;
+  uint8_t   precision;
+  uint8_t   scale;
 } SColumnInfo;
 
 typedef struct {
@@ -455,57 +456,6 @@ typedef struct {
   int64_t sliding;
   int64_t offset;
 } SInterval;
-
-typedef struct {
-  SMsgHead head;
-  char     version[TSDB_VERSION_LEN];
-
-  bool stableQuery;        // super table query or not
-  bool topBotQuery;        // TODO used bitwise flag
-  bool interpQuery;        // interp query or not
-  bool groupbyColumn;      // denote if this is a groupby normal column query
-  bool hasTagResults;      // if there are tag values in final result or not
-  bool timeWindowInterpo;  // if the time window start/end required interpolation
-  bool queryBlockDist;     // if query data block distribution
-  bool stabledev;          // super table stddev query
-  bool tsCompQuery;        // is tscomp query
-  bool simpleAgg;
-  bool pointInterpQuery;  // point interpolation query
-  bool needReverseScan;   // need reverse scan
-  bool stateWindow;       // state window flag
-
-  STimeWindow window;
-  int32_t     numOfTables;
-  int16_t     order;
-  int16_t     orderColId;
-  int16_t     numOfCols;  // the number of columns will be load from vnode
-  SInterval   interval;
-  //  SSessionWindow sw;            // session window
-  int16_t tagCondLen;      // tag length in current query
-  int16_t colCondLen;      // column length in current query
-  int16_t numOfGroupCols;  // num of group by columns
-  int16_t orderByIdx;
-  int16_t orderType;    // used in group by xx order by xxx
-  int64_t vgroupLimit;  // limit the number of rows for each table, used in order by + limit in stable projection query.
-  int16_t prjOrder;     // global order in super table projection query.
-  int64_t limit;
-  int64_t offset;
-  int32_t queryType;    // denote another query process
-  int16_t numOfOutput;  // final output columns numbers
-  int16_t fillType;     // interpolate type
-  int64_t fillVal;      // default value array list
-  int32_t secondStageOutput;
-  STsBufInfo  tsBuf;          // tsBuf info
-  int32_t     numOfTags;      // number of tags columns involved
-  int32_t     sqlstrLen;      // sql query string
-  int32_t     prevResultLen;  // previous result length
-  int32_t     numOfOperator;
-  int32_t     tableScanOperator;  // table scan operator. -1 means no scan operator
-  int32_t     udfNum;             // number of udf function
-  int32_t     udfContentOffset;
-  int32_t     udfContentLen;
-  SColumnInfo tableCols[];
-} SQueryTableReq;
 
 typedef struct {
   int32_t code;

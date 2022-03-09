@@ -26,19 +26,27 @@ typedef struct SFuncMgtService {
 } SFuncMgtService;
 
 static SFuncMgtService gFunMgtService;
+static pthread_once_t functionHashTableInit = PTHREAD_ONCE_INIT;
+static int32_t initFunctionCode = 0;
 
-// todo refactor
-int32_t fmFuncMgtInit() {
+static void doInitFunctionHashTable() {
   gFunMgtService.pFuncNameHashTable = taosHashInit(funcMgtBuiltinsNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (NULL == gFunMgtService.pFuncNameHashTable) {
-    return TSDB_CODE_FAILED;
+    initFunctionCode = TSDB_CODE_FAILED;
+    return;
   }
+
   for (int32_t i = 0; i < funcMgtBuiltinsNum; ++i) {
     if (TSDB_CODE_SUCCESS != taosHashPut(gFunMgtService.pFuncNameHashTable, funcMgtBuiltins[i].name, strlen(funcMgtBuiltins[i].name), &i, sizeof(int32_t))) {
-      return TSDB_CODE_FAILED;
+      initFunctionCode = TSDB_CODE_FAILED;
+      return;
     }
   }
-  return TSDB_CODE_SUCCESS;
+}
+
+int32_t fmFuncMgtInit() {
+  pthread_once(&functionHashTableInit, doInitFunctionHashTable);
+  return initFunctionCode;
 }
 
 int32_t fmGetFuncInfo(const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType) {
