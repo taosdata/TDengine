@@ -1,0 +1,6 @@
+[{
+    "host":"192.168.1.207",
+    "username":"root",
+    "workdir":"/var/data/jenkins/workspace",
+    "thread":2
+}]

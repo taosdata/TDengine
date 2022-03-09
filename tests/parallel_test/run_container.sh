@@ -6,10 +6,11 @@ function usage() {
     echo -e "\t -d execution dir"
     echo -e "\t -c command"
     echo -e "\t -t thread number"
+    echo -e "\t -o default timeout value"
     echo -e "\t -h help"
 }
 
-while getopts "w:d:c:t:h" opt; do
+while getopts "w:d:c:t:o:h" opt; do
     case $opt in
         w)
             WORKDIR=$OPTARG
@@ -22,6 +23,9 @@ while getopts "w:d:c:t:h" opt; do
             ;;
         t)
             thread_no=$OPTARG
+            ;;
+        o)
+            timeout_param="-o $OPTARG"
             ;;
         h)
             usage
@@ -71,12 +75,6 @@ if [ ! -d "${TMP_DIR}/thread_volume/$thread_no/$exec_dir" ]; then
 fi
 MOUNT_DIR="$TMP_DIR/thread_volume/$thread_no/$exec_dir:$CONTAINER_TESTDIR/tests/$exec_dir"
 echo "$thread_no -> ${exec_dir}:$cmd"
-echo "$cmd"|grep -q "nodejs"
-if [ $? -eq 0 ]; then
-    MOUNT_NODE_MOD="-v $TMP_DIR/thread_volume/$thread_no/node_modules:${CONTAINER_TESTDIR}/src/connector/nodejs/node_modules \
--v $TMP_DIR/thread_volume/$thread_no/node_modules:${CONTAINER_TESTDIR}/tests/examples/nodejs/node_modules \
--v $TMP_DIR/thread_volume/$thread_no/node_modules:${CONTAINER_TESTDIR}/tests/connectorTest/nodejsTest/nanosupport/node_modules"
-fi
 if [ -f "$REPDIR/src/plugins/taosadapter/example/config/taosadapter.toml" ]; then
     TAOSADAPTER_TOML="-v $REPDIR/src/plugins/taosadapter/example/config/taosadapter.toml:/etc/taos/taosadapter.toml:ro"
 fi
@@ -99,9 +97,7 @@ docker run \
     -v $REPDIR/README.md:$CONTAINER_TESTDIR/README.md:ro \
     -v $REPDIR/src/connector/python/taos:/usr/local/lib/python3.8/site-packages/taos:ro \
     -e LD_LIBRARY_PATH=/home/debug/build/lib:/home/debug/build/lib64 \
-    -e PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/debug/build/bin:/usr/local/go/bin:/usr/local/node-v12.20.0-linux-x64/bin:/usr/local/apache-maven-3.8.4/bin:/usr/local/jdk1.8.0_144/bin \
-    -e JAVA_HOME=/usr/local/jdk1.8.0_144 \
-    --rm --ulimit core=-1 taos_test:v1.0 $CONTAINER_TESTDIR/tests/parallel_test/run_case.sh -d "$exec_dir" -c "$cmd"
+    --rm --ulimit core=-1 taos_test:v1.0 $CONTAINER_TESTDIR/tests/parallel_test/run_case.sh -d "$exec_dir" -c "$cmd" $timeout_param
 ret=$?
 exit $ret
 
