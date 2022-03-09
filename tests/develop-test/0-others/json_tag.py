@@ -17,6 +17,7 @@ from util.log import tdLog
 from util.cases import tdCases
 from util.sql import tdSql
 import json
+import site
 
 
 class TDTestCase:
@@ -34,7 +35,8 @@ class TDTestCase:
 
     def run(self):
         tdSql.prepare()
-
+        print("print sitepackage path: ")
+        print(site.getsitepackages())
         print("============== STEP 1 ===== prepare data & validate json string")
         tdSql.error("create table if not exists jsons1(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50), dataStrBin binary(150)) tags(jtag json, tagint int)")
         tdSql.error("create table if not exists jsons1(ts timestamp, data json) tags(tagint int)")
@@ -422,8 +424,8 @@ class TDTestCase:
         tdSql.checkData(0, 1, 4)
         tdSql.checkData(1, 1, 24)
         tdSql.checkData(1, 2, None)
-        tdSql.checkData(9, 1, 1)
-        tdSql.checkData(9, 2, '"femail"')
+        tdSql.checkData(8, 1, 1)
+        tdSql.checkData(8, 2, '"femail"')
 
         # test having
         tdSql.query("select stddev(dataint) from jsons1 group by jtag->'tag1' having stddev(dataint) > 0")

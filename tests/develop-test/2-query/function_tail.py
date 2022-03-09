@@ -131,7 +131,7 @@ class TDTestCase:
         tdSql.checkData(2, 0, "2021-10-17 00:31:31")
         tdSql.checkData(2, 1, 253)
         tdSql.checkData(4, 0, "2022-01-01 08:00:07")
-        tdSql.checkData(4, 1, 25)
+        tdSql.checkData(6, 1, 25)
         tdSql.query('select tail(dtiny,2,1) from stail group by dnchar')
         tdSql.checkRows(5)
 
