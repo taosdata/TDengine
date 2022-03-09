@@ -164,6 +164,9 @@ quorum 2
 
     def getExecFile(self): # .../taosd
         return self._buildDir + "/build/bin/taosd"
+    
+    def getAdapterFile(self): # .../taosadapter for restful
+        return self._buildDir + "/build/bin/taosadapter"
 
     def getRunDir(self) -> DirPath : # TODO: rename to "root dir" ?!
         if Config.getConfig().set_path =='': # use default path
@@ -187,6 +190,31 @@ quorum 2
         else:
             # TODO: move "exec -c" into Popen(), we can both "use shell" and NOT fork so ask to lose kill control
             return ["exec " + self.getExecFile(), '-c', self.getCfgDir()] # used in subproce.Popen()
+
+    def getAdapterCmdLine(self):
+        REST_PORT_INCREMENT = 11
+        Adapter_ports =str(self._port + REST_PORT_INCREMENT)
+        AdapterCmds = [self.getAdapterFile() + ' --port='+ Adapter_ports +
+        ' --log.path='+ self.getLogDir() + ' --taosConfigDir='+self.getCfgDir()+
+        ' --collectd.enable=false' +
+        ' --influxdb.enable=false --node_exporter.enable=false' + 
+        ' --opentsdb.enable=false --statsd.enable=false' + 
+        ' --prometheus.enable=false  --opentsdb_telnet.enable=false'] # get adapter cmd string
+        return AdapterCmds
+    
+    def start_Adapter(self,cmdLine):
+        # print('nohup '+' '.join(cmdLine)+ '>>taosadapter.log 2>&1 &')
+        cmds = 'nohup '+' '.join(cmdLine)+ '>>taosadapter.log 2>&1 &'
+        ret = Popen(            
+            cmds, 
+            shell=True, 
+            stdout=PIPE,
+            stderr=PIPE,
+            )  
+        time.sleep(0.1) # very brief wait, then let's check if sub process started successfully.
+        if ret.poll():
+            raise CrashGenError("Sub process failed to start with command line: {}".format(cmdLine))
+        return ret
     
     def _getDnodes(self, dbc):
         dbc.query("show dnodes")
@@ -229,6 +257,10 @@ quorum 2
 
         # self._smThread.start(self.getServiceCmdLine(), self.getLogDir()) # May raise exceptions
         self._subProcess = TdeSubProcess(self.getServiceCmdLine(),  self.getLogDir())
+
+        # run taosadapter by subprocess ,taosadapter is stateless with TDengine ,so it don't need monitor
+        self.start_Adapter(self.getAdapterCmdLine())
+        print(' '.join(self.getAdapterCmdLine()))
 
     def stop(self):
         self._subProcess.stop()
