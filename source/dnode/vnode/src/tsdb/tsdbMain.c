@@ -89,6 +89,7 @@ static STsdb *tsdbNew(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, 
 static void tsdbFree(STsdb *pTsdb) {
   if (pTsdb) {
     tsdbFreeFS(pTsdb->fs);
+    tsdbFreeSmaState(pTsdb->pSmaStat);
     tfree(pTsdb->path);
     free(pTsdb);
   }
