@@ -100,7 +100,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 'st')
 
         tdSql.query("select count(*) from t1")
-        tdSql.checkData(0, 0, self.numberOfRecords)
+        tdSql.checkData(0, 0, self.numberOfRecords)        
 
         # test case for TS-1225
         tdSql.execute("create database test")
@@ -126,6 +126,7 @@ class TDTestCase:
 
         tdSql.query("select * from stb")
         tdSql.checkRows(1)
+        os.system("rm -rf dump_result.txt")
 
     def stop(self):
         tdSql.close()
