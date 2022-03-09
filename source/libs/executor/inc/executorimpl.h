@@ -405,17 +405,15 @@ typedef struct SExchangeInfo {
 } SExchangeInfo;
 
 typedef struct STableScanInfo {
-  void*   pTsdbReadHandle;
-  int32_t numOfBlocks;  // extract basic running information.
-  int32_t numOfSkipped;
-  int32_t numOfBlockStatis;
-  int64_t numOfRows;
-
-  int32_t order;  // scan order
-  int32_t times;  // repeat counts
-  int32_t current;
-  int32_t reverseTimes;  // 0 by default
-
+  void*           pTsdbReadHandle;
+  int32_t         numOfBlocks;  // extract basic running information.
+  int32_t         numOfSkipped;
+  int32_t         numOfBlockStatis;
+  int64_t         numOfRows;
+  int32_t         order;  // scan order
+  int32_t         times;  // repeat counts
+  int32_t         current;
+  int32_t         reverseTimes;  // 0 by default
   SqlFunctionCtx* pCtx;  // next operator query context
   SResultRowInfo* pResultRowInfo;
   int32_t*        rowCellInfoOffset;
@@ -424,8 +422,7 @@ typedef struct STableScanInfo {
   int32_t         numOfOutput;
   int64_t         elapsedTime;
   int32_t         prevGroupId;  // previous table group id
-
-  int32_t scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
+  int32_t         scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
 } STableScanInfo;
 
 typedef struct STagScanInfo {
@@ -442,6 +439,20 @@ typedef struct SStreamBlockScanInfo {
   uint64_t     numOfExec;     // execution times
   void*        readerHandle;  // stream block reader handle
 } SStreamBlockScanInfo;
+
+typedef struct SSysTableScanInfo {
+  void        *pTransporter;
+  SEpSet       epSet;
+  int32_t      type;   // show type
+  tsem_t       ready;
+  void        *readHandle;
+  SSchema     *pSchema;
+  SSDataBlock *pRes;
+  int64_t      numOfBlocks;  // extract basic running information.
+  int64_t      totalRows;
+  int64_t      elapsedTime;
+  int64_t      totalBytes;
+} SSysTableScanInfo;
 
 typedef struct SOptrBasicInfo {
   SResultRowInfo  resultRowInfo;
@@ -612,13 +623,14 @@ typedef struct SOrderOperatorInfo {
   uint64_t                totalElapsed;  // total elapsed time
 } SOrderOperatorInfo;
 
-SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* pSchema, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* pExprInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput,
                                            int32_t repeatTime, int32_t reverseTime, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createSystemScanOperatorInfo(void* pSystemTableReadHandle, const SArray* pExprInfo, const SSchema* pSchema, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream);
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SInterval* pInterval, SExecTaskInfo* pTaskInfo);

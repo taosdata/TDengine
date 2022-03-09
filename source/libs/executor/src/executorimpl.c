@@ -5280,7 +5280,7 @@ SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* 
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->info         = pInfo;
   pOperator->numOfOutput  = size;
-  pOperator->nextDataFn = doLoadRemoteData;
+  pOperator->nextDataFn   = doLoadRemoteData;
   pOperator->pTaskInfo    = pTaskInfo;
 
 #if 1
@@ -5348,19 +5348,18 @@ SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order,
   }
 
   pInfo->pTsdbReadHandle = pTsdbReadHandle;
-  pInfo->times        = repeatTime;
-  pInfo->reverseTimes = reverseTime;
-  pInfo->order        = order;
-  pInfo->current      = 0;
-  pInfo->scanFlag     = MAIN_SCAN;
-
+  pInfo->times             = repeatTime;
+  pInfo->reverseTimes      = reverseTime;
+  pInfo->order             = order;
+  pInfo->current           = 0;
+  pInfo->scanFlag          = MAIN_SCAN;
   pOperator->name          = "TableScanOperator";
   pOperator->operatorType  = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
   pOperator->blockingOptr  = false;
   pOperator->status        = OP_IN_EXECUTING;
   pOperator->info          = pInfo;
   pOperator->numOfOutput   = numOfOutput;
-  pOperator->nextDataFn = doTableScan;
+  pOperator->nextDataFn    = doTableScan;
   pOperator->pTaskInfo     = pTaskInfo;
 
   return pOperator;
@@ -5453,6 +5452,80 @@ SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SArray* pExp
   pOperator->numOfOutput   = numOfOutput;
   pOperator->nextDataFn = doStreamBlockScan;
   pOperator->pTaskInfo     = pTaskInfo;
+  return pOperator;
+}
+
+
+static int32_t loadSysTableContentCb(void* param, const SDataBuf* pMsg, int32_t code) {
+  SSourceDataInfo* pSourceDataInfo = (SSourceDataInfo*) param;
+  pSourceDataInfo->pRsp = pMsg->pData;
+
+  SRetrieveTableRsp* pRsp = pSourceDataInfo->pRsp;
+  pRsp->numOfRows = htonl(pRsp->numOfRows);
+  pRsp->useconds  = htobe64(pRsp->useconds);
+  pRsp->compLen   = htonl(pRsp->compLen);
+
+  pSourceDataInfo->status = DATA_READY;
+  tsem_post(&pSourceDataInfo->pEx->ready);
+}
+
+static SSDataBlock* doSysTableScan(void* param, bool* newgroup) {
+// build message and send to mnode to fetch the content of system tables.
+  SOperatorInfo* pOperator = (SOperatorInfo*) param;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SSysTableScanInfo* pInfo = pOperator->info;
+
+  SRetrieveTableReq* req = calloc(1, sizeof(SRetrieveTableReq));
+  if (req == NULL) {
+    pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  req->type = pInfo->type;
+
+  // send the fetch remote task result reques
+  SMsgSendInfo* pMsgSendInfo = calloc(1, sizeof(SMsgSendInfo));
+  if (NULL == pMsgSendInfo) {
+    qError("%s prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
+    pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pMsgSendInfo->param = NULL;
+  pMsgSendInfo->msgInfo.pData = req;
+  pMsgSendInfo->msgInfo.len = sizeof(SRetrieveTableReq);
+  pMsgSendInfo->msgType = TDMT_MND_SYSTABLE_RETRIEVE;
+  pMsgSendInfo->fp = loadRemoteDataCallback;
+
+  int64_t transporterId = 0;
+  int32_t code = asyncSendMsgToServer(pInfo->pTransporter, &pInfo->epSet, &transporterId, pMsgSendInfo);
+
+  tsem_wait(&pInfo->ready);
+  // handle the response and return to the caller
+
+  return NULL;
+}
+
+SOperatorInfo* createSystemScanOperatorInfo(void* pSysTableReadHandle, const SArray* pExprInfo, const SSchema* pSchema, SExecTaskInfo* pTaskInfo) {
+  SSysTableScanInfo* pInfo = calloc(1, sizeof(SSysTableScanInfo));
+  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
+  if (pInfo == NULL || pOperator == NULL) {
+    tfree(pInfo);
+    tfree(pOperator);
+    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pInfo->readHandle        = pSysTableReadHandle;
+  pOperator->name          = "SysTableScanOperator";
+  pOperator->operatorType  = QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN;
+  pOperator->blockingOptr  = false;
+  pOperator->status        = OP_IN_EXECUTING;
+  pOperator->info          = pInfo;
+  pOperator->numOfOutput   = taosArrayGetSize(pExprInfo);
+  pOperator->nextDataFn    = doSysTableScan;
+  pOperator->pTaskInfo     = pTaskInfo;
+
   return pOperator;
 }
 
