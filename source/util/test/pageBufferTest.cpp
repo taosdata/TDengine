@@ -161,7 +161,7 @@ void recyclePageTest() {
 
 
 TEST(testCase, resultBufferTest) {
-  srand(time(NULL));
+  taosSeedRand(time(NULL));
   simpleTest();
   writeDownTest();
   recyclePageTest();

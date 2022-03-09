@@ -699,7 +699,7 @@ class IndexObj {
     for (int i = 0; i < numOfTable; i++) {
       for (int k = 0; k < 10 && k < colVal.size(); k++) {
         // opt
-        tColVal[rand() % colValSize] = 'a' + k % 26;
+        tColVal[taosRand() % colValSize] = 'a' + k % 26;
       }
       SIndexTerm*      term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                          tColVal.c_str(), tColVal.size());

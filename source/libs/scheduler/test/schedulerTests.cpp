@@ -532,7 +532,7 @@ void* schtRunJobThread(void *aa) {
 
 void* schtFreeJobThread(void *aa) {
   while (!schtTestStop) {
-    usleep(rand() % 100);
+    usleep(taosRand() % 100);
     schtFreeQueryJob(1);
   }
 }
@@ -713,7 +713,7 @@ TEST(multiThread, forceFree) {
 }
 
 int main(int argc, char** argv) {
-  srand(time(NULL));
+  taosSeedRand(time(NULL));
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

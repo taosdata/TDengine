@@ -723,7 +723,7 @@ void *ctgTestGetDbVgroupThread(void *param) {
     }
 
     if (ctgTestEnableSleep) {
-      usleep(rand() % 5);
+      usleep(taosRand() % 5);
     }
     if (++n % ctgTestPrintNum == 0) {
       printf("Get:%d\n", n);
@@ -747,7 +747,7 @@ void *ctgTestSetSameDbVgroupThread(void *param) {
     }
 
     if (ctgTestEnableSleep) {
-      usleep(rand() % 5);
+      usleep(taosRand() % 5);
     }
     if (++n % ctgTestPrintNum == 0) {
       printf("Set:%d\n", n);
@@ -771,7 +771,7 @@ void *ctgTestSetDiffDbVgroupThread(void *param) {
     }
 
     if (ctgTestEnableSleep) {
-      usleep(rand() % 5);
+      usleep(taosRand() % 5);
     }
     if (++n % ctgTestPrintNum == 0) {
       printf("Set:%d\n", n);
@@ -801,7 +801,7 @@ void *ctgTestGetCtableMetaThread(void *param) {
     tfree(tbMeta);
 
     if (ctgTestEnableSleep) {
-      usleep(rand() % 5);
+      usleep(taosRand() % 5);
     }
 
     if (++n % ctgTestPrintNum == 0) {
@@ -838,7 +838,7 @@ void *ctgTestSetCtableMetaThread(void *param) {
     }
 
     if (ctgTestEnableSleep) {
-      usleep(rand() % 5);
+      usleep(taosRand() % 5);
     }
     if (++n % ctgTestPrintNum == 0) {
       printf("Set:%d\n", n);

@@ -61,7 +61,7 @@ typedef enum SResultTsInterpType {
 
 #if 0
 static UNUSED_FUNC void *u_malloc (size_t __size) {
-  uint32_t v = rand();
+  uint32_t v = taosRand();
 
   if (v % 1000 <= 0) {
     return NULL;
@@ -71,7 +71,7 @@ static UNUSED_FUNC void *u_malloc (size_t __size) {
 }
 
 static UNUSED_FUNC void* u_calloc(size_t num, size_t __size) {
-  uint32_t v = rand();
+  uint32_t v = taosRand();
   if (v % 1000 <= 0) {
     return NULL;
   } else {
@@ -80,7 +80,7 @@ static UNUSED_FUNC void* u_calloc(size_t num, size_t __size) {
 }
 
 static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
-  uint32_t v = rand();
+  uint32_t v = taosRand();
   if (v % 5 <= 1) {
     return NULL;
   } else {
