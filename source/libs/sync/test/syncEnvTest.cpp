@@ -3,6 +3,7 @@
 #include "syncIO.h"
 #include "syncInt.h"
 #include "syncRaftStore.h"
+#include "ttime.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -13,24 +14,13 @@ void logTest() {
   sFatal("--- sync log test: fatal");
 }
 
-void doSync() {
-  SSyncInfo syncInfo;
-  syncInfo.vgId = 1;
+void *pTimer = NULL;
+void *pTimerMgr = NULL;
+int   g = 300;
 
-  SSyncCfg* pCfg = &syncInfo.syncCfg;
-  pCfg->replicaNum = 3;
-
-  pCfg->nodeInfo[0].nodePort = 7010;
-  taosGetFqdn(pCfg->nodeInfo[0].nodeFqdn);
-
-  pCfg->nodeInfo[1].nodePort = 7110;
-  taosGetFqdn(pCfg->nodeInfo[1].nodeFqdn);
-
-  pCfg->nodeInfo[2].nodePort = 7210;
-  taosGetFqdn(pCfg->nodeInfo[2].nodeFqdn);
-
-  SSyncNode* pSyncNode = syncNodeOpen(&syncInfo);
-  assert(pSyncNode != NULL);
+static void timerFp(void *param, void *tmrId) {
+  printf("param:%p, tmrId:%p, pTimer:%p, pTimerMgr:%p \n", param, tmrId, pTimer, pTimerMgr);
+  taosTmrReset(timerFp, 1000, param, pTimerMgr, &pTimer);
 }
 
 int main() {
@@ -41,13 +31,12 @@ int main() {
 
   logTest();
 
-  // ret = syncIOStart();
-  // assert(ret == 0);
-
   ret = syncEnvStart();
   assert(ret == 0);
 
-  // doSync();
+  // timer
+  pTimerMgr = taosTmrInit(1000, 50, 10000, "SYNC-ENV-TEST");
+  taosTmrStart(timerFp, 1000, &g, pTimerMgr);
 
   while (1) {
     taosMsleep(1000);

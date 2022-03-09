@@ -46,6 +46,7 @@ typedef enum ESyncMessageType {
 // ---------------------------------------------
 cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg);
 cJSON* syncRpcUnknownMsg2Json();
+char*  syncRpcMsg2Str(SRpcMsg* pRpcMsg);
 
 // ---------------------------------------------
 typedef enum ESyncTimeoutType {

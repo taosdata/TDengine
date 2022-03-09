@@ -76,6 +76,13 @@ cJSON* syncRpcUnknownMsg2Json() {
   return pJson;
 }
 
+char* syncRpcMsg2Str(SRpcMsg* pRpcMsg) {
+  cJSON* pJson = syncRpcMsg2Json(pRpcMsg);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
 // ---- message process SyncTimeout----
 SyncTimeout* syncTimeoutBuild() {
   uint32_t     bytes = sizeof(SyncTimeout);

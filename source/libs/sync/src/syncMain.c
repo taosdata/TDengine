@@ -98,6 +98,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   pSyncNode->vgId = pSyncInfo->vgId;
   pSyncNode->syncCfg = pSyncInfo->syncCfg;
   memcpy(pSyncNode->path, pSyncInfo->path, sizeof(pSyncNode->path));
+  snprintf(pSyncNode->raftStorePath, sizeof(pSyncNode->raftStorePath), "%s/raft_store.json", pSyncInfo->path);
   pSyncNode->pWal = pSyncInfo->pWal;
   pSyncNode->rpcClient = pSyncInfo->rpcClient;
   pSyncNode->FpSendMsg = pSyncInfo->FpSendMsg;
@@ -136,6 +137,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
 
   // init TLA+ server vars
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
+  pSyncNode->pRaftStore = raftStoreOpen(pSyncNode->raftStorePath);
   assert(pSyncNode->pRaftStore != NULL);
 
   // init TLA+ candidate vars
@@ -325,6 +327,13 @@ char* syncNode2Str(const SSyncNode* pSyncNode) {
   return serialized;
 }
 
+void syncNodePrint(char* s, const SSyncNode* pSyncNode) {
+  char* ss = syncNode2Str(pSyncNode);
+  // sTrace("syncNodePrint: %s [len:%lu]| %s", s, strlen(ss), ss);
+  fprintf(stderr, "syncNodePrint: %s [len:%lu]| %s", s, strlen(ss), ss);
+  free(ss);
+}
+
 int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
   SEpSet epSet;
   syncUtilraftId2EpSet(destRaftId, &epSet);
@@ -499,6 +508,8 @@ static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg) {
 }
 
 static void syncNodeEqPingTimer(void* param, void* tmrId) {
+  sTrace("<-- syncNodeEqPingTimer -->");
+
   SSyncNode* pSyncNode = (SSyncNode*)param;
   if (atomic_load_64(&pSyncNode->pingTimerLogicClockUser) <= atomic_load_64(&pSyncNode->pingTimerLogicClock)) {
     SyncTimeout* pSyncMsg = syncTimeoutBuild2(SYNC_TIMEOUT_PING, atomic_load_64(&pSyncNode->pingTimerLogicClock),
@@ -511,7 +522,7 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     // reset timer ms
     // pSyncNode->pingTimerMS += 100;
 
-    taosTmrReset(syncNodeEqPingTimer, pSyncNode->pingTimerMS, pSyncNode, &gSyncEnv->pTimerManager,
+    taosTmrReset(syncNodeEqPingTimer, pSyncNode->pingTimerMS, pSyncNode, gSyncEnv->pTimerManager,
                  &pSyncNode->pPingTimer);
   } else {
     sTrace("syncNodeEqPingTimer: pingTimerLogicClock:%lu, pingTimerLogicClockUser:%lu", pSyncNode->pingTimerLogicClock,
@@ -557,7 +568,7 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
     // reset timer ms
     // pSyncNode->heartbeatTimerMS += 100;
 
-    taosTmrReset(syncNodeEqHeartbeatTimer, pSyncNode->heartbeatTimerMS, pSyncNode, &gSyncEnv->pTimerManager,
+    taosTmrReset(syncNodeEqHeartbeatTimer, pSyncNode->heartbeatTimerMS, pSyncNode, gSyncEnv->pTimerManager,
                  &pSyncNode->pHeartbeatTimer);
   } else {
     sTrace("syncNodeEqHeartbeatTimer: heartbeatTimerLogicClock:%lu, heartbeatTimerLogicClockUser:%lu",
