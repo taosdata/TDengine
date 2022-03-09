@@ -15,6 +15,16 @@
 
 #include "tdbInt.h"
 
+int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg) {
+  // TODO
+  return 0;
+}
+
+int tdbPageDestroy(SPage *pPage, void (*xFree)(void *)) {
+  // TODO
+  return 0;
+}
+
 int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
   // TODO
   return 0;

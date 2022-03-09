@@ -39,6 +39,7 @@ struct SPage {
   pthread_spinlock_t lock;
   u8                *pData;
   SPgid              pgid;
+  int                pageSize;
 
   // Fields used by SPCache
   TDB_PCACHE_PAGE
@@ -95,6 +96,8 @@ struct SPage {
 #endif
 
 // APIs
+int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg);
+int tdbPageDestroy(SPage *pPage, void (*xFree)(void *));
 int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell);
 int tdbPageDropCell(SPage *pPage, int idx);
 
