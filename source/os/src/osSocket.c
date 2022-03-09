@@ -810,6 +810,7 @@ int32_t taosGetFqdn(char *fqdn) {
   hostname[1023] = '\0';
   if (gethostname(hostname, 1023) == -1) {
     printf("failed to get hostname, reason:%s", strerror(errno));
+    assert(0);
     return -1;
   }
 
