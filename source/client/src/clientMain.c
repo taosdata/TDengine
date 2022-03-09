@@ -343,3 +343,77 @@ void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param
 void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   // TODO
 }
+
+TAOS_SUB *taos_subscribe(TAOS *taos, int restart, const char* topic, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp, void *param, int interval) {
+    // TODO
+    return NULL;
+}
+
+TAOS_RES *taos_consume(TAOS_SUB *tsub) {
+    // TODO
+    return NULL;
+}
+
+void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress) {
+    // TODO
+}
+
+TAOS_STMT* taos_stmt_init(TAOS* taos) {
+    // TODO
+    return NULL;
+}
+
+int taos_stmt_close(TAOS_STMT* stmt) {
+    // TODO
+    return -1;
+}
+
+int taos_stmt_execute(TAOS_STMT* stmt) {
+    // TODO
+    return -1;
+}
+
+char *taos_stmt_errstr(TAOS_STMT *stmt) {
+    // TODO
+    return NULL;
+}
+
+int taos_stmt_affected_rows(TAOS_STMT* stmt) {
+    // TODO
+    return -1;
+}
+
+TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision) {
+    // TODO
+    return NULL;
+}
+
+int taos_stmt_bind_param(TAOS_STMT* stmt, TAOS_BIND* bind) {
+    // TODO
+    return -1;
+}
+
+int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
+    // TODO
+    return -1;
+}
+
+int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags) {
+    // TODO
+    return -1;
+}
+
+int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
+    // TODO
+    return -1;
+}
+
+int taos_stmt_add_batch(TAOS_STMT* stmt) {
+    // TODO
+    return -1;
+}
+
+int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind) {
+    // TODO
+    return -1;
+}
