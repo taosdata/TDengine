@@ -671,7 +671,8 @@ class TestDnodes(TDCase):
 
 
     def run(self):
-
+        self.Concurrency_alter_db()
+        
     def cleanup(self):
         pass
 
