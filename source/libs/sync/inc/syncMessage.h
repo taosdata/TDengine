@@ -123,11 +123,24 @@ SyncPingReply* syncPingReplyBuild3(const SRaftId* srcId, const SRaftId* destId);
 typedef struct SyncClientRequest {
   uint32_t bytes;
   uint32_t msgType;
-  int64_t  seqNum;
+  uint32_t originalRpcType;
+  uint64_t seqNum;
   bool     isWeak;
   uint32_t dataLen;
   char     data[];
 } SyncClientRequest;
+
+#define SYNC_CLIENT_REQUEST_FIX_LEN \
+  (sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(bool) + sizeof(uint32_t))
+
+SyncClientRequest* syncClientRequestBuild(uint32_t dataLen);
+void               syncClientRequestDestroy(SyncClientRequest* pMsg);
+void               syncClientRequestSerialize(const SyncClientRequest* pMsg, char* buf, uint32_t bufLen);
+void               syncClientRequestDeserialize(const char* buf, uint32_t len, SyncClientRequest* pMsg);
+void               syncClientRequest2RpcMsg(const SyncClientRequest* pMsg, SRpcMsg* pRpcMsg);
+void               syncClientRequestFromRpcMsg(const SRpcMsg* pRpcMsg, SyncClientRequest* pMsg);
+cJSON*             syncClientRequest2Json(const SyncClientRequest* pMsg);
+SyncClientRequest* syncClientRequestBuild2(const SRpcMsg* pOriginalRpcMsg, uint64_t seqNum, bool isWeak);
 
 // ---------------------------------------------
 typedef struct SyncClientRequestReply {

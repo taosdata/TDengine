@@ -60,13 +60,32 @@ int64_t syncStart(const SSyncInfo* pSyncInfo) {
   return 0;
 }
 
-void syncStop(int64_t rid) {}
+void syncStop(int64_t rid) {
+  SSyncNode* pSyncNode = NULL;  // get pointer from rid
+  syncNodeClose(pSyncNode);
+}
 
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg) { return 0; }
 
-int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pBuf, bool isWeak) { return 0; }
+int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
+  SSyncNode* pSyncNode = NULL;  // get pointer from rid
+  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+    SyncClientRequest* pSyncMsg = syncClientRequestBuild2(pMsg, 0, isWeak);
+    SRpcMsg            rpcMsg;
+    syncClientRequest2RpcMsg(pSyncMsg, &rpcMsg);
+    pSyncNode->FpEqMsg(pSyncNode->queue, &rpcMsg);
+    syncClientRequestDestroy(pSyncMsg);
+  } else {
+    sTrace("syncForwardToPeer not leader, %s", syncUtilState2String(pSyncNode->state));
+    return -1;  // need define err code !!
+  }
+  return 0;
+}
 
-ESyncState syncGetMyRole(int64_t rid) { return TAOS_SYNC_STATE_LEADER; }
+ESyncState syncGetMyRole(int64_t rid) {
+  SSyncNode* pSyncNode = NULL;  // get pointer from rid
+  return pSyncNode->state;
+}
 
 void syncGetNodesRole(int64_t rid, SNodesRole* pNodeRole) {}
 
