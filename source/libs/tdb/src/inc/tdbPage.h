@@ -29,23 +29,14 @@ typedef struct __attribute__((__packed__)) {
   SPgno rChild;
 } SPageHdr;
 
-typedef struct SPage SPage;
 struct SPage {
   pthread_spinlock_t lock;
-  // Fields below used by page cache
-  void    *pData;
-  SPgid    pgid;
-  u8       isAnchor;
-  u8       isLocalPage;
-  u8       isDirty;
-  i32      nRef;
-  SPCache *pCache;
-  SPage   *pFreeNext;
-  SPage   *pHashNext;
-  SPage   *pLruNext;
-  SPage   *pLruPrev;
-  SPage   *pDirtyNext;
-  SPager  *pPager;
+  void              *pData;
+  SPgid              pgid;
+
+  // Fields used by SPCache
+  TDB_PCACHE_PAGE
+
   // Fields below used by pager and am
   SPageHdr *pPageHdr;
   u16      *aCellIdx;

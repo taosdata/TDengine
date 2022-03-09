@@ -20,7 +20,18 @@
 extern "C" {
 #endif
 
-#define TDB_PCACHE_PAGE
+#define TDB_PCACHE_PAGE \
+  u8       isAnchor;    \
+  u8       isLocalPage; \
+  u8       isDirty;     \
+  i32      nRef;        \
+  SPCache *pCache;      \
+  SPage   *pFreeNext;   \
+  SPage   *pHashNext;   \
+  SPage   *pLruNext;    \
+  SPage   *pLruPrev;    \
+  SPage   *pDirtyNext;  \
+  SPager  *pPager;
 
 int    tdbPCacheOpen(int pageSize, int cacheSize, int extraSize, SPCache **ppCache);
 int    tdbPCacheClose(SPCache *pCache);
