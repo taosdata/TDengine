@@ -17,7 +17,8 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 from util.dnodes import *
-
+import string
+import random
 
 class TDTestCase:
     def init(self, conn, logSql):
@@ -44,6 +45,13 @@ class TDTestCase:
                     buildPath = root[:len(root) - len("/build/bin")]
                     break
         return buildPath
+
+    def generateString(self, length):
+        chars = string.ascii_uppercase + string.ascii_lowercase
+        v = ""
+        for i in range(length):
+            v += random.choice(chars)
+        return v
 
     def run(self):
         tdSql.prepare()
@@ -76,14 +84,14 @@ class TDTestCase:
             os.makedirs(self.tmpdir)
 
         os.system(
-            "%staosdump --databases db -o %s -B 16384 " %
+            "%staosdump --databases db -o %s -B 16384 -y" %
             (binPath, self.tmpdir))
 
         tdSql.execute("drop database db")
         tdSql.query("show databases")
         tdSql.checkRows(0)
 
-        os.system("%staosdump -i %s" % (binPath, self.tmpdir))
+        os.system("%staosdump -i %s -y" % (binPath, self.tmpdir))
 
         tdSql.query("show databases")
         tdSql.checkRows(1)
@@ -96,6 +104,33 @@ class TDTestCase:
 
         tdSql.query("select count(*) from t1")
         tdSql.checkData(0, 0, self.numberOfRecords)
+        os.system("rm -rf %s" % self.tmpdir)
+
+        # test case for TS-1225
+        tdSql.execute("create database test")
+        tdSql.execute("use test")
+        tdSql.execute("create table stb(ts timestamp, c1 binary(16374), c2 binary(16374), c3 binary(16374)) tags(t1 nchar(256))")
+        tdSql.execute("insert into t1 using stb tags('t1') values(now, '%s', '%s', '%s')" % (self.generateString(16374), self.generateString(16374), self.generateString(16374)))
+
+        os.system("rm /tmp/*.sql")
+        os.system("rm /tmp/*.avro*")
+        os.system("%staosdump -D test -o /tmp -y" % binPath)
+
+        tdSql.execute("drop database test")
+        tdSql.query("show databases")
+        tdSql.checkRows(1)
+
+        os.system("%staosdump -i /tmp -y" % binPath)
+
+        tdSql.execute("use test")
+        tdSql.error("show vnodes '' ")
+        tdSql.query("show stables")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 'stb')
+
+        tdSql.query("select * from stb")
+        tdSql.checkRows(1)
+        os.system("rm -rf dump_result.txt")
 
     def stop(self):
         tdSql.close()
