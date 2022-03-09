@@ -31,8 +31,8 @@ extern "C" {
 // SVotesGranted -----------------------------
 typedef struct SVotesGranted {
   SRaftId (*replicas)[TSDB_MAX_REPLICA];
-  int32_t    replicaNum;
   bool       isGranted[TSDB_MAX_REPLICA];
+  int32_t    replicaNum;
   int32_t    votes;
   SyncTerm   term;
   int32_t    quorum;
@@ -61,7 +61,9 @@ SVotesRespond *votesRespondCreate(SSyncNode *pSyncNode);
 void           votesRespondDestory(SVotesRespond *pVotesRespond);
 bool           votesResponded(SVotesRespond *pVotesRespond, const SRaftId *pRaftId);
 void           votesRespondAdd(SVotesRespond *pVotesRespond, const SyncRequestVoteReply *pMsg);
-void           Reset(SVotesRespond *pVotesRespond, SyncTerm term);
+void           votesRespondReset(SVotesRespond *pVotesRespond, SyncTerm term);
+cJSON *        votesRespond2Json(SVotesRespond *pVotesRespond);
+char *         votesRespond2Str(SVotesRespond *pVotesRespond);
 
 #ifdef __cplusplus
 }
