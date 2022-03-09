@@ -33,6 +33,7 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
 
   pPage->pData = ptr;
   pPage->pageSize = pageSize;
+  TDB_INIT_PAGE_LOCK(pPage);
 
   /* TODO */
 
