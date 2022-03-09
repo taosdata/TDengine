@@ -67,6 +67,26 @@ void tqClose(STQ* pTq) {
 }
 
 int tqPushMsg(STQ* pTq, void* msg, tmsg_t msgType, int64_t version) {
+  if (msgType != TDMT_VND_SUBMIT) return 0;
+  void* pIter = taosHashIterate(pTq->tqPushMgr->pHash, NULL);
+  while (pIter != NULL) {
+    STqPusher* pusher = *(STqPusher**)pIter;
+    if (pusher->type == TQ_PUSHER_TYPE__STREAM) {
+      STqStreamPusher* streamPusher = (STqStreamPusher*)pusher;
+      // repack
+      STqStreamToken* token = malloc(sizeof(STqStreamToken));
+      if (token == NULL) {
+        taosHashCancelIterate(pTq->tqPushMgr->pHash, pIter);
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
+      }
+      token->type = TQ_STREAM_TOKEN__DATA;
+      token->data = msg;
+      // set input
+      // exec
+    }
+    // send msg to ep
+  }
   // iterate hash
   // process all msg
   // if waiting
