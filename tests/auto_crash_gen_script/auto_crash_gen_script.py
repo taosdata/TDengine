@@ -75,7 +75,7 @@ def random_args(args_list):
     args_list["--debug"]=False
     args_list["--per-thread-db-connection"]=True
     args_list["--track-memory-leaks"]=False
-    args_list["--max-steps"]=random.randint(20,50)
+    args_list["--max-steps"]=random.randint(100,250)
     
     threads = [4,16,32,64]
     args_list["--num-threads"]=random.sample(threads,1)[0] #$ debug
