@@ -41,7 +41,16 @@
 //                mdest          |-> j])
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 //
-int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {}
+int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
+  int32_t ret = 0;
+  return ret;
+}
+
+int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
+  // start replicate
+  int32_t ret = syncNodeAppendEntriesPeers(pSyncNode);
+  return ret;
+}
 
 int32_t syncNodeAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntries* pMsg) {
   sTrace("syncNodeAppendEntries pSyncNode:%p ", pSyncNode);

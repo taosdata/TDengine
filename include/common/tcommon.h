@@ -135,7 +135,7 @@ static FORCE_INLINE void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock)
   return (void*)buf;
 }
 
-static FORCE_INLINE int32_t tEncodeSMqConsumeRsp(void** buf, const SMqConsumeRsp* pRsp) {
+static FORCE_INLINE int32_t tEncodeSMqPollRsp(void** buf, const SMqPollRsp* pRsp) {
   int32_t tlen = 0;
   int32_t sz = 0;
   tlen += taosEncodeFixedI64(buf, pRsp->consumerId);
@@ -156,7 +156,7 @@ static FORCE_INLINE int32_t tEncodeSMqConsumeRsp(void** buf, const SMqConsumeRsp
   return tlen;
 }
 
-static FORCE_INLINE void* tDecodeSMqConsumeRsp(void* buf, SMqConsumeRsp* pRsp) {
+static FORCE_INLINE void* tDecodeSMqPollRsp(void* buf, SMqPollRsp* pRsp) {
   int32_t sz;
   buf = taosDecodeFixedI64(buf, &pRsp->consumerId);
   buf = taosDecodeFixedI64(buf, &pRsp->reqOffset);
@@ -194,7 +194,7 @@ static FORCE_INLINE void tDeleteSSDataBlock(SSDataBlock* pBlock) {
   // tfree(pBlock);
 }
 
-static FORCE_INLINE void tDeleteSMqConsumeRsp(SMqConsumeRsp* pRsp) {
+static FORCE_INLINE void tDeleteSMqConsumeRsp(SMqPollRsp* pRsp) {
   if (pRsp->schemas) {
     if (pRsp->schemas->nCols) {
       tfree(pRsp->schemas->pSchema);
