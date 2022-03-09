@@ -24,18 +24,23 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include "syncInt.h"
+#include "syncMessage.h"
 #include "taosdef.h"
 
 typedef struct SSyncRaftEntry {
   uint32_t  bytes;
   uint32_t  msgType;
+  uint32_t  originalRpcType;
+  uint64_t  seqNum;
+  bool      isWeak;
   SyncTerm  term;
   SyncIndex index;
-  int8_t    flag;
   uint32_t  dataLen;
   char      data[];
-
 } SSyncRaftEntry;
+
+SSyncRaftEntry* syncEntryBuild(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index);
+void            syncEntryDestory(SSyncRaftEntry* pEntry);
 
 #ifdef __cplusplus
 }

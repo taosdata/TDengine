@@ -14,3 +14,7 @@
  */
 
 #include "syncRaftEntry.h"
+
+SSyncRaftEntry* syncEntryBuild(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index) {}
+
+void syncEntryDestory(SSyncRaftEntry* pEntry) {}

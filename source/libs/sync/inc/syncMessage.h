@@ -24,8 +24,7 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include "cJSON.h"
-#include "sync.h"
-#include "syncRaftEntry.h"
+#include "syncInt.h"
 #include "taosdef.h"
 
 // encode as uint32

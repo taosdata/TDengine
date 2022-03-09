@@ -44,10 +44,10 @@ void logStoreDestory(SSyncLogStore* pLogStore) {
 }
 
 // append one log entry
-int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SRpcMsg* pEntry) {}
+int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {}
 
 // get one log entry, user need to free pEntry->pCont
-int32_t logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index, SRpcMsg* pEntry) {}
+int32_t logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry* pEntry) {}
 
 // truncate log with index, entries after the given index (>=index) will be deleted
 int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {}
