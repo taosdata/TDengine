@@ -153,8 +153,8 @@ bool votesResponded(SVotesRespond *pVotesRespond, const SRaftId *pRaftId) {
 void votesRespondAdd(SVotesRespond *pVotesRespond, const SyncRequestVoteReply *pMsg) {
   assert(pVotesRespond->term == pMsg->term);
   for (int i = 0; i < pVotesRespond->replicaNum; ++i) {
-    if (syncUtilSameId(&(*pVotesRespond->replicas)[i], &pMsg->srcId)) {
-      assert(pVotesRespond->isRespond[i] == false);
+    if (syncUtilSameId(&((*(pVotesRespond->replicas))[i]), &pMsg->srcId)) {
+      // assert(pVotesRespond->isRespond[i] == false);
       pVotesRespond->isRespond[i] = true;
       return;
     }
@@ -162,9 +162,52 @@ void votesRespondAdd(SVotesRespond *pVotesRespond, const SyncRequestVoteReply *p
   assert(0);
 }
 
-void Reset(SVotesRespond *pVotesRespond, SyncTerm term) {
+void votesRespondReset(SVotesRespond *pVotesRespond, SyncTerm term) {
   pVotesRespond->term = term;
+  memset(pVotesRespond->isRespond, 0, sizeof(pVotesRespond->isRespond));
+  /*
+    for (int i = 0; i < pVotesRespond->replicaNum; ++i) {
+      pVotesRespond->isRespond[i] = false;
+    }
+  */
+}
+
+cJSON *votesRespond2Json(SVotesRespond *pVotesRespond) {
+  char   u64buf[128];
+  cJSON *pRoot = cJSON_CreateObject();
+
+  cJSON_AddNumberToObject(pRoot, "replicaNum", pVotesRespond->replicaNum);
+  cJSON *pReplicas = cJSON_CreateArray();
+  cJSON_AddItemToObject(pRoot, "replicas", pReplicas);
   for (int i = 0; i < pVotesRespond->replicaNum; ++i) {
-    pVotesRespond->isRespond[i] = false;
+    cJSON_AddItemToArray(pReplicas, syncUtilRaftId2Json(&(*(pVotesRespond->replicas))[i]));
   }
+  int  respondNum = 0;
+  int *arr = (int *)malloc(sizeof(int) * pVotesRespond->replicaNum);
+  for (int i = 0; i < pVotesRespond->replicaNum; ++i) {
+    arr[i] = pVotesRespond->isRespond[i];
+    if (pVotesRespond->isRespond[i]) {
+      respondNum++;
+    }
+  }
+  cJSON *pIsRespond = cJSON_CreateIntArray(arr, pVotesRespond->replicaNum);
+  free(arr);
+  cJSON_AddItemToObject(pRoot, "isRespond", pIsRespond);
+  cJSON_AddNumberToObject(pRoot, "respondNum", respondNum);
+
+  snprintf(u64buf, sizeof(u64buf), "%lu", pVotesRespond->term);
+  cJSON_AddStringToObject(pRoot, "term", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%p", pVotesRespond->pSyncNode);
+  cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
+
+  cJSON *pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SVotesRespond", pRoot);
+  return pJson;
+}
+
+char *votesRespond2Str(SVotesRespond *pVotesRespond) {
+  cJSON *pJson = votesRespond2Json(pVotesRespond);
+  char * serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
 }
