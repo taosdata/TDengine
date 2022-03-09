@@ -40,7 +40,7 @@ void logStoreDestory(SSyncLogStore* pLogStore);
 int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
 
 // get one log entry, user need to free pEntry->pCont
-int32_t logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry* pEntry);
+SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index);
 
 // truncate log with index, entries after the given index (>=index) will be deleted
 int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex);
@@ -56,6 +56,8 @@ int32_t logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index);
 
 // return commit index of log
 SyncIndex logStoreGetCommitIndex(SSyncLogStore* pLogStore);
+
+SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore);
 
 cJSON* logStore2Json(SSyncLogStore* pLogStore);
 
