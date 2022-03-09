@@ -59,7 +59,7 @@ typedef struct {
   SWalCfg  walCfg;
   uint32_t hashBegin;
   uint32_t hashEnd;
-  int8_t   hashMethod;  
+  int8_t   hashMethod;
 } SVnodeCfg;
 
 typedef struct {
@@ -201,6 +201,22 @@ int32_t vnodeSync(SVnode *pVnode);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 
 /* ------------------------- TQ READ --------------------------- */
+
+enum {
+  TQ_STREAM_TOKEN__DATA = 1,
+  TQ_STREAM_TOKEN__WATERMARK,
+  TQ_STREAM_TOKEN__CHECKPOINT,
+};
+
+typedef struct {
+  int8_t type;
+  int8_t reserved[7];
+  union {
+    void   *data;
+    int64_t wmTs;
+    int64_t checkpointId;
+  };
+} STqStreamToken;
 
 STqReadHandle *tqInitSubmitMsgScanner(SMeta *pMeta);
 
