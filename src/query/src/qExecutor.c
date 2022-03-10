@@ -289,43 +289,35 @@ static int compareRowData(const void *a, const void *b, const void *userData) {
 }
 
 static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeEnv *pRuntimeEnv, SSDataBlock* pDataBlock, SQLFunctionCtx *pCtx) {
-  SArray *columnOrderList = getOrderCheckColumns(pRuntimeEnv->pQueryAttr);
-  size_t size = taosArrayGetSize(columnOrderList);
-  taosArrayDestroy(&columnOrderList);
-
-  if (size <= 0) {
+  // get groupby first column index
+  SColIndex* pColIndex = taosArrayGet(pRuntimeEnv->pQueryAttr->pGroupbyExpr->columnInfo, 0);
+  if (pColIndex == NULL) {
     return;
   }
 
-  int32_t orderId = pRuntimeEnv->pQueryAttr->order.orderColId;
-  if (orderId <= 0) {
-    return;
-  }
-
+  // search group by col index
   int32_t orderIndex = -1;
   for (int32_t j = 0; j < pDataBlock->info.numOfCols; ++j) {
-    if (pCtx[j].colId == orderId) {
+    if (pCtx[j].colId == pColIndex->colId) {
       orderIndex = j;
       break;
     }
   }
-  if (orderIndex < 0) {
+  if (orderIndex == -1) {
     return;
   }
 
+  // get dataOffset
   bool found = false;
   int16_t dataOffset = 0;
-
   for (int32_t j = 0; j < pDataBlock->info.numOfCols; ++j) {
     SColumnInfoData* pColInfoData = (SColumnInfoData *)taosArrayGet(pDataBlock->pDataBlock, j);
     if (orderIndex == j) {
       found = true;
       break;
     }
-
     dataOffset += pColInfoData->info.bytes;
   }
-
   if (found == false) {
     return;
   }
