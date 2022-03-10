@@ -160,7 +160,7 @@ The complete list of taosBenchmark command-line arguments can be displayed via t
 ```
 $ taosBenchmark --help
 
--f, --file=FILE The meta file to the execution procedure. Currently, we support standard UTF-8 (without BOM) encoded files only.
+-f, --file=FILE The JSON configuration file to the execution procedure. Currently, we support standard UTF-8 (without BOM) encoded files only.
 -u, --user=USER The user name to use when connecting to the server.
 -p, --password The password to use when connecting to the server.
 -c, --config-dir=CONFIG_DIR Configuration directory.
