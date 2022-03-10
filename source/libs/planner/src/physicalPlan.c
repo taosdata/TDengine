@@ -115,6 +115,7 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
       pIndex = taosHashGet(pCxt->pRightHash, name, len);
     }
     // pIndex is definitely not NULL, otherwise it is a bug
+    CHECK_ALLOC(pIndex, DEAL_RES_ERROR);
     ((SColumnNode*)pNode)->dataBlockId = pIndex->dataBlockId;
     ((SColumnNode*)pNode)->slotId = pIndex->slotId;
     CHECK_ALLOC(pNode, DEAL_RES_ERROR);
@@ -177,6 +178,8 @@ static int32_t setSlotOutput(SPhysiPlanContext* pCxt, SNodeList* pTargets, SData
   FOREACH(pNode, pTargets) {
     int32_t len = getSlotKey(pNode, name);
     SSlotIndex* pIndex = taosHashGet(pHash, name, len);
+    // pIndex is definitely not NULL, otherwise it is a bug
+    CHECK_ALLOC(pIndex, TSDB_CODE_FAILED);
     ((SSlotDescNode*)nodesListGetNode(pDataBlockDesc->pSlots, pIndex->slotId))->output = true;
   }
   
@@ -191,32 +194,30 @@ static SNodeptr createPrimaryKeyCol(SPhysiPlanContext* pCxt, uint64_t tableId) {
   pCol->tableId = tableId;
   pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
   pCol->colType = COLUMN_TYPE_COLUMN;
+  strcpy(pCol->colName, "#primarykey");
   return pCol;
 }
 
-static int32_t addPrimaryKeyCol(SPhysiPlanContext* pCxt, SScanPhysiNode* pScanPhysiNode) {
-  if (NULL == pScanPhysiNode->pScanCols) {
-    pScanPhysiNode->pScanCols = nodesMakeList();
-    CHECK_ALLOC(pScanPhysiNode->pScanCols, TSDB_CODE_OUT_OF_MEMORY);
-    CHECK_CODE_EXT(nodesListStrictAppend(pScanPhysiNode->pScanCols, createPrimaryKeyCol(pCxt, pScanPhysiNode->uid)));
-    return TSDB_CODE_SUCCESS;
-  }
-  SNode* pNode;
-  FOREACH(pNode, pScanPhysiNode->pScanCols) {
-    if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) {
-      return TSDB_CODE_SUCCESS;
-    }
-  }
+static int32_t createScanCols(SPhysiPlanContext* pCxt, SScanPhysiNode* pScanPhysiNode, SNodeList* pScanCols) {
+  pScanPhysiNode->pScanCols = nodesMakeList();
+  CHECK_ALLOC(pScanPhysiNode->pScanCols, TSDB_CODE_OUT_OF_MEMORY);
   CHECK_CODE_EXT(nodesListStrictAppend(pScanPhysiNode->pScanCols, createPrimaryKeyCol(pCxt, pScanPhysiNode->uid)));
+
+  SNode* pNode;
+  FOREACH(pNode, pScanCols) {
+    if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) {
+      SColumnNode* pCol = nodesListGetNode(pScanPhysiNode->pScanCols, 0);
+      strcpy(pCol->tableAlias, ((SColumnNode*)pNode)->tableAlias);
+      strcpy(pCol->colName, ((SColumnNode*)pNode)->colName);
+      continue;
+    }
+    CHECK_CODE_EXT(nodesListStrictAppend(pScanPhysiNode->pScanCols, nodesCloneNode(pNode)));
+  }
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t initScanPhysiNode(SPhysiPlanContext* pCxt, SScanLogicNode* pScanLogicNode, SScanPhysiNode* pScanPhysiNode) {
-  if (NULL != pScanLogicNode->pScanCols) {
-    pScanPhysiNode->pScanCols = nodesCloneList(pScanLogicNode->pScanCols);
-    CHECK_ALLOC(pScanPhysiNode->pScanCols, TSDB_CODE_OUT_OF_MEMORY);
-  }
-  CHECK_CODE(addPrimaryKeyCol(pCxt, pScanPhysiNode), TSDB_CODE_OUT_OF_MEMORY);
+  CHECK_CODE(createScanCols(pCxt, pScanPhysiNode, pScanLogicNode->pScanCols), TSDB_CODE_OUT_OF_MEMORY);
 
   // Data block describe also needs to be set without scanning column, such as SELECT COUNT(*) FROM t
   CHECK_CODE(addDataBlockDesc(pCxt, pScanPhysiNode->pScanCols, pScanPhysiNode->node.pOutputDataBlockDesc), TSDB_CODE_OUT_OF_MEMORY);
@@ -504,6 +505,10 @@ static SPhysiNode* createPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
       break;
     default:
       break;
+  }
+  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+    nodesDestroyNode(pPhyNode);
+    return NULL;
   }
 
   pPhyNode->pChildren = pChildren;
