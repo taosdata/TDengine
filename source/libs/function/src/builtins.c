@@ -77,7 +77,9 @@ const int32_t funcMgtBuiltinsNum = (sizeof(funcMgtBuiltins) / sizeof(SBuiltinFun
 
 int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
   switch(pFunc->funcType) {
-    case FUNCTION_TYPE_COUNT: pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_BIGINT};break;
+    case FUNCTION_TYPE_COUNT:
+      pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_BIGINT};
+      break;
     case FUNCTION_TYPE_SUM: {
       SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
       int32_t paraType = pParam->node.resType.type;
@@ -103,6 +105,9 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       pFunc->node.resType = (SDataType) { .bytes = tDataTypes[paraType].bytes, .type = paraType };
       break;
     }
+    case FUNCTION_TYPE_CONCAT:
+      // todo
+      break;
     default:
       ASSERT(0); // to found the fault ASAP.
   }

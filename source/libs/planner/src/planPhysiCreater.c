@@ -48,7 +48,7 @@ static SNode* createSlotDesc(SPhysiPlanContext* pCxt, const SNode* pNode, int16_
   pSlot->slotId = slotId;
   pSlot->dataType = ((SExprNode*)pNode)->resType;
   pSlot->reserve = false;
-  pSlot->output = false;
+  pSlot->output = true;
   return (SNode*)pSlot;
 }
 
