@@ -32,7 +32,7 @@ class TDTestCase:
     def run(self):
         print("running {}".format(__file__))
         tdSql.execute("drop database if exists statef")
-        tdSql.execute("create database if not exists statef")
+        tdSql.execute("create database if not exists statef PRECISION 'ns'")
         tdSql.execute('use statef')
 
         tdSql.execute('create table sstatef (ts timestamp, dbig bigint, dsmall smallint, dbool bool, dtiny tinyint unsigned, dfloat float, ddouble double, dnchar nchar(4093), dbinary binary(64), dtime timestamp) tags (tbinary nchar(4093), tint int)')
@@ -221,12 +221,7 @@ class TDTestCase:
         tdSql.query('select stateDuration(dtiny,ne,9.0,1s) from sstatef group by tbname having stateDuration(dtiny,ne,9.0,1s) > 0')
 
         #subquery
-        tdSql.query('select stateDuration(dfloat,Ge,3.32323) from (select ts,dfloat from statef2)')
-        tdSql.checkRows(6)
-        tdSql.checkData(0, 2, 0)
-        tdSql.checkData(1, 2, 172798)
-        tdSql.checkData(2, 2, None)
-        tdSql.checkData(3, 2, -1)
+        tdSql.error('select stateDuration(dfloat,Ge,3.32323) from (select ts,dfloat from statef2)')
 
         #union
         tdSql.query('select stateCount(dfloat,Ge,3.32323) from statef1 union all select stateCount(dfloat,Ge,3.32323) from statef2')

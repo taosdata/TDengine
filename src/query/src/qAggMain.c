@@ -2631,7 +2631,7 @@ static void top_bottom_func_finalizer(SQLFunctionCtx *pCtx) {
   tValuePair **tvp = pRes->res;
   
   // user specify the order of output by sort the result according to timestamp
-  if (pCtx->param[2].i64 == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+  if (pCtx->param[2].i64 == PRIMARYKEY_TIMESTAMP_COL_INDEX || pCtx->param[2].i64 == TSDB_RES_COL_ID) {
     __compar_fn_t comparator = (pCtx->param[3].i64 == TSDB_ORDER_ASC) ? resAscComparFn : resDescComparFn;
     qsort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
   } else /*if (pCtx->param[2].i64 > PRIMARYKEY_TIMESTAMP_COL_INDEX)*/ {
@@ -5402,7 +5402,7 @@ static void unique_func_finalizer(SQLFunctionCtx *pCtx) {
   }
   SortSupporter support = {0};
   // user specify the order of output by sort the result according to timestamp
-  if (pCtx->param[2].i64 == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+  if (pCtx->param[2].i64 == PRIMARYKEY_TIMESTAMP_COL_INDEX || pCtx->param[2].i64 == TSDB_RES_COL_ID) {
     support.dataOffset = 0;
     support.comparFn = compareInt64Val;
   } else{
@@ -5701,7 +5701,7 @@ static void tail_func_finalizer(SQLFunctionCtx *pCtx) {
 
   SortSupporter support = {0};
   // user specify the order of output by sort the result according to timestamp
-  if (pCtx->param[2].i64 != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+  if (pCtx->param[2].i64 != PRIMARYKEY_TIMESTAMP_COL_INDEX && pCtx->param[2].i64 != TSDB_RES_COL_ID) {
     support.dataOffset = sizeof(int64_t);
     support.comparFn = getComparFunc(type, 0);
     taosqsort(data, (size_t)GET_RES_INFO(pCtx)->numOfRes, size, &support, sortCompareFn);

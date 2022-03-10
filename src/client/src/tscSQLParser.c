@@ -2696,6 +2696,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg28 = "the second paramter of diff should be 0 or 1";
   const char* msg29 = "key timestamp column cannot be used to unique/mode/tail function";
   const char* msg30 = "offset is out of range [0, 100]";
+  const char* msg31 = "state function can not be used in subquery";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -2846,6 +2847,11 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg17);
           }
         }
+      }
+
+      if ((functionId == TSDB_FUNC_STATE_COUNT || functionId == TSDB_FUNC_STATE_DURATION) &&
+          pQueryInfo->pUpstream != NULL && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg31);
       }
 
       STableComInfo info = tscGetTableInfo(pTableMetaInfo->pTableMeta);
