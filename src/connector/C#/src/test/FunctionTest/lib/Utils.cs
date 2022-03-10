@@ -3,6 +3,7 @@ using TDengineDriver;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Collections.Generic;
+using Xunit.Abstractions;
 namespace Test.UtilsTools
 {
     public class UtilsTools
@@ -28,20 +29,20 @@ namespace Test.UtilsTools
         //get taos.cfg file based on different os
         public static string GetConfigPath()
         {
-              string configDir = "" ;
-        if(OperatingSystem.IsOSPlatform("Windows"))
-        {   
-            configDir = "C:/TDengine/cfg";
-        }
-        else if(OperatingSystem.IsOSPlatform("Linux"))
-        {
-            configDir = "/etc/taos";
-        }
-        else if(OperatingSystem.IsOSPlatform("macOS"))
-        {
-            configDir = "/etc/taos";
-        }
-        return configDir;
+            string configDir = "";
+            if (OperatingSystem.IsOSPlatform("Windows"))
+            {
+                configDir = "C:/TDengine/cfg";
+            }
+            else if (OperatingSystem.IsOSPlatform("Linux"))
+            {
+                configDir = "/etc/taos";
+            }
+            else if (OperatingSystem.IsOSPlatform("macOS"))
+            {
+                configDir = "/usr/local/etc/taos";
+            }
+            return configDir;
         }
 
         public static IntPtr ExecuteQuery(IntPtr conn, String sql)
@@ -102,23 +103,16 @@ namespace Test.UtilsTools
             int fieldCount = metas.Count;
 
             IntPtr rowdata;
-            // StringBuilder builder = new StringBuilder();
             List<string> datas = QueryRes(res, metas);
-            Console.Write(" DisplayRes ---");
             for (int i = 0; i < metas.Count; i++)
             {
                 for (int j = 0; j < datas.Count; j++)
                 {
-                    Console.Write(" {0} ---", datas[i * j + i]);
+                    Console.Write(" {0} \t|", datas[j]);
                 }
                 Console.WriteLine("");
             }
 
-            // if (TDengine.ErrorNo(res) != 0)
-            // {
-            //     Console.Write("Query is not complete, Error {0:G}", TDengine.ErrorNo(res), TDengine.Error(res));
-            // }
-            // TDengine.FreeResult(res); Console.WriteLine("");
         }
 
         public static List<List<string>> GetResultSet(IntPtr res)
@@ -197,14 +191,8 @@ namespace Test.UtilsTools
         }
         public static List<String> GetResData(IntPtr res)
         {
-            List<string> colName = new List<string>();
-            List<string> dataRaw = new List<string>();
-            if (!IsValidResult(res))
-            {
-                ExitProgram();
-            }
-            List<TDengineMeta> metas = GetResField(res);
-            dataRaw = QueryRes(res, metas);
+            List<string> dataRaw = GetResDataWithoutFree(res);
+            FreeResult(res);
             return dataRaw;
         }
 
@@ -288,107 +276,23 @@ namespace Test.UtilsTools
 
         private static List<string> QueryRes(IntPtr res, List<TDengineMeta> metas)
         {
-            IntPtr rowdata;
-            long queryRows = 0;
+            IntPtr taosRow;
             List<string> dataRaw = new List<string>();
             int fieldCount = metas.Count;
-            while ((rowdata = TDengine.FetchRows(res)) != IntPtr.Zero)
+            while ((taosRow = TDengine.FetchRows(res)) != IntPtr.Zero)
             {
-                queryRows++;
-                IntPtr colLengthPtr = TDengine.FetchLengths(res);
-                int[] colLengthArr = new int[fieldCount];
-                Marshal.Copy(colLengthPtr, colLengthArr, 0, fieldCount);
-
-                for (int fields = 0; fields < fieldCount; ++fields)
-                {
-                    TDengineMeta meta = metas[fields];
-                    int offset = IntPtr.Size * fields;
-                    IntPtr data = Marshal.ReadIntPtr(rowdata, offset);
-
-                    if (data == IntPtr.Zero)
-                    {
-                        dataRaw.Add("NULL");
-                        continue;
-                    }
-
-                    switch ((TDengineDataType)meta.type)
-                    {
-                        case TDengineDataType.TSDB_DATA_TYPE_BOOL:
-                            bool v1 = Marshal.ReadByte(data) == 0 ? false : true;
-                            dataRaw.Add(v1.ToString());
-                            break;
-                        case TDengineDataType.TSDB_DATA_TYPE_TINYINT:
-                            sbyte v2 = (sbyte)Marshal.ReadByte(data);
-                            dataRaw.Add(v2.ToString());
-                            break;
-                        case TDengineDataType.TSDB_DATA_TYPE_SMALLINT:
-                            short v3 = Marshal.ReadInt16(data);
-                            dataRaw.Add(v3.ToString());
-                            break;
-                        case TDengineDataType.TSDB_DATA_TYPE_INT:
-                            int v4 = Marshal.ReadInt32(data);
-                            dataRaw.Add(v4.ToString());
-                            break;
-                        case TDengineDataType.TSDB_DATA_TYPE_BIGINT:
-                            long v5 = Marshal.ReadInt64(data);
-                            dataRaw.Add(v5.ToString());
-                            break;
-                        case TDengineDataType.TSDB_DATA_TYPE_FLOAT:
-                            float v6 = (float)Marshal.PtrToStructure(data, typeof(float));
-                            dataRaw.Add(v6.ToString());
-                            break;
-                        case TDengineDataType.TSDB_DATA_TYPE_DOUBLE:
-                            double v7 = (double)Marshal.PtrToStructure(data, typeof(double));
-                            dataRaw.Add(v7.ToString());
-                            break;
-                        case TDengineDataType.TSDB_DATA_TYPE_BINARY:
-                            // string v8 = Marshal.PtrToStringAnsi(data, colLengthArr[fields]);
-                            string v8 = Marshal.PtrToStringUTF8(data, colLengthArr[fields]);
-                            dataRaw.Add(v8);
-                            break;
-                        case TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP:
-                            long v9 = Marshal.ReadInt64(data);
-                            dataRaw.Add(v9.ToString());
-                            break;
-                        case TDengineDataType.TSDB_DATA_TYPE_NCHAR:
-                            // string v10 = Marshal.PtrToStringAnsi(data, colLengthArr[fields]);
-                            string v10 = Marshal.PtrToStringUTF8(data, colLengthArr[fields]);
-                            dataRaw.Add(v10);
-                            break;
-                        case TDengineDataType.TSDB_DATA_TYPE_UTINYINT:
-                            byte v12 = Marshal.ReadByte(data);
-                            dataRaw.Add(v12.ToString());
-                            break;
-                        case TDengineDataType.TSDB_DATA_TYPE_USMALLINT:
-                            ushort v13 = (ushort)Marshal.ReadInt16(data);
-                            dataRaw.Add(v13.ToString());
-                            break;
-                        case TDengineDataType.TSDB_DATA_TYPE_UINT:
-                            uint v14 = (uint)Marshal.ReadInt32(data);
-                            dataRaw.Add(v14.ToString());
-                            break;
-                        case TDengineDataType.TSDB_DATA_TYPE_UBIGINT:
-                            ulong v15 = (ulong)Marshal.ReadInt64(data);
-                            dataRaw.Add(v15.ToString());
-                            break;
-                        default:
-                            dataRaw.Add("unknown value");
-                            break;
-                    }
-                }
-
+                dataRaw.AddRange(FetchRow(taosRow, res));
             }
             if (TDengine.ErrorNo(res) != 0)
             {
                 Console.Write("Query is not complete, Error {0:G}", TDengine.ErrorNo(res), TDengine.Error(res));
             }
-            TDengine.FreeResult(res);
             Console.WriteLine("");
             return dataRaw;
         }
 
         // Generate insert sql for the with the coldata and tag data 
-        public static string ConstructInsertSql(string table,string stable,List<Object> colData,List<Object> tagData,int numOfRows)
+        public static string ConstructInsertSql(string table, string stable, List<Object> colData, List<Object> tagData, int numOfRows)
         {
             int numofFileds = colData.Count / numOfRows;
             StringBuilder insertSql;
@@ -453,8 +357,8 @@ namespace Test.UtilsTools
 
             return insertSql.ToString();
         }
-    
-        public static List<object> CombineColAndTagData(List<object> colData,List<object> tagData, int numOfRows)
+
+        public static List<object> CombineColAndTagData(List<object> colData, List<object> tagData, int numOfRows)
         {
             var list = new List<Object>();
             for (int i = 0; i < colData.Count; i++)
@@ -470,6 +374,137 @@ namespace Test.UtilsTools
             }
             return list;
         }
+
+        /// <summary>
+        /// Using this method to free TAOS_RES,otherwise will lead memory
+        /// leak.Notice do not call this method while subscribe/consume until
+        /// end of the program.
+        /// </summary>
+        /// <param name="res">TAOS_RES, the resultset usually is return by taos_query()</param>
+        public static void FreeResult(IntPtr res)
+        {
+            TDengine.FreeResult(res);
+        }
+
+
+        /// <summary>
+        /// Using to parse TAOS_ROW.
+        /// </summary>
+        /// <param name="taosRow">This is TAOS_RES pointer</param>
+        /// <param name="taosRes"> This is TAOS_ROW pointer</param>
+        /// <returns></returns>
+        public static List<string> FetchRow(IntPtr taosRow, IntPtr taosRes)
+        {
+            List<TDengineMeta> metaList = TDengine.FetchFields(taosRes);
+            int numOfFiled = TDengine.FieldCount(taosRes);
+
+            List<String> dataRaw = new List<string>();
+
+            IntPtr colLengthPrt = TDengine.FetchLengths(taosRes);
+            int[] colLengthArr = new int[numOfFiled];
+            Marshal.Copy(colLengthPrt, colLengthArr, 0, numOfFiled);
+
+            for (int i = 0; i < numOfFiled; i++)
+            {
+                TDengineMeta meta = metaList[i];
+                IntPtr data = Marshal.ReadIntPtr(taosRow, IntPtr.Size * i);
+
+                if (data == IntPtr.Zero)
+                {
+                    dataRaw.Add("NULL");
+                    continue;
+                }
+                switch ((TDengineDataType)meta.type)
+                {
+                    case TDengineDataType.TSDB_DATA_TYPE_BOOL:
+                        bool v1 = Marshal.ReadByte(data) == 0 ? false : true;
+                        dataRaw.Add(v1.ToString());
+                        break;
+                    case TDengineDataType.TSDB_DATA_TYPE_TINYINT:
+                        sbyte v2 = (sbyte)Marshal.ReadByte(data);
+                        dataRaw.Add(v2.ToString());
+                        break;
+                    case TDengineDataType.TSDB_DATA_TYPE_SMALLINT:
+                        short v3 = Marshal.ReadInt16(data);
+                        dataRaw.Add(v3.ToString());
+                        break;
+                    case TDengineDataType.TSDB_DATA_TYPE_INT:
+                        int v4 = Marshal.ReadInt32(data);
+                        dataRaw.Add(v4.ToString());
+                        break;
+                    case TDengineDataType.TSDB_DATA_TYPE_BIGINT:
+                        long v5 = Marshal.ReadInt64(data);
+                        dataRaw.Add(v5.ToString());
+                        break;
+                    case TDengineDataType.TSDB_DATA_TYPE_FLOAT:
+                        float v6 = (float)Marshal.PtrToStructure(data, typeof(float));
+                        dataRaw.Add(v6.ToString());
+                        break;
+                    case TDengineDataType.TSDB_DATA_TYPE_DOUBLE:
+                        double v7 = (double)Marshal.PtrToStructure(data, typeof(double));
+                        dataRaw.Add(v7.ToString());
+                        break;
+                    case TDengineDataType.TSDB_DATA_TYPE_BINARY:
+                        string v8 = Marshal.PtrToStringUTF8(data, colLengthArr[i]);
+                        dataRaw.Add(v8);
+                        break;
+                    case TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP:
+                        long v9 = Marshal.ReadInt64(data);
+                        dataRaw.Add(v9.ToString());
+                        break;
+                    case TDengineDataType.TSDB_DATA_TYPE_NCHAR:
+                        string v10 = Marshal.PtrToStringUTF8(data, colLengthArr[i]);
+                        dataRaw.Add(v10);
+                        break;
+                    case TDengineDataType.TSDB_DATA_TYPE_UTINYINT:
+                        byte v12 = Marshal.ReadByte(data);
+                        dataRaw.Add(v12.ToString());
+                        break;
+                    case TDengineDataType.TSDB_DATA_TYPE_USMALLINT:
+                        ushort v13 = (ushort)Marshal.ReadInt16(data);
+                        dataRaw.Add(v13.ToString());
+                        break;
+                    case TDengineDataType.TSDB_DATA_TYPE_UINT:
+                        uint v14 = (uint)Marshal.ReadInt32(data);
+                        dataRaw.Add(v14.ToString());
+                        break;
+                    case TDengineDataType.TSDB_DATA_TYPE_UBIGINT:
+                        ulong v15 = (ulong)Marshal.ReadInt64(data);
+                        dataRaw.Add(v15.ToString());
+                        break;
+                    case TDengineDataType.TSDB_DATA_TYPE_JSONTAG:
+                        string v16 = Marshal.PtrToStringUTF8(data, colLengthArr[i]);
+                        dataRaw.Add(v16);
+                        break;
+                    default:
+                        dataRaw.Add("nonsupport data type value");
+                        break;
+                }
+
+            }
+            return dataRaw;
+        }
+
+        /// <summary>
+        /// Get the result data from TAO_RES but this interface will
+        /// not free the TAO_RES at the end. Remember to free the TAOS_RES
+        /// when you need to do so.
+        /// </summary>
+        /// <param name="res"> This is a TAOS_RES pointer.</param>
+        /// <returns></returns>
+        public static List<String> GetResDataWithoutFree(IntPtr res)
+        {
+            List<string> colName = new List<string>();
+            List<string> dataRaw = new List<string>();
+            if (!IsValidResult(res))
+            {
+                ExitProgram();
+            }
+            List<TDengineMeta> metas = GetResField(res);
+            dataRaw = QueryRes(res, metas);
+            return dataRaw;
+        }
     }
+
 }
 
