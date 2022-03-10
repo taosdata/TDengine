@@ -26,7 +26,7 @@ int main() {
   assert(ret == 0);
 
   while (1) {
-    sleep(1);
+    taosSsleep(1);
   }
 
   return 0;
