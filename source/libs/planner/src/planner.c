@@ -15,7 +15,7 @@
 
 #include "planner.h"
 
-#include "plannerInt.h"
+#include "planInt.h"
 
 int32_t optimize(SPlanContext* pCxt, SLogicNode* pLogicNode) {
   return TSDB_CODE_SUCCESS;

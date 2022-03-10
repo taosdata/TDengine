@@ -14,8 +14,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "astCreateFuncs.h"
-#include "parserUtil.h"
+#include "parAst.h"
+#include "parUtil.h"
 
 #define CHECK_OUT_OF_MEM(p) \
   do { \

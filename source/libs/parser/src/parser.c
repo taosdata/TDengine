@@ -15,9 +15,8 @@
 
 #include "parser.h"
 
-#include "insertParser.h"
-#include "parserInt.h"
-#include "ttoken.h"
+#include "parInt.h"
+#include "parToken.h"
 
 static bool isInsertSql(const char* pStr, size_t length) {
   int32_t index = 0;
@@ -47,5 +46,14 @@ int32_t qParseQuerySql(SParseContext* pCxt, SQuery** pQuery) {
 }
 
 void qDestroyQuery(SQuery* pQueryNode) {
-  // todo
+  if (NULL == pQueryNode) {
+    return;
+  }
+  nodesDestroyNode(pQueryNode->pRoot);
+  tfree(pQueryNode->pResSchema);
+  if (NULL != pQueryNode->pCmdMsg) {
+    tfree(pQueryNode->pCmdMsg->pMsg);
+    tfree(pQueryNode->pCmdMsg);
+  }
+  tfree(pQueryNode);
 }

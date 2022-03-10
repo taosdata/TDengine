@@ -18,7 +18,7 @@
 #include <gtest/gtest.h>
 
 #include "parser.h"
-#include "plannerInt.h"
+#include "planInt.h"
 
 using namespace std;
 using namespace testing;
