@@ -267,6 +267,60 @@ class TestMultiThreads(TDCase):
         self.tdRest.request(f'show databases')
         self.tdSql.checkNotIn(dbname, self.tdRest.getColNameList())
 
+    def del_column_inserting(self):
+        """
+        del column when inserting
+        """
+        dbname = self.tdCom.get_long_name(len=10, mode="letters")
+        self.tdRest.request(f'create database if not exists {dbname}')
+        self.tdRest.request(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
+        self.tdRest.request(f'create table {dbname}.tb using {dbname}.stb TAGS(1, 1)')
+        sql_list = list()
+        for i in range(5):
+            sql = f'insert into {dbname}.tb values (now-{i}m, {i}, {i})'
+            sql_list.append(sql)
+        
+        sql_list.append(f'alter table {dbname}.stb drop colume c12')
+        tlist = self.tdRest.genMultiThreadSeq(sql_list)
+        self.tdRest.multiThreadRun(tlist)
+        self.tdRest.error(f'select c12 from {dbname}.stb')
+
+    def add_column_when_inserting(self):
+        """
+        add column when inserting
+        """
+        dbname = self.tdCom.get_long_name(len=10, mode="letters")
+        self.tdRest.request(f'create database if not exists {dbname}')
+        self.tdRest.request(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
+        self.tdRest.request(f'create table {dbname}.tb using {dbname}.stb TAGS(1, 1)')
+        sql_list = list()
+        for i in range(5):
+            sql = f'insert into {dbname}.tb values (now-{i}m, {i}, {i})'
+            sql_list.append(sql)
+        
+        sql_list.append(f'alter table {dbname}.stb add column c13 int')
+        tlist = self.tdRest.genMultiThreadSeq(sql_list)
+        self.tdRest.multiThreadRun(tlist)
+        self.tdRest.request(f'select c13 from {dbname}.stb')
+
+    def alter_column_when_dropping(self):
+        """
+        alter column when dropping
+        """
+        dbname = self.tdCom.get_long_name(len=10, mode="letters")
+        self.tdRest.request(f'create database if not exists {dbname}')
+        self.tdRest.request(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
+        self.tdRest.request(f'create table {dbname}.tb using {dbname}.stb TAGS(1, 1)')
+        sql_list = list()
+        
+        sql_list.append(f'alter table {dbname}.stb add column c13 int')
+        sql_list.append(f'drop table {dbname}.tb')
+        sql_list.append(f'drop table {dbname}.stb')
+        sql_list.append(f'drop database {dbname}')
+        tlist = self.tdRest.genMultiThreadSeq(sql_list)
+        self.tdRest.multiThreadRun(tlist)
+        self.tdRest.request(f'show databases')
+        self.tdSql.checkNotIn(dbname, self.tdRest.getColNameList())
 
     def run(self) -> bool:
         self.multi_threads_create_db()
@@ -279,6 +333,9 @@ class TestMultiThreads(TDCase):
         self.insert_when_dropping_db()
         self.create_table_when_dropping_db()
         self.drop_table_when_dropping_db()
+        self.del_column_inserting()
+        self.add_column_when_inserting()
+        self.alter_column_when_dropping()
 
     def cleanup(self):
         pass
@@ -294,7 +351,10 @@ class TestMultiThreads(TDCase):
             insert_when_dropping_tb <jayden>: [TD-12748] : insert when dropping tb;\n
             insert_when_dropping_db <jayden>: [TD-12748] : insert when dropping db;\n
             create_table_when_dropping_db <jayden>: [TD-12748] : create table when dropping db;\n
-            drop_table_when_dropping_db <jayden>: [TD-12748] : drop table when dropping db;
+            drop_table_when_dropping_db <jayden>: [TD-12748] : drop table when dropping db;\n
+            del_column_inserting <jayden>: [TD-12748] : del column when inserting;\n
+            add_column_when_inserting <jayden>: [TD-12748] : add column when inserting;\n
+            alter_column_when_dropping <jayden>: [TD-12748] : alter column when dropping;
         '''
         return case_description
 
