@@ -364,6 +364,41 @@ static int32_t dndOpenMnode(SDnode *pDnode, SMnodeOpt *pOption) {
   return 0;
 }
 
+static void dndMnodeProcessChildQueue(SDnode *pDnode, SBlockItem *pBlock) {
+  SRpcMsg *pMsg = (SRpcMsg*)pBlock->pCont;
+  dndWriteMnodeMsgToWorker(pDnode, &pDnode->mmgmt.writeWorker, pMsg);
+  free(pBlock);
+}
+
+static void dndMnodeProcessParentQueue(SMnodeMgmt *pMgmt, SBlockItem *pItem) {
+  
+}
+
+static int32_t dndMnodeOpen(SDnode *pDnode, SMnodeOpt *pOption) {
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
+  pMgmt->multiProcess = true;
+
+  int32_t code = dndOpenMnode(pDnode, pOption);
+
+  if (code == 0 && pMgmt->multiProcess) {
+    SProcCfg cfg = {0};
+    cfg.childFp = (ProcFp)dndMnodeProcessChildQueue;
+    cfg.parentFp = (ProcFp)dndMnodeProcessParentQueue;
+    cfg.childQueueSize = 1024 * 1024;
+    cfg.parentQueueSize = 1024 * 1024;
+
+    pMgmt->pProcess = taosProcInit(&cfg);
+    if (pMgmt->pProcess == NULL) {
+      return -1;
+    }
+    pMgmt->pProcess->pParent = pDnode;
+    pMgmt->pProcess->testFlag = true;
+    return taosProcStart(pMgmt->pProcess);
+  } 
+
+  return code;
+}
+
 static int32_t dndAlterMnode(SDnode *pDnode, SMnodeOpt *pOption) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
@@ -557,16 +592,23 @@ static void dndWriteMnodeMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpc
   }
 }
 
+static void dndMnodeWriteToChildQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  taosProcPushChild(pMgmt->pProcess, pMsg, sizeof(SRpcMsg));
+}
+
 void dndProcessMnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  dndWriteMnodeMsgToWorker(pDnode, &pDnode->mmgmt.writeWorker, pMsg);
+  dndMnodeWriteToChildQueue(&pDnode->mmgmt, pMsg);
+  // dndWriteMnodeMsgToWorker(pDnode, &pDnode->mmgmt.writeWorker, pMsg);
 }
 
 void dndProcessMnodeSyncMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  dndWriteMnodeMsgToWorker(pDnode, &pDnode->mmgmt.syncWorker, pMsg);
+  dndMnodeWriteToChildQueue(&pDnode->mmgmt, pMsg);
+  // dndWriteMnodeMsgToWorker(pDnode, &pDnode->mmgmt.syncWorker, pMsg);
 }
 
 void dndProcessMnodeReadMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  dndWriteMnodeMsgToWorker(pDnode, &pDnode->mmgmt.readWorker, pMsg);
+  dndMnodeWriteToChildQueue(&pDnode->mmgmt, pMsg);
+  // dndWriteMnodeMsgToWorker(pDnode, &pDnode->mmgmt.readWorker, pMsg);
 }
 
 int32_t dndInitMnode(SDnode *pDnode) {
@@ -594,12 +636,12 @@ int32_t dndInitMnode(SDnode *pDnode) {
     dInfo("start to deploy mnode");
     SMnodeOpt option = {0};
     dndBuildMnodeDeployOption(pDnode, &option);
-    return dndOpenMnode(pDnode, &option);
+    return dndMnodeOpen(pDnode, &option);
   } else {
     dInfo("start to open mnode");
     SMnodeOpt option = {0};
     dndBuildMnodeOpenOption(pDnode, &option);
-    return dndOpenMnode(pDnode, &option);
+    return dndMnodeOpen(pDnode, &option);
   }
 }
 

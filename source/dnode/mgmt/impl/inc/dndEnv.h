@@ -74,6 +74,10 @@ typedef struct {
   int8_t       replica;
   int8_t       selfIndex;
   SReplica     replicas[TSDB_MAX_REPLICA];
+
+  //
+  bool      multiProcess;
+  SProcObj *pProcess;
 } SMnodeMgmt;
 
 typedef struct {
