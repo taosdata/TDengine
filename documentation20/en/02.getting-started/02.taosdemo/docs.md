@@ -1,4 +1,4 @@
-Since TDengine was open sourced in July 2019, it has gained a lot of popularity among time-series database developers with its innovative data modeling design, simple installation method, easy programming interface, and powerful data insertion and query performance. The insertion and querying performance is often astonishing to users who are new to TDengine. In order to help users to experience the high performance and functions of TDengine in the shortest time, we developed an application called `taosBenchmark` (was named `taosdemo`) for insertion and querying performance testing of TDengine. Then user can easily simulate the scenario of a large number of devices generating a very large amount of data. User can easily  manipulate the number of columns, data types, disorder ratio, and number of concurrent threads with taosBenchmark customized parameters.
+Since TDengine was open sourced in July 2019, it has gained a lot of popularity among time-series database developers with its innovative data modeling design, simple installation method, easy programming interface, and powerful data insertion and query performance. The insertion and querying performance is often astonishing to users who are new to TDengine. In order to help users to experience the high performance and functions of TDengine in the shortest time, we developed an application called `taosBenchmark` (was named `taosdemo`) for insertion and querying performance testing of TDengine. Then user can easily simulate the scenario of a large number of devices generating a very large amount of data. User can easily manipulate the number of tables, columns, data types, disorder ratio, and number of concurrent threads with taosBenchmark customized parameters.
 
 Running taosBenchmark is very simple. Just download the [TDengine installation package](https://www.taosdata.com/cn/all-downloads/) or compiling the [TDengine code](https://github.com/taosdata/TDengine). It can be found and run in the installation directory or in the compiled results directory.
 
@@ -346,6 +346,7 @@ In addition to the command line approach, taosBenchmark also supports take a JSO
             "start_timestamp": "2020-10-01 00:00:00.000",
             "sample_format": "csv",
             "sample_file": "./sample.csv",
+            "use_sample_ts": "no",
             "tags_file": "",
             "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":10}, {"type": "BINARY", "len": 16, "count":3}, {"type": "BINARY", "len": 32, "count":6}],
             "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":5}]
@@ -354,7 +355,9 @@ In addition to the command line approach, taosBenchmark also supports take a JSO
 }
 ```
 
-For example, we can specify different number of threads for table creation and data insertion with "thread_count" and "thread_count_create_tbl". You can use a combination of "child_table_exists", "childtable_limit" and "childtable_offset" to use multiple taosBenchmark processes (even on different computers) to write to different ranges of child tables of the same super table at the same time. You can also import existing data by specifying the data source as a csv file with "data_source" and "sample_file".
+For example, we can specify different number of threads for table creation and data insertion with `thread_count` and `thread_count_create_tbl`. You can use a combination of `child_table_exists`, `childtable_limit` and `childtable_offset` to use multiple taosBenchmark processes (even on different computers) to write to different ranges of child tables of the same super table at the same time. You can also import existing data by specifying the data source as a CSV file with `data_source` and `sample_file`. The argument `use_sample_ts` indicate whether the first column, timestamp in TDengine would use the data of the specified CSV file too.
+
+CSV file is a plain text format and use comma signs as separators between two columns. The number of columns must is same as the number of columns or tags of the table you intend to insert.
 
 # Use taosBenchmark for query and subscription testing
 
