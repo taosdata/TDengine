@@ -19,6 +19,9 @@ namespace AsyncQueryExample
 	    SubscribeSample subscribeSample = new SubscribeSample();
             subscribeSample.RunSubscribeWithCallback(conn, "subscribe_with_callback");
             subscribeSample.RunSubscribeWithoutCallback(conn, "subscribe_without_callback");
+	    
+	    StreamSample streamSample = new StreamSample();
+            streamSample.RunStreamOption1(conn,"stream_sample_option1");
 
             UtilsTools.CloseConnection(conn);
         }
