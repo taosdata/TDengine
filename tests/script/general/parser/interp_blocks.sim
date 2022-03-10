@@ -1,0 +1,753 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1 
+system sh/cfg.sh -n dnode1 -c minRows -v 10
+system sh/exec.sh -n dnode1 -s start
+sleep 100
+sql connect
+
+sql create database newplant;
+print ====== create tables
+sql use newplant
+sql create table st_analogdef (ts TIMESTAMP,ip_value FLOAT,ip_quality TINYINT) TAGS (name NCHAR(50),st_type BINARY(10),st_plant_area NCHAR(10),st_description NCHAR(50),st_eng_units NCHAR(10),st_graph_maximum FLOAT,st_graph_minimum FLOAT,st_hh_limit FLOAT,st_h_limit FLOAT,st_l_limit FLOAT,st_ll_limit FLOAT,st_deadband FLOAT,is_sys_table INT);
+sql CREATE TABLE ts_1171194 USING st_analogdef TAGS ("TD_A01009","analog","ss1","sss1009","%",30000.000000,NULL,12000.000000,10000.000000,100.000000,80.000000,NULL,0);
+
+sql insert into ts_1171194 values ('2021-08-16 16:09:40.000',1.00000,2)
+sql insert into ts_1171194 values ('2021-08-16 16:10:10.000',2.00000,3)
+sql insert into ts_1171194 values ('2021-08-16 16:10:40.000',3.00000,4)
+sql insert into ts_1171194 values ('2021-08-16 16:11:10.000',4.00000,5)
+sql insert into ts_1171194 values ('2021-08-16 16:11:40.000',5.00000,6)
+sql insert into ts_1171194 values ('2021-08-16 16:12:10.000',6.00000,7)
+sql insert into ts_1171194 values ('2021-08-16 16:12:40.000',7.00000,8)
+sql insert into ts_1171194 values ('2021-08-16 16:13:20.000',8.00000,9)
+sql insert into ts_1171194 values ('2021-08-16 16:13:50.000',9.00000,10)
+sql insert into ts_1171194 values ('2021-08-16 16:58:00.000',10.00000,11)
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 500
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+
+sql insert into ts_1171194 values ('2021-08-16 16:59:00.000',11.00000,12)
+sql insert into ts_1171194 values ('2021-08-16 17:10:10.000',12.00000,13)
+sql insert into ts_1171194 values ('2021-08-16 17:10:40.000',13.00000,14)
+sql insert into ts_1171194 values ('2021-08-16 17:11:10.000',14.00000,15)
+sql insert into ts_1171194 values ('2021-08-16 17:11:40.000',15.00000,16)
+sql insert into ts_1171194 values ('2021-08-16 17:12:10.000',16.00000,17)
+sql insert into ts_1171194 values ('2021-08-16 17:12:40.000',17.00000,18)
+sql insert into ts_1171194 values ('2021-08-16 17:13:20.000',18.00000,19)
+sql insert into ts_1171194 values ('2021-08-16 17:13:50.000',19.00000,20)
+sql insert into ts_1171194 values ('2021-08-16 17:58:00.000',20.00000,21)
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 500
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+
+sql insert into ts_1171194 values ('2021-08-16 17:59:00.000',21.00000,22)
+sql insert into ts_1171194 values ('2021-08-16 18:10:10.000',22.00000,23)
+sql insert into ts_1171194 values ('2021-08-16 18:10:40.000',23.00000,24)
+sql insert into ts_1171194 values ('2021-08-16 18:11:10.000',24.00000,25)
+sql insert into ts_1171194 values ('2021-08-16 18:11:40.000',25.00000,26)
+sql insert into ts_1171194 values ('2021-08-16 18:12:10.000',26.00000,27)
+sql insert into ts_1171194 values ('2021-08-16 18:12:40.000',27.00000,28)
+sql insert into ts_1171194 values ('2021-08-16 18:13:20.000',28.00000,29)
+sql insert into ts_1171194 values ('2021-08-16 18:13:50.000',29.00000,30)
+sql insert into ts_1171194 values ('2021-08-16 18:58:00.000',30.00000,31)
+
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 500
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+
+
+sql select interp(ip_value,ip_quality) from st_analogdef where name='TD_A01009' and ts >='2021-08-16 16:00:00.000' and ts <='2021-08-16 19:00:00.000' every(1h) fill(linear);
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-08-16 16:00:00.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+if $data10 != @21-08-16 17:00:00.000@ then
+  return -1
+endi
+if $data11 != 11.08955 then
+  return -1
+endi
+if $data12 != 12 then
+  return -1
+endi
+if $data20 != @21-08-16 18:00:00.000@ then
+  return -1
+endi
+if $data21 != 21.08955 then
+  return -1
+endi
+if $data22 != 22 then
+  return -1
+endi
+if $data30 != @21-08-16 19:00:00.000@ then
+  return -1
+endi
+if $data31 != NULL then
+  return -1
+endi
+if $data32 != NULL then
+  return -1
+endi
+
+sql select interp(ip_value,ip_quality) from st_analogdef where name='TD_A01009' and ts >='2021-08-16 16:00:00.000' and ts <='2021-08-16 19:00:00.000' every(30m) fill(linear);
+if $rows != 7 then
+  return -1
+endi
+if $data00 != @21-08-16 16:00:00.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+if $data10 != @21-08-16 16:30:00.000@ then
+  return -1
+endi
+if $data11 != 9.36604 then
+  return -1
+endi
+if $data12 != 10 then
+  return -1
+endi
+if $data20 != @21-08-16 17:00:00.000@ then
+  return -1
+endi
+if $data21 != 11.08955 then
+  return -1
+endi
+if $data22 != 12 then
+  return -1
+endi
+if $data30 != @21-08-16 17:30:00.000@ then
+  return -1
+endi
+if $data31 != 19.36604 then
+  return -1
+endi
+if $data32 != 20 then
+  return -1
+endi
+if $data40 != @21-08-16 18:00:00.000@ then
+  return -1
+endi
+if $data41 != 21.08955 then
+  return -1
+endi
+if $data42 != 22 then
+  return -1
+endi
+if $data50 != @21-08-16 18:30:00.000@ then
+  return -1
+endi
+if $data51 != 29.36604 then
+  return -1
+endi
+if $data52 != 30 then
+  return -1
+endi
+if $data60 != @21-08-16 19:00:00.000@ then
+  return -1
+endi
+if $data61 != NULL then
+  return -1
+endi
+if $data62 != NULL then
+  return -1
+endi
+
+sql select interp(ip_value,ip_quality) from st_analogdef where name='TD_A01009' and ts >='2021-08-16 16:00:00.000' and ts <='2021-08-16 19:00:00.000' every(1h) fill(prev);
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-08-16 16:00:00.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+if $data10 != @21-08-16 17:00:00.000@ then
+  return -1
+endi
+if $data11 != 11.00000 then
+  return -1
+endi
+if $data12 != 12 then
+  return -1
+endi
+if $data20 != @21-08-16 18:00:00.000@ then
+  return -1
+endi
+if $data21 != 21.00000 then
+  return -1
+endi
+if $data22 != 22 then
+  return -1
+endi
+if $data30 != @21-08-16 19:00:00.000@ then
+  return -1
+endi
+if $data31 != 30.00000 then
+  return -1
+endi
+if $data32 != 31 then
+  return -1
+endi
+
+
+sql select interp(ip_value,ip_quality) from st_analogdef where name='TD_A01009' and ts >='2021-08-16 16:00:00.000' and ts <='2021-08-16 19:00:00.000' every(1h) fill(next);
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-08-16 16:00:00.000@ then
+  return -1
+endi
+if $data01 != 1.00000 then
+  return -1
+endi
+if $data02 != 2 then
+  return -1
+endi
+if $data10 != @21-08-16 17:00:00.000@ then
+  return -1
+endi
+if $data11 != 12.00000 then
+  return -1
+endi
+if $data12 != 13 then
+  return -1
+endi
+if $data20 != @21-08-16 18:00:00.000@ then
+  return -1
+endi
+if $data21 != 22.00000 then
+  return -1
+endi
+if $data22 != 23 then
+  return -1
+endi
+if $data30 != @21-08-16 19:00:00.000@ then
+  return -1
+endi
+if $data31 != NULL then
+  return -1
+endi
+if $data32 != NULL then
+  return -1
+endi
+
+sql select interp(ip_value,ip_quality) from st_analogdef where name='TD_A01009' and ts >='2021-08-16 16:00:00.000' and ts <='2021-08-16 19:00:00.000' every(1h) fill(value,1);
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-08-16 16:00:00.000@ then
+  return -1
+endi
+if $data01 != 1.00000 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data10 != @21-08-16 17:00:00.000@ then
+  return -1
+endi
+if $data11 != 1.00000 then
+  return -1
+endi
+if $data12 != 1 then
+  return -1
+endi
+if $data20 != @21-08-16 18:00:00.000@ then
+  return -1
+endi
+if $data21 != 1.00000 then
+  return -1
+endi
+if $data22 != 1 then
+  return -1
+endi
+if $data30 != @21-08-16 19:00:00.000@ then
+  return -1
+endi
+if $data31 != 1.00000 then
+  return -1
+endi
+if $data32 != 1 then
+  return -1
+endi
+
+sql select interp(ip_value,ip_quality) from st_analogdef where name='TD_A01009' and ts >='2021-08-16 16:00:00.000' and ts <='2021-08-16 19:00:00.000' every(1h) fill(linear) order  by ts desc;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-08-16 19:00:00.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+if $data10 != @21-08-16 18:00:00.000@ then
+  return -1
+endi
+if $data11 != 21.08955 then
+  return -1
+endi
+if $data12 != 22 then
+  return -1
+endi
+if $data20 != @21-08-16 17:00:00.000@ then
+  return -1
+endi
+if $data21 != 11.08955 then
+  return -1
+endi
+if $data22 != 12 then
+  return -1
+endi
+if $data30 != @21-08-16 16:00:00.000@ then
+  return -1
+endi
+if $data31 != NULL then
+  return -1
+endi
+if $data32 != NULL then
+  return -1
+endi
+
+sql select interp(ip_value,ip_quality) from st_analogdef where name='TD_A01009' and ts >='2021-08-16 16:00:00.000' and ts <='2021-08-16 19:00:00.000' every(1h) fill(next) order  by ts desc;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-08-16 19:00:00.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+if $data10 != @21-08-16 18:00:00.000@ then
+  return -1
+endi
+if $data11 != 21.00000 then
+  return -1
+endi
+if $data12 != 22 then
+  return -1
+endi
+if $data20 != @21-08-16 17:00:00.000@ then
+  return -1
+endi
+if $data21 != 11.00000 then
+  return -1
+endi
+if $data22 != 12 then
+  return -1
+endi
+if $data30 != @21-08-16 16:00:00.000@ then
+  return -1
+endi
+if $data31 != NULL then
+  return -1
+endi
+if $data32 != NULL then
+  return -1
+endi
+
+sql select interp(ip_value,ip_quality) from st_analogdef where name='TD_A01009' and ts >='2021-08-16 16:00:00.000' and ts <='2021-08-16 19:00:00.000' every(1h) fill(NULL) order  by ts desc;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-08-16 19:00:00.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+if $data10 != @21-08-16 18:00:00.000@ then
+  return -1
+endi
+if $data11 != NULL then
+  return -1
+endi
+if $data12 != NULL then
+  return -1
+endi
+if $data20 != @21-08-16 17:00:00.000@ then
+  return -1
+endi
+if $data21 != NULL then
+  return -1
+endi
+if $data22 != NULL then
+  return -1
+endi
+if $data30 != @21-08-16 16:00:00.000@ then
+  return -1
+endi
+if $data31 != NULL then
+  return -1
+endi
+if $data32 != NULL then
+  return -1
+endi
+
+sql select interp(ip_value,ip_quality) from st_analogdef where name='TD_A01009' and ts >='2021-08-16 16:00:00.000' and ts <='2021-08-16 19:00:00.000' every(1h) fill(value, 5) order  by ts desc;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-08-16 19:00:00.000@ then
+  return -1
+endi
+if $data01 != 5.00000 then
+  return -1
+endi
+if $data02 != 5 then
+  return -1
+endi
+if $data10 != @21-08-16 18:00:00.000@ then
+  return -1
+endi
+if $data11 != 5.00000 then
+  return -1
+endi
+if $data12 != 5 then
+  return -1
+endi
+if $data20 != @21-08-16 17:00:00.000@ then
+  return -1
+endi
+if $data21 != 5.00000 then
+  return -1
+endi
+if $data22 != 5 then
+  return -1
+endi
+if $data30 != @21-08-16 16:00:00.000@ then
+  return -1
+endi
+if $data31 != 5.00000 then
+  return -1
+endi
+if $data32 != 5 then
+  return -1
+endi
+
+sql select interp(ip_value,ip_quality) from st_analogdef where name='TD_A01009' and ts >='2021-08-16 16:00:00.000' and ts <='2021-08-16 19:00:00.000' every(30m) fill(linear) order by ts desc;
+if $rows != 7 then
+  return -1
+endi
+if $data00 != @21-08-16 19:00:00.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+if $data10 != @21-08-16 18:30:00.000@ then
+  return -1
+endi
+if $data11 != 29.36604 then
+  return -1
+endi
+if $data12 != 30 then
+  return -1
+endi
+if $data20 != @21-08-16 18:00:00.000@ then
+  return -1
+endi
+if $data21 != 21.08955 then
+  return -1
+endi
+if $data22 != 22 then
+  return -1
+endi
+if $data30 != @21-08-16 17:30:00.000@ then
+  return -1
+endi
+if $data31 != 19.36604 then
+  return -1
+endi
+if $data32 != 20 then
+  return -1
+endi
+if $data40 != @21-08-16 17:00:00.000@ then
+  return -1
+endi
+if $data41 != 11.08955 then
+  return -1
+endi
+if $data42 != 12 then
+  return -1
+endi
+if $data50 != @21-08-16 16:30:00.000@ then
+  return -1
+endi
+if $data51 != 9.36604 then
+  return -1
+endi
+if $data52 != 10 then
+  return -1
+endi
+if $data60 != @21-08-16 16:00:00.000@ then
+  return -1
+endi
+if $data61 != NULL then
+  return -1
+endi
+if $data62 != NULL then
+  return -1
+endi
+
+
+sql select interp(ip_value,ip_quality) from st_analogdef where name='TD_A01009' and ts >='2021-08-16 16:00:00.000' and ts <='2021-08-16 19:00:00.000' every(30m) fill(next) order by ts desc;
+if $rows != 7 then
+  return -1
+endi
+if $data00 != @21-08-16 19:00:00.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+if $data10 != @21-08-16 18:30:00.000@ then
+  return -1
+endi
+if $data11 != 29.00000 then
+  return -1
+endi
+if $data12 != 30 then
+  return -1
+endi
+if $data20 != @21-08-16 18:00:00.000@ then
+  return -1
+endi
+if $data21 != 21.00000 then
+  return -1
+endi
+if $data22 != 22 then
+  return -1
+endi
+if $data30 != @21-08-16 17:30:00.000@ then
+  return -1
+endi
+if $data31 != 19.00000 then
+  return -1
+endi
+if $data32 != 20 then
+  return -1
+endi
+if $data40 != @21-08-16 17:00:00.000@ then
+  return -1
+endi
+if $data41 != 11.00000 then
+  return -1
+endi
+if $data42 != 12 then
+  return -1
+endi
+if $data50 != @21-08-16 16:30:00.000@ then
+  return -1
+endi
+if $data51 != 9.00000 then
+  return -1
+endi
+if $data52 != 10 then
+  return -1
+endi
+if $data60 != @21-08-16 16:00:00.000@ then
+  return -1
+endi
+if $data61 != NULL then
+  return -1
+endi
+if $data62 != NULL then
+  return -1
+endi
+
+sql select interp(ip_value,ip_quality) from st_analogdef where name='TD_A01009' and ts >='2021-08-16 16:00:00.000' and ts <='2021-08-16 16:13:50.000' every(3m) fill(linear);
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @21-08-16 16:00:00.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+if $data10 != @21-08-16 16:03:00.000@ then
+  return -1
+endi
+if $data11 != NULL then
+  return -1
+endi
+if $data12 != NULL then
+  return -1
+endi
+if $data20 != @21-08-16 16:06:00.000@ then
+  return -1
+endi
+if $data21 != NULL then
+  return -1
+endi
+if $data22 != NULL then
+  return -1
+endi
+if $data30 != @21-08-16 16:09:00.000@ then
+  return -1
+endi
+if $data31 != NULL then
+  return -1
+endi
+if $data32 != NULL then
+  return -1
+endi
+if $data40 != @21-08-16 16:12:00.000@ then
+  return -1
+endi
+if $data41 != 5.66667 then
+  return -1
+endi
+if $data42 != 6 then
+  return -1
+endi
+
+sql select interp(ip_value,ip_quality) from st_analogdef where name='TD_A01009' and ts >='2021-08-16 16:00:00.000' and ts <='2021-08-16 16:13:50.000' every(3m) fill(linear) order by ts desc;
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @21-08-16 16:12:00.000@ then
+  return -1
+endi
+if $data01 !=  5.66667 then
+  return -1
+endi
+if $data02 != 6 then
+  return -1
+endi
+if $data10 != @21-08-16 16:09:00.000@ then
+  return -1
+endi
+if $data11 != NULL then
+  return -1
+endi
+if $data12 != NULL then
+  return -1
+endi
+if $data20 != @21-08-16 16:06:00.000@ then
+  return -1
+endi
+if $data21 != NULL then
+  return -1
+endi
+if $data22 != NULL then
+  return -1
+endi
+if $data30 != @21-08-16 16:03:00.000@ then
+  return -1
+endi
+if $data31 != NULL then
+  return -1
+endi
+if $data32 != NULL then
+  return -1
+endi
+if $data40 != @21-08-16 16:00:00.000@ then
+  return -1
+endi
+if $data41 != NULL then
+  return -1
+endi
+if $data42 != NULL then
+  return -1
+endi
+
+sql select interp(ip_value,ip_quality) from st_analogdef where name='TD_A01009' and ts >='2021-08-16 16:00:00.000' and ts <='2021-08-16 16:13:50.000' every(3m) fill(next) order by ts desc;
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @21-08-16 16:12:00.000@ then
+  return -1
+endi
+if $data01 !=  5.00000 then
+  return -1
+endi
+if $data02 != 6 then
+  return -1
+endi
+if $data10 != @21-08-16 16:09:00.000@ then
+  return -1
+endi
+if $data11 != NULL then
+  return -1
+endi
+if $data12 != NULL then
+  return -1
+endi
+if $data20 != @21-08-16 16:06:00.000@ then
+  return -1
+endi
+if $data21 != NULL then
+  return -1
+endi
+if $data22 != NULL then
+  return -1
+endi
+if $data30 != @21-08-16 16:03:00.000@ then
+  return -1
+endi
+if $data31 != NULL then
+  return -1
+endi
+if $data32 != NULL then
+  return -1
+endi
+if $data40 != @21-08-16 16:00:00.000@ then
+  return -1
+endi
+if $data41 != NULL then
+  return -1
+endi
+if $data42 != NULL then
+  return -1
+endi
+
+#system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -1,0 +1,466 @@
+sleep 100
+sql connect
+sql create database if not exists db
+sql use db
+
+#### test the value of all data types in four cases: static create table, insert column value, synamic create table, alter tag value
+
+######## case 0: bigint
+print ========== bigint 
+sql create table mt_bigint (ts timestamp, c bigint) tags (tagname bigint)
+
+## case 00: static create table for test tag values
+sql create table st_bigint_0  using mt_bigint tags (NULL)
+sql select tagname from  st_bigint_0
+if $data00 != NULL then
+  return -1
+endi
+sql create table st_bigint_1  using mt_bigint tags (NULL)
+sql select tagname from  st_bigint_1
+if $data00 != NULL then
+  return -1
+endi
+sql create table st_bigint_2  using mt_bigint tags ('NULL')
+sql select tagname from  st_bigint_2
+if $data00 != NULL then
+  return -1
+endi
+sql create table st_bigint_3  using mt_bigint tags ('NULL')
+sql select tagname from  st_bigint_3
+if $data00 != NULL then
+  return -1
+endi
+sql create table st_bigint_4  using mt_bigint tags ("NULL")
+sql select tagname from  st_bigint_4
+if $data00 != NULL then
+  return -1
+endi
+sql create table st_bigint_5  using mt_bigint tags ("NULL")
+sql select tagname from  st_bigint_5
+if $data00 != NULL then
+  return -1
+endi
+sql create table st_bigint_6  using mt_bigint tags (-9223372036854775807)
+sql select tagname from  st_bigint_6
+if $data00 != -9223372036854775807 then
+  return -1
+endi
+sql create table st_bigint_7  using mt_bigint tags (9223372036854775807)
+sql select tagname from  st_bigint_7
+if $data00 != 9223372036854775807 then
+  return -1
+endi
+sql create table st_bigint_8  using mt_bigint tags (37)
+sql select tagname from  st_bigint_8
+if $data00 != 37 then
+  return -1
+endi
+sql create table st_bigint_9  using mt_bigint tags (-100)
+sql select tagname from  st_bigint_9
+if $data00 != -100 then
+  return -1
+endi
+sql create table st_bigint_10 using mt_bigint tags (+113)
+sql select tagname from  st_bigint_10
+if $data00 != 113 then
+  return -1
+endi
+sql create table st_bigint_11 using mt_bigint tags ('-100')
+sql select tagname from  st_bigint_11
+if $data00 != -100 then
+  return -1
+endi
+sql create table st_bigint_12 using mt_bigint tags ("+78")
+sql select tagname from  st_bigint_12
+if $data00 != 78 then
+  return -1
+endi
+sql create table st_bigint_13 using mt_bigint tags (+0078)
+sql select tagname from  st_bigint_13
+if $data00 != 78 then
+  return -1
+endi
+sql create table st_bigint_14 using mt_bigint tags (-00078)
+sql select tagname from  st_bigint_14
+if $data00 != -78 then
+  return -1
+endi
+
+## case 01: insert values  for test column values
+sql insert into st_bigint_0  values (now, NULL)
+sql select * from st_bigint_0
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi 
+sql insert into st_bigint_1  values (now, NULL)
+sql select * from st_bigint_1
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi  
+sql insert into st_bigint_2  values (now, 'NULL')
+sql select * from st_bigint_2
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_bigint_3  values (now, 'NULL')
+sql select * from st_bigint_3
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_bigint_4  values (now, "NULL")
+sql select * from st_bigint_4
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_bigint_5  values (now, "NULL")
+sql select * from st_bigint_5
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_bigint_6  values (now, 9223372036854775807)
+sql select * from st_bigint_6
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 9223372036854775807 then
+  return -1
+endi 
+sql insert into st_bigint_7  values (now, -9223372036854775807)
+sql select * from st_bigint_7
+if $rows != 1 then
+  return -1
+endi
+if $data01 != -9223372036854775807 then
+  return -1
+endi  
+sql insert into st_bigint_8  values (now, +100) 
+sql select * from st_bigint_8
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 100 then
+  return -1
+endi   
+sql insert into st_bigint_9  values (now, "-098")
+sql select * from st_bigint_9
+if $rows != 1 then
+  return -1
+endi
+if $data01 != -98 then
+  return -1
+endi 
+sql insert into st_bigint_10 values (now, '0')
+sql select * from st_bigint_10
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi 
+sql insert into st_bigint_11 values (now, -0)  
+sql select * from st_bigint_11
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi 
+sql insert into st_bigint_12 values (now, "+056")
+sql select * from st_bigint_12
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 56 then
+  return -1
+endi 
+
+sql insert into st_bigint_13 values (now, +056)
+sql select * from st_bigint_13
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 56 then
+  return -1
+endi 
+
+sql insert into st_bigint_14 values (now, -056)
+sql select * from st_bigint_14
+if $rows != 1 then
+  return -1
+endi
+if $data01 != -56 then
+  return -1
+endi 
+
+## case 02: dynamic create table for test tag values
+sql insert into st_bigint_16 using mt_bigint tags (NULL)   values (now, NULL)
+sql select tagname from  st_bigint_16
+if $data00 != NULL then
+  return -1
+endi
+sql select * from st_bigint_16
+if $data01 != NULL then
+  return -1
+endi
+    
+sql insert into st_bigint_17 using mt_bigint tags (NULL)   values (now, NULL)
+sql select tagname from  st_bigint_17
+if $data00 != NULL then
+  return -1
+endi
+sql select * from st_bigint_17
+if $data01 != NULL then
+  return -1
+endi  
+sql insert into st_bigint_18 using mt_bigint tags ('NULL') values (now, 'NULL')
+sql select tagname from  st_bigint_18
+if $data00 != NULL then
+  return -1
+endi
+sql select * from st_bigint_18
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_bigint_19 using mt_bigint tags ('NULL') values (now, 'NULL')
+sql select tagname from  st_bigint_19
+if $data00 != NULL then
+  return -1
+endi
+sql select * from st_bigint_19
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_bigint_20 using mt_bigint tags ("NULL") values (now, "NULL")
+sql select tagname from  st_bigint_20
+if $data00 != NULL then
+  return -1
+endi
+sql select * from st_bigint_20
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_bigint_21 using mt_bigint tags ("NULL") values (now, "NULL")
+sql select tagname from  st_bigint_21
+if $data00 != NULL then
+  return -1
+endi
+sql select * from st_bigint_21
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_bigint_22 using mt_bigint tags (9223372036854775807)  values (now, 9223372036854775807)
+sql select tagname from  st_bigint_22
+if $data00 != 9223372036854775807 then
+  return -1
+endi
+sql select * from st_bigint_22
+if $data01 != 9223372036854775807 then
+  return -1
+endi 
+sql insert into st_bigint_23 using mt_bigint tags (-9223372036854775807)  values (now, -9223372036854775807)
+sql select tagname from  st_bigint_23
+if $data00 != -9223372036854775807 then
+  return -1
+endi
+sql select * from st_bigint_23
+if $data01 != -9223372036854775807 then
+  return -1
+endi  
+sql insert into st_bigint_24 using mt_bigint tags (10)    values (now, 10)
+sql select tagname from  st_bigint_24
+if $data00 != 10 then
+  return -1
+endi
+sql select * from st_bigint_24
+if $data01 != 10 then
+  return -1
+endi    
+sql insert into st_bigint_25 using mt_bigint tags ("-0") values (now, "-0")
+sql select tagname from  st_bigint_25
+if $data00 != 0 then
+  return -1
+endi
+sql select * from st_bigint_25
+if $data01 != 0 then
+  return -1
+endi 
+sql insert into st_bigint_26 using mt_bigint tags ('123') values (now, '123')
+sql select tagname from  st_bigint_26
+if $data00 != 123 then
+  return -1
+endi
+sql select * from st_bigint_26
+if $data01 != 123 then
+  return -1
+endi 
+sql insert into st_bigint_27 using mt_bigint tags (+056) values (now, +00056)
+sql select tagname from  st_bigint_27
+if $data00 != 56 then
+  return -1
+endi
+sql select * from st_bigint_27
+if $data01 != 56 then
+  return -1
+endi 
+sql insert into st_bigint_28 using mt_bigint tags (-056) values (now, -0056)
+sql select tagname from  st_bigint_28
+if $data00 != -56 then
+  return -1
+endi
+sql select * from st_bigint_28
+if $data01 != -56 then
+  return -1
+endi 
+
+### case 03: alter tag values
+#sql alter table st_bigint_0 set tag tagname=9223372036854775807
+#sql select tagname from  st_bigint_0
+#if $data00 != 9223372036854775807 then
+#  return -1
+#endi
+#sql alter table st_bigint_0 set tag tagname=-9223372036854775807
+#sql select tagname from  st_bigint_0
+#if $data00 != -9223372036854775807 then
+#  return -1
+#endi
+#sql alter table st_bigint_0 set tag tagname=+100
+#sql select tagname from  st_bigint_0
+#if $data00 != 100 then
+#  return -1
+#endi
+#sql alter table st_bigint_0 set tag tagname=-33
+#sql select tagname from  st_bigint_0
+#if $data00 != -33 then
+#  return -1
+#endi
+#sql alter table st_bigint_0 set tag tagname='+98'
+#sql select tagname from  st_bigint_0
+#if $data00 != 98 then
+#  return -1
+#endi
+#sql alter table st_bigint_0 set tag tagname='-076'
+#sql select tagname from  st_bigint_0
+#if $data00 != -76 then
+#  return -1
+#endi
+#sql alter table st_bigint_0 set tag tagname=+0012
+#sql select tagname from  st_bigint_0
+#if $data00 != 12 then
+#  return -1
+#endi
+#sql alter table st_bigint_0 set tag tagname=-00063
+#sql select tagname from  st_bigint_0
+#if $data00 != -63 then
+#  return -1
+#endi
+
+## case 04: illegal input
+################## when overflow, auto set max
+sql_error create table st_bigint_e0   using mt_bigint tags (9223372036854775808)
+sql_error create table st_bigint_e0_1 using mt_bigint tags (-9223372036854775808)
+sql_error create table st_bigint_e0_2 using mt_bigint tags (92233720368547758080)
+sql_error create table st_bigint_e0_3 using mt_bigint tags (-9223372036854775809)
+#sql_error create table st_bigint_e0 using mt_bigint tags (12.80)   truncate integer part
+#sql_error create table st_bigint_e0 using mt_bigint tags (-11.80)
+sql_error create table st_bigint_e0 using mt_bigint tags (123abc)  
+sql_error create table st_bigint_e0 using mt_bigint tags ("123abc")
+sql_error create table st_bigint_e0 using mt_bigint tags (abc)     
+sql_error create table st_bigint_e0 using mt_bigint tags ("abc")   
+sql_error create table st_bigint_e0 using mt_bigint tags (" ")     
+sql_error create table st_bigint_e0 using mt_bigint tags ('')      
+
+sql create table st_bigint_e0  using mt_bigint tags (123)
+sql create table st_bigint_e1  using mt_bigint tags (123)
+sql create table st_bigint_e2  using mt_bigint tags (123)
+sql create table st_bigint_e3  using mt_bigint tags (123)
+sql create table st_bigint_e4  using mt_bigint tags (123)
+sql create table st_bigint_e5  using mt_bigint tags (123)
+sql create table st_bigint_e6  using mt_bigint tags (123)
+sql create table st_bigint_e7  using mt_bigint tags (123)
+sql create table st_bigint_e8  using mt_bigint tags (123)
+sql create table st_bigint_e9  using mt_bigint tags (123)
+sql create table st_bigint_e10 using mt_bigint tags (123)
+sql create table st_bigint_e11 using mt_bigint tags (123)
+sql create table st_bigint_e12 using mt_bigint tags (123)
+
+sql_error insert into st_bigint_e0  values (now, 9223372036854775808)     
+sql_error insert into st_bigint_e1  values (now, -9223372036854775808)    
+sql_error insert into st_bigint_e2  values (now, 9223372036854775809)    
+sql_error insert into st_bigint_e3  values (now, -9223372036854775808)   
+#sql_error insert into st_bigint_e4  values (now, 922337203.6854775808)   
+#sql_error insert into st_bigint_e5  values (now, -922337203685477580.9)  
+sql_error insert into st_bigint_e6  values (now, 123abc)  
+sql_error insert into st_bigint_e7  values (now, "123abc")
+sql_error insert into st_bigint_e9  values (now, abc)     
+sql_error insert into st_bigint_e10 values (now, "abc")   
+sql_error insert into st_bigint_e11 values (now, " ")     
+sql_error insert into st_bigint_e12 values (now, '')      
+
+sql_error insert into st_bigint_e13 using mt_bigint tags (033) values (now, 9223372036854775808)     
+sql_error insert into st_bigint_e14 using mt_bigint tags (033) values (now, -9223372036854775808)    
+sql_error insert into st_bigint_e15 using mt_bigint tags (033) values (now, 9223372036854775818)    
+sql_error insert into st_bigint_e16 using mt_bigint tags (033) values (now, -9923372036854775808)   
+#sql_error insert into st_bigint_e17 using mt_bigint tags (033) values (now, 92233720368547758.08)   
+#sql_error insert into st_bigint_e18 using mt_bigint tags (033) values (now, -92233720368547.75808)  
+sql_error insert into st_bigint_e19 using mt_bigint tags (033) values (now, 123abc)  
+sql_error insert into st_bigint_e20 using mt_bigint tags (033) values (now, "123abc")
+sql_error insert into st_bigint_e22 using mt_bigint tags (033) values (now, abc)     
+sql_error insert into st_bigint_e23 using mt_bigint tags (033) values (now, "abc")   
+sql_error insert into st_bigint_e24 using mt_bigint tags (033) values (now, " ")     
+sql_error insert into st_bigint_e25 using mt_bigint tags (033) values (now, '')  
+
+sql_error insert into st_bigint_e13_0 using mt_bigint tags (9223372036854775808)      values (now, -033)
+sql_error insert into st_bigint_e14_0 using mt_bigint tags (-9223372036854775808)     values (now, -033)
+sql_error insert into st_bigint_e15_0 using mt_bigint tags (9223372036854775809)     values (now, -033)
+sql_error insert into st_bigint_e16_0 using mt_bigint tags (-9223372036854775898)    values (now, -033)
+#sql_error insert into st_bigint_e17 using mt_bigint tags (12.80)    values (now, -033)
+#sql_error insert into st_bigint_e18 using mt_bigint tags (-11.80)   values (now, -033)
+sql_error insert into st_bigint_e19 using mt_bigint tags (123abc)   values (now, -033)
+sql_error insert into st_bigint_e20 using mt_bigint tags ("123abc") values (now, -033)
+sql_error insert into st_bigint_e22 using mt_bigint tags (abc)      values (now, -033)
+sql_error insert into st_bigint_e23 using mt_bigint tags ("abc")    values (now, -033)
+sql_error insert into st_bigint_e24 using mt_bigint tags (" ")      values (now, -033)
+sql_error insert into st_bigint_e25 using mt_bigint tags ('')       values (now, -033)
+
+sql insert into st_bigint_e13 using mt_bigint tags (033) values (now, 00062)
+sql insert into st_bigint_e14 using mt_bigint tags (033) values (now, 00062)
+sql insert into st_bigint_e15 using mt_bigint tags (033) values (now, 00062)
+sql insert into st_bigint_e16 using mt_bigint tags (033) values (now, 00062)
+sql insert into st_bigint_e17 using mt_bigint tags (033) values (now, 00062)
+sql insert into st_bigint_e18 using mt_bigint tags (033) values (now, 00062)
+sql insert into st_bigint_e19 using mt_bigint tags (033) values (now, 00062)
+sql insert into st_bigint_e20 using mt_bigint tags (033) values (now, 00062)
+sql insert into st_bigint_e21 using mt_bigint tags (033) values (now, 00062)
+sql insert into st_bigint_e22 using mt_bigint tags (033) values (now, 00062)
+sql insert into st_bigint_e23 using mt_bigint tags (033) values (now, 00062)
+sql insert into st_bigint_e24 using mt_bigint tags (033) values (now, 00062)
+sql insert into st_bigint_e25 using mt_bigint tags (033) values (now, 00062)
+
+#sql alter table st_bigint_e13 set tag tagname=9223372036854775808
+#sql_error alter table st_bigint_e14 set tag tagname=-9223372036854775808
+#sql alter table st_bigint_e15 set tag tagname=92233720368547758080
+#sql_error alter table st_bigint_e16 set tag tagname=-92233720368547758080
+#sql_error alter table st_bigint_e19 set tag tagname=123abc
+#sql_error alter table st_bigint_e20 set tag tagname="123abc"
+#sql_error alter table st_bigint_e22 set tag tagname=abc
+#sql_error alter table st_bigint_e23 set tag tagname="abc"
+#sql_error alter table st_bigint_e24 set tag tagname=" "
+#sql_error alter table st_bigint_e25 set tag tagname=''

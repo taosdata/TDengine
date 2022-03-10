@@ -1,0 +1,80 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 0
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+print ============================ dnode1 start
+
+$i = 0
+$dbPrefix = acdb
+$tbPrefix = actb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+$accountPrefix = acac
+
+print =============== step1-4
+sql show accounts
+if $rows != 1 then 
+  return -1
+endi
+sql show users
+if $rows != 3 then 
+  return -1
+endi
+
+$i = 0
+$acc = $accountPrefix . $i
+sql_error create account $acc PASS pass123
+sql create account $acc PASS 'pass123'
+#sql create account $acc PASS 'pass123' -x step1
+#	return -1
+#step1:
+sql create user $acc PASS 'pass123' -x step2
+	return -1
+step2:
+
+sql show accounts
+if $rows != 2 then 
+  return -1
+endi
+
+sql show users
+if $rows != 3 then 
+  return -1
+endi
+
+print =============== step5-6
+sql drop account $acc
+sql drop account $acc -x step5
+	return -1
+step5:
+sql show accounts
+if $rows != 1 then 
+  return -1
+endi
+sql show users
+if $rows != 3 then 
+  return -1
+endi
+
+print =============== step7
+sql create account $acc PASS 'pass123'
+#sql create account $acc PASS 'pass123' -x step7
+#	return -1
+#step7:
+
+sql show accounts
+if $rows != 2 then 
+  return -1
+endi
+
+sql drop account $acc
+sql show accounts
+if $rows != 1 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT

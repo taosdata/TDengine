@@ -1,0 +1,316 @@
+system sh/stop_dnodes.sh
+
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 0
+
+print ========== step1
+system sh/cfg.sh -n dnode1 -c monitor -v 1
+system sh/cfg.sh -n dnode1 -c monitorInterval -v 1
+system sh/cfg.sh -n dnode1 -c maxVnodeConnections -v 30000
+system sh/cfg.sh -n dnode1 -c maxMgmtConnections  -v 30000
+system sh/cfg.sh -n dnode1 -c maxMeterConnections -v 30000
+system sh/cfg.sh -n dnode1 -c maxShellConns       -v 30000
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+print =============== step2
+sql create database d4 precision 'us'
+sql use d4
+sql create table t1 (ts timestamp, i int)
+sql insert into d4.t1 values(1626739200000, 1)
+
+sql create table d4.s001 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s002 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s003 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s004 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s005 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s006 as select count(req_http), count(req_insert), avg(req_select), sum(req_insert), max(req_select), min(req_insert) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s007 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn interval(5s)
+sql create table d4.s008 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn interval(5s)
+sql create table d4.s009 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn interval(5s)
+sql create table d4.s000 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from log.dn interval(5s)
+
+sql create table d4.s011 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s012 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s013 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s014 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s015 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s016 as select count(req_http), count(req_insert), avg(req_select), sum(req_insert), max(req_select), min(req_insert) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s017 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn interval(5s)
+sql create table d4.s018 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn interval(5s)
+sql create table d4.s019 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn interval(5s)
+sql create table d4.s010 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from log.dn interval(5s)
+
+sql create table d4.s021 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s022 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s023 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s024 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s025 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s026 as select count(req_http), count(req_insert), avg(req_select), sum(req_insert), max(req_select), min(req_insert) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s027 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn interval(5s)
+sql create table d4.s028 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn interval(5s)
+sql create table d4.s029 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn interval(5s)
+sql create table d4.s020 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from log.dn interval(5s)
+
+sql create table d4.s031 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s032 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s033 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s034 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s035 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s036 as select count(req_http), count(req_insert), avg(req_select), sum(req_insert), max(req_select), min(req_insert) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s037 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn interval(5s)
+sql create table d4.s038 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn interval(5s)
+sql create table d4.s039 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn interval(5s)
+sql create table d4.s030 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from log.dn interval(5s)
+
+sql create table d4.s041 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s042 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s043 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s044 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s045 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s046 as select count(req_http), count(req_insert), avg(req_select), sum(req_insert), max(req_select), min(req_insert) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s047 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn interval(5s)
+sql create table d4.s048 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn interval(5s)
+sql create table d4.s049 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn interval(5s)
+sql create table d4.s040 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from log.dn interval(5s)
+
+sql create table d4.s051 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s052 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s053 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s054 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s055 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s056 as select count(req_http), count(req_insert), avg(req_select), sum(req_insert), max(req_select), min(req_insert) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s057 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn interval(5s)
+sql create table d4.s058 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn interval(5s)
+sql create table d4.s059 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn interval(5s)
+sql create table d4.s050 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from log.dn interval(5s)
+
+sql create table d4.s061 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s062 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s063 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s064 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s065 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s066 as select count(req_http), count(req_insert), avg(req_select), sum(req_insert), max(req_select), min(req_insert) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s067 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn interval(5s)
+sql create table d4.s068 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn interval(5s)
+sql create table d4.s069 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn interval(5s)
+sql create table d4.s060 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from log.dn interval(5s)
+
+sql create table d4.s071 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s072 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s073 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s074 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s075 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s076 as select count(req_http), count(req_insert), avg(req_select), sum(req_insert), max(req_select), min(req_insert) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s077 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn interval(5s)
+sql create table d4.s078 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn interval(5s)
+sql create table d4.s079 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn interval(5s)
+sql create table d4.s070 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from log.dn interval(5s)
+
+sql create table d4.s081 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s082 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s083 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s084 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s085 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s086 as select count(req_http), count(req_insert), avg(req_select), sum(req_insert), max(req_select), min(req_insert) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s087 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn interval(5s)
+sql create table d4.s088 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn interval(5s)
+sql create table d4.s089 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn interval(5s)
+sql create table d4.s080 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from log.dn interval(5s)
+
+sql create table d4.s091 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s092 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s093 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s094 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s095 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s096 as select count(req_http), count(req_insert) , sum(req_insert), max(req_select), min(req_insert)  from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s097 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn interval(5s)
+sql create table d4.s098 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn interval(5s)
+sql create table d4.s099 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn interval(5s)
+sql create table d4.s090 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from log.dn interval(5s)
+
+print =============== step21
+
+sql create table d4.s101 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s102 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s103 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s104 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s105 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s106 as select count(req_http), count(req_insert) , sum(req_insert), max(req_select), min(req_insert)  from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s107 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn interval(5s)
+sql create table d4.s108 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn interval(5s)
+sql create table d4.s109 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn interval(5s)
+sql create table d4.s100 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from log.dn interval(5s)
+
+sql create table d4.s111 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s112 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s113 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s114 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s115 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s116 as select count(req_http), count(req_insert) , sum(req_insert), max(req_select), min(req_insert)  from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s117 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn interval(5s)
+sql create table d4.s118 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn interval(5s)
+sql create table d4.s119 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn interval(5s)
+sql create table d4.s110 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from log.dn interval(5s)
+
+sql create table d4.s121 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s122 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s123 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s124 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s125 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s126 as select count(req_http), count(req_insert) , sum(req_insert), max(req_select), min(req_insert)  from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s127 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn interval(5s)
+sql create table d4.s128 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn interval(5s)
+sql create table d4.s129 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn interval(5s)
+sql create table d4.s120 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from log.dn interval(5s)
+
+sql create table d4.s131 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s132 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s133 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s134 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s135 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s136 as select count(req_http), count(req_insert) , sum(req_insert), max(req_select), min(req_insert)  from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s137 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn interval(5s)
+sql create table d4.s138 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn interval(5s)
+sql create table d4.s139 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn interval(5s)
+sql create table d4.s130 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from log.dn interval(5s)
+
+sql create table d4.s141 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s142 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s143 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s144 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s145 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s146 as select count(req_http), count(req_insert) , sum(req_insert), max(req_select), min(req_insert)  from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s147 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn interval(5s)
+sql create table d4.s148 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn interval(5s)
+sql create table d4.s149 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn interval(5s)
+sql create table d4.s140 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from log.dn interval(5s)
+
+sql create table d4.s151 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s152 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s153 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s154 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s155 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s156 as select count(req_http), count(req_insert) , sum(req_insert), max(req_select), min(req_insert)  from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s157 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn interval(5s)
+sql create table d4.s158 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn interval(5s)
+sql create table d4.s159 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn interval(5s)
+sql create table d4.s150 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from log.dn interval(5s)
+
+sql create table d4.s161 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s162 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s163 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s164 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s165 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s166 as select count(req_http), count(req_insert) , sum(req_insert), max(req_select), min(req_insert)  from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s167 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn interval(5s)
+sql create table d4.s168 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn interval(5s)
+sql create table d4.s169 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn interval(5s)
+sql create table d4.s160 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from log.dn interval(5s)
+
+sql create table d4.s171 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s172 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s173 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s174 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s175 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s176 as select count(req_http), count(req_insert) , sum(req_insert), max(req_select), min(req_insert)  from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s177 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn interval(5s)
+sql create table d4.s178 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn interval(5s)
+sql create table d4.s179 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn interval(5s)
+sql create table d4.s170 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from log.dn interval(5s)
+
+sql create table d4.s181 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s182 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s183 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s184 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s185 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s186 as select count(req_http), count(req_insert) , sum(req_insert), max(req_select), min(req_insert)  from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s187 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn interval(5s)
+sql create table d4.s188 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn interval(5s)
+sql create table d4.s189 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn interval(5s)
+sql create table d4.s180 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from log.dn interval(5s)
+
+sql create table d4.s191 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s192 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s193 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn_192_168_0_1 interval(5s)
+sql create table d4.s194 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s195 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed) from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s196 as select count(req_http), count(req_insert) , sum(req_insert), max(req_select), min(req_insert)  from  log.dn_192_168_0_1 interval(5s)
+sql create table d4.s197 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn interval(5s)
+sql create table d4.s198 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn interval(5s)
+sql create table d4.s199 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used) from log.dn interval(5s)
+sql create table d4.s190 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read) from log.dn interval(5s)
+
+
+print =============== step3
+print sleep 22 seconds
+sleep 50000 
+
+sql select * from d4.s001
+$s1 = $rows
+print select * from d4.s001 ==> $s1
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s002
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s003
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s004
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s005
+$s5 = $rows
+print select * from d4.s005 ==> $s5
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s006
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s007
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s008
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s009
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s010
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s101
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s102
+$s12 = $rows
+print select * from d4.s102 ==> $s12
+if $rows <= 0 then 
+  return -1
+endi

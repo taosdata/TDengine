@@ -1364,7 +1364,7 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
         }
         char fraction[32] = {0};
         NUM_TO_STRING(child->resultType, &child->pVal->i64, sizeof(fraction), fraction);
-        int32_t tsDigits = strlen(fraction);
+        int32_t tsDigits = (int32_t)strlen(fraction);
         if (tsDigits > TSDB_TIME_PRECISION_SEC_DIGITS &&
             tsDigits != TSDB_TIME_PRECISION_MILLI_DIGITS &&
             tsDigits != TSDB_TIME_PRECISION_MICRO_DIGITS &&
@@ -1444,7 +1444,7 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
         if (child0->pVal->nType == TSDB_DATA_TYPE_BIGINT) {
           char fraction[32] = {0};
           NUM_TO_STRING(child0->resultType, &child0->pVal->i64, sizeof(fraction), fraction);
-          int32_t tsDigits = strlen(fraction);
+          int32_t tsDigits = (int32_t)strlen(fraction);
           if (tsDigits > TSDB_TIME_PRECISION_SEC_DIGITS &&
               tsDigits != TSDB_TIME_PRECISION_MILLI_DIGITS &&
               tsDigits != TSDB_TIME_PRECISION_MICRO_DIGITS &&
@@ -1525,7 +1525,7 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
           if (child[i]->pVal->nType == TSDB_DATA_TYPE_BIGINT) {
             char fraction[32] = {0};
             NUM_TO_STRING(child[i]->resultType, &child[i]->pVal->i64, sizeof(fraction), fraction);
-            int32_t tsDigits = strlen(fraction);
+            int32_t tsDigits = (int32_t)strlen(fraction);
             if (tsDigits > TSDB_TIME_PRECISION_SEC_DIGITS &&
                 tsDigits != TSDB_TIME_PRECISION_MILLI_DIGITS &&
                 tsDigits != TSDB_TIME_PRECISION_MICRO_DIGITS &&
@@ -2234,7 +2234,7 @@ void convertStringToTimestamp(int16_t type, char *inputData, int64_t timePrec, i
   if (type == TSDB_DATA_TYPE_BINARY) {
     newColData = calloc(1,  charLen + 1);
     memcpy(newColData, varDataVal(inputData), charLen);
-    taosParseTime(newColData, timeVal, charLen, timePrec, 0);
+    taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec, 0);
     tfree(newColData);
   } else if (type == TSDB_DATA_TYPE_NCHAR) {
     newColData = calloc(1,  charLen / TSDB_NCHAR_SIZE + 1);
@@ -2245,7 +2245,7 @@ void convertStringToTimestamp(int16_t type, char *inputData, int64_t timePrec, i
       return;
     }
     newColData[len] = 0;
-    taosParseTime(newColData, timeVal, len + 1, timePrec, 0);
+    taosParseTime(newColData, timeVal, len + 1, (int32_t)timePrec, 0);
     tfree(newColData);
   } else {
     uError("input type should be binary/nchar string");
@@ -2304,7 +2304,7 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
           char fraction[20] = {0};
           bool hasFraction = false;
           NUM_TO_STRING(pInputs[0].type, inputData[0], sizeof(fraction), fraction);
-          int32_t tsDigits = strlen(fraction);
+          int32_t tsDigits = (int32_t)strlen(fraction);
 
           char buf[64] = {0};
           int64_t timeVal;
@@ -2328,7 +2328,7 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
           int32_t len = (int32_t)strlen(buf);
 
           if (hasFraction) {
-            int32_t fracLen = strlen(fraction) + 1;
+            int32_t fracLen = (int32_t)strlen(fraction) + 1;
             char *tzInfo = strchr(buf, '+');
             if (tzInfo) {
               memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
@@ -2399,7 +2399,7 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
 
           char buf[20] = {0};
           NUM_TO_STRING(TSDB_DATA_TYPE_BIGINT, &timeVal, sizeof(buf), buf);
-          int32_t tsDigits = strlen(buf);
+          int32_t tsDigits = (int32_t)strlen(buf);
           timeUnit = timeUnit * 1000 / factor;
           switch (timeUnit) {
             case 0: { /* 1u */
@@ -2572,7 +2572,7 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
               }
               char buf[20] = {0};
               NUM_TO_STRING(TSDB_DATA_TYPE_BIGINT, &timeVal[j], sizeof(buf), buf);
-              int32_t tsDigits = strlen(buf);
+              int32_t tsDigits = (int32_t)strlen(buf);
               if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
                 timeVal[j] = timeVal[j] * 1000000000;
               } else if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {

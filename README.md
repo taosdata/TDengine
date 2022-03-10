@@ -349,7 +349,7 @@ The TDengine community has also kindly built some of their own connectors! Follo
 # How to run the test cases and how to add a new test case
 
   TDengine's test framework and all test cases are fully open source.
-  Please refer to [this document](https://github.com/taosdata/tests/blob/develop/How-To-Run-Test-And-How-To-Add-New-Test-Case.md) for how to run test and develop new test case.
+  Please refer to [this document](https://github.com/taosdata/TDengine/blob/develop/tests/How-To-Run-Test-And-How-To-Add-New-Test-Case.md) for how to run test and develop new test case.
 
 # TDengine Roadmap
 
