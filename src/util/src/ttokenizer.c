@@ -531,6 +531,8 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       for (i = 1; isdigit(z[i]); i++) {
       }
 
+      uint32_t j = i;
+
       /* here is the 1u/1a/2s/3m/9y */
       if ((z[i] == 'b' || z[i] == 'u' || z[i] == 'a' || z[i] == 's' || z[i] == 'm' || z[i] == 'h' || z[i] == 'd' || z[i] == 'n' ||
            z[i] == 'y' || z[i] == 'w' ||
@@ -566,12 +568,10 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
         *tokenId = TK_FLOAT;
       }
 
-      if (*tokenId == TK_INTEGER) {
-        for (i = 1; z[i] != '\0' && !isspace(z[i]); i++) {
-          if (i > 1) {
-            *tokenId = TK_ID;
-            break;
-          }
+      if (*tokenId == TK_INTEGER && z[j] != '\0') {
+        char c = z[j] | 0x20;
+        if (c >= 'a' && c <= 'z') {
+          *tokenId = TK_ID;
         }
       }
 
