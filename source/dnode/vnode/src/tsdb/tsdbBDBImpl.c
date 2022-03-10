@@ -12,21 +12,3 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef _TD_PARSER_INT_H_
-#define _TD_PARSER_INT_H_
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include "parser.h"
-
-int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery);
-int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_PARSER_INT_H_*/

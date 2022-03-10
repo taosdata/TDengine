@@ -15,8 +15,7 @@
 
 #include <gtest/gtest.h>
 
-#include "insertParser.h"
-// #include "mockCatalog.h"
+#include "parInt.h"
 
 using namespace std;
 using namespace testing;

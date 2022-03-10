@@ -99,13 +99,13 @@ void schtBuildQueryDag(SQueryPlan *dag) {
   SSubplan *mergePlan = (SSubplan *)calloc(1, sizeof(SSubplan));
 
   scanPlan->id.queryId = qId;
-  scanPlan->id.templateId = 0x0000000000000002;
+  scanPlan->id.groupId = 0x0000000000000002;
   scanPlan->id.subplanId = 0x0000000000000003;
   scanPlan->subplanType = SUBPLAN_TYPE_SCAN;
 
   scanPlan->execNode.nodeId = 1;
-  scanPlan->execNode.epset.inUse = 0;
-  addEpIntoEpSet(&scanPlan->execNode.epset, "ep0", 6030);
+  scanPlan->execNode.epSet.inUse = 0;
+  addEpIntoEpSet(&scanPlan->execNode.epSet, "ep0", 6030);
 
   scanPlan->pChildren = NULL;
   scanPlan->level = 1;
@@ -114,11 +114,11 @@ void schtBuildQueryDag(SQueryPlan *dag) {
   scanPlan->msgType = TDMT_VND_QUERY;
 
   mergePlan->id.queryId = qId;
-  mergePlan->id.templateId = schtMergeTemplateId;
+  mergePlan->id.groupId = schtMergeTemplateId;
   mergePlan->id.subplanId = 0x5555;
   mergePlan->subplanType = SUBPLAN_TYPE_MERGE;
   mergePlan->level = 0;
-  mergePlan->execNode.epset.numOfEps = 0;
+  mergePlan->execNode.epSet.numOfEps = 0;
 
   mergePlan->pChildren = nodesMakeList();
   mergePlan->pParents = NULL;
@@ -158,17 +158,17 @@ void schtBuildQueryFlowCtrlDag(SQueryPlan *dag) {
 
   for (int32_t i = 0; i < scanPlanNum; ++i) {
     scanPlan[i].id.queryId = qId;
-    scanPlan[i].id.templateId = 0x0000000000000002;
+    scanPlan[i].id.groupId = 0x0000000000000002;
     scanPlan[i].id.subplanId = 0x0000000000000003 + i;
     scanPlan[i].subplanType = SUBPLAN_TYPE_SCAN;
 
     scanPlan[i].execNode.nodeId = 1 + i;
-    scanPlan[i].execNode.epset.inUse = 0;
-    scanPlan[i].execNodeStat.tableNum = rand() % 30;
-    addEpIntoEpSet(&scanPlan[i].execNode.epset, "ep0", 6030);
-    addEpIntoEpSet(&scanPlan[i].execNode.epset, "ep1", 6030);
-    addEpIntoEpSet(&scanPlan[i].execNode.epset, "ep2", 6030);
-    scanPlan[i].execNode.epset.inUse = rand() % 3;
+    scanPlan[i].execNode.epSet.inUse = 0;
+    scanPlan[i].execNodeStat.tableNum = taosRand() % 30;
+    addEpIntoEpSet(&scanPlan[i].execNode.epSet, "ep0", 6030);
+    addEpIntoEpSet(&scanPlan[i].execNode.epSet, "ep1", 6030);
+    addEpIntoEpSet(&scanPlan[i].execNode.epSet, "ep2", 6030);
+    scanPlan[i].execNode.epSet.inUse = taosRand() % 3;
 
     scanPlan[i].pChildren = NULL;
     scanPlan[i].level = 1;
@@ -183,11 +183,11 @@ void schtBuildQueryFlowCtrlDag(SQueryPlan *dag) {
   }
 
   mergePlan->id.queryId = qId;
-  mergePlan->id.templateId = schtMergeTemplateId;
+  mergePlan->id.groupId = schtMergeTemplateId;
   mergePlan->id.subplanId = 0x5555;
   mergePlan->subplanType = SUBPLAN_TYPE_MERGE;
   mergePlan->level = 0;
-  mergePlan->execNode.epset.numOfEps = 0;
+  mergePlan->execNode.epSet.numOfEps = 0;
 
   mergePlan->pParents = NULL;
   mergePlan->pNode = (SPhysiNode*)calloc(1, sizeof(SPhysiNode));
@@ -216,14 +216,14 @@ void schtBuildInsertDag(SQueryPlan *dag) {
   SSubplan *insertPlan = (SSubplan *)calloc(2, sizeof(SSubplan));
 
   insertPlan[0].id.queryId = qId;
-  insertPlan[0].id.templateId = 0x0000000000000003;
+  insertPlan[0].id.groupId = 0x0000000000000003;
   insertPlan[0].id.subplanId = 0x0000000000000004;
   insertPlan[0].subplanType = SUBPLAN_TYPE_MODIFY;
   insertPlan[0].level = 0;
 
   insertPlan[0].execNode.nodeId = 1;
-  insertPlan[0].execNode.epset.inUse = 0;
-  addEpIntoEpSet(&insertPlan[0].execNode.epset, "ep0", 6030);
+  insertPlan[0].execNode.epSet.inUse = 0;
+  addEpIntoEpSet(&insertPlan[0].execNode.epSet, "ep0", 6030);
 
   insertPlan[0].pChildren = NULL;
   insertPlan[0].pParents = NULL;
@@ -232,14 +232,14 @@ void schtBuildInsertDag(SQueryPlan *dag) {
   insertPlan[0].msgType = TDMT_VND_SUBMIT;
 
   insertPlan[1].id.queryId = qId;
-  insertPlan[1].id.templateId = 0x0000000000000003;
+  insertPlan[1].id.groupId = 0x0000000000000003;
   insertPlan[1].id.subplanId = 0x0000000000000005;
   insertPlan[1].subplanType = SUBPLAN_TYPE_MODIFY;
   insertPlan[1].level = 0;
 
   insertPlan[1].execNode.nodeId = 1;
-  insertPlan[1].execNode.epset.inUse = 0;
-  addEpIntoEpSet(&insertPlan[1].execNode.epset, "ep0", 6030);
+  insertPlan[1].execNode.epSet.inUse = 0;
+  addEpIntoEpSet(&insertPlan[1].execNode.epSet, "ep0", 6030);
 
   insertPlan[1].pChildren = NULL;
   insertPlan[1].pParents = NULL;
@@ -263,7 +263,7 @@ int32_t schtPlanToString(const SSubplan *subplan, char** str, int32_t* len) {
   return 0;
 }
 
-void schtExecNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* ep) {
+void schtExecNode(SSubplan* subplan, uint64_t groupId, SQueryNodeAddr* ep) {
 
 }
 
@@ -599,7 +599,7 @@ void* schtRunJobThread(void *aa) {
 
 void* schtFreeJobThread(void *aa) {
   while (!schtTestStop) {
-    usleep(rand() % 100);
+    usleep(taosRand() % 100);
     schtFreeQueryJob(1);
   }
 }
@@ -724,7 +724,7 @@ TEST(queryTest, flowCtrlCase) {
 
   schtInitLogFile();
 
-  srand(time(NULL));
+  taosSeedRand(time(NULL));
   
   SArray *qnodeList = taosArrayInit(1, sizeof(SEp));
 
@@ -873,7 +873,7 @@ TEST(multiThread, forceFree) {
 }
 
 int main(int argc, char** argv) {
-  srand(time(NULL));
+  taosSeedRand(time(NULL));
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

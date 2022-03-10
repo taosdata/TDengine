@@ -439,13 +439,13 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  if (pTask->plan->execNode.epset.numOfEps > 0) {
+  if (pTask->plan->execNode.epSet.numOfEps > 0) {
     if (NULL == taosArrayPush(pTask->candidateAddrs, &pTask->plan->execNode)) {
       SCH_TASK_ELOG("taosArrayPush execNode to candidate addrs failed, errno:%d", errno);
       SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
 
-    SCH_TASK_DLOG("use execNode from plan as candidate addr, numOfEps:%d", pTask->plan->execNode.epset.numOfEps);
+    SCH_TASK_DLOG("use execNode from plan as candidate addr, numOfEps:%d", pTask->plan->execNode.epSet.numOfEps);
 
     return TSDB_CODE_SUCCESS;
   }
@@ -872,8 +872,8 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     int32_t readyNum = atomic_add_fetch_32(&par->childReady, 1);
 
     SCH_LOCK(SCH_WRITE, &par->lock);
-    SDownstreamSource source = {.taskId = pTask->taskId, .schedId = schMgmt.sId, .addr = pTask->succeedAddr};
-    qSetSubplanExecutionNode(par->plan, pTask->plan->id.templateId, &source);
+    SDownstreamSourceNode source = {.type = QUERY_NODE_DOWNSTREAM_SOURCE, .taskId = pTask->taskId, .schedId = schMgmt.sId, .addr = pTask->succeedAddr};
+    qSetSubplanExecutionNode(par->plan, pTask->plan->id.groupId, &source);
     SCH_UNLOCK(SCH_WRITE, &par->lock);
     
     if (SCH_TASK_READY_TO_LUNCH(readyNum, par)) {
@@ -1247,7 +1247,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     isCandidateAddr = true;
   }
 
-  SEpSet epSet = addr->epset;
+  SEpSet epSet = addr->epSet;
 
   switch (msgType) {
     case TDMT_VND_CREATE_TABLE:

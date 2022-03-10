@@ -14,7 +14,7 @@
  */
 
 #include "cmdnodes.h"
-#include "nodesint.h"
+#include "nodesUtil.h"
 #include "plannodes.h"
 #include "querynodes.h"
 #include "taos.h"
@@ -74,6 +74,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SSlotDescNode));
     case QUERY_NODE_COLUMN_DEF:
       return makeNode(type, sizeof(SColumnDefNode));
+    case QUERY_NODE_DOWNSTREAM_SOURCE:
+      return makeNode(type, sizeof(SDownstreamSourceNode));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
@@ -129,6 +131,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SProjectLogicNode));
     case QUERY_NODE_LOGIC_PLAN_VNODE_MODIF:
       return makeNode(type, sizeof(SVnodeModifLogicNode));
+    case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
+      return makeNode(type, sizeof(SExchangeLogicNode));
     case QUERY_NODE_LOGIC_SUBPLAN:
       return makeNode(type, sizeof(SSubLogicPlan));
     case QUERY_NODE_LOGIC_PLAN:

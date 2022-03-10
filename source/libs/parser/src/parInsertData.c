@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "dataBlockMgt.h"
+#include "parInsertData.h"
 
 #include "catalog.h"
-#include "parserUtil.h"
+#include "parUtil.h"
 #include "querynodes.h"
 
 #define IS_RAW_PAYLOAD(t) \

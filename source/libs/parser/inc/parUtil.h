@@ -22,7 +22,6 @@ extern "C" {
 
 #include "os.h"
 #include "query.h"
-#include "ttoken.h"
 
 typedef struct SMsgBuf {
   int32_t len;

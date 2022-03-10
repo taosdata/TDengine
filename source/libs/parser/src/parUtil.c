@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "parserUtil.h"
+#include "parUtil.h"
 
 static char* getSyntaxErrFormat(int32_t errCode) {
   switch (errCode) {

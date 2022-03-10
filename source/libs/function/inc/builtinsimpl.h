@@ -31,6 +31,12 @@ void countFunction(SqlFunctionCtx *pCtx);
 bool getSumFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 void sumFunction(SqlFunctionCtx *pCtx);
 
+bool minFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+bool maxFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+bool getMinmaxFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+void minFunction(SqlFunctionCtx* pCtx);
+void maxFunction(SqlFunctionCtx *pCtx);
+
 #ifdef __cplusplus
 }
 #endif

@@ -44,7 +44,7 @@ int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
   } else if (pMsg->timeoutType == SYNC_TIMEOUT_HEARTBEAT) {
     if (atomic_load_64(&ths->heartbeatTimerLogicClockUser) <= pMsg->logicClock) {
       ++(ths->heartbeatTimerCounter);
-      syncNodeAppendEntriesPeers(ths);
+      syncNodeReplicate(ths);
     }
   } else {
     sTrace("unknown timeoutType:%d", pMsg->timeoutType);

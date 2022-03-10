@@ -173,6 +173,7 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   SCmdMsgInfo* pMsgInfo = pQuery->pCmdMsg;
   pRequest->type = pMsgInfo->msgType;
   pRequest->body.requestMsg = (SDataBuf){.pData = pMsgInfo->pMsg, .len = pMsgInfo->msgLen, .handle = NULL};
+  pMsgInfo->pMsg = NULL; // pMsg transferred to SMsgSendInfo management
 
   STscObj*      pTscObj = pRequest->pTscObj;
   SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
@@ -243,7 +244,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
 
 SRequestObj* execQueryImpl(STscObj* pTscObj, const char* sql, int sqlLen) {
   SRequestObj* pRequest = NULL;
-  SQuery* pQuery;
+  SQuery* pQuery = NULL;
   SArray* pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
 
   terrno = TSDB_CODE_SUCCESS;
@@ -589,7 +590,7 @@ void* doFetchRow(SRequestObj* pRequest) {
       SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
       SVgroupInfo*  pVgroupInfo = taosArrayGet(pShowReqInfo->pArray, pShowReqInfo->currentIndex);
 
-      epSet = pVgroupInfo->epset;
+      epSet = pVgroupInfo->epSet;
     } else if (pRequest->type == TDMT_VND_SHOW_TABLES_FETCH) {
       pRequest->type = TDMT_VND_SHOW_TABLES;
       SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
@@ -606,7 +607,7 @@ void* doFetchRow(SRequestObj* pRequest) {
       pRequest->body.requestMsg.pData = pShowReq;
 
       SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
-      epSet = pVgroupInfo->epset;
+      epSet = pVgroupInfo->epSet;
 
       int64_t  transporterId = 0;
       STscObj* pTscObj = pRequest->pTscObj;

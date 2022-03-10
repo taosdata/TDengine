@@ -441,17 +441,24 @@ typedef struct SStreamBlockScanInfo {
 } SStreamBlockScanInfo;
 
 typedef struct SSysTableScanInfo {
-  void        *pTransporter;
-  SEpSet       epSet;
-  int32_t      type;   // show type
-  tsem_t       ready;
-  void        *readHandle;
-  SSchema     *pSchema;
-  SSDataBlock *pRes;
-  int64_t      numOfBlocks;  // extract basic running information.
-  int64_t      totalRows;
-  int64_t      elapsedTime;
-  int64_t      totalBytes;
+  union {
+    void* pTransporter;
+    void* readHandle;
+  };
+
+  void              *pCur; // cursor
+  SRetrieveTableReq* pReq;
+  SEpSet             epSet;
+  int32_t            type;  // show type
+  tsem_t             ready;
+  SSchema*           pSchema;
+  SSDataBlock*       pRes;
+
+  int32_t            capacity;
+  int64_t            numOfBlocks;  // extract basic running information.
+  int64_t            totalRows;
+  int64_t            elapsedTime;
+  int64_t            totalBytes;
 } SSysTableScanInfo;
 
 typedef struct SOptrBasicInfo {
@@ -462,12 +469,14 @@ typedef struct SOptrBasicInfo {
   int32_t         capacity;
 } SOptrBasicInfo;
 
+//TODO move the resultrowsiz together with SOptrBasicInfo:rowCellInfoOffset
 typedef struct SAggSupporter {
   SHashObj*            pResultRowHashTable;  // quick locate the window object for each result
   SHashObj*            pResultRowListSet;    // used to check if current ResultRowInfo has ResultRow object or not
   SArray*              pResultRowArrayList;  // The array list that contains the Result rows
   char*                keyBuf;               // window key buffer
   SResultRowPool      *pool;  // The window result objects pool, all the resultRow Objects are allocated and managed by this object.
+  int32_t              resultRowSize;        // the result buffer size for each result row, with the meta data size for each row
 } SAggSupporter;
 
 typedef struct STableIntervalOperatorInfo {
@@ -623,14 +632,15 @@ typedef struct SOrderOperatorInfo {
   uint64_t                totalElapsed;  // total elapsed time
 } SOrderOperatorInfo;
 
-SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* pExprInfo, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createExchangeOperatorInfo(const SNodeList* pSources, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput,
                                            int32_t repeatTime, int32_t reverseTime, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createSystemScanOperatorInfo(void* pSystemTableReadHandle, const SArray* pExprInfo, const SSchema* pSchema, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, const SArray* pExprInfo, const SSchema* pSchema,
+                                              int32_t tableType, SEpSet epset, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream);
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SInterval* pInterval, SExecTaskInfo* pTaskInfo);

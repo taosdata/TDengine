@@ -132,7 +132,7 @@ static void proposeValue(struct raft *r) {
     buf.base = raft_malloc(buf.len);
 
     // mock ts value
-    int vid = rand() % VNODE_COUNT;
+    int vid = taosRand() % VNODE_COUNT;
     snprintf(buf.base, buf.len, "%d:value_%ld", vid, time(NULL));
 
 	printf("propose value: %s \n", (char*)buf.base);
@@ -174,7 +174,7 @@ void usage() {
 }
 
 int main(int argc, char **argv) {
-	srand(time(NULL));
+	taosSeedRand(time(NULL));
 
 	exe_name = argv[0];
 	if (argc < 2) {

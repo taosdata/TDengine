@@ -13,13 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "insertParser.h"
-
-#include "dataBlockMgt.h"
-#include "parserUtil.h"
+#include "parInsertData.h"
+#include "parInt.h"
+#include "parUtil.h"
+#include "parToken.h"
 #include "tglobal.h"
 #include "ttime.h"
-#include "ttoken.h"
 #include "ttypes.h"
 
 #define NEXT_TOKEN(pSql, sToken) \

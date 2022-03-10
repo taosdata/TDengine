@@ -18,7 +18,7 @@
 #include <gtest/gtest.h>
 
 #include "parser.h"
-#include "plannerInt.h"
+#include "planInt.h"
 
 using namespace std;
 using namespace testing;
@@ -134,6 +134,13 @@ TEST_F(PlannerTest, simple) {
   setDatabase("root", "test");
 
   bind("SELECT * FROM t1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, stSimple) {
+  setDatabase("root", "test");
+
+  bind("SELECT * FROM st1");
   ASSERT_TRUE(run());
 }
 

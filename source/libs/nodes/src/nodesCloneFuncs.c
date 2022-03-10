@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "nodesint.h"
+#include "nodesUtil.h"
 #include "plannodes.h"
 #include "querynodes.h"
 #include "taos.h"
@@ -60,6 +60,9 @@
 
 #define CLONE_OBJECT_FIELD(fldname, cloneFunc) \
 	do { \
+    if (NULL == (pSrc)->fldname) { \
+      break; \
+    } \
     (pDst)->fldname = cloneFunc((pSrc)->fldname); \
     if (NULL == (pDst)->fldname) { \
       nodesDestroyNode((SNode*)(pDst)); \
@@ -234,7 +237,14 @@ static SNode* logicProjectCopy(const SProjectLogicNode* pSrc, SProjectLogicNode*
 }
 
 static SNode* logicVnodeModifCopy(const SVnodeModifLogicNode* pSrc, SVnodeModifLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(msgType);
+  return (SNode*)pDst;
+}
+
+static SNode* logicExchangeCopy(const SExchangeLogicNode* pSrc, SExchangeLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  COPY_SCALAR_FIELD(srcGroupId);
   return (SNode*)pDst;
 }
 
@@ -258,6 +268,13 @@ static SNode* slotDescCopy(const SSlotDescNode* pSrc, SSlotDescNode* pDst) {
   COPY_SCALAR_FIELD(reserve);
   COPY_SCALAR_FIELD(output);
   COPY_SCALAR_FIELD(tag);
+  return (SNode*)pDst;
+}
+
+static SNode* downstreamSourceCopy(const SDownstreamSourceNode* pSrc, SDownstreamSourceNode* pDst) {
+  COPY_SCALAR_FIELD(addr);
+  COPY_SCALAR_FIELD(taskId);
+  COPY_SCALAR_FIELD(schedId);
   return (SNode*)pDst;
 }
 
@@ -296,6 +313,8 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
       return dataBlockDescCopy((const SDataBlockDescNode*)pNode, (SDataBlockDescNode*)pDst);
     case QUERY_NODE_SLOT_DESC:
       return slotDescCopy((const SSlotDescNode*)pNode, (SSlotDescNode*)pDst);
+    case QUERY_NODE_DOWNSTREAM_SOURCE:
+      return downstreamSourceCopy((const SDownstreamSourceNode*)pNode, (SDownstreamSourceNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return logicScanCopy((const SScanLogicNode*)pNode, (SScanLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_AGG:
@@ -304,6 +323,8 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
       return logicProjectCopy((const SProjectLogicNode*)pNode, (SProjectLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_VNODE_MODIF:
       return logicVnodeModifCopy((const SVnodeModifLogicNode*)pNode, (SVnodeModifLogicNode*)pDst);
+    case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
+      return logicExchangeCopy((const SExchangeLogicNode*)pNode, (SExchangeLogicNode*)pDst);
     case QUERY_NODE_LOGIC_SUBPLAN:
       return logicSubplanCopy((const SSubLogicPlan*)pNode, (SSubLogicPlan*)pDst);
     default:

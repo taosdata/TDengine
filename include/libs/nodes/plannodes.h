@@ -22,6 +22,7 @@ extern "C" {
 
 #include "querynodes.h"
 #include "query.h"
+#include "tname.h"
 
 typedef struct SLogicNode {
   ENodeType type;
@@ -67,11 +68,16 @@ typedef struct SProjectLogicNode {
 } SProjectLogicNode;
 
 typedef struct SVnodeModifLogicNode {
-  ENodeType type;;
+  SLogicNode node;;
   int32_t msgType;
   SArray* pDataBlocks;
   SVgDataBlocks* pVgDataBlocks;
 } SVnodeModifLogicNode;
+
+typedef struct SExchangeLogicNode {
+  SLogicNode node;
+  int32_t srcGroupId;
+} SExchangeLogicNode;
 
 typedef enum ESubplanType {
   SUBPLAN_TYPE_MERGE = 1,
@@ -80,18 +86,28 @@ typedef enum ESubplanType {
   SUBPLAN_TYPE_MODIFY
 } ESubplanType;
 
+typedef struct SSubplanId {
+  uint64_t queryId;
+  int32_t groupId;
+  int32_t subplanId;
+} SSubplanId;
+
 typedef struct SSubLogicPlan {
   ENodeType type;
+  SSubplanId id;
   SNodeList* pChildren;
   SNodeList* pParents;
   SLogicNode* pNode;
   ESubplanType subplanType;
+  SVgroupsInfo* pVgroupList;
   int32_t level;
+  int32_t splitFlag;
 } SSubLogicPlan;
 
 typedef struct SQueryLogicPlan {
   ENodeType type;
-  SNodeList* pSubplans;
+  int32_t totalLevel;
+  SNodeList* pTopSubplans;
 } SQueryLogicPlan;
 
 typedef struct SSlotDescNode {
@@ -127,7 +143,7 @@ typedef struct SScanPhysiNode {
   int32_t order;         // scan order: TSDB_ORDER_ASC|TSDB_ORDER_DESC
   int32_t count;         // repeat count
   int32_t reverse;       // reverse scan count
-  SName tableName; 
+  SName tableName;
 } SScanPhysiNode;
 
 typedef SScanPhysiNode SSystemTableScanPhysiNode;
@@ -161,20 +177,21 @@ typedef struct SAggPhysiNode {
   SNodeList* pAggFuncs;
 } SAggPhysiNode;
 
-typedef struct SDownstreamSource {
+typedef struct SDownstreamSourceNode {
+  ENodeType type;
   SQueryNodeAddr addr;
-  uint64_t       taskId;
-  uint64_t       schedId;
-} SDownstreamSource;
+  uint64_t taskId;
+  uint64_t schedId;
+} SDownstreamSourceNode;
 
 typedef struct SExchangePhysiNode {
-  SPhysiNode    node;
-  uint64_t    srcTemplateId;  // template id of datasource suplans
-  SArray* pSrcEndPoints;  // SArray<SDownstreamSource>, scheduler fill by calling qSetSuplanExecutionNode
+  SPhysiNode node;
+  int32_t srcGroupId;  // group id of datasource suplans
+  SNodeList* pSrcEndPoints;  // element is SDownstreamSource, scheduler fill by calling qSetSuplanExecutionNode
 } SExchangePhysiNode;
 
 typedef struct SDataSinkNode {
-  ENodeType type;;
+  ENodeType type;
   SDataBlockDescNode* pInputDataBlockDesc;
 } SDataSinkNode;
 
@@ -188,12 +205,6 @@ typedef struct SDataInserterNode {
   uint32_t  size;
   char     *pData;
 } SDataInserterNode;
-
-typedef struct SSubplanId {
-  uint64_t queryId;
-  int32_t templateId;
-  int32_t subplanId;
-} SSubplanId;
 
 typedef struct SSubplan {
   ENodeType type;
@@ -212,8 +223,8 @@ typedef struct SSubplan {
 typedef struct SQueryPlan {
   ENodeType type;;
   uint64_t queryId;
-  int32_t  numOfSubplans;
-  SNodeList* pSubplans; // SNodeListNode. The execution level of subplan, starting from 0.
+  int32_t numOfSubplans;
+  SNodeList* pSubplans; // Element is SNodeListNode. The execution level of subplan, starting from 0.
 } SQueryPlan;
 
 #ifdef __cplusplus
