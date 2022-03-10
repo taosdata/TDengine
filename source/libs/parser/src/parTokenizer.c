@@ -14,10 +14,9 @@
  */
 
 #include "os.h"
-
+#include "parToken.h"
 #include "thash.h"
 #include "taosdef.h"
-#include "ttoken.h"
 #include "ttokendef.h"
 
 // All the keywords of the SQL language are stored in a hash table

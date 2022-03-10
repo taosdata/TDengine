@@ -18,7 +18,7 @@
 
 #include <gtest/gtest.h>
 
-#include "parserInt.h"
+#include "parInt.h"
 
 using namespace std;
 using namespace testing;

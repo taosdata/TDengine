@@ -14,7 +14,7 @@
  */
 
 #include "cmdnodes.h"
-#include "nodesint.h"
+#include "nodesUtil.h"
 #include "plannodes.h"
 #include "querynodes.h"
 #include "taos.h"

@@ -13,28 +13,28 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "parserInt.h"
+#include "parInt.h"
 
-#include "astCreateFuncs.h"
-#include "ttoken.h"
+#include "parAst.h"
+#include "parToken.h"
 
 typedef void* (*FMalloc)(size_t);
 typedef void (*FFree)(void*);
 
-extern void* NewParseAlloc(FMalloc);
-extern void NewParse(void*, int, SToken, void*);
-extern void NewParseFree(void*, FFree);
-extern void NewParseTrace(FILE*, char*);
+extern void* ParseAlloc(FMalloc);
+extern void Parse(void*, int, SToken, void*);
+extern void ParseFree(void*, FFree);
+extern void ParseTrace(FILE*, char*);
 
 int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery) {
   SAstCreateContext cxt;
   initAstCreateContext(pParseCxt, &cxt);
-  void *pParser = NewParseAlloc(malloc);
+  void *pParser = ParseAlloc(malloc);
   int32_t i = 0;
   while (1) {
     SToken t0 = {0};
     if (cxt.pQueryCxt->pSql[i] == 0) {
-      NewParse(pParser, 0, t0, &cxt);
+      Parse(pParser, 0, t0, &cxt);
       goto abort_parse;
     }
     t0.n = tGetToken((char *)&cxt.pQueryCxt->pSql[i], &t0.type);
@@ -47,7 +47,7 @@ int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery) {
         break;
       }
       case TK_NK_SEMI: {
-        NewParse(pParser, 0, t0, &cxt);
+        Parse(pParser, 0, t0, &cxt);
         goto abort_parse;
       }
       case TK_NK_QUESTION:
@@ -64,8 +64,8 @@ int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery) {
         goto abort_parse;
       }
       default:
-        NewParse(pParser, t0.type, t0, &cxt);
-        // NewParseTrace(stdout, "");
+        Parse(pParser, t0.type, t0, &cxt);
+        // ParseTrace(stdout, "");
         if (!cxt.valid) {
           goto abort_parse;
         }
@@ -73,7 +73,7 @@ int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery) {
   }
 
 abort_parse:
-  NewParseFree(pParser, free);
+  ParseFree(pParser, free);
   if (cxt.valid) {
     *pQuery = calloc(1, sizeof(SQuery));
     if (NULL == *pQuery) {
