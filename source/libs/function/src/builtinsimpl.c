@@ -14,6 +14,7 @@
  */
 
 #include "builtinsimpl.h"
+#include <querynodes.h>
 #include "taggfunction.h"
 #include "tdatablock.h"
 
@@ -27,7 +28,6 @@
   } while (0)
 
 typedef struct SSumRes {
-//  int8_t hasResult;
   union {
     int64_t  isum;
     uint64_t usum;
@@ -115,7 +115,7 @@ void countFunction(SqlFunctionCtx *pCtx) {
     }                                                                    \
   } while (0)
 
-static void do_sum(SqlFunctionCtx *pCtx) {
+void sumFunction(SqlFunctionCtx *pCtx) {
   int32_t numOfElem = 0;
 
   // Only the pre-computing information loaded and actual data does not loaded
@@ -179,14 +179,272 @@ bool getSumFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   return true;
 }
 
-void sumFunction(SqlFunctionCtx *pCtx) {
-  do_sum(pCtx);
 
-  // keep the result data in output buffer, not in the intermediate buffer
-//  SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
-//  if (pResInfo->hasResult == DATA_SET_FLAG) {
-    // set the flag for super table query
-//    SSumRes *pSum = (SSumRes *)pCtx->pOutput;
-//    pSum->hasResult = DATA_SET_FLAG;
-//  }
+bool maxFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
+  if (!functionSetup(pCtx, pResultInfo)) {
+    return false;
+  }
+
+  char* buf = GET_ROWCELL_INTERBUF(pResultInfo);
+  switch (pCtx->input.pData[0]->info.type) {
+    case TSDB_DATA_TYPE_INT:
+      *((int32_t *)buf) = INT32_MIN;
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      *((uint32_t *)buf) = 0;
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      *((float *)buf) = -FLT_MAX;
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+    SET_DOUBLE_VAL(((double *)buf), -DBL_MAX);
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      *((int64_t *)buf) = INT64_MIN;
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      *((uint64_t *)buf) = 0;
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      *((int16_t *)buf) = INT16_MIN;
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      *((uint16_t *)buf) = 0;
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+      *((int8_t *)buf) = INT8_MIN;
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      *((uint8_t *)buf) = 0;
+      break;
+    default:
+      assert(0);
+  }
+  return true;
+}
+
+bool minFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
+  if (!functionSetup(pCtx, pResultInfo)) {
+    return false;  // not initialized since it has been initialized
+  }
+
+  char* buf = GET_ROWCELL_INTERBUF(pResultInfo);
+  switch (pCtx->input.pData[0]->info.type) {
+    case TSDB_DATA_TYPE_TINYINT:
+      *((int8_t *)buf) = INT8_MAX;
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      *(uint8_t *) buf = UINT8_MAX;
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      *((int16_t *)buf) = INT16_MAX;
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      *((uint16_t *)buf) = UINT16_MAX;
+      break;
+    case TSDB_DATA_TYPE_INT:
+      *((int32_t *)buf) = INT32_MAX;
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      *((uint32_t *)buf) = UINT32_MAX;
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      *((int64_t *)buf) = INT64_MAX;
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      *((uint64_t *)buf) = UINT64_MAX;
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      *((float *)buf) = FLT_MAX;
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      SET_DOUBLE_VAL(((double *)buf), DBL_MAX);
+      break;
+    default:
+      assert(0);
+  }
+
+  return true;
+}
+
+bool getMinmaxFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  SNode* pNode = nodesListGetNode(pFunc->pParameterList, 0);
+  pEnv->calcMemSize = sizeof(int64_t);
+  return true;
+}
+
+#define GET_TS_LIST(x)    ((TSKEY*)((x)->ptsList))
+#define GET_TS_DATA(x, y) (GET_TS_LIST(x)[(y)])
+
+#define DO_UPDATE_TAG_COLUMNS_WITHOUT_TS(ctx)                      \
+  do {                                                             \
+    for (int32_t _i = 0; _i < (ctx)->tagInfo.numOfTagCols; ++_i) { \
+      SqlFunctionCtx *__ctx = (ctx)->tagInfo.pTagCtxList[_i];      \
+      __ctx->fpSet.process(__ctx);                       \
+    }                                                              \
+  } while (0);
+
+#define DO_UPDATE_SUBSID_RES(ctx, ts)                             \
+  do {                                                             \
+    for (int32_t _i = 0; _i < (ctx)->subsidiaryRes.numOfCols; ++_i) { \
+      SqlFunctionCtx *__ctx = (ctx)->subsidiaryRes.pCtx[_i];      \
+      if (__ctx->functionId == FUNCTION_TS_DUMMY) {                \
+        __ctx->tag.i = (ts);                                       \
+        __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;                  \
+      }                                                            \
+      __ctx->fpSet.process(__ctx);                                 \
+    }                                                              \
+  } while (0)
+
+#define UPDATE_DATA(ctx, left, right, num, sign, _ts) \
+  do {                                              \
+    if (((left) < (right)) ^ (sign)) {              \
+      (left) = (right);                             \
+      DO_UPDATE_SUBSID_RES(ctx, _ts);                \
+      (num) += 1;                                   \
+    }                                               \
+  } while (0)
+
+#define LOOPCHECK_N(val, _col, ctx, _t, _nrow, _start, sign, num)       \
+  do {                                                                   \
+    _t* d = (_t*)((_col)->pData);                                        \
+    for (int32_t i = (_start); i < (_nrow) + (_start); ++i) {            \
+      if (((_col)->hasNull) && colDataIsNull_f((_col)->nullbitmap, i)) { \
+        continue;                                                        \
+      }                                                                  \
+      TSKEY ts = (ctx)->ptsList != NULL ? GET_TS_DATA(ctx, i) : 0;       \
+      UPDATE_DATA(ctx, val, d[i], num, sign, ts);                        \
+    }                                                                    \
+  } while (0)
+
+int32_t doMinMaxHelper(SqlFunctionCtx *pCtx, int32_t isMinFunc) {
+  int32_t numOfElems = 0;
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnDataAgg *pAgg = pInput->pColumnDataAgg[0];
+
+  SColumnInfoData* pCol = pInput->pData[0];
+  int32_t type = pCol->info.type;
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  char* buf = GET_ROWCELL_INTERBUF(pResInfo);
+
+  // data in current data block are qualified to the query
+  if (pInput->colDataAggIsSet) {
+    numOfElems = pInput->numOfRows - pAgg->numOfNull;
+    ASSERT(pInput->numOfRows == pInput->totalRows && numOfElems >= 0);
+
+    if (numOfElems == 0) {
+      return numOfElems;
+    }
+
+    void*   tval = NULL;
+    int16_t index = 0;
+
+    if (isMinFunc) {
+      tval  = &pInput->pColumnDataAgg[0]->min;
+      index = pInput->pColumnDataAgg[0]->minIndex;
+    } else {
+      tval  = &pInput->pColumnDataAgg[0]->max;
+      index = pInput->pColumnDataAgg[0]->maxIndex;
+    }
+
+    TSKEY key = TSKEY_INITIAL_VAL;
+    if (pCtx->ptsList != NULL) {
+      // the index is the original position, not the relative position
+      key = pCtx->ptsList[index];
+    }
+
+    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+      int64_t val = GET_INT64_VAL(tval);
+
+#if defined(_DEBUG_VIEW)
+      qDebug("max value updated according to pre-cal:%d", *data);
+#endif
+
+      if ((*(int64_t*)buf < val) ^ isMinFunc) {
+        *(int64_t*) buf = val;
+        for (int32_t i = 0; i < (pCtx)->subsidiaryRes.numOfCols; ++i) {
+          SqlFunctionCtx* __ctx = pCtx->subsidiaryRes.pCtx[i];
+          if (__ctx->functionId == FUNCTION_TS_DUMMY) {  // TODO refactor
+            __ctx->tag.i = key;
+            __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;
+          }
+
+          __ctx->fpSet.process(__ctx);
+        }
+      }
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
+      uint64_t val = GET_UINT64_VAL(tval);
+      UPDATE_DATA(pCtx, *(uint64_t*)buf, val, numOfElems, isMinFunc, key);
+    } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE) {
+      double  val = GET_DOUBLE_VAL(tval);
+      UPDATE_DATA(pCtx, *(double*)buf, val, numOfElems, isMinFunc, key);
+    } else if (pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
+      double val = GET_DOUBLE_VAL(tval);
+      UPDATE_DATA(pCtx, *(float*)buf, (float)val, numOfElems, isMinFunc, key);
+    }
+
+    return numOfElems;
+  }
+
+  int32_t start = pInput->startRowIndex;
+  int32_t numOfRows = pInput->numOfRows;
+
+  if (IS_SIGNED_NUMERIC_TYPE(pCtx->inputType)) {
+    if (pCtx->inputType == TSDB_DATA_TYPE_TINYINT) {
+      LOOPCHECK_N(*(int64_t*)buf, pCol, pCtx, int8_t, numOfRows, start, isMinFunc, numOfElems);
+    } else if (pCtx->inputType == TSDB_DATA_TYPE_SMALLINT) {
+      LOOPCHECK_N(*(int64_t*) buf, pCol, pCtx, int16_t, numOfRows, start, isMinFunc, numOfElems);
+    } else if (pCtx->inputType == TSDB_DATA_TYPE_INT) {
+      int32_t *pData = (int32_t*)pCol->pData;
+      int64_t *val = (int64_t*) buf;
+
+      for (int32_t i = 0; i < pCtx->size; ++i) {
+        if ((pCol->hasNull) && colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+
+        if ((*val < pData[i]) ^ isMinFunc) {
+          *val = pData[i];
+          TSKEY ts = (pCtx->ptsList != NULL)? GET_TS_DATA(pCtx, i) : 0;
+          DO_UPDATE_SUBSID_RES(pCtx, ts);
+        }
+
+        numOfElems += 1;
+      }
+
+#if defined(_DEBUG_VIEW)
+      qDebug("max value updated:%d", *retVal);
+#endif
+    } else if (pCtx->inputType == TSDB_DATA_TYPE_BIGINT) {
+      LOOPCHECK_N(*(int64_t*) buf, pCol, pCtx, int64_t, numOfRows, start, isMinFunc, numOfElems);
+    }
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
+    if (pCtx->inputType == TSDB_DATA_TYPE_UTINYINT) {
+      LOOPCHECK_N(*(uint64_t*) buf, pCol, pCtx, uint8_t, numOfRows, start, isMinFunc, numOfElems);
+    } else if (pCtx->inputType == TSDB_DATA_TYPE_USMALLINT) {
+      LOOPCHECK_N(*(uint64_t*) buf, pCol, pCtx, uint16_t, numOfRows, start, isMinFunc, numOfElems);
+    } else if (pCtx->inputType == TSDB_DATA_TYPE_UINT) {
+      LOOPCHECK_N(*(uint64_t*) buf, pCol, pCtx, uint32_t, numOfRows, start, isMinFunc, numOfElems);
+    } else if (pCtx->inputType == TSDB_DATA_TYPE_UBIGINT) {
+      LOOPCHECK_N(*(uint64_t*) buf, pCol, pCtx, uint64_t, numOfRows, start, isMinFunc, numOfElems);
+    }
+  } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE) {
+    LOOPCHECK_N(*(double*) buf, pCol, pCtx, double, numOfRows, start, isMinFunc, numOfElems);
+  } else if (pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
+    LOOPCHECK_N(*(float*) buf, pCol, pCtx, float, numOfRows, start, isMinFunc, numOfElems);
+  }
+
+  return numOfElems;
+}
+
+void minFunction(SqlFunctionCtx *pCtx) {
+  int32_t numOfElems = doMinMaxHelper(pCtx, 1);
+  SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
+}
+
+void maxFunction(SqlFunctionCtx *pCtx) {
+  int32_t numOfElems = doMinMaxHelper(pCtx, 0);
+  SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
 }

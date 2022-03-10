@@ -132,11 +132,11 @@ struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
 
 //for selectivity query, the corresponding tag value is assigned if the data is qualified
-typedef struct SExtTagsInfo {
-  int16_t                 tagsLen;      // keep the tags data for top/bottom query result
-  int16_t                 numOfTagCols;
-  struct SqlFunctionCtx **pTagCtxList;
-} SExtTagsInfo;
+typedef struct SSubsidiaryResInfo {
+  int16_t                 bufLen;      // keep the tags data for top/bottom query result
+  int16_t                 numOfCols;
+  struct SqlFunctionCtx **pCtx;
+} SSubsidiaryResInfo;
 
 typedef struct SResultDataInfo {
   int16_t precision;
@@ -187,7 +187,7 @@ typedef struct SqlFunctionCtx {
   void            *ptsOutputBuf;  // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
   SVariant         tag;
   struct  SResultRowEntryInfo *resultInfo;
-  SExtTagsInfo     tagInfo;
+  SSubsidiaryResInfo     subsidiaryRes;
   SPoint1          start;
   SPoint1          end;
   SFuncExecFuncs   fpSet;

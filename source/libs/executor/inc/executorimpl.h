@@ -441,17 +441,24 @@ typedef struct SStreamBlockScanInfo {
 } SStreamBlockScanInfo;
 
 typedef struct SSysTableScanInfo {
-  void        *pTransporter;
-  SEpSet       epSet;
-  int32_t      type;   // show type
-  tsem_t       ready;
-  void        *readHandle;
-  SSchema     *pSchema;
-  SSDataBlock *pRes;
-  int64_t      numOfBlocks;  // extract basic running information.
-  int64_t      totalRows;
-  int64_t      elapsedTime;
-  int64_t      totalBytes;
+  union {
+    void* pTransporter;
+    void* readHandle;
+  };
+
+  void              *pCur; // cursor
+  SRetrieveTableReq* pReq;
+  SEpSet             epSet;
+  int32_t            type;  // show type
+  tsem_t             ready;
+  SSchema*           pSchema;
+  SSDataBlock*       pRes;
+
+  int32_t            capacity;
+  int64_t            numOfBlocks;  // extract basic running information.
+  int64_t            totalRows;
+  int64_t            elapsedTime;
+  int64_t            totalBytes;
 } SSysTableScanInfo;
 
 typedef struct SOptrBasicInfo {
@@ -630,7 +637,8 @@ SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntim
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createSystemScanOperatorInfo(void* pSystemTableReadHandle, const SArray* pExprInfo, const SSchema* pSchema, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, const SArray* pExprInfo, const SSchema* pSchema,
+                                              int32_t tableType, SEpSet epset, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream);
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SInterval* pInterval, SExecTaskInfo* pTaskInfo);

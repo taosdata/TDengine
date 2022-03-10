@@ -42,6 +42,26 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = functionFinalizer
   },
   {
+    .name = "min",
+    .type = FUNCTION_TYPE_MIN,
+    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = getMinmaxFuncEnv,
+    .initFunc     = minFunctionSetup,
+    .processFunc  = minFunction,
+    .finalizeFunc = functionFinalizer
+  },
+  {
+    .name = "max",
+    .type = FUNCTION_TYPE_MAX,
+    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = getMinmaxFuncEnv,
+    .initFunc     = maxFunctionSetup,
+    .processFunc  = maxFunction,
+    .finalizeFunc = functionFinalizer
+  },
+  {
     .name = "concat",
     .type = FUNCTION_TYPE_CONCAT,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,

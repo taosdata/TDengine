@@ -212,6 +212,7 @@ static void destroySWindowOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyStateWindowOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyAggOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyOperatorInfo(SOperatorInfo* pOperator);
+static void destroySysTableScannerOperatorInfo(void* param, int32_t numOfOutput);
 
 static void doSetOperatorCompleted(SOperatorInfo* pOperator) {
   pOperator->status = OP_EXEC_DONE;
@@ -1920,9 +1921,9 @@ static int32_t setCtxTagColumnInfo(SqlFunctionCtx *pCtx, int32_t numOfOutput) {
     }
   }
   if (p != NULL) {
-    p->tagInfo.pTagCtxList = pTagCtx;
-    p->tagInfo.numOfTagCols = num;
-    p->tagInfo.tagsLen = tagLen;
+    p->subsidiaryRes.pCtx = pTagCtx;
+    p->subsidiaryRes.numOfCols = num;
+    p->subsidiaryRes.bufLen = tagLen;
   } else {
     tfree(pTagCtx);
   }
@@ -2127,7 +2128,7 @@ static SqlFunctionCtx* createSqlFunctionCtx_rv(SArray* pExprInfo, int32_t** rowC
   return pFuncCtx;
 }
 
-static void* destroySQLFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
+static void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   if (pCtx == NULL) {
     return NULL;
   }
@@ -2138,7 +2139,7 @@ static void* destroySQLFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
     }
 
     taosVariantDestroy(&pCtx[i].tag);
-    tfree(pCtx[i].tagInfo.pTagCtxList);
+    tfree(pCtx[i].subsidiaryRes.pCtx);
   }
 
   tfree(pCtx);
@@ -2220,46 +2221,6 @@ static void destroyTsComp(STaskRuntimeEnv *pRuntimeEnv, STaskAttr *pQueryAttr) {
       }
     }
   }
-}
-
-static void teardownQueryRuntimeEnv(STaskRuntimeEnv *pRuntimeEnv) {
-  STaskAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
-  SQInfo* pQInfo = (SQInfo*) pRuntimeEnv->qinfo;
-
-  //qDebug("QInfo:0x%"PRIx64" teardown runtime env", pQInfo->qId);
-
-  //destroyScalarFuncSupport(pRuntimeEnv->scalarSup, pQueryAttr->numOfOutput);
-//  destroyUdfInfo(pRuntimeEnv->pUdfInfo);
-  destroyDiskbasedBuf(pRuntimeEnv->pResultBuf);
-  doFreeQueryHandle(pRuntimeEnv);
-
-  destroyTsComp(pRuntimeEnv, pQueryAttr);
-
-  pRuntimeEnv->pTsBuf = tsBufDestroy(pRuntimeEnv->pTsBuf);
-
-  tfree(pRuntimeEnv->keyBuf);
-  tfree(pRuntimeEnv->prevRow);
-  tfree(pRuntimeEnv->tagVal);
-
-  taosHashCleanup(pRuntimeEnv->pResultRowHashTable);
-  pRuntimeEnv->pResultRowHashTable = NULL;
-
-  taosHashCleanup(pRuntimeEnv->pTableRetrieveTsMap);
-  pRuntimeEnv->pTableRetrieveTsMap = NULL;
-
-  taosHashCleanup(pRuntimeEnv->pResultRowListSet);
-  pRuntimeEnv->pResultRowListSet = NULL;
-
-  destroyOperatorInfo(pRuntimeEnv->proot);
-
-  pRuntimeEnv->pool = destroyResultRowPool(pRuntimeEnv->pool);
-  taosArrayDestroyEx(pRuntimeEnv->prevResult, freeInterResult);
-  taosArrayDestroy(pRuntimeEnv->pResultRowArrayList);
-  pRuntimeEnv->prevResult = NULL;
-}
-
-static bool needBuildResAfterQueryComplete(SQInfo* pQInfo) {
-  return pQInfo->rspContext != NULL;
 }
 
 bool isTaskKilled(SExecTaskInfo *pTaskInfo) {
@@ -5475,38 +5436,67 @@ static SSDataBlock* doSysTableScan(void* param, bool* newgroup) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SSysTableScanInfo* pInfo = pOperator->info;
 
-  SRetrieveTableReq* req = calloc(1, sizeof(SRetrieveTableReq));
-  if (req == NULL) {
-    pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+  // retrieve local table list info from vnode
+  if (pInfo->type == TSDB_MGMT_TABLE_TABLE) {
+    if (pInfo->pCur == NULL) {
+      pInfo->pCur = metaOpenTbCursor(pInfo->readHandle);
+    }
+
+    SColumnInfoData* pTableNameCol = taosArrayGet(pInfo->pRes->pDataBlock, 0);
+
+    char *  name = NULL;
+    int32_t numOfRows = 0;
+    while ((name = metaTbCursorNext(pInfo->pCur)) != NULL) {
+      colDataAppend(pTableNameCol, numOfRows, name, false);
+      numOfRows += 1;
+      if (numOfRows >= pInfo->capacity) {
+        break;
+      }
+    }
+
+    pInfo->totalRows += numOfRows;
+    pInfo->pRes->info.rows = numOfRows;
+
+//    pInfo->elapsedTime;
+//    pInfo->totalBytes;
+    return (pInfo->pRes->info.rows == 0)? NULL:pInfo->pRes;
+  } else {  // load the meta from mnode of the given epset
+    if (pInfo->pReq == NULL) {
+      pInfo->pReq = calloc(1, sizeof(SRetrieveTableReq));
+      if (pInfo->pReq == NULL) {
+        pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+        return NULL;
+      }
+
+      pInfo->pReq->type = pInfo->type;
+    }
+
+    // send the fetch remote task result reques
+    SMsgSendInfo* pMsgSendInfo = calloc(1, sizeof(SMsgSendInfo));
+    if (NULL == pMsgSendInfo) {
+      qError("%s prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
+      pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      return NULL;
+    }
+
+    pMsgSendInfo->param = NULL;
+    pMsgSendInfo->msgInfo.pData = pInfo->pReq;
+    pMsgSendInfo->msgInfo.len = sizeof(SRetrieveTableReq);
+    pMsgSendInfo->msgType = TDMT_MND_SYSTABLE_RETRIEVE;
+    pMsgSendInfo->fp = loadRemoteDataCallback;
+
+    int64_t transporterId = 0;
+    int32_t code = asyncSendMsgToServer(pInfo->pTransporter, &pInfo->epSet, &transporterId, pMsgSendInfo);
+
+    tsem_wait(&pInfo->ready);
+    // handle the response and return to the caller
   }
-
-  req->type = pInfo->type;
-
-  // send the fetch remote task result reques
-  SMsgSendInfo* pMsgSendInfo = calloc(1, sizeof(SMsgSendInfo));
-  if (NULL == pMsgSendInfo) {
-    qError("%s prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
-    pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  pMsgSendInfo->param = NULL;
-  pMsgSendInfo->msgInfo.pData = req;
-  pMsgSendInfo->msgInfo.len = sizeof(SRetrieveTableReq);
-  pMsgSendInfo->msgType = TDMT_MND_SYSTABLE_RETRIEVE;
-  pMsgSendInfo->fp = loadRemoteDataCallback;
-
-  int64_t transporterId = 0;
-  int32_t code = asyncSendMsgToServer(pInfo->pTransporter, &pInfo->epSet, &transporterId, pMsgSendInfo);
-
-  tsem_wait(&pInfo->ready);
-  // handle the response and return to the caller
 
   return NULL;
 }
 
-SOperatorInfo* createSystemScanOperatorInfo(void* pSysTableReadHandle, const SArray* pExprInfo, const SSchema* pSchema, SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, const SArray* pExprInfo, const SSchema* pSchema,
+    int32_t tableType, SEpSet epset, SExecTaskInfo* pTaskInfo) {
   SSysTableScanInfo* pInfo = calloc(1, sizeof(SSysTableScanInfo));
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -5514,6 +5504,17 @@ SOperatorInfo* createSystemScanOperatorInfo(void* pSysTableReadHandle, const SAr
     tfree(pOperator);
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return NULL;
+  }
+
+  // todo: create the schema of result data block
+  pInfo->capacity = 4096;
+  pInfo->type     = tableType;
+  if (pInfo->type == TSDB_MGMT_TABLE_TABLE) {
+    pInfo->readHandle = pSysTableReadHandle;
+    blockDataEnsureCapacity(pInfo->pRes, pInfo->capacity);
+  } else {
+    tsem_init(&pInfo->ready, 0, 0);
+    pInfo->epSet = epset;
   }
 
   pInfo->readHandle        = pSysTableReadHandle;
@@ -5524,6 +5525,7 @@ SOperatorInfo* createSystemScanOperatorInfo(void* pSysTableReadHandle, const SAr
   pOperator->info          = pInfo;
   pOperator->numOfOutput   = taosArrayGetSize(pExprInfo);
   pOperator->nextDataFn    = doSysTableScan;
+  pOperator->closeFn       = destroySysTableScannerOperatorInfo;
   pOperator->pTaskInfo     = pTaskInfo;
 
   return pOperator;
@@ -7165,7 +7167,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SArray* pE
 static void doDestroyBasicInfo(SOptrBasicInfo* pInfo, int32_t numOfOutput) {
   assert(pInfo != NULL);
 
-  destroySQLFunctionCtx(pInfo->pCtx, numOfOutput);
+  destroySqlFunctionCtx(pInfo->pCtx, numOfOutput);
   tfree(pInfo->rowCellInfoOffset);
 
   cleanupResultRowInfo(&pInfo->resultRowInfo);
@@ -7185,6 +7187,7 @@ static void destroyAggOperatorInfo(void* param, int32_t numOfOutput) {
   SAggOperatorInfo* pInfo = (SAggOperatorInfo*) param;
   doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
 }
+
 static void destroySWindowOperatorInfo(void* param, int32_t numOfOutput) {
   SSWindowOperatorInfo* pInfo = (SSWindowOperatorInfo*) param;
   doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
@@ -7231,6 +7234,16 @@ static void destroyDistinctOperatorInfo(void* param, int32_t numOfOutput) {
   tfree(pInfo->buf);
   taosArrayDestroy(pInfo->pDistinctDataInfo);
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
+}
+
+static void destroySysTableScannerOperatorInfo(void* param, int32_t numOfOutput) {
+  SSysTableScanInfo* pInfo = (SSysTableScanInfo*) param;
+  tsem_destroy(&pInfo->ready);
+  blockDataDestroy(pInfo->pRes);
+
+  if (pInfo->type == TSDB_MGMT_TABLE_TABLE) {
+    metaCloseTbCursor(pInfo->pCur);
+  }
 }
 
 SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo) {
