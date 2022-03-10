@@ -163,7 +163,7 @@ $ taosBenchmark --help
 -d, --database=DATABASE Destination database. By default is 'test'.
 -a, --replica=REPLICA Set the replica parameters of the database, By default use 1, min: 1, max: 3.
 -m, --table-prefix=TABLEPREFIX Table prefix name. By default use 'd'.
--s, --sql-file=FILE The select sql file.
+-s, --sql-file=FILE The select SQL file.
 -N, --normal-table Use normal table flag.
 -o, --output=FILE Direct output to the named file. By default use './output.txt'.
 -q, --query-mode=MODE Query mode -- 0: SYNC, 1: ASYNC. By default use SYNC.
@@ -401,16 +401,16 @@ taosBenchmark 不仅仅可以进行数据写入，也可以执行查询和订阅
 "query_times": 每种查询类型的查询次数
 "query_mode": 查询数据接口，"taosc"：调用TDengine的c接口；“restful”：使用 RESTful 接口。可选项。缺省是“taosc”。
 "specified_table_query": { 指定表的查询
-"query_interval": 执行sqls的间隔，单位是秒。可选项，缺省是0。
-"concurrent": 并发执行sqls的线程数，可选项，缺省是1。每个线程都执行所有的sqls。
-"sqls": 可以添加多个sql语句，最多支持100条。
+"query_interval": 执行 sqls 的间隔，单位是秒。可选项，缺省是0。
+"concurrent": 并发执行 sqls 的线程数，可选项，缺省是1。每个线程都执行所有的 sqls。
+"sqls": 可以添加多个 SQL 语句，最多支持 100 条。
 "sql": 查询语句。必选项。
 "result": 查询结果写入的文件名。可选项，缺省是空，表示查询结果不写入文件。
 "super_table_query": { 对超级表中所有子表的查询
 "stblname": 超级表名称。必选项。
-"query_interval": 执行sqls的间隔，单位是秒。可选项，缺省是0。
-"threads": 并发执行sqls的线程数，可选项，缺省是1。每个线程负责一部分子表，执行所有的sqls。
-"sql": "select count(*) from xxxx"。查询超级表内所有子表的查询语句，其中表名必须写成 “xxxx”，实例会自动替换成子表名。
+"query_interval": 执行 sqls 的间隔，单位是秒。可选项，缺省是0。
+"threads": 并发执行 sqls 的线程数，可选项，缺省是1。每个线程负责一部分子表，执行所有的 sqls。
+"sql": "SELECT COUNT(*) FROM xxxx"。查询超级表内所有子表的查询语句，其中表名必须写成 “xxxx”，实例会自动替换成子表名。
 "result": 查询结果写入的文件名。可选项，缺省是空，表示查询结果不写入文件。
 ```
 
@@ -463,7 +463,7 @@ taosBenchmark 不仅仅可以进行数据写入，也可以执行查询和订阅
 "restart": 订阅重启。"yes"：如果订阅已经存在，重新开始，"no": 继续之前的订阅。(请注意执行用户需要对 dataDir 目录有读写权限)
 "keepProgress": 保留订阅信息进度。yes表示保留订阅信息，no表示不保留。该值为yes，restart为no时，才能继续之前的订阅。
 "resubAfterConsume": 配合 keepProgress 使用，在订阅消费了相应次数后调用 unsubscribe 取消订阅并再次订阅。
-"result": 查询结果写入的文件名。可选项，缺省是空，表示查询结果不写入文件。 注意：每条sql语句后的保存结果的文件不能重名，且生成结果文件时，文件名会附加线程号。
+"result": 查询结果写入的文件名。可选项，缺省是空，表示查询结果不写入文件。 注意：每条 SQL 语句后的保存结果的文件不能重名，且生成结果文件时，文件名会附加线程号。
 ```
 
 ## 结语
@@ -512,7 +512,7 @@ taosBenchmark支持两种配置参数的模式，一种是命令行参数，一�
 
 -T：并发线程数。可选项，缺省是10。
 
--i：两次sql插入的休眠时间间隔，缺省是0。
+-i：两次 SQL 插入的休眠时间间隔，缺省是0。
 
 -S：两次插入间隔时间戳步长，缺省是1。
 
@@ -632,9 +632,9 @@ taosBenchmark支持3种功能的测试，包括插入、查询、订阅。但一
 
 "insert_interval": 两次发送请求的间隔时间。可选项，缺省是0，代表无人工设置的时间间隔，单位为ms。。
 
-"interlace_rows": 设置轮询插入每个单表数据的条目数，如果interlace_rows*childtable_count*supertable_num小于num_of_records_per_req时，则请求插入的数目以interlace_rows*childtable_count*supertable_num为准。可选项，缺省是0。
+"interlace_rows": 设置轮询插入每个单表数据的条目数，如果 interlace_rows * childtable_count * supertable_num 小于 num_of_records_per_req 时，则请求插入的数目以 interlace_rows * childtable_count * supertable_num 为准。可选项，缺省是 0。
 
-"num_of_records_per_req": 每条请求数据内容包含的插入数据记录数目，该数据组成的sql不能大于maxsqllen，如果过大，则取taosd限制的1M长度(1048576)。0代表不插入数据，建议配置大于0。
+"num_of_records_per_req": 每条请求数据内容包含的插入数据记录数目，该数据组成的 SQL 不能大于 maxSqlLen，如果过大，则取 taosd 限制的1M长度(1048576)。0 代表不插入数据，建议配置大于 0。
 
 "databases": [{
 
@@ -680,7 +680,7 @@ taosBenchmark支持3种功能的测试，包括插入、查询、订阅。但一
 
 "auto_create_table": 子表的创建方式，“yes”：自动建表；"no"：提前建表。可选项，缺省是“no”。当 child_table_exists 为 “yes” 时此参数将自动置为 no 。
 
-"batch_create_tbl_num": 一个sql批量创建子表的数目。
+"batch_create_tbl_num": 一个 SQL 批量创建子表的数目。
 
 "data_source": 插入数据来源，"rand"：实例随机生成；“sample”：从样例文件中读取。可选项。缺省是“rand”。
 
@@ -798,11 +798,11 @@ taosBenchmark支持3种功能的测试，包括插入、查询、订阅。但一
 
 "specified_table_query": { 指定表的查询
 
-"query_interval": 执行sqls的间隔，单位是秒。可选项，缺省是0。
+"query_interval": 执行 sqls 的间隔，单位是秒。可选项，缺省是0。
 
-"concurrent": 并发执行sqls的线程数，可选项，缺省是1。每个线程都执行所有的sqls。
+"concurrent": 并发执行 sqls 的线程数，可选项，缺省是1。每个线程都执行所有的 sqls。
 
-"sqls": 可以添加多个sql语句，最多支持100条。
+"sqls": 可以添加多个 SQL 语句，最多支持100条。
 
 "sql": 查询语句。必选项。
 
@@ -812,15 +812,15 @@ taosBenchmark支持3种功能的测试，包括插入、查询、订阅。但一
 
 "stblname": 超级表名称。必选项。
 
-"query_interval": 执行sqls的间隔，单位是秒。可选项，缺省是0。
+"query_interval": 执行 sqls 的间隔，单位是秒。可选项，缺省是0。
 
-"threads": 并发执行sqls的线程数，可选项，缺省是1。每个线程负责一部分子表，执行所有的sqls。
+"threads": 并发执行 sqls 的线程数，可选项，缺省是1。每个线程负责一部分子表，执行所有的 sqls。
 
 "sql": "select count(*) from xxxx"。查询超级表内所有子表的查询语句，其中表名必须写成 “xxxx”，实例会自动替换成子表名。
 
 "result": 查询结果写入的文件名。可选项，缺省是空，表示查询结果不写入文件。
 
-注意：每条sql语句后的保存结果的文件不能重名，且生成结果文件时，文件名会附加线程号。
+注意：每条 SQL 语句后的保存结果的文件不能重名，且生成结果文件时，文件名会附加线程号。
 
 查询结果显示：如果查询线程结束一次查询距开始执行时间超过30秒打印一次查询次数、用时和QPS。所有查询结束时，汇总打印总的查询次数和QPS。
 
@@ -882,11 +882,11 @@ taosBenchmark支持3种功能的测试，包括插入、查询、订阅。但一
 
 "confirm_parameter_prompt": 执行过程中提示是否确认，为no时，执行过程无需手工输入enter。可选项，缺省是no。
 
-注意：这里的订阅查询sql目前只支持select * ，其余不支持。
+注意：这里的订阅查询 SQL 目前只支持 SELECT * ，其余不支持。
 
 "specified_table_query": 指定表的订阅。
 
-"concurrent": 并发执行sqls的线程数，可选项，缺省是1。每个线程都执行所有的sqls。
+"concurrent": 并发执行 sqls 的线程数，可选项，缺省是1。每个线程都执行所有的 sqls。
 
 "mode": 订阅模式。目前支持同步和异步订阅，缺省是sync。
 
@@ -906,11 +906,11 @@ taosBenchmark支持3种功能的测试，包括插入、查询、订阅。但一
 
 "stblname": 超级表名称。必选项。
 
-"threads": 并发执行sqls的线程数，可选项，缺省是1。每个线程都执行所有的sqls。
+"threads": 并发执行 sqls 的线程数，可选项，缺省是1。每个线程都执行所有的 sqls。
 
 "mode": 订阅模式。
 
-"interval": 执行sqls的间隔，单位是秒。可选项，缺省是0。
+"interval": 执行 sqls 的间隔，单位是秒。可选项，缺省是 0。
 
 "restart": 订阅重启。"yes"：如果订阅已经存在，重新开始，"no": 继续之前的订阅。
 
@@ -918,6 +918,6 @@ taosBenchmark支持3种功能的测试，包括插入、查询、订阅。但一
 
 "resubAfterConsume":  配合 keepProgress 使用，在订阅消费了相应次数后调用 unsubscribe 取消订阅并再次订阅。
 
-"sql": " select count(*) from xxxx "。查询语句，其中表名必须写成 “xxxx”，实例会自动替换成子表名。
+"sql": " SELECT COUNT(*) FROM xxxx "。查询语句，其中表名必须写成 “xxxx”，实例会自动替换成子表名。
 
-"result": 查询结果写入的文件名。可选项，缺省是空，表示查询结果不写入文件。 注意：每条sql语句后的保存结果的文件不能重名，且生成结果文件时，文件名会附加线程号。
+"result": 查询结果写入的文件名。可选项，缺省是空，表示查询结果不写入文件。 注意：每条 SQL 语句后的保存结果的文件不能重名，且生成结果文件时，文件名会附加线程号。
