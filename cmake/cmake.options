@@ -1,11 +1,16 @@
 # =========================================================
 # Deps options
 # =========================================================
+
+IF(${TD_LINUX} MATCHES TRUE)
+
 option(
     BUILD_TEST 
     "If build unit tests using googletest" 
     ON
 )
+
+ENDIF ()
 
 option(
     BUILD_WITH_LEVELDB 
@@ -25,11 +30,13 @@ option(
     OFF
 )
 
+IF (NOT ${TD_WINDOWS} MATCHES TRUE)
 option(
     BUILD_WITH_BDB 
     "If build with BerkleyDB" 
     ON
 )
+ENDIF ()
 
 option(
     BUILD_WITH_LUCENE 
@@ -68,11 +75,15 @@ option(
     OFF
 )
 
+IF(${TD_LINUX} MATCHES TRUE)
+
 option(
     BUILD_DEPENDENCY_TESTS 
     "If build dependency tests" 
     ON
 )
+
+ENDIF ()
 
 option(
     BUILD_DOCS

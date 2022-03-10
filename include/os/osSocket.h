@@ -27,7 +27,7 @@
     #define epoll_wait EPOLL_WAIT_FUNC_TAOS_FORBID
 #endif
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#if defined(WINDOWS)
   #include "winsock2.h"
   #include <WS2tcpip.h>
   #include <winbase.h>

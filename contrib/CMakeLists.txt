@@ -193,7 +193,9 @@ endif(${BUILD_WITH_TRAFT})
 
 # LIBUV
 if(${BUILD_WITH_UV})
-    add_compile_options(-Wno-sign-compare)
+    if (NOT ${TD_WINDOWS})
+        add_compile_options(-Wno-sign-compare)
+    endif ()
     add_subdirectory(libuv)
 endif(${BUILD_WITH_UV})
 
