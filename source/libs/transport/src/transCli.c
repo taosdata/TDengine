@@ -351,14 +351,11 @@ static void clientConnDestroy(SCliConn* conn, bool clear) {
 }
 static void clientDestroy(uv_handle_t* handle) {
   SCliConn* conn = handle->data;
-  // transDestroyBuffer(&conn->readBuf);
 
   free(conn->stream);
   free(conn->writeReq);
-  tTrace("client conn %p destroy successfully", conn);
+  tTrace("%s client conn %p destroy successfully", CONN_GET_INST_LABEL(conn), conn);
   free(conn);
-
-  // clientConnDestroy(conn, false);
 }
 
 static void clientWriteCb(uv_write_t* req, int status) {
@@ -454,8 +451,7 @@ static void clientHandleQuit(SCliMsg* pMsg, SCliThrdObj* pThrd) {
 static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   uint64_t et = taosGetTimestampUs();
   uint64_t el = et - pMsg->st;
-  tTrace("client msg tran time cost: %" PRIu64 "us", el);
-  et = taosGetTimestampUs();
+  tTrace("%s client msg tran time cost: %" PRIu64 "us", ((SRpcInfo*)pThrd->pTransInst)->label, el);
 
   STransConnCtx* pCtx = pMsg->ctx;
   SRpcInfo*      pTransInst = pThrd->pTransInst;
@@ -630,8 +626,6 @@ static void transDestroyConnCtx(STransConnCtx* ctx) {
 static void clientSendQuit(SCliThrdObj* thrd) {
   // cli can stop gracefully
   SCliMsg* msg = calloc(1, sizeof(SCliMsg));
-  msg->ctx = NULL;  //
-
   transSendAsync(thrd->asyncPool, &msg->q);
 }
 void taosCloseClient(void* arg) {
@@ -649,6 +643,23 @@ static int clientRBChoseIdx(SRpcInfo* pTransInst) {
     pTransInst->index = 0;
   }
   return index % pTransInst->numOfThreads;
+}
+void transRefCliHandle(void* handle) {
+  if (handle == NULL) {
+    return;
+  }
+  int ref = T_REF_INC((SCliConn*)handle);
+  UNUSED(ref);
+}
+void transUnrefCliHandle(void* handle) {
+  if (handle == NULL) {
+    return;
+  }
+  int ref = T_REF_DEC((SCliConn*)handle);
+  if (ref == 0) {
+  }
+
+  // unref cli handle
 }
 void rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
   // impl later

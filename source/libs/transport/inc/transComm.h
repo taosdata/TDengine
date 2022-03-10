@@ -242,8 +242,11 @@ int  transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
 bool transReadComplete(SConnBuffer* connBuf);
 
 int transSetConnOption(uv_tcp_t* stream);
-// int transPackMsg(SRpcMsg *rpcMsg, bool sercured, bool auth, char **msg, int32_t *msgLen);
 
-// int transUnpackMsg(char *msg, SRpcMsg *pMsg, bool );
+void transRefSrvHandle(void* handle);
+void transUnrefSrvHandle(void* handle);
+
+void transRefCliHandle(void* handle);
+void transUnrefCliHandle(void* handle);
 
 #endif

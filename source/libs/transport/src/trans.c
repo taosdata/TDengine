@@ -122,4 +122,17 @@ void rpcCleanup(void) {
   //
   return;
 }
+
+void (*taosRefHandle[])(void* handle) = {transRefSrvHandle, transRefCliHandle};
+void (*taosUnRefHandle[])(void* handle) = {transUnrefSrvHandle, transUnrefCliHandle};
+
+void rpcRefHandle(void* handle, int8_t type) {
+  assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
+  (*taosRefHandle[type])(handle);
+}
+void rpcUnrefHandle(void* handle, int8_t type) {
+  assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
+  (*taosUnRefHandle[type])(handle);
+}
+
 #endif

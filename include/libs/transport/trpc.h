@@ -86,7 +86,7 @@ typedef struct SRpcInit {
 
 int32_t rpcInit();
 void    rpcCleanup();
-void   *rpcOpen(const SRpcInit *pRpc);
+void *  rpcOpen(const SRpcInit *pRpc);
 void    rpcClose(void *);
 void *  rpcMallocCont(int contLen);
 void    rpcFreeCont(void *pCont);
@@ -98,6 +98,9 @@ int     rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
 void    rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
 int     rpcReportProgress(void *pConn, char *pCont, int contLen);
 void    rpcCancelRequest(int64_t rid);
+
+void rpcRefHandle(void *handle, int8_t type);
+void rpcUnrefHandle(void *handle, int8_t type);
 
 #ifdef __cplusplus
 }

@@ -33,11 +33,11 @@ typedef struct SSrvConn {
   void*       ahandle;     //
   void*       hostThrd;
   SArray*     srvMsgs;
-  // void*       pSrvMsg;
+
+  bool broken;  // conn broken;
 
   struct sockaddr_in addr;
   struct sockaddr_in locaddr;
-
   // SRpcMsg sendMsg;
   // del later
   char secured;
@@ -206,7 +206,6 @@ static void uvHandleReq(SSrvConn* pConn) {
   }
 
   pConn->inType = pHead->msgType;
-  // assert(transIsReq(pHead->msgType));
 
   SRpcInfo* pRpc = (SRpcInfo*)p->shandle;
   pHead->code = htonl(pHead->code);
@@ -230,7 +229,8 @@ static void uvHandleReq(SSrvConn* pConn) {
   rpcMsg.handle = pConn;
 
   transClearBuffer(&pConn->readBuf);
-  pConn->ref++;
+
+  transRefSrvHandle(pConn);
   tDebug("server conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pConn, TMSG_INFO(rpcMsg.msgType),
          inet_ntoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), inet_ntoa(pConn->locaddr.sin_addr),
          ntohs(pConn->locaddr.sin_port), rpcMsg.contLen);
@@ -255,23 +255,20 @@ void uvOnReadCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     }
     return;
   }
-  if (nread == UV_EOF) {
-    tError("server conn %p read error: %s", conn, uv_err_name(nread));
-    if (conn->ref > 1) {
-      conn->ref++;  // ref > 1 signed that write is in progress
-    }
-    destroyConn(conn, true);
-    return;
-  }
   if (nread == 0) {
     return;
   }
-  if (nread < 0 || nread != UV_EOF) {
-    if (conn->ref > 1) {
-      conn->ref++;  // ref > 1 signed that write is in progress
-    }
-    tError("server conn %p read error: %s", conn, uv_err_name(nread));
-    destroyConn(conn, true);
+
+  tError("server conn %p read error: %s", conn, uv_err_name(nread));
+  if (nread < 0 || nread == UV_EOF) {
+    conn->broken = true;
+    transUnrefSrvHandle(conn);
+
+    // if (conn->ref > 1) {
+    //  conn->ref++;  // ref > 1 signed that write is in progress
+    //}
+    // tError("server conn %p read error: %s", conn, uv_err_name(nread));
+    // destroyConn(conn, true);
   }
 }
 void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
@@ -304,10 +301,9 @@ void uvOnWriteCb(uv_write_t* req, int status) {
     }
   } else {
     tError("server conn %p failed to write data, %s", conn, uv_err_name(status));
-    //
-    destroyConn(conn, true);
+    conn->broken = false;
+    transUnrefSrvHandle(conn);
   }
-  // opt
 }
 static void uvOnPipeWriteCb(uv_write_t* req, int status) {
   if (status == 0) {
@@ -353,15 +349,18 @@ static void uvStartSendRespInternal(SSrvMsg* smsg) {
 
   SSrvConn* pConn = smsg->pConn;
   uv_timer_stop(pConn->pTimer);
-
-  // pConn->pSrvMsg = smsg;
-  // conn->pWriter->data = smsg;
   uv_write(pConn->pWriter, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnWriteCb);
 }
 static void uvStartSendResp(SSrvMsg* smsg) {
   // impl
   SSrvConn* pConn = smsg->pConn;
-  pConn->ref--;  //
+
+  if (pConn->broken == true) {
+    transUnrefSrvHandle(pConn);
+    return;
+  }
+  transUnrefSrvHandle(pConn);
+
   if (taosArrayGetSize(pConn->srvMsgs) > 0) {
     tDebug("server conn %p push data to client %s:%d, local info: %s:%d", pConn, inet_ntoa(pConn->addr.sin_addr),
            ntohs(pConn->addr.sin_port), inet_ntoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port));
@@ -386,7 +385,8 @@ static void destroyAllConn(SWorkThrdObj* pThrd) {
     QUEUE_INIT(h);
 
     SSrvConn* c = QUEUE_DATA(h, SSrvConn, queue);
-    destroyConn(c, true);
+    transUnrefSrvHandle(c);
+    // destroyConn(c, true);
   }
 }
 void uvWorkerAsyncCb(uv_async_t* handle) {
@@ -394,11 +394,11 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
   SWorkThrdObj* pThrd = item->pThrd;
   SSrvConn*     conn = NULL;
   queue         wq;
+
   // batch process to avoid to lock/unlock frequently
   pthread_mutex_lock(&item->mtx);
   QUEUE_MOVE(&item->qmsg, &wq);
   pthread_mutex_unlock(&item->mtx);
-  // pthread_mutex_unlock(&mtx);
 
   while (!QUEUE_IS_EMPTY(&wq)) {
     queue* head = QUEUE_HEAD(&wq);
@@ -411,7 +411,6 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
     }
     if (msg->pConn == NULL) {
       free(msg);
-
       destroyAllConn(pThrd);
 
       uv_loop_close(pThrd->loop);
@@ -601,16 +600,14 @@ static SSrvConn* createConn(void* hThrd) {
   QUEUE_PUSH(&pThrd->conn, &pConn->queue);
   pConn->srvMsgs = taosArrayInit(2, sizeof(void*));  //
   tTrace("conn %p created", pConn);
-  ++pConn->ref;
+
+  pConn->broken = false;
+  transRefSrvHandle(pConn);
   return pConn;
 }
 
 static void destroyConn(SSrvConn* conn, bool clear) {
   if (conn == NULL) {
-    return;
-  }
-  tTrace("server conn %p try to destroy, ref: %d", conn, conn->ref);
-  if (--conn->ref > 0) {
     return;
   }
   transDestroyBuffer(&conn->readBuf);
@@ -624,9 +621,9 @@ static void destroyConn(SSrvConn* conn, bool clear) {
 
   if (clear) {
     tTrace("try to destroy conn %p", conn);
-    uv_tcp_close_reset(conn->pTcp, uvDestroyConn);
-    // uv_shutdown_t* req = malloc(sizeof(uv_shutdown_t));
-    // uv_shutdown(req, (uv_stream_t*)conn->pTcp, uvShutDownCb);
+    // uv_tcp_close_reset(conn->pTcp, uvDestroyConn);
+    uv_shutdown_t* req = malloc(sizeof(uv_shutdown_t));
+    uv_shutdown(req, (uv_stream_t*)conn->pTcp, uvShutDownCb);
     // uv_unref((uv_handle_t*)conn->pTcp);
     // uv_close((uv_handle_t*)conn->pTcp, uvDestroyConn);
   }
@@ -722,8 +719,6 @@ void destroyWorkThrd(SWorkThrdObj* pThrd) {
   pthread_join(pThrd->thread, NULL);
   free(pThrd->loop);
   transDestroyAsyncPool(pThrd->asyncPool);
-
-  // free(pThrd->workerAsync);
   free(pThrd);
 }
 void sendQuitToWorkThrd(SWorkThrdObj* pThrd) {
@@ -757,6 +752,27 @@ void taosCloseServer(void* arg) {
   free(srv);
 }
 
+void transRefSrvHandle(void* handle) {
+  if (handle == NULL) {
+    return;
+  }
+  SSrvConn* conn = handle;
+
+  int ref = T_REF_INC((SSrvConn*)handle);
+  UNUSED(ref);
+}
+
+void transUnrefSrvHandle(void* handle) {
+  if (handle == NULL) {
+    return;
+  }
+  int ref = T_REF_DEC((SSrvConn*)handle);
+
+  if (ref == 0) {
+    destroyConn((SSrvConn*)handle, true);
+  }
+  // unref srv handle
+}
 void rpcSendResponse(const SRpcMsg* pMsg) {
   if (pMsg->handle == NULL) {
     return;
