@@ -1146,13 +1146,13 @@ tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
   if (taosArrayGetSize(tmq->clientTopics) == 0) {
     tscDebug("consumer:%ld poll but not assigned", tmq->consumerId);
     /*printf("over1\n");*/
-    usleep(blocking_time * 1000);
+    taosMsleep(blocking_time);
     return NULL;
   }
   SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, tmq->nextTopicIdx);
   if (taosArrayGetSize(pTopic->vgs) == 0) {
     /*printf("over2\n");*/
-    usleep(blocking_time * 1000);
+    taosMsleep(blocking_time);
     return NULL;
   }
 
@@ -1165,14 +1165,14 @@ tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
     SMqConsumeReq* pReq = tmqBuildConsumeReqImpl(tmq, blocking_time, pTopic, pVg);
     if (pReq == NULL) {
       ASSERT(false);
-      usleep(blocking_time * 1000);
+      taosMsleep(blocking_time);
       return NULL;
     }
 
     SMqPollCbParam* param = malloc(sizeof(SMqPollCbParam));
     if (param == NULL) {
       ASSERT(false);
-      usleep(blocking_time * 1000);
+      taosMsleep(blocking_time);
       return NULL;
     }
     param->tmq = tmq;
@@ -1204,7 +1204,7 @@ tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
 
     if (tmq_message == NULL) {
       if (beginVgIdx == pTopic->nextVgIdx) {
-        usleep(blocking_time * 1000);
+        taosMsleep(blocking_time);
       } else {
         continue;
       }

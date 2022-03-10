@@ -2635,7 +2635,7 @@ void catalogDestroy(void) {
   tsem_post(&gCtgMgmt.sem);
 
   while (CTG_IS_LOCKED(&gCtgMgmt.lock)) {
-    usleep(1);
+    taosUsleep(1);
   }
   
   CTG_LOCK(CTG_WRITE, &gCtgMgmt.lock);
