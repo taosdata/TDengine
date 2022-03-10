@@ -119,6 +119,33 @@ char *voteGranted2Str(SVotesGranted *pVotesGranted) {
   return serialized;
 }
 
+// for debug -------------------
+void voteGrantedPrint(SVotesGranted *pObj) {
+  char *serialized = voteGranted2Str(pObj);
+  printf("voteGrantedPrint | len:%lu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void voteGrantedPrint2(char *s, SVotesGranted *pObj) {
+  char *serialized = voteGranted2Str(pObj);
+  printf("voteGrantedPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void voteGrantedLog(SVotesGranted *pObj) {
+  char *serialized = voteGranted2Str(pObj);
+  sTrace("voteGrantedLog | len:%lu | %s", strlen(serialized), serialized);
+  free(serialized);
+}
+
+void voteGrantedLog2(char *s, SVotesGranted *pObj) {
+  char *serialized = voteGranted2Str(pObj);
+  sTrace("voteGrantedLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  free(serialized);
+}
+
 // SVotesRespond -----------------------------
 SVotesRespond *votesRespondCreate(SSyncNode *pSyncNode) {
   SVotesRespond *pVotesRespond = malloc(sizeof(SVotesRespond));
@@ -210,4 +237,31 @@ char *votesRespond2Str(SVotesRespond *pVotesRespond) {
   char * serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
+}
+
+// for debug -------------------
+void votesRespondPrint(SVotesRespond *pObj) {
+  char *serialized = votesRespond2Str(pObj);
+  printf("votesRespondPrint | len:%lu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void votesRespondPrint2(char *s, SVotesRespond *pObj) {
+  char *serialized = votesRespond2Str(pObj);
+  printf("votesRespondPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void votesRespondLog(SVotesRespond *pObj) {
+  char *serialized = votesRespond2Str(pObj);
+  sTrace("votesRespondLog | len:%lu | %s", strlen(serialized), serialized);
+  free(serialized);
+}
+
+void votesRespondLog2(char *s, SVotesRespond *pObj) {
+  char *serialized = votesRespond2Str(pObj);
+  sTrace("votesRespondLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  free(serialized);
 }

@@ -48,10 +48,10 @@ cJSON*          syncEntry2Json(const SSyncRaftEntry* pEntry);
 char*           syncEntry2Str(const SSyncRaftEntry* pEntry);
 
 // for debug
-void syncEntryPrint(const SSyncRaftEntry* pEntry);
-void syncEntryPrint2(char* s, const SSyncRaftEntry* pEntry);
-void syncEntryLog(const SSyncRaftEntry* pEntry);
-void syncEntryLog2(char* s, const SSyncRaftEntry* pEntry);
+void syncEntryPrint(const SSyncRaftEntry* pObj);
+void syncEntryPrint2(char* s, const SSyncRaftEntry* pObj);
+void syncEntryLog(const SSyncRaftEntry* pObj);
+void syncEntryLog2(char* s, const SSyncRaftEntry* pObj);
 
 #ifdef __cplusplus
 }
