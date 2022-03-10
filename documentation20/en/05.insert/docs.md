@@ -4,7 +4,7 @@ TDengine supports multiple ways to write data, including SQL, Prometheus, Telegr
 
 ## <a class="anchor" id="sql"></a> Data Writing via SQL
 
-Applications insert data by executing SQL insert statements through C/C++, Java, Go, C#, Python, Node.js Connectors, and users can manually enter SQL insert statements to insert data through TAOS Shell. For example, the following insert writes a record to table d1001:
+Applications insert data by executing SQL insert statements through C/C++, Java, Go, C#, Python, Node.js connectors, and users can manually enter SQL insert statements to insert data through TAOS Shell. For example, the following insert writes a record to table d1001:
 
 ```mysql
 INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31);
@@ -36,7 +36,7 @@ For the SQL INSERT Grammar, please refer to  [Taos SQL insert](https://www.taosd
 **Introduction**
 <br/> In many IoT applications, data collection is often used in intelligent control, business analysis and device monitoring etc. As fast application upgrade and iteration, or hardware adjustment, data collection metrics can change rapidly over time. To provide solutions to such use cases, from version 2.2.0.0, TDengine supports writing data via Schemaless. When using Schemaless, action of pre-creating table before inserting data is no longer needed anymore. Tables, data columns and tags can be created automatically. Schemaless can also add additional data columns to tables if necessary, to make sure data can be properly stored into TDengine.
 
-<br/> TDengine C/C++ Connector provides Schemaless API. Please see [Schemaless data writing API](https://www.taosdata.com/en/documentation/connector#schemaless) for detailed data writing format.
+<br/> TDengine's all official connectors provide Schemaless API now. Please see [Schemaless data writing API](https://www.taosdata.com/en/documentation/connector#schemaless) for detailed data writing format.
 <br/> Super table and corresponding child tables created via Schemaless are identical to the ones created via SQL, so inserting data into these tables via SQL is also supported. Note that child table names are generated via Schemaless are following special rules through tags mapping. Therefore, child table names are usually not meaningful in terms of readability.
 
 **Schemaless writing protocols**
