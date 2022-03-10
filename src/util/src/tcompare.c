@@ -183,16 +183,16 @@ int32_t compareLenPrefixedStr(const void *pLeft, const void *pRight) {
   int32_t len1 = varDataLen(pLeft);
   int32_t len2 = varDataLen(pRight);
 
-  if (len1 != len2) {
-    return len1 > len2? 1:-1;
-  } else {
-    int32_t ret = strncmp(varDataVal(pLeft), varDataVal(pRight), len1);
-    if (ret == 0) {
+  int32_t ret = strncmp(varDataVal(pLeft), varDataVal(pRight), len1>len2 ? len2:len1);
+  if (ret == 0) {
+    if (len1 > len2)
+      return 1;
+    else if(len1 < len2)
+      return -1;
+    else   
       return 0;
-    } else {
-      return ret > 0 ? 1:-1;
-    }
   }
+  return (ret < 0) ? -1 : 1;
 }
 
 int32_t compareLenPrefixedStrDesc(const void* pLeft, const void* pRight) {
@@ -203,16 +203,16 @@ int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight) {
   int32_t len1 = varDataLen(pLeft);
   int32_t len2 = varDataLen(pRight);
 
-  if (len1 != len2) {
-    return len1 > len2? 1:-1;
-  } else {
-    int32_t ret = memcmp((wchar_t*) pLeft, (wchar_t*) pRight, len1);
-    if (ret == 0) {
+  int32_t ret = tasoUcs4Compare(varDataVal(pLeft), varDataVal(pRight), len1>len2 ? len2:len1);
+  if (ret == 0) {
+    if (len1 > len2)
+      return 1;
+    else if(len1 < len2)
+      return -1;
+    else   
       return 0;
-    } else {
-      return ret > 0 ? 1 : -1;
-    }
   }
+  return (ret < 0) ? -1 : 1;
 }
 
 int32_t compareLenPrefixedWStrDesc(const void* pLeft, const void* pRight) {
