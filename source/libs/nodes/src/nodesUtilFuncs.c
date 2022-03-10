@@ -217,6 +217,17 @@ static EDealRes destroyNode(SNode** pNode, void* pContext) {
       nodesDestroyNode(pStmt->pSlimit);
       break;
     }
+    case QUERY_NODE_VNODE_MODIF_STMT: {
+      SVnodeModifOpStmt* pStmt = (SVnodeModifOpStmt*)*pNode;
+      size_t size = taosArrayGetSize(pStmt->pDataBlocks);
+      for (size_t i = 0; i < size; ++i) {
+        SVgDataBlocks* pVg = taosArrayGetP(pStmt->pDataBlocks, i);
+        tfree(pVg->pData);
+        tfree(pVg);
+      }
+      taosArrayDestroy(pStmt->pDataBlocks);
+      break;
+    }
     case QUERY_NODE_CREATE_TABLE_STMT: {
       SCreateTableStmt* pStmt = (SCreateTableStmt*)*pNode;
       nodesDestroyList(pStmt->pCols);
