@@ -44,7 +44,7 @@ int32_t syncIOStart(char *host, uint16_t port) {
   gSyncIO = syncIOCreate(host, port);
   assert(gSyncIO != NULL);
 
-  srand(time(NULL));
+  taosSeedRand(time(NULL));
   int32_t ret = syncIOStartInternal(gSyncIO);
   assert(ret == 0);
 

@@ -614,13 +614,13 @@ static int32_t queryNodeAddrToJson(const void* pObj, SJson* pJson) {
 
   int32_t code = tjsonAddIntegerToObject(pJson, jkQueryNodeAddrId, pNode->nodeId);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkQueryNodeAddrInUse, pNode->epset.inUse);
+    code = tjsonAddIntegerToObject(pJson, jkQueryNodeAddrInUse, pNode->epSet.inUse);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkQueryNodeAddrNumOfEps, pNode->epset.numOfEps);
+    code = tjsonAddIntegerToObject(pJson, jkQueryNodeAddrNumOfEps, pNode->epSet.numOfEps);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddArray(pJson, jkQueryNodeAddrEps, epToJson, pNode->epset.eps, sizeof(SEp), pNode->epset.numOfEps);
+    code = tjsonAddArray(pJson, jkQueryNodeAddrEps, epToJson, pNode->epSet.eps, sizeof(SEp), pNode->epSet.numOfEps);
   }
 
   return code;
@@ -631,13 +631,13 @@ static int32_t jsonToQueryNodeAddr(const SJson* pJson, void* pObj) {
 
   int32_t code = tjsonGetIntValue(pJson, jkQueryNodeAddrId, &pNode->nodeId);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetTinyIntValue(pJson, jkQueryNodeAddrInUse, &pNode->epset.inUse);
+    code = tjsonGetTinyIntValue(pJson, jkQueryNodeAddrInUse, &pNode->epSet.inUse);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetTinyIntValue(pJson, jkQueryNodeAddrNumOfEps, &pNode->epset.numOfEps);
+    code = tjsonGetTinyIntValue(pJson, jkQueryNodeAddrNumOfEps, &pNode->epSet.numOfEps);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonToArray(pJson, jkQueryNodeAddrEps, jsonToEp, pNode->epset.eps, sizeof(SEp));
+    code = tjsonToArray(pJson, jkQueryNodeAddrEps, jsonToEp, pNode->epSet.eps, sizeof(SEp));
   }
 
   return code;

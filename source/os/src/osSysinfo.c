@@ -16,6 +16,15 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
+bool taosCheckSystemIsSmallEnd() {
+    union check{
+        int16_t i;
+        char ch[2];
+    }c;
+    c.i=1;
+    return c.ch[0]==1;
+}
+
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 
 /*

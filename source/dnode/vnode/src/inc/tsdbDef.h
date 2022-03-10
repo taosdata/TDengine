@@ -52,6 +52,7 @@ struct STsdb {
   STsdbFS *             fs;
   SMeta *               pMeta;
   STfs *                pTfs;
+  SSmaStat *            pSmaStat;
 };
 
 #define REPO_ID(r) ((r)->vgId)

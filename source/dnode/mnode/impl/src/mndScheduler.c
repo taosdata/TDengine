@@ -33,13 +33,17 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
   SSdb*      pSdb = pMnode->pSdb;
   SVgObj*    pVgroup = NULL;
   SQueryPlan* pPlan = qStringToQueryPlan(pTopic->physicalPlan);
-  SArray*    pAray = NULL;
-  SArray*    unassignedVg = pSub->unassignedVg;
+  if (pPlan == NULL) {
+    terrno = TSDB_CODE_QRY_INVALID_INPUT;
+    return -1;
+  }
 
   ASSERT(pSub->vgNum == 0);
 
   int32_t levelNum = LIST_LENGTH(pPlan->pSubplans);
   if (levelNum != 1) {
+    qDestroyQueryPlan(pPlan);
+    terrno = TSDB_CODE_MND_UNSUPPORTED_TOPIC;
     return -1;
   }
 
@@ -47,6 +51,8 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
 
   int32_t opNum = LIST_LENGTH(inner->pNodeList);
   if (opNum != 1) {
+    qDestroyQueryPlan(pPlan);
+    terrno = TSDB_CODE_MND_UNSUPPORTED_TOPIC;
     return -1;
   }
   SSubplan* plan = nodesListGetNode(inner->pNodeList, 0);
@@ -62,17 +68,24 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
 
     pSub->vgNum++;
     plan->execNode.nodeId = pVgroup->vgId;
-    plan->execNode.epset = mndGetVgroupEpset(pMnode, pVgroup);
+    plan->execNode.epSet = mndGetVgroupEpset(pMnode, pVgroup);
 
     SMqConsumerEp consumerEp = {0};
     consumerEp.status = 0;
     consumerEp.consumerId = -1;
-    consumerEp.epSet = plan->execNode.epset;
+    consumerEp.epSet = plan->execNode.epSet;
     consumerEp.vgId = plan->execNode.nodeId;
     int32_t msgLen;
-    int32_t code = qSubPlanToString(plan, &consumerEp.qmsg, &msgLen);
-    taosArrayPush(unassignedVg, &consumerEp);
+    if (qSubPlanToString(plan, &consumerEp.qmsg, &msgLen) < 0) {
+      sdbRelease(pSdb, pVgroup);
+      qDestroyQueryPlan(pPlan);
+      terrno = TSDB_CODE_QRY_INVALID_INPUT;
+      return -1;
+    }
+    taosArrayPush(pSub->unassignedVg, &consumerEp);
   }
+
+  qDestroyQueryPlan(pPlan);
 
   return 0;
 }
