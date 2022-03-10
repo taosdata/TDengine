@@ -157,14 +157,12 @@ static void  clientHandleResp(SCliConn* conn) {
   conn->secured = pHead->secured;
 
   if (pCtx->pSem == NULL) {
-    if (pCtx->pSem == NULL) {
-      tTrace("%s client conn %p handle resp", pTransInst->label, conn);
-      (pTransInst->cfp)(pTransInst->parent, &rpcMsg, NULL);
-    } else {
-      tTrace("%s client conn(sync) %p handle resp", pTransInst->label, conn);
-      memcpy((char*)pCtx->pRsp, (char*)&rpcMsg, sizeof(rpcMsg));
-      tsem_post(pCtx->pSem);
-    }
+    tTrace("%s client conn %p handle resp", pTransInst->label, conn);
+    (pTransInst->cfp)(pTransInst->parent, &rpcMsg, NULL);
+  } else {
+    tTrace("%s client conn(sync) %p handle resp", pTransInst->label, conn);
+    memcpy((char*)pCtx->pRsp, (char*)&rpcMsg, sizeof(rpcMsg));
+    tsem_post(pCtx->pSem);
   }
   conn->ctnRdCnt += 1;
 
@@ -175,14 +173,14 @@ static void  clientHandleResp(SCliConn* conn) {
     if (pTransInst->noPool == true) {
       destroyCmsg(conn->data);
       clientConnDestroy(conn, true);
+      return;
     } else {
       addConnToPool(pThrd->pool, pCtx->ip, pCtx->port, conn);
-      destroyCmsg(conn->data);
-      conn->data = NULL;
     }
-  } else {
-    // app decide to free or not
   }
+  destroyCmsg(conn->data);
+  conn->data = NULL;
+
   // start thread's timer of conn pool if not active
   if (!uv_is_active((uv_handle_t*)pThrd->timer) && pTransInst->idleTime > 0) {
     // uv_timer_start((uv_timer_t*)pThrd->timer, clientTimeoutCb, CONN_PERSIST_TIME(pRpc->idleTime) / 2, 0);
@@ -206,11 +204,16 @@ static void clientHandleExcept(SCliConn* pConn) {
   rpcMsg.msgType = pMsg->msg.msgType + 1;
 
   if (pCtx->pSem == NULL) {
+    tTrace("%s client conn %p handle resp", pTransInst->label, pConn);
     (pTransInst->cfp)(pTransInst->parent, &rpcMsg, NULL);
   } else {
+    tTrace("%s client conn(sync) %p handle resp", pTransInst->label, pConn);
     memcpy((char*)(pCtx->pRsp), (char*)(&rpcMsg), sizeof(rpcMsg));
     tsem_post(pCtx->pSem);
   }
+  destroyCmsg(pConn->data);
+  pConn->data = NULL;
+
   tTrace("%s client conn %p start to destroy", CONN_GET_INST_LABEL(pConn), pConn);
   clientConnDestroy(pConn, true);
 }
