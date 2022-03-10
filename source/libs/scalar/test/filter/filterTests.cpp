@@ -1286,7 +1286,7 @@ TEST(scalarModelogicTest, diff_columns_or_and_or) {
 
 
 int main(int argc, char** argv) {
-  srand(time(NULL));
+  taosSeedRand(time(NULL));
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

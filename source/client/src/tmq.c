@@ -13,8 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
-
 #include "clientInt.h"
 #include "clientLog.h"
 #include "parser.h"
@@ -606,17 +604,17 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 
 int32_t tmqGetSkipLogNum(tmq_message_t* tmq_message) {
   if (tmq_message == NULL) return 0;
-  SMqConsumeRsp* pRsp = &tmq_message->consumeRsp;
+  SMqPollRsp* pRsp = &tmq_message->consumeRsp;
   return pRsp->skipLogNum;
 }
 
 void tmqShowMsg(tmq_message_t* tmq_message) {
   if (tmq_message == NULL) return;
 
-  static bool    noPrintSchema;
-  char           pBuf[128];
-  SMqConsumeRsp* pRsp = &tmq_message->consumeRsp;
-  int32_t        colNum = pRsp->schemas->nCols;
+  static bool noPrintSchema;
+  char        pBuf[128];
+  SMqPollRsp* pRsp = &tmq_message->consumeRsp;
+  int32_t     colNum = pRsp->schemas->nCols;
   if (!noPrintSchema) {
     printf("|");
     for (int32_t i = 0; i < colNum; i++) {
@@ -703,7 +701,7 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
     goto WRITE_QUEUE_FAIL;
   }
   memcpy(pRsp, pMsg->pData, sizeof(SMqRspHead));
-  tDecodeSMqConsumeRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pRsp->consumeRsp);
+  tDecodeSMqPollRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pRsp->consumeRsp);
   /*printf("rsp commit off:%ld rsp off:%ld has data:%d\n", pRsp->committedOffset, pRsp->rspOffset, pRsp->numOfTopics);*/
   if (pRsp->consumeRsp.numOfTopics == 0) {
     /*printf("no data\n");*/
@@ -874,7 +872,7 @@ tmq_resp_err_t tmq_seek(tmq_t* tmq, const tmq_topic_vgroup_t* offset) {
   return TMQ_RESP_ERR__FAIL;
 }
 
-SMqConsumeReq* tmqBuildConsumeReqImpl(tmq_t* tmq, int64_t blockingTime, SMqClientTopic* pTopic, SMqClientVg* pVg) {
+SMqPollReq* tmqBuildConsumeReqImpl(tmq_t* tmq, int64_t blockingTime, SMqClientTopic* pTopic, SMqClientVg* pVg) {
   int64_t reqOffset;
   if (pVg->currentOffset >= 0) {
     reqOffset = pVg->currentOffset;
@@ -886,7 +884,7 @@ SMqConsumeReq* tmqBuildConsumeReqImpl(tmq_t* tmq, int64_t blockingTime, SMqClien
     reqOffset = tmq->resetOffsetCfg;
   }
 
-  SMqConsumeReq* pReq = malloc(sizeof(SMqConsumeReq));
+  SMqPollReq* pReq = malloc(sizeof(SMqPollReq));
   if (pReq == NULL) {
     return NULL;
   }
@@ -900,7 +898,7 @@ SMqConsumeReq* tmqBuildConsumeReqImpl(tmq_t* tmq, int64_t blockingTime, SMqClien
   pReq->currentOffset = reqOffset;
 
   pReq->head.vgId = htonl(pVg->vgId);
-  pReq->head.contLen = htonl(sizeof(SMqConsumeReq));
+  pReq->head.contLen = htonl(sizeof(SMqPollReq));
   return pReq;
 }
 
@@ -914,7 +912,7 @@ tmq_message_t* tmqSyncPollImpl(tmq_t* tmq, int64_t blockingTime) {
       /*if (vgStatus != TMQ_VG_STATUS__IDLE) {*/
       /*continue;*/
       /*}*/
-      SMqConsumeReq* pReq = tmqBuildConsumeReqImpl(tmq, blockingTime, pTopic, pVg);
+      SMqPollReq* pReq = tmqBuildConsumeReqImpl(tmq, blockingTime, pTopic, pVg);
       if (pReq == NULL) {
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
         // TODO: out of mem
@@ -941,7 +939,7 @@ tmq_message_t* tmqSyncPollImpl(tmq_t* tmq, int64_t blockingTime) {
 
       sendInfo->msgInfo = (SDataBuf){
           .pData = pReq,
-          .len = sizeof(SMqConsumeReq),
+          .len = sizeof(SMqPollReq),
           .handle = NULL,
       };
       sendInfo->requestId = generateRequestId();
@@ -982,7 +980,7 @@ int32_t tmqPollImpl(tmq_t* tmq, int64_t blockingTime) {
       if (vgStatus != TMQ_VG_STATUS__IDLE) {
         continue;
       }
-      SMqConsumeReq* pReq = tmqBuildConsumeReqImpl(tmq, blockingTime, pTopic, pVg);
+      SMqPollReq* pReq = tmqBuildConsumeReqImpl(tmq, blockingTime, pTopic, pVg);
       if (pReq == NULL) {
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
         tsem_post(&tmq->rspSem);
@@ -1011,7 +1009,7 @@ int32_t tmqPollImpl(tmq_t* tmq, int64_t blockingTime) {
 
       sendInfo->msgInfo = (SDataBuf){
           .pData = pReq,
-          .len = sizeof(SMqConsumeReq),
+          .len = sizeof(SMqPollReq),
           .handle = NULL,
       };
       sendInfo->requestId = generateRequestId();
@@ -1271,7 +1269,7 @@ tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* tmq_topic_v
 
 void tmq_message_destroy(tmq_message_t* tmq_message) {
   if (tmq_message == NULL) return;
-  SMqConsumeRsp* pRsp = &tmq_message->consumeRsp;
+  SMqPollRsp* pRsp = &tmq_message->consumeRsp;
   tDeleteSMqConsumeRsp(pRsp);
   /*free(tmq_message);*/
   taosFreeQitem(tmq_message);

@@ -208,7 +208,7 @@ void taos_init_imp(void) {
   atexit(taos_cleanup);
 
   errno = TSDB_CODE_SUCCESS;
-  srand(taosGetTimestampSec());
+  taosSeedRand(taosGetTimestampSec());
 
   deltaToUtcInitOnce();
 

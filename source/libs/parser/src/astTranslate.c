@@ -1106,7 +1106,7 @@ static int32_t translateShowTables(STranslateContext* pCxt) {
   if (NULL== pCxt->pCmdMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  pCxt->pCmdMsg->epSet = info->epset;
+  pCxt->pCmdMsg->epSet = info->epSet;
   pCxt->pCmdMsg->msgType = TDMT_VND_SHOW_TABLES;
   pCxt->pCmdMsg->msgLen = sizeof(SVShowTablesReq);
   pCxt->pCmdMsg->pMsg = pShowReq;

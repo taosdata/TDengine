@@ -236,7 +236,7 @@ static int32_t initScanPhysiNode(SPhysiPlanContext* pCxt, SScanLogicNode* pScanL
 
 static void vgroupInfoToNodeAddr(const SVgroupInfo* vg, SQueryNodeAddr* pNodeAddr) {
   pNodeAddr->nodeId = vg->vgId;
-  pNodeAddr->epset  = vg->epset;
+  pNodeAddr->epSet  = vg->epSet;
 }
 
 static SPhysiNode* createTagScanPhysiNode(SPhysiPlanContext* pCxt, SScanLogicNode* pScanLogicNode) {
@@ -548,7 +548,7 @@ static SSubplan* createPhysiSubplan(SPhysiPlanContext* pCxt, SSubLogicPlan* pLog
     SVnodeModifLogicNode* pModif = (SVnodeModifLogicNode*)pLogicSubplan->pNode;
     pSubplan->pDataSink = createDataInserter(pCxt, pModif->pVgDataBlocks);
     pSubplan->msgType = pModif->msgType;
-    pSubplan->execNode.epset = pModif->pVgDataBlocks->vg.epset;
+    pSubplan->execNode.epSet = pModif->pVgDataBlocks->vg.epSet;
     taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
   } else {
     pSubplan->pNode = createPhysiNode(pCxt, pSubplan, pLogicSubplan->pNode);

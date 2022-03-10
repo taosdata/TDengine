@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+#define ALLOW_FORBID_FUNC
 #define _DEFAULT_SOURCE
 #include "os.h"
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
@@ -21,7 +21,11 @@
 #include <unistd.h>
 #endif
 
+void taosSeedRand(uint32_t seed) { return srand(seed); }
+
 uint32_t taosRand(void) { return rand(); }
+
+uint32_t taosRandR(uint32_t *pSeed) { return rand_r(pSeed); }
 
 uint32_t taosSafeRand(void) {
   TdFilePtr pFile;
