@@ -21,8 +21,10 @@ extern "C" {
 #endif
 #include "dndEnv.h"
 
-int32_t dndInitMnode(SDnode *pDnode);
-void    dndCleanupMnode(SDnode *pDnode);
+int32_t mmInit(SDnode *pDnode);
+void    mmCleanup(SDnode *pDnode);
+
+////////////
 
 int32_t dndGetUserAuthFromMnode(SDnode *pDnode, char *user, char *spi, char *encrypt, char *secret, char *ckey);
 void    dndProcessMnodeReadMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);

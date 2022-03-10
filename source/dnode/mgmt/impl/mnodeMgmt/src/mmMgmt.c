@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndMnode.h"
+#include "mm.h"
 #include "dndMgmt.h"
 #include "dndTransport.h"
 #include "dndWorker.h"
@@ -611,7 +611,7 @@ void dndProcessMnodeReadMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   // dndWriteMnodeMsgToWorker(pDnode, &pDnode->mmgmt.readWorker, pMsg);
 }
 
-int32_t dndInitMnode(SDnode *pDnode) {
+int32_t mmInit(SDnode *pDnode) {
   dInfo("dnode-mnode start to init");
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   taosInitRWLatch(&pMgmt->latch);
@@ -645,7 +645,7 @@ int32_t dndInitMnode(SDnode *pDnode) {
   }
 }
 
-void dndCleanupMnode(SDnode *pDnode) {
+void mmCleanup(SDnode *pDnode) {
   dInfo("dnode-mnode start to clean up");
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   if (pMgmt->pMnode) {

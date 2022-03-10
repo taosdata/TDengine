@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dndBnode.h"
 #include "dndMgmt.h"
-#include "dndMnode.h"
+#include "mm.h"
 #include "dndQnode.h"
 #include "dndSnode.h"
 #include "dndTransport.h"
@@ -221,7 +221,7 @@ SDnode *dndCreate(SDnodeObjCfg *pCfg) {
     return NULL;
   }
 
-  if (dndInitMnode(pDnode) != 0) {
+  if (mmInit(pDnode) != 0) {
     dError("failed to init mnode since %s", terrstr());
     dndClose(pDnode);
     return NULL;
@@ -253,7 +253,7 @@ void dndClose(SDnode *pDnode) {
   dndSetStat(pDnode, DND_STAT_STOPPED);
   dndCleanupTrans(pDnode);
   dndStopMgmt(pDnode);
-  dndCleanupMnode(pDnode);
+  mmCleanup(pDnode);
   dndCleanupBnode(pDnode);
   dndCleanupSnode(pDnode);
   dndCleanupQnode(pDnode);

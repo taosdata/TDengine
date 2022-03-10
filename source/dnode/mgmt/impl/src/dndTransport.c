@@ -22,7 +22,7 @@
 #define _DEFAULT_SOURCE
 #include "dndTransport.h"
 #include "dndMgmt.h"
-#include "dndMnode.h"
+#include "mm.h"
 #include "dndVnodes.h"
 
 #define INTERNAL_USER   "_dnd"
