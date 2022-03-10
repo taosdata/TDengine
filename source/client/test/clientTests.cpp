@@ -53,7 +53,6 @@ TEST(testCase, driverInit_Test) {
 //  taos_init();
 }
 
-#if 0
 TEST(testCase, connect_Test) {
 //  taos_options(TSDB_OPTION_CONFIGDIR, "/home/ubuntu/first/cfg");
 
@@ -564,8 +563,6 @@ TEST(testCase, insert_test) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
-#endif
-
 
 TEST(testCase, projection_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -579,7 +576,7 @@ TEST(testCase, projection_query_tables) {
 
   TAOS_RES* pRes = taos_query(pConn, "use abc1");
   taos_free_result(pRes);
-#if 0
+
   pRes = taos_query(pConn, "create stable st1 (ts timestamp, k int) tags(a int)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
@@ -602,9 +599,8 @@ TEST(testCase, projection_query_tables) {
 
     taos_free_result(p);
   }
-#endif
 
-  pRes = taos_query(pConn, "select count(ts) from tu");
+  pRes = taos_query(pConn, "select * from tu");
   if (taos_errno(pRes) != 0) {
     printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);
@@ -625,7 +621,6 @@ TEST(testCase, projection_query_tables) {
   taos_close(pConn);
 }
 
-#if 0
 TEST(testCase, projection_query_stables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
@@ -687,6 +682,5 @@ TEST(testCase, agg_query_tables) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
-#endif
 
 #pragma GCC diagnostic pop

@@ -8140,11 +8140,9 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhysiNode* pPhyNode, SExecTaskInfo* pTa
         idList = taosArrayInit(4, sizeof(uint64_t));
       }
 
-      // SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle->reader, pScanPhyNode->pScanCols, idList, pTaskInfo);
-      // taosArrayDestroy(idList);
-
-      // //TODO destroy groupInfo
-      // return pOperator;
+//       SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle->reader, pScanPhyNode->pScanCols, idList, pTaskInfo);
+       taosArrayDestroy(idList);
+//       return pOperator;
     }
   }
 
@@ -8175,9 +8173,9 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhysiNode* pPhyNode, SExecTaskInfo* pTa
 static tsdbReaderT createDataReaderImpl(STableScanPhysiNode* pTableScanNode, STableGroupInfo* pGroupInfo, void* readHandle, uint64_t queryId, uint64_t taskId) {
   STsdbQueryCond cond = {.loadExternalRows = false};
 
-  cond.order = pTableScanNode->scan.order;
+  cond.order     = pTableScanNode->scan.order;
   cond.numOfCols = LIST_LENGTH(pTableScanNode->scan.pScanCols);
-  cond.colList = calloc(cond.numOfCols, sizeof(SColumnInfo));
+  cond.colList   = calloc(cond.numOfCols, sizeof(SColumnInfo));
   if (cond.colList == NULL) {
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return NULL;
@@ -8187,15 +8185,21 @@ static tsdbReaderT createDataReaderImpl(STableScanPhysiNode* pTableScanNode, STa
   cond.type = BLOCK_LOAD_OFFSET_SEQ_ORDER;
 //  cond.type = pTableScanNode->scanFlag;
 
+  int32_t j = 0;
   for (int32_t i = 0; i < cond.numOfCols; ++i) {
     STargetNode* pNode = (STargetNode*)nodesListGetNode(pTableScanNode->scan.pScanCols, i);
-
     SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
-    cond.colList[i].type  = pColNode->node.resType.type;
-    cond.colList[i].bytes = pColNode->node.resType.bytes;
-    cond.colList[i].colId = pColNode->colId;
+    if (pColNode->colType == COLUMN_TYPE_TAG) {
+      continue;
+    }
+
+    cond.colList[j].type  = pColNode->node.resType.type;
+    cond.colList[j].bytes = pColNode->node.resType.bytes;
+    cond.colList[j].colId = pColNode->colId;
+    j += 1;
   }
 
+  cond.numOfCols = j;
   return tsdbQueryTables(readHandle, &cond, pGroupInfo, queryId, taskId);
 }
 
