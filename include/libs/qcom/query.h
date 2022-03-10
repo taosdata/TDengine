@@ -138,6 +138,11 @@ typedef struct SQueryNodeStat {
   int32_t tableNum; // vg table number, unit is TSDB_TABLE_NUM_UNIT
 } SQueryNodeStat;
 
+typedef struct SQueryErrorInfo {
+  int32_t code;
+  SName   tableName;
+} SQueryErrorInfo;
+
 int32_t initTaskQueue();
 int32_t cleanupTaskQueue();
 
@@ -170,6 +175,9 @@ bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTag
 
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta **pMeta);
 
+SSchema createSchema(uint8_t type, int32_t bytes, int32_t colId, const char* name);
+
+
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen);
 extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char *msg, int32_t msgSize);
 
@@ -177,6 +185,10 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char *msg, int32_t 
 #define SET_META_TYPE_CTABLE(t) (t) = META_TYPE_CTABLE
 #define SET_META_TYPE_TABLE(t) (t) = META_TYPE_TABLE
 #define SET_META_TYPE_BOTH_TABLE(t) (t) = META_TYPE_BOTH_TABLE
+
+#define IS_CLIENT_RETRY_ERROR(_code) ((_code) == TSDB_CODE_VND_HASH_MISMATCH)
+#define IS_SCHEDULER_RETRY_ERROR(_code) ((_code) == TSDB_CODE_RPC_REDIRECT)
+
 
 #define qFatal(...)  do { if (qDebugFlag & DEBUG_FATAL) { taosPrintLog("QRY FATAL ", DEBUG_FATAL, qDebugFlag, __VA_ARGS__); }} while(0)
 #define qError(...)  do { if (qDebugFlag & DEBUG_ERROR) { taosPrintLog("QRY ERROR ", DEBUG_ERROR, qDebugFlag, __VA_ARGS__); }} while(0)

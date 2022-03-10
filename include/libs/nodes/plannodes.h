@@ -90,7 +90,7 @@ typedef struct SSubLogicPlan {
 } SSubLogicPlan;
 
 typedef struct SQueryLogicPlan {
-  ENodeType type;;
+  ENodeType type;
   SNodeList* pSubplans;
 } SQueryLogicPlan;
 
@@ -127,7 +127,7 @@ typedef struct SScanPhysiNode {
   int32_t order;         // scan order: TSDB_ORDER_ASC|TSDB_ORDER_DESC
   int32_t count;         // repeat count
   int32_t reverse;       // reverse scan count
-  char tableName[TSDB_TABLE_NAME_LEN]; 
+  SName tableName; 
 } SScanPhysiNode;
 
 typedef SScanPhysiNode SSystemTableScanPhysiNode;

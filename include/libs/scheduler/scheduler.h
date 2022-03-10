@@ -52,10 +52,11 @@ typedef struct SQueryProfileSummary {
 } SQueryProfileSummary;
 
 typedef struct SQueryResult {
-  int32_t  code;
-  uint64_t numOfRows;
-  int32_t  msgSize;
-  char    *msg;
+  int32_t         code;
+  SArray         *errList;  // SArray<SQueryErrorInfo>
+  uint64_t        numOfRows;
+  int32_t         msgSize;
+  char           *msg;
 } SQueryResult;
 
 typedef struct STaskInfo {

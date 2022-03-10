@@ -120,7 +120,7 @@ int32_t catalogRemoveStbMeta(SCatalog* pCtg, const char* dbFName, uint64_t dbId,
  * @param pCatalog (input, got with catalogGetHandle)
  * @param pTransporter (input, rpc object)
  * @param pMgmtEps (input, mnode EPs)
- * @param pTableName (input, table name, NOT including db name)
+ * @param pTableName (input, table name)
  * @param pTableMeta(output, table meta data, NEED to free it by calller)
  * @return error code
  */
@@ -131,7 +131,7 @@ int32_t catalogGetTableMeta(SCatalog* pCatalog, void * pTransporter, const SEpSe
  * @param pCatalog (input, got with catalogGetHandle)
  * @param pTransporter (input, rpc object)
  * @param pMgmtEps (input, mnode EPs)
- * @param pTableName (input, table name, NOT including db name)
+ * @param pTableName (input, table name)
  * @param pTableMeta(output, table meta data, NEED to free it by calller)
  * @return error code
  */
@@ -141,27 +141,37 @@ int32_t catalogUpdateSTableMeta(SCatalog* pCatalog, STableMetaRsp *rspMsg);
 
 
 /**
+ * Force refresh DB's local cached vgroup info. 
+ * @param pCtg (input, got with catalogGetHandle)
+ * @param pTrans (input, rpc object)
+ * @param pMgmtEps (input, mnode EPs)
+ * @param dbFName (input, db full name)
+ * @return error code
+ */
+int32_t catalogRefreshDBVgInfo(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, const char* dbFName);
+
+/**
  * Force refresh a table's local cached meta data. 
  * @param pCatalog (input, got with catalogGetHandle)
  * @param pTransporter (input, rpc object)
  * @param pMgmtEps (input, mnode EPs)
- * @param pTableName (input, table name, NOT including db name)
+ * @param pTableName (input, table name)
  * @param isSTable (input, is super table or not, 1:supposed to be stable, 0: supposed not to be stable, -1:not sure) 
  * @return error code
  */
-  int32_t catalogRefreshTableMeta(SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, int32_t isSTable);
+int32_t catalogRefreshTableMeta(SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, int32_t isSTable);
 
 /**
  * Force refresh a table's local cached meta data and get the new one. 
  * @param pCatalog (input, got with catalogGetHandle)
  * @param pTransporter (input, rpc object)
  * @param pMgmtEps (input, mnode EPs)
- * @param pTableName (input, table name, NOT including db name)
+ * @param pTableName (input, table name)
  * @param pTableMeta(output, table meta data, NEED to free it by calller) 
  * @param isSTable (input, is super table or not, 1:supposed to be stable, 0: supposed not to be stable, -1:not sure) 
  * @return error code
  */
-  int32_t catalogRefreshGetTableMeta(SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta, int32_t isSTable);
+int32_t catalogRefreshGetTableMeta(SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta, int32_t isSTable);
 
 
 
@@ -170,7 +180,7 @@ int32_t catalogUpdateSTableMeta(SCatalog* pCatalog, STableMetaRsp *rspMsg);
  * @param pCatalog (input, got with catalogGetHandle)
  * @param pTransporter (input, rpc object)
  * @param pMgmtEps (input, mnode EPs)
- * @param pTableName (input, table name, NOT including db name)
+ * @param pTableName (input, table name)
  * @param pVgroupList (output, vgroup info list, element is SVgroupInfo, NEED to simply free the array by caller)
  * @return error code
  */
@@ -181,7 +191,7 @@ int32_t catalogGetTableDistVgInfo(SCatalog* pCatalog, void *pTransporter, const 
  * @param pCatalog (input, got with catalogGetHandle)
  * @param pTransporter (input, rpc object)
  * @param pMgmtEps (input, mnode EPs)
- * @param pTableName (input, table name, NOT including db name)
+ * @param pTableName (input, table name)
  * @param vgInfo (output, vgroup info)
  * @return error code
  */

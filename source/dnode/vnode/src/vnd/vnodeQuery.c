@@ -30,7 +30,7 @@ void vnodeQueryClose(SVnode *pVnode) {
 
 int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in query queue is processing");
-  SReadHandle handle = {.reader = pVnode->pTsdb, .meta = pVnode->pMeta};
+  SReadHandle handle = {.reader = pVnode->pTsdb, .meta = pVnode->pMeta, .config = &pVnode->config};
 
   switch (pMsg->msgType) {
     case TDMT_VND_QUERY:{
