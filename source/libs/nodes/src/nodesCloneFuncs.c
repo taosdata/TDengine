@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "nodesint.h"
+#include "nodesUtil.h"
 #include "plannodes.h"
 #include "querynodes.h"
 #include "taos.h"

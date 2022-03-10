@@ -22,9 +22,9 @@ extern "C" {
 
 #include "cmdnodes.h"
 #include "parser.h"
-#include "parserUtil.h"
+#include "parToken.h"
+#include "parUtil.h"
 #include "querynodes.h"
-#include "ttoken.h"
 
 typedef struct SAstCreateContext {
   SParseContext* pQueryCxt;

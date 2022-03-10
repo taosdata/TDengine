@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "plannerInt.h"
+#include "planInt.h"
 
 #define SPLIT_FLAG_MASK(n)    (1 << n)
 

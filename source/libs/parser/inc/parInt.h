@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_INSERTPARSER_H
-#define TDENGINE_INSERTPARSER_H
+#ifndef _TD_PARSER_INT_H_
+#define _TD_PARSER_INT_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,9 +23,11 @@ extern "C" {
 #include "parser.h"
 
 int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery);
+int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery);
+int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_INSERTPARSER_H
+#endif /*_TD_PARSER_INT_H_*/

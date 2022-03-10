@@ -173,6 +173,7 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   SCmdMsgInfo* pMsgInfo = pQuery->pCmdMsg;
   pRequest->type = pMsgInfo->msgType;
   pRequest->body.requestMsg = (SDataBuf){.pData = pMsgInfo->pMsg, .len = pMsgInfo->msgLen, .handle = NULL};
+  pMsgInfo->pMsg = NULL; // pMsg transferred to SMsgSendInfo management
 
   STscObj*      pTscObj = pRequest->pTscObj;
   SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
@@ -248,7 +249,7 @@ TAOS_RES* taos_query_l(TAOS* taos, const char* sql, int sqlLen) {
   }
 
   SRequestObj* pRequest = NULL;
-  SQuery* pQuery;
+  SQuery* pQuery = NULL;
   SArray* pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
 
   terrno = TSDB_CODE_SUCCESS;

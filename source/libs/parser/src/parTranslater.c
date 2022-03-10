@@ -13,12 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "parserInt.h"
+#include "parInt.h"
 
 #include "catalog.h"
 #include "cmdnodes.h"
 #include "functionMgt.h"
-#include "parserUtil.h"
+#include "parUtil.h"
 #include "ttime.h"
 
 static bool afterGroupBy(ESqlClause clause) {
