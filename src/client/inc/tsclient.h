@@ -330,7 +330,7 @@ typedef struct STscObj {
   void *             signature;
   void *             pTimer;
   char               user[TSDB_USER_LEN];
-  char               pass[TSDB_KEY_LEN];
+  char               pass[TSDB_PASS_LEN];
   char               acctId[TSDB_ACCT_ID_LEN];
   char               db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   char               sversion[TSDB_VERSION_LEN];
@@ -405,6 +405,10 @@ typedef struct SSqlStream {
   int16_t  precision;
   int64_t  num;  // number of computing count
 
+  int32_t dstCols;  // dstTable has number of columns 
+  char*   to;
+  char*   split;
+
   /*
    * keep the number of current result in computing,
    * the value will be set to 0 before set timer for next computing
@@ -440,7 +444,7 @@ int tsParseSql(SSqlObj *pSql, bool initial);
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet);
 int  tscBuildAndSendRequest(SSqlObj *pSql, SQueryInfo* pQueryInfo);
 
-int  tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex);
+int  tscRenewTableMeta(SSqlObj *pSql);
 void tscAsyncResultOnError(SSqlObj *pSql);
 
 void tscQueueAsyncError(void(*fp), void *param, int32_t code);
@@ -484,6 +488,8 @@ TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, 
                      void *param, TAOS **taos);
 TAOS_RES* taos_query_h(TAOS* taos, const char *sqlstr, int64_t* res);
 TAOS_RES * taos_query_ra(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *param);
+// get taos connection unused session number
+int32_t taos_unused_session(TAOS* taos);
 
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code);
 

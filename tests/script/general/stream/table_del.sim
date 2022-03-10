@@ -71,8 +71,8 @@ print =============== step3
 sql drop table $tb
 
 print =============== step4
-print sleep 120 seconds
-sleep 120000 
+print sleep 50 seconds
+sleep 50000 
 
 print =============== step5
 $st = $stPrefix . c3

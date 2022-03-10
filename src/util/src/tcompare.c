@@ -266,9 +266,10 @@ int patternMatch(const char *patterStr, const char *str, size_t size, const SPat
   int32_t j = 0;
   int32_t o = 0;
   int32_t m = 0;
+  char escape  = '\\';  // "\"
 
   while ((c = patterStr[i++]) != 0) {
-    if (c == pInfo->matchAll) { /* Match "*" */
+    if (c == pInfo->matchAll) {
 
       while ((c = patterStr[i++]) == pInfo->matchAll || c == pInfo->matchOne) {
         if (c == pInfo->matchOne) {
@@ -308,8 +309,24 @@ int patternMatch(const char *patterStr, const char *str, size_t size, const SPat
     ++o; 
     
     if (j <= size) {
-      if (c == '\\' && patterStr[i] == '_' && c1 == '_') { i++; continue; }
-      if (c == '\\' && patterStr[i] == '%' && c1 == '%') { i++; continue; }
+      if (c == escape && patterStr[i] == pInfo->matchOne){
+        if(c1 == pInfo->matchOne){
+          i++;
+          continue;
+        }
+        else{
+          return TSDB_PATTERN_NOMATCH;
+        }
+      }
+      if (c == escape && patterStr[i] == pInfo->matchAll){
+        if(c1 == pInfo->matchAll){
+          i++;
+          continue;
+        }
+        else{
+          return TSDB_PATTERN_NOMATCH;
+        }
+      }
       if (c == c1 || tolower(c) == tolower(c1) || (c == pInfo->matchOne && c1 != 0)) {
         continue;
       }
@@ -321,29 +338,95 @@ int patternMatch(const char *patterStr, const char *str, size_t size, const SPat
   return (str[j] == 0 || j >= size) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
 }
 
-int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, const SPatternCompareInfo *pInfo) {
-  wchar_t c, c1;
-  wchar_t matchOne = L'_';  // "_"
-  wchar_t matchAll = L'%';  // "%"
+static uint32_t *
+taosWcschr (const uint32_t *wcs, const uint32_t wc)
+{
+  const uint32_t *wcs2 = wcs + 1;
+  if (*wcs == wc)
+    return (uint32_t *) wcs;
+  if (*wcs == L'\0')
+    return NULL;
+  do
+    {
+      wcs += 2;
+      if (*wcs2 == wc)
+        return (uint32_t *) wcs2;
+      if (*wcs2 == L'\0')
+        return NULL;
+       wcs2 += 2;
+      if (*wcs == wc)
+        return (uint32_t *) wcs;
+      if (*wcs == L'\0')
+        return NULL;
+      wcs += 2;
+      if (*wcs2 == wc)
+        return (uint32_t *) wcs2;
+      if (*wcs2 == L'\0')
+        return NULL;
+      wcs2 += 2;
+      if (*wcs == wc)
+        return (uint32_t *) wcs;
+      if (*wcs == L'\0')
+        return NULL;
+      wcs += 2;
+      if (*wcs2 == wc)
+        return (uint32_t *) wcs2;
+      if (*wcs2 == L'\0')
+        return NULL;
+      wcs2 += 2;
+      if (*wcs == wc)
+        return (uint32_t *) wcs;
+      if (*wcs == L'\0')
+        return NULL;
+      wcs += 2;
+      if (*wcs2 == wc)
+        return (uint32_t *) wcs2;
+      if (*wcs2 == L'\0')
+        return NULL;
+      wcs2 += 2;
+      if (*wcs == wc)
+        return (uint32_t *) wcs;
+    }
+  while (*wcs != L'\0');
+  return NULL;
+}
+
+static size_t
+taosWcscspn (const uint32_t *wcs, const uint32_t *reject)
+{
+  size_t count = 0;
+  while (*wcs != L'\0')
+    if (taosWcschr (reject, *wcs++) == NULL)
+      ++count;
+    else
+      return count;
+  return count;
+}
+
+int WCSPatternMatch(const uint32_t *patterStr, const uint32_t *str, size_t size, const SPatternCompareInfo *pInfo) {
+  uint32_t c, c1;
+  uint32_t matchOne = (uint32_t) L'_';  // "_"
+  uint32_t matchAll = (uint32_t) L'%';  // "%"
+  uint32_t escape   = (uint32_t) L'\\';  // "\"
 
   int32_t i = 0;
   int32_t j = 0;
 
   while ((c = patterStr[i++]) != 0) {
     if (c == matchAll) { /* Match "%" */
-
       while ((c = patterStr[i++]) == matchAll || c == matchOne) {
         if (c == matchOne && (j >= size || str[j++] == 0)) {
           return TSDB_PATTERN_NOWILDCARDMATCH;
         }
       }
+
       if (c == 0) {
         return TSDB_PATTERN_MATCH;
       }
 
-      wchar_t accept[3] = {towupper(c), towlower(c), 0};
+      uint32_t accept[3] = {towupper(c), towlower(c), 0};
       while (1) {
-        size_t n = wcscspn(str, accept);
+        size_t n = taosWcscspn(str, accept);
 
         str += n;
         if (str[0] == 0 || (n >= size)) {
@@ -362,6 +445,24 @@ int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, c
     c1 = str[j++];
 
     if (j <= size) {
+      if (c == escape && patterStr[i] == matchOne){
+        if(c1 == matchOne){
+          i++;
+          continue;
+        }
+        else{
+          return TSDB_PATTERN_NOMATCH;
+        }
+      }
+      if (c == escape && patterStr[i] == matchAll){
+        if(c1 == matchAll){
+          i++;
+          continue;
+        }
+        else{
+          return TSDB_PATTERN_NOMATCH;
+        }
+      }
       if (c == c1 || towlower(c) == towlower(c1) || (c == matchOne && c1 != 0)) {
         continue;
       }
@@ -459,13 +560,13 @@ int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
 
   assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN * TSDB_NCHAR_SIZE);
 
-  wchar_t *pattern = calloc(varDataLen(pRight) + 1, sizeof(wchar_t));
-  wchar_t *str = calloc(size + 1, sizeof(wchar_t));
+  char *pattern = calloc(varDataLen(pRight) + TSDB_NCHAR_SIZE, 1);
+  char *str = calloc(varDataLen(pLeft) + TSDB_NCHAR_SIZE, 1);
 
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
-  memcpy(str, varDataVal(pLeft), size * sizeof(wchar_t));
+  memcpy(str, varDataVal(pLeft), varDataLen(pLeft));
 
-  int32_t ret = WCSPatternMatch(pattern, str, size, &pInfo);
+  int32_t ret = WCSPatternMatch((uint32_t *)pattern, (uint32_t *)str, size, &pInfo);
 
   free(pattern);
   free(str);

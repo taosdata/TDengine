@@ -93,7 +93,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
                   || (strncmp(argv[i], "--password", 10) == 0)) {
             printf("Enter password: ");
             taosSetConsoleEcho(false);
-            if (scanf("%s", g_password) > 1) {
+            if (scanf("%128s", g_password) > 1) {
                 fprintf(stderr, "password read error!\n");
             }
             taosSetConsoleEcho(true);
@@ -333,19 +333,7 @@ void *shellLoopQuery(void *arg) {
 }
 
 void get_history_path(char *history) {
-#ifdef _TD_POWER_
-  sprintf(history, "C:/PowerDB/%s", HISTORY_FILE); 
-#elif (_TD_TQ_ == true)
-  sprintf(history, "C:/TQueue/%s", HISTORY_FILE); 
-#elif (_TD_PRO_ == true)
-  sprintf(history, "C:/ProDB/%s", HISTORY_FILE); 
-#elif (_TD_KH_ == true)
-  sprintf(history, "C:/KingHistorian/%s", HISTORY_FILE); 
-#elif (_TD_JH_ == true)
-  sprintf(history, "C:/jh_iot/%s", HISTORY_FILE); 
-#else
-  sprintf(history, "C:/TDengine/%s", HISTORY_FILE); 
-#endif
+  sprintf(history, "C:/TDengine/%s", HISTORY_FILE);
 }
 
 void exitShell() { exit(EXIT_SUCCESS); }

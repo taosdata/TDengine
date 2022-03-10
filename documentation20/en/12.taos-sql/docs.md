@@ -34,7 +34,7 @@ With TDengine, the most important thing is timestamp. When creating and insertin
 - Time Format: 'YYYY-MM-DD HH:mm:ss.MS', default in milliseconds. For example,'2017-08-12 18:52:58.128'
 - Internal Function **now** : this is the current time of the server
 - When inserting a record, if timestamp is NOW, then use the server current time.
-- Epch Time: a timestamp value can also be a long integer representing milliseconds since 1970-01-01 08:00:00.000.
+- Epoch Time: a timestamp value can also be a long integer representing milliseconds since 1970-01-01 08:00:00.000.
 - Arithmetic operations can be applied to timestamp. For example: now-2h represents a timestamp which is 2 hours ago from the current server time. Units include u( microsecond), a (milliseconds), s (seconds), m (minutes), h (hours), d (days), w (weeks). In `select * from t1 where ts > now-2w and ts <= now-1w`, which queries data of the whole week before two weeks. To specify the interval of down sampling, you can also use n(calendar month) and y(calendar year) as time units.
 
 TDengine's timestamp is set to millisecond accuracy by default. Microsecond/nanosecond accuracy can be set using CREATE DATABASE with PRECISION parameter. (Nanosecond resolution is supported from version 2.1.5.0 onwards.)
@@ -44,22 +44,23 @@ In TDengine, the following 10 data types can be used in data model of an ordinar
 |      | **Data Type** | **Bytes** | **Note**                                                     |
 | ---- | ------------- | --------- | ------------------------------------------------------------ |
 | 1    | TIMESTAMP     | 8         | Time stamp. Default in milliseconds, and support microseconds. Starting from 1970-01-01 00:00:00. 000 (UTC/GMT), the timing cannot be earlier than this time. |
-| 2    | INT           | 4         | A nullable integer type with a range of [-2^31+1, 2^31-1 ]   |
-| 3    | BIGINT        | 8         | A nullable integer type with a range of [-2^59, 2^59 ]       |
-| 4    | FLOAT         | 4         | A standard nullable float type with 6 -7 significant digits and a range of [-3.4E38, 3.4E38] |
-| 5    | DOUBLE        | 8         | A standard nullable double float type with 15-16 significant digits and a range of [-1.7E308, 1.7E308] |
+| 2    | INT           | 4         | A null-able integer type with a range of [-2^31+1, 2^31-1 ]   |
+| 3    | BIGINT        | 8         | A null-able integer type with a range of [-2^59, 2^59 ]       |
+| 4    | FLOAT         | 4         | A standard null-able float type with 6 -7 significant digits and a range of [-3.4E38, 3.4E38] |
+| 5    | DOUBLE        | 8         | A standard null-able double float type with 15-16 significant digits and a range of [-1.7E308, 1.7E308] |
 | 6    | BINARY        | Custom    | Used to record ASCII strings. Theoretically, the maximum length can be 16,374 bytes, but since each row of data can be up to 16K bytes, the actual limit is generally smaller than the theoretical value. Binary only supports string input, and single quotation marks are used at both ends of the string, otherwise all English will be automatically converted to lowercase. When using, the size must be specified. For example, binary (20) defines a string with a maximum length of 20 characters, and each character occupies 1 byte of storage space. In this case, if the user string exceeds 20 bytes, an error will be reported. For single quotation marks in strings, they can be represented by escape character backslash plus single quotation marks, that is\ '. |
-| 7    | SMALLINT      | 2         | A nullable integer type with a range of [-32767, 32767]      |
-| 8    | TINYINT       | 1         | A nullable integer type with a range of [-127, 127]          |
+| 7    | SMALLINT      | 2         | A null-able integer type with a range of [-32767, 32767]      |
+| 8    | TINYINT       | 1         | A null-able integer type with a range of [-127, 127]          |
 | 9    | BOOL          | 1         | Boolean type，{true, false}                                  |
 | 10   | NCHAR         | Custom    | Used to record non-ASCII strings, such as Chinese characters. Each nchar character takes up 4 bytes of storage space. Single quotation marks are used at both ends of the string, and escape characters are required for single quotation marks in the string, that is \’. When nchar is used, the string size must be specified. A column of type nchar (10) indicates that the string of this column stores up to 10 nchar characters, which will take up 40 bytes of space. If the length of the user string exceeds the declared length, an error will be reported. |
-
+| 11   | JSON          |           | Json type，only support for tag                                  |
 
 
 **Tips**:
 
 1. TDengine is case-insensitive to English characters in SQL statements and automatically converts them to lowercase for execution. Therefore, the user's case-sensitive strings and passwords need to be enclosed in single quotation marks.
 2. Avoid using BINARY type to save non-ASCII type strings, which will easily lead to errors such as garbled data. The correct way is to use NCHAR type to save Chinese characters.
+3. The numerical values in SQL statements are treated as floating or integer numbers, depends on if the value contains decimal point or is in scientific notation format. Therefore, caution is needed since overflow might happen for corresponding data types. E.g., 9999999999999999999 is overflowed as the number is greater than the largest integer number. However, 9999999999999999999.0 is treated as a valid floating number. 
 
 ## <a class="anchor" id="management"></a>Database Management
 
@@ -146,7 +147,7 @@ Note:
   Note:
    1. The first field must be a timestamp, and system will set it as the primary key;
    2. The max length of table name is 192;
-   3. The length of each row of the table cannot exceed 16k characters;
+   3. The length of each row of the table cannot exceed 48K (it's 16K prior to 2.1.7.0) characters;
    4. Sub-table names can only consist of letters, numbers, and underscores, and cannot begin with numbers
    5. If the data type binary or nchar is used, the maximum number of bytes should be specified, such as binary (20), which means 20 bytes;
 
@@ -185,7 +186,7 @@ Note:
 - **Show all data table information under the current database**
 
     ```mysql
-    SHOW TABLES [LIKE tb_name_wildcar];
+    SHOW TABLES [LIKE tb_name_wildcard];
     ```
     Show all data table information under the current database.
     Note: Wildcard characters can be used to match names in like. The maximum length of this wildcard character string cannot exceed 24 bytes.
@@ -235,7 +236,7 @@ Note: In 2.0.15.0 and later versions, STABLE reserved words are supported. That 
     1. Data types of TAGS column cannot be timestamp;
     2. No duplicated TAGS column names;
     3. Reversed word cannot be used as a TAGS column name;
-    4. The maximum number of TAGS is 128, and at least 1 TAG allowed, with a total length of no more than 16k characters.
+    4. The maximum number of TAGS is 128, and at least 1 TAG allowed, with a total length of no more than 16K characters.
 
 - **Drop a STable**
 
@@ -408,7 +409,7 @@ SELECT select_expr [, select_expr ...]
 
 #### SELECT Clause
 
-A select clause can be a subquery of UNION and another query.
+A select clause can be a sub-query of UNION and another query.
 
 #### Wildcard character
 
@@ -531,7 +532,7 @@ However, renaming for one single column is not supported for `first(*)`,`last(*)
 
 #### List of STable
 
-The `FROM` keyword can be followed by a list of several tables (STables) or result of a subquery. 
+The `FROM` keyword can be followed by a list of several tables (STables) or result of a sub-query. 
 
 If you do not specify user's current database, you can use the database name before the table name to specify the database to which the table belongs. For example: `power.d1001` to use tables across databases.
 
@@ -685,10 +686,10 @@ Query OK, 1 row(s) in set (0.001091s)
     SELECT (col1 + col2) AS 'complex' FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND col2 > 1.2 LIMIT 10 OFFSET 5;
     ```
 
-- Query the records of past 10 minutes, the value of col2 is greater than 3.14, and output the result to the file /home/testoutpu.csv.
+- Query the records of past 10 minutes, the value of col2 is greater than 3.14, and output the result to the file /home/testoutput.csv.
 
     ```mysql
-    SELECT COUNT(*) FROM tb1 WHERE ts >= NOW - 10m AND col2 > 3.14 >> /home/testoutpu.csv;
+    SELECT COUNT(*) FROM tb1 WHERE ts >= NOW - 10m AND col2 > 3.14 >> /home/testoutput.csv;
     ```
 
 <a class="anchor" id="functions"></a>
@@ -1226,9 +1227,9 @@ SELECT AVG(current), MAX(current), LEASTSQUARES(current, start_val, step_val), P
 ## <a class="anchor" id="limitation"></a> TAOS SQL Boundary Restrictions
 
 - Max database name length is 32
-- Max length of table name is 192, and max length of each data row is 16k characters
+- Max length of table name is 192, and max length of each data row is 48K (it's 16K prior to 2.1.7.0) characters
 - Max length of column name is 64, max number of columns allowed is 1024, and min number of columns allowed is 2. The first column must be a timestamp
-- Max number of tags allowed is 128, down to 1, and total length of tags does not exceed 16k characters
+- Max number of tags allowed is 128, down to 1, and total length of tags does not exceed 16K characters
 - Max length of SQL statement is 65480 characters, but it can be modified by system configuration parameter maxSQLLength, and max length can be configured to 1M
 - Number of databases, STables and tables are not limited by system, but only limited by system resources
 
@@ -1245,3 +1246,113 @@ TAOS SQL supports join columns of two tables by Primary Key timestamp between th
 **Availability of is no null**
 
 Is not null supports all types of columns. Non-null expression is < > "" and only applies to columns of non-numeric types.
+
+**Restrictions on order by**
+
+- A non super table can only have one order by.
+- The super table can have at most two order by expression, and the second must be ts.
+- Order by tag must be the same tag as group by tag. TBNAME is as logical as tag.
+- Order by ordinary column must be the same ordinary column as group by or top/bottom. If both group by and top / bottom exist, order by must be in the same column as group by.
+- There are both order by and group by. The internal of the group is sorted by ts
+- Order by ts.
+
+## JSON type instructions
+- Syntax description
+
+  1. Create JSON type tag
+
+     ```mysql
+     create stable s1 (ts timestamp, v1 int) tags (info json)
+
+     create table s1_1 using s1 tags ('{"k1": "v1"}')
+     ```
+  3. JSON value operator(->)
+
+     ```mysql   
+     select * from s1 where info->'k1' = 'v1'
+
+     select info->'k1' from s1 
+     ```
+  4. JSON key existence operator(contains)
+
+     ```mysql
+     select * from s1 where info contains 'k2'
+    
+     select * from s1 where info contains 'k1'
+     ```
+
+- Supported operations
+
+  1. In where condition，support match/nmatch/between and/like/and/or/is null/is no null，in operator is not support.
+
+     ```mysql 
+     select * from s1 where info→'k1' match 'v*'; 
+
+     select * from s1 where info→'k1' like 'v%' and info contains 'k2';
+
+     select * from s1 where info is null; 
+  
+     select * from s1 where info->'k1' is not null
+     ```
+
+  2. JSON tag is supported in group by、order by、join clause、union all and subquery，like group by json->'key'
+
+  3. Support distinct operator.
+
+     ```mysql 
+     select distinct info→'k1' from s1
+     ```
+
+  5. Tag
+
+     Support change JSON tag（full coverage）
+
+     Support change the name of JSON tag
+
+     Not support add JSON tag, delete JSON tag
+
+- Other constraints
+
+  1. Only tag columns can use JSON type. If JSON tag is used, there can only be one tag column.
+
+  2. Length limit:The length of the key in JSON cannot exceed 256, and the key must be printable ASCII characters; The total length of JSON string does not exceed 4096 bytes.
+
+  3. JSON format restrictions:
+
+    1. JSON input string can be empty (""," ","\t" or null) or object, and cannot be nonempty string, boolean or array.
+    2. Object can be {}, if the object is {}, the whole JSON string is marked as empty. The key can be "", if the key is "", the K-V pair will be ignored in the JSON string.
+    3. Value can be a number (int/double) or string, bool or null, not an array. Nesting is not allowed.
+    4. If two identical keys appear in the JSON string, the first one will take effect.
+    5. Escape is not supported in JSON string.
+
+  4. Null is returned when querying the key that does not exist in JSON.
+
+  5. When JSON tag is used as the sub query result, parsing and querying the JSON string in the sub query is no longer supported in the upper level query.
+
+     The following query is not supported:
+     ```mysql 
+     select jtag→'key' from (select jtag from stable)
+      
+     select jtag->'key' from (select jtag from stable) where jtag->'key'>0
+     ```
+## Escape character description
+- Special Character Escape Sequences (since version 2.4.0.4)
+
+  | Escape Sequence    | **Character Represented by Sequence**  |
+      | :--------:     |   -------------------   |
+  | `\'`             |  A single quote (') character    | 
+  | `\"`             |  A double quote (") character      |
+  | \n             |  A newline (linefeed) character       |
+  | \r             |  A carriage return character       |
+  | \t             |  A tab character       |
+  | `\\`             |  A backslash (\) character        |
+  | `\%`            |  A % character; see note following the table    |
+  | `\_`             |  A _ character; see note following the table    |
+
+- Escape character usage rules
+  - The escape characters that in a identifier (database name, table name, column name)
+    1. Normal identifier：    The wrong identifier is prompted directly, because the identifier must be numbers, letters and underscores, and cannot start with a number.
+    2. Backquote`` identifier： Keep it as it is.
+  - The escape characters that in a data
+    3. The escape character defined above will be escaped (% and _ see the description below). If there is no matching escape character, the escape character will be ignored.
+    4. The `\%` and `\_` sequences are used to search for literal instances of % and _ in pattern-matching contexts where they would otherwise be interpreted as wildcard characters.If you use `\%` or `\_` outside of pattern-matching contexts, they evaluate to the strings `\%` and `\_`, not to % and _.

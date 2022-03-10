@@ -15,6 +15,7 @@ public class RestfulResultSetMetaDataTest {
     private static Statement stmt;
     private static ResultSet rs;
     private static ResultSetMetaData meta;
+    private static final String dbname = "restful_test";
 
     @Test
     public void getColumnCount() throws SQLException {
@@ -206,8 +207,12 @@ public class RestfulResultSetMetaDataTest {
                 rs.close();
             if (stmt != null)
                 stmt.close();
-            if (conn != null)
+            if (conn != null) {
+                Statement statement = conn.createStatement();
+                statement.execute("drop database if exists " + dbname);
+                statement.close();
                 conn.close();
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }

@@ -103,30 +103,30 @@ class TDTestCase:
         tdSql.query("select count (tbname) from stb1")
         tdSql.checkData(0, 0, 20)
         tdSql.query("select count(*) from stb00_0")
-        tdSql.checkData(0, 0, 10000)
+        tdSql.checkData(0, 0, 100)
         tdSql.query("select count(*) from stb0")
-        tdSql.checkData(0, 0, 100000)
+        tdSql.checkData(0, 0, 1000)
         tdSql.query("select count(*) from stb01_0")
-        tdSql.checkData(0, 0, 20000)
+        tdSql.checkData(0, 0, 200)
         tdSql.query("select count(*) from stb1")
-        tdSql.checkData(0, 0, 400000)
+        tdSql.checkData(0, 0, 4000)
 
         # insert: using parament "insert_interval to controls spped  of insert.
         # but We need to have accurate methods to control the speed, such as getting the speed value, checking the count and so on。
         os.system("%staosBenchmark -f tools/taosdemoAllTest/insert-interval-speed.json -y" % binPath)
         tdSql.execute("use db")
         tdSql.query("show stables")
-        tdSql.checkData(0, 4, 100)
+        tdSql.checkData(0, 4, 10)
         tdSql.query("select count(*) from stb00_0")
-        tdSql.checkData(0, 0, 20000)
+        tdSql.checkData(0, 0, 200)
         tdSql.query("select count(*) from stb0")
-        tdSql.checkData(0, 0, 2000000)
+        tdSql.checkData(0, 0, 2000)
         tdSql.query("show stables")
-        tdSql.checkData(1, 4, 100)
+        tdSql.checkData(1, 4, 20)
         tdSql.query("select count(*) from stb01_0")
-        tdSql.checkData(0, 0, 20000)
+        tdSql.checkData(0, 0, 200)
         tdSql.query("select count(*) from stb1")
-        tdSql.checkData(0, 0, 2000000)
+        tdSql.checkData(0, 0, 4000)
 
         # spend 2min30s for 3 testcases.
         # insert: drop and child_table_exists combination test
@@ -217,6 +217,10 @@ class TDTestCase:
         tdSql.error("select * from db.stb2")
         tdSql.query("select count(*) from db.stb3") 
         tdSql.checkRows(1)
+        tdSql.execute("drop database if exists db") 
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/insertBinaryLenLarge16374AllcolLar49151-error.json -y " % binPath)   
+        tdSql.error("select * from db.stb4")
+        tdSql.error("select * from db.stb2")
         tdSql.execute("drop database if exists db") 
         os.system("%staosBenchmark -f tools/taosdemoAllTest/insertNumOfrecordPerReq0.json -y " % binPath)   
         tdSql.error("select count(*) from db.stb0") 
@@ -352,6 +356,22 @@ class TDTestCase:
         tdSql.checkRows(20)
         tdSql.query('show tables like \'YYY%\'')    #child_table_exists = yes, auto_create_table varies = yes
         tdSql.checkRows(20)
+
+
+        # insert: test chinese encoding
+        # TD-11399、TD-10819
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/insert-chinese.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/insert-chinese-sml.json -y " % binPath)
+        tdSql.execute("use db")
+        tdSql.query("show stables")
+        for i in range(6):
+            for  j in range(6):
+                if tdSql.queryResult[i][0] == 'stb%d'%j:
+                    # print(i,"stb%d"%j)
+                    tdSql.checkData(i, 4, (j+1)*10)
+        for i in range(6):
+            tdSql.query("select count(*) from stb%d"%i)
+            tdSql.checkData(0, 0, (i+1)*1000)  
 
         # rm useless files
         os.system("rm -rf ./insert*_res.txt*")

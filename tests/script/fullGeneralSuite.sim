@@ -238,3 +238,4 @@ run general/parser/tbname_escape.sim
 run general/parser/columnName_escape.sim
 run general/parser/tagName_escape.sim
 run general/parser/interp_blocks.sim
+run general/parser/create_tb_with_timestamp_tag.sim

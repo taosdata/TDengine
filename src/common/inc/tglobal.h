@@ -64,6 +64,7 @@ extern int32_t  tsCompressMsgSize;
 extern int32_t  tsCompressColData;
 extern int32_t  tsMaxNumOfDistinctResults;
 extern char     tsTempDir[];
+extern int32_t  tsShortcutFlag;
 
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
@@ -82,7 +83,7 @@ extern int32_t tsMaxNumOfOrderedResults;
 extern int32_t tsMinSlidingTime;
 extern int32_t tsMinIntervalTime;
 extern int32_t tsMaxStreamComputDelay;
-extern int32_t tsStreamCompStartDelay;
+extern int32_t tsFirstLaunchDelay;
 extern int32_t tsRetryStreamCompDelay;
 extern float   tsStreamComputDelayRatio;  // the delayed computing ration of the whole time window
 extern int32_t tsProjectExecInterval;
@@ -119,6 +120,7 @@ extern int32_t tsdbWalFlushSize;
 extern int8_t  tsEnableBalance;
 extern int8_t  tsAlternativeRole;
 extern int32_t tsBalanceInterval;
+extern int32_t tsOfflineInterval;
 extern int32_t tsOfflineThreshold;
 extern int32_t tsMnodeEqualVnodeNum;
 extern int8_t  tsEnableFlowCtrl;

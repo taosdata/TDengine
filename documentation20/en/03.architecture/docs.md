@@ -138,7 +138,7 @@ TDengine suggests using data collection point ID as the table name (like D1001 i
 
 ### STable: A Collection of Data Points in the Same Type
 
-The design of one table for each data collection point will require a huge number of tables, which is difficult to manage. Moreover, applications often need to take aggregation operations between data collection points, thus aggregation operations will become complicated. To support aggregation over multiple tables efficiently, the [STable(Super Table)](https://www.taosdata.com/en/documentation/super-table) concept is introduced by TDengine.
+The design of one table for each data collection point will require a huge number of tables, which is difficult to manage. Moreover, applications often need to take aggregation operations between data collection points, thus aggregation operations will become complicated. To support aggregation over multiple tables efficiently, the STable(Super Table) concept is introduced by TDengine.
 
 STable is an abstract set for a type of data collection point. A STable contains a set of data collection points (tables) that have the same schema or data structure, but with different static attributes (tags). To describe a STable (a set of data collection points of a specific type), in addition to defining the table structure of the collected metrics, it is also necessary to define the schema of its tags. The data type of tags can be int, float, string, and there can be multiple tags, which can be added, deleted, or modified afterward. If the whole system has N different types of data collection points, N STables need to be established.
 
@@ -157,7 +157,7 @@ Logical structure diagram of TDengine distributed architecture as following:
 ![TDengine architecture diagram](../images/architecture/structure.png)
 <center> Figure 1: TDengine architecture diagram </center>
 
-A complete TDengine system runs on one or more physical nodes. Logically, it includes data node (dnode), TDEngine application driver (TAOSC) and application (app). There are one or more data nodes in the system, which form a cluster. The application interacts with the TDengine cluster through TAOSC's API. The following is a brief introduction to each logical unit.
+A complete TDengine system runs on one or more physical nodes. Logically, it includes data node (dnode), TDengine application driver (TAOSC) and application (app). There are one or more data nodes in the system, which form a cluster. The application interacts with the TDengine cluster through TAOSC's API. The following is a brief introduction to each logical unit.
 
 **Physical node (pnode)**: A pnode is a computer that runs independently and has its own computing, storage and network capabilities. It can be a physical machine, virtual machine, or Docker container installed with OS. The physical node is identified by its configured FQDN (Fully Qualified Domain Name). TDengine relies entirely on FQDN for network communication. If you don't know about FQDN, please read the blog post "[All about FQDN of TDengine](https://www.taosdata.com/blog/2020/09/11/1824.html)".
 

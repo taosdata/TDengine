@@ -33,12 +33,18 @@ typedef struct SCompSupporter {
 } SCompSupporter;
 
 int32_t getRowNumForMultioutput(SQueryAttr* pQueryAttr, bool topBottomQuery, bool stable) {
-  if (pQueryAttr && (!stable)) {
+  if (pQueryAttr && (!stable)) {  // if table is stable, no need return more than 1 no in merge stage
     for (int16_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
       if (pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_TOP ||
           pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_BOTTOM ||
-          pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_SAMPLE) {
+          pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_SAMPLE ||
+          pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_HISTOGRAM ||
+          pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_TAIL) {
         return (int32_t)pQueryAttr->pExpr1[i].base.param[0].i64;
+      }
+
+      if (pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_UNIQUE){
+        return MAX_UNIQUE_RESULT_ROWS;
       }
     }
   }
@@ -84,6 +90,14 @@ void cleanupResultRowInfo(SResultRowInfo *pResultRowInfo) {
   for(int32_t i = 0; i < pResultRowInfo->size; ++i) {
     if (pResultRowInfo->pResult[i]) {
       tfree(pResultRowInfo->pResult[i]->key);
+      if (pResultRowInfo->pResult[i]->uniqueHash){
+        taosHashCleanup(pResultRowInfo->pResult[i]->uniqueHash);
+        pResultRowInfo->pResult[i]->uniqueHash = NULL;
+      }
+      if (pResultRowInfo->pResult[i]->modeHash){
+        taosHashCleanup(pResultRowInfo->pResult[i]->modeHash);
+        pResultRowInfo->pResult[i]->modeHash = NULL;
+      }
     }
   }
   
@@ -149,11 +163,11 @@ void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16
   if (pResultRow->pageId >= 0) {
     tFilePage *page = getResBufPage(pRuntimeEnv->pResultBuf, pResultRow->pageId);
 
-    int16_t offset = 0;
+    int32_t offset = 0;
     for (int32_t i = 0; i < pRuntimeEnv->pQueryAttr->numOfOutput; ++i) {
       SResultRowCellInfo *pResultInfo = &pResultRow->pCellInfo[i];
 
-      int16_t size = pRuntimeEnv->pQueryAttr->pExpr1[i].base.resType;
+      int32_t size = pRuntimeEnv->pQueryAttr->pExpr1[i].base.resBytes;
       char * s = getPosInResultPage(pRuntimeEnv->pQueryAttr, page, pResultRow->offset, offset);
       memset(s, 0, size);
 
@@ -191,7 +205,13 @@ SResultRowPool* initResultRowPool(size_t size) {
   p->numOfElemPerBlock = 128;
 
   p->elemSize = (int32_t) size;
-  p->blockSize = p->numOfElemPerBlock * p->elemSize;
+  int64_t tmp = p->elemSize;
+  tmp *= p->numOfElemPerBlock;
+  if (tmp > 1024*1024*1024){
+    qError("ResultRow blockSize is too large:%" PRId64, tmp);
+    tmp = 128*1024*1024;
+  }
+  p->blockSize = (int32_t)tmp;
   p->position.pos = 0;
 
   p->pData = taosArrayInit(8, POINTER_BYTES);
@@ -216,7 +236,6 @@ SResultRow* getNewResultRow(SResultRowPool* p) {
   }
 
   p->position.pos = (p->position.pos + 1)%p->numOfElemPerBlock;
-  initResultRow(ptr);
 
   return ptr;
 }
@@ -248,7 +267,7 @@ void* destroyResultRowPool(SResultRowPool* p) {
     tfree(*ptr);
   }
 
-  taosArrayDestroy(p->pData);
+  taosArrayDestroy(&p->pData);
 
   tfree(p);
   return NULL;
@@ -341,23 +360,23 @@ void freeInterResult(void* param) {
   int32_t numOfCols = (int32_t) taosArrayGetSize(pResult->pResult);
   for(int32_t i = 0; i < numOfCols; ++i) {
     SStddevInterResult *p = taosArrayGet(pResult->pResult, i);
-    taosArrayDestroy(p->pResult);
+    taosArrayDestroy(&p->pResult);
   }
 
-  taosArrayDestroy(pResult->pResult);
+  taosArrayDestroy(&pResult->pResult);
 }
 
 void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
   assert(pGroupResInfo != NULL);
 
-  taosArrayDestroy(pGroupResInfo->pRows);
+  taosArrayDestroy(&pGroupResInfo->pRows);
   pGroupResInfo->pRows     = NULL;
   pGroupResInfo->index     = 0;
 }
 
 void initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo) {
   if (pGroupResInfo->pRows != NULL) {
-    taosArrayDestroy(pGroupResInfo->pRows);
+    taosArrayDestroy(&pGroupResInfo->pRows);
   }
 
   pGroupResInfo->pRows = taosArrayFromList(pResultInfo->pResult, pResultInfo->size, POINTER_BYTES);
@@ -450,9 +469,7 @@ int32_t tsDescOrder(const void* p1, const void* p2) {
   }
 }
 
-void
-
-orderTheResultRows(SQueryRuntimeEnv* pRuntimeEnv) {
+void orderTheResultRows(SQueryRuntimeEnv* pRuntimeEnv) {
   __compar_fn_t  fn = NULL;
   if (pRuntimeEnv->pQueryAttr->order.order == TSDB_ORDER_ASC) {
     fn = tsAscOrder;

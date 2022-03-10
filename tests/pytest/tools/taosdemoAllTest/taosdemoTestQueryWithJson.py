@@ -174,15 +174,15 @@ class TDTestCase:
             "2020-11-01 00:00:00.004")
 
         # query times less than or equal to 100
-        os.system(
+        assert os.system(
             "%staosBenchmark -f tools/taosdemoAllTest/queryInsertdata.json" %
-            binPath)
-        os.system(
+            binPath) == 0
+        assert os.system(
             "%staosBenchmark -f tools/taosdemoAllTest/querySpeciMutisql100.json" %
-            binPath)
-        os.system(
+            binPath) != 0
+        assert os.system(
             "%staosBenchmark -f tools/taosdemoAllTest/querySuperMutisql100.json" %
-            binPath)
+            binPath) == 0
 
         # query result print QPS
         os.system(

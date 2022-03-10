@@ -1,5 +1,6 @@
 package com.taosdata.jdbc.cases;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -87,6 +88,18 @@ public class MultiConnectionWithDifferentDbTest {
             stmt.execute("use " + db2);
             stmt.execute("create table weather(ts timestamp, f1 int) tags(loc nchar(10))");
             stmt.execute("insert into t1 using weather tags('shanghai') values(" + ts + ", 2)");
+        }
+    }
+
+    @After
+    public void after() {
+        String url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata";
+        try (Connection connection = DriverManager.getConnection(url);
+             Statement statement = connection.createStatement()) {
+            statement.execute("drop database if exists " + db1);
+            statement.execute("drop database if exists " + db2);
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
 

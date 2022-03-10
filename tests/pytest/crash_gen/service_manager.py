@@ -166,7 +166,10 @@ quorum 2
         return self._buildDir + "/build/bin/taosd"
 
     def getRunDir(self) -> DirPath : # TODO: rename to "root dir" ?!
-        return DirPath(self._buildDir + self._subdir)
+        if Config.getConfig().set_path =='': # use default path
+            return DirPath(self._buildDir + self._subdir)
+        else:
+            return str(Config.getConfig().set_path)+self._subdir
 
     def getCfgDir(self) -> DirPath : # path, not file
         return DirPath(self.getRunDir() + "/cfg")

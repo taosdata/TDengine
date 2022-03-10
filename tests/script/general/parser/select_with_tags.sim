@@ -956,4 +956,39 @@ sql_error select first(c1), count(*), t2, t1, tbname from select_tags_mt0 group 
 #sql select count(c1) from select_tags_mt0 where c1=99 group by tbname;
 #sql select count(*),tbname from select_tags_mt0 group by tbname
 
+print ==================================> TD-11943
+sql create database test11943;
+sql use test11943;
+sql create stable st (ts timestamp , id int ) tags (ind int );
+sql insert into sub1 using st tags(1) values(now ,1);
+sql insert into sub1 using st tags(1) values(now+1s ,2);
+sql insert into sub2 using st tags(2) values(now+2s ,3);
+sql insert into sub2 using st tags(2) values(now+3s ,4);
+sql select tbname ,max(id)+5 from sub1;
+if $data00 != @sub1@ then
+  return -1
+endi
+if $data01 != @7.000000000@ then
+  return -1
+endi
+sql select ind, max(id)+5 from st group by tbname
+if $data00 != @1@ then
+  return -1
+endi
+if $data01 != @7.000000000@ then
+  return -1
+endi
+if $data02 != @sub1@ then
+  return -1
+endi
+if $data10 != @2@ then
+  return -1
+endi
+if $data11 != @9.000000000@ then
+  return -1
+endi
+if $data12 != @sub2@ then
+  return -1
+endi
+sql drop database test11943
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -22,7 +22,7 @@
             "cache": 50,
             "blocks": 8,
             "precision": "ms",
-            "keep": 365,
+            "keep": 36500,
             "minRows": 100,
             "maxRows": 4096,
             "comp":2,

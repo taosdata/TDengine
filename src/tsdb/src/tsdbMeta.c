@@ -1216,7 +1216,7 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
       }
     }
 
-    taosArrayDestroy(res);
+    taosArrayDestroy(&res);
   }
   return 0;
 }
@@ -1463,6 +1463,7 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
           tsdbFreeTable(pTable);
           return NULL;
         }
+	taosHashSetFreeFp(pTable->jsonKeyMap, taosArrayDestroyForHash);
       }else{
         pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), NULL,
                                        SL_ALLOW_DUP_KEY, getTagIndexKey);
@@ -1680,7 +1681,7 @@ static void tsdbFreeTableSchema(STable *pTable) {
       tdFreeSchema(pSchema);
     }
 
-    taosArrayDestroy(pTable->schema);
+    taosArrayDestroy(&pTable->schema);
   }
 }
 
