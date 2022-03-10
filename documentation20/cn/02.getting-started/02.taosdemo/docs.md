@@ -1,6 +1,6 @@
 # 如何使用 taosBenchmark 进行性能测试
 
-自从 TDengine 2019年 7 月开源以来，凭借创新的数据建模设计、快捷的安装方式、易用的编程接口和强大的数据写入查询性能博得了大量时序数据开发者的青睐。其中写入和查询性能往往令刚接触 TDengine 的用户称叹不已。为了便于用户在最短时间内就可以体验到 TDengine 的高性能特点，我们专门开发了一个应用程序 taosBenchmark （曾命名为 taosdemo）用于对 TDengine 进行写入和查询的性能测试，用户可以通过 taosBenchmark 轻松模拟大量设备产生海量数据的场景，并且可以通过 taosBenchmark 参数灵活控制表的列数、数据类型、乱序比例以及并发线程数量。
+自从 TDengine 2019年 7 月开源以来，凭借创新的数据建模设计、快捷的安装方式、易用的编程接口和强大的数据写入查询性能博得了大量时序数据开发者的青睐。其中写入和查询性能往往令刚接触 TDengine 的用户称叹不已。为了便于用户在最短时间内就可以体验到 TDengine 的高性能特点，我们专门开发了一个应用程序 taosBenchmark （曾命名为 taosdemo）用于对 TDengine 进行写入和查询的性能测试，用户可以通过 taosBenchmark 轻松模拟大量设备产生海量数据的场景，并且可以通过 taosBenchmark 参数灵活按照实际场景定制表的个数（对应设备数）、表的列数（对应每个设备采样点）、数据类型、乱序数据比例、顺序或轮询插入方式、以及并发线程数量。
 
 运行 taosBenchmark 很简单，通过下载 [TDengine 安装包](https://www.taosdata.com/cn/all-downloads/)或者自行下载 [TDengine 代码](https://github.com/taosdata/TDengine)编译都可以在安装目录或者编译结果目录中找到并运行。
 
@@ -339,6 +339,7 @@ select first(current) took 0.024105 second(s)
             "start_timestamp": "2020-10-01 00:00:00.000",
             "sample_format": "csv",
             "sample_file": "./sample.csv",
+            "use_sample_ts": "no",
             "tags_file": "",
             "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":10}, {"type": "BINARY", "len": 16, "count":3}, {"type": "BINARY", "len": 32, "count":6}],
             "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":5}]
@@ -347,7 +348,7 @@ select first(current) took 0.024105 second(s)
 }
 ```
 
-例如：我们可以通过 "thread_count" 和 "thread_count_create_tbl" 来为建表和插入数据指定不同数量的线程。可以通过 "child_table_exists"、"childtable_limit" 和 "childtable_offset" 的组合来使用多个 taosBenchmark 进程（甚至可以在不同的电脑上）对同一个超级表的不同范围子表进行同时写入。也可以通过 "data_source" 和 "sample_file" 来指定数据来源为 csv 文件，来实现导入已有数据的功能。
+例如：我们可以通过 "thread_count" 和 "thread_count_create_tbl" 来为建表和插入数据指定不同数量的线程。可以通过 "child_table_exists"、"childtable_limit" 和 "childtable_offset" 的组合来使用多个 taosBenchmark 进程（甚至可以在不同的电脑上）对同一个超级表的不同范围子表进行同时写入。也可以通过 "data_source" 和 "sample_file" 来指定数据来源为 CSV 文件，来实现导入已有数据的功能。CSV 为半角逗号分隔的数据文件，每行数据列数需要和表的数据列数（如果是标签数据，是和标签数）相同。
 
 ## 使用 taosBenchmark 进行查询和订阅测试
 
@@ -601,7 +602,7 @@ taosBenchmark支持3种功能的测试，包括插入、查询、订阅。但一
             "start_timestamp": "2020-10-01 00:00:00.000",
             "sample_format": "csv",
             "sample_file": "./sample.csv",
-               "use_sample_ts": "no",
+            "use_sample_ts": "no",
             "tags_file": "",
             "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":10}, {"type": "BINARY", "len": 16, "count":3}, {"type": "BINARY", "len": 32, "count":6}],
             "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":5}]
@@ -706,31 +707,31 @@ taosBenchmark支持3种功能的测试，包括插入、查询、订阅。但一
 
 "start_timestamp": 子表中记录时间戳的起始值，支持"2020-10-01 00:00:00.000"和“now”两种格式，可选项，缺省是“now”。
 
-"sample_format": 当插入数据源选择“sample”时，sample文件的格式，"csv"：csv格式，每列的值与子表的columns保持一致，但不包含第1列的时间戳。可选项，缺省是”csv”。目前仅仅支持csv格式的sample文件。
+"sample_format": 当插入数据源选择“sample”时，sample文件的格式，"csv"：CSV 格式，每列的值与子表的 columns 保持一致，但不包含第1列的时间戳。可选项，缺省是”csv”。目前仅仅支持 CSV 格式的 sample 文件。
 
 "sample_file":sample文件，包含路径和文件名。当插入数据源选择“sample”时，该项为必选项。
 
-"use_sample_ts":sample文件是否包含第一列时间戳，可选项: "yes" 和 "no", 默认 "no"。(注意：若为yes，则disorder_ratio 和 disorder_range失效)
+"use_sample_ts":sample 文件是否包含第一列时间戳，可选项: "yes" 和 "no", 默认 "no"。(注意：若为 yes，则 disorder_ratio 和 disorder_range 失效)
 
-"tags_file": 子表tags值文件，只能是csv文件格式，且必须与超级表的tags保持一致。当该项为非空时，表示子表的tags值从文件中获取；为空时，实例随机生成。可选项，缺省是空。
+"tags_file": 子表 tags 值文件，只能是 CSV 文件格式，且必须与超级表的tags保持一致。当该项为非空时，表示子表的tags值从文件中获取；为空时，实例随机生成。可选项，缺省是空。
 
-"columns": [{ 超级表的column列表，最大支持1024列（指所有普通列+超级列总和）。默认的第一列为时间类型，程序自动添加，不需要手工添加。
+"columns": [{ 超级表的 column 列表，最大支持 4096 列（指所有普通列+超级列总和）。默认的第一列为时间类型，程序自动添加，不需要手工添加。
 
 "type": 该列的数据类型 ，必选项。
 
-"len": 该列的长度，只有type是BINARY或NCHAR时有效，可选项，缺省值是8。
+"len": 该列的长度，只有 type 是 BINARY 或 NCHAR 时有效，可选项，缺省值是 8。
 
-"count":该类型的连续列个数，可选项，缺省是1。
+"count":该类型的连续列个数，可选项，缺省是 1。
 
 }],
 
-"tags": [{ 超级表的tags列表，type不能是timestamp类型， 最大支持128个。
+"tags": [{ 超级表的 tags 列表，type不能是 TIMESTAMP 类型， 最大支持 128 个。
 
 "type": 该列的数据类型 ，必选项。
 
-"len": 该列的长度，只有type是BINARY或NCHAR时有效，可选项，缺省值是8。
+"len": 该列的长度，只有 type 是 BINARY 或 NCHAR 时有效，可选项，缺省值是 8。
 
-"count":该类型的连续列个数，可选项，缺省是1。
+"count":该类型的连续列个数，可选项，缺省是 1。
 
 }]
 
