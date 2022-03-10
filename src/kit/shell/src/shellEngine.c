@@ -563,10 +563,6 @@ static void shellPrintNChar(const char *str, int length, int width) {
       continue;
     }
 
-    if (pos > length) {
-      break;
-    }
-
     if (width <= 0) {
       printf("%lc", wc);
       continue;
