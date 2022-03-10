@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.16)
 
 MESSAGE("Current system is ${CMAKE_SYSTEM_NAME}")
 
+# init
+SET(TD_LINUX FALSE)
+SET(TD_WINDOWS FALSE)
+SET(TD_DARWIN FALSE)
+
 IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
 
     SET(TD_LINUX TRUE)

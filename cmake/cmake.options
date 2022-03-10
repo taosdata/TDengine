@@ -2,13 +2,14 @@
 # Deps options
 # =========================================================
 
-IF(${TD_WINDOWS} MATCHES TRUE)
+IF(${TD_WINDOWS})
 
-option(
-    BUILD_PTHREAD
-    "If build pthread on Windows" 
-    ON
-)
+    MESSAGE("build pthread Win32")
+    option(
+            BUILD_PTHREAD
+            "If build pthread on Windows"
+            ON
+          )
 
 ENDIF ()
 
@@ -40,12 +41,15 @@ option(
     OFF
 )
 
-IF (NOT ${TD_WINDOWS} MATCHES TRUE)
-option(
-    BUILD_WITH_BDB 
-    "If build with BerkleyDB" 
-    ON
-)
+IF(${TD_WINDOWS})
+    MESSAGE("Not build BDB on Windows")
+ELSE ()
+    option(
+            BUILD_WITH_BDB
+            "If build with BerkleyDB"
+            ON
+          )
+
 ENDIF ()
 
 option(
