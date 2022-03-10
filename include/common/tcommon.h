@@ -56,7 +56,7 @@ typedef struct SColumnDataAgg {
 typedef struct SDataBlockInfo {
   STimeWindow window;
   int32_t     rows;
-  int32_t     tupleSize;
+  int32_t     rowSize;
   int32_t     numOfCols;
   union {int64_t uid; int64_t blockId;};
 } SDataBlockInfo;
@@ -70,10 +70,10 @@ typedef struct SConstantItem {
 
 // info.numOfCols = taosArrayGetSize(pDataBlock) + taosArrayGetSize(pConstantList);
 typedef struct SSDataBlock {
-  SColumnDataAgg* pBlockAgg;
-  SArray*         pDataBlock;  // SArray<SColumnInfoData>
-  SArray* pConstantList;       // SArray<SConstantItem>, it is a constant/tags value of the corresponding result value.
-  SDataBlockInfo info;
+  SColumnDataAgg *pBlockAgg;
+  SArray         *pDataBlock;    // SArray<SColumnInfoData>
+  SArray         *pConstantList; // SArray<SConstantItem>, it is a constant/tags value of the corresponding result value.
+  SDataBlockInfo  info;
 } SSDataBlock;
 
 typedef struct SVarColAttr {
@@ -218,18 +218,17 @@ typedef struct SColumn {
     int64_t  dataBlockId;
   };
 
-  char   name[TSDB_COL_NAME_LEN];
-  int8_t flag;  // column type: normal column, tag, or user-input column (integer/float/string)
   union {
     int16_t colId;
     int16_t slotId;
   };
 
+  char    name[TSDB_COL_NAME_LEN];
+  int8_t  flag;  // column type: normal column, tag, or user-input column (integer/float/string)
   int16_t type;
   int32_t bytes;
   uint8_t precision;
   uint8_t scale;
-  //  SColumnInfo info;
 } SColumn;
 
 typedef struct SLimit {
@@ -254,11 +253,20 @@ typedef struct SFunctParam {
 } SFunctParam;
 
 // the structure for sql function in select clause
+typedef struct SResSchame {
+  int8_t  type;
+  int32_t colId;
+  int32_t bytes;
+  int32_t precision;
+  int32_t scale;
+  char    name[TSDB_COL_NAME_LEN];
+} SResSchema;
+
+// TODO move away to executor.h
 typedef struct SExprBasicInfo {
-  SSchema      resSchema;    // TODO refactor
+  SResSchema   resSchema;
   int16_t      numOfParams;  // argument value of each function
   SFunctParam *pParam;
-//  SVariant param[3];     // parameters are not more than 3
 } SExprBasicInfo;
 
 typedef struct SExprInfo {
