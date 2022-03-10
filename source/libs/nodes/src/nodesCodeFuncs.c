@@ -1261,6 +1261,38 @@ static int32_t jsonToSlotDescNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkDownstreamSourceAddr = "Addr";
+static const char* jkDownstreamSourceTaskId = "TaskId";
+static const char* jkDownstreamSourceSchedId = "SchedId";
+
+static int32_t downstreamSourceNodeToJson(const void* pObj, SJson* pJson) {
+  const SDownstreamSourceNode* pNode = (const SDownstreamSourceNode*)pObj;
+
+  int32_t code = tjsonAddObject(pJson, jkDownstreamSourceAddr, queryNodeAddrToJson, &pNode->addr);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkDownstreamSourceTaskId, pNode->taskId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkDownstreamSourceSchedId, pNode->schedId);
+  }
+
+  return code;
+}
+
+static int32_t jsonToDownstreamSourceNode(const SJson* pJson, void* pObj) {
+  SDownstreamSourceNode* pNode = (SDownstreamSourceNode*)pObj;
+
+  int32_t code = tjsonToObject(pJson, jkDownstreamSourceAddr, jsonToQueryNodeAddr, &pNode->addr);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetUBigIntValue(pJson, jkDownstreamSourceTaskId, &pNode->taskId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetUBigIntValue(pJson, jkDownstreamSourceSchedId, &pNode->schedId);
+  }
+
+  return code;
+}
+
 static const char* jkDataBlockDescDataBlockId = "DataBlockId";
 static const char* jkDataBlockDescSlots = "Slots";
 static const char* jkDataBlockResultRowSize = "ResultRowSize";
@@ -1381,6 +1413,9 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_SLOT_DESC:
       return slotDescNodeToJson(pObj, pJson);
     case QUERY_NODE_COLUMN_DEF:
+      break;
+    case QUERY_NODE_DOWNSTREAM_SOURCE:
+      return downstreamSourceNodeToJson(pObj, pJson);
     case QUERY_NODE_SET_OPERATOR:
       break;
     case QUERY_NODE_SELECT_STMT:
@@ -1470,6 +1505,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToDataBlockDescNode(pJson, pObj);
     case QUERY_NODE_SLOT_DESC:
       return jsonToSlotDescNode(pJson, pObj);
+    case QUERY_NODE_DOWNSTREAM_SOURCE:
+      return jsonToDownstreamSourceNode(pJson, pObj);
     // case QUERY_NODE_SET_OPERATOR:
     //   break;
     // case QUERY_NODE_SELECT_STMT:

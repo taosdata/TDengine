@@ -143,6 +143,7 @@ typedef struct SScanPhysiNode {
   int32_t order;         // scan order: TSDB_ORDER_ASC|TSDB_ORDER_DESC
   int32_t count;         // repeat count
   int32_t reverse;       // reverse scan count
+  SName tableName;
 } SScanPhysiNode;
 
 typedef SScanPhysiNode SSystemTableScanPhysiNode;
@@ -217,7 +218,6 @@ typedef struct SSubplan {
   SNodeList* pParents;     // the data destination subplan, get data from current subplan
   SPhysiNode* pNode;        // physical plan of current subplan
   SDataSinkNode* pDataSink;    // data of the subplan flow into the datasink
-  SName tableName; // scan table
 } SSubplan;
 
 typedef struct SQueryPlan {
