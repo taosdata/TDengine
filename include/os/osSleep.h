@@ -20,7 +20,17 @@
 extern "C" {
 #endif
 
+// If the error is in a third-party library, place this header file under the third-party library header file.
+#ifndef ALLOW_FORBID_FUNC
+    #define Sleep SLEEP_FUNC_TAOS_FORBID
+    #define sleep SLEEP_FUNC_TAOS_FORBID
+    #define usleep USLEEP_FUNC_TAOS_FORBID
+    #define nanosleep NANOSLEEP_FUNC_TAOS_FORBID
+#endif
+
+void taosSsleep(int32_t s);
 void taosMsleep(int32_t ms);
+void taosUsleep(int32_t us);
 
 #ifdef __cplusplus
 }

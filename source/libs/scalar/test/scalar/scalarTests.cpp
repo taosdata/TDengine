@@ -1427,7 +1427,7 @@ TEST(columnTest, greater_and_lower) {
 
 
 int main(int argc, char** argv) {
-  srand(time(NULL));
+  taosSeedRand(time(NULL));
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

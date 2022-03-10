@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
 #include "mndTopic.h"
 #include "mndAuth.h"
 #include "mndDb.h"
@@ -229,7 +228,7 @@ static SDDropTopicReq *mndBuildDropTopicMsg(SMnode *pMnode, SVgObj *pVgroup, SMq
   return pDrop;
 }
 
-static int32_t mndCheckCreateTopicReq(SMCreateTopicReq *pCreate) {
+static int32_t mndCheckCreateTopicReq(SCMCreateTopicReq *pCreate) {
   if (pCreate->name[0] == 0 || pCreate->sql == NULL || pCreate->sql[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_TOPIC_OPTION;
     return -1;
@@ -237,7 +236,7 @@ static int32_t mndCheckCreateTopicReq(SMCreateTopicReq *pCreate) {
   return 0;
 }
 
-static int32_t mndCreateTopic(SMnode *pMnode, SMnodeMsg *pReq, SMCreateTopicReq *pCreate, SDbObj *pDb) {
+static int32_t mndCreateTopic(SMnode *pMnode, SMnodeMsg *pReq, SCMCreateTopicReq *pCreate, SDbObj *pDb) {
   mDebug("topic:%s to create", pCreate->name);
   SMqTopicObj topicObj = {0};
   tstrncpy(topicObj.name, pCreate->name, TSDB_TOPIC_FNAME_LEN);
@@ -278,14 +277,14 @@ static int32_t mndCreateTopic(SMnode *pMnode, SMnodeMsg *pReq, SMCreateTopicReq 
 }
 
 static int32_t mndProcessCreateTopicReq(SMnodeMsg *pReq) {
-  SMnode          *pMnode = pReq->pMnode;
-  int32_t          code = -1;
-  SMqTopicObj     *pTopic = NULL;
-  SDbObj          *pDb = NULL;
-  SUserObj        *pUser = NULL;
-  SMCreateTopicReq createTopicReq = {0};
+  SMnode           *pMnode = pReq->pMnode;
+  int32_t           code = -1;
+  SMqTopicObj      *pTopic = NULL;
+  SDbObj           *pDb = NULL;
+  SUserObj         *pUser = NULL;
+  SCMCreateTopicReq createTopicReq = {0};
 
-  if (tDeserializeSMCreateTopicReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &createTopicReq) != 0) {
+  if (tDeserializeSCMCreateTopicReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &createTopicReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto CREATE_TOPIC_OVER;
   }
@@ -338,7 +337,7 @@ CREATE_TOPIC_OVER:
   mndReleaseDb(pMnode, pDb);
   mndReleaseUser(pMnode, pUser);
 
-  tFreeSMCreateTopicReq(&createTopicReq);
+  tFreeSCMCreateTopicReq(&createTopicReq);
   return code;
 }
 
@@ -408,35 +407,6 @@ static int32_t mndProcessDropTopicInRsp(SMnodeMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }
-
-#if 0
-static int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTopics) {
-  SSdb   *pSdb = pMnode->pSdb;
-  SDbObj *pDb = mndAcquireDb(pMnode, dbName);
-  if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
-    return -1;
-  }
-
-  int32_t numOfTopics = 0;
-  void   *pIter = NULL;
-  while (1) {
-    SMqTopicObj *pTopic = NULL;
-    pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pTopic);
-    if (pIter == NULL) break;
-
-    if (pTopic->dbUid == pDb->uid) {
-      numOfTopics++;
-    }
-
-    sdbRelease(pSdb, pTopic);
-  }
-
-  *pNumOfTopics = numOfTopics;
-  mndReleaseDb(pMnode, pDb);
-  return 0;
-}
-#endif
 
 static int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTopics) {
   SSdb   *pSdb = pMnode->pSdb;

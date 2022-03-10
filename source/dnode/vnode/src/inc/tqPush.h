@@ -16,9 +16,11 @@
 #ifndef _TQ_PUSH_H_
 #define _TQ_PUSH_H_
 
+#include "executor.h"
 #include "thash.h"
 #include "trpc.h"
 #include "ttimer.h"
+#include "vnode.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,11 +41,12 @@ typedef struct {
 } STqClientPusher;
 
 typedef struct {
-  int8_t  type;
-  int8_t  nodeType;
-  int8_t  reserved[6];
-  int64_t streamId;
-  SEpSet  epSet;
+  int8_t      type;
+  int8_t      nodeType;
+  int8_t      reserved[6];
+  int64_t     streamId;
+  qTaskInfo_t task;
+  // TODO sync function
 } STqStreamPusher;
 
 typedef struct {

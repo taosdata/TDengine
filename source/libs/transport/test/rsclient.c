@@ -178,7 +178,7 @@ int main(int argc, char *argv[]) {
   }
 
   do {
-    usleep(1);
+    taosUsleep(1);
   } while ( tcount < appThreads);
 
   gettimeofday(&systemTime, NULL);

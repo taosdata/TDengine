@@ -923,6 +923,7 @@ SArray *metaGetSmaTbUids(SMeta *pMeta, bool isDup) {
   SMetaDB *pDB = pMeta->pDB;
   DBC *    pCur = NULL;
   DBT      pkey = {0}, pval = {0};
+  uint32_t mode = isDup ? DB_NEXT_DUP : DB_NEXT_NODUP;
   int      ret;
 
   pUids = taosArrayInit(16, sizeof(tb_uid_t));
@@ -941,13 +942,8 @@ SArray *metaGetSmaTbUids(SMeta *pMeta, bool isDup) {
   void *pBuf = NULL;
 
   // TODO: lock?
-  while (true) {
-    ret = pCur->get(pCur, &pkey, &pval, isDup ? DB_NEXT_DUP : DB_NEXT_NODUP);
-    if(ret == 0) {
+  while ((ret = pCur->get(pCur, &pkey, &pval, mode)) == 0) {
       taosArrayPush(pUids, pkey.data);
-      continue;
-    }
-    break;
   }
 
   if (pCur) {

@@ -21,6 +21,10 @@
 
 #define SMA_STORE_SINGLE_BLOCKS  // store SMA data by single block or multiple blocks
 
+#define SMA_STATE_HASH_SLOT      4
+#define SMA_STATE_ITEM_HASH_SLOT 32
+
+#define SMA_TEST_INDEX_NAME "smaTestIndexName"  // TODO: just for test
 typedef enum {
   SMA_STORAGE_LEVEL_TSDB = 0,     // store TSma in dir  e.g. vnode${N}/tsdb/.tsma
   SMA_STORAGE_LEVEL_DFILESET = 1  // store TSma in file e.g. vnode${N}/tsdb/v2f1900.tsma.${sma_index_name}
@@ -48,6 +52,22 @@ typedef struct {
   // TODO
 } STSmaReadH;
 
+typedef struct {
+  /**
+   * @brief The field 'state' is here to demonstrate if one smaIndex is ready to provide service.
+   *    - TSDB_SMA_STAT_EXPIRED: 1) If sma calculation of history TS data is not finished; 2) Or if the TSDB is open,
+   * without information about its previous state.
+   *    - TSDB_SMA_STAT_OK: 1) The sma calculation of history data is finished; 2) Or recevied information from
+   * Streaming Module or TSDB local persistence.
+   */
+  int8_t    state;           // ETsdbSmaStat
+  SHashObj *expiredWindows;  // key: skey of time window, value: N/A
+} SSmaStatItem;
+
+struct SSmaStat {
+  SHashObj *smaStatItems;  // key: indexName, value: SSmaStatItem
+};
+
 // declaration of static functions
 static int32_t tsdbInitTSmaWriteH(STSmaWriteH *pSmaH, STsdb *pTsdb, STSma *param, STSmaData *pData);
 static int32_t tsdbInitTSmaReadH(STSmaReadH *pSmaH, STsdb *pTsdb, STSma *param, STSmaData *pData);
@@ -63,6 +83,142 @@ static int32_t tsdbSetTSmaDataFile(STSmaWriteH *pSmaH, STSma *param, STSmaData *
 static int32_t tsdbInitTSmaReadH(STSmaReadH *pSmaH, STsdb *pTsdb, STSma *param, STSmaData *pData);
 static int32_t tsdbInitTSmaFile(STSmaReadH *pReadH, STSma *param, STimeWindow *queryWin);
 static bool    tsdbSetAndOpenTSmaFile(STSmaReadH *pReadH, STSma *param, STimeWindow *queryWin);
+
+static int32_t tsdbInitSmaStat(SSmaStat **pSmaStat) {
+  ASSERT(pSmaStat != NULL);
+
+  if (*pSmaStat != NULL) {  // no lock
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // TODO: lock. lazy mode when update expired window, or hungry mode during tsdbNew.
+  if (*pSmaStat == NULL) {
+    *pSmaStat = (SSmaStat *)calloc(1, sizeof(SSmaStat));
+    if (*pSmaStat == NULL) {
+      // TODO: unlock
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return TSDB_CODE_FAILED;
+    }
+
+    (*pSmaStat)->smaStatItems =
+        taosHashInit(SMA_STATE_HASH_SLOT, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+
+    if ((*pSmaStat)->smaStatItems == NULL) {
+      tfree(*pSmaStat);
+      // TODO: unlock
+      return TSDB_CODE_FAILED;
+    }
+  }
+  // TODO: unlock
+  return TSDB_CODE_SUCCESS;
+}
+
+static SSmaStatItem *tsdbNewSmaStatItem(int8_t state) {
+  SSmaStatItem *pItem = NULL;
+
+  pItem = (SSmaStatItem *)calloc(1, sizeof(SSmaStatItem));
+  if (pItem) {
+    pItem->state = state;
+    pItem->expiredWindows = taosHashInit(SMA_STATE_ITEM_HASH_SLOT, taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP),
+                                         true, HASH_ENTRY_LOCK);
+    if (!pItem->expiredWindows) {
+      tfree(pItem);
+    }
+  }
+  return pItem;
+}
+
+int32_t tsdbDestroySmaState(SSmaStat *pSmaStat) {
+  if (pSmaStat) {
+    // TODO: use taosHashSetFreeFp when taosHashSetFreeFp is ready.
+    SSmaStatItem *item = taosHashIterate(pSmaStat->smaStatItems, NULL);
+    while (item != NULL) {
+      taosHashCleanup(item->expiredWindows);
+      item = taosHashIterate(pSmaStat->smaStatItems, item);
+    }
+
+    taosHashCleanup(pSmaStat->smaStatItems);
+    free(pSmaStat);
+  }
+}
+
+/**
+ * @brief Update expired window according to msg from stream computing module.
+ *
+ * @param pTsdb
+ * @param msg
+ * @return int32_t
+ */
+int32_t tsdbUpdateExpiredWindow(STsdb *pTsdb, char *msg) {
+  if (msg == NULL) {
+    return TSDB_CODE_FAILED;
+  }
+
+  tsdbInitSmaStat(&pTsdb->pSmaStat);  // lazy mode
+
+  // TODO: decode the msg => start
+  const char *  indexName = SMA_TEST_INDEX_NAME;
+  const int32_t SMA_TEST_EXPIRED_WINDOW_SIZE = 10;
+  TSKEY         expiredWindows[SMA_TEST_EXPIRED_WINDOW_SIZE];
+  int64_t       now = taosGetTimestampMs();
+  for (int32_t i = 0; i < SMA_TEST_EXPIRED_WINDOW_SIZE; ++i) {
+    expiredWindows[i] = now + i;
+  }
+
+  // TODO: decode the msg <= end
+  SHashObj *pItemsHash = pTsdb->pSmaStat->smaStatItems;
+
+  SSmaStatItem *pItem = (SSmaStatItem *)taosHashGet(pItemsHash, indexName, strlen(indexName));
+  if (!pItem) {
+    pItem = tsdbNewSmaStatItem(TSDB_SMA_STAT_EXPIRED);  // TODO use the real state
+    if (!pItem) {
+      // Response to stream computing: OOM
+      // For query, if the indexName not found, the TSDB should tell query module to query raw TS data.
+      return TSDB_CODE_FAILED;
+    }
+
+    if (taosHashPut(pItemsHash, indexName, strnlen(indexName, TSDB_INDEX_NAME_LEN), &pItem, sizeof(pItem)) != 0) {
+      // If error occurs during put smaStatItem, free the resources of pItem
+      taosHashCleanup(pItem->expiredWindows);
+      free(pItem);
+      return TSDB_CODE_FAILED;
+    }
+  }
+
+  int8_t state = TSDB_SMA_STAT_EXPIRED;
+  for (int32_t i = 0; i < SMA_TEST_EXPIRED_WINDOW_SIZE; ++i) {
+    if (taosHashPut(pItem->expiredWindows, &expiredWindows[i], sizeof(TSKEY), &state, sizeof(state)) != 0) {
+      // If error occurs during taosHashPut expired windows, remove the smaIndex from pTsdb->pSmaStat, thus TSDB would
+      // tell query module to query raw TS data.
+      // N.B.
+      //  1) It is assumed to be extemely little probability event of fail to taosHashPut.
+      //  2) This would solve the inconsistency to some extent, but not completely, unless we record all expired
+      // windows failed to put into hash table.
+      taosHashCleanup(pItem->expiredWindows);
+      taosHashRemove(pItemsHash, indexName, sizeof(indexName));
+      return TSDB_CODE_FAILED;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tsdbResetExpiredWindow(STsdb *pTsdb, const char *indexName, void *timeWindow) {
+  SSmaStatItem *pItem = NULL;
+
+  if (pTsdb->pSmaStat && pTsdb->pSmaStat->smaStatItems) {
+    pItem = (SSmaStatItem *)taosHashGet(pTsdb->pSmaStat->smaStatItems, indexName, strlen(indexName));
+  }
+
+  if (pItem != NULL) {
+    // TODO: reset time windows for the sma data blocks
+    while (true) {
+      TSKEY thisWindow = 0;
+      taosHashRemove(pItem->expiredWindows, &thisWindow, sizeof(thisWindow));
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
 
 /**
  * @brief Judge the tSma storage level
@@ -248,7 +404,7 @@ static int32_t tsdbInsertTSmaDataSection(STSmaWriteH *pSmaH, STSmaData *pData, i
 static int32_t tsdbInitTSmaWriteH(STSmaWriteH *pSmaH, STsdb *pTsdb, STSma *param, STSmaData *pData) {
   pSmaH->pTsdb = pTsdb;
   pSmaH->interval = tsdbGetIntervalByPrecision(param->interval, param->intervalUnit, REPO_CFG(pTsdb)->precision);
-  pSmaH->blockSize = param->numOfFuncIds * sizeof(int64_t);
+  // pSmaH->blockSize = param->numOfFuncIds * sizeof(int64_t);
 }
 
 static int32_t tsdbSetTSmaDataFile(STSmaWriteH *pSmaH, STSma *param, STSmaData *pData, int32_t storageLevel,
@@ -356,6 +512,9 @@ int32_t tsdbInsertTSmaDataImpl(STsdb *pTsdb, STSma *param, STSmaData *pData) {
     return terrno;
   }
 
+  // reset the SSmaStat
+  tsdbResetExpiredWindow(pTsdb, param->indexName, &pData->tsWindow);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -403,6 +562,10 @@ int32_t tsdbInsertRSmaDataImpl(STsdb *pTsdb, SRSma *param, STSmaData *pData) {
     TASSERT(0);
     return TSDB_CODE_INVALID_PARA;
   }
+
+  // reset the SSmaStat
+  tsdbResetExpiredWindow(pTsdb, param->tsma.indexName, &pData->tsWindow);
+
   // Step 4: finish
   return TSDB_CODE_SUCCESS;
 }
@@ -419,7 +582,7 @@ int32_t tsdbInsertRSmaDataImpl(STsdb *pTsdb, SRSma *param, STSmaData *pData) {
 static int32_t tsdbInitTSmaReadH(STSmaReadH *pSmaH, STsdb *pTsdb, STSma *param, STSmaData *pData) {
   pSmaH->pTsdb = pTsdb;
   pSmaH->interval = tsdbGetIntervalByPrecision(param->interval, param->intervalUnit, REPO_CFG(pTsdb)->precision);
-  pSmaH->blockSize = param->numOfFuncIds * sizeof(int64_t);
+  // pSmaH->blockSize = param->numOfFuncIds * sizeof(int64_t);
 }
 
 /**
@@ -484,6 +647,22 @@ static bool tsdbSetAndOpenTSmaFile(STSmaReadH *pReadH, STSma *param, STimeWindow
  * @return int32_t
  */
 int32_t tsdbGetTSmaDataImpl(STsdb *pTsdb, STSma *param, STSmaData *pData, STimeWindow *queryWin, int32_t nMaxResult) {
+  const char *indexName = param->indexName;
+
+  SSmaStatItem *pItem = (SSmaStatItem *)taosHashGet(pTsdb->pSmaStat->smaStatItems, indexName, strlen(indexName));
+  if (pItem == NULL) {
+    // mark all window as expired and notify query module to query raw TS data.
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t nQueryWin = 0;
+  for (int32_t n = 0; n < nQueryWin; ++n) {
+    TSKEY thisWindow = n;
+    if (taosHashGet(pItem->expiredWindows, &thisWindow, sizeof(thisWindow)) != NULL) {
+      // TODO: mark this window as expired.
+    }
+  }
+
   STSmaReadH tReadH = {0};
   tsdbInitTSmaReadH(&tReadH, pTsdb, param, pData);
 

@@ -449,7 +449,7 @@ static void hbStopThread() {
   }
 
   while (2 != atomic_load_8(&clientHbMgr.threadStop)) {
-    usleep(10);
+    taosUsleep(10);
   }
 
   tscDebug("hb thread stopped");
