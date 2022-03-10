@@ -2,7 +2,7 @@
 
 TDengine 提供了丰富的应用程序开发接口，其中包括 C/C++、Java、Python、Go、Node.js、C# 、RESTful 等，便于用户快速开发应用。
 
-![image-connecotr](../images/connector.png)
+![image-connector](../images/connector.png)
 
 目前 TDengine 的连接器可支持的平台广泛，包括：X64/X86/ARM64/ARM32/MIPS/Alpha 等硬件平台，以及 Linux/Win64/Win32 等开发环境。对照矩阵如下：
 
@@ -13,7 +13,7 @@ TDengine 提供了丰富的应用程序开发接口，其中包括 C/C++、Java�
 | **JDBC**    | ●               | ●               | ●               | ○               | ●         | ●         | ○               | ○                | ○              |
 | **Python**  | ●               | ●               | ●               | ○               | ●         | ●         | ○               | --               | ○              |
 | **Go**      | ●               | ●               | ●               | ○               | ●         | ●         | ○               | --               | --             |
-| **NodeJs**  | ●               | ●               | ○               | ○               | ●         | ●         | ○               | --               | --             |
+| **Node.js**  | ●               | ●               | ○               | ○               | ●         | ●         | ○               | --               | --             |
 | **C#**      | ●               | ●               | ○               | ○               | ○         | ○         | ○               | --               | --             |
 | **RESTful** | ●               | ●               | ●               | ●               | ●         | ●         | ○               | ○                | ○              |
 
@@ -22,7 +22,7 @@ TDengine 提供了丰富的应用程序开发接口，其中包括 C/C++、Java�
 注意：
 
 * 在没有安装 TDengine 服务端软件的系统中使用连接器（除 RESTful 外）访问 TDengine 数据库，需要安装相应版本的客户端安装包来使应用驱动（Linux 系统中文件名为 libtaos.so，Windows 系统中为 taos.dll）被安装在系统中，否则会产生无法找到相应库文件的错误。
-* 所有执行 SQL 语句的 API，例如 C/C++ Connector 中的 `tao_query`、`taos_query_a`、`taos_subscribe` 等，以及其它语言中与它们对应的 API，每次都只能执行一条 SQL 语句，如果实际参数中包含了多条语句，它们的行为是未定义的。
+* 所有执行 SQL 语句的 API，例如 C/C++ Connector 中的 `taos_query`、`taos_query_a`、`taos_subscribe` 等，以及其它语言中与它们对应的 API，每次都只能执行一条 SQL 语句，如果实际参数中包含了多条语句，它们的行为是未定义的。
 * 升级 TDengine 到 2.0.8.0 版本的用户，必须更新 JDBC。连接 TDengine 必须升级 taos-jdbcdriver 到 2.0.12 及以上。详细的版本依赖关系请参见 [taos-jdbcdriver 文档](https://www.taosdata.com/cn/documentation/connector/java#version)。
 * 无论选用何种编程语言的连接器，2.0 及以上版本的 TDengine 推荐数据库应用的每个线程都建立一个独立的连接，或基于线程建立连接池，以避免连接内的“USE statement”状态量在线程之间相互干扰（但连接的查询和写入操作都是线程安全的）。
 
@@ -434,9 +434,9 @@ typedef struct TAOS_MULTI_BIND {
       
   **说明**  
     协议类型是枚举类型，包含以下三种格式：  
-    TSDB_SML_LINE_PROTOCOL：InfluxDB行协议（Line Protocol)  
-    TSDB_SML_TELNET_PROTOCOL: OpenTSDB文本行协议  
-    TSDB_SML_JSON_PROTOCOL: OpenTSDB Json协议格式  
+    TSDB_SML_LINE_PROTOCOL：InfluxDB 行协议（Line Protocol)  
+    TSDB_SML_TELNET_PROTOCOL: OpenTSDB 文本行协议  
+    TSDB_SML_JSON_PROTOCOL: OpenTSDB JSON 协议格式  
     
     时间戳分辨率的定义，定义在 taos.h 文件中，具体内容如下：  
     TSDB_SML_TIMESTAMP_NOT_CONFIGURED = 0,  
@@ -451,7 +451,7 @@ typedef struct TAOS_MULTI_BIND {
     对于 OpenTSDB 的文本协议，时间戳的解析遵循其官方解析规则 — 按照时间戳包含的字符的数量来确认时间精度。
     
   **支持版本**  
-    该功能接口从2.3.0.0版本开始支持。
+    该功能接口从 2.3.0.0 版本开始支持。
 
 ```c
 #include <stdlib.h>
