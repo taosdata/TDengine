@@ -847,6 +847,7 @@ static int32_t translateCreateSuperTable(STranslateContext* pCxt, SCreateTableSt
 
   pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
   if (NULL== pCxt->pCmdMsg) {
+    tFreeSMCreateStbReq(&createReq);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
@@ -854,10 +855,12 @@ static int32_t translateCreateSuperTable(STranslateContext* pCxt, SCreateTableSt
   pCxt->pCmdMsg->msgLen = tSerializeSMCreateStbReq(NULL, 0, &createReq);
   pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
   if (NULL== pCxt->pCmdMsg->pMsg) {
+    tFreeSMCreateStbReq(&createReq);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   tSerializeSMCreateStbReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &createReq);
 
+  tFreeSMCreateStbReq(&createReq);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1211,14 +1214,12 @@ static int32_t setReslutSchema(STranslateContext* pCxt, SQuery* pQuery) {
 
 static void destroyTranslateContext(STranslateContext* pCxt) {
   if (NULL != pCxt->pNsLevel) {
-
+    size_t size = taosArrayGetSize(pCxt->pNsLevel);
+    for (size_t i = 0; i < size; ++i) {
+      taosArrayDestroy(taosArrayGetP(pCxt->pNsLevel, i));
+    }
+    taosArrayDestroy(pCxt->pNsLevel);
   }
-
-  size_t size = taosArrayGetSize(pCxt->pNsLevel);
-  for (size_t i = 0; i < size; ++i) {
-    taosArrayDestroy(taosArrayGetP(pCxt->pNsLevel, i));
-  }
-  taosArrayDestroy(pCxt->pNsLevel);
 
   if (NULL != pCxt->pCmdMsg) {
     tfree(pCxt->pCmdMsg->pMsg);
@@ -1306,8 +1307,6 @@ static void destroyCreateTbReqBatch(SVgroupTablesBatch* pTbBatch) {
       tfree(pTableReq->ntbCfg.pSchema);
     } else if (pTableReq->type == TSDB_CHILD_TABLE) {
       tfree(pTableReq->ctbCfg.pTag);
-    } else {
-      assert(0);
     }
   }
 
@@ -1333,6 +1332,16 @@ static int32_t rewriteToVnodeModifOpStmt(SQuery* pQuery, SArray* pBufArray) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void destroyCreateTbReqArray(SArray* pArray) {
+  size_t size = taosArrayGetSize(pArray);
+  for (size_t i = 0; i < size; ++i) {
+    SVgDataBlocks* pVg = taosArrayGetP(pArray, i);
+    tfree(pVg->pData);
+    tfree(pVg);
+  }
+  taosArrayDestroy(pArray);
+}
+
 static int32_t buildCreateTableDataBlock(const SCreateTableStmt* pStmt, const SVgroupInfo* pInfo, SArray** pBufArray) {
   *pBufArray = taosArrayInit(1, POINTER_BYTES);
   if (NULL == *pBufArray) {
@@ -1344,9 +1353,10 @@ static int32_t buildCreateTableDataBlock(const SCreateTableStmt* pStmt, const SV
   if (TSDB_CODE_SUCCESS == code) {
     code = serializeVgroupTablesBatch(&tbatch, *pBufArray);
   }
+
   destroyCreateTbReqBatch(&tbatch);
   if (TSDB_CODE_SUCCESS != code) {
-    // todo : destroyCreateTbReqArray(*pBufArray);
+    destroyCreateTbReqArray(*pBufArray);
   }
   return code;
 }
@@ -1362,6 +1372,9 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteToVnodeModifOpStmt(pQuery, pBufArray);
+    if (TSDB_CODE_SUCCESS != code) {
+      destroyCreateTbReqArray(pBufArray);
+    }
   }
 
   return code;
@@ -1573,10 +1586,10 @@ static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) 
   }
 
   SArray* pBufArray = serializeVgroupsTablesBatch(pVgroupHashmap);
+  taosHashCleanup(pVgroupHashmap);
   if (NULL == pBufArray) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  taosHashCleanup(pVgroupHashmap);
 
   return rewriteToVnodeModifOpStmt(pQuery, pBufArray);
 }
