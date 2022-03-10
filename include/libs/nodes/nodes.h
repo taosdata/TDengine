@@ -152,6 +152,8 @@ int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
 SNodeptr nodesListGetNode(SNodeList* pList, int32_t index);
 void nodesDestroyList(SNodeList* pList);
+// Only clear the linked list structure, without releasing the elements inside
+void nodesClearList(SNodeList* pList);
 
 typedef enum EDealRes {
   DEAL_RES_CONTINUE = 1,

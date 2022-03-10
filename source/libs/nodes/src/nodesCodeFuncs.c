@@ -289,12 +289,52 @@ static int32_t jsonToPhysicPlanNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkNameType = "NameType";
+static const char* jkNameAcctId = "AcctId";
+static const char* jkNameDbName = "DbName";
+static const char* jkNameTableName = "TableName";
+
+static int32_t nameToJson(const void* pObj, SJson* pJson) {
+  const SName* pNode = (const SName*)pObj;
+
+  int32_t code = tjsonAddIntegerToObject(pJson, jkNameType, pNode->type);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkNameAcctId, pNode->acctId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkNameDbName, pNode->dbname);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkNameTableName, pNode->tname);
+  }
+
+  return code;
+}
+
+static int32_t jsonToName(const SJson* pJson, void* pObj) {
+  SName* pNode = (SName*)pObj;
+
+  int32_t code = tjsonGetUTinyIntValue(pJson, jkNameType, &pNode->type);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkNameAcctId, &pNode->acctId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkNameDbName, pNode->dbname);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkNameTableName, pNode->tname);
+  }
+
+  return code;
+}
+
 static const char* jkScanPhysiPlanScanCols = "ScanCols";
 static const char* jkScanPhysiPlanTableId = "TableId";
 static const char* jkScanPhysiPlanTableType = "TableType";
 static const char* jkScanPhysiPlanScanOrder = "ScanOrder";
 static const char* jkScanPhysiPlanScanCount = "ScanCount";
 static const char* jkScanPhysiPlanReverseScanCount = "ReverseScanCount";
+static const char* jkScanPhysiPlanTableName = "TableName";
 
 static int32_t physiScanNodeToJson(const void* pObj, SJson* pJson) {
   const STagScanPhysiNode* pNode = (const STagScanPhysiNode*)pObj;
@@ -317,6 +357,9 @@ static int32_t physiScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkScanPhysiPlanReverseScanCount, pNode->reverse);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkScanPhysiPlanTableName, nameToJson, &pNode->tableName);
   }
 
   return code;
@@ -343,6 +386,9 @@ static int32_t jsonToPhysiScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkScanPhysiPlanReverseScanCount, &pNode->reverse);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonToObject(pJson, jkScanPhysiPlanTableName, jsonToName, &pNode->tableName);
   }
 
   return code;
