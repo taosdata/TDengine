@@ -92,10 +92,11 @@ typedef struct SResultRowPool {
 struct STaskAttr;
 struct STaskRuntimeEnv;
 struct SUdfInfo;
+struct SqlFunctionCtx;
 
 int32_t getOutputInterResultBufSize(struct STaskAttr* pQueryAttr);
 
-size_t  getResultRowSize(SArray* pExprInfo);
+size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 int32_t initResultRowInfo(SResultRowInfo* pResultRowInfo, int32_t size);
 void    cleanupResultRowInfo(SResultRowInfo* pResultRowInfo);
 

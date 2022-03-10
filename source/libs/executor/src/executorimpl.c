@@ -1970,7 +1970,7 @@ static SqlFunctionCtx* createSqlFunctionCtx(STaskRuntimeEnv* pRuntimeEnv, SExprI
     pCtx->order        = pQueryAttr->order.order;
 //    pCtx->functionId   = pFunct->functionId;
     pCtx->stableQuery  = pQueryAttr->stableQuery;
-    pCtx->resDataInfo.interBufSize = pFunct->interBytes;
+//    pCtx->resDataInfo.interBufSize = pFunct->interBytes;
     pCtx->start.key    = INT64_MIN;
     pCtx->end.key      = INT64_MIN;
 
@@ -2052,7 +2052,7 @@ static SqlFunctionCtx* createSqlFunctionCtx_rv(SArray* pExprInfo, int32_t** rowC
     SExprBasicInfo *pFunct = &pExpr->base;
     SqlFunctionCtx* pCtx = &pFuncCtx[i];
 
-    fmGetFuncExecFuncs(pExpr->pExpr->_function.functionId, &pCtx->fpSet);
+    fmGetFuncExecFuncs(pExpr->pExpr->_function.pFunctNode->funcId, &pCtx->fpSet);
     pCtx->input.numOfInputCols = pFunct->numOfParams;
 
     pCtx->input.pData = calloc(pFunct->numOfParams, POINTER_BYTES);
@@ -2062,8 +2062,6 @@ static SqlFunctionCtx* createSqlFunctionCtx_rv(SArray* pExprInfo, int32_t** rowC
     pCtx->resDataInfo.bytes  = pFunct->resSchema.bytes;
     pCtx->resDataInfo.type   = pFunct->resSchema.type;
     pCtx->order              = TSDB_ORDER_ASC;
-//    pCtx->functionId         = pExpr->pExpr->_function.pFunctNode->;//TODO remove it
-    pCtx->stableQuery        = false;  // TODO
     pCtx->start.key          = INT64_MIN;
     pCtx->end.key            = INT64_MIN;
 
@@ -2120,8 +2118,7 @@ static SqlFunctionCtx* createSqlFunctionCtx_rv(SArray* pExprInfo, int32_t** rowC
   }
 
   for(int32_t i = 1; i < numOfOutput; ++i) {
-    SExprInfo* pExpr = taosArrayGetP(pExprInfo, i - 1);
-    (*rowCellInfoOffset)[i] = (int32_t)((*rowCellInfoOffset)[i - 1] + sizeof(SResultRowEntryInfo) + pExpr->base.interBytes);
+    (*rowCellInfoOffset)[i] = (int32_t)((*rowCellInfoOffset)[i - 1] + sizeof(SResultRowEntryInfo) + pFuncCtx[i].resDataInfo.interBufSize);
   }
 
   setCtxTagColumnInfo(pFuncCtx, numOfOutput);
@@ -3347,15 +3344,11 @@ void setFunctionResultOutput(SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t
   for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
     SColumnInfoData* pData = taosArrayGet(pDataBlock->pDataBlock, i);
 
-    /*
-     * set the output buffer information and intermediate buffer
-     * not all queries require the interResultBuf, such as COUNT/TAGPRJ/PRJ/TAG etc.
-     */
     struct SResultRowEntryInfo* pEntry = getResultCell(pRow, i, rowCellInfoOffset);
     cleanupResultRowEntry(pEntry);
 
     pCtx[i].resultInfo   = pEntry;
-    pCtx[i].pOutput      = pData->pData;
+    pCtx[i].pOutput      = pData->pData;  // todo remove it
     pCtx[i].currentStage = stage;
 
     // set the timestamp output buffer for top/bottom/diff query
@@ -5663,7 +5656,7 @@ SArray* getResultGroupCheckColumns(STaskAttr* pQuery) {
   return pOrderColumns;
 }
 
-static int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SArray* pExprInfo);
+static int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx *pCtx, int32_t numOfOutput);
 static void clearupAggSup(SAggSupporter* pAggSup);
 
 static void destroySortedMergeOperatorInfo(void* param, int32_t numOfOutput) {
@@ -6044,7 +6037,7 @@ SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t
     goto _error;
   }
 
-  int32_t code = doInitAggInfoSup(&pInfo->aggSup, pExprInfo);
+  int32_t code = doInitAggInfoSup(&pInfo->aggSup, pInfo->binfo.pCtx, numOfOutput);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -7085,13 +7078,14 @@ static void destroyOperatorInfo(SOperatorInfo* pOperator) {
   tfree(pOperator);
 }
 
-static int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SArray* pExprInfo) {
+int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx *pCtx, int32_t numOfOutput) {
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
 
+  pAggSup->resultRowSize       = getResultRowSize(pCtx, numOfOutput);
   pAggSup->keyBuf              = calloc(1, sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES);
   pAggSup->pResultRowHashTable = taosHashInit(10, hashFn, true, HASH_NO_LOCK);
   pAggSup->pResultRowListSet   = taosHashInit(100, hashFn, false, HASH_NO_LOCK);
-  pAggSup->pool                = initResultRowPool(getResultRowSize(pExprInfo));
+  pAggSup->pool                = initResultRowPool(pAggSup->resultRowSize);
   pAggSup->pResultRowArrayList = taosArrayInit(10, sizeof(SResultRowCell));
 
   if (pAggSup->keyBuf == NULL || pAggSup->pResultRowArrayList == NULL || pAggSup->pResultRowListSet == NULL ||
@@ -7115,7 +7109,7 @@ static int32_t initAggInfo(SAggOperatorInfo* pInfo, SArray* pExprInfo, int32_t n
   pInfo->binfo.pRes       = pResultBlock;
   pInfo->binfo.capacity   = numOfRows;
 
-  doInitAggInfoSup(&pInfo->aggSup, pExprInfo);
+  doInitAggInfoSup(&pInfo->aggSup, pInfo->binfo.pCtx, taosArrayGetSize(pExprInfo));
   pInfo->pTableQueryInfo = calloc(pTableGroupInfo->numOfTables, sizeof(STableQueryInfo));
 
   int32_t index = 0;
@@ -7353,14 +7347,15 @@ SOperatorInfo* createLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorIn
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SInterval* pInterval, SExecTaskInfo* pTaskInfo) {
   STableIntervalOperatorInfo* pInfo = calloc(1, sizeof(STableIntervalOperatorInfo));
 
-  doInitAggInfoSup(&pInfo->aggSup, pExprInfo);
+  size_t numOfOutput = taosArrayGetSize(pExprInfo);
+  doInitAggInfoSup(&pInfo->aggSup, pInfo->binfo.pCtx, numOfOutput);
 
-  pInfo->order = TSDB_ORDER_ASC;
+  pInfo->order     = TSDB_ORDER_ASC;
   pInfo->precision = TSDB_TIME_PRECISION_MICRO;
-  pInfo->win   = pTaskInfo->window;
-  pInfo->interval = *pInterval;
+  pInfo->win       = pTaskInfo->window;
+  pInfo->interval  = *pInterval;
 
-  int32_t code = createDiskbasedBuf(&pInfo->pResultBuf, 4096, 4096 * 256, pTaskInfo->id.str, "/tmp/");
+  int32_t code     = createDiskbasedBuf(&pInfo->pResultBuf, 4096, 4096 * 256, pTaskInfo->id.str, "/tmp/");
 
   pInfo->binfo.pCtx = createSqlFunctionCtx_rv(pExprInfo, &pInfo->binfo.rowCellInfoOffset);
   pInfo->binfo.pRes = createOutputBuf_rv(pExprInfo, pInfo->binfo.capacity);
@@ -8039,8 +8034,8 @@ SArray* createExprInfo(SAggPhysiNode* pPhyNode, int32_t* resultRowSize) {
     pExp->base.pParam[0].pCol = calloc(1, sizeof(SColumn));
     SColumn* pCol = pExp->base.pParam[0].pCol;
 
-    ASSERT(LIST_LENGTH(pPhyNode->pAggFuncs) == 1);
-    STargetNode* pTargetNode = (STargetNode*) nodesListGetNode(pPhyNode->pAggFuncs, 0);
+    STargetNode* pTargetNode = (STargetNode*) nodesListGetNode(pPhyNode->pAggFuncs, i);
+    ASSERT(pTargetNode->slotId == i);
 
     SFunctionNode* pFuncNode = (SFunctionNode*)pTargetNode->pExpr;
     pExp->base.resSchema = createSchema(pFuncNode->node.resType.type, pFuncNode->node.resType.bytes, pTargetNode->slotId, pFuncNode->node.aliasName);

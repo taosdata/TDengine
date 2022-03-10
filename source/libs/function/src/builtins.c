@@ -44,7 +44,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "min",
     .type = FUNCTION_TYPE_MIN,
-    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC,
     .checkFunc    = stubCheckAndGetResultType,
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = minFunctionSetup,
@@ -54,7 +54,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "max",
     .type = FUNCTION_TYPE_MAX,
-    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC,
     .checkFunc    = stubCheckAndGetResultType,
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = maxFunctionSetup,
@@ -78,8 +78,33 @@ const int32_t funcMgtBuiltinsNum = (sizeof(funcMgtBuiltins) / sizeof(SBuiltinFun
 int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
   switch(pFunc->funcType) {
     case FUNCTION_TYPE_COUNT: pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_BIGINT};break;
-    default:
+    case FUNCTION_TYPE_SUM: {
+      SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+      int32_t paraType = pParam->node.resType.type;
+
+      int32_t resType  = 0;
+      if (IS_SIGNED_NUMERIC_TYPE(paraType)) {
+        resType = TSDB_DATA_TYPE_BIGINT;
+      } else if (IS_UNSIGNED_NUMERIC_TYPE(paraType)) {
+        resType = TSDB_DATA_TYPE_UBIGINT;
+      } else if (IS_FLOAT_TYPE(paraType)) {
+        resType = TSDB_DATA_TYPE_DOUBLE;
+      } else {
+        ASSERT(0);
+      }
+
+      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[resType].bytes, .type = resType };
       break;
+    }
+    case FUNCTION_TYPE_MIN:
+    case FUNCTION_TYPE_MAX: {
+      SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+      int32_t paraType = pParam->node.resType.type;
+      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[paraType].bytes, .type = paraType };
+      break;
+    }
+    default:
+      ASSERT(0); // to found the fault ASAP.
   }
 
   return TSDB_CODE_SUCCESS;

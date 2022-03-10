@@ -256,7 +256,6 @@ typedef struct SFunctParam {
 // the structure for sql function in select clause
 typedef struct SExprBasicInfo {
   SSchema      resSchema;    // TODO refactor
-  int32_t      interBytes;   // inter result buffer size, TODO remove it
   int16_t      numOfParams;  // argument value of each function
   SFunctParam *pParam;
 //  SVariant param[3];     // parameters are not more than 3

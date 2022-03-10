@@ -14,7 +14,7 @@
  */
 
 #include "builtinsimpl.h"
-#include <querynodes.h>
+#include "querynodes.h"
 #include "taggfunction.h"
 #include "tdatablock.h"
 
@@ -123,17 +123,18 @@ void sumFunction(SqlFunctionCtx *pCtx) {
   SColumnDataAgg *pAgg = pInput->pColumnDataAgg[0];
   int32_t type = pInput->pData[0]->info.type;
 
+  SSumRes* pSumRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  
   if (pInput->colDataAggIsSet) {
     numOfElem = pInput->numOfRows - pAgg->numOfNull;
     ASSERT(numOfElem >= 0);
 
-    SSumRes* pSumInfo = (SSumRes*) pCtx->pOutput;
     if (IS_SIGNED_NUMERIC_TYPE(type)) {
-      pSumInfo->isum += pAgg->sum;
+      pSumRes->isum += pAgg->sum;
     } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-      pSumInfo->usum += pAgg->sum;
+      pSumRes->usum += pAgg->sum;
     } else if (IS_FLOAT_TYPE(type)) {
-      pSumInfo->dsum += GET_DOUBLE_VAL((const char*)&(pAgg->sum));
+      pSumRes->dsum += GET_DOUBLE_VAL((const char*)&(pAgg->sum));
     }
   } else {  // computing based on the true data block
     SColumnInfoData* pCol = pInput->pData[0];
@@ -141,32 +142,30 @@ void sumFunction(SqlFunctionCtx *pCtx) {
     int32_t start     = pInput->startRowIndex;
     int32_t numOfRows = pInput->numOfRows;
 
-    SSumRes* pSum = (SSumRes*) pCtx->pOutput;
-
-    if (IS_SIGNED_NUMERIC_TYPE(pCtx->inputType)) {
-      if (pCtx->inputType == TSDB_DATA_TYPE_TINYINT) {
-        LIST_ADD_N(pSum->isum, pCol, start, numOfRows, int8_t, numOfElem);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_SMALLINT) {
-        LIST_ADD_N(pSum->isum, pCol, start, numOfRows, int16_t, numOfElem);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_INT) {
-        LIST_ADD_N(pSum->isum, pCol, start, numOfRows, int32_t, numOfElem);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_BIGINT) {
-        LIST_ADD_N(pSum->isum, pCol, start, numOfRows, int64_t, numOfElem);
+    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+      if (type == TSDB_DATA_TYPE_TINYINT) {
+        LIST_ADD_N(pSumRes->isum, pCol, start, numOfRows, int8_t, numOfElem);
+      } else if (type == TSDB_DATA_TYPE_SMALLINT) {
+        LIST_ADD_N(pSumRes->isum, pCol, start, numOfRows, int16_t, numOfElem);
+      } else if (type == TSDB_DATA_TYPE_INT) {
+        LIST_ADD_N(pSumRes->isum, pCol, start, numOfRows, int32_t, numOfElem);
+      } else if (type == TSDB_DATA_TYPE_BIGINT) {
+        LIST_ADD_N(pSumRes->isum, pCol, start, numOfRows, int64_t, numOfElem);
       }
-    } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
-      if (pCtx->inputType == TSDB_DATA_TYPE_UTINYINT) {
-        LIST_ADD_N(pSum->usum, pCol, start, numOfRows, uint8_t, numOfElem);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_USMALLINT) {
-        LIST_ADD_N(pSum->usum, pCol, start, numOfRows, uint16_t, numOfElem);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_UINT) {
-        LIST_ADD_N(pSum->usum, pCol, start, numOfRows, uint32_t, numOfElem);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_UBIGINT) {
-        LIST_ADD_N(pSum->usum, pCol, start, numOfRows, uint64_t, numOfElem);
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      if (type == TSDB_DATA_TYPE_UTINYINT) {
+        LIST_ADD_N(pSumRes->usum, pCol, start, numOfRows, uint8_t, numOfElem);
+      } else if (type == TSDB_DATA_TYPE_USMALLINT) {
+        LIST_ADD_N(pSumRes->usum, pCol, start, numOfRows, uint16_t, numOfElem);
+      } else if (type == TSDB_DATA_TYPE_UINT) {
+        LIST_ADD_N(pSumRes->usum, pCol, start, numOfRows, uint32_t, numOfElem);
+      } else if (type == TSDB_DATA_TYPE_UBIGINT) {
+        LIST_ADD_N(pSumRes->usum, pCol, start, numOfRows, uint64_t, numOfElem);
       }
-    } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE) {
-      LIST_ADD_N(pSum->dsum, pCol, start, numOfRows, double, numOfElem);
-    } else if (pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
-      LIST_ADD_N(pSum->dsum, pCol, start, numOfRows, float, numOfElem);
+    } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+      LIST_ADD_N(pSumRes->dsum, pCol, start, numOfRows, double, numOfElem);
+    } else if (type == TSDB_DATA_TYPE_FLOAT) {
+      LIST_ADD_N(pSumRes->dsum, pCol, start, numOfRows, float, numOfElem);
     }
   }
 
@@ -179,14 +178,13 @@ bool getSumFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   return true;
 }
 
-
 bool maxFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
   if (!functionSetup(pCtx, pResultInfo)) {
     return false;
   }
 
   char* buf = GET_ROWCELL_INTERBUF(pResultInfo);
-  switch (pCtx->input.pData[0]->info.type) {
+  switch (pCtx->resDataInfo.type) {
     case TSDB_DATA_TYPE_INT:
       *((int32_t *)buf) = INT32_MIN;
       break;
@@ -229,7 +227,7 @@ bool minFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
   }
 
   char* buf = GET_ROWCELL_INTERBUF(pResultInfo);
-  switch (pCtx->input.pData[0]->info.type) {
+  switch (pCtx->resDataInfo.type) {
     case TSDB_DATA_TYPE_TINYINT:
       *((int8_t *)buf) = INT8_MAX;
       break;
@@ -374,13 +372,13 @@ int32_t doMinMaxHelper(SqlFunctionCtx *pCtx, int32_t isMinFunc) {
           __ctx->fpSet.process(__ctx);
         }
       }
-    } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
       uint64_t val = GET_UINT64_VAL(tval);
       UPDATE_DATA(pCtx, *(uint64_t*)buf, val, numOfElems, isMinFunc, key);
-    } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE) {
+    } else if (type == TSDB_DATA_TYPE_DOUBLE) {
       double  val = GET_DOUBLE_VAL(tval);
       UPDATE_DATA(pCtx, *(double*)buf, val, numOfElems, isMinFunc, key);
-    } else if (pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
+    } else if (type == TSDB_DATA_TYPE_FLOAT) {
       double val = GET_DOUBLE_VAL(tval);
       UPDATE_DATA(pCtx, *(float*)buf, (float)val, numOfElems, isMinFunc, key);
     }
@@ -391,14 +389,14 @@ int32_t doMinMaxHelper(SqlFunctionCtx *pCtx, int32_t isMinFunc) {
   int32_t start = pInput->startRowIndex;
   int32_t numOfRows = pInput->numOfRows;
 
-  if (IS_SIGNED_NUMERIC_TYPE(pCtx->inputType)) {
-    if (pCtx->inputType == TSDB_DATA_TYPE_TINYINT) {
-      LOOPCHECK_N(*(int64_t*)buf, pCol, pCtx, int8_t, numOfRows, start, isMinFunc, numOfElems);
-    } else if (pCtx->inputType == TSDB_DATA_TYPE_SMALLINT) {
-      LOOPCHECK_N(*(int64_t*) buf, pCol, pCtx, int16_t, numOfRows, start, isMinFunc, numOfElems);
-    } else if (pCtx->inputType == TSDB_DATA_TYPE_INT) {
+  if (IS_SIGNED_NUMERIC_TYPE(type)) {
+    if (type == TSDB_DATA_TYPE_TINYINT) {
+      LOOPCHECK_N(*(int8_t*)buf, pCol, pCtx, int8_t, numOfRows, start, isMinFunc, numOfElems);
+    } else if (type == TSDB_DATA_TYPE_SMALLINT) {
+      LOOPCHECK_N(*(int16_t*) buf, pCol, pCtx, int16_t, numOfRows, start, isMinFunc, numOfElems);
+    } else if (type == TSDB_DATA_TYPE_INT) {
       int32_t *pData = (int32_t*)pCol->pData;
-      int64_t *val = (int64_t*) buf;
+      int32_t *val = (int32_t*) buf;
 
       for (int32_t i = 0; i < pCtx->size; ++i) {
         if ((pCol->hasNull) && colDataIsNull_f(pCol->nullbitmap, i)) {
@@ -417,22 +415,22 @@ int32_t doMinMaxHelper(SqlFunctionCtx *pCtx, int32_t isMinFunc) {
 #if defined(_DEBUG_VIEW)
       qDebug("max value updated:%d", *retVal);
 #endif
-    } else if (pCtx->inputType == TSDB_DATA_TYPE_BIGINT) {
+    } else if (type == TSDB_DATA_TYPE_BIGINT) {
       LOOPCHECK_N(*(int64_t*) buf, pCol, pCtx, int64_t, numOfRows, start, isMinFunc, numOfElems);
     }
-  } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
-    if (pCtx->inputType == TSDB_DATA_TYPE_UTINYINT) {
-      LOOPCHECK_N(*(uint64_t*) buf, pCol, pCtx, uint8_t, numOfRows, start, isMinFunc, numOfElems);
-    } else if (pCtx->inputType == TSDB_DATA_TYPE_USMALLINT) {
-      LOOPCHECK_N(*(uint64_t*) buf, pCol, pCtx, uint16_t, numOfRows, start, isMinFunc, numOfElems);
-    } else if (pCtx->inputType == TSDB_DATA_TYPE_UINT) {
-      LOOPCHECK_N(*(uint64_t*) buf, pCol, pCtx, uint32_t, numOfRows, start, isMinFunc, numOfElems);
-    } else if (pCtx->inputType == TSDB_DATA_TYPE_UBIGINT) {
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+    if (type == TSDB_DATA_TYPE_UTINYINT) {
+      LOOPCHECK_N(*(uint8_t*) buf, pCol, pCtx, uint8_t, numOfRows, start, isMinFunc, numOfElems);
+    } else if (type == TSDB_DATA_TYPE_USMALLINT) {
+      LOOPCHECK_N(*(uint16_t*) buf, pCol, pCtx, uint16_t, numOfRows, start, isMinFunc, numOfElems);
+    } else if (type == TSDB_DATA_TYPE_UINT) {
+      LOOPCHECK_N(*(uint32_t*) buf, pCol, pCtx, uint32_t, numOfRows, start, isMinFunc, numOfElems);
+    } else if (type == TSDB_DATA_TYPE_UBIGINT) {
       LOOPCHECK_N(*(uint64_t*) buf, pCol, pCtx, uint64_t, numOfRows, start, isMinFunc, numOfElems);
     }
-  } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE) {
+  } else if (type == TSDB_DATA_TYPE_DOUBLE) {
     LOOPCHECK_N(*(double*) buf, pCol, pCtx, double, numOfRows, start, isMinFunc, numOfElems);
-  } else if (pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
+  } else if (type == TSDB_DATA_TYPE_FLOAT) {
     LOOPCHECK_N(*(float*) buf, pCol, pCtx, float, numOfRows, start, isMinFunc, numOfElems);
   }
 
