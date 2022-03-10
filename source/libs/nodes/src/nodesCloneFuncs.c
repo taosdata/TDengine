@@ -271,6 +271,13 @@ static SNode* slotDescCopy(const SSlotDescNode* pSrc, SSlotDescNode* pDst) {
   return (SNode*)pDst;
 }
 
+static SNode* downstreamSourceCopy(const SDownstreamSourceNode* pSrc, SDownstreamSourceNode* pDst) {
+  COPY_SCALAR_FIELD(addr);
+  COPY_SCALAR_FIELD(taskId);
+  COPY_SCALAR_FIELD(schedId);
+  return (SNode*)pDst;
+}
+
 SNodeptr nodesCloneNode(const SNodeptr pNode) {
   if (NULL == pNode) {
     return NULL;
@@ -306,6 +313,8 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
       return dataBlockDescCopy((const SDataBlockDescNode*)pNode, (SDataBlockDescNode*)pDst);
     case QUERY_NODE_SLOT_DESC:
       return slotDescCopy((const SSlotDescNode*)pNode, (SSlotDescNode*)pDst);
+    case QUERY_NODE_DOWNSTREAM_SOURCE:
+      return downstreamSourceCopy((const SDownstreamSourceNode*)pNode, (SDownstreamSourceNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return logicScanCopy((const SScanLogicNode*)pNode, (SScanLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_AGG:

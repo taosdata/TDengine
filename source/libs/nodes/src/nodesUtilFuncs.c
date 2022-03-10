@@ -74,6 +74,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SSlotDescNode));
     case QUERY_NODE_COLUMN_DEF:
       return makeNode(type, sizeof(SColumnDefNode));
+    case QUERY_NODE_DOWNSTREAM_SOURCE:
+      return makeNode(type, sizeof(SDownstreamSourceNode));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
