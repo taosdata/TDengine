@@ -62,6 +62,8 @@ typedef struct {
   SDnodeWorker statusWorker;
 } SDnodeMgmt;
 
+typedef enum { SINGLE_PROC, MULTI_PROC_PARENT, MULTI_PROC_CHILD } EProcType;
+
 typedef struct {
   int32_t      refCount;
   int8_t       deployed;
@@ -76,8 +78,10 @@ typedef struct {
   SReplica     replicas[TSDB_MAX_REPLICA];
 
   //
-  bool      multiProcess;
+  MndMsgFp  msgFp[TDMT_MAX];
   SProcObj *pProcess;
+  bool      singleProc;
+  bool      isChild;
 } SMnodeMgmt;
 
 typedef struct {

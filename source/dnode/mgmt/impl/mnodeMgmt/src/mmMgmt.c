@@ -14,15 +14,17 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mm.h"
+
 #include "dndMgmt.h"
 #include "dndTransport.h"
 #include "dndWorker.h"
-#include "mm.h"
 
-static void dndWriteMnodeMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMsg *pRpcMsg);
+
+
 static void dndProcessMnodeQueue(SDnode *pDnode, SMnodeMsg *pMsg);
 
-static SMnode *dndAcquireMnode(SDnode *pDnode) {
+SMnode *mmAcquire(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   SMnode     *pMnode = NULL;
   int32_t     refCount = 0;
@@ -42,7 +44,7 @@ static SMnode *dndAcquireMnode(SDnode *pDnode) {
   return pMnode;
 }
 
-static void dndReleaseMnode(SDnode *pDnode, SMnode *pMnode) {
+void mmRelease(SDnode *pDnode, SMnode *pMnode) {
   if (pMnode == NULL) return;
 
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
@@ -50,158 +52,6 @@ static void dndReleaseMnode(SDnode *pDnode, SMnode *pMnode) {
   int32_t refCount = atomic_sub_fetch_32(&pMgmt->refCount, 1);
   taosRUnLockLatch(&pMgmt->latch);
   dTrace("release mnode, refCount:%d", refCount);
-}
-
- int32_t mmReadFile(SDnode *pDnode) {
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-  int32_t     code = TSDB_CODE_DND_MNODE_READ_FILE_ERROR;
-  int32_t     len = 0;
-  int32_t     maxLen = 4096;
-  char       *content = calloc(1, maxLen + 1);
-  cJSON      *root = NULL;
-
-  char file[PATH_MAX + 20];
-  snprintf(file, PATH_MAX + 20, "%s/mnode.json", pDnode->dir.dnode);
-
-  // FILE *fp = fopen(file, "r");
-  TdFilePtr pFile = taosOpenFile(file, TD_FILE_READ);
-  if (pFile == NULL) {
-    dDebug("file %s not exist", file);
-    code = 0;
-    goto PRASE_MNODE_OVER;
-  }
-
-  len = (int32_t)taosReadFile(pFile, content, maxLen);
-  if (len <= 0) {
-    dError("failed to read %s since content is null", file);
-    goto PRASE_MNODE_OVER;
-  }
-
-  content[len] = 0;
-  root = cJSON_Parse(content);
-  if (root == NULL) {
-    dError("failed to read %s since invalid json format", file);
-    goto PRASE_MNODE_OVER;
-  }
-
-  cJSON *deployed = cJSON_GetObjectItem(root, "deployed");
-  if (!deployed || deployed->type != cJSON_Number) {
-    dError("failed to read %s since deployed not found", file);
-    goto PRASE_MNODE_OVER;
-  }
-  pMgmt->deployed = deployed->valueint;
-
-  cJSON *dropped = cJSON_GetObjectItem(root, "dropped");
-  if (!dropped || dropped->type != cJSON_Number) {
-    dError("failed to read %s since dropped not found", file);
-    goto PRASE_MNODE_OVER;
-  }
-  pMgmt->dropped = dropped->valueint;
-
-  cJSON *mnodes = cJSON_GetObjectItem(root, "mnodes");
-  if (!mnodes || mnodes->type != cJSON_Array) {
-    dError("failed to read %s since nodes not found", file);
-    goto PRASE_MNODE_OVER;
-  }
-
-  pMgmt->replica = cJSON_GetArraySize(mnodes);
-  if (pMgmt->replica <= 0 || pMgmt->replica > TSDB_MAX_REPLICA) {
-    dError("failed to read %s since mnodes size %d invalid", file, pMgmt->replica);
-    goto PRASE_MNODE_OVER;
-  }
-
-  for (int32_t i = 0; i < pMgmt->replica; ++i) {
-    cJSON *node = cJSON_GetArrayItem(mnodes, i);
-    if (node == NULL) break;
-
-    SReplica *pReplica = &pMgmt->replicas[i];
-
-    cJSON *id = cJSON_GetObjectItem(node, "id");
-    if (!id || id->type != cJSON_Number) {
-      dError("failed to read %s since id not found", file);
-      goto PRASE_MNODE_OVER;
-    }
-    pReplica->id = id->valueint;
-
-    cJSON *fqdn = cJSON_GetObjectItem(node, "fqdn");
-    if (!fqdn || fqdn->type != cJSON_String || fqdn->valuestring == NULL) {
-      dError("failed to read %s since fqdn not found", file);
-      goto PRASE_MNODE_OVER;
-    }
-    tstrncpy(pReplica->fqdn, fqdn->valuestring, TSDB_FQDN_LEN);
-
-    cJSON *port = cJSON_GetObjectItem(node, "port");
-    if (!port || port->type != cJSON_Number) {
-      dError("failed to read %s since port not found", file);
-      goto PRASE_MNODE_OVER;
-    }
-    pReplica->port = port->valueint;
-  }
-
-  code = 0;
-  dDebug("succcessed to read file %s, deployed:%d dropped:%d", file, pMgmt->deployed, pMgmt->dropped);
-
-PRASE_MNODE_OVER:
-  if (content != NULL) free(content);
-  if (root != NULL) cJSON_Delete(root);
-  if (pFile != NULL) taosCloseFile(&pFile);
-
-  terrno = code;
-  return code;
-}
-
- int32_t mmWriteFile(SDnode *pDnode) {
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-
-  char file[PATH_MAX + 20];
-  snprintf(file, PATH_MAX + 20, "%s/mnode.json.bak", pDnode->dir.dnode);
-
-  // FILE *fp = fopen(file, "w");
-  TdFilePtr pFile = taosOpenFile(file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
-  if (pFile == NULL) {
-    terrno = TSDB_CODE_DND_MNODE_WRITE_FILE_ERROR;
-    dError("failed to write %s since %s", file, terrstr());
-    return -1;
-  }
-
-  int32_t len = 0;
-  int32_t maxLen = 4096;
-  char   *content = calloc(1, maxLen + 1);
-
-  len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"deployed\": %d,\n", pMgmt->deployed);
-
-  len += snprintf(content + len, maxLen - len, "  \"dropped\": %d,\n", pMgmt->dropped);
-  len += snprintf(content + len, maxLen - len, "  \"mnodes\": [{\n");
-  for (int32_t i = 0; i < pMgmt->replica; ++i) {
-    SReplica *pReplica = &pMgmt->replicas[i];
-    len += snprintf(content + len, maxLen - len, "    \"id\": %d,\n", pReplica->id);
-    len += snprintf(content + len, maxLen - len, "    \"fqdn\": \"%s\",\n", pReplica->fqdn);
-    len += snprintf(content + len, maxLen - len, "    \"port\": %u\n", pReplica->port);
-    if (i < pMgmt->replica - 1) {
-      len += snprintf(content + len, maxLen - len, "  },{\n");
-    } else {
-      len += snprintf(content + len, maxLen - len, "  }]\n");
-    }
-  }
-  len += snprintf(content + len, maxLen - len, "}\n");
-
-  taosWriteFile(pFile, content, len);
-  taosFsyncFile(pFile);
-  taosCloseFile(&pFile);
-  free(content);
-
-  char realfile[PATH_MAX + 20];
-  snprintf(realfile, PATH_MAX + 20, "%s/mnode.json", pDnode->dir.dnode);
-
-  if (taosRenameFile(file, realfile) != 0) {
-    terrno = TSDB_CODE_DND_MNODE_WRITE_FILE_ERROR;
-    dError("failed to rename %s since %s", file, terrstr());
-    return -1;
-  }
-
-  dInfo("successed to write %s, deployed:%d dropped:%d", realfile, pMgmt->deployed, pMgmt->dropped);
-  return 0;
 }
 
 static int32_t mmStartWorker(SDnode *pDnode) {
@@ -256,14 +106,40 @@ static bool mmDeployRequired(SDnode *pDnode) {
   return true;
 }
 
-static int32_t dndPutMsgToMWriteQ(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  dndWriteMnodeMsgToWorker(pDnode, &pDnode->mmgmt.writeWorker, pRpcMsg);
-  return 0;
+static int32_t mmPutMsgToQueue(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMsg *pRpcMsg) {
+  int32_t    contLen = sizeof(SMnodeMsg) + pRpcMsg->contLen;
+  SMnodeMsg *pMnodeMsg = taosAllocateQitem(contLen);
+  if (pMnodeMsg == NULL) {
+    return -1;
+  }
+
+  pMnodeMsg->contLen = pRpcMsg->contLen;
+  pMnodeMsg->pCont = (char *)pMnodeMsg + sizeof(SMnodeMsg);
+  memcpy(pMnodeMsg->pCont, pRpcMsg->pCont, pRpcMsg->contLen);
+  rpcFreeCont(pRpcMsg->pCont);
+
+  int32_t code = mmWriteToWorker(pDnode, pWorker, pMnodeMsg);
+  if (code != 0) {
+    taosFreeQitem(pMnodeMsg);
+  }
+
+  return code;
 }
 
-static int32_t dndPutMsgToMReadQ(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  dndWriteMnodeMsgToWorker(pDnode, &pDnode->mmgmt.readWorker, pRpcMsg);
-  return 0;
+static int32_t mmPutMsgToWriteQueue(SDnode *pDnode, SRpcMsg *pRpcMsg) {
+  return mmPutMsgToQueue(pDnode, &pDnode->mmgmt.writeWorker, pRpcMsg);
+}
+
+static int32_t mmPutMsgToReadQueue(SDnode *pDnode, SRpcMsg *pRpcMsg) {
+  return mmPutMsgToQueue(pDnode, &pDnode->mmgmt.readWorker, pRpcMsg);
+}
+
+static void mmProcessChildQueue(SDnode *pDnode, SBlockItem *pBlock) {
+  SMnodeMsg *pMsg = (SMnodeMsg *)pBlock->pCont;
+  
+  if (mmWriteToWorker(pDnode, &pDnode->mmgmt.writeWorker, pMsg) != 0) {
+    //todo
+  }
 }
 
 static void mmInitOptionImp(SDnode *pDnode, SMnodeOpt *pOption) {
@@ -271,8 +147,8 @@ static void mmInitOptionImp(SDnode *pDnode, SMnodeOpt *pOption) {
   pOption->sendReqToDnodeFp = dndSendReqToDnode;
   pOption->sendReqToMnodeFp = dndSendReqToMnode;
   pOption->sendRedirectRspFp = dndSendRedirectRsp;
-  pOption->putReqToMWriteQFp = dndPutMsgToMWriteQ;
-  pOption->putReqToMReadQFp = dndPutMsgToMReadQ;
+  pOption->putReqToMWriteQFp = mmPutMsgToWriteQueue;
+  pOption->putReqToMReadQFp = mmPutMsgToReadQueue;
   pOption->dnodeId = dndGetDnodeId(pDnode);
   pOption->clusterId = dndGetClusterId(pDnode);
 }
@@ -364,23 +240,18 @@ static int32_t mmOpenImp(SDnode *pDnode, SMnodeOpt *pOption) {
   return 0;
 }
 
-static void dndMnodeProcessChildQueue(SDnode *pDnode, SBlockItem *pBlock) {
-  SRpcMsg *pMsg = (SRpcMsg *)pBlock->pCont;
-  dndWriteMnodeMsgToWorker(pDnode, &pDnode->mmgmt.writeWorker, pMsg);
-  free(pBlock);
-}
 
 static void dndMnodeProcessParentQueue(SMnodeMgmt *pMgmt, SBlockItem *pItem) {}
 
 static int32_t mmOpen(SDnode *pDnode, SMnodeOpt *pOption) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-  pMgmt->multiProcess = true;
+  pMgmt->singleProc = false;
 
   int32_t code = mmOpenImp(pDnode, pOption);
 
-  if (code == 0 && pMgmt->multiProcess) {
+  if (code == 0 && !pMgmt->singleProc) {
     SProcCfg cfg = {0};
-    cfg.childFp = (ProcFp)dndMnodeProcessChildQueue;
+    cfg.childFp = (ProcFp)mmProcessChildQueue;
     cfg.parentFp = (ProcFp)dndMnodeProcessParentQueue;
     cfg.childQueueSize = 1024 * 1024;
     cfg.parentQueueSize = 1024 * 1024;
@@ -400,7 +271,7 @@ static int32_t mmOpen(SDnode *pDnode, SMnodeOpt *pOption) {
 static int32_t dndAlterMnode(SDnode *pDnode, SMnodeOpt *pOption) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
-  SMnode *pMnode = dndAcquireMnode(pDnode);
+  SMnode *pMnode = mmAcquire(pDnode);
   if (pMnode == NULL) {
     dError("failed to alter mnode since %s", terrstr());
     return -1;
@@ -408,18 +279,18 @@ static int32_t dndAlterMnode(SDnode *pDnode, SMnodeOpt *pOption) {
 
   if (mndAlter(pMnode, pOption) != 0) {
     dError("failed to alter mnode since %s", terrstr());
-    dndReleaseMnode(pDnode, pMnode);
+    mmRelease(pDnode, pMnode);
     return -1;
   }
 
-  dndReleaseMnode(pDnode, pMnode);
+  mmRelease(pDnode, pMnode);
   return 0;
 }
 
 static int32_t dndDropMnode(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
-  SMnode *pMnode = dndAcquireMnode(pDnode);
+  SMnode *pMnode = mmAcquire(pDnode);
   if (pMnode == NULL) {
     dError("failed to drop mnode since %s", terrstr());
     return -1;
@@ -434,12 +305,12 @@ static int32_t dndDropMnode(SDnode *pDnode) {
     pMgmt->dropped = 0;
     taosRUnLockLatch(&pMgmt->latch);
 
-    dndReleaseMnode(pDnode, pMnode);
+    mmRelease(pDnode, pMnode);
     dError("failed to drop mnode since %s", terrstr());
     return -1;
   }
 
-  dndReleaseMnode(pDnode, pMnode);
+  mmRelease(pDnode, pMnode);
   mmStopWorker(pDnode);
   pMgmt->deployed = 0;
   mmWriteFile(pDnode);
@@ -470,9 +341,9 @@ int32_t dndProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
     return -1;
   }
 
-  SMnode *pMnode = dndAcquireMnode(pDnode);
+  SMnode *pMnode = mmAcquire(pDnode);
   if (pMnode != NULL) {
-    dndReleaseMnode(pDnode, pMnode);
+    mmRelease(pDnode, pMnode);
     terrno = TSDB_CODE_DND_MNODE_ALREADY_DEPLOYED;
     dError("failed to create mnode since %s", terrstr());
     return -1;
@@ -502,7 +373,7 @@ int32_t dndProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
     return -1;
   }
 
-  SMnode *pMnode = dndAcquireMnode(pDnode);
+  SMnode *pMnode = mmAcquire(pDnode);
   if (pMnode == NULL) {
     terrno = TSDB_CODE_DND_MNODE_NOT_DEPLOYED;
     dError("failed to alter mnode since %s", terrstr());
@@ -511,7 +382,7 @@ int32_t dndProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 
   dDebug("start to alter mnode");
   int32_t code = dndAlterMnode(pDnode, &option);
-  dndReleaseMnode(pDnode, pMnode);
+  mmRelease(pDnode, pMnode);
 
   return code;
 }
@@ -529,7 +400,7 @@ int32_t dndProcessDropMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
     return -1;
   }
 
-  SMnode *pMnode = dndAcquireMnode(pDnode);
+  SMnode *pMnode = mmAcquire(pDnode);
   if (pMnode == NULL) {
     terrno = TSDB_CODE_DND_MNODE_NOT_DEPLOYED;
     dError("failed to drop mnode since %s", terrstr());
@@ -538,7 +409,7 @@ int32_t dndProcessDropMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 
   dDebug("start to drop mnode");
   int32_t code = dndDropMnode(pDnode);
-  dndReleaseMnode(pDnode, pMnode);
+  mmRelease(pDnode, pMnode);
 
   return code;
 }
@@ -546,66 +417,15 @@ int32_t dndProcessDropMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 static void dndProcessMnodeQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
-  SMnode *pMnode = dndAcquireMnode(pDnode);
+  SMnode *pMnode = mmAcquire(pDnode);
   if (pMnode != NULL) {
     mndProcessMsg(pMsg);
-    dndReleaseMnode(pDnode, pMnode);
+    mmRelease(pDnode, pMnode);
   } else {
     mndSendRsp(pMsg, terrno);
   }
 
-  mndCleanupMsg(pMsg);
-}
-
-static void dndWriteMnodeMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMsg *pRpcMsg) {
-  int32_t code = TSDB_CODE_DND_MNODE_NOT_DEPLOYED;
-
-  SMnode *pMnode = dndAcquireMnode(pDnode);
-  if (pMnode != NULL) {
-    SMnodeMsg *pMsg = mndInitMsg(pMnode, pRpcMsg);
-    if (pMsg == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-    } else {
-      code = dndWriteMsgToWorker(pWorker, pMsg, 0);
-      if (code != 0) code = terrno;
-    }
-
-    if (code != 0) {
-      mndCleanupMsg(pMsg);
-    }
-  }
-  dndReleaseMnode(pDnode, pMnode);
-
-  if (code != 0) {
-    if (pRpcMsg->msgType & 1u) {
-      if (code == TSDB_CODE_DND_MNODE_NOT_DEPLOYED || code == TSDB_CODE_APP_NOT_READY) {
-        dndSendRedirectRsp(pDnode, pRpcMsg);
-      } else {
-        SRpcMsg rsp = {.handle = pRpcMsg->handle, .ahandle = pRpcMsg->ahandle, .code = code};
-        rpcSendResponse(&rsp);
-      }
-    }
-    rpcFreeCont(pRpcMsg->pCont);
-  }
-}
-
-static void dndMnodeWriteToChildQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  taosProcPushChild(pMgmt->pProcess, pMsg, sizeof(SRpcMsg));
-}
-
-void dndProcessMnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  dndMnodeWriteToChildQueue(&pDnode->mmgmt, pMsg);
-  // dndWriteMnodeMsgToWorker(pDnode, &pDnode->mmgmt.writeWorker, pMsg);
-}
-
-void dndProcessMnodeSyncMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  dndMnodeWriteToChildQueue(&pDnode->mmgmt, pMsg);
-  // dndWriteMnodeMsgToWorker(pDnode, &pDnode->mmgmt.syncWorker, pMsg);
-}
-
-void dndProcessMnodeReadMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  dndMnodeWriteToChildQueue(&pDnode->mmgmt, pMsg);
-  // dndWriteMnodeMsgToWorker(pDnode, &pDnode->mmgmt.readWorker, pMsg);
+  // mndCleanupMsg(pMsg);
 }
 
 int32_t mmInit(SDnode *pDnode) {
@@ -614,6 +434,7 @@ int32_t mmInit(SDnode *pDnode) {
 
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   taosInitRWLatch(&pMgmt->latch);
+  mmInitMsgFp(pMgmt);
 
   if (mmReadFile(pDnode) != 0) {
     goto _OVER;
@@ -670,7 +491,7 @@ void mmCleanup(SDnode *pDnode) {
 int32_t dndGetUserAuthFromMnode(SDnode *pDnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
-  SMnode *pMnode = dndAcquireMnode(pDnode);
+  SMnode *pMnode = mmAcquire(pDnode);
   if (pMnode == NULL) {
     terrno = TSDB_CODE_APP_NOT_READY;
     dTrace("failed to get user auth since %s", terrstr());
@@ -678,18 +499,18 @@ int32_t dndGetUserAuthFromMnode(SDnode *pDnode, char *user, char *spi, char *enc
   }
 
   int32_t code = mndRetriveAuth(pMnode, user, spi, encrypt, secret, ckey);
-  dndReleaseMnode(pDnode, pMnode);
+  mmRelease(pDnode, pMnode);
 
   dTrace("user:%s, retrieve auth spi:%d encrypt:%d", user, *spi, *encrypt);
   return code;
 }
 
 int32_t mmGetMonitorInfo(SDnode *pDnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
-                  SMonGrantInfo *pGrantInfo) {
-  SMnode *pMnode = dndAcquireMnode(pDnode);
+                         SMonGrantInfo *pGrantInfo) {
+  SMnode *pMnode = mmAcquire(pDnode);
   if (pMnode == NULL) return -1;
 
   int32_t code = mndGetMonitorInfo(pMnode, pClusterInfo, pVgroupInfo, pGrantInfo);
-  dndReleaseMnode(pDnode, pMnode);
+  mmRelease(pDnode, pMnode);
   return code;
 }

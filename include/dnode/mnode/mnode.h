@@ -32,6 +32,18 @@ typedef int32_t (*PutReqToMWriteQFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 typedef int32_t (*PutReqToMReadQFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 typedef void (*SendRedirectRspFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 
+
+typedef struct SMnodeMsg {
+  char    user[TSDB_USER_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
+  int32_t acctId;
+  SMnode* pMnode;
+  int64_t createdTime;
+  SRpcMsg rpcMsg;
+  int32_t contLen;
+  void*   pCont;
+} SMnodeMsg;
+
 typedef struct {
   int32_t           dnodeId;
   int64_t           clusterId;
@@ -111,14 +123,7 @@ int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, cha
  * @param pMsg The request rpc msg.
  * @return int32_t The created mnode msg.
  */
-SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg);
-
-/**
- * @brief Cleanup mnode msg.
- *
- * @param pMsg The request msg.
- */
-void mndCleanupMsg(SMnodeMsg *pMsg);
+int32_t mndBuildMsg(SMnodeMsg *pMnodeMsg, SRpcMsg *pRpcMsg);
 
 /**
  * @brief Cleanup mnode msg.

@@ -390,41 +390,26 @@ void mndDestroy(const char *path) {
   mDebug("mnode is destroyed");
 }
 
-SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
-  SMnodeMsg *pMsg = taosAllocateQitem(sizeof(SMnodeMsg));
-  if (pMsg == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("failed to create msg since %s, app:%p RPC:%p", terrstr(), pRpcMsg->ahandle, pRpcMsg->handle);
-    return NULL;
-  }
-
+int32_t mndBuildMsg(SMnodeMsg *pMnodeMsg, SRpcMsg *pRpcMsg) {
   if (pRpcMsg->msgType != TDMT_MND_TRANS_TIMER && pRpcMsg->msgType != TDMT_MND_MQ_TIMER &&
       pRpcMsg->msgType != TDMT_MND_MQ_DO_REBALANCE && pRpcMsg->msgType != TDMT_MND_TELEM_TIMER) {
     SRpcConnInfo connInfo = {0};
     if ((pRpcMsg->msgType & 1U) && rpcGetConnInfo(pRpcMsg->handle, &connInfo) != 0) {
-      taosFreeQitem(pMsg);
       terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
       mError("failed to create msg since %s, app:%p RPC:%p", terrstr(), pRpcMsg->ahandle, pRpcMsg->handle);
-      return NULL;
+      return -1;
     }
-    memcpy(pMsg->user, connInfo.user, TSDB_USER_LEN);
+    memcpy(pMnodeMsg->user, connInfo.user, TSDB_USER_LEN);
   }
 
-  pMsg->pMnode = pMnode;
-  pMsg->rpcMsg = *pRpcMsg;
-  pMsg->createdTime = taosGetTimestampSec();
+  pMnodeMsg->rpcMsg = *pRpcMsg;
+  pMnodeMsg->createdTime = taosGetTimestampSec();
+  pMnodeMsg->pCont = (char*)pMnodeMsg + sizeof(pMnodeMsg);
 
   if (pRpcMsg != NULL) {
-    mTrace("msg:%p, is created, app:%p RPC:%p user:%s", pMsg, pRpcMsg->ahandle, pRpcMsg->handle, pMsg->user);
+    mTrace("msg:%p, is created, app:%p RPC:%p user:%s", pMnodeMsg, pRpcMsg->ahandle, pRpcMsg->handle, pMnodeMsg->user);
   }
-  return pMsg;
-}
-
-void mndCleanupMsg(SMnodeMsg *pMsg) {
-  mTrace("msg:%p, is destroyed", pMsg);
-  rpcFreeCont(pMsg->rpcMsg.pCont);
-  pMsg->rpcMsg.pCont = NULL;
-  taosFreeQitem(pMsg);
+  return 0;
 }
 
 void mndSendRsp(SMnodeMsg *pMsg, int32_t code) {

@@ -48,6 +48,7 @@ typedef struct {
   void       *pParent;
   bool        stopFlag;
   bool        testFlag;
+  bool        isChild;
 } SProcObj;
 
 SProcObj *taosProcInit(const SProcCfg *pCfg);
