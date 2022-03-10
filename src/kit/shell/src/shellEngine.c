@@ -570,7 +570,7 @@ static void shellPrintNChar(const char *str, int length, int width) {
     }
     int w = 0;
 #ifdef WINDOWS
-    w = bytes;gdn
+    w = bytes;
 #else
     if(*(str + pos) == '\t' || *(str + pos) == '\n' || *(str + pos) == '\r'){
       w = bytes;
