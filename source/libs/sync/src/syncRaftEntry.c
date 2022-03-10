@@ -14,14 +14,22 @@
  */
 
 #include "syncRaftEntry.h"
+#include "syncUtil.h"
 
-SSyncRaftEntry* syncEntryBuild(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index) {
-  uint32_t        bytes = SYNC_ENTRY_FIX_LEN + pMsg->bytes;
+SSyncRaftEntry* syncEntryBuild(uint32_t dataLen) {
+  uint32_t        bytes = sizeof(SSyncRaftEntry) + dataLen;
   SSyncRaftEntry* pEntry = malloc(bytes);
   assert(pEntry != NULL);
   memset(pEntry, 0, bytes);
-
   pEntry->bytes = bytes;
+  pEntry->dataLen = dataLen;
+  return pEntry;
+}
+
+SSyncRaftEntry* syncEntryBuild2(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index) {
+  SSyncRaftEntry* pEntry = syncEntryBuild(pMsg->dataLen);
+  assert(pEntry != NULL);
+
   pEntry->msgType = pMsg->msgType;
   pEntry->originalRpcType = pMsg->originalRpcType;
   pEntry->seqNum = pMsg->seqNum;
@@ -40,14 +48,23 @@ void syncEntryDestory(SSyncRaftEntry* pEntry) {
   }
 }
 
-void syncEntrySerialize(const SSyncRaftEntry* pEntry, char* buf, uint32_t bufLen) {
-  assert(pEntry->bytes <= bufLen);
+char* syncEntrySerialize(const SSyncRaftEntry* pEntry, uint32_t* len) {
+  char* buf = malloc(pEntry->bytes);
+  assert(buf != NULL);
   memcpy(buf, pEntry, pEntry->bytes);
+  if (len != NULL) {
+    *len = pEntry->bytes;
+  }
+  return buf;
 }
 
-void syncEntryDeserialize(const char* buf, uint32_t len, SSyncRaftEntry* pEntry) {
+SSyncRaftEntry* syncEntryDeserialize(const char* buf, uint32_t len) {
+  uint32_t        bytes = *((uint32_t*)buf);
+  SSyncRaftEntry* pEntry = malloc(bytes);
+  assert(pEntry != NULL);
   memcpy(pEntry, buf, len);
   assert(len == pEntry->bytes);
+  return pEntry;
 }
 
 cJSON* syncEntry2Json(const SSyncRaftEntry* pEntry) {
@@ -66,6 +83,15 @@ cJSON* syncEntry2Json(const SSyncRaftEntry* pEntry) {
   cJSON_AddStringToObject(pRoot, "index", u64buf);
   cJSON_AddNumberToObject(pRoot, "dataLen", pEntry->dataLen);
 
+  char* s;
+  s = syncUtilprintBin((char*)(pEntry->data), pEntry->dataLen);
+  cJSON_AddStringToObject(pRoot, "data", s);
+  free(s);
+
+  s = syncUtilprintBin2((char*)(pEntry->data), pEntry->dataLen);
+  cJSON_AddStringToObject(pRoot, "data2", s);
+  free(s);
+
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SSyncRaftEntry", pRoot);
   return pJson;
@@ -76,4 +102,10 @@ char* syncEntry2Str(const SSyncRaftEntry* pEntry) {
   char*  serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
+}
+
+void syncEntryPrint(const SSyncRaftEntry* pEntry) {
+  char* s = syncEntry2Str(pEntry);
+  sTrace("%s", s);
+  free(s);
 }

@@ -149,3 +149,39 @@ const char* syncUtilState2String(ESyncState state) {
     return "TAOS_SYNC_STATE_UNKNOWN";
   }
 }
+
+bool syncUtilCanPrint(char c) {
+  if (c >= 32 && c <= 126) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+char* syncUtilprintBin(char* ptr, uint32_t len) {
+  char* s = malloc(len + 1);
+  assert(s != NULL);
+  memset(s, 0, len + 1);
+  memcpy(s, ptr, len);
+
+  for (int i = 0; i < len; ++i) {
+    if (!syncUtilCanPrint(s[i])) {
+      s[i] = '.';
+    }
+  }
+  return s;
+}
+
+char* syncUtilprintBin2(char* ptr, uint32_t len) {
+  uint32_t len2 = len * 4 + 1;
+  char*    s = malloc(len2);
+  assert(s != NULL);
+  memset(s, 0, len2);
+
+  char* p = s;
+  for (int i = 0; i < len; ++i) {
+    int n = sprintf(p, "%d,", ptr[i]);
+    p += n;
+  }
+  return s;
+}

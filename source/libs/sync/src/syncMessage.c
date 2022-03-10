@@ -348,7 +348,7 @@ SyncPingReply* syncPingReplyBuild3(const SRaftId* srcId, const SRaftId* destId) 
 
 // ---- message process SyncClientRequest----
 SyncClientRequest* syncClientRequestBuild(uint32_t dataLen) {
-  uint32_t           bytes = SYNC_CLIENT_REQUEST_FIX_LEN + dataLen;
+  uint32_t           bytes = sizeof(SyncClientRequest) + dataLen;
   SyncClientRequest* pMsg = malloc(bytes);
   memset(pMsg, 0, bytes);
   pMsg->bytes = bytes;

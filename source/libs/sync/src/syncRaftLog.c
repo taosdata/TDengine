@@ -47,13 +47,16 @@ void logStoreDestory(SSyncLogStore* pLogStore) {
 int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  char*              buf = malloc(pEntry->bytes);
 
-  syncEntrySerialize(pEntry, buf, pEntry->bytes);
-  walWrite(pWal, pEntry->index, pEntry->msgType, buf, pEntry->bytes);
+  assert(pEntry->index == logStoreLastIndex(pLogStore) + 1);
+  uint32_t len;
+  char*    serialized = syncEntrySerialize(pEntry, &len);
+  assert(serialized != NULL);
+
+  walWrite(pWal, pEntry->index, pEntry->msgType, serialized, len);
   walFsync(pWal, true);
 
-  free(buf);
+  free(serialized);
 }
 
 // get one log entry, user need to free pEntry->pCont
@@ -64,6 +67,8 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
 
   SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
   walReadWithHandle(pWalHandle, index);
+  pEntry = syncEntryDeserialize(pWalHandle->pHead->head.body, pWalHandle->pHead->head.len);
+  assert(pEntry != NULL);
 
   // need to hold, do not new every time!!
   walCloseReadHandle(pWalHandle);
@@ -79,9 +84,15 @@ int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {
 
 // return index of last entry
 SyncIndex logStoreLastIndex(SSyncLogStore* pLogStore) {
+  /*
   SSyncRaftEntry* pLastEntry = logStoreGetLastEntry(pLogStore);
   SyncIndex       lastIndex = pLastEntry->index;
   free(pLastEntry);
+  */
+  SSyncLogStoreData* pData = pLogStore->data;
+  SWal*              pWal = pData->pWal;
+  int64_t            last = walGetLastVer(pWal);
+  SyncIndex          lastIndex = last < 0 ? 0 : last;
   return lastIndex;
 }
 

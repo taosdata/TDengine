@@ -130,9 +130,6 @@ typedef struct SyncClientRequest {
   char     data[];
 } SyncClientRequest;
 
-#define SYNC_CLIENT_REQUEST_FIX_LEN \
-  (sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(bool) + sizeof(uint32_t))
-
 SyncClientRequest* syncClientRequestBuild(uint32_t dataLen);
 void               syncClientRequestDestroy(SyncClientRequest* pMsg);
 void               syncClientRequestSerialize(const SyncClientRequest* pMsg, char* buf, uint32_t bufLen);

@@ -39,16 +39,14 @@ typedef struct SSyncRaftEntry {
   char      data[];
 } SSyncRaftEntry;
 
-#define SYNC_ENTRY_FIX_LEN                                                                                       \
-  (sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(bool) + sizeof(SyncTerm) + \
-   sizeof(SyncIndex) + sizeof(uint32_t))
-
-SSyncRaftEntry* syncEntryBuild(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index);
+SSyncRaftEntry* syncEntryBuild(uint32_t dataLen);
+SSyncRaftEntry* syncEntryBuild2(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index);
 void            syncEntryDestory(SSyncRaftEntry* pEntry);
-void            syncEntrySerialize(const SSyncRaftEntry* pEntry, char* buf, uint32_t bufLen);
-void            syncEntryDeserialize(const char* buf, uint32_t len, SSyncRaftEntry* pEntry);
+char*           syncEntrySerialize(const SSyncRaftEntry* pEntry, uint32_t* len);
+SSyncRaftEntry* syncEntryDeserialize(const char* buf, uint32_t len);
 cJSON*          syncEntry2Json(const SSyncRaftEntry* pEntry);
 char*           syncEntry2Str(const SSyncRaftEntry* pEntry);
+void            syncEntryPrint(const SSyncRaftEntry* pEntry);
 
 #ifdef __cplusplus
 }
