@@ -25,7 +25,6 @@ extern "C" {
 #include <stdlib.h>
 #include "cJSON.h"
 #include "syncInt.h"
-#include "syncRaft.h"
 #include "taosdef.h"
 
 #define RAFT_STORE_BLOCK_SIZE 512

@@ -671,41 +671,6 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
 #endif
 }
 
-int taosSystem(const char *cmd) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-  printf("taosSystem not support");
-  return -1;
-#elif defined(_TD_DARWIN_64)
-  printf("no support funtion");
-  return -1;
-#else
-  FILE *fp;
-  int   res;
-  char  buf[1024];
-  if (cmd == NULL) {
-    // printf("taosSystem cmd is NULL!");
-    return -1;
-  }
-
-  if ((fp = popen(cmd, "r")) == NULL) {
-    // printf("popen cmd:%s error: %s", cmd, strerror(errno));
-    return -1;
-  } else {
-    while (fgets(buf, sizeof(buf), fp)) {
-      // printf("popen result:%s", buf);
-    }
-
-    if ((res = pclose(fp)) == -1) {
-      // printf("close popen file pointer fp error!");
-    } else {
-      // printf("popen res is :%d", res);
-    }
-
-    return res;
-  }
-#endif
-}
-
 void taosKillSystem() {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   printf("function taosKillSystem, exit!");

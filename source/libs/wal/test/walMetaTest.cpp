@@ -124,8 +124,13 @@ class WalRetentionEnv : public ::testing::Test {
 
   void SetUp() override {
     SWalCfg cfg;
-    cfg.rollPeriod = -1, cfg.segSize = -1, cfg.retentionPeriod = -1, cfg.retentionSize = 0, cfg.rollPeriod = 0,
-    cfg.vgId = 0, cfg.level = TAOS_WAL_FSYNC;
+    cfg.rollPeriod = -1;
+    cfg.segSize = -1;
+    cfg.retentionPeriod = -1;
+    cfg.retentionSize = 0;
+    cfg.rollPeriod = 0;
+    cfg.vgId = 0;
+    cfg.level = TAOS_WAL_FSYNC;
     pWal = walOpen(pathName, &cfg);
     ASSERT(pWal != NULL);
   }

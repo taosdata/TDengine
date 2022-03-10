@@ -511,7 +511,7 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
   tNameFromString(&name, dbName, T_NAME_ACCT | T_NAME_DB);
   tNameFromString(&name, topicName, T_NAME_TABLE);
 
-  SMCreateTopicReq req = {
+  SCMCreateTopicReq req = {
       .igExists = 1,
       .physicalPlan = (char*)pStr,
       .sql = (char*)sql,
@@ -519,13 +519,13 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
   };
   tNameExtractFullName(&name, req.name);
 
-  int   tlen = tSerializeMCreateTopicReq(NULL, 0, &req);
+  int   tlen = tSerializeSCMCreateTopicReq(NULL, 0, &req);
   void* buf = malloc(tlen);
   if (buf == NULL) {
     goto _return;
   }
 
-  tSerializeMCreateTopicReq(buf, tlen, &req);
+  tSerializeSCMCreateTopicReq(buf, tlen, &req);
   /*printf("formatted: %s\n", dagStr);*/
 
   pRequest->body.requestMsg = (SDataBuf){.pData = buf, .len = tlen, .handle = NULL};
