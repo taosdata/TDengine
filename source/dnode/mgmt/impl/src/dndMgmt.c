@@ -691,13 +691,13 @@ static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
 
   switch (pMsg->msgType) {
     case TDMT_DND_CREATE_MNODE:
-      code = dndProcessCreateMnodeReq(pDnode, pMsg);
+      code = mmProcessCreateMnodeReq(pDnode, pMsg);
       break;
     case TDMT_DND_ALTER_MNODE:
-      code = dndProcessAlterMnodeReq(pDnode, pMsg);
+      code = mmProcessAlterMnodeReq(pDnode, pMsg);
       break;
     case TDMT_DND_DROP_MNODE:
-      code = dndProcessDropMnodeReq(pDnode, pMsg);
+      code = mmProcessDropMnodeReq(pDnode, pMsg);
       break;
     case TDMT_DND_CREATE_QNODE:
       code = dndProcessCreateQnodeReq(pDnode, pMsg);

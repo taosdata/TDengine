@@ -18,11 +18,72 @@
 
 #include "dndMgmt.h"
 #include "dndTransport.h"
-#include "dndWorker.h"
 
+static void    mmInitOption(SDnode *pDnode, SMnodeOpt *pOption);
+static void    mmBuildOptionForDeploy(SDnode *pDnode, SMnodeOpt *pOption);
+static void    mmBuildOptionForOpen(SDnode *pDnode, SMnodeOpt *pOption);
+static bool    mmDeployRequired(SDnode *pDnode);
+static int32_t mmOpenImp(SDnode *pDnode, SMnodeOpt *pOption);
 
+int32_t mmInit(SDnode *pDnode) {
+  dInfo("mnode mgmt start to init");
+  int32_t code = -1;
 
-static void dndProcessMnodeQueue(SDnode *pDnode, SMnodeMsg *pMsg);
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
+  taosInitRWLatch(&pMgmt->latch);
+  mmInitMsgFp(pMgmt);
+
+  if (mmReadFile(pDnode) != 0) {
+    goto _OVER;
+  }
+
+  if (pMgmt->dropped) {
+    dInfo("mnode has been dropped and needs to be deleted");
+    mndDestroy(pDnode->dir.mnode);
+    code = 0;
+    goto _OVER;
+  }
+
+  if (!pMgmt->deployed) {
+    bool required = mmDeployRequired(pDnode);
+    if (!required) {
+      dInfo("mnode does not need to be deployed");
+      code = 0;
+      goto _OVER;
+    }
+
+    dInfo("mnode start to deploy");
+    SMnodeOpt option = {0};
+    mmBuildOptionForDeploy(pDnode, &option);
+    code = mmOpen(pDnode, &option);
+  } else {
+    dInfo("mnode start to open");
+    SMnodeOpt option = {0};
+    mmBuildOptionForOpen(pDnode, &option);
+    code = mmOpen(pDnode, &option);
+  }
+
+_OVER:
+  if (code == 0) {
+    dInfo("mnode mgmt init success");
+  } else {
+    dError("failed to init mnode mgmt since %s", terrstr());
+    mmCleanup(pDnode);
+  }
+
+  return code;
+}
+
+void mmCleanup(SDnode *pDnode) {
+  dInfo("mnode mgmt start to clean up");
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
+  if (pMgmt->pMnode) {
+    mmStopWorker(pDnode);
+    mndClose(pMgmt->pMnode);
+    pMgmt->pMnode = NULL;
+  }
+  dInfo("mnode mgmt is cleaned up");
+}
 
 SMnode *mmAcquire(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
@@ -54,40 +115,84 @@ void mmRelease(SDnode *pDnode, SMnode *pMnode) {
   dTrace("release mnode, refCount:%d", refCount);
 }
 
-static int32_t mmStartWorker(SDnode *pDnode) {
+int32_t mmOpen(SDnode *pDnode, SMnodeOpt *pOption) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-  if (dndInitWorker(pDnode, &pMgmt->readWorker, DND_WORKER_SINGLE, "mnode-read", 0, 1, dndProcessMnodeQueue) != 0) {
-    dError("failed to start mnode read worker since %s", terrstr());
+  pMgmt->singleProc = true;
+  pMgmt->isChild = false;
+
+  int32_t code = mmOpenImp(pDnode, pOption);
+
+  if (code == 0 && !pMgmt->singleProc) {
+    SProcCfg cfg = {0};
+    cfg.childFp = (ProcFp)mmConsumeChildQueue;
+    cfg.parentFp = (ProcFp)mmConsumeParentQueue;
+    cfg.childQueueSize = 1024 * 1024;
+    cfg.parentQueueSize = 1024 * 1024;
+
+    pMgmt->pProcess = taosProcInit(&cfg);
+    if (pMgmt->pProcess == NULL) {
+      return -1;
+    }
+
+    pMgmt->pProcess->pParent = pDnode;
+    pMgmt->pProcess->testFlag = true;
+    return taosProcStart(pMgmt->pProcess);
+  }
+
+  return code;
+}
+
+int32_t mmAlter(SDnode *pDnode, SMnodeOpt *pOption) {
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
+
+  SMnode *pMnode = mmAcquire(pDnode);
+  if (pMnode == NULL) {
+    dError("failed to alter mnode since %s", terrstr());
     return -1;
   }
 
-  if (dndInitWorker(pDnode, &pMgmt->writeWorker, DND_WORKER_SINGLE, "mnode-write", 0, 1, dndProcessMnodeQueue) != 0) {
-    dError("failed to start mnode write worker since %s", terrstr());
+  if (mndAlter(pMnode, pOption) != 0) {
+    dError("failed to alter mnode since %s", terrstr());
+    mmRelease(pDnode, pMnode);
     return -1;
   }
 
-  if (dndInitWorker(pDnode, &pMgmt->syncWorker, DND_WORKER_SINGLE, "mnode-sync", 0, 1, dndProcessMnodeQueue) != 0) {
-    dError("failed to start mnode sync worker since %s", terrstr());
-    return -1;
-  }
-
+  mmRelease(pDnode, pMnode);
   return 0;
 }
 
-static void mmStopWorker(SDnode *pDnode) {
+int32_t mmDrop(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
-  taosWLockLatch(&pMgmt->latch);
-  pMgmt->deployed = 0;
-  taosWUnLockLatch(&pMgmt->latch);
-
-  while (pMgmt->refCount > 1) {
-    taosMsleep(10);
+  SMnode *pMnode = mmAcquire(pDnode);
+  if (pMnode == NULL) {
+    dError("failed to drop mnode since %s", terrstr());
+    return -1;
   }
 
-  dndCleanupWorker(&pMgmt->readWorker);
-  dndCleanupWorker(&pMgmt->writeWorker);
-  dndCleanupWorker(&pMgmt->syncWorker);
+  taosRLockLatch(&pMgmt->latch);
+  pMgmt->dropped = 1;
+  taosRUnLockLatch(&pMgmt->latch);
+
+  if (mmWriteFile(pDnode) != 0) {
+    taosRLockLatch(&pMgmt->latch);
+    pMgmt->dropped = 0;
+    taosRUnLockLatch(&pMgmt->latch);
+
+    mmRelease(pDnode, pMnode);
+    dError("failed to drop mnode since %s", terrstr());
+    return -1;
+  }
+
+  mmRelease(pDnode, pMnode);
+  mmStopWorker(pDnode);
+  pMgmt->deployed = 0;
+  mmWriteFile(pDnode);
+  mndClose(pMnode);
+  pMgmt->pMnode = NULL;
+  mndDestroy(pDnode->dir.mnode);
+
+  return 0;
 }
 
 static bool mmDeployRequired(SDnode *pDnode) {
@@ -106,43 +211,7 @@ static bool mmDeployRequired(SDnode *pDnode) {
   return true;
 }
 
-static int32_t mmPutMsgToQueue(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMsg *pRpcMsg) {
-  int32_t    contLen = sizeof(SMnodeMsg) + pRpcMsg->contLen;
-  SMnodeMsg *pMnodeMsg = taosAllocateQitem(contLen);
-  if (pMnodeMsg == NULL) {
-    return -1;
-  }
-
-  pMnodeMsg->contLen = pRpcMsg->contLen;
-  pMnodeMsg->pCont = (char *)pMnodeMsg + sizeof(SMnodeMsg);
-  memcpy(pMnodeMsg->pCont, pRpcMsg->pCont, pRpcMsg->contLen);
-  rpcFreeCont(pRpcMsg->pCont);
-
-  int32_t code = mmWriteToWorker(pDnode, pWorker, pMnodeMsg);
-  if (code != 0) {
-    taosFreeQitem(pMnodeMsg);
-  }
-
-  return code;
-}
-
-static int32_t mmPutMsgToWriteQueue(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  return mmPutMsgToQueue(pDnode, &pDnode->mmgmt.writeWorker, pRpcMsg);
-}
-
-static int32_t mmPutMsgToReadQueue(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  return mmPutMsgToQueue(pDnode, &pDnode->mmgmt.readWorker, pRpcMsg);
-}
-
-static void mmProcessChildQueue(SDnode *pDnode, SBlockItem *pBlock) {
-  SMnodeMsg *pMsg = (SMnodeMsg *)pBlock->pCont;
-  
-  if (mmWriteToWorker(pDnode, &pDnode->mmgmt.writeWorker, pMsg) != 0) {
-    //todo
-  }
-}
-
-static void mmInitOptionImp(SDnode *pDnode, SMnodeOpt *pOption) {
+static void mmInitOption(SDnode *pDnode, SMnodeOpt *pOption) {
   pOption->pDnode = pDnode;
   pOption->sendReqToDnodeFp = dndSendReqToDnode;
   pOption->sendReqToMnodeFp = dndSendReqToMnode;
@@ -153,8 +222,8 @@ static void mmInitOptionImp(SDnode *pDnode, SMnodeOpt *pOption) {
   pOption->clusterId = dndGetClusterId(pDnode);
 }
 
-static void mmInitDeployOption(SDnode *pDnode, SMnodeOpt *pOption) {
-  mmInitOptionImp(pDnode, pOption);
+static void mmBuildOptionForDeploy(SDnode *pDnode, SMnodeOpt *pOption) {
+  mmInitOption(pDnode, pOption);
   pOption->replica = 1;
   pOption->selfIndex = 0;
   SReplica *pReplica = &pOption->replicas[0];
@@ -168,16 +237,16 @@ static void mmInitDeployOption(SDnode *pDnode, SMnodeOpt *pOption) {
   memcpy(&pMgmt->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
 }
 
-static void mmInitOpenOption(SDnode *pDnode, SMnodeOpt *pOption) {
-  mmInitOptionImp(pDnode, pOption);
+static void mmBuildOptionForOpen(SDnode *pDnode, SMnodeOpt *pOption) {
+  mmInitOption(pDnode, pOption);
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   pOption->selfIndex = pMgmt->selfIndex;
   pOption->replica = pMgmt->replica;
   memcpy(&pOption->replicas, pMgmt->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
 }
 
-static int32_t mmInitOptionFromReq(SDnode *pDnode, SMnodeOpt *pOption, SDCreateMnodeReq *pCreate) {
-  mmInitOptionImp(pDnode, pOption);
+int32_t mmBuildOptionFromReq(SDnode *pDnode, SMnodeOpt *pOption, SDCreateMnodeReq *pCreate) {
+  mmInitOption(pDnode, pOption);
   pOption->dnodeId = dndGetDnodeId(pDnode);
   pOption->clusterId = dndGetClusterId(pDnode);
 
@@ -238,279 +307,4 @@ static int32_t mmOpenImp(SDnode *pDnode, SMnodeOpt *pOption) {
 
   dInfo("mnode open successfully");
   return 0;
-}
-
-
-static void dndMnodeProcessParentQueue(SMnodeMgmt *pMgmt, SBlockItem *pItem) {}
-
-static int32_t mmOpen(SDnode *pDnode, SMnodeOpt *pOption) {
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-  pMgmt->singleProc = false;
-
-  int32_t code = mmOpenImp(pDnode, pOption);
-
-  if (code == 0 && !pMgmt->singleProc) {
-    SProcCfg cfg = {0};
-    cfg.childFp = (ProcFp)mmProcessChildQueue;
-    cfg.parentFp = (ProcFp)dndMnodeProcessParentQueue;
-    cfg.childQueueSize = 1024 * 1024;
-    cfg.parentQueueSize = 1024 * 1024;
-
-    pMgmt->pProcess = taosProcInit(&cfg);
-    if (pMgmt->pProcess == NULL) {
-      return -1;
-    }
-    pMgmt->pProcess->pParent = pDnode;
-    pMgmt->pProcess->testFlag = true;
-    return taosProcStart(pMgmt->pProcess);
-  }
-
-  return code;
-}
-
-static int32_t dndAlterMnode(SDnode *pDnode, SMnodeOpt *pOption) {
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-
-  SMnode *pMnode = mmAcquire(pDnode);
-  if (pMnode == NULL) {
-    dError("failed to alter mnode since %s", terrstr());
-    return -1;
-  }
-
-  if (mndAlter(pMnode, pOption) != 0) {
-    dError("failed to alter mnode since %s", terrstr());
-    mmRelease(pDnode, pMnode);
-    return -1;
-  }
-
-  mmRelease(pDnode, pMnode);
-  return 0;
-}
-
-static int32_t dndDropMnode(SDnode *pDnode) {
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-
-  SMnode *pMnode = mmAcquire(pDnode);
-  if (pMnode == NULL) {
-    dError("failed to drop mnode since %s", terrstr());
-    return -1;
-  }
-
-  taosRLockLatch(&pMgmt->latch);
-  pMgmt->dropped = 1;
-  taosRUnLockLatch(&pMgmt->latch);
-
-  if (mmWriteFile(pDnode) != 0) {
-    taosRLockLatch(&pMgmt->latch);
-    pMgmt->dropped = 0;
-    taosRUnLockLatch(&pMgmt->latch);
-
-    mmRelease(pDnode, pMnode);
-    dError("failed to drop mnode since %s", terrstr());
-    return -1;
-  }
-
-  mmRelease(pDnode, pMnode);
-  mmStopWorker(pDnode);
-  pMgmt->deployed = 0;
-  mmWriteFile(pDnode);
-  mndClose(pMnode);
-  pMgmt->pMnode = NULL;
-  mndDestroy(pDnode->dir.mnode);
-
-  return 0;
-}
-
-int32_t dndProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SDCreateMnodeReq createReq = {0};
-  if (tDeserializeSDCreateMnodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
-
-  if (createReq.replica <= 1 || createReq.dnodeId != dndGetDnodeId(pDnode)) {
-    terrno = TSDB_CODE_DND_MNODE_INVALID_OPTION;
-    dError("failed to create mnode since %s", terrstr());
-    return -1;
-  }
-
-  SMnodeOpt option = {0};
-  if (mmInitOptionFromReq(pDnode, &option, &createReq) != 0) {
-    terrno = TSDB_CODE_DND_MNODE_INVALID_OPTION;
-    dError("failed to create mnode since %s", terrstr());
-    return -1;
-  }
-
-  SMnode *pMnode = mmAcquire(pDnode);
-  if (pMnode != NULL) {
-    mmRelease(pDnode, pMnode);
-    terrno = TSDB_CODE_DND_MNODE_ALREADY_DEPLOYED;
-    dError("failed to create mnode since %s", terrstr());
-    return -1;
-  }
-
-  dDebug("start to create mnode");
-  return mmOpenImp(pDnode, &option);
-}
-
-int32_t dndProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SDAlterMnodeReq alterReq = {0};
-  if (tDeserializeSDCreateMnodeReq(pReq->pCont, pReq->contLen, &alterReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
-
-  if (alterReq.dnodeId != dndGetDnodeId(pDnode)) {
-    terrno = TSDB_CODE_DND_MNODE_INVALID_OPTION;
-    dError("failed to alter mnode since %s", terrstr());
-    return -1;
-  }
-
-  SMnodeOpt option = {0};
-  if (mmInitOptionFromReq(pDnode, &option, &alterReq) != 0) {
-    terrno = TSDB_CODE_DND_MNODE_INVALID_OPTION;
-    dError("failed to alter mnode since %s", terrstr());
-    return -1;
-  }
-
-  SMnode *pMnode = mmAcquire(pDnode);
-  if (pMnode == NULL) {
-    terrno = TSDB_CODE_DND_MNODE_NOT_DEPLOYED;
-    dError("failed to alter mnode since %s", terrstr());
-    return -1;
-  }
-
-  dDebug("start to alter mnode");
-  int32_t code = dndAlterMnode(pDnode, &option);
-  mmRelease(pDnode, pMnode);
-
-  return code;
-}
-
-int32_t dndProcessDropMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SDDropMnodeReq dropReq = {0};
-  if (tDeserializeSMCreateDropMnodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
-
-  if (dropReq.dnodeId != dndGetDnodeId(pDnode)) {
-    terrno = TSDB_CODE_DND_MNODE_INVALID_OPTION;
-    dError("failed to drop mnode since %s", terrstr());
-    return -1;
-  }
-
-  SMnode *pMnode = mmAcquire(pDnode);
-  if (pMnode == NULL) {
-    terrno = TSDB_CODE_DND_MNODE_NOT_DEPLOYED;
-    dError("failed to drop mnode since %s", terrstr());
-    return -1;
-  }
-
-  dDebug("start to drop mnode");
-  int32_t code = dndDropMnode(pDnode);
-  mmRelease(pDnode, pMnode);
-
-  return code;
-}
-
-static void dndProcessMnodeQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-
-  SMnode *pMnode = mmAcquire(pDnode);
-  if (pMnode != NULL) {
-    mndProcessMsg(pMsg);
-    mmRelease(pDnode, pMnode);
-  } else {
-    mndSendRsp(pMsg, terrno);
-  }
-
-  // mndCleanupMsg(pMsg);
-}
-
-int32_t mmInit(SDnode *pDnode) {
-  dInfo("mnode mgmt start to init");
-  int32_t code = -1;
-
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-  taosInitRWLatch(&pMgmt->latch);
-  mmInitMsgFp(pMgmt);
-
-  if (mmReadFile(pDnode) != 0) {
-    goto _OVER;
-  }
-
-  if (pMgmt->dropped) {
-    dInfo("mnode has been dropped and needs to be deleted");
-    mndDestroy(pDnode->dir.mnode);
-    code = 0;
-    goto _OVER;
-  }
-
-  if (!pMgmt->deployed) {
-    bool required = mmDeployRequired(pDnode);
-    if (!required) {
-      dInfo("mnode does not need to be deployed");
-      code = 0;
-      goto _OVER;
-    }
-
-    dInfo("mnode start to deploy");
-    SMnodeOpt option = {0};
-    mmInitDeployOption(pDnode, &option);
-    code = mmOpen(pDnode, &option);
-  } else {
-    dInfo("mnode start to open");
-    SMnodeOpt option = {0};
-    mmInitOpenOption(pDnode, &option);
-    code = mmOpen(pDnode, &option);
-  }
-
-_OVER:
-  if (code == 0) {
-    dInfo("mnode mgmt init success");
-  } else {
-    dError("failed to init mnode mgmt since %s", terrstr());
-    mmCleanup(pDnode);
-  }
-
-  return code;
-}
-
-void mmCleanup(SDnode *pDnode) {
-  dInfo("mnode mgmt start to clean up");
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-  if (pMgmt->pMnode) {
-    mmStopWorker(pDnode);
-    mndClose(pMgmt->pMnode);
-    pMgmt->pMnode = NULL;
-  }
-  dInfo("mnode mgmt is cleaned up");
-}
-
-int32_t dndGetUserAuthFromMnode(SDnode *pDnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-
-  SMnode *pMnode = mmAcquire(pDnode);
-  if (pMnode == NULL) {
-    terrno = TSDB_CODE_APP_NOT_READY;
-    dTrace("failed to get user auth since %s", terrstr());
-    return -1;
-  }
-
-  int32_t code = mndRetriveAuth(pMnode, user, spi, encrypt, secret, ckey);
-  mmRelease(pDnode, pMnode);
-
-  dTrace("user:%s, retrieve auth spi:%d encrypt:%d", user, *spi, *encrypt);
-  return code;
-}
-
-int32_t mmGetMonitorInfo(SDnode *pDnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
-                         SMonGrantInfo *pGrantInfo) {
-  SMnode *pMnode = mmAcquire(pDnode);
-  if (pMnode == NULL) return -1;
-
-  int32_t code = mndGetMonitorInfo(pMnode, pClusterInfo, pVgroupInfo, pGrantInfo);
-  mmRelease(pDnode, pMnode);
-  return code;
 }

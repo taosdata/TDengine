@@ -24,31 +24,36 @@ extern "C" {
 // interface
 int32_t mmInit(SDnode *pDnode);
 void    mmCleanup(SDnode *pDnode);
-
-// internal
-void mmInitMsgFp(SMnodeMgmt *pMgmt);
-
-SMnode *mmAcquire(SDnode *pDnode);
-void    mmRelease(SDnode *pDnode, SMnode *pMnode);
+int32_t mmProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+int32_t mmProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+int32_t mmProcessDropMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
 
 // mmFile
 int32_t mmReadFile(SDnode *pDnode);
 int32_t mmWriteFile(SDnode *pDnode);
 
-// mmMsg
-void mmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
-
-// mmQueue
-int32_t mmWriteToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SMnodeMsg *pMnodeMsg);
-////////////
-
+// mmHandle
 int32_t dndGetUserAuthFromMnode(SDnode *pDnode, char *user, char *spi, char *encrypt, char *secret, char *ckey);
-int32_t dndProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t dndProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t dndProcessDropMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-
 int32_t mmGetMonitorInfo(SDnode *pDnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
                          SMonGrantInfo *pGrantInfo);
+
+// mmMgmt
+SMnode *mmAcquire(SDnode *pDnode);
+void    mmRelease(SDnode *pDnode, SMnode *pMnode);
+int32_t mmOpen(SDnode *pDnode, SMnodeOpt *pOption);
+int32_t mmAlter(SDnode *pDnode, SMnodeOpt *pOption);
+int32_t mmDrop(SDnode *pDnode);
+int32_t mmBuildOptionFromReq(SDnode *pDnode, SMnodeOpt *pOption, SDCreateMnodeReq *pCreate);
+
+// mmWorker
+int32_t mmStartWorker(SDnode *pDnode);
+void    mmStopWorker(SDnode *pDnode);
+void    mmInitMsgFp(SMnodeMgmt *pMgmt);
+void    mmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
+int32_t mmPutMsgToWriteQueue(SDnode *pDnode, SRpcMsg *pRpcMsg);
+int32_t mmPutMsgToReadQueue(SDnode *pDnode, SRpcMsg *pRpcMsg);
+void    mmConsumeChildQueue(SDnode *pDnode, SBlockItem *pBlock);
+void    mmConsumeParentQueue(SMnodeMgmt *pMgmt, SBlockItem *pBlock);
 
 #ifdef __cplusplus
 }

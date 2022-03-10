@@ -23,6 +23,45 @@
 static int32_t mmProcessWriteMsg(SDnode *pDnode, SMnodeMsg *pMnodeMsg);
 static int32_t mmProcessSyncMsg(SDnode *pDnode, SMnodeMsg *pMnodeMsg);
 static int32_t mmProcessReadMsg(SDnode *pDnode, SMnodeMsg *pMnodeMsg);
+static int32_t mmPutMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SMnodeMsg *pMnodeMsg);
+static int32_t mmPutRpcMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMsg *pRpcMsg);
+static void    mmConsumeQueue(SDnode *pDnode, SMnodeMsg *pMsg);
+
+int32_t mmStartWorker(SDnode *pDnode) {
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
+  if (dndInitWorker(pDnode, &pMgmt->readWorker, DND_WORKER_SINGLE, "mnode-read", 0, 1, mmConsumeQueue) != 0) {
+    dError("failed to start mnode read worker since %s", terrstr());
+    return -1;
+  }
+
+  if (dndInitWorker(pDnode, &pMgmt->writeWorker, DND_WORKER_SINGLE, "mnode-write", 0, 1, mmConsumeQueue) != 0) {
+    dError("failed to start mnode write worker since %s", terrstr());
+    return -1;
+  }
+
+  if (dndInitWorker(pDnode, &pMgmt->syncWorker, DND_WORKER_SINGLE, "mnode-sync", 0, 1, mmConsumeQueue) != 0) {
+    dError("failed to start mnode sync worker since %s", terrstr());
+    return -1;
+  }
+
+  return 0;
+}
+
+void mmStopWorker(SDnode *pDnode) {
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
+
+  taosWLockLatch(&pMgmt->latch);
+  pMgmt->deployed = 0;
+  taosWUnLockLatch(&pMgmt->latch);
+
+  while (pMgmt->refCount > 1) {
+    taosMsleep(10);
+  }
+
+  dndCleanupWorker(&pMgmt->readWorker);
+  dndCleanupWorker(&pMgmt->writeWorker);
+  dndCleanupWorker(&pMgmt->syncWorker);
+}
 
 void mmInitMsgFp(SMnodeMgmt *pMgmt) {
   // Requests handled by DNODE
@@ -151,18 +190,26 @@ _OVER:
 }
 
 int32_t mmProcessWriteMsg(SDnode *pDnode, SMnodeMsg *pMnodeMsg) {
-  return mmWriteToWorker(pDnode, &pDnode->mmgmt.writeWorker, pMnodeMsg);
+  return mmPutMsgToWorker(pDnode, &pDnode->mmgmt.writeWorker, pMnodeMsg);
 }
 
 int32_t mmProcessSyncMsg(SDnode *pDnode, SMnodeMsg *pMnodeMsg) {
-  return mmWriteToWorker(pDnode, &pDnode->mmgmt.syncWorker, pMnodeMsg);
+  return mmPutMsgToWorker(pDnode, &pDnode->mmgmt.syncWorker, pMnodeMsg);
 }
 
 int32_t mmProcessReadMsg(SDnode *pDnode, SMnodeMsg *pMnodeMsg) {
-  return mmWriteToWorker(pDnode, &pDnode->mmgmt.readWorker, pMnodeMsg);
+  return mmPutMsgToWorker(pDnode, &pDnode->mmgmt.readWorker, pMnodeMsg);
 }
 
-int32_t mmWriteToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SMnodeMsg *pMnodeMsg) {
+int32_t mmPutMsgToWriteQueue(SDnode *pDnode, SRpcMsg *pRpcMsg) {
+  return mmPutRpcMsgToWorker(pDnode, &pDnode->mmgmt.writeWorker, pRpcMsg);
+}
+
+int32_t mmPutMsgToReadQueue(SDnode *pDnode, SRpcMsg *pRpcMsg) {
+  return mmPutRpcMsgToWorker(pDnode, &pDnode->mmgmt.readWorker, pRpcMsg);
+}
+
+static int32_t mmPutMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SMnodeMsg *pMnodeMsg) {
   SMnode *pMnode = mmAcquire(pDnode);
   if (pMnode == NULL) return -1;
 
@@ -171,4 +218,48 @@ int32_t mmWriteToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SMnodeMsg *pMnode
 
   mmRelease(pDnode, pMnode);
   return code;
+}
+
+static int32_t mmPutRpcMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMsg *pRpcMsg) {
+  int32_t    contLen = sizeof(SMnodeMsg) + pRpcMsg->contLen;
+  SMnodeMsg *pMnodeMsg = taosAllocateQitem(contLen);
+  if (pMnodeMsg == NULL) {
+    return -1;
+  }
+
+  pMnodeMsg->contLen = pRpcMsg->contLen;
+  pMnodeMsg->pCont = (char *)pMnodeMsg + sizeof(SMnodeMsg);
+  memcpy(pMnodeMsg->pCont, pRpcMsg->pCont, pRpcMsg->contLen);
+  rpcFreeCont(pRpcMsg->pCont);
+
+  int32_t code = mmPutMsgToWorker(pDnode, pWorker, pMnodeMsg);
+  if (code != 0) {
+    taosFreeQitem(pMnodeMsg);
+  }
+
+  return code;
+}
+
+void mmConsumeChildQueue(SDnode *pDnode, SBlockItem *pBlock) {
+  SMnodeMsg *pMsg = (SMnodeMsg *)pBlock->pCont;
+
+  if (mmPutMsgToWorker(pDnode, &pDnode->mmgmt.writeWorker, pMsg) != 0) {
+    // todo
+  }
+}
+
+void mmConsumeParentQueue(SMnodeMgmt *pMgmt, SBlockItem *pBlock) {}
+
+static void mmConsumeQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
+
+  SMnode *pMnode = mmAcquire(pDnode);
+  if (pMnode != NULL) {
+    mndProcessMsg(pMsg);
+    mmRelease(pDnode, pMnode);
+  } else {
+    mndSendRsp(pMsg, terrno);
+  }
+
+  // mndCleanupMsg(pMsg);
 }
