@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include <pthread.h>
 #include <semaphore.h>
 
 #if defined (_TD_DARWIN_64)

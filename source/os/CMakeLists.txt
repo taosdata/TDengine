@@ -4,6 +4,7 @@ target_include_directories(
     os
     PUBLIC "${CMAKE_SOURCE_DIR}/include/os"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    PRIVATE "${CMAKE_SOURCE_DIR}/contrib/pthread"
 )
 target_link_libraries(
     os pthread dl rt m
