@@ -256,6 +256,10 @@ DLL_EXPORT void           tmq_conf_set_offset_commit_cb(tmq_conf_t *conf, tmq_co
 void    tmqShowMsg(tmq_message_t *tmq_message);
 int32_t tmqGetSkipLogNum(tmq_message_t *tmq_message);
 
+typedef void (*TAOS_SUBSCRIBE_CALLBACK)(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code);
+
+DLL_EXPORT int taos_stmt_affected_rows(TAOS_STMT* stmt);
+
 #ifdef __cplusplus
 }
 #endif
