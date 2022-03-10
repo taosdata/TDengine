@@ -2623,6 +2623,40 @@ int32_t tDeserializeSSchedulerHbRsp(void *buf, int32_t bufLen, SSchedulerHbRsp *
 
 void tFreeSSchedulerHbRsp(SSchedulerHbRsp *pRsp) { taosArrayDestroy(pRsp->taskStatus); }
 
+int32_t tSerializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->code) < 0) return -1;    
+  if (tEncodeI8(&encoder, pRsp->tableName.type) < 0) return -1;    
+  if (tEncodeI32(&encoder, pRsp->tableName.acctId) < 0) return -1;    
+  if (tEncodeCStr(&encoder, pRsp->tableName.dbname) < 0) return -1;  
+  if (tEncodeCStr(&encoder, pRsp->tableName.tname) < 0) return -1;  
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->code) < 0) return -1;
+  if (tDecodeI8(&decoder, &pRsp->tableName.type) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->tableName.acctId) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pRsp->tableName.dbname) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pRsp->tableName.tname) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tCoderClear(&decoder);
+  return 0;
+}
+
+
 int32_t tSerializeSVCreateTSmaReq(void **buf, SVCreateTSmaReq *pReq) {
   int32_t tlen = 0;
 
@@ -2655,4 +2689,3 @@ void *tDeserializeSVDropTSmaReq(void *buf, SVDropTSmaReq *pReq) {
 
   return buf;
 }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
