@@ -183,16 +183,65 @@ static EDealRes destroyNode(SNode** pNode, void* pContext) {
       break;
     }
     case QUERY_NODE_LOGIC_CONDITION:
-      nodesDestroyList(((SLogicConditionNode*)(*pNode))->pParameterList);
+      nodesClearList(((SLogicConditionNode*)(*pNode))->pParameterList);
       break;
     case QUERY_NODE_FUNCTION:
-      nodesDestroyList(((SFunctionNode*)(*pNode))->pParameterList);
+      nodesClearList(((SFunctionNode*)(*pNode))->pParameterList);
+      break;
+    case QUERY_NODE_REAL_TABLE: {
+      SRealTableNode* pReal = (SRealTableNode*)*pNode;
+      tfree(pReal->pMeta);
+      tfree(pReal->pVgroupList);
+      break;
+    }
+    case QUERY_NODE_TEMP_TABLE:
+      nodesDestroyNode(((STempTableNode*)(*pNode))->pSubquery);
       break;
     case QUERY_NODE_GROUPING_SET:
-      nodesDestroyList(((SGroupingSetNode*)(*pNode))->pParameterList);
+      nodesClearList(((SGroupingSetNode*)(*pNode))->pParameterList);
       break;
     case QUERY_NODE_NODE_LIST:
-      nodesDestroyList(((SNodeListNode*)(*pNode))->pNodeList);
+      nodesClearList(((SNodeListNode*)(*pNode))->pNodeList);
+      break;
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pStmt = (SSelectStmt*)*pNode;
+      nodesDestroyList(pStmt->pProjectionList);
+      nodesDestroyNode(pStmt->pFromTable);
+      nodesDestroyNode(pStmt->pWhere);
+      nodesDestroyList(pStmt->pPartitionByList);
+      nodesDestroyNode(pStmt->pWindow);
+      nodesDestroyList(pStmt->pGroupByList);
+      nodesDestroyNode(pStmt->pHaving);
+      nodesDestroyList(pStmt->pOrderByList);
+      nodesDestroyNode(pStmt->pLimit);
+      nodesDestroyNode(pStmt->pSlimit);
+      break;
+    }
+    case QUERY_NODE_VNODE_MODIF_STMT: {
+      SVnodeModifOpStmt* pStmt = (SVnodeModifOpStmt*)*pNode;
+      size_t size = taosArrayGetSize(pStmt->pDataBlocks);
+      for (size_t i = 0; i < size; ++i) {
+        SVgDataBlocks* pVg = taosArrayGetP(pStmt->pDataBlocks, i);
+        tfree(pVg->pData);
+        tfree(pVg);
+      }
+      taosArrayDestroy(pStmt->pDataBlocks);
+      break;
+    }
+    case QUERY_NODE_CREATE_TABLE_STMT: {
+      SCreateTableStmt* pStmt = (SCreateTableStmt*)*pNode;
+      nodesDestroyList(pStmt->pCols);
+      nodesDestroyList(pStmt->pTags);
+      break;
+    }
+    case QUERY_NODE_CREATE_SUBTABLE_CLAUSE: {
+      SCreateSubTableClause* pStmt = (SCreateSubTableClause*)*pNode;
+      nodesDestroyList(pStmt->pSpecificTags);
+      nodesDestroyList(pStmt->pValsOfTags);
+      break;
+    }
+    case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
+      nodesDestroyList(((SCreateMultiTableStmt*)(*pNode))->pSubTables);
       break;
     default:
       break;
@@ -300,6 +349,20 @@ void nodesDestroyList(SNodeList* pList) {
   SListCell* pNext = pList->pHead;
   while (NULL != pNext) {
     pNext = nodesListErase(pList, pNext);
+  }
+  tfree(pList);
+}
+
+void nodesClearList(SNodeList* pList) {
+  if (NULL == pList) {
+    return;
+  }
+
+  SListCell* pNext = pList->pHead;
+  while (NULL != pNext) {
+    SListCell* tmp = pNext;
+    pNext = pNext->pNext;
+    tfree(tmp);
   }
   tfree(pList);
 }

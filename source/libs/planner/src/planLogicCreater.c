@@ -20,6 +20,7 @@
 typedef struct SLogicPlanContext {
   int32_t errCode;
   int32_t planNodeId;
+  int32_t acctId;
 } SLogicPlanContext;
 
 static SLogicNode* createQueryLogicNode(SLogicPlanContext* pCxt, SNode* pStmt);
@@ -127,8 +128,8 @@ static SLogicNode* createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
   CHECK_ALLOC(pScan, NULL);
   pScan->node.id = pCxt->planNodeId++;
 
-  pScan->pMeta = pRealTable->pMeta;
-  pScan->pVgroupList = pRealTable->pVgroupList;
+  TSWAP(pScan->pMeta, pRealTable->pMeta, STableMeta*);
+  TSWAP(pScan->pVgroupList, pRealTable->pVgroupList, SVgroupsInfo*);
 
   // set columns to scan
   SNodeList* pCols = NULL;
@@ -146,7 +147,11 @@ static SLogicNode* createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
 
   pScan->scanType = SCAN_TYPE_TABLE;
   pScan->scanFlag = MAIN_SCAN;
-  pScan->scanRange = TSWINDOW_INITIALIZER;
+  pScan->scanRange = TSWINDOW_INITIALIZER;  
+  pScan->tableName.type = TSDB_TABLE_NAME_T;
+  pScan->tableName.acctId = pCxt->acctId;
+  strcpy(pScan->tableName.dbname, pRealTable->table.dbName);
+  strcpy(pScan->tableName.tname, pRealTable->table.tableName);
 
   return (SLogicNode*)pScan;
 }
@@ -373,7 +378,7 @@ static SLogicNode* createQueryLogicNode(SLogicPlanContext* pCxt, SNode* pStmt) {
 }
 
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicNode** pLogicNode) {
-  SLogicPlanContext cxt = { .errCode = TSDB_CODE_SUCCESS, .planNodeId = 1 };
+  SLogicPlanContext cxt = { .errCode = TSDB_CODE_SUCCESS, .planNodeId = 1, .acctId = pCxt->acctId };
   SLogicNode* pRoot = createQueryLogicNode(&cxt, pCxt->pAstRoot);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyNode((SNode*)pRoot);

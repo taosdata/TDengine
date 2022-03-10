@@ -41,6 +41,16 @@ protected:
   }
 
   bool run(int32_t parseCode = TSDB_CODE_SUCCESS, int32_t translateCode = TSDB_CODE_SUCCESS) {
+    query_ = nullptr;
+    bool res = runImpl(parseCode, translateCode);
+    qDestroyQuery(query_);
+    return res;
+  }
+
+private:
+  static const int max_err_len = 1024;
+
+  bool runImpl(int32_t parseCode, int32_t translateCode) {
     int32_t code = doParse(&cxt_, &query_);
     if (code != TSDB_CODE_SUCCESS) {
       cout << "sql:[" << cxt_.pSql << "] parser code:" << tstrerror(code) << ", msg:" << errMagBuf_ << endl;
@@ -62,9 +72,6 @@ protected:
     cout << toString(query_->pRoot) << endl;
     return (TSDB_CODE_SUCCESS == translateCode);
   }
-
-private:
-  static const int max_err_len = 1024;
 
   string toString(const SNode* pRoot, bool format = false) {
     char* pStr = NULL;
