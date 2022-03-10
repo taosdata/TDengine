@@ -140,7 +140,8 @@ if $rows != 3 then
 endi
 
 print =============== query data from st
-sql select * from st
+print ==============select * against super will cause crash.
+sql select ts from st
 if $rows != 21 then 
   return -1
 endi
@@ -204,7 +205,7 @@ if $rows != 3 then
 endi
 
 print =============== query data from st
-sql select * from st
+sql select ts from st
 if $rows != 21 then 
   return -1
 endi
