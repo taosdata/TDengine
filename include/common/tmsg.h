@@ -795,7 +795,7 @@ typedef struct SVgroupInfo {
   int32_t  vgId;
   uint32_t hashBegin;
   uint32_t hashEnd;
-  SEpSet   epset;
+  SEpSet   epSet;
 } SVgroupInfo;
 
 typedef struct {
@@ -1876,8 +1876,8 @@ typedef struct {
 } SVCreateTSmaReq;
 
 typedef struct {
-  int8_t      type;  // 0 status report, 1 update data
-  char        indexName[TSDB_INDEX_NAME_LEN + 1]; // 
+  int8_t      type;                                // 0 status report, 1 update data
+  char        indexName[TSDB_INDEX_NAME_LEN + 1];  //
   STimeWindow windows;
 } STSmaMsg;
 
@@ -2073,7 +2073,7 @@ typedef struct {
   int32_t         skipLogNum;
   int32_t         numOfTopics;
   SArray*         pBlockData;  // SArray<SSDataBlock>
-} SMqConsumeRsp;
+} SMqPollRsp;
 
 // one req for one vg+topic
 typedef struct {
@@ -2086,7 +2086,7 @@ typedef struct {
 
   int64_t currentOffset;
   char    topic[TSDB_TOPIC_FNAME_LEN];
-} SMqConsumeReq;
+} SMqPollReq;
 
 typedef struct {
   int32_t vgId;
@@ -2108,7 +2108,7 @@ typedef struct {
 struct tmq_message_t {
   SMqRspHead head;
   union {
-    SMqConsumeRsp    consumeRsp;
+    SMqPollRsp       consumeRsp;
     SMqCMGetSubEpRsp getEpRsp;
   };
   void* extra;
