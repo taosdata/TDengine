@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_MNODE_H_
-#define _TD_DND_MNODE_H_
+#ifndef _TD_DND_MNODE_MGMT_H_
+#define _TD_DND_MNODE_MGMT_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,6 +23,9 @@ extern "C" {
 
 int32_t mmInit(SDnode *pDnode);
 void    mmCleanup(SDnode *pDnode);
+
+int32_t mmReadFile(SDnode *pDnode);
+int32_t mmWriteFile(SDnode *pDnode);
 
 ////////////
 
@@ -34,11 +37,11 @@ int32_t dndProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
 int32_t dndProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
 int32_t dndProcessDropMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
 
-int32_t dndGetMnodeMonitorInfo(SDnode *pDnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
-                               SMonGrantInfo *pGrantInfo);
+int32_t mmGetMonitorInfo(SDnode *pDnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
+                  SMonGrantInfo *pGrantInfo);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DND_MNODE_H_*/
+#endif /*_TD_DND_MNODE_MGMT_H_*/

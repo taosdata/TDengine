@@ -520,7 +520,7 @@ static void dndSendMonitorReport(SDnode *pDnode) {
   SMonClusterInfo clusterInfo = {0};
   SMonVgroupInfo  vgroupInfo = {0};
   SMonGrantInfo   grantInfo = {0};
-  if (dndGetMnodeMonitorInfo(pDnode, &clusterInfo, &vgroupInfo, &grantInfo) == 0) {
+  if (mmGetMonitorInfo(pDnode, &clusterInfo, &vgroupInfo, &grantInfo) == 0) {
     monSetClusterInfo(pMonitor, &clusterInfo);
     monSetVgroupInfo(pMonitor, &vgroupInfo);
     monSetGrantInfo(pMonitor, &grantInfo);
