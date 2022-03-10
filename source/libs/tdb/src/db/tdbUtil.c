@@ -27,7 +27,7 @@ int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique) {
   ((uint64_t *)fileid)[0] = stDev;
   ((uint64_t *)fileid)[1] = stIno;
   if (unique) {
-    ((uint64_t *)fileid)[2] = rand();
+    ((uint64_t *)fileid)[2] = taosRand();
   }
 
   return 0;

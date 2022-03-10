@@ -192,11 +192,11 @@ static void msg_process(tmq_message_t* message) { tmqShowMsg(message); }
 // calc dir size (not include itself 4096Byte)
 int64_t getDirectorySize(char *dir)
 {
-    DIR *dp;
-    struct dirent *entry;
+    TdDirPtr pDir;
+    TdDirEntryPtr pDirEntry;
     int64_t totalSize=0;
 
-    if ((dp = opendir(dir)) == NULL) {
+    if ((pDir = taosOpenDir(dir)) == NULL) {
         fprintf(stderr, "Cannot open dir: %s\n", dir);
         return -1; 
     }
@@ -204,26 +204,27 @@ int64_t getDirectorySize(char *dir)
     //lstat(dir, &statbuf);
     //totalSize+=statbuf.st_size;
 
-    while ((entry = readdir(dp)) != NULL) {
+    while ((pDirEntry = taosReadDir(pDir)) != NULL) {
         char subdir[1024];
-        sprintf(subdir, "%s/%s", dir, entry->d_name);
+        char* fileName = taosGetDirEntryName(pDirEntry);
+        sprintf(subdir, "%s/%s", dir, fileName);
 
         //printf("===d_name: %s\n", entry->d_name);
         if (taosIsDir(subdir)) {
-            if (strcmp(".", entry->d_name) == 0 || strcmp("..", entry->d_name) == 0) {
+            if (strcmp(".", fileName) == 0 || strcmp("..", fileName) == 0) {
                 continue;
             }
 
             int64_t subDirSize = getDirectorySize(subdir);
             totalSize+=subDirSize;
-        } else if (0 == strcmp(strchr(entry->d_name, '.'), ".log")) { // only calc .log file size, and not include .idx file	
+        } else if (0 == strcmp(strchr(fileName, '.'), ".log")) { // only calc .log file size, and not include .idx file	
             int64_t file_size = 0;
             taosStatFile(subdir, &file_size, NULL);
             totalSize+=file_size;
         }
     }
 
-    closedir(dp);
+    taosCloseDir(pDir);
     return totalSize;
 }
 
@@ -352,7 +353,7 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   int32_t cnt = 0;
   /*clock_t startTime = clock();*/
   while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 500);
+    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 1);
     if (tmqmessage) {
       cnt++;
       msg_process(tmqmessage);
@@ -383,7 +384,7 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   }
 
   while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 500);
+    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 1);
     if (tmqmessage) {
       msg_process(tmqmessage);
       tmq_message_destroy(tmqmessage);
@@ -411,7 +412,7 @@ void perf_loop(tmq_t* tmq, tmq_list_t* topics, int32_t totalMsgs, int64_t walLog
   int32_t skipLogNum = 0;
   int64_t startTime = taosGetTimestampUs();
   while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 500);
+    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 1);
     if (tmqmessage) {
       batchCnt++;
       skipLogNum += tmqGetSkipLogNum(tmqmessage);

@@ -43,11 +43,11 @@ public:
 
     SVgroupInfo vgroup = {.vgId = vgid, .hashBegin = 0, .hashEnd = 0, };
 
-    vgroup.epset.eps[0] = (SEp){"dnode_1", 6030};
-    vgroup.epset.eps[1] = (SEp){"dnode_2", 6030};
-    vgroup.epset.eps[2] = (SEp){"dnode_3", 6030};
-    vgroup.epset.inUse = 0;
-    vgroup.epset.numOfEps = 3;
+    vgroup.epSet.eps[0] = (SEp){"dnode_1", 6030};
+    vgroup.epSet.eps[1] = (SEp){"dnode_2", 6030};
+    vgroup.epSet.eps[2] = (SEp){"dnode_3", 6030};
+    vgroup.epSet.inUse = 0;
+    vgroup.epSet.numOfEps = 3;
 
     meta_->vgs.emplace_back(vgroup);
     return *this;
@@ -123,14 +123,14 @@ public:
   int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const {
     // todo
     vgInfo->vgId = 1;
-    addEpIntoEpSet(&vgInfo->epset, "node1", 6030);
+    addEpIntoEpSet(&vgInfo->epSet, "node1", 6030);
     return 0;
   }
 
   int32_t catalogGetTableDistVgInfo(const SName* pTableName, SArray** pVgList) const {
     SVgroupInfo info = {0};
     info.vgId = 1;
-    addEpIntoEpSet(&info.epset, "node1", 6030);
+    addEpIntoEpSet(&info.epSet, "node1", 6030);
 
     info.hashBegin = 0;
     info.hashEnd = 1;
@@ -157,10 +157,10 @@ public:
     meta_[db][tbname]->schema->uid = id_++;
 
     SVgroupInfo vgroup = {.vgId = vgid, .hashBegin = 0, .hashEnd = 0,};
-    addEpIntoEpSet(&vgroup.epset, "dnode_1", 6030);
-    addEpIntoEpSet(&vgroup.epset, "dnode_2", 6030);
-    addEpIntoEpSet(&vgroup.epset, "dnode_3", 6030);
-    vgroup.epset.inUse = 0;
+    addEpIntoEpSet(&vgroup.epSet, "dnode_1", 6030);
+    addEpIntoEpSet(&vgroup.epSet, "dnode_2", 6030);
+    addEpIntoEpSet(&vgroup.epSet, "dnode_3", 6030);
+    vgroup.epSet.inUse = 0;
 
     meta_[db][tbname]->vgs.emplace_back(vgroup);
     // super table

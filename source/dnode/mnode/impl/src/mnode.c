@@ -96,7 +96,11 @@ static void mndCalMqRebalance(void *param, void *tmrId) {
   if (mndIsMaster(pMnode)) {
     int32_t contLen = 0;
     void   *pReq = mndBuildTimerMsg(&contLen);
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_MQ_TIMER, .pCont = pReq, .contLen = contLen};
+    SRpcMsg rpcMsg = {
+        .msgType = TDMT_MND_MQ_TIMER,
+        .pCont = pReq,
+        .contLen = contLen,
+    };
     pMnode->putReqToMReadQFp(pMnode->pDnode, &rpcMsg);
   }
 

@@ -31,9 +31,9 @@ typedef int64_t  SyncIndex;
 typedef uint64_t SyncTerm;
 
 typedef enum {
-  TAOS_SYNC_STATE_FOLLOWER = 0,
-  TAOS_SYNC_STATE_CANDIDATE = 1,
-  TAOS_SYNC_STATE_LEADER = 2,
+  TAOS_SYNC_STATE_FOLLOWER = 100,
+  TAOS_SYNC_STATE_CANDIDATE = 101,
+  TAOS_SYNC_STATE_LEADER = 102,
 } ESyncState;
 
 typedef struct SSyncBuffer {
@@ -134,6 +134,7 @@ typedef struct SSyncInfo {
   SyncGroupId vgId;
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
+  char        walPath[TSDB_FILENAME_LEN];
   SSyncFSM*   pFsm;
 
   void* rpcClient;

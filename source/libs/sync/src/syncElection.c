@@ -15,6 +15,7 @@
 
 #include "syncElection.h"
 #include "syncMessage.h"
+#include "syncRaftStore.h"
 
 // TLA+ Spec
 // RequestVote(i, j) ==
@@ -28,11 +29,31 @@
 //             mdest         |-> j])
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 //
-int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode) {}
+int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode) {
+  assert(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
+
+  int32_t ret = 0;
+  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+    SyncRequestVote* pMsg = syncRequestVoteBuild();
+    pMsg->srcId = pSyncNode->myRaftId;
+    pMsg->destId = pSyncNode->peersId[i];
+    pMsg->currentTerm = pSyncNode->pRaftStore->currentTerm;
+    pMsg->lastLogIndex = pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore);
+    pMsg->lastLogTerm = pSyncNode->pLogStore->getLastTerm(pSyncNode->pLogStore);
+
+    ret = syncNodeRequestVote(pSyncNode, &pSyncNode->peersId[i], pMsg);
+    assert(ret == 0);
+    syncRequestVoteDestroy(pMsg);
+  }
+  return ret;
+}
 
 int32_t syncNodeElect(SSyncNode* pSyncNode) {
+  assert(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
+
   // start election
-  syncNodeRequestVotePeers(pSyncNode);
+  int32_t ret = syncNodeRequestVotePeers(pSyncNode);
+  return ret;
 }
 
 int32_t syncNodeRequestVote(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncRequestVote* pMsg) {

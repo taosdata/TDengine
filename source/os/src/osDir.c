@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#define ALLOW_FORBID_FUNC
 
 #include "os.h"
 #include "osString.h"
@@ -35,6 +36,10 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <wordexp.h>
+
+typedef struct dirent dirent;
+typedef struct DIR TdDir;
+typedef struct dirent TdDirent;
 
 void taosRemoveDir(const char *dirname) {
   DIR *dir = opendir(dirname);
@@ -147,6 +152,49 @@ bool taosIsDir(const char *dirname) {
     return true;
   }
   return false;
+}
+
+char* taosDirName(char *name) {
+  return dirname(name);
+}
+
+char* taosDirEntryBaseName(char *name) {
+  return basename(name);
+}
+
+TdDirPtr taosOpenDir(const char *dirname) {
+  if (dirname == NULL) {
+    return NULL;
+  }
+  return (TdDirPtr)opendir(dirname);
+}
+
+TdDirEntryPtr taosReadDir(TdDirPtr pDir) {
+  if (pDir == NULL) {
+    return NULL;
+  }
+  return (TdDirEntryPtr)readdir((DIR*)pDir);
+}
+
+bool taosDirEntryIsDir(TdDirEntryPtr pDirEntry) {
+  if (pDirEntry == NULL) {
+    return false;
+  }
+  return (((dirent*)pDirEntry)->d_type & DT_DIR) != 0;
+}
+
+char* taosGetDirEntryName(TdDirEntryPtr pDirEntry) {
+  if (pDirEntry == NULL) {
+    return NULL;
+  }
+  return ((dirent*)pDirEntry)->d_name;
+}
+
+int32_t taosCloseDir(TdDirPtr pDir) {
+  if (pDir == NULL) {
+    return -1;
+  }
+  return closedir((DIR*)pDir);
 }
 
 #endif
