@@ -9,6 +9,11 @@ endfunction(cat IN_FILE OUT_FILE)
 set(CONTRIB_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
 configure_file("${CMAKE_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
+# pthread
+if(${BUILD_PTHREAD})
+    cat("${CMAKE_SUPPORT_DIR}/pthread_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif()
+
 # googletest
 if(${BUILD_TEST})
     cat("${CMAKE_SUPPORT_DIR}/gtest_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -193,7 +198,8 @@ endif(${BUILD_WITH_TRAFT})
 
 # LIBUV
 if(${BUILD_WITH_UV})
-    if (NOT ${TD_WINDOWS})
+    if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+        MESSAGE("Windows need set no-sign-compare")
         add_compile_options(-Wno-sign-compare)
     endif ()
     add_subdirectory(libuv)
@@ -226,6 +232,7 @@ if(${BUILD_WITH_SQLITE})
     )
 endif(${BUILD_WITH_SQLITE})
 
+# pthread
 
 
 # ================================================================================================

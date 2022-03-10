@@ -2,6 +2,16 @@
 # Deps options
 # =========================================================
 
+IF(${TD_WINDOWS} MATCHES TRUE)
+
+option(
+    BUILD_PTHREAD
+    "If build pthread on Windows" 
+    ON
+)
+
+ENDIF ()
+
 IF(${TD_LINUX} MATCHES TRUE)
 
 option(

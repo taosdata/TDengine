@@ -8,6 +8,7 @@ project(
 
 set(CMAKE_SUPPORT_DIR "${CMAKE_SOURCE_DIR}/cmake")
 set(CMAKE_CONTRIB_DIR "${CMAKE_SOURCE_DIR}/contrib")
+
 include(${CMAKE_SUPPORT_DIR}/cmake.platform)
 include(${CMAKE_SUPPORT_DIR}/cmake.define)
 include(${CMAKE_SUPPORT_DIR}/cmake.options)
@@ -25,6 +26,7 @@ if(${BUILD_TEST})
     include(CTest)
     enable_testing()
 endif(${BUILD_TEST})
+
 add_subdirectory(source)
 add_subdirectory(tools)
 add_subdirectory(tests)
