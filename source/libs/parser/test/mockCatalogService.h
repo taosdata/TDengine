@@ -43,7 +43,11 @@ public:
 };
 
 struct MockTableMeta {
-  std::shared_ptr<STableMeta> schema;
+  ~MockTableMeta() {
+    free(schema);
+  }
+
+  STableMeta* schema;
   std::vector<SVgroupInfo> vgs;
 };
 

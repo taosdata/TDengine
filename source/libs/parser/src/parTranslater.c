@@ -131,7 +131,7 @@ static int32_t createColumnNodeByTable(STranslateContext* pCxt, const STableNode
       if (NULL == pCol) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY);
       }
-      setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i < pMeta->tableInfo.numOfTags), pCol);
+      setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i >= pMeta->tableInfo.numOfColumns), pCol);
       nodesListAppend(pList, (SNode*)pCol);
     }
   } else {
@@ -156,7 +156,7 @@ static bool findAndSetColumn(SColumnNode* pCol, const STableNode* pTable) {
     int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
     for (int32_t i = 0; i < nums; ++i) {
       if (0 == strcmp(pCol->colName, pMeta->schema[i].name)) {
-        setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i < pMeta->tableInfo.numOfTags), pCol);
+        setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i >= pMeta->tableInfo.numOfColumns), pCol);
         found = true;
         break;
       }
@@ -508,7 +508,10 @@ static int32_t setTableVgroupList(STranslateContext *pCxt, SName* name, SVgroups
   
   size_t vgroupNum = taosArrayGetSize(vgroupList);
 
-  SVgroupsInfo *vgList = calloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo) * vgroupNum);
+  SVgroupsInfo* vgList = calloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo) * vgroupNum);
+  if (NULL == vgList) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   vgList->numOfVgroups = vgroupNum;
   
   for (int32_t i = 0; i < vgroupNum; ++i) {
@@ -582,7 +585,7 @@ static int32_t translateStar(STranslateContext* pCxt, SSelectStmt* pSelect, bool
     }
     *pIsSelectStar = true;
   } else {
-
+    // todo : t.*
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1090,6 +1093,10 @@ static int32_t translateShow(STranslateContext* pCxt, SShowStmt* pStmt) {
 static int32_t translateShowTables(STranslateContext* pCxt) {
   SName name = {0};
   SVShowTablesReq* pShowReq = calloc(1, sizeof(SVShowTablesReq));
+  if (pCxt->pParseCxt->db == NULL || strlen(pCxt->pParseCxt->db) == 0) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "db not specified");
+  }
+
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pCxt->pParseCxt->db, strlen(pCxt->pParseCxt->db));
   char dbFname[TSDB_DB_FNAME_LEN] = {0};
   tNameGetFullDbName(&name, dbFname);
@@ -1206,7 +1213,13 @@ static void destroyTranslateContext(STranslateContext* pCxt) {
   if (NULL != pCxt->pNsLevel) {
 
   }
+
+  size_t size = taosArrayGetSize(pCxt->pNsLevel);
+  for (size_t i = 0; i < size; ++i) {
+    taosArrayDestroy(taosArrayGetP(pCxt->pNsLevel, i));
+  }
   taosArrayDestroy(pCxt->pNsLevel);
+
   if (NULL != pCxt->pCmdMsg) {
     tfree(pCxt->pCmdMsg->pMsg);
     tfree(pCxt->pCmdMsg);

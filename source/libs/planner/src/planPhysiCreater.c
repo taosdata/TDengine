@@ -231,6 +231,7 @@ static int32_t initScanPhysiNode(SPhysiPlanContext* pCxt, SScanLogicNode* pScanL
   pScanPhysiNode->order = TSDB_ORDER_ASC;
   pScanPhysiNode->count = 1;
   pScanPhysiNode->reverse = 0;
+  memcpy(&pScanPhysiNode->tableName, &pScanLogicNode->tableName, sizeof(SName));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -583,7 +584,7 @@ static int32_t splitLogicPlan(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode, S
     (*pSubLogicPlan)->subplanType = SUBPLAN_TYPE_MODIFY;
     TSWAP(((SVnodeModifLogicNode*)pLogicNode)->pDataBlocks, ((SVnodeModifLogicNode*)(*pSubLogicPlan)->pNode)->pDataBlocks, SArray*);
   } else {
-    (*pSubLogicPlan)->subplanType = SUBPLAN_TYPE_MERGE;
+    (*pSubLogicPlan)->subplanType = SUBPLAN_TYPE_SCAN;
   }
   (*pSubLogicPlan)->id.queryId = pCxt->pPlanCxt->queryId;
   setLogicNodeParent((*pSubLogicPlan)->pNode);

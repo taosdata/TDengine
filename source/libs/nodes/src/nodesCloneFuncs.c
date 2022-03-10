@@ -220,6 +220,7 @@ static SNode* logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(scanType);
   COPY_SCALAR_FIELD(scanFlag);
   COPY_SCALAR_FIELD(scanRange);
+  COPY_SCALAR_FIELD(tableName);
   return (SNode*)pDst;
 }
 
