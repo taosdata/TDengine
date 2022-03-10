@@ -128,7 +128,7 @@ static SSmaStatItem *tsdbNewSmaStatItem(int8_t state) {
   return pItem;
 }
 
-int32_t tsdbFreeSmaState(SSmaStat *pSmaStat) {
+int32_t tsdbDestroySmaState(SSmaStat *pSmaStat) {
   if (pSmaStat) {
     // TODO: use taosHashSetFreeFp when taosHashSetFreeFp is ready.
     SSmaStatItem *item = taosHashIterate(pSmaStat->smaStatItems, NULL);
@@ -404,7 +404,7 @@ static int32_t tsdbInsertTSmaDataSection(STSmaWriteH *pSmaH, STSmaData *pData, i
 static int32_t tsdbInitTSmaWriteH(STSmaWriteH *pSmaH, STsdb *pTsdb, STSma *param, STSmaData *pData) {
   pSmaH->pTsdb = pTsdb;
   pSmaH->interval = tsdbGetIntervalByPrecision(param->interval, param->intervalUnit, REPO_CFG(pTsdb)->precision);
-  pSmaH->blockSize = param->numOfFuncIds * sizeof(int64_t);
+  // pSmaH->blockSize = param->numOfFuncIds * sizeof(int64_t);
 }
 
 static int32_t tsdbSetTSmaDataFile(STSmaWriteH *pSmaH, STSma *param, STSmaData *pData, int32_t storageLevel,
@@ -582,7 +582,7 @@ int32_t tsdbInsertRSmaDataImpl(STsdb *pTsdb, SRSma *param, STSmaData *pData) {
 static int32_t tsdbInitTSmaReadH(STSmaReadH *pSmaH, STsdb *pTsdb, STSma *param, STSmaData *pData) {
   pSmaH->pTsdb = pTsdb;
   pSmaH->interval = tsdbGetIntervalByPrecision(param->interval, param->intervalUnit, REPO_CFG(pTsdb)->precision);
-  pSmaH->blockSize = param->numOfFuncIds * sizeof(int64_t);
+  // pSmaH->blockSize = param->numOfFuncIds * sizeof(int64_t);
 }
 
 /**

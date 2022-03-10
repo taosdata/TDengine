@@ -42,17 +42,20 @@ TEST(testCase, tSmaEncodeDecodeTest) {
   tSma.slidingUnit = TD_TIME_UNIT_HOUR;
   tSma.sliding = 0;
   tstrncpy(tSma.indexName, "sma_index_test", TSDB_INDEX_NAME_LEN);
+  tstrncpy(tSma.timezone, "Asia/Shanghai", TD_TIMEZONE_LEN);
   tSma.tableUid = 1234567890;
-  tSma.numOfColIds = 2;
-  tSma.numOfFuncIds = 5;  // sum/min/max/avg/last
-  tSma.colIds = (col_id_t *)calloc(tSma.numOfColIds, sizeof(col_id_t));
-  tSma.funcIds = (uint16_t *)calloc(tSma.numOfFuncIds, sizeof(uint16_t));
-
-  for (int32_t i = 0; i < tSma.numOfColIds; ++i) {
-    *(tSma.colIds + i) = (i + PRIMARYKEY_TIMESTAMP_COL_ID);
-  }
-  for (int32_t i = 0; i < tSma.numOfFuncIds; ++i) {
-    *(tSma.funcIds + i) = (i + 2);
+  tSma.nFuncColIds = 5;
+  tSma.funcColIds = (SFuncColIds *)calloc(tSma.nFuncColIds, sizeof(SFuncColIds));
+  ASSERT(tSma.funcColIds != NULL);
+  for (int32_t n = 0; n < tSma.nFuncColIds; ++n) {
+    SFuncColIds *funcColIds = tSma.funcColIds + n;
+    funcColIds->funcId = n;
+    funcColIds->nColIds = 10;
+    funcColIds->colIds = (col_id_t *)calloc(funcColIds->nColIds, sizeof(col_id_t));
+    ASSERT(funcColIds->colIds != NULL);
+    for (int32_t i = 0; i < funcColIds->nColIds; ++i) {
+      *(funcColIds->colIds + i) = (i + PRIMARYKEY_TIMESTAMP_COL_ID);
+    }
   }
 
   STSmaWrapper tSmaWrapper = {.number = 1, .tSma = &tSma};
@@ -81,16 +84,21 @@ TEST(testCase, tSmaEncodeDecodeTest) {
     EXPECT_EQ(pSma->intervalUnit, qSma->intervalUnit);
     EXPECT_EQ(pSma->slidingUnit, qSma->slidingUnit);
     EXPECT_STRCASEEQ(pSma->indexName, qSma->indexName);
-    EXPECT_EQ(pSma->numOfColIds, qSma->numOfColIds);
-    EXPECT_EQ(pSma->numOfFuncIds, qSma->numOfFuncIds);
+    EXPECT_STRCASEEQ(pSma->timezone, qSma->timezone);
+    EXPECT_EQ(pSma->nFuncColIds, qSma->nFuncColIds);
     EXPECT_EQ(pSma->tableUid, qSma->tableUid);
     EXPECT_EQ(pSma->interval, qSma->interval);
     EXPECT_EQ(pSma->sliding, qSma->sliding);
-    for (uint32_t j = 0; j < pSma->numOfColIds; ++j) {
-      EXPECT_EQ(*(col_id_t *)(pSma->colIds + j), *(col_id_t *)(qSma->colIds + j));
-    }
-    for (uint32_t j = 0; j < pSma->numOfFuncIds; ++j) {
-      EXPECT_EQ(*(uint16_t *)(pSma->funcIds + j), *(uint16_t *)(qSma->funcIds + j));
+    EXPECT_EQ(pSma->tagsFilterLen, qSma->tagsFilterLen);
+    EXPECT_STRCASEEQ(pSma->tagsFilter, qSma->tagsFilter);
+    for (uint32_t j = 0; j < pSma->nFuncColIds; ++j) {
+      SFuncColIds *pFuncColIds = pSma->funcColIds + j;
+      SFuncColIds *qFuncColIds = qSma->funcColIds + j;
+      EXPECT_EQ(pFuncColIds->funcId, qFuncColIds->funcId);
+      EXPECT_EQ(pFuncColIds->nColIds, qFuncColIds->nColIds);
+      for (uint32_t k = 0; k < pFuncColIds->nColIds; ++k) {
+        EXPECT_EQ(*(pFuncColIds->colIds + k), *(qFuncColIds->colIds + k));
+      }
     }
   }
 
@@ -100,9 +108,11 @@ TEST(testCase, tSmaEncodeDecodeTest) {
 }
 
 TEST(testCase, tSma_DB_Put_Get_Del_Test) {
-  const char *smaIndexName1 = "sma_index_test_1";
-  const char *smaIndexName2 = "sma_index_test_2";
-  const char *smaTestDir = "./smaTest";
+  const char *   smaIndexName1 = "sma_index_test_1";
+  const char *   smaIndexName2 = "sma_index_test_2";
+  const char *   timeZone = "Asia/Shanghai";
+  const char *   tagsFilter = "I'm tags filter";
+  const char *   smaTestDir = "./smaTest";
   const uint64_t tbUid = 1234567890;
   const uint32_t nCntTSma = 2;
   // encode
@@ -113,21 +123,27 @@ TEST(testCase, tSma_DB_Put_Get_Del_Test) {
   tSma.slidingUnit = TD_TIME_UNIT_HOUR;
   tSma.sliding = 0;
   tstrncpy(tSma.indexName, smaIndexName1, TSDB_INDEX_NAME_LEN);
+  tstrncpy(tSma.timezone, timeZone, TD_TIMEZONE_LEN);
   tSma.tableUid = tbUid;
-  tSma.numOfColIds = 2;
-  tSma.numOfFuncIds = 5;  // sum/min/max/avg/last
-  tSma.colIds = (col_id_t *)calloc(tSma.numOfColIds, sizeof(col_id_t));
-  tSma.funcIds = (uint16_t *)calloc(tSma.numOfFuncIds, sizeof(uint16_t));
-
-  for (int32_t i = 0; i < tSma.numOfColIds; ++i) {
-    *(tSma.colIds + i) = (i + PRIMARYKEY_TIMESTAMP_COL_ID);
+  tSma.nFuncColIds = 5;
+  tSma.funcColIds = (SFuncColIds *)calloc(tSma.nFuncColIds, sizeof(SFuncColIds));
+  ASSERT(tSma.funcColIds != NULL);
+  for (int32_t n = 0; n < tSma.nFuncColIds; ++n) {
+    SFuncColIds *funcColIds = tSma.funcColIds + n;
+    funcColIds->funcId = n;
+    funcColIds->nColIds = 10;
+    funcColIds->colIds = (col_id_t *)calloc(funcColIds->nColIds, sizeof(col_id_t));
+    ASSERT(funcColIds->colIds != NULL);
+    for (int32_t i = 0; i < funcColIds->nColIds; ++i) {
+      *(funcColIds->colIds + i) = (i + PRIMARYKEY_TIMESTAMP_COL_ID);
+    }
   }
-  for (int32_t i = 0; i < tSma.numOfFuncIds; ++i) {
-    *(tSma.funcIds + i) = (i + 2);
-  }
+  tSma.tagsFilterLen = strlen(tagsFilter);
+  tSma.tagsFilter = (char *)calloc(tSma.tagsFilterLen + 1, 1);
+  tstrncpy(tSma.tagsFilter, tagsFilter, tSma.tagsFilterLen + 1);
 
   SMeta *         pMeta = NULL;
-  STSma *       pSmaCfg = &tSma;
+  STSma *         pSmaCfg = &tSma;
   const SMetaCfg *pMetaCfg = &defaultMetaOptions;
 
   taosRemoveDir(smaTestDir);
@@ -152,6 +168,8 @@ TEST(testCase, tSma_DB_Put_Get_Del_Test) {
   qSmaCfg = metaGetSmaInfoByName(pMeta, smaIndexName1);
   assert(qSmaCfg != NULL);
   printf("name1 = %s\n", qSmaCfg->indexName);
+  printf("timezone1 = %s\n", qSmaCfg->timezone);
+  printf("tagsFilter1 = %s\n", qSmaCfg->tagsFilter != NULL ? qSmaCfg->tagsFilter : "");
   EXPECT_STRCASEEQ(qSmaCfg->indexName, smaIndexName1);
   EXPECT_EQ(qSmaCfg->tableUid, tSma.tableUid);
   tdDestroyTSma(qSmaCfg);
@@ -160,6 +178,8 @@ TEST(testCase, tSma_DB_Put_Get_Del_Test) {
   qSmaCfg = metaGetSmaInfoByName(pMeta, smaIndexName2);
   assert(qSmaCfg != NULL);
   printf("name2 = %s\n", qSmaCfg->indexName);
+  printf("timezone2 = %s\n", qSmaCfg->timezone);
+  printf("tagsFilter2 = %s\n", qSmaCfg->tagsFilter != NULL ? qSmaCfg->tagsFilter : "");
   EXPECT_STRCASEEQ(qSmaCfg->indexName, smaIndexName2);
   EXPECT_EQ(qSmaCfg->interval, tSma.interval);
   tdDestroyTSma(qSmaCfg);
@@ -170,7 +190,7 @@ TEST(testCase, tSma_DB_Put_Get_Del_Test) {
   assert(pSmaCur != NULL);
   uint32_t indexCnt = 0;
   while (1) {
-    const char* indexName = metaSmaCursorNext(pSmaCur);
+    const char *indexName = metaSmaCursorNext(pSmaCur);
     if (indexName == NULL) {
       break;
     }
@@ -185,10 +205,14 @@ TEST(testCase, tSma_DB_Put_Get_Del_Test) {
   assert(pSW != NULL);
   EXPECT_EQ(pSW->number, nCntTSma);
   EXPECT_STRCASEEQ(pSW->tSma->indexName, smaIndexName1);
+  EXPECT_STRCASEEQ(pSW->tSma->timezone, timeZone);
+  EXPECT_STRCASEEQ(pSW->tSma->tagsFilter, tagsFilter);
   EXPECT_EQ(pSW->tSma->tableUid, tSma.tableUid);
   EXPECT_STRCASEEQ((pSW->tSma + 1)->indexName, smaIndexName2);
+  EXPECT_STRCASEEQ((pSW->tSma + 1)->timezone, timeZone);
+  EXPECT_STRCASEEQ((pSW->tSma + 1)->tagsFilter, tagsFilter);
   EXPECT_EQ((pSW->tSma + 1)->tableUid, tSma.tableUid);
-  
+
   tdDestroyTSmaWrapper(pSW);
   tfree(pSW);
 
@@ -210,11 +234,11 @@ TEST(testCase, tSma_DB_Put_Get_Del_Test) {
   metaClose(pMeta);
 }
 
-#if 1
+#if 0
 TEST(testCase, tSmaInsertTest) {
-  STSma     tSma = {0};
-  STSmaData* pSmaData = NULL;
-  STsdb     tsdb = {0};
+  STSma      tSma = {0};
+  STSmaData *pSmaData = NULL;
+  STsdb      tsdb = {0};
 
   // init
   tSma.intervalUnit = TD_TIME_UNIT_DAY;
@@ -227,7 +251,7 @@ TEST(testCase, tSmaInsertTest) {
 
   int32_t dataLen = numOfColIds * numOfBlocks * blockSize;
 
-  pSmaData = (STSmaData*)malloc(sizeof(STSmaData) + dataLen);
+  pSmaData = (STSmaData *)malloc(sizeof(STSmaData) + dataLen);
   ASSERT_EQ(pSmaData != NULL, true);
   pSmaData->tableUid = 3232329230;
   pSmaData->numOfColIds = numOfColIds;
@@ -235,7 +259,7 @@ TEST(testCase, tSmaInsertTest) {
   pSmaData->dataLen = dataLen;
   pSmaData->tsWindow.skey = 1640000000;
   pSmaData->tsWindow.ekey = 1645788649;
-  pSmaData->colIds = (col_id_t*)malloc(sizeof(col_id_t) * numOfColIds);
+  pSmaData->colIds = (col_id_t *)malloc(sizeof(col_id_t) * numOfColIds);
   ASSERT_EQ(pSmaData->colIds != NULL, true);
 
   for (int32_t i = 0; i < numOfColIds; ++i) {
