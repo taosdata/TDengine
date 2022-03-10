@@ -565,6 +565,16 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
         }
         *tokenId = TK_FLOAT;
       }
+
+      if (*tokenId == TK_INTEGER) {
+        for (i = 1; z[i] != '\0' && !isspace(z[i]); i++) {
+          if (i > 1) {
+            *tokenId = TK_ID;
+            break;
+          }
+        }
+      }
+
       return i;
     }
     case '[': {
