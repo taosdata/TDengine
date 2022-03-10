@@ -3,6 +3,7 @@
 #include "syncEnv.h"
 #include "syncIO.h"
 #include "syncInt.h"
+#include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
 
@@ -16,12 +17,14 @@ void logTest() {
 }
 
 uint16_t ports[] = {7010, 7110, 7210, 7310, 7410};
-int32_t  replicaNum = 5;
+int32_t  replicaNum = 1;
 int32_t  myIndex = 0;
 
-SRaftId   ids[TSDB_MAX_REPLICA];
-SSyncInfo syncInfo;
-SSyncFSM* pFsm;
+SRaftId    ids[TSDB_MAX_REPLICA];
+SSyncInfo  syncInfo;
+SSyncFSM*  pFsm;
+SWal*      pWal;
+SSyncNode* pSyncNode;
 
 SSyncNode* syncNodeInit() {
   syncInfo.vgId = 1234;
@@ -31,6 +34,19 @@ SSyncNode* syncNodeInit() {
   syncInfo.FpEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./");
+
+  SWalCfg walCfg;
+  memset(&walCfg, 0, sizeof(SWalCfg));
+  walCfg.vgId = syncInfo.vgId;
+  walCfg.fsyncPeriod = 1000;
+  walCfg.retentionPeriod = 1000;
+  walCfg.rollPeriod = 1000;
+  walCfg.retentionSize = 100000;
+  walCfg.segSize = 100000;
+  walCfg.level = TAOS_WAL_WRITE;
+  pWal = walOpen("./wal_test", &walCfg);
+
+  syncInfo.pWal = pWal;
 
   SSyncCfg* pCfg = &syncInfo.syncCfg;
   pCfg->myIndex = myIndex;
@@ -42,7 +58,7 @@ SSyncNode* syncNodeInit() {
     // taosGetFqdn(pCfg->nodeInfo[0].nodeFqdn);
   }
 
-  SSyncNode* pSyncNode = syncNodeOpen(&syncInfo);
+  pSyncNode = syncNodeOpen(&syncInfo);
   assert(pSyncNode != NULL);
 
   gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
@@ -60,6 +76,18 @@ SSyncNode* syncNodeInit() {
 }
 
 SSyncNode* syncInitTest() { return syncNodeInit(); }
+
+void logStoreTest() {
+  logStorePrint(pSyncNode->pLogStore);
+  for (int i = 0; i < 5; ++i) {
+    SSyncRaftEntry* pEntry;
+    pSyncNode->pLogStore->appendEntry(pSyncNode->pLogStore, pEntry);
+  }
+  logStorePrint(pSyncNode->pLogStore);
+
+  pSyncNode->pLogStore->truncate(pSyncNode->pLogStore, 3);
+  logStorePrint(pSyncNode->pLogStore);
+}
 
 void initRaftId(SSyncNode* pSyncNode) {
   for (int i = 0; i < replicaNum; ++i) {
@@ -86,14 +114,19 @@ int main(int argc, char** argv) {
   ret = syncEnvStart();
   assert(ret == 0);
 
-  SSyncNode* pSyncNode = syncInitTest();
+  pSyncNode = syncInitTest();
   assert(pSyncNode != NULL);
 
-  syncNodePrint((char*)"syncInitTest", pSyncNode);
+  syncNodePrint((char*)"syncLogStoreTest", pSyncNode);
 
   initRaftId(pSyncNode);
 
   //--------------------------------------------------------------
+
+  logStoreTest();
+
+  //--------------------------------------------------------------
+  // walClose(pWal);
 
   return 0;
 }

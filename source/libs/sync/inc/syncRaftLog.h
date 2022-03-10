@@ -63,6 +63,9 @@ cJSON* logStore2Json(SSyncLogStore* pLogStore);
 
 char* logStore2Str(SSyncLogStore* pLogStore);
 
+// for debug
+void logStorePrint(SSyncLogStore* pLogStore);
+
 #ifdef __cplusplus
 }
 #endif

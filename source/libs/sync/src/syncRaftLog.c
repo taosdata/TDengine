@@ -115,11 +115,44 @@ SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore) {
   return pEntry;
 }
 
-cJSON* logStore2Json(SSyncLogStore* pLogStore) {}
+cJSON* logStore2Json(SSyncLogStore* pLogStore) {
+  char u64buf[128];
+
+  SSyncLogStoreData* pData = (SSyncLogStoreData*)pLogStore->data;
+  cJSON*             pRoot = cJSON_CreateObject();
+  snprintf(u64buf, sizeof(u64buf), "%p", pData->pSyncNode);
+  cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%p", pData->pWal);
+  cJSON_AddStringToObject(pRoot, "pWal", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%lu", logStoreLastIndex(pLogStore));
+  cJSON_AddStringToObject(pRoot, "LastIndex", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%lu", logStoreLastTerm(pLogStore));
+  cJSON_AddStringToObject(pRoot, "LastTerm", u64buf);
+
+  cJSON* pEntries = cJSON_CreateArray();
+  cJSON_AddItemToObject(pRoot, "pEntries", pEntries);
+  SyncIndex lastIndex = logStoreLastIndex(pLogStore);
+  for (SyncIndex i = 1; i <= lastIndex; ++i) {
+    SSyncRaftEntry* pEntry = logStoreGetEntry(pLogStore, i);
+    cJSON_AddItemToArray(pEntries, syncEntry2Json(pEntry));
+    syncEntryDestory(pEntry);
+  }
+
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SSyncLogStore", pRoot);
+  return pJson;
+}
 
 char* logStore2Str(SSyncLogStore* pLogStore) {
   cJSON* pJson = logStore2Json(pLogStore);
   char*  serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
+}
+
+// for debug
+void logStorePrint(SSyncLogStore* pLogStore) {
+  char* s = logStore2Str(pLogStore);
+  sTrace("%s", s);
+  free(s);
 }
