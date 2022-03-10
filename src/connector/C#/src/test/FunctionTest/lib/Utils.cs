@@ -15,8 +15,6 @@ namespace Test.UtilsTools
         static string db = "";
         static short port = 0;
         //get a tdengine connection
-
-
         public static IntPtr TDConnection()
         {
             TDengine.Options((int)TDengineInitOption.TDDB_OPTION_CONFIGDIR, GetConfigPath());
@@ -390,7 +388,7 @@ namespace Test.UtilsTools
 
 
         /// <summary>
-        /// Using to parse TAOS_RES.
+        /// Using to parse TAOS_ROW.
         /// </summary>
         /// <param name="taosRow">This is TAOS_RES pointer</param>
         /// <param name="taosRes"> This is TAOS_ROW pointer</param>
