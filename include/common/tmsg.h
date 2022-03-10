@@ -1108,18 +1108,34 @@ typedef struct {
   char*  sql;
   char*  physicalPlan;
   char*  logicalPlan;
-} SMCreateTopicReq;
+} SCMCreateStreamReq;
 
-int32_t tSerializeMCreateTopicReq(void* buf, int32_t bufLen, const SMCreateTopicReq* pReq);
-int32_t tDeserializeSMCreateTopicReq(void* buf, int32_t bufLen, SMCreateTopicReq* pReq);
-void    tFreeSMCreateTopicReq(SMCreateTopicReq* pReq);
+typedef struct {
+  int64_t streamId;
+} SCMCreateStreamRsp;
+
+int32_t tSerializeSCMCreateStreamReq(void* buf, int32_t bufLen, const SCMCreateStreamReq* pReq);
+int32_t tDeserializeSCMCreateStreamReq(void* buf, int32_t bufLen, SCMCreateStreamReq* pReq);
+void    tFreeSCMCreateStreamReq(SCMCreateStreamReq* pReq);
+
+typedef struct {
+  char   name[TSDB_TOPIC_FNAME_LEN];
+  int8_t igExists;
+  char*  sql;
+  char*  physicalPlan;
+  char*  logicalPlan;
+} SCMCreateTopicReq;
+
+int32_t tSerializeSCMCreateTopicReq(void* buf, int32_t bufLen, const SCMCreateTopicReq* pReq);
+int32_t tDeserializeSCMCreateTopicReq(void* buf, int32_t bufLen, SCMCreateTopicReq* pReq);
+void    tFreeSCMCreateTopicReq(SCMCreateTopicReq* pReq);
 
 typedef struct {
   int64_t topicId;
-} SMCreateTopicRsp;
+} SCMCreateTopicRsp;
 
-int32_t tSerializeSMCreateTopicRsp(void* buf, int32_t bufLen, const SMCreateTopicRsp* pRsp);
-int32_t tDeserializeSMCreateTopicRsp(void* buf, int32_t bufLen, SMCreateTopicRsp* pRsp);
+int32_t tSerializeSCMCreateTopicRsp(void* buf, int32_t bufLen, const SCMCreateTopicRsp* pRsp);
+int32_t tDeserializeSCMCreateTopicRsp(void* buf, int32_t bufLen, SCMCreateTopicRsp* pRsp);
 
 typedef struct {
   int32_t topicNum;
