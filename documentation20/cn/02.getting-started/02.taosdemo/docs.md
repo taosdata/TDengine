@@ -153,7 +153,7 @@ insert delay, avg:       8.31ms, max:     860.12ms, min:       2.00ms
 ```
 $ taosBenchmark --help
 
--f, --file=FILE The meta file to the execution procedure. Currently, we support standard UTF-8 (without BOM) encoded files only.
+-f, --file=FILE The JSON configuration file to the execution procedure. Currently, we support standard UTF-8 (without BOM) encoded files only.
 -u, --user=USER The user name to use when connecting to the server.
 -p, --password The password to use when connecting to the server.
 -c, --config-dir=CONFIG_DIR Configuration directory.
@@ -478,7 +478,7 @@ taosBenchmark支持两种配置参数的模式，一种是命令行参数，一�
 
 一、命令行参数
 
--f：指定taosBenchmark所需参数的meta文件。当使用该参数时，其他所有命令行参数都失效。可选项，缺省是NULL。目前仅支持不含 BOM（byte-order mark）的标准 UTF-8 编码文件。
+-f：指定 taosBenchmark 所需参数的 JSON 配置文件。当使用该参数时，其他所有命令行参数都失效。可选项，缺省是 NULL。目前仅支持不含 BOM（byte-order mark）的标准 UTF-8 编码文件。
 
 -u： 用户名。可选项，缺省是“root“。
 
