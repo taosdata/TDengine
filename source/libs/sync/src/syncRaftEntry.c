@@ -109,3 +109,9 @@ void syncEntryPrint(const SSyncRaftEntry* pEntry) {
   sTrace("%s", s);
   free(s);
 }
+
+void syncEntryPrint2(char* s, const SSyncRaftEntry* pEntry) {
+  char* ss = syncEntry2Str(pEntry);
+  sTrace("%s | %s", s, ss);
+  free(ss);
+}

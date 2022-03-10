@@ -53,9 +53,11 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   char*    serialized = syncEntrySerialize(pEntry, &len);
   assert(serialized != NULL);
 
-  walWrite(pWal, pEntry->index, pEntry->msgType, serialized, len);
-  walFsync(pWal, true);
+  int code;
+  code = walWrite(pWal, pEntry->index, pEntry->msgType, serialized, len);
+  assert(code == 0);
 
+  walFsync(pWal, true);
   free(serialized);
 }
 
@@ -84,23 +86,20 @@ int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {
 
 // return index of last entry
 SyncIndex logStoreLastIndex(SSyncLogStore* pLogStore) {
-  /*
-  SSyncRaftEntry* pLastEntry = logStoreGetLastEntry(pLogStore);
-  SyncIndex       lastIndex = pLastEntry->index;
-  free(pLastEntry);
-  */
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  int64_t            last = walGetLastVer(pWal);
-  SyncIndex          lastIndex = last < 0 ? 0 : last;
+  SyncIndex          lastIndex = walGetLastVer(pWal);
   return lastIndex;
 }
 
 // return term of last entry
 SyncTerm logStoreLastTerm(SSyncLogStore* pLogStore) {
+  SyncTerm        lastTerm = 0;
   SSyncRaftEntry* pLastEntry = logStoreGetLastEntry(pLogStore);
-  SyncTerm        lastTerm = pLastEntry->term;
-  free(pLastEntry);
+  if (pLastEntry != NULL) {
+    lastTerm = pLastEntry->term;
+    free(pLastEntry);
+  }
   return lastTerm;
 }
 
@@ -121,8 +120,11 @@ SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
   SyncIndex          lastIndex = walGetLastVer(pWal);
-  SSyncRaftEntry*    pEntry;
-  pEntry = logStoreGetEntry(pLogStore, lastIndex);
+
+  SSyncRaftEntry* pEntry = NULL;
+  if (lastIndex > 0) {
+    pEntry = logStoreGetEntry(pLogStore, lastIndex);
+  }
   return pEntry;
 }
 
@@ -143,7 +145,7 @@ cJSON* logStore2Json(SSyncLogStore* pLogStore) {
   cJSON* pEntries = cJSON_CreateArray();
   cJSON_AddItemToObject(pRoot, "pEntries", pEntries);
   SyncIndex lastIndex = logStoreLastIndex(pLogStore);
-  for (SyncIndex i = 1; i <= lastIndex; ++i) {
+  for (SyncIndex i = 0; i <= lastIndex; ++i) {
     SSyncRaftEntry* pEntry = logStoreGetEntry(pLogStore, i);
     cJSON_AddItemToArray(pEntries, syncEntry2Json(pEntry));
     syncEntryDestory(pEntry);
@@ -164,6 +166,8 @@ char* logStore2Str(SSyncLogStore* pLogStore) {
 // for debug
 void logStorePrint(SSyncLogStore* pLogStore) {
   char* s = logStore2Str(pLogStore);
-  sTrace("%s", s);
+  // sTrace("%s", s);
+  fprintf(stderr, "logStorePrint: [len:%lu]| %s \n", strlen(s), s);
+
   free(s);
 }

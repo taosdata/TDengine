@@ -35,16 +35,19 @@ SSyncNode* syncNodeInit() {
   syncInfo.pFsm = pFsm;
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./");
 
+  int code = walInit();
+  assert(code == 0);
   SWalCfg walCfg;
   memset(&walCfg, 0, sizeof(SWalCfg));
   walCfg.vgId = syncInfo.vgId;
   walCfg.fsyncPeriod = 1000;
   walCfg.retentionPeriod = 1000;
   walCfg.rollPeriod = 1000;
-  walCfg.retentionSize = 100000;
-  walCfg.segSize = 100000;
-  walCfg.level = TAOS_WAL_WRITE;
+  walCfg.retentionSize = 1000;
+  walCfg.segSize = 1000;
+  walCfg.level = TAOS_WAL_FSYNC;
   pWal = walOpen("./wal_test", &walCfg);
+  assert(pWal != NULL);
 
   syncInfo.pWal = pWal;
 
@@ -80,8 +83,20 @@ SSyncNode* syncInitTest() { return syncNodeInit(); }
 void logStoreTest() {
   logStorePrint(pSyncNode->pLogStore);
   for (int i = 0; i < 5; ++i) {
-    SSyncRaftEntry* pEntry;
+    int32_t dataLen = 10;
+    SSyncRaftEntry* pEntry = syncEntryBuild(dataLen);
+    assert(pEntry != NULL);
+    pEntry->msgType = 1;
+    pEntry->originalRpcType = 2;
+    pEntry->seqNum = 3;
+    pEntry->isWeak = true;
+    pEntry->term = 100;
+    pEntry->index = pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore) + 1;
+    snprintf(pEntry->data, dataLen, "value%d", i);
+
+    //syncEntryPrint2((char*)"write entry:", pEntry);
     pSyncNode->pLogStore->appendEntry(pSyncNode->pLogStore, pEntry);
+    syncEntryDestory(pEntry);
   }
   logStorePrint(pSyncNode->pLogStore);
 
@@ -117,16 +132,10 @@ int main(int argc, char** argv) {
   pSyncNode = syncInitTest();
   assert(pSyncNode != NULL);
 
-  syncNodePrint((char*)"syncLogStoreTest", pSyncNode);
-
-  initRaftId(pSyncNode);
-
-  //--------------------------------------------------------------
+  //syncNodePrint((char*)"syncLogStoreTest", pSyncNode);
+  //initRaftId(pSyncNode);
 
   logStoreTest();
-
-  //--------------------------------------------------------------
-  // walClose(pWal);
 
   return 0;
 }

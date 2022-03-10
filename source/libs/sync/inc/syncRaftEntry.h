@@ -47,6 +47,7 @@ SSyncRaftEntry* syncEntryDeserialize(const char* buf, uint32_t len);
 cJSON*          syncEntry2Json(const SSyncRaftEntry* pEntry);
 char*           syncEntry2Str(const SSyncRaftEntry* pEntry);
 void            syncEntryPrint(const SSyncRaftEntry* pEntry);
+void            syncEntryPrint2(char *s, const SSyncRaftEntry* pEntry);
 
 #ifdef __cplusplus
 }
