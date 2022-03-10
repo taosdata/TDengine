@@ -150,7 +150,7 @@ SyncTimeout* syncTimeoutBuild2(ESyncTimeoutType timeoutType, uint64_t logicClock
 
 // ---- message process SyncPing----
 SyncPing* syncPingBuild(uint32_t dataLen) {
-  uint32_t  bytes = SYNC_PING_FIX_LEN + dataLen;
+  uint32_t  bytes = sizeof(SyncPing) + dataLen;
   SyncPing* pMsg = malloc(bytes);
   memset(pMsg, 0, bytes);
   pMsg->bytes = bytes;
@@ -173,7 +173,7 @@ void syncPingSerialize(const SyncPing* pMsg, char* buf, uint32_t bufLen) {
 void syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pMsg) {
   memcpy(pMsg, buf, len);
   assert(len == pMsg->bytes);
-  assert(pMsg->bytes == SYNC_PING_FIX_LEN + pMsg->dataLen);
+  assert(pMsg->bytes == sizeof(SyncPing) + pMsg->dataLen);
 }
 
 void syncPing2RpcMsg(const SyncPing* pMsg, SRpcMsg* pRpcMsg) {
@@ -272,7 +272,7 @@ void syncPingReplySerialize(const SyncPingReply* pMsg, char* buf, uint32_t bufLe
 void syncPingReplyDeserialize(const char* buf, uint32_t len, SyncPingReply* pMsg) {
   memcpy(pMsg, buf, len);
   assert(len == pMsg->bytes);
-  assert(pMsg->bytes == SYNC_PING_FIX_LEN + pMsg->dataLen);
+  assert(pMsg->bytes == sizeof(SyncPing) + pMsg->dataLen);
 }
 
 void syncPingReply2RpcMsg(const SyncPingReply* pMsg, SRpcMsg* pRpcMsg) {

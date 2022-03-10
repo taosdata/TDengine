@@ -83,7 +83,7 @@ typedef struct SyncPing {
   char     data[];
 } SyncPing;
 
-#define SYNC_PING_FIX_LEN (sizeof(uint32_t) + sizeof(uint32_t) + sizeof(SRaftId) + sizeof(SRaftId) + sizeof(uint32_t))
+//#define SYNC_PING_FIX_LEN (sizeof(uint32_t) + sizeof(uint32_t) + sizeof(SRaftId) + sizeof(SRaftId) + sizeof(uint32_t))
 
 SyncPing* syncPingBuild(uint32_t dataLen);
 void      syncPingDestroy(SyncPing* pMsg);
