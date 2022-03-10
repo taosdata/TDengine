@@ -508,7 +508,10 @@ static int32_t setTableVgroupList(STranslateContext *pCxt, SName* name, SVgroups
   
   size_t vgroupNum = taosArrayGetSize(vgroupList);
 
-  SVgroupsInfo *vgList = calloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo) * vgroupNum);
+  SVgroupsInfo* vgList = calloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo) * vgroupNum);
+  if (NULL == vgList) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   vgList->numOfVgroups = vgroupNum;
   
   for (int32_t i = 0; i < vgroupNum; ++i) {
@@ -582,7 +585,7 @@ static int32_t translateStar(STranslateContext* pCxt, SSelectStmt* pSelect, bool
     }
     *pIsSelectStar = true;
   } else {
-
+    // todo : t.*
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1206,7 +1209,13 @@ static void destroyTranslateContext(STranslateContext* pCxt) {
   if (NULL != pCxt->pNsLevel) {
 
   }
+
+  size_t size = taosArrayGetSize(pCxt->pNsLevel);
+  for (size_t i = 0; i < size; ++i) {
+    taosArrayDestroy(taosArrayGetP(pCxt->pNsLevel, i));
+  }
   taosArrayDestroy(pCxt->pNsLevel);
+
   if (NULL != pCxt->pCmdMsg) {
     tfree(pCxt->pCmdMsg->pMsg);
     tfree(pCxt->pCmdMsg);

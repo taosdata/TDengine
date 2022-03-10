@@ -94,3 +94,10 @@ bool fmIsAggFunc(int32_t funcId) {
   }
   return FUNC_MGT_TEST_MASK(funcMgtBuiltins[funcId].classification, FUNC_MGT_AGG_FUNC);
 }
+
+void fmFuncMgtDestroy() {
+  void* m = gFunMgtService.pFuncNameHashTable;
+  if (m != NULL && atomic_val_compare_exchange_ptr(&gFunMgtService.pFuncNameHashTable, m, 0) == m) {
+    taosHashCleanup(m);
+  }
+}

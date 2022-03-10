@@ -24,6 +24,7 @@ extern "C" {
 
 typedef struct SPlanContext {
   uint64_t queryId;
+  int32_t acctId;
   SNode* pAstRoot;
 } SPlanContext;
 

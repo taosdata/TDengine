@@ -533,12 +533,12 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
 
 SNode* createBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight) {
   return createLogicConditionNode(pCxt, LOGIC_COND_TYPE_AND,
-      createOperatorNode(pCxt, OP_TYPE_GREATER_EQUAL, pExpr, pLeft), createOperatorNode(pCxt, OP_TYPE_LOWER_EQUAL, pExpr, pRight));
+      createOperatorNode(pCxt, OP_TYPE_GREATER_EQUAL, pExpr, pLeft), createOperatorNode(pCxt, OP_TYPE_LOWER_EQUAL, nodesCloneNode(pExpr), pRight));
 }
 
 SNode* createNotBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight) {
   return createLogicConditionNode(pCxt, LOGIC_COND_TYPE_OR,
-      createOperatorNode(pCxt, OP_TYPE_LOWER_THAN, pExpr, pLeft), createOperatorNode(pCxt, OP_TYPE_GREATER_THAN, pExpr, pRight));
+      createOperatorNode(pCxt, OP_TYPE_LOWER_THAN, pExpr, pLeft), createOperatorNode(pCxt, OP_TYPE_GREATER_THAN, nodesCloneNode(pExpr), pRight));
 }
 
 SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNodeList* pParameterList) {
@@ -777,6 +777,7 @@ SNode* createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, cons
   strncpy(pStmt->dbName, pDbName->z, pDbName->n);
   pStmt->ignoreExists = ignoreExists;
   pStmt->options = *pOptions;
+  tfree(pOptions);
   return (SNode*)pStmt;
 }
 
@@ -839,6 +840,8 @@ SNode* createCreateTableStmt(SAstCreateContext* pCxt,
   pStmt->pCols = pCols;
   pStmt->pTags = pTags;
   pStmt->options = *pOptions;
+  nodesDestroyList(pOptions->pSma);
+  tfree(pOptions);
   nodesDestroyNode(pRealTable);
   return (SNode*)pStmt;
 }

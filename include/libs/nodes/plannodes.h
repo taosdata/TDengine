@@ -48,6 +48,7 @@ typedef struct SScanLogicNode {
   EScanType scanType;
   uint8_t scanFlag;         // denotes reversed scan of data or not
   STimeWindow scanRange;
+  SName tableName;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
