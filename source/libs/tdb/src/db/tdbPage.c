@@ -22,6 +22,8 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
   u8    *ptr;
   int    size;
 
+  ASSERT(TDB_IS_PGSIZE_VLD(pageSize));
+
   *ppPage = NULL;
   size = pageSize + sizeof(*pPage);
 
@@ -35,6 +37,11 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
 
   pPage->pData = ptr;
   pPage->pageSize = pageSize;
+  if (pageSize < 65536) {
+    pPage->szOffset = 2;
+  } else {
+    pPage->szOffset = 3;
+  }
   TDB_INIT_PAGE_LOCK(pPage);
 
   /* TODO */
@@ -56,7 +63,7 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
   int    ret;
   SCell *pTarget;
 
-  if (pPage->nOverflow || szCell + TDB_PAGE_CELL_OFFSET_SIZE(pPage) > pPage->nFree) {
+  if (pPage->nOverflow || szCell + pPage->szOffset > pPage->nFree) {
     // TODO
   } else {
     ret = tdbPageAllocate(pPage, szCell, &pTarget);
@@ -75,14 +82,12 @@ int tdbPageDropCell(SPage *pPage, int idx) {
 
 static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell) {
   SCell *pCell;
-  int    szOffset;
 
-  szOffset = TDB_PAGE_CELL_OFFSET_SIZE(pPage);
-  ASSERT(pPage->nFree > size + szOffset);
+  ASSERT(pPage->nFree > size + pPage->szOffset);
 
-  if (pPage->pFreeEnd - pPage->pFreeStart > size + szOffset) {
+  if (pPage->pFreeEnd - pPage->pFreeStart > size + pPage->szOffset) {
     pPage->pFreeEnd -= size;
-    pPage->pFreeStart += szOffset;
+    pPage->pFreeStart += pPage->szOffset;
 
     pCell = pPage->pFreeEnd;
   } else {

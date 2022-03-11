@@ -39,6 +39,7 @@ struct SPage {
   pthread_spinlock_t lock;
   u8                *pData;
   int                pageSize;
+  u8                 szOffset;
   // Fields below used by pager and am
   SPgid     pgid;
   SPageHdr *pPageHdr;
@@ -59,7 +60,6 @@ struct SPage {
 };
 
 // Macros
-#define TDB_PAGE_CELL_OFFSET_SIZE(pPage)    (((pPage)->pageSize < 65536) ? 2 : 3)
 #define TDB_PAGE_CELL_OFFSET_AT(pPage, idx) ((pPage)->aCellIdx[idx])
 #define TDB_PAGE_CELL_AT(pPage, idx)        ((pPage)->pData + TDB_PAGE_CELL_OFFSET_AT(pPage, idx))
 
