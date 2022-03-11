@@ -33,7 +33,7 @@ extern "C" {
   SPage   *pDirtyNext;  \
   SPager  *pPager;
 
-int    tdbPCacheOpen(int pageSize, int cacheSize, int extraSize, SPCache **ppCache);
+int    tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache);
 int    tdbPCacheClose(SPCache *pCache);
 SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage);
 void   tdbPCacheRelease(SPage *pPage);

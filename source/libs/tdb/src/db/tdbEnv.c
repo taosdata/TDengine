@@ -19,7 +19,7 @@ int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv) 
   STEnv *pEnv;
   int    dsize;
   int    zsize;
-  u8 *   pPtr;
+  u8    *pPtr;
   int    ret;
 
   *ppEnv = NULL;
@@ -48,7 +48,7 @@ int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv) 
 
   pEnv->jfd = -1;
 
-  ret = tdbPCacheOpen(pageSize, cacheSize, 0, &(pEnv->pCache));
+  ret = tdbPCacheOpen(pageSize, cacheSize, &(pEnv->pCache));
   if (ret < 0) {
     return -1;
   }
