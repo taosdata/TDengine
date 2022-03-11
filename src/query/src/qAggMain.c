@@ -5817,7 +5817,7 @@ static void window_start_function(SQLFunctionCtx *pCtx) {
 
 static void window_stop_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, pCtx->size, 1);
-  if (pCtx->functionId == TSDB_FUNC_WSTART) {
+  if (pCtx->functionId == TSDB_FUNC_WSTOP) {
     *(int64_t *)(pCtx->pOutput) = pCtx->endTs;
   } else { //TSDB_FUNC_QSTOP
     *(TSKEY *)(pCtx->pOutput) = pCtx->qWindow.ekey;
@@ -5827,7 +5827,7 @@ static void window_stop_function(SQLFunctionCtx *pCtx) {
 static void window_duration_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, pCtx->size, 1);
   int64_t duration;
-  if (pCtx->functionId == TSDB_FUNC_WSTART) {
+  if (pCtx->functionId == TSDB_FUNC_WDURATION) {
     duration = pCtx->endTs - pCtx->startTs;
   } else { //TSDB_FUNC_QDURATION
     duration = pCtx->qWindow.ekey - pCtx->qWindow.skey;
