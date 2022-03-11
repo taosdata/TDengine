@@ -43,6 +43,7 @@ typedef struct {
   ProcFreeFp    parentFreeBodyFp;
   bool          testFlag;
   void         *pParent;
+  const char   *name;
 } SProcCfg;
 
 SProcObj *taosProcInit(const SProcCfg *pCfg);

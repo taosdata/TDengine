@@ -134,8 +134,9 @@ int32_t mmOpen(SDnode *pDnode, SMnodeOpt *pOption) {
                     .parentFreeHeadFp = (ProcFreeFp)free,
                     .parentMallocBodyFp = (ProcMallocFp)rpcMallocCont,
                     .parentFreeBodyFp = (ProcFreeFp)rpcFreeCont,
-                    .testFlag = true,
-                    .pParent = pDnode};
+                    .testFlag = 0,
+                    .pParent = pDnode,
+                    .name = "mnode"};
 
     pMgmt->pProcess = taosProcInit(&cfg);
     if (pMgmt->pProcess == NULL) {

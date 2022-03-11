@@ -159,7 +159,6 @@ static int32_t mmBuildMsg(SMndMsg *pMsg, SRpcMsg *pRpc) {
   pMsg->rpcMsg = *pRpc;
   pMsg->createdTime = taosGetTimestampSec();
 
-  dTrace("msg:%p, is created, app:%p RPC:%p user:%s", pMsg, pRpc->ahandle, pRpc->handle, pMsg->user);
   return 0;
 }
 
@@ -183,6 +182,8 @@ void mmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     goto _OVER;
   }
 
+  dTrace("msg:%p, is created, app:%p RPC:%p user:%s", pMsg, pRpc->ahandle, pRpc->handle, pMsg->user);
+
   if (pMgmt->singleProc) {
     code = (*msgFp)(pDnode, pMsg);
   } else {
@@ -193,6 +194,7 @@ _OVER:
 
   if (code == 0) {
     if (!pMgmt->singleProc) {
+      dTrace("msg:%p, is freed", pMsg);
       taosFreeQitem(pMsg);
       rpcFreeCont(pRpc->pCont);
     }
@@ -202,6 +204,7 @@ _OVER:
       SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
       mmSendRpcRsp(pDnode, &rsp);
     }
+    dTrace("msg:%p, is freed", pMsg);
     taosFreeQitem(pMsg);
     rpcFreeCont(pRpc->pCont);
   }
@@ -231,6 +234,7 @@ static int32_t mmPutMndMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SMndMs
   SMnode *pMnode = mmAcquire(pDnode);
   if (pMnode == NULL) return -1;
 
+  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   int32_t code = dndWriteMsgToWorker(pWorker, pMsg, 0);
   mmRelease(pDnode, pMnode);
   return code;
@@ -242,11 +246,13 @@ static int32_t mmPutRpcMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMs
     return -1;
   }
 
+  dTrace("msg:%p, is created", pMsg);
   pMsg->rpcMsg = *pRpc;
   pMsg->createdTime = taosGetTimestampSec();
 
   int32_t code = mmPutMndMsgToWorker(pDnode, pWorker, pMsg);
   if (code != 0) {
+    dTrace("msg:%p, is freed", pMsg);
     taosFreeQitem(pMsg);
     rpcFreeCont(pRpc->pCont);
   }
@@ -271,6 +277,7 @@ void mmPutRpcRspToWorker(SDnode *pDnode, SRpcMsg *pRpc) {
 }
 
 void mmConsumeChildQueue(SDnode *pDnode, SMndMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen) {
+  dTrace("msg:%p, get from child queue", pMsg);
   SMndMgmt *pMgmt = &pDnode->mmgmt;
 
   SRpcMsg *pRpc = &pMsg->rpcMsg;
@@ -285,18 +292,22 @@ void mmConsumeChildQueue(SDnode *pDnode, SMndMsg *pMsg, int32_t msgLen, void *pC
       SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
       mmPutRpcRspToWorker(pDnode, &rsp);
     }
+
+    dTrace("msg:%p, is freed", pMsg);
     taosFreeQitem(pMsg);
     rpcFreeCont(pCont);
   }
 }
 
 void mmConsumeParentQueue(SDnode *pDnode, SRpcMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen) {
+  dTrace("msg:%p, get from parent queue", pMsg);
   pMsg->pCont = pCont;
   mmSendRpcRsp(pDnode, pMsg);
   free(pMsg);
 }
 
 static void mmConsumeMsgQueue(SDnode *pDnode, SMndMsg *pMsg) {
+  dTrace("msg:%p, get from msg queue", pMsg);
   SMnode  *pMnode = mmAcquire(pDnode);
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   bool     isReq = (pRpc->msgType & 1U);
@@ -321,6 +332,7 @@ static void mmConsumeMsgQueue(SDnode *pDnode, SMndMsg *pMsg) {
     }
   }
 
+  dTrace("msg:%p, is freed", pMsg);
   rpcFreeCont(pRpc->pCont);
   taosFreeQitem(pMsg);
 }
