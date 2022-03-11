@@ -486,7 +486,7 @@ static int tdbBtreeBalanceStep1(SBtreeBalanceHelper *pBlh) {
   pBlh->nOldPages = i + 1;
 
   if (i + nDiv - pParent->nOverflow == pParent->pPageHdr->nCells) {
-    pgno = pParent->pPageHdr->rChild;
+    // pgno = pParent->pPageHdr->rChild;
   } else {
     ASSERT(0);
     // TODO

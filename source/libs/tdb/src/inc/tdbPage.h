@@ -23,17 +23,16 @@ extern "C" {
 typedef u8 SCell;
 
 typedef struct __attribute__((__packed__)) {
-  u8 cksm[4];
-} SPageFtr;
-
-typedef struct __attribute__((__packed__)) {
   u16   flags;
   u16   nCells;
   u16   cellCont;
   u16   freeCell;
   u16   nFree;
-  SPgno rChild;
 } SPageHdr;
+
+typedef struct __attribute__((__packed__)) {
+  u8 cksm[4];
+} SPageFtr;
 
 struct SPage {
   u8                *pData;
