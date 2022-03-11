@@ -51,7 +51,7 @@
 #define COLUMN_INDEX_INITIAL_VAL (-2)
 #define COLUMN_INDEX_INITIALIZER \
   { COLUMN_INDEX_INITIAL_VAL, COLUMN_INDEX_INITIAL_VAL }
-#define COLUMN_INDEX_VALIDE(index) (((index).tableIndex >= 0) && ((index).columnIndex >= TSDB_TBNAME_COLUMN_INDEX))
+#define COLUMN_INDEX_VALID(index) (((index).tableIndex >= 0) && ((index).columnIndex >= TSDB_MIN_VALID_COLUMN_INDEX))
 #define TBNAME_LIST_SEP ","
 
 typedef struct SColumnList {  // todo refactor
@@ -98,7 +98,7 @@ static int32_t parseIntervalOffset(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SStrTo
 static int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SStrToken* pSliding);
 static int32_t validateStateWindowNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode, bool isStable);
 
-static int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExprItem* pItem, bool outerQuery);
+static int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExprItem* pItem, bool outerQuery, bool timeWindowQuery);
 
 static int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql, bool joinQuery);
 static int32_t validateFillNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode);
@@ -2262,7 +2262,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
                (type == SQL_NODE_EXPR && pItem->pNode->tokenId == TK_ARROW)) {
       // use the dynamic array list to decide if the function is valid or not
       // select table_name1.field_name1, table_name2.field_name2  from table_name1, table_name2
-      if (addProjectionExprAndResultField(pCmd, pQueryInfo, pItem, outerQuery) != TSDB_CODE_SUCCESS) {
+      if (addProjectionExprAndResultField(pCmd, pQueryInfo, pItem, outerQuery, timeWindowQuery) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
     }  else {
@@ -2405,13 +2405,14 @@ static int32_t doAddProjectionExprAndResultFields(SQueryInfo* pQueryInfo, SColum
   return numOfTotalColumns;
 }
 
-int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExprItem* pItem, bool outerQuery) {
+int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExprItem* pItem, bool outerQuery, bool timeWindowQuery) {
   const char* msg1 = "tag for normal table query is not allowed";
   const char* msg2 = "invalid column name";
-  const char* msg3 = "tbname not allowed in outer query";
+  const char* msg3 = "tbname/_wstart/_wstop/_wduration in outer query does not match inner query result";
   const char* msg4 = "-> operate can only used in json type";
   const char* msg5 = "the right value of -> operation must be string";
   const char* msg6 = "select name is too long than 64, please use alias name";
+  const char* msg7 = "_wstart/_wstop/_wduraion can only be applied to time window query";
 
   int32_t startPos = (int32_t)tscNumOfExprs(pQueryInfo);
   int32_t tokenId = pItem->pNode->tokenId;
@@ -2477,7 +2478,8 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
 
-    if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+    //for tbname and other pseudo columns
+    if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX || TSDB_COL_IS_TSWIN_COL(index.columnIndex)) {
       if (outerQuery) {
         STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
         int32_t         numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
@@ -2485,7 +2487,14 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
         bool existed = false;
         SSchema* pSchema = pTableMetaInfo->pTableMeta->schema;
         for (int32_t i = 0; i < numOfCols; ++i) {
-          if (strncasecmp(pSchema[i].name, TSQL_TBNAME_L, tListLen(pSchema[i].name)) == 0) {
+          if ((strncasecmp(pSchema[i].name, TSQL_TBNAME_L, tListLen(pSchema[i].name)) == 0 &&
+              index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) ||
+              (strncasecmp(pSchema[i].name, TSQL_TSWIN_START, tListLen(pSchema[i].name)) == 0 &&
+              index.columnIndex == TSDB_TSWIN_START_COLUMN_INDEX) ||
+              (strncasecmp(pSchema[i].name, TSQL_TSWIN_STOP, tListLen(pSchema[i].name)) == 0 &&
+              index.columnIndex == TSDB_TSWIN_STOP_COLUMN_INDEX) ||
+              (strncasecmp(pSchema[i].name, TSQL_TSWIN_DURATION, tListLen(pSchema[i].name)) == 0 &&
+              index.columnIndex == TSDB_TSWIN_DURATION_COLUMN_INDEX)) {
             existed = true;
             index.columnIndex = i;
             break;
@@ -2504,13 +2513,26 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
         /*SExprInfo* pExpr = */ tscAddFuncInSelectClause(pQueryInfo, startPos, TSDB_FUNC_PRJ, &index, &colSchema,
                                                          TSDB_COL_NORMAL, getNewResColId(pCmd));
       } else {
-        SSchema colSchema = *tGetTbnameColumnSchema();
-        char    name[TSDB_COL_NAME_LEN] = {0};
+        SSchema colSchema;
+        int16_t functionId, colType;
+        if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+          colSchema  = *tGetTbnameColumnSchema();
+          functionId = TSDB_FUNC_TAGPRJ;
+          colType    = TSDB_COL_TAG;
+        } else {
+          if (!timeWindowQuery) {
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
+          }
+          colSchema  = *tGetTimeWindowColumnSchema(index.columnIndex);
+          functionId = getTimeWindowFunctionID(index.columnIndex);
+          colType    = TSDB_COL_NORMAL;
+        }
+        char name[TSDB_COL_NAME_LEN] = {0};
         getColumnName(pItem, name, colSchema.name, sizeof(colSchema.name) - 1);
 
         tstrncpy(colSchema.name, name, TSDB_COL_NAME_LEN);
-        /*SExprInfo* pExpr = */ tscAddFuncInSelectClause(pQueryInfo, startPos, TSDB_FUNC_TAGPRJ, &index, &colSchema,
-                                                         TSDB_COL_TAG, getNewResColId(pCmd));
+        /*SExprInfo* pExpr = */ tscAddFuncInSelectClause(pQueryInfo, startPos, functionId, &index, &colSchema,
+                                                         colType, getNewResColId(pCmd));
       }
       pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
     } else {
@@ -3817,6 +3839,25 @@ static bool isTablenameToken(SStrToken* token) {
   return (tmpToken.n == strlen(TSQL_TBNAME_L) && strncasecmp(TSQL_TBNAME_L, tmpToken.z, tmpToken.n) == 0);
 }
 
+static bool isTimeWindowToken(SStrToken* token, int16_t *columnIndex) {
+  SStrToken tmpToken = *token;
+  SStrToken tableToken = {0};
+
+  extractTableNameFromToken(&tmpToken, &tableToken);
+  if (tmpToken.n == strlen(TSQL_TSWIN_START) && strncasecmp(TSQL_TSWIN_START, tmpToken.z, tmpToken.n) == 0) {
+    *columnIndex = TSDB_TSWIN_START_COLUMN_INDEX;
+    return true;
+  } else if (tmpToken.n == strlen(TSQL_TSWIN_STOP) && strncasecmp(TSQL_TSWIN_STOP, tmpToken.z, tmpToken.n) == 0) {
+    *columnIndex = TSDB_TSWIN_STOP_COLUMN_INDEX;
+    return true;
+  } else if (tmpToken.n == strlen(TSQL_TSWIN_DURATION) && strncasecmp(TSQL_TSWIN_DURATION, tmpToken.z, tmpToken.n) == 0) {
+    *columnIndex = TSDB_TSWIN_DURATION_COLUMN_INDEX;
+    return true;
+  } else {
+    return false;
+  }
+}
+
 static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SStrToken* pToken) {
   STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, index)->pTableMeta;
 
@@ -3853,11 +3894,14 @@ int32_t doGetColumnIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColum
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
+  int16_t tsWinColumnIndex;
   if (isTablenameToken(pToken)) {
     pIndex->columnIndex = TSDB_TBNAME_COLUMN_INDEX;
   } else if (strlen(DEFAULT_PRIMARY_TIMESTAMP_COL_NAME) == pToken->n &&
             strncasecmp(pToken->z, DEFAULT_PRIMARY_TIMESTAMP_COL_NAME, pToken->n) == 0) {
     pIndex->columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX; // just make runtime happy, need fix java test case InsertSpecialCharacterJniTest
+  } else if (isTimeWindowToken(pToken, &tsWinColumnIndex)) {
+    pIndex->columnIndex = tsWinColumnIndex;
   } else {
     // not specify the table name, try to locate the table index by column name
     if (pIndex->tableIndex == COLUMN_INDEX_INITIAL_VAL) {
@@ -3885,7 +3929,7 @@ int32_t doGetColumnIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColum
     }
   }
 
-  if (COLUMN_INDEX_VALIDE(*pIndex)) {
+  if (COLUMN_INDEX_VALID(*pIndex)) {
     return TSDB_CODE_SUCCESS;
   } else {
     return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -8211,6 +8255,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
   int16_t numOfScalar = 0;
   int16_t numOfSelectivity = 0;
   int16_t numOfAggregation = 0;
+  int16_t numOfTimeWindow  = 0;
 
   size_t numOfExprs = taosArrayGetSize(pQueryInfo->exprList);
   for (int32_t i = 0; i < numOfExprs; ++i) {
@@ -8230,6 +8275,10 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
         functionId == TSDB_FUNC_SCALAR_EXPR || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_STATE_COUNT ||
         functionId == TSDB_FUNC_STATE_DURATION) {
       continue;
+    }
+
+    if (functionId == TSDB_FUNC_WSTART || functionId == TSDB_FUNC_WSTOP || functionId == TSDB_FUNC_WDURATION) {
+      numOfTimeWindow++;
     }
 
     if (functionId < 0) {
@@ -8302,7 +8351,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
     }
   } else {
     if ((pQueryInfo->type & TSDB_QUERY_TYPE_PROJECTION_QUERY) != 0) {
-      if (numOfAggregation > 0 && pQueryInfo->groupbyExpr.numOfGroupCols == 0) {
+      if (numOfAggregation > 0 && pQueryInfo->groupbyExpr.numOfGroupCols == 0 && numOfTimeWindow == 0) {
         return invalidOperationMsg(msg, msg2);
       }
 
@@ -10155,10 +10204,13 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     }
 
     int32_t timeWindowQuery =
-        (TPARSER_HAS_TOKEN(pSqlNode->interval.interval) || TPARSER_HAS_TOKEN(pSqlNode->sessionVal.gap));
-    TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TABLE_QUERY);
+        (TPARSER_HAS_TOKEN(pSqlNode->interval.interval) ||
+         TPARSER_HAS_TOKEN(pSqlNode->sessionVal.gap) ||
+         TPARSER_HAS_TOKEN(pSqlNode->windowstateVal.col));
 
     int32_t joinQuery = (pSqlNode->from != NULL && taosArrayGetSize(pSqlNode->from->list) > 1);
+
+    TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TABLE_QUERY);
 
     // parse the group by clause in the first place
     if (validateGroupbyNode(pQueryInfo, pSqlNode->pGroupby, pCmd) != TSDB_CODE_SUCCESS) {
@@ -10317,7 +10369,9 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     }
 
     int32_t timeWindowQuery =
-        (TPARSER_HAS_TOKEN(pSqlNode->interval.interval) || TPARSER_HAS_TOKEN(pSqlNode->sessionVal.gap));
+        (TPARSER_HAS_TOKEN(pSqlNode->interval.interval) ||
+         TPARSER_HAS_TOKEN(pSqlNode->sessionVal.gap) ||
+         TPARSER_HAS_TOKEN(pSqlNode->windowstateVal.col));
 
     if (validateSelectNodeList(pCmd, pQueryInfo, pSqlNode->pSelNodeList, joinQuery, timeWindowQuery, false) !=
         TSDB_CODE_SUCCESS) {

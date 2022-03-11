@@ -5712,6 +5712,7 @@ static void tail_func_finalizer(SQLFunctionCtx *pCtx) {
   doFinalizer(pCtx);
 }
 
+
 static void state_count_function(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   SStateInfo *pStateInfo = GET_ROWCELL_INTERBUF(pResInfo);
@@ -5775,6 +5776,41 @@ static void state_duration_function(SQLFunctionCtx *pCtx) {
   }
   pResInfo->numOfRes += pCtx->size;
 }
+
+int16_t getTimeWindowFunctionID(int16_t colIndex) {
+  switch (colIndex) {
+    case TSDB_TSWIN_START_COLUMN_INDEX: {
+      return TSDB_FUNC_WSTART;
+    }
+    case TSDB_TSWIN_STOP_COLUMN_INDEX: {
+      return TSDB_FUNC_WSTOP;
+    }
+    case TSDB_TSWIN_DURATION_COLUMN_INDEX: {
+      return TSDB_FUNC_WDURATION;
+    }
+    default:
+      return TSDB_FUNC_INVALID_ID;
+  }
+}
+
+static void wstart_function(SQLFunctionCtx *pCtx) {
+  SET_VAL(pCtx, pCtx->size, 1);
+  *(int64_t *)(pCtx->pOutput) = pCtx->startTs;
+}
+
+static void wstop_function(SQLFunctionCtx *pCtx) {
+  SET_VAL(pCtx, pCtx->size, 1);
+  *(int64_t *)(pCtx->pOutput) = pCtx->endTs;
+}
+
+static void wduration_function(SQLFunctionCtx *pCtx) {
+  SET_VAL(pCtx, pCtx->size, 1);
+  int64_t duration = pCtx->endTs - pCtx->startTs;
+  if (duration < 0) {
+    duration = -duration;
+  }
+  *(int64_t *)(pCtx->pOutput) = duration;
+}
 /////////////////////////////////////////////////////////////////////////////////////////////
 /*
  * function compatible list.
@@ -5787,16 +5823,16 @@ static void state_duration_function(SQLFunctionCtx *pCtx) {
  *
  */
 int32_t functionCompatList[] = {
-    // count,   sum,      avg,       min,      max,    stddev,    percentile,   apercentile, first,   last
-    1,          1,        1,         1,        1,      1,          1,           1,           1,         1,
-    // last_row,top,      bottom,    spread,   twa,    leastsqr,   ts,          ts_dummy,   tag_dummy, ts_comp
-    4,         -1,       -1,         1,        1,      1,          1,           1,          1,          -1,
-    //  tag,    colprj,   tagprj,    arithm,  diff,    first_dist, last_dist,   stddev_dst, interp    rate,    irate
-    1,          1,        1,         1,       -1,      1,          1,           1,          5,          1,      1,
-    // tid_tag, deriv,    csum,       mavg,        sample,
-    6,          8,        -1,         -1,          -1,
-    // block_info,elapsed,histogram,unique,mode,tail,  stateCount, stateDuration
-    7,          1,        -1,        -1,      1,   -1, 1,         1,
+    // count,       sum,            avg,       min,        max,         stddev,    percentile,   apercentile, first,     last
+    1,              1,              1,         1,          1,           1,          1,           1,           1,         1,
+    // last_row,    top,            bottom,    spread,     twa,         leastsqr,   ts,          ts_dummy,    tag_dummy, ts_comp
+    4,              -1,             -1,        1,          1,           1,          1,           1,           1,         -1,
+    //  tag,        colprj,         tagprj,    arithm,    diff,         first_dist, last_dist,   stddev_dst,  interp     rate,   irate
+    1,              1,              1,         1,         -1,           1,          1,           1,           5,         1,      1,
+    // tid_tag,     deriv,          csum,      mavg,      sample,       block_info, elapsed,     histogram,   unique,    mode,   tail
+    6,              8,              -1,        -1,        -1,           7,          1,           -1,          -1,        1,      -1,
+    // stateCount,  stateDuration,  wstart,    wstop,     wduration,
+    1,              1,              1,         1,         1,
 };
 
 SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
@@ -6294,40 +6330,76 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                              mode_function_merge,
                              dataBlockRequired,
                           },
-                         {
-                             // 41
-                             "tail",
-                             TSDB_FUNC_TAIL,
-                             TSDB_FUNC_TAIL,
-                             TSDB_BASE_FUNC_MO | TSDB_FUNCSTATE_SELECTIVITY,
-                             tail_function_setup,
-                             tail_function,
-                             tail_func_finalizer,
-                             tail_func_merge,
-                             tailFuncRequired,
-                         },
-                         {
-                             // 42
-                             "stateCount",
-                             TSDB_FUNC_STATE_COUNT,
-                             TSDB_FUNC_INVALID_ID,
-                             TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
-                             function_setup,
-                             state_count_function,
-                             doFinalizer,
-                             noop1,
-                             dataBlockRequired,
-                         },
-                         {
-                             // 43
-                             "stateDuration",
-                             TSDB_FUNC_STATE_DURATION,
-                             TSDB_FUNC_INVALID_ID,
-                             TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
-                             function_setup,
-                             state_duration_function,
-                             doFinalizer,
-                             noop1,
-                             dataBlockRequired,
-                         }
+                          {
+                              // 41
+                              "tail",
+                              TSDB_FUNC_TAIL,
+                              TSDB_FUNC_TAIL,
+                              TSDB_BASE_FUNC_MO | TSDB_FUNCSTATE_SELECTIVITY,
+                              tail_function_setup,
+                              tail_function,
+                              tail_func_finalizer,
+                              tail_func_merge,
+                              tailFuncRequired,
+                          },
+                          {
+                              // 42
+                              "stateCount",
+                              TSDB_FUNC_STATE_COUNT,
+                              TSDB_FUNC_INVALID_ID,
+                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
+                              function_setup,
+                              state_count_function,
+                              doFinalizer,
+                              noop1,
+                              dataBlockRequired,
+                          },
+                          {
+                              // 43
+                              "stateDuration",
+                              TSDB_FUNC_STATE_DURATION,
+                              TSDB_FUNC_INVALID_ID,
+                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
+                              function_setup,
+                              state_duration_function,
+                              doFinalizer,
+                              noop1,
+                              dataBlockRequired,
+                          },
+                          {
+                              // 44
+                              "_wstart",
+                              TSDB_FUNC_WSTART,
+                              TSDB_FUNC_WSTART,
+                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
+                              function_setup,
+                              wstart_function,
+                              doFinalizer,
+                              copy_function,
+                              dataBlockRequired,
+                          },
+                          {
+                              // 45
+                              "_wstop",
+                              TSDB_FUNC_WSTOP,
+                              TSDB_FUNC_WSTOP,
+                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
+                              function_setup,
+                              wstop_function,
+                              doFinalizer,
+                              copy_function,
+                              dataBlockRequired,
+                          },
+                          {
+                              // 46
+                              "_wduration",
+                              TSDB_FUNC_WDURATION,
+                              TSDB_FUNC_WDURATION,
+                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
+                              function_setup,
+                              wduration_function,
+                              doFinalizer,
+                              copy_function,
+                              dataBlockRequired,
+                          }
 };
