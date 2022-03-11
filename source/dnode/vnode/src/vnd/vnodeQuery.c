@@ -30,7 +30,7 @@ void vnodeQueryClose(SVnode *pVnode) {
 
 int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in query queue is processing");
-  SReadHandle handle = {.reader = pVnode->pTsdb, .meta = pVnode->pMeta};
+  SReadHandle handle = {.reader = pVnode->pTsdb, .meta = pVnode->pMeta, .config = &pVnode->config};
 
   switch (pMsg->msgType) {
     case TDMT_VND_QUERY: {
@@ -89,10 +89,21 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   SRpcMsg         rpcMsg;
   int             msgLen = 0;
   int32_t         code = TSDB_CODE_VND_APP_ERROR;
+  char            tableFName[TSDB_TABLE_FNAME_LEN];
 
   STableInfoReq infoReq = {0};
   if (tDeserializeSTableInfoReq(pMsg->pCont, pMsg->contLen, &infoReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  metaRsp.dbId = pVnode->config.dbId;
+  memcpy(metaRsp.dbFName, infoReq.dbFName, sizeof(metaRsp.dbFName));
+  strcpy(metaRsp.tbName, infoReq.tbName);
+
+  sprintf(tableFName, "%s.%s", infoReq.dbFName, infoReq.tbName);
+  code = vnodeValidateTableHash(&pVnode->config, tableFName);
+  if (code) {
     goto _exit;
   }
 
@@ -132,9 +143,6 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     goto _exit;
   }
 
-  metaRsp.dbId = pVnode->config.dbId;
-  memcpy(metaRsp.dbFName, infoReq.dbFName, sizeof(metaRsp.dbFName));
-  strcpy(metaRsp.tbName, infoReq.tbName);
   if (pTbCfg->type == META_CHILD_TABLE) {
     strcpy(metaRsp.stbName, pStbCfg->name);
     metaRsp.suid = pTbCfg->ctbCfg.suid;

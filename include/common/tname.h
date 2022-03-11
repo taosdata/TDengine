@@ -17,7 +17,6 @@
 #define _TD_COMMON_NAME_H_
 
 #include "tdef.h"
-#include "tmsg.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,7 +60,8 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type);
 
 int32_t tNameSetAcctId(SName* dst, int32_t acctId);
 
-SSchema createSchema(uint8_t type, int32_t bytes, int32_t colId, const char* name);
+bool tNameDBNameEqual(SName* left, SName* right);
+
 
 #ifdef __cplusplus
 }

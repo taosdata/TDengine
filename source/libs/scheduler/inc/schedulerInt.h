@@ -136,6 +136,7 @@ typedef struct SSchJob {
   uint64_t         queryId;
   SSchJobAttr      attr;
   int32_t          levelNum;
+  int32_t          taskNum;
   void            *transport;
   SArray          *nodeList;   // qnode/vnode list, element is SQueryNodeAddr
   SArray          *levels;    // Element is SQueryLevel, starting from 0. SArray<SSchLevel>
@@ -154,7 +155,8 @@ typedef struct SSchJob {
   int32_t          remoteFetch;
   SSchTask        *fetchTask;
   int32_t          errCode;
-  void            *res;         //TODO free it or not
+  SArray          *errList;    // SArray<SQueryErrorInfo>
+  void            *resData;         //TODO free it or not
   int32_t          resNumOfRows;
   const char      *sql;
   SQueryProfileSummary summary;
@@ -168,9 +170,9 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_SET_TASK_LASTMSG_TYPE(_task, _type) do { if(_task) { atomic_store_32(&(_task)->lastMsgType, _type); } } while (0)
 #define SCH_GET_TASK_LASTMSG_TYPE(_task) ((_task) ? atomic_load_32(&(_task)->lastMsgType) : -1)
 
-#define SCH_IS_DATA_SRC_TASK(task) ((task)->plan->subplanType == SUBPLAN_TYPE_SCAN)
-#define SCH_TASK_NEED_WAIT_ALL(task) ((task)->plan->subplanType == SUBPLAN_TYPE_MODIFY)
-#define SCH_TASK_NO_NEED_DROP(task) ((task)->plan->subplanType == SUBPLAN_TYPE_MODIFY)
+#define SCH_IS_DATA_SRC_QRY_TASK(task) ((task)->plan->subplanType == SUBPLAN_TYPE_SCAN)
+#define SCH_IS_DATA_SRC_TASK(task) (((task)->plan->subplanType == SUBPLAN_TYPE_SCAN) || ((task)->plan->subplanType == SUBPLAN_TYPE_MODIFY))
+#define SCH_IS_LEAF_TASK(_job, _task) (((_task)->level->level + 1) == (_job)->levelNum)
 
 #define SCH_SET_TASK_STATUS(task, st) atomic_store_8(&(task)->status, st)
 #define SCH_GET_TASK_STATUS(task) atomic_load_8(&(task)->status)
@@ -180,12 +182,14 @@ extern SSchedulerMgmt schMgmt;
 
 #define SCH_SET_JOB_NEED_FLOW_CTRL(_job) (_job)->attr.needFlowCtrl = true
 #define SCH_JOB_NEED_FLOW_CTRL(_job) ((_job)->attr.needFlowCtrl)
-#define SCH_TASK_NEED_FLOW_CTRL(_job, _task) (SCH_IS_DATA_SRC_TASK(_task) && SCH_JOB_NEED_FLOW_CTRL(_job) && SCH_IS_LEAF_TASK(_job, _task) && SCH_IS_LEVEL_UNFINISHED((_task)->level))
+#define SCH_TASK_NEED_FLOW_CTRL(_job, _task) (SCH_IS_DATA_SRC_QRY_TASK(_task) && SCH_JOB_NEED_FLOW_CTRL(_job) && SCH_IS_LEAF_TASK(_job, _task) && SCH_IS_LEVEL_UNFINISHED((_task)->level))
 
 #define SCH_SET_JOB_TYPE(_job, type) (_job)->attr.queryJob = ((type) != SUBPLAN_TYPE_MODIFY)
 #define SCH_IS_QUERY_JOB(_job) ((_job)->attr.queryJob) 
 #define SCH_JOB_NEED_FETCH(_job) SCH_IS_QUERY_JOB(_job)
-#define SCH_IS_LEAF_TASK(_job, _task) (((_task)->level->level + 1) == (_job)->levelNum)
+#define SCH_IS_WAIT_ALL_JOB(_job) (!SCH_IS_QUERY_JOB(_job))
+#define SCH_IS_NEED_DROP_JOB(_job) (SCH_IS_QUERY_JOB(_job))
+
 #define SCH_IS_LEVEL_UNFINISHED(_level) ((_level)->taskLaunchedNum < (_level)->taskNum)
 #define SCH_GET_CUR_EP(_addr) (&(_addr)->epSet.eps[(_addr)->epSet.inUse])
 #define SCH_SWITCH_EPSET(_addr) ((_addr)->epSet.inUse = ((_addr)->epSet.inUse + 1) % (_addr)->epSet.numOfEps)
@@ -219,7 +223,7 @@ int32_t schCheckIncTaskFlowQuota(SSchJob *pJob, SSchTask *pTask, bool *enough);
 int32_t schLaunchTasksInFlowCtrlList(SSchJob *pJob, SSchTask *pTask);
 int32_t schLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask);
 int32_t schFetchFromRemote(SSchJob *pJob);
-int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode);
+int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode, SQueryErrorInfo *errInfo);
 
 
 #ifdef __cplusplus

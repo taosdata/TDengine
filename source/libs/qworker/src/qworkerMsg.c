@@ -44,17 +44,23 @@ void qwFreeFetchRsp(void *msg) {
   }
 }
 
-int32_t qwBuildAndSendQueryRsp(void *connection, int32_t code) {
+int32_t qwBuildAndSendQueryRsp(void *connection, int32_t code, SQueryErrorInfo *errInfo) {
   SRpcMsg *pMsg = (SRpcMsg *)connection;
-  SQueryTableRsp *pRsp = (SQueryTableRsp *)rpcMallocCont(sizeof(SQueryTableRsp));
-  pRsp->code = code;
+  SQueryTableRsp rsp = {.code = code};
+  if (errInfo && errInfo->code) {
+    rsp.tableName = errInfo->tableName;
+  }
+  
+  int32_t contLen = tSerializeSQueryTableRsp(NULL, 0, &rsp);
+  void *msg = rpcMallocCont(contLen);
+  tSerializeSQueryTableRsp(msg, contLen, &rsp);
 
   SRpcMsg rpcRsp = {
     .msgType = TDMT_VND_QUERY_RSP,
     .handle  = pMsg->handle,
     .ahandle = pMsg->ahandle,
-    .pCont   = pRsp,
-    .contLen = sizeof(*pRsp),
+    .pCont   = msg,
+    .contLen = contLen,
     .code    = code,
   };
 

@@ -84,7 +84,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle) {
   }
 
   qTaskInfo_t pTaskInfo = NULL;
-  code = qCreateExecTask(streamReadHandle, 0, 0, plan, &pTaskInfo, NULL);
+  code = qCreateExecTask(streamReadHandle, 0, 0, plan, &pTaskInfo, NULL, NULL);
   if (code != TSDB_CODE_SUCCESS) {
     // TODO: destroy SSubplan & pTaskInfo
     terrno = code;

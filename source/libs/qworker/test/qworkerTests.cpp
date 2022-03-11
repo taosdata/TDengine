@@ -262,7 +262,7 @@ void qwtRpcSendResponse(const SRpcMsg *pRsp) {
   return;
 }
 
-int32_t qwtCreateExecTask(void* tsdb, int32_t vgId, struct SSubplan* pPlan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle) {
+int32_t qwtCreateExecTask(void* tsdb, int32_t vgId, struct SSubplan* pPlan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, SQueryErrorInfo *errInfo) {
   int32_t idx = abs((++qwtTestCaseIdx) % qwtTestCaseNum);
 
   qwtTestSinkBlockNum = 0;
