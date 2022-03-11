@@ -49,7 +49,7 @@ struct SPage {
   int       maxLocal;
   int       minLocal;
   int       nOverflow;
-  void     *apOvfl[4];
+  SCell    *apOvfl[4];
   int       aiOvfl[4];
   // Fields used by SPCache
   TDB_PCACHE_PAGE

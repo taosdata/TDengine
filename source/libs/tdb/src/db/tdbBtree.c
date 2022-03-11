@@ -526,10 +526,42 @@ static int tdbBtreeBalanceStep1(SBtreeBalanceHelper *pBlh) {
 
 static int tdbBtreeBalanceStep2(SBtreeBalanceHelper *pBlh) {
   SPage *pPage;
+  int    oidx;
+  int    cidx;
+  int    limit;
+  SCell *pCell;
 
   for (int i = 0; i < pBlh->nOldPages; i++) {
     pPage = pBlh->pOldPages[i];
-    /* code */
+    oidx = 0;
+    cidx = 0;
+
+    if (oidx < pPage->nOverflow) {
+      limit = pPage->aiOvfl[oidx];
+    } else {
+      limit = pPage->pPageHdr->nCells;
+    }
+
+    // Loop to copy each cell pointer out
+    for (;;) {
+      if (oidx >= pPage->nOverflow && cidx >= pPage->pPageHdr->nCells) break;
+
+      if (cidx < limit) {
+        // Get local cells
+        pCell = TDB_PAGE_CELL_AT(pPage, cidx);
+      } else if (cidx == limit) {
+        // Get overflow cells
+        pCell = pPage->apOvfl[oidx++];
+
+        if (oidx < pPage->nOverflow) {
+          limit = pPage->aiOvfl[oidx];
+        } else {
+          limit = pPage->pPageHdr->nCells;
+        }
+      } else {
+        ASSERT(0);
+      }
+    }
   }
 
   /* TODO */
