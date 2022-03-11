@@ -472,6 +472,7 @@ void syncRequestVoteFromRpcMsg(const SRpcMsg* pRpcMsg, SyncRequestVote* pMsg) {
 
 SyncRequestVote* syncRequestVoteFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncRequestVote* pMsg = syncRequestVoteDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  return pMsg;
 }
 
 cJSON* syncRequestVote2Json(const SyncRequestVote* pMsg) {
@@ -557,7 +558,7 @@ void syncRequestVoteLog2(char* s, const SyncRequestVote* pMsg) {
 }
 
 // ---- message process SyncRequestVoteReply----
-SyncRequestVoteReply* SyncRequestVoteReplyBuild() {
+SyncRequestVoteReply* syncRequestVoteReplyBuild() {
   uint32_t              bytes = sizeof(SyncRequestVoteReply);
   SyncRequestVoteReply* pMsg = malloc(bytes);
   memset(pMsg, 0, bytes);
@@ -582,6 +583,25 @@ void syncRequestVoteReplyDeserialize(const char* buf, uint32_t len, SyncRequestV
   assert(len == pMsg->bytes);
 }
 
+char* syncRequestVoteReplySerialize2(const SyncRequestVoteReply* pMsg, uint32_t* len) {
+  char* buf = malloc(pMsg->bytes);
+  assert(buf != NULL);
+  syncRequestVoteReplySerialize(pMsg, buf, pMsg->bytes);
+  if (len != NULL) {
+    *len = pMsg->bytes;
+  }
+  return buf;
+}
+
+SyncRequestVoteReply* syncRequestVoteReplyDeserialize2(const char* buf, uint32_t len) {
+  uint32_t              bytes = *((uint32_t*)buf);
+  SyncRequestVoteReply* pMsg = malloc(bytes);
+  assert(pMsg != NULL);
+  syncRequestVoteReplyDeserialize(buf, len, pMsg);
+  assert(len == pMsg->bytes);
+  return pMsg;
+}
+
 void syncRequestVoteReply2RpcMsg(const SyncRequestVoteReply* pMsg, SRpcMsg* pRpcMsg) {
   memset(pRpcMsg, 0, sizeof(*pRpcMsg));
   pRpcMsg->msgType = pMsg->msgType;
@@ -592,6 +612,11 @@ void syncRequestVoteReply2RpcMsg(const SyncRequestVoteReply* pMsg, SRpcMsg* pRpc
 
 void syncRequestVoteReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncRequestVoteReply* pMsg) {
   syncRequestVoteReplyDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
+}
+
+SyncRequestVoteReply* syncRequestVoteReplyFromRpcMsg2(const SRpcMsg* pRpcMsg) {
+  SyncRequestVoteReply* pMsg = syncRequestVoteReplyDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  return pMsg;
 }
 
 cJSON* syncRequestVoteReply2Json(const SyncRequestVoteReply* pMsg) {
@@ -637,6 +662,40 @@ cJSON* syncRequestVoteReply2Json(const SyncRequestVoteReply* pMsg) {
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SyncRequestVoteReply", pRoot);
   return pJson;
+}
+
+char* syncRequestVoteReply2Str(const SyncRequestVoteReply* pMsg) {
+  cJSON* pJson = syncRequestVoteReply2Json(pMsg);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
+// for debug ----------------------
+void syncRequestVoteReplyPrint(const SyncRequestVoteReply* pMsg) {
+  char* serialized = syncRequestVoteReply2Str(pMsg);
+  printf("syncRequestVoteReplyPrint | len:%lu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncRequestVoteReplyPrint2(char* s, const SyncRequestVoteReply* pMsg) {
+  char* serialized = syncRequestVoteReply2Str(pMsg);
+  printf("syncRequestVoteReplyPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncRequestVoteReplyLog(const SyncRequestVoteReply* pMsg) {
+  char* serialized = syncRequestVoteReply2Str(pMsg);
+  sTrace("syncRequestVoteReplyLog | len:%lu | %s", strlen(serialized), serialized);
+  free(serialized);
+}
+
+void syncRequestVoteReplyLog2(char* s, const SyncRequestVoteReply* pMsg) {
+  char* serialized = syncRequestVoteReply2Str(pMsg);
+  sTrace("syncRequestVoteReplyLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  free(serialized);
 }
 
 // ---- message process SyncAppendEntries----

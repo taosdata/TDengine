@@ -263,7 +263,7 @@ static void *syncIOConsumerFunc(void *param) {
       } else if (pRpcMsg->msgType == SYNC_REQUEST_VOTE_REPLY) {
         if (io->FpOnSyncRequestVoteReply != NULL) {
           SyncRequestVoteReply *pSyncMsg;
-          pSyncMsg = SyncRequestVoteReplyBuild();
+          pSyncMsg = syncRequestVoteReplyBuild();
           syncRequestVoteReplyFromRpcMsg(pRpcMsg, pSyncMsg);
           io->FpOnSyncRequestVoteReply(io->pSyncNode, pSyncMsg);
           syncRequestVoteReplyDestroy(pSyncMsg);

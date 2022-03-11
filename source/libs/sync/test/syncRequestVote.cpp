@@ -38,7 +38,7 @@ void test2() {
   syncRequestVoteSerialize(pMsg, serialized, len);
   SyncRequestVote *pMsg2 = syncRequestVoteBuild();
   syncRequestVoteDeserialize(serialized, len, pMsg2);
-  syncRequestVotePrint2((char *)"test2: syncRequestVoteSerialize -> syncRequestVoteDeserialize ", pMsg);
+  syncRequestVotePrint2((char *)"test2: syncRequestVoteSerialize -> syncRequestVoteDeserialize ", pMsg2);
 
   free(serialized);
   syncRequestVoteDestroy(pMsg);
@@ -50,7 +50,7 @@ void test3() {
   uint32_t         len;
   char *           serialized = syncRequestVoteSerialize2(pMsg, &len);
   SyncRequestVote *pMsg2 = syncRequestVoteDeserialize2(serialized, len);
-  syncRequestVotePrint2((char *)"test3: syncRequestVoteSerialize3 -> syncRequestVoteDeserialize2 ", pMsg);
+  syncRequestVotePrint2((char *)"test3: syncRequestVoteSerialize3 -> syncRequestVoteDeserialize2 ", pMsg2);
 
   free(serialized);
   syncRequestVoteDestroy(pMsg);
@@ -63,7 +63,7 @@ void test4() {
   syncRequestVote2RpcMsg(pMsg, &rpcMsg);
   SyncRequestVote *pMsg2 = syncRequestVoteBuild();
   syncRequestVoteFromRpcMsg(&rpcMsg, pMsg2);
-  syncRequestVotePrint2((char *)"test4: syncRequestVote2RpcMsg -> syncRequestVoteFromRpcMsg ", pMsg);
+  syncRequestVotePrint2((char *)"test4: syncRequestVote2RpcMsg -> syncRequestVoteFromRpcMsg ", pMsg2);
 
   syncRequestVoteDestroy(pMsg);
   syncRequestVoteDestroy(pMsg2);
@@ -74,7 +74,7 @@ void test5() {
   SRpcMsg          rpcMsg;
   syncRequestVote2RpcMsg(pMsg, &rpcMsg);
   SyncRequestVote *pMsg2 = syncRequestVoteFromRpcMsg2(&rpcMsg);
-  syncRequestVotePrint2((char *)"test5: syncRequestVote2RpcMsg -> syncRequestVoteFromRpcMsg2 ", pMsg);
+  syncRequestVotePrint2((char *)"test5: syncRequestVote2RpcMsg -> syncRequestVoteFromRpcMsg2 ", pMsg2);
 
   syncRequestVoteDestroy(pMsg);
   syncRequestVoteDestroy(pMsg2);
