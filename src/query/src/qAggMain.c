@@ -5685,7 +5685,10 @@ static void tail_func_finalizer(SQLFunctionCtx *pCtx) {
 //  }else{
 //    GET_RES_INFO(pCtx)->numOfRes = pRes->num;
 //  }
-  if (GET_RES_INFO(pCtx)->numOfRes <= 0) return;
+  if (GET_RES_INFO(pCtx)->numOfRes <= 0) {
+    doFinalizer(pCtx);
+    return;
+  }
 
   taosqsort(pRes->res, pRes->num, POINTER_BYTES, NULL, tailComparFn);
 
@@ -5693,6 +5696,7 @@ static void tail_func_finalizer(SQLFunctionCtx *pCtx) {
   void *data = calloc(size, GET_RES_INFO(pCtx)->numOfRes);
   if(!data){
     qError("calloc error in tail_func_finalizer: size:%d, num:%d", (int32_t)size, GET_RES_INFO(pCtx)->numOfRes);
+    doFinalizer(pCtx);
     return;
   }
   for(int32_t i = 0; i < GET_RES_INFO(pCtx)->numOfRes; i++){
