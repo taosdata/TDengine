@@ -23,22 +23,24 @@ extern "C" {
 #include "qworkerInt.h"
 #include "dataSinkMgt.h"
 
-int32_t qwProcessQuery(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, SQWMsg *qwMsg, int8_t taskType);
-int32_t qwProcessCQuery(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, SQWMsg *qwMsg);
-int32_t qwProcessReady(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, SQWMsg *qwMsg);
-int32_t qwProcessFetch(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, SQWMsg *qwMsg);
-int32_t qwProcessDrop(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, SQWMsg *qwMsg);
+int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType);
+int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg);
+int32_t qwProcessReady(QW_FPARAMS_DEF, SQWMsg *qwMsg);
+int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg);
+int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg);
+int32_t qwProcessHb(SQWorkerMgmt *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req);
 
 int32_t qwBuildAndSendDropRsp(void *connection, int32_t code);
 int32_t qwBuildAndSendCancelRsp(SRpcMsg *pMsg, int32_t code);
 int32_t qwBuildAndSendFetchRsp(void *connection, SRetrieveTableRsp *pRsp, int32_t dataLength, int32_t code);
 void qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len, bool qComplete);
-int32_t qwBuildAndSendCQueryMsg(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, void *connection);
-int32_t qwBuildAndSendSchSinkMsg(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, void *connection);
+int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, void *connection);
 int32_t qwBuildAndSendReadyRsp(void *connection, int32_t code);
 int32_t qwBuildAndSendQueryRsp(void *connection, int32_t code);
 void qwFreeFetchRsp(void *msg);
 int32_t qwMallocFetchRsp(int32_t length, SRetrieveTableRsp **rsp);
+int32_t qwGetSchTasksStatus(SQWorkerMgmt *mgmt, uint64_t sId, SSchedulerStatusRsp **rsp);
+int32_t qwBuildAndSendHbRsp(SRpcMsg *pMsg, SSchedulerHbRsp *rsp, int32_t code);
 
 
 

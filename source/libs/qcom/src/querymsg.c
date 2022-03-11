@@ -42,6 +42,7 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
 
   for (int32_t i = 0; i < usedbRsp->vgNum; ++i) {
     SVgroupInfo *pVgInfo = taosArrayGet(usedbRsp->pVgroupInfos, i);
+    pOut->dbVgroup->numOfTable += pVgInfo->numOfTable;
     if (0 != taosHashPut(pOut->dbVgroup->vgHash, &pVgInfo->vgId, sizeof(int32_t), pVgInfo, sizeof(SVgroupInfo))) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
@@ -84,6 +85,7 @@ int32_t queryBuildUseDbMsg(void *input, char **msg, int32_t msgSize, int32_t *ms
   usedbReq.db[sizeof(usedbReq.db) - 1] = 0;
   usedbReq.vgVersion = pInput->vgVersion;
   usedbReq.dbId = pInput->dbId;
+  usedbReq.numOfTable = pInput->numOfTable;
 
   int32_t bufLen = tSerializeSUseDbReq(NULL, 0, &usedbReq);
   void   *pBuf = rpcMallocCont(bufLen);
@@ -94,6 +96,25 @@ int32_t queryBuildUseDbMsg(void *input, char **msg, int32_t msgSize, int32_t *ms
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t queryBuildQnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen) {
+  if (NULL == msg || NULL == msgLen) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  SQnodeListReq qnodeListReq = {0};
+  qnodeListReq.rowNum = -1;
+
+  int32_t bufLen = tSerializeSQnodeListReq(NULL, 0, &qnodeListReq);
+  void   *pBuf = rpcMallocCont(bufLen);
+  tSerializeSQnodeListReq(pBuf, bufLen, &qnodeListReq);
+
+  *msg = pBuf;
+  *msgLen = bufLen;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t queryProcessUseDBRsp(void *output, char *msg, int32_t msgSize) {
   SUseDbOutput *pOut = output;
@@ -247,21 +268,52 @@ int32_t queryProcessTableMetaRsp(void *output, char *msg, int32_t msgSize) {
 
 PROCESS_META_OVER:
   if (code != 0) {
-    qError("failed to process table meta rsp since %s", terrstr());
+    qError("failed to process table meta rsp since %s", tstrerror(code));
   }
 
   tFreeSTableMetaRsp(&metaRsp);
   return code;
 }
 
+
+int32_t queryProcessQnodeListRsp(void *output, char *msg, int32_t msgSize) {
+  SQnodeListRsp out = {0};
+  int32_t       code = -1;
+
+  if (NULL == output || NULL == msg || msgSize <= 0) {
+    code = TSDB_CODE_TSC_INVALID_INPUT;
+    goto PROCESS_QLIST_OVER;
+  }
+
+  if (tDeserializeSQnodeListRsp(msg, msgSize, &out) != 0) {
+    qError("invalid qnode list rsp msg, msgSize:%d", msgSize);
+    code = TSDB_CODE_INVALID_MSG;
+    goto PROCESS_QLIST_OVER;
+  }
+
+PROCESS_QLIST_OVER:
+
+  if (code != 0) {
+    tFreeSQnodeListRsp(&out);
+    out.epSetList = NULL;
+  }
+
+  *(SArray **)output = out.epSetList;
+
+  return code;
+}
+
+
 void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryBuildTableMetaReqMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_TABLE_META)] = queryBuildTableMetaReqMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_USE_DB)] = queryBuildUseDbMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_QNODE_LIST)] = queryBuildQnodeListMsg;
 
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryProcessTableMetaRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_TABLE_META)] = queryProcessTableMetaRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_USE_DB)] = queryProcessUseDBRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_QNODE_LIST)] = queryProcessQnodeListRsp;
 }
 
 #pragma GCC diagnostic pop

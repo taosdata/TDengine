@@ -39,7 +39,7 @@ typedef void **TAOS_ROW;
 #define TSDB_DATA_TYPE_BIGINT     5     // 8 bytes
 #define TSDB_DATA_TYPE_FLOAT      6     // 4 bytes
 #define TSDB_DATA_TYPE_DOUBLE     7     // 8 bytes
-#define TSDB_DATA_TYPE_BINARY     8     // string, alias for varchar
+#define TSDB_DATA_TYPE_VARCHAR    8     // string, alias for varchar
 #define TSDB_DATA_TYPE_TIMESTAMP  9     // 8 bytes
 #define TSDB_DATA_TYPE_NCHAR      10    // unicode string
 #define TSDB_DATA_TYPE_UTINYINT   11    // 1 byte
@@ -47,10 +47,11 @@ typedef void **TAOS_ROW;
 #define TSDB_DATA_TYPE_UINT       13    // 4 bytes
 #define TSDB_DATA_TYPE_UBIGINT    14    // 8 bytes
 #define TSDB_DATA_TYPE_JSON       15    // json string
-#define TSDB_DATA_TYPE_VARCHAR    16    // string
-#define TSDB_DATA_TYPE_VARBINARY  17    // binary
-#define TSDB_DATA_TYPE_DECIMAL    18    // decimal
-#define TSDB_DATA_TYPE_BLOB       19    // binary
+#define TSDB_DATA_TYPE_VARBINARY  16    // binary
+#define TSDB_DATA_TYPE_DECIMAL    17    // decimal
+#define TSDB_DATA_TYPE_BLOB       18    // binary
+#define TSDB_DATA_TYPE_MEDIUMBLOB 19
+#define TSDB_DATA_TYPE_BINARY     TSDB_DATA_TYPE_VARCHAR    // string
 
 typedef enum {
   TSDB_OPTION_LOCALE,
