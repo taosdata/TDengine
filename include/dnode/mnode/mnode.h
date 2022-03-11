@@ -117,15 +117,6 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
 int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
 /**
- * @brief Initialize mnode msg.
- *
- * @param pMnode The mnode object.
- * @param pMsg The request rpc msg.
- * @return int32_t The created mnode msg.
- */
-int32_t mndBuildMsg(SMnodeMsg *pMnodeMsg, SRpcMsg *pRpcMsg);
-
-/**
  * @brief Cleanup mnode msg.
  *
  * @param pMsg The request msg.

@@ -390,28 +390,6 @@ void mndDestroy(const char *path) {
   mDebug("mnode is destroyed");
 }
 
-int32_t mndBuildMsg(SMnodeMsg *pMnodeMsg, SRpcMsg *pRpcMsg) {
-  if (pRpcMsg->msgType != TDMT_MND_TRANS_TIMER && pRpcMsg->msgType != TDMT_MND_MQ_TIMER &&
-      pRpcMsg->msgType != TDMT_MND_MQ_DO_REBALANCE && pRpcMsg->msgType != TDMT_MND_TELEM_TIMER) {
-    SRpcConnInfo connInfo = {0};
-    if ((pRpcMsg->msgType & 1U) && rpcGetConnInfo(pRpcMsg->handle, &connInfo) != 0) {
-      terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-      mError("failed to create msg since %s, app:%p RPC:%p", terrstr(), pRpcMsg->ahandle, pRpcMsg->handle);
-      return -1;
-    }
-    memcpy(pMnodeMsg->user, connInfo.user, TSDB_USER_LEN);
-  }
-
-  pMnodeMsg->rpcMsg = *pRpcMsg;
-  pMnodeMsg->createdTime = taosGetTimestampSec();
-  pMnodeMsg->pCont = (char*)pMnodeMsg + sizeof(pMnodeMsg);
-
-  if (pRpcMsg != NULL) {
-    mTrace("msg:%p, is created, app:%p RPC:%p user:%s", pMnodeMsg, pRpcMsg->ahandle, pRpcMsg->handle, pMnodeMsg->user);
-  }
-  return 0;
-}
-
 void mndSendRsp(SMnodeMsg *pMsg, int32_t code) {
   SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .code = code};
   rpcSendResponse(&rpcRsp);

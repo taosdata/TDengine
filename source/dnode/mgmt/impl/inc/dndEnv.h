@@ -82,6 +82,7 @@ typedef struct {
   SProcObj *pProcess;
   bool      singleProc;
   bool      isChild;
+  bool      testFlag;
 } SMnodeMgmt;
 
 typedef struct {
