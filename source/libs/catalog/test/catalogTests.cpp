@@ -228,10 +228,10 @@ void ctgTestBuildDBVgroup(SDBVgInfo **pdbVgroup) {
     vgInfo.vgId = i + 1;
     vgInfo.hashBegin = i * hashUnit;
     vgInfo.hashEnd = hashUnit * (i + 1) - 1;
-    vgInfo.epset.numOfEps = i % TSDB_MAX_REPLICA + 1;
-    vgInfo.epset.inUse = i % vgInfo.epset.numOfEps;
-    for (int32_t n = 0; n < vgInfo.epset.numOfEps; ++n) {
-      SEp *addr = &vgInfo.epset.eps[n];
+    vgInfo.epSet.numOfEps = i % TSDB_MAX_REPLICA + 1;
+    vgInfo.epSet.inUse = i % vgInfo.epSet.numOfEps;
+    for (int32_t n = 0; n < vgInfo.epSet.numOfEps; ++n) {
+      SEp *addr = &vgInfo.epSet.eps[n];
       strcpy(addr->fqdn, "a0");
       addr->port = n + 22;
     }
@@ -301,10 +301,10 @@ void ctgTestRspDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *
       vg.hashEnd = htonl(UINT32_MAX);
     }
 
-    vg.epset.numOfEps = i % TSDB_MAX_REPLICA + 1;
-    vg.epset.inUse = i % vg.epset.numOfEps;
-    for (int32_t n = 0; n < vg.epset.numOfEps; ++n) {
-      SEp *addr = &vg.epset.eps[n];
+    vg.epSet.numOfEps = i % TSDB_MAX_REPLICA + 1;
+    vg.epSet.inUse = i % vg.epSet.numOfEps;
+    for (int32_t n = 0; n < vg.epSet.numOfEps; ++n) {
+      SEp *addr = &vg.epSet.eps[n];
       strcpy(addr->fqdn, "a0");
       addr->port = n + 22;
     }
@@ -723,7 +723,7 @@ void *ctgTestGetDbVgroupThread(void *param) {
     }
 
     if (ctgTestEnableSleep) {
-      usleep(rand() % 5);
+      taosUsleep(taosRand() % 5);
     }
     if (++n % ctgTestPrintNum == 0) {
       printf("Get:%d\n", n);
@@ -747,7 +747,7 @@ void *ctgTestSetSameDbVgroupThread(void *param) {
     }
 
     if (ctgTestEnableSleep) {
-      usleep(rand() % 5);
+      taosUsleep(taosRand() % 5);
     }
     if (++n % ctgTestPrintNum == 0) {
       printf("Set:%d\n", n);
@@ -771,7 +771,7 @@ void *ctgTestSetDiffDbVgroupThread(void *param) {
     }
 
     if (ctgTestEnableSleep) {
-      usleep(rand() % 5);
+      taosUsleep(taosRand() % 5);
     }
     if (++n % ctgTestPrintNum == 0) {
       printf("Set:%d\n", n);
@@ -801,7 +801,7 @@ void *ctgTestGetCtableMetaThread(void *param) {
     tfree(tbMeta);
 
     if (ctgTestEnableSleep) {
-      usleep(rand() % 5);
+      taosUsleep(taosRand() % 5);
     }
 
     if (++n % ctgTestPrintNum == 0) {
@@ -838,7 +838,7 @@ void *ctgTestSetCtableMetaThread(void *param) {
     }
 
     if (ctgTestEnableSleep) {
-      usleep(rand() % 5);
+      taosUsleep(taosRand() % 5);
     }
     if (++n % ctgTestPrintNum == 0) {
       printf("Set:%d\n", n);
@@ -877,10 +877,10 @@ TEST(tableMeta, normalTable) {
   code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 8);
-  ASSERT_EQ(vgInfo.epset.numOfEps, 3);
+  ASSERT_EQ(vgInfo.epSet.numOfEps, 3);
 
   while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_DB_NUM)) {
-    usleep(50000);
+    taosMsleep(50);
   }
   
   ctgTestSetRspTableMeta();
@@ -901,7 +901,7 @@ TEST(tableMeta, normalTable) {
   while (true) {
     uint32_t n = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
     if (0 == n) {
-      usleep(50000);
+      taosMsleep(50);
     } else {
       break;
     }
@@ -949,7 +949,7 @@ TEST(tableMeta, normalTable) {
 
     allDbNum += dbNum;
     allStbNum += stbNum;
-    sleep(2);
+    taosSsleep(2);
   }
 
   ASSERT_EQ(allDbNum, 1);
@@ -996,7 +996,7 @@ TEST(tableMeta, childTableCase) {
   while (true) {
     uint32_t n = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
     if (0 == n) {
-      usleep(50000);
+      taosMsleep(50);
     } else {
       break;
     }
@@ -1058,7 +1058,7 @@ TEST(tableMeta, childTableCase) {
 
     allDbNum += dbNum;
     allStbNum += stbNum;
-    sleep(2);
+    taosSsleep(2);
   }
 
   ASSERT_EQ(allDbNum, 1);
@@ -1105,7 +1105,7 @@ TEST(tableMeta, superTableCase) {
   while (true) {
     uint32_t n = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
     if (0 == n) {
-      usleep(50000);
+      taosMsleep(50);
     } else {
       break;
     }
@@ -1132,7 +1132,7 @@ TEST(tableMeta, superTableCase) {
   while (true) {
     uint32_t n = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
     if (2 != n) {
-      usleep(50000);
+      taosMsleep(50);
     } else {
       break;
     }
@@ -1181,7 +1181,7 @@ TEST(tableMeta, superTableCase) {
 
     allDbNum += dbNum;
     allStbNum += stbNum;
-    sleep(2);
+    taosSsleep(2);
   }
 
   ASSERT_EQ(allDbNum, 1);
@@ -1230,7 +1230,7 @@ TEST(tableMeta, rmStbMeta) {
   while (true) {
     uint32_t n = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
     if (0 == n) {
-      usleep(50000);
+      taosMsleep(50);
     } else {
       break;
     }
@@ -1244,7 +1244,7 @@ TEST(tableMeta, rmStbMeta) {
     int32_t n = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
     int32_t m = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM);
     if (n || m) {
-      usleep(50000);
+      taosMsleep(50);
     } else {
       break;
     }
@@ -1300,7 +1300,7 @@ TEST(tableMeta, updateStbMeta) {
   while (true) {
     uint32_t n = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
     if (0 == n) {
-      usleep(50000);
+      taosMsleep(50);
     } else {
       break;
     }
@@ -1320,7 +1320,7 @@ TEST(tableMeta, updateStbMeta) {
     uint64_t n = 0;
     ctgDbgGetStatNum("runtime.qDoneNum", (void *)&n);
     if (n != 3) {
-      usleep(50000);
+      taosMsleep(50);
     } else {
       break;
     }
@@ -1384,7 +1384,7 @@ TEST(refreshGetMeta, normal2normal) {
   code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 8);
-  ASSERT_EQ(vgInfo.epset.numOfEps, 3);
+  ASSERT_EQ(vgInfo.epSet.numOfEps, 3);
 
   while (true) {
     uint64_t n = 0;
@@ -1392,7 +1392,7 @@ TEST(refreshGetMeta, normal2normal) {
     if (n > 0) {
       break;
     }
-    usleep(50000);
+    taosMsleep(50);
   }
 
   STableMeta *tableMeta = NULL;
@@ -1410,7 +1410,7 @@ TEST(refreshGetMeta, normal2normal) {
   tfree(tableMeta);
 
   while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
-    usleep(50000);
+    taosMsleep(50);
   }
 
   code = catalogRefreshGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta, 0);
@@ -1463,7 +1463,7 @@ TEST(refreshGetMeta, normal2notexist) {
   code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 8);
-  ASSERT_EQ(vgInfo.epset.numOfEps, 3);
+  ASSERT_EQ(vgInfo.epSet.numOfEps, 3);
 
   while (true) {
     uint64_t n = 0;
@@ -1471,7 +1471,7 @@ TEST(refreshGetMeta, normal2notexist) {
     if (n > 0) {
       break;
     }
-    usleep(50000);
+    taosMsleep(50);
   }
 
   STableMeta *tableMeta = NULL;
@@ -1489,7 +1489,7 @@ TEST(refreshGetMeta, normal2notexist) {
   tfree(tableMeta);
 
   while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
-    usleep(50000);
+    taosMsleep(50);
   }
 
   code = catalogRefreshGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta, 0);
@@ -1537,7 +1537,7 @@ TEST(refreshGetMeta, normal2child) {
   code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 8);
-  ASSERT_EQ(vgInfo.epset.numOfEps, 3);
+  ASSERT_EQ(vgInfo.epSet.numOfEps, 3);
 
   while (true) {
     uint64_t n = 0;
@@ -1545,7 +1545,7 @@ TEST(refreshGetMeta, normal2child) {
     if (n > 0) {
       break;
     }
-    usleep(50000);
+    taosMsleep(50);
   }
 
   STableMeta *tableMeta = NULL;
@@ -1563,7 +1563,7 @@ TEST(refreshGetMeta, normal2child) {
   tfree(tableMeta);
 
   while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
-    usleep(50000);
+    taosMsleep(50);
   }
 
   code = catalogRefreshGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta, 0);
@@ -1621,7 +1621,7 @@ TEST(refreshGetMeta, stable2child) {
   code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 8);
-  ASSERT_EQ(vgInfo.epset.numOfEps, 3);
+  ASSERT_EQ(vgInfo.epSet.numOfEps, 3);
 
   while (true) {
     uint64_t n = 0;
@@ -1629,7 +1629,7 @@ TEST(refreshGetMeta, stable2child) {
     if (n > 0) {
       break;
     }
-    usleep(50000);
+    taosMsleep(50);
   }
 
   STableMeta *tableMeta = NULL;
@@ -1648,7 +1648,7 @@ TEST(refreshGetMeta, stable2child) {
   tfree(tableMeta);
 
   while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
-    usleep(50000);
+    taosMsleep(50);
   }
 
   ctgTestCurrentSTableName = ctgTestSTablename;
@@ -1706,7 +1706,7 @@ TEST(refreshGetMeta, stable2stable) {
   code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 8);
-  ASSERT_EQ(vgInfo.epset.numOfEps, 3);
+  ASSERT_EQ(vgInfo.epSet.numOfEps, 3);
 
   while (true) {
     uint64_t n = 0;
@@ -1714,7 +1714,7 @@ TEST(refreshGetMeta, stable2stable) {
     if (n > 0) {
       break;
     }
-    usleep(50000);
+    taosMsleep(50);
   }
 
   STableMeta *tableMeta = NULL;
@@ -1733,7 +1733,7 @@ TEST(refreshGetMeta, stable2stable) {
   tfree(tableMeta);
 
   while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
-    usleep(50000);
+    taosMsleep(50);
   }
 
   code = catalogRefreshGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta, 0);
@@ -1794,7 +1794,7 @@ TEST(refreshGetMeta, child2stable) {
   code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 8);
-  ASSERT_EQ(vgInfo.epset.numOfEps, 3);
+  ASSERT_EQ(vgInfo.epSet.numOfEps, 3);
 
   while (true) {
     uint64_t n = 0;
@@ -1802,7 +1802,7 @@ TEST(refreshGetMeta, child2stable) {
     if (n > 0) {
       break;
     }
-    usleep(50000);
+    taosMsleep(50);
   }
 
   STableMeta *tableMeta = NULL;
@@ -1819,7 +1819,7 @@ TEST(refreshGetMeta, child2stable) {
   tfree(tableMeta);
 
   while (2 != ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
-    usleep(50000);
+    taosMsleep(50);
   }
 
   ctgTestCurrentSTableName = ctgTestTablename;
@@ -1879,7 +1879,7 @@ TEST(tableDistVgroup, normalTable) {
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 1);
   vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
   ASSERT_EQ(vgInfo->vgId, 8);
-  ASSERT_EQ(vgInfo->epset.numOfEps, 3);
+  ASSERT_EQ(vgInfo->epSet.numOfEps, 3);
 
   catalogDestroy();
   memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
@@ -1921,7 +1921,7 @@ TEST(tableDistVgroup, childTableCase) {
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 1);
   vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
   ASSERT_EQ(vgInfo->vgId, 9);
-  ASSERT_EQ(vgInfo->epset.numOfEps, 4);
+  ASSERT_EQ(vgInfo->epSet.numOfEps, 4);
 
   catalogDestroy();
   memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
@@ -1964,13 +1964,13 @@ TEST(tableDistVgroup, superTableCase) {
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 10);
   vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
   ASSERT_EQ(vgInfo->vgId, 1);
-  ASSERT_EQ(vgInfo->epset.numOfEps, 1);
+  ASSERT_EQ(vgInfo->epSet.numOfEps, 1);
   vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 1);
   ASSERT_EQ(vgInfo->vgId, 2);
-  ASSERT_EQ(vgInfo->epset.numOfEps, 2);
+  ASSERT_EQ(vgInfo->epSet.numOfEps, 2);
   vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 2);
   ASSERT_EQ(vgInfo->vgId, 3);
-  ASSERT_EQ(vgInfo->epset.numOfEps, 3);
+  ASSERT_EQ(vgInfo->epSet.numOfEps, 3);
 
   catalogDestroy();
   memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
@@ -2019,20 +2019,20 @@ TEST(dbVgroup, getSetDbVgroupCase) {
     if (n > 0) {
       break;
     }
-    usleep(50000);
+    taosMsleep(50);
   }
 
   code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 8);
-  ASSERT_EQ(vgInfo.epset.numOfEps, 3);
+  ASSERT_EQ(vgInfo.epSet.numOfEps, 3);
 
   code = catalogGetTableDistVgInfo(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 1);
   pvgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
   ASSERT_EQ(pvgInfo->vgId, 8);
-  ASSERT_EQ(pvgInfo->epset.numOfEps, 3);
+  ASSERT_EQ(pvgInfo->epSet.numOfEps, 3);
   taosArrayDestroy(vgList);
 
   ctgTestBuildDBVgroup(&dbVgroup);
@@ -2043,7 +2043,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
     uint64_t n = 0;
     ctgDbgGetStatNum("runtime.qDoneNum", (void *)&n);
     if (n != 3) {
-      usleep(50000);
+      taosMsleep(50);
     } else {
       break;
     }
@@ -2053,14 +2053,14 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 7);
-  ASSERT_EQ(vgInfo.epset.numOfEps, 2);
+  ASSERT_EQ(vgInfo.epSet.numOfEps, 2);
 
   code = catalogGetTableDistVgInfo(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 1);
   pvgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
   ASSERT_EQ(pvgInfo->vgId, 8);
-  ASSERT_EQ(pvgInfo->epset.numOfEps, 3);
+  ASSERT_EQ(pvgInfo->epSet.numOfEps, 3);
   taosArrayDestroy(vgList);
 
   catalogDestroy();
@@ -2100,20 +2100,20 @@ TEST(multiThread, getSetRmSameDbVgroup) {
   pthread_t thread1, thread2;
   pthread_create(&(thread1), &thattr, ctgTestSetSameDbVgroupThread, pCtg);
 
-  sleep(1);
+  taosSsleep(1);
   pthread_create(&(thread2), &thattr, ctgTestGetDbVgroupThread, pCtg);
 
   while (true) {
     if (ctgTestDeadLoop) {
-      sleep(1);
+      taosSsleep(1);
     } else {
-      sleep(ctgTestMTRunSec);
+      taosSsleep(ctgTestMTRunSec);
       break;
     }
   }
 
   ctgTestStop = true;
-  sleep(1);
+  taosSsleep(1);
 
   catalogDestroy();
   memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
@@ -2152,20 +2152,20 @@ TEST(multiThread, getSetRmDiffDbVgroup) {
   pthread_t thread1, thread2;
   pthread_create(&(thread1), &thattr, ctgTestSetDiffDbVgroupThread, pCtg);
 
-  sleep(1);
+  taosSsleep(1);
   pthread_create(&(thread2), &thattr, ctgTestGetDbVgroupThread, pCtg);
 
   while (true) {
     if (ctgTestDeadLoop) {
-      sleep(1);
+      taosSsleep(1);
     } else {
-      sleep(ctgTestMTRunSec);
+      taosSsleep(ctgTestMTRunSec);
       break;
     }
   }
 
   ctgTestStop = true;
-  sleep(1);
+  taosSsleep(1);
 
   catalogDestroy();
   memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
@@ -2203,20 +2203,20 @@ TEST(multiThread, ctableMeta) {
 
   pthread_t thread1, thread2;
   pthread_create(&(thread1), &thattr, ctgTestSetCtableMetaThread, pCtg);
-  sleep(1);
+  taosSsleep(1);
   pthread_create(&(thread1), &thattr, ctgTestGetCtableMetaThread, pCtg);
 
   while (true) {
     if (ctgTestDeadLoop) {
-      sleep(1);
+      taosSsleep(1);
     } else {
-      sleep(ctgTestMTRunSec);
+      taosSsleep(ctgTestMTRunSec);
       break;
     }
   }
 
   ctgTestStop = true;
-  sleep(2);
+  taosSsleep(2);
 
   catalogDestroy();
   memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
@@ -2267,7 +2267,7 @@ TEST(rentTest, allRent) {
     ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
     while (ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM) < i) {
-      usleep(50000);
+      taosMsleep(50);
     }
 
     code = catalogGetExpiredDBs(pCtg, &dbs, &num);
@@ -2292,7 +2292,7 @@ TEST(rentTest, allRent) {
     }
     printf("*************************************************\n");
 
-    sleep(2);
+    taosSsleep(2);
   }
 
   catalogDestroy();

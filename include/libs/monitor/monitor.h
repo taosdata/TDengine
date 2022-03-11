@@ -18,6 +18,7 @@
 
 #include "tarray.h"
 #include "tdef.h"
+#include "tlog.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,6 +32,8 @@ extern "C" {
 typedef struct {
   int32_t dnode_id;
   char    dnode_ep[TSDB_EP_LEN];
+  int64_t cluster_id;
+  int32_t protocol;
 } SMonBasicInfo;
 
 typedef struct {
@@ -85,29 +88,26 @@ typedef struct {
 
 typedef struct {
   float   uptime;  // day
-  float   cpu_engine;
-  float   cpu_system;
+  double  cpu_engine;
+  double  cpu_system;
   float   cpu_cores;
-  int64_t mem_engine;     // KB
-  int64_t mem_system;     // KB
-  int64_t mem_total;      // KB
-  float   disk_engine;    // GB
-  float   disk_used;      // GB
-  float   disk_total;     // GB
-  int64_t net_in;
-  int64_t net_out;
-  float   io_read;
-  float   io_write;
-  float   io_read_disk;
-  float   io_write_disk;
-  int32_t req_select;
-  float   req_select_rate;
-  int32_t req_insert;
-  int32_t req_insert_success;
-  float   req_insert_rate;
-  int32_t req_insert_batch;
-  int32_t req_insert_batch_success;
-  float   req_insert_batch_rate;
+  int64_t mem_engine;   // KB
+  int64_t mem_system;   // KB
+  int64_t mem_total;    // KB
+  int64_t disk_engine;  // Byte
+  int64_t disk_used;    // Byte
+  int64_t disk_total;   // Byte
+  int64_t net_in;       // bytes
+  int64_t net_out;      // bytes
+  int64_t io_read;      // bytes
+  int64_t io_write;     // bytes
+  int64_t io_read_disk;   // bytes
+  int64_t io_write_disk;  // bytes
+  int64_t req_select;
+  int64_t req_insert;
+  int64_t req_insert_success;
+  int64_t req_insert_batch;
+  int64_t req_insert_batch_success;
   int32_t errors;
   int32_t vnodes_num;
   int32_t masters;
@@ -126,30 +126,18 @@ typedef struct {
   SMonDiskDesc tempdir;
 } SMonDiskInfo;
 
-typedef enum {
-  MON_LEVEL_ERROR = 0,
-  MON_LEVEL_INFO = 1,
-  MON_LEVEL_DEBUG = 2,
-  MON_LEVEL_TRACE = 3,
-} EMonLogLevel;
-
-typedef struct {
-  int64_t      ts;
-  EMonLogLevel level;
-  char         content[MON_LOG_LEN];
-} SMonLogItem;
-
 typedef struct SMonInfo SMonInfo;
 
 typedef struct {
   const char *server;
   uint16_t    port;
   int32_t     maxLogs;
+  bool        comp;
 } SMonCfg;
 
 int32_t monInit(const SMonCfg *pCfg);
 void    monCleanup();
-void    monAddLogItem(SMonLogItem *pItem);
+void    monRecordLog(int64_t ts, ELogLevel level, const char *content);
 
 SMonInfo *monCreateMonitorInfo();
 void      monSetBasicInfo(SMonInfo *pMonitor, SMonBasicInfo *pInfo);

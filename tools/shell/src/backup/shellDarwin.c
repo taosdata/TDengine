@@ -358,7 +358,7 @@ int32_t shellReadCommand(TAOS *con, char *command) {
 
 void *shellLoopQuery(void *arg) {
   if (indicator) {
-    get_old_terminal_mode(&oldtio);
+    getOldTerminalMode();
     indicator = 0;
   }
 
@@ -379,12 +379,12 @@ void *shellLoopQuery(void *arg) {
     do {
       // Read command from shell.
       memset(command, 0, MAX_COMMAND_SIZE);
-      set_terminal_mode();
+      setTerminalMode();
       err = shellReadCommand(con, command);
       if (err) {
         break;
       }
-      reset_terminal_mode();
+      resetTerminalMode();
     } while (shellRunCommand(con, command) == 0);
 
   tfree(command);
@@ -393,56 +393,6 @@ void *shellLoopQuery(void *arg) {
   pthread_cleanup_pop(1);
 
   return NULL;
-}
-
-int get_old_terminal_mode(struct termios *tio) {
-  /* Make sure stdin is a terminal. */
-  if (!isatty(STDIN_FILENO)) {
-    return -1;
-  }
-
-  // Get the parameter of current terminal
-  if (tcgetattr(0, &oldtio) != 0) {
-    return -1;
-  }
-
-  return 1;
-}
-
-void reset_terminal_mode() {
-  if (tcsetattr(0, TCSANOW, &oldtio) != 0) {
-    fprintf(stderr, "Fail to reset the terminal properties!\n");
-    exit(EXIT_FAILURE);
-  }
-}
-
-void set_terminal_mode() {
-  struct termios newtio;
-
-  /* if (atexit(reset_terminal_mode) != 0) { */
-  /*     fprintf(stderr, "Error register exit function!\n"); */
-  /*     exit(EXIT_FAILURE); */
-  /* } */
-
-  memcpy(&newtio, &oldtio, sizeof(oldtio));
-
-  // Set new terminal attributes.
-  newtio.c_iflag &= ~(IXON | IXOFF | ICRNL | INLCR | IGNCR | IMAXBEL | ISTRIP);
-  newtio.c_iflag |= IGNBRK;
-
-  // newtio.c_oflag &= ~(OPOST|ONLCR|OCRNL|ONLRET);
-  newtio.c_oflag |= OPOST;
-  newtio.c_oflag |= ONLCR;
-  newtio.c_oflag &= ~(OCRNL | ONLRET);
-
-  newtio.c_lflag &= ~(IEXTEN | ICANON | ECHO | ECHOE | ECHONL | ECHOCTL | ECHOPRT | ECHOKE | ISIG);
-  newtio.c_cc[VMIN] = 1;
-  newtio.c_cc[VTIME] = 0;
-
-  if (tcsetattr(0, TCSANOW, &newtio) != 0) {
-    fprintf(stderr, "Fail to set terminal properties!\n");
-    exit(EXIT_FAILURE);
-  }
 }
 
 void get_history_path(char *history) { sprintf(history, "%s/%s", getpwuid(getuid())->pw_dir, HISTORY_FILE); }
@@ -541,9 +491,9 @@ void showOnScreen(Command *cmd) {
   fflush(stdout);
 }
 
-void cleanup_handler(void *arg) { tcsetattr(0, TCSANOW, &oldtio); }
+void cleanup_handler(void *arg) { resetTerminalMode(); }
 
 void exitShell() {
-  tcsetattr(0, TCSANOW, &oldtio);
+  resetTerminalMode();
   exit(EXIT_SUCCESS);
 }

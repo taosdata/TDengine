@@ -477,6 +477,8 @@ void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
 static void dndGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
   pInfo->dnode_id = dndGetDnodeId(pDnode);
   tstrncpy(pInfo->dnode_ep, tsLocalEp, TSDB_EP_LEN);
+  pInfo->cluster_id = dndGetClusterId(pDnode);
+  pInfo->protocol = 1;
 }
 
 static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
@@ -487,24 +489,21 @@ static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
   taosGetSysMemory(&pInfo->mem_system);
   pInfo->mem_total = tsTotalMemoryKB;
   pInfo->disk_engine = 0;
-  pInfo->disk_used = tsDataSpace.size.used / (1024 * 1024 * 1024.0);
-  pInfo->disk_total = tsDataSpace.size.avail / (1024 * 1024 * 1024.0);
-  taosGetCardInfo(NULL, &pInfo->net_in, &pInfo->net_out);
-  taosGetProcIO(&pInfo->io_read, &pInfo->io_write);
-  pInfo->io_read_disk = 0;
-  pInfo->io_write_disk = 0;
-  pInfo->req_select = 0;
-  pInfo->req_select_rate = 0;
-  pInfo->req_insert = 0;
-  pInfo->req_insert_success = 0;
-  pInfo->req_insert_rate = 0;
-  pInfo->req_insert_batch = 0;
-  pInfo->req_insert_batch_success = 0;
-  pInfo->req_insert_batch_rate = 0;
-  pInfo->errors = 0;
-  pInfo->vnodes_num = 0;
-  pInfo->masters = 0;
-  pInfo->has_mnode = dndIsMnode(pDnode);
+  pInfo->disk_used = tsDataSpace.size.used;
+  pInfo->disk_total = tsDataSpace.size.total;
+  taosGetCardInfo(&pInfo->net_in, &pInfo->net_out);
+  taosGetProcIO(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
+
+  SVnodesStat *pStat = &pDnode->vmgmt.stat;
+  pInfo->req_select = pStat->numOfSelectReqs;
+  pInfo->req_insert = pStat->numOfInsertReqs;
+  pInfo->req_insert_success = pStat->numOfInsertSuccessReqs;
+  pInfo->req_insert_batch = pStat->numOfBatchInsertReqs;
+  pInfo->req_insert_batch_success = pStat->numOfBatchInsertSuccessReqs;
+  pInfo->errors = tsNumOfErrorLogs;
+  pInfo->vnodes_num = pStat->totalVnodes;
+  pInfo->masters = pStat->masterNum;
+  pInfo->has_mnode = pDnode->mmgmt.deployed;
 }
 
 static void dndSendMonitorReport(SDnode *pDnode) {

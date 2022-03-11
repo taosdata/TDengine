@@ -59,7 +59,7 @@ typedef struct {
   SWalCfg  walCfg;
   uint32_t hashBegin;
   uint32_t hashEnd;
-  int8_t   hashMethod;  
+  int8_t   hashMethod;
 } SVnodeCfg;
 
 typedef struct {
@@ -202,6 +202,22 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 
 /* ------------------------- TQ READ --------------------------- */
 
+enum {
+  TQ_STREAM_TOKEN__DATA = 1,
+  TQ_STREAM_TOKEN__WATERMARK,
+  TQ_STREAM_TOKEN__CHECKPOINT,
+};
+
+typedef struct {
+  int8_t type;
+  int8_t reserved[7];
+  union {
+    void   *data;
+    int64_t wmTs;
+    int64_t checkpointId;
+  };
+} STqStreamToken;
+
 STqReadHandle *tqInitSubmitMsgScanner(SMeta *pMeta);
 
 static FORCE_INLINE void tqReadHandleSetColIdList(STqReadHandle *pReadHandle, SArray *pColIdList) {
@@ -213,10 +229,31 @@ static FORCE_INLINE void tqReadHandleSetColIdList(STqReadHandle *pReadHandle, SA
 //}
 
 static FORCE_INLINE int tqReadHandleSetTbUidList(STqReadHandle *pHandle, const SArray *tbUidList) {
+  if (pHandle->tbIdHash) {
+    taosHashClear(pHandle->tbIdHash);
+  }
+
   pHandle->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (pHandle->tbIdHash == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
+  }
+
+  for (int i = 0; i < taosArrayGetSize(tbUidList); i++) {
+    int64_t *pKey = (int64_t *)taosArrayGet(tbUidList, i);
+    taosHashPut(pHandle->tbIdHash, pKey, sizeof(int64_t), NULL, 0);
+  }
+
+  return 0;
+}
+
+static FORCE_INLINE int tqReadHandleAddTbUidList(STqReadHandle *pHandle, const SArray *tbUidList) {
+  if (pHandle->tbIdHash == NULL) {
+    pHandle->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+    if (pHandle->tbIdHash == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
   }
 
   for (int i = 0; i < taosArrayGetSize(tbUidList); i++) {

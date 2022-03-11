@@ -24,13 +24,46 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include "syncInt.h"
+#include "syncMessage.h"
+#include "syncUtil.h"
 #include "taosdef.h"
 
+// SVotesGranted -----------------------------
 typedef struct SVotesGranted {
+  SRaftId (*replicas)[TSDB_MAX_REPLICA];
+  bool       isGranted[TSDB_MAX_REPLICA];
+  int32_t    replicaNum;
+  int32_t    votes;
+  SyncTerm   term;
+  int32_t    quorum;
+  bool       toLeader;
+  SSyncNode *pSyncNode;
 } SVotesGranted;
 
-typedef struct SVotesResponded {
-} SVotesResponded;
+SVotesGranted *voteGrantedCreate(SSyncNode *pSyncNode);
+void           voteGrantedDestroy(SVotesGranted *pVotesGranted);
+bool           voteGrantedMajority(SVotesGranted *pVotesGranted);
+void           voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg);
+void           voteGrantedReset(SVotesGranted *pVotesGranted, SyncTerm term);
+cJSON *        voteGranted2Json(SVotesGranted *pVotesGranted);
+char *         voteGranted2Str(SVotesGranted *pVotesGranted);
+
+// SVotesRespond -----------------------------
+typedef struct SVotesRespond {
+  SRaftId (*replicas)[TSDB_MAX_REPLICA];
+  bool       isRespond[TSDB_MAX_REPLICA];
+  int32_t    replicaNum;
+  SyncTerm   term;
+  SSyncNode *pSyncNode;
+} SVotesRespond;
+
+SVotesRespond *votesRespondCreate(SSyncNode *pSyncNode);
+void           votesRespondDestory(SVotesRespond *pVotesRespond);
+bool           votesResponded(SVotesRespond *pVotesRespond, const SRaftId *pRaftId);
+void           votesRespondAdd(SVotesRespond *pVotesRespond, const SyncRequestVoteReply *pMsg);
+void           votesRespondReset(SVotesRespond *pVotesRespond, SyncTerm term);
+cJSON *        votesRespond2Json(SVotesRespond *pVotesRespond);
+char *         votesRespond2Str(SVotesRespond *pVotesRespond);
 
 #ifdef __cplusplus
 }

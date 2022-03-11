@@ -1,5 +1,5 @@
-#include <stdio.h>
 #include <gtest/gtest.h>
+#include <stdio.h>
 #include "syncIO.h"
 #include "syncInt.h"
 #include "syncRaftStore.h"
@@ -29,7 +29,7 @@ int main() {
   assert(ret == 0);
 
   while (1) {
-    sleep(1);
+    taosSsleep(1);
   }
   return 0;
 }

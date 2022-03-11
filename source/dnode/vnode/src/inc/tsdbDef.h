@@ -35,6 +35,7 @@
 #include "tsdbMemory.h"
 #include "tsdbOptions.h"
 #include "tsdbReadImpl.h"
+#include "tsdbSma.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -51,6 +52,7 @@ struct STsdb {
   STsdbFS *             fs;
   SMeta *               pMeta;
   STfs *                pTfs;
+  SSmaStat *            pSmaStat;
 };
 
 #define REPO_ID(r) ((r)->vgId)

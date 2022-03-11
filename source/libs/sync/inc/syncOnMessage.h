@@ -23,10 +23,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "syncRaft.h"
 #include "taosdef.h"
-
-void onMessage(SRaft *pRaft, void *pMsg);
 
 #ifdef __cplusplus
 }

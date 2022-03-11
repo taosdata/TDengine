@@ -869,7 +869,7 @@ TEST(testCase, external_sort_Test) {
 #if 0
   su* v = static_cast<su*>(calloc(1000000, sizeof(su)));
   for(int32_t i = 0; i < 1000000; ++i) {
-    v[i].v = rand();
+    v[i].v = taosRand();
     v[i].c = static_cast<char*>(malloc(4));
     *(int32_t*) v[i].c = i;
   }
@@ -882,7 +882,7 @@ TEST(testCase, external_sort_Test) {
   return;
 #endif
 
-  srand(time(NULL));
+  taosSeedRand(time(NULL));
 
   SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
   SOrder o = {0};
@@ -943,7 +943,7 @@ TEST(testCase, external_sort_Test) {
 }
 
 TEST(testCase, sorted_merge_Test) {
-  srand(time(NULL));
+  taosSeedRand(time(NULL));
 
   SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
   SOrder o = {0};
@@ -1015,7 +1015,7 @@ TEST(testCase, sorted_merge_Test) {
 }
 
 TEST(testCase, time_interval_Operator_Test) {
-  srand(time(NULL));
+  taosSeedRand(time(NULL));
 
   SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
   SOrder o = {0};

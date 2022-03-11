@@ -12,7 +12,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#define _DEFAULT_SOURCE
 
 #include "vnode.h"
 
@@ -28,6 +27,7 @@ STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta) {
   pReadHandle->sver = -1;
   pReadHandle->pSchema = NULL;
   pReadHandle->pSchemaWrapper = NULL;
+  pReadHandle->tbIdHash = NULL;
   return pReadHandle;
 }
 
@@ -36,6 +36,7 @@ int32_t tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitReq* pMsg, int64_t
   pMsg->length = htonl(pMsg->length);
   pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
 
+  // iterate and convert
   if (tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter) < 0) return -1;
   while (true) {
     if (tGetSubmitMsgNext(&pReadHandle->msgIter, &pReadHandle->pBlock) < 0) return -1;

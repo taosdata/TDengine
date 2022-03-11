@@ -1,5 +1,5 @@
-#include <stdio.h>
 #include <gtest/gtest.h>
+#include <stdio.h>
 #include "syncIO.h"
 #include "syncInt.h"
 #include "syncRaftStore.h"
@@ -39,11 +39,11 @@ int main() {
     rpcMsg.msgType = 77;
 
     syncIOSendMsg(gSyncIO->clientRpc, &epSet, &rpcMsg);
-    sleep(1);
+    taosSsleep(1);
   }
 
   while (1) {
-    sleep(1);
+    taosSsleep(1);
   }
 
   return 0;

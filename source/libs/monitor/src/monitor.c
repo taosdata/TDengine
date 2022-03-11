@@ -22,6 +22,19 @@
 
 static SMonitor tsMonitor = {0};
 
+void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
+  pthread_mutex_lock(&tsMonitor.lock);
+  int32_t size = taosArrayGetSize(tsMonitor.logs);
+  if (size < tsMonitor.maxLogs) {
+    SMonLogItem  item = {.ts = ts, .level = level};
+    SMonLogItem *pItem = taosArrayPush(tsMonitor.logs, &item);
+    if (pItem != NULL) {
+      tstrncpy(pItem->content, content, MON_LOG_LEN);
+    }
+  }
+  pthread_mutex_unlock(&tsMonitor.lock);
+}
+
 int32_t monInit(const SMonCfg *pCfg) {
   tsMonitor.logs = taosArrayInit(16, sizeof(SMonLogItem));
   if (tsMonitor.logs == NULL) {
@@ -32,24 +45,18 @@ int32_t monInit(const SMonCfg *pCfg) {
   tsMonitor.maxLogs = pCfg->maxLogs;
   tsMonitor.server = pCfg->server;
   tsMonitor.port = pCfg->port;
-  taosInitRWLatch(&tsMonitor.lock);
+  tsMonitor.comp = pCfg->comp;
+  tsLogFp = monRecordLog;
+  tsMonitor.state.time = taosGetTimestampMs();
+  pthread_mutex_init(&tsMonitor.lock, NULL);
   return 0;
 }
 
 void monCleanup() {
+  tsLogFp = NULL;
   taosArrayDestroy(tsMonitor.logs);
   tsMonitor.logs = NULL;
-}
-
-void monAddLogItem(SMonLogItem *pItem) {
-  taosWLockLatch(&tsMonitor.lock);
-  int32_t size = taosArrayGetSize(tsMonitor.logs);
-  if (size >= tsMonitor.maxLogs) {
-    uInfo("too many logs for monitor");
-  } else {
-    taosArrayPush(tsMonitor.logs, pItem);
-  }
-  taosWUnLockLatch(&tsMonitor.lock);
+  pthread_mutex_destroy(&tsMonitor.lock);
 }
 
 SMonInfo *monCreateMonitorInfo() {
@@ -59,10 +66,10 @@ SMonInfo *monCreateMonitorInfo() {
     return NULL;
   }
 
-  taosWLockLatch(&tsMonitor.lock);
+  pthread_mutex_lock(&tsMonitor.lock);
   pMonitor->logs = taosArrayDup(tsMonitor.logs);
   taosArrayClear(tsMonitor.logs);
-  taosWUnLockLatch(&tsMonitor.lock);
+  pthread_mutex_unlock(&tsMonitor.lock);
 
   pMonitor->pJson = tjsonCreateObject();
   if (pMonitor->pJson == NULL || pMonitor->logs == NULL) {
@@ -71,24 +78,30 @@ SMonInfo *monCreateMonitorInfo() {
     return NULL;
   }
 
+  pMonitor->curTime = taosGetTimestampMs();
+  pMonitor->lastState = tsMonitor.state;
   return pMonitor;
 }
 
 void monCleanupMonitorInfo(SMonInfo *pMonitor) {
+  tsMonitor.state = pMonitor->lastState;
+  tsMonitor.state.time = pMonitor->curTime;
   taosArrayDestroy(pMonitor->logs);
   tjsonDelete(pMonitor->pJson);
   free(pMonitor);
 }
 
 void monSetBasicInfo(SMonInfo *pMonitor, SMonBasicInfo *pInfo) {
-  SJson  *pJson = pMonitor->pJson;
-  int64_t ms = taosGetTimestampMs();
-  char    buf[40] = {0};
-  taosFormatUtcTime(buf, sizeof(buf), ms, TSDB_TIME_PRECISION_MILLI);
+  SJson *pJson = pMonitor->pJson;
+  char   buf[40] = {0};
+  taosFormatUtcTime(buf, sizeof(buf), pMonitor->curTime, TSDB_TIME_PRECISION_MILLI);
 
   tjsonAddStringToObject(pJson, "ts", buf);
   tjsonAddDoubleToObject(pJson, "dnode_id", pInfo->dnode_id);
   tjsonAddStringToObject(pJson, "dnode_ep", pInfo->dnode_ep);
+  snprintf(buf, sizeof(buf), "%" PRId64, pInfo->cluster_id);
+  tjsonAddStringToObject(pJson, "cluster_id", buf);
+  tjsonAddDoubleToObject(pJson, "protocol", pInfo->protocol);
 }
 
 void monSetClusterInfo(SMonInfo *pMonitor, SMonClusterInfo *pInfo) {
@@ -198,6 +211,27 @@ void monSetDnodeInfo(SMonInfo *pMonitor, SMonDnodeInfo *pInfo) {
     return;
   }
 
+  SMonState *pLast = &pMonitor->lastState;
+  double     interval = (pMonitor->curTime - pLast->time) / 1000.0;
+  double     req_select_rate = (pInfo->req_select - pLast->req_select) / interval;
+  double     req_insert_rate = (pInfo->req_insert - pLast->req_insert) / interval;
+  double     req_insert_batch_rate = (pInfo->req_insert_batch - pLast->req_insert_batch) / interval;
+  double     net_in_rate = (pInfo->net_in - pLast->net_in) / interval;
+  double     net_out_rate = (pInfo->net_out - pLast->net_out) / interval;
+  double     io_read_rate = (pInfo->io_read - pLast->io_read) / interval;
+  double     io_write_rate = (pInfo->io_write - pLast->io_write) / interval;
+  double     io_read_disk_rate = (pInfo->io_read_disk - pLast->io_read_disk) / interval;
+  double     io_write_disk_rate = (pInfo->io_write_disk - pLast->io_write_disk) / interval;
+  pLast->req_select = pInfo->req_select;
+  pLast->req_insert = pInfo->req_insert;
+  pLast->req_insert_batch = pInfo->req_insert_batch;
+  pLast->net_in = pInfo->net_in;
+  pLast->net_out = pInfo->net_out;
+  pLast->io_read = pInfo->io_read;
+  pLast->io_write = pInfo->io_write;
+  pLast->io_read_disk = pInfo->io_read_disk;
+  pLast->io_write_disk = pInfo->io_write_disk;
+
   tjsonAddDoubleToObject(pJson, "uptime", pInfo->uptime);
   tjsonAddDoubleToObject(pJson, "cpu_engine", pInfo->cpu_engine);
   tjsonAddDoubleToObject(pJson, "cpu_system", pInfo->cpu_system);
@@ -208,20 +242,20 @@ void monSetDnodeInfo(SMonInfo *pMonitor, SMonDnodeInfo *pInfo) {
   tjsonAddDoubleToObject(pJson, "disk_engine", pInfo->disk_engine);
   tjsonAddDoubleToObject(pJson, "disk_used", pInfo->disk_used);
   tjsonAddDoubleToObject(pJson, "disk_total", pInfo->disk_total);
-  tjsonAddDoubleToObject(pJson, "net_in", pInfo->net_in);
-  tjsonAddDoubleToObject(pJson, "net_out", pInfo->net_out);
-  tjsonAddDoubleToObject(pJson, "io_read", pInfo->io_read);
-  tjsonAddDoubleToObject(pJson, "io_write", pInfo->io_write);
-  tjsonAddDoubleToObject(pJson, "io_read_disk", pInfo->io_read_disk);
-  tjsonAddDoubleToObject(pJson, "io_write_disk", pInfo->io_write_disk);
+  tjsonAddDoubleToObject(pJson, "net_in", net_in_rate);
+  tjsonAddDoubleToObject(pJson, "net_out", net_out_rate);
+  tjsonAddDoubleToObject(pJson, "io_read", io_read_rate);
+  tjsonAddDoubleToObject(pJson, "io_write", io_write_rate);
+  tjsonAddDoubleToObject(pJson, "io_read_disk", io_read_disk_rate);
+  tjsonAddDoubleToObject(pJson, "io_write_disk", io_write_disk_rate);
   tjsonAddDoubleToObject(pJson, "req_select", pInfo->req_select);
-  tjsonAddDoubleToObject(pJson, "req_select_rate", pInfo->req_select_rate);
+  tjsonAddDoubleToObject(pJson, "req_select_rate", req_select_rate);
   tjsonAddDoubleToObject(pJson, "req_insert", pInfo->req_insert);
   tjsonAddDoubleToObject(pJson, "req_insert_success", pInfo->req_insert_success);
-  tjsonAddDoubleToObject(pJson, "req_insert_rate", pInfo->req_insert_rate);
+  tjsonAddDoubleToObject(pJson, "req_insert_rate", req_insert_rate);
   tjsonAddDoubleToObject(pJson, "req_insert_batch", pInfo->req_insert_batch);
   tjsonAddDoubleToObject(pJson, "req_insert_batch_success", pInfo->req_insert_batch_success);
-  tjsonAddDoubleToObject(pJson, "req_insert_batch_rate", pInfo->req_insert_batch_rate);
+  tjsonAddDoubleToObject(pJson, "req_insert_batch_rate", req_insert_batch_rate);
   tjsonAddDoubleToObject(pJson, "errors", pInfo->errors);
   tjsonAddDoubleToObject(pJson, "vnodes_num", pInfo->vnodes_num);
   tjsonAddDoubleToObject(pJson, "masters", pInfo->masters);
@@ -270,15 +304,15 @@ void monSetDiskInfo(SMonInfo *pMonitor, SMonDiskInfo *pInfo) {
   tjsonAddDoubleToObject(pTempdirJson, "total", pInfo->tempdir.size.total);
 }
 
-static const char *monLogLevelStr(EMonLogLevel level) {
+static const char *monLogLevelStr(ELogLevel level) {
   switch (level) {
-    case MON_LEVEL_ERROR:
+    case DEBUG_ERROR:
       return "error";
-    case MON_LEVEL_INFO:
+    case DEBUG_INFO:
       return "info";
-    case MON_LEVEL_DEBUG:
+    case DEBUG_DEBUG:
       return "debug";
-    case MON_LEVEL_TRACE:
+    case DEBUG_TRACE:
       return "trace";
     default:
       return "undefine";
@@ -318,25 +352,25 @@ static void monSetLogInfo(SMonInfo *pMonitor) {
   SJson *pLogError = tjsonCreateObject();
   if (pLogError == NULL) return;
   tjsonAddStringToObject(pLogError, "level", "error");
-  tjsonAddDoubleToObject(pLogError, "total", 1);
+  tjsonAddDoubleToObject(pLogError, "total", tsNumOfErrorLogs);
   if (tjsonAddItemToArray(pSummaryJson, pLogError) != 0) tjsonDelete(pLogError);
 
   SJson *pLogInfo = tjsonCreateObject();
   if (pLogInfo == NULL) return;
   tjsonAddStringToObject(pLogInfo, "level", "info");
-  tjsonAddDoubleToObject(pLogInfo, "total", 1);
+  tjsonAddDoubleToObject(pLogInfo, "total", tsNumOfInfoLogs);
   if (tjsonAddItemToArray(pSummaryJson, pLogInfo) != 0) tjsonDelete(pLogInfo);
 
   SJson *pLogDebug = tjsonCreateObject();
   if (pLogDebug == NULL) return;
   tjsonAddStringToObject(pLogDebug, "level", "debug");
-  tjsonAddDoubleToObject(pLogDebug, "total", 1);
+  tjsonAddDoubleToObject(pLogDebug, "total", tsNumOfDebugLogs);
   if (tjsonAddItemToArray(pSummaryJson, pLogDebug) != 0) tjsonDelete(pLogDebug);
 
   SJson *pLogTrace = tjsonCreateObject();
   if (pLogTrace == NULL) return;
   tjsonAddStringToObject(pLogTrace, "level", "trace");
-  tjsonAddDoubleToObject(pLogTrace, "total", 1);
+  tjsonAddDoubleToObject(pLogTrace, "total", tsNumOfTraceLogs);
   if (tjsonAddItemToArray(pSummaryJson, pLogTrace) != 0) tjsonDelete(pLogTrace);
 }
 
@@ -345,7 +379,8 @@ void monSendReport(SMonInfo *pMonitor) {
 
   char *pCont = tjsonToString(pMonitor->pJson);
   if (pCont != NULL) {
-    taosSendHttpReport(tsMonitor.server, tsMonitor.port, pCont, strlen(pCont));
+    EHttpCompFlag flag = tsMonitor.comp ? HTTP_GZIP : HTTP_FLAT;
+    taosSendHttpReport(tsMonitor.server, tsMonitor.port, pCont, strlen(pCont), flag);
     free(pCont);
   }
 }

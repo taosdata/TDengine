@@ -10,10 +10,9 @@
 [submodule "deps/TSZ"]
 	path = deps/TSZ
 	url = https://github.com/taosdata/TSZ.git
-[submodule "tests"]
-	path = tests
-	url = https://github.com/taosdata/tests
-	branch = 3.0
 [submodule "examples/rust"]
 	path = examples/rust
 	url = https://github.com/songtianyi/tdengine-rust-bindings.git
+[submodule "tools/taos-tools"]
+	path = tools/taos-tools
+	url = https://github.com/taosdata/taos-tools

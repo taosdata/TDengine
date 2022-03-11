@@ -1481,7 +1481,7 @@ static int32_t tSerializeSUseDbRspImp(SCoder *pEncoder, SUseDbRsp *pRsp) {
     if (tEncodeI32(pEncoder, pVgInfo->vgId) < 0) return -1;
     if (tEncodeU32(pEncoder, pVgInfo->hashBegin) < 0) return -1;
     if (tEncodeU32(pEncoder, pVgInfo->hashEnd) < 0) return -1;
-    if (tEncodeSEpSet(pEncoder, &pVgInfo->epset) < 0) return -1;
+    if (tEncodeSEpSet(pEncoder, &pVgInfo->epSet) < 0) return -1;
   }
 
   return 0;
@@ -1541,7 +1541,7 @@ int32_t tDeserializeSUseDbRspImp(SCoder *pDecoder, SUseDbRsp *pRsp) {
     if (tDecodeI32(pDecoder, &vgInfo.vgId) < 0) return -1;
     if (tDecodeU32(pDecoder, &vgInfo.hashBegin) < 0) return -1;
     if (tDecodeU32(pDecoder, &vgInfo.hashEnd) < 0) return -1;
-    if (tDecodeSEpSet(pDecoder, &vgInfo.epset) < 0) return -1;
+    if (tDecodeSEpSet(pDecoder, &vgInfo.epSet) < 0) return -1;
     taosArrayPush(pRsp->pVgroupInfos, &vgInfo);
   }
 
@@ -1899,7 +1899,7 @@ int32_t tDeserializeSMDropTopicReq(void *buf, int32_t bufLen, SMDropTopicReq *pR
   return 0;
 }
 
-int32_t tSerializeMCreateTopicReq(void *buf, int32_t bufLen, const SMCreateTopicReq *pReq) {
+int32_t tSerializeSCMCreateTopicReq(void *buf, int32_t bufLen, const SCMCreateTopicReq *pReq) {
   int32_t sqlLen = 0;
   int32_t physicalPlanLen = 0;
   int32_t logicalPlanLen = 0;
@@ -1927,7 +1927,7 @@ int32_t tSerializeMCreateTopicReq(void *buf, int32_t bufLen, const SMCreateTopic
   return tlen;
 }
 
-int32_t tDeserializeSMCreateTopicReq(void *buf, int32_t bufLen, SMCreateTopicReq *pReq) {
+int32_t tDeserializeSCMCreateTopicReq(void *buf, int32_t bufLen, SCMCreateTopicReq *pReq) {
   int32_t sqlLen = 0;
   int32_t physicalPlanLen = 0;
   int32_t logicalPlanLen = 0;
@@ -1956,13 +1956,13 @@ int32_t tDeserializeSMCreateTopicReq(void *buf, int32_t bufLen, SMCreateTopicReq
   return 0;
 }
 
-void tFreeSMCreateTopicReq(SMCreateTopicReq *pReq) {
+void tFreeSCMCreateTopicReq(SCMCreateTopicReq *pReq) {
   tfree(pReq->sql);
   tfree(pReq->physicalPlan);
   tfree(pReq->logicalPlan);
 }
 
-int32_t tSerializeSMCreateTopicRsp(void *buf, int32_t bufLen, const SMCreateTopicRsp *pRsp) {
+int32_t tSerializeSCMCreateTopicRsp(void *buf, int32_t bufLen, const SCMCreateTopicRsp *pRsp) {
   SCoder encoder = {0};
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
 
@@ -1975,7 +1975,7 @@ int32_t tSerializeSMCreateTopicRsp(void *buf, int32_t bufLen, const SMCreateTopi
   return tlen;
 }
 
-int32_t tDeserializeSMCreateTopicRsp(void *buf, int32_t bufLen, SMCreateTopicRsp *pRsp) {
+int32_t tDeserializeSCMCreateTopicRsp(void *buf, int32_t bufLen, SCMCreateTopicRsp *pRsp) {
   SCoder decoder = {0};
   tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
 
@@ -2389,4 +2389,77 @@ int32_t tDecodeSMqCMCommitOffsetReq(SCoder *decoder, SMqCMCommitOffsetReq *pReq)
   }
   tEndDecode(decoder);
   return 0;
+}
+
+int32_t tSerializeSVCreateTSmaReq(void **buf, SVCreateTSmaReq *pReq) {
+  int32_t tlen = 0;
+
+  tlen += taosEncodeFixedI64(buf, pReq->ver);
+  tlen += tEncodeTSma(buf, &pReq->tSma);
+
+  return tlen;
+}
+
+void *tDeserializeSVCreateTSmaReq(void *buf, SVCreateTSmaReq *pReq) {
+  buf = taosDecodeFixedI64(buf, &(pReq->ver));
+
+  if ((buf = tDecodeTSma(buf, &pReq->tSma)) == NULL) {
+    tdDestroyTSma(&pReq->tSma);
+  }
+  return buf;
+}
+
+int32_t tSerializeSVDropTSmaReq(void **buf, SVDropTSmaReq *pReq) {
+  int32_t tlen = 0;
+
+  tlen += taosEncodeFixedI64(buf, pReq->ver);
+  tlen += taosEncodeString(buf, pReq->indexName);
+
+  return tlen;
+}
+void *tDeserializeSVDropTSmaReq(void *buf, SVDropTSmaReq *pReq) {
+  buf = taosDecodeFixedI64(buf, &(pReq->ver));
+  buf = taosDecodeStringTo(buf, pReq->indexName);
+
+  return buf;
+}
+
+int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateStreamReq *pReq) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->igExists) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->physicalPlan) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->logicalPlan) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStreamReq *pReq) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->igExists) < 0) return -1;
+  if (tDecodeCStr(&decoder, (const char **)&pReq->sql) < 0) return -1;
+  if (tDecodeCStr(&decoder, (const char **)&pReq->physicalPlan) < 0) return -1;
+  if (tDecodeCStr(&decoder, (const char **)&pReq->logicalPlan) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tCoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
+  tfree(pReq->sql);
+  tfree(pReq->physicalPlan);
+  tfree(pReq->logicalPlan);
 }

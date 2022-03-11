@@ -19,6 +19,10 @@
 #include "tchecksum.h"
 #include "tfs.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define TSDB_FILE_HEAD_SIZE 512
 #define TSDB_FILE_DELIMITER 0xF00AFA0F
 #define TSDB_FILE_INIT_MAGIC 0xFFFFFFFF
@@ -52,10 +56,11 @@ typedef enum {
   TSDB_FILE_SMAL,      // .smal(Block-wise SMA)
   TSDB_FILE_MAX,       //
   TSDB_FILE_META,      // meta
-  TSDB_FILE_TSMA,      // .tsma.${sma_index_name}, Time-range-wise SMA
-  TSDB_FILE_RSMA,      // .rsma.${sma_index_name}, Time-range-wise Rollup SMA
-} TSDB_FILE_T;
+  TSDB_FILE_TSMA,      // v2t100.${sma_index_name}, Time-range-wise SMA
+  TSDB_FILE_RSMA,      // v2r100.${sma_index_name}, Time-range-wise Rollup SMA
+} E_TSDB_FILE_T;
 
+typedef int32_t TSDB_FILE_T;
 typedef enum {
   TSDB_FS_VER_0 = 0,
   TSDB_FS_VER_MAX,
@@ -409,5 +414,9 @@ static FORCE_INLINE bool tsdbFSetIsOk(SDFileSet* pSet) {
 
   return true;
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _TS_TSDB_FILE_H_ */

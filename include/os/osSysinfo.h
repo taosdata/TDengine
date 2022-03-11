@@ -33,22 +33,20 @@ typedef struct {
   SDiskSize size;
 } SDiskSpace;
 
+bool    taosCheckSystemIsSmallEnd();
 void    taosGetSystemInfo();
 int32_t taosGetEmail(char *email, int32_t maxLen);
 int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen);
 int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores);
 int32_t taosGetCpuCores(float *numOfCores);
-int32_t taosGetCpuUsage(float *cpu_system, float *cpu_engine);
+int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine);
 int32_t taosGetTotalMemory(int64_t *totalKB);
 int32_t taosGetProcMemory(int64_t *usedKB);
 int32_t taosGetSysMemory(int64_t *usedKB);
 int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize);
-int32_t taosReadProcIO(int64_t *rchars, int64_t *wchars);
-int32_t taosGetProcIO(float *readKB, float *writeKB);
-int32_t taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes);
-int32_t taosGetBandSpeed(float *bandSpeedKb);
+int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes);
+int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes);
 
-int32_t taosSystem(const char *cmd);
 void    taosKillSystem();
 int32_t taosGetSystemUUID(char *uid, int32_t uidlen);
 char   *taosGetCmdlineByPID(int32_t pid);

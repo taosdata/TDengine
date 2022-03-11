@@ -24,12 +24,13 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include "cJSON.h"
-#include "sync.h"
-#include "syncRaftEntry.h"
+#include "syncInt.h"
 #include "taosdef.h"
 
 // encode as uint32
 typedef enum ESyncMessageType {
+  SYNC_UNKNOWN = 9999,
+  SYNC_TIMEOUT = 99,
   SYNC_PING = 101,
   SYNC_PING_REPLY = 103,
   SYNC_CLIENT_REQUEST = 105,
@@ -38,7 +39,38 @@ typedef enum ESyncMessageType {
   SYNC_REQUEST_VOTE_REPLY = 111,
   SYNC_APPEND_ENTRIES = 113,
   SYNC_APPEND_ENTRIES_REPLY = 115,
+
 } ESyncMessageType;
+
+// ---------------------------------------------
+cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg);
+cJSON* syncRpcUnknownMsg2Json();
+char*  syncRpcMsg2Str(SRpcMsg* pRpcMsg);
+
+// ---------------------------------------------
+typedef enum ESyncTimeoutType {
+  SYNC_TIMEOUT_PING = 100,
+  SYNC_TIMEOUT_ELECTION,
+  SYNC_TIMEOUT_HEARTBEAT,
+} ESyncTimeoutType;
+
+typedef struct SyncTimeout {
+  uint32_t         bytes;
+  uint32_t         msgType;
+  ESyncTimeoutType timeoutType;
+  uint64_t         logicClock;
+  int32_t          timerMS;
+  void*            data;
+} SyncTimeout;
+
+SyncTimeout* syncTimeoutBuild();
+void         syncTimeoutDestroy(SyncTimeout* pMsg);
+void         syncTimeoutSerialize(const SyncTimeout* pMsg, char* buf, uint32_t bufLen);
+void         syncTimeoutDeserialize(const char* buf, uint32_t len, SyncTimeout* pMsg);
+void         syncTimeout2RpcMsg(const SyncTimeout* pMsg, SRpcMsg* pRpcMsg);
+void         syncTimeoutFromRpcMsg(const SRpcMsg* pRpcMsg, SyncTimeout* pMsg);
+cJSON*       syncTimeout2Json(const SyncTimeout* pMsg);
+SyncTimeout* syncTimeoutBuild2(ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS, void* data);
 
 // ---------------------------------------------
 typedef struct SyncPing {
@@ -91,11 +123,21 @@ SyncPingReply* syncPingReplyBuild3(const SRaftId* srcId, const SRaftId* destId);
 typedef struct SyncClientRequest {
   uint32_t bytes;
   uint32_t msgType;
-  int64_t  seqNum;
+  uint32_t originalRpcType;
+  uint64_t seqNum;
   bool     isWeak;
   uint32_t dataLen;
   char     data[];
 } SyncClientRequest;
+
+SyncClientRequest* syncClientRequestBuild(uint32_t dataLen);
+void               syncClientRequestDestroy(SyncClientRequest* pMsg);
+void               syncClientRequestSerialize(const SyncClientRequest* pMsg, char* buf, uint32_t bufLen);
+void               syncClientRequestDeserialize(const char* buf, uint32_t len, SyncClientRequest* pMsg);
+void               syncClientRequest2RpcMsg(const SyncClientRequest* pMsg, SRpcMsg* pRpcMsg);
+void               syncClientRequestFromRpcMsg(const SRpcMsg* pRpcMsg, SyncClientRequest* pMsg);
+cJSON*             syncClientRequest2Json(const SyncClientRequest* pMsg);
+SyncClientRequest* syncClientRequestBuild2(const SRpcMsg* pOriginalRpcMsg, uint64_t seqNum, bool isWeak);
 
 // ---------------------------------------------
 typedef struct SyncClientRequestReply {

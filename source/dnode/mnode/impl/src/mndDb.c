@@ -900,10 +900,10 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
       vgInfo.vgId = pVgroup->vgId;
       vgInfo.hashBegin = pVgroup->hashBegin;
       vgInfo.hashEnd = pVgroup->hashEnd;
-      vgInfo.epset.numOfEps = pVgroup->replica;
+      vgInfo.epSet.numOfEps = pVgroup->replica;
       for (int32_t gid = 0; gid < pVgroup->replica; ++gid) {
         SVnodeGid *pVgid = &pVgroup->vnodeGid[gid];
-        SEp       *pEp = &vgInfo.epset.eps[gid];
+        SEp       *pEp = &vgInfo.epSet.eps[gid];
         SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
         if (pDnode != NULL) {
           memcpy(pEp->fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
@@ -911,7 +911,7 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
         }
         mndReleaseDnode(pMnode, pDnode);
         if (pVgid->role == TAOS_SYNC_STATE_LEADER) {
-          vgInfo.epset.inUse = gid;
+          vgInfo.epSet.inUse = gid;
         }
       }
       vindex++;
