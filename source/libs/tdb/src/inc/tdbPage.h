@@ -56,8 +56,9 @@ struct SPage {
 };
 
 // Macros
-#define TDB_PAGE_CELL_IDX_AT(pPage, idx) ((pPage)->aCellIdx[idx])
-#define TDB_PAGE_CELL_AT(pPage, idx)     ((pPage)->pData + TDB_PAGE_CELL_IDX_AT(pPage, idx))
+#define TDB_PAGE_CELL_OFFSET_SIZE(pPage)    (((pPage)->pageSize < 65536) ? 2 : 3)
+#define TDB_PAGE_CELL_OFFSET_AT(pPage, idx) ((pPage)->aCellIdx[idx])
+#define TDB_PAGE_CELL_AT(pPage, idx)        ((pPage)->pData + TDB_PAGE_CELL_OFFSET_AT(pPage, idx))
 
 // For page lock
 #define P_LOCK_SUCC 0
