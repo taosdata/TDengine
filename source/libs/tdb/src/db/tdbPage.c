@@ -15,6 +15,8 @@
 
 #include "tdbInt.h"
 
+static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell);
+
 int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg) {
   SPage *pPage;
   u8    *ptr;
