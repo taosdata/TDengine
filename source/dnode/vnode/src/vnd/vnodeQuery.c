@@ -24,6 +24,10 @@ int vnodeQueryOpen(SVnode *pVnode) {
                      (putReqToQueryQFp)vnodePutReqToVQueryQ, (sendReqToDnodeFp)vnodeSendReqToDnode);
 }
 
+void vnodeQueryClose(SVnode *pVnode) {
+  qWorkerDestroy((void **)&pVnode->pQuery);
+}
+
 int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in query queue is processing");
   SReadHandle handle = {.reader = pVnode->pTsdb, .meta = pVnode->pMeta};
@@ -64,6 +68,8 @@ int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       return vnodeGetTableMeta(pVnode, pMsg);
     case TDMT_VND_CONSUME:
       return tqProcessPollReq(pVnode->pTq, pMsg);
+    case TDMT_VND_QUERY_HEARTBEAT:
+      return qWorkerProcessHbMsg(pVnode, pVnode->pQuery, pMsg);
     default:
       vError("unknown msg type:%d in fetch queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;

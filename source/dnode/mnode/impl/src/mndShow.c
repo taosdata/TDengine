@@ -25,6 +25,7 @@ static void      mndReleaseShowObj(SShowObj *pShow, bool forceRemove);
 static int32_t   mndProcessShowReq(SMnodeMsg *pReq);
 static int32_t   mndProcessRetrieveReq(SMnodeMsg *pReq);
 static bool      mndCheckRetrieveFinished(SShowObj *pShow);
+static int32_t   mndProcessRetrieveSysTableReq(SMnodeMsg *pReq);
 
 int32_t mndInitShow(SMnode *pMnode) {
   SShowMgmt *pMgmt = &pMnode->showMgmt;
@@ -38,6 +39,7 @@ int32_t mndInitShow(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_MND_SHOW, mndProcessShowReq);
   mndSetMsgHandle(pMnode, TDMT_MND_SHOW_RETRIEVE, mndProcessRetrieveReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_SYSTABLE_RETRIEVE, mndProcessRetrieveSysTableReq);
   return 0;
 }
 
@@ -256,6 +258,106 @@ static int32_t mndProcessRetrieveReq(SMnodeMsg *pReq) {
   } else {
     mDebug("show:0x%" PRIx64 ", retrieve not completed yet", pShow->id);
     mndReleaseShowObj(pShow, false);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndProcessRetrieveSysTableReq(SMnodeMsg *pReq) {
+  SMnode    *pMnode = pReq->pMnode;
+  SShowMgmt *pMgmt = &pMnode->showMgmt;
+  int32_t    rowsToRead = 0;
+  int32_t    size = 0;
+  int32_t    rowsRead = 0;
+
+  SRetrieveTableReq retrieveReq = {0};
+  if (tDeserializeSRetrieveTableReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &retrieveReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  SShowObj* pShow = NULL;
+
+  if (retrieveReq.showId == 0) {
+    SShowReq req = {0};
+    req.type = retrieveReq.type;
+    strncpy(req.db, retrieveReq.db, tListLen(req.db));
+
+    pShow = mndCreateShowObj(pMnode, &req);
+    if (pShow == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      mError("failed to process show-meta req since %s", terrstr());
+      return -1;
+    }
+  } else {
+    pShow = mndAcquireShowObj(pMnode, retrieveReq.showId);
+    if (pShow == NULL) {
+      terrno = TSDB_CODE_MND_INVALID_SHOWOBJ;
+      mError("failed to process show-retrieve req:%p since %s", pShow, terrstr());
+      return -1;
+    }
+  }
+
+  ShowRetrieveFp retrieveFp = pMgmt->retrieveFps[pShow->type];
+  if (retrieveFp == NULL) {
+    mndReleaseShowObj((SShowObj*) pShow, false);
+    terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, terrstr());
+    return -1;
+  }
+
+  mDebug("show:0x%" PRIx64 ", start retrieve data, numOfReads:%d numOfRows:%d type:%s", pShow->id, pShow->numOfReads,
+         pShow->numOfRows, mndShowStr(pShow->type));
+
+  if (mndCheckRetrieveFinished((SShowObj*) pShow)) {
+    mDebug("show:0x%" PRIx64 ", read finished, numOfReads:%d numOfRows:%d", pShow->id, pShow->numOfReads,
+           pShow->numOfRows);
+    pShow->numOfReads = pShow->numOfRows;
+  }
+
+  if ((retrieveReq.free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
+    rowsToRead = pShow->numOfRows - pShow->numOfReads;
+  }
+
+  /* return no more than 100 tables in one round trip */
+  if (rowsToRead > SHOW_STEP_SIZE) rowsToRead = SHOW_STEP_SIZE;
+
+  /*
+   * the actual number of table may be larger than the value of pShow->numOfRows, if a query is
+   * issued during a continuous create table operation. Therefore, rowToRead may be less than 0.
+   */
+  if (rowsToRead < 0) rowsToRead = 0;
+  size = pShow->rowSize * rowsToRead;
+
+  size += SHOW_STEP_SIZE;
+  SRetrieveTableRsp *pRsp = rpcMallocCont(size);
+  if (pRsp == NULL) {
+    mndReleaseShowObj((SShowObj*) pShow, false);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, terrstr());
+    return -1;
+  }
+
+  // if free flag is set, client wants to clean the resources
+  if ((retrieveReq.free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
+    rowsRead = (*retrieveFp)(pReq, (SShowObj*) pShow, pRsp->data, rowsToRead);
+  }
+
+  mDebug("show:0x%" PRIx64 ", stop retrieve data, rowsRead:%d rowsToRead:%d", pShow->id, rowsRead, rowsToRead);
+
+  pRsp->numOfRows = htonl(rowsRead);
+  pRsp->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond time precision
+
+  pReq->pCont = pRsp;
+  pReq->contLen = size;
+
+  if (rowsRead == 0 || rowsToRead == 0 || (rowsRead == rowsToRead && pShow->numOfRows == pShow->numOfReads)) {
+    pRsp->completed = 1;
+    mDebug("show:0x%" PRIx64 ", retrieve completed", pShow->id);
+    mndReleaseShowObj((SShowObj*) pShow, true);
+  } else {
+    mDebug("show:0x%" PRIx64 ", retrieve not completed yet", pShow->id);
+    mndReleaseShowObj((SShowObj*) pShow, false);
   }
 
   return TSDB_CODE_SUCCESS;

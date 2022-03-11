@@ -95,7 +95,7 @@ static bool functionNodeEqual(const SFunctionNode* a, const SFunctionNode* b) {
   return true;
 }
 
-bool nodesEqualNode(const SNode* a, const SNode* b) {
+bool nodesEqualNode(const SNodeptr a, const SNodeptr b) {
   if (a == b) {
     return true;
   }
