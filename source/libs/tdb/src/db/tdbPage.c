@@ -65,7 +65,7 @@ static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell) {
   return 0;
 }
 
-static int tdbPageFree(SPage *pPage, int idx, SCell *pCell) {
+static int tdbPageFree(SPage *pPage, int idx, SCell *pCell, int size) {
   // TODO
   return 0;
 }
