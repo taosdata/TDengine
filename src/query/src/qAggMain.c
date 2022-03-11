@@ -5859,8 +5859,8 @@ int32_t functionCompatList[] = {
     1,              1,              1,         1,         -1,           1,          1,           1,           5,         1,      1,
     // tid_tag,     deriv,          csum,      mavg,      sample,       block_info, elapsed,     histogram,   unique,    mode,   tail
     6,              8,              -1,        -1,        -1,           7,          1,           -1,          -1,        1,      -1,
-    // stateCount,  stateDuration,  wstart,    wstop,     wduration,
-    1,              1,              1,         1,         1,
+    // stateCount,  stateDuration,  wstart,    wstop,     wduration,    qstart,     qstop,       qduration,
+    1,              1,              1,         1,         1,            1,          1,           1,
 };
 
 SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
@@ -6435,7 +6435,7 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                               "_qstart",
                               TSDB_FUNC_QSTART,
                               TSDB_FUNC_QSTART,
-                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
+                              TSDB_BASE_FUNC_MO | TSDB_FUNCSTATE_SELECTIVITY,
                               function_setup,
                               window_start_function,
                               doFinalizer,
@@ -6447,7 +6447,7 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                               "_qstop",
                               TSDB_FUNC_QSTOP,
                               TSDB_FUNC_QSTOP,
-                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
+                              TSDB_BASE_FUNC_MO | TSDB_FUNCSTATE_SELECTIVITY,
                               function_setup,
                               window_stop_function,
                               doFinalizer,
@@ -6459,7 +6459,7 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                               "_qduration",
                               TSDB_FUNC_QDURATION,
                               TSDB_FUNC_QDURATION,
-                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
+                              TSDB_BASE_FUNC_MO | TSDB_FUNCSTATE_SELECTIVITY,
                               function_setup,
                               window_duration_function,
                               doFinalizer,

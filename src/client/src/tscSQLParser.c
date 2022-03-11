@@ -8290,6 +8290,9 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
 
     if (isTimeWindowFunction(functionId)) {
       numOfTimeWindow++;
+      if (functionId >= TSDB_FUNC_QSTART && functionId <= TSDB_FUNC_QDURATION) {
+        continue;
+      }
     }
 
     if (functionId < 0) {
