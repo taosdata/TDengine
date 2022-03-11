@@ -85,7 +85,7 @@ static void *sendRequest(void *param) {
 
     tDebug("recv response succefully");
 
-    // usleep(100000000);
+    // taosSsleep(100);
   }
 
   tError("send and recv sum: %d, %d, %d, %d", u100, u500, u1000, u10000);
@@ -201,7 +201,7 @@ int main(int argc, char *argv[]) {
   }
 
   do {
-    usleep(1);
+    taosUsleep(1);
   } while (tcount < appThreads);
 
   gettimeofday(&systemTime, NULL);

@@ -24,7 +24,6 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include "syncInt.h"
-#include "syncRaft.h"
 #include "taosdef.h"
 
 int32_t takeSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot);

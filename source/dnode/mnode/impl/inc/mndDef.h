@@ -84,6 +84,7 @@ typedef enum {
   TRN_TYPE_SUBSCRIBE = 1016,
   TRN_TYPE_REBALANCE = 1017,
   TRN_TYPE_COMMIT_OFFSET = 1018,
+  TRN_TYPE_CREATE_STREAM = 1019,
   TRN_TYPE_BASIC_SCOPE_END,
   TRN_TYPE_GLOBAL_SCOPE = 2000,
   TRN_TYPE_CREATE_DNODE = 2001,
@@ -679,7 +680,23 @@ static FORCE_INLINE void* tDecodeSMqConsumerObj(void* buf, SMqConsumerObj* pCons
 }
 
 typedef struct {
-} SStreamScheduler;
+  char     name[TSDB_TOPIC_FNAME_LEN];
+  char     db[TSDB_DB_FNAME_LEN];
+  int64_t  createTime;
+  int64_t  updateTime;
+  int64_t  uid;
+  int64_t  dbUid;
+  int32_t  version;
+  SRWLatch lock;
+  int8_t   status;
+  // int32_t  sqlLen;
+  char* sql;
+  char* logicalPlan;
+  char* physicalPlan;
+} SStreamObj;
+
+int32_t tEncodeSStreamObj(SCoder* pEncoder, const SStreamObj* pObj);
+int32_t tDecodeSStreamObj(SCoder* pDecoder, SStreamObj* pObj);
 
 typedef struct SMnodeMsg {
   char    user[TSDB_USER_LEN];

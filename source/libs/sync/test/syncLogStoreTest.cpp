@@ -3,9 +3,9 @@
 #include "syncEnv.h"
 #include "syncIO.h"
 #include "syncInt.h"
+#include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
-#include "syncVoteMgr.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -17,12 +17,13 @@ void logTest() {
 }
 
 uint16_t ports[] = {7010, 7110, 7210, 7310, 7410};
-int32_t  replicaNum = 3;
+int32_t  replicaNum = 1;
 int32_t  myIndex = 0;
 
 SRaftId    ids[TSDB_MAX_REPLICA];
 SSyncInfo  syncInfo;
 SSyncFSM*  pFsm;
+SWal*      pWal;
 SSyncNode* pSyncNode;
 
 SSyncNode* syncNodeInit() {
@@ -33,6 +34,22 @@ SSyncNode* syncNodeInit() {
   syncInfo.FpEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./");
+
+  int code = walInit();
+  assert(code == 0);
+  SWalCfg walCfg;
+  memset(&walCfg, 0, sizeof(SWalCfg));
+  walCfg.vgId = syncInfo.vgId;
+  walCfg.fsyncPeriod = 1000;
+  walCfg.retentionPeriod = 1000;
+  walCfg.rollPeriod = 1000;
+  walCfg.retentionSize = 1000;
+  walCfg.segSize = 1000;
+  walCfg.level = TAOS_WAL_FSYNC;
+  pWal = walOpen("./wal_test", &walCfg);
+  assert(pWal != NULL);
+
+  syncInfo.pWal = pWal;
 
   SSyncCfg* pCfg = &syncInfo.syncCfg;
   pCfg->myIndex = myIndex;
@@ -55,12 +72,37 @@ SSyncNode* syncNodeInit() {
   gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
   gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
   gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
+  gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
   gSyncIO->pSyncNode = pSyncNode;
 
   return pSyncNode;
 }
 
 SSyncNode* syncInitTest() { return syncNodeInit(); }
+
+void logStoreTest() {
+  logStorePrint(pSyncNode->pLogStore);
+  for (int i = 0; i < 5; ++i) {
+    int32_t dataLen = 10;
+    SSyncRaftEntry* pEntry = syncEntryBuild(dataLen);
+    assert(pEntry != NULL);
+    pEntry->msgType = 1;
+    pEntry->originalRpcType = 2;
+    pEntry->seqNum = 3;
+    pEntry->isWeak = true;
+    pEntry->term = 100;
+    pEntry->index = pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore) + 1;
+    snprintf(pEntry->data, dataLen, "value%d", i);
+
+    //syncEntryPrint2((char*)"write entry:", pEntry);
+    pSyncNode->pLogStore->appendEntry(pSyncNode->pLogStore, pEntry);
+    syncEntryDestory(pEntry);
+  }
+  logStorePrint(pSyncNode->pLogStore);
+
+  pSyncNode->pLogStore->truncate(pSyncNode->pLogStore, 3);
+  logStorePrint(pSyncNode->pLogStore);
+}
 
 void initRaftId(SSyncNode* pSyncNode) {
   for (int i = 0; i < replicaNum; ++i) {
@@ -87,69 +129,13 @@ int main(int argc, char** argv) {
   ret = syncEnvStart();
   assert(ret == 0);
 
-  SSyncNode* pSyncNode = syncInitTest();
+  pSyncNode = syncInitTest();
   assert(pSyncNode != NULL);
 
-  char* serialized = syncNode2Str(pSyncNode);
-  printf("%s\n", serialized);
-  free(serialized);
+  //syncNodePrint((char*)"syncLogStoreTest", pSyncNode);
+  //initRaftId(pSyncNode);
 
-  initRaftId(pSyncNode);
+  logStoreTest();
 
-  SVotesRespond* pVotesRespond = votesRespondCreate(pSyncNode);
-  assert(pVotesRespond != NULL);
-
-  printf("---------------------------------------\n");
-  {
-    char* serialized = votesRespond2Str(pVotesRespond);
-    assert(serialized != NULL);
-    printf("%s\n", serialized);
-    free(serialized);
-  }
-
-  SyncTerm term = 1234;
-  printf("---------------------------------------\n");
-  votesRespondReset(pVotesRespond, term);
-  {
-    char* serialized = votesRespond2Str(pVotesRespond);
-    assert(serialized != NULL);
-    printf("%s\n", serialized);
-    free(serialized);
-  }
-
-  for (int i = 0; i < replicaNum; ++i) {
-    SyncRequestVoteReply* reply = SyncRequestVoteReplyBuild();
-    reply->destId = pSyncNode->myRaftId;
-    reply->srcId = ids[i];
-    reply->term = term;
-    reply->voteGranted = true;
-
-    votesRespondAdd(pVotesRespond, reply);
-    {
-      char* serialized = votesRespond2Str(pVotesRespond);
-      assert(serialized != NULL);
-      printf("%s\n", serialized);
-      free(serialized);
-    }
-
-    votesRespondAdd(pVotesRespond, reply);
-    {
-      char* serialized = votesRespond2Str(pVotesRespond);
-      assert(serialized != NULL);
-      printf("%s\n", serialized);
-      free(serialized);
-    }
-  }
-
-  printf("---------------------------------------\n");
-  votesRespondReset(pVotesRespond, 123456789);
-  {
-    char* serialized = votesRespond2Str(pVotesRespond);
-    assert(serialized != NULL);
-    printf("%s\n", serialized);
-    free(serialized);
-  }
-
-  votesRespondDestory(pVotesRespond);
   return 0;
 }

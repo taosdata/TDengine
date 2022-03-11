@@ -31,7 +31,7 @@ int32_t tsdbGetTSmaDataImpl(STsdb *pTsdb, STSma *param, STSmaData *pData, STimeW
 int32_t tsdbUpdateExpiredWindow(STsdb *pTsdb, char *msg);
 int32_t tsdbGetTSmaStatus(STsdb *pTsdb, STSma *param, void *result);
 int32_t tsdbRemoveTSmaData(STsdb *pTsdb, STSma *param, STimeWindow *pWin);
-int32_t tsdbFreeSmaState(SSmaStat *pSmaStat);
+int32_t tsdbDestroySmaState(SSmaStat *pSmaStat);
 
 // internal func
 

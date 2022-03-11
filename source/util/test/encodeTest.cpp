@@ -174,8 +174,8 @@ TEST(td_encode_test, encode_decode_variant_len_integer) {
 }
 
 TEST(td_encode_test, encode_decode_cstr) {
-  uint8_t *   buf = new uint8_t[1024 * 1024];
-  char *      cstr = new char[1024 * 1024];
+  uint8_t    *buf = new uint8_t[1024 * 1024];
+  char       *cstr = new char[1024 * 1024];
   const char *dcstr;
   SCoder      encoder;
   SCoder      decoder;
@@ -208,7 +208,7 @@ TEST(td_encode_test, encode_decode_cstr) {
 typedef struct {
   int32_t A_a;
   int64_t A_b;
-  char *  A_c;
+  char   *A_c;
 } SStructA_v1;
 
 static int32_t tSStructA_v1_encode(SCoder *pCoder, const SStructA_v1 *pSAV1) {
@@ -240,7 +240,7 @@ static int32_t tSStructA_v1_decode(SCoder *pCoder, SStructA_v1 *pSAV1) {
 typedef struct {
   int32_t A_a;
   int64_t A_b;
-  char *  A_c;
+  char   *A_c;
   // -------------------BELOW FEILDS ARE ADDED IN A NEW VERSION--------------
   int16_t A_d;
   int16_t A_e;

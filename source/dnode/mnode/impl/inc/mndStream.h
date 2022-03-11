@@ -13,8 +13,26 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "syncSnapshot.h"
+#ifndef _TD_MND_STREAM_H_
+#define _TD_MND_STREAM_H_
 
-int32_t takeSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot) { return 0; }
+#include "mndInt.h"
 
-int32_t restoreSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot) { return 0; }
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+int32_t mndInitStream(SMnode *pMnode);
+void    mndCleanupStream(SMnode *pMnode);
+
+SStreamObj *mndAcquireStream(SMnode *pMnode, char *streamName);
+void        mndReleaseStream(SMnode *pMnode, SStreamObj *pStream);
+
+SSdbRaw *mndStreamActionEncode(SStreamObj *pStream);
+SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_MND_STREAM_H_*/
