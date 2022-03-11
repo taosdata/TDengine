@@ -245,9 +245,9 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
 SRequestObj* execQueryImpl(STscObj* pTscObj, const char* sql, int sqlLen) {
   SRequestObj* pRequest = NULL;
   SQuery* pQuery = NULL;
+  int32_t code = 0;
   SArray* pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
 
-  terrno = TSDB_CODE_SUCCESS;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
   CHECK_CODE_GOTO(parseSql(pRequest, &pQuery), _return);
 
@@ -256,13 +256,12 @@ SRequestObj* execQueryImpl(STscObj* pTscObj, const char* sql, int sqlLen) {
   } else {
     CHECK_CODE_GOTO(getPlan(pRequest, pQuery, &pRequest->body.pDag, pNodeList), _return);
     CHECK_CODE_GOTO(scheduleQuery(pRequest, pRequest->body.pDag, pNodeList), _return);
-    pRequest->code = terrno;
   }
 
 _return:
   taosArrayDestroy(pNodeList);
   qDestroyQuery(pQuery);
-  if (NULL != pRequest && TSDB_CODE_SUCCESS != terrno) {
+  if (NULL != pRequest && TSDB_CODE_SUCCESS != code) {
     pRequest->code = terrno;
   }
 
@@ -487,7 +486,6 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     assert(pRequest->self == pSendInfo->requestObjRefId);
 
     pRequest->metric.rsp = taosGetTimestampMs();
-    pRequest->code = pMsg->code;
 
     STscObj* pTscObj = pRequest->pTscObj;
     if (pEpSet) {

@@ -36,9 +36,8 @@ extern "C" {
 
 #define CHECK_CODE_GOTO(expr, label) \
   do {                               \
-    int32_t code = expr;             \
+    code = expr;                     \
     if (TSDB_CODE_SUCCESS != code) { \
-      terrno = code;                 \
       goto label;                    \
     }                                \
   } while (0)
