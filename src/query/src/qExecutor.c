@@ -284,11 +284,6 @@ static int compareRowData(const void *a, const void *b, const void *userData) {
 }
 
 static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeEnv *pRuntimeEnv, SSDataBlock* pDataBlock, SQLFunctionCtx *pCtx) {
-  // orderColId is 0 order by ts
-  if (pRuntimeEnv->pQueryAttr->order.orderColId <= 0){
-    return;
-  }
-
   // first groupby column is sort column
   SColIndex* pFirstGroupCol = taosArrayGet(pRuntimeEnv->pQueryAttr->pGroupbyExpr->columnInfo, 0);
   if (pFirstGroupCol == NULL) {
