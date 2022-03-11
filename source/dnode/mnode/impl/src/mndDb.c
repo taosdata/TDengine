@@ -1346,7 +1346,7 @@ static char* getDataPosition(char* pData, SShowObj* pShow, int32_t cols, int32_t
   return pData + pShow->offset[cols] * capacityOfRow + pShow->bytes[cols] * rows;
 }
 
-static void dumpDbInfoToPayload(char* data, SDbObj* pDb, SShowObj* pShow, int32_t rows, int32_t rowCapacity) {
+static void dumpDbInfoToPayload(char* data, SDbObj* pDb, SShowObj* pShow, int32_t rows, int32_t rowCapacity, int64_t numOfTables) {
   int32_t cols = 0;
 
   char* pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
@@ -1367,7 +1367,7 @@ static void dumpDbInfoToPayload(char* data, SDbObj* pDb, SShowObj* pShow, int32_
   cols++;
 
   pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
-  *(int64_t *)pWrite = 0;  // todo: num of Tables
+  *(int64_t *)pWrite = numOfTables;
   cols++;
 
   pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
@@ -1447,6 +1447,18 @@ static void dumpDbInfoToPayload(char* data, SDbObj* pDb, SShowObj* pShow, int32_
   *(int8_t *)pWrite = pDb->cfg.update;
 }
 
+static void setInformationSchemaDbCfg(SDbObj* pDbObj) {
+  ASSERT(pDbObj != NULL);
+  strncpy(pDbObj->name, TSDB_INFORMATION_SCHEMA_DB, tListLen(pDbObj->name));
+
+  pDbObj->createdTime      = 0;
+  pDbObj->cfg.numOfVgroups = 0;
+  pDbObj->cfg.quorum       = 1;
+  pDbObj->cfg.replications = 1;
+  pDbObj->cfg.update       = 1;
+  pDbObj->cfg.precision    = TSDB_TIME_PRECISION_MILLI;
+}
+
 static int32_t mndRetrieveDbs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rowsCapacity) {
   SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
@@ -1459,14 +1471,18 @@ static int32_t mndRetrieveDbs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int3
       break;
     }
 
-    dumpDbInfoToPayload(data, pDb, pShow, numOfRows, rowsCapacity);
-
+    dumpDbInfoToPayload(data, pDb, pShow, numOfRows, rowsCapacity, 0);
     numOfRows++;
     sdbRelease(pSdb, pDb);
   }
 
   // Append the information_schema database into the result.
-
+  if (numOfRows < rowsCapacity) {
+    SDbObj dummyISDb = {0};
+    setInformationSchemaDbCfg(&dummyISDb);
+    dumpDbInfoToPayload(data, &dummyISDb, pShow, numOfRows, rowsCapacity, 14);
+    numOfRows += 1;
+  }
 
   mndVacuumResult(data, pShow->numOfColumns, numOfRows, rowsCapacity, pShow);
   pShow->numOfReads += numOfRows;
