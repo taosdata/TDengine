@@ -215,6 +215,7 @@ typedef struct SQLFunctionCtx {
   SHashObj     **pUniqueSet;   // for unique function
   SHashObj     **pModeSet;     // for mode function
   STimeWindow  qWindow;        // for _qstart/_qstop/_qduration column
+  int32_t      allocRows;      // rows allocated for output buffer
 } SQLFunctionCtx;
 
 typedef struct SAggFunctionInfo {

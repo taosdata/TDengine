@@ -5811,9 +5811,11 @@ static void window_start_function(SQLFunctionCtx *pCtx) {
     SET_VAL(pCtx, pCtx->size, 1);
     *(int64_t *)(pCtx->pOutput) = pCtx->startTs;
   } else { //TSDB_FUNC_QSTART
-    INC_INIT_VAL(pCtx, pCtx->size);
+    int32_t size = MIN(pCtx->size, pCtx->allocRows); //size cannot exceeds allocated rows
+    SET_VAL(pCtx, pCtx->size, size);
+    //INC_INIT_VAL(pCtx, size);
     char *output = pCtx->pOutput;
-    for (int32_t i = 0; i < pCtx->size; ++i) {
+    for (int32_t i = 0; i < size; ++i) {
       if (pCtx->qWindow.skey == INT64_MIN) {
         *(TKEY *)output = TSDB_DATA_TIMESTAMP_NULL;
       } else {
@@ -5829,9 +5831,11 @@ static void window_stop_function(SQLFunctionCtx *pCtx) {
     SET_VAL(pCtx, pCtx->size, 1);
     *(int64_t *)(pCtx->pOutput) = pCtx->endTs;
   } else { //TSDB_FUNC_QSTOP
-    INC_INIT_VAL(pCtx, pCtx->size);
+    int32_t size = MIN(pCtx->size, pCtx->allocRows); //size cannot exceeds allocated rows
+    SET_VAL(pCtx, pCtx->size, size);
+    //INC_INIT_VAL(pCtx, size);
     char *output = pCtx->pOutput;
-    for (int32_t i = 0; i < pCtx->size; ++i) {
+    for (int32_t i = 0; i < size; ++i) {
       if (pCtx->qWindow.ekey == INT64_MAX) {
         *(TKEY *)output = TSDB_DATA_TIMESTAMP_NULL;
       } else {
@@ -5852,13 +5856,15 @@ static void window_duration_function(SQLFunctionCtx *pCtx) {
     }
     *(int64_t *)(pCtx->pOutput) = duration;
   } else { //TSDB_FUNC_QDURATION
-    INC_INIT_VAL(pCtx, pCtx->size);
+    int32_t size = MIN(pCtx->size, pCtx->allocRows); //size cannot exceeds allocated rows
+    SET_VAL(pCtx, pCtx->size, size);
+    //INC_INIT_VAL(pCtx, size);
     duration = pCtx->qWindow.ekey - pCtx->qWindow.skey;
     if (duration < 0) {
       duration = -duration;
     }
     char *output = pCtx->pOutput;
-    for (int32_t i = 0; i < pCtx->size; ++i) {
+    for (int32_t i = 0; i < size; ++i) {
       if (pCtx->qWindow.skey == INT64_MIN || pCtx->qWindow.ekey == INT64_MAX) {
         *(int64_t *)output = TSDB_DATA_BIGINT_NULL;
       } else {

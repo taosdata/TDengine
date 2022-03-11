@@ -1908,7 +1908,7 @@ static int32_t setCtxTagColumnInfo(SQLFunctionCtx *pCtx, int32_t numOfOutput) {
 }
 
 static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput,
-                                            int32_t** rowCellInfoOffset) {
+                                            int32_t** rowCellInfoOffset, int32_t numOfRows) {
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
 
   SQLFunctionCtx * pFuncCtx = (SQLFunctionCtx *)calloc(numOfOutput, sizeof(SQLFunctionCtx));
@@ -1959,6 +1959,7 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
     pCtx->startTs      = INT64_MIN;
 
     pCtx->qWindow      = pQueryAttr->window;
+    pCtx->allocRows    = numOfRows;
 
     pCtx->numOfParams  = pSqlExpr->numOfParams;
     for (int32_t j = 0; j < pCtx->numOfParams; ++j) {
@@ -5643,7 +5644,8 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
   pInfo->bufCapacity       = 200;   // TD-10899
   pInfo->udfInfo           = pUdfInfo;
   pInfo->binfo.pRes        = createOutputBuf(pExpr, numOfOutput, pInfo->bufCapacity * pInfo->resultRowFactor);
-  pInfo->binfo.pCtx        = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
+  pInfo->binfo.pCtx        = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset,
+                                                  pInfo->bufCapacity * pInfo->resultRowFactor);
   pInfo->orderColumnList   = getOrderCheckColumns(pRuntimeEnv->pQueryAttr);
   pInfo->groupColumnList   = getResultGroupCheckColumns(pRuntimeEnv->pQueryAttr);
 
@@ -7284,7 +7286,7 @@ SOperatorInfo* createAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
   int32_t numOfRows = (int32_t)(getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
 
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, numOfRows);
-  pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
+  pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset, numOfRows);
 
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
@@ -7456,7 +7458,7 @@ SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SO
   size_t tableGroup = GET_NUM_OF_TABLEGROUP(pRuntimeEnv);
 
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, (int32_t) tableGroup);
-  pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
+  pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset, (int32_t) tableGroup);
   initResultRowInfo(&pInfo->binfo.resultRowInfo, (int32_t)tableGroup, TSDB_DATA_TYPE_INT);
 
   if (pInfo->binfo.pRes == NULL || pInfo->binfo.pCtx == NULL || pInfo->binfo.resultRowInfo.pResult == NULL) {
@@ -7501,7 +7503,7 @@ SOperatorInfo* createProjectOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
 
   SOptrBasicInfo* pBInfo = &pInfo->binfo;
   pBInfo->pRes  = createOutputBuf(pExpr, numOfOutput, pInfo->bufCapacity);
-  pBInfo->pCtx  = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pBInfo->rowCellInfoOffset);
+  pBInfo->pCtx  = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pBInfo->rowCellInfoOffset, pInfo->bufCapacity);
 
   initResultRowInfo(&pBInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
@@ -7636,7 +7638,7 @@ SOperatorInfo* createTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOp
     return NULL;
   }
 
-  pInfo->pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->rowCellInfoOffset);
+  pInfo->pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->rowCellInfoOffset, pRuntimeEnv->resultInfo.capacity);
   pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
   initResultRowInfo(&pInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
@@ -7686,7 +7688,7 @@ SOperatorInfo* createTimeEveryOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
 
   SOptrBasicInfo* pBInfo = &pInfo->binfo;
   pBInfo->pRes  = createOutputBuf(pExpr, numOfOutput, pInfo->bufCapacity);
-  pBInfo->pCtx  = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pBInfo->rowCellInfoOffset);
+  pBInfo->pCtx  = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pBInfo->rowCellInfoOffset, pInfo->bufCapacity);
 
   if (pQueryAttr->needReverseScan) {
     pInfo->rangeStart = taosHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP), false, false);
@@ -7738,7 +7740,8 @@ SOperatorInfo* createStatewindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpe
 
   pInfo->colIndex   = -1;
   pInfo->reptScan   = false;
-  pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
+  pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset,
+                                           pRuntimeEnv->resultInfo.capacity);
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
@@ -7778,7 +7781,8 @@ SOperatorInfo* createSWindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
     return NULL;
   }
 
-  pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
+  pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset,
+                                           pRuntimeEnv->resultInfo.capacity);
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
@@ -7820,7 +7824,7 @@ SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRunti
     return NULL;
   }
 
-  pInfo->pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->rowCellInfoOffset);
+  pInfo->pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->rowCellInfoOffset, pRuntimeEnv->resultInfo.capacity);
   pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
   initResultRowInfo(&pInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
@@ -7863,7 +7867,8 @@ SOperatorInfo* createGroupbyOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
   }
 
   pInfo->colIndex = -1;  // group by column index
-  pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
+  pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset,
+                                           pRuntimeEnv->resultInfo.capacity);
 
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
 
