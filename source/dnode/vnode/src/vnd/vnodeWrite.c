@@ -80,6 +80,7 @@ int  vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       tDeserializeSVCreateTbBatchReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbBatchReq);
       for (int i = 0; i < taosArrayGetSize(vCreateTbBatchReq.pArray); i++) {
         SVCreateTbReq *pCreateTbReq = taosArrayGet(vCreateTbBatchReq.pArray, i);
+        
         if (metaCreateTable(pVnode->pMeta, pCreateTbReq) < 0) {
           // TODO: handle error
           vError("vgId:%d, failed to create table: %s", pVnode->vgId, pCreateTbReq->name);

@@ -8100,20 +8100,22 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhysiNode* pPhyNode, SExecTaskInfo* pTa
     if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pPhyNode)) {
       SScanPhysiNode* pScanPhyNode = (SScanPhysiNode*)pPhyNode;
 
-      char tableFName[TSDB_TABLE_FNAME_LEN];
-      tNameExtractFullName(&pScanPhyNode->tableName, tableFName);
-      
-      int32_t code = vnodeValidateTableHash(pHandle->config, tableFName);
-      if (code) {
-        errInfo->code = code;
-        errInfo->tableName = pScanPhyNode->tableName;
-        return NULL;
+      if (TSDB_SUPER_TABLE != pScanPhyNode->tableType) {
+        char tableFName[TSDB_TABLE_FNAME_LEN];
+        tNameExtractFullName(&pScanPhyNode->tableName, tableFName);
+        
+        int32_t code = vnodeValidateTableHash(pHandle->config, tableFName);
+        if (code) {
+          errInfo->code = code;
+          errInfo->tableName = pScanPhyNode->tableName;
+          return NULL;
+        }
       }
 
       size_t      numOfCols = LIST_LENGTH(pScanPhyNode->pScanCols);
       tsdbReaderT pDataReader = doCreateDataReader((STableScanPhysiNode*)pPhyNode, pHandle, (uint64_t)queryId, taskId);
 
-      code = doCreateTableGroup(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableGroupInfo, queryId, taskId);
+      int32_t code = doCreateTableGroup(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableGroupInfo, queryId, taskId);
       return createTableScanOperatorInfo(pDataReader, pScanPhyNode->order, numOfCols, pScanPhyNode->count,
                                          pScanPhyNode->reverse, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == nodeType(pPhyNode)) {
