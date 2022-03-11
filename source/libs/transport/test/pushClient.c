@@ -82,7 +82,7 @@ static void *sendRequest(void *param) {
     rpcMsg.contLen = pInfo->msgSize;
     rpcMsg.ahandle = pInfo;
     rpcMsg.msgType = 1;
-    rpcMsg.push = push;
+    // rpcMsg.push = push;
     // tDebug("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
     int64_t start = taosGetTimestampUs();
     rpcSendRequest(pInfo->pRpc, &pInfo->epSet, &rpcMsg, NULL);
