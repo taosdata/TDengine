@@ -1,47 +1,47 @@
 # 高效写入数据
 
-TDengine支持多种接口写入数据，包括SQL，Prometheus，Telegraf，collectd，StatsD，EMQ MQTT Broker，HiveMQ Broker，CSV文件等，后续还将提供Kafka，OPC等接口。数据可以单条插入，也可以批量插入，可以插入一个数据采集点的数据，也可以同时插入多个数据采集点的数据。支持多线程插入，支持时间乱序数据插入，也支持历史数据插入。
+TDengine 支持多种接口写入数据，包括 SQL，Prometheus，Telegraf，collectd，StatsD，EMQ MQTT Broker，HiveMQ Broker，CSV 文件等，后续还将提供 Kafka，OPC 等接口。数据可以单条插入，也可以批量插入，可以插入一个数据采集点的数据，也可以同时插入多个数据采集点的数据。支持多线程插入，支持时间乱序数据插入，也支持历史数据插入。
 
 ## <a class="anchor" id="sql"></a>SQL 写入
 
-应用通过C/C++, Java, Go, C#, Python, Node.js 连接器执行SQL insert语句来插入数据，用户还可以通过TAOS Shell，手动输入SQL insert语句插入数据。比如下面这条insert 就将一条记录写入到表d1001中：
+应用通过 C/C++, Java, Go, C#, Python, Node.js 连接器执行 SQL insert 语句来插入数据，用户还可以通过 TAOS Shell，手动输入 SQL insert 语句插入数据。比如下面这条 insert 就将一条记录写入到表 d1001 中：
 
 ```mysql
 INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31);
 ```
 
-TDengine支持一次写入多条记录，比如下面这条命令就将两条记录写入到表d1001中：
+TDengine 支持一次写入多条记录，比如下面这条命令就将两条记录写入到表 d1001 中：
 
 ```mysql
 INSERT INTO d1001 VALUES (1538548684000, 10.2, 220, 0.23) (1538548696650, 10.3, 218, 0.25);
 ```
 
-TDengine也支持一次向多个表写入数据，比如下面这条命令就向d1001写入两条记录，向d1002写入一条记录：
+TDengine 也支持一次向多个表写入数据，比如下面这条命令就向 d1001 写入两条记录，向 d1002 写入一条记录：
 
 ```mysql
 INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 218, 0.33) d1002 VALUES (1538548696800, 12.3, 221, 0.31);
 ```
 
-详细的SQL INSERT语法规则请见 [TAOS SQL 的数据写入](https://www.taosdata.com/cn/documentation/taos-sql#insert) 章节。
+详细的 SQL INSERT 语法规则请见 [TAOS SQL 的数据写入](https://www.taosdata.com/cn/documentation/taos-sql#insert) 章节。
 
 **Tips:**
 
-- 要提高写入效率，需要批量写入。一批写入的记录条数越多，插入效率就越高。但一条记录不能超过16K，一条SQL语句总长度不能超过1M 。
-- TDengine支持多线程同时写入，要进一步提高写入速度，一个客户端需要打开20个以上的线程同时写。但线程数达到一定数量后，无法再提高，甚至还会下降，因为线程频繁切换，带来额外开销。
+- 要提高写入效率，需要批量写入。一批写入的记录条数越多，插入效率就越高。但一条记录不能超过 48K（2.1.7.0 之前的版本为 16K），一条 SQL 语句总长度不能超过 1M 。
+- TDengine 支持多线程同时写入，要进一步提高写入速度，一个客户端需要打开 20 个以上的线程同时写。但线程数达到一定数量后，无法再提高，甚至还会下降，因为线程频繁切换，带来额外开销。
 - 对同一张表，如果新插入记录的时间戳已经存在，默认情形下（UPDATE=0）新记录将被直接抛弃，也就是说，在一张表里，时间戳必须是唯一的。如果应用自动生成记录，很有可能生成的时间戳是一样的，这样，成功插入的记录条数会小于应用插入的记录条数。如果在创建数据库时使用了 UPDATE 1 选项，插入相同时间戳的新记录将覆盖原有记录。
-- 写入的数据的时间戳必须大于当前时间减去配置参数keep的时间。如果keep配置为3650天，那么无法写入比3650天还早的数据。写入数据的时间戳也不能大于当前时间加配置参数days。如果days为2，那么无法写入比当前时间还晚2天的数据。
+- 写入的数据的时间戳必须大于当前时间减去配置参数 keep 的时间。如果 keep 配置为3650天，那么无法写入比 3650 天还早的数据。写入数据的时间戳也不能大于当前时间加配置参数 days。如果 days 为 2，那么无法写入比当前时间还晚2天的数据。
 
 ## <a class="anchor" id="schemaless"></a>无模式（Schemaless）写入
 
 **前言**
 <br/>在物联网应用中，常会采集比较多的数据项，用于实现智能控制、业务分析、设备监控等。由于应用逻辑的版本升级，或者设备自身的硬件调整等原因，数据采集项就有可能比较频繁地出现变动。为了在这种情况下方便地完成数据记录工作，TDengine 从 2.2.0.0 版本开始，提供调用 Schemaless 写入方式，可以免于预先创建超级表/子表的步骤，随着数据写入接口能够自动创建与数据对应的存储结构。并且在必要时，Schemaless 将自动增加必要的数据列，保证用户写入的数据可以被正确存储。
-<br/>目前，TDengine 的 C/C++ Connector 提供支持 Schemaless 的操作接口，详情请参见 [Schemaless 方式写入接口](https://www.taosdata.com/cn/documentation/connector#schemaless)章节。这里对 Schemaless 的数据表达格式进行了描述。
+<br/>目前，TDengine 的所有官方支持的连接器支持 Schemaless 的操作接口，详情请参见 [Schemaless 方式写入接口](https://www.taosdata.com/cn/documentation/connector#schemaless)章节。这里对 Schemaless 的数据表达格式进行了描述。
 <br/>无模式写入方式建立的超级表及其对应的子表与通过 SQL 直接建立的超级表和子表完全没有区别，您也可以通过 SQL 语句直接向其中写入数据。需要注意的是，通过无模式写入方式建立的表，其表名是基于标签值按照固定的映射规则生成，所以无法明确地进行表意，缺乏可读性。
 
 **无模式写入行协议**
 <br/>TDengine 的无模式写入的行协议兼容 InfluxDB 的 行协议（Line Protocol）、OpenTSDB 的 telnet 行协议、OpenTSDB 的 JSON 格式协议。但是使用这三种协议的时候，需要在 API 中指定输入内容使用解析协议的标准。
 
-对于InfluxDB、OpenTSDB的标准写入协议请参考各自的文档。下面首先以 InfluxDB 的行协议为基础，介绍 TDengine 扩展的协议内容，允许用户采用更加精细的方式控制（超级表）模式。
+对于 InfluxDB、OpenTSDB 的标准写入协议请参考各自的文档。下面首先以 InfluxDB 的行协议为基础，介绍 TDengine 扩展的协议内容，允许用户采用更加精细的方式控制（超级表）模式。
 
 Schemaless 采用一个字符串来表达一个数据行（可以向写入 API 中一次传入多行字符串来实现多个数据行的批量写入），其格式约定如下：
 
@@ -59,7 +59,7 @@ measurement,tag_set field_set timestamp
 tag_set 中的所有的数据自动转化为 nchar 数据类型，并不需要使用双引号（")。
 <br/>在无模式写入数据行协议中，field_set 中的每个数据项都需要对自身的数据类型进行描述。具体来说：
 
-* 如果两边有英文双引号，表示 BIANRY(32) 类型。例如 `"abc"`。
+* 如果两边有英文双引号，表示 BINARY(32) 类型。例如 `"abc"`。
 * 如果两边有英文双引号而且带有 L 前缀，表示 NCHAR(32) 类型。例如 `L"报错信息"`。
 * 对空格、等号（=）、逗号（,）、双引号（"），前面需要使用反斜杠（\）进行转义。（都指的是英文半角符号）
 * 数值类型将通过后缀来区分数据类型：
@@ -86,13 +86,13 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
 ### 无模式写入的主要处理逻辑
 
 无模式写入按照如下原则来处理行数据：
-<br/>1. 将使用如下规则来生成子表名：首先将measurement 的名称和标签的 key 和 value 组合成为如下的字符串
+<br/>1. 将使用如下规则来生成子表名：首先将 measurement 的名称和标签的 key 和 value 组合成为如下的字符串
 
 ```json
 "measurement,tag_key1=tag_value1,tag_key2=tag_value2"
 ```
 
-需要注意的是，这里的tag_key1, tag_key2并不是用户输入的标签的原始顺序，而是使用了标签名称按照字符串升序排列后的结果。所以，tag_key1 并不是在行协议中输入的第一个标签。
+需要注意的是，这里的 tag_key1, tag_key2 并不是用户输入的标签的原始顺序，而是使用了标签名称按照字符串升序排列后的结果。所以，tag_key1 并不是在行协议中输入的第一个标签。
 排列完成以后计算该字符串的 MD5 散列值 "md5_val"。然后将计算的结果与字符串组合生成表名：“t_md5_val”。其中的 “t_” 是固定的前缀，每个通过该映射关系自动生成的表都具有该前缀。
 <br/>2. 如果解析行协议获得的超级表不存在，则会创建这个超级表。
 <br/>3. 如果解析行协议获得子表不存在，则 Schemaless 会按照步骤 1 或 2 确定的子表名来创建子表。
@@ -103,7 +103,7 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
 <br/>8. 整个处理过程中遇到的错误会中断写入过程，并返回错误代码。
 
 **备注：**
-<br/>无模式所有的处理逻辑，仍会遵循 TDengine 对数据结构的底层限制，例如每行数据的总长度不能超过 16k 字节。这方面的具体限制约束请参见 [TAOS SQL 边界限制](https://www.taosdata.com/cn/documentation/taos-sql#limitation) 章节。
+<br/>无模式所有的处理逻辑，仍会遵循 TDengine 对数据结构的底层限制，例如每行数据的总长度不能超过 48K 字节（2.1.7.0 之前的版本为 16K）。这方面的具体限制约束请参见 [TAOS SQL 边界限制](https://www.taosdata.com/cn/documentation/taos-sql#limitation) 章节。
 
 **时间分辨率识别**
 <br/>无模式写入过程中支持三个指定的模式，具体如下
@@ -167,13 +167,13 @@ st,t1=3,t2=4,t3=t3 c1=3i64               1626006833639000000
 st,t1=3,t2=4,t3=t3 c1=3i64,c6="passit"   1626006833640000000
 ```
 
-第二行数据相对于第一行来说增加了一个列 c6，类型为binary(6)。那么此时会自动增加一个列 c6， 类型为  binary(6)。
+第二行数据相对于第一行来说增加了一个列 c6，类型为 binary(6)。那么此时会自动增加一个列 c6， 类型为 binary(6)。
 
 **写入完整性**
 <br/>TDengine 提供数据写入的幂等性保证，即您可以反复调用 API 进行出错数据的写入操作。但是不提供多行数据写入的原子性保证。即在多行数据一批次写入过程中，会出现部分数据写入成功，部分数据写入失败的情况。
 
 **错误码**
-<br/>如果是无模式写入过程中的数据本身错误，应用会得到 TSDB_CODE_TSC_LINE_SYNTAX_ERROR 错误信息，该错误信息表明错误发生在写入文本中。其他的错误码与原系统一致，可以通过 taos_errstr 获取具体的错误原因。
+<br/>如果是无模式写入过程中的数据本身错误，应用会得到 TSDB_CODE_TSC_LINE_SYNTAX_ERROR 错误信息，该错误信息表明错误发生在写入文本中。其他的错误码与原系统一致，可以通过 `taos_errstr()` 获取具体的错误原因。
 
 **后续升级计划**
 <br/>当前版本只提供了 C 版本的 API，后续将提供 其他高级语言的 API，例如 Java/Go/Python/C# 等。此外，在TDengine v2.3及后续版本中，您还可以通过 taosAdapter 采用 REST 的方式直接写入无模式数据。
@@ -306,7 +306,7 @@ taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相
 
 ## <a class="anchor" id="tcollector"></a> TCollector 直接写入(通过 taosAdapter)
 
-TCollector 是一个在客户侧收集本地收集器并发送数据到 OpenTSDB 的进程，taosAdaapter 可以支持接收 TCollector 的数据并写入到 TDengine 中。
+TCollector 是一个在客户侧收集本地收集器并发送数据到 OpenTSDB 的进程，taosAdapter 可以支持接收 TCollector 的数据并写入到 TDengine 中。
 
 使能 taosAdapter 配置项 opentsdb_telnet.enable
 修改 TCollector 配置文件，修改 OpenTSDB 宿主机地址为 taosAdapter 被部署的地址，并修改端口号为 taosAdapter 使用的端口（默认6049）。
@@ -315,7 +315,7 @@ taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相
 
 ## <a class="anchor" id="emq"></a>EMQ Broker 直接写入
 
-MQTT是流行的物联网数据传输协议，[EMQ](https://github.com/emqx/emqx)是一开源的MQTT Broker软件，无需任何代码，只需要在EMQ Dashboard里使用“规则”做简单配置，即可将MQTT的数据直接写入TDengine。EMQ X 支持通过 发送到 Web 服务的方式保存数据到 TDengine，也在企业版上提供原生的 TDengine 驱动实现直接保存。详细使用方法请参考 [EMQ 官方文档](https://docs.emqx.com/zh/enterprise/v4.4/rule/backend_tdengine.html#%E4%BF%9D%E5%AD%98%E6%95%B0%E6%8D%AE%E5%88%B0-tdengine)。
+MQTT 是流行的物联网数据传输协议，[EMQX](https://github.com/emqx/emqx) 是一开源的 MQTT Broker 软件，无需任何代码，只需要在 EMQ Dashboard 里使用“规则”做简单配置，即可将 MQTT 的数据直接写入 TDengine。EMQX 支持通过 发送到 Web 服务的方式保存数据到 TDengine，也在企业版上提供原生的 TDengine 驱动实现直接保存。详细使用方法请参考 [EMQ 官方文档](https://docs.emqx.com/zh/enterprise/v4.4/rule/backend_tdengine.html#%E4%BF%9D%E5%AD%98%E6%95%B0%E6%8D%AE%E5%88%B0-tdengine)。
 
 ## <a class="anchor" id="hivemq"></a>HiveMQ Broker 直接写入
 

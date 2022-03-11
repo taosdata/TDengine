@@ -1,0 +1,124 @@
+system sh/stop_dnodes.sh
+sleep 2000
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode1 -c http -v 1
+system sh/cfg.sh -n dnode1 -c httpDbNameMandatory -v 1
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+sql drop database if exists db
+
+print ============================ dnode1 start
+
+print ===============  step1 - login
+
+system_content curl 127.0.0.1:7111/rest/login/root/taosdata
+print curl 127.0.0.1:7111/rest/login/root/taosdata -----> $system_content
+
+if $system_content != @{"status":"succ","code":0,"desc":"/KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04"}@ then
+  return -1
+endi
+
+print ===============  step2 - execute sql without db_name
+
+print curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'show databases' 127.0.0.1:7111/rest/sql
+
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'show databases' 127.0.0.1:7111/rest/sql
+
+if $system_content != @{"status":"error","code":4354,"desc":"invalid url format"}@ then
+  return -1
+endi
+
+print curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'create database if not exists db' 127.0.0.1:7111/rest/sql
+
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'create database if not exists db' 127.0.0.1:7111/rest/sql
+
+if $system_content != @{"status":"error","code":4354,"desc":"invalid url format"}@ then
+  return -1
+endi
+
+print curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'create table table_rest (ts timestamp, i int)' 127.0.0.1:7111/rest/sql
+
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'create table table_rest (ts timestamp, i int)' 127.0.0.1:7111/rest/sql
+
+if $system_content != @{"status":"error","code":4354,"desc":"invalid url format"}@ then
+  return -1
+endi
+
+print curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'insert into table_rest (now, 1)' 127.0.0.1:7111/rest/sql
+
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'insert into table_rest values (now, 1)' 127.0.0.1:7111/rest/sql
+
+if $system_content != @{"status":"error","code":4354,"desc":"invalid url format"}@ then
+  return -1
+endi
+
+print curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'select * from table_rest' 127.0.0.1:7111/rest/sql
+
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'select * from table_rest' 127.0.0.1:7111/rest/sql
+
+if $system_content != @{"status":"error","code":4354,"desc":"invalid url format"}@ then
+  return -1
+endi
+
+print curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'drop database if exists db' 127.0.0.1:7111/rest/sql
+
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'drop database if exists db' 127.0.0.1:7111/rest/sql
+
+if $system_content != @{"status":"error","code":4354,"desc":"invalid url format"}@ then
+  return -1
+endi
+
+print ===============  step3 - execute sql with db_name
+
+print curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'show databases' 127.0.0.1:7111/rest/sql/databases
+
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'show databases' 127.0.0.1:7111/rest/sql/databases
+
+if $system_content != @{"status":"succ","head":["name","created_time","ntables","vgroups","replica","quorum","days","keep","cache(MB)","blocks","minrows","maxrows","wallevel","fsync","comp","cachelast","precision","update","status"],"column_meta":[["name",8,32],["created_time",9,8],["ntables",4,4],["vgroups",4,4],["replica",3,2],["quorum",3,2],["days",3,2],["keep",8,24],["cache(MB)",4,4],["blocks",4,4],["minrows",4,4],["maxrows",4,4],["wallevel",2,1],["fsync",4,4],["comp",2,1],["cachelast",2,1],["precision",8,3],["update",2,1],["status",8,10]],"data":[],"rows":0}@ then
+  return -1
+endi
+
+print curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'create database if not exists db' 127.0.0.1:7111/rest/sql/db
+
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'create database if not exists db' 127.0.0.1:7111/rest/sql/db
+
+if $system_content != @{"status":"succ","head":["affected_rows"],"column_meta":[["affected_rows",4,4]],"data":[[0]],"rows":1}@ then
+  return -1
+endi
+
+print curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'create table table_rest (ts timestamp, i int)' 127.0.0.1:7111/rest/sql/db
+
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'create table table_rest (ts timestamp, i int)' 127.0.0.1:7111/rest/sql/db
+
+if $system_content != @{"status":"succ","head":["affected_rows"],"column_meta":[["affected_rows",4,4]],"data":[[0]],"rows":1}@ then
+  return -1
+endi
+
+print curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'insert into table_rest (now, 1)' 127.0.0.1:7111/rest/sql/db
+
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'insert into table_rest values (1629904789233, 1)' 127.0.0.1:7111/rest/sql/db
+
+if $system_content != @{"status":"succ","head":["affected_rows"],"column_meta":[["affected_rows",4,4]],"data":[[1]],"rows":1}@ then
+  return -1
+endi
+
+print curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'select * from table_rest' 127.0.0.1:7111/rest/sql/db
+
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'select * from table_rest' 127.0.0.1:7111/rest/sql/db
+
+if $system_content != @{"status":"succ","head":["ts","i"],"column_meta":[["ts",9,8],["i",4,4]],"data":[["2021-08-25 23:19:49.233",1]],"rows":1}@ then
+  return -1
+endi
+
+print curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'drop database if exists db' 127.0.0.1:7111/rest/sql/db
+
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'drop database if exists db' 127.0.0.1:7111/rest/sql/db
+
+if $system_content != @{"status":"succ","head":["affected_rows"],"column_meta":[["affected_rows",4,4]],"data":[[0]],"rows":1}@ then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

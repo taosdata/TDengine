@@ -4,7 +4,7 @@
 
 TAOS SQL 是用户对 TDengine 进行数据写入和查询的主要工具。TAOS SQL 为了便于用户快速上手，在一定程度上提供类似于标准 SQL 类似的风格和模式。严格意义上，TAOS SQL 并不是也不试图提供 SQL 标准的语法。此外，由于 TDengine 针对的时序性结构化数据不提供删除功能，因此在 TAO SQL 中不提供数据删除的相关功能。
 
-TAOS SQL 不支持关键字的缩写，例如 DESCRIBE 不能缩写为 DESC。 
+TAOS SQL 目前仅支持 DESCRIBE 关键字的缩写，DESCRIBE 可以缩写为 DESC。
 
 本章节 SQL 语法遵循如下约定：
 
@@ -135,7 +135,7 @@ CREATE DATABASE db_name PRECISION 'ns';
     ```mysql
     ALTER DATABASE db_name BLOCKS 100;
     ```
-    BLOCKS 参数是每个 VNODE (TSDB) 中有多少 cache 大小的内存块，因此一个 VNODE 的用的内存大小粗略为（cache * blocks）。取值范围 [3, 1000]。
+    BLOCKS 参数是每个 VNODE (TSDB) 中有多少 cache 大小的内存块，因此一个 VNODE 的用的内存大小粗略为（cache * blocks）。取值范围 [3, 10000]。
 
     ```mysql
     ALTER DATABASE db_name CACHELAST 0;
@@ -172,7 +172,7 @@ CREATE DATABASE db_name PRECISION 'ns';
 
     2) 表名最大长度为 192；
 
-    3) 表的每行长度不能超过 16k 个字符;（注意：每个 BINARY/NCHAR 类型的列还会额外占用 2 个字节的存储位置）
+    3) 表的每行长度不能超过 48K 个字符（2.1.7.0 之前的版本为 16K，每个 BINARY/NCHAR 类型的列还会额外占用 2 个 byte 的存储位置）
 
     4) 子表名只能由字母、数字和下划线组成，且不能以数字开头，不区分大小写
 
@@ -346,7 +346,7 @@ CREATE DATABASE db_name PRECISION 'ns';
     ```mysql
     ALTER STABLE stb_name ADD TAG new_tag_name tag_type;
     ```
-    为 STable 增加一个新的标签，并指定新标签的类型。标签总数不能超过 128 个，总长度不超过 16k 个字符。
+    为 STable 增加一个新的标签，并指定新标签的类型。标签总数不能超过 128 个，总长度不超过 16K 个字符。
 
 - **删除标签**
 
@@ -1732,9 +1732,9 @@ SELECT AVG(current), MAX(current), APERCENTILE(current, 50) FROM meters
 ## <a class="anchor" id="limitation"></a>TAOS SQL 边界限制
 
 - 数据库名最大长度为 32。
-- 表名最大长度为 192，每行数据最大长度 16k 个字符, 从 2.1.7.0 版本开始，每行数据最大长度 48k 个字符（注意：数据行内每个 BINARY/NCHAR 类型的列还会额外占用 2 个字节的存储位置）。
+- 表名最大长度为 192。每行数据最大长度 48K 个字符（2.1.7.0 之前的版本为 16K，每个 BINARY/NCHAR 类型的列还会额外占用 2 个 byte 的存储位置）
 - 列名最大长度为 64，最多允许 1024 列，最少需要 2 列，第一列必须是时间戳。（从 2.1.7.0 版本开始，改为最多允许 4096 列）
-- 标签名最大长度为 64，最多允许 128 个，可以 1 个，一个表中标签值的总长度不超过 16k 个字符。
+- 标签名最大长度为 64，最多允许 128 个，可以 1 个，一个表中标签值的总长度不超过 16K 个字符。
 - SQL 语句最大长度 1048576 个字符，也可通过客户端配置参数 maxSQLLength 修改，取值范围 65480 ~ 1048576。
 - SELECT 语句的查询结果，最多允许返回 1024 列（语句中的函数调用可能也会占用一些列空间），超限时需要显式指定较少的返回数据列，以避免语句执行报错。（从 2.1.7.0 版本开始，改为最多允许 4096 列）
 - 库的数目，超级表的数目、表的数目，系统不做限制，仅受系统资源限制。

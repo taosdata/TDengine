@@ -33,8 +33,6 @@ public class WSStatement extends AbstractStatement {
     public ResultSet executeQuery(String sql) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        if (!SqlSyntaxValidator.isValidForExecuteQuery(sql))
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_QUERY, "not a valid sql for executeQuery: " + sql);
 
         this.execute(sql);
         return this.resultSet;
@@ -44,8 +42,6 @@ public class WSStatement extends AbstractStatement {
     public int executeUpdate(String sql) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        if (!SqlSyntaxValidator.isValidForExecuteUpdate(sql))
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_UPDATE, "not a valid sql for executeUpdate: " + sql);
 
         this.execute(sql);
         return affectedRows;
@@ -53,8 +49,12 @@ public class WSStatement extends AbstractStatement {
 
     @Override
     public void close() throws SQLException {
-        if (!isClosed())
+        if (!isClosed()) {
             this.closed = true;
+            if (resultSet != null && !resultSet.isClosed()) {
+                resultSet.close();
+            }
+        }
     }
 
     @Override

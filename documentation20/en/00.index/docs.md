@@ -38,7 +38,7 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [Data Writing via Schemaless](/insert#schemaless): write one or multiple records with automatic table creation and adaptive table structure maintenance
 - [Data Writing via Prometheus](/insert#prometheus): Configure Prometheus to write data directly without any code
 - [Data Writing via Telegraf](/insert#telegraf): Configure Telegraf to write collected data directly without any code
-- [Data Writing via EMQ X](/insert#emq): Configure EMQ X to write MQTT data directly without any code
+- [Data Writing via EMQX](/insert#emq): Configure EMQX to write MQTT data directly without any code
 - [Data Writing via HiveMQ Broker](/insert#hivemq): Configure HiveMQ to write MQTT data directly without any code
 
 ## [Efficient Data Querying](/queries)

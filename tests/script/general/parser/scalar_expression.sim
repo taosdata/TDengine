@@ -1,0 +1,251 @@
+
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+sleep 500
+sql connect
+
+$dbPrefix = db
+$tbPrefix = ct
+$mtPrefix = st
+$tbNum = 2
+$rowNum = 50
+
+print =============== step1 create stable/table
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 nchar(5), c9 binary(10)) TAGS (tgcol int)
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+
+  $x = 0
+  $y = 0.25
+
+  while $x < $rowNum
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+    sql insert into $tb values ($ms , $x , $y , $x , $x , $x , $y , $x , $x , $x )
+    $x = $x + 1
+    $y = $y + 1
+  endw
+
+  $i = $i + 1
+endw
+
+print ================= step2
+
+print execute sql select floor(3.0)+ceil(4.0) from  ct0
+sql select floor(3.0)+ceil(4.0) from  ct0
+if $data00 != @7.000000000@ then
+  return -1 
+endi
+if $data10 != @7.000000000@ then
+  return -1 
+endi
+if $data20 != @7.000000000@ then
+  return -1 
+endi
+if $data30 != @7.000000000@ then
+  return -1 
+endi
+if $data40 != @7.000000000@ then
+  return -1 
+endi
+if $data50 != @7.000000000@ then
+  return -1 
+endi
+if $data60 != @7.000000000@ then
+  return -1 
+endi
+if $data70 != @7.000000000@ then
+  return -1 
+endi
+if $data80 != @7.000000000@ then
+  return -1 
+endi
+if $data90 != @7.000000000@ then
+  return -1 
+endi
+print execute sql select sum(c1)+3.0+4.0 from st0
+sql select sum(c1)+3.0+4.0 from st0
+if $data00 != @2457.000000000@ then
+  return -1 
+endi
+print execute sql select sin(log(avg(c1),sum(c2))+3)%4 from st0
+sql select sin(log(avg(c1),sum(c2))+3)%4 from st0
+if $data00 != @-0.265074286@ then
+  return -1 
+endi
+print execute sql select log(pow(length(concat('3','4')),2),c2) from st0
+sql select log(pow(length(concat('3','4')),2),c2) from st0
+if $data00 != @-1.000000000@ then
+  return -1 
+endi
+if $data10 != @inf@ then
+  return -1 
+endi
+if $data20 != @2.000000000@ then
+  return -1 
+endi
+if $data30 != @1.261859507@ then
+  return -1 
+endi
+if $data40 != @1.000000000@ then
+  return -1 
+endi
+if $data50 != @0.861353116@ then
+  return -1 
+endi
+if $data60 != @0.773705614@ then
+  return -1 
+endi
+if $data70 != @0.712414374@ then
+  return -1 
+endi
+if $data80 != @0.666666667@ then
+  return -1 
+endi
+if $data90 != @0.630929754@ then
+  return -1 
+endi
+print execute sql select round(log(pow(length(concat('3','4')),2),c2)+floor(c3))+2 from st0
+sql select round(log(pow(length(concat('3','4')),2),c2)+floor(c3))+2 from st0
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != @inf@ then
+  return -1 
+endi
+if $data20 != @6.000000000@ then
+  return -1 
+endi
+if $data30 != @6.000000000@ then
+  return -1 
+endi
+if $data40 != @7.000000000@ then
+  return -1 
+endi
+if $data50 != @8.000000000@ then
+  return -1 
+endi
+if $data60 != @9.000000000@ then
+  return -1 
+endi
+if $data70 != @10.000000000@ then
+  return -1 
+endi
+if $data80 != @11.000000000@ then
+  return -1 
+endi
+if $data90 != @12.000000000@ then
+  return -1 
+endi
+print execute sql select sin(pow(c1,log(c2,2))+pow(c2,2)) as val from ct0 union all select pow(c4,2)+tan(sin(c5)/cos(c6)) as val from ct1
+sql select sin(pow(c1,log(c2,2))+pow(c2,2)) as val from ct0 union all select pow(c4,2)+tan(sin(c5)/cos(c6)) as val from ct1
+if $data00 != @-nan@ then
+  return -1 
+endi
+if $data10 != @0.909297427@ then
+  return -1 
+endi
+if $data20 != @-0.279415498@ then
+  return -1 
+endi
+if $data30 != @0.843325058@ then
+  return -1 
+endi
+if $data40 != @0.551426681@ then
+  return -1 
+endi
+if $data50 != @-0.840606612@ then
+  return -1 
+endi
+if $data60 != @0.436161076@ then
+  return -1 
+endi
+if $data70 != @0.897498185@ then
+  return -1 
+endi
+if $data80 != @-0.885952778@ then
+  return -1 
+endi
+if $data90 != @0.429470715@ then
+  return -1 
+endi
+print execute sql select asin(c1) from st0 limit 1
+sql select asin(c1) from st0 limit 1
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select pow(c1,2) from st0 limit 1 offset 2;
+sql select pow(c1,2) from st0 limit 1 offset 2;
+if $data00 != @4.000000000@ then
+  return -1 
+endi
+print execute sql select cos(c1) from db0.ct0, db0.ct1 where ct0.ts==ct1.ts
+sql select cos(c1) from db0.ct0, db0.ct1 where ct0.ts==ct1.ts
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != @0.540302306@ then
+  return -1 
+endi
+if $data20 != @-0.416146837@ then
+  return -1 
+endi
+if $data30 != @-0.989992497@ then
+  return -1 
+endi
+if $data40 != @-0.653643621@ then
+  return -1 
+endi
+if $data50 != @0.283662185@ then
+  return -1 
+endi
+if $data60 != @0.960170287@ then
+  return -1 
+endi
+if $data70 != @0.753902254@ then
+  return -1 
+endi
+if $data80 != @-0.145500034@ then
+  return -1 
+endi
+if $data90 != @-0.911130262@ then
+  return -1 
+endi
+print ============== invalid expressions
+$stb = st0
+sql_error select agg(c1)+c2 from $stb
+sql_error select agg(c1+2) from $stb
+sql_error select agg(ceil(c1))+c2 from $stb
+sql_error select agg(ceil(c1)) from $stb
+sql_error select asin(c1) from $stb group by tbname
+sql_error select asin(c2) from $stb group by tgcol
+sql_error select asin(c1) from $stb session_window(ts, 1s)
+sql_error select cos(c1) from $stb state_window(f1)
+sql_error select pow(c2,2) from $stb interval(1s) sliding(500a)
+sql_error select pow(c2,2) from $stb state_window(f1)
+sql_error select tan(c1) from $stb from d.st slimit 1
+sql_error select c1+2, tbname from $stb group by tbname
+sql select sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(c1)))))))))))))))) from $stb
+sql_error select sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(c1))))))))))))))))) from $stb
+print =============== clear
+sql drop database $db
+sql show databases
+if $rows != 0 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+

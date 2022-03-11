@@ -91,12 +91,12 @@ Only some important configuration parameters are listed below. For more paramete
 - firstEp: end point of the first dnode which will be connected in the cluster when taosd starts, the default value is localhost: 6030.
 - fqdn: FQDN of the data node, which defaults to the first hostname configured by the operating system. If you want to access via IP address directly, you can set it to the IP address of the node.
 - serverPort: the port number of the external service after taosd started, the default value is 6030.
-- httpPort: the port number used by the RESTful service to which all HTTP requests (TCP) require a query/write request. The default value is 6041. Note 2.4 and later version use a stand-alone software, taosAdapter to provide RESTFul interface.
+- httpPort: the port number used by the RESTful service to which all HTTP requests (TCP) require a query/write request. The default value is 6041. Note 2.4 and later version use a stand-alone software, taosAdapter to provide RESTful interface.
 - dataDir: the data file directory to which all data files will be written. `Default:/var/lib/taos`.
 - logDir: the log file directory to which the running log files of the client and server will be written. `Default:/var/log/taos`.
 - arbitrator: the end point of the arbitrator in the system; the default value is null.
 - role: optional role for dnode. 0-any; it can be used as an mnode and to allocate vnodes; 1-mgmt; It can only be an mnode, but not to allocate vnodes; 2-dnode; cannot be an mnode, only vnode can be allocated
-- debugFlage: run the log switch. 131 (output error and warning logs), 135 (output error, warning, and debug logs), 143 (output error, warning, debug, and trace logs). Default value: 131 or 135 (different modules have different default values).
+- debugFlags: run the log switch. 131 (output error and warning logs), 135 (output error, warning, and debug logs), 143 (output error, warning, debug, and trace logs). Default value: 131 or 135 (different modules have different default values).
 - numOfLogLines: the maximum number of lines allowed for a single log file. Default: 10,000,000 lines.
 - logKeepDays: the maximum retention time of the log file. When it is greater than 0, the log file will be renamed to taosdlog.xxx, where xxx is the timestamp of the last modification of the log file in seconds. Default: 0 days.
 - maxSQLLength: the maximum length allowed for a single SQL statement. Default: 65380 bytes.
@@ -180,7 +180,7 @@ Client configuration parameters:
 
     The characters inputted by the client are all in the current default coding format of the operating system, mostly UTF-8 on Linux systems, and some Chinese system codes may be GB18030 or GBK, etc. The default encoding in the docker environment is POSIX. In the Chinese versions of Windows system, the code is CP936. The client needs to ensure that the character set it uses is correctly set, that is, the current encoded character set of the operating system running by the client, in order to ensure that the data in nchar is correctly converted into UCS4-LE encoding format.
 
-    The naming rules of locale in Linux are: < language > _ < region >. < character set coding >, such as: zh_CN.UTF-8, zh stands for Chinese, CN stands for mainland region, and UTF-8 stands for character set. Character set encoding provides a description of encoding transformations for clients to correctly parse local strings. Linux system and Mac OSX system can determine the character encoding of the system by setting locale. Because the locale used by Windows is not the POSIX standard locale format, another configuration parameter charset is needed to specify the character encoding under Windows. You can also use charset to specify character encoding in Linux systems.
+    The naming rules of locale in Linux are: < language > _ < region >. < character set coding >, such as: zh_CN.UTF-8, zh stands for Chinese, CN stands for mainland region, and UTF-8 stands for character set. Character set encoding provides a description of encoding transformations for clients to correctly parse local strings. Linux system and macOS system can determine the character encoding of the system by setting locale. Because the locale used by Windows is not the POSIX standard locale format, another configuration parameter charset is needed to specify the character encoding under Windows. You can also use charset to specify character encoding in Linux systems.
 
 - charset
 
@@ -495,7 +495,7 @@ You can configure different data directories and log directories by modifying sy
 - Table column name: cannot contain special characters, and cannot exceed 64 characters
 - Database name, table name, column name cannot begin with a number
 - Number of columns in table: cannot exceed 1024 columns
-- Maximum length of record: including 8 bytes as timestamp, no more than 16KB (each column of BINARY/NCHAR type will occupy an additional 2 bytes of storage location)
+- Maximum length of record: including 8 bytes as timestamp, no more than 48K bytes (it's 16K bytes prior to 2.1.7.0. each column of BINARY/NCHAR type will occupy an additional 2 bytes of storage location)
 - Default maximum string length for a single SQL statement: 65480 bytes
 - Number of database replicas: no more than 3
 - User name: no more than 23 bytes

@@ -1,0 +1,68 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 0
+system sh/exec.sh -n dnode1 -s start
+sleep 2000
+sql connect
+
+print ============= step1
+sql create user read pass 'taosdata1'
+sql create user write pass 'taosdata1'
+
+sql alter user read pass 'taosdata'
+sql alter user write pass 'taosdata'
+
+sql show users
+if $rows != 5 then 
+  return -1
+endi
+
+print ============= step2
+sql close
+sleep 2500
+print user read login
+sql connect read
+sql alter user read pass 'taosdata'
+sql alter user write pass 'taosdata1' -x step2
+  return -1
+step2:
+
+sql_error create user read pass 'taosdata1'
+sql_error create user write pass 'taosdata1'
+
+sql show users
+if $rows != 5 then 
+  return -1
+endi
+
+print ============= step3
+sql close
+sleep 2500
+print user write login
+sql connect write
+
+sql_error create user read pass 'taosdata1'
+sql_error create user write pass 'taosdata1'
+sql alter user write pass 'taosdata'
+sql alter user read pass 'taosdata' -x step3
+  return -1
+step3:
+
+sql show users
+if $rows != 5 then 
+  return -1
+endi
+
+print ============= step4
+sql close 
+sleep 2500
+print root write login
+sql connect
+sql create user oroot pass 'taosdata'
+
+sql show users
+if $rows != 6 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

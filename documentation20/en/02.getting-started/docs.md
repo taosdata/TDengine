@@ -14,7 +14,7 @@ docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengin
 
 Please refer to [Quickly Taste TDengine with Docker](https://www.taosdata.com/en/documentation/getting-started/docker) for the details.
 
-For the time being, we do not recommend using Docker to deploy the TDengine server or client in production environments. However it is a convenient way to deploy TDengine for development purposes. In particular, it is easy to try TDengine in Mac OS X and Windows environments with Docker.
+For the time being, we do not recommend using Docker to deploy the TDengine server or client in production environments. However it is a convenient way to deploy TDengine for development purposes. In particular, it is easy to try TDengine in macOS and Windows environments with Docker.
 
 ### <a class="anchor" id="package-install"></a>Install from Package
 
@@ -35,7 +35,7 @@ wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
 echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
 [Optional] echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
 sudo apt-get update
-apt-get policy tdengine
+apt-cache policy tdengine
 sudo apt-get install tdengine
 ```
 
@@ -97,17 +97,12 @@ taos>
 In the TDengine shell, you can create databases, create tables and insert/query data with SQL. Each query command ends with a semicolon. It works like MySQL, for example:
 
 ```mysql
-create database demo;
-
-use demo;
-
-create table t (ts timestamp, speed int);
-
-insert into t values ('2019-07-15 00:00:00', 10);
-
-insert into t values ('2019-07-15 01:00:00', 20);
-
-select * from t;
+CREATE DATABASE demo;
+USE demo;
+CREATE TABLE t (ts TIMESTAMP, speed INT);
+INSERT INTO t VALUES ('2019-07-15 00:00:00', 10);
+INSERT INTO t VALUES ('2019-07-15 01:00:00', 20);
+SELECT * FROM t;
 
 ts     |  speed  |
 
@@ -136,22 +131,22 @@ You can configure command parameters to change how the TDengine shell executes. 
 Examples:
 
 ```bash
-taos -h 192.168.0.1 -s "use db; show tables;"
+taos -h h1.taos.com -s "USE db; SHOW TABLES;"
 ```
 
 ### Run SQL Command Scripts
 
-Inside TDengine shell, you can run SQL scripts in a file with the `source` command.
+Inside TDengine shell, you can run SQL scripts in a file with the `SOURCE` command.
 
 ```mysql
-taos> source <filename>;
+taos> SOURCE <filename>;
 ```
 
 ### taos shell tips
 
 - Use the up/down arrow key to check the command history
-- To change the default password, use `alter user` command
-- Use ctrl+c to interrupt any queries
+- To change the default password, use `ALTER USER` command
+- Use Ctrl+c to interrupt any queries
 - To clean the schema of locally cached tables, execute the command `RESET QUERY CACHE`
 
 ## <a class="anchor" id="demo"></a>Taste TDengine’s Lightning Speed
@@ -172,7 +167,7 @@ Once execution is finished, 1 billion rows of records will be inserted. It usual
 
 you can run the command `taosBenchmark` with many options, like the number of tables, rows of records, and so on. To know more about these options, you can execute `taosBenchmark --help` and then take a try using different options.
 
-For more details on how to use taosBenchmark, please refer to [How to use taosBenchmark to test the performance of TDengine](https://tdengine.com/2021/10/09/3114.html).
+For more details on how to use taosBenchmark, please refer to [How to use taosBenchmark to test the performance of TDengine](https://tdengine.com/docs/en/v2.0/getting-started/taosdemo).
 
 ### <a class="anchor" id="taosshell"></a> Taste query speed with taos shell
 
@@ -181,31 +176,31 @@ In the TDengine client, enter sql query commands and then taste our lightning qu
 - query total rows of records：
 
 ```mysql
-taos> select count(*) from test.meters;
+taos> SELECT COUNT(*) FROM test.meters;
 ```
 
 - query average, max, and min of the total 1 billion records：
 
 ```mysql
-taos> select avg(f1), max(f2), min(f3) from test.meters;
+taos> SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters;
 ```
 
-- query the number of records where loc="beijing":
+- query the number of records where location="beijing":
 
 ```mysql
-taos> select count(*) from test.meters where loc="beijing";
+taos> SELECT COUNT(*) FROM test.meters WHERE location="beijing";
 ```
 
 - query the average, max and min of total records where areaid=10：
 
 ```mysql
-taos> select avg(f1), max(f2), min(f3) from test.meters where areaid=10;
+taos> SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters WHERE groupId=10;
 ```
 
 - query the average, max, min from table t10 when aggregating over every 10s:
 
 ```mysql
-taos> select avg(f1), max(f2), min(f3) from test.t10 interval(10s);
+taos> SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.d10 INTERVAL(10s);
 ```
 
 ## <a class="anchor" id="platforms"></a>List of Supported Platforms
@@ -239,7 +234,7 @@ Comparison matrix as following:
 | **JDBC**    | ●             | ●         | ●         | ○             | ●         | ●         | ●               | ●                 | ●                   |
 | **Python**  | ●             | ●         | ●         | ○             | ●         | ●         | ●               | --                | ●                   |
 | **Go**      | ●             | ●         | ●         | ○             | ●         | ●         | ○               | --                | --                  |
-| **NodeJs**  | ●             | ●         | ○         | ○             | ●         | ●         | ○               | --                | --                  |
+| **Node.js** | ●             | ●         | ○         | ○             | ●         | ●         | ○               | --                | --                  |
 | **C#**      | ○             | ●         | ●         | ○             | ○         | ○         | ○               | --                | --                  |
 | **RESTful** | ●             | ●         | ●         | ●             | ●         | ●         | ●               | ●                 | ●                   |
 

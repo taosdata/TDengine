@@ -4,7 +4,7 @@ TDengine supports multiple ways to write data, including SQL, Prometheus, Telegr
 
 ## <a class="anchor" id="sql"></a> Data Writing via SQL
 
-Applications insert data by executing SQL insert statements through C/C++, Java, Go, C#, Python, Node.js Connectors, and users can manually enter SQL insert statements to insert data through TAOS Shell. For example, the following insert writes a record to table d1001:
+Applications insert data by executing SQL insert statements through C/C++, Java, Go, C#, Python, Node.js connectors, and users can manually enter SQL insert statements to insert data through TAOS Shell. For example, the following insert writes a record to table d1001:
 
 ```mysql
 INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31);
@@ -26,7 +26,7 @@ For the SQL INSERT Grammar, please refer to  [Taos SQL insert](https://www.taosd
 
 **Tips:**
 
-- To improve writing efficiency, batch writing is required. The more records written in a batch, the higher the insertion efficiency. However, a record size cannot exceed 16K, and the total length of an SQL statement cannot exceed 64K (it can be configured by parameter maxSQLLength, and the maximum can be configured to 1M).
+- To improve writing efficiency, batch writing is required. The more records written in a batch, the higher the insertion efficiency. However, a record size cannot exceed 48K (it's 16K prior to 2.1.7.0, and the total length of an SQL statement cannot exceed 64K (it can be configured by parameter maxSQLLength, and the maximum can be configured to 1M).
 - TDengine supports multi-thread parallel writing. To further improve writing speed, a client needs to open more than 20 threads to write parallelly. However, after the number of threads reaches a certain threshold, it cannot be increased or even become decreased, because too much thread switching brings extra overhead.
 - For the same table, if the timestamp of a newly inserted record already exists, the new record will be discarded as default (database option update = 0), that is, the timestamp must be unique in a table. If an application automatically generates records, it is very likely that the generated timestamps will be the same, so the number of records successfully inserted will be smaller than the number of records the application try to insert. If you use UPDATE 1 option when creating a database, inserting a new record with the same timestamp will overwrite the original record.
 - The timestamp of written data must be greater than the current time minus the time of configuration parameter keep. If keep is configured for 3650 days, data older than 3650 days cannot be written. The timestamp for writing data cannot be greater than the current time plus configuration parameter days. If days is configured to 2, data 2 days later than the current time cannot be written.
@@ -36,7 +36,7 @@ For the SQL INSERT Grammar, please refer to  [Taos SQL insert](https://www.taosd
 **Introduction**
 <br/> In many IoT applications, data collection is often used in intelligent control, business analysis and device monitoring etc. As fast application upgrade and iteration, or hardware adjustment, data collection metrics can change rapidly over time. To provide solutions to such use cases, from version 2.2.0.0, TDengine supports writing data via Schemaless. When using Schemaless, action of pre-creating table before inserting data is no longer needed anymore. Tables, data columns and tags can be created automatically. Schemaless can also add additional data columns to tables if necessary, to make sure data can be properly stored into TDengine.
 
-<br/> TDengine C/C++ Connector provides Schemaless API. Please see [Schemaless data writting API](https://www.taosdata.com/en/documentation/connector#schemaless) for detailed data writing format.
+<br/> TDengine's all official connectors provide Schemaless API now. Please see [Schemaless data writing API](https://www.taosdata.com/en/documentation/connector#schemaless) for detailed data writing format.
 <br/> Super table and corresponding child tables created via Schemaless are identical to the ones created via SQL, so inserting data into these tables via SQL is also supported. Note that child table names are generated via Schemaless are following special rules through tags mapping. Therefore, child table names are usually not meaningful in terms of readability.
 
 **Schemaless writing protocols**
@@ -95,7 +95,7 @@ After MD5 value "md5_val" calculated using the above string, prefix "t_" is prep
 <br/>8. If any error occurs during processing, error code will be returned.
 
 **Note**
-<br/>Schemaless will follow TDengine data structure limitations. For example, each table row cannot exceed 16KB. For detailed TDengine limitations please refer to `https://www.taosdata.com/en/documentation/taos-sql#limitation`.
+<br/>Schemaless will follow TDengine data structure limitations. For example, each table row cannot exceed 48KB (it's 16K prior to 2.1.7.0. For detailed TDengine limitations please refer to `https://www.taosdata.com/en/documentation/taos-sql#limitation`.
 
 **Timestamp precisions**
 <br/>Following protocols are supported in Schemaless:
@@ -115,7 +115,7 @@ After MD5 value "md5_val" calculated using the above string, prefix "t_" is prep
 | 3      | TSDB_SML_TIMESTAMP_MINUTES            |   minute       |
 | 4      | TSDB_SML_TIMESTAMP_SECONDS            |   second       |
 | 5      | TSDB_SML_TIMESTAMP_MILLI_SECONDS      |   millisecond  |
-| 6      | TSDB_SML_TIMESTAMP_MICRO_SECONDS      |   microsecon   |
+| 6      | TSDB_SML_TIMESTAMP_MICRO_SECONDS      |   microsecond  |
 | 7      | TSDB_SML_TIMESTAMP_NANO_SECONDS       |   nanosecond   |
 
 When SML_TELNET_PROTOCOL or SML_JSON_PROTOCOL used，timestamp precision is determined by how many digits used in timestamp（following OpenTSDB convention），precision from user input will be ignored。
@@ -136,7 +136,7 @@ create stable st (_ts timestamp, c1 bigint, c2 bool, c3 binary(6), c4 bigint) ta
 **Schemaless data alternation rules**
 <br/>This section describes several data alternation scenarios:
 
-When column with one line has certain type, and following lines attemp to change the data type of this column, an error will be reported by the API:
+When column with one line has certain type, and following lines attempt to change the data type of this column, an error will be reported by the API:
 
 ```json
 st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4    1626006833639000000
@@ -255,7 +255,7 @@ sudo systemctl start collectd
 
 Please find taosAdapter configuration and usage from `taosadapter --help` output.
 
-## <a class="anchor" id="statsd"></a> Data Writting via StatsD and taosAdapter
+## <a class="anchor" id="statsd"></a> Data Writing via StatsD and taosAdapter
 
 Please refer to [official document](https://github.com/statsd/statsd) for StatsD installation.
 
@@ -278,7 +278,7 @@ port: 8125
 }
 ```
 
-## <a class="anchor" id="cinga2"></a> Data Writting via icinga2 and taosAdapter
+## <a class="anchor" id="cinga2"></a> Data Writing via icinga2 and taosAdapter
 
 Use icinga2 to collect check result metrics and performance data
 
@@ -295,7 +295,7 @@ object OpenTsdbWriter "opentsdb" {
 
 Please find taosAdapter configuration and usage from `taosadapter --help` output.
 
-## <a class="anchor" id="tcollector"></a> Data Writting via TCollector and taosAdapter
+## <a class="anchor" id="tcollector"></a> Data Writing via TCollector and taosAdapter
 
 TCollector is a client-side process that gathers data from local collectors and pushes the data to OpenTSDB. You run it on all your hosts, and it does the work of sending each host’s data to the TSD (OpenTSDB backend process).
 
@@ -306,7 +306,7 @@ Please find taosAdapter configuration and usage from `taosadapter --help` output
 
 ## <a class="anchor" id="emq"></a> Data Writing via EMQ Broker
 
-[EMQ](https://github.com/emqx/emqx) is an open source MQTT Broker software, with no need of coding, only to use "rules" in EMQ Dashboard for simple configuration, and MQTT data can be directly written into TDengine. EMQ X supports storing data to the TDengine by sending it to a Web service, and also provides a native TDengine driver on Enterprise Edition for direct data store. Please refer to [EMQ official documents](https://docs.emqx.io/broker/latest/cn/rule/rule-example.html#%E4%BF%9D%E5%AD%98%E6%95%B0%E6%8D%AE%E5%88%B0-tdengine) for more details.
+[EMQ](https://github.com/emqx/emqx) is an open source MQTT Broker software, with no need of coding, only to use "rules" in EMQ Dashboard for simple configuration, and MQTT data can be directly written into TDengine. EMQX supports storing data to the TDengine by sending it to a Web service, and also provides a native TDengine driver on Enterprise Edition for direct data store. Please refer to [EMQ official documents](https://docs.emqx.io/broker/latest/cn/rule/rule-example.html#%E4%BF%9D%E5%AD%98%E6%95%B0%E6%8D%AE%E5%88%B0-tdengine) for more details.
 
 ## <a class="anchor" id="hivemq"></a> Data Writing via HiveMQ Broker
 

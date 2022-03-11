@@ -1,4 +1,4 @@
-Since TDengine was open sourced in July 2019, it has gained a lot of popularity among time-series database developers with its innovative data modeling design, simple installation method, easy programming interface, and powerful data insertion and query performance. The insertion and querying performance is often astonishing to users who are new to TDengine. In order to help users to experience the high performance and functions of TDengine in the shortest time, we developed an application called `taosBenchmark` (was named `taosdemo`) for insertion and querying performance testing of TDengine. Then user can easily simulate the scenario of a large number of devices generating a very large amount of data. User can easily  manipulate the number of columns, data types, disorder ratio, and number of concurrent threads with taosBenchmark customized parameters.
+Since TDengine was open sourced in July 2019, it has gained a lot of popularity among time-series database developers with its innovative data modeling design, simple installation method, easy programming interface, and powerful data insertion and query performance. The insertion and querying performance is often astonishing to users who are new to TDengine. In order to help users to experience the high performance and functions of TDengine in the shortest time, we developed an application called `taosBenchmark` (was named `taosdemo`) for insertion and querying performance testing of TDengine. Then user can easily simulate the scenario of a large number of devices generating a very large amount of data. User can easily manipulate the number of tables, columns, data types, disorder ratio, and number of concurrent threads with taosBenchmark customized parameters.
 
 Running taosBenchmark is very simple. Just download the [TDengine installation package](https://www.taosdata.com/cn/all-downloads/) or compiling the [TDengine code](https://github.com/taosdata/TDengine). It can be found and run in the installation directory or in the compiled results directory.
 
@@ -69,7 +69,7 @@ taos> describe test.meters;
 Query OK, 6 row(s) in set (0.002972s)
 ```
 
-After pressing any key taosBenchmark will create the database test and super table meters and generate 10,000 sub-tables representing 10,000 individule meter devices that report data. That means they independently using the super table meters as a template according to TDengine data modeling best practices.
+After pressing any key taosBenchmark will create the database test and super table meters and generate 10,000 sub-tables representing 10,000 individual meter devices that report data. That means they independently using the super table meters as a template according to TDengine data modeling best practices.
 
 ```
 taos> use test;
@@ -151,7 +151,7 @@ Spent 6.0257 seconds to insert rows: 100000000, affected rows: 100000000 with 16
 insert delay, avg:       8.31ms, max:     860.12ms, min:       2.00ms
 ```
 
-It shows that taosBenchmark inserted 100 million records in 6 seconds, with a much more higher insertion performance, 1,659,590 records wer inserted per second.
+It shows that taosBenchmark inserted 100 million records in 6 seconds, with a much more higher insertion performance, 1,659,590 records was inserted per second.
 
 Because taosBenchmark is so easy to use, so we have extended it with more features to support more complex parameter settings for sample data preparation and validation for rapid prototyping.
 
@@ -160,7 +160,7 @@ The complete list of taosBenchmark command-line arguments can be displayed via t
 ```
 $ taosBenchmark --help
 
--f, --file=FILE The meta file to the execution procedure. Currently, we support standard UTF-8 (without BOM) encoded files only.
+-f, --file=FILE The JSON configuration file to the execution procedure. Currently, we support standard UTF-8 (without BOM) encoded files only.
 -u, --user=USER The user name to use when connecting to the server.
 -p, --password The password to use when connecting to the server.
 -c, --config-dir=CONFIG_DIR Configuration directory.
@@ -170,7 +170,7 @@ $ taosBenchmark --help
 -d, --database=DATABASE Destination database. By default is 'test'.
 -a, --replica=REPLICA Set the replica parameters of the database, By default use 1, min: 1, max: 3.
 -m, --table-prefix=TABLEPREFIX Table prefix name. By default use 'd'.
--s, --sql-file=FILE The select sql file.
+-s, --sql-file=FILE The select SQL file.
 -N, --normal-table Use normal table flag.
 -o, --output=FILE Direct output to the named file. By default use './output.txt'.
 -q, --query-mode=MODE Query mode -- 0: SYNC, 1: ASYNC. By default use SYNC.
@@ -224,7 +224,7 @@ The -T parameter sets how many threads taosBenchmark uses to synchronize data wr
 -l, --columns=COLUMNS         The number of columns per record. Demo mode by default is 3 (float, int, float). Max values is 4095
 ```
 
-As mentioned earlier, tadosdemo creates a typical meter data reporting scenario by default, with each device containing three columns. They are current, voltage and phases. TDengine supports BOOL, TINYINT, SMALLINT, INT, BIGINT, FLOAT, DOUBLE, BINARY, NCHAR, TIMESTAMP data types. By using -b with a list of types allows you to specify the column list with customized data type. Using -w to specify the width of the columns of the BINARY and NCHAR data types (default is 64). The -l parameter can be added to the columns of the data type specified by the -b parameter with the total number of columns of the INT type, which reduces the manual input process in case of a particularly large number of columns, up to 4095 columns.
+As mentioned earlier, taosdemo creates a typical meter data reporting scenario by default, with each device containing three columns. They are current, voltage and phases. TDengine supports BOOL, TINYINT, SMALLINT, INT, BIGINT, FLOAT, DOUBLE, BINARY, NCHAR, TIMESTAMP data types. By using -b with a list of types allows you to specify the column list with customized data type. Using -w to specify the width of the columns of the BINARY and NCHAR data types (default is 64). The -l parameter can be added to the columns of the data type specified by the -b parameter with the total number of columns of the INT type, which reduces the manual input process in case of a particularly large number of columns, up to 4095 columns.
 
 ```
 -r, --rec-per-req=NUMBER      The number of records per request. Default is 30000.
@@ -251,7 +251,7 @@ As we can see above, taosBenchmark outputs a list of parameters for the upcoming
 -R, --disorder-range=NUMBER   Out of order data's range, ms, default is 1000.
 ```
 
-In some scenarios, the received data does not arrive in exact order, but contains a certain percentage of out-of-order data, which TDengine can also handle very well. In order to simulate the writing of out-of-order data, tadosdemo provides -O and -R parameters to be set. The -O parameter is the same as the -O parameter for fully ordered data writes. 1 to 50 is the percentage of data that contains out-of-order data. The -R parameter is the range of the timestamp offset of the out-of-order data, default is 1000 milliseconds. Also note that temporal data is uniquely identified by a timestamp, so garbled data may generate the exact same timestamp as previously written data, and such data may either be discarded (update 0) or overwrite existing data (update 1 or 2) depending on the update value created by the database, and the total number of data entries may not match the expected number of entries.
+In some scenarios, the received data does not arrive in exact order, but contains a certain percentage of out-of-order data, which TDengine can also handle very well. In order to simulate the writing of out-of-order data, taosdemo provides -O and -R parameters to be set. The -O parameter is the same as the -O parameter for fully ordered data writes. 1 to 50 is the percentage of data that contains out-of-order data. The -R parameter is the range of the timestamp offset of the out-of-order data, default is 1000 milliseconds. Also note that temporal data is uniquely identified by a timestamp, so garbled data may generate the exact same timestamp as previously written data, and such data may either be discarded (update 0) or overwrite existing data (update 1 or 2) depending on the update value created by the database, and the total number of data entries may not match the expected number of entries.
 
 ```
  -g, --debug                   Print debug info.
@@ -260,10 +260,10 @@ In some scenarios, the received data does not arrive in exact order, but contain
 If you are interested in the taosBenchmark insertion process or if the data insertion result is not as expected, you can use the -g parameter to make taosBenchmark print the debugging information in the process of the execution to the screen or import it to another file with the Linux redirect command to easily find the cause of the problem. In addition, taosBenchmark will also output the corresponding executed statements and debugging reasons to the screen after the execution fails. You can search the word "reason" to find the error reason information returned by the TDengine server.
 
 ```
--x, --aggr-func               Test aggregation funtions after insertion.
+-x, --aggr-func               Test aggregation functions after insertion.
 ```
 
-TDengine is not only very powerful in insertion performance, but also in query performance due to its advanced database engine design. tadosdemo provides a -x function that performs the usual query operations and outputs the query consumption time after the insertion of data. The following is the result of a common query after inserting 100 million rows on the aforementioned server.
+TDengine is not only very powerful in insertion performance, but also in query performance due to its advanced database engine design. taosdemo provides a -x function that performs the usual query operations and outputs the query consumption time after the insertion of data. The following is the result of a common query after inserting 100 million rows on the aforementioned server.
 
 You can see that the select * fetch 100 million rows (not output to the screen) operation consumes only 1.26 seconds. The most of normal aggregation function for 100 million records usually takes only about 20 milliseconds, and even the longest count function takes less than 40 milliseconds.
 
@@ -346,6 +346,7 @@ In addition to the command line approach, taosBenchmark also supports take a JSO
             "start_timestamp": "2020-10-01 00:00:00.000",
             "sample_format": "csv",
             "sample_file": "./sample.csv",
+            "use_sample_ts": "no",
             "tags_file": "",
             "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":10}, {"type": "BINARY", "len": 16, "count":3}, {"type": "BINARY", "len": 32, "count":6}],
             "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":5}]
@@ -354,7 +355,9 @@ In addition to the command line approach, taosBenchmark also supports take a JSO
 }
 ```
 
-For example, we can specify different number of threads for table creation and data insertion with "thread_count" and "thread_count_create_tbl". You can use a combination of "child_table_exists", "childtable_limit" and "childtable_offset" to use multiple taosBenchmark processes (even on different computers) to write to different ranges of child tables of the same super table at the same time. You can also import existing data by specifying the data source as a csv file with "data_source" and "sample_file".
+For example, we can specify different number of threads for table creation and data insertion with `thread_count` and `thread_count_create_tbl`. You can use a combination of `child_table_exists`, `childtable_limit` and `childtable_offset` to use multiple taosBenchmark processes (even on different computers) to write to different ranges of child tables of the same super table at the same time. You can also import existing data by specifying the data source as a CSV file with `data_source` and `sample_file`. The argument `use_sample_ts` indicate whether the first column, timestamp in TDengine would use the data of the specified CSV file too.
+
+CSV file is a plain text format and use comma signs as separators between two columns. The number of columns must is same as the number of columns or tags of the table you intend to insert.
 
 # Use taosBenchmark for query and subscription testing
 
@@ -406,11 +409,11 @@ The following parameters are specific to the query in the JSON file.
 
 ```
 "query_times": the number of queries per query type
-"query_mode": query data interface, "tosc": call TDengine's c interface; "resetful": use restfule interface. Options are available. Default is "taosc".
+"query_mode": query data interface, "taosc": call TDengine's c interface; "restful": use RESTful interface. Options are available. Default is "taosc".
 "specified_table_query": { query for the specified table
 "query_interval": interval to execute sqls, in seconds. Optional, default is 0.
 "concurrent": the number of threads to execute sqls concurrently, optional, default is 1. Each thread executes all sqls.
-"sqls": multiple sql statements can be added, support up to 100 statements.
+"sqls": multiple SQL statements can be added, support up to 100 statements.
 "sql": query statement. Mandatory.
 "result": the name of the file where the query result will be written. Optional, default is null, means the query result will not be written to the file.
 "super_table_query": { query for all sub-tables in the super table
@@ -470,14 +473,14 @@ The following are the meanings of the parameters specific to the subscription fu
 "restart": subscription restart." yes": restart the subscription if it already exists, "no": continue the previous subscription. (Please note that the executing user needs to have read/write access to the dataDir directory)
 "keepProgress": keep the progress of the subscription information. yes means keep the subscription information, no means don't keep it. The value is yes and restart is no to continue the previous subscriptions.
 "resubAfterConsume": Used in conjunction with keepProgress to call unsubscribe after the subscription has been consumed the appropriate number of times and to subscribe again.
-"result": the name of the file to which the query result is written. Optional, default is null, means the query result will not be written to the file. Note: The file to save the result after each sql statement cannot be renamed, and the file name will be appended with the thread number when generating the result file.
+"result": the name of the file to which the query result is written. Optional, default is null, means the query result will not be written to the file. Note: The file to save the result after each SQL statement cannot be renamed, and the file name will be appended with the thread number when generating the result file.
 ```
 
 # Conclusion
 
-TDengine is a big data platform designed and optimized for IoT, Telematics, Industrial Internet, DevOps, etc. TDengine shows a high performance that far exceeds similar products due to the innovative data storage and query engine design in the database kernel. And withSQL syntax support and connectors for multiple programming languages (currently Java, Python, Go, C#, NodeJS, Rust, etc. are supported), it is extremely easy to use and has zero learning cost. To facilitate the operation and maintenance needs, we also provide data migration and monitoring functions and other related ecological tools and software.
+TDengine is a big data platform designed and optimized for IoT, Telemetric, Industrial Internet, DevOps, etc. TDengine shows a high performance that far exceeds similar products due to the innovative data storage and query engine design in the database kernel. And with SQL syntax support and connectors for multiple programming languages (currently Java, Python, Go, C#, Node.js, Rust, etc. are supported), it is extremely easy to use and has zero learning cost. To facilitate the operation and maintenance needs, we also provide data migration and monitoring functions and other related ecological tools and software.
 
 For users who are new to TDengine, we have developed rich features for taosBenchmark to facilitate technical evaluation and stress testing. This article is a brief introduction to taosBenchmark, which will continue to evolve and improve as new features are added to TDengine.
 
- As part of TDengine, taosBenchmark's source code is fully open on the GitHub. Suggestions or advices about the use or implementation of taosBenchmark or TDengine are welcomed on GitHub or in the Taos Data user group.
+ As part of TDengine, taosBenchmark's source code is fully open on the GitHub. Suggestions or advice about the use or implementation of taosBenchmark or TDengine are welcomed on GitHub or in the Taos Data user group.
 
