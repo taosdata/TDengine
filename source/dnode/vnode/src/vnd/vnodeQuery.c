@@ -88,12 +88,14 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   SSchema        *pTagSchema;
   SRpcMsg         rpcMsg;
   int             msgLen = 0;
-  int32_t         code = TSDB_CODE_VND_APP_ERROR;
+  int32_t         code = 0;
   char            tableFName[TSDB_TABLE_FNAME_LEN];
+  int32_t         rspLen = 0;
+  void           *pRsp = NULL;
 
   STableInfoReq infoReq = {0};
   if (tDeserializeSTableInfoReq(pMsg->pCont, pMsg->contLen, &infoReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
+    code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
 
@@ -161,22 +163,22 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     memcpy(POINTER_SHIFT(metaRsp.pSchemas, sizeof(SSchema) * pSW->nCols), pTagSchema, sizeof(SSchema) * nTagCols);
   }
 
-  int32_t rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
+
+_exit:
+
+  rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
   if (rspLen < 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
 
-  void *pRsp = rpcMallocCont(rspLen);
+  pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
   tSerializeSTableMetaRsp(pRsp, rspLen, &metaRsp);
 
-  code = 0;
-
-_exit:
 
   tFreeSTableMetaRsp(&metaRsp);
   if (pSW != NULL) {
