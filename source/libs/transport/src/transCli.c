@@ -123,16 +123,16 @@ static void         destroyThrdObj(SCliThrdObj* pThrd);
   do {                                      \
     if (thrd->quit) {                       \
       clientHandleExcept(conn);             \
+      goto _RETURE;                         \
     }                                       \
-    goto _RETURE;                           \
   } while (0)
 
 #define CONN_HANDLE_BROKEN(conn) \
   do {                           \
     if (conn->broken) {          \
       clientHandleExcept(conn);  \
+      goto _RETURE;              \
     }                            \
-    goto _RETURE;                \
   } while (0);
 
 static void* clientThread(void* arg);
