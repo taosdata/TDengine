@@ -336,6 +336,10 @@ SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
         }
       }
     }
+
+    if (!quit) {
+      destroyRequest(pRequest);
+    }
   }
 
   if (code) {

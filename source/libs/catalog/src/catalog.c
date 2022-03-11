@@ -1452,8 +1452,12 @@ int32_t ctgGetAddDBCache(SCatalog* pCtg, const char *dbFName, uint64_t dbId, SCt
 int32_t ctgUpdateDBVgInfo(SCatalog* pCtg, const char* dbFName, uint64_t dbId, SDBVgInfo** pDbInfo) {
   int32_t code = 0;
   SDBVgInfo* dbInfo = *pDbInfo;
+
+  if (NULL == dbInfo->vgHash) {
+    return TSDB_CODE_SUCCESS;
+  }
   
-  if (NULL == dbInfo->vgHash || dbInfo->vgVersion < 0 || taosHashGetSize(dbInfo->vgHash) <= 0) {
+  if (dbInfo->vgVersion < 0 || taosHashGetSize(dbInfo->vgHash) <= 0) {
     ctgError("invalid db vgInfo, dbFName:%s, vgHash:%p, vgVersion:%d, vgHashSize:%d", 
       dbFName, dbInfo->vgHash, dbInfo->vgVersion, taosHashGetSize(dbInfo->vgHash));
     CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
@@ -2588,7 +2592,7 @@ int32_t catalogUpdateSTableMeta(SCatalog* pCtg, STableMetaRsp *rspMsg) {
   
   CTG_ERR_JRET(queryCreateTableMetaFromMsg(rspMsg, true, &output->tbMeta));
 
-  CTG_ERR_JRET(ctgPushUpdateTblMsgInQueue(pCtg, output));
+  CTG_ERR_JRET(ctgPushUpdateTblMsgInQueue(pCtg, output, false));
 
   CTG_API_LEAVE(code);
   
