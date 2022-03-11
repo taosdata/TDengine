@@ -34,7 +34,6 @@ class TDTestCase:
 
     def run(self):
         tdSql.prepare()
-
         print("============== STEP 1 ===== prepare data & validate json string")
         tdSql.error("create table if not exists jsons1(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50), dataStrBin binary(150)) tags(jtag json, tagint int)")
         tdSql.error("create table if not exists jsons1(ts timestamp, data json) tags(tagint int)")
@@ -379,8 +378,8 @@ class TDTestCase:
         tdSql.error("select count(*) from jsons1 group by jtag->'tag1' order by jtag")
         tdSql.query("select count(*) from jsons1 group by jtag->'tag1' order by jtag->'tag1' desc")
         tdSql.checkRows(8)
-        tdSql.checkData(0, 0, 2)
-        tdSql.checkData(0, 1, '"femail"')
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(1, 1, '"femail"')
         tdSql.checkData(2, 0, 1)
         tdSql.checkData(2, 1, 11)
         tdSql.checkData(5, 0, 1)
@@ -398,8 +397,8 @@ class TDTestCase:
         tdSql.checkData(2, 1, "false")
         tdSql.checkData(5, 0, 1)
         tdSql.checkData(5, 1, 11)
-        tdSql.checkData(7, 0, 2)
-        tdSql.checkData(7, 1, '"femail"')
+        tdSql.checkData(6, 0, 2)
+        tdSql.checkData(6, 1, '"femail"')
 
         # test stddev with group by json tag
         tdSql.query("select stddev(dataint) from jsons1 group by jtag->'tag1'")
@@ -407,8 +406,8 @@ class TDTestCase:
         tdSql.checkData(0, 1, None)
         tdSql.checkData(1, 0, 0)
         tdSql.checkData(1, 1, "null")
-        tdSql.checkData(7, 0, 11)
-        tdSql.checkData(7, 1, '"femail"')
+        tdSql.checkData(6, 0, 11)
+        tdSql.checkData(6, 1, '"femail"')
 
         res = tdSql.getColNameList("select stddev(dataint) from jsons1 group by jsons1.jtag->'tag1'")
         cname_list = []
@@ -422,8 +421,8 @@ class TDTestCase:
         tdSql.checkData(0, 1, 4)
         tdSql.checkData(1, 1, 24)
         tdSql.checkData(1, 2, None)
-        tdSql.checkData(10, 1, 1)
-        tdSql.checkData(10, 2, '"femail"')
+        tdSql.checkData(8, 1, 1)
+        tdSql.checkData(8, 2, '"femail"')
 
         # test having
         tdSql.query("select stddev(dataint) from jsons1 group by jtag->'tag1' having stddev(dataint) > 0")
@@ -437,7 +436,7 @@ class TDTestCase:
 
         tdSql.query("select jtag->'tag1' from (select jtag->'tag1', dataint from jsons1)")
         tdSql.checkRows(11)
-        tdSql.checkData(0, 0, '"femail"')
+        tdSql.checkData(1, 0, '"femail"')
         tdSql.checkData(2, 0, 5)
 
         res = tdSql.getColNameList("select jtag->'tag1' from (select jtag->'tag1', dataint from jsons1)")

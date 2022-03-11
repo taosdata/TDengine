@@ -810,7 +810,7 @@ SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup) {
                                         pOneDataSrc->rowIdx, pIndex->colIndex);
 
         char   *data = pInfo->prevRow[i];
-        int32_t ret = columnValueAscendingComparator(data, newRow, pColInfo->info.type, pColInfo->info.bytes);
+        int32_t ret = columnValueAscendingComparator(data, newRow, pColInfo->info.type, pColInfo->info.bytes, true);
         if (ret == 0) {
           continue;
         } else {
@@ -872,7 +872,7 @@ static bool isSameGroup(SArray* orderColumnList, SSDataBlock* pBlock, char** dat
     assert(pIndex->colId == pColInfo->info.colId);
 
     char *data = dataCols[i];
-    int32_t ret = columnValueAscendingComparator(data, pColInfo->pData, pColInfo->info.type, pColInfo->info.bytes);
+    int32_t ret = columnValueAscendingComparator(data, pColInfo->pData, pColInfo->info.type, pColInfo->info.bytes, true);
     if (ret == 0) {
       continue;
     } else {
@@ -1057,7 +1057,7 @@ static int32_t doSlimitImpl(SOperatorInfo* pOperator, SSLimitOperatorInfo* pInfo
         SColumnInfo *pColInfo = &pColInfoData->info;
 
         char   *d = rowIndex * pColInfo->bytes + (char *)pColInfoData->pData;
-        int32_t ret = columnValueAscendingComparator(pInfo->prevRow[i], d, pColInfo->type, pColInfo->bytes);
+        int32_t ret = columnValueAscendingComparator(pInfo->prevRow[i], d, pColInfo->type, pColInfo->bytes, true);
         if (ret != 0) {  // it is a new group
           samegroup = false;
           break;
