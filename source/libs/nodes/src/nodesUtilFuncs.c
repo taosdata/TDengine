@@ -120,6 +120,7 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_DNODES_STMT:
       return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_SHOW_VGROUPS_STMT:
+    case QUERY_NODE_SHOW_MNODES_STMT:
       return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));

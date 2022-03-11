@@ -1062,6 +1062,8 @@ static int32_t nodeTypeToShowType(ENodeType nt) {
       return TSDB_MGMT_TABLE_DNODE;
     case QUERY_NODE_SHOW_VGROUPS_STMT:
       return TSDB_MGMT_TABLE_VGROUP;
+    case QUERY_NODE_SHOW_MNODES_STMT:
+      return TSDB_MGMT_TABLE_MNODE;
     default:
       break;
   }
@@ -1169,6 +1171,7 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
+    case QUERY_NODE_SHOW_MNODES_STMT:
       code = translateShow(pCxt, (SShowStmt*)pNode);
       break;
     case QUERY_NODE_SHOW_TABLES_STMT:
