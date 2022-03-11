@@ -1,6 +1,7 @@
 use std::os::raw::*;
 
 #[repr(C)]
+#[derive(Debug, Copy, Clone)]
 pub enum tmq_resp_err_t {
     Fail = -1,
     Success = 0,
@@ -72,6 +73,10 @@ extern "C" {
 
     pub fn tmq_subscribe(tmq: *mut tmq_t, topic_list: *mut tmq_list_t) -> tmq_resp_err_t;
 
+    pub fn tmq_unsubscribe(tmq: *mut tmq_t) -> tmq_resp_err_t;
+    
+    pub fn tmq_subscription(tmq: *mut tmq_t, topic_list: *mut *mut tmq_list_t) -> tmq_resp_err_t;
+
     pub fn tmq_consumer_poll(tmq: *mut tmq_t, blocking_time: i64) -> *mut tmq_message_t;
 
     pub fn tmq_consumer_close(tmq: *mut tmq_t) -> tmq_resp_err_t;
@@ -84,7 +89,6 @@ extern "C" {
 
     pub fn tmq_seek(tmq: *mut tmq_t, offset: *const tmq_topic_vgroup_t) -> tmq_resp_err_t;
 }
-
 
 #[repr(C)]
 pub enum tmq_conf_res_t {
@@ -109,5 +113,11 @@ extern "C" {
         value: *const c_char,
     ) -> tmq_conf_res_t;
 
-    pub fn tmq_conf_set_offset_commit_cb(conf: *mut tmq_conf_t, cb: Option<tmq_commit_cb>);
+    pub fn tmq_conf_set_offset_commit_cb(conf: *mut tmq_conf_t, cb: tmq_commit_cb);
+}
+
+/// temporary used function for demo only
+extern "C" {
+    pub fn tmqShowMsg(tmq_message: *const tmq_message_t);
+    pub fn tmqGetSkipLogNum(tmq_message: *const tmq_message_t) -> i32;
 }

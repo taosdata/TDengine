@@ -1,4 +1,3 @@
-use dotenv::dotenv;
 use std::env;
 use std::ffi::OsString;
 use std::fmt::Display;
@@ -124,7 +123,6 @@ impl Version {
 }
 
 fn main() {
-    dotenv().ok();
     taos_version();
     println!("cargo:rustc-link-lib=taos");
 }
