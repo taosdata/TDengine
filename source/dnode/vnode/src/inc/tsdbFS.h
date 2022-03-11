@@ -43,12 +43,30 @@ typedef struct {
   STsdbFSMeta meta;  // FS meta
   SArray *    df;    // data file array
 
-  // SArray *    v2f100.tsma.index_name
+  // SArray *    v2t100.index_name
   
-  SArray *    smaf;  // sma data file array    v2f1900.tsma.index_name
+  SArray *    smaf;  // sma data file array    v2t1900.index_name
 } SFSStatus;
 
-typedef struct {
+/**
+ * @brief Directory structure of .tsma data files.
+ * 
+ *  root@cary /vnode2/tsdb $ tree .tsma/
+ *   .tsma/
+ *   ├── v2t100.index_name_1
+ *   ├── v2t101.index_name_1
+ *   ├── v2t102.index_name_1
+ *   ├── v2t1900.index_name_3
+ *   ├── v2t1901.index_name_3
+ *   ├── v2t1902.index_name_3
+ *   ├── v2t200.index_name_2
+ *   ├── v2t201.index_name_2
+ *   └── v2t202.index_name_2
+ *
+ *   0 directories, 9 files
+ */
+
+    typedef struct {
   pthread_rwlock_t lock;
 
   SFSStatus *cstatus;        // current status

@@ -24,6 +24,7 @@ extern "C" {
 #include <tdatablock.h>
 #include "taosdef.h"
 #include "trpc.h"
+#include "wal.h"
 
 typedef uint64_t SyncNodeId;
 typedef int32_t  SyncGroupId;
@@ -87,31 +88,34 @@ typedef struct SSyncFSM {
 
 } SSyncFSM;
 
+struct SSyncRaftEntry;
+typedef struct SSyncRaftEntry SSyncRaftEntry;
+
 // abstract definition of log store in raft
 // SWal implements it
 typedef struct SSyncLogStore {
   void* data;
 
   // append one log entry
-  int32_t (*appendEntry)(struct SSyncLogStore* pLogStore, SRpcMsg* pBuf);
+  int32_t (*appendEntry)(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
 
-  // get one log entry, user need to free pBuf->data
-  int32_t (*getEntry)(struct SSyncLogStore* pLogStore, SyncIndex index, SRpcMsg* pBuf);
+  // get one log entry, user need to free pEntry->pCont
+  SSyncRaftEntry* (*getEntry)(struct SSyncLogStore* pLogStore, SyncIndex index);
 
-  // update log store commit index with "index"
-  int32_t (*updateCommitIndex)(struct SSyncLogStore* pLogStore, SyncIndex index);
-
-  // truncate log with index, entries after the given index (>index) will be deleted
-  int32_t (*truncate)(struct SSyncLogStore* pLogStore, SyncIndex index);
-
-  // return commit index of log
-  SyncIndex (*getCommitIndex)(struct SSyncLogStore* pLogStore);
+  // truncate log with index, entries after the given index (>=index) will be deleted
+  int32_t (*truncate)(struct SSyncLogStore* pLogStore, SyncIndex fromIndex);
 
   // return index of last entry
   SyncIndex (*getLastIndex)(struct SSyncLogStore* pLogStore);
 
   // return term of last entry
   SyncTerm (*getLastTerm)(struct SSyncLogStore* pLogStore);
+
+  // update log store commit index with "index"
+  int32_t (*updateCommitIndex)(struct SSyncLogStore* pLogStore, SyncIndex index);
+
+  // return commit index of log
+  SyncIndex (*getCommitIndex)(struct SSyncLogStore* pLogStore);
 
 } SSyncLogStore;
 
@@ -134,7 +138,7 @@ typedef struct SSyncInfo {
   SyncGroupId vgId;
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
-  char        walPath[TSDB_FILENAME_LEN];
+  SWal*       pWal;
   SSyncFSM*   pFsm;
 
   void* rpcClient;
@@ -153,7 +157,7 @@ void    syncCleanUp();
 int64_t    syncStart(const SSyncInfo* pSyncInfo);
 void       syncStop(int64_t rid);
 int32_t    syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg);
-int32_t    syncForwardToPeer(int64_t rid, const SRpcMsg* pBuf, bool isWeak);
+int32_t    syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
 ESyncState syncGetMyRole(int64_t rid);
 void       syncGetNodesRole(int64_t rid, SNodesRole* pNodeRole);
 

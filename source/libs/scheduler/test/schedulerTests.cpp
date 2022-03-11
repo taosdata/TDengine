@@ -345,7 +345,7 @@ void *schtSendRsp(void *param) {
       break;
     }
 
-    usleep(1000);
+    taosMsleep(1);
   }
 
   pJob = schAcquireJob(job);
@@ -370,7 +370,7 @@ void *schtCreateFetchRspThread(void *param) {
   int64_t job = *(int64_t *)param;
   SSchJob* pJob = schAcquireJob(job);
 
-  sleep(1);
+  taosSsleep(1);
 
   int32_t code = 0;
   SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)calloc(1, sizeof(SRetrieveTableRsp));
@@ -394,7 +394,7 @@ void *schtFetchRspThread(void *aa) {
       continue;
     }
 
-    usleep(1);
+    taosUsleep(1);
     
     param = (SSchCallbackParam *)calloc(1, sizeof(*param));
 
@@ -599,7 +599,7 @@ void* schtRunJobThread(void *aa) {
 
 void* schtFreeJobThread(void *aa) {
   while (!schtTestStop) {
-    usleep(taosRand() % 100);
+    taosUsleep(taosRand() % 100);
     schtFreeQueryJob(1);
   }
 }
@@ -861,15 +861,15 @@ TEST(multiThread, forceFree) {
 
   while (true) {
     if (schtTestDeadLoop) {
-      sleep(1);
+      taosSsleep(1);
     } else {
-      sleep(schtTestMTRunSec);
+      taosSsleep(schtTestMTRunSec);
       break;
     }
   }
   
   schtTestStop = true;
-  sleep(3);
+  taosSsleep(3);
 }
 
 int main(int argc, char** argv) {
