@@ -38,8 +38,9 @@ typedef struct __attribute__((__packed__)) {
   u8  cellCont[3];
   u8  freeCell[3];
   u8  nFree[3];
-} SPageHdrL;
+} SLPageHdr;
 
+// Page footer
 typedef struct __attribute__((__packed__)) {
   u8 cksm[4];
 } SPageFtr;
