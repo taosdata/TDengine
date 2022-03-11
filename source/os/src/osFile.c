@@ -265,7 +265,7 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     return NULL;
   }
 #if FILE_WITH_LOCK
-  pthread_rwlock_init(&(pFile->rwlock),NULL);
+  pthread_rwlock_init(&(pFile->rwlock), NULL);
 #endif
   pFile->fd = fd;
   pFile->fp = fp;
