@@ -1356,6 +1356,7 @@ typedef struct SVCreateTbReq {
 } SVCreateTbReq, SVUpdateTbReq;
 
 typedef struct {
+  int tmp; // TODO: to avoid compile error
 } SVCreateTbRsp, SVUpdateTbRsp;
 
 int32_t tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
@@ -1367,6 +1368,7 @@ typedef struct {
 } SVCreateTbBatchReq;
 
 typedef struct {
+  int tmp; // TODO: to avoid compile error
 } SVCreateTbBatchRsp;
 
 int32_t tSerializeSVCreateTbBatchReq(void** buf, SVCreateTbBatchReq* pReq);
@@ -1380,6 +1382,7 @@ typedef struct {
 } SVDropTbReq;
 
 typedef struct {
+  int tmp; // TODO: to avoid compile error
 } SVDropTbRsp;
 
 int32_t tSerializeSVDropTbReq(void** buf, SVDropTbReq* pReq);
@@ -1930,7 +1933,9 @@ typedef struct {
   int64_t ver;  // use a general definition
   char    indexName[TSDB_INDEX_NAME_LEN];
 } SVDropTSmaReq;
+
 typedef struct {
+  int tmp; // TODO: to avoid compile error
 } SVCreateTSmaRsp, SVDropTSmaRsp;
 
 int32_t tSerializeSVCreateTSmaReq(void** buf, SVCreateTSmaReq* pReq);
