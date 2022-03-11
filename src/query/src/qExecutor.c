@@ -9171,7 +9171,7 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
       type = s->type;
       bytes = s->bytes;
     } else if (TSDB_COL_IS_TSWIN_COL(pExprs[i].base.colInfo.colId) &&
-               (pExprs[i].base.functionId >= TSDB_FUNC_WSTART || pExprs[i].base.functionId <= TSDB_FUNC_WDURATION)) {
+               (pExprs[i].base.functionId >= TSDB_FUNC_WSTART || pExprs[i].base.functionId <= TSDB_FUNC_QDURATION)) {
       SSchema* s = tGetTimeWindowColumnSchema(pExprs[i].base.colInfo.colId);
       type = s->type;
       bytes = s->bytes;
@@ -9222,19 +9222,15 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
     int32_t param = (int32_t)pExprs[i].base.param[0].i64;
     if (pExprs[i].base.functionId > 0 &&
         pExprs[i].base.functionId != TSDB_FUNC_SCALAR_EXPR &&
-        pExprs[i].base.functionId != TSDB_FUNC_WSTART &&
-        pExprs[i].base.functionId != TSDB_FUNC_WSTOP &&
-        pExprs[i].base.functionId != TSDB_FUNC_WDURATION &&
-       (type != pExprs[i].base.colType || bytes != pExprs[i].base.colBytes)) {
+        !isTimeWindowFunction(pExprs[i].base.functionId) &&
+        (type != pExprs[i].base.colType || bytes != pExprs[i].base.colBytes)) {
       tfree(pExprs);
       return TSDB_CODE_QRY_INVALID_MSG;
     }
 
     // todo remove it
     if (pExprs[i].base.functionId != TSDB_FUNC_SCALAR_EXPR &&
-        pExprs[i].base.functionId != TSDB_FUNC_WSTART &&
-        pExprs[i].base.functionId != TSDB_FUNC_WSTOP &&
-        pExprs[i].base.functionId != TSDB_FUNC_WDURATION &&
+        !isTimeWindowFunction(pExprs[i].base.functionId) &&
         getResultDataInfo(type, bytes, pExprs[i].base.functionId, param, &pExprs[i].base.resType, &pExprs[i].base.resBytes,
         &pExprs[i].base.interBytes, 0, isSuperTable, pUdfInfo) != TSDB_CODE_SUCCESS) {
       tfree(pExprs);
@@ -9450,9 +9446,7 @@ static void doUpdateExprColumnIndex(SQueryAttr *pQueryAttr) {
   for (int32_t k = 0; k < pQueryAttr->numOfOutput; ++k) {
     SSqlExpr *pSqlExprMsg = &pQueryAttr->pExpr1[k].base;
     if (pSqlExprMsg->functionId == TSDB_FUNC_SCALAR_EXPR ||
-        pSqlExprMsg->functionId == TSDB_FUNC_WSTART ||
-        pSqlExprMsg->functionId == TSDB_FUNC_WSTOP ||
-        pSqlExprMsg->functionId == TSDB_FUNC_WDURATION) {
+        isTimeWindowFunction(pSqlExprMsg->functionId)) {
       continue;
     }
 

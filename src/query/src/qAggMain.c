@@ -613,6 +613,10 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   return TSDB_CODE_SUCCESS;
 }
 
+bool isTimeWindowFunction(int32_t functionId) {
+  return ((functionId >= TSDB_FUNC_WSTART) && (functionId <= TSDB_FUNC_QDURATION));
+}
+
 // TODO use hash table
 int32_t isValidFunction(const char* name, int32_t len) {
 
@@ -5788,27 +5792,51 @@ int16_t getTimeWindowFunctionID(int16_t colIndex) {
     case TSDB_TSWIN_DURATION_COLUMN_INDEX: {
       return TSDB_FUNC_WDURATION;
     }
+    case TSDB_QUERY_START_COLUMN_INDEX: {
+      return TSDB_FUNC_QSTART;
+    }
+    case TSDB_QUERY_STOP_COLUMN_INDEX: {
+      return TSDB_FUNC_QSTOP;
+    }
+    case TSDB_QUERY_DURATION_COLUMN_INDEX: {
+      return TSDB_FUNC_QDURATION;
+    }
     default:
       return TSDB_FUNC_INVALID_ID;
   }
 }
 
-static void wstart_function(SQLFunctionCtx *pCtx) {
+static void window_start_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, pCtx->size, 1);
-  *(int64_t *)(pCtx->pOutput) = pCtx->startTs;
+  if (pCtx->functionId == TSDB_FUNC_WSTART) {
+    *(int64_t *)(pCtx->pOutput) = pCtx->startTs;
+  } else { //TSDB_FUNC_QSTART
+    *(TSKEY *)(pCtx->pOutput) = pCtx->qWindow.skey;
+  }
 }
 
-static void wstop_function(SQLFunctionCtx *pCtx) {
+static void window_stop_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, pCtx->size, 1);
-  *(int64_t *)(pCtx->pOutput) = pCtx->endTs;
+  if (pCtx->functionId == TSDB_FUNC_WSTART) {
+    *(int64_t *)(pCtx->pOutput) = pCtx->endTs;
+  } else { //TSDB_FUNC_QSTOP
+    *(TSKEY *)(pCtx->pOutput) = pCtx->qWindow.ekey;
+  }
 }
 
-static void wduration_function(SQLFunctionCtx *pCtx) {
+static void window_duration_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, pCtx->size, 1);
-  int64_t duration = pCtx->endTs - pCtx->startTs;
+  int64_t duration;
+  if (pCtx->functionId == TSDB_FUNC_WSTART) {
+    duration = pCtx->endTs - pCtx->startTs;
+  } else { //TSDB_FUNC_QDURATION
+    duration = pCtx->qWindow.ekey - pCtx->qWindow.skey;
+  }
+
   if (duration < 0) {
     duration = -duration;
   }
+
   *(int64_t *)(pCtx->pOutput) = duration;
 }
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -6373,7 +6401,7 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                               TSDB_FUNC_WSTART,
                               TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
                               function_setup,
-                              wstart_function,
+                              window_start_function,
                               doFinalizer,
                               copy_function,
                               dataBlockRequired,
@@ -6385,7 +6413,7 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                               TSDB_FUNC_WSTOP,
                               TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
                               function_setup,
-                              wstop_function,
+                              window_stop_function,
                               doFinalizer,
                               copy_function,
                               dataBlockRequired,
@@ -6397,7 +6425,43 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                               TSDB_FUNC_WDURATION,
                               TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
                               function_setup,
-                              wduration_function,
+                              window_duration_function,
+                              doFinalizer,
+                              copy_function,
+                              dataBlockRequired,
+                          },
+                          {
+                              // 47
+                              "_qstart",
+                              TSDB_FUNC_QSTART,
+                              TSDB_FUNC_QSTART,
+                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
+                              function_setup,
+                              window_start_function,
+                              doFinalizer,
+                              copy_function,
+                              dataBlockRequired,
+                          },
+                          {
+                              // 48
+                              "_qstop",
+                              TSDB_FUNC_QSTOP,
+                              TSDB_FUNC_QSTOP,
+                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
+                              function_setup,
+                              window_stop_function,
+                              doFinalizer,
+                              copy_function,
+                              dataBlockRequired,
+                          },
+                          {
+                              // 49
+                              "_qduration",
+                              TSDB_FUNC_QDURATION,
+                              TSDB_FUNC_QDURATION,
+                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
+                              function_setup,
+                              window_duration_function,
                               doFinalizer,
                               copy_function,
                               dataBlockRequired,
