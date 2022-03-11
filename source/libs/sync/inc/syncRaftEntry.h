@@ -47,7 +47,7 @@ SSyncRaftEntry* syncEntryDeserialize(const char* buf, uint32_t len);
 cJSON*          syncEntry2Json(const SSyncRaftEntry* pEntry);
 char*           syncEntry2Str(const SSyncRaftEntry* pEntry);
 
-// for debug
+// for debug ----------------------
 void syncEntryPrint(const SSyncRaftEntry* pObj);
 void syncEntryPrint2(char* s, const SSyncRaftEntry* pObj);
 void syncEntryLog(const SSyncRaftEntry* pObj);

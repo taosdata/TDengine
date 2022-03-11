@@ -104,7 +104,7 @@ char* syncEntry2Str(const SSyncRaftEntry* pEntry) {
   return serialized;
 }
 
-// for debug -----------
+// for debug ----------------------
 void syncEntryPrint(const SSyncRaftEntry* pObj) {
   char* serialized = syncEntry2Str(pObj);
   printf("syncEntryPrint | len:%lu | %s \n", strlen(serialized), serialized);

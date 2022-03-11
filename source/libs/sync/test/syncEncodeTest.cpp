@@ -17,6 +17,8 @@ void logTest() {
 #define PING_MSG_LEN 20
 #define APPEND_ENTRIES_VALUE_LEN 32
 
+#if 0
+
 void test1() {
   sTrace("test1: ---- syncPingSerialize, syncPingDeserialize");
 
@@ -487,11 +489,14 @@ void test12() {
   syncAppendEntriesReplyDestroy(pMsg2);
 }
 
+#endif
+
 int main() {
   // taosInitLog((char*)"syncPingTest.log", 100000, 10);
   tsAsyncLog = 0;
   sDebugFlag = 143 + 64;
 
+#if 0
   test1();
   test2();
   test3();
@@ -504,6 +509,7 @@ int main() {
   test10();
   test11();
   test12();
+#endif
 
   return 0;
 }

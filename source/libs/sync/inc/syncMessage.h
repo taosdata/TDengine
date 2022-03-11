@@ -83,8 +83,6 @@ typedef struct SyncPing {
   char     data[];
 } SyncPing;
 
-//#define SYNC_PING_FIX_LEN (sizeof(uint32_t) + sizeof(uint32_t) + sizeof(SRaftId) + sizeof(SRaftId) + sizeof(uint32_t))
-
 SyncPing* syncPingBuild(uint32_t dataLen);
 void      syncPingDestroy(SyncPing* pMsg);
 void      syncPingSerialize(const SyncPing* pMsg, char* buf, uint32_t bufLen);
@@ -163,9 +161,19 @@ SyncRequestVote* syncRequestVoteBuild();
 void             syncRequestVoteDestroy(SyncRequestVote* pMsg);
 void             syncRequestVoteSerialize(const SyncRequestVote* pMsg, char* buf, uint32_t bufLen);
 void             syncRequestVoteDeserialize(const char* buf, uint32_t len, SyncRequestVote* pMsg);
+char*            syncRequestVoteSerialize2(const SyncRequestVote* pMsg, uint32_t* len);
+SyncRequestVote* syncRequestVoteDeserialize2(const char* buf, uint32_t len);
 void             syncRequestVote2RpcMsg(const SyncRequestVote* pMsg, SRpcMsg* pRpcMsg);
 void             syncRequestVoteFromRpcMsg(const SRpcMsg* pRpcMsg, SyncRequestVote* pMsg);
+SyncRequestVote* syncRequestVoteFromRpcMsg2(const SRpcMsg* pRpcMsg);
 cJSON*           syncRequestVote2Json(const SyncRequestVote* pMsg);
+char*            syncRequestVote2Str(const SyncRequestVote* pMsg);
+
+// for debug ----------------------
+void syncRequestVotePrint(const SyncRequestVote* pMsg);
+void syncRequestVotePrint2(char* s, const SyncRequestVote* pMsg);
+void syncRequestVoteLog(const SyncRequestVote* pMsg);
+void syncRequestVoteLog2(char* s, const SyncRequestVote* pMsg);
 
 // ---------------------------------------------
 typedef struct SyncRequestVoteReply {
