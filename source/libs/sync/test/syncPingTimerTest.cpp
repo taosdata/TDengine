@@ -5,7 +5,6 @@
 #include "syncInt.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
-#include "syncVoteMgr.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -20,10 +19,9 @@ uint16_t ports[] = {7010, 7110, 7210, 7310, 7410};
 int32_t  replicaNum = 3;
 int32_t  myIndex = 0;
 
-SRaftId    ids[TSDB_MAX_REPLICA];
-SSyncInfo  syncInfo;
-SSyncFSM*  pFsm;
-SSyncNode* pSyncNode;
+SRaftId   ids[TSDB_MAX_REPLICA];
+SSyncInfo syncInfo;
+SSyncFSM* pFsm;
 
 SSyncNode* syncNodeInit() {
   syncInfo.vgId = 1234;
@@ -44,7 +42,7 @@ SSyncNode* syncNodeInit() {
     // taosGetFqdn(pCfg->nodeInfo[0].nodeFqdn);
   }
 
-  pSyncNode = syncNodeOpen(&syncInfo);
+  SSyncNode* pSyncNode = syncNodeOpen(&syncInfo);
   assert(pSyncNode != NULL);
 
   gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
@@ -53,8 +51,7 @@ SSyncNode* syncNodeInit() {
   gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
   gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
   gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
-  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
-  gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
+  gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
   gSyncIO->pSyncNode = pSyncNode;
 
   return pSyncNode;
@@ -89,67 +86,45 @@ int main(int argc, char** argv) {
 
   SSyncNode* pSyncNode = syncInitTest();
   assert(pSyncNode != NULL);
-
-  char* serialized = syncNode2Str(pSyncNode);
-  printf("%s\n", serialized);
-  free(serialized);
+  syncNodePrint2((char*)"----1", pSyncNode);
 
   initRaftId(pSyncNode);
 
-  SVotesGranted* pVotesGranted = voteGrantedCreate(pSyncNode);
-  assert(pVotesGranted != NULL);
+  //---------------------------
 
-  printf("---------------------------------------\n");
-  {
-    char* serialized = voteGranted2Str(pVotesGranted);
-    assert(serialized != NULL);
-    printf("%s\n", serialized);
-    free(serialized);
+  sTrace("syncNodeStartPingTimer ...");
+  ret = syncNodeStartPingTimer(pSyncNode);
+  assert(ret == 0);
+  syncNodePrint2((char*)"----2", pSyncNode);
+
+  sTrace("sleep ...");
+  taosMsleep(10000);
+
+  sTrace("syncNodeStopPingTimer ...");
+  ret = syncNodeStopPingTimer(pSyncNode);
+  assert(ret == 0);
+  syncNodePrint2((char*)"----3", pSyncNode);
+
+  sTrace("sleep ...");
+  taosMsleep(5000);
+
+  sTrace("syncNodeStartPingTimer ...");
+  ret = syncNodeStartPingTimer(pSyncNode);
+  assert(ret == 0);
+  syncNodePrint2((char*)"----4", pSyncNode);
+
+  sTrace("sleep ...");
+  taosMsleep(10000);
+
+  sTrace("syncNodeStopPingTimer ...");
+  ret = syncNodeStopPingTimer(pSyncNode);
+  assert(ret == 0);
+  syncNodePrint2((char*)"----5", pSyncNode);
+
+  while (1) {
+    sTrace("while 1 sleep ...");
+    taosMsleep(1000);
   }
 
-  SyncTerm term = 1234;
-  printf("---------------------------------------\n");
-  voteGrantedReset(pVotesGranted, term);
-  {
-    char* serialized = voteGranted2Str(pVotesGranted);
-    assert(serialized != NULL);
-    printf("%s\n", serialized);
-    free(serialized);
-  }
-
-  for (int i = 0; i < replicaNum; ++i) {
-    SyncRequestVoteReply* reply = syncRequestVoteReplyBuild();
-    reply->destId = pSyncNode->myRaftId;
-    reply->srcId = ids[i];
-    reply->term = term;
-    reply->voteGranted = true;
-
-    voteGrantedVote(pVotesGranted, reply);
-    {
-      char* serialized = voteGranted2Str(pVotesGranted);
-      assert(serialized != NULL);
-      printf("%s\n", serialized);
-      free(serialized);
-    }
-
-    voteGrantedVote(pVotesGranted, reply);
-    {
-      char* serialized = voteGranted2Str(pVotesGranted);
-      assert(serialized != NULL);
-      printf("%s\n", serialized);
-      free(serialized);
-    }
-  }
-
-  printf("---------------------------------------\n");
-  voteGrantedReset(pVotesGranted, 123456789);
-  {
-    char* serialized = voteGranted2Str(pVotesGranted);
-    assert(serialized != NULL);
-    printf("%s\n", serialized);
-    free(serialized);
-  }
-
-  voteGrantedDestroy(pVotesGranted);
   return 0;
 }
