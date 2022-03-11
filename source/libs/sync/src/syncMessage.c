@@ -23,39 +23,47 @@ cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg) {
 
   // in compiler optimization, switch case = if else constants
   if (pRpcMsg->msgType == SYNC_TIMEOUT) {
-    SyncTimeout* pSyncMsg = (SyncTimeout*)pRpcMsg->pCont;
+    SyncTimeout* pSyncMsg = syncTimeoutDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
     pRoot = syncTimeout2Json(pSyncMsg);
+    syncTimeoutDestroy(pSyncMsg);
 
   } else if (pRpcMsg->msgType == SYNC_PING) {
-    SyncPing* pSyncMsg = (SyncPing*)pRpcMsg->pCont;
+    SyncPing* pSyncMsg = syncPingDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
     pRoot = syncPing2Json(pSyncMsg);
+    syncPingDestroy(pSyncMsg);
 
   } else if (pRpcMsg->msgType == SYNC_PING_REPLY) {
-    SyncPingReply* pSyncMsg = (SyncPingReply*)pRpcMsg->pCont;
+    SyncPingReply* pSyncMsg = syncPingReplyDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
     pRoot = syncPingReply2Json(pSyncMsg);
+    syncPingReplyDestroy(pSyncMsg);
 
   } else if (pRpcMsg->msgType == SYNC_CLIENT_REQUEST) {
-    SyncClientRequest* pSyncMsg = (SyncClientRequest*)pRpcMsg->pCont;
+    SyncClientRequest* pSyncMsg = syncClientRequestDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
     pRoot = syncClientRequest2Json(pSyncMsg);
+    syncClientRequestDestroy(pSyncMsg);
 
   } else if (pRpcMsg->msgType == SYNC_CLIENT_REQUEST_REPLY) {
     pRoot = syncRpcUnknownMsg2Json();
 
   } else if (pRpcMsg->msgType == SYNC_REQUEST_VOTE) {
-    SyncRequestVote* pSyncMsg = (SyncRequestVote*)pRpcMsg->pCont;
+    SyncRequestVote* pSyncMsg = syncRequestVoteDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
     pRoot = syncRequestVote2Json(pSyncMsg);
+    syncRequestVoteDestroy(pSyncMsg);
 
   } else if (pRpcMsg->msgType == SYNC_REQUEST_VOTE_REPLY) {
-    SyncRequestVoteReply* pSyncMsg = (SyncRequestVoteReply*)pRpcMsg->pCont;
+    SyncRequestVoteReply* pSyncMsg = syncRequestVoteReplyDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
     pRoot = syncRequestVoteReply2Json(pSyncMsg);
+    syncRequestVoteReplyDestroy(pSyncMsg);
 
   } else if (pRpcMsg->msgType == SYNC_APPEND_ENTRIES) {
-    SyncAppendEntries* pSyncMsg = (SyncAppendEntries*)pRpcMsg->pCont;
+    SyncAppendEntries* pSyncMsg = syncAppendEntriesDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
     pRoot = syncAppendEntries2Json(pSyncMsg);
+    syncAppendEntriesDestroy(pSyncMsg);
 
   } else if (pRpcMsg->msgType == SYNC_APPEND_ENTRIES_REPLY) {
-    SyncAppendEntriesReply* pSyncMsg = (SyncAppendEntriesReply*)pRpcMsg->pCont;
+    SyncAppendEntriesReply* pSyncMsg = syncAppendEntriesReplyDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
     pRoot = syncAppendEntriesReply2Json(pSyncMsg);
+    syncAppendEntriesReplyDestroy(pSyncMsg);
 
   } else {
     pRoot = syncRpcUnknownMsg2Json();
@@ -72,7 +80,7 @@ cJSON* syncRpcUnknownMsg2Json() {
   cJSON_AddStringToObject(pRoot, "data", "known message");
 
   cJSON* pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SyncPing", pRoot);
+  cJSON_AddItemToObject(pJson, "SyncUnknown", pRoot);
   return pJson;
 }
 
@@ -81,6 +89,33 @@ char* syncRpcMsg2Str(SRpcMsg* pRpcMsg) {
   char*  serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
+}
+
+// for debug ----------------------
+void syncRpcMsgPrint(SRpcMsg* pMsg) {
+  char* serialized = syncRpcMsg2Str(pMsg);
+  printf("syncRpcMsgPrint | len:%lu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncRpcMsgPrint2(char* s, SRpcMsg* pMsg) {
+  char* serialized = syncRpcMsg2Str(pMsg);
+  printf("syncRpcMsgPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncRpcMsgLog(SRpcMsg* pMsg) {
+  char* serialized = syncRpcMsg2Str(pMsg);
+  sTrace("syncRpcMsgLog | len:%lu | %s", strlen(serialized), serialized);
+  free(serialized);
+}
+
+void syncRpcMsgLog2(char* s, SRpcMsg* pMsg) {
+  char* serialized = syncRpcMsg2Str(pMsg);
+  sTrace("syncRpcMsgLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  free(serialized);
 }
 
 // ---- message process SyncTimeout----

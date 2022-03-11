@@ -22,6 +22,7 @@ SyncRequestVoteReply *createMsg() {
   pMsg->destId.vgId = 100;
   pMsg->term = 77;
   pMsg->voteGranted = true;
+  return pMsg;
 }
 
 void test1() {

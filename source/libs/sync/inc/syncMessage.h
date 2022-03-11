@@ -47,6 +47,12 @@ cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg);
 cJSON* syncRpcUnknownMsg2Json();
 char*  syncRpcMsg2Str(SRpcMsg* pRpcMsg);
 
+// for debug ----------------------
+void syncRpcMsgPrint(SRpcMsg* pMsg);
+void syncRpcMsgPrint2(char* s, SRpcMsg* pMsg);
+void syncRpcMsgLog(SRpcMsg* pMsg);
+void syncRpcMsgLog2(char* s, SRpcMsg* pMsg);
+
 // ---------------------------------------------
 typedef enum ESyncTimeoutType {
   SYNC_TIMEOUT_PING = 100,

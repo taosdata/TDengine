@@ -23,6 +23,7 @@ SyncRequestVote *createMsg() {
   pMsg->currentTerm = 11;
   pMsg->lastLogIndex = 22;
   pMsg->lastLogTerm = 33;
+  return pMsg;
 }
 
 void test1() {

@@ -22,6 +22,7 @@ SyncAppendEntriesReply *createMsg() {
   pMsg->destId.vgId = 100;
   pMsg->success = true;
   pMsg->matchIndex = 77;
+  return pMsg;
 }
 
 void test1() {

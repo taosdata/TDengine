@@ -32,8 +32,8 @@ void test1() {
 
 void test2() {
   SyncPing *pMsg = createMsg();
-  uint32_t     len = pMsg->bytes;
-  char *       serialized = (char *)malloc(len);
+  uint32_t  len = pMsg->bytes;
+  char *    serialized = (char *)malloc(len);
   syncPingSerialize(pMsg, serialized, len);
   SyncPing *pMsg2 = syncPingBuild(pMsg->dataLen);
   syncPingDeserialize(serialized, len, pMsg2);
@@ -46,8 +46,8 @@ void test2() {
 
 void test3() {
   SyncPing *pMsg = createMsg();
-  uint32_t     len;
-  char *       serialized = syncPingSerialize2(pMsg, &len);
+  uint32_t  len;
+  char *    serialized = syncPingSerialize2(pMsg, &len);
   SyncPing *pMsg2 = syncPingDeserialize2(serialized, len);
   syncPingPrint2((char *)"test3: syncPingSerialize3 -> syncPingDeserialize2 ", pMsg2);
 
@@ -58,7 +58,7 @@ void test3() {
 
 void test4() {
   SyncPing *pMsg = createMsg();
-  SRpcMsg      rpcMsg;
+  SRpcMsg   rpcMsg;
   syncPing2RpcMsg(pMsg, &rpcMsg);
   SyncPing *pMsg2 = (SyncPing *)malloc(rpcMsg.contLen);
   syncPingFromRpcMsg(&rpcMsg, pMsg2);
@@ -70,7 +70,7 @@ void test4() {
 
 void test5() {
   SyncPing *pMsg = createMsg();
-  SRpcMsg      rpcMsg;
+  SRpcMsg   rpcMsg;
   syncPing2RpcMsg(pMsg, &rpcMsg);
   SyncPing *pMsg2 = syncPingFromRpcMsg2(&rpcMsg);
   syncPingPrint2((char *)"test5: syncPing2RpcMsg -> syncPingFromRpcMsg2 ", pMsg2);
