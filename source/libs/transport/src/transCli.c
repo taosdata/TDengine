@@ -170,13 +170,7 @@ static void  clientHandleResp(SCliConn* conn) {
 
   // user owns conn->persist = 1
   if (conn->persist == 0) {
-    if (pTransInst->noPool == true) {
-      destroyCmsg(conn->data);
-      clientConnDestroy(conn, true);
-      return;
-    } else {
-      addConnToPool(pThrd->pool, pCtx->ip, pCtx->port, conn);
-    }
+    addConnToPool(pThrd->pool, pCtx->ip, pCtx->port, conn);
   }
   destroyCmsg(conn->data);
   conn->data = NULL;
@@ -463,10 +457,8 @@ static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
       tTrace("%s client conn %p reused", CONN_GET_INST_LABEL(conn), conn);
     }
   } else {
-    if (pTransInst->noPool == false) {
-      conn = getConnFromPool(pThrd->pool, pCtx->ip, pCtx->port);
-      if (conn != NULL) tTrace("%s client conn %p get from conn pool", CONN_GET_INST_LABEL(conn), conn);
-    }
+    conn = getConnFromPool(pThrd->pool, pCtx->ip, pCtx->port);
+    if (conn != NULL) tTrace("%s client conn %p get from conn pool", CONN_GET_INST_LABEL(conn), conn);
   }
 
   if (conn != NULL) {

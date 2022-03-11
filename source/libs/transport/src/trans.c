@@ -41,7 +41,6 @@ void* rpcOpen(const SRpcInit* pInit) {
     pRpc->numOfThreads = pInit->numOfThreads;
   }
 
-  pRpc->noPool = pInit->noPool;
   pRpc->connType = pInit->connType;
   pRpc->idleTime = pInit->idleTime;
   pRpc->tcphandle = (*taosInitHandle[pRpc->connType])(0, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
