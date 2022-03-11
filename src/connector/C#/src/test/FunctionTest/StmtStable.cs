@@ -11,14 +11,14 @@ namespace Cases
     public class StableStmtCases
     {
         /// <author>xiaolei</author>
-        /// <Name>StableStmtCases.TestBindSingleLineCn</Name>
+        /// <Name>StableStmtCases.TestBindSingleLineCN</Name>
         /// <describe>Test stmt insert single line of chinese character into stable by column after column </describe>
         /// <filename>StmtSTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "StableStmtCases.TestBindSingleLineCn()")]
-        public void TestBindSingleLineCn()
+        [Fact(DisplayName = "StableStmtCases.TestBindSingleLineCN()")]
+        public void TestBindSingleLineCN()
         {
-            string tableName = "stable_stmt_cases_test_bind_single_line_cn";
+            string tableName = "stb_stmt_cases_test_bind_single_line_cn";
             String createSql = $"create stable if not exists {tableName} " +
                                 " (ts timestamp," +
                                 "v1 tinyint," +
@@ -52,10 +52,10 @@ namespace Cases
                                 ");";
             String insertSql = $"insert into ? using  {tableName} tags(?,?,?,?,?,?,?,?,?,?,?,?,?) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
             String dropSql = $"drop table if exists {tableName} ;";
-            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createSql);
-            List<String> expectResData = DataSource.GetStableCNRowData();
+            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createSql);
+            List<String> expectResData = DataSource.GetSTableCNRowData();
             TAOS_BIND[] tags = DataSource.GetCNTags();
-            TAOS_BIND[] binds = DataSource.GetNtableCNRow();
+            TAOS_BIND[] binds = DataSource.GetNTableCNRow();
 
             IntPtr conn = UtilsTools.TDConnection();
             UtilsTools.ExecuteUpdate(conn, dropSql);
@@ -95,14 +95,14 @@ namespace Cases
         }
 
         /// <author>xiaolei</author>
-        /// <Name>StableStmtCases.TestBindColumnCn</Name>
+        /// <Name>StableStmtCases.TestBindColumnCN</Name>
         /// <describe>Test stmt insert single line of chinese character into stable by column after column </describe>
         /// <filename>StmtSTable.cs</filename>
         /// <result>pass or failed </result>
-        [Fact(DisplayName = "StableStmtCases.TestBindColumnCn()")]
-        public void TestBindColumnCn()
+        [Fact(DisplayName = "StableStmtCases.TestBindColumnCN()")]
+        public void TestBindColumnCN()
         {
-            string tableName = "stable_stmt_cases_test_bindcolumn_cn";
+            string tableName = "stb_stmt_cases_test_bindcolumn_cn";
             String createSql = $"create stable  if not exists {tableName} " +
                                 "(ts timestamp," +
                                 "b bool," +
@@ -137,8 +137,8 @@ namespace Cases
             String insertSql = "insert into ? using " + tableName + " tags(?,?,?,?,?,?,?,?,?,?,?,?,?) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
             String dropSql = $"drop table if exists {tableName};";
             TAOS_BIND[] tags = DataSource.GetCNTags();
-            TAOS_MULTI_BIND[] mbind = DataSource.GetMultiBindCNArr();
-            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createSql);
+            TAOS_MULTI_BIND[] mBinds = DataSource.GetMultiBindCNArr();
+            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createSql);
             List<String> expectResData = DataSource.GetMultiBindStableCNRowData();
 
             IntPtr conn = UtilsTools.TDConnection();
@@ -149,27 +149,27 @@ namespace Cases
             StmtUtilTools.StmtPrepare(stmt, insertSql);
             StmtUtilTools.SetTableNameTags(stmt, tableName + "_t1", tags);
 
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[0], 0);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[1], 1);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[2], 2);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[3], 3);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[4], 4);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[5], 5);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[6], 6);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[7], 7);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[8], 8);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[9], 9);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[10], 10);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[11], 11);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[12], 12);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[13], 13);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[0], 0);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[1], 1);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[2], 2);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[3], 3);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[4], 4);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[5], 5);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[6], 6);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[7], 7);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[8], 8);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[9], 9);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[10], 10);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[11], 11);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[12], 12);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[13], 13);
 
             StmtUtilTools.AddBatch(stmt);
             StmtUtilTools.StmtExecute(stmt);
             StmtUtilTools.StmtClose(stmt);
 
             DataSource.FreeTaosBind(tags);
-            DataSource.FreeTaosMBind(mbind);
+            DataSource.FreeTaosMBind(mBinds);
 
             string querySql = "select * from " + tableName;
             IntPtr res = UtilsTools.ExecuteQuery(conn, querySql);
@@ -195,14 +195,14 @@ namespace Cases
         }
 
         /// <author>xiaolei</author>
-        /// <Name>StableStmtCases.TestBindMultiLineCn</Name>
+        /// <Name>StableStmtCases.TestBindMultiLineCN</Name>
         /// <describe>Test stmt insert single line of chinese character into stable by column after column </describe>
         /// <filename>StmtSTable.cs</filename>
         /// <result>pass or failed </result>
-        [Fact(DisplayName = "StableStmtCases.TestBindMultiLineCn()")]
-        public void TestBindMultiLineCn()
+        [Fact(DisplayName = "StableStmtCases.TestBindMultiLineCN()")]
+        public void TestBindMultiLineCN()
         {
-            string tableName = "stable_stmt_cases_test_bind_multi_line_cn";
+            string tableName = "stb_stmt_cases_test_bind_multi_line_cn";
             String createSql = $"create stable  if not exists {tableName} " +
                                 "(ts timestamp," +
                                 "b bool," +
@@ -237,8 +237,8 @@ namespace Cases
             String insertSql = "insert into ? using " + tableName + " tags(?,?,?,?,?,?,?,?,?,?,?,?,?) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
             String dropSql = $"drop table if exists {tableName};";
             TAOS_BIND[] tags = DataSource.GetCNTags();
-            TAOS_MULTI_BIND[] mbind = DataSource.GetMultiBindCNArr();
-            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createSql);
+            TAOS_MULTI_BIND[] mBinds = DataSource.GetMultiBindCNArr();
+            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createSql);
             List<String> expectResData = DataSource.GetMultiBindStableCNRowData();
 
             IntPtr conn = UtilsTools.TDConnection();
@@ -248,13 +248,13 @@ namespace Cases
             IntPtr stmt = StmtUtilTools.StmtInit(conn);
             StmtUtilTools.StmtPrepare(stmt, insertSql);
             StmtUtilTools.SetTableNameTags(stmt, tableName + "_t1", tags);
-            StmtUtilTools.BindParamBatch(stmt, mbind);
+            StmtUtilTools.BindParamBatch(stmt, mBinds);
             StmtUtilTools.AddBatch(stmt);
             StmtUtilTools.StmtExecute(stmt);
 
             StmtUtilTools.StmtClose(stmt);
             DataSource.FreeTaosBind(tags);
-            DataSource.FreeTaosMBind(mbind);
+            DataSource.FreeTaosMBind(mBinds);
 
             string querySql = "select * from " + tableName;
             IntPtr res = UtilsTools.ExecuteQuery(conn, querySql);
@@ -285,7 +285,7 @@ namespace Cases
         [Fact(DisplayName = "StableStmtCases.TestBindMultiLine()")]
         public void TestBindMultiLine()
         {
-            string tableName = "stable_stmt_cases_test_bind_multi_line";
+            string tableName = "stb_stmt_cases_test_bind_multi_line";
             string createSql = $"create stable  if not exists {tableName} " +
                                 "(ts timestamp," +
                                 "b bool," +
@@ -320,8 +320,8 @@ namespace Cases
             String insertSql = "insert into ? using " + tableName + " tags(?,?,?,?,?,?,?,?,?,?,?,?,?) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
             String dropSql = $"drop table if exists {tableName};";
             TAOS_BIND[] tags = DataSource.GetTags();
-            TAOS_MULTI_BIND[] mbind = DataSource.GetMultiBindArr();
-            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createSql);
+            TAOS_MULTI_BIND[] mBinds = DataSource.GetMultiBindArr();
+            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createSql);
             List<String> expectResData = DataSource.GetMultiBindStableRowData();
 
             IntPtr conn = UtilsTools.TDConnection();
@@ -331,13 +331,13 @@ namespace Cases
             IntPtr stmt = StmtUtilTools.StmtInit(conn);
             StmtUtilTools.StmtPrepare(stmt, insertSql);
             StmtUtilTools.SetTableNameTags(stmt, tableName + "_t1", tags);
-            StmtUtilTools.BindParamBatch(stmt, mbind);
+            StmtUtilTools.BindParamBatch(stmt, mBinds);
             StmtUtilTools.AddBatch(stmt);
             StmtUtilTools.StmtExecute(stmt);
             StmtUtilTools.StmtClose(stmt);
 
             DataSource.FreeTaosBind(tags);
-            DataSource.FreeTaosMBind(mbind);
+            DataSource.FreeTaosMBind(mBinds);
 
             string querySql = "select * from " + tableName;
             IntPtr res = UtilsTools.ExecuteQuery(conn, querySql);
@@ -373,7 +373,7 @@ namespace Cases
         [Fact(DisplayName = "StableStmtCases.TestBindColumn()")]
         public void TestBindColumn()
         {
-            string tableName = "stable_stmt_cases_test_bindcolumn";
+            string tableName = "stb_stmt_cases_test_bindcolumn";
             string createSql = $"create stable  if not exists {tableName} " +
                                 "(ts timestamp," +
                                 "b bool," +
@@ -408,8 +408,8 @@ namespace Cases
             String insertSql = "insert into ? using " + tableName + " tags(?,?,?,?,?,?,?,?,?,?,?,?,?) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
             String dropSql = $"drop table if exists {tableName};";
             TAOS_BIND[] tags = DataSource.GetTags();
-            TAOS_MULTI_BIND[] mbind = DataSource.GetMultiBindArr();
-            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createSql);
+            TAOS_MULTI_BIND[] mBinds = DataSource.GetMultiBindArr();
+            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createSql);
             List<String> expectResData = DataSource.GetMultiBindStableRowData();
 
             IntPtr conn = UtilsTools.TDConnection();
@@ -420,27 +420,27 @@ namespace Cases
             StmtUtilTools.StmtPrepare(stmt, insertSql);
 
             StmtUtilTools.SetTableNameTags(stmt, tableName + "_t1", tags);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[0], 0);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[1], 1);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[2], 2);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[3], 3);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[4], 4);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[5], 5);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[6], 6);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[7], 7);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[8], 8);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[9], 9);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[10], 10);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[11], 11);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[12], 12);
-            StmtUtilTools.BindSingleParamBatch(stmt, mbind[13], 13);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[0], 0);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[1], 1);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[2], 2);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[3], 3);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[4], 4);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[5], 5);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[6], 6);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[7], 7);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[8], 8);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[9], 9);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[10], 10);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[11], 11);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[12], 12);
+            StmtUtilTools.BindSingleParamBatch(stmt, mBinds[13], 13);
 
             StmtUtilTools.AddBatch(stmt);
             StmtUtilTools.StmtExecute(stmt);
             StmtUtilTools.StmtClose(stmt);
 
             DataSource.FreeTaosBind(tags);
-            DataSource.FreeTaosMBind(mbind);
+            DataSource.FreeTaosMBind(mBinds);
 
             string querySql = "select * from " + tableName;
             IntPtr res = UtilsTools.ExecuteQuery(conn, querySql);

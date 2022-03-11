@@ -439,7 +439,7 @@ namespace TDengineDriver
             //The size of the buffer is typeSize * elementCount
             //This buffer is used to store TAOS_MULTI_BIND.buffer
             int typeSize = MaxElementLength(arr);
-            //This intSize is used to calcuate buffer size of the struct TAOS_MULTI_BIND's 
+            //This intSize is used to calculate buffer size of the struct TAOS_MULTI_BIND's 
             //length. The buffer is intSize * elementCount,which is used to store TAOS_MULTI_BIND.length
             int intSize = sizeof(int);
             //This byteSize is used to calculate the buffer size of the struct TAOS_MULTI_BIND.is_null
@@ -491,7 +491,7 @@ namespace TDengineDriver
             //The size of the buffer is typeSize * elementCount
             //This buffer is used to store TAOS_MULTI_BIND.buffer
             int typeSize = MaxElementLength(arr);
-            //This intSize is used to calcuate buffer size of the struct TAOS_MULTI_BIND's 
+            //This intSize is used to calculate buffer size of the struct TAOS_MULTI_BIND's 
             //length. The buffer is intSize * elementCount,which is used to store TAOS_MULTI_BIND.length
             int intSize = sizeof(int);
             //This byteSize is used to calculate the buffer size of the struct TAOS_MULTI_BIND.is_null
