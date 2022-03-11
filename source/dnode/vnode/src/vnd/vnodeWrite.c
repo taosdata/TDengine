@@ -77,9 +77,35 @@ int  vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     }
     case TDMT_VND_CREATE_TABLE: {
       SVCreateTbBatchReq vCreateTbBatchReq = {0};
+      SVCreateTbBatchRsp vCreateTbBatchRsp = {0};
       tDeserializeSVCreateTbBatchReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbBatchReq);
-      for (int i = 0; i < taosArrayGetSize(vCreateTbBatchReq.pArray); i++) {
+      int reqNum = taosArrayGetSize(vCreateTbBatchReq.pArray);
+      for (int i = 0; i < reqNum; i++) {
         SVCreateTbReq *pCreateTbReq = taosArrayGet(vCreateTbBatchReq.pArray, i);
+
+        // TODO OPEN THIS
+        #if 0
+        char tableFName[TSDB_TABLE_FNAME_LEN];
+        tNameExtractFullName(&pCreateTbReq->name, tableFName);
+        #endif
+        
+        int32_t code = vnodeValidateTableHash(&pVnode->config, tableFName);
+        if (code) {
+          SVCreateTbRsp rsp;
+          rsp.code = code;
+          memcpy(rsp.tableName, pCreateTbReq->name, sizeof(rsp.tableName));
+
+          if (NULL == vCreateTbBatchRsp.rspList) {
+            vCreateTbBatchRsp.rspList = taosArrayInit(reqNum - i, sizeof(SVCreateTbRsp));
+            if (NULL == vCreateTbBatchRsp.rspList) {
+              vError("vgId:%d, failed to init array: %d", reqNum - i);
+              terrno = TSDB_CODE_OUT_OF_MEMORY;
+              return -1;
+            }
+          }
+
+          taosArrayPush(vCreateTbBatchRsp.rspList, &rsp);
+        }
         
         if (metaCreateTable(pVnode->pMeta, pCreateTbReq) < 0) {
           // TODO: handle error
@@ -98,6 +124,9 @@ int  vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
       vTrace("vgId:%d process create %" PRIzu " tables", pVnode->vgId, taosArrayGetSize(vCreateTbBatchReq.pArray));
       taosArrayDestroy(vCreateTbBatchReq.pArray);
+      if (vCreateTbBatchRsp.rspList) {
+
+      }
       break;
     }
     case TDMT_VND_ALTER_STB: {

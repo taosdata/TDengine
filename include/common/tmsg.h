@@ -1375,7 +1375,9 @@ typedef struct {
   SArray* pArray;
 } SVCreateTbBatchReq;
 
+
 typedef struct {
+  SArray* rspList; // SArray<SVCreateTbRsp>
 } SVCreateTbBatchRsp;
 
 int32_t tSerializeSVCreateTbBatchReq(void** buf, SVCreateTbBatchReq* pReq);

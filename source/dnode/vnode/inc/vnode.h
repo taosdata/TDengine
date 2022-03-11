@@ -193,7 +193,7 @@ void vnodeOptionsInit(SVnodeCfg *pOptions);
  */
 void vnodeOptionsClear(SVnodeCfg *pOptions);
 
-int vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableName);
+int vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName);
 
 
 /* ------------------------ FOR COMPILE ------------------------ */
