@@ -129,7 +129,7 @@ int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *p
   }
 
   if (pCur->idx == -1) {
-    ASSERT(pCur->pPage->pPageHdr->nCells == 0);
+    ASSERT(TDB_PAGE_NCELLS(pCur->pPage) == 0);
     // TODO: insert the K-V pair to idx 0
   }
 
@@ -157,9 +157,9 @@ static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen) {
 
     pCur->iPage = 0;
 
-    if (pCur->pPage->pPageHdr->nCells == 0) {
+    if (TDB_PAGE_NCELLS(pCur->pPage) == 0) {
       // Current page is empty
-      ASSERT(TDB_FLAG_IS(pCur->pPage->pPageHdr->flags, TDB_BTREE_ROOT | TDB_BTREE_LEAF));
+      ASSERT(TDB_FLAG_IS(TDB_PAGE_FLAGS(pCur->pPage), TDB_BTREE_ROOT | TDB_BTREE_LEAF));
       return 0;
     }
 
@@ -351,19 +351,19 @@ static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
   flags = ((SBtreeZeroPageArg *)arg)->flags;
   pBt = ((SBtreeZeroPageArg *)arg)->pBt;
 
-  pPage->pPageHdr = (SPageHdr *)pPage->pData;
+  pPage->pPageHdr = pPage->pData;
   pPage->aCellIdx = (u8 *)(&(pPage->pPageHdr[1]));
 
   // Init the page header
-  pPage->pPageHdr->flags = flags;
-  pPage->pPageHdr->nCells = 0;
-  pPage->pPageHdr->cCells = pBt->pageSize;
-  pPage->pPageHdr->fCell = 0;
-  pPage->pPageHdr->nFree = 0;
+  TDB_PAGE_FLAGS_SET(pPage, flags);
+  TDB_PAGE_NCELLS_SET(pPage, 0);
+  TDB_PAGE_CCELLS_SET(pPage, pBt->pageSize);
+  TDB_PAGE_FCELL_SET(pPage, 0);
+  TDB_PAGE_NFREE_SET(pPage, 0);
 
   TDB_BTREE_ASSERT_FLAG(flags);
 
-  if (TDB_BTREE_PAGE_IS_LEAF(pPage->pPageHdr->flags)) {
+  if (TDB_BTREE_PAGE_IS_LEAF(flags)) {
     pPage->kLen = pBt->keyLen;
     pPage->vLen = pBt->valLen;
     pPage->maxLocal = pBt->maxLeaf;
@@ -380,16 +380,18 @@ static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
 
 static int tdbBtreeInitPage(SPage *pPage, void *arg) {
   SBTree *pBt;
+  u16     flags;
 
   pBt = (SBTree *)arg;
 
-  pPage->pPageHdr = (SPageHdr *)pPage->pData;
-  pPage->aCellIdx = (u8 *)(&(pPage->pPageHdr[1]));
+  flags = TDB_PAGE_FLAGS(pPage);
+  pPage->pPageHdr = pPage->pData;
+  pPage->aCellIdx = pPage->pPageHdr + pPage->szPageHdr;
 
-  TDB_BTREE_ASSERT_FLAG(pPage->pPageHdr->flags);
+  TDB_BTREE_ASSERT_FLAG(flags);
 
   // Init other fields
-  if (TDB_BTREE_PAGE_IS_LEAF(pPage->pPageHdr->flags)) {
+  if (TDB_BTREE_PAGE_IS_LEAF(flags)) {
     pPage->kLen = pBt->keyLen;
     pPage->vLen = pBt->valLen;
     pPage->maxLocal = pBt->maxLeaf;
@@ -461,6 +463,7 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
 }
 
 static int tdbBtreeBalanceStep1(SBtreeBalanceHelper *pBlh) {
+#if 0
   int    i;
   SPage *pParent;
   int    nDiv;
@@ -521,10 +524,12 @@ static int tdbBtreeBalanceStep1(SBtreeBalanceHelper *pBlh) {
     }
   }
 
+#endif
   return 0;
 }
 
 static int tdbBtreeBalanceStep2(SBtreeBalanceHelper *pBlh) {
+#if 0
   SPage *pPage;
   int    oidx;
   int    cidx;
@@ -570,6 +575,7 @@ static int tdbBtreeBalanceStep2(SBtreeBalanceHelper *pBlh) {
 
   /* TODO */
 
+#endif
   return 0;
 }
 
@@ -680,7 +686,7 @@ static int tdbBtreeBalance(SBtCursor *pCur) {
     if (iPage == 0) {
       // Balance the root page by copy the root page content to
       // a child page and set the root page as empty first
-      ASSERT(TDB_BTREE_PAGE_IS_ROOT(pCur->pPage->pPageHdr->flags));
+      // ASSERT(TDB_BTREE_PAGE_IS_ROOT(pCur->pPage->pPageHdr->flags));
 
       ret = tdbBtreeBalanceDeeper(pCur->pBt, pCur->pPage, &(pCur->pgStack[1]));
       if (ret < 0) {

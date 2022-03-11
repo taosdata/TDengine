@@ -34,6 +34,16 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
+// p must be u8 *
+#define TDB_GET_U24(p) ((p)[0] * 65536 + *(u16 *)((p) + 1))
+#define TDB_PUT_U24(p, v)       \
+  do {                          \
+    int tv = (v);               \
+    (p)[2] = tv & 0xff;         \
+    (p)[1] = (tv >> 8) & 0xff;  \
+    (p)[0] = (tv >> 16) & 0xff; \
+  } while (0)
+
 // SPgno
 typedef u32 SPgno;
 #define TDB_IVLD_PGNO ((pgno_t)0)
