@@ -3853,6 +3853,15 @@ static bool isTimeWindowToken(SStrToken* token, int16_t *columnIndex) {
   } else if (tmpToken.n == strlen(TSQL_TSWIN_DURATION) && strncasecmp(TSQL_TSWIN_DURATION, tmpToken.z, tmpToken.n) == 0) {
     *columnIndex = TSDB_TSWIN_DURATION_COLUMN_INDEX;
     return true;
+  } else if (tmpToken.n == strlen(TSQL_QUERY_START) && strncasecmp(TSQL_QUERY_START, tmpToken.z, tmpToken.n) == 0) {
+    *columnIndex = TSDB_QUERY_START_COLUMN_INDEX;
+    return true;
+  } else if (tmpToken.n == strlen(TSQL_QUERY_STOP) && strncasecmp(TSQL_QUERY_STOP, tmpToken.z, tmpToken.n) == 0) {
+    *columnIndex = TSDB_QUERY_STOP_COLUMN_INDEX;
+    return true;
+  } else if (tmpToken.n == strlen(TSQL_QUERY_DURATION) && strncasecmp(TSQL_QUERY_DURATION, tmpToken.z, tmpToken.n) == 0) {
+    *columnIndex = TSDB_QUERY_DURATION_COLUMN_INDEX;
+    return true;
   } else {
     return false;
   }
