@@ -562,6 +562,10 @@ static int tdbBtreeBalanceStep2(SBtreeBalanceHelper *pBlh) {
         ASSERT(0);
       }
     }
+
+    {
+      // TODO: Copy divider cells here
+    }
   }
 
   /* TODO */
