@@ -60,12 +60,6 @@ int32_t mndSendReqToMnode(SMnode *pMnode, SRpcMsg *pMsg) {
   return (*pMnode->sendReqToMnodeFp)(pMnode->pDnode, pMsg);
 }
 
-void mndSendRedirectRsp(SMnode *pMnode, SRpcMsg *pMsg) {
-  if (pMnode != NULL && pMnode->sendRedirectRspFp != NULL) {
-    (*pMnode->sendRedirectRspFp)(pMnode->pDnode, pMsg);
-  }
-}
-
 static void *mndBuildTimerMsg(int32_t *pContLen) {
   SMTimerReq timerReq = {0};
 
@@ -390,65 +384,45 @@ void mndDestroy(const char *path) {
   mDebug("mnode is destroyed");
 }
 
-void mndSendRsp(SMndMsg *pMsg, int32_t code) {
-  SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .code = code};
-  rpcSendResponse(&rpcRsp);
-}
-
-void mndProcessMsg(SMndMsg *pMsg) {
-  SMnode *pMnode = pMsg->pMnode;
-  int32_t code = 0;
-  tmsg_t  msgType = pMsg->rpcMsg.msgType;
-  void   *ahandle = pMsg->rpcMsg.ahandle;
-  bool    isReq = (msgType & 1U);
+int32_t mndProcessMsg(SMndMsg *pMsg) {
+  SMnode  *pMnode = pMsg->pMnode;
+  SRpcMsg *pRpc = &pMsg->rpcMsg;
+  tmsg_t   msgType = pMsg->rpcMsg.msgType;
+  void    *ahandle = pMsg->rpcMsg.ahandle;
+  bool     isReq = (pRpc->msgType & 1U);
 
   mTrace("msg:%p, type:%s will be processed, app:%p", pMsg, TMSG_INFO(msgType), ahandle);
 
   if (isReq && !mndIsMaster(pMnode)) {
-    code = TSDB_CODE_APP_NOT_READY;
+    terrno = TSDB_CODE_APP_NOT_READY;
     mDebug("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
-    goto PROCESS_RPC_END;
+    return -1;
   }
 
-  if (isReq && pMsg->rpcMsg.pCont == NULL) {
-    code = TSDB_CODE_MND_INVALID_MSG_LEN;
+  if (isReq && (pRpc->contLen == 0 || pRpc->pCont == NULL)) {
+    terrno = TSDB_CODE_MND_INVALID_MSG_LEN;
     mError("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
-    goto PROCESS_RPC_END;
+    return -1;
   }
 
   MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(msgType)];
   if (fp == NULL) {
-    code = TSDB_CODE_MSG_NOT_PROCESSED;
+    terrno = TSDB_CODE_MSG_NOT_PROCESSED;
     mError("msg:%p, failed to process since no msg handle, app:%p", pMsg, ahandle);
-    goto PROCESS_RPC_END;
+    return -1;
   }
 
-  code = (*fp)(pMsg);
+  int32_t code = (*fp)(pMsg);
   if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    terrno = code;
     mTrace("msg:%p, in progress, app:%p", pMsg, ahandle);
-    return;
   } else if (code != 0) {
-    code = terrno;
     mError("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
-    goto PROCESS_RPC_END;
   } else {
     mTrace("msg:%p, is processed, app:%p", pMsg, ahandle);
   }
 
-PROCESS_RPC_END:
-  if (isReq) {
-    if (pMsg->rpcMsg.handle == NULL) return;
-
-    if (code == TSDB_CODE_APP_NOT_READY) {
-      mndSendRedirectRsp(pMnode, &pMsg->rpcMsg);
-    } else if (code != 0) {
-      SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .contLen = pMsg->contLen, .pCont = pMsg->pCont, .code = code};
-      rpcSendResponse(&rpcRsp);
-    } else {
-      SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .contLen = pMsg->contLen, .pCont = pMsg->pCont};
-      rpcSendResponse(&rpcRsp);
-    }
-  }
+  return code;
 }
 
 void mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp) {

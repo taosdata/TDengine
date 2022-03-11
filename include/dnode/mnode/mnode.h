@@ -116,20 +116,12 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
 int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
 /**
- * @brief Cleanup mnode msg.
- *
- * @param pMsg The request msg.
- * @param code The error code.
- */
-void mndSendRsp(SMndMsg *pMsg, int32_t code);
-
-/**
  * @brief Process the read, write, sync request.
  *
  * @param pMsg The request msg.
  * @return int32_t 0 for success, -1 for failure.
  */
-void mndProcessMsg(SMndMsg *pMsg);
+int32_t mndProcessMsg(SMndMsg *pMsg);
 
 #ifdef __cplusplus
 }

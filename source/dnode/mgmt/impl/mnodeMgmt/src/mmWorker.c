@@ -25,21 +25,21 @@ static int32_t mmProcessSyncMsg(SDnode *pDnode, SMndMsg *pMsg);
 static int32_t mmProcessReadMsg(SDnode *pDnode, SMndMsg *pMsg);
 static int32_t mmPutMndMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SMndMsg *pMsg);
 static int32_t mmPutRpcMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMsg *pRpc);
-static void    mmConsumeQueue(SDnode *pDnode, SMndMsg *pMsg);
+static void    mmConsumeMsgQueue(SDnode *pDnode, SMndMsg *pMsg);
 
 int32_t mmStartWorker(SDnode *pDnode) {
   SMndMgmt *pMgmt = &pDnode->mmgmt;
-  if (dndInitWorker(pDnode, &pMgmt->readWorker, DND_WORKER_SINGLE, "mnode-read", 0, 1, mmConsumeQueue) != 0) {
+  if (dndInitWorker(pDnode, &pMgmt->readWorker, DND_WORKER_SINGLE, "mnode-read", 0, 1, mmConsumeMsgQueue) != 0) {
     dError("failed to start mnode read worker since %s", terrstr());
     return -1;
   }
 
-  if (dndInitWorker(pDnode, &pMgmt->writeWorker, DND_WORKER_SINGLE, "mnode-write", 0, 1, mmConsumeQueue) != 0) {
+  if (dndInitWorker(pDnode, &pMgmt->writeWorker, DND_WORKER_SINGLE, "mnode-write", 0, 1, mmConsumeMsgQueue) != 0) {
     dError("failed to start mnode write worker since %s", terrstr());
     return -1;
   }
 
-  if (dndInitWorker(pDnode, &pMgmt->syncWorker, DND_WORKER_SINGLE, "mnode-sync", 0, 1, mmConsumeQueue) != 0) {
+  if (dndInitWorker(pDnode, &pMgmt->syncWorker, DND_WORKER_SINGLE, "mnode-sync", 0, 1, mmConsumeMsgQueue) != 0) {
     dError("failed to start mnode sync worker since %s", terrstr());
     return -1;
   }
@@ -271,18 +271,36 @@ void mmConsumeChildQueue(SDnode *pDnode, SMndMsg *pMsg, int32_t msgLen, void *pC
 
 void mmConsumeParentQueue(SDnode *pDnode, SMndMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen) {}
 
-static void mmConsumeQueue(SDnode *pDnode, SMndMsg *pMsg) {
-  SMndMgmt *pMgmt = &pDnode->mmgmt;
+static void mmConsumeMsgQueue(SDnode *pDnode, SMndMsg *pMsg) {
+  SMnode  *pMnode = mmAcquire(pDnode);
+  SRpcMsg *pRpc = &pMsg->rpcMsg;
+  tmsg_t   msgType = pMsg->rpcMsg.msgType;
+  void    *ahandle = pMsg->rpcMsg.ahandle;
+  bool     isReq = (pRpc->msgType & 1U);
+  int32_t  code = -1;
 
-  SMnode *pMnode = mmAcquire(pDnode);
   if (pMnode != NULL) {
     pMsg->pMnode = pMnode;
-    mndProcessMsg(pMsg);
+    code = mndProcessMsg(pMsg);
     mmRelease(pDnode, pMnode);
-  } else {
-    mndSendRsp(pMsg, terrno);
+  }
+
+  if (isReq) {
+    if (pMsg->rpcMsg.handle == NULL) return;
+    if (code == 0) {
+      SRpcMsg rsp = {.handle = pRpc->handle, .contLen = pMsg->contLen, .pCont = pMsg->pCont};
+      rpcSendResponse(&rsp);
+    } else {
+      if (terrno == TSDB_CODE_APP_NOT_READY) {
+        dndSendRedirectRsp(pDnode, pRpc);
+      } else if (terrno == TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+      } else {
+        SRpcMsg rsp = {.handle = pRpc->handle, .contLen = pMsg->contLen, .pCont = pMsg->pCont, .code = terrno};
+        rpcSendResponse(&rsp);
+      }
+    }
   }
 
   taosFreeQitem(pMsg);
-  rpcFreeCont(pMsg->rpcMsg.pCont);
+  rpcFreeCont(pRpc->pCont);
 }

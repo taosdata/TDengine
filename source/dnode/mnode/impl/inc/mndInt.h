@@ -128,7 +128,6 @@ typedef struct SMnode {
 
 int32_t mndSendReqToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *rpcMsg);
 int32_t mndSendReqToMnode(SMnode *pMnode, SRpcMsg *pMsg);
-void    mndSendRedirectRsp(SMnode *pMnode, SRpcMsg *pMsg);
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
 
 uint64_t mndGenerateUid(char *name, int32_t len);
