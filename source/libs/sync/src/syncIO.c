@@ -15,7 +15,7 @@
 
 #include "syncIO.h"
 #include <tdatablock.h>
-#include "syncOnMessage.h"
+#include "syncMessage.h"
 #include "tglobal.h"
 #include "ttimer.h"
 #include "tutil.h"
@@ -44,7 +44,7 @@ int32_t syncIOStart(char *host, uint16_t port) {
   gSyncIO = syncIOCreate(host, port);
   assert(gSyncIO != NULL);
 
-  srand(time(NULL));
+  taosSeedRand(time(NULL));
   int32_t ret = syncIOStartInternal(gSyncIO);
   assert(ret == 0);
 
@@ -220,12 +220,17 @@ static void *syncIOConsumerFunc(void *param) {
   while (1) {
     int numOfMsgs = taosReadAllQitemsFromQset(io->pQset, qall, NULL, NULL);
     sTrace("syncIOConsumerFunc %d msgs are received", numOfMsgs);
-    if (numOfMsgs <= 0) break;
+    if (numOfMsgs <= 0) {
+      break;
+    }
 
     for (int i = 0; i < numOfMsgs; ++i) {
       taosGetQitem(qall, (void **)&pRpcMsg);
+
+      char *s = syncRpcMsg2Str(pRpcMsg);
       sTrace("syncIOConsumerFunc get item from queue: msgType:%d contLen:%d msg:%s", pRpcMsg->msgType, pRpcMsg->contLen,
-             (char *)(pRpcMsg->pCont));
+             s);
+      free(s);
 
       if (pRpcMsg->msgType == SYNC_PING) {
         if (io->FpOnSyncPing != NULL) {
@@ -247,7 +252,7 @@ static void *syncIOConsumerFunc(void *param) {
         }
 
       } else if (pRpcMsg->msgType == SYNC_REQUEST_VOTE) {
-        if (io->FpOnSyncRequestVote) {
+        if (io->FpOnSyncRequestVote != NULL) {
           SyncRequestVote *pSyncMsg;
           pSyncMsg = syncRequestVoteBuild(pRpcMsg->contLen);
           syncRequestVoteFromRpcMsg(pRpcMsg, pSyncMsg);
@@ -256,7 +261,7 @@ static void *syncIOConsumerFunc(void *param) {
         }
 
       } else if (pRpcMsg->msgType == SYNC_REQUEST_VOTE_REPLY) {
-        if (io->FpOnSyncRequestVoteReply) {
+        if (io->FpOnSyncRequestVoteReply != NULL) {
           SyncRequestVoteReply *pSyncMsg;
           pSyncMsg = SyncRequestVoteReplyBuild();
           syncRequestVoteReplyFromRpcMsg(pRpcMsg, pSyncMsg);
@@ -265,7 +270,7 @@ static void *syncIOConsumerFunc(void *param) {
         }
 
       } else if (pRpcMsg->msgType == SYNC_APPEND_ENTRIES) {
-        if (io->FpOnSyncAppendEntries) {
+        if (io->FpOnSyncAppendEntries != NULL) {
           SyncAppendEntries *pSyncMsg;
           pSyncMsg = syncAppendEntriesBuild(pRpcMsg->contLen);
           syncAppendEntriesFromRpcMsg(pRpcMsg, pSyncMsg);
@@ -274,7 +279,7 @@ static void *syncIOConsumerFunc(void *param) {
         }
 
       } else if (pRpcMsg->msgType == SYNC_APPEND_ENTRIES_REPLY) {
-        if (io->FpOnSyncAppendEntriesReply) {
+        if (io->FpOnSyncAppendEntriesReply != NULL) {
           SyncAppendEntriesReply *pSyncMsg;
           pSyncMsg = syncAppendEntriesReplyBuild();
           syncAppendEntriesReplyFromRpcMsg(pRpcMsg, pSyncMsg);

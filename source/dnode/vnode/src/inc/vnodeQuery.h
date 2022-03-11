@@ -26,6 +26,7 @@ extern "C" {
 typedef struct SQWorkerMgmt SQHandle;
 
 int vnodeQueryOpen(SVnode *pVnode);
+void vnodeQueryClose(SVnode *pVnode);
 
 #ifdef __cplusplus
 }

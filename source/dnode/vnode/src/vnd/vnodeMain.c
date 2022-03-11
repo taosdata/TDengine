@@ -154,5 +154,6 @@ static void vnodeCloseImpl(SVnode *pVnode) {
     tsdbClose(pVnode->pTsdb);
     tqClose(pVnode->pTq);
     walClose(pVnode->pWal);
+    vnodeQueryClose(pVnode);
   }
 }
