@@ -1324,123 +1324,133 @@ char *mnGetDbStr(char *src) {
   return pos;
 }
 
-static int32_t mndRetrieveDbs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+static char* getDataPosition(char* pData, SShowObj* pShow, int32_t cols, int32_t rows, int32_t capacityOfRow) {
+  return pData + pShow->offset[cols] * capacityOfRow + pShow->bytes[cols] * rows;
+}
+
+static void dumpDbInfoToPayload(char* data, SDbObj* pDb, SShowObj* pShow, int32_t rows, int32_t rowCapacity) {
+  int32_t cols = 0;
+
+  char* pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  char *name = mnGetDbStr(pDb->name);
+  if (name != NULL) {
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, name, pShow->bytes[cols]);
+  } else {
+    STR_TO_VARSTR(pWrite, "NULL");
+  }
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int64_t *)pWrite = pDb->createdTime;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int16_t *)pWrite = pDb->cfg.numOfVgroups;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int64_t *)pWrite = 0;  // todo: num of Tables
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int16_t *)pWrite = pDb->cfg.replications;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int16_t *)pWrite = pDb->cfg.quorum;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int16_t *)pWrite = pDb->cfg.daysPerFile;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  char tmp[128] = {0};
+  if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
+    sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2, pDb->cfg.daysToKeep0);
+  } else {
+    sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep0, pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2);
+  }
+  STR_WITH_SIZE_TO_VARSTR(pWrite, tmp, strlen(tmp));
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int32_t *)pWrite = pDb->cfg.cacheBlockSize;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int32_t *)pWrite = pDb->cfg.totalBlocks;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int32_t *)pWrite = pDb->cfg.minRows;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int32_t *)pWrite = pDb->cfg.maxRows;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int8_t *)pWrite = pDb->cfg.walLevel;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int32_t *)pWrite = pDb->cfg.fsyncPeriod;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int8_t *)pWrite = pDb->cfg.compression;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int8_t *)pWrite = pDb->cfg.cacheLastRow;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  char *prec = NULL;
+  switch (pDb->cfg.precision) {
+    case TSDB_TIME_PRECISION_MILLI:
+      prec = TSDB_TIME_PRECISION_MILLI_STR;
+      break;
+    case TSDB_TIME_PRECISION_MICRO:
+      prec = TSDB_TIME_PRECISION_MICRO_STR;
+      break;
+    case TSDB_TIME_PRECISION_NANO:
+      prec = TSDB_TIME_PRECISION_NANO_STR;
+      break;
+    default:
+      prec = "none";
+      break;
+  }
+  STR_WITH_SIZE_TO_VARSTR(pWrite, prec, 2);
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int8_t *)pWrite = pDb->cfg.update;
+}
+
+static int32_t mndRetrieveDbs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rowsCapacity) {
   SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfRows = 0;
   SDbObj *pDb = NULL;
-  char   *pWrite;
-  int32_t cols = 0;
 
-  while (numOfRows < rows) {
+  while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetch(pSdb, SDB_DB, pShow->pIter, (void **)&pDb);
-    if (pShow->pIter == NULL) break;
-
-    cols = 0;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    char *name = mnGetDbStr(pDb->name);
-    if (name != NULL) {
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, name, pShow->bytes[cols]);
-    } else {
-      STR_TO_VARSTR(pWrite, "NULL");
+    if (pShow->pIter == NULL) {
+      break;
     }
-    cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pDb->createdTime;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pDb->cfg.numOfVgroups;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = 0;  // todo
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pDb->cfg.replications;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pDb->cfg.quorum;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pDb->cfg.daysPerFile;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    char tmp[128] = {0};
-    if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
-      sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2, pDb->cfg.daysToKeep0);
-    } else {
-      sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep0, pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2);
-    }
-    STR_WITH_SIZE_TO_VARSTR(pWrite, tmp, strlen(tmp));
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pDb->cfg.cacheBlockSize;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pDb->cfg.totalBlocks;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pDb->cfg.minRows;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pDb->cfg.maxRows;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int8_t *)pWrite = pDb->cfg.walLevel;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pDb->cfg.fsyncPeriod;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int8_t *)pWrite = pDb->cfg.compression;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int8_t *)pWrite = pDb->cfg.cacheLastRow;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    char *prec = NULL;
-    switch (pDb->cfg.precision) {
-      case TSDB_TIME_PRECISION_MILLI:
-        prec = TSDB_TIME_PRECISION_MILLI_STR;
-        break;
-      case TSDB_TIME_PRECISION_MICRO:
-        prec = TSDB_TIME_PRECISION_MICRO_STR;
-        break;
-      case TSDB_TIME_PRECISION_NANO:
-        prec = TSDB_TIME_PRECISION_NANO_STR;
-        break;
-      default:
-        prec = "none";
-        break;
-    }
-    STR_WITH_SIZE_TO_VARSTR(pWrite, prec, 2);
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int8_t *)pWrite = pDb->cfg.update;
-    cols++;
+    dumpDbInfoToPayload(data, pDb, pShow, numOfRows, rowsCapacity);
 
     numOfRows++;
     sdbRelease(pSdb, pDb);
   }
 
-  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
+  // Append the information_schema database into the result.
+
+
+  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rowsCapacity, pShow);
   pShow->numOfReads += numOfRows;
 
   return numOfRows;

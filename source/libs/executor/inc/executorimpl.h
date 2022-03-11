@@ -391,6 +391,12 @@ typedef struct SSourceDataInfo {
   int32_t            status;
 } SSourceDataInfo;
 
+typedef struct SLoadRemoteDataInfo {
+  uint64_t           totalSize;     // total load bytes from remote
+  uint64_t           totalRows;     // total number of rows
+  uint64_t           totalElapsed;  // total elapsed time
+} SLoadRemoteDataInfo;
+
 typedef struct SExchangeInfo {
   SArray*            pSources;
   SArray*            pSourceDataInfo;
@@ -399,9 +405,7 @@ typedef struct SExchangeInfo {
   SSDataBlock*       pResult;
   bool               seqLoadData;   // sequential load data or not, false by default
   int32_t            current;
-  uint64_t           totalSize;     // total load bytes from remote
-  uint64_t           totalRows;     // total number of rows
-  uint64_t           totalElapsed;  // total elapsed time
+  SLoadRemoteDataInfo loadInfo;
 } SExchangeInfo;
 
 typedef struct STableScanInfo {
@@ -440,14 +444,23 @@ typedef struct SStreamBlockScanInfo {
   void*        readerHandle;  // stream block reader handle
 } SStreamBlockScanInfo;
 
+
+typedef struct SSysScanResInfo {
+  struct SSysTableScanInfo *pSysScanInfo;
+  SRetrieveTableRsp *pRsp;
+  uint64_t           totalRows;
+} SSysScanResInfo;
+
 typedef struct SSysTableScanInfo {
   union {
     void* pTransporter;
     void* readHandle;
   };
 
+  SRetrieveMetaTableRsp *pRsp;
+
   void              *pCur; // cursor
-  SRetrieveTableReq* pReq;
+  SRetrieveTableReq  req;
   SEpSet             epSet;
   int32_t            type;  // show type
   tsem_t             ready;
@@ -457,8 +470,7 @@ typedef struct SSysTableScanInfo {
   int32_t            capacity;
   int64_t            numOfBlocks;  // extract basic running information.
   int64_t            totalRows;
-  int64_t            elapsedTime;
-  int64_t            totalBytes;
+  SLoadRemoteDataInfo loadInfo;
 } SSysTableScanInfo;
 
 typedef struct SOptrBasicInfo {
@@ -639,8 +651,8 @@ SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntim
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, const SArray* pExprInfo, const SSchema* pSchema,
-                                              int32_t tableType, SEpSet epset, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataBlock* pResBlock, int32_t tableType, SEpSet epset,
+                                              SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream);
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SInterval* pInterval, SExecTaskInfo* pTaskInfo);

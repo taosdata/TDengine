@@ -873,6 +873,17 @@ typedef struct {
 } SRetrieveTableRsp;
 
 typedef struct {
+  int64_t  handle;
+  int64_t  useconds;
+  int8_t   completed;  // all results are returned to client
+  int8_t   precision;
+  int8_t   compressed;
+  int32_t  compLen;
+  int32_t  numOfRows;
+  char     data[];
+} SRetrieveMetaTableRsp;
+
+typedef struct {
   char    fqdn[TSDB_FQDN_LEN];  // end point, hostname:port
   int32_t port;
 } SCreateDnodeReq;
