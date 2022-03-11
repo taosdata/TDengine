@@ -24,7 +24,7 @@ typedef u8 SCell;
 
 typedef struct __attribute__((__packed__)) {
   u8 cksm[4];
-} SPageFooter;
+} SPageFtr;
 
 typedef struct __attribute__((__packed__)) {
   u16   flags;
@@ -40,17 +40,17 @@ struct SPage {
   u8                *pData;
   int                pageSize;
   // Fields below used by pager and am
-  SPgid        pgid;
-  SPageHdr    *pPageHdr;
-  SPageFooter *pPageFooter;
-  u16         *aCellIdx;
-  int          kLen;
-  int          vLen;
-  int          maxLocal;
-  int          minLocal;
-  int          nOverflow;
-  void        *apOvfl[4];
-  int          aiOvfl[4];
+  SPgid     pgid;
+  SPageHdr *pPageHdr;
+  SPageFtr *pPageFtr;
+  u16      *aCellIdx;
+  int       kLen;
+  int       vLen;
+  int       maxLocal;
+  int       minLocal;
+  int       nOverflow;
+  void     *apOvfl[4];
+  int       aiOvfl[4];
   // Fields used by SPCache
   TDB_PCACHE_PAGE
 };
