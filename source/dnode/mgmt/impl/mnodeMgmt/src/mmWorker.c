@@ -139,6 +139,14 @@ void mmInitMsgFp(SMndMgmt *pMgmt) {
   pMgmt->msgFp[TMSG_INDEX(TDMT_VND_DROP_STB_RSP)] = mmProcessWriteMsg;
 }
 
+static void mmSendRpcRsp(SDnode *pDnode, SRpcMsg *pRpc) {
+  if (pRpc->code == TSDB_CODE_DND_MNODE_NOT_DEPLOYED || pRpc->code == TSDB_CODE_APP_NOT_READY) {
+    dndSendRedirectRsp(pDnode, pRpc);
+  } else {
+    rpcSendResponse(pRpc);
+  }
+}
+
 static int32_t mmBuildMsg(SMndMsg *pMsg, SRpcMsg *pRpc) {
   SRpcConnInfo connInfo = {0};
   if ((pRpc->msgType & 1U) && rpcGetConnInfo(pRpc->handle, &connInfo) != 0) {
@@ -183,15 +191,16 @@ void mmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
 
 _OVER:
 
-  if (code != 0) {
+  if (code == 0) {
+    if (!pMgmt->singleProc) {
+      taosFreeQitem(pMsg);
+      rpcFreeCont(pRpc->pCont);
+    }
+  } else {
     bool isReq = (pRpc->msgType & 1U);
     if (isReq) {
-      if (terrno == TSDB_CODE_DND_MNODE_NOT_DEPLOYED || terrno == TSDB_CODE_APP_NOT_READY) {
-        dndSendRedirectRsp(pDnode, pRpc);
-      } else {
-        SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
-        rpcSendResponse(&rsp);
-      }
+      SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
+      mmSendRpcRsp(pDnode, &rsp);
     }
     taosFreeQitem(pMsg);
     rpcFreeCont(pRpc->pCont);
@@ -245,6 +254,22 @@ static int32_t mmPutRpcMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMs
   return code;
 }
 
+void mmPutRpcRspToWorker(SDnode *pDnode, SRpcMsg *pRpc) {
+  SMndMgmt *pMgmt = &pDnode->mmgmt;
+  int32_t   code = -1;
+
+  if (pMgmt->singleProc) {
+    mmSendRpcRsp(pDnode, pRpc);
+  } else {
+    do {
+      code = taosProcPutToParentQueue(pMgmt->pProcess, pRpc, sizeof(SRpcMsg), pRpc->pCont, pRpc->contLen);
+      if (code != 0) {
+        taosMsleep(10);
+      }
+    } while (code != 0);
+  }
+}
+
 void mmConsumeChildQueue(SDnode *pDnode, SMndMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen) {
   SMndMgmt *pMgmt = &pDnode->mmgmt;
 
@@ -257,25 +282,23 @@ void mmConsumeChildQueue(SDnode *pDnode, SMndMsg *pMsg, int32_t msgLen, void *pC
   if (code != 0) {
     bool isReq = (pRpc->msgType & 1U);
     if (isReq) {
-      if (terrno == TSDB_CODE_DND_MNODE_NOT_DEPLOYED || terrno == TSDB_CODE_APP_NOT_READY) {
-        dndSendRedirectRsp(pDnode, pRpc);
-      } else {
-        SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
-        rpcSendResponse(&rsp);
-      }
+      SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
+      mmPutRpcRspToWorker(pDnode, &rsp);
     }
     taosFreeQitem(pMsg);
     rpcFreeCont(pCont);
   }
 }
 
-void mmConsumeParentQueue(SDnode *pDnode, SMndMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen) {}
+void mmConsumeParentQueue(SDnode *pDnode, SRpcMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen) {
+  pMsg->pCont = pCont;
+  mmSendRpcRsp(pDnode, pMsg);
+  free(pMsg);
+}
 
 static void mmConsumeMsgQueue(SDnode *pDnode, SMndMsg *pMsg) {
   SMnode  *pMnode = mmAcquire(pDnode);
   SRpcMsg *pRpc = &pMsg->rpcMsg;
-  tmsg_t   msgType = pMsg->rpcMsg.msgType;
-  void    *ahandle = pMsg->rpcMsg.ahandle;
   bool     isReq = (pRpc->msgType & 1U);
   int32_t  code = -1;
 
@@ -289,18 +312,15 @@ static void mmConsumeMsgQueue(SDnode *pDnode, SMndMsg *pMsg) {
     if (pMsg->rpcMsg.handle == NULL) return;
     if (code == 0) {
       SRpcMsg rsp = {.handle = pRpc->handle, .contLen = pMsg->contLen, .pCont = pMsg->pCont};
-      rpcSendResponse(&rsp);
+      mmPutRpcRspToWorker(pDnode, &rsp);
     } else {
-      if (terrno == TSDB_CODE_APP_NOT_READY) {
-        dndSendRedirectRsp(pDnode, pRpc);
-      } else if (terrno == TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-      } else {
+      if (terrno != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
         SRpcMsg rsp = {.handle = pRpc->handle, .contLen = pMsg->contLen, .pCont = pMsg->pCont, .code = terrno};
-        rpcSendResponse(&rsp);
+        mmPutRpcRspToWorker(pDnode, &rsp);
       }
     }
   }
 
-  taosFreeQitem(pMsg);
   rpcFreeCont(pRpc->pCont);
+  taosFreeQitem(pMsg);
 }

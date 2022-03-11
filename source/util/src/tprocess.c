@@ -149,8 +149,8 @@ static int32_t taosProcQueuePush(SProcQueue *pQueue, char *pHead, int32_t rawHea
   pthread_mutex_unlock(&pQueue->mutex);
   tsem_post(&pQueue->sem);
 
-  (*pQueue->freeHeadFp)(pHead);
-  (*pQueue->freeBodyFp)(pBody);
+  // (*pQueue->freeHeadFp)(pHead);
+  // (*pQueue->freeBodyFp)(pBody);
   return 0;
 }
 
