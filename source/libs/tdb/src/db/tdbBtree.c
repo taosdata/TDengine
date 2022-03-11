@@ -357,8 +357,8 @@ static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
   // Init the page header
   pPage->pPageHdr->flags = flags;
   pPage->pPageHdr->nCells = 0;
-  pPage->pPageHdr->cellCont = pBt->pageSize;
-  pPage->pPageHdr->freeCell = 0;
+  pPage->pPageHdr->cCells = pBt->pageSize;
+  pPage->pPageHdr->fCell = 0;
   pPage->pPageHdr->nFree = 0;
 
   TDB_BTREE_ASSERT_FLAG(flags);

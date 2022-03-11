@@ -26,8 +26,8 @@ typedef u8 SCell;
 typedef struct __attribute__((__packed__)) {
   u16 flags;
   u16 nCells;
-  u16 cellCont;
-  u16 freeCell;
+  u16 cCells;
+  u16 fCell;
   u16 nFree;
 } SPageHdr;
 
@@ -35,8 +35,8 @@ typedef struct __attribute__((__packed__)) {
 typedef struct __attribute__((__packed__)) {
   u16 flags;
   u8  nCells[3];
-  u8  cellCont[3];
-  u8  freeCell[3];
+  u8  cCells[3];
+  u8  fCell[3];
   u8  nFree[3];
 } SLPageHdr;
 
@@ -85,7 +85,7 @@ struct SPage {
   })
 
 /* For page */
-#define TDB_PAGE_FLAGS(pPage)    (TDB_IS_LARGE_PAGE(pPage) ? TDB_LPAGE_FLAGS(pPage)) : TDB_SPAGE_FLAGS(pPage))
+#define TDB_PAGE_FLAGS(pPage) (TDB_IS_LARGE_PAGE(pPage) ? TDB_LPAGE_FLAGS(pPage)) : TDB_SPAGE_FLAGS(pPage))
 #define TDB_PAGE_CELL_OFFSET_AT(pPage, idx)                     \
   (((pPage)->szOffset == 2) ? ((u16 *)((pPage)->aCellIdx))[idx] \
                             : ((pPage)->aCellIdx[idx * 3] * 65536 + *(u16 *)((pPage)->aCellIdx + idx * 3 + 1)))
