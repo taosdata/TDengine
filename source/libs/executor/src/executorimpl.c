@@ -7266,16 +7266,15 @@ SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo) {
   SProjectOperatorInfo* pInfo = calloc(1, sizeof(SProjectOperatorInfo));
 
-  int32_t numOfRows = 4096;
-  pInfo->binfo.pRes = createOutputBuf_rv(pExprInfo, numOfRows);
+  pInfo->binfo.capacity = 4096;
+  pInfo->binfo.pRes = createOutputBuf_rv(pExprInfo, pInfo->binfo.capacity);
   pInfo->binfo.pCtx = createSqlFunctionCtx_rv(pExprInfo, &pInfo->binfo.rowCellInfoOffset);
-
 //  initResultRowInfo(&pBInfo->resultRowInfo, 8);
 //  setFunctionResultOutput(pBInfo, MAIN_SCAN);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   pOperator->name         = "ProjectOperator";
-  // pOperator->operatorType = OP_Project;
+  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_PROJECT;
   pOperator->blockingOptr = false;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->info         = pInfo;
@@ -7283,6 +7282,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SArray* pExp
   pOperator->numOfOutput  = taosArrayGetSize(pExprInfo);
 
   pOperator->nextDataFn   = doProjectOperation;
+  pOperator->pTaskInfo    = pTaskInfo;
   pOperator->closeFn      = destroyProjectOperatorInfo;
   int32_t code = appendDownstream(pOperator, &downstream, 1);
 
