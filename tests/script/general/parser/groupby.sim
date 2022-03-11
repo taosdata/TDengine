@@ -594,7 +594,8 @@ if $data10 != @{slop:0.000000, intercept:1.000000}@ then
   return -1
 endi
 
-if $data90 != @{slop:0.000000, intercept:9.000000}@ then
+if $data90 != @{slop:0.000000, intercept:17.000000}@ then
+  print " data90 expect: {slop:0.000000, intercept:17.000000} real:"$data90
   return -1
 endi
 
