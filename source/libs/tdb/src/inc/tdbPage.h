@@ -60,8 +60,10 @@ struct SPage {
 };
 
 // Macros
-#define TDB_PAGE_CELL_OFFSET_AT(pPage, idx) ((pPage)->aCellIdx[idx])
-#define TDB_PAGE_CELL_AT(pPage, idx)        ((pPage)->pData + TDB_PAGE_CELL_OFFSET_AT(pPage, idx))
+#define TDB_PAGE_CELL_OFFSET_AT(pPage, idx)                     \
+  (((pPage)->szOffset == 2) ? ((u16 *)((pPage)->aCellIdx))[idx] \
+                            : ((pPage)->aCellIdx[idx * 3] * 65536 + *(u16 *)((pPage)->aCellIdx + idx * 3 + 1)))
+#define TDB_PAGE_CELL_AT(pPage, idx) ((pPage)->pData + TDB_PAGE_CELL_OFFSET_AT(pPage, idx))
 
 // For page lock
 #define P_LOCK_SUCC 0
