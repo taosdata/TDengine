@@ -268,6 +268,7 @@ static SPhysiNode* createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SScan
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups + i, &addr);
     taosArrayPush(pCxt->pExecNodeList, &addr);
   }
+  pScan->mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
   return (SPhysiNode*)pScan;
 }
 
