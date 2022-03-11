@@ -385,7 +385,7 @@ int32_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, int3
      * the number of output result is decided by main output
      */
     if (hasMainFunction && (id == TSDB_FUNC_TS || id == TSDB_FUNC_TAG || id == TSDB_FUNC_TAGPRJ ||
-                            id == TSDB_FUNC_TS_DUMMY || id == TSDB_FUNC_TAG_DUMMY)) {
+                            id == TSDB_FUNC_TS_DUMMY || id == TSDB_FUNC_TAG_DUMMY || isTimeWindowFunction(id))) {
       continue;
     }
 
@@ -1957,6 +1957,8 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
     pCtx->start.key    = INT64_MIN;
     pCtx->end.key      = INT64_MIN;
     pCtx->startTs      = INT64_MIN;
+
+    pCtx->qWindow      = pQueryAttr->window;
 
     pCtx->numOfParams  = pSqlExpr->numOfParams;
     for (int32_t j = 0; j < pCtx->numOfParams; ++j) {
@@ -3925,7 +3927,8 @@ static bool hasMainOutput(SQueryAttr *pQueryAttr) {
   for (int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
     int32_t functionId = pQueryAttr->pExpr1[i].base.functionId;
 
-    if (functionId != TSDB_FUNC_TS && functionId != TSDB_FUNC_TAG && functionId != TSDB_FUNC_TAGPRJ) {
+    if (functionId != TSDB_FUNC_TS && functionId != TSDB_FUNC_TAG &&
+        functionId != TSDB_FUNC_TAGPRJ && !isTimeWindowFunction(functionId)) {
       return true;
     }
   }
@@ -5959,7 +5962,7 @@ static SSDataBlock* doAggregate(void* param, bool* newgroup) {
     doAggregateImpl(pOperator, pQueryAttr->window.skey, pInfo->pCtx, pBlock);
     // if all pCtx is completed, then query should be over
     if(allCtxCompleted(pOperator, pInfo->pCtx))
-      break;    
+      break;
   }
 
   doSetOperatorCompleted(pOperator);

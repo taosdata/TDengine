@@ -5807,38 +5807,56 @@ int16_t getTimeWindowFunctionID(int16_t colIndex) {
 }
 
 static void window_start_function(SQLFunctionCtx *pCtx) {
-  SET_VAL(pCtx, pCtx->size, 1);
   if (pCtx->functionId == TSDB_FUNC_WSTART) {
+    SET_VAL(pCtx, pCtx->size, 1);
     *(int64_t *)(pCtx->pOutput) = pCtx->startTs;
   } else { //TSDB_FUNC_QSTART
-    *(TSKEY *)(pCtx->pOutput) = pCtx->qWindow.skey;
+    INC_INIT_VAL(pCtx, pCtx->size);
+    char *output = pCtx->pOutput;
+    for (int32_t i = 0; i < pCtx->size; ++i) {
+      memcpy(output, &pCtx->qWindow.skey, pCtx->outputBytes);
+      output += pCtx->outputBytes;
+    }
   }
 }
 
 static void window_stop_function(SQLFunctionCtx *pCtx) {
-  SET_VAL(pCtx, pCtx->size, 1);
   if (pCtx->functionId == TSDB_FUNC_WSTOP) {
+    SET_VAL(pCtx, pCtx->size, 1);
     *(int64_t *)(pCtx->pOutput) = pCtx->endTs;
   } else { //TSDB_FUNC_QSTOP
-    *(TSKEY *)(pCtx->pOutput) = pCtx->qWindow.ekey;
+    INC_INIT_VAL(pCtx, pCtx->size);
+    char *output = pCtx->pOutput;
+    for (int32_t i = 0; i < pCtx->size; ++i) {
+      memcpy(output, &pCtx->qWindow.ekey, pCtx->outputBytes);
+      output += pCtx->outputBytes;
+    }
   }
 }
 
 static void window_duration_function(SQLFunctionCtx *pCtx) {
-  SET_VAL(pCtx, pCtx->size, 1);
   int64_t duration;
   if (pCtx->functionId == TSDB_FUNC_WDURATION) {
+    SET_VAL(pCtx, pCtx->size, 1);
     duration = pCtx->endTs - pCtx->startTs;
+    if (duration < 0) {
+      duration = -duration;
+    }
+    *(int64_t *)(pCtx->pOutput) = duration;
   } else { //TSDB_FUNC_QDURATION
+    INC_INIT_VAL(pCtx, pCtx->size);
     duration = pCtx->qWindow.ekey - pCtx->qWindow.skey;
+    if (duration < 0) {
+      duration = -duration;
+    }
+    char *output = pCtx->pOutput;
+    for (int32_t i = 0; i < pCtx->size; ++i) {
+      memcpy(output, &duration, pCtx->outputBytes);
+      output += pCtx->outputBytes;
+    }
   }
-
-  if (duration < 0) {
-    duration = -duration;
-  }
-
-  *(int64_t *)(pCtx->pOutput) = duration;
 }
+
 /////////////////////////////////////////////////////////////////////////////////////////////
 /*
  * function compatible list.
