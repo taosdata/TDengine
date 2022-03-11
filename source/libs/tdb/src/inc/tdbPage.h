@@ -38,21 +38,19 @@ typedef struct __attribute__((__packed__)) {
 struct SPage {
   pthread_spinlock_t lock;
   u8                *pData;
-  SPgid              pgid;
   int                pageSize;
   // Fields below used by pager and am
+  SPgid        pgid;
   SPageHdr    *pPageHdr;
   SPageFooter *pPageFooter;
-
-  u16 *aCellIdx;
-
-  int   kLen;
-  int   vLen;
-  int   maxLocal;
-  int   minLocal;
-  int   nOverflow;
-  void *apOvfl[4];
-  int   aiOvfl[4];
+  u16         *aCellIdx;
+  int          kLen;
+  int          vLen;
+  int          maxLocal;
+  int          minLocal;
+  int          nOverflow;
+  void        *apOvfl[4];
+  int          aiOvfl[4];
   // Fields used by SPCache
   TDB_PCACHE_PAGE
 };
