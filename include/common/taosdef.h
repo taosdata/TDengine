@@ -35,7 +35,8 @@ typedef enum {
   TSDB_NORMAL_TABLE = 3,  // ordinary table
   TSDB_STREAM_TABLE = 4,  // table created from stream computing
   TSDB_TEMP_TABLE = 5,    // temp table created by nest query
-  TSDB_TABLE_MAX = 6
+  TSDB_SYSTEM_TABLE = 6,
+  TSDB_TABLE_MAX = 7
 } ETableType;
 
 typedef enum {

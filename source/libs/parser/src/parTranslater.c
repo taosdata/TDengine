@@ -499,25 +499,38 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t setTableVgroupList(SParseContext* pCxt, SName* name, SRealTableNode* pRealTable) {
+static int32_t toVgroupsInfo(SArray* pVgs, SVgroupsInfo** pVgsInfo) {
+  size_t vgroupNum = taosArrayGetSize(pVgs);
+  *pVgsInfo = calloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo) * vgroupNum);
+  if (NULL == *pVgsInfo) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  (*pVgsInfo)->numOfVgroups = vgroupNum;
+  for (int32_t i = 0; i < vgroupNum; ++i) {
+    SVgroupInfo *vg = taosArrayGet(pVgs, i);
+    (*pVgsInfo)->vgroups[i] = *vg;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setTableVgroupList(SParseContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
+  int32_t code = TSDB_CODE_SUCCESS;
   if (TSDB_SUPER_TABLE == pRealTable->pMeta->tableType) {
     SArray* vgroupList = NULL;
-    int32_t code = catalogGetTableDistVgInfo(pCxt->pCatalog, pCxt->pTransporter, &pCxt->mgmtEpSet, name, &vgroupList);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
+    code = catalogGetTableDistVgInfo(pCxt->pCatalog, pCxt->pTransporter, &pCxt->mgmtEpSet, pName, &vgroupList);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = toVgroupsInfo(vgroupList, &pRealTable->pVgroupList);
     }
-    
-    size_t vgroupNum = taosArrayGetSize(vgroupList);
-    pRealTable->pVgroupList = calloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo) * vgroupNum);
-    if (NULL == pRealTable->pVgroupList) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+    taosArrayDestroy(vgroupList);
+  } else if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType) {
+    SArray* vgroupList = NULL;
+    char fullDbName[TSDB_DB_FNAME_LEN];
+    // tNameGetFullDbName(pName, fullDbName);
+    snprintf(fullDbName, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->acctId, "test");
+    code = catalogGetDBVgInfo(pCxt->pCatalog, pCxt->pTransporter, &pCxt->mgmtEpSet, fullDbName, false, &vgroupList);    
+    if (TSDB_CODE_SUCCESS == code) {
+      code = toVgroupsInfo(vgroupList, &pRealTable->pVgroupList);
     }
-    pRealTable->pVgroupList->numOfVgroups = vgroupNum;
-    for (int32_t i = 0; i < vgroupNum; ++i) {
-      SVgroupInfo *vg = taosArrayGet(vgroupList, i);
-      pRealTable->pVgroupList->vgroups[i] = *vg;
-    }
-
     taosArrayDestroy(vgroupList);
   } else {
     pRealTable->pVgroupList = calloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo));
@@ -525,12 +538,9 @@ static int32_t setTableVgroupList(SParseContext* pCxt, SName* name, SRealTableNo
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     pRealTable->pVgroupList->numOfVgroups = 1;
-    int32_t code = catalogGetTableHashVgroup(pCxt->pCatalog, pCxt->pTransporter, &pCxt->mgmtEpSet, name, pRealTable->pVgroupList->vgroups);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
+    code = catalogGetTableHashVgroup(pCxt->pCatalog, pCxt->pTransporter, &pCxt->mgmtEpSet, pName, pRealTable->pVgroupList->vgroups);
   }
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
@@ -1238,6 +1248,25 @@ static void destroyTranslateContext(STranslateContext* pCxt) {
   }
 }
 
+static int32_t rewriteShowDatabase(STranslateContext* pCxt, SQuery* pQuery) {
+  SSelectStmt* pStmt = nodesMakeNode(QUERY_NODE_SELECT_STMT);
+  if (NULL == pStmt) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  SRealTableNode* pTable = nodesMakeNode(QUERY_NODE_REAL_TABLE);
+  if (NULL == pTable) {
+    nodesDestroyNode(pStmt);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  strcpy(pTable->table.dbName, TSDB_INFORMATION_SCHEMA_DB);
+  strcpy(pTable->table.tableName, TSDB_INS_TABLE_USER_DATABASES);
+  pStmt->pFromTable = (SNode*)pTable;
+
+  nodesDestroyNode(pQuery->pRoot);
+  pQuery->pRoot = (SNode*)pStmt;
+  return TSDB_CODE_SUCCESS;
+}
+
 typedef struct SVgroupTablesBatch {
   SVCreateTbBatchReq req;
   SVgroupInfo        info;
@@ -1608,6 +1637,9 @@ static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) 
 static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pQuery->pRoot)) {
+    case QUERY_NODE_SHOW_DATABASES_STMT:
+      code = rewriteShowDatabase(pCxt, pQuery);
+      break;
     case QUERY_NODE_CREATE_TABLE_STMT:
       if (NULL == ((SCreateTableStmt*)pQuery->pRoot)->pTags) {
         code = rewriteCreateTable(pCxt, pQuery);

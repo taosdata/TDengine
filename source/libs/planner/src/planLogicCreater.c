@@ -123,6 +123,26 @@ error:
   return pRoot;
 }
 
+static EScanType getScanType(SNodeList* pScanCols, STableMeta* pMeta) {
+  if (NULL == pScanCols) {
+    // select count(*) from t
+    return SCAN_TYPE_TABLE;
+  }
+
+  if (TSDB_SYSTEM_TABLE == pMeta->tableType) {
+    return SCAN_TYPE_SYSTEM_TABLE;
+  }
+
+  SNode* pCol = NULL;
+  FOREACH(pCol, pScanCols) {
+    if (COLUMN_TYPE_COLUMN == ((SColumnNode*)pCol)->colType) {
+      return SCAN_TYPE_TABLE;
+    }
+  }
+
+  return SCAN_TYPE_TAG;
+}
+
 static SLogicNode* createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SRealTableNode* pRealTable) {
   SScanLogicNode* pScan = (SScanLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN);
   CHECK_ALLOC(pScan, NULL);
@@ -145,7 +165,7 @@ static SLogicNode* createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
     CHECK_ALLOC(pScan->node.pTargets, (SLogicNode*)pScan);
   }
 
-  pScan->scanType = SCAN_TYPE_TABLE;
+  pScan->scanType = getScanType(pCols, pScan->pMeta);
   pScan->scanFlag = MAIN_SCAN;
   pScan->scanRange = TSWINDOW_INITIALIZER;  
   pScan->tableName.type = TSDB_TABLE_NAME_T;

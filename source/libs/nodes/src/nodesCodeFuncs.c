@@ -107,6 +107,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiTableSeqScan";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
       return "PhysiSreamScan";
+    case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
+      return "PhysiSystemTableScan";
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return "PhysiProject";
     case QUERY_NODE_PHYSICAL_PLAN_JOIN:
@@ -438,6 +440,14 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
   }
 
   return code;
+}
+
+static int32_t physiSysTableScanNodeToJson(const void* pObj, SJson* pJson) {
+  return physiScanNodeToJson(pObj, pJson);
+}
+
+static int32_t jsonToPhysiSysTableScanNode(const SJson* pJson, void* pObj) {
+  return jsonToPhysiScanNode(pJson, pObj);
 }
 
 static const char* jkProjectPhysiPlanProjections = "Projections";
@@ -1492,6 +1502,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
+      return physiSysTableScanNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return physiProjectNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_JOIN:
@@ -1569,6 +1581,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToPhysiTagScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
       return jsonToPhysiTableScanNode(pJson, pObj);
+    case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
+      return jsonToPhysiSysTableScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return jsonToPhysiProjectNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_JOIN:

@@ -128,7 +128,7 @@ static const SInfosTableMeta infosMeta[] = {{TSDB_INS_TABLE_DNODES, dnodesSchema
                                             {TSDB_INS_TABLE_MNODES, mnodesSchema, tListLen(mnodesSchema)},
                                             {TSDB_INS_TABLE_MODULES, modulesSchema, tListLen(modulesSchema)},
                                             {TSDB_INS_TABLE_QNODES, qnodesSchema, tListLen(qnodesSchema)},
-                                            {TSDB_INS_TABLE_USER_DATABASE, userDBSchema, tListLen(userDBSchema)},
+                                            {TSDB_INS_TABLE_USER_DATABASES, userDBSchema, tListLen(userDBSchema)},
                                             {TSDB_INS_TABLE_USER_FUNCTIONS, userFuncSchema, tListLen(userFuncSchema)},
                                             {TSDB_INS_TABLE_USER_INDEXES, userIdxSchema, tListLen(userIdxSchema)},
                                             {TSDB_INS_TABLE_USER_STABLES, userStbsSchema, tListLen(userStbsSchema)},
@@ -165,7 +165,7 @@ int32_t mndInsInitMeta(SHashObj *hash) {
   STableMetaRsp meta = {0};
 
   strcpy(meta.dbFName, TSDB_INFORMATION_SCHEMA_DB);
-  meta.tableType = TSDB_NORMAL_TABLE;
+  meta.tableType = TSDB_SYSTEM_TABLE;
   meta.sversion = 1;
   meta.tversion = 1;
 
