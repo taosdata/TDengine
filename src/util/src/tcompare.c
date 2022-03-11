@@ -750,7 +750,8 @@ int32_t jsonCompareUnit(const char* f1, const char* f2, bool* canReturn){
   }
 }
 
-int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
+int32_t 
+doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
   if (type == TSDB_DATA_TYPE_JSON){
     bool canReturn = true;
     int32_t result = jsonCompareUnit(f1, f2, &canReturn);
@@ -771,33 +772,8 @@ int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
     case TSDB_DATA_TYPE_USMALLINT:  DEFAULT_COMP(GET_UINT16_VAL(f1), GET_UINT16_VAL(f2));
     case TSDB_DATA_TYPE_UINT:       DEFAULT_COMP(GET_UINT32_VAL(f1), GET_UINT32_VAL(f2));
     case TSDB_DATA_TYPE_UBIGINT:    DEFAULT_COMP(GET_UINT64_VAL(f1), GET_UINT64_VAL(f2));
-    case TSDB_DATA_TYPE_NCHAR:{
-      tstr* t1 = (tstr*) f1;
-      tstr* t2 = (tstr*) f2;
-
-      if (t1->len != t2->len) {
-        return t1->len > t2->len? 1:-1;
-      }
-      int32_t ret = memcmp((wchar_t*) t1, (wchar_t*) t2, t2->len);
-      if (ret == 0) {
-        return ret;
-      }
-      return (ret < 0) ? -1 : 1;
-    }
-    default: {  // todo refactor
-      tstr* t1 = (tstr*) f1;
-      tstr* t2 = (tstr*) f2;
-
-      if (t1->len != t2->len) {
-        return t1->len > t2->len? 1:-1;
-      } else {
-        int32_t ret = strncmp(t1->data, t2->data, t1->len);
-        if (ret == 0) {
-          return 0;
-        } else {
-          return ret < 0? -1:1;
-        }
-      }
-    }
+    case TSDB_DATA_TYPE_NCHAR:      return compareLenPrefixedWStr(f1, f2);
+    default: // BINARY AND NULL AND SO ON
+      return compareLenPrefixedStr(f1, f2);
   }
 }
