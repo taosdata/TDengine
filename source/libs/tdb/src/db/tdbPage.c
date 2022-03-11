@@ -70,6 +70,10 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
     if (ret < 0) {
       return -1;
     }
+
+    memcpy(pTarget, pCell, szCell);
+    // TODO: memmove();
+    // pPage->pPaggHdr->nCells++;
   }
 
   return 0;
