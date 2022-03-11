@@ -700,7 +700,7 @@ void syncRequestVoteReplyLog2(char* s, const SyncRequestVoteReply* pMsg) {
 
 // ---- message process SyncAppendEntries----
 SyncAppendEntries* syncAppendEntriesBuild(uint32_t dataLen) {
-  uint32_t           bytes = SYNC_APPEND_ENTRIES_FIX_LEN + dataLen;
+  uint32_t           bytes = sizeof(SyncAppendEntries) + dataLen;
   SyncAppendEntries* pMsg = malloc(bytes);
   memset(pMsg, 0, bytes);
   pMsg->bytes = bytes;
@@ -723,7 +723,26 @@ void syncAppendEntriesSerialize(const SyncAppendEntries* pMsg, char* buf, uint32
 void syncAppendEntriesDeserialize(const char* buf, uint32_t len, SyncAppendEntries* pMsg) {
   memcpy(pMsg, buf, len);
   assert(len == pMsg->bytes);
-  assert(pMsg->bytes == SYNC_APPEND_ENTRIES_FIX_LEN + pMsg->dataLen);
+  assert(pMsg->bytes == sizeof(SyncAppendEntries) + pMsg->dataLen);
+}
+
+char* syncAppendEntriesSerialize2(const SyncAppendEntries* pMsg, uint32_t* len) {
+  char* buf = malloc(pMsg->bytes);
+  assert(buf != NULL);
+  syncAppendEntriesSerialize(pMsg, buf, pMsg->bytes);
+  if (len != NULL) {
+    *len = pMsg->bytes;
+  }
+  return buf;
+}
+
+SyncAppendEntries* syncAppendEntriesDeserialize2(const char* buf, uint32_t len) {
+  uint32_t           bytes = *((uint32_t*)buf);
+  SyncAppendEntries* pMsg = malloc(bytes);
+  assert(pMsg != NULL);
+  syncAppendEntriesDeserialize(buf, len, pMsg);
+  assert(len == pMsg->bytes);
+  return pMsg;
 }
 
 void syncAppendEntries2RpcMsg(const SyncAppendEntries* pMsg, SRpcMsg* pRpcMsg) {
@@ -736,6 +755,11 @@ void syncAppendEntries2RpcMsg(const SyncAppendEntries* pMsg, SRpcMsg* pRpcMsg) {
 
 void syncAppendEntriesFromRpcMsg(const SRpcMsg* pRpcMsg, SyncAppendEntries* pMsg) {
   syncAppendEntriesDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
+}
+
+SyncAppendEntries* syncAppendEntriesFromRpcMsg2(const SRpcMsg* pRpcMsg) {
+  SyncAppendEntries* pMsg = syncAppendEntriesDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  return pMsg;
 }
 
 cJSON* syncAppendEntries2Json(const SyncAppendEntries* pMsg) {
@@ -785,11 +809,51 @@ cJSON* syncAppendEntries2Json(const SyncAppendEntries* pMsg) {
   cJSON_AddStringToObject(pRoot, "commit_index", u64buf);
 
   cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
-  cJSON_AddStringToObject(pRoot, "data", pMsg->data);
+  char* s;
+  s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
+  cJSON_AddStringToObject(pRoot, "data", s);
+  free(s);
+  s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
+  cJSON_AddStringToObject(pRoot, "data2", s);
+  free(s);
 
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SyncAppendEntries", pRoot);
   return pJson;
+}
+
+char* syncAppendEntries2Str(const SyncAppendEntries* pMsg) {
+  cJSON* pJson = syncAppendEntries2Json(pMsg);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
+// for debug ----------------------
+void syncAppendEntriesPrint(const SyncAppendEntries* pMsg) {
+  char* serialized = syncAppendEntries2Str(pMsg);
+  printf("syncAppendEntriesPrint | len:%lu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncAppendEntriesPrint2(char* s, const SyncAppendEntries* pMsg) {
+  char* serialized = syncAppendEntries2Str(pMsg);
+  printf("syncAppendEntriesPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncAppendEntriesLog(const SyncAppendEntries* pMsg) {
+  char* serialized = syncAppendEntries2Str(pMsg);
+  sTrace("syncAppendEntriesLog | len:%lu | %s", strlen(serialized), serialized);
+  free(serialized);
+}
+
+void syncAppendEntriesLog2(char* s, const SyncAppendEntries* pMsg) {
+  char* serialized = syncAppendEntries2Str(pMsg);
+  sTrace("syncAppendEntriesLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  free(serialized);
 }
 
 // ---- message process SyncAppendEntriesReply----
@@ -818,6 +882,25 @@ void syncAppendEntriesReplyDeserialize(const char* buf, uint32_t len, SyncAppend
   assert(len == pMsg->bytes);
 }
 
+char* syncAppendEntriesReplySerialize2(const SyncAppendEntriesReply* pMsg, uint32_t* len) {
+  char* buf = malloc(pMsg->bytes);
+  assert(buf != NULL);
+  syncAppendEntriesReplySerialize(pMsg, buf, pMsg->bytes);
+  if (len != NULL) {
+    *len = pMsg->bytes;
+  }
+  return buf;
+}
+
+SyncAppendEntriesReply* syncAppendEntriesReplyDeserialize2(const char* buf, uint32_t len) {
+  uint32_t                bytes = *((uint32_t*)buf);
+  SyncAppendEntriesReply* pMsg = malloc(bytes);
+  assert(pMsg != NULL);
+  syncAppendEntriesReplyDeserialize(buf, len, pMsg);
+  assert(len == pMsg->bytes);
+  return pMsg;
+}
+
 void syncAppendEntriesReply2RpcMsg(const SyncAppendEntriesReply* pMsg, SRpcMsg* pRpcMsg) {
   memset(pRpcMsg, 0, sizeof(*pRpcMsg));
   pRpcMsg->msgType = pMsg->msgType;
@@ -828,6 +911,11 @@ void syncAppendEntriesReply2RpcMsg(const SyncAppendEntriesReply* pMsg, SRpcMsg* 
 
 void syncAppendEntriesReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncAppendEntriesReply* pMsg) {
   syncAppendEntriesReplyDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
+}
+
+SyncAppendEntriesReply* syncAppendEntriesReplyFromRpcMsg2(const SRpcMsg* pRpcMsg) {
+  SyncAppendEntriesReply* pMsg = syncAppendEntriesReplyDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  return pMsg;
 }
 
 cJSON* syncAppendEntriesReply2Json(const SyncAppendEntriesReply* pMsg) {
@@ -874,4 +962,38 @@ cJSON* syncAppendEntriesReply2Json(const SyncAppendEntriesReply* pMsg) {
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SyncAppendEntriesReply", pRoot);
   return pJson;
+}
+
+char* syncAppendEntriesReply2Str(const SyncAppendEntriesReply* pMsg) {
+  cJSON* pJson = syncAppendEntriesReply2Json(pMsg);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
+// for debug ----------------------
+void syncAppendEntriesReplyPrint(const SyncAppendEntriesReply* pMsg) {
+  char* serialized = syncAppendEntriesReply2Str(pMsg);
+  printf("syncAppendEntriesReplyPrint | len:%lu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncAppendEntriesReplyPrint2(char* s, const SyncAppendEntriesReply* pMsg) {
+  char* serialized = syncAppendEntriesReply2Str(pMsg);
+  printf("syncAppendEntriesReplyPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncAppendEntriesReplyLog(const SyncAppendEntriesReply* pMsg) {
+  char* serialized = syncAppendEntriesReply2Str(pMsg);
+  sTrace("syncAppendEntriesReplyLog | len:%lu | %s", strlen(serialized), serialized);
+  free(serialized);
+}
+
+void syncAppendEntriesReplyLog2(char* s, const SyncAppendEntriesReply* pMsg) {
+  char* serialized = syncAppendEntriesReply2Str(pMsg);
+  sTrace("syncAppendEntriesReplyLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  free(serialized);
 }

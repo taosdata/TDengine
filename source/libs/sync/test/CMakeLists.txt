@@ -17,8 +17,10 @@ add_executable(syncVotesRespondTest "")
 add_executable(syncIndexMgrTest "")
 add_executable(syncLogStoreTest "")
 add_executable(syncEntryTest "")
-add_executable(syncRequestVote "")
-add_executable(syncRequestVoteReply "")
+add_executable(syncRequestVoteTest "")
+add_executable(syncRequestVoteReplyTest "")
+add_executable(syncAppendEntriesTest "")
+add_executable(syncAppendEntriesReplyTest "")
 
 
 target_sources(syncTest
@@ -97,13 +99,21 @@ target_sources(syncEntryTest
     PRIVATE
     "syncEntryTest.cpp"
 )
-target_sources(syncRequestVote
+target_sources(syncRequestVoteTest
     PRIVATE
-    "syncRequestVote.cpp"
+    "syncRequestVoteTest.cpp"
 )
-target_sources(syncRequestVoteReply
+target_sources(syncRequestVoteReplyTest
     PRIVATE
-    "syncRequestVoteReply.cpp"
+    "syncRequestVoteReplyTest.cpp"
+)
+target_sources(syncAppendEntriesTest
+    PRIVATE
+    "syncAppendEntriesTest.cpp"
+)
+target_sources(syncAppendEntriesReplyTest
+    PRIVATE
+    "syncAppendEntriesReplyTest.cpp"
 )
 
 
@@ -202,12 +212,22 @@ target_include_directories(syncEntryTest
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
-target_include_directories(syncRequestVote
+target_include_directories(syncRequestVoteTest
     PUBLIC
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
-target_include_directories(syncRequestVoteReply
+target_include_directories(syncRequestVoteReplyTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncAppendEntriesTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncAppendEntriesReplyTest
     PUBLIC
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
@@ -290,11 +310,19 @@ target_link_libraries(syncEntryTest
     sync
     gtest_main
 )
-target_link_libraries(syncRequestVote
+target_link_libraries(syncRequestVoteTest
     sync
     gtest_main
 )
-target_link_libraries(syncRequestVoteReply
+target_link_libraries(syncRequestVoteReplyTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncAppendEntriesTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncAppendEntriesReplyTest
     sync
     gtest_main
 )
