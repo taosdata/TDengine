@@ -75,18 +75,6 @@ extern "C" {
   #define SO_NO_CHECK              0x1234
   #define SOL_TCP                  0x1234
 
-  #ifndef TCP_KEEPCNT
-  #define TCP_KEEPCNT              0x1234
-  #endif
-
-  #ifndef TCP_KEEPIDLE
-  #define TCP_KEEPIDLE             0x1234
-  #endif
-
-  #ifndef TCP_KEEPINTVL
-  #define TCP_KEEPINTVL            0x1234
-  #endif
-
   #define SHUT_RDWR                SD_BOTH
   #define SHUT_RD                  SD_RECEIVE
   #define SHUT_WR                  SD_SEND
