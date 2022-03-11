@@ -21,6 +21,8 @@ use util::*;
 pub mod future;
 
 pub mod async_query;
+
+pub mod tmq;
 #[derive(Error, Debug)]
 pub struct TaosError {
     pub code: TaosCode,
