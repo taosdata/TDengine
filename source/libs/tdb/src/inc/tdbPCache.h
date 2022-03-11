@@ -31,7 +31,8 @@ extern "C" {
   SPage   *pLruNext;    \
   SPage   *pLruPrev;    \
   SPage   *pDirtyNext;  \
-  SPager  *pPager;
+  SPager  *pPager;      \
+  SPgid    pgid;
 
 int    tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache);
 int    tdbPCacheClose(SPCache *pCache);

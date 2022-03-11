@@ -22,6 +22,7 @@ extern "C" {
 
 typedef u8 SCell;
 
+// Page header
 typedef struct __attribute__((__packed__)) {
   u16 flags;
   u16 nCells;
@@ -30,6 +31,7 @@ typedef struct __attribute__((__packed__)) {
   u16 nFree;
 } SPageHdr;
 
+// Large page header (pageSize >= 65536 (64K))
 typedef struct __attribute__((__packed__)) {
   u16 flags;
   u8  nCells[3];
@@ -48,7 +50,6 @@ struct SPage {
   u8                 szOffset;
   pthread_spinlock_t lock;
   // Fields below used by pager and am
-  SPgid     pgid;
   SPageHdr *pPageHdr;
   SPageFtr *pPageFtr;
   u8       *aCellIdx;
