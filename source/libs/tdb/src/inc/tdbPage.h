@@ -70,6 +70,8 @@ struct SPage {
 };
 
 // Macros
+#define TDB_IS_LARGE_PAGE(pPage) ((pPage)->szOffset == 3)
+
 /* For small page */
 #define TDB_SPAGE_FLAGS(pPage)  (((SPageHdr *)(pPage)->pPageHdr)->flags)
 #define TDB_SPAGE_NCELLS(pPage) (((SPageHdr *)(pPage)->pPageHdr)->nCells)
@@ -83,7 +85,6 @@ struct SPage {
   })
 
 /* For page */
-#define TDB_IS_LARGE_PAGE(pPage) ((pPage)->szOffset == 3)
 #define TDB_PAGE_FLAGS(pPage)    (TDB_IS_LARGE_PAGE(pPage) ? TDB_LPAGE_FLAGS(pPage)) : TDB_SPAGE_FLAGS(pPage))
 #define TDB_PAGE_CELL_OFFSET_AT(pPage, idx)                     \
   (((pPage)->szOffset == 2) ? ((u16 *)((pPage)->aCellIdx))[idx] \
