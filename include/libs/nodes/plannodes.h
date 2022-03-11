@@ -80,6 +80,11 @@ typedef struct SExchangeLogicNode {
   int32_t srcGroupId;
 } SExchangeLogicNode;
 
+typedef struct SWindowLogicNode {
+  SLogicNode node;
+  SNode* pWindow;
+} SWindowLogicNode;
+
 typedef enum ESubplanType {
   SUBPLAN_TYPE_MERGE = 1,
   SUBPLAN_TYPE_PARTIAL,
@@ -190,6 +195,14 @@ typedef struct SExchangePhysiNode {
   int32_t srcGroupId;  // group id of datasource suplans
   SNodeList* pSrcEndPoints;  // element is SDownstreamSource, scheduler fill by calling qSetSuplanExecutionNode
 } SExchangePhysiNode;
+
+typedef struct SIntervalPhysiNode {
+  SPhysiNode node;
+  int64_t interval;
+  int64_t sliding;
+  int64_t offset;
+  SFillNode* pFill;
+} SIntervalPhysiNode;
 
 typedef struct SDataSinkNode {
   ENodeType type;

@@ -257,6 +257,18 @@ static SNodeList* createColumnByRewriteExps(SLogicPlanContext* pCxt, SNodeList* 
   return cxt.pList;
 }
 
+static SLogicNode* createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect) {
+  if (NULL == pSelect->pWindow) {
+    return NULL;
+  }
+
+  SWindowLogicNode* pAgg = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW);
+  CHECK_ALLOC(pAgg, NULL);
+  pAgg->node.id = pCxt->planNodeId++;
+
+
+}
+
 static SLogicNode* createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect) {
   SNodeList* pAggFuncs = NULL;
   CHECK_CODE(nodesCollectFuncs(pSelect, fmIsAggFunc, &pAggFuncs), NULL);
@@ -344,6 +356,9 @@ static SLogicNode* createSelectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   if (TSDB_CODE_SUCCESS == pCxt->errCode && NULL != pSelect->pWhere) {
     pRoot->pConditions = nodesCloneNode(pSelect->pWhere);
     CHECK_ALLOC(pRoot->pConditions, pRoot);
+  }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    pRoot = pushLogicNode(pCxt, pRoot, createWindowLogicNode(pCxt, pSelect));
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     pRoot = pushLogicNode(pCxt, pRoot, createAggLogicNode(pCxt, pSelect));
