@@ -73,8 +73,12 @@ struct SPage {
 #define TDB_IS_LARGE_PAGE(pPage) ((pPage)->szOffset == 3)
 
 /* For small page */
-#define TDB_SPAGE_FLAGS(pPage)  (((SPageHdr *)(pPage)->pPageHdr)->flags)
-#define TDB_SPAGE_NCELLS(pPage) (((SPageHdr *)(pPage)->pPageHdr)->nCells)
+#define TDB_SPAGE_FLAGS(pPage)               (((SPageHdr *)(pPage)->pPageHdr)->flags)
+#define TDB_SPAGE_NCELLS(pPage)              (((SPageHdr *)(pPage)->pPageHdr)->nCells)
+#define TDB_SPAGE_CCELLS(pPage)              (((SPageHdr *)(pPage)->pPageHdr)->cCells)
+#define TDB_SPAGE_FCELL(pPage)               (((SPageHdr *)(pPage)->pPageHdr)->fCell)
+#define TDB_SPAGE_NFREE(pPage)               (((SPageHdr *)(pPage)->pPageHdr)->nFree)
+#define TDB_SPAGE_CELL_OFFSET_AT(pPage, idx) ((u16 *)((pPage)->aCellIdx))[idx]
 
 /* For large page */
 #define TDB_LPAGE_FLAGS(pPage) (((SLPageHdr *)(pPage)->pPageHdr)->flags)
@@ -83,12 +87,35 @@ struct SPage {
     u8 *ptr = ((SLPageHdr *)(pPage)->pPageHdr)->nCells; \
     ptr[0] * 65536 + *(u16 *)(&ptr[1]);                 \
   })
+#define TDB_LPAGE_CCELLS(pPage)                         \
+  ({                                                    \
+    u8 *ptr = ((SLPageHdr *)(pPage)->pPageHdr)->cCells; \
+    ptr[0] * 65536 + *(u16 *)(&ptr[1]);                 \
+  })
+#define TDB_LPAGE_FCELL(pPage)                         \
+  ({                                                   \
+    u8 *ptr = ((SLPageHdr *)(pPage)->pPageHdr)->fCell; \
+    ptr[0] * 65536 + *(u16 *)(&ptr[1]);                \
+  })
+#define TDB_LPAGE_NFREE(pPage)                         \
+  ({                                                   \
+    u8 *ptr = ((SLPageHdr *)(pPage)->pPageHdr)->nFree; \
+    ptr[0] * 65536 + *(u16 *)(&ptr[1]);                \
+  })
+#define TDB_LPAGE_CELL_OFFSET_AT(pPage, idx) \
+  ({                                         \
+    u8 *ptr = (pPage)->aCellIdx + idx * 3;   \
+    ptr[0] * 65536 + *(u16 *)(&ptr[1]);      \
+  })
 
 /* For page */
-#define TDB_PAGE_FLAGS(pPage) (TDB_IS_LARGE_PAGE(pPage) ? TDB_LPAGE_FLAGS(pPage)) : TDB_SPAGE_FLAGS(pPage))
-#define TDB_PAGE_CELL_OFFSET_AT(pPage, idx)                     \
-  (((pPage)->szOffset == 2) ? ((u16 *)((pPage)->aCellIdx))[idx] \
-                            : ((pPage)->aCellIdx[idx * 3] * 65536 + *(u16 *)((pPage)->aCellIdx + idx * 3 + 1)))
+#define TDB_PAGE_FLAGS(pPage)  (TDB_IS_LARGE_PAGE(pPage) ? TDB_LPAGE_FLAGS(pPage)) : TDB_SPAGE_FLAGS(pPage))
+#define TDB_PAGE_NCELLS(pPage) (TDB_IS_LARGE_PAGE(pPage) ? TDB_LPAGE_NCELLS(pPage)) : TDB_SPAGE_NCELLS(pPage))
+#define TDB_PAGE_CCELLS(pPage) (TDB_IS_LARGE_PAGE(pPage) ? TDB_LPAGE_CCELLS(pPage)) : TDB_SPAGE_CCELLS(pPage))
+#define TDB_PAGE_FCELL(pPage)  (TDB_IS_LARGE_PAGE(pPage) ? TDB_LPAGE_FCELL(pPage)) : TDB_SPAGE_FCELL(pPage))
+#define TDB_PAGE_NFREE(pPage)  (TDB_IS_LARGE_PAGE(pPage) ? TDB_LPAGE_NFREE(pPage)) : TDB_SPAGE_NFREE(pPage))
+#define TDB_PAGE_CELL_OFFSET_AT(pPage, idx) \
+  (TDB_IS_LARGE_PAGE(pPage) ? TDB_LPAGE_CELL_OFFSET_AT(pPage, idx) : TDB_SPAGE_CELL_OFFSET_AT(pPage, idx))
 #define TDB_PAGE_CELL_AT(pPage, idx) ((pPage)->pData + TDB_PAGE_CELL_OFFSET_AT(pPage, idx))
 
 // For page lock
