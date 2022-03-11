@@ -24,6 +24,7 @@
 #include "thash.h"
 #include "tlist.h"
 #include "trow.h"
+#include "tname.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -459,7 +460,13 @@ typedef struct {
 
 typedef struct {
   int32_t code;
+  SName   tableName;
 } SQueryTableRsp;
+
+int32_t tSerializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp);
+
+int32_t tDeserializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp);
+
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
@@ -1367,6 +1374,8 @@ typedef struct SVCreateTbReq {
 } SVCreateTbReq, SVUpdateTbReq;
 
 typedef struct {
+  int32_t code;
+  SName   tableName;
 } SVCreateTbRsp, SVUpdateTbRsp;
 
 int32_t tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);

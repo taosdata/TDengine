@@ -161,3 +161,17 @@ int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransp
   rpcSendRequest(pTransporter, epSet, &rpcMsg, pTransporterId);
   return TSDB_CODE_SUCCESS;
 }
+
+
+SSchema createSchema(uint8_t type, int32_t bytes, int32_t colId, const char* name) {
+  SSchema s = {0};
+  s.type  = type;
+  s.bytes = bytes;
+  s.colId = colId;
+
+  tstrncpy(s.name, name, tListLen(s.name));
+  return s;
+}
+
+
+

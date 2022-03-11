@@ -913,12 +913,12 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
   SSdb   *pSdb = pMnode->pSdb;
 
   void *pIter = NULL;
-  while (vindex < pDb->cfg.numOfVgroups) {
+  while (true) {
     SVgObj *pVgroup = NULL;
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
-    if (pVgroup->dbUid == pDb->uid) {
+    if (NULL == pDb || pVgroup->dbUid == pDb->uid) {
       SVgroupInfo vgInfo = {0};
       vgInfo.vgId = pVgroup->vgId;
       vgInfo.hashBegin = pVgroup->hashBegin;
@@ -943,6 +943,10 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
     }
 
     sdbRelease(pSdb, pVgroup);
+    
+    if (pDb && (vindex >= pDb->cfg.numOfVgroups)) {
+      break;
+    }
   }
 
   sdbCancelFetch(pSdb, pIter);
@@ -964,6 +968,20 @@ static int32_t mndProcessUseDbReq(SMnodeMsg *pReq) {
   char *p = strchr(usedbReq.db, '.');
   if (p && 0 == strcmp(p + 1, TSDB_INFORMATION_SCHEMA_DB)) {
     memcpy(usedbRsp.db, usedbReq.db, TSDB_DB_FNAME_LEN);
+    int32_t vgVersion = taosGetTimestampSec() / 300;
+    if (usedbReq.vgVersion < vgVersion) {
+      usedbRsp.pVgroupInfos = taosArrayInit(10, sizeof(SVgroupInfo));
+      if (usedbRsp.pVgroupInfos == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        goto USE_DB_OVER;
+      }
+    
+      mndBuildDBVgroupInfo(NULL, pMnode, usedbRsp.pVgroupInfos);
+      usedbRsp.vgVersion = vgVersion;
+    } else {
+      usedbRsp.vgVersion = usedbReq.vgVersion;
+    }
+    usedbRsp.vgNum = taosArrayGetSize(usedbRsp.pVgroupInfos);    
     code = 0;
   } else {
     pDb = mndAcquireDb(pMnode, usedbReq.db);

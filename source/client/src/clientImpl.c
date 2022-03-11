@@ -229,6 +229,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
       schedulerFreeJob(pRequest->body.queryJob);
     }
 
+    pRequest->errList = res.errList;
     pRequest->code = code;
     return pRequest->code;
   }
@@ -240,9 +241,116 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
       schedulerFreeJob(pRequest->body.queryJob);
     }
   }
-  
+
+  pRequest->errList = res.errList;  
   pRequest->code = res.code;
   return pRequest->code;
+}
+
+SRequestObj* execQueryImpl(STscObj* pTscObj, const char* sql, int sqlLen) {
+  SRequestObj* pRequest = NULL;
+  SQuery* pQuery = NULL;
+  int32_t code = 0;
+  SArray* pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
+
+  CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
+  CHECK_CODE_GOTO(parseSql(pRequest, &pQuery), _return);
+
+  if (pQuery->directRpc) {
+    CHECK_CODE_GOTO(execDdlQuery(pRequest, pQuery), _return);
+  } else {
+    CHECK_CODE_GOTO(getPlan(pRequest, pQuery, &pRequest->body.pDag, pNodeList), _return);
+    CHECK_CODE_GOTO(scheduleQuery(pRequest, pRequest->body.pDag, pNodeList), _return);
+  }
+
+_return:
+  taosArrayDestroy(pNodeList);
+  qDestroyQuery(pQuery);
+  if (NULL != pRequest && TSDB_CODE_SUCCESS != code) {
+    pRequest->code = terrno;
+  }
+
+  return pRequest;
+}
+
+int32_t clientProcessErrorList(SArray **pList) {
+  SArray *errList = *pList;
+  int32_t errNum = (int32_t)taosArrayGetSize(errList);
+  
+  for (int32_t i = 0; i < errNum; ++i) {
+    SQueryErrorInfo *errInfo = taosArrayGet(errList, i);
+    if (TSDB_CODE_VND_HASH_MISMATCH == errInfo->code) {
+      if (i == (errNum - 1)) {
+        break;
+      }
+      
+      // TODO REMOVE SAME DB ERROR
+    } else {
+      taosArrayRemove(errList, i);
+      --i;
+      --errNum;
+    }
+  }
+
+  if (0 == errNum) {
+    taosArrayDestroy(*pList);
+    *pList = NULL;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
+  SRequestObj* pRequest = NULL;
+  int32_t code = 0;
+  bool quit = false;
+
+  while (!quit) {
+    pRequest = execQueryImpl(pTscObj, sql, sqlLen);
+    if (TSDB_CODE_SUCCESS == pRequest->code || NULL == pRequest->errList) {
+      break;
+    }
+
+    code = clientProcessErrorList(&pRequest->errList);
+    if (code != TSDB_CODE_SUCCESS || NULL == pRequest->errList) {
+      break;
+    }
+
+    int32_t errNum = (int32_t)taosArrayGetSize(pRequest->errList);
+    for (int32_t i = 0; i < errNum; ++i) {
+      SQueryErrorInfo *errInfo = taosArrayGet(pRequest->errList, i);
+      
+      if (TSDB_CODE_VND_HASH_MISMATCH == errInfo->code) {
+        SCatalog *pCatalog = NULL;
+        code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
+        if (code != TSDB_CODE_SUCCESS) {
+          quit = true;
+          break;
+        }
+        SEpSet epset = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+
+        char dbFName[TSDB_DB_FNAME_LEN];
+        tNameGetFullDbName(&errInfo->tableName, dbFName);
+        
+        code = catalogRefreshDBVgInfo(pCatalog, pTscObj->pAppInfo->pTransporter, &epset, dbFName);
+        if (code != TSDB_CODE_SUCCESS) {
+          quit = true;
+          break;
+        }
+      }
+    }
+
+    if (!quit) {
+      destroyRequest(pRequest);
+    }
+  }
+
+  if (code) {
+    pRequest->code = code;
+  }
+  
+  return pRequest;
 }
 
 TAOS_RES* taos_query_l(TAOS* taos, const char* sql, int sqlLen) {
@@ -253,30 +361,7 @@ TAOS_RES* taos_query_l(TAOS* taos, const char* sql, int sqlLen) {
     return NULL;
   }
 
-  SRequestObj* pRequest = NULL;
-  SQuery* pQuery = NULL;
-  SArray* pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
-
-  terrno = TSDB_CODE_SUCCESS;
-  CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
-  CHECK_CODE_GOTO(parseSql(pRequest, &pQuery), _return);
-
-  if (pQuery->directRpc) {
-    CHECK_CODE_GOTO(execDdlQuery(pRequest, pQuery), _return);
-  } else {
-    CHECK_CODE_GOTO(getPlan(pRequest, pQuery, &pRequest->body.pDag, pNodeList), _return);
-    CHECK_CODE_GOTO(scheduleQuery(pRequest, pRequest->body.pDag, pNodeList), _return);
-    pRequest->code = terrno;
-  }
-
-_return:
-  taosArrayDestroy(pNodeList);
-  qDestroyQuery(pQuery);
-  if (NULL != pRequest && TSDB_CODE_SUCCESS != terrno) {
-    pRequest->code = terrno;
-  }
-
-  return pRequest;
+  return execQuery(pTscObj, sql, sqlLen);
 }
 
 int initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet) {
@@ -395,7 +480,7 @@ static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   tfree(pMsgBody);
 }
 bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType) {
-  return msgType == TDMT_VND_QUERY_RSP || msgType == TDMT_VND_FETCH_RSP || msgType == TDMT_VND_RES_READY_RSP;
+  return msgType == TDMT_VND_QUERY_RSP || msgType == TDMT_VND_FETCH_RSP || msgType == TDMT_VND_RES_READY_RSP || msgType == TDMT_VND_QUERY_HEARTBEAT_RSP;
 }
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->ahandle;
@@ -406,7 +491,6 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     assert(pRequest->self == pSendInfo->requestObjRefId);
 
     pRequest->metric.rsp = taosGetTimestampMs();
-    pRequest->code = pMsg->code;
 
     STscObj* pTscObj = pRequest->pTscObj;
     if (pEpSet) {

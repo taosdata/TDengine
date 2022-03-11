@@ -199,20 +199,27 @@ static SNodeptr createPrimaryKeyCol(SPhysiPlanContext* pCxt, uint64_t tableId) {
 }
 
 static int32_t createScanCols(SPhysiPlanContext* pCxt, SScanPhysiNode* pScanPhysiNode, SNodeList* pScanCols) {
-  pScanPhysiNode->pScanCols = nodesMakeList();
-  CHECK_ALLOC(pScanPhysiNode->pScanCols, TSDB_CODE_OUT_OF_MEMORY);
-  CHECK_CODE_EXT(nodesListStrictAppend(pScanPhysiNode->pScanCols, createPrimaryKeyCol(pCxt, pScanPhysiNode->uid)));
+  if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pScanPhysiNode)
+      || QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN == nodeType(pScanPhysiNode)) {
+    pScanPhysiNode->pScanCols = nodesMakeList();
+    CHECK_ALLOC(pScanPhysiNode->pScanCols, TSDB_CODE_OUT_OF_MEMORY);
+    CHECK_CODE_EXT(nodesListStrictAppend(pScanPhysiNode->pScanCols, createPrimaryKeyCol(pCxt, pScanPhysiNode->uid)));
 
-  SNode* pNode;
-  FOREACH(pNode, pScanCols) {
-    if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) {
-      SColumnNode* pCol = nodesListGetNode(pScanPhysiNode->pScanCols, 0);
-      strcpy(pCol->tableAlias, ((SColumnNode*)pNode)->tableAlias);
-      strcpy(pCol->colName, ((SColumnNode*)pNode)->colName);
-      continue;
+    SNode* pNode;
+    FOREACH(pNode, pScanCols) {
+      if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) {
+        SColumnNode* pCol = nodesListGetNode(pScanPhysiNode->pScanCols, 0);
+        strcpy(pCol->tableAlias, ((SColumnNode*)pNode)->tableAlias);
+        strcpy(pCol->colName, ((SColumnNode*)pNode)->colName);
+        continue;
+      }
+      CHECK_CODE_EXT(nodesListStrictAppend(pScanPhysiNode->pScanCols, nodesCloneNode(pNode)));
     }
-    CHECK_CODE_EXT(nodesListStrictAppend(pScanPhysiNode->pScanCols, nodesCloneNode(pNode)));
+  } else {
+    pScanPhysiNode->pScanCols = nodesCloneList(pScanCols);
+    CHECK_ALLOC(pScanPhysiNode->pScanCols, TSDB_CODE_OUT_OF_MEMORY);
   }
+
   return TSDB_CODE_SUCCESS;
 }
 

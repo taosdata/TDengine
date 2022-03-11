@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "tcommon.h"
+#include "query.h"
 
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
@@ -30,6 +31,7 @@ struct SSubplan;
 typedef struct SReadHandle {
   void* reader;
   void* meta;
+  void* config;
 } SReadHandle;
 
  /**
@@ -67,7 +69,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, SArray* tableIdList, bool isA
   * @param qId
   * @return
   */
-int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, struct SSubplan* pPlan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle);
+int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, struct SSubplan* pPlan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, SQueryErrorInfo *errInfo);
 
 /**
  * The main task execution function, including query on both table and multiple tables,

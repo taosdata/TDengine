@@ -106,7 +106,7 @@ typedef struct SSubLogicPlan {
 } SSubLogicPlan;
 
 typedef struct SQueryLogicPlan {
-  ENodeType type;;
+  ENodeType type;
   int32_t totalLevel;
   SNodeList* pTopSubplans;
 } SQueryLogicPlan;

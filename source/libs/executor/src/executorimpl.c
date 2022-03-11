@@ -8136,7 +8136,7 @@ static int32_t doCreateTableGroup(void* metaHandle, int32_t tableType, uint64_t 
 static SArray* extractTableIdList(const STableGroupInfo* pTableGroupInfo);
 static SArray* extractScanColumnId(SNodeList* pNodeList);
 
-SOperatorInfo* doCreateOperatorTreeNode(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, uint64_t queryId, uint64_t taskId, STableGroupInfo* pTableGroupInfo) {
+SOperatorInfo* doCreateOperatorTreeNode(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, uint64_t queryId, uint64_t taskId, STableGroupInfo* pTableGroupInfo, SQueryErrorInfo *errInfo) {
   if (nodeType(pPhyNode) == QUERY_NODE_PHYSICAL_PLAN_PROJECT) { // ignore the project node
     pPhyNode = nodesListGetNode(pPhyNode->pChildren, 0);
   }
@@ -8144,6 +8144,18 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhysiNode* pPhyNode, SExecTaskInfo* pTa
   if (pPhyNode->pChildren == NULL || LIST_LENGTH(pPhyNode->pChildren) == 0) {
     if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pPhyNode)) {
       SScanPhysiNode* pScanPhyNode = (SScanPhysiNode*)pPhyNode;
+
+      if (TSDB_SUPER_TABLE != pScanPhyNode->tableType) {
+        char tableFName[TSDB_TABLE_FNAME_LEN];
+        tNameExtractFullName(&pScanPhyNode->tableName, tableFName);
+        
+        int32_t code = vnodeValidateTableHash(pHandle->config, tableFName);
+        if (code) {
+          errInfo->code = code;
+          errInfo->tableName = pScanPhyNode->tableName;
+          return NULL;
+        }
+      }
 
       size_t      numOfCols = LIST_LENGTH(pScanPhyNode->pScanCols);
       tsdbReaderT pDataReader = doCreateDataReader((STableScanPhysiNode*)pPhyNode, pHandle, (uint64_t)queryId, taskId);
@@ -8187,7 +8199,10 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhysiNode* pPhyNode, SExecTaskInfo* pTa
 
     for (int32_t i = 0; i < size; ++i) {
       SPhysiNode*    pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, i);
-      SOperatorInfo* op = doCreateOperatorTreeNode(pChildNode, pTaskInfo, pHandle, queryId, taskId, pTableGroupInfo);
+      SOperatorInfo* op = doCreateOperatorTreeNode(pChildNode, pTaskInfo, pHandle, queryId, taskId, pTableGroupInfo, errInfo);
+      if (errInfo->code) {
+        return NULL;
+      }
 
       SArray* pExprInfo = createExprInfo((SAggPhysiNode*)pPhyNode);
       SSDataBlock* pResBlock = createOutputBuf_rv1(pPhyNode->pOutputDataBlockDesc);
@@ -8306,7 +8321,7 @@ tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle*
   return NULL;
 }
 
-int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId) {
+int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId, SQueryErrorInfo *errInfo) {
   uint64_t queryId = pPlan->id.queryId;
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -8317,7 +8332,12 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
   }
 
   STableGroupInfo group = {0};
-  (*pTaskInfo)->pRoot = doCreateOperatorTreeNode(pPlan->pNode, *pTaskInfo, pHandle, queryId, taskId, &group);
+  (*pTaskInfo)->pRoot = doCreateOperatorTreeNode(pPlan->pNode, *pTaskInfo, pHandle, queryId, taskId, &group, errInfo);
+  if (errInfo->code) {
+  	code = errInfo->code;
+    goto _complete;
+  }
+  
   if ((*pTaskInfo)->pRoot == NULL) {
     code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _complete;
