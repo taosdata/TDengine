@@ -93,6 +93,15 @@ SyncTimeout* syncTimeoutBuild() {
   return pMsg;
 }
 
+SyncTimeout* syncTimeoutBuild2(ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS, void* data) {
+  SyncTimeout* pMsg = syncTimeoutBuild();
+  pMsg->timeoutType = timeoutType;
+  pMsg->logicClock = logicClock;
+  pMsg->timerMS = timerMS;
+  pMsg->data = data;
+  return pMsg;
+}
+
 void syncTimeoutDestroy(SyncTimeout* pMsg) {
   if (pMsg != NULL) {
     free(pMsg);
@@ -109,6 +118,25 @@ void syncTimeoutDeserialize(const char* buf, uint32_t len, SyncTimeout* pMsg) {
   assert(len == pMsg->bytes);
 }
 
+char* syncTimeoutSerialize2(const SyncTimeout* pMsg, uint32_t* len) {
+  char* buf = malloc(pMsg->bytes);
+  assert(buf != NULL);
+  syncTimeoutSerialize(pMsg, buf, pMsg->bytes);
+  if (len != NULL) {
+    *len = pMsg->bytes;
+  }
+  return buf;
+}
+
+SyncTimeout* syncTimeoutDeserialize2(const char* buf, uint32_t len) {
+  uint32_t     bytes = *((uint32_t*)buf);
+  SyncTimeout* pMsg = malloc(bytes);
+  assert(pMsg != NULL);
+  syncTimeoutDeserialize(buf, len, pMsg);
+  assert(len == pMsg->bytes);
+  return pMsg;
+}
+
 void syncTimeout2RpcMsg(const SyncTimeout* pMsg, SRpcMsg* pRpcMsg) {
   memset(pRpcMsg, 0, sizeof(*pRpcMsg));
   pRpcMsg->msgType = pMsg->msgType;
@@ -119,6 +147,11 @@ void syncTimeout2RpcMsg(const SyncTimeout* pMsg, SRpcMsg* pRpcMsg) {
 
 void syncTimeoutFromRpcMsg(const SRpcMsg* pRpcMsg, SyncTimeout* pMsg) {
   syncTimeoutDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
+}
+
+SyncTimeout* syncTimeoutFromRpcMsg2(const SRpcMsg* pRpcMsg) {
+  SyncTimeout* pMsg = syncTimeoutDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  return pMsg;
 }
 
 cJSON* syncTimeout2Json(const SyncTimeout* pMsg) {
@@ -139,13 +172,38 @@ cJSON* syncTimeout2Json(const SyncTimeout* pMsg) {
   return pJson;
 }
 
-SyncTimeout* syncTimeoutBuild2(ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS, void* data) {
-  SyncTimeout* pMsg = syncTimeoutBuild();
-  pMsg->timeoutType = timeoutType;
-  pMsg->logicClock = logicClock;
-  pMsg->timerMS = timerMS;
-  pMsg->data = data;
-  return pMsg;
+char* syncTimeout2Str(const SyncTimeout* pMsg) {
+  cJSON* pJson = syncTimeout2Json(pMsg);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
+// for debug ----------------------
+void syncTimeoutPrint(const SyncTimeout* pMsg) {
+  char* serialized = syncTimeout2Str(pMsg);
+  printf("syncTimeoutPrint | len:%lu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncTimeoutPrint2(char* s, const SyncTimeout* pMsg) {
+  char* serialized = syncTimeout2Str(pMsg);
+  printf("syncTimeoutPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncTimeoutLog(const SyncTimeout* pMsg) {
+  char* serialized = syncTimeout2Str(pMsg);
+  sTrace("syncTimeoutLog | len:%lu | %s", strlen(serialized), serialized);
+  free(serialized);
+}
+
+void syncTimeoutLog2(char* s, const SyncTimeout* pMsg) {
+  char* serialized = syncTimeout2Str(pMsg);
+  sTrace("syncTimeoutLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  free(serialized);
 }
 
 // ---- message process SyncPing----
@@ -359,6 +417,15 @@ SyncClientRequest* syncClientRequestBuild(uint32_t dataLen) {
   return pMsg;
 }
 
+SyncClientRequest* syncClientRequestBuild2(const SRpcMsg* pOriginalRpcMsg, uint64_t seqNum, bool isWeak) {
+  SyncClientRequest* pMsg = syncClientRequestBuild(pOriginalRpcMsg->contLen);
+  pMsg->originalRpcType = pOriginalRpcMsg->msgType;
+  pMsg->seqNum = seqNum;
+  pMsg->isWeak = isWeak;
+  memcpy(pMsg->data, pOriginalRpcMsg->pCont, pOriginalRpcMsg->contLen);
+  return pMsg;
+}
+
 void syncClientRequestDestroy(SyncClientRequest* pMsg) {
   if (pMsg != NULL) {
     free(pMsg);
@@ -375,6 +442,25 @@ void syncClientRequestDeserialize(const char* buf, uint32_t len, SyncClientReque
   assert(len == pMsg->bytes);
 }
 
+char* syncClientRequestSerialize2(const SyncClientRequest* pMsg, uint32_t* len) {
+  char* buf = malloc(pMsg->bytes);
+  assert(buf != NULL);
+  syncClientRequestSerialize(pMsg, buf, pMsg->bytes);
+  if (len != NULL) {
+    *len = pMsg->bytes;
+  }
+  return buf;
+}
+
+SyncClientRequest* syncClientRequestDeserialize2(const char* buf, uint32_t len) {
+  uint32_t           bytes = *((uint32_t*)buf);
+  SyncClientRequest* pMsg = malloc(bytes);
+  assert(pMsg != NULL);
+  syncClientRequestDeserialize(buf, len, pMsg);
+  assert(len == pMsg->bytes);
+  return pMsg;
+}
+
 void syncClientRequest2RpcMsg(const SyncClientRequest* pMsg, SRpcMsg* pRpcMsg) {
   memset(pRpcMsg, 0, sizeof(*pRpcMsg));
   pRpcMsg->msgType = pMsg->msgType;
@@ -385,6 +471,11 @@ void syncClientRequest2RpcMsg(const SyncClientRequest* pMsg, SRpcMsg* pRpcMsg) {
 
 void syncClientRequestFromRpcMsg(const SRpcMsg* pRpcMsg, SyncClientRequest* pMsg) {
   syncClientRequestDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
+}
+
+SyncClientRequest* syncClientRequestFromRpcMsg2(const SRpcMsg* pRpcMsg) {
+  SyncClientRequest* pMsg = syncClientRequestDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  return pMsg;
 }
 
 cJSON* syncClientRequest2Json(const SyncClientRequest* pMsg) {
@@ -399,18 +490,51 @@ cJSON* syncClientRequest2Json(const SyncClientRequest* pMsg) {
   cJSON_AddNumberToObject(pRoot, "isWeak", pMsg->isWeak);
   cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
 
+  char* s;
+  s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
+  cJSON_AddStringToObject(pRoot, "data", s);
+  free(s);
+  s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
+  cJSON_AddStringToObject(pRoot, "data2", s);
+  free(s);
+
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SyncClientRequest", pRoot);
   return pJson;
 }
 
-SyncClientRequest* syncClientRequestBuild2(const SRpcMsg* pOriginalRpcMsg, uint64_t seqNum, bool isWeak) {
-  SyncClientRequest* pMsg = syncClientRequestBuild(pOriginalRpcMsg->contLen);
-  pMsg->originalRpcType = pOriginalRpcMsg->msgType;
-  pMsg->seqNum = seqNum;
-  pMsg->isWeak = isWeak;
-  memcpy(pMsg->data, pOriginalRpcMsg->pCont, pOriginalRpcMsg->contLen);
-  return pMsg;
+char* syncClientRequest2Str(const SyncClientRequest* pMsg) {
+  cJSON* pJson = syncClientRequest2Json(pMsg);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
+// for debug ----------------------
+void syncClientRequestPrint(const SyncClientRequest* pMsg) {
+  char* serialized = syncClientRequest2Str(pMsg);
+  printf("syncClientRequestPrint | len:%lu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncClientRequestPrint2(char* s, const SyncClientRequest* pMsg) {
+  char* serialized = syncClientRequest2Str(pMsg);
+  printf("syncClientRequestPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncClientRequestLog(const SyncClientRequest* pMsg) {
+  char* serialized = syncClientRequest2Str(pMsg);
+  sTrace("syncClientRequestLog | len:%lu | %s", strlen(serialized), serialized);
+  free(serialized);
+}
+
+void syncClientRequestLog2(char* s, const SyncClientRequest* pMsg) {
+  char* serialized = syncClientRequest2Str(pMsg);
+  sTrace("syncClientRequestLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  free(serialized);
 }
 
 // ---- message process SyncRequestVote----

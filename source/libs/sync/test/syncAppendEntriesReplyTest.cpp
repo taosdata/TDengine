@@ -32,12 +32,13 @@ void test1() {
 
 void test2() {
   SyncAppendEntriesReply *pMsg = createMsg();
-  uint32_t              len = pMsg->bytes;
-  char *                serialized = (char *)malloc(len);
+  uint32_t                len = pMsg->bytes;
+  char *                  serialized = (char *)malloc(len);
   syncAppendEntriesReplySerialize(pMsg, serialized, len);
   SyncAppendEntriesReply *pMsg2 = syncAppendEntriesReplyBuild();
   syncAppendEntriesReplyDeserialize(serialized, len, pMsg2);
-  syncAppendEntriesReplyPrint2((char *)"test2: syncAppendEntriesReplySerialize -> syncAppendEntriesReplyDeserialize ", pMsg2);
+  syncAppendEntriesReplyPrint2((char *)"test2: syncAppendEntriesReplySerialize -> syncAppendEntriesReplyDeserialize ",
+                               pMsg2);
 
   free(serialized);
   syncAppendEntriesReplyDestroy(pMsg);
@@ -46,11 +47,11 @@ void test2() {
 
 void test3() {
   SyncAppendEntriesReply *pMsg = createMsg();
-  uint32_t              len;
-  char *                serialized = syncAppendEntriesReplySerialize2(pMsg, &len);
+  uint32_t                len;
+  char *                  serialized = syncAppendEntriesReplySerialize2(pMsg, &len);
   SyncAppendEntriesReply *pMsg2 = syncAppendEntriesReplyDeserialize2(serialized, len);
   syncAppendEntriesReplyPrint2((char *)"test3: syncAppendEntriesReplySerialize3 -> syncAppendEntriesReplyDeserialize2 ",
-                             pMsg2);
+                               pMsg2);
 
   free(serialized);
   syncAppendEntriesReplyDestroy(pMsg);
@@ -59,11 +60,12 @@ void test3() {
 
 void test4() {
   SyncAppendEntriesReply *pMsg = createMsg();
-  SRpcMsg               rpcMsg;
+  SRpcMsg                 rpcMsg;
   syncAppendEntriesReply2RpcMsg(pMsg, &rpcMsg);
   SyncAppendEntriesReply *pMsg2 = syncAppendEntriesReplyBuild();
   syncAppendEntriesReplyFromRpcMsg(&rpcMsg, pMsg2);
-  syncAppendEntriesReplyPrint2((char *)"test4: syncAppendEntriesReply2RpcMsg -> syncAppendEntriesReplyFromRpcMsg ", pMsg2);
+  syncAppendEntriesReplyPrint2((char *)"test4: syncAppendEntriesReply2RpcMsg -> syncAppendEntriesReplyFromRpcMsg ",
+                               pMsg2);
 
   syncAppendEntriesReplyDestroy(pMsg);
   syncAppendEntriesReplyDestroy(pMsg2);
@@ -71,10 +73,11 @@ void test4() {
 
 void test5() {
   SyncAppendEntriesReply *pMsg = createMsg();
-  SRpcMsg               rpcMsg;
+  SRpcMsg                 rpcMsg;
   syncAppendEntriesReply2RpcMsg(pMsg, &rpcMsg);
   SyncAppendEntriesReply *pMsg2 = syncAppendEntriesReplyFromRpcMsg2(&rpcMsg);
-  syncAppendEntriesReplyPrint2((char *)"test5: syncAppendEntriesReply2RpcMsg -> syncAppendEntriesReplyFromRpcMsg2 ", pMsg2);
+  syncAppendEntriesReplyPrint2((char *)"test5: syncAppendEntriesReply2RpcMsg -> syncAppendEntriesReplyFromRpcMsg2 ",
+                               pMsg2);
 
   syncAppendEntriesReplyDestroy(pMsg);
   syncAppendEntriesReplyDestroy(pMsg2);
