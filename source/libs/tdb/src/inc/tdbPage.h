@@ -23,12 +23,20 @@ extern "C" {
 typedef u8 SCell;
 
 typedef struct __attribute__((__packed__)) {
-  u16   flags;
-  u16   nCells;
-  u16   cellCont;
-  u16   freeCell;
-  u16   nFree;
+  u16 flags;
+  u16 nCells;
+  u16 cellCont;
+  u16 freeCell;
+  u16 nFree;
 } SPageHdr;
+
+typedef struct __attribute__((__packed__)) {
+  u16 flags;
+  u8  nCells[3];
+  u8  cellCont[3];
+  u8  freeCell[3];
+  u8  nFree[3];
+} SPageHdrL;
 
 typedef struct __attribute__((__packed__)) {
   u8 cksm[4];
