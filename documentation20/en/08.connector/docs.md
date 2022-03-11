@@ -22,7 +22,7 @@ Note: ● stands for that has been verified by official tests; ○ stands for th
 Note:
 
 - To access the TDengine database through connectors (except RESTful) in the system without TDengine server software, it is necessary to install the corresponding version of the client installation package to make the application driver (the file name is libtaos.so in Linux system and taos.dll in Windows system) installed in the system, otherwise, the error that the corresponding library file cannot be found will occur.
-- All APIs that execute SQL statements, such as `tao_query()`, `taos_query_a()`, `taos_subscribe()` in C/C++ Connector, and APIs corresponding to them in other languages, can only execute one SQL statement at a time. If the actual parameters contain multiple statements, their behavior is undefined.
+- All APIs that execute SQL statements, such as `taos_query()`, `taos_query_a()`, `taos_subscribe()` in C/C++ connector, and APIs corresponding to them in other languages, can only execute one SQL statement at a time. If the actual parameters contain multiple statements, their behavior is undefined.
 - Users upgrading to TDengine 2.0. 8.0 must update the JDBC connection. TDengine must upgrade taos-jdbcdriver to 2.0.12 and above.
 - No matter which programming language connector is selected, TDengine version 2.0 and above recommends that each thread of database application establish an independent connection or establish a connection pool based on threads to avoid mutual interference between threads of "USE statement" state variables in the connection (but query and write operations of the connection are thread-safe).
 
@@ -346,6 +346,108 @@ Gets the result set of the statement. The result set is used in the same way as 
 - `int taos_stmt_close(TAOS_STMT *stmt)`
 
 Execution completed, release all resources.
+
+- `char * taos_stmt_errstr(TAOS_STMT *stmt)`
+
+Gets the error message if any stmt API returns error.
+
+<a class="anchor" id="schemaless"></a>
+### Schemaless writing API
+
+In addition to writing data using SQL or using the parameter binding API, writing can also be done using Schemaless, which eliminates the need to create a super table/data sub-table data structure in advance and writes data directly, while the TDengine system automatically creates and maintains the required table structure based on the written data content. The use of Schemaless is described in the Schemaless Writing section, and the C/C++ API used with it is described here.
+
+- `TAOS_RES* taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, int precision)`
+
+  **Function Description**
+
+  This interface writes the text data of the line protocol to TDengine.
+
+  **Parameter Description**
+
+  taos: database connection, the database connection established by taos_connect function.
+
+  lines: text data. A pattern-free text string that meets the parsing format requirements.
+
+  numLines: the number of lines of the text data, cannot be 0.
+
+  protocol: the protocol type of the lines, used to identify the format of the text data.
+
+  precision: precision string of the timestamp in the text data.
+
+  **Return Value**
+
+  TAOS_RES structure, the application can get the error message by using taos_errstr and also get the error code by using taos_errno.
+
+  In some cases, the returned TAOS_RES is NULL, in which case taos_errno can still be called to safely get the error code information.
+
+  The returned TAOS_RES needs to be freed by the caller, otherwise a memory leak will occur.
+
+  **Description**
+
+  The protocol type is enumerated and contains the following three formats.
+
+  TSDB_SML_LINE_PROTOCOL: InfluxDB line protocol (Line Protocol)
+
+  TSDB_SML_TELNET_PROTOCOL: OpenTSDB Text Line Protocol
+
+  TSDB_SML_JSON_PROTOCOL: OpenTSDB JSON protocol format
+
+  The timestamp resolution is defined in the taos.h file, as follows
+
+  TSDB_SML_TIMESTAMP_NOT_CONFIGURED = 0,
+
+  TSDB_SML_TIMESTAMP_HOURS,
+
+  TSDB_SML_TIMESTAMP_MINUTES,
+
+  TSDB_SML_TIMESTAMP_SECONDS,
+
+  TSDB_SML_TIMESTAMP_MILLI_SECONDS,
+
+  TSDB_SML_TIMESTAMP_MICRO_SECONDS,
+
+  TSDB_SML_TIMESTAMP_NANO_SECONDS
+
+  Note that the timestamp resolution parameter only takes effect when the protocol type is SML_LINE_PROTOCOL.
+
+  For OpenTSDB text protocols, the timestamp resolution follows the official resolution rules - the time precision is determined by the number of characters contained in the timestamp.
+
+  **Supported versions**
+
+  This functional interface is supported since version 2.3.0.0.
+
+```c
+#include <stdlib.h>
+#include <stdio.h>
+#include <taos.h>
+ 
+int main() {
+  const char* host = "127.0.0.1";
+  const char* user = "root";
+  const char* passwd = "taosdata";
+
+  // connect to server
+  TAOS* taos = taos_connect(host, user, passwd, "test", 0);
+   
+  // prepare the line string
+  char* lines1[] = {
+      "stg,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
+      "stg,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833641000000"
+  };
+ 
+  // schema-less insert
+  TAOS_RES* res = taos_schemaless_insert(taos, lines1, 2, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  if (taos_errno(res) != 0) {
+    printf("failed to insert schema-less data, reason: %s\n", taos_errstr(res));
+  }
+ 
+  taos_free_result(res);
+ 
+  // close the connection
+  taos_close(taos);
+  return (code);
+}
+```
 
 ### Continuous query interface
 

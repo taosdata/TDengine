@@ -211,6 +211,14 @@ typedef struct {
   };
 } SDiffFuncInfo;
 
+
+typedef struct {
+  union {
+    int64_t countPrev;
+    int64_t durationStart;
+  };
+} SStateInfo;
+
 typedef struct {
   double lower; // >lower
   double upper; // <=upper
@@ -316,6 +324,13 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *type = TSDB_DATA_TYPE_DOUBLE;
     *bytes = sizeof(double);  // this results is compressed ts data, only one byte
     *interBytes = sizeof(SDerivInfo);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (functionId == TSDB_FUNC_STATE_COUNT || functionId == TSDB_FUNC_STATE_DURATION) {
+    *type = TSDB_DATA_TYPE_BIGINT;
+    *bytes = sizeof(int64_t);
+    *interBytes = sizeof(SStateInfo);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -623,6 +638,76 @@ int32_t isValidFunction(const char* name, int32_t len) {
     }
   }
   return -1;
+}
+
+bool isValidStateOper(char *oper, int32_t len){
+  return strncmp(oper, "lt", len) == 0 || strncmp(oper, "gt", len) == 0 || strncmp(oper, "le", len) == 0 ||
+         strncmp(oper, "ge", len) == 0 || strncmp(oper, "ne", len) == 0 || strncmp(oper, "eq", len) == 0;
+}
+
+#define STATEOPER(OPER, COMP, TYPE) if (strncmp(oper->pz, OPER, oper->nLen) == 0) {\
+if (pVar->nType == TSDB_DATA_TYPE_BIGINT && *(TYPE)data COMP pVar->i64) return true;\
+else if(pVar->nType == TSDB_DATA_TYPE_DOUBLE && *(TYPE)data COMP pVar->dKey) return true;\
+else return false;}
+
+#define STATEJUDGE(TYPE) STATEOPER("lt", <, TYPE)\
+STATEOPER("gt", >, TYPE)\
+STATEOPER("le", <=, TYPE)\
+STATEOPER("ge", >=, TYPE)\
+STATEOPER("ne", !=, TYPE)\
+STATEOPER("eq", ==, TYPE)
+
+static bool isStateOperTrue(void *data, int16_t type, tVariant *oper, tVariant *pVar){
+  switch (type) {
+    case TSDB_DATA_TYPE_INT: {
+      STATEJUDGE(int32_t *)
+      break;
+    }
+    case TSDB_DATA_TYPE_UINT: {
+      STATEJUDGE(uint32_t *)
+      break;
+    }
+
+    case TSDB_DATA_TYPE_BIGINT: {
+      STATEJUDGE(int64_t *)
+      break;
+    }case TSDB_DATA_TYPE_UBIGINT: {
+      STATEJUDGE(uint64_t *)
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      STATEJUDGE(double *)
+      break;
+    }
+
+    case TSDB_DATA_TYPE_FLOAT: {
+      STATEJUDGE(float *)
+      break;
+    }
+
+    case TSDB_DATA_TYPE_SMALLINT: {
+      STATEJUDGE(int16_t *)
+      break;
+    }
+
+    case TSDB_DATA_TYPE_USMALLINT: {
+      STATEJUDGE(uint16_t *)
+      break;
+    }
+
+    case TSDB_DATA_TYPE_TINYINT: {
+      STATEJUDGE(int8_t *)
+      break;
+    }
+
+    case TSDB_DATA_TYPE_UTINYINT: {
+      STATEJUDGE(uint8_t *)
+      break;
+    }
+    default:
+      qError("error input type");
+  }
+  return false;
 }
 
 static bool function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResultInfo) {
@@ -5164,7 +5249,7 @@ static void copyRes(SQLFunctionCtx *pCtx, void *data, int32_t bytes) {
   char *tsOutput = pCtx->ptsOutputBuf;
   char *output = pCtx->pOutput;
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->param[3].i64);
-  char *tvp = data + (size * ((pCtx->param[3].i64 == TSDB_ORDER_ASC) ? 0 : len -1));
+  char *tvp = (char*)data + (size * ((pCtx->param[3].i64 == TSDB_ORDER_ASC) ? 0 : len -1));
   for (int32_t i = 0; i < len; ++i) {
     memcpy(tsOutput, tvp, sizeof(int64_t));
     memcpy(output, tvp + sizeof(int64_t), bytes);
@@ -5184,7 +5269,7 @@ static void copyRes(SQLFunctionCtx *pCtx, void *data, int32_t bytes) {
     pData[i] = pCtx->tagInfo.pTagCtxList[i]->pOutput;
   }
 
-  tvp = data + (size * ((pCtx->param[3].i64 == TSDB_ORDER_ASC) ? 0 : len -1));
+  tvp = (char*)data + (size * ((pCtx->param[3].i64 == TSDB_ORDER_ASC) ? 0 : len -1));
   for (int32_t i = 0; i < len; ++i) {
     int32_t offset = (int32_t)sizeof(int64_t) + bytes;
     for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
@@ -5317,7 +5402,7 @@ static void unique_func_finalizer(SQLFunctionCtx *pCtx) {
   }
   SortSupporter support = {0};
   // user specify the order of output by sort the result according to timestamp
-  if (pCtx->param[2].i64 == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+  if (pCtx->param[2].i64 == PRIMARYKEY_TIMESTAMP_COL_INDEX || pCtx->param[2].i64 == TSDB_RES_COL_ID) {
     support.dataOffset = 0;
     support.comparFn = compareInt64Val;
   } else{
@@ -5596,7 +5681,7 @@ static void tail_func_finalizer(SQLFunctionCtx *pCtx) {
   }
 
 //  if(pCtx->stableQuery){
-    GET_RES_INFO(pCtx)->numOfRes = pRes->num - pCtx->param[1].i64;
+    GET_RES_INFO(pCtx)->numOfRes = pRes->num - (int32_t)pCtx->param[1].i64;
 //  }else{
 //    GET_RES_INFO(pCtx)->numOfRes = pRes->num;
 //  }
@@ -5611,12 +5696,12 @@ static void tail_func_finalizer(SQLFunctionCtx *pCtx) {
     return;
   }
   for(int32_t i = 0; i < GET_RES_INFO(pCtx)->numOfRes; i++){
-    memcpy(data + i * size, pRes->res[i], size);
+    memcpy((char*)data + i * size, pRes->res[i], size);
   }
 
   SortSupporter support = {0};
   // user specify the order of output by sort the result according to timestamp
-  if (pCtx->param[2].i64 != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+  if (pCtx->param[2].i64 != PRIMARYKEY_TIMESTAMP_COL_INDEX && pCtx->param[2].i64 != TSDB_RES_COL_ID) {
     support.dataOffset = sizeof(int64_t);
     support.comparFn = getComparFunc(type, 0);
     taosqsort(data, (size_t)GET_RES_INFO(pCtx)->numOfRes, size, &support, sortCompareFn);
@@ -5625,6 +5710,71 @@ static void tail_func_finalizer(SQLFunctionCtx *pCtx) {
   copyRes(pCtx, data, bytes);
   free(data);
   doFinalizer(pCtx);
+}
+
+
+static void state_count_function(SQLFunctionCtx *pCtx) {
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  SStateInfo *pStateInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  void *data = GET_INPUT_DATA_LIST(pCtx);
+  int64_t *pOutput = (int64_t *)pCtx->pOutput;
+
+  for (int32_t i = 0; i < pCtx->size;  i++,pOutput++,data += pCtx->inputBytes) {
+    if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
+      setNull(pOutput, TSDB_DATA_TYPE_BIGINT, 0);
+      continue;
+    }
+    if (isStateOperTrue(data, pCtx->inputType, &pCtx->param[0], &pCtx->param[1])){
+      *pOutput = ++pStateInfo->countPrev;
+    }else{
+      *pOutput = -1;
+      pStateInfo->countPrev = 0;
+    }
+  }
+
+  for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
+    SQLFunctionCtx* tagCtx = pCtx->tagInfo.pTagCtxList[t];
+    if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
+      aAggs[TSDB_FUNC_TAGPRJ].xFunction(tagCtx);
+    }
+  }
+  pResInfo->numOfRes += pCtx->size;
+}
+
+static void state_duration_function(SQLFunctionCtx *pCtx) {
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  SStateInfo *pStateInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  void *data = GET_INPUT_DATA_LIST(pCtx);
+  TSKEY* tsList = GET_TS_LIST(pCtx);
+  int64_t *pOutput = (int64_t *)pCtx->pOutput;
+
+  for (int32_t i = 0; i < pCtx->size; i++,pOutput++,data += pCtx->inputBytes) {
+    if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
+      setNull(pOutput, TSDB_DATA_TYPE_BIGINT, 0);
+      continue;
+    }
+    if (isStateOperTrue(data, pCtx->inputType, &pCtx->param[0], &pCtx->param[1])){
+      if (pStateInfo->durationStart == 0) {
+        *pOutput = 0;
+        pStateInfo->durationStart = tsList[i];
+      } else {
+        *pOutput = (tsList[i] - pStateInfo->durationStart)/pCtx->param[2].i64;
+      }
+    } else{
+      *pOutput = -1;
+      pStateInfo->durationStart = 0;
+    }
+  }
+
+  for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
+    SQLFunctionCtx* tagCtx = pCtx->tagInfo.pTagCtxList[t];
+    if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
+      aAggs[TSDB_FUNC_TAGPRJ].xFunction(tagCtx);
+    }
+  }
+  pResInfo->numOfRes += pCtx->size;
 }
 
 int16_t getTimeWindowFunctionID(int16_t colIndex) {
@@ -5661,7 +5811,6 @@ static void wduration_function(SQLFunctionCtx *pCtx) {
   }
   *(int64_t *)(pCtx->pOutput) = duration;
 }
-
 /////////////////////////////////////////////////////////////////////////////////////////////
 /*
  * function compatible list.
@@ -5674,16 +5823,16 @@ static void wduration_function(SQLFunctionCtx *pCtx) {
  *
  */
 int32_t functionCompatList[] = {
-    // count,   sum,      avg,       min,      max,    stddev,    percentile,   apercentile, first,     last
-    1,          1,        1,         1,        1,      1,          1,           1,           1,         1,
-    // last_row,top,      bottom,    spread,   twa,    leastsqr,   ts,          ts_dummy,    tag_dummy, ts_comp
-    4,         -1,       -1,         1,        1,      1,          1,           1,           1,         -1,
-    //  tag,    colprj,   tagprj,    arithm,  diff,    first_dist, last_dist,   stddev_dst,  interp     rate,   irate
-    1,          1,        1,         1,       -1,      1,          1,           1,           5,         1,      1,
-    // tid_tag, deriv,    csum,      mavg,    sample,  block_info, elapsed,     histogram,   unique,    mode,   tail
-    6,          8,        -1,        -1,      -1,      7,          1,           -1,          -1,        1,      -1,
-    // wstart,  wstop,    wduration
-    1,          1,        1
+    // count,       sum,            avg,       min,        max,         stddev,    percentile,   apercentile, first,     last
+    1,              1,              1,         1,          1,           1,          1,           1,           1,         1,
+    // last_row,    top,            bottom,    spread,     twa,         leastsqr,   ts,          ts_dummy,    tag_dummy, ts_comp
+    4,              -1,             -1,        1,          1,           1,          1,           1,           1,         -1,
+    //  tag,        colprj,         tagprj,    arithm,    diff,         first_dist, last_dist,   stddev_dst,  interp     rate,   irate
+    1,              1,              1,         1,         -1,           1,          1,           1,           5,         1,      1,
+    // tid_tag,     deriv,          csum,      mavg,      sample,       block_info, elapsed,     histogram,   unique,    mode,   tail
+    6,              8,              -1,        -1,        -1,           7,          1,           -1,          -1,        1,      -1,
+    // stateCount,  stateDuration,  wstart,    wstop,     wduration,
+    1,              1,              1,         1,         1,
 };
 
 SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
@@ -6195,6 +6344,30 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                           },
                           {
                               // 42
+                              "stateCount",
+                              TSDB_FUNC_STATE_COUNT,
+                              TSDB_FUNC_INVALID_ID,
+                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
+                              function_setup,
+                              state_count_function,
+                              doFinalizer,
+                              noop1,
+                              dataBlockRequired,
+                          },
+                          {
+                              // 43
+                              "stateDuration",
+                              TSDB_FUNC_STATE_DURATION,
+                              TSDB_FUNC_INVALID_ID,
+                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
+                              function_setup,
+                              state_duration_function,
+                              doFinalizer,
+                              noop1,
+                              dataBlockRequired,
+                          },
+                          {
+                              // 44
                               "_wstart",
                               TSDB_FUNC_WSTART,
                               TSDB_FUNC_WSTART,
@@ -6206,7 +6379,7 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                               dataBlockRequired,
                           },
                           {
-                              // 43
+                              // 45
                               "_wstop",
                               TSDB_FUNC_WSTOP,
                               TSDB_FUNC_WSTOP,
@@ -6218,7 +6391,7 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                               dataBlockRequired,
                           },
                           {
-                              // 44
+                              // 46
                               "_wduration",
                               TSDB_FUNC_WDURATION,
                               TSDB_FUNC_WDURATION,

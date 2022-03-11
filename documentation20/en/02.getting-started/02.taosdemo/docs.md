@@ -1,4 +1,4 @@
-Since TDengine was open sourced in July 2019, it has gained a lot of popularity among time-series database developers with its innovative data modeling design, simple installation method, easy programming interface, and powerful data insertion and query performance. The insertion and querying performance is often astonishing to users who are new to TDengine. In order to help users to experience the high performance and functions of TDengine in the shortest time, we developed an application called `taosBenchmark` (was named `taosdemo`) for insertion and querying performance testing of TDengine. Then user can easily simulate the scenario of a large number of devices generating a very large amount of data. User can easily  manipulate the number of columns, data types, disorder ratio, and number of concurrent threads with taosBenchmark customized parameters.
+Since TDengine was open sourced in July 2019, it has gained a lot of popularity among time-series database developers with its innovative data modeling design, simple installation method, easy programming interface, and powerful data insertion and query performance. The insertion and querying performance is often astonishing to users who are new to TDengine. In order to help users to experience the high performance and functions of TDengine in the shortest time, we developed an application called `taosBenchmark` (was named `taosdemo`) for insertion and querying performance testing of TDengine. Then user can easily simulate the scenario of a large number of devices generating a very large amount of data. User can easily manipulate the number of tables, columns, data types, disorder ratio, and number of concurrent threads with taosBenchmark customized parameters.
 
 Running taosBenchmark is very simple. Just download the [TDengine installation package](https://www.taosdata.com/cn/all-downloads/) or compiling the [TDengine code](https://github.com/taosdata/TDengine). It can be found and run in the installation directory or in the compiled results directory.
 
@@ -160,7 +160,7 @@ The complete list of taosBenchmark command-line arguments can be displayed via t
 ```
 $ taosBenchmark --help
 
--f, --file=FILE The meta file to the execution procedure. Currently, we support standard UTF-8 (without BOM) encoded files only.
+-f, --file=FILE The JSON configuration file to the execution procedure. Currently, we support standard UTF-8 (without BOM) encoded files only.
 -u, --user=USER The user name to use when connecting to the server.
 -p, --password The password to use when connecting to the server.
 -c, --config-dir=CONFIG_DIR Configuration directory.
@@ -170,7 +170,7 @@ $ taosBenchmark --help
 -d, --database=DATABASE Destination database. By default is 'test'.
 -a, --replica=REPLICA Set the replica parameters of the database, By default use 1, min: 1, max: 3.
 -m, --table-prefix=TABLEPREFIX Table prefix name. By default use 'd'.
--s, --sql-file=FILE The select sql file.
+-s, --sql-file=FILE The select SQL file.
 -N, --normal-table Use normal table flag.
 -o, --output=FILE Direct output to the named file. By default use './output.txt'.
 -q, --query-mode=MODE Query mode -- 0: SYNC, 1: ASYNC. By default use SYNC.
@@ -346,6 +346,7 @@ In addition to the command line approach, taosBenchmark also supports take a JSO
             "start_timestamp": "2020-10-01 00:00:00.000",
             "sample_format": "csv",
             "sample_file": "./sample.csv",
+            "use_sample_ts": "no",
             "tags_file": "",
             "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":10}, {"type": "BINARY", "len": 16, "count":3}, {"type": "BINARY", "len": 32, "count":6}],
             "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":5}]
@@ -354,7 +355,9 @@ In addition to the command line approach, taosBenchmark also supports take a JSO
 }
 ```
 
-For example, we can specify different number of threads for table creation and data insertion with "thread_count" and "thread_count_create_tbl". You can use a combination of "child_table_exists", "childtable_limit" and "childtable_offset" to use multiple taosBenchmark processes (even on different computers) to write to different ranges of child tables of the same super table at the same time. You can also import existing data by specifying the data source as a csv file with "data_source" and "sample_file".
+For example, we can specify different number of threads for table creation and data insertion with `thread_count` and `thread_count_create_tbl`. You can use a combination of `child_table_exists`, `childtable_limit` and `childtable_offset` to use multiple taosBenchmark processes (even on different computers) to write to different ranges of child tables of the same super table at the same time. You can also import existing data by specifying the data source as a CSV file with `data_source` and `sample_file`. The argument `use_sample_ts` indicate whether the first column, timestamp in TDengine would use the data of the specified CSV file too.
+
+CSV file is a plain text format and use comma signs as separators between two columns. The number of columns must is same as the number of columns or tags of the table you intend to insert.
 
 # Use taosBenchmark for query and subscription testing
 
@@ -410,7 +413,7 @@ The following parameters are specific to the query in the JSON file.
 "specified_table_query": { query for the specified table
 "query_interval": interval to execute sqls, in seconds. Optional, default is 0.
 "concurrent": the number of threads to execute sqls concurrently, optional, default is 1. Each thread executes all sqls.
-"sqls": multiple sql statements can be added, support up to 100 statements.
+"sqls": multiple SQL statements can be added, support up to 100 statements.
 "sql": query statement. Mandatory.
 "result": the name of the file where the query result will be written. Optional, default is null, means the query result will not be written to the file.
 "super_table_query": { query for all sub-tables in the super table
@@ -470,7 +473,7 @@ The following are the meanings of the parameters specific to the subscription fu
 "restart": subscription restart." yes": restart the subscription if it already exists, "no": continue the previous subscription. (Please note that the executing user needs to have read/write access to the dataDir directory)
 "keepProgress": keep the progress of the subscription information. yes means keep the subscription information, no means don't keep it. The value is yes and restart is no to continue the previous subscriptions.
 "resubAfterConsume": Used in conjunction with keepProgress to call unsubscribe after the subscription has been consumed the appropriate number of times and to subscribe again.
-"result": the name of the file to which the query result is written. Optional, default is null, means the query result will not be written to the file. Note: The file to save the result after each sql statement cannot be renamed, and the file name will be appended with the thread number when generating the result file.
+"result": the name of the file to which the query result is written. Optional, default is null, means the query result will not be written to the file. Note: The file to save the result after each SQL statement cannot be renamed, and the file name will be appended with the thread number when generating the result file.
 ```
 
 # Conclusion

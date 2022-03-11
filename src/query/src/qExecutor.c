@@ -2042,7 +2042,6 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
 
   pRuntimeEnv->prevGroupId = INT32_MIN;
-  pRuntimeEnv->pQueryAttr = pQueryAttr;
 
   pRuntimeEnv->pResultRowHashTable = taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   pRuntimeEnv->pResultRowListSet = taosHashInit(numOfTables * 10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
@@ -2661,7 +2660,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bool
     return;
   }
 
-  if (pQueryAttr->groupbyColumn && pQueryAttr->order.order == TSDB_ORDER_DESC) {
+  if ((pQueryAttr->groupbyColumn || pQueryAttr->stateQuery) && pQueryAttr->order.order == TSDB_ORDER_DESC) {
     pQueryAttr->order.order = TSDB_ORDER_ASC;
     if (pQueryAttr->window.skey > pQueryAttr->window.ekey) {
       SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
@@ -3174,7 +3173,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
                                   pTableScanInfo->rowCellInfoOffset) != TSDB_CODE_SUCCESS) {
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
-    } else if (pQueryAttr->stableQuery && (!pQueryAttr->tsCompQuery) && (!pQueryAttr->diffQuery) && (!pQueryAttr->pointInterpQuery)) { // stable aggregate, not interval aggregate or normal column aggregate
+    } else if (pQueryAttr->stableQuery && (!pQueryAttr->tsCompQuery) && (!pQueryAttr->pointInterpQuery)) { // stable aggregate, not interval aggregate or normal column aggregate
       doSetTableGroupOutputBuf(pRuntimeEnv, pTableScanInfo->pResultRowInfo, pTableScanInfo->pCtx,
                                pTableScanInfo->rowCellInfoOffset, pTableScanInfo->numOfOutput,
                                pRuntimeEnv->current->groupIndex);
@@ -9598,6 +9597,9 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
 
     if (pExprs[col].base.flist.filterInfo) {
       ++pQueryAttr->havingNum;
+    }
+    if (pExprs[col].base.functionId == TSDB_FUNC_STATE_COUNT || pExprs[col].base.functionId == TSDB_FUNC_STATE_DURATION){
+      pQueryAttr->stateQuery = true;
     }
   }
 

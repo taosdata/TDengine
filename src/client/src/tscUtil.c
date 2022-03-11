@@ -328,7 +328,8 @@ bool tscIsProjectionQuery(SQueryInfo* pQueryInfo) {
 
     if (f != TSDB_FUNC_PRJ && f != TSDB_FUNC_TAGPRJ && f != TSDB_FUNC_TAG &&
         f != TSDB_FUNC_TS && f != TSDB_FUNC_SCALAR_EXPR && f != TSDB_FUNC_DIFF &&
-        f != TSDB_FUNC_DERIVATIVE && !TSDB_FUNC_IS_SCALAR(f)) {
+        f != TSDB_FUNC_DERIVATIVE && !TSDB_FUNC_IS_SCALAR(f) &&
+        f != TSDB_FUNC_STATE_COUNT && f != TSDB_FUNC_STATE_DURATION) {
       return false;
     }
   }
@@ -347,15 +348,14 @@ bool tscIsDiffDerivLikeQuery(SQueryInfo* pQueryInfo) {
       continue;
     }
 
-    if (f == TSDB_FUNC_DIFF || f == TSDB_FUNC_DERIVATIVE ||
-        f == TSDB_FUNC_CSUM || f == TSDB_FUNC_MAVG) {
+    if (f == TSDB_FUNC_DIFF || f == TSDB_FUNC_DERIVATIVE || f == TSDB_FUNC_CSUM || f == TSDB_FUNC_MAVG ||
+        f == TSDB_FUNC_STATE_COUNT || f == TSDB_FUNC_STATE_DURATION) {
       return true;
     }
   }
 
   return false;
 }
-
 
 bool tscHasColumnFilter(SQueryInfo* pQueryInfo) {
   // filter on primary timestamp column
@@ -5093,7 +5093,6 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->havingNum         = pQueryInfo->havingFieldNum;
   pQueryAttr->pUdfInfo          = pQueryInfo->pUdfInfo;
   pQueryAttr->range             = pQueryInfo->range;
-
 
   if (pQueryInfo->order.order == TSDB_ORDER_ASC) {   // TODO refactor
     pQueryAttr->window = pQueryInfo->window;
