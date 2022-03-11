@@ -71,10 +71,20 @@ struct SPage {
 
 // Macros
 /* For small page */
+#define TDB_SPAGE_FLAGS(pPage)  (((SPageHdr *)(pPage)->pPageHdr)->flags)
+#define TDB_SPAGE_NCELLS(pPage) (((SPageHdr *)(pPage)->pPageHdr)->nCells)
 
 /* For large page */
+#define TDB_LPAGE_FLAGS(pPage) (((SLPageHdr *)(pPage)->pPageHdr)->flags)
+#define TDB_LPAGE_NCELLS(pPage)                         \
+  ({                                                    \
+    u8 *ptr = ((SLPageHdr *)(pPage)->pPageHdr)->nCells; \
+    ptr[0] * 65536 + *(u16 *)(&ptr[1]);                 \
+  })
 
 /* For page */
+#define TDB_IS_LARGE_PAGE(pPage) ((pPage)->szOffset == 3)
+#define TDB_PAGE_FLAGS(pPage)    (TDB_IS_LARGE_PAGE(pPage) ? TDB_LPAGE_FLAGS(pPage)) : TDB_SPAGE_FLAGS(pPage))
 #define TDB_PAGE_CELL_OFFSET_AT(pPage, idx)                     \
   (((pPage)->szOffset == 2) ? ((u16 *)((pPage)->aCellIdx))[idx] \
                             : ((pPage)->aCellIdx[idx * 3] * 65536 + *(u16 *)((pPage)->aCellIdx + idx * 3 + 1)))
