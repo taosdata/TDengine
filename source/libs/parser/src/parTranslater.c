@@ -1115,7 +1115,7 @@ static int32_t translateShowTables(STranslateContext* pCxt) {
   tNameGetFullDbName(&name, dbFname);
 
   SArray* array = NULL;
-  int32_t code = catalogGetDBVgInfo(pCxt->pParseCxt->pCatalog, pCxt->pParseCxt->pTransporter, &pCxt->pParseCxt->mgmtEpSet, dbFname, false, &array);
+  int32_t code = catalogGetDBVgInfo(pCxt->pParseCxt->pCatalog, pCxt->pParseCxt->pTransporter, &pCxt->pParseCxt->mgmtEpSet, dbFname, &array);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }

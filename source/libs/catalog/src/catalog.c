@@ -190,7 +190,7 @@ void ctgDbgShowDBCache(SCatalog* pCtg, SHashObj *dbHash) {
     
     dbCache = (SCtgDBCache *)pIter;
 
-    taosHashGetKey((void **)&dbFName, &len);
+    dbFName = taosHashGetKey(pIter, &len);
 
     int32_t metaNum = dbCache->tbCache.metaCache ? taosHashGetSize(dbCache->tbCache.metaCache) : 0;
     int32_t stbNum = dbCache->tbCache.stbCache ? taosHashGetSize(dbCache->tbCache.stbCache) : 0;
@@ -384,6 +384,11 @@ int32_t ctgPushRmDBMsgInQueue(SCatalog* pCtg, const char *dbFName, int64_t dbId)
     CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
   }
 
+  char *p = strchr(dbFName, '.');
+  if (p && CTG_IS_INF_DBNAME(p + 1)) {
+    dbFName = p + 1;
+  }
+
   msg->pCtg = pCtg;
   strncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
   msg->dbId = dbId;
@@ -466,6 +471,11 @@ int32_t ctgPushUpdateVgMsgInQueue(SCatalog* pCtg, const char *dbFName, int64_t d
     CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
   }
 
+  char *p = strchr(dbFName, '.');
+  if (p && CTG_IS_INF_DBNAME(p + 1)) {
+    dbFName = p + 1;
+  }
+
   strncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
   msg->pCtg = pCtg;
   msg->dbId = dbId;
@@ -491,6 +501,11 @@ int32_t ctgPushUpdateTblMsgInQueue(SCatalog* pCtg, STableMetaOutput *output, boo
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateTblMsg));
     CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
+  }
+
+  char *p = strchr(output->dbFName, '.');
+  if (p && CTG_IS_INF_DBNAME(p + 1)) {
+    memmove(output->dbFName, p + 1, strlen(p + 1));
   }
 
   msg->pCtg = pCtg;
@@ -562,6 +577,11 @@ void ctgWReleaseVgInfo(SCtgDBCache *dbCache) {
 
 
 int32_t ctgAcquireDBCacheImpl(SCatalog* pCtg, const char *dbFName, SCtgDBCache **pCache, bool acquire) {
+  char *p = strchr(dbFName, '.');
+  if (p && CTG_IS_INF_DBNAME(p + 1)) {
+    dbFName = p + 1;
+  }
+
   SCtgDBCache *dbCache = NULL;
   if (acquire) {
     dbCache = (SCtgDBCache *)taosHashAcquire(pCtg->dbCache, dbFName, strlen(dbFName));
@@ -927,7 +947,7 @@ int32_t ctgGetTableMetaFromMnode(SCatalog* pCtg, void *pTrans, const SEpSet* pMg
   return ctgGetTableMetaFromMnodeImpl(pCtg, pTrans, pMgmtEps, dbFName, (char *)pTableName->tname, output);
 }
 
-int32_t ctgGetTableMetaFromVnode(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, const SName* pTableName, SVgroupInfo *vgroupInfo, STableMetaOutput* output) {
+int32_t ctgGetTableMetaFromVnodeImpl(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, const SName* pTableName, SVgroupInfo *vgroupInfo, STableMetaOutput* output) {
   if (NULL == pCtg || NULL == pTrans || NULL == pMgmtEps || NULL == pTableName || NULL == vgroupInfo || NULL == output) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
@@ -977,6 +997,32 @@ int32_t ctgGetTableMetaFromVnode(SCatalog* pCtg, void *pTrans, const SEpSet* pMg
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgGetTableMetaFromVnode(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, const SName* pTableName, SVgroupInfo *vgroupInfo, STableMetaOutput* output) {
+  int32_t code = 0;
+  int32_t retryNum = 0;
+  
+  while (retryNum < CTG_DEFAULT_MAX_RETRY_TIMES) {
+    code = ctgGetTableMetaFromVnodeImpl(pCtg, pTrans, pMgmtEps, pTableName, vgroupInfo, output);
+    if (code) {
+      if (TSDB_CODE_VND_HASH_MISMATCH == code) {
+        char dbFName[TSDB_DB_FNAME_LEN];
+        tNameGetFullDbName(pTableName, dbFName);
+        
+        code = catalogRefreshDBVgInfo(pCtg, pTrans, pMgmtEps, dbFName);
+        if (code != TSDB_CODE_SUCCESS) {
+          break;
+        }
+
+        ++retryNum;
+        continue;
+      }
+    }
+
+    break;
+  }
+
+  CTG_RET(code);
+}
 
 int32_t ctgGetHashFunction(int8_t hashMethod, tableNameHashFp *fp) {
   switch (hashMethod) {
@@ -1338,15 +1384,11 @@ int32_t ctgAddNewDBCache(SCatalog *pCtg, const char *dbFName, uint64_t dbId) {
     ctgError("taosHashPut db to cache failed, dbFName:%s", dbFName);
     CTG_ERR_JRET(TSDB_CODE_CTG_MEM_ERROR);
   }
-  
+ 
   SDbVgVersion vgVersion = {.dbId = newDBCache.dbId, .vgVersion = -1};
   strncpy(vgVersion.dbFName, dbFName, sizeof(vgVersion.dbFName));
 
   ctgDebug("db added to cache, dbFName:%s, dbId:%"PRIx64, dbFName, dbId);
-
-  if (CTG_IS_INF_DBNAME(dbFName)) {
-    return TSDB_CODE_SUCCESS;
-  }
 
   CTG_ERR_RET(ctgMetaRentAdd(&pCtg->dbRent, &vgVersion, dbId, sizeof(SDbVgVersion)));
 
@@ -1634,13 +1676,13 @@ int32_t ctgCloneVgInfo(SDBVgInfo *src, SDBVgInfo **dst) {
 
 
 
-int32_t ctgGetDBVgInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* dbFName, bool forceUpdate, SCtgDBCache** dbCache, SDBVgInfo **pInfo) {
+int32_t ctgGetDBVgInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* dbFName, SCtgDBCache** dbCache, SDBVgInfo **pInfo) {
   bool inCache = false;
   int32_t code = 0;
 
   CTG_ERR_RET(ctgAcquireVgInfoFromCache(pCtg, dbFName, dbCache, &inCache));
 
-  if (inCache && !forceUpdate) {
+  if (inCache) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1648,13 +1690,7 @@ int32_t ctgGetDBVgInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const
   SBuildUseDBInput input = {0};
 
   tstrncpy(input.db, dbFName, tListLen(input.db));
-  if (inCache) {
-    input.dbId = (*dbCache)->dbId;
-    input.vgVersion = (*dbCache)->vgInfo->vgVersion;
-    input.numOfTable = (*dbCache)->vgInfo->numOfTable;
-  } else {
-    input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
-  }
+  input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
 
   code = ctgGetDBVgInfoFromMnode(pCtg, pRpc, pMgmtEps, &input, &DbOut);
   if (code) {
@@ -1997,11 +2033,6 @@ int32_t ctgActUpdateTbl(SCtgMetaAction *action) {
     ctgError("table type error, expected:%d, actual:%d", TSDB_SUPER_TABLE, output->tbMeta->tableType);
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }    
-
-  char *p = strchr(output->dbFName, '.');
-  if (p && CTG_IS_INF_DBNAME(p + 1)) {
-    memmove(output->dbFName, p + 1, strlen(p + 1));
-  }
   
   CTG_ERR_JRET(ctgGetAddDBCache(pCtg, output->dbFName, output->dbId, &dbCache));
   if (NULL == dbCache) {
@@ -2185,7 +2216,7 @@ int32_t ctgGetTableDistVgInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps
   tNameGetFullDbName(pTableName, db);
 
   SHashObj *vgHash = NULL;  
-  CTG_ERR_JRET(ctgGetDBVgInfo(pCtg, pRpc, pMgmtEps, db, false, &dbCache, &vgInfo));
+  CTG_ERR_JRET(ctgGetDBVgInfo(pCtg, pRpc, pMgmtEps, db, &dbCache, &vgInfo));
 
   if (dbCache) {
     vgHash = dbCache->vgInfo->vgHash;
@@ -2432,7 +2463,7 @@ int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* vers
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 }
 
-int32_t catalogGetDBVgInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* dbFName, bool forceUpdate, SArray** vgroupList) {
+int32_t catalogGetDBVgInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* dbFName, SArray** vgroupList) {
   CTG_API_ENTER();
 
   if (NULL == pCtg || NULL == dbFName || NULL == pRpc || NULL == pMgmtEps || NULL == vgroupList) {
@@ -2444,7 +2475,7 @@ int32_t catalogGetDBVgInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, c
   SArray *vgList = NULL;
   SHashObj *vgHash = NULL;
   SDBVgInfo *vgInfo = NULL;
-  CTG_ERR_JRET(ctgGetDBVgInfo(pCtg, pRpc, pMgmtEps, dbFName, forceUpdate, &dbCache, &vgInfo));
+  CTG_ERR_JRET(ctgGetDBVgInfo(pCtg, pRpc, pMgmtEps, dbFName, &dbCache, &vgInfo));
   if (dbCache) {
     vgHash = dbCache->vgInfo->vgHash;
   } else {
@@ -2478,35 +2509,14 @@ int32_t catalogUpdateDBVgInfo(SCatalog* pCtg, const char* dbFName, uint64_t dbId
   int32_t code = 0;
   
   if (NULL == pCtg || NULL == dbFName || NULL == dbInfo) {
+    ctgFreeVgInfo(dbInfo);
     CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  SCtgMetaAction action= {.act = CTG_ACT_UPDATE_VG};
-  SCtgUpdateVgMsg *msg = malloc(sizeof(SCtgUpdateVgMsg));
-  if (NULL == msg) {
-    ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateVgMsg));
-    CTG_ERR_JRET(TSDB_CODE_CTG_MEM_ERROR);
-  }
+  code = ctgPushUpdateVgMsgInQueue(pCtg, dbFName, dbId, dbInfo, false);
 
-  msg->pCtg = pCtg;
-  strncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
-  msg->dbId = dbId;
-  msg->dbInfo = dbInfo;
-
-  action.data = msg;
-
-  CTG_ERR_JRET(ctgPushAction(pCtg, &action));
-
-  dbInfo = NULL;
-
-  CTG_API_LEAVE(code);
-  
 _return:
 
-  ctgFreeVgInfo(dbInfo);
-
-  tfree(msg);
-  
   CTG_API_LEAVE(code);
 }
 
@@ -2681,7 +2691,7 @@ int32_t catalogGetTableHashVgroup(SCatalog *pCtg, void *pTrans, const SEpSet *pM
   tNameGetFullDbName(pTableName, db);
 
   SDBVgInfo *vgInfo = NULL;
-  CTG_ERR_JRET(ctgGetDBVgInfo(pCtg, pTrans, pMgmtEps, db, false, &dbCache, &vgInfo));
+  CTG_ERR_JRET(ctgGetDBVgInfo(pCtg, pTrans, pMgmtEps, db, &dbCache, &vgInfo));
 
   CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, vgInfo ? vgInfo : dbCache->vgInfo, pTableName, pVgroup));
 

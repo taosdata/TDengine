@@ -469,7 +469,7 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
 
   if (addNum <= 0) {
     SCH_TASK_ELOG("no available execNode as candidates, nodeNum:%d", nodeNum);
-    return TSDB_CODE_QRY_INVALID_INPUT;
+    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
 /*
@@ -778,8 +778,8 @@ int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode,
     if (SCH_GET_TASK_STATUS(pTask) == JOB_TASK_STATUS_EXECUTING) {
       SCH_ERR_JRET(schMoveTaskToFailList(pJob, pTask, &moved));
     } else {
-      SCH_TASK_DLOG("task already done, no more failure process, status:%d", SCH_GET_TASK_STATUS(pTask));
-      return TSDB_CODE_SUCCESS;
+      SCH_TASK_ELOG("task not in executing list, status:%d", SCH_GET_TASK_STATUS(pTask));
+      SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
     }
 
     SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_FAILED);
@@ -1414,6 +1414,12 @@ int32_t schLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
     
     SCH_RET(atomic_load_32(&pJob->errCode));
   }
+
+  // NOTE: race condition: the task should be put into the hash table before send msg to server
+  if (SCH_GET_TASK_STATUS(pTask) != JOB_TASK_STATUS_EXECUTING) {
+    SCH_ERR_RET(schPushTaskToExecList(pJob, pTask));
+    SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_EXECUTING);
+  }
   
   SSubplan *plan = pTask->plan;
 
@@ -1428,12 +1434,6 @@ int32_t schLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
   }
   
   SCH_ERR_RET(schSetTaskCandidateAddrs(pJob, pTask));
-
-  // NOTE: race condition: the task should be put into the hash table before send msg to server
-  if (SCH_GET_TASK_STATUS(pTask) != JOB_TASK_STATUS_EXECUTING) {
-    SCH_ERR_RET(schPushTaskToExecList(pJob, pTask));
-    SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_EXECUTING);
-  }
 
   if (SCH_IS_QUERY_JOB(pJob)) {
     SCH_ERR_RET(schEnsureHbConnection(pJob, pTask));
