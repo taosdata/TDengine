@@ -284,40 +284,30 @@ static int compareRowData(const void *a, const void *b, const void *userData) {
 }
 
 static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeEnv *pRuntimeEnv, SSDataBlock* pDataBlock, SQLFunctionCtx *pCtx) {
-  // get groupby first column index
-  SColIndex* pColIndex = taosArrayGet(pRuntimeEnv->pQueryAttr->pGroupbyExpr->columnInfo, 0);
-  if (pColIndex == NULL) {
+  // first groupby column is sort column
+  SColIndex* pFirstGroupCol = taosArrayGet(pRuntimeEnv->pQueryAttr->pGroupbyExpr->columnInfo, 0);
+  if (pFirstGroupCol == NULL) {
     return;
   }
 
-  // search group by col index
-  int32_t orderIndex = -1;
-  for (int32_t j = 0; j < pDataBlock->info.numOfCols; ++j) {
-    if (pCtx[j].colId == pColIndex->colId) {
-      orderIndex = j;
-      break;
-    }
-  }
-  if (orderIndex == -1) {
-    return;
-  }
-
-  // get dataOffset
-  bool found = false;
+  // get dataOffset and index on pRuntimeEnv->pQueryAttr->pExpr1
+  int32_t idxGroup = -1;
   int16_t dataOffset = 0;
   for (int32_t j = 0; j < pDataBlock->info.numOfCols; ++j) {
     SColumnInfoData* pColInfoData = (SColumnInfoData *)taosArrayGet(pDataBlock->pDataBlock, j);
-    if (orderIndex == j) {
-      found = true;
+    if (pCtx[j].colId == pFirstGroupCol->colId) {
+      idxGroup = j;
       break;
     }
     dataOffset += pColInfoData->info.bytes;
   }
-  if (found == false) {
+  // check found
+  if (idxGroup == -1) {
+    qError("sort groupby not found first column. first colId=%d", pFirstGroupCol->colId);
     return;
   }
 
-  int16_t type = pRuntimeEnv->pQueryAttr->pExpr1[orderIndex].base.resType;
+  int16_t type = pRuntimeEnv->pQueryAttr->pExpr1[idxGroup].base.resType;
   SRowCompSupporter support = {.pRuntimeEnv = pRuntimeEnv, .dataOffset = dataOffset, .comFunc = getComparFunc(type, 0)};
   taosArraySortPWithExt(pGroupResInfo->pRows, compareRowData, &support);
 }
