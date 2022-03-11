@@ -150,7 +150,7 @@ static bool test_variant_int64(int64_t value) {
 }
 
 TEST(codingTest, fixed_encode_decode) {
-  taosSeedRand(time(0));
+  taosSeedRand(taosGetTimestampSec());
 
   // uint16_t
   for (uint16_t value = 0; value <= UINT16_MAX; value++) {
@@ -204,7 +204,7 @@ TEST(codingTest, fixed_encode_decode) {
 }
 
 TEST(codingTest, variant_encode_decode) {
-  taosSeedRand(time(0));
+  taosSeedRand(taosGetTimestampSec());
 
   // uint16_t
   for (uint16_t value = 0; value <= UINT16_MAX; value++) {
