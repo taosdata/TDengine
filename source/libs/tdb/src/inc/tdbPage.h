@@ -22,7 +22,7 @@ extern "C" {
 
 typedef u8 SCell;
 
-// Page header
+// Page header (pageSize < 65536 (64K))
 typedef struct __attribute__((__packed__)) {
   u16 flags;
   u16 nCells;
@@ -49,6 +49,7 @@ struct SPage {
   u8                *pData;
   int                pageSize;
   u8                 szOffset;
+  u8                 szPageHdr;
   pthread_spinlock_t lock;
   // Fields below used by pager and am
   SPageHdr *pPageHdr;
@@ -69,6 +70,11 @@ struct SPage {
 };
 
 // Macros
+/* For small page */
+
+/* For large page */
+
+/* For page */
 #define TDB_PAGE_CELL_OFFSET_AT(pPage, idx)                     \
   (((pPage)->szOffset == 2) ? ((u16 *)((pPage)->aCellIdx))[idx] \
                             : ((pPage)->aCellIdx[idx * 3] * 65536 + *(u16 *)((pPage)->aCellIdx + idx * 3 + 1)))

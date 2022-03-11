@@ -39,8 +39,10 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
   pPage->pageSize = pageSize;
   if (pageSize < 65536) {
     pPage->szOffset = 2;
+    pPage->szPageHdr = sizeof(SPageHdr);
   } else {
     pPage->szOffset = 3;
+    pPage->szPageHdr = sizeof(SLPageHdr);
   }
   TDB_INIT_PAGE_LOCK(pPage);
 
@@ -97,6 +99,7 @@ static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell) {
   } else {
   }
 
+  *ppCell = pCell;
   return 0;
 }
 
