@@ -2520,7 +2520,9 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
           functionId = TSDB_FUNC_TAGPRJ;
           colType    = TSDB_COL_TAG;
         } else {
-          if (!timeWindowQuery) {
+          if (!timeWindowQuery && (index.columnIndex == TSDB_TSWIN_START_COLUMN_INDEX ||
+              index.columnIndex == TSDB_TSWIN_STOP_COLUMN_INDEX ||
+              index.columnIndex == TSDB_TSWIN_DURATION_COLUMN_INDEX)) {
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
           }
           colSchema  = *tGetTimeWindowColumnSchema(index.columnIndex);
