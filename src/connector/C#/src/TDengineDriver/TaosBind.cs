@@ -17,15 +17,15 @@ namespace TDengineDriver
             TAOS_BIND bind = new TAOS_BIND();
             byte[] boolByteArr = BitConverter.GetBytes(val);
             int boolByteArrSize = Marshal.SizeOf(boolByteArr[0]) * boolByteArr.Length;
-            IntPtr bo = Marshal.AllocHGlobal(1);
-            Marshal.Copy(boolByteArr, 0, bo, boolByteArr.Length);
+            IntPtr c_bool = Marshal.AllocHGlobal(1);
+            Marshal.Copy(boolByteArr, 0, c_bool, boolByteArr.Length);
 
             int length = sizeof(Boolean);
             IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
             Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_BOOL;
-            bind.buffer = bo;
+            bind.buffer = c_bool;
             bind.buffer_length = length;
             bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
@@ -38,15 +38,15 @@ namespace TDengineDriver
 
             byte[] tinyIntByteArr = BitConverter.GetBytes(val);
             int tinyIntByteArrSize = Marshal.SizeOf(tinyIntByteArr[0]) * tinyIntByteArr.Length;
-            IntPtr unmanagedTinyInt = Marshal.AllocHGlobal(tinyIntByteArrSize);
-            Marshal.Copy(tinyIntByteArr, 0, unmanagedTinyInt, tinyIntByteArr.Length);
+            IntPtr c_tinyint = Marshal.AllocHGlobal(tinyIntByteArrSize);
+            Marshal.Copy(tinyIntByteArr, 0, c_tinyint, tinyIntByteArr.Length);
 
             int length = sizeof(sbyte);
             IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
             Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_TINYINT;
-            bind.buffer = unmanagedTinyInt;
+            bind.buffer = c_tinyint;
             bind.buffer_length = length;
             bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
@@ -58,15 +58,15 @@ namespace TDengineDriver
         {
 
             TAOS_BIND bind = new TAOS_BIND();
-            IntPtr unmanagedSmallInt = Marshal.AllocHGlobal(sizeof(short));
-            Marshal.WriteInt16(unmanagedSmallInt, val);
+            IntPtr c_smallint = Marshal.AllocHGlobal(sizeof(short));
+            Marshal.WriteInt16(c_smallint, val);
 
             int length = sizeof(short);
             IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
             Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_SMALLINT;
-            bind.buffer = unmanagedSmallInt;
+            bind.buffer = c_smallint;
             bind.buffer_length = length;
             bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
@@ -77,15 +77,15 @@ namespace TDengineDriver
         public static TAOS_BIND BindInt(int val)
         {
             TAOS_BIND bind = new TAOS_BIND();
-            IntPtr unmanagedInt = Marshal.AllocHGlobal(sizeof(int));
-            Marshal.WriteInt32(unmanagedInt, val);
+            IntPtr c_int = Marshal.AllocHGlobal(sizeof(int));
+            Marshal.WriteInt32(c_int, val);
 
             int length = sizeof(int);
             IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
             Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_INT;
-            bind.buffer = unmanagedInt;
+            bind.buffer = c_int;
             bind.buffer_length = length;
             bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
@@ -97,15 +97,15 @@ namespace TDengineDriver
         {
 
             TAOS_BIND bind = new TAOS_BIND();
-            IntPtr unmanagedBigInt = Marshal.AllocHGlobal(sizeof(long));
-            Marshal.WriteInt64(unmanagedBigInt, val);
+            IntPtr c_bigint = Marshal.AllocHGlobal(sizeof(long));
+            Marshal.WriteInt64(c_bigint, val);
 
             int length = sizeof(long);
             IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
             Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_BIGINT;
-            bind.buffer = unmanagedBigInt;
+            bind.buffer = c_bigint;
             bind.buffer_length = length;
             bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
@@ -117,15 +117,15 @@ namespace TDengineDriver
         {
             TAOS_BIND bind = new TAOS_BIND();
 
-            IntPtr unmanagedTinyInt = Marshal.AllocHGlobal(sizeof(byte));
-            Marshal.WriteByte(unmanagedTinyInt, val);
+            IntPtr c_unsigned_tinyint = Marshal.AllocHGlobal(sizeof(byte));
+            Marshal.WriteByte(c_unsigned_tinyint, val);
 
             int length = sizeof(byte);
             IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
             Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_UTINYINT;
-            bind.buffer = unmanagedTinyInt;
+            bind.buffer = c_unsigned_tinyint;
             bind.buffer_length = length;
             bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
@@ -139,15 +139,15 @@ namespace TDengineDriver
 
             byte[] uSmallIntByteArr = BitConverter.GetBytes(val);
             int usmallSize = Marshal.SizeOf(uSmallIntByteArr[0]) * uSmallIntByteArr.Length;
-            IntPtr unmanagedUnsignedSmallInt = Marshal.AllocHGlobal(usmallSize);
-            Marshal.Copy(uSmallIntByteArr, 0, unmanagedUnsignedSmallInt, uSmallIntByteArr.Length);
+            IntPtr c_unsigned_smallint = Marshal.AllocHGlobal(usmallSize);
+            Marshal.Copy(uSmallIntByteArr, 0, c_unsigned_smallint, uSmallIntByteArr.Length);
 
             int length = sizeof(UInt16);
             IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
             Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_USMALLINT;
-            bind.buffer = unmanagedUnsignedSmallInt;
+            bind.buffer = c_unsigned_smallint;
             bind.buffer_length = length;
             bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
@@ -159,17 +159,17 @@ namespace TDengineDriver
         {
             TAOS_BIND bind = new TAOS_BIND();
 
-            byte[] unmanagedIntByteArr = BitConverter.GetBytes(val);
-            int usmallSize = Marshal.SizeOf(unmanagedIntByteArr[0]) * unmanagedIntByteArr.Length;
-            IntPtr unmanagedInt = Marshal.AllocHGlobal(usmallSize);
-            Marshal.Copy(unmanagedIntByteArr, 0, unmanagedInt, unmanagedIntByteArr.Length);
+            byte[] byteArr = BitConverter.GetBytes(val);
+            int usmallSize = Marshal.SizeOf(byteArr[0]) * byteArr.Length;
+            IntPtr c_unsigned_int = Marshal.AllocHGlobal(usmallSize);
+            Marshal.Copy(byteArr, 0, c_unsigned_int, byteArr.Length);
 
             int length = sizeof(uint);
             IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
             Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_UINT;
-            bind.buffer = unmanagedInt;
+            bind.buffer = c_unsigned_int;
             bind.buffer_length = length;
             bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
@@ -181,17 +181,17 @@ namespace TDengineDriver
         {
             TAOS_BIND bind = new TAOS_BIND();
 
-            byte[] unmanagedBigIntByteArr = BitConverter.GetBytes(val);
-            int usmallSize = Marshal.SizeOf(unmanagedBigIntByteArr[0]) * unmanagedBigIntByteArr.Length;
-            IntPtr unmanagedBigInt = Marshal.AllocHGlobal(usmallSize);
-            Marshal.Copy(unmanagedBigIntByteArr, 0, unmanagedBigInt, unmanagedBigIntByteArr.Length);
+            byte[] byteArr = BitConverter.GetBytes(val);
+            int usmallSize = Marshal.SizeOf(byteArr[0]) * byteArr.Length;
+            IntPtr c_unsigned_bigint = Marshal.AllocHGlobal(usmallSize);
+            Marshal.Copy(byteArr, 0, c_unsigned_bigint, byteArr.Length);
 
             int length = sizeof(ulong);
             IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
             Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_UBIGINT;
-            bind.buffer = unmanagedBigInt;
+            bind.buffer = c_unsigned_bigint;
             bind.buffer_length = length;
             bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
@@ -203,17 +203,17 @@ namespace TDengineDriver
         {
             TAOS_BIND bind = new TAOS_BIND();
 
-            byte[] floatByteArr = BitConverter.GetBytes(val);
-            int floatByteArrSize = Marshal.SizeOf(floatByteArr[0]) * floatByteArr.Length;
-            IntPtr unmanagedFloat = Marshal.AllocHGlobal(floatByteArrSize);
-            Marshal.Copy(floatByteArr, 0, unmanagedFloat, floatByteArr.Length);
+            byte[] byteArr = BitConverter.GetBytes(val);
+            int floatByteArrSize = Marshal.SizeOf(byteArr[0]) * byteArr.Length;
+            IntPtr c_float = Marshal.AllocHGlobal(floatByteArrSize);
+            Marshal.Copy(byteArr, 0, c_float, byteArr.Length);
 
             int length = sizeof(float);
             IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
             Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_FLOAT;
-            bind.buffer = unmanagedFloat;
+            bind.buffer = c_float;
             bind.buffer_length = length;
             bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
@@ -225,17 +225,17 @@ namespace TDengineDriver
         {
             TAOS_BIND bind = new TAOS_BIND();
 
-            byte[] doubleByteArr = BitConverter.GetBytes(val);
-            int doubleByteArrSize = Marshal.SizeOf(doubleByteArr[0]) * doubleByteArr.Length;
-            IntPtr unmanagedDouble = Marshal.AllocHGlobal(doubleByteArrSize);
-            Marshal.Copy(doubleByteArr, 0, unmanagedDouble, doubleByteArr.Length);
+            byte[] byteArr = BitConverter.GetBytes(val);
+            int doubleByteArrSize = Marshal.SizeOf(byteArr[0]) * byteArr.Length;
+            IntPtr c_double = Marshal.AllocHGlobal(doubleByteArrSize);
+            Marshal.Copy(byteArr, 0, c_double, byteArr.Length);
 
             int length = sizeof(Double);
             IntPtr lengthPtr = Marshal.AllocHGlobal(sizeof(int));
             Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_DOUBLE;
-            bind.buffer = unmanagedDouble;
+            bind.buffer = c_double;
             bind.buffer_length = length;
             bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
@@ -248,7 +248,7 @@ namespace TDengineDriver
 
             TAOS_BIND bind = new TAOS_BIND();
             // IntPtr unmanagedBinary = Marshal.StringToHGlobalAnsi(val);
-            IntPtr unmanagedBinary = Marshal.StringToCoTaskMemUTF8(val);
+            IntPtr c_str = Marshal.StringToCoTaskMemUTF8(val);
 
             var strToBytes = System.Text.Encoding.UTF8.GetBytes(val);
             int length = strToBytes.Length;
@@ -256,7 +256,7 @@ namespace TDengineDriver
             Marshal.WriteInt64(lenPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_BINARY;
-            bind.buffer = unmanagedBinary;
+            bind.buffer = c_str;
             bind.buffer_length = length;
             bind.length = lenPtr;
             bind.is_null = IntPtr.Zero;
@@ -268,7 +268,7 @@ namespace TDengineDriver
             TAOS_BIND bind = new TAOS_BIND();
             var strToBytes = System.Text.Encoding.UTF8.GetBytes(val);
             // IntPtr unmanagedNchar = (IntPtr)Marshal.StringToHGlobalAnsi(val);
-            IntPtr unmanagedNchar = (IntPtr)Marshal.StringToCoTaskMemUTF8(val);
+            IntPtr c_str = (IntPtr)Marshal.StringToCoTaskMemUTF8(val);
 
 
             int length = strToBytes.Length;
@@ -276,7 +276,7 @@ namespace TDengineDriver
             Marshal.WriteInt64(lenPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_NCHAR;
-            bind.buffer = unmanagedNchar;
+            bind.buffer = c_str;
             bind.buffer_length = length;
             bind.length = lenPtr;
             bind.is_null = IntPtr.Zero;
@@ -301,15 +301,15 @@ namespace TDengineDriver
         {
 
             TAOS_BIND bind = new TAOS_BIND();
-            IntPtr unmanagedTs = Marshal.AllocHGlobal(sizeof(long));
-            Marshal.WriteInt64(unmanagedTs, ts);
+            IntPtr c_long = Marshal.AllocHGlobal(sizeof(long));
+            Marshal.WriteInt64(c_long, ts);
 
             int length = sizeof(long);
             IntPtr lengthPtr = Marshal.AllocHGlobal(4);
             Marshal.WriteInt32(lengthPtr, length);
 
             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP;
-            bind.buffer = unmanagedTs;
+            bind.buffer = c_long;
             bind.buffer_length = length;
             bind.length = lengthPtr;
             bind.is_null = IntPtr.Zero;
