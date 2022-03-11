@@ -5814,7 +5814,11 @@ static void window_start_function(SQLFunctionCtx *pCtx) {
     INC_INIT_VAL(pCtx, pCtx->size);
     char *output = pCtx->pOutput;
     for (int32_t i = 0; i < pCtx->size; ++i) {
-      memcpy(output, &pCtx->qWindow.skey, pCtx->outputBytes);
+      if (pCtx->qWindow.skey == INT64_MIN) {
+        *(TKEY *)output = TSDB_DATA_TIMESTAMP_NULL;
+      } else {
+        memcpy(output, &pCtx->qWindow.skey, pCtx->outputBytes);
+      }
       output += pCtx->outputBytes;
     }
   }
@@ -5828,7 +5832,11 @@ static void window_stop_function(SQLFunctionCtx *pCtx) {
     INC_INIT_VAL(pCtx, pCtx->size);
     char *output = pCtx->pOutput;
     for (int32_t i = 0; i < pCtx->size; ++i) {
-      memcpy(output, &pCtx->qWindow.ekey, pCtx->outputBytes);
+      if (pCtx->qWindow.ekey == INT64_MAX) {
+        *(TKEY *)output = TSDB_DATA_TIMESTAMP_NULL;
+      } else {
+        memcpy(output, &pCtx->qWindow.ekey, pCtx->outputBytes);
+      }
       output += pCtx->outputBytes;
     }
   }
@@ -5851,7 +5859,11 @@ static void window_duration_function(SQLFunctionCtx *pCtx) {
     }
     char *output = pCtx->pOutput;
     for (int32_t i = 0; i < pCtx->size; ++i) {
-      memcpy(output, &duration, pCtx->outputBytes);
+      if (pCtx->qWindow.skey == INT64_MIN || pCtx->qWindow.ekey == INT64_MAX) {
+        *(int64_t *)output = TSDB_DATA_BIGINT_NULL;
+      } else {
+        memcpy(output, &duration, pCtx->outputBytes);
+      }
       output += pCtx->outputBytes;
     }
   }
