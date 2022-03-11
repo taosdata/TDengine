@@ -25,7 +25,6 @@ extern "C" {
 /* ------------------------ TYPES EXPOSED ------------------------ */
 typedef struct SDnode    SDnode;
 typedef struct SMnode    SMnode;
-typedef struct SMndMsg SMndMsg;
 typedef int32_t (*SendReqToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
 typedef int32_t (*SendReqToMnodeFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 typedef int32_t (*PutReqToMWriteQFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
@@ -33,7 +32,7 @@ typedef int32_t (*PutReqToMReadQFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 typedef void (*SendRedirectRspFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 
 
-typedef struct SMndMsg {
+typedef struct {
   char    user[TSDB_USER_LEN];
   char    db[TSDB_DB_FNAME_LEN];
   int32_t acctId;

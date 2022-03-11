@@ -52,8 +52,8 @@ void    mmInitMsgFp(SMnodeMgmt *pMgmt);
 void    mmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 int32_t mmPutMsgToWriteQueue(SDnode *pDnode, SRpcMsg *pRpcMsg);
 int32_t mmPutMsgToReadQueue(SDnode *pDnode, SRpcMsg *pRpcMsg);
-void    mmConsumeChildQueue(SDnode *pDnode, SBlockItem *pBlock);
-void    mmConsumeParentQueue(SMnodeMgmt *pMgmt, SBlockItem *pBlock);
+void    mmConsumeChildQueue(SDnode *pDnode, SMndMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen);
+void    mmConsumeParentQueue(SDnode *pDnode, SMndMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen);
 
 #ifdef __cplusplus
 }

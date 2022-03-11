@@ -164,7 +164,7 @@ static int32_t mmBuildMsg(SMndMsg *pMsg, SRpcMsg *pRpc) {
 void mmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   int32_t     code = -1;
-  SMndMsg  *pMsg = NULL;
+  SMndMsg    *pMsg = NULL;
 
   MndMsgFp msgFp = pMgmt->msgFp[TMSG_INDEX(pRpc->msgType)];
   if (msgFp == NULL) {
@@ -185,7 +185,7 @@ void mmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   if (pMgmt->singleProc) {
     code = (*msgFp)(pDnode, pMsg);
   } else {
-    code = taosProcPushChild(pMgmt->pProcess, pMsg, contLen);
+    code = taosProcPutToChildQueue(pMgmt->pProcess, pMsg, sizeof(pMsg), pRpc->pCont, pRpc->contLen);
   }
 
 _OVER:
@@ -243,15 +243,15 @@ static int32_t mmPutMndMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SMndMs
 }
 
 static int32_t mmPutRpcMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMsg *pRpc) {
-  int32_t    contLen = sizeof(SMndMsg) + pRpc->contLen;
+  int32_t  contLen = sizeof(SMndMsg) + pRpc->contLen;
   SMndMsg *pMsg = taosAllocateQitem(contLen);
   if (pMsg == NULL) {
     return -1;
   }
 
-  pMsg->contLen = pRpc->contLen;
-  pMsg->pCont = (char *)pMsg + sizeof(SMndMsg);
-  memcpy(pMsg->pCont, pRpc->pCont, pRpc->contLen);
+  pMsg->rpcMsg = *pRpc;
+  pMsg->rpcMsg.pCont = (char *)pMsg + sizeof(SMndMsg);
+  memcpy(pMsg->rpcMsg.pCont, pRpc->pCont, pRpc->contLen);
   rpcFreeCont(pRpc->pCont);
 
   int32_t code = mmPutMndMsgToWorker(pDnode, pWorker, pMsg);
@@ -262,15 +262,14 @@ static int32_t mmPutRpcMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMs
   return code;
 }
 
-void mmConsumeChildQueue(SDnode *pDnode, SBlockItem *pBlock) {
+void mmConsumeChildQueue(SDnode *pDnode, SMndMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-  SMndMsg  *pMsg = (SMndMsg *)pBlock->pCont;
-  
+
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   pRpc->pCont = (char *)pMsg + sizeof(SMndMsg);
 
   MndMsgFp msgFp = pMgmt->msgFp[TMSG_INDEX(pRpc->msgType)];
-  int32_t code = (*msgFp)(pDnode, pMsg);
+  int32_t  code = (*msgFp)(pDnode, pMsg);
 
   if (code == 0) return;
 
@@ -287,7 +286,7 @@ void mmConsumeChildQueue(SDnode *pDnode, SBlockItem *pBlock) {
   taosFreeQitem(pMsg);
 }
 
-void mmConsumeParentQueue(SMnodeMgmt *pMgmt, SBlockItem *pBlock) {}
+void mmConsumeParentQueue(SDnode *pDnode, SMndMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen) {}
 
 static void mmConsumeQueue(SDnode *pDnode, SMndMsg *pMsg) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;

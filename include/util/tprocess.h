@@ -22,43 +22,26 @@
 extern "C" {
 #endif
 
-typedef struct {
-  int32_t contLen;
-  char    pCont[];
-} SBlockItem;
-
-typedef void *(*ProcFp)(void *parent, SBlockItem *pItem);
-
 typedef struct SProcQueue SProcQueue;
+typedef struct SProcObj   SProcObj;
+typedef void *(*ProcFp)(void *pParent, void *pHead, int32_t headLen, void *pBody, int32_t bodyLen);
 
 typedef struct {
-  void   *pParent;
-  bool    testFlag;
   int32_t childQueueSize;
   int32_t parentQueueSize;
   ProcFp  childFp;
   ProcFp  parentFp;
+  void   *pParent;
+  bool    testFlag;
 } SProcCfg;
 
-typedef struct {
-  int32_t     pid;
-  SProcQueue *pChildQueue;
-  SProcQueue *pParentQueue;
-  pthread_t   childThread;
-  pthread_t   parentThread;
-  ProcFp      childFp;
-  ProcFp      parentFp;
-  void       *pParent;
-  bool        stopFlag;
-  bool        testFlag;
-  bool        isChild;
-} SProcObj;
-
 SProcObj *taosProcInit(const SProcCfg *pCfg);
+void      taosProcCleanup(SProcObj *pProc);
 int32_t   taosProcStart(SProcObj *pProc);
 void      taosProcStop(SProcObj *pProc);
-void      taosProcCleanup(SProcObj *pProc);
-int32_t   taosProcPushChild(SProcObj *pProc, void *pCont, int32_t contLen);
+
+int32_t taosProcPutToChildQueue(SProcObj *pProc, void *pHead, int32_t headLen, void *pBody, int32_t bodyLen);
+int32_t taosProcPutToParentQueue(SProcObj *pProc, void *pHead, int32_t headLen, void *pBody, int32_t bodyLen);
 
 #ifdef __cplusplus
 }
