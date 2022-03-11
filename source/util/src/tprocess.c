@@ -33,6 +33,8 @@ typedef struct SProcQueue {
 } SProcQueue;
 
 static SProcQueue *taosProcQueueInit(int32_t size) {
+  if (size <= 0) size = SHM_DEFAULT_SIZE;
+
   int32_t bufSize = CEIL4(size);
   int32_t headSize = CEIL4(sizeof(SProcQueue));
 
@@ -180,18 +182,12 @@ SProcObj *taosProcInit(const SProcCfg *pCfg) {
     return NULL;
   }
 
-  pProc->cfg = *pCfg;
-
-  if (pProc->cfg.childQueueSize <= 0) {
-    pProc->cfg.childQueueSize = SHM_DEFAULT_SIZE;
-  }
-
-  if (pProc->cfg.parentQueueSize <= 0) {
-    pProc->cfg.parentQueueSize = SHM_DEFAULT_SIZE;
-  }
-
-  pProc->pChildQueue = taosProcQueueInit(pProc->cfg.childQueueSize);
-  pProc->pParentQueue = taosProcQueueInit(pProc->cfg.parentQueueSize);
+  pProc->pParent = pCfg->pParent;
+  pProc->childFp = pCfg->childFp;
+  pProc->parentFp = pCfg->parentFp;
+  pProc->testFlag = pCfg->testFlag;
+  pProc->pChildQueue = taosProcQueueInit(pCfg->childQueueSize);
+  pProc->pParentQueue = taosProcQueueInit(pCfg->parentQueueSize);
 
   return pProc;
 }
@@ -218,13 +214,13 @@ static void taosProcThreadLoop(SProcQueue *pQueue, ProcFp procFp, void *pParent)
 
 static void *taosProcThreadChildLoop(void *param) {
   SProcObj *pProc = param;
-  taosProcThreadLoop(pProc->pChildQueue, pProc->cfg.childFp, pProc->pParent);
+  taosProcThreadLoop(pProc->pChildQueue, pProc->childFp, pProc->pParent);
   return NULL;
 }
 
 static void *taosProcThreadParentLoop(void *param) {
   SProcObj *pProc = param;
-  taosProcThreadLoop(pProc->pParentQueue, pProc->cfg.parentFp, pProc->pParent);
+  taosProcThreadLoop(pProc->pParentQueue, pProc->parentFp, pProc->pParent);
   return NULL;
 }
 

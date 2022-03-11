@@ -32,6 +32,8 @@ typedef void *(*ProcFp)(void *parent, SBlockItem *pItem);
 typedef struct SProcQueue SProcQueue;
 
 typedef struct {
+  void   *pParent;
+  bool    testFlag;
   int32_t childQueueSize;
   int32_t parentQueueSize;
   ProcFp  childFp;
@@ -40,11 +42,12 @@ typedef struct {
 
 typedef struct {
   int32_t     pid;
-  SProcCfg    cfg;
   SProcQueue *pChildQueue;
   SProcQueue *pParentQueue;
   pthread_t   childThread;
   pthread_t   parentThread;
+  ProcFp      childFp;
+  ProcFp      parentFp;
   void       *pParent;
   bool        stopFlag;
   bool        testFlag;

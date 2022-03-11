@@ -129,14 +129,14 @@ int32_t mmOpen(SDnode *pDnode, SMnodeOpt *pOption) {
     cfg.parentFp = (ProcFp)mmConsumeParentQueue;
     cfg.childQueueSize = 1024 * 1024;
     cfg.parentQueueSize = 1024 * 1024;
+    cfg.testFlag = true;
+    cfg.pParent = pDnode;
 
     pMgmt->pProcess = taosProcInit(&cfg);
     if (pMgmt->pProcess == NULL) {
       return -1;
     }
 
-    pMgmt->pProcess->pParent = pDnode;
-    pMgmt->pProcess->testFlag = true;
     return taosProcStart(pMgmt->pProcess);
   }
 
