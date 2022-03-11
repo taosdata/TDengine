@@ -1019,7 +1019,7 @@ TEST(testCase, external_sort_Test) {
   return;
 #endif
 
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
 
   SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
   SOrder o = {0};
@@ -1080,7 +1080,7 @@ TEST(testCase, external_sort_Test) {
 }
 
 TEST(testCase, sorted_merge_Test) {
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
 
   SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
   SOrder o = {0};
@@ -1152,7 +1152,7 @@ TEST(testCase, sorted_merge_Test) {
 }
 
 TEST(testCase, time_interval_Operator_Test) {
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
 
   SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
   SOrder o = {0};
