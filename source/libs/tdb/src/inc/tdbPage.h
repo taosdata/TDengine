@@ -36,10 +36,10 @@ typedef struct __attribute__((__packed__)) {
 } SPageHdr;
 
 struct SPage {
-  pthread_spinlock_t lock;
   u8                *pData;
   int                pageSize;
   u8                 szOffset;
+  pthread_spinlock_t lock;
   // Fields below used by pager and am
   SPgid     pgid;
   SPageHdr *pPageHdr;
