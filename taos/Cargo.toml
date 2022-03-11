@@ -1,0 +1,27 @@
+[package]
+name = "taos"
+version = "0.1.0"
+edition = "2021"
+description = "resered namespace for TDengine"
+homepage = "https://taosdata.com"
+license = "MIT"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+taos-sys = { path = "../taos-sys" }
+bitsvec = "0.1.1"
+derive_builder = "0.10.2"
+itertools = "0.10"
+log = "0.4"
+num_enum = "0.5"
+serde = {version = "1", features = ["derive"]}
+thiserror = "1.0"
+chrono = "0.4"
+paste = "1"
+futures = "0.3.21"
+tokio = { version = "1", features = ["full"]}
+[dev-dependencies]
+criterion = "0.3"
+[[bench]]
+name = "async_query"
+harness = false
