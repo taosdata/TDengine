@@ -120,6 +120,7 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_DNODES_STMT:
       return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_SHOW_VGROUPS_STMT:
+    case QUERY_NODE_SHOW_MNODES_STMT:
       return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));
@@ -215,6 +216,17 @@ static EDealRes destroyNode(SNode** pNode, void* pContext) {
       nodesDestroyList(pStmt->pOrderByList);
       nodesDestroyNode(pStmt->pLimit);
       nodesDestroyNode(pStmt->pSlimit);
+      break;
+    }
+    case QUERY_NODE_VNODE_MODIF_STMT: {
+      SVnodeModifOpStmt* pStmt = (SVnodeModifOpStmt*)*pNode;
+      size_t size = taosArrayGetSize(pStmt->pDataBlocks);
+      for (size_t i = 0; i < size; ++i) {
+        SVgDataBlocks* pVg = taosArrayGetP(pStmt->pDataBlocks, i);
+        tfree(pVg->pData);
+        tfree(pVg);
+      }
+      taosArrayDestroy(pStmt->pDataBlocks);
       break;
     }
     case QUERY_NODE_CREATE_TABLE_STMT: {

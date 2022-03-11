@@ -5089,7 +5089,7 @@ int main(int argc, char *argv[])
   //pthread_create(&(pThreadList[3]), &thattr, runcase, (void *)&par[3]);
 
   while(1) {
-    sleep(1);
+    taosSsleep(1);
   }
   return 0;
 }

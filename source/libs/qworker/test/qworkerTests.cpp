@@ -308,7 +308,7 @@ int32_t qwtExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
 
     if (qwtTestEnableSleep) {
       if (runTime) {
-        usleep(runTime);
+        taosUsleep(runTime);
       }
     }
       
@@ -590,7 +590,7 @@ void *queryThread(void *param) {
     qwtBuildQueryReqMsg(&queryRpc);
     qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc);    
     if (qwtTestEnableSleep) {
-      usleep(taosRand()%5);
+      taosUsleep(taosRand()%5);
     }
     if (++n % qwtTestPrintNum == 0) {
       printf("query:%d\n", n);
@@ -612,7 +612,7 @@ void *readyThread(void *param) {
     qwtBuildReadyReqMsg(&readyMsg, &readyRpc);
     code = qWorkerProcessReadyMsg(mockPointer, mgmt, &readyRpc);
     if (qwtTestEnableSleep) {
-      usleep(taosRand()%5);
+      taosUsleep(taosRand()%5);
     }
     if (++n % qwtTestPrintNum == 0) {
       printf("ready:%d\n", n);
@@ -634,7 +634,7 @@ void *fetchThread(void *param) {
     qwtBuildFetchReqMsg(&fetchMsg, &fetchRpc);
     code = qWorkerProcessFetchMsg(mockPointer, mgmt, &fetchRpc);
     if (qwtTestEnableSleep) {
-      usleep(taosRand()%5);
+      taosUsleep(taosRand()%5);
     }
     if (++n % qwtTestPrintNum == 0) {
       printf("fetch:%d\n", n);
@@ -656,7 +656,7 @@ void *dropThread(void *param) {
     qwtBuildDropReqMsg(&dropMsg, &dropRpc);
     code = qWorkerProcessDropMsg(mockPointer, mgmt, &dropRpc);
     if (qwtTestEnableSleep) {
-      usleep(taosRand()%5);
+      taosUsleep(taosRand()%5);
     }
     if (++n % qwtTestPrintNum == 0) {
       printf("drop:%d\n", n);
@@ -678,7 +678,7 @@ void *statusThread(void *param) {
     qwtBuildStatusReqMsg(&statusMsg, &statusRpc);
     code = qWorkerProcessStatusMsg(mockPointer, mgmt, &statusRpc);
     if (qwtTestEnableSleep) {
-      usleep(taosRand()%5);
+      taosUsleep(taosRand()%5);
     }
     if (++n % qwtTestPrintNum == 0) {
       printf("status:%d\n", n);
@@ -696,7 +696,7 @@ void *qwtclientThread(void *param) {
   void *mockPointer = (void *)0x1;    
   SRpcMsg queryRpc = {0};
 
-  sleep(1);
+  taosSsleep(1);
 
   while (!qwtTestStop) {
     qwtTestCaseFinished = false;
@@ -705,7 +705,7 @@ void *qwtclientThread(void *param) {
     qwtPutReqToQueue((void *)0x1, &queryRpc);
 
     while (!qwtTestCaseFinished) {
-      usleep(1);
+      taosUsleep(1);
     }
     
     
@@ -751,7 +751,7 @@ void *queryQueueThread(void *param) {
       int32_t delay = taosRand() % qwtTestReqMaxDelayUsec;
 
       if (delay) {
-        usleep(delay);
+        taosUsleep(delay);
       }
     }
     
@@ -807,7 +807,7 @@ void *fetchQueueThread(void *param) {
       int32_t delay = taosRand() % qwtTestReqMaxDelayUsec;
 
       if (delay) {
-        usleep(delay);
+        taosUsleep(delay);
       }
     }
 
@@ -982,21 +982,21 @@ TEST(seqTest, randCase) {
       qwtBuildReadyReqMsg(&readyMsg, &readyRpc);
       code = qWorkerProcessReadyMsg(mockPointer, mgmt, &readyRpc);
       if (qwtTestEnableSleep) {
-        usleep(1);
+        taosUsleep(1);
       }
     } else if (r >= maxr * 2/5 && r < maxr* 3/5) {
       printf("Fetch,%d\n", t++);
       qwtBuildFetchReqMsg(&fetchMsg, &fetchRpc);
       code = qWorkerProcessFetchMsg(mockPointer, mgmt, &fetchRpc);
       if (qwtTestEnableSleep) {
-        usleep(1);
+        taosUsleep(1);
       }
     } else if (r >= maxr * 3/5 && r < maxr * 4/5) {
       printf("Drop,%d\n", t++);
       qwtBuildDropReqMsg(&dropMsg, &dropRpc);
       code = qWorkerProcessDropMsg(mockPointer, mgmt, &dropRpc);
       if (qwtTestEnableSleep) {
-        usleep(1);
+        taosUsleep(1);
       }
     } else if (r >= maxr * 4/5 && r < maxr-1) {
       printf("Status,%d\n", t++);
@@ -1004,7 +1004,7 @@ TEST(seqTest, randCase) {
       code = qWorkerProcessStatusMsg(mockPointer, mgmt, &statusRpc);
       ASSERT_EQ(code, 0);
       if (qwtTestEnableSleep) {
-        usleep(1);
+        taosUsleep(1);
       }      
     } else {
       printf("QUIT RAND NOW");
@@ -1042,15 +1042,15 @@ TEST(seqTest, multithreadRand) {
 
   while (true) {
     if (qwtTestDeadLoop) {
-      sleep(1);
+      taosSsleep(1);
     } else {
-      sleep(qwtTestMTRunSec);
+      taosSsleep(qwtTestMTRunSec);
       break;
     }
   }
   
   qwtTestStop = true;
-  sleep(3);
+  taosSsleep(3);
   
   qWorkerDestroy(&mgmt);
 }
@@ -1099,9 +1099,9 @@ TEST(rcTest, shortExecshortDelay) {
 
   while (true) {
     if (qwtTestDeadLoop) {
-      sleep(1);
+      taosSsleep(1);
     } else {
-      sleep(qwtTestMTRunSec);
+      taosSsleep(qwtTestMTRunSec);
       break;
     }
   }
@@ -1113,14 +1113,14 @@ TEST(rcTest, shortExecshortDelay) {
       break;
     }
     
-    sleep(1);
+    taosSsleep(1);
 
     if (qwtTestCaseFinished) {
       if (qwtTestQuitThreadNum < 3) { 
         tsem_post(&qwtTestQuerySem);
         tsem_post(&qwtTestFetchSem);
 
-        usleep(10);
+        taosUsleep(10);
       }
     }
     
@@ -1180,9 +1180,9 @@ TEST(rcTest, longExecshortDelay) {
 
   while (true) {
     if (qwtTestDeadLoop) {
-      sleep(1);
+      taosSsleep(1);
     } else {
-      sleep(qwtTestMTRunSec);
+      taosSsleep(qwtTestMTRunSec);
       break;
     }
   }
@@ -1195,14 +1195,14 @@ TEST(rcTest, longExecshortDelay) {
       break;
     }
     
-    sleep(1);
+    taosSsleep(1);
 
     if (qwtTestCaseFinished) {
       if (qwtTestQuitThreadNum < 3) { 
         tsem_post(&qwtTestQuerySem);
         tsem_post(&qwtTestFetchSem);
         
-        usleep(10);
+        taosUsleep(10);
       }
     }
     
@@ -1263,9 +1263,9 @@ TEST(rcTest, shortExeclongDelay) {
 
   while (true) {
     if (qwtTestDeadLoop) {
-      sleep(1);
+      taosSsleep(1);
     } else {
-      sleep(qwtTestMTRunSec);
+      taosSsleep(qwtTestMTRunSec);
       break;
     }
   }
@@ -1278,14 +1278,14 @@ TEST(rcTest, shortExeclongDelay) {
       break;
     }
     
-    sleep(1);
+    taosSsleep(1);
 
     if (qwtTestCaseFinished) {
       if (qwtTestQuitThreadNum < 3) { 
         tsem_post(&qwtTestQuerySem);
         tsem_post(&qwtTestFetchSem);
         
-        usleep(10);
+        taosUsleep(10);
       }
     }
     
@@ -1342,15 +1342,15 @@ TEST(rcTest, dropTest) {
 
   while (true) {
     if (qwtTestDeadLoop) {
-      sleep(1);
+      taosSsleep(1);
     } else {
-      sleep(qwtTestMTRunSec);
+      taosSsleep(qwtTestMTRunSec);
       break;
     }
   }
   
   qwtTestStop = true;
-  sleep(3);
+  taosSsleep(3);
   
   qWorkerDestroy(&mgmt);
 }

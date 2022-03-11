@@ -499,29 +499,37 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t setTableVgroupList(STranslateContext *pCxt, SName* name, SVgroupsInfo **pVgList) {
-  SArray* vgroupList = NULL;
-  int32_t code = catalogGetTableDistVgInfo(pCxt->pParseCxt->pCatalog, pCxt->pParseCxt->pTransporter, &(pCxt->pParseCxt->mgmtEpSet), name, &vgroupList);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-  
-  size_t vgroupNum = taosArrayGetSize(vgroupList);
+static int32_t setTableVgroupList(SParseContext* pCxt, SName* name, SRealTableNode* pRealTable) {
+  if (TSDB_SUPER_TABLE == pRealTable->pMeta->tableType) {
+    SArray* vgroupList = NULL;
+    int32_t code = catalogGetTableDistVgInfo(pCxt->pCatalog, pCxt->pTransporter, &pCxt->mgmtEpSet, name, &vgroupList);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    
+    size_t vgroupNum = taosArrayGetSize(vgroupList);
+    pRealTable->pVgroupList = calloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo) * vgroupNum);
+    if (NULL == pRealTable->pVgroupList) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    pRealTable->pVgroupList->numOfVgroups = vgroupNum;
+    for (int32_t i = 0; i < vgroupNum; ++i) {
+      SVgroupInfo *vg = taosArrayGet(vgroupList, i);
+      pRealTable->pVgroupList->vgroups[i] = *vg;
+    }
 
-  SVgroupsInfo* vgList = calloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo) * vgroupNum);
-  if (NULL == vgList) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    taosArrayDestroy(vgroupList);
+  } else {
+    pRealTable->pVgroupList = calloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo));
+    if (NULL == pRealTable->pVgroupList) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    pRealTable->pVgroupList->numOfVgroups = 1;
+    int32_t code = catalogGetTableHashVgroup(pCxt->pCatalog, pCxt->pTransporter, &pCxt->mgmtEpSet, name, pRealTable->pVgroupList->vgroups);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   }
-  vgList->numOfVgroups = vgroupNum;
-  
-  for (int32_t i = 0; i < vgroupNum; ++i) {
-    SVgroupInfo *vg = taosArrayGet(vgroupList, i);
-    vgList->vgroups[i] = *vg;
-  }
-
-  *pVgList = vgList;
-  taosArrayDestroy(vgroupList);
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -536,7 +544,7 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
       if (TSDB_CODE_SUCCESS != code) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, pRealTable->table.tableName);
       }
-      code = setTableVgroupList(pCxt, &name, &(pRealTable->pVgroupList));
+      code = setTableVgroupList(pCxt->pParseCxt, &name, pRealTable);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
@@ -847,6 +855,7 @@ static int32_t translateCreateSuperTable(STranslateContext* pCxt, SCreateTableSt
 
   pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
   if (NULL== pCxt->pCmdMsg) {
+    tFreeSMCreateStbReq(&createReq);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
@@ -854,10 +863,12 @@ static int32_t translateCreateSuperTable(STranslateContext* pCxt, SCreateTableSt
   pCxt->pCmdMsg->msgLen = tSerializeSMCreateStbReq(NULL, 0, &createReq);
   pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
   if (NULL== pCxt->pCmdMsg->pMsg) {
+    tFreeSMCreateStbReq(&createReq);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   tSerializeSMCreateStbReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &createReq);
 
+  tFreeSMCreateStbReq(&createReq);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1059,6 +1070,8 @@ static int32_t nodeTypeToShowType(ENodeType nt) {
       return TSDB_MGMT_TABLE_DNODE;
     case QUERY_NODE_SHOW_VGROUPS_STMT:
       return TSDB_MGMT_TABLE_VGROUP;
+    case QUERY_NODE_SHOW_MNODES_STMT:
+      return TSDB_MGMT_TABLE_MNODE;
     default:
       break;
   }
@@ -1166,6 +1179,7 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
+    case QUERY_NODE_SHOW_MNODES_STMT:
       code = translateShow(pCxt, (SShowStmt*)pNode);
       break;
     case QUERY_NODE_SHOW_TABLES_STMT:
@@ -1211,14 +1225,12 @@ static int32_t setReslutSchema(STranslateContext* pCxt, SQuery* pQuery) {
 
 static void destroyTranslateContext(STranslateContext* pCxt) {
   if (NULL != pCxt->pNsLevel) {
-
+    size_t size = taosArrayGetSize(pCxt->pNsLevel);
+    for (size_t i = 0; i < size; ++i) {
+      taosArrayDestroy(taosArrayGetP(pCxt->pNsLevel, i));
+    }
+    taosArrayDestroy(pCxt->pNsLevel);
   }
-
-  size_t size = taosArrayGetSize(pCxt->pNsLevel);
-  for (size_t i = 0; i < size; ++i) {
-    taosArrayDestroy(taosArrayGetP(pCxt->pNsLevel, i));
-  }
-  taosArrayDestroy(pCxt->pNsLevel);
 
   if (NULL != pCxt->pCmdMsg) {
     tfree(pCxt->pCmdMsg->pMsg);
@@ -1306,8 +1318,6 @@ static void destroyCreateTbReqBatch(SVgroupTablesBatch* pTbBatch) {
       tfree(pTableReq->ntbCfg.pSchema);
     } else if (pTableReq->type == TSDB_CHILD_TABLE) {
       tfree(pTableReq->ctbCfg.pTag);
-    } else {
-      assert(0);
     }
   }
 
@@ -1333,6 +1343,16 @@ static int32_t rewriteToVnodeModifOpStmt(SQuery* pQuery, SArray* pBufArray) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void destroyCreateTbReqArray(SArray* pArray) {
+  size_t size = taosArrayGetSize(pArray);
+  for (size_t i = 0; i < size; ++i) {
+    SVgDataBlocks* pVg = taosArrayGetP(pArray, i);
+    tfree(pVg->pData);
+    tfree(pVg);
+  }
+  taosArrayDestroy(pArray);
+}
+
 static int32_t buildCreateTableDataBlock(const SCreateTableStmt* pStmt, const SVgroupInfo* pInfo, SArray** pBufArray) {
   *pBufArray = taosArrayInit(1, POINTER_BYTES);
   if (NULL == *pBufArray) {
@@ -1344,9 +1364,10 @@ static int32_t buildCreateTableDataBlock(const SCreateTableStmt* pStmt, const SV
   if (TSDB_CODE_SUCCESS == code) {
     code = serializeVgroupTablesBatch(&tbatch, *pBufArray);
   }
+
   destroyCreateTbReqBatch(&tbatch);
   if (TSDB_CODE_SUCCESS != code) {
-    // todo : destroyCreateTbReqArray(*pBufArray);
+    destroyCreateTbReqArray(*pBufArray);
   }
   return code;
 }
@@ -1362,6 +1383,9 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteToVnodeModifOpStmt(pQuery, pBufArray);
+    if (TSDB_CODE_SUCCESS != code) {
+      destroyCreateTbReqArray(pBufArray);
+    }
   }
 
   return code;
@@ -1573,10 +1597,10 @@ static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) 
   }
 
   SArray* pBufArray = serializeVgroupsTablesBatch(pVgroupHashmap);
+  taosHashCleanup(pVgroupHashmap);
   if (NULL == pBufArray) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  taosHashCleanup(pVgroupHashmap);
 
   return rewriteToVnodeModifOpStmt(pQuery, pBufArray);
 }

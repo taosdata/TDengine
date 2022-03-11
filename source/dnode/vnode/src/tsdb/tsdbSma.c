@@ -128,7 +128,7 @@ static SSmaStatItem *tsdbNewSmaStatItem(int8_t state) {
   return pItem;
 }
 
-int32_t tsdbFreeSmaState(SSmaStat *pSmaStat) {
+int32_t tsdbDestroySmaState(SSmaStat *pSmaStat) {
   if (pSmaStat) {
     // TODO: use taosHashSetFreeFp when taosHashSetFreeFp is ready.
     SSmaStatItem *item = taosHashIterate(pSmaStat->smaStatItems, NULL);
@@ -200,6 +200,23 @@ int32_t tsdbUpdateExpiredWindow(STsdb *pTsdb, char *msg) {
     }
   }
 
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tsdbResetExpiredWindow(STsdb *pTsdb, const char *indexName, void *timeWindow) {
+  SSmaStatItem *pItem = NULL;
+
+  if (pTsdb->pSmaStat && pTsdb->pSmaStat->smaStatItems) {
+    pItem = (SSmaStatItem *)taosHashGet(pTsdb->pSmaStat->smaStatItems, indexName, strlen(indexName));
+  }
+
+  if (pItem != NULL) {
+    // TODO: reset time windows for the sma data blocks
+    while (true) {
+      TSKEY thisWindow = 0;
+      taosHashRemove(pItem->expiredWindows, &thisWindow, sizeof(thisWindow));
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -387,7 +404,7 @@ static int32_t tsdbInsertTSmaDataSection(STSmaWriteH *pSmaH, STSmaData *pData, i
 static int32_t tsdbInitTSmaWriteH(STSmaWriteH *pSmaH, STsdb *pTsdb, STSma *param, STSmaData *pData) {
   pSmaH->pTsdb = pTsdb;
   pSmaH->interval = tsdbGetIntervalByPrecision(param->interval, param->intervalUnit, REPO_CFG(pTsdb)->precision);
-  pSmaH->blockSize = param->numOfFuncIds * sizeof(int64_t);
+  // pSmaH->blockSize = param->numOfFuncIds * sizeof(int64_t);
 }
 
 static int32_t tsdbSetTSmaDataFile(STSmaWriteH *pSmaH, STSma *param, STSmaData *pData, int32_t storageLevel,
@@ -495,6 +512,9 @@ int32_t tsdbInsertTSmaDataImpl(STsdb *pTsdb, STSma *param, STSmaData *pData) {
     return terrno;
   }
 
+  // reset the SSmaStat
+  tsdbResetExpiredWindow(pTsdb, param->indexName, &pData->tsWindow);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -542,6 +562,10 @@ int32_t tsdbInsertRSmaDataImpl(STsdb *pTsdb, SRSma *param, STSmaData *pData) {
     TASSERT(0);
     return TSDB_CODE_INVALID_PARA;
   }
+
+  // reset the SSmaStat
+  tsdbResetExpiredWindow(pTsdb, param->tsma.indexName, &pData->tsWindow);
+
   // Step 4: finish
   return TSDB_CODE_SUCCESS;
 }
@@ -558,7 +582,7 @@ int32_t tsdbInsertRSmaDataImpl(STsdb *pTsdb, SRSma *param, STSmaData *pData) {
 static int32_t tsdbInitTSmaReadH(STSmaReadH *pSmaH, STsdb *pTsdb, STSma *param, STSmaData *pData) {
   pSmaH->pTsdb = pTsdb;
   pSmaH->interval = tsdbGetIntervalByPrecision(param->interval, param->intervalUnit, REPO_CFG(pTsdb)->precision);
-  pSmaH->blockSize = param->numOfFuncIds * sizeof(int64_t);
+  // pSmaH->blockSize = param->numOfFuncIds * sizeof(int64_t);
 }
 
 /**

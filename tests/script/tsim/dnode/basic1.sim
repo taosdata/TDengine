@@ -177,7 +177,7 @@ if $rows != 3 then
   return -1
 endi
 
-sql select * from st
+sql select ts, i from st
 if $rows != 15 then 
   return -1
 endi
