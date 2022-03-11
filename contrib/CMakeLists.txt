@@ -14,6 +14,11 @@ if(${BUILD_PTHREAD})
     cat("${CMAKE_SUPPORT_DIR}/pthread_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
 
+# gnu regex
+if(${BUILD_GNUREGEX})
+    cat("${CMAKE_SUPPORT_DIR}/gnuregex_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif()
+
 # googletest
 if(${BUILD_TEST})
     cat("${CMAKE_SUPPORT_DIR}/gtest_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})

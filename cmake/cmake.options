@@ -11,6 +11,13 @@ IF(${TD_WINDOWS})
             ON
           )
 
+    MESSAGE("build gnu regex for Windows")
+    option(
+            BUILD_GNUREGEX
+            "If build gnu regex on Windows"
+            ON
+          )
+
 ENDIF ()
 
 IF(${TD_LINUX} MATCHES TRUE)

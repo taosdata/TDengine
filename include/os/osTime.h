@@ -21,6 +21,9 @@ extern "C" {
 #endif
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+
+  #define CLOCK_REALTIME 	0
+
   #ifdef _TD_GO_DLL_
     #define MILLISECOND_PER_SECOND (1000LL)
   #else

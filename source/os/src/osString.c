@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "tdef.h"
 #include <wchar.h>
 #include <wctype.h>
 

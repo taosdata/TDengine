@@ -5,6 +5,7 @@ target_include_directories(
     util
     PUBLIC "${CMAKE_SOURCE_DIR}/include/util"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+    PRIVATE "${CMAKE_SOURCE_DIR}/contrib/pthread-win32"
 )
 target_link_libraries(
     util
