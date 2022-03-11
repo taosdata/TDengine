@@ -259,13 +259,26 @@ static SPhysiNode* createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   return (SPhysiNode*)pTableScan;
 }
 
+static SPhysiNode* createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SScanLogicNode* pScanLogicNode) {
+  SSystemTableScanPhysiNode* pScan = (SSystemTableScanPhysiNode*)makePhysiNode(pCxt, QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN);
+  CHECK_ALLOC(pScan, NULL);
+  CHECK_CODE(initScanPhysiNode(pCxt, pScanLogicNode, (SScanPhysiNode*)pScan), (SPhysiNode*)pScan);
+  for (int32_t i = 0; i < pScanLogicNode->pVgroupList->numOfVgroups; ++i) {
+    SQueryNodeAddr addr;
+    vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups + i, &addr);
+    taosArrayPush(pCxt->pExecNodeList, &addr);
+  }
+  return (SPhysiNode*)pScan;
+}
+
 static SPhysiNode* createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode) {
   switch (pScanLogicNode->scanType) {
     case SCAN_TYPE_TAG:
       return createTagScanPhysiNode(pCxt, pScanLogicNode);
     case SCAN_TYPE_TABLE:
       return createTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode);
-    case SCAN_TYPE_STABLE:
+    case SCAN_TYPE_SYSTEM_TABLE:
+      return createSystemTableScanPhysiNode(pCxt, pScanLogicNode);
     case SCAN_TYPE_STREAM:
       break;
     default:
@@ -768,7 +781,7 @@ static SQueryPlan* makeQueryPhysiPlan(SPhysiPlanContext* pCxt) {
 
 static int32_t doBuildPhysiPlan(SPhysiPlanContext* pCxt, SSubLogicPlan* pLogicSubplan, SSubplan* pParent, SQueryPlan* pQueryPlan) {
   SSubplan* pSubplan = createPhysiSubplan(pCxt, pLogicSubplan);
-  CHECK_ALLOC(pSubplan, DEAL_RES_ERROR);
+  CHECK_ALLOC(pSubplan, TSDB_CODE_OUT_OF_MEMORY);
   CHECK_CODE_EXT(pushSubplan(pCxt, pSubplan, pLogicSubplan->level, pQueryPlan->pSubplans));
   ++(pQueryPlan->numOfSubplans);
   if (NULL != pParent) {

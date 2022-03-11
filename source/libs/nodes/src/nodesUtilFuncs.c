@@ -146,6 +146,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(STableSeqScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
       return makeNode(type, sizeof(SNode));
+    case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
+      return makeNode(type, sizeof(SSystemTableScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return makeNode(type, sizeof(SProjectPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_JOIN:
