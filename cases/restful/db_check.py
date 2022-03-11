@@ -45,6 +45,50 @@ class TestDB(TDCase):
         self.tdRest.error(f'create database if not exists `{dbname}`')
         self.tdSql.checkEqual(self.tdRest.resp["desc"], "invalid operation: invalid db name")
 
+    def alter_db(self):
+        '''
+            alter db
+        '''
+        self.tdRest.drop_all_db()
+        dbname = self.tdCom.get_long_name(len=10, mode="letters")
+        self.tdRest.request(f'create database if not exists {dbname}')
+        # blocks
+        self.tdRest.request(f'alter database {dbname} blocks 12')
+        self.tdRest.request('show databases')
+        res = self.tdRest.getOneRow(0, dbname)
+        self.tdSql.checkEqual(int(res[0][9]), 12)
+        # keep
+        self.tdRest.request(f'alter database {dbname} keep 365')
+        self.tdRest.request('show databases')
+        res = self.tdRest.getOneRow(0, dbname)
+        self.tdSql.checkEqual(int(res[0][7]), 365)
+        # comp
+        for comp in [0, 1]:
+            self.tdRest.request(f'alter database {dbname} comp {comp}')
+            self.tdRest.request('show databases')
+            res = self.tdRest.getOneRow(0, dbname)
+            self.tdSql.checkEqual(res[0][14], comp)
+        # # replica
+        # out of dnodes
+        # for replica in [2, 1]:
+        #     self.tdRest.request(f'alter database {dbname} replica {replica}')
+        #     self.tdRest.request('show databases')
+        #     res = self.tdRest.getOneRow(0, dbname)
+        #     self.tdSql.checkEqual(res[0][4], replica)
+        # quorum
+        # Invalid database options
+        # for quorum in [2, 1]:
+        #     self.tdRest.request(f'alter database {dbname} quorum {quorum}')
+        #     self.tdRest.request('show databases')
+        #     res = self.tdRest.getOneRow(0, dbname)
+        #     self.tdSql.checkEqual(res[0][5], quorum)
+        # cachelast
+        for cachelast in [0, 1]:
+            self.tdRest.request(f'alter database {dbname} cachelast {cachelast}')
+            self.tdRest.request('show databases')
+            res = self.tdRest.getOneRow(0, dbname)
+            self.tdSql.checkEqual(res[0][15], cachelast)
+
     def upper_lower_dbname_check(self):
         '''
             case insensitive
@@ -65,6 +109,7 @@ class TestDB(TDCase):
         self.tdRest.request(f'create database if not exists {dbname}')
         self.tdRest.error(f'create database {dbname}')
         self.tdSql.checkEqual(self.tdRest.resp['desc'], "Database already exists")
+        self.tdRest.error(f'create database if not exists 1{dbname}')
         self.tdRest.error(f'create data base if not exists {dbname}')
         self.tdRest.error(f'create database i f not exists {dbname}')
         self.tdRest.error(f'cre ate database if not exists {dbname}')
@@ -96,6 +141,7 @@ class TestDB(TDCase):
     def run(self) -> bool:
         self.dbname_length_check()
         self.dbname_backquote_unsupport_check()
+        self.alter_db()
         self.upper_lower_dbname_check()
         self.illegal_dbsql_check()
 
@@ -106,6 +152,7 @@ class TestDB(TDCase):
         case_description = '''
             dbname_length_check <jayden>: [TD-12748] : db name length check (max 32);\n
             dbname_backquote_unsupport_check <jayden>: [TD-12748] : unsupport backquote;\n
+            alter_db <jayden>: [TD-12748] : alter db params;\n
             upper_lower_dbname_check <jayden>: [TD-12748] : case insensitive;\n
             illegal_dbsql_check <jayden>: [TD-12748] : illegal dbname check;
         '''
@@ -115,5 +162,5 @@ class TestDB(TDCase):
         return "Jayden"
     
     def tags(self):
-        return T.Write.Database.Create, T.Write.Database.Drop, T.Write.RestfulSql 
+        return T.Write.RestfulSql.Database.Create, T.Write.RestfulSql.Database.Drop, T.Write.RestfulSql.Database.Alter
         

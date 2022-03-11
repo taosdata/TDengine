@@ -55,7 +55,7 @@ class TestUnsignedSmallintBoundary(TDCase):
 
     def desc(self) -> str:
         case_description = '''
-            usmallint_boundary_check <jayden>: [TD048] : unsigned smallint boundary check (max 65534);
+            usmallint_boundary_check <jayden>: [TD-12748] : unsigned smallint boundary check (max 65534);
         '''
         return case_description
         
@@ -63,4 +63,4 @@ class TestUnsignedSmallintBoundary(TDCase):
         return "Jayden"
     
     def tags(self):
-        return T.Write.RestfulSql
+        return T.Write.RestfulSql.Insert.BoundaryTest.Usmallint

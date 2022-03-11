@@ -32,8 +32,8 @@ class TestStb(TDCase):
         self.tdRest.error(f'create stable {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdRest.request(f'show {self.dbname}.stables')
         self.tdSql.checkEqual(self.tdRest.resp["data"][0][0], stbname)
-        dbname_exceed = self.tdCom.get_long_name(len=193, mode="letters")
-        self.tdRest.error(f'create stable if not exists {self.dbname}.{dbname_exceed} (ts timestamp, c1 int) tags (t1 int)')
+        stbname_exceed = self.tdCom.get_long_name(len=193, mode="letters")
+        self.tdRest.error(f'create stable if not exists {self.dbname}.{stbname_exceed} (ts timestamp, c1 int) tags (t1 int)')
 
     def stbname_with_backquote(self):
         '''
@@ -94,6 +94,70 @@ class TestStb(TDCase):
             self.tdSql.checkEqual(self.tdRest.resp["data"][0][0], stbname)
             self.tdRest.request(f'drop stable if exists {self.dbname}.`{stbname}`')
 
+    def desc_check(self):
+        '''
+        describe stable
+        '''
+        self.tdCom.cleanTb(type="restful", dbname=self.dbname)
+        stbname = self.tdCom.get_long_name(len=192, mode="letters")
+        self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
+                c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 binary(16), c12 nchar(16), c13 bool) tags (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, \
+                t4 bigint, t5 tinyint unsigned, t6 smallint unsigned, t7 int unsigned, t8 bigint unsigned, t9 float, t10 double, t11 binary(16), t12 nchar(16), t13 bool)')
+        self.tdRest.request(f'describe {self.dbname}.{stbname}')
+        col_name_list, col_type_list, length_list, note_list = self.tdRest.getColNameList(True)
+        self.tdSql.checkEqual(col_name_list, ['col_ts', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9', 'c10', 'c11', 'c12', 'c13', 'tag_ts', 't1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9', 't10', 't11', 't12', 't13'])
+        self.tdSql.checkEqual(col_type_list, ['TIMESTAMP', 'TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'NCHAR', 'BOOL', 'TIMESTAMP', 'TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'NCHAR', 'BOOL'])
+        self.tdSql.checkEqual(length_list, [8, 1, 2, 4, 8, 1, 2, 4, 8, 4, 8, 16, 16, 1, 8, 1, 2, 4, 8, 1, 2, 4, 8, 4, 8, 16, 16, 1])
+        self.tdSql.checkEqual(note_list, ['', '', '', '', '', '', '', '', '', '', '', '', '', '', 'TAG', 'TAG', 'TAG', 'TAG', 'TAG', 'TAG', 'TAG', 'TAG', 'TAG', 'TAG', 'TAG', 'TAG', 'TAG', 'TAG'])
+
+    def alter_stb(self):
+        """
+        alter stable
+        """
+        self.tdCom.cleanTb(type="restful", dbname=self.dbname)
+        stbname = self.tdCom.get_long_name(len=192, mode="letters")
+        self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (col_ts timestamp, c1 binary(16), c2 nchar(16)) tags (t1 binary(16), t2 nchar(16))')
+        self.tdRest.request(f'alter stable {self.dbname}.{stbname} modify column c1 binary(32) ')
+        self.tdRest.request(f'alter stable {self.dbname}.{stbname} modify column c2 nchar(32) ')
+        self.tdRest.request(f'alter stable {self.dbname}.{stbname} modify tag t1 binary(32) ')
+        self.tdRest.request(f'alter stable {self.dbname}.{stbname} modify tag t2 nchar(32) ')
+        self.tdRest.error(f'alter stable {self.dbname}.{stbname} modify column c1 binary(16) ')
+        self.tdRest.error(f'alter stable {self.dbname}.{stbname} modify column c2 nchar(16) ')
+        self.tdRest.error(f'alter stable {self.dbname}.{stbname} modify tag t1 binary(16) ')
+        self.tdRest.error(f'alter stable {self.dbname}.{stbname} modify tag t2 nchar(16) ')
+        self.tdRest.request(f'describe {self.dbname}.{stbname}')
+        length_list = self.tdRest.getColNameList(True)[2]
+        self.tdSql.checkEqual(length_list, [8, 32, 32, 32, 32])
+
+    def add_drop_column(self):
+        """
+        add/drop column
+        """
+        self.tdCom.cleanTb(type="restful", dbname=self.dbname)
+        stbname = self.tdCom.get_long_name(len=192, mode="letters")
+        self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (col_ts timestamp, c1 int, c2 tinyint) tags (t1 int, t2 tinyint)')
+        # drop column
+        self.tdRest.request(f'alter stable {self.dbname}.{stbname} drop column c2')
+        # drop tag
+        self.tdRest.request(f'alter stable {self.dbname}.{stbname} drop tag t2')
+
+        self.tdRest.request(f'describe {self.dbname}.{stbname}')
+        col_name_list = self.tdRest.getColNameList(True)[0]
+        col_type_list = self.tdRest.getColNameList(True)[1]
+        self.tdSql.checkEqual(col_name_list, ['col_ts', 'c1', 't1'])
+        self.tdSql.checkEqual(col_type_list, ['TIMESTAMP', 'INT', 'INT'])
+
+        # add column
+        self.tdRest.request(f'alter stable {self.dbname}.{stbname} add column c2 tinyint')
+        # add tag
+        self.tdRest.request(f'alter stable {self.dbname}.{stbname} add tag t2 tinyint')
+
+        self.tdRest.request(f'describe {self.dbname}.{stbname}')
+        col_name_list = self.tdRest.getColNameList(True)[0]
+        col_type_list = self.tdRest.getColNameList(True)[1]
+        self.tdSql.checkEqual(col_name_list, ['col_ts', 'c1', 'c2', 't1', 't2'])
+        self.tdSql.checkEqual(col_type_list, ['TIMESTAMP', 'INT', 'TINYINT', 'INT', 'TINYINT'])
+
     def illegal_stbsql_check(self):
         '''
             mixed invalid symbol
@@ -118,12 +182,16 @@ class TestStb(TDCase):
                 sql_new = ''.join(d_list_new)
                 self.tdRest.error(sql_new)
         self.tdRest.request(f'drop stable if exists {dbname}.`{dbname}`')
+        self.tdRest.request(f'drop database if exists {self.dbname}')
 
     def run(self):
         self.stbname_length_check()
         self.stbname_with_backquote()
         self.stbname_without_backquote()
         self.upper_lower_stbname_check()
+        self.desc_check()
+        self.alter_stb()
+        self.add_drop_column()
         self.illegal_stbsql_check()
 
     def desc(self) -> str:
@@ -132,6 +200,9 @@ class TestStb(TDCase):
             stbname_with_backquote <jayden>: [TD-12748] : backquote supported;\n
             stbname_without_backquote <jayden>: [TD-12748] : error occured when illegal stbname without backquote;\n
             upper_lower_stbname_check <jayden>: [TD-12748] : upper lower stbname check;\n
+            desc_check <jayden>: [TD-12748] : describe stable;\n
+            alter_stb <jayden>: [TD-12748] : alter stable modify (binary/nchar) length;\n
+            add_drop_column <jayden>: [TD-12748] : add/drop column/tag;\n
             illegal_stbsql_check <jayden>: [TD-12748] : illegal stbsql check;
         '''
         return case_description
@@ -140,4 +211,4 @@ class TestStb(TDCase):
         return "Jayden"
     
     def tags(self):
-        return T.Write.Stable.Create, T.Write.Stable.Drop, T.Write.RestfulSql 
+        return T.Write.RestfulSql.Stable.Create, T.Write.RestfulSql.Stable.Drop, T.Write.RestfulSql.Stable.Alter

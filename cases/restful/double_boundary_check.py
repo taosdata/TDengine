@@ -63,4 +63,4 @@ class TestDoubleBoundary(TDCase):
         return "Jayden"
     
     def tags(self):
-        return T.Write.RestfulSql
+        return T.Write.RestfulSql.Insert.BoundaryTest.Double

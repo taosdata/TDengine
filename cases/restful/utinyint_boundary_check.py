@@ -55,7 +55,7 @@ class TestUnsignedTinyintBoundary(TDCase):
 
     def desc(self) -> str:
         case_description = '''
-            utinyint_boundary_check <jayden>: [TD048] : unsigned tinyint boundary check (max 254);
+            utinyint_boundary_check <jayden>: [TD-12748] : unsigned tinyint boundary check (max 254);
         '''
         return case_description
         
@@ -63,4 +63,4 @@ class TestUnsignedTinyintBoundary(TDCase):
         return "Jayden"
     
     def tags(self):
-        return T.Write.RestfulSql
+        return T.Write.RestfulSql.Insert.BoundaryTest.Utinyint

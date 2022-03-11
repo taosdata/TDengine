@@ -60,5 +60,5 @@ class TestAlterInsert(TDCase):
         return "Jayden"
     
     def tags(self):
-        return T.Write.RestfulSql 
+        return T.Write.RestfulSql.Stable.Alter
 

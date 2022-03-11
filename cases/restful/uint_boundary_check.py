@@ -55,7 +55,7 @@ class TestUnsignedIntBoundary(TDCase):
 
     def desc(self) -> str:
         case_description = '''
-            uint_boundary_check <jayden>: [TD048] : unsigned int boundary check (max 4294967294);
+            uint_boundary_check <jayden>: [TD-12748] : unsigned int boundary check (max 4294967294);
         '''
         return case_description
         
@@ -63,4 +63,4 @@ class TestUnsignedIntBoundary(TDCase):
         return "Jayden"
     
     def tags(self):
-        return T.Write.RestfulSql
+        return T.Write.RestfulSql.Insert.BoundaryTest.Uint
