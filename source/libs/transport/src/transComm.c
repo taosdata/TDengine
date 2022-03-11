@@ -257,6 +257,12 @@ int transDestroyBuffer(SConnBuffer* buf) {
   transClearBuffer(buf);
 }
 
+int transSetConnOption(uv_tcp_t* stream) {
+  uv_tcp_nodelay(stream, 1);
+  int ret = uv_tcp_keepalive(stream, 5, 5);
+  return ret;
+}
+
 SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb) {
   SAsyncPool* pool = calloc(1, sizeof(SAsyncPool));
   pool->index = 0;
