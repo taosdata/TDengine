@@ -9171,7 +9171,7 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
       type = s->type;
       bytes = s->bytes;
     } else if (TSDB_COL_IS_TSWIN_COL(pExprs[i].base.colInfo.colId) &&
-               (pExprs[i].base.functionId >= TSDB_FUNC_WSTART || pExprs[i].base.functionId <= TSDB_FUNC_QDURATION)) {
+               isTimeWindowFunction(pExprs[i].base.functionId)) {
       SSchema* s = tGetTimeWindowColumnSchema(pExprs[i].base.colInfo.colId);
       type = s->type;
       bytes = s->bytes;
