@@ -24,15 +24,25 @@ extern "C" {
 
 typedef struct SProcQueue SProcQueue;
 typedef struct SProcObj   SProcObj;
-typedef void *(*ProcFp)(void *pParent, void *pHead, int32_t headLen, void *pBody, int32_t bodyLen);
+typedef void *(*ProcMallocFp)(int32_t contLen);
+typedef void *(*ProcFreeFp)(void *pCont);
+typedef void *(*ProcConsumeFp)(void *pParent, void *pHead, int32_t headLen, void *pBody, int32_t bodyLen);
 
 typedef struct {
-  int32_t childQueueSize;
-  int32_t parentQueueSize;
-  ProcFp  childFp;
-  ProcFp  parentFp;
-  void   *pParent;
-  bool    testFlag;
+  int32_t       childQueueSize;
+  ProcConsumeFp childConsumeFp;
+  ProcMallocFp  childMallocHeadFp;
+  ProcFreeFp    childFreeHeadFp;
+  ProcMallocFp  childMallocBodyFp;
+  ProcFreeFp    childFreeBodyFp;
+  int32_t       parentQueueSize;
+  ProcConsumeFp parentConsumeFp;
+  ProcMallocFp  parentdMallocHeadFp;
+  ProcFreeFp    parentFreeHeadFp;
+  ProcMallocFp  parentMallocBodyFp;
+  ProcFreeFp    parentFreeBodyFp;
+  bool          testFlag;
+  void         *pParent;
 } SProcCfg;
 
 SProcObj *taosProcInit(const SProcCfg *pCfg);

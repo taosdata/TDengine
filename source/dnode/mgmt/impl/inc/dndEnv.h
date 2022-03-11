@@ -81,7 +81,7 @@ typedef struct {
   MndMsgFp  msgFp[TDMT_MAX];
   SProcObj *pProcess;
   bool      singleProc;
-} SMnodeMgmt;
+} SMndMgmt;
 
 typedef struct {
   int32_t      refCount;
@@ -144,7 +144,7 @@ typedef struct SDnode {
   SDnodeDir    dir;
   TdFilePtr    pLockFile;
   SDnodeMgmt   dmgmt;
-  SMnodeMgmt   mmgmt;
+  SMndMgmt     mmgmt;
   SQnodeMgmt   qmgmt;
   SSnodeMgmt   smgmt;
   SBnodeMgmt   bmgmt;

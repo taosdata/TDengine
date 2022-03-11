@@ -21,6 +21,7 @@
 
 #define SHM_DEFAULT_SIZE (20 * 1024 * 1024)
 #define CEIL8(n)         (ceil((float)(n) / 8) * 8)
+typedef void *(*ProcThreadFp)(void *param);
 
 typedef struct SProcQueue {
   int32_t         head;
@@ -29,18 +30,21 @@ typedef struct SProcQueue {
   int32_t         avail;
   int32_t         items;
   char           *pBuffer;
+  ProcMallocFp    mallocHeadFp;
+  ProcFreeFp      freeHeadFp;
+  ProcMallocFp    mallocBodyFp;
+  ProcFreeFp      freeBodyFp;
+  ProcConsumeFp   consumeFp;
+  void           *pParent;
   tsem_t          sem;
   pthread_mutex_t mutex;
 } SProcQueue;
 
 typedef struct SProcObj {
-  SProcQueue *pChildQueue;
-  SProcQueue *pParentQueue;
   pthread_t   childThread;
+  SProcQueue *pChildQueue;
   pthread_t   parentThread;
-  ProcFp      childFp;
-  ProcFp      parentFp;
-  void       *pParent;
+  SProcQueue *pParentQueue;
   int32_t     pid;
   bool        isChild;
   bool        stopFlag;
@@ -144,6 +148,9 @@ static int32_t taosProcQueuePush(SProcQueue *pQueue, char *pHead, int32_t rawHea
   pQueue->items++;
   pthread_mutex_unlock(&pQueue->mutex);
   tsem_post(&pQueue->sem);
+
+  (*pQueue->freeHeadFp)(pHead);
+  (*pQueue->freeBodyFp)(pBody);
   return 0;
 }
 
@@ -169,13 +176,13 @@ static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int32_t *pHea
     bodyLen = *(int32_t *)(pQueue->pBuffer + 4);
   }
 
-  void *pHead = taosAllocateQitem(headLen);
-  void *pBody = malloc(bodyLen);
+  void *pHead = (*pQueue->mallocHeadFp)(headLen);
+  void *pBody = (*pQueue->mallocBodyFp)(bodyLen);
   if (pHead == NULL || pBody == NULL) {
     pthread_mutex_unlock(&pQueue->mutex);
     tsem_post(&pQueue->sem);
-    taosFreeQitem(pHead);
-    free(pBody);
+    (*pQueue->freeHeadFp)(pHead);
+    (*pQueue->freeBodyFp)(pBody);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -229,13 +236,8 @@ SProcObj *taosProcInit(const SProcCfg *pCfg) {
     return NULL;
   }
 
-  pProc->pParent = pCfg->pParent;
-  pProc->childFp = pCfg->childFp;
-  pProc->parentFp = pCfg->parentFp;
-  pProc->testFlag = pCfg->testFlag;
   pProc->pChildQueue = taosProcQueueInit(pCfg->childQueueSize);
   pProc->pParentQueue = taosProcQueueInit(pCfg->parentQueueSize);
-
   if (pProc->pChildQueue == NULL || pProc->pParentQueue == NULL) {
     taosProcQueueCleanup(pProc->pChildQueue);
     taosProcQueueCleanup(pProc->pParentQueue);
@@ -243,17 +245,31 @@ SProcObj *taosProcInit(const SProcCfg *pCfg) {
     return NULL;
   }
 
+  pProc->testFlag = pCfg->testFlag;
+  pProc->pChildQueue->pParent = pCfg->pParent;
+  pProc->pChildQueue->mallocHeadFp = pCfg->childMallocHeadFp;
+  pProc->pChildQueue->freeHeadFp = pCfg->childFreeHeadFp;
+  pProc->pChildQueue->mallocBodyFp = pCfg->childMallocBodyFp;
+  pProc->pChildQueue->freeBodyFp = pCfg->childFreeBodyFp;
+  pProc->pChildQueue->consumeFp = pCfg->childConsumeFp;
+  pProc->pParentQueue->pParent = pCfg->pParent;
+  pProc->pParentQueue->mallocHeadFp = pCfg->parentdMallocHeadFp;
+  pProc->pParentQueue->freeHeadFp = pCfg->parentFreeHeadFp;
+  pProc->pParentQueue->mallocBodyFp = pCfg->parentMallocBodyFp;
+  pProc->pParentQueue->freeBodyFp = pCfg->parentFreeBodyFp;
+  pProc->pParentQueue->consumeFp = pCfg->parentConsumeFp;
+
   // todo
   pProc->isChild = 0;
 
   return pProc;
 }
 
-static void taosProcThreadLoop(SProcQueue *pQueue, ProcFp procFp, void *pParent) {
-  void   *pHead;
-  void   *pBody;
-  int32_t headLen;
-  int32_t bodyLen;
+static void taosProcThreadLoop(SProcQueue *pQueue) {
+  ProcConsumeFp consumeFp = pQueue->consumeFp;
+  void         *pParent = pQueue->pParent;
+  void         *pHead, *pBody;
+  int32_t       headLen, bodyLen;
 
   while (1) {
     int32_t code = taosProcQueuePop(pQueue, &pHead, &headLen, &pBody, &bodyLen);
@@ -265,21 +281,9 @@ static void taosProcThreadLoop(SProcQueue *pQueue, ProcFp procFp, void *pParent)
       taosMsleep(1);
       continue;
     } else {
-      (*procFp)(pParent, pHead, headLen, pBody, bodyLen);
+      (*consumeFp)(pParent, pHead, headLen, pBody, bodyLen);
     }
   }
-}
-
-static void *taosProcThreadChildLoop(void *param) {
-  SProcObj *pProc = param;
-  taosProcThreadLoop(pProc->pChildQueue, pProc->childFp, pProc->pParent);
-  return NULL;
-}
-
-static void *taosProcThreadParentLoop(void *param) {
-  SProcObj *pProc = param;
-  taosProcThreadLoop(pProc->pParentQueue, pProc->parentFp, pProc->pParent);
-  return NULL;
 }
 
 int32_t taosProcStart(SProcObj *pProc) {
@@ -288,7 +292,7 @@ int32_t taosProcStart(SProcObj *pProc) {
   pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
 
   if (pProc->isChild || pProc->testFlag) {
-    if (pthread_create(&pProc->childThread, &thAttr, taosProcThreadChildLoop, pProc) != 0) {
+    if (pthread_create(&pProc->childThread, &thAttr, (ProcThreadFp)taosProcThreadLoop, pProc->pChildQueue) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       uError("failed to create thread since %s", terrstr());
       return -1;
@@ -296,7 +300,7 @@ int32_t taosProcStart(SProcObj *pProc) {
   }
 
   if (!pProc->isChild || pProc->testFlag) {
-    if (pthread_create(&pProc->parentThread, &thAttr, taosProcThreadParentLoop, pProc) != 0) {
+    if (pthread_create(&pProc->parentThread, &thAttr, (ProcThreadFp)taosProcThreadLoop, pProc->pParentQueue) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       uError("failed to create thread since %s", terrstr());
       return -1;

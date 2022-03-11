@@ -28,7 +28,7 @@ static int32_t mmPutRpcMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMs
 static void    mmConsumeQueue(SDnode *pDnode, SMndMsg *pMsg);
 
 int32_t mmStartWorker(SDnode *pDnode) {
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
+  SMndMgmt *pMgmt = &pDnode->mmgmt;
   if (dndInitWorker(pDnode, &pMgmt->readWorker, DND_WORKER_SINGLE, "mnode-read", 0, 1, mmConsumeQueue) != 0) {
     dError("failed to start mnode read worker since %s", terrstr());
     return -1;
@@ -48,7 +48,7 @@ int32_t mmStartWorker(SDnode *pDnode) {
 }
 
 void mmStopWorker(SDnode *pDnode) {
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
+  SMndMgmt *pMgmt = &pDnode->mmgmt;
 
   taosWLockLatch(&pMgmt->latch);
   pMgmt->deployed = 0;
@@ -63,7 +63,7 @@ void mmStopWorker(SDnode *pDnode) {
   dndCleanupWorker(&pMgmt->syncWorker);
 }
 
-void mmInitMsgFp(SMnodeMgmt *pMgmt) {
+void mmInitMsgFp(SMndMgmt *pMgmt) {
   // Requests handled by DNODE
   pMgmt->msgFp[TMSG_INDEX(TDMT_DND_CREATE_MNODE_RSP)] = mmProcessWriteMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_DND_ALTER_MNODE_RSP)] = mmProcessWriteMsg;
@@ -146,15 +146,9 @@ static int32_t mmBuildMsg(SMndMsg *pMsg, SRpcMsg *pRpc) {
     dError("failed to create msg since %s, app:%p RPC:%p", terrstr(), pRpc->ahandle, pRpc->handle);
     return -1;
   }
+
   memcpy(pMsg->user, connInfo.user, TSDB_USER_LEN);
-
   pMsg->rpcMsg = *pRpc;
-  pMsg->createdTime = taosGetTimestampSec();
-
-  char *pCont = (char *)pMsg + sizeof(SMndMsg);
-  memcpy(pCont, pRpc->pCont, pRpc->contLen);
-  pMsg->rpcMsg = *pRpc;
-  pMsg->rpcMsg.pCont = pCont;
   pMsg->createdTime = taosGetTimestampSec();
 
   dTrace("msg:%p, is created, app:%p RPC:%p user:%s", pMsg, pRpc->ahandle, pRpc->handle, pMsg->user);
@@ -162,9 +156,9 @@ static int32_t mmBuildMsg(SMndMsg *pMsg, SRpcMsg *pRpc) {
 }
 
 void mmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-  int32_t     code = -1;
-  SMndMsg    *pMsg = NULL;
+  SMndMgmt *pMgmt = &pDnode->mmgmt;
+  int32_t   code = -1;
+  SMndMsg  *pMsg = NULL;
 
   MndMsgFp msgFp = pMgmt->msgFp[TMSG_INDEX(pRpc->msgType)];
   if (msgFp == NULL) {
@@ -172,8 +166,7 @@ void mmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     goto _OVER;
   }
 
-  int32_t contLen = sizeof(SMndMsg) + pRpc->contLen;
-  pMsg = taosAllocateQitem(contLen);
+  pMsg = taosAllocateQitem(sizeof(SMndMsg));
   if (pMsg == NULL) {
     goto _OVER;
   }
@@ -185,18 +178,13 @@ void mmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   if (pMgmt->singleProc) {
     code = (*msgFp)(pDnode, pMsg);
   } else {
-    code = taosProcPutToChildQueue(pMgmt->pProcess, pMsg, sizeof(pMsg), pRpc->pCont, pRpc->contLen);
+    code = taosProcPutToChildQueue(pMgmt->pProcess, pMsg, sizeof(SMndMsg), pRpc->pCont, pRpc->contLen);
   }
 
 _OVER:
 
-  if (code == 0) {
-    if (!pMgmt->singleProc) {
-      taosFreeQitem(pMsg);
-    }
-  } else {
+  if (code != 0) {
     bool isReq = (pRpc->msgType & 1U);
-
     if (isReq) {
       if (terrno == TSDB_CODE_DND_MNODE_NOT_DEPLOYED || terrno == TSDB_CODE_APP_NOT_READY) {
         dndSendRedirectRsp(pDnode, pRpc);
@@ -206,9 +194,8 @@ _OVER:
       }
     }
     taosFreeQitem(pMsg);
+    rpcFreeCont(pRpc->pCont);
   }
-
-  rpcFreeCont(pRpc->pCont);
 }
 
 int32_t mmProcessWriteMsg(SDnode *pDnode, SMndMsg *pMsg) {
@@ -235,64 +222,61 @@ static int32_t mmPutMndMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SMndMs
   SMnode *pMnode = mmAcquire(pDnode);
   if (pMnode == NULL) return -1;
 
-  pMsg->pMnode = pMnode;
   int32_t code = dndWriteMsgToWorker(pWorker, pMsg, 0);
-
   mmRelease(pDnode, pMnode);
   return code;
 }
 
 static int32_t mmPutRpcMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMsg *pRpc) {
-  int32_t  contLen = sizeof(SMndMsg) + pRpc->contLen;
-  SMndMsg *pMsg = taosAllocateQitem(contLen);
+  SMndMsg *pMsg = taosAllocateQitem(sizeof(SMndMsg));
   if (pMsg == NULL) {
     return -1;
   }
 
   pMsg->rpcMsg = *pRpc;
-  pMsg->rpcMsg.pCont = (char *)pMsg + sizeof(SMndMsg);
-  memcpy(pMsg->rpcMsg.pCont, pRpc->pCont, pRpc->contLen);
-  rpcFreeCont(pRpc->pCont);
+  pMsg->createdTime = taosGetTimestampSec();
 
   int32_t code = mmPutMndMsgToWorker(pDnode, pWorker, pMsg);
   if (code != 0) {
     taosFreeQitem(pMsg);
+    rpcFreeCont(pRpc->pCont);
   }
 
   return code;
 }
 
 void mmConsumeChildQueue(SDnode *pDnode, SMndMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen) {
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
+  SMndMgmt *pMgmt = &pDnode->mmgmt;
 
   SRpcMsg *pRpc = &pMsg->rpcMsg;
-  pRpc->pCont = (char *)pMsg + sizeof(SMndMsg);
+  pRpc->pCont = pCont;
 
   MndMsgFp msgFp = pMgmt->msgFp[TMSG_INDEX(pRpc->msgType)];
   int32_t  code = (*msgFp)(pDnode, pMsg);
 
-  if (code == 0) return;
-
-  bool isReq = (pRpc->msgType & 1U);
-
-  if (isReq) {
-    if (terrno == TSDB_CODE_DND_MNODE_NOT_DEPLOYED || terrno == TSDB_CODE_APP_NOT_READY) {
-      dndSendRedirectRsp(pDnode, pRpc);
-    } else {
-      SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
-      rpcSendResponse(&rsp);
+  if (code != 0) {
+    bool isReq = (pRpc->msgType & 1U);
+    if (isReq) {
+      if (terrno == TSDB_CODE_DND_MNODE_NOT_DEPLOYED || terrno == TSDB_CODE_APP_NOT_READY) {
+        dndSendRedirectRsp(pDnode, pRpc);
+      } else {
+        SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
+        rpcSendResponse(&rsp);
+      }
     }
+    taosFreeQitem(pMsg);
+    rpcFreeCont(pCont);
   }
-  taosFreeQitem(pMsg);
 }
 
 void mmConsumeParentQueue(SDnode *pDnode, SMndMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen) {}
 
 static void mmConsumeQueue(SDnode *pDnode, SMndMsg *pMsg) {
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
+  SMndMgmt *pMgmt = &pDnode->mmgmt;
 
   SMnode *pMnode = mmAcquire(pDnode);
   if (pMnode != NULL) {
+    pMsg->pMnode = pMnode;
     mndProcessMsg(pMsg);
     mmRelease(pDnode, pMnode);
   } else {
@@ -300,4 +284,5 @@ static void mmConsumeQueue(SDnode *pDnode, SMndMsg *pMsg) {
   }
 
   taosFreeQitem(pMsg);
+  rpcFreeCont(pMsg->rpcMsg.pCont);
 }
