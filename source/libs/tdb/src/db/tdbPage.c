@@ -51,7 +51,18 @@ int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg)
 }
 
 int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
-  // TODO
+  int    ret;
+  SCell *pTarget;
+
+  if (pPage->nOverflow || szCell + TDB_PAGE_CELL_OFFSET_SIZE(pPage) > pPage->nFree) {
+    // TODO
+  } else {
+    ret = tdbPageAllocate(pPage, szCell, &pTarget);
+    if (ret < 0) {
+      return -1;
+    }
+  }
+
   return 0;
 }
 
@@ -61,11 +72,29 @@ int tdbPageDropCell(SPage *pPage, int idx) {
 }
 
 static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell) {
-  // TODO
+  SCell *pCell;
+  int    szOffset;
+
+  szOffset = TDB_PAGE_CELL_OFFSET_SIZE(pPage);
+  ASSERT(pPage->nFree > size + szOffset);
+
+  if (pPage->pFreeEnd - pPage->pFreeStart > size + szOffset) {
+    pPage->pFreeEnd -= size;
+    pPage->pFreeStart += szOffset;
+
+    pCell = pPage->pFreeEnd;
+  } else {
+  }
+
   return 0;
 }
 
 static int tdbPageFree(SPage *pPage, int idx, SCell *pCell, int size) {
+  // TODO
+  return 0;
+}
+
+static int tdbPageDefragment(SPage *pPage) {
   // TODO
   return 0;
 }

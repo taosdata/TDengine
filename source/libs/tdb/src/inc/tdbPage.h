@@ -44,8 +44,11 @@ struct SPage {
   SPageHdr *pPageHdr;
   SPageFtr *pPageFtr;
   u16      *aCellIdx;
+  u8       *pFreeStart;
+  u8       *pFreeEnd;
   int       kLen;
   int       vLen;
+  int       nFree;
   int       maxLocal;
   int       minLocal;
   int       nOverflow;
