@@ -48,6 +48,13 @@ extern "C" {
     } \
   } while (0)
 
+#define planFatal(param, ...)  qFatal("PLAN: " param, __VA_ARGS__)
+#define planError(param, ...)  qError("PLAN: " param, __VA_ARGS__)
+#define planWarn(param, ...)   qWarn("PLAN: " param, __VA_ARGS__)
+#define planInfo(param, ...)   qInfo("PLAN: " param, __VA_ARGS__)
+#define planDebug(param, ...)  qDebug("PLAN: " param, __VA_ARGS__)
+#define planTrace(param, ...)  qTrace("PLAN: " param, __VA_ARGS__)
+
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicNode** pLogicNode);
 int32_t optimize(SPlanContext* pCxt, SLogicNode* pLogicNode);
 int32_t applySplitRule(SSubLogicPlan* pSubplan);
