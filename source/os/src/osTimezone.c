@@ -128,9 +128,9 @@ void taosGetSystemTimezone(char *outTimezone) {
    * Enforce set the correct daylight saving time(DST) flag according
    * to current time
    */
-  time_t    tx1 = time(NULL);
+  time_t    tx1 = taosGetTimestampSec();
   struct tm tm1;
-  localtime_r(&tx1, &tm1);
+  taosLocalTime(&tx1, &tm1);
 
   /*
    * format example:
@@ -147,9 +147,9 @@ void taosGetSystemTimezone(char *outTimezone) {
    * Enforce set the correct daylight saving time(DST) flag according
    * to current time
    */
-  time_t    tx1 = time(NULL);
+  time_t    tx1 = taosGetTimestampSec();
   struct tm tm1;
-  localtime_r(&tx1, &tm1);
+  taosLocalTime(&tx1, &tm1);
 
   /* load time zone string from /etc/timezone */
   // FILE *f = fopen("/etc/timezone", "r");
