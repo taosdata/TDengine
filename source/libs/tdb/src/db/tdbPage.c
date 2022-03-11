@@ -41,11 +41,11 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
   return 0;
 }
 
-int tdbPageDestroy(SPage *pPage, void (*xFree)(void *)) {
+int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg) {
   u8 *ptr;
 
   ptr = pPage->pData;
-  (*xFree)(ptr);
+  (*xFree)(arg, ptr);
 
   return 0;
 }

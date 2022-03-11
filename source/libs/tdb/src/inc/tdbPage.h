@@ -95,7 +95,7 @@ struct SPage {
 
 // APIs
 int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg);
-int tdbPageDestroy(SPage *pPage, void (*xFree)(void *));
+int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg);
 int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell);
 int tdbPageDropCell(SPage *pPage, int idx);
 
