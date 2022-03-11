@@ -65,8 +65,6 @@ extern "C" {
   #define in_addr_t unsigned long
 //  #define socklen_t int
 
-  struct tm *localtime_r(const time_t *timep, struct tm *result);
-  char *     strptime(const char *buf, const char *fmt, struct tm *tm);
   char *     strsep(char **stringp, const char *delim);
   char *     getpass(const char *prefix);
   char *     strndup(const char *s, size_t n);

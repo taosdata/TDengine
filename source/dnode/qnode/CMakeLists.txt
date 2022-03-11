@@ -11,4 +11,7 @@ target_link_libraries(
     PRIVATE os
     PRIVATE common
     PRIVATE util
+    PRIVATE qworker
+    PRIVATE qcom
+    PRIVATE executor
 )

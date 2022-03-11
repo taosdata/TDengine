@@ -341,6 +341,8 @@ static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result
   // TODO: iterator mem and tidex
   STermValueType s = kTypeValue;
 
+  int64_t st = taosGetTimestampUs();
+
   SIdxTempResult* tr = sIdxTempResultCreate();
   if (0 == indexCacheSearch(cache, query, tr, &s)) {
     if (s == kTypeDeletion) {
@@ -348,17 +350,23 @@ static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result
       // coloum already drop by other oper, no need to query tindex
       return 0;
     } else {
+      st = taosGetTimestampUs();
       if (0 != indexTFileSearch(sIdx->tindex, query, tr)) {
         indexError("corrupt at index(TFile) col:%s val: %s", term->colName, term->colVal);
         goto END;
       }
+      int64_t tfCost = taosGetTimestampUs() - st;
+      indexInfo("tfile search cost: %" PRIu64 "us", tfCost);
     }
   } else {
     indexError("corrupt at index(cache) col:%s val: %s", term->colName, term->colVal);
     goto END;
   }
+  int64_t cost = taosGetTimestampUs() - st;
+  indexInfo("search cost: %" PRIu64 "us", cost);
 
   sIdxTempResultMergeTo(*result, tr);
+
   sIdxTempResultDestroy(tr);
   return 0;
 END:
