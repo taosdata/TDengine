@@ -499,29 +499,37 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t setTableVgroupList(STranslateContext *pCxt, SName* name, SVgroupsInfo **pVgList) {
-  SArray* vgroupList = NULL;
-  int32_t code = catalogGetTableDistVgInfo(pCxt->pParseCxt->pCatalog, pCxt->pParseCxt->pTransporter, &(pCxt->pParseCxt->mgmtEpSet), name, &vgroupList);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-  
-  size_t vgroupNum = taosArrayGetSize(vgroupList);
+static int32_t setTableVgroupList(SParseContext* pCxt, SName* name, SRealTableNode* pRealTable) {
+  if (TSDB_SUPER_TABLE == pRealTable->pMeta->tableType) {
+    SArray* vgroupList = NULL;
+    int32_t code = catalogGetTableDistVgInfo(pCxt->pCatalog, pCxt->pTransporter, &pCxt->mgmtEpSet, name, &vgroupList);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    
+    size_t vgroupNum = taosArrayGetSize(vgroupList);
+    pRealTable->pVgroupList = calloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo) * vgroupNum);
+    if (NULL == pRealTable->pVgroupList) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    pRealTable->pVgroupList->numOfVgroups = vgroupNum;
+    for (int32_t i = 0; i < vgroupNum; ++i) {
+      SVgroupInfo *vg = taosArrayGet(vgroupList, i);
+      pRealTable->pVgroupList->vgroups[i] = *vg;
+    }
 
-  SVgroupsInfo* vgList = calloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo) * vgroupNum);
-  if (NULL == vgList) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    taosArrayDestroy(vgroupList);
+  } else {
+    pRealTable->pVgroupList = calloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo));
+    if (NULL == pRealTable->pVgroupList) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    pRealTable->pVgroupList->numOfVgroups = 1;
+    int32_t code = catalogGetTableHashVgroup(pCxt->pCatalog, pCxt->pTransporter, &pCxt->mgmtEpSet, name, pRealTable->pVgroupList->vgroups);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   }
-  vgList->numOfVgroups = vgroupNum;
-  
-  for (int32_t i = 0; i < vgroupNum; ++i) {
-    SVgroupInfo *vg = taosArrayGet(vgroupList, i);
-    vgList->vgroups[i] = *vg;
-  }
-
-  *pVgList = vgList;
-  taosArrayDestroy(vgroupList);
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -536,7 +544,7 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
       if (TSDB_CODE_SUCCESS != code) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, pRealTable->table.tableName);
       }
-      code = setTableVgroupList(pCxt, &name, &(pRealTable->pVgroupList));
+      code = setTableVgroupList(pCxt->pParseCxt, &name, pRealTable);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
