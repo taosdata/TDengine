@@ -256,6 +256,20 @@ class TDTestCase:
         tdSql.query('select unique(num) from (select * from unique where voltage > 1)')
         tdSql.checkRows(2)
 
+        tdSql.query('select unique(num) from (select * from unique) order by ts')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "2021-10-15 00:00:01")
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(1, 0, "2021-12-25 01:31:31")
+        tdSql.checkData(1, 1, 4)
+
+        tdSql.query('select unique(num) from (select * from unique) order by ts desc')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "2021-12-25 01:31:31")
+        tdSql.checkData(0, 1, 4)
+        tdSql.checkData(1, 0, "2021-10-15 00:00:01")
+        tdSql.checkData(1, 1, 2)
+
         #union
         tdSql.query('select unique(voltage) from d002 union all select unique(voltage) from d003')
         tdSql.checkRows(5)

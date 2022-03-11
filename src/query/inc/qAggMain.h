@@ -81,8 +81,10 @@ extern "C" {
 #define TSDB_FUNC_UNIQUE       39
 #define TSDB_FUNC_MODE         40
 #define TSDB_FUNC_TAIL         41
+#define TSDB_FUNC_STATE_COUNT            42
+#define TSDB_FUNC_STATE_DURATION         43
 
-#define TSDB_FUNC_MAX_NUM    42
+#define TSDB_FUNC_MAX_NUM    44
 
 #define TSDB_FUNCSTATE_SO           0x1u    // single output
 #define TSDB_FUNCSTATE_MO           0x2u    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM
@@ -229,6 +231,8 @@ typedef struct SAggFunctionInfo {
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
                           int32_t *len, int32_t *interBytes, int16_t extLength, bool isSuperTable, SUdfInfo* pUdfInfo);
 int32_t isValidFunction(const char* name, int32_t len);
+
+bool isValidStateOper(char *oper, int32_t len);
 
 #define IS_STREAM_QUERY_VALID(x)  (((x)&TSDB_FUNCSTATE_STREAM) != 0)
 #define IS_MULTIOUTPUT(x)         (((x)&TSDB_FUNCSTATE_MO) != 0)
