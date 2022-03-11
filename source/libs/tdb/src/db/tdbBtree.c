@@ -352,7 +352,7 @@ static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
   pBt = ((SBtreeZeroPageArg *)arg)->pBt;
 
   pPage->pPageHdr = (SPageHdr *)pPage->pData;
-  pPage->aCellIdx = (u16 *)(&(pPage->pPageHdr[1]));
+  pPage->aCellIdx = (u8 *)(&(pPage->pPageHdr[1]));
 
   // Init the page header
   pPage->pPageHdr->flags = flags;
@@ -384,7 +384,7 @@ static int tdbBtreeInitPage(SPage *pPage, void *arg) {
   pBt = (SBTree *)arg;
 
   pPage->pPageHdr = (SPageHdr *)pPage->pData;
-  pPage->aCellIdx = (u16 *)(&(pPage->pPageHdr[1]));
+  pPage->aCellIdx = (u8 *)(&(pPage->pPageHdr[1]));
 
   TDB_BTREE_ASSERT_FLAG(pPage->pPageHdr->flags);
 

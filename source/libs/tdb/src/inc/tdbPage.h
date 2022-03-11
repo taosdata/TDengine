@@ -44,7 +44,7 @@ struct SPage {
   SPgid     pgid;
   SPageHdr *pPageHdr;
   SPageFtr *pPageFtr;
-  u16      *aCellIdx;
+  u8       *aCellIdx;
   u8       *pFreeStart;
   u8       *pFreeEnd;
   int       kLen;
