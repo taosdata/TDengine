@@ -22,8 +22,8 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SShowReq *pReq);
 static void      mndFreeShowObj(SShowObj *pShow);
 static SShowObj *mndAcquireShowObj(SMnode *pMnode, int64_t showId);
 static void      mndReleaseShowObj(SShowObj *pShow, bool forceRemove);
-static int32_t   mndProcessShowReq(SMnodeMsg *pReq);
-static int32_t   mndProcessRetrieveReq(SMnodeMsg *pReq);
+static int32_t   mndProcessShowReq(SMndMsg *pReq);
+static int32_t   mndProcessRetrieveReq(SMndMsg *pReq);
 static bool      mndCheckRetrieveFinished(SShowObj *pShow);
 
 int32_t mndInitShow(SMnode *pMnode) {
@@ -115,7 +115,7 @@ static void mndReleaseShowObj(SShowObj *pShow, bool forceRemove) {
   taosCacheRelease(pMgmt->cache, (void **)(&pShow), forceRemove);
 }
 
-static int32_t mndProcessShowReq(SMnodeMsg *pReq) {
+static int32_t mndProcessShowReq(SMndMsg *pReq) {
   SMnode    *pMnode = pReq->pMnode;
   SShowMgmt *pMgmt = &pMnode->showMgmt;
   int32_t    code = -1;
@@ -176,7 +176,7 @@ SHOW_OVER:
   return code;
 }
 
-static int32_t mndProcessRetrieveReq(SMnodeMsg *pReq) {
+static int32_t mndProcessRetrieveReq(SMndMsg *pReq) {
   SMnode    *pMnode = pReq->pMnode;
   SShowMgmt *pMgmt = &pMnode->showMgmt;
   int32_t    rowsToRead = 0;

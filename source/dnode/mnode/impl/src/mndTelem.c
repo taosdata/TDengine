@@ -79,7 +79,7 @@ static char* mndBuildTelemetryReport(SMnode* pMnode) {
   return pCont;
 }
 
-static int32_t mndProcessTelemTimer(SMnodeMsg* pReq) {
+static int32_t mndProcessTelemTimer(SMndMsg* pReq) {
   SMnode*     pMnode = pReq->pMnode;
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
   if (!pMgmt->enable) return 0;

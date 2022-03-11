@@ -55,11 +55,11 @@ static bool    mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans);
 
 static void    mndTransExecute(SMnode *pMnode, STrans *pTrans);
 static void    mndTransSendRpcRsp(STrans *pTrans);
-static int32_t mndProcessTransReq(SMnodeMsg *pReq);
-static int32_t mndProcessKillTransReq(SMnodeMsg *pReq);
+static int32_t mndProcessTransReq(SMndMsg *pReq);
+static int32_t mndProcessKillTransReq(SMndMsg *pReq);
 
-static int32_t mndGetTransMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t mndRetrieveTrans(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t mndGetTransMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t mndRetrieveTrans(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextTrans(SMnode *pMnode, void *pIter);
 
 int32_t mndInitTrans(SMnode *pMnode) {
@@ -774,7 +774,7 @@ static void mndTransSendRpcRsp(STrans *pTrans) {
   }
 }
 
-void mndTransProcessRsp(SMnodeMsg *pRsp) {
+void mndTransProcessRsp(SMndMsg *pRsp) {
   SMnode *pMnode = pRsp->pMnode;
   int64_t signature = (int64_t)(pRsp->rpcMsg.ahandle);
   int32_t transId = (int32_t)(signature >> 32);
@@ -1157,7 +1157,7 @@ static void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
   mndTransSendRpcRsp(pTrans);
 }
 
-static int32_t mndProcessTransReq(SMnodeMsg *pReq) {
+static int32_t mndProcessTransReq(SMndMsg *pReq) {
   mndTransPullup(pReq->pMnode);
   return 0;
 }
@@ -1199,7 +1199,7 @@ static int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans) {
   return 0;
 }
 
-static int32_t mndProcessKillTransReq(SMnodeMsg *pReq) {
+static int32_t mndProcessKillTransReq(SMndMsg *pReq) {
   SMnode       *pMnode = pReq->pMnode;
   SKillTransReq killReq = {0};
   int32_t       code = -1;
@@ -1257,7 +1257,7 @@ void mndTransPullup(SMnode *pMnode) {
   sdbWriteFile(pMnode->pSdb);
 }
 
-static int32_t mndGetTransMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+static int32_t mndGetTransMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
   SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 
@@ -1320,7 +1320,7 @@ static int32_t mndGetTransMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
   return 0;
 }
 
-static int32_t mndRetrieveTrans(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+static int32_t mndRetrieveTrans(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
   SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfRows = 0;

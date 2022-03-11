@@ -17,6 +17,7 @@
 #include "tprocess.h"
 #include "taoserror.h"
 #include "tlog.h"
+#include "tqueue.h"
 
 #define SHM_DEFAULT_SIZE (20 * 1024 * 1024)
 #define CEIL4(n)         (ceil((float)(n) / 4) * 4)
@@ -142,7 +143,7 @@ static int32_t taosProcQueuePop(SProcQueue *pQueue, SBlockItem **ppItem) {
 
   SBlockItem *pBlock = (SBlockItem *)(pQueue->pBuffer + pQueue->head);
 
-  SBlockItem *pItem = malloc(pBlock->contLen);
+  SBlockItem *pItem = taosAllocateQitem(pBlock->contLen);
   if (pItem == NULL) {
     pthread_mutex_unlock(&pQueue->mutex);
     tsem_post(&pQueue->sem);

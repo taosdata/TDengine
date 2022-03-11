@@ -29,12 +29,12 @@ static SSdbRow *mndBnodeActionDecode(SSdbRaw *pRaw);
 static int32_t  mndBnodeActionInsert(SSdb *pSdb, SBnodeObj *pObj);
 static int32_t  mndBnodeActionDelete(SSdb *pSdb, SBnodeObj *pObj);
 static int32_t  mndBnodeActionUpdate(SSdb *pSdb, SBnodeObj *pOld, SBnodeObj *pNew);
-static int32_t  mndProcessCreateBnodeReq(SMnodeMsg *pReq);
-static int32_t  mndProcessDropBnodeReq(SMnodeMsg *pReq);
-static int32_t  mndProcessCreateBnodeRsp(SMnodeMsg *pRsp);
-static int32_t  mndProcessDropBnodeRsp(SMnodeMsg *pRsp);
-static int32_t  mndGetBnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t  mndRetrieveBnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndProcessCreateBnodeReq(SMndMsg *pReq);
+static int32_t  mndProcessDropBnodeReq(SMndMsg *pReq);
+static int32_t  mndProcessCreateBnodeRsp(SMndMsg *pRsp);
+static int32_t  mndProcessDropBnodeRsp(SMndMsg *pRsp);
+static int32_t  mndGetBnodeMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t  mndRetrieveBnodes(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextBnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitBnode(SMnode *pMnode) {
@@ -240,7 +240,7 @@ static int32_t mndSetCreateBnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
   return 0;
 }
 
-static int32_t mndCreateBnode(SMnode *pMnode, SMnodeMsg *pReq, SDnodeObj *pDnode, SMCreateBnodeReq *pCreate) {
+static int32_t mndCreateBnode(SMnode *pMnode, SMndMsg *pReq, SDnodeObj *pDnode, SMCreateBnodeReq *pCreate) {
   int32_t code = -1;
 
   SBnodeObj bnodeObj = {0};
@@ -266,7 +266,7 @@ CREATE_BNODE_OVER:
   return code;
 }
 
-static int32_t mndProcessCreateBnodeReq(SMnodeMsg *pReq) {
+static int32_t mndProcessCreateBnodeReq(SMndMsg *pReq) {
   SMnode          *pMnode = pReq->pMnode;
   int32_t          code = -1;
   SBnodeObj       *pObj = NULL;
@@ -363,7 +363,7 @@ static int32_t mndSetDropBnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SBn
   return 0;
 }
 
-static int32_t mndDropBnode(SMnode *pMnode, SMnodeMsg *pReq, SBnodeObj *pObj) {
+static int32_t mndDropBnode(SMnode *pMnode, SMndMsg *pReq, SBnodeObj *pObj) {
   int32_t code = -1;
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_DROP_BNODE, &pReq->rpcMsg);
@@ -382,7 +382,7 @@ DROP_BNODE_OVER:
   return code;
 }
 
-static int32_t mndProcessDropBnodeReq(SMnodeMsg *pReq) {
+static int32_t mndProcessDropBnodeReq(SMndMsg *pReq) {
   SMnode        *pMnode = pReq->pMnode;
   int32_t        code = -1;
   SUserObj      *pUser = NULL;
@@ -430,17 +430,17 @@ DROP_BNODE_OVER:
   return code;
 }
 
-static int32_t mndProcessCreateBnodeRsp(SMnodeMsg *pRsp) {
+static int32_t mndProcessCreateBnodeRsp(SMndMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }
 
-static int32_t mndProcessDropBnodeRsp(SMnodeMsg *pRsp) {
+static int32_t mndProcessDropBnodeRsp(SMndMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }
 
-static int32_t mndGetBnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+static int32_t mndGetBnodeMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
   SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 
@@ -480,7 +480,7 @@ static int32_t mndGetBnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
   return 0;
 }
 
-static int32_t mndRetrieveBnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+static int32_t mndRetrieveBnodes(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
   SMnode    *pMnode = pReq->pMnode;
   SSdb      *pSdb = pMnode->pSdb;
   int32_t    numOfRows = 0;

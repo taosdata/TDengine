@@ -390,12 +390,12 @@ void mndDestroy(const char *path) {
   mDebug("mnode is destroyed");
 }
 
-void mndSendRsp(SMnodeMsg *pMsg, int32_t code) {
+void mndSendRsp(SMndMsg *pMsg, int32_t code) {
   SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .code = code};
   rpcSendResponse(&rpcRsp);
 }
 
-void mndProcessMsg(SMnodeMsg *pMsg) {
+void mndProcessMsg(SMndMsg *pMsg) {
   SMnode *pMnode = pMsg->pMnode;
   int32_t code = 0;
   tmsg_t  msgType = pMsg->rpcMsg.msgType;

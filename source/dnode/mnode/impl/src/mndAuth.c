@@ -17,7 +17,7 @@
 #include "mndAuth.h"
 #include "mndUser.h"
 
-static int32_t mndProcessAuthReq(SMnodeMsg *pReq);
+static int32_t mndProcessAuthReq(SMndMsg *pReq);
 
 int32_t mndInitAuth(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_AUTH, mndProcessAuthReq);
@@ -45,7 +45,7 @@ int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, cha
   return 0;
 }
 
-static int32_t mndProcessAuthReq(SMnodeMsg *pReq) {
+static int32_t mndProcessAuthReq(SMndMsg *pReq) {
   SAuthReq authReq = {0};
   if (tDeserializeSAuthReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &authReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;

@@ -31,12 +31,12 @@
 static int32_t mndTopicActionInsert(SSdb *pSdb, SMqTopicObj *pTopic);
 static int32_t mndTopicActionDelete(SSdb *pSdb, SMqTopicObj *pTopic);
 static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pTopic, SMqTopicObj *pNewTopic);
-static int32_t mndProcessCreateTopicReq(SMnodeMsg *pReq);
-static int32_t mndProcessDropTopicReq(SMnodeMsg *pReq);
-static int32_t mndProcessDropTopicInRsp(SMnodeMsg *pRsp);
-static int32_t mndProcessTopicMetaReq(SMnodeMsg *pReq);
-static int32_t mndGetTopicMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t mndRetrieveTopic(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t mndProcessCreateTopicReq(SMndMsg *pReq);
+static int32_t mndProcessDropTopicReq(SMndMsg *pReq);
+static int32_t mndProcessDropTopicInRsp(SMndMsg *pRsp);
+static int32_t mndProcessTopicMetaReq(SMndMsg *pReq);
+static int32_t mndGetTopicMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t mndRetrieveTopic(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextTopic(SMnode *pMnode, void *pIter);
 
 int32_t mndInitTopic(SMnode *pMnode) {
@@ -236,7 +236,7 @@ static int32_t mndCheckCreateTopicReq(SCMCreateTopicReq *pCreate) {
   return 0;
 }
 
-static int32_t mndCreateTopic(SMnode *pMnode, SMnodeMsg *pReq, SCMCreateTopicReq *pCreate, SDbObj *pDb) {
+static int32_t mndCreateTopic(SMnode *pMnode, SMndMsg *pReq, SCMCreateTopicReq *pCreate, SDbObj *pDb) {
   mDebug("topic:%s to create", pCreate->name);
   SMqTopicObj topicObj = {0};
   tstrncpy(topicObj.name, pCreate->name, TSDB_TOPIC_FNAME_LEN);
@@ -276,7 +276,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SMnodeMsg *pReq, SCMCreateTopicReq
   return 0;
 }
 
-static int32_t mndProcessCreateTopicReq(SMnodeMsg *pReq) {
+static int32_t mndProcessCreateTopicReq(SMndMsg *pReq) {
   SMnode           *pMnode = pReq->pMnode;
   int32_t           code = -1;
   SMqTopicObj      *pTopic = NULL;
@@ -341,7 +341,7 @@ CREATE_TOPIC_OVER:
   return code;
 }
 
-static int32_t mndDropTopic(SMnode *pMnode, SMnodeMsg *pReq, SMqTopicObj *pTopic) {
+static int32_t mndDropTopic(SMnode *pMnode, SMndMsg *pReq, SMqTopicObj *pTopic) {
   // TODO: cannot drop when subscribed
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_TOPIC, &pReq->rpcMsg);
   if (pTrans == NULL) {
@@ -368,7 +368,7 @@ static int32_t mndDropTopic(SMnode *pMnode, SMnodeMsg *pReq, SMqTopicObj *pTopic
   return 0;
 }
 
-static int32_t mndProcessDropTopicReq(SMnodeMsg *pReq) {
+static int32_t mndProcessDropTopicReq(SMndMsg *pReq) {
   SMnode        *pMnode = pReq->pMnode;
   SMDropTopicReq dropReq = {0};
 
@@ -403,7 +403,7 @@ static int32_t mndProcessDropTopicReq(SMnodeMsg *pReq) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndProcessDropTopicInRsp(SMnodeMsg *pRsp) {
+static int32_t mndProcessDropTopicInRsp(SMndMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }
@@ -435,7 +435,7 @@ static int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTo
   return 0;
 }
 
-static int32_t mndGetTopicMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+static int32_t mndGetTopicMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
   SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 
@@ -479,7 +479,7 @@ static int32_t mndGetTopicMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
   return 0;
 }
 
-static int32_t mndRetrieveTopic(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+static int32_t mndRetrieveTopic(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
   SMnode      *pMnode = pReq->pMnode;
   SSdb        *pSdb = pMnode->pSdb;
   int32_t      numOfRows = 0;

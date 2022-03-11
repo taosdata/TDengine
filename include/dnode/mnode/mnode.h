@@ -25,7 +25,7 @@ extern "C" {
 /* ------------------------ TYPES EXPOSED ------------------------ */
 typedef struct SDnode    SDnode;
 typedef struct SMnode    SMnode;
-typedef struct SMnodeMsg SMnodeMsg;
+typedef struct SMndMsg SMndMsg;
 typedef int32_t (*SendReqToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
 typedef int32_t (*SendReqToMnodeFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 typedef int32_t (*PutReqToMWriteQFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
@@ -33,7 +33,7 @@ typedef int32_t (*PutReqToMReadQFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 typedef void (*SendRedirectRspFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 
 
-typedef struct SMnodeMsg {
+typedef struct SMndMsg {
   char    user[TSDB_USER_LEN];
   char    db[TSDB_DB_FNAME_LEN];
   int32_t acctId;
@@ -42,7 +42,7 @@ typedef struct SMnodeMsg {
   SRpcMsg rpcMsg;
   int32_t contLen;
   void*   pCont;
-} SMnodeMsg;
+} SMndMsg;
 
 typedef struct {
   int32_t           dnodeId;
@@ -122,7 +122,7 @@ int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, cha
  * @param pMsg The request msg.
  * @param code The error code.
  */
-void mndSendRsp(SMnodeMsg *pMsg, int32_t code);
+void mndSendRsp(SMndMsg *pMsg, int32_t code);
 
 /**
  * @brief Process the read, write, sync request.
@@ -130,7 +130,7 @@ void mndSendRsp(SMnodeMsg *pMsg, int32_t code);
  * @param pMsg The request msg.
  * @return int32_t 0 for success, -1 for failure.
  */
-void mndProcessMsg(SMnodeMsg *pMsg);
+void mndProcessMsg(SMndMsg *pMsg);
 
 #ifdef __cplusplus
 }

@@ -49,17 +49,17 @@ static int32_t  mndDnodeActionInsert(SSdb *pSdb, SDnodeObj *pDnode);
 static int32_t  mndDnodeActionDelete(SSdb *pSdb, SDnodeObj *pDnode);
 static int32_t  mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pOld, SDnodeObj *pNew);
 
-static int32_t mndProcessCreateDnodeReq(SMnodeMsg *pReq);
-static int32_t mndProcessDropDnodeReq(SMnodeMsg *pReq);
-static int32_t mndProcessConfigDnodeReq(SMnodeMsg *pReq);
-static int32_t mndProcessConfigDnodeRsp(SMnodeMsg *pRsp);
-static int32_t mndProcessStatusReq(SMnodeMsg *pReq);
+static int32_t mndProcessCreateDnodeReq(SMndMsg *pReq);
+static int32_t mndProcessDropDnodeReq(SMndMsg *pReq);
+static int32_t mndProcessConfigDnodeReq(SMndMsg *pReq);
+static int32_t mndProcessConfigDnodeRsp(SMndMsg *pRsp);
+static int32_t mndProcessStatusReq(SMndMsg *pReq);
 
-static int32_t mndGetConfigMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t mndRetrieveConfigs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t mndGetConfigMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t mndRetrieveConfigs(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextConfig(SMnode *pMnode, void *pIter);
-static int32_t mndGetDnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t mndRetrieveDnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t mndGetDnodeMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t mndRetrieveDnodes(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextDnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitDnode(SMnode *pMnode) {
@@ -296,7 +296,7 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, const SClusterCfg *pCfg) {
   return 0;
 }
 
-static int32_t mndProcessStatusReq(SMnodeMsg *pReq) {
+static int32_t mndProcessStatusReq(SMndMsg *pReq) {
   SMnode    *pMnode = pReq->pMnode;
   SStatusReq statusReq = {0};
   SDnodeObj *pDnode = NULL;
@@ -437,7 +437,7 @@ PROCESS_STATUS_MSG_OVER:
   return code;
 }
 
-static int32_t mndCreateDnode(SMnode *pMnode, SMnodeMsg *pReq, SCreateDnodeReq *pCreate) {
+static int32_t mndCreateDnode(SMnode *pMnode, SMndMsg *pReq, SCreateDnodeReq *pCreate) {
   SDnodeObj dnodeObj = {0};
   dnodeObj.id = sdbGetMaxId(pMnode->pSdb, SDB_DNODE);
   dnodeObj.createdTime = taosGetTimestampMs();
@@ -471,7 +471,7 @@ static int32_t mndCreateDnode(SMnode *pMnode, SMnodeMsg *pReq, SCreateDnodeReq *
   return 0;
 }
 
-static int32_t mndProcessCreateDnodeReq(SMnodeMsg *pReq) {
+static int32_t mndProcessCreateDnodeReq(SMndMsg *pReq) {
   SMnode         *pMnode = pReq->pMnode;
   int32_t         code = -1;
   SUserObj       *pUser = NULL;
@@ -521,7 +521,7 @@ CREATE_DNODE_OVER:
   return code;
 }
 
-static int32_t mndDropDnode(SMnode *pMnode, SMnodeMsg *pReq, SDnodeObj *pDnode) {
+static int32_t mndDropDnode(SMnode *pMnode, SMndMsg *pReq, SDnodeObj *pDnode) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_DNODE, &pReq->rpcMsg);
   if (pTrans == NULL) {
     mError("dnode:%d, failed to drop since %s", pDnode->id, terrstr());
@@ -547,7 +547,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SMnodeMsg *pReq, SDnodeObj *pDnode) 
   return 0;
 }
 
-static int32_t mndProcessDropDnodeReq(SMnodeMsg *pReq) {
+static int32_t mndProcessDropDnodeReq(SMndMsg *pReq) {
   SMnode        *pMnode = pReq->pMnode;
   int32_t        code = -1;
   SUserObj      *pUser = NULL;
@@ -596,7 +596,7 @@ DROP_DNODE_OVER:
   return code;
 }
 
-static int32_t mndProcessConfigDnodeReq(SMnodeMsg *pReq) {
+static int32_t mndProcessConfigDnodeReq(SMndMsg *pReq) {
   SMnode *pMnode = pReq->pMnode;
 
   SMCfgDnodeReq cfgReq = {0};
@@ -628,11 +628,11 @@ static int32_t mndProcessConfigDnodeReq(SMnodeMsg *pReq) {
   return 0;
 }
 
-static int32_t mndProcessConfigDnodeRsp(SMnodeMsg *pRsp) {
+static int32_t mndProcessConfigDnodeRsp(SMndMsg *pRsp) {
   mInfo("app:%p config rsp from dnode", pRsp->rpcMsg.ahandle);
 }
 
-static int32_t mndGetConfigMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+static int32_t mndGetConfigMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
   int32_t  cols = 0;
   SSchema *pSchema = pMeta->pSchemas;
 
@@ -663,7 +663,7 @@ static int32_t mndGetConfigMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp 
   return 0;
 }
 
-static int32_t mndRetrieveConfigs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+static int32_t mndRetrieveConfigs(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
   SMnode *pMnode = pReq->pMnode;
   int32_t totalRows = 0;
   int32_t numOfRows = 0;
@@ -709,7 +709,7 @@ static int32_t mndRetrieveConfigs(SMnodeMsg *pReq, SShowObj *pShow, char *data, 
 
 static void mndCancelGetNextConfig(SMnode *pMnode, void *pIter) {}
 
-static int32_t mndGetDnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+static int32_t mndGetDnodeMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
   SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 
@@ -773,7 +773,7 @@ static int32_t mndGetDnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
   return 0;
 }
 
-static int32_t mndRetrieveDnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+static int32_t mndRetrieveDnodes(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
   SMnode    *pMnode = pReq->pMnode;
   SSdb      *pSdb = pMnode->pSdb;
   int32_t    numOfRows = 0;

@@ -29,17 +29,17 @@ static int32_t  mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup);
 static int32_t  mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup);
 static int32_t  mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew);
 
-static int32_t mndProcessCreateVnodeRsp(SMnodeMsg *pRsp);
-static int32_t mndProcessAlterVnodeRsp(SMnodeMsg *pRsp);
-static int32_t mndProcessDropVnodeRsp(SMnodeMsg *pRsp);
-static int32_t mndProcessSyncVnodeRsp(SMnodeMsg *pRsp);
-static int32_t mndProcessCompactVnodeRsp(SMnodeMsg *pRsp);
+static int32_t mndProcessCreateVnodeRsp(SMndMsg *pRsp);
+static int32_t mndProcessAlterVnodeRsp(SMndMsg *pRsp);
+static int32_t mndProcessDropVnodeRsp(SMndMsg *pRsp);
+static int32_t mndProcessSyncVnodeRsp(SMndMsg *pRsp);
+static int32_t mndProcessCompactVnodeRsp(SMndMsg *pRsp);
 
-static int32_t mndGetVgroupMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t mndRetrieveVgroups(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t mndGetVgroupMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t mndRetrieveVgroups(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextVgroup(SMnode *pMnode, void *pIter);
-static int32_t mndGetVnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t mndRetrieveVnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t mndGetVnodeMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t mndRetrieveVnodes(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextVnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitVgroup(SMnode *pMnode) {
@@ -452,24 +452,24 @@ SEpSet mndGetVgroupEpset(SMnode *pMnode, SVgObj *pVgroup) {
   return epset;
 }
 
-static int32_t mndProcessCreateVnodeRsp(SMnodeMsg *pRsp) {
+static int32_t mndProcessCreateVnodeRsp(SMndMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }
 
-static int32_t mndProcessAlterVnodeRsp(SMnodeMsg *pRsp) {
+static int32_t mndProcessAlterVnodeRsp(SMndMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }
 
-static int32_t mndProcessDropVnodeRsp(SMnodeMsg *pRsp) {
+static int32_t mndProcessDropVnodeRsp(SMndMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }
 
-static int32_t mndProcessSyncVnodeRsp(SMnodeMsg *pRsp) { return 0; }
+static int32_t mndProcessSyncVnodeRsp(SMndMsg *pRsp) { return 0; }
 
-static int32_t mndProcessCompactVnodeRsp(SMnodeMsg *pRsp) { return 0; }
+static int32_t mndProcessCompactVnodeRsp(SMndMsg *pRsp) { return 0; }
 
 static bool mndGetVgroupMaxReplicaFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
   SVgObj  *pVgroup = pObj;
@@ -500,7 +500,7 @@ static int32_t mndGetVgroupMaxReplica(SMnode *pMnode, char *dbName, int8_t *pRep
   return 0;
 }
 
-static int32_t mndGetVgroupMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+static int32_t mndGetVgroupMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
   SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 
@@ -551,7 +551,7 @@ static int32_t mndGetVgroupMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp 
   return 0;
 }
 
-static int32_t mndRetrieveVgroups(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+static int32_t mndRetrieveVgroups(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
   SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfRows = 0;
@@ -624,7 +624,7 @@ int32_t mndGetVnodesNum(SMnode *pMnode, int32_t dnodeId) {
   return numOfVnodes;
 }
 
-static int32_t mndGetVnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+static int32_t mndGetVnodeMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
   SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 
@@ -664,7 +664,7 @@ static int32_t mndGetVnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
   return 0;
 }
 
-static int32_t mndRetrieveVnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+static int32_t mndRetrieveVnodes(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
   SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfRows = 0;

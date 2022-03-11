@@ -20,12 +20,12 @@
 #include "dndTransport.h"
 #include "dndWorker.h"
 
-static int32_t mmProcessWriteMsg(SDnode *pDnode, SMnodeMsg *pMsg);
-static int32_t mmProcessSyncMsg(SDnode *pDnode, SMnodeMsg *pMsg);
-static int32_t mmProcessReadMsg(SDnode *pDnode, SMnodeMsg *pMsg);
-static int32_t mmPutMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SMnodeMsg *pMsg);
+static int32_t mmProcessWriteMsg(SDnode *pDnode, SMndMsg *pMsg);
+static int32_t mmProcessSyncMsg(SDnode *pDnode, SMndMsg *pMsg);
+static int32_t mmProcessReadMsg(SDnode *pDnode, SMndMsg *pMsg);
+static int32_t mmPutMndMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SMndMsg *pMsg);
 static int32_t mmPutRpcMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMsg *pRpc);
-static void    mmConsumeQueue(SDnode *pDnode, SMnodeMsg *pMsg);
+static void    mmConsumeQueue(SDnode *pDnode, SMndMsg *pMsg);
 
 int32_t mmStartWorker(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
@@ -139,7 +139,7 @@ void mmInitMsgFp(SMnodeMgmt *pMgmt) {
   pMgmt->msgFp[TMSG_INDEX(TDMT_VND_DROP_STB_RSP)] = mmProcessWriteMsg;
 }
 
-static int32_t mmBuildMsg(SMnodeMsg *pMsg, SRpcMsg *pRpc) {
+static int32_t mmBuildMsg(SMndMsg *pMsg, SRpcMsg *pRpc) {
   SRpcConnInfo connInfo = {0};
   if ((pRpc->msgType & 1U) && rpcGetConnInfo(pRpc->handle, &connInfo) != 0) {
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
@@ -151,7 +151,7 @@ static int32_t mmBuildMsg(SMnodeMsg *pMsg, SRpcMsg *pRpc) {
   pMsg->rpcMsg = *pRpc;
   pMsg->createdTime = taosGetTimestampSec();
 
-  char *pCont = (char *)pMsg + sizeof(SMnodeMsg);
+  char *pCont = (char *)pMsg + sizeof(SMndMsg);
   memcpy(pCont, pRpc->pCont, pRpc->contLen);
   pMsg->rpcMsg = *pRpc;
   pMsg->rpcMsg.pCont = pCont;
@@ -164,7 +164,7 @@ static int32_t mmBuildMsg(SMnodeMsg *pMsg, SRpcMsg *pRpc) {
 void mmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   int32_t     code = -1;
-  SMnodeMsg  *pMsg = NULL;
+  SMndMsg  *pMsg = NULL;
 
   MndMsgFp msgFp = pMgmt->msgFp[TMSG_INDEX(pRpc->msgType)];
   if (msgFp == NULL) {
@@ -172,7 +172,7 @@ void mmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     goto _OVER;
   }
 
-  int32_t contLen = sizeof(SMnodeMsg) + pRpc->contLen;
+  int32_t contLen = sizeof(SMndMsg) + pRpc->contLen;
   pMsg = taosAllocateQitem(contLen);
   if (pMsg == NULL) {
     goto _OVER;
@@ -211,16 +211,16 @@ _OVER:
   rpcFreeCont(pRpc->pCont);
 }
 
-int32_t mmProcessWriteMsg(SDnode *pDnode, SMnodeMsg *pMsg) {
-  return mmPutMsgToWorker(pDnode, &pDnode->mmgmt.writeWorker, pMsg);
+int32_t mmProcessWriteMsg(SDnode *pDnode, SMndMsg *pMsg) {
+  return mmPutMndMsgToWorker(pDnode, &pDnode->mmgmt.writeWorker, pMsg);
 }
 
-int32_t mmProcessSyncMsg(SDnode *pDnode, SMnodeMsg *pMsg) {
-  return mmPutMsgToWorker(pDnode, &pDnode->mmgmt.syncWorker, pMsg);
+int32_t mmProcessSyncMsg(SDnode *pDnode, SMndMsg *pMsg) {
+  return mmPutMndMsgToWorker(pDnode, &pDnode->mmgmt.syncWorker, pMsg);
 }
 
-int32_t mmProcessReadMsg(SDnode *pDnode, SMnodeMsg *pMsg) {
-  return mmPutMsgToWorker(pDnode, &pDnode->mmgmt.readWorker, pMsg);
+int32_t mmProcessReadMsg(SDnode *pDnode, SMndMsg *pMsg) {
+  return mmPutMndMsgToWorker(pDnode, &pDnode->mmgmt.readWorker, pMsg);
 }
 
 int32_t mmPutMsgToWriteQueue(SDnode *pDnode, SRpcMsg *pRpc) {
@@ -231,7 +231,7 @@ int32_t mmPutMsgToReadQueue(SDnode *pDnode, SRpcMsg *pRpc) {
   return mmPutRpcMsgToWorker(pDnode, &pDnode->mmgmt.readWorker, pRpc);
 }
 
-static int32_t mmPutMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SMnodeMsg *pMsg) {
+static int32_t mmPutMndMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SMndMsg *pMsg) {
   SMnode *pMnode = mmAcquire(pDnode);
   if (pMnode == NULL) return -1;
 
@@ -243,18 +243,18 @@ static int32_t mmPutMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SMnodeMsg
 }
 
 static int32_t mmPutRpcMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMsg *pRpc) {
-  int32_t    contLen = sizeof(SMnodeMsg) + pRpc->contLen;
-  SMnodeMsg *pMsg = taosAllocateQitem(contLen);
+  int32_t    contLen = sizeof(SMndMsg) + pRpc->contLen;
+  SMndMsg *pMsg = taosAllocateQitem(contLen);
   if (pMsg == NULL) {
     return -1;
   }
 
   pMsg->contLen = pRpc->contLen;
-  pMsg->pCont = (char *)pMsg + sizeof(SMnodeMsg);
+  pMsg->pCont = (char *)pMsg + sizeof(SMndMsg);
   memcpy(pMsg->pCont, pRpc->pCont, pRpc->contLen);
   rpcFreeCont(pRpc->pCont);
 
-  int32_t code = mmPutMsgToWorker(pDnode, pWorker, pMsg);
+  int32_t code = mmPutMndMsgToWorker(pDnode, pWorker, pMsg);
   if (code != 0) {
     taosFreeQitem(pMsg);
   }
@@ -263,16 +263,33 @@ static int32_t mmPutRpcMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMs
 }
 
 void mmConsumeChildQueue(SDnode *pDnode, SBlockItem *pBlock) {
-  SMnodeMsg *pMsg = (SMnodeMsg *)pBlock->pCont;
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
+  SMndMsg  *pMsg = (SMndMsg *)pBlock->pCont;
+  
+  SRpcMsg *pRpc = &pMsg->rpcMsg;
+  pRpc->pCont = (char *)pMsg + sizeof(SMndMsg);
 
-  if (mmPutMsgToWorker(pDnode, &pDnode->mmgmt.writeWorker, pMsg) != 0) {
-    // todo
+  MndMsgFp msgFp = pMgmt->msgFp[TMSG_INDEX(pRpc->msgType)];
+  int32_t code = (*msgFp)(pDnode, pMsg);
+
+  if (code == 0) return;
+
+  bool isReq = (pRpc->msgType & 1U);
+
+  if (isReq) {
+    if (terrno == TSDB_CODE_DND_MNODE_NOT_DEPLOYED || terrno == TSDB_CODE_APP_NOT_READY) {
+      dndSendRedirectRsp(pDnode, pRpc);
+    } else {
+      SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
+      rpcSendResponse(&rsp);
+    }
   }
+  taosFreeQitem(pMsg);
 }
 
 void mmConsumeParentQueue(SMnodeMgmt *pMgmt, SBlockItem *pBlock) {}
 
-static void mmConsumeQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
+static void mmConsumeQueue(SDnode *pDnode, SMndMsg *pMsg) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
   SMnode *pMnode = mmAcquire(pDnode);

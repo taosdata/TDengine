@@ -29,12 +29,12 @@ static SSdbRow *mndQnodeActionDecode(SSdbRaw *pRaw);
 static int32_t  mndQnodeActionInsert(SSdb *pSdb, SQnodeObj *pObj);
 static int32_t  mndQnodeActionDelete(SSdb *pSdb, SQnodeObj *pObj);
 static int32_t  mndQnodeActionUpdate(SSdb *pSdb, SQnodeObj *pOld, SQnodeObj *pNew);
-static int32_t  mndProcessCreateQnodeReq(SMnodeMsg *pReq);
-static int32_t  mndProcessDropQnodeReq(SMnodeMsg *pReq);
-static int32_t  mndProcessCreateQnodeRsp(SMnodeMsg *pRsp);
-static int32_t  mndProcessDropQnodeRsp(SMnodeMsg *pRsp);
-static int32_t  mndGetQnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t  mndRetrieveQnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndProcessCreateQnodeReq(SMndMsg *pReq);
+static int32_t  mndProcessDropQnodeReq(SMndMsg *pReq);
+static int32_t  mndProcessCreateQnodeRsp(SMndMsg *pRsp);
+static int32_t  mndProcessDropQnodeRsp(SMndMsg *pRsp);
+static int32_t  mndGetQnodeMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t  mndRetrieveQnodes(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextQnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitQnode(SMnode *pMnode) {
@@ -240,7 +240,7 @@ static int32_t mndSetCreateQnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
   return 0;
 }
 
-static int32_t mndCreateQnode(SMnode *pMnode, SMnodeMsg *pReq, SDnodeObj *pDnode, SMCreateQnodeReq *pCreate) {
+static int32_t mndCreateQnode(SMnode *pMnode, SMndMsg *pReq, SDnodeObj *pDnode, SMCreateQnodeReq *pCreate) {
   int32_t code = -1;
 
   SQnodeObj qnodeObj = {0};
@@ -266,7 +266,7 @@ CREATE_QNODE_OVER:
   return code;
 }
 
-static int32_t mndProcessCreateQnodeReq(SMnodeMsg *pReq) {
+static int32_t mndProcessCreateQnodeReq(SMndMsg *pReq) {
   SMnode          *pMnode = pReq->pMnode;
   int32_t          code = -1;
   SQnodeObj       *pObj = NULL;
@@ -363,7 +363,7 @@ static int32_t mndSetDropQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQn
   return 0;
 }
 
-static int32_t mndDropQnode(SMnode *pMnode, SMnodeMsg *pReq, SQnodeObj *pObj) {
+static int32_t mndDropQnode(SMnode *pMnode, SMndMsg *pReq, SQnodeObj *pObj) {
   int32_t code = -1;
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_DROP_QNODE, &pReq->rpcMsg);
@@ -382,7 +382,7 @@ DROP_QNODE_OVER:
   return code;
 }
 
-static int32_t mndProcessDropQnodeReq(SMnodeMsg *pReq) {
+static int32_t mndProcessDropQnodeReq(SMndMsg *pReq) {
   SMnode        *pMnode = pReq->pMnode;
   int32_t        code = -1;
   SUserObj      *pUser = NULL;
@@ -430,17 +430,17 @@ DROP_QNODE_OVER:
   return code;
 }
 
-static int32_t mndProcessCreateQnodeRsp(SMnodeMsg *pRsp) {
+static int32_t mndProcessCreateQnodeRsp(SMndMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }
 
-static int32_t mndProcessDropQnodeRsp(SMnodeMsg *pRsp) {
+static int32_t mndProcessDropQnodeRsp(SMndMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }
 
-static int32_t mndGetQnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+static int32_t mndGetQnodeMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
   SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 
@@ -480,7 +480,7 @@ static int32_t mndGetQnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
   return 0;
 }
 
-static int32_t mndRetrieveQnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+static int32_t mndRetrieveQnodes(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
   SMnode    *pMnode = pReq->pMnode;
   SSdb      *pSdb = pMnode->pSdb;
   int32_t    numOfRows = 0;

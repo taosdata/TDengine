@@ -29,13 +29,13 @@ static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw);
 static int32_t  mndFuncActionInsert(SSdb *pSdb, SFuncObj *pFunc);
 static int32_t  mndFuncActionDelete(SSdb *pSdb, SFuncObj *pFunc);
 static int32_t  mndFuncActionUpdate(SSdb *pSdb, SFuncObj *pOld, SFuncObj *pNew);
-static int32_t  mndCreateFunc(SMnode *pMnode, SMnodeMsg *pReq, SCreateFuncReq *pCreate);
-static int32_t  mndDropFunc(SMnode *pMnode, SMnodeMsg *pReq, SFuncObj *pFunc);
-static int32_t  mndProcessCreateFuncReq(SMnodeMsg *pReq);
-static int32_t  mndProcessDropFuncReq(SMnodeMsg *pReq);
-static int32_t  mndProcessRetrieveFuncReq(SMnodeMsg *pReq);
-static int32_t  mndGetFuncMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t  mndRetrieveFuncs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndCreateFunc(SMnode *pMnode, SMndMsg *pReq, SCreateFuncReq *pCreate);
+static int32_t  mndDropFunc(SMnode *pMnode, SMndMsg *pReq, SFuncObj *pFunc);
+static int32_t  mndProcessCreateFuncReq(SMndMsg *pReq);
+static int32_t  mndProcessDropFuncReq(SMndMsg *pReq);
+static int32_t  mndProcessRetrieveFuncReq(SMndMsg *pReq);
+static int32_t  mndGetFuncMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t  mndRetrieveFuncs(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextFunc(SMnode *pMnode, void *pIter);
 
 int32_t mndInitFunc(SMnode *pMnode) {
@@ -181,7 +181,7 @@ static void mndReleaseFunc(SMnode *pMnode, SFuncObj *pFunc) {
   sdbRelease(pSdb, pFunc);
 }
 
-static int32_t mndCreateFunc(SMnode *pMnode, SMnodeMsg *pReq, SCreateFuncReq *pCreate) {
+static int32_t mndCreateFunc(SMnode *pMnode, SMndMsg *pReq, SCreateFuncReq *pCreate) {
   int32_t code = -1;
   STrans *pTrans = NULL;
 
@@ -234,7 +234,7 @@ CREATE_FUNC_OVER:
   return code;
 }
 
-static int32_t mndDropFunc(SMnode *pMnode, SMnodeMsg *pReq, SFuncObj *pFunc) {
+static int32_t mndDropFunc(SMnode *pMnode, SMndMsg *pReq, SFuncObj *pFunc) {
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_FUNC, &pReq->rpcMsg);
   if (pTrans == NULL) goto DROP_FUNC_OVER;
@@ -262,7 +262,7 @@ DROP_FUNC_OVER:
   return code;
 }
 
-static int32_t mndProcessCreateFuncReq(SMnodeMsg *pReq) {
+static int32_t mndProcessCreateFuncReq(SMndMsg *pReq) {
   SMnode        *pMnode = pReq->pMnode;
   int32_t        code = -1;
   SUserObj      *pUser = NULL;
@@ -339,7 +339,7 @@ CREATE_FUNC_OVER:
   return code;
 }
 
-static int32_t mndProcessDropFuncReq(SMnodeMsg *pReq) {
+static int32_t mndProcessDropFuncReq(SMndMsg *pReq) {
   SMnode      *pMnode = pReq->pMnode;
   int32_t      code = -1;
   SUserObj    *pUser = NULL;
@@ -394,7 +394,7 @@ DROP_FUNC_OVER:
   return code;
 }
 
-static int32_t mndProcessRetrieveFuncReq(SMnodeMsg *pReq) {
+static int32_t mndProcessRetrieveFuncReq(SMndMsg *pReq) {
   SMnode          *pMnode = pReq->pMnode;
   int32_t          code = -1;
   SRetrieveFuncReq retrieveReq = {0};
@@ -463,7 +463,7 @@ RETRIEVE_FUNC_OVER:
   return code;
 }
 
-static int32_t mndGetFuncMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+static int32_t mndGetFuncMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
   SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 
@@ -545,7 +545,7 @@ static void *mnodeGenTypeStr(char *buf, int32_t buflen, uint8_t type, int16_t le
   return tDataTypes[type].name;
 }
 
-static int32_t mndRetrieveFuncs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+static int32_t mndRetrieveFuncs(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
   SMnode   *pMnode = pReq->pMnode;
   SSdb     *pSdb = pMnode->pSdb;
   int32_t   numOfRows = 0;

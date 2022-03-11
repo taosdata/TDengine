@@ -61,7 +61,7 @@ typedef enum { DND_WORKER_SINGLE, DND_WORKER_MULTI } EWorkerType;
 typedef enum { DND_ENV_INIT = 0, DND_ENV_READY = 1, DND_ENV_CLEANUP = 2 } EEnvStat;
 typedef void (*DndMsgFp)(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEps);
 
-typedef int32_t (*MndMsgFp)(SDnode *pDnode, SMnodeMsg *pMnodeMsg);
+typedef int32_t (*MndMsgFp)(SDnode *pDnode, SMndMsg *pMnodeMsg);
 
 EStat       dndGetStat(SDnode *pDnode);
 void        dndSetStat(SDnode *pDnode, EStat stat);
