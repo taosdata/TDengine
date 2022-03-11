@@ -5346,7 +5346,7 @@ static void unique_function(SQLFunctionCtx *pCtx) {
     do_unique_function(pCtx, pInfo, k, pData, NULL, pCtx->inputBytes, pCtx->inputType);
 
     if (sizeof(SUniqueFuncInfo) + pInfo->num * (sizeof(UniqueUnit) + pCtx->inputBytes + pCtx->tagInfo.tagsLen) >= MAX_UNIQUE_RESULT_SIZE
-        || (pInfo->num > MAX_UNIQUE_RESULT_ROWS)){
+        || (pInfo->num > pCtx->param[0].i64)){
       GET_RES_INFO(pCtx)->numOfRes = -1;    // mark out of memory
       return;
     }
@@ -5367,7 +5367,7 @@ static void unique_function_merge(SQLFunctionCtx *pCtx) {
     do_unique_function(pCtx, pOutput, timestamp, data, tags, pCtx->outputBytes, pCtx->outputType);
 
     if (sizeof(SUniqueFuncInfo) + pOutput->num * (sizeof(UniqueUnit) + pCtx->outputBytes + pCtx->tagInfo.tagsLen) >= MAX_UNIQUE_RESULT_SIZE
-        || (pOutput->num > MAX_UNIQUE_RESULT_ROWS)){
+        || (pOutput->num > pCtx->param[0].i64)){
       GET_RES_INFO(pCtx)->numOfRes = -1;    // mark out of memory
       return;
     }
