@@ -289,6 +289,11 @@ static int compareRowData(const void *a, const void *b, const void *userData) {
 }
 
 static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeEnv *pRuntimeEnv, SSDataBlock* pDataBlock, SQLFunctionCtx *pCtx) {
+  // orderColId is 0 order by ts
+  if (pRuntimeEnv->pQueryAttr->order.orderColId <= 0){
+    return;
+  }
+
   // first groupby column is sort column
   SColIndex* pFirstGroupCol = taosArrayGet(pRuntimeEnv->pQueryAttr->pGroupbyExpr->columnInfo, 0);
   if (pFirstGroupCol == NULL) {
@@ -296,23 +301,17 @@ static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeE
   }
 
   // get dataOffset and index on pRuntimeEnv->pQueryAttr->pExpr1
-  int32_t idxGroup = -1;
   int16_t dataOffset = 0;
+  int16_t type = 0;
   for (int32_t j = 0; j < pDataBlock->info.numOfCols; ++j) {
     SColumnInfoData* pColInfoData = (SColumnInfoData *)taosArrayGet(pDataBlock->pDataBlock, j);
     if (pCtx[j].colId == pFirstGroupCol->colId) {
-      idxGroup = j;
+      type = pRuntimeEnv->pQueryAttr->pExpr1[j].base.resType;
       break;
     }
     dataOffset += pColInfoData->info.bytes;
   }
-  // check found
-  if (idxGroup == -1) {
-    qError("sort groupby not found first column. first colId=%d", pFirstGroupCol->colId);
-    return;
-  }
 
-  int16_t type = pRuntimeEnv->pQueryAttr->pExpr1[idxGroup].base.resType;
   SRowCompSupporter support = {.pRuntimeEnv = pRuntimeEnv, .dataOffset = dataOffset, .comFunc = getComparFunc(type, 0)};
   taosArraySortPWithExt(pGroupResInfo->pRows, compareRowData, &support);
 }
