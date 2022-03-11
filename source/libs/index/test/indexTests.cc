@@ -768,7 +768,7 @@ class IndexObj {
     int64_t s = taosGetTimestampUs();
     if (Search(mq, result) == 0) {
       int64_t e = taosGetTimestampUs();
-      std::cout << "search one successfully and time cost:" << e - s << "\tquery col:" << colName
+      std::cout << "search one successfully and time cost:" << e - s << "us\tquery col:" << colName
                 << "\t val: " << colVal << "\t size:" << taosArrayGetSize(result) << std::endl;
     } else {
     }
@@ -1106,6 +1106,7 @@ TEST_F(IndexEnv2, testIndex_del) {
   }
   index->Del("tag10", "Hello", 12);
   index->Del("tag10", "Hello", 11);
+  EXPECT_EQ(98, index->SearchOne("tag10", "Hello"));
 
   index->WriteMultiMillonData("tag10", "xxxxxxxxxxxxxx", 100 * 10000);
   index->Del("tag10", "Hello", 17);

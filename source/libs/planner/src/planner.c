@@ -13,90 +13,89 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "parser.h"
-#include "plannerInt.h"
+#include "planner.h"
 
-static void extractResSchema(struct SQueryDag* const* pDag, SSchema** pResSchema, int32_t* numOfCols);
+#include "planInt.h"
 
-void qDestroyQueryDag(struct SQueryDag* pDag) {
-  if (pDag == NULL) {
-    return;
-  }
-
-  size_t size = taosArrayGetSize(pDag->pSubplans);
-  for(size_t i = 0; i < size; ++i) {
-    SArray* pa = taosArrayGetP(pDag->pSubplans, i);
-
-    size_t t = taosArrayGetSize(pa);
-    for(int32_t j = 0; j < t; ++j) {
-      SSubplan* pSubplan = taosArrayGetP(pa, j);
-      qDestroySubplan(pSubplan);
-    }
-
-    taosArrayDestroy(pa);
-  }
-
-  taosArrayDestroy(pDag->pSubplans);
-  tfree(pDag);
-}
-
-int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag, SSchema** pResSchema, int32_t* numOfCols, SArray* pNodeList,
-    uint64_t requestId) {
-  SQueryPlanNode* pLogicPlan;
-  int32_t code = createQueryPlan(pNode, &pLogicPlan);
-  if (TSDB_CODE_SUCCESS != code) {
-    destroyQueryPlan(pLogicPlan);
-    return code;
-  }
-
-  if (pLogicPlan->info.type != QNODE_MODIFY) {
-    char* str = NULL;
-    queryPlanToString(pLogicPlan, &str);
-    qDebug("reqId:0x%"PRIx64": %s", requestId, str);
-    tfree(str);
-  }
-
-  code = optimizeQueryPlan(pLogicPlan);
-  if (TSDB_CODE_SUCCESS != code) {
-    destroyQueryPlan(pLogicPlan);
-    return code;
-  }
-
-  code = createDag(pLogicPlan, NULL, pDag, pNodeList, requestId);
-  if (TSDB_CODE_SUCCESS != code) {
-    destroyQueryPlan(pLogicPlan);
-    qDestroyQueryDag(*pDag);
-    return code;
-  }
-
-  extractResSchema(pDag, pResSchema, numOfCols);
-
-  destroyQueryPlan(pLogicPlan);
+int32_t optimize(SPlanContext* pCxt, SLogicNode* pLogicNode) {
   return TSDB_CODE_SUCCESS;
 }
 
-// extract the final result schema
-void extractResSchema(struct SQueryDag* const* pDag, SSchema** pResSchema, int32_t* numOfCols) {
-  SArray* pTopSubplan = taosArrayGetP((*pDag)->pSubplans, 0);
-
-  SSubplan*         pPlan = taosArrayGetP(pTopSubplan, 0);
-  SDataBlockSchema* pDataBlockSchema = &(pPlan->pDataSink->schema);
-
-  *numOfCols = pDataBlockSchema->numOfCols;
-  if (*numOfCols > 0) {
-    *pResSchema = calloc(pDataBlockSchema->numOfCols, sizeof(SSchema));
-    memcpy((*pResSchema), pDataBlockSchema->pSchema, pDataBlockSchema->numOfCols * sizeof(SSchema));
+int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
+  SLogicNode* pLogicNode = NULL;
+  int32_t code = createLogicPlan(pCxt, &pLogicNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = optimize(pCxt, pLogicNode);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createPhysiPlan(pCxt, pLogicNode, pPlan, pExecNodeList);
+  }
+  nodesDestroyNode(pLogicNode);
+  return code;
 }
 
-void qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SDownstreamSource* pSource) {
-  setSubplanExecutionNode(subplan, templateId, pSource);
+static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId, SDownstreamSourceNode* pSource) {
+  if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == nodeType(pNode)) {
+    SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pNode;
+    if (pExchange->srcGroupId == groupId) {
+      if (NULL == pExchange->pSrcEndPoints) {
+        pExchange->pSrcEndPoints = nodesMakeList();
+        if (NULL == pExchange->pSrcEndPoints) {
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+      }
+      if (TSDB_CODE_SUCCESS != nodesListStrictAppend(pExchange->pSrcEndPoints, nodesCloneNode(pSource))) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (TSDB_CODE_SUCCESS != setSubplanExecutionNode((SPhysiNode*)pChild, groupId, pSource)) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
-int32_t qSubPlanToString(const SSubplan *subplan, char** str, int32_t* len) {
-  return subPlanToString(subplan, str, len);
+int32_t qSetSubplanExecutionNode(SSubplan* subplan, int32_t groupId, SDownstreamSourceNode* pSource) {
+  return setSubplanExecutionNode(subplan->pNode, groupId, pSource);
 }
 
-int32_t qStringToSubplan(const char* str, SSubplan** subplan) {
-  return stringToSubplan(str, subplan);
+int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
+  if (SUBPLAN_TYPE_MODIFY == pSubplan->subplanType) {
+    SDataInserterNode* insert = (SDataInserterNode*)pSubplan->pDataSink;
+    *pLen = insert->size;
+    *pStr = insert->pData;
+    insert->pData = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+  return nodesNodeToString((const SNode*)pSubplan, false, pStr, pLen);
+}
+
+int32_t qStringToSubplan(const char* pStr, SSubplan** pSubplan) {
+  return nodesStringToNode(pStr, (SNode**)pSubplan);
+}
+
+char* qQueryPlanToString(const SQueryPlan* pPlan) {
+  char* pStr = NULL;
+  int32_t len = 0;
+  if (TSDB_CODE_SUCCESS != nodesNodeToString(pPlan, false, &pStr, &len)) {
+    return NULL;
+  }
+  return pStr;
+}
+
+SQueryPlan* qStringToQueryPlan(const char* pStr) {
+  SQueryPlan* pPlan = NULL;
+  if (TSDB_CODE_SUCCESS != nodesStringToNode(pStr, (SNode**)&pPlan)) {
+    return NULL;
+  }
+  return pPlan;
+}
+
+void qDestroyQueryPlan(SQueryPlan* pPlan) {
+  nodesDestroyNode(pPlan);
 }

@@ -35,7 +35,6 @@ enum {
   JOB_TASK_STATUS_CANCELLING,
   JOB_TASK_STATUS_CANCELLED,
   JOB_TASK_STATUS_DROPPING,
-  JOB_TASK_STATUS_FREEING,
 };
 
 enum {
@@ -85,7 +84,8 @@ typedef struct STableMeta {
 typedef struct SDBVgInfo {
   int32_t   vgVersion;
   int8_t    hashMethod;
-  SHashObj* vgHash;  // key:vgId, value:SVgroupInfo
+  int32_t   numOfTable;  // DB's table num, unit is TSDB_TABLE_NUM_UNIT
+  SHashObj *vgHash;  //key:vgId, value:SVgroupInfo
 } SDBVgInfo;
 
 typedef struct SUseDbOutput {
@@ -128,6 +128,11 @@ typedef struct SQueryNodeAddr {
   int32_t nodeId;  // vgId or qnodeId
   SEpSet  epSet;
 } SQueryNodeAddr;
+
+
+typedef struct SQueryNodeStat {
+  int32_t tableNum; // vg table number, unit is TSDB_TABLE_NUM_UNIT
+} SQueryNodeStat;
 
 int32_t initTaskQueue();
 int32_t cleanupTaskQueue();
