@@ -217,6 +217,20 @@ SyncPing* syncPingBuild(uint32_t dataLen) {
   return pMsg;
 }
 
+SyncPing* syncPingBuild2(const SRaftId* srcId, const SRaftId* destId, const char* str) {
+  uint32_t  dataLen = strlen(str) + 1;
+  SyncPing* pMsg = syncPingBuild(dataLen);
+  pMsg->srcId = *srcId;
+  pMsg->destId = *destId;
+  snprintf(pMsg->data, pMsg->dataLen, "%s", str);
+  return pMsg;
+}
+
+SyncPing* syncPingBuild3(const SRaftId* srcId, const SRaftId* destId) {
+  SyncPing* pMsg = syncPingBuild2(srcId, destId, "ping");
+  return pMsg;
+}
+
 void syncPingDestroy(SyncPing* pMsg) {
   if (pMsg != NULL) {
     free(pMsg);
@@ -234,6 +248,25 @@ void syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pMsg) {
   assert(pMsg->bytes == sizeof(SyncPing) + pMsg->dataLen);
 }
 
+char* syncPingSerialize2(const SyncPing* pMsg, uint32_t* len) {
+  char* buf = malloc(pMsg->bytes);
+  assert(buf != NULL);
+  syncPingSerialize(pMsg, buf, pMsg->bytes);
+  if (len != NULL) {
+    *len = pMsg->bytes;
+  }
+  return buf;
+}
+
+SyncPing* syncPingDeserialize2(const char* buf, uint32_t len) {
+  uint32_t  bytes = *((uint32_t*)buf);
+  SyncPing* pMsg = malloc(bytes);
+  assert(pMsg != NULL);
+  syncPingDeserialize(buf, len, pMsg);
+  assert(len == pMsg->bytes);
+  return pMsg;
+}
+
 void syncPing2RpcMsg(const SyncPing* pMsg, SRpcMsg* pRpcMsg) {
   memset(pRpcMsg, 0, sizeof(*pRpcMsg));
   pRpcMsg->msgType = pMsg->msgType;
@@ -244,6 +277,11 @@ void syncPing2RpcMsg(const SyncPing* pMsg, SRpcMsg* pRpcMsg) {
 
 void syncPingFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPing* pMsg) {
   syncPingDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
+}
+
+SyncPing* syncPingFromRpcMsg2(const SRpcMsg* pRpcMsg) {
+  SyncPing* pMsg = syncPingDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  return pMsg;
 }
 
 cJSON* syncPing2Json(const SyncPing* pMsg) {
@@ -284,35 +322,75 @@ cJSON* syncPing2Json(const SyncPing* pMsg) {
   cJSON_AddItemToObject(pRoot, "destId", pDestId);
 
   cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
-  cJSON_AddStringToObject(pRoot, "data", pMsg->data);
+  char* s;
+  s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
+  cJSON_AddStringToObject(pRoot, "data", s);
+  free(s);
+  s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
+  cJSON_AddStringToObject(pRoot, "data2", s);
+  free(s);
 
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SyncPing", pRoot);
   return pJson;
 }
 
-SyncPing* syncPingBuild2(const SRaftId* srcId, const SRaftId* destId, const char* str) {
-  uint32_t  dataLen = strlen(str) + 1;
-  SyncPing* pMsg = syncPingBuild(dataLen);
+char* syncPing2Str(const SyncPing* pMsg) {
+  cJSON* pJson = syncPing2Json(pMsg);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
+// for debug ----------------------
+void syncPingPrint(const SyncPing* pMsg) {
+  char* serialized = syncPing2Str(pMsg);
+  printf("syncPingPrint | len:%lu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncPingPrint2(char* s, const SyncPing* pMsg) {
+  char* serialized = syncPing2Str(pMsg);
+  printf("syncPingPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncPingLog(const SyncPing* pMsg) {
+  char* serialized = syncPing2Str(pMsg);
+  sTrace("syncPingLog | len:%lu | %s", strlen(serialized), serialized);
+  free(serialized);
+}
+
+void syncPingLog2(char* s, const SyncPing* pMsg) {
+  char* serialized = syncPing2Str(pMsg);
+  sTrace("syncPingLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  free(serialized);
+}
+
+// ---- message process SyncPingReply----
+SyncPingReply* syncPingReplyBuild(uint32_t dataLen) {
+  uint32_t       bytes = sizeof(SyncPingReply) + dataLen;
+  SyncPingReply* pMsg = malloc(bytes);
+  memset(pMsg, 0, bytes);
+  pMsg->bytes = bytes;
+  pMsg->msgType = SYNC_PING_REPLY;
+  pMsg->dataLen = dataLen;
+  return pMsg;
+}
+
+SyncPingReply* syncPingReplyBuild2(const SRaftId* srcId, const SRaftId* destId, const char* str) {
+  uint32_t       dataLen = strlen(str) + 1;
+  SyncPingReply* pMsg = syncPingReplyBuild(dataLen);
   pMsg->srcId = *srcId;
   pMsg->destId = *destId;
   snprintf(pMsg->data, pMsg->dataLen, "%s", str);
   return pMsg;
 }
 
-SyncPing* syncPingBuild3(const SRaftId* srcId, const SRaftId* destId) {
-  SyncPing* pMsg = syncPingBuild2(srcId, destId, "ping");
-  return pMsg;
-}
-
-// ---- message process SyncPingReply----
-SyncPingReply* syncPingReplyBuild(uint32_t dataLen) {
-  uint32_t       bytes = SYNC_PING_REPLY_FIX_LEN + dataLen;
-  SyncPingReply* pMsg = malloc(bytes);
-  memset(pMsg, 0, bytes);
-  pMsg->bytes = bytes;
-  pMsg->msgType = SYNC_PING_REPLY;
-  pMsg->dataLen = dataLen;
+SyncPingReply* syncPingReplyBuild3(const SRaftId* srcId, const SRaftId* destId) {
+  SyncPingReply* pMsg = syncPingReplyBuild2(srcId, destId, "pang");
   return pMsg;
 }
 
@@ -333,6 +411,25 @@ void syncPingReplyDeserialize(const char* buf, uint32_t len, SyncPingReply* pMsg
   assert(pMsg->bytes == sizeof(SyncPing) + pMsg->dataLen);
 }
 
+char* syncPingReplySerialize2(const SyncPingReply* pMsg, uint32_t* len) {
+  char* buf = malloc(pMsg->bytes);
+  assert(buf != NULL);
+  syncPingReplySerialize(pMsg, buf, pMsg->bytes);
+  if (len != NULL) {
+    *len = pMsg->bytes;
+  }
+  return buf;
+}
+
+SyncPingReply* syncPingReplyDeserialize2(const char* buf, uint32_t len) {
+  uint32_t       bytes = *((uint32_t*)buf);
+  SyncPingReply* pMsg = malloc(bytes);
+  assert(pMsg != NULL);
+  syncPingReplyDeserialize(buf, len, pMsg);
+  assert(len == pMsg->bytes);
+  return pMsg;
+}
+
 void syncPingReply2RpcMsg(const SyncPingReply* pMsg, SRpcMsg* pRpcMsg) {
   memset(pRpcMsg, 0, sizeof(*pRpcMsg));
   pRpcMsg->msgType = pMsg->msgType;
@@ -343,6 +440,11 @@ void syncPingReply2RpcMsg(const SyncPingReply* pMsg, SRpcMsg* pRpcMsg) {
 
 void syncPingReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPingReply* pMsg) {
   syncPingReplyDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
+}
+
+SyncPingReply* syncPingReplyFromRpcMsg2(const SRpcMsg* pRpcMsg) {
+  SyncPingReply* pMsg = syncPingReplyDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  return pMsg;
 }
 
 cJSON* syncPingReply2Json(const SyncPingReply* pMsg) {
@@ -383,25 +485,51 @@ cJSON* syncPingReply2Json(const SyncPingReply* pMsg) {
   cJSON_AddItemToObject(pRoot, "destId", pDestId);
 
   cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
-  cJSON_AddStringToObject(pRoot, "data", pMsg->data);
+  char* s;
+  s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
+  cJSON_AddStringToObject(pRoot, "data", s);
+  free(s);
+  s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
+  cJSON_AddStringToObject(pRoot, "data2", s);
+  free(s);
 
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SyncPingReply", pRoot);
   return pJson;
 }
 
-SyncPingReply* syncPingReplyBuild2(const SRaftId* srcId, const SRaftId* destId, const char* str) {
-  uint32_t       dataLen = strlen(str) + 1;
-  SyncPingReply* pMsg = syncPingReplyBuild(dataLen);
-  pMsg->srcId = *srcId;
-  pMsg->destId = *destId;
-  snprintf(pMsg->data, pMsg->dataLen, "%s", str);
-  return pMsg;
+char* syncPingReply2Str(const SyncPingReply* pMsg) {
+  cJSON* pJson = syncPingReply2Json(pMsg);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
 }
 
-SyncPingReply* syncPingReplyBuild3(const SRaftId* srcId, const SRaftId* destId) {
-  SyncPingReply* pMsg = syncPingReplyBuild2(srcId, destId, "pang");
-  return pMsg;
+// for debug ----------------------
+void syncPingReplyPrint(const SyncPingReply* pMsg) {
+  char* serialized = syncPingReply2Str(pMsg);
+  printf("syncPingReplyPrint | len:%lu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncPingReplyPrint2(char* s, const SyncPingReply* pMsg) {
+  char* serialized = syncPingReply2Str(pMsg);
+  printf("syncPingReplyPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncPingReplyLog(const SyncPingReply* pMsg) {
+  char* serialized = syncPingReply2Str(pMsg);
+  sTrace("syncPingReplyLog | len:%lu | %s", strlen(serialized), serialized);
+  free(serialized);
+}
+
+void syncPingReplyLog2(char* s, const SyncPingReply* pMsg) {
+  char* serialized = syncPingReply2Str(pMsg);
+  sTrace("syncPingReplyLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  free(serialized);
 }
 
 // ---- message process SyncClientRequest----

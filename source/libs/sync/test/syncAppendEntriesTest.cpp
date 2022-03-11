@@ -38,7 +38,7 @@ void test2() {
   uint32_t           len = pMsg->bytes;
   char *             serialized = (char *)malloc(len);
   syncAppendEntriesSerialize(pMsg, serialized, len);
-  SyncAppendEntries *pMsg2 = syncAppendEntriesBuild(pMsg2->dataLen);
+  SyncAppendEntries *pMsg2 = syncAppendEntriesBuild(pMsg->dataLen);
   syncAppendEntriesDeserialize(serialized, len, pMsg2);
   syncAppendEntriesPrint2((char *)"test2: syncAppendEntriesSerialize -> syncAppendEntriesDeserialize ", pMsg2);
 

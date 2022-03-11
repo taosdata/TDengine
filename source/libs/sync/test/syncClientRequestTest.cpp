@@ -20,7 +20,7 @@ SyncClientRequest *createMsg() {
   rpcMsg.msgType = 12345;
   rpcMsg.contLen = 20;
   rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
-  strcpy((char*)rpcMsg.pCont, "hello rpc");
+  strcpy((char *)rpcMsg.pCont, "hello rpc");
   SyncClientRequest *pMsg = syncClientRequestBuild2(&rpcMsg, 123, true);
   return pMsg;
 }
@@ -36,7 +36,7 @@ void test2() {
   uint32_t           len = pMsg->bytes;
   char *             serialized = (char *)malloc(len);
   syncClientRequestSerialize(pMsg, serialized, len);
-  SyncClientRequest *pMsg2 = syncClientRequestBuild(pMsg2->dataLen);
+  SyncClientRequest *pMsg2 = syncClientRequestBuild(pMsg->dataLen);
   syncClientRequestDeserialize(serialized, len, pMsg2);
   syncClientRequestPrint2((char *)"test2: syncClientRequestSerialize -> syncClientRequestDeserialize ", pMsg2);
 

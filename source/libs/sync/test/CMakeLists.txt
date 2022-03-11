@@ -1,6 +1,6 @@
 add_executable(syncTest "")
 add_executable(syncEnvTest "")
-add_executable(syncPingTest "")
+add_executable(syncPingTimerTest "")
 add_executable(syncEncodeTest "")
 add_executable(syncIOTickQTest "")
 add_executable(syncIOTickPingTest "")
@@ -23,6 +23,8 @@ add_executable(syncAppendEntriesTest "")
 add_executable(syncAppendEntriesReplyTest "")
 add_executable(syncClientRequestTest "")
 add_executable(syncTimeoutTest "")
+add_executable(syncPingTest "")
+add_executable(syncPingReplyTest "")
 
 
 target_sources(syncTest
@@ -33,9 +35,9 @@ target_sources(syncEnvTest
     PRIVATE
     "syncEnvTest.cpp"
 )
-target_sources(syncPingTest
+target_sources(syncPingTimerTest
     PRIVATE
-    "syncPingTest.cpp"
+    "syncPingTimerTest.cpp"
 )
 target_sources(syncEncodeTest
     PRIVATE
@@ -125,6 +127,14 @@ target_sources(syncTimeoutTest
     PRIVATE
     "syncTimeoutTest.cpp"
 )
+target_sources(syncPingTest
+    PRIVATE
+    "syncPingTest.cpp"
+)
+target_sources(syncPingReplyTest
+    PRIVATE
+    "syncPingReplyTest.cpp"
+)
 
 
 target_include_directories(syncTest
@@ -137,7 +147,7 @@ target_include_directories(syncEnvTest
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
-target_include_directories(syncPingTest
+target_include_directories(syncPingTimerTest
     PUBLIC
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
@@ -252,6 +262,16 @@ target_include_directories(syncTimeoutTest
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(syncPingTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncPingReplyTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 
 
 target_link_libraries(syncTest
@@ -262,7 +282,7 @@ target_link_libraries(syncEnvTest
     sync
     gtest_main
 )
-target_link_libraries(syncPingTest
+target_link_libraries(syncPingTimerTest
     sync
     gtest_main
 )
@@ -351,6 +371,14 @@ target_link_libraries(syncClientRequestTest
     gtest_main
 )
 target_link_libraries(syncTimeoutTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncPingTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncPingReplyTest
     sync
     gtest_main
 )

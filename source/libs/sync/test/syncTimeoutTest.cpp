@@ -29,8 +29,8 @@ void test1() {
 
 void test2() {
   SyncTimeout *pMsg = createMsg();
-  uint32_t           len = pMsg->bytes;
-  char *             serialized = (char *)malloc(len);
+  uint32_t     len = pMsg->bytes;
+  char *       serialized = (char *)malloc(len);
   syncTimeoutSerialize(pMsg, serialized, len);
   SyncTimeout *pMsg2 = syncTimeoutBuild();
   syncTimeoutDeserialize(serialized, len, pMsg2);
@@ -43,8 +43,8 @@ void test2() {
 
 void test3() {
   SyncTimeout *pMsg = createMsg();
-  uint32_t           len;
-  char *             serialized = syncTimeoutSerialize2(pMsg, &len);
+  uint32_t     len;
+  char *       serialized = syncTimeoutSerialize2(pMsg, &len);
   SyncTimeout *pMsg2 = syncTimeoutDeserialize2(serialized, len);
   syncTimeoutPrint2((char *)"test3: syncTimeoutSerialize3 -> syncTimeoutDeserialize2 ", pMsg2);
 
@@ -55,7 +55,7 @@ void test3() {
 
 void test4() {
   SyncTimeout *pMsg = createMsg();
-  SRpcMsg            rpcMsg;
+  SRpcMsg      rpcMsg;
   syncTimeout2RpcMsg(pMsg, &rpcMsg);
   SyncTimeout *pMsg2 = (SyncTimeout *)malloc(rpcMsg.contLen);
   syncTimeoutFromRpcMsg(&rpcMsg, pMsg2);
@@ -67,7 +67,7 @@ void test4() {
 
 void test5() {
   SyncTimeout *pMsg = createMsg();
-  SRpcMsg            rpcMsg;
+  SRpcMsg      rpcMsg;
   syncTimeout2RpcMsg(pMsg, &rpcMsg);
   SyncTimeout *pMsg2 = syncTimeoutFromRpcMsg2(&rpcMsg);
   syncTimeoutPrint2((char *)"test5: syncTimeout2RpcMsg -> syncTimeoutFromRpcMsg2 ", pMsg2);
