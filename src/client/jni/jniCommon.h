@@ -3,6 +3,7 @@
 #ifndef TDENGINE_JNICOMMON_H
 #define TDENGINE_JNICOMMON_H
 
+#ifdef LOG_LINE_OPEN
 #define jniFatal(...)                                                            \
   {                                                                              \
     if (jniDebugFlag & DEBUG_FATAL) {                                            \
@@ -39,6 +40,44 @@
       taosPrintLog("JNI ", jniDebugFlag, __FILE__, __LINE__, __VA_ARGS__); \
     }                                                  \
   }
+#else
+#define jniFatal(...)                                                            \
+  {                                                                              \
+    if (jniDebugFlag & DEBUG_FATAL) {                                            \
+      taosPrintLog("JNI FATAL ", tscEmbedded ? 255 : jniDebugFlag, __VA_ARGS__); \
+    }                                                                            \
+  }
+#define jniError(...)                                                            \
+  {                                                                              \
+    if (jniDebugFlag & DEBUG_ERROR) {                                            \
+      taosPrintLog("JNI ERROR ", tscEmbedded ? 255 : jniDebugFlag, __VA_ARGS__); \
+    }                                                                            \
+  }
+#define jniWarn(...)                                                            \
+  {                                                                             \
+    if (jniDebugFlag & DEBUG_WARN) {                                            \
+      taosPrintLog("JNI WARN ", tscEmbedded ? 255 : jniDebugFlag, __VA_ARGS__); \
+    }                                                                           \
+  }
+#define jniInfo(...)                                                       \
+  {                                                                        \
+    if (jniDebugFlag & DEBUG_INFO) {                                       \
+      taosPrintLog("JNI ", tscEmbedded ? 255 : jniDebugFlag, __VA_ARGS__); \
+    }                                                                      \
+  }
+#define jniDebug(...)                                  \
+  {                                                    \
+    if (jniDebugFlag & DEBUG_DEBUG) {                  \
+      taosPrintLog("JNI ", jniDebugFlag, __VA_ARGS__); \
+    }                                                  \
+  }
+#define jniTrace(...)                                  \
+  {                                                    \
+    if (jniDebugFlag & DEBUG_TRACE) {                  \
+      taosPrintLog("JNI ", jniDebugFlag, __VA_ARGS__); \
+    }                                                  \
+  }
+#endif
 
 extern jclass    g_arrayListClass;
 extern jmethodID g_arrayListConstructFp;

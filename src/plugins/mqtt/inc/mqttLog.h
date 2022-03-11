@@ -20,11 +20,20 @@
 
 extern int32_t mqttDebugFlag;
 
+#ifdef LOG_LINE_OPEN
 #define mqttFatal(...) { if (mqttDebugFlag & DEBUG_FATAL) { taosPrintLog("MQT FATAL ", 255, __FILE__, __LINE__, __VA_ARGS__); }}
 #define mqttError(...) { if (mqttDebugFlag & DEBUG_ERROR) { taosPrintLog("MQT ERROR ", 255, __FILE__, __LINE__, __VA_ARGS__); }}
 #define mqttWarn(...)  { if (mqttDebugFlag & DEBUG_WARN)  { taosPrintLog("MQT WARN ", 255, __FILE__, __LINE__, __VA_ARGS__); }}
 #define mqttInfo(...)  { if (mqttDebugFlag & DEBUG_INFO)  { taosPrintLog("MQT ", 255, __FILE__, __LINE__, __VA_ARGS__); }}
 #define mqttDebug(...) { if (mqttDebugFlag & DEBUG_DEBUG) { taosPrintLog("MQT ", mqttDebugFlag, __FILE__, __LINE__, __VA_ARGS__); }}
 #define mqttTrace(...) { if (mqttDebugFlag & DEBUG_TRACE) { taosPrintLog("MQT ", mqttDebugFlag, __FILE__, __LINE__, __VA_ARGS__); }}
+#else
+#define mqttFatal(...) { if (mqttDebugFlag & DEBUG_FATAL) { taosPrintLog("MQT FATAL ", 255, __VA_ARGS__); }}
+#define mqttError(...) { if (mqttDebugFlag & DEBUG_ERROR) { taosPrintLog("MQT ERROR ", 255, __VA_ARGS__); }}
+#define mqttWarn(...)  { if (mqttDebugFlag & DEBUG_WARN)  { taosPrintLog("MQT WARN ", 255, __VA_ARGS__); }}
+#define mqttInfo(...)  { if (mqttDebugFlag & DEBUG_INFO)  { taosPrintLog("MQT ", 255, __VA_ARGS__); }}
+#define mqttDebug(...) { if (mqttDebugFlag & DEBUG_DEBUG) { taosPrintLog("MQT ", mqttDebugFlag, __VA_ARGS__); }}
+#define mqttTrace(...) { if (mqttDebugFlag & DEBUG_TRACE) { taosPrintLog("MQT ", mqttDebugFlag, __VA_ARGS__); }}
+#endif
 
 #endif

@@ -28,12 +28,21 @@ extern "C" {
 extern int32_t vDebugFlag;
 extern int32_t vNumOfExistedQHandle;   // current initialized and existed query handle in current dnode
 
+#ifdef LOG_LINE_OPEN
 #define vFatal(...) { if (vDebugFlag & DEBUG_FATAL) { taosPrintLog("VND FATAL ", 255, __FILE__, __LINE__, __VA_ARGS__); }}
 #define vError(...) { if (vDebugFlag & DEBUG_ERROR) { taosPrintLog("VND ERROR ", 255, __FILE__, __LINE__, __VA_ARGS__); }}
 #define vWarn(...)  { if (vDebugFlag & DEBUG_WARN)  { taosPrintLog("VND WARN ", 255, __FILE__, __LINE__, __VA_ARGS__); }}
 #define vInfo(...)  { if (vDebugFlag & DEBUG_INFO)  { taosPrintLog("VND ", 255, __FILE__, __LINE__, __VA_ARGS__); }}
 #define vDebug(...) { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND ", vDebugFlag, __FILE__, __LINE__, __VA_ARGS__); }}
 #define vTrace(...) { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", vDebugFlag, __FILE__, __LINE__, __VA_ARGS__); }}
+#else
+#define vFatal(...) { if (vDebugFlag & DEBUG_FATAL) { taosPrintLog("VND FATAL ", 255, __VA_ARGS__); }}
+#define vError(...) { if (vDebugFlag & DEBUG_ERROR) { taosPrintLog("VND ERROR ", 255, __VA_ARGS__); }}
+#define vWarn(...)  { if (vDebugFlag & DEBUG_WARN)  { taosPrintLog("VND WARN ", 255, __VA_ARGS__); }}
+#define vInfo(...)  { if (vDebugFlag & DEBUG_INFO)  { taosPrintLog("VND ", 255, __VA_ARGS__); }}
+#define vDebug(...) { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND ", vDebugFlag, __VA_ARGS__); }}
+#define vTrace(...) { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", vDebugFlag, __VA_ARGS__); }}
+#endif
 
 typedef struct {
   int32_t  vgId;      // global vnode group ID

@@ -356,7 +356,11 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
   return 0;
 }
 
-void taosPrintLog(const char *flags, int32_t dflag, char *file, int32_t line, const char *format, ...) {
+void taosPrintLog(const char *flags, int32_t dflag,
+#ifdef LOG_LINE_OPEN
+                  char *file, int32_t line,
+#endif
+                  const char *format, ...) {
   if (tsTotalLogDirGB != 0 && tsAvailLogDirGB < tsMinimalLogDirGB) {
     printf("server disk:%s space remain %.3f GB, total %.1f GB, stop print log.\n", tsLogDir, tsAvailLogDirGB, tsTotalLogDirGB);
     fflush(stdout);
@@ -376,9 +380,13 @@ void taosPrintLog(const char *flags, int32_t dflag, char *file, int32_t line, co
   gettimeofday(&timeSecs, NULL);
   curTime = timeSecs.tv_sec;
   ptm = localtime_r(&curTime, &Tm);
-
+#ifdef LOG_LINE_OPEN
   len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " %s---%d ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
                 ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId(), file, line);
+#else
+  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 "  ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
+                ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId());
+#endif
   len += sprintf(buffer + len, "%s", flags);
 
   va_start(argpointer, format);
@@ -446,7 +454,11 @@ void taosDumpData(unsigned char *msg, int32_t len) {
   taosWrite(tsLogObj.logHandle->fd, temp, (uint32_t)pos);
 }
 
-void taosPrintLongString(const char *flags, int32_t dflag, char *file, int32_t line, const char *format, ...) {
+void taosPrintLongString(const char *flags, int32_t dflag,
+#ifdef LOG_LINE_OPEN
+                         char *file, int32_t line,
+#endif
+                         const char *format, ...) {
   if (tsTotalLogDirGB != 0 && tsAvailLogDirGB < tsMinimalLogDirGB) {
     printf("server disk:%s space remain %.3f GB, total %.1f GB, stop write log.\n", tsLogDir, tsAvailLogDirGB, tsTotalLogDirGB);
     fflush(stdout);
@@ -463,9 +475,15 @@ void taosPrintLongString(const char *flags, int32_t dflag, char *file, int32_t l
   gettimeofday(&timeSecs, NULL);
   curTime = timeSecs.tv_sec;
   ptm = localtime_r(&curTime, &Tm);
-
+#ifdef LOG_LINE_OPEN
   len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " %s---%d ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
                 ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId(), file, line);
+
+#else
+  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 "  ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
+                ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId());
+
+#endif
   len += sprintf(buffer + len, "%s", flags);
 
   va_start(argpointer, format);

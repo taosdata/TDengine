@@ -20,6 +20,7 @@
 
 extern int32_t httpDebugFlag;
 
+#ifdef LOG_LINE_OPEN
 #define httpFatal(...) { if (httpDebugFlag & DEBUG_FATAL) { taosPrintLog("HTP FATAL ", 255, __FILE__, __LINE__, __VA_ARGS__); }}
 #define httpError(...) { if (httpDebugFlag & DEBUG_ERROR) { taosPrintLog("HTP ERROR ", 255, __FILE__, __LINE__, __VA_ARGS__); }}
 #define httpWarn(...)  { if (httpDebugFlag & DEBUG_WARN)  { taosPrintLog("HTP WARN ", 255, __FILE__, __LINE__, __VA_ARGS__); }}
@@ -27,5 +28,14 @@ extern int32_t httpDebugFlag;
 #define httpDebug(...) { if (httpDebugFlag & DEBUG_DEBUG) { taosPrintLog("HTP ", httpDebugFlag, __FILE__, __LINE__, __VA_ARGS__); }}
 #define httpTrace(...) { if (httpDebugFlag & DEBUG_TRACE) { taosPrintLog("HTP ", httpDebugFlag, __FILE__, __LINE__, __VA_ARGS__); }}
 #define httpTraceL(...){ if (httpDebugFlag & DEBUG_TRACE) { taosPrintLongString("HTP ", httpDebugFlag, __FILE__, __LINE__, __VA_ARGS__); }}
+#else
+#define httpFatal(...) { if (httpDebugFlag & DEBUG_FATAL) { taosPrintLog("HTP FATAL ", 255, __VA_ARGS__); }}
+#define httpError(...) { if (httpDebugFlag & DEBUG_ERROR) { taosPrintLog("HTP ERROR ", 255, __VA_ARGS__); }}
+#define httpWarn(...)  { if (httpDebugFlag & DEBUG_WARN)  { taosPrintLog("HTP WARN ", 255, __VA_ARGS__); }}
+#define httpInfo(...)  { if (httpDebugFlag & DEBUG_INFO)  { taosPrintLog("HTP ", 255, __VA_ARGS__); }}
+#define httpDebug(...) { if (httpDebugFlag & DEBUG_DEBUG) { taosPrintLog("HTP ", httpDebugFlag, __VA_ARGS__); }}
+#define httpTrace(...) { if (httpDebugFlag & DEBUG_TRACE) { taosPrintLog("HTP ", httpDebugFlag, __VA_ARGS__); }}
+#define httpTraceL(...){ if (httpDebugFlag & DEBUG_TRACE) { taosPrintLongString("HTP ", httpDebugFlag, __VA_ARGS__); }}
+#endif
 
 #endif
