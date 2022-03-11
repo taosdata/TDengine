@@ -16,7 +16,7 @@ import taos
 
 class BuildDockerCluser:
 
-    def init(self, numOfNodes, dockerDir):
+    def init(self, numOfNodes = 3, dockerDir = "/data"):
         self.numOfNodes = numOfNodes
         self.dockerDir = dockerDir
 
@@ -45,21 +45,25 @@ class BuildDockerCluser:
             "qdebugFlag":"135",
             "maxSQLLength":"1048576"
         }
-        cmd = "mkdir -p %s" % self.dockerDir
+        os.makedirs(self.dockerDir, exist_ok=True) # like "mkdir -p"    
+
+        real_path = os.path.realpath(__file__)
+        self.current_dir = os.path.dirname(real_path)
+
+        cmd = "cp %s/node3.yml %s" % (self.current_dir, self.dockerDir)
         self.execCmd(cmd)
 
-        cmd = "cp *.yml %s" % self.dockerDir
+        cmd = "cp %s/Dockerfile %s" % (self.current_dir, self.dockerDir)
         self.execCmd(cmd)
 
-        cmd = "cp Dockerfile %s" % self.dockerDir
+        cmd = "cp %s/docker-compose.yml %s" % (self.current_dir, self.dockerDir)
         self.execCmd(cmd)
-
 
     # execute command, and return the output 
     # ref: https://blog.csdn.net/wowocpp/article/details/80775650  
     def execCmdAndGetOutput(self, cmd):  
         r = os.popen(cmd)  
-        text = r.read()  
+        text = r.read() 
         r.close()  
         return text
     
@@ -85,10 +89,11 @@ class BuildDockerCluser:
             host = self.hostName,
             user = self.user,
             password = self.password,
-            config = self.configDir)
+            config = self.configDir)        
     
-    def removeFile(self, rootDir, index, dir):
+    def removeFile(self, rootDir, index, dir):        
         cmd = "rm -rf %s/node%d/%s/*" % (rootDir, index, dir)        
+        print(cmd)
         self.execCmd(cmd)
     
     def clearEnv(self):
@@ -100,8 +105,7 @@ class BuildDockerCluser:
             self.removeFile(self.dockerDir, i, self.dirs[2])
 
     def createDir(self, rootDir, index, dir):
-        cmd = "mkdir -p %s/node%d/%s" % (rootDir, index, dir)
-        self.execCmd(cmd)
+        os.makedirs("%s/node%d/%s" % (rootDir, index, dir), exist_ok=True) # like "mkdir -p"
 
     def createDirs(self):
         for i in range(1, self.numOfNodes + 1):
@@ -114,31 +118,28 @@ class BuildDockerCluser:
     def cfg(self, option, value, nodeIndex):
         cfgPath = "%s/node%d/cfg/taos.cfg" % (self.dockerDir, nodeIndex)
         cmd = "echo '%s %s' >> %s" % (option, value, cfgPath)
+        print(cmd)
         self.execCmd(cmd)
     
     def updateLocalhosts(self):
-        cmd = "grep '172.27.0.7 *tdnode1' /etc/hosts | sed 's: ::g'"
-        result = self.execCmdAndGetOutput(cmd)
-        print(result)
-        if result is None or result.isspace():
-            print("==========")
-            cmd = "echo '172.27.0.7 tdnode1' >> /etc/hosts"
-            display = "echo %s" % cmd
-            self.execCmd(display)
-            self.execCmd(cmd)
+        hosts = open('/etc/hosts', 'r')
+        for line in hosts:
+            # print(line.split())
+            if line.split()[1:] == 'tdNode2':
+                print("*******")
     
     def deploy(self):
         self.clearEnv()
         self.createDirs()
         for i in range(1, self.numOfNodes + 1):
             self.cfg("firstEp", "tdnode1:6030", i)
-
             for key, value in self.cfgDict.items():
                 self.cfg(key, value, i)
 
     def createDondes(self):
-        self.cursor = self.conn.cursor()        
-        for i in range(2, self.numOfNodes + 1):            
+        self.cursor = self.conn.cursor()
+        for i in range(2, self.numOfNodes + 1):
+            print("create dnode tdnode%d" % i)         
             self.cursor.execute("create dnode tdnode%d" % i)
     
     def startArbitrator(self):
@@ -155,10 +156,10 @@ class BuildDockerCluser:
         self.deploy()
 
     def run(self):           
-        cmd = "./buildClusterEnv.sh -n %d -v %s -d %s" % (self.numOfNodes, self.getTaosdVersion(), self.dockerDir)
+        cmd = "%s/buildClusterEnv.sh -n %d -v %s -d %s" % (self.current_dir, self.numOfNodes, self.getTaosdVersion(), self.dockerDir)
         display = "echo %s" % cmd
         self.execCmd(display)
-        self.execCmd(cmd)
+        self.execCmd(cmd)        
         self.getConnection()
         self.createDondes()
 
