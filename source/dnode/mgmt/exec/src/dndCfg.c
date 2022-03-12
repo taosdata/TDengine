@@ -14,10 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dmnInt.h"
-#include "tconfig.h"
+#include "dndExec.h"
 
-SDnodeObjCfg dmnGetObjCfg() {
+SDnodeObjCfg dndGetObjCfg() {
   SConfig *pCfg = taosGetCfg();
   SDnodeObjCfg objCfg = {0};
 
@@ -33,7 +32,7 @@ SDnodeObjCfg dmnGetObjCfg() {
   return objCfg;
 }
 
-void dmnDumpCfg() {
+void dndDumpCfg() {
   SConfig *pCfg = taosGetCfg();
   cfgDumpCfg(pCfg, 0, 1);
 }

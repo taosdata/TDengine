@@ -14,12 +14,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DMN_INT_H_
-#define _TD_DMN_INT_H_
+#ifndef _TD_DND_EXEC_H_
+#define _TD_DND_EXEC_H_
 
-#include "tconfig.h"
 #include "dnode.h"
+
 #include "taoserror.h"
+#include "tconfig.h"
 #include "tglobal.h"
 #include "tlog.h"
 #include "version.h"
@@ -35,14 +36,14 @@ extern "C" {
 #define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND ", DEBUG_DEBUG, dDebugFlag, __VA_ARGS__); }}
 #define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", DEBUG_TRACE, dDebugFlag, __VA_ARGS__); }}
 
-void dmnDumpCfg();
-void dmnPrintVersion();
-void dmnGenerateGrant();
+void dndDumpCfg();
+void dndPrintVersion();
+void dndGenerateGrant();
 
-SDnodeObjCfg dmnGetObjCfg();
+SDnodeObjCfg dndGetObjCfg();
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DMN_INT_H_*/
+#endif /*_TD_DND_EXEC_H_*/

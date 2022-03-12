@@ -14,15 +14,15 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dmnInt.h"
+#include "dndExec.h"
 
-void dmnGenerateGrant() {
+void dndGenerateGrant() {
 #if 0
   grantParseParameter();
 #endif
 }
 
-void dmnPrintVersion() {
+void dndPrintVersion() {
 #ifdef TD_ENTERPRISE
   char *releaseName = "enterprise";
 #else

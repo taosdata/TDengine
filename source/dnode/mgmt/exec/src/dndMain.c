@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dmnInt.h"
+#include "dndExec.h"
 
 static struct {
   bool    dumpConfig;
@@ -24,22 +24,22 @@ static struct {
   char    envFile[PATH_MAX];
   char    apolloUrl[PATH_MAX];
   SDnode *pDnode;
-} dmn = {0};
+} global = {0};
 
-static void dmnSigintHandle(int signum, void *info, void *ctx) {
+static void dndSigintHandle(int signum, void *info, void *ctx) {
   dInfo("singal:%d is received", signum);
-  dndeHandleEvent(dmn.pDnode, DND_EVENT_STOP);
+  dndeHandleEvent(global.pDnode, DND_EVENT_STOP);
 }
 
-static void dmnSetSignalHandle() {
-  taosSetSignal(SIGTERM, dmnSigintHandle);
-  taosSetSignal(SIGHUP, dmnSigintHandle);
-  taosSetSignal(SIGINT, dmnSigintHandle);
-  taosSetSignal(SIGABRT, dmnSigintHandle);
-  taosSetSignal(SIGBREAK, dmnSigintHandle);
+static void dndSetSignalHandle() {
+  taosSetSignal(SIGTERM, dndSigintHandle);
+  taosSetSignal(SIGHUP, dndSigintHandle);
+  taosSetSignal(SIGINT, dndSigintHandle);
+  taosSetSignal(SIGABRT, dndSigintHandle);
+  taosSetSignal(SIGBREAK, dndSigintHandle);
 }
 
-static int32_t dmnParseOption(int32_t argc, char const *argv[]) {
+static int32_t dndParseOption(int32_t argc, char const *argv[]) {
   for (int32_t i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {
@@ -53,11 +53,11 @@ static int32_t dmnParseOption(int32_t argc, char const *argv[]) {
         return -1;
       }
     } else if (strcmp(argv[i], "-C") == 0) {
-      dmn.dumpConfig = true;
+      global.dumpConfig = true;
     } else if (strcmp(argv[i], "-k") == 0) {
-      dmn.generateGrant = true;
+      global.generateGrant = true;
     } else if (strcmp(argv[i], "-V") == 0) {
-      dmn.printVersion = true;
+      global.printVersion = true;
     } else {
     }
   }
@@ -65,19 +65,20 @@ static int32_t dmnParseOption(int32_t argc, char const *argv[]) {
   return 0;
 }
 
-int32_t dmnRunDnode() {
+static int32_t dndRunDnode() {
   if (dndInit() != 0) {
     dInfo("failed to initialize dnode environment since %s", terrstr());
     return -1;
   }
 
-  SDnodeObjCfg objCfg = dmnGetObjCfg();
+  SDnodeObjCfg objCfg = dndGetObjCfg();
   SDnode      *pDnode = dndCreate(&objCfg);
   if (pDnode == NULL) {
     dError("failed to to create dnode object since %s", terrstr());
     return -1;
   } else {
-    dmn.pDnode = pDnode;
+    global.pDnode = pDnode;
+    dndSetSignalHandle();
   }
 
   dInfo("start the TDengine service");
@@ -97,36 +98,36 @@ int main(int argc, char const *argv[]) {
     return -1;
   }
 
-  if (dmnParseOption(argc, argv) != 0) {
+  if (dndParseOption(argc, argv) != 0) {
     return -1;
   }
 
-  if (dmn.generateGrant) {
-    dmnGenerateGrant();
+  if (global.generateGrant) {
+    dndGenerateGrant();
     return 0;
   }
 
-  if (dmn.printVersion) {
-    dmnPrintVersion();
+  if (global.printVersion) {
+    dndPrintVersion();
     return 0;
   }
 
-  if (taosCreateLog("taosdlog", 1, configDir, dmn.envFile, dmn.apolloUrl, NULL, 0) != 0) {
+  if (taosCreateLog("taosdlog", 1, configDir, global.envFile, global.apolloUrl, NULL, 0) != 0) {
     dError("failed to start TDengine since read log config error");
     return -1;
   }
 
-  if (taosInitCfg(configDir, dmn.envFile, dmn.apolloUrl, NULL, 0) != 0) {
+  if (taosInitCfg(configDir, global.envFile, global.apolloUrl, NULL, 0) != 0) {
     dError("failed to start TDengine since read config error");
     return -1;
   }
 
-  if (dmn.dumpConfig) {
-    dmnDumpCfg();
+  if (global.dumpConfig) {
+    dndDumpCfg();
     taosCleanupCfg();
     taosCloseLog();
     return 0;
   }
 
-  return dmnRunDnode();
+  return dndRunDnode();
 }
