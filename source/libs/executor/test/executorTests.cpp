@@ -55,8 +55,7 @@ typedef struct SDummyInputInfo {
   SSDataBlock* pBlock;
 } SDummyInputInfo;
 
-SSDataBlock* getDummyBlock(void* param, bool* newgroup) {
-  SOperatorInfo* pOperator = static_cast<SOperatorInfo*>(param);
+SSDataBlock* getDummyBlock(SOperatorInfo* pOperator, bool* newgroup) {
   SDummyInputInfo* pInfo = static_cast<SDummyInputInfo*>(pOperator->info);
   if (pInfo->current >= pInfo->totalPages) {
     return NULL;
@@ -122,8 +121,7 @@ SSDataBlock* getDummyBlock(void* param, bool* newgroup) {
   return pBlock;
 }
 
-SSDataBlock* get2ColsDummyBlock(void* param, bool* newgroup) {
-  SOperatorInfo* pOperator = static_cast<SOperatorInfo*>(param);
+SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator, bool* newgroup) {
   SDummyInputInfo* pInfo = static_cast<SDummyInputInfo*>(pOperator->info);
   if (pInfo->current >= pInfo->totalPages) {
     return NULL;

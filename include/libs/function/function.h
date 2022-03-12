@@ -295,18 +295,7 @@ typedef struct SMultiFunctionsDesc {
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, SResultDataInfo* pInfo, int16_t extLength,
                           bool isSuperTable);
 
-/**
- * If the given name is a valid built-in sql function, the value of true will be returned.
- * @param name
- * @param len
- * @return
- */
-int32_t qIsBuiltinFunction(const char* name, int32_t len, bool* scalarFunction);
-
 bool qIsValidUdf(SArray* pUdfInfo, const char* name, int32_t len, int32_t* functionId);
-
-bool qIsAggregateFunction(const char* functionName);
-bool qIsSelectivityFunction(const char* functionName);
 
 tExprNode* exprTreeFromBinary(const void* data, size_t size);
 
