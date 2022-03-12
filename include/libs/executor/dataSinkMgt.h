@@ -41,7 +41,6 @@ int32_t dsDataSinkMgtInit(SDataSinkMgtCfg *cfg);
 
 typedef struct SInputData {
   const struct SSDataBlock* pData;
-  SHashObj* pTableRetrieveTsMap;
 } SInputData;
 
 typedef struct SOutputData {

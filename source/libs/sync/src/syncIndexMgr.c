@@ -98,3 +98,30 @@ char *syncIndexMgr2Str(SSyncIndexMgr *pSyncIndexMgr) {
   cJSON_Delete(pJson);
   return serialized;
 }
+
+// for debug -------------------
+void syncIndexMgrPrint(SSyncIndexMgr *pObj) {
+  char *serialized = syncIndexMgr2Str(pObj);
+  printf("syncIndexMgrPrint | len:%lu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncIndexMgrPrint2(char *s, SSyncIndexMgr *pObj) {
+  char *serialized = syncIndexMgr2Str(pObj);
+  printf("syncIndexMgrPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncIndexMgrLog(SSyncIndexMgr *pObj) {
+  char *serialized = syncIndexMgr2Str(pObj);
+  sTrace("syncIndexMgrLog | len:%lu | %s", strlen(serialized), serialized);
+  free(serialized);
+}
+
+void syncIndexMgrLog2(char *s, SSyncIndexMgr *pObj) {
+  char *serialized = syncIndexMgr2Str(pObj);
+  sTrace("syncIndexMgrLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  free(serialized);
+}
