@@ -14,11 +14,11 @@ namespace Test.UtilsTools
         static string password = "taosdata";
         static string db = "";
         static short port = 0;
-        //get a tdengine connection
+        //get a TDengine connection
         public static IntPtr TDConnection()
         {
-            TDengine.Options((int)TDengineInitOption.TDDB_OPTION_CONFIGDIR, GetConfigPath());
-            TDengine.Options((int)TDengineInitOption.TDDB_OPTION_SHELL_ACTIVITY_TIMER, "60");
+            TDengine.Options((int)TDengineInitOption.TSDB_OPTION_CONFIGDIR, GetConfigPath());
+            TDengine.Options((int)TDengineInitOption.TSDB_OPTION_SHELL_ACTIVITY_TIMER, "60");
             TDengine.Init();
             IntPtr conn = TDengine.Connect(ip, user, password, db, port);
             // UtilsTools.ExecuteUpdate(conn, "drop database if  exists csharp");
@@ -99,16 +99,16 @@ namespace Test.UtilsTools
                 ExitProgram();
             }
 
-            List<TDengineMeta> metas = GetResField(res);
-            int fieldCount = metas.Count;
+            List<TDengineMeta> metaList = GetResField(res);
+            int fieldCount = metaList.Count;
 
             IntPtr rowdata;
-            List<string> datas = QueryRes(res, metas);
-            for (int i = 0; i < metas.Count; i++)
+            List<string> dataList = QueryRes(res, metaList);
+            for (int i = 0; i < metaList.Count; i++)
             {
-                for (int j = 0; j < datas.Count; j++)
+                for (int j = 0; j < dataList.Count; j++)
                 {
-                    Console.Write(" {0} \t|", datas[j]);
+                    Console.Write(" {0} \t|", dataList[j]);
                 }
                 Console.WriteLine("");
             }
@@ -125,10 +125,10 @@ namespace Test.UtilsTools
                 ExitProgram();
             }
 
-            List<TDengineMeta> metas = GetResField(res);
+            List<TDengineMeta> metaList = GetResField(res);
             result.Add(colName);
 
-            dataRaw = QueryRes(res, metas);
+            dataRaw = QueryRes(res, metaList);
             result.Add(dataRaw);
 
             if (TDengine.ErrorNo(res) != 0)
@@ -159,7 +159,7 @@ namespace Test.UtilsTools
             {
                 if (TDengine.Close(conn) == 0)
                 {
-                    Console.WriteLine("close connection sucess");
+                    Console.WriteLine("close connection success");
                 }
                 else
                 {
@@ -169,8 +169,8 @@ namespace Test.UtilsTools
         }
         public static List<TDengineMeta> GetResField(IntPtr res)
         {
-            List<TDengineMeta> metas = TDengine.FetchFields(res);
-            return metas;
+            List<TDengineMeta> metaList = TDengine.FetchFields(res);
+            return metaList;
         }
         public static void AssertEqual(string expectVal, string actualVal)
         {
@@ -274,11 +274,11 @@ namespace Test.UtilsTools
             return _meta;
         }
 
-        private static List<string> QueryRes(IntPtr res, List<TDengineMeta> metas)
+        private static List<string> QueryRes(IntPtr res, List<TDengineMeta> meta)
         {
             IntPtr taosRow;
             List<string> dataRaw = new List<string>();
-            int fieldCount = metas.Count;
+            int fieldCount = meta.Count;
             while ((taosRow = TDengine.FetchRows(res)) != IntPtr.Zero)
             {
                 dataRaw.AddRange(FetchRow(taosRow, res));
@@ -294,7 +294,7 @@ namespace Test.UtilsTools
         // Generate insert sql for the with the coldata and tag data 
         public static string ConstructInsertSql(string table, string stable, List<Object> colData, List<Object> tagData, int numOfRows)
         {
-            int numofFileds = colData.Count / numOfRows;
+            int numOfFields = colData.Count / numOfRows;
             StringBuilder insertSql;
 
             if (stable == "")
@@ -339,7 +339,7 @@ namespace Test.UtilsTools
                     insertSql.Append(colData[i]);
                 }
 
-                if ((i + 1) % numofFileds == 0 && (i + 1) != colData.Count)
+                if ((i + 1) % numOfFields == 0 && (i + 1) != colData.Count)
                 {
                     insertSql.Append(")(");
                 }
@@ -500,8 +500,8 @@ namespace Test.UtilsTools
             {
                 ExitProgram();
             }
-            List<TDengineMeta> metas = GetResField(res);
-            dataRaw = QueryRes(res, metas);
+            List<TDengineMeta> meta = GetResField(res);
+            dataRaw = QueryRes(res, meta);
             return dataRaw;
         }
     }

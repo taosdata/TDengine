@@ -6,19 +6,19 @@ using Xunit;
 using Test.UtilsTools.ResultSet;
 namespace Cases
 {
-    public class FetchFieldCases
+    public class FetchFieldsCases
     {
         /// <author>xiaolei</author>
-        /// <Name>FetchFieldCases.TestFetchFieldJsonTag</Name>
+        /// <Name>FetchFieldsCases.TestFetchFieldsJsonTag</Name>
         /// <describe>test taos_fetch_fields(), check the meta data</describe>
-        /// <filename>TaosFeild.cs</filename>
+        /// <filename>FetchFields.cs</filename>
         /// <result>pass or failed </result>  
-        [Fact(DisplayName = "FetchFieldCases.TestFetchFieldJsonTag()")]
-        public void TestFetchFieldJsonTag()
+        [Fact(DisplayName = "FetchFieldsCases.TestFetchFieldsJsonTag()")]
+        public void TestFetchFieldsJsonTag()
         {
             IntPtr conn = UtilsTools.TDConnection();
             IntPtr _res = IntPtr.Zero;
-            string tableName = "fetchfeilds";
+            string tableName = "fetch_fields";
             var expectResMeta = new List<TDengineMeta> {
                 UtilsTools.ConstructTDengineMeta("ts", "timestamp"),
                 UtilsTools.ConstructTDengineMeta("b", "bool"),

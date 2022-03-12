@@ -1,7 +1,5 @@
 using System;
 using TDengineDriver;
-using System.Runtime.InteropServices;
-using System.Text;
 using System.Collections.Generic;
 namespace Test.UtilsTools.ResultSet
 {
@@ -17,10 +15,10 @@ namespace Test.UtilsTools.ResultSet
             resultData = UtilsTools.GetResData(res);
         }
 
-        public ResultSet(List<TDengineMeta> metas, List<String> datas)
+        public ResultSet(List<TDengineMeta> meta, List<String> data)
         {
-            resultMeta = metas;
-            resultData = datas;
+            resultMeta = meta;
+            resultData = data;
         }
 
         public List<String> GetResultData()
@@ -34,6 +32,5 @@ namespace Test.UtilsTools.ResultSet
         }
 
     }
-
 
 }
