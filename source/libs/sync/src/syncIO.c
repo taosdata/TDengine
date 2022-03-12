@@ -29,7 +29,7 @@ static int32_t  syncIODestroy(SSyncIO *io);
 static int32_t  syncIOStartInternal(SSyncIO *io);
 static int32_t  syncIOStopInternal(SSyncIO *io);
 
-static void *  syncIOConsumerFunc(void *param);
+static void   *syncIOConsumerFunc(void *param);
 static void    syncIOProcessRequest(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
 static void    syncIOProcessReply(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
 static int32_t syncIOAuth(void *parent, char *meterId, char *spi, char *encrypt, char *secret, char *ckey);
@@ -234,9 +234,9 @@ static int32_t syncIOStopInternal(SSyncIO *io) {
 }
 
 static void *syncIOConsumerFunc(void *param) {
-  SSyncIO *  io = param;
+  SSyncIO   *io = param;
   STaosQall *qall;
-  SRpcMsg *  pRpcMsg, rpcMsg;
+  SRpcMsg   *pRpcMsg, rpcMsg;
   qall = taosAllocateQall();
 
   while (1) {
@@ -431,22 +431,3 @@ static void syncIOTickPing(void *param, void *tmrId) {
 
   taosTmrReset(syncIOTickPing, io->pingTimerMS, io, io->timerMgr, &io->pingTimer);
 }
-
-#if 0
-
-
-static void syncIOTickPingFunc(void *param, void *tmrId) {
-  SSyncIO *io = (SSyncIO *)param;
-  sTrace("<-- syncIOTickPingFunc -->");
-
-  SRpcMsg rpcMsg;
-  rpcMsg.contLen = 64;
-  rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
-  snprintf(rpcMsg.pCont, rpcMsg.contLen, "%s", "syncIOTickPing");
-  rpcMsg.handle = NULL;
-  rpcMsg.msgType = 77;
-
-  rpcSendRequest(io->clientRpc, &io->myAddr, &rpcMsg, NULL);
-  taosTmrReset(syncIOTickPingFunc, 1000, io, io->ioTimerManager, &io->ioTimerTickPing);
-}
-#endif
