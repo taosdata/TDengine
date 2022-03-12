@@ -82,7 +82,7 @@ static void *sendRequest(void *param) {
     rpcMsg.contLen = pInfo->msgSize;
     rpcMsg.ahandle = pInfo;
     rpcMsg.msgType = 1;
-    rpcMsg.push = push;
+    // rpcMsg.push = push;
     // tDebug("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
     int64_t start = taosGetTimestampUs();
     rpcSendRequest(pInfo->pRpc, &pInfo->epSet, &rpcMsg, NULL);
@@ -203,7 +203,7 @@ int main(int argc, char *argv[]) {
   tInfo("client is initialized");
   tInfo("threads:%d msgSize:%d requests:%d", appThreads, msgSize, numOfReqs);
 
-  gettimeofday(&systemTime, NULL);
+  taosGetTimeOfDay(&systemTime);
   startTime = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
 
   SInfo *pInfo = (SInfo *)calloc(1, sizeof(SInfo) * appThreads);
@@ -226,7 +226,7 @@ int main(int argc, char *argv[]) {
     taosUsleep(1);
   } while (tcount < appThreads);
 
-  gettimeofday(&systemTime, NULL);
+  taosGetTimeOfDay(&systemTime);
   endTime = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
   float usedTime = (endTime - startTime) / 1000.0f;  // mseconds
 

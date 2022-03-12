@@ -224,6 +224,7 @@ int32_t hbGetExpiredDBInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SCl
     SDbVgVersion *db = &dbs[i];
     db->dbId = htobe64(db->dbId);
     db->vgVersion = htonl(db->vgVersion);
+    db->numOfTable = htonl(db->numOfTable);
   }
 
   SKv kv = {
@@ -434,11 +435,11 @@ static int32_t hbCreateThread() {
   pthread_attr_init(&thAttr);
   pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
 
-  if (pthread_create(&clientHbMgr.thread, &thAttr, hbThreadFunc, NULL) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-  pthread_attr_destroy(&thAttr);
+//  if (pthread_create(&clientHbMgr.thread, &thAttr, hbThreadFunc, NULL) != 0) {
+//    terrno = TAOS_SYSTEM_ERROR(errno);
+//    return -1;
+//  }
+//  pthread_attr_destroy(&thAttr);
   return 0;
 }
 

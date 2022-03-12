@@ -104,14 +104,29 @@ char* syncEntry2Str(const SSyncRaftEntry* pEntry) {
   return serialized;
 }
 
-void syncEntryPrint(const SSyncRaftEntry* pEntry) {
-  char* s = syncEntry2Str(pEntry);
-  sTrace("%s", s);
-  free(s);
+// for debug ----------------------
+void syncEntryPrint(const SSyncRaftEntry* pObj) {
+  char* serialized = syncEntry2Str(pObj);
+  printf("syncEntryPrint | len:%lu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  free(serialized);
 }
 
-void syncEntryPrint2(char* s, const SSyncRaftEntry* pEntry) {
-  char* ss = syncEntry2Str(pEntry);
-  sTrace("%s | %s", s, ss);
-  free(ss);
+void syncEntryPrint2(char* s, const SSyncRaftEntry* pObj) {
+  char* serialized = syncEntry2Str(pObj);
+  printf("syncEntryPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncEntryLog(const SSyncRaftEntry* pObj) {
+  char* serialized = syncEntry2Str(pObj);
+  sTrace("syncEntryLog | len:%lu | %s", strlen(serialized), serialized);
+  free(serialized);
+}
+
+void syncEntryLog2(char* s, const SSyncRaftEntry* pObj) {
+  char* serialized = syncEntry2Str(pObj);
+  sTrace("syncEntryLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  free(serialized);
 }
