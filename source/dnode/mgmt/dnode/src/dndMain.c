@@ -28,7 +28,7 @@
 
 static int8_t once = DND_ENV_INIT;
 
-static int32_t dndInitDir(SDnode *pDnode, SDnodeObjCfg *pCfg) {
+static int32_t dndInitDir(SDnode *pDnode, SDndCfg *pCfg) {
   pDnode->pLockFile = dndCheckRunning(pCfg->dataDir);
   if (pDnode->pLockFile == NULL) {
     return -1;
@@ -83,7 +83,7 @@ static int32_t dndInitDir(SDnode *pDnode, SDnodeObjCfg *pCfg) {
     return -1;
   }
 
-  memcpy(&pDnode->cfg, pCfg, sizeof(SDnodeObjCfg));
+  memcpy(&pDnode->cfg, pCfg, sizeof(SDndCfg));
   return 0;
 }
 
@@ -101,7 +101,7 @@ static void dndCloseDir(SDnode *pDnode) {
   }
 }
 
-SDnode *dndCreate(SDnodeObjCfg *pCfg) {
+SDnode *dndCreate(SDndCfg *pCfg) {
   dInfo("start to create dnode object");
 
   SDnode *pDnode = calloc(1, sizeof(SDnode));

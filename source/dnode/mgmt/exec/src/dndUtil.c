@@ -32,3 +32,24 @@ void dndPrintVersion() {
   printf("gitinfo: %s\n", gitinfo);
   printf("builuInfo: %s\n", buildinfo);
 }
+
+void dndDumpCfg() {
+  SConfig *pCfg = taosGetCfg();
+  cfgDumpCfg(pCfg, 0, 1);
+}
+
+SDndCfg dndGetCfg() {
+  SConfig *pCfg = taosGetCfg();
+  SDndCfg  objCfg = {0};
+
+  objCfg.numOfSupportVnodes = cfgGetItem(pCfg, "supportVnodes")->i32;
+  tstrncpy(objCfg.dataDir, tsDataDir, sizeof(objCfg.dataDir));
+  tstrncpy(objCfg.firstEp, tsFirst, sizeof(objCfg.firstEp));
+  tstrncpy(objCfg.secondEp, tsSecond, sizeof(objCfg.firstEp));
+  objCfg.serverPort = tsServerPort;
+  tstrncpy(objCfg.localFqdn, tsLocalFqdn, sizeof(objCfg.localFqdn));
+  snprintf(objCfg.localEp, sizeof(objCfg.localEp), "%s:%u", objCfg.localFqdn, objCfg.serverPort);
+  objCfg.pDisks = tsDiskCfg;
+  objCfg.numOfDisks = tsDiskCfgNum;
+  return objCfg;
+}

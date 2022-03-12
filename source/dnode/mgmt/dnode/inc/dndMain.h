@@ -138,22 +138,7 @@ typedef struct {
   DndMsgFp msgFp[TDMT_MAX];
 } STransMgmt;
 
-typedef struct SDnode {
-  EDndStatus   status;
-  SDnodeObjCfg cfg;
-  SDnodeDir    dir;
-  TdFilePtr    pLockFile;
-  SDnodeMgmt   dmgmt;
-  SMndMgmt     mmgmt;
-  SQnodeMgmt   qmgmt;
-  SSnodeMgmt   smgmt;
-  SBnodeMgmt   bmgmt;
-  SVnodesMgmt  vmgmt;
-  STransMgmt   tmgmt;
-  STfs        *pTfs;
-  SStartupReq  startup;
-  EDndEvent    event;
-} SDnode;
+
 
 #ifdef __cplusplus
 }

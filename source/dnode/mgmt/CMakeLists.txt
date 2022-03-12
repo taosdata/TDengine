@@ -14,6 +14,6 @@ target_include_directories(
 
 add_subdirectory(exec)
 
-#if(${BUILD_TEST})
-#    add_subdirectory(test)
-#endif(${BUILD_TEST})
+if(${BUILD_TEST})
+    add_subdirectory(test)
+endif(${BUILD_TEST})

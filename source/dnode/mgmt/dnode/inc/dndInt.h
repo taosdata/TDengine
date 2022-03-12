@@ -64,6 +64,26 @@ typedef enum { DND_ENV_INIT, DND_ENV_READY, DND_ENV_CLEANU } EEnvStat;
 typedef void (*DndMsgFp)(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEps);
 typedef int32_t (*MndMsgFp)(SDnode *pDnode, SMndMsg *pMsg);
 
+
+
+typedef struct SDnode {
+  EDndStatus   status;
+  SDndCfg cfg;
+  SDnodeDir    dir;
+  TdFilePtr    pLockFile;
+  SDnodeMgmt   dmgmt;
+  SMndMgmt     mmgmt;
+  SQnodeMgmt   qmgmt;
+  SSnodeMgmt   smgmt;
+  SBnodeMgmt   bmgmt;
+  SVnodesMgmt  vmgmt;
+  STransMgmt   tmgmt;
+  STfs        *pTfs;
+  SStartupReq  startup;
+  EDndEvent    event;
+} SDnode;
+
+
 EDndStatus  dndGetStatus(SDnode *pDnode);
 void        dndSetStatus(SDnode *pDnode, EDndStatus stat);
 const char *dndStatStr(EDndStatus stat);

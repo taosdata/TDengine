@@ -71,8 +71,8 @@ static int32_t dndRunDnode() {
     return -1;
   }
 
-  SDnodeObjCfg objCfg = dndGetObjCfg();
-  SDnode      *pDnode = dndCreate(&objCfg);
+  SDndCfg objCfg = dndGetCfg();
+  SDnode *pDnode = dndCreate(&objCfg);
   if (pDnode == NULL) {
     dError("failed to to create dnode object since %s", terrstr());
     return -1;

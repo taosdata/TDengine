@@ -22,8 +22,8 @@ void* serverLoop(void* param) {
   }
 }
 
-SDnodeObjCfg TestServer::BuildOption(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
-  SDnodeObjCfg cfg = {0};
+SDndCfg TestServer::BuildOption(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
+  SDndCfg cfg = {0};
   cfg.numOfSupportVnodes = 16;
   cfg.serverPort = port;
   strcpy(cfg.dataDir, path);
@@ -34,7 +34,7 @@ SDnodeObjCfg TestServer::BuildOption(const char* path, const char* fqdn, uint16_
 }
 
 bool TestServer::DoStart() {
-  SDnodeObjCfg cfg = BuildOption(path, fqdn, port, firstEp);
+  SDndCfg cfg = BuildOption(path, fqdn, port, firstEp);
   taosMkDir(path);
 
   pDnode = dndCreate(&cfg);
