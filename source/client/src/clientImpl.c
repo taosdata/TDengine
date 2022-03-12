@@ -299,9 +299,10 @@ int32_t clientProcessErrorList(SArray **pList) {
 SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
   SRequestObj* pRequest = NULL;
   int32_t code = 0;
-  bool quit = false;
+  int32_t needRetryNum = 0;
+  int32_t needRetryFailNum = 0;
 
-  while (!quit) {
+  while (true) {
     pRequest = execQueryImpl(pTscObj, sql, sqlLen);
     if (TSDB_CODE_SUCCESS == pRequest->code || NULL == pRequest->errList) {
       break;
@@ -315,30 +316,49 @@ SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
     int32_t errNum = (int32_t)taosArrayGetSize(pRequest->errList);
     for (int32_t i = 0; i < errNum; ++i) {
       SQueryErrorInfo *errInfo = taosArrayGet(pRequest->errList, i);
+      int32_t tcode = 0;
       
-      if (TSDB_CODE_VND_HASH_MISMATCH == errInfo->code) {
+      if (NEED_CLIENT_REFRESH_VG_ERROR(errInfo->code)) {
+        ++needRetryNum;
+        
         SCatalog *pCatalog = NULL;
-        code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
-        if (code != TSDB_CODE_SUCCESS) {
-          quit = true;
-          break;
+        tcode = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
+        if (tcode != TSDB_CODE_SUCCESS) {
+          ++needRetryFailNum;
+          code = tcode;
+          continue;
         }
+        
         SEpSet epset = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
         char dbFName[TSDB_DB_FNAME_LEN];
         tNameGetFullDbName(&errInfo->tableName, dbFName);
         
-        code = catalogRefreshDBVgInfo(pCatalog, pTscObj->pAppInfo->pTransporter, &epset, dbFName);
-        if (code != TSDB_CODE_SUCCESS) {
-          quit = true;
-          break;
+        tcode = catalogRefreshDBVgInfo(pCatalog, pTscObj->pAppInfo->pTransporter, &epset, dbFName);
+        if (tcode != TSDB_CODE_SUCCESS) {
+          ++needRetryFailNum;
+          code = tcode;
+          continue;
         }
+      } else if (NEED_CLIENT_RM_TBLMETA_ERROR(errInfo->code)) {
+        SCatalog *pCatalog = NULL;
+        tcode = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
+        if (tcode != TSDB_CODE_SUCCESS) {
+          code = tcode;
+          continue;
+        }
+        
+        catalogRemoveTableMeta(pCatalog, &errInfo->tableName);
       }
     }
 
-    if (!quit) {
+    if ((needRetryNum && (0 == needRetryFailNum) && (TDMT_VND_SUBMIT != pRequest->type && TDMT_VND_CREATE_TABLE != pRequest->type))
+      || (needRetryNum && (needRetryNum > needRetryFailNum) && (TDMT_VND_SUBMIT == pRequest->type && TDMT_VND_CREATE_TABLE == pRequest->type))) {
       destroyRequest(pRequest);
+      continue;
     }
+
+    break;
   }
 
   if (code) {

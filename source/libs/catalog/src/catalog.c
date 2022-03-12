@@ -851,17 +851,10 @@ int32_t ctgGetTableMetaFromCache(SCatalog* pCtg, const SName* pTableName, STable
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgGetTableTypeFromCache(SCatalog* pCtg, const SName* pTableName, int32_t *tbType, int32_t flag) {
+int32_t ctgGetTableTypeFromCache(SCatalog* pCtg, const char* dbFName, const char *tableName, int32_t *tbType) {
   if (NULL == pCtg->dbCache) {
-    ctgWarn("empty db cache, tbName:%s", pTableName->tname);  
+    ctgWarn("empty db cache, dbFName:%s, tbName:%s", dbFName, tableName);  
     return TSDB_CODE_SUCCESS;
-  }
-
-  char dbFName[TSDB_DB_FNAME_LEN] = {0};
-  if (CTG_FLAG_IS_INF_DB(flag)) {
-    strcpy(dbFName, pTableName->dbname);
-  } else {
-    tNameGetFullDbName(pTableName, dbFName);
   }
   
   SCtgDBCache *dbCache = NULL;
@@ -871,11 +864,11 @@ int32_t ctgGetTableTypeFromCache(SCatalog* pCtg, const SName* pTableName, int32_
   }
 
   CTG_LOCK(CTG_READ, &dbCache->tbCache.metaLock);
-  STableMeta *pTableMeta = (STableMeta *)taosHashAcquire(dbCache->tbCache.metaCache, pTableName->tname, strlen(pTableName->tname));
+  STableMeta *pTableMeta = (STableMeta *)taosHashAcquire(dbCache->tbCache.metaCache, tableName, strlen(tableName));
 
   if (NULL == pTableMeta) {
     CTG_UNLOCK(CTG_READ, &dbCache->tbCache.metaLock);
-    ctgWarn("tbl not in cache, dbFName:%s, tbName:%s", dbFName, pTableName->tname);  
+    ctgWarn("tbl not in cache, dbFName:%s, tbName:%s", dbFName, tableName);  
     ctgReleaseDBCache(pCtg, dbCache);
     
     return TSDB_CODE_SUCCESS;
@@ -889,7 +882,7 @@ int32_t ctgGetTableTypeFromCache(SCatalog* pCtg, const SName* pTableName, int32_
 
   ctgReleaseDBCache(pCtg, dbCache);
 
-  ctgDebug("Got tbtype from cache, dbFName:%s, tbName:%s, type:%d", dbFName, pTableName->tname, *tbType);  
+  ctgDebug("Got tbtype from cache, dbFName:%s, tbName:%s, type:%d", dbFName, tableName, *tbType);  
   
   return TSDB_CODE_SUCCESS;
 }
@@ -2074,24 +2067,19 @@ int32_t ctgActRemoveStb(SCtgMetaAction *action) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (dbCache->dbId != msg->dbId) {
+  if (msg->dbId && (dbCache->dbId != msg->dbId)) {
     ctgDebug("dbId already modified, dbFName:%s, current:%"PRIx64", dbId:%"PRIx64", stb:%s, suid:%"PRIx64, msg->dbFName, dbCache->dbId, msg->dbId, msg->stbName, msg->suid);
     return TSDB_CODE_SUCCESS;
   }
   
   CTG_LOCK(CTG_WRITE, &dbCache->tbCache.stbLock);
   if (taosHashRemove(dbCache->tbCache.stbCache, &msg->suid, sizeof(msg->suid))) {
-    CTG_UNLOCK(CTG_WRITE, &dbCache->tbCache.stbLock);
     ctgDebug("stb not exist in stbCache, may be removed, dbFName:%s, stb:%s, suid:%"PRIx64, msg->dbFName, msg->stbName, msg->suid);
-    return TSDB_CODE_SUCCESS;
   }
 
   CTG_LOCK(CTG_READ, &dbCache->tbCache.metaLock);
   if (taosHashRemove(dbCache->tbCache.metaCache, msg->stbName, strlen(msg->stbName))) {  
-    CTG_UNLOCK(CTG_READ, &dbCache->tbCache.metaLock);
-    CTG_UNLOCK(CTG_WRITE, &dbCache->tbCache.stbLock);
     ctgError("stb not exist in cache, dbFName:%s, stb:%s, suid:%"PRIx64, msg->dbFName, msg->stbName, msg->suid);
-    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }  
   CTG_UNLOCK(CTG_READ, &dbCache->tbCache.metaLock);
   
@@ -2542,6 +2530,47 @@ _return:
 
   CTG_API_LEAVE(code);
 }
+
+int32_t catalogRemoveTableMeta(SCatalog* pCtg, SName* pTableName) {
+  CTG_API_ENTER();
+
+  int32_t code = 0;
+  
+  if (NULL == pCtg || NULL == pTableName) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  if (NULL == pCtg->dbCache) {
+    CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+  }
+
+  STableMeta *tblMeta = NULL;
+  int32_t exist = 0;
+  uint64_t dbId = 0;
+  CTG_ERR_JRET(ctgGetTableMetaFromCache(pCtg, pTableName, &tblMeta, &exist, 0, &dbId));
+
+  if (0 == exist) {
+    ctgDebug("table already not in cache, db:%s, tblName:%s", pTableName->dbname, pTableName->tname);
+    goto _return;
+  }
+
+  char dbFName[TSDB_DB_FNAME_LEN];
+  tNameGetFullDbName(pTableName, dbFName);
+  
+  if (TSDB_SUPER_TABLE == tblMeta->tableType) {
+    CTG_ERR_JRET(ctgPushRmStbMsgInQueue(pCtg, dbFName, dbId, pTableName->tname, tblMeta->suid));
+  } else {
+    CTG_ERR_JRET(ctgPushRmTblMsgInQueue(pCtg, dbFName, dbId, pTableName->tname));
+  }
+
+ 
+_return:
+
+  tfree(tblMeta);
+
+  CTG_API_LEAVE(code);
+}
+
 
 int32_t catalogRemoveStbMeta(SCatalog* pCtg, const char* dbFName, uint64_t dbId, const char* stbName, uint64_t suid) {
   CTG_API_ENTER();

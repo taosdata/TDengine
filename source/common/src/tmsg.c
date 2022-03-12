@@ -2656,6 +2656,60 @@ int32_t tDeserializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pR
   return 0;
 }
 
+int32_t tSerializeSVCreateTbBatchRsp(void *buf, int32_t bufLen, SVCreateTbBatchRsp *pRsp) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (pRsp->rspList) {
+    int32_t num = taosArrayGetSize(pRsp->rspList);
+    if (tEncodeI32(&encoder, num) < 0) return -1;    
+    for (int32_t i = 0; i < num; ++i) {
+      SVCreateTbRsp *rsp = taosArrayGet(pRsp->rspList, i);
+      if (tEncodeI32(&encoder, rsp->code) < 0) return -1;    
+      if (tEncodeU8(&encoder, rsp->tableName.type) < 0) return -1;    
+      if (tEncodeI32(&encoder, rsp->tableName.acctId) < 0) return -1;    
+      if (tEncodeCStr(&encoder, rsp->tableName.dbname) < 0) return -1;    
+      if (tEncodeCStr(&encoder, rsp->tableName.tname) < 0) return -1;    
+    }
+  } else {
+    if (tEncodeI32(&encoder, 0) < 0) return -1;    
+  }
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVCreateTbBatchRsp(void *buf, int32_t bufLen, SVCreateTbBatchRsp *pRsp) {
+  SCoder decoder = {0};
+  int32_t num = 0;
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &num) < 0) return -1;
+  if (num > 0) {
+    pRsp->rspList = taosArrayInit(num, sizeof(SVCreateTbRsp));
+    if (NULL == pRsp->rspList) return -1;
+    for (int32_t i = 0; i < num; ++i) {
+      SVCreateTbRsp rsp = {0};
+      if (tDecodeI32(&decoder, &rsp.code) < 0) return -1;
+      if (tDecodeU8(&decoder, &rsp.tableName.type) < 0) return -1;
+      if (tDecodeI32(&decoder, &rsp.tableName.acctId) < 0) return -1;
+      if (tDecodeCStrTo(&decoder, rsp.tableName.dbname) < 0) return -1;
+      if (tDecodeCStrTo(&decoder, rsp.tableName.tname) < 0) return -1;
+      if (NULL == taosArrayPush(pRsp->rspList, &rsp)) return -1;
+    }
+  } else {
+    pRsp->rspList = NULL;
+  }
+  tEndDecode(&decoder);
+
+  tCoderClear(&decoder);
+  return 0;
+}
+
 
 int32_t tSerializeSVCreateTSmaReq(void **buf, SVCreateTSmaReq *pReq) {
   int32_t tlen = 0;
