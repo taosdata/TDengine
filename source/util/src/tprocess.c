@@ -374,7 +374,7 @@ SProcObj *taosProcInit(const SProcCfg *pCfg) {
   if (!pProc->testFlag) {
     pProc->pid = fork();
     if (pProc->pid == 0) {
-      tsLogInited = 0;
+      // tsLogInited = 0;
       taosInitLog("mnodelog", 1);
       pProc->isChild = 1;
       uInfo("this is child process, pid:%d", pProc->pid);

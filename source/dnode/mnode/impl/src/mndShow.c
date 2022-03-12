@@ -25,7 +25,7 @@ static void      mndReleaseShowObj(SShowObj *pShow, bool forceRemove);
 static int32_t   mndProcessShowReq(SMndMsg *pReq);
 static int32_t   mndProcessRetrieveReq(SMndMsg *pReq);
 static bool      mndCheckRetrieveFinished(SShowObj *pShow);
-static int32_t   mndProcessRetrieveSysTableReq(SMnodeMsg *pReq);
+static int32_t   mndProcessRetrieveSysTableReq(SMndMsg *pReq);
 
 int32_t mndInitShow(SMnode *pMnode) {
   SShowMgmt *pMgmt = &pMnode->showMgmt;
@@ -263,7 +263,7 @@ static int32_t mndProcessRetrieveReq(SMndMsg *pReq) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mndProcessRetrieveSysTableReq(SMnodeMsg *pReq) {
+static int32_t mndProcessRetrieveSysTableReq(SMndMsg *pReq) {
   SMnode    *pMnode = pReq->pMnode;
   SShowMgmt *pMgmt = &pMnode->showMgmt;
   int32_t    rowsToRead = 0;

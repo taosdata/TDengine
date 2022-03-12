@@ -36,7 +36,7 @@ static int32_t  mndProcessDropQnodeRsp(SMndMsg *pRsp);
 static int32_t  mndGetQnodeMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t  mndRetrieveQnodes(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextQnode(SMnode *pMnode, void *pIter);
-static int32_t  mndProcessQnodeListReq(SMnodeMsg *pReq);
+static int32_t  mndProcessQnodeListReq(SMndMsg *pReq);
 
 int32_t mndInitQnode(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_QNODE,
@@ -432,7 +432,7 @@ DROP_QNODE_OVER:
   return code;
 }
 
-static int32_t mndProcessQnodeListReq(SMnodeMsg *pReq) {
+static int32_t mndProcessQnodeListReq(SMndMsg *pReq) {
   int32_t        code = -1;
   SQnodeListReq  qlistReq = {0};
   int32_t numOfRows = 0;
