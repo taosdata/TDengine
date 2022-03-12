@@ -978,7 +978,6 @@ static int32_t datumToJson(const void* pObj, SJson* pJson) {
     case TSDB_DATA_TYPE_DOUBLE:
       code = tjsonAddDoubleToObject(pJson, jkValueDatum, pNode->datum.d);
       break;
-    case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
@@ -1042,7 +1041,6 @@ static int32_t jsonToDatum(const SJson* pJson, void* pObj) {
     case TSDB_DATA_TYPE_DOUBLE:
       code = tjsonGetDoubleValue(pJson, jkValueDatum, &pNode->datum.d);
       break;
-    case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:

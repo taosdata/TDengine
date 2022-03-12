@@ -495,7 +495,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryEnd) {
 
     ASSERT(pRes->info.rows > 0);
 
-    SInputData inputData = {.pData = pRes, .pTableRetrieveTsMap = NULL};
+    SInputData inputData = {.pData = pRes};
     code = dsPutDataBlock(sinkHandle, &inputData, &qcontinue);
     if (code) {
       QW_TASK_ELOG("dsPutDataBlock failed, code:%s", tstrerror(code));
