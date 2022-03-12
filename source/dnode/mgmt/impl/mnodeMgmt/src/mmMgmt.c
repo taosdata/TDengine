@@ -117,7 +117,7 @@ void mmRelease(SDnode *pDnode, SMnode *pMnode) {
 
 int32_t mmOpen(SDnode *pDnode, SMnodeOpt *pOption) {
   SMndMgmt *pMgmt = &pDnode->mmgmt;
-  pMgmt->singleProc = false;
+  pMgmt->singleProc = true;
 
   int32_t code = mmOpenImp(pDnode, pOption);
 

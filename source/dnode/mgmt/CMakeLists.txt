@@ -1,2 +1,2 @@
-add_subdirectory(daemon)
+add_subdirectory(exec)
 add_subdirectory(impl)

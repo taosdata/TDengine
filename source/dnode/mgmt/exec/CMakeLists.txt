@@ -1,5 +1,5 @@
-aux_source_directory(src DAEMON_SRC)
-add_executable(taosd ${DAEMON_SRC})
+aux_source_directory(src EXEC_SRC)
+add_executable(taosd ${EXEC_SRC})
 
 target_include_directories(
     taosd
