@@ -158,7 +158,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
   int64_t st = 0;
 
   st = taosGetTimestampUs();
-  *pRes = pTaskInfo->pRoot->nextDataFn(pTaskInfo->pRoot, &newgroup);
+  *pRes = pTaskInfo->pRoot->getNextFn(pTaskInfo->pRoot, &newgroup);
 
   uint64_t el = (taosGetTimestampUs() - st);
   pTaskInfo->cost.elapsedTime += el;
