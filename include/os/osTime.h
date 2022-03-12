@@ -29,7 +29,7 @@ extern "C" {
     #define time TIME_FUNC_TAOS_FORBID
 #endif
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#if defined(WINDOWS)
 
   #define CLOCK_REALTIME 	0
 

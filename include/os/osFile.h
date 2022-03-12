@@ -118,6 +118,7 @@ int64_t taosSendFile(SocketFd fdDst, FileFd pFileSrc, int64_t *offset, int64_t s
 int64_t taosFSendFile(FILE *pFileOut, FILE *pFileIn, int64_t *offset, int64_t size);
 #else
 int64_t taosSendFile(SocketFd fdDst, TdFilePtr pFileSrc, int64_t *offset, int64_t size);
+int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, int64_t size);
 #endif
 
 void *taosMmapReadOnlyFile(TdFilePtr pFile, int64_t length);

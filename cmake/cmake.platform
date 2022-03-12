@@ -15,6 +15,7 @@ else()
 endif()
 
 IF (${CXX_COMPILER_IS_GNU})
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99")
 ELSE ()
     ADD_DEFINITIONS("-Wno-tautological-constant-out-of-range-compare -Wno-pointer-sign -Wno-unknown-warning-option")
     set(CMAKE_SHARED_LIBRARY_CREATE_C_FLAGS "${CMAKE_SHARED_LIBRARY_CREATE_C_FLAGS} -undefined dynamic_lookup")

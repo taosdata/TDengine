@@ -22,6 +22,8 @@ extern "C" {
 
 #include <assert.h>
 #include <ctype.h>
+#include <pthread.h>
+#include <semaphore.h>
 
 #if !defined(WINDOWS)
 #include <unistd.h>
@@ -61,6 +63,7 @@ extern "C" {
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <wchar.h>
 #include <termios.h>

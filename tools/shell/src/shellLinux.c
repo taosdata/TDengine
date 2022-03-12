@@ -25,6 +25,7 @@
 #include <wordexp.h>
 
 int indicator = 1;
+extern int wcwidth(wchar_t c);
 
 #define OPT_ABORT 1 /* �Cabort */
 
@@ -315,7 +316,6 @@ void *shellLoopQuery(void *arg) {
 }
 
 #if defined(LINUX)
-extern int wcwidth(wchar_t c);
 const char *argp_program_version = version;
 const char *argp_program_bug_address = "<support@taosdata.com>";
 static char doc[] = "";
