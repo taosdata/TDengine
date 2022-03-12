@@ -155,8 +155,6 @@ typedef struct SDnode {
   EDndEvent    event;
 } SDnode;
 
-int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo);
-
 #ifdef __cplusplus
 }
 #endif

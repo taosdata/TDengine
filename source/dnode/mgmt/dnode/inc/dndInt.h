@@ -32,6 +32,7 @@ extern "C" {
 #include "tlockfree.h"
 #include "tlog.h"
 #include "tmsg.h"
+#include "tprocess.h"
 #include "tqueue.h"
 #include "trpc.h"
 #include "tthread.h"
@@ -44,10 +45,8 @@ extern "C" {
 #include "mnode.h"
 #include "qnode.h"
 #include "snode.h"
-#include "vnode.h"
 #include "tfs.h"
-
-#include "tprocess.h"
+#include "vnode.h"
 
 #define dFatal(...) { if (dDebugFlag & DEBUG_FATAL) { taosPrintLog("DND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}
 #define dError(...) { if (dDebugFlag & DEBUG_ERROR) { taosPrintLog("DND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}
@@ -56,19 +55,22 @@ extern "C" {
 #define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND ", DEBUG_DEBUG, dDebugFlag, __VA_ARGS__); }}
 #define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", DEBUG_TRACE, dDebugFlag, __VA_ARGS__); }}
 
+typedef enum { MNODE, NODE_MAX, VNODES, QNODE, SNODE, BNODE } ENodeType;
+typedef enum { PROC_SINGLE, PROC_CHILD, PROC_PARENT } EProcType;
 typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EDndStatus;
 typedef enum { DND_WORKER_SINGLE, DND_WORKER_MULTI } EWorkerType;
-typedef enum { DND_ENV_INIT = 0, DND_ENV_READY = 1, DND_ENV_CLEANUP = 2 } EEnvStat;
-typedef void (*DndMsgFp)(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEps);
+typedef enum { DND_ENV_INIT, DND_ENV_READY, DND_ENV_CLEANU } EEnvStat;
 
-typedef int32_t (*MndMsgFp)(SDnode *pDnode, SMndMsg *pMnodeMsg);
+typedef void (*DndMsgFp)(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEps);
+typedef int32_t (*MndMsgFp)(SDnode *pDnode, SMndMsg *pMsg);
 
 EDndStatus  dndGetStatus(SDnode *pDnode);
 void        dndSetStatus(SDnode *pDnode, EDndStatus stat);
 const char *dndStatStr(EDndStatus stat);
-
-void dndReportStartup(SDnode *pDnode, char *pName, char *pDesc);
-void dndGetStartup(SDnode *pDnode, SStartupReq *pStartup);
+void        dndReportStartup(SDnode *pDnode, char *pName, char *pDesc);
+void        dndGetStartup(SDnode *pDnode, SStartupReq *pStartup);
+TdFilePtr   dndCheckRunning(char *dataDir);
+int32_t     dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo);
 
 #ifdef __cplusplus
 }

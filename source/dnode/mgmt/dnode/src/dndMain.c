@@ -28,62 +28,6 @@
 
 static int8_t once = DND_ENV_INIT;
 
-EDndStatus dndGetStatus(SDnode *pDnode) { return pDnode->status; }
-
-void dndSetStatus(SDnode *pDnode, EDndStatus status) {
-  if (pDnode->status != status) {
-    dDebug("dnode status set from %s to %s", dndStatStr(pDnode->status), dndStatStr(status));
-    pDnode->status = status;
-  }
-}
-
-const char *dndStatStr(EDndStatus status) {
-  switch (status) {
-    case DND_STAT_INIT:
-      return "init";
-    case DND_STAT_RUNNING:
-      return "running";
-    case DND_STAT_STOPPED:
-      return "stopped";
-    default:
-      return "unknown";
-  }
-}
-
-void dndReportStartup(SDnode *pDnode, char *pName, char *pDesc) {
-  SStartupReq *pStartup = &pDnode->startup;
-  tstrncpy(pStartup->name, pName, TSDB_STEP_NAME_LEN);
-  tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
-  pStartup->finished = 0;
-}
-
-void dndGetStartup(SDnode *pDnode, SStartupReq *pStartup) {
-  memcpy(pStartup, &pDnode->startup, sizeof(SStartupReq));
-  pStartup->finished = (dndGetStatus(pDnode) == DND_STAT_RUNNING);
-}
-
-static TdFilePtr dndCheckRunning(char *dataDir) {
-  char filepath[PATH_MAX] = {0};
-  snprintf(filepath, sizeof(filepath), "%s/.running", dataDir);
-
-  TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
-  if (pFile == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to lock file:%s since %s, quit", filepath, terrstr());
-    return NULL;
-  }
-
-  int32_t ret = taosLockFile(pFile);
-  if (ret != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to lock file:%s since %s, quit", filepath, terrstr());
-    taosCloseFile(&pFile);
-    return NULL;
-  }
-
-  return pFile;
-}
-
 static int32_t dndInitDir(SDnode *pDnode, SDnodeObjCfg *pCfg) {
   pDnode->pLockFile = dndCheckRunning(pCfg->dataDir);
   if (pDnode->pLockFile == NULL) {
@@ -324,15 +268,6 @@ void dndCleanup() {
 
   taosStopCacheRefreshWorker();
   dInfo("dnode env is cleaned up");
-}
-
-int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {
-  tstrncpy(pInfo->logdir.name, tsLogDir, sizeof(pInfo->logdir.name));
-  pInfo->logdir.size = tsLogSpace.size;
-  tstrncpy(pInfo->tempdir.name, tsTempDir, sizeof(pInfo->tempdir.name));
-  pInfo->tempdir.size = tsTempSpace.size;
-
-  return tfsGetMonitorInfo(pDnode->pTfs, pInfo);
 }
 
 void dndRun(SDnode *pDnode) {
