@@ -47,7 +47,7 @@ void doubleSkipListTest() {
   SSkipListKey    sk;
   for (int32_t i = 0; i < 100; ++i) {
     sk.nType = TSDB_DATA_TYPE_DOUBLE;
-    int32_t idx = abs((i * rand()) % 1000);
+    int32_t idx = abs((i * taosRand()) % 1000);
 
     sk.dKey = doubleVal[idx];
 
@@ -74,7 +74,7 @@ void randKeyTest() {
       false, getkey);
 
   int32_t size = 200000;
-  srand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
 
   printf("generated %d keys is: \n", size);
 
@@ -87,7 +87,7 @@ void randKeyTest() {
     d->level = level;
 
     int32_t* key = (int32_t*)SL_GET_NODE_KEY(pSkipList, d);
-    key[0] = rand() % 1000000000;
+    key[0] = taosRand() % 1000000000;
 
     key[1] = key[0];
 
@@ -337,7 +337,7 @@ void duplicatedKeyTest() {
 
 TEST(testCase, skiplist_test) {
   assert(sizeof(SSkipListKey) == 8);
-  srand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
 
   stringKeySkiplistTest();
   doubleSkipListTest();

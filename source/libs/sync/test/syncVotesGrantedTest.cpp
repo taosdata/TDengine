@@ -32,8 +32,7 @@ SSyncNode* syncNodeInit() {
   syncInfo.queue = gSyncIO->pMsgQ;
   syncInfo.FpEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
-  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./test_path");
-  snprintf(syncInfo.walPath, sizeof(syncInfo.walPath), "%s", "./test_wal_path");
+  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./");
 
   SSyncCfg* pCfg = &syncInfo.syncCfg;
   pCfg->myIndex = myIndex;
@@ -119,7 +118,7 @@ int main(int argc, char** argv) {
   }
 
   for (int i = 0; i < replicaNum; ++i) {
-    SyncRequestVoteReply* reply = SyncRequestVoteReplyBuild();
+    SyncRequestVoteReply* reply = syncRequestVoteReplyBuild();
     reply->destId = pSyncNode->myRaftId;
     reply->srcId = ids[i];
     reply->term = term;

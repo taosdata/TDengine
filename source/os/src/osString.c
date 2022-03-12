@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "tdef.h"
 #include <wchar.h>
 #include <wctype.h>
 
@@ -291,11 +292,10 @@ int32_t twcslen(const wchar_t *wcs) {
 
   return n;
 }
-
 int32_t tasoUcs4Compare(void *f1_ucs4, void *f2_ucs4, int32_t bytes) {
-  for (int32_t i = 0; i < bytes; ++i) {
-    int32_t f1 = *(int32_t *)((char *)f1_ucs4 + i * 4);
-    int32_t f2 = *(int32_t *)((char *)f2_ucs4 + i * 4);
+  for (int32_t i = 0; i < bytes; i += TSDB_NCHAR_SIZE) {
+    int32_t f1 = *(int32_t *)((char *)f1_ucs4 + i);
+    int32_t f2 = *(int32_t *)((char *)f2_ucs4 + i);
 
     if ((f1 == 0 && f2 != 0) || (f1 != 0 && f2 == 0)) {
       return f1 - f2;

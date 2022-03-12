@@ -116,7 +116,8 @@ typedef struct SSyncNode {
   SyncGroupId vgId;
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
-  char        walPath[TSDB_FILENAME_LEN];
+  char        raftStorePath[TSDB_FILENAME_LEN * 2];
+  SWal*       pWal;
   void*       rpcClient;
   int32_t (*FpSendMsg)(void* rpcClient, const SEpSet* pEpSet, SRpcMsg* pMsg);
   void* queue;
@@ -195,8 +196,6 @@ typedef struct SSyncNode {
 
 SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo);
 void       syncNodeClose(SSyncNode* pSyncNode);
-cJSON*     syncNode2Json(const SSyncNode* pSyncNode);
-char*      syncNode2Str(const SSyncNode* pSyncNode);
 
 int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
 int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
@@ -212,6 +211,14 @@ int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode);
 int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
+cJSON*  syncNode2Json(const SSyncNode* pSyncNode);
+char*   syncNode2Str(const SSyncNode* pSyncNode);
+
+// for debug --------------
+void syncNodePrint(SSyncNode* pObj);
+void syncNodePrint2(char* s, SSyncNode* pObj);
+void syncNodeLog(SSyncNode* pObj);
+void syncNodeLog2(char* s, SSyncNode* pObj);
 
 #ifdef __cplusplus
 }

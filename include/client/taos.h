@@ -51,6 +51,7 @@ typedef void **TAOS_ROW;
 #define TSDB_DATA_TYPE_JSON      17  // json
 #define TSDB_DATA_TYPE_DECIMAL   18  // decimal
 #define TSDB_DATA_TYPE_BLOB      19  // binary
+#define TSDB_DATA_TYPE_MEDIUMBLOB 20
 
 typedef enum {
   TSDB_OPTION_LOCALE,
@@ -255,6 +256,10 @@ DLL_EXPORT void           tmq_conf_set_offset_commit_cb(tmq_conf_t *conf, tmq_co
 // temporary used function for demo only
 void    tmqShowMsg(tmq_message_t *tmq_message);
 int32_t tmqGetSkipLogNum(tmq_message_t *tmq_message);
+
+typedef void (*TAOS_SUBSCRIBE_CALLBACK)(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code);
+
+DLL_EXPORT int taos_stmt_affected_rows(TAOS_STMT* stmt);
 
 #ifdef __cplusplus
 }

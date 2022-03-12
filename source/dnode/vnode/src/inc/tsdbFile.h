@@ -56,10 +56,11 @@ typedef enum {
   TSDB_FILE_SMAL,      // .smal(Block-wise SMA)
   TSDB_FILE_MAX,       //
   TSDB_FILE_META,      // meta
-  TSDB_FILE_TSMA,      // .tsma.${sma_index_name}, Time-range-wise SMA
-  TSDB_FILE_RSMA,      // .rsma.${sma_index_name}, Time-range-wise Rollup SMA
-} TSDB_FILE_T;
+  TSDB_FILE_TSMA,      // v2t100.${sma_index_name}, Time-range-wise SMA
+  TSDB_FILE_RSMA,      // v2r100.${sma_index_name}, Time-range-wise Rollup SMA
+} E_TSDB_FILE_T;
 
+typedef int32_t TSDB_FILE_T;
 typedef enum {
   TSDB_FS_VER_0 = 0,
   TSDB_FS_VER_MAX,
@@ -333,6 +334,17 @@ typedef struct {
   uint16_t reserve;
   SDFile   files[TSDB_FILE_MAX];
 } SDFileSet;
+
+typedef struct {
+  int     fid;
+  int8_t  state;
+  uint8_t ver;
+#if 0
+  SDFInfo   info;
+#endif
+  STfsFile  f;
+  TdFilePtr pFile;
+} SSFile;  // files split by days with fid
 
 #define TSDB_LATEST_FSET_VER 0
 

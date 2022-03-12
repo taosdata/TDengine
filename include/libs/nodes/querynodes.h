@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "nodes.h"
+#include "tmsg.h"
 
 typedef struct SRawExprNode {
   ENodeType nodeType;
@@ -73,6 +74,7 @@ typedef struct SValueNode {
   SExprNode node; // QUERY_NODE_VALUE
   char* literal;
   bool isDuration;
+  bool translate;
   union {
     bool b;
     int64_t i;
@@ -122,6 +124,7 @@ struct STableMeta;
 typedef struct SRealTableNode {
   STableNode table; // QUERY_NODE_REAL_TABLE
   struct STableMeta* pMeta;
+  SVgroupsInfo* pVgroupList;
 } SRealTableNode;
 
 typedef struct STempTableNode {
@@ -247,6 +250,29 @@ typedef enum ESqlClause {
   SQL_CLAUSE_SELECT,
   SQL_CLAUSE_ORDER_BY
 } ESqlClause;
+
+
+typedef enum {
+  PAYLOAD_TYPE_KV = 0,
+  PAYLOAD_TYPE_RAW = 1,
+} EPayloadType;
+
+typedef struct SVgDataBlocks {
+  SVgroupInfo vg;
+  int32_t     numOfTables;  // number of tables in current submit block
+  uint32_t    size;
+  char       *pData;        // SMsgDesc + SSubmitReq + SSubmitBlk + ...
+} SVgDataBlocks;
+
+typedef struct SVnodeModifOpStmt {
+  ENodeType   nodeType;
+  ENodeType   sqlNodeType;
+  SArray*     pDataBlocks;         // data block for each vgroup, SArray<SVgDataBlocks*>.
+  int8_t      schemaAttache;       // denote if submit block is built with table schema or not
+  uint8_t     payloadType;         // EPayloadType. 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
+  uint32_t    insertType;          // insert data from [file|sql statement| bound statement]
+  const char* sql;                 // current sql statement position
+} SVnodeModifOpStmt;
 
 void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
 void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewriter rewriter, void* pContext);

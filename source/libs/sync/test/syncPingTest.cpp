@@ -1,8 +1,9 @@
+#include <gtest/gtest.h>
 #include <stdio.h>
-#include "syncEnv.h"
 #include "syncIO.h"
 #include "syncInt.h"
-#include "syncRaftStore.h"
+#include "syncMessage.h"
+#include "syncUtil.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -13,95 +14,82 @@ void logTest() {
   sFatal("--- sync log test: fatal");
 }
 
-uint16_t ports[3] = {7010, 7110, 7210};
-
-SSyncNode* doSync(int myIndex) {
-  SSyncFSM* pFsm;
-
-  SSyncInfo syncInfo;
-  syncInfo.vgId = 1;
-  syncInfo.rpcClient = gSyncIO->clientRpc;
-  syncInfo.FpSendMsg = syncIOSendMsg;
-  syncInfo.queue = gSyncIO->pMsgQ;
-  syncInfo.FpEqMsg = syncIOEqMsg;
-  syncInfo.pFsm = pFsm;
-  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./path");
-  snprintf(syncInfo.walPath, sizeof(syncInfo.walPath), "%s", "./wal_path");
-
-  SSyncCfg* pCfg = &syncInfo.syncCfg;
-  pCfg->myIndex = myIndex;
-  pCfg->replicaNum = 3;
-
-  pCfg->nodeInfo[0].nodePort = ports[0];
-  snprintf(pCfg->nodeInfo[0].nodeFqdn, sizeof(pCfg->nodeInfo[0].nodeFqdn), "%s", "127.0.0.1");
-  // taosGetFqdn(pCfg->nodeInfo[0].nodeFqdn);
-
-  pCfg->nodeInfo[1].nodePort = ports[1];
-  snprintf(pCfg->nodeInfo[1].nodeFqdn, sizeof(pCfg->nodeInfo[1].nodeFqdn), "%s", "127.0.0.1");
-  // taosGetFqdn(pCfg->nodeInfo[1].nodeFqdn);
-
-  pCfg->nodeInfo[2].nodePort = ports[2];
-  snprintf(pCfg->nodeInfo[2].nodeFqdn, sizeof(pCfg->nodeInfo[2].nodeFqdn), "%s", "127.0.0.1");
-  // taosGetFqdn(pCfg->nodeInfo[2].nodeFqdn);
-
-  SSyncNode* pSyncNode = syncNodeOpen(&syncInfo);
-  assert(pSyncNode != NULL);
-
-  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
-  gSyncIO->pSyncNode = pSyncNode;
-
-  return pSyncNode;
+SyncPing *createMsg() {
+  SRaftId srcId, destId;
+  srcId.addr = syncUtilAddr2U64("127.0.0.1", 1234);
+  srcId.vgId = 100;
+  destId.addr = syncUtilAddr2U64("127.0.0.1", 5678);
+  destId.vgId = 100;
+  SyncPing *pMsg = syncPingBuild3(&srcId, &destId);
+  return pMsg;
 }
 
-void timerPingAll(void* param, void* tmrId) {
-  SSyncNode* pSyncNode = (SSyncNode*)param;
-  syncNodePingAll(pSyncNode);
+void test1() {
+  SyncPing *pMsg = createMsg();
+  syncPingPrint2((char *)"test1:", pMsg);
+  syncPingDestroy(pMsg);
 }
 
-int main(int argc, char** argv) {
-  // taosInitLog((char*)"syncPingTest.log", 100000, 10);
+void test2() {
+  SyncPing *pMsg = createMsg();
+  uint32_t  len = pMsg->bytes;
+  char *    serialized = (char *)malloc(len);
+  syncPingSerialize(pMsg, serialized, len);
+  SyncPing *pMsg2 = syncPingBuild(pMsg->dataLen);
+  syncPingDeserialize(serialized, len, pMsg2);
+  syncPingPrint2((char *)"test2: syncPingSerialize -> syncPingDeserialize ", pMsg2);
+
+  free(serialized);
+  syncPingDestroy(pMsg);
+  syncPingDestroy(pMsg2);
+}
+
+void test3() {
+  SyncPing *pMsg = createMsg();
+  uint32_t  len;
+  char *    serialized = syncPingSerialize2(pMsg, &len);
+  SyncPing *pMsg2 = syncPingDeserialize2(serialized, len);
+  syncPingPrint2((char *)"test3: syncPingSerialize3 -> syncPingDeserialize2 ", pMsg2);
+
+  free(serialized);
+  syncPingDestroy(pMsg);
+  syncPingDestroy(pMsg2);
+}
+
+void test4() {
+  SyncPing *pMsg = createMsg();
+  SRpcMsg   rpcMsg;
+  syncPing2RpcMsg(pMsg, &rpcMsg);
+  SyncPing *pMsg2 = (SyncPing *)malloc(rpcMsg.contLen);
+  syncPingFromRpcMsg(&rpcMsg, pMsg2);
+  syncPingPrint2((char *)"test4: syncPing2RpcMsg -> syncPingFromRpcMsg ", pMsg2);
+
+  syncPingDestroy(pMsg);
+  syncPingDestroy(pMsg2);
+}
+
+void test5() {
+  SyncPing *pMsg = createMsg();
+  SRpcMsg   rpcMsg;
+  syncPing2RpcMsg(pMsg, &rpcMsg);
+  SyncPing *pMsg2 = syncPingFromRpcMsg2(&rpcMsg);
+  syncPingPrint2((char *)"test5: syncPing2RpcMsg -> syncPingFromRpcMsg2 ", pMsg2);
+
+  syncPingDestroy(pMsg);
+  syncPingDestroy(pMsg2);
+}
+
+int main() {
+  // taosInitLog((char *)"syncTest.log", 100000, 10);
   tsAsyncLog = 0;
   sDebugFlag = 143 + 64;
-
   logTest();
 
-  int myIndex = 0;
-  if (argc >= 2) {
-    myIndex = atoi(argv[1]);
-  }
-
-  int32_t ret = syncIOStart((char*)"127.0.0.1", ports[myIndex]);
-  assert(ret == 0);
-
-  ret = syncEnvStart();
-  assert(ret == 0);
-
-  SSyncNode* pSyncNode = doSync(myIndex);
-  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
-  gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
-  gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
-
-  ret = syncNodeStartPingTimer(pSyncNode);
-  assert(ret == 0);
-
-  taosMsleep(10000);
-
-  ret = syncNodeStopPingTimer(pSyncNode);
-  assert(ret == 0);
-
-  taosMsleep(10000);
-
-  ret = syncNodeStartPingTimer(pSyncNode);
-  assert(ret == 0);
-
-  taosMsleep(10000);
-
-  ret = syncNodeStopPingTimer(pSyncNode);
-  assert(ret == 0);
-
-  while (1) {
-    taosMsleep(1000);
-  }
+  test1();
+  test2();
+  test3();
+  test4();
+  test5();
 
   return 0;
 }

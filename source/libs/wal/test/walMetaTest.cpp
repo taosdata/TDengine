@@ -124,8 +124,13 @@ class WalRetentionEnv : public ::testing::Test {
 
   void SetUp() override {
     SWalCfg cfg;
-    cfg.rollPeriod = -1, cfg.segSize = -1, cfg.retentionPeriod = -1, cfg.retentionSize = 0, cfg.rollPeriod = 0,
-    cfg.vgId = 0, cfg.level = TAOS_WAL_FSYNC;
+    cfg.rollPeriod = -1;
+    cfg.segSize = -1;
+    cfg.retentionPeriod = -1;
+    cfg.retentionSize = 0;
+    cfg.rollPeriod = 0;
+    cfg.vgId = 0;
+    cfg.level = TAOS_WAL_FSYNC;
     pWal = walOpen(pathName, &cfg);
     ASSERT(pWal != NULL);
   }
@@ -300,7 +305,7 @@ TEST_F(WalKeepEnv, readHandleRead) {
     ASSERT_EQ(code, 0);
   }
   for (int i = 0; i < 1000; i++) {
-    int ver = rand() % 100;
+    int ver = taosRand() % 100;
     code = walReadWithHandle(pRead, ver);
     ASSERT_EQ(code, 0);
 
@@ -352,7 +357,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
   ASSERT(pRead != NULL);
 
   for (int i = 0; i < 1000; i++) {
-    int ver = rand() % 100;
+    int ver = taosRand() % 100;
     code = walReadWithHandle(pRead, ver);
     ASSERT_EQ(code, 0);
 
@@ -382,7 +387,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
   }
 
   for (int i = 0; i < 1000; i++) {
-    int ver = rand() % 200;
+    int ver = taosRand() % 200;
     code = walReadWithHandle(pRead, ver);
     ASSERT_EQ(code, 0);
 
