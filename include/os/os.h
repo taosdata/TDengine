@@ -22,6 +22,8 @@ extern "C" {
 
 #include <assert.h>
 #include <ctype.h>
+#include <pthread.h>
+#include <semaphore.h>
 
 #if !defined(WINDOWS)
 #include <unistd.h>
@@ -34,7 +36,12 @@ extern "C" {
 #include <sys/utsname.h>
 #include <sys/param.h>
 #include <sys/mman.h>
+
+#if defined(DARWIN)
+#else
 #include <sys/prctl.h>
+#include <argp.h>
+#endif
 
 #endif
 
@@ -54,9 +61,12 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <wchar.h>
+#include <termios.h>
 #include <wctype.h>
 
 
