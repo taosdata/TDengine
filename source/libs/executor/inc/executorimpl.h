@@ -240,11 +240,11 @@ typedef struct STaskAttr {
   SArray*         pUdfInfo;  // no need to free
 } STaskAttr;
 
-typedef int32_t (*__optr_open_fn_t)(void* param);
-typedef SSDataBlock* (*__optr_fn_t)(void* param, bool* newgroup);
-typedef void (*__optr_close_fn_t)(void* param, int32_t num);
-
 struct SOperatorInfo;
+
+typedef int32_t (*__optr_open_fn_t)(struct SOperatorInfo* param);
+typedef SSDataBlock* (*__optr_fn_t)(struct SOperatorInfo* param, bool* newgroup);
+typedef void (*__optr_close_fn_t)(void* param, int32_t num);
 
 typedef struct STaskIdInfo {
   uint64_t queryId;  // this is also a request id
