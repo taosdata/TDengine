@@ -14,15 +14,6 @@ void logTest() {
   sFatal("--- sync log test: fatal");
 }
 
-void *pTimer = NULL;
-void *pTimerMgr = NULL;
-int   g = 300;
-
-static void timerFp(void *param, void *tmrId) {
-  printf("param:%p, tmrId:%p, pTimer:%p, pTimerMgr:%p \n", param, tmrId, pTimer, pTimerMgr);
-  taosTmrReset(timerFp, 1000, param, pTimerMgr, &pTimer);
-}
-
 int main() {
   // taosInitLog((char*)"syncEnvTest.log", 100000, 10);
   tsAsyncLog = 0;
@@ -34,13 +25,20 @@ int main() {
   ret = syncEnvStart();
   assert(ret == 0);
 
-  // timer
-  pTimerMgr = taosTmrInit(1000, 50, 10000, "SYNC-ENV-TEST");
-  taosTmrStart(timerFp, 1000, &g, pTimerMgr);
+  for (int i = 0; i < 5; ++i) {
+    ret = syncEnvStartTimer();
+    assert(ret == 0);
 
-  while (1) {
-    taosMsleep(1000);
+    taosMsleep(5000);
+
+    ret = syncEnvStopTimer();
+    assert(ret == 0);
+
+    taosMsleep(5000);
   }
+
+  ret = syncEnvStop();
+  assert(ret == 0);
 
   return 0;
 }
