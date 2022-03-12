@@ -47,8 +47,6 @@ typedef struct SRpcMsg {
   void *  ahandle;  // app handle set by client
   int     persist;  // keep handle or not, default 0
 
-  SRpcPush *push;
-
 } SRpcMsg;
 
 typedef struct SRpcPush {
