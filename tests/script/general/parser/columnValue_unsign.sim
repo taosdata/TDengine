@@ -116,7 +116,7 @@ if $data00 != NULL then
   return -1
 endi
 
-sql select count(*), a from mt_unsigned_1 group by a;
+sql select count(*), a from mt_unsigned_1 group by a order by a desc;
 if $rows != 2 then
   return -1
 endi
@@ -137,7 +137,7 @@ if $data11 != 1 then
   return -1
 endi
 
-sql select count(*), b from mt_unsigned_1 group by b;
+sql select count(*), b from mt_unsigned_1 group by b order by b desc;
 if $rows != 2 then
   return -1
 endi
@@ -158,7 +158,7 @@ if $data11 != 2 then
   return -1
 endi
 
-sql select count(*), c from mt_unsigned_1 group by c;
+sql select count(*), c from mt_unsigned_1 group by c order by c desc;
 if $rows != 2 then
   return -1
 endi
@@ -179,7 +179,7 @@ if $data11 != 3 then
   return -1
 endi
 
-sql select count(*), d from mt_unsigned_1 group by d;
+sql select count(*), d from mt_unsigned_1 group by d order by d desc;
 if $rows != 2 then
   return -1
 endi

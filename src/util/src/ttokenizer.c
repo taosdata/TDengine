@@ -48,8 +48,6 @@ static SKeyword keywordTable[] = {
     {"OR",           TK_OR},
     {"AND",          TK_AND},
     {"NOT",          TK_NOT},
-    {"EQ",           TK_EQ},
-    {"NE",           TK_NE},
     {"ISNULL",       TK_ISNULL},
     {"NOTNULL",      TK_NOTNULL},
     {"IS",           TK_IS},
@@ -58,10 +56,6 @@ static SKeyword keywordTable[] = {
     {"GLOB",         TK_GLOB},
     {"BETWEEN",      TK_BETWEEN},
     {"IN",           TK_IN},
-    {"GT",           TK_GT},
-    {"GE",           TK_GE},
-    {"LT",           TK_LT},
-    {"LE",           TK_LE},
     {"BITAND",       TK_BITAND},
     {"BITOR",        TK_BITOR},
     {"LSHIFT",       TK_LSHIFT},
@@ -531,6 +525,8 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       for (i = 1; isdigit(z[i]); i++) {
       }
 
+      uint32_t j = i;
+
       /* here is the 1u/1a/2s/3m/9y */
       if ((z[i] == 'b' || z[i] == 'u' || z[i] == 'a' || z[i] == 's' || z[i] == 'm' || z[i] == 'h' || z[i] == 'd' || z[i] == 'n' ||
            z[i] == 'y' || z[i] == 'w' ||
@@ -565,6 +561,14 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
         }
         *tokenId = TK_FLOAT;
       }
+
+      if (*tokenId == TK_INTEGER && z[j] != '\0') {
+        char c = z[j] | 0x20;
+        if (c >= 'a' && c <= 'z') {
+          *tokenId = TK_ID;
+        }
+      }
+
       return i;
     }
     case '[': {

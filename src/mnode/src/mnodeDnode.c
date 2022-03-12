@@ -84,6 +84,9 @@ static char* offlineReason[] = {
   "timezone not match",
   "locale not match",
   "charset not match",
+  "flowctrl not match",
+  "slaveQuery not match",
+  "adjustMaster not match",
   "unknown",
 };
 
