@@ -89,7 +89,7 @@ cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg) {
   cJSON_AddNumberToObject(pRoot, "msgType", pRpcMsg->msgType);
   cJSON_AddNumberToObject(pRoot, "contLen", pRpcMsg->contLen);
   cJSON_AddNumberToObject(pRoot, "code", pRpcMsg->code);
-  cJSON_AddNumberToObject(pRoot, "persist", pRpcMsg->persist);
+  // cJSON_AddNumberToObject(pRoot, "persist", pRpcMsg->persist);
 
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "RpcMsg", pRoot);
