@@ -239,7 +239,7 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, co
   return numOfRow1 + numOfRow2;
 }
 
-size_t colDataGetNumOfCols(const SSDataBlock* pBlock) {
+size_t blockDataGetNumOfCols(const SSDataBlock* pBlock) {
   ASSERT(pBlock);
 
   size_t constantCols = (pBlock->pConstantList != NULL)? taosArrayGetSize(pBlock->pConstantList):0;
@@ -247,7 +247,7 @@ size_t colDataGetNumOfCols(const SSDataBlock* pBlock) {
   return pBlock->info.numOfCols;
 }
 
-size_t colDataGetNumOfRows(const SSDataBlock* pBlock) {
+size_t blockDataGetNumOfRows(const SSDataBlock* pBlock) {
   return pBlock->info.rows;
 }
 

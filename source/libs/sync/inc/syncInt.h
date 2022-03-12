@@ -23,6 +23,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "cJSON.h"
 #include "sync.h"
 #include "taosdef.h"
 #include "tglobal.h"
@@ -99,8 +100,11 @@ typedef struct SRaftStore SRaftStore;
 struct SVotesGranted;
 typedef struct SVotesGranted SVotesGranted;
 
-struct SVotesResponded;
-typedef struct SVotesResponded SVotesResponded;
+struct SVotesRespond;
+typedef struct SVotesRespond SVotesRespond;
+
+struct SSyncIndexMgr;
+typedef struct SSyncIndexMgr SSyncIndexMgr;
 
 typedef struct SRaftId {
   SyncNodeId  addr;  // typedef uint64_t SyncNodeId;
@@ -112,17 +116,19 @@ typedef struct SSyncNode {
   SyncGroupId vgId;
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
+  char        raftStorePath[TSDB_FILENAME_LEN * 2];
+  SWal*       pWal;
   void*       rpcClient;
   int32_t (*FpSendMsg)(void* rpcClient, const SEpSet* pEpSet, SRpcMsg* pMsg);
   void* queue;
   int32_t (*FpEqMsg)(void* queue, SRpcMsg* pMsg);
 
   // init internal
-  SNodeInfo me;
-  SRaftId   raftId;
+  SNodeInfo myNodeInfo;
+  SRaftId   myRaftId;
 
   int32_t   peersNum;
-  SNodeInfo peers[TSDB_MAX_REPLICA];
+  SNodeInfo peersNodeInfo[TSDB_MAX_REPLICA];
   SRaftId   peersId[TSDB_MAX_REPLICA];
 
   int32_t replicaNum;
@@ -142,18 +148,18 @@ typedef struct SSyncNode {
   SRaftStore* pRaftStore;
 
   // tla+ candidate vars
-  SVotesGranted*   pVotesGranted;
-  SVotesResponded* pVotesResponded;
+  SVotesGranted* pVotesGranted;
+  SVotesRespond* pVotesRespond;
 
   // tla+ leader vars
-  SHashObj* pNextIndex;
-  SHashObj* pMatchIndex;
+  SSyncIndexMgr* pNextIndex;
+  SSyncIndexMgr* pMatchIndex;
 
   // tla+ log vars
   SSyncLogStore* pLogStore;
   SyncIndex      commitIndex;
 
-  // timer
+  // ping timer
   tmr_h             pPingTimer;
   int32_t           pingTimerMS;
   uint64_t          pingTimerLogicClock;
@@ -161,6 +167,7 @@ typedef struct SSyncNode {
   TAOS_TMR_CALLBACK FpPingTimer;  // Timer Fp
   uint64_t          pingTimerCounter;
 
+  // elect timer
   tmr_h             pElectTimer;
   int32_t           electTimerMS;
   uint64_t          electTimerLogicClock;
@@ -168,6 +175,7 @@ typedef struct SSyncNode {
   TAOS_TMR_CALLBACK FpElectTimer;  // Timer Fp
   uint64_t          electTimerCounter;
 
+  // heartbeat timer
   tmr_h             pHeartbeatTimer;
   int32_t           heartbeatTimerMS;
   uint64_t          heartbeatTimerLogicClock;
@@ -203,6 +211,14 @@ int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode);
 int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
+cJSON*  syncNode2Json(const SSyncNode* pSyncNode);
+char*   syncNode2Str(const SSyncNode* pSyncNode);
+
+// for debug --------------
+void syncNodePrint(SSyncNode* pObj);
+void syncNodePrint2(char* s, SSyncNode* pObj);
+void syncNodeLog(SSyncNode* pObj);
+void syncNodeLog2(char* s, SSyncNode* pObj);
 
 #ifdef __cplusplus
 }

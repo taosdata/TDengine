@@ -8,9 +8,11 @@ target_include_directories(
 )
 
 target_link_libraries(qworker
-        PRIVATE os util transport planner qcom executor
+        PRIVATE os util transport nodes planner qcom executor
         )
 
 if(${BUILD_TEST})
-    ADD_SUBDIRECTORY(test)
+    if (${TD_LINUX})
+        ADD_SUBDIRECTORY(test)
+    endif ()
 endif(${BUILD_TEST})

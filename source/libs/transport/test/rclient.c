@@ -84,7 +84,7 @@ static void *sendRequest(void *param) {
 
     tDebug("recv response succefully");
 
-    // usleep(100000000);
+    // taosSsleep(100);
   }
 
   tError("send and recv sum: %d, %d, %d, %d", u100, u500, u1000, u10000);
@@ -124,6 +124,7 @@ int main(int argc, char *argv[]) {
   rpcInit.ckey = "key";
   rpcInit.spi = 1;
   rpcInit.connType = TAOS_CONN_CLIENT;
+  rpcDebugFlag = 143;
 
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-p") == 0 && i < argc - 1) {
@@ -180,7 +181,7 @@ int main(int argc, char *argv[]) {
   tInfo("client is initialized");
   tInfo("threads:%d msgSize:%d requests:%d", appThreads, msgSize, numOfReqs);
 
-  gettimeofday(&systemTime, NULL);
+  taosGetTimeOfDay(&systemTime);
   startTime = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
 
   SInfo *pInfo = (SInfo *)calloc(1, sizeof(SInfo) * appThreads);
@@ -200,10 +201,10 @@ int main(int argc, char *argv[]) {
   }
 
   do {
-    usleep(1);
+    taosUsleep(1);
   } while (tcount < appThreads);
 
-  gettimeofday(&systemTime, NULL);
+  taosGetTimeOfDay(&systemTime);
   endTime = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
   float usedTime = (endTime - startTime) / 1000.0f;  // mseconds
 

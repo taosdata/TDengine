@@ -279,7 +279,12 @@ static int indexQueryMem(MemTable* mem, CacheTerm* ct, EIndexQueryType qtype, SI
           } else if (c->operaType == DEL_VALUE) {
             INDEX_MERGE_ADD_DEL(tr->added, tr->deled, c->uid)
           }
+        } else {
+          break;
         }
+      } else if (qtype == QUERY_PREFIX) {
+      } else if (qtype == QUERY_SUFFIX) {
+      } else if (qtype == QUERY_RANGE) {
       }
     }
   }
@@ -287,6 +292,7 @@ static int indexQueryMem(MemTable* mem, CacheTerm* ct, EIndexQueryType qtype, SI
   return 0;
 }
 int indexCacheSearch(void* cache, SIndexTermQuery* query, SIdxTempResult* result, STermValueType* s) {
+  int64_t st = taosGetTimestampUs();
   if (cache == NULL) {
     return 0;
   }
@@ -315,12 +321,14 @@ int indexCacheSearch(void* cache, SIndexTermQuery* query, SIdxTempResult* result
     // continue search in imm
     ret = indexQueryMem(imm, &ct, qtype, result, s);
   }
+
   if (hasJson) {
     tfree(p);
   }
 
   indexMemUnRef(mem);
   indexMemUnRef(imm);
+  indexInfo("cache search, time cost %" PRIu64 "us", taosGetTimestampUs() - st);
 
   return ret;
 }

@@ -23,8 +23,8 @@ static const char *TSDB_FNAME_SUFFIX[] = {
     "smal",  // TSDB_FILE_SMAL
     "",      // TSDB_FILE_MAX
     "meta",  // TSDB_FILE_META
-    "tsma",  // TSDB_FILE_TSMA
-    "rsma",  // TSDB_FILE_RSMA
+    "sma",   // TSDB_FILE_TSMA(directory name)
+    "sma",   // TSDB_FILE_RSMA(directory name)
 };
 
 static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, char *fname);
@@ -365,7 +365,7 @@ int tsdbCreateDFile(STsdb *pRepo, SDFile *pDFile, bool updateHeader, TSDB_FILE_T
     if (errno == ENOENT) {
       // Try to create directory recursively
       char *s = strdup(TSDB_FILE_REL_NAME(pDFile));
-      if (tfsMkdirRecurAt(pRepo->pTfs, dirname(s), TSDB_FILE_DID(pDFile)) < 0) {
+      if (tfsMkdirRecurAt(pRepo->pTfs, taosDirName(s), TSDB_FILE_DID(pDFile)) < 0) {
         tfree(s);
         return -1;
       }

@@ -93,7 +93,6 @@ static SMqSubscribeObj *mndCreateSubscription(SMnode *pMnode, const SMqTopicObj 
   strcpy(pSub->key, key);
 
   if (mndSchedInitSubEp(pMnode, pTopic, pSub) < 0) {
-    terrno = TSDB_CODE_MND_UNSUPPORTED_TOPIC;
     tDeleteSMqSubscribeObj(pSub);
     free(pSub);
     return NULL;
@@ -295,7 +294,11 @@ static int32_t mndProcessGetSubEpReq(SMnodeMsg *pMsg) {
           for (int32_t k = 0; k < vgsz; k++) {
             char           offsetKey[TSDB_PARTITION_KEY_LEN];
             SMqConsumerEp *pConsumerEp = taosArrayGet(pSubConsumer->vgInfo, k);
-            SMqSubVgEp     vgEp = {.epSet = pConsumerEp->epSet, .vgId = pConsumerEp->vgId, .offset = -1};
+            SMqSubVgEp     vgEp = {
+                    .epSet = pConsumerEp->epSet,
+                    .vgId = pConsumerEp->vgId,
+                    .offset = -1,
+            };
             mndMakePartitionKey(offsetKey, pConsumer->cgroup, topicName, pConsumerEp->vgId);
             SMqOffsetObj *pOffsetObj = mndAcquireOffset(pMnode, offsetKey);
             if (pOffsetObj != NULL) {
@@ -345,7 +348,7 @@ static SMqRebSubscribe *mndGetOrCreateRebSub(SHashObj *pHash, const char *key) {
   if (pRebSub == NULL) {
     pRebSub = tNewSMqRebSubscribe(key);
     if (pRebSub == NULL) {
-      // TODO
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
     taosHashPut(pHash, key, strlen(key), pRebSub, sizeof(SMqRebSubscribe));
@@ -412,7 +415,11 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
   }
   if (taosHashGetSize(pRebMsg->rebSubHash) != 0) {
     mInfo("mq rebalance will be triggered");
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_MQ_DO_REBALANCE, .pCont = pRebMsg, .contLen = sizeof(SMqDoRebalanceMsg)};
+    SRpcMsg rpcMsg = {
+        .msgType = TDMT_MND_MQ_DO_REBALANCE,
+        .pCont = pRebMsg,
+        .contLen = sizeof(SMqDoRebalanceMsg),
+    };
     pMnode->putReqToMWriteQFp(pMnode->pDnode, &rpcMsg);
   } else {
     taosHashCleanup(pRebMsg->rebSubHash);
@@ -766,10 +773,10 @@ static int32_t mndProcessDoRebalanceMsg(SMnodeMsg *pMsg) {
 static int32_t mndInitUnassignedVg(SMnode *pMnode, const SMqTopicObj *pTopic, SMqSubscribeObj *pSub) {
   SSdb      *pSdb = pMnode->pSdb;
   SVgObj    *pVgroup = NULL;
-  SQueryDag *pDag = qStringToDag(pTopic->physicalPlan);
+  SQueryPlan *pPlan = qStringToQueryPlan(pTopic->physicalPlan);
   SArray    *pArray = NULL;
-  SArray    *inner = taosArrayGet(pDag->pSubplans, 0);
-  SSubplan  *plan = taosArrayGetP(inner, 0);
+  SNodeListNode    *inner = (SNodeListNode*)nodesListGetNode(pPlan->pSubplans, 0);
+  SSubplan  *plan = (SSubplan*)nodesListGetNode(inner->pNodeList, 0);
   SArray    *unassignedVg = pSub->unassignedVg;
 
   void *pIter = NULL;
@@ -785,7 +792,7 @@ static int32_t mndInitUnassignedVg(SMnode *pMnode, const SMqTopicObj *pTopic, SM
     plan->execNode.nodeId = pVgroup->vgId;
     plan->execNode.epset = mndGetVgroupEpset(pMnode, pVgroup);
 
-    if (schedulerConvertDagToTaskList(pDag, &pArray) < 0) {
+    if (schedulerConvertDagToTaskList(pPlan, &pArray) < 0) {
       terrno = TSDB_CODE_MND_UNSUPPORTED_TOPIC;
       mError("unsupport topic: %s, sql: %s", pTopic->name, pTopic->sql);
       return -1;

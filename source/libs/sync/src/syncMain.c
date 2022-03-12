@@ -18,12 +18,15 @@
 #include "syncAppendEntries.h"
 #include "syncAppendEntriesReply.h"
 #include "syncEnv.h"
+#include "syncIndexMgr.h"
 #include "syncInt.h"
-#include "syncRaft.h"
+#include "syncRaftLog.h"
+#include "syncRaftStore.h"
 #include "syncRequestVote.h"
 #include "syncRequestVoteReply.h"
 #include "syncTimeout.h"
 #include "syncUtil.h"
+#include "syncVoteMgr.h"
 
 static int32_t tsNodeRefId = -1;
 
@@ -35,6 +38,7 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId);
 static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
 static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
 
+static void UpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
 static void syncNodeBecomeFollower(SSyncNode* pSyncNode);
 static void syncNodeBecomeLeader(SSyncNode* pSyncNode);
 static void syncNodeFollower2Candidate(SSyncNode* pSyncNode);
@@ -56,13 +60,32 @@ int64_t syncStart(const SSyncInfo* pSyncInfo) {
   return 0;
 }
 
-void syncStop(int64_t rid) {}
+void syncStop(int64_t rid) {
+  SSyncNode* pSyncNode = NULL;  // get pointer from rid
+  syncNodeClose(pSyncNode);
+}
 
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg) { return 0; }
 
-int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pBuf, bool isWeak) { return 0; }
+int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
+  SSyncNode* pSyncNode = NULL;  // get pointer from rid
+  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+    SyncClientRequest* pSyncMsg = syncClientRequestBuild2(pMsg, 0, isWeak);
+    SRpcMsg            rpcMsg;
+    syncClientRequest2RpcMsg(pSyncMsg, &rpcMsg);
+    pSyncNode->FpEqMsg(pSyncNode->queue, &rpcMsg);
+    syncClientRequestDestroy(pSyncMsg);
+  } else {
+    sTrace("syncForwardToPeer not leader, %s", syncUtilState2String(pSyncNode->state));
+    return -1;  // need define err code !!
+  }
+  return 0;
+}
 
-ESyncState syncGetMyRole(int64_t rid) { return TAOS_SYNC_STATE_LEADER; }
+ESyncState syncGetMyRole(int64_t rid) {
+  SSyncNode* pSyncNode = NULL;  // get pointer from rid
+  return pSyncNode->state;
+}
 
 void syncGetNodesRole(int64_t rid, SNodesRole* pNodeRole) {}
 
@@ -71,29 +94,68 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   assert(pSyncNode != NULL);
   memset(pSyncNode, 0, sizeof(SSyncNode));
 
+  // init by SSyncInfo
   pSyncNode->vgId = pSyncInfo->vgId;
   pSyncNode->syncCfg = pSyncInfo->syncCfg;
   memcpy(pSyncNode->path, pSyncInfo->path, sizeof(pSyncNode->path));
-  pSyncNode->pFsm = pSyncInfo->pFsm;
-
+  snprintf(pSyncNode->raftStorePath, sizeof(pSyncNode->raftStorePath), "%s/raft_store.json", pSyncInfo->path);
+  pSyncNode->pWal = pSyncInfo->pWal;
   pSyncNode->rpcClient = pSyncInfo->rpcClient;
   pSyncNode->FpSendMsg = pSyncInfo->FpSendMsg;
   pSyncNode->queue = pSyncInfo->queue;
   pSyncNode->FpEqMsg = pSyncInfo->FpEqMsg;
 
-  pSyncNode->me = pSyncInfo->syncCfg.nodeInfo[pSyncInfo->syncCfg.myIndex];
-  pSyncNode->peersNum = pSyncInfo->syncCfg.replicaNum - 1;
+  // init internal
+  pSyncNode->myNodeInfo = pSyncInfo->syncCfg.nodeInfo[pSyncInfo->syncCfg.myIndex];
+  syncUtilnodeInfo2raftId(&pSyncNode->myNodeInfo, pSyncInfo->vgId, &pSyncNode->myRaftId);
 
+  // init peersNum, peers, peersId
+  pSyncNode->peersNum = pSyncInfo->syncCfg.replicaNum - 1;
   int j = 0;
   for (int i = 0; i < pSyncInfo->syncCfg.replicaNum; ++i) {
     if (i != pSyncInfo->syncCfg.myIndex) {
-      pSyncNode->peers[j] = pSyncInfo->syncCfg.nodeInfo[i];
+      pSyncNode->peersNodeInfo[j] = pSyncInfo->syncCfg.nodeInfo[i];
       j++;
     }
   }
+  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+    syncUtilnodeInfo2raftId(&pSyncNode->peersNodeInfo[i], pSyncInfo->vgId, &pSyncNode->peersId[i]);
+  }
 
+  // init replicaNum, replicasId
+  pSyncNode->replicaNum = pSyncInfo->syncCfg.replicaNum;
+  for (int i = 0; i < pSyncInfo->syncCfg.replicaNum; ++i) {
+    syncUtilnodeInfo2raftId(&pSyncInfo->syncCfg.nodeInfo[i], pSyncInfo->vgId, &pSyncNode->replicasId[i]);
+  }
+
+  // init raft algorithm
+  pSyncNode->pFsm = pSyncInfo->pFsm;
+  pSyncNode->quorum = syncUtilQuorum(pSyncInfo->syncCfg.replicaNum);
+  pSyncNode->leaderCache = EMPTY_RAFT_ID;
+
+  // init life cycle
+
+  // init TLA+ server vars
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
-  syncUtilnodeInfo2raftId(&pSyncNode->me, pSyncNode->vgId, &pSyncNode->raftId);
+  pSyncNode->pRaftStore = raftStoreOpen(pSyncNode->raftStorePath);
+  assert(pSyncNode->pRaftStore != NULL);
+
+  // init TLA+ candidate vars
+  pSyncNode->pVotesGranted = voteGrantedCreate(pSyncNode);
+  assert(pSyncNode->pVotesGranted != NULL);
+  pSyncNode->pVotesRespond = votesRespondCreate(pSyncNode);
+  assert(pSyncNode->pVotesRespond != NULL);
+
+  // init TLA+ leader vars
+  pSyncNode->pNextIndex = syncIndexMgrCreate(pSyncNode);
+  assert(pSyncNode->pNextIndex != NULL);
+  pSyncNode->pMatchIndex = syncIndexMgrCreate(pSyncNode);
+  assert(pSyncNode->pMatchIndex != NULL);
+
+  // init TLA+ log vars
+  pSyncNode->pLogStore = logStoreCreate(pSyncNode);
+  assert(pSyncNode->pLogStore != NULL);
+  pSyncNode->commitIndex = 0;
 
   // init ping timer
   pSyncNode->pPingTimer = NULL;
@@ -119,6 +181,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   pSyncNode->FpHeartbeatTimer = syncNodeEqHeartbeatTimer;
   pSyncNode->heartbeatTimerCounter = 0;
 
+  // init callback
   pSyncNode->FpOnPing = syncNodeOnPingCb;
   pSyncNode->FpOnPingReply = syncNodeOnPingReplyCb;
   pSyncNode->FpOnRequestVote = syncNodeOnRequestVoteCb;
@@ -133,6 +196,162 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
 void syncNodeClose(SSyncNode* pSyncNode) {
   assert(pSyncNode != NULL);
   free(pSyncNode);
+}
+
+cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
+  char   u64buf[128];
+  cJSON* pRoot = cJSON_CreateObject();
+
+  // init by SSyncInfo
+  cJSON_AddNumberToObject(pRoot, "vgId", pSyncNode->vgId);
+  cJSON_AddStringToObject(pRoot, "path", pSyncNode->path);
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pWal);
+  cJSON_AddStringToObject(pRoot, "pWal", u64buf);
+
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->rpcClient);
+  cJSON_AddStringToObject(pRoot, "rpcClient", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpSendMsg);
+  cJSON_AddStringToObject(pRoot, "FpSendMsg", u64buf);
+
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->queue);
+  cJSON_AddStringToObject(pRoot, "queue", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpEqMsg);
+  cJSON_AddStringToObject(pRoot, "FpEqMsg", u64buf);
+
+  // init internal
+  cJSON* pMe = syncUtilNodeInfo2Json(&pSyncNode->myNodeInfo);
+  cJSON_AddItemToObject(pRoot, "myNodeInfo", pMe);
+  cJSON* pRaftId = syncUtilRaftId2Json(&pSyncNode->myRaftId);
+  cJSON_AddItemToObject(pRoot, "myRaftId", pRaftId);
+
+  cJSON_AddNumberToObject(pRoot, "peersNum", pSyncNode->peersNum);
+  cJSON* pPeers = cJSON_CreateArray();
+  cJSON_AddItemToObject(pRoot, "peersNodeInfo", pPeers);
+  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+    cJSON_AddItemToArray(pPeers, syncUtilNodeInfo2Json(&pSyncNode->peersNodeInfo[i]));
+  }
+  cJSON* pPeersId = cJSON_CreateArray();
+  cJSON_AddItemToObject(pRoot, "peersId", pPeersId);
+  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+    cJSON_AddItemToArray(pPeersId, syncUtilRaftId2Json(&pSyncNode->peersId[i]));
+  }
+
+  cJSON_AddNumberToObject(pRoot, "replicaNum", pSyncNode->replicaNum);
+  cJSON* pReplicasId = cJSON_CreateArray();
+  cJSON_AddItemToObject(pRoot, "replicasId", pReplicasId);
+  for (int i = 0; i < pSyncNode->replicaNum; ++i) {
+    cJSON_AddItemToArray(pReplicasId, syncUtilRaftId2Json(&pSyncNode->replicasId[i]));
+  }
+
+  // raft algorithm
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pFsm);
+  cJSON_AddStringToObject(pRoot, "pFsm", u64buf);
+  cJSON_AddNumberToObject(pRoot, "quorum", pSyncNode->quorum);
+  cJSON* pLaderCache = syncUtilRaftId2Json(&pSyncNode->leaderCache);
+  cJSON_AddItemToObject(pRoot, "leaderCache", pLaderCache);
+
+  // tla+ server vars
+  cJSON_AddNumberToObject(pRoot, "state", pSyncNode->state);
+  cJSON_AddStringToObject(pRoot, "state_str", syncUtilState2String(pSyncNode->state));
+
+  // tla+ candidate vars
+
+  // tla+ leader vars
+
+  // tla+ log vars
+
+  // ping timer
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pPingTimer);
+  cJSON_AddStringToObject(pRoot, "pPingTimer", u64buf);
+  cJSON_AddNumberToObject(pRoot, "pingTimerMS", pSyncNode->pingTimerMS);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->pingTimerLogicClock);
+  cJSON_AddStringToObject(pRoot, "pingTimerLogicClock", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->pingTimerLogicClockUser);
+  cJSON_AddStringToObject(pRoot, "pingTimerLogicClockUser", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpPingTimer);
+  cJSON_AddStringToObject(pRoot, "FpPingTimer", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->pingTimerCounter);
+  cJSON_AddStringToObject(pRoot, "pingTimerCounter", u64buf);
+
+  // elect timer
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pElectTimer);
+  cJSON_AddStringToObject(pRoot, "pElectTimer", u64buf);
+  cJSON_AddNumberToObject(pRoot, "electTimerMS", pSyncNode->electTimerMS);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->electTimerLogicClock);
+  cJSON_AddStringToObject(pRoot, "electTimerLogicClock", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->electTimerLogicClockUser);
+  cJSON_AddStringToObject(pRoot, "electTimerLogicClockUser", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpElectTimer);
+  cJSON_AddStringToObject(pRoot, "FpElectTimer", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->electTimerCounter);
+  cJSON_AddStringToObject(pRoot, "electTimerCounter", u64buf);
+
+  // heartbeat timer
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pHeartbeatTimer);
+  cJSON_AddStringToObject(pRoot, "pHeartbeatTimer", u64buf);
+  cJSON_AddNumberToObject(pRoot, "heartbeatTimerMS", pSyncNode->heartbeatTimerMS);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->heartbeatTimerLogicClock);
+  cJSON_AddStringToObject(pRoot, "heartbeatTimerLogicClock", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->heartbeatTimerLogicClockUser);
+  cJSON_AddStringToObject(pRoot, "heartbeatTimerLogicClockUser", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpHeartbeatTimer);
+  cJSON_AddStringToObject(pRoot, "FpHeartbeatTimer", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->heartbeatTimerCounter);
+  cJSON_AddStringToObject(pRoot, "heartbeatTimerCounter", u64buf);
+
+  // callback
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnPing);
+  cJSON_AddStringToObject(pRoot, "FpOnPing", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnPingReply);
+  cJSON_AddStringToObject(pRoot, "FpOnPingReply", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnRequestVote);
+  cJSON_AddStringToObject(pRoot, "FpOnRequestVote", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnRequestVoteReply);
+  cJSON_AddStringToObject(pRoot, "FpOnRequestVoteReply", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnAppendEntries);
+  cJSON_AddStringToObject(pRoot, "FpOnAppendEntries", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnAppendEntriesReply);
+  cJSON_AddStringToObject(pRoot, "FpOnAppendEntriesReply", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnTimeout);
+  cJSON_AddStringToObject(pRoot, "FpOnTimeout", u64buf);
+
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SSyncNode", pRoot);
+  return pJson;
+}
+
+char* syncNode2Str(const SSyncNode* pSyncNode) {
+  cJSON* pJson = syncNode2Json(pSyncNode);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
+// for debug --------------
+void syncNodePrint(SSyncNode* pObj) {
+  char* serialized = syncNode2Str(pObj);
+  printf("syncNodePrint | len:%zu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncNodePrint2(char* s, SSyncNode* pObj) {
+  char* serialized = syncNode2Str(pObj);
+  printf("syncNodePrint2 | len:%zu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncNodeLog(SSyncNode* pObj) {
+  char* serialized = syncNode2Str(pObj);
+  sTrace("syncNodeLog | len:%zu | %s", strlen(serialized), serialized);
+  free(serialized);
+}
+
+void syncNodeLog2(char* s, SSyncNode* pObj) {
+  char* serialized = syncNode2Str(pObj);
+  sTrace("syncNodeLog2 | len:%zu | %s | %s", strlen(serialized), s, serialized);
+  free(serialized);
 }
 
 int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
@@ -183,7 +402,7 @@ int32_t syncNodePingAll(SSyncNode* pSyncNode) {
   for (int i = 0; i < pSyncNode->syncCfg.replicaNum; ++i) {
     SRaftId destId;
     syncUtilnodeInfo2raftId(&pSyncNode->syncCfg.nodeInfo[i], pSyncNode->vgId, &destId);
-    SyncPing* pMsg = syncPingBuild3(&pSyncNode->raftId, &destId);
+    SyncPing* pMsg = syncPingBuild3(&pSyncNode->myRaftId, &destId);
     ret = syncNodePing(pSyncNode, &destId, pMsg);
     assert(ret == 0);
     syncPingDestroy(pMsg);
@@ -196,8 +415,8 @@ int32_t syncNodePingPeers(SSyncNode* pSyncNode) {
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
     SRaftId destId;
-    syncUtilnodeInfo2raftId(&pSyncNode->peers[i], pSyncNode->vgId, &destId);
-    SyncPing* pMsg = syncPingBuild3(&pSyncNode->raftId, &destId);
+    syncUtilnodeInfo2raftId(&pSyncNode->peersNodeInfo[i], pSyncNode->vgId, &destId);
+    SyncPing* pMsg = syncPingBuild3(&pSyncNode->myRaftId, &destId);
     ret = syncNodePing(pSyncNode, &destId, pMsg);
     assert(ret == 0);
     syncPingDestroy(pMsg);
@@ -208,7 +427,7 @@ int32_t syncNodePingPeers(SSyncNode* pSyncNode) {
 
 int32_t syncNodePingSelf(SSyncNode* pSyncNode) {
   int32_t   ret;
-  SyncPing* pMsg = syncPingBuild3(&pSyncNode->raftId, &pSyncNode->raftId);
+  SyncPing* pMsg = syncPingBuild3(&pSyncNode->myRaftId, &pSyncNode->myRaftId);
   ret = syncNodePing(pSyncNode, &pMsg->destId, pMsg);
   assert(ret == 0);
   syncPingDestroy(pMsg);
@@ -291,7 +510,7 @@ static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg) {
     cJSON_Delete(pJson);
   }
 
-  SyncPingReply* pMsgReply = syncPingReplyBuild3(&ths->raftId, &pMsg->srcId);
+  SyncPingReply* pMsgReply = syncPingReplyBuild3(&ths->myRaftId, &pMsg->srcId);
   SRpcMsg        rpcMsg;
   syncPingReply2RpcMsg(pMsgReply, &rpcMsg);
   syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg);
@@ -315,6 +534,8 @@ static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg) {
 }
 
 static void syncNodeEqPingTimer(void* param, void* tmrId) {
+  sTrace("<-- syncNodeEqPingTimer -->");
+
   SSyncNode* pSyncNode = (SSyncNode*)param;
   if (atomic_load_64(&pSyncNode->pingTimerLogicClockUser) <= atomic_load_64(&pSyncNode->pingTimerLogicClock)) {
     SyncTimeout* pSyncMsg = syncTimeoutBuild2(SYNC_TIMEOUT_PING, atomic_load_64(&pSyncNode->pingTimerLogicClock),
@@ -327,7 +548,7 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     // reset timer ms
     // pSyncNode->pingTimerMS += 100;
 
-    taosTmrReset(syncNodeEqPingTimer, pSyncNode->pingTimerMS, pSyncNode, &gSyncEnv->pTimerManager,
+    taosTmrReset(syncNodeEqPingTimer, pSyncNode->pingTimerMS, pSyncNode, gSyncEnv->pTimerManager,
                  &pSyncNode->pPingTimer);
   } else {
     sTrace("syncNodeEqPingTimer: pingTimerLogicClock:%" PRIu64 ", pingTimerLogicClockUser:%" PRIu64 "", pSyncNode->pingTimerLogicClock,
@@ -349,7 +570,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
     // reset timer ms
     pSyncNode->electTimerMS = syncUtilElectRandomMS();
 
-    taosTmrReset(syncNodeEqPingTimer, pSyncNode->pingTimerMS, pSyncNode, &gSyncEnv->pTimerManager,
+    taosTmrReset(syncNodeEqPingTimer, pSyncNode->pingTimerMS, pSyncNode, gSyncEnv->pTimerManager,
                  &pSyncNode->pPingTimer);
   } else {
     sTrace("syncNodeEqElectTimer: electTimerLogicClock:%" PRIu64 ", electTimerLogicClockUser:%" PRIu64 "",
@@ -357,7 +578,38 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
   }
 }
 
-static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {}
+static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
+  SSyncNode* pSyncNode = (SSyncNode*)param;
+  if (atomic_load_64(&pSyncNode->heartbeatTimerLogicClockUser) <=
+      atomic_load_64(&pSyncNode->heartbeatTimerLogicClock)) {
+    SyncTimeout* pSyncMsg =
+        syncTimeoutBuild2(SYNC_TIMEOUT_HEARTBEAT, atomic_load_64(&pSyncNode->heartbeatTimerLogicClock),
+                          pSyncNode->heartbeatTimerMS, pSyncNode);
+
+    SRpcMsg rpcMsg;
+    syncTimeout2RpcMsg(pSyncMsg, &rpcMsg);
+    pSyncNode->FpEqMsg(pSyncNode->queue, &rpcMsg);
+    syncTimeoutDestroy(pSyncMsg);
+
+    // reset timer ms
+    // pSyncNode->heartbeatTimerMS += 100;
+
+    taosTmrReset(syncNodeEqHeartbeatTimer, pSyncNode->heartbeatTimerMS, pSyncNode, gSyncEnv->pTimerManager,
+                 &pSyncNode->pHeartbeatTimer);
+  } else {
+    sTrace("syncNodeEqHeartbeatTimer: heartbeatTimerLogicClock:%" PRIu64 ", heartbeatTimerLogicClockUser:%" PRIu64 "",
+           pSyncNode->heartbeatTimerLogicClock, pSyncNode->heartbeatTimerLogicClockUser);
+  }
+}
+
+static void UpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
+  if (term > pSyncNode->pRaftStore->currentTerm) {
+    pSyncNode->pRaftStore->currentTerm = term;
+    pSyncNode->pRaftStore->voteFor = EMPTY_RAFT_ID;
+    raftStorePersist(pSyncNode->pRaftStore);
+    syncNodeBecomeFollower(pSyncNode);
+  }
+}
 
 static void syncNodeBecomeFollower(SSyncNode* pSyncNode) {
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
@@ -389,7 +641,7 @@ static void syncNodeBecomeFollower(SSyncNode* pSyncNode) {
 //
 static void syncNodeBecomeLeader(SSyncNode* pSyncNode) {
   pSyncNode->state = TAOS_SYNC_STATE_LEADER;
-  pSyncNode->leaderCache = pSyncNode->raftId;
+  pSyncNode->leaderCache = pSyncNode->myRaftId;
 
   // next Index +=1
   // match Index = 0;

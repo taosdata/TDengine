@@ -226,9 +226,13 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
 
     uvBuf->base = p->buf;
     uvBuf->len = CAPACITY;
+  } else if (p->total == -1 && p->len < CAPACITY) {
+    uvBuf->base = p->buf + p->len;
+    uvBuf->len = CAPACITY - p->len;
   } else {
     p->cap = p->total;
     p->buf = realloc(p->buf, p->cap);
+
     uvBuf->base = p->buf + p->len;
     uvBuf->len = p->cap - p->len;
   }
@@ -257,6 +261,12 @@ int transDestroyBuffer(SConnBuffer* buf) {
   transClearBuffer(buf);
 
   return 0;
+}
+
+int transSetConnOption(uv_tcp_t* stream) {
+  uv_tcp_nodelay(stream, 1);
+  int ret = uv_tcp_keepalive(stream, 5, 5);
+  return ret;
 }
 
 SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb) {

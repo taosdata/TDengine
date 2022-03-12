@@ -22,7 +22,27 @@ extern "C" {
 
 #include <assert.h>
 #include <ctype.h>
+
+#if !defined(WINDOWS)
+#include <unistd.h>
 #include <dirent.h>
+#include <regex.h>
+#include <sched.h>
+#include <wordexp.h>
+#include <libgen.h>
+
+#include <sys/utsname.h>
+#include <sys/param.h>
+#include <sys/mman.h>
+
+#if defined(DARWIN)
+#else
+#include <sys/prctl.h>
+#include <argp.h>
+#endif
+
+#endif
+
 #include <errno.h>
 #include <fcntl.h>
 #include <float.h>
@@ -30,8 +50,6 @@ extern "C" {
 #include <limits.h>
 #include <locale.h>
 #include <math.h>
-#include <regex.h>
-#include <sched.h>
 #include <setjmp.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -41,24 +59,13 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/utsname.h>
-#include <sys/param.h>
-#include <sys/statvfs.h>
-#include <unistd.h>
 #include <wchar.h>
 #include <termios.h>
 #include <wctype.h>
-#include <wordexp.h>
-#include <libgen.h>
 
-#include <sys/mman.h>
-
-#if !defined(_TD_DARWIN_64)
-#include <endian.h>
-#include <sys/prctl.h>
-#endif
 
 #include "osAtomic.h"
 #include "osDef.h"

@@ -16,6 +16,7 @@
 #ifndef _TD_OS_SYSINFO_H_
 #define _TD_OS_SYSINFO_H_
 
+#include <sys/statvfs.h>
 #include "os.h"
 
 #ifdef __cplusplus
@@ -33,6 +34,7 @@ typedef struct {
   SDiskSize size;
 } SDiskSpace;
 
+bool    taosCheckSystemIsSmallEnd();
 void    taosGetSystemInfo();
 int32_t taosGetEmail(char *email, int32_t maxLen);
 int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen);
@@ -46,15 +48,18 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize);
 int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes);
 int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes);
 
-int32_t taosSystem(const char *cmd);
 void    taosKillSystem();
 int32_t taosGetSystemUUID(char *uid, int32_t uidlen);
 char   *taosGetCmdlineByPID(int32_t pid);
 void    taosSetCoreDump(bool enable);
 
-#if defined(_TD_DARWIN_64)
-    #define _UTSNAME_MACHINE_LENGTH     65
-#endif
+#if !defined(LINUX)
+
+#define _UTSNAME_LENGTH 65
+#define _UTSNAME_MACHINE_LENGTH _UTSNAME_LENGTH
+
+#endif // WINDOWS
+
 typedef struct {
   char sysname[_UTSNAME_MACHINE_LENGTH];
   char nodename[_UTSNAME_MACHINE_LENGTH];

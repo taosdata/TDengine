@@ -699,7 +699,7 @@ class IndexObj {
     for (int i = 0; i < numOfTable; i++) {
       for (int k = 0; k < 10 && k < colVal.size(); k++) {
         // opt
-        tColVal[rand() % colValSize] = 'a' + k % 26;
+        tColVal[taosRand() % colValSize] = 'a' + k % 26;
       }
       SIndexTerm*      term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                          tColVal.c_str(), tColVal.size());
@@ -768,7 +768,7 @@ class IndexObj {
     int64_t s = taosGetTimestampUs();
     if (Search(mq, result) == 0) {
       int64_t e = taosGetTimestampUs();
-      std::cout << "search one successfully and time cost:" << e - s << "\tquery col:" << colName
+      std::cout << "search one successfully and time cost:" << e - s << "us\tquery col:" << colName
                 << "\t val: " << colVal << "\t size:" << taosArrayGetSize(result) << std::endl;
     } else {
     }
@@ -1106,6 +1106,7 @@ TEST_F(IndexEnv2, testIndex_del) {
   }
   index->Del("tag10", "Hello", 12);
   index->Del("tag10", "Hello", 11);
+  EXPECT_EQ(98, index->SearchOne("tag10", "Hello"));
 
   index->WriteMultiMillonData("tag10", "xxxxxxxxxxxxxx", 100 * 10000);
   index->Del("tag10", "Hello", 17);

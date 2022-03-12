@@ -2,6 +2,7 @@
 #include "syncEnv.h"
 #include "syncIO.h"
 #include "syncInt.h"
+#include "syncMessage.h"
 #include "syncRaftStore.h"
 
 void logTest() {
@@ -84,7 +85,7 @@ int main(int argc, char** argv) {
   gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
 
   for (int i = 0; i < 10; ++i) {
-    SyncPingReply* pSyncMsg = syncPingReplyBuild3(&pSyncNode->raftId, &pSyncNode->raftId);
+    SyncPingReply* pSyncMsg = syncPingReplyBuild3(&pSyncNode->myRaftId, &pSyncNode->myRaftId);
     SRpcMsg        rpcMsg;
     syncPingReply2RpcMsg(pSyncMsg, &rpcMsg);
     pSyncNode->FpEqMsg(pSyncNode->queue, &rpcMsg);

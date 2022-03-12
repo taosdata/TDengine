@@ -72,8 +72,6 @@ static void deregisterRequest(SRequestObj *pRequest) {
   taosReleaseRef(clientConnRefPool, pTscObj->id);
 }
 
-
-
 // todo close the transporter properly
 void closeTransporter(STscObj *pTscObj) {
   if (pTscObj == NULL || pTscObj->pAppInfo->pTransporter == NULL) {
@@ -184,7 +182,7 @@ static void doDestroyRequest(void *p) {
   tfree(pRequest->pInfo);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
-  qDestroyQueryDag(pRequest->body.pDag);
+  qDestroyQueryPlan(pRequest->body.pDag);
 
   if (pRequest->body.showInfo.pArray != NULL) {
     taosArrayDestroy(pRequest->body.showInfo.pArray);
@@ -208,7 +206,7 @@ void taos_init_imp(void) {
   atexit(taos_cleanup);
 
   errno = TSDB_CODE_SUCCESS;
-  srand(taosGetTimestampSec());
+  taosSeedRand(taosGetTimestampSec());
 
   deltaToUtcInitOnce();
 
@@ -241,6 +239,7 @@ void taos_init_imp(void) {
   clientConnRefPool = taosOpenRef(200, destroyTscObj);
   clientReqRefPool = taosOpenRef(40960, doDestroyRequest);
 
+  // transDestroyBuffer(&conn->readBuf);
   taosGetAppName(appInfo.appName, NULL);
   pthread_mutex_init(&appInfo.mutex, NULL);
 

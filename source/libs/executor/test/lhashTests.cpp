@@ -25,7 +25,7 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 
 TEST(testCase, linear_hash_Tests) {
-  srand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
 
   _hash_fn_t fn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT);
 #if 0

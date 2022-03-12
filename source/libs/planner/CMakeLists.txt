@@ -13,5 +13,7 @@ target_link_libraries(
 )
 
 if(${BUILD_TEST})
-    ADD_SUBDIRECTORY(test)
+    if(${TD_LINUX})
+        ADD_SUBDIRECTORY(test)
+    endif()
 endif(${BUILD_TEST})

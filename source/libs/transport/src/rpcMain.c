@@ -64,7 +64,6 @@ typedef struct {
   void (*cfp)(void *parent, SRpcMsg *, SEpSet *);
   int (*afp)(void *parent, char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
-  bool             noPool;
   int32_t          refCount;
   void *           parent;
   void *           idPool;     // handle to ID pool
@@ -749,7 +748,7 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
     memcpy(pConn->user, pHead->user, tListLen(pConn->user));
     pConn->pRpc = pRpc;
     pConn->sid = sid;
-    pConn->tranId = (uint16_t)(rand() & 0xFFFF);
+    pConn->tranId = (uint16_t)(taosRand() & 0xFFFF);
     pConn->ownId = htonl(pConn->sid);
     pConn->linkUid = pHead->linkUid;
     if (pRpc->afp) {

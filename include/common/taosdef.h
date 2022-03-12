@@ -56,7 +56,14 @@ typedef enum {
   TSDB_STATIS_NONE = 1,  // statis part not exist
 } ETsdbStatisStatus;
 
+typedef enum {
+  TSDB_SMA_STAT_OK = 0,       // ready to provide service
+  TSDB_SMA_STAT_EXPIRED = 1,  // not ready or expired
+} ETsdbSmaStat;
+
 extern char *qtypeStr[];
+
+#define TSDB_PORT_HTTP      11
 
 #ifdef __cplusplus
 }

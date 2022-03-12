@@ -92,10 +92,11 @@ typedef struct SResultRowPool {
 struct STaskAttr;
 struct STaskRuntimeEnv;
 struct SUdfInfo;
+struct SqlFunctionCtx;
 
 int32_t getOutputInterResultBufSize(struct STaskAttr* pQueryAttr);
 
-size_t  getResultRowSize(SArray* pExprInfo);
+size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 int32_t initResultRowInfo(SResultRowInfo* pResultRowInfo, int32_t size);
 void    cleanupResultRowInfo(SResultRowInfo* pResultRowInfo);
 
@@ -111,7 +112,6 @@ void    clearResultRow(struct STaskRuntimeEnv* pRuntimeEnv, SResultRow* pResultR
 struct SResultRowEntryInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_t* offset);
 
 void* destroyQueryFuncExpr(SExprInfo* pExprInfo, int32_t numOfExpr);
-void* freeColumnInfo(SColumnInfo* pColumnInfo, int32_t numOfCols);
 int32_t getRowNumForMultioutput(struct STaskAttr* pQueryAttr, bool topBottomQuery, bool stable);
 
 static FORCE_INLINE SResultRow *getResultRow(SResultRowInfo *pResultRowInfo, int32_t slot) {

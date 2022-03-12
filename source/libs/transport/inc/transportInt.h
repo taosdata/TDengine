@@ -54,7 +54,6 @@ typedef struct {
   int8_t   connType;
   int64_t  index;
   char     label[TSDB_LABEL_LEN];
-  bool     noPool;  // pool or not
 
   char user[TSDB_UNI_LEN];         // meter ID
   char spi;                        // security parameter index

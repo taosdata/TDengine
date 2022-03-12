@@ -42,8 +42,16 @@ void syncUtilbufCopy(const SSyncBuffer* src, SSyncBuffer* dest);
 void syncUtilbufCopyDeep(const SSyncBuffer* src, SSyncBuffer* dest);
 
 // ---- misc ----
-int32_t syncUtilRand(int32_t max);
-int32_t syncUtilElectRandomMS();
+int32_t     syncUtilRand(int32_t max);
+int32_t     syncUtilElectRandomMS();
+int32_t     syncUtilQuorum(int32_t replicaNum);
+cJSON*      syncUtilNodeInfo2Json(const SNodeInfo* p);
+cJSON*      syncUtilRaftId2Json(const SRaftId* p);
+char*       syncUtilRaftId2Str(const SRaftId* p);
+const char* syncUtilState2String(ESyncState state);
+bool        syncUtilCanPrint(char c);
+char*       syncUtilprintBin(char* ptr, uint32_t len);
+char*       syncUtilprintBin2(char* ptr, uint32_t len);
 
 #ifdef __cplusplus
 }
