@@ -139,7 +139,7 @@ typedef struct {
 } STransMgmt;
 
 typedef struct SDnode {
-  EStat        stat;
+  EDndStatus   status;
   SDnodeObjCfg cfg;
   SDnodeDir    dir;
   TdFilePtr    pLockFile;
@@ -152,6 +152,7 @@ typedef struct SDnode {
   STransMgmt   tmgmt;
   STfs        *pTfs;
   SStartupReq  startup;
+  EDndEvent    event;
 } SDnode;
 
 int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo);

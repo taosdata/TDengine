@@ -143,7 +143,7 @@ int32_t mmOpen(SDnode *pDnode, SMnodeOpt *pOption) {
       return -1;
     }
 
-    return taosProcStart(pMgmt->pProcess);
+    return taosProcRun(pMgmt->pProcess);
   }
 
   return code;

@@ -28,15 +28,17 @@
 
 static int8_t once = DND_ENV_INIT;
 
-EStat dndGetStat(SDnode *pDnode) { return pDnode->stat; }
+EDndStatus dndGetStatus(SDnode *pDnode) { return pDnode->status; }
 
-void dndSetStat(SDnode *pDnode, EStat stat) {
-  dDebug("dnode status set from %s to %s", dndStatStr(pDnode->stat), dndStatStr(stat));
-  pDnode->stat = stat;
+void dndSetStatus(SDnode *pDnode, EDndStatus status) {
+  if (pDnode->status != status) {
+    dDebug("dnode status set from %s to %s", dndStatStr(pDnode->status), dndStatStr(status));
+    pDnode->status = status;
+  }
 }
 
-const char *dndStatStr(EStat stat) {
-  switch (stat) {
+const char *dndStatStr(EDndStatus status) {
+  switch (status) {
     case DND_STAT_INIT:
       return "init";
     case DND_STAT_RUNNING:
@@ -57,7 +59,7 @@ void dndReportStartup(SDnode *pDnode, char *pName, char *pDesc) {
 
 void dndGetStartup(SDnode *pDnode, SStartupReq *pStartup) {
   memcpy(pStartup, &pDnode->startup, sizeof(SStartupReq));
-  pStartup->finished = (dndGetStat(pDnode) == DND_STAT_RUNNING);
+  pStartup->finished = (dndGetStatus(pDnode) == DND_STAT_RUNNING);
 }
 
 static TdFilePtr dndCheckRunning(char *dataDir) {
@@ -165,7 +167,7 @@ SDnode *dndCreate(SDnodeObjCfg *pCfg) {
     return NULL;
   }
 
-  dndSetStat(pDnode, DND_STAT_INIT);
+  dndSetStatus(pDnode, DND_STAT_INIT);
 
   if (dndInitDir(pDnode, pCfg) != 0) {
     dError("failed to init dnode dir since %s", terrstr());
@@ -233,7 +235,7 @@ SDnode *dndCreate(SDnodeObjCfg *pCfg) {
     return NULL;
   }
 
-  dndSetStat(pDnode, DND_STAT_RUNNING);
+  dndSetStatus(pDnode, DND_STAT_RUNNING);
   dndSendStatusReq(pDnode);
   dndReportStartup(pDnode, "TDengine", "initialized successfully");
   dInfo("dnode object is created, data:%p", pDnode);
@@ -244,13 +246,13 @@ SDnode *dndCreate(SDnodeObjCfg *pCfg) {
 void dndClose(SDnode *pDnode) {
   if (pDnode == NULL) return;
 
-  if (dndGetStat(pDnode) == DND_STAT_STOPPED) {
+  if (dndGetStatus(pDnode) == DND_STAT_STOPPED) {
     dError("dnode is shutting down, data:%p", pDnode);
     return;
   }
 
   dInfo("start to close dnode, data:%p", pDnode);
-  dndSetStat(pDnode, DND_STAT_STOPPED);
+  dndSetStatus(pDnode, DND_STAT_STOPPED);
   dndCleanupTrans(pDnode);
   dndStopMgmt(pDnode);
   mmCleanup(pDnode);
@@ -332,3 +334,11 @@ int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {
 
   return tfsGetMonitorInfo(pDnode->pTfs, pInfo);
 }
+
+void dndRun(SDnode *pDnode) {
+  while (pDnode->event != DND_EVENT_STOP) {
+    taosMsleep(100);
+  }
+}
+
+void dndeHandleEvent(SDnode *pDnode, EDndEvent event) { pDnode->event = event; }

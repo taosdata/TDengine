@@ -555,7 +555,7 @@ static void *dnodeThreadRoutine(void *param) {
   while (true) {
     pthread_testcancel();
     taosMsleep(200);
-    if (dndGetStat(pDnode) != DND_STAT_RUNNING || pMgmt->dropped) {
+    if (dndGetStatus(pDnode) != DND_STAT_RUNNING || pMgmt->dropped) {
       continue;
     }
 

@@ -17,18 +17,18 @@
 #include "dmnInt.h"
 
 static struct {
-  bool stop;
-  bool dumpConfig;
-  bool generateGrant;
-  bool printAuth;
-  bool printVersion;
-  char envFile[PATH_MAX];
-  char apolloUrl[PATH_MAX];
+  bool    dumpConfig;
+  bool    generateGrant;
+  bool    printAuth;
+  bool    printVersion;
+  char    envFile[PATH_MAX];
+  char    apolloUrl[PATH_MAX];
+  SDnode *pDnode;
 } dmn = {0};
 
 static void dmnSigintHandle(int signum, void *info, void *ctx) {
-  uInfo("singal:%d is received", signum);
-  dmn.stop = true;
+  dInfo("singal:%d is received", signum);
+  dndeHandleEvent(dmn.pDnode, DND_EVENT_STOP);
 }
 
 static void dmnSetSignalHandle() {
@@ -37,13 +37,6 @@ static void dmnSetSignalHandle() {
   taosSetSignal(SIGINT, dmnSigintHandle);
   taosSetSignal(SIGABRT, dmnSigintHandle);
   taosSetSignal(SIGBREAK, dmnSigintHandle);
-}
-
-static void dmnWaitSignal() {
-  dmnSetSignalHandle();
-  while (!dmn.stop) {
-    taosMsleep(100);
-  }
 }
 
 static int32_t dmnParseOption(int32_t argc, char const *argv[]) {
@@ -74,20 +67,22 @@ static int32_t dmnParseOption(int32_t argc, char const *argv[]) {
 
 int32_t dmnRunDnode() {
   if (dndInit() != 0) {
-    uInfo("Failed to start TDengine, please check the log");
+    dInfo("failed to initialize dnode environment since %s", terrstr());
     return -1;
   }
 
   SDnodeObjCfg objCfg = dmnGetObjCfg();
   SDnode      *pDnode = dndCreate(&objCfg);
   if (pDnode == NULL) {
-    uInfo("Failed to start TDengine, please check the log");
+    dError("failed to to create dnode object since %s", terrstr());
     return -1;
+  } else {
+    dmn.pDnode = pDnode;
   }
 
-  uInfo("Started TDengine service successfully.");
-  dmnWaitSignal();
-  uInfo("TDengine is shut down!");
+  dInfo("start the TDengine service");
+  dndRun(pDnode);
+  dInfo("start shutting down the TDengine service");
 
   dndClose(pDnode);
   dndCleanup();
@@ -98,7 +93,7 @@ int32_t dmnRunDnode() {
 
 int main(int argc, char const *argv[]) {
   if (!taosCheckSystemIsSmallEnd()) {
-    uError("TDengine does not run on non-small-end machines.");
+    dError("failed to start TDengine since on non-small-end machines");
     return -1;
   }
 
@@ -117,18 +112,19 @@ int main(int argc, char const *argv[]) {
   }
 
   if (taosCreateLog("taosdlog", 1, configDir, dmn.envFile, dmn.apolloUrl, NULL, 0) != 0) {
-    uInfo("Failed to start TDengine since read config error");
+    dError("failed to start TDengine since read log config error");
     return -1;
   }
 
   if (taosInitCfg(configDir, dmn.envFile, dmn.apolloUrl, NULL, 0) != 0) {
-    uInfo("Failed to start TDengine since read config error");
+    dError("failed to start TDengine since read config error");
     return -1;
   }
 
   if (dmn.dumpConfig) {
     dmnDumpCfg();
     taosCleanupCfg();
+    taosCloseLog();
     return 0;
   }
 

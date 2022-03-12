@@ -48,8 +48,9 @@ typedef struct {
 
 SProcObj *taosProcInit(const SProcCfg *pCfg);
 void      taosProcCleanup(SProcObj *pProc);
-int32_t   taosProcStart(SProcObj *pProc);
+int32_t   taosProcRun(SProcObj *pProc);
 void      taosProcStop(SProcObj *pProc);
+bool      taosProcIsChild(SProcObj *pProc);
 
 int32_t taosProcPutToChildQueue(SProcObj *pProc, void *pHead, int32_t headLen, void *pBody, int32_t bodyLen);
 int32_t taosProcPutToParentQueue(SProcObj *pProc, void *pHead, int32_t headLen, void *pBody, int32_t bodyLen);

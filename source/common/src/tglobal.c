@@ -45,6 +45,7 @@ float   tsRatioOfQueryCores = 1.0f;
 int32_t tsMaxBinaryDisplayWidth = 30;
 bool    tsEnableSlaveQuery = 1;
 bool    tsPrintAuth = 0;
+bool    tsMultiProcess = 0;
 
 // monitor
 bool     tsEnableMonitor = 1;
@@ -339,6 +340,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "printAuth", tsPrintAuth, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "slaveQuery", tsEnableSlaveQuery, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "deadLockKillQuery", tsDeadLockKillQuery, 0) != 0) return -1;
+  if (cfgAddBool(pCfg, "multiProcess", tsMultiProcess, 0) != 0) return -1;
 
   if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 360000, 0) != 0) return -1;
@@ -456,6 +458,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsPrintAuth = cfgGetItem(pCfg, "printAuth")->bval;
   tsEnableSlaveQuery = cfgGetItem(pCfg, "slaveQuery")->bval;
   tsDeadLockKillQuery = cfgGetItem(pCfg, "deadLockKillQuery")->bval;
+  tsMultiProcess = cfgGetItem(pCfg, "multiProcess")->bval;
 
   tsEnableMonitor = cfgGetItem(pCfg, "monitor")->bval;
   tsMonitorInterval = cfgGetItem(pCfg, "monitorInterval")->i32;

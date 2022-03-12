@@ -33,8 +33,7 @@ typedef struct SDnode SDnode;
 int32_t dndInit();
 
 /**
- * @brief clear the environment
- *
+ * @brief Clear the environment
  */
 void dndCleanup();
 
@@ -51,6 +50,8 @@ typedef struct {
   int32_t   numOfDisks;
 } SDnodeObjCfg;
 
+typedef enum { DND_EVENT_STOP = 1, DND_EVENT_RELOAD } EDndEvent;
+
 /**
  * @brief Initialize and start the dnode.
  *
@@ -65,6 +66,21 @@ SDnode *dndCreate(SDnodeObjCfg *pCfg);
  * @param pDnode The dnode object to close.
  */
 void dndClose(SDnode *pDnode);
+
+/**
+ * @brief Run dnode until specific event is receive.
+ *
+ * @param pDnode The dnode object to run.
+ */
+void dndRun(SDnode *pDnode);
+
+/**
+ * @brief Handle event in the dnode.
+ *
+ * @param pDnode The dnode object to close.
+ * @param event The event to handle.
+ */
+void dndeHandleEvent(SDnode *pDnode, EDndEvent event);
 
 #ifdef __cplusplus
 }

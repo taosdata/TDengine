@@ -374,8 +374,6 @@ SProcObj *taosProcInit(const SProcCfg *pCfg) {
   if (!pProc->testFlag) {
     pProc->pid = fork();
     if (pProc->pid == 0) {
-      // tsLogInited = 0;
-      taosInitLog("mnodelog", 1);
       pProc->isChild = 1;
       uInfo("this is child process, pid:%d", pProc->pid);
     } else {
@@ -410,7 +408,7 @@ static void taosProcThreadLoop(SProcQueue *pQueue) {
   }
 }
 
-int32_t taosProcStart(SProcObj *pProc) {
+int32_t taosProcRun(SProcObj *pProc) {
   pthread_attr_t thAttr = {0};
   pthread_attr_init(&thAttr);
   pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
@@ -441,6 +439,8 @@ void taosProcStop(SProcObj *pProc) {
   // todo
   // join
 }
+
+bool taosProcIsChild(SProcObj *pProc) { return pProc->isChild; }
 
 void taosProcCleanup(SProcObj *pProc) {
   if (pProc != NULL) {
