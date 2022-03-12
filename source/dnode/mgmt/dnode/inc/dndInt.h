@@ -61,28 +61,151 @@ typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EDndStatus;
 typedef enum { DND_WORKER_SINGLE, DND_WORKER_MULTI } EWorkerType;
 typedef enum { DND_ENV_INIT, DND_ENV_READY, DND_ENV_CLEANU } EEnvStat;
 
+typedef struct SMgmtFp      SMgmtFp;
+typedef struct SMgmtWrapper SMgmtWrapper;
+
 typedef void (*DndMsgFp)(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEps);
 typedef int32_t (*MndMsgFp)(SDnode *pDnode, SMndMsg *pMsg);
+typedef SMgmtWrapper *(*MgmtOpenFp)(SDnode *pDnode, const char *path);
+typedef void (*MgmtCloseFp)(SDnode *pDnode, SMgmtWrapper *pMgmt);
+typedef bool (*MgmtRequiredFp)(SDnode *pDnode, const char *path);
+typedef SArray *(*MgmtMsgFp)(SMgmtWrapper *pNode, SNodeMsg *pMsg);
 
+typedef struct {
+  EWorkerType type;
+  const char *name;
+  int32_t     minNum;
+  int32_t     maxNum;
+  void       *queueFp;
+  SDnode     *pDnode;
+  STaosQueue *queue;
+  union {
+    SQWorkerPool pool;
+    SWWorkerPool mpool;
+  };
+} SDnodeWorker;
 
+typedef struct {
+  int32_t      dnodeId;
+  int32_t      dropped;
+  int64_t      clusterId;
+  int64_t      dver;
+  int64_t      rebootTime;
+  int64_t      updateTime;
+  int8_t       statusSent;
+  SEpSet       mnodeEpSet;
+  char        *file;
+  SHashObj    *dnodeHash;
+  SArray      *pDnodeEps;
+  pthread_t   *threadId;
+  SRWLatch     latch;
+  SDnodeWorker mgmtWorker;
+  SDnodeWorker statusWorker;
+} SDnodeMgmt;
+
+typedef struct {
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SMnode      *pMnode;
+  SRWLatch     latch;
+  SDnodeWorker readWorker;
+  SDnodeWorker writeWorker;
+  SDnodeWorker syncWorker;
+  int8_t       replica;
+  int8_t       selfIndex;
+  SReplica     replicas[TSDB_MAX_REPLICA];
+
+  //
+  MndMsgFp  msgFp[TDMT_MAX];
+  SProcObj *pProcess;
+  bool      singleProc;
+} SMnodeMgmt;
+
+typedef struct {
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SQnode      *pQnode;
+  SRWLatch     latch;
+  SDnodeWorker queryWorker;
+  SDnodeWorker fetchWorker;
+} SQnodeMgmt;
+
+typedef struct {
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SSnode      *pSnode;
+  SRWLatch     latch;
+  SDnodeWorker writeWorker;
+} SSnodeMgmt;
+
+typedef struct {
+  int32_t openVnodes;
+  int32_t totalVnodes;
+  int32_t masterNum;
+  int64_t numOfSelectReqs;
+  int64_t numOfInsertReqs;
+  int64_t numOfInsertSuccessReqs;
+  int64_t numOfBatchInsertReqs;
+  int64_t numOfBatchInsertSuccessReqs;
+} SVnodesStat;
+
+typedef struct {
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SBnode      *pBnode;
+  SRWLatch     latch;
+  SDnodeWorker writeWorker;
+} SBnodeMgmt;
+
+typedef struct {
+  SVnodesStat  stat;
+  SHashObj    *hash;
+  SRWLatch     latch;
+  SQWorkerPool queryPool;
+  SFWorkerPool fetchPool;
+  SWWorkerPool syncPool;
+  SWWorkerPool writePool;
+} SVnodesMgmt;
+
+typedef struct {
+  void    *serverRpc;
+  void    *clientRpc;
+  DndMsgFp msgFp[TDMT_MAX];
+} STransMgmt;
+
+typedef struct SMgmtFp {
+  MgmtOpenFp     openFp;
+  MgmtCloseFp    closeFp;
+  MgmtRequiredFp requiredFp;
+  MgmtMsgFp      msgFp;
+} SMgmtFp;
+
+typedef struct SMgmtWrapper {
+  const char *name;
+  char       *path;
+  bool        required;
+  EProcType   procType;
+  SProcObj   *pProc;
+  void       *pMgmt;
+  SMgmtFp     fp;
+} SMgmtWrapper;
 
 typedef struct SDnode {
   EDndStatus   status;
-  SDndCfg cfg;
-  SDnodeDir    dir;
+  EDndEvent    event;
+  EProcType    procType;
+  SDndCfg      cfg;
+  SStartupReq  startup;
   TdFilePtr    pLockFile;
   SDnodeMgmt   dmgmt;
-  SMndMgmt     mmgmt;
-  SQnodeMgmt   qmgmt;
-  SSnodeMgmt   smgmt;
-  SBnodeMgmt   bmgmt;
-  SVnodesMgmt  vmgmt;
   STransMgmt   tmgmt;
-  STfs        *pTfs;
-  SStartupReq  startup;
-  EDndEvent    event;
+  SMgmtFp      fps[NODE_MAX];
+  SMgmtWrapper mgmts[NODE_MAX];
 } SDnode;
-
 
 EDndStatus  dndGetStatus(SDnode *pDnode);
 void        dndSetStatus(SDnode *pDnode, EDndStatus stat);

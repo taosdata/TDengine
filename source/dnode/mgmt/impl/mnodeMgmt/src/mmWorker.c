@@ -28,7 +28,7 @@ static int32_t mmPutRpcMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMs
 static void    mmConsumeMsgQueue(SDnode *pDnode, SMndMsg *pMsg);
 
 int32_t mmStartWorker(SDnode *pDnode) {
-  SMndMgmt *pMgmt = &pDnode->mmgmt;
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   if (dndInitWorker(pDnode, &pMgmt->readWorker, DND_WORKER_SINGLE, "mnode-read", 0, 1, mmConsumeMsgQueue) != 0) {
     dError("failed to start mnode read worker since %s", terrstr());
     return -1;
@@ -48,7 +48,7 @@ int32_t mmStartWorker(SDnode *pDnode) {
 }
 
 void mmStopWorker(SDnode *pDnode) {
-  SMndMgmt *pMgmt = &pDnode->mmgmt;
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
   taosWLockLatch(&pMgmt->latch);
   pMgmt->deployed = 0;
@@ -63,7 +63,7 @@ void mmStopWorker(SDnode *pDnode) {
   dndCleanupWorker(&pMgmt->syncWorker);
 }
 
-void mmInitMsgFp(SMndMgmt *pMgmt) {
+void mmInitMsgFp(SMnodeMgmt *pMgmt) {
   // Requests handled by DNODE
   pMgmt->msgFp[TMSG_INDEX(TDMT_DND_CREATE_MNODE_RSP)] = mmProcessWriteMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_DND_ALTER_MNODE_RSP)] = mmProcessWriteMsg;
@@ -163,7 +163,7 @@ static int32_t mmBuildMsg(SMndMsg *pMsg, SRpcMsg *pRpc) {
 }
 
 void mmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
-  SMndMgmt *pMgmt = &pDnode->mmgmt;
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   int32_t   code = -1;
   SMndMsg  *pMsg = NULL;
 
@@ -261,7 +261,7 @@ static int32_t mmPutRpcMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMs
 }
 
 void mmPutRpcRspToWorker(SDnode *pDnode, SRpcMsg *pRpc) {
-  SMndMgmt *pMgmt = &pDnode->mmgmt;
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   int32_t   code = -1;
 
   if (pMgmt->singleProc) {
@@ -278,7 +278,7 @@ void mmPutRpcRspToWorker(SDnode *pDnode, SRpcMsg *pRpc) {
 
 void mmConsumeChildQueue(SDnode *pDnode, SMndMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen) {
   dTrace("msg:%p, get from child queue", pMsg);
-  SMndMgmt *pMgmt = &pDnode->mmgmt;
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   pRpc->pCont = pCont;

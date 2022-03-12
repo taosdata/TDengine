@@ -17,7 +17,7 @@
 #include "mm.h"
 
 int32_t mmReadFile(SDnode *pDnode) {
-  SMndMgmt *pMgmt = &pDnode->mmgmt;
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
   int32_t code = TSDB_CODE_DND_MNODE_READ_FILE_ERROR;
   int32_t len = 0;
@@ -115,7 +115,7 @@ PRASE_MNODE_OVER:
 }
 
 int32_t mmWriteFile(SDnode *pDnode) {
-  SMndMgmt *pMgmt = &pDnode->mmgmt;
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
   char file[PATH_MAX];
   snprintf(file, sizeof(file), "%s%smnode.json.bak", pDnode->dir.dnode, TD_DIRSEP);

@@ -78,5 +78,6 @@ int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {
   tstrncpy(pInfo->tempdir.name, tsTempDir, sizeof(pInfo->tempdir.name));
   pInfo->tempdir.size = tsTempSpace.size;
 
-  return tfsGetMonitorInfo(pDnode->pTfs, pInfo);
+  //return tfsGetMonitorInfo(pDnode->pTfs, pInfo);
+  return tfsGetMonitorInfo(NULL, pInfo);
 }

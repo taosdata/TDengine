@@ -42,10 +42,17 @@ typedef struct SRpcMsg {
   void *  pCont;
   int     contLen;
   int32_t code;
-  void *  handle;   // rpc handle returned to app
-  void *  ahandle;  // app handle set by client
+  void   *handle;   // rpc handle returned to app
+  void   *ahandle;  // app handle set by client
 } SRpcMsg;
 
+typedef struct {
+  char    user[TSDB_USER_LEN];
+  SRpcMsg rpcMsg;
+  SEpSet  rpcEpSet;
+  int32_t rspLen;
+  void   *pRsp;
+} SNodeMsg;
 
 typedef struct SRpcInit {
   uint16_t localPort;     // local port

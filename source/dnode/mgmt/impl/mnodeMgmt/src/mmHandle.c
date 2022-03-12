@@ -122,7 +122,7 @@ int32_t mmGetMonitorInfo(SDnode *pDnode, SMonClusterInfo *pClusterInfo, SMonVgro
 }
 
 int32_t dndGetUserAuthFromMnode(SDnode *pDnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
-  SMndMgmt *pMgmt = &pDnode->mmgmt;
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
   SMnode *pMnode = mmAcquire(pDnode);
   if (pMnode == NULL) {

@@ -29,7 +29,7 @@ int32_t mmInit(SDnode *pDnode) {
   dInfo("mnode mgmt start to init");
   int32_t code = -1;
 
-  SMndMgmt *pMgmt = &pDnode->mmgmt;
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   taosInitRWLatch(&pMgmt->latch);
   mmInitMsgFp(pMgmt);
 
@@ -76,7 +76,7 @@ _OVER:
 
 void mmCleanup(SDnode *pDnode) {
   dInfo("mnode mgmt start to clean up");
-  SMndMgmt *pMgmt = &pDnode->mmgmt;
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   if (pMgmt->pMnode) {
     mmStopWorker(pDnode);
     mndClose(pMgmt->pMnode);
@@ -86,7 +86,7 @@ void mmCleanup(SDnode *pDnode) {
 }
 
 SMnode *mmAcquire(SDnode *pDnode) {
-  SMndMgmt *pMgmt = &pDnode->mmgmt;
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   SMnode     *pMnode = NULL;
   int32_t     refCount = 0;
 
@@ -108,7 +108,7 @@ SMnode *mmAcquire(SDnode *pDnode) {
 void mmRelease(SDnode *pDnode, SMnode *pMnode) {
   if (pMnode == NULL) return;
 
-  SMndMgmt *pMgmt = &pDnode->mmgmt;
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   taosRLockLatch(&pMgmt->latch);
   int32_t refCount = atomic_sub_fetch_32(&pMgmt->refCount, 1);
   taosRUnLockLatch(&pMgmt->latch);
@@ -116,7 +116,7 @@ void mmRelease(SDnode *pDnode, SMnode *pMnode) {
 }
 
 int32_t mmOpen(SDnode *pDnode, SMnodeOpt *pOption) {
-  SMndMgmt *pMgmt = &pDnode->mmgmt;
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   pMgmt->singleProc = true;
 
   int32_t code = mmOpenImp(pDnode, pOption);
@@ -150,7 +150,7 @@ int32_t mmOpen(SDnode *pDnode, SMnodeOpt *pOption) {
 }
 
 int32_t mmAlter(SDnode *pDnode, SMnodeOpt *pOption) {
-  SMndMgmt *pMgmt = &pDnode->mmgmt;
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
   SMnode *pMnode = mmAcquire(pDnode);
   if (pMnode == NULL) {
@@ -169,7 +169,7 @@ int32_t mmAlter(SDnode *pDnode, SMnodeOpt *pOption) {
 }
 
 int32_t mmDrop(SDnode *pDnode) {
-  SMndMgmt *pMgmt = &pDnode->mmgmt;
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
   SMnode *pMnode = mmAcquire(pDnode);
   if (pMnode == NULL) {
@@ -238,7 +238,7 @@ static void mmBuildOptionForDeploy(SDnode *pDnode, SMnodeOpt *pOption) {
   pReplica->port = pDnode->cfg.serverPort;
   memcpy(pReplica->fqdn, pDnode->cfg.localFqdn, TSDB_FQDN_LEN);
 
-  SMndMgmt *pMgmt = &pDnode->mmgmt;
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   pMgmt->selfIndex = pOption->selfIndex;
   pMgmt->replica = pOption->replica;
   memcpy(&pMgmt->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
@@ -246,7 +246,7 @@ static void mmBuildOptionForDeploy(SDnode *pDnode, SMnodeOpt *pOption) {
 
 static void mmBuildOptionForOpen(SDnode *pDnode, SMnodeOpt *pOption) {
   mmInitOption(pDnode, pOption);
-  SMndMgmt *pMgmt = &pDnode->mmgmt;
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   pOption->selfIndex = pMgmt->selfIndex;
   pOption->replica = pMgmt->replica;
   memcpy(&pOption->replicas, pMgmt->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
@@ -274,7 +274,7 @@ int32_t mmBuildOptionFromReq(SDnode *pDnode, SMnodeOpt *pOption, SDCreateMnodeRe
     return -1;
   }
 
-  SMndMgmt *pMgmt = &pDnode->mmgmt;
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   pMgmt->selfIndex = pOption->selfIndex;
   pMgmt->replica = pOption->replica;
   memcpy(&pMgmt->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
@@ -282,7 +282,7 @@ int32_t mmBuildOptionFromReq(SDnode *pDnode, SMnodeOpt *pOption, SDCreateMnodeRe
 }
 
 static int32_t mmOpenImp(SDnode *pDnode, SMnodeOpt *pOption) {
-  SMndMgmt *pMgmt = &pDnode->mmgmt;
+  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
   SMnode *pMnode = mndOpen(pDnode->dir.mnode, pOption);
   if (pMnode == NULL) {

@@ -48,7 +48,7 @@ int32_t mmBuildOptionFromReq(SDnode *pDnode, SMnodeOpt *pOption, SDCreateMnodeRe
 // mmWorker
 int32_t mmStartWorker(SDnode *pDnode);
 void    mmStopWorker(SDnode *pDnode);
-void    mmInitMsgFp(SMndMgmt *pMgmt);
+void    mmInitMsgFp(SMnodeMgmt *pMgmt);
 void    mmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 int32_t mmPutMsgToWriteQueue(SDnode *pDnode, SRpcMsg *pRpcMsg);
 int32_t mmPutMsgToReadQueue(SDnode *pDnode, SRpcMsg *pRpcMsg);

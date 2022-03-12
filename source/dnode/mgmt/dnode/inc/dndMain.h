@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_ENV_H_
-#define _TD_DND_ENV_H_
+#ifndef _TD_DND_MAIN_H_
+#define _TD_DND_MAIN_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,126 +22,8 @@ extern "C" {
 
 #include "dndInt.h"
 
-typedef struct {
-  EWorkerType type;
-  const char *name;
-  int32_t     minNum;
-  int32_t     maxNum;
-  void       *queueFp;
-  SDnode     *pDnode;
-  STaosQueue *queue;
-  union {
-    SQWorkerPool pool;
-    SWWorkerPool mpool;
-  };
-} SDnodeWorker;
-
-typedef struct {
-  char *dnode;
-  char *mnode;
-  char *snode;
-  char *bnode;
-  char *vnodes;
-} SDnodeDir;
-
-typedef struct {
-  int32_t      dnodeId;
-  int32_t      dropped;
-  int64_t      clusterId;
-  int64_t      dver;
-  int64_t      rebootTime;
-  int64_t      updateTime;
-  int8_t       statusSent;
-  SEpSet       mnodeEpSet;
-  char        *file;
-  SHashObj    *dnodeHash;
-  SArray      *pDnodeEps;
-  pthread_t   *threadId;
-  SRWLatch     latch;
-  SDnodeWorker mgmtWorker;
-  SDnodeWorker statusWorker;
-} SDnodeMgmt;
-
-typedef enum { SINGLE_PROC, MULTI_PROC_PARENT, MULTI_PROC_CHILD } EProcType;
-
-typedef struct {
-  int32_t      refCount;
-  int8_t       deployed;
-  int8_t       dropped;
-  SMnode      *pMnode;
-  SRWLatch     latch;
-  SDnodeWorker readWorker;
-  SDnodeWorker writeWorker;
-  SDnodeWorker syncWorker;
-  int8_t       replica;
-  int8_t       selfIndex;
-  SReplica     replicas[TSDB_MAX_REPLICA];
-
-  //
-  MndMsgFp  msgFp[TDMT_MAX];
-  SProcObj *pProcess;
-  bool      singleProc;
-} SMndMgmt;
-
-typedef struct {
-  int32_t      refCount;
-  int8_t       deployed;
-  int8_t       dropped;
-  SQnode      *pQnode;
-  SRWLatch     latch;
-  SDnodeWorker queryWorker;
-  SDnodeWorker fetchWorker;
-} SQnodeMgmt;
-
-typedef struct {
-  int32_t      refCount;
-  int8_t       deployed;
-  int8_t       dropped;
-  SSnode      *pSnode;
-  SRWLatch     latch;
-  SDnodeWorker writeWorker;
-} SSnodeMgmt;
-
-typedef struct {
-  int32_t      refCount;
-  int8_t       deployed;
-  int8_t       dropped;
-  SBnode      *pBnode;
-  SRWLatch     latch;
-  SDnodeWorker writeWorker;
-} SBnodeMgmt;
-
-typedef struct {
-  int32_t openVnodes;
-  int32_t totalVnodes;
-  int32_t masterNum;
-  int64_t numOfSelectReqs;
-  int64_t numOfInsertReqs;
-  int64_t numOfInsertSuccessReqs;
-  int64_t numOfBatchInsertReqs;
-  int64_t numOfBatchInsertSuccessReqs;
-} SVnodesStat;
-
-typedef struct {
-  SVnodesStat  stat;
-  SHashObj    *hash;
-  SRWLatch     latch;
-  SQWorkerPool queryPool;
-  SFWorkerPool fetchPool;
-  SWWorkerPool syncPool;
-  SWWorkerPool writePool;
-} SVnodesMgmt;
-
-typedef struct {
-  void    *serverRpc;
-  void    *clientRpc;
-  DndMsgFp msgFp[TDMT_MAX];
-} STransMgmt;
-
-
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DND_ENV_H_*/
+#endif /*_TD_DND_MAIN_H_*/
