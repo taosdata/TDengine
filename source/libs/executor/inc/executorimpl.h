@@ -334,9 +334,10 @@ typedef struct SOperatorInfo {
 
   struct SOperatorInfo** pDownstream;      // downstram pointer list
   int32_t                numOfDownstream;  // number of downstream. The value is always ONE expect for join operator
-  __optr_open_fn_t       openFn;
   __optr_fn_t            getNextFn;
+  __optr_fn_t            cleanupFn;
   __optr_close_fn_t      closeFn;
+  __optr_open_fn_t       _openFn;          // DO NOT invoke this function directly
 } SOperatorInfo;
 
 typedef struct {
