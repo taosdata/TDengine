@@ -221,12 +221,60 @@ TEST(testCase, tSma_DB_Put_Get_Del_Test) {
 
 #if 1
 TEST(testCase, tSmaInsertTest) {
+  // prepare meta
+  const char *   smaIndexName1 = "sma_index_test_1";
+  const char *   smaIndexName2 = "sma_index_test_2";
+  const char *   timezone = "Asia/Shanghai";
+  const char *   expr = "select count(a,b, top 20), from table interval 1d, sliding 1h;";
+  const char *   tagsFilter = "I'm tags filter";
+  const char *   smaTestDir = "./smaTest";
+  const tb_uid_t tbUid = 1234567890;
+  const int64_t  indexUid1 = 2000000001;
+  const int64_t  indexUid2 = 2000000002;
+  const uint32_t nCntTSma = 2;
+  // encode
+  STSma tSma = {0};
+  tSma.version = 0;
+  tSma.intervalUnit = TD_TIME_UNIT_DAY;
+  tSma.interval = 1;
+  tSma.slidingUnit = TD_TIME_UNIT_HOUR;
+  tSma.sliding = 0;
+  tSma.indexUid = indexUid1;
+  tstrncpy(tSma.indexName, smaIndexName1, TSDB_INDEX_NAME_LEN);
+  tstrncpy(tSma.timezone, timezone, TD_TIMEZONE_LEN);
+  tSma.tableUid = tbUid;
+
+  tSma.exprLen = strlen(expr);
+  tSma.expr = (char *)calloc(tSma.exprLen + 1, 1);
+  tstrncpy(tSma.expr, expr, tSma.exprLen + 1);
+
+  tSma.tagsFilterLen = strlen(tagsFilter);
+  tSma.tagsFilter = (char *)calloc(tSma.tagsFilterLen + 1, 1);
+  tstrncpy(tSma.tagsFilter, tagsFilter, tSma.tagsFilterLen + 1);
+
+  SMeta *         pMeta = NULL;
+  STSma *         pSmaCfg = &tSma;
+  const SMetaCfg *pMetaCfg = &defaultMetaOptions;
+
+  taosRemoveDir(smaTestDir);
+
+  pMeta = metaOpen(smaTestDir, pMetaCfg, NULL);
+  assert(pMeta != NULL);
+  // save index 1
+  EXPECT_EQ(metaSaveSmaToDB(pMeta, pSmaCfg), 0);
+
+
+  // insert data
   const int64_t     indexUid = 2000000002;
   STSmaDataWrapper *pSmaData = NULL;
   STsdb             tsdb = {0};
   STsdbCfg *        pCfg = &tsdb.config;
 
   pCfg->daysPerFile = 1;
+  tsdb.pMeta = pMeta;
+
+  char *msg = (char *)calloc(100, 1);
+  EXPECT_EQ(tsdbUpdateSmaWindow(&tsdb, TSDB_SMA_TYPE_TIME_RANGE, msg), 0);
 
   // init
   int32_t allocCnt = 0;
@@ -277,8 +325,11 @@ TEST(testCase, tSmaInsertTest) {
   // execute
   EXPECT_EQ(tsdbInsertTSmaData(&tsdb, (char *)pSmaData), TSDB_CODE_SUCCESS);
 
-  // release
+  // release data
   taosTZfree(buf);
+  // release meta
+  tdDestroyTSma(&tSma);
+  metaClose(pMeta);
 }
 #endif
 

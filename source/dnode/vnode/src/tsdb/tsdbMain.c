@@ -80,6 +80,8 @@ static STsdb *tsdbNew(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, 
   pTsdb->pmaf = pMAF;
   pTsdb->pMeta = pMeta;
   pTsdb->pTfs = pTfs;
+  pTsdb->pTSmaEnv = NULL;
+  pTsdb->pRSmaEnv = NULL;
 
   pTsdb->fs = tsdbNewFS(pTsdbCfg);
 
@@ -88,8 +90,9 @@ static STsdb *tsdbNew(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, 
 
 static void tsdbFree(STsdb *pTsdb) {
   if (pTsdb) {
+    tsdbFreeSmaEnv(pTsdb->pRSmaEnv);
+    tsdbFreeSmaEnv(pTsdb->pTSmaEnv);
     tsdbFreeFS(pTsdb->fs);
-    tsdbDestroySmaState(pTsdb->pSmaStat);
     tfree(pTsdb->path);
     free(pTsdb);
   }
@@ -105,6 +108,30 @@ static void tsdbCloseImpl(STsdb *pTsdb) {
   tsdbCloseFS(pTsdb);
   // TODO
 }
+
+int tsdbLockRepo(STsdb *pTsdb) {
+  int code = pthread_mutex_lock(&pTsdb->mutex);
+  if (code != 0) {
+    tsdbError("vgId:%d failed to lock tsdb since %s", REPO_ID(pTsdb), strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  pTsdb->repoLocked = true;
+  return 0;
+}
+
+int tsdbUnlockRepo(STsdb *pTsdb) {
+  ASSERT(IS_REPO_LOCKED(pTsdb));
+  pTsdb->repoLocked = false;
+  int code = pthread_mutex_unlock(&pTsdb->mutex);
+  if (code != 0) {
+    tsdbError("vgId:%d failed to unlock tsdb since %s", REPO_ID(pTsdb), strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
+}
+
 #if 0
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>

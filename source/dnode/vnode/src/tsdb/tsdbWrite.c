@@ -51,6 +51,14 @@ int32_t tsdbInsertTSmaData(STsdb *pTsdb, char *msg) {
   return code;
 }
 
+int32_t tsdbUpdateSmaWindow(STsdb *pTsdb, int8_t smaType, char *msg) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if ((code = tsdbUpdateExpiredWindow(pTsdb, smaType, msg)) < 0) {
+    tsdbWarn("vgId:%d update expired window failed since %s", REPO_ID(pTsdb), tstrerror(terrno));
+  }
+  return code;
+}
+
 /**
  * @brief Insert Time-range-wise Rollup Sma(RSma) data
  *

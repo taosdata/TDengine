@@ -43,6 +43,8 @@ extern "C" {
 
 struct STsdb {
   int32_t               vgId;
+  bool                  repoLocked;
+  pthread_mutex_t       mutex;
   char *                path;
   STsdbCfg              config;
   STsdbMemTable *       mem;
@@ -52,12 +54,18 @@ struct STsdb {
   STsdbFS *             fs;
   SMeta *               pMeta;
   STfs *                pTfs;
-  SSmaStat *            pSmaStat;
+  SSmaEnv *             pTSmaEnv;
+  SSmaEnv *             pRSmaEnv;
+  // SSmaStat *            pSmaStat;
 };
 
-#define REPO_ID(r) ((r)->vgId)
-#define REPO_CFG(r) (&(r)->config)
-#define REPO_FS(r) (r)->fs
+#define REPO_ID(r)        ((r)->vgId)
+#define REPO_CFG(r)       (&(r)->config)
+#define REPO_FS(r)        (r)->fs
+#define IS_REPO_LOCKED(r) (r)->repoLocked
+
+int tsdbLockRepo(STsdb *pTsdb);
+int tsdbUnlockRepo(STsdb *pTsdb);
 
 static FORCE_INLINE STSchema *tsdbGetTableSchemaImpl(STable *pTable, bool lock, bool copy, int32_t version) {
   return pTable->pSchema;
