@@ -55,13 +55,19 @@ static void syncEnvTick(void *param, void *tmrId) {
   if (atomic_load_64(&pSyncEnv->envTickTimerLogicClockUser) <= atomic_load_64(&pSyncEnv->envTickTimerLogicClock)) {
     ++(pSyncEnv->envTickTimerCounter);
     sTrace(
-        "syncEnvTick ... envTickTimerLogicClockUser:%lu, envTickTimerLogicClock:%lu, envTickTimerCounter:%lu, "
-        "envTickTimerMS:%d",
+        "syncEnvTick do ... envTickTimerLogicClockUser:%lu, envTickTimerLogicClock:%lu, envTickTimerCounter:%lu, "
+        "envTickTimerMS:%d, tmrId:%p",
         pSyncEnv->envTickTimerLogicClockUser, pSyncEnv->envTickTimerLogicClock, pSyncEnv->envTickTimerCounter,
-        pSyncEnv->envTickTimerMS);
+        pSyncEnv->envTickTimerMS, tmrId);
 
     // do something, tick ...
     taosTmrReset(syncEnvTick, pSyncEnv->envTickTimerMS, pSyncEnv, pSyncEnv->pTimerManager, &pSyncEnv->pEnvTickTimer);
+  } else {
+    sTrace(
+        "syncEnvTick pass ... envTickTimerLogicClockUser:%lu, envTickTimerLogicClock:%lu, envTickTimerCounter:%lu, "
+        "envTickTimerMS:%d, tmrId:%p",
+        pSyncEnv->envTickTimerLogicClockUser, pSyncEnv->envTickTimerLogicClock, pSyncEnv->envTickTimerCounter,
+        pSyncEnv->envTickTimerMS, tmrId);
   }
 }
 
@@ -88,15 +94,16 @@ static int32_t doSyncEnvStop(SSyncEnv *pSyncEnv) {
 
 static int32_t doSyncEnvStartTimer(SSyncEnv *pSyncEnv) {
   int32_t ret = 0;
-  pSyncEnv->pEnvTickTimer =
-      taosTmrStart(pSyncEnv->FpEnvTickTimer, pSyncEnv->envTickTimerMS, pSyncEnv, pSyncEnv->pTimerManager);
+  taosTmrReset(pSyncEnv->FpEnvTickTimer, pSyncEnv->envTickTimerMS, pSyncEnv, pSyncEnv->pTimerManager,
+               &pSyncEnv->pEnvTickTimer);
   atomic_store_64(&pSyncEnv->envTickTimerLogicClock, pSyncEnv->envTickTimerLogicClockUser);
   return ret;
 }
 
 static int32_t doSyncEnvStopTimer(SSyncEnv *pSyncEnv) {
+  int32_t ret = 0;
   atomic_add_fetch_64(&pSyncEnv->envTickTimerLogicClockUser, 1);
   taosTmrStop(pSyncEnv->pEnvTickTimer);
   pSyncEnv->pEnvTickTimer = NULL;
-  return 0;
+  return ret;
 }

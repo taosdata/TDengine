@@ -39,6 +39,7 @@ typedef enum ESyncMessageType {
   SYNC_REQUEST_VOTE_REPLY = 111,
   SYNC_APPEND_ENTRIES = 113,
   SYNC_APPEND_ENTRIES_REPLY = 115,
+  SYNC_RESPONSE = 119,
 
 } ESyncMessageType;
 

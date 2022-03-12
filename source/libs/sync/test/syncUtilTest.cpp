@@ -26,6 +26,7 @@ int main() {
   tsAsyncLog = 0;
   sDebugFlag = 143 + 64;
   logTest();
+
   electRandomMSTest();
 
   return 0;

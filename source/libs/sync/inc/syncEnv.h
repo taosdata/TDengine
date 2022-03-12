@@ -42,7 +42,7 @@ typedef struct SSyncEnv {
   // tick timer
   tmr_h             pEnvTickTimer;
   int32_t           envTickTimerMS;
-  uint64_t          envTickTimerLogicClock;
+  uint64_t          envTickTimerLogicClock;  // if use queue, should pass logic clock into queue item
   uint64_t          envTickTimerLogicClockUser;
   TAOS_TMR_CALLBACK FpEnvTickTimer;  // Timer Fp
   uint64_t          envTickTimerCounter;

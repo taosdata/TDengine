@@ -25,8 +25,15 @@ int main() {
   ret = syncIOStart((char*)"127.0.0.1", 7010);
   assert(ret == 0);
 
-  ret = syncIOTickPing();
-  assert(ret == 0);
+  for (int i = 0; i < 3; ++i) {
+    ret = syncIOPingTimerStart();
+    assert(ret == 0);
+    taosMsleep(5000);
+
+    ret = syncIOPingTimerStop();
+    assert(ret == 0);
+    taosMsleep(5000);
+  }
 
   while (1) {
     taosSsleep(1);

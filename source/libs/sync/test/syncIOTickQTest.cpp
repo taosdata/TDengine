@@ -25,11 +25,18 @@ int main() {
   ret = syncIOStart((char*)"127.0.0.1", 7010);
   assert(ret == 0);
 
-  ret = syncIOTickQ();
+  for (int i = 0; i < 3; ++i) {
+    ret = syncIOQTimerStart();
+    assert(ret == 0);
+    taosMsleep(5000);
+
+    ret = syncIOQTimerStop();
+    assert(ret == 0);
+    taosMsleep(5000);
+  }
+
+  ret = syncIOStop();
   assert(ret == 0);
 
-  while (1) {
-    taosSsleep(1);
-  }
   return 0;
 }
