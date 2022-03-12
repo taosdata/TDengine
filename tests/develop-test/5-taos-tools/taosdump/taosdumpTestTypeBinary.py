@@ -98,10 +98,13 @@ class TDTestCase:
         tdSql.checkData(0, 0, 't2')
         tdSql.checkData(1, 0, 't1')
 
-        tdSql.query("select btag from st")
-        tdSql.checkRows(2)
+        tdSql.query("select btag from st where tbname = 't1'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "test")
+
+        tdSql.query("select btag from st where tbname = 't2'")
+        tdSql.checkRows(1)
         tdSql.checkData(0, 0, None)
-        tdSql.checkData(1, 0, "test")
 
         tdSql.query("select * from st where btag = 'test'")
         tdSql.checkRows(2)
