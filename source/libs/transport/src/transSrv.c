@@ -260,7 +260,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   }
 
   tError("server conn %p read error: %s", conn, uv_err_name(nread));
-  if (nread < 0 || nread == UV_EOF) {
+  if (nread < 0) {
     conn->broken = true;
     transUnrefSrvHandle(conn);
 
