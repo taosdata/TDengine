@@ -80,9 +80,20 @@ typedef struct SExchangeLogicNode {
   int32_t srcGroupId;
 } SExchangeLogicNode;
 
+typedef enum EWindowType {
+  WINDOW_TYPE_INTERVAL = 1,
+  WINDOW_TYPE_SESSION,
+  WINDOW_TYPE_STATE
+} EWindowType;
+
 typedef struct SWindowLogicNode {
   SLogicNode node;
-  SNode* pWindow;
+  EWindowType winType;
+  SNodeList* pFuncs;
+  int64_t interval;
+  int64_t offset;
+  int64_t sliding;
+  SFillNode* pFill;
 } SWindowLogicNode;
 
 typedef enum ESubplanType {
@@ -198,9 +209,11 @@ typedef struct SExchangePhysiNode {
 
 typedef struct SIntervalPhysiNode {
   SPhysiNode node;
+  SNodeList* pExprs;   // these are expression list of parameter expression of function
+  SNodeList* pFuncs;
   int64_t interval;
-  int64_t sliding;
   int64_t offset;
+  int64_t sliding;
   SFillNode* pFill;
 } SIntervalPhysiNode;
 

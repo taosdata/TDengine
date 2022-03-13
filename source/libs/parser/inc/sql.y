@@ -198,7 +198,7 @@ col_name(A) ::= column_name(B).                                                 
 cmd ::= SHOW VGROUPS.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_VGROUPS_STMT, NULL); }
 cmd ::= SHOW db_name(B) NK_DOT VGROUPS.                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_VGROUPS_STMT, &B); }
 
-/************************************************ show vgroups ********************************************************/
+/************************************************ show mnodes *********************************************************/
 cmd ::= SHOW MNODES.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_MNODES_STMT, NULL); }
 
 /************************************************ select **************************************************************/

@@ -195,11 +195,7 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList) {
   pRequest->type = pQuery->msgType;
   SPlanContext cxt = { .queryId = pRequest->requestId, .pAstRoot = pQuery->pRoot, .acctId = pRequest->pTscObj->acctId };
-  int32_t  code = qCreateQueryPlan(&cxt, pPlan, pNodeList);
-  if (code != 0) {
-    return code;
-  }
-  return code;
+  return qCreateQueryPlan(&cxt, pPlan, pNodeList);
 }
 
 void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols) {
