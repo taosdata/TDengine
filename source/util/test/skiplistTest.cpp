@@ -74,7 +74,7 @@ void randKeyTest() {
       false, getkey);
 
   int32_t size = 200000;
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
 
   printf("generated %d keys is: \n", size);
 
@@ -337,7 +337,7 @@ void duplicatedKeyTest() {
 
 TEST(testCase, skiplist_test) {
   assert(sizeof(SSkipListKey) == 8);
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
 
   stringKeySkiplistTest();
   doubleSkipListTest();

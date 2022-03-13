@@ -131,7 +131,6 @@ static SNode* valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
     case TSDB_DATA_TYPE_DOUBLE:
       COPY_SCALAR_FIELD(datum.d);
       break;
-    case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:

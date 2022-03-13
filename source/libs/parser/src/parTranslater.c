@@ -287,7 +287,6 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
         pVal->datum.d = strtold(pVal->literal, &endPtr);
         break;
       }
-      case TSDB_DATA_TYPE_BINARY:
       case TSDB_DATA_TYPE_NCHAR:
       case TSDB_DATA_TYPE_VARCHAR:
       case TSDB_DATA_TYPE_VARBINARY: {
@@ -601,7 +600,6 @@ static int32_t translateStar(STranslateContext* pCxt, SSelectStmt* pSelect, bool
 static int32_t getPositionValue(const SValueNode* pVal) {
   switch (pVal->node.resType.type) {
     case TSDB_DATA_TYPE_NULL:
-    case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
@@ -1446,7 +1444,6 @@ static void valueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
     case TSDB_DATA_TYPE_DOUBLE:
       pVal->d = pNode->datum.d;
       break;
-    case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:

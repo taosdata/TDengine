@@ -1,9 +1,8 @@
 #include <gtest/gtest.h>
 #include <stdio.h>
-#include "syncEnv.h"
 #include "syncIO.h"
 #include "syncInt.h"
-#include "syncRaftStore.h"
+#include "syncMessage.h"
 #include "syncUtil.h"
 
 void logTest() {
@@ -15,116 +14,82 @@ void logTest() {
   sFatal("--- sync log test: fatal");
 }
 
-uint16_t ports[] = {7010, 7110, 7210, 7310, 7410};
-int32_t  replicaNum = 3;
-int32_t  myIndex = 0;
-
-SRaftId   ids[TSDB_MAX_REPLICA];
-SSyncInfo syncInfo;
-SSyncFSM* pFsm;
-
-SSyncNode* syncNodeInit() {
-  syncInfo.vgId = 1234;
-  syncInfo.rpcClient = gSyncIO->clientRpc;
-  syncInfo.FpSendMsg = syncIOSendMsg;
-  syncInfo.queue = gSyncIO->pMsgQ;
-  syncInfo.FpEqMsg = syncIOEqMsg;
-  syncInfo.pFsm = pFsm;
-  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./");
-
-  SSyncCfg* pCfg = &syncInfo.syncCfg;
-  pCfg->myIndex = myIndex;
-  pCfg->replicaNum = replicaNum;
-
-  for (int i = 0; i < replicaNum; ++i) {
-    pCfg->nodeInfo[i].nodePort = ports[i];
-    snprintf(pCfg->nodeInfo[i].nodeFqdn, sizeof(pCfg->nodeInfo[i].nodeFqdn), "%s", "127.0.0.1");
-    // taosGetFqdn(pCfg->nodeInfo[0].nodeFqdn);
-  }
-
-  SSyncNode* pSyncNode = syncNodeOpen(&syncInfo);
-  assert(pSyncNode != NULL);
-
-  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
-  gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
-  gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
-  gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
-  gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
-  gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
-  gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
-  gSyncIO->pSyncNode = pSyncNode;
-
-  return pSyncNode;
+SyncPing *createMsg() {
+  SRaftId srcId, destId;
+  srcId.addr = syncUtilAddr2U64("127.0.0.1", 1234);
+  srcId.vgId = 100;
+  destId.addr = syncUtilAddr2U64("127.0.0.1", 5678);
+  destId.vgId = 100;
+  SyncPing *pMsg = syncPingBuild3(&srcId, &destId);
+  return pMsg;
 }
 
-SSyncNode* syncInitTest() { return syncNodeInit(); }
-
-void initRaftId(SSyncNode* pSyncNode) {
-  for (int i = 0; i < replicaNum; ++i) {
-    ids[i] = pSyncNode->replicasId[i];
-    char* s = syncUtilRaftId2Str(&ids[i]);
-    printf("raftId[%d] : %s\n", i, s);
-    free(s);
-  }
+void test1() {
+  SyncPing *pMsg = createMsg();
+  syncPingPrint2((char *)"test1:", pMsg);
+  syncPingDestroy(pMsg);
 }
 
-int main(int argc, char** argv) {
+void test2() {
+  SyncPing *pMsg = createMsg();
+  uint32_t  len = pMsg->bytes;
+  char *    serialized = (char *)malloc(len);
+  syncPingSerialize(pMsg, serialized, len);
+  SyncPing *pMsg2 = syncPingBuild(pMsg->dataLen);
+  syncPingDeserialize(serialized, len, pMsg2);
+  syncPingPrint2((char *)"test2: syncPingSerialize -> syncPingDeserialize ", pMsg2);
+
+  free(serialized);
+  syncPingDestroy(pMsg);
+  syncPingDestroy(pMsg2);
+}
+
+void test3() {
+  SyncPing *pMsg = createMsg();
+  uint32_t  len;
+  char *    serialized = syncPingSerialize2(pMsg, &len);
+  SyncPing *pMsg2 = syncPingDeserialize2(serialized, len);
+  syncPingPrint2((char *)"test3: syncPingSerialize3 -> syncPingDeserialize2 ", pMsg2);
+
+  free(serialized);
+  syncPingDestroy(pMsg);
+  syncPingDestroy(pMsg2);
+}
+
+void test4() {
+  SyncPing *pMsg = createMsg();
+  SRpcMsg   rpcMsg;
+  syncPing2RpcMsg(pMsg, &rpcMsg);
+  SyncPing *pMsg2 = (SyncPing *)malloc(rpcMsg.contLen);
+  syncPingFromRpcMsg(&rpcMsg, pMsg2);
+  syncPingPrint2((char *)"test4: syncPing2RpcMsg -> syncPingFromRpcMsg ", pMsg2);
+
+  syncPingDestroy(pMsg);
+  syncPingDestroy(pMsg2);
+}
+
+void test5() {
+  SyncPing *pMsg = createMsg();
+  SRpcMsg   rpcMsg;
+  syncPing2RpcMsg(pMsg, &rpcMsg);
+  SyncPing *pMsg2 = syncPingFromRpcMsg2(&rpcMsg);
+  syncPingPrint2((char *)"test5: syncPing2RpcMsg -> syncPingFromRpcMsg2 ", pMsg2);
+
+  syncPingDestroy(pMsg);
+  syncPingDestroy(pMsg2);
+}
+
+int main() {
   // taosInitLog((char *)"syncTest.log", 100000, 10);
   tsAsyncLog = 0;
   sDebugFlag = 143 + 64;
+  logTest();
 
-  myIndex = 0;
-  if (argc >= 2) {
-    myIndex = atoi(argv[1]);
-  }
-
-  int32_t ret = syncIOStart((char*)"127.0.0.1", ports[myIndex]);
-  assert(ret == 0);
-
-  ret = syncEnvStart();
-  assert(ret == 0);
-
-  SSyncNode* pSyncNode = syncInitTest();
-  assert(pSyncNode != NULL);
-  syncNodePrint((char*)"----1", pSyncNode);
-
-  initRaftId(pSyncNode);
-
-  //---------------------------
-
-  sTrace("syncNodeStartPingTimer ...");
-  ret = syncNodeStartPingTimer(pSyncNode);
-  assert(ret == 0);
-  syncNodePrint((char*)"----2", pSyncNode);
-
-  sTrace("sleep ...");
-  taosMsleep(10000);
-
-  sTrace("syncNodeStopPingTimer ...");
-  ret = syncNodeStopPingTimer(pSyncNode);
-  assert(ret == 0);
-  syncNodePrint((char*)"----3", pSyncNode);
-
-  sTrace("sleep ...");
-  taosMsleep(5000);
-
-  sTrace("syncNodeStartPingTimer ...");
-  ret = syncNodeStartPingTimer(pSyncNode);
-  assert(ret == 0);
-  syncNodePrint((char*)"----4", pSyncNode);
-
-  sTrace("sleep ...");
-  taosMsleep(10000);
-
-  sTrace("syncNodeStopPingTimer ...");
-  ret = syncNodeStopPingTimer(pSyncNode);
-  assert(ret == 0);
-  syncNodePrint((char*)"----5", pSyncNode);
-
-  while (1) {
-    sTrace("while 1 sleep ...");
-    taosMsleep(1000);
-  }
+  test1();
+  test2();
+  test3();
+  test4();
+  test5();
 
   return 0;
 }

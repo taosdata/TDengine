@@ -19,11 +19,10 @@
 
 typedef struct SSrvConn {
   T_REF_DECLARE()
-  uv_tcp_t*   pTcp;
-  uv_write_t* pWriter;
-  uv_timer_t* pTimer;
+  uv_tcp_t*  pTcp;
+  uv_write_t pWriter;
+  uv_timer_t pTimer;
 
-  // uv_async_t* pWorkerAsync;
   queue       queue;
   int         ref;
   int         persist;  // persist connection or not
@@ -65,7 +64,7 @@ typedef struct SWorkThrdObj {
   queue           conn;
   pthread_mutex_t msgMtx;
   void*           pTransInst;
-  bool            stop;
+  bool            quit;
 } SWorkThrdObj;
 
 typedef struct SServerObj {
@@ -93,9 +92,9 @@ static int uvAuthMsg(SSrvConn* pConn, char* msg, int msgLen);
 
 static void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
 static void uvAllocReadBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
-static void uvOnReadCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf);
+static void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf);
 static void uvOnTimeoutCb(uv_timer_t* handle);
-static void uvOnWriteCb(uv_write_t* req, int status);
+static void uvOnSendCb(uv_write_t* req, int status);
 static void uvOnPipeWriteCb(uv_write_t* req, int status);
 static void uvOnAcceptCb(uv_stream_t* stream, int status);
 static void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf);
@@ -236,12 +235,12 @@ static void uvHandleReq(SSrvConn* pConn) {
          inet_ntoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), inet_ntoa(pConn->locaddr.sin_addr),
          ntohs(pConn->locaddr.sin_port), rpcMsg.contLen);
   (*(pRpc->cfp))(pRpc->parent, &rpcMsg, NULL);
-  // uv_timer_start(pConn->pTimer, uvHandleActivityTimeout, pRpc->idleTime * 10000, 0);
+  // uv_timer_start(&pConn->pTimer, uvHandleActivityTimeout, pRpc->idleTime * 10000, 0);
   // auth
   // validate msg type
 }
 
-void uvOnReadCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
+void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   // opt
   SSrvConn*    conn = cli->data;
   SConnBuffer* pBuf = &conn->readBuf;
@@ -283,7 +282,7 @@ void uvOnTimeoutCb(uv_timer_t* handle) {
   tError("server conn %p time out", pConn);
 }
 
-void uvOnWriteCb(uv_write_t* req, int status) {
+void uvOnSendCb(uv_write_t* req, int status) {
   SSrvConn* conn = req->data;
   transClearBuffer(&conn->readBuf);
   if (status == 0) {
@@ -312,6 +311,7 @@ static void uvOnPipeWriteCb(uv_write_t* req, int status) {
   } else {
     tError("fail to dispatch conn to work thread");
   }
+  free(req);
 }
 
 static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
@@ -349,8 +349,8 @@ static void uvStartSendRespInternal(SSrvMsg* smsg) {
   uvPrepareSendData(smsg, &wb);
 
   SSrvConn* pConn = smsg->pConn;
-  uv_timer_stop(pConn->pTimer);
-  uv_write(pConn->pWriter, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnWriteCb);
+  uv_timer_stop(&pConn->pTimer);
+  uv_write(&pConn->pWriter, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnSendCb);
 }
 static void uvStartSendResp(SSrvMsg* smsg) {
   // impl
@@ -417,8 +417,8 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
         uv_stop(pThrd->loop);
       } else {
         destroyAllConn(pThrd);
-        uv_loop_close(pThrd->loop);
-        pThrd->stop = true;
+        // uv_loop_close(pThrd->loop);
+        pThrd->quit = true;
       }
     } else {
       uvStartSendResp(msg);
@@ -493,9 +493,8 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
 
   pConn->pTransInst = pThrd->pTransInst;
   /* init conn timer*/
-  pConn->pTimer = malloc(sizeof(uv_timer_t));
-  uv_timer_init(pThrd->loop, pConn->pTimer);
-  pConn->pTimer->data = pConn;
+  uv_timer_init(pThrd->loop, &pConn->pTimer);
+  pConn->pTimer.data = pConn;
 
   pConn->hostThrd = pThrd;
 
@@ -504,8 +503,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
   uv_tcp_init(pThrd->loop, pConn->pTcp);
   pConn->pTcp->data = pConn;
 
-  pConn->pWriter = calloc(1, sizeof(uv_write_t));
-  pConn->pWriter->data = pConn;
+  pConn->pWriter.data = pConn;
 
   transSetConnOption((uv_tcp_t*)pConn->pTcp);
 
@@ -528,7 +526,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       return;
     }
 
-    uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocReadBufferCb, uvOnReadCb);
+    uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocReadBufferCb, uvOnRecvCb);
 
   } else {
     tDebug("failed to create new connection");
@@ -633,17 +631,20 @@ static void destroyConn(SSrvConn* conn, bool clear) {
   }
 }
 static void uvDestroyConn(uv_handle_t* handle) {
-  SSrvConn*     conn = handle->data;
+  SSrvConn* conn = handle->data;
+  if (conn == NULL) {
+    return;
+  }
   SWorkThrdObj* thrd = conn->hostThrd;
 
   tDebug("server conn %p destroy", conn);
-  uv_timer_stop(conn->pTimer);
+  uv_timer_stop(&conn->pTimer);
   QUEUE_REMOVE(&conn->queue);
   free(conn->pTcp);
-  free(conn->pWriter);
   free(conn);
 
-  if (thrd->stop && QUEUE_IS_EMPTY(&thrd->conn)) {
+  if (thrd->quit && QUEUE_IS_EMPTY(&thrd->conn)) {
+    uv_loop_close(thrd->loop);
     uv_stop(thrd->loop);
   }
 }
@@ -680,7 +681,7 @@ void* taosInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, 
 
   for (int i = 0; i < srv->numOfThreads; i++) {
     SWorkThrdObj* thrd = (SWorkThrdObj*)calloc(1, sizeof(SWorkThrdObj));
-    thrd->stop = false;
+    thrd->quit = false;
     srv->pThreadObj[i] = thrd;
 
     srv->pipe[i] = (uv_pipe_t*)calloc(2, sizeof(uv_pipe_t));

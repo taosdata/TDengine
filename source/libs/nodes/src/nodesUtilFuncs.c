@@ -390,7 +390,6 @@ void* nodesGetValueFromNode(SValueNode *pNode) {
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE: 
       return (void*)&pNode->datum.d;
-    case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY: 
