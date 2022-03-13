@@ -92,9 +92,9 @@ static int uvAuthMsg(SSrvConn* pConn, char* msg, int msgLen);
 
 static void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
 static void uvAllocReadBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
-static void uvOnReadCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf);
+static void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf);
 static void uvOnTimeoutCb(uv_timer_t* handle);
-static void uvOnWriteCb(uv_write_t* req, int status);
+static void uvOnSendCb(uv_write_t* req, int status);
 static void uvOnPipeWriteCb(uv_write_t* req, int status);
 static void uvOnAcceptCb(uv_stream_t* stream, int status);
 static void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf);
@@ -240,7 +240,7 @@ static void uvHandleReq(SSrvConn* pConn) {
   // validate msg type
 }
 
-void uvOnReadCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
+void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   // opt
   SSrvConn*    conn = cli->data;
   SConnBuffer* pBuf = &conn->readBuf;
@@ -282,7 +282,7 @@ void uvOnTimeoutCb(uv_timer_t* handle) {
   tError("server conn %p time out", pConn);
 }
 
-void uvOnWriteCb(uv_write_t* req, int status) {
+void uvOnSendCb(uv_write_t* req, int status) {
   SSrvConn* conn = req->data;
   transClearBuffer(&conn->readBuf);
   if (status == 0) {
@@ -350,7 +350,7 @@ static void uvStartSendRespInternal(SSrvMsg* smsg) {
 
   SSrvConn* pConn = smsg->pConn;
   uv_timer_stop(&pConn->pTimer);
-  uv_write(&pConn->pWriter, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnWriteCb);
+  uv_write(&pConn->pWriter, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnSendCb);
 }
 static void uvStartSendResp(SSrvMsg* smsg) {
   // impl
@@ -526,7 +526,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       return;
     }
 
-    uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocReadBufferCb, uvOnReadCb);
+    uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocReadBufferCb, uvOnRecvCb);
 
   } else {
     tDebug("failed to create new connection");
@@ -641,7 +641,7 @@ static void uvDestroyConn(uv_handle_t* handle) {
   uv_timer_stop(&conn->pTimer);
   QUEUE_REMOVE(&conn->queue);
   free(conn->pTcp);
-  // free(conn);
+  free(conn);
 
   if (thrd->quit && QUEUE_IS_EMPTY(&thrd->conn)) {
     uv_loop_close(thrd->loop);
