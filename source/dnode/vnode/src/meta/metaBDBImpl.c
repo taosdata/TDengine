@@ -231,29 +231,30 @@ int metaSaveSmaToDB(SMeta *pMeta, STSma *pSmaCfg) {
   void *pBuf = NULL, *qBuf = NULL;
   DBT   key1 = {0}, value1 = {0};
 
-  {
-    // save sma info
-    int32_t len = tEncodeTSma(NULL, pSmaCfg);
-    pBuf = calloc(len, 1);
-    if (pBuf == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
-    }
-
-    key1.data = (void *)&pSmaCfg->indexUid;
-    key1.size = sizeof(pSmaCfg->indexUid);
-
-    qBuf = pBuf;
-    tEncodeTSma(&qBuf, pSmaCfg);
-
-    value1.data = pBuf;
-    value1.size = POINTER_DISTANCE(qBuf, pBuf);
-    value1.app_data = pSmaCfg;
+  // save sma info
+  int32_t len = tEncodeTSma(NULL, pSmaCfg);
+  pBuf = calloc(len, 1);
+  if (pBuf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
   }
+
+  key1.data = (void *)&pSmaCfg->indexUid;
+  key1.size = sizeof(pSmaCfg->indexUid);
+
+  qBuf = pBuf;
+  tEncodeTSma(&qBuf, pSmaCfg);
+
+  value1.data = pBuf;
+  value1.size = POINTER_DISTANCE(qBuf, pBuf);
+  value1.app_data = pSmaCfg;
 
   metaDBWLock(pMeta->pDB);
   pMeta->pDB->pSmaDB->put(pMeta->pDB->pSmaDB, NULL, &key1, &value1, 0);
   metaDBULock(pMeta->pDB);
+
+  // release
+  tfree(pBuf);
 
   return 0;
 }

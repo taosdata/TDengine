@@ -27,6 +27,7 @@
 #include "ttime.h"
 
 #include "tsdb.h"
+#include "tsdbDBDef.h"
 #include "tsdbCommit.h"
 #include "tsdbFS.h"
 #include "tsdbFile.h"
@@ -36,6 +37,7 @@
 #include "tsdbOptions.h"
 #include "tsdbReadImpl.h"
 #include "tsdbSma.h"
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,7 +58,6 @@ struct STsdb {
   STfs *                pTfs;
   SSmaEnv *             pTSmaEnv;
   SSmaEnv *             pRSmaEnv;
-  // SSmaStat *            pSmaStat;
 };
 
 #define REPO_ID(r)        ((r)->vgId)

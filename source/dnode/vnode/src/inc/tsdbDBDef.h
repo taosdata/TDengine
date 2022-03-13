@@ -25,8 +25,16 @@ extern "C" {
 typedef struct SDBFile SDBFile;
 typedef DB_ENV*        TDBEnv;
 
+struct SDBFile {
+  DB*   pDB;
+  char* path;
+};
+
 int32_t tsdbOpenDBF(TDBEnv pEnv, SDBFile* pDBF);
 void    tsdbCloseDBF(SDBFile* pDBF);
+int32_t tsdbOpenBDBEnv(DB_ENV** ppEnv, const char* path);
+void    tsdbCloseBDBEnv(DB_ENV* pEnv);
+int32_t tsdbSaveSmaToDB(SDBFile* pDBF, void* key, uint32_t keySize, void* data, uint32_t dataSize);
 
 #ifdef __cplusplus
 }

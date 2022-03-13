@@ -223,14 +223,12 @@ TEST(testCase, tSma_DB_Put_Get_Del_Test) {
 TEST(testCase, tSmaInsertTest) {
   // prepare meta
   const char *   smaIndexName1 = "sma_index_test_1";
-  const char *   smaIndexName2 = "sma_index_test_2";
   const char *   timezone = "Asia/Shanghai";
   const char *   expr = "select count(a,b, top 20), from table interval 1d, sliding 1h;";
   const char *   tagsFilter = "I'm tags filter";
   const char *   smaTestDir = "./smaTest";
   const tb_uid_t tbUid = 1234567890;
   const int64_t  indexUid1 = 2000000001;
-  const int64_t  indexUid2 = 2000000002;
   const uint32_t nCntTSma = 2;
   // encode
   STSma tSma = {0};
@@ -263,15 +261,20 @@ TEST(testCase, tSmaInsertTest) {
   // save index 1
   EXPECT_EQ(metaSaveSmaToDB(pMeta, pSmaCfg), 0);
 
-
   // insert data
-  const int64_t     indexUid = 2000000002;
   STSmaDataWrapper *pSmaData = NULL;
   STsdb             tsdb = {0};
   STsdbCfg *        pCfg = &tsdb.config;
 
-  pCfg->daysPerFile = 1;
   tsdb.pMeta = pMeta;
+  tsdb.vgId = 2;
+  tsdb.config.daysPerFile = 10;  // default days is 10
+  tsdb.config.keep1 = 30;
+  tsdb.config.keep2 = 90;
+  tsdb.config.keep = 365;
+  tsdb.config.precision = TSDB_TIME_PRECISION_MILLI;
+  tsdb.config.update = TD_ROW_OVERWRITE_UPDATE;
+  tsdb.config.compression = TWO_STAGE_COMP;
 
   char *msg = (char *)calloc(100, 1);
   EXPECT_EQ(tsdbUpdateSmaWindow(&tsdb, TSDB_SMA_TYPE_TIME_RANGE, msg), 0);
@@ -283,16 +286,16 @@ TEST(testCase, tSmaInsertTest) {
   void *  buf = NULL;
   EXPECT_EQ(tsdbMakeRoom(&buf, allocStep), 0);
   int32_t  bufSize = taosTSizeof(buf);
-  int32_t  numOfTables = 25;
-  col_id_t numOfCols = 4096;
+  int32_t  numOfTables = 5;
+  col_id_t numOfCols = 10;
   EXPECT_GT(numOfCols, 0);
 
   pSmaData = (STSmaDataWrapper *)buf;
   printf(">> allocate [%d] time to %d and addr is %p\n", ++allocCnt, bufSize, pSmaData);
-  pSmaData->skey = 1646987196;
+  pSmaData->skey = 1646987196000;
   pSmaData->interval = 10;
   pSmaData->intervalUnit = TD_TIME_UNIT_MINUTE;
-  pSmaData->indexUid = indexUid;
+  pSmaData->indexUid = indexUid1;
 
   int32_t len = sizeof(STSmaDataWrapper);
   for (int32_t t = 0; t < numOfTables; ++t) {

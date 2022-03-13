@@ -16,30 +16,29 @@
 #define ALLOW_FORBID_FUNC
 #include "db.h"
 
+#include "taoserror.h"
 #include "tcoding.h"
 #include "thash.h"
 #include "tsdbDBDef.h"
+#include "tsdbLog.h"
 
 #define IMPL_WITH_LOCK 1
 
-struct SDBFile {
-  DB *  pDB;
-  char *path;
-};
+static int  tsdbOpenBDBDb(DB **ppDB, DB_ENV *pEnv, const char *pFName, bool isDup);
+static void tsdbCloseBDBDb(DB *pDB);
 
-static int   tsdbOpenBDBEnv(DB_ENV **ppEnv, const char *path);
-static void  tsdbCloseBDBEnv(DB_ENV *pEnv);
-static int   tsdbOpenBDBDb(DB **ppDB, DB_ENV *pEnv, const char *pFName, bool isDup);
-static void  tsdbCloseBDBDb(DB *pDB);
-
-#define BDB_PERR(info, code) fprintf(stderr, info " reason: %s", db_strerror(code))
+#define BDB_PERR(info, code) fprintf(stderr, "%s:%d " info " reason: %s\n", __FILE__, __LINE__, db_strerror(code))
 
 int tsdbOpenDBF(TDBEnv pEnv, SDBFile *pDBF) {
   // TDBEnv is shared by a group of SDBFile
-  ASSERT(pEnv != NULL);
+  if (!pEnv) {
+    terrno = TSDB_CODE_INVALID_PTR;
+    return -1;
+  }
 
   // Open DBF
   if (tsdbOpenBDBDb(&(pDBF->pDB), pEnv, pDBF->path, false) < 0) {
+    terrno = TSDB_CODE_TDB_INIT_FAILED;
     tsdbCloseBDBDb(pDBF->pDB);
     return -1;
   }
@@ -61,7 +60,7 @@ void tsdbCloseDBF(SDBFile *pDBF) {
   }
 }
 
-static int tsdbOpenBDBEnv(DB_ENV **ppEnv, const char *path) {
+int32_t tsdbOpenBDBEnv(DB_ENV **ppEnv, const char *path) {
   int     ret = 0;
   DB_ENV *pEnv = NULL;
 
@@ -75,7 +74,8 @@ static int tsdbOpenBDBEnv(DB_ENV **ppEnv, const char *path) {
 
   ret = pEnv->open(pEnv, path, DB_CREATE | DB_INIT_CDB | DB_INIT_MPOOL, 0);
   if (ret != 0) {
-    BDB_PERR("Failed to open tsdb env", ret);
+    // BDB_PERR("Failed to open tsdb env", ret);
+    tsdbWarn("Failed to open tsdb env for path %s since %d", path ? path : "NULL", ret);
     return -1;
   }
 
@@ -84,7 +84,7 @@ static int tsdbOpenBDBEnv(DB_ENV **ppEnv, const char *path) {
   return 0;
 }
 
-static void tsdbCloseBDBEnv(DB_ENV *pEnv) {
+void tsdbCloseBDBEnv(DB_ENV *pEnv) {
   if (pEnv) {
     pEnv->close(pEnv, 0);
   }
@@ -123,4 +123,26 @@ static void tsdbCloseBDBDb(DB *pDB) {
   if (pDB) {
     pDB->close(pDB, 0);
   }
+}
+
+int32_t tsdbSaveSmaToDB(SDBFile *pDBF, void *key, uint32_t keySize, void *data, uint32_t dataSize) {
+  int ret;
+  DBT key1 = {0}, value1 = {0};
+
+  key1.data = key;
+  key1.size = keySize;
+
+  value1.data = data;
+  value1.size = dataSize;
+
+  // TODO: lock
+  ret = pDBF->pDB->put(pDBF->pDB, NULL, &key1, &value1, 0);
+  if (ret) {
+    BDB_PERR("Failed to put data to DBF", ret);
+    // TODO: unlock
+    return -1;
+  }
+  // TODO: unlock
+
+  return 0;
 }

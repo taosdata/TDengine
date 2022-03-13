@@ -19,9 +19,9 @@
 typedef struct SSmaStat SSmaStat;
 typedef struct SSmaEnv  SSmaEnv;
 
-
 struct SSmaEnv {
   pthread_rwlock_t lock;
+  TDBEnv           dbEnv;
   char *           path;
   SSmaStat *       pStat;
 };
