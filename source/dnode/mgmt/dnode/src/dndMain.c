@@ -82,6 +82,7 @@ static void dndClearDnodeMem(SDnode *pDnode) {
     taosUnLockFile(pDnode->pLockFile);
     taosCloseFile(&pDnode->pLockFile);
   }
+  tfree(pDnode->path);
   dDebug("dnode object memory is cleared, data:%p", pDnode);
 }
 
@@ -140,6 +141,15 @@ SDnode *dndCreate(SDndCfg *pCfg) {
   }
 
   dndSetStatus(pDnode, DND_STAT_INIT);
+
+  snprintf(path, sizeof(path), "%s%sdnode", pCfg->dataDir, TD_DIRSEP);
+  pDnode->path = strdup(path);
+  if (taosMkDir(path) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to create dir:%s since %s", path, terrstr());
+    goto _OVER;
+  }
+
   pDnode->mgmts[MNODE].fp = mmGetNodeFp();
   pDnode->mgmts[VNODES].fp = vndGetNodeFp();
   pDnode->mgmts[QNODE].fp = qndGetNodeFp();
@@ -174,13 +184,6 @@ SDnode *dndCreate(SDndCfg *pCfg) {
 
   pDnode->pLockFile = dndCheckRunning(pCfg->dataDir);
   if (pDnode->pLockFile == NULL) {
-    goto _OVER;
-  }
-
-  snprintf(path, sizeof(path), "%s%sdnode", pCfg->dataDir, TD_DIRSEP);
-  if (taosMkDir(path) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to create dir:%s since %s", path, terrstr());
     goto _OVER;
   }
 
@@ -285,14 +288,15 @@ int32_t dndInit() {
     return -1;
   }
 
-  SVnodeOpt vnodeOpt = {
-      .nthreads = tsNumOfCommitThreads, .putReqToVQueryQFp = dndPutReqToVQueryQ, .sendReqToDnodeFp = dndSendReqToDnode};
 
-  if (vnodeInit(&vnodeOpt) != 0) {
-    dError("failed to init vnode since %s", terrstr());
-    dndCleanup();
-    return -1;
-  }
+  // SVnodeOpt vnodeOpt = {
+  //     .nthreads = tsNumOfCommitThreads, .putReqToVQueryQFp = dndPutReqToVQueryQ, .sendReqToDnodeFp = dndSendReqToDnode};
+
+  // if (vnodeInit(&vnodeOpt) != 0) {
+  //   dError("failed to init vnode since %s", terrstr());
+  //   dndCleanup();
+  //   return -1;
+  // }
 
   SMonCfg monCfg = {.maxLogs = tsMonitorMaxLogs, .port = tsMonitorPort, .server = tsMonitorFqdn, .comp = tsMonitorComp};
   if (monInit(&monCfg) != 0) {
@@ -312,7 +316,7 @@ void dndCleanup() {
   }
 
   walCleanUp();
-  vnodeCleanup();
+  // vnodeCleanup();
   rpcCleanup();
   monCleanup();
 

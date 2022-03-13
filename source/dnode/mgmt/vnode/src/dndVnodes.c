@@ -19,6 +19,7 @@
 #include "dndTransport.h"
 #include "sync.h"
 
+#if 0
 typedef struct {
   int32_t  vgId;
   int32_t  vgVersion;
@@ -1022,3 +1023,5 @@ void dndGetVnodeLoads(SDnode *pDnode, SArray *pLoads) {
   pStat->numOfBatchInsertReqs = numOfBatchInsertReqs;
   pStat->numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs;
 }
+
+#endif

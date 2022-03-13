@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dndMonitor.h"
+#include "dndMgmt.h"
 
 static int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {
   tstrncpy(pInfo->logdir.name, tsLogDir, sizeof(pInfo->logdir.name));
@@ -72,7 +73,7 @@ void dndSendMonitorReport(SDnode *pDnode) {
   SMonBasicInfo basicInfo = {0};
   dndGetMonitorBasicInfo(pDnode, &basicInfo);
   monSetBasicInfo(pMonitor, &basicInfo);
-
+#if 0
   SMonClusterInfo clusterInfo = {0};
   SMonVgroupInfo  vgroupInfo = {0};
   SMonGrantInfo   grantInfo = {0};
@@ -95,7 +96,7 @@ void dndSendMonitorReport(SDnode *pDnode) {
   taosArrayDestroy(clusterInfo.mnodes);
   taosArrayDestroy(vgroupInfo.vgroups);
   taosArrayDestroy(diskInfo.datadirs);
-
+#endif
   monSendReport(pMonitor);
   monCleanupMonitorInfo(pMonitor);
 }

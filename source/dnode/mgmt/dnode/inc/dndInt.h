@@ -94,7 +94,6 @@ typedef struct {
   int64_t      updateTime;
   int8_t       statusSent;
   SEpSet       mnodeEpSet;
-  char        *file;
   SHashObj    *dnodeHash;
   SArray      *pDnodeEps;
   pthread_t   *threadId;
@@ -207,6 +206,7 @@ typedef struct SDnode {
   STfs        *pTfs;
   SMgmtFp      fps[NODE_MAX];
   SMgmtWrapper mgmts[NODE_MAX];
+  char        *path;
 } SDnode;
 
 EDndStatus  dndGetStatus(SDnode *pDnode);

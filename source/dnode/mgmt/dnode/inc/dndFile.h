@@ -13,24 +13,25 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_QNODE_H_
-#define _TD_DND_QNODE_H_
+#ifndef _TD_DND_FILE_H_
+#define _TD_DND_FILE_H_
+
+#include "dndInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "dndEnv.h"
 
-int32_t dndInitQnode(SDnode *pDnode);
-void    dndCleanupQnode(SDnode *pDnode);
+int32_t dndReadFile(SDnode *pDnode);
+int32_t dndWriteFile(SDnode *pDnode);
 
-void    dndProcessQnodeQueryMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
-void    dndProcessQnodeFetchMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
-int32_t dndProcessCreateQnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t dndProcessDropQnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+void dndUpdateDnodeEps(SDnode *pDnode, SArray *pDnodeEps);
+void dndResetDnodes(SDnode *pDnode, SArray *pDnodeEps);
+void dndPrintDnodes(SDnode *pDnode);
+bool dndIsEpChanged(SDnode *pDnode, int32_t dnodeId, char *pEp);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DND_QNODE_H_*/
+#endif /*_TD_DND_FILE_H_*/

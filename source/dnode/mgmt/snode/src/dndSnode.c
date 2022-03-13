@@ -19,6 +19,7 @@
 #include "dndTransport.h"
 #include "dndWorker.h"
 
+#if 0
 static void dndProcessSnodeQueue(SDnode *pDnode, SRpcMsg *pMsg);
 
 static SSnode *dndAcquireSnode(SDnode *pDnode) {
@@ -368,3 +369,5 @@ void dndCleanupSnode(SDnode *pDnode) {
     pMgmt->pSnode = NULL;
   }
 }
+
+#endif

@@ -19,6 +19,7 @@
 #include "dndMgmt.h"
 #include "dndTransport.h"
 
+#if 0
 static void    mmInitOption(SDnode *pDnode, SMnodeOpt *pOption);
 static void    mmBuildOptionForDeploy(SDnode *pDnode, SMnodeOpt *pOption);
 static void    mmBuildOptionForOpen(SDnode *pDnode, SMnodeOpt *pOption);
@@ -315,3 +316,5 @@ static int32_t mmOpenImp(SDnode *pDnode, SMnodeOpt *pOption) {
   dInfo("mnode open successfully");
   return 0;
 }
+
+#endif

@@ -20,6 +20,7 @@
 #include "dndTransport.h"
 #include "dndWorker.h"
 
+#if 0
 static int32_t mmProcessWriteMsg(SDnode *pDnode, SMndMsg *pMsg);
 static int32_t mmProcessSyncMsg(SDnode *pDnode, SMndMsg *pMsg);
 static int32_t mmProcessReadMsg(SDnode *pDnode, SMndMsg *pMsg);
@@ -336,3 +337,5 @@ static void mmConsumeMsgQueue(SDnode *pDnode, SMndMsg *pMsg) {
   rpcFreeCont(pRpc->pCont);
   taosFreeQitem(pMsg);
 }
+
+#endif

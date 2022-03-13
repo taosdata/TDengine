@@ -15,21 +15,21 @@
 
 #define _DEFAULT_SOURCE
 #include "dndMgmt.h"
-#include "dndBnode.h"
-#include "mm.h"
-#include "dndQnode.h"
-#include "dndSnode.h"
-#include "dndTransport.h"
-#include "dndVnodes.h"
-#include "dndWorker.h"
-#include "monitor.h"
-
 #include "dndMonitor.h"
+// #include "dndBnode.h"
+// #include "mm.h"
+// #include "dndQnode.h"
+// #include "dndSnode.h"
+#include "dndTransport.h"
+// #include "dndVnodes.h"
+#include "dndWorker.h"
+// #include "monitor.h"
 
+#if 0
 static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg);
 
-static int32_t dndReadDnodes(SDnode *pDnode);
-static int32_t dndWriteDnodes(SDnode *pDnode);
+static int32_t dndReadFile(SDnode *pDnode);
+static int32_t dndWriteFile(SDnode *pDnode);
 static void   *dnodeThreadRoutine(void *param);
 
 static int32_t dndProcessConfigDnodeReq(SDnode *pDnode, SRpcMsg *pReq);
@@ -113,246 +113,6 @@ static void dndUpdateMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
   taosWUnLockLatch(&pMgmt->latch);
 }
 
-static void dndPrintDnodes(SDnode *pDnode) {
-  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-
-  int32_t numOfEps = (int32_t)taosArrayGetSize(pMgmt->pDnodeEps);
-  dDebug("print dnode ep list, num:%d", numOfEps);
-  for (int32_t i = 0; i < numOfEps; i++) {
-    SDnodeEp *pEp = taosArrayGet(pMgmt->pDnodeEps, i);
-    dDebug("dnode:%d, fqdn:%s port:%u isMnode:%d", pEp->id, pEp->ep.fqdn, pEp->ep.port, pEp->isMnode);
-  }
-}
-
-static void dndResetDnodes(SDnode *pDnode, SArray *pDnodeEps) {
-  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-
-  if (pMgmt->pDnodeEps != pDnodeEps) {
-    SArray *tmp = pMgmt->pDnodeEps;
-    pMgmt->pDnodeEps = taosArrayDup(pDnodeEps);
-    taosArrayDestroy(tmp);
-  }
-
-  pMgmt->mnodeEpSet.inUse = 0;
-  pMgmt->mnodeEpSet.numOfEps = 0;
-
-  int32_t mIndex = 0;
-  int32_t numOfEps = (int32_t)taosArrayGetSize(pDnodeEps);
-
-  for (int32_t i = 0; i < numOfEps; i++) {
-    SDnodeEp *pDnodeEp = taosArrayGet(pDnodeEps, i);
-    if (!pDnodeEp->isMnode) continue;
-    if (mIndex >= TSDB_MAX_REPLICA) continue;
-    pMgmt->mnodeEpSet.numOfEps++;
-
-    pMgmt->mnodeEpSet.eps[mIndex] = pDnodeEp->ep;
-    mIndex++;
-  }
-
-  for (int32_t i = 0; i < numOfEps; i++) {
-    SDnodeEp *pDnodeEp = taosArrayGet(pDnodeEps, i);
-    taosHashPut(pMgmt->dnodeHash, &pDnodeEp->id, sizeof(int32_t), pDnodeEp, sizeof(SDnodeEp));
-  }
-
-  dndPrintDnodes(pDnode);
-}
-
-static bool dndIsEpChanged(SDnode *pDnode, int32_t dnodeId, char *pEp) {
-  bool changed = false;
-
-  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-  taosRLockLatch(&pMgmt->latch);
-
-  SDnodeEp *pDnodeEp = taosHashGet(pMgmt->dnodeHash, &dnodeId, sizeof(int32_t));
-  if (pDnodeEp != NULL) {
-    char epstr[TSDB_EP_LEN + 1];
-    snprintf(epstr, TSDB_EP_LEN, "%s:%u", pDnodeEp->ep.fqdn, pDnodeEp->ep.port);
-    changed = strcmp(pEp, epstr) != 0;
-  }
-
-  taosRUnLockLatch(&pMgmt->latch);
-  return changed;
-}
-
-static int32_t dndReadDnodes(SDnode *pDnode) {
-  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-
-  pMgmt->pDnodeEps = taosArrayInit(1, sizeof(SDnodeEp));
-  if (pMgmt->pDnodeEps == NULL) {
-    dError("failed to calloc dnodeEp array since %s", strerror(errno));
-    goto PRASE_DNODE_OVER;
-  }
-
-  int32_t code = TSDB_CODE_DND_DNODE_READ_FILE_ERROR;
-  int32_t len = 0;
-  int32_t maxLen = 256 * 1024;
-  char   *content = calloc(1, maxLen + 1);
-  cJSON  *root = NULL;
-
-  TdFilePtr pFile = taosOpenFile(pMgmt->file, TD_FILE_READ);
-  if (pFile == NULL) {
-    dDebug("file %s not exist", pMgmt->file);
-    code = 0;
-    goto PRASE_DNODE_OVER;
-  }
-
-  len = (int32_t)taosReadFile(pFile, content, maxLen);
-  if (len <= 0) {
-    dError("failed to read %s since content is null", pMgmt->file);
-    goto PRASE_DNODE_OVER;
-  }
-
-  content[len] = 0;
-  root = cJSON_Parse(content);
-  if (root == NULL) {
-    dError("failed to read %s since invalid json format", pMgmt->file);
-    goto PRASE_DNODE_OVER;
-  }
-
-  cJSON *dnodeId = cJSON_GetObjectItem(root, "dnodeId");
-  if (!dnodeId || dnodeId->type != cJSON_Number) {
-    dError("failed to read %s since dnodeId not found", pMgmt->file);
-    goto PRASE_DNODE_OVER;
-  }
-  pMgmt->dnodeId = dnodeId->valueint;
-
-  cJSON *clusterId = cJSON_GetObjectItem(root, "clusterId");
-  if (!clusterId || clusterId->type != cJSON_String) {
-    dError("failed to read %s since clusterId not found", pMgmt->file);
-    goto PRASE_DNODE_OVER;
-  }
-  pMgmt->clusterId = atoll(clusterId->valuestring);
-
-  cJSON *dropped = cJSON_GetObjectItem(root, "dropped");
-  if (!dropped || dropped->type != cJSON_Number) {
-    dError("failed to read %s since dropped not found", pMgmt->file);
-    goto PRASE_DNODE_OVER;
-  }
-  pMgmt->dropped = dropped->valueint;
-
-  cJSON *dnodes = cJSON_GetObjectItem(root, "dnodes");
-  if (!dnodes || dnodes->type != cJSON_Array) {
-    dError("failed to read %s since dnodes not found", pMgmt->file);
-    goto PRASE_DNODE_OVER;
-  }
-
-  int32_t numOfDnodes = cJSON_GetArraySize(dnodes);
-  if (numOfDnodes <= 0) {
-    dError("failed to read %s since numOfDnodes:%d invalid", pMgmt->file, numOfDnodes);
-    goto PRASE_DNODE_OVER;
-  }
-
-  for (int32_t i = 0; i < numOfDnodes; ++i) {
-    cJSON *node = cJSON_GetArrayItem(dnodes, i);
-    if (node == NULL) break;
-
-    SDnodeEp dnodeEp = {0};
-
-    cJSON *did = cJSON_GetObjectItem(node, "id");
-    if (!did || did->type != cJSON_Number) {
-      dError("failed to read %s since dnodeId not found", pMgmt->file);
-      goto PRASE_DNODE_OVER;
-    }
-
-    dnodeEp.id = dnodeId->valueint;
-
-    cJSON *dnodeFqdn = cJSON_GetObjectItem(node, "fqdn");
-    if (!dnodeFqdn || dnodeFqdn->type != cJSON_String || dnodeFqdn->valuestring == NULL) {
-      dError("failed to read %s since dnodeFqdn not found", pMgmt->file);
-      goto PRASE_DNODE_OVER;
-    }
-    tstrncpy(dnodeEp.ep.fqdn, dnodeFqdn->valuestring, TSDB_FQDN_LEN);
-
-    cJSON *dnodePort = cJSON_GetObjectItem(node, "port");
-    if (!dnodePort || dnodePort->type != cJSON_Number) {
-      dError("failed to read %s since dnodePort not found", pMgmt->file);
-      goto PRASE_DNODE_OVER;
-    }
-
-    dnodeEp.ep.port = dnodePort->valueint;
-
-    cJSON *isMnode = cJSON_GetObjectItem(node, "isMnode");
-    if (!isMnode || isMnode->type != cJSON_Number) {
-      dError("failed to read %s since isMnode not found", pMgmt->file);
-      goto PRASE_DNODE_OVER;
-    }
-    dnodeEp.isMnode = isMnode->valueint;
-
-    taosArrayPush(pMgmt->pDnodeEps, &dnodeEp);
-  }
-
-  code = 0;
-  dInfo("succcessed to read file %s", pMgmt->file);
-  dndPrintDnodes(pDnode);
-
-PRASE_DNODE_OVER:
-  if (content != NULL) free(content);
-  if (root != NULL) cJSON_Delete(root);
-  if (pFile != NULL) taosCloseFile(&pFile);
-
-  if (dndIsEpChanged(pDnode, pMgmt->dnodeId, pDnode->cfg.localEp)) {
-    dError("localEp %s different with %s and need reconfigured", pDnode->cfg.localEp, pMgmt->file);
-    return -1;
-  }
-
-  if (taosArrayGetSize(pMgmt->pDnodeEps) == 0) {
-    SDnodeEp dnodeEp = {0};
-    dnodeEp.isMnode = 1;
-    taosGetFqdnPortFromEp(pDnode->cfg.firstEp, &dnodeEp.ep);
-    taosArrayPush(pMgmt->pDnodeEps, &dnodeEp);
-  }
-
-  dndResetDnodes(pDnode, pMgmt->pDnodeEps);
-
-  terrno = 0;
-  return 0;
-}
-
-static int32_t dndWriteDnodes(SDnode *pDnode) {
-  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-
-  TdFilePtr pFile = taosOpenFile(pMgmt->file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
-  if (pFile == NULL) {
-    dError("failed to write %s since %s", pMgmt->file, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-
-  int32_t len = 0;
-  int32_t maxLen = 256 * 1024;
-  char   *content = calloc(1, maxLen + 1);
-
-  len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"dnodeId\": %d,\n", pMgmt->dnodeId);
-  len += snprintf(content + len, maxLen - len, "  \"clusterId\": \"%" PRId64 "\",\n", pMgmt->clusterId);
-  len += snprintf(content + len, maxLen - len, "  \"dropped\": %d,\n", pMgmt->dropped);
-  len += snprintf(content + len, maxLen - len, "  \"dnodes\": [{\n");
-
-  int32_t numOfEps = (int32_t)taosArrayGetSize(pMgmt->pDnodeEps);
-  for (int32_t i = 0; i < numOfEps; ++i) {
-    SDnodeEp *pDnodeEp = taosArrayGet(pMgmt->pDnodeEps, i);
-    len += snprintf(content + len, maxLen - len, "    \"id\": %d,\n", pDnodeEp->id);
-    len += snprintf(content + len, maxLen - len, "    \"fqdn\": \"%s\",\n", pDnodeEp->ep.fqdn);
-    len += snprintf(content + len, maxLen - len, "    \"port\": %u,\n", pDnodeEp->ep.port);
-    len += snprintf(content + len, maxLen - len, "    \"isMnode\": %d\n", pDnodeEp->isMnode);
-    if (i < numOfEps - 1) {
-      len += snprintf(content + len, maxLen - len, "  },{\n");
-    } else {
-      len += snprintf(content + len, maxLen - len, "  }]\n");
-    }
-  }
-  len += snprintf(content + len, maxLen - len, "}\n");
-
-  taosWriteFile(pFile, content, len);
-  taosFsyncFile(pFile);
-  taosCloseFile(&pFile);
-  free(content);
-  terrno = 0;
-
-  pMgmt->updateTime = taosGetTimestampMs();
-  dDebug("successed to write %s", pMgmt->file);
-  return 0;
-}
 
 void dndSendStatusReq(SDnode *pDnode) {
   SStatusReq req = {0};
@@ -378,8 +138,10 @@ void dndSendStatusReq(SDnode *pDnode) {
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
   taosRUnLockLatch(&pMgmt->latch);
 
+#if 0
   req.pVloads = taosArrayInit(TSDB_MAX_VNODES, sizeof(SVnodeLoad));
   dndGetVnodeLoads(pDnode, req.pVloads);
+#endif
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   void   *pHead = rpcMallocCont(contLen);
@@ -400,31 +162,9 @@ static void dndUpdateDnodeCfg(SDnode *pDnode, SDnodeCfg *pCfg) {
     taosWLockLatch(&pMgmt->latch);
     pMgmt->dnodeId = pCfg->dnodeId;
     pMgmt->clusterId = pCfg->clusterId;
-    dndWriteDnodes(pDnode);
+    dndWriteFile(pDnode);
     taosWUnLockLatch(&pMgmt->latch);
   }
-}
-
-static void dndUpdateDnodeEps(SDnode *pDnode, SArray *pDnodeEps) {
-  int32_t numOfEps = taosArrayGetSize(pDnodeEps);
-  if (numOfEps <= 0) return;
-
-  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-  taosWLockLatch(&pMgmt->latch);
-
-  int32_t numOfEpsOld = (int32_t)taosArrayGetSize(pMgmt->pDnodeEps);
-  if (numOfEps != numOfEpsOld) {
-    dndResetDnodes(pDnode, pDnodeEps);
-    dndWriteDnodes(pDnode);
-  } else {
-    int32_t size = numOfEps * sizeof(SDnodeEp);
-    if (memcmp(pMgmt->pDnodeEps->pData, pDnodeEps->pData, size) != 0) {
-      dndResetDnodes(pDnode, pDnodeEps);
-      dndWriteDnodes(pDnode);
-    }
-  }
-
-  taosWUnLockLatch(&pMgmt->latch);
 }
 
 static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp) {
@@ -434,7 +174,7 @@ static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp) {
     if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->dropped && pMgmt->dnodeId > 0) {
       dInfo("dnode:%d, set to dropped since not exist in mnode", pMgmt->dnodeId);
       pMgmt->dropped = 1;
-      dndWriteDnodes(pDnode);
+      dndWriteFile(pDnode);
     }
   } else {
     SStatusRsp statusRsp = {0};
@@ -514,14 +254,6 @@ int32_t dndInitMgmt(SDnode *pDnode) {
   pMgmt->clusterId = 0;
   taosInitRWLatch(&pMgmt->latch);
 
-  char path[PATH_MAX];
-  snprintf(path, PATH_MAX, "%s/dnode.json", pDnode->dir.dnode);
-  pMgmt->file = strdup(path);
-  if (pMgmt->file == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
   pMgmt->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   if (pMgmt->dnodeHash == NULL) {
     dError("failed to init dnode hash");
@@ -529,7 +261,7 @@ int32_t dndInitMgmt(SDnode *pDnode) {
     return -1;
   }
 
-  if (dndReadDnodes(pDnode) != 0) {
+  if (dndReadFile(pDnode) != 0) {
     dError("failed to read file:%s since %s", pMgmt->file, terrstr());
     return -1;
   }
@@ -619,6 +351,7 @@ void dndProcessMgmtMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
 static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
   int32_t code = 0;
 
+#if 0
   switch (pMsg->msgType) {
     case TDMT_DND_CREATE_MNODE:
       code = mmProcessCreateMnodeReq(pDnode, pMsg);
@@ -680,7 +413,7 @@ static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
       dError("RPC %p, dnode msg:%s not processed", pMsg->handle, TMSG_INFO(pMsg->msgType));
       break;
   }
-
+#endif
   if (pMsg->msgType & 1u) {
     if (code != 0) code = terrno;
     SRpcMsg rsp = {.code = code, .handle = pMsg->handle, .ahandle = pMsg->ahandle};
@@ -691,3 +424,5 @@ static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
   pMsg->pCont = NULL;
   taosFreeQitem(pMsg);
 }
+
+#endif

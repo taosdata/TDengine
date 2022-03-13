@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mm.h"
 
+#if 0
 #include "dndMgmt.h"
 
 int32_t mmProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
@@ -137,3 +138,5 @@ int32_t dndGetUserAuthFromMnode(SDnode *pDnode, char *user, char *spi, char *enc
   dTrace("user:%s, retrieve auth spi:%d encrypt:%d", user, *spi, *encrypt);
   return code;
 }
+
+#endif

@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mm.h"
 
+#if 0
 int32_t mmReadFile(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
@@ -166,3 +167,5 @@ int32_t mmWriteFile(SDnode *pDnode) {
   dInfo("successed to write %s, deployed:%d dropped:%d", realfile, pMgmt->deployed, pMgmt->dropped);
   return 0;
 }
+
+#endif

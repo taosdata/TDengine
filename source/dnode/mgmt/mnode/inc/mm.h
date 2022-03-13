@@ -19,7 +19,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "dndEnv.h"
+#include "dndInt.h"
 
 // interface
 int32_t mmInit(SDnode *pDnode);
