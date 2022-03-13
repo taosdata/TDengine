@@ -21,6 +21,8 @@ extern "C" {
 #endif
 #include "dndInt.h"
 
+SMgmtFp mmGetMgmtFp();
+
 // interface
 int32_t mmInit(SDnode *pDnode);
 void    mmCleanup(SDnode *pDnode);

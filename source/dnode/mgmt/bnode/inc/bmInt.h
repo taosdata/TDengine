@@ -21,6 +21,8 @@ extern "C" {
 #endif
 #include "dndInt.h"
 
+SMgmtFp bmGetMgmtFp();
+
 int32_t dndInitBnode(SDnode *pDnode);
 void    dndCleanupBnode(SDnode *pDnode);
 

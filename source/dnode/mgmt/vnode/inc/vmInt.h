@@ -21,6 +21,9 @@ extern "C" {
 #endif
 #include "dndInt.h"
 
+SMgmtFp vmGetMgmtFp() ;
+
+
 int32_t dndInitVnodes(SDnode *pDnode);
 void    dndCleanupVnodes(SDnode *pDnode);
 void    dndGetVnodeLoads(SDnode *pDnode, SArray *pLoads);

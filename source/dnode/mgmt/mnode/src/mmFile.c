@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mm.h"
+#include "mmInt.h"
 
 #if 0
 int32_t mmReadFile(SDnode *pDnode) {

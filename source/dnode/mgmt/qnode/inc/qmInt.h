@@ -21,6 +21,8 @@ extern "C" {
 #endif
 #include "dndInt.h"
 
+SMgmtFp qmGetMgmtFp();
+
 int32_t dndInitQnode(SDnode *pDnode);
 void    dndCleanupQnode(SDnode *pDnode);
 

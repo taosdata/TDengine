@@ -14,10 +14,10 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndQnode.h"
-#include "dndMgmt.h"
-#include "dndTransport.h"
-#include "dndWorker.h"
+// #include "dndQnode.h"
+// #include "dndMgmt.h"
+// #include "dndTransport.h"
+// #include "dndWorker.h"
 
 #if 0
 static void dndProcessQnodeQueue(SDnode *pDnode, SRpcMsg *pMsg);

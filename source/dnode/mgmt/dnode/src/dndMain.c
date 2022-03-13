@@ -15,44 +15,16 @@
 
 #define _DEFAULT_SOURCE
 #include "dndMain.h"
-// #include "dndBnode.h"
 #include "dndMgmt.h"
-// #include "mm.h"
-// #include "dndQnode.h"
-// #include "dndSnode.h"
 #include "dndTransport.h"
-// #include "dndVnodes.h"
-// #include "monitor.h"
-// #include "sync.h"
-// #include "tfs.h"
-// #include "wal.h"
+
+#include "bmInt.h"
+#include "mmInt.h"
+#include "qmInt.h"
+#include "smInt.h"
+#include "vmInt.h"
 
 static int8_t once = DND_ENV_INIT;
-
-SMgmtFp mmGetNodeFp() {
-  SMgmtFp nullFp = {0};
-  return nullFp;
-}
-
-SMgmtFp vndGetNodeFp() {
-  SMgmtFp nullFp = {0};
-  return nullFp;
-}
-
-SMgmtFp qndGetNodeFp() {
-  SMgmtFp nullFp = {0};
-  return nullFp;
-}
-
-SMgmtFp sndGetNodeFp() {
-  SMgmtFp nullFp = {0};
-  return nullFp;
-}
-
-SMgmtFp bndGetNodeFp() {
-  SMgmtFp nullFp = {0};
-  return nullFp;
-}
 
 static void dndResetLog(SMgmtWrapper *pMgmt) {
   char logname[24] = {0};
@@ -63,7 +35,7 @@ static void dndResetLog(SMgmtWrapper *pMgmt) {
   taosInitLog(logname, 1);
 }
 
-static bool dndRequireOpenNode(SMgmtWrapper *pMgmt) {
+static bool dndRequireNode(SMgmtWrapper *pMgmt) {
   bool required = (*pMgmt->fp.requiredFp)(pMgmt);
   if (!required) {
     dDebug("node:%s, no need to start on this dnode", pMgmt->name);
@@ -73,7 +45,7 @@ static bool dndRequireOpenNode(SMgmtWrapper *pMgmt) {
   return required;
 }
 
-static void dndClearDnodeMem(SDnode *pDnode) {
+static void dndClearMemory(SDnode *pDnode) {
   for (ENodeType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pMgmt = &pDnode->mgmts[n];
     tfree(pMgmt->path);
@@ -86,7 +58,7 @@ static void dndClearDnodeMem(SDnode *pDnode) {
   dDebug("dnode object memory is cleared, data:%p", pDnode);
 }
 
-static int32_t dndInitDnodeResource(SDnode *pDnode) {
+static int32_t dndInitResource(SDnode *pDnode) {
   SDiskCfg dCfg = {0};
   tstrncpy(dCfg.dir, pDnode->cfg.dataDir, TSDB_FILENAME_LEN);
   dCfg.level = 0;
@@ -120,7 +92,7 @@ static int32_t dndInitDnodeResource(SDnode *pDnode) {
   return 0;
 }
 
-static void dndClearDnodeResource(SDnode *pDnode) {
+static void dndClearResource(SDnode *pDnode) {
   dndCleanupTrans(pDnode);
   dndStopMgmt(pDnode);
   dndCleanupMgmt(pDnode);
@@ -150,11 +122,11 @@ SDnode *dndCreate(SDndCfg *pCfg) {
     goto _OVER;
   }
 
-  pDnode->mgmts[MNODE].fp = mmGetNodeFp();
-  pDnode->mgmts[VNODES].fp = vndGetNodeFp();
-  pDnode->mgmts[QNODE].fp = qndGetNodeFp();
-  pDnode->mgmts[SNODE].fp = sndGetNodeFp();
-  pDnode->mgmts[BNODE].fp = bndGetNodeFp();
+  pDnode->mgmts[MNODE].fp = mmGetMgmtFp();
+  pDnode->mgmts[VNODES].fp = vmGetMgmtFp();
+  pDnode->mgmts[QNODE].fp = qmGetMgmtFp();
+  pDnode->mgmts[SNODE].fp = smGetMgmtFp();
+  pDnode->mgmts[BNODE].fp = bmGetMgmtFp();
   pDnode->mgmts[MNODE].name = "mnode";
   pDnode->mgmts[VNODES].name = "vnodes";
   pDnode->mgmts[QNODE].name = "qnode";
@@ -172,7 +144,7 @@ SDnode *dndCreate(SDndCfg *pCfg) {
     }
 
     pMgmt->procType = PROC_SINGLE;
-    pMgmt->required = dndRequireOpenNode(pMgmt);
+    pMgmt->required = dndRequireNode(pMgmt);
     if (pMgmt->required) {
       if (taosMkDir(pMgmt->path) != 0) {
         terrno = TAOS_SYSTEM_ERROR(errno);
@@ -189,7 +161,7 @@ SDnode *dndCreate(SDndCfg *pCfg) {
 
 _OVER:
   if (code != 0 && pDnode) {
-    dndClearDnodeMem(pDnode);
+    dndClearMemory(pDnode);
     tfree(pDnode);
     dError("failed to create dnode object since %s", terrstr());
   } else {
@@ -259,8 +231,8 @@ void dndClose(SDnode *pDnode) {
   dInfo("start to close dnode, data:%p", pDnode);
   dndSetStatus(pDnode, DND_STAT_STOPPED);
 
-  dndClearDnodeResource(pDnode);
-  dndClearDnodeMem(pDnode);
+  dndClearResource(pDnode);
+  dndClearMemory(pDnode);
   tfree(pDnode);
   dInfo("dnode object is closed, data:%p", pDnode);
 }
@@ -288,9 +260,9 @@ int32_t dndInit() {
     return -1;
   }
 
-
   // SVnodeOpt vnodeOpt = {
-  //     .nthreads = tsNumOfCommitThreads, .putReqToVQueryQFp = dndPutReqToVQueryQ, .sendReqToDnodeFp = dndSendReqToDnode};
+  //     .nthreads = tsNumOfCommitThreads, .putReqToVQueryQFp = dndPutReqToVQueryQ, .sendReqToDnodeFp =
+  //     dndSendReqToDnode};
 
   // if (vnodeInit(&vnodeOpt) != 0) {
   //   dError("failed to init vnode since %s", terrstr());

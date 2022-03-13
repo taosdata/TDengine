@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mm.h"
+#include "mmInt.h"
 
 #if 0
 #include "dndMgmt.h"

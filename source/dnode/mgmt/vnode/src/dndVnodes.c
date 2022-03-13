@@ -14,10 +14,10 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndVnodes.h"
-#include "dndMgmt.h"
-#include "dndTransport.h"
-#include "sync.h"
+// #include "dndVnodes.h"
+// #include "dndMgmt.h"
+// #include "dndTransport.h"
+// #include "sync.h"
 
 #if 0
 typedef struct {
