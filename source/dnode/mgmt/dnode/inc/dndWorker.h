@@ -16,10 +16,11 @@
 #ifndef _TD_DND_WORKER_H_
 #define _TD_DND_WORKER_H_
 
+#include "dndInt.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "dndEnv.h"
 
 int32_t dndInitWorker(SDnode *pDnode, SDnodeWorker *pWorker, EWorkerType type, const char *name, int32_t minNum,
                       int32_t maxNum, void *queueFp);

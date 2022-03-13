@@ -16,10 +16,11 @@
 #ifndef _TD_DND_MGMT_H_
 #define _TD_DND_MGMT_H_
 
+#include "dndInt.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "dndInt.h.h"
 
 int32_t dndInitMgmt(SDnode *pDnode);
 void    dndStopMgmt(SDnode *pDnode);

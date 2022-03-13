@@ -16,11 +16,11 @@
 #define _DEFAULT_SOURCE
 #include "dndMain.h"
 // #include "dndBnode.h"
-// #include "dndMgmt.h"
+#include "dndMgmt.h"
 // #include "mm.h"
 // #include "dndQnode.h"
 // #include "dndSnode.h"
-// #include "dndTransport.h"
+#include "dndTransport.h"
 // #include "dndVnodes.h"
 // #include "monitor.h"
 // #include "sync.h"
@@ -122,6 +122,7 @@ static int32_t dndInitDnodeResource(SDnode *pDnode) {
 static void dndClearDnodeResource(SDnode *pDnode) {
   dndCleanupTrans(pDnode);
   dndStopMgmt(pDnode);
+  dndCleanupMgmt(pDnode);
   tfsClose(pDnode->pTfs);
   dDebug("dnode object resource is cleared, data:%p", pDnode);
 }
@@ -238,7 +239,6 @@ _OVER:
   // dndCleanupSnode(pDnode);
   // dndCleanupQnode(pDnode);
   // dndCleanupVnodes(pDnode);
-  // dndCleanupMgmt(pDnode);
     
 
   return pDnode;

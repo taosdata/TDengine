@@ -16,12 +16,14 @@
 #ifndef _TD_DND_TRANSPORT_H_
 #define _TD_DND_TRANSPORT_H_
 
+#include "dndInt.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "dndEnv.h"
 
 int32_t dndInitTrans(SDnode *pDnode);
+void    dndCleanupTransClient(SDnode *pDnode);
 void    dndCleanupTrans(SDnode *pDnode);
 int32_t dndSendReqToMnode(SDnode *pDnode, SRpcMsg *pRpcMsg);
 int32_t dndSendReqToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pRpcMsg);

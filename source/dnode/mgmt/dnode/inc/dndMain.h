@@ -16,11 +16,11 @@
 #ifndef _TD_DND_MAIN_H_
 #define _TD_DND_MAIN_H_
 
+#include "dndInt.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "dndInt.h"
 
 #ifdef __cplusplus
 }

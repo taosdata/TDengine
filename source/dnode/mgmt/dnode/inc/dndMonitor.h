@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo);
+void dndSendMonitorReport(SDnode *pDnode);
 
 #ifdef __cplusplus
 }
