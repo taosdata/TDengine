@@ -3,7 +3,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
-sleep 1000
+sleep 3000
 print =============== create database
 sql create database d1 vgroups 2
 sql show databases
