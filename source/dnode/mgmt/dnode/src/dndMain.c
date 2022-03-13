@@ -14,111 +14,78 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndBnode.h"
-#include "dndMgmt.h"
-#include "mm.h"
-#include "dndQnode.h"
-#include "dndSnode.h"
-#include "dndTransport.h"
-#include "dndVnodes.h"
-#include "monitor.h"
-#include "sync.h"
-#include "tfs.h"
-#include "wal.h"
+#include "dndMain.h"
+// #include "dndBnode.h"
+// #include "dndMgmt.h"
+// #include "mm.h"
+// #include "dndQnode.h"
+// #include "dndSnode.h"
+// #include "dndTransport.h"
+// #include "dndVnodes.h"
+// #include "monitor.h"
+// #include "sync.h"
+// #include "tfs.h"
+// #include "wal.h"
 
 static int8_t once = DND_ENV_INIT;
 
-static int32_t dndInitDir(SDnode *pDnode, SDndCfg *pCfg) {
-  pDnode->pLockFile = dndCheckRunning(pCfg->dataDir);
-  if (pDnode->pLockFile == NULL) {
-    return -1;
-  }
-
-  char path[PATH_MAX + 100];
-  snprintf(path, sizeof(path), "%s%smnode", pCfg->dataDir, TD_DIRSEP);
-  pDnode->dir.mnode = tstrdup(path);
-  snprintf(path, sizeof(path), "%s%svnode", pCfg->dataDir, TD_DIRSEP);
-  pDnode->dir.vnodes = tstrdup(path);
-  snprintf(path, sizeof(path), "%s%sdnode", pCfg->dataDir, TD_DIRSEP);
-  pDnode->dir.dnode = tstrdup(path);
-  snprintf(path, sizeof(path), "%s%ssnode", pCfg->dataDir, TD_DIRSEP);
-  pDnode->dir.snode = tstrdup(path);
-  snprintf(path, sizeof(path), "%s%sbnode", pCfg->dataDir, TD_DIRSEP);
-  pDnode->dir.bnode = tstrdup(path);
-
-  if (pDnode->dir.mnode == NULL || pDnode->dir.vnodes == NULL || pDnode->dir.dnode == NULL ||
-      pDnode->dir.snode == NULL || pDnode->dir.bnode == NULL) {
-    dError("failed to malloc dir object");
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  if (taosMkDir(pDnode->dir.dnode) != 0) {
-    dError("failed to create dir:%s since %s", pDnode->dir.dnode, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-
-  if (taosMkDir(pDnode->dir.mnode) != 0) {
-    dError("failed to create dir:%s since %s", pDnode->dir.mnode, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-
-  if (taosMkDir(pDnode->dir.vnodes) != 0) {
-    dError("failed to create dir:%s since %s", pDnode->dir.vnodes, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-
-  if (taosMkDir(pDnode->dir.snode) != 0) {
-    dError("failed to create dir:%s since %s", pDnode->dir.snode, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-
-  if (taosMkDir(pDnode->dir.bnode) != 0) {
-    dError("failed to create dir:%s since %s", pDnode->dir.bnode, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-
-  memcpy(&pDnode->cfg, pCfg, sizeof(SDndCfg));
-  return 0;
+SMgmtFp mmGetNodeFp() {
+  SMgmtFp nullFp = {0};
+  return nullFp;
 }
 
-static void dndCloseDir(SDnode *pDnode) {
-  tfree(pDnode->dir.mnode);
-  tfree(pDnode->dir.vnodes);
-  tfree(pDnode->dir.dnode);
-  tfree(pDnode->dir.snode);
-  tfree(pDnode->dir.bnode);
+SMgmtFp vndGetNodeFp() {
+  SMgmtFp nullFp = {0};
+  return nullFp;
+}
 
+SMgmtFp qndGetNodeFp() {
+  SMgmtFp nullFp = {0};
+  return nullFp;
+}
+
+SMgmtFp sndGetNodeFp() {
+  SMgmtFp nullFp = {0};
+  return nullFp;
+}
+
+SMgmtFp bndGetNodeFp() {
+  SMgmtFp nullFp = {0};
+  return nullFp;
+}
+
+static void dndResetLog(SMgmtWrapper *pMgmt) {
+  char logname[24] = {0};
+  snprintf(logname, sizeof(logname), "%slog", pMgmt->name);
+
+  dInfo("node:%s, reset log to %s", pMgmt->name, logname);
+  taosCloseLog();
+  taosInitLog(logname, 1);
+}
+
+static bool dndRequireOpenNode(SMgmtWrapper *pMgmt) {
+  bool required = (*pMgmt->fp.requiredFp)(pMgmt);
+  if (!required) {
+    dDebug("node:%s, no need to start on this dnode", pMgmt->name);
+  } else {
+    dDebug("node:%s, need to start on this dnode", pMgmt->name);
+  }
+  return required;
+}
+
+static void dndClearDnodeMem(SDnode *pDnode) {
+  for (ENodeType n = 0; n < NODE_MAX; ++n) {
+    SMgmtWrapper *pMgmt = &pDnode->mgmts[n];
+    tfree(pMgmt->path);
+  }
   if (pDnode->pLockFile != NULL) {
     taosUnLockFile(pDnode->pLockFile);
     taosCloseFile(&pDnode->pLockFile);
-    pDnode->pLockFile = NULL;
   }
+  dDebug("dnode object memory is cleared, data:%p", pDnode);
 }
 
-SDnode *dndCreate(SDndCfg *pCfg) {
-  dInfo("start to create dnode object");
-
-  SDnode *pDnode = calloc(1, sizeof(SDnode));
-  if (pDnode == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    dError("failed to create dnode object since %s", terrstr());
-    return NULL;
-  }
-
-  dndSetStatus(pDnode, DND_STAT_INIT);
-
-  if (dndInitDir(pDnode, pCfg) != 0) {
-    dError("failed to init dnode dir since %s", terrstr());
-    dndClose(pDnode);
-    return NULL;
-  }
-
+static int32_t dndInitDnodeResource(SDnode *pDnode) {
   SDiskCfg dCfg = {0};
   tstrncpy(dCfg.dir, pDnode->cfg.dataDir, TSDB_FILENAME_LEN);
   dCfg.level = 0;
@@ -133,15 +100,107 @@ SDnode *dndCreate(SDndCfg *pCfg) {
   pDnode->pTfs = tfsOpen(pDisks, numOfDisks);
   if (pDnode->pTfs == NULL) {
     dError("failed to init tfs since %s", terrstr());
-    dndClose(pDnode);
-    return NULL;
+    return -1;
   }
 
   if (dndInitMgmt(pDnode) != 0) {
     dError("failed to init mgmt since %s", terrstr());
-    dndClose(pDnode);
-    return NULL;
+    return -1;
   }
+
+  if (dndInitTrans(pDnode) != 0) {
+    dError("failed to init transport since %s", terrstr());
+    return -1;
+  }
+
+  dndSetStatus(pDnode, DND_STAT_RUNNING);
+  dndSendStatusReq(pDnode);
+  dndReportStartup(pDnode, "TDengine", "initialized successfully");
+  return 0;
+}
+
+static void dndClearDnodeResource(SDnode *pDnode) {
+  dndCleanupTrans(pDnode);
+  dndStopMgmt(pDnode);
+  tfsClose(pDnode->pTfs);
+  dDebug("dnode object resource is cleared, data:%p", pDnode);
+}
+
+SDnode *dndCreate(SDndCfg *pCfg) {
+  dInfo("start to create dnode object");
+  int32_t code = -1;
+  char    path[PATH_MAX + 100];
+  SDnode *pDnode = NULL;
+
+  pDnode = calloc(1, sizeof(SDnode));
+  if (pDnode == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  dndSetStatus(pDnode, DND_STAT_INIT);
+  pDnode->mgmts[MNODE].fp = mmGetNodeFp();
+  pDnode->mgmts[VNODES].fp = vndGetNodeFp();
+  pDnode->mgmts[QNODE].fp = qndGetNodeFp();
+  pDnode->mgmts[SNODE].fp = sndGetNodeFp();
+  pDnode->mgmts[BNODE].fp = bndGetNodeFp();
+  pDnode->mgmts[MNODE].name = "mnode";
+  pDnode->mgmts[VNODES].name = "vnodes";
+  pDnode->mgmts[QNODE].name = "qnode";
+  pDnode->mgmts[SNODE].name = "snode";
+  pDnode->mgmts[BNODE].name = "bnode";
+  memcpy(&pDnode->cfg, pCfg, sizeof(SDndCfg));
+
+  for (ENodeType n = 0; n < NODE_MAX; ++n) {
+    SMgmtWrapper *pMgmt = &pDnode->mgmts[n];
+    snprintf(path, sizeof(path), "%s%s%s", pCfg->dataDir, TD_DIRSEP, pDnode->mgmts[n].name);
+    pMgmt->path = strdup(path);
+    if (pDnode->mgmts[n].path == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _OVER;
+    }
+
+    pMgmt->procType = PROC_SINGLE;
+    pMgmt->required = dndRequireOpenNode(pMgmt);
+    if (pMgmt->required) {
+      if (taosMkDir(pMgmt->path) != 0) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        dError("failed to create dir:%s since %s", pMgmt->path, terrstr());
+        goto _OVER;
+      }
+    }
+  }
+
+  pDnode->pLockFile = dndCheckRunning(pCfg->dataDir);
+  if (pDnode->pLockFile == NULL) {
+    goto _OVER;
+  }
+
+  snprintf(path, sizeof(path), "%s%sdnode", pCfg->dataDir, TD_DIRSEP);
+  if (taosMkDir(path) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to create dir:%s since %s", path, terrstr());
+    goto _OVER;
+  }
+
+_OVER:
+  if (code != 0 && pDnode) {
+    dndClearDnodeMem(pDnode);
+    tfree(pDnode);
+    dError("failed to create dnode object since %s", terrstr());
+  } else {
+    dInfo("dnode object is created, data:%p", pDnode);
+  }
+
+  return pDnode;
+}
+
+#if 0
+
+
+
+
+
 
   if (dndInitVnodes(pDnode) != 0) {
     dError("failed to init vnodes since %s", terrstr());
@@ -173,19 +232,18 @@ SDnode *dndCreate(SDndCfg *pCfg) {
     return NULL;
   }
 
-  if (dndInitTrans(pDnode) != 0) {
-    dError("failed to init transport since %s", terrstr());
-    dndClose(pDnode);
-    return NULL;
-  }
 
-  dndSetStatus(pDnode, DND_STAT_RUNNING);
-  dndSendStatusReq(pDnode);
-  dndReportStartup(pDnode, "TDengine", "initialized successfully");
-  dInfo("dnode object is created, data:%p", pDnode);
+// mmCleanup(pDnode);
+  // dndCleanupBnode(pDnode);
+  // dndCleanupSnode(pDnode);
+  // dndCleanupQnode(pDnode);
+  // dndCleanupVnodes(pDnode);
+  // dndCleanupMgmt(pDnode);
+    
 
   return pDnode;
 }
+#endif
 
 void dndClose(SDnode *pDnode) {
   if (pDnode == NULL) return;
@@ -197,18 +255,10 @@ void dndClose(SDnode *pDnode) {
 
   dInfo("start to close dnode, data:%p", pDnode);
   dndSetStatus(pDnode, DND_STAT_STOPPED);
-  dndCleanupTrans(pDnode);
-  dndStopMgmt(pDnode);
-  mmCleanup(pDnode);
-  dndCleanupBnode(pDnode);
-  dndCleanupSnode(pDnode);
-  dndCleanupQnode(pDnode);
-  dndCleanupVnodes(pDnode);
-  dndCleanupMgmt(pDnode);
-  tfsClose(pDnode->pTfs);
 
-  dndCloseDir(pDnode);
-  free(pDnode);
+  dndClearDnodeResource(pDnode);
+  dndClearDnodeMem(pDnode);
+  tfree(pDnode);
   dInfo("dnode object is closed, data:%p", pDnode);
 }
 
@@ -275,5 +325,3 @@ void dndRun(SDnode *pDnode) {
     taosMsleep(100);
   }
 }
-
-void dndeHandleEvent(SDnode *pDnode, EDndEvent event) { pDnode->event = event; }

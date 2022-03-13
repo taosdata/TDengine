@@ -13,30 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_DNODE_H_
-#define _TD_DND_DNODE_H_
+#ifndef _TD_DND_MONITOR_H_
+#define _TD_DND_MONITOR_H_
+
+#include "dndInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "dndEnv.h"
 
-int32_t dndInitMgmt(SDnode *pDnode);
-void    dndStopMgmt(SDnode *pDnode);
-void    dndCleanupMgmt(SDnode *pDnode);
-
-int32_t dndGetDnodeId(SDnode *pDnode);
-int64_t dndGetClusterId(SDnode *pDnode);
-void    dndGetDnodeEp(SDnode *pDnode, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort);
-void    dndGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet);
-
-void dndSendRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg);
-void dndSendStatusReq(SDnode *pDnode);
-void dndProcessMgmtMsg(SDnode *pDnode, SRpcMsg *pRpcMsg, SEpSet *pEpSet);
-void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
+int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DND_DNODE_H_*/
+#endif /*_TD_DND_MONITOR_H_*/

@@ -59,7 +59,7 @@ typedef enum { MNODE, NODE_MAX, VNODES, QNODE, SNODE, BNODE } ENodeType;
 typedef enum { PROC_SINGLE, PROC_CHILD, PROC_PARENT } EProcType;
 typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EDndStatus;
 typedef enum { DND_WORKER_SINGLE, DND_WORKER_MULTI } EWorkerType;
-typedef enum { DND_ENV_INIT, DND_ENV_READY, DND_ENV_CLEANU } EEnvStat;
+typedef enum { DND_ENV_INIT, DND_ENV_READY, DND_ENV_CLEANUP } EEnvStat;
 
 typedef struct SMgmtFp      SMgmtFp;
 typedef struct SMgmtWrapper SMgmtWrapper;
@@ -68,7 +68,7 @@ typedef void (*DndMsgFp)(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEps);
 typedef int32_t (*MndMsgFp)(SDnode *pDnode, SMndMsg *pMsg);
 typedef SMgmtWrapper *(*MgmtOpenFp)(SDnode *pDnode, const char *path);
 typedef void (*MgmtCloseFp)(SDnode *pDnode, SMgmtWrapper *pMgmt);
-typedef bool (*MgmtRequiredFp)(SDnode *pDnode, const char *path);
+typedef bool (*MgmtRequiredFp)(SMgmtWrapper *pMgmt);
 typedef SArray *(*MgmtMsgFp)(SMgmtWrapper *pNode, SNodeMsg *pMsg);
 
 typedef struct {
@@ -192,6 +192,7 @@ typedef struct SMgmtWrapper {
   SProcObj   *pProc;
   void       *pMgmt;
   SMgmtFp     fp;
+  SDnode     *pDnode;
 } SMgmtWrapper;
 
 typedef struct SDnode {
@@ -203,6 +204,7 @@ typedef struct SDnode {
   TdFilePtr    pLockFile;
   SDnodeMgmt   dmgmt;
   STransMgmt   tmgmt;
+  STfs        *pTfs;
   SMgmtFp      fps[NODE_MAX];
   SMgmtWrapper mgmts[NODE_MAX];
 } SDnode;
@@ -213,7 +215,6 @@ const char *dndStatStr(EDndStatus stat);
 void        dndReportStartup(SDnode *pDnode, char *pName, char *pDesc);
 void        dndGetStartup(SDnode *pDnode, SStartupReq *pStartup);
 TdFilePtr   dndCheckRunning(char *dataDir);
-int32_t     dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo);
 
 #ifdef __cplusplus
 }

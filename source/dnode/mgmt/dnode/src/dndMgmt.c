@@ -187,7 +187,6 @@ static int32_t dndReadDnodes(SDnode *pDnode) {
   char   *content = calloc(1, maxLen + 1);
   cJSON  *root = NULL;
 
-  // fp = fopen(pMgmt->file, "r");
   TdFilePtr pFile = taosOpenFile(pMgmt->file, TD_FILE_READ);
   if (pFile == NULL) {
     dDebug("file %s not exist", pMgmt->file);
@@ -310,7 +309,6 @@ PRASE_DNODE_OVER:
 static int32_t dndWriteDnodes(SDnode *pDnode) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
 
-  // FILE *fp = fopen(pMgmt->file, "w");
   TdFilePtr pFile = taosOpenFile(pMgmt->file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
     dError("failed to write %s since %s", pMgmt->file, strerror(errno));

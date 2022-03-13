@@ -72,12 +72,7 @@ TdFilePtr dndCheckRunning(char *dataDir) {
   return pFile;
 }
 
-int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {
-  tstrncpy(pInfo->logdir.name, tsLogDir, sizeof(pInfo->logdir.name));
-  pInfo->logdir.size = tsLogSpace.size;
-  tstrncpy(pInfo->tempdir.name, tsTempDir, sizeof(pInfo->tempdir.name));
-  pInfo->tempdir.size = tsTempSpace.size;
-
-  //return tfsGetMonitorInfo(pDnode->pTfs, pInfo);
-  return tfsGetMonitorInfo(NULL, pInfo);
+void dndeHandleEvent(SDnode *pDnode, EDndEvent event) {
+  dInfo("dnode object receive event %d, data:%p", event, pDnode);
+  pDnode->event = event;
 }
