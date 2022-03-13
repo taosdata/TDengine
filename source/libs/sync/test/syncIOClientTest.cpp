@@ -2,7 +2,8 @@
 #include <stdio.h>
 #include "syncIO.h"
 #include "syncInt.h"
-#include "syncRaftStore.h"
+#include "syncMessage.h"
+#include "syncUtil.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -22,7 +23,7 @@ int main() {
 
   int32_t ret;
 
-  ret = syncIOStart((char *)"127.0.0.1", 7010);
+  ret = syncIOStart((char*)"127.0.0.1", 7010);
   assert(ret == 0);
 
   for (int i = 0; i < 10; ++i) {
@@ -31,18 +32,17 @@ int main() {
     epSet.numOfEps = 0;
     addEpIntoEpSet(&epSet, "127.0.0.1", 7030);
 
-    SRpcMsg rpcMsg;
-    rpcMsg.contLen = 64;
-    rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
-    snprintf((char *)rpcMsg.pCont, rpcMsg.contLen, "%s", "syncIOSendMsgTest");
-    rpcMsg.handle = NULL;
-    rpcMsg.msgType = 77;
+    SRaftId srcId, destId;
+    srcId.addr = syncUtilAddr2U64("127.0.0.1", 1234);
+    srcId.vgId = 100;
+    destId.addr = syncUtilAddr2U64("127.0.0.1", 5678);
+    destId.vgId = 100;
+
+    SyncPingReply* pSyncMsg = syncPingReplyBuild2(&srcId, &destId, "syncIOClientTest");
+    SRpcMsg        rpcMsg;
+    syncPingReply2RpcMsg(pSyncMsg, &rpcMsg);
 
     syncIOSendMsg(gSyncIO->clientRpc, &epSet, &rpcMsg);
-    taosSsleep(1);
-  }
-
-  while (1) {
     taosSsleep(1);
   }
 
