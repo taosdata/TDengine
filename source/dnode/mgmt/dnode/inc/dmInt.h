@@ -41,16 +41,16 @@ typedef struct SDnodeMgmt {
   SDnode      *pDnode;
 } SDnodeMgmt;
 
-// dmFile.h
-void dmGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet);
-
-// dmHandle.h
-void dmProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
-
 // dmInt.h
 SMgmtFp dmGetMgmtFp();
 int32_t dmGetDnodeId(SDnode *pDnode);
 int64_t dmGetClusterId(SDnode *pDnode);
+
+// dmMgmt.h
+void dmGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet);
+
+// dmHandle.h
+void dmProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

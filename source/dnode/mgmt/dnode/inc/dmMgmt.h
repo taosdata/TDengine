@@ -22,12 +22,10 @@
 extern "C" {
 #endif
 
-int32_t dmInitMgmt(SDnode *pDnode);
-void    dmStopMgmt(SDnode *pDnode);
-void    dmCleanupMgmt(SDnode *pDnode);
+int32_t dmInit(SMgmtWrapper *pWrapper);
+void    dmCleanup(SMgmtWrapper *pWrapper);
+bool    dmRequire(SMgmtWrapper *pWrapper);
 
-int32_t dmGetDnodeId(SDnode *pDnode);
-int64_t dmGetClusterId(SDnode *pDnode);
 void    dmGetDnodeEp(SDnode *pDnode, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort);
 void    dmGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet);
 

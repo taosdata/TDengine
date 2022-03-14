@@ -38,22 +38,6 @@ static void    dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp);
 static void    dndProcessAuthRsp(SDnode *pDnode, SRpcMsg *pRsp);
 static void    dndProcessGrantRsp(SDnode *pDnode, SRpcMsg *pRsp);
 
-int32_t dmGetDnodeId(SDnode *pDnode) {
-  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-  taosRLockLatch(&pMgmt->latch);
-  int32_t dnodeId = pMgmt->dnodeId;
-  taosRUnLockLatch(&pMgmt->latch);
-  return dnodeId;
-}
-
-int64_t dmGetClusterId(SDnode *pDnode) {
-  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-  taosRLockLatch(&pMgmt->latch);
-  int64_t clusterId = pMgmt->clusterId;
-  taosRUnLockLatch(&pMgmt->latch);
-  return clusterId;
-}
-
 void dmGetDnodeEp(SDnode *pDnode, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   taosRLockLatch(&pMgmt->latch);
@@ -289,7 +273,7 @@ void dmGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {}
 void dmProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq){}
 void dmProcessMgmtMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg){}
 
-static int32_t dmInit(SMgmtWrapper *pWrapper) {
+int32_t dmInit(SMgmtWrapper *pWrapper) {
   SDnodeMgmt *pMgmt = calloc(1, sizeof(SDnodeMgmt));
 
   pMgmt->dnodeId = 0;
@@ -352,17 +336,6 @@ static int32_t dmInit(SMgmtWrapper *pWrapper) {
 #endif
 }
 
-static void dmCleanup(SMgmtWrapper *pWrapper){
+void dmCleanup(SMgmtWrapper *pWrapper) {}
 
-}
-
-static bool dmRequire(SMgmtWrapper *pWrapper) { return true; }
-
-SMgmtFp dmGetMgmtFp() {
-  SMgmtFp mgmtFp = {0};
-  mgmtFp.openFp = dmInit;
-  mgmtFp.closeFp = dmCleanup;
-  mgmtFp.requiredFp = dmRequire;
-  mgmtFp.getMsgHandleFp = dmGetMsgHandle;
-  return mgmtFp;
-}
+bool dmRequire(SMgmtWrapper *pWrapper) { return true; }
