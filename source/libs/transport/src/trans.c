@@ -18,8 +18,9 @@
 #include "transComm.h"
 
 void* (*taosInitHandle[])(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle) = {
-    taosInitServer, taosInitClient};
-void (*taosCloseHandle[])(void* arg) = {taosCloseServer, taosCloseClient};
+    transInitServer, transInitClient};
+
+void (*taosCloseHandle[])(void* arg) = {transCloseServer, transCloseClient};
 
 void* rpcOpen(const SRpcInit* pInit) {
   SRpcInfo* pRpc = calloc(1, sizeof(SRpcInfo));
@@ -34,11 +35,12 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->cfp = pInit->cfp;
   pRpc->afp = pInit->afp;
   pRpc->pfp = pInit->pfp;
+  pRpc->mfp = pInit->mfp;
 
   if (pInit->connType == TAOS_CONN_SERVER) {
     pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
   } else {
-    pRpc->numOfThreads = pInit->numOfThreads;
+    pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
   }
 
   pRpc->connType = pInit->connType;
@@ -116,6 +118,24 @@ int32_t rpcInit() {
   return 0;
 }
 
+void rpcSendRequest(void *shandle, const SEpSet *pEpSet, SRpcMsg* pMsg, int64_t *pRid) {
+  char*    ip = (char*)(pEpSet->eps[pEpSet->inUse].fqdn);
+  uint32_t port = pEpSet->eps[pEpSet->inUse].port;
+  transSendRequest(shandle, ip, port, pMsg);   
+}
+void rpcSendRecv(void* shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  char*    ip = (char*)(pEpSet->eps[pEpSet->inUse].fqdn);
+  uint32_t port = pEpSet->eps[pEpSet->inUse].port;
+  transSendRecv(shandle, ip, port, pMsg, pRsp);
+}
+
+void rpcSendResponse(const SRpcMsg *pMsg) {
+  transSendResponse(pMsg);  
+}
+int rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo) {
+  return transGetConnInfo((void *)thandle, pInfo);
+}
+
 void rpcCleanup(void) {
   // impl later
   //
@@ -129,6 +149,7 @@ void rpcRefHandle(void* handle, int8_t type) {
   assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
   (*taosRefHandle[type])(handle);
 }
+
 void rpcUnrefHandle(void* handle, int8_t type) {
   assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
   (*taosUnRefHandle[type])(handle);
