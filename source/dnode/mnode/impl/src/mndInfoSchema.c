@@ -39,24 +39,24 @@ static const SInfosTableSchema qnodesSchema[] = {{.name = "id",             .byt
                                                  {.name = "end_point",      .bytes = 134, .type = TSDB_DATA_TYPE_BINARY},
                                                  {.name = "create_time",    .bytes = 8,   .type = TSDB_DATA_TYPE_TIMESTAMP},
                                                 };
-static const SInfosTableSchema userDBSchema[] = {{.name = "name",             .bytes = 32,   .type = TSDB_DATA_TYPE_BINARY},
+static const SInfosTableSchema userDBSchema[] = {{.name = "name",             .bytes = (TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE,   .type = TSDB_DATA_TYPE_BINARY},
                                                  {.name = "created_time",     .bytes = 8,    .type = TSDB_DATA_TYPE_TIMESTAMP},
-                                                 {.name = "ntables",          .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
-                                                 {.name = "vgroups",          .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
-                                                 {.name = "replica",          .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
-                                                 {.name = "quorum",           .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
-                                                 {.name = "days",             .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
-                                                 {.name = "keep",             .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
+                                                 {.name = "vgroups",          .bytes = 2,    .type = TSDB_DATA_TYPE_SMALLINT},
+                                                 {.name = "ntables",          .bytes = 8,    .type = TSDB_DATA_TYPE_BIGINT},
+                                                 {.name = "replica",          .bytes = 2,    .type = TSDB_DATA_TYPE_SMALLINT},
+                                                 {.name = "quorum",           .bytes = 2,    .type = TSDB_DATA_TYPE_SMALLINT},
+                                                 {.name = "days",             .bytes = 2,    .type = TSDB_DATA_TYPE_SMALLINT},
+                                                 {.name = "keep",             .bytes = 24 + VARSTR_HEADER_SIZE,    .type = TSDB_DATA_TYPE_BINARY},
                                                  {.name = "cache",            .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
                                                  {.name = "blocks",           .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
                                                  {.name = "minrows",          .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
                                                  {.name = "maxrows",          .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
-                                                 {.name = "wallevel",         .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
+                                                 {.name = "wallevel",         .bytes = 1,    .type = TSDB_DATA_TYPE_TINYINT},
                                                  {.name = "fsync",            .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
-                                                 {.name = "comp",             .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
-                                                 {.name = "cachelast",        .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
-                                                 {.name = "precision",        .bytes = 2,    .type = TSDB_DATA_TYPE_BINARY},
-                                                 {.name = "status",           .bytes = 10,   .type = TSDB_DATA_TYPE_BINARY},
+                                                 {.name = "comp",             .bytes = 1,    .type = TSDB_DATA_TYPE_TINYINT},
+                                                 {.name = "cachelast",        .bytes = 1,    .type = TSDB_DATA_TYPE_TINYINT},
+                                                 {.name = "precision",        .bytes = 3 + VARSTR_HEADER_SIZE,    .type = TSDB_DATA_TYPE_BINARY},
+                                                 {.name = "update",           .bytes = 1,   .type = TSDB_DATA_TYPE_TINYINT},
                                                 };
 static const SInfosTableSchema userFuncSchema[] = {{.name = "name",           .bytes = 32,   .type = TSDB_DATA_TYPE_BINARY},
                                                    {.name = "created_time",   .bytes = 8,    .type = TSDB_DATA_TYPE_TIMESTAMP},
@@ -128,7 +128,7 @@ static const SInfosTableMeta infosMeta[] = {{TSDB_INS_TABLE_DNODES, dnodesSchema
                                             {TSDB_INS_TABLE_MNODES, mnodesSchema, tListLen(mnodesSchema)},
                                             {TSDB_INS_TABLE_MODULES, modulesSchema, tListLen(modulesSchema)},
                                             {TSDB_INS_TABLE_QNODES, qnodesSchema, tListLen(qnodesSchema)},
-                                            {TSDB_INS_TABLE_USER_DATABASE, userDBSchema, tListLen(userDBSchema)},
+                                            {TSDB_INS_TABLE_USER_DATABASES, userDBSchema, tListLen(userDBSchema)},
                                             {TSDB_INS_TABLE_USER_FUNCTIONS, userFuncSchema, tListLen(userFuncSchema)},
                                             {TSDB_INS_TABLE_USER_INDEXES, userIdxSchema, tListLen(userIdxSchema)},
                                             {TSDB_INS_TABLE_USER_STABLES, userStbsSchema, tListLen(userStbsSchema)},
@@ -165,7 +165,7 @@ int32_t mndInsInitMeta(SHashObj *hash) {
   STableMetaRsp meta = {0};
 
   strcpy(meta.dbFName, TSDB_INFORMATION_SCHEMA_DB);
-  meta.tableType = TSDB_NORMAL_TABLE;
+  meta.tableType = TSDB_SYSTEM_TABLE;
   meta.sversion = 1;
   meta.tversion = 1;
 

@@ -396,9 +396,9 @@ static bool checkPort(SAstCreateContext* pCxt, const SToken* pPortToken, int32_t
   return pCxt->valid;
 }
 
-static bool checkDbName(SAstCreateContext* pCxt, const SToken* pDbName) {
+static bool checkDbName(SAstCreateContext* pCxt, const SToken* pDbName, bool query) {
   if (NULL == pDbName) {
-    return true;
+    return (query ? NULL != pCxt->pQueryCxt->db : true);
   }
   pCxt->valid = pDbName->n < TSDB_DB_NAME_LEN ? true : false;
   return pCxt->valid;
@@ -557,7 +557,7 @@ SNode* createNodeListNode(SAstCreateContext* pCxt, SNodeList* pList) {
 }
 
 SNode* createRealTableNode(SAstCreateContext* pCxt, const SToken* pDbName, const SToken* pTableName, const SToken* pTableAlias) {
-  if (!checkDbName(pCxt, pDbName) || !checkTableName(pCxt, pTableName)) {
+  if (!checkDbName(pCxt, pDbName, true) || !checkTableName(pCxt, pTableName)) {
     return NULL;
   }
   SRealTableNode* realTable = (SRealTableNode*)nodesMakeNode(QUERY_NODE_REAL_TABLE);
@@ -769,7 +769,7 @@ SDatabaseOptions* setDatabaseOption(SAstCreateContext* pCxt, SDatabaseOptions* p
 }
 
 SNode* createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pDbName, SDatabaseOptions* pOptions) {
-  if (!checkDbName(pCxt, pDbName)) {
+  if (!checkDbName(pCxt, pDbName, false)) {
     return NULL;
   }
   SCreateDatabaseStmt* pStmt = (SCreateDatabaseStmt*)nodesMakeNode(QUERY_NODE_CREATE_DATABASE_STMT);
@@ -782,7 +782,7 @@ SNode* createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, cons
 }
 
 SNode* createDropDatabaseStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pDbName) {
-  if (!checkDbName(pCxt, pDbName)) {
+  if (!checkDbName(pCxt, pDbName, false)) {
     return NULL;
   }
   SDropDatabaseStmt* pStmt = (SDropDatabaseStmt*)nodesMakeNode(QUERY_NODE_DROP_DATABASE_STMT);
@@ -904,7 +904,7 @@ SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
 }
 
 SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pDbName) {
-  if (!checkDbName(pCxt, pDbName)) {
+  if (!checkDbName(pCxt, pDbName, false)) {
     return NULL;
   }
   SShowStmt* pStmt = nodesMakeNode(type);;

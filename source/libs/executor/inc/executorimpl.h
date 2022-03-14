@@ -365,28 +365,6 @@ typedef struct SQInfo {
   STaskCostInfo   summary;
 } SQInfo;
 
-typedef struct STaskParam {
-  char*      sql;
-  char*      tagCond;
-  char*      colCond;
-  char*      tbnameCond;
-  char*      prevResult;
-  SArray*    pTableIdList;
-  SExprBasicInfo** pExpr;
-  SExprBasicInfo** pSecExpr;
-  SExprInfo* pExprs;
-  SExprInfo* pSecExprs;
-
-  SFilterInfo* pFilters;
-
-  SColIndex*       pGroupColIndex;
-  SColumnInfo*     pTagColumnInfo;
-  SGroupbyExpr*    pGroupbyExpr;
-  int32_t          tableScanOperator;
-  SArray*          pOperator;
-  struct SUdfInfo* pUdfInfo;
-} STaskParam;
-
 enum {
   EX_SOURCE_DATA_NOT_READY = 0x1,
   EX_SOURCE_DATA_READY     = 0x2,
@@ -401,6 +379,12 @@ typedef struct SSourceDataInfo {
   int32_t            status;
 } SSourceDataInfo;
 
+typedef struct SLoadRemoteDataInfo {
+  uint64_t           totalSize;     // total load bytes from remote
+  uint64_t           totalRows;     // total number of rows
+  uint64_t           totalElapsed;  // total elapsed time
+} SLoadRemoteDataInfo;
+
 typedef struct SExchangeInfo {
   SArray*            pSources;
   SArray*            pSourceDataInfo;
@@ -409,9 +393,7 @@ typedef struct SExchangeInfo {
   SSDataBlock*       pResult;
   bool               seqLoadData;   // sequential load data or not, false by default
   int32_t            current;
-  uint64_t           totalSize;     // total load bytes from remote
-  uint64_t           totalRows;     // total number of rows
-  uint64_t           totalElapsed;  // total elapsed time
+  SLoadRemoteDataInfo loadInfo;
 } SExchangeInfo;
 
 typedef struct STableScanInfo {
@@ -456,19 +438,17 @@ typedef struct SSysTableScanInfo {
     void* readHandle;
   };
 
-  void              *pCur; // cursor
-  SRetrieveTableReq* pReq;
-  SEpSet             epSet;
-  int32_t            type;  // show type
-  tsem_t             ready;
-  SSchema*           pSchema;
-  SSDataBlock*       pRes;
-
-  int32_t            capacity;
-  int64_t            numOfBlocks;  // extract basic running information.
-  int64_t            totalRows;
-  int64_t            elapsedTime;
-  int64_t            totalBytes;
+  SRetrieveMetaTableRsp *pRsp;
+  void               *pCur; // cursor
+  SRetrieveTableReq   req;
+  SEpSet              epSet;
+  int32_t             type;  // show type
+  tsem_t              ready;
+  SSchema*            pSchema;
+  SSDataBlock*        pRes;
+  int32_t             capacity;
+  int64_t             numOfBlocks;  // extract basic running information.
+  SLoadRemoteDataInfo loadInfo;
 } SSysTableScanInfo;
 
 typedef struct SOptrBasicInfo {
@@ -649,10 +629,8 @@ SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntim
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createOrderOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SArray* pOrderVal, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t numOfDownstream, SArray* pExprInfo, SArray* pOrderVal, SArray* pGroupInfo, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, const SArray* pExprInfo, const SSchema* pSchema,
-                                              int32_t tableType, SEpSet epset, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataBlock* pResBlock, int32_t tableType, SEpSet epset,
+                                              SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream);
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SInterval* pInterval, SExecTaskInfo* pTaskInfo);
@@ -688,8 +666,10 @@ SOperatorInfo* createSLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorI
 
 SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pdownstream, int32_t numOfDownstream, SSchema* pSchema,
                                       int32_t numOfOutput);
+SOperatorInfo* createOrderOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SArray* pOrderVal, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t numOfDownstream, SArray* pExprInfo, SArray* pOrderVal, SArray* pGroupInfo, SExecTaskInfo* pTaskInfo);
 
-// int32_t doCreateFilterInfo(SColumnInfo* pCols, int32_t numOfCols, int32_t numOfFilterCols, SSingleColumnFilterInfo** pFilterInfo, uint64_t qId);
+// SSDataBlock* doSLimit(void* param, bool* newgroup);
 void doSetFilterColumnInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols, SSDataBlock* pBlock);
 bool doFilterDataBlock(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols, int32_t numOfRows, int8_t* p);
 void doCompactSDataBlock(SSDataBlock* pBlock, int32_t numOfRows, int8_t* p);
@@ -706,9 +686,6 @@ void copyTsColoum(SSDataBlock* pRes, SqlFunctionCtx* pCtx, int32_t numOfOutput);
 
 int32_t createQueryFilter(char* data, uint16_t len, SFilterInfo** pFilters);
 
-int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, void* sourceOptr, SQInfo* pQInfo, STaskParam* param, char* start,
-                  int32_t prevResultLen, void* merger);
-
 int32_t createFilterInfo(STaskAttr* pQueryAttr, uint64_t qId);
 void    freeColumnFilterInfo(SColumnFilterInfo* pFilter, int32_t numOfFilters);
 
@@ -720,11 +697,7 @@ int32_t buildArithmeticExprFromMsg(SExprInfo* pArithExprInfo, void* pQueryMsg);
 bool    isTaskKilled(SExecTaskInfo* pTaskInfo);
 int32_t checkForQueryBuf(size_t numOfTables);
 bool    checkNeedToCompressQueryCol(SQInfo* pQInfo);
-void    setQueryStatus(STaskRuntimeEnv* pRuntimeEnv, int8_t status);
 
-int32_t doDumpQueryResult(SQInfo* pQInfo, char* data, int8_t compressed, int32_t* compLen);
-
-size_t getResultSize(SQInfo* pQInfo, int64_t* numOfRows);
 void   setTaskKilled(SExecTaskInfo* pTaskInfo);
 
 void publishOperatorProfEvent(SOperatorInfo* operatorInfo, EQueryProfEventType eventType);
@@ -734,8 +707,6 @@ void calculateOperatorProfResults(SQInfo* pQInfo);
 void queryCostStatis(SExecTaskInfo* pTaskInfo);
 
 void doDestroyTask(SExecTaskInfo* pTaskInfo);
-void freeQueryAttr(STaskAttr* pQuery);
-
 int32_t getMaximumIdleDurationSec();
 
 void    doInvokeUdf(struct SUdfInfo* pUdfInfo, SqlFunctionCtx* pCtx, int32_t idx, int32_t type);

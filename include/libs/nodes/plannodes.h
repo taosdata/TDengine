@@ -36,7 +36,7 @@ typedef struct SLogicNode {
 typedef enum EScanType {
   SCAN_TYPE_TAG,
   SCAN_TYPE_TABLE,
-  SCAN_TYPE_STABLE,
+  SCAN_TYPE_SYSTEM_TABLE,
   SCAN_TYPE_STREAM
 } EScanType;
 
@@ -147,8 +147,12 @@ typedef struct SScanPhysiNode {
   SName tableName;
 } SScanPhysiNode;
 
-typedef SScanPhysiNode SSystemTableScanPhysiNode;
 typedef SScanPhysiNode STagScanPhysiNode;
+
+typedef struct SSystemTableScanPhysiNode {
+  SScanPhysiNode scan;
+  SEpSet mgmtEpSet;
+} SSystemTableScanPhysiNode;
 
 typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;

@@ -1032,7 +1032,6 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
   };
 
   if (NULL == context.pVgroupsHashObj || NULL == context.pTableBlockHashObj || NULL == context.pOutput) {
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -1051,6 +1050,5 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
     code = parseInsertBody(&context);
   }
   destroyInsertParseContext(&context);
-  terrno = code;
   return code;
 }

@@ -37,6 +37,10 @@ bool getMinmaxFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 void minFunction(SqlFunctionCtx* pCtx);
 void maxFunction(SqlFunctionCtx *pCtx);
 
+bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+void firstFunction(SqlFunctionCtx *pCtx);
+void lastFunction(SqlFunctionCtx *pCtx);
+
 #ifdef __cplusplus
 }
 #endif

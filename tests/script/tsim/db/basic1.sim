@@ -6,7 +6,7 @@ sql connect
 print =============== create database
 sql create database d1 vgroups 2
 sql show databases
-if $rows != 1 then 
+if $rows != 2 then 
   return -1
 endi
 
@@ -40,7 +40,7 @@ endi
 print =============== drop database
 sql drop database d1
 sql show databases
-if $rows != 0 then 
+if $rows != 1 then 
   return -1
 endi
 
@@ -49,7 +49,7 @@ sql create database d2 vgroups 2
 sql create database d3 vgroups 3
 sql create database d4 vgroups 4
 sql show databases
-if $rows != 3 then 
+if $rows != 4 then 
   return -1
 endi
 
@@ -111,7 +111,7 @@ print =============== drop database
 sql drop database d2
 sql drop database d3
 sql show databases
-if $rows != 1 then 
+if $rows != 2 then 
   return -1
 endi
 
@@ -154,7 +154,7 @@ system sh/exec.sh -n dnode1 -s start
 
 print =============== show databases
 sql show databases
-if $rows != 1 then 
+if $rows != 2 then 
   return -1
 endi
 
