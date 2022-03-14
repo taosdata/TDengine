@@ -20,6 +20,7 @@
 SMgmtFp mmGetMgmtFp() {
   SMgmtFp mgmtFp = {0};
   mgmtFp.getMsgHandleFp = mmGetMsgHandle;
+  return mgmtFp;
 }
 
 

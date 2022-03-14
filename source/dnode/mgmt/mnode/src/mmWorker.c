@@ -267,3 +267,7 @@ static void mmConsumeMsgQueue(SDnode *pDnode, SMndMsg *pMsg) {
 }
 
 #endif
+
+void mmProcessWriteMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {}
+void mmProcessSyncMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {}
+void mmProcessReadMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {}

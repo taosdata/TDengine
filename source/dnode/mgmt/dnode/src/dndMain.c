@@ -120,6 +120,7 @@ SDnode *dndCreate(SDndCfg *pCfg) {
     goto _OVER;
   }
 
+  pDnode->mgmts[DNODE].fp = dndGetMgmtFp();
   pDnode->mgmts[MNODE].fp = mmGetMgmtFp();
   pDnode->mgmts[VNODES].fp = vmGetMgmtFp();
   pDnode->mgmts[QNODE].fp = qmGetMgmtFp();

@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dndInt.h"
+#include "dndHandle.h"
 
 static int8_t once = DND_ENV_INIT;
 
@@ -140,4 +141,10 @@ void dndeHandleEvent(SDnode *pDnode, EDndEvent event) {
 
 SMgmtWrapper *dndGetWrapper(SDnode *pDnode, ENodeType nodeType) {
   return &pDnode->mgmts[nodeType];
+}
+
+SMgmtFp dndGetMgmtFp() {
+  SMgmtFp mgmtFp = {0};
+  mgmtFp.getMsgHandleFp = dndGetMsgHandle;
+  return mgmtFp;
 }

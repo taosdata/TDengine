@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dndHandle.h"
 #include "dndWorker.h"
+#include "dndMgmt.h"
 
 static void dndSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp) {
   SDnodeMgmt *pMgmt = pWrapper->pMgmt;

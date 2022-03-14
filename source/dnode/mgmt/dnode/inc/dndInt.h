@@ -254,6 +254,8 @@ SMgmtWrapper *dndGetWrapper(SDnode *pDnode, ENodeType nodeType) ;
 
 void dndProcessRpcMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet);
 
+SMgmtFp dndGetMgmtFp();
+
 #ifdef __cplusplus
 }
 #endif

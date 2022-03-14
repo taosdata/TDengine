@@ -426,3 +426,20 @@ static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
 }
 
 #endif
+
+
+
+int32_t dndInitMgmt(SDnode *pDnode) {return 0;}
+void dndStopMgmt(SDnode *pDnode) {}
+
+void dndCleanupMgmt(SDnode *pDnode){}
+
+
+void dndSendStatusReq(SDnode *pDnode){}
+
+
+void dndGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {}
+
+
+void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq){}
+void dndProcessMgmtMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg){}
