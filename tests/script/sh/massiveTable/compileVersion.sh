@@ -45,10 +45,6 @@ function gitPullBranchInfo () {
   git pull origin $branch_name ||:
   echo "==== git pull $branch_name end ===="
   git pull --recurse-submodules
-  cd tests
-  git checkout $branch_name
-  git pull
-  cd ..
 }
 
 function compileTDengineVersion() {

@@ -473,14 +473,58 @@ static SPhysiNode* createExchangePhysiNode(SPhysiPlanContext* pCxt, SExchangeLog
   return (SPhysiNode*)pExchange;
 }
 
+static SPhysiNode* createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SWindowLogicNode* pWindowLogicNode) {
+  SIntervalPhysiNode* pInterval = (SIntervalPhysiNode*)makePhysiNode(pCxt, QUERY_NODE_PHYSICAL_PLAN_INTERVAL);
+  CHECK_ALLOC(pInterval, NULL);
+
+  pInterval->interval = pWindowLogicNode->interval;
+  pInterval->offset = pWindowLogicNode->offset;
+  pInterval->sliding = pWindowLogicNode->sliding;
+  pInterval->pFill = nodesCloneNode(pWindowLogicNode->pFill);
+
+  SNodeList* pPrecalcExprs = NULL;
+  SNodeList* pFuncs = NULL;
+  CHECK_CODE(rewritePrecalcExprs(pCxt, pWindowLogicNode->pFuncs, &pPrecalcExprs, &pFuncs), (SPhysiNode*)pInterval);
+
+  SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
+  // push down expression to pOutputDataBlockDesc of child node
+  if (NULL != pPrecalcExprs) {
+    pInterval->pExprs = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPrecalcExprs);
+    CHECK_ALLOC(pInterval->pExprs, (SPhysiNode*)pInterval);
+    CHECK_CODE(addDataBlockDesc(pCxt, pInterval->pExprs, pChildTupe), (SPhysiNode*)pInterval);
+  }
+
+  if (NULL != pFuncs) {
+    pInterval->pFuncs = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pFuncs);
+    CHECK_ALLOC(pInterval->pFuncs, (SPhysiNode*)pInterval);
+    CHECK_CODE(addDataBlockDesc(pCxt, pInterval->pFuncs, pInterval->node.pOutputDataBlockDesc), (SPhysiNode*)pInterval);
+  }
+
+  CHECK_CODE(setSlotOutput(pCxt, pWindowLogicNode->node.pTargets, pInterval->node.pOutputDataBlockDesc), (SPhysiNode*)pInterval);
+
+  return (SPhysiNode*)pInterval;
+}
+
+static SPhysiNode* createWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SWindowLogicNode* pWindowLogicNode) {
+  switch (pWindowLogicNode->winType) {
+    case WINDOW_TYPE_INTERVAL:
+      return createIntervalPhysiNode(pCxt, pChildren, pWindowLogicNode);
+    case WINDOW_TYPE_SESSION:
+    case WINDOW_TYPE_STATE:
+      break;
+    default:
+      break;
+  }
+  return NULL;
+}
+
 static SPhysiNode* createPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SLogicNode* pLogicPlan) {
   SNodeList* pChildren = nodesMakeList();
   CHECK_ALLOC(pChildren, NULL);
 
   SNode* pLogicChild;
   FOREACH(pLogicChild, pLogicPlan->pChildren) {
-    SNode* pChildPhyNode = (SNode*)createPhysiNode(pCxt, pSubplan, (SLogicNode*)pLogicChild);
-    if (TSDB_CODE_SUCCESS != nodesListAppend(pChildren, pChildPhyNode)) {
+    if (TSDB_CODE_SUCCESS != nodesListStrictAppend(pChildren, createPhysiNode(pCxt, pSubplan, (SLogicNode*)pLogicChild))) {
       pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
       nodesDestroyList(pChildren);
       return NULL;
@@ -503,6 +547,9 @@ static SPhysiNode* createPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
       break;
     case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
       pPhyNode = createExchangePhysiNode(pCxt, (SExchangeLogicNode*)pLogicPlan);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_WINDOW:
+      pPhyNode = createWindowPhysiNode(pCxt, pChildren, (SWindowLogicNode*)pLogicPlan);
       break;
     default:
       break;
