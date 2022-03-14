@@ -30,7 +30,7 @@
       "cachelast":0,
       "quorum":1,
       "fsync":3000,
-      "update": 1
+      "update": 0
     },
     "super_tables": [{
       "name": "stb",
@@ -43,8 +43,8 @@
       "data_source": "rand",
       "insert_mode": "stmt",
       "line_protocol": "line",
-      "childtable_limit": -10,
-      "childtable_offset": 10,
+      "childtable_limit": 0,
+      "childtable_offset": 0,
       "insert_rows": 20,
       "insert_interval": 0,
       "interlace_rows": 0,
