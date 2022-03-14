@@ -35,7 +35,6 @@ import com.google.common.primitives.Longs;
 import com.google.common.primitives.Shorts;
 import com.taosdata.jdbc.enums.TimestampPrecision;
 import com.taosdata.jdbc.utils.NullType;
-import com.taosdata.jdbc.utils.Utils;
 
 public class TSDBResultSetBlockData {
     private static final int BINARY_LENGTH_OFFSET = 2;
@@ -182,6 +181,17 @@ public class TSDBResultSetBlockData {
             return null;
         }
 
+        if (obj instanceof String)
+            return (String) obj;
+
+        if (obj instanceof byte[]) {
+            String charset = TaosGlobalConfig.getCharset();
+            try {
+                return new String((byte[]) obj, charset);
+            } catch (UnsupportedEncodingException e) {
+                throw new RuntimeException(e.getMessage());
+            }
+        }
         return obj.toString();
     }
 
@@ -203,9 +213,6 @@ public class TSDBResultSetBlockData {
             return Shorts.toByteArray((short) obj);
         if (obj instanceof Byte)
             return new byte[]{(byte) obj};
-        if (obj instanceof Timestamp) {
-            return Utils.formatTimestamp((Timestamp) obj).getBytes();
-        }
 
         return obj.toString().getBytes();
     }

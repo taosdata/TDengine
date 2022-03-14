@@ -482,9 +482,6 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             return Shorts.toByteArray((short) value);
         if (value instanceof Byte)
             return new byte[]{(byte) value};
-        if (value instanceof Timestamp) {
-            return Utils.formatTimestamp((Timestamp) value).getBytes();
-        }
 
         return value.toString().getBytes();
     }
