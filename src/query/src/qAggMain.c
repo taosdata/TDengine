@@ -284,12 +284,11 @@ typedef struct {
   uint8_t buckets[HLL_BUCKETS]; // Data bytes.
 } SHLLInfo;
 
-static void hllBucketHisto(uint8_t *buckets, int* bucketHisto) {
+static void hllBucketHisto(uint8_t *buckets, int32_t* bucketHisto) {
   uint64_t *word = (uint64_t*) buckets;
   uint8_t *bytes;
-  int j;
 
-  for (j = 0; j < HLL_BUCKETS/8; j++) {
+  for (int32_t j = 0; j < HLL_BUCKETS>>3; j++) {
     if (*word == 0) {
       bucketHisto[0] += 8;
     } else {
@@ -321,7 +320,7 @@ static double hllTau(double x) {
 }
 
 static double hllSigma(double x) {
-  if (x == 1.) return INFINITY;
+  if (x == 1.0) return INFINITY;
   double zPrime;
   double y = 1;
   double z = x;
@@ -334,9 +333,10 @@ static double hllSigma(double x) {
   return z;
 }
 
+// estimate the cardinality, the algorithm refer this paper: "New cardinality estimation algorithms for HyperLogLog sketches"
 static uint64_t hllCountCnt(uint8_t *buckets) {
   double m = HLL_BUCKETS;
-  int buckethisto[64] = {0};
+  int32_t buckethisto[64] = {0};
   hllBucketHisto(buckets,buckethisto);
 
   double z = m * hllTau((m-buckethisto[HLL_DATA_BITS+1])/(double)m);
