@@ -327,33 +327,6 @@ char* syncNode2Str(const SSyncNode* pSyncNode) {
   return serialized;
 }
 
-// for debug --------------
-void syncNodePrint(SSyncNode* pObj) {
-  char* serialized = syncNode2Str(pObj);
-  printf("syncNodePrint | len:%lu | %s \n", strlen(serialized), serialized);
-  fflush(NULL);
-  free(serialized);
-}
-
-void syncNodePrint2(char* s, SSyncNode* pObj) {
-  char* serialized = syncNode2Str(pObj);
-  printf("syncNodePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
-  fflush(NULL);
-  free(serialized);
-}
-
-void syncNodeLog(SSyncNode* pObj) {
-  char* serialized = syncNode2Str(pObj);
-  sTrace("syncNodeLog | len:%lu | %s", strlen(serialized), serialized);
-  free(serialized);
-}
-
-void syncNodeLog2(char* s, SSyncNode* pObj) {
-  char* serialized = syncNode2Str(pObj);
-  sTrace("syncNodeLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  free(serialized);
-}
-
 int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
   SEpSet epSet;
   syncUtilraftId2EpSet(destRaftId, &epSet);
@@ -489,6 +462,33 @@ int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
   atomic_add_fetch_64(&pSyncNode->heartbeatTimerLogicClockUser, 1);
   pSyncNode->heartbeatTimerMS = TIMER_MAX_MS;
   return 0;
+}
+
+// for debug --------------
+void syncNodePrint(SSyncNode* pObj) {
+  char* serialized = syncNode2Str(pObj);
+  printf("syncNodePrint | len:%lu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncNodePrint2(char* s, SSyncNode* pObj) {
+  char* serialized = syncNode2Str(pObj);
+  printf("syncNodePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncNodeLog(SSyncNode* pObj) {
+  char* serialized = syncNode2Str(pObj);
+  sTrace("syncNodeLog | len:%lu | %s", strlen(serialized), serialized);
+  free(serialized);
+}
+
+void syncNodeLog2(char* s, SSyncNode* pObj) {
+  char* serialized = syncNode2Str(pObj);
+  sTrace("syncNodeLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  free(serialized);
 }
 
 // ------ local funciton ---------

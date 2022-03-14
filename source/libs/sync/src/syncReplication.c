@@ -14,7 +14,9 @@
  */
 
 #include "syncReplication.h"
+#include "syncIndexMgr.h"
 #include "syncMessage.h"
+#include "syncRaftEntry.h"
 
 // TLA+ Spec
 // AppendEntries(i, j) ==
@@ -42,7 +44,24 @@
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 //
 int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
+  assert(pSyncNode->state == TAOS_SYNC_STATE_LEADER);
+
   int32_t ret = 0;
+  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+    SRaftId*  pDestId = &(pSyncNode->peersId[i]);
+    SyncIndex nextIndex = syncIndexMgrGetIndex(pSyncNode->pNextIndex, pDestId);
+    SyncIndex preLogIndex = nextIndex - 1;
+    SyncTerm  preLogTerm = 0;
+    if (preLogIndex >= 0) {
+      SSyncRaftEntry* pPreEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, preLogIndex);
+      preLogTerm = pPreEntry->term;
+    } else {
+      preLogTerm = 0;
+    }
+    // SyncTerm lastIndex =
+    //     pSyncNode->pLogStore->getLastIndex < nextIndex ? pSyncNode->pLogStore->getLastIndex : nextIndex;
+  }
+
   return ret;
 }
 

@@ -130,7 +130,7 @@ cJSON* logStore2Json(SSyncLogStore* pLogStore) {
   cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
   snprintf(u64buf, sizeof(u64buf), "%p", pData->pWal);
   cJSON_AddStringToObject(pRoot, "pWal", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%lu", logStoreLastIndex(pLogStore));
+  snprintf(u64buf, sizeof(u64buf), "%ld", logStoreLastIndex(pLogStore));
   cJSON_AddStringToObject(pRoot, "LastIndex", u64buf);
   snprintf(u64buf, sizeof(u64buf), "%lu", logStoreLastTerm(pLogStore));
   cJSON_AddStringToObject(pRoot, "LastTerm", u64buf);

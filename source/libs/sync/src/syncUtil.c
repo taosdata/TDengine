@@ -185,3 +185,13 @@ char* syncUtilprintBin2(char* ptr, uint32_t len) {
   }
   return s;
 }
+
+SyncIndex syncUtilMinIndex(SyncIndex a, SyncIndex b) {
+  SyncIndex r = a < b ? a : b;
+  return r;
+}
+
+SyncIndex syncUtilMaxIndex(SyncIndex a, SyncIndex b) {
+  SyncIndex r = a > b ? a : b;
+  return r;
+}

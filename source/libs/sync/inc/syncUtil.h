@@ -52,6 +52,8 @@ const char* syncUtilState2String(ESyncState state);
 bool        syncUtilCanPrint(char c);
 char*       syncUtilprintBin(char* ptr, uint32_t len);
 char*       syncUtilprintBin2(char* ptr, uint32_t len);
+SyncIndex   syncUtilMinIndex(SyncIndex a, SyncIndex b);
+SyncIndex   syncUtilMaxIndex(SyncIndex a, SyncIndex b);
 
 #ifdef __cplusplus
 }
