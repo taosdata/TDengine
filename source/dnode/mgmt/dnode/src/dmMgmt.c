@@ -336,6 +336,26 @@ int32_t dmInit(SMgmtWrapper *pWrapper) {
 #endif
 }
 
-void dmCleanup(SMgmtWrapper *pWrapper) {}
+void dmCleanup(SMgmtWrapper *pWrapper) {
+  SDnodeMgmt *pMgmt = pWrapper->pMgmt;
+  if (pMgmt == NULL) return;
+
+  dmStopWorker(pMgmt);
+
+  taosWLockLatch(&pMgmt->latch);
+
+  if (pMgmt->pDnodeEps != NULL) {
+    taosArrayDestroy(pMgmt->pDnodeEps);
+    pMgmt->pDnodeEps = NULL;
+  }
+
+  if (pMgmt->dnodeHash != NULL) {
+    taosHashCleanup(pMgmt->dnodeHash);
+    pMgmt->dnodeHash = NULL;
+  }
+
+  taosWUnLockLatch(&pMgmt->latch);
+  dInfo("dnode-mgmt is cleaned up");
+}
 
 bool dmRequire(SMgmtWrapper *pWrapper) { return true; }

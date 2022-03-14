@@ -15,8 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "dmWorker.h"
-#include "dndWorker.h"
 #include "dmHandle.h"
+#include "dndWorker.h"
 
 static void *dnodeThreadRoutine(void *param) {
   SDnodeMgmt *pMgmt = param;
@@ -41,11 +41,11 @@ static void *dnodeThreadRoutine(void *param) {
       lastStatusTime = curTime;
     }
 
-    // float monitorInterval = (curTime - lastMonitorTime) / 1000.0f;
-    // if (monitorInterval >= tsMonitorInterval) {
-    //   dndSendMonitorReport(pDnode);
-    //   lastMonitorTime = curTime;
-    // }
+    float monitorInterval = (curTime - lastMonitorTime) / 1000.0f;
+    if (monitorInterval >= tsMonitorInterval) {
+      dndSendMonitorReport(pDnode);
+      lastMonitorTime = curTime;
+    }
   }
 }
 
@@ -137,30 +137,22 @@ int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
     return -1;
   }
 
-//   pMgmt->threadId = taosCreateThread(dnodeThreadRoutine, pDnode);
-//   if (pMgmt->threadId == NULL) {
-//     dError("failed to init dnode thread");
-//     terrno = TSDB_CODE_OUT_OF_MEMORY;
-//     return -1;
-//   }
+  pMgmt->threadId = taosCreateThread(dnodeThreadRoutine, pMgmt);
+  if (pMgmt->threadId == NULL) {
+    dError("failed to init dnode thread");
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
 
   return 0;
 }
 
 void dmStopWorker(SDnodeMgmt *pMgmt) {
-    #if 0
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
+  dndCleanupWorker(&pMgmt->mgmtWorker);
+  dndCleanupWorker(&pMgmt->statusWorker);
 
-  taosWLockLatch(&pMgmt->latch);
-  pMgmt->deployed = 0;
-  taosWUnLockLatch(&pMgmt->latch);
-
-  while (pMgmt->refCount > 1) {
-    taosMsleep(10);
+  if (pMgmt->threadId != NULL) {
+    taosDestoryThread(pMgmt->threadId);
+    pMgmt->threadId = NULL;
   }
-
-  dndCleanupWorker(&pMgmt->readWorker);
-  dndCleanupWorker(&pMgmt->writeWorker);
-  dndCleanupWorker(&pMgmt->syncWorker);
-  #endif
 }

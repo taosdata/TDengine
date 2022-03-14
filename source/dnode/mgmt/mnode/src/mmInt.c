@@ -32,3 +32,8 @@ SMgmtFp mmGetMgmtFp() {
 int32_t mmGetUserAuth(SMgmtWrapper *pWrapper, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   return 0;
 }
+
+int32_t mmGetMonitorInfo(SDnode *pDnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
+                         SMonGrantInfo *pGrantInfo) {
+  return 0;
+}
