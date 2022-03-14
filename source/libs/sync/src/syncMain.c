@@ -17,11 +17,13 @@
 #include "sync.h"
 #include "syncAppendEntries.h"
 #include "syncAppendEntriesReply.h"
+#include "syncElection.h"
 #include "syncEnv.h"
 #include "syncIndexMgr.h"
 #include "syncInt.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
+#include "syncReplication.h"
 #include "syncRequestVote.h"
 #include "syncRequestVoteReply.h"
 #include "syncTimeout.h"
@@ -41,13 +43,15 @@ static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
 static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
 
 // raft state change ----
-static void UpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
+static void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
 static void syncNodeBecomeFollower(SSyncNode* pSyncNode);
 static void syncNodeBecomeLeader(SSyncNode* pSyncNode);
-static void syncNodeFollower2Candidate(SSyncNode* pSyncNode);
+
 static void syncNodeCandidate2Leader(SSyncNode* pSyncNode);
+static void syncNodeFollower2Candidate(SSyncNode* pSyncNode);
 static void syncNodeLeader2Follower(SSyncNode* pSyncNode);
 static void syncNodeCandidate2Follower(SSyncNode* pSyncNode);
+
 // ---------------------------------
 
 int32_t syncInit() {
@@ -596,12 +600,15 @@ static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg) {
 }
 
 // raft state change ----
-static void UpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
+static void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
   if (term > pSyncNode->pRaftStore->currentTerm) {
     pSyncNode->pRaftStore->currentTerm = term;
+    raftStorePersist(pSyncNode->pRaftStore);
+
+    syncNodeBecomeFollower(pSyncNode);
+
     pSyncNode->pRaftStore->voteFor = EMPTY_RAFT_ID;
     raftStorePersist(pSyncNode->pRaftStore);
-    syncNodeBecomeFollower(pSyncNode);
   }
 }
 
@@ -610,9 +617,11 @@ static void syncNodeBecomeFollower(SSyncNode* pSyncNode) {
     pSyncNode->leaderCache = EMPTY_RAFT_ID;
   }
 
+  pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
   syncNodeStopHeartbeatTimer(pSyncNode);
+
   int32_t electMS = syncUtilElectRandomMS();
-  syncNodeStartElectTimer(pSyncNode, electMS);
+  syncNodeRestartElectTimer(pSyncNode, electMS);
 }
 
 // TLA+ Spec
@@ -637,13 +646,23 @@ static void syncNodeBecomeLeader(SSyncNode* pSyncNode) {
   pSyncNode->state = TAOS_SYNC_STATE_LEADER;
   pSyncNode->leaderCache = pSyncNode->myRaftId;
 
-  // next Index +=1
-  // match Index = 0;
+  for (int i = 0; i < pSyncNode->pNextIndex->replicaNum; ++i) {
+    pSyncNode->pNextIndex->index[i] = pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore) + 1;
+  }
+
+  for (int i = 0; i < pSyncNode->pMatchIndex->replicaNum; ++i) {
+    pSyncNode->pMatchIndex->index[i] = SYNC_INDEX_INVALID;
+  }
 
   syncNodeStopElectTimer(pSyncNode);
   syncNodeStartHeartbeatTimer(pSyncNode);
+  syncNodeReplicate(pSyncNode);
+}
 
-  // appendEntries;
+static void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
+  assert(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
+  assert(voteGrantedMajority(pSyncNode->pVotesGranted));
+  syncNodeBecomeLeader(pSyncNode);
 }
 
 static void syncNodeFollower2Candidate(SSyncNode* pSyncNode) {
@@ -651,8 +670,12 @@ static void syncNodeFollower2Candidate(SSyncNode* pSyncNode) {
   pSyncNode->state = TAOS_SYNC_STATE_CANDIDATE;
 }
 
-static void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {}
+static void syncNodeLeader2Follower(SSyncNode* pSyncNode) {
+  assert(pSyncNode->state == TAOS_SYNC_STATE_LEADER);
+  syncNodeBecomeFollower(pSyncNode);
+}
 
-static void syncNodeLeader2Follower(SSyncNode* pSyncNode) {}
-
-static void syncNodeCandidate2Follower(SSyncNode* pSyncNode) {}
+static void syncNodeCandidate2Follower(SSyncNode* pSyncNode) {
+  assert(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
+  syncNodeBecomeFollower(pSyncNode);
+}
