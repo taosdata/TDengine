@@ -95,6 +95,7 @@ int tdbPageDropCell(SPage *pPage, int idx) {
 static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell) {
   SCell     *pCell;
   SFreeCell *pFreeCell;
+  u8        *pOffset;
   int        ret;
 
   ASSERT(pPage->nFree > size + pPage->szOffset);
@@ -106,22 +107,32 @@ static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell) {
   if (pPage->pFreeEnd - pPage->pFreeStart > size + pPage->szOffset) {
     pPage->pFreeEnd -= size;
     pPage->pFreeStart += pPage->szOffset;
-
     pCell = pPage->pFreeEnd;
   }
 
   // 2. Try to allocate from the page free list
-  if (pCell == NULL && TDB_PAGE_FCELL(pPage)) {
+  if ((pCell == NULL) && (pPage->pFreeEnd - pPage->pFreeStart >= pPage->szOffset) && TDB_PAGE_FCELL(pPage)) {
     pCell = pPage->pData + TDB_PAGE_FCELL(pPage);
+    // TODO: pOffset = TDB_PAGE_FCELL(pPage);
+
     for (;;) {
       pFreeCell = (SFreeCell *)pCell;
 
       if (pFreeCell->size >= size) {
+        if (pFreeCell->size - size >= 4 /*TODO*/) {
+          ((SFreeCell *)(pCell + size))[0].size = pFreeCell->size - size;
+          ((SFreeCell *)(pCell + size))[0].nOffset = pFreeCell->nOffset;
+          // *(u16 *)pOffset =  pCell + size - pPage->pData;
+        } else {
+          TDB_PAGE_NFREE_SET(pPage, TDB_PAGE_NFREE(pPage) + pFreeCell->size - size);
+          // *(u16 *)pOffset = pFreeCell->nOffset;
+        }
         break;
       }
 
       if (pFreeCell->nOffset) {
         pCell = pPage->pData + pFreeCell->nOffset;
+        // TODO: pOffset = &(pFreeCell->nOffset);
       } else {
         pCell = NULL;
         break;
