@@ -5052,7 +5052,7 @@ static SSDataBlock* concurrentlyLoadRemoteDataImpl(SOperatorInfo *pOperator, SEx
         qDebug("%s vgId:%d, taskID:0x%" PRIx64 " index:%d completed, rowsOfSource:%" PRIu64 ", totalRows:%" PRIu64 " try next",
                GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, i + 1, pDataInfo->totalRows,
                pExchangeInfo->loadInfo.totalRows);
-        pDataInfo->status = DATA_EXHAUSTED;
+        pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
         completed += 1;
         continue;
       }
@@ -5206,8 +5206,6 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
 
   size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
   SLoadRemoteDataInfo* pLoadInfo = &pExchangeInfo->loadInfo;
-
-  size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
   if (pOperator->status == OP_EXEC_DONE) {
     qDebug("%s all %"PRIzu" source(s) are exhausted, total rows:%"PRIu64" bytes:%"PRIu64", elapsed:%.2f ms", GET_TASKID(pTaskInfo), totalSources,
            pLoadInfo->totalRows, pLoadInfo->totalSize, pLoadInfo->totalElapsed/1000.0);
@@ -5605,7 +5603,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
   pOperator->status        = OP_IN_EXECUTING;
   pOperator->info          = pInfo;
   pOperator->numOfOutput   = pResBlock->info.numOfCols;
-  pOperator->nextDataFn    = doSysTableScan;
+  pOperator->getNextFn     = doSysTableScan;
   pOperator->closeFn       = destroySysTableScannerOperatorInfo;
   pOperator->pTaskInfo     = pTaskInfo;
 
@@ -7349,7 +7347,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SArray* pExp
   pOperator->pExpr        = exprArrayDup(pExprInfo);
   pOperator->numOfOutput  = taosArrayGetSize(pExprInfo);
 
-  pOperator->nextDataFn   = doProjectOperation;
+  pOperator->getNextFn    = doProjectOperation;
   pOperator->pTaskInfo    = pTaskInfo;
   pOperator->closeFn      = destroyProjectOperatorInfo;
   int32_t code = appendDownstream(pOperator, &downstream, 1);

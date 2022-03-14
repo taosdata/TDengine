@@ -1371,6 +1371,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
 
       memcpy(pMsg->msg, pJob->sql, len);
       memcpy(pMsg->msg + len, pTask->msg, pTask->msgLen);
+      
       break;
     }
 

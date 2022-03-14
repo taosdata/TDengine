@@ -190,14 +190,20 @@ typedef struct SEp {
 } SEp;
 
 typedef struct {
+  char    dbFName[TSDB_DB_FNAME_LEN];
   int32_t contLen;
   int32_t vgId;
 } SMsgHead;
+
+typedef struct {
+  char    dbFName[TSDB_DB_FNAME_LEN];
+} SRspHead;
 
 // Submit message for one table
 typedef struct SSubmitBlk {
   int64_t uid;        // table unique id
   int32_t tid;        // table id
+  char    tableName[TSDB_TABLE_NAME_LEN];
   int32_t padding;    // TODO just for padding here
   int32_t sversion;   // data schema version
   int32_t dataLen;    // data part length, not including the SSubmitBlk head
@@ -2283,4 +2289,3 @@ static FORCE_INLINE void* tDecodeSMqCMGetSubEpRsp(void* buf, SMqCMGetSubEpRsp* p
 #endif
 
 #endif /*_TD_COMMON_TAOS_MSG_H_*/
-                                                                                                                                                                                                                                                                                                                                 

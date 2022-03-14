@@ -840,3 +840,4 @@ int32_t createPhysiPlan(SPlanContext* pCxt, SLogicNode* pLogicNode, SQueryPlan**
   nodesDestroyNode(pLogicPlan);
   return code;
 }
+                                                                                                   
