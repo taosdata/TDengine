@@ -17,15 +17,16 @@ from taostest.util.common import TDCom
 from taostest.util.rest import TDRest
 import copy
 
+
 class TestDB(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.tdRest = TDRest()
 
     def dbname_length_check(self):
-        '''
-            max length: 32
-        '''
+        """
+        max length: 32
+        """
         self.tdRest.drop_all_db()
         dbname = self.tdCom.get_long_name(len=32, mode="letters")
         self.tdRest.request(f'create database if not exists {dbname}')
@@ -38,17 +39,17 @@ class TestDB(TDCase):
         self.tdRest.request(f'drop database if exists {dbname}')
 
     def dbname_backquote_unsupport_check(self):
-        '''
-            backquote unsupported
-        '''
+        """
+        backquote unsupported
+        """
         dbname = self.tdCom.get_long_name(len=10, mode="letters")
         self.tdRest.error(f'create database if not exists `{dbname}`')
         self.tdSql.checkEqual(self.tdRest.resp["desc"], "invalid operation: invalid db name")
 
     def alter_db(self):
-        '''
-            alter db
-        '''
+        """
+        alter db
+        """
         self.tdRest.drop_all_db()
         dbname = self.tdCom.get_long_name(len=10, mode="letters")
         self.tdRest.request(f'create database if not exists {dbname}')
@@ -90,9 +91,9 @@ class TestDB(TDCase):
             self.tdSql.checkEqual(res[0][15], cachelast)
 
     def upper_lower_dbname_check(self):
-        '''
-            case insensitive
-        '''
+        """
+        case insensitive
+        """
         for dbname in [self.tdCom.get_long_name(len=10, mode="letters_mixed"), self.tdCom.get_long_name(len=5, mode="letters_mixed").upper()]:
             self.tdRest.request(f'create database if not exists {dbname}')
             self.tdRest.request('show databases')
@@ -101,10 +102,10 @@ class TestDB(TDCase):
             self.tdRest.request(f'drop database if exists {dbname}')
 
     def illegal_dbsql_check(self):
-        '''
-            mixed invalid symbol
-            mixed space
-        '''
+        """
+        mixed invalid symbol
+        mixed space
+        """
         dbname = self.tdCom.get_long_name(len=10, mode="letters")
         self.tdRest.request(f'create database if not exists {dbname}')
         self.tdRest.error(f'create database {dbname}')
@@ -132,7 +133,7 @@ class TestDB(TDCase):
         self.tdRest.error(f'create database if not exists? {dbname}')
         for insert_str in self.tdCom.gen_symbol_list():
             d_list = list(dbname)
-            for i in range(len(d_list)+1):
+            for i in range(len(d_list) + 1):
                 d_list_new = copy.deepcopy(d_list)
                 d_list_new.insert(i, insert_str)
                 dbname_new = ''.join(d_list_new)
@@ -147,7 +148,7 @@ class TestDB(TDCase):
 
     def cleanup(self):
         pass
-        
+
     def desc(self) -> str:
         case_description = '''
             dbname_length_check <jayden>: [TD-12748] : db name length check (max 32);\n
@@ -157,10 +158,9 @@ class TestDB(TDCase):
             illegal_dbsql_check <jayden>: [TD-12748] : illegal dbname check;
         '''
         return case_description
-    
+
     def author(self) -> str:
         return "Jayden"
-    
+
     def tags(self):
         return T.Write.RestfulSql.Database.Create, T.Write.RestfulSql.Database.Drop, T.Write.RestfulSql.Database.Alter
-        
