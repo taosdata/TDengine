@@ -1,3 +1,4 @@
+python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeBinary.py
 python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeBigInt.py
 python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeBool.py
 python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeDouble.py
