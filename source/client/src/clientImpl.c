@@ -226,6 +226,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
 
     pRequest->errList = res.errList;
     pRequest->code = code;
+    terrno = code;
     return pRequest->code;
   }
 
@@ -239,6 +240,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
 
   pRequest->errList = res.errList;  
   pRequest->code = res.code;
+  terrno = res.code;  
   return pRequest->code;
 }
 
@@ -280,6 +282,8 @@ int32_t clientProcessErrorList(SArray **pList) {
       }
       
       // TODO REMOVE SAME DB ERROR
+    } else if (NEED_CLIENT_RM_TBLMETA_ERROR(errInfo->code)) {
+      continue;
     } else {
       taosArrayRemove(errList, i);
       --i;
