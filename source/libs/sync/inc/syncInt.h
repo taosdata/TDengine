@@ -209,6 +209,7 @@ int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode);
 int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms);
+int32_t syncNodeResetElectTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
 
@@ -217,6 +218,20 @@ int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRp
 int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
 cJSON*  syncNode2Json(const SSyncNode* pSyncNode);
 char*   syncNode2Str(const SSyncNode* pSyncNode);
+
+// raft state change --------------
+void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
+void syncNodeBecomeFollower(SSyncNode* pSyncNode);
+void syncNodeBecomeLeader(SSyncNode* pSyncNode);
+
+void syncNodeCandidate2Leader(SSyncNode* pSyncNode);
+void syncNodeFollower2Candidate(SSyncNode* pSyncNode);
+void syncNodeLeader2Follower(SSyncNode* pSyncNode);
+void syncNodeCandidate2Follower(SSyncNode* pSyncNode);
+
+// raft vote --------------
+void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId);
+void syncNodeVoteForSelf(SSyncNode* pSyncNode);
 
 // for debug --------------
 void syncNodePrint(SSyncNode* pObj);
