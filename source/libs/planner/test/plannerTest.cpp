@@ -56,7 +56,7 @@ protected:
     const string syntaxTreeStr = toString(query_->pRoot, false);
   
     SLogicNode* pLogicPlan = nullptr;
-    SPlanContext cxt = { .queryId = 1, .pAstRoot = query_->pRoot };
+    SPlanContext cxt = { .queryId = 1, .acctId = 0, .pAstRoot = query_->pRoot };
     code = createLogicPlan(&cxt, &pLogicPlan);
     if (code != TSDB_CODE_SUCCESS) {
       cout << "sql:[" << cxt_.pSql << "] logic plan code:" << code << ", strerror:" << tstrerror(code) << endl;

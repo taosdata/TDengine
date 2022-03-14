@@ -83,7 +83,7 @@ SSyncNode* syncInitTest() { return syncNodeInit(); }
 void logStoreTest() {
   logStorePrint(pSyncNode->pLogStore);
   for (int i = 0; i < 5; ++i) {
-    int32_t dataLen = 10;
+    int32_t         dataLen = 10;
     SSyncRaftEntry* pEntry = syncEntryBuild(dataLen);
     assert(pEntry != NULL);
     pEntry->msgType = 1;
@@ -94,7 +94,7 @@ void logStoreTest() {
     pEntry->index = pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore) + 1;
     snprintf(pEntry->data, dataLen, "value%d", i);
 
-    //syncEntryPrint2((char*)"write entry:", pEntry);
+    // syncEntryPrint2((char*)"write entry:", pEntry);
     pSyncNode->pLogStore->appendEntry(pSyncNode->pLogStore, pEntry);
     syncEntryDestory(pEntry);
   }
@@ -132,8 +132,8 @@ int main(int argc, char** argv) {
   pSyncNode = syncInitTest();
   assert(pSyncNode != NULL);
 
-  //syncNodePrint((char*)"syncLogStoreTest", pSyncNode);
-  //initRaftId(pSyncNode);
+  // syncNodePrint((char*)"syncLogStoreTest", pSyncNode);
+  // initRaftId(pSyncNode);
 
   logStoreTest();
 

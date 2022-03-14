@@ -335,6 +335,17 @@ typedef struct {
   SDFile   files[TSDB_FILE_MAX];
 } SDFileSet;
 
+typedef struct {
+  int     fid;
+  int8_t  state;
+  uint8_t ver;
+#if 0
+  SDFInfo   info;
+#endif
+  STfsFile  f;
+  TdFilePtr pFile;
+} SSFile;  // files split by days with fid
+
 #define TSDB_LATEST_FSET_VER 0
 
 #define TSDB_FSET_FID(s) ((s)->fid)

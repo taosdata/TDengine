@@ -33,11 +33,11 @@ uint32_t taosSafeRand(void) {
 
   pFile = taosOpenFile("/dev/urandom", TD_FILE_READ);
   if (pFile == NULL) {
-    seed = (int)time(0);
+    seed = (int)taosGetTimestampSec();
   } else {
     int len = taosReadFile(pFile, &seed, sizeof(seed));
     if (len < 0) {
-      seed = (int)time(0);
+      seed = (int)taosGetTimestampSec();
     }
     taosCloseFile(&pFile);
   }

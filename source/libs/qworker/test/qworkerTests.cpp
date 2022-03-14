@@ -963,7 +963,7 @@ TEST(seqTest, randCase) {
   stubSetRpcSendResponse();
   stubSetCreateExecTask();
 
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
   
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue);
   ASSERT_EQ(code, 0);
@@ -1025,7 +1025,7 @@ TEST(seqTest, multithreadRand) {
   stubSetStringToPlan();
   stubSetRpcSendResponse();
 
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
   
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue);
   ASSERT_EQ(code, 0);
@@ -1076,7 +1076,7 @@ TEST(rcTest, shortExecshortDelay) {
   stubSetPutDataBlock();
   stubSetGetDataBlock();
 
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
   qwtTestStop = false;
   qwtTestQuitThreadNum = 0;
 
@@ -1157,7 +1157,7 @@ TEST(rcTest, longExecshortDelay) {
   stubSetPutDataBlock();
   stubSetGetDataBlock();
 
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
   qwtTestStop = false;
   qwtTestQuitThreadNum = 0;
 
@@ -1240,7 +1240,7 @@ TEST(rcTest, shortExeclongDelay) {
   stubSetPutDataBlock();
   stubSetGetDataBlock();
 
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
   qwtTestStop = false;
   qwtTestQuitThreadNum = 0;
 
@@ -1324,7 +1324,7 @@ TEST(rcTest, dropTest) {
   stubSetPutDataBlock();
   stubSetGetDataBlock();
 
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
   
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue);
   ASSERT_EQ(code, 0);
@@ -1358,7 +1358,7 @@ TEST(rcTest, dropTest) {
 
 
 int main(int argc, char** argv) {
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

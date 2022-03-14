@@ -29,7 +29,6 @@ extern "C" {
 
 extern int tsRpcHeadSize;
 
-typedef struct SRpcPush SRpcPush;
 
 typedef struct SRpcConnInfo {
   uint32_t clientIp;
@@ -45,16 +44,8 @@ typedef struct SRpcMsg {
   int32_t code;
   void *  handle;   // rpc handle returned to app
   void *  ahandle;  // app handle set by client
-  int     persist;  // keep handle or not, default 0
-
-  SRpcPush *push;
-
 } SRpcMsg;
 
-typedef struct SRpcPush {
-  void *arg;
-  int (*callback)(void *arg, SRpcMsg *rpcMsg);
-} SRpcPush;
 
 typedef struct SRpcInit {
   uint16_t localPort;     // local port
@@ -64,7 +55,6 @@ typedef struct SRpcInit {
   int8_t   connType;      // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
   int      idleTime;      // milliseconds, 0 means idle timer is disabled
 
-  bool noPool;  //  create conn pool or not
   // the following is for client app ecurity only
   char *user;     // user name
   char  spi;      // security parameter index
@@ -86,7 +76,7 @@ typedef struct SRpcInit {
 
 int32_t rpcInit();
 void    rpcCleanup();
-void   *rpcOpen(const SRpcInit *pRpc);
+void *  rpcOpen(const SRpcInit *pRpc);
 void    rpcClose(void *);
 void *  rpcMallocCont(int contLen);
 void    rpcFreeCont(void *pCont);
@@ -98,6 +88,9 @@ int     rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
 void    rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
 int     rpcReportProgress(void *pConn, char *pCont, int contLen);
 void    rpcCancelRequest(int64_t rid);
+
+void rpcRefHandle(void *handle, int8_t type);
+void rpcUnrefHandle(void *handle, int8_t type);
 
 #ifdef __cplusplus
 }
