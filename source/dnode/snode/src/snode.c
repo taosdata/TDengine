@@ -31,3 +31,15 @@ int32_t sndProcessMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 }
 
 void sndDestroy(const char *path) {}
+
+int32_t sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) {
+  // stream deployment
+  // stream stop/resume
+  // operator exec
+  return 0;
+}
+
+int32_t sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg) {
+  // operator exec
+  return 0;
+}
