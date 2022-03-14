@@ -74,6 +74,8 @@ bool syncUtilSameId(const SRaftId* pId1, const SRaftId* pId2) {
   return ret;
 }
 
+bool syncUtilEmptyId(const SRaftId* pId) { return (pId->addr == 0 && pId->vgId == 0); }
+
 // ---- SSyncBuffer -----
 void syncUtilbufBuild(SSyncBuffer* syncBuf, size_t len) {
   syncBuf->len = len;

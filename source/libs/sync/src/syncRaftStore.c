@@ -15,6 +15,8 @@
 
 #include "syncRaftStore.h"
 #include "cJSON.h"
+#include "syncEnv.h"
+#include "syncUtil.h"
 
 // private function
 static int32_t raftStoreInit(SRaftStore *pRaftStore);
@@ -133,6 +135,33 @@ int32_t raftStoreDeserialize(SRaftStore *pRaftStore, char *buf, size_t len) {
 
   cJSON_Delete(pRoot);
   return 0;
+}
+
+bool raftStoreHasVoted(SRaftStore *pRaftStore) {
+  bool b = syncUtilEmptyId(&(pRaftStore->voteFor));
+  return b;
+}
+
+void raftStoreVote(SRaftStore *pRaftStore, SRaftId *pRaftId) {
+  assert(!raftStoreHasVoted(pRaftStore));
+  assert(!syncUtilEmptyId(pRaftId));
+  pRaftStore->voteFor = *pRaftId;
+  raftStorePersist(pRaftStore);
+}
+
+void raftStoreClearVote(SRaftStore *pRaftStore) {
+  pRaftStore->voteFor = EMPTY_RAFT_ID;
+  raftStorePersist(pRaftStore);
+}
+
+void raftStoreNextTerm(SRaftStore *pRaftStore) {
+  ++(pRaftStore->currentTerm);
+  raftStorePersist(pRaftStore);
+}
+
+void raftStoreSetTerm(SRaftStore *pRaftStore, SyncTerm term) {
+  pRaftStore->currentTerm = term;
+  raftStorePersist(pRaftStore);
 }
 
 // for debug -------------------

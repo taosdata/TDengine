@@ -21,6 +21,7 @@
 #include "syncEnv.h"
 #include "syncIndexMgr.h"
 #include "syncInt.h"
+#include "syncMessage.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncReplication.h"
@@ -52,6 +53,9 @@ static void syncNodeFollower2Candidate(SSyncNode* pSyncNode);
 static void syncNodeLeader2Follower(SSyncNode* pSyncNode);
 static void syncNodeCandidate2Follower(SSyncNode* pSyncNode);
 
+// raft vote ----
+static void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId);
+static void syncNodeVoteForSelf(SSyncNode* pSyncNode);
 // ---------------------------------
 
 int32_t syncInit() {
@@ -602,13 +606,9 @@ static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg) {
 // raft state change ----
 static void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
   if (term > pSyncNode->pRaftStore->currentTerm) {
-    pSyncNode->pRaftStore->currentTerm = term;
-    raftStorePersist(pSyncNode->pRaftStore);
-
+    raftStoreSetTerm(pSyncNode->pRaftStore, term);
     syncNodeBecomeFollower(pSyncNode);
-
-    pSyncNode->pRaftStore->voteFor = EMPTY_RAFT_ID;
-    raftStorePersist(pSyncNode->pRaftStore);
+    raftStoreClearVote(pSyncNode->pRaftStore);
   }
 }
 
@@ -678,4 +678,26 @@ static void syncNodeLeader2Follower(SSyncNode* pSyncNode) {
 static void syncNodeCandidate2Follower(SSyncNode* pSyncNode) {
   assert(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
   syncNodeBecomeFollower(pSyncNode);
+}
+
+// raft vote ----
+static void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId) {
+  assert(term == pSyncNode->pRaftStore->currentTerm);
+  assert(!raftStoreHasVoted(pSyncNode->pRaftStore));
+
+  raftStoreVote(pSyncNode->pRaftStore, pRaftId);
+}
+
+static void syncNodeVoteForSelf(SSyncNode* pSyncNode) {
+  syncNodeVoteForTerm(pSyncNode, pSyncNode->pRaftStore->currentTerm, &(pSyncNode->myRaftId));
+
+  SyncRequestVoteReply* pMsg = syncRequestVoteReplyBuild();
+  pMsg->srcId = pSyncNode->myRaftId;
+  pMsg->destId = pSyncNode->myRaftId;
+  pMsg->term = pSyncNode->pRaftStore->currentTerm;
+  pMsg->voteGranted = true;
+
+  voteGrantedVote(pSyncNode->pVotesGranted, pMsg);
+  votesRespondAdd(pSyncNode->pVotesRespond, pMsg);
+  syncRequestVoteReplyDestroy(pMsg);
 }

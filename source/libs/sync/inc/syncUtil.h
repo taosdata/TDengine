@@ -34,6 +34,7 @@ void     syncUtilnodeInfo2EpSet(const SNodeInfo* pNodeInfo, SEpSet* pEpSet);
 void     syncUtilraftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet);
 void     syncUtilnodeInfo2raftId(const SNodeInfo* pNodeInfo, SyncGroupId vgId, SRaftId* raftId);
 bool     syncUtilSameId(const SRaftId* pId1, const SRaftId* pId2);
+bool     syncUtilEmptyId(const SRaftId* pId);
 
 // ---- SSyncBuffer ----
 void syncUtilbufBuild(SSyncBuffer* syncBuf, size_t len);
