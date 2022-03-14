@@ -137,7 +137,8 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
 
     memcpy(pTarget, pCell, szCell);
     // TODO: memmove();
-    // pPage->pPaggHdr->nCells++;
+    TDB_PAGE_CELL_OFFSET_AT_SET(pPage, idx, pCell - pPage->pData);
+    TDB_PAGE_NCELLS_SET(pPage, TDB_PAGE_NCELLS(pPage) + 1);
   }
 
   return 0;
