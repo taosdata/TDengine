@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_WORKER_H_
-#define _TD_DND_WORKER_H_
+#ifndef _TD_DND_HADNLE_H_
+#define _TD_DND_HADNLE_H_
 
 #include "dndInt.h"
 
@@ -22,18 +22,11 @@
 extern "C" {
 #endif
 
-int32_t dndInitWorker(SDnode *pDnode, SDnodeWorker *pWorker, EWorkerType type, const char *name, int32_t minNum,
-                      int32_t maxNum, void *queueFp);
-void    dndCleanupWorker(SDnodeWorker *pWorker);
-int32_t dndWriteMsgToWorker(SDnodeWorker *pWorker, void *pCont, int32_t contLen);
-
-
-
-void dndProcessMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-
+void       dndInitMsgHandles(SMgmtWrapper *pWrapper);
+SMsgHandle dndGetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgIndex);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DND_WORKER_H_*/
+#endif /*_TD_DND_HADNLE_H_*/

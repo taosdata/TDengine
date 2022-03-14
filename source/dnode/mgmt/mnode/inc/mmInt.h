@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_MNODE_MGMT_H_
-#define _TD_DND_MNODE_MGMT_H_
+#ifndef _TD_DND_MNODE_INT_H_
+#define _TD_DND_MNODE_INT_H_
 
 #include "dndInt.h"
 
@@ -41,4 +41,4 @@ int32_t mmGetMonitorInfo(SDnode *pDnode, SMonClusterInfo *pClusterInfo, SMonVgro
 }
 #endif
 
-#endif /*_TD_DND_MNODE_MGMT_H_*/
+#endif /*_TD_DND_MNODE_INT_H_*/

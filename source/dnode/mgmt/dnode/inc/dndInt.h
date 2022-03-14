@@ -55,7 +55,7 @@ extern "C" {
 #define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND ", DEBUG_DEBUG, dDebugFlag, __VA_ARGS__); }}
 #define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", DEBUG_TRACE, dDebugFlag, __VA_ARGS__); }}
 
-typedef enum { MNODE, NODE_MAX, VNODES, QNODE, SNODE, BNODE } ENodeType;
+typedef enum { DNODE, MNODE, NODE_MAX, VNODES, QNODE, SNODE, BNODE } ENodeType;
 typedef enum { PROC_SINGLE, PROC_CHILD, PROC_PARENT } EProcType;
 typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EDndStatus;
 typedef enum { DND_WORKER_SINGLE, DND_WORKER_MULTI } EWorkerType;
@@ -111,6 +111,9 @@ typedef struct {
   SRWLatch     latch;
   SDnodeWorker mgmtWorker;
   SDnodeWorker statusWorker;
+
+  //
+  SMsgHandle msgHandles[TDMT_MAX];
 } SDnodeMgmt;
 
 typedef struct {
@@ -140,6 +143,11 @@ typedef struct {
   SRWLatch     latch;
   SDnodeWorker queryWorker;
   SDnodeWorker fetchWorker;
+
+  //
+  SMsgHandle msgHandles[TDMT_MAX];
+  SProcObj  *pProcess;
+  bool       singleProc;
 } SQnodeMgmt;
 
 typedef struct {
@@ -149,6 +157,11 @@ typedef struct {
   SSnode      *pSnode;
   SRWLatch     latch;
   SDnodeWorker writeWorker;
+
+    //
+  SMsgHandle msgHandles[TDMT_MAX];
+  SProcObj  *pProcess;
+  bool       singleProc;
 } SSnodeMgmt;
 
 typedef struct {
@@ -169,6 +182,11 @@ typedef struct {
   SBnode      *pBnode;
   SRWLatch     latch;
   SDnodeWorker writeWorker;
+
+    //
+  SMsgHandle msgHandles[TDMT_MAX];
+  SProcObj  *pProcess;
+  bool       singleProc;
 } SBnodeMgmt;
 
 typedef struct {
@@ -179,6 +197,11 @@ typedef struct {
   SFWorkerPool fetchPool;
   SWWorkerPool syncPool;
   SWWorkerPool writePool;
+
+    //
+  SMsgHandle msgHandles[TDMT_MAX];
+  SProcObj  *pProcess;
+  bool       singleProc;
 } SVnodesMgmt;
 
 typedef struct {

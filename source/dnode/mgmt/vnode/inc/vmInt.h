@@ -13,16 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_VNODES_H_
-#define _TD_DND_VNODES_H_
+#ifndef _TD_DND_VNODE_INT_H_
+#define _TD_DND_VNODE_INT_H_
+
+#include "dndInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "dndInt.h"
 
 SMgmtFp vmGetMgmtFp() ;
-
 
 int32_t dndInitVnodes(SDnode *pDnode);
 void    dndCleanupVnodes(SDnode *pDnode);
@@ -45,4 +45,4 @@ int32_t dndPutReqToVQueryQ(SDnode *pDnode, SRpcMsg *pReq);
 }
 #endif
 
-#endif /*_TD_DND_VNODES_H_*/
+#endif /*_TD_DND_VNODE_INT_H_*/

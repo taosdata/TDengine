@@ -13,13 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_BNODE_H_
-#define _TD_DND_BNODE_H_
+#ifndef _TD_DND_BNODE_INT_H_
+#define _TD_DND_BNODE_INT_H_
+
+#include "dndInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "dndInt.h"
 
 SMgmtFp bmGetMgmtFp();
 
@@ -34,4 +35,4 @@ int32_t dndProcessDropBnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
 }
 #endif
 
-#endif /*_TD_DND_BNODE_H_*/
+#endif /*_TD_DND_BNODE_INT_H_*/

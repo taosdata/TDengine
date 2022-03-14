@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_QNODE_H_
-#define _TD_DND_QNODE_H_
+#ifndef _TD_DND_QNODE_INT_H_
+#define _TD_DND_QNODE_INT_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,4 +35,4 @@ int32_t dndProcessDropQnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
 }
 #endif
 
-#endif /*_TD_DND_QNODE_H_*/
+#endif /*_TD_DND_QNODE_INT_H_*/
