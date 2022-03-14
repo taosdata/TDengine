@@ -47,7 +47,7 @@ typedef struct {
   SBTree *pBt;
 } SBtreeZeroPageArg;
 
-static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen);
+static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen, int *pCRst);
 static int tdbEncodeLength(u8 *pBuf, uint32_t len);
 static int tdbCompareKeyAndCell(const void *pKey, int kLen, const void *pCell);
 static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2);
@@ -119,9 +119,13 @@ int tdbBtreeCursor(SBtCursor *pCur, SBTree *pBt) {
 
 int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *pVal, int vLen) {
   int     ret;
+  int     idx;
   SPager *pPager;
+  SCell  *pCell;
+  int     szCell;
+  int     cret;
 
-  ret = tdbBtCursorMoveTo(pCur, pKey, kLen);
+  ret = tdbBtCursorMoveTo(pCur, pKey, kLen, &cret);
   if (ret < 0) {
     // TODO: handle error
     return -1;
@@ -129,13 +133,31 @@ int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *p
 
   if (pCur->idx == -1) {
     ASSERT(TDB_PAGE_NCELLS(pCur->pPage) == 0);
-    // TODO: insert the K-V pair to idx 0
+    idx = 0;
+  } else {
+    if (cret > 0) {
+      // TODO
+    } else if (cret < 0) {
+      // TODO
+    } else {
+      /* TODO */
+      ASSERT(0);
+    }
+  }
+
+  // Encode the key-value pairs
+  ret = tdbEncodeKeyValue(pKey, kLen, pCur->pPage->kLen, pVal, vLen, pCur->pPage->vLen, pCell, &szCell);
+
+  // Insert the cell to the index
+  ret = tdbPageInsertCell(pCur->pPage, idx, pCell, szCell);
+  if (ret < 0) {
+    return -1;
   }
 
   return 0;
 }
 
-static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen) {
+static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen, int *pCRst) {
   int     ret;
   SBTree *pBt;
   SPager *pPager;
@@ -400,7 +422,6 @@ static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
 
   return 0;
 }
-
 
 #ifndef TDB_BTREE_BALANCE
 typedef struct {
