@@ -40,7 +40,7 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId);
 static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
 static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
 
-// raft algorithm ----
+// raft state change ----
 static void UpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
 static void syncNodeBecomeFollower(SSyncNode* pSyncNode);
 static void syncNodeBecomeLeader(SSyncNode* pSyncNode);
@@ -595,7 +595,7 @@ static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg) {
   return ret;
 }
 
-// raft algorithm ----
+// raft state change ----
 static void UpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
   if (term > pSyncNode->pRaftStore->currentTerm) {
     pSyncNode->pRaftStore->currentTerm = term;
