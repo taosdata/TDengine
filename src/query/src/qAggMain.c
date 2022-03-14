@@ -481,13 +481,6 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     return TSDB_CODE_SUCCESS;
   }
 
-  if (functionId == TSDB_FUNC_HYPERLOGLOG) {
-    *type = TSDB_DATA_TYPE_UBIGINT;
-    *bytes = sizeof(uint64_t);
-    *interBytes = sizeof(SHLLInfo);
-    return TSDB_CODE_SUCCESS;
-  }
-
   if (functionId == TSDB_FUNC_CSUM) {
     if (IS_SIGNED_NUMERIC_TYPE(dataType)) {
       *type = TSDB_DATA_TYPE_BIGINT;
@@ -582,6 +575,11 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       *bytes = (sizeof(STailInfo) + (sizeof(TailUnit) + dataBytes + POINTER_BYTES + extLength) * param);
       *interBytes = *bytes;
 
+      return TSDB_CODE_SUCCESS;
+    } else if (functionId == TSDB_FUNC_HYPERLOGLOG) {
+      *type = TSDB_DATA_TYPE_BINARY;
+      *bytes = sizeof(SHLLInfo);
+      *interBytes = sizeof(SHLLInfo);
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_SAMPLE) {
       *type = TSDB_DATA_TYPE_BINARY;
@@ -738,11 +736,15 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 
     // the output column may be larger than sizeof(STopBotInfo)
     *interBytes = (int32_t)size;
+  } else if (functionId == TSDB_FUNC_HYPERLOGLOG) {
+    *type = TSDB_DATA_TYPE_UBIGINT;
+    *bytes = sizeof(uint64_t);
+    *interBytes = sizeof(SHLLInfo);
   } else if (functionId == TSDB_FUNC_SAMPLE) {
-      *type = (int16_t)dataType;
-      *bytes = dataBytes;
-      size_t size = sizeof(SSampleFuncInfo) + dataBytes*param + sizeof(int64_t)*param + extLength*param;
-      *interBytes = (int32_t)size;
+    *type = (int16_t)dataType;
+    *bytes = dataBytes;
+    size_t size = sizeof(SSampleFuncInfo) + dataBytes*param + sizeof(int64_t)*param + extLength*param;
+    *interBytes = (int32_t)size;
   } else if (functionId == TSDB_FUNC_LAST_ROW) {
     *type = (int16_t)dataType;
     *bytes = dataBytes;
