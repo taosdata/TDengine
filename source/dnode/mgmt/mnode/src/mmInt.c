@@ -17,12 +17,17 @@
 #include "mmInt.h"
 #include "mmHandle.h"
 
+bool mmRequireNode(SMgmtWrapper *pWrapper) { return false; }
+
+
 SMgmtFp mmGetMgmtFp() {
   SMgmtFp mgmtFp = {0};
+  mgmtFp.openFp = NULL;
+  mgmtFp.closeFp = NULL;
+  mgmtFp.requiredFp = mmRequireNode;
   mgmtFp.getMsgHandleFp = mmGetMsgHandle;
   return mgmtFp;
 }
-
 
 int32_t mmGetUserAuth(SMgmtWrapper *pWrapper, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   return 0;

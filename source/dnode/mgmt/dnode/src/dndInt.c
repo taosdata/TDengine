@@ -16,8 +16,75 @@
 #define _DEFAULT_SOURCE
 #include "dndInt.h"
 #include "dndHandle.h"
+#include "dndTransport.h"
+#include "vmInt.h"
 
 static int8_t once = DND_ENV_INIT;
+
+int32_t dndInit() {
+  if (atomic_val_compare_exchange_8(&once, DND_ENV_INIT, DND_ENV_READY) != DND_ENV_INIT) {
+    terrno = TSDB_CODE_REPEAT_INIT;
+    dError("failed to init dnode env since %s", terrstr());
+    return -1;
+  }
+
+  taosIgnSIGPIPE();
+  taosBlockSIGPIPE();
+  taosResolveCRC();
+
+  if (rpcInit() != 0) {
+    dError("failed to init rpc since %s", terrstr());
+    dndCleanup();
+    return -1;
+  }
+
+  if (walInit() != 0) {
+    dError("failed to init wal since %s", terrstr());
+    dndCleanup();
+    return -1;
+  }
+
+  SVnodeOpt vnodeOpt = {0};
+  vnodeOpt.nthreads = tsNumOfCommitThreads;
+  vnodeOpt.putReqToVQueryQFp = dndPutReqToVQueryQ;
+  vnodeOpt.sendReqToDnodeFp = dndSendReqToDnode;
+  if (vnodeInit(&vnodeOpt) != 0) {
+    dError("failed to init vnode since %s", terrstr());
+    dndCleanup();
+    return -1;
+  }
+
+  SMonCfg monCfg = {0};
+  monCfg.maxLogs = tsMonitorMaxLogs;
+  monCfg.port = tsMonitorPort;
+  monCfg.server = tsMonitorFqdn;
+  monCfg.comp = tsMonitorComp;
+  if (monInit(&monCfg) != 0) {
+    dError("failed to init monitor since %s", terrstr());
+    dndCleanup();
+    return -1;
+  }
+
+  dInfo("dnode env is initialized");
+  return 0;
+}
+
+void dndCleanup() {
+  if (atomic_val_compare_exchange_8(&once, DND_ENV_READY, DND_ENV_CLEANUP) != DND_ENV_READY) {
+    dError("dnode env is already cleaned up");
+    return;
+  }
+
+  monCleanup();
+  vnodeCleanup();
+  walCleanUp();
+  rpcCleanup();
+
+  taosStopCacheRefreshWorker();
+  dInfo("dnode env is cleaned up");
+}
+
+SMgmtWrapper *dndGetWrapper(SDnode *pDnode, ENodeType nodeType) { return &pDnode->wrappers[nodeType]; }
 
 EDndStatus dndGetStatus(SDnode *pDnode) { return pDnode->status; }
 
@@ -75,76 +142,7 @@ TdFilePtr dndCheckRunning(char *dataDir) {
   return pFile;
 }
 
-int32_t dndInit() {
-  if (atomic_val_compare_exchange_8(&once, DND_ENV_INIT, DND_ENV_READY) != DND_ENV_INIT) {
-    terrno = TSDB_CODE_REPEAT_INIT;
-    dError("failed to init dnode env since %s", terrstr());
-    return -1;
-  }
-
-  taosIgnSIGPIPE();
-  taosBlockSIGPIPE();
-  taosResolveCRC();
-
-  if (rpcInit() != 0) {
-    dError("failed to init rpc since %s", terrstr());
-    dndCleanup();
-    return -1;
-  }
-
-  if (walInit() != 0) {
-    dError("failed to init wal since %s", terrstr());
-    dndCleanup();
-    return -1;
-  }
-
-  // SVnodeOpt vnodeOpt = {
-  //     .nthreads = tsNumOfCommitThreads, .putReqToVQueryQFp = dndPutReqToVQueryQ, .sendReqToDnodeFp =
-  //     dndSendReqToDnode};
-
-  // if (vnodeInit(&vnodeOpt) != 0) {
-  //   dError("failed to init vnode since %s", terrstr());
-  //   dndCleanup();
-  //   return -1;
-  // }
-
-  SMonCfg monCfg = {.maxLogs = tsMonitorMaxLogs, .port = tsMonitorPort, .server = tsMonitorFqdn, .comp = tsMonitorComp};
-  if (monInit(&monCfg) != 0) {
-    dError("failed to init monitor since %s", terrstr());
-    dndCleanup();
-    return -1;
-  }
-
-  dInfo("dnode env is initialized");
-  return 0;
-}
-
-void dndCleanup() {
-  if (atomic_val_compare_exchange_8(&once, DND_ENV_READY, DND_ENV_CLEANUP) != DND_ENV_READY) {
-    dError("dnode env is already cleaned up");
-    return;
-  }
-
-  walCleanUp();
-  // vnodeCleanup();
-  rpcCleanup();
-  monCleanup();
-
-  taosStopCacheRefreshWorker();
-  dInfo("dnode env is cleaned up");
-}
-
 void dndeHandleEvent(SDnode *pDnode, EDndEvent event) {
   dInfo("dnode object receive event %d, data:%p", event, pDnode);
   pDnode->event = event;
-}
-
-SMgmtWrapper *dndGetWrapper(SDnode *pDnode, ENodeType nodeType) {
-  return &pDnode->mgmts[nodeType];
-}
-
-SMgmtFp dndGetMgmtFp() {
-  SMgmtFp mgmtFp = {0};
-  mgmtFp.getMsgHandleFp = dndGetMsgHandle;
-  return mgmtFp;
 }

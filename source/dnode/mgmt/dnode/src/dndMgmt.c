@@ -15,6 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "dndMgmt.h"
+
+#include "dndHandle.h"
 #include "dndMonitor.h"
 // #include "dndBnode.h"
 // #include "mm.h"
@@ -443,3 +445,14 @@ void dndGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {}
 
 void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq){}
 void dndProcessMgmtMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg){}
+
+bool dndRequireNode(SMgmtWrapper *pWrapper) { return true; }
+
+SMgmtFp dndGetMgmtFp() {
+  SMgmtFp mgmtFp = {0};
+  mgmtFp.openFp = NULL;
+  mgmtFp.closeFp = NULL;
+  mgmtFp.requiredFp = dndRequireNode;
+  mgmtFp.getMsgHandleFp = dndGetMsgHandle;
+  return mgmtFp;
+}

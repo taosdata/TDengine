@@ -82,14 +82,14 @@ static int32_t dndRunDnode() {
   }
 
   dInfo("start the TDengine service");
-  dndRun(pDnode);
+  int32_t code = dndRun(pDnode);
   dInfo("start shutting down the TDengine service");
 
   dndClose(pDnode);
   dndCleanup();
   taosCloseLog();
   taosCleanupCfg();
-  return 0;
+  return code;
 }
 
 int main(int argc, char const *argv[]) {

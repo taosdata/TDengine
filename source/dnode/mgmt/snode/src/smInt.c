@@ -17,8 +17,14 @@
 #include "smInt.h"
 #include "smHandle.h"
 
+bool smRequireNode(SMgmtWrapper *pWrapper) { return false; }
+
+
 SMgmtFp smGetMgmtFp() {
   SMgmtFp mgmtFp = {0};
+  mgmtFp.openFp = NULL;
+  mgmtFp.closeFp = NULL;
+  mgmtFp.requiredFp = smRequireNode;
   mgmtFp.getMsgHandleFp = smGetMsgHandle;
   return mgmtFp;
 }

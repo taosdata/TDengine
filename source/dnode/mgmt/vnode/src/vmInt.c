@@ -17,8 +17,14 @@
 #include "vmInt.h"
 #include "vmHandle.h"
 
+bool vmRequireNode(SMgmtWrapper *pWrapper) { return false; }
+
+
 SMgmtFp vmGetMgmtFp() {
   SMgmtFp mgmtFp = {0};
+  mgmtFp.openFp = NULL;
+  mgmtFp.closeFp = NULL;
+  mgmtFp.requiredFp = vmRequireNode;
   mgmtFp.getMsgHandleFp = vmGetMsgHandle;
   return mgmtFp;
 }

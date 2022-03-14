@@ -17,8 +17,13 @@
 #include "qmInt.h"
 #include "qmHandle.h"
 
+bool qmRequireNode(SMgmtWrapper *pWrapper) { return false; }
+
 SMgmtFp qmGetMgmtFp() {
   SMgmtFp mgmtFp = {0};
+  mgmtFp.openFp = NULL;
+  mgmtFp.closeFp = NULL;
+  mgmtFp.requiredFp = qmRequireNode;
   mgmtFp.getMsgHandleFp = qmGetMsgHandle;
   return mgmtFp;
 }

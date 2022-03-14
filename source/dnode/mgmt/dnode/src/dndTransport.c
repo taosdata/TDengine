@@ -13,12 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* this file is mainly responsible for the communication between DNODEs. Each
- * dnode works as both server and client. Dnode may send status, grant, config
- * messages to mnode, mnode may send create/alter/drop table/vnode messages
- * to dnode. All theses messages are handled from here
- */
-
 #define _DEFAULT_SOURCE
 #include "dndTransport.h"
 #include "dndMgmt.h"
@@ -52,7 +46,7 @@ static void dndProcessResponse(void *parent, SRpcMsg *pRsp, SEpSet *pEpSet) {
   }
 }
 
-static int32_t dndInitClient(SDnode *pDnode) {
+ int32_t dndInitClient(SDnode *pDnode) {
   STransMgmt *pMgmt = &pDnode->tmgmt;
 
   SRpcInit rpcInit;
@@ -256,7 +250,7 @@ static int32_t dndSetMsgHandle(SDnode *pDnode) {
   STransMgmt *pMgmt = &pDnode->tmgmt;
 
   for (ENodeType nodeType = 0; nodeType < NODE_MAX; ++nodeType) {
-    SMgmtWrapper  *pWrapper = &pDnode->mgmts[nodeType];
+    SMgmtWrapper  *pWrapper = &pDnode->wrappers[nodeType];
     GetMsgHandleFp getMsgHandleFp = pDnode->fps[nodeType].getMsgHandleFp;
     if (getMsgHandleFp == NULL) continue;
 

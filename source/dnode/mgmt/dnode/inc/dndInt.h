@@ -70,9 +70,9 @@ typedef void (*NodeMsgFp)(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg
 
 typedef int32_t (*MndMsgFp)(SDnode *pDnode, SMndMsg *pMsg);
 
-typedef SMgmtWrapper *(*MgmtOpenFp)(SDnode *pDnode, const char *path);
-typedef void (*MgmtCloseFp)(SDnode *pDnode, SMgmtWrapper *pWrapper);
-typedef bool (*MgmtRequiredFp)(SMgmtWrapper *pWrapper);
+typedef SMgmtWrapper *(*OpenNodeFp)(SDnode *pDnode, const char *path);
+typedef void (*CloseNodeFp)(SDnode *pDnode, SMgmtWrapper *pWrapper);
+typedef bool (*RequireNodeFp)(SMgmtWrapper *pWrapper);
 typedef int32_t (*MgmtHandleMsgFp)(SMgmtWrapper *pNode, SNodeMsg *pMsg);
 typedef SMsgHandle (*GetMsgHandleFp)(SMgmtWrapper *pWrapper, int32_t msgIndex);
 
@@ -211,9 +211,9 @@ typedef struct {
 } STransMgmt;
 
 typedef struct SMgmtFp {
-  MgmtOpenFp     openFp;
-  MgmtCloseFp    closeFp;
-  MgmtRequiredFp requiredFp;
+  OpenNodeFp     openFp;
+  CloseNodeFp    closeFp;
+  RequireNodeFp  requiredFp;
   GetMsgHandleFp getMsgHandleFp;
 } SMgmtFp;
 
@@ -239,7 +239,7 @@ typedef struct SDnode {
   STransMgmt   tmgmt;
   STfs        *pTfs;
   SMgmtFp      fps[NODE_MAX];
-  SMgmtWrapper mgmts[NODE_MAX];
+  SMgmtWrapper wrappers[NODE_MAX];
   char        *path;
 } SDnode;
 

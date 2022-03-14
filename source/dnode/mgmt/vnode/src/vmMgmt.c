@@ -14,9 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
-// #include "dndVnodes.h"
-// #include "dndMgmt.h"
-// #include "dndTransport.h"
+#include "vmMgmt.h"
+#include "dndMgmt.h"
+#include "dndTransport.h"
 // #include "sync.h"
 
 #if 0
@@ -1025,3 +1025,34 @@ void dndGetVnodeLoads(SDnode *pDnode, SArray *pLoads) {
 }
 
 #endif
+
+// int32_t dndInitVnodes(SDnode *pDnode) {
+  
+//   SVnodeOpt vnodeOpt = {0};
+
+//       vnodeOpt.nthreads = tsNumOfCommitThreads;
+//       vnodeOpt.putReqToVQueryQFp = dndPutReqToVQueryQ, .sendReqToDnodeFp =
+//       dndSendReqToDnode};
+
+//   if (vnodeInit(&vnodeOpt) != 0) {
+//     dError("failed to init vnode since %s", terrstr());
+//     dndCleanup();
+//     return -1;
+// //   }
+
+
+//   if (walInit() != 0) {
+//     dError("failed to init wal since %s", terrstr());
+//     dndCleanup();
+//     return -1;
+//   }
+// }
+
+
+// void dndCleanupVnodes(SDnode *pDnode) {
+//   // vnodeCleanup();
+
+  // walCleanUp();
+// }
+
+int32_t dndPutReqToVQueryQ(SDnode *pDnode, SRpcMsg *pReq){return 0;}

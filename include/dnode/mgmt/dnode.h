@@ -72,7 +72,7 @@ void dndClose(SDnode *pDnode);
  *
  * @param pDnode The dnode object to run.
  */
-void dndRun(SDnode *pDnode);
+int32_t dndRun(SDnode *pDnode);
 
 /**
  * @brief Handle event in the dnode.
