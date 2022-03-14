@@ -18,9 +18,9 @@
 #include "mmWorker.h"
 
 #if 0
-#include "dmMgmt.h"
+#include "dmInt.h"
 
-int32_t mmProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
+int32_t mmProcessCreateReq(SDnode *pDnode, SRpcMsg *pReq) {
   SDCreateMnodeReq createReq = {0};
   if (tDeserializeSDCreateMnodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -52,7 +52,7 @@ int32_t mmProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   return mmOpen(pDnode, &option);
 }
 
-int32_t mmProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
+int32_t mmProcessAlterReq(SDnode *pDnode, SRpcMsg *pReq) {
   SDAlterMnodeReq alterReq = {0};
   if (tDeserializeSDCreateMnodeReq(pReq->pCont, pReq->contLen, &alterReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -86,7 +86,7 @@ int32_t mmProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   return code;
 }
 
-int32_t mmProcessDropMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
+int32_t mmProcessDropReq(SDnode *pDnode, SRpcMsg *pReq) {
   SDDropMnodeReq dropReq = {0};
   if (tDeserializeSMCreateDropMnodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -141,6 +141,10 @@ int32_t mmGetUserAuth(SDnode *pDnode, char *user, char *spi, char *encrypt, char
 }
 
 #endif
+
+int32_t mmProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {return 0;}
+int32_t mmProcessAlterReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {return 0;}
+int32_t mmProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {return 0;}
 
 static void mmSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp) {
   SMnodeMgmt *pMgmt = pWrapper->pMgmt;

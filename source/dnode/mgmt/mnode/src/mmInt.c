@@ -19,14 +19,16 @@
 
 bool mmRequireNode(SMgmtWrapper *pWrapper) { return false; }
 
-
-SMgmtFp mmGetMgmtFp() {
+void mmGetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = NULL;
   mgmtFp.closeFp = NULL;
   mgmtFp.requiredFp = mmRequireNode;
   mgmtFp.getMsgHandleFp = mmGetMsgHandle;
-  return mgmtFp;
+
+  mmInitMsgHandles(pWrapper);
+  pWrapper->name = "mnode";
+  pWrapper->fp = mgmtFp;
 }
 
 int32_t mmGetUserAuth(SMgmtWrapper *pWrapper, char *user, char *spi, char *encrypt, char *secret, char *ckey) {

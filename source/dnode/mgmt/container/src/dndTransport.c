@@ -39,7 +39,7 @@ static void dndProcessResponse(void *parent, SRpcMsg *pRsp, SEpSet *pEpSet) {
   if (pHandle->rpcMsgFp != NULL) {
     dTrace("RPC %p, rsp:%s will be processed by %s, code:0x%x app:%p", pRsp->handle, TMSG_INFO(msgType),
            pHandle->pWrapper->name, pRsp->code & 0XFFFF, pRsp->ahandle);
-    (*pHandle->rpcMsgFp)(pDnode, pHandle->pWrapper, pRsp, pEpSet);
+    (*pHandle->rpcMsgFp)(pHandle->pWrapper, pRsp, pEpSet);
   } else {
     dError("RPC %p, rsp:%s not processed, app:%p", pRsp->handle, TMSG_INFO(msgType), pRsp->ahandle);
     rpcFreeCont(pRsp->pCont);
@@ -121,7 +121,7 @@ static void dndProcessRequest(void *param, SRpcMsg *pReq, SEpSet *pEpSet) {
   if (pHandle->rpcMsgFp != NULL) {
     dTrace("RPC %p, req:%s will be processed by %s, app:%p", pReq->handle, TMSG_INFO(msgType), pHandle->pWrapper->name,
            pReq->ahandle);
-    (*pHandle->rpcMsgFp)(pDnode, pHandle->pWrapper, pReq, pEpSet);
+    (*pHandle->rpcMsgFp)(pHandle->pWrapper, pReq, pEpSet);
   } else {
     dError("RPC %p, req:%s not processed since no handle, app:%p", pReq->handle, TMSG_INFO(msgType), pReq->ahandle);
     SRpcMsg rspMsg = {.handle = pReq->handle, .code = TSDB_CODE_MSG_NOT_PROCESSED, .ahandle = pReq->ahandle};
@@ -251,7 +251,7 @@ int32_t dndSetMsgHandle(SDnode *pDnode) {
 
   for (ENodeType nodeType = 0; nodeType < NODE_MAX; ++nodeType) {
     SMgmtWrapper  *pWrapper = &pDnode->wrappers[nodeType];
-    GetMsgHandleFp getMsgHandleFp = pDnode->fps[nodeType].getMsgHandleFp;
+    GetMsgHandleFp getMsgHandleFp = pWrapper->fp.getMsgHandleFp;
     if (getMsgHandleFp == NULL) continue;
 
     for (int32_t msgIndex = 0; msgIndex < TDMT_MAX; ++msgIndex) {

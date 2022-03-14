@@ -25,8 +25,12 @@ extern "C" {
 void       dmInitMsgHandles(SMgmtWrapper *pWrapper);
 SMsgHandle dmGetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgIndex);
 
-void dmSendStatusReq(SDnode *pDnode);
-void dmProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
+void    dmSendStatusReq(SDnodeMgmt *pMgmt);
+void    dmProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
+int32_t dmProcessConfigReq(SDnode *pDnode, SRpcMsg *pReq);
+void    dmProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp);
+void    dmProcessAuthRsp(SDnode *pDnode, SRpcMsg *pRsp);
+void    dmProcessGrantRsp(SDnode *pDnode, SRpcMsg *pRsp);
 
 #ifdef __cplusplus
 }

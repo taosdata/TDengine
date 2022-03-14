@@ -25,6 +25,12 @@ extern "C" {
 void       vmInitMsgHandles(SMgmtWrapper *pWrapper);
 SMsgHandle vmGetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgIndex);
 
+int32_t vmProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
+int32_t vmProcessAlterVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
+int32_t vmProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
+int32_t dndProcessAuthVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
+int32_t vmProcessSyncVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
+int32_t vmProcessCompactVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
 
 #ifdef __cplusplus
 }

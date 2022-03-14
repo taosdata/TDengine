@@ -17,6 +17,14 @@
 #include "vmHandle.h"
 #include "vmWorker.h"
 
+
+int32_t vmProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *pReq){return 0;}
+int32_t vmProcessAlterVnodeReq(SDnode *pDnode, SRpcMsg *pReq){return 0;}
+int32_t vmProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *pReq){return 0;}
+int32_t dndProcessAuthVnodeReq(SDnode *pDnode, SRpcMsg *pReq){return 0;}
+int32_t vmProcessSyncVnodeReq(SDnode *pDnode, SRpcMsg *pReq){return 0;}
+int32_t vmProcessCompactVnodeReq(SDnode *pDnode, SRpcMsg *pReq){return 0;}
+
 static void vmSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp) {
   SVnodesMgmt *pMgmt = pWrapper->pMgmt;
   SMsgHandle  *pHandle = &pMgmt->msgHandles[TMSG_INDEX(msgType)];

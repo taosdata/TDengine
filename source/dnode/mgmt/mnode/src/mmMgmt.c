@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
 
-#include "dmMgmt.h"
+#include "dmInt.h"
 #include "dndTransport.h"
 
 #if 0

@@ -25,6 +25,10 @@ extern "C" {
 void       bmInitMsgHandles(SMgmtWrapper *pWrapper);
 SMsgHandle bmGetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgIndex);
 
+int32_t bmProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+int32_t bmProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+
+
 #ifdef __cplusplus
 }
 #endif

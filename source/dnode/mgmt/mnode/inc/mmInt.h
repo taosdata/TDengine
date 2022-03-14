@@ -45,13 +45,15 @@ typedef struct SMnodeMgmt {
 
 
 // interface
-SMgmtFp mmGetMgmtFp();
+void mmGetMgmtFp(SMgmtWrapper *pMgmt);
 
 int32_t mmInit(SDnode *pDnode);
 void    mmCleanup(SDnode *pDnode);
-int32_t mmProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t mmProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t mmProcessDropMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+
+// mmHandle.h
+int32_t mmProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+int32_t mmProcessAlterReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+int32_t mmProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
 
 int32_t mmGetUserAuth(SMgmtWrapper *pWrapper, char *user, char *spi, char *encrypt, char *secret, char *ckey);
 int32_t mmGetMonitorInfo(SDnode *pDnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,

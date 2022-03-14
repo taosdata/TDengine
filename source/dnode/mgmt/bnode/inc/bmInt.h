@@ -37,14 +37,14 @@ typedef struct SBnodeMgmt {
   bool       singleProc;
 } SBnodeMgmt;
 
-SMgmtFp bmGetMgmtFp();
+void bmGetMgmtFp(SMgmtWrapper *pMgmt);
 
 int32_t dndInitBnode(SDnode *pDnode);
 void    dndCleanupBnode(SDnode *pDnode);
 
 void    dndProcessBnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
-int32_t dndProcessCreateBnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t dndProcessDropBnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+int32_t bmProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+int32_t bmProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
 
 #ifdef __cplusplus
 }

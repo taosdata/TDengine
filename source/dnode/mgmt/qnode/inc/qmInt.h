@@ -37,15 +37,17 @@ typedef struct SQnodeMgmt {
   bool       singleProc;
 } SQnodeMgmt;
 
-SMgmtFp qmGetMgmtFp();
+void qmGetMgmtFp(SMgmtWrapper *pMgmt);
 
 int32_t dndInitQnode(SDnode *pDnode);
 void    dndCleanupQnode(SDnode *pDnode);
 
 void    dndProcessQnodeQueryMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 void    dndProcessQnodeFetchMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
-int32_t dndProcessCreateQnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t dndProcessDropQnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+
+// qmHandle.h
+int32_t qmProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+int32_t qmProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
 
 #ifdef __cplusplus
 }

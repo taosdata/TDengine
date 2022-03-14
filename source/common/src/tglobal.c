@@ -404,7 +404,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
     return -1;
   }
 
-  tsNumOfThreadsPerCore = cfgGetItem(pCfg, "maxTmrCtrl")->fval;
+  tsNumOfThreadsPerCore = cfgGetItem(pCfg, "numOfThreadsPerCore")->fval;
   tsMaxTmrCtrl = cfgGetItem(pCfg, "maxTmrCtrl")->i32;
   tsRpcTimer = cfgGetItem(pCfg, "rpcTimer")->i32;
   tsRpcMaxTime = cfgGetItem(pCfg, "rpcMaxTime")->i32;

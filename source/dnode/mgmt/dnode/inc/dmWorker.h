@@ -24,6 +24,7 @@ extern "C" {
 
 int32_t dmStartWorker();
 void    dmStopWorker();
+void    dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

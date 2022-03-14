@@ -90,18 +90,12 @@ SDnode *dndCreate(SDndCfg *pCfg) {
     goto _OVER;
   }
 
-  pDnode->wrappers[DNODE].fp = dmGetMgmtFp();
-  pDnode->wrappers[MNODE].fp = mmGetMgmtFp();
-  pDnode->wrappers[VNODES].fp = vmGetMgmtFp();
-  pDnode->wrappers[QNODE].fp = qmGetMgmtFp();
-  pDnode->wrappers[SNODE].fp = smGetMgmtFp();
-  pDnode->wrappers[BNODE].fp = bmGetMgmtFp();
-  pDnode->wrappers[DNODE].name = "dnode";
-  pDnode->wrappers[MNODE].name = "mnode";
-  pDnode->wrappers[VNODES].name = "vnodes";
-  pDnode->wrappers[QNODE].name = "qnode";
-  pDnode->wrappers[SNODE].name = "snode";
-  pDnode->wrappers[BNODE].name = "bnode";
+  dmGetMgmtFp(&pDnode->wrappers[DNODE]);
+  mmGetMgmtFp(&pDnode->wrappers[MNODE]);
+  vmGetMgmtFp(&pDnode->wrappers[VNODES]);
+  qmGetMgmtFp(&pDnode->wrappers[QNODE]);
+  smGetMgmtFp(&pDnode->wrappers[SNODE]);
+  bmGetMgmtFp(&pDnode->wrappers[BNODE]);
   memcpy(&pDnode->cfg, pCfg, sizeof(SDndCfg));
 
   if (dndSetMsgHandle(pDnode) != 0) {
@@ -263,5 +257,8 @@ void dndeHandleEvent(SDnode *pDnode, EDndEvent event) {
   pDnode->event = event;
 }
 
-
-void dndProcessRpcMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet) {}
+void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  if (pEpSet && pEpSet->numOfEps > 0 && pMsg->msgType == TDMT_MND_STATUS_RSP) {
+    dmUpdateMnodeEpSet(pWrapper->pDnode, pEpSet);
+  }
+}

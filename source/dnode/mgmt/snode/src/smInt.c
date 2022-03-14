@@ -20,11 +20,14 @@
 bool smRequireNode(SMgmtWrapper *pWrapper) { return false; }
 
 
-SMgmtFp smGetMgmtFp() {
+void smGetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = NULL;
   mgmtFp.closeFp = NULL;
   mgmtFp.requiredFp = smRequireNode;
   mgmtFp.getMsgHandleFp = smGetMsgHandle;
-  return mgmtFp;
+
+  // smInitMsgHandles(pWrapper);
+  pWrapper->name = "snode";
+  pWrapper->fp = mgmtFp;
 }

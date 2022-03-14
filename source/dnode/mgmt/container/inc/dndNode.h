@@ -26,7 +26,7 @@ SDnode *dndCreate(SDndCfg *pCfg);
 void    dndClose(SDnode *pDnode);
 int32_t dndRun(SDnode *pDnode);
 void    dndeHandleEvent(SDnode *pDnode, EDndEvent event);
-void    dndProcessRpcMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet);
+void    dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet);
 
 #ifdef __cplusplus
 }

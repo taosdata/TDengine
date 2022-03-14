@@ -19,6 +19,23 @@
 #include "vmMgmt.h"
 
 static int32_t vmInit(SMgmtWrapper *pWrapper) {
+  //     SDiskCfg dCfg = {0};
+  // tstrncpy(dCfg.dir, pDnode->cfg.dataDir, TSDB_FILENAME_LEN);
+  // dCfg.level = 0;
+  // dCfg.primary = 1;
+  // SDiskCfg *pDisks = pDnode->cfg.pDisks;
+  // int32_t   numOfDisks = pDnode->cfg.numOfDisks;
+  // if (numOfDisks <= 0 || pDisks == NULL) {
+  //   pDisks = &dCfg;
+  //   numOfDisks = 1;
+  // }
+
+  // pDnode->pTfs = tfsOpen(pDisks, numOfDisks);
+  // if (pDnode->pTfs == NULL) {
+  //   dError("failed to init tfs since %s", terrstr());
+  //   return -1;
+  // }
+
   SVnodeOpt vnodeOpt = {0};
   vnodeOpt.nthreads = tsNumOfCommitThreads;
   vnodeOpt.putReqToVQueryQFp = dndPutReqToVQueryQ;
@@ -45,11 +62,14 @@ static void vmCleanup(SMgmtWrapper *pWrapper) {
 
 static bool vmRequire(SMgmtWrapper *pWrapper) { return false; }
 
-SMgmtFp vmGetMgmtFp() {
+void vmGetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = vmInit;
   mgmtFp.closeFp = vmCleanup;
   mgmtFp.requiredFp = vmRequire;
   mgmtFp.getMsgHandleFp = vmGetMsgHandle;
-  return mgmtFp;
+
+  vmInitMsgHandles(pWrapper);
+  pWrapper->name = "vnodes";
+  pWrapper->fp = mgmtFp;
 }

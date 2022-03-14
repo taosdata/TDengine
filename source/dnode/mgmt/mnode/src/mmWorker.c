@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
 
-#include "dmMgmt.h"
+#include "dmInt.h"
 #include "dndTransport.h"
 #include "dndWorker.h"
 
@@ -268,6 +268,6 @@ static void mmConsumeMsgQueue(SDnode *pDnode, SMndMsg *pMsg) {
 
 #endif
 
-void mmProcessWriteMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {}
-void mmProcessSyncMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {}
-void mmProcessReadMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {}
+void mmProcessWriteMsg( SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {}
+void mmProcessSyncMsg( SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {}
+void mmProcessReadMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {}

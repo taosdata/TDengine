@@ -19,11 +19,14 @@
 
 bool qmRequireNode(SMgmtWrapper *pWrapper) { return false; }
 
-SMgmtFp qmGetMgmtFp() {
+void qmGetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = NULL;
   mgmtFp.closeFp = NULL;
   mgmtFp.requiredFp = qmRequireNode;
   mgmtFp.getMsgHandleFp = qmGetMsgHandle;
-  return mgmtFp;
+
+  // qmInitMsgHandles(pWrapper);
+  pWrapper->name = "qnode";
+  pWrapper->fp = mgmtFp;
 }

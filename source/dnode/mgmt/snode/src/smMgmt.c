@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 // #include "dndSnode.h"
-// #include "dmMgmt.h"
+// #include "dmInt.h"
 // #include "dndTransport.h"
 // #include "dndWorker.h"
 
@@ -261,7 +261,7 @@ static int32_t dndDropSnode(SDnode *pDnode) {
   return 0;
 }
 
-int32_t dndProcessCreateSnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
+int32_t smProcessCreateReq(SDnode *pDnode, SRpcMsg *pReq) {
   SDCreateSnodeReq createReq = {0};
   if (tDeserializeSMCreateDropQSBNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -277,7 +277,7 @@ int32_t dndProcessCreateSnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   }
 }
 
-int32_t dndProcessDropSnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
+int32_t smProcessDropReq(SDnode *pDnode, SRpcMsg *pReq) {
   SDDropSnodeReq dropReq = {0};
   if (tDeserializeSMCreateDropQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;

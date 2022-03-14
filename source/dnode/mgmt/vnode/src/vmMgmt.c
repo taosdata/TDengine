@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "vmMgmt.h"
-#include "dmMgmt.h"
+#include "dmInt.h"
 #include "dndTransport.h"
 // #include "sync.h"
 
@@ -539,7 +539,7 @@ static void dndGenerateWrapperCfg(SDnode *pDnode, SCreateVnodeReq *pCreate, SWra
   pCfg->vgVersion = pCreate->vgVersion;
 }
 
-int32_t dndProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
+int32_t vmProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   SCreateVnodeReq createReq = {0};
   if (tDeserializeSCreateVnodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -597,7 +597,7 @@ int32_t dndProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   return 0;
 }
 
-int32_t dndProcessAlterVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
+int32_t vmProcessAlterVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   SAlterVnodeReq alterReq = {0};
   if (tDeserializeSCreateVnodeReq(pReq->pCont, pReq->contLen, &alterReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -638,7 +638,7 @@ int32_t dndProcessAlterVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   return code;
 }
 
-int32_t dndProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
+int32_t vmProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   SDropVnodeReq dropReq = {0};
   if (tDeserializeSDropVnodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -668,7 +668,7 @@ int32_t dndProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   return 0;
 }
 
-int32_t dndProcessSyncVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
+int32_t vmProcessSyncVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   SSyncVnodeReq syncReq = {0};
   tDeserializeSDropVnodeReq(pReq->pCont, pReq->contLen, &syncReq);
 
@@ -691,7 +691,7 @@ int32_t dndProcessSyncVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   return 0;
 }
 
-int32_t dndProcessCompactVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
+int32_t vmProcessCompactVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   SCompactVnodeReq compatcReq = {0};
   tDeserializeSDropVnodeReq(pReq->pCont, pReq->contLen, &compatcReq);
 
@@ -979,7 +979,7 @@ void dndCleanupVnodes(SDnode *pDnode) {
   dInfo("dnode-vnodes is cleaned up");
 }
 
-void dndGetVnodeLoads(SDnode *pDnode, SArray *pLoads) {
+void vmGetVnodeLoads(SDnode *pDnode, SArray *pLoads) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
   SVnodesStat *pStat = &pMgmt->stat;
   int32_t      totalVnodes = 0;
@@ -1079,3 +1079,5 @@ void vmGetVndMonitorInfo(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo) {
   pInfo->vnodes_num = pStat->totalVnodes;
   pInfo->masters = pStat->masterNum;
 }
+
+void vmGetVnodeLoads(SDnode *pDnode, SArray *pLoads) {}

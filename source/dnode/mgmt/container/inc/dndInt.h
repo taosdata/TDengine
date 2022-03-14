@@ -72,8 +72,8 @@ typedef struct SQnodeMgmt   SQnodeMgmt;
 typedef struct SSnodeMgmt   SSnodeMgmt;
 typedef struct SBnodeMgmt   SBnodeMgmt;
 
-typedef void (*RpcMsgFp)(SDnode *pDnode, SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEps);
-typedef void (*NodeMsgFp)(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+typedef void (*RpcMsgFp)(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEps);
+typedef void (*NodeMsgFp)(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 typedef int32_t (*OpenNodeFp)(SMgmtWrapper *pWrapper);
 typedef void (*CloseNodeFp)(SMgmtWrapper *pWrapper);
 typedef bool (*RequireNodeFp)(SMgmtWrapper *pWrapper);
@@ -132,7 +132,6 @@ typedef struct SDnode {
   SStartupReq  startup;
   TdFilePtr    pLockFile;
   STransMgmt   trans;
-  SMgmtFp      fps[NODE_MAX];
   SMgmtWrapper wrappers[NODE_MAX];
 } SDnode;
 
@@ -155,7 +154,7 @@ SDnode *dndCreate(SDndCfg *pCfg);
 void    dndClose(SDnode *pDnode);
 int32_t dndRun(SDnode *pDnode);
 void    dndeHandleEvent(SDnode *pDnode, EDndEvent event);
-void    dndProcessRpcMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet);
+void    dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet);
 
 // dndTransport.h
 int32_t dndSendReqToMnode(SDnode *pDnode, SRpcMsg *pRpcMsg);
