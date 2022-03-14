@@ -128,6 +128,7 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
 
   if (pPage->nOverflow || szCell + pPage->szOffset > pPage->nFree) {
     // TODO: Page is full
+    ASSERT(0);
   } else {
     ret = tdbPageAllocate(pPage, szCell, &pTarget);
     if (ret < 0) {

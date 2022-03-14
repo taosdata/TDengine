@@ -54,10 +54,10 @@ struct SPage {
   pthread_spinlock_t lock;
   // Fields below used by pager and am
   u8       *pPageHdr;
-  SPageFtr *pPageFtr;
   u8       *aCellIdx;
   u8       *pFreeStart;
   u8       *pFreeEnd;
+  SPageFtr *pPageFtr;
   int       kLen;
   int       vLen;
   int       nFree;
