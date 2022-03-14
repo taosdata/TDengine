@@ -239,6 +239,9 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       
       break;
     }
+
+    default:
+      break;
   }
 
   if (param->num > *rowNum) {

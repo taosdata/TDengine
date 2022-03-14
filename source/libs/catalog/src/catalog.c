@@ -1062,7 +1062,7 @@ int32_t ctgMetaRentInit(SCtgRentMgmt *mgmt, uint32_t rentSec, int8_t type) {
 
 
 int32_t ctgMetaRentAdd(SCtgRentMgmt *mgmt, void *meta, int64_t id, int32_t size) {
-  int16_t widx = abs(id % mgmt->slotNum);
+  int16_t widx = abs((int)(id % mgmt->slotNum));
 
   SCtgRentSlot *slot = &mgmt->slots[widx];
   int32_t code = 0;
@@ -1092,11 +1092,11 @@ _return:
 }
 
 int32_t ctgMetaRentUpdate(SCtgRentMgmt *mgmt, void *meta, int64_t id, int32_t size, __compar_fn_t sortCompare, __compar_fn_t searchCompare) {
-  int16_t widx = abs(id % mgmt->slotNum);
+  int16_t widx = abs((int)(id % mgmt->slotNum));
 
   SCtgRentSlot *slot = &mgmt->slots[widx];
   int32_t code = 0;
-  
+
   CTG_LOCK(CTG_WRITE, &slot->lock);
   if (NULL == slot->meta) {
     qError("empty meta slot, id:%"PRIx64", slot idx:%d, type:%d", id, widx, mgmt->type);
@@ -1133,7 +1133,7 @@ _return:
 }
 
 int32_t ctgMetaRentRemove(SCtgRentMgmt *mgmt, int64_t id, __compar_fn_t sortCompare, __compar_fn_t searchCompare) {
-  int16_t widx = abs(id % mgmt->slotNum);
+  int16_t widx = abs((int)(id % mgmt->slotNum));
 
   SCtgRentSlot *slot = &mgmt->slots[widx];
   int32_t code = 0;

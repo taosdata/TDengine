@@ -284,6 +284,7 @@ int32_t schLaunchTasksInFlowCtrlList(SSchJob *pJob, SSchTask *pTask) {
   
   SCH_ERR_RET(schLaunchTasksInFlowCtrlListImpl(pJob, ctrl));
   
+  return TSDB_CODE_FAILED;
 }
 
 

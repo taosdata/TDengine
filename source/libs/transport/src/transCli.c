@@ -291,6 +291,7 @@ void* destroyConnPool(void* pool) {
     connList = taosHashIterate((SHashObj*)pool, connList);
   }
   taosHashCleanup(pool);
+  return NULL;
 }
 
 static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
@@ -576,6 +577,8 @@ static void* cliWorkThread(void* arg) {
   SCliThrdObj* pThrd = (SCliThrdObj*)arg;
   setThreadName("trans-cli-work");
   uv_run(pThrd->loop, UV_RUN_DEFAULT);
+
+  return NULL;
 }
 
 void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle) {

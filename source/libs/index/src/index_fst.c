@@ -571,6 +571,8 @@ uint64_t fstStateFindInput(FstState* s, FstNode* node, uint8_t b, bool* null) {
     }
     fstSliceDestroy(&t);
   }
+
+  return 0;
 }
 
 // fst node function
@@ -1027,6 +1029,8 @@ Fst* fstCreate(FstSlice* slice) {
 FST_CREAT_FAILED:
   free(fst->meta);
   free(fst);
+
+  return NULL;
 }
 void fstDestroy(Fst* fst) {
   if (fst) {
@@ -1286,6 +1290,8 @@ bool streamWithStateSeekMin(StreamWithState* sws, FstBoundWithData* min) {
     }
     return false;
   }
+
+  return false;
 }
 
 StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallback callback) {

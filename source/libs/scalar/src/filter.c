@@ -792,7 +792,7 @@ int32_t filterDetachCnfGroups(SArray* group, SArray* left, SArray* right) {
     }
 
     SFilterGroup *gp = NULL;
-    while (gp = (SFilterGroup *)taosArrayPop(right)) {
+    while ((gp = (SFilterGroup *)taosArrayPop(right)) != NULL) {
       taosArrayPush(group, gp);
     }
 
@@ -801,7 +801,7 @@ int32_t filterDetachCnfGroups(SArray* group, SArray* left, SArray* right) {
 
   if (taosArrayGetSize(right) <= 0) { 
     SFilterGroup *gp = NULL;
-    while (gp = (SFilterGroup *)taosArrayPop(left)) {
+    while ((gp = (SFilterGroup *)taosArrayPop(left)) != NULL) {
       taosArrayPush(group, gp);
     }
 

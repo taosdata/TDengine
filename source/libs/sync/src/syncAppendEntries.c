@@ -80,4 +80,4 @@
 //                       /\ UNCHANGED <<serverVars, commitIndex, messages>>
 //       /\ UNCHANGED <<candidateVars, leaderVars>>
 //
-int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {}
+int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {return 0;}

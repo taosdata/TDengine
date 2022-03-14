@@ -763,6 +763,8 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pTagsSchema, 
   // todo construct payload
 
   tfree(row);
+
+  return 0;
 }
 
 // pSql -> stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)

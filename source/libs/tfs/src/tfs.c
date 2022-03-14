@@ -558,4 +558,6 @@ int32_t tfsGetMonitorInfo(STfs *pTfs, SMonDiskInfo *pInfo) {
     }
   }
   tfsUnLock(pTfs);
+
+  return 0;
 }
