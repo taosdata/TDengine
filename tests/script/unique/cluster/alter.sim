@@ -1,0 +1,174 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+
+system sh/cfg.sh -n dnode1 -c role -v 1
+system sh/cfg.sh -n dnode2 -c role -v 2
+system sh/cfg.sh -n dnode3 -c role -v 2
+system sh/cfg.sh -n dnode4 -c role -v 2
+
+system sh/cfg.sh -n dnode1 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode3 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode4 -c balanceInterval -v 10
+
+system sh/cfg.sh -n dnode1 -c wallevel -v 2
+system sh/cfg.sh -n dnode2 -c wallevel -v 2
+system sh/cfg.sh -n dnode3 -c wallevel -v 2
+system sh/cfg.sh -n dnode4 -c wallevel -v 2
+
+system sh/cfg.sh -n dnode1 -c balance -v 0
+system sh/cfg.sh -n dnode2 -c balance -v 0
+system sh/cfg.sh -n dnode3 -c balance -v 0
+system sh/cfg.sh -n dnode4 -c balance -v 0
+
+print ========== step1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+sleep 2000
+
+sql create dnode $hostname2
+system sh/exec.sh -n dnode2 -s start
+sleep 2000
+
+print ========== step2
+sql create database d1
+sql create table d1.t1 (t timestamp, i int) 
+sql insert into d1.t1 values(now+1s, 15)
+sql insert into d1.t1 values(now+2s, 14)
+sql insert into d1.t1 values(now+3s, 13)
+sql insert into d1.t1 values(now+4s, 12)
+sql insert into d1.t1 values(now+5s, 11)
+
+print ========== step3
+sleep 2000
+sql create dnode $hostname3
+system sh/exec.sh -n dnode3 -s start
+sql create dnode $hostname4
+system sh/exec.sh -n dnode4 -s start
+
+sql show dnodes
+print dnode1 openVnodes $data2_1
+print dnode2 openVnodes $data2_2
+print dnode3 openVnodes $data2_3
+print dnode4 openVnodes $data2_4
+if $data2_1 != 0 then
+	return -1
+endi
+if $data2_2 != 1 then
+	return -1
+endi
+if $data2_3 != 0 then
+	return -1
+endi
+if $data2_4 != 0 then
+	return -1
+endi
+
+print ========== step4
+sql alter dnode 2 balance "vnode:2-dnode:3"
+
+$x = 0
+show4: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 10 then
+		return -1
+	endi
+	
+sql show dnodes
+print dnode1 openVnodes $data2_1
+print dnode2 openVnodes $data2_2
+print dnode3 openVnodes $data2_3
+print dnode4 openVnodes $data2_4
+if $data2_2 != 0 then
+    goto show4
+endi
+if $data2_3 != 1 then
+    goto show4
+endi
+if $data2_4 != 0 then
+    goto show4
+endi
+
+print ========== step5
+sql alter dnode 3 balance "vnode:2-dnode:4"
+
+$x = 0
+show5: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 10 then
+		return -1
+	endi
+	
+sql show dnodes
+print dnode1 openVnodes $data2_1
+print dnode2 openVnodes $data2_2
+print dnode3 openVnodes $data2_3
+print dnode4 openVnodes $data2_4
+if $data2_2 != 0 then
+    goto show5
+endi
+if $data2_3 != 0 then
+    goto show5
+endi
+if $data2_4 != 1 then
+    goto show5
+endi
+
+print ========== step6
+sql alter dnode 4 balance "vnode:2-dnode:2"
+
+$x = 0
+show6: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 10 then
+		return -1
+	endi
+	
+sql show dnodes
+print dnode1 openVnodes $data2_1
+print dnode2 openVnodes $data2_2
+print dnode3 openVnodes $data2_3
+print dnode4 openVnodes $data2_4
+if $data2_2 != 1 then
+    goto show6
+endi
+if $data2_3 != 0 then
+    goto show6
+endi
+if $data2_4 != 0 then
+    goto show6
+endi
+
+print ========== step7
+sql select * from d1.t1 order by t desc
+print $data01 $data11 $data21 $data31 $data41 
+if $data01 != 11 then
+  return -1
+endi
+if $data11 != 12 then
+  return -1
+endi
+if $data21 != 13 then
+  return -1
+endi
+if $data31 != 14 then
+  return -1
+endi
+if $data41 != 15 then
+  return -1
+endi
+
+print ========== step8
+sql_error sql alter dnode 4 balance "vnode:2-dnode:5"
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT

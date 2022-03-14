@@ -1,0 +1,71 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 2
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+print ======== step1 
+sql alter dnode 1 resetlog
+sql alter dnode 1 monitor 1
+
+sleep 3000
+sql select * from log.dn
+if $rows <= 0 then
+  return -1
+endi
+
+print ======== step2
+
+sql alter dnode 1 resetquerycache
+sql alter dnode 1 debugFlag 135
+sql alter dnode 1 debugFlag 131
+sql alter dnode 1 monitor 0
+sql alter dnode 1 debugFlag 135
+sql alter dnode 1 monDebugFlag 135
+sql alter dnode 1 vDebugFlag 135
+sql alter dnode 1 mDebugFlag 135
+sql alter dnode 1 cDebugFlag 135
+sql alter dnode 1 httpDebugFlag 135
+sql alter dnode 1 qDebugflag 135
+sql alter dnode 1 sdbDebugFlag 135
+sql alter dnode 1 uDebugFlag 135
+sql alter dnode 1 tsdbDebugFlag 135
+sql alter dnode 1 sDebugflag 135
+sql alter dnode 1 rpcDebugFlag 135
+sql alter dnode 1 dDebugFlag 135
+sql alter dnode 1 mqttDebugFlag 135
+sql alter dnode 1 wDebugFlag 135
+sql alter dnode 1 tmrDebugFlag 135
+sql_error alter dnode 2 wDebugFlag 135
+sql_error alter dnode 2 tmrDebugFlag 135
+
+print ======== step3
+sql_error alter $hostname1 debugFlag 135
+sql_error alter $hostname1 monDebugFlag 135
+sql_error alter $hostname1 vDebugFlag 135
+sql_error alter $hostname1 mDebugFlag 135
+sql_error alter dnode $hostname2 debugFlag 135
+sql_error alter dnode $hostname2 monDebugFlag 135
+sql_error alter dnode $hostname2 vDebugFlag 135
+sql_error alter dnode $hostname2 mDebugFlag 135
+sql alter dnode $hostname1 debugFlag 135
+sql alter dnode $hostname1 monDebugFlag 135
+sql alter dnode $hostname1 vDebugFlag 135
+sql alter dnode $hostname1 tmrDebugFlag 131
+
+print ======== step4
+sql_error sql alter dnode 1 balance 0
+sql_error sql alter dnode 1 balance vnode:1-dnode:1
+sql_error sql alter dnode 1 balance "vnode:1"
+sql_error sql alter dnode 1 balance "vnode:1-dnode:1"
+sql_error sql alter dnode 1 balance "dnode:1-vnode:1"
+sql_error sql alter dnode 1 balance "dnode:1-"
+sql_error sql alter dnode 1 balance "vnode:2-dnod"
+sql alter dnode 1 balance "vnode:2-dnode:1" -x step4
+step4:
+
+print ======= over
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

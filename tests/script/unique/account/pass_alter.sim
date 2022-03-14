@@ -1,0 +1,116 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 0
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+print ============= step1
+sql create user read pass 'taosdata1'
+sql create user write pass 'taosdata1'
+
+sql alter user read pass 'taosdata'
+sql alter user write pass 'taosdata'
+
+sql show accounts
+if $rows != 1 then 
+  return -1
+endi
+sql show users
+if $rows != 5 then 
+  return -1
+endi
+
+print ============= step2
+sql close
+sql connect read
+sleep 2000
+sql alter user read pass 'taosdata'
+sql alter user write pass 'taosdata1' -x step2
+  return -1
+step2:
+
+
+print ============= step3
+sql close
+sql connect write
+sleep 2000
+sql alter user write pass 'taosdata'
+sql alter user read pass 'taosdata' -x step3
+  return -1
+step3:
+
+print ============= step4
+sql close 
+sleep 1000
+sql connect
+sleep 2000
+sql create account oroot pass 'taosdata'
+sql show accounts
+if $rows != 2 then 
+  return -1
+endi
+sql show users
+if $rows != 5 then 
+  return -1
+endi
+
+print ============= step5
+sql close
+sql connect oroot
+sleep 2000
+
+sql create user oread pass 'taosdata1'
+sql create user owrite pass 'taosdata1'
+sql alter user oread pass 'taosdata'
+sql alter user owrite pass 'taosdata'
+
+sql create user read pass 'taosdata1' -x step51
+  return -1
+step51:
+sql alter user read pass 'taosdata1' -x step52
+  return -1
+step52:
+
+sql show accounts -x step53
+  return -1
+step53:
+sql show users
+print show users $rows
+if $rows != 4 then 
+  return -1
+endi
+
+print ============= step6
+sql close
+sql connect oread
+sleep 2000
+sql alter user oread pass 'taosdata'
+sql alter user owrite pass 'taosdata1' -x step6
+  return -1
+step6:
+
+
+print ============= step7
+sql close
+sql connect owrite
+sleep 2000
+sql alter user owrite pass 'taosdata'
+sql alter user oread pass 'taosdata' -x step7
+  return -1
+step7:
+
+print ============= step8
+sql close
+sql connect
+sleep 2000
+sql alter user oread pass 'taosdata'
+sql alter user owrite pass 'taosdata'
+sql alter user oroot pass 'taosdata'
+
+sql drop account oroot
+sql drop user read
+sql drop user write
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT

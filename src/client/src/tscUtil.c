@@ -328,7 +328,8 @@ bool tscIsProjectionQuery(SQueryInfo* pQueryInfo) {
 
     if (f != TSDB_FUNC_PRJ && f != TSDB_FUNC_TAGPRJ && f != TSDB_FUNC_TAG &&
         f != TSDB_FUNC_TS && f != TSDB_FUNC_SCALAR_EXPR && f != TSDB_FUNC_DIFF &&
-        f != TSDB_FUNC_DERIVATIVE && !TSDB_FUNC_IS_SCALAR(f)) {
+        f != TSDB_FUNC_DERIVATIVE && !TSDB_FUNC_IS_SCALAR(f) &&
+        f != TSDB_FUNC_STATE_COUNT && f != TSDB_FUNC_STATE_DURATION) {
       return false;
     }
   }
@@ -347,15 +348,14 @@ bool tscIsDiffDerivLikeQuery(SQueryInfo* pQueryInfo) {
       continue;
     }
 
-    if (f == TSDB_FUNC_DIFF || f == TSDB_FUNC_DERIVATIVE ||
-        f == TSDB_FUNC_CSUM || f == TSDB_FUNC_MAVG) {
+    if (f == TSDB_FUNC_DIFF || f == TSDB_FUNC_DERIVATIVE || f == TSDB_FUNC_CSUM || f == TSDB_FUNC_MAVG ||
+        f == TSDB_FUNC_STATE_COUNT || f == TSDB_FUNC_STATE_DURATION) {
       return true;
     }
   }
 
   return false;
 }
-
 
 bool tscHasColumnFilter(SQueryInfo* pQueryInfo) {
   // filter on primary timestamp column
@@ -690,7 +690,8 @@ bool isSimpleAggregateRv(SQueryInfo* pQueryInfo) {
          functionId == TSDB_FUNC_TS_COMP ||
          functionId == TSDB_FUNC_SAMPLE ||
          functionId == TSDB_FUNC_HISTOGRAM ||
-         functionId == TSDB_FUNC_UNIQUE)) {
+         functionId == TSDB_FUNC_UNIQUE ||
+         functionId == TSDB_FUNC_TAIL)) {
       return true;
     }
   }
@@ -2550,6 +2551,11 @@ SExprInfo* tscExprCreate(STableMetaInfo* pTableMetaInfo, int16_t functionId, SCo
     p->colInfo.colId = TSDB_TBNAME_COLUMN_INDEX;
     p->colBytes = s->bytes;
     p->colType  = s->type;
+  } else if (TSDB_COL_IS_TSWIN_COL(pColIndex->columnIndex)) {
+    SSchema* s = tGetTimeWindowColumnSchema(pColIndex->columnIndex);
+    p->colInfo.colId = s->colId;
+    p->colBytes = s->bytes;
+    p->colType  = s->type;
   } else if (pColIndex->columnIndex <= TSDB_UD_COLUMN_INDEX) {
     p->colInfo.colId = pColIndex->columnIndex;
     p->colBytes = size;
@@ -2659,7 +2665,7 @@ int32_t tscExprTopBottomIndex(SQueryInfo* pQueryInfo){
     if (pExpr == NULL)
       continue;
     if (pExpr->base.functionId == TSDB_FUNC_TOP || pExpr->base.functionId == TSDB_FUNC_BOTTOM
-        || pExpr->base.functionId == TSDB_FUNC_UNIQUE) {
+        || pExpr->base.functionId == TSDB_FUNC_UNIQUE || pExpr->base.functionId == TSDB_FUNC_TAIL) {
       return i;
     }
   }
@@ -3072,7 +3078,8 @@ bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId) {
     return false;
   }
 
-  if (colId == TSDB_TBNAME_COLUMN_INDEX || colId <= TSDB_UD_COLUMN_INDEX) {
+  if (colId == TSDB_TBNAME_COLUMN_INDEX || TSDB_COL_IS_TSWIN_COL(colId) ||
+      colId <= TSDB_UD_COLUMN_INDEX) {
     return true;
   }
 
@@ -4938,7 +4945,8 @@ static int32_t createGlobalAggregateExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQu
 
     pse->colType = pExpr->base.resType;
     if(pExpr->base.resBytes > INT16_MAX &&
-        (pExpr->base.functionId == TSDB_FUNC_UNIQUE || pExpr->base.functionId == TSDB_FUNC_MODE)){
+        (pExpr->base.functionId == TSDB_FUNC_UNIQUE || pExpr->base.functionId == TSDB_FUNC_MODE
+         || pExpr->base.functionId == TSDB_FUNC_TAIL)){
       pQueryAttr->interBytesForGlobal = pExpr->base.resBytes;
     }else{
       pse->colBytes = pExpr->base.resBytes;
@@ -5086,7 +5094,6 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->pUdfInfo          = pQueryInfo->pUdfInfo;
   pQueryAttr->range             = pQueryInfo->range;
 
-
   if (pQueryInfo->order.order == TSDB_ORDER_ASC) {   // TODO refactor
     pQueryAttr->window = pQueryInfo->window;
   } else {
@@ -5117,8 +5124,6 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
       }
     }
   }
-
-  pQueryAttr->uniqueQuery       = isUniqueQuery(numOfOutput, pQueryAttr->pExpr1);
 
   pQueryAttr->tableCols = calloc(numOfCols, sizeof(SColumnInfo));
   for(int32_t i = 0; i < numOfCols; ++i) {

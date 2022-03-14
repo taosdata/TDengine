@@ -1,0 +1,44 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 2
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 2
+
+print ============== step1
+system sh/exec.sh -n dnode2 -s start
+sleep 10000
+
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql show mnodes
+print dnode1 ==> $data2_1
+print dnode2 ==> $data2_2
+if $data2_1 != master then
+  return -1
+endi
+
+print ============== step2
+sql create dnode $hostname2
+
+$x = 0
+show2: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 5 then 
+		return -1
+	endi
+	
+sql show mnodes -x show2
+print dnode1 ==> $data2_1
+print dnode2 ==> $data2_2
+if $data2_1 != master then
+	goto show2
+endi
+if $data2_2 != slave then
+	goto show2
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT

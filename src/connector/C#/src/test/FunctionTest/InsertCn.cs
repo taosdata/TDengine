@@ -7,15 +7,15 @@ using System.Collections.Generic;
 using Test.UtilsTools.ResultSet;
 namespace Cases
 {
-    public class InsertCnCharacterCases
+    public class InsertCNCases
     {
         /// <author>xiaolei</author>
-        /// <Name>InsertCnCharacterCases.TestInsertCnToNtable</Name>
-        /// <describe>test insert Chinese character into normal table's nchar column</describe>
+        /// <Name>InsertCNCases.TestNTable</Name>
+        /// <describe>Test insert Chinese characters into normal table's nchar column</describe>
         /// <filename>InsertCn.cs</filename>
         /// <result>pass or failed </result>  
-        [Fact(DisplayName = "InsertCnCharacterCases.TestInsertCnToNtable()")]
-        public void TestInsertCnToNtable()
+        [Fact(DisplayName = "InsertCNCases.TestNTable()")]
+        public void TestNTable()
         {
             IntPtr conn = UtilsTools.TDConnection();
             IntPtr _res = IntPtr.Zero;
@@ -37,7 +37,7 @@ namespace Cases
             String insertSql = UtilsTools.ConstructInsertSql(tableName, "", colData, null, 9);
             String selectSql = "select * from " + tableName;
             String dropSql = "drop table " + tableName;
-            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createTb);
+            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createTb);
 
             UtilsTools.ExecuteUpdate(conn, dropTb);
             UtilsTools.ExecuteUpdate(conn, createTb);
@@ -64,12 +64,12 @@ namespace Cases
         }
 
         /// <author>xiaolei</author>
-        /// <Name>InsertCnCharacterCases.TestInsertCnToStable</Name>
+        /// <Name>InsertCNCases.TestSTable</Name>
         /// <describe>test insert Chinese character into stable's nchar column,both tag and column</describe>
         /// <filename>InsertCn.cs</filename>
         /// <result>pass or failed </result>  
-        [Fact(DisplayName = "InsertCnCharacterCases.TestInsertCnToStable()")]
-        public void TestInsertCnToStable()
+        [Fact(DisplayName = "InsertCNCases.TestSTable()")]
+        public void TestSTable()
         {
             IntPtr conn = UtilsTools.TDConnection();
             IntPtr _res = IntPtr.Zero;
@@ -84,15 +84,15 @@ namespace Cases
             1637064047000,8,"8&涛思数据taos",
             1637064048000,9,"&涛思数据taos9"
             };
-            var tagData = new List<Object>{1,"涛思数据",};
+            var tagData = new List<Object> { 1, "涛思数据", };
             String dropTb = "drop table if exists " + tableName;
             String createTb = $"create table {tableName} (ts timestamp,v4 int,blob nchar(200))tags(id int,name nchar(50));";
-            String insertSql = UtilsTools.ConstructInsertSql(tableName+"_sub1", tableName, colData, tagData, 9);
+            String insertSql = UtilsTools.ConstructInsertSql(tableName + "_sub1", tableName, colData, tagData, 9);
             String selectSql = "select * from " + tableName;
             String dropSql = "drop table " + tableName;
-            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createTb);
+            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createTb);
 
-            List<Object> expectResData = UtilsTools.CombineColAndTagData(colData,tagData,9);
+            List<Object> expectResData = UtilsTools.CombineColAndTagData(colData, tagData, 9);
 
             UtilsTools.ExecuteUpdate(conn, dropTb);
             UtilsTools.ExecuteUpdate(conn, createTb);
@@ -118,12 +118,12 @@ namespace Cases
         }
 
         /// <author>xiaolei</author>
-        /// <Name>InsertCnCharacterCases.TestInsertMutilCnToNtable</Name>
+        /// <Name>InsertCNCases.TestInsertMultiNTable</Name>
         /// <describe>test insert Chinese character into normal table's multiple nchar columns</describe>
         /// <filename>InsertCn.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "InsertCnCharacterCases.TestInsertMutilCnToNtable()")]
-        public void TestInsertMutilCnToNtable()
+        [Fact(DisplayName = "InsertCNCases.TestInsertMultiNTable()")]
+        public void TestInsertMultiNTable()
         {
             IntPtr conn = UtilsTools.TDConnection();
             IntPtr _res = IntPtr.Zero;
@@ -140,11 +140,11 @@ namespace Cases
             };
 
             String dropTb = "drop table if exists " + tableName;
-            String createTb = $"create table if not exists {tableName} (ts timestamp,v4 int,blob nchar(200),location nchar(200),city binary(100),coutry binary(200));";
+            String createTb = $"create table if not exists {tableName} (ts timestamp,v4 int,blob nchar(200),location nchar(200),city binary(100),country binary(200));";
             String insertSql = UtilsTools.ConstructInsertSql(tableName, "", colData, null, 9);
             String selectSql = "select * from " + tableName;
             String dropSql = "drop table " + tableName;
-            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createTb);
+            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createTb);
 
             UtilsTools.ExecuteUpdate(conn, dropTb);
             UtilsTools.ExecuteUpdate(conn, createTb);
@@ -168,16 +168,16 @@ namespace Cases
                 Assert.Equal(colData[i].ToString(), actualResData[i]);
             }
         }
-    
+
         /// <author>xiaolei</author>
-        /// <Name>InsertCnCharacterCases.TestInsertMutilCnToStable</Name>
+        /// <Name>InsertCNCases.TestInsertMultiSTable</Name>
         /// <describe>test insert Chinese character into stable's multiple nchar columns</describe>
         /// <filename>InsertCn.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "InsertCnCharacterCases.TestInsertMutilCnToStable()")]
-        public void TestInsertMutilCnToStable()
+        [Fact(DisplayName = "InsertCNCases.TestInsertMultiSTable()")]
+        public void TestInsertMultiSTable()
         {
-             IntPtr conn = UtilsTools.TDConnection();
+            IntPtr conn = UtilsTools.TDConnection();
             IntPtr _res = IntPtr.Zero;
             string tableName = "cn_multi_insert_nchar_stable";
             var colData = new List<Object>{1637064040000,1,"涛思数据","保利广场","Beijing","China",
@@ -190,7 +190,7 @@ namespace Cases
             1637064047000,8,"8&涛思数据taos","incluse阿斯顿发","NewYork","US",
             1637064048000,9,"&涛思数据taos9","123黑化肥werq会挥……&¥%发！afsdfa","NewYork","US",
             };
-            var tagData = new List<Object>{1,"涛思数据","中国北方&南方长江黄河！49wq","tdengine"};
+            var tagData = new List<Object> { 1, "涛思数据", "中国北方&南方长江黄河！49wq", "tdengine" };
             String dropTb = "drop table if exists " + tableName;
             String createTb = $"create table if not exists {tableName} (ts timestamp," +
             $"v4 int," +
@@ -203,12 +203,12 @@ namespace Cases
             $"name nchar(50)," +
             $"addr nchar(200)," +
             $"en_name binary(200));";
-            String insertSql = UtilsTools.ConstructInsertSql(tableName+"_sub1", tableName, colData, tagData, 9);
+            String insertSql = UtilsTools.ConstructInsertSql(tableName + "_sub1", tableName, colData, tagData, 9);
             String selectSql = "select * from " + tableName;
             String dropSql = "drop table " + tableName;
-            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createTb);
+            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createTb);
 
-            List<Object> expectResData = UtilsTools.CombineColAndTagData(colData,tagData,9);
+            List<Object> expectResData = UtilsTools.CombineColAndTagData(colData, tagData, 9);
 
             UtilsTools.ExecuteUpdate(conn, dropTb);
             UtilsTools.ExecuteUpdate(conn, createTb);

@@ -59,14 +59,14 @@ When TDengine receives the application's request packet, it first writes the req
 
 There are two system configuration parameters involved:
 
-- walLevel: WAL level, 0: do not write wal; 1: write wal, but do not execute fsync; 2: write wal and execute fsync.
+- walLevel: WAL level, 0: do not write WAL; 1: write WAL, but do not execute fsync; 2: write WAL and execute fsync.
 - fsync: the cycle in which fsync is executed when walLevel is set to 2. Setting to 0 means that fsync is executed immediately whenever there is a write.
 
 To guarantee 100% data safe, you need to set walLevel to 2 and fsync to 0. In that way, the write speed will decrease. However, if the number of threads starting to write data on the application side reaches a certain number (more than 50), the performance of writing data will also be good, only about 30% lower than that of fsync set to 3000 milliseconds.
 
 ### Disaster recovery
 
-The cluster of TDengine provides high-availability of the system and implements disaster recovery through the multipl-replica mechanism.
+The cluster of TDengine provides high-availability of the system and implements disaster recovery through the multiple-replica mechanism.
 
 TDengine cluster is managed by mnode. In order to ensure the high reliability of the mnode, multiple mnode replicas can be configured. The number of replicas is determined by system configuration parameter numOfMnodes. In order to support high reliability, it needs to be set to be greater than 1. In order to ensure the strong consistency of metadata, mnode replicas duplicate data synchronously to ensure the strong consistency of metadata.
 
@@ -91,12 +91,12 @@ Only some important configuration parameters are listed below. For more paramete
 - firstEp: end point of the first dnode which will be connected in the cluster when taosd starts, the default value is localhost: 6030.
 - fqdn: FQDN of the data node, which defaults to the first hostname configured by the operating system. If you want to access via IP address directly, you can set it to the IP address of the node.
 - serverPort: the port number of the external service after taosd started, the default value is 6030.
-- httpPort: the port number used by the RESTful service to which all HTTP requests (TCP) require a query/write request. The default value is 6041. Note 2.4 and later version use a stand-alone software, taosAdapter to provide RESTFul interface.
+- httpPort: the port number used by the RESTful service to which all HTTP requests (TCP) require a query/write request. The default value is 6041. Note 2.4 and later version use a stand-alone software, taosAdapter to provide RESTful interface.
 - dataDir: the data file directory to which all data files will be written. `Default:/var/lib/taos`.
 - logDir: the log file directory to which the running log files of the client and server will be written. `Default:/var/log/taos`.
 - arbitrator: the end point of the arbitrator in the system; the default value is null.
 - role: optional role for dnode. 0-any; it can be used as an mnode and to allocate vnodes; 1-mgmt; It can only be an mnode, but not to allocate vnodes; 2-dnode; cannot be an mnode, only vnode can be allocated
-- debugFlage: run the log switch. 131 (output error and warning logs), 135 (output error, warning, and debug logs), 143 (output error, warning, debug, and trace logs). Default value: 131 or 135 (different modules have different default values).
+- debugFlags: run the log switch. 131 (output error and warning logs), 135 (output error, warning, and debug logs), 143 (output error, warning, debug, and trace logs). Default value: 131 or 135 (different modules have different default values).
 - numOfLogLines: the maximum number of lines allowed for a single log file. Default: 10,000,000 lines.
 - logKeepDays: the maximum retention time of the log file. When it is greater than 0, the log file will be renamed to taosdlog.xxx, where xxx is the timestamp of the last modification of the log file in seconds. Default: 0 days.
 - maxSQLLength: the maximum length allowed for a single SQL statement. Default: 65380 bytes.
@@ -114,8 +114,8 @@ Data in different application scenarios often have different data characteristic
 - minRows: the minimum number of records in a file block, in pieces, default: 100.
 - maxRows: the maximum number of records in a file block, in pieces, default: 4096.
 - comp: file compression flag bit, 0: off; 1: one-stage compression; 2: two-stage compression. Default: 2.
-- walLevel: WAL level. 1: write wal, but do not execute fsync; 2: write wal and execute fsync. Default: 1.
-- fsync: the period during which fsync is executed when wal is set to 2. Setting to 0 means that fsync is executed immediately whenever a write happens, in milliseconds, and the default value is 3000.
+- walLevel: WAL level. 1: write WAL, but do not execute fsync; 2: write WAL and execute fsync. Default: 1.
+- fsync: the period during which fsync is executed when WAL is set to 2. Setting to 0 means that fsync is executed immediately whenever a write happens, in milliseconds, and the default value is 3000.
 - cache: the size of the memory block in megabytes (MB), default: 16.
 - blocks: how many cache-sized memory blocks are in each VNODE (TSDB). Therefore, the memory size used by a VNODE is roughly (cache * blocks), in blocks, and the default value is 4.
 - replica: number of replicas; value range: 1-3, in items, default value: 1
@@ -377,7 +377,7 @@ The system administrator can query the connection, ongoing query and stream comp
 SHOW CONNECTIONS;
 ```
 
-Show the connection of the database, and one column shows ip: port, which is the IP address and port number of the connection.
+Show the connection of the database, and one column shows IP: port, which is the IP address and port number of the connection.
 
 ```mysql
 KILL CONNECTION <connection-id>;
@@ -442,7 +442,7 @@ Some CLI options are needed to use the script:
         sudo ./TDinsight.sh -a http://localhost:6041 -u root -p taosdata -E <notifier uid>
         ```
 
-   2. Use TDengine data source plugin's builtin [Aliyun SMS](https://www.aliyun.com/product/sms) alerting support with `-s` flag, and input these options：
+   2. Use TDengine data source plugin's built-in [Aliyun SMS](https://www.aliyun.com/product/sms) alerting support with `-s` flag, and input these options：
         1. Access key id with option `-I`
         2. Access key secret with option `K`
         3. Access key sign name with option `-S`
@@ -468,7 +468,7 @@ After installing TDengine, the following directories or files are generated in t
 
 | **Directory/File**        | **Description**                                              |
 | ------------------------- | ------------------------------------------------------------ |
-| /usr/local/taos/bin       | TEngine’s executable directory. The executables are connected to the/usr/bin directory via softly links. |
+| /usr/local/taos/bin       | TDengine’s executable directory. The executables are connected to the/usr/bin directory via softly links. |
 | /usr/local/taos/connector | TDengine’s various connector directories.                    |
 | /usr/local/taos/driver    | TDengine’s dynamic link library directory. Connect to /usr/lib directory via soft links. |
 | /usr/local/taos/examples  | TDengine’s application example directory for various languages. |
@@ -495,7 +495,7 @@ You can configure different data directories and log directories by modifying sy
 - Table column name: cannot contain special characters, and cannot exceed 64 characters
 - Database name, table name, column name cannot begin with a number
 - Number of columns in table: cannot exceed 1024 columns
-- Maximum length of record: including 8 bytes as timestamp, no more than 16KB (each column of BINARY/NCHAR type will occupy an additional 2 bytes of storage location)
+- Maximum length of record: including 8 bytes as timestamp, no more than 48K bytes (it's 16K bytes prior to 2.1.7.0. each column of BINARY/NCHAR type will occupy an additional 2 bytes of storage location)
 - Default maximum string length for a single SQL statement: 65480 bytes
 - Number of database replicas: no more than 3
 - User name: no more than 23 bytes

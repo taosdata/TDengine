@@ -1,0 +1,55 @@
+sql connect
+sleep 2000
+
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
+
+$i = 0
+$dbPrefix = tb_mf_db
+$tbPrefix = tb_mf_tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =============== step1
+sql drop database -x step1
+step1:
+sql create database $db
+sql use $db
+
+$x = 0
+create1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then 
+	  return -1
+	endi
+sql create table $tb (ts timestamp, speed int) -x create1
+
+$N = 20000
+
+$x = 0
+
+while $x < $N
+  $ms = $x . s 
+  #print insert into $tb values (now + $ms , $x )
+  sql insert into $tb values (now + $ms , $x ) -x error_insert
+  $x = $x + 1
+endw 
+error_insert:
+
+sql select * from $tb
+print $rows points data are retrieved -> exepct $N rows
+if $rows < $N then
+  return -1
+endi
+
+sql drop database $db
+sql show databases
+if $rows != 0 then 
+  return -1
+endi
+

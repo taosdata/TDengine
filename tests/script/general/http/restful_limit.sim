@@ -1,0 +1,46 @@
+system sh/stop_dnodes.sh
+sleep 2000
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+print ============================ dnode1 start
+
+print ===============  step1 - prepare data
+
+$dbPrefix = db
+$tbPrefix = tb
+$mtPrefix = st
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol bigint, t1 bigint, t2 bigint, t3 bigint, t4 bigint, t5 bigint, t6 bigint, t7 bigint, t8 bigint, t9 bigint, t0 nchar(20)) TAGS(tgcol bigint)
+
+$i = 0
+while $i < 2
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( 0 )  
+  $x = 0
+  while $x < 2000
+    $ms = $x . m 
+    sql insert into $tb values (now + $ms , 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, '你好' ) 
+    $x = $x + 1
+  endw  
+  $i = $i + 1
+endw
+
+system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from db0.st0 limit 100' 127.0.0.1:7111/rest/sql
+print curl 127.0.0.1:7111/rest/sql -----> $system_content
+
+#system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d "select * from db0.st0 where tbname in ('tb0', 'tb1') limit 1000" 127.0.0.1:7111/rest/sql
+#print curl 127.0.0.1:7111/rest/sql -----> $system_content
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

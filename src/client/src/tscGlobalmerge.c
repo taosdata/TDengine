@@ -650,48 +650,49 @@ static void doExecuteFinalMerge(SOperatorInfo* pOperator, int32_t numOfExpr, SSD
   }
 
   for(int32_t i = 0; i < pBlock->info.rows; ++i) {
-    if (pInfo->hasPrev) {
-      if (needToMerge(pBlock, pInfo->orderColumnList, i, pInfo->prevRow)) {
-        doMergeResultImpl(pOperator, pCtx, numOfExpr, i, addrPtr);
-      } else {
-        doFinalizeResultImpl(pInfo, pCtx, numOfExpr);
-
-        int32_t numOfRows = getNumOfResult(pOperator->pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput);
-        setTagValueForMultipleRows(pCtx, pOperator->numOfOutput, numOfRows);
-
-        pInfo->binfo.pRes->info.rows += numOfRows;
-
-        for(int32_t j = 0; j < numOfExpr; ++j) {
-          pCtx[j].pOutput += (pCtx[j].outputBytes * numOfRows);
-          if (pCtx[j].functionId == TSDB_FUNC_TOP || pCtx[j].functionId == TSDB_FUNC_BOTTOM ||
-              pCtx[j].functionId == TSDB_FUNC_SAMPLE || pCtx[j].functionId == TSDB_FUNC_UNIQUE) {
-            if(j > 0) pCtx[j].ptsOutputBuf = pCtx[j - 1].pOutput;
-          }
-        }
-
-        for(int32_t j = 0; j < numOfExpr; ++j) {
-          if (pCtx[j].functionId < 0) {
-            continue;
-          }
-          {
-            assert(!TSDB_FUNC_IS_SCALAR(pCtx[j].functionId));
-            aAggs[pCtx[j].functionId].init(&pCtx[j], pCtx[j].resultInfo);
-          }
-        }
-
-        doMergeResultImpl(pOperator, pCtx, numOfExpr, i, addrPtr);
-      }
-    } else {
+    if (!pInfo->hasPrev) {
       doMergeResultImpl(pOperator, pCtx, numOfExpr, i, addrPtr);
+      savePrevOrderColumns(pInfo->prevRow, pInfo->orderColumnList, pBlock, i, &pInfo->hasPrev);
+      continue;
     }
 
+    if (needToMerge(pBlock, pInfo->orderColumnList, i, pInfo->prevRow)) {
+      doMergeResultImpl(pOperator, pCtx, numOfExpr, i, addrPtr);
+      continue;
+    }
+
+    doFinalizeResultImpl(pInfo, pCtx, numOfExpr);
+
+    int32_t numOfRows = getNumOfResult(pOperator->pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput);
+    setTagValueForMultipleRows(pCtx, pOperator->numOfOutput, numOfRows);
+
+    pInfo->binfo.pRes->info.rows += numOfRows;
+
+    for(int32_t j = 0; j < numOfExpr; ++j) {
+      pCtx[j].pOutput += (pCtx[j].outputBytes * numOfRows);
+      if (pCtx[j].functionId == TSDB_FUNC_TOP || pCtx[j].functionId == TSDB_FUNC_BOTTOM ||
+          pCtx[j].functionId == TSDB_FUNC_SAMPLE || pCtx[j].functionId == TSDB_FUNC_UNIQUE ||
+          pCtx[j].functionId == TSDB_FUNC_TAIL) {
+        if(j > 0) pCtx[j].ptsOutputBuf = pCtx[j - 1].pOutput;
+      }
+    }
+
+    for(int32_t j = 0; j < numOfExpr; ++j) {
+      if (pCtx[j].functionId < 0) {
+        continue;
+      }
+      {
+        assert(!TSDB_FUNC_IS_SCALAR(pCtx[j].functionId));
+        aAggs[pCtx[j].functionId].init(&pCtx[j], pCtx[j].resultInfo);
+      }
+    }
+
+    doMergeResultImpl(pOperator, pCtx, numOfExpr, i, addrPtr);
     savePrevOrderColumns(pInfo->prevRow, pInfo->orderColumnList, pBlock, i, &pInfo->hasPrev);
   }
 
-  {
-    for(int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-      pCtx[i].pInput = addrPtr[i];
-    }
+  for(int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+    pCtx[i].pInput = addrPtr[i];
   }
 
   tfree(addrPtr);
@@ -818,7 +819,7 @@ SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup) {
                                         pOneDataSrc->rowIdx, pIndex->colIndex);
 
         char   *data = pInfo->prevRow[i];
-        int32_t ret = columnValueAscendingComparator(data, newRow, pColInfo->info.type, pColInfo->info.bytes);
+        int32_t ret = columnValueAscendingComparator(data, newRow, pColInfo->info.type, pColInfo->info.bytes, true);
         if (ret == 0) {
           continue;
         } else {
@@ -880,7 +881,7 @@ static bool isSameGroup(SArray* orderColumnList, SSDataBlock* pBlock, char** dat
     assert(pIndex->colId == pColInfo->info.colId);
 
     char *data = dataCols[i];
-    int32_t ret = columnValueAscendingComparator(data, pColInfo->pData, pColInfo->info.type, pColInfo->info.bytes);
+    int32_t ret = columnValueAscendingComparator(data, pColInfo->pData, pColInfo->info.type, pColInfo->info.bytes, true);
     if (ret == 0) {
       continue;
     } else {
@@ -899,6 +900,7 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
 
   SMultiwayMergeInfo *pAggInfo = pOperator->info;
   SOperatorInfo      *upstream = pOperator->upstream[0];
+  SQueryAttr         *pQueryAttr = pOperator->pRuntimeEnv->pQueryAttr;
 
   *newgroup = false;
   bool handleData = false;
@@ -909,7 +911,7 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
       pAggInfo->hasPrev = false; // now we start from a new group data set.
 
       // not belongs to the same group, return the result of current group;
-      setInputDataBlock(pOperator, pAggInfo->binfo.pCtx, pAggInfo->pExistBlock, TSDB_ORDER_ASC);
+      setInputDataBlock(pOperator, pAggInfo->binfo.pCtx, pAggInfo->pExistBlock, pQueryAttr->order.order);
       updateOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity, pAggInfo->pExistBlock->info.rows, pOperator->pRuntimeEnv, true);
 
       { // reset output buffer
@@ -955,13 +957,13 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
         *newgroup = true;
         pAggInfo->hasDataBlockForNewGroup = true;
         pAggInfo->pExistBlock = pBlock;
-        savePrevOrderColumns(pAggInfo->prevRow, pAggInfo->groupColumnList, pBlock, 0, &pAggInfo->hasPrev);
+        savePrevOrderColumns(pAggInfo->currentGroupColData, pAggInfo->groupColumnList, pBlock, 0, &pAggInfo->hasGroupColData);
         break;
       }
     }
 
     // not belongs to the same group, return the result of current group
-    setInputDataBlock(pOperator, pAggInfo->binfo.pCtx, pBlock, TSDB_ORDER_ASC);
+    setInputDataBlock(pOperator, pAggInfo->binfo.pCtx, pBlock, pQueryAttr->order.order);
     updateOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity, pBlock->info.rows * pAggInfo->resultRowFactor, pOperator->pRuntimeEnv, true);
 
     doExecuteFinalMerge(pOperator, pOperator->numOfOutput, pBlock);
@@ -1065,7 +1067,7 @@ static int32_t doSlimitImpl(SOperatorInfo* pOperator, SSLimitOperatorInfo* pInfo
         SColumnInfo *pColInfo = &pColInfoData->info;
 
         char   *d = rowIndex * pColInfo->bytes + (char *)pColInfoData->pData;
-        int32_t ret = columnValueAscendingComparator(pInfo->prevRow[i], d, pColInfo->type, pColInfo->bytes);
+        int32_t ret = columnValueAscendingComparator(pInfo->prevRow[i], d, pColInfo->type, pColInfo->bytes, true);
         if (ret != 0) {  // it is a new group
           samegroup = false;
           break;

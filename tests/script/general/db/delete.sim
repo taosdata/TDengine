@@ -1,0 +1,66 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 2
+system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 10
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 1000
+
+print ========= start dnodes
+system sh/exec.sh -n dnode1 -s start
+sleep 2000
+sql connect
+
+print ======== step1 
+sql create database db blocks 3
+sql create table db.mt (ts timestamp, tbcol int) TAGS(tgcol int)
+
+$tbPrefix = db.t
+$i = 0
+while $i < 2000
+  $tb = $tbPrefix . $i
+  sql create table $tb using db.mt tags( $i )
+  $i = $i + 1
+endw 
+
+sql show db.vgroups
+if $rows != 10 then 
+  return -1
+endi 
+
+return
+print ======== step2
+sleep 1000
+sql drop database db
+sql show databases
+if $rows != 0 then 
+  return -1
+endi 
+
+sleep 1000
+sql show dnodes
+print dnode1 openVnodes $data2_1
+if $data2_1 != 0 then
+	return -1
+endi
+
+print ======= step3
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+sleep 3000
+system sh/exec.sh -n dnode1 -s start 
+
+$x = 0
+step3: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 30 then
+	  return -1
+	endi
+
+sql show mnodes
+print dnode1 role $data2_1
+if $data2_1 != master then
+  goto step3
+endi
+
+sleep 1000
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT

@@ -1,0 +1,556 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode4 -c numOfMnodes -v 1
+
+system sh/cfg.sh -n dnode1 -c role -v 1
+system sh/cfg.sh -n dnode2 -c role -v 2
+system sh/cfg.sh -n dnode3 -c role -v 2
+system sh/cfg.sh -n dnode4 -c role -v 2
+
+system sh/cfg.sh -n dnode1 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode2 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode3 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode4 -c arbitrator -v $arbitrator
+
+print ============== step0: start tarbitrator
+system sh/exec_tarbitrator.sh -s start
+
+print ============== step1: start dnode1, only deploy mnode
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ============== step2: start dnode2/dnode3
+system sh/exec.sh -n dnode2 -s start 
+system sh/exec.sh -n dnode3 -s start
+sql create dnode $hostname2
+sql create dnode $hostname3
+
+$x = 0
+step2: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+
+if $data4_1 != ready then
+  goto step2
+endi
+if $data4_2 != ready then
+  goto step2
+endi
+if $data4_3 != ready then
+  goto step2
+endi
+
+sleep 1000
+
+print ============== step3
+sql create database db replica 2
+sql use db
+
+sql create table stb (ts timestamp, c1 int, c2 int) tags(t1 int)
+sql create table t1 using stb tags(1)
+sql insert into t1 values(1577980800000, 1, 5)
+sql insert into t1 values(1577980800001, 2, 4)
+sql insert into t1 values(1577980800002, 3, 3)
+sql insert into t1 values(1577980800003, 4, 2)
+sql insert into t1 values(1577980800004, 5, 1)
+
+sql show db.vgroups
+if $data04 != 3 then
+	return -1
+endi
+if $data06 != 2 then
+	return -1
+endi
+if $data05 != master then
+	return -1
+endi
+if $data07 != slave then
+	return -1
+endi
+
+sql select * from t1
+if $rows != 5 then
+	return -1
+endi
+
+system sh/exec.sh -n dnode2 -s stop -x SIGKILL
+system sh/exec.sh -n dnode3 -s stop -x SIGKILL
+
+print ============== step4
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+
+$x = 0
+step4: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+
+if $data4_1 != ready then
+  goto step4
+endi
+if $data4_2 != ready then
+  goto step4
+endi
+if $data4_3 != ready then
+  goto step4
+endi
+
+sql show db.vgroups
+if $data04 != 3 then
+	goto step4
+endi
+if $data06 != 2 then
+	goto step4
+endi
+if $data05 != master then
+	goto step4
+endi
+if $data07 != slave then
+	goto step4
+endi
+
+sql create table t2 using stb tags(1)
+sql insert into t2 values(1577980800000, 1, 5)
+sql insert into t2 values(1577980800001, 2, 4)
+sql insert into t2 values(1577980800002, 3, 3)
+sql insert into t2 values(1577980800003, 4, 2)
+sql insert into t2 values(1577980800004, 5, 1)
+
+sql select * from t2
+if $rows != 5 then
+	return -1
+endi
+
+print ============== step5
+system sh/exec.sh -n dnode3 -s stop  -x SIGKILL
+
+$x = 0
+step5: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+
+if $data4_1 != ready then
+  goto step5
+endi
+if $data4_2 != ready then
+  goto step5
+endi
+if $data4_3 != offline then
+  goto step5
+endi
+
+sql select * from t1
+if $rows != 5 then
+	return -1
+endi
+sql select * from t2
+if $rows != 5 then
+	return -1
+endi
+
+sql show db.vgroups
+if $data04 != 3 then
+	goto step5
+endi
+if $data06 != 2 then
+	goto step5
+endi
+if $data05 != offline then
+	goto step5
+endi
+if $data07 != master then
+	goto step5
+endi
+
+print ============== step6
+sql create table t3 using stb tags(1)
+sql insert into t3 values(1577980800000, 1, 5)
+sql insert into t3 values(1577980800001, 2, 4)
+sql insert into t3 values(1577980800002, 3, 3)
+sql insert into t3 values(1577980800003, 4, 2)
+sql insert into t3 values(1577980800004, 5, 1)
+sql insert into t3 values(1577980800010, 11, 5)
+sql insert into t3 values(1577980800011, 12, 4)
+sql insert into t3 values(1577980800012, 13, 3)
+sql insert into t3 values(1577980800013, 14, 2)
+sql insert into t3 values(1577980800014, 15, 1)
+
+sql select * from t1
+if $rows != 5 then
+	return -1
+endi
+sql select * from t2
+if $rows != 5 then
+	return -1
+endi
+sql select * from t3
+if $rows != 10 then
+	return -1
+endi
+
+system sh/exec.sh -n dnode3 -s start
+
+$x = 0
+step6: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+
+if $data4_1 != ready then
+  goto step6
+endi
+if $data4_2 != ready then
+  goto step6
+endi
+if $data4_3 != ready then
+  goto step6
+endi
+
+sql show db.vgroups
+if $data04 != 3 then
+	goto step6
+endi
+if $data06 != 2 then
+	goto step6
+endi
+if $data05 != slave then
+	goto step6
+endi
+if $data07 != master then
+	goto step6
+endi
+
+sql select * from t1
+if $rows != 5 then
+	return -1
+endi
+sql select * from t2
+if $rows != 5 then
+	return -1
+endi
+sql select * from t3
+if $rows != 10 then
+	return -1
+endi
+
+print ============== step7
+sql create table t4 using stb tags(1)
+sql insert into t4 values(1577980800000, 1, 5)
+sql insert into t4 values(1577980800001, 2, 4)
+sql insert into t4 values(1577980800002, 3, 3)
+sql insert into t4 values(1577980800003, 4, 2)
+sql insert into t4 values(1577980800004, 5, 1)
+sql insert into t4 values(1577980800010, 11, 5)
+sql insert into t4 values(1577980800011, 12, 4)
+sql insert into t4 values(1577980800012, 13, 3)
+sql insert into t4 values(1577980800013, 14, 2)
+sql insert into t4 values(1577980800014, 15, 1)
+sql insert into t4 values(1577980800020, 21, 5)
+sql insert into t4 values(1577980800021, 22, 4)
+sql insert into t4 values(1577980800022, 23, 3)
+sql insert into t4 values(1577980800023, 24, 2)
+sql insert into t4 values(1577980800024, 25, 1)
+
+sql select * from t1
+if $rows != 5 then
+	return -1
+endi
+sql select * from t2
+if $rows != 5 then
+	return -1
+endi
+sql select * from t3
+if $rows != 10 then
+	return -1
+endi
+sql select * from t4
+if $rows != 15 then
+	return -1
+endi
+
+system sh/exec.sh -n dnode2 -s stop -x SIGKILL
+$x = 0
+step7: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+
+if $data4_1 != ready then
+  goto step7
+endi
+if $data4_2 != offline then
+  goto step7
+endi
+if $data4_3 !=  ready then
+  goto step7
+endi
+
+sql show db.vgroups
+if $data04 != 3 then
+	goto step7
+endi
+if $data06 != 2 then
+	goto step7
+endi
+if $data05 != master then
+	goto step7
+endi
+if $data07 != offline then
+	goto step7
+endi
+
+sql select * from t1
+if $rows != 5 then
+	return -1
+endi
+sql select * from t2
+if $rows != 5 then
+	return -1
+endi
+sql select * from t3
+if $rows != 10 then
+	return -1
+endi
+sql select * from t4
+if $rows != 15 then
+	return -1
+endi
+
+print ============== step8
+sql create table t5 using stb tags(1)
+sql insert into t5 values(1577980800000, 1, 5)
+sql insert into t5 values(1577980800001, 2, 4)
+sql insert into t5 values(1577980800002, 3, 3)
+sql insert into t5 values(1577980800003, 4, 2)
+sql insert into t5 values(1577980800004, 5, 1)
+sql insert into t5 values(1577980800010, 11, 5)
+
+sql select * from t1
+if $rows != 5 then
+	return -1
+endi
+sql select * from t2
+if $rows != 5 then
+	return -1
+endi
+sql select * from t3
+if $rows != 10 then
+	return -1
+endi
+sql select * from t4
+if $rows != 15 then
+	return -1
+endi
+sql select * from t5
+if $rows != 6 then
+	return -1
+endi
+
+system sh/exec.sh -n dnode2 -s start
+$x = 0
+step8: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+
+if $data4_1 != ready then
+  goto step8
+endi
+if $data4_2 != ready then
+  goto step8
+endi
+if $data4_3 != ready then
+  goto step8
+endi
+
+sql show db.vgroups
+if $data04 != 3 then
+	goto step8
+endi
+if $data06 != 2 then
+	goto step8
+endi
+if $data05 != master then
+	goto step8
+endi
+if $data07 != slave then
+	goto step8
+endi
+
+sql select * from t1
+if $rows != 5 then
+	return -1
+endi
+sql select * from t2
+if $rows != 5 then
+	return -1
+endi
+sql select * from t3
+if $rows != 10 then
+	return -1
+endi
+sql select * from t4
+if $rows != 15 then
+	return -1
+endi
+sql select * from t5
+if $rows != 6 then
+	return -1
+endi
+
+print ============== step9
+sql create table t6 using stb tags(1)
+sql insert into t6 values(1577980800000, 1, 5)
+sql insert into t6 values(1577980800001, 2, 4)
+sql insert into t6 values(1577980800002, 3, 3)
+sql insert into t6 values(1577980800003, 4, 2)
+sql insert into t6 values(1577980800004, 5, 1)
+sql insert into t6 values(1577980800010, 11, 5)
+sql insert into t6 values(1577980800011, 12, 4)
+
+sql select * from t1
+if $rows != 5 then
+	return -1
+endi
+sql select * from t2
+if $rows != 5 then
+	return -1
+endi
+sql select * from t3
+if $rows != 10 then
+	return -1
+endi
+sql select * from t4
+if $rows != 15 then
+	return -1
+endi
+sql select * from t5
+if $rows != 6 then
+	return -1
+endi
+sql select * from t6
+if $rows != 7 then
+	return -1
+endi
+
+system sh/exec.sh -n dnode3 -s stop -x SIGKILL
+$x = 0
+step9: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+
+if $data4_1 != ready then
+  goto step9
+endi
+if $data4_2 != ready then
+  goto step9
+endi
+if $data4_3 != offline then
+  goto step9
+endi
+
+print ============== 2
+sql show db.vgroups
+
+if $data04 != 3 then
+	goto step7
+endi
+if $data06 != 2 then
+	goto step7
+endi
+if $data05 != offline then
+	goto step7
+endi
+if $data07 != master then
+	goto step7
+endi
+
+print ============== 3
+sql select * from t1
+if $rows != 5 then
+	return -1
+endi
+sql select * from t2
+if $rows != 5 then
+	return -1
+endi
+sql select * from t3
+if $rows != 10 then	
+	return -1
+endi
+sql select * from t4
+if $rows != 15 then
+	return -1
+endi
+sql select * from t5
+if $rows != 6 then
+	return -1
+endi
+sql select * from t6
+if $rows != 7 then
+	return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop
+system sh/exec.sh -n dnode2 -s stop
+system sh/exec.sh -n dnode3 -s stop

@@ -565,6 +565,9 @@ static void shellPrintNChar(const char *str, int length, int width) {
     if (bytes <= 0) {
       break;
     }
+    if (pos + bytes > length) {
+      break;
+    }
     int w = 0;
 #ifdef WINDOWS
     w = bytes;
@@ -575,13 +578,9 @@ static void shellPrintNChar(const char *str, int length, int width) {
       w = wcwidth(wc);
     }
 #endif
+    pos += bytes;
     if (w <= 0) {
       continue;
-    }
-
-    pos += bytes;
-    if (pos > length) {
-      break;
     }
 
     if (width <= 0) {
@@ -746,8 +745,13 @@ static int verticalPrintResult(TAOS_RES* tres) {
         putchar('\n');
       }
     } else if (showMore) {
-        printf("[100 Rows showed, and more rows are fetching but will not be showed. You can ctrl+c to stop or wait.]\n");
-        printf("[You can add limit statement to get more or redirect results to specific file to get all.]\n");
+        printf("\n");
+        printf(" Notice: The result shows only the first %d rows.\n", DEFAULT_RES_SHOW_NUM);
+        printf("         You can use the `LIMIT` clause to get fewer result to show.\n");
+        printf("           Or use '>>' to redirect the whole set of the result to a specified file.\n");
+        printf("\n");
+        printf("         You can use Ctrl+C to stop the underway fetching.\n");
+        printf("\n");
         showMore = 0;
     }
 
@@ -878,8 +882,13 @@ static int horizontalPrintResult(TAOS_RES* tres) {
       }
       putchar('\n');
     } else if (showMore) {
-        printf("[100 Rows showed, and more rows are fetching but will not be showed. You can ctrl+c to stop or wait.]\n");
-        printf("[You can add limit statement to show more or redirect results to specific file to get all.]\n");
+        printf("\n");
+        printf(" Notice: The result shows only the first %d rows.\n", DEFAULT_RES_SHOW_NUM);
+        printf("         You can use the `LIMIT` clause to get fewer result to show.\n");
+        printf("           Or use '>>' to redirect the whole set of the result to a specified file.\n");
+        printf("\n");
+        printf("         You can use Ctrl+C to stop the underway fetching.\n");
+        printf("\n");
         showMore = 0;
     }
 

@@ -17,18 +17,18 @@ docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengin
 
 注：暂时不建议生产环境采用 Docker 来部署 TDengine 的客户端或服务端，但在开发环境下或初次尝试时，使用 Docker 方式部署是十分方便的。特别是，利用 Docker，可以方便地在 macOS 和 Windows 环境下尝试 TDengine。
 
-从 2.4.0.10 开始，除 taosd 以外，docker 镜像还包含：taos、taosAdapter、taosdump、taosBenchmark、TDinsight 安装脚本和示例代码。启动 docker 容器时，将同时启动 taosAdapter 和 taosd，实现对 RESTful 的支持。
+从 2.4.0.10 开始，除 taosd 以外，Docker 镜像还包含：taos、taosAdapter、taosdump、taosBenchmark、TDinsight 安装脚本和示例代码。启动 Docker 容器时，将同时启动 taosAdapter 和 taosd，实现对 RESTful 的支持。
 
 
 ### <a class="anchor" id="package-install"></a>通过安装包安装
 
 TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟。
 
-为方便使用，从 2.4.0.10 开始，标准的服务端安装包包含了taos、taosd、taosAdapter、taosdump、taosBenchmark、TDinsight安装脚本和示例代码；如果您只需要用到服务端程序和客户端连接的 C/C++ 语言支持，也可以仅下载 lite 版本的安装包。
+为方便使用，从 2.4.0.10 开始，标准的服务端安装包包含了 taos、taosd、taosAdapter、taosdump、taosBenchmark、TDinsight 安装脚本和示例代码；如果您只需要用到服务端程序和客户端连接的 C/C++ 语言支持，也可以仅下载 lite 版本的安装包。
 
-在安装包格式上，我们提供tar.gz, rpm 和 deb 格式，为企业客户提供 tar.gz 格式安装包，以方便在特定操作系统上使用。需要注意的是，rpm和deb包不含taosdump、taosBenchmark和TDinsight安装脚本，这些工具需要通过安装taosTool包获得。
+在安装包格式上，我们提供 tar.gz, rpm 和 deb 格式，为企业客户提供 tar.gz 格式安装包，以方便在特定操作系统上使用。需要注意的是，rpm 和 deb 包不含 taosdump、taosBenchmark 和 TDinsight 安装脚本，这些工具需要通过安装 taosTool 包获得。
 
-发布版本包括稳定版和 Beta 版，Beta版含有更多新功能。正式上线或测试建议安装稳定版。您可以根据需要选择下载：
+发布版本包括稳定版和 Beta 版，Beta 版含有更多新功能。正式上线或测试建议安装稳定版。您可以根据需要选择下载：
 
 <ul id="server-packageList" class="package-list"></ul>
 
@@ -57,7 +57,7 @@ sudo apt-get install tdengine
 
 ### <a class="anchor" id="source-install"></a>通过源码安装
 
-如果您希望对 TDengine 贡献代码或对内部实现感兴趣，请参考我们的 [TDengine github 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
+如果您希望对 TDengine 贡献代码或对内部实现感兴趣，请参考我们的 [TDengine GitHub 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
 
 **下载其他组件、最新 Beta 版及之前版本的安装包，请点击[这里](https://www.taosdata.com/cn/all-downloads/)**
 
@@ -81,7 +81,7 @@ systemctl status taosd
 
 - systemctl 命令需要 _root_ 权限来运行，如果您非 _root_ 用户，请在命令前添加 sudo 。
 - 为更好的获得产品反馈，改善产品，TDengine 会采集基本的使用信息，但您可以修改系统配置文件 taos.cfg 里的配置参数 telemetryReporting，将其设为 0，就可将其关闭。
-- TDengine 采用 FQDN (一般就是 hostname )作为节点的 ID，为保证正常运行，需要给运行 taosd 的服务器配置好 hostname，在客户端应用运行的机器配置好 DNS 服务或 hosts 文件，保证 FQDN 能够解析。
+- TDengine 采用 FQDN（一般就是 hostname）作为节点的 ID，为保证正常运行，需要给运行 taosd 的服务器配置好 hostname，在客户端应用运行的机器配置好 DNS 服务或 hosts 文件，保证 FQDN 能够解析。
 - `systemctl stop taosd` 指令在执行后并不会马上停止 TDengine 服务，而是会等待系统中必要的落盘工作正常完成。在数据量很大的情况下，这可能会消耗较长时间。
 
 TDengine 支持在使用 [`systemd`](https://en.wikipedia.org/wiki/Systemd) 做进程服务管理的 Linux 系统上安装，用 `which systemctl` 命令来检测系统中是否存在 `systemd` 包:
@@ -90,7 +90,7 @@ TDengine 支持在使用 [`systemd`](https://en.wikipedia.org/wiki/Systemd) 做�
   which systemctl
   ```
 
-  如果系统中不支持 `systemd`，也可以用手动运行 /usr/local/taos/bin/taosd 方式启动 TDengine 服务。
+  如果系统中不支持 `systemd`，也可以用手动运行 `/usr/local/taos/bin/taosd` 方式启动 TDengine 服务。
 
 ## <a class="anchor" id="console"></a>使用 TDengine 客户端程序
 
@@ -109,12 +109,12 @@ taos>
 在 TDengine 客户端中，用户可以通过 SQL 命令来创建/删除数据库、表等，并进行插入查询操作。在终端中运行的 SQL 语句需要以分号结束来运行。示例：
 
 ```mysql
-create database demo;
-use demo;
-create table t (ts timestamp, speed int);
-insert into t values ('2019-07-15 00:00:00', 10);
-insert into t values ('2019-07-15 01:00:00', 20);
-select * from t;
+CREATE DATABASE demo;
+USE demo;
+CREATE TABLE t (ts TIMESTAMP, speed INT);
+INSERT INTO t VALUES ('2019-07-15 00:00:00', 10);
+INSERT INTO t VALUES ('2019-07-15 01:00:00', 20);
+SELECT * FROM t;
            ts            |    speed    |
 ========================================
  2019-07-15 00:00:00.000 |          10 |
@@ -138,24 +138,24 @@ Query OK, 2 row(s) in set (0.003128s)
 示例：
 
 ```bash
-taos -h h1.taos.com -s "use db; show tables;"
+taos -h h1.taos.com -s "USE db; SHOW TABLES;"
 ```
 
 ### 运行 SQL 命令脚本
 
-TDengine 终端可以通过 `source` 命令来运行 SQL 命令脚本。
+TDengine 终端可以通过 `SOURCE` 命令来运行 SQL 命令脚本。
 
 ```mysql
-taos> source <filename>;
+taos> SOURCE <filename>;
 ```
 
 ### taos shell 小技巧
 
 - 可以使用上下光标键查看历史输入的指令
-- 修改用户密码：在 shell 中使用 `alter user` 命令，缺省密码为 taosdata
-- ctrl+c 中止正在进行中的查询
+- 修改用户密码：在 shell 中使用 `ALTER USER` 命令，缺省密码为 taosdata
+- Ctrl+C 中止正在进行中的查询
 - 执行 `RESET QUERY CACHE` 可清除本地缓存的表 schema
-- 批量执行 SQL 语句。可以将一系列的 shell 命令（以英文 ; 结尾，每个 SQL 语句为一行）按行存放在文件里，在 shell 里执行命令 `source <file-name>` 自动执行该文件里所有的 SQL 语句
+- 批量执行 SQL 语句。可以将一系列的 shell 命令（以英文 ; 结尾，每个 SQL 语句为一行）按行存放在文件里，在 shell 里执行命令 `SOURCE <file-name>` 自动执行该文件里所有的 SQL 语句
 - 输入 q 回车，退出 taos shell
 
 ## <a class="anchor" id="demo"></a>TDengine 极速体验
@@ -176,7 +176,7 @@ taosBenchmark
 
 taosBenchmark 命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosBenchmark --help` 详细列出。您可以设置不同参数进行体验。
 
-taosBenchmark 详细使用方法请参照 [如何使用taosBenchmark对TDengine进行性能测试](https://www.taosdata.com/2021/10/09/3111.html)。
+taosBenchmark 详细使用方法请参照 [如何使用 taosBenchmark 进行性能测试](https://www.taosdata.com/docs/cn/v2.0/getting-started/taosdemo)。
 
 ### <a class="anchor" id="taosshell"></a> 使用 taos shell 体验查询速度
 
@@ -185,31 +185,31 @@ taosBenchmark 详细使用方法请参照 [如何使用taosBenchmark对TDengine�
 - 查询超级表下记录总条数：
 
 ```mysql
-taos> select count(*) from test.meters;
+taos> SELECT COUNT(*) FROM test.meters;
 ```
 
 - 查询 1 亿条记录的平均值、最大值、最小值等：
 
 ```mysql
-taos> select avg(current), max(voltage), min(phase) from test.meters;
+taos> SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters;
 ```
 
 - 查询 location="beijing" 的记录总条数：
 
 ```mysql
-taos> select count(*) from test.meters where location="beijing";
+taos> SELECT COUNT(*) FROM test.meters WHERE location="beijing";
 ```
 
 - 查询 groupId=10 的所有记录的平均值、最大值、最小值等：
 
 ```mysql
-taos> select avg(current), max(voltage), min(phase) from test.meters where groupId=10;
+taos> SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters WHERE groupId=10;
 ```
 
 - 对表 d10 按 10s 进行平均值、最大值和最小值聚合统计：
 
 ```mysql
-taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
+taos> SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.d10 INTERVAL(10s);
 ```
 
 ## <a class="anchor" id="platforms"></a>支持平台列表
@@ -222,7 +222,7 @@ taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 | 龙芯 MIPS64     |                       |                          | ●               |                 |                           |                       |                       |
 | 鲲鹏 ARM64      |                       | ○                        | ○               |                 | ●                         |                       |                       |
 | 申威 Alpha64    |                       |                          | ○               | ●               |                           |                       |                       |
-| 飞腾 ARM64      |                       | ○ 优麒麟                  |                 |                 |                           |                       |                       |
+| 飞腾 ARM64      |                       | ○ 优麒麟                 |                 |                 |                           |                       |                       |
 | 海光 X64        | ●                     | ●                        | ●               | ○               | ●                         | ●                     |                       |
 | 瑞芯微 ARM64    |                       |                          | ○               |                 |                           |                       |                       |
 | 全志 ARM64      |                       |                          | ○               |                 |                           |                       |                       |
@@ -244,7 +244,7 @@ taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 | **JDBC**    | ●               | ●         | ●         | ○               | ●         | ●         | ●                   | ●                    | ●                  |
 | **Python**  | ●               | ●         | ●         | ○               | ●         | ●         | ●                   | --                   | ●                  |
 | **Go**      | ●               | ●         | ●         | ○               | ●         | ●         | ○                   | --                   | --                 |
-| **NodeJs**  | ●               | ●         | ○         | ○               | ●         | ●         | ○                   | --                   | --                 |
+| **Node.js** | ●               | ●         | ○         | ○               | ●         | ●         | ○                   | --                   | --                 |
 | **C#**      | ●               | ●         | ○         | ○               | ○         | ○         | ○                   | --                   | --                 |
 | **RESTful** | ●               | ●         | ●         | ●               | ●         | ●         | ●                   | ●                    | ●                  |
 

@@ -38,12 +38,11 @@ int32_t getRowNumForMultioutput(SQueryAttr* pQueryAttr, bool topBottomQuery, boo
       if (pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_TOP ||
           pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_BOTTOM ||
           pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_SAMPLE ||
-          pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_HISTOGRAM) {
+          pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_HISTOGRAM ||
+          pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_TAIL ||
+          pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_UNIQUE) {
         return (int32_t)pQueryAttr->pExpr1[i].base.param[0].i64;
       }
-    }
-    if (pQueryAttr->uniqueQuery){
-      return MAX_UNIQUE_RESULT_ROWS;
     }
   }
 

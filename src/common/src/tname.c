@@ -244,6 +244,29 @@ static struct SSchema _s = {
     .name = TSQL_TBNAME_L,
 };
 
+static struct SSchema _tswin[3] = {
+  {TSDB_DATA_TYPE_TIMESTAMP, TSQL_TSWIN_START,    TSDB_TSWIN_START_COLUMN_INDEX,    LONG_BYTES},
+  {TSDB_DATA_TYPE_TIMESTAMP, TSQL_TSWIN_STOP,     TSDB_TSWIN_STOP_COLUMN_INDEX,     LONG_BYTES},
+  {TSDB_DATA_TYPE_BIGINT,    TSQL_TSWIN_DURATION, TSDB_TSWIN_DURATION_COLUMN_INDEX, LONG_BYTES},
+};
+
+SSchema* tGetTimeWindowColumnSchema(int16_t columnIndex) {
+  switch (columnIndex) {
+    case TSDB_TSWIN_START_COLUMN_INDEX: {
+      return &_tswin[0];
+    }
+    case TSDB_TSWIN_STOP_COLUMN_INDEX: {
+      return &_tswin[1];
+    }
+    case TSDB_TSWIN_DURATION_COLUMN_INDEX: {
+      return &_tswin[2];
+    }
+    default: {
+      return NULL;
+    }
+  }
+}
+
 SSchema* tGetTbnameColumnSchema() {
   return &_s;
 }
