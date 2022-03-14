@@ -848,6 +848,7 @@ static int32_t tsdbGetTSmaDataImpl(STsdb *pTsdb, STSmaDataWrapper *pData, int64_
     tsdbCloseDBF(&tReadH.dFile);
     return TSDB_CODE_FAILED;
   }
+  tfree(result);
 #ifdef SMA_PRINT_DEBUG_LOG
   for (uint32_t v = 0; v < valueSize; v += 8) {
     tsdbWarn("vgId:%d v[%d]=%" PRIi64, REPO_ID(pTsdb), v, *(int64_t *)POINTER_SHIFT(result, v));
