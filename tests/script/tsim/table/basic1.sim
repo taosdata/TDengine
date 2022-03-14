@@ -61,10 +61,50 @@ if $rows != 7 then
 endi
 
 print $data00 $data01 $data02
-print $data10 $data11 $data22
-print $data20 $data11 $data22
+print $data10 $data11 $data12
+print $data20 $data21 $data22
+
+print =============== create normal table
+sql create database ndb
+sql use ndb
+sql create table nt0 (ts timestamp, i int)
+sql create table if not exists nt0 (ts timestamp, i int)
+sql create table nt1 (ts timestamp, i int)
+sql create table if not exists nt1 (ts timestamp, i int)
+sql create table if not exists nt3 (ts timestamp, i int)
+
+sql show tables
+if $rows != 3 then 
+  return -1
+endi
+
+sql insert into nt0 values(now+1s, 1)(now+2s, 2)(now+3s, 3)
+sql insert into nt1 values(now+1s, 1)(now+2s, 2)(now+3s, 3)
+
+sql select * from nt1
+if $rows != 3 then 
+  return -1
+endi
+
+print $data00 $data01
+print $data10 $data11
+print $data20 $data21
+
+if $data01 != 1 then 
+  return -1
+endi
+
+if $data11 != 2 then 
+  return -1
+endi
+
+if $data21 != 3 then 
+  return -1
+endi
+
 
 print =============== insert data
+sql use d1
 sql insert into c1 values(now+1s, 1)
 sql insert into c1 values(now+2s, 2)
 sql insert into c1 values(now+3s, 3)
@@ -95,7 +135,7 @@ endi
 
 print $data00 $data01
 print $data10 $data11
-print $data20 $data11
+print $data20 $data21
 
 if $data01 != 1 then 
   return -1
@@ -160,7 +200,7 @@ endi
 
 print $data00 $data01
 print $data10 $data11
-print $data20 $data11
+print $data20 $data21
 
 if $data01 != 1 then 
   return -1
@@ -207,6 +247,29 @@ endi
 print =============== query data from st
 sql select ts from st
 if $rows != 21 then 
+  return -1
+endi
+
+print =============== query data from normal table after restart dnode
+sql use ndb
+sql select * from nt1
+if $rows != 3 then 
+  return -1
+endi
+
+print $data00 $data01
+print $data10 $data11
+print $data20 $data21
+
+if $data01 != 1 then 
+  return -1
+endi
+
+if $data11 != 2 then 
+  return -1
+endi
+
+if $data21 != 3 then 
   return -1
 endi
 
