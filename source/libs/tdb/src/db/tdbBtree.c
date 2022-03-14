@@ -38,10 +38,9 @@ struct SBTree {
   int            minLeaf;
 };
 
-typedef struct SFreeCell {
-  u16 size;
-  u16 next;
-} SFreeCell;
+typedef struct __attribute__((__packed__)) {
+  SPgno rChild;
+} SBtPageHdr;
 
 typedef struct {
   u16     flags;
