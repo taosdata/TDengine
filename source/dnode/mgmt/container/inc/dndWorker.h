@@ -27,11 +27,6 @@ int32_t dndInitWorker(SDnode *pDnode, SDnodeWorker *pWorker, EWorkerType type, c
 void    dndCleanupWorker(SDnodeWorker *pWorker);
 int32_t dndWriteMsgToWorker(SDnodeWorker *pWorker, void *pCont, int32_t contLen);
 
-
-
-void dndProcessMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-
-
 #ifdef __cplusplus
 }
 #endif

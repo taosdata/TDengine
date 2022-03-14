@@ -37,7 +37,7 @@ static void *dnodeThreadRoutine(void *param) {
 
     float statusInterval = (curTime - lastStatusTime) / 1000.0f;
     if (statusInterval >= tsStatusInterval && !pMgmt->statusSent) {
-      dndSendStatusReq(pDnode);
+      dmSendStatusReq(pDnode);
       lastStatusTime = curTime;
     }
 

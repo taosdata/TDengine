@@ -16,10 +16,26 @@
 #ifndef _TD_DND_QNODE_INT_H_
 #define _TD_DND_QNODE_INT_H_
 
+#include "dndInt.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "dndInt.h"
+
+typedef struct SQnodeMgmt {
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SQnode      *pQnode;
+  SRWLatch     latch;
+  SDnodeWorker queryWorker;
+  SDnodeWorker fetchWorker;
+
+  //
+  SMsgHandle msgHandles[TDMT_MAX];
+  SProcObj  *pProcess;
+  bool       singleProc;
+} SQnodeMgmt;
 
 SMgmtFp qmGetMgmtFp();
 

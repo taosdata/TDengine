@@ -554,7 +554,7 @@ int32_t dndProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   SWrapperCfg wrapperCfg = {0};
   dndGenerateWrapperCfg(pDnode, &createReq, &wrapperCfg);
 
-  if (createReq.dnodeId != dndGetDnodeId(pDnode)) {
+  if (createReq.dnodeId != dmGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_VNODE_INVALID_OPTION;
     dDebug("vgId:%d, failed to create vnode since %s", createReq.vgId, terrstr());
     return -1;
@@ -1056,3 +1056,26 @@ void dndGetVnodeLoads(SDnode *pDnode, SArray *pLoads) {
 // }
 
 int32_t dndPutReqToVQueryQ(SDnode *pDnode, SRpcMsg *pReq){return 0;}
+
+
+int32_t vmGetTfsMonitorInfo(SMgmtWrapper *pWrapper, SMonDiskInfo *pInfo){
+  SVnodesMgmt *pMgmt = pWrapper->pMgmt;
+  if (pMgmt ==  NULL) return -1;
+
+  return tfsGetMonitorInfo(pMgmt->pTfs, pInfo);;
+}
+
+void vmGetVndMonitorInfo(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo) {
+  SVnodesMgmt *pMgmt = pWrapper->pMgmt;
+  if (pMgmt ==  NULL) return;
+
+  SVnodesStat *pStat = &pMgmt->stat;
+  pInfo->req_select = pStat->numOfSelectReqs;
+  pInfo->req_insert = pStat->numOfInsertReqs;
+  pInfo->req_insert_success = pStat->numOfInsertSuccessReqs;
+  pInfo->req_insert_batch = pStat->numOfBatchInsertReqs;
+  pInfo->req_insert_batch_success = pStat->numOfBatchInsertSuccessReqs;
+  pInfo->errors = tsNumOfErrorLogs;
+  pInfo->vnodes_num = pStat->totalVnodes;
+  pInfo->masters = pStat->masterNum;
+}

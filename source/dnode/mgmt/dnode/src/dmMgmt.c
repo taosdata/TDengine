@@ -38,7 +38,7 @@ static void    dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp);
 static void    dndProcessAuthRsp(SDnode *pDnode, SRpcMsg *pRsp);
 static void    dndProcessGrantRsp(SDnode *pDnode, SRpcMsg *pRsp);
 
-int32_t dndGetDnodeId(SDnode *pDnode) {
+int32_t dmGetDnodeId(SDnode *pDnode) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   taosRLockLatch(&pMgmt->latch);
   int32_t dnodeId = pMgmt->dnodeId;
@@ -46,7 +46,7 @@ int32_t dndGetDnodeId(SDnode *pDnode) {
   return dnodeId;
 }
 
-int64_t dndGetClusterId(SDnode *pDnode) {
+int64_t dmGetClusterId(SDnode *pDnode) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   taosRLockLatch(&pMgmt->latch);
   int64_t clusterId = pMgmt->clusterId;
@@ -54,7 +54,7 @@ int64_t dndGetClusterId(SDnode *pDnode) {
   return clusterId;
 }
 
-void dndGetDnodeEp(SDnode *pDnode, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort) {
+void dmGetDnodeEp(SDnode *pDnode, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   taosRLockLatch(&pMgmt->latch);
 
@@ -74,18 +74,18 @@ void dndGetDnodeEp(SDnode *pDnode, int32_t dnodeId, char *pEp, char *pFqdn, uint
   taosRUnLockLatch(&pMgmt->latch);
 }
 
-void dndGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
+void dmGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   taosRLockLatch(&pMgmt->latch);
   *pEpSet = pMgmt->mnodeEpSet;
   taosRUnLockLatch(&pMgmt->latch);
 }
 
-void dndSendRedirectRsp(SDnode *pDnode, SRpcMsg *pReq) {
+void dmSendRedirectRsp(SDnode *pDnode, SRpcMsg *pReq) {
   tmsg_t msgType = pReq->msgType;
 
   SEpSet epSet = {0};
-  dndGetMnodeEpSet(pDnode, &epSet);
+  dmGetMnodeEpSet(pDnode, &epSet);
 
   dDebug("RPC %p, req:%s is redirected, num:%d use:%d", pReq->handle, TMSG_INFO(msgType), epSet.numOfEps, epSet.inUse);
   for (int32_t i = 0; i < epSet.numOfEps; ++i) {
@@ -115,7 +115,7 @@ static void dndUpdateMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
 }
 
 
-void dndSendStatusReq(SDnode *pDnode) {
+void dmSendStatusReq(SDnode *pDnode) {
   SStatusReq req = {0};
 
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
@@ -183,7 +183,7 @@ static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp) {
         tDeserializeSStatusRsp(pRsp->pCont, pRsp->contLen, &statusRsp) == 0) {
       pMgmt->dver = statusRsp.dver;
       dndUpdateDnodeCfg(pDnode, &statusRsp.dnodeCfg);
-      dndUpdateDnodeEps(pDnode, statusRsp.pDnodeEps);
+      dmUpdateDnodeEps(pDnode, statusRsp.pDnodeEps);
     }
     taosArrayDestroy(statusRsp.pDnodeEps);
   }
@@ -203,7 +203,7 @@ static int32_t dndProcessConfigDnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
-void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
+void dmProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
   dDebug("startup req is received");
 
   SStartupReq *pStartup = rpcMallocCont(sizeof(SStartupReq));
@@ -215,7 +215,7 @@ void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
   rpcSendResponse(&rpcRsp);
 }
 
-void dndStopMgmt(SDnode *pDnode) {
+void dmStopMgmt(SDnode *pDnode) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   dndCleanupWorker(&pMgmt->mgmtWorker);
   dndCleanupWorker(&pMgmt->statusWorker);
@@ -226,7 +226,7 @@ void dndStopMgmt(SDnode *pDnode) {
   }
 }
 
-void dndCleanupMgmt(SDnode *pDnode) {
+void dmCleanupMgmt(SDnode *pDnode) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   taosWLockLatch(&pMgmt->latch);
 
@@ -249,7 +249,7 @@ void dndCleanupMgmt(SDnode *pDnode) {
   dInfo("dnode-mgmt is cleaned up");
 }
 
-void dndProcessMgmtMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
+void dmProcessMgmtMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
 
   if (pEpSet && pEpSet->numOfEps > 0 && pMsg->msgType == TDMT_MND_STATUS_RSP) {
@@ -275,25 +275,24 @@ void dndProcessMgmtMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
 
 
-void dndStopMgmt(SDnode *pDnode) {}
+void dmStopMgmt(SDnode *pDnode) {}
 
-void dndCleanupMgmt(SDnode *pDnode){}
-
-
-void dndSendStatusReq(SDnode *pDnode){}
+void dmCleanupMgmt(SDnode *pDnode){}
 
 
-void dndGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {}
+void dmSendStatusReq(SDnode *pDnode){}
 
 
-void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq){}
-void dndProcessMgmtMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg){}
+void dmGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {}
+
+
+void dmProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq){}
+void dmProcessMgmtMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg){}
 
 static int32_t dmInit(SMgmtWrapper *pWrapper) {
   SDnodeMgmt *pMgmt = calloc(1, sizeof(SDnodeMgmt));
 
   pMgmt->dnodeId = 0;
-  pMgmt->rebootTime = taosGetTimestampMs();
   pMgmt->dropped = 0;
   pMgmt->clusterId = 0;
   pMgmt->path = pWrapper->path;
@@ -325,7 +324,7 @@ static int32_t dmInit(SMgmtWrapper *pWrapper) {
   return 0;
 
   // dndSetStatus(pDnode, DND_STAT_RUNNING);
-  // dndSendStatusReq(pDnode);
+  // dmSendStatusReq(pDnode);
   // dndReportStartup(pDnode, "TDengine", "initialized successfully");
 
 #if 0

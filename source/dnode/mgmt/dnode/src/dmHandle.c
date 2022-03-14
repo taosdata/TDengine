@@ -27,29 +27,29 @@ static void dndSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp n
   pHandle->rpcMsgFp = dndProcessRpcMsg;
 }
 
-void dndInitMsgHandles(SMgmtWrapper *pWrapper) {
+void dmInitMsgHandles(SMgmtWrapper *pWrapper) {
   // Requests handled by DNODE
-  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_MNODE, dndProcessMgmtMsg);
-  dndSetMsgHandle(pWrapper, TDMT_DND_ALTER_MNODE, dndProcessMgmtMsg);
-  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_MNODE, dndProcessMgmtMsg);
-  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_QNODE, dndProcessMgmtMsg);
-  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_QNODE, dndProcessMgmtMsg);
-  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_SNODE, dndProcessMgmtMsg);
-  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_SNODE, dndProcessMgmtMsg);
-  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_BNODE, dndProcessMgmtMsg);
-  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_BNODE, dndProcessMgmtMsg);
-  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_VNODE, dndProcessMgmtMsg);
-  dndSetMsgHandle(pWrapper, TDMT_DND_ALTER_VNODE, dndProcessMgmtMsg);
-  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_VNODE, dndProcessMgmtMsg);
-  dndSetMsgHandle(pWrapper, TDMT_DND_SYNC_VNODE, dndProcessMgmtMsg);
-  dndSetMsgHandle(pWrapper, TDMT_DND_COMPACT_VNODE, dndProcessMgmtMsg);
-  dndSetMsgHandle(pWrapper, TDMT_DND_CONFIG_DNODE, dndProcessMgmtMsg);
-  dndSetMsgHandle(pWrapper, TDMT_DND_NETWORK_TEST, dndProcessMgmtMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_MNODE, dmProcessMgmtMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_ALTER_MNODE, dmProcessMgmtMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_MNODE, dmProcessMgmtMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_QNODE, dmProcessMgmtMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_QNODE, dmProcessMgmtMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_SNODE, dmProcessMgmtMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_SNODE, dmProcessMgmtMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_BNODE, dmProcessMgmtMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_BNODE, dmProcessMgmtMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_VNODE, dmProcessMgmtMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_ALTER_VNODE, dmProcessMgmtMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_VNODE, dmProcessMgmtMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_SYNC_VNODE, dmProcessMgmtMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_COMPACT_VNODE, dmProcessMgmtMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_CONFIG_DNODE, dmProcessMgmtMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_NETWORK_TEST, dmProcessMgmtMsg);
 
   // Requests handled by MNODE
-  dndSetMsgHandle(pWrapper, TDMT_MND_STATUS_RSP, dndProcessMgmtMsg);
-  dndSetMsgHandle(pWrapper, TDMT_MND_GRANT_RSP, dndProcessMgmtMsg);
-  dndSetMsgHandle(pWrapper, TDMT_MND_AUTH_RSP, dndProcessMgmtMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_STATUS_RSP, dmProcessMgmtMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_GRANT_RSP, dmProcessMgmtMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_AUTH_RSP, dmProcessMgmtMsg);
 }
 
 SMsgHandle dmGetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgIndex) {

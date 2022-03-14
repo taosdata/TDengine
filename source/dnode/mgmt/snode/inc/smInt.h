@@ -16,10 +16,26 @@
 #ifndef _TD_DND_SNODE_INT_H_
 #define _TD_DND_SNODE_INT_H_
 
+#include "dndInt.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "dndInt.h"
+
+typedef struct SSnodeMgmt {
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SSnode      *pSnode;
+  SRWLatch     latch;
+  SDnodeWorker writeWorker;
+
+    //
+  SMsgHandle msgHandles[TDMT_MAX];
+  SProcObj  *pProcess;
+  bool       singleProc;
+} SSnodeMgmt;
+
 
 SMgmtFp smGetMgmtFp();
 

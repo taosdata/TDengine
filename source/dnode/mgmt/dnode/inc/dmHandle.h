@@ -22,12 +22,11 @@
 extern "C" {
 #endif
 
-void       dndInitMsgHandles(SMgmtWrapper *pWrapper);
+void       dmInitMsgHandles(SMgmtWrapper *pWrapper);
 SMsgHandle dmGetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgIndex);
 
-
-void dndSendStatusReq(SDnode *pDnode);
-void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
+void dmSendStatusReq(SDnode *pDnode);
+void dmProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

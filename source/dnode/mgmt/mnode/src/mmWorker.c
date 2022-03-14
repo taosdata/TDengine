@@ -70,7 +70,7 @@ void mmInitMsgFp(SMnodeMgmt *pMgmt) {
 
 static void mmSendRpcRsp(SDnode *pDnode, SRpcMsg *pRpc) {
   if (pRpc->code == TSDB_CODE_DND_MNODE_NOT_DEPLOYED || pRpc->code == TSDB_CODE_APP_NOT_READY) {
-    dndSendRedirectRsp(pDnode, pRpc);
+    dmSendRedirectRsp(pDnode, pRpc);
   } else {
     rpcSendResponse(pRpc);
   }

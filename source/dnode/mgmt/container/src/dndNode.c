@@ -74,6 +74,7 @@ SDnode *dndCreate(SDndCfg *pCfg) {
   }
 
   dndSetStatus(pDnode, DND_STAT_INIT);
+  pDnode->rebootTime = taosGetTimestampMs();
   pDnode->pLockFile = dndCheckRunning(pCfg->dataDir);
   if (pDnode->pLockFile == NULL) {
     goto _OVER;
@@ -256,5 +257,11 @@ int32_t dndRun(SDnode *pDnode) {
 
   return 0;
 }
+
+void dndeHandleEvent(SDnode *pDnode, EDndEvent event) {
+  dInfo("dnode object receive event %d, data:%p", event, pDnode);
+  pDnode->event = event;
+}
+
 
 void dndProcessRpcMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet) {}

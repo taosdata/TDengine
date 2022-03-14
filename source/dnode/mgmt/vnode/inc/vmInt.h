@@ -22,6 +22,32 @@
 extern "C" {
 #endif
 
+
+typedef struct {
+  int32_t openVnodes;
+  int32_t totalVnodes;
+  int32_t masterNum;
+  int64_t numOfSelectReqs;
+  int64_t numOfInsertReqs;
+  int64_t numOfInsertSuccessReqs;
+  int64_t numOfBatchInsertReqs;
+  int64_t numOfBatchInsertSuccessReqs;
+} SVnodesStat;
+
+typedef struct SVnodesMgmt {
+  SVnodesStat  stat;
+  SHashObj    *hash;
+  SRWLatch     latch;
+  SQWorkerPool queryPool;
+  SFWorkerPool fetchPool;
+  SWWorkerPool syncPool;
+  SWWorkerPool writePool;
+  STfs        *pTfs;
+  SMsgHandle   msgHandles[TDMT_MAX];
+  SProcObj    *pProcess;
+  bool         singleProc;
+} SVnodesMgmt;
+
 SMgmtFp vmGetMgmtFp() ;
 
 int32_t dndInitVnodes(SDnode *pDnode);
@@ -39,7 +65,8 @@ int32_t dndProcessAuthVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
 int32_t dndProcessSyncVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
 int32_t dndProcessCompactVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
 
-int32_t dndPutReqToVQueryQ(SDnode *pDnode, SRpcMsg *pReq);
+int32_t vmGetTfsMonitorInfo(SMgmtWrapper *pWrapper, SMonDiskInfo *pInfo);
+void vmGetVndMonitorInfo(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo);
 
 #ifdef __cplusplus
 }

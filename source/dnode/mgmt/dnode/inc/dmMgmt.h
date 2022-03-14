@@ -22,18 +22,18 @@
 extern "C" {
 #endif
 
-int32_t dndInitMgmt(SDnode *pDnode);
-void    dndStopMgmt(SDnode *pDnode);
-void    dndCleanupMgmt(SDnode *pDnode);
+int32_t dmInitMgmt(SDnode *pDnode);
+void    dmStopMgmt(SDnode *pDnode);
+void    dmCleanupMgmt(SDnode *pDnode);
 
-int32_t dndGetDnodeId(SDnode *pDnode);
-int64_t dndGetClusterId(SDnode *pDnode);
-void    dndGetDnodeEp(SDnode *pDnode, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort);
-void    dndGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet);
+int32_t dmGetDnodeId(SDnode *pDnode);
+int64_t dmGetClusterId(SDnode *pDnode);
+void    dmGetDnodeEp(SDnode *pDnode, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort);
+void    dmGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet);
 
-void dndSendRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg);
+void dmSendRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg);
+void dmProcessMgmtMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg) ;
 
-void dndProcessMgmtMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg) ;
 #ifdef __cplusplus
 }
 #endif

@@ -210,7 +210,7 @@ int32_t dmWriteFile(SDnodeMgmt *pMgmt) {
   return 0;
 }
 
-void dndUpdateDnodeEps(SDnodeMgmt *pMgmt, SArray *pDnodeEps) {
+void dmUpdateDnodeEps(SDnodeMgmt *pMgmt, SArray *pDnodeEps) {
   int32_t numOfEps = taosArrayGetSize(pDnodeEps);
   if (numOfEps <= 0) return;
 

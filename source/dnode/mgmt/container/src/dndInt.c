@@ -15,9 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "dndInt.h"
-#include "dmHandle.h"
-#include "dndTransport.h"
-#include "vmInt.h"
 
 static int8_t once = DND_ENV_INIT;
 
@@ -34,22 +31,6 @@ int32_t dndInit() {
 
   if (rpcInit() != 0) {
     dError("failed to init rpc since %s", terrstr());
-    dndCleanup();
-    return -1;
-  }
-
-  if (walInit() != 0) {
-    dError("failed to init wal since %s", terrstr());
-    dndCleanup();
-    return -1;
-  }
-
-  SVnodeOpt vnodeOpt = {0};
-  vnodeOpt.nthreads = tsNumOfCommitThreads;
-  vnodeOpt.putReqToVQueryQFp = dndPutReqToVQueryQ;
-  vnodeOpt.sendReqToDnodeFp = dndSendReqToDnode;
-  if (vnodeInit(&vnodeOpt) != 0) {
-    dError("failed to init vnode since %s", terrstr());
     dndCleanup();
     return -1;
   }
@@ -76,10 +57,7 @@ void dndCleanup() {
   }
 
   monCleanup();
-  vnodeCleanup();
-  walCleanUp();
   rpcCleanup();
-
   taosStopCacheRefreshWorker();
   dInfo("dnode env is cleaned up");
 }
@@ -140,9 +118,4 @@ TdFilePtr dndCheckRunning(char *dataDir) {
   }
 
   return pFile;
-}
-
-void dndeHandleEvent(SDnode *pDnode, EDndEvent event) {
-  dInfo("dnode object receive event %d, data:%p", event, pDnode);
-  pDnode->event = event;
 }

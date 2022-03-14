@@ -15,7 +15,9 @@
 
 #define _DEFAULT_SOURCE
 #include "dndMonitor.h"
-#include "dmMgmt.h"
+#include "dmInt.h"
+#include "mmInt.h"
+#include "vmInt.h"
 
 static int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {
   tstrncpy(pInfo->logdir.name, tsLogDir, sizeof(pInfo->logdir.name));
@@ -23,23 +25,18 @@ static int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {
   tstrncpy(pInfo->tempdir.name, tsTempDir, sizeof(pInfo->tempdir.name));
   pInfo->tempdir.size = tsTempSpace.size;
 
-  if (pDnode->pTfs != NULL) {
-    return tfsGetMonitorInfo(NULL, pInfo);
-  }
-  return 0;
+  return vmGetTfsMonitorInfo(dndGetWrapper(pDnode, VNODES), pInfo);
 }
 
 static void dndGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
-  pInfo->dnode_id = dndGetDnodeId(pDnode);
+  pInfo->dnode_id = dmGetDnodeId(pDnode);
   tstrncpy(pInfo->dnode_ep, tsLocalEp, TSDB_EP_LEN);
-  pInfo->cluster_id = dndGetClusterId(pDnode);
+  pInfo->cluster_id = dmGetClusterId(pDnode);
   pInfo->protocol = 1;
 }
 
 static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
-
-#if 0
-  pInfo->uptime = (taosGetTimestampMs() - pDnode->dmgmt.rebootTime) / (86400000.0f);
+  pInfo->uptime = (taosGetTimestampMs() - pDnode->rebootTime) / (86400000.0f);
   taosGetCpuUsage(&pInfo->cpu_engine, &pInfo->cpu_system);
   pInfo->cpu_cores = tsNumOfCores;
   taosGetProcMemory(&pInfo->mem_engine);
@@ -51,17 +48,8 @@ static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
   taosGetCardInfo(&pInfo->net_in, &pInfo->net_out);
   taosGetProcIO(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
 
-  SVnodesStat *pStat = &pDnode->vmgmt.stat;
-  pInfo->req_select = pStat->numOfSelectReqs;
-  pInfo->req_insert = pStat->numOfInsertReqs;
-  pInfo->req_insert_success = pStat->numOfInsertSuccessReqs;
-  pInfo->req_insert_batch = pStat->numOfBatchInsertReqs;
-  pInfo->req_insert_batch_success = pStat->numOfBatchInsertSuccessReqs;
-  pInfo->errors = tsNumOfErrorLogs;
-  pInfo->vnodes_num = pStat->totalVnodes;
-  pInfo->masters = pStat->masterNum;
-  pInfo->has_mnode = pDnode->mmgmt.deployed;
-#endif  
+  vmGetVndMonitorInfo(dndGetWrapper(pDnode, VNODES), pInfo);
+  pInfo->has_mnode = (dndGetWrapper(pDnode, MNODE)->required);
 }
 
 void dndSendMonitorReport(SDnode *pDnode) {
@@ -74,7 +62,7 @@ void dndSendMonitorReport(SDnode *pDnode) {
   SMonBasicInfo basicInfo = {0};
   dndGetMonitorBasicInfo(pDnode, &basicInfo);
   monSetBasicInfo(pMonitor, &basicInfo);
-#if 0
+
   SMonClusterInfo clusterInfo = {0};
   SMonVgroupInfo  vgroupInfo = {0};
   SMonGrantInfo   grantInfo = {0};
@@ -97,7 +85,7 @@ void dndSendMonitorReport(SDnode *pDnode) {
   taosArrayDestroy(clusterInfo.mnodes);
   taosArrayDestroy(vgroupInfo.vgroups);
   taosArrayDestroy(diskInfo.datadirs);
-#endif
+
   monSendReport(pMonitor);
   monCleanupMonitorInfo(pMonitor);
 }

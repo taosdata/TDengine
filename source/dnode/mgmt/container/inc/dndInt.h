@@ -16,10 +16,6 @@
 #ifndef _TD_DND_INT_H_
 #define _TD_DND_INT_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "os.h"
 
 #include "cJSON.h"
@@ -47,6 +43,11 @@ extern "C" {
 #include "snode.h"
 #include "tfs.h"
 #include "vnode.h"
+#include "monitor.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define dFatal(...) { if (dDebugFlag & DEBUG_FATAL) { taosPrintLog("DND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}
 #define dError(...) { if (dDebugFlag & DEBUG_ERROR) { taosPrintLog("DND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}
@@ -61,11 +62,15 @@ typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EDndStatus;
 typedef enum { DND_WORKER_SINGLE, DND_WORKER_MULTI } EWorkerType;
 typedef enum { DND_ENV_INIT, DND_ENV_READY, DND_ENV_CLEANUP } EEnvStat;
 
-typedef struct SDnodeMgmt SDnodeMgmt;
-
 typedef struct SMgmtFp      SMgmtFp;
 typedef struct SMgmtWrapper SMgmtWrapper;
 typedef struct SMsgHandle   SMsgHandle;
+typedef struct SDnodeMgmt   SDnodeMgmt;
+typedef struct SVnodesMgmt  SVnodesMgmt;
+typedef struct SMnodeMgmt   SMnodeMgmt;
+typedef struct SQnodeMgmt   SQnodeMgmt;
+typedef struct SSnodeMgmt   SSnodeMgmt;
+typedef struct SBnodeMgmt   SBnodeMgmt;
 
 typedef void (*RpcMsgFp)(SDnode *pDnode, SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEps);
 typedef void (*NodeMsgFp)(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
@@ -79,115 +84,6 @@ typedef struct SMsgHandle {
   NodeMsgFp     nodeMsgFp;
   SMgmtWrapper *pWrapper;
 } SMsgHandle;
-
-typedef struct {
-  EWorkerType type;
-  const char *name;
-  int32_t     minNum;
-  int32_t     maxNum;
-  void       *queueFp;
-  SDnode     *pDnode;
-  STaosQueue *queue;
-  union {
-    SQWorkerPool pool;
-    SWWorkerPool mpool;
-  };
-} SDnodeWorker;
-
-
-typedef struct {
-  int32_t      refCount;
-  int8_t       deployed;
-  int8_t       dropped;
-  SMnode      *pMnode;
-  SRWLatch     latch;
-  SDnodeWorker readWorker;
-  SDnodeWorker writeWorker;
-  SDnodeWorker syncWorker;
-  int8_t       replica;
-  int8_t       selfIndex;
-  SReplica     replicas[TSDB_MAX_REPLICA];
-
-  //
-  SMsgHandle  msgHandles[TDMT_MAX];
-  SProcObj *pProcess;
-  bool      singleProc;
-} SMnodeMgmt;
-
-typedef struct {
-  int32_t      refCount;
-  int8_t       deployed;
-  int8_t       dropped;
-  SQnode      *pQnode;
-  SRWLatch     latch;
-  SDnodeWorker queryWorker;
-  SDnodeWorker fetchWorker;
-
-  //
-  SMsgHandle msgHandles[TDMT_MAX];
-  SProcObj  *pProcess;
-  bool       singleProc;
-} SQnodeMgmt;
-
-typedef struct {
-  int32_t      refCount;
-  int8_t       deployed;
-  int8_t       dropped;
-  SSnode      *pSnode;
-  SRWLatch     latch;
-  SDnodeWorker writeWorker;
-
-    //
-  SMsgHandle msgHandles[TDMT_MAX];
-  SProcObj  *pProcess;
-  bool       singleProc;
-} SSnodeMgmt;
-
-typedef struct {
-  int32_t openVnodes;
-  int32_t totalVnodes;
-  int32_t masterNum;
-  int64_t numOfSelectReqs;
-  int64_t numOfInsertReqs;
-  int64_t numOfInsertSuccessReqs;
-  int64_t numOfBatchInsertReqs;
-  int64_t numOfBatchInsertSuccessReqs;
-} SVnodesStat;
-
-typedef struct {
-  int32_t      refCount;
-  int8_t       deployed;
-  int8_t       dropped;
-  SBnode      *pBnode;
-  SRWLatch     latch;
-  SDnodeWorker writeWorker;
-
-    //
-  SMsgHandle msgHandles[TDMT_MAX];
-  SProcObj  *pProcess;
-  bool       singleProc;
-} SBnodeMgmt;
-
-typedef struct {
-  SVnodesStat  stat;
-  SHashObj    *hash;
-  SRWLatch     latch;
-  SQWorkerPool queryPool;
-  SFWorkerPool fetchPool;
-  SWWorkerPool syncPool;
-  SWWorkerPool writePool;
-
-    //
-  SMsgHandle msgHandles[TDMT_MAX];
-  SProcObj  *pProcess;
-  bool       singleProc;
-} SVnodesMgmt;
-
-typedef struct {
-  void          *serverRpc;
-  void          *clientRpc;
-  SMsgHandle msgHandles[TDMT_MAX];
-} STransMgmt;
 
 typedef struct SMgmtFp {
   OpenNodeFp     openFp;
@@ -207,31 +103,69 @@ typedef struct SMgmtWrapper {
   SMgmtFp     fp;
 } SMgmtWrapper;
 
+typedef struct {
+  EWorkerType type;
+  const char *name;
+  int32_t     minNum;
+  int32_t     maxNum;
+  void       *queueFp;
+  SDnode     *pDnode;
+  STaosQueue *queue;
+  union {
+    SQWorkerPool pool;
+    SWWorkerPool mpool;
+  };
+} SDnodeWorker;
+
+typedef struct {
+  void      *serverRpc;
+  void      *clientRpc;
+  SMsgHandle msgHandles[TDMT_MAX];
+} STransMgmt;
+
 typedef struct SDnode {
+  int64_t      rebootTime;
   EDndStatus   status;
   EDndEvent    event;
   EProcType    procType;
   SDndCfg      cfg;
   SStartupReq  startup;
   TdFilePtr    pLockFile;
-  STransMgmt   tmgmt;
-  STfs        *pTfs;
+  STransMgmt   trans;
   SMgmtFp      fps[NODE_MAX];
   SMgmtWrapper wrappers[NODE_MAX];
 } SDnode;
 
-EDndStatus  dndGetStatus(SDnode *pDnode);
-void        dndSetStatus(SDnode *pDnode, EDndStatus stat);
-const char *dndStatStr(EDndStatus stat);
-void        dndReportStartup(SDnode *pDnode, char *pName, char *pDesc);
-void        dndGetStartup(SDnode *pDnode, SStartupReq *pStartup);
-TdFilePtr   dndCheckRunning(char *dataDir);
+// dndInt.h
+int32_t       dndInit();
+void          dndCleanup();
+EDndStatus    dndGetStatus(SDnode *pDnode);
+void          dndSetStatus(SDnode *pDnode, EDndStatus stat);
+const char   *dndStatStr(EDndStatus stat);
+void          dndReportStartup(SDnode *pDnode, char *pName, char *pDesc);
+void          dndGetStartup(SDnode *pDnode, SStartupReq *pStartup);
+TdFilePtr     dndCheckRunning(char *dataDir);
+SMgmtWrapper *dndGetWrapper(SDnode *pDnode, ENodeType nodeType);
 
-SMgmtWrapper *dndGetWrapper(SDnode *pDnode, ENodeType nodeType) ;
+// dndMonitor.h
+void dndSendMonitorReport(SDnode *pDnode);
 
-void dndProcessRpcMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet);
+// dndNode.h
+SDnode *dndCreate(SDndCfg *pCfg);
+void    dndClose(SDnode *pDnode);
+int32_t dndRun(SDnode *pDnode);
+void    dndeHandleEvent(SDnode *pDnode, EDndEvent event);
+void    dndProcessRpcMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet);
 
-SMgmtFp dmGetMgmtFp();
+// dndTransport.h
+int32_t dndSendReqToMnode(SDnode *pDnode, SRpcMsg *pRpcMsg);
+int32_t dndSendReqToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pRpcMsg);
+
+// dndWorker.h
+int32_t dndInitWorker(SDnode *pDnode, SDnodeWorker *pWorker, EWorkerType type, const char *name, int32_t minNum,
+                      int32_t maxNum, void *queueFp);
+void    dndCleanupWorker(SDnodeWorker *pWorker);
+int32_t dndWriteMsgToWorker(SDnodeWorker *pWorker, void *pCont, int32_t contLen);
 
 #ifdef __cplusplus
 }

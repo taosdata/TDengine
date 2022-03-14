@@ -22,6 +22,21 @@
 extern "C" {
 #endif
 
+
+typedef struct SBnodeMgmt {
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SBnode      *pBnode;
+  SRWLatch     latch;
+  SDnodeWorker writeWorker;
+
+    //
+  SMsgHandle msgHandles[TDMT_MAX];
+  SProcObj  *pProcess;
+  bool       singleProc;
+} SBnodeMgmt;
+
 SMgmtFp bmGetMgmtFp();
 
 int32_t dndInitBnode(SDnode *pDnode);

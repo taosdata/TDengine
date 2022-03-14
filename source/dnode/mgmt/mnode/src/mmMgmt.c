@@ -204,11 +204,11 @@ int32_t mmDrop(SDnode *pDnode) {
 }
 
 static bool mmDeployRequired(SDnode *pDnode) {
-  if (dndGetDnodeId(pDnode) > 0) {
+  if (dmGetDnodeId(pDnode) > 0) {
     return false;
   }
 
-  if (dndGetClusterId(pDnode) > 0) {
+  if (dmGetClusterId(pDnode) > 0) {
     return false;
   }
 
@@ -223,11 +223,11 @@ static void mmInitOption(SDnode *pDnode, SMnodeOpt *pOption) {
   pOption->pDnode = pDnode;
   pOption->sendReqToDnodeFp = dndSendReqToDnode;
   pOption->sendReqToMnodeFp = dndSendReqToMnode;
-  pOption->sendRedirectRspFp = dndSendRedirectRsp;
+  pOption->sendRedirectRspFp = dmSendRedirectRsp;
   pOption->putReqToMWriteQFp = mmPutMsgToWriteQueue;
   pOption->putReqToMReadQFp = mmPutMsgToReadQueue;
-  pOption->dnodeId = dndGetDnodeId(pDnode);
-  pOption->clusterId = dndGetClusterId(pDnode);
+  pOption->dnodeId = dmGetDnodeId(pDnode);
+  pOption->clusterId = dmGetClusterId(pDnode);
 }
 
 static void mmBuildOptionForDeploy(SDnode *pDnode, SMnodeOpt *pOption) {
@@ -255,8 +255,8 @@ static void mmBuildOptionForOpen(SDnode *pDnode, SMnodeOpt *pOption) {
 
 int32_t mmBuildOptionFromReq(SDnode *pDnode, SMnodeOpt *pOption, SDCreateMnodeReq *pCreate) {
   mmInitOption(pDnode, pOption);
-  pOption->dnodeId = dndGetDnodeId(pDnode);
-  pOption->clusterId = dndGetClusterId(pDnode);
+  pOption->dnodeId = dmGetDnodeId(pDnode);
+  pOption->clusterId = dmGetClusterId(pDnode);
 
   pOption->replica = pCreate->replica;
   pOption->selfIndex = -1;

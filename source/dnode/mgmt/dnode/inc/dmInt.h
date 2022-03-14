@@ -27,7 +27,6 @@ typedef struct SDnodeMgmt {
   int32_t      dropped;
   int64_t      clusterId;
   int64_t      dver;
-  int64_t      rebootTime;
   int64_t      updateTime;
   int8_t       statusSent;
   SEpSet       mnodeEpSet;
@@ -42,9 +41,16 @@ typedef struct SDnodeMgmt {
   SDnode      *pDnode;
 } SDnodeMgmt;
 
+// dmFile.h
+void dmGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet);
+
+// dmHandle.h
+void dmProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
+
+// dmInt.h
 SMgmtFp dmGetMgmtFp();
-void    dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
-void    dndGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet);
+int32_t dmGetDnodeId(SDnode *pDnode);
+int64_t dmGetClusterId(SDnode *pDnode);
 
 #ifdef __cplusplus
 }

@@ -24,7 +24,7 @@
 
 static void dndProcessResponse(void *parent, SRpcMsg *pRsp, SEpSet *pEpSet) {
   SDnode     *pDnode = parent;
-  STransMgmt *pMgmt = &pDnode->tmgmt;
+  STransMgmt *pMgmt = &pDnode->trans;
 
   tmsg_t msgType = pRsp->msgType;
 
@@ -47,7 +47,7 @@ static void dndProcessResponse(void *parent, SRpcMsg *pRsp, SEpSet *pEpSet) {
 }
 
 int32_t dndInitClient(SDnode *pDnode) {
-  STransMgmt *pMgmt = &pDnode->tmgmt;
+  STransMgmt *pMgmt = &pDnode->trans;
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
@@ -77,7 +77,7 @@ int32_t dndInitClient(SDnode *pDnode) {
 }
 
 void dndCleanupClient(SDnode *pDnode) {
-  STransMgmt *pMgmt = &pDnode->tmgmt;
+  STransMgmt *pMgmt = &pDnode->trans;
   if (pMgmt->clientRpc) {
     rpcClose(pMgmt->clientRpc);
     pMgmt->clientRpc = NULL;
@@ -87,12 +87,12 @@ void dndCleanupClient(SDnode *pDnode) {
 
 static void dndProcessRequest(void *param, SRpcMsg *pReq, SEpSet *pEpSet) {
   SDnode     *pDnode = param;
-  STransMgmt *pMgmt = &pDnode->tmgmt;
+  STransMgmt *pMgmt = &pDnode->trans;
 
   tmsg_t msgType = pReq->msgType;
   if (msgType == TDMT_DND_NETWORK_TEST) {
     dTrace("RPC %p, network test req will be processed, app:%p", pReq->handle, pReq->ahandle);
-    dndProcessStartupReq(pDnode, pReq);
+    dmProcessStartupReq(pDnode, pReq);
     return;
   }
 
@@ -131,10 +131,10 @@ static void dndProcessRequest(void *param, SRpcMsg *pReq, SEpSet *pEpSet) {
 }
 
 static void dndSendMsgToMnodeRecv(SDnode *pDnode, SRpcMsg *pRpcMsg, SRpcMsg *pRpcRsp) {
-  STransMgmt *pMgmt = &pDnode->tmgmt;
+  STransMgmt *pMgmt = &pDnode->trans;
 
   SEpSet epSet = {0};
-  dndGetMnodeEpSet(pDnode, &epSet);
+  dmGetMnodeEpSet(pDnode, &epSet);
   rpcSendRecv(pMgmt->clientRpc, &epSet, pRpcMsg, pRpcRsp);
 }
 
@@ -208,7 +208,7 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
 }
 
 int32_t dndInitServer(SDnode *pDnode) {
-  STransMgmt *pMgmt = &pDnode->tmgmt;
+  STransMgmt *pMgmt = &pDnode->trans;
 
   int32_t numOfThreads = (int32_t)((tsNumOfCores * tsNumOfThreadsPerCore) / 2.0);
   if (numOfThreads < 1) {
@@ -238,7 +238,7 @@ int32_t dndInitServer(SDnode *pDnode) {
 }
 
 void dndCleanupServer(SDnode *pDnode) {
-  STransMgmt *pMgmt = &pDnode->tmgmt;
+  STransMgmt *pMgmt = &pDnode->trans;
   if (pMgmt->serverRpc) {
     rpcClose(pMgmt->serverRpc);
     pMgmt->serverRpc = NULL;
@@ -247,7 +247,7 @@ void dndCleanupServer(SDnode *pDnode) {
 }
 
 int32_t dndSetMsgHandle(SDnode *pDnode) {
-  STransMgmt *pMgmt = &pDnode->tmgmt;
+  STransMgmt *pMgmt = &pDnode->trans;
 
   for (ENodeType nodeType = 0; nodeType < NODE_MAX; ++nodeType) {
     SMgmtWrapper  *pWrapper = &pDnode->wrappers[nodeType];
@@ -274,7 +274,7 @@ int32_t dndSetMsgHandle(SDnode *pDnode) {
 }
 
 int32_t dndSendReqToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq) {
-  STransMgmt *pMgmt = &pDnode->tmgmt;
+  STransMgmt *pMgmt = &pDnode->trans;
   if (pMgmt->clientRpc == NULL) {
     terrno = TSDB_CODE_DND_OFFLINE;
     return -1;
@@ -286,6 +286,6 @@ int32_t dndSendReqToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq) {
 
 int32_t dndSendReqToMnode(SDnode *pDnode, SRpcMsg *pReq) {
   SEpSet epSet = {0};
-  dndGetMnodeEpSet(pDnode, &epSet);
+  dmGetMnodeEpSet(pDnode, &epSet);
   return dndSendReqToDnode(pDnode, &epSet, pReq);
 }

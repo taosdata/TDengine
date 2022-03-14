@@ -24,7 +24,7 @@ extern "C" {
 
 int32_t dmReadFile(SDnodeMgmt *pMgmt);
 int32_t dmWriteFile(SDnodeMgmt *pMgmt);
-void    dndUpdateDnodeEps(SDnodeMgmt *pMgmt, SArray *pDnodeEps);
+void    dmUpdateDnodeEps(SDnodeMgmt *pMgmt, SArray *pDnodeEps);
 
 #ifdef __cplusplus
 }

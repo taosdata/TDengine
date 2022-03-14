@@ -21,6 +21,6 @@ void smInitMsgHandles(SMgmtWrapper *pWrapper) {
 }
 
 SMsgHandle smGetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgIndex) {
-  SBnodeMgmt *pMgmt = pWrapper->pMgmt;
+  SSnodeMgmt *pMgmt = pWrapper->pMgmt;
   return pMgmt->msgHandles[msgIndex];
 }

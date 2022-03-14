@@ -16,15 +16,40 @@
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
 #include "vmHandle.h"
+#include "vmMgmt.h"
 
-bool vmRequireNode(SMgmtWrapper *pWrapper) { return false; }
+static int32_t vmInit(SMgmtWrapper *pWrapper) {
+  SVnodeOpt vnodeOpt = {0};
+  vnodeOpt.nthreads = tsNumOfCommitThreads;
+  vnodeOpt.putReqToVQueryQFp = dndPutReqToVQueryQ;
+  vnodeOpt.sendReqToDnodeFp = dndSendReqToDnode;
+  if (vnodeInit(&vnodeOpt) != 0) {
+    dError("failed to init vnode since %s", terrstr());
+    dndCleanup();
+    return -1;
+  }
 
+  if (walInit() != 0) {
+    dError("failed to init wal since %s", terrstr());
+    dndCleanup();
+    return -1;
+  }
+
+  return 0;
+}
+
+static void vmCleanup(SMgmtWrapper *pWrapper) {
+  walCleanUp();
+  vnodeCleanup();
+}
+
+static bool vmRequire(SMgmtWrapper *pWrapper) { return false; }
 
 SMgmtFp vmGetMgmtFp() {
   SMgmtFp mgmtFp = {0};
-  mgmtFp.openFp = NULL;
-  mgmtFp.closeFp = NULL;
-  mgmtFp.requiredFp = vmRequireNode;
+  mgmtFp.openFp = vmInit;
+  mgmtFp.closeFp = vmCleanup;
+  mgmtFp.requiredFp = vmRequire;
   mgmtFp.getMsgHandleFp = vmGetMsgHandle;
   return mgmtFp;
 }
