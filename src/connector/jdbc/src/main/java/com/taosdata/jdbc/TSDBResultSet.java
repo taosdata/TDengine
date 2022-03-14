@@ -52,7 +52,7 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         return rowData;
     }
 
-    public TSDBResultSet(TSDBStatement statement, TSDBJNIConnector connector, long resultSetPointer, Integer timestampPrecision) throws SQLException {
+    public TSDBResultSet(TSDBStatement statement, TSDBJNIConnector connector, long resultSetPointer, int timestampPrecision) throws SQLException {
         this.statement = statement;
         this.jniConnector = connector;
         this.resultSetPointer = resultSetPointer;
