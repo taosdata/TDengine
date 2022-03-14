@@ -16,8 +16,8 @@
 #include "tdbInt.h"
 
 typedef struct __attribute__((__packed__)) {
-  u16 size;
-  u16 nxOffset;
+  u8 size[2];
+  u8 nxOffset[2];
 } SFreeCell;
 
 typedef struct __attribute__((__packed__)) {
@@ -26,18 +26,24 @@ typedef struct __attribute__((__packed__)) {
 } SFreeCellL;
 
 /* For small page */
-#define TDB_SPAGE_FREE_CELL_SIZE(PCELL)     (((SFreeCell *)(PCELL))[0].size)
-#define TDB_SPAGE_FREE_CELL_NXOFFSET(PCELL) (((SFreeCell *)(PCELL))[0].nxOffset)
+#define TDB_SPAGE_FREE_CELL_SIZE_PTR(PCELL)     (((SFreeCell *)(PCELL))->size)
+#define TDB_SPAGE_FREE_CELL_NXOFFSET_PTR(PCELL) (((SFreeCell *)(PCELL))->nxOffset)
 
-#define TDB_SPAGE_FREE_CELL_SIZE_SET(PCELL, SIZE)       (((SFreeCell *)(PCELL))[0].size = (SIZE))
-#define TDB_SPAGE_FREE_CELL_NXOFFSET_SET(PCELL, OFFSET) (((SFreeCell *)(PCELL))[0].nxOffset = (OFFSET))
+#define TDB_SPAGE_FREE_CELL_SIZE(PCELL)     ((u16 *)TDB_SPAGE_FREE_CELL_SIZE_PTR(PCELL))[0]
+#define TDB_SPAGE_FREE_CELL_NXOFFSET(PCELL) ((u16 *)TDB_SPAGE_FREE_CELL_NXOFFSET_PTR(PCELL))[0]
+
+#define TDB_SPAGE_FREE_CELL_SIZE_SET(PCELL, SIZE)       (TDB_SPAGE_FREE_CELL_SIZE(PCELL) = (SIZE))
+#define TDB_SPAGE_FREE_CELL_NXOFFSET_SET(PCELL, OFFSET) (TDB_SPAGE_FREE_CELL_NXOFFSET(PCELL) = (OFFSET))
 
 /* For large page */
-#define TDB_LPAGE_FREE_CELL_SIZE(PCELL)     TDB_GET_U24(((SFreeCellL *)(PCELL))[0].size)
-#define TDB_LPAGE_FREE_CELL_NXOFFSET(PCELL) TDB_GET_U24(((SFreeCellL *)(PCELL))[0].nxOffset)
+#define TDB_LPAGE_FREE_CELL_SIZE_PTR(PCELL)     (((SFreeCellL *)(PCELL))->size)
+#define TDB_LPAGE_FREE_CELL_NXOFFSET_PTR(PCELL) (((SFreeCellL *)(PCELL))->nxOffset)
 
-#define TDB_LPAGE_FREE_CELL_SIZE_SET(PCELL, SIZE)       TDB_PUT_U24(((SFreeCellL *)(PCELL))[0].size, SIZE)
-#define TDB_LPAGE_FREE_CELL_NXOFFSET_SET(PCELL, OFFSET) TDB_PUT_U24(((SFreeCellL *)(PCELL))[0].nxOffset, OFFSET)
+#define TDB_LPAGE_FREE_CELL_SIZE(PCELL)     TDB_GET_U24(TDB_LPAGE_FREE_CELL_SIZE_PTR(PCELL))
+#define TDB_LPAGE_FREE_CELL_NXOFFSET(PCELL) TDB_GET_U24(TDB_LPAGE_FREE_CELL_NXOFFSET_PTR(PCELL))
+
+#define TDB_LPAGE_FREE_CELL_SIZE_SET(PCELL, SIZE)       TDB_PUT_U24(TDB_LPAGE_FREE_CELL_SIZE_PTR(PCELL), SIZE)
+#define TDB_LPAGE_FREE_CELL_NXOFFSET_SET(PCELL, OFFSET) TDB_PUT_U24(TDB_LPAGE_FREE_CELL_NXOFFSET_PTR(PCELL), OFFSET)
 
 /* For page */
 #define TDB_PAGE_FREE_CELL_SIZE(PPAGE, PCELL) \
@@ -157,8 +163,15 @@ static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell) {
   // 2. Try to allocate from the page free list
   if ((pCell == NULL) && (pPage->pFreeEnd - pPage->pFreeStart >= pPage->szOffset) && TDB_PAGE_FCELL(pPage)) {
     pCell = pPage->pData + TDB_PAGE_FCELL(pPage);
-    // TODO: pOffset = TDB_PAGE_FCELL(pPage);
+    pOffset = TDB_IS_LARGE_PAGE(pPage) ? ((SLPageHdr *)(pPage->pPageHdr))[0].fCell
+                                       : (u8 *)&(((SPageHdr *)(pPage->pPageHdr))[0].fCell);
 
+    for (;;) {
+      if (TDB_PAGE_FREE_CELL_SIZE(pPage, pCell) >= size) {
+      }
+    }
+
+#if 0
     for (;;) {
       pFreeCell = (SFreeCell *)pCell;
 
@@ -184,9 +197,14 @@ static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell) {
 
       continue;
     }
+
+    if (pCell) {
+      // TODO
+    }
+#endif
   }
 
-  // 3. Try to dfragment
+  // 3. Try to dfragment and allocate again
   if (pCell == NULL) {
     ret = tdbPageDefragment(pPage);
     if (ret < 0) {
