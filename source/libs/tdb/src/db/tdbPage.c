@@ -240,5 +240,6 @@ static int tdbPageFree(SPage *pPage, int idx, SCell *pCell, int size) {
 
 static int tdbPageDefragment(SPage *pPage) {
   // TODO
+  ASSERT(0);
   return 0;
 }
