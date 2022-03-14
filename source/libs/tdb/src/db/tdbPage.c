@@ -17,13 +17,29 @@
 
 typedef struct __attribute__((__packed__)) {
   u16 size;
-  u16 nOffset;
+  u16 nxOffset;
 } SFreeCell;
 
 typedef struct __attribute__((__packed__)) {
   u8 size[3];
-  u8 nOffset[3];
+  u8 nxOffset[3];
 } SFreeCellL;
+
+/* For small page */
+#define TDB_SPAGE_FREE_CELL_SIZE(PCELL)     (((SFreeCell *)(PCELL))[0].size)
+#define TDB_SPAGE_FREE_CELL_NXOFFSET(PCELL) (((SFreeCell *)(PCELL))[0].nxOffset)
+
+#define TDB_SPAGE_FREE_CELL_SIZE_SET(PCELL, SIZE)       (((SFreeCell *)(PCELL))[0].size = (SIZE))
+#define TDB_SPAGE_FREE_CELL_NXOFFSET_SET(PCELL, OFFSET) (((SFreeCell *)(PCELL))[0].nxOffset = (OFFSET))
+
+/* For large page */
+#define TDB_LPAGE_FREE_CELL_SIZE(PCELL)     TDB_GET_U24(((SFreeCellL *)(PCELL))[0].size)
+#define TDB_LPAGE_FREE_CELL_NXOFFSET(PCELL) TDB_GET_U24(((SFreeCellL *)(PCELL))[0].nxOffset)
+
+#define TDB_LPAGE_FREE_CELL_SIZE_SET(PCELL, SIZE)       TDB_PUT_U24(((SFreeCellL *)(PCELL))[0].size, SIZE)
+#define TDB_LPAGE_FREE_CELL_NXOFFSET_SET(PCELL, OFFSET) TDB_PUT_U24(((SFreeCellL *)(PCELL))[0].nxOffset, OFFSET)
+
+/* For page */
 
 static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell);
 static int tdbPageDefragment(SPage *pPage);
@@ -128,7 +144,7 @@ static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell) {
       if (pFreeCell->size >= size) {
         if (pFreeCell->size - size >= 4 /*TODO*/) {
           ((SFreeCell *)(pCell + size))[0].size = pFreeCell->size - size;
-          ((SFreeCell *)(pCell + size))[0].nOffset = pFreeCell->nOffset;
+          ((SFreeCell *)(pCell + size))[0].nxOffset = pFreeCell->nxOffset;
           // *(u16 *)pOffset =  pCell + size - pPage->pData;
         } else {
           TDB_PAGE_NFREE_SET(pPage, TDB_PAGE_NFREE(pPage) + pFreeCell->size - size);
@@ -137,9 +153,9 @@ static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell) {
         break;
       }
 
-      if (pFreeCell->nOffset) {
-        pCell = pPage->pData + pFreeCell->nOffset;
-        // TODO: pOffset = &(pFreeCell->nOffset);
+      if (pFreeCell->nxOffset) {
+        pCell = pPage->pData + pFreeCell->nxOffset;
+        // TODO: pOffset = &(pFreeCell->nxOffset);
       } else {
         pCell = NULL;
         break;
