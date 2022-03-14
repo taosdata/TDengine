@@ -304,6 +304,50 @@ static SLogicNode* createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   return (SLogicNode*)pAgg;
 }
 
+static SLogicNode* createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SIntervalWindowNode* pInterval, SSelectStmt* pSelect) {
+  SWindowLogicNode* pWindow = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW);
+  CHECK_ALLOC(pWindow, NULL);
+  pWindow->node.id = pCxt->planNodeId++;
+
+  pWindow->winType = WINDOW_TYPE_INTERVAL;
+  pWindow->interval = ((SValueNode*)pInterval->pInterval)->datum.i;
+  pWindow->offset = (NULL != pInterval->pOffset ? ((SValueNode*)pInterval->pOffset)->datum.i : 0);
+  pWindow->sliding = (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->datum.i : 0);
+  if (NULL != pInterval->pFill) {
+    pWindow->pFill = nodesCloneNode(pInterval->pFill);
+    CHECK_ALLOC(pWindow->pFill, (SLogicNode*)pWindow);
+  }
+
+  SNodeList* pFuncs = NULL;
+  CHECK_CODE(nodesCollectFuncs(pSelect, fmIsAggFunc, &pFuncs), NULL);
+  if (NULL != pFuncs) {
+    pWindow->pFuncs = nodesCloneList(pFuncs);
+    CHECK_ALLOC(pWindow->pFuncs, (SLogicNode*)pWindow);
+  }
+
+  CHECK_CODE(rewriteExpr(pWindow->node.id, 1, pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW), (SLogicNode*)pWindow);
+
+  pWindow->node.pTargets = createColumnByRewriteExps(pCxt, pWindow->pFuncs);
+  CHECK_ALLOC(pWindow->node.pTargets, (SLogicNode*)pWindow);
+
+  return (SLogicNode*)pWindow;
+}
+
+static SLogicNode* createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect) {
+  if (NULL == pSelect->pWindow) {
+    return NULL;
+  }
+
+  switch (nodeType(pSelect->pWindow)) {
+    case QUERY_NODE_INTERVAL_WINDOW:
+      return createWindowLogicNodeByInterval(pCxt, (SIntervalWindowNode*)pSelect->pWindow, pSelect);    
+    default:
+      break;
+  }
+
+  return NULL;
+}
+
 static SNodeList* createColumnByProjections(SLogicPlanContext* pCxt, SNodeList* pExprs) {
   SNodeList* pList = nodesMakeList();
   CHECK_ALLOC(pList, NULL);
@@ -344,6 +388,9 @@ static SLogicNode* createSelectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   if (TSDB_CODE_SUCCESS == pCxt->errCode && NULL != pSelect->pWhere) {
     pRoot->pConditions = nodesCloneNode(pSelect->pWhere);
     CHECK_ALLOC(pRoot->pConditions, pRoot);
+  }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    pRoot = pushLogicNode(pCxt, pRoot, createWindowLogicNode(pCxt, pSelect));
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     pRoot = pushLogicNode(pCxt, pRoot, createAggLogicNode(pCxt, pSelect));

@@ -37,8 +37,7 @@ typedef struct SSrvConn {
 
   struct sockaddr_in addr;
   struct sockaddr_in locaddr;
-  // SRpcMsg sendMsg;
-  // del later
+
   char secured;
   int  spi;
   char info[64];
@@ -49,7 +48,7 @@ typedef struct SSrvConn {
 
 typedef struct SSrvMsg {
   SSrvConn* pConn;
-  SRpcMsg   msg;
+  STransMsg msg;
   queue     q;
 } SSrvMsg;
 
@@ -207,20 +206,20 @@ static void uvHandleReq(SSrvConn* pConn) {
 
   pConn->inType = pHead->msgType;
 
-  SRpcInfo* pRpc = (SRpcInfo*)p->shandle;
+  STrans* pRpc = (STrans*)p->shandle;
   pHead->code = htonl(pHead->code);
 
   int32_t dlen = 0;
   if (transDecompressMsg(NULL, 0, NULL)) {
     // add compress later
-    // pHead = rpcDecompressRpcMsg(pHead);
+    // pHead = rpcDecompresSTransMsg(pHead);
   } else {
     pHead->msgLen = htonl(pHead->msgLen);
     // impl later
     //
   }
 
-  SRpcMsg rpcMsg;
+  STransMsg rpcMsg;
   rpcMsg.contLen = transContLenFromMsg(pHead->msgLen);
   rpcMsg.pCont = pHead->content;
   rpcMsg.msgType = pHead->msgType;
@@ -260,7 +259,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   }
 
   tError("server conn %p read error: %s", conn, uv_err_name(nread));
-  if (nread < 0 || nread == UV_EOF) {
+  if (nread < 0) {
     conn->broken = true;
     transUnrefSrvHandle(conn);
 
@@ -318,8 +317,8 @@ static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
   // impl later;
   tTrace("server conn %p prepare to send resp", smsg->pConn);
 
-  SSrvConn* pConn = smsg->pConn;
-  SRpcMsg*  pMsg = &smsg->msg;
+  SSrvConn*  pConn = smsg->pConn;
+  STransMsg* pMsg = &smsg->msg;
   if (pMsg->pCont == 0) {
     pMsg->pCont = (void*)rpcMallocCont(0);
     pMsg->contLen = 0;
@@ -549,7 +548,7 @@ static bool addHandleToWorkloop(void* arg) {
     return false;
   }
 
-  // SRpcInfo* pRpc = pThrd->shandle;
+  // STrans* pRpc = pThrd->shandle;
   uv_pipe_init(pThrd->loop, pThrd->pipe, 1);
   uv_pipe_open(pThrd->pipe, pThrd->fd);
 
@@ -672,7 +671,7 @@ static int transAddAuthPart(SSrvConn* pConn, char* msg, int msgLen) {
   return msgLen;
 }
 
-void* taosInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle) {
+void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle) {
   SServerObj* srv = calloc(1, sizeof(SServerObj));
   srv->loop = (uv_loop_t*)malloc(sizeof(uv_loop_t));
   srv->numOfThreads = numOfThreads;
@@ -724,7 +723,7 @@ void* taosInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, 
 
   return srv;
 End:
-  taosCloseServer(srv);
+  transCloseServer(srv);
   return NULL;
 }
 
@@ -744,7 +743,7 @@ void sendQuitToWorkThrd(SWorkThrdObj* pThrd) {
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
 }
 
-void taosCloseServer(void* arg) {
+void transCloseServer(void* arg) {
   // impl later
   SServerObj* srv = arg;
   for (int i = 0; i < srv->numOfThreads; i++) {
@@ -790,7 +789,7 @@ void transUnrefSrvHandle(void* handle) {
   }
   // unref srv handle
 }
-void rpcSendResponse(const SRpcMsg* pMsg) {
+void transSendResponse(const STransMsg* pMsg) {
   if (pMsg->handle == NULL) {
     return;
   }
@@ -803,14 +802,12 @@ void rpcSendResponse(const SRpcMsg* pMsg) {
   tTrace("server conn %p start to send resp", pConn);
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
 }
-
-int rpcGetConnInfo(void* thandle, SRpcConnInfo* pInfo) {
-  SSrvConn* pConn = thandle;
-
+int transGetConnInfo(void* thandle, STransHandleInfo* pInfo) {
+  SSrvConn*          pConn = thandle;
   struct sockaddr_in addr = pConn->addr;
+
   pInfo->clientIp = (uint32_t)(addr.sin_addr.s_addr);
   pInfo->clientPort = ntohs(addr.sin_port);
-
   tstrncpy(pInfo->user, pConn->user, sizeof(pInfo->user));
   return 0;
 }
