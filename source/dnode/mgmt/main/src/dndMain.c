@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndExec.h"
+#include "dndMain.h"
 
 static struct {
   bool    dumpConfig;

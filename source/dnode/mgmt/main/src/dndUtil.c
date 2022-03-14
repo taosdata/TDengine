@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndExec.h"
+#include "dndMain.h"
 
 void dndGenerateGrant() {
 #if 0

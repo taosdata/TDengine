@@ -23,7 +23,7 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/container/inc"
 )
 
-add_subdirectory(exec)
+add_subdirectory(main)
 
 if(${BUILD_TEST})
     add_subdirectory(test)
