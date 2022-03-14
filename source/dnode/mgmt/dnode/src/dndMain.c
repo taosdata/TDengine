@@ -24,8 +24,6 @@
 #include "smInt.h"
 #include "vmInt.h"
 
-static int8_t once = DND_ENV_INIT;
-
 static void dndResetLog(SMgmtWrapper *pMgmt) {
   char logname[24] = {0};
   snprintf(logname, sizeof(logname), "%slog", pMgmt->name);
@@ -171,55 +169,6 @@ _OVER:
   return pDnode;
 }
 
-#if 0
-
-
-
-
-
-
-  if (dndInitVnodes(pDnode) != 0) {
-    dError("failed to init vnodes since %s", terrstr());
-    dndClose(pDnode);
-    return NULL;
-  }
-
-  if (dndInitQnode(pDnode) != 0) {
-    dError("failed to init qnode since %s", terrstr());
-    dndClose(pDnode);
-    return NULL;
-  }
-
-  if (dndInitSnode(pDnode) != 0) {
-    dError("failed to init snode since %s", terrstr());
-    dndClose(pDnode);
-    return NULL;
-  }
-
-  if (dndInitBnode(pDnode) != 0) {
-    dError("failed to init bnode since %s", terrstr());
-    dndClose(pDnode);
-    return NULL;
-  }
-
-  if (mmInit(pDnode) != 0) {
-    dError("failed to init mnode since %s", terrstr());
-    dndClose(pDnode);
-    return NULL;
-  }
-
-
-// mmCleanup(pDnode);
-  // dndCleanupBnode(pDnode);
-  // dndCleanupSnode(pDnode);
-  // dndCleanupQnode(pDnode);
-  // dndCleanupVnodes(pDnode);
-    
-
-  return pDnode;
-}
-#endif
-
 void dndClose(SDnode *pDnode) {
   if (pDnode == NULL) return;
 
@@ -237,67 +186,12 @@ void dndClose(SDnode *pDnode) {
   dInfo("dnode object is closed, data:%p", pDnode);
 }
 
-int32_t dndInit() {
-  if (atomic_val_compare_exchange_8(&once, DND_ENV_INIT, DND_ENV_READY) != DND_ENV_INIT) {
-    terrno = TSDB_CODE_REPEAT_INIT;
-    dError("failed to init dnode env since %s", terrstr());
-    return -1;
-  }
-
-  taosIgnSIGPIPE();
-  taosBlockSIGPIPE();
-  taosResolveCRC();
-
-  if (rpcInit() != 0) {
-    dError("failed to init rpc since %s", terrstr());
-    dndCleanup();
-    return -1;
-  }
-
-  if (walInit() != 0) {
-    dError("failed to init wal since %s", terrstr());
-    dndCleanup();
-    return -1;
-  }
-
-  // SVnodeOpt vnodeOpt = {
-  //     .nthreads = tsNumOfCommitThreads, .putReqToVQueryQFp = dndPutReqToVQueryQ, .sendReqToDnodeFp =
-  //     dndSendReqToDnode};
-
-  // if (vnodeInit(&vnodeOpt) != 0) {
-  //   dError("failed to init vnode since %s", terrstr());
-  //   dndCleanup();
-  //   return -1;
-  // }
-
-  SMonCfg monCfg = {.maxLogs = tsMonitorMaxLogs, .port = tsMonitorPort, .server = tsMonitorFqdn, .comp = tsMonitorComp};
-  if (monInit(&monCfg) != 0) {
-    dError("failed to init monitor since %s", terrstr());
-    dndCleanup();
-    return -1;
-  }
-
-  dInfo("dnode env is initialized");
-  return 0;
-}
-
-void dndCleanup() {
-  if (atomic_val_compare_exchange_8(&once, DND_ENV_READY, DND_ENV_CLEANUP) != DND_ENV_READY) {
-    dError("dnode env is already cleaned up");
-    return;
-  }
-
-  walCleanUp();
-  // vnodeCleanup();
-  rpcCleanup();
-  monCleanup();
-
-  taosStopCacheRefreshWorker();
-  dInfo("dnode env is cleaned up");
-}
-
 void dndRun(SDnode *pDnode) {
   while (pDnode->event != DND_EVENT_STOP) {
     taosMsleep(100);
   }
+}
+
+void dndProcessRpcMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  
 }

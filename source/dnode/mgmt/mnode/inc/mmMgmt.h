@@ -16,26 +16,18 @@
 #ifndef _TD_DND_MNODE_MGMT_H_
 #define _TD_DND_MNODE_MGMT_H_
 
-#include "dndInt.h"
+#include "mmInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-
-// interface
-SMgmtFp mmGetMgmtFp();
-
-int32_t mmInit(SDnode *pDnode);
-void    mmCleanup(SDnode *pDnode);
-int32_t mmProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t mmProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t mmProcessDropMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-
-int32_t mmGetUserAuth(SMgmtWrapper *pWrapper, char *user, char *spi, char *encrypt, char *secret, char *ckey);
-int32_t mmGetMonitorInfo(SDnode *pDnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
-                         SMonGrantInfo *pGrantInfo);
-
+SMnode *mmAcquire(SDnode *pDnode);
+void    mmRelease(SDnode *pDnode, SMnode *pMnode);
+int32_t mmOpen(SDnode *pDnode, SMnodeOpt *pOption);
+int32_t mmAlter(SDnode *pDnode, SMnodeOpt *pOption);
+int32_t mmDrop(SDnode *pDnode);
+int32_t mmBuildOptionFromReq(SDnode *pDnode, SMnodeOpt *pOption, SDCreateMnodeReq *pCreate);
 
 #ifdef __cplusplus
 }

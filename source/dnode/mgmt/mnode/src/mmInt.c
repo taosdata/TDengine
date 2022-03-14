@@ -10,22 +10,19 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <http:www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_MAIN_H_
-#define _TD_DND_MAIN_H_
+#define _DEFAULT_SOURCE
+#include "mmInt.h"
+#include "mmHandle.h"
 
-#include "dndInt.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-void dndProcessRpcMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet);
-
-#ifdef __cplusplus
+SMgmtFp mmGetMgmtFp() {
+  SMgmtFp mgmtFp = {0};
+  mgmtFp.getMsgHandleFp = mmGetMsgHandle;
 }
-#endif
 
-#endif /*_TD_DND_MAIN_H_*/
+
+int32_t mmGetUserAuth(SMgmtWrapper *pWrapper, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+  return 0;
+}

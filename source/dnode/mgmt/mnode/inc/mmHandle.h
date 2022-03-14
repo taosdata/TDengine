@@ -13,24 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_MNODE_MGMT_H_
-#define _TD_DND_MNODE_MGMT_H_
+#ifndef _TD_DND_MNODE_HANDLE_H_
+#define _TD_DND_MNODE_HANDLE_H_
 
-#include "dndInt.h"
+#include "mmInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-
-// interface
-SMgmtFp mmGetMgmtFp();
-
-int32_t mmInit(SDnode *pDnode);
-void    mmCleanup(SDnode *pDnode);
-int32_t mmProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t mmProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t mmProcessDropMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+void       mmInitMsgHandles(SMgmtWrapper *pWrapper);
+SMsgHandle mmGetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgIndex);
 
 int32_t mmGetUserAuth(SMgmtWrapper *pWrapper, char *user, char *spi, char *encrypt, char *secret, char *ckey);
 int32_t mmGetMonitorInfo(SDnode *pDnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
@@ -41,4 +34,4 @@ int32_t mmGetMonitorInfo(SDnode *pDnode, SMonClusterInfo *pClusterInfo, SMonVgro
 }
 #endif
 
-#endif /*_TD_DND_MNODE_MGMT_H_*/
+#endif /*_TD_DND_MNODE_HANDLE_H_*/

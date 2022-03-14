@@ -63,13 +63,24 @@ typedef enum { DND_ENV_INIT, DND_ENV_READY, DND_ENV_CLEANUP } EEnvStat;
 
 typedef struct SMgmtFp      SMgmtFp;
 typedef struct SMgmtWrapper SMgmtWrapper;
+typedef struct SMsgHandle   SMsgHandle;
+typedef void (*RpcMsgFp)(SDnode *pDnode, SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEps);
+typedef void (*NodeMsgFp)(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
-typedef void (*DndMsgFp)(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEps);
+
 typedef int32_t (*MndMsgFp)(SDnode *pDnode, SMndMsg *pMsg);
+
 typedef SMgmtWrapper *(*MgmtOpenFp)(SDnode *pDnode, const char *path);
-typedef void (*MgmtCloseFp)(SDnode *pDnode, SMgmtWrapper *pMgmt);
-typedef bool (*MgmtRequiredFp)(SMgmtWrapper *pMgmt);
-typedef SArray *(*MgmtMsgFp)(SMgmtWrapper *pNode, SNodeMsg *pMsg);
+typedef void (*MgmtCloseFp)(SDnode *pDnode, SMgmtWrapper *pWrapper);
+typedef bool (*MgmtRequiredFp)(SMgmtWrapper *pWrapper);
+typedef int32_t (*MgmtHandleMsgFp)(SMgmtWrapper *pNode, SNodeMsg *pMsg);
+typedef SMsgHandle (*GetMsgHandleFp)(SMgmtWrapper *pWrapper, int32_t msgIndex);
+
+typedef struct SMsgHandle {
+  RpcMsgFp      rpcMsgFp;
+  NodeMsgFp     nodeMsgFp;
+  SMgmtWrapper *pWrapper;
+} SMsgHandle;
 
 typedef struct {
   EWorkerType type;
@@ -116,7 +127,7 @@ typedef struct {
   SReplica     replicas[TSDB_MAX_REPLICA];
 
   //
-  MndMsgFp  msgFp[TDMT_MAX];
+  SMsgHandle  msgHandles[TDMT_MAX];
   SProcObj *pProcess;
   bool      singleProc;
 } SMnodeMgmt;
@@ -171,16 +182,16 @@ typedef struct {
 } SVnodesMgmt;
 
 typedef struct {
-  void    *serverRpc;
-  void    *clientRpc;
-  DndMsgFp msgFp[TDMT_MAX];
+  void          *serverRpc;
+  void          *clientRpc;
+  SMsgHandle msgHandles[TDMT_MAX];
 } STransMgmt;
 
 typedef struct SMgmtFp {
   MgmtOpenFp     openFp;
   MgmtCloseFp    closeFp;
   MgmtRequiredFp requiredFp;
-  MgmtMsgFp      msgFp;
+  GetMsgHandleFp getMsgHandleFp;
 } SMgmtFp;
 
 typedef struct SMgmtWrapper {
@@ -215,6 +226,10 @@ const char *dndStatStr(EDndStatus stat);
 void        dndReportStartup(SDnode *pDnode, char *pName, char *pDesc);
 void        dndGetStartup(SDnode *pDnode, SStartupReq *pStartup);
 TdFilePtr   dndCheckRunning(char *dataDir);
+
+SMgmtWrapper *dndGetWrapper(SDnode *pDnode, ENodeType nodeType) ;
+
+void dndProcessRpcMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet);
 
 #ifdef __cplusplus
 }
