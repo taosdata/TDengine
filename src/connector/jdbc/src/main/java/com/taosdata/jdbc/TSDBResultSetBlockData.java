@@ -25,11 +25,17 @@ import java.nio.ShortBuffer;
 import java.sql.SQLDataException;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.google.common.primitives.Ints;
+import com.google.common.primitives.Longs;
+import com.google.common.primitives.Shorts;
+import com.taosdata.jdbc.enums.TimestampPrecision;
 import com.taosdata.jdbc.utils.NullType;
+import com.taosdata.jdbc.utils.Utils;
 
 public class TSDBResultSetBlockData {
     private static final int BINARY_LENGTH_OFFSET = 2;
@@ -39,9 +45,12 @@ public class TSDBResultSetBlockData {
     private List<ColumnMetaData> columnMetaDataList;
     private ArrayList<Object> colData;
 
-    public TSDBResultSetBlockData(List<ColumnMetaData> colMeta, int numOfCols) {
+    private int timestampPrecision;
+
+    public TSDBResultSetBlockData(List<ColumnMetaData> colMeta, int numOfCols, int timestampPrecision) {
         this.columnMetaDataList = colMeta;
         this.colData = new ArrayList<>(numOfCols);
+        this.timestampPrecision = timestampPrecision;
     }
 
     public TSDBResultSetBlockData() {
@@ -169,10 +178,36 @@ public class TSDBResultSetBlockData {
     public String getString(int col) throws SQLException {
         Object obj = get(col);
         if (obj == null) {
-            return new NullType().toString();
+//            return new NullType().toString();
+            return null;
         }
 
         return obj.toString();
+    }
+
+    public byte[] getBytes(int col) throws SQLException {
+
+        Object obj = get(col);
+        if (obj == null) {
+            return null;
+        }
+        if (obj instanceof byte[])
+            return (byte[]) obj;
+        if (obj instanceof String)
+            return ((String) obj).getBytes();
+        if (obj instanceof Long)
+            return Longs.toByteArray((long) obj);
+        if (obj instanceof Integer)
+            return Ints.toByteArray((int) obj);
+        if (obj instanceof Short)
+            return Shorts.toByteArray((short) obj);
+        if (obj instanceof Byte)
+            return new byte[]{(byte) obj};
+        if (obj instanceof Timestamp) {
+            return Utils.formatTimestampCp((Timestamp) obj).getBytes();
+        }
+
+        return obj.toString().getBytes();
     }
 
     public int getInt(int col) {
@@ -184,8 +219,11 @@ public class TSDBResultSetBlockData {
         int type = this.columnMetaDataList.get(col).getColType();
         switch (type) {
             case TSDBConstants.TSDB_DATA_TYPE_BOOL:
+                return (boolean) obj ? 1 : 0;
             case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
+                return (byte) obj;
             case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
+                return (short) obj;
             case TSDBConstants.TSDB_DATA_TYPE_INT: {
                 return (int) obj;
             }
@@ -218,19 +256,23 @@ public class TSDBResultSetBlockData {
         int type = this.columnMetaDataList.get(col).getColType();
         switch (type) {
             case TSDBConstants.TSDB_DATA_TYPE_BOOL:
+                return (boolean) obj;
             case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
+                return ((byte) obj == 0L) ? Boolean.FALSE : Boolean.TRUE;
             case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
+                return ((short) obj == 0L) ? Boolean.FALSE : Boolean.TRUE;
             case TSDBConstants.TSDB_DATA_TYPE_INT: {
                 return ((int) obj == 0L) ? Boolean.FALSE : Boolean.TRUE;
             }
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
             case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
-                return (((Long) obj) == 0L) ? Boolean.FALSE : Boolean.TRUE;
+                return (((long) obj) == 0L) ? Boolean.FALSE : Boolean.TRUE;
             }
 
             case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
+                return (((float) obj) == 0) ? Boolean.FALSE : Boolean.TRUE;
             case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
-                return (((Double) obj) == 0) ? Boolean.FALSE : Boolean.TRUE;
+                return (((double) obj) == 0) ? Boolean.FALSE : Boolean.TRUE;
             }
 
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
@@ -258,17 +300,31 @@ public class TSDBResultSetBlockData {
         int type = this.columnMetaDataList.get(col).getColType();
         switch (type) {
             case TSDBConstants.TSDB_DATA_TYPE_BOOL:
+                return (boolean) obj ? 1 : 0;
             case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
+                return (byte) obj;
             case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
+                return (short) obj;
             case TSDBConstants.TSDB_DATA_TYPE_INT: {
                 return (int) obj;
             }
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
-            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
                 return (long) obj;
+            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
+                Timestamp ts = (Timestamp) obj;
+                switch (this.timestampPrecision) {
+                    case TimestampPrecision.MS:
+                    default:
+                        return ts.getTime();
+                    case TimestampPrecision.US:
+                        return ts.getTime() * 1000 + ts.getNanos() / 1000 % 1000;
+                    case TimestampPrecision.NS:
+                        return ts.getTime() * 1000_000 + ts.getNanos() % 1000_000;
+                }
             }
 
             case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
+                return ((Float) obj).longValue();
             case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
                 return ((Double) obj).longValue();
             }
@@ -284,6 +340,17 @@ public class TSDBResultSetBlockData {
     }
 
     public Timestamp getTimestamp(int col) throws SQLException {
+        Object obj = get(col);
+        if (obj == null) {
+            return null;
+        }
+
+        int type = this.columnMetaDataList.get(col).getColType();
+        if (type == TSDBConstants.TSDB_DATA_TYPE_BIGINT)
+            return parseTimestampColumnData((long) obj);
+        if (type == TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP)
+            return (Timestamp) obj;
+
         return new Timestamp(getLong(col));
     }
 
@@ -296,17 +363,31 @@ public class TSDBResultSetBlockData {
         int type = this.columnMetaDataList.get(col).getColType();
         switch (type) {
             case TSDBConstants.TSDB_DATA_TYPE_BOOL:
+                return (boolean) obj ? 1 : 0;
             case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
+                return (byte) obj;
             case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
+                return (short) obj;
             case TSDBConstants.TSDB_DATA_TYPE_INT: {
                 return (int) obj;
             }
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
-            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
                 return (long) obj;
+            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
+                Timestamp ts = (Timestamp) obj;
+                switch (this.timestampPrecision) {
+                    case TimestampPrecision.MS:
+                    default:
+                        return ts.getTime();
+                    case TimestampPrecision.US:
+                        return ts.getTime() * 1000 + ts.getNanos() / 1000 % 1000;
+                    case TimestampPrecision.NS:
+                        return ts.getTime() * 1000_000 + ts.getNanos() % 1000_000;
+                }
             }
 
             case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
+                return Double.parseDouble(String.valueOf(obj));
             case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
                 return (double) obj;
             }
@@ -367,7 +448,15 @@ public class TSDBResultSetBlockData {
                 return val;
             }
 
-            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
+            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
+                LongBuffer lb = (LongBuffer) this.colData.get(col);
+                long val = lb.get(this.rowIndex);
+                if (NullType.isBigIntNull(val)) {
+                    return null;
+                }
+
+                return parseTimestampColumnData(val);
+            }
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT: {
                 LongBuffer lb = (LongBuffer) this.colData.get(col);
                 long val = lb.get(this.rowIndex);
@@ -408,7 +497,7 @@ public class TSDBResultSetBlockData {
                     return null;
                 }
 
-                return new String(dest);
+                return dest;
             }
 
             case TSDBConstants.TSDB_DATA_TYPE_JSON:
@@ -431,5 +520,22 @@ public class TSDBResultSetBlockData {
         }
 
         return 0;
+    }
+
+    private Timestamp parseTimestampColumnData(long value) {
+        if (TimestampPrecision.MS == timestampPrecision)
+            return new Timestamp(value);
+
+        if (TimestampPrecision.US == timestampPrecision) {
+            long epochSec = value / 1000_000L;
+            long nanoAdjustment = value % 1000_000L * 1000L;
+            return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+        }
+        if (TimestampPrecision.NS == timestampPrecision) {
+            long epochSec = value / 1000_000_000L;
+            long nanoAdjustment = value % 1000_000_000L;
+            return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+        }
+        return null;
     }
 }

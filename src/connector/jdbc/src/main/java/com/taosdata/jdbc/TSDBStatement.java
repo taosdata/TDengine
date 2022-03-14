@@ -46,9 +46,8 @@ public class TSDBStatement extends AbstractStatement {
             this.connection.getConnector().freeResultSet(pSql);
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_WITH_EXECUTEQUERY);
         }
-        TSDBResultSet res = new TSDBResultSet(this, this.connection.getConnector(), pSql);
         int timestampPrecision = this.connection.getConnector().getResultTimePrecision(pSql);
-        res.setTimestampPrecision(timestampPrecision);
+        TSDBResultSet res = new TSDBResultSet(this, this.connection.getConnector(), pSql, timestampPrecision);
         res.setBatchFetch(this.connection.getBatchFetch());
         return res;
     }
@@ -91,7 +90,8 @@ public class TSDBStatement extends AbstractStatement {
             return false;
         }
 
-        this.resultSet = new TSDBResultSet(this, this.connection.getConnector(), pSql);
+        int timestampPrecision = this.connection.getConnector().getResultTimePrecision(pSql);
+        this.resultSet = new TSDBResultSet(this, this.connection.getConnector(), pSql, timestampPrecision);
         this.resultSet.setBatchFetch(this.connection.getBatchFetch());
         return true;
     }
