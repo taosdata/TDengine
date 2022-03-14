@@ -350,21 +350,18 @@ static uint64_t hllCountCnt(uint8_t *buckets) {
   return (uint64_t) E;
 }
 
-static int hllCountNum(void *ele, int32_t elesize, int32_t *buk) {
-  uint64_t hash, bit, index;
-  int count;
-
-  hash = MurmurHash3_64(ele,elesize);
-  index = hash & HLL_BUCKET_MASK;
+static uint8_t hllCountNum(void *ele, int32_t elesize, int32_t *buk) {
+  uint64_t hash = MurmurHash3_64(ele,elesize);
+  int32_t index = hash & HLL_BUCKET_MASK;
   hash >>= HLL_BUCKET_BITS;
   hash |= ((uint64_t)1<<HLL_DATA_BITS);
-  bit = 1;
-  count = 1;
+  uint64_t bit = 1;
+  uint8_t count = 1;
   while((hash & bit) == 0) {
     count++;
     bit <<= 1;
   }
-  *buk = (int32_t) index;
+  *buk = index;
   return count;
 }
 
@@ -380,7 +377,7 @@ static void hll_function(SQLFunctionCtx *pCtx) {
       elesize = varDataLen(val);
       val = varDataVal(val);
     }
-    int32_t index;
+    int32_t index = 0;
     uint8_t count = hllCountNum(val,elesize,&index);
     uint8_t oldcount = pHLLInfo->buckets[index];
     if (count > oldcount) {

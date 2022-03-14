@@ -4154,7 +4154,8 @@ int32_t tscTansformFuncForSTableQuery(SQueryInfo* pQueryInfo) {
         (functionId == TSDB_FUNC_HISTOGRAM) ||
         (functionId == TSDB_FUNC_UNIQUE) ||
         (functionId == TSDB_FUNC_MODE) ||
-        (functionId == TSDB_FUNC_TAIL)) {
+        (functionId == TSDB_FUNC_TAIL) ||
+        (functionId == TSDB_FUNC_HYPERLOGLOG)) {
       if (getResultDataInfo(pSrcSchema->type, pSrcSchema->bytes, functionId, (int32_t)pExpr->base.param[0].i64, &type, &bytes,
                             &interBytes, 0, true, NULL) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
