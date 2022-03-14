@@ -20,6 +20,11 @@ typedef struct __attribute__((__packed__)) {
   u16 nOffset;
 } SFreeCell;
 
+typedef struct __attribute__((__packed__)) {
+  u8 size[3];
+  u8 nOffset[3];
+} SFreeCellL;
+
 static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell);
 static int tdbPageDefragment(SPage *pPage);
 
@@ -46,9 +51,11 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
   if (pageSize < 65536) {
     pPage->szOffset = 2;
     pPage->szPageHdr = sizeof(SPageHdr);
+    pPage->szFreeCell = sizeof(SFreeCell);
   } else {
     pPage->szOffset = 3;
     pPage->szPageHdr = sizeof(SLPageHdr);
+    pPage->szFreeCell = sizeof(SFreeCellL);
   }
   TDB_INIT_PAGE_LOCK(pPage);
 

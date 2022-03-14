@@ -50,6 +50,7 @@ struct SPage {
   int                pageSize;
   u8                 szOffset;
   u8                 szPageHdr;
+  u8                 szFreeCell;
   pthread_spinlock_t lock;
   // Fields below used by pager and am
   u8       *pPageHdr;
