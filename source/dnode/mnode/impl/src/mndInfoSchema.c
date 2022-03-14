@@ -64,7 +64,7 @@ static const SInfosTableSchema userFuncSchema[] = {{.name = "name",           .b
                                                    {.name = "precision",      .bytes = 2,    .type = TSDB_DATA_TYPE_BINARY},
                                                    {.name = "status",         .bytes = 10,   .type = TSDB_DATA_TYPE_BINARY},
                                                   };
-static const SInfosTableSchema userIdxSchema[] = {{.name = "table_database",   .bytes = 32,   .type = TSDB_DATA_TYPE_BINARY},
+static const SInfosTableSchema userIdxSchema[] = {{.name = "db_name",          .bytes = 32,   .type = TSDB_DATA_TYPE_BINARY},
                                                   {.name = "table_name",       .bytes = 192,  .type = TSDB_DATA_TYPE_BINARY},
                                                   {.name = "index_database",   .bytes = 32,   .type = TSDB_DATA_TYPE_BINARY},
                                                   {.name = "index_name",       .bytes = 192,  .type = TSDB_DATA_TYPE_BINARY},
@@ -112,6 +112,7 @@ static const SInfosTableSchema userUsersSchema[] = {{.name = "user_name",      .
                                                     {.name = "create_time",    .bytes = 8,    .type = TSDB_DATA_TYPE_TIMESTAMP},
                                                    };
 static const SInfosTableSchema vgroupsSchema[] = {{.name = "vg_id",            .bytes = 4,   .type = TSDB_DATA_TYPE_INT},
+                                                  {.name = "db_name",          .bytes = 32,   .type = TSDB_DATA_TYPE_BINARY},
                                                   {.name = "tables",           .bytes = 4,   .type = TSDB_DATA_TYPE_INT},
                                                   {.name = "status",           .bytes = 10,  .type = TSDB_DATA_TYPE_BINARY},
                                                   {.name = "onlines",          .bytes = 4,   .type = TSDB_DATA_TYPE_INT},
