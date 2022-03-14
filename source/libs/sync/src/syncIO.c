@@ -44,7 +44,7 @@ int32_t syncIOStart(char *host, uint16_t port) {
   gSyncIO = syncIOCreate(host, port);
   assert(gSyncIO != NULL);
 
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
   int32_t ret = syncIOStartInternal(gSyncIO);
   assert(ret == 0);
 
@@ -263,7 +263,7 @@ static void *syncIOConsumerFunc(void *param) {
       } else if (pRpcMsg->msgType == SYNC_REQUEST_VOTE_REPLY) {
         if (io->FpOnSyncRequestVoteReply != NULL) {
           SyncRequestVoteReply *pSyncMsg;
-          pSyncMsg = SyncRequestVoteReplyBuild();
+          pSyncMsg = syncRequestVoteReplyBuild();
           syncRequestVoteReplyFromRpcMsg(pRpcMsg, pSyncMsg);
           io->FpOnSyncRequestVoteReply(io->pSyncNode, pSyncMsg);
           syncRequestVoteReplyDestroy(pSyncMsg);

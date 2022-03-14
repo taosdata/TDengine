@@ -69,7 +69,7 @@ static int64_t m_deltaUtc = 0;
 void           deltaToUtcInitOnce() {
   struct tm tm = {0};
 
-  (void)strptime("1970-01-01 00:00:00", (const char*)("%Y-%m-%d %H:%M:%S"), &tm);
+  (void)taosStrpTime("1970-01-01 00:00:00", (const char*)("%Y-%m-%d %H:%M:%S"), &tm);
   m_deltaUtc = (int64_t)mktime(&tm);
   // printf("====delta:%lld\n\n", seconds);
 }
@@ -236,9 +236,9 @@ int32_t parseTimeWithTz(const char* timestr, int64_t* time, int32_t timePrec, ch
 
   char* str;
   if (delim == 'T') {
-    str = strptime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
+    str = taosStrpTime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
   } else if (delim == 0) {
-    str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
+    str = taosStrpTime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
   } else {
     str = NULL;
   }
@@ -303,7 +303,7 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
   *time = 0;
   struct tm tm = {0};
 
-  char* str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
+  char* str = taosStrpTime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
   if (str == NULL) {
     return -1;
   }
@@ -338,7 +338,7 @@ int32_t parseLocaltimeDst(char* timestr, int64_t* time, int32_t timePrec) {
   struct tm tm = {0};
   tm.tm_isdst = -1;
 
-  char* str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
+  char* str = taosStrpTime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
   if (str == NULL) {
     return -1;
   }
@@ -466,7 +466,7 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
 
   struct tm tm;
   time_t    tt = (time_t)(t / TSDB_TICK_PER_SECOND(precision));
-  localtime_r(&tt, &tm);
+  taosLocalTime(&tt, &tm);
   int32_t mon = tm.tm_year * 12 + tm.tm_mon + (int32_t)duration;
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
@@ -489,11 +489,11 @@ int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char
 
   struct tm tm;
   time_t    t = (time_t)skey;
-  localtime_r(&t, &tm);
+  taosLocalTime(&t, &tm);
   int32_t smon = tm.tm_year * 12 + tm.tm_mon;
 
   t = (time_t)ekey;
-  localtime_r(&t, &tm);
+  taosLocalTime(&t, &tm);
   int32_t emon = tm.tm_year * 12 + tm.tm_mon;
 
   if (unit == 'y') {
@@ -514,7 +514,7 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
     start /= (int64_t)(TSDB_TICK_PER_SECOND(precision));
     struct tm tm;
     time_t    tt = (time_t)start;
-    localtime_r(&tt, &tm);
+    taosLocalTime(&tt, &tm);
     tm.tm_sec = 0;
     tm.tm_min = 0;
     tm.tm_hour = 0;
@@ -597,13 +597,13 @@ const char* fmtts(int64_t ts) {
 
   if (ts > -62135625943 && ts < 32503651200) {
     time_t t = (time_t)ts;
-    localtime_r(&t, &tm);
+    taosLocalTime(&t, &tm);
     pos += strftime(buf + pos, sizeof(buf), "s=%Y-%m-%d %H:%M:%S", &tm);
   }
 
   if (ts > -62135625943000 && ts < 32503651200000) {
     time_t t = (time_t)(ts / 1000);
-    localtime_r(&t, &tm);
+    taosLocalTime(&t, &tm);
     if (pos > 0) {
       buf[pos++] = ' ';
       buf[pos++] = '|';
@@ -615,7 +615,7 @@ const char* fmtts(int64_t ts) {
 
   {
     time_t t = (time_t)(ts / 1000000);
-    localtime_r(&t, &tm);
+    taosLocalTime(&t, &tm);
     if (pos > 0) {
       buf[pos++] = ' ';
       buf[pos++] = '|';

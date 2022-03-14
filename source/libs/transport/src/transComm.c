@@ -226,9 +226,13 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
 
     uvBuf->base = p->buf;
     uvBuf->len = CAPACITY;
+  } else if (p->total == -1 && p->len < CAPACITY) {
+    uvBuf->base = p->buf + p->len;
+    uvBuf->len = CAPACITY - p->len;
   } else {
     p->cap = p->total;
     p->buf = realloc(p->buf, p->cap);
+
     uvBuf->base = p->buf + p->len;
     uvBuf->len = p->cap - p->len;
   }

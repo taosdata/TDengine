@@ -52,6 +52,13 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen);
 char   *taosGetCmdlineByPID(int32_t pid);
 void    taosSetCoreDump(bool enable);
 
+#if defined(WINDOWS)
+
+#define _UTSNAME_LENGTH 65
+#define _UTSNAME_MACHINE_LENGTH _UTSNAME_LENGTH
+
+#endif // WINDOWS
+
 typedef struct {
   char sysname[_UTSNAME_MACHINE_LENGTH];
   char nodename[_UTSNAME_MACHINE_LENGTH];

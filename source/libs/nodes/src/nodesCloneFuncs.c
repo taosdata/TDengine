@@ -183,6 +183,12 @@ static SNode* groupingSetNodeCopy(const SGroupingSetNode* pSrc, SGroupingSetNode
   return (SNode*)pDst;
 }
 
+static SNode* fillNodeCopy(const SFillNode* pSrc, SFillNode* pDst) {
+  COPY_SCALAR_FIELD(mode);
+  CLONE_NODE_FIELD(pValues);
+  return (SNode*)pDst;
+}
+
 static SNode* logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   COPY_SCALAR_FIELD(id);
   CLONE_NODE_LIST_FIELD(pTargets);
@@ -248,6 +254,17 @@ static SNode* logicExchangeCopy(const SExchangeLogicNode* pSrc, SExchangeLogicNo
   return (SNode*)pDst;
 }
 
+static SNode* logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  COPY_SCALAR_FIELD(winType);
+  CLONE_NODE_LIST_FIELD(pFuncs);
+  COPY_SCALAR_FIELD(interval);
+  COPY_SCALAR_FIELD(offset);
+  COPY_SCALAR_FIELD(sliding);
+  CLONE_NODE_FIELD(pFill);
+  return (SNode*)pDst;
+}
+
 static SNode* logicSubplanCopy(const SSubLogicPlan* pSrc, SSubLogicPlan* pDst) {
   CLONE_NODE_FIELD(pNode);
   COPY_SCALAR_FIELD(subplanType);
@@ -309,6 +326,8 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
     case QUERY_NODE_ORDER_BY_EXPR:
     case QUERY_NODE_LIMIT:
       break;
+    case QUERY_NODE_FILL:
+      return fillNodeCopy((const SFillNode*)pNode, (SFillNode*)pDst);
     case QUERY_NODE_DATABLOCK_DESC:
       return dataBlockDescCopy((const SDataBlockDescNode*)pNode, (SDataBlockDescNode*)pDst);
     case QUERY_NODE_SLOT_DESC:
@@ -325,6 +344,8 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
       return logicVnodeModifCopy((const SVnodeModifLogicNode*)pNode, (SVnodeModifLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
       return logicExchangeCopy((const SExchangeLogicNode*)pNode, (SExchangeLogicNode*)pDst);
+    case QUERY_NODE_LOGIC_PLAN_WINDOW:
+      return logicWindowCopy((const SWindowLogicNode*)pNode, (SWindowLogicNode*)pDst);
     case QUERY_NODE_LOGIC_SUBPLAN:
       return logicSubplanCopy((const SSubLogicPlan*)pNode, (SSubLogicPlan*)pDst);
     default:

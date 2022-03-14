@@ -211,11 +211,14 @@ int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode);
 int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
+cJSON*  syncNode2Json(const SSyncNode* pSyncNode);
+char*   syncNode2Str(const SSyncNode* pSyncNode);
 
-// for debug
-cJSON* syncNode2Json(const SSyncNode* pSyncNode);
-char*  syncNode2Str(const SSyncNode* pSyncNode);
-void   syncNodePrint(char* s, const SSyncNode* pSyncNode);
+// for debug --------------
+void syncNodePrint(SSyncNode* pObj);
+void syncNodePrint2(char* s, SSyncNode* pObj);
+void syncNodeLog(SSyncNode* pObj);
+void syncNodeLog2(char* s, SSyncNode* pObj);
 
 #ifdef __cplusplus
 }
