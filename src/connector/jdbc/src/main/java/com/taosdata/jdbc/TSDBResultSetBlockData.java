@@ -204,7 +204,7 @@ public class TSDBResultSetBlockData {
         if (obj instanceof Byte)
             return new byte[]{(byte) obj};
         if (obj instanceof Timestamp) {
-            return Utils.formatTimestampCp((Timestamp) obj).getBytes();
+            return Utils.formatTimestamp((Timestamp) obj).getBytes();
         }
 
         return obj.toString().getBytes();
@@ -228,8 +228,9 @@ public class TSDBResultSetBlockData {
                 return (int) obj;
             }
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
-            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
                 return ((Long) obj).intValue();
+            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
+                return ((Long) ((Timestamp) obj).getTime()).intValue();
             }
 
             case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
@@ -258,19 +259,21 @@ public class TSDBResultSetBlockData {
             case TSDBConstants.TSDB_DATA_TYPE_BOOL:
                 return (boolean) obj;
             case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
-                return ((byte) obj == 0L) ? Boolean.FALSE : Boolean.TRUE;
+                return ((byte) obj == 0) ? Boolean.FALSE : Boolean.TRUE;
             case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
-                return ((short) obj == 0L) ? Boolean.FALSE : Boolean.TRUE;
+                return ((short) obj == 0) ? Boolean.FALSE : Boolean.TRUE;
             case TSDBConstants.TSDB_DATA_TYPE_INT: {
-                return ((int) obj == 0L) ? Boolean.FALSE : Boolean.TRUE;
+                return ((int) obj == 0) ? Boolean.FALSE : Boolean.TRUE;
             }
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
-            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
                 return (((long) obj) == 0L) ? Boolean.FALSE : Boolean.TRUE;
+
+            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
+                return ((Timestamp) obj).getTime() == 0L ? Boolean.FALSE : Boolean.TRUE;
             }
 
             case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
-                return (((float) obj) == 0) ? Boolean.FALSE : Boolean.TRUE;
+                return (((float) obj) == 0f) ? Boolean.FALSE : Boolean.TRUE;
             case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
                 return (((double) obj) == 0) ? Boolean.FALSE : Boolean.TRUE;
             }

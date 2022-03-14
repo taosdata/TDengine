@@ -768,7 +768,7 @@ public class BlockResultSet extends AbstractWSResultSet {
         if (value instanceof Byte)
             return new byte[]{(byte) value};
         if (value instanceof Timestamp) {
-            return Utils.formatTimestampCp((Timestamp) value).getBytes();
+            return Utils.formatTimestamp((Timestamp) value).getBytes();
         }
 
         return value.toString().getBytes();

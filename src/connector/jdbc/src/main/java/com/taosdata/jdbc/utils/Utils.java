@@ -194,13 +194,6 @@ public class Utils {
         return timestamp.toLocalDateTime().format(milliSecFormatter);
     }
 
-    public static String formatTimestampCp(Timestamp timestamp) {
-        int nanos = timestamp.getNanos();
-        if (nanos % 1000000L != 0)
-            return timestamp.toLocalDateTime().format(microSecFormatter);
-        return timestamp.toString();
-    }
-
     public static int guessTimestampPrecision(String value) {
         if (isMilliSecFormat(value))
             return TimestampPrecision.MS;
