@@ -17,6 +17,7 @@
 #include "dndTransport.h"
 #include "dmMgmt.h"
 #include "mmInt.h"
+#include "dmHandle.h"
 
 #define INTERNAL_USER   "_dnd"
 #define INTERNAL_CKEY   "_key"

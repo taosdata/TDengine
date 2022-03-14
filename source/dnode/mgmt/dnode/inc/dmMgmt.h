@@ -32,8 +32,6 @@ void    dndGetDnodeEp(SDnode *pDnode, int32_t dnodeId, char *pEp, char *pFqdn, u
 void    dndGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet);
 
 void dndSendRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg);
-void dndSendStatusReq(SDnode *pDnode);
-void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
 
 void dndProcessMgmtMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg) ;
 #ifdef __cplusplus
