@@ -820,8 +820,8 @@ cJSON* syncRequestVote2Json(const SyncRequestVote* pMsg) {
   cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
   cJSON_AddItemToObject(pRoot, "destId", pDestId);
 
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->currentTerm);
-  cJSON_AddStringToObject(pRoot, "currentTerm", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
+  cJSON_AddStringToObject(pRoot, "term", u64buf);
   snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->lastLogIndex);
   cJSON_AddStringToObject(pRoot, "lastLogIndex", u64buf);
   snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->lastLogTerm);
@@ -1264,9 +1264,11 @@ cJSON* syncAppendEntriesReply2Json(const SyncAppendEntriesReply* pMsg) {
   cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
   cJSON_AddItemToObject(pRoot, "destId", pDestId);
 
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
+  cJSON_AddStringToObject(pRoot, "term", u64buf);
   cJSON_AddNumberToObject(pRoot, "success", pMsg->success);
   snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->matchIndex);
-  cJSON_AddStringToObject(pRoot, "match_index", u64buf);
+  cJSON_AddStringToObject(pRoot, "matchIndex", u64buf);
 
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SyncAppendEntriesReply", pRoot);

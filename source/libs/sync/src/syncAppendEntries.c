@@ -80,4 +80,9 @@
 //                       /\ UNCHANGED <<serverVars, commitIndex, messages>>
 //       /\ UNCHANGED <<candidateVars, leaderVars>>
 //
-int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {}
+int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
+  int32_t ret = 0;
+  syncAppendEntriesLog2("==syncNodeOnAppendEntriesCb==", pMsg);
+
+  return ret;
+}

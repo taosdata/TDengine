@@ -587,6 +587,8 @@ void syncNodeVoteForSelf(SSyncNode* pSyncNode) {
   syncRequestVoteReplyDestroy(pMsg);
 }
 
+void syncNodeMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {}
+
 // for debug --------------
 void syncNodePrint(SSyncNode* pObj) {
   char* serialized = syncNode2Str(pObj);

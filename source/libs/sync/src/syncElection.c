@@ -38,7 +38,7 @@ int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode) {
     SyncRequestVote* pMsg = syncRequestVoteBuild();
     pMsg->srcId = pSyncNode->myRaftId;
     pMsg->destId = pSyncNode->peersId[i];
-    pMsg->currentTerm = pSyncNode->pRaftStore->currentTerm;
+    pMsg->term = pSyncNode->pRaftStore->currentTerm;
     pMsg->lastLogIndex = pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore);
     pMsg->lastLogTerm = pSyncNode->pLogStore->getLastTerm(pSyncNode->pLogStore);
 

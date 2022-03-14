@@ -14,6 +14,10 @@
  */
 
 #include "syncRequestVote.h"
+#include "syncInt.h"
+#include "syncRaftStore.h"
+#include "syncUtil.h"
+#include "syncVoteMgr.h"
 
 // TLA+ Spec
 // HandleRequestVoteRequest(i, j, m) ==
@@ -37,4 +41,34 @@
 //                 m)
 //       /\ UNCHANGED <<state, currentTerm, candidateVars, leaderVars, logVars>>
 //
-int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg) {}
+int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg) {
+  int32_t ret = 0;
+  syncRequestVoteLog2("==syncNodeOnRequestVoteCb==", pMsg);
+
+  if (pMsg->term > ths->pRaftStore->currentTerm) {
+    syncNodeUpdateTerm(ths, pMsg->term);
+  }
+  assert(pMsg->term <= ths->pRaftStore->currentTerm);
+
+  bool logOK = (pMsg->lastLogTerm > ths->pLogStore->getLastTerm(ths->pLogStore)) ||
+               ((pMsg->lastLogTerm == ths->pLogStore->getLastTerm(ths->pLogStore)) &&
+                (pMsg->lastLogIndex >= ths->pLogStore->getLastIndex(ths->pLogStore)));
+  bool grant = (pMsg->term == ths->pRaftStore->currentTerm) && logOK &&
+               ((!raftStoreHasVoted(ths->pRaftStore)) || (syncUtilSameId(&(ths->pRaftStore->voteFor), &(pMsg->srcId))));
+  if (grant) {
+    raftStoreVote(ths->pRaftStore, &(pMsg->srcId));
+  }
+
+  SyncRequestVoteReply* pReply = syncRequestVoteReplyBuild();
+  pReply->srcId = ths->myRaftId;
+  pReply->destId = pMsg->srcId;
+  pReply->term = ths->pRaftStore->currentTerm;
+  pReply->voteGranted = grant;
+
+  SRpcMsg rpcMsg;
+  syncRequestVoteReply2RpcMsg(pReply, &rpcMsg);
+  syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
+  syncRequestVoteReplyDestroy(pReply);
+
+  return ret;
+}

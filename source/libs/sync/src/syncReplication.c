@@ -17,6 +17,8 @@
 #include "syncIndexMgr.h"
 #include "syncMessage.h"
 #include "syncRaftEntry.h"
+#include "syncRaftLog.h"
+#include "syncUtil.h"
 
 // TLA+ Spec
 // AppendEntries(i, j) ==
@@ -50,16 +52,31 @@ int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
     SRaftId*  pDestId = &(pSyncNode->peersId[i]);
     SyncIndex nextIndex = syncIndexMgrGetIndex(pSyncNode->pNextIndex, pDestId);
+
     SyncIndex preLogIndex = nextIndex - 1;
-    SyncTerm  preLogTerm = 0;
-    if (preLogIndex >= 0) {
+
+    SyncTerm preLogTerm = 0;
+    if (preLogIndex >= SYNC_INDEX_BEGIN) {
       SSyncRaftEntry* pPreEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, preLogIndex);
       preLogTerm = pPreEntry->term;
-    } else {
-      preLogTerm = 0;
     }
-    // SyncTerm lastIndex =
-    //     pSyncNode->pLogStore->getLastIndex < nextIndex ? pSyncNode->pLogStore->getLastIndex : nextIndex;
+
+    SyncIndex lastIndex = syncUtilMinIndex(pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore), nextIndex);
+    assert(nextIndex == lastIndex);
+
+    SSyncRaftEntry* pEntry = logStoreGetEntry(pSyncNode->pLogStore, nextIndex);
+    assert(pEntry != NULL);
+
+    SyncAppendEntries* pMsg = syncAppendEntriesBuild(pEntry->bytes);
+    pMsg->srcId = pSyncNode->myRaftId;
+    pMsg->destId = *pDestId;
+    pMsg->prevLogIndex = preLogIndex;
+    pMsg->prevLogTerm = preLogTerm;
+    pMsg->commitIndex = pSyncNode->commitIndex;
+    pMsg->dataLen = pEntry->bytes;
+    // add pEntry into msg
+
+    syncNodeAppendEntries(pSyncNode, pDestId, pMsg);
   }
 
   return ret;

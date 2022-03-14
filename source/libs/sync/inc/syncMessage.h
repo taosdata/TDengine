@@ -196,7 +196,7 @@ typedef struct SyncRequestVote {
   SRaftId  srcId;
   SRaftId  destId;
   // private data
-  SyncTerm  currentTerm;
+  SyncTerm  term;
   SyncIndex lastLogIndex;
   SyncTerm  lastLogTerm;
 } SyncRequestVote;
@@ -287,6 +287,7 @@ typedef struct SyncAppendEntriesReply {
   SRaftId  srcId;
   SRaftId  destId;
   // private data
+  SyncTerm  term;
   bool      success;
   SyncIndex matchIndex;
 } SyncAppendEntriesReply;
