@@ -15,7 +15,13 @@
 
 #include "tdbInt.h"
 
+typedef struct __attribute__((__packed__)) {
+  u16 size;
+  u16 nOffset;
+} SFreeCell;
+
 static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell);
+static int tdbPageDefragment(SPage *pPage);
 
 int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg) {
   SPage *pPage;
@@ -66,7 +72,7 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
   SCell *pTarget;
 
   if (pPage->nOverflow || szCell + pPage->szOffset > pPage->nFree) {
-    // TODO
+    // TODO: Page is full
   } else {
     ret = tdbPageAllocate(pPage, szCell, &pTarget);
     if (ret < 0) {
@@ -87,18 +93,63 @@ int tdbPageDropCell(SPage *pPage, int idx) {
 }
 
 static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell) {
-  SCell *pCell;
+  SCell     *pCell;
+  SFreeCell *pFreeCell;
+  int        ret;
 
   ASSERT(pPage->nFree > size + pPage->szOffset);
 
+  pCell = NULL;
+  *ppCell = NULL;
+
+  // 1. Try to allocate from the free space area
   if (pPage->pFreeEnd - pPage->pFreeStart > size + pPage->szOffset) {
     pPage->pFreeEnd -= size;
     pPage->pFreeStart += pPage->szOffset;
 
     pCell = pPage->pFreeEnd;
-  } else {
   }
 
+  // 2. Try to allocate from the page free list
+  if (pCell == NULL && TDB_PAGE_FCELL(pPage)) {
+    pCell = pPage->pData + TDB_PAGE_FCELL(pPage);
+    for (;;) {
+      pFreeCell = (SFreeCell *)pCell;
+
+      if (pFreeCell->size >= size) {
+        break;
+      }
+
+      if (pFreeCell->nOffset) {
+        pCell = pPage->pData + pFreeCell->nOffset;
+      } else {
+        pCell = NULL;
+        break;
+      }
+
+      continue;
+    }
+  }
+
+  // 3. Try to dfragment
+  if (pCell == NULL) {
+    ret = tdbPageDefragment(pPage);
+    if (ret < 0) {
+      return -1;
+    }
+
+    ASSERT(pPage->pFreeEnd - pPage->pFreeStart > size + pPage->szOffset);
+    ASSERT(pPage->nFree == pPage->pFreeEnd - pPage->pFreeStart);
+
+    // Allocate from the free space area again
+    pPage->pFreeEnd -= size;
+    pPage->pFreeStart += pPage->szOffset;
+    pCell = pPage->pFreeEnd;
+  }
+
+  ASSERT(pCell != NULL);
+
+  pPage->nFree = pPage->nFree - size - pPage->szOffset;
   *ppCell = pCell;
   return 0;
 }

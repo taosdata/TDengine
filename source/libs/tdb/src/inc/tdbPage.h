@@ -25,10 +25,10 @@ typedef u8 SCell;
 // Page header (pageSize < 65536 (64K))
 typedef struct __attribute__((__packed__)) {
   u16 flags;
-  u16 nCells;
-  u16 cCells;
-  u16 fCell;
-  u16 nFree;
+  u16 nCells;  // number of cells
+  u16 cCells;  // cell content offset
+  u16 fCell;   // first free cell offset
+  u16 nFree;   // total fragment bytes in this page
 } SPageHdr;
 
 // Large page header (pageSize >= 65536 (64K))
