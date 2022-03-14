@@ -27,28 +27,17 @@ struct SSmaEnv {
 };
 
 #define SMA_ENV_LOCK(env)       ((env)->lock)
+#define SMA_ENV_ENV(env)        ((env)->dbEnv)
 #define SMA_ENV_PATH(env)       ((env)->path)
 #define SMA_ENV_STAT(env)       ((env)->pStat)
 #define SMA_ENV_STAT_ITEMS(env) ((env)->pStat->smaStatItems)
 
-// insert/update interface
-int32_t tsdbInsertTSmaDataImpl(STsdb *pTsdb, char *msg);
-int32_t tsdbInsertRSmaDataImpl(STsdb *pTsdb, char *msg);
-
-// query interface
-// TODO: This is the basic params, and should wrap the params to a queryHandle.
-int32_t tsdbGetTSmaDataImpl(STsdb *pTsdb, STSmaDataWrapper *pData, STimeWindow *queryWin, int32_t nMaxResult);
-
-// management interface
-int32_t tsdbUpdateExpiredWindow(STsdb *pTsdb, int8_t smaType, char *msg);
-void    tsdbDestroySmaEnv(SSmaEnv *pSmaEnv);
-void *  tsdbFreeSmaEnv(SSmaEnv *pSmaEnv);
+void  tsdbDestroySmaEnv(SSmaEnv *pSmaEnv);
+void *tsdbFreeSmaEnv(SSmaEnv *pSmaEnv);
 #if 0
 int32_t tsdbGetTSmaStatus(STsdb *pTsdb, STSma *param, void *result);
 int32_t tsdbRemoveTSmaData(STsdb *pTsdb, STSma *param, STimeWindow *pWin);
 #endif
-
-
 
 // internal func
 static FORCE_INLINE int32_t tsdbEncodeTSmaKey(tb_uid_t tableUid, col_id_t colId, TSKEY tsKey, void **pData) {

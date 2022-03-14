@@ -29,7 +29,7 @@ static void tsdbCloseBDBDb(DB *pDB);
 
 #define BDB_PERR(info, code) fprintf(stderr, "%s:%d " info " reason: %s\n", __FILE__, __LINE__, db_strerror(code))
 
-int tsdbOpenDBF(TDBEnv pEnv, SDBFile *pDBF) {
+int32_t tsdbOpenDBF(TDBEnv pEnv, SDBFile *pDBF) {
   // TDBEnv is shared by a group of SDBFile
   if (!pEnv) {
     terrno = TSDB_CODE_INVALID_PTR;
@@ -46,18 +46,12 @@ int tsdbOpenDBF(TDBEnv pEnv, SDBFile *pDBF) {
   return 0;
 }
 
-static void *tsdbFreeDBF(SDBFile *pDBF) {
-  if (pDBF) {
-    free(pDBF);
-  }
-  return NULL;
-}
-
 void tsdbCloseDBF(SDBFile *pDBF) {
   if (pDBF->pDB) {
     tsdbCloseBDBDb(pDBF->pDB);
-    pDBF->pDB = tsdbFreeDBF(pDBF);
+    pDBF->pDB = NULL;
   }
+  tfree(pDBF->path);
 }
 
 int32_t tsdbOpenBDBEnv(DB_ENV **ppEnv, const char *path) {
@@ -145,4 +139,35 @@ int32_t tsdbSaveSmaToDB(SDBFile *pDBF, void *key, uint32_t keySize, void *data, 
   // TODO: unlock
 
   return 0;
+}
+
+void *tsdbGetSmaDataByKey(SDBFile *pDBF, void* key, uint32_t keySize, uint32_t *valueSize) {
+  void *result = NULL;
+  DBT   key1 = {0};
+  DBT   value1 = {0};
+  int   ret;
+
+  // Set key/value
+  key1.data = key;
+  key1.size = keySize;
+
+  // Query
+  // TODO: lock
+  ret = pDBF->pDB->get(pDBF->pDB, NULL, &key1, &value1, 0);
+  // TODO: unlock
+  if (ret != 0) {
+    return NULL;
+  }
+
+  result = calloc(1, value1.size);
+
+  if (result == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  *valueSize = value1.size;
+  memcpy(result, value1.data, value1.size);
+
+  return result;
 }

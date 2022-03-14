@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
   return RUN_ALL_TESTS();
 }
 
-TEST(testCase, tSmaEncodeDecodeTest) {
+TEST(testCase, tSma_Meta_Encode_Decode_Test) {
   // encode
   STSma tSma = {0};
   tSma.version = 0;
@@ -87,8 +87,9 @@ TEST(testCase, tSmaEncodeDecodeTest) {
   tdDestroyTSma(&tSma);
   tdDestroyTSmaWrapper(&dstTSmaWrapper);
 }
+
 #if 1
-TEST(testCase, tSma_DB_Put_Get_Del_Test) {
+TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   const char *   smaIndexName1 = "sma_index_test_1";
   const char *   smaIndexName2 = "sma_index_test_2";
   const char *   timezone = "Asia/Shanghai";
@@ -220,16 +221,21 @@ TEST(testCase, tSma_DB_Put_Get_Del_Test) {
 #endif
 
 #if 1
-TEST(testCase, tSmaInsertTest) {
-  // prepare meta
+TEST(testCase, tSma_Data_Insert_Query_Test) {
+  // step 1: prepare meta
   const char *   smaIndexName1 = "sma_index_test_1";
   const char *   timezone = "Asia/Shanghai";
   const char *   expr = "select count(a,b, top 20), from table interval 1d, sliding 1h;";
-  const char *   tagsFilter = "I'm tags filter";
+  const char *   tagsFilter = "where tags.location='Beijing' and tags.district='ChaoYang'";
   const char *   smaTestDir = "./smaTest";
   const tb_uid_t tbUid = 1234567890;
   const int64_t  indexUid1 = 2000000001;
+  const int64_t  interval1 = 1;
+  const int8_t   intervalUnit1 = TD_TIME_UNIT_DAY;
   const uint32_t nCntTSma = 2;
+  TSKEY          skey1 = 1646987196;
+  const int64_t  testSmaData1 = 100;
+  const int64_t  testSmaData2 = 200;
   // encode
   STSma tSma = {0};
   tSma.version = 0;
@@ -261,7 +267,7 @@ TEST(testCase, tSmaInsertTest) {
   // save index 1
   EXPECT_EQ(metaSaveSmaToDB(pMeta, pSmaCfg), 0);
 
-  // insert data
+  // step 2: insert data
   STSmaDataWrapper *pSmaData = NULL;
   STsdb             tsdb = {0};
   STsdbCfg *        pCfg = &tsdb.config;
@@ -276,6 +282,21 @@ TEST(testCase, tSmaInsertTest) {
   tsdb.config.update = TD_ROW_OVERWRITE_UPDATE;
   tsdb.config.compression = TWO_STAGE_COMP;
 
+  switch (tsdb.config.precision) {
+    case TSDB_TIME_PRECISION_MILLI:
+      skey1 *= 1e3;
+      break;
+    case TSDB_TIME_PRECISION_MICRO:
+      skey1 *= 1e6;
+      break;
+    case TSDB_TIME_PRECISION_NANO:
+      skey1 *= 1e9;
+      break;
+    default:  // ms
+      skey1 *= 1e3;
+      break;
+  }
+
   char *msg = (char *)calloc(100, 1);
   EXPECT_EQ(tsdbUpdateSmaWindow(&tsdb, TSDB_SMA_TYPE_TIME_RANGE, msg), 0);
 
@@ -286,21 +307,21 @@ TEST(testCase, tSmaInsertTest) {
   void *  buf = NULL;
   EXPECT_EQ(tsdbMakeRoom(&buf, allocStep), 0);
   int32_t  bufSize = taosTSizeof(buf);
-  int32_t  numOfTables = 5;
-  col_id_t numOfCols = 10;
+  int32_t  numOfTables = 10;
+  col_id_t numOfCols = 4096;
   EXPECT_GT(numOfCols, 0);
 
   pSmaData = (STSmaDataWrapper *)buf;
   printf(">> allocate [%d] time to %d and addr is %p\n", ++allocCnt, bufSize, pSmaData);
-  pSmaData->skey = 1646987196000;
-  pSmaData->interval = 10;
-  pSmaData->intervalUnit = TD_TIME_UNIT_MINUTE;
+  pSmaData->skey = skey1;
+  pSmaData->interval = interval1;
+  pSmaData->intervalUnit = intervalUnit1;
   pSmaData->indexUid = indexUid1;
 
   int32_t len = sizeof(STSmaDataWrapper);
   for (int32_t t = 0; t < numOfTables; ++t) {
     STSmaTbData *pTbData = (STSmaTbData *)POINTER_SHIFT(pSmaData, len);
-    pTbData->tableUid = t;
+    pTbData->tableUid = tbUid + t;
 
     int32_t tableDataLen = sizeof(STSmaTbData);
     for (col_id_t c = 0; c < numOfCols; ++c) {
@@ -313,8 +334,17 @@ TEST(testCase, tSmaInsertTest) {
       }
       STSmaColData *pColData = (STSmaColData *)POINTER_SHIFT(pSmaData, len + tableDataLen);
       pColData->colId = c + PRIMARYKEY_TIMESTAMP_COL_ID;
-      pColData->blockSize = ((c & 1) == 0) ? 8 : 16;
+
       // TODO: fill col data
+      if ((c & 1) == 0) {
+        pColData->blockSize = 8;
+        memcpy(pColData->data, &testSmaData1, 8);
+      } else {
+        pColData->blockSize = 16;
+        memcpy(pColData->data, &testSmaData1, 8);
+        memcpy(POINTER_SHIFT(pColData->data, 8), &testSmaData2, 8);
+      }
+
       tableDataLen += (sizeof(STSmaColData) + pColData->blockSize);
     }
     pTbData->dataLen = (tableDataLen - sizeof(STSmaTbData));
@@ -327,6 +357,19 @@ TEST(testCase, tSmaInsertTest) {
 
   // execute
   EXPECT_EQ(tsdbInsertTSmaData(&tsdb, (char *)pSmaData), TSDB_CODE_SUCCESS);
+
+  // step 3: query
+  uint32_t checkDataCnt = 0;
+  for (int32_t t = 0; t < numOfTables; ++t) {
+    for (col_id_t c = 0; c < numOfCols; ++c) {
+      EXPECT_EQ(tsdbGetTSmaData(&tsdb, NULL, indexUid1, interval1, intervalUnit1, tbUid + t,
+                                c + PRIMARYKEY_TIMESTAMP_COL_ID, skey1, 1),
+                TSDB_CODE_SUCCESS);
+      ++checkDataCnt;
+    }
+  }
+  
+  printf("%s:%d The sma data check count for insert and query is %" PRIu32 "\n", __FILE__, __LINE__, checkDataCnt);
 
   // release data
   taosTZfree(buf);

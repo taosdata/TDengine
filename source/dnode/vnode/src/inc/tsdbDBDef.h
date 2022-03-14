@@ -35,6 +35,7 @@ void    tsdbCloseDBF(SDBFile* pDBF);
 int32_t tsdbOpenBDBEnv(DB_ENV** ppEnv, const char* path);
 void    tsdbCloseBDBEnv(DB_ENV* pEnv);
 int32_t tsdbSaveSmaToDB(SDBFile* pDBF, void* key, uint32_t keySize, void* data, uint32_t dataSize);
+void*   tsdbGetSmaDataByKey(SDBFile* pDBF, void* key, uint32_t keySize, uint32_t* valueSize);
 
 #ifdef __cplusplus
 }

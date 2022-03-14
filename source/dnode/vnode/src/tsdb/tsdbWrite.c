@@ -34,6 +34,7 @@ int tsdbInsertData(STsdb *pTsdb, SSubmitReq *pMsg, SSubmitRsp *pRsp) {
   return tsdbMemTableInsert(pTsdb, pTsdb->mem, pMsg, NULL);
 }
 
+#if 0
 /**
  * @brief Insert/Update tSma(Time-range-wise SMA) data from stream computing engine
  * 
@@ -74,3 +75,5 @@ int32_t tsdbInsertRSmaData(STsdb *pTsdb, char *msg) {
   }
   return code;
 }
+
+#endif
