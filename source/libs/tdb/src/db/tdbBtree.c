@@ -54,6 +54,8 @@ static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2
 static int tdbBtreeOpenImpl(SBTree *pBt);
 static int tdbBtreeZeroPage(SPage *pPage, void *arg);
 static int tdbBtreeInitPage(SPage *pPage, void *arg);
+static int tdbEncodeKeyValue(const void *pKey, int kLen, int kLenG, const void *pVal, int vLen, int vLenG, void *pBuf,
+                             int *bLen);
 
 int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, SBTree **ppBt) {
   SBTree *pBt;
