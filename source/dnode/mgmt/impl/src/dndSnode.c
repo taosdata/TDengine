@@ -167,12 +167,15 @@ static int32_t dndStartSnodeWorker(SDnode *pDnode) {
   SSnodeMgmt *pMgmt = &pDnode->smgmt;
   pMgmt->uniqueWorkers = taosArrayInit(0, sizeof(void *));
   for (int32_t i = 0; i < 2; i++) {
-    SDnodeWorker uniqueWorker;
-    if (dndInitWorker(pDnode, &uniqueWorker, DND_WORKER_MULTI, "snode-unique", 1, 1, dndProcessSnodeSharedQueue) != 0) {
+    SDnodeWorker *pUniqueWorker = malloc(sizeof(SDnodeWorker));
+    if (pUniqueWorker == NULL) {
+      return -1;
+    }
+    if (dndInitWorker(pDnode, pUniqueWorker, DND_WORKER_MULTI, "snode-unique", 1, 1, dndProcessSnodeSharedQueue) != 0) {
       dError("failed to start snode unique worker since %s", terrstr());
       return -1;
     }
-    taosArrayPush(pMgmt->uniqueWorkers, &uniqueWorker);
+    taosArrayPush(pMgmt->uniqueWorkers, &pUniqueWorker);
   }
   if (dndInitWorker(pDnode, &pMgmt->sharedWorker, DND_WORKER_SINGLE, "snode-shared", 4, 4,
                     dndProcessSnodeSharedQueue)) {
