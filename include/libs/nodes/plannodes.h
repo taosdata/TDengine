@@ -93,6 +93,8 @@ typedef struct SWindowLogicNode {
   int64_t interval;
   int64_t offset;
   int64_t sliding;
+  int8_t  intervalUnit;
+  int8_t  slidingUnit;
   SFillNode* pFill;
 } SWindowLogicNode;
 
@@ -203,7 +205,7 @@ typedef struct SDownstreamSourceNode {
 
 typedef struct SExchangePhysiNode {
   SPhysiNode node;
-  int32_t srcGroupId;  // group id of datasource suplans
+  int32_t    srcGroupId;  // group id of datasource suplans
   SNodeList* pSrcEndPoints;  // element is SDownstreamSource, scheduler fill by calling qSetSuplanExecutionNode
 } SExchangePhysiNode;
 
@@ -211,9 +213,11 @@ typedef struct SIntervalPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;   // these are expression list of parameter expression of function
   SNodeList* pFuncs;
-  int64_t interval;
-  int64_t offset;
-  int64_t sliding;
+  int64_t    interval;
+  int64_t    offset;
+  int64_t    sliding;
+  int8_t     intervalUnit;
+  int8_t     slidingUnit;
   SFillNode* pFill;
 } SIntervalPhysiNode;
 
