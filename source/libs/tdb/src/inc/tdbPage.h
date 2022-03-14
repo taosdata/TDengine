@@ -38,7 +38,7 @@ typedef struct __attribute__((__packed__)) {
   u8  cCells[3];
   u8  fCell[3];
   u8  nFree[3];
-} SLPageHdr;
+} SPageHdrL;
 
 // Page footer
 typedef struct __attribute__((__packed__)) {
@@ -89,18 +89,18 @@ struct SPage {
 #define TDB_SPAGE_CELL_OFFSET_AT_SET(pPage, idx, OFFSET) TDB_SPAGE_CELL_OFFSET_AT(pPage, idx) = (OFFSET)
 
 /* For large page */
-#define TDB_LPAGE_FLAGS(pPage)               (((SLPageHdr *)(pPage)->pPageHdr)->flags)
-#define TDB_LPAGE_NCELLS(pPage)              TDB_GET_U24(((SLPageHdr *)(pPage)->pPageHdr)->nCells)
-#define TDB_LPAGE_CCELLS(pPage)              TDB_GET_U24(((SLPageHdr *)(pPage)->pPageHdr)->cCells)
-#define TDB_LPAGE_FCELL(pPage)               TDB_GET_U24(((SLPageHdr *)(pPage)->pPageHdr)->fCell)
-#define TDB_LPAGE_NFREE(pPage)               TDB_GET_U24(((SLPageHdr *)(pPage)->pPageHdr)->nFree)
+#define TDB_LPAGE_FLAGS(pPage)               (((SPageHdrL *)(pPage)->pPageHdr)->flags)
+#define TDB_LPAGE_NCELLS(pPage)              TDB_GET_U24(((SPageHdrL *)(pPage)->pPageHdr)->nCells)
+#define TDB_LPAGE_CCELLS(pPage)              TDB_GET_U24(((SPageHdrL *)(pPage)->pPageHdr)->cCells)
+#define TDB_LPAGE_FCELL(pPage)               TDB_GET_U24(((SPageHdrL *)(pPage)->pPageHdr)->fCell)
+#define TDB_LPAGE_NFREE(pPage)               TDB_GET_U24(((SPageHdrL *)(pPage)->pPageHdr)->nFree)
 #define TDB_LPAGE_CELL_OFFSET_AT(pPage, idx) TDB_GET_U24((pPage)->aCellIdx + idx * 3)
 
 #define TDB_LPAGE_FLAGS_SET(pPage, FLAGS)                TDB_LPAGE_FLAGS(pPage) = (flags)
-#define TDB_LPAGE_NCELLS_SET(pPage, NCELLS)              TDB_PUT_U24(((SLPageHdr *)(pPage)->pPageHdr)->nCells, NCELLS)
-#define TDB_LPAGE_CCELLS_SET(pPage, CCELLS)              TDB_PUT_U24(((SLPageHdr *)(pPage)->pPageHdr)->cCells, CCELLS)
-#define TDB_LPAGE_FCELL_SET(pPage, FCELL)                TDB_PUT_U24(((SLPageHdr *)(pPage)->pPageHdr)->fCell, FCELL)
-#define TDB_LPAGE_NFREE_SET(pPage, NFREE)                TDB_PUT_U24(((SLPageHdr *)(pPage)->pPageHdr)->nFree, NFREE)
+#define TDB_LPAGE_NCELLS_SET(pPage, NCELLS)              TDB_PUT_U24(((SPageHdrL *)(pPage)->pPageHdr)->nCells, NCELLS)
+#define TDB_LPAGE_CCELLS_SET(pPage, CCELLS)              TDB_PUT_U24(((SPageHdrL *)(pPage)->pPageHdr)->cCells, CCELLS)
+#define TDB_LPAGE_FCELL_SET(pPage, FCELL)                TDB_PUT_U24(((SPageHdrL *)(pPage)->pPageHdr)->fCell, FCELL)
+#define TDB_LPAGE_NFREE_SET(pPage, NFREE)                TDB_PUT_U24(((SPageHdrL *)(pPage)->pPageHdr)->nFree, NFREE)
 #define TDB_LPAGE_CELL_OFFSET_AT_SET(pPage, idx, OFFSET) TDB_PUT_U24((pPage)->aCellIdx + idx * 3, OFFSET)
 
 /* For page */

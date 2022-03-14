@@ -102,7 +102,7 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
     pPage->szFreeCell = sizeof(SFreeCell);
   } else {
     pPage->szOffset = 3;
-    pPage->szPageHdr = sizeof(SLPageHdr);
+    pPage->szPageHdr = sizeof(SPageHdrL);
     pPage->szFreeCell = sizeof(SFreeCellL);
   }
   TDB_INIT_PAGE_LOCK(pPage);
@@ -171,7 +171,7 @@ static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell) {
     int nxOffset;
 
     pCell = pPage->pData + TDB_PAGE_FCELL(pPage);
-    pOffset = TDB_IS_LARGE_PAGE(pPage) ? ((SLPageHdr *)(pPage->pPageHdr))[0].fCell
+    pOffset = TDB_IS_LARGE_PAGE(pPage) ? ((SPageHdrL *)(pPage->pPageHdr))[0].fCell
                                        : (u8 *)&(((SPageHdr *)(pPage->pPageHdr))[0].fCell);
     szCell = TDB_PAGE_FREE_CELL_SIZE(pPage, pCell);
     nxOffset = TDB_PAGE_FREE_CELL_NXOFFSET(pPage, pCell);
