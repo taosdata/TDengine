@@ -55,6 +55,7 @@ struct SPage {
   // Fields below used by pager and am
   u8       *pPageHdr;
   u8       *aCellIdx;
+  u8       *pAmHdr;
   u8       *pFreeStart;
   u8       *pFreeEnd;
   SPageFtr *pPageFtr;
