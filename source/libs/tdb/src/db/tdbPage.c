@@ -16,17 +16,17 @@
 #include "tdbInt.h"
 
 typedef struct __attribute__((__packed__)) {
-  u8 size[2];
+  u8 szCell[2];
   u8 nxOffset[2];
 } SFreeCell;
 
 typedef struct __attribute__((__packed__)) {
-  u8 size[3];
+  u8 szCell[3];
   u8 nxOffset[3];
 } SFreeCellL;
 
 /* For small page */
-#define TDB_SPAGE_FREE_CELL_SIZE_PTR(PCELL)     (((SFreeCell *)(PCELL))->size)
+#define TDB_SPAGE_FREE_CELL_SIZE_PTR(PCELL)     (((SFreeCell *)(PCELL))->szCell)
 #define TDB_SPAGE_FREE_CELL_NXOFFSET_PTR(PCELL) (((SFreeCell *)(PCELL))->nxOffset)
 
 #define TDB_SPAGE_FREE_CELL_SIZE(PCELL)     ((u16 *)TDB_SPAGE_FREE_CELL_SIZE_PTR(PCELL))[0]
@@ -36,7 +36,7 @@ typedef struct __attribute__((__packed__)) {
 #define TDB_SPAGE_FREE_CELL_NXOFFSET_SET(PCELL, OFFSET) (TDB_SPAGE_FREE_CELL_NXOFFSET(PCELL) = (OFFSET))
 
 /* For large page */
-#define TDB_LPAGE_FREE_CELL_SIZE_PTR(PCELL)     (((SFreeCellL *)(PCELL))->size)
+#define TDB_LPAGE_FREE_CELL_SIZE_PTR(PCELL)     (((SFreeCellL *)(PCELL))->szCell)
 #define TDB_LPAGE_FREE_CELL_NXOFFSET_PTR(PCELL) (((SFreeCellL *)(PCELL))->nxOffset)
 
 #define TDB_LPAGE_FREE_CELL_SIZE(PCELL)     TDB_GET_U24(TDB_LPAGE_FREE_CELL_SIZE_PTR(PCELL))
@@ -46,6 +46,11 @@ typedef struct __attribute__((__packed__)) {
 #define TDB_LPAGE_FREE_CELL_NXOFFSET_SET(PCELL, OFFSET) TDB_PUT_U24(TDB_LPAGE_FREE_CELL_NXOFFSET_PTR(PCELL), OFFSET)
 
 /* For page */
+#define TDB_PAGE_FREE_CELL_SIZE_PTR(PPAGE, PCELL) \
+  (TDB_IS_LARGE_PAGE(pPage) ? TDB_LPAGE_FREE_CELL_SIZE_PTR(PCELL) : TDB_SPAGE_FREE_CELL_SIZE_PTR(PCELL))
+#define TDB_PAGE_FREE_CELL_NXOFFSET_PTR(PPAGE, PCELL) \
+  (TDB_IS_LARGE_PAGE(pPage) ? TDB_LPAGE_FREE_CELL_NXOFFSET_PTR(PCELL) : TDB_SPAGE_FREE_CELL_NXOFFSET_PTR(PCELL))
+
 #define TDB_PAGE_FREE_CELL_SIZE(PPAGE, PCELL) \
   (TDB_IS_LARGE_PAGE(pPage) ? TDB_LPAGE_FREE_CELL_SIZE(PCELL) : TDB_SPAGE_FREE_CELL_SIZE(PCELL))
 #define TDB_PAGE_FREE_CELL_NXOFFSET(PPAGE, PCELL) \
@@ -162,46 +167,47 @@ static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell) {
 
   // 2. Try to allocate from the page free list
   if ((pCell == NULL) && (pPage->pFreeEnd - pPage->pFreeStart >= pPage->szOffset) && TDB_PAGE_FCELL(pPage)) {
+    int szCell;
+    int nxOffset;
+
     pCell = pPage->pData + TDB_PAGE_FCELL(pPage);
     pOffset = TDB_IS_LARGE_PAGE(pPage) ? ((SLPageHdr *)(pPage->pPageHdr))[0].fCell
                                        : (u8 *)&(((SPageHdr *)(pPage->pPageHdr))[0].fCell);
+    szCell = TDB_PAGE_FREE_CELL_SIZE(pPage, pCell);
+    nxOffset = TDB_PAGE_FREE_CELL_NXOFFSET(pPage, pCell);
 
     for (;;) {
-      if (TDB_PAGE_FREE_CELL_SIZE(pPage, pCell) >= size) {
-      }
-    }
+      // Find a cell
+      if (szCell >= size) {
+        if (szCell - size >= pPage->szFreeCell) {
+          SCell *pTmpCell = pCell + size;
 
-#if 0
-    for (;;) {
-      pFreeCell = (SFreeCell *)pCell;
-
-      if (pFreeCell->size >= size) {
-        if (pFreeCell->size - size >= 4 /*TODO*/) {
-          ((SFreeCell *)(pCell + size))[0].size = pFreeCell->size - size;
-          ((SFreeCell *)(pCell + size))[0].nxOffset = pFreeCell->nxOffset;
-          // *(u16 *)pOffset =  pCell + size - pPage->pData;
+          TDB_PAGE_FREE_CELL_SIZE_SET(pPage, pTmpCell, szCell - size);
+          TDB_PAGE_FREE_CELL_NXOFFSET_SET(pPage, pTmpCell, nxOffset);
+          // TODO: *pOffset = pTmpCell - pPage->pData;
         } else {
-          TDB_PAGE_NFREE_SET(pPage, TDB_PAGE_NFREE(pPage) + pFreeCell->size - size);
-          // *(u16 *)pOffset = pFreeCell->nOffset;
+          TDB_PAGE_NFREE_SET(pPage, TDB_PAGE_NFREE(pPage) + szCell - size);
+          // TODO: *pOffset = nxOffset;
         }
         break;
       }
 
-      if (pFreeCell->nxOffset) {
-        pCell = pPage->pData + pFreeCell->nxOffset;
-        // TODO: pOffset = &(pFreeCell->nxOffset);
+      // Not find a cell yet
+      if (nxOffset > 0) {
+        pCell = pPage->pData + nxOffset;
+        pOffset = TDB_PAGE_FREE_CELL_NXOFFSET_PTR(pPage, pCell);
+        szCell = TDB_PAGE_FREE_CELL_SIZE(pPage, pCell);
+        nxOffset = TDB_PAGE_FREE_CELL_NXOFFSET(pPage, pCell);
+        continue;
       } else {
         pCell = NULL;
         break;
       }
-
-      continue;
     }
 
     if (pCell) {
-      // TODO
+      pPage->pFreeStart = pPage->pFreeStart + pPage->szOffset;
     }
-#endif
   }
 
   // 3. Try to dfragment and allocate again
