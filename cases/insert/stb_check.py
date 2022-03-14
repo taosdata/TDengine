@@ -11,10 +11,9 @@
 
 # -*- coding: utf-8 -*-
 
-from taostest import TDCase
+from taostest import TDCase, T
 from taostest.util.common import TDCom
 import copy
-
 class TestStb(TDCase):
     def init(self):
         super().init()
@@ -132,3 +131,9 @@ class TestStb(TDCase):
             illegal_stbsql_check <jayden>: [TD-13419] : illegal stbsql check;
         '''
         return case_description
+    
+    def author(self) -> str:
+        return "Jayden"
+    
+    def tags(self):
+        return T.Write.Database.Create, T.Write.Database.Drop, T.Write.RestfulSql 
