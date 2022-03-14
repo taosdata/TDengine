@@ -67,6 +67,19 @@ ELSE ()
           COMMAND cmake -E copy ./example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/
           COMMAND cmake -E copy ./taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/
           )
+      ExternalProject_Add(taosadapter-debug
+          PREFIX        "taosadapter-debug"
+          SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/taosadapter
+          BUILD_ALWAYS         off
+          DEPENDS             taos
+          BUILD_IN_SOURCE     1
+          CONFIGURE_COMMAND cmake -E echo "taosadapter-debug no need cmake to config"
+          PATCH_COMMAND
+          COMMAND     git clean -f -d
+          BUILD_COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../inc CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -o taosadapter-debug -ldflags "-X github.com/taosdata/taosadapter/version.Version=${taos_version} -X github.com/taosdata/taosadapter/version.CommitID=${taosadapter_commit_sha1}"
+          INSTALL_COMMAND
+          COMMAND cmake -E copy taosadapter-debug ${CMAKE_BINARY_DIR}/build/bin
+          )
   ELSEIF (TD_DARWIN)
       include(ExternalProject)
       ExternalProject_Add(taosadapter
@@ -84,6 +97,19 @@ ELSE ()
           COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
           COMMAND cmake -E copy ./example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/
           COMMAND cmake -E copy ./taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/
+          )
+      ExternalProject_Add(taosadapter-debug
+          PREFIX        "taosadapter-debug"
+          SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/taosadapter
+          BUILD_ALWAYS         off
+          DEPENDS             taos
+          BUILD_IN_SOURCE     1
+          CONFIGURE_COMMAND cmake -E echo "taosadapter-debug no need cmake to config"
+          PATCH_COMMAND
+          COMMAND     git clean -f -d
+          BUILD_COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../inc CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -o taosadapter-debug -ldflags "-X github.com/taosdata/taosadapter/version.Version=${taos_version} -X github.com/taosdata/taosadapter/version.CommitID=${taosadapter_commit_sha1}"
+          INSTALL_COMMAND
+          COMMAND cmake -E copy taosadapter-debug ${CMAKE_BINARY_DIR}/build/bin
           )
   ELSE ()
       MESSAGE("${Yellow} Windows system still use original embedded httpd ${ColourReset}")
