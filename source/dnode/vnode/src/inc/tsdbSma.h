@@ -17,33 +17,62 @@
 #define _TD_TSDB_SMA_H_
 
 typedef struct SSmaStat SSmaStat;
+typedef struct SSmaEnv  SSmaEnv;
 
-// insert/update interface
-int32_t tsdbInsertTSmaDataImpl(STsdb *pTsdb, char *msg);
-int32_t tsdbInsertRSmaDataImpl(STsdb *pTsdb, char *msg);
+struct SSmaEnv {
+  pthread_rwlock_t lock;
+  TDBEnv           dbEnv;
+  char *           path;
+  SSmaStat *       pStat;
+};
 
+#define SMA_ENV_LOCK(env)       ((env)->lock)
+#define SMA_ENV_ENV(env)        ((env)->dbEnv)
+#define SMA_ENV_PATH(env)       ((env)->path)
+#define SMA_ENV_STAT(env)       ((env)->pStat)
+#define SMA_ENV_STAT_ITEMS(env) ((env)->pStat->smaStatItems)
 
-// query interface
-// TODO: This is the basic params, and should wrap the params to a queryHandle.
-int32_t tsdbGetTSmaDataImpl(STsdb *pTsdb, STSmaDataWrapper *pData, STimeWindow *queryWin, int32_t nMaxResult);
-
-// management interface
-int32_t tsdbUpdateExpiredWindow(STsdb *pTsdb, char *msg);
-int32_t tsdbDestroySmaState(SSmaStat *pSmaStat);
+void  tsdbDestroySmaEnv(SSmaEnv *pSmaEnv);
+void *tsdbFreeSmaEnv(SSmaEnv *pSmaEnv);
 #if 0
 int32_t tsdbGetTSmaStatus(STsdb *pTsdb, STSma *param, void *result);
 int32_t tsdbRemoveTSmaData(STsdb *pTsdb, STSma *param, STimeWindow *pWin);
 #endif
 
 // internal func
-
-
 static FORCE_INLINE int32_t tsdbEncodeTSmaKey(tb_uid_t tableUid, col_id_t colId, TSKEY tsKey, void **pData) {
   int32_t len = 0;
   len += taosEncodeFixedI64(pData, tableUid);
   len += taosEncodeFixedU16(pData, colId);
   len += taosEncodeFixedI64(pData, tsKey);
   return len;
+}
+
+static FORCE_INLINE int tsdbRLockSma(SSmaEnv *pEnv) {
+  int code = pthread_rwlock_rdlock(&(pEnv->lock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
+}
+
+static FORCE_INLINE int tsdbWLockSma(SSmaEnv *pEnv) {
+  int code = pthread_rwlock_wrlock(&(pEnv->lock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
+}
+
+static FORCE_INLINE int tsdbUnLockSma(SSmaEnv *pEnv) {
+  int code = pthread_rwlock_unlock(&(pEnv->lock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
 }
 
 #endif /* _TD_TSDB_SMA_H_ */
