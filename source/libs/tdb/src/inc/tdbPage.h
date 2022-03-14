@@ -46,13 +46,14 @@ typedef struct __attribute__((__packed__)) {
 } SPageFtr;
 
 struct SPage {
+  pthread_spinlock_t lock;
   u8                *pData;
   int                pageSize;
   u8                 szOffset;
   u8                 szPageHdr;
   u8                 szFreeCell;
-  pthread_spinlock_t lock;
   // Fields below used by pager and am
+  u8        szAmHdr;
   u8       *pPageHdr;
   u8       *pAmHdr;
   u8       *pCellIdx;

@@ -343,40 +343,6 @@ static int tdbBtreeOpenImpl(SBTree *pBt) {
   return 0;
 }
 
-static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
-  u16     flags;
-  SBTree *pBt;
-
-  flags = ((SBtreeZeroPageArg *)arg)->flags;
-  pBt = ((SBtreeZeroPageArg *)arg)->pBt;
-
-  pPage->pPageHdr = pPage->pData;
-  pPage->pCellIdx = (u8 *)(&(pPage->pPageHdr[1]));
-
-  // Init the page header
-  TDB_PAGE_FLAGS_SET(pPage, flags);
-  TDB_PAGE_NCELLS_SET(pPage, 0);
-  TDB_PAGE_CCELLS_SET(pPage, pBt->pageSize);
-  TDB_PAGE_FCELL_SET(pPage, 0);
-  TDB_PAGE_NFREE_SET(pPage, 0);
-
-  TDB_BTREE_ASSERT_FLAG(flags);
-
-  if (TDB_BTREE_PAGE_IS_LEAF(flags)) {
-    pPage->kLen = pBt->keyLen;
-    pPage->vLen = pBt->valLen;
-    pPage->maxLocal = pBt->maxLeaf;
-    pPage->minLocal = pBt->minLeaf;
-  } else {
-    pPage->kLen = pBt->keyLen;
-    pPage->vLen = sizeof(SPgno);
-    pPage->maxLocal = pBt->maxLocal;
-    pPage->minLocal = pBt->minLocal;
-  }
-
-  return 0;
-}
-
 static int tdbBtreeInitPage(SPage *pPage, void *arg) {
   SBTree *pBt;
   u16     flags;
@@ -384,8 +350,17 @@ static int tdbBtreeInitPage(SPage *pPage, void *arg) {
   pBt = (SBTree *)arg;
 
   flags = TDB_PAGE_FLAGS(pPage);
+  if (TDB_BTREE_PAGE_IS_LEAF(flags)) {
+    pPage->szAmHdr = 0;
+  } else {
+    pPage->szAmHdr = sizeof(SBtPageHdr);
+  }
   pPage->pPageHdr = pPage->pData;
-  pPage->pCellIdx = pPage->pPageHdr + pPage->szPageHdr;
+  pPage->pAmHdr = pPage->pPageHdr + pPage->szPageHdr;
+  pPage->pCellIdx = pPage->pAmHdr + pPage->szAmHdr;
+  pPage->pFreeStart = pPage->pCellIdx + pPage->szOffset * TDB_PAGE_NCELLS(pPage);
+  pPage->pFreeEnd = pPage->pData + TDB_PAGE_CCELLS(pPage);
+  pPage->pPageFtr = (SPageFtr *)(pPage->pData + pPage->pageSize - sizeof(SPageFtr));
 
   TDB_BTREE_ASSERT_FLAG(flags);
 
@@ -404,6 +379,28 @@ static int tdbBtreeInitPage(SPage *pPage, void *arg) {
 
   return 0;
 }
+
+static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
+  u16     flags;
+  SBTree *pBt;
+
+  flags = ((SBtreeZeroPageArg *)arg)->flags;
+  pBt = ((SBtreeZeroPageArg *)arg)->pBt;
+
+  pPage->pPageHdr = pPage->pData;
+
+  // Init the page header
+  TDB_PAGE_FLAGS_SET(pPage, flags);
+  TDB_PAGE_NCELLS_SET(pPage, 0);
+  TDB_PAGE_CCELLS_SET(pPage, pBt->pageSize - sizeof(SPageFtr));
+  TDB_PAGE_FCELL_SET(pPage, 0);
+  TDB_PAGE_NFREE_SET(pPage, 0);
+
+  tdbBtreeInitPage(pPage, (void *)pBt);
+
+  return 0;
+}
+
 
 #ifndef TDB_BTREE_BALANCE
 typedef struct {
