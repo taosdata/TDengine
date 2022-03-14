@@ -55,8 +55,17 @@
       "sample_file": "./sample.csv",
       "use_sample_ts": "no",
       "tags_file": "",
-      "columns": [{"type": "TIMESTAMP"},{"type": "INT"}, {"type": "BIGINT"}, {"type": "FLOAT"}, {"type": "DOUBLE"}, {"type": "SMALLINT"}, {"type": "TINYINT"}, {"type": "BOOL"}, {"type": "NCHAR","len": 29, "count":1}, {"type": "UINT"}, {"type": "UBIGINT"}, {"type": "UTINYINT"}, {"type": "USMALLINT"}, {"type": "BINARY", "len": 23, "count":1}],
-      "tags": [{"type": "TIMESTAMP"},{"type": "INT"}, {"type": "BIGINT"}, {"type": "FLOAT"}, {"type": "DOUBLE"}, {"type": "SMALLINT"}, {"type": "TINYINT"}, {"type": "BOOL"}, {"type": "NCHAR","len": 17, "count":1}, {"type": "UINT"}, {"type": "UBIGINT"}, {"type": "UTINYINT"}, {"type": "USMALLINT"}, {"type": "BINARY", "len": 19, "count":1}]
+      "partial_col_num": 999,
+      "columns": [{"type": "TIMESTAMP","max": 10, "min": 0},{"type": "INT","max": 10, "min": 0}, {"type": "BIGINT","max": 10, "min": 0}, {"type": "FLOAT","max": 10, "min": 0}, {"type": "DOUBLE","max": 10, "min": 0}, {"type": "SMALLINT","max": 10, "min": 0}, {"type": "TINYINT","max": 10, "min": 0}, {"type": "BOOL","max": 10, "min": 0}, {"type": "NCHAR","len": 29, "count":1,
+        "values": ["d1", "d2"]
+      }, {"type": "UINT","max": 10, "min": 0}, {"type": "UBIGINT","max": 10, "min": 0}, {"type": "UTINYINT","max": 10, "min": 0}, {"type": "USMALLINT","max": 10, "min": 0}, {"type": "BINARY", "len": 23, "count":1,
+        "values": ["b1","b2"]
+      }],
+      "tags": [{"type": "TIMESTAMP","max": 10, "min": 0},{"type": "INT","max": 10, "min": 0}, {"type": "BIGINT","max": 10, "min": 0}, {"type": "FLOAT","max": 10, "min": 0}, {"type": "DOUBLE","max": 10, "min": 0}, {"type": "SMALLINT","max": 10, "min": 0}, {"type": "TINYINT","max": 10, "min": 0}, {"type": "BOOL","max": 10, "min": 0}, {"type": "NCHAR","len": 17, "count":1,
+        "values": ["d1", "d2"]
+      }, {"type": "UINT","max": 10, "min": 0}, {"type": "UBIGINT","max": 10, "min": 0}, {"type": "UTINYINT","max": 10, "min": 0}, {"type": "USMALLINT","max": 10, "min": 0}, {"type": "BINARY", "len": 19, "count":1,
+        "values": ["b1","b2"]
+      }]
     }]
   }]
 }
