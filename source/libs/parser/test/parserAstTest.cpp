@@ -183,6 +183,13 @@ TEST_F(ParserTest, selectClause) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(ParserTest, selectWindow) {
+  setDatabase("root", "test");
+
+  bind("SELECT count(*) FROM t1 interval(10s)");
+  ASSERT_TRUE(run());
+}
+
 TEST_F(ParserTest, selectSyntaxError) {
   setDatabase("root", "test");
 
