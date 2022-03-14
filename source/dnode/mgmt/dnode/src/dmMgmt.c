@@ -296,6 +296,7 @@ static int32_t dmInit(SMgmtWrapper *pWrapper) {
   pMgmt->rebootTime = taosGetTimestampMs();
   pMgmt->dropped = 0;
   pMgmt->clusterId = 0;
+  pMgmt->path = pWrapper->path;
   taosInitRWLatch(&pMgmt->latch);
 
   pMgmt->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
@@ -305,7 +306,7 @@ static int32_t dmInit(SMgmtWrapper *pWrapper) {
     return -1;
   }
 
-  if (dmReadFile(pWrapper->pDnode) != 0) {
+  if (dmReadFile(pMgmt) != 0) {
     dError("node:%s, failed to read file since %s", pWrapper->name, terrstr());
     return -1;
   }
@@ -352,7 +353,7 @@ static int32_t dmInit(SMgmtWrapper *pWrapper) {
 #endif
 }
 
-static void dmCleanup(SDnode *pDnode, SMgmtWrapper *pWrapper){
+static void dmCleanup(SMgmtWrapper *pWrapper){
 
 }
 

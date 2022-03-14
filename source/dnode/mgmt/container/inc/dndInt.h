@@ -61,18 +61,17 @@ typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EDndStatus;
 typedef enum { DND_WORKER_SINGLE, DND_WORKER_MULTI } EWorkerType;
 typedef enum { DND_ENV_INIT, DND_ENV_READY, DND_ENV_CLEANUP } EEnvStat;
 
+typedef struct SDnodeMgmt SDnodeMgmt;
+
 typedef struct SMgmtFp      SMgmtFp;
 typedef struct SMgmtWrapper SMgmtWrapper;
 typedef struct SMsgHandle   SMsgHandle;
+
 typedef void (*RpcMsgFp)(SDnode *pDnode, SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEps);
 typedef void (*NodeMsgFp)(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-
-
-typedef int32_t (*MndMsgFp)(SDnode *pDnode, SMndMsg *pMsg);
 typedef int32_t (*OpenNodeFp)(SMgmtWrapper *pWrapper);
-typedef void (*CloseNodeFp)(SDnode *pDnode, SMgmtWrapper *pWrapper);
+typedef void (*CloseNodeFp)(SMgmtWrapper *pWrapper);
 typedef bool (*RequireNodeFp)(SMgmtWrapper *pWrapper);
-typedef int32_t (*MgmtHandleMsgFp)(SMgmtWrapper *pNode, SNodeMsg *pMsg);
 typedef SMsgHandle (*GetMsgHandleFp)(SMgmtWrapper *pWrapper, int32_t msgIndex);
 
 typedef struct SMsgHandle {
@@ -95,25 +94,6 @@ typedef struct {
   };
 } SDnodeWorker;
 
-typedef struct {
-  int32_t      dnodeId;
-  int32_t      dropped;
-  int64_t      clusterId;
-  int64_t      dver;
-  int64_t      rebootTime;
-  int64_t      updateTime;
-  int8_t       statusSent;
-  SEpSet       mnodeEpSet;
-  SHashObj    *dnodeHash;
-  SArray      *pDnodeEps;
-  pthread_t   *threadId;
-  SRWLatch     latch;
-  SDnodeWorker mgmtWorker;
-  SDnodeWorker statusWorker;
-
-  //
-  SMsgHandle msgHandles[TDMT_MAX];
-} SDnodeMgmt;
 
 typedef struct {
   int32_t      refCount;
@@ -223,8 +203,8 @@ typedef struct SMgmtWrapper {
   EProcType   procType;
   SProcObj   *pProc;
   void       *pMgmt;
-  SMgmtFp     fp;
   SDnode     *pDnode;
+  SMgmtFp     fp;
 } SMgmtWrapper;
 
 typedef struct SDnode {
@@ -234,12 +214,10 @@ typedef struct SDnode {
   SDndCfg      cfg;
   SStartupReq  startup;
   TdFilePtr    pLockFile;
-  SDnodeMgmt   dmgmt;
   STransMgmt   tmgmt;
   STfs        *pTfs;
   SMgmtFp      fps[NODE_MAX];
   SMgmtWrapper wrappers[NODE_MAX];
-  char        *path;
 } SDnode;
 
 EDndStatus  dndGetStatus(SDnode *pDnode);

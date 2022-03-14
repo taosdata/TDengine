@@ -15,9 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "dndTransport.h"
-#include "dmMgmt.h"
+#include "dmInt.h"
 #include "mmInt.h"
-#include "dmHandle.h"
 
 #define INTERNAL_USER   "_dnd"
 #define INTERNAL_CKEY   "_key"
@@ -47,7 +46,7 @@ static void dndProcessResponse(void *parent, SRpcMsg *pRsp, SEpSet *pEpSet) {
   }
 }
 
- int32_t dndInitClient(SDnode *pDnode) {
+int32_t dndInitClient(SDnode *pDnode) {
   STransMgmt *pMgmt = &pDnode->tmgmt;
 
   SRpcInit rpcInit;
@@ -208,7 +207,7 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
   return rpcRsp.code;
 }
 
- int32_t dndInitServer(SDnode *pDnode) {
+int32_t dndInitServer(SDnode *pDnode) {
   STransMgmt *pMgmt = &pDnode->tmgmt;
 
   int32_t numOfThreads = (int32_t)((tsNumOfCores * tsNumOfThreadsPerCore) / 2.0);
@@ -238,7 +237,7 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
   return 0;
 }
 
-static void dndCleanupServer(SDnode *pDnode) {
+void dndCleanupServer(SDnode *pDnode) {
   STransMgmt *pMgmt = &pDnode->tmgmt;
   if (pMgmt->serverRpc) {
     rpcClose(pMgmt->serverRpc);
@@ -247,7 +246,7 @@ static void dndCleanupServer(SDnode *pDnode) {
   }
 }
 
-static int32_t dndSetMsgHandle(SDnode *pDnode) {
+int32_t dndSetMsgHandle(SDnode *pDnode) {
   STransMgmt *pMgmt = &pDnode->tmgmt;
 
   for (ENodeType nodeType = 0; nodeType < NODE_MAX; ++nodeType) {
@@ -272,32 +271,6 @@ static int32_t dndSetMsgHandle(SDnode *pDnode) {
   }
 
   return 0;
-}
-
-int32_t dndInitTrans(SDnode *pDnode) {
-  dInfo("dnode-transport start to init");
-
-  if (dndSetMsgHandle(pDnode) != 0) {
-    return -1;
-  }
-
-  if (dndInitClient(pDnode) != 0) {
-    return -1;
-  }
-
-  if (dndInitServer(pDnode) != 0) {
-    return -1;
-  }
-
-  dInfo("dnode-transport is initialized");
-  return 0;
-}
-
-void dndCleanupTrans(SDnode *pDnode) {
-  dInfo("dnode-transport start to clean up");
-  dndCleanupServer(pDnode);
-  dndCleanupClient(pDnode);
-  dInfo("dnode-transport is cleaned up");
 }
 
 int32_t dndSendReqToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq) {

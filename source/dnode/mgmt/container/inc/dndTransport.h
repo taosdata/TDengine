@@ -22,10 +22,11 @@
 extern "C" {
 #endif
 
-int32_t dndInitTrans(SDnode *pDnode);
-void    dndCleanupTrans(SDnode *pDnode);
 int32_t dndInitServer(SDnode *pDnode);
+void    dndCleanupServer(SDnode *pDnode);
 int32_t dndInitClient(SDnode *pDnode);
+void    dndCleanupClient(SDnode *pDnode);
+int32_t dndSetMsgHandle(SDnode *pDnode);
 
 int32_t dndSendReqToMnode(SDnode *pDnode, SRpcMsg *pRpcMsg);
 int32_t dndSendReqToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pRpcMsg);

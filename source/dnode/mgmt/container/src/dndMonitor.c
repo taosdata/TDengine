@@ -37,6 +37,8 @@ static void dndGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
 }
 
 static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
+
+#if 0
   pInfo->uptime = (taosGetTimestampMs() - pDnode->dmgmt.rebootTime) / (86400000.0f);
   taosGetCpuUsage(&pInfo->cpu_engine, &pInfo->cpu_system);
   pInfo->cpu_cores = tsNumOfCores;
@@ -49,7 +51,6 @@ static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
   taosGetCardInfo(&pInfo->net_in, &pInfo->net_out);
   taosGetProcIO(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
 
-#if 0
   SVnodesStat *pStat = &pDnode->vmgmt.stat;
   pInfo->req_select = pStat->numOfSelectReqs;
   pInfo->req_insert = pStat->numOfInsertReqs;

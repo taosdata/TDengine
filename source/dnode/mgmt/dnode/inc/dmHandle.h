@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_HADNLE_H_
-#define _TD_DND_HADNLE_H_
+#ifndef _TD_DND_DNODE_HADNLE_H_
+#define _TD_DND_DNODE_HADNLE_H_
 
-#include "dndInt.h"
+#include "dmInt.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,4 +33,4 @@ void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
 }
 #endif
 
-#endif /*_TD_DND_HADNLE_H_*/
+#endif /*_TD_DND_DNODE_HADNLE_H_*/

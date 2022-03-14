@@ -18,10 +18,9 @@
 #include "dndWorker.h"
 #include "dmHandle.h"
 
-
 static void *dnodeThreadRoutine(void *param) {
-  SDnode     *pDnode = param;
-  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
+  SDnodeMgmt *pMgmt = param;
+  SDnode     *pDnode = pMgmt->pDnode;
   int64_t     lastStatusTime = taosGetTimestampMs();
   int64_t     lastMonitorTime = lastStatusTime;
 
@@ -49,7 +48,6 @@ static void *dnodeThreadRoutine(void *param) {
     // }
   }
 }
-
 
 static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
   int32_t code = 0;

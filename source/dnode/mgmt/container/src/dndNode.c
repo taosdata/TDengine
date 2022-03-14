@@ -15,10 +15,10 @@
 
 #define _DEFAULT_SOURCE
 #include "dndNode.h"
-#include "dmMgmt.h"
 #include "dndTransport.h"
 
 #include "bmInt.h"
+#include "dmInt.h"
 #include "mmInt.h"
 #include "qmInt.h"
 #include "smInt.h"
@@ -43,6 +43,10 @@ static bool dndRequireNode(SMgmtWrapper *pMgmt) {
   return required;
 }
 
+static int32_t dndOpenNode(SMgmtWrapper *pWrapper) { return (*pWrapper->fp.openFp)(pWrapper); }
+
+static void dndCloseNode(SMgmtWrapper *pWrapper) { (*pWrapper->fp.closeFp)(pWrapper); }
+
 static void dndClearMemory(SDnode *pDnode) {
   for (ENodeType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pMgmt = &pDnode->wrappers[n];
@@ -51,24 +55,10 @@ static void dndClearMemory(SDnode *pDnode) {
   if (pDnode->pLockFile != NULL) {
     taosUnLockFile(pDnode->pLockFile);
     taosCloseFile(&pDnode->pLockFile);
+    pDnode->pLockFile = NULL;
   }
-  tfree(pDnode->path);
+  tfree(pDnode);
   dDebug("dnode object memory is cleared, data:%p", pDnode);
-}
-
-static int32_t dndInitResource(SDnode *pDnode) {
-
-
-
-  return 0;
-}
-
-static void dndClearResource(SDnode *pDnode) {
-  dndCleanupTrans(pDnode);
-  dndStopMgmt(pDnode);
-  dndCleanupMgmt(pDnode);
-  tfsClose(pDnode->pTfs);
-  dDebug("dnode object resource is cleared, data:%p", pDnode);
 }
 
 SDnode *dndCreate(SDndCfg *pCfg) {
@@ -84,12 +74,18 @@ SDnode *dndCreate(SDndCfg *pCfg) {
   }
 
   dndSetStatus(pDnode, DND_STAT_INIT);
+  pDnode->pLockFile = dndCheckRunning(pCfg->dataDir);
+  if (pDnode->pLockFile == NULL) {
+    goto _OVER;
+  }
 
-  snprintf(path, sizeof(path), "%s%sdnode", pCfg->dataDir, TD_DIRSEP);
-  pDnode->path = strdup(path);
-  if (taosMkDir(path) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to create dir:%s since %s", path, terrstr());
+  if (dndInitServer(pDnode) != 0) {
+    dError("failed to init trans server since %s", terrstr());
+    goto _OVER;
+  }
+
+  if (dndInitClient(pDnode) != 0) {
+    dError("failed to init trans client since %s", terrstr());
     goto _OVER;
   }
 
@@ -107,10 +103,15 @@ SDnode *dndCreate(SDndCfg *pCfg) {
   pDnode->wrappers[BNODE].name = "bnode";
   memcpy(&pDnode->cfg, pCfg, sizeof(SDndCfg));
 
+  if (dndSetMsgHandle(pDnode) != 0) {
+    goto _OVER;
+  }
+
   for (ENodeType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     snprintf(path, sizeof(path), "%s%s%s", pCfg->dataDir, TD_DIRSEP, pDnode->wrappers[n].name);
     pWrapper->path = strdup(path);
+    pWrapper->pDnode = pDnode;
     if (pDnode->wrappers[n].path == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _OVER;
@@ -127,17 +128,11 @@ SDnode *dndCreate(SDndCfg *pCfg) {
     }
   }
 
-  pDnode->pLockFile = dndCheckRunning(pCfg->dataDir);
-  if (pDnode->pLockFile == NULL) {
-    goto _OVER;
-  }
-
   code = 0;
 
 _OVER:
   if (code != 0 && pDnode) {
     dndClearMemory(pDnode);
-    tfree(pDnode);
     dError("failed to create dnode object since %s", terrstr());
   } else {
     dInfo("dnode object is created, data:%p", pDnode);
@@ -157,64 +152,53 @@ void dndClose(SDnode *pDnode) {
   dInfo("start to close dnode, data:%p", pDnode);
   dndSetStatus(pDnode, DND_STAT_STOPPED);
 
-  dndClearResource(pDnode);
+  dndCleanupServer(pDnode);
+  dndCleanupClient(pDnode);
+
+  for (ENodeType n = 0; n < NODE_MAX; ++n) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+    dndCloseNode(pWrapper);
+  }
+
   dndClearMemory(pDnode);
-  tfree(pDnode);
   dInfo("dnode object is closed, data:%p", pDnode);
 }
 
-static int32_t dndOpenNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
-  // if (tsMultiProcess) {
-  //   SProcCfg cfg = {0};
-  //   pWrapper->pProc = taosProcInit(&cfg);
-  //   if (taosProcIsChild(pWrapper->pProc)) {
-  //     pWrapper->procType = PROC_CHILD;
-  //     dInfo("node:%s, will start in child process", pWrapper->name);
-  //   } else {
-  //     pWrapper->procType = PROC_PARENT;
-  //     dInfo("node:%s, will start in parent process", pWrapper->name);
-  //   }
-  // } else {
-  //   pWrapper->procType = PROC_SINGLE;
-  //   dInfo("node:%s, will start in single process mnode", pWrapper->name);
-  // }
-
-  // if (pWrapper->procType == PROC_SINGLE || pWrapper->procType == PROC_CHILD) {
-  //   SDndInfo info;
-  //   pWrapper->pNode = (*pWrapper->fp.openFp)(pWrapper->path, &info);
-  //   if (pWrapper != NULL) {
-  //     return -1;
-  //   }
-  // }
-
-  // return 0;
-
-   (*pWrapper->fp.openFp)(pWrapper);
-  return 0;
-}
-
-static void dndClearNodeExecpt(SDnode *pDnode, SMgmtWrapper *pWrapper){}
-
 static int32_t dndRunInSingleProcess(SDnode *pDnode) {
   dInfo("dnode run in single process mode");
+
   for (ENodeType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+    if (!pWrapper->required) continue;
+
     dInfo("node:%s, will start in single process", pWrapper->name);
-    if (dndOpenNode(pDnode, pWrapper) != 0) {
+    if (dndOpenNode(pWrapper) != 0) {
       dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
       return -1;
     }
   }
+
   return 0;
+}
+
+static void dndClearNodesExecpt(SDnode *pDnode, ENodeType except) {
+  dndCleanupServer(pDnode);
+  for (ENodeType n = 0; n < NODE_MAX; ++n) {
+    if (except == n) continue;
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+    dndCloseNode(pWrapper);
+  }
 }
 
 static int32_t dndRunInMultiProcess(SDnode *pDnode) {
   for (ENodeType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+    if (!pWrapper->required) continue;
+
     if (n == DNODE) {
       dInfo("node:%s, will start in parent process", pWrapper->name);
       pWrapper->procType = PROC_PARENT;
-      if (dndOpenNode(pDnode, pWrapper) != 0) {
+      if (dndOpenNode(pWrapper) != 0) {
         dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
         return -1;
       }
@@ -236,17 +220,13 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
       dndResetLog(pWrapper);
 
       dInfo("node:%s, clean up resources inherited from parent", pWrapper->name);
-      dndClearNodeExecpt(pDnode, pWrapper);
-
-      dInfo("node:%s, init trans client in child process", pWrapper->name);
-      dndInitClient(pDnode);
+      dndClearNodesExecpt(pDnode, n);
 
       dInfo("node:%s, will be initialized in child process", pWrapper->name);
-      dndOpenNode(pDnode, pWrapper);
+      dndOpenNode(pWrapper);
     } else {
       dInfo("node:%s, will not start in parent process", pWrapper->name);
       pWrapper->procType = PROC_PARENT;
-      dndOpenNode(pDnode, pWrapper);
     }
   }
 

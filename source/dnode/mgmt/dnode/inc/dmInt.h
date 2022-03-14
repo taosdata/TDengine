@@ -22,7 +22,29 @@
 extern "C" {
 #endif
 
+typedef struct SDnodeMgmt {
+  int32_t      dnodeId;
+  int32_t      dropped;
+  int64_t      clusterId;
+  int64_t      dver;
+  int64_t      rebootTime;
+  int64_t      updateTime;
+  int8_t       statusSent;
+  SEpSet       mnodeEpSet;
+  SHashObj    *dnodeHash;
+  SArray      *pDnodeEps;
+  pthread_t   *threadId;
+  SRWLatch     latch;
+  SDnodeWorker mgmtWorker;
+  SDnodeWorker statusWorker;
+  SMsgHandle   msgHandles[TDMT_MAX];
+  const char  *path;
+  SDnode      *pDnode;
+} SDnodeMgmt;
+
 SMgmtFp dmGetMgmtFp();
+void    dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
+void    dndGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet);
 
 #ifdef __cplusplus
 }

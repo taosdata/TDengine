@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_MGMT_H_
-#define _TD_DND_MGMT_H_
+#ifndef _TD_DND_DNODE_MGMT_H_
+#define _TD_DND_DNODE_MGMT_H_
 
-#include "dndInt.h"
+#include "dmInt.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,4 +38,4 @@ void dndProcessMgmtMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg) ;
 }
 #endif
 
-#endif /*_TD_DND_MGMT_H_*/
+#endif /*_TD_DND_DNODE_MGMT_H_*/
