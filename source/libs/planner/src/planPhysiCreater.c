@@ -256,6 +256,7 @@ static SPhysiNode* createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   pTableScan->scanRange = pScanLogicNode->scanRange;
   vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
   taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
+  tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
   return (SPhysiNode*)pTableScan;
 }
 

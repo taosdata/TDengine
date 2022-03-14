@@ -278,13 +278,13 @@ int32_t clientProcessErrorList(SArray **pList) {
   
   for (int32_t i = 0; i < errNum; ++i) {
     SQueryErrorInfo *errInfo = taosArrayGet(errList, i);
-    if (TSDB_CODE_VND_HASH_MISMATCH == errInfo->code) {
+    if (NEED_CLIENT_REFRESH_VG_ERROR(errInfo->code)) {
       if (i == (errNum - 1)) {
         break;
       }
       
       // TODO REMOVE SAME DB ERROR
-    } else if (NEED_CLIENT_RM_TBLMETA_ERROR(errInfo->code)) {
+    } else if (NEED_CLIENT_REFRESH_TBLMETA_ERROR(errInfo->code) || NEED_CLIENT_RM_TBLMETA_ERROR(errInfo->code)) {
       continue;
     } else {
       taosArrayRemove(errList, i);
@@ -355,6 +355,28 @@ SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
         }
         
         catalogRemoveTableMeta(pCatalog, &errInfo->tableName);
+      } else if (NEED_CLIENT_REFRESH_TBLMETA_ERROR(errInfo->code)) {
+        ++needRetryNum;
+        
+        SCatalog *pCatalog = NULL;
+        tcode = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
+        if (tcode != TSDB_CODE_SUCCESS) {
+          ++needRetryFailNum;
+          code = tcode;
+          continue;
+        }
+        
+        SEpSet epset = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+
+        char dbFName[TSDB_DB_FNAME_LEN];
+        tNameGetFullDbName(&errInfo->tableName, dbFName);
+        
+        tcode = catalogRefreshTableMeta(pCatalog, pTscObj->pAppInfo->pTransporter, &epset, &errInfo->tableName, -1);
+        if (tcode != TSDB_CODE_SUCCESS) {
+          ++needRetryFailNum;
+          code = tcode;
+          continue;
+        }
       }
     }
 

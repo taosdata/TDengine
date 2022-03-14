@@ -933,6 +933,29 @@ _return:
   SCH_RET(schProcessOnTaskFailure(pJob, pJob->fetchTask, code, NULL));
 }
 
+int32_t schRspHeadToErrList(SSchJob *pJob, SSchTask *pTask, int32_t errCode, SRspHead *head, SArray **errList) {
+  SQueryErrorInfo errInfo = {0};
+  errInfo.code = errCode;
+  if (tNameFromString(&errInfo.tableName, head->dbFName, T_NAME_ACCT | T_NAME_DB)) {
+    SCH_TASK_ELOG("invalid rsp head, dbFName:%s", head->dbFName);
+    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  *errList = taosArrayInit(1, sizeof(SQueryErrorInfo));
+  if (NULL == *errList) {
+    SCH_TASK_ELOG("taskArrayInit %d errInfo failed", 1);
+    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
+  if (NULL == taosArrayPush(*errList, &errInfo)) {
+    SCH_TASK_ELOG("taosArrayPush err to errList failed, dbFName:%s", head->dbFName);
+    taosArrayDestroy(*errList);
+    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 // Note: no more task error processing, handled in function internal
 int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, char *msg, int32_t msgSize, int32_t rspCode) {
@@ -954,6 +977,12 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
     case TDMT_VND_CREATE_TABLE_RSP: {
         SVCreateTbBatchRsp batchRsp = {0};
         if (msg) {
+          if (ONLY_RSP_HEAD_ERROR(rspCode)) {
+            SCH_ERR_JRET(schRspHeadToErrList(pJob, pTask, rspCode, (SRspHead *)msg, &errList));
+            errInfoGot = true;
+            SCH_ERR_JRET(rspCode);
+          }
+          
           tDeserializeSVCreateTbBatchRsp(msg, msgSize, &batchRsp);
           if (batchRsp.rspList) {
             int32_t num = taosArrayGetSize(batchRsp.rspList);
@@ -973,7 +1002,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
               taosArrayPush(errList, &errInfo);
             }
 
-            taosArrayDestroy(batchRsp.rspList);            
+            taosArrayDestroy(batchRsp.rspList);
             errInfoGot = true;
           }
         }        
@@ -984,22 +1013,21 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         break;
       }
     case TDMT_VND_SUBMIT_RSP: {
-        #if 0 //TODO OPEN THIS
-        SSubmitRsp *rsp = (SSubmitRsp *)msg;
+        if (msg) {
+          if (ONLY_RSP_HEAD_ERROR(rspCode)) {
+            SCH_ERR_JRET(schRspHeadToErrList(pJob, pTask, rspCode, (SRspHead *)msg, &errList));
+            errInfoGot = true;
+            SCH_ERR_JRET(rspCode);
+          }
+          
+          SSubmitRsp *rsp = (SSubmitRsp *)msg;
+          
+          SCH_ERR_JRET(rsp->code);
 
-        if (rspCode != TSDB_CODE_SUCCESS || NULL == msg || rsp->code != TSDB_CODE_SUCCESS) {
-          SCH_ERR_RET(schProcessOnTaskFailure(pJob, pTask, rspCode));
-        }
-
-        pJob->resNumOfRows += rsp->affectedRows;
-        #else
-        SCH_ERR_JRET(rspCode);
-
-        SSubmitRsp *rsp = (SSubmitRsp *)msg;
-        if (rsp) {
           pJob->resNumOfRows += rsp->affectedRows;
         }
-        #endif
+
+        SCH_ERR_JRET(rspCode);
 
         SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
 
@@ -1008,6 +1036,12 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
     case TDMT_VND_QUERY_RSP: {
         SQueryTableRsp rsp = {0};
         if (msg) {
+          if (ONLY_RSP_HEAD_ERROR(rspCode)) {
+            SCH_ERR_JRET(schRspHeadToErrList(pJob, pTask, rspCode, (SRspHead *)msg, &errList));
+            errInfoGot = true;
+            SCH_ERR_JRET(rspCode);
+          }
+          
           tDeserializeSQueryTableRsp(msg, msgSize, &rsp);
           if (rsp.code) {
             errInfo.code = rsp.code;
@@ -1326,6 +1360,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
 
       SSubQueryMsg *pMsg = msg;
       pMsg->header.vgId = htonl(addr->nodeId);
+      strcpy(pMsg->header.dbFName, pTask->plan->dbFName);
       pMsg->sId        = htobe64(schMgmt.sId);
       pMsg->queryId    = htobe64(pJob->queryId);
       pMsg->taskId     = htobe64(pTask->taskId);

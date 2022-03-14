@@ -1722,18 +1722,17 @@ int32_t ctgRefreshDBVgInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, c
 
   if (inCache) {
     input.dbId = dbCache->dbId;
-    input.vgVersion = dbCache->vgInfo->vgVersion;
-    input.numOfTable = dbCache->vgInfo->numOfTable;
 
     ctgReleaseVgInfo(dbCache);
     ctgReleaseDBCache(pCtg, dbCache);
-  } else {
-    input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
   }
+  
+  input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
+  input.numOfTable = 0;
 
   code = ctgGetDBVgInfoFromMnode(pCtg, pRpc, pMgmtEps, &input, &DbOut);
   if (code) {
-    if (CTG_DB_NOT_EXIST(code) && input.vgVersion > CTG_DEFAULT_INVALID_VERSION) {
+    if (CTG_DB_NOT_EXIST(code) && inCache) {
       ctgDebug("db no longer exist, dbFName:%s, dbId:%" PRIx64, input.db, input.dbId);
       ctgPushRmDBMsgInQueue(pCtg, input.db, input.dbId);
     }
@@ -2660,7 +2659,7 @@ int32_t catalogRefreshTableMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgm
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  CTG_API_LEAVE(ctgRefreshTblMeta(pCtg, pTrans, pMgmtEps, pTableName, CTG_FLAG_FORCE_UPDATE | CTG_FLAG_MAKE_STB(isSTable), NULL, false));
+  CTG_API_LEAVE(ctgRefreshTblMeta(pCtg, pTrans, pMgmtEps, pTableName, CTG_FLAG_FORCE_UPDATE | CTG_FLAG_MAKE_STB(isSTable), NULL, true));
 }
 
 int32_t catalogRefreshGetTableMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta, int32_t isSTable) {

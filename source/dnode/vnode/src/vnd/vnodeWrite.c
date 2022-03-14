@@ -83,21 +83,20 @@ int  vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       for (int i = 0; i < reqNum; i++) {
         SVCreateTbReq *pCreateTbReq = taosArrayGet(vCreateTbBatchReq.pArray, i);
 
-        // TODO OPEN THIS
-        #if 0
         char tableFName[TSDB_TABLE_FNAME_LEN];
-        tNameExtractFullName(&pCreateTbReq->name, tableFName);
+        SMsgHead *pHead = (SMsgHead *)pMsg->pCont;
+        sprintf(tableFName, "%s.%s", pHead->dbFName, pCreateTbReq->name);
         
         int32_t code = vnodeValidateTableHash(&pVnode->config, tableFName);
         if (code) {
           SVCreateTbRsp rsp;
           rsp.code = code;
-          memcpy(rsp.tableName, pCreateTbReq->name, sizeof(rsp.tableName));
+          tNameFromString(&rsp.tableName, tableFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
           if (NULL == vCreateTbBatchRsp.rspList) {
             vCreateTbBatchRsp.rspList = taosArrayInit(reqNum - i, sizeof(SVCreateTbRsp));
             if (NULL == vCreateTbBatchRsp.rspList) {
-              vError("vgId:%d, failed to init array: %d", reqNum - i);
+              vError("vgId:%d, failed to init array: %d", pVnode->vgId, reqNum - i);
               terrno = TSDB_CODE_OUT_OF_MEMORY;
               return -1;
             }
@@ -105,8 +104,6 @@ int  vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
           taosArrayPush(vCreateTbBatchRsp.rspList, &rsp);
         }
-        
-        #endif
         
         if (metaCreateTable(pVnode->pMeta, pCreateTbReq) < 0) {
           // TODO: handle error

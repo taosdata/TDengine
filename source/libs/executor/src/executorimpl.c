@@ -8201,6 +8201,22 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhysiNode* pPhyNode, SExecTaskInfo* pTa
         }
       }
 
+      STbCfg* pTbCfg = metaGetTbInfoByUid(pHandle->meta, pScanPhyNode->uid);
+      if (pTbCfg == NULL) {
+        tb_uid_t uid = 0;
+        pTbCfg = metaGetTbInfoByName(pHandle->meta, pScanPhyNode->tableName.tname, &uid);
+        if (pTbCfg) {
+          errInfo->code = TSDB_CODE_TDB_TABLE_RECREATED;
+          errInfo->tableName = pScanPhyNode->tableName;
+          return NULL;
+        }
+        
+        errInfo->code = TSDB_CODE_TDB_INVALID_TABLE_ID;
+        errInfo->tableName = pScanPhyNode->tableName;
+        return NULL;
+      }
+      
+
       size_t      numOfCols = LIST_LENGTH(pScanPhyNode->pScanCols);
       tsdbReaderT pDataReader = doCreateDataReader((STableScanPhysiNode*)pPhyNode, pHandle, (uint64_t)queryId, taskId);
       if (NULL == pDataReader) {
