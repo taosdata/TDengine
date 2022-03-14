@@ -48,7 +48,7 @@ typedef struct SSrvConn {
 
 typedef struct SSrvMsg {
   SSrvConn* pConn;
-  STransMsg   msg;
+  STransMsg msg;
   queue     q;
 } SSrvMsg;
 
@@ -317,8 +317,8 @@ static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
   // impl later;
   tTrace("server conn %p prepare to send resp", smsg->pConn);
 
-  SSrvConn* pConn = smsg->pConn;
-  STransMsg*  pMsg = &smsg->msg;
+  SSrvConn*  pConn = smsg->pConn;
+  STransMsg* pMsg = &smsg->msg;
   if (pMsg->pCont == 0) {
     pMsg->pCont = (void*)rpcMallocCont(0);
     pMsg->contLen = 0;
@@ -798,8 +798,8 @@ void transSendResponse(const STransMsg* pMsg) {
   tTrace("server conn %p start to send resp", pConn);
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
 }
-int transGetConnInfo(void *thandle, STransHandleInfo *pInfo) {
-  SSrvConn* pConn = thandle;
+int transGetConnInfo(void* thandle, STransHandleInfo* pInfo) {
+  SSrvConn*          pConn = thandle;
   struct sockaddr_in addr = pConn->addr;
 
   pInfo->clientIp = (uint32_t)(addr.sin_addr.s_addr);

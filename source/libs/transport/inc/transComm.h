@@ -120,8 +120,8 @@ typedef struct {
   // SEpSet*          pSet;      // for synchronous API
 } SRpcReqContext;
 
-typedef SRpcMsg  STransMsg;
-typedef SRpcInfo STrans;  
+typedef SRpcMsg      STransMsg;
+typedef SRpcInfo     STrans;
 typedef SRpcConnInfo STransHandleInfo;
 
 typedef struct {
@@ -139,14 +139,13 @@ typedef struct {
   int64_t rid;       // refId returned by taosAddRef
 
   STransMsg* pRsp;  // for synchronous API
-  tsem_t*  pSem;  // for synchronous API
+  tsem_t*    pSem;  // for synchronous API
 
   int      hThrdIdx;
   char*    ip;
   uint32_t port;
   // SEpSet*          pSet;      // for synchronous API
 } STransConnCtx;
-
 
 #pragma pack(push, 1)
 
@@ -248,24 +247,21 @@ bool transReadComplete(SConnBuffer* connBuf);
 
 int transSetConnOption(uv_tcp_t* stream);
 
-
 void transRefSrvHandle(void* handle);
 void transUnrefSrvHandle(void* handle);
 
 void transRefCliHandle(void* handle);
 void transUnrefCliHandle(void* handle);
 
-
-void transSendRequest(void *shandle, const char *ip, uint32_t port, STransMsg *pMsg);
-void transSendRecv(void* shandle, const char *ip, uint32_t port, STransMsg *pMsg, STransMsg *pRsp);
+void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg);
+void transSendRecv(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg, STransMsg* pRsp);
 void transSendResponse(const STransMsg* pMsg);
-int transGetConnInfo(void *thandle, STransHandleInfo *pInfo);
-
+int  transGetConnInfo(void* thandle, STransHandleInfo* pInfo);
 
 void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
 void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
 
-void transCloseClient(void *arg);
-void transCloseServer(void *arg);
+void transCloseClient(void* arg);
+void transCloseServer(void* arg);
 
 #endif
