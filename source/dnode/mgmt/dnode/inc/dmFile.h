@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_HADNLE_H_
-#define _TD_DND_HADNLE_H_
+#ifndef _TD_DND_FILE_H_
+#define _TD_DND_FILE_H_
 
 #include "dndInt.h"
 
@@ -22,11 +22,16 @@
 extern "C" {
 #endif
 
-void       dndInitMsgHandles(SMgmtWrapper *pWrapper);
-SMsgHandle dndGetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgIndex);
+int32_t dmReadFile(SDnode *pDnode);
+int32_t dmWriteFile(SDnode *pDnode);
+
+void dndUpdateDnodeEps(SDnode *pDnode, SArray *pDnodeEps);
+void dndResetDnodes(SDnode *pDnode, SArray *pDnodeEps);
+void dndPrintDnodes(SDnode *pDnode);
+bool dndIsEpChanged(SDnode *pDnode, int32_t dnodeId, char *pEp);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DND_HADNLE_H_*/
+#endif /*_TD_DND_FILE_H_*/

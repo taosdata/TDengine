@@ -14,9 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndHandle.h"
+#include "dmHandle.h"
 #include "dndWorker.h"
-#include "dndMgmt.h"
+#include "dmMgmt.h"
 
 static void dndSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp) {
   SDnodeMgmt *pMgmt = pWrapper->pMgmt;
@@ -52,7 +52,7 @@ void dndInitMsgHandles(SMgmtWrapper *pWrapper) {
   dndSetMsgHandle(pWrapper, TDMT_MND_AUTH_RSP, dndProcessMgmtMsg);
 }
 
-SMsgHandle dndGetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgIndex) {
+SMsgHandle dmGetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgIndex) {
   SDnodeMgmt *pMgmt = pWrapper->pMgmt;
   return pMgmt->msgHandles[msgIndex];
 }

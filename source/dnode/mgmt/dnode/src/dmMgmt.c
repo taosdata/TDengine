@@ -14,9 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndMgmt.h"
-
-#include "dndHandle.h"
+#include "dmMgmt.h"
+#include "dmWorker.h"
+// #include "dmMgmt.h"
+#include "dmFile.h"
+#include "dmHandle.h"
 #include "dndMonitor.h"
 // #include "dndBnode.h"
 // #include "mm.h"
@@ -30,9 +32,6 @@
 #if 0
 static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg);
 
-static int32_t dndReadFile(SDnode *pDnode);
-static int32_t dndWriteFile(SDnode *pDnode);
-static void   *dnodeThreadRoutine(void *param);
 
 static int32_t dndProcessConfigDnodeReq(SDnode *pDnode, SRpcMsg *pReq);
 static void    dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp);
@@ -164,7 +163,7 @@ static void dndUpdateDnodeCfg(SDnode *pDnode, SDnodeCfg *pCfg) {
     taosWLockLatch(&pMgmt->latch);
     pMgmt->dnodeId = pCfg->dnodeId;
     pMgmt->clusterId = pCfg->clusterId;
-    dndWriteFile(pDnode);
+    dmWriteFile(pDnode);
     taosWUnLockLatch(&pMgmt->latch);
   }
 }
@@ -176,7 +175,7 @@ static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp) {
     if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->dropped && pMgmt->dnodeId > 0) {
       dInfo("dnode:%d, set to dropped since not exist in mnode", pMgmt->dnodeId);
       pMgmt->dropped = 1;
-      dndWriteFile(pDnode);
+      dmWriteFile(pDnode);
     }
   } else {
     SStatusRsp statusRsp = {0};
@@ -214,84 +213,6 @@ void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
 
   SRpcMsg rpcRsp = {.handle = pReq->handle, .pCont = pStartup, .contLen = sizeof(SStartupReq)};
   rpcSendResponse(&rpcRsp);
-}
-
-static void *dnodeThreadRoutine(void *param) {
-  SDnode     *pDnode = param;
-  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-  int64_t     lastStatusTime = taosGetTimestampMs();
-  int64_t     lastMonitorTime = lastStatusTime;
-
-  setThreadName("dnode-hb");
-
-  while (true) {
-    pthread_testcancel();
-    taosMsleep(200);
-    if (dndGetStatus(pDnode) != DND_STAT_RUNNING || pMgmt->dropped) {
-      continue;
-    }
-
-    int64_t curTime = taosGetTimestampMs();
-
-    float statusInterval = (curTime - lastStatusTime) / 1000.0f;
-    if (statusInterval >= tsStatusInterval && !pMgmt->statusSent) {
-      dndSendStatusReq(pDnode);
-      lastStatusTime = curTime;
-    }
-
-    float monitorInterval = (curTime - lastMonitorTime) / 1000.0f;
-    if (monitorInterval >= tsMonitorInterval) {
-      dndSendMonitorReport(pDnode);
-      lastMonitorTime = curTime;
-    }
-  }
-}
-
-int32_t dndInitMgmt(SDnode *pDnode) {
-  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-
-  pMgmt->dnodeId = 0;
-  pMgmt->rebootTime = taosGetTimestampMs();
-  pMgmt->dropped = 0;
-  pMgmt->clusterId = 0;
-  taosInitRWLatch(&pMgmt->latch);
-
-  pMgmt->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
-  if (pMgmt->dnodeHash == NULL) {
-    dError("failed to init dnode hash");
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  if (dndReadFile(pDnode) != 0) {
-    dError("failed to read file:%s since %s", pMgmt->file, terrstr());
-    return -1;
-  }
-
-  if (pMgmt->dropped) {
-    dError("dnode not start since its already dropped");
-    return -1;
-  }
-
-  if (dndInitWorker(pDnode, &pMgmt->mgmtWorker, DND_WORKER_SINGLE, "dnode-mgmt", 1, 1, dndProcessMgmtQueue) != 0) {
-    dError("failed to start dnode mgmt worker since %s", terrstr());
-    return -1;
-  }
-
-  if (dndInitWorker(pDnode, &pMgmt->statusWorker, DND_WORKER_SINGLE, "dnode-status", 1, 1, dndProcessMgmtQueue) != 0) {
-    dError("failed to start dnode mgmt worker since %s", terrstr());
-    return -1;
-  }
-
-  pMgmt->threadId = taosCreateThread(dnodeThreadRoutine, pDnode);
-  if (pMgmt->threadId == NULL) {
-    dError("failed to init dnode thread");
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  dInfo("dnode-mgmt is initialized");
-  return 0;
 }
 
 void dndStopMgmt(SDnode *pDnode) {
@@ -431,7 +352,6 @@ static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
 
 
 
-int32_t dndInitMgmt(SDnode *pDnode) {return 0;}
 void dndStopMgmt(SDnode *pDnode) {}
 
 void dndCleanupMgmt(SDnode *pDnode){}
@@ -446,13 +366,80 @@ void dndGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {}
 void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq){}
 void dndProcessMgmtMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg){}
 
-bool dndRequireNode(SMgmtWrapper *pWrapper) { return true; }
+static int32_t dmInit(SMgmtWrapper *pWrapper) {
+  SDnodeMgmt *pMgmt = calloc(1, sizeof(SDnodeMgmt));
 
-SMgmtFp dndGetMgmtFp() {
+  pMgmt->dnodeId = 0;
+  pMgmt->rebootTime = taosGetTimestampMs();
+  pMgmt->dropped = 0;
+  pMgmt->clusterId = 0;
+  taosInitRWLatch(&pMgmt->latch);
+
+  pMgmt->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  if (pMgmt->dnodeHash == NULL) {
+    dError("node:%s, failed to init dnode hash", pWrapper->name);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  if (dmReadFile(pWrapper->pDnode) != 0) {
+    dError("node:%s, failed to read file since %s", pWrapper->name, terrstr());
+    return -1;
+  }
+
+  if (pMgmt->dropped) {
+    dError("node:%s, will not start since its already dropped", pWrapper->name);
+    return -1;
+  }
+
+  if (dmStartWorker(pMgmt) != 0) {
+     dError("node:%s, failed to start worker since %s", pWrapper->name, terrstr());
+    return -1;
+  }
+
+  dInfo("dnode-mgmt is initialized");
+  return 0;
+
+  // dndSetStatus(pDnode, DND_STAT_RUNNING);
+  // dndSendStatusReq(pDnode);
+  // dndReportStartup(pDnode, "TDengine", "initialized successfully");
+
+#if 0
+  if (dndInitTrans(pDnode) != 0) {
+    dError("failed to init transport since %s", terrstr());
+    return -1;
+  }
+
+    SDiskCfg dCfg = {0};
+  tstrncpy(dCfg.dir, pDnode->cfg.dataDir, TSDB_FILENAME_LEN);
+  dCfg.level = 0;
+  dCfg.primary = 1;
+  SDiskCfg *pDisks = pDnode->cfg.pDisks;
+  int32_t   numOfDisks = pDnode->cfg.numOfDisks;
+  if (numOfDisks <= 0 || pDisks == NULL) {
+    pDisks = &dCfg;
+    numOfDisks = 1;
+  }
+
+  pDnode->pTfs = tfsOpen(pDisks, numOfDisks);
+  if (pDnode->pTfs == NULL) {
+    dError("failed to init tfs since %s", terrstr());
+    return -1;
+  }
+#endif
+}
+
+static void dmCleanup(SDnode *pDnode, SMgmtWrapper *pWrapper){
+
+}
+
+static bool dmRequire(SMgmtWrapper *pWrapper) { return true; }
+
+SMgmtFp dmGetMgmtFp() {
   SMgmtFp mgmtFp = {0};
-  mgmtFp.openFp = NULL;
-  mgmtFp.closeFp = NULL;
-  mgmtFp.requiredFp = dndRequireNode;
-  mgmtFp.getMsgHandleFp = dndGetMsgHandle;
+  mgmtFp.openFp = dmInit;
+  mgmtFp.closeFp = dmCleanup;
+  mgmtFp.requiredFp = dmRequire;
+  mgmtFp.getMsgHandleFp = dmGetMsgHandle;
   return mgmtFp;
 }

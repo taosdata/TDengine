@@ -5,6 +5,7 @@ aux_source_directory(bnode/src DNODE_SRC)
 aux_source_directory(snode/src DNODE_SRC)
 aux_source_directory(vnode/src DNODE_SRC)
 aux_source_directory(mnode/src DNODE_SRC)
+aux_source_directory(container/src DNODE_SRC)
 
 add_library(dnode STATIC ${DNODE_SRC})
 target_link_libraries(
@@ -19,6 +20,7 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/snode/inc"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/vnode/inc"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/mnode/inc"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/container/inc"
 )
 
 add_subdirectory(exec)

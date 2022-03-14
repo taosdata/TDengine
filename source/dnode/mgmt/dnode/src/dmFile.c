@@ -14,9 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndFile.h"
+#include "dmFile.h"
 
-int32_t dndReadFile(SDnode *pDnode) {
+int32_t dmReadFile(SDnode *pDnode) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
 
   pMgmt->pDnodeEps = taosArrayInit(1, sizeof(SDnodeEp));
@@ -153,7 +153,7 @@ PRASE_DNODE_OVER:
   return 0;
 }
 
-int32_t dndWriteFile(SDnode *pDnode) {
+int32_t dmWriteFile(SDnode *pDnode) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
 
   char file[PATH_MAX];
@@ -220,12 +220,12 @@ void dndUpdateDnodeEps(SDnode *pDnode, SArray *pDnodeEps) {
   int32_t numOfEpsOld = (int32_t)taosArrayGetSize(pMgmt->pDnodeEps);
   if (numOfEps != numOfEpsOld) {
     dndResetDnodes(pDnode, pDnodeEps);
-    dndWriteFile(pDnode);
+    dmWriteFile(pDnode);
   } else {
     int32_t size = numOfEps * sizeof(SDnodeEp);
     if (memcmp(pMgmt->pDnodeEps->pData, pDnodeEps->pData, size) != 0) {
       dndResetDnodes(pDnode, pDnodeEps);
-      dndWriteFile(pDnode);
+      dmWriteFile(pDnode);
     }
   }
 

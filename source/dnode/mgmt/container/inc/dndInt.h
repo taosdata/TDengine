@@ -69,8 +69,7 @@ typedef void (*NodeMsgFp)(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg
 
 
 typedef int32_t (*MndMsgFp)(SDnode *pDnode, SMndMsg *pMsg);
-
-typedef SMgmtWrapper *(*OpenNodeFp)(SDnode *pDnode, const char *path);
+typedef int32_t (*OpenNodeFp)(SMgmtWrapper *pWrapper);
 typedef void (*CloseNodeFp)(SDnode *pDnode, SMgmtWrapper *pWrapper);
 typedef bool (*RequireNodeFp)(SMgmtWrapper *pWrapper);
 typedef int32_t (*MgmtHandleMsgFp)(SMgmtWrapper *pNode, SNodeMsg *pMsg);
@@ -254,7 +253,7 @@ SMgmtWrapper *dndGetWrapper(SDnode *pDnode, ENodeType nodeType) ;
 
 void dndProcessRpcMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet);
 
-SMgmtFp dndGetMgmtFp();
+SMgmtFp dmGetMgmtFp();
 
 #ifdef __cplusplus
 }

@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dndMain.h"
-#include "dndMgmt.h"
+#include "dmMgmt.h"
 #include "dndTransport.h"
 
 #include "bmInt.h"
@@ -57,36 +57,9 @@ static void dndClearMemory(SDnode *pDnode) {
 }
 
 static int32_t dndInitResource(SDnode *pDnode) {
-  SDiskCfg dCfg = {0};
-  tstrncpy(dCfg.dir, pDnode->cfg.dataDir, TSDB_FILENAME_LEN);
-  dCfg.level = 0;
-  dCfg.primary = 1;
-  SDiskCfg *pDisks = pDnode->cfg.pDisks;
-  int32_t   numOfDisks = pDnode->cfg.numOfDisks;
-  if (numOfDisks <= 0 || pDisks == NULL) {
-    pDisks = &dCfg;
-    numOfDisks = 1;
-  }
 
-  pDnode->pTfs = tfsOpen(pDisks, numOfDisks);
-  if (pDnode->pTfs == NULL) {
-    dError("failed to init tfs since %s", terrstr());
-    return -1;
-  }
 
-  if (dndInitMgmt(pDnode) != 0) {
-    dError("failed to init mgmt since %s", terrstr());
-    return -1;
-  }
 
-  if (dndInitTrans(pDnode) != 0) {
-    dError("failed to init transport since %s", terrstr());
-    return -1;
-  }
-
-  dndSetStatus(pDnode, DND_STAT_RUNNING);
-  dndSendStatusReq(pDnode);
-  dndReportStartup(pDnode, "TDengine", "initialized successfully");
   return 0;
 }
 
@@ -120,7 +93,7 @@ SDnode *dndCreate(SDndCfg *pCfg) {
     goto _OVER;
   }
 
-  pDnode->wrappers[DNODE].fp = dndGetMgmtFp();
+  pDnode->wrappers[DNODE].fp = dmGetMgmtFp();
   pDnode->wrappers[MNODE].fp = mmGetMgmtFp();
   pDnode->wrappers[VNODES].fp = vmGetMgmtFp();
   pDnode->wrappers[QNODE].fp = qmGetMgmtFp();
@@ -216,7 +189,7 @@ static int32_t dndOpenNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
 
   // return 0;
 
-  pWrapper->pMgmt = (*pWrapper->fp.openFp)(pDnode, pWrapper->path);
+   (*pWrapper->fp.openFp)(pWrapper);
   return 0;
 }
 

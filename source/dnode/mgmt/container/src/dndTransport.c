@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dndTransport.h"
-#include "dndMgmt.h"
+#include "dmMgmt.h"
 #include "mmInt.h"
 
 #define INTERNAL_USER   "_dnd"
@@ -207,7 +207,7 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
   return rpcRsp.code;
 }
 
-static int32_t dndInitServer(SDnode *pDnode) {
+ int32_t dndInitServer(SDnode *pDnode) {
   STransMgmt *pMgmt = &pDnode->tmgmt;
 
   int32_t numOfThreads = (int32_t)((tsNumOfCores * tsNumOfThreadsPerCore) / 2.0);

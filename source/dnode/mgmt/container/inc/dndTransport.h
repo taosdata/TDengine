@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_FILE_H_
-#define _TD_DND_FILE_H_
+#ifndef _TD_DND_TRANSPORT_H_
+#define _TD_DND_TRANSPORT_H_
 
 #include "dndInt.h"
 
@@ -22,16 +22,16 @@
 extern "C" {
 #endif
 
-int32_t dndReadFile(SDnode *pDnode);
-int32_t dndWriteFile(SDnode *pDnode);
+int32_t dndInitTrans(SDnode *pDnode);
+void    dndCleanupTrans(SDnode *pDnode);
+int32_t dndInitServer(SDnode *pDnode);
+int32_t dndInitClient(SDnode *pDnode);
 
-void dndUpdateDnodeEps(SDnode *pDnode, SArray *pDnodeEps);
-void dndResetDnodes(SDnode *pDnode, SArray *pDnodeEps);
-void dndPrintDnodes(SDnode *pDnode);
-bool dndIsEpChanged(SDnode *pDnode, int32_t dnodeId, char *pEp);
+int32_t dndSendReqToMnode(SDnode *pDnode, SRpcMsg *pRpcMsg);
+int32_t dndSendReqToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pRpcMsg);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DND_FILE_H_*/
+#endif /*_TD_DND_TRANSPORT_H_*/

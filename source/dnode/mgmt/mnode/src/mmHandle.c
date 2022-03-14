@@ -18,7 +18,7 @@
 #include "mmWorker.h"
 
 #if 0
-#include "dndMgmt.h"
+#include "dmMgmt.h"
 
 int32_t mmProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   SDCreateMnodeReq createReq = {0};

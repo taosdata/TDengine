@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dndMonitor.h"
-#include "dndMgmt.h"
+#include "dmMgmt.h"
 
 static int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {
   tstrncpy(pInfo->logdir.name, tsLogDir, sizeof(pInfo->logdir.name));

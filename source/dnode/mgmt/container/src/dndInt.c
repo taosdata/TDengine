@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dndInt.h"
-#include "dndHandle.h"
+#include "dmHandle.h"
 #include "dndTransport.h"
 #include "vmInt.h"
 
