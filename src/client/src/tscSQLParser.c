@@ -2819,7 +2819,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
     case TSDB_FUNC_ELAPSED:
     case TSDB_FUNC_MODE:
     case TSDB_FUNC_STATE_COUNT:
-    case TSDB_FUNC_STATE_DURATION:{
+    case TSDB_FUNC_STATE_DURATION:
+    case TSDB_FUNC_HYPERLOGLOG:{
       // 1. valid the number of parameters
       int32_t numOfParams =
           (pItem->pNode->Expr.paramList == NULL) ? 0 : (int32_t)taosArrayGetSize(pItem->pNode->Expr.paramList);
@@ -2890,7 +2891,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       if (functionId == TSDB_FUNC_MODE && pColumnSchema->colId == PRIMARYKEY_TIMESTAMP_COL_INDEX &&
           pColumnSchema->type == TSDB_DATA_TYPE_TIMESTAMP){
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg29);
-      } else if (!IS_NUMERIC_TYPE(pSchema->type) && (functionId != TSDB_FUNC_ELAPSED) && (functionId != TSDB_FUNC_MODE)) {
+      } else if (!IS_NUMERIC_TYPE(pSchema->type) && (functionId != TSDB_FUNC_ELAPSED) &&
+                 (functionId != TSDB_FUNC_MODE) && (functionId != TSDB_FUNC_HYPERLOGLOG)) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       } else if (IS_UNSIGNED_NUMERIC_TYPE(pSchema->type) &&
                  (functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE)) {
