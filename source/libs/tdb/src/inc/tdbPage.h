@@ -54,8 +54,8 @@ struct SPage {
   pthread_spinlock_t lock;
   // Fields below used by pager and am
   u8       *pPageHdr;
-  u8       *aCellIdx;
   u8       *pAmHdr;
+  u8       *pCellIdx;
   u8       *pFreeStart;
   u8       *pFreeEnd;
   SPageFtr *pPageFtr;
@@ -80,7 +80,7 @@ struct SPage {
 #define TDB_SPAGE_CCELLS(pPage)              (((SPageHdr *)(pPage)->pPageHdr)->cCells)
 #define TDB_SPAGE_FCELL(pPage)               (((SPageHdr *)(pPage)->pPageHdr)->fCell)
 #define TDB_SPAGE_NFREE(pPage)               (((SPageHdr *)(pPage)->pPageHdr)->nFree)
-#define TDB_SPAGE_CELL_OFFSET_AT(pPage, idx) ((u16 *)((pPage)->aCellIdx))[idx]
+#define TDB_SPAGE_CELL_OFFSET_AT(pPage, idx) ((u16 *)((pPage)->pCellIdx))[idx]
 
 #define TDB_SPAGE_FLAGS_SET(pPage, FLAGS)                TDB_SPAGE_FLAGS(pPage) = (FLAGS)
 #define TDB_SPAGE_NCELLS_SET(pPage, NCELLS)              TDB_SPAGE_NCELLS(pPage) = (NCELLS)
@@ -95,14 +95,14 @@ struct SPage {
 #define TDB_LPAGE_CCELLS(pPage)              TDB_GET_U24(((SPageHdrL *)(pPage)->pPageHdr)->cCells)
 #define TDB_LPAGE_FCELL(pPage)               TDB_GET_U24(((SPageHdrL *)(pPage)->pPageHdr)->fCell)
 #define TDB_LPAGE_NFREE(pPage)               TDB_GET_U24(((SPageHdrL *)(pPage)->pPageHdr)->nFree)
-#define TDB_LPAGE_CELL_OFFSET_AT(pPage, idx) TDB_GET_U24((pPage)->aCellIdx + idx * 3)
+#define TDB_LPAGE_CELL_OFFSET_AT(pPage, idx) TDB_GET_U24((pPage)->pCellIdx + idx * 3)
 
 #define TDB_LPAGE_FLAGS_SET(pPage, FLAGS)                TDB_LPAGE_FLAGS(pPage) = (flags)
 #define TDB_LPAGE_NCELLS_SET(pPage, NCELLS)              TDB_PUT_U24(((SPageHdrL *)(pPage)->pPageHdr)->nCells, NCELLS)
 #define TDB_LPAGE_CCELLS_SET(pPage, CCELLS)              TDB_PUT_U24(((SPageHdrL *)(pPage)->pPageHdr)->cCells, CCELLS)
 #define TDB_LPAGE_FCELL_SET(pPage, FCELL)                TDB_PUT_U24(((SPageHdrL *)(pPage)->pPageHdr)->fCell, FCELL)
 #define TDB_LPAGE_NFREE_SET(pPage, NFREE)                TDB_PUT_U24(((SPageHdrL *)(pPage)->pPageHdr)->nFree, NFREE)
-#define TDB_LPAGE_CELL_OFFSET_AT_SET(pPage, idx, OFFSET) TDB_PUT_U24((pPage)->aCellIdx + idx * 3, OFFSET)
+#define TDB_LPAGE_CELL_OFFSET_AT_SET(pPage, idx, OFFSET) TDB_PUT_U24((pPage)->pCellIdx + idx * 3, OFFSET)
 
 /* For page */
 #define TDB_PAGE_FLAGS(pPage)  (TDB_IS_LARGE_PAGE(pPage) ? TDB_LPAGE_FLAGS(pPage) : TDB_SPAGE_FLAGS(pPage))

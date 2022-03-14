@@ -183,7 +183,7 @@ static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen) {
       //     ridx = pBtPage->pHdr->nCells - 1;
       //     while (lidx <= ridx) {
       //       midx = (lidx + ridx) >> 1;
-      //       pCell = (void *)(pBtPage->aData + pBtPage->aCellIdx[midx]);
+      //       pCell = (void *)(pBtPage->aData + pBtPage->pCellIdx[midx]);
 
       //       c = tdbCompareKeyAndCell(pKey, kLen, pCell);
       //       if (c == 0) {
@@ -352,7 +352,7 @@ static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
   pBt = ((SBtreeZeroPageArg *)arg)->pBt;
 
   pPage->pPageHdr = pPage->pData;
-  pPage->aCellIdx = (u8 *)(&(pPage->pPageHdr[1]));
+  pPage->pCellIdx = (u8 *)(&(pPage->pPageHdr[1]));
 
   // Init the page header
   TDB_PAGE_FLAGS_SET(pPage, flags);
@@ -386,7 +386,7 @@ static int tdbBtreeInitPage(SPage *pPage, void *arg) {
 
   flags = TDB_PAGE_FLAGS(pPage);
   pPage->pPageHdr = pPage->pData;
-  pPage->aCellIdx = pPage->pPageHdr + pPage->szPageHdr;
+  pPage->pCellIdx = pPage->pPageHdr + pPage->szPageHdr;
 
   TDB_BTREE_ASSERT_FLAG(flags);
 
