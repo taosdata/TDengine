@@ -713,6 +713,7 @@
 5,,develop-test,python3 ./test.py -f 2-query/function_to_iso8601.py
 5,,develop-test,python3 ./test.py -f 2-query/function_to_unixtimestamp.py
 5,,develop-test,python3 ./test.py -f 2-query/time_window_keywords.py
+5,,develop-test,python3 ./test.py -f 2-query/TD-13946.py
 4,,system-test,python3 test.py -f 4-taosAdapter/TD-12163.py
 4,,system-test,python3 ./test.py -f 3-connectors/restful/restful_binddbname.py 
 4,,system-test,python3 ./test.py -f 2-query/TD-12614.py 
