@@ -179,6 +179,11 @@ typedef struct SCreateIndexStmt {
   SIndexOptions* pOptions;
 } SCreateIndexStmt;
 
+typedef struct SCreateQnodeStmt {
+  ENodeType type;
+  int32_t dnodeId;
+} SCreateQnodeStmt;
+
 #ifdef __cplusplus
 }
 #endif

@@ -1077,6 +1077,8 @@ static int32_t nodeTypeToShowType(ENodeType nt) {
       return TSDB_MGMT_TABLE_VGROUP;
     case QUERY_NODE_SHOW_MNODES_STMT:
       return TSDB_MGMT_TABLE_MNODE;
+    case QUERY_NODE_SHOW_QNODES_STMT:
+      return TSDB_MGMT_TABLE_QNODE;
     default:
       break;
   }
@@ -1185,7 +1187,7 @@ static int32_t translateCreateSmaIndex(STranslateContext* pCxt, SCreateIndexStmt
   }
   void* pBuf = pCxt->pCmdMsg->pMsg;
   tSerializeSVCreateTSmaReq(&pBuf, &createSmaReq);
-  // todo clear SVCreateTSmaReq
+  tdDestroyTSma(&createSmaReq.tSma);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1197,6 +1199,25 @@ static int32_t translateCreateIndex(STranslateContext* pCxt, SCreateIndexStmt* p
     // todo fulltext index
     return TSDB_CODE_FAILED;
   }
+}
+
+static int32_t translateCreateQnode(STranslateContext* pCxt, SCreateQnodeStmt* pStmt) {
+  SMCreateQnodeReq createReq = { .dnodeId = pStmt->dnodeId };
+
+  pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
+  if (NULL == pCxt->pCmdMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
+  pCxt->pCmdMsg->msgType = TDMT_DND_CREATE_QNODE;
+  pCxt->pCmdMsg->msgLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &createReq);
+  pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
+  if (NULL == pCxt->pCmdMsg->pMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tSerializeSMCreateDropQSBNodeReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &createReq);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
@@ -1244,6 +1265,7 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
+    case QUERY_NODE_SHOW_QNODES_STMT:
       code = translateShow(pCxt, (SShowStmt*)pNode);
       break;
     case QUERY_NODE_SHOW_TABLES_STMT:
@@ -1251,6 +1273,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_CREATE_INDEX_STMT:
       code = translateCreateIndex(pCxt, (SCreateIndexStmt*)pNode);
+      break;
+    case QUERY_NODE_CREATE_QNODE_STMT:
+      code = translateCreateQnode(pCxt, (SCreateQnodeStmt*)pNode);
       break;
     default:
       break;
