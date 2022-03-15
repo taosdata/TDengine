@@ -300,7 +300,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   QW_SCH_TASK_DLOG("processQuery start, node:%p, sql:%s", node, sql);
   tfree(sql);
 
-  QW_RET(qwProcessQuery(QW_FPARAMS(), &qwMsg, msg->taskType));
+  QW_ERR_RET(qwProcessQuery(QW_FPARAMS(), &qwMsg, msg->taskType));
 
   QW_SCH_TASK_DLOG("processQuery end, node:%p", node);
 

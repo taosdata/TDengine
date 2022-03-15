@@ -145,7 +145,6 @@ typedef struct SQWorkerMgmt {
   void            *timer;
   tmr_h            hbTimer;
   SRWLatch         schLock;
-  //SRWLatch         ctxLock;
   SHashObj        *schHash;       //key: schedulerId,    value: SQWSchStatus
   SHashObj        *ctxHash;       //key: queryId+taskId, value: SQWTaskCtx
   void            *nodeObj;

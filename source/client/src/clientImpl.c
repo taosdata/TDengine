@@ -319,7 +319,7 @@ SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
   int32_t retryNum = 0;
   int32_t code = 0;
 
-  while (retryNum++ < REQUEST_MAX_RETRY_NUM) {
+  while (retryNum++ < REQUEST_MAX_TRY_TIMES) {
     pRequest = execQueryImpl(pTscObj, sql, sqlLen);
     if (TSDB_CODE_SUCCESS == pRequest->code || !NEED_CLIENT_HANDLE_ERROR(pRequest->code)) {
       break;

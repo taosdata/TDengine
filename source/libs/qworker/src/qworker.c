@@ -11,6 +11,27 @@
 
 SQWDebug gQWDebug = {0};
 
+char *qwPhaseStr(int32_t phase) {
+  switch (phase) {
+    case QW_PHASE_PRE_QUERY:
+      return "PRE_QUERY";
+    case QW_PHASE_POST_QUERY:
+      return "POST_QUERY";
+    case QW_PHASE_PRE_FETCH:
+      return "PRE_FETCH";
+    case QW_PHASE_POST_FETCH:
+      return "POST_FETCH";
+    case QW_PHASE_PRE_CQUERY:
+      return "PRE_CQUERY";
+    case QW_PHASE_POST_CQUERY:
+      return "POST_CQUERY";
+    default:
+      break;
+  }
+
+  return "UNKNOWN";
+}
+
 int32_t qwValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus) {
   int32_t code = 0;
 
@@ -72,7 +93,7 @@ int32_t qwValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus) {
       break;
       
     default:
-      QW_TASK_ELOG("invalid task status:%d", oriStatus);
+      QW_TASK_ELOG("invalid task origStatus:%s", jobTaskStatusStr(oriStatus));
       return TSDB_CODE_QRY_APP_ERROR;
   }
 
@@ -80,7 +101,7 @@ int32_t qwValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus) {
 
 _return:
 
-  QW_TASK_ELOG("invalid task status update from %d to %d", oriStatus, newStatus);
+  QW_TASK_ELOG("invalid task status update from %s to %s", jobTaskStatusStr(oriStatus), jobTaskStatusStr(newStatus));
   QW_RET(code);
 }
 
@@ -97,7 +118,7 @@ int32_t qwSetTaskStatus(QW_FPARAMS_DEF, SQWTaskStatus *task, int8_t status) {
       continue;
     }
     
-    QW_TASK_DLOG("task status updated from %d to %d", origStatus, status);
+    QW_TASK_DLOG("task status updated from %s to %s", jobTaskStatusStr(origStatus), jobTaskStatusStr(status));
 
     break;
   }
@@ -206,15 +227,17 @@ int32_t qwAddTaskStatusImpl(QW_FPARAMS_DEF, SQWSchStatus *sch, int32_t rwType, i
       if (rwType && task) {
         QW_RET(qwAcquireTaskStatus(QW_FPARAMS(), rwType, sch, task));
       } else {
-        QW_TASK_ELOG("task status already exist, id:%s", id);
+        QW_TASK_ELOG("task status already exist, newStatus:%s", jobTaskStatusStr(status));
         QW_ERR_RET(TSDB_CODE_QRY_TASK_ALREADY_EXIST);
       }
     } else {
-      QW_TASK_ELOG("taosHashPut to tasksHash failed, code:%x", code);
+      QW_TASK_ELOG("taosHashPut to tasksHash failed, error:%x - %s", code, tstrerror(code));
       QW_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
   }
   QW_UNLOCK(QW_WRITE, &sch->tasksLock);
+
+  QW_TASK_DLOG("task status added, newStatus:%s", jobTaskStatusStr(status));
 
   if (rwType && task) {
     QW_ERR_RET(qwAcquireTaskStatus(QW_FPARAMS(), rwType, sch, task));
@@ -252,10 +275,8 @@ int32_t qwAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx) {
   char id[sizeof(qId) + sizeof(tId)] = {0};
   QW_SET_QTID(id, qId, tId);
   
-  //QW_LOCK(rwType, &mgmt->ctxLock);
   *ctx = taosHashAcquire(mgmt->ctxHash, id, sizeof(id));
   if (NULL == (*ctx)) {
-    //QW_UNLOCK(rwType, &mgmt->ctxLock);
     QW_TASK_DLOG_E("task ctx not exist, may be dropped");
     QW_ERR_RET(TSDB_CODE_QRY_TASK_CTX_NOT_EXIST);
   }
@@ -276,32 +297,28 @@ int32_t qwGetTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwAddTaskCtxImpl(QW_FPARAMS_DEF, bool acquire, int32_t status, SQWTaskCtx **ctx) {
+int32_t qwAddTaskCtxImpl(QW_FPARAMS_DEF, bool acquire, SQWTaskCtx **ctx) {
   char id[sizeof(qId) + sizeof(tId)] = {0};
   QW_SET_QTID(id, qId, tId);
 
   SQWTaskCtx nctx = {0};
 
-  //QW_LOCK(QW_WRITE, &mgmt->ctxLock);
   int32_t code = taosHashPut(mgmt->ctxHash, id, sizeof(id), &nctx, sizeof(SQWTaskCtx));
   if (0 != code) {
-    //QW_UNLOCK(QW_WRITE, &mgmt->ctxLock);
-    
     if (HASH_NODE_EXIST(code)) {
       if (acquire && ctx) {
         QW_RET(qwAcquireTaskCtx(QW_FPARAMS(), ctx));
       } else if (ctx) {
         QW_RET(qwGetTaskCtx(QW_FPARAMS(), ctx));
       } else {
-        QW_TASK_ELOG("task ctx already exist, id:%s", id);
+        QW_TASK_ELOG_E("task ctx already exist");
         QW_ERR_RET(TSDB_CODE_QRY_TASK_ALREADY_EXIST);
       }
     } else {
-      QW_TASK_ELOG("taosHashPut to ctxHash failed, code:%x", code);
+      QW_TASK_ELOG("taosHashPut to ctxHash failed, error:%x", code);
       QW_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
   }
-  //QW_UNLOCK(QW_WRITE, &mgmt->ctxLock);
 
   if (acquire && ctx) {
     QW_RET(qwAcquireTaskCtx(QW_FPARAMS(), ctx));
@@ -313,17 +330,15 @@ int32_t qwAddTaskCtxImpl(QW_FPARAMS_DEF, bool acquire, int32_t status, SQWTaskCt
 }
 
 int32_t qwAddTaskCtx(QW_FPARAMS_DEF) {
-  QW_RET(qwAddTaskCtxImpl(QW_FPARAMS(), false, 0, NULL));
+  QW_RET(qwAddTaskCtxImpl(QW_FPARAMS(), false, NULL));
 }
 
-
-
 int32_t qwAddAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx) {
-  return qwAddTaskCtxImpl(QW_FPARAMS(), true, 0, ctx);
+  return qwAddTaskCtxImpl(QW_FPARAMS(), true, ctx);
 }
 
 int32_t qwAddGetTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx) {
-  return qwAddTaskCtxImpl(QW_FPARAMS(), false, 0, ctx);
+  return qwAddTaskCtxImpl(QW_FPARAMS(), false, ctx);
 }
 
 
@@ -638,7 +653,7 @@ int32_t qwGetResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void
   }
 
   if (DS_BUF_EMPTY == pOutput->bufStatus && pOutput->queryEnd) {
-    QW_SCH_TASK_DLOG("task all fetched, status:%d", JOB_TASK_STATUS_SUCCEED);
+    QW_TASK_DLOG_E("task all data fetched, done");
     QW_ERR_RET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCCEED));
   }
 
@@ -653,9 +668,7 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
   void *dropConnection = NULL;
   void *cancelConnection = NULL;
 
-  QW_SCH_TASK_DLOG("start to handle event at phase %d", phase);
-
-  output->needStop = false;
+  QW_TASK_DLOG("start to handle event at phase %s", qwPhaseStr(phase));
 
   if (QW_PHASE_PRE_QUERY == phase) {
     QW_ERR_JRET(qwAddAcquireTaskCtx(QW_FPARAMS(), &ctx));
@@ -671,7 +684,7 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
       atomic_store_8(&ctx->phase, phase);
 
       if (QW_IS_EVENT_PROCESSED(ctx, QW_EVENT_CANCEL) || QW_IS_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
-        QW_TASK_ELOG("task already cancelled/dropped at wrong phase, phase:%d", phase);
+        QW_TASK_ELOG("task already cancelled/dropped at wrong phase %s", qwPhaseStr(phase));
         
         output->needStop = true;
         output->rspCode = TSDB_CODE_QRY_TASK_STATUS_ERROR;
@@ -705,7 +718,7 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
       }
 
       if (ctx->rspCode) {
-        QW_TASK_ELOG("task already failed at wrong phase, code:%x, phase:%d", ctx->rspCode, phase);
+        QW_TASK_ELOG("task already failed at phase %s, error:%x - %s", qwPhaseStr(phase), ctx->rspCode, tstrerror(ctx->rspCode));
         output->needStop = true;
         output->rspCode = ctx->rspCode;        
         QW_ERR_JRET(output->rspCode);
@@ -718,46 +731,46 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
     }
     case QW_PHASE_PRE_FETCH: {
       if (QW_IS_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
-        QW_TASK_WLOG("task already dropped, phase:%d", phase);
+        QW_TASK_WLOG("task already dropped, phase:%s", qwPhaseStr(phase));
         output->needStop = true;
         output->rspCode = TSDB_CODE_QRY_TASK_DROPPED;        
         QW_ERR_JRET(TSDB_CODE_QRY_TASK_DROPPED);
       }
       if (QW_IS_EVENT_PROCESSED(ctx, QW_EVENT_CANCEL)) {
-        QW_TASK_WLOG("task already cancelled, phase:%d", phase);
+        QW_TASK_WLOG("task already cancelled, phase:%s", qwPhaseStr(phase));
         output->needStop = true;
         output->rspCode = TSDB_CODE_QRY_TASK_CANCELLED;        
         QW_ERR_JRET(TSDB_CODE_QRY_TASK_CANCELLED);
       }
 
       if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_DROP)) {
-        QW_TASK_ELOG("drop event at wrong phase, phase:%d", phase);
+        QW_TASK_ELOG("drop event at wrong phase %s", qwPhaseStr(phase));
         output->needStop = true;
         output->rspCode = TSDB_CODE_QRY_TASK_STATUS_ERROR;        
         QW_ERR_JRET(TSDB_CODE_QRY_TASK_CANCELLED);
       } else if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_CANCEL)) {
-        QW_TASK_ELOG("cancel event at wrong phase, phase:%d", phase);
+        QW_TASK_ELOG("cancel event at wrong phase %s", qwPhaseStr(phase));
         output->needStop = true;
         output->rspCode = TSDB_CODE_QRY_TASK_STATUS_ERROR;        
         QW_ERR_JRET(TSDB_CODE_QRY_TASK_CANCELLED);
       }
 
       if (ctx->rspCode) {
-        QW_TASK_ELOG("task already failed, code:%x, phase:%d", ctx->rspCode, phase);
+        QW_TASK_ELOG("task already failed at phase %s, error:%x - %s", qwPhaseStr(phase), ctx->rspCode, tstrerror(ctx->rspCode));
         output->needStop = true;
         output->rspCode = ctx->rspCode;        
         QW_ERR_JRET(output->rspCode);
       }
 
       if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
-        QW_TASK_WLOG("last fetch not finished, phase:%d", phase);
+        QW_TASK_WLOG("last fetch not finished, phase:%s", qwPhaseStr(phase));
         output->needStop = true;
         output->rspCode = TSDB_CODE_QRY_DUPLICATTED_OPERATION;        
         QW_ERR_JRET(TSDB_CODE_QRY_DUPLICATTED_OPERATION);
       }
 
       if (!QW_IS_EVENT_PROCESSED(ctx, QW_EVENT_READY)) {
-        QW_TASK_ELOG("query rsp are not ready, phase:%d", phase);
+        QW_TASK_ELOG("query rsp are not ready, phase:%s", qwPhaseStr(phase));
         output->needStop = true;
         output->rspCode = TSDB_CODE_QRY_TASK_MSG_ERROR;        
         QW_ERR_JRET(TSDB_CODE_QRY_TASK_MSG_ERROR);
@@ -768,14 +781,14 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
       atomic_store_8(&ctx->phase, phase);
 
       if (QW_IS_EVENT_PROCESSED(ctx, QW_EVENT_CANCEL)) {
-        QW_TASK_WLOG("task already cancelled, phase:%d", phase);
+        QW_TASK_WLOG("task already cancelled, phase:%s", qwPhaseStr(phase));
         output->needStop = true;
         output->rspCode = TSDB_CODE_QRY_TASK_CANCELLED;        
         QW_ERR_JRET(TSDB_CODE_QRY_TASK_CANCELLED);
       }
 
       if (QW_IS_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
-        QW_TASK_WLOG("task already dropped, phase:%d", phase);
+        QW_TASK_WLOG("task already dropped, phase:%s", qwPhaseStr(phase));
         output->needStop = true;
         output->rspCode = TSDB_CODE_QRY_TASK_DROPPED;        
         QW_ERR_JRET(TSDB_CODE_QRY_TASK_DROPPED);
@@ -810,7 +823,7 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
 
 
       if (ctx->rspCode) {
-        QW_TASK_ELOG("task already failed, code:%x, phase:%d", ctx->rspCode, phase);
+        QW_TASK_ELOG("task already failed at phase %s, error:%x - %s", qwPhaseStr(phase), ctx->rspCode, tstrerror(ctx->rspCode));
         output->needStop = true;
         output->rspCode = ctx->rspCode;        
         QW_ERR_JRET(output->rspCode);
@@ -842,15 +855,15 @@ _return:
 
   if (dropConnection) {
     qwBuildAndSendDropRsp(dropConnection, output->rspCode);    
-    QW_TASK_DLOG("drop msg rsped, code:%x", output->rspCode);
+    QW_TASK_DLOG("drop msg rsped, code:%x - %s", output->rspCode, tstrerror(output->rspCode));
   }
 
   if (cancelConnection) {
     qwBuildAndSendCancelRsp(cancelConnection, output->rspCode);    
-    QW_TASK_DLOG("cancel msg rsped, code:%x", output->rspCode);
+    QW_TASK_DLOG("cancel msg rsped, code:%x - %s", output->rspCode, tstrerror(output->rspCode));
   }
 
-  QW_SCH_TASK_DLOG("end to handle event at phase %d", phase);
+  QW_TASK_DLOG("end to handle event at phase %s", qwPhaseStr(phase));
 
   QW_RET(code);
 }
@@ -865,7 +878,7 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
   void *dropConnection = NULL;
   void *cancelConnection = NULL;
 
-  QW_SCH_TASK_DLOG("start to handle event at phase %d", phase);
+  QW_TASK_DLOG("start to handle event at phase %s", qwPhaseStr(phase));
 
   output->needStop = false;
   
@@ -875,14 +888,14 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
   locked = true;     
 
   if (QW_IS_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
-    QW_TASK_WLOG("task already dropped, phase:%d", phase);
+    QW_TASK_WLOG("task already dropped, phase:%s", qwPhaseStr(phase));
     output->needStop = true;
     output->rspCode = TSDB_CODE_QRY_TASK_DROPPED;        
     QW_ERR_JRET(TSDB_CODE_QRY_TASK_DROPPED);
   }
   
   if (QW_IS_EVENT_PROCESSED(ctx, QW_EVENT_CANCEL)) {
-    QW_TASK_WLOG("task already cancelled, phase:%d", phase);
+    QW_TASK_WLOG("task already cancelled, phase:%s", qwPhaseStr(phase));
     output->needStop = true;
     output->rspCode = TSDB_CODE_QRY_TASK_CANCELLED;        
     QW_ERR_JRET(TSDB_CODE_QRY_TASK_CANCELLED);
@@ -931,7 +944,7 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
   }
 
   if (ctx->rspCode) {
-    QW_TASK_ELOG("task failed, code:%x, phase:%d", ctx->rspCode, phase);
+    QW_TASK_ELOG("task already failed at phase %s, error:%x - %s", qwPhaseStr(phase), ctx->rspCode, tstrerror(ctx->rspCode));
     output->needStop = true;
     output->rspCode = ctx->rspCode;        
     QW_ERR_JRET(output->rspCode);
@@ -968,20 +981,20 @@ _return:
 
   if (readyConnection) {
     qwBuildAndSendReadyRsp(readyConnection, output->rspCode);    
-    QW_TASK_DLOG("ready msg rsped, code:%x", output->rspCode);
+    QW_TASK_DLOG("ready msg rsped, code:%x - %s", output->rspCode, tstrerror(output->rspCode));
   }
 
   if (dropConnection) {
     qwBuildAndSendDropRsp(dropConnection, output->rspCode);    
-    QW_TASK_DLOG("drop msg rsped, code:%x", output->rspCode);
+    QW_TASK_DLOG("drop msg rsped, code:%x - %s", output->rspCode, tstrerror(output->rspCode));
   }
 
   if (cancelConnection) {
     qwBuildAndSendCancelRsp(cancelConnection, output->rspCode);    
-    QW_TASK_DLOG("cancel msg rsped, code:%x", output->rspCode);
+    QW_TASK_DLOG("cancel msg rsped, code:%x - %s", output->rspCode, tstrerror(output->rspCode));
   }
 
-  QW_SCH_TASK_DLOG("end to handle event at phase %d", phase);
+  QW_TASK_DLOG("end to handle event at phase %s", qwPhaseStr(phase));
 
   QW_RET(code);
 }
