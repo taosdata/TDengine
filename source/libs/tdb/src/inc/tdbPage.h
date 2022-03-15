@@ -60,8 +60,8 @@ struct SPage {
   u8       *pFreeStart;
   u8       *pFreeEnd;
   SPageFtr *pPageFtr;
-  int       kLen;
-  int       vLen;
+  int       kLen;  // key length of the page, -1 for unknown
+  int       vLen;  // value length of the page, -1 for unknown
   int       nFree;
   int       maxLocal;
   int       minLocal;

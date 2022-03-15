@@ -738,6 +738,7 @@ static int tdbBtreeBalance(SBtCursor *pCur) {
 
 #ifndef TDB_BTREE_CELL
 typedef struct {
+  /* Data */
 } SCellEncoder;
 
 typedef struct {
@@ -750,35 +751,82 @@ typedef struct {
   u8 *pTmpSpace;
 } SCellDecoder;
 
-static int tdbBtreeEncodeCell(SPage *pPage, void *pKey, int kLen, void *pVal, int vLen) {
-  u8  t[24];  // TODO
-  u8 *ptr;
+static int tdbBtreeEncodePayload(SPage *pPage, u8 *pPayload, void *pKey, int kLen, void *pVal, int vLen,
+                                 int *szPayload) {
+  int nPayload;
+
+  ASSERT(pKey != NULL);
+
+  if (pVal == NULL) {
+    vLen = 0;
+  }
+
+  nPayload = kLen + vLen;
+  if (nPayload <= pPage->maxLocal) {
+    // General case without overflow
+    memcpy(pPayload, pKey, kLen);
+    if (pVal) {
+      memcpy(pPayload + kLen, pVal, vLen);
+    }
+
+    *szPayload = nPayload;
+    return 0;
+  }
+
+  {
+    // TODO: handle overflow case
+    ASSERT(0);
+  }
+
+  return 0;
+}
+
+static int tdbBtreeEncodeCell(SPage *pPage, void *pKey, int kLen, void *pVal, int vLen, SCell *pCell, int *szCell) {
   u16 flags;
+  u8  leaf;
+  int nHeader;
+  int nPayload;
+  int ret;
 
   ASSERT(pPage->kLen == TDB_VARIANT_LEN || pPage->kLen == kLen);
   ASSERT(pPage->vLen == TDB_VARIANT_LEN || pPage->vLen == vLen);
 
-  ptr = t;
+  nPayload = 0;
+  nHeader = 0;
+  flags = TDB_PAGE_FLAGS(pPage);
+  leaf = TDB_BTREE_PAGE_IS_LEAF(flags);
 
-  // Encode kLen
+  // 1. Encode Header part
+  /* Encode kLen if need */
   if (pPage->kLen == TDB_VARIANT_LEN) {
-    ptr += tdbPutVarInt(ptr, kLen);
+    nHeader += tdbPutVarInt(pCell + nHeader, kLen);
   }
 
-  // Encode vLen
+  /* Encode vLen if need */
   if (pPage->vLen == TDB_VARIANT_LEN) {
-    ptr += tdbPutVarInt(ptr, vLen);
+    nHeader += tdbPutVarInt(pCell + nHeader, vLen);
   }
 
-  // Encode key-value
-  if (TDB_BTREE_PAGE_IS_LEAF(flags)) {
-  } else {
+  /* Encode SPgno if interior page */
+  if (!leaf) {
     ASSERT(pPage->vLen == sizeof(SPgno));
 
-    ((SPgno *)ptr)[0] = ((SPgno *)pVal)[0];
-    ptr = ptr + sizeof(SPgno);
+    ((SPgno *)(pCell + nHeader))[0] = ((SPgno *)pVal)[0];
+    nHeader = nHeader + sizeof(SPgno);
   }
 
+  // 2. Encode payload part
+  if (leaf) {
+    ret = tdbBtreeEncodePayload(pPage, pCell + nHeader, pKey, kLen, pVal, vLen, &nPayload);
+  } else {
+    ret = tdbBtreeEncodePayload(pPage, pCell + nHeader, pKey, kLen, NULL, 0, &nPayload);
+  }
+  if (ret < 0) {
+    // TODO: handle error
+    return -1;
+  }
+
+  *szCell = nHeader + nPayload;
   return 0;
 }
 
