@@ -46,6 +46,7 @@ impl Consumer {
             tmq_resp_err_t::Fail => Err(TaosError::new(TaosCode::Unknown, "commit failed")),
         }
     }
+    // todo: is_async better to rename to is_non_blocking
     pub fn commit(&self, offsets: Option<&Offsets>, is_async: i32) -> Result<()> {
         let offsets = offsets.map(|o| o.0).unwrap_or(std::ptr::null_mut());
         let err = unsafe { tmq_commit(self.0, offsets, is_async) };
