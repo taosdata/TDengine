@@ -852,6 +852,69 @@ TDengine supports aggregations over data, they are listed below:
     Query OK, 1 row(s) in set (0.000921s)
     ```
 
+- **MODE**
+    ```mysql
+    SELECT MODE(field_name) FROM tb_name [WHERE clause];
+    ```
+    Function: Returns the value with the highest frequency. If there are multiple highest values with the same frequency, the output is NULL.
+
+    Return Data Type: Same as applicable fields.
+
+    Applicable Fields: All types except timestamp.
+
+    Supported version: Version after 2.6.0 .
+
+    Example:
+    ```mysql
+    taos> select voltage from d002;
+        voltage        |
+    ========================
+           1           |
+           1           |
+           2           |
+           19          |
+    Query OK, 4 row(s) in set (0.003545s)
+  
+    taos> select mode(voltage) from d002;
+      mode(voltage)    |
+    ========================
+           1           |
+   Query OK, 1 row(s) in set (0.019393s)
+    ```  
+
+- **HYPERLOGLOG**
+    ```mysql
+    SELECT HYPERLOGLOG(field_name) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: The hyperloglog algorithm is used to return the cardinality of a column. In the case of large amount of data, the algorithm can significantly reduce the occupation of memory, but the cardinality is an estimated value, and the standard error is 0.81%.
+
+    Return Data Type:Integer.
+
+    Applicable Fields: All types.
+
+    Supported version: Version after 2.6.0 .
+
+    Example:
+    ```mysql
+    taos> select dbig from shll;
+         dbig          |
+    ========================
+           1           |
+           1           |
+           1           |
+           NULL        |
+           2           |
+           19          |
+           NULL        |
+           9           |
+    Query OK, 8 row(s) in set (0.003755s)
+  
+    taos> select hyperloglog(dbig) from shll;
+      hyperloglog(dbig)|
+    ========================
+           4           |
+    Query OK, 1 row(s) in set (0.008388s)
+  
 ### Selector Functions
 
 - **MIN**
@@ -1102,6 +1165,83 @@ TDengine supports aggregations over data, they are listed below:
       Query OK, 1 row(s) in set (0.001042s)
     ```
 
+- **TAIL**
+    ```mysql
+    SELECT TAIL(field_name, k, offset_val) FROM {tb_name | stb_name} [WHERE clause];
+    ```
+    Function: Skip the last num of offset_value, return the k consecutive records without ignoring NULL value. offset_val can be empty, then the last K records are returned.The function is equivalent to:order by ts desc LIMIT k OFFSET offset_val.
+
+    Range：k: [1,100]  offset_val: [0,100]。
+
+    Return Data Type: Same as applicable fields.
+
+    Applicable Fields: All types except timestamp.
+
+    Applied to: **table stable**.
+
+    Supported version: Version after 2.6.0 .
+
+    Example:
+    ```mysql
+    taos> select ts,dbig from tail2;
+           ts            |         dbig          |
+    ==================================================
+    2021-10-15 00:31:33.000 |                     1 |
+    2021-10-17 00:31:31.000 |                  NULL |
+    2021-12-24 00:31:34.000 |                     2 |
+    2022-01-01 08:00:05.000 |                    19 |
+    2022-01-01 08:00:06.000 |                  NULL |
+    2022-01-01 08:00:07.000 |                     9 |
+    Query OK, 6 row(s) in set (0.001952s)
+  
+    taos> select tail(dbig,2,2) from tail2;
+    ts                      |    tail(dbig,2,2)     |
+    ==================================================
+    2021-12-24 00:31:34.000 |                     2 |
+    2022-01-01 08:00:05.000 |                    19 |
+    Query OK, 2 row(s) in set (0.002307s)
+
+- **UNIQUE**
+    ```mysql
+    SELECT UNIQUE(field_name) FROM {tb_name | stb_name} [WHERE clause];
+    ```
+    Function: Returns the first occurrence of a value in this column.
+
+    Return Data Type: Same as applicable fields.
+
+    Applicable Fields: All types except timestamp.
+
+    Applied to: **table stable**.
+
+    Supported version: Version after 2.6.0 .
+
+    Note: This function can be applied to ordinary tables and super tables. Cannot be used with window operations，such as interval/state_window/session_window.
+
+    Example:
+    ```mysql
+    taos> select ts,voltage from unique1;
+           ts            |        voltage        |
+    ==================================================
+    2021-10-17 00:31:31.000 |                     1 |
+    2022-01-24 00:31:31.000 |                     1 |
+    2021-10-17 00:31:31.000 |                     1 |
+    2021-12-24 00:31:31.000 |                     2 |
+    2022-01-01 08:00:01.000 |                    19 |
+    2021-10-17 00:31:31.000 |                  NULL |
+    2022-01-01 08:00:02.000 |                  NULL |
+    2022-01-01 08:00:03.000 |                     9 |
+    Query OK, 8 row(s) in set (0.003018s)
+  
+    taos> select unique(voltage) from unique1;
+    ts                      |    unique(voltage)    |
+    ==================================================
+    2021-10-17 00:31:31.000 |                     1 |
+    2021-10-17 00:31:31.000 |                  NULL |
+    2021-12-24 00:31:31.000 |                     2 |
+    2022-01-01 08:00:01.000 |                    19 |
+    2022-01-01 08:00:03.000 |                     9 |
+    Query OK, 5 row(s) in set (0.108458s)
+
 ### Computing Functions
 
 - **DIFF**
@@ -1171,6 +1311,97 @@ TDengine supports aggregations over data, they are listed below:
     
     1. Calculation between two or more columns is supported, and the calculation priorities can be controlled by parentheses();
     2. The NULL field does not participate in the calculation. If a row involved in calculation contains NULL, the calculation result of the row is NULL.
+
+- **STATECOUNT**
+    ```mysql
+    SELECT STATECOUNT(field_name, oper, val) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Returns the number of consecutive records that meet a certain condition, and the result is appended to each row as a new column. The condition is calculated according to the parameters. If the condition is true, it will be increased by 1. If the condition is false, it will be reset to -1. If the data is NULL, the data will be skipped.
+
+    Range:
+    - oper : LT(<),GT(>),LE(<=),GE(>=),NE(!=),EQ(=),case insensitive.
+    - val  : Number.
+
+    Returned Data Type: Integer。
+
+    Applicable Fields: All types except timestamp, binary, nchar, bool.
+
+    Supported version: Version after 2.6.0 .
+
+    Note:
+    - This function can be applied to ordinary tables. When a separate timeline is divided by group by, it is used for super tables (i.e. group by TBNAME).
+    - Cannot be used with window operations，such as interval/state_window/session_window.
+
+    Example:
+    ```mysql
+    taos> select ts,dbig from statef2;
+              ts               |         dbig          |
+    ========================================================
+    2021-10-15 00:31:33.000000000 |                     1 |
+    2021-10-17 00:31:31.000000000 |                  NULL |
+    2021-12-24 00:31:34.000000000 |                     2 |
+    2022-01-01 08:00:05.000000000 |                    19 |
+    2022-01-01 08:00:06.000000000 |                  NULL |
+    2022-01-01 08:00:07.000000000 |                     9 |
+    Query OK, 6 row(s) in set (0.002977s)
+  
+    taos> select stateCount(dbig,GT,2) from statef2;
+    ts               |         dbig          | statecount(dbig,gt,2) |
+    ================================================================================
+    2021-10-15 00:31:33.000000000 |                     1 |                    -1 |
+    2021-10-17 00:31:31.000000000 |                  NULL |                  NULL |
+    2021-12-24 00:31:34.000000000 |                     2 |                    -1 |
+    2022-01-01 08:00:05.000000000 |                    19 |                     1 |
+    2022-01-01 08:00:06.000000000 |                  NULL |                  NULL |
+    2022-01-01 08:00:07.000000000 |                     9 |                     2 |
+    Query OK, 6 row(s) in set (0.002791s)
+   ```
+
+- **STATEDURATION**
+    ```mysql
+    SELECT stateDuration(field_name, oper, val, unit) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Returns the length of time of continuous records that meet a certain condition, and the result is appended to each row as a new column. The condition is calculated according to the parameters. If the condition is true, the length of time between two records will be added (the length of time of the first record that meets the condition is recorded as 0). If the condition is false, it will be reset to -1. If the data is NULL, the data will be skipped.
+
+    Range：
+    - oper : LT(<),GT(>),LE(<=),GE(>=),NE(!=),EQ(=),case insensitive.
+    - val  : Number.
+    - unit : Unit of time length, range [1s, 1M, 1H], less than one unit is rounded off. The default is 1s.
+
+    Returned Data Type: Integer。
+
+    Applicable Fields: All types except timestamp, binary, nchar, bool.
+
+    Supported version: Version after 2.6.0 .
+    
+    Note:
+    - This function can be applied to ordinary tables. When a separate timeline is divided by group by, it is used for super tables (i.e. group by TBNAME).
+    - Cannot be used with window operations，such as interval/state_window/session_window.
+
+    Example:
+    ```mysql
+    taos> select ts,dbig from statef2;
+              ts               |         dbig          |
+    ========================================================
+    2021-10-15 00:31:33.000000000 |                     1 |
+    2021-10-17 00:31:31.000000000 |                  NULL |
+    2021-12-24 00:31:34.000000000 |                     2 |
+    2022-01-01 08:00:05.000000000 |                    19 |
+    2022-01-01 08:00:06.000000000 |                  NULL |
+    2022-01-01 08:00:07.000000000 |                     9 |
+    Query OK, 6 row(s) in set (0.002407s)
+  
+    taos> select stateDuration(dbig,GT,2) from statef2;
+    ts               |         dbig          | stateduration(dbig,gt,2) |
+    ===================================================================================
+    2021-10-15 00:31:33.000000000 |                     1 |                       -1 |
+    2021-10-17 00:31:31.000000000 |                  NULL |                     NULL |
+    2021-12-24 00:31:34.000000000 |                     2 |                       -1 |
+    2022-01-01 08:00:05.000000000 |                    19 |                        0 |
+    2022-01-01 08:00:06.000000000 |                  NULL |                     NULL |
+    2022-01-01 08:00:07.000000000 |                     9 |                        2 |
+    Query OK, 6 row(s) in set (0.002613s)
+     ```
 
 ## <a class="anchor" id="aggregation"></a> Time-dimension Aggregation
 
