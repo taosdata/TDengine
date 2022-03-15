@@ -83,7 +83,7 @@ typedef struct {
   int32_t     minNum;
   int32_t     maxNum;
   void       *queueFp;
-  SDnode     *pDnode;
+  void       *param;
   STaosQueue *queue;
   union {
     SQWorkerPool pool;
@@ -161,7 +161,7 @@ int32_t dndSendReqToMnode(SDnode *pDnode, SRpcMsg *pRpcMsg);
 int32_t dndSendReqToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pRpcMsg);
 
 // dndWorker.h
-int32_t dndInitWorker(SDnode *pDnode, SDnodeWorker *pWorker, EWorkerType type, const char *name, int32_t minNum,
+int32_t dndInitWorker(void *param, SDnodeWorker *pWorker, EWorkerType type, const char *name, int32_t minNum,
                       int32_t maxNum, void *queueFp);
 void    dndCleanupWorker(SDnodeWorker *pWorker);
 int32_t dndWriteMsgToWorker(SDnodeWorker *pWorker, void *pCont, int32_t contLen);

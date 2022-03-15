@@ -20,32 +20,8 @@
 #include "dndTransport.h"
 #include "dndWorker.h"
 
-static void mmSendRpcRsp(SMnodeMgmt *pMgmt, SRpcMsg *pRpc) {
-  if (pRpc->code == TSDB_CODE_DND_MNODE_NOT_DEPLOYED || pRpc->code == TSDB_CODE_APP_NOT_READY) {
-    dmSendRedirectRsp(pMgmt->pDnode, pRpc);
-  } else {
-    rpcSendResponse(pRpc);
-  }
-}
-
-void mmPutRpcRspToWorker(SMnodeMgmt *pMgmt, SRpcMsg *pRpc) {
-  int32_t code = -1;
-
-  if (pMgmt->singleProc) {
-    mmSendRpcRsp(pMgmt, pRpc);
-  } else {
-    do {
-      code = taosProcPutToParentQueue(pMgmt->pProcess, pRpc, sizeof(SRpcMsg), pRpc->pCont, pRpc->contLen);
-      if (code != 0) {
-        taosMsleep(10);
-      }
-    } while (code != 0);
-  }
-}
-
-static void mmConsumeMsgQueue(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+static void mmProcessQueue(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   dTrace("msg:%p, will be processed", pMsg);
-
   SMnode  *pMnode = mmAcquire(pMgmt);
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   bool     isReq = (pRpc->msgType & 1U);
@@ -53,7 +29,7 @@ static void mmConsumeMsgQueue(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
 
   if (pMnode != NULL) {
     pMsg->pNode = pMnode;
-    code = mndProcessMsg((SMndMsg*)pMsg);
+    code = mndProcessMsg((SMndMsg *)pMsg);
     mmRelease(pMgmt, pMnode);
   }
 
@@ -61,11 +37,11 @@ static void mmConsumeMsgQueue(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
     if (pMsg->rpcMsg.handle == NULL) return;
     if (code == 0) {
       SRpcMsg rsp = {.handle = pRpc->handle, .contLen = pMsg->rspLen, .pCont = pMsg->pRsp};
-      mmPutRpcRspToWorker(pMgmt, &rsp);
+      dndSendRsp(pMgmt->pWrapper, &rsp);
     } else {
       if (terrno != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
         SRpcMsg rsp = {.handle = pRpc->handle, .contLen = pMsg->rspLen, .pCont = pMsg->pRsp, .code = terrno};
-        mmPutRpcRspToWorker(pMgmt, &rsp);
+        dndSendRsp(pMgmt->pWrapper, &rsp);
       }
     }
   }
@@ -76,18 +52,17 @@ static void mmConsumeMsgQueue(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
 }
 
 int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
-  SDnode *pDnode = pMgmt->pDnode;
-  if (dndInitWorker(pDnode, &pMgmt->readWorker, DND_WORKER_SINGLE, "mnode-read", 0, 1, mmConsumeMsgQueue) != 0) {
+  if (dndInitWorker(pMgmt, &pMgmt->readWorker, DND_WORKER_SINGLE, "mnode-read", 0, 1, mmProcessQueue) != 0) {
     dError("failed to start mnode read worker since %s", terrstr());
     return -1;
   }
 
-  if (dndInitWorker(pDnode, &pMgmt->writeWorker, DND_WORKER_SINGLE, "mnode-write", 0, 1, mmConsumeMsgQueue) != 0) {
+  if (dndInitWorker(pMgmt, &pMgmt->writeWorker, DND_WORKER_SINGLE, "mnode-write", 0, 1, mmProcessQueue) != 0) {
     dError("failed to start mnode write worker since %s", terrstr());
     return -1;
   }
 
-  if (dndInitWorker(pDnode, &pMgmt->syncWorker, DND_WORKER_SINGLE, "mnode-sync", 0, 1, mmConsumeMsgQueue) != 0) {
+  if (dndInitWorker(pMgmt, &pMgmt->syncWorker, DND_WORKER_SINGLE, "mnode-sync", 0, 1, mmProcessQueue) != 0) {
     dError("failed to start mnode sync worker since %s", terrstr());
     return -1;
   }
@@ -119,18 +94,15 @@ static int32_t mmPutMsgToWorker(SMnodeMgmt *pMgmt, SDnodeWorker *pWorker, SNodeM
   return code;
 }
 
-int32_t mmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
+int32_t mmProcessWriteMsg(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->writeWorker, pMsg);
 }
 
-int32_t mmProcessSyncMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
+int32_t mmProcessSyncMsg(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->syncWorker, pMsg);
 }
 
-int32_t mmProcessReadMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
+int32_t mmProcessReadMsg(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->readWorker, pMsg);
 }
 

@@ -220,6 +220,7 @@ static int32_t mmInit(SMgmtWrapper *pWrapper) {
   dInfo("mnode-mgmt is initialized");
   pMgmt->path = pWrapper->path;
   pMgmt->pDnode = pWrapper->pDnode;
+  pMgmt->pWrapper = pWrapper;
   taosInitRWLatch(&pMgmt->latch);
 
   if (mmReadFile(pMgmt) != 0) {
@@ -293,7 +294,7 @@ static bool mmRequire(SMgmtWrapper *pWrapper) {
 void mmGetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = mmInit;
-  mgmtFp.closeFp = NULL;
+  mgmtFp.closeFp = mmCleanup;
   mgmtFp.requiredFp = mmRequire;
 
   mmInitMsgHandles(pWrapper);

@@ -16,9 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "dndWorker.h"
 
-int32_t dndInitWorker(SDnode *pDnode, SDnodeWorker *pWorker, EWorkerType type, const char *name, int32_t minNum,
+int32_t dndInitWorker(void *param, SDnodeWorker *pWorker, EWorkerType type, const char *name, int32_t minNum,
                       int32_t maxNum, void *queueFp) {
-  if (pDnode == NULL || pWorker == NULL || name == NULL || minNum < 0 || maxNum <= 0 || queueFp == NULL) {
+  if (pWorker == NULL || name == NULL || minNum < 0 || maxNum <= 0 || queueFp == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return -1;
   }
@@ -28,7 +28,7 @@ int32_t dndInitWorker(SDnode *pDnode, SDnodeWorker *pWorker, EWorkerType type, c
   pWorker->minNum = minNum;
   pWorker->maxNum = maxNum;
   pWorker->queueFp = queueFp;
-  pWorker->pDnode = pDnode;
+  pWorker->param = param;
 
   if (pWorker->type == DND_WORKER_SINGLE) {
     SQWorkerPool *pPool = &pWorker->pool;
@@ -39,7 +39,7 @@ int32_t dndInitWorker(SDnode *pDnode, SDnodeWorker *pWorker, EWorkerType type, c
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-    pWorker->queue = tQWorkerAllocQueue(pPool, pDnode, (FItem)queueFp);
+    pWorker->queue = tQWorkerAllocQueue(pPool, param, (FItem)queueFp);
     if (pWorker->queue == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
@@ -52,7 +52,7 @@ int32_t dndInitWorker(SDnode *pDnode, SDnodeWorker *pWorker, EWorkerType type, c
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-    pWorker->queue = tWWorkerAllocQueue(pPool, pDnode, (FItems)queueFp);
+    pWorker->queue = tWWorkerAllocQueue(pPool, param, (FItems)queueFp);
     if (pWorker->queue == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;

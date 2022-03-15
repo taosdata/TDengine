@@ -54,7 +54,7 @@ static void *dmThreadRoutine(void *param) {
   }
 }
 
-static void dmProcessMgmtQueue(SDnode *pDnode, SNodeMsg *pNodeMsg) {
+static void dmProcessQueue(SDnode *pDnode, SNodeMsg *pNodeMsg) {
   int32_t  code = 0;
   SRpcMsg *pMsg = &pNodeMsg->rpcMsg;
   dTrace("msg:%p, will be processed", pNodeMsg);
@@ -134,14 +134,14 @@ static void dmProcessMgmtQueue(SDnode *pDnode, SNodeMsg *pNodeMsg) {
 }
 
 int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
-  if (dndInitWorker(pMgmt->pDnode, &pMgmt->mgmtWorker, DND_WORKER_SINGLE, "dnode-mgmt", 1, 1, dmProcessMgmtQueue) !=
-      0) {
+  SDnode *pDnode = pMgmt->pDnode;
+
+  if (dndInitWorker(pDnode, &pMgmt->mgmtWorker, DND_WORKER_SINGLE, "dnode-mgmt", 1, 1, dmProcessQueue) != 0) {
     dError("failed to start dnode mgmt worker since %s", terrstr());
     return -1;
   }
 
-  if (dndInitWorker(pMgmt->pDnode, &pMgmt->statusWorker, DND_WORKER_SINGLE, "dnode-status", 1, 1,
-                    dmProcessMgmtQueue) != 0) {
+  if (dndInitWorker(pDnode, &pMgmt->statusWorker, DND_WORKER_SINGLE, "dnode-status", 1, 1, dmProcessQueue) != 0) {
     dError("failed to start dnode mgmt worker since %s", terrstr());
     return -1;
   }
