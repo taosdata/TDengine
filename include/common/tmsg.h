@@ -1157,6 +1157,17 @@ int32_t tDeserializeSCMCreateStreamReq(void* buf, int32_t bufLen, SCMCreateStrea
 void    tFreeSCMCreateStreamReq(SCMCreateStreamReq* pReq);
 
 typedef struct {
+  char    name[TSDB_TOPIC_FNAME_LEN];
+  int64_t streamId;
+  char*   sql;
+  char*   executorMsg;
+} SMVCreateStreamReq, SMSCreateStreamReq;
+
+typedef struct {
+  int64_t streamId;
+} SMVCreateStreamRsp, SMSCreateStreamRsp;
+
+typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];
   int8_t igExists;
   char*  sql;

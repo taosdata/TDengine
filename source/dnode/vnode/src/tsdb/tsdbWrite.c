@@ -34,6 +34,7 @@ int tsdbInsertData(STsdb *pTsdb, SSubmitReq *pMsg, SSubmitRsp *pRsp) {
   return tsdbMemTableInsert(pTsdb, pTsdb->mem, pMsg, NULL);
 }
 
+#if 0
 /**
  * @brief Insert/Update tSma(Time-range-wise SMA) data from stream computing engine
  * 
@@ -47,6 +48,14 @@ int32_t tsdbInsertTSmaData(STsdb *pTsdb, char *msg) {
   int32_t code = TSDB_CODE_SUCCESS;
   if ((code = tsdbInsertTSmaDataImpl(pTsdb, msg)) < 0) {
     tsdbWarn("vgId:%d insert tSma data failed since %s", REPO_ID(pTsdb), tstrerror(terrno));
+  }
+  return code;
+}
+
+int32_t tsdbUpdateSmaWindow(STsdb *pTsdb, int8_t smaType, char *msg) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if ((code = tsdbUpdateExpiredWindow(pTsdb, smaType, msg)) < 0) {
+    tsdbWarn("vgId:%d update expired sma window failed since %s", REPO_ID(pTsdb), tstrerror(terrno));
   }
   return code;
 }
@@ -66,3 +75,5 @@ int32_t tsdbInsertRSmaData(STsdb *pTsdb, char *msg) {
   }
   return code;
 }
+
+#endif
