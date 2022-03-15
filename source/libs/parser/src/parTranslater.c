@@ -1743,8 +1743,4 @@ int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery) {
     code = translateQuery(&cxt, pQuery->pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = setQuery(&cxt, pQuery);
-  }
-  destroyTranslateContext(&cxt);
-  return code;
-}
+    code = setQu

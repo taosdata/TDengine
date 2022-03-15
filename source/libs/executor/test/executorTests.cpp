@@ -1230,4 +1230,4 @@ TEST(testCase, time_interval_Operator_Test) {
 }
 #endif
 
-#pragma GCC diagnostic pop
+#pragma GCC diagnosti

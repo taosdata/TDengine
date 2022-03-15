@@ -259,7 +259,7 @@ _return:
   SCH_UNLOCK(SCH_WRITE, &ctrl->lock);
 
   if (code) {
-    code = schProcessOnTaskFailure(pJob, pTask, code, NULL);
+    code = schProcessOnTaskFailure(pJob, pTask, code);
   }
   
   SCH_RET(code);

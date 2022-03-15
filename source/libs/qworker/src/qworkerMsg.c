@@ -44,12 +44,9 @@ void qwFreeFetchRsp(void *msg) {
   }
 }
 
-int32_t qwBuildAndSendQueryRsp(void *connection, int32_t code, SQueryErrorInfo *errInfo) {
+int32_t qwBuildAndSendQueryRsp(void *connection, int32_t code) {
   SRpcMsg *pMsg = (SRpcMsg *)connection;
   SQueryTableRsp rsp = {.code = code};
-  if (errInfo && errInfo->code) {
-    rsp.tableName = errInfo->tableName;
-  }
   
   int32_t contLen = tSerializeSQueryTableRsp(NULL, 0, &rsp);
   void *msg = rpcMallocCont(contLen);

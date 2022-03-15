@@ -805,24 +805,6 @@ static int32_t dndWriteRpcMsgToVnodeQueue(STaosQueue *pQueue, SRpcMsg *pRpcMsg, 
   return code;
 }
 
-static void dndGenerateResponseHead(SRpcMsg *pMsg, void **pRspHead, int *contLen) {
-  if (TDMT_VND_SUBMIT != pMsg->msgType && TDMT_VND_QUERY != pMsg->msgType 
-   && TDMT_VND_CREATE_TABLE != pMsg->msgType && TDMT_VND_TABLE_META != pMsg->msgType) {
-    return;
-  }
-
-  *pRspHead = rpcMallocCont(sizeof(SRspHead));
-  if (NULL == *pRspHead) {
-    return;
-  }
-
-  SMsgHead *pHead = pMsg->pCont;
-
-  strcpy(((SRspHead *)(*pRspHead))->dbFName, pHead->dbFName);
-
-  *contLen = sizeof(SRspHead);
-}
-
 static SVnodeObj *dndAcquireVnodeFromMsg(SDnode *pDnode, SRpcMsg *pMsg) {
   SMsgHead *pHead = pMsg->pCont;
   pHead->contLen = htonl(pHead->contLen);
@@ -833,7 +815,6 @@ static SVnodeObj *dndAcquireVnodeFromMsg(SDnode *pDnode, SRpcMsg *pMsg) {
     dError("vgId:%d, failed to acquire vnode while process req", pHead->vgId);
     if (pMsg->msgType & 1u) {
       SRpcMsg rsp = {.handle = pMsg->handle, .code = TSDB_CODE_VND_INVALID_VGROUP_ID};
-      dndGenerateResponseHead(pMsg, &rsp.pCont, &rsp.contLen);
       rpcSendResponse(&rsp);
     }
     rpcFreeCont(pMsg->pCont);

@@ -1049,6 +1049,4 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
   if (TSDB_CODE_SUCCESS == code) {
     code = parseInsertBody(&context);
   }
-  destroyInsertParseContext(&context);
-  return code;
-}
+  dest

@@ -671,13 +671,41 @@ int32_t schUpdateHbConnection(SQueryNodeEpId *epId, SSchHbTrans *trans) {
   return TSDB_CODE_SUCCESS;
 }
 
+void schUpdateJobErrCode(SSchJob *pJob, int32_t errCode) {
+  if (TSDB_CODE_SUCCESS == errCode) {
+    return;
+  }
+
+  int32_t origCode = atomic_load_32(&pJob->errCode);
+  if (TSDB_CODE_SUCCESS == origCode) {
+    if (origCode == atomic_val_compare_exchange_32(&pJob->errCode, origCode, errCode)) {
+      goto _return;
+    }
+
+    origCode = atomic_load_32(&pJob->errCode);
+  }
+
+  if (NEED_CLIENT_HANDLE_ERROR(origCode)) {
+    return;
+  }
+  
+  if (NEED_CLIENT_HANDLE_ERROR(errCode)) {
+    atomic_store_32(&pJob->errCode, errCode);
+    goto _return;
+  }
+
+  return;
+  
+_return:  
+
+  SCH_JOB_DLOG("job errCode updated to %x - %s", errCode, tstrerror(errCode));
+}
+
 int32_t schProcessOnJobFailureImpl(SSchJob *pJob, int32_t status, int32_t errCode) {
   // if already FAILED, no more processing
   SCH_ERR_RET(schCheckAndUpdateJobStatus(pJob, status));
-  
-  if (errCode) {
-    atomic_store_32(&pJob->errCode, errCode);
-  }
+
+  schUpdateJobErrCode(pJob, errCode);
 
   if (atomic_load_8(&pJob->userFetch) || pJob->attr.syncSchedule) {
     tsem_post(&pJob->rspSem);
@@ -729,48 +757,12 @@ int32_t schProcessOnDataFetched(SSchJob *job) {
   tsem_post(&job->rspSem);
 }
 
-int32_t schPushToErrInfoList(SSchJob *pJob, SSchTask *pTask, SArray *errList) {
-  if (NULL == errList || !SCH_IS_DATA_SRC_TASK(pTask)) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (NULL == pJob->errList) {
-    SSchLevel *level = taosArrayGetLast(pJob->levels);
-    
-    pJob->errList = taosArrayInit(level->taskNum, sizeof(SQueryErrorInfo));
-    if (NULL == pJob->errList) {
-      SCH_TASK_ELOG("taosArrayInit %d errInfofailed", pJob->taskNum);
-      SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-    }
-  }
-
-  SQueryErrorInfo *errInfo = NULL;
-  int32_t errNum = taosArrayGetSize(errList);
-  for (int32_t i = 0; i < errNum; ++i) {
-    errInfo = taosArrayGet(errList, i);
-    
-    if (!NEED_CLIENT_HANDLE_ERROR(errInfo->code)) {
-      continue;
-    }
-    
-    if (NULL == taosArrayPush(pJob->errList, errInfo)) {
-      SCH_TASK_ELOG("taosArrayPush errInfo to list failed, errCode:%x", errInfo->code);
-      SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-    }
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-
 // Note: no more task error processing, handled in function internal
-int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode, SArray *errList) {
+int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode) {
   int8_t status = 0;
   
   if (schJobNeedToStop(pJob, &status)) {
     SCH_TASK_DLOG("task failed not processed cause of job status, job status:%d", status);
-
-    taosArrayDestroy(errList);
     SCH_RET(atomic_load_32(&pJob->errCode));
   }
 
@@ -794,8 +786,6 @@ int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode,
     }
 
     SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_FAILED);
-
-    SCH_ERR_JRET(schPushToErrInfoList(pJob, pTask, errList));
     
     if (SCH_IS_WAIT_ALL_JOB(pJob)) {
       SCH_LOCK(SCH_WRITE, &pTask->level->lock);
@@ -803,25 +793,20 @@ int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode,
       taskDone = pTask->level->taskSucceed + pTask->level->taskFailed;
       SCH_UNLOCK(SCH_WRITE, &pTask->level->lock);
 
-      atomic_store_32(&pJob->errCode, errCode);
+      schUpdateJobErrCode(pJob, errCode);
       
       if (taskDone < pTask->level->taskNum) {
         SCH_TASK_DLOG("need to wait other tasks, doneNum:%d, allNum:%d", taskDone, pTask->level->taskNum);        
-        taosArrayDestroy(errList);
         SCH_RET(errCode);
       }
     }
   } else {
-    taosArrayDestroy(errList);
-  
     SCH_ERR_JRET(schHandleTaskRetry(pJob, pTask));
     
     return TSDB_CODE_SUCCESS;
   }
 
 _return:
-
-  taosArrayDestroy(errList);
 
   SCH_RET(schProcessOnJobFailure(pJob, errCode));
 }
@@ -930,30 +915,7 @@ _return:
 
   atomic_val_compare_exchange_32(&pJob->remoteFetch, 1, 0);
 
-  SCH_RET(schProcessOnTaskFailure(pJob, pJob->fetchTask, code, NULL));
-}
-
-int32_t schRspHeadToErrList(SSchJob *pJob, SSchTask *pTask, int32_t errCode, SRspHead *head, SArray **errList) {
-  SQueryErrorInfo errInfo = {0};
-  errInfo.code = errCode;
-  if (tNameFromString(&errInfo.tableName, head->dbFName, T_NAME_ACCT | T_NAME_DB)) {
-    SCH_TASK_ELOG("invalid rsp head, dbFName:%s", head->dbFName);
-    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
-  }
-
-  *errList = taosArrayInit(1, sizeof(SQueryErrorInfo));
-  if (NULL == *errList) {
-    SCH_TASK_ELOG("taskArrayInit %d errInfo failed", 1);
-    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-  }
-
-  if (NULL == taosArrayPush(*errList, &errInfo)) {
-    SCH_TASK_ELOG("taosArrayPush err to errList failed, dbFName:%s", head->dbFName);
-    taosArrayDestroy(*errList);
-    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-  }
-
-  return TSDB_CODE_SUCCESS;
+  SCH_RET(schProcessOnTaskFailure(pJob, pJob->fetchTask, code));
 }
 
 
@@ -961,9 +923,6 @@ int32_t schRspHeadToErrList(SSchJob *pJob, SSchTask *pTask, int32_t errCode, SRs
 int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, char *msg, int32_t msgSize, int32_t rspCode) {
   int32_t code = 0;
   int8_t status = 0;
-  bool errInfoGot = false;
-  SQueryErrorInfo errInfo = {0};
-  SArray *errList = NULL;
   
   if (schJobNeedToStop(pJob, &status)) {
     SCH_TASK_ELOG("rsp not processed cause of job status, job status:%d", status);
@@ -977,33 +936,18 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
     case TDMT_VND_CREATE_TABLE_RSP: {
         SVCreateTbBatchRsp batchRsp = {0};
         if (msg) {
-          if (ONLY_RSP_HEAD_ERROR(rspCode)) {
-            SCH_ERR_JRET(schRspHeadToErrList(pJob, pTask, rspCode, (SRspHead *)msg, &errList));
-            errInfoGot = true;
-            SCH_ERR_JRET(rspCode);
-          }
-          
           tDeserializeSVCreateTbBatchRsp(msg, msgSize, &batchRsp);
           if (batchRsp.rspList) {
             int32_t num = taosArrayGetSize(batchRsp.rspList);
-            errList = taosArrayInit(num, sizeof(SQueryErrorInfo));
-            if (NULL == errList) {
-              SCH_TASK_ELOG("taskArrayInit %d errInfo failed", num);
-              taosArrayDestroy(batchRsp.rspList);
-              SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-            }
-
             for (int32_t i = 0; i < num; ++i) {
               SVCreateTbRsp *rsp = taosArrayGet(batchRsp.rspList, i);
-              
-              errInfo.code = rsp->code;
-              errInfo.tableName = rsp->tableName;
-
-              taosArrayPush(errList, &errInfo);
+              if (NEED_CLIENT_HANDLE_ERROR(rsp->code)) {
+                taosArrayDestroy(batchRsp.rspList);
+                SCH_ERR_JRET(rsp->code);
+              }
             }
-
+            
             taosArrayDestroy(batchRsp.rspList);
-            errInfoGot = true;
           }
         }        
         
@@ -1014,12 +958,6 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       }
     case TDMT_VND_SUBMIT_RSP: {
         if (msg) {
-          if (ONLY_RSP_HEAD_ERROR(rspCode)) {
-            SCH_ERR_JRET(schRspHeadToErrList(pJob, pTask, rspCode, (SRspHead *)msg, &errList));
-            errInfoGot = true;
-            SCH_ERR_JRET(rspCode);
-          }
-          
           SSubmitRsp *rsp = (SSubmitRsp *)msg;
           
           SCH_ERR_JRET(rsp->code);
@@ -1036,27 +974,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
     case TDMT_VND_QUERY_RSP: {
         SQueryTableRsp rsp = {0};
         if (msg) {
-          if (ONLY_RSP_HEAD_ERROR(rspCode)) {
-            SCH_ERR_JRET(schRspHeadToErrList(pJob, pTask, rspCode, (SRspHead *)msg, &errList));
-            errInfoGot = true;
-            SCH_ERR_JRET(rspCode);
-          }
-          
           tDeserializeSQueryTableRsp(msg, msgSize, &rsp);
-          if (rsp.code) {
-            errInfo.code = rsp.code;
-            errInfo.tableName = rsp.tableName;
-
-            errList = taosArrayInit(1, sizeof(SQueryErrorInfo));
-            if (NULL == errList) {
-              SCH_TASK_ELOG("taskArrayInit %d errInfo failed", 1);
-              SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-            }
-
-            taosArrayPush(errList, &errInfo);            
-            errInfoGot = true;
-          }
-
           SCH_ERR_JRET(rsp.code);
         }
         
@@ -1124,7 +1042,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
 
 _return:
 
-  SCH_RET(schProcessOnTaskFailure(pJob, pTask, code, errInfoGot ? errList : NULL));
+  SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 }
 
 
@@ -1360,7 +1278,6 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
 
       SSubQueryMsg *pMsg = msg;
       pMsg->header.vgId = htonl(addr->nodeId);
-      strcpy(pMsg->header.dbFName, pTask->plan->dbFName);
       pMsg->sId        = htobe64(schMgmt.sId);
       pMsg->queryId    = htobe64(pJob->queryId);
       pMsg->taskId     = htobe64(pTask->taskId);
@@ -1550,7 +1467,7 @@ int32_t schLaunchTask(SSchJob *pJob, SSchTask *pTask) {
 
 _return:
 
-  SCH_RET(schProcessOnTaskFailure(pJob, pTask, code, NULL));
+  SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 }
 
 int32_t schLaunchLevelTasks(SSchJob *pJob, SSchLevel *level) {
@@ -1666,7 +1583,6 @@ void schFreeJobImpl(void *job) {
   
   taosArrayDestroy(pJob->levels);
   taosArrayDestroy(pJob->nodeList);
-  taosArrayDestroy(pJob->errList);
   
   tfree(pJob->resData);
   
@@ -1806,8 +1722,6 @@ int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryPlan* pDag, in
 
   pRes->code = atomic_load_32(&job->errCode);
   pRes->numOfRows = job->resNumOfRows;
-  pRes->errList = job->errList;
-  job->errList = NULL;
   
   schReleaseJob(*pJob);
   

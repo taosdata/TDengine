@@ -51,11 +51,11 @@ static void freeqinfoFn(void *qhandle) {
   qDestroyTask(*handle);
 }
 
-int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, SQueryErrorInfo *errInfo) {
+int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle) {
   assert(readHandle != NULL && pSubplan != NULL);
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
 
-  int32_t code = createExecTaskInfoImpl(pSubplan, pTask, readHandle, taskId, errInfo);
+  int32_t code = createExecTaskInfoImpl(pSubplan, pTask, readHandle, taskId);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }

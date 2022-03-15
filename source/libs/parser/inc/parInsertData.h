@@ -121,7 +121,6 @@ static FORCE_INLINE int32_t setBlockInfo(SSubmitBlk *pBlocks, STableDataBlocks* 
   pBlocks->tid = dataBuf->pTableMeta->suid;
   pBlocks->uid = dataBuf->pTableMeta->uid;
   pBlocks->sversion = dataBuf->pTableMeta->sversion;
-  strcpy(pBlocks->tableName, dataBuf->tableName);
 
   if (pBlocks->numOfRows + numOfRows >= INT16_MAX) {
     return TSDB_CODE_TSC_INVALID_OPERATION;

@@ -998,7 +998,6 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType) {
   qTaskInfo_t pTaskInfo = NULL;
   DataSinkHandle sinkHandle = NULL;
   SQWTaskCtx *ctx = NULL;
-  SQueryErrorInfo errInfo = {0};
 
   QW_ERR_JRET(qwHandlePrePhaseEvents(QW_FPARAMS(), QW_PHASE_PRE_QUERY, &input, &output));
 
@@ -1020,7 +1019,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType) {
     QW_ERR_JRET(code);
   }
   
-  code = qCreateExecTask(qwMsg->node, 0, tId, (struct SSubplan *)plan, &pTaskInfo, &sinkHandle, &errInfo);
+  code = qCreateExecTask(qwMsg->node, 0, tId, (struct SSubplan *)plan, &pTaskInfo, &sinkHandle);
   if (code) {
     QW_TASK_ELOG("qCreateExecTask failed, code:%s", tstrerror(code));
     QW_ERR_JRET(code);
@@ -1033,7 +1032,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType) {
 
   //TODO OPTIMIZE EMTYP RESULT QUERY RSP TO AVOID FURTHER FETCH
   
-  QW_ERR_JRET(qwBuildAndSendQueryRsp(qwMsg->connection, code, NULL));
+  QW_ERR_JRET(qwBuildAndSendQueryRsp(qwMsg->connection, code));
   QW_TASK_DLOG("query msg rsped, code:%d", code);
 
   queryRsped = true;
@@ -1052,7 +1051,7 @@ _return:
   }
   
   if (!queryRsped) {
-    qwBuildAndSendQueryRsp(qwMsg->connection, rspCode, &errInfo);
+    qwBuildAndSendQueryRsp(qwMsg->connection, rspCode);
     QW_TASK_DLOG("query msg rsped, code:%x", rspCode);
   }
 

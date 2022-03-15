@@ -36,7 +36,7 @@ int32_t qwBuildAndSendFetchRsp(void *connection, SRetrieveTableRsp *pRsp, int32_
 void qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len, bool qComplete);
 int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, void *connection);
 int32_t qwBuildAndSendReadyRsp(void *connection, int32_t code);
-int32_t qwBuildAndSendQueryRsp(void *connection, int32_t code, SQueryErrorInfo *errInfo);
+int32_t qwBuildAndSendQueryRsp(void *connection, int32_t code);
 void qwFreeFetchRsp(void *msg);
 int32_t qwMallocFetchRsp(int32_t length, SRetrieveTableRsp **rsp);
 int32_t qwGetSchTasksStatus(SQWorkerMgmt *mgmt, uint64_t sId, SSchedulerStatusRsp **rsp);

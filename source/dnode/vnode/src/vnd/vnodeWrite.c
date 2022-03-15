@@ -85,22 +85,12 @@ int  vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
         char tableFName[TSDB_TABLE_FNAME_LEN];
         SMsgHead *pHead = (SMsgHead *)pMsg->pCont;
-        sprintf(tableFName, "%s.%s", pHead->dbFName, pCreateTbReq->name);
+        sprintf(tableFName, "%s.%s", pCreateTbReq->dbFName, pCreateTbReq->name);
         
         int32_t code = vnodeValidateTableHash(&pVnode->config, tableFName);
         if (code) {
           SVCreateTbRsp rsp;
           rsp.code = code;
-          tNameFromString(&rsp.tableName, tableFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-
-          if (NULL == vCreateTbBatchRsp.rspList) {
-            vCreateTbBatchRsp.rspList = taosArrayInit(reqNum - i, sizeof(SVCreateTbRsp));
-            if (NULL == vCreateTbBatchRsp.rspList) {
-              vError("vgId:%d, failed to init array: %d", pVnode->vgId, reqNum - i);
-              terrno = TSDB_CODE_OUT_OF_MEMORY;
-              return -1;
-            }
-          }
 
           taosArrayPush(vCreateTbBatchRsp.rspList, &rsp);
         }

@@ -263,11 +263,12 @@ static SPhysiNode* createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   pTableScan->scanRange = pScanLogicNode->scanRange;
   vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
   taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
+  pSubplan->execNodeStat.tableNum = pScanLogicNode->pVgroupList->vgroups[0].numOfTable;
   tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
   return (SPhysiNode*)pTableScan;
 }
 
-static SPhysiNode* createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SScanLogicNode* pScanLogicNode) {
+static SPhysiNode* createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode) {
   SSystemTableScanPhysiNode* pScan = (SSystemTableScanPhysiNode*)makePhysiNode(pCxt, QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN);
   CHECK_ALLOC(pScan, NULL);
   CHECK_CODE(initScanPhysiNode(pCxt, pScanLogicNode, (SScanPhysiNode*)pScan), (SPhysiNode*)pScan);
@@ -277,6 +278,7 @@ static SPhysiNode* createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SScan
     taosArrayPush(pCxt->pExecNodeList, &addr);
   }
   pScan->mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
+  tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
   return (SPhysiNode*)pScan;
 }
 
@@ -287,7 +289,7 @@ static SPhysiNode* createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubpl
     case SCAN_TYPE_TABLE:
       return createTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode);
     case SCAN_TYPE_SYSTEM_TABLE:
-      return createSystemTableScanPhysiNode(pCxt, pScanLogicNode);
+      return createSystemTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode);
     case SCAN_TYPE_STREAM:
       break;
     default:
@@ -840,4 +842,3 @@ int32_t createPhysiPlan(SPlanContext* pCxt, SLogicNode* pLogicNode, SQueryPlan**
   nodesDestroyNode(pLogicPlan);
   return code;
 }
-                                                                                                   

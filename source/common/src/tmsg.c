@@ -2631,10 +2631,6 @@ int32_t tSerializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp
 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->code) < 0) return -1;    
-  if (tEncodeI8(&encoder, pRsp->tableName.type) < 0) return -1;    
-  if (tEncodeI32(&encoder, pRsp->tableName.acctId) < 0) return -1;    
-  if (tEncodeCStr(&encoder, pRsp->tableName.dbname) < 0) return -1;  
-  if (tEncodeCStr(&encoder, pRsp->tableName.tname) < 0) return -1;  
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2648,10 +2644,6 @@ int32_t tDeserializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pR
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->code) < 0) return -1;
-  if (tDecodeI8(&decoder, &pRsp->tableName.type) < 0) return -1;
-  if (tDecodeI32(&decoder, &pRsp->tableName.acctId) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pRsp->tableName.dbname) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pRsp->tableName.tname) < 0) return -1;
   tEndDecode(&decoder);
 
   tCoderClear(&decoder);
@@ -2669,10 +2661,6 @@ int32_t tSerializeSVCreateTbBatchRsp(void *buf, int32_t bufLen, SVCreateTbBatchR
     for (int32_t i = 0; i < num; ++i) {
       SVCreateTbRsp *rsp = taosArrayGet(pRsp->rspList, i);
       if (tEncodeI32(&encoder, rsp->code) < 0) return -1;    
-      if (tEncodeU8(&encoder, rsp->tableName.type) < 0) return -1;    
-      if (tEncodeI32(&encoder, rsp->tableName.acctId) < 0) return -1;    
-      if (tEncodeCStr(&encoder, rsp->tableName.dbname) < 0) return -1;    
-      if (tEncodeCStr(&encoder, rsp->tableName.tname) < 0) return -1;    
     }
   } else {
     if (tEncodeI32(&encoder, 0) < 0) return -1;    
@@ -2697,10 +2685,6 @@ int32_t tDeserializeSVCreateTbBatchRsp(void *buf, int32_t bufLen, SVCreateTbBatc
     for (int32_t i = 0; i < num; ++i) {
       SVCreateTbRsp rsp = {0};
       if (tDecodeI32(&decoder, &rsp.code) < 0) return -1;
-      if (tDecodeU8(&decoder, &rsp.tableName.type) < 0) return -1;
-      if (tDecodeI32(&decoder, &rsp.tableName.acctId) < 0) return -1;
-      if (tDecodeCStrTo(&decoder, rsp.tableName.dbname) < 0) return -1;
-      if (tDecodeCStrTo(&decoder, rsp.tableName.tname) < 0) return -1;
       if (NULL == taosArrayPush(pRsp->rspList, &rsp)) return -1;
     }
   } else {
