@@ -791,5 +791,6 @@
 3,,script,./test.sh -f general/compute/scalar_str_concat_len.sim
 3,,develop-test,python3 ./test.py -f 2-query/function_tail.py
 2,,develop-test,python3 ./test.py -f 2-query/function_unique.py
+2,,develop-test,python3 ./test.py -f 2-query/function_hll.py
 1,,develop-test,python3 ./test.py -f 2-query/function_state.py
 1,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/demo.py
