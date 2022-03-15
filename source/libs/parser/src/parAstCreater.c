@@ -1021,3 +1021,10 @@ SNode* createIndexOption(SAstCreateContext* pCxt, SNodeList* pFuncs, SNode* pInt
   pOptions->pSliding = pSliding;
   return (SNode*)pOptions;
 }
+
+SNode* createCreateQnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId) {
+  SCreateQnodeStmt* pStmt = nodesMakeNode(QUERY_NODE_CREATE_QNODE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->dnodeId = strtol(pDnodeId->z, NULL, 10);;
+  return (SNode*)pStmt;
+}

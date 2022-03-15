@@ -64,6 +64,10 @@ dnode_endpoint(A) ::= NK_STRING(B).                                             
 dnode_host_name(A) ::= NK_ID(B).                                                  { A = B; }
 dnode_host_name(A) ::= NK_IPTOKEN(B).                                             { A = B; }
 
+/************************************************ create qnode ********************************************************/
+cmd ::= CREATE QNODE ON DNODE NK_INTEGER(A).                                      { pCxt->pRootNode = createCreateQnodeStmt(pCxt, &A); }
+cmd ::= SHOW QNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_QNODES_STMT, NULL); }
+
 /************************************************ create/drop/show/use database ***************************************/
 cmd ::= CREATE DATABASE not_exists_opt(A) db_name(B) db_options(C).               { pCxt->pRootNode = createCreateDatabaseStmt(pCxt, A, &B, C);}
 cmd ::= DROP DATABASE exists_opt(A) db_name(B).                                   { pCxt->pRootNode = createDropDatabaseStmt(pCxt, A, &B); }
