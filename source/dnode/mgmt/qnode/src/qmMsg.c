@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "qmHandle.h"
+#include "qmMsg.h"
 #include "qmWorker.h"
 
 int32_t qmProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {return 0;}

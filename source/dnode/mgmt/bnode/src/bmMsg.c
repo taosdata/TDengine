@@ -14,11 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "smHandle.h"
-#include "smWorker.h"
+#include "bmMsg.h"
+#include "bmWorker.h"
 
-int32_t smProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {return 0;}
-int32_t smProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {return 0;}
+int32_t bmProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {return 0;}
+int32_t bmProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {return 0;}
 
-void smInitMsgHandles(SMgmtWrapper *pWrapper) {
+
+void bmInitMsgHandles(SMgmtWrapper *pWrapper) {
 }

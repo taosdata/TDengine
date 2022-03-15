@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
-#include "vmHandle.h"
+#include "vmMsg.h"
 #include "vmMgmt.h"
 
 static int32_t vmInit(SMgmtWrapper *pWrapper) {

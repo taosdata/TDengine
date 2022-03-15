@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mmHandle.h"
+#include "mmMsg.h"
 #include "mmWorker.h"
 
 #if 0

@@ -22,30 +22,26 @@
 extern "C" {
 #endif
 
-
-
 typedef struct SMnodeMgmt {
   int32_t      refCount;
   int8_t       deployed;
   int8_t       dropped;
+  int8_t       replica;
+  int8_t       selfIndex;
+  SReplica     replicas[TSDB_MAX_REPLICA];
   SMnode      *pMnode;
+  SProcObj    *pProcess;
+  bool         singleProc;
   SRWLatch     latch;
   SDnodeWorker readWorker;
   SDnodeWorker writeWorker;
   SDnodeWorker syncWorker;
-  int8_t       replica;
-  int8_t       selfIndex;
-  SReplica     replicas[TSDB_MAX_REPLICA];
-
-  //
-  SProcObj *pProcess;
-  bool      singleProc;
 } SMnodeMgmt;
 
-
-// interface
+// mmInt.h
 void mmGetMgmtFp(SMgmtWrapper *pMgmt);
 
+// mmMgmt.h
 int32_t mmInit(SDnode *pDnode);
 void    mmCleanup(SDnode *pDnode);
 

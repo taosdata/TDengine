@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "vmHandle.h"
+#include "vmMsg.h"
 #include "vmWorker.h"
 
 

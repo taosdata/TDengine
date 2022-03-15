@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
-#include "mmHandle.h"
+#include "mmMsg.h"
 
 bool mmRequireNode(SMgmtWrapper *pWrapper) { return false; }
 

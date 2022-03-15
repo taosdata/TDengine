@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "smInt.h"
-#include "smHandle.h"
+#include "smMsg.h"
 
 bool smRequireNode(SMgmtWrapper *pWrapper) { return false; }
 
