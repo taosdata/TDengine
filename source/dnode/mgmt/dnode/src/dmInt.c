@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
 #include "dmFile.h"
-#include "dmHandle.h"
+#include "dmMsg.h"
 #include "dmWorker.h"
 
 int32_t dmGetDnodeId(SDnode *pDnode) {
@@ -140,6 +140,7 @@ int32_t dmInit(SMgmtWrapper *pWrapper) {
     return -1;
   }
 
+  pWrapper->pMgmt = pMgmt;
   dndSetStatus(pDnode, DND_STAT_RUNNING);
   dmSendStatusReq(pMgmt);
   dndReportStartup(pDnode, "TDengine", "initialized successfully");

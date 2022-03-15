@@ -36,9 +36,9 @@ static void dndResetLog(SMgmtWrapper *pMgmt) {
 static bool dndRequireNode(SMgmtWrapper *pMgmt) {
   bool required = (*pMgmt->fp.requiredFp)(pMgmt);
   if (!required) {
-    dDebug("node:%s, no need to start on this dnode", pMgmt->name);
+    dDebug("node:%s, no need to start", pMgmt->name);
   } else {
-    dDebug("node:%s, need to start on this dnode", pMgmt->name);
+    dDebug("node:%s, need to start", pMgmt->name);
   }
   return required;
 }
@@ -242,7 +242,7 @@ int32_t dndRun(SDnode *pDnode) {
   }
 
   while (1) {
-    if (pDnode->event != DND_EVENT_STOP) {
+    if (pDnode->event == DND_EVENT_STOP) {
       dInfo("dnode object receive stop event");
       break;
     }

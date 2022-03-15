@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dmHandle.h"
+#include "dmMsg.h"
 #include "dmFile.h"
 #include "dmWorker.h"
 #include "vmInt.h"

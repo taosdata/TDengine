@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmWorker.h"
-#include "dmHandle.h"
+#include "dmMsg.h"
 
 #include "bmInt.h"
 #include "mmInt.h"
@@ -131,12 +131,12 @@ static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
 }
 
 int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
-  if (dndInitWorker(NULL, &pMgmt->mgmtWorker, DND_WORKER_SINGLE, "dnode-mgmt", 1, 1, dndProcessMgmtQueue) != 0) {
+  if (dndInitWorker(pMgmt->pDnode, &pMgmt->mgmtWorker, DND_WORKER_SINGLE, "dnode-mgmt", 1, 1, dndProcessMgmtQueue) != 0) {
     dError("failed to start dnode mgmt worker since %s", terrstr());
     return -1;
   }
 
-  if (dndInitWorker(NULL, &pMgmt->statusWorker, DND_WORKER_SINGLE, "dnode-status", 1, 1, dndProcessMgmtQueue) != 0) {
+  if (dndInitWorker(pMgmt->pDnode, &pMgmt->statusWorker, DND_WORKER_SINGLE, "dnode-status", 1, 1, dndProcessMgmtQueue) != 0) {
     dError("failed to start dnode mgmt worker since %s", terrstr());
     return -1;
   }

@@ -56,7 +56,7 @@ extern "C" {
 #define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND ", DEBUG_DEBUG, dDebugFlag, __VA_ARGS__); }}
 #define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", DEBUG_TRACE, dDebugFlag, __VA_ARGS__); }}
 
-typedef enum { DNODE, MNODE, NODE_MAX, VNODES, QNODE, SNODE, BNODE } ENodeType;
+typedef enum { MNODE, VNODES, QNODE, SNODE, BNODE, DNODE, NODE_MAX } ENodeType;
 typedef enum { PROC_SINGLE, PROC_CHILD, PROC_PARENT } EProcType;
 typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EDndStatus;
 typedef enum { DND_WORKER_SINGLE, DND_WORKER_MULTI } EWorkerType;
