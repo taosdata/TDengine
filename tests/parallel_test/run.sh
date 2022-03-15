@@ -272,10 +272,11 @@ function run_thread() {
             flock -x $lock_file -c "echo \"${hosts[index]} ret:${ret} ${line}\" >>$log_dir/failed.log"
             mkdir -p $log_dir/${case_file}.coredump
             local remote_coredump_dir="${workdirs[index]}/tmp/thread_volume/$thread_no/coredump"
-            cmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
+            local scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
             if [ -z ${passwords[index]} ]; then
-                cmd="scp -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
+                scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
             fi
+            cmd="$scpcmd:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
             $cmd # 2>/dev/null
             local case_info=`echo "$line"|cut -d, -f 3,4`
             local corefile=`ls $log_dir/${case_file}.coredump/`
@@ -287,6 +288,15 @@ function run_thread() {
             echo -e "\e[34m log file: $log_dir/$case_file.log \e[0m"
             if [ ! -z "$corefile" ]; then
                 echo -e "\e[34m corefiles: $corefile \e[0m"
+                local build_dir=$log_dir/build_${hosts[index]}
+                local remote_build_dir="${workdirs[index]}/TDinternal/debug/build"
+                mkdir $build_dir 2>/dev/null
+                if [ $? -eq 0 ]; then
+                    # scp build binary
+                    cmd="$scpcmd:${remote_build_dir}/* ${build_dir}/"
+                    echo "$cmd"
+                    $cmd >/dev/null
+                fi
             fi
         fi
     done

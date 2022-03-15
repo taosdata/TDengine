@@ -1239,7 +1239,7 @@ taosd -C
    | 内部配置 | No |
    | 适用范围 | 仅服务端适用 |
    | 含义 | 配置要进行有损压缩的浮点数据类型 |
-   | 取值范围 | float：只对float类型进行有损压缩<br/>double：只对double类型进行有损压缩<br/>float|double：float double都进行有损压缩  |
+   | 取值范围 | float：只对float类型进行有损压缩<br/>double：只对double类型进行有损压缩<br/>float\|double：float double都进行有损压缩  |
    | 缺省值 | 默认为空字符串，关闭有损压缩 |
    | 补充说明 | 2.4.0.10版本新增。|
 
