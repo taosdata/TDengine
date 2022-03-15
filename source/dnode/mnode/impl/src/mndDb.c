@@ -31,14 +31,14 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
 static int32_t  mndDbActionDelete(SSdb *pSdb, SDbObj *pDb);
 static int32_t  mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew);
-static int32_t  mndProcessCreateDbReq(SMndMsg *pReq);
-static int32_t  mndProcessAlterDbReq(SMndMsg *pReq);
-static int32_t  mndProcessDropDbReq(SMndMsg *pReq);
-static int32_t  mndProcessUseDbReq(SMndMsg *pReq);
-static int32_t  mndProcessSyncDbReq(SMndMsg *pReq);
-static int32_t  mndProcessCompactDbReq(SMndMsg *pReq);
-static int32_t  mndGetDbMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t  mndRetrieveDbs(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndProcessCreateDbReq(SNodeMsg *pReq);
+static int32_t  mndProcessAlterDbReq(SNodeMsg *pReq);
+static int32_t  mndProcessDropDbReq(SNodeMsg *pReq);
+static int32_t  mndProcessUseDbReq(SNodeMsg *pReq);
+static int32_t  mndProcessSyncDbReq(SNodeMsg *pReq);
+static int32_t  mndProcessCompactDbReq(SNodeMsg *pReq);
+static int32_t  mndGetDbMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t  mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextDb(SMnode *pMnode, void *pIter);
 
 int32_t mndInitDb(SMnode *pMnode) {
@@ -384,7 +384,7 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   return 0;
 }
 
-static int32_t mndCreateDb(SMnode *pMnode, SMndMsg *pReq, SCreateDbReq *pCreate, SUserObj *pUser) {
+static int32_t mndCreateDb(SMnode *pMnode, SNodeMsg *pReq, SCreateDbReq *pCreate, SUserObj *pUser) {
   SDbObj dbObj = {0};
   memcpy(dbObj.name, pCreate->db, TSDB_DB_FNAME_LEN);
   memcpy(dbObj.acct, pUser->acct, TSDB_USER_LEN);
@@ -458,8 +458,8 @@ CREATE_DB_OVER:
   return code;
 }
 
-static int32_t mndProcessCreateDbReq(SMndMsg *pReq) {
-  SMnode      *pMnode = pReq->pMnode;
+static int32_t mndProcessCreateDbReq(SNodeMsg *pReq) {
+  SMnode      *pMnode = pReq->pNode;
   int32_t      code = -1;
   SDbObj      *pDb = NULL;
   SUserObj    *pUser = NULL;
@@ -622,7 +622,7 @@ static int32_t mndSetUpdateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   return 0;
 }
 
-static int32_t mndUpdateDb(SMnode *pMnode, SMndMsg *pReq, SDbObj *pOld, SDbObj *pNew) {
+static int32_t mndUpdateDb(SMnode *pMnode, SNodeMsg *pReq, SDbObj *pOld, SDbObj *pNew) {
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_ALTER_DB, &pReq->rpcMsg);
   if (pTrans == NULL) goto UPDATE_DB_OVER;
@@ -642,8 +642,8 @@ UPDATE_DB_OVER:
   return code;
 }
 
-static int32_t mndProcessAlterDbReq(SMndMsg *pReq) {
-  SMnode     *pMnode = pReq->pMnode;
+static int32_t mndProcessAlterDbReq(SNodeMsg *pReq) {
+  SMnode     *pMnode = pReq->pNode;
   int32_t     code = -1;
   SDbObj     *pDb = NULL;
   SUserObj   *pUser = NULL;
@@ -802,7 +802,7 @@ static int32_t mndSetDropDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
   return 0;
 }
 
-static int32_t mndDropDb(SMnode *pMnode, SMndMsg *pReq, SDbObj *pDb) {
+static int32_t mndDropDb(SMnode *pMnode, SNodeMsg *pReq, SDbObj *pDb) {
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_DROP_DB, &pReq->rpcMsg);
   if (pTrans == NULL) goto DROP_DB_OVER;
@@ -837,8 +837,8 @@ DROP_DB_OVER:
   return code;
 }
 
-static int32_t mndProcessDropDbReq(SMndMsg *pReq) {
-  SMnode    *pMnode = pReq->pMnode;
+static int32_t mndProcessDropDbReq(SNodeMsg *pReq) {
+  SMnode    *pMnode = pReq->pNode;
   int32_t    code = -1;
   SDbObj    *pDb = NULL;
   SUserObj  *pUser = NULL;
@@ -948,8 +948,8 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
   sdbCancelFetch(pSdb, pIter);
 }
 
-static int32_t mndProcessUseDbReq(SMndMsg *pReq) {
-  SMnode   *pMnode = pReq->pMnode;
+static int32_t mndProcessUseDbReq(SNodeMsg *pReq) {
+  SMnode   *pMnode = pReq->pNode;
   int32_t   code = -1;
   SDbObj   *pDb = NULL;
   SUserObj *pUser = NULL;
@@ -1017,8 +1017,8 @@ static int32_t mndProcessUseDbReq(SMndMsg *pReq) {
 
   tSerializeSUseDbRsp(pRsp, contLen, &usedbRsp);
 
-  pReq->pCont = pRsp;
-  pReq->contLen = contLen;
+  pReq->pRsp = pRsp;
+  pReq->rspLen = contLen;
 
 USE_DB_OVER:
   if (code != 0) {
@@ -1101,8 +1101,8 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
   return 0;
 }
 
-static int32_t mndProcessSyncDbReq(SMndMsg *pReq) {
-  SMnode    *pMnode = pReq->pMnode;
+static int32_t mndProcessSyncDbReq(SNodeMsg *pReq) {
+  SMnode    *pMnode = pReq->pNode;
   int32_t    code = -1;
   SDbObj    *pDb = NULL;
   SUserObj  *pUser = NULL;
@@ -1142,8 +1142,8 @@ SYNC_DB_OVER:
   return code;
 }
 
-static int32_t mndProcessCompactDbReq(SMndMsg *pReq) {
-  SMnode       *pMnode = pReq->pMnode;
+static int32_t mndProcessCompactDbReq(SNodeMsg *pReq) {
+  SMnode       *pMnode = pReq->pNode;
   int32_t       code = -1;
   SDbObj       *pDb = NULL;
   SUserObj     *pUser = NULL;
@@ -1183,8 +1183,8 @@ SYNC_DB_OVER:
   return code;
 }
 
-static int32_t mndGetDbMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
-  SMnode *pMnode = pReq->pMnode;
+static int32_t mndGetDbMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+  SMnode *pMnode = pReq->pNode;
   SSdb   *pSdb = pMnode->pSdb;
 
   int32_t  cols = 0;
@@ -1324,8 +1324,8 @@ char *mnGetDbStr(char *src) {
   return pos;
 }
 
-static int32_t mndRetrieveDbs(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode *pMnode = pReq->pMnode;
+static int32_t mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+  SMnode *pMnode = pReq->pNode;
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfRows = 0;
   SDbObj *pDb = NULL;

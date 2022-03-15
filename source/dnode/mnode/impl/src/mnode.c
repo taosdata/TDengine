@@ -386,8 +386,8 @@ void mndDestroy(const char *path) {
   mDebug("mnode is destroyed");
 }
 
-int32_t mndProcessMsg(SMndMsg *pMsg) {
-  SMnode  *pMnode = pMsg->pMnode;
+int32_t mndProcessMsg(SNodeMsg *pMsg) {
+  SMnode  *pMnode = pMsg->pNode;
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   tmsg_t   msgType = pMsg->rpcMsg.msgType;
   void    *ahandle = pMsg->rpcMsg.ahandle;

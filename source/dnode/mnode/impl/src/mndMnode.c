@@ -30,13 +30,13 @@ static SSdbRow *mndMnodeActionDecode(SSdbRaw *pRaw);
 static int32_t  mndMnodeActionInsert(SSdb *pSdb, SMnodeObj *pObj);
 static int32_t  mndMnodeActionDelete(SSdb *pSdb, SMnodeObj *pObj);
 static int32_t  mndMnodeActionUpdate(SSdb *pSdb, SMnodeObj *pOld, SMnodeObj *pNew);
-static int32_t  mndProcessCreateMnodeReq(SMndMsg *pReq);
-static int32_t  mndProcessDropMnodeReq(SMndMsg *pReq);
-static int32_t  mndProcessCreateMnodeRsp(SMndMsg *pRsp);
-static int32_t  mndProcessAlterMnodeRsp(SMndMsg *pRsp);
-static int32_t  mndProcessDropMnodeRsp(SMndMsg *pRsp);
-static int32_t  mndGetMnodeMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t  mndRetrieveMnodes(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndProcessCreateMnodeReq(SNodeMsg *pReq);
+static int32_t  mndProcessDropMnodeReq(SNodeMsg *pReq);
+static int32_t  mndProcessCreateMnodeRsp(SNodeMsg *pRsp);
+static int32_t  mndProcessAlterMnodeRsp(SNodeMsg *pRsp);
+static int32_t  mndProcessDropMnodeRsp(SNodeMsg *pRsp);
+static int32_t  mndGetMnodeMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t  mndRetrieveMnodes(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextMnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitMnode(SMnode *pMnode) {
@@ -355,7 +355,7 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
   return 0;
 }
 
-static int32_t mndCreateMnode(SMnode *pMnode, SMndMsg *pReq, SDnodeObj *pDnode, SMCreateMnodeReq *pCreate) {
+static int32_t mndCreateMnode(SMnode *pMnode, SNodeMsg *pReq, SDnodeObj *pDnode, SMCreateMnodeReq *pCreate) {
   int32_t code = -1;
 
   SMnodeObj mnodeObj = {0};
@@ -380,8 +380,8 @@ CREATE_MNODE_OVER:
   return code;
 }
 
-static int32_t mndProcessCreateMnodeReq(SMndMsg *pReq) {
-  SMnode          *pMnode = pReq->pMnode;
+static int32_t mndProcessCreateMnodeReq(SNodeMsg *pReq) {
+  SMnode          *pMnode = pReq->pNode;
   int32_t          code = -1;
   SMnodeObj       *pObj = NULL;
   SDnodeObj       *pDnode = NULL;
@@ -527,7 +527,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
   return 0;
 }
 
-static int32_t mndDropMnode(SMnode *pMnode, SMndMsg *pReq, SMnodeObj *pObj) {
+static int32_t mndDropMnode(SMnode *pMnode, SNodeMsg *pReq, SMnodeObj *pObj) {
   int32_t code = -1;
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_DROP_MNODE, &pReq->rpcMsg);
@@ -547,8 +547,8 @@ DROP_MNODE_OVER:
   return code;
 }
 
-static int32_t mndProcessDropMnodeReq(SMndMsg *pReq) {
-  SMnode        *pMnode = pReq->pMnode;
+static int32_t mndProcessDropMnodeReq(SNodeMsg *pReq) {
+  SMnode        *pMnode = pReq->pNode;
   int32_t        code = -1;
   SUserObj      *pUser = NULL;
   SMnodeObj     *pObj = NULL;
@@ -595,23 +595,23 @@ DROP_MNODE_OVER:
   return code;
 }
 
-static int32_t mndProcessCreateMnodeRsp(SMndMsg *pRsp) {
+static int32_t mndProcessCreateMnodeRsp(SNodeMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }
 
-static int32_t mndProcessAlterMnodeRsp(SMndMsg *pRsp) {
+static int32_t mndProcessAlterMnodeRsp(SNodeMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }
 
-static int32_t mndProcessDropMnodeRsp(SMndMsg *pRsp) {
+static int32_t mndProcessDropMnodeRsp(SNodeMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }
 
-static int32_t mndGetMnodeMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
-  SMnode *pMnode = pReq->pMnode;
+static int32_t mndGetMnodeMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+  SMnode *pMnode = pReq->pNode;
   SSdb   *pSdb = pMnode->pSdb;
 
   int32_t  cols = 0;
@@ -663,8 +663,8 @@ static int32_t mndGetMnodeMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pM
   return 0;
 }
 
-static int32_t mndRetrieveMnodes(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode    *pMnode = pReq->pMnode;
+static int32_t mndRetrieveMnodes(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+  SMnode    *pMnode = pReq->pNode;
   SSdb      *pSdb = pMnode->pSdb;
   int32_t    numOfRows = 0;
   int32_t    cols = 0;

@@ -55,11 +55,11 @@ static bool    mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans);
 
 static void    mndTransExecute(SMnode *pMnode, STrans *pTrans);
 static void    mndTransSendRpcRsp(STrans *pTrans);
-static int32_t mndProcessTransReq(SMndMsg *pReq);
-static int32_t mndProcessKillTransReq(SMndMsg *pReq);
+static int32_t mndProcessTransReq(SNodeMsg *pReq);
+static int32_t mndProcessKillTransReq(SNodeMsg *pReq);
 
-static int32_t mndGetTransMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t mndRetrieveTrans(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t mndGetTransMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t mndRetrieveTrans(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextTrans(SMnode *pMnode, void *pIter);
 
 int32_t mndInitTrans(SMnode *pMnode) {
@@ -774,8 +774,8 @@ static void mndTransSendRpcRsp(STrans *pTrans) {
   }
 }
 
-void mndTransProcessRsp(SMndMsg *pRsp) {
-  SMnode *pMnode = pRsp->pMnode;
+void mndTransProcessRsp(SNodeMsg *pRsp) {
+  SMnode *pMnode = pRsp->pNode;
   int64_t signature = (int64_t)(pRsp->rpcMsg.ahandle);
   int32_t transId = (int32_t)(signature >> 32);
   int32_t action = (int32_t)((signature << 32) >> 32);
@@ -1157,8 +1157,8 @@ static void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
   mndTransSendRpcRsp(pTrans);
 }
 
-static int32_t mndProcessTransReq(SMndMsg *pReq) {
-  mndTransPullup(pReq->pMnode);
+static int32_t mndProcessTransReq(SNodeMsg *pReq) {
+  mndTransPullup(pReq->pNode);
   return 0;
 }
 
@@ -1199,8 +1199,8 @@ static int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans) {
   return 0;
 }
 
-static int32_t mndProcessKillTransReq(SMndMsg *pReq) {
-  SMnode       *pMnode = pReq->pMnode;
+static int32_t mndProcessKillTransReq(SNodeMsg *pReq) {
+  SMnode       *pMnode = pReq->pNode;
   SKillTransReq killReq = {0};
   int32_t       code = -1;
   SUserObj     *pUser = NULL;
@@ -1257,8 +1257,8 @@ void mndTransPullup(SMnode *pMnode) {
   sdbWriteFile(pMnode->pSdb);
 }
 
-static int32_t mndGetTransMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
-  SMnode *pMnode = pReq->pMnode;
+static int32_t mndGetTransMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+  SMnode *pMnode = pReq->pNode;
   SSdb   *pSdb = pMnode->pSdb;
 
   int32_t  cols = 0;
@@ -1320,8 +1320,8 @@ static int32_t mndGetTransMeta(SMndMsg *pReq, SShowObj *pShow, STableMetaRsp *pM
   return 0;
 }
 
-static int32_t mndRetrieveTrans(SMndMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode *pMnode = pReq->pMnode;
+static int32_t mndRetrieveTrans(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+  SMnode *pMnode = pReq->pNode;
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfRows = 0;
   STrans *pTrans = NULL;

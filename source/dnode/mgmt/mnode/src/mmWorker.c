@@ -29,7 +29,7 @@ static void mmProcessQueue(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
 
   if (pMnode != NULL) {
     pMsg->pNode = pMnode;
-    code = mndProcessMsg((SMndMsg *)pMsg);
+    code = mndProcessMsg((SNodeMsg *)pMsg);
     mmRelease(pMgmt, pMnode);
   }
 

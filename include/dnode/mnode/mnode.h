@@ -31,18 +31,6 @@ typedef int32_t (*PutReqToMWriteQFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 typedef int32_t (*PutReqToMReadQFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 typedef void (*SendRedirectRspFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 
-
-typedef struct {
-  char    user[TSDB_USER_LEN];
-  char    db[TSDB_DB_FNAME_LEN];
-  int32_t acctId;
-  SMnode* pMnode;
-  int64_t createdTime;
-  SRpcMsg rpcMsg;
-  int32_t contLen;
-  void*   pCont;
-} SMndMsg;
-
 typedef struct {
   int32_t           dnodeId;
   int64_t           clusterId;
@@ -121,7 +109,7 @@ int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, cha
  * @param pMsg The request msg.
  * @return int32_t 0 for success, -1 for failure.
  */
-int32_t mndProcessMsg(SMndMsg *pMsg);
+int32_t mndProcessMsg(SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

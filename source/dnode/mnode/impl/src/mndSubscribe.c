@@ -48,14 +48,14 @@ static int32_t  mndSubActionInsert(SSdb *pSdb, SMqSubscribeObj *);
 static int32_t  mndSubActionDelete(SSdb *pSdb, SMqSubscribeObj *);
 static int32_t  mndSubActionUpdate(SSdb *pSdb, SMqSubscribeObj *pOldSub, SMqSubscribeObj *pNewSub);
 
-static int32_t mndProcessSubscribeReq(SMndMsg *pMsg);
-static int32_t mndProcessSubscribeRsp(SMndMsg *pMsg);
-static int32_t mndProcessSubscribeInternalReq(SMndMsg *pMsg);
-static int32_t mndProcessSubscribeInternalRsp(SMndMsg *pMsg);
-static int32_t mndProcessMqTimerMsg(SMndMsg *pMsg);
-static int32_t mndProcessGetSubEpReq(SMndMsg *pMsg);
-static int32_t mndProcessDoRebalanceMsg(SMndMsg *pMsg);
-static int32_t mndProcessResetOffsetReq(SMndMsg *pMsg);
+static int32_t mndProcessSubscribeReq(SNodeMsg *pMsg);
+static int32_t mndProcessSubscribeRsp(SNodeMsg *pMsg);
+static int32_t mndProcessSubscribeInternalReq(SNodeMsg *pMsg);
+static int32_t mndProcessSubscribeInternalRsp(SNodeMsg *pMsg);
+static int32_t mndProcessMqTimerMsg(SNodeMsg *pMsg);
+static int32_t mndProcessGetSubEpReq(SNodeMsg *pMsg);
+static int32_t mndProcessDoRebalanceMsg(SNodeMsg *pMsg);
+static int32_t mndProcessResetOffsetReq(SNodeMsg *pMsg);
 
 static int32_t mndPersistMqSetConnReq(SMnode *pMnode, STrans *pTrans, const SMqTopicObj *pTopic, const char *cgroup,
                                       const SMqConsumerEp *pConsumerEp);
@@ -211,8 +211,8 @@ static int32_t mndPersistCancelConnReq(SMnode *pMnode, STrans *pTrans, const SMq
 }
 
 #if 0
-static int32_t mndProcessResetOffsetReq(SMndMsg *pMsg) {
-  SMnode             *pMnode = pMsg->pMnode;
+static int32_t mndProcessResetOffsetReq(SNodeMsg *pMsg) {
+  SMnode             *pMnode = pMsg->pNode;
   uint8_t            *str = pMsg->rpcMsg.pCont;
   SMqCMResetOffsetReq req;
 
@@ -249,14 +249,14 @@ static int32_t mndProcessResetOffsetReq(SMndMsg *pMsg) {
 }
 #endif
 
-static int32_t mndProcessGetSubEpReq(SMndMsg *pMsg) {
-  SMnode           *pMnode = pMsg->pMnode;
+static int32_t mndProcessGetSubEpReq(SNodeMsg *pMsg) {
+  SMnode           *pMnode = pMsg->pNode;
   SMqCMGetSubEpReq *pReq = (SMqCMGetSubEpReq *)pMsg->rpcMsg.pCont;
   SMqCMGetSubEpRsp  rsp = {0};
   int64_t           consumerId = be64toh(pReq->consumerId);
   int32_t           epoch = ntohl(pReq->epoch);
 
-  SMqConsumerObj *pConsumer = mndAcquireConsumer(pMsg->pMnode, consumerId);
+  SMqConsumerObj *pConsumer = mndAcquireConsumer(pMsg->pNode, consumerId);
   if (pConsumer == NULL) {
     terrno = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
     return -1;
@@ -327,8 +327,8 @@ static int32_t mndProcessGetSubEpReq(SMndMsg *pMsg) {
   tEncodeSMqCMGetSubEpRsp(&abuf, &rsp);
   tDeleteSMqCMGetSubEpRsp(&rsp);
   mndReleaseConsumer(pMnode, pConsumer);
-  pMsg->pCont = buf;
-  pMsg->contLen = tlen;
+  pMsg->pRsp = buf;
+  pMsg->rspLen = tlen;
   return 0;
 }
 
@@ -356,8 +356,8 @@ static SMqRebSubscribe *mndGetOrCreateRebSub(SHashObj *pHash, const char *key) {
   return pRebSub;
 }
 
-static int32_t mndProcessMqTimerMsg(SMndMsg *pMsg) {
-  SMnode            *pMnode = pMsg->pMnode;
+static int32_t mndProcessMqTimerMsg(SNodeMsg *pMsg) {
+  SMnode            *pMnode = pMsg->pNode;
   SSdb              *pSdb = pMnode->pSdb;
   SMqConsumerObj    *pConsumer;
   void              *pIter = NULL;
@@ -428,8 +428,8 @@ static int32_t mndProcessMqTimerMsg(SMndMsg *pMsg) {
   return 0;
 }
 
-static int32_t mndProcessDoRebalanceMsg(SMndMsg *pMsg) {
-  SMnode            *pMnode = pMsg->pMnode;
+static int32_t mndProcessDoRebalanceMsg(SNodeMsg *pMsg) {
+  SMnode            *pMnode = pMsg->pNode;
   SMqDoRebalanceMsg *pReq = pMsg->rpcMsg.pCont;
   STrans            *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_REBALANCE, &pMsg->rpcMsg);
   void              *pIter = NULL;
@@ -994,8 +994,8 @@ void mndReleaseSubscribe(SMnode *pMnode, SMqSubscribeObj *pSub) {
   sdbRelease(pSdb, pSub);
 }
 
-static int32_t mndProcessSubscribeReq(SMndMsg *pMsg) {
-  SMnode         *pMnode = pMsg->pMnode;
+static int32_t mndProcessSubscribeReq(SNodeMsg *pMsg) {
+  SMnode         *pMnode = pMsg->pNode;
   char           *msgStr = pMsg->rpcMsg.pCont;
   SCMSubscribeReq subscribe;
   tDeserializeSCMSubscribeReq(msgStr, &subscribe);
@@ -1156,7 +1156,7 @@ static int32_t mndProcessSubscribeReq(SMndMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndProcessSubscribeInternalRsp(SMndMsg *pRsp) {
+static int32_t mndProcessSubscribeInternalRsp(SNodeMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }

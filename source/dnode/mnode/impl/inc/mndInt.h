@@ -38,11 +38,11 @@ extern "C" {
 #define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ", DEBUG_DEBUG, mDebugFlag, __VA_ARGS__); }}
 #define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", DEBUG_TRACE, mDebugFlag, __VA_ARGS__); }}
 
-typedef int32_t (*MndMsgFp)(SMndMsg *pMsg);
+typedef int32_t (*MndMsgFp)(SNodeMsg *pMsg);
 typedef int32_t (*MndInitFp)(SMnode *pMnode);
 typedef void (*MndCleanupFp)(SMnode *pMnode);
-typedef int32_t (*ShowMetaFp)(SMndMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
-typedef int32_t (*ShowRetrieveFp)(SMndMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
+typedef int32_t (*ShowMetaFp)(SNodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
+typedef int32_t (*ShowRetrieveFp)(SNodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
 typedef void (*ShowFreeIterFp)(SMnode *pMnode, void *pIter);
 
 typedef struct SMnodeLoad {
