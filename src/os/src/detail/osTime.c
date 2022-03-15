@@ -337,7 +337,8 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec, char deli
 
   if (str == NULL) {
     //if parse failed, try "%Y-%m-%d" format
-    if (!strptime(timestr, "%Y-%m-%d", &tm)) {
+    str = strptime(timestr, "%Y-%m-%d", &tm);
+    if (str == NULL) {
       return -1;
     }
   }
@@ -382,7 +383,8 @@ int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec, ch
 
   if (str == NULL) {
     //if parse failed, try "%Y-%m-%d" format
-    if (!strptime(timestr, "%Y-%m-%d", &tm)) {
+    str = strptime(timestr, "%Y-%m-%d", &tm);
+    if (str == NULL) {
       return -1;
     }
   }
