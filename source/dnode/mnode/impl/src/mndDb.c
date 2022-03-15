@@ -885,6 +885,29 @@ DROP_DB_OVER:
   return code;
 }
 
+void mndGetDBTableNum(SDbObj *pDb, SMnode *pMnode, int32_t *num) {
+  int32_t vindex = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+
+  void *pIter = NULL;
+  while (vindex < pDb->cfg.numOfVgroups) {
+    SVgObj *pVgroup = NULL;
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    if (pVgroup->dbUid == pDb->uid) {
+      *num += pVgroup->numOfTables / TSDB_TABLE_NUM_UNIT;
+
+      vindex++;
+    }
+
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  sdbCancelFetch(pSdb, pIter);
+}
+
+
 static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
   int32_t vindex = 0;
   SSdb   *pSdb = pMnode->pSdb;
@@ -900,6 +923,7 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
       vgInfo.vgId = pVgroup->vgId;
       vgInfo.hashBegin = pVgroup->hashBegin;
       vgInfo.hashEnd = pVgroup->hashEnd;
+      vgInfo.numOfTable = pVgroup->numOfTables / TSDB_TABLE_NUM_UNIT;
       vgInfo.epSet.numOfEps = pVgroup->replica;
       for (int32_t gid = 0; gid < pVgroup->replica; ++gid) {
         SVnodeGid *pVgid = &pVgroup->vnodeGid[gid];
@@ -967,7 +991,10 @@ static int32_t mndProcessUseDbReq(SMnodeMsg *pReq) {
         goto USE_DB_OVER;
       }
 
-      if (usedbReq.vgVersion < pDb->vgVersion || usedbReq.dbId != pDb->uid) {
+      int32_t numOfTable = 0;
+      mndGetDBTableNum(pDb, pMnode, &numOfTable);
+
+      if (usedbReq.vgVersion < pDb->vgVersion || usedbReq.dbId != pDb->uid || numOfTable != usedbReq.numOfTable) {
         mndBuildDBVgroupInfo(pDb, pMnode, usedbRsp.pVgroupInfos);
       }
 
@@ -1017,6 +1044,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
     SDbVgVersion *pDbVgVersion = &pDbs[i];
     pDbVgVersion->dbId = htobe64(pDbVgVersion->dbId);
     pDbVgVersion->vgVersion = htonl(pDbVgVersion->vgVersion);
+    pDbVgVersion->numOfTable = htonl(pDbVgVersion->numOfTable);
 
     SUseDbRsp usedbRsp = {0};
 
@@ -1027,28 +1055,34 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
       usedbRsp.uid = pDbVgVersion->dbId;
       usedbRsp.vgVersion = -1;
       taosArrayPush(batchUseRsp.pArray, &usedbRsp);
-    } else if (pDbVgVersion->vgVersion >= pDb->vgVersion) {
-      mDebug("db:%s, version not changed", pDbVgVersion->dbFName);
+      continue;
+    }
+
+    int32_t numOfTable = 0;
+    mndGetDBTableNum(pDb, pMnode, &numOfTable);
+
+    if (pDbVgVersion->vgVersion >= pDb->vgVersion && numOfTable == pDbVgVersion->numOfTable) {
+      mDebug("db:%s, version & numOfTable not changed", pDbVgVersion->dbFName);
       mndReleaseDb(pMnode, pDb);
       continue;
-    } else {
-      usedbRsp.pVgroupInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
-      if (usedbRsp.pVgroupInfos == NULL) {
-        mndReleaseDb(pMnode, pDb);
-        mError("db:%s, failed to malloc usedb response", pDb->name);
-        continue;
-      }
-
-      mndBuildDBVgroupInfo(pDb, pMnode, usedbRsp.pVgroupInfos);
-      memcpy(usedbRsp.db, pDb->name, TSDB_DB_FNAME_LEN);
-      usedbRsp.uid = pDb->uid;
-      usedbRsp.vgVersion = pDb->vgVersion;
-      usedbRsp.vgNum = (int32_t)taosArrayGetSize(usedbRsp.pVgroupInfos);
-      usedbRsp.hashMethod = pDb->hashMethod;
-
-      taosArrayPush(batchUseRsp.pArray, &usedbRsp);
-      mndReleaseDb(pMnode, pDb);
     }
+    
+    usedbRsp.pVgroupInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
+    if (usedbRsp.pVgroupInfos == NULL) {
+      mndReleaseDb(pMnode, pDb);
+      mError("db:%s, failed to malloc usedb response", pDb->name);
+      continue;
+    }
+
+    mndBuildDBVgroupInfo(pDb, pMnode, usedbRsp.pVgroupInfos);
+    memcpy(usedbRsp.db, pDb->name, TSDB_DB_FNAME_LEN);
+    usedbRsp.uid = pDb->uid;
+    usedbRsp.vgVersion = pDb->vgVersion;
+    usedbRsp.vgNum = (int32_t)taosArrayGetSize(usedbRsp.pVgroupInfos);
+    usedbRsp.hashMethod = pDb->hashMethod;
+
+    taosArrayPush(batchUseRsp.pArray, &usedbRsp);
+    mndReleaseDb(pMnode, pDb);
   }
 
   int32_t rspLen = tSerializeSUseDbBatchRsp(NULL, 0, &batchUseRsp);

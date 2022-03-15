@@ -355,6 +355,23 @@ typedef struct {
 } SShowObj;
 
 typedef struct {
+  int64_t id;
+  int8_t  type;
+  int8_t  replica;
+  int16_t numOfColumns;
+  int32_t rowSize;
+  int32_t numOfRows;
+  int32_t numOfReads;
+  int32_t payloadLen;
+  void*   pIter;
+  SMnode* pMnode;
+  char    db[TSDB_DB_FNAME_LEN];
+  int16_t offset[TSDB_MAX_COLUMNS];
+  int32_t bytes[TSDB_MAX_COLUMNS];
+  char    payload[];
+} SSysTableRetrieveObj;
+
+typedef struct {
   int32_t vgId;  // -1 for unassigned
   int32_t status;
   SEpSet  epSet;

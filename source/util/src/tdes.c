@@ -31,8 +31,8 @@ void process_message(uint8_t* message_piece, uint8_t* processed_piece, key_set* 
 
 #if 0
 int64_t taosDesGenKey() {
-  uint32_t iseed = (uint32_t)time(NULL);
-  srand(iseed);
+  uint32_t iseed = (uint32_t)taosGetTimestampSec();
+  taosSeedRand(iseed);
 
   uint8_t key[8] = {0};
   generate_key(key);

@@ -12,6 +12,7 @@ target_link_libraries(
     PUBLIC os
     PUBLIC util
     PUBLIC common
+    PUBLIC zlib
 )
 if (${BUILD_WITH_UV_TRANS}) 
 if (${BUILD_WITH_UV})

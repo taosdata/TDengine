@@ -77,10 +77,10 @@ private:
   }
 
   TableBuilder(STableMeta* schemaMeta) : colId_(1), rowsize_(0), meta_(new MockTableMeta()) {
-    meta_->schema.reset(schemaMeta);
+    meta_->schema = schemaMeta;
   }
 
-  std::shared_ptr<STableMeta> schema() {
+  STableMeta* schema() {
     return meta_->schema;
   }
 
@@ -113,6 +113,7 @@ public:
     const char* tname = tNameGetTableName(pTableName);
     int32_t code = copyTableSchemaMeta(db, tname, &table);
     if (TSDB_CODE_SUCCESS != code) {
+      std::cout << "db : " << db << ", table :" << tname << std::endl;
       return code;
     }
     *pTableMeta = table.release();
@@ -123,6 +124,19 @@ public:
     // todo
     vgInfo->vgId = 1;
     addEpIntoEpSet(&vgInfo->epSet, "node1", 6030);
+    return 0;
+  }
+
+  int32_t catalogGetTableDistVgInfo(const SName* pTableName, SArray** pVgList) const {
+    SVgroupInfo info = {0};
+    info.vgId = 1;
+    addEpIntoEpSet(&info.epSet, "node1", 6030);
+
+    info.hashBegin = 0;
+    info.hashEnd = 1;
+    *pVgList = taosArrayInit(4, sizeof(SVgroupInfo));
+
+    taosArrayPush(*pVgList, &info);
     return 0;
   }
 
@@ -139,7 +153,7 @@ public:
       throw std::runtime_error("copyTableSchemaMeta failed");
     }
     meta_[db][tbname].reset(new MockTableMeta());
-    meta_[db][tbname]->schema.reset(table.release());
+    meta_[db][tbname]->schema = table.release();
     meta_[db][tbname]->schema->uid = id_++;
 
     SVgroupInfo vgroup = {.vgId = vgid, .hashBegin = 0, .hashEnd = 0,};
@@ -261,14 +275,14 @@ private:
     return (0 == colid ? "column" : (colid <= numOfTags ? "tag" : "column"));
   }
 
-  std::shared_ptr<STableMeta> getTableSchemaMeta(const std::string& db, const std::string& tbname) const {
+  STableMeta* getTableSchemaMeta(const std::string& db, const std::string& tbname) const {
     std::shared_ptr<MockTableMeta> table = getTableMeta(db, tbname);
-    return table ? table->schema : std::shared_ptr<STableMeta>();
+    return table ? table->schema : nullptr;
   }
 
   int32_t copyTableSchemaMeta(const std::string& db, const std::string& tbname, std::unique_ptr<STableMeta>* dst) const {
-    std::shared_ptr<STableMeta> src = getTableSchemaMeta(db, tbname);
-    if (!src) {
+    STableMeta* src = getTableSchemaMeta(db, tbname);
+    if (nullptr == src) {
       return TSDB_CODE_TSC_INVALID_TABLE_NAME;
     }
     int32_t len = sizeof(STableMeta) + sizeof(SSchema) * (src->tableInfo.numOfTags + src->tableInfo.numOfColumns);
@@ -276,7 +290,7 @@ private:
     if (!dst) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
-    memcpy(dst->get(), src.get(), len);
+    memcpy(dst->get(), src, len);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -313,4 +327,8 @@ int32_t MockCatalogService::catalogGetTableMeta(const SName* pTableName, STableM
 
 int32_t MockCatalogService::catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const {
   return impl_->catalogGetTableHashVgroup(pTableName, vgInfo);
+}
+
+int32_t MockCatalogService::catalogGetTableDistVgInfo(const SName* pTableName, SArray** pVgList) const {
+  return impl_->catalogGetTableDistVgInfo(pTableName, pVgList);
 }

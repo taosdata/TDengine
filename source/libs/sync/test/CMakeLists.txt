@@ -1,15 +1,30 @@
 add_executable(syncTest "")
 add_executable(syncEnvTest "")
-add_executable(syncPingTest "")
-add_executable(syncEncodeTest "")
+add_executable(syncPingTimerTest "")
 add_executable(syncIOTickQTest "")
 add_executable(syncIOTickPingTest "")
 add_executable(syncIOSendMsgTest "")
-add_executable(syncIOSendMsgClientTest "")
-add_executable(syncIOSendMsgServerTest "")
+add_executable(syncIOClientTest "")
+add_executable(syncIOServerTest "")
 add_executable(syncRaftStoreTest "")
 add_executable(syncEnqTest "")
 add_executable(syncIndexTest "")
+add_executable(syncInitTest "")
+add_executable(syncUtilTest "")
+add_executable(syncVotesGrantedTest "")
+add_executable(syncVotesRespondTest "")
+add_executable(syncIndexMgrTest "")
+add_executable(syncLogStoreTest "")
+add_executable(syncEntryTest "")
+add_executable(syncRequestVoteTest "")
+add_executable(syncRequestVoteReplyTest "")
+add_executable(syncAppendEntriesTest "")
+add_executable(syncAppendEntriesReplyTest "")
+add_executable(syncClientRequestTest "")
+add_executable(syncTimeoutTest "")
+add_executable(syncPingTest "")
+add_executable(syncPingReplyTest "")
+add_executable(syncRpcMsgTest "")
 
 
 target_sources(syncTest
@@ -20,13 +35,9 @@ target_sources(syncEnvTest
     PRIVATE
     "syncEnvTest.cpp"
 )
-target_sources(syncPingTest
+target_sources(syncPingTimerTest
     PRIVATE
-    "syncPingTest.cpp"
-)
-target_sources(syncEncodeTest
-    PRIVATE
-    "syncEncodeTest.cpp"
+    "syncPingTimerTest.cpp"
 )
 target_sources(syncIOTickQTest
     PRIVATE
@@ -40,13 +51,13 @@ target_sources(syncIOSendMsgTest
     PRIVATE
     "syncIOSendMsgTest.cpp"
 )
-target_sources(syncIOSendMsgClientTest
+target_sources(syncIOClientTest
     PRIVATE
-    "syncIOSendMsgClientTest.cpp"
+    "syncIOClientTest.cpp"
 )
-target_sources(syncIOSendMsgServerTest
+target_sources(syncIOServerTest
     PRIVATE
-    "syncIOSendMsgServerTest.cpp"
+    "syncIOServerTest.cpp"
 )
 target_sources(syncRaftStoreTest
     PRIVATE
@@ -60,6 +71,70 @@ target_sources(syncIndexTest
     PRIVATE
     "syncIndexTest.cpp"
 )
+target_sources(syncInitTest
+    PRIVATE
+    "syncInitTest.cpp"
+)
+target_sources(syncUtilTest
+    PRIVATE
+    "syncUtilTest.cpp"
+)
+target_sources(syncVotesGrantedTest
+    PRIVATE
+    "syncVotesGrantedTest.cpp"
+)
+target_sources(syncVotesRespondTest
+    PRIVATE
+    "syncVotesRespondTest.cpp"
+)
+target_sources(syncIndexMgrTest
+    PRIVATE
+    "syncIndexMgrTest.cpp"
+)
+target_sources(syncLogStoreTest
+    PRIVATE
+    "syncLogStoreTest.cpp"
+)
+target_sources(syncEntryTest
+    PRIVATE
+    "syncEntryTest.cpp"
+)
+target_sources(syncRequestVoteTest
+    PRIVATE
+    "syncRequestVoteTest.cpp"
+)
+target_sources(syncRequestVoteReplyTest
+    PRIVATE
+    "syncRequestVoteReplyTest.cpp"
+)
+target_sources(syncAppendEntriesTest
+    PRIVATE
+    "syncAppendEntriesTest.cpp"
+)
+target_sources(syncAppendEntriesReplyTest
+    PRIVATE
+    "syncAppendEntriesReplyTest.cpp"
+)
+target_sources(syncClientRequestTest
+    PRIVATE
+    "syncClientRequestTest.cpp"
+)
+target_sources(syncTimeoutTest
+    PRIVATE
+    "syncTimeoutTest.cpp"
+)
+target_sources(syncPingTest
+    PRIVATE
+    "syncPingTest.cpp"
+)
+target_sources(syncPingReplyTest
+    PRIVATE
+    "syncPingReplyTest.cpp"
+)
+target_sources(syncRpcMsgTest
+    PRIVATE
+    "syncRpcMsgTest.cpp"
+)
 
 
 target_include_directories(syncTest
@@ -72,12 +147,7 @@ target_include_directories(syncEnvTest
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
-target_include_directories(syncPingTest
-    PUBLIC
-    "${CMAKE_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-)
-target_include_directories(syncEncodeTest
+target_include_directories(syncPingTimerTest
     PUBLIC
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
@@ -97,12 +167,12 @@ target_include_directories(syncIOSendMsgTest
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
-target_include_directories(syncIOSendMsgClientTest
+target_include_directories(syncIOClientTest
     PUBLIC
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
-target_include_directories(syncIOSendMsgServerTest
+target_include_directories(syncIOServerTest
     PUBLIC
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
@@ -122,6 +192,86 @@ target_include_directories(syncIndexTest
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(syncInitTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncUtilTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncVotesGrantedTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncVotesRespondTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncIndexMgrTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncLogStoreTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncEntryTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncRequestVoteTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncRequestVoteReplyTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncAppendEntriesTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncAppendEntriesReplyTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncClientRequestTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncTimeoutTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncPingTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncPingReplyTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncRpcMsgTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 
 
 target_link_libraries(syncTest
@@ -132,11 +282,7 @@ target_link_libraries(syncEnvTest
     sync
     gtest_main
 )
-target_link_libraries(syncPingTest
-    sync
-    gtest_main
-)
-target_link_libraries(syncEncodeTest
+target_link_libraries(syncPingTimerTest
     sync
     gtest_main
 )
@@ -152,11 +298,11 @@ target_link_libraries(syncIOSendMsgTest
     sync
     gtest_main
 )
-target_link_libraries(syncIOSendMsgClientTest
+target_link_libraries(syncIOClientTest
     sync
     gtest_main
 )
-target_link_libraries(syncIOSendMsgServerTest
+target_link_libraries(syncIOServerTest
     sync
     gtest_main
 )
@@ -172,6 +318,70 @@ target_link_libraries(syncIndexTest
     sync
     gtest_main
 )
+target_link_libraries(syncInitTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncUtilTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncVotesGrantedTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncVotesRespondTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncIndexMgrTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncLogStoreTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncEntryTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncRequestVoteTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncRequestVoteReplyTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncAppendEntriesTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncAppendEntriesReplyTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncClientRequestTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncTimeoutTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncPingTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncPingReplyTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncRpcMsgTest
+    sync
+    gtest_main
+)
 
 
 enable_testing()
@@ -179,3 +389,5 @@ add_test(
     NAME sync_test
     COMMAND syncTest
 )
+
+

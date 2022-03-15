@@ -173,7 +173,7 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
 #else
 int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32_t contLen, EHttpCompFlag flag) {
   int32_t code = -1;
-  SOCKET  fd = 0;
+  TdSocketPtr pSocket = NULL;
 
   uint32_t ip = taosGetIpv4FromFqdn(server);
   if (ip == 0xffffffff) {
@@ -182,8 +182,8 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
     goto SEND_OVER;
   }
 
-  fd = taosOpenTcpClientSocket(ip, port, 0);
-  if (fd < 0) {
+  pSocket = taosOpenTcpClientSocket(ip, port, 0);
+  if (pSocket == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to create http socket to %s:%u since %s", server, port, terrstr());
     goto SEND_OVER;
@@ -200,21 +200,20 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
 
   char    header[1024] = {0};
   int32_t headLen = taosBuildHttpHeader(server, contLen, header, sizeof(header), flag);
-
-  if (taosWriteSocket(fd, header, headLen) < 0) {
+  if (taosWriteMsg(pSocket, header, headLen) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to send http header to %s:%u since %s", server, port, terrstr());
     goto SEND_OVER;
   }
 
-  if (taosWriteSocket(fd, (void*)pCont, contLen) < 0) {
+  if (taosWriteMsg(pSocket, (void*)pCont, contLen) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to send http content to %s:%u since %s", server, port, terrstr());
     goto SEND_OVER;
   }
 
   // read something to avoid nginx error 499
-  if (taosReadSocket(fd, header, 10) < 0) {
+  if (taosWriteMsg(pSocket, header, 10) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to receive response from %s:%u since %s", server, port, terrstr());
     goto SEND_OVER;
@@ -223,8 +222,8 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   code = 0;
 
 SEND_OVER:
-  if (fd != 0) {
-    taosCloseSocket(fd);
+  if (pSocket != NULL) {
+    taosCloseSocket(&pSocket);
   }
 
   return code;

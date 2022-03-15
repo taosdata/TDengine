@@ -130,16 +130,16 @@ int walCheckAndRepairMeta(SWal* pWal) {
   regcomp(&logRegPattern, logPattern, REG_EXTENDED);
   regcomp(&idxRegPattern, idxPattern, REG_EXTENDED);
 
-  DIR* dir = opendir(pWal->path);
-  if (dir == NULL) {
+  TdDirPtr pDir = taosOpenDir(pWal->path);
+  if (pDir == NULL) {
     wError("vgId:%d, path:%s, failed to open since %s", pWal->cfg.vgId, pWal->path, strerror(errno));
     return -1;
   }
 
   // scan log files and build new meta
-  struct dirent* ent;
-  while ((ent = readdir(dir)) != NULL) {
-    char* name = basename(ent->d_name);
+  TdDirEntryPtr pDirEntry;
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
     int   code = regexec(&logRegPattern, name, 0, NULL, 0);
     if (code == 0) {
       SWalFileInfo fileInfo;
@@ -149,7 +149,7 @@ int walCheckAndRepairMeta(SWal* pWal) {
     }
   }
 
-  closedir(dir);
+  taosCloseDir(pDir);
   regfree(&logRegPattern);
   regfree(&idxRegPattern);
 
@@ -337,25 +337,25 @@ static int walFindCurMetaVer(SWal* pWal) {
   regex_t     walMetaRegexPattern;
   regcomp(&walMetaRegexPattern, pattern, REG_EXTENDED);
 
-  DIR* dir = opendir(pWal->path);
-  if (dir == NULL) {
+  TdDirPtr pDir = taosOpenDir(pWal->path);
+  if (pDir == NULL) {
     wError("vgId:%d, path:%s, failed to open since %s", pWal->cfg.vgId, pWal->path, strerror(errno));
     return -1;
   }
 
-  struct dirent* ent;
+  TdDirEntryPtr pDirEntry;
 
   // find existing meta-ver[x].json
   int metaVer = -1;
-  while ((ent = readdir(dir)) != NULL) {
-    char* name = basename(ent->d_name);
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
     int   code = regexec(&walMetaRegexPattern, name, 0, NULL, 0);
     if (code == 0) {
       sscanf(name, "meta-ver%d", &metaVer);
       break;
     }
   }
-  closedir(dir);
+  taosCloseDir(pDir);
   regfree(&walMetaRegexPattern);
   return metaVer;
 }

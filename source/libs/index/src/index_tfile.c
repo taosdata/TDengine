@@ -189,8 +189,8 @@ int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTempResul
   bool            hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON);
   EIndexQueryType qtype = query->qType;
 
-  SArray* result = taosArrayInit(16, sizeof(uint64_t));
-  int     ret = -1;
+  // SArray* result = taosArrayInit(16, sizeof(uint64_t));
+  int ret = -1;
   // refactor to callback later
   if (qtype == QUERY_TERM) {
     uint64_t offset;
@@ -200,11 +200,18 @@ int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTempResul
       p = indexPackJsonData(term);
       sz = strlen(p);
     }
+    int64_t  st = taosGetTimestampUs();
     FstSlice key = fstSliceCreate(p, sz);
     if (fstGet(reader->fst, &key, &offset)) {
-      indexInfo("index: %" PRIu64 ", col: %s, colVal: %s, found table info in tindex", term->suid, term->colName,
-                term->colVal);
-      ret = tfileReaderLoadTableIds(reader, offset, result);
+      int64_t et = taosGetTimestampUs();
+      int64_t cost = et - st;
+      indexInfo("index: %" PRIu64 ", col: %s, colVal: %s, found table info in tindex, time cost: %" PRIu64 "us",
+                term->suid, term->colName, term->colVal, cost);
+
+      ret = tfileReaderLoadTableIds(reader, offset, tr->total);
+      cost = taosGetTimestampUs() - et;
+      indexInfo("index: %" PRIu64 ", col: %s, colVal: %s, load all table info, time cost: %" PRIu64 "us", term->suid,
+                term->colName, term->colVal, cost);
     } else {
       indexInfo("index: %" PRIu64 ", col: %s, colVal: %s, not found table info in tindex", term->suid, term->colName,
                 term->colVal);
@@ -225,8 +232,8 @@ int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTempResul
   }
   tfileReaderUnRef(reader);
 
-  taosArrayAddAll(tr->total, result);
-  taosArrayDestroy(result);
+  // taosArrayAddAll(tr->total, result);
+  // taosArrayDestroy(result);
 
   return ret;
 }
@@ -391,6 +398,7 @@ int indexTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTempResult* result
     return ret;
   }
 
+  int64_t     st = taosGetTimestampUs();
   IndexTFile* pTfile = tfile;
 
   SIndexTerm* term = query->term;
@@ -399,6 +407,8 @@ int indexTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTempResult* result
   if (reader == NULL) {
     return 0;
   }
+  int64_t cost = taosGetTimestampUs() - st;
+  indexInfo("index tfile stage 1 cost: %" PRId64 "", cost);
 
   return tfileReaderSearch(reader, query, result);
 }
@@ -722,13 +732,13 @@ static SArray* tfileGetFileList(const char* path) {
   uint32_t version;
   SArray*  files = taosArrayInit(4, sizeof(void*));
 
-  DIR* dir = opendir(path);
-  if (NULL == dir) {
+  TdDirPtr pDir = taosOpenDir(path);
+  if (NULL == pDir) {
     return NULL;
   }
-  struct dirent* entry;
-  while ((entry = readdir(dir)) != NULL) {
-    char* file = entry->d_name;
+  TdDirEntryPtr pDirEntry;
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    char* file = taosGetDirEntryName(pDirEntry);
     if (0 != tfileParseFileName(file, &suid, buf, &version)) {
       continue;
     }
@@ -738,7 +748,7 @@ static SArray* tfileGetFileList(const char* path) {
     sprintf(buf, "%s/%s", path, file);
     taosArrayPush(files, &buf);
   }
-  closedir(dir);
+  taosCloseDir(pDir);
 
   taosArraySort(files, tfileCompare);
   tfileRmExpireFile(files);

@@ -51,7 +51,7 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, _
   pSkipList->len = keyLen;
   pSkipList->flags = flags;
   pSkipList->keyFn = fn;
-  pSkipList->seed = rand();
+  pSkipList->seed = taosRand();
 
 #if 0 
   // the function getkeycomparfunc is defined in common
@@ -82,7 +82,7 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, _
     }
   }
 
-  srand((uint32_t)time(NULL));
+  taosSeedRand((uint32_t)taosGetTimestampSec());
 
 #if SKIP_LIST_RECORD_PERFORMANCE
   pSkipList->state.nTotalMemSize += sizeof(SSkipList);
@@ -560,9 +560,9 @@ static FORCE_INLINE int32_t getSkipListNodeRandomHeight(SSkipList *pSkipList) {
 
   int32_t n = 1;
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-  while ((rand() % factor) == 0 && n <= pSkipList->maxLevel) {
+  while ((taosRand() % factor) == 0 && n <= pSkipList->maxLevel) {
 #else
-  while ((rand_r(&(pSkipList->seed)) % factor) == 0 && n <= pSkipList->maxLevel) {
+  while ((taosRandR(&(pSkipList->seed)) % factor) == 0 && n <= pSkipList->maxLevel) {
 #endif
     n++;
   }

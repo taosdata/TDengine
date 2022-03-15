@@ -77,7 +77,7 @@ void processShellMsg() {
       taosFreeQitem(pRpcMsg);
 
       {
-        // sleep(1);
+        // taosSsleep(1);
         SRpcMsg nRpcMsg = {0};
         nRpcMsg.pCont = rpcMallocCont(msgSize);
         nRpcMsg.contLen = msgSize;
@@ -176,7 +176,7 @@ int main(int argc, char *argv[]) {
     tError("failed to start RPC server");
     return -1;
   }
-  // sleep(5);
+  // taosSsleep(5);
 
   tInfo("RPC server is running, ctrl-c to exit");
 

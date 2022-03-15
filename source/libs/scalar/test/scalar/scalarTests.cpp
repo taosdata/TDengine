@@ -41,6 +41,14 @@
 
 namespace {
 
+SColumnInfo createColumnInfo(int32_t colId, int32_t type, int32_t bytes) {
+  SColumnInfo info = {0};
+  info.colId = colId;
+  info.type = type;
+  info.bytes = bytes;
+  return info;
+}
+
 int64_t scltLeftV = 21, scltRightV = 10;
 double scltLeftVd = 21.0, scltRightVd = 10.0;
 
@@ -93,7 +101,7 @@ void scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *s
 }
 
 void scltMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
-  SNode *node = nodesMakeNode(QUERY_NODE_VALUE);
+  SNode *node = (SNode*)nodesMakeNode(QUERY_NODE_VALUE);
   SValueNode *vnode = (SValueNode *)node;
   vnode->node.resType.type = dataType;
 
@@ -110,7 +118,7 @@ void scltMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
 }
 
 void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, int32_t dataBytes, int32_t rowNum, void *value) {
-  SNode *node = nodesMakeNode(QUERY_NODE_COLUMN);
+  SNode *node = (SNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   SColumnNode *rnode = (SColumnNode *)node;
   rnode->node.resType.type = dataType;
   rnode->node.resType.bytes = dataBytes;
@@ -189,7 +197,7 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
 }
 
 void scltMakeOpNode(SNode **pNode, EOperatorType opType, int32_t resType, SNode *pLeft, SNode *pRight) {
-  SNode *node = nodesMakeNode(QUERY_NODE_OPERATOR);
+  SNode *node = (SNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
   SOperatorNode *onode = (SOperatorNode *)node;
   onode->node.resType.type = resType;
   onode->node.resType.bytes = tDataTypes[resType].bytes;
@@ -203,7 +211,7 @@ void scltMakeOpNode(SNode **pNode, EOperatorType opType, int32_t resType, SNode 
 
 
 void scltMakeListNode(SNode **pNode, SNodeList *list, int32_t resType) {
-  SNode *node = nodesMakeNode(QUERY_NODE_NODE_LIST);
+  SNode *node = (SNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
   SNodeListNode *lnode = (SNodeListNode *)node;
   lnode->dataType.type = resType;
   lnode->pNodeList = list;
@@ -213,7 +221,7 @@ void scltMakeListNode(SNode **pNode, SNodeList *list, int32_t resType) {
 
 
 void scltMakeLogicNode(SNode **pNode, ELogicConditionType opType, SNode **nodeList, int32_t nodeNum) {
-  SNode *node = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+  SNode *node = (SNode*)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
   SLogicConditionNode *onode = (SLogicConditionNode *)node;
   onode->condType = opType;
   onode->node.resType.type = TSDB_DATA_TYPE_BOOL;
@@ -228,7 +236,7 @@ void scltMakeLogicNode(SNode **pNode, ELogicConditionType opType, SNode **nodeLi
 }
 
 void scltMakeTargetNode(SNode **pNode, int16_t dataBlockId, int16_t slotId, SNode *snode) {
-  SNode *node = nodesMakeNode(QUERY_NODE_TARGET);
+  SNode *node = (SNode*)nodesMakeNode(QUERY_NODE_TARGET);
   STargetNode *onode = (STargetNode *)node;
   onode->pExpr = snode;
   onode->dataBlockId = dataBlockId;
@@ -914,7 +922,7 @@ TEST(columnTest, smallint_value_add_int_column) {
 
   SArray *blockList = taosArrayInit(2, POINTER_BYTES);
   taosArrayPush(blockList, &src);
-  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_DOUBLE, .bytes = sizeof(double)};
+  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
   int16_t dataBlockId = 0, slotId = 0;
   scltAppendReservedSlot(blockList, &dataBlockId, &slotId, true, rowNum, &colInfo);
   scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
@@ -954,7 +962,7 @@ TEST(columnTest, bigint_column_multi_binary_column) {
 
   SArray *blockList = taosArrayInit(1, POINTER_BYTES);
   taosArrayPush(blockList, &src);
-  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_DOUBLE, .bytes = sizeof(double)};
+  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
   int16_t dataBlockId = 0, slotId = 0;
   scltAppendReservedSlot(blockList, &dataBlockId, &slotId, false, rowNum, &colInfo);
   scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
@@ -992,7 +1000,7 @@ TEST(columnTest, smallint_column_and_binary_column) {
   
   SArray *blockList = taosArrayInit(1, POINTER_BYTES);
   taosArrayPush(blockList, &src);
-  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BIGINT, .bytes = sizeof(int64_t)};
+  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
   int16_t dataBlockId = 0, slotId = 0;
   scltAppendReservedSlot(blockList, &dataBlockId, &slotId, false, rowNum, &colInfo);
   scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
@@ -1025,7 +1033,7 @@ TEST(columnTest, smallint_column_or_float_column) {
   
   SArray *blockList = taosArrayInit(1, POINTER_BYTES);
   taosArrayPush(blockList, &src);
-  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BIGINT, .bytes = sizeof(int64_t)};
+  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
   int16_t dataBlockId = 0, slotId = 0;
   scltAppendReservedSlot(blockList, &dataBlockId, &slotId, true, rowNum, &colInfo);
   scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
@@ -1058,7 +1066,7 @@ TEST(columnTest, smallint_column_or_double_value) {
   
   SArray *blockList = taosArrayInit(1, POINTER_BYTES);
   taosArrayPush(blockList, &src);
-  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BIGINT, .bytes = sizeof(int64_t)};
+  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
   int16_t dataBlockId = 0, slotId = 0;
   scltAppendReservedSlot(blockList, &dataBlockId, &slotId, true, rowNum, &colInfo);
   scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
@@ -1091,7 +1099,7 @@ TEST(columnTest, smallint_column_greater_double_value) {
   
   SArray *blockList = taosArrayInit(1, POINTER_BYTES);
   taosArrayPush(blockList, &src);
-  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_BOOL, sizeof(bool));
   int16_t dataBlockId = 0, slotId = 0;
   scltAppendReservedSlot(blockList, &dataBlockId, &slotId, true, rowNum, &colInfo);
   scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
@@ -1131,7 +1139,7 @@ TEST(columnTest, int_column_in_double_list) {
 
   SArray *blockList = taosArrayInit(1, POINTER_BYTES);
   taosArrayPush(blockList, &src);
-  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_BOOL, sizeof(bool));
   int16_t dataBlockId = 0, slotId = 0;
   scltAppendReservedSlot(blockList, &dataBlockId, &slotId, true, rowNum, &colInfo);
   scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
@@ -1190,7 +1198,7 @@ TEST(columnTest, binary_column_in_binary_list) {
   
   SArray *blockList = taosArrayInit(1, POINTER_BYTES);
   taosArrayPush(blockList, &src);
-  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_BOOL, sizeof(bool));
   int16_t dataBlockId = 0, slotId = 0;
   scltAppendReservedSlot(blockList, &dataBlockId, &slotId, false, rowNum, &colInfo);
   scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
@@ -1234,7 +1242,7 @@ TEST(columnTest, binary_column_like_binary) {
   
   SArray *blockList = taosArrayInit(1, POINTER_BYTES);
   taosArrayPush(blockList, &src);
-  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_BOOL, sizeof(bool));
   int16_t dataBlockId = 0, slotId = 0;
   scltAppendReservedSlot(blockList, &dataBlockId, &slotId, false, rowNum, &colInfo);
   scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
@@ -1276,7 +1284,7 @@ TEST(columnTest, binary_column_is_true) {
   
   SArray *blockList = taosArrayInit(1, POINTER_BYTES);
   taosArrayPush(blockList, &src);
-  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_BOOL, sizeof(bool));
   int16_t dataBlockId = 0, slotId = 0;
   scltAppendReservedSlot(blockList, &dataBlockId, &slotId, false, rowNum, &colInfo);
   scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
@@ -1320,7 +1328,7 @@ TEST(columnTest, binary_column_is_null) {
   
   SArray *blockList = taosArrayInit(1, POINTER_BYTES);
   taosArrayPush(blockList, &src);
-  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_BOOL, sizeof(bool));
   int16_t dataBlockId = 0, slotId = 0;
   scltAppendReservedSlot(blockList, &dataBlockId, &slotId, false, rowNum, &colInfo);
   scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
@@ -1363,7 +1371,7 @@ TEST(columnTest, binary_column_is_not_null) {
   
   SArray *blockList = taosArrayInit(1, POINTER_BYTES);
   taosArrayPush(blockList, &src);
-  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_BOOL, sizeof(bool));
   int16_t dataBlockId = 0, slotId = 0;
   scltAppendReservedSlot(blockList, &dataBlockId, &slotId, false, rowNum, &colInfo);
   scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
@@ -1405,7 +1413,7 @@ TEST(columnTest, greater_and_lower) {
   
   SArray *blockList = taosArrayInit(1, POINTER_BYTES);
   taosArrayPush(blockList, &src);
-  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_BOOL, sizeof(bool));
   int16_t dataBlockId = 0, slotId = 0;
   scltAppendReservedSlot(blockList, &dataBlockId, &slotId, false, rowNum, &colInfo);
   scltMakeTargetNode(&logicNode, dataBlockId, slotId, logicNode);
@@ -1427,7 +1435,7 @@ TEST(columnTest, greater_and_lower) {
 
 
 int main(int argc, char** argv) {
-  srand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

@@ -29,6 +29,7 @@ extern "C" {
 #include "ttimer.h"
 
 #define TIMER_MAX_MS 0x7FFFFFFF
+#define ENV_TICK_TIMER_MS 1000
 #define PING_TIMER_MS 1000
 #define ELECT_TIMER_MS_MIN 150
 #define ELECT_TIMER_MS_MAX 300
@@ -38,17 +39,28 @@ extern "C" {
 #define EMPTY_RAFT_ID ((SRaftId){.addr = 0, .vgId = 0})
 
 typedef struct SSyncEnv {
-  tmr_h pEnvTickTimer;
+  // tick timer
+  tmr_h             pEnvTickTimer;
+  int32_t           envTickTimerMS;
+  uint64_t          envTickTimerLogicClock;  // if use queue, should pass logic clock into queue item
+  uint64_t          envTickTimerLogicClockUser;
+  TAOS_TMR_CALLBACK FpEnvTickTimer;  // Timer Fp
+  uint64_t          envTickTimerCounter;
+
+  // timer manager
   tmr_h pTimerManager;
-  char  name[128];
+
+  // other resources shared by SyncNodes
+  // ...
+
 } SSyncEnv;
 
 extern SSyncEnv* gSyncEnv;
 
 int32_t syncEnvStart();
 int32_t syncEnvStop();
-tmr_h   syncEnvStartTimer(TAOS_TMR_CALLBACK fp, int mseconds, void* param);
-void    syncEnvStopTimer(tmr_h* pTimer);
+int32_t syncEnvStartTimer();
+int32_t syncEnvStopTimer();
 
 #ifdef __cplusplus
 }

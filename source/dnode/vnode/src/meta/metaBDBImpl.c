@@ -227,27 +227,34 @@ int metaRemoveTableFromDb(SMeta *pMeta, tb_uid_t uid) {
 }
 
 int metaSaveSmaToDB(SMeta *pMeta, STSma *pSmaCfg) {
-  char  buf[512] = {0};  // TODO: may overflow
-  void *pBuf = NULL;
+  // char  buf[512] = {0};  // TODO: may overflow
+  void *pBuf = NULL, *qBuf = NULL;
   DBT   key1 = {0}, value1 = {0};
 
-  {
-    // save sma info
-    pBuf = buf;
-
-    key1.data = pSmaCfg->indexName;
-    key1.size = strlen(key1.data);
-
-    tEncodeTSma(&pBuf, pSmaCfg);
-
-    value1.data = buf;
-    value1.size = POINTER_DISTANCE(pBuf, buf);
-    value1.app_data = pSmaCfg;
+  // save sma info
+  int32_t len = tEncodeTSma(NULL, pSmaCfg);
+  pBuf = calloc(len, 1);
+  if (pBuf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
   }
+
+  key1.data = (void *)&pSmaCfg->indexUid;
+  key1.size = sizeof(pSmaCfg->indexUid);
+
+  qBuf = pBuf;
+  tEncodeTSma(&qBuf, pSmaCfg);
+
+  value1.data = pBuf;
+  value1.size = POINTER_DISTANCE(qBuf, pBuf);
+  value1.app_data = pSmaCfg;
 
   metaDBWLock(pMeta->pDB);
   pMeta->pDB->pSmaDB->put(pMeta->pDB->pSmaDB, NULL, &key1, &value1, 0);
   metaDBULock(pMeta->pDB);
+
+  // release
+  tfree(pBuf);
 
   return 0;
 }
@@ -609,7 +616,7 @@ STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
   return pTbCfg;
 }
 
-STSma *metaGetSmaInfoByName(SMeta *pMeta, const char *indexName) {
+STSma *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid) {
   STSma *  pCfg = NULL;
   SMetaDB *pDB = pMeta->pDB;
   DBT      key = {0};
@@ -617,8 +624,8 @@ STSma *metaGetSmaInfoByName(SMeta *pMeta, const char *indexName) {
   int      ret;
 
   // Set key/value
-  key.data = (void *)indexName;
-  key.size = strlen(indexName);
+  key.data = (void *)&indexUid;
+  key.size = sizeof(indexUid);
 
   // Query
   metaDBRLock(pDB);
@@ -634,7 +641,10 @@ STSma *metaGetSmaInfoByName(SMeta *pMeta, const char *indexName) {
     return NULL;
   }
 
-  tDecodeTSma(value.data, pCfg);
+  if (tDecodeTSma(value.data, pCfg) == NULL) {
+    tfree(pCfg);
+    return NULL;
+  }
 
   return pCfg;
 }
@@ -871,7 +881,7 @@ const char *metaSmaCursorNext(SMSmaCursor *pCur) {
   }
 }
 
-STSmaWrapper *metaGetSmaInfoByUid(SMeta *pMeta, tb_uid_t uid) {
+STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
   STSmaWrapper *pSW = NULL;
 
   pSW = calloc(sizeof(*pSW), 1);
@@ -923,6 +933,7 @@ SArray *metaGetSmaTbUids(SMeta *pMeta, bool isDup) {
   SMetaDB *pDB = pMeta->pDB;
   DBC *    pCur = NULL;
   DBT      pkey = {0}, pval = {0};
+  uint32_t mode = isDup ? DB_NEXT_DUP : DB_NEXT_NODUP;
   int      ret;
 
   pUids = taosArrayInit(16, sizeof(tb_uid_t));
@@ -941,13 +952,8 @@ SArray *metaGetSmaTbUids(SMeta *pMeta, bool isDup) {
   void *pBuf = NULL;
 
   // TODO: lock?
-  while (true) {
-    ret = pCur->get(pCur, &pkey, &pval, isDup ? DB_NEXT_DUP : DB_NEXT_NODUP);
-    if(ret == 0) {
+  while ((ret = pCur->get(pCur, &pkey, &pval, mode)) == 0) {
       taosArrayPush(pUids, pkey.data);
-      continue;
-    }
-    break;
   }
 
   if (pCur) {

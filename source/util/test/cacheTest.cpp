@@ -14,7 +14,7 @@ TEST(cacheTest, client_cache_test) {
   char data1[] = "test11";
 
   char* cachedObj = (char*) taosCachePut(tscMetaCache, key1, strlen(key1), data1, strlen(data1)+1, 1);
-  sleep(REFRESH_TIME_IN_SEC+1);
+  taosSsleep(REFRESH_TIME_IN_SEC+1);
 
   printf("obj is still valid: %s\n", cachedObj);
 
@@ -37,7 +37,7 @@ TEST(cacheTest, client_cache_test) {
 
   taosCacheRelease(tscMetaCache, (void**) &cachedObj2, false);
 
-  sleep(3);
+  taosSsleep(3);
   char* d = (char*) taosCacheAcquireByKey(tscMetaCache, key3, strlen(key3));
   assert(d == NULL);
 

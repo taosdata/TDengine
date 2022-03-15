@@ -38,7 +38,7 @@ float      tsNumOfCores = 0;
 int64_t    tsTotalMemoryKB = 0;
 
 void osInit() {
-  srand(taosSafeRand());
+  taosSeedRand(taosSafeRand());
   taosGetSystemLocale(tsLocale, tsCharset);
   taosGetSystemTimezone(tsTimezone);
   taosSetSystemTimezone(tsTimezone, tsTimezone, &tsDaylight);

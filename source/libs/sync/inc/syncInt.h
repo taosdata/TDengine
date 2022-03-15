@@ -23,6 +23,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "cJSON.h"
 #include "sync.h"
 #include "taosdef.h"
 #include "tglobal.h"
@@ -66,9 +67,6 @@ extern "C" {
     }                                                                   \
   }
 
-struct SRaft;
-typedef struct SRaft SRaft;
-
 struct SyncTimeout;
 typedef struct SyncTimeout SyncTimeout;
 
@@ -99,8 +97,11 @@ typedef struct SRaftStore SRaftStore;
 struct SVotesGranted;
 typedef struct SVotesGranted SVotesGranted;
 
-struct SVotesResponded;
-typedef struct SVotesResponded SVotesResponded;
+struct SVotesRespond;
+typedef struct SVotesRespond SVotesRespond;
+
+struct SSyncIndexMgr;
+typedef struct SSyncIndexMgr SSyncIndexMgr;
 
 typedef struct SRaftId {
   SyncNodeId  addr;  // typedef uint64_t SyncNodeId;
@@ -112,17 +113,21 @@ typedef struct SSyncNode {
   SyncGroupId vgId;
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
-  void*       rpcClient;
+  char        raftStorePath[TSDB_FILENAME_LEN * 2];
+
+  // sync io
+  SWal* pWal;
+  void* rpcClient;
   int32_t (*FpSendMsg)(void* rpcClient, const SEpSet* pEpSet, SRpcMsg* pMsg);
   void* queue;
   int32_t (*FpEqMsg)(void* queue, SRpcMsg* pMsg);
 
   // init internal
-  SNodeInfo me;
-  SRaftId   raftId;
+  SNodeInfo myNodeInfo;
+  SRaftId   myRaftId;
 
   int32_t   peersNum;
-  SNodeInfo peers[TSDB_MAX_REPLICA];
+  SNodeInfo peersNodeInfo[TSDB_MAX_REPLICA];
   SRaftId   peersId[TSDB_MAX_REPLICA];
 
   int32_t replicaNum;
@@ -142,37 +147,39 @@ typedef struct SSyncNode {
   SRaftStore* pRaftStore;
 
   // tla+ candidate vars
-  SVotesGranted*   pVotesGranted;
-  SVotesResponded* pVotesResponded;
+  SVotesGranted* pVotesGranted;
+  SVotesRespond* pVotesRespond;
 
   // tla+ leader vars
-  SHashObj* pNextIndex;
-  SHashObj* pMatchIndex;
+  SSyncIndexMgr* pNextIndex;
+  SSyncIndexMgr* pMatchIndex;
 
   // tla+ log vars
   SSyncLogStore* pLogStore;
   SyncIndex      commitIndex;
 
-  // timer
+  // ping timer
   tmr_h             pPingTimer;
   int32_t           pingTimerMS;
   uint64_t          pingTimerLogicClock;
   uint64_t          pingTimerLogicClockUser;
-  TAOS_TMR_CALLBACK FpPingTimer;  // Timer Fp
+  TAOS_TMR_CALLBACK FpPingTimerCB;  // Timer Fp
   uint64_t          pingTimerCounter;
 
+  // elect timer
   tmr_h             pElectTimer;
   int32_t           electTimerMS;
   uint64_t          electTimerLogicClock;
   uint64_t          electTimerLogicClockUser;
-  TAOS_TMR_CALLBACK FpElectTimer;  // Timer Fp
+  TAOS_TMR_CALLBACK FpElectTimerCB;  // Timer Fp
   uint64_t          electTimerCounter;
 
+  // heartbeat timer
   tmr_h             pHeartbeatTimer;
   int32_t           heartbeatTimerMS;
   uint64_t          heartbeatTimerLogicClock;
   uint64_t          heartbeatTimerLogicClockUser;
-  TAOS_TMR_CALLBACK FpHeartbeatTimer;  // Timer Fp
+  TAOS_TMR_CALLBACK FpHeartbeatTimerCB;  // Timer Fp
   uint64_t          heartbeatTimerCounter;
 
   // callback
@@ -186,23 +193,52 @@ typedef struct SSyncNode {
 
 } SSyncNode;
 
+// open/close --------------
 SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo);
 void       syncNodeClose(SSyncNode* pSyncNode);
 
-int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
-int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
+// ping --------------
 int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg);
-int32_t syncNodePingAll(SSyncNode* pSyncNode);
-int32_t syncNodePingPeers(SSyncNode* pSyncNode);
 int32_t syncNodePingSelf(SSyncNode* pSyncNode);
+int32_t syncNodePingPeers(SSyncNode* pSyncNode);
+int32_t syncNodePingAll(SSyncNode* pSyncNode);
 
+// timer control --------------
 int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode);
 int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms);
+int32_t syncNodeResetElectTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
+
+// utils --------------
+int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
+int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
+cJSON*  syncNode2Json(const SSyncNode* pSyncNode);
+char*   syncNode2Str(const SSyncNode* pSyncNode);
+
+// raft state change --------------
+void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
+void syncNodeBecomeFollower(SSyncNode* pSyncNode);
+void syncNodeBecomeLeader(SSyncNode* pSyncNode);
+
+void syncNodeCandidate2Leader(SSyncNode* pSyncNode);
+void syncNodeFollower2Candidate(SSyncNode* pSyncNode);
+void syncNodeLeader2Follower(SSyncNode* pSyncNode);
+void syncNodeCandidate2Follower(SSyncNode* pSyncNode);
+
+// raft vote --------------
+void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId);
+void syncNodeVoteForSelf(SSyncNode* pSyncNode);
+void syncNodeMaybeAdvanceCommitIndex(SSyncNode* pSyncNode);
+
+// for debug --------------
+void syncNodePrint(SSyncNode* pObj);
+void syncNodePrint2(char* s, SSyncNode* pObj);
+void syncNodeLog(SSyncNode* pObj);
+void syncNodeLog2(char* s, SSyncNode* pObj);
 
 #ifdef __cplusplus
 }

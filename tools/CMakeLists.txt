@@ -1,1 +1,10 @@
+IF (TD_TAOS_TOOLS)
+    INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/tools/taos_tools/deps/avro/lang/c/src)
+    INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include/client)
+    INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include/common)
+    INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include/util)
+    INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include/os)
+    ADD_SUBDIRECTORY(taos-tools)
+ENDIF ()
+
 add_subdirectory(shell)

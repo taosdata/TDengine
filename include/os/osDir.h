@@ -16,9 +16,23 @@
 #ifndef _TD_OS_DIR_H_
 #define _TD_OS_DIR_H_
 
+// If the error is in a third-party library, place this header file under the third-party library header file.
+#ifndef ALLOW_FORBID_FUNC
+    #define opendir OPENDIR_FUNC_TAOS_FORBID
+    #define readdir READDIR_FUNC_TAOS_FORBID
+    #define closedir CLOSEDIR_FUNC_TAOS_FORBID
+    #define dirname DIRNAME_FUNC_TAOS_FORBID
+    #undef basename
+    #define basename BASENAME_FUNC_TAOS_FORBID
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct TdDir *TdDirPtr;
+typedef struct TdDirEntry *TdDirEntryPtr;
+
 
 void    taosRemoveDir(const char *dirname);
 bool    taosDirExist(char *dirname);
@@ -27,6 +41,14 @@ void    taosRemoveOldFiles(const char *dirname, int32_t keepDays);
 int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen);
 int32_t taosRealPath(char *dirname, int32_t maxlen);
 bool    taosIsDir(const char *dirname);
+char*   taosDirName(char *dirname);
+char*   taosDirEntryBaseName(char *dirname);
+
+TdDirPtr      taosOpenDir(const char *dirname);
+TdDirEntryPtr taosReadDir(TdDirPtr pDir);
+bool          taosDirEntryIsDir(TdDirEntryPtr pDirEntry);
+char*         taosGetDirEntryName(TdDirEntryPtr pDirEntry);
+int32_t       taosCloseDir(TdDirPtr pDir);
 
 #ifdef __cplusplus
 }

@@ -97,6 +97,11 @@ int32_t dmnRunDnode() {
 }
 
 int main(int argc, char const *argv[]) {
+  if (!taosCheckSystemIsSmallEnd()) {
+    uError("TDengine does not run on non-small-end machines.");
+    return -1;
+  }
+
   if (dmnParseOption(argc, argv) != 0) {
     return -1;
   }

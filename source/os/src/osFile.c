@@ -265,7 +265,7 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     return NULL;
   }
 #if FILE_WITH_LOCK
-  pthread_rwlock_init(&(pFile->rwlock),NULL);
+  pthread_rwlock_init(&(pFile->rwlock), NULL);
 #endif
   pFile->fd = fd;
   pFile->fp = fp;
@@ -735,6 +735,7 @@ void taosFprintfFile(TdFilePtr pFile, const char *format, ...) {
   fflush(pFile->fp);
 }
 
+#if !defined(WINDOWS)
 void *taosMmapReadOnlyFile(TdFilePtr pFile, int64_t length) {
   if (pFile == NULL) {
     return NULL;
@@ -744,6 +745,7 @@ void *taosMmapReadOnlyFile(TdFilePtr pFile, int64_t length) {
   void *ptr = mmap(NULL, length, PROT_READ, MAP_SHARED, pFile->fd, 0);
   return ptr;
 }
+#endif
 
 bool taosValidFile(TdFilePtr pFile) { return pFile != NULL; }
 
@@ -773,6 +775,9 @@ int32_t taosEOFFile(TdFilePtr pFile) {
 
   return feof(pFile->fp);
 }
+
+#if !defined(WINDOWS)
+
 bool taosCheckAccessFile(const char *pathname, int32_t tdFileAccessOptions) {
   int flags = 0;
 
@@ -790,4 +795,7 @@ bool taosCheckAccessFile(const char *pathname, int32_t tdFileAccessOptions) {
 
   return access(pathname, flags) == 0;
 }
+
 bool taosCheckExistFile(const char *pathname) { return taosCheckAccessFile(pathname, TD_FILE_ACCESS_EXIST_OK); };
+
+#endif // WINDOWS

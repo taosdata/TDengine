@@ -94,11 +94,11 @@ void taosVariantCreate(SVariant *pVar, const char *z, int32_t n, int32_t type) {
       bool sign = true;
 
       int32_t base = 10;
-      if (type == TK_HEX) {
+      if (type == TK_NK_HEX) {
         base = 16;
-      } else if (type == TK_OCT) {
+      } else if (type == TK_NK_OCT) {
         base = 8;
-      } else if (type == TK_BIN) {
+      } else if (type == TK_NK_BIN) {
         base = 2;
       }
 

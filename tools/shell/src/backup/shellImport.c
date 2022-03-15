@@ -39,14 +39,14 @@ static int shellGetFilesNum(const char *directoryName, const char *prefix)
   char cmd[1024] = { 0 };
   sprintf(cmd, "ls %s/*.%s | wc -l ", directoryName, prefix);
 
-  FILE *fp = popen(cmd, "r");
-  if (fp == NULL) {
+  char buf[1024] = { 0 };
+  if (taosSystem(cmd, buf, sizeof(buf)) < 0) {
     fprintf(stderr, "ERROR: failed to execute:%s, error:%s\n", cmd, strerror(errno));
     exit(0);
   }
 
   int fileNum = 0;
-  if (fscanf(fp, "%d", &fileNum) != 1) {
+  if (sscanf(buf, "%d", &fileNum) != 1) {
     fprintf(stderr, "ERROR: failed to execute:%s, parse result error\n", cmd);
     exit(0);
   }
@@ -56,7 +56,6 @@ static int shellGetFilesNum(const char *directoryName, const char *prefix)
     exit(0);
   }
 
-  pclose(fp);
   return fileNum;
 }
 
@@ -65,14 +64,14 @@ static void shellParseDirectory(const char *directoryName, const char *prefix, c
   char cmd[1024] = { 0 };
   sprintf(cmd, "ls %s/*.%s | sort", directoryName, prefix);
 
-  FILE *fp = popen(cmd, "r");
-  if (fp == NULL) {
+  char buf[1024] = { 0 };
+  if (taosSystem(cmd, buf, sizeof(buf)) < 0) {
     fprintf(stderr, "ERROR: failed to execute:%s, error:%s\n", cmd, strerror(errno));
     exit(0);
   }
 
   int fileNum = 0;
-  while (fscanf(fp, "%128s", fileArray[fileNum++])) {
+  while (sscanf(buf, "%128s", fileArray[fileNum++])) {
     if (strcmp(fileArray[fileNum-1], shellTablesSQLFile) == 0) {
       fileNum--;
     }
@@ -85,8 +84,6 @@ static void shellParseDirectory(const char *directoryName, const char *prefix, c
     fprintf(stderr, "ERROR: directory:%s changed while read\n", directoryName);
     exit(0);
   }
-
-  pclose(fp);
 }
 
 static void shellCheckTablesSQLFile(const char *directoryName)

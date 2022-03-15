@@ -22,6 +22,7 @@ extern "C" {
 
 #include "tcommon.h"
 #include "dataSinkMgt.h"
+#include "plannodes.h"
 
 struct SDataSink;
 struct SDataSinkHandle;
@@ -45,7 +46,7 @@ typedef struct SDataSinkHandle {
   FDestroyDataSinker fDestroy;
 } SDataSinkHandle;
 
-int32_t createDataDispatcher(SDataSinkManager* pManager, const struct SDataSink* pDataSink, DataSinkHandle* pHandle);
+int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle);
 
 #ifdef __cplusplus
 }

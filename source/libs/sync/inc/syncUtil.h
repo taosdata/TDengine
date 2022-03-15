@@ -34,6 +34,7 @@ void     syncUtilnodeInfo2EpSet(const SNodeInfo* pNodeInfo, SEpSet* pEpSet);
 void     syncUtilraftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet);
 void     syncUtilnodeInfo2raftId(const SNodeInfo* pNodeInfo, SyncGroupId vgId, SRaftId* raftId);
 bool     syncUtilSameId(const SRaftId* pId1, const SRaftId* pId2);
+bool     syncUtilEmptyId(const SRaftId* pId);
 
 // ---- SSyncBuffer ----
 void syncUtilbufBuild(SSyncBuffer* syncBuf, size_t len);
@@ -42,8 +43,18 @@ void syncUtilbufCopy(const SSyncBuffer* src, SSyncBuffer* dest);
 void syncUtilbufCopyDeep(const SSyncBuffer* src, SSyncBuffer* dest);
 
 // ---- misc ----
-int32_t syncUtilRand(int32_t max);
-int32_t syncUtilElectRandomMS();
+int32_t     syncUtilRand(int32_t max);
+int32_t     syncUtilElectRandomMS();
+int32_t     syncUtilQuorum(int32_t replicaNum);
+cJSON*      syncUtilNodeInfo2Json(const SNodeInfo* p);
+cJSON*      syncUtilRaftId2Json(const SRaftId* p);
+char*       syncUtilRaftId2Str(const SRaftId* p);
+const char* syncUtilState2String(ESyncState state);
+bool        syncUtilCanPrint(char c);
+char*       syncUtilprintBin(char* ptr, uint32_t len);
+char*       syncUtilprintBin2(char* ptr, uint32_t len);
+SyncIndex   syncUtilMinIndex(SyncIndex a, SyncIndex b);
+SyncIndex   syncUtilMaxIndex(SyncIndex a, SyncIndex b);
 
 #ifdef __cplusplus
 }

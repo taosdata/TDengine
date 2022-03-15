@@ -28,10 +28,14 @@ extern "C" {
 #include "syncUtil.h"
 #include "taosdef.h"
 
+// SVotesGranted -----------------------------
 typedef struct SVotesGranted {
+  SRaftId (*replicas)[TSDB_MAX_REPLICA];
+  bool       isGranted[TSDB_MAX_REPLICA];
+  int32_t    replicaNum;
+  int32_t    votes;
   SyncTerm   term;
   int32_t    quorum;
-  int32_t    votes;
   bool       toLeader;
   SSyncNode *pSyncNode;
 } SVotesGranted;
@@ -41,7 +45,16 @@ void           voteGrantedDestroy(SVotesGranted *pVotesGranted);
 bool           voteGrantedMajority(SVotesGranted *pVotesGranted);
 void           voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg);
 void           voteGrantedReset(SVotesGranted *pVotesGranted, SyncTerm term);
+cJSON *        voteGranted2Json(SVotesGranted *pVotesGranted);
+char *         voteGranted2Str(SVotesGranted *pVotesGranted);
 
+// for debug -------------------
+void voteGrantedPrint(SVotesGranted *pObj);
+void voteGrantedPrint2(char *s, SVotesGranted *pObj);
+void voteGrantedLog(SVotesGranted *pObj);
+void voteGrantedLog2(char *s, SVotesGranted *pObj);
+
+// SVotesRespond -----------------------------
 typedef struct SVotesRespond {
   SRaftId (*replicas)[TSDB_MAX_REPLICA];
   bool       isRespond[TSDB_MAX_REPLICA];
@@ -51,9 +64,18 @@ typedef struct SVotesRespond {
 } SVotesRespond;
 
 SVotesRespond *votesRespondCreate(SSyncNode *pSyncNode);
+void           votesRespondDestory(SVotesRespond *pVotesRespond);
 bool           votesResponded(SVotesRespond *pVotesRespond, const SRaftId *pRaftId);
 void           votesRespondAdd(SVotesRespond *pVotesRespond, const SyncRequestVoteReply *pMsg);
-void           Reset(SVotesRespond *pVotesRespond, SyncTerm term);
+void           votesRespondReset(SVotesRespond *pVotesRespond, SyncTerm term);
+cJSON *        votesRespond2Json(SVotesRespond *pVotesRespond);
+char *         votesRespond2Str(SVotesRespond *pVotesRespond);
+
+// for debug -------------------
+void votesRespondPrint(SVotesRespond *pObj);
+void votesRespondPrint2(char *s, SVotesRespond *pObj);
+void votesRespondLog(SVotesRespond *pObj);
+void votesRespondLog2(char *s, SVotesRespond *pObj);
 
 #ifdef __cplusplus
 }

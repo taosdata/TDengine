@@ -46,7 +46,7 @@ int32_t getOutputInterResultBufSize(STaskAttr* pQueryAttr) {
   int32_t size = 0;
 
   for (int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
-    size += pQueryAttr->pExpr1[i].base.interBytes;
+//    size += pQueryAttr->pExpr1[i].base.interBytes;
   }
 
   assert(size >= 0);
@@ -172,9 +172,14 @@ SResultRowEntryInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_
   return (SResultRowEntryInfo*)((char*) pRow->pEntryInfo + offset[index]);
 }
 
-size_t getResultRowSize(SArray* pExprInfo) {
-  size_t numOfOutput = taosArrayGetSize(pExprInfo);
-  return (numOfOutput * sizeof(SResultRowEntryInfo)) + /*pQueryAttr->interBufSize +*/ sizeof(SResultRow);
+size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
+  int32_t rowSize = (numOfOutput * sizeof(SResultRowEntryInfo)) + sizeof(SResultRow);
+
+  for(int32_t i = 0; i < numOfOutput; ++i) {
+    rowSize += pCtx[i].resDataInfo.interBufSize;
+  }
+
+  return rowSize;
 }
 
 SResultRowPool* initResultRowPool(size_t size) {

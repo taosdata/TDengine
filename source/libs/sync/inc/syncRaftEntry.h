@@ -24,14 +24,34 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include "syncInt.h"
+#include "syncMessage.h"
 #include "taosdef.h"
 
 typedef struct SSyncRaftEntry {
-  SyncTerm    term;
-  SyncIndex   index;
-  SSyncBuffer data;
-  int8_t      flag;
+  uint32_t  bytes;
+  uint32_t  msgType;
+  uint32_t  originalRpcType;
+  uint64_t  seqNum;
+  bool      isWeak;
+  SyncTerm  term;
+  SyncIndex index;
+  uint32_t  dataLen;
+  char      data[];
 } SSyncRaftEntry;
+
+SSyncRaftEntry* syncEntryBuild(uint32_t dataLen);
+SSyncRaftEntry* syncEntryBuild2(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index);
+void            syncEntryDestory(SSyncRaftEntry* pEntry);
+char*           syncEntrySerialize(const SSyncRaftEntry* pEntry, uint32_t* len);
+SSyncRaftEntry* syncEntryDeserialize(const char* buf, uint32_t len);
+cJSON*          syncEntry2Json(const SSyncRaftEntry* pEntry);
+char*           syncEntry2Str(const SSyncRaftEntry* pEntry);
+
+// for debug ----------------------
+void syncEntryPrint(const SSyncRaftEntry* pObj);
+void syncEntryPrint2(char* s, const SSyncRaftEntry* pObj);
+void syncEntryLog(const SSyncRaftEntry* pObj);
+void syncEntryLog2(char* s, const SSyncRaftEntry* pObj);
 
 #ifdef __cplusplus
 }

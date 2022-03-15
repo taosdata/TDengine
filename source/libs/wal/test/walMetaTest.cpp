@@ -305,7 +305,7 @@ TEST_F(WalKeepEnv, readHandleRead) {
     ASSERT_EQ(code, 0);
   }
   for (int i = 0; i < 1000; i++) {
-    int ver = rand() % 100;
+    int ver = taosRand() % 100;
     code = walReadWithHandle(pRead, ver);
     ASSERT_EQ(code, 0);
 
@@ -357,7 +357,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
   ASSERT(pRead != NULL);
 
   for (int i = 0; i < 1000; i++) {
-    int ver = rand() % 100;
+    int ver = taosRand() % 100;
     code = walReadWithHandle(pRead, ver);
     ASSERT_EQ(code, 0);
 
@@ -387,7 +387,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
   }
 
   for (int i = 0; i < 1000; i++) {
-    int ver = rand() % 200;
+    int ver = taosRand() % 200;
     code = walReadWithHandle(pRead, ver);
     ASSERT_EQ(code, 0);
 

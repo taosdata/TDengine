@@ -22,15 +22,21 @@ int main() {
 
   SRaftStore *pRaftStore = raftStoreOpen("./raft_store.json");
   assert(pRaftStore != NULL);
-
   raftStorePrint(pRaftStore);
 
+#if 0
   pRaftStore->currentTerm = 100;
   pRaftStore->voteFor.addr = 200;
   pRaftStore->voteFor.vgId = 300;
-
-  raftStorePrint(pRaftStore);
   raftStorePersist(pRaftStore);
+  raftStorePrint(pRaftStore);
+#endif
+
+  ++(pRaftStore->currentTerm);
+  ++(pRaftStore->voteFor.addr);
+  ++(pRaftStore->voteFor.vgId);
+  raftStorePersist(pRaftStore);
+  raftStorePrint(pRaftStore);
 
   return 0;
 }

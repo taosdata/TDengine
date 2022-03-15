@@ -56,8 +56,9 @@ typedef struct SColumnDataAgg {
 typedef struct SDataBlockInfo {
   STimeWindow window;
   int32_t     rows;
+  int32_t     rowSize;
   int32_t     numOfCols;
-  int64_t     uid;
+  union {int64_t uid; int64_t blockId;};
 } SDataBlockInfo;
 
 typedef struct SConstantItem {
@@ -69,10 +70,10 @@ typedef struct SConstantItem {
 
 // info.numOfCols = taosArrayGetSize(pDataBlock) + taosArrayGetSize(pConstantList);
 typedef struct SSDataBlock {
-  SColumnDataAgg* pBlockAgg;
-  SArray*         pDataBlock;  // SArray<SColumnInfoData>
-  SArray* pConstantList;       // SArray<SConstantItem>, it is a constant/tags value of the corresponding result value.
-  SDataBlockInfo info;
+  SColumnDataAgg *pBlockAgg;
+  SArray         *pDataBlock;    // SArray<SColumnInfoData>
+  SArray         *pConstantList; // SArray<SConstantItem>, it is a constant/tags value of the corresponding result value.
+  SDataBlockInfo  info;
 } SSDataBlock;
 
 typedef struct SVarColAttr {
@@ -108,7 +109,7 @@ static FORCE_INLINE int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlo
     SColumnInfoData* pColData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
     tlen += taosEncodeFixedI16(buf, pColData->info.colId);
     tlen += taosEncodeFixedI16(buf, pColData->info.type);
-    tlen += taosEncodeFixedI16(buf, pColData->info.bytes);
+    tlen += taosEncodeFixedI32(buf, pColData->info.bytes);
     int32_t colSz = rows * pColData->info.bytes;
     tlen += taosEncodeBinary(buf, pColData->pData, colSz);
   }
@@ -127,7 +128,7 @@ static FORCE_INLINE void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock)
     SColumnInfoData data = {0};
     buf = taosDecodeFixedI16(buf, &data.info.colId);
     buf = taosDecodeFixedI16(buf, &data.info.type);
-    buf = taosDecodeFixedI16(buf, &data.info.bytes);
+    buf = taosDecodeFixedI32(buf, &data.info.bytes);
     int32_t colSz = pBlock->info.rows * data.info.bytes;
     buf = taosDecodeBinary(buf, (void**)&data.pData, colSz);
     taosArrayPush(pBlock->pDataBlock, &data);
@@ -208,10 +209,22 @@ static FORCE_INLINE void tDeleteSMqConsumeRsp(SMqPollRsp* pRsp) {
 //======================================================================================================================
 // the following structure shared by parser and executor
 typedef struct SColumn {
-  uint64_t    uid;
-  char        name[TSDB_COL_NAME_LEN];
-  int8_t      flag;  // column type: normal column, tag, or user-input column (integer/float/string)
-  SColumnInfo info;
+  union {
+    uint64_t uid;
+    int64_t  dataBlockId;
+  };
+
+  union {
+    int16_t colId;
+    int16_t slotId;
+  };
+
+  char    name[TSDB_COL_NAME_LEN];
+  int8_t  flag;  // column type: normal column, tag, or user-input column (integer/float/string)
+  int16_t type;
+  int32_t bytes;
+  uint8_t precision;
+  uint8_t scale;
 } SColumn;
 
 typedef struct SLimit {
@@ -229,21 +242,32 @@ typedef struct SGroupbyExpr {
   bool    groupbyTag;  // group by tag or column
 } SGroupbyExpr;
 
-// the structure for sql function in select clause
-typedef struct SSqlExpr {
-  char    token[TSDB_COL_NAME_LEN];  // original token
-  SSchema resSchema;
+typedef struct SFunctParam {
+  int32_t  type;
+  SColumn *pCol;
+  SVariant param;
+} SFunctParam;
 
-  int32_t  numOfCols;
-  SColumn* pColumns;     // data columns that are required by query
-  int32_t  interBytes;   // inter result buffer size
-  int16_t  numOfParams;  // argument value of each function
-  SVariant param[3];     // parameters are not more than 3
-} SSqlExpr;
+// the structure for sql function in select clause
+typedef struct SResSchame {
+  int8_t  type;
+  int32_t colId;
+  int32_t bytes;
+  int32_t precision;
+  int32_t scale;
+  char    name[TSDB_COL_NAME_LEN];
+} SResSchema;
+
+// TODO move away to executor.h
+typedef struct SExprBasicInfo {
+  SResSchema   resSchema;
+  int16_t      numOfParams;  // argument value of each function
+  SFunctParam *pParam;
+} SExprBasicInfo;
 
 typedef struct SExprInfo {
-  struct SSqlExpr   base;
-  struct tExprNode* pExpr;
+  struct SExprBasicInfo  base;
+  struct tExprNode      *pExpr;
 } SExprInfo;
 
 typedef struct SStateWindow {

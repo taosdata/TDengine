@@ -18,7 +18,7 @@ void taosMsleep(int mseconds);
 
 unsigned long long getCurrentTime(){
     struct timeval tv;
-    if (gettimeofday(&tv, NULL) != 0) {
+    if (taosGetTimeOfDay(&tv) != 0) {
         perror("Failed to get current time in ms");
         exit(EXIT_FAILURE);
     }
@@ -5089,7 +5089,7 @@ int main(int argc, char *argv[])
   //pthread_create(&(pThreadList[3]), &thattr, runcase, (void *)&par[3]);
 
   while(1) {
-    sleep(1);
+    taosSsleep(1);
   }
   return 0;
 }

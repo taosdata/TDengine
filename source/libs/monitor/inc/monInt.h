@@ -19,7 +19,6 @@
 #include "monitor.h"
 
 #include "tarray.h"
-#include "tlockfree.h"
 #include "tjson.h"
 
 typedef struct {

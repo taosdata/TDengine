@@ -129,7 +129,7 @@ static EDealRes walkList(SNodeList* pNodeList, ETraversalOrder order, FNodeWalke
   return DEAL_RES_CONTINUE;
 }
 
-void nodesWalkNode(SNode* pNode, FNodeWalker walker, void* pContext) {
+void nodesWalkNode(SNodeptr pNode, FNodeWalker walker, void* pContext) {
   (void)walkNode(pNode, TRAVERSAL_PREORDER, walker, pContext);
 }
 
@@ -137,7 +137,7 @@ void nodesWalkList(SNodeList* pNodeList, FNodeWalker walker, void* pContext) {
   (void)walkList(pNodeList, TRAVERSAL_PREORDER, walker, pContext);
 }
 
-void nodesWalkNodePostOrder(SNode* pNode, FNodeWalker walker, void* pContext) {
+void nodesWalkNodePostOrder(SNodeptr pNode, FNodeWalker walker, void* pContext) {
   (void)walkNode(pNode, TRAVERSAL_POSTORDER, walker, pContext);
 }
 

@@ -83,9 +83,7 @@ static FORCE_INLINE void initResultRowEntry(SResultRowEntryInfo *pResInfo, int32
   pResInfo->initialized = true;  // the this struct has been initialized flag
   
   pResInfo->complete  = false;
-  pResInfo->hasResult = false;
   pResInfo->numOfRes  = 0;
-  
   memset(GET_ROWCELL_INTERBUF(pResInfo), 0, bufLen);
 }
 

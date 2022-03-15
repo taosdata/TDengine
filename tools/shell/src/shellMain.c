@@ -41,11 +41,11 @@ void *cancelHandler(void *arg) {
     taosReleaseRef(tscObjRef, rid);
 #endif    
 #else
-    reset_terminal_mode();
+    resetTerminalMode();
     printf("\nReceive ctrl+c or other signal, quit shell.\n");
     exit(0);
 #endif
-    reset_terminal_mode();
+    resetTerminalMode();
     printf("\nReceive ctrl+c or other signal, quit shell.\n");
     exit(0);
   }

@@ -20,9 +20,30 @@
 extern "C" {
 #endif
 
+#include "tbuffer.h"
 #include "tcommon.h"
 #include "tvariant.h"
-#include "tbuffer.h"
+
+struct SqlFunctionCtx;
+struct SResultRowEntryInfo;
+
+typedef struct SFunctionNode SFunctionNode;
+
+typedef struct SFuncExecEnv {
+  int32_t calcMemSize;
+} SFuncExecEnv;
+
+typedef bool (*FExecGetEnv)(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+typedef bool (*FExecInit)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);
+typedef void (*FExecProcess)(struct SqlFunctionCtx *pCtx);
+typedef void (*FExecFinalize)(struct SqlFunctionCtx *pCtx);
+
+typedef struct SFuncExecFuncs {
+  FExecGetEnv getEnv;
+  FExecInit init;
+  FExecProcess process;
+  FExecFinalize finalize;
+} SFuncExecFuncs;
 
 #define MAX_INTERVAL_TIME_WINDOW 1000000  // maximum allowed time windows in final results
 
@@ -111,64 +132,65 @@ struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
 
 //for selectivity query, the corresponding tag value is assigned if the data is qualified
-typedef struct SExtTagsInfo {
-  int16_t                 tagsLen;      // keep the tags data for top/bottom query result
-  int16_t                 numOfTagCols;
-  struct SqlFunctionCtx **pTagCtxList;
-} SExtTagsInfo;
+typedef struct SSubsidiaryResInfo {
+  int16_t                 bufLen;      // keep the tags data for top/bottom query result
+  int16_t                 numOfCols;
+  struct SqlFunctionCtx **pCtx;
+} SSubsidiaryResInfo;
 
 typedef struct SResultDataInfo {
+  int16_t precision;
+  int16_t scale;
   int16_t type;
   int16_t bytes;
-  int32_t intermediateBytes;
+  int32_t interBufSize;
 } SResultDataInfo;
 
 #define GET_RES_INFO(ctx) ((ctx)->resultInfo)
 
-typedef struct SFunctionFpSet {
-  bool (*init)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);  // setup the execute environment
-  void (*addInput)(struct SqlFunctionCtx *pCtx);
-
-  // finalizer must be called after all exec has been executed to generated final result.
-  void (*finalize)(struct SqlFunctionCtx *pCtx);
-  void (*combine)(struct SqlFunctionCtx *pCtx);
-} SFunctionFpSet;
-
-extern SFunctionFpSet fpSet[1];
+typedef struct SInputColumnInfoData {
+  int32_t           totalRows;      // total rows in current columnar data
+  int32_t           startRowIndex;  // handle started row index
+  int32_t           numOfRows;      // the number of rows needs to be handled
+  int32_t           numOfInputCols; // PTS is not included
+  bool              colDataAggIsSet;// if agg is set or not
+  SColumnInfoData  *pPTS;           // primary timestamp column
+  SColumnInfoData **pData;
+  SColumnDataAgg  **pColumnDataAgg;
+} SInputColumnInfoData;
 
 // sql function runtime context
 typedef struct SqlFunctionCtx {
-  int32_t      startRow;
-  int32_t      size;      // number of rows
+  SInputColumnInfoData input;
+  SResultDataInfo      resDataInfo;
+  uint32_t             order;  // asc|desc
+  ////////////////////////////////////////////////////////////////
+  int32_t          startRow;   // start row index
+  int32_t          size;       // handled processed row number
   SColumnInfoData* pInput;
-
-  uint32_t     order;     // asc|desc
-  int16_t      inputType;
-  int16_t      inputBytes;
-
-  SResultDataInfo resDataInfo;
-  bool         hasNull;       // null value exist in current block
-  bool         requireNull;   // require null in some function
-  bool         stableQuery;
-  int16_t      functionId;    // function id
-  char *       pOutput;       // final result output buffer, point to sdata->data
-  uint8_t      currentStage;  // record current running step, default: 0
-  int64_t      startTs;       // timestamp range of current query when function is executed on a specific data block
-  int32_t      numOfParams;
-  SVariant     param[4];      // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
-  int64_t     *ptsList;       // corresponding timestamp array list
-  void        *ptsOutputBuf;  // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
-  SVariant     tag;
-
-  bool        isAggSet;
-  SColumnDataAgg agg;
+  SColumnDataAgg   agg;
+  int16_t          inputType;    // TODO remove it
+  int16_t          inputBytes;   // TODO remove it
+  bool             hasNull;      // null value exist in current block, TODO remove it
+  bool             requireNull;  // require null in some function, TODO remove it
+  int32_t          columnIndex;  // TODO remove it
+  uint8_t          currentStage;  // record current running step, default: 0
+  bool             isAggSet;
+  /////////////////////////////////////////////////////////////////
+  bool             stableQuery;
+  int16_t          functionId;    // function id
+  char *           pOutput;       // final result output buffer, point to sdata->data
+  int64_t          startTs;       // timestamp range of current query when function is executed on a specific data block
+  int32_t          numOfParams;
+  SVariant         param[4];      // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
+  int64_t         *ptsList;       // corresponding timestamp array list
+  void            *ptsOutputBuf;  // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
+  SVariant         tag;
   struct  SResultRowEntryInfo *resultInfo;
-  SExtTagsInfo tagInfo;
-  SPoint1      start;
-  SPoint1      end;
-
-  int32_t      columnIndex;
-  SFunctionFpSet* fpSet;
+  SSubsidiaryResInfo     subsidiaryRes;
+  SPoint1          start;
+  SPoint1          end;
+  SFuncExecFuncs   fpSet;
 } SqlFunctionCtx;
 
 enum {
@@ -194,9 +216,10 @@ typedef struct tExprNode {
     struct SVariant    *pVal;   // value node
 
     struct {// function node
-      char              functionName[FUNCTIONS_NAME_MAX_LENGTH];
+      char              functionName[FUNCTIONS_NAME_MAX_LENGTH];  // todo refactor
+      int32_t           functionId;
       int32_t           num;
-
+      SFunctionNode    *pFunctNode;
       // Note that the attribute of pChild is not the parameter of function, it is the columns that involved in the
       // calculation instead.
       // E.g., Cov(col1, col2), the column information, w.r.t. the col1 and col2, is kept in pChild nodes.
@@ -207,7 +230,6 @@ typedef struct tExprNode {
   };
 } tExprNode;
 
-//TODO create?
 void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);
 void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *));
 
@@ -294,7 +316,7 @@ tExprNode* exprdup(tExprNode* pTree);
 
 void resetResultRowEntryResult(SqlFunctionCtx* pCtx, int32_t num);
 void cleanupResultRowEntry(struct SResultRowEntryInfo* pCell);
-int32_t getNumOfResult(SqlFunctionCtx* pCtx, int32_t num);
+int32_t getNumOfResult(SqlFunctionCtx* pCtx, int32_t num, SSDataBlock* pResBlock);
 bool isRowEntryCompleted(struct SResultRowEntryInfo* pEntry);
 bool isRowEntryInitialized(struct SResultRowEntryInfo* pEntry);
 

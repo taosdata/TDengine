@@ -94,8 +94,8 @@ int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock);
 int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows);
 void    colDataTrim(SColumnInfoData* pColumnInfoData);
 
-size_t colDataGetNumOfCols(const SSDataBlock* pBlock);
-size_t colDataGetNumOfRows(const SSDataBlock* pBlock);
+size_t blockDataGetNumOfCols(const SSDataBlock* pBlock);
+size_t blockDataGetNumOfRows(const SSDataBlock* pBlock);
 
 int32_t      blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc);
 int32_t      blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startIndex, int32_t* stopIndex,

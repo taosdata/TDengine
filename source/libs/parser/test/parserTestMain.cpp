@@ -18,6 +18,8 @@
 #include <gtest/gtest.h>
 
 #include "mockCatalog.h"
+#include "parToken.h"
+#include "functionMgt.h"
 
 class ParserEnv : public testing::Environment {
 public:
@@ -28,6 +30,8 @@ public:
 
   virtual void TearDown() {
     destroyMetaDataEnv();
+    taosCleanupKeywordsTable();
+    fmFuncMgtDestroy();
   }
 
   ParserEnv() {}

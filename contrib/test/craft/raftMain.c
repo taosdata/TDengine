@@ -377,7 +377,7 @@ void printConf(SRaftServerConfig *pConf) {
 
 
 int main(int argc, char **argv) { 
-	srand(time(NULL));
+	taosSeedRand(time(NULL));
 	int32_t ret;
 
 	exe_name = argv[0];

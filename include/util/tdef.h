@@ -207,7 +207,7 @@ typedef enum ELogicConditionType {
 #define TSDB_FUNC_TYPE_AGGREGATE 2
 #define TSDB_FUNC_MAX_RETRIEVE   1024
 
-#define TSDB_INDEX_NAME_LEN      32
+#define TSDB_INDEX_NAME_LEN      33  // 32 + 1 '\0'
 #define TSDB_TYPE_STR_MAX_LEN    32
 #define TSDB_TABLE_FNAME_LEN     (TSDB_DB_FNAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_TOPIC_FNAME_LEN     TSDB_TABLE_FNAME_LEN
@@ -344,6 +344,20 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_DB_QUORUM_OPTION     1
 #define TSDB_MAX_DB_QUORUM_OPTION     2
 #define TSDB_DEFAULT_DB_QUORUM_OPTION 1
+
+#define TSDB_MIN_DB_TTL_OPTION          1
+#define TSDB_DEFAULT_DB_TTL_OPTION      0
+
+#define TSDB_MIN_DB_SINGLE_STABLE_OPTION          0
+#define TSDB_MAX_DB_SINGLE_STABLE_OPTION          1
+#define TSDB_DEFAULT_DB_SINGLE_STABLE_OPTION      0
+
+#define TSDB_MIN_DB_STREAM_MODE_OPTION          0
+#define TSDB_MAX_DB_STREAM_MODE_OPTION          1
+#define TSDB_DEFAULT_DB_STREAM_MODE_OPTION      0
+
+#define TSDB_MAX_JOIN_TABLE_NUM         10
+#define TSDB_MAX_UNION_CLAUSE           5
 
 #define TSDB_MIN_DB_UPDATE            0
 #define TSDB_MAX_DB_UPDATE            2
