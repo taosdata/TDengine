@@ -20,7 +20,7 @@ SyncRequestVote *createMsg() {
   pMsg->srcId.vgId = 100;
   pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 5678);
   pMsg->destId.vgId = 100;
-  pMsg->currentTerm = 11;
+  pMsg->term = 11;
   pMsg->lastLogIndex = 22;
   pMsg->lastLogTerm = 33;
   return pMsg;

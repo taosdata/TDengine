@@ -14,6 +14,12 @@
  */
 
 #include "syncAppendEntriesReply.h"
+#include "syncIndexMgr.h"
+#include "syncInt.h"
+#include "syncRaftLog.h"
+#include "syncRaftStore.h"
+#include "syncUtil.h"
+#include "syncVoteMgr.h"
 
 // TLA+ Spec
 // HandleAppendEntriesResponse(i, j, m) ==
@@ -28,4 +34,41 @@
 //    /\ Discard(m)
 //    /\ UNCHANGED <<serverVars, candidateVars, logVars, elections>>
 //
-int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {}
+int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
+  int32_t ret = 0;
+  syncAppendEntriesReplyLog2("==syncNodeOnAppendEntriesReplyCb==", pMsg);
+
+  if (pMsg->term < ths->pRaftStore->currentTerm) {
+    sTrace("DropStaleResponse, receive term:%lu, current term:%lu", pMsg->term, ths->pRaftStore->currentTerm);
+    return ret;
+  }
+
+  // no need this code, because if I receive reply.term, then I must have sent for that term.
+  //  if (pMsg->term > ths->pRaftStore->currentTerm) {
+  //    syncNodeUpdateTerm(ths, pMsg->term);
+  //  }
+
+  assert(pMsg->term == ths->pRaftStore->currentTerm);
+
+  if (pMsg->success) {
+    // nextIndex = reply.matchIndex + 1
+    syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), pMsg->matchIndex + 1);
+
+    // matchIndex = reply.matchIndex
+    syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), pMsg->matchIndex);
+
+    // maybe commit
+    syncNodeMaybeAdvanceCommitIndex(ths);
+
+  } else {
+    SyncIndex nextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
+    if (nextIndex > SYNC_INDEX_BEGIN) {
+      --nextIndex;
+    } else {
+      nextIndex = SYNC_INDEX_BEGIN;
+    }
+    syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), nextIndex);
+  }
+
+  return ret;
+}
