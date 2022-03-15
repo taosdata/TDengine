@@ -82,19 +82,6 @@ class TDTestCase:
         res = tdSql.getData(0, 0)
         tdSql.checkEqual(str(res), "2020-02-02 00:00:00")
 
-        #TIME RELATED functions
-        tdSql.query('select to_unixtimestamp("2020-02-02") from tb')
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1580572800000)
-
-        tdSql.query('select timetruncate("2020-02-02", 1h) from tb;')
-        tdSql.checkRows(1)
-        res = tdSql.getData(0, 0)
-        tdSql.checkEqual(str(res), "2020-02-02 00:00:00")
-
-        tdSql.query('select timediff("2020-02-02", "2020-02-03", 1h) from tb;')
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 24)
 
         tdSql.execute('drop database db')
 
