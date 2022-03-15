@@ -54,8 +54,6 @@ static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2
 static int tdbBtreeOpenImpl(SBTree *pBt);
 static int tdbBtreeZeroPage(SPage *pPage, void *arg);
 static int tdbBtreeInitPage(SPage *pPage, void *arg);
-static int tdbEncodeKeyValue(const void *pKey, int kLen, int kLenG, const void *pVal, int vLen, int vLenG, void *pBuf,
-                             int *bLen);
 
 int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, SBTree **ppBt) {
   SBTree *pBt;
@@ -147,8 +145,7 @@ int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *p
     }
   }
 
-  // Encode the key-value pairs
-  ret = tdbEncodeKeyValue(pKey, kLen, pCur->pPage->kLen, pVal, vLen, pCur->pPage->vLen, pCell, &szCell);
+  // Encode the cell
 
   // Insert the cell to the index
   ret = tdbPageInsertCell(pCur->pPage, idx, pCell, szCell);
@@ -226,47 +223,6 @@ static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen, int *p
   } else {
     // TODO: Move the cursor from a some position instead of a clear state
   }
-
-  return 0;
-}
-
-static int tdbEncodeKeyValue(const void *pKey, int kLen, int kLenG, const void *pVal, int vLen, int vLenG, void *pBuf,
-                             int *bLen) {
-  u8 *pPtr;
-
-  ASSERT(kLen > 0 && vLen > 0);
-  ASSERT(kLenG == TDB_VARIANT_LEN || kLenG == kLen);
-  ASSERT(vLenG == TDB_VARIANT_LEN || vLenG == vLen);
-
-  pPtr = (u8 *)pBuf;
-  if (kLenG == TDB_VARIANT_LEN) {
-    pPtr += tdbEncodeLength(pPtr, kLen);
-  }
-
-  if (vLenG == TDB_VARIANT_LEN) {
-    pPtr += tdbEncodeLength(pPtr, vLen);
-  }
-
-  memcpy(pPtr, pKey, kLen);
-  pPtr += kLen;
-
-  memcpy(pPtr, pVal, vLen);
-  pPtr += vLen;
-
-  *bLen = pPtr - (u8 *)pBuf;
-  return 0;
-}
-
-static int tdbDecodeKeyValue(const void *pBuf, void *pKey, int *kLen, void *pVal, int *vLen) {
-  if (*kLen == TDB_VARIANT_LEN) {
-    // Decode the key length
-  }
-
-  if (*vLen == TDB_VARIANT_LEN) {
-    // Decode the value length
-  }
-
-  // TODO: decode the key and value
 
   return 0;
 }
