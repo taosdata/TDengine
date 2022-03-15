@@ -58,12 +58,13 @@ typedef struct SWorkThrdObj {
   uv_os_fd_t  fd;
   uv_loop_t*  loop;
   SAsyncPool* asyncPool;
-  // uv_async_t*     workerAsync;  //
+
   queue           msg;
-  queue           conn;
   pthread_mutex_t msgMtx;
-  void*           pTransInst;
-  bool            quit;
+
+  queue conn;
+  void* pTransInst;
+  bool  quit;
 } SWorkThrdObj;
 
 typedef struct SServerObj {
@@ -90,7 +91,7 @@ static int transAddAuthPart(SSrvConn* pConn, char* msg, int msgLen);
 static int uvAuthMsg(SSrvConn* pConn, char* msg, int msgLen);
 
 static void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
-static void uvAllocReadBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
+static void uvAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
 static void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf);
 static void uvOnTimeoutCb(uv_timer_t* handle);
 static void uvOnSendCb(uv_write_t* req, int status);
@@ -120,7 +121,7 @@ static void* acceptThread(void* arg);
 static bool addHandleToWorkloop(void* arg);
 static bool addHandleToAcceptloop(void* arg);
 
-void uvAllocReadBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
+void uvAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   SSrvConn*    conn = handle->data;
   SConnBuffer* pBuf = &conn->readBuf;
   transAllocBuffer(pBuf, buf);
@@ -162,7 +163,7 @@ static int uvAuthMsg(SSrvConn* pConn, char* msg, int len) {
       tWarn("%s, time diff:%d is too big, msg discarded", pConn->info, delta);
       code = TSDB_CODE_RPC_INVALID_TIME_STAMP;
     } else {
-      if (rpcAuthenticateMsg(pHead, len - TSDB_AUTH_LEN, pDigest->auth, pConn->secret) < 0) {
+      if (transAuthenticateMsg(pHead, len - TSDB_AUTH_LEN, pDigest->auth, pConn->secret) < 0) {
         // tDebug("%s, authentication failed, msg discarded", pConn->info);
         code = TSDB_CODE_RPC_AUTH_FAILURE;
       } else {
@@ -203,10 +204,6 @@ static void uvHandleReq(SSrvConn* pConn) {
     memcpy(pConn->user, uMsg->user, tListLen(uMsg->user));
     memcpy(pConn->secret, uMsg->secret, tListLen(uMsg->secret));
   }
-
-  pConn->inType = pHead->msgType;
-
-  STrans* pRpc = (STrans*)p->shandle;
   pHead->code = htonl(pHead->code);
 
   int32_t dlen = 0;
@@ -219,21 +216,24 @@ static void uvHandleReq(SSrvConn* pConn) {
     //
   }
 
-  STransMsg rpcMsg;
-  rpcMsg.contLen = transContLenFromMsg(pHead->msgLen);
-  rpcMsg.pCont = pHead->content;
-  rpcMsg.msgType = pHead->msgType;
-  rpcMsg.code = pHead->code;
-  rpcMsg.ahandle = NULL;
-  rpcMsg.handle = pConn;
+  STransMsg transMsg;
+  transMsg.contLen = transContLenFromMsg(pHead->msgLen);
+  transMsg.pCont = pHead->content;
+  transMsg.msgType = pHead->msgType;
+  transMsg.code = pHead->code;
+  transMsg.ahandle = NULL;
+  transMsg.handle = pConn;
 
   transClearBuffer(&pConn->readBuf);
-
+  pConn->inType = pHead->msgType;
   transRefSrvHandle(pConn);
-  tDebug("server conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pConn, TMSG_INFO(rpcMsg.msgType),
+
+  tDebug("server conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pConn, TMSG_INFO(transMsg.msgType),
          inet_ntoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), inet_ntoa(pConn->locaddr.sin_addr),
-         ntohs(pConn->locaddr.sin_port), rpcMsg.contLen);
-  (*(pRpc->cfp))(pRpc->parent, &rpcMsg, NULL);
+         ntohs(pConn->locaddr.sin_port), transMsg.contLen);
+
+  STrans* pTransInst = (STrans*)p->shandle;
+  (*((STrans*)p->shandle)->cfp)(pTransInst->parent, &transMsg, NULL);
   // uv_timer_start(&pConn->pTimer, uvHandleActivityTimeout, pRpc->idleTime * 10000, 0);
   // auth
   // validate msg type
@@ -525,7 +525,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       return;
     }
 
-    uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocReadBufferCb, uvOnRecvCb);
+    uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocRecvBufferCb, uvOnRecvCb);
 
   } else {
     tDebug("failed to create new connection");
@@ -548,7 +548,6 @@ static bool addHandleToWorkloop(void* arg) {
     return false;
   }
 
-  // STrans* pRpc = pThrd->shandle;
   uv_pipe_init(pThrd->loop, pThrd->pipe, 1);
   uv_pipe_open(pThrd->pipe, pThrd->fd);
 

@@ -4,8 +4,8 @@ add_executable(syncPingTimerTest "")
 add_executable(syncIOTickQTest "")
 add_executable(syncIOTickPingTest "")
 add_executable(syncIOSendMsgTest "")
-add_executable(syncIOSendMsgClientTest "")
-add_executable(syncIOSendMsgServerTest "")
+add_executable(syncIOClientTest "")
+add_executable(syncIOServerTest "")
 add_executable(syncRaftStoreTest "")
 add_executable(syncEnqTest "")
 add_executable(syncIndexTest "")
@@ -51,13 +51,13 @@ target_sources(syncIOSendMsgTest
     PRIVATE
     "syncIOSendMsgTest.cpp"
 )
-target_sources(syncIOSendMsgClientTest
+target_sources(syncIOClientTest
     PRIVATE
-    "syncIOSendMsgClientTest.cpp"
+    "syncIOClientTest.cpp"
 )
-target_sources(syncIOSendMsgServerTest
+target_sources(syncIOServerTest
     PRIVATE
-    "syncIOSendMsgServerTest.cpp"
+    "syncIOServerTest.cpp"
 )
 target_sources(syncRaftStoreTest
     PRIVATE
@@ -167,12 +167,12 @@ target_include_directories(syncIOSendMsgTest
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
-target_include_directories(syncIOSendMsgClientTest
+target_include_directories(syncIOClientTest
     PUBLIC
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
-target_include_directories(syncIOSendMsgServerTest
+target_include_directories(syncIOServerTest
     PUBLIC
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
@@ -298,11 +298,11 @@ target_link_libraries(syncIOSendMsgTest
     sync
     gtest_main
 )
-target_link_libraries(syncIOSendMsgClientTest
+target_link_libraries(syncIOClientTest
     sync
     gtest_main
 )
-target_link_libraries(syncIOSendMsgServerTest
+target_link_libraries(syncIOServerTest
     sync
     gtest_main
 )

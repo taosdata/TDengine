@@ -90,9 +90,11 @@ typedef struct {
   int32_t      refCount;
   int8_t       deployed;
   int8_t       dropped;
+  int8_t       uniqueWorkerInUse;
   SSnode      *pSnode;
   SRWLatch     latch;
-  SDnodeWorker writeWorker;
+  SArray      *uniqueWorkers;  // SArray<SDnodeWorker*>
+  SDnodeWorker sharedWorker;
 } SSnodeMgmt;
 
 typedef struct {

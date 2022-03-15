@@ -190,7 +190,10 @@ typedef struct SEp {
 
 typedef struct {
   int32_t contLen;
-  int32_t vgId;
+  union {
+    int32_t vgId;
+    int32_t streamTaskId;
+  };
 } SMsgHead;
 
 // Submit message for one table
@@ -1138,6 +1141,17 @@ typedef struct {
 int32_t tSerializeSCMCreateStreamReq(void* buf, int32_t bufLen, const SCMCreateStreamReq* pReq);
 int32_t tDeserializeSCMCreateStreamReq(void* buf, int32_t bufLen, SCMCreateStreamReq* pReq);
 void    tFreeSCMCreateStreamReq(SCMCreateStreamReq* pReq);
+
+typedef struct {
+  char    name[TSDB_TOPIC_FNAME_LEN];
+  int64_t streamId;
+  char*   sql;
+  char*   executorMsg;
+} SMVCreateStreamReq, SMSCreateStreamReq;
+
+typedef struct {
+  int64_t streamId;
+} SMVCreateStreamRsp, SMSCreateStreamRsp;
 
 typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];

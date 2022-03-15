@@ -65,9 +65,31 @@ cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg) {
     pRoot = syncAppendEntriesReply2Json(pSyncMsg);
     syncAppendEntriesReplyDestroy(pSyncMsg);
 
+  } else if (pRpcMsg->msgType == SYNC_RESPONSE) {
+    pRoot = cJSON_CreateObject();
+    char* s;
+    s = syncUtilprintBin((char*)(pRpcMsg->pCont), pRpcMsg->contLen);
+    cJSON_AddStringToObject(pRoot, "pCont", s);
+    free(s);
+    s = syncUtilprintBin2((char*)(pRpcMsg->pCont), pRpcMsg->contLen);
+    cJSON_AddStringToObject(pRoot, "pCont2", s);
+    free(s);
+
   } else {
     pRoot = syncRpcUnknownMsg2Json();
+    char* s;
+    s = syncUtilprintBin((char*)(pRpcMsg->pCont), pRpcMsg->contLen);
+    cJSON_AddStringToObject(pRoot, "pCont", s);
+    free(s);
+    s = syncUtilprintBin2((char*)(pRpcMsg->pCont), pRpcMsg->contLen);
+    cJSON_AddStringToObject(pRoot, "pCont2", s);
+    free(s);
   }
+
+  cJSON_AddNumberToObject(pRoot, "msgType", pRpcMsg->msgType);
+  cJSON_AddNumberToObject(pRoot, "contLen", pRpcMsg->contLen);
+  cJSON_AddNumberToObject(pRoot, "code", pRpcMsg->code);
+  // cJSON_AddNumberToObject(pRoot, "persist", pRpcMsg->persist);
 
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "RpcMsg", pRoot);
@@ -77,7 +99,7 @@ cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg) {
 cJSON* syncRpcUnknownMsg2Json() {
   cJSON* pRoot = cJSON_CreateObject();
   cJSON_AddNumberToObject(pRoot, "msgType", SYNC_UNKNOWN);
-  cJSON_AddStringToObject(pRoot, "data", "known message");
+  cJSON_AddStringToObject(pRoot, "data", "unknown message");
 
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SyncUnknown", pRoot);
@@ -94,27 +116,27 @@ char* syncRpcMsg2Str(SRpcMsg* pRpcMsg) {
 // for debug ----------------------
 void syncRpcMsgPrint(SRpcMsg* pMsg) {
   char* serialized = syncRpcMsg2Str(pMsg);
-  printf("syncRpcMsgPrint | len:%zu | %s \n", strlen(serialized), serialized);
+  printf("syncRpcMsgPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncRpcMsgPrint2(char* s, SRpcMsg* pMsg) {
   char* serialized = syncRpcMsg2Str(pMsg);
-  printf("syncRpcMsgPrint2 | len:%zu | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncRpcMsgPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncRpcMsgLog(SRpcMsg* pMsg) {
   char* serialized = syncRpcMsg2Str(pMsg);
-  sTrace("syncRpcMsgLog | len:%zu | %s", strlen(serialized), serialized);
+  sTrace("syncRpcMsgLog | len:%lu | %s", strlen(serialized), serialized);
   free(serialized);
 }
 
 void syncRpcMsgLog2(char* s, SRpcMsg* pMsg) {
   char* serialized = syncRpcMsg2Str(pMsg);
-  sTrace("syncRpcMsgLog2 | len:%zu | %s | %s", strlen(serialized), s, serialized);
+  sTrace("syncRpcMsgLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
   free(serialized);
 }
 
@@ -196,7 +218,7 @@ cJSON* syncTimeout2Json(const SyncTimeout* pMsg) {
   cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
   cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
   cJSON_AddNumberToObject(pRoot, "timeoutType", pMsg->timeoutType);
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pMsg->logicClock);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->logicClock);
   cJSON_AddStringToObject(pRoot, "logicClock", u64buf);
   cJSON_AddNumberToObject(pRoot, "timerMS", pMsg->timerMS);
   snprintf(u64buf, sizeof(u64buf), "%p", pMsg->data);
@@ -217,27 +239,27 @@ char* syncTimeout2Str(const SyncTimeout* pMsg) {
 // for debug ----------------------
 void syncTimeoutPrint(const SyncTimeout* pMsg) {
   char* serialized = syncTimeout2Str(pMsg);
-  printf("syncTimeoutPrint | len:%zu | %s \n", strlen(serialized), serialized);
+  printf("syncTimeoutPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncTimeoutPrint2(char* s, const SyncTimeout* pMsg) {
   char* serialized = syncTimeout2Str(pMsg);
-  printf("syncTimeoutPrint2 | len:%zu | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncTimeoutPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncTimeoutLog(const SyncTimeout* pMsg) {
   char* serialized = syncTimeout2Str(pMsg);
-  sTrace("syncTimeoutLog | len:%zu | %s", strlen(serialized), serialized);
+  sTrace("syncTimeoutLog | len:%lu | %s", strlen(serialized), serialized);
   free(serialized);
 }
 
 void syncTimeoutLog2(char* s, const SyncTimeout* pMsg) {
   char* serialized = syncTimeout2Str(pMsg);
-  sTrace("syncTimeoutLog2 | len:%zu | %s | %s", strlen(serialized), s, serialized);
+  sTrace("syncTimeoutLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
   free(serialized);
 }
 
@@ -327,7 +349,7 @@ cJSON* syncPing2Json(const SyncPing* pMsg) {
   cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
 
   cJSON* pSrcId = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pMsg->srcId.addr);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->srcId.addr);
   cJSON_AddStringToObject(pSrcId, "addr", u64buf);
   {
     uint64_t u64 = pMsg->srcId.addr;
@@ -342,7 +364,7 @@ cJSON* syncPing2Json(const SyncPing* pMsg) {
   cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
 
   cJSON* pDestId = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pMsg->destId.addr);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->destId.addr);
   cJSON_AddStringToObject(pDestId, "addr", u64buf);
   {
     uint64_t u64 = pMsg->destId.addr;
@@ -380,27 +402,27 @@ char* syncPing2Str(const SyncPing* pMsg) {
 // for debug ----------------------
 void syncPingPrint(const SyncPing* pMsg) {
   char* serialized = syncPing2Str(pMsg);
-  printf("syncPingPrint | len:%zu | %s \n", strlen(serialized), serialized);
+  printf("syncPingPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncPingPrint2(char* s, const SyncPing* pMsg) {
   char* serialized = syncPing2Str(pMsg);
-  printf("syncPingPrint2 | len:%zu | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncPingPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncPingLog(const SyncPing* pMsg) {
   char* serialized = syncPing2Str(pMsg);
-  sTrace("syncPingLog | len:%zu | %s", strlen(serialized), serialized);
+  sTrace("syncPingLog | len:%lu | %s", strlen(serialized), serialized);
   free(serialized);
 }
 
 void syncPingLog2(char* s, const SyncPing* pMsg) {
   char* serialized = syncPing2Str(pMsg);
-  sTrace("syncPingLog2 | len:%zu | %s | %s", strlen(serialized), s, serialized);
+  sTrace("syncPingLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
   free(serialized);
 }
 
@@ -490,7 +512,7 @@ cJSON* syncPingReply2Json(const SyncPingReply* pMsg) {
   cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
 
   cJSON* pSrcId = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pMsg->srcId.addr);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->srcId.addr);
   cJSON_AddStringToObject(pSrcId, "addr", u64buf);
   {
     uint64_t u64 = pMsg->srcId.addr;
@@ -505,7 +527,7 @@ cJSON* syncPingReply2Json(const SyncPingReply* pMsg) {
   cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
 
   cJSON* pDestId = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pMsg->destId.addr);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->destId.addr);
   cJSON_AddStringToObject(pDestId, "addr", u64buf);
   {
     uint64_t u64 = pMsg->destId.addr;
@@ -543,27 +565,27 @@ char* syncPingReply2Str(const SyncPingReply* pMsg) {
 // for debug ----------------------
 void syncPingReplyPrint(const SyncPingReply* pMsg) {
   char* serialized = syncPingReply2Str(pMsg);
-  printf("syncPingReplyPrint | len:%zu | %s \n", strlen(serialized), serialized);
+  printf("syncPingReplyPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncPingReplyPrint2(char* s, const SyncPingReply* pMsg) {
   char* serialized = syncPingReply2Str(pMsg);
-  printf("syncPingReplyPrint2 | len:%zu | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncPingReplyPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncPingReplyLog(const SyncPingReply* pMsg) {
   char* serialized = syncPingReply2Str(pMsg);
-  sTrace("syncPingReplyLog | len:%zu | %s", strlen(serialized), serialized);
+  sTrace("syncPingReplyLog | len:%lu | %s", strlen(serialized), serialized);
   free(serialized);
 }
 
 void syncPingReplyLog2(char* s, const SyncPingReply* pMsg) {
   char* serialized = syncPingReply2Str(pMsg);
-  sTrace("syncPingReplyLog2 | len:%zu | %s | %s", strlen(serialized), s, serialized);
+  sTrace("syncPingReplyLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
   free(serialized);
 }
 
@@ -648,7 +670,7 @@ cJSON* syncClientRequest2Json(const SyncClientRequest* pMsg) {
   cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
   cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
   cJSON_AddNumberToObject(pRoot, "originalRpcType", pMsg->originalRpcType);
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pMsg->seqNum);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->seqNum);
   cJSON_AddStringToObject(pRoot, "seqNum", u64buf);
   cJSON_AddNumberToObject(pRoot, "isWeak", pMsg->isWeak);
   cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
@@ -676,27 +698,27 @@ char* syncClientRequest2Str(const SyncClientRequest* pMsg) {
 // for debug ----------------------
 void syncClientRequestPrint(const SyncClientRequest* pMsg) {
   char* serialized = syncClientRequest2Str(pMsg);
-  printf("syncClientRequestPrint | len:%zu | %s \n", strlen(serialized), serialized);
+  printf("syncClientRequestPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncClientRequestPrint2(char* s, const SyncClientRequest* pMsg) {
   char* serialized = syncClientRequest2Str(pMsg);
-  printf("syncClientRequestPrint2 | len:%zu | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncClientRequestPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncClientRequestLog(const SyncClientRequest* pMsg) {
   char* serialized = syncClientRequest2Str(pMsg);
-  sTrace("syncClientRequestLog | len:%zu | %s", strlen(serialized), serialized);
+  sTrace("syncClientRequestLog | len:%lu | %s", strlen(serialized), serialized);
   free(serialized);
 }
 
 void syncClientRequestLog2(char* s, const SyncClientRequest* pMsg) {
   char* serialized = syncClientRequest2Str(pMsg);
-  sTrace("syncClientRequestLog2 | len:%zu | %s | %s", strlen(serialized), s, serialized);
+  sTrace("syncClientRequestLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
   free(serialized);
 }
 
@@ -770,7 +792,7 @@ cJSON* syncRequestVote2Json(const SyncRequestVote* pMsg) {
   cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
 
   cJSON* pSrcId = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pMsg->srcId.addr);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->srcId.addr);
   cJSON_AddStringToObject(pSrcId, "addr", u64buf);
   {
     uint64_t u64 = pMsg->srcId.addr;
@@ -798,11 +820,11 @@ cJSON* syncRequestVote2Json(const SyncRequestVote* pMsg) {
   cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
   cJSON_AddItemToObject(pRoot, "destId", pDestId);
 
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pMsg->currentTerm);
-  cJSON_AddStringToObject(pRoot, "currentTerm", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pMsg->lastLogIndex);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
+  cJSON_AddStringToObject(pRoot, "term", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->lastLogIndex);
   cJSON_AddStringToObject(pRoot, "lastLogIndex", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pMsg->lastLogTerm);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->lastLogTerm);
   cJSON_AddStringToObject(pRoot, "lastLogTerm", u64buf);
 
   cJSON* pJson = cJSON_CreateObject();
@@ -820,27 +842,27 @@ char* syncRequestVote2Str(const SyncRequestVote* pMsg) {
 // for debug ----------------------
 void syncRequestVotePrint(const SyncRequestVote* pMsg) {
   char* serialized = syncRequestVote2Str(pMsg);
-  printf("syncRequestVotePrint | len:%zu | %s \n", strlen(serialized), serialized);
+  printf("syncRequestVotePrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncRequestVotePrint2(char* s, const SyncRequestVote* pMsg) {
   char* serialized = syncRequestVote2Str(pMsg);
-  printf("syncRequestVotePrint2 | len:%zu | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncRequestVotePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncRequestVoteLog(const SyncRequestVote* pMsg) {
   char* serialized = syncRequestVote2Str(pMsg);
-  sTrace("syncRequestVoteLog | len:%zu | %s", strlen(serialized), serialized);
+  sTrace("syncRequestVoteLog | len:%lu | %s", strlen(serialized), serialized);
   free(serialized);
 }
 
 void syncRequestVoteLog2(char* s, const SyncRequestVote* pMsg) {
   char* serialized = syncRequestVote2Str(pMsg);
-  sTrace("syncRequestVoteLog2 | len:%zu | %s | %s", strlen(serialized), s, serialized);
+  sTrace("syncRequestVoteLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
   free(serialized);
 }
 
@@ -914,7 +936,7 @@ cJSON* syncRequestVoteReply2Json(const SyncRequestVoteReply* pMsg) {
   cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
 
   cJSON* pSrcId = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pMsg->srcId.addr);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->srcId.addr);
   cJSON_AddStringToObject(pSrcId, "addr", u64buf);
   {
     uint64_t u64 = pMsg->srcId.addr;
@@ -942,7 +964,7 @@ cJSON* syncRequestVoteReply2Json(const SyncRequestVoteReply* pMsg) {
   cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
   cJSON_AddItemToObject(pRoot, "destId", pDestId);
 
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pMsg->term);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
   cJSON_AddStringToObject(pRoot, "term", u64buf);
   cJSON_AddNumberToObject(pRoot, "vote_granted", pMsg->voteGranted);
 
@@ -961,27 +983,27 @@ char* syncRequestVoteReply2Str(const SyncRequestVoteReply* pMsg) {
 // for debug ----------------------
 void syncRequestVoteReplyPrint(const SyncRequestVoteReply* pMsg) {
   char* serialized = syncRequestVoteReply2Str(pMsg);
-  printf("syncRequestVoteReplyPrint | len:%zu | %s \n", strlen(serialized), serialized);
+  printf("syncRequestVoteReplyPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncRequestVoteReplyPrint2(char* s, const SyncRequestVoteReply* pMsg) {
   char* serialized = syncRequestVoteReply2Str(pMsg);
-  printf("syncRequestVoteReplyPrint2 | len:%zu | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncRequestVoteReplyPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncRequestVoteReplyLog(const SyncRequestVoteReply* pMsg) {
   char* serialized = syncRequestVoteReply2Str(pMsg);
-  sTrace("syncRequestVoteReplyLog | len:%zu | %s", strlen(serialized), serialized);
+  sTrace("syncRequestVoteReplyLog | len:%lu | %s", strlen(serialized), serialized);
   free(serialized);
 }
 
 void syncRequestVoteReplyLog2(char* s, const SyncRequestVoteReply* pMsg) {
   char* serialized = syncRequestVoteReply2Str(pMsg);
-  sTrace("syncRequestVoteReplyLog2 | len:%zu | %s | %s", strlen(serialized), s, serialized);
+  sTrace("syncRequestVoteReplyLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
   free(serialized);
 }
 
@@ -1057,7 +1079,7 @@ cJSON* syncAppendEntries2Json(const SyncAppendEntries* pMsg) {
   cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
 
   cJSON* pSrcId = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pMsg->srcId.addr);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->srcId.addr);
   cJSON_AddStringToObject(pSrcId, "addr", u64buf);
   {
     uint64_t u64 = pMsg->srcId.addr;
@@ -1072,7 +1094,7 @@ cJSON* syncAppendEntries2Json(const SyncAppendEntries* pMsg) {
   cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
 
   cJSON* pDestId = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pMsg->destId.addr);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->destId.addr);
   cJSON_AddStringToObject(pDestId, "addr", u64buf);
   {
     uint64_t u64 = pMsg->destId.addr;
@@ -1086,13 +1108,16 @@ cJSON* syncAppendEntries2Json(const SyncAppendEntries* pMsg) {
   cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
   cJSON_AddItemToObject(pRoot, "destId", pDestId);
 
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pMsg->prevLogIndex);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
+  cJSON_AddStringToObject(pRoot, "term", u64buf);
+
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->prevLogIndex);
   cJSON_AddStringToObject(pRoot, "pre_log_index", u64buf);
 
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pMsg->prevLogTerm);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->prevLogTerm);
   cJSON_AddStringToObject(pRoot, "pre_log_term", u64buf);
 
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pMsg->commitIndex);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->commitIndex);
   cJSON_AddStringToObject(pRoot, "commit_index", u64buf);
 
   cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
@@ -1119,27 +1144,27 @@ char* syncAppendEntries2Str(const SyncAppendEntries* pMsg) {
 // for debug ----------------------
 void syncAppendEntriesPrint(const SyncAppendEntries* pMsg) {
   char* serialized = syncAppendEntries2Str(pMsg);
-  printf("syncAppendEntriesPrint | len:%zu | %s \n", strlen(serialized), serialized);
+  printf("syncAppendEntriesPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncAppendEntriesPrint2(char* s, const SyncAppendEntries* pMsg) {
   char* serialized = syncAppendEntries2Str(pMsg);
-  printf("syncAppendEntriesPrint2 | len:%zu | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncAppendEntriesPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncAppendEntriesLog(const SyncAppendEntries* pMsg) {
   char* serialized = syncAppendEntries2Str(pMsg);
-  sTrace("syncAppendEntriesLog | len:%zu | %s", strlen(serialized), serialized);
+  sTrace("syncAppendEntriesLog | len:%lu | %s", strlen(serialized), serialized);
   free(serialized);
 }
 
 void syncAppendEntriesLog2(char* s, const SyncAppendEntries* pMsg) {
   char* serialized = syncAppendEntries2Str(pMsg);
-  sTrace("syncAppendEntriesLog2 | len:%zu | %s | %s", strlen(serialized), s, serialized);
+  sTrace("syncAppendEntriesLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
   free(serialized);
 }
 
@@ -1213,7 +1238,7 @@ cJSON* syncAppendEntriesReply2Json(const SyncAppendEntriesReply* pMsg) {
   cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
 
   cJSON* pSrcId = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pMsg->srcId.addr);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->srcId.addr);
   cJSON_AddStringToObject(pSrcId, "addr", u64buf);
   {
     uint64_t u64 = pMsg->srcId.addr;
@@ -1228,7 +1253,7 @@ cJSON* syncAppendEntriesReply2Json(const SyncAppendEntriesReply* pMsg) {
   cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
 
   cJSON* pDestId = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pMsg->destId.addr);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->destId.addr);
   cJSON_AddStringToObject(pDestId, "addr", u64buf);
   {
     uint64_t u64 = pMsg->destId.addr;
@@ -1242,9 +1267,11 @@ cJSON* syncAppendEntriesReply2Json(const SyncAppendEntriesReply* pMsg) {
   cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
   cJSON_AddItemToObject(pRoot, "destId", pDestId);
 
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
+  cJSON_AddStringToObject(pRoot, "term", u64buf);
   cJSON_AddNumberToObject(pRoot, "success", pMsg->success);
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pMsg->matchIndex);
-  cJSON_AddStringToObject(pRoot, "match_index", u64buf);
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->matchIndex);
+  cJSON_AddStringToObject(pRoot, "matchIndex", u64buf);
 
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SyncAppendEntriesReply", pRoot);
@@ -1261,26 +1288,26 @@ char* syncAppendEntriesReply2Str(const SyncAppendEntriesReply* pMsg) {
 // for debug ----------------------
 void syncAppendEntriesReplyPrint(const SyncAppendEntriesReply* pMsg) {
   char* serialized = syncAppendEntriesReply2Str(pMsg);
-  printf("syncAppendEntriesReplyPrint | len:%zu | %s \n", strlen(serialized), serialized);
+  printf("syncAppendEntriesReplyPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncAppendEntriesReplyPrint2(char* s, const SyncAppendEntriesReply* pMsg) {
   char* serialized = syncAppendEntriesReply2Str(pMsg);
-  printf("syncAppendEntriesReplyPrint2 | len:%zu | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncAppendEntriesReplyPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncAppendEntriesReplyLog(const SyncAppendEntriesReply* pMsg) {
   char* serialized = syncAppendEntriesReply2Str(pMsg);
-  sTrace("syncAppendEntriesReplyLog | len:%zu | %s", strlen(serialized), serialized);
+  sTrace("syncAppendEntriesReplyLog | len:%lu | %s", strlen(serialized), serialized);
   free(serialized);
 }
 
 void syncAppendEntriesReplyLog2(char* s, const SyncAppendEntriesReply* pMsg) {
   char* serialized = syncAppendEntriesReply2Str(pMsg);
-  sTrace("syncAppendEntriesReplyLog2 | len:%zu | %s | %s", strlen(serialized), s, serialized);
+  sTrace("syncAppendEntriesReplyLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
   free(serialized);
 }

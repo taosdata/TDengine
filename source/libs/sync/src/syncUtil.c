@@ -74,6 +74,8 @@ bool syncUtilSameId(const SRaftId* pId1, const SRaftId* pId2) {
   return ret;
 }
 
+bool syncUtilEmptyId(const SRaftId* pId) { return (pId->addr == 0 && pId->vgId == 0); }
+
 // ---- SSyncBuffer -----
 void syncUtilbufBuild(SSyncBuffer* syncBuf, size_t len) {
   syncBuf->len = len;
@@ -117,7 +119,7 @@ cJSON* syncUtilRaftId2Json(const SRaftId* p) {
   char   u64buf[128];
   cJSON* pRoot = cJSON_CreateObject();
 
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", p->addr);
+  snprintf(u64buf, sizeof(u64buf), "%lu", p->addr);
   cJSON_AddStringToObject(pRoot, "addr", u64buf);
   char     host[128];
   uint16_t port;
@@ -184,4 +186,14 @@ char* syncUtilprintBin2(char* ptr, uint32_t len) {
     p += n;
   }
   return s;
+}
+
+SyncIndex syncUtilMinIndex(SyncIndex a, SyncIndex b) {
+  SyncIndex r = a < b ? a : b;
+  return r;
+}
+
+SyncIndex syncUtilMaxIndex(SyncIndex a, SyncIndex b) {
+  SyncIndex r = a > b ? a : b;
+  return r;
 }

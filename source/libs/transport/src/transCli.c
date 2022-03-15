@@ -84,7 +84,7 @@ static void      addConnToPool(void* pool, char* ip, uint32_t port, SCliConn* co
 // register timer in each thread to clear expire conn
 static void cliTimeoutCb(uv_timer_t* handle);
 // alloc buf for recv
-static void cliAllocBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
+static void cliAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
 // callback after  read nbytes from socket
 static void cliRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf);
 // callback after write data to socket
@@ -154,50 +154,50 @@ void cliHandleResp(SCliConn* conn) {
   pHead->code = htonl(pHead->code);
   pHead->msgLen = htonl(pHead->msgLen);
 
-  // buf's mem alread translated to rpcMsg.pCont
-  transClearBuffer(&conn->readBuf);
-
-  STransMsg rpcMsg = {0};
-  rpcMsg.contLen = transContLenFromMsg(pHead->msgLen);
-  rpcMsg.pCont = transContFromHead((char*)pHead);
-  rpcMsg.code = pHead->code;
-  rpcMsg.msgType = pHead->msgType;
-  rpcMsg.ahandle = NULL;
+  STransMsg transMsg = {0};
+  transMsg.contLen = transContLenFromMsg(pHead->msgLen);
+  transMsg.pCont = transContFromHead((char*)pHead);
+  transMsg.code = pHead->code;
+  transMsg.msgType = pHead->msgType;
+  transMsg.ahandle = NULL;
 
   SCliMsg*       pMsg = conn->data;
   STransConnCtx* pCtx = pMsg ? pMsg->ctx : NULL;
   if (pMsg == NULL && !CONN_NO_PERSIST_BY_APP(conn)) {
-    rpcMsg.ahandle = pTransInst->mfp ? (*pTransInst->mfp)(pTransInst->parent, rpcMsg.msgType) : NULL;
+    transMsg.ahandle = pTransInst->mfp ? (*pTransInst->mfp)(pTransInst->parent, transMsg.msgType) : NULL;
   } else {
-    rpcMsg.ahandle = pCtx ? pCtx->ahandle : NULL;
+    transMsg.ahandle = pCtx ? pCtx->ahandle : NULL;
   }
   // if (rpcMsg.ahandle == NULL) {
   //  tDebug("%s cli conn %p handle except", CONN_GET_INST_LABEL(conn), conn);
   //  return;
   //}
 
-  if (pTransInst->pfp != NULL && (*pTransInst->pfp)(pTransInst->parent, rpcMsg.msgType)) {
-    rpcMsg.handle = conn;
+  // buf's mem alread translated to transMsg.pCont
+  transClearBuffer(&conn->readBuf);
+
+  if (pTransInst->pfp != NULL && (*pTransInst->pfp)(pTransInst->parent, transMsg.msgType)) {
+    transMsg.handle = conn;
     CONN_SET_PERSIST_BY_APP(conn);
     tDebug("%s cli conn %p ref by app", CONN_GET_INST_LABEL(conn), conn);
   }
 
   tDebug("%s cli conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pTransInst->label, conn,
          TMSG_INFO(pHead->msgType), inet_ntoa(conn->addr.sin_addr), ntohs(conn->addr.sin_port),
-         inet_ntoa(conn->locaddr.sin_addr), ntohs(conn->locaddr.sin_port), rpcMsg.contLen);
+         inet_ntoa(conn->locaddr.sin_addr), ntohs(conn->locaddr.sin_port), transMsg.contLen);
 
   conn->secured = pHead->secured;
 
   if (pCtx == NULL || pCtx->pSem == NULL) {
     tTrace("%s cli conn %p handle resp", pTransInst->label, conn);
-    (pTransInst->cfp)(pTransInst->parent, &rpcMsg, NULL);
+    (pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
   } else {
     tTrace("%s cli conn(sync) %p handle resp", pTransInst->label, conn);
-    memcpy((char*)pCtx->pRsp, (char*)&rpcMsg, sizeof(rpcMsg));
+    memcpy((char*)pCtx->pRsp, (char*)&transMsg, sizeof(transMsg));
     tsem_post(pCtx->pSem);
   }
 
-  uv_read_start((uv_stream_t*)conn->stream, cliAllocBufferCb, cliRecvCb);
+  uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
 
   if (CONN_NO_PERSIST_BY_APP(conn)) {
     addConnToPool(pThrd->pool, pCtx->ip, pCtx->port, conn);
@@ -224,23 +224,23 @@ void cliHandleExcept(SCliConn* pConn) {
   SCliMsg*       pMsg = pConn->data;
   STransConnCtx* pCtx = pMsg ? pMsg->ctx : NULL;
 
-  STransMsg rpcMsg = {0};
-  rpcMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
-  rpcMsg.msgType = pMsg ? pMsg->msg.msgType + 1 : 0;
-  rpcMsg.ahandle = NULL;
+  STransMsg transMsg = {0};
+  transMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+  transMsg.msgType = pMsg ? pMsg->msg.msgType + 1 : 0;
+  transMsg.ahandle = NULL;
 
   if (pMsg == NULL && !CONN_NO_PERSIST_BY_APP(pConn)) {
-    rpcMsg.ahandle = pTransInst->mfp ? (*pTransInst->mfp)(pTransInst->parent, rpcMsg.msgType) : NULL;
+    transMsg.ahandle = pTransInst->mfp ? (*pTransInst->mfp)(pTransInst->parent, transMsg.msgType) : NULL;
   } else {
-    rpcMsg.ahandle = pCtx ? pCtx->ahandle : NULL;
+    transMsg.ahandle = pCtx ? pCtx->ahandle : NULL;
   }
 
   if (pCtx == NULL || pCtx->pSem == NULL) {
     tTrace("%s cli conn %p handle resp", pTransInst->label, pConn);
-    (pTransInst->cfp)(pTransInst->parent, &rpcMsg, NULL);
+    (pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
   } else {
     tTrace("%s cli conn(sync) %p handle resp", pTransInst->label, pConn);
-    memcpy((char*)(pCtx->pRsp), (char*)(&rpcMsg), sizeof(rpcMsg));
+    memcpy((char*)(pCtx->pRsp), (char*)(&transMsg), sizeof(transMsg));
     tsem_post(pCtx->pSem);
   }
   destroyCmsg(pConn->data);
@@ -252,9 +252,9 @@ void cliHandleExcept(SCliConn* pConn) {
 
 void cliTimeoutCb(uv_timer_t* handle) {
   SCliThrdObj* pThrd = handle->data;
-  STrans*      pRpc = pThrd->pTransInst;
+  STrans*      pTransInst = pThrd->pTransInst;
   int64_t      currentTime = pThrd->nextTimeout;
-  tTrace("%s, cli conn timeout, try to remove expire conn from conn pool", pRpc->label);
+  tTrace("%s, cli conn timeout, try to remove expire conn from conn pool", pTransInst->label);
 
   SConnList* p = taosHashIterate((SHashObj*)pThrd->pool, NULL);
   while (p != NULL) {
@@ -271,8 +271,8 @@ void cliTimeoutCb(uv_timer_t* handle) {
     p = taosHashIterate((SHashObj*)pThrd->pool, p);
   }
 
-  pThrd->nextTimeout = taosGetTimestampMs() + CONN_PERSIST_TIME(pRpc->idleTime);
-  uv_timer_start(handle, cliTimeoutCb, CONN_PERSIST_TIME(pRpc->idleTime) / 2, 0);
+  pThrd->nextTimeout = taosGetTimestampMs() + CONN_PERSIST_TIME(pTransInst->idleTime);
+  uv_timer_start(handle, cliTimeoutCb, CONN_PERSIST_TIME(pTransInst->idleTime) / 2, 0);
 }
 
 void* createConnPool(int size) {
@@ -325,15 +325,15 @@ static void addConnToPool(void* pool, char* ip, uint32_t port, SCliConn* conn) {
   tstrncpy(key + strlen(key), (char*)(&port), sizeof(port));
   tTrace("cli conn %p added to conn pool, read buf cap: %d", conn, conn->readBuf.cap);
 
-  STrans* pRpc = ((SCliThrdObj*)conn->hostThrd)->pTransInst;
+  STrans* pTransInst = ((SCliThrdObj*)conn->hostThrd)->pTransInst;
 
-  conn->expireTime = taosGetTimestampMs() + CONN_PERSIST_TIME(pRpc->idleTime);
+  conn->expireTime = taosGetTimestampMs() + CONN_PERSIST_TIME(pTransInst->idleTime);
   SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key));
   // list already create before
   assert(plist != NULL);
   QUEUE_PUSH(&plist->conn, &conn->conn);
 }
-static void cliAllocBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
+static void cliAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   SCliConn*    conn = handle->data;
   SConnBuffer* pBuf = &conn->readBuf;
   transAllocBuffer(pBuf, buf);
@@ -417,7 +417,7 @@ static void cliSendCb(uv_write_t* req, int status) {
     cliHandleExcept(pConn);
     return;
   }
-  uv_read_start((uv_stream_t*)pConn->stream, cliAllocBufferCb, cliRecvCb);
+  uv_read_start((uv_stream_t*)pConn->stream, cliAllocRecvBufferCb, cliRecvCb);
 }
 
 void cliSend(SCliConn* pConn) {
@@ -584,14 +584,14 @@ static void* cliWorkThread(void* arg) {
 void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle) {
   SCliObj* cli = calloc(1, sizeof(SCliObj));
 
-  STrans* pRpc = shandle;
+  STrans* pTransInst = shandle;
   memcpy(cli->label, label, strlen(label));
   cli->numOfThreads = numOfThreads;
   cli->pThreadObj = (SCliThrdObj**)calloc(cli->numOfThreads, sizeof(SCliThrdObj*));
 
   for (int i = 0; i < cli->numOfThreads; i++) {
     SCliThrdObj* pThrd = createThrdObj();
-    pThrd->nextTimeout = taosGetTimestampMs() + CONN_PERSIST_TIME(pRpc->idleTime);
+    pThrd->nextTimeout = taosGetTimestampMs() + CONN_PERSIST_TIME(pTransInst->idleTime);
     pThrd->pTransInst = shandle;
 
     int err = pthread_create(&pThrd->thread, NULL, cliWorkThread, (void*)(pThrd));

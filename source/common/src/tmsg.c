@@ -2666,7 +2666,6 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
   if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->physicalPlan) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->logicalPlan) < 0) return -1;
-
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;

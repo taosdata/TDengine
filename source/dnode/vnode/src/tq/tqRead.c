@@ -83,8 +83,8 @@ bool tqNextDataBlock(STqReadHandle* pHandle) {
 }
 
 int tqRetrieveDataBlockInfo(STqReadHandle* pHandle, SDataBlockInfo* pBlockInfo) {
-  /*int32_t         sversion = pHandle->pBlock->sversion;*/
-  /*SSchemaWrapper* pSchema = metaGetTableSchema(pHandle->pMeta, pHandle->pBlock->uid, sversion, false);*/
+  // currently only rows are used
+
   pBlockInfo->numOfCols = taosArrayGetSize(pHandle->pColIdList);
   pBlockInfo->rows = pHandle->pBlock->numOfRows;
   pBlockInfo->uid = pHandle->pBlock->uid;

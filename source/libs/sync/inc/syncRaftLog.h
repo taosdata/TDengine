@@ -27,6 +27,9 @@ extern "C" {
 #include "syncRaftEntry.h"
 #include "taosdef.h"
 
+#define SYNC_INDEX_BEGIN 0
+#define SYNC_INDEX_INVALID -1
+
 typedef struct SSyncLogStoreData {
   SSyncNode* pSyncNode;
   SWal*      pWal;
