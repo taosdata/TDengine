@@ -190,7 +190,10 @@ typedef struct SEp {
 
 typedef struct {
   int32_t contLen;
-  int32_t vgId;
+  union {
+    int32_t vgId;
+    int32_t streamTaskId;
+  };
 } SMsgHead;
 
 // Submit message for one table
@@ -1140,6 +1143,17 @@ int32_t tDeserializeSCMCreateStreamReq(void* buf, int32_t bufLen, SCMCreateStrea
 void    tFreeSCMCreateStreamReq(SCMCreateStreamReq* pReq);
 
 typedef struct {
+  char    name[TSDB_TOPIC_FNAME_LEN];
+  int64_t streamId;
+  char*   sql;
+  char*   executorMsg;
+} SMVCreateStreamReq, SMSCreateStreamReq;
+
+typedef struct {
+  int64_t streamId;
+} SMVCreateStreamRsp, SMSCreateStreamRsp;
+
+typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];
   int8_t igExists;
   char*  sql;
@@ -1903,11 +1917,12 @@ typedef struct {
   int8_t   slidingUnit;
   char     indexName[TSDB_INDEX_NAME_LEN];
   char     timezone[TD_TIMEZONE_LEN];  // sma data is invalid if timezone change.
-  uint16_t exprLen;
-  uint16_t tagsFilterLen;
+  int32_t  exprLen;
+  int32_t  tagsFilterLen;
   int64_t  indexUid;
   tb_uid_t tableUid;  // super/child/common table uid
   int64_t  interval;
+  int64_t  offset;
   int64_t  sliding;
   char*    expr;  // sma expression
   char*    tagsFilter;
@@ -2009,11 +2024,12 @@ static FORCE_INLINE int32_t tEncodeTSma(void** buf, const STSma* pSma) {
   tlen += taosEncodeFixedI8(buf, pSma->slidingUnit);
   tlen += taosEncodeString(buf, pSma->indexName);
   tlen += taosEncodeString(buf, pSma->timezone);
-  tlen += taosEncodeFixedU16(buf, pSma->exprLen);
-  tlen += taosEncodeFixedU16(buf, pSma->tagsFilterLen);
+  tlen += taosEncodeFixedI32(buf, pSma->exprLen);
+  tlen += taosEncodeFixedI32(buf, pSma->tagsFilterLen);
   tlen += taosEncodeFixedI64(buf, pSma->indexUid);
   tlen += taosEncodeFixedI64(buf, pSma->tableUid);
   tlen += taosEncodeFixedI64(buf, pSma->interval);
+  tlen += taosEncodeFixedI64(buf, pSma->offset);
   tlen += taosEncodeFixedI64(buf, pSma->sliding);
   
   if (pSma->exprLen > 0) {
@@ -2043,13 +2059,13 @@ static FORCE_INLINE void* tDecodeTSma(void* buf, STSma* pSma) {
   buf = taosDecodeFixedI8(buf, &pSma->slidingUnit);
   buf = taosDecodeStringTo(buf, pSma->indexName);
   buf = taosDecodeStringTo(buf, pSma->timezone);
-  buf = taosDecodeFixedU16(buf, &pSma->exprLen);
-  buf = taosDecodeFixedU16(buf, &pSma->tagsFilterLen);
+  buf = taosDecodeFixedI32(buf, &pSma->exprLen);
+  buf = taosDecodeFixedI32(buf, &pSma->tagsFilterLen);
   buf = taosDecodeFixedI64(buf, &pSma->indexUid);
   buf = taosDecodeFixedI64(buf, &pSma->tableUid);
   buf = taosDecodeFixedI64(buf, &pSma->interval);
+  buf = taosDecodeFixedI64(buf, &pSma->offset);
   buf = taosDecodeFixedI64(buf, &pSma->sliding);
-
 
   if (pSma->exprLen > 0) {
     pSma->expr = (char*)calloc(pSma->exprLen, 1);

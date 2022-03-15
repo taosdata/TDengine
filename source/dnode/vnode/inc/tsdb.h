@@ -95,6 +95,7 @@ int    tsdbCommit(STsdb *pTsdb);
  * @return int32_t
  */
 int32_t tsdbInsertTSmaData(STsdb *pTsdb, char *msg);
+int32_t tsdbUpdateSmaWindow(STsdb *pTsdb, int8_t smaType, char *msg);
 
 /**
  * @brief Insert RSma(Time-range-wise Rollup SMA) data.
@@ -104,6 +105,12 @@ int32_t tsdbInsertTSmaData(STsdb *pTsdb, char *msg);
  * @return int32_t
  */
 int32_t tsdbInsertRSmaData(STsdb *pTsdb, char *msg);
+
+// TODO: This is the basic params, and should wrap the params to a queryHandle.
+int32_t tsdbGetTSmaData(STsdb *pTsdb, STSmaDataWrapper *pData, int64_t indexUid, int64_t interval,
+                            int8_t intervalUnit, tb_uid_t tableUid, col_id_t colId, TSKEY querySkey,
+                            int32_t nMaxResult);
+
 
 // STsdbCfg
 int  tsdbOptionsInit(STsdbCfg *);

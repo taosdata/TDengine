@@ -16,4 +16,6 @@
 # ---- dnode
 ./test.sh -f tsim/dnode/basic1.sim
 
+# ---- insert
+./test.sh -f tsim/insert/basic0.sim
 #======================b1-end===============

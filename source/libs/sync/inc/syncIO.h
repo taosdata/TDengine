@@ -29,22 +29,28 @@ extern "C" {
 #include "tqueue.h"
 #include "trpc.h"
 
+#define TICK_Q_TIMER_MS 1000
+#define TICK_Ping_TIMER_MS 1000
+
 typedef struct SSyncIO {
   STaosQueue *pMsgQ;
-  STaosQset * pQset;
+  STaosQset  *pQset;
   pthread_t   consumerTid;
 
-  void * serverRpc;
-  void * clientRpc;
+  void  *serverRpc;
+  void  *clientRpc;
   SEpSet myAddr;
 
-  void *ioTimerTickQ;
-  void *ioTimerTickPing;
-  void *ioTimerManager;
+  tmr_h   qTimer;
+  int32_t qTimerMS;
+  tmr_h   pingTimer;
+  int32_t pingTimerMS;
+  tmr_h   timerMgr;
 
   void *pSyncNode;
   int32_t (*FpOnSyncPing)(SSyncNode *pSyncNode, SyncPing *pMsg);
   int32_t (*FpOnSyncPingReply)(SSyncNode *pSyncNode, SyncPingReply *pMsg);
+  int32_t (*FpOnSyncClientRequest)(SSyncNode *pSyncNode, SyncClientRequest *pMsg);
   int32_t (*FpOnSyncRequestVote)(SSyncNode *pSyncNode, SyncRequestVote *pMsg);
   int32_t (*FpOnSyncRequestVoteReply)(SSyncNode *pSyncNode, SyncRequestVoteReply *pMsg);
   int32_t (*FpOnSyncAppendEntries)(SSyncNode *pSyncNode, SyncAppendEntries *pMsg);
@@ -59,10 +65,13 @@ extern SSyncIO *gSyncIO;
 
 int32_t syncIOStart(char *host, uint16_t port);
 int32_t syncIOStop();
-int32_t syncIOTickQ();
-int32_t syncIOTickPing();
 int32_t syncIOSendMsg(void *clientRpc, const SEpSet *pEpSet, SRpcMsg *pMsg);
 int32_t syncIOEqMsg(void *queue, SRpcMsg *pMsg);
+
+int32_t syncIOQTimerStart();
+int32_t syncIOQTimerStop();
+int32_t syncIOPingTimerStart();
+int32_t syncIOPingTimerStop();
 
 #ifdef __cplusplus
 }

@@ -57,7 +57,7 @@ SyncRequestVote *createSyncRequestVote() {
   pMsg->srcId.vgId = 100;
   pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 5678);
   pMsg->destId.vgId = 100;
-  pMsg->currentTerm = 11;
+  pMsg->term = 11;
   pMsg->lastLogIndex = 22;
   pMsg->lastLogTerm = 33;
   return pMsg;
@@ -100,7 +100,7 @@ SyncAppendEntriesReply *createSyncAppendEntriesReply() {
 
 void test1() {
   SyncTimeout *pMsg = createSyncTimeout();
-  SRpcMsg          rpcMsg;
+  SRpcMsg      rpcMsg;
   syncTimeout2RpcMsg(pMsg, &rpcMsg);
   syncRpcMsgPrint2((char *)"test1", &rpcMsg);
   syncTimeoutDestroy(pMsg);
@@ -108,7 +108,7 @@ void test1() {
 
 void test2() {
   SyncPing *pMsg = createSyncPing();
-  SRpcMsg          rpcMsg;
+  SRpcMsg   rpcMsg;
   syncPing2RpcMsg(pMsg, &rpcMsg);
   syncRpcMsgPrint2((char *)"test2", &rpcMsg);
   syncPingDestroy(pMsg);
@@ -116,7 +116,7 @@ void test2() {
 
 void test3() {
   SyncPingReply *pMsg = createSyncPingReply();
-  SRpcMsg          rpcMsg;
+  SRpcMsg        rpcMsg;
   syncPingReply2RpcMsg(pMsg, &rpcMsg);
   syncRpcMsgPrint2((char *)"test3", &rpcMsg);
   syncPingReplyDestroy(pMsg);
@@ -132,7 +132,7 @@ void test4() {
 
 void test5() {
   SyncRequestVoteReply *pMsg = createSyncRequestVoteReply();
-  SRpcMsg          rpcMsg;
+  SRpcMsg               rpcMsg;
   syncRequestVoteReply2RpcMsg(pMsg, &rpcMsg);
   syncRpcMsgPrint2((char *)"test5", &rpcMsg);
   syncRequestVoteReplyDestroy(pMsg);
@@ -140,7 +140,7 @@ void test5() {
 
 void test6() {
   SyncAppendEntries *pMsg = createSyncAppendEntries();
-  SRpcMsg          rpcMsg;
+  SRpcMsg            rpcMsg;
   syncAppendEntries2RpcMsg(pMsg, &rpcMsg);
   syncRpcMsgPrint2((char *)"test6", &rpcMsg);
   syncAppendEntriesDestroy(pMsg);
@@ -148,7 +148,7 @@ void test6() {
 
 void test7() {
   SyncAppendEntriesReply *pMsg = createSyncAppendEntriesReply();
-  SRpcMsg          rpcMsg;
+  SRpcMsg                 rpcMsg;
   syncAppendEntriesReply2RpcMsg(pMsg, &rpcMsg);
   syncRpcMsgPrint2((char *)"test7", &rpcMsg);
   syncAppendEntriesReplyDestroy(pMsg);
@@ -156,7 +156,7 @@ void test7() {
 
 void test8() {
   SyncClientRequest *pMsg = createSyncClientRequest();
-  SRpcMsg          rpcMsg;
+  SRpcMsg            rpcMsg;
   syncClientRequest2RpcMsg(pMsg, &rpcMsg);
   syncRpcMsgPrint2((char *)"test8", &rpcMsg);
   syncClientRequestDestroy(pMsg);

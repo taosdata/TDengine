@@ -25,6 +25,17 @@ extern "C" {
 
 #define TIME_IS_VAR_DURATION(_t) ((_t) == 'n' || (_t) == 'y' || (_t) == 'N' || (_t) == 'Y')
 
+#define TIME_UNIT_NANOSECOND  'b'
+#define TIME_UNIT_MICROSECOND 'u'
+#define TIME_UNIT_MILLISECOND 'a'
+#define TIME_UNIT_SECOND      's'
+#define TIME_UNIT_MINUTE      'm'
+#define TIME_UNIT_HOUR        'h'
+#define TIME_UNIT_DAY         'd'
+#define TIME_UNIT_WEEK        'w'
+#define TIME_UNIT_MONTH       'n'
+#define TIME_UNIT_YEAR        'y'
+
 /*
  * @return timestamp decided by global conf variable, tsTimePrecision
  * if precision == TSDB_TIME_PRECISION_MICRO, it returns timestamp in microsecond.

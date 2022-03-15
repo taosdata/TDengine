@@ -115,7 +115,8 @@ static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput,
     return false;
   }
 
-  pBuf->allocSize = sizeof(SRetrieveTableRsp) + pDispatcher->pSchema->resultRowSize * pInput->pData->info.rows;
+  // struct size + data payload + length for each column
+  pBuf->allocSize = sizeof(SRetrieveTableRsp) + pDispatcher->pSchema->resultRowSize * pInput->pData->info.rows + pInput->pData->info.numOfCols * sizeof(int32_t);
   pBuf->pData = malloc(pBuf->allocSize);
   if (pBuf->pData == NULL) {
     qError("SinkNode failed to malloc memory, size:%d, code:%d", pBuf->allocSize, TAOS_SYSTEM_ERROR(errno));

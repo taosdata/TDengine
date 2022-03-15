@@ -54,10 +54,11 @@ typedef struct SColumnDataAgg {
 } SColumnDataAgg;
 
 typedef struct SDataBlockInfo {
-  STimeWindow window;
-  int32_t     rows;
-  int32_t     rowSize;
-  int32_t     numOfCols;
+  STimeWindow    window;
+  int32_t        rows;
+  int32_t        rowSize;
+  int16_t        numOfCols;
+  int16_t        hasVarCol;
   union {int64_t uid; int64_t blockId;};
 } SDataBlockInfo;
 
@@ -96,13 +97,15 @@ typedef struct SColumnInfoData {
 
 static FORCE_INLINE int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock) {
   int64_t tbUid = pBlock->info.uid;
-  int32_t numOfCols = pBlock->info.numOfCols;
+  int16_t numOfCols = pBlock->info.numOfCols;
+  int16_t hasVarCol = pBlock->info.hasVarCol;
   int32_t rows = pBlock->info.rows;
   int32_t sz = taosArrayGetSize(pBlock->pDataBlock);
 
   int32_t tlen = 0;
   tlen += taosEncodeFixedI64(buf, tbUid);
-  tlen += taosEncodeFixedI32(buf, numOfCols);
+  tlen += taosEncodeFixedI16(buf, numOfCols);
+  tlen += taosEncodeFixedI16(buf, hasVarCol);
   tlen += taosEncodeFixedI32(buf, rows);
   tlen += taosEncodeFixedI32(buf, sz);
   for (int32_t i = 0; i < sz; i++) {
@@ -120,7 +123,8 @@ static FORCE_INLINE void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock)
   int32_t sz;
 
   buf = taosDecodeFixedI64(buf, &pBlock->info.uid);
-  buf = taosDecodeFixedI32(buf, &pBlock->info.numOfCols);
+  buf = taosDecodeFixedI16(buf, &pBlock->info.numOfCols);
+  buf = taosDecodeFixedI16(buf, &pBlock->info.hasVarCol);
   buf = taosDecodeFixedI32(buf, &pBlock->info.rows);
   buf = taosDecodeFixedI32(buf, &sz);
   pBlock->pDataBlock = taosArrayInit(sz, sizeof(SColumnInfoData));
@@ -134,6 +138,23 @@ static FORCE_INLINE void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock)
     taosArrayPush(pBlock->pDataBlock, &data);
   }
   return (void*)buf;
+}
+
+static FORCE_INLINE void tDeleteSSDataBlock(SSDataBlock* pBlock) {
+  if (pBlock == NULL) {
+    return;
+  }
+
+  // int32_t numOfOutput = pBlock->info.numOfCols;
+  int32_t sz = taosArrayGetSize(pBlock->pDataBlock);
+  for (int32_t i = 0; i < sz; ++i) {
+    SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
+    tfree(pColInfoData->pData);
+  }
+
+  taosArrayDestroy(pBlock->pDataBlock);
+  tfree(pBlock->pBlockAgg);
+  // tfree(pBlock);
 }
 
 static FORCE_INLINE int32_t tEncodeSMqPollRsp(void** buf, const SMqPollRsp* pRsp) {
@@ -178,23 +199,6 @@ static FORCE_INLINE void* tDecodeSMqPollRsp(void* buf, SMqPollRsp* pRsp) {
   return buf;
 }
 
-static FORCE_INLINE void tDeleteSSDataBlock(SSDataBlock* pBlock) {
-  if (pBlock == NULL) {
-    return;
-  }
-
-  // int32_t numOfOutput = pBlock->info.numOfCols;
-  int32_t sz = taosArrayGetSize(pBlock->pDataBlock);
-  for (int32_t i = 0; i < sz; ++i) {
-    SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
-    tfree(pColInfoData->pData);
-  }
-
-  taosArrayDestroy(pBlock->pDataBlock);
-  tfree(pBlock->pBlockAgg);
-  // tfree(pBlock);
-}
-
 static FORCE_INLINE void tDeleteSMqConsumeRsp(SMqPollRsp* pRsp) {
   if (pRsp->schemas) {
     if (pRsp->schemas->nCols) {
@@ -204,10 +208,6 @@ static FORCE_INLINE void tDeleteSMqConsumeRsp(SMqPollRsp* pRsp) {
   }
   taosArrayDestroyEx(pRsp->pBlockData, (void (*)(void*))tDeleteSSDataBlock);
   pRsp->pBlockData = NULL;
-  // for (int32_t i = 0; i < taosArrayGetSize(pRsp->pBlockData); i++) {
-  // SSDataBlock* pDataBlock = (SSDataBlock*)taosArrayGet(pRsp->pBlockData, i);
-  // tDeleteSSDataBlock(pDataBlock);
-  //}
 }
 
 //======================================================================================================================

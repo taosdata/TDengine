@@ -26,6 +26,14 @@ SJson* tjsonCreateObject() {
   return pJson;
 }
 
+SJson* tjsonCreateArray() {
+  SJson* pJson = cJSON_CreateArray();
+  if (pJson == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return pJson;
+}
+
 void tjsonDelete(SJson* pJson) {
   if (pJson != NULL) {
     cJSON_Delete((cJSON*)pJson);

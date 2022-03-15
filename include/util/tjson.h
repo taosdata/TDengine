@@ -25,6 +25,7 @@ extern "C" {
 typedef void SJson;
 
 SJson* tjsonCreateObject();
+SJson* tjsonCreateArray();
 void   tjsonDelete(SJson* pJson);
 
 SJson*  tjsonAddArrayToObject(SJson* pJson, const char* pName);

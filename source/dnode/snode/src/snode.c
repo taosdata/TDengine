@@ -14,6 +14,7 @@
  */
 
 #include "sndInt.h"
+#include "tuuid.h"
 
 SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
   SSnode *pSnode = calloc(1, sizeof(SSnode));
@@ -31,3 +32,25 @@ int32_t sndProcessMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 }
 
 void sndDestroy(const char *path) {}
+
+static int32_t sndDeployTask(SSnode *pSnode, SRpcMsg *pMsg) {
+  SStreamTask *task = malloc(sizeof(SStreamTask));
+  if (task == NULL) {
+    return -1;
+  }
+  task->meta.taskId = tGenIdPI32();
+  taosHashPut(pSnode->pMeta->pHash, &task->meta.taskId, sizeof(int32_t), &task, sizeof(void *));
+  return 0;
+}
+
+int32_t sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) {
+  // stream deployment
+  // stream stop/resume
+  // operator exec
+  return 0;
+}
+
+int32_t sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg) {
+  // operator exec
+  return 0;
+}
