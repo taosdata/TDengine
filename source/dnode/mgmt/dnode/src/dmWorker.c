@@ -161,7 +161,7 @@ void dmStopWorker(SDnodeMgmt *pMgmt) {
   }
 }
 
-void dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+int32_t dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SDnodeMgmt *pMgmt = pWrapper->pMgmt;
 
   SDnodeWorker *pWorker = &pMgmt->mgmtWorker;
@@ -169,12 +169,5 @@ void dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     pWorker = &pMgmt->statusWorker;
   }
 
-  if (dndWriteMsgToWorker(pWorker, pMsg, sizeof(SNodeMsg)) != 0) {
-    if (pMsg->rpcMsg.msgType & 1u) {
-      SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle, .code = TSDB_CODE_OUT_OF_MEMORY};
-      rpcSendResponse(&rsp);
-    }
-    rpcFreeCont(pMsg->rpcMsg.pCont);
-    taosFreeQitem(pMsg);
-  }
+  return dndWriteMsgToWorker(pWorker, pMsg, sizeof(SNodeMsg));
 }

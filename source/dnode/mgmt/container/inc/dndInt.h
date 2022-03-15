@@ -72,15 +72,13 @@ typedef struct SQnodeMgmt   SQnodeMgmt;
 typedef struct SSnodeMgmt   SSnodeMgmt;
 typedef struct SBnodeMgmt   SBnodeMgmt;
 
-typedef void (*RpcMsgFp)(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEps);
-typedef void (*NodeMsgFp)(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+typedef int32_t (*NodeMsgFp)(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 typedef int32_t (*OpenNodeFp)(SMgmtWrapper *pWrapper);
 typedef void (*CloseNodeFp)(SMgmtWrapper *pWrapper);
 typedef bool (*RequireNodeFp)(SMgmtWrapper *pWrapper);
 
 typedef struct SMsgHandle {
-  RpcMsgFp      rpcMsgFp;
-  NodeMsgFp     nodeMsgFp;
+  NodeMsgFp     msgFp;
   SMgmtWrapper *pWrapper;
 } SMsgHandle;
 
@@ -98,7 +96,7 @@ typedef struct SMgmtWrapper {
   SProcObj   *pProc;
   void       *pMgmt;
   SDnode     *pDnode;
-  SMsgHandle  msgHandles[TDMT_MAX];
+  NodeMsgFp   msgFps[TDMT_MAX];
   SMgmtFp     fp;
 } SMgmtWrapper;
 

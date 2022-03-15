@@ -257,8 +257,65 @@ void dndeHandleEvent(SDnode *pDnode, EDndEvent event) {
   pDnode->event = event;
 }
 
-void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  if (pEpSet && pEpSet->numOfEps > 0 && pMsg->msgType == TDMT_MND_STATUS_RSP) {
+static int32_t dndBuildMsg(SNodeMsg *pMsg, SRpcMsg *pRpc, SEpSet *pEpSet) {
+  SRpcConnInfo connInfo = {0};
+  if ((pRpc->msgType & 1U) && rpcGetConnInfo(pRpc->handle, &connInfo) != 0) {
+    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
+    dError("failed to build msg since %s, app:%p RPC:%p", terrstr(), pRpc->ahandle, pRpc->handle);
+    return -1;
+  }
+
+  memcpy(pMsg->user, connInfo.user, TSDB_USER_LEN);
+  pMsg->rpcMsg = *pRpc;
+
+  return 0;
+}
+
+static void dndSendRpcRsp(SDnode *pDnode, SRpcMsg *pRpc) {
+  if (pRpc->code == TSDB_CODE_APP_NOT_READY) {
+    dmSendRedirectRsp(pDnode, pRpc);
+  } else {
+    rpcSendResponse(pRpc);
+  }
+}
+
+void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSet) {
+  if (pEpSet && pEpSet->numOfEps > 0 && pRpc->msgType == TDMT_MND_STATUS_RSP) {
     dmUpdateMnodeEpSet(pWrapper->pDnode, pEpSet);
+  }
+
+  int32_t   code = -1;
+  SNodeMsg *pMsg = NULL;
+
+  NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pRpc->msgType)];
+  if (msgFp == NULL) {
+    terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+    goto _OVER;
+  }
+
+  pMsg = taosAllocateQitem(sizeof(SNodeMsg));
+  if (pMsg == NULL) {
+    goto _OVER;
+  }
+
+  if (dndBuildMsg(pMsg, pRpc, pEpSet) != 0) {
+    goto _OVER;
+  }
+
+  dTrace("msg:%p, is created, app:%p RPC:%p user:%s, processd by %s", pMsg, pRpc->ahandle, pRpc->handle, pMsg->user,
+         pWrapper->name);
+  code = (*msgFp)(pWrapper, pMsg);
+
+_OVER:
+
+  if (code != 0) {
+    bool isReq = (pRpc->msgType & 1U);
+    if (isReq) {
+      SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
+      dndSendRpcRsp(pWrapper->pDnode, &rsp);
+    }
+    dTrace("msg:%p, is freed", pMsg);
+    taosFreeQitem(pMsg);
+    rpcFreeCont(pRpc->pCont);
   }
 }

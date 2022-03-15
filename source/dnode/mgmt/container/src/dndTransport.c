@@ -36,10 +36,10 @@ static void dndProcessResponse(void *parent, SRpcMsg *pRsp, SEpSet *pEpSet) {
   }
 
   SMsgHandle *pHandle = &pMgmt->msgHandles[TMSG_INDEX(msgType)];
-  if (pHandle->rpcMsgFp != NULL) {
+  if (pHandle->msgFp != NULL) {
     dTrace("RPC %p, rsp:%s will be processed by %s, code:0x%x app:%p", pRsp->handle, TMSG_INFO(msgType),
            pHandle->pWrapper->name, pRsp->code & 0XFFFF, pRsp->ahandle);
-    (*pHandle->rpcMsgFp)(pHandle->pWrapper, pRsp, pEpSet);
+    dndProcessRpcMsg(pHandle->pWrapper, pRsp, pEpSet);
   } else {
     dError("RPC %p, rsp:%s not processed, app:%p", pRsp->handle, TMSG_INFO(msgType), pRsp->ahandle);
     rpcFreeCont(pRsp->pCont);
@@ -118,10 +118,10 @@ static void dndProcessRequest(void *param, SRpcMsg *pReq, SEpSet *pEpSet) {
   }
 
   SMsgHandle *pHandle = &pMgmt->msgHandles[TMSG_INDEX(msgType)];
-  if (pHandle->rpcMsgFp != NULL) {
+  if (pHandle->msgFp != NULL) {
     dTrace("RPC %p, req:%s will be processed by %s, app:%p", pReq->handle, TMSG_INFO(msgType), pHandle->pWrapper->name,
            pReq->ahandle);
-    (*pHandle->rpcMsgFp)(pHandle->pWrapper, pReq, pEpSet);
+    dndProcessRpcMsg(pHandle->pWrapper, pReq, pEpSet);
   } else {
     dError("RPC %p, req:%s not processed since no handle, app:%p", pReq->handle, TMSG_INFO(msgType), pReq->ahandle);
     SRpcMsg rspMsg = {.handle = pReq->handle, .code = TSDB_CODE_MSG_NOT_PROCESSED, .ahandle = pReq->ahandle};
@@ -253,17 +253,17 @@ int32_t dndInitMsgHandle(SDnode *pDnode) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[nodeType];
 
     for (int32_t msgIndex = 0; msgIndex < TDMT_MAX; ++msgIndex) {
-      SMsgHandle msgHandle = pWrapper->msgHandles[msgIndex];
-      if (msgHandle.rpcMsgFp == NULL) continue;
+      NodeMsgFp msgFp = pWrapper->msgFps[msgIndex];
+      if (msgFp == NULL) continue;
 
       SMsgHandle *pHandle = &pMgmt->msgHandles[msgIndex];
-      if (pHandle->rpcMsgFp != NULL) {
+      if (pHandle->msgFp != NULL) {
         dError("msg:%s, has multiple process nodes, prev node:%s, curr node:%s", tMsgInfo[msgIndex],
                pHandle->pWrapper->name, pWrapper->name);
         return -1;
       } else {
         dDebug("msg:%s, will be processed by node:%s", tMsgInfo[msgIndex], pWrapper->name);
-        *pHandle = msgHandle;
+        pHandle->msgFp = msgFp;
       }
     }
   }

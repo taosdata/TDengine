@@ -65,11 +65,7 @@ void dndCleanup() {
 SMgmtWrapper *dndGetWrapper(SDnode *pDnode, ENodeType nodeType) { return &pDnode->wrappers[nodeType]; }
 
 void dndSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp) {
-  SMsgHandle *pHandle = &pWrapper->msgHandles[TMSG_INDEX(msgType)];
-
-  pHandle->pWrapper = pWrapper;
-  pHandle->nodeMsgFp = nodeMsgFp;
-  pHandle->rpcMsgFp = dndProcessRpcMsg;
+  pWrapper->msgFps[TMSG_INDEX(msgType)] = nodeMsgFp;
 }
 
 EDndStatus dndGetStatus(SDnode *pDnode) { return pDnode->status; }

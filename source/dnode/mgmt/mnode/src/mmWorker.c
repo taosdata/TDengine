@@ -268,6 +268,6 @@ static void mmConsumeMsgQueue(SDnode *pDnode, SMndMsg *pMsg) {
 
 #endif
 
-void mmProcessWriteMsg( SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {}
-void mmProcessSyncMsg( SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {}
-void mmProcessReadMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {}
+int32_t mmProcessWriteMsg( SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {return 0;}
+int32_t mmProcessSyncMsg( SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {return 0;}
+int32_t mmProcessReadMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {return 0;}

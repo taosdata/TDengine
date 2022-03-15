@@ -31,10 +31,10 @@ int32_t vmPutMsgToReadQueue(SDnode *pDnode, SRpcMsg *pRpcMsg);
 void    vmConsumeChildQueue(SDnode *pDnode, SMndMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen);
 void    vmConsumeParentQueue(SDnode *pDnode, SRpcMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen);
 
-void vmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-void vmProcessSyncMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-void vmProcessQueryMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-void vmProcessFetchMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t vmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t vmProcessSyncMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t vmProcessQueryMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t vmProcessFetchMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

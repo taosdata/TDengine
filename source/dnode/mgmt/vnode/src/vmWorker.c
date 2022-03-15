@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "vmWorker.h"
 
-void vmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg){}
-void vmProcessSyncMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg){}
-void vmProcessQueryMsg( SMgmtWrapper *pWrapper, SNodeMsg *pMsg){}
-void vmProcessFetchMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg){}
+int32_t vmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg){return 0;}
+int32_t vmProcessSyncMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg){return 0;}
+int32_t vmProcessQueryMsg( SMgmtWrapper *pWrapper, SNodeMsg *pMsg){return 0;}
+int32_t vmProcessFetchMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg){return 0;}

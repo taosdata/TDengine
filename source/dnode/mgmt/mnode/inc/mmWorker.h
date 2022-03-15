@@ -31,9 +31,9 @@ int32_t mmPutMsgToReadQueue(SDnode *pDnode, SRpcMsg *pRpcMsg);
 void    mmConsumeChildQueue(SDnode *pDnode, SMndMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen);
 void    mmConsumeParentQueue(SDnode *pDnode, SRpcMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen);
 
-void mmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-void mmProcessSyncMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-void mmProcessReadMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t mmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t mmProcessSyncMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t mmProcessReadMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

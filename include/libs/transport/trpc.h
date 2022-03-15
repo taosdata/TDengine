@@ -49,7 +49,6 @@ typedef struct SRpcMsg {
 typedef struct {
   char    user[TSDB_USER_LEN];
   SRpcMsg rpcMsg;
-  SEpSet  rpcEpSet;
   int32_t rspLen;
   void   *pRsp;
 } SNodeMsg;
