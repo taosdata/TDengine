@@ -141,9 +141,9 @@ Configuration is a bit more complex part and we'll use another document for the 
         "source": {
           "type": "tdengine",
           "options": {
-              "uri": "taos://root:taosdata@source:6030/test",
-              "sql": "select avg(value) from meters interval(1m)"
-            }
+            "uri": "taos://root:taosdata@source:6030/test",
+            "sql": "select avg(value) from meters interval(1m)"
+          }
         },
         "sink": [
           {
@@ -194,7 +194,7 @@ taosx run <batch.conf> --metrics-push-gateway http://prom:9090
 
 ## Service mode
 
-taosx provides a builtin service mode, to automatically monitor a configuration directory, expose an OpenAPI with workflow control support and enable OpenMetrics exporter by default. We have a schedule to add more useful functionalities, include a monitor web dashboard to manage  configurations and display the status and metrics view in later release channel.
+taosx provides a builtin service mode, to automatically monitor a configuration directory, expose an OpenAPI with workflow control support and enable OpenMetrics exporter by default. We have a schedule to add more useful functionalities, include a monitor web dashboard to manage configurations and display the status and metrics view in later release channel.
 
 In 1.0 release, you could configure the service mode with:
 

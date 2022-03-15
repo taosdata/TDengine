@@ -19,4 +19,4 @@ exclude = ["/docs", "TODO.md", "*.json", ".vscode"]
 [dependencies]
 chrono-tz = { version = "0.6.1", features = ["serde"] }
 clap = { version = "3.1.6", features = ["derive", "env"] }
-url = { version = "2", features = ["serde"]}
+url = { version = "2", features = ["serde"] }
