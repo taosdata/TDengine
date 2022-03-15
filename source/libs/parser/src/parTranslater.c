@@ -795,14 +795,14 @@ static int32_t translateCreateDatabase(STranslateContext* pCxt, SCreateDatabaseS
   buildCreateDbReq(pCxt, pStmt, &createReq);
 
   pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
-  if (NULL== pCxt->pCmdMsg) {
+  if (NULL == pCxt->pCmdMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
   pCxt->pCmdMsg->msgType = TDMT_MND_CREATE_DB;
   pCxt->pCmdMsg->msgLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
   pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
-  if (NULL== pCxt->pCmdMsg->pMsg) {
+  if (NULL == pCxt->pCmdMsg->pMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   tSerializeSCreateDbReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &createReq);
@@ -818,14 +818,14 @@ static int32_t translateDropDatabase(STranslateContext* pCxt, SDropDatabaseStmt*
   dropReq.ignoreNotExists = pStmt->ignoreNotExists;
 
   pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
-  if (NULL== pCxt->pCmdMsg) {
+  if (NULL == pCxt->pCmdMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
   pCxt->pCmdMsg->msgType = TDMT_MND_DROP_DB;
   pCxt->pCmdMsg->msgLen = tSerializeSDropDbReq(NULL, 0, &dropReq);
   pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
-  if (NULL== pCxt->pCmdMsg->pMsg) {
+  if (NULL == pCxt->pCmdMsg->pMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   tSerializeSDropDbReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &dropReq);
@@ -859,7 +859,7 @@ static int32_t translateCreateSuperTable(STranslateContext* pCxt, SCreateTableSt
   tNameExtractFullName(&tableName, createReq.name);
 
   pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
-  if (NULL== pCxt->pCmdMsg) {
+  if (NULL == pCxt->pCmdMsg) {
     tFreeSMCreateStbReq(&createReq);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -867,7 +867,7 @@ static int32_t translateCreateSuperTable(STranslateContext* pCxt, SCreateTableSt
   pCxt->pCmdMsg->msgType = TDMT_MND_CREATE_STB;
   pCxt->pCmdMsg->msgLen = tSerializeSMCreateStbReq(NULL, 0, &createReq);
   pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
-  if (NULL== pCxt->pCmdMsg->pMsg) {
+  if (NULL == pCxt->pCmdMsg->pMsg) {
     tFreeSMCreateStbReq(&createReq);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -883,14 +883,14 @@ static int32_t doTranslateDropSuperTable(STranslateContext* pCxt, const SName* p
   dropReq.igNotExists = ignoreNotExists;
 
   pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
-  if (NULL== pCxt->pCmdMsg) {
+  if (NULL == pCxt->pCmdMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
   pCxt->pCmdMsg->msgType = TDMT_MND_DROP_STB;
   pCxt->pCmdMsg->msgLen = tSerializeSMDropStbReq(NULL, 0, &dropReq);
   pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
-  if (NULL== pCxt->pCmdMsg->pMsg) {
+  if (NULL == pCxt->pCmdMsg->pMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   tSerializeSMDropStbReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &dropReq);
@@ -936,14 +936,14 @@ static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* p
   catalogGetDBVgVersion(pCxt->pParseCxt->pCatalog, usedbReq.db, &usedbReq.vgVersion, &usedbReq.dbId, &usedbReq.numOfTable);
 
   pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
-  if (NULL== pCxt->pCmdMsg) {
+  if (NULL == pCxt->pCmdMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
   pCxt->pCmdMsg->msgType = TDMT_MND_USE_DB;
   pCxt->pCmdMsg->msgLen = tSerializeSUseDbReq(NULL, 0, &usedbReq);
   pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
-  if (NULL== pCxt->pCmdMsg->pMsg) {
+  if (NULL == pCxt->pCmdMsg->pMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   tSerializeSUseDbReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &usedbReq);
@@ -959,14 +959,14 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   strcpy(createReq.pass, pStmt->password);
 
   pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
-  if (NULL== pCxt->pCmdMsg) {
+  if (NULL == pCxt->pCmdMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
   pCxt->pCmdMsg->msgType = TDMT_MND_CREATE_USER;
   pCxt->pCmdMsg->msgLen = tSerializeSCreateUserReq(NULL, 0, &createReq);
   pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
-  if (NULL== pCxt->pCmdMsg->pMsg) {
+  if (NULL == pCxt->pCmdMsg->pMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   tSerializeSCreateUserReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &createReq);
@@ -985,14 +985,14 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
   }
 
   pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
-  if (NULL== pCxt->pCmdMsg) {
+  if (NULL == pCxt->pCmdMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
   pCxt->pCmdMsg->msgType = TDMT_MND_ALTER_USER;
   pCxt->pCmdMsg->msgLen = tSerializeSAlterUserReq(NULL, 0, &alterReq);
   pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
-  if (NULL== pCxt->pCmdMsg->pMsg) {
+  if (NULL == pCxt->pCmdMsg->pMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   tSerializeSAlterUserReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &alterReq);
@@ -1005,14 +1005,14 @@ static int32_t translateDropUser(STranslateContext* pCxt, SDropUserStmt* pStmt) 
   strcpy(dropReq.user, pStmt->useName);
 
   pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
-  if (NULL== pCxt->pCmdMsg) {
+  if (NULL == pCxt->pCmdMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
   pCxt->pCmdMsg->msgType = TDMT_MND_DROP_USER;
   pCxt->pCmdMsg->msgLen = tSerializeSDropUserReq(NULL, 0, &dropReq);
   pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
-  if (NULL== pCxt->pCmdMsg->pMsg) {
+  if (NULL == pCxt->pCmdMsg->pMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   tSerializeSDropUserReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &dropReq);
@@ -1026,14 +1026,14 @@ static int32_t translateCreateDnode(STranslateContext* pCxt, SCreateDnodeStmt* p
   createReq.port = pStmt->port;
 
   pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
-  if (NULL== pCxt->pCmdMsg) {
+  if (NULL == pCxt->pCmdMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
   pCxt->pCmdMsg->msgType = TDMT_MND_CREATE_DNODE;
   pCxt->pCmdMsg->msgLen = tSerializeSCreateDnodeReq(NULL, 0, &createReq);
   pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
-  if (NULL== pCxt->pCmdMsg->pMsg) {
+  if (NULL == pCxt->pCmdMsg->pMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   tSerializeSCreateDnodeReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &createReq);
@@ -1048,14 +1048,14 @@ static int32_t translateDropDnode(STranslateContext* pCxt, SDropDnodeStmt* pStmt
   dropReq.port = pStmt->port;
 
   pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
-  if (NULL== pCxt->pCmdMsg) {
+  if (NULL == pCxt->pCmdMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
   pCxt->pCmdMsg->msgType = TDMT_MND_DROP_DNODE;
   pCxt->pCmdMsg->msgLen = tSerializeSDropDnodeReq(NULL, 0, &dropReq);
   pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
-  if (NULL== pCxt->pCmdMsg->pMsg) {
+  if (NULL == pCxt->pCmdMsg->pMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   tSerializeSDropDnodeReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &dropReq);
@@ -1093,14 +1093,14 @@ static int32_t translateShow(STranslateContext* pCxt, SShowStmt* pStmt) {
   }
 
   pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
-  if (NULL== pCxt->pCmdMsg) {
+  if (NULL == pCxt->pCmdMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
   pCxt->pCmdMsg->msgType = TDMT_MND_SHOW;
   pCxt->pCmdMsg->msgLen = tSerializeSShowReq(NULL, 0, &showReq);
   pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
-  if (NULL== pCxt->pCmdMsg->pMsg) {
+  if (NULL == pCxt->pCmdMsg->pMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   tSerializeSShowReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &showReq);
@@ -1128,7 +1128,7 @@ static int32_t translateShowTables(STranslateContext* pCxt) {
   pShowReq->head.vgId = htonl(info->vgId);
 
   pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
-  if (NULL== pCxt->pCmdMsg) {
+  if (NULL == pCxt->pCmdMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCxt->pCmdMsg->epSet = info->epSet;
@@ -1167,23 +1167,25 @@ static int32_t translateCreateSmaIndex(STranslateContext* pCxt, SCreateIndexStmt
   createSmaReq.tSma.tableUid = pMeta->uid;
   createSmaReq.tSma.interval = ((SValueNode*)pStmt->pOptions->pInterval)->datum.i;
   createSmaReq.tSma.sliding = (NULL != pStmt->pOptions->pSliding ? ((SValueNode*)pStmt->pOptions->pSliding)->datum.i : 0);
-  code = nodesListToString(pStmt->pCols, false, &createSmaReq.tSma.expr, &createSmaReq.tSma.exprLen);
+  code = nodesListToString(pStmt->pOptions->pFuncs, false, &createSmaReq.tSma.expr, &createSmaReq.tSma.exprLen);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
 
   pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
-  if (NULL== pCxt->pCmdMsg) {
+  if (NULL == pCxt->pCmdMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
   pCxt->pCmdMsg->msgType = TDMT_VND_CREATE_SMA;
   pCxt->pCmdMsg->msgLen = tSerializeSVCreateTSmaReq(NULL, &createSmaReq);
   pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
-  if (NULL== pCxt->pCmdMsg->pMsg) {
+  if (NULL == pCxt->pCmdMsg->pMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  tSerializeSVCreateTSmaReq(pCxt->pCmdMsg->pMsg, &createSmaReq);
+  void* pBuf = pCxt->pCmdMsg->pMsg;
+  tSerializeSVCreateTSmaReq(&pBuf, &createSmaReq);
+  // todo clear SVCreateTSmaReq
 
   return TSDB_CODE_SUCCESS;
 }

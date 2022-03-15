@@ -2292,10 +2292,10 @@ static YYACTIONTYPE yy_reduce(
 { yymsp[1].minor.yy344 = NULL; }
         break;
       case 97: /* index_options ::= FUNCTION NK_LP func_list NK_RP INTERVAL NK_LP duration_literal NK_RP sliding_opt */
-{ yymsp[-8].minor.yy344 = createIndexOption(pCxt, yymsp[-6].minor.yy280, yymsp[-2].minor.yy344, NULL, yymsp[0].minor.yy344); }
+{ yymsp[-8].minor.yy344 = createIndexOption(pCxt, yymsp[-6].minor.yy280, releaseRawExprNode(pCxt, yymsp[-2].minor.yy344), NULL, yymsp[0].minor.yy344); }
         break;
       case 98: /* index_options ::= FUNCTION NK_LP func_list NK_RP INTERVAL NK_LP duration_literal NK_COMMA duration_literal NK_RP sliding_opt */
-{ yymsp[-10].minor.yy344 = createIndexOption(pCxt, yymsp[-8].minor.yy280, yymsp[-4].minor.yy344, yymsp[-2].minor.yy344, yymsp[0].minor.yy344); }
+{ yymsp[-10].minor.yy344 = createIndexOption(pCxt, yymsp[-8].minor.yy280, releaseRawExprNode(pCxt, yymsp[-4].minor.yy344), releaseRawExprNode(pCxt, yymsp[-2].minor.yy344), yymsp[0].minor.yy344); }
         break;
       case 101: /* func ::= function_name NK_LP expression_list NK_RP */
 { yylhsminor.yy344 = createFunctionNode(pCxt, &yymsp[-3].minor.yy209, yymsp[-1].minor.yy280); }

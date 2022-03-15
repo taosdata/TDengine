@@ -216,6 +216,14 @@ static EDealRes destroyNode(SNode** pNode, void* pContext) {
     case QUERY_NODE_NODE_LIST:
       nodesClearList(((SNodeListNode*)(*pNode))->pNodeList);
       break;
+    case QUERY_NODE_INDEX_OPTIONS: {
+      SIndexOptions* pStmt = (SIndexOptions*)*pNode;
+      nodesDestroyList(pStmt->pFuncs);
+      nodesDestroyNode(pStmt->pInterval);
+      nodesDestroyNode(pStmt->pOffset);
+      nodesDestroyNode(pStmt->pSliding);
+      break;
+    }
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pStmt = (SSelectStmt*)*pNode;
       nodesDestroyList(pStmt->pProjectionList);
@@ -256,6 +264,12 @@ static EDealRes destroyNode(SNode** pNode, void* pContext) {
     case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
       nodesDestroyList(((SCreateMultiTableStmt*)(*pNode))->pSubTables);
       break;
+    case QUERY_NODE_CREATE_INDEX_STMT: {
+      SCreateIndexStmt* pStmt = (SCreateIndexStmt*)*pNode;
+      nodesDestroyNode(pStmt->pOptions);
+      nodesDestroyList(pStmt->pCols);
+      break;
+    }
     default:
       break;
   }

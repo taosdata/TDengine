@@ -197,9 +197,9 @@ cmd ::= CREATE FULLTEXT INDEX
 
 index_options(A) ::= .                                                            { A = NULL; }
 index_options(A) ::= FUNCTION NK_LP func_list(B) NK_RP INTERVAL 
-  NK_LP duration_literal(C) NK_RP sliding_opt(D).                                 { A = createIndexOption(pCxt, B, C, NULL, D); }
+  NK_LP duration_literal(C) NK_RP sliding_opt(D).                                 { A = createIndexOption(pCxt, B, releaseRawExprNode(pCxt, C), NULL, D); }
 index_options(A) ::= FUNCTION NK_LP func_list(B) NK_RP INTERVAL 
-  NK_LP duration_literal(C) NK_COMMA duration_literal(D) NK_RP sliding_opt(E).    { A = createIndexOption(pCxt, B, C, D, E); }
+  NK_LP duration_literal(C) NK_COMMA duration_literal(D) NK_RP sliding_opt(E).    { A = createIndexOption(pCxt, B, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D), E); }
 
 %type func_list                                                                   { SNodeList* }
 %destructor func_list                                                             { nodesDestroyList($$); }
