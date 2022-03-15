@@ -1108,6 +1108,9 @@ cJSON* syncAppendEntries2Json(const SyncAppendEntries* pMsg) {
   cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
   cJSON_AddItemToObject(pRoot, "destId", pDestId);
 
+  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
+  cJSON_AddStringToObject(pRoot, "term", u64buf);
+
   snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->prevLogIndex);
   cJSON_AddStringToObject(pRoot, "pre_log_index", u64buf);
 

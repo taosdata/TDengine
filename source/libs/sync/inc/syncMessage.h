@@ -255,6 +255,7 @@ typedef struct SyncAppendEntries {
   SRaftId  srcId;
   SRaftId  destId;
   // private data
+  SyncTerm  term;
   SyncIndex prevLogIndex;
   SyncTerm  prevLogTerm;
   SyncIndex commitIndex;
