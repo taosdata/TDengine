@@ -43,7 +43,7 @@ static inline int tdbPutVarInt(u8 *p, int v) {
   int n = 0;
 
   for (;;) {
-    if (v < 0xff) {
+    if (v <= 0x7f) {
       p[n++] = v;
       break;
     }
