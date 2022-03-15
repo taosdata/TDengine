@@ -240,6 +240,7 @@ int indexRebuild(SIndex* index, SIndexOpts* opts){
 #ifdef USE_INVERTED_INDEX
 #endif
 
+    return 0;
 }
 
 SIndexOpts* indexOptsCreate() {

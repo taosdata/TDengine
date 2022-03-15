@@ -538,6 +538,8 @@ void* acceptThread(void* arg) {
   setThreadName("trans-accept");
   SServerObj* srv = (SServerObj*)arg;
   uv_run(srv->loop, UV_RUN_DEFAULT);
+
+  return NULL;
 }
 static bool addHandleToWorkloop(void* arg) {
   SWorkThrdObj* pThrd = arg;
@@ -593,6 +595,8 @@ void* workerThread(void* arg) {
   setThreadName("trans-worker");
   SWorkThrdObj* pThrd = (SWorkThrdObj*)arg;
   uv_run(pThrd->loop, UV_RUN_DEFAULT);
+
+  return NULL;
 }
 
 static SSrvConn* createConn(void* hThrd) {

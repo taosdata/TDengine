@@ -74,12 +74,12 @@ cJSON* syncEntry2Json(const SSyncRaftEntry* pEntry) {
   cJSON_AddNumberToObject(pRoot, "bytes", pEntry->bytes);
   cJSON_AddNumberToObject(pRoot, "msgType", pEntry->msgType);
   cJSON_AddNumberToObject(pRoot, "originalRpcType", pEntry->originalRpcType);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pEntry->seqNum);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pEntry->seqNum);
   cJSON_AddStringToObject(pRoot, "seqNum", u64buf);
   cJSON_AddNumberToObject(pRoot, "isWeak", pEntry->isWeak);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pEntry->term);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pEntry->term);
   cJSON_AddStringToObject(pRoot, "term", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pEntry->index);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pEntry->index);
   cJSON_AddStringToObject(pRoot, "index", u64buf);
   cJSON_AddNumberToObject(pRoot, "dataLen", pEntry->dataLen);
 
@@ -107,26 +107,26 @@ char* syncEntry2Str(const SSyncRaftEntry* pEntry) {
 // for debug ----------------------
 void syncEntryPrint(const SSyncRaftEntry* pObj) {
   char* serialized = syncEntry2Str(pObj);
-  printf("syncEntryPrint | len:%lu | %s \n", strlen(serialized), serialized);
+  printf("syncEntryPrint | len:%zu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncEntryPrint2(char* s, const SSyncRaftEntry* pObj) {
   char* serialized = syncEntry2Str(pObj);
-  printf("syncEntryPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncEntryPrint2 | len:%zu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncEntryLog(const SSyncRaftEntry* pObj) {
   char* serialized = syncEntry2Str(pObj);
-  sTrace("syncEntryLog | len:%lu | %s", strlen(serialized), serialized);
+  sTrace("syncEntryLog | len:%zu | %s", strlen(serialized), serialized);
   free(serialized);
 }
 
 void syncEntryLog2(char* s, const SSyncRaftEntry* pObj) {
   char* serialized = syncEntry2Str(pObj);
-  sTrace("syncEntryLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  sTrace("syncEntryLog2 | len:%zu | %s | %s", strlen(serialized), s, serialized);
   free(serialized);
 }

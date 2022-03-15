@@ -190,7 +190,10 @@ int indexCacheSchedToMerge(IndexCache* pCache) {
   schedMsg.msg = NULL;
 
   taosScheduleTask(indexQhandle, &schedMsg);
+
+  return 0;
 }
+
 static void indexCacheMakeRoomForWrite(IndexCache* cache) {
   while (true) {
     if (cache->occupiedMem * MEM_ESTIMATE_RADIO < MEM_THRESHOLD) {
