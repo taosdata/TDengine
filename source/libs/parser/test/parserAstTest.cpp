@@ -398,3 +398,10 @@ TEST_F(ParserTest, createTable) {
       );
   ASSERT_TRUE(run());
 }
+
+TEST_F(ParserTest, createSmaIndex) {
+  setDatabase("root", "test");
+
+  bind("create sma index index1 on t1 function(max(c1), min(c3 + 10), sum(c4))");
+  ASSERT_TRUE(run());
+}

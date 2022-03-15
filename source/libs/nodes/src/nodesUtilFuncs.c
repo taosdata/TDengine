@@ -76,6 +76,12 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SColumnDefNode));
     case QUERY_NODE_DOWNSTREAM_SOURCE:
       return makeNode(type, sizeof(SDownstreamSourceNode));
+    case QUERY_NODE_DATABASE_OPTIONS:
+      return makeNode(type, sizeof(SDatabaseOptions));
+    case QUERY_NODE_TABLE_OPTIONS:
+      return makeNode(type, sizeof(STableOptions));
+    case QUERY_NODE_INDEX_OPTIONS:
+      return makeNode(type, sizeof(SIndexOptions));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
@@ -122,6 +128,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
       return makeNode(type, sizeof(SShowStmt));
+    case QUERY_NODE_CREATE_INDEX_STMT:
+      return makeNode(type, sizeof(SCreateIndexStmt));
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));
     case QUERY_NODE_LOGIC_PLAN_JOIN:

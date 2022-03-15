@@ -254,8 +254,7 @@ static int32_t trimStringWithVarFormat(const char* src, int32_t len, bool format
 
 static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
   if (pVal->isDuration) {
-    char unit = 0;
-    if (parseAbsoluteDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &unit, pVal->node.resType.precision) != TSDB_CODE_SUCCESS) {
+    if (parseAbsoluteDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit, pVal->node.resType.precision) != TSDB_CODE_SUCCESS) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
     }
   } else {
@@ -768,26 +767,26 @@ static void buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pStmt
   SName name = {0};
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   tNameGetFullDbName(&name, pReq->db);
-  pReq->numOfVgroups = pStmt->options.numOfVgroups;
-  pReq->cacheBlockSize = pStmt->options.cacheBlockSize;
-  pReq->totalBlocks = pStmt->options.numOfBlocks;
-  pReq->daysPerFile = pStmt->options.daysPerFile;
-  pReq->daysToKeep0 = pStmt->options.keep;
+  pReq->numOfVgroups = pStmt->pOptions->numOfVgroups;
+  pReq->cacheBlockSize = pStmt->pOptions->cacheBlockSize;
+  pReq->totalBlocks = pStmt->pOptions->numOfBlocks;
+  pReq->daysPerFile = pStmt->pOptions->daysPerFile;
+  pReq->daysToKeep0 = pStmt->pOptions->keep;
   pReq->daysToKeep1 = -1;
   pReq->daysToKeep2 = -1;
-  pReq->minRows = pStmt->options.minRowsPerBlock;
-  pReq->maxRows = pStmt->options.maxRowsPerBlock;
+  pReq->minRows = pStmt->pOptions->minRowsPerBlock;
+  pReq->maxRows = pStmt->pOptions->maxRowsPerBlock;
   pReq->commitTime = -1;
-  pReq->fsyncPeriod = pStmt->options.fsyncPeriod;
-  pReq->walLevel = pStmt->options.walLevel;
-  pReq->precision = pStmt->options.precision;
-  pReq->compression = pStmt->options.compressionLevel;
-  pReq->replications = pStmt->options.replica;
-  pReq->quorum = pStmt->options.quorum;
+  pReq->fsyncPeriod = pStmt->pOptions->fsyncPeriod;
+  pReq->walLevel = pStmt->pOptions->walLevel;
+  pReq->precision = pStmt->pOptions->precision;
+  pReq->compression = pStmt->pOptions->compressionLevel;
+  pReq->replications = pStmt->pOptions->replica;
+  pReq->quorum = pStmt->pOptions->quorum;
   pReq->update = -1;
-  pReq->cacheLastRow = pStmt->options.cachelast;
+  pReq->cacheLastRow = pStmt->pOptions->cachelast;
   pReq->ignoreExist = pStmt->ignoreExists;
-  pReq->streamMode = pStmt->options.streamMode;
+  pReq->streamMode = pStmt->pOptions->streamMode;
   return;
 }
 
@@ -1141,6 +1140,63 @@ static int32_t translateShowTables(STranslateContext* pCxt) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateCreateSmaIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt) {
+  SVCreateTSmaReq createSmaReq = {0};
+
+  if (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pStmt->pOptions->pInterval) ||
+      (NULL != pStmt->pOptions->pOffset && DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pStmt->pOptions->pOffset)) ||
+      (NULL != pStmt->pOptions->pSliding && DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pStmt->pOptions->pSliding))) {
+    return pCxt->errCode;
+  }
+
+  createSmaReq.tSma.intervalUnit = ((SValueNode*)pStmt->pOptions->pInterval)->unit;
+  createSmaReq.tSma.slidingUnit = (NULL != pStmt->pOptions->pSliding ? ((SValueNode*)pStmt->pOptions->pSliding)->unit : 0);
+  strcpy(createSmaReq.tSma.indexName, pStmt->indexName);
+
+  SName name;
+  name.type = TSDB_TABLE_NAME_T;
+  name.acctId = pCxt->pParseCxt->acctId;
+  strcpy(name.dbname, pCxt->pParseCxt->db);
+  strcpy(name.tname, pStmt->tableName);
+  STableMeta* pMeta = NULL;
+  int32_t code = catalogGetTableMeta(pCxt->pParseCxt->pCatalog, pCxt->pParseCxt->pTransporter, &pCxt->pParseCxt->mgmtEpSet, &name, &pMeta);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  createSmaReq.tSma.tableUid = pMeta->uid;
+  createSmaReq.tSma.interval = ((SValueNode*)pStmt->pOptions->pInterval)->datum.i;
+  createSmaReq.tSma.sliding = (NULL != pStmt->pOptions->pSliding ? ((SValueNode*)pStmt->pOptions->pSliding)->datum.i : 0);
+  code = nodesListToString(pStmt->pCols, false, &createSmaReq.tSma.expr, &createSmaReq.tSma.exprLen);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
+  if (NULL== pCxt->pCmdMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
+  pCxt->pCmdMsg->msgType = TDMT_VND_CREATE_SMA;
+  pCxt->pCmdMsg->msgLen = tSerializeSVCreateTSmaReq(NULL, &createSmaReq);
+  pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
+  if (NULL== pCxt->pCmdMsg->pMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tSerializeSVCreateTSmaReq(pCxt->pCmdMsg->pMsg, &createSmaReq);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateCreateIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt) {
+  if (INDEX_TYPE_SMA == pStmt->indexType) {
+    return translateCreateSmaIndex(pCxt, pStmt);
+  } else {
+    // todo fulltext index
+    return TSDB_CODE_FAILED;
+  }
+}
+
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
@@ -1190,6 +1246,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_SHOW_TABLES_STMT:
       code = translateShowTables(pCxt);
+      break;
+    case QUERY_NODE_CREATE_INDEX_STMT:
+      code = translateCreateIndex(pCxt, (SCreateIndexStmt*)pNode);
       break;
     default:
       break;
