@@ -641,7 +641,7 @@ static void uvDestroyConn(uv_handle_t* handle) {
   uv_timer_stop(&conn->pTimer);
   QUEUE_REMOVE(&conn->queue);
   free(conn->pTcp);
-  free(conn);
+  // free(conn);
 
   if (thrd->quit && QUEUE_IS_EMPTY(&thrd->conn)) {
     uv_loop_close(thrd->loop);
@@ -785,6 +785,11 @@ void transUnrefSrvHandle(void* handle) {
     destroyConn((SSrvConn*)handle, true);
   }
   // unref srv handle
+}
+
+void transReleaseSrvHandle(void* handle) {
+  // do nothing currently
+  //
 }
 void transSendResponse(const STransMsg* pMsg) {
   if (pMsg->handle == NULL) {

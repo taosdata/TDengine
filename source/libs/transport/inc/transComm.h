@@ -252,6 +252,9 @@ void transUnrefSrvHandle(void* handle);
 void transRefCliHandle(void* handle);
 void transUnrefCliHandle(void* handle);
 
+void transReleaseCliHandle(void* handle);
+void transReleaseSrvHandle(void* handle);
+
 void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg);
 void transSendRecv(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg, STransMsg* pRsp);
 void transSendResponse(const STransMsg* pMsg);

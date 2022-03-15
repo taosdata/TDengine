@@ -94,7 +94,7 @@ int     rpcReportProgress(void *pConn, char *pCont, int contLen);
 void    rpcCancelRequest(int64_t rid);
 
 // just release client conn to rpc instance, no close sock
-void rpcReleaseHandle(void *handle);
+void rpcReleaseHandle(void *handle, int8_t type);
 
 void rpcRefHandle(void *handle, int8_t type);
 void rpcUnrefHandle(void *handle, int8_t type);

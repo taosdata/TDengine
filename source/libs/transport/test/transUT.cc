@@ -110,6 +110,14 @@ class Client {
     SemWait();
     *resp = this->resp;
   }
+  void SendAndRecvNoHandle(SRpcMsg *req, SRpcMsg *resp) {
+    if (req->handle != NULL) {
+      rpcReleaseHandle(req->handle, TAOS_CONN_CLIENT);
+      req->handle = NULL;
+    }
+    SendAndRecv(req, resp);
+  }
+
   void SendWithHandle(SRpcMsg *req, SRpcMsg *resp) {}
   void SemWait() { tsem_wait(&this->sem); }
   void SemPost() { tsem_post(&this->sem); }
@@ -268,6 +276,7 @@ class TransObj {
   }
   void RestartSrv() { srv->Restart(); }
   void cliSendAndRecv(SRpcMsg *req, SRpcMsg *resp) { cli->SendAndRecv(req, resp); }
+  void cliSendAndRecvNoHandle(SRpcMsg *req, SRpcMsg *resp) { cli->SendAndRecvNoHandle(req, resp); }
 
   ~TransObj() {
     delete cli;
@@ -352,7 +361,47 @@ TEST_F(TransEnv, cliPersistHandle) {
       EXPECT_TRUE(resp.code != 0);
     }
   }
+  //////////////////
+}
 
+TEST_F(TransEnv, cliReleaseHandle) {
+  tr->SetCliPersistFp(cliPersistHandle);
+
+  SRpcMsg resp = {0};
+  for (int i = 0; i < 10; i++) {
+    SRpcMsg req = {.handle = resp.handle};
+    req.msgType = 1;
+    req.pCont = rpcMallocCont(10);
+    req.contLen = 10;
+    tr->cliSendAndRecvNoHandle(&req, &resp);
+    // if (i == 5) {
+    //  std::cout << "stop server" << std::endl;
+    //  tr->StopSrv();
+    //}
+    // if (i >= 6) {
+    EXPECT_TRUE(resp.code == 0);
+    //}
+  }
+  //////////////////
+}
+TEST_F(TransEnv, cliReleaseHandleExcept) {
+  tr->SetCliPersistFp(cliPersistHandle);
+
+  SRpcMsg resp = {0};
+  for (int i = 0; i < 10; i++) {
+    SRpcMsg req = {.handle = resp.handle};
+    req.msgType = 1;
+    req.pCont = rpcMallocCont(10);
+    req.contLen = 10;
+    tr->cliSendAndRecvNoHandle(&req, &resp);
+    if (i == 5) {
+      std::cout << "stop server" << std::endl;
+      tr->StopSrv();
+    }
+    if (i >= 6) {
+      EXPECT_TRUE(resp.code != 0);
+    }
+  }
   //////////////////
 }
 TEST_F(TransEnv, srvContinueSend) {
@@ -367,11 +416,11 @@ TEST_F(TransEnv, srvContinueSend) {
   taosMsleep(2000);
 }
 
-TEST_F(TransEnv, srvPersisHandleExcept) {
+TEST_F(TransEnv, srvPersistHandleExcept) {
   // conn breken
   //
 }
-TEST_F(TransEnv, cliPersisHandleExcept) {
+TEST_F(TransEnv, cliPersistHandleExcept) {
   // conn breken
 }
 
