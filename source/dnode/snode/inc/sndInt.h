@@ -30,41 +30,42 @@ extern "C" {
 #endif
 
 enum {
-  STREAM_STATUS__READY = 1,
+  STREAM_STATUS__RUNNING = 1,
   STREAM_STATUS__STOPPED,
   STREAM_STATUS__CREATING,
   STREAM_STATUS__STOPING,
-  STREAM_STATUS__RESUMING,
+  STREAM_STATUS__RESTORING,
   STREAM_STATUS__DELETING,
 };
 
 enum {
-  STREAM_RUNNER__RUNNING = 1,
-  STREAM_RUNNER__STOP,
+  STREAM_TASK_STATUS__RUNNING = 1,
+  STREAM_TASK_STATUS__STOP,
 };
 
+typedef struct {
+  SHashObj* pHash;  // taskId -> streamTask
+} SStreamMeta;
+
 typedef struct SSnode {
-  SSnodeOpt cfg;
+  SStreamMeta* pMeta;
+  SSnodeOpt    cfg;
 } SSnode;
 
 typedef struct {
   int64_t streamId;
+  int32_t taskId;
   int32_t IdxInLevel;
   int32_t level;
-} SStreamInfo;
+} SStreamTaskInfo;
 
 typedef struct {
-  SStreamInfo meta;
-  int8_t      status;
-  void*       executor;
-  STaosQueue* queue;
-  void*       stateStore;
+  SStreamTaskInfo meta;
+  int8_t          status;
+  void*           executor;
+  void*           stateStore;
   // storage handle
-} SStreamRunner;
-
-typedef struct {
-  SHashObj* pHash;
-} SStreamMeta;
+} SStreamTask;
 
 int32_t sndCreateStream();
 int32_t sndDropStream();
