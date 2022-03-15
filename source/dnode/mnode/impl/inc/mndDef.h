@@ -680,6 +680,12 @@ static FORCE_INLINE void* tDecodeSMqConsumerObj(void* buf, SMqConsumerObj* pCons
 }
 
 typedef struct {
+  int32_t   taskId;
+  int32_t   level;
+  SSubplan* plan;
+} SStreamTaskMeta;
+
+typedef struct {
   char     name[TSDB_TOPIC_FNAME_LEN];
   char     db[TSDB_DB_FNAME_LEN];
   int64_t  createTime;
@@ -687,12 +693,14 @@ typedef struct {
   int64_t  uid;
   int64_t  dbUid;
   int32_t  version;
+  int32_t  vgNum;
   SRWLatch lock;
   int8_t   status;
   // int32_t  sqlLen;
-  char* sql;
-  char* logicalPlan;
-  char* physicalPlan;
+  char*   sql;
+  char*   logicalPlan;
+  char*   physicalPlan;
+  SArray* tasks;  // SArray<SArray<SStreamTaskMeta>>
 } SStreamObj;
 
 int32_t tEncodeSStreamObj(SCoder* pEncoder, const SStreamObj* pObj);

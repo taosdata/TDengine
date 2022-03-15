@@ -67,11 +67,11 @@ typedef struct {
   // storage handle
 } SStreamTask;
 
-int32_t sndCreateStream();
-int32_t sndDropStream();
+int32_t sndCreateTask();
+int32_t sndDropTaskOfStream(int64_t streamId);
 
-int32_t sndStopStream();
-int32_t sndResumeStream();
+int32_t sndStopTaskOfStream(int64_t streamId);
+int32_t sndResumeTaskOfStream(int64_t streamId);
 
 #ifdef __cplusplus
 }
