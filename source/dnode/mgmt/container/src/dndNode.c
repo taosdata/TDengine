@@ -121,14 +121,6 @@ SDnode *dndCreate(SDndCfg *pCfg) {
     }
 
     pWrapper->procType = PROC_SINGLE;
-    pWrapper->required = dndRequireNode(pWrapper);
-    if (pWrapper->required) {
-      if (taosMkDir(pWrapper->path) != 0) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
-        dError("failed to create dir:%s since %s", pWrapper->path, terrstr());
-        goto _OVER;
-      }
-    }
   }
 
   code = 0;
@@ -172,7 +164,14 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
 
   for (ENodeType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+    pWrapper->required = dndRequireNode(pWrapper);
     if (!pWrapper->required) continue;
+
+    if (taosMkDir(pWrapper->path) != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      dError("failed to create dir:%s since %s", pWrapper->path, terrstr());
+      return -1;
+    }
 
     dInfo("node:%s, will start in single process", pWrapper->name);
     pWrapper->procType = PROC_SINGLE;
@@ -180,6 +179,12 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
       dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
       return -1;
     }
+  }
+
+  SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, DNODE);
+  if (dmStartWorker(pWrapper->pMgmt) != 0) {
+    dError("failed to start dnode worker since %s", terrstr());
+    return -1;
   }
 
   return 0;
@@ -250,7 +255,14 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
 
   for (ENodeType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+    pWrapper->required = dndRequireNode(pWrapper);
     if (!pWrapper->required) continue;
+
+    if (taosMkDir(pWrapper->path) != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      dError("failed to create dir:%s since %s", pWrapper->path, terrstr());
+      return -1;
+    }
 
     if (n == DNODE) {
       dInfo("node:%s, will start in parent process", pWrapper->name);
@@ -306,6 +318,12 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
     }
   }
 
+  SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, DNODE);
+  if (pWrapper->procType == PROC_PARENT && dmStartWorker(pWrapper->pMgmt) != 0) {
+    dError("failed to start dnode worker since %s", terrstr());
+    return -1;
+  }
+
   return 0;
 }
 
@@ -321,6 +339,9 @@ int32_t dndRun(SDnode *pDnode) {
       return -1;
     }
   }
+
+  dndSetStatus(pDnode, DND_STAT_RUNNING);
+  dndReportStartup(pDnode, "TDengine", "initialized successfully");
 
   while (1) {
     if (pDnode->event == DND_EVENT_STOP) {

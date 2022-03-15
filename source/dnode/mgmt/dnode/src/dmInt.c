@@ -136,17 +136,8 @@ int32_t dmInit(SMgmtWrapper *pWrapper) {
     return -1;
   }
 
-  if (dmStartWorker(pMgmt) != 0) {
-    dError("failed to start dnode worker since %s", terrstr());
-    return -1;
-  }
-
   pWrapper->pMgmt = pMgmt;
   dInfo("dnode-mgmt is initialized");
-
-  dndSetStatus(pDnode, DND_STAT_RUNNING);
-  dmSendStatusReq(pMgmt);
-  dndReportStartup(pDnode, "TDengine", "initialized successfully");
   return 0;
 }
 

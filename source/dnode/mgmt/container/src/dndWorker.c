@@ -65,6 +65,8 @@ int32_t dndInitWorker(void *param, SDnodeWorker *pWorker, EWorkerType type, cons
 }
 
 void dndCleanupWorker(SDnodeWorker *pWorker) {
+  if (pWorker->queue == NULL) return;
+
   while (!taosQueueEmpty(pWorker->queue)) {
     taosMsleep(10);
   }

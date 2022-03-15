@@ -200,7 +200,7 @@ static void mmCleanup(SMgmtWrapper *pWrapper) {
   SMnodeMgmt *pMgmt = pWrapper->pMgmt;
   if (pMgmt == NULL) return;
 
-  dInfo("mnode-mgmt start to clean up");
+  dInfo("mnode-mgmt start to cleanup");
   if (pMgmt->pMnode) {
     mmStopWorker(pMgmt);
     mndClose(pMgmt->pMnode);
@@ -217,7 +217,7 @@ static int32_t mmInit(SMgmtWrapper *pWrapper) {
   int32_t     code = -1;
   SMnodeOpt   option = {0};
 
-  dInfo("mnode-mgmt is initialized");
+  dInfo("mnode-mgmt start to init");
   pMgmt->path = pWrapper->path;
   pMgmt->pDnode = pWrapper->pDnode;
   pMgmt->pWrapper = pWrapper;
