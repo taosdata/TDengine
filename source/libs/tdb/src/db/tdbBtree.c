@@ -48,14 +48,23 @@ typedef struct {
   SBTree *pBt;
 } SBtreeZeroPageArg;
 
+typedef struct {
+  int   kLen;
+  u8   *pKey;
+  int   vLen;
+  u8   *pVal;
+  SPgno pgno;
+  u8   *pTmpSpace;
+} SCellDecoder;
+
 static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen, int *pCRst);
-static int tdbCompareKeyAndCell(const void *pKey, int kLen, const void *pCell);
 static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2);
 static int tdbBtreeOpenImpl(SBTree *pBt);
 static int tdbBtreeZeroPage(SPage *pPage, void *arg);
 static int tdbBtreeInitPage(SPage *pPage, void *arg);
 static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const void *pVal, int vLen, SCell *pCell,
                               int *szCell);
+static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pDecoder);
 
 int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, SBTree **ppBt) {
   SBTree *pBt;
@@ -201,45 +210,40 @@ static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen, int *p
       return 0;
     }
 
-    // Search from root page down to leaf
-    {
-      // TODO
-      ASSERT(0);
-      // ret = tdbBtCursorMoveToRoot(pCur);
-      // if (ret < 0) {
-      //   return -1;
-      // }
+    for (;;) {
+      int          lidx, ridx, midx, c;
+      SCell       *pCell;
+      SPage       *pPage;
+      SCellDecoder cd = {0};
 
-      // if (pCur->pPage->pHdr->nCells == 0) {
-      //   // Tree is empty
-      // } else {
-      //   for (;;) {
-      //     int lidx, ridx, midx, c;
+      pPage = pCur->pPage;
+      lidx = 0;
+      ridx = TDB_PAGE_NCELLS(pPage) - 1;
+      midx = (lidx + ridx) >> 1;
+      for (;;) {
+        pCell = TDB_PAGE_CELL_AT(pPage, midx);
+        ret = tdbBtreeDecodeCell(pPage, pCell, &cd);
+        if (ret < 0) {
+          // TODO: handle error
+          ASSERT(0);
+          return -1;
+        }
 
-      //     pBtPage = pCur->pPage;
-      //     lidx = 0;
-      //     ridx = pBtPage->pHdr->nCells - 1;
-      //     while (lidx <= ridx) {
-      //       midx = (lidx + ridx) >> 1;
-      //       pCell = (void *)(pBtPage->aData + pBtPage->pCellIdx[midx]);
-
-      //       c = tdbCompareKeyAndCell(pKey, kLen, pCell);
-      //       if (c == 0) {
-      //         break;
-      //       } else if (c < 0) {
-      //         lidx = lidx + 1;
-      //       } else {
-      //         ridx = ridx - 1;
-      //       }
-      //     }
-      //   }
-
-      //   /* code */
-      // }
+        // Compare the key values
+        c = pBt->kcmpr(pKey, kLen, cd.pKey, cd.kLen);
+        if (c < 0) {
+          /* TODO */
+        } else if (c > 0) {
+          /* TODO */
+        } else {
+          /* TODO */
+        }
+      }
     }
 
   } else {
     // TODO: Move the cursor from a some position instead of a clear state
+    ASSERT(0);
   }
 
   return 0;
@@ -268,11 +272,6 @@ static int tdbBtCursorMoveToRoot(SBtCursor *pCur) {
   // pCur->pPage = pBtPage;
   // pCur->iPage = 0;
 
-  return 0;
-}
-
-static int tdbCompareKeyAndCell(const void *pKey, int kLen, const void *pCell) {
-  /* TODO */
   return 0;
 }
 
@@ -701,15 +700,6 @@ static int tdbBtreeBalance(SBtCursor *pCur) {
 #endif
 
 #ifndef TDB_BTREE_CELL  // =========================================================
-typedef struct {
-  int   kLen;
-  u8   *pKey;
-  int   vLen;
-  u8   *pVal;
-  SPgno pgno;
-  u8   *pTmpSpace;
-} SCellDecoder;
-
 static int tdbBtreeEncodePayload(SPage *pPage, u8 *pPayload, const void *pKey, int kLen, const void *pVal, int vLen,
                                  int *szPayload) {
   int nPayload;
