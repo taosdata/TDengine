@@ -48,7 +48,6 @@ typedef struct {
 } SBtreeZeroPageArg;
 
 static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen, int *pCRst);
-static int tdbEncodeLength(u8 *pBuf, uint32_t len);
 static int tdbCompareKeyAndCell(const void *pKey, int kLen, const void *pCell);
 static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2);
 static int tdbBtreeOpenImpl(SBTree *pBt);
@@ -231,19 +230,6 @@ static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen, int *p
   }
 
   return 0;
-}
-
-static int tdbEncodeLength(u8 *pBuf, uint32_t len) {
-  int iCount = 0;
-
-  while (len > 127) {
-    pBuf[iCount++] = (u8)((len & 0xff) | 128);
-    len >>= 7;
-  }
-
-  pBuf[iCount++] = (u8)len;
-
-  return iCount;
 }
 
 static int tdbBtCursorMoveToRoot(SBtCursor *pCur) {
