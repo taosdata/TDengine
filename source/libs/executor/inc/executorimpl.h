@@ -463,13 +463,12 @@ typedef struct SAggSupporter {
   SHashObj*          pResultRowListSet;    // used to check if current ResultRowInfo has ResultRow object or not
   SArray*            pResultRowArrayList;  // The array list that contains the Result rows
   char*              keyBuf;               // window key buffer
-//  SResultRowPool    *pool;  // The window result objects pool, all the resultRow Objects are allocated and managed by this object.
+  SDiskbasedBuf     *pResultBuf;           // query result buffer based on blocked-wised disk file
   int32_t            resultRowSize;        // the result buffer size for each result row, with the meta data size for each row
 } SAggSupporter;
 
 typedef struct STableIntervalOperatorInfo {
   SOptrBasicInfo     binfo;
-  SDiskbasedBuf     *pResultBuf;           // query result buffer based on blocked-wised disk file
   SGroupResInfo      groupResInfo;
   SInterval          interval;
   STimeWindow        win;
