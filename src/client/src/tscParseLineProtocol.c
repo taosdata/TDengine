@@ -18,6 +18,7 @@
 
 #include "taos.h"
 #include "tscParseLine.h"
+#include "cJSON.h"
 
 typedef struct  {
   char sTableName[TSDB_TABLE_NAME_LEN + TS_BACKQUOTE_CHAR_SIZE];
@@ -2142,7 +2143,10 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
                           bool *is_last_kv, SSmlLinesInfo* info, bool isTag) {
   const char *start, *cur, *tmp;
   int32_t ret = TSDB_CODE_SUCCESS;
-  char *value = NULL;
+  int32_t braces = 0;
+  const char *json_start = NULL, *json_end = NULL;
+  cJSON *json = NULL;
+  char *value = NULL, *json_tmp, *json_cur;
   int16_t len = 0;
   bool searchQuote = false;
   start = cur = *index;
@@ -2161,6 +2165,84 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
   }
 
   while (1) {
+    if (*cur == '{') {
+      if (len == 0 || (len == 1 && cur[len - 1] != '"') || (len == 2 && cur[len - 1] != '"' && cur[len - 2] != 'L')) {
+        ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+        goto error;
+      }
+
+      json_start = cur;
+
+      braces++;
+      cur++;
+      len++;
+
+      while (*cur != '\0') {
+        if (*cur == '{') {
+          if (*(cur - 1) == '{') {
+            ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+            goto error;
+          }
+
+          braces++;
+        }
+
+        if (*cur == '}') {
+          if (*(cur - 1) == '}') {
+            ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+            goto error;
+          }
+
+          braces--;
+        }
+
+        cur++;
+        len++;
+
+        if (braces == 0) {
+          break;
+        }
+      }
+
+      if (braces != 0) {
+        ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+        goto error;
+      }
+
+      json_end = cur;
+
+      value = calloc(1, json_end - json_start + 1);
+      if (value == NULL) {
+        tscError("SML:0x%"PRIx64" Failed allocte for json sml type value", info->id);
+        ret = TSDB_CODE_TSC_OUT_OF_MEMORY;
+        goto error;
+      }
+
+      //check "\\,"
+      memcpy(value, json_start, json_end - json_start);
+      json_tmp = json_cur = value;
+      while (json_tmp[1] != '\0') {
+        if (json_tmp[0] == '\\' && json_tmp[1] == ',') {
+          json_tmp++;
+	}
+
+        *json_cur++ = *json_tmp++;
+      }
+
+      *json_cur++ = *json_tmp++;
+      *json_cur = '\0';
+
+      //check if json is valid
+      json = cJSON_Parse(value);
+      if (json == NULL) {
+        free(value);
+        ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+        goto error;
+      }
+
+      free(value);
+    }
+
     // unescaped ',' or ' ' or '\0' identifies a value
     if (((*cur == ',' || *cur == ' ' ) && *(cur - 1) != '\\') || *cur == '\0') {
       if (searchQuote == true) {
