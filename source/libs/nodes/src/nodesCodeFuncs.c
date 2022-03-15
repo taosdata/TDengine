@@ -151,8 +151,7 @@ static int32_t nodeListToJson(SJson* pJson, const char* pName, const SNodeList* 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t jsonToNodeList(const SJson* pJson, const char* pName, SNodeList** pList) {
-  const SJson* pJsonArray = tjsonGetObjectItem(pJson, pName);
+static int32_t jsonToNodeListImpl(const SJson* pJsonArray, SNodeList** pList) {
   int32_t size = (NULL == pJsonArray ? 0 : tjsonGetArraySize(pJsonArray));
   if (size > 0) {
     *pList = nodesMakeList();
@@ -174,6 +173,10 @@ static int32_t jsonToNodeList(const SJson* pJson, const char* pName, SNodeList**
     }
   }
   return code;
+}
+
+static int32_t jsonToNodeList(const SJson* pJson, const char* pName, SNodeList** pList) {
+  return jsonToNodeListImpl(tjsonGetObjectItem(pJson, pName), pList);
 }
 
 static const char* jkTableMetaUid = "TableMetaUid";
@@ -1762,6 +1765,55 @@ int32_t nodesStringToNode(const char* pStr, SNode** pNode) {
   int32_t code = makeNodeByJson(pJson, pNode);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode(*pNode);
+    terrno = code;
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t nodesListToString(const SNodeList* pList, bool format, char** pStr, int32_t* pLen) {
+  if (NULL == pList || NULL == pStr || NULL == pLen) {
+    terrno = TSDB_CODE_FAILED;
+    return TSDB_CODE_FAILED;
+  }
+
+  if (0 == LIST_LENGTH(pList)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SJson* pJson = tjsonCreateArray();
+  if (NULL == pJson) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SNode* pNode;
+  FOREACH(pNode, pList) {
+    int32_t code = tjsonAddItem(pJson, nodeToJson, pNode);
+    if (TSDB_CODE_SUCCESS != code) {
+      terrno = code;
+      return code;
+    }
+  }
+
+  *pStr = format ? tjsonToString(pJson) : tjsonToUnformattedString(pJson);
+  tjsonDelete(pJson);
+
+  *pLen = strlen(*pStr) + 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t nodesStringToList(const char* pStr, SNodeList** pList) {
+  if (NULL == pStr || NULL == pList) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SJson* pJson = tjsonParse(pStr);
+  if (NULL == pJson) {
+    return TSDB_CODE_FAILED;
+  }
+  int32_t code = jsonToNodeListImpl(pJson, pList);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyList(*pList);
     terrno = code;
     return code;
   }

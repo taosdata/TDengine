@@ -51,6 +51,7 @@ typedef struct SQuery {
   SSchema* pResSchema;
   SCmdMsgInfo* pCmdMsg;
   int32_t msgType;
+  bool streamQuery;
 } SQuery;
 
 int32_t qParseQuerySql(SParseContext* pCxt, SQuery** pQuery);
