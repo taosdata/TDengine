@@ -54,18 +54,18 @@ typedef struct SSnode {
 
 typedef struct {
   int64_t streamId;
+  int32_t taskId;
   int32_t IdxInLevel;
   int32_t level;
-} SStreamInfo;
+} SStreamTaskInfo;
 
 typedef struct {
-  SStreamInfo meta;
-  int8_t      status;
-  void*       executor;
-  STaosQueue* queue;
-  void*       stateStore;
+  SStreamTaskInfo meta;
+  int8_t          status;
+  void*           executor;
+  void*           stateStore;
   // storage handle
-} SStreamRunner;
+} SStreamTask;
 
 int32_t sndCreateStream();
 int32_t sndDropStream();
