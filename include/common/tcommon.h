@@ -54,10 +54,11 @@ typedef struct SColumnDataAgg {
 } SColumnDataAgg;
 
 typedef struct SDataBlockInfo {
-  STimeWindow window;
-  int32_t     rows;
-  int32_t     rowSize;
-  int32_t     numOfCols;
+  STimeWindow    window;
+  int32_t        rows;
+  int32_t        rowSize;
+  int16_t        numOfCols;
+  int16_t        hasVarCol;
   union {int64_t uid; int64_t blockId;};
 } SDataBlockInfo;
 
@@ -96,13 +97,15 @@ typedef struct SColumnInfoData {
 
 static FORCE_INLINE int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock) {
   int64_t tbUid = pBlock->info.uid;
-  int32_t numOfCols = pBlock->info.numOfCols;
+  int16_t numOfCols = pBlock->info.numOfCols;
+  int16_t hasVarCol = pBlock->info.hasVarCol;
   int32_t rows = pBlock->info.rows;
   int32_t sz = taosArrayGetSize(pBlock->pDataBlock);
 
   int32_t tlen = 0;
   tlen += taosEncodeFixedI64(buf, tbUid);
-  tlen += taosEncodeFixedI32(buf, numOfCols);
+  tlen += taosEncodeFixedI16(buf, numOfCols);
+  tlen += taosEncodeFixedI16(buf, hasVarCol);
   tlen += taosEncodeFixedI32(buf, rows);
   tlen += taosEncodeFixedI32(buf, sz);
   for (int32_t i = 0; i < sz; i++) {
@@ -120,7 +123,8 @@ static FORCE_INLINE void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock)
   int32_t sz;
 
   buf = taosDecodeFixedI64(buf, &pBlock->info.uid);
-  buf = taosDecodeFixedI32(buf, &pBlock->info.numOfCols);
+  buf = taosDecodeFixedI16(buf, &pBlock->info.numOfCols);
+  buf = taosDecodeFixedI16(buf, &pBlock->info.hasVarCol);
   buf = taosDecodeFixedI32(buf, &pBlock->info.rows);
   buf = taosDecodeFixedI32(buf, &sz);
   pBlock->pDataBlock = taosArrayInit(sz, sizeof(SColumnInfoData));

@@ -37,7 +37,6 @@ typedef struct SSortHandle {
 
   SArray           *pOrderInfo;
   bool              nullFirst;
-  bool              hasVarCol;
   SArray           *pOrderedSource;
 
   _sort_fetch_block_fn_t  fetchfp;
@@ -77,6 +76,10 @@ static SSDataBlock* createDataBlock_rv(SSchema* pSchema, int32_t numOfCols) {
     colInfo.info.bytes = pSchema[i].bytes;
     colInfo.info.colId = pSchema[i].colId;
     taosArrayPush(pBlock->pDataBlock, &colInfo);
+
+    if (IS_VAR_DATA_TYPE(colInfo.info.type)) {
+      pBlock->info.hasVarCol = true;
+    }
   }
 
   return pBlock;
@@ -155,7 +158,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
 
   while(start < pDataBlock->info.rows) {
     int32_t stop = 0;
-    blockDataSplitRows(pDataBlock, pHandle->hasVarCol, start, &stop, pHandle->pageSize);
+    blockDataSplitRows(pDataBlock, pDataBlock->info.hasVarCol, start, &stop, pHandle->pageSize);
     SSDataBlock* p = blockDataExtractBlock(pDataBlock, start, stop - start + 1);
     if (p == NULL) {
       return terrno;
@@ -179,7 +182,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
     start = stop + 1;
   }
 
-  blockDataClearup(pDataBlock, pHandle->hasVarCol);
+  blockDataClearup(pDataBlock);
 
   SSDataBlock* pBlock = createOneDataBlock(pDataBlock);
   int32_t code = doAddNewExternalMemSource(pHandle->pBuf, pHandle->pOrderedSource, pBlock, &pHandle->sourceId);
@@ -309,7 +312,7 @@ static int32_t adjustMergeTreeForNextTuple(SExternalMemSource *pSource, SMultiwa
 }
 
 static SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SMsortComparParam* cmpParam, int32_t capacity) {
-  blockDataClearup(pHandle->pDataBlock, pHandle->hasVarCol);
+  blockDataClearup(pHandle->pDataBlock);
 
   while(1) {
     if (cmpParam->numOfSources == pHandle->numOfCompletedSources) {
@@ -475,7 +478,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
         setBufPageDirty(pPage, true);
         releaseBufPage(pHandle->pBuf, pPage);
 
-        blockDataClearup(pDataBlock, pHandle->hasVarCol);
+        blockDataClearup(pDataBlock);
       }
 
       tMergeTreeDestroy(pHandle->pMergeTree);

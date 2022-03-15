@@ -128,7 +128,7 @@ target_include_directories(
 set(CMAKE_PROJECT_INCLUDE_BEFORE "${CMAKE_SUPPORT_DIR}/EnableCMP0048.txt.in")
 add_subdirectory(zlib)
 target_include_directories(
-    zlib
+        zlibstatic
     PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/zlib
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/zlib
 )

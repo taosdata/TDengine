@@ -1059,10 +1059,10 @@ int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullF
   //  destroyTupleIndex(index);
 }
 
-void blockDataClearup(SSDataBlock* pDataBlock, bool hasVarCol) {
+void blockDataClearup(SSDataBlock* pDataBlock) {
   pDataBlock->info.rows = 0;
 
-  if (hasVarCol) {
+  if (pDataBlock->info.hasVarCol) {
     for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
       SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
 
@@ -1148,7 +1148,9 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock) {
 
   SSDataBlock* pBlock = calloc(1, sizeof(SSDataBlock));
   pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
+
   pBlock->info.numOfCols = numOfCols;
+  pBlock->info.hasVarCol = pDataBlock->info.hasVarCol;
 
   for(int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData  colInfo = {0};
