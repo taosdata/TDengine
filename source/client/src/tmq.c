@@ -459,7 +459,7 @@ void tmq_conf_set_offset_commit_cb(tmq_conf_t* conf, tmq_commit_cb* cb) { conf->
 TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, int sqlLen) {
   STscObj*     pTscObj = (STscObj*)taos;
   SRequestObj* pRequest = NULL;
-  SQuery*  pQueryNode = NULL;
+  SQuery*      pQueryNode = NULL;
   char*        pStr = NULL;
 
   terrno = TSDB_CODE_SUCCESS;
