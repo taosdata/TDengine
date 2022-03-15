@@ -322,7 +322,10 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
 
   char* str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
   if (str == NULL) {
-    return -1;
+    //if parse failed, try "%Y-%m-%d" format
+    if (!strptime(timestr, "%Y-%m-%d", &tm)) {
+      return -1;
+    }
   }
 
 #ifdef _MSC_VER
@@ -356,7 +359,10 @@ int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec) {
 
   char* str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
   if (str == NULL) {
-    return -1;
+    //if parse failed, try "%Y-%m-%d" format
+    if (!strptime(timestr, "%Y-%m-%d", &tm)) {
+      return -1;
+    }
   }
 
   /* mktime will be affected by TZ, set by using taos_options */
