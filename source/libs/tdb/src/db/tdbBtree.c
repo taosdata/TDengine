@@ -54,6 +54,8 @@ static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2
 static int tdbBtreeOpenImpl(SBTree *pBt);
 static int tdbBtreeZeroPage(SPage *pPage, void *arg);
 static int tdbBtreeInitPage(SPage *pPage, void *arg);
+static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const void *pVal, int vLen, SCell *pCell,
+                              int *szCell);
 
 int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, SBTree **ppBt) {
   SBTree *pBt;
@@ -146,6 +148,10 @@ int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *p
   }
 
   // Encode the cell
+  ret = tdbBtreeEncodeCell(pCur->pPage, pKey, kLen, pVal, vLen, pCell, &szCell);
+  if (ret < 0) {
+    return -1;
+  }
 
   // Insert the cell to the index
   ret = tdbPageInsertCell(pCur->pPage, idx, pCell, szCell);
@@ -702,7 +708,7 @@ typedef struct {
   u8   *pTmpSpace;
 } SCellDecoder;
 
-static int tdbBtreeEncodePayload(SPage *pPage, u8 *pPayload, void *pKey, int kLen, void *pVal, int vLen,
+static int tdbBtreeEncodePayload(SPage *pPage, u8 *pPayload, const void *pKey, int kLen, const void *pVal, int vLen,
                                  int *szPayload) {
   int nPayload;
 
@@ -732,7 +738,8 @@ static int tdbBtreeEncodePayload(SPage *pPage, u8 *pPayload, void *pKey, int kLe
   return 0;
 }
 
-static int tdbBtreeEncodeCell(SPage *pPage, void *pKey, int kLen, void *pVal, int vLen, SCell *pCell, int *szCell) {
+static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const void *pVal, int vLen, SCell *pCell,
+                              int *szCell) {
   u16 flags;
   u8  leaf;
   int nHeader;
