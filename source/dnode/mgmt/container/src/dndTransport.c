@@ -37,8 +37,8 @@ static void dndProcessResponse(void *parent, SRpcMsg *pRsp, SEpSet *pEpSet) {
 
   SMsgHandle *pHandle = &pMgmt->msgHandles[TMSG_INDEX(msgType)];
   if (pHandle->msgFp != NULL) {
-    dTrace("rsp:%s will be processed by %s, code:0x%x app:%p", TMSG_INFO(msgType), pHandle->pWrapper->name,
-           pRsp->code & 0XFFFF, pRsp->ahandle);
+    dTrace("rsp:%s will be processed by %s, app:%p code:0x%x:%s", TMSG_INFO(msgType), pHandle->pWrapper->name,
+           pRsp->ahandle, pRsp->code & 0XFFFF, tstrerror(pRsp->code));
     dndProcessRpcMsg(pHandle->pWrapper, pRsp, pEpSet);
   } else {
     dError("rsp:%s not processed, app:%p", TMSG_INFO(msgType), pRsp->ahandle);
@@ -51,7 +51,7 @@ int32_t dndInitClient(SDnode *pDnode) {
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.label = "CLI";
+  rpcInit.label = "DND";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = dndProcessResponse;
   rpcInit.sessions = 1024;
@@ -218,7 +218,7 @@ int32_t dndInitServer(SDnode *pDnode) {
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort = pDnode->cfg.serverPort;
-  rpcInit.label = "SRV";
+  rpcInit.label = "DND";
   rpcInit.numOfThreads = numOfThreads;
   rpcInit.cfp = dndProcessRequest;
   rpcInit.sessions = tsMaxShellConns;

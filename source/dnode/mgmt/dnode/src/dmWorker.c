@@ -130,6 +130,7 @@ static void dmProcessMgmtQueue(SDnode *pDnode, SNodeMsg *pNodeMsg) {
   rpcFreeCont(pMsg->pCont);
   pMsg->pCont = NULL;
   taosFreeQitem(pNodeMsg);
+  dTrace("msg:%p, is freed", pNodeMsg);
 }
 
 int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
@@ -174,5 +175,5 @@ int32_t dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   }
 
   dTrace("msg:%p, will be written to worker %s", pMsg, pWorker->name);
-  return dndWriteMsgToWorker(pWorker, pMsg, sizeof(SNodeMsg));
+  return dndWriteMsgToWorker(pWorker, pMsg, 0);
 }

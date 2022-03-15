@@ -77,6 +77,7 @@ SDnode *dndCreate(SDndCfg *pCfg) {
     goto _OVER;
   }
 
+  memcpy(&pDnode->cfg, pCfg, sizeof(SDndCfg));
   dndSetStatus(pDnode, DND_STAT_INIT);
   pDnode->rebootTime = taosGetTimestampMs();
   pDnode->pLockFile = dndCheckRunning(pCfg->dataDir);
@@ -100,7 +101,6 @@ SDnode *dndCreate(SDndCfg *pCfg) {
   qmGetMgmtFp(&pDnode->wrappers[QNODE]);
   smGetMgmtFp(&pDnode->wrappers[SNODE]);
   bmGetMgmtFp(&pDnode->wrappers[BNODE]);
-  memcpy(&pDnode->cfg, pCfg, sizeof(SDndCfg));
 
   if (dndInitMsgHandle(pDnode) != 0) {
     goto _OVER;
@@ -306,12 +306,13 @@ void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSet) {
     goto _OVER;
   }
 
-  dTrace("msg:%p, is created, user:%s", pMsg, pMsg->user);
+  dTrace("msg:%p, is created, app:%p user:%s", pMsg, pRpc->ahandle, pMsg->user);
   code = (*msgFp)(pWrapper, pMsg);
 
 _OVER:
 
   if (code != 0) {
+    dError("msg:%p, failed to process since %s", pMsg, terrstr());
     bool isReq = (pRpc->msgType & 1U);
     if (isReq) {
       SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};

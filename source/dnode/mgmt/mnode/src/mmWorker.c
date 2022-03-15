@@ -270,4 +270,7 @@ static void mmConsumeMsgQueue(SDnode *pDnode, SMndMsg *pMsg) {
 
 int32_t mmProcessWriteMsg( SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {return 0;}
 int32_t mmProcessSyncMsg( SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {return 0;}
-int32_t mmProcessReadMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {return 0;}
+int32_t mmProcessReadMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+  terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+  return -1;
+}
