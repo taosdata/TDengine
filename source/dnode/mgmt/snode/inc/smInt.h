@@ -29,13 +29,9 @@ typedef struct SSnodeMgmt {
   SSnode      *pSnode;
   SRWLatch     latch;
   SDnodeWorker writeWorker;
-
-    //
-  SMsgHandle msgHandles[TDMT_MAX];
-  SProcObj  *pProcess;
-  bool       singleProc;
+  SProcObj    *pProcess;
+  bool         singleProc;
 } SSnodeMgmt;
-
 
 void smGetMgmtFp(SMgmtWrapper *pMgmt);
 

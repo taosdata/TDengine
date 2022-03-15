@@ -22,9 +22,7 @@
 extern "C" {
 #endif
 
-void       vmInitMsgHandles(SMgmtWrapper *pWrapper);
-SMsgHandle vmGetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgIndex);
-
+void    vmInitMsgHandles(SMgmtWrapper *pWrapper);
 int32_t vmProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
 int32_t vmProcessAlterVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
 int32_t vmProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *pReq);

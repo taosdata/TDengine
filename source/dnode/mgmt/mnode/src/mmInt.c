@@ -24,7 +24,6 @@ void mmGetMgmtFp(SMgmtWrapper *pWrapper) {
   mgmtFp.openFp = NULL;
   mgmtFp.closeFp = NULL;
   mgmtFp.requiredFp = mmRequireNode;
-  mgmtFp.getMsgHandleFp = mmGetMsgHandle;
 
   mmInitMsgHandles(pWrapper);
   pWrapper->name = "mnode";

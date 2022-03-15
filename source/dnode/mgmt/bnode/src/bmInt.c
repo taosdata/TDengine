@@ -24,9 +24,8 @@ void bmGetMgmtFp(SMgmtWrapper *pWrapper) {
   mgmtFp.openFp = NULL;
   mgmtFp.closeFp = NULL;
   mgmtFp.requiredFp = bmRequireNode;
-  mgmtFp.getMsgHandleFp = bmGetMsgHandle;
 
-  // bmInitMsgHandles(pWrapper);
+  bmInitMsgHandles(pWrapper);
   pWrapper->name = "snode";
   pWrapper->fp = mgmtFp;
 }

@@ -23,8 +23,3 @@ int32_t bmProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {return 0;}
 
 void bmInitMsgHandles(SMgmtWrapper *pWrapper) {
 }
-
-SMsgHandle bmGetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgIndex) {
-  SBnodeMgmt *pMgmt = pWrapper->pMgmt;
-  return pMgmt->msgHandles[msgIndex];
-}

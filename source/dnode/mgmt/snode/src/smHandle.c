@@ -22,8 +22,3 @@ int32_t smProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {return 0;}
 
 void smInitMsgHandles(SMgmtWrapper *pWrapper) {
 }
-
-SMsgHandle smGetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgIndex) {
-  SSnodeMgmt *pMgmt = pWrapper->pMgmt;
-  return pMgmt->msgHandles[msgIndex];
-}

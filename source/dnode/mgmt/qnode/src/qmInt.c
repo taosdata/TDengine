@@ -24,7 +24,6 @@ void qmGetMgmtFp(SMgmtWrapper *pWrapper) {
   mgmtFp.openFp = NULL;
   mgmtFp.closeFp = NULL;
   mgmtFp.requiredFp = qmRequireNode;
-  mgmtFp.getMsgHandleFp = qmGetMsgHandle;
 
   // qmInitMsgHandles(pWrapper);
   pWrapper->name = "qnode";

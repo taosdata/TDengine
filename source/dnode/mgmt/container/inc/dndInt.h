@@ -77,7 +77,6 @@ typedef void (*NodeMsgFp)(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 typedef int32_t (*OpenNodeFp)(SMgmtWrapper *pWrapper);
 typedef void (*CloseNodeFp)(SMgmtWrapper *pWrapper);
 typedef bool (*RequireNodeFp)(SMgmtWrapper *pWrapper);
-typedef SMsgHandle (*GetMsgHandleFp)(SMgmtWrapper *pWrapper, int32_t msgIndex);
 
 typedef struct SMsgHandle {
   RpcMsgFp      rpcMsgFp;
@@ -89,7 +88,6 @@ typedef struct SMgmtFp {
   OpenNodeFp     openFp;
   CloseNodeFp    closeFp;
   RequireNodeFp  requiredFp;
-  GetMsgHandleFp getMsgHandleFp;
 } SMgmtFp;
 
 typedef struct SMgmtWrapper {
@@ -100,6 +98,7 @@ typedef struct SMgmtWrapper {
   SProcObj   *pProc;
   void       *pMgmt;
   SDnode     *pDnode;
+  SMsgHandle  msgHandles[TDMT_MAX];
   SMgmtFp     fp;
 } SMgmtWrapper;
 
@@ -145,6 +144,7 @@ void          dndReportStartup(SDnode *pDnode, char *pName, char *pDesc);
 void          dndGetStartup(SDnode *pDnode, SStartupReq *pStartup);
 TdFilePtr     dndCheckRunning(char *dataDir);
 SMgmtWrapper *dndGetWrapper(SDnode *pDnode, ENodeType nodeType);
+void          dndSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp);
 
 // dndMonitor.h
 void dndSendMonitorReport(SDnode *pDnode);

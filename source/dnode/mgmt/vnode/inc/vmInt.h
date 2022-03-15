@@ -43,7 +43,6 @@ typedef struct SVnodesMgmt {
   SWWorkerPool syncPool;
   SWWorkerPool writePool;
   STfs        *pTfs;
-  SMsgHandle   msgHandles[TDMT_MAX];
   SProcObj    *pProcess;
   bool         singleProc;
 } SVnodesMgmt;

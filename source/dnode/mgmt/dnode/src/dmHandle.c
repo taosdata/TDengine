@@ -114,15 +114,6 @@ void dmProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
   rpcSendResponse(&rpcRsp);
 }
 
-static void dndSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp) {
-  SDnodeMgmt *pMgmt = pWrapper->pMgmt;
-  SMsgHandle *pHandle = &pMgmt->msgHandles[TMSG_INDEX(msgType)];
-
-  pHandle->pWrapper = pWrapper;
-  pHandle->nodeMsgFp = nodeMsgFp;
-  pHandle->rpcMsgFp = dndProcessRpcMsg;
-}
-
 void dmInitMsgHandles(SMgmtWrapper *pWrapper) {
   // Requests handled by DNODE
   dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_MNODE, dmProcessMgmtMsg);
@@ -146,9 +137,4 @@ void dmInitMsgHandles(SMgmtWrapper *pWrapper) {
   dndSetMsgHandle(pWrapper, TDMT_MND_STATUS_RSP, dmProcessMgmtMsg);
   dndSetMsgHandle(pWrapper, TDMT_MND_GRANT_RSP, dmProcessMgmtMsg);
   dndSetMsgHandle(pWrapper, TDMT_MND_AUTH_RSP, dmProcessMgmtMsg);
-}
-
-SMsgHandle dmGetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgIndex) {
-  SDnodeMgmt *pMgmt = pWrapper->pMgmt;
-  return pMgmt->msgHandles[msgIndex];
 }

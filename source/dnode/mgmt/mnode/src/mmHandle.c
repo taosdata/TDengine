@@ -146,92 +146,78 @@ int32_t mmProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {return 0;}
 int32_t mmProcessAlterReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {return 0;}
 int32_t mmProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {return 0;}
 
-static void mmSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp) {
-  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
-  SMsgHandle *pHandle = &pMgmt->msgHandles[TMSG_INDEX(msgType)];
-
-  pHandle->pWrapper = pWrapper;
-  pHandle->nodeMsgFp = nodeMsgFp;
-  pHandle->rpcMsgFp = dndProcessRpcMsg;
-}
-
 void mmInitMsgHandles(SMgmtWrapper *pWrapper) {
   // Requests handled by DNODE
-  mmSetMsgHandle(pWrapper, TDMT_DND_CREATE_MNODE_RSP, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_DND_ALTER_MNODE_RSP, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_DND_DROP_MNODE_RSP, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_DND_CREATE_QNODE_RSP, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_DND_DROP_QNODE_RSP, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_DND_CREATE_SNODE_RSP, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_DND_DROP_SNODE_RSP, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_DND_CREATE_BNODE_RSP, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_DND_DROP_BNODE_RSP, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_DND_CREATE_VNODE_RSP, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_DND_ALTER_VNODE_RSP, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_DND_DROP_VNODE_RSP, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_DND_SYNC_VNODE_RSP, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_DND_COMPACT_VNODE_RSP, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_DND_CONFIG_DNODE_RSP, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_MNODE_RSP, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_ALTER_MNODE_RSP, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_MNODE_RSP, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_QNODE_RSP, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_QNODE_RSP, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_SNODE_RSP, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_SNODE_RSP, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_BNODE_RSP, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_BNODE_RSP, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_VNODE_RSP, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_ALTER_VNODE_RSP, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_VNODE_RSP, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_SYNC_VNODE_RSP, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_COMPACT_VNODE_RSP, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_DND_CONFIG_DNODE_RSP, mmProcessWriteMsg);
 
   // Requests handled by MNODE
-  mmSetMsgHandle(pWrapper, TDMT_MND_CONNECT, mmProcessReadMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_CREATE_ACCT, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_ALTER_ACCT, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_DROP_ACCT, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_CREATE_USER, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_ALTER_USER, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_DROP_USER, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_GET_USER_AUTH, mmProcessReadMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_CREATE_DNODE, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_CONFIG_DNODE, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_DROP_DNODE, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_CREATE_MNODE, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_DROP_MNODE, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_CREATE_QNODE, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_DROP_QNODE, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_CREATE_SNODE, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_DROP_SNODE, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_CREATE_BNODE, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_DROP_BNODE, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_CREATE_DB, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_DROP_DB, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_USE_DB, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_ALTER_DB, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_SYNC_DB, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_COMPACT_DB, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_CREATE_FUNC, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_RETRIEVE_FUNC, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_DROP_FUNC, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_CREATE_STB, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_ALTER_STB, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_DROP_STB, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_TABLE_META, mmProcessReadMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_VGROUP_LIST, mmProcessReadMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_KILL_QUERY, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_KILL_CONN, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_HEARTBEAT, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_SHOW, mmProcessReadMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_SHOW_RETRIEVE, mmProcessReadMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_STATUS, mmProcessReadMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_KILL_TRANS, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_GRANT, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_AUTH, mmProcessReadMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_CREATE_TOPIC, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_ALTER_TOPIC, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_DROP_TOPIC, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_SUBSCRIBE, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_MQ_COMMIT_OFFSET, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_MND_GET_SUB_EP, mmProcessReadMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_CONNECT, mmProcessReadMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_CREATE_ACCT, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_ALTER_ACCT, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_DROP_ACCT, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_CREATE_USER, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_ALTER_USER, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_DROP_USER, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_GET_USER_AUTH, mmProcessReadMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_CREATE_DNODE, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_CONFIG_DNODE, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_DROP_DNODE, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_CREATE_MNODE, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_DROP_MNODE, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_CREATE_QNODE, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_DROP_QNODE, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_CREATE_SNODE, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_DROP_SNODE, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_CREATE_BNODE, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_DROP_BNODE, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_CREATE_DB, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_DROP_DB, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_USE_DB, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_ALTER_DB, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_SYNC_DB, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_COMPACT_DB, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_CREATE_FUNC, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_RETRIEVE_FUNC, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_DROP_FUNC, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_CREATE_STB, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_ALTER_STB, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_DROP_STB, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_TABLE_META, mmProcessReadMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_VGROUP_LIST, mmProcessReadMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_KILL_QUERY, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_KILL_CONN, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_HEARTBEAT, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_SHOW, mmProcessReadMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_SHOW_RETRIEVE, mmProcessReadMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_STATUS, mmProcessReadMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_KILL_TRANS, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_GRANT, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_AUTH, mmProcessReadMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_CREATE_TOPIC, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_ALTER_TOPIC, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_DROP_TOPIC, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_SUBSCRIBE, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_MQ_COMMIT_OFFSET, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_MND_GET_SUB_EP, mmProcessReadMsg);
 
   // Requests handled by VNODE
-  mmSetMsgHandle(pWrapper, TDMT_VND_MQ_SET_CONN_RSP, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_VND_MQ_REB_RSP, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_VND_CREATE_STB_RSP, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_VND_ALTER_STB_RSP, mmProcessWriteMsg);
-  mmSetMsgHandle(pWrapper, TDMT_VND_DROP_STB_RSP, mmProcessWriteMsg);
-}
-
-SMsgHandle mmGetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgIndex) {
-  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
-  return pMgmt->msgHandles[msgIndex];
+  dndSetMsgHandle(pWrapper, TDMT_VND_MQ_SET_CONN_RSP, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_MQ_REB_RSP, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_CREATE_STB_RSP, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_ALTER_STB_RSP, mmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_DROP_STB_RSP, mmProcessWriteMsg);
 }

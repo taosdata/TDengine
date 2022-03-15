@@ -246,16 +246,14 @@ void dndCleanupServer(SDnode *pDnode) {
   }
 }
 
-int32_t dndSetMsgHandle(SDnode *pDnode) {
+int32_t dndInitMsgHandle(SDnode *pDnode) {
   STransMgmt *pMgmt = &pDnode->trans;
 
   for (ENodeType nodeType = 0; nodeType < NODE_MAX; ++nodeType) {
-    SMgmtWrapper  *pWrapper = &pDnode->wrappers[nodeType];
-    GetMsgHandleFp getMsgHandleFp = pWrapper->fp.getMsgHandleFp;
-    if (getMsgHandleFp == NULL) continue;
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[nodeType];
 
     for (int32_t msgIndex = 0; msgIndex < TDMT_MAX; ++msgIndex) {
-      SMsgHandle msgHandle = (*getMsgHandleFp)(pWrapper, msgIndex);
+      SMsgHandle msgHandle = pWrapper->msgHandles[msgIndex];
       if (msgHandle.rpcMsgFp == NULL) continue;
 
       SMsgHandle *pHandle = &pMgmt->msgHandles[msgIndex];

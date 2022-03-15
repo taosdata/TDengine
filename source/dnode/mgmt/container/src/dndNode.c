@@ -98,7 +98,7 @@ SDnode *dndCreate(SDndCfg *pCfg) {
   bmGetMgmtFp(&pDnode->wrappers[BNODE]);
   memcpy(&pDnode->cfg, pCfg, sizeof(SDndCfg));
 
-  if (dndSetMsgHandle(pDnode) != 0) {
+  if (dndInitMsgHandle(pDnode) != 0) {
     goto _OVER;
   }
 

@@ -22,9 +22,7 @@
 extern "C" {
 #endif
 
-void       dmInitMsgHandles(SMgmtWrapper *pWrapper);
-SMsgHandle dmGetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgIndex);
-
+void    dmInitMsgHandles(SMgmtWrapper *pWrapper);
 void    dmSendStatusReq(SDnodeMgmt *pMgmt);
 void    dmProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
 int32_t dmProcessConfigReq(SDnode *pDnode, SRpcMsg *pReq);

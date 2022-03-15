@@ -67,7 +67,6 @@ void vmGetMgmtFp(SMgmtWrapper *pWrapper) {
   mgmtFp.openFp = vmInit;
   mgmtFp.closeFp = vmCleanup;
   mgmtFp.requiredFp = vmRequire;
-  mgmtFp.getMsgHandleFp = vmGetMsgHandle;
 
   vmInitMsgHandles(pWrapper);
   pWrapper->name = "vnodes";

@@ -25,51 +25,37 @@ int32_t dndProcessAuthVnodeReq(SDnode *pDnode, SRpcMsg *pReq){return 0;}
 int32_t vmProcessSyncVnodeReq(SDnode *pDnode, SRpcMsg *pReq){return 0;}
 int32_t vmProcessCompactVnodeReq(SDnode *pDnode, SRpcMsg *pReq){return 0;}
 
-static void vmSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp) {
-  SVnodesMgmt *pMgmt = pWrapper->pMgmt;
-  SMsgHandle  *pHandle = &pMgmt->msgHandles[TMSG_INDEX(msgType)];
-
-  pHandle->pWrapper = pWrapper;
-  pHandle->nodeMsgFp = nodeMsgFp;
-  pHandle->rpcMsgFp = dndProcessRpcMsg;
-}
-
 void vmInitMsgHandles(SMgmtWrapper *pWrapper) {
   // Requests handled by VNODE
-  vmSetMsgHandle(pWrapper, TDMT_VND_SUBMIT, vmProcessWriteMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_QUERY, vmProcessQueryMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_QUERY_CONTINUE, vmProcessQueryMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_FETCH, vmProcessFetchMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_FETCH_RSP, vmProcessFetchMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_ALTER_TABLE, vmProcessWriteMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_UPDATE_TAG_VAL, vmProcessWriteMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_TABLE_META, vmProcessFetchMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_TABLES_META, vmProcessFetchMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_MQ_CONSUME, vmProcessQueryMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_MQ_QUERY, vmProcessQueryMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_MQ_CONNECT, vmProcessWriteMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_MQ_DISCONNECT, vmProcessWriteMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_MQ_SET_CUR, vmProcessWriteMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_RES_READY, vmProcessFetchMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_TASKS_STATUS, vmProcessFetchMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_CANCEL_TASK, vmProcessFetchMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_DROP_TASK, vmProcessFetchMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_CREATE_STB, vmProcessWriteMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_ALTER_STB, vmProcessWriteMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_DROP_STB, vmProcessWriteMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_CREATE_TABLE, vmProcessWriteMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_ALTER_TABLE, vmProcessWriteMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_DROP_TABLE, vmProcessWriteMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_SHOW_TABLES, vmProcessFetchMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_SHOW_TABLES_FETCH, vmProcessFetchMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_MQ_SET_CONN, vmProcessWriteMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_MQ_REB, vmProcessWriteMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_MQ_SET_CUR, vmProcessFetchMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_CONSUME, vmProcessFetchMsg);
-  vmSetMsgHandle(pWrapper, TDMT_VND_QUERY_HEARTBEAT, vmProcessFetchMsg);
-}
-
-SMsgHandle vmGetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgIndex) {
-  SVnodesMgmt *pMgmt = pWrapper->pMgmt;
-  return pMgmt->msgHandles[msgIndex];
+  dndSetMsgHandle(pWrapper, TDMT_VND_SUBMIT, vmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_QUERY, vmProcessQueryMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_QUERY_CONTINUE, vmProcessQueryMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_FETCH, vmProcessFetchMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_FETCH_RSP, vmProcessFetchMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_ALTER_TABLE, vmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_UPDATE_TAG_VAL, vmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_TABLE_META, vmProcessFetchMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_TABLES_META, vmProcessFetchMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_MQ_CONSUME, vmProcessQueryMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_MQ_QUERY, vmProcessQueryMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_MQ_CONNECT, vmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_MQ_DISCONNECT, vmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_MQ_SET_CUR, vmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_RES_READY, vmProcessFetchMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_TASKS_STATUS, vmProcessFetchMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_CANCEL_TASK, vmProcessFetchMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_DROP_TASK, vmProcessFetchMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_CREATE_STB, vmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_ALTER_STB, vmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_DROP_STB, vmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_CREATE_TABLE, vmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_ALTER_TABLE, vmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_DROP_TABLE, vmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_SHOW_TABLES, vmProcessFetchMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_SHOW_TABLES_FETCH, vmProcessFetchMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_MQ_SET_CONN, vmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_MQ_REB, vmProcessWriteMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_MQ_SET_CUR, vmProcessFetchMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_CONSUME, vmProcessFetchMsg);
+  dndSetMsgHandle(pWrapper, TDMT_VND_QUERY_HEARTBEAT, vmProcessFetchMsg);
 }

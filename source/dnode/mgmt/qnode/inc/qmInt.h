@@ -32,7 +32,6 @@ typedef struct SQnodeMgmt {
   SDnodeWorker fetchWorker;
 
   //
-  SMsgHandle msgHandles[TDMT_MAX];
   SProcObj  *pProcess;
   bool       singleProc;
 } SQnodeMgmt;

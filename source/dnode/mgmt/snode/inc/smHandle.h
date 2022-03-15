@@ -22,8 +22,7 @@
 extern "C" {
 #endif
 
-void       smInitMsgHandles(SMgmtWrapper *pWrapper);
-SMsgHandle smGetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgIndex);
+void smInitMsgHandles(SMgmtWrapper *pWrapper);
 
 #ifdef __cplusplus
 }

@@ -26,7 +26,7 @@ int32_t dndInitServer(SDnode *pDnode);
 void    dndCleanupServer(SDnode *pDnode);
 int32_t dndInitClient(SDnode *pDnode);
 void    dndCleanupClient(SDnode *pDnode);
-int32_t dndSetMsgHandle(SDnode *pDnode);
+int32_t dndInitMsgHandle(SDnode *pDnode);
 
 int32_t dndSendReqToMnode(SDnode *pDnode, SRpcMsg *pRpcMsg);
 int32_t dndSendReqToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pRpcMsg);

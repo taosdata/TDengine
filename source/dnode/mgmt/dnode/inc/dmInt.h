@@ -38,7 +38,6 @@ typedef struct SDnodeMgmt {
   SRWLatch     latch;
   SDnodeWorker mgmtWorker;
   SDnodeWorker statusWorker;
-  SMsgHandle   msgHandles[TDMT_MAX];
   const char  *path;
   SDnode      *pDnode;
 } SDnodeMgmt;

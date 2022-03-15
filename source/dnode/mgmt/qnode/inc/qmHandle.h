@@ -22,9 +22,7 @@
 extern "C" {
 #endif
 
-void       qmInitMsgHandles(SMgmtWrapper *pWrapper);
-SMsgHandle qmGetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgIndex);
-
+void    qmInitMsgHandles(SMgmtWrapper *pWrapper);
 int32_t qmProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
 int32_t qmProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
 

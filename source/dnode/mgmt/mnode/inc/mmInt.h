@@ -38,7 +38,6 @@ typedef struct SMnodeMgmt {
   SReplica     replicas[TSDB_MAX_REPLICA];
 
   //
-  SMsgHandle  msgHandles[TDMT_MAX];
   SProcObj *pProcess;
   bool      singleProc;
 } SMnodeMgmt;

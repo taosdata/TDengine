@@ -23,7 +23,3 @@ int32_t qmProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg){return 0;}
 void qmInitMsgHandles(SMgmtWrapper *pWrapper) {
 }
 
-SMsgHandle qmGetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgIndex) {
-  SQnodeMgmt *pMgmt = pWrapper->pMgmt;
-  return pMgmt->msgHandles[msgIndex];
-}
