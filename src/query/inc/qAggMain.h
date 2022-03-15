@@ -89,8 +89,9 @@ extern "C" {
 #define TSDB_FUNC_QSTART          47
 #define TSDB_FUNC_QSTOP           48
 #define TSDB_FUNC_QDURATION       49
+#define TSDB_FUNC_HYPERLOGLOG     50
 
-#define TSDB_FUNC_MAX_NUM         50
+#define TSDB_FUNC_MAX_NUM         51
 
 #define TSDB_FUNCSTATE_SO           0x1u    // single output
 #define TSDB_FUNCSTATE_MO           0x2u    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM

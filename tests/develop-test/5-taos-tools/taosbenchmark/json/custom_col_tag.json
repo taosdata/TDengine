@@ -55,16 +55,36 @@
       "sample_file": "./sample.csv",
       "use_sample_ts": "no",
       "tags_file": "",
-      "partial_col_num": 999,
-      "columns": [{"type": "TIMESTAMP","max": 10, "min": 0},{"type": "INT","max": 10, "min": 0}, {"type": "BIGINT","max": 10, "min": 0}, {"type": "FLOAT","max": 10, "min": 0}, {"type": "DOUBLE","max": 10, "min": 0}, {"type": "SMALLINT","max": 10, "min": 0}, {"type": "TINYINT","max": 10, "min": 0}, {"type": "BOOL","max": 10, "min": 0}, {"type": "NCHAR","len": 29, "count":1,
-        "values": ["d1", "d2"]
-      }, {"type": "UINT","max": 10, "min": 0}, {"type": "UBIGINT","max": 10, "min": 0}, {"type": "UTINYINT","max": 10, "min": 0}, {"type": "USMALLINT","max": 10, "min": 0}, {"type": "BINARY", "len": 23, "count":1,
-        "values": ["b1","b2"]
+      "partial_col_num": 0,
+      "columns": [{
+        "type": "INT",
+        "name": "first"
+      }, {
+        "type": "UINT",
+        "name": "second",
+        "count": 5
+      },{
+        "type": "double",
+        "name": "third"
+      },{
+        "type": "float",
+        "name": "forth",
+        "count": 3
       }],
-      "tags": [{"type": "TIMESTAMP","max": 10, "min": 0},{"type": "INT","max": 10, "min": 0}, {"type": "BIGINT","max": 10, "min": 0}, {"type": "FLOAT","max": 10, "min": 0}, {"type": "DOUBLE","max": 10, "min": 0}, {"type": "SMALLINT","max": 10, "min": 0}, {"type": "TINYINT","max": 10, "min": 0}, {"type": "BOOL","max": 10, "min": 0}, {"type": "NCHAR","len": 17, "count":1,
-        "values": ["d1", "d2"]
-      }, {"type": "UINT","max": 10, "min": 0}, {"type": "UBIGINT","max": 10, "min": 0}, {"type": "UTINYINT","max": 10, "min": 0}, {"type": "USMALLINT","max": 10, "min": 0}, {"type": "BINARY", "len": 19, "count":1,
-        "values": ["b1","b2"]
+      "tags": [{
+        "type": "INT",
+        "name": "single"
+      }, {
+        "type": "UINT",
+        "name": "multiple",
+        "count": 5
+      },{
+        "type": "double",
+        "name": "thensingle"
+      },{
+        "type": "float",
+        "name": "thenmultiple",
+        "count": 3
       }]
     }]
   }]

@@ -33,7 +33,8 @@ typedef void (*_hash_free_fn_t)(void *param);
  */
 uint32_t MurmurHash3_32(const char *key, uint32_t len);
 
-/**
+uint64_t MurmurHash3_64(const void *key, uint32_t len);
+    /**
  *
  * @param key
  * @param len
