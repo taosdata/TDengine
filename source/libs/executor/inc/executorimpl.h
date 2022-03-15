@@ -463,7 +463,7 @@ typedef struct SAggSupporter {
   SHashObj*          pResultRowListSet;    // used to check if current ResultRowInfo has ResultRow object or not
   SArray*            pResultRowArrayList;  // The array list that contains the Result rows
   char*              keyBuf;               // window key buffer
-  SResultRowPool    *pool;  // The window result objects pool, all the resultRow Objects are allocated and managed by this object.
+//  SResultRowPool    *pool;  // The window result objects pool, all the resultRow Objects are allocated and managed by this object.
   int32_t            resultRowSize;        // the result buffer size for each result row, with the meta data size for each row
 } SAggSupporter;
 
@@ -678,8 +678,8 @@ SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numO
 void* doDestroyFilterInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols);
 
 void setInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order);
-void finalizeQueryResult(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo,
-                         int32_t* rowCellInfoOffset);
+void finalizeQueryResult(SqlFunctionCtx* pCtx, int32_t numOfOutput);
+
 void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t* bufCapacity);
 void copyTsColoum(SSDataBlock* pRes, SqlFunctionCtx* pCtx, int32_t numOfOutput);
 

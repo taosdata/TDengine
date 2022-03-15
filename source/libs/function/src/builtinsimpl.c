@@ -52,10 +52,6 @@ static void doFinalizer(SResultRowEntryInfo* pResInfo) { cleanupResultRowEntry(p
 
 void functionFinalizer(SqlFunctionCtx *pCtx) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  if (pResInfo->hasResult != DATA_SET_FLAG) {
-//    setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
-  }
-
   doFinalizer(pResInfo);
 }
 
