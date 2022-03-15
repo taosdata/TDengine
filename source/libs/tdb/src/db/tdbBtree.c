@@ -735,3 +735,91 @@ static int tdbBtreeBalance(SBtCursor *pCur) {
   return 0;
 }
 #endif
+
+#ifndef TDB_BTREE_CELL
+typedef struct {
+} SCellEncoder;
+
+typedef struct {
+  int kLen;
+  u8 *pKey;
+  int vLen;
+  u8 *pVal;
+  u8  kOverflow;
+  u8  vOverflow;
+  u8 *pTmpSpace;
+} SCellDecoder;
+
+static int tdbBtreeEncodeCell(SPage *pPage, void *pKey, int kLen, void *pVal, int vLen) {
+  u8  t[24];  // TODO
+  u8 *ptr;
+  u16 flags;
+
+  ASSERT(pPage->kLen == TDB_VARIANT_LEN || pPage->kLen == kLen);
+  ASSERT(pPage->vLen == TDB_VARIANT_LEN || pPage->vLen == vLen);
+
+  ptr = t;
+
+  // Encode kLen
+  if (pPage->kLen == TDB_VARIANT_LEN) {
+    ptr += tdbPutVarInt(ptr, kLen);
+  }
+
+  // Encode vLen
+  if (pPage->vLen == TDB_VARIANT_LEN) {
+    ptr += tdbPutVarInt(ptr, vLen);
+  }
+
+  // Encode key-value
+  if (TDB_BTREE_PAGE_IS_LEAF(flags)) {
+  } else {
+    ASSERT(pPage->vLen == sizeof(SPgno));
+
+    ((SPgno *)ptr)[0] = ((SPgno *)pVal)[0];
+    ptr = ptr + sizeof(SPgno);
+  }
+
+  return 0;
+}
+
+static int tdbBtreeDecodeCell(SPage *pPage, SCell *pCell, SCellDecoder *pDecoder) {
+  u16 flags;
+
+  // Decode kLen
+  if (pPage->kLen != -1) {
+    pDecoder->vLen = pPage->kLen;
+  } else {
+    pCell += tdbGetVarInt(pCell, &pDecoder->kLen);
+  }
+
+  // Decode vLen
+  if (pPage->vLen != -1) {
+    pDecoder->vLen = pPage->vLen;
+  } else {
+    pCell += tdbGetVarInt(pCell, &(pDecoder->vLen));
+  }
+
+  flags = TDB_PAGE_FLAGS(pPage);
+  if (TDB_BTREE_PAGE_IS_LEAF(flags)) {
+    // For leaf page
+    // TODO
+  } else {
+    // For interior page
+    ASSERT(pDecoder->vLen == sizeof(SPgno));
+
+    pDecoder->pVal = pCell;
+    pDecoder->kOverflow = 0;
+    pCell = pCell + pPage->vLen;
+
+    pDecoder->pKey = pCell;
+    if (0) {
+      pDecoder->vOverflow = 1;
+    } else {
+      pDecoder->vOverflow = 0;
+    }
+  }
+
+  return 0;
+}
+
+#endif

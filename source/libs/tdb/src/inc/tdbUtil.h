@@ -39,6 +39,44 @@ int tdbGetFileSize(const char *fname, int pgSize, SPgno *pSize);
 
 int tdbPRead(int fd, void *pData, int count, i64 offset);
 
+static inline int tdbPutVarInt(u8 *p, int v) {
+  int n = 0;
+
+  for (;;) {
+    if (v < 0xff) {
+      p[n++] = v;
+      break;
+    }
+
+    p[n++] = (v & 0x7f) | 0x80;
+    v >>= 7;
+  }
+
+  ASSERT(n < 6);
+
+  return n;
+}
+
+static inline int tdbGetVarInt(const u8 *p, int *v) {
+  int n = 0;
+  int tv = 0;
+
+  for (;;) {
+    if (p[n] & 0x80 == 0) {
+      tv = (tv << 7) & p[n];
+      n++;
+      break;
+    }
+
+    tv = (tv << 7) & (p[n] & 0x7f);
+    n++;
+  }
+
+  ASSERT(n < 6);
+
+  return 0;
+}
+
 #ifdef __cplusplus
 }
 #endif
