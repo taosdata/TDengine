@@ -103,6 +103,7 @@ bool tscValidateTableNameLength(size_t len);
 SColumnFilterInfo* tFilterInfoDup(const SColumnFilterInfo* src, int32_t numOfFilters);
 
 SSchema* tGetTbnameColumnSchema();
+SSchema* tGetTimeWindowColumnSchema(int16_t columnIndex);
 
 /**
  * check if the schema is valid or not, including following aspects:

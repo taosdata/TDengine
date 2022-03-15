@@ -1,7 +1,6 @@
 using TDengineDriver;
 using Test.UtilsTools;
 using System;
-using System.Runtime.InteropServices;
 using Xunit;
 using System.Collections.Generic;
 using Test.UtilsTools.DataSource;
@@ -47,7 +46,7 @@ namespace Cases
             };
             var tagData = new List<Object> { 1, "tag_one", "标签壹" };
             String insertSql = UtilsTools.ConstructInsertSql(tableName + "_s01", tableName, colData, tagData, 3);
-            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createSql);
+            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createSql);
             List<Object> expectResData = UtilsTools.CombineColAndTagData(colData, tagData, 3);
 
             var querySql = $"select * from {tableName}";
@@ -133,7 +132,7 @@ namespace Cases
             var colDataActual = colData.GetRange(8, 8);
             var tagData = new List<Object> { 1, "tag_one", "标签壹" };
             String insertSql = UtilsTools.ConstructInsertSql(tableName + "_s01", tableName, colData, tagData, 3);
-            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createSql);
+            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createSql);
             List<Object> expectResData = UtilsTools.CombineColAndTagData(colDataActual, tagData, 1);
             colDataActual.ForEach((item) => { Console.Write("{0}\t", item); });
 
@@ -228,7 +227,7 @@ namespace Cases
 
             String insertSql1 = UtilsTools.ConstructInsertSql(tableName + "_s01", tableName, colData1, tagData1, 3);
             String insertSql2 = UtilsTools.ConstructInsertSql(tableName + "_s02", tableName, colData1, tagData2, 3);
-            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createSql);
+            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createSql);
             List<Object> expectResData = UtilsTools.CombineColAndTagData(colData1, tagData1, 3);
 
             UtilsTools.ExecuteUpdate(conn, dropSql);

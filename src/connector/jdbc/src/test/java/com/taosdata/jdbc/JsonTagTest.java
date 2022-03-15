@@ -1138,7 +1138,7 @@ public class JsonTagTest {
         }
         Assert.assertEquals(8, count);
         Assert.assertTrue(set.contains("\"femail\""));
-        close(resultSet);
+        Assert.assertTrue(set.contains("\"收到货\""));
     }
 
     @Test

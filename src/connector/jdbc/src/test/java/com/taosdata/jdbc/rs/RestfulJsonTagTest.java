@@ -1152,6 +1152,7 @@ public class RestfulJsonTagTest {
         }
         Assert.assertEquals(8, count);
         Assert.assertTrue(set.contains("\"femail\""));
+        Assert.assertTrue(set.contains("\"收到货\""));
         close(resultSet);
     }
 

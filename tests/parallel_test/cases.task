@@ -303,7 +303,7 @@
 20,,script,./test.sh -f general/parser/auto_create_tb_drop_tb.sim 
 20,,script,./test.sh -f general/import/basic.sim 
 20,2,script,./test.sh -f general/alter/dnode.sim 
-20,,script,./test.sh -f general/compute/cast.sim 
+20,,script,eval sh -c \"if [ `uname -m` != aarch64 ]; then ./test.sh -f general/compute/cast.sim; fi\"
 20,,script,./test.sh -f general/compute/string_funcs.sim 
 20,,develop-test,python3 test.py -f 2-query/lower_func.py
 20,,develop-test,python3 test.py -f 2-query/upper_func.py
@@ -560,11 +560,12 @@
 10,,script,./test.sh -f unique/stable/replica2_vnode3.sim 
 10,,pytest,python3 testCompress.py 
 10,,pytest,python3 test.py -f client/client.py 
-10,,script,./test.sh -f general/parser/scalar_expression.sim 
+10,,script,eval sh -c \"if [ `uname -m` != aarch64 ]; then ./test.sh -f general/parser/scalar_expression.sim; fi\"
 10,,script,./test.sh -f general/compute/scalar_pow.sim 
 9,,script,./test.sh -f general/parser/alter1.sim 
 9,,script,./test.sh -f general/db/delete.sim 
-9,,pytest,python3 test.py -f tools/taosdemoTestLimitOffset.py 
+9,,pytest,python3 test.py -f tools/taosdemoTestLimitOffset.py
+9,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/custom_col_tag.py
 9,,pytest,python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoInsert.py 
 9,,pytest,python3 test.py -f stream/showStreamExecTimeisNull.py 
 9,,pytest,python3 test.py -f query/bug1876.py 
@@ -711,6 +712,7 @@
 5,,develop-test,python3 ./test.py -f 2-query/function_timezone.py
 5,,develop-test,python3 ./test.py -f 2-query/function_to_iso8601.py
 5,,develop-test,python3 ./test.py -f 2-query/function_to_unixtimestamp.py
+5,,develop-test,python3 ./test.py -f 2-query/time_window_keywords.py
 4,,system-test,python3 test.py -f 4-taosAdapter/TD-12163.py
 4,,system-test,python3 ./test.py -f 3-connectors/restful/restful_binddbname.py 
 4,,system-test,python3 ./test.py -f 2-query/TD-12614.py 
@@ -786,8 +788,9 @@
 3,,pytest,python3 test.py -f tag_lite/binary.py 
 3,,pytest,python3 test.py -f query/filterAllIntTypes.py 
 3,,develop-test,python3 ./test.py -f 2-query/ts_hidden_column.py 
-3,,script,./test.sh -f general/compute/scalar_triangle.sim 
+3,,script,eval sh -c \"if [ `uname -m` != aarch64 ]; then ./test.sh -f general/compute/scalar_triangle.sim; fi\"
 3,,script,./test.sh -f general/compute/scalar_str_concat_len.sim
 3,,develop-test,python3 ./test.py -f 2-query/function_tail.py
 2,,develop-test,python3 ./test.py -f 2-query/function_unique.py
+1,,develop-test,python3 ./test.py -f 2-query/function_state.py
 1,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/demo.py
