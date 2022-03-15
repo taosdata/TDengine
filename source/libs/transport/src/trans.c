@@ -36,6 +36,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->afp = pInit->afp;
   pRpc->pfp = pInit->pfp;
   pRpc->mfp = pInit->mfp;
+  pRpc->efp = pInit->efp;
 
   if (pInit->connType == TAOS_CONN_SERVER) {
     pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;

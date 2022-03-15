@@ -34,6 +34,10 @@ typedef struct SCliConn {
   // spi configure
   char spi;
   char secured;
+
+  char*    ip;
+  uint32_t port;
+
   // debug and log info
   struct sockaddr_in addr;
   struct sockaddr_in locaddr;
@@ -79,7 +83,7 @@ typedef struct SConnList {
 static void*     createConnPool(int size);
 static void*     destroyConnPool(void* pool);
 static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port);
-static void      addConnToPool(void* pool, char* ip, uint32_t port, SCliConn* conn);
+static void      addConnToPool(void* pool, SCliConn* conn);
 
 // register timer in each thread to clear expire conn
 static void cliTimeoutCb(uv_timer_t* handle);
@@ -188,6 +192,12 @@ void cliHandleResp(SCliConn* conn) {
 
   conn->secured = pHead->secured;
 
+  if (pCtx == NULL && CONN_NO_PERSIST_BY_APP(conn)) {
+    tTrace("except, server continue send while cli ignore it");
+    // transUnrefCliHandle(conn);
+    return;
+  }
+
   if (pCtx == NULL || pCtx->pSem == NULL) {
     tTrace("%s cli conn %p handle resp", pTransInst->label, conn);
     (pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
@@ -197,14 +207,13 @@ void cliHandleResp(SCliConn* conn) {
     tsem_post(pCtx->pSem);
   }
 
-  uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
-
   if (CONN_NO_PERSIST_BY_APP(conn)) {
-    addConnToPool(pThrd->pool, pCtx->ip, pCtx->port, conn);
+    addConnToPool(pThrd->pool, conn);
   }
   destroyCmsg(conn->data);
   conn->data = NULL;
 
+  uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
   // start thread's timer of conn pool if not active
   if (!uv_is_active((uv_handle_t*)&pThrd->timer) && pTransInst->idleTime > 0) {
     // uv_timer_start((uv_timer_t*)&pThrd->timer, cliTimeoutCb, CONN_PERSIST_TIME(pRpc->idleTime) / 2, 0);
@@ -317,11 +326,11 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
   QUEUE_INIT(&conn->conn);
   return conn;
 }
-static void addConnToPool(void* pool, char* ip, uint32_t port, SCliConn* conn) {
+static void addConnToPool(void* pool, SCliConn* conn) {
   char key[128] = {0};
 
-  tstrncpy(key, ip, strlen(ip));
-  tstrncpy(key + strlen(key), (char*)(&port), sizeof(port));
+  tstrncpy(key, conn->ip, strlen(conn->ip));
+  tstrncpy(key + strlen(key), (char*)(&conn->port), sizeof(conn->port));
   tTrace("cli conn %p added to conn pool, read buf cap: %d", conn, conn->readBuf.cap);
 
   STrans* pTransInst = ((SCliThrdObj*)conn->hostThrd)->pTransInst;
@@ -395,7 +404,7 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
 }
 static void cliDestroy(uv_handle_t* handle) {
   SCliConn* conn = handle->data;
-
+  free(conn->ip);
   free(conn->stream);
   tTrace("%s cli conn %p destroy successfully", CONN_GET_INST_LABEL(conn), conn);
   free(conn);
@@ -524,11 +533,16 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   SCliConn* conn = cliGetConn(pMsg, pThrd);
   if (conn != NULL) {
     conn->data = pMsg;
+    conn->hThrdIdx = pCtx->hThrdIdx;
+
     transDestroyBuffer(&conn->readBuf);
     cliSend(conn);
   } else {
     conn = cliCreateConn(pThrd);
     conn->data = pMsg;
+    conn->hThrdIdx = pCtx->hThrdIdx;
+    conn->ip = strdup(pMsg->ctx->ip);
+    conn->port = pMsg->ctx->port;
 
     int ret = transSetConnOption((uv_tcp_t*)conn->stream);
     if (ret) {
@@ -540,8 +554,6 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
     tTrace("%s cli conn %p try to connect to %s:%d", pTransInst->label, conn, pMsg->ctx->ip, pMsg->ctx->port);
     uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
   }
-
-  conn->hThrdIdx = pCtx->hThrdIdx;
 }
 static void cliAsyncCb(uv_async_t* handle) {
   SAsyncItem*  item = handle->data;
