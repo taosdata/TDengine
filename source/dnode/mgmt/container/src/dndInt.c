@@ -60,6 +60,7 @@ void dndCleanup() {
 
   monCleanup();
   rpcCleanup();
+  walCleanUp();
   taosStopCacheRefreshWorker();
   dInfo("dnode env is cleaned up");
 }

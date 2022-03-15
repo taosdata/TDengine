@@ -49,6 +49,12 @@ void mmRelease(SMnodeMgmt *pMgmt, SMnode *pMnode) {
 }
 
 int32_t mmOpen(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
+  if (walInit() != 0) {
+    dError("failed to init wal since %s", terrstr());
+    dndCleanup();
+    return -1;
+  }
+
   SMnode *pMnode = mndOpen(pMgmt->path, pOption);
   if (pMnode == NULL) {
     dError("failed to open mnode since %s", terrstr());
@@ -240,6 +246,7 @@ static int32_t mmInit(SMgmtWrapper *pWrapper) {
 
 _OVER:
   if (code == 0) {
+    pWrapper->pMgmt = pMgmt;
     dInfo("mnode-mgmt is initialized");
   } else {
     dError("failed to init mnode-mgmtsince %s", terrstr());

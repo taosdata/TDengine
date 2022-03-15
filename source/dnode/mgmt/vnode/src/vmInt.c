@@ -35,6 +35,11 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
   //   dError("failed to init tfs since %s", terrstr());
   //   return -1;
   // }
+  if (walInit() != 0) {
+    dError("failed to init wal since %s", terrstr());
+    dndCleanup();
+    return -1;
+  }
 
   SVnodeOpt vnodeOpt = {0};
   vnodeOpt.nthreads = tsNumOfCommitThreads;
@@ -46,17 +51,10 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
     return -1;
   }
 
-  if (walInit() != 0) {
-    dError("failed to init wal since %s", terrstr());
-    dndCleanup();
-    return -1;
-  }
-
   return 0;
 }
 
 static void vmCleanup(SMgmtWrapper *pWrapper) {
-  walCleanUp();
   vnodeCleanup();
 }
 
