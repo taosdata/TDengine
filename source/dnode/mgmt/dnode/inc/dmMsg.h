@@ -24,7 +24,6 @@ extern "C" {
 
 void    dmInitMsgHandles(SMgmtWrapper *pWrapper);
 void    dmSendStatusReq(SDnodeMgmt *pMgmt);
-void    dmProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
 int32_t dmProcessConfigReq(SDnode *pDnode, SRpcMsg *pReq);
 void    dmProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp);
 void    dmProcessAuthRsp(SDnode *pDnode, SRpcMsg *pRsp);

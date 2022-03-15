@@ -151,8 +151,8 @@ PRASE_DNODE_OVER:
 
   dmResetDnodes(pMgmt, pMgmt->pDnodeEps);
 
-  terrno = 0;
-  return 0;
+  terrno = code;
+  return code;
 }
 
 int32_t dmWriteFile(SDnodeMgmt *pMgmt) {

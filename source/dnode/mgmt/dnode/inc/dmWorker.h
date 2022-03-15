@@ -22,8 +22,8 @@
 extern "C" {
 #endif
 
-int32_t dmStartWorker();
-void    dmStopWorker();
+int32_t dmStartWorker(SDnodeMgmt *pMgmt);
+void    dmStopWorker(SDnodeMgmt *pMgmt);
 int32_t dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
 #ifdef __cplusplus

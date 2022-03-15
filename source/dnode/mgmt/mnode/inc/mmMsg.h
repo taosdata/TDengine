@@ -27,11 +27,6 @@ int32_t mmProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
 int32_t mmProcessAlterReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
 int32_t mmProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
 
-int32_t mmGetUserAuth(SMgmtWrapper *pWrapper, char *user, char *spi, char *encrypt, char *secret, char *ckey);
-int32_t mmGetMonitorInfo(SDnode *pDnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
-                         SMonGrantInfo *pGrantInfo);
-
-
 #ifdef __cplusplus
 }
 #endif

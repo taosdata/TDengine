@@ -22,8 +22,8 @@
 extern "C" {
 #endif
 
-int32_t mmReadFile(SDnode *pDnode);
-int32_t mmWriteFile(SDnode *pDnode);
+int32_t mmReadFile(SMnodeMgmt *pMgmt);
+int32_t mmWriteFile(SMnodeMgmt *pMgmt);
 
 #ifdef __cplusplus
 }

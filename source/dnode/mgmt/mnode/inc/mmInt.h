@@ -30,30 +30,34 @@ typedef struct SMnodeMgmt {
   int8_t       selfIndex;
   SReplica     replicas[TSDB_MAX_REPLICA];
   SMnode      *pMnode;
+  SDnode      *pDnode;
   SProcObj    *pProcess;
   bool         singleProc;
   SRWLatch     latch;
+  const char  *path;
   SDnodeWorker readWorker;
   SDnodeWorker writeWorker;
   SDnodeWorker syncWorker;
 } SMnodeMgmt;
 
-// mmInt.h
-void mmGetMgmtFp(SMgmtWrapper *pMgmt);
+// interface
+void    mmGetMgmtFp(SMgmtWrapper *pMgmt);
+int32_t mmGetUserAuth(SMgmtWrapper *pWrapper, char *user, char *spi, char *encrypt, char *secret, char *ckey);
+int32_t mmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
+                         SMonGrantInfo *pGrantInfo);
 
-// mmMgmt.h
-int32_t mmInit(SDnode *pDnode);
-void    mmCleanup(SDnode *pDnode);
+// mmInt.h
+SMnode *mmAcquire(SMnodeMgmt *pMgmt);
+void    mmRelease(SMnodeMgmt *pMgmt, SMnode *pMnode);
+int32_t mmOpen(SMnodeMgmt *pMgmt, SMnodeOpt *pOption);
+int32_t mmAlter(SMnodeMgmt *pMgmt, SMnodeOpt *pOption);
+int32_t mmDrop(SMnodeMgmt *pMgmt);
+int32_t mmBuildOptionFromReq(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCreateMnodeReq *pCreate);
 
 // mmHandle.h
 int32_t mmProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
 int32_t mmProcessAlterReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
 int32_t mmProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-
-int32_t mmGetUserAuth(SMgmtWrapper *pWrapper, char *user, char *spi, char *encrypt, char *secret, char *ckey);
-int32_t mmGetMonitorInfo(SDnode *pDnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
-                         SMonGrantInfo *pGrantInfo);
-
 
 #ifdef __cplusplus
 }

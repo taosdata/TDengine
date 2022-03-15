@@ -49,6 +49,10 @@ static void dndCloseNode(SMgmtWrapper *pWrapper) {
   if (pWrapper->required) {
     (*pWrapper->fp.closeFp)(pWrapper);
   }
+  if (pWrapper->pProc) {
+    taosProcCleanup(pWrapper->pProc);
+    pWrapper->pProc = NULL;
+  }
 }
 
 static void dndClearMemory(SDnode *pDnode) {
@@ -171,6 +175,7 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
     if (!pWrapper->required) continue;
 
     dInfo("node:%s, will start in single process", pWrapper->name);
+    pWrapper->procType = PROC_SINGLE;
     if (dndOpenNode(pWrapper) != 0) {
       dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
       return -1;
@@ -189,14 +194,67 @@ static void dndClearNodesExecpt(SDnode *pDnode, ENodeType except) {
   }
 }
 
+static void dndSendRpcRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
+  if (pRsp->code == TSDB_CODE_DND_MNODE_NOT_DEPLOYED || pRsp->code == TSDB_CODE_APP_NOT_READY) {
+    dmSendRedirectRsp(pWrapper->pDnode, pRsp);
+  } else {
+    rpcSendResponse(pRsp);
+  }
+}
+
+void dndSendRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
+  int32_t code = -1;
+
+  if (pWrapper->procType != PROC_CHILD) {
+    dndSendRpcRsp(pWrapper, pRsp);
+  } else {
+    do {
+      code = taosProcPutToParentQueue(pWrapper->pProc, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen);
+      if (code != 0) {
+        taosMsleep(10);
+      }
+    } while (code != 0);
+  }
+}
+
+static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen) {
+  dTrace("msg:%p, get from child queue", pMsg);
+  SRpcMsg *pRpc = &pMsg->rpcMsg;
+  pRpc->pCont = pCont;
+
+  NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pRpc->msgType)];
+  int32_t   code = (*msgFp)(pWrapper, pMsg);
+
+  if (code != 0) {
+    bool isReq = (pRpc->msgType & 1U);
+    if (isReq) {
+      SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
+      dndSendRsp(pWrapper, &rsp);
+    }
+
+    dTrace("msg:%p, is freed", pMsg);
+    taosFreeQitem(pMsg);
+    rpcFreeCont(pCont);
+  }
+}
+
+static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRsp, int32_t msgLen, void *pCont, int32_t contLen) {
+  dTrace("msg:%p, get from parent queue", pRsp);
+  pRsp->pCont = pCont;
+  dndSendRpcRsp(pWrapper, pRsp);
+  free(pRsp);
+}
+
 static int32_t dndRunInMultiProcess(SDnode *pDnode) {
+  dInfo("dnode run in multi process mode");
+
   for (ENodeType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     if (!pWrapper->required) continue;
 
     if (n == DNODE) {
       dInfo("node:%s, will start in parent process", pWrapper->name);
-      pWrapper->procType = PROC_PARENT;
+      pWrapper->procType = PROC_SINGLE;
       if (dndOpenNode(pWrapper) != 0) {
         dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
         return -1;
@@ -204,7 +262,21 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
       continue;
     }
 
-    SProcCfg  cfg = {0};
+    SProcCfg  cfg = {.childQueueSize = 1024 * 1024 * 2,  // size will be a configuration item
+                     .childConsumeFp = (ProcConsumeFp)dndConsumeChildQueue,
+                     .childMallocHeadFp = (ProcMallocFp)taosAllocateQitem,
+                     .childFreeHeadFp = (ProcFreeFp)taosFreeQitem,
+                     .childMallocBodyFp = (ProcMallocFp)rpcMallocCont,
+                     .childFreeBodyFp = (ProcFreeFp)rpcFreeCont,
+                     .parentQueueSize = 1024 * 1024 * 2,  // size will be a configuration item
+                     .parentConsumeFp = (ProcConsumeFp)dndConsumeParentQueue,
+                     .parentdMallocHeadFp = (ProcMallocFp)malloc,
+                     .parentFreeHeadFp = (ProcFreeFp)free,
+                     .parentMallocBodyFp = (ProcMallocFp)rpcMallocCont,
+                     .parentFreeBodyFp = (ProcFreeFp)rpcFreeCont,
+                     .testFlag = 0,
+                     .pParent = pWrapper,
+                     .name = pWrapper->name};
     SProcObj *pProc = taosProcInit(&cfg);
     if (pProc == NULL) {
       dError("node:%s, failed to fork since %s", pWrapper->name, terrstr());
@@ -226,6 +298,11 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
     } else {
       dInfo("node:%s, will not start in parent process", pWrapper->name);
       pWrapper->procType = PROC_PARENT;
+    }
+
+    if (taosProcRun(pProc) != 0) {
+      dError("node:%s, failed to run proc since %s", pWrapper->name, terrstr());
+      return -1;
     }
   }
 
@@ -275,14 +352,6 @@ static int32_t dndBuildMsg(SNodeMsg *pMsg, SRpcMsg *pRpc, SEpSet *pEpSet) {
   return 0;
 }
 
-static void dndSendRpcRsp(SDnode *pDnode, SRpcMsg *pRpc) {
-  if (pRpc->code == TSDB_CODE_APP_NOT_READY) {
-    dmSendRedirectRsp(pDnode, pRpc);
-  } else {
-    rpcSendResponse(pRpc);
-  }
-}
-
 void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSet) {
   if (pEpSet && pEpSet->numOfEps > 0 && pRpc->msgType == TDMT_MND_STATUS_RSP) {
     dmUpdateMnodeEpSet(pWrapper->pDnode, pEpSet);
@@ -307,16 +376,30 @@ void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSet) {
   }
 
   dTrace("msg:%p, is created, app:%p user:%s", pMsg, pRpc->ahandle, pMsg->user);
-  code = (*msgFp)(pWrapper, pMsg);
+
+  if (pWrapper->procType == PROC_SINGLE) {
+    code = (*msgFp)(pWrapper, pMsg);
+  } else if (pWrapper->procType == PROC_PARENT) {
+    code = taosProcPutToChildQueue(pWrapper->pProc, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen);
+  } else {
+    terrno = TSDB_CODE_MEMORY_CORRUPTED;
+    dError("msg:%p, won't be processed for it is child process", pMsg);
+  }
 
 _OVER:
 
-  if (code != 0) {
+  if (code == 0) {
+    if (pWrapper->procType == PROC_PARENT) {
+      dTrace("msg:%p, is freed", pMsg);
+      taosFreeQitem(pMsg);
+      rpcFreeCont(pRpc->pCont);
+    }
+  } else {
     dError("msg:%p, failed to process since %s", pMsg, terrstr());
     bool isReq = (pRpc->msgType & 1U);
     if (isReq) {
       SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
-      dndSendRpcRsp(pWrapper->pDnode, &rsp);
+      dndSendRsp(pWrapper, &rsp);
     }
     dTrace("msg:%p, is freed", pMsg);
     taosFreeQitem(pMsg);

@@ -348,13 +348,13 @@ SProcObj *taosProcInit(const SProcCfg *pCfg) {
 
   pProc->pChildQueue = taosProcQueueInit(pCfg->childQueueSize);
   pProc->pParentQueue = taosProcQueueInit(pCfg->parentQueueSize);
-    if (pProc->pChildQueue == NULL || pProc->pParentQueue == NULL) {
+  if (pProc->pChildQueue == NULL || pProc->pParentQueue == NULL) {
     taosProcQueueCleanup(pProc->pChildQueue);
     free(pProc);
     return NULL;
   }
 
-    pProc->pChildQueue->name = pCfg->name;
+  pProc->pChildQueue->name = pCfg->name;
   pProc->pChildQueue->pParent = pCfg->pParent;
   pProc->pChildQueue->mallocHeadFp = pCfg->childMallocHeadFp;
   pProc->pChildQueue->freeHeadFp = pCfg->childFreeHeadFp;
@@ -436,8 +436,7 @@ int32_t taosProcRun(SProcObj *pProc) {
 
 void taosProcStop(SProcObj *pProc) {
   pProc->stopFlag = true;
-  // todo
-  // join
+  // todo join
 }
 
 bool taosProcIsChild(SProcObj *pProc) { return pProc->isChild; }
@@ -445,6 +444,7 @@ bool taosProcIsChild(SProcObj *pProc) { return pProc->isChild; }
 void taosProcCleanup(SProcObj *pProc) {
   if (pProc != NULL) {
     uDebug("proc:%s, clean up", pProc->name);
+    taosProcStop(pProc);
     taosProcQueueCleanup(pProc->pChildQueue);
     taosProcQueueCleanup(pProc->pParentQueue);
     free(pProc);

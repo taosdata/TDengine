@@ -57,7 +57,7 @@ static void *dmThreadRoutine(void *param) {
 static void dmProcessMgmtQueue(SDnode *pDnode, SNodeMsg *pNodeMsg) {
   int32_t  code = 0;
   SRpcMsg *pMsg = &pNodeMsg->rpcMsg;
-  dTrace("msg:%p, will be processed in mgmt queue", pNodeMsg);
+  dTrace("msg:%p, will be processed", pNodeMsg);
 
   switch (pMsg->msgType) {
     case TDMT_DND_CREATE_MNODE:

@@ -14,22 +14,19 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mmInt.h"
+#include "mmFile.h"
 
-#if 0
-int32_t mmReadFile(SDnode *pDnode) {
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
+int32_t mmReadFile(SMnodeMgmt *pMgmt) {
+  int32_t   code = TSDB_CODE_DND_MNODE_READ_FILE_ERROR;
+  int32_t   len = 0;
+  int32_t   maxLen = 4096;
+  char     *content = calloc(1, maxLen + 1);
+  cJSON    *root = NULL;
+  char      file[PATH_MAX];
+  TdFilePtr pFile = NULL;
 
-  int32_t code = TSDB_CODE_DND_MNODE_READ_FILE_ERROR;
-  int32_t len = 0;
-  int32_t maxLen = 4096;
-  char   *content = calloc(1, maxLen + 1);
-  cJSON  *root = NULL;
-  char    file[PATH_MAX + 20];
-
-  snprintf(file, sizeof(file), "%s%smnode.json", pDnode->dir.dnode, TD_DIRSEP);
-
-  TdFilePtr pFile = taosOpenFile(file, TD_FILE_READ);
+  snprintf(file, sizeof(file), "%s%smnode.json", pMgmt->path, TD_DIRSEP);
+  pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
     dDebug("file %s not exist", file);
     code = 0;
@@ -115,11 +112,9 @@ PRASE_MNODE_OVER:
   return code;
 }
 
-int32_t mmWriteFile(SDnode *pDnode) {
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-
+int32_t mmWriteFile(SMnodeMgmt *pMgmt) {
   char file[PATH_MAX];
-  snprintf(file, sizeof(file), "%s%smnode.json.bak", pDnode->dir.dnode, TD_DIRSEP);
+  snprintf(file, sizeof(file), "%s%smnode.json.bak", pMgmt->path, TD_DIRSEP);
 
   TdFilePtr pFile = taosOpenFile(file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
@@ -156,7 +151,7 @@ int32_t mmWriteFile(SDnode *pDnode) {
   free(content);
 
   char realfile[PATH_MAX + 20];
-  snprintf(realfile, sizeof(realfile), "%s%smnode.json", pDnode->dir.dnode, TD_DIRSEP);
+  snprintf(realfile, sizeof(realfile), "%s%smnode.json", pMgmt->path, TD_DIRSEP);
 
   if (taosRenameFile(file, realfile) != 0) {
     terrno = TSDB_CODE_DND_MNODE_WRITE_FILE_ERROR;
@@ -167,5 +162,3 @@ int32_t mmWriteFile(SDnode *pDnode) {
   dInfo("successed to write %s, deployed:%d dropped:%d", realfile, pMgmt->deployed, pMgmt->dropped);
   return 0;
 }
-
-#endif

@@ -108,6 +108,7 @@ void dmSendRedirectRsp(SDnode *pDnode, SRpcMsg *pReq) {
 int32_t dmInit(SMgmtWrapper *pWrapper) {
   SDnode     *pDnode = pWrapper->pDnode;
   SDnodeMgmt *pMgmt = calloc(1, sizeof(SDnodeMgmt));
+  dInfo("dnode-mgmt is initialized");
 
   pMgmt->dnodeId = 0;
   pMgmt->dropped = 0;
@@ -120,23 +121,23 @@ int32_t dmInit(SMgmtWrapper *pWrapper) {
 
   pMgmt->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   if (pMgmt->dnodeHash == NULL) {
-    dError("node:%s, failed to init dnode hash", pWrapper->name);
+    dError("failed to init dnode hash");
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
   if (dmReadFile(pMgmt) != 0) {
-    dError("node:%s, failed to read file since %s", pWrapper->name, terrstr());
+    dError("failed to read file since %s", terrstr());
     return -1;
   }
 
   if (pMgmt->dropped) {
-    dError("node:%s, will not start since its already dropped", pWrapper->name);
+    dError("dnode will not start since its already dropped");
     return -1;
   }
 
   if (dmStartWorker(pMgmt) != 0) {
-    dError("node:%s, failed to start worker since %s", pWrapper->name, terrstr());
+    dError("failed to start dnode worker since %s", terrstr());
     return -1;
   }
 
@@ -153,6 +154,7 @@ void dmCleanup(SMgmtWrapper *pWrapper) {
   SDnodeMgmt *pMgmt = pWrapper->pMgmt;
   if (pMgmt == NULL) return;
 
+  dInfo("dnode-mgmt start to clean up");
   dmStopWorker(pMgmt);
 
   taosWLockLatch(&pMgmt->latch);
@@ -168,6 +170,9 @@ void dmCleanup(SMgmtWrapper *pWrapper) {
   }
 
   taosWUnLockLatch(&pMgmt->latch);
+
+  free(pMgmt);
+  pWrapper->pMgmt = NULL;
   dInfo("dnode-mgmt is cleaned up");
 }
 

@@ -15,12 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "mmMsg.h"
+#include "dmInt.h"
 #include "mmWorker.h"
 
-#if 0
-#include "dmInt.h"
-
 int32_t mmProcessCreateReq(SDnode *pDnode, SRpcMsg *pReq) {
+  SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, MNODE);
+  SMnodeMgmt   *pMgmt = pWrapper->pMgmt;
+
   SDCreateMnodeReq createReq = {0};
   if (tDeserializeSDCreateMnodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -34,25 +35,28 @@ int32_t mmProcessCreateReq(SDnode *pDnode, SRpcMsg *pReq) {
   }
 
   SMnodeOpt option = {0};
-  if (mmBuildOptionFromReq(pDnode, &option, &createReq) != 0) {
+  if (mmBuildOptionFromReq(pMgmt, &option, &createReq) != 0) {
     terrno = TSDB_CODE_DND_MNODE_INVALID_OPTION;
     dError("failed to create mnode since %s", terrstr());
     return -1;
   }
 
-  SMnode *pMnode = mmAcquire(pDnode);
+  SMnode *pMnode = mmAcquire(pMgmt);
   if (pMnode != NULL) {
-    mmRelease(pDnode, pMnode);
+    mmRelease(pMgmt, pMnode);
     terrno = TSDB_CODE_DND_MNODE_ALREADY_DEPLOYED;
     dError("failed to create mnode since %s", terrstr());
     return -1;
   }
 
   dDebug("start to create mnode");
-  return mmOpen(pDnode, &option);
+  return mmOpen(pMgmt, &option);
 }
 
 int32_t mmProcessAlterReq(SDnode *pDnode, SRpcMsg *pReq) {
+  SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, MNODE);
+  SMnodeMgmt   *pMgmt = pWrapper->pMgmt;
+
   SDAlterMnodeReq alterReq = {0};
   if (tDeserializeSDCreateMnodeReq(pReq->pCont, pReq->contLen, &alterReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -66,13 +70,13 @@ int32_t mmProcessAlterReq(SDnode *pDnode, SRpcMsg *pReq) {
   }
 
   SMnodeOpt option = {0};
-  if (mmBuildOptionFromReq(pDnode, &option, &alterReq) != 0) {
+  if (mmBuildOptionFromReq(pMgmt, &option, &alterReq) != 0) {
     terrno = TSDB_CODE_DND_MNODE_INVALID_OPTION;
     dError("failed to alter mnode since %s", terrstr());
     return -1;
   }
 
-  SMnode *pMnode = mmAcquire(pDnode);
+  SMnode *pMnode = mmAcquire(pMgmt);
   if (pMnode == NULL) {
     terrno = TSDB_CODE_DND_MNODE_NOT_DEPLOYED;
     dError("failed to alter mnode since %s", terrstr());
@@ -80,13 +84,16 @@ int32_t mmProcessAlterReq(SDnode *pDnode, SRpcMsg *pReq) {
   }
 
   dDebug("start to alter mnode");
-  int32_t code = mmAlter(pDnode, &option);
-  mmRelease(pDnode, pMnode);
+  int32_t code = mmAlter(pMgmt, &option);
+  mmRelease(pMgmt, pMnode);
 
   return code;
 }
 
 int32_t mmProcessDropReq(SDnode *pDnode, SRpcMsg *pReq) {
+  SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, MNODE);
+  SMnodeMgmt   *pMgmt = pWrapper->pMgmt;
+
   SDDropMnodeReq dropReq = {0};
   if (tDeserializeSMCreateDropMnodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -99,7 +106,7 @@ int32_t mmProcessDropReq(SDnode *pDnode, SRpcMsg *pReq) {
     return -1;
   }
 
-  SMnode *pMnode = mmAcquire(pDnode);
+  SMnode *pMnode = mmAcquire(pMgmt);
   if (pMnode == NULL) {
     terrno = TSDB_CODE_DND_MNODE_NOT_DEPLOYED;
     dError("failed to drop mnode since %s", terrstr());
@@ -107,44 +114,11 @@ int32_t mmProcessDropReq(SDnode *pDnode, SRpcMsg *pReq) {
   }
 
   dDebug("start to drop mnode");
-  int32_t code = mmDrop(pDnode);
-  mmRelease(pDnode, pMnode);
+  int32_t code = mmDrop(pMgmt);
+  mmRelease(pMgmt, pMnode);
 
   return code;
 }
-
-int32_t mmGetMonitorInfo(SDnode *pDnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
-                         SMonGrantInfo *pGrantInfo) {
-  SMnode *pMnode = mmAcquire(pDnode);
-  if (pMnode == NULL) return -1;
-
-  int32_t code = mndGetMonitorInfo(pMnode, pClusterInfo, pVgroupInfo, pGrantInfo);
-  mmRelease(pDnode, pMnode);
-  return code;
-}
-
-int32_t mmGetUserAuth(SDnode *pDnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-
-  SMnode *pMnode = mmAcquire(pDnode);
-  if (pMnode == NULL) {
-    terrno = TSDB_CODE_APP_NOT_READY;
-    dTrace("failed to get user auth since %s", terrstr());
-    return -1;
-  }
-
-  int32_t code = mndRetriveAuth(pMnode, user, spi, encrypt, secret, ckey);
-  mmRelease(pDnode, pMnode);
-
-  dTrace("user:%s, retrieve auth spi:%d encrypt:%d", user, *spi, *encrypt);
-  return code;
-}
-
-#endif
-
-int32_t mmProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {return 0;}
-int32_t mmProcessAlterReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {return 0;}
-int32_t mmProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {return 0;}
 
 void mmInitMsgHandles(SMgmtWrapper *pWrapper) {
   // Requests handled by DNODE

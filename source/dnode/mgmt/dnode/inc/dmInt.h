@@ -51,9 +51,6 @@ void    dmUpdateMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet);
 void    dmGetDnodeEp(SDnode *pDnode, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort);
 void    dmSendRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg);
 
-// dmHandle.h
-void dmProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
-
 #ifdef __cplusplus
 }
 #endif

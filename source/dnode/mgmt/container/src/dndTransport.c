@@ -25,8 +25,7 @@
 static void dndProcessResponse(void *parent, SRpcMsg *pRsp, SEpSet *pEpSet) {
   SDnode     *pDnode = parent;
   STransMgmt *pMgmt = &pDnode->trans;
-
-  tmsg_t msgType = pRsp->msgType;
+  tmsg_t      msgType = pRsp->msgType;
 
   if (dndGetStatus(pDnode) == DND_STAT_STOPPED) {
     if (pRsp == NULL || pRsp->pCont == NULL) return;
@@ -88,11 +87,11 @@ void dndCleanupClient(SDnode *pDnode) {
 static void dndProcessRequest(void *param, SRpcMsg *pReq, SEpSet *pEpSet) {
   SDnode     *pDnode = param;
   STransMgmt *pMgmt = &pDnode->trans;
+  tmsg_t      msgType = pReq->msgType;
 
-  tmsg_t msgType = pReq->msgType;
   if (msgType == TDMT_DND_NETWORK_TEST) {
     dTrace("RPC %p, network test req will be processed, app:%p", pReq->handle, pReq->ahandle);
-    dmProcessStartupReq(pDnode, pReq);
+    dndProcessStartupReq(pDnode, pReq);
     return;
   }
 
@@ -249,8 +248,8 @@ void dndCleanupServer(SDnode *pDnode) {
 int32_t dndInitMsgHandle(SDnode *pDnode) {
   STransMgmt *pMgmt = &pDnode->trans;
 
-  for (ENodeType nodeType = 0; nodeType < NODE_MAX; ++nodeType) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[nodeType];
+  for (ENodeType n = 0; n < NODE_MAX; ++n) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
 
     for (int32_t msgIndex = 0; msgIndex < TDMT_MAX; ++msgIndex) {
       NodeMsgFp msgFp = pWrapper->msgFps[msgIndex];

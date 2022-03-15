@@ -56,7 +56,7 @@ extern "C" {
 #define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND ", DEBUG_DEBUG, dDebugFlag, __VA_ARGS__); }}
 #define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", DEBUG_TRACE, dDebugFlag, __VA_ARGS__); }}
 
-typedef enum { MNODE, VNODES, QNODE, SNODE, BNODE, DNODE, NODE_MAX } ENodeType;
+typedef enum { VNODES, QNODE, SNODE, MNODE, BNODE, DNODE, NODE_MAX } ENodeType;
 typedef enum { PROC_SINGLE, PROC_CHILD, PROC_PARENT } EProcType;
 typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EDndStatus;
 typedef enum { DND_WORKER_SINGLE, DND_WORKER_MULTI } EWorkerType;
@@ -77,29 +77,6 @@ typedef int32_t (*OpenNodeFp)(SMgmtWrapper *pWrapper);
 typedef void (*CloseNodeFp)(SMgmtWrapper *pWrapper);
 typedef bool (*RequireNodeFp)(SMgmtWrapper *pWrapper);
 
-typedef struct SMsgHandle {
-  NodeMsgFp     msgFp;
-  SMgmtWrapper *pWrapper;
-} SMsgHandle;
-
-typedef struct SMgmtFp {
-  OpenNodeFp     openFp;
-  CloseNodeFp    closeFp;
-  RequireNodeFp  requiredFp;
-} SMgmtFp;
-
-typedef struct SMgmtWrapper {
-  const char *name;
-  char       *path;
-  bool        required;
-  EProcType   procType;
-  SProcObj   *pProc;
-  void       *pMgmt;
-  SDnode     *pDnode;
-  NodeMsgFp   msgFps[TDMT_MAX];
-  SMgmtFp     fp;
-} SMgmtWrapper;
-
 typedef struct {
   EWorkerType type;
   const char *name;
@@ -113,6 +90,29 @@ typedef struct {
     SWWorkerPool mpool;
   };
 } SDnodeWorker;
+
+typedef struct SMsgHandle {
+  NodeMsgFp     msgFp;
+  SMgmtWrapper *pWrapper;
+} SMsgHandle;
+
+typedef struct SMgmtFp {
+  OpenNodeFp    openFp;
+  CloseNodeFp   closeFp;
+  RequireNodeFp requiredFp;
+} SMgmtFp;
+
+typedef struct SMgmtWrapper {
+  const char *name;
+  char       *path;
+  bool        required;
+  EProcType   procType;
+  SProcObj   *pProc;
+  void       *pMgmt;
+  SDnode     *pDnode;
+  NodeMsgFp   msgFps[TDMT_MAX];
+  SMgmtFp     fp;
+} SMgmtWrapper;
 
 typedef struct {
   void      *serverRpc;
@@ -143,6 +143,7 @@ void          dndGetStartup(SDnode *pDnode, SStartupReq *pStartup);
 TdFilePtr     dndCheckRunning(char *dataDir);
 SMgmtWrapper *dndGetWrapper(SDnode *pDnode, ENodeType nodeType);
 void          dndSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp);
+void          dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
 
 // dndMonitor.h
 void dndSendMonitorReport(SDnode *pDnode);
@@ -153,6 +154,7 @@ void    dndClose(SDnode *pDnode);
 int32_t dndRun(SDnode *pDnode);
 void    dndeHandleEvent(SDnode *pDnode, EDndEvent event);
 void    dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet);
+void    dndSendRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp);
 
 // dndTransport.h
 int32_t dndSendReqToMnode(SDnode *pDnode, SRpcMsg *pRpcMsg);

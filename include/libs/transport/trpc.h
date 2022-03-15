@@ -51,6 +51,7 @@ typedef struct {
   SRpcMsg rpcMsg;
   int32_t rspLen;
   void   *pRsp;
+  void   *pNode;
 } SNodeMsg;
 
 typedef struct SRpcInit {
