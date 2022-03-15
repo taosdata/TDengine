@@ -1,8 +1,6 @@
 
 #include "clientInt.h"
 #include "clientLog.h"
-#include "parser.h"
-#include "planner.h"
 #include "scheduler.h"
 #include "tdatablock.h"
 #include "tdef.h"
@@ -195,11 +193,7 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList) {
   pRequest->type = pQuery->msgType;
   SPlanContext cxt = { .queryId = pRequest->requestId, .pAstRoot = pQuery->pRoot, .acctId = pRequest->pTscObj->acctId };
-  int32_t  code = qCreateQueryPlan(&cxt, pPlan, pNodeList);
-  if (code != 0) {
-    return code;
-  }
-  return code;
+  return qCreateQueryPlan(&cxt, pPlan, pNodeList);
 }
 
 void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols) {
@@ -214,7 +208,6 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
     tstrncpy(pResInfo->fields[i].name, pSchema[i].name, tListLen(pResInfo->fields[i].name));
   }
 }
-
 
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList) {
   void* pTransporter = pRequest->pTscObj->pAppInfo->pTransporter;

@@ -14,6 +14,10 @@
  */
 
 #include "syncRequestVoteReply.h"
+#include "syncInt.h"
+#include "syncRaftStore.h"
+#include "syncUtil.h"
+#include "syncVoteMgr.h"
 
 // TLA+ Spec
 // HandleRequestVoteResponse(i, j, m) ==
@@ -32,4 +36,33 @@
 //    /\ Discard(m)
 //    /\ UNCHANGED <<serverVars, votedFor, leaderVars, logVars>>
 //
-int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg) { return 0; }
+int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg) {
+  int32_t ret = 0;
+  syncRequestVoteReplyLog2("==syncNodeOnRequestVoteReplyCb==", pMsg);
+
+  if (pMsg->term < ths->pRaftStore->currentTerm) {
+    sTrace("DropStaleResponse, receive term:%" PRIu64 ", current term:%" PRIu64 "", pMsg->term, ths->pRaftStore->currentTerm);
+    return ret;
+  }
+
+  // no need this code, because if I receive reply.term, then I must have sent for that term.
+  //  if (pMsg->term > ths->pRaftStore->currentTerm) {
+  //    syncNodeUpdateTerm(ths, pMsg->term);
+  //  }
+
+  assert(pMsg->term == ths->pRaftStore->currentTerm);
+
+  if (ths->state == TAOS_SYNC_STATE_CANDIDATE) {
+    votesRespondAdd(ths->pVotesRespond, pMsg);
+    if (pMsg->voteGranted) {
+      voteGrantedVote(ths->pVotesGranted, pMsg);
+      if (voteGrantedMajority(ths->pVotesGranted)) {
+        if (ths->pVotesGranted->toLeader) {
+          syncNodeCandidate2Leader(ths);
+          ths->pVotesGranted->toLeader = true;
+        }
+      }
+    }
+  }
+  return ret;
+}

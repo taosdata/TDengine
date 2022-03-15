@@ -240,11 +240,11 @@ typedef struct STaskAttr {
   SArray*         pUdfInfo;  // no need to free
 } STaskAttr;
 
-typedef int32_t (*__optr_open_fn_t)(void* param);
-typedef SSDataBlock* (*__optr_fn_t)(void* param, bool* newgroup);
-typedef void (*__optr_close_fn_t)(void* param, int32_t num);
-
 struct SOperatorInfo;
+
+typedef int32_t (*__optr_open_fn_t)(struct SOperatorInfo* param);
+typedef SSDataBlock* (*__optr_fn_t)(struct SOperatorInfo* param, bool* newgroup);
+typedef void (*__optr_close_fn_t)(void* param, int32_t num);
 
 typedef struct STaskIdInfo {
   uint64_t queryId;  // this is also a request id
@@ -275,36 +275,36 @@ typedef struct SExecTaskInfo {
 } SExecTaskInfo;
 
 typedef struct STaskRuntimeEnv {
-  jmp_buf    env;
-  STaskAttr* pQueryAttr;
-  uint32_t   status;  // query status
-  void*      qinfo;
-  uint8_t    scanFlag;  // denotes reversed scan of data or not
-  void*      pTsdbReadHandle;
+  jmp_buf         env;
+  STaskAttr*      pQueryAttr;
+  uint32_t        status;  // query status
+  void*           qinfo;
+  uint8_t         scanFlag;  // denotes reversed scan of data or not
+  void*           pTsdbReadHandle;
 
-  int32_t              prevGroupId;  // previous executed group id
-  bool                 enableGroupData;
-  SDiskbasedBuf* pResultBuf;           // query result buffer based on blocked-wised disk file
-  SHashObj*            pResultRowHashTable;  // quick locate the window object for each result
-  SHashObj*            pResultRowListSet;    // used to check if current ResultRowInfo has ResultRow object or not
-  SArray*              pResultRowArrayList;  // The array list that contains the Result rows
-  char*                keyBuf;               // window key buffer
+  int32_t         prevGroupId;  // previous executed group id
+  bool            enableGroupData;
+  SDiskbasedBuf*  pResultBuf;           // query result buffer based on blocked-wised disk file
+  SHashObj*       pResultRowHashTable;  // quick locate the window object for each result
+  SHashObj*       pResultRowListSet;    // used to check if current ResultRowInfo has ResultRow object or not
+  SArray*         pResultRowArrayList;  // The array list that contains the Result rows
+  char*           keyBuf;               // window key buffer
   // The window result objects pool, all the resultRow Objects are allocated and managed by this object.
-  char** prevRow;
+  char**          prevRow;
   SResultRowPool* pool;
 
-  SArray*   prevResult;  // intermediate result, SArray<SInterResult>
-  STSBuf*   pTsBuf;      // timestamp filter list
-  STSCursor cur;
+  SArray*         prevResult;  // intermediate result, SArray<SInterResult>
+  STSBuf*         pTsBuf;      // timestamp filter list
+  STSCursor       cur;
 
-  char*                          tagVal;  // tag value of current data block
+  char*           tagVal;  // tag value of current data block
   struct SScalarFunctionSupport* scalarSup;
 
   SSDataBlock*    outputBuf;
   STableGroupInfo tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   struct SOperatorInfo* proot;
-  SGroupResInfo         groupResInfo;
-  int64_t               currentOffset;  // dynamic offset value
+  SGroupResInfo   groupResInfo;
+  int64_t         currentOffset;  // dynamic offset value
 
   STableQueryInfo* current;
   SRspResultInfo   resultInfo;
@@ -328,7 +328,7 @@ typedef struct SOperatorInfo {
   char*                  name;          // name, used to show the query execution plan
   void*                  info;          // extension attribution
   SExprInfo*             pExpr;
-  STaskRuntimeEnv*       pRuntimeEnv;  // todo remove it
+  STaskRuntimeEnv*       pRuntimeEnv;   // todo remove it
   SExecTaskInfo*         pTaskInfo;
   SOperatorCostInfo      cost;
 
@@ -364,28 +364,6 @@ typedef struct SQInfo {
   char*           sql;          // query sql string
   STaskCostInfo   summary;
 } SQInfo;
-
-typedef struct STaskParam {
-  char*      sql;
-  char*      tagCond;
-  char*      colCond;
-  char*      tbnameCond;
-  char*      prevResult;
-  SArray*    pTableIdList;
-  SExprBasicInfo** pExpr;
-  SExprBasicInfo** pSecExpr;
-  SExprInfo* pExprs;
-  SExprInfo* pSecExprs;
-
-  SFilterInfo* pFilters;
-
-  SColIndex*       pGroupColIndex;
-  SColumnInfo*     pTagColumnInfo;
-  SGroupbyExpr*    pGroupbyExpr;
-  int32_t          tableScanOperator;
-  SArray*          pOperator;
-  struct SUdfInfo* pUdfInfo;
-} STaskParam;
 
 enum {
   EX_SOURCE_DATA_NOT_READY = 0x1,
@@ -472,75 +450,75 @@ typedef struct SSysTableScanInfo {
 } SSysTableScanInfo;
 
 typedef struct SOptrBasicInfo {
-  SResultRowInfo  resultRowInfo;
-  int32_t*        rowCellInfoOffset;  // offset value for each row result cell info
-  SqlFunctionCtx* pCtx;
-  SSDataBlock*    pRes;
-  int32_t         capacity;
+  SResultRowInfo     resultRowInfo;
+  int32_t*           rowCellInfoOffset;  // offset value for each row result cell info
+  SqlFunctionCtx*    pCtx;
+  SSDataBlock*       pRes;
+  int32_t            capacity;
 } SOptrBasicInfo;
 
 //TODO move the resultrowsiz together with SOptrBasicInfo:rowCellInfoOffset
 typedef struct SAggSupporter {
-  SHashObj*            pResultRowHashTable;  // quick locate the window object for each result
-  SHashObj*            pResultRowListSet;    // used to check if current ResultRowInfo has ResultRow object or not
-  SArray*              pResultRowArrayList;  // The array list that contains the Result rows
-  char*                keyBuf;               // window key buffer
-  SResultRowPool      *pool;  // The window result objects pool, all the resultRow Objects are allocated and managed by this object.
-  int32_t              resultRowSize;        // the result buffer size for each result row, with the meta data size for each row
+  SHashObj*          pResultRowHashTable;  // quick locate the window object for each result
+  SHashObj*          pResultRowListSet;    // used to check if current ResultRowInfo has ResultRow object or not
+  SArray*            pResultRowArrayList;  // The array list that contains the Result rows
+  char*              keyBuf;               // window key buffer
+  SDiskbasedBuf     *pResultBuf;           // query result buffer based on blocked-wised disk file
+  int32_t            resultRowSize;        // the result buffer size for each result row, with the meta data size for each row
 } SAggSupporter;
 
 typedef struct STableIntervalOperatorInfo {
-  SOptrBasicInfo       binfo;
-  SDiskbasedBuf       *pResultBuf;           // query result buffer based on blocked-wised disk file
-  SGroupResInfo        groupResInfo;
-  SInterval            interval;
-  STimeWindow          win;
-  int32_t              precision;
-  bool                 timeWindowInterpo;
-  char               **pRow;
-  SAggSupporter        aggSup;
-  STableQueryInfo     *pCurrent;
-  int32_t              order;
+  SOptrBasicInfo     binfo;
+  SGroupResInfo      groupResInfo;
+  SInterval          interval;
+  STimeWindow        win;
+  int32_t            precision;
+  bool               timeWindowInterpo;
+  char             **pRow;
+  SAggSupporter      aggSup;
+  STableQueryInfo   *pCurrent;
+  int32_t            order;
 } STableIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
-  SOptrBasicInfo       binfo;
-  SDiskbasedBuf       *pResultBuf;           // query result buffer based on blocked-wised disk file
-  SAggSupporter        aggSup;
-  STableQueryInfo     *current;
-  uint32_t             groupId;
-  SGroupResInfo        groupResInfo;
-  STableQueryInfo     *pTableQueryInfo;
+  SOptrBasicInfo     binfo;
+  SDiskbasedBuf     *pResultBuf;           // query result buffer based on blocked-wised disk file
+  SAggSupporter      aggSup;
+  STableQueryInfo   *current;
+  uint32_t           groupId;
+  SGroupResInfo      groupResInfo;
+  STableQueryInfo   *pTableQueryInfo;
 } SAggOperatorInfo;
 
 typedef struct SProjectOperatorInfo {
-  SOptrBasicInfo binfo;
-  SSDataBlock* existDataBlock;
+  SOptrBasicInfo     binfo;
+  SSDataBlock       *existDataBlock;
+  int32_t            threshold;
+  bool               hasVarCol;
 } SProjectOperatorInfo;
 
 typedef struct SLimitOperatorInfo {
-  int64_t limit;
-  int64_t total;
+  SLimit             limit;
+  int64_t            currentOffset;
+  int64_t            currentRows;
 } SLimitOperatorInfo;
 
 typedef struct SSLimitOperatorInfo {
-  int64_t groupTotal;
-  int64_t currentGroupOffset;
-
-  int64_t rowsTotal;
-  int64_t currentOffset;
-  SLimit  limit;
-  SLimit  slimit;
-
-  char**       prevRow;
-  SArray*      orderColumnList;
-  bool         hasPrev;
-  bool         ignoreCurrentGroup;
-  bool         multigroupResult;
-  SSDataBlock* pRes;  // result buffer
-  SSDataBlock* pPrevBlock;
-  int64_t      capacity;
-  int64_t      threshold;
+  int64_t            groupTotal;
+  int64_t            currentGroupOffset;
+  int64_t            rowsTotal;
+  int64_t            currentOffset;
+  SLimit             limit;
+  SLimit             slimit;
+  char**             prevRow;
+  SArray*            orderColumnList;
+  bool               hasPrev;
+  bool               ignoreCurrentGroup;
+  bool               multigroupResult;
+  SSDataBlock*       pRes;  // result buffer
+  SSDataBlock*       pPrevBlock;
+  int64_t            capacity;
+  int64_t            threshold;
 } SSLimitOperatorInfo;
 
 typedef struct SFilterOperatorInfo {
@@ -563,14 +541,15 @@ typedef struct SGroupbyOperatorInfo {
   char*          prevData;  // previous group by value
 } SGroupbyOperatorInfo;
 
-typedef struct SSWindowOperatorInfo {
+typedef struct SSessionAggOperatorInfo {
   SOptrBasicInfo binfo;
+  SAggSupporter  aggSup;
   STimeWindow    curWindow;  // current time window
   TSKEY          prevTs;     // previous timestamp
   int32_t        numOfRows;  // number of rows
   int32_t        start;      // start row index
   bool           reptScan;   // next round scan
-} SSWindowOperatorInfo;
+} SSessionAggOperatorInfo;
 
 typedef struct SStateWindowOperatorInfo {
   SOptrBasicInfo binfo;
@@ -581,23 +560,6 @@ typedef struct SStateWindowOperatorInfo {
   char*          prevData;  // previous data
   bool           reptScan;
 } SStateWindowOperatorInfo;
-
-typedef struct SDistinctDataInfo {
-  int32_t index;
-  int32_t type;
-  int32_t bytes;
-} SDistinctDataInfo;
-
-typedef struct SDistinctOperatorInfo {
-  SHashObj*    pSet;
-  SSDataBlock* pRes;
-  bool         recordNullVal;  // has already record the null value, no need to try again
-  int64_t      threshold;
-  int64_t      outputCapacity;
-  int32_t      totalBytes;
-  char*        buf;
-  SArray*      pDistinctDataInfo;
-} SDistinctOperatorInfo;
 
 typedef struct SSortedMergeOperatorInfo {
   SOptrBasicInfo     binfo;
@@ -624,45 +586,61 @@ typedef struct SSortedMergeOperatorInfo {
 } SSortedMergeOperatorInfo;
 
 typedef struct SOrderOperatorInfo {
-  uint32_t                sortBufSize;  // max buffer size for in-memory sort
-  SSDataBlock            *pDataBlock;
-  bool                    hasVarCol;    // has variable length column, such as binary/varchar/nchar
-  SArray                 *orderInfo;
-  bool                    nullFirst;
-  SSortHandle            *pSortHandle;
-
-  int32_t                 bufPageSize;
-  int32_t                 numOfRowsInRes;
+  uint32_t           sortBufSize;  // max buffer size for in-memory sort
+  SSDataBlock       *pDataBlock;
+  bool               hasVarCol;    // has variable length column, such as binary/varchar/nchar
+  SArray            *orderInfo;
+  bool               nullFirst;
+  SSortHandle       *pSortHandle;
+  int32_t            bufPageSize;
+  int32_t            numOfRowsInRes;
 
   // TODO extact struct
-  int64_t                 startTs;       // sort start time
-  uint64_t                sortElapsed;   // sort elapsed time, time to flush to disk not included.
-  uint64_t                totalSize;     // total load bytes from remote
-  uint64_t                totalRows;     // total number of rows
-  uint64_t                totalElapsed;  // total elapsed time
+  int64_t            startTs;       // sort start time
+  uint64_t           sortElapsed;   // sort elapsed time, time to flush to disk not included.
+  uint64_t           totalSize;     // total load bytes from remote
+  uint64_t           totalRows;     // total number of rows
+  uint64_t           totalElapsed;  // total elapsed time
 } SOrderOperatorInfo;
+
+typedef struct SDistinctDataInfo {
+  int32_t index;
+  int32_t type;
+  int32_t bytes;
+} SDistinctDataInfo;
+
+typedef struct SDistinctOperatorInfo {
+  SHashObj*    pSet;
+  SSDataBlock* pRes;
+  bool         recordNullVal;  // has already record the null value, no need to try again
+  int64_t      threshold;
+  int64_t      outputCapacity;
+  int32_t      totalBytes;
+  char*        buf;
+  SArray*      pDistinctDataInfo;
+} SDistinctOperatorInfo;
 
 SOperatorInfo* createExchangeOperatorInfo(const SNodeList* pSources, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput,
                                            int32_t repeatTime, int32_t reverseTime, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
-SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
-SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
-SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createOrderOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SArray* pOrderVal, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t numOfDownstream, SArray* pExprInfo, SArray* pOrderVal, SArray* pGroupInfo, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock,
+                                           SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
+SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
+SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t num, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createOrderOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SArray* pOrderVal, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t numOfDownstream, SExprInfo* pExprInfo, int32_t num, SArray* pOrderVal, SArray* pGroupInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, const SArray* pExprInfo, const SSchema* pSchema,
                                               int32_t tableType, SEpSet epset, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createLimitOperatorInfo(SOperatorInfo* downstream, int32_t numOfDownstream, SLimit* pLimit, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream);
-SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SInterval* pInterval, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SInterval* pInterval,
+                                          const STableGroupInfo* pTableGroupInfo, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream);
-
+SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
 SOperatorInfo* createAllTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
                                                  SExprInfo* pExpr, int32_t numOfOutput);
-SOperatorInfo* createSWindowOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr,
-                                         int32_t numOfOutput);
+
 SOperatorInfo* createFillOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr,
                                       int32_t numOfOutput, bool multigroupResult);
 SOperatorInfo* createGroupbyOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr,
@@ -699,15 +677,12 @@ SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numO
 void* doDestroyFilterInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols);
 
 void setInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order);
-void finalizeQueryResult(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo,
-                         int32_t* rowCellInfoOffset);
+void finalizeQueryResult(SqlFunctionCtx* pCtx, int32_t numOfOutput);
+
 void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t* bufCapacity);
 void copyTsColoum(SSDataBlock* pRes, SqlFunctionCtx* pCtx, int32_t numOfOutput);
 
 int32_t createQueryFilter(char* data, uint16_t len, SFilterInfo** pFilters);
-
-int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, void* sourceOptr, SQInfo* pQInfo, STaskParam* param, char* start,
-                  int32_t prevResultLen, void* merger);
 
 int32_t createFilterInfo(STaskAttr* pQueryAttr, uint64_t qId);
 void    freeColumnFilterInfo(SColumnFilterInfo* pFilter, int32_t numOfFilters);

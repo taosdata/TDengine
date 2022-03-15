@@ -14,13 +14,19 @@ $st = $stPrefix . $i
 $tb = $tbPrefix . $i
 
 print =============== step1
-sql create database $db replica 1 days 20 keep 2000 cache 16 vgroups 4
+# quorum  presicion 
+sql create database $db vgroups 8 replica 1 days 20 keep 3650 cache 32 blocks 12 minrows 80 maxrows 10000 wal 2 fsync 1000 comp 0 cachelast 2 precision 'us'
 sql show databases
-print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07
+print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1 $data5_1  $data6_1  $data7_1  $data8_1  $data9_1
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+if $rows != 1 then 
+  return -1
+endi
 if $data00 != $db then 
   return -1
 endi
-if $data02 != 4 then 
+if $data02 != 8 then 
   return -1
 endi
 if $data03 != 0 then 
@@ -32,16 +38,23 @@ endi
 if $data06 != 20 then 
   return -1
 endi
-if $data08 != 16 then 
+if $data07 != 3650,3650,3650 then 
+  return -1
+endi
+if $data08 != 32 then 
+  return -1
+endi
+if $data09 != 12 then 
   return -1
 endi
  
 print =============== step2
-sql create database $db
+sql_error create database $db
+sql create database if not exists $db
 sql show databases
 if $rows != 1 then 
   return -1
-endi 
+endi
 
 print =============== step3
 sql drop database $db

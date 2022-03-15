@@ -183,6 +183,13 @@ TEST_F(ParserTest, selectClause) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(ParserTest, selectWindow) {
+  setDatabase("root", "test");
+
+  bind("SELECT count(*) FROM t1 interval(10s)");
+  ASSERT_TRUE(run());
+}
+
 TEST_F(ParserTest, selectSyntaxError) {
   setDatabase("root", "test");
 
@@ -389,5 +396,19 @@ TEST_F(ParserTest, createTable) {
        "a9 SMALLINT UNSIGNED COMMENT 'test column comment', a10 TINYINT, a11 TINYINT UNSIGNED, a12 BOOL, a13 NCHAR(30), a14 JSON, a15 VARCHAR(50)) "
        "KEEP 100 TTL 100 COMMENT 'test create table' SMA(c1, c2, c3)"
       );
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, createSmaIndex) {
+  setDatabase("root", "test");
+
+  bind("create sma index index1 on t1 function(max(c1), min(c3 + 10), sum(c4)) INTERVAL(10s)");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, createQnode) {
+  setDatabase("root", "test");
+
+  bind("create qnode on dnode 1");
   ASSERT_TRUE(run());
 }

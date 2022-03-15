@@ -19,19 +19,18 @@
 SSyncEnv *gSyncEnv = NULL;
 
 // local function -----------------
-static void    syncEnvTick(void *param, void *tmrId);
-static int32_t doSyncEnvStart(SSyncEnv *pSyncEnv);
-static int32_t doSyncEnvStop(SSyncEnv *pSyncEnv);
-static tmr_h   doSyncEnvStartTimer(SSyncEnv *pSyncEnv, TAOS_TMR_CALLBACK fp, int mseconds, void *param);
-static void    doSyncEnvStopTimer(SSyncEnv *pSyncEnv, tmr_h *pTimer);
+static SSyncEnv *doSyncEnvStart();
+static int32_t   doSyncEnvStop(SSyncEnv *pSyncEnv);
+static int32_t   doSyncEnvStartTimer(SSyncEnv *pSyncEnv);
+static int32_t   doSyncEnvStopTimer(SSyncEnv *pSyncEnv);
+static void      syncEnvTick(void *param, void *tmrId);
 // --------------------------------
 
 int32_t syncEnvStart() {
-  int32_t ret;
+  int32_t ret = 0;
   taosSeedRand(taosGetTimestampSec());
-  gSyncEnv = (SSyncEnv *)malloc(sizeof(SSyncEnv));
+  gSyncEnv = doSyncEnvStart(gSyncEnv);
   assert(gSyncEnv != NULL);
-  ret = doSyncEnvStart(gSyncEnv);
   return ret;
 }
 
@@ -40,31 +39,52 @@ int32_t syncEnvStop() {
   return ret;
 }
 
-tmr_h syncEnvStartTimer(TAOS_TMR_CALLBACK fp, int mseconds, void *param) {
-  return doSyncEnvStartTimer(gSyncEnv, fp, mseconds, param);
+int32_t syncEnvStartTimer() {
+  int32_t ret = doSyncEnvStartTimer(gSyncEnv);
+  return ret;
 }
 
-void syncEnvStopTimer(tmr_h *pTimer) { doSyncEnvStopTimer(gSyncEnv, pTimer); }
+int32_t syncEnvStopTimer() {
+  int32_t ret = doSyncEnvStopTimer(gSyncEnv);
+  return ret;
+}
 
 // local function -----------------
 static void syncEnvTick(void *param, void *tmrId) {
   SSyncEnv *pSyncEnv = (SSyncEnv *)param;
-  sTrace("syncEnvTick ... name:%s ", pSyncEnv->name);
+  if (atomic_load_64(&pSyncEnv->envTickTimerLogicClockUser) <= atomic_load_64(&pSyncEnv->envTickTimerLogicClock)) {
+    ++(pSyncEnv->envTickTimerCounter);
+    sTrace(
+        "syncEnvTick do ... envTickTimerLogicClockUser:%" PRIu64 ", envTickTimerLogicClock:%" PRIu64 ", envTickTimerCounter:%" PRIu64 ", "
+        "envTickTimerMS:%d, tmrId:%p",
+        pSyncEnv->envTickTimerLogicClockUser, pSyncEnv->envTickTimerLogicClock, pSyncEnv->envTickTimerCounter,
+        pSyncEnv->envTickTimerMS, tmrId);
 
-  pSyncEnv->pEnvTickTimer = taosTmrStart(syncEnvTick, 1000, pSyncEnv, pSyncEnv->pTimerManager);
+    // do something, tick ...
+    taosTmrReset(syncEnvTick, pSyncEnv->envTickTimerMS, pSyncEnv, pSyncEnv->pTimerManager, &pSyncEnv->pEnvTickTimer);
+  } else {
+    sTrace(
+        "syncEnvTick pass ... envTickTimerLogicClockUser:%" PRIu64 ", envTickTimerLogicClock:%" PRIu64 ", envTickTimerCounter:%" PRIu64 ", "
+        "envTickTimerMS:%d, tmrId:%p",
+        pSyncEnv->envTickTimerLogicClockUser, pSyncEnv->envTickTimerLogicClock, pSyncEnv->envTickTimerCounter,
+        pSyncEnv->envTickTimerMS, tmrId);
+  }
 }
 
-static int32_t doSyncEnvStart(SSyncEnv *pSyncEnv) {
-  snprintf(pSyncEnv->name, sizeof(pSyncEnv->name), "SyncEnv_%p", pSyncEnv);
+static SSyncEnv *doSyncEnvStart() {
+  SSyncEnv *pSyncEnv = (SSyncEnv *)malloc(sizeof(SSyncEnv));
+  assert(pSyncEnv != NULL);
+  memset(pSyncEnv, 0, sizeof(SSyncEnv));
+
+  pSyncEnv->envTickTimerCounter = 0;
+  pSyncEnv->envTickTimerMS = ENV_TICK_TIMER_MS;
+  pSyncEnv->FpEnvTickTimer = syncEnvTick;
+  atomic_store_64(&pSyncEnv->envTickTimerLogicClock, 0);
+  atomic_store_64(&pSyncEnv->envTickTimerLogicClockUser, 0);
 
   // start tmr thread
   pSyncEnv->pTimerManager = taosTmrInit(1000, 50, 10000, "SYNC-ENV");
-
-  // pSyncEnv->pEnvTickTimer = taosTmrStart(syncEnvTick, 1000, pSyncEnv, pSyncEnv->pTimerManager);
-
-  sTrace("SyncEnv start ok, name:%s", pSyncEnv->name);
-
-  return 0;
+  return pSyncEnv;
 }
 
 static int32_t doSyncEnvStop(SSyncEnv *pSyncEnv) {
@@ -72,8 +92,18 @@ static int32_t doSyncEnvStop(SSyncEnv *pSyncEnv) {
   return 0;
 }
 
-static tmr_h doSyncEnvStartTimer(SSyncEnv *pSyncEnv, TAOS_TMR_CALLBACK fp, int mseconds, void *param) {
-  return taosTmrStart(fp, mseconds, pSyncEnv, pSyncEnv->pTimerManager);
+static int32_t doSyncEnvStartTimer(SSyncEnv *pSyncEnv) {
+  int32_t ret = 0;
+  taosTmrReset(pSyncEnv->FpEnvTickTimer, pSyncEnv->envTickTimerMS, pSyncEnv, pSyncEnv->pTimerManager,
+               &pSyncEnv->pEnvTickTimer);
+  atomic_store_64(&pSyncEnv->envTickTimerLogicClock, pSyncEnv->envTickTimerLogicClockUser);
+  return ret;
 }
 
-static void doSyncEnvStopTimer(SSyncEnv *pSyncEnv, tmr_h *pTimer) {}
+static int32_t doSyncEnvStopTimer(SSyncEnv *pSyncEnv) {
+  int32_t ret = 0;
+  atomic_add_fetch_64(&pSyncEnv->envTickTimerLogicClockUser, 1);
+  taosTmrStop(pSyncEnv->pEnvTickTimer);
+  pSyncEnv->pEnvTickTimer = NULL;
+  return ret;
+}

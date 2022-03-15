@@ -46,13 +46,6 @@ extern SAggFunctionInfo aggFunc[35];
 #define DATA_SET_FLAG ','  // to denote the output area has data, not null value
 #define DATA_SET_FLAG_SIZE sizeof(DATA_SET_FLAG)
 
-#define TOP_BOTTOM_QUERY_LIMIT   100
-
-#define QUERY_IS_STABLE_QUERY(type)      (((type)&TSDB_QUERY_TYPE_STABLE_QUERY) != 0)
-#define QUERY_IS_JOIN_QUERY(type)        (TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_JOIN_QUERY))
-#define QUERY_IS_PROJECTION_QUERY(type)  (((type)&TSDB_QUERY_TYPE_PROJECTION_QUERY) != 0)
-#define QUERY_IS_FREE_RESOURCE(type)     (((type)&TSDB_QUERY_TYPE_FREE_RESOURCE) != 0)
-
 typedef struct SInterpInfoDetail {
   TSKEY  ts;  // interp specified timestamp
   int8_t type;
@@ -61,17 +54,12 @@ typedef struct SInterpInfoDetail {
 
 #define GET_ROWCELL_INTERBUF(_c) ((void*) ((char*)(_c) + sizeof(SResultRowEntryInfo)))
 
-#define IS_STREAM_QUERY_VALID(x)  (((x)&TSDB_FUNCSTATE_STREAM) != 0)
-#define IS_MULTIOUTPUT(x)         (((x)&TSDB_FUNCSTATE_MO) != 0)
-
 typedef struct STwaInfo {
   int8_t      hasResult;  // flag to denote has value
   double      dOutput;
   SPoint1     p;
   STimeWindow win;
 } STwaInfo;
-
-extern int32_t functionCompatList[]; // compatible check array list
 
 bool topbot_datablock_filter(SqlFunctionCtx *pCtx, const char *minval, const char *maxval);
 

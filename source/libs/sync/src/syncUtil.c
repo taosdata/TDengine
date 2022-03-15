@@ -74,6 +74,8 @@ bool syncUtilSameId(const SRaftId* pId1, const SRaftId* pId2) {
   return ret;
 }
 
+bool syncUtilEmptyId(const SRaftId* pId) { return (pId->addr == 0 && pId->vgId == 0); }
+
 // ---- SSyncBuffer -----
 void syncUtilbufBuild(SSyncBuffer* syncBuf, size_t len) {
   syncBuf->len = len;
@@ -184,4 +186,14 @@ char* syncUtilprintBin2(char* ptr, uint32_t len) {
     p += n;
   }
   return s;
+}
+
+SyncIndex syncUtilMinIndex(SyncIndex a, SyncIndex b) {
+  SyncIndex r = a < b ? a : b;
+  return r;
+}
+
+SyncIndex syncUtilMaxIndex(SyncIndex a, SyncIndex b) {
+  SyncIndex r = a > b ? a : b;
+  return r;
 }

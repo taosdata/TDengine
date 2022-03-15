@@ -166,3 +166,10 @@ TEST_F(PlannerTest, subquery) {
   bind("SELECT count(*) FROM (SELECT c1 + c3 a, c1 + count(*) b FROM t1 where c2 = 'abc' GROUP BY c1, c3) where a > 100 group by b");
   ASSERT_TRUE(run());
 }
+
+TEST_F(PlannerTest, interval) {
+  setDatabase("root", "test");
+
+  bind("SELECT count(*) FROM t1 interval(10s)");
+  ASSERT_TRUE(run());
+}
