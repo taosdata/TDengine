@@ -85,6 +85,7 @@ static int32_t dndRunDnode() {
   int32_t code = dndRun(pDnode);
   dInfo("start shutting down the TDengine service");
 
+  global.pDnode = NULL;
   dndClose(pDnode);
   dndCleanup();
   taosCloseLog();

@@ -19,6 +19,7 @@
 static int8_t once = DND_ENV_INIT;
 
 int32_t dndInit() {
+  dDebug("start to init dnode env");
   if (atomic_val_compare_exchange_8(&once, DND_ENV_INIT, DND_ENV_READY) != DND_ENV_INIT) {
     terrno = TSDB_CODE_REPEAT_INIT;
     dError("failed to init dnode env since %s", terrstr());
@@ -51,6 +52,7 @@ int32_t dndInit() {
 }
 
 void dndCleanup() {
+  dDebug("start to cleanup dnode env");
   if (atomic_val_compare_exchange_8(&once, DND_ENV_READY, DND_ENV_CLEANUP) != DND_ENV_READY) {
     dError("dnode env is already cleaned up");
     return;
@@ -121,5 +123,6 @@ TdFilePtr dndCheckRunning(char *dataDir) {
     return NULL;
   }
 
+  dDebug("file:%s is locked", filepath);
   return pFile;
 }

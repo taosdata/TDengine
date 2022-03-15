@@ -16,9 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "dmFile.h"
 
-static void dndPrintDnodes(SDnodeMgmt *pMgmt);
-static bool dndIsEpChanged(SDnodeMgmt *pMgmt, const char *ep);
-static void dndResetDnodes(SDnodeMgmt *pMgmt, SArray *pDnodeEps);
+static void dmPrintDnodes(SDnodeMgmt *pMgmt);
+static bool dmIsEpChanged(SDnodeMgmt *pMgmt, const char *ep);
+static void dmResetDnodes(SDnodeMgmt *pMgmt, SArray *pDnodeEps);
 
 int32_t dmReadFile(SDnodeMgmt *pMgmt) {
   int32_t   code = TSDB_CODE_DND_DNODE_READ_FILE_ERROR;
@@ -130,14 +130,14 @@ int32_t dmReadFile(SDnodeMgmt *pMgmt) {
 
   code = 0;
   dInfo("succcessed to read file %s", file);
-  dndPrintDnodes(pMgmt);
+  dmPrintDnodes(pMgmt);
 
 PRASE_DNODE_OVER:
   if (content != NULL) free(content);
   if (root != NULL) cJSON_Delete(root);
   if (pFile != NULL) taosCloseFile(&pFile);
 
-  if (dndIsEpChanged(pMgmt, pMgmt->pDnode->cfg.localEp)) {
+  if (dmIsEpChanged(pMgmt, pMgmt->pDnode->cfg.localEp)) {
     dError("localEp %s different with %s and need reconfigured", pMgmt->pDnode->cfg.localEp, file);
     return -1;
   }
@@ -149,7 +149,7 @@ PRASE_DNODE_OVER:
     taosArrayPush(pMgmt->pDnodeEps, &dnodeEp);
   }
 
-  dndResetDnodes(pMgmt, pMgmt->pDnodeEps);
+  dmResetDnodes(pMgmt, pMgmt->pDnodeEps);
 
   terrno = 0;
   return 0;
@@ -218,12 +218,12 @@ void dmUpdateDnodeEps(SDnodeMgmt *pMgmt, SArray *pDnodeEps) {
 
   int32_t numOfEpsOld = (int32_t)taosArrayGetSize(pMgmt->pDnodeEps);
   if (numOfEps != numOfEpsOld) {
-    dndResetDnodes(pMgmt, pDnodeEps);
+    dmResetDnodes(pMgmt, pDnodeEps);
     dmWriteFile(pMgmt);
   } else {
     int32_t size = numOfEps * sizeof(SDnodeEp);
     if (memcmp(pMgmt->pDnodeEps->pData, pDnodeEps->pData, size) != 0) {
-      dndResetDnodes(pMgmt, pDnodeEps);
+      dmResetDnodes(pMgmt, pDnodeEps);
       dmWriteFile(pMgmt);
     }
   }
@@ -231,7 +231,7 @@ void dmUpdateDnodeEps(SDnodeMgmt *pMgmt, SArray *pDnodeEps) {
   taosWUnLockLatch(&pMgmt->latch);
 }
 
-static void dndResetDnodes(SDnodeMgmt *pMgmt, SArray *pDnodeEps) {
+static void dmResetDnodes(SDnodeMgmt *pMgmt, SArray *pDnodeEps) {
   if (pMgmt->pDnodeEps != pDnodeEps) {
     SArray *tmp = pMgmt->pDnodeEps;
     pMgmt->pDnodeEps = taosArrayDup(pDnodeEps);
@@ -259,10 +259,10 @@ static void dndResetDnodes(SDnodeMgmt *pMgmt, SArray *pDnodeEps) {
     taosHashPut(pMgmt->dnodeHash, &pDnodeEp->id, sizeof(int32_t), pDnodeEp, sizeof(SDnodeEp));
   }
 
-  dndPrintDnodes(pMgmt);
+  dmPrintDnodes(pMgmt);
 }
 
-static void dndPrintDnodes(SDnodeMgmt *pMgmt) {
+static void dmPrintDnodes(SDnodeMgmt *pMgmt) {
   int32_t numOfEps = (int32_t)taosArrayGetSize(pMgmt->pDnodeEps);
   dDebug("print dnode ep list, num:%d", numOfEps);
   for (int32_t i = 0; i < numOfEps; i++) {
@@ -271,7 +271,7 @@ static void dndPrintDnodes(SDnodeMgmt *pMgmt) {
   }
 }
 
-static bool dndIsEpChanged(SDnodeMgmt *pMgmt, const char *ep) {
+static bool dmIsEpChanged(SDnodeMgmt *pMgmt, const char *ep) {
   bool changed = false;
   taosRLockLatch(&pMgmt->latch);
 

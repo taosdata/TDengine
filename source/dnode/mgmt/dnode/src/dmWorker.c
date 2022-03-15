@@ -23,7 +23,7 @@
 #include "smInt.h"
 #include "vmInt.h"
 
-static void *dnodeThreadRoutine(void *param) {
+static void *dmThreadRoutine(void *param) {
   SDnodeMgmt *pMgmt = param;
   SDnode     *pDnode = pMgmt->pDnode;
   int64_t     lastStatusTime = taosGetTimestampMs();
@@ -54,8 +54,10 @@ static void *dnodeThreadRoutine(void *param) {
   }
 }
 
-static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
-  int32_t code = 0;
+static void dmProcessMgmtQueue(SDnode *pDnode, SNodeMsg *pNodeMsg) {
+  int32_t  code = 0;
+  SRpcMsg *pMsg = &pNodeMsg->rpcMsg;
+  dTrace("msg:%p, will be processed in mgmt queue", pNodeMsg);
 
   switch (pMsg->msgType) {
     case TDMT_DND_CREATE_MNODE:
@@ -127,21 +129,23 @@ static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
 
   rpcFreeCont(pMsg->pCont);
   pMsg->pCont = NULL;
-  taosFreeQitem(pMsg);
+  taosFreeQitem(pNodeMsg);
 }
 
 int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
-  if (dndInitWorker(pMgmt->pDnode, &pMgmt->mgmtWorker, DND_WORKER_SINGLE, "dnode-mgmt", 1, 1, dndProcessMgmtQueue) != 0) {
+  if (dndInitWorker(pMgmt->pDnode, &pMgmt->mgmtWorker, DND_WORKER_SINGLE, "dnode-mgmt", 1, 1, dmProcessMgmtQueue) !=
+      0) {
     dError("failed to start dnode mgmt worker since %s", terrstr());
     return -1;
   }
 
-  if (dndInitWorker(pMgmt->pDnode, &pMgmt->statusWorker, DND_WORKER_SINGLE, "dnode-status", 1, 1, dndProcessMgmtQueue) != 0) {
+  if (dndInitWorker(pMgmt->pDnode, &pMgmt->statusWorker, DND_WORKER_SINGLE, "dnode-status", 1, 1,
+                    dmProcessMgmtQueue) != 0) {
     dError("failed to start dnode mgmt worker since %s", terrstr());
     return -1;
   }
 
-  pMgmt->threadId = taosCreateThread(dnodeThreadRoutine, pMgmt);
+  pMgmt->threadId = taosCreateThread(dmThreadRoutine, pMgmt);
   if (pMgmt->threadId == NULL) {
     dError("failed to init dnode thread");
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -169,5 +173,6 @@ int32_t dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     pWorker = &pMgmt->statusWorker;
   }
 
+  dTrace("msg:%p, will be written to worker %s", pMsg, pWorker->name);
   return dndWriteMsgToWorker(pWorker, pMsg, sizeof(SNodeMsg));
 }

@@ -45,7 +45,11 @@ static bool dndRequireNode(SMgmtWrapper *pMgmt) {
 
 static int32_t dndOpenNode(SMgmtWrapper *pWrapper) { return (*pWrapper->fp.openFp)(pWrapper); }
 
-static void dndCloseNode(SMgmtWrapper *pWrapper) { (*pWrapper->fp.closeFp)(pWrapper); }
+static void dndCloseNode(SMgmtWrapper *pWrapper) {
+  if (pWrapper->required) {
+    (*pWrapper->fp.closeFp)(pWrapper);
+  }
+}
 
 static void dndClearMemory(SDnode *pDnode) {
   for (ENodeType n = 0; n < NODE_MAX; ++n) {
@@ -243,7 +247,7 @@ int32_t dndRun(SDnode *pDnode) {
 
   while (1) {
     if (pDnode->event == DND_EVENT_STOP) {
-      dInfo("dnode object receive stop event");
+      dInfo("dnode is about to stop");
       break;
     }
     taosMsleep(100);
@@ -302,8 +306,7 @@ void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSet) {
     goto _OVER;
   }
 
-  dTrace("msg:%p, is created, app:%p RPC:%p user:%s, processd by %s", pMsg, pRpc->ahandle, pRpc->handle, pMsg->user,
-         pWrapper->name);
+  dTrace("msg:%p, is created, user:%s", pMsg, pMsg->user);
   code = (*msgFp)(pWrapper, pMsg);
 
 _OVER:

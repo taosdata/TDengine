@@ -54,11 +54,11 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   SRpcMsg rpcMsg = {.pCont = pHead, .contLen = contLen, .msgType = TDMT_MND_STATUS, .ahandle = (void *)9527};
   pMgmt->statusSent = 1;
 
-  dTrace("pDnode:%p, send status req to mnode", pDnode);
+  dTrace("send status req to mnode, ahandle:%p", rpcMsg.ahandle);
   dndSendReqToMnode(pMgmt->pDnode, &rpcMsg);
 }
 
-static void dndUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
+static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
   if (pMgmt->dnodeId == 0) {
     dInfo("set dnodeId:%d clusterId:%" PRId64, pCfg->dnodeId, pCfg->clusterId);
     taosWLockLatch(&pMgmt->latch);
@@ -70,7 +70,7 @@ static void dndUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
 }
 
 void dmProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp) {
-  SDnodeMgmt *pMgmt = dndGetWrapper(pDnode, MNODE)->pMgmt;
+  SDnodeMgmt *pMgmt = dndGetWrapper(pDnode, DNODE)->pMgmt;
 
   if (pRsp->code != TSDB_CODE_SUCCESS) {
     if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->dropped && pMgmt->dnodeId > 0) {
@@ -83,7 +83,7 @@ void dmProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp) {
     if (pRsp->pCont != NULL && pRsp->contLen != 0 &&
         tDeserializeSStatusRsp(pRsp->pCont, pRsp->contLen, &statusRsp) == 0) {
       pMgmt->dver = statusRsp.dver;
-      dndUpdateDnodeCfg(pMgmt, &statusRsp.dnodeCfg);
+      dmUpdateDnodeCfg(pMgmt, &statusRsp.dnodeCfg);
       dmUpdateDnodeEps(pMgmt, statusRsp.pDnodeEps);
     }
     taosArrayDestroy(statusRsp.pDnodeEps);

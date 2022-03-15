@@ -30,18 +30,18 @@ static void dndProcessResponse(void *parent, SRpcMsg *pRsp, SEpSet *pEpSet) {
 
   if (dndGetStatus(pDnode) == DND_STAT_STOPPED) {
     if (pRsp == NULL || pRsp->pCont == NULL) return;
-    dTrace("RPC %p, rsp:%s ignored since dnode exiting, app:%p", pRsp->handle, TMSG_INFO(msgType), pRsp->ahandle);
+    dTrace("rsp:%s ignored since dnode exiting, app:%p", TMSG_INFO(msgType), pRsp->ahandle);
     rpcFreeCont(pRsp->pCont);
     return;
   }
 
   SMsgHandle *pHandle = &pMgmt->msgHandles[TMSG_INDEX(msgType)];
   if (pHandle->msgFp != NULL) {
-    dTrace("RPC %p, rsp:%s will be processed by %s, code:0x%x app:%p", pRsp->handle, TMSG_INFO(msgType),
-           pHandle->pWrapper->name, pRsp->code & 0XFFFF, pRsp->ahandle);
+    dTrace("rsp:%s will be processed by %s, code:0x%x app:%p", TMSG_INFO(msgType), pHandle->pWrapper->name,
+           pRsp->code & 0XFFFF, pRsp->ahandle);
     dndProcessRpcMsg(pHandle->pWrapper, pRsp, pEpSet);
   } else {
-    dError("RPC %p, rsp:%s not processed, app:%p", pRsp->handle, TMSG_INFO(msgType), pRsp->ahandle);
+    dError("rsp:%s not processed, app:%p", TMSG_INFO(msgType), pRsp->ahandle);
     rpcFreeCont(pRsp->pCont);
   }
 }
@@ -258,12 +258,13 @@ int32_t dndInitMsgHandle(SDnode *pDnode) {
 
       SMsgHandle *pHandle = &pMgmt->msgHandles[msgIndex];
       if (pHandle->msgFp != NULL) {
-        dError("msg:%s, has multiple process nodes, prev node:%s, curr node:%s", tMsgInfo[msgIndex],
+        dError("msg:%s has multiple process nodes, prev node:%s, curr node:%s", tMsgInfo[msgIndex],
                pHandle->pWrapper->name, pWrapper->name);
         return -1;
       } else {
-        dDebug("msg:%s, will be processed by node:%s", tMsgInfo[msgIndex], pWrapper->name);
+        dTrace("msg:%s will be processed by %s", tMsgInfo[msgIndex], pWrapper->name);
         pHandle->msgFp = msgFp;
+        pHandle->pWrapper = pWrapper;
       }
     }
   }
