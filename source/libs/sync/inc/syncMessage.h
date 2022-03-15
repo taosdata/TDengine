@@ -39,6 +39,7 @@ typedef enum ESyncMessageType {
   SYNC_REQUEST_VOTE_REPLY = 111,
   SYNC_APPEND_ENTRIES = 113,
   SYNC_APPEND_ENTRIES_REPLY = 115,
+  SYNC_RESPONSE = 119,
 
 } ESyncMessageType;
 
@@ -195,7 +196,7 @@ typedef struct SyncRequestVote {
   SRaftId  srcId;
   SRaftId  destId;
   // private data
-  SyncTerm  currentTerm;
+  SyncTerm  term;
   SyncIndex lastLogIndex;
   SyncTerm  lastLogTerm;
 } SyncRequestVote;
@@ -254,6 +255,7 @@ typedef struct SyncAppendEntries {
   SRaftId  srcId;
   SRaftId  destId;
   // private data
+  SyncTerm  term;
   SyncIndex prevLogIndex;
   SyncTerm  prevLogTerm;
   SyncIndex commitIndex;
@@ -286,6 +288,7 @@ typedef struct SyncAppendEntriesReply {
   SRaftId  srcId;
   SRaftId  destId;
   // private data
+  SyncTerm  term;
   bool      success;
   SyncIndex matchIndex;
 } SyncAppendEntriesReply;

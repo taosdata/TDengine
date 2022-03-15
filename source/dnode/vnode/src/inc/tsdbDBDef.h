@@ -13,26 +13,32 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_OS_LOCALE_H_
-#define _TD_OS_LOCALE_H_
+#ifndef _TD_TSDB_DB_DEF_H_
+#define _TD_TSDB_DB_DEF_H_
 
-#include "os.h"
+#include "db.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// If the error is in a third-party library, place this header file under the third-party library header file.
-#ifndef ALLOW_FORBID_FUNC
-    #define setlocale SETLOCALE_FUNC_TAOS_FORBID
-#endif
+typedef struct SDBFile SDBFile;
+typedef DB_ENV*        TDBEnv;
 
-char *taosCharsetReplace(char *charsetstr);
-void  taosGetSystemLocale(char *outLocale, char *outCharset);
-void  taosSetSystemLocale(const char *inLocale, const char *inCharSet);
+struct SDBFile {
+  DB*   pDB;
+  char* path;
+};
+
+int32_t tsdbOpenDBF(TDBEnv pEnv, SDBFile* pDBF);
+void    tsdbCloseDBF(SDBFile* pDBF);
+int32_t tsdbOpenBDBEnv(DB_ENV** ppEnv, const char* path);
+void    tsdbCloseBDBEnv(DB_ENV* pEnv);
+int32_t tsdbSaveSmaToDB(SDBFile* pDBF, void* key, uint32_t keySize, void* data, uint32_t dataSize);
+void*   tsdbGetSmaDataByKey(SDBFile* pDBF, void* key, uint32_t keySize, uint32_t* valueSize);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_OS_LOCALE_H_*/
+#endif /*_TD_TSDB_DB_DEF_H_*/

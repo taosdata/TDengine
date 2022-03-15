@@ -23,6 +23,9 @@
 extern "C" {
 #endif
 
+#define SND_UNIQUE_THREAD_NUM 2
+#define SND_SHARED_THREAD_NUM 2
+
 /* ------------------------ TYPES EXPOSED ------------------------ */
 typedef struct SDnode SDnode;
 typedef struct SSnode SSnode;
@@ -79,6 +82,10 @@ int32_t sndGetLoad(SSnode *pSnode, SSnodeLoad *pLoad);
  * @return int32_t 0 for success, -1 for failure
  */
 int32_t sndProcessMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+
+int32_t sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg);
+
+int32_t sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg);
 
 /**
  * @brief Drop a snode.

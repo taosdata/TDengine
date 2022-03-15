@@ -329,21 +329,23 @@ static FORCE_INLINE int tsdbCopyDFile(SDFile* pSrc, SDFile* pDest) {
 // =============== SDFileSet
 typedef struct {
   int      fid;
-  int8_t   state;    // -128~127
-  uint8_t  ver;      // 0~255, DFileSet version
+  int8_t   state;  // -128~127
+  uint8_t  ver;    // 0~255, DFileSet version
   uint16_t reserve;
   SDFile   files[TSDB_FILE_MAX];
 } SDFileSet;
 
 typedef struct {
-  int     fid;
-  int8_t  state;
-  uint8_t ver;
+  int      fid;
+  int8_t   state;
+  uint8_t  ver;
+  uint16_t reserve;
 #if 0
   SDFInfo   info;
 #endif
   STfsFile  f;
   TdFilePtr pFile;
+
 } SSFile;  // files split by days with fid
 
 #define TSDB_LATEST_FSET_VER 0

@@ -140,6 +140,23 @@ static FORCE_INLINE void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock)
   return (void*)buf;
 }
 
+static FORCE_INLINE void tDeleteSSDataBlock(SSDataBlock* pBlock) {
+  if (pBlock == NULL) {
+    return;
+  }
+
+  // int32_t numOfOutput = pBlock->info.numOfCols;
+  int32_t sz = taosArrayGetSize(pBlock->pDataBlock);
+  for (int32_t i = 0; i < sz; ++i) {
+    SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
+    tfree(pColInfoData->pData);
+  }
+
+  taosArrayDestroy(pBlock->pDataBlock);
+  tfree(pBlock->pBlockAgg);
+  // tfree(pBlock);
+}
+
 static FORCE_INLINE int32_t tEncodeSMqPollRsp(void** buf, const SMqPollRsp* pRsp) {
   int32_t tlen = 0;
   int32_t sz = 0;
@@ -182,23 +199,6 @@ static FORCE_INLINE void* tDecodeSMqPollRsp(void* buf, SMqPollRsp* pRsp) {
   return buf;
 }
 
-static FORCE_INLINE void tDeleteSSDataBlock(SSDataBlock* pBlock) {
-  if (pBlock == NULL) {
-    return;
-  }
-
-  // int32_t numOfOutput = pBlock->info.numOfCols;
-  int32_t sz = taosArrayGetSize(pBlock->pDataBlock);
-  for (int32_t i = 0; i < sz; ++i) {
-    SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
-    tfree(pColInfoData->pData);
-  }
-
-  taosArrayDestroy(pBlock->pDataBlock);
-  tfree(pBlock->pBlockAgg);
-  // tfree(pBlock);
-}
-
 static FORCE_INLINE void tDeleteSMqConsumeRsp(SMqPollRsp* pRsp) {
   if (pRsp->schemas) {
     if (pRsp->schemas->nCols) {
@@ -208,10 +208,6 @@ static FORCE_INLINE void tDeleteSMqConsumeRsp(SMqPollRsp* pRsp) {
   }
   taosArrayDestroyEx(pRsp->pBlockData, (void (*)(void*))tDeleteSSDataBlock);
   pRsp->pBlockData = NULL;
-  // for (int32_t i = 0; i < taosArrayGetSize(pRsp->pBlockData); i++) {
-  // SSDataBlock* pDataBlock = (SSDataBlock*)taosArrayGet(pRsp->pBlockData, i);
-  // tDeleteSSDataBlock(pDataBlock);
-  //}
 }
 
 //======================================================================================================================
