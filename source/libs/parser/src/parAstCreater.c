@@ -21,6 +21,7 @@
   do { \
     if (NULL == (p)) { \
       pCxt->valid = false; \
+      snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory"); \
       return NULL; \
     } \
   } while (0)
@@ -903,17 +904,11 @@ SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
   return (SNode*)pStmt;
 }
 
-SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pDbName) {
-  if (!checkDbName(pCxt, pDbName, false)) {
-    return NULL;
-  }
+SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbNamePattern) {
   SShowStmt* pStmt = nodesMakeNode(type);;
   CHECK_OUT_OF_MEM(pStmt);
-  if (NULL != pDbName) {
-    strncpy(pStmt->dbName, pDbName->z, pDbName->n);
-  } else if (NULL != pCxt->pQueryCxt->db) {
-    strcpy(pStmt->dbName, pCxt->pQueryCxt->db);
-  }
+  pStmt->pDbName = pDbName;
+  pStmt->pTbNamePattern = pTbNamePattern;
   return (SNode*)pStmt;
 }
 

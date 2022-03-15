@@ -152,7 +152,8 @@ typedef struct SDropDnodeStmt {
 
 typedef struct SShowStmt {
   ENodeType type;
-  char dbName[TSDB_DB_NAME_LEN];
+  SNode* pDbName;        // SValueNode
+  SNode* pTbNamePattern; // SValueNode
 } SShowStmt;
 
 #ifdef __cplusplus

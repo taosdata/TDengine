@@ -31,6 +31,9 @@
 
 #define COPY_CHAR_POINT_FIELD(fldname) \
 	do { \
+    if (NULL == (pSrc)->fldname) { \
+      break; \
+    } \
     (pDst)->fldname = strdup((pSrc)->fldname); \
 	} while (0)
 

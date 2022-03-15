@@ -1149,12 +1149,12 @@ static int32_t nodeTypeToShowType(ENodeType nt) {
 
 static int32_t translateShow(STranslateContext* pCxt, SShowStmt* pStmt) {
   SShowReq showReq = { .type = nodeTypeToShowType(nodeType(pStmt)) };
-  if ('\0' != pStmt->dbName[0]) {
-    SName name = {0};
-    tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
-    char dbFname[TSDB_DB_FNAME_LEN] = {0};
-    tNameGetFullDbName(&name, showReq.db);
-  }
+  // if ('\0' != pStmt->dbName[0]) {
+  //   SName name = {0};
+  //   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
+  //   char dbFname[TSDB_DB_FNAME_LEN] = {0};
+  //   tNameGetFullDbName(&name, showReq.db);
+  // }
 
   pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
   if (NULL== pCxt->pCmdMsg) {
@@ -1302,23 +1302,140 @@ static void destroyTranslateContext(STranslateContext* pCxt) {
   }
 }
 
-static int32_t rewriteShowDatabase(STranslateContext* pCxt, SQuery* pQuery) {
-  SSelectStmt* pStmt = nodesMakeNode(QUERY_NODE_SELECT_STMT);
-  if (NULL == pStmt) {
+static const char* getSysTableName(ENodeType type) {
+  switch (type) {
+    case QUERY_NODE_SHOW_DATABASES_STMT:
+      return TSDB_INS_TABLE_USER_DATABASES;
+    case QUERY_NODE_SHOW_TABLES_STMT:
+      return TSDB_INS_TABLE_USER_TABLES;
+    case QUERY_NODE_SHOW_STABLES_STMT:
+      return TSDB_INS_TABLE_USER_STABLES;
+    case QUERY_NODE_SHOW_USERS_STMT:
+      return TSDB_INS_TABLE_USER_USERS;
+    case QUERY_NODE_SHOW_DNODES_STMT:
+      return TSDB_INS_TABLE_DNODES;
+    case QUERY_NODE_SHOW_VGROUPS_STMT:
+      return TSDB_INS_TABLE_VGROUPS;
+    case QUERY_NODE_SHOW_MNODES_STMT:
+      return TSDB_INS_TABLE_MNODES;
+    case QUERY_NODE_SHOW_MODULES_STMT:
+      return TSDB_INS_TABLE_MODULES;
+    case QUERY_NODE_SHOW_QNODES_STMT:
+      return TSDB_INS_TABLE_QNODES;
+    case QUERY_NODE_SHOW_FUNCTIONS_STMT:
+      return TSDB_INS_TABLE_USER_FUNCTIONS;
+    case QUERY_NODE_SHOW_INDEXES_STMT:
+      return TSDB_INS_TABLE_USER_INDEXES;
+    case QUERY_NODE_SHOW_STREAMS_STMT:
+      return TSDB_INS_TABLE_USER_STREAMS;
+    default:
+      break;
+  }
+  return NULL;
+}
+
+static int32_t createSelectStmtForShow(ENodeType showType, SSelectStmt** pStmt) {
+  SSelectStmt* pSelect = nodesMakeNode(QUERY_NODE_SELECT_STMT);
+  if (NULL == pSelect) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
   SRealTableNode* pTable = nodesMakeNode(QUERY_NODE_REAL_TABLE);
   if (NULL == pTable) {
-    nodesDestroyNode(pStmt);
+    nodesDestroyNode(pSelect);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   strcpy(pTable->table.dbName, TSDB_INFORMATION_SCHEMA_DB);
-  strcpy(pTable->table.tableName, TSDB_INS_TABLE_USER_DATABASES);
-  pStmt->pFromTable = (SNode*)pTable;
+  strcpy(pTable->table.tableName, getSysTableName(showType));
+  pSelect->pFromTable = (SNode*)pTable;
 
-  nodesDestroyNode(pQuery->pRoot);
-  pQuery->pRoot = (SNode*)pStmt;
+  *pStmt = pSelect;
+
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createOperatorNode(EOperatorType opType, const char* pColName, SNode* pRight, SNode** pOp) {
+  if (NULL == pRight) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SOperatorNode* pOper = nodesMakeNode(QUERY_NODE_OPERATOR);
+  if (NULL == pOper) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pOper->opType = OP_TYPE_LIKE;
+  pOper->pLeft = nodesMakeNode(QUERY_NODE_COLUMN);
+  pOper->pRight = nodesCloneNode(pRight);
+  if (NULL == pOper->pLeft || NULL == pOper->pRight) {
+    nodesDestroyNode(pOper);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  strcpy(((SColumnNode*)pOper->pLeft)->colName, pColName);
+
+  *pOp = (SNode*)pOper;
+  return TSDB_CODE_SUCCESS;
+}
+
+static const char* getTbNameColName(ENodeType type) {
+  return (QUERY_NODE_SHOW_STABLES_STMT == type ? "stable_name" : "table_name");
+}
+
+static int32_t createLogicCondNode(SNode* pCond1, SNode* pCond2, SNode** pCond) {
+  SLogicConditionNode* pCondition = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+  if (NULL == pCondition) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCondition->condType = LOGIC_COND_TYPE_AND;
+  pCondition->pParameterList = nodesMakeList();
+  if (NULL == pCondition->pParameterList) {
+    nodesDestroyNode(pCondition);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (TSDB_CODE_SUCCESS != nodesListAppend(pCondition->pParameterList, pCond1) ||
+      TSDB_CODE_SUCCESS != nodesListAppend(pCondition->pParameterList, pCond2)) {
+    nodesDestroyNode(pCondition);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  *pCond = (SNode*)pCondition;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createShowCondition(const SShowStmt* pShow, SSelectStmt* pSelect) {
+  SNode* pDbCond = NULL;
+  SNode* pTbCond = NULL;
+  if (TSDB_CODE_SUCCESS != createOperatorNode(OP_TYPE_EQUAL, "db_name", pShow->pDbName, &pDbCond) ||
+      TSDB_CODE_SUCCESS != createOperatorNode(OP_TYPE_LIKE, getTbNameColName(nodeType(pShow)), pShow->pTbNamePattern, &pTbCond)) {
+    nodesDestroyNode(pDbCond);
+    nodesDestroyNode(pTbCond);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  if (NULL != pDbCond && NULL != pTbCond) {
+    if (TSDB_CODE_SUCCESS != createLogicCondNode(pDbCond, pTbCond, &pSelect->pWhere)) {
+      nodesDestroyNode(pDbCond);
+      nodesDestroyNode(pTbCond);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  } else {
+    pSelect->pWhere = (NULL == pDbCond ? pTbCond : pDbCond);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t rewriteShow(STranslateContext* pCxt, SQuery* pQuery) {
+  SSelectStmt* pStmt = NULL;
+  int32_t code = createSelectStmtForShow(nodeType(pQuery->pRoot), &pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createShowCondition((SShowStmt*)pQuery->pRoot, pStmt);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = (SNode*)pStmt;
+  }
+  return code;
 }
 
 typedef struct SVgroupTablesBatch {
@@ -1685,7 +1802,18 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pQuery->pRoot)) {
     case QUERY_NODE_SHOW_DATABASES_STMT:
-      code = rewriteShowDatabase(pCxt, pQuery);
+    case QUERY_NODE_SHOW_TABLES_STMT:
+    case QUERY_NODE_SHOW_STABLES_STMT:
+    case QUERY_NODE_SHOW_USERS_STMT:
+    case QUERY_NODE_SHOW_DNODES_STMT:
+    case QUERY_NODE_SHOW_VGROUPS_STMT:
+    case QUERY_NODE_SHOW_MNODES_STMT:
+    case QUERY_NODE_SHOW_MODULES_STMT:
+    case QUERY_NODE_SHOW_QNODES_STMT:
+    case QUERY_NODE_SHOW_FUNCTIONS_STMT:
+    case QUERY_NODE_SHOW_INDEXES_STMT:
+    case QUERY_NODE_SHOW_STREAMS_STMT:
+      code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_CREATE_TABLE_STMT:
       if (NULL == ((SCreateTableStmt*)pQuery->pRoot)->pTags) {

@@ -126,7 +126,7 @@ SNode* createDropTableClause(SAstCreateContext* pCxt, bool ignoreNotExists, SNod
 SNode* createDropTableStmt(SAstCreateContext* pCxt, SNodeList* pTables);
 SNode* createDropSuperTableStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable);
 SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName);
-SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pDbName);
+SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbNamePattern);
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, const SToken* pUserName, const SToken* pPassword);
 SNode* createAlterUserStmt(SAstCreateContext* pCxt, const SToken* pUserName, int8_t alterType, const SToken* pVal);
 SNode* createDropUserStmt(SAstCreateContext* pCxt, const SToken* pUserName);

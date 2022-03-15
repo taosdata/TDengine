@@ -217,7 +217,7 @@ typedef struct SSubplan {
   ESubplanType subplanType;
   int32_t msgType;      // message type for subplan, used to denote the send message type to vnode.
   int32_t level;        // the execution level of current subplan, starting from 0 in a top-down manner.
-  char    dbFName[TSDB_DB_FNAME_LEN];
+  char dbFName[TSDB_DB_FNAME_LEN];
   SQueryNodeAddr execNode;    // for the scan/modify subplan, the optional execution node
   SQueryNodeStat execNodeStat; // only for scan subplan
   SNodeList* pChildren;    // the datasource subplan,from which to fetch the result

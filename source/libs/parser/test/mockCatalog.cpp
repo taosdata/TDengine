@@ -26,6 +26,64 @@
 #include "mockCatalog.h"
 namespace {
 
+void generateInformationSchema(MockCatalogService* mcs) {
+  {
+    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "dnodes", TSDB_NORMAL_TABLE, 1).addColumn("id", TSDB_DATA_TYPE_INT);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "mnodes", TSDB_NORMAL_TABLE, 1).addColumn("id", TSDB_DATA_TYPE_INT);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "modules", TSDB_NORMAL_TABLE, 1).addColumn("id", TSDB_DATA_TYPE_INT);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "qnodes", TSDB_NORMAL_TABLE, 1).addColumn("id", TSDB_DATA_TYPE_INT);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "user_databases", TSDB_NORMAL_TABLE, 1).addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "user_functions", TSDB_NORMAL_TABLE, 1).addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_FUNC_NAME_LEN);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "user_indexes", TSDB_NORMAL_TABLE, 2)
+        .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN).addColumn("table_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "user_stables", TSDB_NORMAL_TABLE, 2)
+        .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN).addColumn("stable_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "user_streams", TSDB_NORMAL_TABLE, 1).addColumn("stream_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "user_tables", TSDB_NORMAL_TABLE, 2)
+        .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN).addColumn("table_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "user_table_distributed", TSDB_NORMAL_TABLE, 1).addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "user_users", TSDB_NORMAL_TABLE, 1).addColumn("user_name", TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "vgroups", TSDB_NORMAL_TABLE, 1).addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN);
+    builder.done();
+  }
+}
+
 void generateTestT1(MockCatalogService* mcs) {
   ITableBuilder& builder = mcs->createTableBuilder("test", "t1", TSDB_NORMAL_TABLE, 6)
       .setPrecision(TSDB_TIME_PRECISION_MILLI).setVgid(1).addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
@@ -74,6 +132,7 @@ void initMetaDataEnv() {
   stub.set(catalogGetTableMeta, __catalogGetTableMeta);
   stub.set(catalogGetTableHashVgroup, __catalogGetTableHashVgroup);
   stub.set(catalogGetTableDistVgInfo, __catalogGetTableDistVgInfo);
+  stub.set(catalogGetDBVgVersion, __catalogGetDBVgVersion);
   // {
   //   AddrAny any("libcatalog.so");
   //   std::map<std::string,void*> result;
@@ -117,6 +176,7 @@ void initMetaDataEnv() {
 }
 
 void generateMetaData() {
+  generateInformationSchema(mockCatalogService.get());
   generateTestT1(mockCatalogService.get());
   generateTestST1(mockCatalogService.get());
   mockCatalogService->showTables();
