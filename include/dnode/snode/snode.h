@@ -80,6 +80,10 @@ int32_t sndGetLoad(SSnode *pSnode, SSnodeLoad *pLoad);
  */
 int32_t sndProcessMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 
+int32_t sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg);
+
+int32_t sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg);
+
 /**
  * @brief Drop a snode.
  *
