@@ -23,6 +23,9 @@
 extern "C" {
 #endif
 
+#define SND_UNIQUE_THREAD_NUM 2
+#define SND_SHARED_THREAD_NUM 2
+
 /* ------------------------ TYPES EXPOSED ------------------------ */
 typedef struct SDnode SDnode;
 typedef struct SSnode SSnode;

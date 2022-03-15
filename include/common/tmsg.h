@@ -187,7 +187,10 @@ typedef struct SEp {
 
 typedef struct {
   int32_t contLen;
-  int32_t vgId;
+  union {
+    int32_t vgId;
+    int32_t streamTaskId;
+  };
 } SMsgHead;
 
 // Submit message for one table
