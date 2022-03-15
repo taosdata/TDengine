@@ -36,6 +36,7 @@ struct SBTree {
   int            minLocal;
   int            maxLeaf;
   int            minLeaf;
+  u8            *pTmp;
 };
 
 typedef struct __attribute__((__packed__)) {
@@ -125,6 +126,7 @@ int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *p
   SCell  *pCell;
   int     szCell;
   int     cret;
+  SBTree *pBt;
 
   ret = tdbBtCursorMoveTo(pCur, pKey, kLen, &cret);
   if (ret < 0) {
@@ -145,6 +147,17 @@ int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *p
       ASSERT(0);
     }
   }
+
+  // TODO: refact code here
+  pBt = pCur->pBt;
+  if (!pBt->pTmp) {
+    pBt->pTmp = (u8 *)malloc(pBt->pageSize);
+    if (pBt->pTmp == NULL) {
+      return -1;
+    }
+  }
+
+  pCell = pBt->pTmp;
 
   // Encode the cell
   ret = tdbBtreeEncodeCell(pCur->pPage, pKey, kLen, pVal, vLen, pCell, &szCell);
@@ -348,6 +361,9 @@ static int tdbBtreeInitPage(SPage *pPage, void *arg) {
     pPage->maxLocal = pBt->maxLocal;
     pPage->minLocal = pBt->minLocal;
   }
+
+  // TODO: need to update the SPage.nFree
+  pPage->nFree = pPage->pFreeEnd - pPage->pFreeStart;
 
   return 0;
 }
