@@ -29,7 +29,7 @@ static int32_t  syncIODestroy(SSyncIO *io);
 static int32_t  syncIOStartInternal(SSyncIO *io);
 static int32_t  syncIOStopInternal(SSyncIO *io);
 
-static void *  syncIOConsumerFunc(void *param);
+static void   *syncIOConsumerFunc(void *param);
 static void    syncIOProcessRequest(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
 static void    syncIOProcessReply(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
 static int32_t syncIOAuth(void *parent, char *meterId, char *spi, char *encrypt, char *secret, char *ckey);
@@ -234,9 +234,9 @@ static int32_t syncIOStopInternal(SSyncIO *io) {
 }
 
 static void *syncIOConsumerFunc(void *param) {
-  SSyncIO *  io = param;
+  SSyncIO   *io = param;
   STaosQall *qall;
-  SRpcMsg *  pRpcMsg, rpcMsg;
+  SRpcMsg   *pRpcMsg, rpcMsg;
   qall = taosAllocateQall();
 
   while (1) {
@@ -271,6 +271,13 @@ static void *syncIOConsumerFunc(void *param) {
           SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pRpcMsg);
           io->FpOnSyncPingReply(io->pSyncNode, pSyncMsg);
           syncPingReplyDestroy(pSyncMsg);
+        }
+
+      } else if (pRpcMsg->msgType == SYNC_CLIENT_REQUEST) {
+        if (io->FpOnSyncClientRequest != NULL) {
+          SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pRpcMsg);
+          io->FpOnSyncClientRequest(io->pSyncNode, pSyncMsg);
+          syncClientRequestDestroy(pSyncMsg);
         }
 
       } else if (pRpcMsg->msgType == SYNC_REQUEST_VOTE) {
