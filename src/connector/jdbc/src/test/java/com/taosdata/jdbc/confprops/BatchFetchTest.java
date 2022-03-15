@@ -79,4 +79,15 @@ public class BatchFetchTest {
         }
         return builder.toString();
     }
+
+    @AfterClass
+    public static void afterClass(){
+        String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
+        try (Connection conn = DriverManager.getConnection(url);
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("drop database if exists test");
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
 }

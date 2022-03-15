@@ -370,8 +370,11 @@ int32_t taosFsync(FileFd fd) {
   }
 
   HANDLE h = (HANDLE)_get_osfhandle(fd);
-
-  return FlushFileBuffers(h);
+  
+  //If the function succeeds, the return value is nonzero.
+  //If the function fails, the return value is zero. To get extended error information, call GetLastError.
+  //The function fails if hFile is a handle to the console output. That is because the console output is not buffered. The function returns FALSE, and GetLastError returns ERROR_INVALID_HANDLE.
+  return FlushFileBuffers(h)-1;
 }
 
 int32_t taosRename(char *oldName, char *newName) {

@@ -660,6 +660,19 @@ sql select c2-c2 from $tb
 
 sql select first(c1)-last(c1), spread(c2), max(c3) - min(c3), avg(c4)*count(c4) from $tb
 
+# arithmetic operation with now [d.21]===============================================================
+sql_error select now from $tb
+sql_error select now + 123 from $tb
+sql_error select 123 + now from $tb
+sql_error select now - 123 from $tb
+sql_error select 123 - now from $tb
+sql_error select now * 123 from $tb
+sql_error select 123 * now from $tb
+sql_error select now / 123 from $tb
+sql_error select 123 / now from $tb
+sql_error select now % 123 from $tb
+sql_error select 123 % now from $tb
+sql_error select 12 * now / 12 + 12 - 12 * 12 from $tb
 
 #====================================================super table query==================================================
 

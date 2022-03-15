@@ -59,14 +59,14 @@ When TDengine receives the application's request packet, it first writes the req
 
 There are two system configuration parameters involved:
 
-- walLevel: WAL level, 0: do not write wal; 1: write wal, but do not execute fsync; 2: write wal and execute fsync.
+- walLevel: WAL level, 0: do not write WAL; 1: write WAL, but do not execute fsync; 2: write WAL and execute fsync.
 - fsync: the cycle in which fsync is executed when walLevel is set to 2. Setting to 0 means that fsync is executed immediately whenever there is a write.
 
 To guarantee 100% data safe, you need to set walLevel to 2 and fsync to 0. In that way, the write speed will decrease. However, if the number of threads starting to write data on the application side reaches a certain number (more than 50), the performance of writing data will also be good, only about 30% lower than that of fsync set to 3000 milliseconds.
 
 ### Disaster recovery
 
-The cluster of TDengine provides high-availability of the system and implements disaster recovery through the multipl-replica mechanism.
+The cluster of TDengine provides high-availability of the system and implements disaster recovery through the multiple-replica mechanism.
 
 TDengine cluster is managed by mnode. In order to ensure the high reliability of the mnode, multiple mnode replicas can be configured. The number of replicas is determined by system configuration parameter numOfMnodes. In order to support high reliability, it needs to be set to be greater than 1. In order to ensure the strong consistency of metadata, mnode replicas duplicate data synchronously to ensure the strong consistency of metadata.
 
@@ -91,12 +91,12 @@ Only some important configuration parameters are listed below. For more paramete
 - firstEp: end point of the first dnode which will be connected in the cluster when taosd starts, the default value is localhost: 6030.
 - fqdn: FQDN of the data node, which defaults to the first hostname configured by the operating system. If you want to access via IP address directly, you can set it to the IP address of the node.
 - serverPort: the port number of the external service after taosd started, the default value is 6030.
-- httpPort: the port number used by the RESTful service to which all HTTP requests (TCP) require a query/write request. The default value is 6041.
-- dataDir: the data file directory to which all data files will be written. [Default:/var/lib/taos](http://default/var/lib/taos).
-- logDir: the log file directory to which the running log files of the client and server will be written. [Default:/var/log/taos](http://default/var/log/taos).
+- httpPort: the port number used by the RESTful service to which all HTTP requests (TCP) require a query/write request. The default value is 6041. Note 2.4 and later version use a stand-alone software, taosAdapter to provide RESTful interface.
+- dataDir: the data file directory to which all data files will be written. `Default:/var/lib/taos`.
+- logDir: the log file directory to which the running log files of the client and server will be written. `Default:/var/log/taos`.
 - arbitrator: the end point of the arbitrator in the system; the default value is null.
 - role: optional role for dnode. 0-any; it can be used as an mnode and to allocate vnodes; 1-mgmt; It can only be an mnode, but not to allocate vnodes; 2-dnode; cannot be an mnode, only vnode can be allocated
-- debugFlage: run the log switch. 131 (output error and warning logs), 135 (output error, warning, and debug logs), 143 (output error, warning, debug, and trace logs). Default value: 131 or 135 (different modules have different default values).
+- debugFlags: run the log switch. 131 (output error and warning logs), 135 (output error, warning, and debug logs), 143 (output error, warning, debug, and trace logs). Default value: 131 or 135 (different modules have different default values).
 - numOfLogLines: the maximum number of lines allowed for a single log file. Default: 10,000,000 lines.
 - logKeepDays: the maximum retention time of the log file. When it is greater than 0, the log file will be renamed to taosdlog.xxx, where xxx is the timestamp of the last modification of the log file in seconds. Default: 0 days.
 - maxSQLLength: the maximum length allowed for a single SQL statement. Default: 65380 bytes.
@@ -114,8 +114,8 @@ Data in different application scenarios often have different data characteristic
 - minRows: the minimum number of records in a file block, in pieces, default: 100.
 - maxRows: the maximum number of records in a file block, in pieces, default: 4096.
 - comp: file compression flag bit, 0: off; 1: one-stage compression; 2: two-stage compression. Default: 2.
-- walLevel: WAL level. 1: write wal, but do not execute fsync; 2: write wal and execute fsync. Default: 1.
-- fsync: the period during which fsync is executed when wal is set to 2. Setting to 0 means that fsync is executed immediately whenever a write happens, in milliseconds, and the default value is 3000.
+- walLevel: WAL level. 1: write WAL, but do not execute fsync; 2: write WAL and execute fsync. Default: 1.
+- fsync: the period during which fsync is executed when WAL is set to 2. Setting to 0 means that fsync is executed immediately whenever a write happens, in milliseconds, and the default value is 3000.
 - cache: the size of the memory block in megabytes (MB), default: 16.
 - blocks: how many cache-sized memory blocks are in each VNODE (TSDB). Therefore, the memory size used by a VNODE is roughly (cache * blocks), in blocks, and the default value is 4.
 - replica: number of replicas; value range: 1-3, in items, default value: 1
@@ -175,39 +175,44 @@ Client configuration parameters:
 - secondEp: when taos starts, if unable to connect to firstEp, it will try to connect to secondEp.
 - locale
     Default value: obtained dynamically from the system. If the automatic acquisition fails, user needs to set it in the configuration file or through API
-    
+
     TDengine provides a special field type nchar for storing non-ASCII encoded wide characters such as Chinese, Japanese and Korean. The data written to the nchar field will be uniformly encoded in UCS4-LE format and sent to the server. It should be noted that the correctness of coding is guaranteed by the client. Therefore, if users want to normally use nchar fields to store non-ASCII characters such as Chinese, Japanese, Korean, etc., it’s needed to set the encoding format of the client correctly.
-    
+
     The characters inputted by the client are all in the current default coding format of the operating system, mostly UTF-8 on Linux systems, and some Chinese system codes may be GB18030 or GBK, etc. The default encoding in the docker environment is POSIX. In the Chinese versions of Windows system, the code is CP936. The client needs to ensure that the character set it uses is correctly set, that is, the current encoded character set of the operating system running by the client, in order to ensure that the data in nchar is correctly converted into UCS4-LE encoding format.
-    
-    The naming rules of locale in Linux are: < language > _ < region >. < character set coding >, such as: zh_CN.UTF-8, zh stands for Chinese, CN stands for mainland region, and UTF-8 stands for character set. Character set encoding provides a description of encoding transformations for clients to correctly parse local strings. Linux system and Mac OSX system can determine the character encoding of the system by setting locale. Because the locale used by Windows is not the POSIX standard locale format, another configuration parameter charset is needed to specify the character encoding under Windows. You can also use charset to specify character encoding in Linux systems.
+
+    The naming rules of locale in Linux are: < language > _ < region >. < character set coding >, such as: zh_CN.UTF-8, zh stands for Chinese, CN stands for mainland region, and UTF-8 stands for character set. Character set encoding provides a description of encoding transformations for clients to correctly parse local strings. Linux system and macOS system can determine the character encoding of the system by setting locale. Because the locale used by Windows is not the POSIX standard locale format, another configuration parameter charset is needed to specify the character encoding under Windows. You can also use charset to specify character encoding in Linux systems.
 
 - charset
 
     Default value: obtained dynamically from the system. If the automatic acquisition fails, user needs to set it in the configuration file or through API
-    
+
     If charset is not set in the configuration file, in Linux system, when taos starts up, it automatically reads the current locale information of the system, and parses and extracts the charset encoding format from the locale information. If the automatic reading of locale information fails, an attempt is made to read the charset configuration, and if the reading of the charset configuration also fails, the startup process is interrupted.
-    
+
     In Linux system, locale information contains character encoding information, so it is unnecessary to set charset separately after setting locale of Linux system correctly. For example:
-    
+
     ```
     locale zh_CN.UTF-8
     ```
+
     On Windows systems, the current system encoding cannot be obtained from locale. If string encoding information cannot be read from the configuration file, taos defaults to CP936. It is equivalent to adding the following to the configuration file:
+j
     ```
     charset CP936
     ```
+
     If you need to adjust the character encoding, check the encoding used by the current operating system and set it correctly in the configuration file.
-    
+
     In Linux systems, if user sets both locale and charset encoding charset, and the locale and charset are inconsistent, the value set later will override the value set earlier.
+
     ```
     locale zh_CN.UTF-8
     charset GBK
     ```
+
     The valid value for charset is GBK.
-    
+
     And the valid value for charset is UTF-8.
-    
+
     The configuration parameters of log are exactly the same as those of server.
 
 - timezone
@@ -217,31 +222,35 @@ Client configuration parameters:
     The time zone in which the client runs the system. In order to deal with the problem of data writing and query in multiple time zones, TDengine uses Unix Timestamp to record and store timestamps. The characteristics of UNIX timestamps determine that the generated timestamps are consistent at any time regardless of any time zone. It should be noted that UNIX timestamps are converted and recorded on the client side. In order to ensure that other forms of time on the client are converted into the correct Unix timestamp, the correct time zone needs to be set.
 
     In Linux system, the client will automatically read the time zone information set by the system. Users can also set time zones in profiles in a number of ways. For example:
+
     ```
     timezone UTC-8
     timezone GMT-8
     timezone Asia/Shanghai
     ```
-    
+
     All above are legal to set the format of the East Eight Zone.
-    
+
     The setting of time zone affects the content of non-Unix timestamp (timestamp string, parsing of keyword now) in query and writing SQL statements. For example:
 
     ```sql
     SELECT count(*) FROM table_name WHERE TS<'2019-04-11 12:01:08';
     ```
-    
+
     In East Eight Zone, the SQL statement is equivalent to
+
     ```sql
     SELECT count(*) FROM table_name WHERE TS<1554955268000;
     ```
-    
+
     In the UTC time zone, the SQL statement is equivalent to
+
     ```sql
     SELECT count(*) FROM table_name WHERE TS<1554984068000;
     ```
+
     In order to avoid the uncertainty caused by using string time format, Unix timestamp can also be used directly. In addition, timestamp strings with time zones can also be used in SQL statements, such as: timestamp strings in RFC3339 format, 2013-04-12T15:52:01.123+08:00, or ISO-8601 format timestamp strings 2013-04-12T15:52:01.123+0800. The conversion of the above two strings into Unix timestamps is not affected by the time zone in which the system is located.
-    
+
     When starting taos, you can also specify an end point for an instance of taosd from the command line, otherwise read from taos.cfg.
 
 - maxBinaryDisplayWidth
@@ -340,7 +349,7 @@ Query OK, 9 row(s) affected (0.004763s)
 
 **Import via taosdump tool**
 
-TDengine provides a convenient database import and export tool, taosdump. Users can import data exported by taosdump from one system into other systems. Please refer to the blog: [User Guide of TDengine DUMP Tool](https://www.taosdata.com/blog/2020/03/09/1334.html).
+TDengine provides a convenient database import and export tool, taosdump. Users can import data exported by taosdump from one system into other systems. Please refer to [backup tool for TDengine - taosdump](/tools/taosdump).
 
 ## <a class="anchor" id="export"></a> Export Data
 
@@ -368,7 +377,7 @@ The system administrator can query the connection, ongoing query and stream comp
 SHOW CONNECTIONS;
 ```
 
-Show the connection of the database, and one column shows ip: port, which is the IP address and port number of the connection.
+Show the connection of the database, and one column shows IP: port, which is the IP address and port number of the connection.
 
 ```mysql
 KILL CONNECTION <connection-id>;
@@ -428,12 +437,12 @@ Some CLI options are needed to use the script:
 
 2. Grafana alerting notifications. There's two ways to setup this:
    1. To use existing Grafana notification channel with `uid`, option `-E`. The `uid` could be retrieved with `curl -u admin:admin localhost:3000/api/alert-notifications |'.[]| .uid + "," + .name' -r`, then use it like this:
-  
+
         ```bash
         sudo ./TDinsight.sh -a http://localhost:6041 -u root -p taosdata -E <notifier uid>
         ```
 
-   2. Use TDengine data source plugin's builtin [Aliyun SMS](https://www.aliyun.com/product/sms) alerting support with `-s` flag, and input these options：
+   2. Use TDengine data source plugin's built-in [Aliyun SMS](https://www.aliyun.com/product/sms) alerting support with `-s` flag, and input these options：
         1. Access key id with option `-I`
         2. Access key secret with option `K`
         3. Access key sign name with option `-S`
@@ -447,7 +456,7 @@ Some CLI options are needed to use the script:
           -T '{"alarm_level":"%s","time":"%s","name":"%s","content":"%s"}'
         ```
 
-Follow the usage of the script and then restart grafana-server service, here we go <http://localhost:3000/d/tdinsight>.
+Follow the usage of the script and then restart grafana-server service, here we go http://localhost:3000/d/tdinsight.
 
 Refer to [TDinsight](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsight.md) README for more scenario and limitations of the script, and the metrics descriptions for all of the TDinsight.
 
@@ -459,7 +468,7 @@ After installing TDengine, the following directories or files are generated in t
 
 | **Directory/File**        | **Description**                                              |
 | ------------------------- | ------------------------------------------------------------ |
-| /usr/local/taos/bin       | TEngine’s executable directory. The executables are connected to the/usr/bin directory via softly links. |
+| /usr/local/taos/bin       | TDengine’s executable directory. The executables are connected to the/usr/bin directory via softly links. |
 | /usr/local/taos/connector | TDengine’s various connector directories.                    |
 | /usr/local/taos/driver    | TDengine’s dynamic link library directory. Connect to /usr/lib directory via soft links. |
 | /usr/local/taos/examples  | TDengine’s application example directory for various languages. |
@@ -486,7 +495,7 @@ You can configure different data directories and log directories by modifying sy
 - Table column name: cannot contain special characters, and cannot exceed 64 characters
 - Database name, table name, column name cannot begin with a number
 - Number of columns in table: cannot exceed 1024 columns
-- Maximum length of record: including 8 bytes as timestamp, no more than 16KB (each column of BINARY/NCHAR type will occupy an additional 2 bytes of storage location)
+- Maximum length of record: including 8 bytes as timestamp, no more than 48K bytes (it's 16K bytes prior to 2.1.7.0. each column of BINARY/NCHAR type will occupy an additional 2 bytes of storage location)
 - Default maximum string length for a single SQL statement: 65480 bytes
 - Number of database replicas: no more than 3
 - User name: no more than 23 bytes

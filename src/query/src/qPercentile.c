@@ -74,7 +74,7 @@ static int32_t setBoundingBox(MinMaxEntry* range, int16_t type, double minval, d
     }
   } else if (IS_UNSIGNED_NUMERIC_TYPE(type)){
     range->u64MinVal = (uint64_t) minval;
-    if ((uint64_t)maxval > UINT64_MAX) {
+    if (maxval > UINT64_MAX) {
       range->u64MaxVal = UINT64_MAX;
     } else {
       range->u64MaxVal = (uint64_t) maxval;
@@ -146,7 +146,7 @@ int32_t tBucketIntHash(tMemBucket *pBucket, const void *value) {
 }
 
 int32_t tBucketUintHash(tMemBucket *pBucket, const void *value) {
-  int64_t v = 0;
+  uint64_t v = 0;
   GET_TYPED_DATA(v, uint64_t, pBucket->type, value);
 
   int32_t index = -1;
@@ -162,8 +162,8 @@ int32_t tBucketUintHash(tMemBucket *pBucket, const void *value) {
     index = (int32_t) (delta % pBucket->numOfSlots);
   } else {
     double slotSpan = (double)span / pBucket->numOfSlots;
-    index = (int32_t)((v - pBucket->range.u64MinVal) / slotSpan);
-    if (v == pBucket->range.u64MaxVal) {
+    index = (int32_t)(((double)v - pBucket->range.u64MinVal) / slotSpan);
+    if (index == pBucket->numOfSlots) {
       index -= 1;
     }
   }
@@ -194,7 +194,7 @@ int32_t tBucketDoubleHash(tMemBucket *pBucket, const void *value) {
   } else {
     double slotSpan = span / pBucket->numOfSlots;
     index = (int32_t)((v - pBucket->range.dMinVal) / slotSpan);
-    if (v == pBucket->range.dMaxVal) {
+    if (index == pBucket->numOfSlots) {
       index -= 1;
     }
   }

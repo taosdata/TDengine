@@ -54,7 +54,7 @@ typedef struct SSqlExpr {
   int32_t   resBytes;       // length of return value
   int32_t   interBytes;     // inter result buffer size
 
-  int16_t   colType;        // table column type
+  int16_t   colType;        // table column type, this should be int32_t, because it is too small for globale merge stage, pQueryAttr->interBytesForGlobal
   int16_t   colBytes;       // table column bytes
 
   int16_t   numOfParams;    // argument value of each function
@@ -103,6 +103,7 @@ bool tscValidateTableNameLength(size_t len);
 SColumnFilterInfo* tFilterInfoDup(const SColumnFilterInfo* src, int32_t numOfFilters);
 
 SSchema* tGetTbnameColumnSchema();
+SSchema* tGetTimeWindowColumnSchema(int16_t columnIndex);
 
 /**
  * check if the schema is valid or not, including following aspects:

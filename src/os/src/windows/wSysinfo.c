@@ -120,7 +120,7 @@ static void taosGetSystemLocale() {
 
   SGlobalCfg *cfg_charset = taosGetConfigOption("charset");
   if (cfg_charset && cfg_charset->cfgStatus < TAOS_CFG_CSTATUS_DEFAULT) {
-    strcpy(tsCharset, "cp936");
+    strcpy(tsCharset, "UTF-8");
     cfg_charset->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
     uInfo("charset not configured, set to default:%s", tsCharset);
   }

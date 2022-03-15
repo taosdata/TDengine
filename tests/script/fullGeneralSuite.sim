@@ -38,6 +38,11 @@ run general/compute/stddev.sim
 run general/compute/sum.sim
 run general/compute/top.sim
 run general/compute/block_dist.sim
+run general/compute/math_funcs.sim
+run general/compute/string_funcs.sim
+run general/compute/scalar_pow.sim
+run general/compute/scalar_triangle.sim
+run general/compute/scalar_str_concat_len.sim
 run general/compute/table_group.sim
 run general/db/alter_option.sim
 run general/db/alter_tables_d2.sim
@@ -140,6 +145,7 @@ run general/parser/groupby.sim
 run general/parser/top_groupby.sim
 run general/parser/tags_dynamically_specifiy.sim
 run general/parser/set_tag_vals.sim
+run general/parser/scalar_expression.sim
 #unsupport run general/parser/repeatAlter.sim
 #unsupport run general/parser/slimit_alter_tags.sim
 run general/parser/precision_ns.sim
@@ -232,3 +238,4 @@ run general/parser/tbname_escape.sim
 run general/parser/columnName_escape.sim
 run general/parser/tagName_escape.sim
 run general/parser/interp_blocks.sim
+run general/parser/create_tb_with_timestamp_tag.sim

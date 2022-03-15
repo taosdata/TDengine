@@ -1,9 +1,11 @@
 # Rapidly build a IT DevOps system with TDengine + collectd/StatsD + Grafana
 
 ## Background
+
 TDengine is an open-source big data platform designed and optimized for Internet of Things (IoT), Connected Vehicles, and Industrial IoT. Besides the 10x faster time-series database, it provides caching, stream computing, message queuing and other functionalities to reduce the complexity and costs of development and operations.
 
 There are a lot of time-series data in the IT DevOps scenario, for example:
+
 - Metrics of system resource: CPU, memory, IO and network status, etc.
 - Metrics for software system: service status, number of connections, number of requests, number of the timeout, number of errors, response time, service type, and other metrics related to the specific business.
 
@@ -14,33 +16,41 @@ Here we introduce a way to build an IT DevOps system with TDengine, collectd/sta
 ![IT-DevOps-Solutions-Collectd-StatsD.png](../../images/IT-DevOps-Solutions-Collectd-StatsD.png)
 
 ## Installation steps
+
 Please refer to each component's official document for collectd, StatsD, Grafana, and TDengine installation.
 
 ### collectd
+
 Please refer to the [official document](https://collectd.org/documentation.shtml).
 
 ### StatsD
+
 Please refer to the [official document](https://github.com/statsd/statsd).
 
 ### Grafana
+
 Please refer to the [official document](https://grafana.com/grafana/download).
 
 ### TDengine
+
 Please download TDengine 2.3.0.0 or the above version from TAOS Data's [official website](http://taosdata.com/cn/all-downloads/).
 
 ## Setup data chain
+
 ### Download TDengine plugin to Grafana plugin's directory
 
 ```bash
-1. wget -c https://github.com/taosdata/grafanaplugin/releases/download/v3.1.1/tdengine-datasource-3.1.1.zip
-2. sudo unzip tdengine-datasource-3.1.1.zip -d /var/lib/grafana/plugins/
+1. wget -c https://github.com/taosdata/grafanaplugin/releases/download/v3.1.3/tdengine-datasource-3.1.3.zip
+2. sudo unzip tdengine-datasource-3.1.3.zip -d /var/lib/grafana/plugins/
 3. sudo chown grafana:grafana -R /var/lib/grafana/plugins/tdengine
 4. echo -e "[plugins]\nallow_loading_unsigned_plugins = tdengine-datasource\n" | sudo tee -a /etc/grafana/grafana.ini
 5. sudo systemctl restart grafana-server.service
 ```
 
 ### To configure collectd
+
 Please add a few lines in /etc/collectd/collectd.conf as below. Please specify the correct value for hostname and the port number:
+
 ```
 LoadPlugin network
 <Plugin network>
@@ -51,11 +61,11 @@ sudo systemctl start collectd
 ```
 
 ### To configure StatsD
+
 Please add a few lines in the config.js file then restart StatsD. Please use the correct hostname and port number of TDengine and taosAdapter:
-```
-fill backends section with "./backends/repeater"
-fill repeater section with { host:'<TDengine server/cluster host>', port: <port for StatsD>}
-```
+
+- fill backends section with "./backends/repeater"
+- fill repeater section with { host:'<TDengine server/cluster host>', port: <port for StatsD>}
 
 ### Import dashboard
 
@@ -65,7 +75,7 @@ Click the gear icon from the left bar to select 'Plugins'. You could find the ic
 
 #### Import collectd dashboard
 
-Please download the dashboard JSON file from https://github.com/taosdata/grafanaplugin/blob/master/examples/collectd/grafana/dashboards/collect-metrics-with-tdengine-v0.1.0.json.
+Please download the dashboard JSON file from `https://github.com/taosdata/grafanaplugin/blob/master/examples/collectd/grafana/dashboards/collect-metrics-with-tdengine-v0.1.0.json`.
 
 Click the 'plus' icon from the left bar to select 'Import'. Then you should see the interface like:
 
@@ -73,7 +83,7 @@ Click the 'plus' icon from the left bar to select 'Import'. Then you should see 
 
 #### Import StatsD dashboard
 
-Please download dashboard JSON file from https://github.com/taosdata/grafanaplugin/blob/master/examples/statsd/dashboards/statsd-with-tdengine-v0.1.0.json.
+Please download dashboard JSON file from `https://github.com/taosdata/grafanaplugin/blob/master/examples/statsd/dashboards/statsd-with-tdengine-v0.1.0.json`.
 
 Click the 'plus' icon from the left bar to select 'Import'. Then you should see the interface like:
 

@@ -39,7 +39,7 @@ extern "C" {
 #define TSKEY_INITIAL_VAL    INT64_MIN
 
 // Bytes for each type.
-extern const int32_t TYPE_BYTES[15];
+extern const int32_t TYPE_BYTES[16];
 
 // TODO: replace and remove code below
 #define CHAR_BYTES    sizeof(char)
@@ -70,6 +70,11 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_DATA_DOUBLE_NULL           0x7FFFFF0000000000L     // an NAN
 #define TSDB_DATA_NCHAR_NULL            0xFFFFFFFF
 #define TSDB_DATA_BINARY_NULL           0xFF
+#define TSDB_DATA_JSON_PLACEHOLDER      0x7F
+#define TSDB_DATA_JSON_NULL             0xFFFFFFFF
+#define TSDB_DATA_JSON_null             0xFFFFFFFE
+#define TSDB_DATA_JSON_NOT_NULL         0x01
+#define TSDB_DATA_JSON_CAN_NOT_COMPARE  0x7FFFFFFF
 
 #define TSDB_DATA_UTINYINT_NULL         0xFF
 #define TSDB_DATA_USMALLINT_NULL        0xFFFF
@@ -78,33 +83,20 @@ extern const int32_t TYPE_BYTES[15];
 
 #define TSDB_DATA_NULL_STR              "NULL"
 #define TSDB_DATA_NULL_STR_L            "null"
-
 #define TSDB_DEFAULT_USER               "root"
-
-#ifdef _TD_POWER_
-#define TSDB_DEFAULT_PASS               "powerdb"
-#elif (_TD_TQ_ == true)
-#define TSDB_DEFAULT_PASS               "tqueue"
-#elif (_TD_PRO_ == true)
-#define TSDB_DEFAULT_PASS               "prodb"
-#elif (_TD_KH_ == true)
-#define TSDB_DEFAULT_PASS               "khroot"
-#elif (_TD_JH_ == true)
-#define TSDB_DEFAULT_PASS               "jhdata"
-#else
 #define TSDB_DEFAULT_PASS               "taosdata"
-#endif
 
-#define SHELL_MAX_PASSWORD_LEN          20
+#define TSDB_PASS_LEN                   129
 
+#define SHELL_MAX_PASSWORD_LEN          TSDB_PASS_LEN
 #define TSDB_TRUE   1
 #define TSDB_FALSE  0
 #define TSDB_OK     0
 #define TSDB_ERR   -1
 
 #define TS_PATH_DELIMITER "."
-#define TS_ESCAPE_CHAR '`'
-#define TS_ESCAPE_CHAR_SIZE 2
+#define TS_BACKQUOTE_CHAR '`'
+#define TS_BACKQUOTE_CHAR_SIZE 2
 
 #define TSDB_TIME_PRECISION_MILLI 0
 #define TSDB_TIME_PRECISION_MICRO 1
@@ -113,6 +105,11 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_TIME_PRECISION_MILLI_STR "ms"
 #define TSDB_TIME_PRECISION_MICRO_STR "us"
 #define TSDB_TIME_PRECISION_NANO_STR  "ns"
+
+#define TSDB_TIME_PRECISION_SEC_DIGITS 10
+#define TSDB_TIME_PRECISION_MILLI_DIGITS 13
+#define TSDB_TIME_PRECISION_MICRO_DIGITS 16
+#define TSDB_TIME_PRECISION_NANO_DIGITS 19
 
 #define TSDB_TICK_PER_SECOND(precision) ((int64_t)((precision)==TSDB_TIME_PRECISION_MILLI ? 1e3L : ((precision)==TSDB_TIME_PRECISION_MICRO ? 1e6L : 1e9L)))
 
@@ -141,19 +138,21 @@ do { \
   float  taos_align_get_float(const char* pBuf);
   double taos_align_get_double(const char* pBuf);
 
-  #define GET_FLOAT_VAL(x)       taos_align_get_float(x)
-  #define GET_DOUBLE_VAL(x)      taos_align_get_double(x)
-  #define SET_FLOAT_VAL(x, y)  { float z = (float)(y);   (*(int32_t*) x = *(int32_t*)(&z)); }
-  #define SET_DOUBLE_VAL(x, y) { double z = (double)(y); (*(int64_t*) x = *(int64_t*)(&z)); }
-  #define SET_FLOAT_PTR(x, y)  { (*(int32_t*) x = *(int32_t*)y); }
-  #define SET_DOUBLE_PTR(x, y) { (*(int64_t*) x = *(int64_t*)y); }
+  #define GET_FLOAT_VAL(x)        taos_align_get_float(x)
+  #define GET_DOUBLE_VAL(x)       taos_align_get_double(x)
+  #define SET_FLOAT_VAL(x, y)     { float z = (float)(y);   (*(int32_t*) x = *(int32_t*)(&z)); }
+  #define SET_DOUBLE_VAL(x, y)    { double z = (double)(y); (*(int64_t*) x = *(int64_t*)(&z)); }
+  #define SET_TIMESTAMP_VAL(x, y) { int64_t z = (int64_t)(y); (*(int64_t*) x = *(int64_t*)(&z)); }
+  #define SET_FLOAT_PTR(x, y)     { (*(int32_t*) x = *(int32_t*)y); }
+  #define SET_DOUBLE_PTR(x, y)    { (*(int64_t*) x = *(int64_t*)y); }
 #else
-  #define GET_FLOAT_VAL(x)       (*(float *)(x))
-  #define GET_DOUBLE_VAL(x)      (*(double *)(x))
-  #define SET_FLOAT_VAL(x, y)  { (*(float *)(x))  = (float)(y);       }
-  #define SET_DOUBLE_VAL(x, y) { (*(double *)(x)) = (double)(y);      }
-  #define SET_FLOAT_PTR(x, y)  { (*(float *)(x))  = (*(float *)(y));  }
-  #define SET_DOUBLE_PTR(x, y) { (*(double *)(x)) = (*(double *)(y)); }
+  #define GET_FLOAT_VAL(x)        (*(float *)(x))
+  #define GET_DOUBLE_VAL(x)       (*(double *)(x))
+  #define SET_FLOAT_VAL(x, y)     { (*(float *)(x))  = (float)(y);       }
+  #define SET_DOUBLE_VAL(x, y)    { (*(double *)(x)) = (double)(y);      }
+  #define SET_TIMESTAMP_VAL(x, y) { (*(int64_t *)(x)) = (int64_t)(y);    }
+  #define SET_FLOAT_PTR(x, y)     { (*(float *)(x))  = (*(float *)(y));  }
+  #define SET_DOUBLE_PTR(x, y)    { (*(double *)(x)) = (*(double *)(y)); }
 #endif
 
 // TODO: check if below is necessary
@@ -175,6 +174,9 @@ do { \
 
 #define TSDB_RELATION_MATCH       14
 #define TSDB_RELATION_NMATCH      15
+
+#define TSDB_RELATION_CONTAINS    16
+#define TSDB_RELATION_ARROW       17
 
 #define TSDB_BINARY_OP_ADD        30
 #define TSDB_BINARY_OP_SUBTRACT   31
@@ -222,8 +224,11 @@ do { \
    */
 #define TSDB_MAX_BYTES_PER_ROW    49151
 #define TSDB_MAX_TAGS_LEN         16384
+#define TSDB_MAX_JSON_TAGS_LEN    (4096*TSDB_NCHAR_SIZE + 2 + 1) // 2->var_header_len 1->type
 #define TSDB_MAX_TAGS             128
 #define TSDB_MAX_TAG_CONDITIONS   1024
+#define TSDB_MAX_JSON_KEY_LEN     256
+#define TSDB_MAX_JSON_KEY_MD5_LEN 16
 
 #define TSDB_AUTH_LEN             16
 #define TSDB_KEY_LEN              16
@@ -271,7 +276,14 @@ do { \
 
 #define TSDB_MAX_REPLICA          5
 
-#define TSDB_TBNAME_COLUMN_INDEX        (-1)
+#define TSDB_TBNAME_COLUMN_INDEX          (-1)
+#define TSDB_TSWIN_START_COLUMN_INDEX     (-2)
+#define TSDB_TSWIN_STOP_COLUMN_INDEX      (-3)
+#define TSDB_TSWIN_DURATION_COLUMN_INDEX  (-4)
+#define TSDB_MIN_VALID_COLUMN_INDEX       (-4)
+
+#define TSDB_COL_IS_TSWIN_COL(_i)       ((_i) <= TSDB_TSWIN_START_COLUMN_INDEX && (_i) >= TSDB_TSWIN_DURATION_COLUMN_INDEX)
+
 #define TSDB_UD_COLUMN_INDEX            (-1000)
 #define TSDB_RES_COL_ID                 (-5000)
 
@@ -405,6 +417,11 @@ do { \
 #define TSDB_DEFAULT_VGROUPS_HASH_SIZE         100
 #define TSDB_DEFAULT_STABLES_HASH_SIZE         100
 #define TSDB_DEFAULT_CTABLES_HASH_SIZE         20000
+
+#define TSDB_SHORTCUT_RB_RPC_SEND_SUBMIT       0x01u  // RB: return before(global shortcut)
+#define TSDB_SHORTCUT_RA_RPC_RECV_SUBMIT       0x02u  // RA: return after(global shortcut)
+#define TSDB_SHORTCUT_NR_VNODE_WAL_WRITE       0x04u  // NR: no return and go on following actions(local shortcut)
+#define TSDB_SHORTCUT_RB_TSDB_COMMIT           0x08u
 
 #define TSDB_PORT_DNODESHELL                   0
 #define TSDB_PORT_DNODEDNODE                   5

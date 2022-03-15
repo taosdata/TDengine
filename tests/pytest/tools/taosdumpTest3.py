@@ -54,20 +54,13 @@ class TDTestCase:
     def run(self):
         if not os.path.exists("./taosdumptest"):
             os.makedirs("./taosdumptest")
-        if not os.path.exists("./taosdumptest/tmp1"):
-            os.makedirs("./taosdumptest/tmp1")
-        if not os.path.exists("./taosdumptest/tmp2"):
-            os.makedirs("./taosdumptest/tmp2")
-        if not os.path.exists("./taosdumptest/tmp3"):
-            os.makedirs("./taosdumptest/tmp3")
-        if not os.path.exists("./taosdumptest/tmp4"):
-            os.makedirs("./taosdumptest/tmp4")
-        if not os.path.exists("./taosdumptest/tmp5"):
-            os.makedirs("./taosdumptest/tmp5")
-        if not os.path.exists("./taosdumptest/tmp6"):
-            os.makedirs("./taosdumptest/tmp6")
-        if not os.path.exists("./taosdumptest/tmp7"):
-            os.makedirs("./taosdumptest/tmp7")
+        for i in range(1,9):
+            if not os.path.exists("./taosdumptest/tmp%d"%i):
+                os.makedirs("./taosdumptest/tmp%d"%i)
+            else:
+                os.system("rm -rf ./taosdumptest/tmp%d"%i)
+                os.makedirs("./taosdumptest/tmp%d"%i)
+
         buildPath = self.getBuildPath()
         if (buildPath == ""):
             tdLog.exit("taosdump not found!")
@@ -122,32 +115,30 @@ class TDTestCase:
         tdSql.execute("insert into st0_1 values(1614218413000000001,8601,'A')(1614218423000000002,8601,'D')")
 
 
-        # tdSql.execute("insert into t0 values(1614218422000,8638,'R')")
-        os.system("rm -rf ./taosdumptest/tmp1/*")
-        os.system("rm -rf ./taosdumptest/tmp2/*")
-        os.system("rm -rf ./taosdumptest/tmp3/*")
-        os.system("rm -rf ./taosdumptest/tmp4/*")
-        os.system("rm -rf ./taosdumptest/tmp5/*")
-
         # #  taosdump stable and  general table
-        os.system("%staosdump  -o ./taosdumptest/tmp1 -D dp1,dp2  " % binPath)
-        os.system("%staosdump  -o ./taosdumptest/tmp2 dp1 st0 gt0  " % binPath)
-        os.system("%staosdump  -o ./taosdumptest/tmp3 dp2 st0 st1_0 gt0" % binPath)
-        os.system("%staosdump  -o ./taosdumptest/tmp4 dp2 st0 st2 gt0 gt2" % binPath)
+        os.system("%staosdump  -o ./taosdumptest/tmp1 -D dp1,dp2 -T 8 " % binPath)
+        os.system("%staosdump  -o ./taosdumptest/tmp2 dp1 st0 gt0   -T 8 " % binPath)
+        os.system("%staosdump  -o ./taosdumptest/tmp3 dp2 st0 st1_0 gt0  -T 8 "  % binPath)
+        os.system("%staosdump  -o ./taosdumptest/tmp4 dp2 st0 st2 gt0 gt2  -T 8 " % binPath)
 
         # verify ns 
-        os.system("%staosdump  -o ./taosdumptest/tmp6 dp3 st0_0" % binPath)
-        assert os.system("%staosdump  -o ./taosdumptest/tmp6 dp3 st0_0 -C ns " % binPath) != 0
+        os.system("%staosdump  -o ./taosdumptest/tmp6 dp3 st0_0  -T 8 " % binPath)
 
         # verify -D:--database
-        os.system("%staosdump  -o ./taosdumptest/tmp5  --databases dp1,dp2 " % binPath)
+        assert os.system("%staosdump  -o ./taosdumptest/tmp5  --databases dp1,dp2   -T 8 " % binPath) == 0
         # verify mixed -D:--database and dbname tbname
-        assert os.system("%staosdump --databases dp1 -o ./taosdumptest/tmp5 dp2 st0 st1_0 gt0" % binPath) != 0
+        assert os.system("%staosdump --databases dp1 -o ./taosdumptest/tmp5 dp2 st0 st1_0 gt0  -T 8 " % binPath) != 0
+
+        # verify -N
+        os.system("%staosdump  -o ./taosdumptest/tmp7 dp3 st0_0 -N -d null  -T 8 " % binPath)
+
+        # verify -N -s
+        os.system("%staosdump  -o ./taosdumptest/tmp8 dp3 st0_0 -N  -s  -T 8 " % binPath)
 
         #check taosdumptest/tmp1
         tdSql.execute("drop database  dp1")
         tdSql.execute("drop database  dp2")
-        os.system("%staosdump -i ./taosdumptest/tmp1 -T 2   " % binPath)
+        os.system("%staosdump -i ./taosdumptest/tmp1 -T 8   " % binPath)
         tdSql.execute("use dp1")
         tdSql.query("show stables")
         tdSql.checkRows(1)
@@ -176,7 +167,7 @@ class TDTestCase:
         #check taosdumptest/tmp2
         tdSql.execute("drop database  dp1")
         tdSql.execute("drop database  dp2")
-        os.system("%staosdump -i ./taosdumptest/tmp2 -T 2   " % binPath)
+        os.system("%staosdump -i ./taosdumptest/tmp2 -T 8   " % binPath)
         tdSql.execute("use dp1")
         tdSql.query("show stables")
         tdSql.checkRows(1)
@@ -195,7 +186,7 @@ class TDTestCase:
 
         #check taosdumptest/tmp3
         tdSql.execute("drop database  dp1")
-        os.system("%staosdump  -i ./taosdumptest/tmp3 -T 2 " % binPath)  
+        os.system("%staosdump  -i ./taosdumptest/tmp3 -T 8 " % binPath)  
         tdSql.execute("use dp2")
         tdSql.query("show stables")
         tdSql.checkRows(2)
@@ -211,7 +202,7 @@ class TDTestCase:
 
         #check taosdumptest/tmp4
         tdSql.execute("drop database  dp2")
-        os.system("%staosdump  -i ./taosdumptest/tmp4 -T 2 " % binPath)  
+        os.system("%staosdump  -i ./taosdumptest/tmp4 -T 8 " % binPath)  
         tdSql.execute("use dp2")
         tdSql.query("show stables")
         tdSql.checkRows(2)
@@ -235,7 +226,7 @@ class TDTestCase:
 
         #check taosdumptest/tmp5
         tdSql.execute("drop database  dp2")
-        os.system("%staosdump  -i ./taosdumptest/tmp5 -T 2 " % binPath)  
+        os.system("%staosdump  -i ./taosdumptest/tmp5 -T 8 " % binPath)  
         tdSql.execute("use dp2")
         tdSql.query("show stables")
         tdSql.checkRows(3)
@@ -268,12 +259,15 @@ class TDTestCase:
         tdSql.checkData(0,0,'2021-02-25 10:00:12.000')
         tdSql.checkData(0,1,637)
 
-       #check taosdumptest/tmp6
+        # check taosdumptest/tmp6
         tdSql.execute("drop database dp1")
         tdSql.execute("drop database dp2")
         tdSql.execute("drop database dp3")
-        os.system("%staosdump  -i ./taosdumptest/tmp6 -T 2 " % binPath)  
+        os.system("%staosdump  -i ./taosdumptest/tmp6 -T 8 " % binPath)  
         tdSql.execute("use dp3")
+        tdSql.query("show databases")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,16,'ns')
         tdSql.query("show stables")
         tdSql.checkRows(1)
         tdSql.query("show tables")
@@ -284,11 +278,39 @@ class TDTestCase:
         tdSql.checkData(0,0,'2021-02-25 10:00:12.000000001')
         tdSql.checkData(0,1,8600)
 
-        os.system("rm -rf ./taosdumptest/tmp1")
-        os.system("rm -rf ./taosdumptest/tmp2")
-        os.system("rm -rf ./taosdumptest/tmp3")
-        os.system("rm -rf ./taosdumptest/tmp4")
-        os.system("rm -rf ./taosdumptest/tmp5")
+        # check taosdumptest/tmp7
+        tdSql.execute("drop database dp3")
+        os.system("%staosdump  -i ./taosdumptest/tmp7 -T 8 " % binPath)  
+        tdSql.execute("use dp3")
+        tdSql.query("show databases")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,16,'ms')
+        tdSql.query("show stables")
+        tdSql.checkRows(1)
+        tdSql.query("show tables")
+        tdSql.checkRows(1)
+        tdSql.query("select count(*) from st0_0")
+        tdSql.checkRows(0)
+        # tdSql.query("select * from st0 order by ts")
+        # tdSql.checkData(0,0,'2021-02-25 10:00:12.000000001')
+        # tdSql.checkData(0,1,8600)
+
+        # check taosdumptest/tmp8
+        tdSql.execute("drop database dp3")
+        os.system("%staosdump  -i ./taosdumptest/tmp8 -T 8 " % binPath)  
+        tdSql.execute("use dp3")
+        tdSql.query("show stables")
+        tdSql.checkRows(1)
+        tdSql.query("show tables")
+        tdSql.checkRows(1)
+        tdSql.query("select count(*) from st0_0")
+        tdSql.checkRows(0) 
+        # tdSql.query("select * from st0 order by ts")
+        # tdSql.checkData(0,0,'2021-02-25 10:00:12.000000001')
+        # tdSql.checkData(0,1,8600)
+
+        for i in range(1,9):
+            os.system("rm -rf ./taosdumptest/tmp%d"%i)
         os.system("rm -rf ./dump_result.txt")
         os.system("rm -rf ./db.csv")
 

@@ -1,7 +1,6 @@
-# 常见问题
+# 常见问题及反馈
 
-## 0. 怎么报告问题？
-
+## 问题反馈
 如果 FAQ 中的信息不能够帮到您，需要 TDengine 技术团队的技术支持与协助，请将以下两个目录中内容打包：
 1. /var/log/taos （如果没有修改过默认路径）
 2. /etc/taos
@@ -14,7 +13,9 @@
 ```
 但系统正常运行时，请一定将debugFlag设置为131，否则会产生大量的日志信息，降低系统效率。
 
-## 1. TDengine2.0之前的版本升级到2.0及以上的版本应该注意什么？☆☆☆
+## 常见问题列表
+
+**1. TDengine2.0之前的版本升级到2.0及以上的版本应该注意什么？☆☆☆**
 
 2.0版在之前版本的基础上，进行了完全的重构，配置文件和数据文件是不兼容的。在升级之前务必进行如下操作：
 
@@ -24,19 +25,19 @@
 4. 安装最新稳定版本的 TDengine
 5. 如果需要迁移数据或者数据文件损坏，请联系涛思数据官方技术支持团队，进行协助解决
 
-## 2. Windows平台下JDBCDriver找不到动态链接库，怎么办？
+**2. Windows平台下JDBCDriver找不到动态链接库，怎么办？**
 
 请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2019/12/03/950.html)。
 
-## 3. 创建数据表时提示more dnodes are needed
+**3. 创建数据表时提示more dnodes are needed**
 
 请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2019/12/03/965.html)。
 
-## 4. 如何让TDengine crash时生成core文件？
+**4. 如何让TDengine crash时生成core文件？** 
 
 请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2019/12/06/974.html)。
 
-## 5. 遇到错误“Unable to establish connection”, 我怎么办？
+**5. 遇到错误“Unable to establish connection”, 我怎么办？**
 
 客户端遇到连接故障，请按照下面的步骤进行检查：
 
@@ -70,7 +71,7 @@
 
 10. 也可以使用taos程序内嵌的网络连通检测功能，来验证服务器和客户端之间指定的端口连接是否通畅（包括TCP和UDP）：[TDengine 内嵌网络检测工具使用指南](https://www.taosdata.com/blog/2020/09/08/1816.html)。
 
-## 6. 遇到错误“Unexpected generic error in RPC”或者“Unable to resolve FQDN”，我怎么办？
+**6. 遇到错误“Unexpected generic error in RPC”或者“Unable to resolve FQDN”，我怎么办？**
 
 产生这个错误，是由于客户端或数据节点无法解析FQDN(Fully Qualified Domain Name)导致。对于TAOS Shell或客户端应用，请做如下检查：
 
@@ -78,17 +79,20 @@
 2. 如果网络配置有DNS server，请检查是否正常工作
 3. 如果网络没有配置DNS server，请检查客户端所在机器的hosts文件，查看该FQDN是否配置，并是否有正确的IP地址
 4. 如果网络配置OK，从客户端所在机器，你需要能Ping该连接的FQDN，否则客户端是无法连接服务器的
+5. 如果服务器曾经使用过TDengine，且更改过hostname，建议检查data目录的dnodeEps.json是否符合当前配置的EP，路径默认为/var/lib/taos/dnode。正常情况下，建议更换新的数据目录或者备份后删除以前的数据目录，这样可以避免该问题。
+6. 检查/etc/hosts 和/etc/hostname是否是预配置的FQDN
 
-## 7. 虽然语法正确，为什么我还是得到 "Invalid SQL" 错误
+**7. 虽然语法正确，为什么我还是得到 "Invalid SQL" 错误**
 
 如果你确认语法正确，2.0之前版本，请检查SQL语句长度是否超过64K。如果超过，也会返回这个错误。
 
-## 8. 是否支持validation queries？
+**8. 是否支持validation queries？**
 
 TDengine还没有一组专用的validation queries。然而建议你使用系统监测的数据库”log"来做。
 
 <a class="anchor" id="update"></a>
-## 9. 我可以删除或更新一条记录吗？
+
+**9. 我可以删除或更新一条记录吗？**
 
 TDengine 目前尚不支持删除功能，未来根据用户需求可能会支持。
 
@@ -98,15 +102,15 @@ TDengine 目前尚不支持删除功能，未来根据用户需求可能会支�
 
 此外，从 2.1.7.0 版本开始，支持将 UPDATE 参数设为 2，表示“支持部分列更新”。也即，当 UPDATE 设为 1 时，如果更新一个数据行，其中某些列没有提供取值，那么这些列会被设为 NULL；而当 UPDATE 设为 2 时，如果更新一个数据行，其中某些列没有提供取值，那么这些列会保持原有数据行中的对应值。
 
-## 10. 我怎么创建超过1024列的表？
+**10. 我怎么创建超过1024列的表？**
 
 使用 2.0 及其以上版本，默认支持 1024 列；2.0 之前的版本，TDengine 最大允许创建 250 列的表。但是如果确实超过限值，建议按照数据特性，逻辑地将这个宽表分解成几个小表。（从 2.1.7.0 版本开始，表的最大列数增加到了 4096 列。）
 
-## 11. 最有效的写入数据的方法是什么？
+**11. 最有效的写入数据的方法是什么？**
 
 批量插入。每条写入语句可以一张表同时插入多条记录，也可以同时插入多张表的多条记录。
 
-## 12. Windows系统下插入的nchar类数据中的汉字被解析成了乱码如何解决？
+**12. Windows系统下插入的nchar类数据中的汉字被解析成了乱码如何解决？** 
 
 Windows下插入nchar类的数据中如果有中文，请先确认系统的地区设置成了中国（在Control Panel里可以设置），这时cmd中的`taos`客户端应该已经可以正常工作了；如果是在IDE里开发Java应用，比如Eclipse， Intellij，请确认IDE里的文件编码为GBK（这是Java默认的编码类型），然后在生成Connection时，初始化客户端的配置，具体语句如下：
 ```JAVA
@@ -116,7 +120,7 @@ properties.setProperty(TSDBDriver.LOCALE_KEY, "UTF-8");
 Connection = DriverManager.getConnection(url, properties);
 ```
 
-## 13.JDBC报错： the excuted SQL is not a DML or a DDL？
+**13.JDBC报错： the excuted SQL is not a DML or a DDL？** 
 
 请更新至最新的JDBC驱动
 ```xml
@@ -127,15 +131,15 @@ Connection = DriverManager.getConnection(url, properties);
 </dependency>
 ```
 
-## 14. taos connect failed, reason&#58; invalid timestamp
+**14. taos connect failed, reason&#58; invalid timestamp**
 
 常见原因是服务器和客户端时间没有校准，可以通过和时间服务器同步的方式（Linux 下使用 ntpdate 命令，Windows 在系统时间设置中选择自动同步）校准。
 
-## 15. 表名显示不全
+**15. 表名显示不全**
 
 由于 taos shell 在终端中显示宽度有限，有可能比较长的表名显示不全，如果按照显示的不全的表名进行相关操作会发生 Table does not exist 错误。解决方法可以是通过修改 taos.cfg 文件中的设置项 maxBinaryDisplayWidth， 或者直接输入命令 set max_binary_display_width 100。或者在命令结尾使用 \G 参数来调整结果的显示方式。
 
-## 16. 如何进行数据迁移？
+**16. 如何进行数据迁移？**
 
 TDengine是根据hostname唯一标志一台机器的，在数据文件从机器A移动机器B时，注意如下两件事：
 
@@ -143,7 +147,7 @@ TDengine是根据hostname唯一标志一台机器的，在数据文件从机器A
 - 2.0.7.0 及以后的版本，到/var/lib/taos/dnode下，修复dnodeEps.json的dnodeId对应的FQDN，重启。确保机器内所有机器的此文件是完全相同的。
 - 1.x 和 2.x 版本的存储结构不兼容，需要使用迁移工具或者自己开发应用导出导入数据。
 
-## 17. 如何在命令行程序 taos 中临时调整日志级别
+**17. 如何在命令行程序 taos 中临时调整日志级别**
 
 为了调试方便，从 2.0.16 版本开始，命令行程序 taos 新增了与日志记录相关的两条指令：
 
@@ -162,7 +166,8 @@ ALTER LOCAL RESETLOG;
 其含义是，清空本机所有由客户端生成的日志文件。
 
 <a class="anchor" id="timezone"></a>
-## 18. 时间戳的时区信息是怎样处理的？
+
+**18. 时间戳的时区信息是怎样处理的？**
 
 TDengine 中时间戳的时区总是由客户端进行处理，而与服务端无关。具体来说，客户端会对 SQL 语句中的时间戳进行时区转换，转为 UTC 时区（即 Unix 时间戳——Unix Timestamp）再交由服务端进行写入和查询；在读取数据时，服务端也是采用 UTC 时区提供原始数据，客户端收到后再根据本地设置，把时间戳转换为本地系统所要求的时区进行显示。
 
@@ -173,7 +178,8 @@ TDengine 中时间戳的时区总是由客户端进行处理，而与服务端�
 4. 在书写 SQL 语句时，也可以直接使用 Unix 时间戳（例如 `1554984068000`）或带有时区的时间戳字符串，也即以 RFC 3339 格式（例如 `2013-04-12T15:52:01.123+08:00`）或 ISO-8601 格式（例如 `2013-04-12T15:52:01.123+0800`）来书写时间戳，此时这些时间戳的取值将不再受其他时区设置的影响。
 
 <a class="anchor" id="port"></a>
-## 19. TDengine 都会用到哪些网络端口？
+
+**19. TDengine 都会用到哪些网络端口？**
 
 在 TDengine 2.0 版本中，会用到以下这些网络端口（以默认端口 6030 为前提进行说明，如果修改了配置文件中的设置，那么这里列举的端口都会出现变化），管理员可以参考这里的信息调整防火墙设置：
 
@@ -182,7 +188,7 @@ TDengine 中时间戳的时区总是由客户端进行处理，而与服务端�
 | TCP | 6030      | 客户端与服务端之间通讯。            | 由配置文件设置 serverPort 决定。 |
 | TCP | 6035      | 多节点集群的节点间通讯。            | 随 serverPort 端口变化。        |
 | TCP | 6040      | 多节点集群的节点间数据同步。        | 随 serverPort 端口变化。         |
-| TCP | 6041      | 客户端与服务端之间的 RESTful 通讯。 | 随 serverPort 端口变化。        |
+| TCP | 6041      | 客户端与服务端之间的 RESTful 通讯。 | 随 serverPort 端口变化。注意 taosAdapter 配置或有不同，请参考相应[文档](https://www.taosdata.com/cn/documentation/tools/adapter)。        |
 | TCP | 6042      | Arbitrator 的服务端口。           | 随 Arbitrator 启动参数设置变化。 |
 | TCP | 6043      | TaosKeeper 监控服务端口。         | 随 TaosKeeper 启动参数设置变化。 |
 | TCP | 6044      | 支持 StatsD 的数据接入端口。       | 随 taosAdapter 启动参数设置变化（2.3.0.1+以上版本）。 |
@@ -191,9 +197,9 @@ TDengine 中时间戳的时区总是由客户端进行处理，而与服务端�
 | UDP | 6030-6034 | 客户端与服务端之间通讯。            | 随 serverPort 端口变化。        |
 | UDP | 6035-6039 | 多节点集群的节点间通讯。            | 随 serverPort 端口变化。        |
 
-## 20. go 语言编写组件编译失败怎样解决？
+**20. go 语言编写组件编译失败怎样解决？**
 
-新版本 TDengine 2.3.0.0 包含一个使用 go 语言开发的 taosAdapter 组件，取代之前内置的 httpd ，提供包含原  httpd 功能以及支持多种其他软件（Prometheus、Telegraf、collectd、StatsD等）的数据接入功能。
+新版本 TDengine 2.3.0.0 包含一个使用 go 语言开发的 taosAdapter 独立组件，需要单独运行，取代之前 taosd 内置的 httpd ，提供包含原  httpd 功能以及支持多种其他软件（Prometheus、Telegraf、collectd、StatsD等）的数据接入功能。
 使用最新 develop 分支代码编译需要先 `git submodule update --init --recursive` 下载 taosAdapter 仓库代码后再编译。
 
 目前编译方式默认自动编译 taosAdapter。go 语言版本要求 1.14 以上，如果发生 go 编译错误，往往是国内访问 go mod 问题，可以通过设置 go 环境变量来解决：
@@ -205,3 +211,5 @@ go env -w GOPROXY=https://goproxy.cn,direct
 
 如果希望继续使用之前的内置 httpd，可以关闭 taosAdapter 编译，使用 
 `cmake .. -DBUILD_HTTP=true` 使用原来内置的 httpd。
+
+

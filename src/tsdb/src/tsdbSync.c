@@ -457,7 +457,7 @@ static int32_t tsdbSyncRecvDFileSetArray(SSyncH *pSynch) {
 
         // Create local files and copy from remote
         SDiskID   did;
-        SDFileSet fset;
+        SDFileSet fset = {0};
 
         tfsAllocDisk(fidLevel, &(did.level), &(did.id));
         if (did.level == TFS_UNDECIDED_LEVEL) {

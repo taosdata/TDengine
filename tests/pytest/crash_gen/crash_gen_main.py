@@ -84,10 +84,10 @@ class WorkerThread:
         # self._thread = threading.Thread(target=runThread, args=(self,))
         self._thread = threading.Thread(target=self.run)
         self._stepGate = threading.Event()
-
         # Let us have a DB connection of our own
         if (Config.getConfig().per_thread_db_connection):  # type: ignore
-            # print("connector_type = {}".format(gConfig.connector_type))
+            # print("connector_type = {}".format(Config.getConfig().connector_type))
+            
             tInst = gContainer.defTdeInstance
             if Config.getConfig().connector_type == 'native':                
                 self._dbConn = DbConn.createNative(tInst.getDbTarget()) 
@@ -963,7 +963,7 @@ class StateMechine:
         # did not do this when openning connection, and this is NOT the worker
         # thread, which does this on their own
         dbc.use(dbName)
-        if not dbc.hasTables():  # no tables
+        if not dbc.hasTables(dbName):  # no tables
             Logging.debug("[STT] DB_ONLY found, between {} and {}".format(ts, time.time()))
             return StateDbOnly()
 
@@ -1129,10 +1129,10 @@ class Database:
                 # 10k at 1/20 chance, should be enough to avoid overlaps
                 tick = cls.setupLastTick()
                 cls._lastTick = tick
-                cls._lastLaggingTick = tick + datetime.timedelta(0, -60*2)  # lagging behind 2 minutes, should catch up fast
+                cls._lastLaggingTick = tick + datetime.timedelta(0, -60*60*25) # 25 hours, set DAYS=1 when creating DB, to get multiple data files
                 # if : # should be quite a bit into the future
 
-            if Config.isSet('mix_oos_data') and Dice.throw(20) == 0:  # if asked to do so, and 1 in 20 chance, return lagging tick
+            if Config.isSet('mix_oos_data') and Dice.throw(5) == 0:  # if asked to, w/ 1/5 chance, return lagging tick
                 cls._lastLaggingTick += datetime.timedelta(0, 1) # pick the next sequence from the lagging tick sequence
                 return cls._lastLaggingTick 
             else:  # regular
@@ -1166,8 +1166,12 @@ class TaskExecutor():
             self._size = size
             self._list = []
             self._lock = threading.Lock()
+            self._dirty = False
 
         def add(self, n: int):
+            if self._dirty:
+                return
+
             with self._lock:
                 if not self._list:  # empty
                     self._list.append(n)
@@ -1195,8 +1199,18 @@ class TaskExecutor():
                 else:
                     raise RuntimeError("Corrupt Bounded List")
 
+        def clear(self):
+            with self._lock:                
+                Logging.debug("Clearing bounded list")
+                self._list = []
+                self._dirty = False
+
+        def markDirty(self):
+            with self._lock:
+                self._isDirty = True
+
         def __str__(self):
-            return repr(self._list)
+            return "dirty" if self._dirty else repr(self._list)
 
     _boundedList = BoundedList()
 
@@ -1207,15 +1221,29 @@ class TaskExecutor():
     def getBoundedList(cls):
         return cls._boundedList
 
+    @classmethod
+    def recordDataMark(cls, n: int):
+        # print("[{}]".format(n), end="", flush=True)
+        cls._boundedList.add(n)
+
+    @classmethod
+    def clearDataMarks(cls):
+        ''' 
+        To accurately record numbers successfully written, we need to periodically
+        clear everything when we drop the database or the super table.
+        '''
+        cls._boundedList.clear()
+
+    @classmethod
+    def markDataMarksDirty(cls):
+        cls._boundedList.markDirty()
+
     def getCurStep(self):
         return self._curStep
 
     def execute(self, task: Task, wt: WorkerThread):  # execute a task on a thread
         task.execute(wt)
 
-    def recordDataMark(self, n: int):
-        # print("[{}]".format(n), end="", flush=True)
-        self._boundedList.add(n)
 
     # def logInfo(self, msg):
     #     Logging.info("    T[{}.x]: ".format(self._curStep) + msg)
@@ -1406,6 +1434,7 @@ class Task():
     # TODO: refactor away, just provide the dbConn
     def execWtSql(self, wt: WorkerThread, sql):  # execute an SQL on the worker thread
         """ Haha """
+        # print("thread %d runing sql is : %s " %(wt._tid , sql) )
         return wt.execSql(sql)
 
     def queryWtSql(self, wt: WorkerThread, sql):  # execute an SQL on the worker thread
@@ -1605,7 +1634,8 @@ class TaskCreateDb(StateTransitionTask):
             repStr = "replica {}".format(numReplica)
         updatePostfix = "update 1" if Config.getConfig().verify_data else "" # allow update only when "verify data" is active
         dbName = self._db.getName()
-        self.execWtSql(wt, "create database {} {} {} ".format(dbName, repStr, updatePostfix ) )
+        sql = "create database {} {} {} DAYS 1 ".format(dbName, repStr, updatePostfix) # Note: DAYS=1, to create multiple data files
+        self.execWtSql(wt, sql)
         if dbName == "db_0" and Config.getConfig().use_shadow_db:
             self.execWtSql(wt, "create database {} {} {} ".format("db_s", repStr, updatePostfix ) )
 
@@ -1619,8 +1649,10 @@ class TaskDropDb(StateTransitionTask):
         return state.canDropDb()
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        te.markDataMarksDirty()            
         self.execWtSql(wt, "drop database {}".format(self._db.getName()))
         Logging.debug("[OPS] database dropped at {}".format(time.time()))
+        te.clearDataMarks() # do it before, to be conservative
 
 class TaskCreateSuperTable(StateTransitionTask):
     @classmethod
@@ -1639,11 +1671,13 @@ class TaskCreateSuperTable(StateTransitionTask):
         sTable = self._db.getFixedSuperTable() # type: TdSuperTable
         # wt.execSql("use db")    # should always be in place
 
+        te.markDataMarksDirty() # May drop the super table below.            
         sTable.create(wt.getDbConn(),
                       {'ts': TdDataType.TIMESTAMP, 'speed': TdDataType.INT, 'color': TdDataType.BINARY16}, {
                           'b': TdDataType.BINARY200, 'f': TdDataType.FLOAT},
                       dropIfExists=True
                       )
+        te.clearDataMarks()
         # self.execWtSql(wt,"create table db.{} (ts timestamp, speed int) tags (b binary(200), f float) ".format(tblName))
         # No need to create the regular tables, INSERT will do that
         # automatically
@@ -1657,18 +1691,21 @@ class TdSuperTable:
     def getName(self):
         return self._stName
 
+    def getFullTableName(self):
+        return self._dbName + '.' + self._stName
+
     def drop(self, dbc, skipCheck = False):
         dbName = self._dbName
         if self.exists(dbc) : # if myself exists
             fullTableName = dbName + '.' + self._stName                
-            dbc.execute("DROP TABLE {}".format(fullTableName))
+            dbc.execute("DROP TaBLE {}".format(fullTableName))
         else:
             if not skipCheck:
                 raise CrashGenError("Cannot drop non-existant super table: {}".format(self._stName))
 
     def exists(self, dbc):
         dbc.execute("USE " + self._dbName)
-        return dbc.existsSuperTable(self._stName)
+        return dbc.existsSuperTable(self._dbName, self._stName)
 
     # TODO: odd semantic, create() method is usually static?
     def create(self, dbc, cols: TdColumns, tags: TdTags, dropIfExists = False):
@@ -1677,9 +1714,9 @@ class TdSuperTable:
         dbName = self._dbName
         dbc.execute("USE " + dbName)
         fullTableName = dbName + '.' + self._stName       
-        if dbc.existsSuperTable(self._stName):
+        if dbc.existsSuperTable(dbName, self._stName):
             if dropIfExists: 
-                dbc.execute("DROP TABLE {}".format(fullTableName))
+                dbc.execute("DROP TAbLE {}".format(fullTableName))
             else: # error
                 raise CrashGenError("Cannot create super table, already exists: {}".format(self._stName))
 
@@ -1928,8 +1965,11 @@ class TaskDropSuperTable(StateTransitionTask):
             for i in tblSeq:
                 regTableName = self.getRegTableName(i)  # "db.reg_table_{}".format(i)
                 try:
+                    te.markDataMarksDirty()                        
                     self.execWtSql(wt, "drop table {}.{}".
                         format(self._db.getName(), regTableName))  # nRows always 0, like MySQL
+                    te.clearDataMarks() 
+                        
                 except taos.error.ProgrammingError as err:
                     # correcting for strange error number scheme                    
                     errno2 = Helper.convertErrno(err.errno)
@@ -1947,7 +1987,9 @@ class TaskDropSuperTable(StateTransitionTask):
 
         # Drop the super table itself
         tblName = self._db.getFixedSuperTableName()
+        te.markDataMarksDirty()            
         self.execWtSql(wt, "drop table {}.{}".format(self._db.getName(), tblName))
+        te.clearDataMarks() # clear it at beginning, to be conservative
 
 
 class TaskAlterTags(StateTransitionTask):
@@ -2056,7 +2098,7 @@ class TaskAddData(StateTransitionTask):
             pass
             # Logging.info("Skipping unlocking table")
 
-    def _addDataInBatch(self, db, dbc, regTableName, te: TaskExecutor): 
+    def _addDataInBatch(self, db: Database, dbc, regTableName, te: TaskExecutor): 
         numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS        
         
         fullTableName = db.getName() + '.' + regTableName
@@ -2118,7 +2160,9 @@ class TaskAddData(StateTransitionTask):
                     # sql = "UPDATE {} set speed={}, color='{}' WHERE ts='{}'".format(
                     #     fullTableName, db.getNextInt(), db.getNextColor(), nextTick)
                     dbc.execute(sql)
-                    intWrote = intToUpdate # We updated, seems TDengine non-cluster accepts this.
+                    # Logging.info("Data updated: {}".format(sql))
+                    if Config.getConfig().verify_data: # This is when our update will be successful
+                        intWrote = intToUpdate # We updated, seems TDengine non-cluster accepts this.
 
             except: # Any exception at all
                 self._unlockTableIfNeeded(fullTableName) 
@@ -2400,7 +2444,10 @@ class MainExec:
     def runClient(self):
         global gSvcMgr
         if Config.getConfig().auto_start_service:
-            gSvcMgr = self._svcMgr = ServiceManager(1) # hack alert
+            if Config.getConfig().num_dnodes>1: # multi taosd instance
+                gSvcMgr = self._svcMgr = ServiceManager(Config.getConfig().num_dnodes) # 
+            else:
+                gSvcMgr = self._svcMgr = ServiceManager(1) # hack alert ,single taosd instance
             gSvcMgr.startTaosServices() # we start, don't run
         
         self._clientMgr = ClientManager()
@@ -2426,7 +2473,7 @@ class MainExec:
                 TDengine Auto Crash Generator (PLEASE NOTICE the Prerequisites Below)
                 ---------------------------------------------------------------------
                 1. You build TDengine in the top level ./build directory, as described in offical docs
-                2. You run the server there before this script: ./build/bin/taosd -c test/cfg
+                2. You run the server there before this script: ./build/bin/taosd -c test/cfg ,you can also set run path by -z or --set-path
 
                 '''))                      
 
@@ -2448,7 +2495,7 @@ class MainExec:
             action='store',
             default='native',
             type=str,
-            help='Connector type to use: native, rest, or mixed (default: 10)')
+            help='Connector type to use: native, rest, or mixed (default: native)')
         parser.add_argument(
             '-d',
             '--debug',
@@ -2509,7 +2556,7 @@ class MainExec:
             '-r',
             '--record-ops',
             action='store_true',
-            help='Use a pair of always-fsynced fils to record operations performing + performed, for power-off tests (default: false)')
+            help='Use a pair of always-fsynced files to record operations performing + performed, for power-off tests (default: false)')
         parser.add_argument(
             '-s',
             '--max-steps',
@@ -2539,6 +2586,13 @@ class MainExec:
             '--continue-on-exception',
             action='store_true',
             help='Continue execution after encountering unexpected/disallowed errors/exceptions (default: false)')
+        parser.add_argument(
+            '-z',
+            '--set-path',
+            action='store',
+            default='',
+            type=str,
+            help='set crash_gen run path instead of defalut path ')
 
         return parser
 

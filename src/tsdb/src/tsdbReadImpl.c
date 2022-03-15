@@ -74,7 +74,7 @@ void tsdbDestroyReadH(SReadH *pReadh) {
   pReadh->cidx = 0;
   pReadh->pBlkIdx = NULL;
   pReadh->pTable = NULL;
-  pReadh->aBlkIdx = taosArrayDestroy(pReadh->aBlkIdx);
+  pReadh->aBlkIdx = taosArrayDestroy(&pReadh->aBlkIdx);
   tsdbCloseDFileSet(TSDB_READ_FSET(pReadh));
   pReadh->pRepo = NULL;
 }

@@ -83,12 +83,12 @@ void deltaToUtcInitOnce() {
 
 static int64_t parseFraction(char* str, char** end, int32_t timePrec);
 static int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char delim);
-static int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec);
-static int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec);
+static int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec, char delim);
+static int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec, char delim);
 static char* forwardToTimeStringEnd(char* str);
 static bool checkTzPresent(char *str, int32_t len);
 
-static int32_t (*parseLocaltimeFp[]) (char* timestr, int64_t* time, int32_t timePrec) = {
+static int32_t (*parseLocaltimeFp[]) (char* timestr, int64_t* time, int32_t timePrec, char delim) = {
   parseLocaltime,
   parseLocaltimeWithDst
 };
@@ -98,11 +98,17 @@ int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
 int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light) {
   /* parse datatime string in with tz */
   if (strnchr(timestr, 'T', len, false) != NULL) {
-    return parseTimeWithTz(timestr, time, timePrec, 'T');
-  } else if (checkTzPresent(timestr, len)) {
-    return parseTimeWithTz(timestr, time, timePrec, 0);
+    if (checkTzPresent(timestr, len)) {
+      return parseTimeWithTz(timestr, time, timePrec, 'T');
+    } else {
+      return (*parseLocaltimeFp[day_light])(timestr, time, timePrec, 'T');
+    }
   } else {
-    return (*parseLocaltimeFp[day_light])(timestr, time, timePrec);
+    if (checkTzPresent(timestr, len)) {
+      return parseTimeWithTz(timestr, time, timePrec, 0);
+    } else {
+      return (*parseLocaltimeFp[day_light])(timestr, time, timePrec, 0);
+    }
   }
 }
 
@@ -121,7 +127,7 @@ bool checkTzPresent(char *str, int32_t len) {
 
 }
 
-inline int32_t taos_parse_time(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light) {
+FORCE_INLINE int32_t taos_parse_time(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light) {
     return taosParseTime(timestr, time, len, timePrec, day_light);
 }
 
@@ -316,11 +322,19 @@ int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char del
   return 0;
 }
 
-int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
+int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec, char delim) {
   *time = 0;
   struct tm tm = {0};
 
-  char* str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
+  char* str;
+  if (delim == 'T') {
+    str = strptime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
+  } else if (delim == 0) {
+    str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
+  } else {
+    str = NULL;
+  }
+
   if (str == NULL) {
     return -1;
   }
@@ -332,7 +346,7 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
 #endif
 
   int64_t seconds = user_mktime64(tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, timezone);
-  
+
   int64_t fraction = 0;
 
   if (*str == '.') {
@@ -349,19 +363,27 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
   return 0;
 }
 
-int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec) {
+int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec, char delim) {
   *time = 0;
   struct tm tm = {0};
   tm.tm_isdst = -1;
 
-  char* str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
+  char* str;
+  if (delim == 'T') {
+    str = strptime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
+  } else if (delim == 0) {
+    str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
+  } else {
+    str = NULL;
+  }
+
   if (str == NULL) {
     return -1;
   }
 
   /* mktime will be affected by TZ, set by using taos_options */
   int64_t seconds = mktime(&tm);
-  
+
   int64_t fraction = 0;
 
   if (*str == '.') {

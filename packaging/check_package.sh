@@ -50,7 +50,7 @@ NC='\033[0m'
 
 csudo=""
 if command -v sudo > /dev/null; then
-    csudo="sudo"
+    csudo="sudo "
 fi
 
 # =============================  get input parameters =================================================
@@ -85,7 +85,7 @@ done
 function kill_process() {
   pid=$(ps -ef | grep "$1" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
-    ${csudo} kill -9 $pid   || :
+    ${csudo}kill -9 $pid   || :
   fi
 }
 

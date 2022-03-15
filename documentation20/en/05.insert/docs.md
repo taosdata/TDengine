@@ -1,10 +1,10 @@
 # Efficient Data Writing
 
-TDengine supports multiple ways to write data, including SQL, Prometheus, Telegraf, EMQ MQTT Broker, HiveMQ Broker, CSV file, etc. Kafka, OPC and other interfaces will be provided in the future. Data can be inserted in one single record or in batches, data from one or multiple data collection points can be inserted at the same time. TDengine supports multi-thread insertion, out-of-order data insertion, and also historical data insertion.
+TDengine supports multiple ways to write data, including SQL, Prometheus, Telegraf, collectd, StatsD, EMQ MQTT Broker, HiveMQ Broker, CSV file, etc. Kafka, OPC and other interfaces will be provided in the future. Data can be inserted in one single record or in batches, data from one or multiple data collection points can be inserted at the same time. TDengine supports multi-thread insertion, out-of-order data insertion, and also historical data insertion.
 
-## <a class="anchor" id="sql"></a> Data Writing via SQL 
+## <a class="anchor" id="sql"></a> Data Writing via SQL
 
-Applications insert data by executing SQL insert statements through C/C++, Java, Go, C#, Python, Node.js Connectors, and users can manually enter SQL insert statements to insert data through TAOS Shell. For example, the following insert writes a record to table d1001:
+Applications insert data by executing SQL insert statements through C/C++, Java, Go, C#, Python, Node.js connectors, and users can manually enter SQL insert statements to insert data through TAOS Shell. For example, the following insert writes a record to table d1001:
 
 ```mysql
 INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31);
@@ -26,255 +26,287 @@ For the SQL INSERT Grammar, please refer to  [Taos SQL insert](https://www.taosd
 
 **Tips:**
 
-- To improve writing efficiency, batch writing is required. The more records written in a batch, the higher the insertion efficiency. However, a record size cannot exceed 16K, and the total length of an SQL statement cannot exceed 64K (it can be configured by parameter maxSQLLength, and the maximum can be configured to 1M).
+- To improve writing efficiency, batch writing is required. The more records written in a batch, the higher the insertion efficiency. However, a record size cannot exceed 48K (it's 16K prior to 2.1.7.0, and the total length of an SQL statement cannot exceed 64K (it can be configured by parameter maxSQLLength, and the maximum can be configured to 1M).
 - TDengine supports multi-thread parallel writing. To further improve writing speed, a client needs to open more than 20 threads to write parallelly. However, after the number of threads reaches a certain threshold, it cannot be increased or even become decreased, because too much thread switching brings extra overhead.
 - For the same table, if the timestamp of a newly inserted record already exists, the new record will be discarded as default (database option update = 0), that is, the timestamp must be unique in a table. If an application automatically generates records, it is very likely that the generated timestamps will be the same, so the number of records successfully inserted will be smaller than the number of records the application try to insert. If you use UPDATE 1 option when creating a database, inserting a new record with the same timestamp will overwrite the original record.
 - The timestamp of written data must be greater than the current time minus the time of configuration parameter keep. If keep is configured for 3650 days, data older than 3650 days cannot be written. The timestamp for writing data cannot be greater than the current time plus configuration parameter days. If days is configured to 2, data 2 days later than the current time cannot be written.
 
-## <a class="anchor" id="prometheus"></a> Data Writing via Prometheus
+## <a class="anchor" id="schemaless"></a> Data Writing via Schemaless
 
-As a graduate project of Cloud Native Computing Foundation, [Prometheus](https://www.prometheus.io/) is widely used in the field of performance monitoring and K8S performance monitoring. TDengine provides a simple tool [Bailongma](https://github.com/taosdata/Bailongma), which only needs to be simply configured in Prometheus without any code, and can directly write the data collected by Prometheus into TDengine, then automatically create databases and related table entries in TDengine according to rules. Blog post [Use Docker Container to Quickly Build a Devops Monitoring Demo](https://www.taosdata.com/blog/2020/02/03/1189.html), which is an example of using bailongma to write Prometheus and Telegraf data into TDengine.
+**Introduction**
+<br/> In many IoT applications, data collection is often used in intelligent control, business analysis and device monitoring etc. As fast application upgrade and iteration, or hardware adjustment, data collection metrics can change rapidly over time. To provide solutions to such use cases, from version 2.2.0.0, TDengine supports writing data via Schemaless. When using Schemaless, action of pre-creating table before inserting data is no longer needed anymore. Tables, data columns and tags can be created automatically. Schemaless can also add additional data columns to tables if necessary, to make sure data can be properly stored into TDengine.
 
-### Compile blm_prometheus From Source
+<br/> TDengine's all official connectors provide Schemaless API now. Please see [Schemaless data writing API](https://www.taosdata.com/en/documentation/connector#schemaless) for detailed data writing format.
+<br/> Super table and corresponding child tables created via Schemaless are identical to the ones created via SQL, so inserting data into these tables via SQL is also supported. Note that child table names are generated via Schemaless are following special rules through tags mapping. Therefore, child table names are usually not meaningful in terms of readability.
 
-Users need to download the source code of [Bailongma](https://github.com/taosdata/Bailongma) from github, then compile and generate an executable file using Golang language compiler. Before you start compiling, you need to prepare:
+**Schemaless writing protocols**
+<br/>TDengine Schemaless writing protocol is compatible with InfluxDB's Line Protocol, OpenTSDB's telnet and JSON format protocols. Users need to specify which protocol to use as parameter when writing data using Schemaless API.
 
-- A server running Linux OS
-- Golang version 1.10 and higher installed
-- Since the client dynamic link library of TDengine is used, it is necessary to install the same version of TDengine as the server-side. For example, if the server version is TDengine 2.0. 0, ensure install the same version on the linux server where bailongma is located (can be on the same server as TDengine, or on a different server)
+For InfluxDB, OpenTSDB data writing protocol format, users can refer to corresponding official documentation for details. Following will give examples of introducing protocol extension from TDengine based on InfluxDB's Line Protocol, allowing users to use Schemaless with more precision.
 
-Bailongma project has a folder, blm_prometheus, which holds the prometheus writing API. The compiling process is as follows:
+Schemaless use one line of string literals to represent one data record. (Users can also pass multiple lines to the Schemaless API for batch insertion), the format is as follows:
 
-```bash
-cd blm_prometheus
-
-go build
+```json
+measurement,tag_set field_set timestamp
 ```
 
-If everything goes well, an executable of blm_prometheus will be generated in the corresponding directory.
+* measurement is used as the table name. Comma delimiter is used to separate measurement and tag_set.
+* tag_set represent tag data in key-value pairs. The format is: `<tag_key>=<tag_value>,<tag_key>=<tag_value>`. Comma delimiter is used to separate multiple tag key-value pairs. Space delimiter is used to separate tag_set and field_set.
+* field_set represent column data in key-value pairs. The format is similar to tag_set: `<field_key>=<field_value>,<field_key>=<field_value>`. Comma delimiter is used to separate multiple tag key-value pairs. Space delimiter is used to separate field_set and timestamp.
+* Timestamp is the primary key of one data row.
 
-### Install Prometheus
+All tag values in tag_set are automatically converted and stored as NCHAR data type in TDengine and no need to be surrounded by double quote("）
+<br/> In Schemaless Line Protocol, data format in field_set need to be self-descriptive in order to convert data to corresponding TDengine data types. For example:
 
-Download and install as the instruction of Prometheus official website. [Download Address](https://prometheus.io/download/)
+* Field value surrounded by double quote indicates data is BINARY(32) data types. For example, `"abc"`.
+* Field value surrounded by double quote and L letter prefix indicates data is NCHAR(32) data type. For example `L"报错信息"`.
+* Space, equal sign(=), comma(,), double quote(") need to use backslash(\) to escape.
+* Numerical values will be converted to corresponding data types according to the suffix:
 
-### Configure Prometheus
+| **ID** | **Suffix** | **Data Type** | **Size(Bytes)** |
+| ------ | ---------- | ------------- | ------ |
+|    1   | NA / f64   |  DOUBLE       |   8    |
+|    2   | f32        |  FLOAT        |   4    |
+|    3   | i8         |  TINYINT      |   1    |
+|    4   | i16        |  SMALLINT     |   2    |
+|    5   | i32        |  INT          |   4    |
+|    6   | i64 / i    |  BIGINT       |   8    |
 
-Read the Prometheus [configuration document](https://prometheus.io/docs/prometheus/latest/configuration/configuration/) and add following configurations in the section of Prometheus configuration file
+* t, T, true, True, TRUE, f, F, false, False represents BOOLEAN types。
 
-- url: The URL provided by bailongma API service, refer to the blm_prometheus startup example section below
+### Schemaless processing logic
 
-After Prometheus launched, you can check whether data is written successfully through query taos client.
+Following rules are followed by Schemaless protocol parsing:
 
-### Launch blm_prometheus
+<br/>1. For child table name generation, firstly create following string by concatenating measurement and tag key/values strings together.
 
-blm_prometheus has following options that you can configure when you launch blm_prometheus.
-
-```sh
---tdengine-name
-
-If TDengine is installed on a server with a domain name, you can also access the TDengine by configuring the domain name of it. In K8S environment, it can be configured as the service name that TDengine runs
-
---batch-size
-
-blm_prometheus assembles the received prometheus data into a TDengine writing request. This parameter controls the number of data pieces carried in a writing request sent to TDengine at a time.
-
---dbname
-
-Set a name for the database created in TDengine, blm_prometheus will automatically create a database named dbname in TDengine, and the default value is prometheus.
-
---dbuser
-
-Set the user name to access TDengine, the default value is'root '
-
---dbpassword
-
-Set the password to access TDengine, the default value is'taosdata '
-
---port
-
-The port number blm_prometheus used to serve prometheus.
+```json
+"measurement,tag_key1=tag_value1,tag_key2=tag_value2"
 ```
 
+tag_key1, tag_key2 are not following the original order of user input, but sorted according to tag names.
+After MD5 value "md5_val" calculated using the above string, prefix "t_" is prepended to "md5_val" to form the child table name.
+<br/>2. If super table does not exist, a new super table will be created.
+<br/>3. If child table does not exist, a new child table will be created with its name generated in 1 and 2.
+<br/>4. If columns/tags do not exist, new columns/tags will be created. (Columns/tags can only be added, existing columns/tags cannot be deleted)
+<br/>5. If columns/tags are not specified in a line, values of such columns/tags will be set to NULL.
+<br/>6. For BINARY/NCHAR type columns, if value length exceeds max length of the column, max length will be automatically extended to ensure data integrity.
+<br/>7. If child table is already created and tag value is different than previous stored value，old value will be overwritten by new value.
+<br/>8. If any error occurs during processing, error code will be returned.
 
+**Note**
+<br/>Schemaless will follow TDengine data structure limitations. For example, each table row cannot exceed 48KB (it's 16K prior to 2.1.7.0. For detailed TDengine limitations please refer to `https://www.taosdata.com/en/documentation/taos-sql#limitation`.
 
-### Example
+**Timestamp precisions**
+<br/>Following protocols are supported in Schemaless:
 
-Launch an API service for blm_prometheus with the following command:
+| **ID** |         **Value**          |         **Description**         |
+| ---- | ---------------------------- | ------------------------------- |
+| 1    | SML_LINE_PROTOCOL            |    InfluxDB Line Protocol       |
+| 2    | SML_TELNET_PROTOCOL          |  OpenTSDB telnet Protocol       |
+| 3    | SML_JSON_PROTOCOL            |  OpenTSDB JSON format Protocol  |
 
-```bash
-./blm_prometheus -port 8088
+<br/>When SML_LINE_PROTOCOL used，users need to indicate timestamp precision through API。Available timestamp precisions are：<br/>
+
+| **ID** |       **Precision Definition **       |   **Meaning**  |
+| ------ | ------------------------------------- | -------------- |
+| 1      | TSDB_SML_TIMESTAMP_NOT_CONFIGURED     |   undefined    |
+| 2      | TSDB_SML_TIMESTAMP_HOURS              |   hour         |
+| 3      | TSDB_SML_TIMESTAMP_MINUTES            |   minute       |
+| 4      | TSDB_SML_TIMESTAMP_SECONDS            |   second       |
+| 5      | TSDB_SML_TIMESTAMP_MILLI_SECONDS      |   millisecond  |
+| 6      | TSDB_SML_TIMESTAMP_MICRO_SECONDS      |   microsecond  |
+| 7      | TSDB_SML_TIMESTAMP_NANO_SECONDS       |   nanosecond   |
+
+When SML_TELNET_PROTOCOL or SML_JSON_PROTOCOL used，timestamp precision is determined by how many digits used in timestamp（following OpenTSDB convention），precision from user input will be ignored。
+
+**Schemaless data mapping rules**
+<br/>This section describes how Schemaless data are mapped to TDengine's structured data. Measurement is mapped to super table name. Keys in tag_set/field_set are mapped to tag/column names. For example:
+
+```json
+st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
 ```
 
-Assuming that the IP address of the server where blm_prometheus located is "10.1.2. 3", the URL shall be added to the configuration file of Prometheus as:
+Above line is mapped to a super table with name "st" with 3 NCHAR type tags ("t1", "t2", "t3") and 5 columns: ts（timestamp），c1 (bigint），c3(binary)，c2 (bool),  c4 (bigint). This is identical to create a super table with the following SQL clause:
+
+```json
+create stable st (_ts timestamp, c1 bigint, c2 bool, c3 binary(6), c4 bigint) tags(t1 nchar(1), t2 nchar(1), t3 nchar(2))
+```
+
+**Schemaless data alternation rules**
+<br/>This section describes several data alternation scenarios:
+
+When column with one line has certain type, and following lines attempt to change the data type of this column, an error will be reported by the API:
+
+```json
+st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4    1626006833639000000
+st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4i   1626006833640000000
+```
+
+For first line of data, c4 column type is declared as DOUBLE with no suffix. However, the second line declared the column type to be BIGINT with suffix "i". Schemaless parsing error will be occurred.
+
+When column is declared as BINARY type, but follow-up line insertion requires longer BINARY length of this column, max length of this column will be extended:
+
+```json
+st,t1=3,t2=4,t3=t3 c1=3i64,c5="pass"     1626006833639000000
+st,t1=3,t2=4,t3=t3 c1=3i64,c5="passit"   1626006833640000000
+```
+
+In first line c5 column store string "pass" with 4 characters as BINARY(4), but in second line c5 requires 2 more characters for storing binary string "passit", c5 column max length will be extend from BINARY(4) to BINARY(6) to accommodate more characters.
+
+```json
+st,t1=3,t2=4,t3=t3 c1=3i64               1626006833639000000
+st,t1=3,t2=4,t3=t3 c1=3i64,c6="passit"   1626006833640000000
+```
+
+In above example second line has one more column c6 with value "passit" compared to the first line. A new column c6 will be added with type BINARY(6).
+
+**Data integrity**
+<br/>TDengine ensure data writing through Schemaless is idempotent, which means users can call the API multiple times for writing data with errors. However. atomicity is not guaranteed. When writing multiple lines of data as a batch, data might be partially inserted due to errors.
+
+**Error code**
+<br/>If users do not write data following corresponding protocol syntax, application will get TSDB_CODE_TSC_LINE_SYNTAX_ERROR error code, which indicates error is happened in input text. Other generic error codes returned by TDengine can also be obtained through taos_errstr API to get detailed error messages.
+
+**Future enhancement**
+<br/> Currently TDengine only provides clang API support for Schemaless. In future versions, APIs/connectors of more languages will be supported, e.g., Java/Go/Python/C# etc. From TDengine v2.3 and later versions, users can also use taosAdaptor to writing data via Schemaless through RESTful interface.
+
+## <a class="anchor" id="prometheus"></a> Data Writing via Prometheus via taosAdapter
+
+Remote_read and remote_write are cluster schemes for Prometheus data read-write separation.
+Just use the REMOTE_READ and REMOTE_WRITE URL to point to the URL corresponding to Taosadapter to use Basic authentication.
+
+* Remote_read url: `http://host_to_taosadapter:port (default 6041) /prometheus/v1/remote_read/:db`
+* Remote_write url: `http://host_to_taosadapter:port (default 6041) /Prometheus/v1/remote_write/:db`
+
+Basic verification:
+
+* Username: TDengine connection username
+* Password: TDengine connection password
+
+Example Prometheus.yml is as follows:
 
 ```yaml
 remote_write:
-  - url: "http://10.1.2.3:8088/receive"
+  - url: "http://localhost:6041/prometheus/v1/remote_write/prometheus_data"
+    basic_auth:
+      username: root
+      password: taosdata
+
+remote_read:
+  - url: "http://localhost:6041/prometheus/v1/remote_read/prometheus_data"
+    basic_auth:
+      username: root
+      password: taosdata
+    remote_timeout: 10s
+    read_recent: true
 ```
 
-### Query written data of prometheus
+## <a class="anchor" id="telegraf"></a> Data Writing via Telegraf and taosAdapter
 
-The format of generated data by Prometheus is as follows:
+Please refer to [Official document](https://portal.influxdata.com/downloads/) for Telegraf installation.
 
-```json
+TDengine version 2.3.0.0+ includes a stand-alone application taosAdapter in charge of receive data insertion from Telegraf.
+
+Configuration:
+Please add following words in /etc/telegraf/telegraf.conf. Fill 'database name' with the database name you want to store in the TDengine for Telegraf data. Please fill the values in TDengine server/cluster host, username and password fields.
+
+```
+[[outputs.http]]
+  url = "http://<TDengine server/cluster host>:6041/influxdb/v1/write?db=<database name>"
+  method = "POST"
+  timeout = "5s"
+  username = "<TDengine's username>"
+  password = "<TDengine's password>"
+  data_format = "influx"
+  influx_max_line_bytes = 250
+```
+
+Then restart telegraf:
+
+```
+sudo systemctl start telegraf
+```
+
+Now you can query the metrics data of Telegraf from TDengine.
+
+Please find taosAdapter configuration and usage from `taosadapter --help` output.
+
+## <a class="anchor" id="collectd"></a> Data Writing via collectd and taosAdapter
+
+Please refer to [official document](https://collectd.org/download.shtml) for collectd installation.
+
+TDengine version 2.3.0.0+ includes a stand-alone application taosAdapter in charge of receive data insertion from collectd.
+
+Configuration:
+Please add following words in /etc/collectd/collectd.conf. Please fill the value 'host' and 'port' with what the TDengine and taosAdapter using.
+
+```
+LoadPlugin network
+<Plugin network>
+  Server "<TDengine cluster/server host>" "<port for collectd>"
+</Plugin>
+```
+
+Then restart collectd
+
+```
+sudo systemctl start collectd
+```
+
+Please find taosAdapter configuration and usage from `taosadapter --help` output.
+
+## <a class="anchor" id="statsd"></a> Data Writing via StatsD and taosAdapter
+
+Please refer to [official document](https://github.com/statsd/statsd) for StatsD installation.
+
+TDengine version 2.3.0.0+ includes a stand-alone application taosAdapter in charge of receive data insertion from StatsD.
+
+Please add following words in the config.js file. Please fill the value to 'host' and 'port' with what the TDengine and taosAdapter using.
+
+```
+add "./backends/repeater" to backends section.
+add { host:'<TDengine server/cluster host>', port: <port for StatsD>} to repeater section.
+```
+
+Example file:
+
+```
 {
-  Timestamp: 1576466279341,
-  Value: 37.000000, 
-  apiserver_request_latencies_bucket {
-  component="apiserver", 
-   instance="192.168.99.116:8443", 
-   job="kubernetes-apiservers", 
-   le="125000", 
-   resource="persistentvolumes", s
-   cope="cluster",
-   verb="LIST", 
-   version=“v1" 
-  }
+port: 8125
+, backends: ["./backends/repeater"]
+, repeater: [{ host: '127.0.0.1', port: 6044}]
 }
 ```
 
-Where apiserver_request_latencies_bucket is the name of the time-series data collected by prometheus, and the tag of the time-series data is in the following {}. blm_prometheus automatically creates a STable in TDengine with the name of the time series data, and converts the tag in {} into the tag value of TDengine, with Timestamp as the timestamp and value as the value of the time-series data. Therefore, in the client of TDengine, you can check whether this data was successfully written through the following instruction.
+## <a class="anchor" id="cinga2"></a> Data Writing via icinga2 and taosAdapter
 
-```mysql
-use prometheus;
+Use icinga2 to collect check result metrics and performance data
 
-select * from apiserver_request_latencies_bucket;
+* Follow the doc to enable opentsdb-writer `https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer`
+* Enable taosAdapter configuration opentsdb_telnet.enable
+* Modify the configuration file /etc/icinga2/features-enabled/opentsdb.conf
+
 ```
-
-
-
-## <a class="anchor" id="telegraf"></a> Data Writing via Telegraf
-
-[Telegraf](https://www.influxdata.com/time-series-platform/telegraf/) is a popular open source tool for IT operation data collection. TDengine provides a simple tool [Bailongma](https://github.com/taosdata/Bailongma), which only needs to be simply configured in Telegraf without any code, and can directly write the data collected by Telegraf into TDengine, then automatically create databases and related table entries in TDengine according to rules. Blog post [Use Docker Container to Quickly Build a Devops Monitoring Demo](https://www.taosdata.com/blog/2020/02/03/1189.html), which is an example of using bailongma to write Prometheus and Telegraf data into TDengine.
-
-### Compile blm_telegraf From Source Code
-
-Users need to download the source code of [Bailongma](https://github.com/taosdata/Bailongma) from github, then compile and generate an executable file using Golang language compiler. Before you start compiling, you need to complete following prepares:
-
-- A server running Linux OS
-- Golang version 1.10 and higher installed
-- An appropriated TDengine version. Because the client dynamic link library of TDengine is used, it is necessary to install the same version of TDengine as the server-side; for example, if the server version is TDengine 2.0. 0, ensure install the same version on the linux server where bailongma is located (can be on the same server as TDengine, or on a different server)
-
-Bailongma project has a folder, blm_telegraf, which holds the Telegraf writing API. The compiling process is as follows:
-
-```bash
-cd blm_telegraf
-
-go build
-```
-
-If everything goes well, an executable of blm_telegraf will be generated in the corresponding directory.
-
-### Install Telegraf
-
-At the moment, TDengine supports Telegraf version 1.7. 4 and above. Users can download the installation package on Telegraf's website according to your current operating system. The download address is as follows: https://portal.influxdata.com/downloads
-
-### Configure Telegraf
-
-Modify the TDengine-related configurations in the Telegraf configuration file /etc/telegraf/telegraf.conf.
-
-In the output plugins section, add the [[outputs.http]] configuration:
-
-- url: The URL provided by bailongma API service, please refer to the example section below
-- data_format: "json"
-- json_timestamp_units: "1ms"
-
-In agent section:
-
-- hostname: The machine name that distinguishes different collection devices, and it is necessary to ensure its uniqueness
-- metric_batch_size: 100, which is the max number of records per batch written by Telegraf allowed. Increasing the number can reduce the request sending frequency of Telegraf.
-
-For information on how to use Telegraf to collect data and more about using Telegraf, please refer to the official [document](https://docs.influxdata.com/telegraf/v1.11/) of Telegraf.
-
-### Launch blm_telegraf
-
-blm_telegraf has following options, which can be set to tune configurations of blm_telegraf when launching.
-
-```sh
---host
-
-The ip address of TDengine server, default is null
-
---batch-size
-
-blm_prometheus assembles the received telegraf data into a TDengine writing request. This parameter controls the number of data pieces carried in a writing request sent to TDengine at a time.
-
---dbname
-
-Set a name for the database created in TDengine, blm_telegraf will automatically create a database named dbname in TDengine, and the default value is prometheus.
-
---dbuser
-
-Set the user name to access TDengine, the default value is 'root '
-
---dbpassword
-
-Set the password to access TDengine, the default value is'taosdata '
-
---port
-
-The port number blm_telegraf used to serve Telegraf.
-```
-
-
-
-### Example
-
-Launch an API service for blm_telegraf with the following command
-
-```bash
-./blm_telegraf -host 127.0.0.1 -port 8089
-```
-
-Assuming that the IP address of the server where blm_telegraf located is "10.1.2. 3", the URL shall be added to the configuration file of telegraf as:
-
-```yaml
-url = "http://10.1.2.3:8089/telegraf"
-```
-
-### Query written data of telegraf
-
-The format of generated data by telegraf is as follows:
-
-```json
-{
-  "fields": {
-    "usage_guest": 0, 
-    "usage_guest_nice": 0,
-    "usage_idle": 89.7897897897898, 
-    "usage_iowait": 0,
-    "usage_irq": 0,
-    "usage_nice": 0,
-    "usage_softirq": 0,
-    "usage_steal": 0,
-    "usage_system": 5.405405405405405, 
-    "usage_user": 4.804804804804805
-  },
-  
-  "name": "cpu", 
-  "tags": {
-    "cpu": "cpu2",
-    "host": "bogon" 
-  },
-  "timestamp": 1576464360 
+object OpenTsdbWriter "opentsdb" {
+  host = "host to taosAdapter"
+  port = 6048
 }
 ```
 
-Where the name field is the name of the time-series data collected by telegraf, and the tag field is the tag of the time-series data. blm_telegraf automatically creates a STable in TDengine with the name of the time series data, and converts the tag field into the tag value of TDengine, with Timestamp as the timestamp and fields values as the value of the time-series data. Therefore, in the client of TDEngine, you can check whether this data was successfully written through the following instruction.
+Please find taosAdapter configuration and usage from `taosadapter --help` output.
 
-```mysql
-use telegraf;
+## <a class="anchor" id="tcollector"></a> Data Writing via TCollector and taosAdapter
 
-select * from cpu;
-```
+TCollector is a client-side process that gathers data from local collectors and pushes the data to OpenTSDB. You run it on all your hosts, and it does the work of sending each host’s data to the TSD (OpenTSDB backend process).
 
-MQTT is a popular data transmission protocol in the IoT. TDengine can easily access the data received by MQTT Broker and write it to TDengine.
+* Enable taosAdapter configuration opentsdb_telnet.enable
+* Modify the TCollector configuration file, modify the OpenTSDB host to the host where taosAdapter is deployed, and modify the port to 6049
+
+Please find taosAdapter configuration and usage from `taosadapter --help` output.
 
 ## <a class="anchor" id="emq"></a> Data Writing via EMQ Broker
 
-[EMQ](https://github.com/emqx/emqx) is an open source MQTT Broker software, with no need of coding, only to use "rules" in EMQ Dashboard for simple configuration, and MQTT data can be directly written into TDengine. EMQ X supports storing data to the TDengine by sending it to a Web service, and also provides a native TDengine driver on Enterprise Edition for direct data store. Please refer to [EMQ official documents](https://docs.emqx.io/broker/latest/cn/rule/rule-example.html#%E4%BF%9D%E5%AD%98%E6%95%B0%E6%8D%AE%E5%88%B0-tdengine) for more details.
-
-
+[EMQ](https://github.com/emqx/emqx) is an open source MQTT Broker software, with no need of coding, only to use "rules" in EMQ Dashboard for simple configuration, and MQTT data can be directly written into TDengine. EMQX supports storing data to the TDengine by sending it to a Web service, and also provides a native TDengine driver on Enterprise Edition for direct data store. Please refer to [EMQ official documents](https://docs.emqx.io/broker/latest/cn/rule/rule-example.html#%E4%BF%9D%E5%AD%98%E6%95%B0%E6%8D%AE%E5%88%B0-tdengine) for more details.
 
 ## <a class="anchor" id="hivemq"></a> Data Writing via HiveMQ Broker
 

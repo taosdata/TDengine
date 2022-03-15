@@ -21,7 +21,6 @@
 #include "tlog.h"
 #include "ttimer.h"
 #include "tutil.h"
-#include "tscUtil.h"
 #include "tsclient.h"
 #include "dnode.h"
 #include "vnode.h"
@@ -172,7 +171,6 @@ static void  monSaveSystemInfo();
 static void  monSaveClusterInfo();
 static void  monSaveDnodesInfo();
 static void  monSaveVgroupsInfo();
-static void  monSaveSlowQueryInfo();
 static void  monSaveDisksInfo();
 static void  monSaveGrantsInfo();
 static void  monSaveHttpReqInfo();
@@ -322,7 +320,6 @@ static void *monThreadFunc(void *param) {
           monSaveClusterInfo();
         }
         monSaveVgroupsInfo();
-        monSaveSlowQueryInfo();
         monSaveDisksInfo();
         monSaveGrantsInfo();
         monSaveHttpReqInfo();
@@ -384,9 +381,9 @@ static void monBuildMonitorSql(char *sql, int32_t cmd) {
              tsMonitorDbName, TSDB_DEFAULT_USER);
   } else if (cmd == MON_CMD_CREATE_TB_SLOWQUERY) {
     snprintf(sql, SQL_LENGTH,
-             "create table if not exists %s.slowquery(ts timestamp, query_id "
-             "binary(%d), username binary(%d), qid binary(%d), created_time timestamp, time bigint, end_point binary(%d), sql binary(%d))",
-             tsMonitorDbName, QUERY_ID_LEN, TSDB_TABLE_FNAME_LEN - 1, QUERY_ID_LEN, TSDB_EP_LEN, TSDB_SLOW_QUERY_SQL_LEN);
+             "create table if not exists %s.slowquery(ts timestamp, username "
+             "binary(%d), created_time timestamp, time bigint, sql binary(%d))",
+             tsMonitorDbName, TSDB_TABLE_FNAME_LEN - 1, TSDB_SLOW_QUERY_SQL_LEN);
   } else if (cmd == MON_CMD_CREATE_TB_LOG) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.log(ts timestamp, level tinyint, "
@@ -461,14 +458,18 @@ static void monBuildMonitorSql(char *sql, int32_t cmd) {
              ", expire_time int, timeseries_used int, timeseries_total int)",
              tsMonitorDbName);
   } else if (cmd == MON_CMD_CREATE_MT_RESTFUL) {
+    int usedLen = 0, len = 0;
     int pos = snprintf(sql, SQL_LENGTH,
                        "create table if not exists %s.restful_info(ts timestamp", tsMonitorDbName);
+    usedLen += pos;
     for (int i = 0; i < tListLen(monHttpStatusTable); ++i) {
-      pos += snprintf(sql + pos, SQL_LENGTH, ", `%s(%d)` int",
+      len = snprintf(sql + pos, SQL_LENGTH - usedLen, ", %s_%d int",
                                 monHttpStatusTable[i].name,
                                 monHttpStatusTable[i].code);
+      usedLen += len;
+      pos += len;
     }
-    snprintf(sql + pos, SQL_LENGTH,
+    snprintf(sql + pos, SQL_LENGTH - usedLen,
              ") tags (dnode_id int, dnode_ep binary(%d))",
              TSDB_EP_LEN);
   } else if (cmd == MON_CMD_CREATE_TB_RESTFUL) {
@@ -602,6 +603,10 @@ static void monSaveSystemInfo() {
 }
 
 static int32_t monGetRowElemCharLen(TAOS_FIELD field, char *rowElem) {
+  if (field.type != TSDB_DATA_TYPE_BINARY && field.type != TSDB_DATA_TYPE_NCHAR) {
+    return -1;
+  }
+
   int32_t charLen = varDataLen(rowElem - VARSTR_HEADER_SIZE);
   if (field.type == TSDB_DATA_TYPE_BINARY) {
     assert(charLen <= field.bytes && charLen >= 0);
@@ -630,12 +635,14 @@ static int32_t monBuildMasterUptimeSql(char *sql) {
 
   while ((row = taos_fetch_row(result))) {
     for (int i = 0; i < num_fields; ++i) {
-      int32_t charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
-      if (strcmp(fields[i].name, "role") == 0 && strncmp((char *)row[i], "master", charLen) == 0) {
-        if (strcmp(fields[i + 1].name, "role_time") == 0) {
-          int64_t now = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
-          //master uptime in seconds
-          masterUptime = (now - *(int64_t *)row[i + 1]) / 1000;
+      if (strcmp(fields[i].name, "role") == 0) {
+        int32_t charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
+        if (strncmp((char *)row[i], "master", charLen) == 0) {
+          if (strcmp(fields[i + 1].name, "role_time") == 0) {
+            int64_t now = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
+            //master uptime in seconds
+            masterUptime = (now - *(int64_t *)row[i + 1]) / 1000;
+          }
         }
       }
     }
@@ -1085,27 +1092,15 @@ static void monSaveDnodesInfo() {
 
 static int32_t checkCreateVgroupTable(int32_t vgId) {
   char subsql[256];
-  bool create_table = false;
   int32_t code = TSDB_CODE_SUCCESS;
 
   memset(subsql, 0, sizeof(subsql));
-  snprintf(subsql, 255, "describe %s.vgroup_%d", tsMonitorDbName, vgId);
+  snprintf(subsql, sizeof(subsql), "create table if not exists %s.vgroup_%d using %s.vgroups_info tags(%d)",
+            tsMonitorDbName, vgId, tsMonitorDbName, vgId);
 
   TAOS_RES *result = taos_query(tsMonitor.conn, subsql);
   code = taos_errno(result);
-  if (code != 0) {
-    create_table = true;
-    snprintf(subsql, sizeof(subsql), "create table if not exists %s.vgroup_%d using %s.vgroups_info tags(%d)",
-               tsMonitorDbName, vgId, tsMonitorDbName, vgId);
-    monError("table vgroup_%d not exist, create table vgroup_%d", vgId, vgId);
-  }
   taos_free_result(result);
-
-  if (create_table == true) {
-    result = taos_query(tsMonitor.conn, subsql);
-    code = taos_errno(result);
-    taos_free_result(result);
-  }
 
   return code;
 }
@@ -1140,19 +1135,29 @@ static uint32_t monBuildVgroupsInfoSql(char *sql, char *dbName) {
           pos += snprintf(sql, SQL_LENGTH, "insert into %s.vgroup_%d values(%" PRId64 ", "SQL_STR_FMT,
                    tsMonitorDbName, vgId, ts, dbName);
         } else {
-          return TSDB_CODE_SUCCESS;
+          goto DONE;
         }
       } else if (strcmp(fields[i].name, "tables") == 0) {
         pos += snprintf(sql + pos, SQL_LENGTH, ", %d", *(int32_t *)row[i]);
       } else if (strcmp(fields[i].name, "status") == 0) {
         charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
-        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 1, ", "SQL_STR_FMT, (char *)row[i]);
+        if (charLen < 0) {
+          monError("failed to save vgroup_%d info, reason: invalid row %s len, sql:%s", vgId, (char *)row[i], tsMonitor.sql);
+          goto DONE;
+        }
+        char tmpBuf[10] = {0};
+        memcpy(tmpBuf, row[i], charLen);
+        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 1, ", "SQL_STR_FMT, tmpBuf);
       } else if (strcmp(fields[i].name, "onlines") == 0) {
         pos += snprintf(sql + pos, SQL_LENGTH, ", %d", *(int32_t *)row[i]);
       } else if (v_dnode_str && strcmp(v_dnode_str, "_dnode") == 0) {
         snprintf(v_dnode_ids, sizeof(v_dnode_ids), "%d;", *(int16_t *)row[i]);
       } else if (v_dnode_str && strcmp(v_dnode_str, "_status") == 0) {
         charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
+        if (charLen < 0) {
+          monError("failed to save vgroup_%d info, reason: invalid row %s len, sql:%s", vgId, (char *)row[i], tsMonitor.sql);
+          goto DONE;
+        }
         snprintf(v_dnode_status, charLen + 1, "%s;", (char *)row[i]);
       } else if (strcmp(fields[i].name, "compacting") == 0) {
         //flush dnode_ids and dnode_role in to sql
@@ -1170,8 +1175,9 @@ static uint32_t monBuildVgroupsInfoSql(char *sql, char *dbName) {
       monDebug("successfully to save vgroup_%d info, sql:%s", vgId, tsMonitor.sql);
     }
   }
-  taos_free_result(result);
 
+DONE:
+  taos_free_result(result);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1197,69 +1203,6 @@ static void monSaveVgroupsInfo() {
   }
 
   taos_free_result(result);
-}
-
-static void monSaveSlowQueryInfo() {
-  int64_t ts = taosGetTimestampUs();
-  char *  sql = tsMonitor.sql;
-  int32_t pos = snprintf(sql, SQL_LENGTH, "insert into %s.slowquery values(%" PRId64, tsMonitorDbName, ts);
-  bool has_slowquery = false;
-
-  TAOS_RES *result = taos_query(tsMonitor.conn, "show queries");
-  int32_t code = taos_errno(result);
-  if (code != TSDB_CODE_SUCCESS) {
-    monError("failed to execute cmd: show queries, reason:%s", tstrerror(code));
-  }
-
-  TAOS_ROW    row;
-  int32_t     num_fields = taos_num_fields(result);
-  TAOS_FIELD *fields = taos_fetch_fields(result);
-
-  int32_t charLen;
-  while ((row = taos_fetch_row(result))) {
-    for (int i = 0; i < num_fields; ++i) {
-      if (strcmp(fields[i].name, "query_id") == 0) {
-        has_slowquery = true;
-        charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
-        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 1, ", "SQL_STR_FMT, (char *)row[i]);
-      } else if (strcmp(fields[i].name, "user") == 0) {
-        charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
-        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 1, ", "SQL_STR_FMT, (char *)row[i]);
-      } else if (strcmp(fields[i].name, "qid") == 0) {
-        charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
-        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 1, ", "SQL_STR_FMT, (char *)row[i]);
-      } else if (strcmp(fields[i].name, "created_time") == 0) {
-        int64_t create_time = *(int64_t *)row[i];
-        create_time = convertTimePrecision(create_time, TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO);
-        pos += snprintf(sql + pos, SQL_LENGTH, ", %" PRId64 "", create_time);
-      } else if (strcmp(fields[i].name, "time") == 0) {
-        pos += snprintf(sql + pos, SQL_LENGTH, ", %" PRId64 "", *(int64_t *)row[i]);
-      } else if (strcmp(fields[i].name, "ep") == 0) {
-        charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
-        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 1, ", "SQL_STR_FMT, (char *)row[i]);
-      } else if (strcmp(fields[i].name, "sql") == 0) {
-        charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
-        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 2, ", "SQL_STR_FMT")", (char *)row[i]);
-      }
-    }
-  }
-
-  monDebug("save slow query, sql:%s", sql);
-  taos_free_result(result);
-  if (!has_slowquery) {
-    return;
-  }
-  void *res = taos_query(tsMonitor.conn, tsMonitor.sql);
-  code = taos_errno(res);
-  taos_free_result(res);
-
-  if (code != 0) {
-    monError("failed to save slowquery info, reason:%s, sql:%s", tstrerror(code), tsMonitor.sql);
-  } else {
-    monIncSubmitReqCnt();
-    monDebug("successfully to save slowquery info, sql:%s", tsMonitor.sql);
-  }
-
 }
 
 static void monSaveDisksInfo() {

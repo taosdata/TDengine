@@ -92,7 +92,7 @@ static void *taosThreadToOpenNewNote(void *param) {
 
   umask(0);
 
-  int32_t fd = open(name, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+  int32_t fd = open(name, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, S_IRWXU | S_IRWXG | S_IRWXO);
   if (fd < 0) {
     return NULL;
   }
@@ -132,7 +132,7 @@ static int32_t taosOpenNewNote(SNoteObj *pNote) {
 }
 
 static bool taosCheckNoteIsOpen(char *noteName, SNoteObj *pNote) {
-  int32_t fd = open(noteName, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+  int32_t fd = open(noteName, O_WRONLY | O_CREAT | O_BINARY, S_IRWXU | S_IRWXG | S_IRWXO);
   if (fd < 0) {
     fprintf(stderr, "failed to open note:%s reason:%s\n", noteName, strerror(errno));
     return true;
@@ -207,7 +207,7 @@ static int32_t taosOpenNoteWithMaxLines(char *fn, int32_t maxLines, int32_t maxN
   pthread_mutex_init(&pNote->mutex, NULL);
 
   umask(0);
-  pNote->fd = open(noteName, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+  pNote->fd = open(noteName, O_WRONLY | O_CREAT | O_BINARY, S_IRWXU | S_IRWXG | S_IRWXO);
 
   if (pNote->fd < 0) {
     fprintf(stderr, "failed to open note file:%s reason:%s\n", noteName, strerror(errno));

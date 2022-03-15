@@ -30,6 +30,7 @@ typedef struct {
   int32_t * vnodeList;
 } SOpenVnodeThread;
 
+extern bool     dnodeExit;
 extern void *   tsDnodeTmr;
 static void *   tsStatusTimer = NULL;
 static uint32_t tsRebootTime = 0;
@@ -222,6 +223,22 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
       if (clusterId[0] != '\0') {
         dnodeSetDropped();
         dError("exit zombie dropped dnode");
+
+        // warning: only for k8s!
+        while (tsDnodeNopLoop) {
+          if (dnodeExit) {
+            dInfo("Break loop");
+            return;
+          }
+
+          dInfo("Nop loop");
+#ifdef WINDOWS
+          Sleep(100);
+#else
+          usleep(100000);
+#endif
+        }
+
         exit(EXIT_FAILURE);
       }
     }
@@ -270,7 +287,7 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
 
   dnodeGetCfg(&pStatus->dnodeId, pStatus->clusterId);
   pStatus->dnodeId          = htonl(dnodeGetDnodeId());
-  pStatus->version          = htonl(tsVersion);
+  pStatus->version          = htonl(tsVersion >> 8);
   pStatus->lastReboot       = htonl(tsRebootTime);
   pStatus->numOfCores       = htons((uint16_t) tsNumOfCores);
   pStatus->diskAvailable    = tsAvailDataDirGB;

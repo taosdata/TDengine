@@ -28,6 +28,7 @@ typedef struct STblCond {
 typedef struct SJoinNode {
   uint64_t uid;
   int16_t  tagColId;
+  char  tagJsonKeyName[TSDB_MAX_JSON_KEY_LEN + 1];   // for tag json key
   SArray*  tsJoin;
   SArray*  tagJoin;
 } SJoinNode;
@@ -49,7 +50,7 @@ typedef struct SGroupbyExpr {
   int16_t tableIndex;
   SArray* columnInfo;  // SArray<SColIndex>, group by columns information
   int16_t numOfGroupCols;  // todo remove it
-  int16_t orderIndex;  // order by column index
+  //int16_t orderIndex; // order by column index, rm useless orderIndex
   int16_t orderType;   // order by type: asc/desc
 } SGroupbyExpr;
 
@@ -165,6 +166,7 @@ typedef struct SQueryInfo {
   bool               stateWindow;
   bool               globalMerge;
   bool               multigroupResult;
+  bool               isStddev;
 } SQueryInfo;
 
 /**

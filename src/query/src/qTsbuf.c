@@ -267,7 +267,8 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
   metaLen += (int32_t)fwrite(&pBlock->tag.nType, 1, sizeof(pBlock->tag.nType), pTSBuf->f);
 
   int32_t trueLen = pBlock->tag.nLen;
-  if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR) {
+  if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR ||
+      pBlock->tag.nType == TSDB_DATA_TYPE_JSON) {
     metaLen += (int32_t)fwrite(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
     metaLen += (int32_t)fwrite(pBlock->tag.pz, 1, (size_t)pBlock->tag.nLen, pTSBuf->f);
   } else if (pBlock->tag.nType == TSDB_DATA_TYPE_FLOAT) {
@@ -349,7 +350,8 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
 
   // NOTE: mix types tags are not supported
   size_t sz = 0;
-  if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR) {
+  if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR ||
+      pBlock->tag.nType == TSDB_DATA_TYPE_JSON) {
     char* tp = realloc(pBlock->tag.pz, pBlock->tag.nLen + 1);
     assert(tp != NULL);
 
@@ -490,10 +492,10 @@ void tsBufAppend(STSBuf* pTSBuf, int32_t id, tVariant* tag, const char* pData, i
 }
 
 void tsBufFlush(STSBuf* pTSBuf) {
-  if (pTSBuf->tsData.len <= 0) {
+  if (pTSBuf->numOfGroups <= 0) {
     return;
   }
-  
+
   writeDataToDisk(pTSBuf);
   shrinkBuffer(&pTSBuf->tsData);
   

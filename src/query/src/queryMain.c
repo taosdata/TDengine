@@ -54,7 +54,7 @@ void freeParam(SQueryParam *param) {
   tfree(param->sql);
   tfree(param->tagCond);
   tfree(param->pTableIdList);
-  taosArrayDestroy(param->pOperator);
+  taosArrayDestroy(&param->pOperator);
   tfree(param->pExprs);
   tfree(param->pSecExprs);
 
@@ -115,6 +115,8 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
 
   bool isSTableQuery = false;
   STableGroupInfo tableGroupInfo = {0};
+  tableGroupInfo.sVersion = -1;
+  tableGroupInfo.tVersion = -1;
   int64_t st = taosGetTimestampUs();
 
   if (TSDB_QUERY_HAS_TYPE(pQueryMsg->queryType, TSDB_QUERY_TYPE_TABLE_QUERY)) {
@@ -160,6 +162,16 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     assert(0);
   }
 
+  int16_t queryTagVersion = param.tagVersion;
+  int16_t querySchemaVersion = param.schemaVersion;
+  if (queryTagVersion < tableGroupInfo.tVersion || querySchemaVersion < tableGroupInfo.sVersion) {
+    qInfo("qmsg:%p invalid schema version. client meta sversion/tversion %d/%d, table sversion/tversion %d/%d", pQueryMsg,
+          querySchemaVersion, queryTagVersion, tableGroupInfo.sVersion, tableGroupInfo.tVersion);
+    tsdbDestroyTableGroup(&tableGroupInfo);
+    code = TSDB_CODE_QRY_INVALID_SCHEMA_VERSION;
+    goto _over;
+  }
+
   code = checkForQueryBuf(tableGroupInfo.numOfTables);
   if (code != TSDB_CODE_SUCCESS) {  // not enough query buffer, abort
     goto _over;
@@ -186,15 +198,14 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
 
   _over:
   if (param.pGroupbyExpr != NULL) {
-    taosArrayDestroy(param.pGroupbyExpr->columnInfo);
+    taosArrayDestroy(&(param.pGroupbyExpr->columnInfo));
   }
 
   tfree(param.colCond);
   
   destroyUdfInfo(param.pUdfInfo);
 
-  taosArrayDestroy(param.pTableIdList);
-  param.pTableIdList = NULL;
+  taosArrayDestroy(&param.pTableIdList);
 
   freeParam(&param);
 
@@ -213,51 +224,6 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
   // if failed to add ref for all tables in this query, abort current query
   return code;
 }
-
-#ifdef TEST_IMPL
-// wait moment
-int waitMoment(SQInfo* pQInfo){
-  if(pQInfo->sql) {
-    int ms = 0;
-    char* pcnt = strstr(pQInfo->sql, " count(*)");
-    if(pcnt) return 0;
-    
-    char* pos = strstr(pQInfo->sql, " t_");
-    if(pos){
-      pos += 3;
-      ms = atoi(pos);
-      while(*pos >= '0' && *pos <= '9'){
-        pos ++;
-      }
-      char unit_char = *pos;
-      if(unit_char == 'h'){
-        ms *= 3600*1000;
-      } else if(unit_char == 'm'){
-        ms *= 60*1000;
-      } else if(unit_char == 's'){
-        ms *= 1000;
-      }
-    }
-    if(ms == 0) return 0;
-    printf("test wait sleep %dms. sql=%s ...\n", ms, pQInfo->sql);
-    
-    if(ms < 1000) {
-      taosMsleep(ms);
-    } else {
-      int used_ms = 0;
-      while(used_ms < ms) {
-        taosMsleep(1000);
-        used_ms += 1000;
-        if(isQueryKilled(pQInfo)){
-          printf("test check query is canceled, sleep break.%s\n", pQInfo->sql);
-          break;
-        }
-      }
-    }
-  }
-  return 1;
-}
-#endif
 
 bool qTableQuery(qinfo_t qinfo, uint64_t *qId) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
@@ -279,6 +245,7 @@ bool qTableQuery(qinfo_t qinfo, uint64_t *qId) {
 
   if (isQueryKilled(pQInfo)) {
     qDebug("QInfo:0x%"PRIx64" it is already killed, abort", pQInfo->qId);
+    setQueryKilled(pQInfo);
     pQInfo->runtimeEnv.outputBuf = NULL;
     return doBuildResCheck(pQInfo);
   }
@@ -425,7 +392,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
     *contLen = *contLen - origSize + compSize;
     *pRsp = (SRetrieveTableRsp *)rpcReallocCont(*pRsp, *contLen);
     qDebug("QInfo:0x%"PRIx64" compress col data, uncompressed size:%d, compressed size:%d, ratio:%.2f",
-        pQInfo->qId, origSize, compSize, (float)origSize / (float)compSize);
+           pQInfo->qId, origSize, compSize, (float)origSize / (float)compSize);
   }
   (*pRsp)->compLen = htonl(compLen);
 
@@ -713,7 +680,7 @@ void* qObtainLongQuery(void* param){
   
   size_t cnt = taosArrayGetSize(qids);
   if(cnt == 0) {
-    taosArrayDestroy(qids);
+    taosArrayDestroy(&qids);
     return NULL;
   } 
   if(cnt > 1)
@@ -753,7 +720,7 @@ bool qFixedNoBlock(void* pRepo, void* pMgmt, int32_t longQueryMs) {
   for(i=0; i < cnt; i++) {
     free(taosArrayGetP(qids, i));
   }
-  taosArrayDestroy(qids);
+  taosArrayDestroy(&qids);
   return fixed;
 }
 

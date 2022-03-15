@@ -16,12 +16,14 @@
 
 #include "hash.h"
 #include "taos.h"
+#include "taoserror.h"
 #include "taosdef.h"
 #include "ttoken.h"
 #include "ttokendef.h"
 #include "ttype.h"
 #include "tutil.h"
 #include "tvariant.h"
+#include "tulog.h"
 
 #define SET_EXT_INFO(converted, res, minv, maxv, exti) do {                                                       \
                                                         if (converted == NULL || exti == NULL || *converted == false) { break; }  \
@@ -30,7 +32,11 @@
                                                         assert(0);                                                                  \
                                                        } while (0)
 
-void tVariantCreate(tVariant *pVar, SStrToken *token, bool needRmquoteEscape) {
+void tVariantCreate(tVariant *pVar, SStrToken *token) {
+  tVariantCreateExt(pVar, token, TK_ID, true);
+}
+
+void tVariantCreateExt(tVariant *pVar, SStrToken *token, int32_t optrType, bool needRmquoteEscape) {
   int32_t ret = 0;
   int32_t type = token->type;
 
@@ -54,7 +60,7 @@ void tVariantCreate(tVariant *pVar, SStrToken *token, bool needRmquoteEscape) {
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_INT:{
       ret = tStrToInteger(token->z, token->type, token->n, &pVar->i64, true);
-      if (ret != 0) {
+      if (ret != TSDB_CODE_SUCCESS) {
         SStrToken t = {0};
         tGetToken(token->z, &t.type);
         if (t.type == TK_MINUS) {  // it is a signed number which is greater than INT64_MAX or less than INT64_MIN
@@ -64,7 +70,7 @@ void tVariantCreate(tVariant *pVar, SStrToken *token, bool needRmquoteEscape) {
 
         // data overflow, try unsigned parse the input number
         ret = tStrToInteger(token->z, token->type, token->n, &pVar->i64, false);
-        if (ret != 0) {
+        if (ret != TSDB_CODE_SUCCESS) {
           pVar->nType = -1;   // -1 means error type
           return;
         }
@@ -81,19 +87,35 @@ void tVariantCreate(tVariant *pVar, SStrToken *token, bool needRmquoteEscape) {
 
     case TSDB_DATA_TYPE_BINARY: {
       pVar->pz = strndup(token->z, token->n);
-      pVar->nLen = needRmquoteEscape ? strRmquoteEscape(pVar->pz, token->n) : token->n;
+      pVar->nLen = needRmquoteEscape ? stringProcess(pVar->pz, token->n) : token->n;
       break;
     }
     case TSDB_DATA_TYPE_TIMESTAMP: {
-      pVar->i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO);                           
-      break;                             
-    }                            
-    
+      if (optrType == TK_NOW) {
+        pVar->i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+      } else if (optrType == TK_TODAY) {
+        pVar->i64 = taosGetTimestampToday() * 1000000000;
+      } else if (optrType == TK_PLUS || optrType == TK_MINUS) {
+        char unit = 0;
+        ret = parseAbsoluteDuration(token->z, token->n, &pVar->i64, &unit, TSDB_TIME_PRECISION_NANO);
+        if (ret != TSDB_CODE_SUCCESS) {
+          pVar->nType = -1;   // -1 means error type
+          return;
+        }
+        if (optrType == TK_PLUS) {
+          pVar->i64 += taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+        } else {
+          pVar->i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO) - pVar->i64;
+        }
+      }
+      break;
+    }
+
     default: {  // nType == 0 means the null value
       type = TSDB_DATA_TYPE_NULL;
     }
   }
-  
+
   pVar->nType = type;
 }
 
@@ -158,34 +180,40 @@ void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32
       pVar->dKey = GET_FLOAT_VAL(pz);
       break;
     }
-    case TSDB_DATA_TYPE_NCHAR: { // here we get the nchar length from raw binary bits length
+    case TSDB_DATA_TYPE_NCHAR:{ // here we get the nchar length from raw binary bits length
       size_t lenInwchar = len / TSDB_NCHAR_SIZE;
 
       pVar->wpz = calloc(1, (lenInwchar + 1) * TSDB_NCHAR_SIZE);
       memcpy(pVar->wpz, pz, lenInwchar * TSDB_NCHAR_SIZE);
       pVar->nLen = (int32_t)len;
-      
+
       break;
     }
-    case TSDB_DATA_TYPE_BINARY: {  // todo refactor, extract a method
+    case TSDB_DATA_TYPE_JSON:{
+      pVar->pz = calloc(len + 2, sizeof(char));
+      memcpy(pVar->pz, pz, len);
+      pVar->nLen = (int32_t)len;
+      break;
+    }
+    case TSDB_DATA_TYPE_BINARY:{
       pVar->pz = calloc(len + 1, sizeof(char));
       memcpy(pVar->pz, pz, len);
       pVar->nLen = (int32_t)len;
       break;
     }
-    
+
     default:
       pVar->i64 = GET_INT32_VAL(pz);
       pVar->nLen = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
   }
-  
+
   pVar->nType = type;
 }
 
 void tVariantDestroy(tVariant *pVar) {
   if (pVar == NULL) return;
-  
-  if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR) {
+
+  if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR || pVar->nType == TSDB_DATA_TYPE_JSON) {
     tfree(pVar->pz);
     pVar->nLen = 0;
   }
@@ -197,11 +225,9 @@ void tVariantDestroy(tVariant *pVar) {
       void* p = taosArrayGetP(pVar->arr, i);
       free(p);
     }
-    taosArrayDestroy(pVar->arr);
-    pVar->arr = NULL;
+    taosArrayDestroy(&pVar->arr);
   } else if (pVar->nType == TSDB_DATA_TYPE_VALUE_ARRAY) {
-    taosArrayDestroy(pVar->arr);
-    pVar->arr = NULL;
+    taosArrayDestroy(&pVar->arr);
   }
 }
 
@@ -210,11 +236,41 @@ bool tVariantIsValid(tVariant *pVar) {
   return isValidDataType(pVar->nType);
 }
 
+bool tVariantTypeMatch(tVariant *pVar, int8_t dbType){
+  switch (dbType) {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR: {
+      if(pVar->nType != TSDB_DATA_TYPE_BINARY && pVar->nType != TSDB_DATA_TYPE_NCHAR){
+        return false;
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_FLOAT:
+    case TSDB_DATA_TYPE_DOUBLE:{
+      if(pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR){
+        return false;
+      }
+      break;
+    }
+  }
+  return true;
+}
+
 void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
   if (pSrc == NULL || pDst == NULL) return;
-  
+
   pDst->nType = pSrc->nType;
-  if (pSrc->nType == TSDB_DATA_TYPE_BINARY || pSrc->nType == TSDB_DATA_TYPE_NCHAR) {
+  if (pSrc->nType == TSDB_DATA_TYPE_BINARY || pSrc->nType == TSDB_DATA_TYPE_NCHAR || pSrc->nType == TSDB_DATA_TYPE_JSON) {
     int32_t len = pSrc->nLen + TSDB_NCHAR_SIZE;
     char* p = realloc(pDst->pz, len);
     assert(p);
@@ -228,7 +284,7 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
 
   }
 
-  if (IS_NUMERIC_TYPE(pSrc->nType) || (pSrc->nType == TSDB_DATA_TYPE_BOOL)) {
+  if (IS_NUMERIC_TYPE(pSrc->nType) || IS_TIMESTAMP_TYPE(pSrc->nType) || (pSrc->nType == TSDB_DATA_TYPE_BOOL)) {
     pDst->i64 = pSrc->i64;
   } else if (pSrc->nType == TSDB_DATA_TYPE_POINTER_ARRAY) {  // this is only for string array
     size_t num = taosArrayGetSize(pSrc->arr);
@@ -249,7 +305,7 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
       }
   }
 
-  if (pDst->nType != TSDB_DATA_TYPE_POINTER_ARRAY && pDst->nType != TSDB_DATA_TYPE_VALUE_ARRAY) {
+  if (pDst->nType != TSDB_DATA_TYPE_POINTER_ARRAY && pDst->nType != TSDB_DATA_TYPE_VALUE_ARRAY && isValidDataType(pDst->nType)) { // if pDst->nType=-1, core dump. eg: where intcolumn=999999999999999999999999999
     pDst->nLen = tDataTypes[pDst->nType].bytes;
   }
 }
@@ -267,7 +323,7 @@ int32_t tVariantCompare(const tVariant* p1, const tVariant* p2) {
     return 1;
   }
 
-  if (p1->nType == TSDB_DATA_TYPE_BINARY || p1->nType == TSDB_DATA_TYPE_NCHAR) {
+  if (p1->nType == TSDB_DATA_TYPE_BINARY || p1->nType == TSDB_DATA_TYPE_NCHAR || p1->nType == TSDB_DATA_TYPE_JSON) {
     if (p1->nLen == p2->nLen) {
       return memcmp(p1->pz, p2->pz, p1->nLen);
     } else {
@@ -296,23 +352,27 @@ int32_t tVariantCompare(const tVariant* p1, const tVariant* p2) {
 
 int32_t tVariantToString(tVariant *pVar, char *dst) {
   if (pVar == NULL || dst == NULL) return 0;
-  
+
   switch (pVar->nType) {
     case TSDB_DATA_TYPE_BINARY: {
       int32_t len = sprintf(dst, "\'%s\'", pVar->pz);
       assert(len <= pVar->nLen + sizeof("\'") * 2);  // two more chars
       return len;
     }
-    
+
     case TSDB_DATA_TYPE_NCHAR: {
       dst[0] = '\'';
-      taosUcs4ToMbs(pVar->wpz, (twcslen(pVar->wpz) + 1) * TSDB_NCHAR_SIZE, dst + 1);
-      int32_t len = (int32_t)strlen(dst);
+      int32_t len = taosUcs4ToMbs(pVar->wpz, (twcslen(pVar->wpz) + 1) * TSDB_NCHAR_SIZE, dst + 1);
+      if (len < 0){
+        uError("castConvert1 taosUcs4ToMbs error");
+        return 0 ;
+      }
+      len = (int32_t)strlen(dst);
       dst[len] = '\'';
       dst[len + 1] = 0;
       return len + 1;
     }
-    
+
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_SMALLINT:
@@ -321,7 +381,7 @@ int32_t tVariantToString(tVariant *pVar, char *dst) {
     case TSDB_DATA_TYPE_USMALLINT:
     case TSDB_DATA_TYPE_UINT:
       return sprintf(dst, "%d", (int32_t)pVar->i64);
-    
+
     case TSDB_DATA_TYPE_BIGINT:
       return sprintf(dst, "%" PRId64, pVar->i64);
     case TSDB_DATA_TYPE_UBIGINT:
@@ -329,7 +389,7 @@ int32_t tVariantToString(tVariant *pVar, char *dst) {
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE:
       return sprintf(dst, "%.9lf", pVar->dKey);
-    
+
     default:
       return 0;
   }
@@ -367,21 +427,27 @@ static int32_t toBinary(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
   if (*pDest == pVariant->pz) {
     pBuf = calloc(1, INITIAL_ALLOC_SIZE);
   }
-  
+
   if (pVariant->nType == TSDB_DATA_TYPE_NCHAR) {
     size_t newSize = pVariant->nLen * TSDB_NCHAR_SIZE;
     if (pBuf != NULL) {
       if (newSize >= INITIAL_ALLOC_SIZE) {
         pBuf = realloc(pBuf, newSize + 1);
       }
-      
-      taosUcs4ToMbs(pVariant->wpz, (int32_t)newSize, pBuf);
+
+      int32_t len = taosUcs4ToMbs(pVariant->wpz, (int32_t)newSize, pBuf);
+      if (len < 0){
+        uError("castConvert1 taosUcs4ToMbs error");
+      }
       free(pVariant->wpz);
       pBuf[newSize] = 0;
     } else {
-      taosUcs4ToMbs(pVariant->wpz, (int32_t)newSize, *pDest);
+      int32_t len = taosUcs4ToMbs(pVariant->wpz, (int32_t)newSize, *pDest);
+      if (len < 0){
+        uError("castConvert1 taosUcs4ToMbs error");
+      }
     }
-    
+
   } else {
     if (IS_SIGNED_NUMERIC_TYPE(pVariant->nType)) {
       sprintf(pBuf == NULL ? *pDest : pBuf, "%" PRId64, pVariant->i64);
@@ -393,18 +459,18 @@ static int32_t toBinary(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
       setNull(pBuf == NULL ? *pDest : pBuf, TSDB_DATA_TYPE_BINARY, 0);
     }
   }
-  
+
   if (pBuf != NULL) {
     *pDest = pBuf;
   }
-  
+
   *pDestSize = (int32_t)strlen(*pDest);
   return 0;
 }
 
 static int32_t toNchar(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
   char tmpBuf[40] = {0};
-  
+
   char *  pDst = tmpBuf;
   int32_t nLen = 0;
 
@@ -476,7 +542,7 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
   }
 
   errno = 0;
-  if (IS_SIGNED_NUMERIC_TYPE(pVariant->nType) || (pVariant->nType == TSDB_DATA_TYPE_BOOL)) {
+  if (IS_SIGNED_NUMERIC_TYPE(pVariant->nType) || IS_TIMESTAMP_TYPE(pVariant->nType) || (pVariant->nType == TSDB_DATA_TYPE_BOOL)) {
     *result = pVariant->i64;
   } else if (IS_UNSIGNED_NUMERIC_TYPE(pVariant->nType)) {
     *result = pVariant->u64;
@@ -742,7 +808,7 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
           if (converted) {
             *converted = true;
           }
-          
+
           if (value > FLT_MAX || value < -FLT_MAX) {
             SET_EXT_INFO(converted, value, -FLT_MAX, FLT_MAX, extInfo);
             return -1;
@@ -753,8 +819,8 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
         if (converted) {
           *converted = true;
         }
-        
-        if (pVariant->i64 > FLT_MAX || pVariant->i64 < -FLT_MAX) {          
+
+        if (pVariant->i64 > FLT_MAX || pVariant->i64 < -FLT_MAX) {
           SET_EXT_INFO(converted, pVariant->i64, -FLT_MAX, FLT_MAX, extInfo);
           return -1;
         }
@@ -764,12 +830,12 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
         if (converted) {
           *converted = true;
         }
-        
-        if (pVariant->dKey > FLT_MAX || pVariant->dKey < -FLT_MAX) {          
+
+        if (pVariant->dKey > FLT_MAX || pVariant->dKey < -FLT_MAX) {
           SET_EXT_INFO(converted, pVariant->dKey, -FLT_MAX, FLT_MAX, extInfo);
           return -1;
         }
-      
+
         SET_FLOAT_VAL(payload, pVariant->dKey);
       } else if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
         *((uint32_t *)payload) = TSDB_DATA_FLOAT_NULL;
@@ -814,8 +880,8 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
 
       break;
     }
-    
-    case TSDB_DATA_TYPE_BINARY: {
+
+    case TSDB_DATA_TYPE_BINARY:{
       if (!includeLengthPrefix) {
         if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
           *(uint8_t*) payload = TSDB_DATA_BINARY_NULL;
@@ -852,7 +918,7 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
       }
       break;
     }
-    case TSDB_DATA_TYPE_NCHAR: {
+    case TSDB_DATA_TYPE_NCHAR:{
       int32_t newlen = 0;
       if (!includeLengthPrefix) {
         if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
@@ -885,11 +951,21 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
           assert(p == varDataVal(payload));
         }
       }
-      
+
+      break;
+    }
+    case TSDB_DATA_TYPE_JSON:{
+      if (pVariant->nType == TSDB_DATA_TYPE_BINARY || pVariant->nType == TSDB_DATA_TYPE_NULL){
+        *((int8_t *)payload) = TSDB_DATA_JSON_PLACEHOLDER;
+      } else if (pVariant->nType == TSDB_DATA_TYPE_JSON){   // select * from stable, set tag type to json，from setTagValue/tag_project_function
+        memcpy(payload, pVariant->pz, pVariant->nLen);
+      }else {
+        return -1;
+      }
       break;
     }
   }
-  
+
   return 0;
 }
 
@@ -904,13 +980,13 @@ int32_t tVariantTypeSetType(tVariant *pVariant, char type) {
   if (pVariant == NULL || pVariant->nType == 0) {  // value is not set
     return 0;
   }
-  
+
   switch (type) {
     case TSDB_DATA_TYPE_BOOL: {  // bool
       if (convertToBool(pVariant, &pVariant->i64) < 0) {
         return -1;
       }
-      
+
       pVariant->nType = type;
       break;
     }
@@ -931,7 +1007,7 @@ int32_t tVariantTypeSetType(tVariant *pVariant, char type) {
           free(pVariant->pz);
           return -1;
         }
-        
+
         free(pVariant->pz);
         pVariant->dKey = v;
       } else if (pVariant->nType == TSDB_DATA_TYPE_NCHAR) {
@@ -941,14 +1017,14 @@ int32_t tVariantTypeSetType(tVariant *pVariant, char type) {
           free(pVariant->pz);
           return -1;
         }
-        
+
         free(pVariant->pz);
         pVariant->dKey = v;
       } else if (pVariant->nType >= TSDB_DATA_TYPE_BOOL && pVariant->nType <= TSDB_DATA_TYPE_BIGINT) {
         double tmp = (double) pVariant->i64;
         pVariant->dKey = tmp;
       }
-      
+
       pVariant->nType = TSDB_DATA_TYPE_DOUBLE;
       break;
     }
@@ -969,6 +1045,6 @@ int32_t tVariantTypeSetType(tVariant *pVariant, char type) {
       break;
     }
   }
-  
+
   return 0;
 }

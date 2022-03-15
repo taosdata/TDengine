@@ -70,8 +70,12 @@ static FORCE_INLINE char* getPosInResultPage(SQueryAttr* pQueryAttr, tFilePage* 
                                              int32_t offset) {
   assert(rowOffset >= 0 && pQueryAttr != NULL);
 
-  int32_t numOfRows = (int32_t)getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery);
-  return ((char *)page->data) + rowOffset + offset * numOfRows;
+  int64_t numOfRows = (int64_t)getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery);
+  numOfRows *= offset;
+  if(numOfRows >= INT32_MAX){
+    assert(0);
+  }
+  return ((char *)page->data) + rowOffset + numOfRows;
 }
 
 bool isNullOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type);
@@ -106,5 +110,4 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQueryRuntimeEnv *pRuntimeEnv, int32_t* offset);
 
 int32_t initUdfInfo(SUdfInfo* pUdfInfo);
-
 #endif  // TDENGINE_QUERYUTIL_H

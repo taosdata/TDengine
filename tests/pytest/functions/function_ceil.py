@@ -1322,21 +1322,21 @@ class TDTestCase:
                 double_col double, binary_col binary(8), smallint_col smallint, tinyint_col tinyint, bool_col bool, nchar_col nchar(8), \
                 uint_col int unsigned, ubigint_col bigint unsigned, usmallint_col smallint unsigned,  utinyint_col tinyint unsigned) tags (int_tag int, bigint_tag bigint, \
                     float_tag float, double_tag double, binary_tag binary(8), smallint_tag smallint, tinyint_tag tinyint, bool_tag bool, nchar_tag nchar(8),\
-                        uint_tag int unsigned, ubigint_tag bigint unsigned, usmallint_tag smallint unsigned, utinyint_tag tinyint unsigned)"
+                        uint_tag int unsigned, ubigint_tag bigint unsigned, usmallint_tag smallint unsigned, utinyint_tag tinyint unsigned, timestamp_tag timestamp)"
         )
         tdSql.execute(
             "create stable superb (ts timestamp, timestamp_col timestamp, int_col int, bigint_col bigint, float_col float,\
                 double_col double, binary_col binary(8), smallint_col smallint, tinyint_col tinyint, bool_col bool, nchar_col nchar(8), \
                 uint_col int unsigned, ubigint_col bigint unsigned, usmallint_col smallint unsigned,  utinyint_col tinyint unsigned) tags (int_tag int, bigint_tag bigint, \
                     float_tag float, double_tag double, binary_tag binary(8), smallint_tag smallint, tinyint_tag tinyint, bool_tag bool, nchar_tag nchar(8),\
-                        uint_tag int unsigned, ubigint_tag bigint unsigned, usmallint_tag smallint unsigned, utinyint_tag tinyint unsigned)"
+                        uint_tag int unsigned, ubigint_tag bigint unsigned, usmallint_tag smallint unsigned, utinyint_tag tinyint unsigned, timestamp_tag timestamp)"
         )
         tdSql.execute(
-            "create table t1 using super tags (1, %d, %f, %f, '%s', %d, %d, 1, '%s', %d, %d, %d, %d)"
+            "create table t1 using super tags (1, %d, %f, %f, '%s', %d, %d, 1, '%s', %d, %d, %d, %d, %s)"
             % (self.randomBigint(), self.randomDouble(), self.randomDouble(),
                self.randomNchar(), self.randomSmallint(), self.randomTinyint(),
                self.randomNchar(), self.randomUInt(), self.randomUBigint(),
-               self.randomUSmallint(), self.randomUTinyint()))
+               self.randomUSmallint(), self.randomUTinyint(), 'now'))
         tdSql.execute(
             "insert into t1 values (1629796215891, 1629796215891, %d, %d, %f, %f, '%s', %d, %d, 1, '%s', %d, %d, %d, %d)"
             % (self.randomInt(), self.randomBigint(), self.randomDouble(),
@@ -1366,11 +1366,11 @@ class TDTestCase:
                self.randomUBigint(), self.randomUSmallint(),
                self.randomUTinyint()))
         tdSql.execute(
-            "create table t2 using superb tags (1, %d, %f, %f, '%s', %d, %d, 1, '%s', %d, %d, %d, %d)"
+            "create table t2 using superb tags (1, %d, %f, %f, '%s', %d, %d, 1, '%s', %d, %d, %d, %d, %s)"
             % (self.randomBigint(), self.randomDouble(), self.randomDouble(),
                self.randomNchar(), self.randomSmallint(), self.randomTinyint(),
                self.randomNchar(), self.randomUInt(), self.randomUBigint(),
-               self.randomUSmallint(), self.randomUTinyint()))
+               self.randomUSmallint(), self.randomUTinyint(), 'now'))
         tdSql.execute(
             "insert into t2 values (1629796215891, 1629796215891, %d, %d, %f, %f, '%s', %d, %d, 1, '%s', %d, %d, %d, %d)"
             % (self.randomInt(), self.randomBigint(), self.randomDouble(),
@@ -1400,139 +1400,572 @@ class TDTestCase:
                self.randomUBigint(), self.randomUSmallint(),
                self.randomUTinyint()))
 
+        shouldPass = ['select ceil(int_col) from super',
+         'select ceil(int_col) from t1',
+         'select ceil(bigint_col) from super',
+         'select ceil(bigint_col) from t1',
+         'select ceil(float_col) from super',
+         'select ceil(float_col) from t1',
+         'select ceil(double_col) from super',
+         'select ceil(double_col) from t1',
+         'select ceil(smallint_col) from super',
+         'select ceil(smallint_col) from t1',
+         'select ceil(tinyint_col) from super',
+         'select ceil(tinyint_col) from t1',
+         'select ceil(uint_col) from super',
+         'select ceil(uint_col) from t1',
+         'select ceil(ubigint_col) from super',
+         'select ceil(ubigint_col) from t1',
+         'select ceil(usmallint_col) from super',
+         'select ceil(usmallint_col) from t1',
+         'select ceil(utinyint_col) from super',
+         'select ceil(utinyint_col) from t1',
+         'select ceil(int_col) - ceil(int_col) from super',
+         'select ceil(int_col) - ceil(int_col) from t1',
+         'select ceil(bigint_col) - ceil(bigint_col) from super',
+         'select ceil(bigint_col) - ceil(bigint_col) from t1',
+         'select ceil(float_col) - ceil(float_col) from super',
+         'select ceil(float_col) - ceil(float_col) from t1',
+         'select ceil(double_col) - ceil(double_col) from super',
+         'select ceil(double_col) - ceil(double_col) from t1',
+         'select ceil(smallint_col) - ceil(smallint_col) from super',
+         'select ceil(smallint_col) - ceil(smallint_col) from t1',
+         'select ceil(tinyint_col) - ceil(tinyint_col) from super',
+         'select ceil(tinyint_col) - ceil(tinyint_col) from t1',
+         'select ceil(uint_col) - ceil(uint_col) from super',
+         'select ceil(uint_col) - ceil(uint_col) from t1',
+         'select ceil(ubigint_col) - ceil(ubigint_col) from super',
+         'select ceil(ubigint_col) - ceil(ubigint_col) from t1',
+         'select ceil(usmallint_col) - ceil(usmallint_col) from super',
+         'select ceil(usmallint_col) - ceil(usmallint_col) from t1',
+         'select ceil(utinyint_col) - ceil(utinyint_col) from super',
+         'select ceil(utinyint_col) - ceil(utinyint_col) from t1',
+         'select ceil(int_col) / ceil(int_col) from super',
+         'select ceil(int_col) / ceil(int_col) from t1',
+         'select ceil(bigint_col) / ceil(bigint_col) from super',
+         'select ceil(bigint_col) / ceil(bigint_col) from t1',
+         'select ceil(float_col) / ceil(float_col) from super',
+         'select ceil(float_col) / ceil(float_col) from t1',
+         'select ceil(double_col) / ceil(double_col) from super',
+         'select ceil(double_col) / ceil(double_col) from t1',
+         'select ceil(smallint_col) / ceil(smallint_col) from super',
+         'select ceil(smallint_col) / ceil(smallint_col) from t1',
+         'select ceil(tinyint_col) / ceil(tinyint_col) from super',
+         'select ceil(tinyint_col) / ceil(tinyint_col) from t1',
+         'select ceil(uint_col) / ceil(uint_col) from super',
+         'select ceil(uint_col) / ceil(uint_col) from t1',
+         'select ceil(ubigint_col) / ceil(ubigint_col) from super',
+         'select ceil(ubigint_col) / ceil(ubigint_col) from t1',
+         'select ceil(usmallint_col) / ceil(usmallint_col) from super',
+         'select ceil(usmallint_col) / ceil(usmallint_col) from t1',
+         'select ceil(utinyint_col) / ceil(utinyint_col) from super',
+         'select ceil(utinyint_col) / ceil(utinyint_col) from t1',
+         'select ceil(int_col) * ceil(int_col) from super',
+         'select ceil(int_col) * ceil(int_col) from t1',
+         'select ceil(bigint_col) * ceil(bigint_col) from super',
+         'select ceil(bigint_col) * ceil(bigint_col) from t1',
+         'select ceil(float_col) * ceil(float_col) from super',
+         'select ceil(float_col) * ceil(float_col) from t1',
+         'select ceil(double_col) * ceil(double_col) from super',
+         'select ceil(double_col) * ceil(double_col) from t1',
+         'select ceil(smallint_col) * ceil(smallint_col) from super',
+         'select ceil(smallint_col) * ceil(smallint_col) from t1',
+         'select ceil(tinyint_col) * ceil(tinyint_col) from super',
+         'select ceil(tinyint_col) * ceil(tinyint_col) from t1',
+         'select ceil(uint_col) * ceil(uint_col) from super',
+         'select ceil(uint_col) * ceil(uint_col) from t1',
+         'select ceil(ubigint_col) * ceil(ubigint_col) from super',
+         'select ceil(ubigint_col) * ceil(ubigint_col) from t1',
+         'select ceil(usmallint_col) * ceil(usmallint_col) from super',
+         'select ceil(usmallint_col) * ceil(usmallint_col) from t1',
+         'select ceil(utinyint_col) * ceil(utinyint_col) from super',
+         'select ceil(utinyint_col) * ceil(utinyint_col) from t1',
+         'select ceil(count(ts)) from super',
+         'select ceil(count(ts)) from t1',
+         'select ceil(count(timestamp_col)) from super',
+         'select ceil(count(timestamp_col)) from t1',
+         'select ceil(count(int_col)) from super',
+         'select ceil(count(int_col)) from t1',
+         'select ceil(count(bigint_col)) from super',
+         'select ceil(count(bigint_col)) from t1',
+         'select ceil(count(float_col)) from super',
+         'select ceil(count(float_col)) from t1',
+         'select ceil(count(double_col)) from super',
+         'select ceil(count(double_col)) from t1',
+         'select ceil(count(binary_col)) from super',
+         'select ceil(count(binary_col)) from t1',
+         'select ceil(count(smallint_col)) from super',
+         'select ceil(count(smallint_col)) from t1',
+         'select ceil(count(tinyint_col)) from super',
+         'select ceil(count(tinyint_col)) from t1',
+         'select ceil(count(bool_col)) from super',
+         'select ceil(count(bool_col)) from t1',
+         'select ceil(count(nchar_col)) from super',
+         'select ceil(count(nchar_col)) from t1',
+         'select ceil(count(uint_col)) from super',
+         'select ceil(count(uint_col)) from t1',
+         'select ceil(count(ubigint_col)) from super',
+         'select ceil(count(ubigint_col)) from t1',
+         'select ceil(count(usmallint_col)) from super',
+         'select ceil(count(usmallint_col)) from t1',
+         'select ceil(count(utinyint_col)) from super',
+         'select ceil(count(utinyint_col)) from t1',
+         'select ceil(count(timestamp_tag)) from super',
+         'select ceil(count(timestamp_tag)) from t1',
+         'select ceil(count(int_tag)) from super',
+         'select ceil(count(int_tag)) from t1',
+         'select ceil(count(bigint_tag)) from super',
+         'select ceil(count(bigint_tag)) from t1',
+         'select ceil(count(float_tag)) from super',
+         'select ceil(count(float_tag)) from t1',
+         'select ceil(count(double_tag)) from super',
+         'select ceil(count(double_tag)) from t1',
+         'select ceil(count(binary_tag)) from super',
+         'select ceil(count(binary_tag)) from t1',
+         'select ceil(count(smallint_tag)) from super',
+         'select ceil(count(smallint_tag)) from t1',
+         'select ceil(count(tinyint_tag)) from super',
+         'select ceil(count(tinyint_tag)) from t1',
+         'select ceil(count(bool_tag)) from super',
+         'select ceil(count(bool_tag)) from t1',
+         'select ceil(count(nchar_tag)) from super',
+         'select ceil(count(nchar_tag)) from t1',
+         'select ceil(count(uint_tag)) from super',
+         'select ceil(count(uint_tag)) from t1',
+         'select ceil(count(ubigint_tag)) from super',
+         'select ceil(count(ubigint_tag)) from t1',
+         'select ceil(count(usmallint_tag)) from super',
+         'select ceil(count(usmallint_tag)) from t1',
+         'select ceil(count(utinyint_tag)) from super',
+         'select ceil(count(utinyint_tag)) from t1',
+         'select ceil(avg(int_col)) from super',
+         'select ceil(avg(int_col)) from t1',
+         'select ceil(avg(bigint_col)) from super',
+         'select ceil(avg(bigint_col)) from t1',
+         'select ceil(avg(float_col)) from super',
+         'select ceil(avg(float_col)) from t1',
+         'select ceil(avg(double_col)) from super',
+         'select ceil(avg(double_col)) from t1',
+         'select ceil(avg(smallint_col)) from super',
+         'select ceil(avg(smallint_col)) from t1',
+         'select ceil(avg(tinyint_col)) from super',
+         'select ceil(avg(tinyint_col)) from t1',
+         'select ceil(avg(uint_col)) from super',
+         'select ceil(avg(uint_col)) from t1',
+         'select ceil(avg(ubigint_col)) from super',
+         'select ceil(avg(ubigint_col)) from t1',
+         'select ceil(avg(usmallint_col)) from super',
+         'select ceil(avg(usmallint_col)) from t1',
+         'select ceil(avg(utinyint_col)) from super',
+         'select ceil(avg(utinyint_col)) from t1',
+         'select ceil(twa(int_col)) from t1',
+         'select ceil(twa(bigint_col)) from t1',
+         'select ceil(twa(float_col)) from t1',
+         'select ceil(twa(double_col)) from t1',
+         'select ceil(twa(smallint_col)) from t1',
+         'select ceil(twa(tinyint_col)) from t1',
+         'select ceil(twa(uint_col)) from t1',
+         'select ceil(twa(ubigint_col)) from t1',
+         'select ceil(twa(usmallint_col)) from t1',
+         'select ceil(twa(utinyint_col)) from t1',
+         'select ceil(sum(int_col)) from super',
+         'select ceil(sum(int_col)) from t1',
+         'select ceil(sum(bigint_col)) from super',
+         'select ceil(sum(bigint_col)) from t1',
+         'select ceil(sum(float_col)) from super',
+         'select ceil(sum(float_col)) from t1',
+         'select ceil(sum(double_col)) from super',
+         'select ceil(sum(double_col)) from t1',
+         'select ceil(sum(smallint_col)) from super',
+         'select ceil(sum(smallint_col)) from t1',
+         'select ceil(sum(tinyint_col)) from super',
+         'select ceil(sum(tinyint_col)) from t1',
+         'select ceil(sum(uint_col)) from super',
+         'select ceil(sum(uint_col)) from t1',
+         'select ceil(sum(ubigint_col)) from super',
+         'select ceil(sum(ubigint_col)) from t1',
+         'select ceil(sum(usmallint_col)) from super',
+         'select ceil(sum(usmallint_col)) from t1',
+         'select ceil(sum(utinyint_col)) from super',
+         'select ceil(sum(utinyint_col)) from t1',
+         'select ceil(stddev(int_col)) from super',
+         'select ceil(stddev(int_col)) from t1',
+         'select ceil(stddev(bigint_col)) from super',
+         'select ceil(stddev(bigint_col)) from t1',
+         'select ceil(stddev(float_col)) from super',
+         'select ceil(stddev(float_col)) from t1',
+         'select ceil(stddev(double_col)) from super',
+         'select ceil(stddev(double_col)) from t1',
+         'select ceil(stddev(smallint_col)) from super',
+         'select ceil(stddev(smallint_col)) from t1',
+         'select ceil(stddev(tinyint_col)) from super',
+         'select ceil(stddev(tinyint_col)) from t1',
+         'select ceil(stddev(uint_col)) from super',
+         'select ceil(stddev(uint_col)) from t1',
+         'select ceil(stddev(ubigint_col)) from super',
+         'select ceil(stddev(ubigint_col)) from t1',
+         'select ceil(stddev(usmallint_col)) from super',
+         'select ceil(stddev(usmallint_col)) from t1',
+         'select ceil(stddev(utinyint_col)) from super',
+         'select ceil(stddev(utinyint_col)) from t1',
+         'select ceil(irate(int_col)) from t1',
+         'select ceil(irate(bigint_col)) from t1',
+         'select ceil(irate(float_col)) from t1',
+         'select ceil(irate(double_col)) from t1',
+         'select ceil(irate(smallint_col)) from t1',
+         'select ceil(irate(tinyint_col)) from t1',
+         'select ceil(irate(uint_col)) from t1',
+         'select ceil(irate(ubigint_col)) from t1',
+         'select ceil(irate(usmallint_col)) from t1',
+         'select ceil(irate(utinyint_col)) from t1',
+         'select ceil(min(int_col)) from super',
+         'select ceil(min(int_col)) from t1',
+         'select ceil(min(bigint_col)) from super',
+         'select ceil(min(bigint_col)) from t1',
+         'select ceil(min(float_col)) from super',
+         'select ceil(min(float_col)) from t1',
+         'select ceil(min(double_col)) from super',
+         'select ceil(min(double_col)) from t1',
+         'select ceil(min(smallint_col)) from super',
+         'select ceil(min(smallint_col)) from t1',
+         'select ceil(min(tinyint_col)) from super',
+         'select ceil(min(tinyint_col)) from t1',
+         'select ceil(min(uint_col)) from super',
+         'select ceil(min(uint_col)) from t1',
+         'select ceil(min(ubigint_col)) from super',
+         'select ceil(min(ubigint_col)) from t1',
+         'select ceil(min(usmallint_col)) from super',
+         'select ceil(min(usmallint_col)) from t1',
+         'select ceil(min(utinyint_col)) from super',
+         'select ceil(min(utinyint_col)) from t1',
+         'select ceil(max(int_col)) from super',
+         'select ceil(max(int_col)) from t1',
+         'select ceil(max(bigint_col)) from super',
+         'select ceil(max(bigint_col)) from t1',
+         'select ceil(max(float_col)) from super',
+         'select ceil(max(float_col)) from t1',
+         'select ceil(max(double_col)) from super',
+         'select ceil(max(double_col)) from t1',
+         'select ceil(max(smallint_col)) from super',
+         'select ceil(max(smallint_col)) from t1',
+         'select ceil(max(tinyint_col)) from super',
+         'select ceil(max(tinyint_col)) from t1',
+         'select ceil(max(uint_col)) from super',
+         'select ceil(max(uint_col)) from t1',
+         'select ceil(max(ubigint_col)) from super',
+         'select ceil(max(ubigint_col)) from t1',
+         'select ceil(max(usmallint_col)) from super',
+         'select ceil(max(usmallint_col)) from t1',
+         'select ceil(max(utinyint_col)) from super',
+         'select ceil(max(utinyint_col)) from t1',
+         'select ceil(first(int_col)) from super',
+         'select ceil(first(int_col)) from t1',
+         'select ceil(first(bigint_col)) from super',
+         'select ceil(first(bigint_col)) from t1',
+         'select ceil(first(float_col)) from super',
+         'select ceil(first(float_col)) from t1',
+         'select ceil(first(double_col)) from super',
+         'select ceil(first(double_col)) from t1',
+         'select ceil(first(smallint_col)) from super',
+         'select ceil(first(smallint_col)) from t1',
+         'select ceil(first(tinyint_col)) from super',
+         'select ceil(first(tinyint_col)) from t1',
+         'select ceil(first(uint_col)) from super',
+         'select ceil(first(uint_col)) from t1',
+         'select ceil(first(ubigint_col)) from super',
+         'select ceil(first(ubigint_col)) from t1',
+         'select ceil(first(usmallint_col)) from super',
+         'select ceil(first(usmallint_col)) from t1',
+         'select ceil(first(utinyint_col)) from super',
+         'select ceil(first(utinyint_col)) from t1',
+         'select ceil(last(int_col)) from super',
+         'select ceil(last(int_col)) from t1',
+         'select ceil(last(bigint_col)) from super',
+         'select ceil(last(bigint_col)) from t1',
+         'select ceil(last(float_col)) from super',
+         'select ceil(last(float_col)) from t1',
+         'select ceil(last(double_col)) from super',
+         'select ceil(last(double_col)) from t1',
+         'select ceil(last(smallint_col)) from super',
+         'select ceil(last(smallint_col)) from t1',
+         'select ceil(last(tinyint_col)) from super',
+         'select ceil(last(tinyint_col)) from t1',
+         'select ceil(last(uint_col)) from super',
+         'select ceil(last(uint_col)) from t1',
+         'select ceil(last(ubigint_col)) from super',
+         'select ceil(last(ubigint_col)) from t1',
+         'select ceil(last(usmallint_col)) from super',
+         'select ceil(last(usmallint_col)) from t1',
+         'select ceil(last(utinyint_col)) from super',
+         'select ceil(last(utinyint_col)) from t1',
+         'select ceil(percentile(int_col, 1)) from t1',
+         'select ceil(percentile(bigint_col, 1)) from t1',
+         'select ceil(percentile(float_col, 1)) from t1',
+         'select ceil(percentile(double_col, 1)) from t1',
+         'select ceil(percentile(smallint_col, 1)) from t1',
+         'select ceil(percentile(tinyint_col, 1)) from t1',
+         'select ceil(percentile(uint_col, 1)) from t1',
+         'select ceil(percentile(ubigint_col, 1)) from t1',
+         'select ceil(percentile(usmallint_col, 1)) from t1',
+         'select ceil(percentile(utinyint_col, 1)) from t1',
+         'select ceil(apercentile(int_col, 1)) from super',
+         'select ceil(apercentile(int_col, 1)) from t1',
+         'select ceil(apercentile(bigint_col, 1)) from super',
+         'select ceil(apercentile(bigint_col, 1)) from t1',
+         'select ceil(apercentile(float_col, 1)) from super',
+         'select ceil(apercentile(float_col, 1)) from t1',
+         'select ceil(apercentile(double_col, 1)) from super',
+         'select ceil(apercentile(double_col, 1)) from t1',
+         'select ceil(apercentile(smallint_col, 1)) from super',
+         'select ceil(apercentile(smallint_col, 1)) from t1',
+         'select ceil(apercentile(tinyint_col, 1)) from super',
+         'select ceil(apercentile(tinyint_col, 1)) from t1',
+         'select ceil(apercentile(uint_col, 1)) from super',
+         'select ceil(apercentile(uint_col, 1)) from t1',
+         'select ceil(apercentile(ubigint_col, 1)) from super',
+         'select ceil(apercentile(ubigint_col, 1)) from t1',
+         'select ceil(apercentile(usmallint_col, 1)) from super',
+         'select ceil(apercentile(usmallint_col, 1)) from t1',
+         'select ceil(apercentile(utinyint_col, 1)) from super',
+         'select ceil(apercentile(utinyint_col, 1)) from t1',
+         'select ceil(last_row(int_col)) from super',
+         'select ceil(last_row(int_col)) from t1',
+         'select ceil(last_row(bigint_col)) from super',
+         'select ceil(last_row(bigint_col)) from t1',
+         'select ceil(last_row(float_col)) from super',
+         'select ceil(last_row(float_col)) from t1',
+         'select ceil(last_row(double_col)) from super',
+         'select ceil(last_row(double_col)) from t1',
+         'select ceil(last_row(smallint_col)) from super',
+         'select ceil(last_row(smallint_col)) from t1',
+         'select ceil(last_row(tinyint_col)) from super',
+         'select ceil(last_row(tinyint_col)) from t1',
+         'select ceil(last_row(uint_col)) from super',
+         'select ceil(last_row(uint_col)) from t1',
+         'select ceil(last_row(ubigint_col)) from super',
+         'select ceil(last_row(ubigint_col)) from t1',
+         'select ceil(last_row(usmallint_col)) from super',
+         'select ceil(last_row(usmallint_col)) from t1',
+         'select ceil(last_row(utinyint_col)) from super',
+         'select ceil(last_row(utinyint_col)) from t1',
+         'select ceil(interp(int_col)) from t1',
+         'select ceil(interp(bigint_col)) from t1',
+         'select ceil(interp(float_col)) from t1',
+         'select ceil(interp(double_col)) from t1',
+         'select ceil(interp(smallint_col)) from t1',
+         'select ceil(interp(tinyint_col)) from t1',
+         'select ceil(interp(uint_col)) from t1',
+         'select ceil(interp(ubigint_col)) from t1',
+         'select ceil(interp(usmallint_col)) from t1',
+         'select ceil(interp(utinyint_col)) from t1',
+         'select ceil(spread(ts)) from super',
+         'select ceil(spread(ts)) from t1',
+         'select ceil(spread(timestamp_col)) from super',
+         'select ceil(spread(timestamp_col)) from t1',
+         'select ceil(spread(int_col)) from super',
+         'select ceil(spread(int_col)) from t1',
+         'select ceil(spread(bigint_col)) from super',
+         'select ceil(spread(bigint_col)) from t1',
+         'select ceil(spread(float_col)) from super',
+         'select ceil(spread(float_col)) from t1',
+         'select ceil(spread(double_col)) from super',
+         'select ceil(spread(double_col)) from t1',
+         'select ceil(spread(smallint_col)) from super',
+         'select ceil(spread(smallint_col)) from t1',
+         'select ceil(spread(tinyint_col)) from super',
+         'select ceil(spread(tinyint_col)) from t1',
+         'select ceil(spread(uint_col)) from super',
+         'select ceil(spread(uint_col)) from t1',
+         'select ceil(spread(ubigint_col)) from super',
+         'select ceil(spread(ubigint_col)) from t1',
+         'select ceil(spread(usmallint_col)) from super',
+         'select ceil(spread(usmallint_col)) from t1',
+         'select ceil(spread(utinyint_col)) from super',
+         'select ceil(spread(utinyint_col)) from t1',
+         'select ceil(int_col + int_col) from super',
+         'select ceil(int_col + int_col) from t1',
+         'select ceil(bigint_col + bigint_col) from super',
+         'select ceil(bigint_col + bigint_col) from t1',
+         'select ceil(float_col + float_col) from super',
+         'select ceil(float_col + float_col) from t1',
+         'select ceil(double_col + double_col) from super',
+         'select ceil(double_col + double_col) from t1',
+         'select ceil(smallint_col + smallint_col) from super',
+         'select ceil(smallint_col + smallint_col) from t1',
+         'select ceil(tinyint_col + tinyint_col) from super',
+         'select ceil(tinyint_col + tinyint_col) from t1',
+         'select ceil(uint_col + uint_col) from super',
+         'select ceil(uint_col + uint_col) from t1',
+         'select ceil(ubigint_col + ubigint_col) from super',
+         'select ceil(ubigint_col + ubigint_col) from t1',
+         'select ceil(usmallint_col + usmallint_col) from super',
+         'select ceil(usmallint_col + usmallint_col) from t1',
+         'select ceil(utinyint_col + utinyint_col) from super',
+         'select ceil(utinyint_col + utinyint_col) from t1',
+         'select ceil(int_col - int_col) from super',
+         'select ceil(int_col - int_col) from t1',
+         'select ceil(bigint_col - bigint_col) from super',
+         'select ceil(bigint_col - bigint_col) from t1',
+         'select ceil(float_col - float_col) from super',
+         'select ceil(float_col - float_col) from t1',
+         'select ceil(double_col - double_col) from super',
+         'select ceil(double_col - double_col) from t1',
+         'select ceil(smallint_col - smallint_col) from super',
+         'select ceil(smallint_col - smallint_col) from t1',
+         'select ceil(tinyint_col - tinyint_col) from super',
+         'select ceil(tinyint_col - tinyint_col) from t1',
+         'select ceil(uint_col - uint_col) from super',
+         'select ceil(uint_col - uint_col) from t1',
+         'select ceil(ubigint_col - ubigint_col) from super',
+         'select ceil(ubigint_col - ubigint_col) from t1',
+         'select ceil(usmallint_col - usmallint_col) from super',
+         'select ceil(usmallint_col - usmallint_col) from t1',
+         'select ceil(utinyint_col - utinyint_col) from super',
+         'select ceil(utinyint_col - utinyint_col) from t1',
+         'select ceil(int_col * int_col) from super',
+         'select ceil(int_col * int_col) from t1',
+         'select ceil(bigint_col * bigint_col) from super',
+         'select ceil(bigint_col * bigint_col) from t1',
+         'select ceil(float_col * float_col) from super',
+         'select ceil(float_col * float_col) from t1',
+         'select ceil(double_col * double_col) from super',
+         'select ceil(double_col * double_col) from t1',
+         'select ceil(smallint_col * smallint_col) from super',
+         'select ceil(smallint_col * smallint_col) from t1',
+         'select ceil(tinyint_col * tinyint_col) from super',
+         'select ceil(tinyint_col * tinyint_col) from t1',
+         'select ceil(uint_col * uint_col) from super',
+         'select ceil(uint_col * uint_col) from t1',
+         'select ceil(ubigint_col * ubigint_col) from super',
+         'select ceil(ubigint_col * ubigint_col) from t1',
+         'select ceil(usmallint_col * usmallint_col) from super',
+         'select ceil(usmallint_col * usmallint_col) from t1',
+         'select ceil(utinyint_col * utinyint_col) from super',
+         'select ceil(utinyint_col * utinyint_col) from t1',
+         'select ceil(int_col / int_col) from super',
+         'select ceil(int_col / int_col) from t1',
+         'select ceil(bigint_col / bigint_col) from super',
+         'select ceil(bigint_col / bigint_col) from t1',
+         'select ceil(float_col / float_col) from super',
+         'select ceil(float_col / float_col) from t1',
+         'select ceil(double_col / double_col) from super',
+         'select ceil(double_col / double_col) from t1',
+         'select ceil(smallint_col / smallint_col) from super',
+         'select ceil(smallint_col / smallint_col) from t1',
+         'select ceil(tinyint_col / tinyint_col) from super',
+         'select ceil(tinyint_col / tinyint_col) from t1',
+         'select ceil(uint_col / uint_col) from super',
+         'select ceil(uint_col / uint_col) from t1',
+         'select ceil(ubigint_col / ubigint_col) from super',
+         'select ceil(ubigint_col / ubigint_col) from t1',
+         'select ceil(usmallint_col / usmallint_col) from super',
+         'select ceil(usmallint_col / usmallint_col) from t1',
+         'select ceil(utinyint_col / utinyint_col) from super',
+         'select ceil(utinyint_col / utinyint_col) from t1',
+         'select int_col, ceil(int_col), int_col from super',
+         'select int_col, ceil(int_col), int_col from t1',
+         'select bigint_col, ceil(bigint_col), bigint_col from super',
+         'select bigint_col, ceil(bigint_col), bigint_col from t1',
+         'select float_col, ceil(float_col), float_col from super',
+         'select float_col, ceil(float_col), float_col from t1',
+         'select double_col, ceil(double_col), double_col from super',
+         'select double_col, ceil(double_col), double_col from t1',
+         'select smallint_col, ceil(smallint_col), smallint_col from super',
+         'select smallint_col, ceil(smallint_col), smallint_col from t1',
+         'select tinyint_col, ceil(tinyint_col), tinyint_col from super',
+         'select tinyint_col, ceil(tinyint_col), tinyint_col from t1',
+         'select uint_col, ceil(uint_col), uint_col from super',
+         'select uint_col, ceil(uint_col), uint_col from t1',
+         'select ubigint_col, ceil(ubigint_col), ubigint_col from super',
+         'select ubigint_col, ceil(ubigint_col), ubigint_col from t1',
+         'select usmallint_col, ceil(usmallint_col), usmallint_col from super',
+         'select usmallint_col, ceil(usmallint_col), usmallint_col from t1',
+         'select utinyint_col, ceil(utinyint_col), utinyint_col from super',
+         'select utinyint_col, ceil(utinyint_col), utinyint_col from t1',
+         'select 1, ceil(int_col), 1 from super',
+         'select 1, ceil(int_col), 1 from t1',
+         'select 1, ceil(bigint_col), 1 from super',
+         'select 1, ceil(bigint_col), 1 from t1',
+         'select 1, ceil(float_col), 1 from super',
+         'select 1, ceil(float_col), 1 from t1',
+         'select 1, ceil(double_col), 1 from super',
+         'select 1, ceil(double_col), 1 from t1',
+         'select 1, ceil(smallint_col), 1 from super',
+         'select 1, ceil(smallint_col), 1 from t1',
+         'select 1, ceil(tinyint_col), 1 from super',
+         'select 1, ceil(tinyint_col), 1 from t1',
+         'select 1, ceil(uint_col), 1 from super',
+         'select 1, ceil(uint_col), 1 from t1',
+         'select 1, ceil(ubigint_col), 1 from super',
+         'select 1, ceil(ubigint_col), 1 from t1',
+         'select 1, ceil(usmallint_col), 1 from super',
+         'select 1, ceil(usmallint_col), 1 from t1',
+         'select 1, ceil(utinyint_col), 1 from super',
+         'select 1, ceil(utinyint_col), 1 from t1',
+         'select ceil(int_col) as anyName from super',
+         'select ceil(int_col) as anyName from t1',
+         'select ceil(bigint_col) as anyName from super',
+         'select ceil(bigint_col) as anyName from t1',
+         'select ceil(float_col) as anyName from super',
+         'select ceil(float_col) as anyName from t1',
+         'select ceil(double_col) as anyName from super',
+         'select ceil(double_col) as anyName from t1',
+         'select ceil(smallint_col) as anyName from super',
+         'select ceil(smallint_col) as anyName from t1',
+         'select ceil(tinyint_col) as anyName from super',
+         'select ceil(tinyint_col) as anyName from t1',
+         'select ceil(uint_col) as anyName from super',
+         'select ceil(uint_col) as anyName from t1',
+         'select ceil(ubigint_col) as anyName from super',
+         'select ceil(ubigint_col) as anyName from t1',
+         'select ceil(usmallint_col) as anyName from super',
+         'select ceil(usmallint_col) as anyName from t1',
+         'select ceil(utinyint_col) as anyName from super',
+         'select ceil(utinyint_col) as anyName from t1']
         for s in range(len(select_command)):
             for f in range(len(from_command)):
                 sql = "select " + select_command[s] + from_command[f]
-                if (select_command[s] == "ceil(int_col)"\
-                        or select_command[s] == "ceil(bigint_col)"\
-                        or select_command[s] == "ceil(smallint_col)" \
-                        or select_command[s] == "ceil(float_col)"\
-                        or select_command[s] == "ceil(double_col)"\
-                        or select_command[s] == "ceil(tinyint_col)"\
-                        or select_command[s] == "ceil(uint_col)"\
-                        or select_command[s] == "ceil(ubigint_col)"\
-                        or select_command[s] == "ceil(usmallint_col)"\
-                        or select_command[s] == "ceil(utinyint_col)"\
-                        or select_command[s] == "1, ceil(int_col), 1"\
-                        or select_command[s] == "1, ceil(bigint_col), 1"\
-                        or select_command[s] == "1, ceil(float_col), 1"\
-                        or select_command[s] == "1, ceil(double_col), 1"\
-                        or select_command[s] == "1, ceil(smallint_col), 1"\
-                        or select_command[s] == "1, ceil(tinyint_col), 1"\
-                        or select_command[s] == "1, ceil(uint_col), 1"\
-                        or select_command[s] == "1, ceil(ubigint_col), 1"\
-                        or select_command[s] == "1, ceil(usmallint_col), 1"\
-                        or select_command[s] == "1, ceil(utinyint_col), 1"\
-                        or select_command[s] == "int_col, ceil(int_col), int_col"\
-                        or select_command[s] == "bigint_col, ceil(bigint_col), bigint_col"\
-                        or select_command[s] == "float_col, ceil(float_col), float_col"\
-                        or select_command[s] == "double_col, ceil(double_col), double_col"\
-                        or select_command[s] == "smallint_col, ceil(smallint_col), smallint_col"\
-                        or select_command[s] == "tinyint_col, ceil(tinyint_col), tinyint_col"\
-                        or select_command[s] == "uint_col, ceil(uint_col), uint_col"\
-                        or select_command[s] == "ubigint_col, ceil(ubigint_col), ubigint_col"\
-                        or select_command[s] == "usmallint_col, ceil(usmallint_col), usmallint_col"\
-                        or select_command[s] == "utinyint_col, ceil(utinyint_col), utinyint_col"\
-                        or select_command[s] == "ceil(int_col) as anyName"\
-                        or select_command[s] == "ceil(bigint_col) as anyName"\
-                        or select_command[s] == "ceil(float_col) as anyName"\
-                        or select_command[s] == "ceil(double_col) as anyName"\
-                        or select_command[s] == "ceil(smallint_col) as anyName"\
-                        or select_command[s] == "ceil(tinyint_col) as anyName"\
-                        or select_command[s] == "ceil(uint_col) as anyName"\
-                        or select_command[s] == "ceil(ubigint_col) as anyName"\
-                        or select_command[s] == "ceil(usmallint_col) as anyName"\
-                        or select_command[s] == "ceil(utinyint_col) as anyName"\
-                        or select_command[s] == "ceil(int_col) + ceil(int_col)"\
-                        or select_command[s] == "ceil(bigint_col) + ceil(bigint_col)"\
-                        or select_command[s] == "ceil(float_col) + ceil(float_col)"\
-                        or select_command[s] == "ceil(double_col) + ceil(double_col)"\
-                        or select_command[s] == "ceil(smallint_col) + ceil(smallint_col)"\
-                        or select_command[s] == "ceil(tinyint_col) + ceil(tinyint_col)"\
-                        or select_command[s] == "ceil(uint_col) + ceil(uint_col)"\
-                        or select_command[s] == "ceil(ubigint_col) + ceil(ubigint_col)"\
-                        or select_command[s] == "ceil(usmallint_col) + ceil(usmallint_col)"\
-                        or select_command[s] == "ceil(utinyint_col) + ceil(utinyint_col)"\
-                        or select_command[s] == "ceil(int_col) + ceil(int_col)"\
-                        or select_command[s] == "ceil(bigint_col) + ceil(bigint_col)"\
-                        or select_command[s] == "ceil(float_col) + ceil(float_col)"\
-                        or select_command[s] == "ceil(double_col) + ceil(double_col)"\
-                        or select_command[s] == "ceil(smallint_col) + ceil(smallint_col)"\
-                        or select_command[s] == "ceil(tinyint_col) + ceil(tinyint_col)"\
-                        or select_command[s] == "ceil(uint_col) + ceil(uint_col)"\
-                        or select_command[s] == "ceil(ubigint_col) + ceil(ubigint_col)"\
-                        or select_command[s] == "ceil(usmallint_col) + ceil(usmallint_col)"\
-                        or select_command[s] == "ceil(utinyint_col) + cei(utinyint_col)"\
-                        or select_command[s] == "ceil(int_col) - ceil(int_col)"\
-                        or select_command[s] == "ceil(bigint_col) - ceil(bigint_col)"\
-                        or select_command[s] == "ceil(float_col) - ceil(float_col)"\
-                        or select_command[s] == "ceil(double_col) - ceil(double_col)"\
-                        or select_command[s] == "ceil(smallint_col) - ceil(smallint_col)"\
-                        or select_command[s] == "ceil(tinyint_col) - ceil(tinyint_col)"\
-                        or select_command[s] == "ceil(uint_col) - ceil(uint_col)"\
-                        or select_command[s] == "ceil(ubigint_col) - ceil(ubigint_col)"\
-                        or select_command[s] == "ceil(usmallint_col) - ceil(usmallint_col)"\
-                        or select_command[s] == "ceil(utinyint_col) - ceil(utinyint_col)"\
-                        or select_command[s] == "ceil(int_col) * ceil(int_col)"\
-                        or select_command[s] == "ceil(bigint_col) * ceil(bigint_col)"\
-                        or select_command[s] == "ceil(float_col) * ceil(float_col)"\
-                        or select_command[s] == "ceil(double_col) * ceil(double_col)"\
-                        or select_command[s] == "ceil(smallint_col) * ceil(smallint_col)"\
-                        or select_command[s] == "ceil(tinyint_col) * ceil(tinyint_col)"\
-                        or select_command[s] == "ceil(uint_col) * ceil(uint_col)"\
-                        or select_command[s] == "ceil(ubigint_col) * ceil(ubigint_col)"\
-                        or select_command[s] == "ceil(usmallint_col) * ceil(usmallint_col)"\
-                        or select_command[s] == "ceil(utinyint_col) * ceil(utinyint_col)"\
-                        or select_command[s] == "ceil(int_col) / ceil(int_col)"\
-                        or select_command[s] == "ceil(bigint_col) / ceil(bigint_col)"\
-                        or select_command[s] == "ceil(float_col) / ceil(float_col)"\
-                        or select_command[s] == "ceil(double_col) / ceil(double_col)"\
-                        or select_command[s] == "ceil(smallint_col) / ceil(smallint_col)"\
-                        or select_command[s] == "ceil(tinyint_col) / ceil(tinyint_col)"\
-                        or select_command[s] == "ceil(uint_col) / ceil(uint_col)"\
-                        or select_command[s] == "ceil(ubigint_col) / ceil(ubigint_col)"\
-                        or select_command[s] == "ceil(usmallint_col) / ceil(usmallint_col)"\
-                        or select_command[s] == "ceil(utinyint_col) / ceil(utinyint_col)"):
+                if sql in shouldPass:
                     tdSql.query(sql)
                 else:
                     tdSql.error(sql)
+
+        shouldPass2 = ['select ceil(super.int_col) from super',
+                       'select ceil(super.int_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+                       'select ceil(super.bigint_col) from super',
+                       'select ceil(super.bigint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+                       'select ceil(super.float_col) from super',
+                       'select ceil(super.float_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+                       'select ceil(super.double_col) from super',
+                       'select ceil(super.double_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+                       'select ceil(super.smallint_col) from super',
+                       'select ceil(super.smallint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+                       'select ceil(super.tinyint_col) from super',
+                       'select ceil(super.tinyint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+                       'select ceil(super.uint_col) from super',
+                       'select ceil(super.uint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+                       'select ceil(super.ubigint_col) from super',
+                       'select ceil(super.ubigint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+                       'select ceil(super.usmallint_col) from super',
+                       'select ceil(super.usmallint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+                       'select ceil(super.utinyint_col) from super',
+                       'select ceil(super.utinyint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+                       'select ceil(t1.int_col) from t1',
+                       'select ceil(t1.bigint_col) from t1',
+                       'select ceil(t1.float_col) from t1',
+                       'select ceil(t1.double_col) from t1',
+                       'select ceil(t1.smallint_col) from t1',
+                       'select ceil(t1.tinyint_col) from t1',
+                       'select ceil(t1.uint_col) from t1',
+                       'select ceil(t1.ubigint_col) from t1',
+                       'select ceil(t1.usmallint_col) from t1',
+                       'select ceil(t1.utinyint_col) from t1']
         for sim in range(len(simple_select_command)):
             for fr in range(len(advance_from_command)):
-                for filter in range(len(filter_command)):
+                for groupby in range(len(filter_command)):
                     for fill in range(len(fill_command)):
-                        sql = "select " + simple_select_command[
-                            sim] + advance_from_command[fr] + filter_command[
-                                filter] + fill_command[fill]
-                        if sql == "select ceil(t1.int_col) from t1"\
-                            or sql == "select ceil(super.int_col) from super"\
-                                or sql == "select ceil(t1.bigint_col) from t1"\
-                                    or sql == "select ceil(super.bigint_col) from super"\
-                                        or sql == "select ceil(t1.smallint_col) from t1"\
-                                            or sql == "select ceil(super.smallint_col) from super"\
-                                                or sql == "select ceil(t1.tinyint_col) from t1"\
-                                                    or sql == "select ceil(super.tinyint_col) from super"\
-                                                        or sql == "select ceil(t1.float_col) from t1"\
-                                                            or sql == "select ceil(super.float_col) from super"\
-                                                                or sql == "select ceil(t1.double_col) from t1"\
-                                                                    or sql == "select ceil(super.double_col) from super"\
-                                                                        or sql == "select ceil(t1.uint_col) from t1"\
-                                                                            or sql == "select ceil(super.uint_col) from super"\
-                                                                                or sql == "select ceil(t1.ubigint_col) from t1"\
-                                                                                    or sql == "select ceil(super.ubigint_col) from super"\
-                                                                                        or sql == "select ceil(t1.usmallint_col) from t1"\
-                                                                                            or sql == "select ceil(super.usmallint_col) from super"\
-                                                                                                or sql == "select ceil(t1.utinyint_col) from t1"\
-                                                                                                    or sql == "select ceil(super.utinyint_col) from super"\
-                                                                                                        or sql == "select ceil(super.int_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                            or sql == "select ceil(super.bigint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                or sql == "select ceil(super.smallint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                    or sql == "select ceil(super.tinyint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                        or sql == "select ceil(super.float_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                            or sql == "select ceil(super.double_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                                or sql == "select ceil(super.uint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                                    or sql == "select ceil(super.ubigint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                                        or sql == "select ceil(super.usmallint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                                            or sql == "select ceil(super.utinyint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag":
+                        sql = "select " + simple_select_command[sim] + advance_from_command[fr] + filter_command[groupby] + fill_command[fill]
+                        if sql in shouldPass2:
                             tdSql.query(sql)
                         else:
                             tdSql.error(sql)

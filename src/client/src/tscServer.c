@@ -332,7 +332,12 @@ int tscSendMsgToServer(SSqlObj *pSql) {
       .handle  = NULL,
       .code    = 0
   };
-  
+
+  if ((rpcMsg.msgType == TSDB_MSG_TYPE_SUBMIT) && (tsShortcutFlag & TSDB_SHORTCUT_RB_RPC_SEND_SUBMIT)) {
+    rpcFreeCont(rpcMsg.pCont);
+    return TSDB_CODE_FAILED;
+  }
+
   rpcSendRequest(pObj->pRpcObj->pDnodeConn, &pSql->epSet, &rpcMsg, &pSql->rpcRid);
   return TSDB_CODE_SUCCESS;
 }
@@ -361,6 +366,41 @@ void tscSetFqdnErrorMsg(SSqlObj* pSql, SRpcEpSet* pEpSet) {
   } else {
     sprintf(msgBuf, "%s", tstrerror(pRes->code));
   }
+}
+
+bool shouldRewTableMeta(SSqlObj* pSql, SRpcMsg* rpcMsg) {
+  SSqlCmd *pCmd = &pSql->cmd;
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
+  int32_t cmd = pCmd->command;
+
+  if ((cmd != TSDB_SQL_SELECT && cmd != TSDB_SQL_UPDATE_TAGS_VAL)) {
+    return false;
+  }
+
+  if (rpcMsg->code != TSDB_CODE_TDB_INVALID_TABLE_ID &&
+      rpcMsg->code != TSDB_CODE_VND_INVALID_VGROUP_ID &&
+      rpcMsg->code != TSDB_CODE_QRY_INVALID_SCHEMA_VERSION &&
+      rpcMsg->code != TSDB_CODE_RPC_NETWORK_UNAVAIL &&
+      rpcMsg->code != TSDB_CODE_APP_NOT_READY ) {
+    return false;
+  }
+
+  if (rpcMsg->code == TSDB_CODE_QRY_INVALID_SCHEMA_VERSION) {
+    return true;
+  }
+
+  // 1. super table subquery
+  // 2. nest queries are all not updated the tablemeta and retry parse the sql after cleanup local tablemeta/vgroup id buffer
+  if ((TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY | TSDB_QUERY_TYPE_SUBQUERY | TSDB_QUERY_TYPE_TAG_FILTER_QUERY)) &&
+       !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_PROJECTION_QUERY)) ||
+      (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_NEST_SUBQUERY)) ||
+      (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STABLE_SUBQUERY) &&  pQueryInfo->distinct)
+      || (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY))) {
+    return false;
+  }
+
+  // single table query error need to renew table meta.
+  return true;
 }
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
@@ -415,42 +455,29 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     pSql->cmd.insertParam.schemaAttached = 1;
   }
 
-  // single table query error need to be handled here.
-  if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_UPDATE_TAGS_VAL) &&
-      (((rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID)) ||
-       rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || rpcMsg->code == TSDB_CODE_APP_NOT_READY)) {
+  bool renewTableMeta = shouldRewTableMeta(pSql, rpcMsg);
+ if (renewTableMeta) {
+    pSql->retry += 1;
+    tscWarn("0x%" PRIx64 " it shall renew table meta, code:%s, retry:%d", pSql->self, tstrerror(rpcMsg->code), pSql->retry);
 
-    // 1. super table subquery
-    // 2. nest queries are all not updated the tablemeta and retry parse the sql after cleanup local tablemeta/vgroup id buffer
-    if ((TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY | TSDB_QUERY_TYPE_SUBQUERY |
-                                               TSDB_QUERY_TYPE_TAG_FILTER_QUERY)) &&
-                                               !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_PROJECTION_QUERY)) ||
-                                               (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_NEST_SUBQUERY)) || (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STABLE_SUBQUERY) &&  pQueryInfo->distinct)
-                                              || (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY))) {
-      // do nothing in case of super table subquery
-    }  else {
-      pSql->retry += 1;
-      tscWarn("0x%" PRIx64 " it shall renew table meta, code:%s, retry:%d", pSql->self, tstrerror(rpcMsg->code), pSql->retry);
+    pSql->res.code = rpcMsg->code;  // keep the previous error code
+    if (pSql->retry > pSql->maxRetry) {
+      tscError("0x%" PRIx64 " max retry %d reached, give up", pSql->self, pSql->maxRetry);
+    } else {
+      // wait for a little bit moment and then retry
+      // todo do not sleep in rpc callback thread, add this process into queue to process
+      if (rpcMsg->code == TSDB_CODE_APP_NOT_READY || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
+        int32_t duration = getWaitingTimeInterval(pSql->retry);
+        taosMsleep(duration);
+      }
 
-      pSql->res.code = rpcMsg->code;  // keep the previous error code
-      if (pSql->retry > pSql->maxRetry) {
-        tscError("0x%" PRIx64 " max retry %d reached, give up", pSql->self, pSql->maxRetry);
-      } else {
-        // wait for a little bit moment and then retry
-        // todo do not sleep in rpc callback thread, add this process into queue to process
-        if (rpcMsg->code == TSDB_CODE_APP_NOT_READY || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
-          int32_t duration = getWaitingTimeInterval(pSql->retry);
-          taosMsleep(duration);
-        }
-
-        pSql->retryReason = rpcMsg->code;
-        rpcMsg->code = tscRenewTableMeta(pSql, 0);
-        // if there is an error occurring, proceed to the following error handling procedure.
-        if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-          taosReleaseRef(tscObjRef, handle);
-          rpcFreeCont(rpcMsg->pCont);
-          return;
-        }
+      pSql->retryReason = rpcMsg->code;
+      rpcMsg->code = tscRenewTableMeta(pSql);
+      // if there is an error occurring, proceed to the following error handling procedure.
+      if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+        taosReleaseRef(tscObjRef, handle);
+        rpcFreeCont(rpcMsg->pCont);
+        return;
       }
     }
   }
@@ -511,6 +538,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   }
 
   bool shouldFree = tscShouldBeFreed(pSql);
+
   if (rpcMsg->code != TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     if (rpcMsg->code != TSDB_CODE_SUCCESS) {
       pRes->code = rpcMsg->code;
@@ -832,12 +860,12 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
     return TSDB_CODE_TSC_INVALID_TABLE_NAME;
   }
 
-  if (validateColumn && !tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId, pExpr->numOfParams)) {
+  if (validateColumn && !tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId)) {
     tscError("0x%"PRIx64" table schema is not matched with parsed sql", id);
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  if (pExpr->resColId >= 0) {
+  if (pExpr->resColId > 0) {
     tscError("result column id underflowed: %d", pExpr->resColId);
     return TSDB_CODE_TSC_RES_TOO_MANY;
   }
@@ -923,7 +951,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->window.ekey = htobe64(query.window.ekey);
   pQueryMsg->range.skey = htobe64(query.range.skey);
   pQueryMsg->range.ekey = htobe64(query.range.ekey);
-  
+
   pQueryMsg->order          = htons(query.order.order);
   pQueryMsg->orderColId     = htons(query.order.orderColId);
   pQueryMsg->fillType       = htons(query.fillType);
@@ -1017,8 +1045,8 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   
   SGroupbyExpr *pGroupbyExpr = query.pGroupbyExpr;
   if (pGroupbyExpr != NULL && pGroupbyExpr->numOfGroupCols > 0) {
-    pQueryMsg->orderByIdx = htons(pGroupbyExpr->orderIndex);
-    pQueryMsg->orderType = htons(pGroupbyExpr->orderType);
+    //pQueryMsg->orderByIdx = htons(pGroupbyExpr->orderIndex);
+    pQueryMsg->groupOrderType = htons(pGroupbyExpr->orderType);
 
     for (int32_t j = 0; j < pGroupbyExpr->numOfGroupCols; ++j) {
       SColIndex* pCol = taosArrayGet(pGroupbyExpr->columnInfo, j);
@@ -1148,21 +1176,21 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pMsg += sqlLen;
 
 
-/*
-  //MSG EXTEND DEMO
+
   pQueryMsg->extend = 1;
   
   STLV *tlv = (STLV *)pMsg;
-  tlv->type = htons(TLV_TYPE_DUMMY);
-  tlv->len  = htonl(sizeof(int16_t));
-  *(int16_t *)tlv->value = htons(12345);
-  pMsg += sizeof(*tlv) + ntohl(tlv->len);
+  tlv->type = htons(TLV_TYPE_META_VERSION);
+  tlv->len  = htonl(sizeof(int16_t) * 2);
+  *(int16_t*)tlv->value = htons(pTableMeta->sversion);
+  *(int16_t*)(tlv->value+sizeof(int16_t)) = htons(pTableMeta->tversion);
+  pMsg += sizeof(*tlv) + sizeof(int16_t) * 2;
 
   tlv = (STLV *)pMsg;
+  tlv->type = htons(TLV_TYPE_END_MARK);
   tlv->len = 0;
   pMsg += sizeof(*tlv);
 
-*/
 
   int32_t msgLen = (int32_t)(pMsg - pCmd->payload);
 
@@ -1175,8 +1203,8 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   _end:
   freeQueryAttr(&query);
-  taosArrayDestroy(tableScanOperator);
-  taosArrayDestroy(queryOperator);
+  taosArrayDestroy(&tableScanOperator);
+  taosArrayDestroy(&queryOperator);
   return code;
 }
 
@@ -1226,6 +1254,17 @@ int32_t tscBuildCreateDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
+static bool tscIsAlterCommand(char* sqlstr) {
+  int32_t index = 0;
+
+  do {
+    SStrToken t0 = tStrGetToken(sqlstr, &index, false);
+    if (t0.type != TK_LP) {
+      return t0.type == TK_ALTER;
+    }
+  } while (1);
+}
+
 int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->payloadLen = sizeof(SCreateAcctMsg);
@@ -1267,7 +1306,12 @@ int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     }
   }
 
-  pCmd->msgType = TSDB_MSG_TYPE_CM_CREATE_ACCT;
+  if (tscIsAlterCommand(pSql->sqlstr)) {
+    pCmd->msgType = TSDB_MSG_TYPE_CM_ALTER_ACCT;
+  } else {
+    pCmd->msgType = TSDB_MSG_TYPE_CM_CREATE_ACCT;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1510,16 +1554,55 @@ int tscEstimateCreateTableMsgLength(SSqlObj *pSql, SSqlInfo *pInfo) {
   SCreateTableSql *pCreateTableInfo = pInfo->pCreateTableInfo;
   if (pCreateTableInfo->type == TSQL_CREATE_TABLE_FROM_STABLE) {
     int32_t numOfTables = (int32_t)taosArrayGetSize(pInfo->pCreateTableInfo->childTableInfo);
-    size += numOfTables * (sizeof(SCreateTableMsg) + TSDB_MAX_TAGS_LEN);
+    size += numOfTables * (sizeof(SCreateTableMsg) +
+    ((TSDB_MAX_TAGS_LEN > TSDB_MAX_JSON_TAGS_LEN)?TSDB_MAX_TAGS_LEN:TSDB_MAX_JSON_TAGS_LEN));
   } else {
     size += sizeof(SSchema) * (pCmd->numOfCols + pCmd->count);
   }
 
   if (pCreateTableInfo->pSelect != NULL) {
     size += (pCreateTableInfo->pSelect->sqlstr.n + 1);
+    // add size = create super table with same columns and 1 tags
+    if(pCreateTableInfo->to.n > 0) {
+      size += sizeof(SCreateTableMsg);
+      size += sizeof(SSchema) * (pCmd->numOfCols + 1);
+      size += pCreateTableInfo->to.n + 4;  // to:
+      if(pCreateTableInfo->split.n > 0)
+        size += pCreateTableInfo->split.n + 7; // split:
+    }    
   }
 
   return size + TSDB_EXTRA_PAYLOAD_SIZE;
+}
+
+char* fillCreateSTableMsg(SCreateTableMsg* pCreateMsg, SCreateTableSql* pTableSql, SSqlCmd* pCmd, SSqlInfo *pInfo) {
+  // SET
+  SSchema*    pSchema    = (SSchema *)pCreateMsg->schema;
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
+  pCreateMsg->igExists   = 0;
+  pCreateMsg->sqlLen     = 0;
+
+  // FullName like acctID.dbName.tableName
+  tNameExtractFullName(&pInfo->pCreateTableInfo->toSName, pCreateMsg->tableName);
+
+  // copy columns
+  pCreateMsg->numOfColumns = htons(pCmd->numOfCols);
+  for (int i = 0; i < pCmd->numOfCols; ++i) {
+    TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
+    pSchema->type = pField->type;
+    strcpy(pSchema->name, pField->name);
+    pSchema->bytes = htons(pField->bytes);
+
+    pSchema++;
+  }
+  // append one tag
+  pCreateMsg->numOfTags  = htons(1); // only one tag immutable
+  pSchema->type          = TSDB_DATA_TYPE_INT;
+  pSchema->bytes         = htons(INT_BYTES);
+  strcpy(pSchema->name, "tag1");
+  pSchema ++;
+
+  return (char *)pSchema;
 }
 
 int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
@@ -1579,39 +1662,71 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       pCreate->len = htonl(len);
     }
   } else {  // create (super) table
+    // FIRST MSG
+    SCreateTableMsg* pCreate = pCreateMsg;
     pCreateTableMsg->numOfTables = htonl(1); // only one table will be created
-
-    int32_t code = tNameExtractFullName(&pTableMetaInfo->name, pCreateMsg->tableName);
+    int32_t code = tNameExtractFullName(&pTableMetaInfo->name, pCreate->tableName);
+    bool to = pInfo->pCreateTableInfo->to.n > 0;
     assert(code == 0);
 
     SCreateTableSql *pCreateTable = pInfo->pCreateTableInfo;
 
-    pCreateMsg->igExists = pCreateTable->existCheck ? 1 : 0;
-    pCreateMsg->numOfColumns = htons(pCmd->numOfCols);
-    pCreateMsg->numOfTags = htons(pCmd->count);
-
-    pCreateMsg->sqlLen = 0;
-    pMsg = (char *)pCreateMsg->schema;
-
-    pSchema = (SSchema *)pCreateMsg->schema;
-
+    pCreate->igExists = pCreateTable->existCheck ? 1 : 0;
+    pCreate->numOfColumns = htons(pCmd->numOfCols);
+    pCreate->numOfTags = htons(pCmd->count);
+    pCreate->sqlLen = 0;
+    pSchema = (SSchema *)pCreate->schema;
+    //copy schema
     for (int i = 0; i < pCmd->numOfCols + pCmd->count; ++i) {
       TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
-
       pSchema->type = pField->type;
       strcpy(pSchema->name, pField->name);
       pSchema->bytes = htons(pField->bytes);
-
       pSchema++;
     }
-
+    //copy stream sql if have
     pMsg = (char *)pSchema;
     if (type == TSQL_CREATE_STREAM) {  // check if it is a stream sql
       SSqlNode *pQuerySql = pInfo->pCreateTableInfo->pSelect;
+      int16_t len = 0;
+      if(to) {
+        //sql:
+        strcpy(pMsg, LABEL_SQL);
+        len += LABEL_SQL_LEN;
+        len += tStrNCpy(pMsg + len, &pQuerySql->sqlstr);
+        //to
+        strcpy(pMsg + len, LABEL_TO);
+        len += LABEL_TO_LEN;
+        len += tStrNCpy(pMsg + len, &pInfo->pCreateTableInfo->to);
+        //split if
+        if(pInfo->pCreateTableInfo->split.n > 0) {
+          strcpy(pMsg + len, LABEL_SPLIT);
+          len += LABEL_SPLIT_LEN;
+          len += tStrNCpy(pMsg + len, &pInfo->pCreateTableInfo->split);
+        }
+        // append string end flag
+        pMsg[len++] = 0;
+        pMsg += len;
+        pCreate->sqlLen = htons(len);
+      } else {
+        len = pQuerySql->sqlstr.n;
+        strncpy(pMsg, pQuerySql->sqlstr.z, len);
+        pMsg[len++] = 0; // string end
+        pMsg += len;
+        pCreate->sqlLen = htons(len);
+      }
+    }
+    // calc first msg length
+    int32_t len = (int32_t)(pMsg - (char*)pCreate);
+    pCreate->len = htonl(len);
 
-      strncpy(pMsg, pQuerySql->sqlstr.z, pQuerySql->sqlstr.n + 1);
-      pCreateMsg->sqlLen = htons(pQuerySql->sqlstr.n + 1);
-      pMsg += pQuerySql->sqlstr.n + 1;
+    // filling second msg if to have value
+    if(to) {
+      pCreate = (SCreateTableMsg *)pMsg;
+      pMsg = fillCreateSTableMsg(pCreate, pCreateTable, pCmd, pInfo);
+      len = (int32_t)(pMsg - (char*)pCreate);
+      pCreate->len = htonl(len);
+      pCreateTableMsg->numOfTables = htonl(2); 
     }
   }
 
@@ -1632,9 +1747,6 @@ int tscEstimateAlterTableMsgLength(SSqlCmd *pCmd) {
 }
 
 int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  char *pMsg;
-  int   msgLen = 0;
-
   SSqlCmd    *pCmd = &pSql->cmd;
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
 
@@ -1663,14 +1775,7 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pSchema++;
   }
 
-  pMsg = (char *)pSchema;
-  pAlterTableMsg->tagValLen = htonl(pAlterInfo->tagData.dataLen);
-  if (pAlterInfo->tagData.dataLen > 0) {
- 	 memcpy(pMsg, pAlterInfo->tagData.data, pAlterInfo->tagData.dataLen);
-  }
-  pMsg += pAlterInfo->tagData.dataLen;
-
-  msgLen = (int32_t)(pMsg - (char*)pAlterTableMsg);
+  int msgLen = sizeof(SAlterTableMsg) + sizeof(SSchema) * tscNumOfFields(pQueryInfo);
 
   pCmd->payloadLen = msgLen;
   pCmd->msgType = TSDB_MSG_TYPE_CM_ALTER_TABLE;
@@ -1858,7 +1963,6 @@ int tscProcessRetrieveGlobalMergeRsp(SSqlObj *pSql) {
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
   if (pQueryInfo->pQInfo == NULL) {
     STableGroupInfo tableGroupInfo = {.numOfTables = 1, .pGroupList = taosArrayInit(1, POINTER_BYTES),};
-    tableGroupInfo.map = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
 
     STableKeyInfo tableKeyInfo = {.pTable = NULL, .lastKey = INT64_MIN};
 
@@ -1868,11 +1972,19 @@ int tscProcessRetrieveGlobalMergeRsp(SSqlObj *pSql) {
 
     tscDebug("0x%"PRIx64" create QInfo 0x%"PRIx64" to execute query processing", pSql->self, pSql->self);
     pQueryInfo->pQInfo = createQInfoFromQueryNode(pQueryInfo, &tableGroupInfo, NULL, NULL, pRes->pMerger, MERGE_STAGE, pSql->self);
+    if (pQueryInfo->pQInfo == NULL) {
+      tscAsyncResultOnError(pSql);
+      pRes->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      return pRes->code;
+    }
   }
 
   uint64_t localQueryId = pSql->self;
   qTableQuery(pQueryInfo->pQInfo, &localQueryId);
-  convertQueryResult(pRes, pQueryInfo, pSql->self, true);
+  bool convertJson = true;
+  if (pQueryInfo->isStddev == true) convertJson = false;
+  convertQueryResult(pRes, pQueryInfo, pSql->self, true, convertJson);
+  pRes->code = pQueryInfo->pQInfo->code;
 
   code = pRes->code;
   if (pRes->code == TSDB_CODE_SUCCESS) {
@@ -1908,9 +2020,6 @@ int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   db = (db == NULL) ? pObj->db : db + 1;
   tstrncpy(pConnect->db, db, sizeof(pConnect->db));
   pthread_mutex_unlock(&pObj->mutex);
-
-  tstrncpy(pConnect->clientVersion, version, sizeof(pConnect->clientVersion));
-  tstrncpy(pConnect->msgVersion, "", sizeof(pConnect->msgVersion));
 
   pConnect->pid = htonl(taosGetPId());
   taosGetCurrentAPPName(pConnect->appName, NULL);
@@ -2011,7 +2120,6 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   // TODO the expired hb and client can not be identified by server till now.
   SHeartBeatMsg *pHeartbeat = (SHeartBeatMsg *)pCmd->payload;
-  tstrncpy(pHeartbeat->clientVer, version, tListLen(pHeartbeat->clientVer));
 
   pHeartbeat->numOfQueries = numOfQueries;
   pHeartbeat->numOfStreams = numOfStreams;
@@ -2266,7 +2374,7 @@ int tscProcessRetrieveFuncRsp(SSqlObj* pSql) {
   SQueryInfo* parQueryInfo = tscGetQueryInfo(&parent->cmd);
 
   assert(parent->signature == parent && (int64_t)pSql->param == parent->self);
-  taosArrayDestroy(parQueryInfo->pUdfInfo);
+  taosArrayDestroy(&parQueryInfo->pUdfInfo);
 
   parQueryInfo->pUdfInfo = pQueryInfo->pUdfInfo;   // assigned to parent sql obj.
   pQueryInfo->pUdfInfo = NULL;
@@ -2378,7 +2486,7 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
 
     int32_t size = 0;
     if (p->vgroupIdList!= NULL) {
-      taosArrayDestroy(p->vgroupIdList);
+      taosArrayDestroy(&p->vgroupIdList);
     }
 
     p->vgroupIdList = createVgroupIdListFromMsg(pParentSql, pMsg, pSet, fname, &size, pSql->self);
@@ -2697,7 +2805,9 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
   pRes->data = NULL;
 
   tscResetForNextRetrieve(pRes);
+
   tscDebug("0x%"PRIx64" query rsp received, qId:0x%"PRIx64, pSql->self, pRes->qId);
+
   return 0;
 }
 
@@ -2709,7 +2819,7 @@ static void decompressQueryColData(SSqlObj *pSql, SSqlRes *pRes, SQueryInfo* pQu
   compSizes = (int32_t *)(pData + compLen);
 
   TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, numOfCols - 1);
-  int16_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
+  int32_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
   char       *outputBuf = tcalloc(pRes->numOfRows, (pField->bytes + offset));
 
   char *p = outputBuf;
@@ -2810,10 +2920,11 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
 
   pRes->row = 0;
   tscDebug("0x%"PRIx64" numOfRows:%d, offset:%" PRId64 ", complete:%d, qId:0x%"PRIx64, pSql->self, pRes->numOfRows, pRes->offset,
-      pRes->completed, pRes->qId);
+           pRes->completed, pRes->qId);
 
   return 0;
 }
+
 
 void tscTableMetaCallBack(void *param, TAOS_RES *res, int code);
 
@@ -3081,28 +3192,46 @@ static void freeElem(void* p) {
 /**
  * retrieve table meta from mnode, and then update the local table meta hashmap.
  * @param pSql          sql object
- * @param tableIndex    table index
  * @return              status code
  */
-int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
+int tscRenewTableMeta(SSqlObj *pSql) {
+  int32_t code = TSDB_CODE_SUCCESS;
   SSqlCmd* pCmd = &pSql->cmd;
 
   SQueryInfo     *pQueryInfo = tscGetQueryInfo(pCmd);
-  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, tableIndex);
 
-  char name[TSDB_TABLE_FNAME_LEN] = {0};
-  int32_t code = tNameExtractFullName(&pTableMetaInfo->name, name);
-  if (code != TSDB_CODE_SUCCESS) {
-    tscError("0x%"PRIx64" failed to generate the table full name", pSql->self);
-    return TSDB_CODE_TSC_INVALID_OPERATION;
+  SArray* pNameList = taosArrayInit(1, POINTER_BYTES);
+  SArray* vgroupList = taosArrayInit(1, POINTER_BYTES);
+
+  SHashObj *nameTable = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+
+  while (pQueryInfo) {
+    STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+
+    char name[TSDB_TABLE_FNAME_LEN] = {0};
+    code = tNameExtractFullName(&pTableMetaInfo->name, name);
+    if (code != TSDB_CODE_SUCCESS) {
+      tscError("0x%"PRIx64" failed to generate the table full name", pSql->self);
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+
+    //do not add duplicate names
+    if (!taosHashGet(nameTable, name, strlen(name))) {
+      STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+      if (pTableMeta) {
+        tscDebug("0x%"PRIx64" update table meta:%s, old meta numOfTags:%d, numOfCols:%d, uid:%" PRIu64, pSql->self, name,
+                 tscGetNumOfTags(pTableMeta), tscGetNumOfColumns(pTableMeta), pTableMeta->id.uid);
+      }
+
+      char* n = strdup(name);
+      taosArrayPush(pNameList, &n);
+      uint8_t dummy_val = 0;
+      taosHashPut(nameTable, name, strlen(name), &dummy_val, sizeof(uint8_t));
+    }
+    pQueryInfo = pQueryInfo->sibling;
   }
 
-  STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
-  if (pTableMeta) {
-    tscDebug("0x%"PRIx64" update table meta:%s, old meta numOfTags:%d, numOfCols:%d, uid:%" PRIu64, pSql->self, name,
-             tscGetNumOfTags(pTableMeta), tscGetNumOfColumns(pTableMeta), pTableMeta->id.uid);
-  }
-
+  taosHashCleanup(nameTable);
 
   // remove stored tableMeta info in hash table
   tscResetSqlCmd(pCmd, true, pSql->self);
@@ -3110,21 +3239,17 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
   SSqlCmd* pCmd2 = &pSql->rootObj->cmd;
   pCmd2->pTableMetaMap = tscCleanupTableMetaMap(pCmd2->pTableMetaMap);
   pCmd2->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-  
+
   pSql->rootObj->retryReason = pSql->retryReason;
 
-  SSqlObj *tmpSql = pSql->rootObj;
-  tscFreeSubobj(pSql->rootObj);
-  tfree(tmpSql->pSubs);
+  SSqlObj *rootSql = pSql->rootObj;
+  tscFreeSubobj(rootSql);
+  tfree(rootSql->pSubs);
+  tscResetSqlCmd(&rootSql->cmd, true, rootSql->self);
 
-  SArray* pNameList = taosArrayInit(1, POINTER_BYTES);
-  SArray* vgroupList = taosArrayInit(1, POINTER_BYTES);
-
-  char* n = strdup(name);
-  taosArrayPush(pNameList, &n);
-  code = getMultiTableMetaFromMnode(tmpSql, pNameList, vgroupList, NULL, tscTableMetaCallBack, true);
-  taosArrayDestroyEx(pNameList, freeElem);
-  taosArrayDestroyEx(vgroupList, freeElem);
+  code = getMultiTableMetaFromMnode(rootSql, pNameList, vgroupList, NULL, tscTableMetaCallBack, true);
+  taosArrayDestroyEx(&pNameList, freeElem);
+  taosArrayDestroyEx(&vgroupList, freeElem);
 
   return code;
 }

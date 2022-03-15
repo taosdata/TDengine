@@ -78,6 +78,7 @@ public class TSDBResultSetRowData {
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
                 return ((Long) obj) == 1L ? Boolean.TRUE : Boolean.FALSE;
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
+            case TSDBConstants.TSDB_DATA_TYPE_JSON:
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR: {
                 return obj.toString().contains("1");
             }
@@ -147,6 +148,7 @@ public class TSDBResultSetRowData {
                 return ((Long) obj).intValue();
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
+            case TSDBConstants.TSDB_DATA_TYPE_JSON:
                 return Integer.parseInt((String) obj);
             case TSDBConstants.TSDB_DATA_TYPE_UTINYINT:
                 return parseUnsignedTinyIntToInt(obj);
@@ -228,6 +230,7 @@ public class TSDBResultSetRowData {
                 return (Long) obj;
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
+            case TSDBConstants.TSDB_DATA_TYPE_JSON:
                 return Long.parseLong((String) obj);
             case TSDBConstants.TSDB_DATA_TYPE_UTINYINT: {
                 byte value = (byte) obj;
@@ -418,6 +421,7 @@ public class TSDBResultSetRowData {
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
                 return new String((byte[]) obj);
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
+            case TSDBConstants.TSDB_DATA_TYPE_JSON:
                 return (String) obj;
             default:
                 return String.valueOf(obj);
@@ -443,16 +447,29 @@ public class TSDBResultSetRowData {
             case 0: {
                 milliseconds = ts;
                 fracNanoseconds = (int) (ts * 1_000_000 % 1_000_000_000);
+                fracNanoseconds = fracNanoseconds < 0 ? 1_000_000_000 + fracNanoseconds : fracNanoseconds;
                 break;
             }
             case 1: {
                 milliseconds = ts / 1_000;
                 fracNanoseconds = (int) (ts * 1_000 % 1_000_000_000);
+                if (fracNanoseconds < 0) {
+                    if (milliseconds == 0 ){
+                        milliseconds = -1;
+                    }
+                    fracNanoseconds += 1_000_000_000;
+                }
                 break;
             }
             case 2: {
                 milliseconds = ts / 1_000_000;
                 fracNanoseconds = (int) (ts % 1_000_000_000);
+                if (fracNanoseconds < 0) {
+                    if (milliseconds == 0 ){
+                        milliseconds = -1;
+                    }
+                    fracNanoseconds += 1_000_000_000;
+                }
                 break;
             }
             default: {

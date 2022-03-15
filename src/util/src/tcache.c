@@ -757,7 +757,7 @@ void* taosCacheTimedRefresh(void *handle) {
   }
 
   _end:
-  taosArrayDestroy(pCacheArrayList);
+  taosArrayDestroy(&pCacheArrayList);
 
   pCacheArrayList = NULL;
   pthread_mutex_destroy(&guard);

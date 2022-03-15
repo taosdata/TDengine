@@ -440,6 +440,15 @@ int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
     rlen += pExpr->base.resBytes;
   }
 
+  int32_t pg = DEFAULT_PAGE_SIZE;
+  int32_t overhead = sizeof(tFilePage);
+  while((pg - overhead) < rlen * 2) {
+    pg *= 2;
+  }
+
+  if (*nBufferSizes < pg){
+    *nBufferSizes = 2 * pg;
+  }
   int32_t capacity = 0;
   if (rlen != 0) {
     if ((*nBufferSizes) < rlen) {
@@ -447,17 +456,11 @@ int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
     }
     capacity = (*nBufferSizes) / rlen;
   }
-  
+
   pModel = createColumnModel(pSchema, (int32_t)size, capacity);
   tfree(pSchema);
   if (pModel == NULL){
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  }
-
-  int32_t pg = DEFAULT_PAGE_SIZE;
-  int32_t overhead = sizeof(tFilePage);
-  while((pg - overhead) < pModel->rowSize * 2) {
-    pg *= 2;
   }
 
   assert(numOfSub <= pTableMetaInfo->vgroupList->numOfVgroups);
@@ -593,7 +596,7 @@ static void setTagValueForMultipleRows(SQLFunctionCtx* pCtx, int32_t numOfOutput
   }
 }
 
-static void doMergeResultImpl(SMultiwayMergeInfo* pInfo, SQLFunctionCtx *pCtx, int32_t numOfExpr, int32_t rowIndex, char** pDataPtr) {
+static void doMergeResultImpl(SOperatorInfo* pInfo, SQLFunctionCtx *pCtx, int32_t numOfExpr, int32_t rowIndex, char** pDataPtr) {
   for (int32_t j = 0; j < numOfExpr; ++j) {
     pCtx[j].pInput = pDataPtr[j] + pCtx[j].inputBytes * rowIndex;
   }
@@ -605,10 +608,16 @@ static void doMergeResultImpl(SMultiwayMergeInfo* pInfo, SQLFunctionCtx *pCtx, i
     }
 
     if (functionId < 0) {
-      SUdfInfo* pUdfInfo = taosArrayGet(pInfo->udfInfo, -1 * functionId - 1);
+      SUdfInfo* pUdfInfo = taosArrayGet(((SMultiwayMergeInfo*)(pInfo->info))->udfInfo, -1 * functionId - 1);
       doInvokeUdf(pUdfInfo, &pCtx[j], 0, TSDB_UDF_FUNC_MERGE);
     } else {
+      assert(!TSDB_FUNC_IS_SCALAR(functionId));
       aAggs[functionId].mergeFunc(&pCtx[j]);
+    }
+
+    if (GET_RES_INFO(&(pCtx[j]))->numOfRes == -1){
+      tscError("result num is too large.");
+      longjmp(pInfo->pRuntimeEnv->env, TSDB_CODE_QRY_RESULT_TOO_LARGE);
     }
   }
 }
@@ -624,6 +633,7 @@ static void doFinalizeResultImpl(SMultiwayMergeInfo* pInfo, SQLFunctionCtx *pCtx
       SUdfInfo* pUdfInfo = taosArrayGet(pInfo->udfInfo, -1 * functionId - 1);
       doInvokeUdf(pUdfInfo, &pCtx[j], 0, TSDB_UDF_FUNC_FINALIZE);
     } else {
+      assert(!TSDB_FUNC_IS_SCALAR(functionId));
       aAggs[functionId].xFinalize(&pCtx[j]);
     }
   }
@@ -640,46 +650,49 @@ static void doExecuteFinalMerge(SOperatorInfo* pOperator, int32_t numOfExpr, SSD
   }
 
   for(int32_t i = 0; i < pBlock->info.rows; ++i) {
-    if (pInfo->hasPrev) {
-      if (needToMerge(pBlock, pInfo->orderColumnList, i, pInfo->prevRow)) {
-        doMergeResultImpl(pInfo, pCtx, numOfExpr, i, addrPtr);
-      } else {
-        doFinalizeResultImpl(pInfo, pCtx, numOfExpr);
-
-        int32_t numOfRows = getNumOfResult(pOperator->pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput);
-        setTagValueForMultipleRows(pCtx, pOperator->numOfOutput, numOfRows);
-
-        pInfo->binfo.pRes->info.rows += numOfRows;
-
-        for(int32_t j = 0; j < numOfExpr; ++j) {
-          pCtx[j].pOutput += (pCtx[j].outputBytes * numOfRows);
-          if (pCtx[j].functionId == TSDB_FUNC_TOP || pCtx[j].functionId == TSDB_FUNC_BOTTOM ||
-              pCtx[j].functionId == TSDB_FUNC_SAMPLE) {
-            if(j > 0) pCtx[j].ptsOutputBuf = pCtx[j - 1].pOutput;
-          }
-        }
-
-        for(int32_t j = 0; j < numOfExpr; ++j) {
-          if (pCtx[j].functionId < 0) {
-            continue;
-          }
-
-          aAggs[pCtx[j].functionId].init(&pCtx[j], pCtx[j].resultInfo);
-        }
-
-        doMergeResultImpl(pInfo, pCtx, numOfExpr, i, addrPtr);
-      }
-    } else {
-      doMergeResultImpl(pInfo, pCtx, numOfExpr, i, addrPtr);
+    if (!pInfo->hasPrev) {
+      doMergeResultImpl(pOperator, pCtx, numOfExpr, i, addrPtr);
+      savePrevOrderColumns(pInfo->prevRow, pInfo->orderColumnList, pBlock, i, &pInfo->hasPrev);
+      continue;
     }
 
+    if (needToMerge(pBlock, pInfo->orderColumnList, i, pInfo->prevRow)) {
+      doMergeResultImpl(pOperator, pCtx, numOfExpr, i, addrPtr);
+      continue;
+    }
+
+    doFinalizeResultImpl(pInfo, pCtx, numOfExpr);
+
+    int32_t numOfRows = getNumOfResult(pOperator->pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput);
+    setTagValueForMultipleRows(pCtx, pOperator->numOfOutput, numOfRows);
+
+    pInfo->binfo.pRes->info.rows += numOfRows;
+
+    for(int32_t j = 0; j < numOfExpr; ++j) {
+      pCtx[j].pOutput += (pCtx[j].outputBytes * numOfRows);
+      if (pCtx[j].functionId == TSDB_FUNC_TOP || pCtx[j].functionId == TSDB_FUNC_BOTTOM ||
+          pCtx[j].functionId == TSDB_FUNC_SAMPLE || pCtx[j].functionId == TSDB_FUNC_UNIQUE ||
+          pCtx[j].functionId == TSDB_FUNC_TAIL) {
+        if(j > 0) pCtx[j].ptsOutputBuf = pCtx[j - 1].pOutput;
+      }
+    }
+
+    for(int32_t j = 0; j < numOfExpr; ++j) {
+      if (pCtx[j].functionId < 0) {
+        continue;
+      }
+      {
+        assert(!TSDB_FUNC_IS_SCALAR(pCtx[j].functionId));
+        aAggs[pCtx[j].functionId].init(&pCtx[j], pCtx[j].resultInfo);
+      }
+    }
+
+    doMergeResultImpl(pOperator, pCtx, numOfExpr, i, addrPtr);
     savePrevOrderColumns(pInfo->prevRow, pInfo->orderColumnList, pBlock, i, &pInfo->hasPrev);
   }
 
-  {
-    for(int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-      pCtx[i].pInput = addrPtr[i];
-    }
+  for(int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+    pCtx[i].pInput = addrPtr[i];
   }
 
   tfree(addrPtr);
@@ -706,12 +719,12 @@ SGlobalMerger* tscInitResObjForLocalQuery(int32_t numOfRes, int32_t rowLen, uint
 }
 
 // todo remove it
-int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize) {
+int32_t doScalarExprCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize) {
   int32_t maxRowSize = MAX(rowSize, finalRowSize);
   char* pbuf = calloc(1, (size_t)(pOutput->num * maxRowSize));
 
   size_t size = tscNumOfFields(pQueryInfo);
-  SArithmeticSupport arithSup = {0};
+  SScalarExprSupport arithSup = {0};
 
   // todo refactor
   arithSup.offset     = 0;
@@ -732,7 +745,10 @@ int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_
     // calculate the result from several other columns
     if (pSup->pExpr->pExpr != NULL) {
       arithSup.pExprInfo = pSup->pExpr;
-      arithmeticTreeTraverse(arithSup.pExprInfo->pExpr, (int32_t) pOutput->num, pbuf + pOutput->num*offset, &arithSup, TSDB_ORDER_ASC, getArithmeticInputSrc);
+      tExprOperandInfo output;
+      output.data = pbuf + pOutput->num*offset;
+      exprTreeNodeTraverse(arithSup.pExprInfo->pExpr, (int32_t)pOutput->num, &output, &arithSup, TSDB_ORDER_ASC,
+                           getScalarExprInputSrc);
     } else {
       SExprInfo* pExpr = pSup->pExpr;
       memcpy(pbuf + pOutput->num * offset, pExpr->base.offset * pOutput->num + pOutput->data, (size_t)(pExpr->base.resBytes * pOutput->num));
@@ -803,7 +819,7 @@ SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup) {
                                         pOneDataSrc->rowIdx, pIndex->colIndex);
 
         char   *data = pInfo->prevRow[i];
-        int32_t ret = columnValueAscendingComparator(data, newRow, pColInfo->info.type, pColInfo->info.bytes);
+        int32_t ret = columnValueAscendingComparator(data, newRow, pColInfo->info.type, pColInfo->info.bytes, true);
         if (ret == 0) {
           continue;
         } else {
@@ -865,7 +881,7 @@ static bool isSameGroup(SArray* orderColumnList, SSDataBlock* pBlock, char** dat
     assert(pIndex->colId == pColInfo->info.colId);
 
     char *data = dataCols[i];
-    int32_t ret = columnValueAscendingComparator(data, pColInfo->pData, pColInfo->info.type, pColInfo->info.bytes);
+    int32_t ret = columnValueAscendingComparator(data, pColInfo->pData, pColInfo->info.type, pColInfo->info.bytes, true);
     if (ret == 0) {
       continue;
     } else {
@@ -884,6 +900,7 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
 
   SMultiwayMergeInfo *pAggInfo = pOperator->info;
   SOperatorInfo      *upstream = pOperator->upstream[0];
+  SQueryAttr         *pQueryAttr = pOperator->pRuntimeEnv->pQueryAttr;
 
   *newgroup = false;
   bool handleData = false;
@@ -894,8 +911,8 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
       pAggInfo->hasPrev = false; // now we start from a new group data set.
 
       // not belongs to the same group, return the result of current group;
-      setInputDataBlock(pOperator, pAggInfo->binfo.pCtx, pAggInfo->pExistBlock, TSDB_ORDER_ASC);
-      updateOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity, pAggInfo->pExistBlock->info.rows);
+      setInputDataBlock(pOperator, pAggInfo->binfo.pCtx, pAggInfo->pExistBlock, pQueryAttr->order.order);
+      updateOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity, pAggInfo->pExistBlock->info.rows, pOperator->pRuntimeEnv, true);
 
       { // reset output buffer
         for(int32_t j = 0; j < pOperator->numOfOutput; ++j) {
@@ -904,8 +921,10 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
             clearOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity);
             continue;
           }
-
-          aAggs[pCtx->functionId].init(pCtx, pCtx->resultInfo);
+          {
+            assert(!TSDB_FUNC_IS_SCALAR(pCtx->functionId));
+            aAggs[pCtx->functionId].init(pCtx, pCtx->resultInfo);
+          }
         }
       }
 
@@ -938,14 +957,14 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
         *newgroup = true;
         pAggInfo->hasDataBlockForNewGroup = true;
         pAggInfo->pExistBlock = pBlock;
-        savePrevOrderColumns(pAggInfo->prevRow, pAggInfo->groupColumnList, pBlock, 0, &pAggInfo->hasPrev);
+        savePrevOrderColumns(pAggInfo->currentGroupColData, pAggInfo->groupColumnList, pBlock, 0, &pAggInfo->hasGroupColData);
         break;
       }
     }
 
     // not belongs to the same group, return the result of current group
-    setInputDataBlock(pOperator, pAggInfo->binfo.pCtx, pBlock, TSDB_ORDER_ASC);
-    updateOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity, pBlock->info.rows * pAggInfo->resultRowFactor);
+    setInputDataBlock(pOperator, pAggInfo->binfo.pCtx, pBlock, pQueryAttr->order.order);
+    updateOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity, pBlock->info.rows * pAggInfo->resultRowFactor, pOperator->pRuntimeEnv, true);
 
     doExecuteFinalMerge(pOperator, pOperator->numOfOutput, pBlock);
     savePrevOrderColumns(pAggInfo->currentGroupColData, pAggInfo->groupColumnList, pBlock, 0, &pAggInfo->hasGroupColData);
@@ -976,6 +995,8 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
     }
   }
 
+  // shrink output memory on end
+  shrinkOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity);
   return (pRes->info.rows != 0)? pRes:NULL;
 }
 
@@ -1046,7 +1067,7 @@ static int32_t doSlimitImpl(SOperatorInfo* pOperator, SSLimitOperatorInfo* pInfo
         SColumnInfo *pColInfo = &pColInfoData->info;
 
         char   *d = rowIndex * pColInfo->bytes + (char *)pColInfoData->pData;
-        int32_t ret = columnValueAscendingComparator(pInfo->prevRow[i], d, pColInfo->type, pColInfo->bytes);
+        int32_t ret = columnValueAscendingComparator(pInfo->prevRow[i], d, pColInfo->type, pColInfo->bytes, true);
         if (ret != 0) {  // it is a new group
           samegroup = false;
           break;

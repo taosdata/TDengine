@@ -179,7 +179,7 @@ if __name__ == "__main__":
             if fileName == "all":
                 tdCases.runAllLinux(conn)
             else:
-                tdCases.runOneWindows(conn, fileName)
+                tdCases.runOneLinux(conn, fileName)
         if restart:
             if fileName == "all":
                 tdLog.info("not need to query ")

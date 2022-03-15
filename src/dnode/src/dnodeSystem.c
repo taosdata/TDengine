@@ -19,6 +19,7 @@
 #include "tconfig.h"
 #include "dnodeMain.h"
 
+bool          dnodeExit = false;
 static tsem_t exitSem;
 static void   siguser1Handler(int32_t signum, void *sigInfo, void *context);
 static void   siguser2Handler(int32_t signum, void *sigInfo, void *context);
@@ -187,6 +188,8 @@ static void sigintHandler(int32_t signum, void *sigInfo, void *context) {
 
   syslog(LOG_INFO, "Shut down signal is %d", signum);
   syslog(LOG_INFO, "Shutting down TDengine service...");
+
+  dnodeExit = true;
 
   // inform main thread to exit
   tsem_post(&exitSem);

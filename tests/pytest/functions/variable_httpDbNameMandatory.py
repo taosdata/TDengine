@@ -34,11 +34,15 @@ class TDTestCase:
 
     def getBuildPath(self) -> str:
         selfPath = os.path.dirname(os.path.realpath(__file__))
+        global cfgPath
 
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
+            cfgPath = projPath + "/community/sim/dnode1/cfg"
         else:
             projPath = selfPath[:selfPath.find("tests")]
+            cfgPath = projPath + "/sim/dnode1/cfg"
+
 
         for root, dirs, files in os.walk(projPath):
             if ("taosd" in files):
@@ -53,8 +57,10 @@ class TDTestCase:
 
         if ("community" in selfPath):
             cfgDir = self.getBuildPath() + "/community/sim/dnode1/cfg"
+            
         else:
             cfgDir = self.getBuildPath() + "/sim/dnode1/cfg"
+
         return cfgDir
 
     def getCfgFile(self) -> str:
@@ -85,8 +91,8 @@ class TDTestCase:
     def TS834(self):
         tdLog.printNoPrefix("==========TS-782==========")
         tdSql.prepare()
-
-        cfgfile = self.getCfgFile()
+        buildPath = self.getBuildPath()
+        cfgfile = cfgPath + "/taos.cfg"
 
         tdSql.execute("show variables")
         res_com = tdSql.cursor.fetchall()
@@ -124,10 +130,17 @@ class TDTestCase:
         if 'httpDbNameMandatory' not in rj:
             tdLog.info('has no httpDbNameMandatory shown')
             tdLog.exit(1)
-        if rj['httpDbNameMandatory'] != '1':
+        val = None
+        pname = 'taosadapter' #httpDbNameMandatory doesn't work in taosadapter
+        cmd =  'ps -ef|grep %s|grep -v "grep"' % pname
+        p = subprocess.Popen(cmd,shell=True, stdout=subprocess.PIPE)
+        if p.wait() == 0:
+            val = p.stdout.read()
+        if rj['httpDbNameMandatory'] != '1' and pname not in str(val):
             tdLog.info('httpDbNameMandatory data:%s == expect:0'%rj['httpDbNameMandatory'])
             tdLog.exit(1)
-        tdLog.info("httpDbNameMandatory by restful query data:%s == expect:1" % (rj['httpDbNameMandatory']))
+        if pname not in str(val):
+            tdLog.info("httpDbNameMandatory by restful query data:%s == expect:1" % (rj['httpDbNameMandatory']))
 
     def run(self):
         

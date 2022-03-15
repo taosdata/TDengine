@@ -44,11 +44,10 @@ static SKeyword keywordTable[] = {
     {"TIMESTAMP",    TK_TIMESTAMP},
     {"BINARY",       TK_BINARY},
     {"NCHAR",        TK_NCHAR},
+    {"JSON",         TK_JSON},
     {"OR",           TK_OR},
     {"AND",          TK_AND},
     {"NOT",          TK_NOT},
-    {"EQ",           TK_EQ},
-    {"NE",           TK_NE},
     {"ISNULL",       TK_ISNULL},
     {"NOTNULL",      TK_NOTNULL},
     {"IS",           TK_IS},
@@ -57,10 +56,6 @@ static SKeyword keywordTable[] = {
     {"GLOB",         TK_GLOB},
     {"BETWEEN",      TK_BETWEEN},
     {"IN",           TK_IN},
-    {"GT",           TK_GT},
-    {"GE",           TK_GE},
-    {"LT",           TK_LT},
-    {"LE",           TK_LE},
     {"BITAND",       TK_BITAND},
     {"BITOR",        TK_BITOR},
     {"LSHIFT",       TK_LSHIFT},
@@ -72,7 +67,6 @@ static SKeyword keywordTable[] = {
     {"STAR",         TK_STAR},
     {"SLASH",        TK_SLASH},
     {"REM ",         TK_REM},
-    {"CONCAT",       TK_CONCAT},
     {"UMINUS",       TK_UMINUS},
     {"UPLUS",        TK_UPLUS},
     {"BITNOT",       TK_BITNOT},
@@ -159,6 +153,7 @@ static SKeyword keywordTable[] = {
     {"SOFFSET",      TK_SOFFSET},
     {"WHERE",        TK_WHERE},
     {"NOW",          TK_NOW},
+    {"TODAY",        TK_TODAY},
     {"INSERT",       TK_INSERT},
     {"INTO",         TK_INTO},
     {"VALUES",       TK_VALUES},
@@ -230,7 +225,10 @@ static SKeyword keywordTable[] = {
     {"OUTPUTTYPE",   TK_OUTPUTTYPE},
     {"AGGREGATE",    TK_AGGREGATE},
     {"BUFSIZE",      TK_BUFSIZE},
-    {"RANGE",        TK_RANGE}
+    {"RANGE",        TK_RANGE},
+    {"CONTAINS",     TK_CONTAINS},
+    {"TO",           TK_TO},
+    {"SPLIT",        TK_SPLIT}   
 };
 
 static const char isIdChar[] = {
@@ -311,6 +309,10 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
         }
         *tokenId = TK_COMMENT;
         return i;
+      }
+      if (z[1] == '>') {
+        *tokenId = TK_ARROW;
+        return 2;
       }
       *tokenId = TK_MINUS;
       return 1;
@@ -394,9 +396,6 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       if (z[1] != '|') {
         *tokenId = TK_BITOR;
         return 1;
-      } else {
-        *tokenId = TK_CONCAT;
-        return 2;
       }
     }
     case ',': {
@@ -446,6 +445,13 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
     }
     case '`': {
       for (i = 1; z[i]; i++) {
+//        if(isprint(z[i]) == 0){
+//          break;
+//        }
+//        if (z[i] == '`' && z[i+1] == '`') {
+//          i++;
+//          continue;
+//        }
         if (z[i] == '`') {
           i++;
           *tokenId = TK_ID;
@@ -519,6 +525,8 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       for (i = 1; isdigit(z[i]); i++) {
       }
 
+      uint32_t j = i;
+
       /* here is the 1u/1a/2s/3m/9y */
       if ((z[i] == 'b' || z[i] == 'u' || z[i] == 'a' || z[i] == 's' || z[i] == 'm' || z[i] == 'h' || z[i] == 'd' || z[i] == 'n' ||
            z[i] == 'y' || z[i] == 'w' ||
@@ -553,6 +561,14 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
         }
         *tokenId = TK_FLOAT;
       }
+
+      if (*tokenId == TK_INTEGER && z[j] != '\0') {
+        char c = z[j] | 0x20;
+        if (c >= 'a' && c <= 'z') {
+          *tokenId = TK_ID;
+        }
+      }
+
       return i;
     }
     case '[': {
@@ -580,6 +596,7 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[(uint8_t) z[i]]; i++) {
       }
       *tokenId = tKeywordCode(z, i);
+
       return i;
     }
   }
@@ -656,6 +673,12 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
 #endif
   }
 
+  //for now(),today() function used in insert clause
+  if ((t0.type == TK_NOW || t0.type == TK_TODAY) &&
+      str[*i + t0.n] == '(' && str[*i + t0.n + 1] == ')') {
+    t0.n += 2;
+  }
+
   if (t0.type == TK_SEMI) {
     t0.n = 0;
     return t0;
@@ -693,6 +716,18 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
   *i += t0.n;
 
   return t0;
+}
+
+/**
+ * strcpy implement source from SStrToken
+ *
+ * @param dst  copy to 
+ * @param srcToken copy from
+ * @return size of copy successful bytes
+ */
+int32_t tStrNCpy(char *dst, SStrToken* srcToken) {
+  strncpy(dst, srcToken->z, srcToken->n);
+  return srcToken->n;
 }
 
 bool taosIsKeyWordToken(const char* z, int32_t len) {

@@ -44,6 +44,7 @@ class TDSimClient:
             "jnidebugFlag": "135",
             "qdebugFlag": "135",
             "telemetryReporting": "0",
+            "enableCoreFile": "1",
         }
 
     def getLogDir(self):
@@ -151,7 +152,8 @@ class TDDnode:
             "udebugFlag":"135",
             "jnidebugFlag":"135",
             "qdebugFlag":"135",
-            "maxSQLLength":"1048576"
+            "maxSQLLength":"1048576",
+            "enableCoreFile": "1",
         }
 
     def init(self, path):
@@ -198,17 +200,11 @@ class TDDnode:
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-        cmd = "mkdir -p " + self.dataDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        os.makedirs(self.dataDir, exist_ok=True) # like "mkdir -p"
 
-        cmd = "mkdir -p " + self.logDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        os.makedirs(self.logDir, exist_ok=True) # like "mkdir -p"
 
-        cmd = "mkdir -p " + self.cfgDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        os.makedirs(self.cfgDir, exist_ok=True) # like "mkdir -p"
 
         cmd = "touch " + self.cfgPath
         if os.system(cmd) != 0:
@@ -229,7 +225,7 @@ class TDDnode:
         # self.cfg("logDir",self.logDir)
         # print(updatecfgDict)
         isFirstDir = 1
-        if updatecfgDict[0] and updatecfgDict[0][0]:
+        if bool(updatecfgDict) and updatecfgDict[0] and updatecfgDict[0][0]:
             print(updatecfgDict[0][0])
             for key,value in updatecfgDict[0][0].items():
                 if value == 'dataDir' :
@@ -249,7 +245,7 @@ class TDDnode:
             "dnode:%d is deployed and configured by %s" %
             (self.index, self.cfgPath))
 
-    def getBuildPath(self):
+    def getBuildPath(self, tool="taosd"):
         buildPath = ""
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
@@ -259,7 +255,7 @@ class TDDnode:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if (("taosd") in files):
+            if ((tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root)-len("/build/bin")]
@@ -291,8 +287,9 @@ class TDDnode:
 
             print(cmd)
 
-        taosadapterCmd = "nohup %s > /dev/null 2>&1 & " % (
+        taosadapterCmd = "nohup %s --opentsdb_telnet.enable=true > /dev/null 2>&1 & " % (
                 taosadapterBinPath)
+        tdLog.info(taosadapterCmd)
         if os.system(taosadapterCmd) != 0:
             tdLog.exit(taosadapterCmd)
 
@@ -330,6 +327,59 @@ class TDDnode:
 
         
         # time.sleep(5)
+    def startWin(self):
+        buildPath = self.getBuildPath("taosd.exe")
+
+        if (buildPath == ""):
+            tdLog.exit("taosd.exe not found!")
+        else:
+            tdLog.info("taosd.exe found in %s" % buildPath)
+
+        binPath = buildPath + "/build/bin/taosd.exe"
+        taosadapterBinPath = buildPath + "/build/bin/taosadapter.exe"
+
+        if self.deployed == 0:
+            tdLog.exit("dnode:%d is not deployed" % (self.index))
+
+        cmd = "mintty -h never -w hide %s -c %s" % (
+                binPath, self.cfgDir)
+
+        taosadapterCmd = "mintty -h never -w hide %s " % (
+                taosadapterBinPath)
+        if os.system(taosadapterCmd) != 0:
+            tdLog.exit(taosadapterCmd)
+
+        if os.system(cmd) != 0:
+            tdLog.exit(cmd)
+
+        self.running = 1
+        tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
+        if self.valgrind == 0:
+            time.sleep(0.1)
+            key = 'from offline to online'
+            bkey = bytes(key,encoding="utf8")
+            logFile = self.logDir + "/taosdlog.0"
+            i = 0
+            while not os.path.exists(logFile):
+                sleep(0.1)
+                i += 1
+                if i>50:
+                    break
+            popen = subprocess.Popen('tail -n +0 -f ' + logFile, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+            pid = popen.pid
+            # print('Popen.pid:' + str(pid))
+            timeout = time.time() + 60*2
+            while True:
+                line = popen.stdout.readline().strip()
+                if bkey in line:
+                    popen.kill()
+                    break
+                if time.time() > timeout:
+                    tdLog.exit('wait too long for taosd start')
+            tdLog.debug("the dnode:%d has been started." % (self.index))
+        else:
+            tdLog.debug("wait 10 seconds for the dnode:%d to start." % (self.index))
+            time.sleep(10)
     
     def startWithoutSleep(self):
         buildPath = self.getBuildPath()
@@ -545,6 +595,10 @@ class TDDnodes:
     def start(self, index):
         self.check(index)
         self.dnodes[index - 1].start()
+
+    def startWin(self, index):
+        self.check(index)
+        self.dnodes[index - 1].startWin()
     
     def startWithoutSleep(self, index):
         self.check(index)

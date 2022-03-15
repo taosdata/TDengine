@@ -84,6 +84,9 @@ static char* offlineReason[] = {
   "timezone not match",
   "locale not match",
   "charset not match",
+  "flowctrl not match",
+  "slaveQuery not match",
+  "adjustMaster not match",
   "unknown",
 };
 
@@ -269,6 +272,21 @@ int32_t mnodeGetOnlineDnodesNum() {
   }
 
   return onlineDnodes;
+}
+
+int32_t mnodeGetVnodeDnodesNum() {
+  SDnodeObj *pDnode = NULL;
+  void *     pIter = NULL;
+  int32_t    numOfDnodes = 0;
+
+  while (1) {
+    pIter = mnodeGetNextDnode(pIter, &pDnode);
+    if (pDnode == NULL) break;
+    if (pDnode->alternativeRole != TAOS_DN_ALTERNATIVE_ROLE_MNODE) numOfDnodes++;
+    mnodeDecDnodeRef(pDnode);
+  }
+
+  return numOfDnodes;
 }
 
 void mnodeGetOnlineAndTotalDnodesNum(int32_t *onlineNum, int32_t *totalNum) {
@@ -530,7 +548,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pStatus->numOfCores   = htons(pStatus->numOfCores);
 
   uint32_t _version = htonl(pStatus->version);
-  if (_version != tsVersion) {
+  if (_version != tsVersion >> 8) {
     pDnode = mnodeGetDnodeByEp(pStatus->dnodeEp);
     if (pDnode != NULL && pDnode->status != TAOS_DN_STATUS_READY) {
       pDnode->offlineReason = TAOS_DN_OFF_VERSION_NOT_MATCH;

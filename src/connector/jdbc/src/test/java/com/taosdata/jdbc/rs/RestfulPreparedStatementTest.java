@@ -400,8 +400,12 @@ public class RestfulPreparedStatementTest {
                 pstmt_select.close();
             if (pstmt_without_parameters != null)
                 pstmt_without_parameters.close();
-            if (conn != null)
+            if (conn != null) {
+                Statement statement = conn.createStatement();
+                statement.execute("drop database if exists test_pstmt");
+                statement.close();
                 conn.close();
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }

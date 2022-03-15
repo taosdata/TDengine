@@ -1,0 +1,27 @@
+{
+    "name": "node-red-contrib-tdengine",
+    "version": "0.0.3",
+    "description": "",
+    "main": "tdengine.js",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/kevinpan45/node-red-contrib-tdengine.git"
+    },
+    "author": "kevinpan45@163.com",
+    "license": "ISC",
+    "dependencies": {
+        "axios": "^0.24.0"
+    },
+    "node-red": {
+        "nodes": {
+            "tdengine": "tdengine.js"
+        }
+    },
+    "keywords": [
+        "node-red",
+        "tdengine"
+    ],
+    "devDependencies": {
+        "node-red": "^2.1.4"
+    }
+}

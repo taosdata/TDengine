@@ -115,6 +115,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_TSC_INVALID_PROTOCOL_TYPE     TAOS_DEF_ERROR_CODE(0, 0x0225)  //"Invalid line protocol type")
 #define TSDB_CODE_TSC_INVALID_PRECISION_TYPE    TAOS_DEF_ERROR_CODE(0, 0x0226)  //"Invalid timestamp precision type")
 #define TSDB_CODE_TSC_RES_TOO_MANY              TAOS_DEF_ERROR_CODE(0, 0x0227)  //"Result set too large to be output")
+#define TSDB_CODE_TSC_INVALID_SCHEMA_VERSION    TAOS_DEF_ERROR_CODE(0, 0x0228)  //"invalid table schema version")
 
 // mnode
 #define TSDB_CODE_MND_MSG_NOT_PROCESSED         TAOS_DEF_ERROR_CODE(0, 0x0300)  //"Message not processed"
@@ -250,48 +251,49 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_VND_INVALID_TSDB_STATE        TAOS_DEF_ERROR_CODE(0, 0x0514)  //"Invalid tsdb state"
 
 // tsdb
-#define TSDB_CODE_TDB_INVALID_TABLE_ID          TAOS_DEF_ERROR_CODE(0, 0x0600)  //"Invalid table ID"
-#define TSDB_CODE_TDB_INVALID_TABLE_TYPE        TAOS_DEF_ERROR_CODE(0, 0x0601)  //"Invalid table type"
-#define TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION     TAOS_DEF_ERROR_CODE(0, 0x0602)  //"Invalid table schema version"
-#define TSDB_CODE_TDB_TABLE_ALREADY_EXIST       TAOS_DEF_ERROR_CODE(0, 0x0603)  //"Table already exists"
-#define TSDB_CODE_TDB_INVALID_CONFIG            TAOS_DEF_ERROR_CODE(0, 0x0604)  //"Invalid configuration"
-#define TSDB_CODE_TDB_INIT_FAILED               TAOS_DEF_ERROR_CODE(0, 0x0605)  //"Tsdb init failed"
-#define TSDB_CODE_TDB_NO_DISKSPACE              TAOS_DEF_ERROR_CODE(0, 0x0606)  //"No diskspace for tsdb"
-#define TSDB_CODE_TDB_NO_DISK_PERMISSIONS       TAOS_DEF_ERROR_CODE(0, 0x0607)  //"No permission for disk files"
-#define TSDB_CODE_TDB_FILE_CORRUPTED            TAOS_DEF_ERROR_CODE(0, 0x0608)  //"Data file(s) corrupted"
-#define TSDB_CODE_TDB_OUT_OF_MEMORY             TAOS_DEF_ERROR_CODE(0, 0x0609)  //"Out of memory"
-#define TSDB_CODE_TDB_TAG_VER_OUT_OF_DATE       TAOS_DEF_ERROR_CODE(0, 0x060A)  //"Tag too old"
-#define TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE    TAOS_DEF_ERROR_CODE(0, 0x060B)  //"Timestamp data out of range"
-#define TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP       TAOS_DEF_ERROR_CODE(0, 0x060C)  //"Submit message is messed up"
-#define TSDB_CODE_TDB_INVALID_ACTION            TAOS_DEF_ERROR_CODE(0, 0x060D)  //"Invalid operation"
-#define TSDB_CODE_TDB_INVALID_CREATE_TB_MSG     TAOS_DEF_ERROR_CODE(0, 0x060E)  //"Invalid creation of table"
-#define TSDB_CODE_TDB_NO_TABLE_DATA_IN_MEM      TAOS_DEF_ERROR_CODE(0, 0x060F)  //"No table data in memory skiplist"
-#define TSDB_CODE_TDB_FILE_ALREADY_EXISTS       TAOS_DEF_ERROR_CODE(0, 0x0610)  //"File already exists"
-#define TSDB_CODE_TDB_TABLE_RECONFIGURE         TAOS_DEF_ERROR_CODE(0, 0x0611)  //"Need to reconfigure table"
-#define TSDB_CODE_TDB_IVD_CREATE_TABLE_INFO     TAOS_DEF_ERROR_CODE(0, 0x0612)  //"Invalid information to create table"
-#define TSDB_CODE_TDB_NO_AVAIL_DISK             TAOS_DEF_ERROR_CODE(0, 0x0613)  //"No available disk"
-#define TSDB_CODE_TDB_MESSED_MSG                TAOS_DEF_ERROR_CODE(0, 0x0614)  //"TSDB messed message"
-#define TSDB_CODE_TDB_IVLD_TAG_VAL              TAOS_DEF_ERROR_CODE(0, 0x0615)  //"TSDB invalid tag value"
-#define TSDB_CODE_TDB_NO_CACHE_LAST_ROW         TAOS_DEF_ERROR_CODE(0, 0x0616)  //"TSDB no cache last row data"
-#define TSDB_CODE_TDB_INCOMPLETE_DFILESET       TAOS_DEF_ERROR_CODE(0, 0x0617)  //"TSDB incomplete DFileSet"
+#define TSDB_CODE_TDB_INVALID_TABLE_ID          TAOS_DEF_ERROR_CODE(0, 0x0600)  //"Invalid table ID")
+#define TSDB_CODE_TDB_INVALID_TABLE_TYPE        TAOS_DEF_ERROR_CODE(0, 0x0601)  //"Invalid table type")
+#define TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION     TAOS_DEF_ERROR_CODE(0, 0x0602)  //"Invalid table schema version")
+#define TSDB_CODE_TDB_TABLE_ALREADY_EXIST       TAOS_DEF_ERROR_CODE(0, 0x0603)  //"Table already exists")
+#define TSDB_CODE_TDB_INVALID_CONFIG            TAOS_DEF_ERROR_CODE(0, 0x0604)  //"Invalid configuration")
+#define TSDB_CODE_TDB_INIT_FAILED               TAOS_DEF_ERROR_CODE(0, 0x0605)  //"Tsdb init failed")
+#define TSDB_CODE_TDB_NO_DISKSPACE              TAOS_DEF_ERROR_CODE(0, 0x0606)  //"No diskspace for tsdb")
+#define TSDB_CODE_TDB_NO_DISK_PERMISSIONS       TAOS_DEF_ERROR_CODE(0, 0x0607)  //"No permission for disk files")
+#define TSDB_CODE_TDB_FILE_CORRUPTED            TAOS_DEF_ERROR_CODE(0, 0x0608)  //"Data file(s) corrupted")
+#define TSDB_CODE_TDB_OUT_OF_MEMORY             TAOS_DEF_ERROR_CODE(0, 0x0609)  //"Out of memory")
+#define TSDB_CODE_TDB_TAG_VER_OUT_OF_DATE       TAOS_DEF_ERROR_CODE(0, 0x060A)  //"Tag too old")
+#define TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE    TAOS_DEF_ERROR_CODE(0, 0x060B)  //"Timestamp data out of range")
+#define TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP       TAOS_DEF_ERROR_CODE(0, 0x060C)  //"Submit message is messed up")
+#define TSDB_CODE_TDB_INVALID_ACTION            TAOS_DEF_ERROR_CODE(0, 0x060D)  //"Invalid operation")
+#define TSDB_CODE_TDB_INVALID_CREATE_TB_MSG     TAOS_DEF_ERROR_CODE(0, 0x060E)  //"Invalid creation of table")
+#define TSDB_CODE_TDB_NO_TABLE_DATA_IN_MEM      TAOS_DEF_ERROR_CODE(0, 0x060F)  //"No table data in memory skiplist")
+#define TSDB_CODE_TDB_FILE_ALREADY_EXISTS       TAOS_DEF_ERROR_CODE(0, 0x0610)  //"File already exists")
+#define TSDB_CODE_TDB_TABLE_RECONFIGURE         TAOS_DEF_ERROR_CODE(0, 0x0611)  //"Need to reconfigure table")
+#define TSDB_CODE_TDB_IVD_CREATE_TABLE_INFO     TAOS_DEF_ERROR_CODE(0, 0x0612)  //"Invalid information to create table")
+#define TSDB_CODE_TDB_NO_AVAIL_DISK             TAOS_DEF_ERROR_CODE(0, 0x0613)  //"No available disk")
+#define TSDB_CODE_TDB_MESSED_MSG                TAOS_DEF_ERROR_CODE(0, 0x0614)  //"TSDB messed message")
+#define TSDB_CODE_TDB_IVLD_TAG_VAL              TAOS_DEF_ERROR_CODE(0, 0x0615)  //"TSDB invalid tag value")
+#define TSDB_CODE_TDB_NO_CACHE_LAST_ROW         TAOS_DEF_ERROR_CODE(0, 0x0616)  //"TSDB no cache last row data")
+#define TSDB_CODE_TDB_INCOMPLETE_DFILESET       TAOS_DEF_ERROR_CODE(0, 0x0617)  //"TSDB incomplete DFileSet")
 
 // query
-#define TSDB_CODE_QRY_INVALID_QHANDLE           TAOS_DEF_ERROR_CODE(0, 0x0700)  //"Invalid handle"
-#define TSDB_CODE_QRY_INVALID_MSG               TAOS_DEF_ERROR_CODE(0, 0x0701)  //"Invalid message"    // failed to validate the sql expression msg by vnode
-#define TSDB_CODE_QRY_NO_DISKSPACE              TAOS_DEF_ERROR_CODE(0, 0x0702)  //"No diskspace for query"
-#define TSDB_CODE_QRY_OUT_OF_MEMORY             TAOS_DEF_ERROR_CODE(0, 0x0703)  //"System out of memory"
-#define TSDB_CODE_QRY_APP_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x0704)  //"Unexpected generic error in query"
-#define TSDB_CODE_QRY_DUP_JOIN_KEY              TAOS_DEF_ERROR_CODE(0, 0x0705)  //"Duplicated join key"
-#define TSDB_CODE_QRY_EXCEED_TAGS_LIMIT         TAOS_DEF_ERROR_CODE(0, 0x0706)  //"Tag condition too many"
-#define TSDB_CODE_QRY_NOT_READY                 TAOS_DEF_ERROR_CODE(0, 0x0707)  //"Query not ready"
-#define TSDB_CODE_QRY_HAS_RSP                   TAOS_DEF_ERROR_CODE(0, 0x0708)  //"Query should response"
-#define TSDB_CODE_QRY_IN_EXEC                   TAOS_DEF_ERROR_CODE(0, 0x0709)  //"Multiple retrieval of this query"
-#define TSDB_CODE_QRY_TOO_MANY_TIMEWINDOW       TAOS_DEF_ERROR_CODE(0, 0x070A)  //"Too many time window in query"
-#define TSDB_CODE_QRY_NOT_ENOUGH_BUFFER         TAOS_DEF_ERROR_CODE(0, 0x070B)  //"Query buffer limit has reached"
-#define TSDB_CODE_QRY_INCONSISTAN               TAOS_DEF_ERROR_CODE(0, 0x070C)  //"File inconsistency in replica"
-#define TSDB_CODE_QRY_SYS_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x070D)  //"System error"
-#define TSDB_CODE_QRY_INVALID_TIME_CONDITION    TAOS_DEF_ERROR_CODE(0, 0x070E)  //"invalid time condition"
-
+#define TSDB_CODE_QRY_INVALID_QHANDLE           TAOS_DEF_ERROR_CODE(0, 0x0700)  //"Invalid handle")
+#define TSDB_CODE_QRY_INVALID_MSG               TAOS_DEF_ERROR_CODE(0, 0x0701)  //"Invalid message")    // failed to validate the sql expression msg by vnode
+#define TSDB_CODE_QRY_NO_DISKSPACE              TAOS_DEF_ERROR_CODE(0, 0x0702)  //"No diskspace for query")
+#define TSDB_CODE_QRY_OUT_OF_MEMORY             TAOS_DEF_ERROR_CODE(0, 0x0703)  //"System out of memory")
+#define TSDB_CODE_QRY_APP_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x0704)  //"Unexpected generic error in query")
+#define TSDB_CODE_QRY_DUP_JOIN_KEY              TAOS_DEF_ERROR_CODE(0, 0x0705)  //"Duplicated join key")
+#define TSDB_CODE_QRY_EXCEED_TAGS_LIMIT         TAOS_DEF_ERROR_CODE(0, 0x0706)  //"Tag condition too many")
+#define TSDB_CODE_QRY_NOT_READY                 TAOS_DEF_ERROR_CODE(0, 0x0707)  //"Query not ready")
+#define TSDB_CODE_QRY_HAS_RSP                   TAOS_DEF_ERROR_CODE(0, 0x0708)  //"Query should response")
+#define TSDB_CODE_QRY_IN_EXEC                   TAOS_DEF_ERROR_CODE(0, 0x0709)  //"Multiple retrieval of this query")
+#define TSDB_CODE_QRY_TOO_MANY_TIMEWINDOW       TAOS_DEF_ERROR_CODE(0, 0x070A)  //"Too many time window in query")
+#define TSDB_CODE_QRY_NOT_ENOUGH_BUFFER         TAOS_DEF_ERROR_CODE(0, 0x070B)  //"Query buffer limit has reached")
+#define TSDB_CODE_QRY_INCONSISTAN               TAOS_DEF_ERROR_CODE(0, 0x070C)  //"File inconsistency in replica")
+#define TSDB_CODE_QRY_SYS_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x070D)  //"System error")
+#define TSDB_CODE_QRY_INVALID_TIME_CONDITION    TAOS_DEF_ERROR_CODE(0, 0x070E)  //"invalid time condition")
+#define TSDB_CODE_QRY_INVALID_SCHEMA_VERSION    TAOS_DEF_ERROR_CODE(0, 0x0710)  //"invalid schema version")
+#define TSDB_CODE_QRY_RESULT_TOO_LARGE          TAOS_DEF_ERROR_CODE(0, 0x0711)  //"result num is too large")
 
 // grant
 #define TSDB_CODE_GRANT_EXPIRED                 TAOS_DEF_ERROR_CODE(0, 0x0800)  //"License expired"

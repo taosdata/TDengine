@@ -63,7 +63,6 @@ public class TSDBConnection extends AbstractConnection {
         if (isClosed()) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
         }
-        
         return new TSDBPreparedStatement(this, sql);
     }
 
@@ -71,7 +70,6 @@ public class TSDBConnection extends AbstractConnection {
         if (isClosed) {
             return;
         }
-        
         this.connector.closeConnection();
         this.isClosed = true;
     }

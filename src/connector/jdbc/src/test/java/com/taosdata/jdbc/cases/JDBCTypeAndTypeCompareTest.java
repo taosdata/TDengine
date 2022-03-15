@@ -1,19 +1,22 @@
 package com.taosdata.jdbc.cases;
 
+import org.junit.AfterClass;
 import org.junit.Test;
 
 import java.sql.*;
 
 public class JDBCTypeAndTypeCompareTest {
+    private static Connection conn;
+    private static final String dbname = "test";
 
     @Test
     public void test() throws SQLException {
-        Connection conn = DriverManager.getConnection("jdbc:TAOS://192.168.17.156:6030/", "root", "taosdata");
+        conn = DriverManager.getConnection("jdbc:TAOS://127.0.0.1:6030/", "root", "taosdata");
         Statement stmt = conn.createStatement();
 
-        stmt.execute("drop database if exists test");
-        stmt.execute("create database if not exists test");
-        stmt.execute("use test");
+        stmt.execute("drop database if exists " + dbname);
+        stmt.execute("create database if not exists " + dbname);
+        stmt.execute("use " + dbname);
         stmt.execute("create table weather(ts timestamp, f1 int, f2 bigint, f3 float, f4 double, f5 smallint, f6 tinyint, f7 bool, f8 binary(10), f9 nchar(10) )");
         stmt.execute("insert into weather values(now, 1, 2, 3.0, 4.0, 5, 6, true, 'test','test')");
 
@@ -29,6 +32,19 @@ public class JDBCTypeAndTypeCompareTest {
         }
 
         stmt.close();
-        conn.close();
+    }
+
+    @AfterClass
+    public static void afterClass() {
+        try {
+            if (null != conn) {
+                Statement statement = conn.createStatement();
+                statement.execute("drop database if exists " + dbname);
+                statement.close();
+                conn.close();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 }

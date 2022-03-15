@@ -77,7 +77,7 @@ static SQueryNode* createQueryNode(int32_t type, const char* name, SQueryNode** 
 
       pGroupbyExpr->tableIndex = p->tableIndex;
       pGroupbyExpr->orderType  = p->orderType;
-      pGroupbyExpr->orderIndex = p->orderIndex;
+      //pGroupbyExpr->orderIndex = p->orderIndex;
       pGroupbyExpr->numOfGroupCols = p->numOfGroupCols;
       pGroupbyExpr->columnInfo = taosArrayDup(p->columnInfo);
       pNode->pExtInfo = pGroupbyExpr;
@@ -224,7 +224,7 @@ SArray* createQueryPlanImpl(SQueryInfo* pQueryInfo) {
 
   if (pQueryInfo->numOfTables > 1) {  // it is a join query
     // 1. separate the select clause according to table
-    taosArrayDestroy(upstream);
+    taosArrayDestroy(&upstream);
     upstream = taosArrayInit(5, POINTER_BYTES);
 
     for(int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
@@ -279,7 +279,7 @@ SQueryNode* qCreateQueryPlan(SQueryInfo* pQueryInfo) {
   assert(taosArrayGetSize(upstream) == 1);
 
   SQueryNode* p = taosArrayGetP(upstream, 0);
-  taosArrayDestroy(upstream);
+  taosArrayDestroy(&upstream);
 
   return p;
 }
@@ -300,7 +300,7 @@ static void doDestroyQueryNode(SQueryNode* pQueryNode) {
       doDestroyQueryNode(p);
     }
 
-    taosArrayDestroy(pQueryNode->pPrevNodes);
+    taosArrayDestroy(&pQueryNode->pPrevNodes);
   }
 
   tfree(pQueryNode);
@@ -567,6 +567,10 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
   } else if (pQueryAttr->pointInterpQuery) {
     op = OP_TimeEvery;
     taosArrayPush(plan, &op);
+    if (pQueryAttr->pExpr2 != NULL) {
+      op = OP_Project;
+      taosArrayPush(plan, &op);
+    }
   } else if (pQueryAttr->interval.interval > 0) {
     if (pQueryAttr->stableQuery) {
       op = OP_MultiTableTimeInterval;
@@ -582,6 +586,13 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
 
       if (pQueryAttr->fillType != TSDB_FILL_NONE) {
         op = OP_Fill;
+        taosArrayPush(plan, &op);
+      }
+      // outer query order by support
+      int32_t orderColId = pQueryAttr->order.orderColId;
+
+      if (pQueryAttr->vgId == 0 && orderColId != INT32_MIN) {
+        op = OP_Order;
         taosArrayPush(plan, &op);
       }
     }
@@ -654,7 +665,7 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
 
     // outer query order by support
     int32_t orderColId = pQueryAttr->order.orderColId;
-    if (pQueryAttr->vgId == 0 && orderColId != PRIMARYKEY_TIMESTAMP_COL_INDEX && orderColId != INT32_MIN) {
+    if (pQueryAttr->vgId == 0 && orderColId != INT32_MIN) {
       op = OP_Order;
       taosArrayPush(plan, &op);
     }
@@ -691,7 +702,6 @@ SArray* createGlobalMergePlan(SQueryAttr* pQueryAttr) {
       op = OP_Filter;
       taosArrayPush(plan, &op);
     }
-
     if (pQueryAttr->pExpr2 != NULL) {
       op = OP_Project;
       taosArrayPush(plan, &op);

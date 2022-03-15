@@ -29,7 +29,6 @@ class TDTestCase:
 
     def insertAndCheckData(self):
         types = ["tinyint", "tinyint unsigned", "smallint", "smallint unsigned", "int", "int unsigned", "bigint", "bigint unsigned", "float", "double", "bool", "binary(20)", "nchar(20)"]
-
         for type in types:
             print("============== create table using %s type ================" % type)
             tdSql.execute("drop table if exists stb")
@@ -141,6 +140,9 @@ class TDTestCase:
                 tdSql.error("select derivative(col, 1s, 1) from tb2")
                 tdSql.error("select derivative(col, 10s, 0) from tb2")
                 tdSql.error("select derivative(col, 999ms, 0) from tb2")
+                tdSql.error("select derivative(col, now, 0) from tb2") #TD-11983 now not allowed in second param
+                tdSql.error("select derivative(col, now+3d-8h+6m, 0) from tb2") #TD-11983 now not allowed in second param
+                tdSql.error("select derivative(col, 3d-8h+now+6m, 0) from tb2") #TD-11983 now not allowed in second param
 
             tdSql.error("select derivative(col, 10s, 1) from stb")
             tdSql.error("select derivative(col, 10s, 1) from stb group by col")
@@ -151,6 +153,9 @@ class TDTestCase:
             tdSql.error("select derivative(col, 10y, 0) from stb group by tbname")      #TD-10399, DB error: syntax error near '10y, 0) from stb group by tbname;'
             tdSql.error("select derivative(col, -106752d, 0) from stb group by tbname") #TD-10398 overflow tips
             tdSql.error("select derivative(col, 106751991168d, 0) from stb group by tbname") #TD-10398 overflow tips
+            tdSql.error("select derivative(col, now, 1) from stb") #TD-11983 now not allowed in second param
+            tdSql.error("select derivative(col, now+3d-8h+6m, 1) from stb") #TD-11983 now not allowed in second param
+            tdSql.error("select derivative(col, 3d-8h+now+6m, 1) from stb") #TD-11983 now not allowed in second param
 
     def run(self):
         tdSql.prepare()        

@@ -1,0 +1,525 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+sleep 500
+sql connect
+
+$dbPrefix = db
+$tbPrefix = ct
+$mtPrefix = st
+$tbNum = 2
+$rowNum = 50
+
+print =============== step1 create stable/table
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 nchar(5), c9 binary(10)) TAGS (tgcol int)
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+
+  $x = 0
+  $y = 0.25
+
+  while $x < $rowNum
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+    sql insert into $tb values ($ms , $x , $y , $x , $x , $x , $y , $x , $x , $x )
+    $x = $x + 1
+    $y = $y + 1
+  endw
+
+  $i = $i + 1
+endw
+
+print ================= step2
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from $tb
+
+print ===> $data00 , $data01 , $data02 , $data03 , $data04 , $data05
+if $data00 != 0 then
+  return -1
+endi
+if $data01 != -2.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 2.062500000 then
+  return -1
+endi
+if $data04 != -inf then
+  return -1
+endi
+if $data05 !=  0.000000000 then
+  return -1
+endi
+
+print ===> $data90 , $data91 , $data92 , $data93 , $data94 , $data95
+if $data94 != 813.169925001 then
+  return -1
+endi
+
+if $data95 != 19764.000000000 then
+  return -1
+endi
+
+sql select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from $tb where ts == 1601481600000
+
+print ===> $data00 , $data01 , $data02 , $data03 , $data04 , $data05
+if $data00 != 0 then
+  return -1
+endi
+if $data01 != -2.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 2.062500000 then
+  return -1
+endi
+if $data04 != -inf then
+  return -1
+endi
+if $data05 !=  0.000000000 then
+  return -1
+endi
+
+$stb = $mtPrefix . 0
+sql select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from $stb where ts == 1601481600000
+
+print ===> $data00 , $data01 , $data02 , $data03 , $data04 , $data05
+if $data00 != 0 then
+  return -1
+endi
+if $data01 != -2.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 2.062500000 then
+  return -1
+endi
+if $data04 != -inf then
+  return -1
+endi
+if $data05 !=  0.000000000 then
+  return -1
+endi
+
+sql select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from $stb where c1 == 0
+
+print ===> $data01 , $data02 , $data03 , $data04 , $data05
+if $data01 != -2.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 2.062500000 then
+  return -1
+endi
+if $data04 != -inf then
+  return -1
+endi
+if $data05 !=  0.000000000 then
+  return -1
+endi
+
+sql select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from $stb where c1 == 0
+print ===> $data01 , $data02 , $data03 , $data04 , $data05
+
+if $data03 != 2.062500000 then
+  return -1
+endi
+if $data04 != -inf then
+  return -1
+endi
+
+sql select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from $stb order by ts desc
+
+print ===> $data00 , $data01 , $data02 , $data03 , $data04 , $data05
+
+if $data00 != 49 then
+  return -1
+endi
+if $data01 != 5.614709844 then
+  return -1
+endi
+if $data02 != 2401.000000000 then
+  return -1
+endi
+if $data03 != 2403.000000000 then
+  return -1
+endi
+if $data04 != 120055.614709844 then
+  return -1
+endi
+if $data05 != 40356008.000000000 then
+  return -1
+endi
+
+sql select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from $tb order by ts limit 2;
+print ===> $data00 , $data01 , $data02 , $data03 , $data04 , $data05
+print ===> $data10 , $data11 , $data12 , $data13 , $data14 , $data15
+if $data00 != 0 then
+  return -1
+endi
+if $data01 != -2.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 2.062500000 then
+  return -1
+endi
+if $data04 != -inf then
+  return -1
+endi
+if $data05 != 0.000000000 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+if $data11 != 0.000000000 then
+  return -1
+endi
+if $data12 != 1.000000000 then
+  return -1
+endi
+if $data13 != 3.000000000 then
+  return -1
+endi
+if $data14 != 2.000000000 then
+  return -1
+endi
+if $data15 != 2.000000000 then
+  return -1
+endi
+print execute sql select sqrt(abs(log(c1,2)-pow(c1,2)))+2 from $tb order by ts limit 2
+sql select sqrt(abs(log(c1,2)-pow(c1,2)))+2 from $tb order by ts limit 2
+print $data00 , $ data10 
+if $data00 != @inf@ then
+  return -1
+endi
+if $data10 != 3.000000000 then
+  return -1
+endi
+
+print ===============> step 3 sql_error stable, group by, window
+sql_error select log(c2,2) from $stb group by tbname;
+
+sql_error select log(c2,2) from $stb group by tgcol;
+
+sql_error select log(c2,2) from $stb group by c3;
+
+sql_error select log(c2,2) from $stb interval(1m);
+
+sql_error select log(c2,2) from $stb state_window(c7);
+
+sql_error select log(c2,2) from $tb state_window(c7);
+
+sql_error select log(c2,2) from $stb session(ts, 30s);
+
+sql_error select log(c2,2) from $tb session(ts, 30s);
+
+sql_error select log(c2,2) from $stb slimit 2;
+
+sql_error select pow(c2,2) from $stb group by tbname;
+
+sql_error select pow(c2,2) from $stb group by tgcol;
+
+sql_error select pow(c2,2) from $stb group by c3;
+
+sql_error select pow(c2,2) from $stb interval(1m);
+
+sql_error select pow(c2,2) from $stb state_window(c7);
+
+sql_error select pow(c2,2) from $tb state_window(c7);
+
+sql_error select pow(c2,2) from $stb session(ts, 30s);
+
+sql_error select pow(c2,2) from $tb session(ts, 30s);
+
+sql_error select pow(c2,2) from $stb slimit 2;
+
+sql_error select pow(c2,2) from $stb interval(1m) slimit 2;
+print ===============> step 4 nested query
+print ===============> step 4.1 select expr... from (select * from super_tb order by ts desc)
+sql select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from $stb order by ts desc)
+
+print ===> $data00 , $data01 , $data02 , $data03 , $data04 , $data05
+if $data00 != 49 then
+  return -1
+endi
+if $data01 != 5.614709844 then
+  return -1
+endi
+if $data02 != 2401.000000000 then
+  return -1
+endi
+if $data03 != 2403.000000000 then
+  return -1
+endi
+if $data04 !=  120055.614709844 then
+  return -1
+endi
+if $data05 !=  40356008.000000000 then
+  return -1
+endi
+
+print ==============> step 4.2 select expr... from (select * from child_tb order by ts); 
+
+sql select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from $tb order by ts limit 2);
+print ===> $data00 , $data01 , $data02 , $data03 , $data04 , $data05
+print ===> $data10 , $data11 , $data12 , $data13 , $data14 , $data15
+if $data00 != 0 then
+  return -1
+endi
+if $data01 != -2.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 2.062500000 then
+  return -1
+endi
+if $data04 != -inf then
+  return -1
+endi
+if $data05 != 0.000000000 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+if $data11 != 0.000000000 then
+  return -1
+endi
+if $data12 != 1.000000000 then
+  return -1
+endi
+if $data13 != 3.000000000 then
+  return -1
+endi
+if $data14 != 2.000000000 then
+  return -1
+endi
+if $data15 != 2.000000000 then
+  return -1
+endi
+
+print ====> step 4.3 select exprs... from (select * from super_tb ) order by ts desc;
+sql select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from $stb ) order by ts desc
+if $data00 != 49 then
+  return -1
+endi
+if $data01 != 5.614709844 then
+  return -1
+endi
+if $data02 != 2401.000000000 then
+  return -1
+endi
+if $data03 != 2403.000000000 then
+  return -1
+endi
+if $data04 !=  120055.614709844 then
+  return -1
+endi
+if $data05 !=  40356008.000000000 then
+  return -1
+endi
+sql select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from $stb )
+print ===> $data00 , $data01 , $data02 , $data03 , $data04 , $data05
+if $data00 != 0 then
+  return -1
+endi
+if $data01 != -2.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 2.062500000 then
+  return -1
+endi
+if $data04 != -inf then
+  return -1
+endi
+if $data05 != 0.000000000 then
+  return -1
+endi
+
+print ====> step 4.4 select exprs... from (select * from child_tb) order by ts limit 2;
+
+sql select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from $tb ) order by ts limit 2;
+print ===> $data00 , $data01 , $data02 , $data03 , $data04 , $data05
+print ===> $data10 , $data11 , $data12 , $data13 , $data14 , $data15
+if $data00 != 0 then
+  return -1
+endi
+if $data01 != -2.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 2.062500000 then
+  return -1
+endi
+if $data04 != -inf then
+  return -1
+endi
+if $data05 != 0.000000000 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+if $data11 != 0.000000000 then
+  return -1
+endi
+if $data12 != 1.000000000 then
+  return -1
+endi
+if $data13 != 3.000000000 then
+  return -1
+endi
+if $data14 != 2.000000000 then
+  return -1
+endi
+if $data15 != 2.000000000 then
+  return -1
+endi
+sql select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from $tb ) limit 2;
+print ===> $data00 , $data01 , $data02 , $data03 , $data04 , $data05
+print ===> $data10 , $data11 , $data12 , $data13 , $data14 , $data15
+if $data00 != 0 then
+  return -1
+endi
+if $data01 != -2.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 2.062500000 then
+  return -1
+endi
+if $data04 != -inf then
+  return -1
+endi
+if $data05 != 0.000000000 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+if $data11 != 0.000000000 then
+  return -1
+endi
+if $data12 != 1.000000000 then
+  return -1
+endi
+if $data13 != 3.000000000 then
+  return -1
+endi
+if $data14 != 2.000000000 then
+  return -1
+endi
+if $data15 != 2.000000000 then
+  return -1
+endi
+
+print ===============> step 4.5 select * from (select expr... from super_tb order by ts desc)
+sql select * from (select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6, ts from $stb order by ts desc)
+
+print ===> $data00 , $data01 , $data02 , $data03 , $data04 , $data05
+if $data00 != 49 then
+  return -1
+endi
+if $data01 != 5.614709844 then
+  return -1
+endi
+if $data02 != 2401.000000000 then
+  return -1
+endi
+if $data03 != 2403.000000000 then
+  return -1
+endi
+if $data04 !=  120055.614709844 then
+  return -1
+endi
+if $data05 !=  40356008.000000000 then
+  return -1
+endi
+
+print ==============> step 4.6 select * from (select expr... from child_tb order by ts); 
+
+sql select * from (select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6, ts from $tb order by ts limit 2);
+print ===> $data00 , $data01 , $data02 , $data03 , $data04 , $data05
+print ===> $data10 , $data11 , $data12 , $data13 , $data14 , $data15
+if $data00 != 0 then
+  return -1
+endi
+if $data01 != -2.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 2.062500000 then
+  return -1
+endi
+if $data04 != -inf then
+  return -1
+endi
+if $data05 != 0.000000000 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+if $data11 != 0.000000000 then
+  return -1
+endi
+if $data12 != 1.000000000 then
+  return -1
+endi
+if $data13 != 3.000000000 then
+  return -1
+endi
+if $data14 != 2.000000000 then
+  return -1
+endi
+if $data15 != 2.000000000 then
+  return -1
+endi
+
+
+print =============== clear
+sql drop database $db
+sql show databases
+if $rows != 0 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+

@@ -320,8 +320,8 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
 
   static void tsdbDestroyCompactH(SCompactH *pComph) {
     pComph->pDataCols = tdFreeDataCols(pComph->pDataCols);
-    pComph->aSupBlk = taosArrayDestroy(pComph->aSupBlk);
-    pComph->aBlkIdx = taosArrayDestroy(pComph->aBlkIdx);
+    pComph->aSupBlk = taosArrayDestroy(&pComph->aSupBlk);
+    pComph->aBlkIdx = taosArrayDestroy(&pComph->aBlkIdx);
     tsdbDestroyCompTbArray(pComph);
     tsdbDestroyReadH(&(pComph->readh));
     tsdbCloseDFileSet(TSDB_COMPACT_WSET(pComph));
@@ -374,7 +374,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
       tfree(pTh->pInfo);
     }
 
-    pComph->tbArray = taosArrayDestroy(pComph->tbArray);
+    pComph->tbArray = taosArrayDestroy(&pComph->tbArray);
   }
 
   static int tsdbCacheFSetIndex(SCompactH *pComph) {

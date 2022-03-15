@@ -894,6 +894,6 @@ SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSch
     }
     ASSERT(kvLen == memRowTLen(tRow));
   }
-  taosArrayDestroy(stashRow);
+  taosArrayDestroy(&stashRow);
   return buffer;
 }

@@ -28,7 +28,7 @@ echo "spec_file: ${spec_file}"
 
 csudo=""
 if command -v sudo > /dev/null; then
-    csudo="sudo"
+    csudo="sudo "
 fi
 
 function cp_rpm_package() {
@@ -49,17 +49,17 @@ function cp_rpm_package() {
 }
 
 if [ -d ${pkg_dir} ]; then
-  ${csudo} rm -rf ${pkg_dir}
+  ${csudo}rm -rf ${pkg_dir}
 fi
-${csudo} mkdir -p ${pkg_dir}
+${csudo}mkdir -p ${pkg_dir}
 cd ${pkg_dir}
 
-${csudo} mkdir -p BUILD BUILDROOT RPMS SOURCES SPECS SRPMS
+${csudo}mkdir -p BUILD BUILDROOT RPMS SOURCES SPECS SRPMS
 
-${csudo} rpmbuild --define="_version ${tdengine_ver}" --define="_topdir ${pkg_dir}" --define="_compiledir ${compile_dir}" -bb ${spec_file}
+${csudo}rpmbuild --define="_version ${tdengine_ver}" --define="_topdir ${pkg_dir}" --define="_compiledir ${compile_dir}" -bb ${spec_file}
 
 # copy rpm package to output_dir, and modify package name, then clean temp dir
-#${csudo} cp -rf RPMS/* ${output_dir}
+#${csudo}cp -rf RPMS/* ${output_dir}
 cp_rpm_package ${pkg_dir}/RPMS
 
 
@@ -84,4 +84,4 @@ fi
 mv ${output_dir}/TDengine-${tdengine_ver}.rpm ${output_dir}/${rpmname}
 
 cd ..
-${csudo} rm -rf ${pkg_dir}
+${csudo}rm -rf ${pkg_dir}

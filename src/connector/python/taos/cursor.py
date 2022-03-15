@@ -188,6 +188,9 @@ class TaosCursor(object):
         if dataType.upper() == "NCHAR":
             if self._description[col][1] == FieldType.C_NCHAR:
                 return True
+        if dataType.upper() == "JSON":
+            if self._description[col][1] == FieldType.C_JSON:
+                return True
 
         return False
 

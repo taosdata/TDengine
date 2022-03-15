@@ -8,10 +8,9 @@
 
 3.  mkdir debug; cd debug; cmake ..; make ; sudo make install
 
-4.  pip install ../src/connector/python ; pip3 install
-    ../src/connector/python
+4.  cd ../tests && pip3 install -r requirements.txt
 
-5.  pip install numpy; pip3 install numpy fabric2 psutil pandas(numpy is required only if you need to run querySort.py)  
+
 
 >   Note: Both Python2 and Python3 are currently supported by the Python test
 >   framework. Since Python2 is no longer officially supported by Python Software
@@ -102,13 +101,13 @@ failure.
 
     def info(self, info):
 
-        printf("%s %s" % (datetime.datetime.now(), info))
+        print("%s %s" % (datetime.datetime.now(), info))
 
  
 
     def sleep(self, sec):
 
-        printf("%s sleep %d seconds" % (datetime.datetime.now(), sec))
+        print("%s sleep %d seconds" % (datetime.datetime.now(), sec))
 
         time.sleep(sec)
 
@@ -116,7 +115,7 @@ failure.
 
     def debug(self, err):
 
-        printf("\\033[1;36m%s %s\\033[0m" % (datetime.datetime.now(), err))
+        print("\\033[1;36m%s %s\\033[0m" % (datetime.datetime.now(), err))
 
  
 

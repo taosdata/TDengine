@@ -58,7 +58,7 @@ endi
 print =============== step4
 $i = 3
 $user = $userPrefix . $i
-sql create user $user PASS 'abcd012345678901234567891234567890' -x step4
+sql create user $user PASS 'abcd0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890excess' -x step4
 	return -1
 step4:
 sql show users

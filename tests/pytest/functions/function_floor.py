@@ -1294,21 +1294,21 @@ class TDTestCase:
                 double_col double, binary_col binary(8), smallint_col smallint, tinyint_col tinyint, bool_col bool, nchar_col nchar(8), \
                 uint_col int unsigned, ubigint_col bigint unsigned, usmallint_col smallint unsigned,  utinyint_col tinyint unsigned) tags (int_tag int, bigint_tag bigint, \
                     float_tag float, double_tag double, binary_tag binary(8), smallint_tag smallint, tinyint_tag tinyint, bool_tag bool, nchar_tag nchar(8),\
-                        uint_tag int unsigned, ubigint_tag bigint unsigned, usmallint_tag smallint unsigned, utinyint_tag tinyint unsigned)"
+                        uint_tag int unsigned, ubigint_tag bigint unsigned, usmallint_tag smallint unsigned, utinyint_tag tinyint unsigned, timestamp_tag timestamp)"
         )
         tdSql.execute(
             "create stable superb (ts timestamp, timestamp_col timestamp, int_col int, bigint_col bigint, float_col float,\
                 double_col double, binary_col binary(8), smallint_col smallint, tinyint_col tinyint, bool_col bool, nchar_col nchar(8), \
                 uint_col int unsigned, ubigint_col bigint unsigned, usmallint_col smallint unsigned,  utinyint_col tinyint unsigned) tags (int_tag int, bigint_tag bigint, \
                     float_tag float, double_tag double, binary_tag binary(8), smallint_tag smallint, tinyint_tag tinyint, bool_tag bool, nchar_tag nchar(8),\
-                        uint_tag int unsigned, ubigint_tag bigint unsigned, usmallint_tag smallint unsigned, utinyint_tag tinyint unsigned)"
+                        uint_tag int unsigned, ubigint_tag bigint unsigned, usmallint_tag smallint unsigned, utinyint_tag tinyint unsigned, timestamp_tag timestamp)"
         )
         tdSql.execute(
-            "create table t1 using super tags (1, %d, %f, %f, '%s', %d, %d, 1, '%s', %d, %d, %d, %d)"
+            "create table t1 using super tags (1, %d, %f, %f, '%s', %d, %d, 1, '%s', %d, %d, %d, %d, %s)"
             % (self.randomBigint(), self.randomDouble(), self.randomDouble(),
                self.randomNchar(), self.randomSmallint(), self.randomTinyint(),
                self.randomNchar(), self.randomUInt(), self.randomUBigint(),
-               self.randomUSmallint(), self.randomUTinyint()))
+               self.randomUSmallint(), self.randomUTinyint(), 'now'))
         tdSql.execute(
             "insert into t1 values (1629796215891, 1629796215891, %d, %d, %f, %f, '%s', %d, %d, 1, '%s', %d, %d, %d, %d)"
             % (self.randomInt(), self.randomBigint(), self.randomDouble(),
@@ -1338,11 +1338,11 @@ class TDTestCase:
                self.randomUBigint(), self.randomUSmallint(),
                self.randomUTinyint()))
         tdSql.execute(
-            "create table t2 using superb tags (1, %d, %f, %f, '%s', %d, %d, 1, '%s', %d, %d, %d, %d)"
+            "create table t2 using superb tags (1, %d, %f, %f, '%s', %d, %d, 1, '%s', %d, %d, %d, %d, %s)"
             % (self.randomBigint(), self.randomDouble(), self.randomDouble(),
                self.randomNchar(), self.randomSmallint(), self.randomTinyint(),
                self.randomNchar(), self.randomUInt(), self.randomUBigint(),
-               self.randomUSmallint(), self.randomUTinyint()))
+               self.randomUSmallint(), self.randomUTinyint(), 'now'))
         tdSql.execute(
             "insert into t2 values (1629796215891, 1629796215891, %d, %d, %f, %f, '%s', %d, %d, 1, '%s', %d, %d, %d, %d)"
             % (self.randomInt(), self.randomBigint(), self.randomDouble(),
@@ -1371,100 +1371,568 @@ class TDTestCase:
                self.randomTinyint(), self.randomNchar(), self.randomUInt(),
                self.randomUBigint(), self.randomUSmallint(),
                self.randomUTinyint()))
+        
+        shouldPass = ['select floor(int_col) from super',
+             'select floor(int_col) from t1',
+             'select floor(bigint_col) from super',
+             'select floor(bigint_col) from t1',
+             'select floor(float_col) from super',
+             'select floor(float_col) from t1',
+             'select floor(double_col) from super',
+             'select floor(double_col) from t1',
+             'select floor(smallint_col) from super',
+             'select floor(smallint_col) from t1',
+             'select floor(tinyint_col) from super',
+             'select floor(tinyint_col) from t1',
+             'select floor(uint_col) from super',
+             'select floor(uint_col) from t1',
+             'select floor(ubigint_col) from super',
+             'select floor(ubigint_col) from t1',
+             'select floor(usmallint_col) from super',
+             'select floor(usmallint_col) from t1',
+             'select floor(utinyint_col) from super',
+             'select floor(utinyint_col) from t1',
+             'select floor(int_col) - floor(int_col) from super',
+             'select floor(int_col) - floor(int_col) from t1',
+             'select floor(bigint_col) - floor(bigint_col) from super',
+             'select floor(bigint_col) - floor(bigint_col) from t1',
+             'select floor(float_col) - floor(float_col) from super',
+             'select floor(float_col) - floor(float_col) from t1',
+             'select floor(double_col) - floor(double_col) from super',
+             'select floor(double_col) - floor(double_col) from t1',
+             'select floor(smallint_col) - floor(smallint_col) from super',
+             'select floor(smallint_col) - floor(smallint_col) from t1',
+             'select floor(tinyint_col) - floor(tinyint_col) from super',
+             'select floor(tinyint_col) - floor(tinyint_col) from t1',
+             'select floor(uint_col) - floor(uint_col) from super',
+             'select floor(uint_col) - floor(uint_col) from t1',
+             'select floor(ubigint_col) - floor(ubigint_col) from super',
+             'select floor(ubigint_col) - floor(ubigint_col) from t1',
+             'select floor(usmallint_col) - floor(usmallint_col) from super',
+             'select floor(usmallint_col) - floor(usmallint_col) from t1',
+             'select floor(utinyint_col) - floor(utinyint_col) from super',
+             'select floor(utinyint_col) - floor(utinyint_col) from t1',
+             'select floor(int_col) / floor(int_col) from super',
+             'select floor(int_col) / floor(int_col) from t1',
+             'select floor(bigint_col) / floor(bigint_col) from super',
+             'select floor(bigint_col) / floor(bigint_col) from t1',
+             'select floor(float_col) / floor(float_col) from super',
+             'select floor(float_col) / floor(float_col) from t1',
+             'select floor(double_col) / floor(double_col) from super',
+             'select floor(double_col) / floor(double_col) from t1',
+             'select floor(smallint_col) / floor(smallint_col) from super',
+             'select floor(smallint_col) / floor(smallint_col) from t1',
+             'select floor(tinyint_col) / floor(tinyint_col) from super',
+             'select floor(tinyint_col) / floor(tinyint_col) from t1',
+             'select floor(uint_col) / floor(uint_col) from super',
+             'select floor(uint_col) / floor(uint_col) from t1',
+             'select floor(ubigint_col) / floor(ubigint_col) from super',
+             'select floor(ubigint_col) / floor(ubigint_col) from t1',
+             'select floor(usmallint_col) / floor(usmallint_col) from super',
+             'select floor(usmallint_col) / floor(usmallint_col) from t1',
+             'select floor(utinyint_col) / floor(utinyint_col) from super',
+             'select floor(utinyint_col) / floor(utinyint_col) from t1',
+             'select floor(int_col) * floor(int_col) from super',
+             'select floor(int_col) * floor(int_col) from t1',
+             'select floor(bigint_col) * floor(bigint_col) from super',
+             'select floor(bigint_col) * floor(bigint_col) from t1',
+             'select floor(float_col) * floor(float_col) from super',
+             'select floor(float_col) * floor(float_col) from t1',
+             'select floor(double_col) * floor(double_col) from super',
+             'select floor(double_col) * floor(double_col) from t1',
+             'select floor(smallint_col) * floor(smallint_col) from super',
+             'select floor(smallint_col) * floor(smallint_col) from t1',
+             'select floor(tinyint_col) * floor(tinyint_col) from super',
+             'select floor(tinyint_col) * floor(tinyint_col) from t1',
+             'select floor(uint_col) * floor(uint_col) from super',
+             'select floor(uint_col) * floor(uint_col) from t1',
+             'select floor(ubigint_col) * floor(ubigint_col) from super',
+             'select floor(ubigint_col) * floor(ubigint_col) from t1',
+             'select floor(usmallint_col) * floor(usmallint_col) from super',
+             'select floor(usmallint_col) * floor(usmallint_col) from t1',
+             'select floor(utinyint_col) * floor(utinyint_col) from super',
+             'select floor(utinyint_col) * floor(utinyint_col) from t1',
+             'select floor(count(ts)) from super',
+             'select floor(count(ts)) from t1',
+             'select floor(count(timestamp_col)) from super',
+             'select floor(count(timestamp_col)) from t1',
+             'select floor(count(int_col)) from super',
+             'select floor(count(int_col)) from t1',
+             'select floor(count(bigint_col)) from super',
+             'select floor(count(bigint_col)) from t1',
+             'select floor(count(float_col)) from super',
+             'select floor(count(float_col)) from t1',
+             'select floor(count(double_col)) from super',
+             'select floor(count(double_col)) from t1',
+             'select floor(count(binary_col)) from super',
+             'select floor(count(binary_col)) from t1',
+             'select floor(count(smallint_col)) from super',
+             'select floor(count(smallint_col)) from t1',
+             'select floor(count(tinyint_col)) from super',
+             'select floor(count(tinyint_col)) from t1',
+             'select floor(count(bool_col)) from super',
+             'select floor(count(bool_col)) from t1',
+             'select floor(count(nchar_col)) from super',
+             'select floor(count(nchar_col)) from t1',
+             'select floor(count(uint_col)) from super',
+             'select floor(count(uint_col)) from t1',
+             'select floor(count(ubigint_col)) from super',
+             'select floor(count(ubigint_col)) from t1',
+             'select floor(count(usmallint_col)) from super',
+             'select floor(count(usmallint_col)) from t1',
+             'select floor(count(utinyint_col)) from super',
+             'select floor(count(utinyint_col)) from t1',
+             'select floor(count(timestamp_tag)) from super',
+             'select floor(count(timestamp_tag)) from t1',
+             'select floor(count(int_tag)) from super',
+             'select floor(count(int_tag)) from t1',
+             'select floor(count(bigint_tag)) from super',
+             'select floor(count(bigint_tag)) from t1',
+             'select floor(count(float_tag)) from super',
+             'select floor(count(float_tag)) from t1',
+             'select floor(count(double_tag)) from super',
+             'select floor(count(double_tag)) from t1',
+             'select floor(count(binary_tag)) from super',
+             'select floor(count(binary_tag)) from t1',
+             'select floor(count(smallint_tag)) from super',
+             'select floor(count(smallint_tag)) from t1',
+             'select floor(count(tinyint_tag)) from super',
+             'select floor(count(tinyint_tag)) from t1',
+             'select floor(count(bool_tag)) from super',
+             'select floor(count(bool_tag)) from t1',
+             'select floor(count(nchar_tag)) from super',
+             'select floor(count(nchar_tag)) from t1',
+             'select floor(count(uint_tag)) from super',
+             'select floor(count(uint_tag)) from t1',
+             'select floor(count(ubigint_tag)) from super',
+             'select floor(count(ubigint_tag)) from t1',
+             'select floor(count(usmallint_tag)) from super',
+             'select floor(count(usmallint_tag)) from t1',
+             'select floor(count(utinyint_tag)) from super',
+             'select floor(count(utinyint_tag)) from t1',
+             'select floor(avg(int_col)) from super',
+             'select floor(avg(int_col)) from t1',
+             'select floor(avg(bigint_col)) from super',
+             'select floor(avg(bigint_col)) from t1',
+             'select floor(avg(float_col)) from super',
+             'select floor(avg(float_col)) from t1',
+             'select floor(avg(double_col)) from super',
+             'select floor(avg(double_col)) from t1',
+             'select floor(avg(smallint_col)) from super',
+             'select floor(avg(smallint_col)) from t1',
+             'select floor(avg(tinyint_col)) from super',
+             'select floor(avg(tinyint_col)) from t1',
+             'select floor(avg(uint_col)) from super',
+             'select floor(avg(uint_col)) from t1',
+             'select floor(avg(ubigint_col)) from super',
+             'select floor(avg(ubigint_col)) from t1',
+             'select floor(avg(usmallint_col)) from super',
+             'select floor(avg(usmallint_col)) from t1',
+             'select floor(avg(utinyint_col)) from super',
+             'select floor(avg(utinyint_col)) from t1',
+             'select floor(twa(int_col)) from t1',
+             'select floor(twa(bigint_col)) from t1',
+             'select floor(twa(float_col)) from t1',
+             'select floor(twa(double_col)) from t1',
+             'select floor(twa(smallint_col)) from t1',
+             'select floor(twa(tinyint_col)) from t1',
+             'select floor(twa(uint_col)) from t1',
+             'select floor(twa(ubigint_col)) from t1',
+             'select floor(twa(usmallint_col)) from t1',
+             'select floor(twa(utinyint_col)) from t1',
+             'select floor(sum(int_col)) from super',
+             'select floor(sum(int_col)) from t1',
+             'select floor(sum(bigint_col)) from super',
+             'select floor(sum(bigint_col)) from t1',
+             'select floor(sum(float_col)) from super',
+             'select floor(sum(float_col)) from t1',
+             'select floor(sum(double_col)) from super',
+             'select floor(sum(double_col)) from t1',
+             'select floor(sum(smallint_col)) from super',
+             'select floor(sum(smallint_col)) from t1',
+             'select floor(sum(tinyint_col)) from super',
+             'select floor(sum(tinyint_col)) from t1',
+             'select floor(sum(uint_col)) from super',
+             'select floor(sum(uint_col)) from t1',
+             'select floor(sum(ubigint_col)) from super',
+             'select floor(sum(ubigint_col)) from t1',
+             'select floor(sum(usmallint_col)) from super',
+             'select floor(sum(usmallint_col)) from t1',
+             'select floor(sum(utinyint_col)) from super',
+             'select floor(sum(utinyint_col)) from t1',
+             'select floor(stddev(int_col)) from super',
+             'select floor(stddev(int_col)) from t1',
+             'select floor(stddev(bigint_col)) from super',
+             'select floor(stddev(bigint_col)) from t1',
+             'select floor(stddev(float_col)) from super',
+             'select floor(stddev(float_col)) from t1',
+             'select floor(stddev(double_col)) from super',
+             'select floor(stddev(double_col)) from t1',
+             'select floor(stddev(smallint_col)) from super',
+             'select floor(stddev(smallint_col)) from t1',
+             'select floor(stddev(tinyint_col)) from super',
+             'select floor(stddev(tinyint_col)) from t1',
+             'select floor(stddev(uint_col)) from super',
+             'select floor(stddev(uint_col)) from t1',
+             'select floor(stddev(ubigint_col)) from super',
+             'select floor(stddev(ubigint_col)) from t1',
+             'select floor(stddev(usmallint_col)) from super',
+             'select floor(stddev(usmallint_col)) from t1',
+             'select floor(stddev(utinyint_col)) from super',
+             'select floor(stddev(utinyint_col)) from t1',
+             'select floor(irate(int_col)) from t1',
+             'select floor(irate(bigint_col)) from t1',
+             'select floor(irate(float_col)) from t1',
+             'select floor(irate(double_col)) from t1',
+             'select floor(irate(smallint_col)) from t1',
+             'select floor(irate(tinyint_col)) from t1',
+             'select floor(irate(uint_col)) from t1',
+             'select floor(irate(ubigint_col)) from t1',
+             'select floor(irate(usmallint_col)) from t1',
+             'select floor(irate(utinyint_col)) from t1',
+             'select floor(min(int_col)) from super',
+             'select floor(min(int_col)) from t1',
+             'select floor(min(bigint_col)) from super',
+             'select floor(min(bigint_col)) from t1',
+             'select floor(min(float_col)) from super',
+             'select floor(min(float_col)) from t1',
+             'select floor(min(double_col)) from super',
+             'select floor(min(double_col)) from t1',
+             'select floor(min(smallint_col)) from super',
+             'select floor(min(smallint_col)) from t1',
+             'select floor(min(tinyint_col)) from super',
+             'select floor(min(tinyint_col)) from t1',
+             'select floor(min(uint_col)) from super',
+             'select floor(min(uint_col)) from t1',
+             'select floor(min(ubigint_col)) from super',
+             'select floor(min(ubigint_col)) from t1',
+             'select floor(min(usmallint_col)) from super',
+             'select floor(min(usmallint_col)) from t1',
+             'select floor(min(utinyint_col)) from super',
+             'select floor(min(utinyint_col)) from t1',
+             'select floor(max(int_col)) from super',
+             'select floor(max(int_col)) from t1',
+             'select floor(max(bigint_col)) from super',
+             'select floor(max(bigint_col)) from t1',
+             'select floor(max(float_col)) from super',
+             'select floor(max(float_col)) from t1',
+             'select floor(max(double_col)) from super',
+             'select floor(max(double_col)) from t1',
+             'select floor(max(smallint_col)) from super',
+             'select floor(max(smallint_col)) from t1',
+             'select floor(max(tinyint_col)) from super',
+             'select floor(max(tinyint_col)) from t1',
+             'select floor(max(uint_col)) from super',
+             'select floor(max(uint_col)) from t1',
+             'select floor(max(ubigint_col)) from super',
+             'select floor(max(ubigint_col)) from t1',
+             'select floor(max(usmallint_col)) from super',
+             'select floor(max(usmallint_col)) from t1',
+             'select floor(max(utinyint_col)) from super',
+             'select floor(max(utinyint_col)) from t1',
+             'select floor(first(int_col)) from super',
+             'select floor(first(int_col)) from t1',
+             'select floor(first(bigint_col)) from super',
+             'select floor(first(bigint_col)) from t1',
+             'select floor(first(float_col)) from super',
+             'select floor(first(float_col)) from t1',
+             'select floor(first(double_col)) from super',
+             'select floor(first(double_col)) from t1',
+             'select floor(first(smallint_col)) from super',
+             'select floor(first(smallint_col)) from t1',
+             'select floor(first(tinyint_col)) from super',
+             'select floor(first(tinyint_col)) from t1',
+             'select floor(first(uint_col)) from super',
+             'select floor(first(uint_col)) from t1',
+             'select floor(first(ubigint_col)) from super',
+             'select floor(first(ubigint_col)) from t1',
+             'select floor(first(usmallint_col)) from super',
+             'select floor(first(usmallint_col)) from t1',
+             'select floor(first(utinyint_col)) from super',
+             'select floor(first(utinyint_col)) from t1',
+             'select floor(last(int_col)) from super',
+             'select floor(last(int_col)) from t1',
+             'select floor(last(bigint_col)) from super',
+             'select floor(last(bigint_col)) from t1',
+             'select floor(last(float_col)) from super',
+             'select floor(last(float_col)) from t1',
+             'select floor(last(double_col)) from super',
+             'select floor(last(double_col)) from t1',
+             'select floor(last(smallint_col)) from super',
+             'select floor(last(smallint_col)) from t1',
+             'select floor(last(tinyint_col)) from super',
+             'select floor(last(tinyint_col)) from t1',
+             'select floor(last(uint_col)) from super',
+             'select floor(last(uint_col)) from t1',
+             'select floor(last(ubigint_col)) from super',
+             'select floor(last(ubigint_col)) from t1',
+             'select floor(last(usmallint_col)) from super',
+             'select floor(last(usmallint_col)) from t1',
+             'select floor(last(utinyint_col)) from super',
+             'select floor(last(utinyint_col)) from t1',
+             'select floor(percentile(int_col, 1)) from t1',
+             'select floor(percentile(bigint_col, 1)) from t1',
+             'select floor(percentile(float_col, 1)) from t1',
+             'select floor(percentile(double_col, 1)) from t1',
+             'select floor(percentile(smallint_col, 1)) from t1',
+             'select floor(percentile(tinyint_col, 1)) from t1',
+             'select floor(percentile(uint_col, 1)) from t1',
+             'select floor(percentile(ubigint_col, 1)) from t1',
+             'select floor(percentile(usmallint_col, 1)) from t1',
+             'select floor(percentile(utinyint_col, 1)) from t1',
+             'select floor(apercentile(int_col, 1)) from super',
+             'select floor(apercentile(int_col, 1)) from t1',
+             'select floor(apercentile(bigint_col, 1)) from super',
+             'select floor(apercentile(bigint_col, 1)) from t1',
+             'select floor(apercentile(float_col, 1)) from super',
+             'select floor(apercentile(float_col, 1)) from t1',
+             'select floor(apercentile(double_col, 1)) from super',
+             'select floor(apercentile(double_col, 1)) from t1',
+             'select floor(apercentile(smallint_col, 1)) from super',
+             'select floor(apercentile(smallint_col, 1)) from t1',
+             'select floor(apercentile(tinyint_col, 1)) from super',
+             'select floor(apercentile(tinyint_col, 1)) from t1',
+             'select floor(apercentile(uint_col, 1)) from super',
+             'select floor(apercentile(uint_col, 1)) from t1',
+             'select floor(apercentile(ubigint_col, 1)) from super',
+             'select floor(apercentile(ubigint_col, 1)) from t1',
+             'select floor(apercentile(usmallint_col, 1)) from super',
+             'select floor(apercentile(usmallint_col, 1)) from t1',
+             'select floor(apercentile(utinyint_col, 1)) from super',
+             'select floor(apercentile(utinyint_col, 1)) from t1',
+             'select floor(last_row(int_col)) from super',
+             'select floor(last_row(int_col)) from t1',
+             'select floor(last_row(bigint_col)) from super',
+             'select floor(last_row(bigint_col)) from t1',
+             'select floor(last_row(float_col)) from super',
+             'select floor(last_row(float_col)) from t1',
+             'select floor(last_row(double_col)) from super',
+             'select floor(last_row(double_col)) from t1',
+             'select floor(last_row(smallint_col)) from super',
+             'select floor(last_row(smallint_col)) from t1',
+             'select floor(last_row(tinyint_col)) from super',
+             'select floor(last_row(tinyint_col)) from t1',
+             'select floor(last_row(uint_col)) from super',
+             'select floor(last_row(uint_col)) from t1',
+             'select floor(last_row(ubigint_col)) from super',
+             'select floor(last_row(ubigint_col)) from t1',
+             'select floor(last_row(usmallint_col)) from super',
+             'select floor(last_row(usmallint_col)) from t1',
+             'select floor(last_row(utinyint_col)) from super',
+             'select floor(last_row(utinyint_col)) from t1',
+             'select floor(interp(int_col)) from t1',
+             'select floor(interp(bigint_col)) from t1',
+             'select floor(interp(float_col)) from t1',
+             'select floor(interp(double_col)) from t1',
+             'select floor(interp(smallint_col)) from t1',
+             'select floor(interp(tinyint_col)) from t1',
+             'select floor(interp(uint_col)) from t1',
+             'select floor(interp(ubigint_col)) from t1',
+             'select floor(interp(usmallint_col)) from t1',
+             'select floor(interp(utinyint_col)) from t1',
+             'select floor(spread(ts)) from super',
+             'select floor(spread(ts)) from t1',
+             'select floor(spread(timestamp_col)) from super',
+             'select floor(spread(timestamp_col)) from t1',
+             'select floor(spread(int_col)) from super',
+             'select floor(spread(int_col)) from t1',
+             'select floor(spread(bigint_col)) from super',
+             'select floor(spread(bigint_col)) from t1',
+             'select floor(spread(float_col)) from super',
+             'select floor(spread(float_col)) from t1',
+             'select floor(spread(double_col)) from super',
+             'select floor(spread(double_col)) from t1',
+             'select floor(spread(smallint_col)) from super',
+             'select floor(spread(smallint_col)) from t1',
+             'select floor(spread(tinyint_col)) from super',
+             'select floor(spread(tinyint_col)) from t1',
+             'select floor(spread(uint_col)) from super',
+             'select floor(spread(uint_col)) from t1',
+             'select floor(spread(ubigint_col)) from super',
+             'select floor(spread(ubigint_col)) from t1',
+             'select floor(spread(usmallint_col)) from super',
+             'select floor(spread(usmallint_col)) from t1',
+             'select floor(spread(utinyint_col)) from super',
+             'select floor(spread(utinyint_col)) from t1',
+             'select floor(int_col + int_col) from super',
+             'select floor(int_col + int_col) from t1',
+             'select floor(bigint_col + bigint_col) from super',
+             'select floor(bigint_col + bigint_col) from t1',
+             'select floor(float_col + float_col) from super',
+             'select floor(float_col + float_col) from t1',
+             'select floor(double_col + double_col) from super',
+             'select floor(double_col + double_col) from t1',
+             'select floor(smallint_col + smallint_col) from super',
+             'select floor(smallint_col + smallint_col) from t1',
+             'select floor(tinyint_col + tinyint_col) from super',
+             'select floor(tinyint_col + tinyint_col) from t1',
+             'select floor(uint_col + uint_col) from super',
+             'select floor(uint_col + uint_col) from t1',
+             'select floor(ubigint_col + ubigint_col) from super',
+             'select floor(ubigint_col + ubigint_col) from t1',
+             'select floor(usmallint_col + usmallint_col) from super',
+             'select floor(usmallint_col + usmallint_col) from t1',
+             'select floor(utinyint_col + utinyint_col) from super',
+             'select floor(utinyint_col + utinyint_col) from t1',
+             'select floor(int_col - int_col) from super',
+             'select floor(int_col - int_col) from t1',
+             'select floor(bigint_col - bigint_col) from super',
+             'select floor(bigint_col - bigint_col) from t1',
+             'select floor(float_col - float_col) from super',
+             'select floor(float_col - float_col) from t1',
+             'select floor(double_col - double_col) from super',
+             'select floor(double_col - double_col) from t1',
+             'select floor(smallint_col - smallint_col) from super',
+             'select floor(smallint_col - smallint_col) from t1',
+             'select floor(tinyint_col - tinyint_col) from super',
+             'select floor(tinyint_col - tinyint_col) from t1',
+             'select floor(uint_col - uint_col) from super',
+             'select floor(uint_col - uint_col) from t1',
+             'select floor(ubigint_col - ubigint_col) from super',
+             'select floor(ubigint_col - ubigint_col) from t1',
+             'select floor(usmallint_col - usmallint_col) from super',
+             'select floor(usmallint_col - usmallint_col) from t1',
+             'select floor(utinyint_col - utinyint_col) from super',
+             'select floor(utinyint_col - utinyint_col) from t1',
+             'select floor(int_col * int_col) from super',
+             'select floor(int_col * int_col) from t1',
+             'select floor(bigint_col * bigint_col) from super',
+             'select floor(bigint_col * bigint_col) from t1',
+             'select floor(float_col * float_col) from super',
+             'select floor(float_col * float_col) from t1',
+             'select floor(double_col * double_col) from super',
+             'select floor(double_col * double_col) from t1',
+             'select floor(smallint_col * smallint_col) from super',
+             'select floor(smallint_col * smallint_col) from t1',
+             'select floor(tinyint_col * tinyint_col) from super',
+             'select floor(tinyint_col * tinyint_col) from t1',
+             'select floor(uint_col * uint_col) from super',
+             'select floor(uint_col * uint_col) from t1',
+             'select floor(ubigint_col * ubigint_col) from super',
+             'select floor(ubigint_col * ubigint_col) from t1',
+             'select floor(usmallint_col * usmallint_col) from super',
+             'select floor(usmallint_col * usmallint_col) from t1',
+             'select floor(utinyint_col * utinyint_col) from super',
+             'select floor(utinyint_col * utinyint_col) from t1',
+             'select floor(int_col / int_col) from super',
+             'select floor(int_col / int_col) from t1',
+             'select floor(bigint_col / bigint_col) from super',
+             'select floor(bigint_col / bigint_col) from t1',
+             'select floor(float_col / float_col) from super',
+             'select floor(float_col / float_col) from t1',
+             'select floor(double_col / double_col) from super',
+             'select floor(double_col / double_col) from t1',
+             'select floor(smallint_col / smallint_col) from super',
+             'select floor(smallint_col / smallint_col) from t1',
+             'select floor(tinyint_col / tinyint_col) from super',
+             'select floor(tinyint_col / tinyint_col) from t1',
+             'select floor(uint_col / uint_col) from super',
+             'select floor(uint_col / uint_col) from t1',
+             'select floor(ubigint_col / ubigint_col) from super',
+             'select floor(ubigint_col / ubigint_col) from t1',
+             'select floor(usmallint_col / usmallint_col) from super',
+             'select floor(usmallint_col / usmallint_col) from t1',
+             'select floor(utinyint_col / utinyint_col) from super',
+             'select floor(utinyint_col / utinyint_col) from t1',
+             'select int_col, floor(int_col), int_col from super',
+             'select int_col, floor(int_col), int_col from t1',
+             'select bigint_col, floor(bigint_col), bigint_col from super',
+             'select bigint_col, floor(bigint_col), bigint_col from t1',
+             'select float_col, floor(float_col), float_col from super',
+             'select float_col, floor(float_col), float_col from t1',
+             'select double_col, floor(double_col), double_col from super',
+             'select double_col, floor(double_col), double_col from t1',
+             'select smallint_col, floor(smallint_col), smallint_col from super',
+             'select smallint_col, floor(smallint_col), smallint_col from t1',
+             'select tinyint_col, floor(tinyint_col), tinyint_col from super',
+             'select tinyint_col, floor(tinyint_col), tinyint_col from t1',
+             'select uint_col, floor(uint_col), uint_col from super',
+             'select uint_col, floor(uint_col), uint_col from t1',
+             'select ubigint_col, floor(ubigint_col), ubigint_col from super',
+             'select ubigint_col, floor(ubigint_col), ubigint_col from t1',
+             'select usmallint_col, floor(usmallint_col), usmallint_col from super',
+             'select usmallint_col, floor(usmallint_col), usmallint_col from t1',
+             'select utinyint_col, floor(utinyint_col), utinyint_col from super',
+             'select utinyint_col, floor(utinyint_col), utinyint_col from t1',
+             'select 1, floor(int_col), 1 from super',
+             'select 1, floor(int_col), 1 from t1',
+             'select 1, floor(bigint_col), 1 from super',
+             'select 1, floor(bigint_col), 1 from t1',
+             'select 1, floor(float_col), 1 from super',
+             'select 1, floor(float_col), 1 from t1',
+             'select 1, floor(double_col), 1 from super',
+             'select 1, floor(double_col), 1 from t1',
+             'select 1, floor(smallint_col), 1 from super',
+             'select 1, floor(smallint_col), 1 from t1',
+             'select 1, floor(tinyint_col), 1 from super',
+             'select 1, floor(tinyint_col), 1 from t1',
+             'select 1, floor(uint_col), 1 from super',
+             'select 1, floor(uint_col), 1 from t1',
+             'select 1, floor(ubigint_col), 1 from super',
+             'select 1, floor(ubigint_col), 1 from t1',
+             'select 1, floor(usmallint_col), 1 from super',
+             'select 1, floor(usmallint_col), 1 from t1',
+             'select 1, floor(utinyint_col), 1 from super',
+             'select 1, floor(utinyint_col), 1 from t1',
+             'select floor(int_col) as anyName from super',
+             'select floor(int_col) as anyName from t1',
+             'select floor(bigint_col) as anyName from super',
+             'select floor(bigint_col) as anyName from t1',
+             'select floor(float_col) as anyName from super',
+             'select floor(float_col) as anyName from t1',
+             'select floor(double_col) as anyName from super',
+             'select floor(double_col) as anyName from t1',
+             'select floor(smallint_col) as anyName from super',
+             'select floor(smallint_col) as anyName from t1',
+             'select floor(tinyint_col) as anyName from super',
+             'select floor(tinyint_col) as anyName from t1',
+             'select floor(uint_col) as anyName from super',
+             'select floor(uint_col) as anyName from t1',
+             'select floor(ubigint_col) as anyName from super',
+             'select floor(ubigint_col) as anyName from t1',
+             'select floor(usmallint_col) as anyName from super',
+             'select floor(usmallint_col) as anyName from t1',
+             'select floor(utinyint_col) as anyName from super',
+             'select floor(utinyint_col) as anyName from t1'
+            ]
+
+
+        shouldPass2 = ['select floor(super.int_col) from super',
+            'select floor(super.int_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+            'select floor(super.bigint_col) from super',
+            'select floor(super.bigint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+            'select floor(super.float_col) from super',
+            'select floor(super.float_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+            'select floor(super.double_col) from super',
+            'select floor(super.double_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+            'select floor(super.smallint_col) from super',
+            'select floor(super.smallint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+            'select floor(super.tinyint_col) from super',
+            'select floor(super.tinyint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+            'select floor(super.uint_col) from super',
+            'select floor(super.uint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+            'select floor(super.ubigint_col) from super',
+            'select floor(super.ubigint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+            'select floor(super.usmallint_col) from super',
+            'select floor(super.usmallint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+            'select floor(super.utinyint_col) from super',
+            'select floor(super.utinyint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+            'select floor(t1.int_col) from t1',
+            'select floor(t1.bigint_col) from t1',
+            'select floor(t1.float_col) from t1',
+            'select floor(t1.double_col) from t1',
+            'select floor(t1.smallint_col) from t1',
+            'select floor(t1.tinyint_col) from t1',
+            'select floor(t1.uint_col) from t1',
+            'select floor(t1.ubigint_col) from t1',
+            'select floor(t1.usmallint_col) from t1',
+            'select floor(t1.utinyint_col) from t1']
+
 
         for s in range(len(select_command)):
             for f in range(len(from_command)):
                 sql = "select " + select_command[s] + from_command[f]
-                if (select_command[s] == "floor(int_col)"\
-                        or select_command[s] == "floor(bigint_col)"\
-                        or select_command[s] == "floor(smallint_col)" \
-                        or select_command[s] == "floor(float_col)"\
-                        or select_command[s] == "floor(double_col)"\
-                        or select_command[s] == "floor(tinyint_col)"\
-                        or select_command[s] == "floor(uint_col)"\
-                        or select_command[s] == "floor(ubigint_col)"\
-                        or select_command[s] == "floor(usmallint_col)"\
-                        or select_command[s] == "floor(utinyint_col)"\
-                        or select_command[s] == "1, floor(int_col), 1"\
-                        or select_command[s] == "1, floor(bigint_col), 1"\
-                        or select_command[s] == "1, floor(float_col), 1"\
-                        or select_command[s] == "1, floor(double_col), 1"\
-                        or select_command[s] == "1, floor(smallint_col), 1"\
-                        or select_command[s] == "1, floor(tinyint_col), 1"\
-                        or select_command[s] == "1, floor(uint_col), 1"\
-                        or select_command[s] == "1, floor(ubigint_col), 1"\
-                        or select_command[s] == "1, floor(usmallint_col), 1"\
-                        or select_command[s] == "1, floor(utinyint_col), 1"\
-                        or select_command[s] == "int_col, floor(int_col), int_col"\
-                        or select_command[s] == "bigint_col, floor(bigint_col), bigint_col"\
-                        or select_command[s] == "float_col, floor(float_col), float_col"\
-                        or select_command[s] == "double_col, floor(double_col), double_col"\
-                        or select_command[s] == "smallint_col, floor(smallint_col), smallint_col"\
-                        or select_command[s] == "tinyint_col, floor(tinyint_col), tinyint_col"\
-                        or select_command[s] == "uint_col, floor(uint_col), uint_col"\
-                        or select_command[s] == "ubigint_col, floor(ubigint_col), ubigint_col"\
-                        or select_command[s] == "usmallint_col, floor(usmallint_col), usmallint_col"\
-                        or select_command[s] == "utinyint_col, floor(utinyint_col), utinyint_col"\
-                        or select_command[s] == "floor(int_col) as anyName"\
-                        or select_command[s] == "floor(bigint_col) as anyName"\
-                        or select_command[s] == "floor(float_col) as anyName"\
-                        or select_command[s] == "floor(double_col) as anyName"\
-                        or select_command[s] == "floor(smallint_col) as anyName"\
-                        or select_command[s] == "floor(tinyint_col) as anyName"\
-                        or select_command[s] == "floor(uint_col) as anyName"\
-                        or select_command[s] == "floor(ubigint_col) as anyName"\
-                        or select_command[s] == "floor(usmallint_col) as anyName"\
-                        or select_command[s] == "floor(utinyint_col) as anyName"\
-                        or select_command[s] == "floor(int_col) + floor(int_col)"\
-                        or select_command[s] == "floor(bigint_col) + floor(bigint_col)"\
-                        or select_command[s] == "floor(float_col) + floor(float_col)"\
-                        or select_command[s] == "floor(double_col) + floor(double_col)"\
-                        or select_command[s] == "floor(smallint_col) + floor(smallint_col)"\
-                        or select_command[s] == "floor(tinyint_col) + floor(tinyint_col)"\
-                        or select_command[s] == "floor(uint_col) + floor(uint_col)"\
-                        or select_command[s] == "floor(ubigint_col) + floor(ubigint_col)"\
-                        or select_command[s] == "floor(usmallint_col) + floor(usmallint_col)"\
-                        or select_command[s] == "floor(utinyint_col) + floor(utinyint_col)"\
-                        or select_command[s] == "floor(int_col) + floor(int_col)"\
-                        or select_command[s] == "floor(bigint_col) + floor(bigint_col)"\
-                        or select_command[s] == "floor(float_col) + floor(float_col)"\
-                        or select_command[s] == "floor(double_col) + floor(double_col)"\
-                        or select_command[s] == "floor(smallint_col) + floor(smallint_col)"\
-                        or select_command[s] == "floor(tinyint_col) + floor(tinyint_col)"\
-                        or select_command[s] == "floor(uint_col) + floor(uint_col)"\
-                        or select_command[s] == "floor(ubigint_col) + floor(ubigint_col)"\
-                        or select_command[s] == "floor(usmallint_col) + floor(usmallint_col)"\
-                        or select_command[s] == "floor(utinyint_col) + cei(utinyint_col)"\
-                        or select_command[s] == "floor(int_col) - floor(int_col)"\
-                        or select_command[s] == "floor(bigint_col) - floor(bigint_col)"\
-                        or select_command[s] == "floor(float_col) - floor(float_col)"\
-                        or select_command[s] == "floor(double_col) - floor(double_col)"\
-                        or select_command[s] == "floor(smallint_col) - floor(smallint_col)"\
-                        or select_command[s] == "floor(tinyint_col) - floor(tinyint_col)"\
-                        or select_command[s] == "floor(uint_col) - floor(uint_col)"\
-                        or select_command[s] == "floor(ubigint_col) - floor(ubigint_col)"\
-                        or select_command[s] == "floor(usmallint_col) - floor(usmallint_col)"\
-                        or select_command[s] == "floor(utinyint_col) - floor(utinyint_col)"\
-                        or select_command[s] == "floor(int_col) * floor(int_col)"\
-                        or select_command[s] == "floor(bigint_col) * floor(bigint_col)"\
-                        or select_command[s] == "floor(float_col) * floor(float_col)"\
-                        or select_command[s] == "floor(double_col) * floor(double_col)"\
-                        or select_command[s] == "floor(smallint_col) * floor(smallint_col)"\
-                        or select_command[s] == "floor(tinyint_col) * floor(tinyint_col)"\
-                        or select_command[s] == "floor(uint_col) * floor(uint_col)"\
-                        or select_command[s] == "floor(ubigint_col) * floor(ubigint_col)"\
-                        or select_command[s] == "floor(usmallint_col) * floor(usmallint_col)"\
-                        or select_command[s] == "floor(utinyint_col) * floor(utinyint_col)"\
-                        or select_command[s] == "floor(int_col) / floor(int_col)"\
-                        or select_command[s] == "floor(bigint_col) / floor(bigint_col)"\
-                        or select_command[s] == "floor(float_col) / floor(float_col)"\
-                        or select_command[s] == "floor(double_col) / floor(double_col)"\
-                        or select_command[s] == "floor(smallint_col) / floor(smallint_col)"\
-                        or select_command[s] == "floor(tinyint_col) / floor(tinyint_col)"\
-                        or select_command[s] == "floor(uint_col) / floor(uint_col)"\
-                        or select_command[s] == "floor(ubigint_col) / floor(ubigint_col)"\
-                        or select_command[s] == "floor(usmallint_col) / floor(usmallint_col)"\
-                        or select_command[s] == "floor(utinyint_col) / floor(utinyint_col)"):
+                if sql in shouldPass:
                     tdSql.query(sql)
                 else:
                     tdSql.error(sql)
@@ -1475,40 +1943,10 @@ class TDTestCase:
                         sql = "select " + simple_select_command[
                             sim] + advance_from_command[fr] + filter_command[
                                 filter] + fill_command[fill]
-                        if sql == "select floor(t1.int_col) from t1"\
-                            or sql == "select floor(super.int_col) from super"\
-                                or sql == "select floor(t1.bigint_col) from t1"\
-                                    or sql == "select floor(super.bigint_col) from super"\
-                                        or sql == "select floor(t1.smallint_col) from t1"\
-                                            or sql == "select floor(super.smallint_col) from super"\
-                                                or sql == "select floor(t1.tinyint_col) from t1"\
-                                                    or sql == "select floor(super.tinyint_col) from super"\
-                                                        or sql == "select floor(t1.float_col) from t1"\
-                                                            or sql == "select floor(super.float_col) from super"\
-                                                                or sql == "select floor(t1.double_col) from t1"\
-                                                                    or sql == "select floor(super.double_col) from super"\
-                                                                        or sql == "select floor(t1.uint_col) from t1"\
-                                                                            or sql == "select floor(super.uint_col) from super"\
-                                                                                or sql == "select floor(t1.ubigint_col) from t1"\
-                                                                                    or sql == "select floor(super.ubigint_col) from super"\
-                                                                                        or sql == "select floor(t1.usmallint_col) from t1"\
-                                                                                            or sql == "select floor(super.usmallint_col) from super"\
-                                                                                                or sql == "select floor(t1.utinyint_col) from t1"\
-                                                                                                    or sql == "select floor(super.utinyint_col) from super"\
-                                                                                                        or sql == "select floor(super.int_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                            or sql == "select floor(super.bigint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                or sql == "select floor(super.smallint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                    or sql == "select floor(super.tinyint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                        or sql == "select floor(super.float_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                            or sql == "select floor(super.double_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                                or sql == "select floor(super.uint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                                    or sql == "select floor(super.ubigint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                                        or sql == "select floor(super.usmallint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                                            or sql == "select floor(super.utinyint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag":
+                        if sql in shouldPass2:        
                             tdSql.query(sql)
                         else:
-                            tdSql.error(sql)
-
+                            tdSql.error(sql)                    
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

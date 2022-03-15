@@ -35,7 +35,8 @@ namespace TDengineDriver
         TSDB_DATA_TYPE_UTINYINT = 11,// 1 byte
         TSDB_DATA_TYPE_USMALLINT = 12,// 2 bytes
         TSDB_DATA_TYPE_UINT = 13,    // 4 bytes
-        TSDB_DATA_TYPE_UBIGINT = 14   // 8 bytes
+        TSDB_DATA_TYPE_UBIGINT = 14,   // 8 bytes
+        TSDB_DATA_TYPE_JSONTAG = 15   //4096 bytes 
     }
 
     public enum TDengineInitOption
@@ -43,10 +44,9 @@ namespace TDengineDriver
         TSDB_OPTION_LOCALE = 0,
         TSDB_OPTION_CHARSET = 1,
         TSDB_OPTION_TIMEZONE = 2,
-        TDDB_OPTION_CONFIGDIR = 3,
-        TDDB_OPTION_SHELL_ACTIVITY_TIMER = 4
+        TSDB_OPTION_CONFIGDIR = 3,
+        TSDB_OPTION_SHELL_ACTIVITY_TIMER = 4
     }
-
     enum TaosField
     {
         STRUCT_SIZE = 68,
@@ -87,11 +87,13 @@ namespace TDengineDriver
                 case TDengineDataType.TSDB_DATA_TYPE_DOUBLE:
                     return "DOUBLE";
                 case TDengineDataType.TSDB_DATA_TYPE_BINARY:
-                    return "STRING";
+                    return "BINARY";
                 case TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP:
                     return "TIMESTAMP";
                 case TDengineDataType.TSDB_DATA_TYPE_NCHAR:
                     return "NCHAR";
+                case TDengineDataType.TSDB_DATA_TYPE_JSONTAG:
+                    return "JSON";
                 default:
                     return "undefine";
             }
@@ -142,6 +144,43 @@ namespace TDengineDriver
         public int num;
     }
 
+    /// <summary>
+    /// User defined callback function for interface "QueryAsync()"
+    /// ,actually is a delegate in .Net.
+    /// This function aim to handle the taoRes which points to
+    /// the caller method's sql resultset.
+    /// </summary>
+    /// <param name="param"> This parameter will sent by caller method (QueryAsync()).</param>
+    /// <param name="taoRes"> This is the retrieved by caller method's sql.</param>
+    /// <param name="code"> 0 for indicate operation success and negative for operation fail.</param>
+    public delegate void QueryAsyncCallback(IntPtr param, IntPtr taoRes, int code);
+
+    /// <summary>
+    /// User defined callback function for interface "FetchRowAsync()"
+    /// ,actually is a delegate in .Net.
+    /// This callback allow applications to get each row of the
+    /// batch records by calling FetchRowAsync() forward iteration.
+    /// After reading all the records in a block, the application needs to continue calling 
+    /// FetchRowAsync() in this callback function to obtain the next batch of records for 
+    /// processing until the number of records
+    /// </summary>
+    /// <param name="param">The parameter passed by <see cref="FetchRowAsync"/></param>
+    /// <param name="taoRes">Query status</param>
+    /// <param name="numOfRows"> The number of rows of data obtained (not a function of
+    /// the entire query result set). When the number is zero (the result is returned) 
+    /// or the number of records is negative (the query fails).</param>
+    public delegate void FetchRowAsyncCallback(IntPtr param, IntPtr taoRes, int numOfRows);
+
+    /// <summary>
+    /// In asynchronous mode, the prototype of the callback function.
+    /// </summary>
+    /// <param name="subscribe">Subscription object return by <see cref = "Subscribe"> </param>
+    /// <param name="tasRes"> Query retrieve result set. (Note there may be no record in the result set.)</param>
+    /// <param name="param"> Additional parameters supplied by the client when taos_subscribe is called.</param>
+    /// <param name="code"> Error code.</param>
+    public delegate void SubscribeCallback(IntPtr subscribe, IntPtr tasRes, IntPtr param, int code);
+    public delegate void StreamOpenCallback(IntPtr param, IntPtr taosRes, IntPtr taosRow);
+    public delegate void StreamOpenCallback2(IntPtr ptr);
 
     public class TDengine
     {
@@ -171,7 +210,17 @@ namespace TDengineDriver
         static extern public int ErrorNo(IntPtr res);
 
         [DllImport("taos", EntryPoint = "taos_query", CallingConvention = CallingConvention.Cdecl)]
-        static extern public IntPtr Query(IntPtr conn, string sqlstr);
+        // static extern public IntPtr Query(IntPtr conn, string sqlstr);
+        static extern private IntPtr Query(IntPtr conn, IntPtr byteArr);
+
+        static public IntPtr Query(IntPtr conn, string command)
+        {
+            IntPtr res = IntPtr.Zero;
+
+            IntPtr commandBuffer = Marshal.StringToCoTaskMemUTF8(command);
+            res = Query(conn, commandBuffer);
+            return res;
+        }
 
         [DllImport("taos", EntryPoint = "taos_affected_rows", CallingConvention = CallingConvention.Cdecl)]
         static extern public int AffectRows(IntPtr res);
@@ -185,10 +234,10 @@ namespace TDengineDriver
         {
             // const int fieldSize = 68;
 
-            List<TDengineMeta> metas = new List<TDengineMeta>();
+            List<TDengineMeta> metaList = new List<TDengineMeta>();
             if (res == IntPtr.Zero)
             {
-                return metas;
+                return metaList;
             }
 
             int fieldCount = FieldCount(res);
@@ -201,10 +250,11 @@ namespace TDengineDriver
                 meta.name = Marshal.PtrToStringAnsi(fieldsPtr + offset);
                 meta.type = Marshal.ReadByte(fieldsPtr + offset + (int)TaosField.TYPE_OFFSET);
                 meta.size = Marshal.ReadInt16(fieldsPtr + offset + (int)TaosField.BYTES_OFFSET);
-                metas.Add(meta);
+                metaList.Add(meta);
             }
 
-            return metas;
+
+            return metaList;
         }
 
         [DllImport("taos", EntryPoint = "taos_fetch_row", CallingConvention = CallingConvention.Cdecl)]
@@ -380,7 +430,7 @@ namespace TDengineDriver
         /// returned in this API is unknown.
         /// </summary>
         /// <param name="stmt">could be the value returned by 'StmtInit', that may be a valid object or NULL.</param>
-        /// <returns>piont the error message</returns>
+        /// <returns>point the error message</returns>
         [DllImport("taos", EntryPoint = "taos_stmt_errstr", CallingConvention = CallingConvention.Cdecl)]
         static extern private IntPtr StmtErrPtr(IntPtr stmt);
 
@@ -395,5 +445,149 @@ namespace TDengineDriver
             IntPtr stmtErrPrt = StmtErrPtr(stmt);
             return Marshal.PtrToStringAnsi(stmtErrPrt);
         }
+
+        [DllImport("taos", EntryPoint = "taos_fetch_lengths", CallingConvention = CallingConvention.Cdecl)]
+        static extern public IntPtr FetchLengths(IntPtr taos);
+
+        // Async Query 
+        /// <summary>
+        /// This API uses non-blocking call mode.
+        /// Application can open multiple tables and manipulate(query or insert) opened table concurrently. 
+        /// So applications must ensure that opetations on the same table is completely serialized.
+        /// Because that will cause some query and insert operations cannot be performed.
+        /// </summary>
+        /// <param name="taos"> A taos connection return by Connect()</param>
+        /// <param name="sql">sql command need to execute</param>
+        /// <param name="fq">User-defined callback function. <see cref="QueryAsyncCallback"/></param>
+        /// <param name="param">the parameter for callback</param>       
+        [DllImport("taos", EntryPoint = "taos_query_a", CallingConvention = CallingConvention.Cdecl)]
+        static extern public void QueryAsync(IntPtr taos, string sql, QueryAsyncCallback fq, IntPtr param);
+
+        /// <summary>
+        /// Get the result set of asynchronous queries in batch, 
+        /// which can only be used with QueryAsync().<c>FetchRowAsyncCallback<c>
+        /// </summary>
+        /// <param name="taoRes"> The result set returned when backcall QueryAsyncCallback </param>
+        /// <param name="fq"> Callback function.<see cref="FetchRowAsyncCallback"/></param>
+        /// <param name="param"> The parameter for callback FetchRowAsyncCallback </param>
+        [DllImport("taos", EntryPoint = "taos_fetch_rows_a", CallingConvention = CallingConvention.Cdecl)]
+        static extern public void FetchRowAsync(IntPtr taoRes, FetchRowAsyncCallback fq, IntPtr param);
+
+        // Subscribe
+
+        /// <summary>
+        /// This function is used for start subscription service.
+        /// </summary>
+        /// <param name="taos"> taos connection return by <see cref = "Connect"></param>
+        /// <param name="restart">If the subscription is already exists, to decide whether to
+        /// start over or continue with previous subscription.</param>
+        /// <param name="topic"> The name of the subscription.(This is the unique identification of the subscription).</param>
+        /// <param name="sql">The subscribe statement(select only).Only query original data and in positive time sequence.</param>
+        /// <param name="fq">The callback function when the query result is received.</param>
+        /// <param name="param"> Additional parameter when calling callback function. System API will pass it to
+        /// callback function without any operations.It is only used when calling asynchronously,
+        /// and this parameter should be passed to NULL when calling synchronously</param>
+        /// <param name="interval">Polling period in milliseconds. During asynchronous call, the callback function will be
+        /// called periodically according to this parameter; In order to avoid affecting system
+        /// performance, it is not recommended to set this parameter too small; When calling synchronously,
+        /// if the interval between two calls to taos_consume is less than this period, the API will block
+        /// until the interval exceeds this period.</param>
+        /// <returns>Return null for failure, return subscribe object for success.</returns>
+        [DllImport("taos", EntryPoint = "taos_subscribe", CallingConvention = CallingConvention.Cdecl)]
+        static extern private IntPtr Subscribe(IntPtr taos, int restart, string topic, string sql, SubscribeCallback fq, IntPtr param, int interval);
+        static public IntPtr Subscribe(IntPtr taos, bool restart, string topic, string sql, SubscribeCallback fq, IntPtr param, int interval)
+        {
+            if (taos == IntPtr.Zero)
+            {
+                Console.WriteLine("taos connect is null,subscribe failed");
+                throw new Exception("taos connect is null");
+            }
+            else
+            {
+                IntPtr subPtr = Subscribe(taos, restart == true ? 1 : 0, topic, sql, fq, param, interval);
+                return subPtr;
+            }
+        }
+
+        /// <summary>
+        /// Only synchronous mode, this function is used to get the result of subscription.
+        /// If the interval between two calls to taos_consume is less than the polling
+        /// cycle of the subscription, the API will block until the interval exceeds this
+        /// cycle. If a new record arrives in the database, the API will return the latest
+        /// record, otherwise it will return an empty result set with no records.
+        /// If the return value is NULL, it indicates a system error.
+        /// </summary>
+        /// <param name="subscribe"> Subscription object return by <see cref = "Subscribe">. </param>
+        /// <returns></returns>
+        [DllImport("taos", EntryPoint = "taos_consume", CallingConvention = CallingConvention.Cdecl)]
+        static extern private IntPtr TaosConsume(IntPtr subscribe);
+        static public IntPtr Consume(IntPtr subscribe)
+        {
+            IntPtr res = IntPtr.Zero;
+            if (subscribe == IntPtr.Zero)
+            {
+                Console.WriteLine("Object subscribe is null,please subscribe first.");
+                throw new Exception("Object subscribe is null");
+            }
+            else
+            {
+                res = TaosConsume(subscribe);
+            }
+            return res;
+        }
+
+        /// <summary>
+        /// Unsubscribe.
+        /// </summary>
+        /// <param name="subscribe"> Subscription object return by <see cref = "Subscribe">.</param>
+        /// <param name="keep"> If it is not 0, the API will keep the progress of subscription,
+        /// and the  and the subsequent call to taos_subscribe can continue
+        /// based on this progress; otherwise, the progress information will
+        /// be deleted and the data can only be read again.
+        ///  </param>
+        [DllImport("taos", EntryPoint = "taos_unsubscribe", CallingConvention = CallingConvention.Cdecl)]
+        static extern private void Unsubscribe(IntPtr subscribe, int keep);
+        static public void Unsubscribe(IntPtr subscribe, bool keep)
+        {
+            if (subscribe == IntPtr.Zero)
+            {
+                Console.WriteLine("subscribe is null, close Unsubscribe failed");
+                throw new Exception("Object subscribe is null");
+            }
+            else
+            {
+                Unsubscribe(subscribe, keep == true ? 1 : 0);
+                Console.WriteLine("Unsubscribe success.");
+            }
+
+        }
+        // Stream
+
+        /// <summary>
+        /// Used to open an stream, which can do continuous query.
+        /// </summary>
+        /// <param name="taos"> taos connection return by <see cref = "Connect"></param>
+        /// <param name="sql"> Query statement( query only)</param>
+        /// <param name="fp"> User defined callback.</param>
+        /// <param name="stime"> The time when stream computing starts. If it is 0, it means starting from now.
+        /// If it is not zero, it means starting from the specified time (the number of
+        /// milliseconds from 1970/1/1 UTC time).
+        /// </param>
+        /// <param name="param">First parameter provide by application for callback usage.
+        /// While callback,this parameter is provided to the application.</param>
+        /// <param name="callback2">The second callback function which will be called when the continuous query 
+        /// stop automatically.</param>
+        /// <returns> Return null indicate creation failed, not null for success.</returns>
+        [DllImport("taos", EntryPoint = "taos_open_stream", CallingConvention = CallingConvention.Cdecl)]
+        static extern public IntPtr OpenStream(IntPtr taos, string sql, StreamOpenCallback fp, Int64 stime, IntPtr param, StreamOpenCallback2 callback2);
+
+        /// <summary>
+        /// Used too stop data flow.
+        /// Remember to stop data flow when you stopped steam computing.
+        /// </summary>
+        /// <param name="stream"> Value returned by <see cref = "OpenStream"></param>
+        [DllImport("taos", EntryPoint = "taos_close_stream", CallingConvention = CallingConvention.Cdecl)]
+        static extern public void CloseStream(IntPtr stream);
+
     }
 }

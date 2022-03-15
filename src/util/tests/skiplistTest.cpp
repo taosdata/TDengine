@@ -300,7 +300,7 @@ void duplicatedKeyTest() {
     SSkipListKey key;
     SArray*  nodes = tSkipListGet(pSkipList, (char*)(&i));
     assert( taosArrayGetSize(nodes) == 5 );
-    taosArrayDestroy(nodes);
+    taosArrayDestroy(&nodes);
   }
 
   int32_t key = 101;
@@ -309,7 +309,7 @@ void duplicatedKeyTest() {
 
   SArray*  nodes = tSkipListGet(pSkipList, (char*)(&key));
   assert( taosArrayGetSize(nodes) == 0 );
-  taosArrayDestroy(nodes);
+  taosArrayDestroy(&nodes);
 
   key = 102;
   SSkipListIterator* iter = tSkipListCreateIterFromVal(pSkipList, (char*)(&key), TSDB_DATA_TYPE_INT, TSDB_ORDER_ASC);

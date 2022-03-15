@@ -373,9 +373,9 @@ def taos_fetch_block(result, fields=None, field_count=None):
     if num_of_rows == 0:
         return None, 0
     precision = taos_result_precision(result)
-    if fields == None:
+    if fields is None:
         fields = taos_fetch_fields(result)
-    if field_count == None:
+    if field_count is None:
         field_count = taos_field_count(result)
     blocks = [None] * field_count
     fieldLen = taos_fetch_lengths(result, field_count)
@@ -466,7 +466,7 @@ def taos_fetch_lengths(result, field_count=None):
     # type: (c_void_p, int) -> Array[int]
     """Make sure to call taos_fetch_row or taos_fetch_block before fetch_lengths"""
     lens = _libtaos.taos_fetch_lengths(result)
-    if field_count == None:
+    if field_count is None:
         field_count = taos_field_count(result)
     if not lens:
         raise OperationalError("field length empty, use taos_fetch_row/block before it")
@@ -823,7 +823,7 @@ def taos_stmt_use_result(stmt):
     @stmt: TAOS_STMT*
     """
     result = c_void_p(_libtaos.taos_stmt_use_result(stmt))
-    if result == None:
+    if result is None:
         raise StatementError(taos_stmt_errstr(stmt))
     return result
 

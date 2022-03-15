@@ -90,7 +90,7 @@ static FORCE_INLINE void tsdbSetMFileInfo(SMFile* pMFile, SMFInfo* pInfo) { pMFi
 static FORCE_INLINE int tsdbOpenMFile(SMFile* pMFile, int flags) {
   ASSERT(TSDB_FILE_CLOSED(pMFile));
 
-  pMFile->fd = open(TSDB_FILE_FULL_NAME(pMFile), flags);
+  pMFile->fd = open(TSDB_FILE_FULL_NAME(pMFile), flags | O_BINARY);
   if (pMFile->fd < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -205,7 +205,7 @@ static FORCE_INLINE void tsdbSetDFileInfo(SDFile* pDFile, SDFInfo* pInfo) { pDFi
 static FORCE_INLINE int tsdbOpenDFile(SDFile* pDFile, int flags) {
   ASSERT(!TSDB_FILE_OPENED(pDFile));
 
-  pDFile->fd = open(TSDB_FILE_FULL_NAME(pDFile), flags);
+  pDFile->fd = open(TSDB_FILE_FULL_NAME(pDFile), flags | O_BINARY);
   if (pDFile->fd < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;

@@ -941,4 +941,219 @@ if $data02 != 0 then
   return -1
 endi
 
+print ==============> TD-11969
+sql create database test11969;
+sql use test11969;
+sql create stable st (ts timestamp , id int ) tags (ind int );
+sql insert into sub1 using st tags(1) values(now ,1);
+sql insert into sub1 using st tags(1) values(now ,2);
+sql insert into sub2 using st tags(2) values(now ,3);
+sql insert into sub2 using st tags(2) values(now ,4);
+sql_error select max(ts_inter) ,tbname from (select elapsed(ts) ts_inter ,tbname from st interval (1s) group by tbname) order by ts
+sql drop database test11969
+
+print ==========================================> TD-11097
+sql create database td11097
+sql use td11097
+sql create table meters2 (ts timestamp, voltage bigint,num int) tags (location binary(30), groupid int);
+sql create table D001 using meters2 tags ("Beijing.Chaoyang", 1);
+sql create table D002 using meters2 tags ("Beijing.haidian", 2);
+sql create table D003 using meters2 tags ('"Beijing.Tongzhou"', 3);
+$ts = 1639556426000
+sql insert into d001 values ( $ts ,1,2);
+sql insert into d001 values ( $ts +1m,2,3);
+sql insert into d001 values ( $ts +2m,4,3);
+sql insert into d001 values ( $ts +4m,8,3);
+sql insert into d002 values ( $ts ,4,3);
+sql insert into d002 values ( $ts +3m,40,3);
+sql insert into d002 values ( $ts +1m,46,3);
+sql insert into d001 values ( $ts +20m,1,2);
+sql insert into d002 values ( $ts +21m,4,3);
+sql select diff(voltage) value from meters2 group by tbname;
+sql select sum(value) from (select diff(voltage) value from meters2 group by tbname) interval(1m) ;
+sql select sum(value) from (select diff(voltage) value from meters2 group by tbname) interval(1m) order by ts;
+sql select sum(value) from (select diff(voltage) value from meters2 group by tbname) interval(1m) order by ts desc;
+
+$emptyString = @@
+print execute sql select diff(voltage) value from meters2 group by tbname;
+sql select diff(voltage) value from meters2 group by tbname;
+if $data00 != @21-12-15 16:21:26.000@ then
+  return -1 
+endi
+if $data01 != @1@ then
+  return -1 
+endi
+if $data02 != @d001@ then
+  return -1 
+endi
+if $data10 != @21-12-15 16:22:26.000@ then
+  return -1 
+endi
+if $data11 != @2@ then
+  return -1 
+endi
+if $data12 != @d001@ then
+  return -1 
+endi
+if $data20 != @21-12-15 16:24:26.000@ then
+  return -1 
+endi
+if $data21 != @4@ then
+  return -1 
+endi
+if $data22 != @d001@ then
+  return -1 
+endi
+if $data30 != @21-12-15 16:40:26.000@ then
+  return -1 
+endi
+if $data31 != @-7@ then
+  return -1 
+endi
+if $data32 != @d001@ then
+  return -1 
+endi
+if $data40 != @21-12-15 16:21:26.000@ then
+  return -1 
+endi
+if $data41 != @42@ then
+  return -1 
+endi
+if $data42 != @d002@ then
+  return -1 
+endi
+if $data50 != @21-12-15 16:23:26.000@ then
+  return -1 
+endi
+if $data51 != @-6@ then
+  return -1 
+endi
+if $data52 != @d002@ then
+  return -1 
+endi
+if $data60 != @21-12-15 16:41:26.000@ then
+  return -1 
+endi
+if $data61 != @-36@ then
+  return -1 
+endi
+if $data62 != @d002@ then
+  return -1 
+endi
+print execute sql select sum(value) from (select diff(voltage) value from meters2 group by tbname) interval(1m) ;
+sql select sum(value) from (select diff(voltage) value from meters2 group by tbname) interval(1m) ;
+if $data00 != @21-12-15 16:21:00.000@ then
+  return -1 
+endi
+if $data01 != @43@ then
+  return -1 
+endi
+if $data10 != @21-12-15 16:22:00.000@ then
+  return -1 
+endi
+if $data11 != @2@ then
+  return -1 
+endi
+if $data20 != @21-12-15 16:23:00.000@ then
+  return -1 
+endi
+if $data21 != @-6@ then
+  return -1 
+endi
+if $data30 != @21-12-15 16:24:00.000@ then
+  return -1 
+endi
+if $data31 != @4@ then
+  return -1 
+endi
+if $data40 != @21-12-15 16:40:00.000@ then
+  return -1 
+endi
+if $data41 != @-7@ then
+  return -1 
+endi
+if $data50 != @21-12-15 16:41:00.000@ then
+  return -1 
+endi
+if $data51 != @-36@ then
+  return -1 
+endi
+print execute sql select sum(value) from (select diff(voltage) value from meters2 group by tbname) interval(1m) order by ts;
+sql select sum(value) from (select diff(voltage) value from meters2 group by tbname) interval(1m) order by ts;
+if $data00 != @21-12-15 16:21:00.000@ then
+  return -1 
+endi
+if $data01 != @43@ then
+  return -1 
+endi
+if $data10 != @21-12-15 16:22:00.000@ then
+  return -1 
+endi
+if $data11 != @2@ then
+  return -1 
+endi
+if $data20 != @21-12-15 16:23:00.000@ then
+  return -1 
+endi
+if $data21 != @-6@ then
+  return -1 
+endi
+if $data30 != @21-12-15 16:24:00.000@ then
+  return -1 
+endi
+if $data31 != @4@ then
+  return -1 
+endi
+if $data40 != @21-12-15 16:40:00.000@ then
+  return -1 
+endi
+if $data41 != @-7@ then
+  return -1 
+endi
+if $data50 != @21-12-15 16:41:00.000@ then
+  return -1 
+endi
+if $data51 != @-36@ then
+  return -1 
+endi
+print execute sql select sum(value) from (select diff(voltage) value from meters2 group by tbname) interval(1m) order by ts desc;
+sql select sum(value) from (select diff(voltage) value from meters2 group by tbname) interval(1m) order by ts desc;
+if $data00 != @21-12-15 16:41:00.000@ then
+  return -1 
+endi
+if $data01 != @-36@ then
+  return -1 
+endi
+if $data10 != @21-12-15 16:40:00.000@ then
+  return -1 
+endi
+if $data11 != @-7@ then
+  return -1 
+endi
+if $data20 != @21-12-15 16:24:00.000@ then
+  return -1 
+endi
+if $data21 != @4@ then
+  return -1 
+endi
+if $data30 != @21-12-15 16:23:00.000@ then
+  return -1 
+endi
+if $data31 != @-6@ then
+  return -1 
+endi
+if $data40 != @21-12-15 16:22:00.000@ then
+  return -1 
+endi
+if $data41 != @2@ then
+  return -1 
+endi
+if $data50 != @21-12-15 16:21:00.000@ then
+  return -1 
+endi
+if $data51 != @43@ then
+  return -1 
+endi
+sql drop database td11097
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

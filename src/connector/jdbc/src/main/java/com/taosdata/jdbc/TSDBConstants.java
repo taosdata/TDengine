@@ -54,7 +54,7 @@ public abstract class TSDBConstants {
     public static final int TSDB_DATA_TYPE_USMALLINT = 12;      //unsigned smallint
     public static final int TSDB_DATA_TYPE_UINT = 13;           //unsigned int
     public static final int TSDB_DATA_TYPE_UBIGINT = 14;        //unsigned bigint
-
+    public static final int TSDB_DATA_TYPE_JSON = 15;           //json
     // nchar column max length
     public static final int maxFieldSize = 16 * 1024;
 
@@ -129,6 +129,8 @@ public abstract class TSDBConstants {
                 return Types.TIMESTAMP;
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
                 return Types.NCHAR;
+            case TSDBConstants.TSDB_DATA_TYPE_JSON:
+                return Types.OTHER;
             default:
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_TAOS_TYPE, "unknown taos type: " + taosType + " in tdengine");
         }
@@ -160,6 +162,8 @@ public abstract class TSDBConstants {
                 return "TIMESTAMP";
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
                 return "NCHAR";
+            case TSDBConstants.TSDB_DATA_TYPE_JSON:
+                return "JSON";
             default:
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_TAOS_TYPE, "unknown taos type: " + taosType + " in tdengine");
         }

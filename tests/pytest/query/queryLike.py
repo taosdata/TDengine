@@ -161,6 +161,17 @@ class TDTestCase:
         tdSql.query("select * from st where tagg like 'tag\_\__\_';")
         tdSql.checkData(0,0, "tag__a_")
 
+        tdSql.execute("create table stb(ts timestamp, c0 int) tags(t0 nchar(64))")
+        tdSql.execute("insert into tb1 using stb tags('测试ABCabc') values(now, 1)")
+        tdSql.query("select * from tb1 where t0 like '%试AB%'")
+        tdSql.checkRows(1)
+
+        tdSql.query("select * from tb1 where t0 like '测试AB%'")
+        tdSql.checkRows(1)
+
+        tdSql.query("select * from tb1 where t0 like '%ABCabc'")
+        tdSql.checkRows(1)
+
         os.system("rm -rf ./*.py.sql")
 
     def stop(self):

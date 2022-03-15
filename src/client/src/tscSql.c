@@ -28,6 +28,7 @@
 #include "tutil.h"
 #include "ttimer.h"
 #include "tscProfile.h"
+#include "tidpool.h"
 
 static char clusterDefaultId[] = "clusterDefaultId";
 static bool validImpl(const char* str, size_t maxsize) {
@@ -48,7 +49,7 @@ static bool validUserName(const char* user) {
 }
 
 static bool validPassword(const char* passwd) {
-  return validImpl(passwd, TSDB_KEY_LEN - 1);
+  return validImpl(passwd, TSDB_PASS_LEN - 1);
 }
 
 static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, const char *auth, const char *db,
@@ -63,7 +64,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   }
   SRpcCorEpSet corMgmtEpSet;
 
-  char secretEncrypt[32] = {0};
+  char secretEncrypt[TSDB_PASS_LEN] = {0};
   int  secretEncryptLen = 0;
   if (auth == NULL) {
     if (!validPassword(pass)) {
@@ -81,6 +82,11 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
       terrno = TSDB_CODE_TSC_INVALID_PASS_LENGTH;
       return NULL;
     } else {
+      if (outlen >= TSDB_PASS_LEN) {
+        terrno = TSDB_CODE_TSC_INVALID_USER_LENGTH;
+        tscError("failed to connect DB, too long length of authentication: %s", base64);
+        return NULL;
+      }
       memcpy(secretEncrypt, base64, outlen);
       free(base64);
     }
@@ -137,7 +143,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
     char tmp[TSDB_DB_NAME_LEN] = {0};
     tstrncpy(tmp, db, sizeof(tmp));
 
-    strdequote(tmp);
+    stringProcess(tmp, (int32_t)strlen(tmp));
     strtolower(pObj->db, tmp);
   }
 
@@ -212,16 +218,8 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     
     tscDebug("%p DB connection is opening, rpcObj: %p, dnodeConn:%p", pObj, pObj->pRpcObj, pObj->pRpcObj->pDnodeConn);
     taos_free_result(pSql);
-  
-    // version compare only requires the first 3 segments of the version string
-    int code = taosCheckVersion(version, taos_get_server_info(pObj), 3);
-    if (code != 0) {
-      terrno = code;
-      taos_close(pObj);
-      return NULL;
-    } else {
-      return pObj;
-    }
+
+    return pObj;
   }
 
   return NULL;
@@ -247,11 +245,11 @@ TAOS *taos_connect_c(const char *ip, uint8_t ipLen, const char *user, uint8_t us
                      uint8_t passLen, const char *db, uint8_t dbLen, uint16_t port) {
   char ipBuf[TSDB_EP_LEN] = {0};
   char userBuf[TSDB_USER_LEN] = {0};
-  char passBuf[TSDB_KEY_LEN] = {0};
+  char passBuf[TSDB_PASS_LEN] = {0};
   char dbBuf[TSDB_DB_NAME_LEN] = {0};
   strncpy(ipBuf, ip, MIN(TSDB_EP_LEN - 1, ipLen));
   strncpy(userBuf, user, MIN(TSDB_USER_LEN - 1, userLen));
-  strncpy(passBuf, pass, MIN(TSDB_KEY_LEN - 1, passLen));
+  strncpy(passBuf, pass, MIN(TSDB_PASS_LEN - 1, passLen));
   strncpy(dbBuf, db, MIN(TSDB_DB_NAME_LEN - 1, dbLen));
   return taos_connect(ipBuf, userBuf, passBuf, dbBuf, port);
 }
@@ -313,6 +311,25 @@ void taos_close(TAOS *taos) {
 
   tscDebug("%p all sqlObj are freed, free tscObj", pObj);
   taosRemoveRef(tscRefId, pObj->rid);
+}
+
+// get taos connection unused session number
+int32_t taos_unused_session(TAOS* taos) {
+  // param valid check
+  STscObj *pObj = (STscObj *)taos;
+  if (pObj == NULL || pObj->signature != pObj) {
+    tscError("pObj:%p is NULL or freed", pObj);
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return 0;
+  }
+  if(pObj->pRpcObj == NULL ) {
+    tscError("pObj:%p pRpcObj is NULL.", pObj);
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return 0;
+  }
+
+  // get number
+  return rpcUnusedSession(pObj->pRpcObj->pDnodeConn, false);
 }
 
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code) {
@@ -445,7 +462,7 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
         // revise the length for binary and nchar fields
         if (f[j].type == TSDB_DATA_TYPE_BINARY) {
           f[j].bytes -= VARSTR_HEADER_SIZE;
-        } else if (f[j].type == TSDB_DATA_TYPE_NCHAR) {
+        } else if (f[j].type == TSDB_DATA_TYPE_NCHAR || f[j].type == TSDB_DATA_TYPE_JSON) {
           f[j].bytes = (f[j].bytes - VARSTR_HEADER_SIZE)/TSDB_NCHAR_SIZE;
         }
 
@@ -545,6 +562,28 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
 
   tscClearSqlOwner(pSql);
   return pRes->numOfRows;
+}
+
+TAOS_ROW *taos_result_block(TAOS_RES *res) {
+  SSqlObj *pSql = (SSqlObj *)res;
+  if (pSql == NULL || pSql->signature != pSql) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return NULL;
+  }
+
+  SSqlCmd *pCmd = &pSql->cmd;
+  SSqlRes *pRes = &pSql->res;
+
+  if (pCmd == NULL ||
+      pRes == NULL ||
+      pRes->qId == 0 ||
+      pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED ||
+      pCmd->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
+      pCmd->command == TSDB_SQL_INSERT) {
+    return NULL;
+  }
+
+  return &pRes->urow;
 }
 
 int taos_select_db(TAOS *taos, const char *db) {
@@ -657,7 +696,11 @@ char *taos_errstr(TAOS_RES *tres) {
   }
 
   if (hasAdditionalErrorInfo(pSql->res.code, &pSql->cmd) || pSql->res.code == TSDB_CODE_RPC_FQDN_ERROR) {
-    return pSql->cmd.payload;
+    if (pSql->cmd.payload[0] != '\0') {
+      return pSql->cmd.payload;
+    }
+
+    return (char*)tstrerror(pSql->res.code);
   } else {
     return (char*)tstrerror(pSql->res.code);
   }
@@ -793,13 +836,16 @@ bool taos_is_update_query(TAOS_RES *res) {
   SSqlCmd* pCmd = &pSql->cmd;
   return ((pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) || TSDB_SQL_RESET_CACHE == pCmd->command || TSDB_SQL_USE_DB == pCmd->command);
 }
-
 int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
+  return taos_print_row_ex(str, row, fields, num_fields, ' ', false);
+}
+
+int taos_print_row_ex(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields, char split, bool addQuota) {
   int len = 0;
 
   for (int i = 0; i < num_fields; ++i) {
     if (i > 0) {
-      str[len++] = ' ';
+      str[len++] = split;
     }
 
     if (row[i] == NULL) {
@@ -860,9 +906,23 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
         } else {
           assert(charLen <= fields[i].bytes * TSDB_NCHAR_SIZE && charLen >= 0);
         }
+        
+        // add pre quotaion if require
+        if(addQuota) {
+          *(str + len) = '\'';
+          len += 1;
+        }
 
+        // copy content
         memcpy(str + len, row[i], charLen);
         len += charLen;
+
+        // add end quotaion if require
+        if(addQuota) {
+          *(str + len)= '\'';
+          len += 1;
+        }
+
       } break;
 
       case TSDB_DATA_TYPE_TIMESTAMP:
@@ -876,6 +936,89 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
     }
   }
 
+  return len;
+}
+
+// print field value to str
+int taos_print_field(char *str, void* value, TAOS_FIELD *field) {
+  // check valid
+  if (str == NULL || value == NULL || field == NULL) {
+    return 0;
+  }
+
+  // get value
+  int len = 0;
+  switch (field->type) {
+    //
+    // fixed length
+    //
+    case TSDB_DATA_TYPE_TINYINT:
+      len = sprintf(str, "%d", *((int8_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_UTINYINT:
+      len = sprintf(str, "%u", *((uint8_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_SMALLINT:
+      len = sprintf(str, "%d", *((int16_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_USMALLINT:
+      len = sprintf(str, "%u", *((uint16_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_INT:
+      len = sprintf(str, "%d", *((int32_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_UINT:
+      len = sprintf(str, "%u", *((uint32_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_BIGINT:
+      len = sprintf(str, "%" PRId64, *((int64_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_UBIGINT:
+      len = sprintf(str, "%" PRIu64, *((uint64_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_FLOAT: {
+      float fv = 0;
+      fv = GET_FLOAT_VAL(value);
+      len = sprintf(str, "%f", fv);
+    } break;
+
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double dv = 0;
+      dv = GET_DOUBLE_VAL(value);
+      len = sprintf(str, "%lf", dv);
+    } break;
+
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      len = sprintf(str, "%" PRId64, *((int64_t *)value));
+      break;
+    case TSDB_DATA_TYPE_BOOL:
+      len = sprintf(str, "%d", *((int8_t *)value));
+
+    // 
+    //  variant length
+    //
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR: {
+      len = varDataLen((char*)value - VARSTR_HEADER_SIZE);
+      if (field->type == TSDB_DATA_TYPE_BINARY) {
+        assert(len <= field->bytes && len >= 0);
+      } else {
+        assert(len <= field->bytes * TSDB_NCHAR_SIZE && len >= 0);
+      }
+      memcpy(str, value, len);
+    } break;
+  
+    default:
+      break;
+  }
   return len;
 }
 
@@ -1006,7 +1149,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   SArray* vgroupList = taosArrayInit(4, POINTER_BYTES);
   if (vgroupList == NULL) {
-    taosArrayDestroy(plist);
+    taosArrayDestroy(&plist);
     tfree(str);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -1023,8 +1166,8 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   if (code != TSDB_CODE_SUCCESS) {
     tscFreeSqlObj(pSql);
-    taosArrayDestroyEx(plist, freeElem);
-    taosArrayDestroyEx(vgroupList, freeElem);
+    taosArrayDestroyEx(&plist, freeElem);
+    taosArrayDestroyEx(&vgroupList, freeElem);
     return code;
   }
 
@@ -1037,8 +1180,8 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
     code = TSDB_CODE_SUCCESS;
   }
 
-  taosArrayDestroyEx(plist, freeElem);
-  taosArrayDestroyEx(vgroupList, freeElem);
+  taosArrayDestroyEx(&plist, freeElem);
+  taosArrayDestroyEx(&vgroupList, freeElem);
 
   if (code != TSDB_CODE_SUCCESS) {
     tscFreeRegisteredSqlObj(pSql);

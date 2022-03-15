@@ -5,9 +5,9 @@ insmetaPath="/usr/local/taos/script"
 
 csudo=""
 if command -v sudo > /dev/null; then
-    csudo="sudo"
+    csudo="sudo "
 fi
 
-${csudo} chmod -R 744 ${insmetaPath}
+${csudo}chmod -R 744 ${insmetaPath}
 cd ${insmetaPath}
-${csudo} ./post.sh
+${csudo}./post.sh

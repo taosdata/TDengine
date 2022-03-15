@@ -119,7 +119,7 @@ typedef struct {
 
 void tsdbClearTableCfg(STableCfg *config);
 
-void *tsdbGetTableTagVal(const void *pTable, int32_t colId, int16_t type, int16_t bytes);
+void *tsdbGetTableTagVal(const void *pTable, int32_t colId, int16_t type);
 char *tsdbGetTableName(void *pTable);
 
 #define TSDB_TABLEID(_table) ((STableId*) (_table))
@@ -174,6 +174,7 @@ typedef void *TsdbQueryHandleT;  // Use void to hide implementation details
 typedef struct STsdbQueryCond {
   STimeWindow  twindow;
   int32_t      order;             // desc|asc order to iterate the data block
+  int64_t      offset;            // skip offset put down to tsdb
   int32_t      numOfCols;
   SColumnInfo *colList;
   bool         loadExternalRows;  // load external rows or not
@@ -229,6 +230,8 @@ typedef struct {
   uint32_t  numOfTables;
   SArray   *pGroupList;
   SHashObj *map;  // speedup acquire the tableQueryInfo by table uid
+  int32_t sVersion;
+  int32_t tVersion;
 } STableGroupInfo;
 
 #define TSDB_BLOCK_DIST_STEP_ROWS 16
@@ -392,6 +395,9 @@ void tsdbResetQueryHandleForNewTable(TsdbQueryHandleT queryHandle, STsdbQueryCon
 
 int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, STableBlockDist* pTableBlockInfo);
 
+// obtain queryHandle attribute
+int64_t tsdbSkipOffset(TsdbQueryHandleT queryHandle);
+
 /**
  * get the statistics of repo usage
  * @param repo. point to the tsdbrepo
@@ -425,9 +431,23 @@ int tsdbDeleteData(STsdbRepo *pRepo, void *param);
 
 // no problem return true
 bool tsdbNoProblem(STsdbRepo* pRepo);
-
 // unit of walSize: MB
 int tsdbCheckWal(STsdbRepo *pRepo, uint32_t walSize);
+
+// for json tag
+void* getJsonTagValueElment(void* data, char* key, int32_t keyLen, char* out, int16_t bytes);
+void getJsonTagValueAll(void* data, void* dst, int16_t bytes);
+char* parseTagDatatoJson(void *p);
+
+//
+// scan callback 
+//
+
+// type define
+#define READ_TABLE    1
+#define READ_QUERY    2
+typedef bool (*readover_callback)(void* param, int8_t type, int32_t tid);
+void tsdbAddScanCallback(TsdbQueryHandleT* queryHandle, readover_callback callback, void* param);
 
 #ifdef __cplusplus
 }

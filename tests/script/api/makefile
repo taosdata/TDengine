@@ -21,14 +21,16 @@ exe:
 	gcc $(CFLAGS) ./stmt.c -o $(ROOT)stmt $(LFLAGS)
 	gcc $(CFLAGS) ./clientcfgtest.c -o $(ROOT)clientcfgtest $(LFLAGS)
 	gcc $(CFLAGS) ./openTSDBTest.c -o $(ROOT)openTSDBTest $(LFLAGS)
+	gcc $(CFLAGS) ./resultBlock.c -o $(ROOT)resultBlock $(LFLAGS)
 
 
 clean:
 	rm $(ROOT)batchprepare
 	rm $(ROOT)stmtBatchTest
 	rm $(ROOT)stmtTest
+	rm $(ROOT)stmt
 	rm $(ROOT)stmt_function
 	rm $(ROOT)clientcfgtest
 	rm $(ROOT)openTSDBTest
-	rm $(ROOT)stmt
+	rm $(ROOT)resultBlock
 

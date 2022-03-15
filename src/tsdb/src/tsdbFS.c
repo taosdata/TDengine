@@ -91,10 +91,8 @@ static int tsdbEncodeDFileSetArray(void **buf, SArray *pArray) {
 }
 
 static int tsdbDecodeDFileSetArray(void **originBuf, void *buf, SArray *pArray, SFSHeader *pSFSHeader) {
-  uint64_t  nset;
-  SDFileSet dset;
-  dset.ver = TSDB_FSET_VER_0;  // default value
-
+  uint64_t  nset = 0;
+  
   taosArrayClear(pArray);
 
   buf = taosDecodeFixedU64(buf, &nset);
@@ -113,6 +111,7 @@ static int tsdbDecodeDFileSetArray(void **originBuf, void *buf, SArray *pArray, 
   }
 
   for (size_t i = 0; i < nset; i++) {
+    SDFileSet dset = {0}; // ver is TSDB_FSET_VER_0(0) at default
     buf = tsdbDecodeDFileSet(buf, &dset, pSFSHeader->version);
     taosArrayPush(pArray, (void *)(&dset));
   }
@@ -159,7 +158,7 @@ static SFSStatus *tsdbNewFSStatus(int maxFSet) {
 
 static SFSStatus *tsdbFreeFSStatus(SFSStatus *pStatus) {
   if (pStatus) {
-    pStatus->df = taosArrayDestroy(pStatus->df);
+    pStatus->df = taosArrayDestroy(&pStatus->df);
     free(pStatus);
   }
 
@@ -1139,7 +1138,7 @@ static int tsdbFetchTFileSet(STsdbRepo *pRepo, SArray **fArray) {
   if (tdir == NULL) {
     tsdbError("vgId:%d failed to fetch TFileSet while open directory %s since %s", REPO_ID(pRepo), dataDir,
               tstrerror(terrno));
-    taosArrayDestroy(*fArray);
+    taosArrayDestroy(fArray);
     regfree(&regex);
     return -1;
   }
@@ -1152,7 +1151,7 @@ static int tsdbFetchTFileSet(STsdbRepo *pRepo, SArray **fArray) {
       if (taosArrayPush(*fArray, (void *)pf) == NULL) {
         terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
         tfsClosedir(tdir);
-        taosArrayDestroy(*fArray);
+        taosArrayDestroy(fArray);
         regfree(&regex);
         return -1;
       }
@@ -1166,7 +1165,7 @@ static int tsdbFetchTFileSet(STsdbRepo *pRepo, SArray **fArray) {
       tsdbError("vgId:%d failed to fetch TFileSet Array while run regexec since %s", REPO_ID(pRepo), strerror(code));
       terrno = TAOS_SYSTEM_ERROR(code);
       tfsClosedir(tdir);
-      taosArrayDestroy(*fArray);
+      taosArrayDestroy(fArray);
       regfree(&regex);
       return -1;
     }
@@ -1207,7 +1206,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
   }
 
   if ((fArraySize = taosArrayGetSize(fArray)) <= 0) {
-    taosArrayDestroy(fArray);
+    taosArrayDestroy(&fArray);
     tsdbInfo("vgId:%d size of DFileSet from %s is %" PRIu32, REPO_ID(pRepo), dataDir, (uint32_t)fArraySize);
     return 0;
   }
@@ -1258,7 +1257,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
             // return error in case of removing uncomplete DFileSets
             terrno = TSDB_CODE_TDB_INCOMPLETE_DFILESET;
             tsdbError("vgId:%d incomplete DFileSet, fid:%d, nDFiles=%" PRIu8, REPO_ID(pRepo), fset.fid, nDFiles);
-            taosArrayDestroy(fArray);
+            taosArrayDestroy(&fArray);
             return -1;
           }
         }
@@ -1271,7 +1270,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
           // return error in case of removing uncomplete DFileSets
           terrno = TSDB_CODE_TDB_INCOMPLETE_DFILESET;
           tsdbError("vgId:%d incomplete DFileSet, fid:%d, nDFiles=%" PRIu8, REPO_ID(pRepo), fset.fid, nDFiles);
-          taosArrayDestroy(fArray);
+          taosArrayDestroy(&fArray);
           return -1;
 #if 0
           // next FSet
@@ -1293,14 +1292,14 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
         if (tsdbOpenDFile(pDFile1, O_RDONLY) < 0) {
           tsdbError("vgId:%d failed to open DFile %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile1),
                     tstrerror(terrno));
-          taosArrayDestroy(fArray);
+          taosArrayDestroy(&fArray);
           return -1;
         }
 
         if (tsdbLoadDFileHeader(pDFile1, &(pDFile1->info)) < 0) {
           tsdbError("vgId:%d failed to load DFile %s header since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile1),
                     tstrerror(terrno));
-          taosArrayDestroy(fArray);
+          taosArrayDestroy(&fArray);
           return -1;
         }
 
@@ -1310,7 +1309,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
           // Get real file size
           if (fstat(pDFile1->fd, &tfstat) < 0) {
             terrno = TAOS_SYSTEM_ERROR(errno);
-            taosArrayDestroy(fArray);
+            taosArrayDestroy(&fArray);
             return -1;
           }
 
@@ -1346,7 +1345,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
   }
 
   // Resource release
-  taosArrayDestroy(fArray);
+  taosArrayDestroy(&fArray);
 
   return 0;
 }

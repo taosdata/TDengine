@@ -101,7 +101,6 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
       setNullValueForRow(pFillInfo, data, pFillInfo->numOfCols, index);
     }
   } else if (pFillInfo->type == TSDB_FILL_LINEAR) {
-    // TODO : linear interpolation supports NULL value
     if (prev != NULL && !outOfBound) {
       for (int32_t i = 1; i < pFillInfo->numOfCols; ++i) {
         SFillColInfo* pCol = &pFillInfo->pFillCol[i];
@@ -121,6 +120,10 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
         bool exceedMax = false, exceedMin = false;
         point1 = (SPoint){.key = *(TSKEY*)(prev), .val = prev + pCol->col.offset};
         point2 = (SPoint){.key = ts, .val = srcData[i] + pFillInfo->index * bytes};
+        if (isNull(point1.val, type) || isNull(point2.val, type)) {
+          setNull(val1, pCol->col.type, bytes);
+          continue;
+        }
         point  = (SPoint){.key = pFillInfo->currentKey, .val = val1};
         taosGetLinearInterpolationVal(&point, type, &point1, &point2, type, &exceedMax, &exceedMin);
       }
@@ -351,6 +354,10 @@ SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int3
   }
 
   SFillInfo* pFillInfo = calloc(1, sizeof(SFillInfo));
+  if (pFillInfo == NULL) {
+    return NULL;
+  }
+
   taosResetFillInfo(pFillInfo, skey);
 
   pFillInfo->order     = order;
@@ -368,6 +375,10 @@ SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int3
   pFillInfo->interval.slidingUnit  = slidingUnit;
 
   pFillInfo->pData = malloc(POINTER_BYTES * numOfCols);
+  if (pFillInfo->pData == NULL) {
+    tfree(pFillInfo);
+    return NULL;
+  }
 
 //  if (numOfTags > 0) {
     pFillInfo->pTags = calloc(numOfCols, sizeof(SFillTagColInfo));
