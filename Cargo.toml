@@ -1,18 +1,22 @@
 [workspace]
 members = [
-    "taos-sys",
-    "taos"
+  "taos-sys",
+  "taos",
 ]
 
 [package]
 name = "taosx"
 version = "0.0.0"
 edition = "2021"
-description = "taosX - TDengine data integration tool"
 homepage = "https://taosdata.com"
 license = "MIT"
+description = "taosX - TDengine data integration tool"
 
 exclude = ["/docs", "TODO.md", "*.json", ".vscode"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+chrono-tz = { version = "0.6.1", features = ["serde"] }
+clap = { version = "3.1.6", features = ["derive", "env"] }
+url = { version = "2", features = ["serde"]}
