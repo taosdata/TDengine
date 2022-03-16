@@ -2306,6 +2306,10 @@ typedef struct {
   // TODO: other info needed by task
 } SStreamTaskExecReq;
 
+typedef struct {
+  int32_t reserved;
+} SStreamTaskExecRsp;
+
 #pragma pack(pop)
 
 #ifdef __cplusplus

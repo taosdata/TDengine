@@ -2674,9 +2674,9 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igExists) < 0) return -1;
-  if (tDecodeCStr(&decoder, (const char **)&pReq->sql) < 0) return -1;
-  if (tDecodeCStr(&decoder, (const char **)&pReq->physicalPlan) < 0) return -1;
-  if (tDecodeCStr(&decoder, (const char **)&pReq->logicalPlan) < 0) return -1;
+  if (tDecodeCStrAlloc(&decoder, &pReq->sql) < 0) return -1;
+  if (tDecodeCStrAlloc(&decoder, &pReq->physicalPlan) < 0) return -1;
+  if (tDecodeCStrAlloc(&decoder, &pReq->logicalPlan) < 0) return -1;
   tEndDecode(&decoder);
 
   tCoderClear(&decoder);
@@ -2706,7 +2706,7 @@ int32_t tDecodeSStreamTask(SCoder *pDecoder, SStreamTask *pTask) {
   if (tDecodeI32(pDecoder, &pTask->taskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->level) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->status) < 0) return -1;
-  if (tDecodeCStr(pDecoder, (const char **)&pTask->qmsg) < 0) return -1;
+  if (tDecodeCStrAlloc(pDecoder, &pTask->qmsg) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;
 }
