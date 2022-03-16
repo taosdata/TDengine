@@ -794,8 +794,8 @@ static int tdbBtreeDecodePayload(SPage *pPage, const u8 *pPayload, SCellDecoder 
   if (nPayload <= pPage->maxLocal) {
     // General case without overflow
     pDecoder->pKey = (void *)pPayload;
-    if (pDecoder->pVal) {
-      pDecoder->pVal = (void *)(pPayload + pDecoder->vLen);
+    if (!pDecoder->pVal) {
+      pDecoder->pVal = (void *)(pPayload + pDecoder->kLen);
     }
   }
 
