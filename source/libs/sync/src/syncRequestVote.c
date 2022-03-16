@@ -56,6 +56,8 @@ int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg) {
   bool grant = (pMsg->term == ths->pRaftStore->currentTerm) && logOK &&
                ((!raftStoreHasVoted(ths->pRaftStore)) || (syncUtilSameId(&(ths->pRaftStore->voteFor), &(pMsg->srcId))));
   if (grant) {
+    // maybe has already voted for pMsg->srcId
+    // vote again, no harm
     raftStoreVote(ths->pRaftStore, &(pMsg->srcId));
   }
 
