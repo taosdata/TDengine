@@ -126,10 +126,14 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
   int    ret;
   SCell *pTarget;
   u8    *pTmp;
+  int    j;
 
   if (pPage->nOverflow || szCell + pPage->szOffset > pPage->nFree) {
-    // TODO: Page is full
-    ASSERT(0);
+    // TODO: need to figure out if pCell may be used by outside of this function
+    j = pPage->nOverflow++;
+
+    pPage->apOvfl[j] = pCell;
+    pPage->aiOvfl[j] = idx;
   } else {
     ret = tdbPageAllocate(pPage, szCell, &pTarget);
     if (ret < 0) {

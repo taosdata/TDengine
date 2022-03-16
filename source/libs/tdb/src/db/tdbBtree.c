@@ -65,6 +65,7 @@ static int tdbBtreeInitPage(SPage *pPage, void *arg);
 static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const void *pVal, int vLen, SCell *pCell,
                               int *szCell);
 static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pDecoder);
+static int tdbBtreeBalance(SBtCursor *pCur);
 
 int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, SBTree **ppBt) {
   SBTree *pBt;
@@ -180,16 +181,12 @@ int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *p
     return -1;
   }
 
-  {
-#if 0
   // If page is overflow, balance the tree
   if (pCur->pPage->nOverflow > 0) {
     ret = tdbBtreeBalance(pCur);
     if (ret < 0) {
       return -1;
     }
-  }
-#endif
   }
 
   return 0;
