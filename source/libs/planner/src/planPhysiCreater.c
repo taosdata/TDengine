@@ -480,6 +480,9 @@ static SPhysiNode* createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* p
   pInterval->interval = pWindowLogicNode->interval;
   pInterval->offset = pWindowLogicNode->offset;
   pInterval->sliding = pWindowLogicNode->sliding;
+  pInterval->intervalUnit = pWindowLogicNode->intervalUnit;
+  pInterval->slidingUnit = pWindowLogicNode->slidingUnit;
+
   pInterval->pFill = nodesCloneNode(pWindowLogicNode->pFill);
 
   SNodeList* pPrecalcExprs = NULL;

@@ -151,8 +151,7 @@ static int32_t nodeListToJson(SJson* pJson, const char* pName, const SNodeList* 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t jsonToNodeList(const SJson* pJson, const char* pName, SNodeList** pList) {
-  const SJson* pJsonArray = tjsonGetObjectItem(pJson, pName);
+static int32_t jsonToNodeListImpl(const SJson* pJsonArray, SNodeList** pList) {
   int32_t size = (NULL == pJsonArray ? 0 : tjsonGetArraySize(pJsonArray));
   if (size > 0) {
     *pList = nodesMakeList();
@@ -174,6 +173,10 @@ static int32_t jsonToNodeList(const SJson* pJson, const char* pName, SNodeList**
     }
   }
   return code;
+}
+
+static int32_t jsonToNodeList(const SJson* pJson, const char* pName, SNodeList** pList) {
+  return jsonToNodeListImpl(tjsonGetObjectItem(pJson, pName), pList);
 }
 
 static const char* jkTableMetaUid = "TableMetaUid";
@@ -580,6 +583,8 @@ static const char* jkIntervalPhysiPlanFuncs = "Funcs";
 static const char* jkIntervalPhysiPlanInterval = "Interval";
 static const char* jkIntervalPhysiPlanOffset = "Offset";
 static const char* jkIntervalPhysiPlanSliding = "Sliding";
+static const char* jkIntervalPhysiPlanIntervalUnit = "intervalUnit";
+static const char* jkIntervalPhysiPlanSlidingUnit  = "slidingUnit";
 static const char* jkIntervalPhysiPlanFill = "Fill";
 
 static int32_t physiIntervalNodeToJson(const void* pObj, SJson* pJson) {
@@ -600,6 +605,12 @@ static int32_t physiIntervalNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkIntervalPhysiPlanSliding, pNode->sliding);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkIntervalPhysiPlanIntervalUnit, pNode->intervalUnit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkIntervalPhysiPlanSlidingUnit, pNode->slidingUnit);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkIntervalPhysiPlanFill, nodeToJson, pNode->pFill);
@@ -626,6 +637,12 @@ static int32_t jsonToPhysiIntervalNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkIntervalPhysiPlanSliding, &pNode->sliding);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetTinyIntValue(pJson, jkIntervalPhysiPlanIntervalUnit, &pNode->intervalUnit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetTinyIntValue(pJson, jkIntervalPhysiPlanSlidingUnit, &pNode->slidingUnit);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkIntervalPhysiPlanFill, (SNode**)&pNode->pFill);
@@ -1644,7 +1661,10 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToSubplan(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN:
       return jsonToPlan(pJson, pObj);
+    case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
+      return jsonToPhysiIntervalNode(pJson, pObj);
     default:
+      assert(0);
       break;
   }
   nodesWarn("jsonToSpecificNode unknown node = %s", nodesNodeName(nodeType(pObj)));
@@ -1745,6 +1765,55 @@ int32_t nodesStringToNode(const char* pStr, SNode** pNode) {
   int32_t code = makeNodeByJson(pJson, pNode);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode(*pNode);
+    terrno = code;
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t nodesListToString(const SNodeList* pList, bool format, char** pStr, int32_t* pLen) {
+  if (NULL == pList || NULL == pStr || NULL == pLen) {
+    terrno = TSDB_CODE_FAILED;
+    return TSDB_CODE_FAILED;
+  }
+
+  if (0 == LIST_LENGTH(pList)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SJson* pJson = tjsonCreateArray();
+  if (NULL == pJson) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SNode* pNode;
+  FOREACH(pNode, pList) {
+    int32_t code = tjsonAddItem(pJson, nodeToJson, pNode);
+    if (TSDB_CODE_SUCCESS != code) {
+      terrno = code;
+      return code;
+    }
+  }
+
+  *pStr = format ? tjsonToString(pJson) : tjsonToUnformattedString(pJson);
+  tjsonDelete(pJson);
+
+  *pLen = strlen(*pStr) + 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t nodesStringToList(const char* pStr, SNodeList** pList) {
+  if (NULL == pStr || NULL == pList) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SJson* pJson = tjsonParse(pStr);
+  if (NULL == pJson) {
+    return TSDB_CODE_FAILED;
+  }
+  int32_t code = jsonToNodeListImpl(pJson, pList);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyList(*pList);
     terrno = code;
     return code;
   }

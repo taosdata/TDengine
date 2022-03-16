@@ -52,7 +52,6 @@ extern "C" {
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 //
 int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode);
-
 int32_t syncNodeReplicate(SSyncNode* pSyncNode);
 int32_t syncNodeAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntries* pMsg);
 

@@ -27,7 +27,7 @@ Testbase MndTestDb::test;
 
 TEST_F(MndTestDb, 01_ShowDb) {
   test.SendShowMetaReq(TSDB_MGMT_TABLE_DB, "");
-  CHECK_META("show databases", 18);
+  CHECK_META("show databases", 17);
   CHECK_SCHEMA(0, TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN - 1 + VARSTR_HEADER_SIZE, "name");
   CHECK_SCHEMA(1, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
   CHECK_SCHEMA(2, TSDB_DATA_TYPE_SMALLINT, 2, "vgroups");
@@ -45,7 +45,7 @@ TEST_F(MndTestDb, 01_ShowDb) {
   CHECK_SCHEMA(14, TSDB_DATA_TYPE_TINYINT, 1, "comp");
   CHECK_SCHEMA(15, TSDB_DATA_TYPE_TINYINT, 1, "cachelast");
   CHECK_SCHEMA(16, TSDB_DATA_TYPE_BINARY, 3 + VARSTR_HEADER_SIZE, "precision");
-  CHECK_SCHEMA(17, TSDB_DATA_TYPE_TINYINT, 1, "update");
+//  CHECK_SCHEMA(17, TSDB_DATA_TYPE_TINYINT, 1, "update");
 
   test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 0);
@@ -85,7 +85,7 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
   }
 
   test.SendShowMetaReq(TSDB_MGMT_TABLE_DB, "");
-  CHECK_META("show databases", 18);
+  CHECK_META("show databases", 17);
 
   test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 1);
@@ -173,7 +173,7 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
   test.Restart();
 
   test.SendShowMetaReq(TSDB_MGMT_TABLE_DB, "");
-  CHECK_META("show databases", 18);
+  CHECK_META("show databases", 17);
 
   test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 1);
@@ -215,7 +215,7 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
   }
 
   test.SendShowMetaReq(TSDB_MGMT_TABLE_DB, "");
-  CHECK_META("show databases", 18);
+  CHECK_META("show databases", 17);
 
   test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 0);
@@ -255,7 +255,7 @@ TEST_F(MndTestDb, 03_Create_Use_Restart_Use_Db) {
   }
 
   test.SendShowMetaReq(TSDB_MGMT_TABLE_DB, "");
-  CHECK_META("show databases", 18);
+  CHECK_META("show databases", 17);
 
   test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 1);

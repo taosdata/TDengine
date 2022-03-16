@@ -1292,11 +1292,11 @@ static int32_t mndGetDbMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMe
   pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
-  pShow->bytes[cols] = 1;
-  pSchema[cols].type = TSDB_DATA_TYPE_TINYINT;
-  strcpy(pSchema[cols].name, "update");
-  pSchema[cols].bytes = pShow->bytes[cols];
-  cols++;
+//  pShow->bytes[cols] = 1;
+//  pSchema[cols].type = TSDB_DATA_TYPE_TINYINT;
+//  strcpy(pSchema[cols].name, "update");
+//  pSchema[cols].bytes = pShow->bytes[cols];
+//  cols++;
 
   pMeta->numOfColumns = cols;
   pShow->numOfColumns = cols;
@@ -1432,9 +1432,9 @@ static int32_t mndRetrieveDbs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int3
     STR_WITH_SIZE_TO_VARSTR(pWrite, prec, 2);
     cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int8_t *)pWrite = pDb->cfg.update;
-    cols++;
+//    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//    *(int8_t *)pWrite = pDb->cfg.update;
+//    cols++;
 
     numOfRows++;
     sdbRelease(pSdb, pDb);

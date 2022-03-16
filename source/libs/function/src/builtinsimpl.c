@@ -52,10 +52,6 @@ static void doFinalizer(SResultRowEntryInfo* pResInfo) { cleanupResultRowEntry(p
 
 void functionFinalizer(SqlFunctionCtx *pCtx) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  if (pResInfo->hasResult != DATA_SET_FLAG) {
-//    setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
-  }
-
   doFinalizer(pResInfo);
 }
 
@@ -398,7 +394,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx *pCtx, int32_t isMinFunc) {
       int32_t *pData = (int32_t*)pCol->pData;
       int32_t *val = (int32_t*) buf;
 
-      for (int32_t i = 0; i < pCtx->size; ++i) {
+      for (int32_t i = start; i < start + numOfRows; ++i) {
         if ((pCol->hasNull) && colDataIsNull_f(pCol->nullbitmap, i)) {
           continue;
         }

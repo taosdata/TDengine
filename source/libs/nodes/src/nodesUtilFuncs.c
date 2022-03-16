@@ -76,6 +76,12 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SColumnDefNode));
     case QUERY_NODE_DOWNSTREAM_SOURCE:
       return makeNode(type, sizeof(SDownstreamSourceNode));
+    case QUERY_NODE_DATABASE_OPTIONS:
+      return makeNode(type, sizeof(SDatabaseOptions));
+    case QUERY_NODE_TABLE_OPTIONS:
+      return makeNode(type, sizeof(STableOptions));
+    case QUERY_NODE_INDEX_OPTIONS:
+      return makeNode(type, sizeof(SIndexOptions));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
@@ -121,7 +127,12 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
+    case QUERY_NODE_SHOW_QNODES_STMT:
       return makeNode(type, sizeof(SShowStmt));
+    case QUERY_NODE_CREATE_INDEX_STMT:
+      return makeNode(type, sizeof(SCreateIndexStmt));
+    case QUERY_NODE_CREATE_QNODE_STMT:
+      return makeNode(type, sizeof(SCreateQnodeStmt));
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -208,6 +219,14 @@ static EDealRes destroyNode(SNode** pNode, void* pContext) {
     case QUERY_NODE_NODE_LIST:
       nodesClearList(((SNodeListNode*)(*pNode))->pNodeList);
       break;
+    case QUERY_NODE_INDEX_OPTIONS: {
+      SIndexOptions* pStmt = (SIndexOptions*)*pNode;
+      nodesDestroyList(pStmt->pFuncs);
+      nodesDestroyNode(pStmt->pInterval);
+      nodesDestroyNode(pStmt->pOffset);
+      nodesDestroyNode(pStmt->pSliding);
+      break;
+    }
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pStmt = (SSelectStmt*)*pNode;
       nodesDestroyList(pStmt->pProjectionList);
@@ -248,6 +267,12 @@ static EDealRes destroyNode(SNode** pNode, void* pContext) {
     case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
       nodesDestroyList(((SCreateMultiTableStmt*)(*pNode))->pSubTables);
       break;
+    case QUERY_NODE_CREATE_INDEX_STMT: {
+      SCreateIndexStmt* pStmt = (SCreateIndexStmt*)*pNode;
+      nodesDestroyNode(pStmt->pOptions);
+      nodesDestroyList(pStmt->pCols);
+      break;
+    }
     default:
       break;
   }

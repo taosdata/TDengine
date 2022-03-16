@@ -289,11 +289,13 @@ void uvOnSendCb(uv_write_t* req, int status) {
     if (conn->srvMsgs != NULL) {
       assert(taosArrayGetSize(conn->srvMsgs) >= 1);
       SSrvMsg* msg = taosArrayGetP(conn->srvMsgs, 0);
+      tTrace("server conn %p sending msg size: %d", conn, (int)taosArrayGetSize(conn->srvMsgs));
       taosArrayRemove(conn->srvMsgs, 0);
       destroySmsg(msg);
 
       // send second data, just use for push
       if (taosArrayGetSize(conn->srvMsgs) > 0) {
+        tTrace("resent server conn %p sending msg size: %d", conn, (int)taosArrayGetSize(conn->srvMsgs));
         msg = (SSrvMsg*)taosArrayGetP(conn->srvMsgs, 0);
         uvStartSendRespInternal(msg);
       }
@@ -643,7 +645,7 @@ static void uvDestroyConn(uv_handle_t* handle) {
   uv_timer_stop(&conn->pTimer);
   QUEUE_REMOVE(&conn->queue);
   free(conn->pTcp);
-  free(conn);
+  // free(conn);
 
   if (thrd->quit && QUEUE_IS_EMPTY(&thrd->conn)) {
     uv_loop_close(thrd->loop);
@@ -737,7 +739,7 @@ void destroyWorkThrd(SWorkThrdObj* pThrd) {
 }
 void sendQuitToWorkThrd(SWorkThrdObj* pThrd) {
   SSrvMsg* srvMsg = calloc(1, sizeof(SSrvMsg));
-  tDebug("send quit msg to work thread");
+  tDebug("server send quit msg to work thread");
 
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
 }
@@ -787,6 +789,11 @@ void transUnrefSrvHandle(void* handle) {
     destroyConn((SSrvConn*)handle, true);
   }
   // unref srv handle
+}
+
+void transReleaseSrvHandle(void* handle) {
+  // do nothing currently
+  //
 }
 void transSendResponse(const STransMsg* pMsg) {
   if (pMsg->handle == NULL) {

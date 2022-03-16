@@ -42,6 +42,7 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId);
 // on message ----
 static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
 static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
+static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg);
 // ---------------------------------
 
 int32_t syncInit() {
@@ -192,6 +193,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   // init callback
   pSyncNode->FpOnPing = syncNodeOnPingCb;
   pSyncNode->FpOnPingReply = syncNodeOnPingReplyCb;
+  pSyncNode->FpOnClientRequest = syncNodeOnClientRequestCb;
   pSyncNode->FpOnRequestVote = syncNodeOnRequestVoteCb;
   pSyncNode->FpOnRequestVoteReply = syncNodeOnRequestVoteReplyCb;
   pSyncNode->FpOnAppendEntries = syncNodeOnAppendEntriesCb;
@@ -694,5 +696,21 @@ static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg) {
 static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg) {
   int32_t ret = 0;
   syncPingReplyLog2("==syncNodeOnPingReplyCb==", pMsg);
+  return ret;
+}
+
+static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg) {
+  int32_t ret = 0;
+  syncClientRequestLog2("==syncNodeOnClientRequestCb==", pMsg);
+
+  if (ths->state == TAOS_SYNC_STATE_LEADER) {
+    SSyncRaftEntry* pEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
+    ths->pLogStore->appendEntry(ths->pLogStore, pEntry);
+    syncNodeReplicate(ths);
+    syncEntryDestory(pEntry);
+  } else {
+    // ths->pFsm->FpCommitCb(-1)
+  }
+
   return ret;
 }

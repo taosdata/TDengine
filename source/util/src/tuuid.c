@@ -24,7 +24,6 @@ int32_t tGenIdPI32(void) {
     int32_t code = taosGetSystemUUID(uid, tListLen(uid));
     if (code != TSDB_CODE_SUCCESS) {
       terrno = TAOS_SYSTEM_ERROR(errno);
-      return -1;
     } else {
       hashId = MurmurHash3_32(uid, strlen(uid));
     }
@@ -44,7 +43,6 @@ int64_t tGenIdPI64(void) {
     int32_t code = taosGetSystemUUID(uid, tListLen(uid));
     if (code != TSDB_CODE_SUCCESS) {
       terrno = TAOS_SYSTEM_ERROR(errno);
-      return -1;
     } else {
       hashId = MurmurHash3_32(uid, strlen(uid));
     }
