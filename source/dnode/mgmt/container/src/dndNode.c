@@ -219,34 +219,6 @@ static void dndClearNodesExecpt(SDnode *pDnode, ENodeType except) {
   }
 }
 
-static void dndSendRpcRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
-  if (pRsp->code == TSDB_CODE_DND_MNODE_NOT_DEPLOYED || pRsp->code == TSDB_CODE_APP_NOT_READY) {
-    dmSendRedirectRsp(dndGetWrapper(pWrapper->pDnode, DNODE), pRsp);
-  } else {
-    rpcSendResponse(pRsp);
-  }
-}
-
-void dndSendRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
-  int32_t code = -1;
-
-  if (pWrapper->procType != PROC_CHILD) {
-    dndSendRpcRsp(pWrapper, pRsp);
-  } else {
-    do {
-      code = taosProcPutToParentQueue(pWrapper->pProc, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen);
-      if (code != 0) {
-        taosMsleep(10);
-      }
-    } while (code != 0);
-  }
-}
-
-void dndSendRedirectRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
-  pRsp->code = TSDB_CODE_APP_NOT_READY;
-  dndSendRsp(pWrapper, pRsp);
-}
-
 static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen) {
   dTrace("msg:%p, get from child queue", pMsg);
   SRpcMsg *pRpc = &pMsg->rpcMsg;

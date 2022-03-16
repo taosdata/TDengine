@@ -147,11 +147,11 @@ void          dndSetStatus(SDnode *pDnode, EDndStatus stat);
 SMgmtWrapper *dndGetWrapper(SDnode *pDnode, ENodeType nodeType);
 void          dndSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp);
 void          dndReportStartup(SDnode *pDnode, char *pName, char *pDesc);
+void          dndSendMonitorReport(SDnode *pDnode);
 
-void    dndSendMonitorReport(SDnode *pDnode);
 int32_t dndSendReqToMnode(void *wrapper, SRpcMsg *pMsg);
 int32_t dndSendReqToDnode(void *wrapper, SEpSet *pEpSet, SRpcMsg *pMsg);
-void    dndSendRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp);
+void    dndSendRsp(void *pWrapper, SRpcMsg *pRsp);
 
 int32_t dndInitWorker(void *param, SDnodeWorker *pWorker, EWorkerType type, const char *name, int32_t minNum,
                       int32_t maxNum, void *queueFp);

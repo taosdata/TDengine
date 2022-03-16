@@ -59,12 +59,11 @@ void dmGetDnodeEp(SMgmtWrapper *pWrapper, int32_t dnodeId, char *pEp, char *pFqd
 
 void dmSendRedirectRsp(SMgmtWrapper *pWrapper, SRpcMsg *pReq) {
   SDnode *pDnode = pWrapper->pDnode;
-  tmsg_t  msgType = pReq->msgType;
 
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pWrapper, &epSet);
 
-  dDebug("RPC %p, req:%s is redirected, num:%d use:%d", pReq->handle, TMSG_INFO(msgType), epSet.numOfEps, epSet.inUse);
+  dDebug("RPC %p, req is redirected, num:%d use:%d", pReq->handle, epSet.numOfEps, epSet.inUse);
   for (int32_t i = 0; i < epSet.numOfEps; ++i) {
     dDebug("mnode index:%d %s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
     if (strcmp(epSet.eps[i].fqdn, pDnode->localFqdn) == 0 && epSet.eps[i].port == pDnode->serverPort) {

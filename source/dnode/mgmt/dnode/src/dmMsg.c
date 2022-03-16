@@ -53,7 +53,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   pMgmt->statusSent = 1;
 
   dTrace("send req:%s to mnode, app:%p", TMSG_INFO(rpcMsg.msgType), rpcMsg.ahandle);
-  dndSendReqToMnode(pMgmt->dnodeEps, &rpcMsg);
+  dndSendReqToMnode(pMgmt->pWrapper, &rpcMsg);
 }
 
 static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
@@ -115,7 +115,6 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
 void dmInitMsgHandles(SMgmtWrapper *pWrapper) {
   // Requests handled by DNODE
   dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_MNODE, (NodeMsgFp)dmProcessMgmtMsg);
-  dndSetMsgHandle(pWrapper, TDMT_DND_ALTER_MNODE, (NodeMsgFp)dmProcessMgmtMsg);
   dndSetMsgHandle(pWrapper, TDMT_DND_DROP_MNODE, (NodeMsgFp)dmProcessMgmtMsg);
   dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_QNODE, (NodeMsgFp)dmProcessMgmtMsg);
   dndSetMsgHandle(pWrapper, TDMT_DND_DROP_QNODE, (NodeMsgFp)dmProcessMgmtMsg);

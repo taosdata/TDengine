@@ -269,7 +269,7 @@ int32_t dndInitMsgHandle(SDnode *pDnode) {
   return 0;
 }
 
-static int32_t dndSetReq(STransMgmt *pMgmt, SEpSet *pEpSet, SRpcMsg *pReq) {
+static int32_t dndSendRpcReq(STransMgmt *pMgmt, SEpSet *pEpSet, SRpcMsg *pReq) {
   if (pMgmt->clientRpc == NULL) {
     terrno = TSDB_CODE_DND_OFFLINE;
     return -1;
@@ -281,16 +281,47 @@ static int32_t dndSetReq(STransMgmt *pMgmt, SEpSet *pEpSet, SRpcMsg *pReq) {
 
 int32_t dndSendReqToDnode(void *wrapper, SEpSet *pEpSet, SRpcMsg *pReq) {
   SMgmtWrapper *pWrapper = wrapper;
-  STransMgmt   *pTrans = &pWrapper->pDnode->trans;
-  return dndSetReq(pTrans, pEpSet, pReq);
+
+  if (pWrapper->procType == PROC_CHILD) {
+  } else {
+    STransMgmt *pTrans = &pWrapper->pDnode->trans;
+    return dndSendRpcReq(pTrans, pEpSet, pReq);
+  }
 }
 
 int32_t dndSendReqToMnode(void *wrapper, SRpcMsg *pReq) {
   SMgmtWrapper *pWrapper = wrapper;
-  SDnode       *pDnode = pWrapper->pDnode;
-  STransMgmt   *pTrans = &pDnode->trans;
 
-  SEpSet epSet = {0};
-  dmGetMnodeEpSet(dndGetWrapper(pDnode, DNODE), &epSet);
-  return dndSetReq(pTrans, &epSet, pReq);
+  if (pWrapper->procType == PROC_CHILD) {
+  } else {
+    SDnode     *pDnode = pWrapper->pDnode;
+    STransMgmt *pTrans = &pDnode->trans;
+    SEpSet      epSet = {0};
+    dmGetMnodeEpSet(dndGetWrapper(pDnode, DNODE), &epSet);
+    return dndSendRpcReq(pTrans, &epSet, pReq);
+  }
+}
+
+void dndSendRpcRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
+  if (pRsp->code == TSDB_CODE_DND_MNODE_NOT_DEPLOYED || pRsp->code == TSDB_CODE_APP_NOT_READY) {
+    dmSendRedirectRsp(dndGetWrapper(pWrapper->pDnode, DNODE), pRsp);
+  } else {
+    rpcSendResponse(pRsp);
+  }
+}
+
+void dndSendRsp(void *wrapper, SRpcMsg *pRsp) {
+  SMgmtWrapper *pWrapper = wrapper;
+
+  if (pWrapper->procType == PROC_CHILD) {
+    int32_t code = -1;
+    do {
+      code = taosProcPutToParentQueue(pWrapper->pProc, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen);
+      if (code != 0) {
+        taosMsleep(10);
+      }
+    } while (code != 0);
+  } else {
+    dndSendRpcRsp(pWrapper, pRsp);
+  }
 }

@@ -51,6 +51,7 @@ void    dndCleanupServer(SDnode *pDnode);
 int32_t dndInitClient(SDnode *pDnode);
 void    dndCleanupClient(SDnode *pDnode);
 int32_t dndInitMsgHandle(SDnode *pDnode);
+void    dndSendRpcRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp);
 
 #ifdef __cplusplus
 }
