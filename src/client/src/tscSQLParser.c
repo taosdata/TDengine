@@ -2408,7 +2408,7 @@ static int32_t doAddProjectionExprAndResultFields(SQueryInfo* pQueryInfo, SColum
 int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExprItem* pItem, bool outerQuery, bool timeWindowQuery) {
   const char* msg1 = "tag for normal table query is not allowed";
   const char* msg2 = "invalid column name";
-  const char* msg3 = "tbname/_wstart/_wstop/_wduration in outer query does not match inner query result";
+  const char* msg3 = "tbname/_wstart/_wstop/_wduration/_qstart/_qstop/_qduration in outer query does not match inner query result";
   const char* msg4 = "-> operate can only used in json type";
   const char* msg5 = "the right value of -> operation must be string";
   const char* msg6 = "select name is too long than 64, please use alias name";
@@ -2494,7 +2494,13 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
               (strncasecmp(pSchema[i].name, TSQL_TSWIN_STOP, tListLen(pSchema[i].name)) == 0 &&
               index.columnIndex == TSDB_TSWIN_STOP_COLUMN_INDEX) ||
               (strncasecmp(pSchema[i].name, TSQL_TSWIN_DURATION, tListLen(pSchema[i].name)) == 0 &&
-              index.columnIndex == TSDB_TSWIN_DURATION_COLUMN_INDEX)) {
+              index.columnIndex == TSDB_TSWIN_DURATION_COLUMN_INDEX) ||
+              (strncasecmp(pSchema[i].name, TSQL_QUERY_START, tListLen(pSchema[i].name)) == 0 &&
+              index.columnIndex == TSDB_QUERY_START_COLUMN_INDEX) ||
+              (strncasecmp(pSchema[i].name, TSQL_QUERY_STOP, tListLen(pSchema[i].name)) == 0 &&
+              index.columnIndex == TSDB_QUERY_STOP_COLUMN_INDEX) ||
+              (strncasecmp(pSchema[i].name, TSQL_QUERY_DURATION, tListLen(pSchema[i].name)) == 0 &&
+              index.columnIndex == TSDB_QUERY_DURATION_COLUMN_INDEX)) {
             existed = true;
             index.columnIndex = i;
             break;
@@ -2520,7 +2526,9 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
           functionId = TSDB_FUNC_TAGPRJ;
           colType    = TSDB_COL_TAG;
         } else {
-          if (!timeWindowQuery) {
+          if (!timeWindowQuery && (index.columnIndex == TSDB_TSWIN_START_COLUMN_INDEX ||
+              index.columnIndex == TSDB_TSWIN_STOP_COLUMN_INDEX ||
+              index.columnIndex == TSDB_TSWIN_DURATION_COLUMN_INDEX)) {
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
           }
           colSchema  = *tGetTimeWindowColumnSchema(index.columnIndex);
@@ -2819,7 +2827,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
     case TSDB_FUNC_ELAPSED:
     case TSDB_FUNC_MODE:
     case TSDB_FUNC_STATE_COUNT:
-    case TSDB_FUNC_STATE_DURATION:{
+    case TSDB_FUNC_STATE_DURATION:
+    case TSDB_FUNC_HYPERLOGLOG:{
       // 1. valid the number of parameters
       int32_t numOfParams =
           (pItem->pNode->Expr.paramList == NULL) ? 0 : (int32_t)taosArrayGetSize(pItem->pNode->Expr.paramList);
@@ -2890,7 +2899,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       if (functionId == TSDB_FUNC_MODE && pColumnSchema->colId == PRIMARYKEY_TIMESTAMP_COL_INDEX &&
           pColumnSchema->type == TSDB_DATA_TYPE_TIMESTAMP){
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg29);
-      } else if (!IS_NUMERIC_TYPE(pSchema->type) && (functionId != TSDB_FUNC_ELAPSED) && (functionId != TSDB_FUNC_MODE)) {
+      } else if (!IS_NUMERIC_TYPE(pSchema->type) && (functionId != TSDB_FUNC_ELAPSED) &&
+                 (functionId != TSDB_FUNC_MODE) && (functionId != TSDB_FUNC_HYPERLOGLOG)) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       } else if (IS_UNSIGNED_NUMERIC_TYPE(pSchema->type) &&
                  (functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE)) {
@@ -3859,6 +3869,15 @@ static bool isTimeWindowToken(SStrToken* token, int16_t *columnIndex) {
   } else if (tmpToken.n == strlen(TSQL_TSWIN_DURATION) && strncasecmp(TSQL_TSWIN_DURATION, tmpToken.z, tmpToken.n) == 0) {
     *columnIndex = TSDB_TSWIN_DURATION_COLUMN_INDEX;
     return true;
+  } else if (tmpToken.n == strlen(TSQL_QUERY_START) && strncasecmp(TSQL_QUERY_START, tmpToken.z, tmpToken.n) == 0) {
+    *columnIndex = TSDB_QUERY_START_COLUMN_INDEX;
+    return true;
+  } else if (tmpToken.n == strlen(TSQL_QUERY_STOP) && strncasecmp(TSQL_QUERY_STOP, tmpToken.z, tmpToken.n) == 0) {
+    *columnIndex = TSDB_QUERY_STOP_COLUMN_INDEX;
+    return true;
+  } else if (tmpToken.n == strlen(TSQL_QUERY_DURATION) && strncasecmp(TSQL_QUERY_DURATION, tmpToken.z, tmpToken.n) == 0) {
+    *columnIndex = TSDB_QUERY_DURATION_COLUMN_INDEX;
+    return true;
   } else {
     return false;
   }
@@ -4152,7 +4171,8 @@ int32_t tscTansformFuncForSTableQuery(SQueryInfo* pQueryInfo) {
         (functionId == TSDB_FUNC_HISTOGRAM) ||
         (functionId == TSDB_FUNC_UNIQUE) ||
         (functionId == TSDB_FUNC_MODE) ||
-        (functionId == TSDB_FUNC_TAIL)) {
+        (functionId == TSDB_FUNC_TAIL) ||
+        (functionId == TSDB_FUNC_HYPERLOGLOG)) {
       if (getResultDataInfo(pSrcSchema->type, pSrcSchema->bytes, functionId, (int32_t)pExpr->base.param[0].i64, &type, &bytes,
                             &interBytes, 0, true, NULL) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -4301,6 +4321,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
   int32_t scalarFuncNum = 0;
   int32_t funcCompatFactor = INT_MAX;
   int32_t countTbname = 0;
+  int32_t queryWinNum = 0;
 
   size_t numOfExpr = tscNumOfExprs(pQueryInfo);
   assert(numOfExpr > 0);
@@ -4310,7 +4331,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
   // diff function cannot be executed with other function
   // arithmetic function can be executed with other arithmetic functions
   size_t size = tscNumOfExprs(pQueryInfo);
-  
+
   for (int32_t i = startIdx; i < size; ++i) {
     SExprInfo* pExpr1 = tscExprGet(pQueryInfo, i);
 
@@ -4338,6 +4359,10 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
 
     if (functionId == TSDB_FUNC_SCALAR_EXPR) {
       ++scalarFuncNum;
+    }
+
+    if (functionId == TSDB_FUNC_QSTART || functionId == TSDB_FUNC_QSTOP || functionId == TSDB_FUNC_QDURATION) {
+      ++queryWinNum;
     }
 
     if (functionId == TSDB_FUNC_PRJ && (pExpr1->base.colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX || TSDB_COL_IS_UD_COL(pExpr1->base.colInfo.flag))) {
@@ -4371,7 +4396,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
     }
   }
 
-  aggNum = (int32_t)size - prjNum - scalarFuncNum - aggUdf - scalarUdf - countTbname;
+  aggNum = (int32_t)size - prjNum - scalarFuncNum - aggUdf - scalarUdf - countTbname - queryWinNum;
 
   assert(aggNum >= 0);
 
@@ -8275,7 +8300,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
 
   for (int32_t i = 0; i < numOfExprs; ++i) {
     SExprInfo* pExpr = taosArrayGetP(pQueryInfo->exprList, i);
-  
+
     int16_t functionId = pExpr->base.functionId;
     if (functionId == TSDB_FUNC_TAGPRJ || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TS ||
         functionId == TSDB_FUNC_SCALAR_EXPR || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_STATE_COUNT ||
@@ -8283,8 +8308,11 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
       continue;
     }
 
-    if (functionId == TSDB_FUNC_WSTART || functionId == TSDB_FUNC_WSTOP || functionId == TSDB_FUNC_WDURATION) {
+    if (isTimeWindowFunction(functionId)) {
       numOfTimeWindow++;
+      if (functionId >= TSDB_FUNC_QSTART && functionId <= TSDB_FUNC_QDURATION) {
+        continue;
+      }
     }
 
     if (functionId < 0) {

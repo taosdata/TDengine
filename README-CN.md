@@ -23,13 +23,13 @@ TDengine 是一款高性能、分布式、支持 SQL 的时序数据库。而且
 
 - **零管理**：安装、集群几秒搞定，无任何依赖，不用分库分表，系统运行状态监测能与 Grafana 或其他运维工具无缝集成。
 
-- **零学习成本**：采用 SQL 查询语言，支持 Python, Java, C/C++, Go, Rust, Node.js 等多种编程语言,与 MySQL 相似，零学习成本。
+- **零学习成本**：采用 SQL 查询语言，支持 Python、Java、C/C++、Go、Rust、Node.js 等多种编程语言，与 MySQL 相似，零学习成本。
 
-- **无缝集成**：不用一行代码，即可与 Telegraf, Grafana, EMQ X, Prometheus, StatsD, collectd, Matlab, R 等第三方工具无缝集成。
+- **无缝集成**：不用一行代码，即可与 Telegraf、Grafana、EMQX、Prometheus、StatsD、collectd、Matlab、R 等第三方工具无缝集成。
 
 - **互动 Console**: 通过命令行 console，不用编程，执行 SQL 语句就能做即席查询、各种数据库的操作、管理以及集群的维护.
 
-TDengine 可以广泛应用于物联网、工业互联网、车联网、IT 运维、能源、金融等领域, 让大量设备、数据采集器每天产生的高达 TB 甚至 PB 级的数据能得到高效实时的处理，对业务的运行状态进行实时的监测、预警，从大数据中挖掘出商业价值。
+TDengine 可以广泛应用于物联网、工业互联网、车联网、IT 运维、能源、金融等领域，让大量设备、数据采集器每天产生的高达 TB 甚至 PB 级的数据能得到高效实时的处理，对业务的运行状态进行实时的监测、预警，从大数据中挖掘出商业价值。
 
 # 文档
 
@@ -272,12 +272,12 @@ taos
 在 TDengine 终端中，用户可以通过 SQL 命令来创建/删除数据库、表等，并进行插入查询操作。
 
 ```bash
-create database demo;
-use demo;
-create table t (ts timestamp, speed int);
-insert into t values ('2019-07-15 00:00:00', 10);
-insert into t values ('2019-07-15 01:00:00', 20);
-select * from t;
+CREATE DATABASE demo;
+USE demo;
+CREATE TABLE t (ts TIMESTAMP, speed INT);
+INSERT INTO t VALUES('2019-07-15 00:00:00', 10);
+INSERT INTO t VALUES('2019-07-15 01:00:00', 20);
+SELECT * FROM t;
           ts          |   speed   |
 ===================================
  19-07-15 00:00:00.000|         10|
