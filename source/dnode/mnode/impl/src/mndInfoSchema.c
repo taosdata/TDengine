@@ -116,7 +116,7 @@ static const SInfosTableSchema userUsersSchema[] = {{.name = "name",           .
                                                     {.name = "account",        .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE,    .type = TSDB_DATA_TYPE_BINARY},
                                                    };
 static const SInfosTableSchema vgroupsSchema[] = {{.name = "vgroup_id",        .bytes = 4,   .type = TSDB_DATA_TYPE_INT},
-                                                  {.name = "db_name",          .bytes = 32,   .type = TSDB_DATA_TYPE_BINARY},
+                                                  {.name = "db_name",          .bytes = (TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE,   .type = TSDB_DATA_TYPE_BINARY},
                                                   {.name = "tables",           .bytes = 4,   .type = TSDB_DATA_TYPE_INT},
                                                   {.name = "status",           .bytes = 10,  .type = TSDB_DATA_TYPE_BINARY},
                                                   {.name = "onlines",          .bytes = 4,   .type = TSDB_DATA_TYPE_INT},

@@ -1576,7 +1576,10 @@ static int32_t mndRetrieveStb(SMnodeMsg *pReq, SShowObj *pShow, char *data, int3
     sdbRelease(pSdb, pStb);
   }
 
-  mndReleaseDb(pMnode, pDb);
+  if (pDb != NULL) {
+    mndReleaseDb(pMnode, pDb);
+  }
+
   pShow->numOfReads += numOfRows;
   mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   return numOfRows;
