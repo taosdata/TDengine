@@ -21,7 +21,7 @@ TEST(tdb_test, simple_test) {
 
     for (int i = 1; i <= 92; i++) {
       sprintf(key, "key%d", i);
-      sprintf(key, "value%d", i);
+      sprintf(val, "value%d", i);
       ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val));
       GTEST_ASSERT_EQ(ret, 0);
     }
