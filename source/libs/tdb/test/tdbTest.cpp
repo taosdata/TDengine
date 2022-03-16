@@ -16,14 +16,15 @@ TEST(tdb_test, simple_test) {
   GTEST_ASSERT_EQ(ret, 0);
 
   {  // Insert some data
-    ret = tdbDbInsert(pDb, "key1", 4, "value1", 6);
-    GTEST_ASSERT_EQ(ret, 0);
+    char key[64];
+    char val[64];
 
-    ret = tdbDbInsert(pDb, "key2", 4, "value1", 6);
-    GTEST_ASSERT_EQ(ret, 0);
-
-    ret = tdbDbInsert(pDb, "key3", 4, "value1", 6);
-    GTEST_ASSERT_EQ(ret, 0);
+    for (int i = 1; i <= 86; i++) {
+      sprintf(key, "key%d", i);
+      sprintf(key, "value%d", i);
+      ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val));
+      GTEST_ASSERT_EQ(ret, 0);
+    }
   }
 
   ret = tdbDbDrop(pDb);
