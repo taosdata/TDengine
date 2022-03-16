@@ -507,6 +507,8 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
     return -1;
   }
 
+  ((SBtPageHdr *)pRoot->pAmHdr)[0].rChild = pgnoChild;
+
   *ppChild = pChild;
   return 0;
 }
