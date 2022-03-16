@@ -510,15 +510,17 @@ void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
 }
 
 void syncNodeBecomeFollower(SSyncNode* pSyncNode) {
+  // maybe clear leader cache
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     pSyncNode->leaderCache = EMPTY_RAFT_ID;
   }
 
+  // state change
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
   syncNodeStopHeartbeatTimer(pSyncNode);
 
-  int32_t electMS = syncUtilElectRandomMS();
-  syncNodeRestartElectTimer(pSyncNode, electMS);
+  // reset elect timer
+  syncNodeResetElectTimer(pSyncNode);
 }
 
 // TLA+ Spec
@@ -540,19 +542,31 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode) {
 //     /\ UNCHANGED <<messages, currentTerm, votedFor, candidateVars, logVars>>
 //
 void syncNodeBecomeLeader(SSyncNode* pSyncNode) {
+  // state change
   pSyncNode->state = TAOS_SYNC_STATE_LEADER;
+
+  // set leader cache
   pSyncNode->leaderCache = pSyncNode->myRaftId;
 
   for (int i = 0; i < pSyncNode->pNextIndex->replicaNum; ++i) {
+    // maybe overwrite myself, no harm
+    // just do it!
     pSyncNode->pNextIndex->index[i] = pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore) + 1;
   }
 
   for (int i = 0; i < pSyncNode->pMatchIndex->replicaNum; ++i) {
+    // maybe overwrite myself, no harm
+    // just do it!
     pSyncNode->pMatchIndex->index[i] = SYNC_INDEX_INVALID;
   }
 
+  // stop elect timer
   syncNodeStopElectTimer(pSyncNode);
+
+  // start heartbeat timer
   syncNodeStartHeartbeatTimer(pSyncNode);
+
+  // start replicate right now!
   syncNodeReplicate(pSyncNode);
 }
 
@@ -578,6 +592,9 @@ void syncNodeCandidate2Follower(SSyncNode* pSyncNode) {
 }
 
 // raft vote --------------
+
+// just called by syncNodeVoteForSelf
+// need assert
 void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId) {
   assert(term == pSyncNode->pRaftStore->currentTerm);
   assert(!raftStoreHasVoted(pSyncNode->pRaftStore));
@@ -585,6 +602,7 @@ void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId) 
   raftStoreVote(pSyncNode->pRaftStore, pRaftId);
 }
 
+// simulate get vote from outside
 void syncNodeVoteForSelf(SSyncNode* pSyncNode) {
   syncNodeVoteForTerm(pSyncNode, pSyncNode->pRaftStore->currentTerm, &(pSyncNode->myRaftId));
 
