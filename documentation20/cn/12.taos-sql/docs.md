@@ -1628,9 +1628,9 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 - **DIFF**
     ```mysql
-    SELECT DIFF(field_name) FROM tb_name [WHERE clause];
+    SELECT {DIFF(field_name, ignore_negative) | DIFF(field_name)} FROM tb_name [WHERE clause];
     ```
-    功能说明：统计表中某列的值与前一行对应值的差。
+    功能说明：统计表中某列的值与前一行对应值的差。 ignore_negative 取值为 0|1 , 可以不填，默认值为 0. 不忽略负值。ignore_negative为1时表示忽略负数。
 
     返回结果数据类型：同应用字段。
 
@@ -1638,7 +1638,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
     适用于：**表、（超级表）**。
 
-    说明：输出结果行数是范围内总行数减一，第一行没有结果输出。从 2.1.3.0 版本开始，DIFF 函数可以在由 GROUP BY 划分出单独时间线的情况下用于超级表（也即 GROUP BY tbname）。
+    说明：输出结果行数是范围内总行数减一，第一行没有结果输出。从 2.1.3.0 版本开始，DIFF 函数可以在由 GROUP BY 划分出单独时间线的情况下用于超级表（也即 GROUP BY tbname）。从2.6.0开始，DIFF函数支持ignore_negative参数
 
     示例：
     ```mysql
@@ -1722,7 +1722,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
       支持 +、-、*、/ 运算，如 ceil(col1) + ceil(col2)。
       只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
       该函数可以应用在普通表和超级表上。
-  
+
 - **FLOOR**
     ```mysql
     SELECT FLOOR(field_name) FROM { tb_name | stb_name } [WHERE clause];
@@ -1736,6 +1736,107 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     ```
     功能说明：获得指定列的四舍五入的结果。  
     其他使用说明参见CEIL函数描述。
+
+- **ASIN**
+    ```mysql
+    SELECT ASIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：获得指定列的反正弦结果
+    其他使用说明参见CEIL函数描述
+
+- **ACOS**
+    ```mysql
+    SELECT ACOS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：获得指定列的反余弦结果
+    其他使用说明参见CEIL函数描述
+
+- **ATAN**
+    ```mysql
+    SELECT ATAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：获得指定列的反正切结果
+    其他使用说明参见CEIL函数描述
+
+- **SIN**
+    ```mysql
+    SELECT SIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：获得指定列的正弦结果
+    其他使用说明参见CEIL函数描述
+
+- **COS**
+    ```mysql
+    SELECT COS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：获得指定列的余弦结果
+    其他使用说明参见CEIL函数描述
+
+- **TAN**
+    ```mysql
+    SELECT TAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：获得指定列的正切结果
+    其他使用说明参见CEIL函数描述
+
+- **POW**
+    ```mysql
+    SELECT POW(field_name, power) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：获得指定列的指数为power的幂
+    其他使用说明参见CEIL函数描述
+
+- **LOG**
+    ```mysql
+    SELECT LOG(field_name, base) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：获得指定列对于底数base的对数
+    其他使用说明参见CEIL函数描述
+
+- **ABS**
+    ```mysql
+    SELECT ABS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：获得指定列的绝对值
+    其他使用说明参见CEIL函数描述
+
+- **SQRT**
+    ```mysql
+    SELECT SQRT(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：获得指定列的平方根
+    其他使用说明参见CEIL函数描述
+
+- **CAST**
+    ```mysql
+    SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：数据类型转换函数，输入参数expression支持普通列、常量、标量函数及它们之间的四则运算，不支持tag列，只适用于select子句中。
+
+    返回结果类型：CAST中指定的类型（type_name）。
+
+    适用数据类型：输入参数expression的类型可以是除JSON外目前所有类型字段（BOOL/TINYINT/SMALLINT/INT/BIGINT/FLOAT/DOUBLE/BINARY(M)/TIMESTAMP/NCHAR(M)/TINYINT UNSIGNED/SMALLINT UNSIGNED/INT UNSIGNED/BIGINT UNSIGNED）; 输出目标类型只支持BIGINT/BINARY(N)/TIMESTAMP/NCHAR(N)/BIGINT UNSIGNED。
+
+    说明：
+      对于不能支持的类型转换会直接报错。
+      如果输入值为NULL则输出值也为NULL。
+      对于类型支持但某些值无法正确转换的情况对应的转换后的值以转换函数输出为准。目前可能遇到的几种情况：
+        BINARY/NCHAR转BIGINT/BIGINT UNSIGNED时可能出现的无效字符情况，例如"a"可能转为0。
+        有符号数或TIMESTAMP转BIGINT UNSIGNED可能遇到的溢出问题。
+        BIGINT UNSIGNED转BIGINT可能遇到的溢出问题。
+        FLOAT/DOUBLE转BIGINT/BIGINT UNSIGNED可能遇到的溢出问题。
+
+- **CONCAT**
+    ```mysql
+    SELECT CONCAT(str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：字符串连接函数。不支持TAG列。只适用于SELECT子句中。
+
+    返回结果类型：同输入参数类型，BINARY或者NCHAR。
+
+    适用数据类型：输入参数或者全部是BINARY格式的字符串或者列，或者全部是NCHAR格式的字符串或者列。
+
+    说明：
 
 - **四则运算**
 
