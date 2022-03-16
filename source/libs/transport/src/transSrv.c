@@ -214,7 +214,9 @@ static void uvHandleReq(SSrvConn* pConn) {
     // pHead = rpcDecompresSTransMsg(pHead);
   } else {
     pHead->msgLen = htonl(pHead->msgLen);
-    // impl later
+    if (pHead->secured == 1) {
+      pHead->msgLen -= sizeof(STransUserMsg);
+    }
     //
   }
 

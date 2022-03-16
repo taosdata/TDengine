@@ -68,29 +68,31 @@ SSyncRaftEntry* syncEntryDeserialize(const char* buf, uint32_t len) {
 }
 
 cJSON* syncEntry2Json(const SSyncRaftEntry* pEntry) {
-  char u64buf[128];
-
+  char   u64buf[128];
   cJSON* pRoot = cJSON_CreateObject();
-  cJSON_AddNumberToObject(pRoot, "bytes", pEntry->bytes);
-  cJSON_AddNumberToObject(pRoot, "msgType", pEntry->msgType);
-  cJSON_AddNumberToObject(pRoot, "originalRpcType", pEntry->originalRpcType);
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pEntry->seqNum);
-  cJSON_AddStringToObject(pRoot, "seqNum", u64buf);
-  cJSON_AddNumberToObject(pRoot, "isWeak", pEntry->isWeak);
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pEntry->term);
-  cJSON_AddStringToObject(pRoot, "term", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pEntry->index);
-  cJSON_AddStringToObject(pRoot, "index", u64buf);
-  cJSON_AddNumberToObject(pRoot, "dataLen", pEntry->dataLen);
 
-  char* s;
-  s = syncUtilprintBin((char*)(pEntry->data), pEntry->dataLen);
-  cJSON_AddStringToObject(pRoot, "data", s);
-  free(s);
+  if (pEntry != NULL) {
+    cJSON_AddNumberToObject(pRoot, "bytes", pEntry->bytes);
+    cJSON_AddNumberToObject(pRoot, "msgType", pEntry->msgType);
+    cJSON_AddNumberToObject(pRoot, "originalRpcType", pEntry->originalRpcType);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pEntry->seqNum);
+    cJSON_AddStringToObject(pRoot, "seqNum", u64buf);
+    cJSON_AddNumberToObject(pRoot, "isWeak", pEntry->isWeak);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pEntry->term);
+    cJSON_AddStringToObject(pRoot, "term", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pEntry->index);
+    cJSON_AddStringToObject(pRoot, "index", u64buf);
+    cJSON_AddNumberToObject(pRoot, "dataLen", pEntry->dataLen);
 
-  s = syncUtilprintBin2((char*)(pEntry->data), pEntry->dataLen);
-  cJSON_AddStringToObject(pRoot, "data2", s);
-  free(s);
+    char* s;
+    s = syncUtilprintBin((char*)(pEntry->data), pEntry->dataLen);
+    cJSON_AddStringToObject(pRoot, "data", s);
+    free(s);
+
+    s = syncUtilprintBin2((char*)(pEntry->data), pEntry->dataLen);
+    cJSON_AddStringToObject(pRoot, "data2", s);
+    free(s);
+  }
 
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SSyncRaftEntry", pRoot);

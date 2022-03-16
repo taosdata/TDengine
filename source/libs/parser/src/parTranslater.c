@@ -21,14 +21,6 @@
 #include "parUtil.h"
 #include "ttime.h"
 
-static bool afterGroupBy(ESqlClause clause) {
-  return clause > SQL_CLAUSE_GROUP_BY;
-}
-
-static bool beforeHaving(ESqlClause clause) {
-  return clause < SQL_CLAUSE_HAVING;
-}
-
 typedef struct STranslateContext {
   SParseContext* pParseCxt;
   int32_t errCode;
@@ -41,6 +33,15 @@ typedef struct STranslateContext {
 } STranslateContext;
 
 static int32_t translateSubquery(STranslateContext* pCxt, SNode* pNode);
+static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode);
+
+static bool afterGroupBy(ESqlClause clause) {
+  return clause > SQL_CLAUSE_GROUP_BY;
+}
+
+static bool beforeHaving(ESqlClause clause) {
+  return clause < SQL_CLAUSE_HAVING;
+}
 
 static EDealRes generateDealNodeErrMsg(STranslateContext* pCxt, int32_t errCode, ...) {
   va_list vArgList;
@@ -833,6 +834,41 @@ static int32_t translateDropDatabase(STranslateContext* pCxt, SDropDatabaseStmt*
   return TSDB_CODE_SUCCESS;
 }
 
+static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, SAlterDbReq* pReq) {
+  SName name = {0};
+  tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
+  tNameGetFullDbName(&name, pReq->db);
+  pReq->totalBlocks = pStmt->pOptions->numOfBlocks;
+  pReq->daysToKeep0 = pStmt->pOptions->keep;
+  pReq->daysToKeep1 = -1;
+  pReq->daysToKeep2 = -1;
+  pReq->fsyncPeriod = pStmt->pOptions->fsyncPeriod;
+  pReq->walLevel = pStmt->pOptions->walLevel;
+  pReq->quorum = pStmt->pOptions->quorum;
+  pReq->cacheLastRow = pStmt->pOptions->cachelast;
+  return;
+}
+
+static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt) {
+  SAlterDbReq alterReq = {0};
+  buildAlterDbReq(pCxt, pStmt, &alterReq);
+
+  pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
+  if (NULL == pCxt->pCmdMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
+  pCxt->pCmdMsg->msgType = TDMT_MND_ALTER_DB;
+  pCxt->pCmdMsg->msgLen = tSerializeSAlterDbReq(NULL, 0, &alterReq);
+  pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
+  if (NULL == pCxt->pCmdMsg->pMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tSerializeSAlterDbReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &alterReq);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t columnNodeToField(SNodeList* pList, SArray** pArray) {
   *pArray = taosArrayInit(LIST_LENGTH(pList), sizeof(SField));
   SNode* pNode;
@@ -1201,6 +1237,27 @@ static int32_t translateCreateIndex(STranslateContext* pCxt, SCreateIndexStmt* p
   }
 }
 
+static int32_t translateDropIndex(STranslateContext* pCxt, SDropIndexStmt* pStmt) {
+  SVDropTSmaReq dropSmaReq = {0};
+  strcpy(dropSmaReq.indexName, pStmt->indexName);
+
+  pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
+  if (NULL == pCxt->pCmdMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
+  pCxt->pCmdMsg->msgType = TDMT_VND_DROP_SMA;
+  pCxt->pCmdMsg->msgLen = tSerializeSVDropTSmaReq(NULL, &dropSmaReq);
+  pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
+  if (NULL == pCxt->pCmdMsg->pMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  void* pBuf = pCxt->pCmdMsg->pMsg;
+  tSerializeSVDropTSmaReq(&pBuf, &dropSmaReq);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateCreateQnode(STranslateContext* pCxt, SCreateQnodeStmt* pStmt) {
   SMCreateQnodeReq createReq = { .dnodeId = pStmt->dnodeId };
 
@@ -1220,6 +1277,93 @@ static int32_t translateCreateQnode(STranslateContext* pCxt, SCreateQnodeStmt* p
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateDropQnode(STranslateContext* pCxt, SDropQnodeStmt* pStmt) {
+  SDDropQnodeReq dropReq = { .dnodeId = pStmt->dnodeId };
+
+  pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
+  if (NULL == pCxt->pCmdMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
+  pCxt->pCmdMsg->msgType = TDMT_DND_DROP_QNODE;
+  pCxt->pCmdMsg->msgLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &dropReq);
+  pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
+  if (NULL == pCxt->pCmdMsg->pMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tSerializeSMCreateDropQSBNodeReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &dropReq);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateCreateTopic(STranslateContext* pCxt, SCreateTopicStmt* pStmt) {
+  SCMCreateTopicReq createReq = {0};
+
+  if (NULL != pStmt->pQuery) {
+    int32_t code = translateQuery(pCxt, pStmt->pQuery);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesNodeToString(pStmt->pQuery, false, &createReq.ast, NULL);
+    }
+    if (TSDB_CODE_SUCCESS != code ) {
+      return code;
+    }
+  } else {
+    strcpy(createReq.subscribeDbName, pStmt->subscribeDbName);
+  }
+  
+  createReq.sql = strdup(pCxt->pParseCxt->pSql);
+  if (NULL == createReq.sql) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SName name = { .type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId };
+  strcpy(name.dbname, pCxt->pParseCxt->db);
+  strcpy(name.tname, pStmt->topicName);
+  tNameExtractFullName(&name, createReq.name);
+  createReq.igExists = pStmt->ignoreExists;
+
+  pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
+  if (NULL == pCxt->pCmdMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
+  pCxt->pCmdMsg->msgType = TDMT_MND_CREATE_TOPIC;
+  pCxt->pCmdMsg->msgLen = tSerializeSCMCreateTopicReq(NULL, 0, &createReq);
+  pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
+  if (NULL == pCxt->pCmdMsg->pMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tSerializeSCMCreateTopicReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &createReq);
+  tFreeSCMCreateTopicReq(&createReq);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateDropTopic(STranslateContext* pCxt, SDropTopicStmt* pStmt) {
+  SMDropTopicReq dropReq = {0};
+
+  SName name = { .type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId };
+  strcpy(name.dbname, pCxt->pParseCxt->db);
+  strcpy(name.tname, pStmt->topicName);
+  tNameExtractFullName(&name, dropReq.name);
+  dropReq.igNotExists = pStmt->ignoreNotExists;
+
+  pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
+  if (NULL == pCxt->pCmdMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
+  pCxt->pCmdMsg->msgType = TDMT_MND_DROP_TOPIC;
+  pCxt->pCmdMsg->msgLen = tSerializeSMDropTopicReq(NULL, 0, &dropReq);
+  pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
+  if (NULL == pCxt->pCmdMsg->pMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tSerializeSMDropTopicReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &dropReq);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
@@ -1231,6 +1375,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_DROP_DATABASE_STMT:
       code = translateDropDatabase(pCxt, (SDropDatabaseStmt*)pNode);
+      break;
+    case QUERY_NODE_ALTER_DATABASE_STMT:
+      code = translateAlterDatabase(pCxt, (SAlterDatabaseStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_TABLE_STMT:
       code = translateCreateSuperTable(pCxt, (SCreateTableStmt*)pNode);
@@ -1274,8 +1421,20 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_CREATE_INDEX_STMT:
       code = translateCreateIndex(pCxt, (SCreateIndexStmt*)pNode);
       break;
+    case QUERY_NODE_DROP_INDEX_STMT:
+      code = translateDropIndex(pCxt, (SDropIndexStmt*)pNode);
+      break;
     case QUERY_NODE_CREATE_QNODE_STMT:
       code = translateCreateQnode(pCxt, (SCreateQnodeStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_QNODE_STMT:
+      code = translateDropQnode(pCxt, (SDropQnodeStmt*)pNode);
+      break;
+    case QUERY_NODE_CREATE_TOPIC_STMT:
+      code = translateCreateTopic(pCxt, (SCreateTopicStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_TOPIC_STMT:
+      code = translateDropTopic(pCxt, (SDropTopicStmt*)pNode);
       break;
     default:
       break;

@@ -15,43 +15,43 @@
 
 #include "tuuid.h"
 
-static int64_t hashId = 0;
-static int32_t SerialNo = 0;
+static int64_t tUUIDHashId = 0;
+static int32_t tUUIDSerialNo = 0;
 
 int32_t tGenIdPI32(void) {
-  if (hashId == 0) {
+  if (tUUIDHashId == 0) {
     char    uid[64];
     int32_t code = taosGetSystemUUID(uid, tListLen(uid));
     if (code != TSDB_CODE_SUCCESS) {
       terrno = TAOS_SYSTEM_ERROR(errno);
     } else {
-      hashId = MurmurHash3_32(uid, strlen(uid));
+      tUUIDHashId = MurmurHash3_32(uid, strlen(uid));
     }
   }
 
   int64_t  ts = taosGetTimestampMs();
   uint64_t pid = taosGetPId();
-  int32_t  val = atomic_add_fetch_32(&SerialNo, 1);
+  int32_t  val = atomic_add_fetch_32(&tUUIDSerialNo, 1);
 
-  int32_t id = ((hashId & 0x1F) << 26) | ((pid & 0x3F) << 20) | ((ts & 0xFFF) << 8) | (val & 0xFF);
+  int32_t id = ((tUUIDHashId & 0x1F) << 26) | ((pid & 0x3F) << 20) | ((ts & 0xFFF) << 8) | (val & 0xFF);
   return id;
 }
 
 int64_t tGenIdPI64(void) {
-  if (hashId == 0) {
+  if (tUUIDHashId == 0) {
     char    uid[64];
     int32_t code = taosGetSystemUUID(uid, tListLen(uid));
     if (code != TSDB_CODE_SUCCESS) {
       terrno = TAOS_SYSTEM_ERROR(errno);
     } else {
-      hashId = MurmurHash3_32(uid, strlen(uid));
+      tUUIDHashId = MurmurHash3_32(uid, strlen(uid));
     }
   }
 
   int64_t  ts = taosGetTimestampMs();
   uint64_t pid = taosGetPId();
-  int32_t  val = atomic_add_fetch_32(&SerialNo, 1);
+  int32_t  val = atomic_add_fetch_32(&tUUIDSerialNo, 1);
 
-  int64_t id = ((hashId & 0x07FF) << 52) | ((pid & 0x0FFF) << 40) | ((ts & 0xFFFFFF) << 16) | (val & 0xFFFF);
+  int64_t id = ((tUUIDHashId & 0x07FF) << 52) | ((pid & 0x0FFF) << 40) | ((ts & 0xFFFFFF) << 16) | (val & 0xFFFF);
   return id;
 }

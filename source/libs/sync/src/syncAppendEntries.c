@@ -102,7 +102,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
 
   SyncTerm localPreLogTerm = 0;
   if (pMsg->prevLogTerm >= SYNC_INDEX_BEGIN && pMsg->prevLogTerm <= ths->pLogStore->getLastIndex(ths->pLogStore)) {
-    SSyncRaftEntry* pEntry = logStoreGetEntry(ths->pLogStore, pMsg->prevLogTerm);
+    SSyncRaftEntry* pEntry = logStoreGetEntry(ths->pLogStore, pMsg->prevLogIndex);
     assert(pEntry != NULL);
     localPreLogTerm = pEntry->term;
     syncEntryDestory(pEntry);
@@ -111,9 +111,9 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
   bool logOK =
       (pMsg->prevLogIndex == SYNC_INDEX_INVALID) ||
       ((pMsg->prevLogIndex >= SYNC_INDEX_BEGIN) &&
-       (pMsg->prevLogIndex <= ths->pLogStore->getLastIndex(ths->pLogStore)) && (pMsg->prevLogIndex == localPreLogTerm));
+       (pMsg->prevLogIndex <= ths->pLogStore->getLastIndex(ths->pLogStore)) && (pMsg->prevLogTerm == localPreLogTerm));
 
-  // reject
+  // reject request
   if ((pMsg->term < ths->pRaftStore->currentTerm) ||
       ((pMsg->term == ths->pRaftStore->currentTerm) && (ths->state == TAOS_SYNC_STATE_FOLLOWER) && !logOK)) {
     SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild();
@@ -134,6 +134,9 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
   // return to follower state
   if (pMsg->term == ths->pRaftStore->currentTerm && ths->state == TAOS_SYNC_STATE_CANDIDATE) {
     syncNodeBecomeFollower(ths);
+
+    // need ret?
+    return ret;
   }
 
   // accept request
@@ -144,17 +147,17 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
       matchSuccess = true;
     }
     if (pMsg->prevLogIndex >= SYNC_INDEX_BEGIN && pMsg->prevLogIndex <= ths->pLogStore->getLastIndex(ths->pLogStore)) {
-      SSyncRaftEntry* pEntry = logStoreGetEntry(ths->pLogStore, pMsg->prevLogTerm);
-      assert(pEntry != NULL);
-      if (pMsg->prevLogTerm == pEntry->term) {
+      SSyncRaftEntry* pPreEntry = logStoreGetEntry(ths->pLogStore, pMsg->prevLogIndex);
+      assert(pPreEntry != NULL);
+      if (pMsg->prevLogTerm == pPreEntry->term) {
         matchSuccess = true;
       }
-      syncEntryDestory(pEntry);
+      syncEntryDestory(pPreEntry);
     }
 
     if (matchSuccess) {
       // delete conflict entries
-      if (ths->pLogStore->getLastIndex(ths->pLogStore) > pMsg->prevLogIndex) {
+      if (pMsg->prevLogIndex < ths->pLogStore->getLastIndex(ths->pLogStore)) {
         SyncIndex fromIndex = pMsg->prevLogIndex + 1;
         ths->pLogStore->truncate(ths->pLogStore, fromIndex);
       }
@@ -178,6 +181,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
       syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
 
       syncAppendEntriesReplyDestroy(pReply);
+
     } else {
       SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild();
       pReply->srcId = ths->myRaftId;

@@ -3,6 +3,7 @@
 #include "syncEnv.h"
 #include "syncIO.h"
 #include "syncInt.h"
+#include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
 
@@ -19,9 +20,11 @@ uint16_t ports[] = {7010, 7110, 7210, 7310, 7410};
 int32_t  replicaNum = 3;
 int32_t  myIndex = 0;
 
-SRaftId   ids[TSDB_MAX_REPLICA];
-SSyncInfo syncInfo;
-SSyncFSM* pFsm;
+SRaftId    ids[TSDB_MAX_REPLICA];
+SSyncInfo  syncInfo;
+SSyncFSM*  pFsm;
+SWal*      pWal;
+SSyncNode* gSyncNode;
 
 SSyncNode* syncNodeInit() {
   syncInfo.vgId = 1234;
@@ -30,7 +33,26 @@ SSyncNode* syncNodeInit() {
   syncInfo.queue = gSyncIO->pMsgQ;
   syncInfo.FpEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
-  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./");
+  snprintf(syncInfo.path, sizeof(syncInfo.path), "./elect_test_%d", myIndex);
+
+  int code = walInit();
+  assert(code == 0);
+  SWalCfg walCfg;
+  memset(&walCfg, 0, sizeof(SWalCfg));
+  walCfg.vgId = syncInfo.vgId;
+  walCfg.fsyncPeriod = 1000;
+  walCfg.retentionPeriod = 1000;
+  walCfg.rollPeriod = 1000;
+  walCfg.retentionSize = 1000;
+  walCfg.segSize = 1000;
+  walCfg.level = TAOS_WAL_FSYNC;
+
+  char tmpdir[128];
+  snprintf(tmpdir, sizeof(tmpdir), "./elect_test_wal_%d", myIndex);
+  pWal = walOpen(tmpdir, &walCfg);
+  assert(pWal != NULL);
+
+  syncInfo.pWal = pWal;
 
   SSyncCfg* pCfg = &syncInfo.syncCfg;
   pCfg->myIndex = myIndex;
@@ -47,11 +69,12 @@ SSyncNode* syncNodeInit() {
 
   gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
   gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
-  gSyncIO->FpOnSyncClientRequest = pSyncNode->FpOnClientRequest;
   gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
   gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
   gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
   gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
+  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
+  gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
   gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
   gSyncIO->pSyncNode = pSyncNode;
 
@@ -85,45 +108,15 @@ int main(int argc, char** argv) {
   ret = syncEnvStart();
   assert(ret == 0);
 
-  SSyncNode* pSyncNode = syncInitTest();
-  assert(pSyncNode != NULL);
-  syncNodePrint2((char*)"----1", pSyncNode);
+  gSyncNode = syncInitTest();
+  assert(gSyncNode != NULL);
+  syncNodePrint2((char*)"", gSyncNode);
 
-  initRaftId(pSyncNode);
+  initRaftId(gSyncNode);
 
   //---------------------------
-
-  sTrace("syncNodeStartPingTimer ...");
-  ret = syncNodeStartPingTimer(pSyncNode);
-  assert(ret == 0);
-  syncNodePrint2((char*)"----2", pSyncNode);
-
-  sTrace("sleep ...");
-  taosMsleep(10000);
-
-  sTrace("syncNodeStopPingTimer ...");
-  ret = syncNodeStopPingTimer(pSyncNode);
-  assert(ret == 0);
-  syncNodePrint2((char*)"----3", pSyncNode);
-
-  sTrace("sleep ...");
-  taosMsleep(5000);
-
-  sTrace("syncNodeStartPingTimer ...");
-  ret = syncNodeStartPingTimer(pSyncNode);
-  assert(ret == 0);
-  syncNodePrint2((char*)"----4", pSyncNode);
-
-  sTrace("sleep ...");
-  taosMsleep(10000);
-
-  sTrace("syncNodeStopPingTimer ...");
-  ret = syncNodeStopPingTimer(pSyncNode);
-  assert(ret == 0);
-  syncNodePrint2((char*)"----5", pSyncNode);
-
   while (1) {
-    sTrace("while 1 sleep ...");
+    sTrace("while 1 sleep, state: %d, %s", gSyncNode->state, syncUtilState2String(gSyncNode->state));
     taosMsleep(1000);
   }
 

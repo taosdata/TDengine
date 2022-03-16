@@ -617,7 +617,7 @@ static FORCE_INLINE int32_t MemRowAppend(const void* value, int32_t len, void* p
   if (TSDB_DATA_TYPE_BINARY == pa->schema->type) {
     const char* rowEnd = tdRowEnd(rb->pBuf);
     STR_WITH_SIZE_TO_VARSTR(rowEnd, value, len);
-    tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, rowEnd, false, pa->toffset, pa->colIdx);
+    tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, rowEnd, true, pa->toffset, pa->colIdx);
   } else if (TSDB_DATA_TYPE_NCHAR == pa->schema->type) {
     // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
     int32_t     output = 0;
@@ -626,9 +626,9 @@ static FORCE_INLINE int32_t MemRowAppend(const void* value, int32_t len, void* p
       return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
     varDataSetLen(rowEnd, output);
-    tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, rowEnd, false, pa->toffset, pa->colIdx);
+    tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, rowEnd, true, pa->toffset, pa->colIdx);
   } else {
-    tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, value, true, pa->toffset, pa->colIdx);
+    tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, value, false, pa->toffset, pa->colIdx);
   }
   return TSDB_CODE_SUCCESS;
 }

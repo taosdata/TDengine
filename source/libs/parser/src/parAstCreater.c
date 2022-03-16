@@ -799,6 +799,17 @@ SNode* createDropDatabaseStmt(SAstCreateContext* pCxt, bool ignoreNotExists, con
   return (SNode*)pStmt;
 }
 
+SNode* createAlterDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName, SNode* pOptions) {
+  if (!checkDbName(pCxt, pDbName)) {
+    return NULL;
+  }
+  SAlterDatabaseStmt* pStmt = nodesMakeNode(QUERY_NODE_ALTER_DATABASE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  strncpy(pStmt->dbName, pDbName->z, pDbName->n);
+  pStmt->pOptions = (SDatabaseOptions*)pOptions;
+  return (SNode*)pStmt;
+}
+
 SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
   STableOptions* pOptions = nodesMakeNode(QUERY_NODE_TABLE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
@@ -1022,9 +1033,47 @@ SNode* createIndexOption(SAstCreateContext* pCxt, SNodeList* pFuncs, SNode* pInt
   return (SNode*)pOptions;
 }
 
+SNode* createDropIndexStmt(SAstCreateContext* pCxt, const SToken* pIndexName, const SToken* pTableName) {
+  if (!checkIndexName(pCxt, pIndexName) || !checkTableName(pCxt, pTableName)) {
+    return NULL;
+  }
+  SDropIndexStmt* pStmt = nodesMakeNode(QUERY_NODE_DROP_INDEX_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  strncpy(pStmt->indexName, pIndexName->z, pIndexName->n);
+  strncpy(pStmt->tableName, pTableName->z, pTableName->n);
+  return (SNode*)pStmt;
+}
+
 SNode* createCreateQnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId) {
   SCreateQnodeStmt* pStmt = nodesMakeNode(QUERY_NODE_CREATE_QNODE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->dnodeId = strtol(pDnodeId->z, NULL, 10);;
+  return (SNode*)pStmt;
+}
+
+SNode* createDropQnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId) {
+  SDropQnodeStmt* pStmt = nodesMakeNode(QUERY_NODE_DROP_QNODE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->dnodeId = strtol(pDnodeId->z, NULL, 10);;
+  return (SNode*)pStmt;
+}
+
+SNode* createCreateTopicStmt(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pTopicName, SNode* pQuery, const SToken* pSubscribeDbName) {
+  SCreateTopicStmt* pStmt = nodesMakeNode(QUERY_NODE_CREATE_TOPIC_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  strncpy(pStmt->topicName, pTopicName->z, pTopicName->n);
+  pStmt->ignoreExists = ignoreExists;
+  pStmt->pQuery = pQuery;
+  if (NULL != pSubscribeDbName) {
+    strncpy(pStmt->subscribeDbName, pSubscribeDbName->z, pSubscribeDbName->n);
+  }
+  return (SNode*)pStmt;
+}
+
+SNode* createDropTopicStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pTopicName) {
+  SDropTopicStmt* pStmt = nodesMakeNode(QUERY_NODE_DROP_TOPIC_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  strncpy(pStmt->topicName, pTopicName->z, pTopicName->n);
+  pStmt->ignoreNotExists = ignoreNotExists;
   return (SNode*)pStmt;
 }
