@@ -116,7 +116,7 @@ cJSON *voteGranted2Json(SVotesGranted *pVotesGranted) {
 
 char *voteGranted2Str(SVotesGranted *pVotesGranted) {
   cJSON *pJson = voteGranted2Json(pVotesGranted);
-  char  *serialized = cJSON_Print(pJson);
+  char * serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -238,7 +238,7 @@ cJSON *votesRespond2Json(SVotesRespond *pVotesRespond) {
 
 char *votesRespond2Str(SVotesRespond *pVotesRespond) {
   cJSON *pJson = votesRespond2Json(pVotesRespond);
-  char  *serialized = cJSON_Print(pJson);
+  char * serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }

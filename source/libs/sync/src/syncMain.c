@@ -103,6 +103,12 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   assert(pSyncNode != NULL);
   memset(pSyncNode, 0, sizeof(SSyncNode));
 
+  if (taosMkDir(pSyncInfo->path) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    sError("failed to create dir:%s since %s", pSyncInfo->path, terrstr());
+    return NULL;
+  }
+
   // init by SSyncInfo
   pSyncNode->vgId = pSyncInfo->vgId;
   pSyncNode->syncCfg = pSyncInfo->syncCfg;
@@ -199,6 +205,9 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   pSyncNode->FpOnAppendEntries = syncNodeOnAppendEntriesCb;
   pSyncNode->FpOnAppendEntriesReply = syncNodeOnAppendEntriesReplyCb;
   pSyncNode->FpOnTimeout = syncNodeOnTimeoutCb;
+
+  // start raft
+  syncNodeBecomeFollower(pSyncNode);
 
   return pSyncNode;
 }
