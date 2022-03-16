@@ -563,11 +563,11 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode) {
   // stop elect timer
   syncNodeStopElectTimer(pSyncNode);
 
-  // start heartbeat timer
-  syncNodeStartHeartbeatTimer(pSyncNode);
-
   // start replicate right now!
   syncNodeReplicate(pSyncNode);
+
+  // start heartbeat timer
+  syncNodeStartHeartbeatTimer(pSyncNode);
 }
 
 void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {

@@ -63,15 +63,18 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
 SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  SSyncRaftEntry*    pEntry;
+  SSyncRaftEntry*    pEntry = NULL;
 
-  SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
-  walReadWithHandle(pWalHandle, index);
-  pEntry = syncEntryDeserialize(pWalHandle->pHead->head.body, pWalHandle->pHead->head.len);
-  assert(pEntry != NULL);
+  if (index >= SYNC_INDEX_BEGIN && index <= logStoreLastIndex(pLogStore)) {
+    SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
+    walReadWithHandle(pWalHandle, index);
+    pEntry = syncEntryDeserialize(pWalHandle->pHead->head.body, pWalHandle->pHead->head.len);
+    assert(pEntry != NULL);
 
-  // need to hold, do not new every time!!
-  walCloseReadHandle(pWalHandle);
+    // need to hold, do not new every time!!
+    walCloseReadHandle(pWalHandle);
+  }
+
   return pEntry;
 }
 

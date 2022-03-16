@@ -17,7 +17,7 @@ void logTest() {
 }
 
 uint16_t ports[] = {7010, 7110, 7210, 7310, 7410};
-int32_t  replicaNum = 1;
+int32_t  replicaNum = 3;
 int32_t  myIndex = 0;
 
 SRaftId    ids[TSDB_MAX_REPLICA];
@@ -33,7 +33,7 @@ SSyncNode* syncNodeInit() {
   syncInfo.queue = gSyncIO->pMsgQ;
   syncInfo.FpEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
-  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./elect_test");
+  snprintf(syncInfo.path, sizeof(syncInfo.path), "./elect_test_%d", myIndex);
 
   int code = walInit();
   assert(code == 0);
@@ -46,7 +46,10 @@ SSyncNode* syncNodeInit() {
   walCfg.retentionSize = 1000;
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
-  pWal = walOpen("./elect_test_wal", &walCfg);
+
+  char tmpdir[128];
+  snprintf(tmpdir, sizeof(tmpdir), "./elect_test_wal_%d", myIndex);
+  pWal = walOpen(tmpdir, &walCfg);
   assert(pWal != NULL);
 
   syncInfo.pWal = pWal;
