@@ -19,7 +19,7 @@ TEST(tdb_test, simple_test) {
     char key[64];
     char val[64];
 
-    for (int i = 1; i <= 92; i++) {
+    for (int i = 1; i <= 64; i++) {
       sprintf(key, "key%d", i);
       sprintf(val, "value%d", i);
       ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val));
