@@ -945,7 +945,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_bindColDataImp(
 }
 
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_addBatchImp(JNIEnv *env, jobject jobj, jlong stmt,
-                                                                              jlong con) {
+                                                                           jlong con) {
   TAOS *tscon = (TAOS *)con;
   if (tscon == NULL) {
     jniError("jobj:%p, connection already closed", jobj);
@@ -1017,7 +1017,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_closeStmt(JNIEnv 
 }
 
 JNIEXPORT jstring JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_stmtErrorMsgImp(JNIEnv *env, jobject jobj, jlong stmt,
-                                                                              jlong con) {
+                                                                                  jlong con) {
   char  errMsg[128];
   TAOS *tscon = (TAOS *)con;
   if (tscon == NULL) {
@@ -1036,6 +1036,29 @@ JNIEXPORT jstring JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_stmtErrorMsgIm
   return (*env)->NewStringUTF(env, taos_stmt_errstr((TAOS_STMT *)stmt));
 }
 
+SSqlObj *schemalessInsert(JNIEnv *env, jobject jobj, jobjectArray lines, TAOS *taos, jint protocol, jint precision) {
+  int    numLines = (*env)->GetArrayLength(env, lines);
+  char **c_lines = calloc(numLines, sizeof(char *));
+  if (c_lines == NULL) {
+    jniError("c_lines:%p, alloc memory failed", c_lines);
+    return NULL;
+  }
+  for (int i = 0; i < numLines; ++i) {
+    jstring line = (jstring)((*env)->GetObjectArrayElement(env, lines, i));
+    c_lines[i] = (char *)(*env)->GetStringUTFChars(env, line, 0);
+  }
+
+  SSqlObj *result = (SSqlObj *)taos_schemaless_insert(taos, c_lines, numLines, protocol, precision);
+
+  for (int i = 0; i < numLines; ++i) {
+    jstring line = (jstring)((*env)->GetObjectArrayElement(env, lines, i));
+    (*env)->ReleaseStringUTFChars(env, line, c_lines[i]);
+  }
+
+  tfree(c_lines);
+  return result;
+}
+
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertLinesImp(JNIEnv *env, jobject jobj,
                                                                               jobjectArray lines, jlong conn,
                                                                               jint protocol, jint precision) {
@@ -1045,26 +1068,12 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertLinesImp(JN
     return JNI_CONNECTION_NULL;
   }
 
-  int    numLines = (*env)->GetArrayLength(env, lines);
-  char **c_lines = calloc(numLines, sizeof(char *));
-  if (c_lines == NULL) {
-    jniError("c_lines:%p, alloc memory failed", c_lines);
+  SSqlObj *result = (SSqlObj *)schemalessInsert(env, jobj, lines, taos, protocol, precision);
+
+  if (result == NULL) {
     return JNI_OUT_OF_MEMORY;
   }
-  for (int i = 0; i < numLines; ++i) {
-    jstring line = (jstring)((*env)->GetObjectArrayElement(env, lines, i));
-    c_lines[i] = (char *)(*env)->GetStringUTFChars(env, line, 0);
-  }
-
-  SSqlObj *result = (SSqlObj *)taos_schemaless_insert(taos, c_lines, numLines, protocol, precision);
-  int      code = taos_errno(result);
-
-  for (int i = 0; i < numLines; ++i) {
-    jstring line = (jstring)((*env)->GetObjectArrayElement(env, lines, i));
-    (*env)->ReleaseStringUTFChars(env, line, c_lines[i]);
-  }
-
-  tfree(c_lines);
+  int code = taos_errno(result);
   if (code != TSDB_CODE_SUCCESS) {
     jniError("jobj:%p, conn:%p, code:%s, msg:%s", jobj, taos, tstrerror(code), taos_errstr(result));
     taos_free_result((void *)result);
@@ -1073,4 +1082,20 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertLinesImp(JN
   taos_free_result((void *)result);
 
   return JNI_SUCCESS;
+}
+
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsertImp(JNIEnv *env, jobject jobj,
+                                                                                    jobjectArray lines, jlong conn,
+                                                                                    jint protocol, jint precision) {
+  TAOS *taos = (TAOS *)conn;
+  if (taos == NULL) {
+    jniError("jobj:%p, connection already closed", jobj);
+    return JNI_CONNECTION_NULL;
+  }
+
+  SSqlObj *result = schemalessInsert(env, jobj, lines, taos, protocol, precision);
+  if (result == NULL) {
+    return JNI_OUT_OF_MEMORY;
+  }
+  return (jlong)result;
 }
