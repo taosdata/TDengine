@@ -2140,64 +2140,331 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
 
 static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
                           bool *is_last_kv, SSmlLinesInfo* info, bool isTag) {
-  const char *start, *cur, *tmp;
-  int32_t ret = TSDB_CODE_SUCCESS;
-  char *value = NULL;
-  int16_t len = 0;
-  bool searchQuote = false;
-  start = cur = *index;
+  const char *start, *cur;
+  int32_t     ret = TSDB_CODE_SUCCESS;
+  char       *value = NULL;
+  int16_t     len = 0;
 
-  //if field value is string
-  if (!isTag) {
-    if (*cur == '"') {
-      searchQuote = true;
-      cur += 1;
-      len += 1;
-    } else if (*cur == 'L' && *(cur + 1) == '"') {
-      searchQuote = true;
-      cur += 2;
-      len += 2;
-    }
-  }
+  bool   kv_done = false;
+  bool   back_slash = false;
+  bool   double_quote = false;
+  size_t line_len = 0;
+
+  enum {
+    tag_common,
+    tag_lqoute,
+    tag_rqoute
+  } tag_state;
+
+  enum {
+    val_common,
+    val_lqoute,
+    val_rqoute
+  } val_state;
+
+  start = cur = *index;
+  tag_state = tag_common;
+  val_state = val_common;
 
   while (1) {
-    // unescaped ',' or ' ' or '\0' identifies a value
-    if (((*cur == ',' || *cur == ' ' ) && *(cur - 1) != '\\') || *cur == '\0') {
-      if (searchQuote == true) {
-        //first quote ignored while searching
-        if (*(cur - 1) == '"' && len != 1 && len != 2) {
-          *is_last_kv = (*cur == ' ' || *cur == '\0') ? true : false;
-          break;
-        } else if (*cur == '\0') {
-          ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
-          goto error;
-        } else {
+    if (isTag) {
+      /* ',', '=' and spaces MUST be escaped */
+      switch (tag_state) {
+      case tag_common:
+        if (back_slash == true) {
+          if (*cur != ',' && *cur != '=' && *cur != ' ') {
+            tscError("SML:0x%"PRIx64" tag value: state(%d), incorrect character(%c) escaped", info->id, tag_state, *cur);
+            ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+            goto error;
+          }
+
+          back_slash = false;
           cur++;
           len++;
-          continue;
+	  break;
+	}
+
+        if (*cur == '"') {
+          if (cur == *index) {
+            tag_state = tag_lqoute;
+          }
+          cur += 1;
+          len += 1;
+          break;
+        } else if (*cur == 'L') {
+          line_len = strlen(*index);
+
+          /* common character at the end */
+          if (cur + 1 >= *index + line_len) {
+            *is_last_kv = true;
+            kv_done = true;
+            break;
+          }
+
+          if (*(cur + 1) == '"') {
+            /* string starts here */
+            if (cur + 1 == *index + 1) {
+              tag_state = tag_lqoute;
+            }
+            cur += 2;
+            len += 2;
+            break;
+          }
         }
-      }
-      //unescaped ' ' or '\0' indicates end of value
-      *is_last_kv = (*cur == ' ' || *cur == '\0') ? true : false;
-      if (*cur == ' ' && *(cur + 1) == ' ') {
-        cur++;
-        continue;
-      } else {
+
+        switch (*cur) {
+        case '\\':
+          back_slash = true;
+          cur++;
+          len++;
+          break;
+        case ',':
+          kv_done = true;
+          break;
+
+        case ' ':
+          /* fall through */
+        case '\0':
+          *is_last_kv = true;
+          kv_done = true;
+          break;
+
+        default:
+          cur++;
+          len++;
+        }
+
         break;
+      case tag_lqoute:
+        if (back_slash == true) {
+          if (*cur != ',' && *cur != '=' && *cur != ' ') {
+            tscError("SML:0x%"PRIx64" tag value: state(%d), incorrect character(%c) escaped", info->id, tag_state, *cur);
+            ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+            goto error;
+          }
+
+          back_slash = false;
+          cur++;
+          len++;
+          break;
+        } else if (double_quote == true) {
+          if (*cur != ' ' && *cur != ',' && *cur != '\0') {
+            tscError("SML:0x%"PRIx64" tag value: state(%d), incorrect character(%c) behind closing \"", info->id, tag_state, *cur);
+            ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+            goto error;
+          }
+
+          if (*cur == ' ' || *cur == '\0') {
+            *is_last_kv = true;
+          }
+
+          double_quote = false;
+          tag_state = tag_rqoute;
+          break;
+        }
+
+        switch (*cur) {
+        case '\\':
+          back_slash = true;
+          cur++;
+          len++;
+          break;
+
+        case '"':
+          double_quote = true;
+          cur++;
+          len++;
+          break;
+
+        case ',':
+          /* fall through */
+        case '=':
+          /* fall through */
+        case ' ':
+          if (*(cur - 1) != '\\') {
+            tscError("SML:0x%"PRIx64" tag value: state(%d), character(%c) not escaped", info->id, tag_state, *cur);
+            ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+            kv_done = true;
+	  }
+	  break;
+
+        case '\0':
+          tscError("SML:0x%"PRIx64" tag value: state(%d), closing \" not found", info->id, tag_state);
+          ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+          kv_done = true;
+          break;
+
+        default:
+          cur++;
+          len++;
+        }
+
+        break;
+
+      default:
+        kv_done = true;
+      }
+    } else {
+      switch (val_state) {
+      case val_common:
+        if (back_slash == true) {
+          if (*cur != '\\' && *cur != '"') {
+            tscError("SML:0x%"PRIx64" field value: state(%d), incorrect character(%c) escaped", info->id, val_state, *cur);
+            ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+            goto error;
+          }
+
+	  back_slash = false;
+	  cur++;
+	  len++;
+          break;
+        }
+
+        if (*cur == '"') {
+          if (cur == *index) {
+            val_state = val_lqoute;
+          } else {
+            if (*(cur - 1) != '\\') {
+              tscError("SML:0x%"PRIx64" field value: state(%d), \" not escaped", info->id, val_state);
+              ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+              goto error;
+            }
+          }
+
+          cur += 1;
+          len += 1;
+          break;
+        } else if (*cur == 'L') {
+          line_len = strlen(*index);
+
+          /* common character at the end */
+          if (cur + 1 >= *index + line_len) {
+            *is_last_kv = true;
+            kv_done = true;
+            break;
+          }
+
+          if (*(cur + 1) == '"') {
+            /* string starts here */
+            if (cur + 1 == *index + 1) {
+              val_state = val_lqoute;
+              cur += 2;
+              len += 2;
+            } else {
+              /* MUST at the end of string */
+              if (cur + 2 >= *index + line_len) {
+                cur += 2;
+                len += 2;
+                *is_last_kv = true;
+                kv_done = true;
+              } else {
+                if (*(cur + 2) != ' ' && *(cur + 2) != ',') {
+                  tscError("SML:0x%"PRIx64" field value: state(%d), not closing character(L\")", info->id, val_state);
+                  ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+                  goto error;
+                } else {
+                  if (*(cur + 2) == ' ') {
+                    *is_last_kv = true;
+                  }
+
+                  cur += 2;
+                  len += 2;
+                  kv_done = true;
+                }
+              }
+            }
+            break;
+          }
+        }
+
+        switch (*cur) {
+        case '\\':
+          back_slash = true;
+          cur++;
+          len++;
+          break;
+
+        case ',':
+          kv_done = true;
+          break;
+
+        case ' ':
+          /* fall through */
+        case '\0':
+          *is_last_kv = true;
+          kv_done = true;
+          break;
+
+        default:
+          cur++;
+          len++;
+        }
+
+        break;
+      case val_lqoute:
+        if (back_slash == true) {
+          if (*cur != '\\' && *cur != '"') {
+            tscError("SML:0x%"PRIx64" field value: state(%d), incorrect character(%c) escaped", info->id, val_state, *cur);
+            ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+            goto error;
+          }
+
+          back_slash = false;
+          cur++;
+          len++;
+          break;
+        } else if (double_quote == true) {
+          if (*cur != ' ' && *cur != ',' && *cur != '\0') {
+            tscError("SML:0x%"PRIx64" field value: state(%d), incorrect character(%c) behind closing \"", info->id, val_state, *cur);
+            ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+            goto error;
+          }
+
+          if (*cur == ' ' || *cur == '\0') {
+            *is_last_kv = true;
+          }
+
+          double_quote = false;
+          val_state = val_rqoute;
+          break;
+        }
+
+        switch (*cur) {
+        case '\\':
+          back_slash = true;
+          cur++;
+          len++;
+          break;
+
+        case '"':
+          double_quote = true;
+          cur++;
+          len++;
+          break;
+
+        case '\0':
+          tscError("SML:0x%"PRIx64" field value: state(%d), closing \" not found", info->id, val_state);
+          ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+          kv_done = true;
+          break;
+
+        default:
+          cur++;
+          len++;
+        }
+
+        break;
+      default:
+        kv_done = true;
       }
     }
-    //Escape special character
-    if (*cur == '\\') {
-      tmp = cur;
-      escapeSpecialCharacter(isTag ? 2 : 3, &cur);
-      if (tmp != cur) {
-        continue;
-      }
+
+    if (kv_done == true) {
+      break;
     }
-    cur++;
-    len++;
   }
-  if (len == 0) {
+
+  if (len == 0 || ret != TSDB_CODE_SUCCESS) {
     free(pKV->key);
     pKV->key = NULL;
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
