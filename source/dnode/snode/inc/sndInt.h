@@ -50,8 +50,9 @@ typedef struct SSnode {
 SStreamMeta* sndMetaNew();
 void         sndMetaDelete(SStreamMeta* pMeta);
 
-int32_t sndMetaDeployTask(SStreamMeta* pMeta, SStreamTask* pTask);
-int32_t sndMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
+int32_t      sndMetaDeployTask(SStreamMeta* pMeta, SStreamTask* pTask);
+SStreamTask* sndMetaGetTask(SStreamMeta* pMeta, int32_t taskId);
+int32_t      sndMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
 
 int32_t sndDropTaskOfStream(SStreamMeta* pMeta, int64_t streamId);
 
