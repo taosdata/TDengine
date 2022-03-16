@@ -482,7 +482,7 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
   }
 
   tscDebug("start to create topic, %s", topicName);
-
+#if 0
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
   CHECK_CODE_GOTO(parseSql(pRequest, &pQueryNode), _return);
 
@@ -536,7 +536,7 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
   asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
 
   tsem_wait(&pRequest->body.rspSem);
-
+#endif
 _return:
   qDestroyQuery(pQueryNode);
   /*if (sendInfo != NULL) {*/

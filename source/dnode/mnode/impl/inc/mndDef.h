@@ -85,6 +85,8 @@ typedef enum {
   TRN_TYPE_REBALANCE = 1017,
   TRN_TYPE_COMMIT_OFFSET = 1018,
   TRN_TYPE_CREATE_STREAM = 1019,
+  TRN_TYPE_DROP_STREAM = 1020,
+  TRN_TYPE_ALTER_STREAM = 1021,
   TRN_TYPE_BASIC_SCOPE_END,
   TRN_TYPE_GLOBAL_SCOPE = 2000,
   TRN_TYPE_CREATE_DNODE = 2001,
@@ -680,12 +682,6 @@ static FORCE_INLINE void* tDecodeSMqConsumerObj(void* buf, SMqConsumerObj* pCons
 }
 
 typedef struct {
-  int32_t   taskId;
-  int32_t   level;
-  SSubplan* plan;
-} SStreamTaskMeta;
-
-typedef struct {
   char     name[TSDB_TOPIC_FNAME_LEN];
   char     db[TSDB_DB_FNAME_LEN];
   int64_t  createTime;
@@ -700,7 +696,7 @@ typedef struct {
   char*   sql;
   char*   logicalPlan;
   char*   physicalPlan;
-  SArray* tasks;  // SArray<SArray<SStreamTaskMeta>>
+  SArray* tasks;  // SArray<SArray<SStreamTask>>
 } SStreamObj;
 
 int32_t tEncodeSStreamObj(SCoder* pEncoder, const SStreamObj* pObj);
