@@ -455,7 +455,8 @@ static bool cliHandleNoResp(SCliConn* conn) {
     }
     if (res == true) {
       if (cliMaySendCachedMsg(conn) == false) {
-        addConnToPool(conn->hostThrd, conn);
+        SCliThrdObj* thrd = conn->hostThrd;
+        addConnToPool(thrd->pool, conn);
       }
     }
   }
