@@ -61,6 +61,12 @@ typedef struct SDropDatabaseStmt {
   bool ignoreNotExists;
 } SDropDatabaseStmt;
 
+typedef struct SAlterDatabaseStmt {
+  ENodeType type;
+  char dbName[TSDB_DB_NAME_LEN];
+  SDatabaseOptions* pOptions;
+} SAlterDatabaseStmt;
+
 typedef struct STableOptions {
   ENodeType type;
   int32_t keep;
@@ -179,10 +185,35 @@ typedef struct SCreateIndexStmt {
   SIndexOptions* pOptions;
 } SCreateIndexStmt;
 
+typedef struct SDropIndexStmt {
+  ENodeType type;
+  char indexName[TSDB_INDEX_NAME_LEN];
+  char tableName[TSDB_TABLE_NAME_LEN];
+} SDropIndexStmt;
+
 typedef struct SCreateQnodeStmt {
   ENodeType type;
   int32_t dnodeId;
 } SCreateQnodeStmt;
+
+typedef struct SDropQnodeStmt {
+  ENodeType type;
+  int32_t dnodeId;
+} SDropQnodeStmt;
+
+typedef struct SCreateTopicStmt {
+  ENodeType type;
+  char topicName[TSDB_TABLE_NAME_LEN];
+  char subscribeDbName[TSDB_DB_NAME_LEN];
+  bool ignoreExists;
+  SNode* pQuery;
+} SCreateTopicStmt;
+
+typedef struct SDropTopicStmt {
+  ENodeType type;
+  char topicName[TSDB_TABLE_NAME_LEN];
+  bool ignoreNotExists;
+} SDropTopicStmt;
 
 #ifdef __cplusplus
 }

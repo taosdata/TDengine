@@ -92,6 +92,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateDatabaseStmt));
     case QUERY_NODE_DROP_DATABASE_STMT:
       return makeNode(type, sizeof(SDropDatabaseStmt));
+    case QUERY_NODE_ALTER_DATABASE_STMT:
+      return makeNode(type, sizeof(SAlterDatabaseStmt));
     case QUERY_NODE_SHOW_DATABASES_STMT:
       return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_CREATE_TABLE_STMT:
@@ -131,8 +133,16 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_CREATE_INDEX_STMT:
       return makeNode(type, sizeof(SCreateIndexStmt));
+    case QUERY_NODE_DROP_INDEX_STMT:
+      return makeNode(type, sizeof(SDropIndexStmt));
     case QUERY_NODE_CREATE_QNODE_STMT:
       return makeNode(type, sizeof(SCreateQnodeStmt));
+    case QUERY_NODE_DROP_QNODE_STMT:
+      return makeNode(type, sizeof(SDropQnodeStmt));
+    case QUERY_NODE_CREATE_TOPIC_STMT:
+      return makeNode(type, sizeof(SCreateTopicStmt));
+    case QUERY_NODE_DROP_TOPIC_STMT:
+      return makeNode(type, sizeof(SDropTopicStmt));
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));
     case QUERY_NODE_LOGIC_PLAN_JOIN:

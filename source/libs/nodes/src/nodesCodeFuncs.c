@@ -1730,7 +1730,7 @@ static int32_t jsonToNodeObject(const SJson* pJson, const char* pName, SNode** p
 }
 
 int32_t nodesNodeToString(const SNodeptr pNode, bool format, char** pStr, int32_t* pLen) {
-  if (NULL == pNode || NULL == pStr || NULL == pLen) {
+  if (NULL == pNode || NULL == pStr) {
     terrno = TSDB_CODE_FAILED;
     return TSDB_CODE_FAILED;
   }
@@ -1750,7 +1750,10 @@ int32_t nodesNodeToString(const SNodeptr pNode, bool format, char** pStr, int32_
   *pStr = format ? tjsonToString(pJson) : tjsonToUnformattedString(pJson);
   tjsonDelete(pJson);
 
-  *pLen = strlen(*pStr) + 1;
+  if (NULL != pLen) {
+    *pLen = strlen(*pStr) + 1;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 

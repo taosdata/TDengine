@@ -340,6 +340,23 @@ TEST_F(ParserTest, createDatabase) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(ParserTest, alterDatabase) {
+  setDatabase("root", "test");
+
+  bind("alter database wxy_db BLOCKS 200");
+  ASSERT_TRUE(run());
+
+  bind("alter database wxy_db "
+       "BLOCKS 200 "
+       "CACHELAST 1 "
+       "FSYNC 200 "
+       "KEEP 200 "
+       "QUORUM 2 "
+       "WAL 1 "
+      );
+  ASSERT_TRUE(run());
+}
+
 TEST_F(ParserTest, showDatabase) {
   setDatabase("root", "test");
 
@@ -406,9 +423,49 @@ TEST_F(ParserTest, createSmaIndex) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(ParserTest, dropIndex) {
+  setDatabase("root", "test");
+
+  bind("drop index index1 on t1");
+  ASSERT_TRUE(run());
+}
+
 TEST_F(ParserTest, createQnode) {
   setDatabase("root", "test");
 
   bind("create qnode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, dropQnode) {
+  setDatabase("root", "test");
+
+  bind("drop qnode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, createTopic) {
+  setDatabase("root", "test");
+
+  bind("create topic tp1 as select * from t1");
+  ASSERT_TRUE(run());
+
+  bind("create topic if not exists tp1 as select * from t1");
+  ASSERT_TRUE(run());
+
+  bind("create topic tp1 as test");
+  ASSERT_TRUE(run());
+
+  bind("create topic if not exists tp1 as test");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, dropTopic) {
+  setDatabase("root", "test");
+
+  bind("drop topic tp1");
+  ASSERT_TRUE(run());
+
+  bind("drop topic if exists tp1");
   ASSERT_TRUE(run());
 }

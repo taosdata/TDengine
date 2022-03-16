@@ -236,6 +236,25 @@ static int32_t mndCheckCreateTopicReq(SCMCreateTopicReq *pCreate) {
   return 0;
 }
 
+static int32_t mndGetPlanString(SCMCreateTopicReq *pCreate, char **pStr) {
+  SNode* pAst = NULL;
+  int32_t code = nodesStringToNode(pCreate->ast, &pAst);
+
+  SQueryPlan* pPlan = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    SPlanContext cxt = { .pAstRoot = pAst, .streamQuery = true };
+    code = qCreateQueryPlan(&cxt, &pPlan, NULL);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesNodeToString(pPlan, false, pStr, NULL);
+  }
+  nodesDestroyNode(pAst);
+  nodesDestroyNode(pPlan);
+  terrno = code;
+  return code;
+}
+
 static int32_t mndCreateTopic(SMnode *pMnode, SMnodeMsg *pReq, SCMCreateTopicReq *pCreate, SDbObj *pDb) {
   mDebug("topic:%s to create", pCreate->name);
   SMqTopicObj topicObj = {0};
@@ -247,9 +266,13 @@ static int32_t mndCreateTopic(SMnode *pMnode, SMnodeMsg *pReq, SCMCreateTopicReq
   topicObj.dbUid = pDb->uid;
   topicObj.version = 1;
   topicObj.sql = pCreate->sql;
-  topicObj.physicalPlan = pCreate->physicalPlan;
-  topicObj.logicalPlan = pCreate->logicalPlan;
+  topicObj.logicalPlan = NULL;
   topicObj.sqlLen = strlen(pCreate->sql);
+
+  if (TSDB_CODE_SUCCESS != mndGetPlanString(pCreate, &topicObj.physicalPlan)) {
+    mError("topic:%s, failed to get plan since %s", pCreate->name, terrstr());
+    return -1;
+  }
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_TOPIC, &pReq->rpcMsg);
   if (pTrans == NULL) {
