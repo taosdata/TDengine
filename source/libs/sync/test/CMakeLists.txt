@@ -25,6 +25,8 @@ add_executable(syncTimeoutTest "")
 add_executable(syncPingTest "")
 add_executable(syncPingReplyTest "")
 add_executable(syncRpcMsgTest "")
+add_executable(syncPingTimerTest2 "")
+add_executable(syncPingSelfTest "")
 
 
 target_sources(syncTest
@@ -134,6 +136,14 @@ target_sources(syncPingReplyTest
 target_sources(syncRpcMsgTest
     PRIVATE
     "syncRpcMsgTest.cpp"
+)
+target_sources(syncPingTimerTest2
+    PRIVATE
+    "syncPingTimerTest2.cpp"
+)
+target_sources(syncPingSelfTest
+    PRIVATE
+    "syncPingSelfTest.cpp"
 )
 
 
@@ -272,6 +282,16 @@ target_include_directories(syncRpcMsgTest
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(syncPingTimerTest2
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncPingSelfTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 
 
 target_link_libraries(syncTest
@@ -379,6 +399,14 @@ target_link_libraries(syncPingReplyTest
     gtest_main
 )
 target_link_libraries(syncRpcMsgTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncPingTimerTest2
+    sync
+    gtest_main
+)
+target_link_libraries(syncPingSelfTest
     sync
     gtest_main
 )

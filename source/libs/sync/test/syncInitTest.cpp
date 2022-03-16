@@ -52,8 +52,6 @@ SSyncNode* syncNodeInit() {
   gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
   gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
   gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
-  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
-  gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
   gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
   gSyncIO->pSyncNode = pSyncNode;
 

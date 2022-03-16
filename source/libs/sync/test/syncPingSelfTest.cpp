@@ -87,43 +87,14 @@ int main(int argc, char** argv) {
 
   SSyncNode* pSyncNode = syncInitTest();
   assert(pSyncNode != NULL);
-  syncNodePrint2((char*)"----1", pSyncNode);
+  syncNodePrint2((char*)"", pSyncNode);
 
   initRaftId(pSyncNode);
 
   //---------------------------
 
-  sTrace("syncNodeStartPingTimer ...");
-  ret = syncNodeStartPingTimer(pSyncNode);
-  assert(ret == 0);
-  syncNodePrint2((char*)"----2", pSyncNode);
-
-  sTrace("sleep ...");
-  taosMsleep(10000);
-
-  sTrace("syncNodeStopPingTimer ...");
-  ret = syncNodeStopPingTimer(pSyncNode);
-  assert(ret == 0);
-  syncNodePrint2((char*)"----3", pSyncNode);
-
-  sTrace("sleep ...");
-  taosMsleep(5000);
-
-  sTrace("syncNodeStartPingTimer ...");
-  ret = syncNodeStartPingTimer(pSyncNode);
-  assert(ret == 0);
-  syncNodePrint2((char*)"----4", pSyncNode);
-
-  sTrace("sleep ...");
-  taosMsleep(10000);
-
-  sTrace("syncNodeStopPingTimer ...");
-  ret = syncNodeStopPingTimer(pSyncNode);
-  assert(ret == 0);
-  syncNodePrint2((char*)"----5", pSyncNode);
-
   while (1) {
-    sTrace("while 1 sleep ...");
+    syncNodePingSelf(pSyncNode);
     taosMsleep(1000);
   }
 
