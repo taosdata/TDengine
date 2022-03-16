@@ -34,7 +34,6 @@ typedef struct SVnodesMgmt {
   SWWorkerPool  syncPool;
   SWWorkerPool  writePool;
   const char   *path;
-  SMnode       *pMnode;
   SDnode       *pDnode;
   SMgmtWrapper *pWrapper;
   SDnodeWorker  mgmtWorker;
@@ -100,8 +99,8 @@ void    vmStopWorker(SVnodesMgmt *pMgmt);
 int32_t vmAllocQueue(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
 void    vmFreeQueue(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
 
-int32_t vmPutMsgToQueryQueue(SVnodesMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t vmPutMsgToApplyQueue(SVnodesMgmt *pMgmt, int32_t vgId, SRpcMsg *pMsg);
+int32_t vmPutMsgToQueryQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
+int32_t vmPutMsgToApplyQueue(SMgmtWrapper *pWrapper, int32_t vgId, SRpcMsg *pMsg);
 
 int32_t vmProcessWriteMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t vmProcessSyncMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg);

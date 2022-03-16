@@ -110,7 +110,7 @@ typedef struct SMnode {
   char             *path;
   int64_t           checkTime;
   SSdb             *pSdb;
-  SDnode           *pDnode;
+  SMgmtWrapper     *pWrapper;
   SArray           *pSteps;
   SShowMgmt         showMgmt;
   SProfileMgmt      profileMgmt;
@@ -120,9 +120,9 @@ typedef struct SMnode {
   SGrantInfo        grant;
   MndMsgFp          msgFp[TDMT_MAX];
   SendReqFp         sendReqFp;
-  SendMnodeReqFp    sendReqToMnodeFp;
-  PutToQueueFp      putReqToMWriteQFp;
-  PutToQueueFp      putReqToMReadQFp;
+  SendMnodeReqFp    sendMnodeReqFp;
+  PutToQueueFp      putToWriteQFp;
+  PutToQueueFp      putToReadQFp;
 } SMnode;
 
 int32_t mndSendReqToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *rpcMsg);

@@ -17,7 +17,7 @@
 #include "mmInt.h"
 
 static void mmProcessQueue(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  dTrace("msg:%p, will be processed", pMsg);
+  dTrace("msg:%p, will be processed in mnode queue", pMsg);
   SMnode  *pMnode = mmAcquire(pMgmt);
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   bool     isReq = (pRpc->msgType & 1U);
@@ -102,7 +102,7 @@ int32_t mmProcessReadMsg(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->readWorker, pMsg);
 }
 
-static int32_t mmPutRpcMsgToWorker(SMgmtWrapper *pWrapper, SDnodeWorker *pWorker, SRpcMsg *pRpc) {
+static int32_t mmPutRpcMsgToWorker(SMnodeMgmt *pMgmt, SDnodeWorker *pWorker, SRpcMsg *pRpc) {
   SNodeMsg *pMsg = taosAllocateQitem(sizeof(SNodeMsg));
   if (pMsg == NULL) {
     return -1;
@@ -111,7 +111,7 @@ static int32_t mmPutRpcMsgToWorker(SMgmtWrapper *pWrapper, SDnodeWorker *pWorker
   dTrace("msg:%p, is created", pMsg);
   pMsg->rpcMsg = *pRpc;
 
-  int32_t code = mmPutMsgToWorker(pWrapper->pMgmt, pWorker, pMsg);
+  int32_t code = mmPutMsgToWorker(pMgmt, pWorker, pMsg);
   if (code != 0) {
     dTrace("msg:%p, is freed", pMsg);
     taosFreeQitem(pMsg);
@@ -121,16 +121,12 @@ static int32_t mmPutRpcMsgToWorker(SMgmtWrapper *pWrapper, SDnodeWorker *pWorker
   return code;
 }
 
-int32_t mmPutMsgToWriteQueue(void *wrapper, SRpcMsg *pRpc) {
-  // SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, MNODE);
-  // SMnodeMgmt   *pMgmt = pWrapper->pMgmt;
-  // return mmPutRpcMsgToWorker(pWrapper, &pMgmt->writeWorker, pRpc);
-  return 0;
+int32_t mmPutMsgToWriteQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
+  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
+  return mmPutRpcMsgToWorker(pMgmt, &pMgmt->writeWorker, pRpc);
 }
 
-int32_t mmPutMsgToReadQueue(void *wrapper, SRpcMsg *pRpc) {
-  // SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, MNODE);
-  // SMnodeMgmt   *pMgmt = pWrapper->pMgmt;
-  // return mmPutRpcMsgToWorker(pWrapper, &pMgmt->readWorker, pRpc);
-  return 0;
+int32_t mmPutMsgToReadQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
+  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
+  return mmPutRpcMsgToWorker(pMgmt, &pMgmt->readWorker, pRpc);
 }

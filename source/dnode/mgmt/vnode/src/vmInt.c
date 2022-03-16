@@ -257,10 +257,6 @@ static void vmCleanup(SMgmtWrapper *pWrapper) {
   dInfo("vnodes-mgmt is cleaned up");
 }
 
-static int32_t vmSendReqToDnode(SVnodesMgmt *pMgmt, struct SEpSet *epSet, struct SRpcMsg *rpcMsg) {
-  return dndSendReqToDnode(pMgmt->pDnode, epSet, rpcMsg);
-}
-
 static int32_t vmInit(SMgmtWrapper *pWrapper) {
   SDnode      *pDnode = pWrapper->pDnode;
   SVnodesMgmt *pMgmt = calloc(1, sizeof(SVnodesMgmt));
@@ -298,8 +294,8 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
   }
 
   vnodeOpt.nthreads = tsNumOfCommitThreads;
-  vnodeOpt.putToQueryQFp = (VndPutToQueryQFp)vmPutMsgToQueryQueue;
-  vnodeOpt.sendReqFp = (VndSendReqFp)vmSendReqToDnode;
+  vnodeOpt.putToQueryQFp = vmPutMsgToQueryQueue;
+  vnodeOpt.sendReqFp = dndSendReqToDnode;
   if (vnodeInit(&vnodeOpt) != 0) {
     dError("failed to init vnode since %s", terrstr());
     goto _OVER;

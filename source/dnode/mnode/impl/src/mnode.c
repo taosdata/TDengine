@@ -49,7 +49,7 @@ int32_t mndSendReqToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *pMsg) {
     return -1;
   }
 
-  return (*pMnode->sendReqFp)(pMnode->pDnode, pEpSet, pMsg);
+  return (*pMnode->sendReqFp)(pMnode->pWrapper, pEpSet, pMsg);
 }
 
 int32_t mndSendReqToMnode(SMnode *pMnode, SRpcMsg *pMsg) {
@@ -58,7 +58,7 @@ int32_t mndSendReqToMnode(SMnode *pMnode, SRpcMsg *pMsg) {
     return -1;
   }
 
-  return (*pMnode->sendReqToMnodeFp)(pMnode->pDnode, pMsg);
+  return (*pMnode->sendMnodeReqFp)(pMnode->pWrapper, pMsg);
 }
 
 static void *mndBuildTimerMsg(int32_t *pContLen) {
@@ -80,7 +80,7 @@ static void mndPullupTrans(void *param, void *tmrId) {
     int32_t contLen = 0;
     void   *pReq = mndBuildTimerMsg(&contLen);
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRANS_TIMER, .pCont = pReq, .contLen = contLen};
-    pMnode->putReqToMWriteQFp(pMnode->pDnode, &rpcMsg);
+    pMnode->putToWriteQFp(pMnode->pWrapper, &rpcMsg);
   }
 
   taosTmrReset(mndPullupTrans, TRNAS_TIMER_MS, pMnode, pMnode->timer, &pMnode->transTimer);
@@ -96,7 +96,7 @@ static void mndCalMqRebalance(void *param, void *tmrId) {
         .pCont = pReq,
         .contLen = contLen,
     };
-    pMnode->putReqToMReadQFp(pMnode->pDnode, &rpcMsg);
+    pMnode->putToReadQFp(pMnode->pWrapper, &rpcMsg);
   }
 
   taosTmrReset(mndCalMqRebalance, MQ_TIMER_MS, pMnode, pMnode->timer, &pMnode->mqTimer);
@@ -108,7 +108,7 @@ static void mndPullupTelem(void *param, void *tmrId) {
     int32_t contLen = 0;
     void   *pReq = mndBuildTimerMsg(&contLen);
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_TELEM_TIMER, .pCont = pReq, .contLen = contLen};
-    pMnode->putReqToMReadQFp(pMnode->pDnode, &rpcMsg);
+    pMnode->putToReadQFp(pMnode->pWrapper, &rpcMsg);
   }
 
   taosTmrReset(mndPullupTelem, TELEM_TIMER_MS, pMnode, pMnode->timer, &pMnode->telemTimer);
@@ -286,14 +286,14 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->replica = pOption->replica;
   pMnode->selfIndex = pOption->selfIndex;
   memcpy(&pMnode->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
-  pMnode->pDnode = pOption->pDnode;
-  pMnode->putReqToMWriteQFp = pOption->putReqToMWriteQFp;
-  pMnode->putReqToMReadQFp = pOption->putReqToMReadQFp;
+  pMnode->pWrapper = pOption->pWrapper;
+  pMnode->putToWriteQFp = pOption->putToWriteQFp;
+  pMnode->putToReadQFp = pOption->putToReadQFp;
   pMnode->sendReqFp = pOption->sendReqFp;
-  pMnode->sendReqToMnodeFp = pOption->sendReqToMnodeFp;
+  pMnode->sendMnodeReqFp = pOption->sendMnodeReqFp;
 
-  if (pMnode->sendReqFp == NULL || pMnode->sendReqToMnodeFp == NULL  ||
-      pMnode->putReqToMWriteQFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0) {
+  if (pMnode->sendReqFp == NULL || pMnode->sendMnodeReqFp == NULL  ||
+      pMnode->putToWriteQFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0) {
     terrno = TSDB_CODE_MND_INVALID_OPTIONS;
     return -1;
   }

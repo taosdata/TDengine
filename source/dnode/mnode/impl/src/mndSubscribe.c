@@ -420,7 +420,7 @@ static int32_t mndProcessMqTimerMsg(SNodeMsg *pMsg) {
         .pCont = pRebMsg,
         .contLen = sizeof(SMqDoRebalanceMsg),
     };
-    pMnode->putReqToMWriteQFp(pMnode->pDnode, &rpcMsg);
+    (*pMnode->putToWriteQFp)(pMnode->pWrapper, &rpcMsg);
   } else {
     taosHashCleanup(pRebMsg->rebSubHash);
     rpcFreeCont(pRebMsg);

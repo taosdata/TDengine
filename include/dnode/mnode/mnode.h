@@ -23,13 +23,8 @@ extern "C" {
 #endif
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
-typedef struct SDnode    SDnode;
-typedef struct SMnode    SMnode;
-typedef int32_t (*SendReqToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
-typedef int32_t (*SendReqToMnodeFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
-typedef int32_t (*PutReqToMWriteQFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
-typedef int32_t (*PutReqToMReadQFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
-typedef void (*SendRedirectRspFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
+typedef struct SMgmtWrapper SMgmtWrapper;
+typedef struct SMnode       SMnode;
 
 typedef struct {
   int32_t        dnodeId;
@@ -37,11 +32,12 @@ typedef struct {
   int8_t         replica;
   int8_t         selfIndex;
   SReplica       replicas[TSDB_MAX_REPLICA];
-  SDnode        *pDnode;
-  PutToQueueFp   putReqToMWriteQFp;
-  PutToQueueFp   putReqToMReadQFp;
+  SMgmtWrapper  *pWrapper;
+  PutToQueueFp   putToWriteQFp;
+  PutToQueueFp   putToReadQFp;
   SendReqFp      sendReqFp;
-  SendMnodeReqFp sendReqToMnodeFp;
+  SendMnodeReqFp sendMnodeReqFp;
+  SendRspFp      sendRspFp;
 } SMnodeOpt;
 
 /* ------------------------ SMnode ------------------------ */

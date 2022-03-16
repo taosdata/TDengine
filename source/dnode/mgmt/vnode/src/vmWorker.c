@@ -146,7 +146,9 @@ int32_t vmProcessFetchMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   }
 }
 
-int32_t vmPutMsgToQueryQueue(SVnodesMgmt *pMgmt, SRpcMsg *pRpc) {
+int32_t vmPutMsgToQueryQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
+  SVnodesMgmt *pMgmt = pWrapper->pMgmt;
+
   int32_t   code = -1;
   SMsgHead *pHead = pRpc->pCont;
   // pHead->vgId = htonl(pHead->vgId);
@@ -162,11 +164,20 @@ int32_t vmPutMsgToQueryQueue(SVnodesMgmt *pMgmt, SRpcMsg *pRpc) {
   return code;
 }
 
-int32_t vmPutMsgToApplyQueue(SVnodesMgmt *pMgmt, int32_t vgId, SRpcMsg *pMsg) {
-  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, vgId);
+int32_t vmPutMsgToApplyQueue(SMgmtWrapper *pWrapper, int32_t vgId, SRpcMsg *pRpc) {
+  SVnodesMgmt *pMgmt = pWrapper->pMgmt;
+
+  int32_t   code = -1;
+  SMsgHead *pHead = pRpc->pCont;
+  // pHead->vgId = htonl(pHead->vgId);
+
+  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, pHead->vgId);
   if (pVnode == NULL) return -1;
 
-  int32_t code = taosWriteQitem(pVnode->pApplyQ, pMsg);
+  SNodeMsg *pMsg = taosAllocateQitem(sizeof(SNodeMsg));
+  if (pMsg != NULL) {
+    code = vmWriteMsgToQueue(pVnode->pApplyQ, pMsg, false);
+  }
   vmReleaseVnode(pMgmt, pVnode);
   return code;
 }

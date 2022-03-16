@@ -209,7 +209,7 @@ static void dndStopSnodeWorker(SDnode *pDnode) {
 static void dndBuildSnodeOption(SDnode *pDnode, SSnodeOpt *pOption) {
   pOption->pDnode = pDnode;
   pOption->sendReqFp = dndSendReqToDnode;
-  pOption->sendReqToMnodeFp = dndSendReqToMnode;
+  pOption->sendMnodeReqFp = dndSendReqToMnode;
   pOption->sendRedirectRspFp = dndSendRedirectRsp;
   pOption->dnodeId = pDnode->dnodeId;
   pOption->clusterId = pDnode->clusterId;

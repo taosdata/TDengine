@@ -135,11 +135,11 @@ int32_t mmDrop(SMnodeMgmt *pMgmt) {
 static void mmInitOption(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
   SDnode *pDnode = pMgmt->pDnode;
 
-  pOption->pDnode = pDnode;
+  pOption->pWrapper = pMgmt->pWrapper;
   pOption->sendReqFp = dndSendReqToDnode;
-  pOption->sendReqToMnodeFp = dndSendReqToMnode;
-  pOption->putReqToMWriteQFp = mmPutMsgToWriteQueue;
-  pOption->putReqToMReadQFp = mmPutMsgToReadQueue;
+  pOption->sendMnodeReqFp = dndSendReqToMnode;
+  pOption->putToWriteQFp = mmPutMsgToWriteQueue;
+  pOption->putToReadQFp = mmPutMsgToReadQueue;
   pOption->dnodeId = pDnode->dnodeId;
   pOption->clusterId = pDnode->clusterId;
 }

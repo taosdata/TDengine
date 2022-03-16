@@ -2271,10 +2271,11 @@ static FORCE_INLINE void* tDecodeSMqCMGetSubEpRsp(void* buf, SMqCMGetSubEpRsp* p
 
 struct SRpcMsg;
 struct SEpSet;
-typedef int32_t (*PutToQueueFp)(void *pMgmt, struct SRpcMsg *pReq);
-typedef int32_t (*SendReqFp)(void *pMgmt, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
-typedef int32_t (*SendMnodeReqFp)(void *pMgmt, struct SRpcMsg *rpcMsg);
-typedef int32_t (*SendRspFp)(void *pMgmt, struct SRpcMsg *rpcMsg);
+struct SMgmtWrapper;
+typedef int32_t (*PutToQueueFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* pReq);
+typedef int32_t (*SendReqFp)(struct SMgmtWrapper* pWrapper, struct SEpSet* epSet, struct SRpcMsg* rpcMsg);
+typedef int32_t (*SendMnodeReqFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* rpcMsg);
+typedef int32_t (*SendRspFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* rpcMsg);
 
 #ifdef __cplusplus
 }

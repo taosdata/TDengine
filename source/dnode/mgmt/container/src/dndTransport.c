@@ -279,9 +279,7 @@ static int32_t dndSendRpcReq(STransMgmt *pMgmt, SEpSet *pEpSet, SRpcMsg *pReq) {
   return 0;
 }
 
-int32_t dndSendReqToDnode(void *wrapper, SEpSet *pEpSet, SRpcMsg *pReq) {
-  SMgmtWrapper *pWrapper = wrapper;
-
+int32_t dndSendReqToDnode(SMgmtWrapper *pWrapper, SEpSet *pEpSet, SRpcMsg *pReq) {
   if (pWrapper->procType == PROC_CHILD) {
   } else {
     STransMgmt *pTrans = &pWrapper->pDnode->trans;
@@ -289,9 +287,7 @@ int32_t dndSendReqToDnode(void *wrapper, SEpSet *pEpSet, SRpcMsg *pReq) {
   }
 }
 
-int32_t dndSendReqToMnode(void *wrapper, SRpcMsg *pReq) {
-  SMgmtWrapper *pWrapper = wrapper;
-
+int32_t dndSendReqToMnode(SMgmtWrapper *pWrapper, SRpcMsg *pReq) {
   if (pWrapper->procType == PROC_CHILD) {
   } else {
     SDnode     *pDnode = pWrapper->pDnode;
@@ -311,9 +307,7 @@ void dndSendRpcRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
   }
 }
 
-void dndSendRsp(void *wrapper, SRpcMsg *pRsp) {
-  SMgmtWrapper *pWrapper = wrapper;
-
+void dndSendRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
   if (pWrapper->procType == PROC_CHILD) {
     int32_t code = -1;
     do {
