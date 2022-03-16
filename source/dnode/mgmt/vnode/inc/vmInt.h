@@ -46,6 +46,7 @@ typedef struct SVnodesMgmt {
   SMnode       *pMnode;
   SDnode       *pDnode;
   SMgmtWrapper *pWrapper;
+  SDnodeWorker  mgmtWorker;
 } SVnodesMgmt;
 
 typedef struct {
@@ -96,11 +97,7 @@ void       vmReleaseVnode(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
 int32_t    vmOpenVnode(SVnodesMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl);
 void       vmCloseVnode(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
 
-void    dndProcessVnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
-void    dndProcessVnodeSyncMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
-void    dndProcessVnodeQueryMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
-void    dndProcessVnodeFetchMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
-
+int32_t vmProcessMgmtMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

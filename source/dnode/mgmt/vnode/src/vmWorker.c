@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "vmWorker.h"
+#include "vmMsg.h"
 
 static void vmProcessQueryQueue(SVnodeObj *pVnode, SRpcMsg *pMsg) { vnodeProcessQueryMsg(pVnode->pImpl, pMsg); }
 
@@ -200,6 +201,46 @@ void vmFreeQueue(SVnodesMgmt *pMgmt, SVnodeObj *pVnode) {
   pVnode->pQueryQ = NULL;
 }
 
+static void vmProcessMgmtQueue(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
+  int32_t code = -1;
+  tmsg_t  msgType = pMsg->rpcMsg.msgType;
+  dTrace("msg:%p, will be processed", pMsg);
+
+  switch (msgType) {
+    case TDMT_DND_CREATE_VNODE:
+      code = vmProcessCreateVnodeReq(pMgmt, pMsg);
+      break;
+    case TDMT_DND_ALTER_VNODE:
+      code = vmProcessAlterVnodeReq(pMgmt, pMsg);
+      break;
+    case TDMT_DND_DROP_VNODE:
+      code = vmProcessDropVnodeReq(pMgmt, pMsg);
+      break;
+    case TDMT_DND_SYNC_VNODE:
+      code = vmProcessSyncVnodeReq(pMgmt, pMsg);
+      break;
+    case TDMT_DND_COMPACT_VNODE:
+      code = vmProcessCompactVnodeReq(pMgmt, pMsg);
+      break;
+    default:
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      code = -1;
+      dError("RPC %p, dnode msg:%s not processed", pMsg->rpcMsg.handle, TMSG_INFO(msgType));
+      break;
+  }
+
+  if (msgType & 1u) {
+    if (code != 0) code = terrno;
+    SRpcMsg rsp = {.code = code, .handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle};
+    rpcSendResponse(&rsp);
+  }
+
+  rpcFreeCont(pMsg->rpcMsg.pCont);
+  pMsg->rpcMsg.pCont = NULL;
+  taosFreeQitem(pMsg);
+  dTrace("msg:%p, is freed", pMsg);
+}
+
 int32_t vmStartWorker(SVnodesMgmt *pMgmt) {
   int32_t maxFetchThreads = 4;
   int32_t minFetchThreads = TMIN(maxFetchThreads, tsNumOfCores);
@@ -230,14 +271,26 @@ int32_t vmStartWorker(SVnodesMgmt *pMgmt) {
   pWPool->max = maxSyncThreads;
   if (tWWorkerInit(pWPool) != 0) return -1;
 
+  if (dndInitWorker(pMgmt, &pMgmt->mgmtWorker, DND_WORKER_SINGLE, "vnode-mgmt", 1, 1, vmProcessMgmtQueue) != 0) {
+    dError("failed to start dnode mgmt worker since %s", terrstr());
+    return -1;
+  }
+
   dDebug("vnode workers is initialized");
   return 0;
 }
 
 void vmStopWorker(SVnodesMgmt *pMgmt) {
+  dndCleanupWorker(&pMgmt->mgmtWorker);
   tFWorkerCleanup(&pMgmt->fetchPool);
   tQWorkerCleanup(&pMgmt->queryPool);
   tWWorkerCleanup(&pMgmt->writePool);
   tWWorkerCleanup(&pMgmt->syncPool);
   dDebug("vnode workers is closed");
+}
+
+int32_t vmProcessMgmtMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
+  SDnodeWorker *pWorker = &pMgmt->mgmtWorker;
+  dTrace("msg:%p, will be written to worker %s", pMsg, pWorker->name);
+  return dndWriteMsgToWorker(pWorker, pMsg, 0);
 }

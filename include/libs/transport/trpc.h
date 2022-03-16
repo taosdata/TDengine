@@ -53,10 +53,6 @@ typedef struct {
   void   *pNode;
 } SNodeMsg;
 
-typedef int32_t (*PutToQueueFp)(void *pMgmt, struct SRpcMsg *pReq);
-typedef int32_t (*SendReqFp)(void *pMgmt, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
-typedef int32_t (*SendMnodeReqFp)(void *pMgmt, struct SRpcMsg *rpcMsg);
-typedef int32_t (*SendRspFp)(void *pMgmt, struct SRpcMsg *rpcMsg);
 typedef struct SRpcInit {
   uint16_t localPort;     // local port
   char *   label;         // for debug purpose

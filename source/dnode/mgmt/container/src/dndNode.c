@@ -68,8 +68,8 @@ static int32_t dndInitMemory(SDnode *pDnode, const SDnodeOpt *pOption) {
   pDnode->numOfDisks = pOption->numOfDisks;
   pDnode->rebootTime = taosGetTimestampMs();
 
-  if (pDnode->dataDir == NULL || pDnode->dataDir == NULL || pDnode->dataDir == NULL || pDnode->dataDir == NULL ||
-      pDnode->dataDir == NULL) {
+  if (pDnode->dataDir == NULL || pDnode->localEp == NULL || pDnode->localFqdn == NULL || pDnode->firstEp == NULL ||
+      pDnode->secondEp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }

@@ -50,7 +50,7 @@ typedef struct {
   int32_t   numOfDisks;
 } SDnodeOpt;
 
-typedef enum { DND_EVENT_STOP = 1, DND_EVENT_RELOAD } EDndEvent;
+typedef enum { DND_EVENT_START, DND_EVENT_STOP = 1, DND_EVENT_RELOAD } EDndEvent;
 
 /**
  * @brief Initialize and start the dnode.
