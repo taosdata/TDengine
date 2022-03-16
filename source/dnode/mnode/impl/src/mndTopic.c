@@ -237,6 +237,10 @@ static int32_t mndCheckCreateTopicReq(SCMCreateTopicReq *pCreate) {
 }
 
 static int32_t mndGetPlanString(SCMCreateTopicReq *pCreate, char **pStr) {
+  if (NULL == pCreate->ast) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SNode* pAst = NULL;
   int32_t code = nodesStringToNode(pCreate->ast, &pAst);
 
@@ -266,17 +270,23 @@ static int32_t mndCreateTopic(SMnode *pMnode, SMnodeMsg *pReq, SCMCreateTopicReq
   topicObj.dbUid = pDb->uid;
   topicObj.version = 1;
   topicObj.sql = pCreate->sql;
-  topicObj.logicalPlan = NULL;
+  topicObj.physicalPlan = "";
+  topicObj.logicalPlan = "";
   topicObj.sqlLen = strlen(pCreate->sql);
 
-  if (TSDB_CODE_SUCCESS != mndGetPlanString(pCreate, &topicObj.physicalPlan)) {
+  char* pPlanStr = NULL;
+  if (TSDB_CODE_SUCCESS != mndGetPlanString(pCreate, &pPlanStr)) {
     mError("topic:%s, failed to get plan since %s", pCreate->name, terrstr());
     return -1;
+  }
+  if (NULL != pPlanStr) {
+    topicObj.physicalPlan = pPlanStr;
   }
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_TOPIC, &pReq->rpcMsg);
   if (pTrans == NULL) {
     mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+    tfree(pPlanStr);
     return -1;
   }
   mDebug("trans:%d, used to create topic:%s", pTrans->id, pCreate->name);
@@ -284,6 +294,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SMnodeMsg *pReq, SCMCreateTopicReq
   SSdbRaw *pRedoRaw = mndTopicActionEncode(&topicObj);
   if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
     mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
+    tfree(pPlanStr);
     mndTransDrop(pTrans);
     return -1;
   }
@@ -291,10 +302,12 @@ static int32_t mndCreateTopic(SMnode *pMnode, SMnodeMsg *pReq, SCMCreateTopicReq
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    tfree(pPlanStr);
     mndTransDrop(pTrans);
     return -1;
   }
 
+  tfree(pPlanStr);
   mndTransDrop(pTrans);
   return 0;
 }
