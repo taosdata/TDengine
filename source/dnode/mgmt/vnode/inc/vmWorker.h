@@ -22,8 +22,9 @@
 extern "C" {
 #endif
 
-int32_t vmStartWorker(SDnode *pDnode);
-void    vmStopWorker(SDnode *pDnode);
+int32_t vmStartWorker(SVnodesMgmt *pMgmt);
+void    vmStopWorker(SVnodesMgmt *pMgmt);
+
 void    vmInitMsgFp(SMnodeMgmt *pMgmt);
 void    vmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 int32_t vmPutMsgToWriteQueue(SDnode *pDnode, SRpcMsg *pRpcMsg);

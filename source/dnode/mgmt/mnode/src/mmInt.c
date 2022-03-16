@@ -224,6 +224,8 @@ static int32_t mmInit(SMgmtWrapper *pWrapper) {
   SMnodeOpt   option = {0};
 
   dInfo("mnode-mgmt start to init");
+  if (pMgmt == NULL) goto _OVER;
+
   pMgmt->path = pWrapper->path;
   pMgmt->pDnode = pWrapper->pDnode;
   pMgmt->pWrapper = pWrapper;
@@ -249,7 +251,7 @@ _OVER:
     pWrapper->pMgmt = pMgmt;
     dInfo("mnode-mgmt is initialized");
   } else {
-    dError("failed to init mnode-mgmtsince %s", terrstr());
+    dError("failed to init mnode-mgmt since %s", terrstr());
     mmCleanup(pWrapper);
   }
 

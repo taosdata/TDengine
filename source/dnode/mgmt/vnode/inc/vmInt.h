@@ -13,15 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_VNODE_INT_H_
-#define _TD_DND_VNODE_INT_H_
+#ifndef _TD_DND_VNODES_INT_H_
+#define _TD_DND_VNODES_INT_H_
 
 #include "dndInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 typedef struct {
   int32_t openVnodes;
@@ -35,19 +34,64 @@ typedef struct {
 } SVnodesStat;
 
 typedef struct SVnodesMgmt {
-  SVnodesStat  stat;
-  SHashObj    *hash;
-  SRWLatch     latch;
-  SQWorkerPool queryPool;
-  SFWorkerPool fetchPool;
-  SWWorkerPool syncPool;
-  SWWorkerPool writePool;
-  STfs        *pTfs;
-  SProcObj    *pProcess;
-  bool         singleProc;
+  SHashObj     *hash;
+  SRWLatch      latch;
+  SVnodesStat   state;
+  STfs         *pTfs;
+  SQWorkerPool  queryPool;
+  SFWorkerPool  fetchPool;
+  SWWorkerPool  syncPool;
+  SWWorkerPool  writePool;
+  const char   *path;
+  SMnode       *pMnode;
+  SDnode       *pDnode;
+  SMgmtWrapper *pWrapper;
 } SVnodesMgmt;
 
-void vmGetMgmtFp(SMgmtWrapper *pMgmt) ;
+typedef struct {
+  int32_t  vgId;
+  int32_t  vgVersion;
+  int8_t   dropped;
+  uint64_t dbUid;
+  char     db[TSDB_DB_FNAME_LEN];
+  char     path[PATH_MAX + 20];
+} SWrapperCfg;
+
+typedef struct {
+  int32_t     vgId;
+  int32_t     refCount;
+  int32_t     vgVersion;
+  int8_t      dropped;
+  int8_t      accessState;
+  uint64_t    dbUid;
+  char       *db;
+  char       *path;
+  SVnode     *pImpl;
+  STaosQueue *pWriteQ;
+  STaosQueue *pSyncQ;
+  STaosQueue *pApplyQ;
+  STaosQueue *pQueryQ;
+  STaosQueue *pFetchQ;
+} SVnodeObj;
+
+typedef struct {
+  int32_t      vnodeNum;
+  int32_t      opened;
+  int32_t      failed;
+  int32_t      threadIndex;
+  pthread_t    thread;
+  SVnodesMgmt *pMgmt;
+  SWrapperCfg *pCfgs;
+} SVnodeThread;
+
+// interface
+void vmGetMgmtFp(SMgmtWrapper *pWrapper);
+
+// vmInt.h
+SVnodeObj *vmAcquireVnode(SVnodesMgmt *pMgmt, int32_t vgId);
+void       vmReleaseVnode(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
+int32_t    vmOpenVnode(SVnodesMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl);
+void       vmCloseVnode(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
 
 int32_t dndInitVnodes(SDnode *pDnode);
 void    dndCleanupVnodes(SDnode *pDnode);
@@ -65,10 +109,10 @@ int32_t vmProcessSyncVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
 int32_t vmProcessCompactVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
 
 int32_t vmGetTfsMonitorInfo(SMgmtWrapper *pWrapper, SMonDiskInfo *pInfo);
-void vmGetVndMonitorInfo(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo);
+void    vmGetVndMonitorInfo(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DND_VNODE_INT_H_*/
+#endif /*_TD_DND_VNODES_INT_H_*/
