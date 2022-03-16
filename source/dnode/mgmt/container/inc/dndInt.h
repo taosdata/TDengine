@@ -72,7 +72,7 @@ typedef struct SQnodeMgmt   SQnodeMgmt;
 typedef struct SSnodeMgmt   SSnodeMgmt;
 typedef struct SBnodeMgmt   SBnodeMgmt;
 
-typedef int32_t (*NodeMsgFp)(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+typedef int32_t (*NodeMsgFp)(void *pMgmt, SNodeMsg *pMsg);
 typedef int32_t (*OpenNodeFp)(SMgmtWrapper *pWrapper);
 typedef void (*CloseNodeFp)(SMgmtWrapper *pWrapper);
 typedef bool (*RequireNodeFp)(SMgmtWrapper *pWrapper);

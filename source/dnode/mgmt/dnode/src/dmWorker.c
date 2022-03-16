@@ -151,9 +151,7 @@ void dmStopWorker(SDnodeMgmt *pMgmt) {
   }
 }
 
-int32_t dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SDnodeMgmt *pMgmt = pWrapper->pMgmt;
-
+int32_t dmProcessMgmtMsg(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   SDnodeWorker *pWorker = &pMgmt->mgmtWorker;
   if (pMsg->rpcMsg.msgType == TDMT_MND_STATUS_RSP) {
     pWorker = &pMgmt->statusWorker;

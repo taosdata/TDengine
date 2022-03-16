@@ -80,35 +80,23 @@ static void vmProcessSyncQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numOf
   }
 }
 
-static int32_t vmWriteMsgToQueue(STaosQueue *pQueue, SRpcMsg *pRpcMsg, bool sendRsp) {
-  int32_t code = 0;
-
-  if (pQueue == NULL) {
-    code = TSDB_CODE_MSG_NOT_PROCESSED;
-  } else {
-    SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg));
-    if (pMsg == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-    } else {
-      *pMsg = *pRpcMsg;
-      if (taosWriteQitem(pQueue, pMsg) != 0) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-      }
-    }
-  }
+static int32_t vmWriteMsgToQueue(STaosQueue *pQueue, SNodeMsg *pMsg, bool sendRsp) {
+  int32_t code = taosWriteQitem(pQueue, pMsg);
 
   if (code != TSDB_CODE_SUCCESS && sendRsp) {
-    if (pRpcMsg->msgType & 1u) {
-      SRpcMsg rsp = {.handle = pRpcMsg->handle, .code = code};
+    if (pMsg->rpcMsg.msgType & 1u) {
+      SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle, .code = code};
       rpcSendResponse(&rsp);
     }
-    rpcFreeCont(pRpcMsg->pCont);
+    rpcFreeCont(pMsg->rpcMsg.pCont);
   }
 
   return code;
 }
 
-static SVnodeObj *vmAcquireFromMsg(SVnodesMgmt *pMgmt, SRpcMsg *pMsg) {
+static SVnodeObj *vmAcquireFromMsg(SVnodesMgmt *pMgmt, SNodeMsg *pNodeMsg) {
+  SRpcMsg *pMsg = &pNodeMsg->rpcMsg;
+
   SMsgHead *pHead = pMsg->pCont;
   pHead->contLen = htonl(pHead->contLen);
   pHead->vgId = htonl(pHead->vgId);
@@ -126,50 +114,50 @@ static SVnodeObj *vmAcquireFromMsg(SVnodesMgmt *pMgmt, SRpcMsg *pMsg) {
   return pVnode;
 }
 
-int32_t vmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-//   SVnodeObj *pVnode = vmAcquireFromMsg(pDnode, pMsg);
-//   if (pVnode != NULL) {
-//     (void)vmWriteMsgToQueue(pVnode->pWriteQ, pMsg, true);
-//     vmReleaseVnode(pMgmt, pVnode);
-//   }
-return 0;
+int32_t vmProcessWriteMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
+  SVnodeObj *pVnode = vmAcquireFromMsg(pMgmt, pMsg);
+  if (pVnode != NULL) {
+    (void)vmWriteMsgToQueue(pVnode->pWriteQ, pMsg, true);
+    vmReleaseVnode(pMgmt, pVnode);
+  }
 }
 
-int32_t vmProcessSyncMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-//   SVnodeObj *pVnode = vmAcquireFromMsg(pDnode, pMsg);
-//   if (pVnode != NULL) {
-//     (void)vmWriteMsgToQueue(pVnode->pSyncQ, pMsg, true);
-//     vmReleaseVnode(pMgmt, pVnode);
-//   }
-return 0;
+int32_t vmProcessSyncMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
+  SVnodeObj *pVnode = vmAcquireFromMsg(pMgmt, pMsg);
+  if (pVnode != NULL) {
+    (void)vmWriteMsgToQueue(pVnode->pSyncQ, pMsg, true);
+    vmReleaseVnode(pMgmt, pVnode);
+  }
 }
 
-int32_t vmProcessQueryMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-//   SVnodeObj *pVnode = vmAcquireFromMsg(pDnode, pMsg);
-//   if (pVnode != NULL) {
-//     (void)vmWriteMsgToQueue(pVnode->pQueryQ, pMsg, true);
-//     vmReleaseVnode(pMgmt, pVnode);
-//   }
-return 0;
+int32_t vmProcessQueryMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
+  SVnodeObj *pVnode = vmAcquireFromMsg(pMgmt, pMsg);
+  if (pVnode != NULL) {
+    (void)vmWriteMsgToQueue(pVnode->pQueryQ, pMsg, true);
+    vmReleaseVnode(pMgmt, pVnode);
+  }
 }
 
-int32_t vmProcessFetchMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg){
-//   SVnodeObj *pVnode = vmAcquireFromMsg(pDnode, pMsg);
-//   if (pVnode != NULL) {
-//     (void)vmWriteMsgToQueue(pVnode->pFetchQ, pMsg, true);
-//     vmReleaseVnode(pMgmt, pVnode);
-//   }
-return 0;
+int32_t vmProcessFetchMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
+  SVnodeObj *pVnode = vmAcquireFromMsg(pMgmt, pMsg);
+  if (pVnode != NULL) {
+    (void)vmWriteMsgToQueue(pVnode->pFetchQ, pMsg, true);
+    vmReleaseVnode(pMgmt, pVnode);
+  }
 }
 
-int32_t vmPutMsgToQueryQueue(SVnodesMgmt *pMgmt, SRpcMsg *pMsg) {
-  SMsgHead *pHead = pMsg->pCont;
+int32_t vmPutMsgToQueryQueue(SVnodesMgmt *pMgmt, SRpcMsg *pRpc) {
+  int32_t   code = -1;
+  SMsgHead *pHead = pRpc->pCont;
   // pHead->vgId = htonl(pHead->vgId);
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, pHead->vgId);
   if (pVnode == NULL) return -1;
 
-  int32_t code = vmWriteMsgToQueue(pVnode->pQueryQ, pMsg, false);
+  SNodeMsg *pMsg = taosAllocateQitem(sizeof(SNodeMsg));
+  if (pMsg != NULL) {
+    code = vmWriteMsgToQueue(pVnode->pQueryQ, pMsg, false);
+  }
   vmReleaseVnode(pMgmt, pVnode);
   return code;
 }
