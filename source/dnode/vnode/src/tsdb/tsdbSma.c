@@ -15,6 +15,12 @@
 
 #include "tsdbDef.h"
 
+static const char *TSDB_SMA_DNAME[] = {
+    "",      // TSDB_SMA_TYPE_BLOCK
+    "tsma",  // TSDB_SMA_TYPE_TIME_RANGE
+    "rsma",  // TSDB_SMA_TYPE_ROLLUP
+};
+
 #undef SMA_PRINT_DEBUG_LOG
 #define SMA_STORAGE_TSDB_DAYS   30
 #define SMA_STORAGE_TSDB_TIMES  10
@@ -93,10 +99,10 @@ static int32_t tsdbGetTSmaDays(STsdb *pTsdb, int64_t interval, int32_t storageLe
 static int32_t tsdbSetTSmaDataFile(STSmaWriteH *pSmaH, STSmaDataWrapper *pData, int32_t storageLevel, int32_t fid);
 static int32_t tsdbInitTSmaFile(STSmaReadH *pSmaH, TSKEY skey);
 static bool    tsdbSetAndOpenTSmaFile(STSmaReadH *pReadH, TSKEY *queryKey);
-static void    tsdbGetSmaDir(int32_t repoid, int8_t smaType, char dirName[]);
+static void    tsdbGetSmaDir(int32_t vgId, ETsdbSmaType smaType, char dirName[]);
 
-static void tsdbGetSmaDir(int32_t repoid, int8_t smaType, char dirName[]) {
-  snprintf(dirName, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data", repoid);
+static void tsdbGetSmaDir(int32_t vgId, ETsdbSmaType smaType, char dirName[]) {
+  snprintf(dirName, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/%s", vgId, TSDB_SMA_DNAME[smaType]);
 }
 
 static SSmaEnv *tsdbNewSmaEnv(const STsdb *pTsdb, const char *path) {
