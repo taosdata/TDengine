@@ -158,9 +158,11 @@ static void         destroyThrdObj(SCliThrdObj* pThrd);
   } while (0)
 #define CONN_NO_PERSIST_BY_APP(conn) ((conn)->persist == false)
 
+#define REQUEST_NO_RESP(msg) ((msg)->noResp == 1)
+
 static void* cliWorkThread(void* arg);
 
-bool cliMayContinueSendMsg(SCliConn* conn) {
+bool cliMaySendCachedMsg(SCliConn* conn) {
   if (taosArrayGetSize(conn->cliMsgs) > 0) {
     cliSend(conn);
     return true;
@@ -226,7 +228,7 @@ void cliHandleResp(SCliConn* conn) {
   }
   destroyCmsg(pMsg);
 
-  if (cliMayContinueSendMsg(conn) == true) {
+  if (cliMaySendCachedMsg(conn) == true) {
     return;
   }
 
@@ -441,7 +443,25 @@ static void cliDestroy(uv_handle_t* handle) {
   tTrace("%s cli conn %p destroy successfully", CONN_GET_INST_LABEL(conn), conn);
   free(conn);
 }
-
+static bool cliHandleNoResp(SCliConn* conn) {
+  bool    res = false;
+  SArray* msgs = conn->cliMsgs;
+  if (taosArrayGetSize(msgs) > 0) {
+    SCliMsg* pMsg = taosArrayGetP(msgs, 0);
+    if (REQUEST_NO_RESP(&pMsg->msg)) {
+      taosArrayRemove(msgs, 0);
+      destroyCmsg(pMsg);
+      res = true;
+    }
+    if (res == true) {
+      if (cliMaySendCachedMsg(conn) == false) {
+        SCliThrdObj* thrd = conn->hostThrd;
+        addConnToPool(thrd->pool, conn);
+      }
+    }
+  }
+  return res;
+}
 static void cliSendCb(uv_write_t* req, int status) {
   SCliConn* pConn = req->data;
 
@@ -450,6 +470,10 @@ static void cliSendCb(uv_write_t* req, int status) {
   } else {
     tError("%s cli conn %p failed to write: %s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(status));
     cliHandleExcept(pConn);
+    return;
+  }
+  if (cliHandleNoResp(pConn) == true) {
+    tTrace("%s cli conn %p no resp required", CONN_GET_INST_LABEL(pConn), pConn);
     return;
   }
   uv_read_start((uv_stream_t*)pConn->stream, cliAllocRecvBufferCb, cliRecvCb);
@@ -489,6 +513,7 @@ void cliSend(SCliConn* pConn) {
     msgLen += sizeof(STransUserMsg);
   }
 
+  pHead->resflag = REQUEST_NO_RESP(pMsg) ? 1 : 0;
   pHead->msgType = pMsg->msgType;
   pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
 
