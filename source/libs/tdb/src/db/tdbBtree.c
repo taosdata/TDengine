@@ -380,11 +380,13 @@ static int tdbBtreeOpenImpl(SBTree *pBt) {
 static int tdbBtreeInitPage(SPage *pPage, void *arg) {
   SBTree *pBt;
   u16     flags;
+  u8      isLeaf;
 
   pBt = (SBTree *)arg;
 
   flags = TDB_PAGE_FLAGS(pPage);
-  if (TDB_BTREE_PAGE_IS_LEAF(flags)) {
+  isLeaf = TDB_BTREE_PAGE_IS_LEAF(flags);
+  if (isLeaf) {
     pPage->szAmHdr = 0;
   } else {
     pPage->szAmHdr = sizeof(SBtPageHdr);
@@ -399,7 +401,7 @@ static int tdbBtreeInitPage(SPage *pPage, void *arg) {
   TDB_BTREE_ASSERT_FLAG(flags);
 
   // Init other fields
-  if (TDB_BTREE_PAGE_IS_LEAF(flags)) {
+  if (isLeaf) {
     pPage->kLen = pBt->keyLen;
     pPage->vLen = pBt->valLen;
     pPage->maxLocal = pBt->maxLeaf;
@@ -450,7 +452,22 @@ typedef struct {
 } SBtreeBalanceHelper;
 
 static int tdbBtreeCopyPageContent(SPage *pFrom, SPage *pTo) {
-  /* TODO */
+  int nCells = TDB_PAGE_NCELLS(pFrom);
+  int cCells = TDB_PAGE_CCELLS(pFrom);
+  int fCell = TDB_PAGE_FCELL(pFrom);
+  int nFree = TDB_PAGE_NFREE(pFrom);
+
+  pTo->pFreeStart = pTo->pCellIdx + nCells * pFrom->szOffset;
+  memcpy(pTo->pCellIdx, pFrom->pCellIdx, nCells * pFrom->szOffset);
+  pTo->pFreeEnd = (u8 *)pTo->pPageFtr - (pFrom->pFreeEnd - (u8 *)(pFrom->pPageFtr));
+  memcpy(pTo->pFreeEnd, pFrom->pFreeEnd, (pFrom->pFreeEnd - (u8 *)pFrom->pPageFtr));
+
+  TDB_PAGE_NCELLS_SET(pTo, nCells);
+  TDB_PAGE_CCELLS_SET(pTo, cCells);
+  TDB_PAGE_FCELL_SET(pTo, fCell);
+  TDB_PAGE_NFREE_SET(pTo, nFree);
+
+  // TODO: update other fields
 
   return 0;
 }
@@ -698,11 +715,19 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
 static int tdbBtreeBalance(SBtCursor *pCur) {
   int    iPage;
   SPage *pParent;
+  SPage *pPage;
   int    ret;
+  u16    flags;
+  u8     leaf;
+  u8     root;
 
   // Main loop to balance the BTree
   for (;;) {
     iPage = pCur->iPage;
+    pPage = pCur->pPage;
+    flags = TDB_PAGE_FLAGS(pPage);
+    leaf = TDB_BTREE_PAGE_IS_LEAF(flags);
+    root = TDB_BTREE_PAGE_IS_ROOT(flags);
 
     // TODO: Get the page free space if not get yet
     // if (pPage->nFree < 0) {
@@ -711,14 +736,15 @@ static int tdbBtreeBalance(SBtCursor *pCur) {
     //   }
     // }
 
-    if (0 /*TODO: balance is over*/) {
+    // If balance over, break the loop
+    if (pPage->nOverflow == 0 /* TODO: && pPage->nFree <= */) {
       break;
     }
 
     if (iPage == 0) {
-      // Balance the root page by copy the root page content to
-      // a child page and set the root page as empty first
-      // ASSERT(TDB_BTREE_PAGE_IS_ROOT(pCur->pPage->pPageHdr->flags));
+      // For the root page, only balance when the page is overfull,
+      // ignore the case of empty
+      if (pPage->nOverflow == 0) break;
 
       ret = tdbBtreeBalanceDeeper(pCur->pBt, pCur->pPage, &(pCur->pgStack[1]));
       if (ret < 0) {
@@ -730,7 +756,6 @@ static int tdbBtreeBalance(SBtCursor *pCur) {
       pCur->pgStack[0] = pCur->pPage;
       pCur->iPage = 1;
       pCur->pPage = pCur->pgStack[1];
-
     } else {
       // Generalized balance step
       pParent = pCur->pgStack[pCur->iPage - 1];
