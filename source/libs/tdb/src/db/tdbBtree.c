@@ -459,8 +459,8 @@ static int tdbBtreeCopyPageContent(SPage *pFrom, SPage *pTo) {
 
   pTo->pFreeStart = pTo->pCellIdx + nCells * pFrom->szOffset;
   memcpy(pTo->pCellIdx, pFrom->pCellIdx, nCells * pFrom->szOffset);
-  pTo->pFreeEnd = (u8 *)pTo->pPageFtr - (pFrom->pFreeEnd - (u8 *)(pFrom->pPageFtr));
-  memcpy(pTo->pFreeEnd, pFrom->pFreeEnd, (pFrom->pFreeEnd - (u8 *)pFrom->pPageFtr));
+  pTo->pFreeEnd = (u8 *)pTo->pPageFtr - (u8 *)(pFrom->pPageFtr) + pFrom->pFreeEnd;
+  memcpy(pTo->pFreeEnd, pFrom->pFreeEnd, (u8 *)pFrom->pPageFtr - pFrom->pFreeEnd);
 
   TDB_PAGE_NCELLS_SET(pTo, nCells);
   TDB_PAGE_CCELLS_SET(pTo, cCells);
