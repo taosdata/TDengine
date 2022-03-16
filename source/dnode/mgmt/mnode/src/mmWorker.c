@@ -17,8 +17,6 @@
 #include "mmInt.h"
 
 #include "dmInt.h"
-#include "dndTransport.h"
-#include "dndWorker.h"
 
 static void mmProcessQueue(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   dTrace("msg:%p, will be processed", pMsg);

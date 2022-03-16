@@ -13,24 +13,39 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_MAIN_H_
-#define _TD_DND_MAIN_H_
+#ifndef _TD_DND_INT_H_
+#define _TD_DND_INT_H_
 
-#include "dndInt.h"
+#include "dnd.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+// dndInt.h
+int32_t     dndInit();
+void        dndCleanup();
+const char *dndStatStr(EDndStatus stat);
+void        dndGetStartup(SDnode *pDnode, SStartupReq *pStartup);
+TdFilePtr   dndCheckRunning(char *dataDir);
+void        dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
+
+// dndNode.h
 SDnode *dndCreate(const SDnodeOpt *pOption);
 void    dndClose(SDnode *pDnode);
 int32_t dndRun(SDnode *pDnode);
 void    dndHandleEvent(SDnode *pDnode, EDndEvent event);
 void    dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet);
-void    dndSendRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp);
+
+// dndTransport.h
+int32_t dndInitServer(SDnode *pDnode);
+void    dndCleanupServer(SDnode *pDnode);
+int32_t dndInitClient(SDnode *pDnode);
+void    dndCleanupClient(SDnode *pDnode);
+int32_t dndInitMsgHandle(SDnode *pDnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DND_MAIN_H_*/
+#endif /*_TD_DND_INT_H_*/

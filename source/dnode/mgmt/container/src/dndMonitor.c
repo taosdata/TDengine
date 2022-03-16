@@ -14,7 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndMonitor.h"
+#include "dndInt.h"
+
 #include "dmInt.h"
 #include "mmInt.h"
 #include "vmInt.h"

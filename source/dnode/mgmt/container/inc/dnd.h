@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_INT_H_
-#define _TD_DND_INT_H_
+#ifndef _TD_DND_H_
+#define _TD_DND_H_
 
 #include "os.h"
 
@@ -142,35 +142,17 @@ typedef struct SDnode {
   SMgmtWrapper wrappers[NODE_MAX];
 } SDnode;
 
-// dndInt.h
-int32_t       dndInit();
-void          dndCleanup();
 EDndStatus    dndGetStatus(SDnode *pDnode);
 void          dndSetStatus(SDnode *pDnode, EDndStatus stat);
-const char   *dndStatStr(EDndStatus stat);
-void          dndReportStartup(SDnode *pDnode, char *pName, char *pDesc);
-void          dndGetStartup(SDnode *pDnode, SStartupReq *pStartup);
-TdFilePtr     dndCheckRunning(char *dataDir);
 SMgmtWrapper *dndGetWrapper(SDnode *pDnode, ENodeType nodeType);
 void          dndSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp);
-void          dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
+void          dndReportStartup(SDnode *pDnode, char *pName, char *pDesc);
 
-// dndMonitor.h
-void dndSendMonitorReport(SDnode *pDnode);
-
-// dndNode.h
-SDnode *dndCreate(const SDnodeOpt *pOption);
-void    dndClose(SDnode *pDnode);
-int32_t dndRun(SDnode *pDnode);
-void    dndHandleEvent(SDnode *pDnode, EDndEvent event);
+void    dndSendMonitorReport(SDnode *pDnode);
+int32_t dndSendReqToMnode(void *wrapper, SRpcMsg *pMsg);
+int32_t dndSendReqToDnode(void *wrapper, SEpSet *pEpSet, SRpcMsg *pMsg);
 void    dndSendRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp);
-void    dndSendRedirectRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp);
 
-// dndTransport.h
-int32_t dndSendReqToMnode(void *pWrapper, SRpcMsg *pMsg);
-int32_t dndSendReqToDnode(void *pWrapper, SEpSet *pEpSet, SRpcMsg *pMsg);
-
-// dndWorker.h
 int32_t dndInitWorker(void *param, SDnodeWorker *pWorker, EWorkerType type, const char *name, int32_t minNum,
                       int32_t maxNum, void *queueFp);
 void    dndCleanupWorker(SDnodeWorker *pWorker);
@@ -180,4 +162,4 @@ int32_t dndWriteMsgToWorker(SDnodeWorker *pWorker, void *pCont, int32_t contLen)
 }
 #endif
 
-#endif /*_TD_DND_INT_H_*/
+#endif /*_TD_DND_H_*/

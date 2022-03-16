@@ -14,8 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndNode.h"
-#include "dndTransport.h"
+#include "dndInt.h"
 
 #include "bmInt.h"
 #include "dmInt.h"
