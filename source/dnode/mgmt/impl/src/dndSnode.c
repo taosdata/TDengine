@@ -323,8 +323,8 @@ int32_t dndProcessDropSnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 }
 
 static void dndProcessSnodeUniqueQueue(SDnode *pDnode, STaosQall *qall, int32_t numOfMsgs) {
-  SSnodeMgmt *pMgmt = &pDnode->smgmt;
-  int32_t     code = TSDB_CODE_DND_SNODE_NOT_DEPLOYED;
+  /*SSnodeMgmt *pMgmt = &pDnode->smgmt;*/
+  int32_t code = TSDB_CODE_DND_SNODE_NOT_DEPLOYED;
 
   SSnode *pSnode = dndAcquireSnode(pDnode);
   if (pSnode != NULL) {
@@ -337,19 +337,32 @@ static void dndProcessSnodeUniqueQueue(SDnode *pDnode, STaosQall *qall, int32_t 
       rpcFreeCont(pMsg->pCont);
       taosFreeQitem(pMsg);
     }
+    dndReleaseSnode(pDnode, pSnode);
+  } else {
+    for (int32_t i = 0; i < numOfMsgs; i++) {
+      SRpcMsg *pMsg = NULL;
+      taosGetQitem(qall, (void **)&pMsg);
+      SRpcMsg rpcRsp = {.handle = pMsg->handle, .ahandle = pMsg->ahandle, .code = code};
+      rpcSendResponse(&rpcRsp);
+
+      rpcFreeCont(pMsg->pCont);
+      taosFreeQitem(pMsg);
+    }
   }
-  dndReleaseSnode(pDnode, pSnode);
 }
 
 static void dndProcessSnodeSharedQueue(SDnode *pDnode, SRpcMsg *pMsg) {
-  SSnodeMgmt *pMgmt = &pDnode->smgmt;
-  int32_t     code = TSDB_CODE_DND_SNODE_NOT_DEPLOYED;
+  /*SSnodeMgmt *pMgmt = &pDnode->smgmt;*/
+  int32_t code = TSDB_CODE_DND_SNODE_NOT_DEPLOYED;
 
   SSnode *pSnode = dndAcquireSnode(pDnode);
   if (pSnode != NULL) {
-    code = sndProcessSMsg(pSnode, pMsg);
+    sndProcessSMsg(pSnode, pMsg);
+    dndReleaseSnode(pDnode, pSnode);
+  } else {
+    SRpcMsg rpcRsp = {.handle = pMsg->handle, .ahandle = pMsg->ahandle, .code = code};
+    rpcSendResponse(&rpcRsp);
   }
-  dndReleaseSnode(pDnode, pSnode);
 
 #if 0
   if (pMsg->msgType & 1u) {

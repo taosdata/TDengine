@@ -58,7 +58,10 @@ typedef struct SDataBlockInfo {
   int32_t     rows;
   int32_t     rowSize;
   int32_t     numOfCols;
-  union {int64_t uid; int64_t blockId;};
+  union {
+    int64_t uid;
+    int64_t blockId;
+  };
 } SDataBlockInfo;
 
 typedef struct SConstantItem {
@@ -70,10 +73,10 @@ typedef struct SConstantItem {
 
 // info.numOfCols = taosArrayGetSize(pDataBlock) + taosArrayGetSize(pConstantList);
 typedef struct SSDataBlock {
-  SColumnDataAgg *pBlockAgg;
-  SArray         *pDataBlock;    // SArray<SColumnInfoData>
-  SArray         *pConstantList; // SArray<SConstantItem>, it is a constant/tags value of the corresponding result value.
-  SDataBlockInfo  info;
+  SColumnDataAgg* pBlockAgg;
+  SArray*         pDataBlock;  // SArray<SColumnInfoData>
+  SArray* pConstantList;       // SArray<SConstantItem>, it is a constant/tags value of the corresponding result value.
+  SDataBlockInfo info;
 } SSDataBlock;
 
 typedef struct SVarColAttr {
@@ -244,7 +247,7 @@ typedef struct SGroupbyExpr {
 
 typedef struct SFunctParam {
   int32_t  type;
-  SColumn *pCol;
+  SColumn* pCol;
   SVariant param;
 } SFunctParam;
 
@@ -262,12 +265,12 @@ typedef struct SResSchame {
 typedef struct SExprBasicInfo {
   SResSchema   resSchema;
   int16_t      numOfParams;  // argument value of each function
-  SFunctParam *pParam;
+  SFunctParam* pParam;
 } SExprBasicInfo;
 
 typedef struct SExprInfo {
-  struct SExprBasicInfo  base;
-  struct tExprNode      *pExpr;
+  struct SExprBasicInfo base;
+  struct tExprNode*     pExpr;
 } SExprInfo;
 
 typedef struct SStateWindow {
