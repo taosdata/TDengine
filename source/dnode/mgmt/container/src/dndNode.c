@@ -17,7 +17,7 @@
 #include "dndInt.h"
 
 #include "bmInt.h"
-#include "dmInt.h"
+#include "dm.h"
 #include "mm.h"
 #include "qmInt.h"
 #include "smInt.h"
@@ -209,7 +209,7 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
   }
 
   SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, DNODE);
-  if (dmStartWorker(pWrapper->pMgmt) != 0) {
+  if (dmStart(pWrapper) != 0) {
     dError("failed to start dnode worker since %s", terrstr());
     return -1;
   }
@@ -351,7 +351,7 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
   }
 
   SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, DNODE);
-  if (pWrapper->procType == PROC_PARENT && dmStartWorker(pWrapper->pMgmt) != 0) {
+  if (pWrapper->procType == PROC_PARENT && dmStart(pWrapper->pMgmt) != 0) {
     dError("failed to start dnode worker since %s", terrstr());
     return -1;
   }

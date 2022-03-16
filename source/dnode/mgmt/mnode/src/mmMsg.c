@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
-#include "dmInt.h"
+#include "dm.h"
 
 int32_t mmProcessCreateReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   SDnode  *pDnode = pMgmt->pDnode;

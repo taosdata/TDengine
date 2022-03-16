@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
 
-#include "dmInt.h"
+#include "dm.h"
 
 SMnode *mmAcquire(SMnodeMgmt *pMgmt) {
   SMnode *pMnode = NULL;

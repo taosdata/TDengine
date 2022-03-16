@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dndInt.h"
 
-#include "dmInt.h"
+#include "dm.h"
 #include "mm.h"
 #include "vmInt.h"
 

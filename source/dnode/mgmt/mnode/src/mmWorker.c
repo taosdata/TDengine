@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
 
-#include "dmInt.h"
+#include "dm.h"
 
 static void mmProcessQueue(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   dTrace("msg:%p, will be processed", pMsg);

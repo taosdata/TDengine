@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 // #include "dndSnode.h"
-// #include "dmInt.h"
+// #include "dm.h"
 // #include "dndTransport.h"
 // #include "dndWorker.h"
 

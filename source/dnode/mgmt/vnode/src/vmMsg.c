@@ -17,7 +17,7 @@
 #include "vmMsg.h"
 #include "vmFile.h"
 #include "vmWorker.h"
-#include "dmInt.h"
+#include "dm.h"
 
 static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->vgId = pCreate->vgId;
