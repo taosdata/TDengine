@@ -233,10 +233,13 @@ static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen, int *p
         c = pBt->kcmpr(pKey, kLen, cd.pKey, cd.kLen);
         if (c < 0) {
           /* TODO */
+          ASSERT(0);
         } else if (c > 0) {
           /* TODO */
+          ASSERT(0);
         } else {
           /* TODO */
+          ASSERT(0);
         }
       }
     }
@@ -797,9 +800,7 @@ static int tdbBtreeDecodePayload(SPage *pPage, const u8 *pPayload, SCellDecoder 
     if (!pDecoder->pVal) {
       pDecoder->pVal = (void *)(pPayload + pDecoder->kLen);
     }
-  }
-
-  {
+  } else {
     // TODO: handle overflow case
     ASSERT(0);
   }

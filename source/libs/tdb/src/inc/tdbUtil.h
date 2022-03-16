@@ -62,19 +62,20 @@ static inline int tdbGetVarInt(const u8 *p, int *v) {
   int tv = 0;
 
   for (;;) {
-    if (p[n] & 0x80 == 0) {
-      tv = (tv << 7) & p[n];
+    if (p[n] <= 0x7f) {
+      tv = (tv << 7) | p[n];
       n++;
       break;
     }
 
-    tv = (tv << 7) & (p[n] & 0x7f);
+    tv = (tv << 7) | (p[n] & 0x7f);
     n++;
   }
 
   ASSERT(n < 6);
 
-  return 0;
+  *v = tv;
+  return n;
 }
 
 #ifdef __cplusplus
