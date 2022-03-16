@@ -4946,7 +4946,7 @@ static int32_t createGlobalAggregateExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQu
     pse->colType = pExpr->base.resType;
     if(pExpr->base.resBytes > INT16_MAX &&
         (pExpr->base.functionId == TSDB_FUNC_UNIQUE || pExpr->base.functionId == TSDB_FUNC_MODE
-         || pExpr->base.functionId == TSDB_FUNC_TAIL)){
+         || pExpr->base.functionId == TSDB_FUNC_TAIL || pExpr->base.functionId == TSDB_FUNC_SAMPLE)){
       pQueryAttr->interBytesForGlobal = pExpr->base.resBytes;
     }else{
       pse->colBytes = pExpr->base.resBytes;

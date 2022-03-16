@@ -1935,7 +1935,7 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
     pCtx->inputType  = pSqlExpr->colType;
     if (pRuntimeEnv->pQueryAttr->interBytesForGlobal > INT16_MAX &&
         (pSqlExpr->functionId == TSDB_FUNC_UNIQUE || pSqlExpr->functionId == TSDB_FUNC_MODE
-         || pSqlExpr->functionId == TSDB_FUNC_TAIL)){
+         || pSqlExpr->functionId == TSDB_FUNC_TAIL || pSqlExpr->functionId == TSDB_FUNC_SAMPLE)) {
       pCtx->inputBytes  = pRuntimeEnv->pQueryAttr->interBytesForGlobal;
     }else{
       pCtx->inputBytes = pSqlExpr->colBytes;
