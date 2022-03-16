@@ -577,7 +577,6 @@ static int32_t mndRetrieveVgroups(SMnodeMsg *pReq, SShowObj *pShow, char *data, 
 
     cols = 0;
 
-//    mndGetVgroupMaxReplica(pMnode, pShow->db, &pShow->replica, &pShow->numOfRows);
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     *(int32_t *)pWrite = pVgroup->vgId;
     cols++;
