@@ -22,13 +22,15 @@
 extern "C" {
 #endif
 
+typedef struct SDnodeMgmt SDnodeMgmt;
+
 void dmGetMgmtFp(SMgmtWrapper *pWrapper);
 void dmInitMsgHandles(SMgmtWrapper *pWrapper);
 
-void    dmGetMnodeEpSet(SMgmtWrapper *pWrapper, SEpSet *pEpSet);
-void    dmUpdateMnodeEpSet(SMgmtWrapper *pWrapper, SEpSet *pEpSet);
-void    dmSendRedirectRsp(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
-int32_t dmStart(SMgmtWrapper *pWrapper);
+void    dmGetMnodeEpSet(SDnodeMgmt *pMgmt, SEpSet *pEpSet);
+void    dmUpdateMnodeEpSet(SDnodeMgmt *pMgmt, SEpSet *pEpSet);
+void    dmSendRedirectRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t dmStart(SDnodeMgmt *pMgmt);
 
 #ifdef __cplusplus
 }

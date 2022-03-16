@@ -202,7 +202,7 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
   }
 
   SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, DNODE);
-  if (dmStart(pWrapper) != 0) {
+  if (dmStart(pWrapper->pMgmt) != 0) {
     dError("failed to start dnode worker since %s", terrstr());
     return -1;
   }
@@ -372,7 +372,7 @@ static int32_t dndBuildMsg(SNodeMsg *pMsg, SRpcMsg *pRpc, SEpSet *pEpSet) {
 
 void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSet) {
   if (pEpSet && pEpSet->numOfEps > 0 && pRpc->msgType == TDMT_MND_STATUS_RSP) {
-    dmUpdateMnodeEpSet(dndGetWrapper(pWrapper->pDnode, DNODE), pEpSet);
+    dmUpdateMnodeEpSet(dndGetWrapper(pWrapper->pDnode, DNODE)->pMgmt, pEpSet);
   }
 
   int32_t   code = -1;
@@ -396,7 +396,7 @@ void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSet) {
   dTrace("msg:%p, is created, app:%p user:%s", pMsg, pRpc->ahandle, pMsg->user);
 
   if (pWrapper->procType == PROC_SINGLE) {
-    code = (*msgFp)(pWrapper, pMsg);
+    code = (*msgFp)(pWrapper->pMgmt, pMsg);
   } else if (pWrapper->procType == PROC_PARENT) {
     code = taosProcPutToChildQueue(pWrapper->pProc, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen);
   } else {

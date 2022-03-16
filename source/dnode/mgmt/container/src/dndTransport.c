@@ -131,7 +131,7 @@ static void dndSendMsgToMnodeRecv(SDnode *pDnode, SRpcMsg *pRpcMsg, SRpcMsg *pRp
   STransMgmt *pMgmt = &pDnode->trans;
 
   SEpSet epSet = {0};
-  dmGetMnodeEpSet(dndGetWrapper(pDnode, DNODE), &epSet);
+  dmGetMnodeEpSet(dndGetWrapper(pDnode, DNODE)->pMgmt, &epSet);
   rpcSendRecv(pMgmt->clientRpc, &epSet, pRpcMsg, pRpcRsp);
 }
 
@@ -297,14 +297,15 @@ int32_t dndSendReqToMnode(void *wrapper, SRpcMsg *pReq) {
     SDnode     *pDnode = pWrapper->pDnode;
     STransMgmt *pTrans = &pDnode->trans;
     SEpSet      epSet = {0};
-    dmGetMnodeEpSet(dndGetWrapper(pDnode, DNODE), &epSet);
+    dmGetMnodeEpSet(dndGetWrapper(pDnode, DNODE)->pMgmt, &epSet);
     return dndSendRpcReq(pTrans, &epSet, pReq);
   }
 }
 
 void dndSendRpcRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
   if (pRsp->code == TSDB_CODE_DND_MNODE_NOT_DEPLOYED || pRsp->code == TSDB_CODE_APP_NOT_READY) {
-    dmSendRedirectRsp(dndGetWrapper(pWrapper->pDnode, DNODE), pRsp);
+    SMgmtWrapper *pDnodeWrapper = dndGetWrapper(pWrapper->pDnode, DNODE);
+    dmSendRedirectRsp(pDnodeWrapper->pMgmt, pRsp);
   } else {
     rpcSendResponse(pRsp);
   }

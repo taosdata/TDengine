@@ -16,19 +16,16 @@
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
 
-void dmGetMnodeEpSet(SMgmtWrapper *pWrapper, SEpSet *pEpSet) {
-  SDnodeMgmt *pMgmt = pWrapper->pMgmt;
+void dmGetMnodeEpSet(SDnodeMgmt *pMgmt, SEpSet *pEpSet) {
   taosRLockLatch(&pMgmt->latch);
   *pEpSet = pMgmt->mnodeEpSet;
   taosRUnLockLatch(&pMgmt->latch);
 }
 
-void dmUpdateMnodeEpSet(SMgmtWrapper *pWrapper, SEpSet *pEpSet) {
+void dmUpdateMnodeEpSet(SDnodeMgmt *pMgmt, SEpSet *pEpSet) {
   dInfo("mnode is changed, num:%d use:%d", pEpSet->numOfEps, pEpSet->inUse);
 
-  SDnodeMgmt *pMgmt = pWrapper->pMgmt;
   taosWLockLatch(&pMgmt->latch);
-
   pMgmt->mnodeEpSet = *pEpSet;
   for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
     dInfo("mnode index:%d %s:%u", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
@@ -57,11 +54,11 @@ void dmGetDnodeEp(SMgmtWrapper *pWrapper, int32_t dnodeId, char *pEp, char *pFqd
   taosRUnLockLatch(&pMgmt->latch);
 }
 
-void dmSendRedirectRsp(SMgmtWrapper *pWrapper, SRpcMsg *pReq) {
-  SDnode *pDnode = pWrapper->pDnode;
+void dmSendRedirectRsp(SDnodeMgmt *pMgmt, SRpcMsg *pReq) {
+  SDnode *pDnode = pMgmt->pDnode;
 
   SEpSet epSet = {0};
-  dmGetMnodeEpSet(pWrapper, &epSet);
+  dmGetMnodeEpSet(pMgmt, &epSet);
 
   dDebug("RPC %p, req is redirected, num:%d use:%d", pReq->handle, epSet.numOfEps, epSet.inUse);
   for (int32_t i = 0; i < epSet.numOfEps; ++i) {
@@ -76,10 +73,7 @@ void dmSendRedirectRsp(SMgmtWrapper *pWrapper, SRpcMsg *pReq) {
   rpcSendRedirectRsp(pReq->handle, &epSet);
 }
 
-int32_t dmStart(SMgmtWrapper *pWrapper) {
-  SDnodeMgmt *pMgmt = pWrapper->pMgmt;
-  return dmStartWorker(pMgmt);
-}
+int32_t dmStart(SDnodeMgmt *pMgmt) { return dmStartWorker(pMgmt); }
 
 int32_t dmInit(SMgmtWrapper *pWrapper) {
   SDnode     *pDnode = pWrapper->pDnode;
