@@ -16,13 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "dndInt.h"
 
-#include "bmInt.h"
-#include "dm.h"
-#include "mm.h"
-#include "qmInt.h"
-#include "smInt.h"
-#include "vmInt.h"
-
 static void dndResetLog(SMgmtWrapper *pMgmt) {
   char logname[24] = {0};
   snprintf(logname, sizeof(logname), "%slog", pMgmt->name);

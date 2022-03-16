@@ -15,7 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "bmInt.h"
-#include "bmMsg.h"
 
 bool bmRequireNode(SMgmtWrapper *pWrapper) { return false; }
 

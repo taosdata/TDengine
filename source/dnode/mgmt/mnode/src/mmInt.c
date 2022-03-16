@@ -16,8 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
 
-#include "dm.h"
-
 SMnode *mmAcquire(SMnodeMgmt *pMgmt) {
   SMnode *pMnode = NULL;
   int32_t refCount = 0;

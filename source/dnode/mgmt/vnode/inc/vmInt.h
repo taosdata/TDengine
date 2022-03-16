@@ -16,22 +16,13 @@
 #ifndef _TD_DND_VNODES_INT_H_
 #define _TD_DND_VNODES_INT_H_
 
-#include "dnd.h"
+#include "dm.h"
+#include "sync.h"
+#include "vm.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef struct {
-  int32_t openVnodes;
-  int32_t totalVnodes;
-  int32_t masterNum;
-  int64_t numOfSelectReqs;
-  int64_t numOfInsertReqs;
-  int64_t numOfInsertSuccessReqs;
-  int64_t numOfBatchInsertReqs;
-  int64_t numOfBatchInsertSuccessReqs;
-} SVnodesStat;
 
 typedef struct SVnodesMgmt {
   SHashObj     *hash;
@@ -85,18 +76,37 @@ typedef struct {
   SWrapperCfg *pCfgs;
 } SVnodeThread;
 
-// interface
-void    vmGetMgmtFp(SMgmtWrapper *pWrapper);
-void    vmGetVnodeLoads(SMgmtWrapper *pWrapper, SArray *pLoads);
-int32_t vmGetTfsMonitorInfo(SMgmtWrapper *pWrapper, SMonDiskInfo *pInfo);
-void    vmGetVnodeReqs(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo);
-
-// vmInt.h
+// vmInt.c
 SVnodeObj *vmAcquireVnode(SVnodesMgmt *pMgmt, int32_t vgId);
 void       vmReleaseVnode(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
 int32_t    vmOpenVnode(SVnodesMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl);
 void       vmCloseVnode(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
 
+// vmMsg.c
+int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pReq);
+int32_t vmProcessAlterVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pReq);
+int32_t vmProcessDropVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pReq);
+int32_t vmProcessSyncVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pReq);
+int32_t vmProcessCompactVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pReq);
+
+// vmFile.c
+int32_t     vmGetVnodesFromFile(SVnodesMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes);
+int32_t     vmWriteVnodesToFile(SVnodesMgmt *pMgmt);
+SVnodeObj **vmGetVnodesFromHash(SVnodesMgmt *pMgmt, int32_t *numOfVnodes);
+
+// vmWorker.c
+int32_t vmStartWorker(SVnodesMgmt *pMgmt);
+void    vmStopWorker(SVnodesMgmt *pMgmt);
+int32_t vmAllocQueue(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
+void    vmFreeQueue(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
+
+int32_t vmPutMsgToQueryQueue(SVnodesMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmPutMsgToApplyQueue(SVnodesMgmt *pMgmt, int32_t vgId, SRpcMsg *pMsg);
+
+int32_t vmProcessWriteMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t vmProcessSyncMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t vmProcessQueryMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t vmProcessFetchMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t vmProcessMgmtMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg);
 
 #ifdef __cplusplus

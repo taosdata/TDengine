@@ -14,8 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "vmWorker.h"
-#include "vmMsg.h"
+#include "vmInt.h"
 
 static void vmProcessQueryQueue(SVnodeObj *pVnode, SRpcMsg *pMsg) { vnodeProcessQueryMsg(pVnode->pImpl, pMsg); }
 

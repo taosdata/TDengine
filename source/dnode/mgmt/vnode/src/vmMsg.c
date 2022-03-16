@@ -14,10 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "vmMsg.h"
-#include "vmFile.h"
-#include "vmWorker.h"
-#include "dm.h"
+#include "vmInt.h"
 
 static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->vgId = pCreate->vgId;
@@ -56,7 +53,7 @@ static void vmGenerateWrapperCfg(SVnodesMgmt *pMgmt, SCreateVnodeReq *pCreate, S
 }
 
 int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
-  SRpcMsg *pReq = &pMsg->rpcMsg;
+  SRpcMsg        *pReq = &pMsg->rpcMsg;
   SCreateVnodeReq createReq = {0};
   if (tDeserializeSCreateVnodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -115,7 +112,7 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
 }
 
 int32_t vmProcessAlterVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
-  SRpcMsg *pReq = &pMsg->rpcMsg;
+  SRpcMsg       *pReq = &pMsg->rpcMsg;
   SAlterVnodeReq alterReq = {0};
   if (tDeserializeSCreateVnodeReq(pReq->pCont, pReq->contLen, &alterReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -157,7 +154,7 @@ int32_t vmProcessAlterVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
 }
 
 int32_t vmProcessDropVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
-  SRpcMsg *pReq = &pMsg->rpcMsg;
+  SRpcMsg      *pReq = &pMsg->rpcMsg;
   SDropVnodeReq dropReq = {0};
   if (tDeserializeSDropVnodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -188,7 +185,7 @@ int32_t vmProcessDropVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
 }
 
 int32_t vmProcessSyncVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
-  SRpcMsg *pReq = &pMsg->rpcMsg;
+  SRpcMsg      *pReq = &pMsg->rpcMsg;
   SSyncVnodeReq syncReq = {0};
   tDeserializeSDropVnodeReq(pReq->pCont, pReq->contLen, &syncReq);
 
@@ -212,7 +209,7 @@ int32_t vmProcessSyncVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
 }
 
 int32_t vmProcessCompactVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
-  SRpcMsg *pReq = &pMsg->rpcMsg;
+  SRpcMsg         *pReq = &pMsg->rpcMsg;
   SCompactVnodeReq compatcReq = {0};
   tDeserializeSDropVnodeReq(pReq->pCont, pReq->contLen, &compatcReq);
 

@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "vmFile.h"
+#include "vmInt.h"
 
 SVnodeObj **vmGetVnodesFromHash(SVnodesMgmt *pMgmt, int32_t *numOfVnodes) {
   taosRLockLatch(&pMgmt->latch);

@@ -14,11 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "vmFile.h"
-#include "vmMsg.h"
-#include "vmWorker.h"
-
-#include "sync.h"
+#include "vmInt.h"
 
 SVnodeObj *vmAcquireVnode(SVnodesMgmt *pMgmt, int32_t vgId) {
   SVnodeObj *pVnode = NULL;

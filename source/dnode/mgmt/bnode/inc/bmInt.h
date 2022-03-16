@@ -43,6 +43,22 @@ void    dndProcessBnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 int32_t bmProcessCreateReq(SBnodeMgmt *pMgmt, SNodeMsg *pRpcMsg);
 int32_t bmProcessDropReq(SBnodeMgmt *pMgmt, SNodeMsg *pRpcMsg);
 
+void    bmInitMsgHandles(SMgmtWrapper *pWrapper);
+
+int32_t bmStartWorker(SDnode *pDnode);
+void    bmStopWorker(SDnode *pDnode);
+void    bmInitMsgFp(SMnodeMgmt *pMgmt);
+void    bmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
+int32_t bmPutMsgToWriteQueue(SDnode *pDnode, SRpcMsg *pRpcMsg);
+int32_t bmPutMsgToReadQueue(SDnode *pDnode, SRpcMsg *pRpcMsg);
+void    bmConsumeChildQueue(SDnode *pDnode, SNodeMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen);
+void    bmConsumeParentQueue(SDnode *pDnode, SRpcMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen);
+
+void bmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+void bmProcessSyncMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+void bmProcessReadMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+
+
 #ifdef __cplusplus
 }
 #endif

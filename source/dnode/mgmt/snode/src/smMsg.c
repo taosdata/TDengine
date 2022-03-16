@@ -14,8 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "smMsg.h"
-#include "smWorker.h"
+#include "smInt.h"
 
 int32_t smProcessCreateReq(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {return 0;}
 int32_t smProcessDropReq(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {return 0;}

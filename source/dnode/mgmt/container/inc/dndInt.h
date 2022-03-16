@@ -18,6 +18,14 @@
 
 #include "dnd.h"
 
+#include "bmInt.h"
+#include "dm.h"
+#include "dndInt.h"
+#include "mm.h"
+#include "qmInt.h"
+#include "smInt.h"
+#include "vm.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

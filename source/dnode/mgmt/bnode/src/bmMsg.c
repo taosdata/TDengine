@@ -14,8 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "bmMsg.h"
-#include "bmWorker.h"
+#include "bmInt.h"
 
 int32_t bmProcessCreateReq(SBnodeMgmt *pMgmt, SNodeMsg *pRpcMsg) {return 0;}
 int32_t bmProcessDropReq(SBnodeMgmt *pMgmt, SNodeMsg *pRpcMsg) {return 0;}

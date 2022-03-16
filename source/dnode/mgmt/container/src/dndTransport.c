@@ -16,9 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "dndInt.h"
 
-#include "dm.h"
-#include "mm.h"
-
 #define INTERNAL_USER   "_dnd"
 #define INTERNAL_CKEY   "_key"
 #define INTERNAL_SECRET "_pwd"

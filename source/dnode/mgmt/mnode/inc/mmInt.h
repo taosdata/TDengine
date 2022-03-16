@@ -16,6 +16,7 @@
 #ifndef _TD_DND_MNODE_INT_H_
 #define _TD_DND_MNODE_INT_H_
 
+#include "dm.h"
 #include "mm.h"
 
 #ifdef __cplusplus

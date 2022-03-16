@@ -15,7 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "qmInt.h"
-#include "qmMsg.h"
 
 bool qmRequireNode(SMgmtWrapper *pWrapper) { return false; }
 

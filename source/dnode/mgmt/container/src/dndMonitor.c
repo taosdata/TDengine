@@ -16,10 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "dndInt.h"
 
-#include "dm.h"
-#include "mm.h"
-#include "vmInt.h"
-
 static int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {
   tstrncpy(pInfo->logdir.name, tsLogDir, sizeof(pInfo->logdir.name));
   pInfo->logdir.size = tsLogSpace.size;

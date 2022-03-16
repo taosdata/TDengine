@@ -14,8 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "qmMsg.h"
-#include "qmWorker.h"
+#include "qmInt.h"
 
 int32_t qmProcessCreateReq(SQnodeMgmt *pMgmt, SNodeMsg *pMsg) {return 0;}
 int32_t qmProcessDropReq(SQnodeMgmt *pMgmt, SNodeMsg *pMsg){return 0;}

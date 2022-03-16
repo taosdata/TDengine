@@ -13,19 +13,35 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_SNODE_HANDLE_H_
-#define _TD_DND_SNODE_HANDLE_H_
+#ifndef _TD_DND_VNODES_H_
+#define _TD_DND_VNODES_H_
 
-#include "smInt.h"
+#include "dnd.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void smInitMsgHandles(SMgmtWrapper *pWrapper);
+typedef struct {
+  int32_t openVnodes;
+  int32_t totalVnodes;
+  int32_t masterNum;
+  int64_t numOfSelectReqs;
+  int64_t numOfInsertReqs;
+  int64_t numOfInsertSuccessReqs;
+  int64_t numOfBatchInsertReqs;
+  int64_t numOfBatchInsertSuccessReqs;
+} SVnodesStat;
+
+void vmGetMgmtFp(SMgmtWrapper *pWrapper);
+void vmInitMsgHandles(SMgmtWrapper *pWrapper);
+
+void    vmGetVnodeLoads(SMgmtWrapper *pWrapper, SArray *pLoads);
+int32_t vmGetTfsMonitorInfo(SMgmtWrapper *pWrapper, SMonDiskInfo *pInfo);
+void    vmGetVnodeReqs(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DND_SNODE_HANDLE_H_*/
+#endif /*_TD_DND_VNODES_H_*/
