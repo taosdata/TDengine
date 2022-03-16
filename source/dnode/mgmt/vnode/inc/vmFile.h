@@ -22,8 +22,9 @@
 extern "C" {
 #endif
 
-int32_t vmGetVnodesFromFile(SVnodesMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes);
-int32_t vmWriteVnodesToFile(SVnodesMgmt *pMgmt);
+int32_t     vmGetVnodesFromFile(SVnodesMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes);
+int32_t     vmWriteVnodesToFile(SVnodesMgmt *pMgmt);
+SVnodeObj **vmGetVnodesFromHash(SVnodesMgmt *pMgmt, int32_t *numOfVnodes);
 
 #ifdef __cplusplus
 }

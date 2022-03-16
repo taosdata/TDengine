@@ -183,7 +183,7 @@ static void dndStopQnodeWorker(SDnode *pDnode) {
 
 static void dndBuildQnodeOption(SDnode *pDnode, SQnodeOpt *pOption) {
   pOption->pDnode = pDnode;
-  pOption->sendReqToDnodeFp = dndSendReqToDnode;
+  pOption->sendReqFp = dndSendReqToDnode;
   pOption->sendReqToMnodeFp = dndSendReqToMnode;
   pOption->sendRedirectRspFp = dmSendRedirectRsp;
   pOption->dnodeId = dmGetDnodeId(pDnode);

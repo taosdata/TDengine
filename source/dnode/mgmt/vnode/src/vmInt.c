@@ -17,6 +17,7 @@
 #include "vmFile.h"
 #include "vmMsg.h"
 #include "vmWorker.h"
+#include "sync.h"
 
 SVnodeObj *vmAcquireVnode(SVnodesMgmt *pMgmt, int32_t vgId) {
   SVnodeObj *pVnode = NULL;
@@ -41,7 +42,6 @@ SVnodeObj *vmAcquireVnode(SVnodesMgmt *pMgmt, int32_t vgId) {
 void vmReleaseVnode(SVnodesMgmt *pMgmt, SVnodeObj *pVnode) {
   if (pVnode == NULL) return;
 
-  SVnodesMgmt *pMgmt = &pDnode->vmgmt;
   taosRLockLatch(&pMgmt->latch);
   int32_t refCount = atomic_sub_fetch_32(&pVnode->refCount, 1);
   taosRUnLockLatch(&pMgmt->latch);
@@ -70,7 +70,7 @@ int32_t vmOpenVnode(SVnodesMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
     return -1;
   }
 
-  if (dndAllocVnodeQueue(pDnode, pVnode) != 0) {
+  if (vmAllocQueue(pMgmt, pVnode) != 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -86,7 +86,6 @@ int32_t vmOpenVnode(SVnodesMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
 }
 
 void vmCloseVnode(SVnodesMgmt *pMgmt, SVnodeObj *pVnode) {
-  SVnodesMgmt *pMgmt = &pDnode->vmgmt;
   taosWLockLatch(&pMgmt->latch);
   taosHashRemove(pMgmt->hash, &pVnode->vgId, sizeof(int32_t));
   taosWUnLockLatch(&pMgmt->latch);
@@ -99,7 +98,7 @@ void vmCloseVnode(SVnodesMgmt *pMgmt, SVnodeObj *pVnode) {
   while (!taosQueueEmpty(pVnode->pQueryQ)) taosMsleep(10);
   while (!taosQueueEmpty(pVnode->pFetchQ)) taosMsleep(10);
 
-  dndFreeVnodeQueue(pDnode, pVnode);
+  vmFreeQueue(pMgmt, pVnode);
   vnodeClose(pVnode->pImpl);
   pVnode->pImpl = NULL;
 
@@ -131,13 +130,13 @@ static void *vmOpenVnodeFunc(void *param) {
              pMgmt->state.openVnodes, pMgmt->state.totalVnodes);
     dndReportStartup(pDnode, "open-vnodes", stepDesc);
 
-    SVnodeCfg cfg = {.pDnode = pDnode, .pTfs = pMgmt->pTfs, .vgId = pCfg->vgId, .dbId = pCfg->dbUid};
+    SVnodeCfg cfg = {.pMgmt = pMgmt, .pTfs = pMgmt->pTfs, .vgId = pCfg->vgId, .dbId = pCfg->dbUid};
     SVnode   *pImpl = vnodeOpen(pCfg->path, &cfg);
     if (pImpl == NULL) {
       dError("vgId:%d, failed to open vnode by thread:%d", pCfg->vgId, pThread->threadIndex);
       pThread->failed++;
     } else {
-      vmOpenVnode(pDnode, pCfg, pImpl);
+      vmOpenVnode(pMgmt, pCfg, pImpl);
       dDebug("vgId:%d, is opened by thread:%d", pCfg->vgId, pThread->threadIndex);
       pThread->opened++;
     }
@@ -163,7 +162,7 @@ static int32_t vmOpenVnodes(SVnodesMgmt *pMgmt) {
 
   SWrapperCfg *pCfgs = NULL;
   int32_t      numOfVnodes = 0;
-  if (vmGetVnodesFromFile(pDnode, &pCfgs, &numOfVnodes) != 0) {
+  if (vmGetVnodesFromFile(pMgmt, &pCfgs, &numOfVnodes) != 0) {
     dInfo("failed to get vnode list from disk since %s", terrstr());
     return -1;
   }
@@ -229,10 +228,10 @@ static void vmCloseVnodes(SVnodesMgmt *pMgmt) {
   dInfo("start to close all vnodes");
 
   int32_t     numOfVnodes = 0;
-  SVnodeObj **pVnodes = dndGetVnodesFromHash(pDnode, &numOfVnodes);
+  SVnodeObj **pVnodes = vmGetVnodesFromHash(pMgmt, &numOfVnodes);
 
   for (int32_t i = 0; i < numOfVnodes; ++i) {
-    vmCloseVnode(pDnode, pVnodes[i]);
+    vmCloseVnode(pMgmt, pVnodes[i]);
   }
 
   if (pVnodes != NULL) {
@@ -259,6 +258,10 @@ static void vmCleanup(SMgmtWrapper *pWrapper) {
   free(pMgmt);
   pWrapper->pMgmt = NULL;
   dInfo("vnodes-mgmt is cleaned up");
+}
+
+static int32_t vmSendReqToDnode(SVnodesMgmt *pMgmt, struct SEpSet *epSet, struct SRpcMsg *rpcMsg) {
+  return dndSendReqToDnode(pMgmt->pDnode, epSet, rpcMsg);
 }
 
 static int32_t vmInit(SMgmtWrapper *pWrapper) {
@@ -298,8 +301,8 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
   }
 
   vnodeOpt.nthreads = tsNumOfCommitThreads;
-  vnodeOpt.putReqToVQueryQFp = dndPutReqToVQueryQ;
-  vnodeOpt.sendReqToDnodeFp = dndSendReqToDnode;
+  vnodeOpt.putToQueryQFp = (VndPutToQueryQFp)vmPutMsgToQueryQueue;
+  vnodeOpt.sendReqFp = (VndSendReqFp)vmSendReqToDnode;
   if (vnodeInit(&vnodeOpt) != 0) {
     dError("failed to init vnode since %s", terrstr());
     goto _OVER;
@@ -339,15 +342,14 @@ void vmGetMgmtFp(SMgmtWrapper *pWrapper) {
   pWrapper->fp = mgmtFp;
 }
 
-int32_t vmGetTfsMonitorInfo(SMgmtWrapper *pWrapper, SMonDiskInfo *pInfo) {
+void vmGetTfsMonitorInfo(SMgmtWrapper *pWrapper, SMonDiskInfo *pInfo) {
   SVnodesMgmt *pMgmt = pWrapper->pMgmt;
-  if (pMgmt == NULL) return -1;
+  if (pMgmt == NULL) return;
 
-  return tfsGetMonitorInfo(pMgmt->pTfs, pInfo);
-  ;
+  tfsGetMonitorInfo(pMgmt->pTfs, pInfo);
 }
 
-void vmGetVndMonitorInfo(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo) {
+void vmGetVnodeReqs(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo) {
   SVnodesMgmt *pMgmt = pWrapper->pMgmt;
   if (pMgmt == NULL) return;
 
@@ -362,9 +364,9 @@ void vmGetVndMonitorInfo(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo) {
   pInfo->masters = pStat->masterNum;
 }
 
-void vmGetVnodeLoads(SDnode *pDnode, SArray *pLoads) {
-  SVnodesMgmt *pMgmt = &pDnode->vmgmt;
-  SVnodesStat *pStat = &pMgmt->stat;
+void vmGetVnodeLoads(SMgmtWrapper *pWrapper, SArray *pLoads) {
+  SVnodesMgmt *pMgmt = pWrapper->pMgmt;
+  SVnodesStat *pStat = &pMgmt->state;
   int32_t      totalVnodes = 0;
   int32_t      masterNum = 0;
   int64_t      numOfSelectReqs = 0;

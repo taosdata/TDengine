@@ -25,7 +25,9 @@ static int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {
   tstrncpy(pInfo->tempdir.name, tsTempDir, sizeof(pInfo->tempdir.name));
   pInfo->tempdir.size = tsTempSpace.size;
 
-  return vmGetTfsMonitorInfo(dndGetWrapper(pDnode, VNODES), pInfo);
+  vmGetTfsMonitorInfo(dndGetWrapper(pDnode, VNODES), pInfo);
+
+  return 0;
 }
 
 static void dndGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
@@ -48,7 +50,7 @@ static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
   taosGetCardInfo(&pInfo->net_in, &pInfo->net_out);
   taosGetProcIO(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
 
-  vmGetVndMonitorInfo(dndGetWrapper(pDnode, VNODES), pInfo);
+  vmGetVnodeReqs(dndGetWrapper(pDnode, VNODES), pInfo);
   pInfo->has_mnode = (dndGetWrapper(pDnode, MNODE)->required);
 }
 

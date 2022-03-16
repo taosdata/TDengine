@@ -44,7 +44,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   taosRUnLockLatch(&pMgmt->latch);
 
   req.pVloads = taosArrayInit(TSDB_MAX_VNODES, sizeof(SVnodeLoad));
-  vmGetVnodeLoads(pDnode, req.pVloads);
+  vmGetVnodeLoads(dndGetWrapper(pDnode, VNODES), req.pVloads);
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   void   *pHead = rpcMallocCont(contLen);

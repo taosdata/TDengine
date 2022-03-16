@@ -119,7 +119,7 @@ typedef struct SMnode {
   SHashObj         *infosMeta;
   SGrantInfo        grant;
   MndMsgFp          msgFp[TDMT_MAX];
-  SendReqToDnodeFp  sendReqToDnodeFp;
+  SendReqToDnodeFp  sendReqFp;
   SendReqToMnodeFp  sendReqToMnodeFp;
   SendRedirectRspFp sendRedirectRspFp;
   PutReqToMWriteQFp putReqToMWriteQFp;

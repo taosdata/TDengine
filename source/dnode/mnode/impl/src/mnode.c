@@ -44,16 +44,16 @@
 #define TELEM_TIMER_MS 86400000
 
 int32_t mndSendReqToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *pMsg) {
-  if (pMnode == NULL || pMnode->sendReqToDnodeFp == NULL) {
+  if (pMnode == NULL || pMnode->sendReqFp == NULL) {
     terrno = TSDB_CODE_MND_NOT_READY;
     return -1;
   }
 
-  return (*pMnode->sendReqToDnodeFp)(pMnode->pDnode, pEpSet, pMsg);
+  return (*pMnode->sendReqFp)(pMnode->pDnode, pEpSet, pMsg);
 }
 
 int32_t mndSendReqToMnode(SMnode *pMnode, SRpcMsg *pMsg) {
-  if (pMnode == NULL || pMnode->sendReqToDnodeFp == NULL) {
+  if (pMnode == NULL || pMnode->sendReqFp == NULL) {
     terrno = TSDB_CODE_MND_NOT_READY;
     return -1;
   }
@@ -289,11 +289,11 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->pDnode = pOption->pDnode;
   pMnode->putReqToMWriteQFp = pOption->putReqToMWriteQFp;
   pMnode->putReqToMReadQFp = pOption->putReqToMReadQFp;
-  pMnode->sendReqToDnodeFp = pOption->sendReqToDnodeFp;
+  pMnode->sendReqFp = pOption->sendReqFp;
   pMnode->sendReqToMnodeFp = pOption->sendReqToMnodeFp;
   pMnode->sendRedirectRspFp = pOption->sendRedirectRspFp;
 
-  if (pMnode->sendReqToDnodeFp == NULL || pMnode->sendReqToMnodeFp == NULL || pMnode->sendRedirectRspFp == NULL ||
+  if (pMnode->sendReqFp == NULL || pMnode->sendReqToMnodeFp == NULL || pMnode->sendRedirectRspFp == NULL ||
       pMnode->putReqToMWriteQFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0) {
     terrno = TSDB_CODE_MND_INVALID_OPTIONS;
     return -1;

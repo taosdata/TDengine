@@ -36,7 +36,7 @@ typedef struct {
   int32_t           dnodeId;
   int64_t           clusterId;
   SDnode           *pDnode;
-  SendReqToDnodeFp  sendReqToDnodeFp;
+  SendReqToDnodeFp  sendReqFp;
   SendReqToMnodeFp  sendReqToMnodeFp;
   SendRedirectRspFp sendRedirectRspFp;
 } SBnodeOpt;

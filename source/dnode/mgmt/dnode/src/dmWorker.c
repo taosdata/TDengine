@@ -99,21 +99,6 @@ static void dmProcessQueue(SDnode *pDnode, SNodeMsg *pNodeMsg) {
     case TDMT_MND_GRANT_RSP:
       dmProcessGrantRsp(pDnode, pMsg);
       break;
-    case TDMT_DND_CREATE_VNODE:
-      code = vmProcessCreateVnodeReq(pDnode, pMsg);
-      break;
-    case TDMT_DND_ALTER_VNODE:
-      code = vmProcessAlterVnodeReq(pDnode, pMsg);
-      break;
-    case TDMT_DND_DROP_VNODE:
-      code = vmProcessDropVnodeReq(pDnode, pMsg);
-      break;
-    case TDMT_DND_SYNC_VNODE:
-      code = vmProcessSyncVnodeReq(pDnode, pMsg);
-      break;
-    case TDMT_DND_COMPACT_VNODE:
-      code = vmProcessCompactVnodeReq(pDnode, pMsg);
-      break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
       code = -1;

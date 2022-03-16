@@ -244,7 +244,7 @@ void tfsClosedir(STfsDir *pDir);
  * @param pTfs The fs object.
  * @param pInfo The info object.
  */
-int32_t tfsGetMonitorInfo(STfs *pTfs, SMonDiskInfo *pInfo);
+void tfsGetMonitorInfo(STfs *pTfs, SMonDiskInfo *pInfo);
 
 #ifdef __cplusplus
 }

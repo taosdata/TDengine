@@ -53,9 +53,8 @@ typedef struct SVnodeMgr {
   pthread_cond_t  hasTask;
   TD_DLIST(SVnodeTask) queue;
   // For vnode Mgmt
-  SDnode*           pDnode;
-  PutReqToVQueryQFp putReqToVQueryQFp;
-  SendReqToDnodeFp  sendReqToDnodeFp;
+  VndPutToQueryQFp putToQueryQFp;
+  VndSendReqFp     sendReqFp;
 } SVnodeMgr;
 
 extern SVnodeMgr vnodeMgr;
@@ -79,7 +78,7 @@ struct SVnode {
   SWal*      pWal;
   tsem_t     canCommit;
   SQHandle*  pQuery;
-  SDnode*    pDnode;
+  void*      pMgmt;
   STfs*      pTfs;
 };
 

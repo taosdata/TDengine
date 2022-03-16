@@ -24,13 +24,11 @@ extern "C" {
 
 int32_t vmStartWorker(SVnodesMgmt *pMgmt);
 void    vmStopWorker(SVnodesMgmt *pMgmt);
+int32_t vmAllocQueue(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
+void    vmFreeQueue(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
 
-void    vmInitMsgFp(SMnodeMgmt *pMgmt);
-void    vmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
-int32_t vmPutMsgToWriteQueue(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t vmPutMsgToReadQueue(SDnode *pDnode, SRpcMsg *pRpcMsg);
-void    vmConsumeChildQueue(SDnode *pDnode, SNodeMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen);
-void    vmConsumeParentQueue(SDnode *pDnode, SRpcMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen);
+int32_t vmPutMsgToQueryQueue(SVnodesMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmPutMsgToApplyQueue(SVnodesMgmt *pMgmt, int32_t vgId, SRpcMsg *pMsg);
 
 int32_t vmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t vmProcessSyncMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);

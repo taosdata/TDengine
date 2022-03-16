@@ -17,6 +17,7 @@
 #include "vmMsg.h"
 #include "vmFile.h"
 #include "vmWorker.h"
+#include "dmInt.h"
 
 static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->vgId = pCreate->vgId;
@@ -83,7 +84,7 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SRpcMsg *pReq) {
     return -1;
   }
 
-  vnodeCfg.pDnode = pMgmt->pDnode;
+  vnodeCfg.pMgmt = pMgmt;
   vnodeCfg.pTfs = pMgmt->pTfs;
   vnodeCfg.dbId = wrapperCfg.dbUid;
   SVnode *pImpl = vnodeOpen(wrapperCfg.path, &vnodeCfg);
@@ -262,4 +263,10 @@ void vmInitMsgHandles(SMgmtWrapper *pWrapper) {
   dndSetMsgHandle(pWrapper, TDMT_VND_MQ_SET_CUR, vmProcessFetchMsg);
   dndSetMsgHandle(pWrapper, TDMT_VND_CONSUME, vmProcessFetchMsg);
   dndSetMsgHandle(pWrapper, TDMT_VND_QUERY_HEARTBEAT, vmProcessFetchMsg);
+
+  dndSetMsgHandle(pWrapper, TDMT_DND_CREATE_VNODE, vmProcessCreateVnodeReq);
+  dndSetMsgHandle(pWrapper, TDMT_DND_ALTER_VNODE, vmProcessAlterVnodeReq);
+  dndSetMsgHandle(pWrapper, TDMT_DND_DROP_VNODE, vmProcessDropVnodeReq);
+  dndSetMsgHandle(pWrapper, TDMT_DND_SYNC_VNODE, vmProcessSyncVnodeReq);
+  dndSetMsgHandle(pWrapper, TDMT_DND_COMPACT_VNODE, vmProcessCompactVnodeReq);
 }

@@ -140,7 +140,7 @@ static void mmInitOption(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
   SDnode *pDnode = pMgmt->pDnode;
 
   pOption->pDnode = pDnode;
-  pOption->sendReqToDnodeFp = dndSendReqToDnode;
+  pOption->sendReqFp = dndSendReqToDnode;
   pOption->sendReqToMnodeFp = dndSendReqToMnode;
   pOption->sendRedirectRspFp = dmSendRedirectRsp;
   pOption->putReqToMWriteQFp = mmPutMsgToWriteQueue;

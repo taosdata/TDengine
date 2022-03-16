@@ -177,7 +177,7 @@ static void dndStopBnodeWorker(SDnode *pDnode) {
 
 static void dndBuildBnodeOption(SDnode *pDnode, SBnodeOpt *pOption) {
   pOption->pDnode = pDnode;
-  pOption->sendReqToDnodeFp = dndSendReqToDnode;
+  pOption->sendReqFp = dndSendReqToDnode;
   pOption->sendReqToMnodeFp = dndSendReqToMnode;
   pOption->sendRedirectRspFp = dmSendRedirectRsp;
   pOption->dnodeId = dmGetDnodeId(pDnode);

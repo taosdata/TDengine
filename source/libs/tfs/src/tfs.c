@@ -539,9 +539,9 @@ static STfsDisk *tfsNextDisk(STfs *pTfs, SDiskIter *pIter) {
   return pDisk;
 }
 
-int32_t tfsGetMonitorInfo(STfs *pTfs, SMonDiskInfo *pInfo) {
+void tfsGetMonitorInfo(STfs *pTfs, SMonDiskInfo *pInfo) {
   pInfo->datadirs = taosArrayInit(32, sizeof(SMonDiskDesc));
-  if (pInfo->datadirs == NULL) return -1;
+  if (pInfo->datadirs == NULL) return;
 
   tfsUpdateSize(pTfs);
 

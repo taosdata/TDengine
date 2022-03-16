@@ -86,6 +86,9 @@ typedef struct {
 
 // interface
 void vmGetMgmtFp(SMgmtWrapper *pWrapper);
+void vmGetVnodeLoads(SMgmtWrapper *pWrapper, SArray *pLoads);
+void vmGetTfsMonitorInfo(SMgmtWrapper *pWrapper, SMonDiskInfo *pInfo);
+void vmGetVnodeReqs(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo);
 
 // vmInt.h
 SVnodeObj *vmAcquireVnode(SVnodesMgmt *pMgmt, int32_t vgId);
@@ -93,23 +96,11 @@ void       vmReleaseVnode(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
 int32_t    vmOpenVnode(SVnodesMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl);
 void       vmCloseVnode(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
 
-int32_t dndInitVnodes(SDnode *pDnode);
-void    dndCleanupVnodes(SDnode *pDnode);
-void    vmGetVnodeLoads(SDnode *pDnode, SArray *pLoads);
 void    dndProcessVnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 void    dndProcessVnodeSyncMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 void    dndProcessVnodeQueryMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 void    dndProcessVnodeFetchMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 
-int32_t vmProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
-int32_t vmProcessAlterVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
-int32_t vmProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
-int32_t dndProcessAuthVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
-int32_t vmProcessSyncVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
-int32_t vmProcessCompactVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
-
-int32_t vmGetTfsMonitorInfo(SMgmtWrapper *pWrapper, SMonDiskInfo *pInfo);
-void    vmGetVndMonitorInfo(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo);
 
 #ifdef __cplusplus
 }

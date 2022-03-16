@@ -40,7 +40,7 @@ typedef struct {
   SDnode           *pDnode;
   PutReqToMWriteQFp putReqToMWriteQFp;
   PutReqToMReadQFp  putReqToMReadQFp;
-  SendReqToDnodeFp  sendReqToDnodeFp;
+  SendReqToDnodeFp  sendReqFp;
   SendReqToMnodeFp  sendReqToMnodeFp;
   SendRedirectRspFp sendRedirectRspFp;
 } SMnodeOpt;
