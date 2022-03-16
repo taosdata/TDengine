@@ -267,7 +267,7 @@ static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen, int *p
         }
       }
 
-#if 1
+      // Move downward or break
       u16 flags = TDB_PAGE_FLAGS(pPage);
       u8  leaf = TDB_BTREE_PAGE_IS_LEAF(flags);
       if (leaf) {
@@ -292,7 +292,6 @@ static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen, int *p
           }
         }
       }
-#endif
     }
 
   } else {
@@ -868,6 +867,13 @@ static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pD
   nHeader = 0;
   flags = TDB_PAGE_FLAGS(pPage);
   leaf = TDB_BTREE_PAGE_IS_LEAF(flags);
+
+  // Clear the state of decoder
+  pDecoder->kLen = -1;
+  pDecoder->pKey = NULL;
+  pDecoder->vLen = -1;
+  pDecoder->pVal = NULL;
+  pDecoder->pgno = 0;
 
   // 1. Decode header part
   if (pPage->kLen == TDB_VARIANT_LEN) {
