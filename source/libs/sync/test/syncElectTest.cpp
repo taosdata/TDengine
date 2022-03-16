@@ -116,7 +116,9 @@ int main(int argc, char** argv) {
 
   //---------------------------
   while (1) {
-    sTrace("while 1 sleep, state: %d, %s, electTimerLogicClock:%lu, electTimerLogicClockUser:%lu, electTimerMS:%d", gSyncNode->state, syncUtilState2String(gSyncNode->state), gSyncNode->electTimerLogicClock, gSyncNode->electTimerLogicClockUser, gSyncNode->electTimerMS);
+    sTrace("while 1 sleep, state: %d, %s, electTimerLogicClock:%lu, electTimerLogicClockUser:%lu, electTimerMS:%d",
+           gSyncNode->state, syncUtilState2String(gSyncNode->state), gSyncNode->electTimerLogicClock,
+           gSyncNode->electTimerLogicClockUser, gSyncNode->electTimerMS);
     taosMsleep(1000);
   }
 
