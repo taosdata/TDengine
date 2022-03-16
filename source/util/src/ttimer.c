@@ -628,7 +628,7 @@ void taosTmrCleanUp(void* handle) {
 
     tmrCtrls = NULL;
     unusedTmrCtrl = NULL;
-#if !defined(WINDOWS)
+#if defined(LINUX)
     tmrModuleInit = PTHREAD_ONCE_INIT;  // to support restart
 #endif
   }

@@ -49,6 +49,15 @@ int64_t taosRead(FileFd fd, void *buf, int64_t count);
 #define PATH_MAX 256
 #endif
 
+typedef int32_t FileFd;
+
+typedef struct TdFile {
+  pthread_rwlock_t rwlock;
+  int      refId;
+  FileFd   fd;
+  FILE    *fp;
+} * TdFilePtr, TdFile;
+
 typedef struct TdFile *TdFilePtr;
  
 #define TD_FILE_CTEATE    0x0001
@@ -101,8 +110,16 @@ int64_t taosCopyFile(const char *from, const char *to);
 int32_t taosRemoveFile(const char *path);
  
 void    taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, char *dstPath);
- 
+
+#if defined(_TD_DARWIN_64)
+typedef int32_t SocketFd;
+
+int64_t taosSendFile(SocketFd fdDst, FileFd pFileSrc, int64_t *offset, int64_t size);
+int64_t taosFSendFile(FILE *pFileOut, FILE *pFileIn, int64_t *offset, int64_t size);
+#else
+int64_t taosSendFile(SocketFd fdDst, TdFilePtr pFileSrc, int64_t *offset, int64_t size);
 int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, int64_t size);
+#endif
 
 void *taosMmapReadOnlyFile(TdFilePtr pFile, int64_t length);
 bool taosValidFile(TdFilePtr pFile);

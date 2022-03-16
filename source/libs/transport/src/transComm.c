@@ -155,14 +155,16 @@ bool transReadComplete(SConnBuffer* connBuf) {
   }
   return false;
 }
-int transPackMsg(STransMsgHead* msgHead, bool sercured, bool auth) {}
+int transPackMsg(STransMsgHead* msgHead, bool sercured, bool auth) {return 0;}
 
-int transUnpackMsg(STransMsgHead* msgHead) {}
+int transUnpackMsg(STransMsgHead* msgHead) {return 0;}
 int transDestroyBuffer(SConnBuffer* buf) {
   if (buf->cap > 0) {
     tfree(buf->buf);
   }
   transClearBuffer(buf);
+
+  return 0;
 }
 
 int transSetConnOption(uv_tcp_t* stream) {

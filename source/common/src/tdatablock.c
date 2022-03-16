@@ -864,7 +864,7 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirs
         qsort(pColInfoData->pData, pDataBlock->info.rows, pColInfoData->info.bytes, fn);
 
         int64_t p1 = taosGetTimestampUs();
-        printf("sort:%ld, rows:%d\n", p1 - p0, pDataBlock->info.rows);
+        printf("sort:%" PRId64 ", rows:%d\n", p1 - p0, pDataBlock->info.rows);
 
         return TSDB_CODE_SUCCESS;
       } else {  // var data type
@@ -912,7 +912,7 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirs
   copyBackToBlock(pDataBlock, pCols);
   int64_t p4 = taosGetTimestampUs();
 
-  printf("sort:%ld, create:%ld, assign:%ld, copyback:%ld, rows:%d\n", p1-p0, p2 - p1, p3 - p2, p4-p3, rows);
+  printf("sort:%" PRId64 ", create:%" PRId64 ", assign:%" PRId64 ", copyback:%" PRId64 ", rows:%d\n", p1-p0, p2 - p1, p3 - p2, p4-p3, rows);
   destroyTupleIndex(index);
 
   return TSDB_CODE_SUCCESS;
@@ -1017,7 +1017,7 @@ int32_t dataBlockCompar_rv(const void* p1, const void* p2, const void* param) {
 }
 
 int32_t varColSort(SColumnInfoData* pColumnInfoData, SBlockOrderInfo* pOrder) {
-
+    return 0;
 }
 
 int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst) {
@@ -1055,14 +1055,15 @@ int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullF
   copyBackToBlock(pDataBlock, pCols);
   int64_t p4 = taosGetTimestampUs();
 
-  printf("sort:%ld, create:%ld, assign:%ld, copyback:%ld, rows:%d\n", p1 - p0, p2 - p1, p3 - p2, p4 - p3, rows);
+  printf("sort:%" PRId64 ", create:%" PRId64", assign:%" PRId64 ", copyback:%" PRId64 ", rows:%d\n", p1 - p0, p2 - p1, p3 - p2, p4 - p3, rows);
   //  destroyTupleIndex(index);
+  return 0;
 }
 
-void blockDataClearup(SSDataBlock* pDataBlock, bool hasVarCol) {
+void blockDataClearup(SSDataBlock* pDataBlock) {
   pDataBlock->info.rows = 0;
 
-  if (hasVarCol) {
+  if (pDataBlock->info.hasVarCol) {
     for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
       SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
 
@@ -1148,7 +1149,9 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock) {
 
   SSDataBlock* pBlock = calloc(1, sizeof(SSDataBlock));
   pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
+
   pBlock->info.numOfCols = numOfCols;
+  pBlock->info.hasVarCol = pDataBlock->info.hasVarCol;
 
   for(int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData  colInfo = {0};

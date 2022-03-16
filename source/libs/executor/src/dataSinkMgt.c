@@ -23,6 +23,7 @@ static SDataSinkManager gDataSinkManager = {0};
 int32_t dsDataSinkMgtInit(SDataSinkMgtCfg *cfg) {
   gDataSinkManager.cfg = *cfg;
   pthread_mutex_init(&gDataSinkManager.mutex, NULL);
+  return 0; // to avoid compiler eror
 }
 
 int32_t dsCreateDataSinker(const SDataSinkNode *pDataSink, DataSinkHandle* pHandle) {

@@ -38,12 +38,12 @@ extern "C" {
 #endif
 
 #if defined (_TD_DARWIN_64)
-  #define pthread_rwlock_t pthread_mutex_t
-  #define pthread_rwlock_init(lock, NULL) pthread_mutex_init(lock, NULL)
-  #define pthread_rwlock_destroy(lock) pthread_mutex_destroy(lock)
-  #define pthread_rwlock_wrlock(lock) pthread_mutex_lock(lock)
-  #define pthread_rwlock_rdlock(lock) pthread_mutex_lock(lock)
-  #define pthread_rwlock_unlock(lock) pthread_mutex_unlock(lock)
+//  #define pthread_rwlock_t pthread_mutex_t
+//  #define pthread_rwlock_init(lock, NULL) pthread_mutex_init(lock, NULL)
+//  #define pthread_rwlock_destroy(lock) pthread_mutex_destroy(lock)
+// #define pthread_rwlock_wrlock(lock) pthread_mutex_lock(lock)
+//  #define pthread_rwlock_rdlock(lock) pthread_mutex_lock(lock)
+//  #define pthread_rwlock_unlock(lock) pthread_mutex_unlock(lock)
 
   #define pthread_spinlock_t pthread_mutex_t
   #define pthread_spin_init(lock, NULL) pthread_mutex_init(lock, NULL)

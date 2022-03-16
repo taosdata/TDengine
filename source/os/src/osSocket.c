@@ -17,7 +17,7 @@
 #define ALLOW_FORBID_FUNC
 #include "os.h"
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#if defined(WINDOWS)
 #include <IPHlpApi.h>
 #include <WS2tcpip.h>
 #include <Winsock2.h>
@@ -37,8 +37,14 @@
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
 #include <sys/socket.h>
-#include <sys/epoll.h>
 #include <unistd.h>
+
+#if defined(DARWIN)
+  #include <dispatch/dispatch.h>
+  #include "osEok.h"
+#else
+  #include <sys/epoll.h>
+#endif
 #endif
 
 typedef int32_t SocketFd;
@@ -210,7 +216,7 @@ int32_t taosShutDownSocketServerRDWR(TdSocketServerPtr pSocketServer) {
 #endif
 }
 
-#if (defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)) 
+#if (defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32))
   #if defined(_TD_GO_DLL_)
     uint64_t htonll(uint64_t val) { return (((uint64_t)htonl(val)) << 32) + htonl(val >> 32); }
   #endif

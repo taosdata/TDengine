@@ -50,7 +50,7 @@ typedef struct SGroupResInfo {
   int32_t totalGroup;
   int32_t currentGroup;
   int32_t index;
-  SArray* pRows;      // SArray<SResultRow*>
+  SArray* pRows;      // SArray<SResultRowPosition*>
   bool    ordered;
   int32_t position;
 } SGroupResInfo;
@@ -67,10 +67,15 @@ typedef struct SResultRow {
   char         *key;               // start key of current result row
 } SResultRow;
 
+typedef struct SResultRowPosition {
+  int32_t pageId;
+  int32_t offset;
+} SResultRowPosition;
+
 typedef struct SResultRowInfo {
-  SList* pRows;
-  SResultRow** pResult;    // result list
-//  int16_t      type:8;     // data type for hash key
+  SList       *pRows;
+  SResultRowPosition *pPosition;
+  SResultRow **pResult;    // result list
   int32_t      size;       // number of result set
   int32_t      capacity;   // max capacity
   int32_t      curPos;     // current active result row index of pResult list
@@ -131,7 +136,7 @@ static FORCE_INLINE char* getPosInResultPage_rv(SFilePage* page, int32_t rowOffs
   assert(rowOffset >= 0);
 
   int32_t numOfRows = 1;//(int32_t)getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery);
-  return ((char *)page->data) + rowOffset + offset * numOfRows;
+  return (char*) page + rowOffset + offset * numOfRows;
 }
 
 //bool isNullOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type);
@@ -139,12 +144,7 @@ static FORCE_INLINE char* getPosInResultPage_rv(SFilePage* page, int32_t rowOffs
 
 __filter_func_t getFilterOperator(int32_t lowerOptr, int32_t upperOptr);
 
-SResultRowPool* initResultRowPool(size_t size);
 SResultRow* getNewResultRow(SResultRowPool* p);
-int64_t getResultRowPoolMemSize(SResultRowPool* p);
-void* destroyResultRowPool(SResultRowPool* p);
-int32_t getNumOfAllocatedResultRows(SResultRowPool* p);
-int32_t getNumOfUsedResultRows(SResultRowPool* p);
 
 typedef struct {
   SArray* pResult;     // SArray<SResPair>

@@ -14,6 +14,7 @@
  */
 #define ALLOW_FORBID_FUNC
 #include "os.h"
+#include "osSemaphore.h"
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 #include <io.h>
@@ -35,25 +36,17 @@ extern int openU(const char *, int, ...); /* MsvcLibX UTF-8 version of open */
 #else
 #include <fcntl.h>
 #include <sys/file.h>
-#include <sys/sendfile.h>
+
+#if !defined(_TD_DARWIN_64)
+    #include <sys/sendfile.h>
+#endif
 #include <sys/stat.h>
 #include <unistd.h>
 #define LINUX_FILE_NO_TEXT_OPTION 0
 #define O_TEXT                    LINUX_FILE_NO_TEXT_OPTION
 #endif
 
-typedef int32_t FileFd;
-
 #define FILE_WITH_LOCK 1
-
-typedef struct TdFile {
-#if FILE_WITH_LOCK
-  pthread_rwlock_t rwlock;
-#endif
-  int      refId;
-  FileFd   fd;
-  FILE    *fp;
-} * TdFilePtr, TdFile;
 
 void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, char *dstPath) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)

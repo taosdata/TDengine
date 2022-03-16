@@ -42,6 +42,7 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId);
 // on message ----
 static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
 static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
+static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg);
 // ---------------------------------
 
 int32_t syncInit() {
@@ -192,6 +193,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   // init callback
   pSyncNode->FpOnPing = syncNodeOnPingCb;
   pSyncNode->FpOnPingReply = syncNodeOnPingReplyCb;
+  pSyncNode->FpOnClientRequest = syncNodeOnClientRequestCb;
   pSyncNode->FpOnRequestVote = syncNodeOnRequestVoteCb;
   pSyncNode->FpOnRequestVoteReply = syncNodeOnRequestVoteReplyCb;
   pSyncNode->FpOnAppendEntries = syncNodeOnAppendEntriesCb;
@@ -418,46 +420,46 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
 
   // tla+ log vars
   cJSON_AddItemToObject(pRoot, "pLogStore", logStore2Json(pSyncNode->pLogStore));
-  snprintf(u64buf, sizeof(u64buf), "%ld", pSyncNode->commitIndex);
+  snprintf(u64buf, sizeof(u64buf), "%" PRId64 "", pSyncNode->commitIndex);
   cJSON_AddStringToObject(pRoot, "commitIndex", u64buf);
 
   // ping timer
   snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pPingTimer);
   cJSON_AddStringToObject(pRoot, "pPingTimer", u64buf);
   cJSON_AddNumberToObject(pRoot, "pingTimerMS", pSyncNode->pingTimerMS);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->pingTimerLogicClock);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->pingTimerLogicClock);
   cJSON_AddStringToObject(pRoot, "pingTimerLogicClock", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->pingTimerLogicClockUser);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->pingTimerLogicClockUser);
   cJSON_AddStringToObject(pRoot, "pingTimerLogicClockUser", u64buf);
   snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpPingTimerCB);
   cJSON_AddStringToObject(pRoot, "FpPingTimerCB", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->pingTimerCounter);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->pingTimerCounter);
   cJSON_AddStringToObject(pRoot, "pingTimerCounter", u64buf);
 
   // elect timer
   snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pElectTimer);
   cJSON_AddStringToObject(pRoot, "pElectTimer", u64buf);
   cJSON_AddNumberToObject(pRoot, "electTimerMS", pSyncNode->electTimerMS);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->electTimerLogicClock);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->electTimerLogicClock);
   cJSON_AddStringToObject(pRoot, "electTimerLogicClock", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->electTimerLogicClockUser);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->electTimerLogicClockUser);
   cJSON_AddStringToObject(pRoot, "electTimerLogicClockUser", u64buf);
   snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpElectTimerCB);
   cJSON_AddStringToObject(pRoot, "FpElectTimerCB", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->electTimerCounter);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->electTimerCounter);
   cJSON_AddStringToObject(pRoot, "electTimerCounter", u64buf);
 
   // heartbeat timer
   snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pHeartbeatTimer);
   cJSON_AddStringToObject(pRoot, "pHeartbeatTimer", u64buf);
   cJSON_AddNumberToObject(pRoot, "heartbeatTimerMS", pSyncNode->heartbeatTimerMS);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->heartbeatTimerLogicClock);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->heartbeatTimerLogicClock);
   cJSON_AddStringToObject(pRoot, "heartbeatTimerLogicClock", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->heartbeatTimerLogicClockUser);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->heartbeatTimerLogicClockUser);
   cJSON_AddStringToObject(pRoot, "heartbeatTimerLogicClockUser", u64buf);
   snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpHeartbeatTimerCB);
   cJSON_AddStringToObject(pRoot, "FpHeartbeatTimerCB", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->heartbeatTimerCounter);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->heartbeatTimerCounter);
   cJSON_AddStringToObject(pRoot, "heartbeatTimerCounter", u64buf);
 
   // callback
@@ -632,7 +634,7 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     taosTmrReset(syncNodeEqPingTimer, pSyncNode->pingTimerMS, pSyncNode, gSyncEnv->pTimerManager,
                  &pSyncNode->pPingTimer);
   } else {
-    sTrace("==syncNodeEqPingTimer== pingTimerLogicClock:%lu, pingTimerLogicClockUser:%lu",
+    sTrace("==syncNodeEqPingTimer== pingTimerLogicClock:%" PRIu64 ", pingTimerLogicClockUser:%" PRIu64 "",
            pSyncNode->pingTimerLogicClock, pSyncNode->pingTimerLogicClockUser);
   }
 }
@@ -653,7 +655,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
     taosTmrReset(syncNodeEqPingTimer, pSyncNode->pingTimerMS, pSyncNode, gSyncEnv->pTimerManager,
                  &pSyncNode->pPingTimer);
   } else {
-    sTrace("==syncNodeEqElectTimer== electTimerLogicClock:%lu, electTimerLogicClockUser:%lu",
+    sTrace("==syncNodeEqElectTimer== electTimerLogicClock:%" PRIu64 ", electTimerLogicClockUser:%" PRIu64 "",
            pSyncNode->electTimerLogicClock, pSyncNode->electTimerLogicClockUser);
   }
 }
@@ -674,7 +676,7 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
     taosTmrReset(syncNodeEqHeartbeatTimer, pSyncNode->heartbeatTimerMS, pSyncNode, gSyncEnv->pTimerManager,
                  &pSyncNode->pHeartbeatTimer);
   } else {
-    sTrace("==syncNodeEqHeartbeatTimer== heartbeatTimerLogicClock:%lu, heartbeatTimerLogicClockUser:%lu",
+    sTrace("==syncNodeEqHeartbeatTimer== heartbeatTimerLogicClock:%" PRIu64 ", heartbeatTimerLogicClockUser:%" PRIu64 "",
            pSyncNode->heartbeatTimerLogicClock, pSyncNode->heartbeatTimerLogicClockUser);
   }
 }
@@ -694,5 +696,21 @@ static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg) {
 static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg) {
   int32_t ret = 0;
   syncPingReplyLog2("==syncNodeOnPingReplyCb==", pMsg);
+  return ret;
+}
+
+static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg) {
+  int32_t ret = 0;
+  syncClientRequestLog2("==syncNodeOnClientRequestCb==", pMsg);
+
+  if (ths->state == TAOS_SYNC_STATE_LEADER) {
+    SSyncRaftEntry* pEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
+    ths->pLogStore->appendEntry(ths->pLogStore, pEntry);
+    syncNodeReplicate(ths);
+    syncEntryDestory(pEntry);
+  } else {
+    // ths->pFsm->FpCommitCb(-1)
+  }
+
   return ret;
 }
