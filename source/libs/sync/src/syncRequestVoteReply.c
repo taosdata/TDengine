@@ -57,7 +57,7 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
     if (pMsg->voteGranted) {
       voteGrantedVote(ths->pVotesGranted, pMsg);
       if (voteGrantedMajority(ths->pVotesGranted)) {
-        if (ths->pVotesGranted->toLeader) {
+        if (!ths->pVotesGranted->toLeader) {
           syncNodeCandidate2Leader(ths);
           ths->pVotesGranted->toLeader = true;
         }

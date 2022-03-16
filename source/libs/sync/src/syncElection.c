@@ -63,6 +63,14 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
   votesRespondReset(pSyncNode->pVotesRespond, pSyncNode->pRaftStore->currentTerm);
 
   syncNodeVoteForSelf(pSyncNode);
+  if (voteGrantedMajority(pSyncNode->pVotesGranted)) {
+    // only myself, to leader
+    assert(!pSyncNode->pVotesGranted->toLeader);
+    syncNodeCandidate2Leader(pSyncNode);
+    pSyncNode->pVotesGranted->toLeader = true;
+    return ret;
+  }
+
   ret = syncNodeRequestVotePeers(pSyncNode);
   assert(ret == 0);
   syncNodeResetElectTimer(pSyncNode);
