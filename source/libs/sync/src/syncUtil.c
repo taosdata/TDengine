@@ -119,7 +119,7 @@ cJSON* syncUtilRaftId2Json(const SRaftId* p) {
   char   u64buf[128];
   cJSON* pRoot = cJSON_CreateObject();
 
-  snprintf(u64buf, sizeof(u64buf), "%lu", p->addr);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", p->addr);
   cJSON_AddStringToObject(pRoot, "addr", u64buf);
   char     host[128];
   uint16_t port;
