@@ -38,12 +38,14 @@ typedef struct SRpcConnInfo {
 
 typedef struct SRpcMsg {
   tmsg_t  msgType;
+  tmsg_t  expectMsgType;
   void *  pCont;
   int     contLen;
   int32_t code;
   void *  handle;   // rpc handle returned to app
   void *  ahandle;  // app handle set by client
   int     noResp;   // has response or not(default 0 indicate resp);
+
 } SRpcMsg;
 
 typedef struct SRpcInit {
