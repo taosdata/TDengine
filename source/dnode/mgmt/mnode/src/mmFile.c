@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mmFile.h"
+#include "mmInt.h"
 
 int32_t mmReadFile(SMnodeMgmt *pMgmt) {
   int32_t   code = TSDB_CODE_DND_MNODE_READ_FILE_ERROR;

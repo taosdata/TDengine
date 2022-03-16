@@ -13,20 +13,27 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_MNODE_FILE_H_
-#define _TD_DND_MNODE_FILE_H_
+#ifndef _TD_DND_MNODE_H_
+#define _TD_DND_MNODE_H_
 
-#include "mmInt.h"
+#include "dnd.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t mmReadFile(SMnodeMgmt *pMgmt);
-int32_t mmWriteFile(SMnodeMgmt *pMgmt);
+void mmGetMgmtFp(SMgmtWrapper *pMgmt);
+void mmInitMsgHandles(SMgmtWrapper *pWrapper);
+
+int32_t mmProcessCreateReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t mmProcessDropReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
+
+int32_t mmGetUserAuth(SMgmtWrapper *pWrapper, char *user, char *spi, char *encrypt, char *secret, char *ckey);
+int32_t mmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
+                         SMonGrantInfo *pGrantInfo);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DND_MNODE_FILE_H_*/
+#endif /*_TD_DND_MNODE_H_*/

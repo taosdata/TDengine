@@ -16,7 +16,7 @@
 #ifndef _TD_DND_MNODE_INT_H_
 #define _TD_DND_MNODE_INT_H_
 
-#include "dnd.h"
+#include "mm.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,13 +39,11 @@ typedef struct SMnodeMgmt {
   SDnodeWorker  syncWorker;
 } SMnodeMgmt;
 
-// interface
-void    mmGetMgmtFp(SMgmtWrapper *pMgmt);
-int32_t mmGetUserAuth(SMgmtWrapper *pWrapper, char *user, char *spi, char *encrypt, char *secret, char *ckey);
-int32_t mmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
-                         SMonGrantInfo *pGrantInfo);
+// mmFile.c
+int32_t mmReadFile(SMnodeMgmt *pMgmt);
+int32_t mmWriteFile(SMnodeMgmt *pMgmt);
 
-// mmInt.h
+// mmInt.c
 SMnode *mmAcquire(SMnodeMgmt *pMgmt);
 void    mmRelease(SMnodeMgmt *pMgmt, SMnode *pMnode);
 int32_t mmOpen(SMnodeMgmt *pMgmt, SMnodeOpt *pOption);
@@ -53,10 +51,18 @@ int32_t mmAlter(SMnodeMgmt *pMgmt, SMnodeOpt *pOption);
 int32_t mmDrop(SMnodeMgmt *pMgmt);
 int32_t mmBuildOptionFromReq(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCreateMnodeReq *pCreate);
 
-// mmHandle.h
-int32_t mmProcessCreateReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
+// mmMsg.c
 int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t mmProcessDropReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
+
+// mmWorker.c
+int32_t mmStartWorker(SMnodeMgmt *pMgmt);
+void    mmStopWorker(SMnodeMgmt *pMgmt);
+int32_t mmProcessWriteMsg(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t mmProcessSyncMsg(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t mmProcessReadMsg(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
+
+int32_t mmPutMsgToWriteQueue(void *wrapper, SRpcMsg *pRpcMsg);
+int32_t mmPutMsgToReadQueue(void *wrapper, SRpcMsg *pRpcMsg);
 
 #ifdef __cplusplus
 }

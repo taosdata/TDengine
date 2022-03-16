@@ -43,8 +43,6 @@ int32_t dmReadFile(SDnodeMgmt *pMgmt);
 int32_t dmWriteFile(SDnodeMgmt *pMgmt);
 void    dmUpdateDnodeEps(SDnodeMgmt *pMgmt, SArray *pDnodeEps);
 
-// dmInt.c
-
 // dmMsg.c
 void    dmSendStatusReq(SDnodeMgmt *pMgmt);
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);

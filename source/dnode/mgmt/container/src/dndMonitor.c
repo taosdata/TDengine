@@ -17,7 +17,7 @@
 #include "dndInt.h"
 
 #include "dmInt.h"
-#include "mmInt.h"
+#include "mm.h"
 #include "vmInt.h"
 
 static int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {

@@ -22,11 +22,12 @@
 extern "C" {
 #endif
 
-void    dmGetMgmtFp(SMgmtWrapper *pWrapper);
+void dmGetMgmtFp(SMgmtWrapper *pWrapper);
+void dmInitMsgHandles(SMgmtWrapper *pWrapper);
+
 void    dmGetMnodeEpSet(SMgmtWrapper *pWrapper, SEpSet *pEpSet);
 void    dmUpdateMnodeEpSet(SMgmtWrapper *pWrapper, SEpSet *pEpSet);
 void    dmSendRedirectRsp(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
-void    dmInitMsgHandles(SMgmtWrapper *pWrapper);
 int32_t dmStart(SMgmtWrapper *pWrapper);
 
 #ifdef __cplusplus

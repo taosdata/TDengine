@@ -17,7 +17,7 @@
 #include "dmInt.h"
 
 #include "bmInt.h"
-#include "mmInt.h"
+#include "mm.h"
 #include "qmInt.h"
 #include "smInt.h"
 #include "vmInt.h"
@@ -61,9 +61,6 @@ static void dmProcessQueue(SDnode *pDnode, SNodeMsg *pMsg) {
   switch (msgType) {
     case TDMT_DND_CREATE_MNODE:
       code = mmProcessCreateReq(dndGetWrapper(pDnode, MNODE)->pMgmt, pMsg);
-      break;
-    case TDMT_DND_ALTER_MNODE:
-      code = mmProcessAlterReq(dndGetWrapper(pDnode, MNODE)->pMgmt, pMsg);
       break;
     case TDMT_DND_DROP_MNODE:
       code = mmProcessDropReq(dndGetWrapper(pDnode, MNODE)->pMgmt, pMsg);

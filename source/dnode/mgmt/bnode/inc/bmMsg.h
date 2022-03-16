@@ -16,7 +16,7 @@
 #ifndef _TD_DND_BNODE_HANDLE_H_
 #define _TD_DND_BNODE_HANDLE_H_
 
-#include "mmInt.h"
+#include "mm.h"
 
 #ifdef __cplusplus
 extern "C" {

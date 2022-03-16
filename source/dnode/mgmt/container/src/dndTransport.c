@@ -17,7 +17,7 @@
 #include "dndInt.h"
 
 #include "dmInt.h"
-#include "mmInt.h"
+#include "mm.h"
 
 #define INTERNAL_USER   "_dnd"
 #define INTERNAL_CKEY   "_key"

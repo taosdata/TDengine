@@ -15,10 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
+
 #include "dmInt.h"
-#include "mmFile.h"
-#include "mmMsg.h"
-#include "mmWorker.h"
 
 SMnode *mmAcquire(SMnodeMgmt *pMgmt) {
   SMnode *pMnode = NULL;

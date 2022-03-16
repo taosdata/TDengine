@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-// dndInt.h
+// dndInt.c
 int32_t     dndInit();
 void        dndCleanup();
 const char *dndStatStr(EDndStatus stat);
@@ -30,14 +30,14 @@ void        dndGetStartup(SDnode *pDnode, SStartupReq *pStartup);
 TdFilePtr   dndCheckRunning(char *dataDir);
 void        dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
 
-// dndNode.h
+// dndNode.c
 SDnode *dndCreate(const SDnodeOpt *pOption);
 void    dndClose(SDnode *pDnode);
 int32_t dndRun(SDnode *pDnode);
 void    dndHandleEvent(SDnode *pDnode, EDndEvent event);
 void    dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet);
 
-// dndTransport.h
+// dndTransport.c
 int32_t dndInitServer(SDnode *pDnode);
 void    dndCleanupServer(SDnode *pDnode);
 int32_t dndInitClient(SDnode *pDnode);
