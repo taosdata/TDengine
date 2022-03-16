@@ -962,6 +962,25 @@ static int32_t translateDropSuperTable(STranslateContext* pCxt, SDropSuperTableS
   return doTranslateDropSuperTable(pCxt, &tableName, pStmt->ignoreNotExists);
 }
 
+static int32_t translateAlterTable(STranslateContext* pCxt, SAlterTableStmt* pStmt) {
+  SMAltertbReq alterReq = {0};
+
+  pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
+  if (NULL == pCxt->pCmdMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
+  pCxt->pCmdMsg->msgType = TDMT_MND_ALTER_STB;
+  pCxt->pCmdMsg->msgLen = tSerializeSMAlterStbReq(NULL, 0, &alterReq);
+  pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
+  if (NULL == pCxt->pCmdMsg->pMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tSerializeSMAlterStbReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &alterReq);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* pStmt) {
   SName name = {0};
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
@@ -1095,6 +1114,28 @@ static int32_t translateDropDnode(STranslateContext* pCxt, SDropDnodeStmt* pStmt
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   tSerializeSDropDnodeReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &dropReq);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pStmt) {
+  SMCfgDnodeReq cfgReq = {0};
+  cfgReq.dnodeId = pStmt->dnodeId;
+  strcpy(cfgReq.config, pStmt->config);
+  strcpy(cfgReq.value, pStmt->value);
+
+  pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
+  if (NULL == pCxt->pCmdMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
+  pCxt->pCmdMsg->msgType = TDMT_MND_CONFIG_DNODE;
+  pCxt->pCmdMsg->msgLen = tSerializeSMCfgDnodeReq(NULL, 0, &cfgReq);
+  pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
+  if (NULL == pCxt->pCmdMsg->pMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tSerializeSMCfgDnodeReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &cfgReq);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1364,6 +1405,11 @@ static int32_t translateDropTopic(STranslateContext* pCxt, SDropTopicStmt* pStmt
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateAlterLocal(STranslateContext* pCxt, SAlterLocalStmt* pStmt) {
+  // todo
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
@@ -1388,6 +1434,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:
       code = translateDropSuperTable(pCxt, (SDropSuperTableStmt*)pNode);
       break;
+    case QUERY_NODE_ALTER_TABLE_STMT:
+      code = translateAlterTable(pCxt, (SAlterTableStmt*)pNode);
+      break;
     case QUERY_NODE_CREATE_USER_STMT:
       code = translateCreateUser(pCxt, (SCreateUserStmt*)pNode);
       break;
@@ -1405,6 +1454,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_DROP_DNODE_STMT:
       code = translateDropDnode(pCxt, (SDropDnodeStmt*)pNode);
+      break;
+    case QUERY_NODE_ALTER_DNODE_STMT:
+      code = translateAlterDnode(pCxt, (SAlterDnodeStmt*)pNode);
       break;
     case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_STABLES_STMT:
@@ -1435,6 +1487,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_DROP_TOPIC_STMT:
       code = translateDropTopic(pCxt, (SDropTopicStmt*)pNode);
+      break;
+    case QUERY_NODE_ALTER_LOCAL_STMT:
+      code = translateAlterLocal(pCxt, (SAlterLocalStmt*)pNode);
       break;
     default:
       break;

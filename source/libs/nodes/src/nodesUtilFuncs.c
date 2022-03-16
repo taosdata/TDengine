@@ -125,6 +125,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateDnodeStmt));
     case QUERY_NODE_DROP_DNODE_STMT:
       return makeNode(type, sizeof(SDropDnodeStmt));
+    case QUERY_NODE_ALTER_DNODE_STMT:
+      return makeNode(type, sizeof(SAlterDnodeStmt));
     case QUERY_NODE_SHOW_DNODES_STMT:
       return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_SHOW_VGROUPS_STMT:
