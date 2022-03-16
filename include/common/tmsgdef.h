@@ -199,6 +199,7 @@ enum {
 
   // Requests handled by SNODE
   TD_NEW_MSG_SEG(TDMT_SND_MSG)
+  TD_DEF_MSG_TYPE(TDMT_SND_TASK_DEPLOY, "snode-task-deploy", SStreamTaskDeployReq, SStreamTaskDeployRsp)
 
 #if defined(TD_MSG_NUMBER_)
   TDMT_MAX
