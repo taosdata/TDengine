@@ -183,6 +183,11 @@ int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *p
   return 0;
 }
 
+static int tdbBtCursorMoveToChild(SBtCursor *pCur, SPgno pgno) {
+  // TODO
+  return 0;
+}
+
 static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen, int *pCRst) {
   int     ret;
   SBTree *pBt;
@@ -211,16 +216,23 @@ static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen, int *p
     }
 
     for (;;) {
-      int          lidx, ridx, midx, c;
+      int          lidx, ridx, midx, c, nCells;
       SCell       *pCell;
       SPage       *pPage;
       SCellDecoder cd = {0};
 
       pPage = pCur->pPage;
+      nCells = TDB_PAGE_NCELLS(pPage);
       lidx = 0;
-      ridx = TDB_PAGE_NCELLS(pPage) - 1;
-      midx = (lidx + ridx) >> 1;
+      ridx = nCells - 1;
+
+      ASSERT(nCells > 0);
+
       for (;;) {
+        if (lidx > ridx) break;
+
+        midx = (lidx + ridx) >> 1;
+
         pCell = TDB_PAGE_CELL_AT(pPage, midx);
         ret = tdbBtreeDecodeCell(pPage, pCell, &cd);
         if (ret < 0) {
@@ -232,16 +244,42 @@ static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen, int *p
         // Compare the key values
         c = pBt->kcmpr(pKey, kLen, cd.pKey, cd.kLen);
         if (c < 0) {
-          /* TODO */
-          ASSERT(0);
+          /* input-key < cell-key */
+          ridx = midx - 1;
         } else if (c > 0) {
-          /* TODO */
-          ASSERT(0);
+          /* input-key > cell-key */
+          lidx = midx + 1;
         } else {
-          /* TODO */
-          ASSERT(0);
+          /* input-key == cell-key */
+          break;
         }
       }
+
+#if 1
+      u16 flags = TDB_PAGE_FLAGS(pPage);
+      u8  leaf = TDB_BTREE_PAGE_IS_LEAF(flags);
+      if (leaf) {
+        pCur->idx = midx;
+        break;
+      } else {
+        if (c <= 0) {
+          pCur->idx = midx;
+          tdbBtCursorMoveToChild(pCur, cd.pgno);
+        } else {
+          if (midx == nCells - 1) {
+            /* Move to right-most child */
+            pCur->idx = midx + 1;
+            tdbBtCursorMoveToChild(pCur, ((SBtPageHdr *)(pPage->pAmHdr))->rChild);
+          } else {
+            // TODO: reset cd as uninitialized
+            pCur->idx = midx + 1;
+            pCell = TDB_PAGE_CELL_AT(pPage, midx + 1);
+            tdbBtreeDecodeCell(pPage, pCell, &cd);
+            tdbBtCursorMoveToChild(pCur, cd.pgno);
+          }
+        }
+      }
+#endif
     }
 
   } else {

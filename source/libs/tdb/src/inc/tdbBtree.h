@@ -26,11 +26,11 @@ typedef struct SBtCursor SBtCursor;
 struct SBtCursor {
   SBTree *pBt;
   i8      iPage;
-  SPage * pPage;
+  SPage  *pPage;
   int     idx;
-  u16     idxStack[BTREE_MAX_DEPTH + 1];
-  SPage * pgStack[BTREE_MAX_DEPTH + 1];
-  void *  pBuf;
+  int     idxStack[BTREE_MAX_DEPTH + 1];
+  SPage  *pgStack[BTREE_MAX_DEPTH + 1];
+  void   *pBuf;
 };
 
 int tdbBtreeOpen(int keyLen, int valLen, SPager *pFile, FKeyComparator kcmpr, SBTree **ppBt);
