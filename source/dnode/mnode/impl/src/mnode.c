@@ -121,20 +121,20 @@ static int32_t mndInitTimer(SMnode *pMnode) {
     return -1;
   }
 
-  // if (taosTmrReset(mndPullupTrans, TRNAS_TIMER_MS, pMnode, pMnode->timer, &pMnode->transTimer)) {
-  //   terrno = TSDB_CODE_OUT_OF_MEMORY;
-  //   return -1;
-  // }
+  if (taosTmrReset(mndPullupTrans, TRNAS_TIMER_MS, pMnode, pMnode->timer, &pMnode->transTimer)) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
 
-  // if (taosTmrReset(mndCalMqRebalance, MQ_TIMER_MS, pMnode, pMnode->timer, &pMnode->mqTimer)) {
-  //   terrno = TSDB_CODE_OUT_OF_MEMORY;
-  //   return -1;
-  // }
+  if (taosTmrReset(mndCalMqRebalance, MQ_TIMER_MS, pMnode, pMnode->timer, &pMnode->mqTimer)) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
 
-  // if (taosTmrReset(mndPullupTelem, 60000, pMnode, pMnode->timer, &pMnode->telemTimer)) {
-  //   terrno = TSDB_CODE_OUT_OF_MEMORY;
-  //   return -1;
-  // }
+  if (taosTmrReset(mndPullupTelem, 60000, pMnode, pMnode->timer, &pMnode->telemTimer)) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
 
   return 0;
 }

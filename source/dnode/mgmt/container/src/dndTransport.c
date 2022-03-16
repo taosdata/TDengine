@@ -25,7 +25,7 @@ static void dndProcessResponse(void *parent, SRpcMsg *pRsp, SEpSet *pEpSet) {
   STransMgmt *pMgmt = &pDnode->trans;
   tmsg_t      msgType = pRsp->msgType;
 
-  if (dndGetStatus(pDnode) == DND_STAT_STOPPED) {
+  if (dndGetStatus(pDnode) != DND_STAT_RUNNING) {
     if (pRsp == NULL || pRsp->pCont == NULL) return;
     dTrace("rsp:%s ignored since dnode exiting, app:%p", TMSG_INFO(msgType), pRsp->ahandle);
     rpcFreeCont(pRsp->pCont);
@@ -93,13 +93,7 @@ static void dndProcessRequest(void *param, SRpcMsg *pReq, SEpSet *pEpSet) {
     return;
   }
 
-  if (dndGetStatus(pDnode) == DND_STAT_STOPPED) {
-    dError("RPC %p, req:%s ignored since dnode exiting, app:%p", pReq->handle, TMSG_INFO(msgType), pReq->ahandle);
-    SRpcMsg rspMsg = {.handle = pReq->handle, .code = TSDB_CODE_DND_OFFLINE, .ahandle = pReq->ahandle};
-    rpcSendResponse(&rspMsg);
-    rpcFreeCont(pReq->pCont);
-    return;
-  } else if (dndGetStatus(pDnode) != DND_STAT_RUNNING) {
+  if (dndGetStatus(pDnode) != DND_STAT_RUNNING) {
     dError("RPC %p, req:%s ignored since dnode not running, app:%p", pReq->handle, TMSG_INFO(msgType), pReq->ahandle);
     SRpcMsg rspMsg = {.handle = pReq->handle, .code = TSDB_CODE_APP_NOT_READY, .ahandle = pReq->ahandle};
     rpcSendResponse(&rspMsg);
