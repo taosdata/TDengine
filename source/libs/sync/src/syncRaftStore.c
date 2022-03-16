@@ -164,30 +164,63 @@ void raftStoreSetTerm(SRaftStore *pRaftStore, SyncTerm term) {
   raftStorePersist(pRaftStore);
 }
 
+cJSON *raftStore2Json(SRaftStore *pRaftStore) {
+  char   u64buf[128];
+  cJSON *pRoot = cJSON_CreateObject();
+
+  if (pRaftStore != NULL) {
+    snprintf(u64buf, sizeof(u64buf), "%lu", pRaftStore->currentTerm);
+    cJSON_AddStringToObject(pRoot, "currentTerm", u64buf);
+
+    cJSON *pVoteFor = cJSON_CreateObject();
+    snprintf(u64buf, sizeof(u64buf), "%lu", pRaftStore->voteFor.addr);
+    cJSON_AddStringToObject(pVoteFor, "addr", u64buf);
+    {
+      uint64_t u64 = pRaftStore->voteFor.addr;
+      char     host[128];
+      uint16_t port;
+      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      cJSON_AddStringToObject(pVoteFor, "addr_host", host);
+      cJSON_AddNumberToObject(pVoteFor, "addr_port", port);
+    }
+    cJSON_AddNumberToObject(pVoteFor, "vgId", pRaftStore->voteFor.vgId);
+    cJSON_AddItemToObject(pRoot, "voteFor", pVoteFor);
+  }
+
+  cJSON *pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SRaftStore", pRoot);
+  return pJson;
+}
+
+char *raftStore2Str(SRaftStore *pRaftStore) {
+  cJSON *pJson = raftStore2Json(pRaftStore);
+  char  *serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
 // for debug -------------------
 void raftStorePrint(SRaftStore *pObj) {
-  char serialized[RAFT_STORE_BLOCK_SIZE];
-  raftStoreSerialize(pObj, serialized, sizeof(serialized));
+  char *serialized = raftStore2Str(pObj);
   printf("raftStorePrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
+  free(serialized);
 }
 
 void raftStorePrint2(char *s, SRaftStore *pObj) {
-  char serialized[RAFT_STORE_BLOCK_SIZE];
-  raftStoreSerialize(pObj, serialized, sizeof(serialized));
+  char *serialized = raftStore2Str(pObj);
   printf("raftStorePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
+  free(serialized);
 }
 void raftStoreLog(SRaftStore *pObj) {
-  char serialized[RAFT_STORE_BLOCK_SIZE];
-  raftStoreSerialize(pObj, serialized, sizeof(serialized));
+  char *serialized = raftStore2Str(pObj);
   sTrace("raftStoreLog | len:%lu | %s", strlen(serialized), serialized);
-  fflush(NULL);
+  free(serialized);
 }
 
 void raftStoreLog2(char *s, SRaftStore *pObj) {
-  char serialized[RAFT_STORE_BLOCK_SIZE];
-  raftStoreSerialize(pObj, serialized, sizeof(serialized));
+  char *serialized = raftStore2Str(pObj);
   sTrace("raftStoreLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  fflush(NULL);
+  free(serialized);
 }

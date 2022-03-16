@@ -355,128 +355,129 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
   char   u64buf[128];
   cJSON* pRoot = cJSON_CreateObject();
 
-  // init by SSyncInfo
-  cJSON_AddNumberToObject(pRoot, "vgId", pSyncNode->vgId);
-  cJSON_AddStringToObject(pRoot, "path", pSyncNode->path);
-  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pWal);
-  cJSON_AddStringToObject(pRoot, "pWal", u64buf);
+  if (pSyncNode != NULL) {
+    // init by SSyncInfo
+    cJSON_AddNumberToObject(pRoot, "vgId", pSyncNode->vgId);
+    cJSON_AddStringToObject(pRoot, "path", pSyncNode->path);
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pWal);
+    cJSON_AddStringToObject(pRoot, "pWal", u64buf);
 
-  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->rpcClient);
-  cJSON_AddStringToObject(pRoot, "rpcClient", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpSendMsg);
-  cJSON_AddStringToObject(pRoot, "FpSendMsg", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->rpcClient);
+    cJSON_AddStringToObject(pRoot, "rpcClient", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpSendMsg);
+    cJSON_AddStringToObject(pRoot, "FpSendMsg", u64buf);
 
-  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->queue);
-  cJSON_AddStringToObject(pRoot, "queue", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpEqMsg);
-  cJSON_AddStringToObject(pRoot, "FpEqMsg", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->queue);
+    cJSON_AddStringToObject(pRoot, "queue", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpEqMsg);
+    cJSON_AddStringToObject(pRoot, "FpEqMsg", u64buf);
 
-  // init internal
-  cJSON* pMe = syncUtilNodeInfo2Json(&pSyncNode->myNodeInfo);
-  cJSON_AddItemToObject(pRoot, "myNodeInfo", pMe);
-  cJSON* pRaftId = syncUtilRaftId2Json(&pSyncNode->myRaftId);
-  cJSON_AddItemToObject(pRoot, "myRaftId", pRaftId);
+    // init internal
+    cJSON* pMe = syncUtilNodeInfo2Json(&pSyncNode->myNodeInfo);
+    cJSON_AddItemToObject(pRoot, "myNodeInfo", pMe);
+    cJSON* pRaftId = syncUtilRaftId2Json(&pSyncNode->myRaftId);
+    cJSON_AddItemToObject(pRoot, "myRaftId", pRaftId);
 
-  cJSON_AddNumberToObject(pRoot, "peersNum", pSyncNode->peersNum);
-  cJSON* pPeers = cJSON_CreateArray();
-  cJSON_AddItemToObject(pRoot, "peersNodeInfo", pPeers);
-  for (int i = 0; i < pSyncNode->peersNum; ++i) {
-    cJSON_AddItemToArray(pPeers, syncUtilNodeInfo2Json(&pSyncNode->peersNodeInfo[i]));
+    cJSON_AddNumberToObject(pRoot, "peersNum", pSyncNode->peersNum);
+    cJSON* pPeers = cJSON_CreateArray();
+    cJSON_AddItemToObject(pRoot, "peersNodeInfo", pPeers);
+    for (int i = 0; i < pSyncNode->peersNum; ++i) {
+      cJSON_AddItemToArray(pPeers, syncUtilNodeInfo2Json(&pSyncNode->peersNodeInfo[i]));
+    }
+    cJSON* pPeersId = cJSON_CreateArray();
+    cJSON_AddItemToObject(pRoot, "peersId", pPeersId);
+    for (int i = 0; i < pSyncNode->peersNum; ++i) {
+      cJSON_AddItemToArray(pPeersId, syncUtilRaftId2Json(&pSyncNode->peersId[i]));
+    }
+
+    cJSON_AddNumberToObject(pRoot, "replicaNum", pSyncNode->replicaNum);
+    cJSON* pReplicasId = cJSON_CreateArray();
+    cJSON_AddItemToObject(pRoot, "replicasId", pReplicasId);
+    for (int i = 0; i < pSyncNode->replicaNum; ++i) {
+      cJSON_AddItemToArray(pReplicasId, syncUtilRaftId2Json(&pSyncNode->replicasId[i]));
+    }
+
+    // raft algorithm
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pFsm);
+    cJSON_AddStringToObject(pRoot, "pFsm", u64buf);
+    cJSON_AddNumberToObject(pRoot, "quorum", pSyncNode->quorum);
+    cJSON* pLaderCache = syncUtilRaftId2Json(&pSyncNode->leaderCache);
+    cJSON_AddItemToObject(pRoot, "leaderCache", pLaderCache);
+
+    // tla+ server vars
+    cJSON_AddNumberToObject(pRoot, "state", pSyncNode->state);
+    cJSON_AddStringToObject(pRoot, "state_str", syncUtilState2String(pSyncNode->state));
+    cJSON* pRaftStore = raftStore2Json(pSyncNode->pRaftStore);
+    cJSON_AddItemToObject(pRoot, "pRaftStore", pRaftStore);
+
+    // tla+ candidate vars
+    cJSON_AddItemToObject(pRoot, "pVotesGranted", voteGranted2Json(pSyncNode->pVotesGranted));
+    cJSON_AddItemToObject(pRoot, "pVotesRespond", votesRespond2Json(pSyncNode->pVotesRespond));
+
+    // tla+ leader vars
+    cJSON_AddItemToObject(pRoot, "pNextIndex", syncIndexMgr2Json(pSyncNode->pNextIndex));
+    cJSON_AddItemToObject(pRoot, "pMatchIndex", syncIndexMgr2Json(pSyncNode->pMatchIndex));
+
+    // tla+ log vars
+    cJSON_AddItemToObject(pRoot, "pLogStore", logStore2Json(pSyncNode->pLogStore));
+    snprintf(u64buf, sizeof(u64buf), "%ld", pSyncNode->commitIndex);
+    cJSON_AddStringToObject(pRoot, "commitIndex", u64buf);
+
+    // ping timer
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pPingTimer);
+    cJSON_AddStringToObject(pRoot, "pPingTimer", u64buf);
+    cJSON_AddNumberToObject(pRoot, "pingTimerMS", pSyncNode->pingTimerMS);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->pingTimerLogicClock);
+    cJSON_AddStringToObject(pRoot, "pingTimerLogicClock", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->pingTimerLogicClockUser);
+    cJSON_AddStringToObject(pRoot, "pingTimerLogicClockUser", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpPingTimerCB);
+    cJSON_AddStringToObject(pRoot, "FpPingTimerCB", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->pingTimerCounter);
+    cJSON_AddStringToObject(pRoot, "pingTimerCounter", u64buf);
+
+    // elect timer
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pElectTimer);
+    cJSON_AddStringToObject(pRoot, "pElectTimer", u64buf);
+    cJSON_AddNumberToObject(pRoot, "electTimerMS", pSyncNode->electTimerMS);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->electTimerLogicClock);
+    cJSON_AddStringToObject(pRoot, "electTimerLogicClock", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->electTimerLogicClockUser);
+    cJSON_AddStringToObject(pRoot, "electTimerLogicClockUser", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpElectTimerCB);
+    cJSON_AddStringToObject(pRoot, "FpElectTimerCB", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->electTimerCounter);
+    cJSON_AddStringToObject(pRoot, "electTimerCounter", u64buf);
+
+    // heartbeat timer
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pHeartbeatTimer);
+    cJSON_AddStringToObject(pRoot, "pHeartbeatTimer", u64buf);
+    cJSON_AddNumberToObject(pRoot, "heartbeatTimerMS", pSyncNode->heartbeatTimerMS);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->heartbeatTimerLogicClock);
+    cJSON_AddStringToObject(pRoot, "heartbeatTimerLogicClock", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->heartbeatTimerLogicClockUser);
+    cJSON_AddStringToObject(pRoot, "heartbeatTimerLogicClockUser", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpHeartbeatTimerCB);
+    cJSON_AddStringToObject(pRoot, "FpHeartbeatTimerCB", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->heartbeatTimerCounter);
+    cJSON_AddStringToObject(pRoot, "heartbeatTimerCounter", u64buf);
+
+    // callback
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnPing);
+    cJSON_AddStringToObject(pRoot, "FpOnPing", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnPingReply);
+    cJSON_AddStringToObject(pRoot, "FpOnPingReply", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnRequestVote);
+    cJSON_AddStringToObject(pRoot, "FpOnRequestVote", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnRequestVoteReply);
+    cJSON_AddStringToObject(pRoot, "FpOnRequestVoteReply", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnAppendEntries);
+    cJSON_AddStringToObject(pRoot, "FpOnAppendEntries", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnAppendEntriesReply);
+    cJSON_AddStringToObject(pRoot, "FpOnAppendEntriesReply", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnTimeout);
+    cJSON_AddStringToObject(pRoot, "FpOnTimeout", u64buf);
   }
-  cJSON* pPeersId = cJSON_CreateArray();
-  cJSON_AddItemToObject(pRoot, "peersId", pPeersId);
-  for (int i = 0; i < pSyncNode->peersNum; ++i) {
-    cJSON_AddItemToArray(pPeersId, syncUtilRaftId2Json(&pSyncNode->peersId[i]));
-  }
-
-  cJSON_AddNumberToObject(pRoot, "replicaNum", pSyncNode->replicaNum);
-  cJSON* pReplicasId = cJSON_CreateArray();
-  cJSON_AddItemToObject(pRoot, "replicasId", pReplicasId);
-  for (int i = 0; i < pSyncNode->replicaNum; ++i) {
-    cJSON_AddItemToArray(pReplicasId, syncUtilRaftId2Json(&pSyncNode->replicasId[i]));
-  }
-
-  // raft algorithm
-  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pFsm);
-  cJSON_AddStringToObject(pRoot, "pFsm", u64buf);
-  cJSON_AddNumberToObject(pRoot, "quorum", pSyncNode->quorum);
-  cJSON* pLaderCache = syncUtilRaftId2Json(&pSyncNode->leaderCache);
-  cJSON_AddItemToObject(pRoot, "leaderCache", pLaderCache);
-
-  // tla+ server vars
-  cJSON_AddNumberToObject(pRoot, "state", pSyncNode->state);
-  cJSON_AddStringToObject(pRoot, "state_str", syncUtilState2String(pSyncNode->state));
-  char tmpBuf[RAFT_STORE_BLOCK_SIZE];
-  raftStoreSerialize(pSyncNode->pRaftStore, tmpBuf, sizeof(tmpBuf));
-  cJSON_AddStringToObject(pRoot, "pRaftStore", tmpBuf);
-
-  // tla+ candidate vars
-  cJSON_AddItemToObject(pRoot, "pVotesGranted", voteGranted2Json(pSyncNode->pVotesGranted));
-  cJSON_AddItemToObject(pRoot, "pVotesRespond", votesRespond2Json(pSyncNode->pVotesRespond));
-
-  // tla+ leader vars
-  cJSON_AddItemToObject(pRoot, "pNextIndex", syncIndexMgr2Json(pSyncNode->pNextIndex));
-  cJSON_AddItemToObject(pRoot, "pMatchIndex", syncIndexMgr2Json(pSyncNode->pMatchIndex));
-
-  // tla+ log vars
-  cJSON_AddItemToObject(pRoot, "pLogStore", logStore2Json(pSyncNode->pLogStore));
-  snprintf(u64buf, sizeof(u64buf), "%ld", pSyncNode->commitIndex);
-  cJSON_AddStringToObject(pRoot, "commitIndex", u64buf);
-
-  // ping timer
-  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pPingTimer);
-  cJSON_AddStringToObject(pRoot, "pPingTimer", u64buf);
-  cJSON_AddNumberToObject(pRoot, "pingTimerMS", pSyncNode->pingTimerMS);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->pingTimerLogicClock);
-  cJSON_AddStringToObject(pRoot, "pingTimerLogicClock", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->pingTimerLogicClockUser);
-  cJSON_AddStringToObject(pRoot, "pingTimerLogicClockUser", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpPingTimerCB);
-  cJSON_AddStringToObject(pRoot, "FpPingTimerCB", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->pingTimerCounter);
-  cJSON_AddStringToObject(pRoot, "pingTimerCounter", u64buf);
-
-  // elect timer
-  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pElectTimer);
-  cJSON_AddStringToObject(pRoot, "pElectTimer", u64buf);
-  cJSON_AddNumberToObject(pRoot, "electTimerMS", pSyncNode->electTimerMS);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->electTimerLogicClock);
-  cJSON_AddStringToObject(pRoot, "electTimerLogicClock", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->electTimerLogicClockUser);
-  cJSON_AddStringToObject(pRoot, "electTimerLogicClockUser", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpElectTimerCB);
-  cJSON_AddStringToObject(pRoot, "FpElectTimerCB", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->electTimerCounter);
-  cJSON_AddStringToObject(pRoot, "electTimerCounter", u64buf);
-
-  // heartbeat timer
-  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pHeartbeatTimer);
-  cJSON_AddStringToObject(pRoot, "pHeartbeatTimer", u64buf);
-  cJSON_AddNumberToObject(pRoot, "heartbeatTimerMS", pSyncNode->heartbeatTimerMS);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->heartbeatTimerLogicClock);
-  cJSON_AddStringToObject(pRoot, "heartbeatTimerLogicClock", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->heartbeatTimerLogicClockUser);
-  cJSON_AddStringToObject(pRoot, "heartbeatTimerLogicClockUser", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpHeartbeatTimerCB);
-  cJSON_AddStringToObject(pRoot, "FpHeartbeatTimerCB", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pSyncNode->heartbeatTimerCounter);
-  cJSON_AddStringToObject(pRoot, "heartbeatTimerCounter", u64buf);
-
-  // callback
-  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnPing);
-  cJSON_AddStringToObject(pRoot, "FpOnPing", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnPingReply);
-  cJSON_AddStringToObject(pRoot, "FpOnPingReply", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnRequestVote);
-  cJSON_AddStringToObject(pRoot, "FpOnRequestVote", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnRequestVoteReply);
-  cJSON_AddStringToObject(pRoot, "FpOnRequestVoteReply", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnAppendEntries);
-  cJSON_AddStringToObject(pRoot, "FpOnAppendEntries", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnAppendEntriesReply);
-  cJSON_AddStringToObject(pRoot, "FpOnAppendEntriesReply", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnTimeout);
-  cJSON_AddStringToObject(pRoot, "FpOnTimeout", u64buf);
 
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SSyncNode", pRoot);

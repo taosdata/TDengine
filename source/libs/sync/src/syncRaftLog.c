@@ -122,26 +122,28 @@ SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore) {
 }
 
 cJSON* logStore2Json(SSyncLogStore* pLogStore) {
-  char u64buf[128];
-
+  char               u64buf[128];
   SSyncLogStoreData* pData = (SSyncLogStoreData*)pLogStore->data;
   cJSON*             pRoot = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%p", pData->pSyncNode);
-  cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%p", pData->pWal);
-  cJSON_AddStringToObject(pRoot, "pWal", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%ld", logStoreLastIndex(pLogStore));
-  cJSON_AddStringToObject(pRoot, "LastIndex", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%lu", logStoreLastTerm(pLogStore));
-  cJSON_AddStringToObject(pRoot, "LastTerm", u64buf);
 
-  cJSON* pEntries = cJSON_CreateArray();
-  cJSON_AddItemToObject(pRoot, "pEntries", pEntries);
-  SyncIndex lastIndex = logStoreLastIndex(pLogStore);
-  for (SyncIndex i = 0; i <= lastIndex; ++i) {
-    SSyncRaftEntry* pEntry = logStoreGetEntry(pLogStore, i);
-    cJSON_AddItemToArray(pEntries, syncEntry2Json(pEntry));
-    syncEntryDestory(pEntry);
+  if (pData != NULL && pData->pWal != NULL) {
+    snprintf(u64buf, sizeof(u64buf), "%p", pData->pSyncNode);
+    cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%p", pData->pWal);
+    cJSON_AddStringToObject(pRoot, "pWal", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%ld", logStoreLastIndex(pLogStore));
+    cJSON_AddStringToObject(pRoot, "LastIndex", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%lu", logStoreLastTerm(pLogStore));
+    cJSON_AddStringToObject(pRoot, "LastTerm", u64buf);
+
+    cJSON* pEntries = cJSON_CreateArray();
+    cJSON_AddItemToObject(pRoot, "pEntries", pEntries);
+    SyncIndex lastIndex = logStoreLastIndex(pLogStore);
+    for (SyncIndex i = 0; i <= lastIndex; ++i) {
+      SSyncRaftEntry* pEntry = logStoreGetEntry(pLogStore, i);
+      cJSON_AddItemToArray(pEntries, syncEntry2Json(pEntry));
+      syncEntryDestory(pEntry);
+    }
   }
 
   cJSON* pJson = cJSON_CreateObject();

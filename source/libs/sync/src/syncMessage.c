@@ -212,17 +212,19 @@ SyncTimeout* syncTimeoutFromRpcMsg2(const SRpcMsg* pRpcMsg) {
 }
 
 cJSON* syncTimeout2Json(const SyncTimeout* pMsg) {
-  char u64buf[128];
-
+  char   u64buf[128];
   cJSON* pRoot = cJSON_CreateObject();
-  cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
-  cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
-  cJSON_AddNumberToObject(pRoot, "timeoutType", pMsg->timeoutType);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->logicClock);
-  cJSON_AddStringToObject(pRoot, "logicClock", u64buf);
-  cJSON_AddNumberToObject(pRoot, "timerMS", pMsg->timerMS);
-  snprintf(u64buf, sizeof(u64buf), "%p", pMsg->data);
-  cJSON_AddStringToObject(pRoot, "data", u64buf);
+
+  if (pMsg != NULL) {
+    cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
+    cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
+    cJSON_AddNumberToObject(pRoot, "timeoutType", pMsg->timeoutType);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->logicClock);
+    cJSON_AddStringToObject(pRoot, "logicClock", u64buf);
+    cJSON_AddNumberToObject(pRoot, "timerMS", pMsg->timerMS);
+    snprintf(u64buf, sizeof(u64buf), "%p", pMsg->data);
+    cJSON_AddStringToObject(pRoot, "data", u64buf);
+  }
 
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SyncTimeout", pRoot);
@@ -342,50 +344,52 @@ SyncPing* syncPingFromRpcMsg2(const SRpcMsg* pRpcMsg) {
 }
 
 cJSON* syncPing2Json(const SyncPing* pMsg) {
-  char u64buf[128];
-
+  char   u64buf[128];
   cJSON* pRoot = cJSON_CreateObject();
-  cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
-  cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
 
-  cJSON* pSrcId = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->srcId.addr);
-  cJSON_AddStringToObject(pSrcId, "addr", u64buf);
-  {
-    uint64_t u64 = pMsg->srcId.addr;
-    cJSON*   pTmp = pSrcId;
-    char     host[128];
-    uint16_t port;
-    syncUtilU642Addr(u64, host, sizeof(host), &port);
-    cJSON_AddStringToObject(pTmp, "addr_host", host);
-    cJSON_AddNumberToObject(pTmp, "addr_port", port);
+  if (pMsg != NULL) {
+    cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
+    cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
+
+    cJSON* pSrcId = cJSON_CreateObject();
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->srcId.addr);
+    cJSON_AddStringToObject(pSrcId, "addr", u64buf);
+    {
+      uint64_t u64 = pMsg->srcId.addr;
+      cJSON*   pTmp = pSrcId;
+      char     host[128];
+      uint16_t port;
+      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      cJSON_AddStringToObject(pTmp, "addr_host", host);
+      cJSON_AddNumberToObject(pTmp, "addr_port", port);
+    }
+    cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
+    cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
+
+    cJSON* pDestId = cJSON_CreateObject();
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->destId.addr);
+    cJSON_AddStringToObject(pDestId, "addr", u64buf);
+    {
+      uint64_t u64 = pMsg->destId.addr;
+      cJSON*   pTmp = pDestId;
+      char     host[128];
+      uint16_t port;
+      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      cJSON_AddStringToObject(pTmp, "addr_host", host);
+      cJSON_AddNumberToObject(pTmp, "addr_port", port);
+    }
+    cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
+    cJSON_AddItemToObject(pRoot, "destId", pDestId);
+
+    cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
+    char* s;
+    s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
+    cJSON_AddStringToObject(pRoot, "data", s);
+    free(s);
+    s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
+    cJSON_AddStringToObject(pRoot, "data2", s);
+    free(s);
   }
-  cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
-  cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
-
-  cJSON* pDestId = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->destId.addr);
-  cJSON_AddStringToObject(pDestId, "addr", u64buf);
-  {
-    uint64_t u64 = pMsg->destId.addr;
-    cJSON*   pTmp = pDestId;
-    char     host[128];
-    uint16_t port;
-    syncUtilU642Addr(u64, host, sizeof(host), &port);
-    cJSON_AddStringToObject(pTmp, "addr_host", host);
-    cJSON_AddNumberToObject(pTmp, "addr_port", port);
-  }
-  cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
-  cJSON_AddItemToObject(pRoot, "destId", pDestId);
-
-  cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
-  char* s;
-  s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
-  cJSON_AddStringToObject(pRoot, "data", s);
-  free(s);
-  s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
-  cJSON_AddStringToObject(pRoot, "data2", s);
-  free(s);
 
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SyncPing", pRoot);
@@ -505,50 +509,52 @@ SyncPingReply* syncPingReplyFromRpcMsg2(const SRpcMsg* pRpcMsg) {
 }
 
 cJSON* syncPingReply2Json(const SyncPingReply* pMsg) {
-  char u64buf[128];
-
+  char   u64buf[128];
   cJSON* pRoot = cJSON_CreateObject();
-  cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
-  cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
 
-  cJSON* pSrcId = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->srcId.addr);
-  cJSON_AddStringToObject(pSrcId, "addr", u64buf);
-  {
-    uint64_t u64 = pMsg->srcId.addr;
-    cJSON*   pTmp = pSrcId;
-    char     host[128];
-    uint16_t port;
-    syncUtilU642Addr(u64, host, sizeof(host), &port);
-    cJSON_AddStringToObject(pTmp, "addr_host", host);
-    cJSON_AddNumberToObject(pTmp, "addr_port", port);
+  if (pMsg != NULL) {
+    cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
+    cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
+
+    cJSON* pSrcId = cJSON_CreateObject();
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->srcId.addr);
+    cJSON_AddStringToObject(pSrcId, "addr", u64buf);
+    {
+      uint64_t u64 = pMsg->srcId.addr;
+      cJSON*   pTmp = pSrcId;
+      char     host[128];
+      uint16_t port;
+      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      cJSON_AddStringToObject(pTmp, "addr_host", host);
+      cJSON_AddNumberToObject(pTmp, "addr_port", port);
+    }
+    cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
+    cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
+
+    cJSON* pDestId = cJSON_CreateObject();
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->destId.addr);
+    cJSON_AddStringToObject(pDestId, "addr", u64buf);
+    {
+      uint64_t u64 = pMsg->destId.addr;
+      cJSON*   pTmp = pDestId;
+      char     host[128];
+      uint16_t port;
+      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      cJSON_AddStringToObject(pTmp, "addr_host", host);
+      cJSON_AddNumberToObject(pTmp, "addr_port", port);
+    }
+    cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
+    cJSON_AddItemToObject(pRoot, "destId", pDestId);
+
+    cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
+    char* s;
+    s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
+    cJSON_AddStringToObject(pRoot, "data", s);
+    free(s);
+    s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
+    cJSON_AddStringToObject(pRoot, "data2", s);
+    free(s);
   }
-  cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
-  cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
-
-  cJSON* pDestId = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->destId.addr);
-  cJSON_AddStringToObject(pDestId, "addr", u64buf);
-  {
-    uint64_t u64 = pMsg->destId.addr;
-    cJSON*   pTmp = pDestId;
-    char     host[128];
-    uint16_t port;
-    syncUtilU642Addr(u64, host, sizeof(host), &port);
-    cJSON_AddStringToObject(pTmp, "addr_host", host);
-    cJSON_AddNumberToObject(pTmp, "addr_port", port);
-  }
-  cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
-  cJSON_AddItemToObject(pRoot, "destId", pDestId);
-
-  cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
-  char* s;
-  s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
-  cJSON_AddStringToObject(pRoot, "data", s);
-  free(s);
-  s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
-  cJSON_AddStringToObject(pRoot, "data2", s);
-  free(s);
 
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SyncPingReply", pRoot);
@@ -664,24 +670,26 @@ SyncClientRequest* syncClientRequestFromRpcMsg2(const SRpcMsg* pRpcMsg) {
 }
 
 cJSON* syncClientRequest2Json(const SyncClientRequest* pMsg) {
-  char u64buf[128];
-
+  char   u64buf[128];
   cJSON* pRoot = cJSON_CreateObject();
-  cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
-  cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
-  cJSON_AddNumberToObject(pRoot, "originalRpcType", pMsg->originalRpcType);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->seqNum);
-  cJSON_AddStringToObject(pRoot, "seqNum", u64buf);
-  cJSON_AddNumberToObject(pRoot, "isWeak", pMsg->isWeak);
-  cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
 
-  char* s;
-  s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
-  cJSON_AddStringToObject(pRoot, "data", s);
-  free(s);
-  s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
-  cJSON_AddStringToObject(pRoot, "data2", s);
-  free(s);
+  if (pMsg != NULL) {
+    cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
+    cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
+    cJSON_AddNumberToObject(pRoot, "originalRpcType", pMsg->originalRpcType);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->seqNum);
+    cJSON_AddStringToObject(pRoot, "seqNum", u64buf);
+    cJSON_AddNumberToObject(pRoot, "isWeak", pMsg->isWeak);
+    cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
+
+    char* s;
+    s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
+    cJSON_AddStringToObject(pRoot, "data", s);
+    free(s);
+    s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
+    cJSON_AddStringToObject(pRoot, "data2", s);
+    free(s);
+  }
 
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SyncClientRequest", pRoot);
@@ -785,47 +793,49 @@ SyncRequestVote* syncRequestVoteFromRpcMsg2(const SRpcMsg* pRpcMsg) {
 }
 
 cJSON* syncRequestVote2Json(const SyncRequestVote* pMsg) {
-  char u64buf[128];
-
+  char   u64buf[128];
   cJSON* pRoot = cJSON_CreateObject();
-  cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
-  cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
 
-  cJSON* pSrcId = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->srcId.addr);
-  cJSON_AddStringToObject(pSrcId, "addr", u64buf);
-  {
-    uint64_t u64 = pMsg->srcId.addr;
-    cJSON*   pTmp = pSrcId;
-    char     host[128];
-    uint16_t port;
-    syncUtilU642Addr(u64, host, sizeof(host), &port);
-    cJSON_AddStringToObject(pTmp, "addr_host", host);
-    cJSON_AddNumberToObject(pTmp, "addr_port", port);
+  if (pMsg != NULL) {
+    cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
+    cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
+
+    cJSON* pSrcId = cJSON_CreateObject();
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->srcId.addr);
+    cJSON_AddStringToObject(pSrcId, "addr", u64buf);
+    {
+      uint64_t u64 = pMsg->srcId.addr;
+      cJSON*   pTmp = pSrcId;
+      char     host[128];
+      uint16_t port;
+      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      cJSON_AddStringToObject(pTmp, "addr_host", host);
+      cJSON_AddNumberToObject(pTmp, "addr_port", port);
+    }
+    cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
+    cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
+
+    cJSON* pDestId = cJSON_CreateObject();
+    cJSON_AddNumberToObject(pDestId, "addr", pMsg->destId.addr);
+    {
+      uint64_t u64 = pMsg->destId.addr;
+      cJSON*   pTmp = pDestId;
+      char     host[128];
+      uint16_t port;
+      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      cJSON_AddStringToObject(pTmp, "addr_host", host);
+      cJSON_AddNumberToObject(pTmp, "addr_port", port);
+    }
+    cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
+    cJSON_AddItemToObject(pRoot, "destId", pDestId);
+
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
+    cJSON_AddStringToObject(pRoot, "term", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->lastLogIndex);
+    cJSON_AddStringToObject(pRoot, "lastLogIndex", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->lastLogTerm);
+    cJSON_AddStringToObject(pRoot, "lastLogTerm", u64buf);
   }
-  cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
-  cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
-
-  cJSON* pDestId = cJSON_CreateObject();
-  cJSON_AddNumberToObject(pDestId, "addr", pMsg->destId.addr);
-  {
-    uint64_t u64 = pMsg->destId.addr;
-    cJSON*   pTmp = pDestId;
-    char     host[128];
-    uint16_t port;
-    syncUtilU642Addr(u64, host, sizeof(host), &port);
-    cJSON_AddStringToObject(pTmp, "addr_host", host);
-    cJSON_AddNumberToObject(pTmp, "addr_port", port);
-  }
-  cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
-  cJSON_AddItemToObject(pRoot, "destId", pDestId);
-
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
-  cJSON_AddStringToObject(pRoot, "term", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->lastLogIndex);
-  cJSON_AddStringToObject(pRoot, "lastLogIndex", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->lastLogTerm);
-  cJSON_AddStringToObject(pRoot, "lastLogTerm", u64buf);
 
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SyncRequestVote", pRoot);
@@ -929,44 +939,46 @@ SyncRequestVoteReply* syncRequestVoteReplyFromRpcMsg2(const SRpcMsg* pRpcMsg) {
 }
 
 cJSON* syncRequestVoteReply2Json(const SyncRequestVoteReply* pMsg) {
-  char u64buf[128];
-
+  char   u64buf[128];
   cJSON* pRoot = cJSON_CreateObject();
-  cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
-  cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
 
-  cJSON* pSrcId = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->srcId.addr);
-  cJSON_AddStringToObject(pSrcId, "addr", u64buf);
-  {
-    uint64_t u64 = pMsg->srcId.addr;
-    cJSON*   pTmp = pSrcId;
-    char     host[128];
-    uint16_t port;
-    syncUtilU642Addr(u64, host, sizeof(host), &port);
-    cJSON_AddStringToObject(pTmp, "addr_host", host);
-    cJSON_AddNumberToObject(pTmp, "addr_port", port);
+  if (pMsg != NULL) {
+    cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
+    cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
+
+    cJSON* pSrcId = cJSON_CreateObject();
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->srcId.addr);
+    cJSON_AddStringToObject(pSrcId, "addr", u64buf);
+    {
+      uint64_t u64 = pMsg->srcId.addr;
+      cJSON*   pTmp = pSrcId;
+      char     host[128];
+      uint16_t port;
+      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      cJSON_AddStringToObject(pTmp, "addr_host", host);
+      cJSON_AddNumberToObject(pTmp, "addr_port", port);
+    }
+    cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
+    cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
+
+    cJSON* pDestId = cJSON_CreateObject();
+    cJSON_AddNumberToObject(pDestId, "addr", pMsg->destId.addr);
+    {
+      uint64_t u64 = pMsg->destId.addr;
+      cJSON*   pTmp = pDestId;
+      char     host[128];
+      uint16_t port;
+      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      cJSON_AddStringToObject(pTmp, "addr_host", host);
+      cJSON_AddNumberToObject(pTmp, "addr_port", port);
+    }
+    cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
+    cJSON_AddItemToObject(pRoot, "destId", pDestId);
+
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
+    cJSON_AddStringToObject(pRoot, "term", u64buf);
+    cJSON_AddNumberToObject(pRoot, "vote_granted", pMsg->voteGranted);
   }
-  cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
-  cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
-
-  cJSON* pDestId = cJSON_CreateObject();
-  cJSON_AddNumberToObject(pDestId, "addr", pMsg->destId.addr);
-  {
-    uint64_t u64 = pMsg->destId.addr;
-    cJSON*   pTmp = pDestId;
-    char     host[128];
-    uint16_t port;
-    syncUtilU642Addr(u64, host, sizeof(host), &port);
-    cJSON_AddStringToObject(pTmp, "addr_host", host);
-    cJSON_AddNumberToObject(pTmp, "addr_port", port);
-  }
-  cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
-  cJSON_AddItemToObject(pRoot, "destId", pDestId);
-
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
-  cJSON_AddStringToObject(pRoot, "term", u64buf);
-  cJSON_AddNumberToObject(pRoot, "vote_granted", pMsg->voteGranted);
 
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SyncRequestVoteReply", pRoot);
@@ -1072,62 +1084,64 @@ SyncAppendEntries* syncAppendEntriesFromRpcMsg2(const SRpcMsg* pRpcMsg) {
 }
 
 cJSON* syncAppendEntries2Json(const SyncAppendEntries* pMsg) {
-  char u64buf[128];
-
+  char   u64buf[128];
   cJSON* pRoot = cJSON_CreateObject();
-  cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
-  cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
 
-  cJSON* pSrcId = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->srcId.addr);
-  cJSON_AddStringToObject(pSrcId, "addr", u64buf);
-  {
-    uint64_t u64 = pMsg->srcId.addr;
-    cJSON*   pTmp = pSrcId;
-    char     host[128];
-    uint16_t port;
-    syncUtilU642Addr(u64, host, sizeof(host), &port);
-    cJSON_AddStringToObject(pTmp, "addr_host", host);
-    cJSON_AddNumberToObject(pTmp, "addr_port", port);
+  if (pMsg != NULL) {
+    cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
+    cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
+
+    cJSON* pSrcId = cJSON_CreateObject();
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->srcId.addr);
+    cJSON_AddStringToObject(pSrcId, "addr", u64buf);
+    {
+      uint64_t u64 = pMsg->srcId.addr;
+      cJSON*   pTmp = pSrcId;
+      char     host[128];
+      uint16_t port;
+      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      cJSON_AddStringToObject(pTmp, "addr_host", host);
+      cJSON_AddNumberToObject(pTmp, "addr_port", port);
+    }
+    cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
+    cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
+
+    cJSON* pDestId = cJSON_CreateObject();
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->destId.addr);
+    cJSON_AddStringToObject(pDestId, "addr", u64buf);
+    {
+      uint64_t u64 = pMsg->destId.addr;
+      cJSON*   pTmp = pDestId;
+      char     host[128];
+      uint16_t port;
+      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      cJSON_AddStringToObject(pTmp, "addr_host", host);
+      cJSON_AddNumberToObject(pTmp, "addr_port", port);
+    }
+    cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
+    cJSON_AddItemToObject(pRoot, "destId", pDestId);
+
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
+    cJSON_AddStringToObject(pRoot, "term", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->prevLogIndex);
+    cJSON_AddStringToObject(pRoot, "pre_log_index", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->prevLogTerm);
+    cJSON_AddStringToObject(pRoot, "pre_log_term", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->commitIndex);
+    cJSON_AddStringToObject(pRoot, "commit_index", u64buf);
+
+    cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
+    char* s;
+    s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
+    cJSON_AddStringToObject(pRoot, "data", s);
+    free(s);
+    s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
+    cJSON_AddStringToObject(pRoot, "data2", s);
+    free(s);
   }
-  cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
-  cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
-
-  cJSON* pDestId = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->destId.addr);
-  cJSON_AddStringToObject(pDestId, "addr", u64buf);
-  {
-    uint64_t u64 = pMsg->destId.addr;
-    cJSON*   pTmp = pDestId;
-    char     host[128];
-    uint16_t port;
-    syncUtilU642Addr(u64, host, sizeof(host), &port);
-    cJSON_AddStringToObject(pTmp, "addr_host", host);
-    cJSON_AddNumberToObject(pTmp, "addr_port", port);
-  }
-  cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
-  cJSON_AddItemToObject(pRoot, "destId", pDestId);
-
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
-  cJSON_AddStringToObject(pRoot, "term", u64buf);
-
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->prevLogIndex);
-  cJSON_AddStringToObject(pRoot, "pre_log_index", u64buf);
-
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->prevLogTerm);
-  cJSON_AddStringToObject(pRoot, "pre_log_term", u64buf);
-
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->commitIndex);
-  cJSON_AddStringToObject(pRoot, "commit_index", u64buf);
-
-  cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
-  char* s;
-  s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
-  cJSON_AddStringToObject(pRoot, "data", s);
-  free(s);
-  s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
-  cJSON_AddStringToObject(pRoot, "data2", s);
-  free(s);
 
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SyncAppendEntries", pRoot);
@@ -1231,47 +1245,49 @@ SyncAppendEntriesReply* syncAppendEntriesReplyFromRpcMsg2(const SRpcMsg* pRpcMsg
 }
 
 cJSON* syncAppendEntriesReply2Json(const SyncAppendEntriesReply* pMsg) {
-  char u64buf[128];
-
+  char   u64buf[128];
   cJSON* pRoot = cJSON_CreateObject();
-  cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
-  cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
 
-  cJSON* pSrcId = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->srcId.addr);
-  cJSON_AddStringToObject(pSrcId, "addr", u64buf);
-  {
-    uint64_t u64 = pMsg->srcId.addr;
-    cJSON*   pTmp = pSrcId;
-    char     host[128];
-    uint16_t port;
-    syncUtilU642Addr(u64, host, sizeof(host), &port);
-    cJSON_AddStringToObject(pTmp, "addr_host", host);
-    cJSON_AddNumberToObject(pTmp, "addr_port", port);
+  if (pMsg != NULL) {
+    cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
+    cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
+
+    cJSON* pSrcId = cJSON_CreateObject();
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->srcId.addr);
+    cJSON_AddStringToObject(pSrcId, "addr", u64buf);
+    {
+      uint64_t u64 = pMsg->srcId.addr;
+      cJSON*   pTmp = pSrcId;
+      char     host[128];
+      uint16_t port;
+      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      cJSON_AddStringToObject(pTmp, "addr_host", host);
+      cJSON_AddNumberToObject(pTmp, "addr_port", port);
+    }
+    cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
+    cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
+
+    cJSON* pDestId = cJSON_CreateObject();
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->destId.addr);
+    cJSON_AddStringToObject(pDestId, "addr", u64buf);
+    {
+      uint64_t u64 = pMsg->destId.addr;
+      cJSON*   pTmp = pDestId;
+      char     host[128];
+      uint16_t port;
+      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      cJSON_AddStringToObject(pTmp, "addr_host", host);
+      cJSON_AddNumberToObject(pTmp, "addr_port", port);
+    }
+    cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
+    cJSON_AddItemToObject(pRoot, "destId", pDestId);
+
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
+    cJSON_AddStringToObject(pRoot, "term", u64buf);
+    cJSON_AddNumberToObject(pRoot, "success", pMsg->success);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->matchIndex);
+    cJSON_AddStringToObject(pRoot, "matchIndex", u64buf);
   }
-  cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
-  cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
-
-  cJSON* pDestId = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->destId.addr);
-  cJSON_AddStringToObject(pDestId, "addr", u64buf);
-  {
-    uint64_t u64 = pMsg->destId.addr;
-    cJSON*   pTmp = pDestId;
-    char     host[128];
-    uint16_t port;
-    syncUtilU642Addr(u64, host, sizeof(host), &port);
-    cJSON_AddStringToObject(pTmp, "addr_host", host);
-    cJSON_AddNumberToObject(pTmp, "addr_port", port);
-  }
-  cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
-  cJSON_AddItemToObject(pRoot, "destId", pDestId);
-
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
-  cJSON_AddStringToObject(pRoot, "term", u64buf);
-  cJSON_AddNumberToObject(pRoot, "success", pMsg->success);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->matchIndex);
-  cJSON_AddStringToObject(pRoot, "matchIndex", u64buf);
 
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SyncAppendEntriesReply", pRoot);
