@@ -1502,7 +1502,6 @@ static int32_t serializeVgroupTablesBatch(int32_t acctId, SVgroupTablesBatch* pT
   }
   ((SMsgHead*)buf)->vgId = htonl(pTbBatch->info.vgId);
   ((SMsgHead*)buf)->contLen = htonl(tlen);
-  sprintf(((SMsgHead*)buf)->dbFName, "%d.%s", acctId, pTbBatch->dbName);
   void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
   tSerializeSVCreateTbBatchReq(&pBuf, &(pTbBatch->req));
 
@@ -1879,4 +1878,8 @@ int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery) {
     code = translateQuery(&cxt, pQuery->pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = setQu
+    code = setQuery(&cxt, pQuery);
+  }
+  destroyTranslateContext(&cxt);
+  return code;
+}

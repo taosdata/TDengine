@@ -100,6 +100,7 @@ void qwtInitLogFile() {
 
   tsAsyncLog = 0;
   qDebugFlag = 159;
+  strcpy(tsLogDir, "/var/log/taos");
 
   if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
     printf("failed to open log file in directory:%s\n", tsLogDir);
@@ -262,7 +263,7 @@ void qwtRpcSendResponse(const SRpcMsg *pRsp) {
   return;
 }
 
-int32_t qwtCreateExecTask(void* tsdb, int32_t vgId, struct SSubplan* pPlan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, SQueryErrorInfo *errInfo) {
+int32_t qwtCreateExecTask(void* tsdb, int32_t vgId, struct SSubplan* pPlan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle) {
   int32_t idx = abs((++qwtTestCaseIdx) % qwtTestCaseNum);
 
   qwtTestSinkBlockNum = 0;
@@ -1363,4 +1364,4 @@ int main(int argc, char** argv) {
   return RUN_ALL_TESTS();
 }
 
-#
+#pragma GCC diagnostic pop
