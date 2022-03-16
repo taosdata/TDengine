@@ -148,9 +148,9 @@ int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *p
     idx = 0;
   } else {
     if (cret > 0) {
-      // TODO
+      idx = pCur->idx + 1;
     } else if (cret < 0) {
-      // TODO
+      idx = pCur->idx;
     } else {
       /* TODO */
       ASSERT(0);
@@ -178,6 +178,18 @@ int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *p
   ret = tdbPageInsertCell(pCur->pPage, idx, pCell, szCell);
   if (ret < 0) {
     return -1;
+  }
+
+  {
+#if 0
+  // If page is overflow, balance the tree
+  if (pCur->pPage->nOverflow > 0) {
+    ret = tdbBtreeBalance(pCur);
+    if (ret < 0) {
+      return -1;
+    }
+  }
+#endif
   }
 
   return 0;
@@ -260,6 +272,7 @@ static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen, int *p
       u8  leaf = TDB_BTREE_PAGE_IS_LEAF(flags);
       if (leaf) {
         pCur->idx = midx;
+        *pCRst = c;
         break;
       } else {
         if (c <= 0) {
