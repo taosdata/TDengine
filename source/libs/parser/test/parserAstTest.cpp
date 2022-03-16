@@ -340,6 +340,23 @@ TEST_F(ParserTest, createDatabase) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(ParserTest, alterDatabase) {
+  setDatabase("root", "test");
+
+  bind("alter database wxy_db BLOCKS 200");
+  ASSERT_TRUE(run());
+
+  bind("alter database wxy_db "
+       "BLOCKS 200 "
+       "CACHELAST 1 "
+       "FSYNC 200 "
+       "KEEP 200 "
+       "QUORUM 2 "
+       "WAL 1 "
+      );
+  ASSERT_TRUE(run());
+}
+
 TEST_F(ParserTest, showDatabase) {
   setDatabase("root", "test");
 
@@ -396,5 +413,59 @@ TEST_F(ParserTest, createTable) {
        "a9 SMALLINT UNSIGNED COMMENT 'test column comment', a10 TINYINT, a11 TINYINT UNSIGNED, a12 BOOL, a13 NCHAR(30), a14 JSON, a15 VARCHAR(50)) "
        "KEEP 100 TTL 100 COMMENT 'test create table' SMA(c1, c2, c3)"
       );
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, createSmaIndex) {
+  setDatabase("root", "test");
+
+  bind("create sma index index1 on t1 function(max(c1), min(c3 + 10), sum(c4)) INTERVAL(10s)");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, dropIndex) {
+  setDatabase("root", "test");
+
+  bind("drop index index1 on t1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, createQnode) {
+  setDatabase("root", "test");
+
+  bind("create qnode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, dropQnode) {
+  setDatabase("root", "test");
+
+  bind("drop qnode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, createTopic) {
+  setDatabase("root", "test");
+
+  bind("create topic tp1 as select * from t1");
+  ASSERT_TRUE(run());
+
+  bind("create topic if not exists tp1 as select * from t1");
+  ASSERT_TRUE(run());
+
+  bind("create topic tp1 as test");
+  ASSERT_TRUE(run());
+
+  bind("create topic if not exists tp1 as test");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, dropTopic) {
+  setDatabase("root", "test");
+
+  bind("drop topic tp1");
+  ASSERT_TRUE(run());
+
+  bind("drop topic if exists tp1");
   ASSERT_TRUE(run());
 }

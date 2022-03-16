@@ -106,6 +106,8 @@ static void uvStartSendRespInternal(SSrvMsg* smsg);
 static void uvPrepareSendData(SSrvMsg* msg, uv_buf_t* wb);
 static void uvStartSendResp(SSrvMsg* msg);
 
+static void uvNotifyLinkBrokenToApp(SSrvConn* conn);
+
 static void destroySmsg(SSrvMsg* smsg);
 // check whether already read complete packet
 static SSrvConn* createConn(void* hThrd);
@@ -212,7 +214,9 @@ static void uvHandleReq(SSrvConn* pConn) {
     // pHead = rpcDecompresSTransMsg(pHead);
   } else {
     pHead->msgLen = htonl(pHead->msgLen);
-    // impl later
+    if (pHead->secured == 1) {
+      pHead->msgLen -= sizeof(STransUserMsg);
+    }
     //
   }
 
@@ -233,7 +237,7 @@ static void uvHandleReq(SSrvConn* pConn) {
          ntohs(pConn->locaddr.sin_port), transMsg.contLen);
 
   STrans* pTransInst = (STrans*)p->shandle;
-  (*((STrans*)p->shandle)->cfp)(pTransInst->parent, &transMsg, NULL);
+  (*pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
   // uv_timer_start(&pConn->pTimer, uvHandleActivityTimeout, pRpc->idleTime * 10000, 0);
   // auth
   // validate msg type
@@ -261,13 +265,12 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   tError("server conn %p read error: %s", conn, uv_err_name(nread));
   if (nread < 0) {
     conn->broken = true;
-    transUnrefSrvHandle(conn);
+    uvNotifyLinkBrokenToApp(conn);
 
-    // if (conn->ref > 1) {
-    //  conn->ref++;  // ref > 1 signed that write is in progress
+    // STrans* pTransInst = conn->pTransInst;
+    // if (pTransInst->efp != NULL && (pTransInst->efp)(NULL, conn->inType)) {
     //}
-    // tError("server conn %p read error: %s", conn, uv_err_name(nread));
-    // destroyConn(conn, true);
+    transUnrefSrvHandle(conn);
   }
 }
 void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
@@ -289,11 +292,13 @@ void uvOnSendCb(uv_write_t* req, int status) {
     if (conn->srvMsgs != NULL) {
       assert(taosArrayGetSize(conn->srvMsgs) >= 1);
       SSrvMsg* msg = taosArrayGetP(conn->srvMsgs, 0);
+      tTrace("server conn %p sending msg size: %d", conn, (int)taosArrayGetSize(conn->srvMsgs));
       taosArrayRemove(conn->srvMsgs, 0);
       destroySmsg(msg);
 
       // send second data, just use for push
       if (taosArrayGetSize(conn->srvMsgs) > 0) {
+        tTrace("resent server conn %p sending msg size: %d", conn, (int)taosArrayGetSize(conn->srvMsgs));
         msg = (SSrvMsg*)taosArrayGetP(conn->srvMsgs, 0);
         uvStartSendRespInternal(msg);
       }
@@ -370,6 +375,17 @@ static void uvStartSendResp(SSrvMsg* smsg) {
   taosArrayPush(pConn->srvMsgs, &smsg);
   uvStartSendRespInternal(smsg);
   return;
+}
+
+static void uvNotifyLinkBrokenToApp(SSrvConn* conn) {
+  STrans* pTransInst = conn->pTransInst;
+  if (pTransInst->efp != NULL && (*pTransInst->efp)(NULL, conn->inType) && T_REF_VAL_GET(conn) >= 2) {
+    STransMsg transMsg = {0};
+    transMsg.msgType = conn->inType;
+    transMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+    // transRefSrvHandle(conn);
+    (*pTransInst->cfp)(pTransInst->parent, &transMsg, 0);
+  }
 }
 static void destroySmsg(SSrvMsg* smsg) {
   if (smsg == NULL) {
@@ -538,6 +554,8 @@ void* acceptThread(void* arg) {
   setThreadName("trans-accept");
   SServerObj* srv = (SServerObj*)arg;
   uv_run(srv->loop, UV_RUN_DEFAULT);
+
+  return NULL;
 }
 static bool addHandleToWorkloop(void* arg) {
   SWorkThrdObj* pThrd = arg;
@@ -593,6 +611,8 @@ void* workerThread(void* arg) {
   setThreadName("trans-worker");
   SWorkThrdObj* pThrd = (SWorkThrdObj*)arg;
   uv_run(pThrd->loop, UV_RUN_DEFAULT);
+
+  return NULL;
 }
 
 static SSrvConn* createConn(void* hThrd) {
@@ -639,7 +659,7 @@ static void uvDestroyConn(uv_handle_t* handle) {
   uv_timer_stop(&conn->pTimer);
   QUEUE_REMOVE(&conn->queue);
   free(conn->pTcp);
-  free(conn);
+  // free(conn);
 
   if (thrd->quit && QUEUE_IS_EMPTY(&thrd->conn)) {
     uv_loop_close(thrd->loop);
@@ -733,7 +753,7 @@ void destroyWorkThrd(SWorkThrdObj* pThrd) {
 }
 void sendQuitToWorkThrd(SWorkThrdObj* pThrd) {
   SSrvMsg* srvMsg = calloc(1, sizeof(SSrvMsg));
-  tDebug("send quit msg to work thread");
+  tDebug("server send quit msg to work thread");
 
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
 }
@@ -783,6 +803,11 @@ void transUnrefSrvHandle(void* handle) {
     destroyConn((SSrvConn*)handle, true);
   }
   // unref srv handle
+}
+
+void transReleaseSrvHandle(void* handle) {
+  // do nothing currently
+  //
 }
 void transSendResponse(const STransMsg* pMsg) {
   if (pMsg->handle == NULL) {

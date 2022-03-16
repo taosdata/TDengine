@@ -241,7 +241,7 @@ char* syncTimeout2Str(const SyncTimeout* pMsg) {
 // for debug ----------------------
 void syncTimeoutPrint(const SyncTimeout* pMsg) {
   char* serialized = syncTimeout2Str(pMsg);
-  printf("syncTimeoutPrint | len:%lu | %s \n", strlen(serialized), serialized);
+  printf("syncTimeoutPrint | len:%zu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   free(serialized);
 }
@@ -571,27 +571,27 @@ char* syncPingReply2Str(const SyncPingReply* pMsg) {
 // for debug ----------------------
 void syncPingReplyPrint(const SyncPingReply* pMsg) {
   char* serialized = syncPingReply2Str(pMsg);
-  printf("syncPingReplyPrint | len:%lu | %s \n", strlen(serialized), serialized);
+  printf("syncPingReplyPrint | len:%zu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncPingReplyPrint2(char* s, const SyncPingReply* pMsg) {
   char* serialized = syncPingReply2Str(pMsg);
-  printf("syncPingReplyPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncPingReplyPrint2 | len:%zu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncPingReplyLog(const SyncPingReply* pMsg) {
   char* serialized = syncPingReply2Str(pMsg);
-  sTrace("syncPingReplyLog | len:%lu | %s", strlen(serialized), serialized);
+  sTrace("syncPingReplyLog | len:%zu | %s", strlen(serialized), serialized);
   free(serialized);
 }
 
 void syncPingReplyLog2(char* s, const SyncPingReply* pMsg) {
   char* serialized = syncPingReply2Str(pMsg);
-  sTrace("syncPingReplyLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  sTrace("syncPingReplyLog2 | len:%zu | %s | %s", strlen(serialized), s, serialized);
   free(serialized);
 }
 

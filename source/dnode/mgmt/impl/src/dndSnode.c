@@ -166,7 +166,7 @@ static int32_t dndWriteSnodeFile(SDnode *pDnode) {
 static int32_t dndStartSnodeWorker(SDnode *pDnode) {
   SSnodeMgmt *pMgmt = &pDnode->smgmt;
   pMgmt->uniqueWorkers = taosArrayInit(0, sizeof(void *));
-  for (int32_t i = 0; i < 2; i++) {
+  for (int32_t i = 0; i < SND_UNIQUE_THREAD_NUM; i++) {
     SDnodeWorker *pUniqueWorker = malloc(sizeof(SDnodeWorker));
     if (pUniqueWorker == NULL) {
       return -1;
@@ -177,8 +177,8 @@ static int32_t dndStartSnodeWorker(SDnode *pDnode) {
     }
     taosArrayPush(pMgmt->uniqueWorkers, &pUniqueWorker);
   }
-  if (dndInitWorker(pDnode, &pMgmt->sharedWorker, DND_WORKER_SINGLE, "snode-shared", 4, 4,
-                    dndProcessSnodeSharedQueue)) {
+  if (dndInitWorker(pDnode, &pMgmt->sharedWorker, DND_WORKER_SINGLE, "snode-shared", SND_SHARED_THREAD_NUM,
+                    SND_SHARED_THREAD_NUM, dndProcessSnodeSharedQueue)) {
     dError("failed to start snode shared worker since %s", terrstr());
     return -1;
   }
@@ -323,8 +323,8 @@ int32_t dndProcessDropSnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 }
 
 static void dndProcessSnodeUniqueQueue(SDnode *pDnode, STaosQall *qall, int32_t numOfMsgs) {
-  SSnodeMgmt *pMgmt = &pDnode->smgmt;
-  int32_t     code = TSDB_CODE_DND_SNODE_NOT_DEPLOYED;
+  /*SSnodeMgmt *pMgmt = &pDnode->smgmt;*/
+  int32_t code = TSDB_CODE_DND_SNODE_NOT_DEPLOYED;
 
   SSnode *pSnode = dndAcquireSnode(pDnode);
   if (pSnode != NULL) {
@@ -337,19 +337,32 @@ static void dndProcessSnodeUniqueQueue(SDnode *pDnode, STaosQall *qall, int32_t 
       rpcFreeCont(pMsg->pCont);
       taosFreeQitem(pMsg);
     }
+    dndReleaseSnode(pDnode, pSnode);
+  } else {
+    for (int32_t i = 0; i < numOfMsgs; i++) {
+      SRpcMsg *pMsg = NULL;
+      taosGetQitem(qall, (void **)&pMsg);
+      SRpcMsg rpcRsp = {.handle = pMsg->handle, .ahandle = pMsg->ahandle, .code = code};
+      rpcSendResponse(&rpcRsp);
+
+      rpcFreeCont(pMsg->pCont);
+      taosFreeQitem(pMsg);
+    }
   }
-  dndReleaseSnode(pDnode, pSnode);
 }
 
 static void dndProcessSnodeSharedQueue(SDnode *pDnode, SRpcMsg *pMsg) {
-  SSnodeMgmt *pMgmt = &pDnode->smgmt;
-  int32_t     code = TSDB_CODE_DND_SNODE_NOT_DEPLOYED;
+  /*SSnodeMgmt *pMgmt = &pDnode->smgmt;*/
+  int32_t code = TSDB_CODE_DND_SNODE_NOT_DEPLOYED;
 
   SSnode *pSnode = dndAcquireSnode(pDnode);
   if (pSnode != NULL) {
-    code = sndProcessSMsg(pSnode, pMsg);
+    sndProcessSMsg(pSnode, pMsg);
+    dndReleaseSnode(pDnode, pSnode);
+  } else {
+    SRpcMsg rpcRsp = {.handle = pMsg->handle, .ahandle = pMsg->ahandle, .code = code};
+    rpcSendResponse(&rpcRsp);
   }
-  dndReleaseSnode(pDnode, pSnode);
 
 #if 0
   if (pMsg->msgType & 1u) {
@@ -369,13 +382,39 @@ static void dndProcessSnodeSharedQueue(SDnode *pDnode, SRpcMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
-static void dndWriteSnodeMsgToRandomWorker(SDnode *pDnode, SRpcMsg *pMsg) {
+static FORCE_INLINE int32_t dndGetSWIdFromMsg(SRpcMsg *pMsg) {
+  SMsgHead *pHead = pMsg->pCont;
+  pHead->streamTaskId = htonl(pHead->streamTaskId);
+  return pHead->streamTaskId % SND_UNIQUE_THREAD_NUM;
+}
+
+static void dndWriteSnodeMsgToWorkerByMsg(SDnode *pDnode, SRpcMsg *pMsg) {
   int32_t code = TSDB_CODE_DND_SNODE_NOT_DEPLOYED;
 
   SSnode *pSnode = dndAcquireSnode(pDnode);
   if (pSnode != NULL) {
-    int32_t       index = (pDnode->smgmt.uniqueWorkerInUse + 1) % taosArrayGetSize(pDnode->smgmt.uniqueWorkers);
-    SDnodeWorker *pWorker = taosArrayGet(pDnode->smgmt.uniqueWorkers, index);
+    int32_t       index = dndGetSWIdFromMsg(pMsg);
+    SDnodeWorker *pWorker = taosArrayGetP(pDnode->smgmt.uniqueWorkers, index);
+    code = dndWriteMsgToWorker(pWorker, pMsg, sizeof(SRpcMsg));
+  }
+
+  dndReleaseSnode(pDnode, pSnode);
+
+  if (code != 0) {
+    if (pMsg->msgType & 1u) {
+      SRpcMsg rsp = {.handle = pMsg->handle, .ahandle = pMsg->ahandle, .code = code};
+      rpcSendResponse(&rsp);
+    }
+    rpcFreeCont(pMsg->pCont);
+  }
+}
+
+static void dndWriteSnodeMsgToMgmtWorker(SDnode *pDnode, SRpcMsg *pMsg) {
+  int32_t code = TSDB_CODE_DND_SNODE_NOT_DEPLOYED;
+
+  SSnode *pSnode = dndAcquireSnode(pDnode);
+  if (pSnode != NULL) {
+    SDnodeWorker *pWorker = taosArrayGet(pDnode->smgmt.uniqueWorkers, 0);
     code = dndWriteMsgToWorker(pWorker, pMsg, sizeof(SRpcMsg));
   }
   dndReleaseSnode(pDnode, pSnode);
@@ -407,9 +446,12 @@ static void dndWriteSnodeMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpc
   }
 }
 
+void dndProcessSnodeMgmtMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  dndWriteSnodeMsgToMgmtWorker(pDnode, pMsg);
+}
+
 void dndProcessSnodeUniqueMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  // judge from msg to write to unique queue
-  dndWriteSnodeMsgToRandomWorker(pDnode, pMsg);
+  dndWriteSnodeMsgToWorkerByMsg(pDnode, pMsg);
 }
 
 void dndProcessSnodeSharedMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {

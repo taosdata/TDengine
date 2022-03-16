@@ -15,9 +15,15 @@
 
 #include "tsdbDef.h"
 
+static const char *TSDB_SMA_DNAME[] = {
+    "",      // TSDB_SMA_TYPE_BLOCK
+    "tsma",  // TSDB_SMA_TYPE_TIME_RANGE
+    "rsma",  // TSDB_SMA_TYPE_ROLLUP
+};
+
 #undef SMA_PRINT_DEBUG_LOG
 #define SMA_STORAGE_TSDB_DAYS   30
-#define SMA_STORAGE_TSDB_TIMES  30
+#define SMA_STORAGE_TSDB_TIMES  10
 #define SMA_STORAGE_SPLIT_HOURS 24
 #define SMA_KEY_LEN             18  // tableUid_colId_TSKEY 8+2+8
 
@@ -93,6 +99,11 @@ static int32_t tsdbGetTSmaDays(STsdb *pTsdb, int64_t interval, int32_t storageLe
 static int32_t tsdbSetTSmaDataFile(STSmaWriteH *pSmaH, STSmaDataWrapper *pData, int32_t storageLevel, int32_t fid);
 static int32_t tsdbInitTSmaFile(STSmaReadH *pSmaH, TSKEY skey);
 static bool    tsdbSetAndOpenTSmaFile(STSmaReadH *pReadH, TSKEY *queryKey);
+static void    tsdbGetSmaDir(int32_t vgId, ETsdbSmaType smaType, char dirName[]);
+
+static void tsdbGetSmaDir(int32_t vgId, ETsdbSmaType smaType, char dirName[]) {
+  snprintf(dirName, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/%s", vgId, TSDB_SMA_DNAME[smaType]);
+}
 
 static SSmaEnv *tsdbNewSmaEnv(const STsdb *pTsdb, const char *path) {
   SSmaEnv *pEnv = NULL;
@@ -136,7 +147,7 @@ static int32_t tsdbInitSmaEnv(STsdb *pTsdb, const char *path, SSmaEnv **pEnv) {
     return TSDB_CODE_FAILED;
   }
 
-  if (pEnv && *pEnv) {
+  if (*pEnv) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -144,7 +155,7 @@ static int32_t tsdbInitSmaEnv(STsdb *pTsdb, const char *path, SSmaEnv **pEnv) {
     return TSDB_CODE_FAILED;
   }
 
-  if (*pEnv == NULL) {
+  if (*pEnv == NULL) {  // 2nd phase check
     if ((*pEnv = tsdbNewSmaEnv(pTsdb, path)) == NULL) {
       tsdbUnlockRepo(pTsdb);
       return TSDB_CODE_FAILED;
@@ -152,7 +163,7 @@ static int32_t tsdbInitSmaEnv(STsdb *pTsdb, const char *path, SSmaEnv **pEnv) {
   }
 
   if (tsdbUnlockRepo(pTsdb) != 0) {
-    tsdbFreeSmaEnv(*pEnv);
+    *pEnv = tsdbFreeSmaEnv(*pEnv);
     return TSDB_CODE_FAILED;
   }
 
@@ -244,6 +255,39 @@ int32_t tsdbDestroySmaState(SSmaStat *pSmaStat) {
   }
 }
 
+static int32_t tsdbCheckAndInitSmaEnv(STsdb *pTsdb, int8_t smaType) {
+  switch (smaType) {
+    case TSDB_SMA_TYPE_TIME_RANGE:
+      if (pTsdb->pTSmaEnv) {
+        return TSDB_CODE_SUCCESS;
+      }
+      break;
+    case TSDB_SMA_TYPE_ROLLUP:
+      if (pTsdb->pRSmaEnv) {
+        return TSDB_CODE_SUCCESS;
+      }
+      break;
+    default:
+      terrno = TSDB_CODE_INVALID_PARA;
+      return TSDB_CODE_FAILED;
+  }
+
+  // SDiskID  did = {0};
+  SSmaEnv *pEnv = NULL;
+  char     smaPath[TSDB_FILENAME_LEN] = "/proj/.sma/";
+  if (tsdbInitSmaEnv(pTsdb, smaPath, &pEnv) != TSDB_CODE_SUCCESS) {
+    return TSDB_CODE_FAILED;
+  }
+
+  if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
+    pTsdb->pTSmaEnv = pEnv;
+  } else {
+    pTsdb->pRSmaEnv = pEnv;
+  }
+
+  return TSDB_CODE_SUCCESS;
+};
+
 /**
  * @brief Update expired window according to msg from stream computing module.
  *
@@ -253,26 +297,17 @@ int32_t tsdbDestroySmaState(SSmaStat *pSmaStat) {
  * @return int32_t
  */
 int32_t tsdbUpdateExpiredWindow(STsdb *pTsdb, int8_t smaType, char *msg) {
-  STsdbCfg *pCfg = REPO_CFG(pTsdb);
-  SSmaEnv * pEnv = NULL;
-
   if (!msg || !pTsdb->pMeta) {
     terrno = TSDB_CODE_INVALID_PTR;
     return TSDB_CODE_FAILED;
   }
 
-  char smaPath[TSDB_FILENAME_LEN] = "/proj/.sma/";
-  if (tsdbInitSmaEnv(pTsdb, smaPath, &pEnv) != TSDB_CODE_SUCCESS) {
+  if (tsdbCheckAndInitSmaEnv(pTsdb, smaType) != TSDB_CODE_SUCCESS) {
+    terrno = TSDB_CODE_TDB_INIT_FAILED;
     return TSDB_CODE_FAILED;
   }
 
-  if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
-    pTsdb->pTSmaEnv = pEnv;
-  } else if (smaType == TSDB_SMA_TYPE_ROLLUP) {
-    pTsdb->pRSmaEnv = pEnv;
-  } else {
-    ASSERT(0);
-  }
+  SSmaEnv *pEnv = REPO_SMA_ENV(pTsdb, smaType);
 
   // TODO: decode the msg => start
   int64_t indexUid = SMA_TEST_INDEX_UID;
@@ -308,7 +343,6 @@ int32_t tsdbUpdateExpiredWindow(STsdb *pTsdb, int8_t smaType, char *msg) {
     }
     pItem->pSma = pSma;
 
-    // TODO: change indexName to indexUid
     if (taosHashPut(pItemsHash, &indexUid, sizeof(indexUid), &pItem, sizeof(pItem)) != 0) {
       // If error occurs during put smaStatItem, free the resources of pItem
       taosHashCleanup(pItem->expiredWindows);
@@ -378,32 +412,32 @@ static int32_t tsdbResetExpiredWindow(SSmaStat *pStat, int64_t indexUid, TSKEY s
 static int32_t tsdbGetSmaStorageLevel(int64_t interval, int8_t intervalUnit) {
   // TODO: configurable for SMA_STORAGE_SPLIT_HOURS?
   switch (intervalUnit) {
-    case TD_TIME_UNIT_HOUR:
+    case TIME_UNIT_HOUR:
       if (interval < SMA_STORAGE_SPLIT_HOURS) {
         return SMA_STORAGE_LEVEL_DFILESET;
       }
       break;
-    case TD_TIME_UNIT_MINUTE:
+    case TIME_UNIT_MINUTE:
       if (interval < 60 * SMA_STORAGE_SPLIT_HOURS) {
         return SMA_STORAGE_LEVEL_DFILESET;
       }
       break;
-    case TD_TIME_UNIT_SEC:
+    case TIME_UNIT_SECOND:
       if (interval < 3600 * SMA_STORAGE_SPLIT_HOURS) {
         return SMA_STORAGE_LEVEL_DFILESET;
       }
       break;
-    case TD_TIME_UNIT_MILLISEC:
+    case TIME_UNIT_MILLISECOND:
       if (interval < 3600 * 1e3 * SMA_STORAGE_SPLIT_HOURS) {
         return SMA_STORAGE_LEVEL_DFILESET;
       }
       break;
-    case TD_TIME_UNIT_MICROSEC:
+    case TIME_UNIT_MICROSECOND:
       if (interval < 3600 * 1e6 * SMA_STORAGE_SPLIT_HOURS) {
         return SMA_STORAGE_LEVEL_DFILESET;
       }
       break;
-    case TD_TIME_UNIT_NANOSEC:
+    case TIME_UNIT_NANOSECOND:
       if (interval < 3600 * 1e9 * SMA_STORAGE_SPLIT_HOURS) {
         return SMA_STORAGE_LEVEL_DFILESET;
       }
@@ -429,8 +463,8 @@ static int32_t tsdbInsertTSmaBlocks(STSmaWriteH *pSmaH, void *smaKey, uint32_t k
 
   // TODO: insert sma data blocks into B+Tree
   tsdbDebug("vgId:%d insert sma data blocks into %s: smaKey %" PRIx64 "-%" PRIu16 "-%" PRIx64 ", dataLen %d",
-           REPO_ID(pSmaH->pTsdb), pDBFile->path, *(tb_uid_t *)smaKey, *(uint16_t *)POINTER_SHIFT(smaKey, 8),
-           *(int64_t *)POINTER_SHIFT(smaKey, 10), dataLen);
+            REPO_ID(pSmaH->pTsdb), pDBFile->path, *(tb_uid_t *)smaKey, *(uint16_t *)POINTER_SHIFT(smaKey, 8),
+            *(int64_t *)POINTER_SHIFT(smaKey, 10), dataLen);
 
   if (tsdbSaveSmaToDB(pDBFile, smaKey, keyLen, pData, dataLen) != 0) {
     return TSDB_CODE_FAILED;
@@ -447,66 +481,73 @@ static int32_t tsdbInsertTSmaBlocks(STSmaWriteH *pSmaH, void *smaKey, uint32_t k
   return TSDB_CODE_SUCCESS;
 }
 
+/**
+ * @brief Approximate value for week/month/year.
+ *
+ * @param interval
+ * @param intervalUnit
+ * @param precision
+ * @return int64_t
+ */
 static int64_t tsdbGetIntervalByPrecision(int64_t interval, uint8_t intervalUnit, int8_t precision) {
-  if (intervalUnit < TD_TIME_UNIT_MILLISEC) {
-    switch (intervalUnit) {
-      case TD_TIME_UNIT_YEAR:
-      case TD_TIME_UNIT_SEASON:
-      case TD_TIME_UNIT_MONTH:
-      case TD_TIME_UNIT_WEEK:
-        // illegal time unit
-        tsdbError("invalid interval unit: %d\n", intervalUnit);
-        TASSERT(0);
-        break;
-      case TD_TIME_UNIT_DAY:  // the interval for tSma calculation must <= day
-        interval *= 86400 * 1e3;
-        break;
-      case TD_TIME_UNIT_HOUR:
-        interval *= 3600 * 1e3;
-        break;
-      case TD_TIME_UNIT_MINUTE:
-        interval *= 60 * 1e3;
-        break;
-      case TD_TIME_UNIT_SEC:
-        interval *= 1e3;
-        break;
-      default:
-        break;
-    }
+  switch (intervalUnit) {
+    case TIME_UNIT_YEAR:  // approximate value
+      interval *= 365 * 86400 * 1e3;
+      break;
+    case TIME_UNIT_MONTH:  // approximate value
+      interval *= 30 * 86400 * 1e3;
+      break;
+    case TIME_UNIT_WEEK:  // approximate value
+      interval *= 7 * 86400 * 1e3;
+      break;
+    case TIME_UNIT_DAY:  // the interval for tSma calculation must <= day
+      interval *= 86400 * 1e3;
+      break;
+    case TIME_UNIT_HOUR:
+      interval *= 3600 * 1e3;
+      break;
+    case TIME_UNIT_MINUTE:
+      interval *= 60 * 1e3;
+      break;
+    case TIME_UNIT_SECOND:
+      interval *= 1e3;
+      break;
+    default:
+      break;
   }
 
   switch (precision) {
     case TSDB_TIME_PRECISION_MILLI:
-      if (TD_TIME_UNIT_MICROSEC == intervalUnit) {  // us
+      if (TIME_UNIT_MICROSECOND == intervalUnit) {  // us
         return interval / 1e3;
-      } else if (TD_TIME_UNIT_NANOSEC == intervalUnit) {  //  nano second
+      } else if (TIME_UNIT_NANOSECOND == intervalUnit) {  //  nano second
         return interval / 1e6;
       } else {
         return interval;
       }
       break;
     case TSDB_TIME_PRECISION_MICRO:
-      if (TD_TIME_UNIT_MICROSEC == intervalUnit) {  // us
+      if (TIME_UNIT_MICROSECOND == intervalUnit) {  // us
         return interval;
-      } else if (TD_TIME_UNIT_NANOSEC == intervalUnit) {  //  nano second
+      } else if (TIME_UNIT_NANOSECOND == intervalUnit) {  //  nano second
         return interval / 1e3;
       } else {
         return interval * 1e3;
       }
       break;
     case TSDB_TIME_PRECISION_NANO:
-      if (TD_TIME_UNIT_MICROSEC == intervalUnit) {
+      if (TIME_UNIT_MICROSECOND == intervalUnit) {
         return interval * 1e3;
-      } else if (TD_TIME_UNIT_NANOSEC == intervalUnit) {  // nano second
+      } else if (TIME_UNIT_NANOSECOND == intervalUnit) {  // nano second
         return interval;
       } else {
         return interval * 1e6;
       }
       break;
     default:                                        // ms
-      if (TD_TIME_UNIT_MICROSEC == intervalUnit) {  // us
+      if (TIME_UNIT_MICROSECOND == intervalUnit) {  // us
         return interval / 1e3;
-      } else if (TD_TIME_UNIT_NANOSEC == intervalUnit) {  //  nano second
+      } else if (TIME_UNIT_NANOSECOND == intervalUnit) {  //  nano second
         return interval / 1e6;
       } else {
         return interval;
@@ -800,10 +841,19 @@ static bool tsdbSetAndOpenTSmaFile(STSmaReadH *pReadH, TSKEY *queryKey) {
 static int32_t tsdbGetTSmaDataImpl(STsdb *pTsdb, STSmaDataWrapper *pData, int64_t indexUid, int64_t interval,
                                    int8_t intervalUnit, tb_uid_t tableUid, col_id_t colId, TSKEY querySkey,
                                    int32_t nMaxResult) {
+  if (!pTsdb->pTSmaEnv) {
+    terrno = TSDB_CODE_INVALID_PTR;
+    tsdbWarn("vgId:%d getTSmaDataImpl failed since pTSmaEnv is NULL", REPO_ID(pTsdb));
+    return TSDB_CODE_FAILED;
+  }
+
   SSmaStatItem *pItem = (SSmaStatItem *)taosHashGet(SMA_ENV_STAT_ITEMS(pTsdb->pTSmaEnv), &indexUid, sizeof(indexUid));
   if (pItem == NULL) {
-    // mark all window as expired and notify query module to query raw TS data.
-    return TSDB_CODE_SUCCESS;
+    // Normally pItem should not be NULL, mark all windows as expired and notify query module to fetch raw TS data if
+    // it's NULL.
+    terrno = TSDB_CODE_TDB_INVALID_ACTION;
+    tsdbWarn("vgId:%d getTSmaDataImpl failed since no index %" PRIi64 " in local cache", REPO_ID(pTsdb), indexUid);
+    return TSDB_CODE_FAILED;
   }
 
 #if 0
@@ -815,6 +865,7 @@ static int32_t tsdbGetTSmaDataImpl(STsdb *pTsdb, STSmaDataWrapper *pData, int64_
     }
   }
 #endif
+
 #if 0
   if (taosHashGet(pItem->expiredWindows, &querySkey, sizeof(TSKEY)) != NULL) {
     // TODO: mark this window as expired.
@@ -835,8 +886,8 @@ static int32_t tsdbGetTSmaDataImpl(STsdb *pTsdb, STSmaDataWrapper *pData, int64_
   tsdbEncodeTSmaKey(tableUid, colId, querySkey, (void **)&pSmaKey);
 
   tsdbDebug("vgId:%d get sma data from %s: smaKey %" PRIx64 "-%" PRIu16 "-%" PRIx64 ", keyLen %d", REPO_ID(pTsdb),
-           tReadH.dFile.path, *(tb_uid_t *)smaKey, *(uint16_t *)POINTER_SHIFT(smaKey, 8),
-           *(int64_t *)POINTER_SHIFT(smaKey, 10), SMA_KEY_LEN);
+            tReadH.dFile.path, *(tb_uid_t *)smaKey, *(uint16_t *)POINTER_SHIFT(smaKey, 8),
+            *(int64_t *)POINTER_SHIFT(smaKey, 10), SMA_KEY_LEN);
 
   void *   result = NULL;
   uint32_t valueSize = 0;
@@ -947,7 +998,6 @@ int32_t tsdbUpdateSmaWindow(STsdb *pTsdb, int8_t smaType, char *msg) {
  * @brief Insert Time-range-wise Rollup Sma(RSma) data
  *
  * @param pTsdb
- * @param param
  * @param msg
  * @return int32_t
  */

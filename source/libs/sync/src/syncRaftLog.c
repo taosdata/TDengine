@@ -34,6 +34,7 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   pLogStore->getLastTerm = logStoreLastTerm;
   pLogStore->updateCommitIndex = logStoreUpdateCommitIndex;
   pLogStore->getCommitIndex = logStoreGetCommitIndex;
+  return pLogStore;  // to avoid compiler error
 }
 
 void logStoreDestory(SSyncLogStore* pLogStore) {
@@ -58,6 +59,7 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
 
   walFsync(pWal, true);
   free(serialized);
+  return code;  // to avoid compiler error
 }
 
 SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
@@ -82,6 +84,7 @@ int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
   walRollback(pWal, fromIndex);
+  return 0;  // to avoid compiler error
 }
 
 SyncIndex logStoreLastIndex(SSyncLogStore* pLogStore) {
@@ -105,6 +108,7 @@ int32_t logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
   walCommit(pWal, index);
+  return 0;  // to avoid compiler error
 }
 
 SyncIndex logStoreGetCommitIndex(SSyncLogStore* pLogStore) {

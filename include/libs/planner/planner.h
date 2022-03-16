@@ -26,6 +26,7 @@ typedef struct SPlanContext {
   uint64_t queryId;
   int32_t acctId;
   SNode* pAstRoot;
+  bool streamQuery;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.

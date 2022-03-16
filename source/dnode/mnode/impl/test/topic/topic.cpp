@@ -65,8 +65,7 @@ void* MndTestTopic::BuildCreateTopicReq(const char* topicName, const char* sql, 
   strcpy(createReq.name, topicName);
   createReq.igExists = 0;
   createReq.sql = (char*)sql;
-  createReq.physicalPlan = (char*)"physicalPlan";
-  createReq.logicalPlan = (char*)"logicalPlan";
+  createReq.ast = NULL;
 
   int32_t contLen = tSerializeSCMCreateTopicReq(NULL, 0, &createReq);
   void*   pReq = rpcMallocCont(contLen);

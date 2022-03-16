@@ -125,9 +125,8 @@ typedef SRpcInfo     STrans;
 typedef SRpcConnInfo STransHandleInfo;
 
 typedef struct {
-  SEpSet epSet;    // ip list provided by app
-  void*  ahandle;  // handle provided by app
-  // struct SRpcConn* pConn;     // pConn allocated
+  SEpSet   epSet;    // ip list provided by app
+  void*    ahandle;  // handle provided by app
   tmsg_t   msgType;  // message type
   uint8_t* pCont;    // content provided by app
   int32_t  contLen;  // content length
@@ -135,7 +134,7 @@ typedef struct {
   // int16_t  numOfTry;  // number of try for different servers
   // int8_t   oldInUse;  // server EP inUse passed by app
   // int8_t   redirect;  // flag to indicate redirect
-  int8_t  connType;  // connection type
+  int8_t  connType;  // connection type cli/srv
   int64_t rid;       // refId returned by taosAddRef
 
   STransMsg* pRsp;  // for synchronous API
@@ -252,6 +251,9 @@ void transUnrefSrvHandle(void* handle);
 
 void transRefCliHandle(void* handle);
 void transUnrefCliHandle(void* handle);
+
+void transReleaseCliHandle(void* handle);
+void transReleaseSrvHandle(void* handle);
 
 void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg);
 void transSendRecv(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg, STransMsg* pRsp);
