@@ -353,10 +353,10 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
         for (int i = 0; i < src2->numOfCols; i++) {
           SCellVal sVal = {0};
           ASSERT(target->cols[i].type == src2->cols[i].type);
-          if (src2->cols[i].len > 0 && !isNull(src2->cols[i].pData, src2->cols[i].type)) {
-            if (tdGetColDataOfRow(&sVal, src1->cols + i, *iter1) < 0) {
-              TASSERT(0);
-            }
+          if (tdGetColDataOfRow(&sVal, src2->cols + i, *iter2) < 0) {
+            TASSERT(0);
+          }
+          if (src2->cols[i].len > 0 && !tdValTypeIsNull(sVal.valType)) {
             tdAppendValToDataCol(&(target->cols[i]), sVal.valType, sVal.val, target->numOfRows, target->maxPoints);
           } else if (!forceSetNull && key1 == key2 && src1->cols[i].len > 0) {
             if (tdGetColDataOfRow(&sVal, src1->cols + i, *iter1) < 0) {

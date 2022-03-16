@@ -34,6 +34,7 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   pLogStore->getLastTerm = logStoreLastTerm;
   pLogStore->updateCommitIndex = logStoreUpdateCommitIndex;
   pLogStore->getCommitIndex = logStoreGetCommitIndex;
+  return pLogStore; // to avoid compiler error
 }
 
 void logStoreDestory(SSyncLogStore* pLogStore) {
@@ -58,6 +59,7 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
 
   walFsync(pWal, true);
   free(serialized);
+  return code; // to avoid compiler error
 }
 
 SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
@@ -79,6 +81,7 @@ int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
   walRollback(pWal, fromIndex);
+  return 0; // to avoid compiler error
 }
 
 SyncIndex logStoreLastIndex(SSyncLogStore* pLogStore) {
@@ -102,6 +105,7 @@ int32_t logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
   walCommit(pWal, index);
+  return 0; // to avoid compiler error
 }
 
 SyncIndex logStoreGetCommitIndex(SSyncLogStore* pLogStore) {
@@ -130,9 +134,9 @@ cJSON* logStore2Json(SSyncLogStore* pLogStore) {
   cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
   snprintf(u64buf, sizeof(u64buf), "%p", pData->pWal);
   cJSON_AddStringToObject(pRoot, "pWal", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%ld", logStoreLastIndex(pLogStore));
+  snprintf(u64buf, sizeof(u64buf), "%" PRId64 "", logStoreLastIndex(pLogStore));
   cJSON_AddStringToObject(pRoot, "LastIndex", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%lu", logStoreLastTerm(pLogStore));
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", logStoreLastTerm(pLogStore));
   cJSON_AddStringToObject(pRoot, "LastTerm", u64buf);
 
   cJSON* pEntries = cJSON_CreateArray();

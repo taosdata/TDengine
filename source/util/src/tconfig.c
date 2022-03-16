@@ -570,6 +570,7 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
       case CFG_DTYPE_LOCALE:
       case CFG_DTYPE_CHARSET:
       case CFG_DTYPE_TIMEZONE:
+      case CFG_DTYPE_NONE:
         if (dump) {
           printf("%s %s %s", src, name, pItem->str);
           printf("\n");

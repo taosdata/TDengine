@@ -425,6 +425,7 @@ static SLogicNode* createQueryLogicNode(SLogicPlanContext* pCxt, SNode* pStmt) {
     default:
       break;
   }
+  return NULL; // to avoid compiler error
 }
 
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicNode** pLogicNode) {
