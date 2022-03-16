@@ -106,6 +106,8 @@ static void uvStartSendRespInternal(SSrvMsg* smsg);
 static void uvPrepareSendData(SSrvMsg* msg, uv_buf_t* wb);
 static void uvStartSendResp(SSrvMsg* msg);
 
+static void uvNotifyLinkBrokenToApp(SSrvConn* conn);
+
 static void destroySmsg(SSrvMsg* smsg);
 // check whether already read complete packet
 static SSrvConn* createConn(void* hThrd);
@@ -233,7 +235,7 @@ static void uvHandleReq(SSrvConn* pConn) {
          ntohs(pConn->locaddr.sin_port), transMsg.contLen);
 
   STrans* pTransInst = (STrans*)p->shandle;
-  (*((STrans*)p->shandle)->cfp)(pTransInst->parent, &transMsg, NULL);
+  (*pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
   // uv_timer_start(&pConn->pTimer, uvHandleActivityTimeout, pRpc->idleTime * 10000, 0);
   // auth
   // validate msg type
@@ -261,13 +263,12 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   tError("server conn %p read error: %s", conn, uv_err_name(nread));
   if (nread < 0) {
     conn->broken = true;
-    transUnrefSrvHandle(conn);
+    uvNotifyLinkBrokenToApp(conn);
 
-    // if (conn->ref > 1) {
-    //  conn->ref++;  // ref > 1 signed that write is in progress
+    // STrans* pTransInst = conn->pTransInst;
+    // if (pTransInst->efp != NULL && (pTransInst->efp)(NULL, conn->inType)) {
     //}
-    // tError("server conn %p read error: %s", conn, uv_err_name(nread));
-    // destroyConn(conn, true);
+    transUnrefSrvHandle(conn);
   }
 }
 void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
@@ -372,6 +373,17 @@ static void uvStartSendResp(SSrvMsg* smsg) {
   taosArrayPush(pConn->srvMsgs, &smsg);
   uvStartSendRespInternal(smsg);
   return;
+}
+
+static void uvNotifyLinkBrokenToApp(SSrvConn* conn) {
+  STrans* pTransInst = conn->pTransInst;
+  if (pTransInst->efp != NULL && (*pTransInst->efp)(NULL, conn->inType) && T_REF_VAL_GET(conn) >= 2) {
+    STransMsg transMsg = {0};
+    transMsg.msgType = conn->inType;
+    transMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+    // transRefSrvHandle(conn);
+    (*pTransInst->cfp)(pTransInst->parent, &transMsg, 0);
+  }
 }
 static void destroySmsg(SSrvMsg* smsg) {
   if (smsg == NULL) {
