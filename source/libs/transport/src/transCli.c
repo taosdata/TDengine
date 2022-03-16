@@ -525,6 +525,7 @@ static void cliHandleRelease(SCliMsg* pMsg, SCliThrdObj* pThrd) {
 
   transDestroyBuffer(&conn->readBuf);
   if (conn->persist && T_REF_VAL_GET(conn) >= 2) {
+    conn->persist = false;
     transUnrefCliHandle(conn);
     addConnToPool(pThrd->pool, conn);
   } else {
@@ -746,8 +747,7 @@ void transReleaseCliHandle(void* handle) {
   }
 
   STransMsg tmsg = {.handle = handle};
-
-  SCliMsg* cmsg = calloc(1, sizeof(SCliMsg));
+  SCliMsg*  cmsg = calloc(1, sizeof(SCliMsg));
   cmsg->type = Release;
   cmsg->msg = tmsg;
 
