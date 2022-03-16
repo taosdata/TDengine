@@ -22,8 +22,8 @@ TEST(tdb_test, simple_test) {
     ret = tdbDbInsert(pDb, "key2", 4, "value1", 6);
     GTEST_ASSERT_EQ(ret, 0);
 
-    ret = tdbDbInsert(pDb, "key3", 4, "value1", 6);
-    GTEST_ASSERT_EQ(ret, 0);
+  //   ret = tdbDbInsert(pDb, "key3", 4, "value1", 6);
+  //   GTEST_ASSERT_EQ(ret, 0);
   }
 
   ret = tdbDbDrop(pDb);
