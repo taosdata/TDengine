@@ -40,8 +40,8 @@ int32_t dndInitBnode(SDnode *pDnode);
 void    dndCleanupBnode(SDnode *pDnode);
 
 void    dndProcessBnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
-int32_t bmProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t bmProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+int32_t bmProcessCreateReq(SBnodeMgmt *pMgmt, SNodeMsg *pRpcMsg);
+int32_t bmProcessDropReq(SBnodeMgmt *pMgmt, SNodeMsg *pRpcMsg);
 
 #ifdef __cplusplus
 }

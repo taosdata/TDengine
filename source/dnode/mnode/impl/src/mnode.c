@@ -291,9 +291,8 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->putReqToMReadQFp = pOption->putReqToMReadQFp;
   pMnode->sendReqFp = pOption->sendReqFp;
   pMnode->sendReqToMnodeFp = pOption->sendReqToMnodeFp;
-  pMnode->sendRedirectRspFp = pOption->sendRedirectRspFp;
 
-  if (pMnode->sendReqFp == NULL || pMnode->sendReqToMnodeFp == NULL || pMnode->sendRedirectRspFp == NULL ||
+  if (pMnode->sendReqFp == NULL || pMnode->sendReqToMnodeFp == NULL  ||
       pMnode->putReqToMWriteQFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0) {
     terrno = TSDB_CODE_MND_INVALID_OPTIONS;
     return -1;

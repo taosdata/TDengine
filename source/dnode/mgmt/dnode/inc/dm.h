@@ -13,24 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_DNODE_MSG_H_
-#define _TD_DND_DNODE_MSG_H_
+#ifndef _TD_DND_DNODE_H_
+#define _TD_DND_DNODE_H_
 
-#include "dmInt.h"
+#include "dndInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+void    dmGetMgmtFp(SMgmtWrapper *pWrapper);
+void    dmGetMnodeEpSet(SMgmtWrapper *pWrapper, SEpSet *pEpSet);
+void    dmUpdateMnodeEpSet(SMgmtWrapper *pWrapper, SEpSet *pEpSet);
+void    dmSendRedirectRsp(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 void    dmInitMsgHandles(SMgmtWrapper *pWrapper);
-void    dmSendStatusReq(SDnodeMgmt *pMgmt);
-int32_t dmProcessConfigReq(SDnode *pDnode, SRpcMsg *pReq);
-void    dmProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp);
-void    dmProcessAuthRsp(SDnode *pDnode, SRpcMsg *pRsp);
-void    dmProcessGrantRsp(SDnode *pDnode, SRpcMsg *pRsp);
+int32_t dmStart(SMgmtWrapper *pWrapper);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DND_DNODE_MSG_H_*/
+#endif /*_TD_DND_DNODE_H_*/

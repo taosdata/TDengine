@@ -14,9 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dmMsg.h"
-#include "dmFile.h"
-#include "dmWorker.h"
+#include "dmInt.h"
 #include "vmInt.h"
 
 void dmSendStatusReq(SDnodeMgmt *pMgmt) {
@@ -26,13 +24,13 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   taosRLockLatch(&pMgmt->latch);
   req.sver = tsVersion;
   req.dver = pMgmt->dver;
-  req.dnodeId = pMgmt->dnodeId;
-  req.clusterId = pMgmt->clusterId;
+  req.dnodeId = pDnode->dnodeId;
+  req.clusterId = pDnode->clusterId;
   req.rebootTime = pDnode->rebootTime;
   req.updateTime = pMgmt->updateTime;
   req.numOfCores = tsNumOfCores;
-  req.numOfSupportVnodes = pDnode->cfg.numOfSupportVnodes;
-  memcpy(req.dnodeEp, pDnode->cfg.localEp, TSDB_EP_LEN);
+  req.numOfSupportVnodes = pDnode->numOfSupportVnodes;
+  memcpy(req.dnodeEp, pDnode->localEp, TSDB_EP_LEN);
 
   req.clusterCfg.statusInterval = tsStatusInterval;
   req.clusterCfg.checkTime = 0;
@@ -59,23 +57,26 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 }
 
 static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
-  if (pMgmt->dnodeId == 0) {
+  SDnode *pDnode = pMgmt->pDnode;
+
+  if (pDnode->dnodeId == 0) {
     dInfo("set dnodeId:%d clusterId:%" PRId64, pCfg->dnodeId, pCfg->clusterId);
     taosWLockLatch(&pMgmt->latch);
-    pMgmt->dnodeId = pCfg->dnodeId;
-    pMgmt->clusterId = pCfg->clusterId;
+    pDnode->dnodeId = pCfg->dnodeId;
+    pDnode->clusterId = pCfg->clusterId;
     dmWriteFile(pMgmt);
     taosWUnLockLatch(&pMgmt->latch);
   }
 }
 
-void dmProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp) {
-  SDnodeMgmt *pMgmt = dndGetWrapper(pDnode, DNODE)->pMgmt;
+int32_t dmProcessStatusRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+  SDnode  *pDnode = pMgmt->pDnode;
+  SRpcMsg *pRsp = &pMsg->rpcMsg;
 
   if (pRsp->code != TSDB_CODE_SUCCESS) {
-    if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->dropped && pMgmt->dnodeId > 0) {
-      dInfo("dnode:%d, set to dropped since not exist in mnode", pMgmt->dnodeId);
-      pMgmt->dropped = 1;
+    if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pDnode->dropped && pDnode->dnodeId > 0) {
+      dInfo("dnode:%d, set to dropped since not exist in mnode", pDnode->dnodeId);
+      pDnode->dropped = 1;
       dmWriteFile(pMgmt);
     }
   } else {
@@ -92,13 +93,22 @@ void dmProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp) {
   pMgmt->statusSent = 0;
 }
 
-void dmProcessAuthRsp(SDnode *pDnode, SRpcMsg *pReq) { dError("auth rsp is received, but not supported yet"); }
+int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+  SRpcMsg *pRsp = &pMsg->rpcMsg;
+  dError("auth rsp is received, but not supported yet");
+  return 0;
+}
 
-void dmProcessGrantRsp(SDnode *pDnode, SRpcMsg *pReq) { dError("grant rsp is received, but not supported yet"); }
+int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+  SRpcMsg *pRsp = &pMsg->rpcMsg;
+  dError("grant rsp is received, but not supported yet");
+  return 0;
+}
 
-int32_t dmProcessConfigReq(SDnode *pDnode, SRpcMsg *pReq) {
-  dError("config req is received, but not supported yet");
+int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+  SRpcMsg       *pReq = &pMsg->rpcMsg;
   SDCfgDnodeReq *pCfg = pReq->pCont;
+  dError("config req is received, but not supported yet");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 

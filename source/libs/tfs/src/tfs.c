@@ -389,7 +389,7 @@ static int32_t tfsMount(STfs *pTfs, SDiskCfg *pCfg) {
 }
 
 static int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
-  char        dirName[TSDB_FILENAME_LEN] = "\0";
+  char dirName[TSDB_FILENAME_LEN] = "\0";
 
   if (pCfg->level < 0 || pCfg->level >= TFS_MAX_TIERS) {
     fError("failed to mount %s to FS since invalid level %d", pCfg->dir, pCfg->level);
@@ -539,9 +539,9 @@ static STfsDisk *tfsNextDisk(STfs *pTfs, SDiskIter *pIter) {
   return pDisk;
 }
 
-void tfsGetMonitorInfo(STfs *pTfs, SMonDiskInfo *pInfo) {
+int32_t tfsGetMonitorInfo(STfs *pTfs, SMonDiskInfo *pInfo) {
   pInfo->datadirs = taosArrayInit(32, sizeof(SMonDiskDesc));
-  if (pInfo->datadirs == NULL) return;
+  if (pInfo->datadirs == NULL) return -1;
 
   tfsUpdateSize(pTfs);
 
@@ -558,4 +558,6 @@ void tfsGetMonitorInfo(STfs *pTfs, SMonDiskInfo *pInfo) {
     }
   }
   tfsUnLock(pTfs);
+
+  return 0;
 }

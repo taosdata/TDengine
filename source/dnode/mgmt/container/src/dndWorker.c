@@ -82,7 +82,7 @@ void dndCleanupWorker(SDnodeWorker *pWorker) {
 }
 
 int32_t dndWriteMsgToWorker(SDnodeWorker *pWorker, void *pCont, int32_t contLen) {
-  if (pWorker == NULL || pWorker->queue == NULL) {
+  if (pWorker == NULL || pWorker->queue == NULL ) {
     terrno = TSDB_CODE_INVALID_PARA;
     return -1;
   }

@@ -48,17 +48,17 @@ typedef struct {
   char      secondEp[TSDB_EP_LEN];
   SDiskCfg *pDisks;
   int32_t   numOfDisks;
-} SDndCfg;
+} SDnodeOpt;
 
 typedef enum { DND_EVENT_STOP = 1, DND_EVENT_RELOAD } EDndEvent;
 
 /**
  * @brief Initialize and start the dnode.
  *
- * @param pCfg Config of the dnode.
+ * @param pOption Option of the dnode.
  * @return SDnode* The dnode object.
  */
-SDnode *dndCreate(SDndCfg *pCfg);
+SDnode *dndCreate(const SDnodeOpt *pOption);
 
 /**
  * @brief Stop and cleanup the dnode.
@@ -80,7 +80,7 @@ int32_t dndRun(SDnode *pDnode);
  * @param pDnode The dnode object to close.
  * @param event The event to handle.
  */
-void dndeHandleEvent(SDnode *pDnode, EDndEvent event);
+void dndHandleEvent(SDnode *pDnode, EDndEvent event);
 
 #ifdef __cplusplus
 }

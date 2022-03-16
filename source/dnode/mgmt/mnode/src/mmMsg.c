@@ -18,9 +18,9 @@
 #include "dmInt.h"
 #include "mmWorker.h"
 
-int32_t mmProcessCreateReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, MNODE);
-  SMnodeMgmt   *pMgmt = pWrapper->pMgmt;
+int32_t mmProcessCreateReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+  SDnode  *pDnode = pMgmt->pDnode;
+  SRpcMsg *pReq = &pMsg->rpcMsg;
 
   SDCreateMnodeReq createReq = {0};
   if (tDeserializeSDCreateMnodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
@@ -28,7 +28,7 @@ int32_t mmProcessCreateReq(SDnode *pDnode, SRpcMsg *pReq) {
     return -1;
   }
 
-  if (createReq.replica <= 1 || createReq.dnodeId != dmGetDnodeId(pDnode)) {
+  if (createReq.replica <= 1 || createReq.dnodeId != pDnode->dnodeId) {
     terrno = TSDB_CODE_DND_MNODE_INVALID_OPTION;
     dError("failed to create mnode since %s", terrstr());
     return -1;
@@ -53,9 +53,9 @@ int32_t mmProcessCreateReq(SDnode *pDnode, SRpcMsg *pReq) {
   return mmOpen(pMgmt, &option);
 }
 
-int32_t mmProcessAlterReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, MNODE);
-  SMnodeMgmt   *pMgmt = pWrapper->pMgmt;
+int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+  SDnode *pDnode = pMgmt->pDnode;
+  SRpcMsg *pReq = &pMsg->rpcMsg;
 
   SDAlterMnodeReq alterReq = {0};
   if (tDeserializeSDCreateMnodeReq(pReq->pCont, pReq->contLen, &alterReq) != 0) {
@@ -63,7 +63,7 @@ int32_t mmProcessAlterReq(SDnode *pDnode, SRpcMsg *pReq) {
     return -1;
   }
 
-  if (alterReq.dnodeId != dmGetDnodeId(pDnode)) {
+  if (alterReq.dnodeId != pDnode->dnodeId) {
     terrno = TSDB_CODE_DND_MNODE_INVALID_OPTION;
     dError("failed to alter mnode since %s", terrstr());
     return -1;
@@ -90,9 +90,9 @@ int32_t mmProcessAlterReq(SDnode *pDnode, SRpcMsg *pReq) {
   return code;
 }
 
-int32_t mmProcessDropReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, MNODE);
-  SMnodeMgmt   *pMgmt = pWrapper->pMgmt;
+int32_t mmProcessDropReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+  SDnode *pDnode = pMgmt->pDnode;
+  SRpcMsg *pReq = &pMsg->rpcMsg;
 
   SDDropMnodeReq dropReq = {0};
   if (tDeserializeSMCreateDropMnodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
@@ -100,7 +100,7 @@ int32_t mmProcessDropReq(SDnode *pDnode, SRpcMsg *pReq) {
     return -1;
   }
 
-  if (dropReq.dnodeId != dmGetDnodeId(pDnode)) {
+  if (dropReq.dnodeId != pDnode->dnodeId) {
     terrno = TSDB_CODE_DND_MNODE_INVALID_OPTION;
     dError("failed to drop mnode since %s", terrstr());
     return -1;

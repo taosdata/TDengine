@@ -38,18 +38,18 @@ void dndDumpCfg() {
   cfgDumpCfg(pCfg, 0, 1);
 }
 
-SDndCfg dndGetCfg() {
-  SConfig *pCfg = taosGetCfg();
-  SDndCfg  objCfg = {0};
+SDnodeOpt dndGetOpt() {
+  SConfig  *pCfg = taosGetCfg();
+  SDnodeOpt option = {0};
 
-  objCfg.numOfSupportVnodes = cfgGetItem(pCfg, "supportVnodes")->i32;
-  tstrncpy(objCfg.dataDir, tsDataDir, sizeof(objCfg.dataDir));
-  tstrncpy(objCfg.firstEp, tsFirst, sizeof(objCfg.firstEp));
-  tstrncpy(objCfg.secondEp, tsSecond, sizeof(objCfg.firstEp));
-  objCfg.serverPort = tsServerPort;
-  tstrncpy(objCfg.localFqdn, tsLocalFqdn, sizeof(objCfg.localFqdn));
-  snprintf(objCfg.localEp, sizeof(objCfg.localEp), "%s:%u", objCfg.localFqdn, objCfg.serverPort);
-  objCfg.pDisks = tsDiskCfg;
-  objCfg.numOfDisks = tsDiskCfgNum;
-  return objCfg;
+  option.numOfSupportVnodes = cfgGetItem(pCfg, "supportVnodes")->i32;
+  tstrncpy(option.dataDir, tsDataDir, sizeof(option.dataDir));
+  tstrncpy(option.firstEp, tsFirst, sizeof(option.firstEp));
+  tstrncpy(option.secondEp, tsSecond, sizeof(option.firstEp));
+  option.serverPort = tsServerPort;
+  tstrncpy(option.localFqdn, tsLocalFqdn, sizeof(option.localFqdn));
+  snprintf(option.localEp, sizeof(option.localEp), "%s:%u", option.localFqdn, option.serverPort);
+  option.pDisks = tsDiskCfg;
+  option.numOfDisks = tsDiskCfgNum;
+  return option;
 }

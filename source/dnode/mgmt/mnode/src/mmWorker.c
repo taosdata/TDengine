@@ -125,14 +125,16 @@ static int32_t mmPutRpcMsgToWorker(SMgmtWrapper *pWrapper, SDnodeWorker *pWorker
   return code;
 }
 
-int32_t mmPutMsgToWriteQueue(SDnode *pDnode, SRpcMsg *pRpc) {
-  SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, MNODE);
-  SMnodeMgmt   *pMgmt = pWrapper->pMgmt;
-  return mmPutRpcMsgToWorker(pWrapper, &pMgmt->writeWorker, pRpc);
+int32_t mmPutMsgToWriteQueue(void *wrapper, SRpcMsg *pRpc) {
+  // SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, MNODE);
+  // SMnodeMgmt   *pMgmt = pWrapper->pMgmt;
+  // return mmPutRpcMsgToWorker(pWrapper, &pMgmt->writeWorker, pRpc);
+  return 0;
 }
 
-int32_t mmPutMsgToReadQueue(SDnode *pDnode, SRpcMsg *pRpc) {
-  SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, MNODE);
-  SMnodeMgmt   *pMgmt = pWrapper->pMgmt;
-  return mmPutRpcMsgToWorker(pWrapper, &pMgmt->readWorker, pRpc);
+int32_t mmPutMsgToReadQueue(void *wrapper, SRpcMsg *pRpc) {
+  // SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, MNODE);
+  // SMnodeMgmt   *pMgmt = pWrapper->pMgmt;
+  // return mmPutRpcMsgToWorker(pWrapper, &pMgmt->readWorker, pRpc);
+  return 0;
 }

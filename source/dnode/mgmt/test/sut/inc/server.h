@@ -24,7 +24,7 @@ class TestServer {
   bool DoStart();
 
  private:
-  SDndCfg BuildOption(const char* path, const char* fqdn, uint16_t port, const char* firstEp);
+  SDnodeOpt BuildOption(const char* path, const char* fqdn, uint16_t port, const char* firstEp);
 
  private:
   SDnode*    pDnode;

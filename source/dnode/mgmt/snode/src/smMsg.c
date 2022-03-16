@@ -17,8 +17,8 @@
 #include "smMsg.h"
 #include "smWorker.h"
 
-int32_t smProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {return 0;}
-int32_t smProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {return 0;}
+int32_t smProcessCreateReq(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {return 0;}
+int32_t smProcessDropReq(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {return 0;}
 
 void smInitMsgHandles(SMgmtWrapper *pWrapper) {
 }

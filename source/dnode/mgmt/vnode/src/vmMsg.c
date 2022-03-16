@@ -70,7 +70,7 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SRpcMsg *pReq) {
   SWrapperCfg wrapperCfg = {0};
   vmGenerateWrapperCfg(pMgmt, &createReq, &wrapperCfg);
 
-  if (createReq.dnodeId != dmGetDnodeId(pMgmt->pDnode)) {
+  if (createReq.dnodeId != pMgmt->pDnode->dnodeId) {
     terrno = TSDB_CODE_DND_VNODE_INVALID_OPTION;
     dDebug("vgId:%d, failed to create vnode since %s", createReq.vgId, terrstr());
     return -1;

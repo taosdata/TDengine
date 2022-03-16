@@ -16,24 +16,19 @@
 #ifndef _TD_DND_DNODE_INT_H_
 #define _TD_DND_DNODE_INT_H_
 
-#include "dndInt.h"
+#include "dm.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct SDnodeMgmt {
-  int32_t      dnodeId;
-  int32_t      dropped;
-  int64_t      clusterId;
-  char         localEp[TSDB_EP_LEN];
-  char         firstEp[TSDB_EP_LEN];
   int64_t      dver;
   int64_t      updateTime;
   int8_t       statusSent;
   SEpSet       mnodeEpSet;
   SHashObj    *dnodeHash;
-  SArray      *pDnodeEps;
+  SArray      *dnodeEps;
   pthread_t   *threadId;
   SRWLatch     latch;
   SDnodeWorker mgmtWorker;
@@ -42,17 +37,24 @@ typedef struct SDnodeMgmt {
   SDnode      *pDnode;
 } SDnodeMgmt;
 
-// dmInt.h
-void    dmGetMgmtFp(SMgmtWrapper *pWrapper);
-int32_t dmGetDnodeId(SDnode *pDnode);
-int64_t dmGetClusterId(SDnode *pDnode);
-void    dmGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet);
-void    dmUpdateMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet);
-void    dmGetDnodeEp(SDnode *pDnode, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort);
-void    dmSendRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg);
+// dmFile.c
+int32_t dmReadFile(SDnodeMgmt *pMgmt);
+int32_t dmWriteFile(SDnodeMgmt *pMgmt);
+void    dmUpdateDnodeEps(SDnodeMgmt *pMgmt, SArray *pDnodeEps);
 
-// dmWorker.h
+// dmInt.c
+
+// dmMsg.c
+void    dmSendStatusReq(SDnodeMgmt *pMgmt);
+int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t dmProcessStatusRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
+
+// dmWorker.c
 int32_t dmStartWorker(SDnodeMgmt *pMgmt);
+void    dmStopWorker(SDnodeMgmt *pMgmt);
+int32_t dmProcessMgmtMsg(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

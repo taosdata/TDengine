@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dndTransport.h"
+#include "dndNode.h"
 #include "dmInt.h"
 #include "mmInt.h"
 
@@ -133,7 +134,7 @@ static void dndSendMsgToMnodeRecv(SDnode *pDnode, SRpcMsg *pRpcMsg, SRpcMsg *pRp
   STransMgmt *pMgmt = &pDnode->trans;
 
   SEpSet epSet = {0};
-  dmGetMnodeEpSet(pDnode, &epSet);
+  dmGetMnodeEpSet(dndGetWrapper(pDnode, DNODE), &epSet);
   rpcSendRecv(pMgmt->clientRpc, &epSet, pRpcMsg, pRpcRsp);
 }
 
@@ -216,7 +217,7 @@ int32_t dndInitServer(SDnode *pDnode) {
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localPort = pDnode->cfg.serverPort;
+  rpcInit.localPort = pDnode->serverPort;
   rpcInit.label = "DND";
   rpcInit.numOfThreads = numOfThreads;
   rpcInit.cfp = dndProcessRequest;
@@ -271,8 +272,7 @@ int32_t dndInitMsgHandle(SDnode *pDnode) {
   return 0;
 }
 
-int32_t dndSendReqToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq) {
-  STransMgmt *pMgmt = &pDnode->trans;
+static int32_t dndSetReq(STransMgmt *pMgmt, SEpSet *pEpSet, SRpcMsg *pReq) {
   if (pMgmt->clientRpc == NULL) {
     terrno = TSDB_CODE_DND_OFFLINE;
     return -1;
@@ -282,8 +282,18 @@ int32_t dndSendReqToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq) {
   return 0;
 }
 
-int32_t dndSendReqToMnode(SDnode *pDnode, SRpcMsg *pReq) {
+int32_t dndSendReqToDnode(void *wrapper, SEpSet *pEpSet, SRpcMsg *pReq) {
+  SMgmtWrapper *pWrapper = wrapper;
+  STransMgmt   *pTrans = &pWrapper->pDnode->trans;
+  return dndSetReq(pTrans, pEpSet, pReq);
+}
+
+int32_t dndSendReqToMnode(void *wrapper, SRpcMsg *pReq) {
+  SMgmtWrapper *pWrapper = wrapper;
+  SDnode       *pDnode = pWrapper->pDnode;
+  STransMgmt   *pTrans = &pDnode->trans;
+
   SEpSet epSet = {0};
-  dmGetMnodeEpSet(pDnode, &epSet);
-  return dndSendReqToDnode(pDnode, &epSet, pReq);
+  dmGetMnodeEpSet(dndGetWrapper(pDnode, DNODE), &epSet);
+  return dndSetReq(pTrans, &epSet, pReq);
 }

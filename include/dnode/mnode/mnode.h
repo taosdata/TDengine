@@ -32,17 +32,16 @@ typedef int32_t (*PutReqToMReadQFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 typedef void (*SendRedirectRspFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 
 typedef struct {
-  int32_t           dnodeId;
-  int64_t           clusterId;
-  int8_t            replica;
-  int8_t            selfIndex;
-  SReplica          replicas[TSDB_MAX_REPLICA];
-  SDnode           *pDnode;
-  PutReqToMWriteQFp putReqToMWriteQFp;
-  PutReqToMReadQFp  putReqToMReadQFp;
-  SendReqToDnodeFp  sendReqFp;
-  SendReqToMnodeFp  sendReqToMnodeFp;
-  SendRedirectRspFp sendRedirectRspFp;
+  int32_t        dnodeId;
+  int64_t        clusterId;
+  int8_t         replica;
+  int8_t         selfIndex;
+  SReplica       replicas[TSDB_MAX_REPLICA];
+  SDnode        *pDnode;
+  PutToQueueFp   putReqToMWriteQFp;
+  PutToQueueFp   putReqToMReadQFp;
+  SendReqFp      sendReqFp;
+  SendMnodeReqFp sendReqToMnodeFp;
 } SMnodeOpt;
 
 /* ------------------------ SMnode ------------------------ */

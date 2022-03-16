@@ -119,11 +119,10 @@ typedef struct SMnode {
   SHashObj         *infosMeta;
   SGrantInfo        grant;
   MndMsgFp          msgFp[TDMT_MAX];
-  SendReqToDnodeFp  sendReqFp;
-  SendReqToMnodeFp  sendReqToMnodeFp;
-  SendRedirectRspFp sendRedirectRspFp;
-  PutReqToMWriteQFp putReqToMWriteQFp;
-  PutReqToMReadQFp  putReqToMReadQFp;
+  SendReqFp         sendReqFp;
+  SendMnodeReqFp    sendReqToMnodeFp;
+  PutToQueueFp      putReqToMWriteQFp;
+  PutToQueueFp      putReqToMReadQFp;
 } SMnode;
 
 int32_t mndSendReqToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *rpcMsg);

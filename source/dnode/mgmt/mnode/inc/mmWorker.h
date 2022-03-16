@@ -28,8 +28,8 @@ int32_t mmProcessWriteMsg(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t mmProcessSyncMsg(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t mmProcessReadMsg(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
 
-int32_t mmPutMsgToWriteQueue(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t mmPutMsgToReadQueue(SDnode *pDnode, SRpcMsg *pRpcMsg);
+int32_t mmPutMsgToWriteQueue(void *wrapper, SRpcMsg *pRpcMsg);
+int32_t mmPutMsgToReadQueue(void *wrapper, SRpcMsg *pRpcMsg);
 
 #ifdef __cplusplus
 }

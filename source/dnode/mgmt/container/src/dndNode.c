@@ -48,11 +48,32 @@ static int32_t dndOpenNode(SMgmtWrapper *pWrapper) { return (*pWrapper->fp.openF
 static void dndCloseNode(SMgmtWrapper *pWrapper) {
   if (pWrapper->required) {
     (*pWrapper->fp.closeFp)(pWrapper);
+    pWrapper->required = false;
   }
   if (pWrapper->pProc) {
     taosProcCleanup(pWrapper->pProc);
     pWrapper->pProc = NULL;
   }
+}
+
+static int32_t dndInitMemory(SDnode *pDnode, const SDnodeOpt *pOption) {
+  pDnode->numOfSupportVnodes = pOption->numOfSupportVnodes;
+  pDnode->serverPort = pOption->serverPort;
+  pDnode->dataDir = strdup(pOption->dataDir);
+  pDnode->localEp = strdup(pOption->localEp);
+  pDnode->localFqdn = strdup(pOption->localFqdn);
+  pDnode->firstEp = strdup(pOption->firstEp);
+  pDnode->secondEp = strdup(pOption->secondEp);
+  pDnode->pDisks = pOption->pDisks;
+  pDnode->numOfDisks = pOption->numOfDisks;
+  pDnode->rebootTime = taosGetTimestampMs();
+
+  if (pDnode->dataDir == NULL || pDnode->dataDir == NULL || pDnode->dataDir == NULL || pDnode->dataDir == NULL ||
+      pDnode->dataDir == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  return 0;
 }
 
 static void dndClearMemory(SDnode *pDnode) {
@@ -65,11 +86,16 @@ static void dndClearMemory(SDnode *pDnode) {
     taosCloseFile(&pDnode->pLockFile);
     pDnode->pLockFile = NULL;
   }
-  tfree(pDnode);
+  tfree(pDnode->localEp);
+  tfree(pDnode->localFqdn);
+  tfree(pDnode->firstEp);
+  tfree(pDnode->secondEp);
+  tfree(pDnode->dataDir);
+  free(pDnode);
   dDebug("dnode object memory is cleared, data:%p", pDnode);
 }
 
-SDnode *dndCreate(SDndCfg *pCfg) {
+SDnode *dndCreate(const SDnodeOpt *pOption) {
   dInfo("start to create dnode object");
   int32_t code = -1;
   char    path[PATH_MAX + 100];
@@ -81,10 +107,12 @@ SDnode *dndCreate(SDndCfg *pCfg) {
     goto _OVER;
   }
 
-  memcpy(&pDnode->cfg, pCfg, sizeof(SDndCfg));
+  if (dndInitMemory(pDnode, pOption) != 0) {
+    goto _OVER;
+  }
+
   dndSetStatus(pDnode, DND_STAT_INIT);
-  pDnode->rebootTime = taosGetTimestampMs();
-  pDnode->pLockFile = dndCheckRunning(pCfg->dataDir);
+  pDnode->pLockFile = dndCheckRunning(pDnode->dataDir);
   if (pDnode->pLockFile == NULL) {
     goto _OVER;
   }
@@ -112,10 +140,10 @@ SDnode *dndCreate(SDndCfg *pCfg) {
 
   for (ENodeType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
-    snprintf(path, sizeof(path), "%s%s%s", pCfg->dataDir, TD_DIRSEP, pDnode->wrappers[n].name);
+    snprintf(path, sizeof(path), "%s%s%s", pDnode->dataDir, TD_DIRSEP, pWrapper->name);
     pWrapper->path = strdup(path);
     pWrapper->pDnode = pDnode;
-    if (pDnode->wrappers[n].path == NULL) {
+    if (pWrapper->path == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _OVER;
     }
@@ -201,7 +229,7 @@ static void dndClearNodesExecpt(SDnode *pDnode, ENodeType except) {
 
 static void dndSendRpcRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
   if (pRsp->code == TSDB_CODE_DND_MNODE_NOT_DEPLOYED || pRsp->code == TSDB_CODE_APP_NOT_READY) {
-    dmSendRedirectRsp(pWrapper->pDnode, pRsp);
+    dmSendRedirectRsp(dndGetWrapper(pWrapper->pDnode, DNODE), pRsp);
   } else {
     rpcSendResponse(pRsp);
   }
@@ -220,6 +248,11 @@ void dndSendRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
       }
     } while (code != 0);
   }
+}
+
+void dndSendRedirectRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
+  pRsp->code = TSDB_CODE_APP_NOT_READY;
+  dndSendRsp(pWrapper, pRsp);
 }
 
 static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen) {
@@ -354,7 +387,7 @@ int32_t dndRun(SDnode *pDnode) {
   return 0;
 }
 
-void dndeHandleEvent(SDnode *pDnode, EDndEvent event) {
+void dndHandleEvent(SDnode *pDnode, EDndEvent event) {
   dInfo("dnode object receive event %d, data:%p", event, pDnode);
   pDnode->event = event;
 }
@@ -375,7 +408,7 @@ static int32_t dndBuildMsg(SNodeMsg *pMsg, SRpcMsg *pRpc, SEpSet *pEpSet) {
 
 void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSet) {
   if (pEpSet && pEpSet->numOfEps > 0 && pRpc->msgType == TDMT_MND_STATUS_RSP) {
-    dmUpdateMnodeEpSet(pWrapper->pDnode, pEpSet);
+    dmUpdateMnodeEpSet(dndGetWrapper(pWrapper->pDnode, DNODE), pEpSet);
   }
 
   int32_t   code = -1;

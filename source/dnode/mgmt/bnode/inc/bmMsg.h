@@ -23,8 +23,6 @@ extern "C" {
 #endif
 
 void    bmInitMsgHandles(SMgmtWrapper *pWrapper);
-int32_t bmProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t bmProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
 
 #ifdef __cplusplus
 }

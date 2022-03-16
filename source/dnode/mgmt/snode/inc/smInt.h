@@ -39,8 +39,8 @@ int32_t dndInitSnode(SDnode *pDnode);
 void    dndCleanupSnode(SDnode *pDnode);
 
 void    dndProcessSnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
-int32_t smProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t smProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+int32_t smProcessCreateReq(SSnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t smProcessDropReq(SSnodeMgmt *pMgmt, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

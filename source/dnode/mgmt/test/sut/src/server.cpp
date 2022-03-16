@@ -22,22 +22,22 @@ void* serverLoop(void* param) {
   }
 }
 
-SDndCfg TestServer::BuildOption(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
-  SDndCfg cfg = {0};
-  cfg.numOfSupportVnodes = 16;
-  cfg.serverPort = port;
-  strcpy(cfg.dataDir, path);
-  snprintf(cfg.localEp, TSDB_EP_LEN, "%s:%u", fqdn, port);
-  snprintf(cfg.localFqdn, TSDB_FQDN_LEN, "%s", fqdn);
-  snprintf(cfg.firstEp, TSDB_EP_LEN, "%s", firstEp);
-  return cfg;
+SDnodeOpt TestServer::BuildOption(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
+  SDnodeOpt option = {0};
+  option.numOfSupportVnodes = 16;
+  option.serverPort = port;
+  strcpy(option.dataDir, path);
+  snprintf(option.localEp, TSDB_EP_LEN, "%s:%u", fqdn, port);
+  snprintf(option.localFqdn, TSDB_FQDN_LEN, "%s", fqdn);
+  snprintf(option.firstEp, TSDB_EP_LEN, "%s", firstEp);
+  return option;
 }
 
 bool TestServer::DoStart() {
-  SDndCfg cfg = BuildOption(path, fqdn, port, firstEp);
+  SDnodeOpt option = BuildOption(path, fqdn, port, firstEp);
   taosMkDir(path);
 
-  pDnode = dndCreate(&cfg);
+  pDnode = dndCreate(&option);
   if (pDnode != NULL) {
     return false;
   }

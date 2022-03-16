@@ -28,8 +28,8 @@ int32_t dndInitClient(SDnode *pDnode);
 void    dndCleanupClient(SDnode *pDnode);
 int32_t dndInitMsgHandle(SDnode *pDnode);
 
-int32_t dndSendReqToMnode(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t dndSendReqToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pRpcMsg);
+int32_t dndSendReqToMnode(void *wrapper, SRpcMsg *pMsg);
+int32_t dndSendReqToDnode(void *wrapper, SEpSet *pEpSet, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

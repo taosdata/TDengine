@@ -279,11 +279,11 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
   taosInitRWLatch(&pMgmt->latch);
 
   SDiskCfg dCfg = {0};
-  tstrncpy(dCfg.dir, pDnode->cfg.dataDir, TSDB_FILENAME_LEN);
+  tstrncpy(dCfg.dir, pDnode->dataDir, TSDB_FILENAME_LEN);
   dCfg.level = 0;
   dCfg.primary = 1;
-  SDiskCfg *pDisks = pDnode->cfg.pDisks;
-  int32_t   numOfDisks = pDnode->cfg.numOfDisks;
+  SDiskCfg *pDisks = pDnode->pDisks;
+  int32_t   numOfDisks = pDnode->numOfDisks;
   if (numOfDisks <= 0 || pDisks == NULL) {
     pDisks = &dCfg;
     numOfDisks = 1;
@@ -342,11 +342,11 @@ void vmGetMgmtFp(SMgmtWrapper *pWrapper) {
   pWrapper->fp = mgmtFp;
 }
 
-void vmGetTfsMonitorInfo(SMgmtWrapper *pWrapper, SMonDiskInfo *pInfo) {
+int32_t vmGetTfsMonitorInfo(SMgmtWrapper *pWrapper, SMonDiskInfo *pInfo) {
   SVnodesMgmt *pMgmt = pWrapper->pMgmt;
-  if (pMgmt == NULL) return;
+  if (pMgmt == NULL) return -1;
 
-  tfsGetMonitorInfo(pMgmt->pTfs, pInfo);
+  return tfsGetMonitorInfo(pMgmt->pTfs, pInfo);
 }
 
 void vmGetVnodeReqs(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo) {

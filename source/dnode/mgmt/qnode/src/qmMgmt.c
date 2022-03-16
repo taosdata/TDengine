@@ -185,9 +185,9 @@ static void dndBuildQnodeOption(SDnode *pDnode, SQnodeOpt *pOption) {
   pOption->pDnode = pDnode;
   pOption->sendReqFp = dndSendReqToDnode;
   pOption->sendReqToMnodeFp = dndSendReqToMnode;
-  pOption->sendRedirectRspFp = dmSendRedirectRsp;
-  pOption->dnodeId = dmGetDnodeId(pDnode);
-  pOption->clusterId = dmGetClusterId(pDnode);
+  pOption->sendRedirectRspFp = dndSendRedirectRsp;
+  pOption->dnodeId = pDnode->dnodeId;
+  pOption->clusterId = pDnode->clusterId;
   pOption->sver = tsVersion;
 }
 
@@ -274,7 +274,7 @@ int32_t qmProcessCreateReq(SDnode *pDnode, SRpcMsg *pReq) {
     return -1;
   }
 
-  if (createReq.dnodeId != dmGetDnodeId(pDnode)) {
+  if (createReq.dnodeId != pDnode->dnodeId) {
     terrno = TSDB_CODE_DND_QNODE_INVALID_OPTION;
     dError("failed to create qnode since %s", terrstr());
     return -1;
@@ -290,7 +290,7 @@ int32_t qmProcessDropReq(SDnode *pDnode, SRpcMsg *pReq) {
     return -1;
   }
 
-  if (dropReq.dnodeId != dmGetDnodeId(pDnode)) {
+  if (dropReq.dnodeId != pDnode->dnodeId) {
     terrno = TSDB_CODE_DND_QNODE_INVALID_OPTION;
     dError("failed to drop qnode since %s", terrstr());
     return -1;

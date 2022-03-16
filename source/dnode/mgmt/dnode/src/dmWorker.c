@@ -14,8 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dmWorker.h"
-#include "dmMsg.h"
+#include "dmInt.h"
 
 #include "bmInt.h"
 #include "mmInt.h"
@@ -34,7 +33,7 @@ static void *dmThreadRoutine(void *param) {
   while (true) {
     pthread_testcancel();
     taosMsleep(200);
-    if (dndGetStatus(pDnode) != DND_STAT_RUNNING || pMgmt->dropped) {
+    if (dndGetStatus(pDnode) != DND_STAT_RUNNING || pDnode->dropped) {
       continue;
     }
 
@@ -54,68 +53,68 @@ static void *dmThreadRoutine(void *param) {
   }
 }
 
-static void dmProcessQueue(SDnode *pDnode, SNodeMsg *pNodeMsg) {
-  int32_t  code = 0;
-  SRpcMsg *pMsg = &pNodeMsg->rpcMsg;
-  dTrace("msg:%p, will be processed", pNodeMsg);
+static void dmProcessQueue(SDnode *pDnode, SNodeMsg *pMsg) {
+  int32_t code = -1;
+  tmsg_t  msgType = pMsg->rpcMsg.msgType;
+  dTrace("msg:%p, will be processed", pMsg);
 
-  switch (pMsg->msgType) {
+  switch (msgType) {
     case TDMT_DND_CREATE_MNODE:
-      code = mmProcessCreateReq(pDnode, pMsg);
+      code = mmProcessCreateReq(dndGetWrapper(pDnode, MNODE)->pMgmt, pMsg);
       break;
     case TDMT_DND_ALTER_MNODE:
-      code = mmProcessAlterReq(pDnode, pMsg);
+      code = mmProcessAlterReq(dndGetWrapper(pDnode, MNODE)->pMgmt, pMsg);
       break;
     case TDMT_DND_DROP_MNODE:
-      code = mmProcessDropReq(pDnode, pMsg);
+      code = mmProcessDropReq(dndGetWrapper(pDnode, MNODE)->pMgmt, pMsg);
       break;
     case TDMT_DND_CREATE_QNODE:
-      code = qmProcessCreateReq(pDnode, pMsg);
+      code = qmProcessCreateReq(dndGetWrapper(pDnode, QNODE)->pMgmt, pMsg);
       break;
     case TDMT_DND_DROP_QNODE:
-      code = qmProcessDropReq(pDnode, pMsg);
+      code = qmProcessDropReq(dndGetWrapper(pDnode, QNODE)->pMgmt, pMsg);
       break;
     case TDMT_DND_CREATE_SNODE:
-      code = smProcessCreateReq(pDnode, pMsg);
+      code = smProcessCreateReq(dndGetWrapper(pDnode, SNODE)->pMgmt, pMsg);
       break;
     case TDMT_DND_DROP_SNODE:
-      code = smProcessDropReq(pDnode, pMsg);
+      code = smProcessDropReq(dndGetWrapper(pDnode, SNODE)->pMgmt, pMsg);
       break;
     case TDMT_DND_CREATE_BNODE:
-      code = bmProcessCreateReq(pDnode, pMsg);
+      code = bmProcessCreateReq(dndGetWrapper(pDnode, BNODE)->pMgmt, pMsg);
       break;
     case TDMT_DND_DROP_BNODE:
-      code = bmProcessDropReq(pDnode, pMsg);
+      code = bmProcessDropReq(dndGetWrapper(pDnode, BNODE)->pMgmt, pMsg);
       break;
     case TDMT_DND_CONFIG_DNODE:
-      code = dmProcessConfigReq(pDnode, pMsg);
+      code = dmProcessConfigReq(dndGetWrapper(pDnode, DNODE)->pMgmt, pMsg);
       break;
     case TDMT_MND_STATUS_RSP:
-      dmProcessStatusRsp(pDnode, pMsg);
+      code = dmProcessStatusRsp(dndGetWrapper(pDnode, DNODE)->pMgmt, pMsg);
       break;
     case TDMT_MND_AUTH_RSP:
-      dmProcessAuthRsp(pDnode, pMsg);
+      code = dmProcessAuthRsp(dndGetWrapper(pDnode, DNODE)->pMgmt, pMsg);
       break;
     case TDMT_MND_GRANT_RSP:
-      dmProcessGrantRsp(pDnode, pMsg);
+      code = dmProcessGrantRsp(dndGetWrapper(pDnode, DNODE)->pMgmt, pMsg);
       break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
       code = -1;
-      dError("RPC %p, dnode msg:%s not processed", pMsg->handle, TMSG_INFO(pMsg->msgType));
+      dError("RPC %p, dnode msg:%s not processed", pMsg->rpcMsg.handle, TMSG_INFO(msgType));
       break;
   }
 
-  if (pMsg->msgType & 1u) {
+  if (msgType & 1u) {
     if (code != 0) code = terrno;
-    SRpcMsg rsp = {.code = code, .handle = pMsg->handle, .ahandle = pMsg->ahandle};
+    SRpcMsg rsp = {.code = code, .handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle};
     rpcSendResponse(&rsp);
   }
 
-  rpcFreeCont(pMsg->pCont);
-  pMsg->pCont = NULL;
-  taosFreeQitem(pNodeMsg);
-  dTrace("msg:%p, is freed", pNodeMsg);
+  rpcFreeCont(pMsg->rpcMsg.pCont);
+  pMsg->rpcMsg.pCont = NULL;
+  taosFreeQitem(pMsg);
+  dTrace("msg:%p, is freed", pMsg);
 }
 
 int32_t dmStartWorker(SDnodeMgmt *pMgmt) {

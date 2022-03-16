@@ -54,9 +54,9 @@ int32_t mmDrop(SMnodeMgmt *pMgmt);
 int32_t mmBuildOptionFromReq(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCreateMnodeReq *pCreate);
 
 // mmHandle.h
-int32_t mmProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t mmProcessAlterReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t mmProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+int32_t mmProcessCreateReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t mmProcessDropReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

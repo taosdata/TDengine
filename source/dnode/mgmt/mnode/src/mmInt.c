@@ -142,11 +142,10 @@ static void mmInitOption(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
   pOption->pDnode = pDnode;
   pOption->sendReqFp = dndSendReqToDnode;
   pOption->sendReqToMnodeFp = dndSendReqToMnode;
-  pOption->sendRedirectRspFp = dmSendRedirectRsp;
   pOption->putReqToMWriteQFp = mmPutMsgToWriteQueue;
   pOption->putReqToMReadQFp = mmPutMsgToReadQueue;
-  pOption->dnodeId = dmGetDnodeId(pDnode);
-  pOption->clusterId = dmGetClusterId(pDnode);
+  pOption->dnodeId = pDnode->dnodeId;
+  pOption->clusterId = pDnode->clusterId;
 }
 
 static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
@@ -157,8 +156,8 @@ static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
   pOption->selfIndex = 0;
   SReplica *pReplica = &pOption->replicas[0];
   pReplica->id = 1;
-  pReplica->port = pDnode->cfg.serverPort;
-  memcpy(pReplica->fqdn, pDnode->cfg.localFqdn, TSDB_FQDN_LEN);
+  pReplica->port = pDnode->serverPort;
+  memcpy(pReplica->fqdn, pDnode->localFqdn, TSDB_FQDN_LEN);
 
   pMgmt->selfIndex = pOption->selfIndex;
   pMgmt->replica = pOption->replica;
@@ -176,8 +175,8 @@ int32_t mmBuildOptionFromReq(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCreateMnod
   SDnode *pDnode = pMgmt->pDnode;
 
   mmInitOption(pMgmt, pOption);
-  pOption->dnodeId = dmGetDnodeId(pDnode);
-  pOption->clusterId = dmGetClusterId(pDnode);
+  pOption->dnodeId = pDnode->dnodeId;
+  pOption->clusterId = pDnode->clusterId;
 
   pOption->replica = pCreate->replica;
   pOption->selfIndex = -1;
@@ -259,15 +258,15 @@ _OVER:
 }
 
 static bool mmDeployRequired(SDnode *pDnode) {
-  if (dmGetDnodeId(pDnode) > 0) {
+  if (pDnode->dnodeId > 0) {
     return false;
   }
 
-  if (dmGetClusterId(pDnode) > 0) {
+  if (pDnode->clusterId > 0) {
     return false;
   }
 
-  if (strcmp(pDnode->cfg.localEp, pDnode->cfg.firstEp) != 0) {
+  if (strcmp(pDnode->localEp, pDnode->firstEp) != 0) {
     return false;
   }
 

@@ -45,8 +45,8 @@ void    dndProcessQnodeQueryMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 void    dndProcessQnodeFetchMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 
 // qmHandle.h
-int32_t qmProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t qmProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+int32_t qmProcessCreateReq(SQnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t qmProcessDropReq(SQnodeMgmt *pMgmt, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

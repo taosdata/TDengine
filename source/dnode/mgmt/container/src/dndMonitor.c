@@ -25,16 +25,14 @@ static int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {
   tstrncpy(pInfo->tempdir.name, tsTempDir, sizeof(pInfo->tempdir.name));
   pInfo->tempdir.size = tsTempSpace.size;
 
-  vmGetTfsMonitorInfo(dndGetWrapper(pDnode, VNODES), pInfo);
-
-  return 0;
+  return vmGetTfsMonitorInfo(dndGetWrapper(pDnode, VNODES), pInfo);
 }
 
 static void dndGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
-  pInfo->dnode_id = dmGetDnodeId(pDnode);
-  tstrncpy(pInfo->dnode_ep, tsLocalEp, TSDB_EP_LEN);
-  pInfo->cluster_id = dmGetClusterId(pDnode);
   pInfo->protocol = 1;
+  pInfo->dnode_id = pDnode->dnodeId;
+  pInfo->cluster_id = pDnode->clusterId;
+  tstrncpy(pInfo->dnode_ep, tsLocalEp, TSDB_EP_LEN);
 }
 
 static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
@@ -56,7 +54,7 @@ static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
 
 void dndSendMonitorReport(SDnode *pDnode) {
   if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
-  dTrace("pDnode:%p, send monitor report to %s:%u", pDnode, tsMonitorFqdn, tsMonitorPort);
+  dTrace("send monitor report to %s:%u", tsMonitorFqdn, tsMonitorPort);
 
   SMonInfo *pMonitor = monCreateMonitorInfo();
   if (pMonitor == NULL) return;

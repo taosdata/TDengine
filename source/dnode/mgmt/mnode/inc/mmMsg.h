@@ -24,9 +24,9 @@ extern "C" {
 
 void mmInitMsgHandles(SMgmtWrapper *pWrapper);
 
-int32_t mmProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t mmProcessAlterReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t mmProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+// int32_t mmProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+// int32_t mmProcessAlterReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+// int32_t mmProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
 
 #ifdef __cplusplus
 }

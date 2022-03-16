@@ -17,8 +17,8 @@
 #include "qmMsg.h"
 #include "qmWorker.h"
 
-int32_t qmProcessCreateReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {return 0;}
-int32_t qmProcessDropReq(SDnode *pDnode, SRpcMsg *pRpcMsg){return 0;}
+int32_t qmProcessCreateReq(SQnodeMgmt *pMgmt, SNodeMsg *pMsg) {return 0;}
+int32_t qmProcessDropReq(SQnodeMgmt *pMgmt, SNodeMsg *pMsg){return 0;}
 
 void qmInitMsgHandles(SMgmtWrapper *pWrapper) {
 }

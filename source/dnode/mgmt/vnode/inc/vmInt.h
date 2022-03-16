@@ -85,10 +85,10 @@ typedef struct {
 } SVnodeThread;
 
 // interface
-void vmGetMgmtFp(SMgmtWrapper *pWrapper);
-void vmGetVnodeLoads(SMgmtWrapper *pWrapper, SArray *pLoads);
-void vmGetTfsMonitorInfo(SMgmtWrapper *pWrapper, SMonDiskInfo *pInfo);
-void vmGetVnodeReqs(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo);
+void    vmGetMgmtFp(SMgmtWrapper *pWrapper);
+void    vmGetVnodeLoads(SMgmtWrapper *pWrapper, SArray *pLoads);
+int32_t vmGetTfsMonitorInfo(SMgmtWrapper *pWrapper, SMonDiskInfo *pInfo);
+void    vmGetVnodeReqs(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo);
 
 // vmInt.h
 SVnodeObj *vmAcquireVnode(SVnodesMgmt *pMgmt, int32_t vgId);

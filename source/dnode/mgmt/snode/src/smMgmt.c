@@ -210,9 +210,9 @@ static void dndBuildSnodeOption(SDnode *pDnode, SSnodeOpt *pOption) {
   pOption->pDnode = pDnode;
   pOption->sendReqFp = dndSendReqToDnode;
   pOption->sendReqToMnodeFp = dndSendReqToMnode;
-  pOption->sendRedirectRspFp = dmSendRedirectRsp;
-  pOption->dnodeId = dmGetDnodeId(pDnode);
-  pOption->clusterId = dmGetClusterId(pDnode);
+  pOption->sendRedirectRspFp = dndSendRedirectRsp;
+  pOption->dnodeId = pDnode->dnodeId;
+  pOption->clusterId = pDnode->clusterId;
   pOption->sver = tsVersion;
 }
 
@@ -299,7 +299,7 @@ int32_t smProcessCreateReq(SDnode *pDnode, SRpcMsg *pReq) {
     return -1;
   }
 
-  if (createReq.dnodeId != dmGetDnodeId(pDnode)) {
+  if (createReq.dnodeId != pDnode->dnodeId) {
     terrno = TSDB_CODE_DND_SNODE_INVALID_OPTION;
     dError("failed to create snode since %s", terrstr());
     return -1;
@@ -315,7 +315,7 @@ int32_t smProcessDropReq(SDnode *pDnode, SRpcMsg *pReq) {
     return -1;
   }
 
-  if (dropReq.dnodeId != dmGetDnodeId(pDnode)) {
+  if (dropReq.dnodeId != pDnode->dnodeId) {
     terrno = TSDB_CODE_DND_SNODE_INVALID_OPTION;
     dError("failed to drop snode since %s", terrstr());
     return -1;

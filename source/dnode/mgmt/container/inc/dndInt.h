@@ -43,7 +43,6 @@
 #include "snode.h"
 #include "tfs.h"
 #include "vnode.h"
-#include "monitor.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -57,10 +56,10 @@ extern "C" {
 #define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", DEBUG_TRACE, dDebugFlag, __VA_ARGS__); }}
 
 typedef enum { DNODE, VNODES, QNODE, SNODE, MNODE, BNODE, NODE_MAX } ENodeType;
-typedef enum { PROC_SINGLE, PROC_CHILD, PROC_PARENT } EProcType;
 typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EDndStatus;
+typedef enum { DND_ENV_INIT, DND_ENV_READY, DND_ENV_CLEANUP } EEnvStatus;
 typedef enum { DND_WORKER_SINGLE, DND_WORKER_MULTI } EWorkerType;
-typedef enum { DND_ENV_INIT, DND_ENV_READY, DND_ENV_CLEANUP } EEnvStat;
+typedef enum { PROC_SINGLE, PROC_CHILD, PROC_PARENT } EProcType;
 
 typedef struct SMgmtFp      SMgmtFp;
 typedef struct SMgmtWrapper SMgmtWrapper;
@@ -121,11 +120,22 @@ typedef struct {
 } STransMgmt;
 
 typedef struct SDnode {
+  int64_t      clusterId;
+  int32_t      dnodeId;
+  int32_t      numOfSupportVnodes;
   int64_t      rebootTime;
+  char        *localEp;
+  char        *localFqdn;
+  char        *firstEp;
+  char        *secondEp;
+  char        *dataDir;
+  SDiskCfg    *pDisks;
+  int32_t      numOfDisks;
+  uint16_t     serverPort;
+  bool         dropped;
   EDndStatus   status;
   EDndEvent    event;
   EProcType    procType;
-  SDndCfg      cfg;
   SStartupReq  startup;
   TdFilePtr    pLockFile;
   STransMgmt   trans;
@@ -149,16 +159,16 @@ void          dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
 void dndSendMonitorReport(SDnode *pDnode);
 
 // dndNode.h
-SDnode *dndCreate(SDndCfg *pCfg);
+SDnode *dndCreate(const SDnodeOpt *pOption);
 void    dndClose(SDnode *pDnode);
 int32_t dndRun(SDnode *pDnode);
-void    dndeHandleEvent(SDnode *pDnode, EDndEvent event);
-void    dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet);
+void    dndHandleEvent(SDnode *pDnode, EDndEvent event);
 void    dndSendRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp);
+void    dndSendRedirectRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp);
 
 // dndTransport.h
-int32_t dndSendReqToMnode(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t dndSendReqToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pRpcMsg);
+int32_t dndSendReqToMnode(void *pWrapper, SRpcMsg *pMsg);
+int32_t dndSendReqToDnode(void *pWrapper, SEpSet *pEpSet, SRpcMsg *pMsg);
 
 // dndWorker.h
 int32_t dndInitWorker(void *param, SDnodeWorker *pWorker, EWorkerType type, const char *name, int32_t minNum,

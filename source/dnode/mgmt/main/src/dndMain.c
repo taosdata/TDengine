@@ -28,7 +28,7 @@ static struct {
 
 static void dndSigintHandle(int signum, void *info, void *ctx) {
   dInfo("singal:%d is received", signum);
-  dndeHandleEvent(global.pDnode, DND_EVENT_STOP);
+  dndHandleEvent(global.pDnode, DND_EVENT_STOP);
 }
 
 static void dndSetSignalHandle() {
@@ -71,8 +71,9 @@ static int32_t dndRunDnode() {
     return -1;
   }
 
-  SDndCfg objCfg = dndGetCfg();
-  SDnode *pDnode = dndCreate(&objCfg);
+  SDnodeOpt option = dndGetOpt();
+
+  SDnode *pDnode = dndCreate(&option);
   if (pDnode == NULL) {
     dError("failed to to create dnode object since %s", terrstr());
     return -1;

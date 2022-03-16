@@ -15,45 +15,18 @@
 
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
-#include "dmFile.h"
-#include "dmMsg.h"
-#include "dmWorker.h"
 
-int32_t dmGetDnodeId(SDnode *pDnode) {
-  SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, DNODE);
-  SDnodeMgmt   *pMgmt = pWrapper->pMgmt;
-
-  taosRLockLatch(&pMgmt->latch);
-  int32_t dnodeId = pMgmt->dnodeId;
-  taosRUnLockLatch(&pMgmt->latch);
-  return dnodeId;
-}
-
-int64_t dmGetClusterId(SDnode *pDnode) {
-  SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, DNODE);
-  SDnodeMgmt   *pMgmt = pWrapper->pMgmt;
-
-  taosRLockLatch(&pMgmt->latch);
-  int64_t clusterId = pMgmt->clusterId;
-  taosRUnLockLatch(&pMgmt->latch);
-  return clusterId;
-}
-
-void dmGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
-  SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, DNODE);
-  SDnodeMgmt   *pMgmt = pWrapper->pMgmt;
-
+void dmGetMnodeEpSet(SMgmtWrapper *pWrapper, SEpSet *pEpSet) {
+  SDnodeMgmt *pMgmt = pWrapper->pMgmt;
   taosRLockLatch(&pMgmt->latch);
   *pEpSet = pMgmt->mnodeEpSet;
   taosRUnLockLatch(&pMgmt->latch);
 }
 
-void dmUpdateMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
+void dmUpdateMnodeEpSet(SMgmtWrapper *pWrapper, SEpSet *pEpSet) {
   dInfo("mnode is changed, num:%d use:%d", pEpSet->numOfEps, pEpSet->inUse);
 
-  SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, DNODE);
-  SDnodeMgmt   *pMgmt = pWrapper->pMgmt;
-
+  SDnodeMgmt *pMgmt = pWrapper->pMgmt;
   taosWLockLatch(&pMgmt->latch);
 
   pMgmt->mnodeEpSet = *pEpSet;
@@ -64,10 +37,8 @@ void dmUpdateMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
   taosWUnLockLatch(&pMgmt->latch);
 }
 
-void dmGetDnodeEp(SDnode *pDnode, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort) {
-  SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, DNODE);
-  SDnodeMgmt   *pMgmt = pWrapper->pMgmt;
-
+void dmGetDnodeEp(SMgmtWrapper *pWrapper, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort) {
+  SDnodeMgmt *pMgmt = pWrapper->pMgmt;
   taosRLockLatch(&pMgmt->latch);
 
   SDnodeEp *pDnodeEp = taosHashGet(pMgmt->dnodeHash, &dnodeId, sizeof(int32_t));
@@ -86,16 +57,17 @@ void dmGetDnodeEp(SDnode *pDnode, int32_t dnodeId, char *pEp, char *pFqdn, uint1
   taosRUnLockLatch(&pMgmt->latch);
 }
 
-void dmSendRedirectRsp(SDnode *pDnode, SRpcMsg *pReq) {
-  tmsg_t msgType = pReq->msgType;
+void dmSendRedirectRsp(SMgmtWrapper *pWrapper, SRpcMsg *pReq) {
+  SDnode *pDnode = pWrapper->pDnode;
+  tmsg_t  msgType = pReq->msgType;
 
   SEpSet epSet = {0};
-  dmGetMnodeEpSet(pDnode, &epSet);
+  dmGetMnodeEpSet(pWrapper, &epSet);
 
   dDebug("RPC %p, req:%s is redirected, num:%d use:%d", pReq->handle, TMSG_INFO(msgType), epSet.numOfEps, epSet.inUse);
   for (int32_t i = 0; i < epSet.numOfEps; ++i) {
     dDebug("mnode index:%d %s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
-    if (strcmp(epSet.eps[i].fqdn, pDnode->cfg.localFqdn) == 0 && epSet.eps[i].port == pDnode->cfg.serverPort) {
+    if (strcmp(epSet.eps[i].fqdn, pDnode->localFqdn) == 0 && epSet.eps[i].port == pDnode->serverPort) {
       epSet.inUse = (i + 1) % epSet.numOfEps;
     }
 
@@ -105,18 +77,21 @@ void dmSendRedirectRsp(SDnode *pDnode, SRpcMsg *pReq) {
   rpcSendRedirectRsp(pReq->handle, &epSet);
 }
 
+int32_t dmStart(SMgmtWrapper *pWrapper) {
+  SDnodeMgmt *pMgmt = pWrapper->pMgmt;
+  return dmStartWorker(pMgmt);
+}
+
 int32_t dmInit(SMgmtWrapper *pWrapper) {
   SDnode     *pDnode = pWrapper->pDnode;
   SDnodeMgmt *pMgmt = calloc(1, sizeof(SDnodeMgmt));
   dInfo("dnode-mgmt is initialized");
 
-  pMgmt->dnodeId = 0;
-  pMgmt->dropped = 0;
-  pMgmt->clusterId = 0;
+  pDnode->dnodeId = 0;
+  pDnode->dropped = 0;
+  pDnode->clusterId = 0;
   pMgmt->path = pWrapper->path;
   pMgmt->pDnode = pDnode;
-  memcpy(pMgmt->localEp, pDnode->cfg.localEp, TSDB_EP_LEN);
-  memcpy(pMgmt->firstEp, pDnode->cfg.firstEp, TSDB_EP_LEN);
   taosInitRWLatch(&pMgmt->latch);
 
   pMgmt->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
@@ -131,7 +106,7 @@ int32_t dmInit(SMgmtWrapper *pWrapper) {
     return -1;
   }
 
-  if (pMgmt->dropped) {
+  if (pDnode->dropped) {
     dError("dnode will not start since its already dropped");
     return -1;
   }
@@ -150,9 +125,9 @@ void dmCleanup(SMgmtWrapper *pWrapper) {
 
   taosWLockLatch(&pMgmt->latch);
 
-  if (pMgmt->pDnodeEps != NULL) {
-    taosArrayDestroy(pMgmt->pDnodeEps);
-    pMgmt->pDnodeEps = NULL;
+  if (pMgmt->dnodeEps != NULL) {
+    taosArrayDestroy(pMgmt->dnodeEps);
+    pMgmt->dnodeEps = NULL;
   }
 
   if (pMgmt->dnodeHash != NULL) {
