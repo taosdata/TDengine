@@ -73,7 +73,7 @@ typedef struct SRpcInit {
   void *(*mfp)(void *parent, tmsg_t msgType);
 
   // call back  to handle except when query/fetch in progress
-  void (*efp)(void *parent, tmsg_t msgType);
+  bool (*efp)(void *parent, tmsg_t msgType);
 
   void *parent;
 } SRpcInit;
