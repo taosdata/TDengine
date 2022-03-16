@@ -50,6 +50,7 @@ static void *ConstructArgForSpecificMsgType(void *parent, tmsg_t msgType) {
 }
 // server except
 static bool handleExcept(void *parent, tmsg_t msgType) {
+  //
   return msgType == TDMT_VND_QUERY || msgType == TDMT_VND_FETCH_RSP || msgType == TDMT_VND_RES_READY_RSP;
 }
 typedef void (*CB)(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet);

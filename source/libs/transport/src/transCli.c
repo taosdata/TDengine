@@ -582,8 +582,13 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
 
   SCliConn* conn = cliGetConn(pMsg, pThrd);
   if (conn != NULL) {
-    taosArrayPush(conn->cliMsgs, &pMsg);
     conn->hThrdIdx = pCtx->hThrdIdx;
+
+    if (taosArrayGetSize(conn->cliMsgs) > 0) {
+      taosArrayPush(conn->cliMsgs, &pMsg);
+      return;
+    }
+    taosArrayPush(conn->cliMsgs, &pMsg);
     transDestroyBuffer(&conn->readBuf);
     cliSend(conn);
   } else {
