@@ -1870,8 +1870,8 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 - **NOW**
     ```mysql
     SELECT NOW() FROM { tb_name | stb_name } [WHERE clause];
-    SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior NOW()
-    INSERT INTO tb_name VALUES (NOW(), ...)
+    SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior NOW();
+    INSERT INTO tb_name VALUES (NOW(), ...);
     ```
     功能说明：返回客户端当前系统时间。
 
@@ -1971,11 +1971,12 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
                timezone()           |
     =================================
      UTC (UTC, +0000)               |
+    Query OK, 1 row(s) in set (0.002093s)
     ```
     
 - **TO_ISO8601**
     ```mysql
-    SELECT TO_ISO8601(timestamp_val | ts_col) FROM { tb_name | stb_name } [WHERE clause];
+    SELECT TO_ISO8601(ts_val | ts_col) FROM { tb_name | stb_name } [WHERE clause];
     ```
     功能说明：将 UNIX 时间戳转换成为 ISO_8601 标准的日期时间格式，并附加客户端时区信息。
 
