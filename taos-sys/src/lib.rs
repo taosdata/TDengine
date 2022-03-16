@@ -38,7 +38,7 @@ pub struct TAOS_FIELD {
 
 impl TAOS_FIELD {
     pub fn name(&self) -> &CStr {
-        CStr::from_bytes_with_nul(&self.name).expect("field name should always valid cstr")
+        CStr::from_bytes_with_nul(&self.name).expect("field name should always be valid C-str")
     }
     pub fn type_(&self) -> TaosDataType {
         self.type_.into()
@@ -191,7 +191,7 @@ extern "C" {
 
     pub fn taos_fetch_lengths(res: *mut TAOS_RES) -> *mut c_int;
 
-    #[cfg(result_block)]
+    #[cfg(taos_result_block)]
     pub fn taos_result_block(res: *mut TAOS_RES) -> *mut TAOS_ROW;
 
     pub fn taos_validate_sql(taos: *mut TAOS, sql: *const c_char) -> c_int;
@@ -206,7 +206,7 @@ extern "C" {
 
 }
 
-#[cfg(not(result_block))]
+#[cfg(not(taos_result_block))]
 pub extern "C" fn taos_result_block(res: *mut TAOS_RES) -> *mut TAOS_ROW {
     todo!()
 }
