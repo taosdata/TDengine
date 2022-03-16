@@ -1896,33 +1896,18 @@ static FORCE_INLINE void* tDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) 
   }
   return buf;
 }
-typedef enum {
-  TD_TIME_UNIT_UNKNOWN = -1,
-  TD_TIME_UNIT_YEAR = 0,
-  TD_TIME_UNIT_SEASON = 1,
-  TD_TIME_UNIT_MONTH = 2,
-  TD_TIME_UNIT_WEEK = 3,
-  TD_TIME_UNIT_DAY = 4,
-  TD_TIME_UNIT_HOUR = 5,
-  TD_TIME_UNIT_MINUTE = 6,
-  TD_TIME_UNIT_SEC = 7,
-  TD_TIME_UNIT_MILLISEC = 8,
-  TD_TIME_UNIT_MICROSEC = 9,
-  TD_TIME_UNIT_NANOSEC = 10
-} ETDTimeUnit;
-
 typedef struct {
   int8_t   version;  // for compatibility(default 0)
-  int8_t   intervalUnit;
-  int8_t   slidingUnit;
+  int8_t   intervalUnit; // MACRO: TIME_UNIT_XXX
+  int8_t   slidingUnit; // MACRO: TIME_UNIT_XXX
   char     indexName[TSDB_INDEX_NAME_LEN];
-  char     timezone[TD_TIMEZONE_LEN];  // sma data is invalid if timezone change.
+  char     timezone[TD_TIMEZONE_LEN];  // sma data expired if timezone changes.
   int32_t  exprLen;
   int32_t  tagsFilterLen;
   int64_t  indexUid;
   tb_uid_t tableUid;  // super/child/common table uid
   int64_t  interval;
-  int64_t  offset;
+  int64_t  offset; // use unit by precision of DB
   int64_t  sliding;
   char*    expr;  // sma expression
   char*    tagsFilter;
@@ -1967,7 +1952,7 @@ typedef struct {
 
 typedef struct {
   int64_t indexUid;
-  TSKEY   skey;  // startTS of one interval/sliding
+  TSKEY   skey;  // startKey of one interval/sliding window
   int64_t interval;
   int32_t dataLen;  // not including head
   int8_t  intervalUnit;

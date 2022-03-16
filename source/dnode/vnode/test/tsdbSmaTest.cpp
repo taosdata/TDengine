@@ -37,9 +37,9 @@ TEST(testCase, tSma_Meta_Encode_Decode_Test) {
   // encode
   STSma tSma = {0};
   tSma.version = 0;
-  tSma.intervalUnit = TD_TIME_UNIT_DAY;
+  tSma.intervalUnit = TIME_UNIT_DAY;
   tSma.interval = 1;
-  tSma.slidingUnit = TD_TIME_UNIT_HOUR;
+  tSma.slidingUnit = TIME_UNIT_HOUR;
   tSma.sliding = 0;
   tstrncpy(tSma.indexName, "sma_index_test", TSDB_INDEX_NAME_LEN);
   tstrncpy(tSma.timezone, "Asia/Shanghai", TD_TIMEZONE_LEN);
@@ -50,37 +50,37 @@ TEST(testCase, tSma_Meta_Encode_Decode_Test) {
   uint32_t     bufLen = tEncodeTSmaWrapper(NULL, &tSmaWrapper);
 
   void *buf = calloc(bufLen, 1);
-  assert(buf != NULL);
+  ASSERT_NE(buf, nullptr);
 
   STSmaWrapper *pSW = (STSmaWrapper *)buf;
   uint32_t      len = tEncodeTSmaWrapper(&buf, &tSmaWrapper);
 
-  EXPECT_EQ(len, bufLen);
+  ASSERT_EQ(len, bufLen);
 
   // decode
   STSmaWrapper dstTSmaWrapper = {0};
   void *       result = tDecodeTSmaWrapper(pSW, &dstTSmaWrapper);
-  assert(result != NULL);
+  ASSERT_NE(result, nullptr);
 
-  EXPECT_EQ(tSmaWrapper.number, dstTSmaWrapper.number);
+  ASSERT_EQ(tSmaWrapper.number, dstTSmaWrapper.number);
 
   for (int i = 0; i < tSmaWrapper.number; ++i) {
     STSma *pSma = tSmaWrapper.tSma + i;
     STSma *qSma = dstTSmaWrapper.tSma + i;
 
-    EXPECT_EQ(pSma->version, qSma->version);
-    EXPECT_EQ(pSma->intervalUnit, qSma->intervalUnit);
-    EXPECT_EQ(pSma->slidingUnit, qSma->slidingUnit);
-    EXPECT_STRCASEEQ(pSma->indexName, qSma->indexName);
-    EXPECT_STRCASEEQ(pSma->timezone, qSma->timezone);
-    EXPECT_EQ(pSma->indexUid, qSma->indexUid);
-    EXPECT_EQ(pSma->tableUid, qSma->tableUid);
-    EXPECT_EQ(pSma->interval, qSma->interval);
-    EXPECT_EQ(pSma->sliding, qSma->sliding);
-    EXPECT_EQ(pSma->exprLen, qSma->exprLen);
-    EXPECT_STRCASEEQ(pSma->expr, qSma->expr);
-    EXPECT_EQ(pSma->tagsFilterLen, qSma->tagsFilterLen);
-    EXPECT_STRCASEEQ(pSma->tagsFilter, qSma->tagsFilter);
+    ASSERT_EQ(pSma->version, qSma->version);
+    ASSERT_EQ(pSma->intervalUnit, qSma->intervalUnit);
+    ASSERT_EQ(pSma->slidingUnit, qSma->slidingUnit);
+    ASSERT_STRCASEEQ(pSma->indexName, qSma->indexName);
+    ASSERT_STRCASEEQ(pSma->timezone, qSma->timezone);
+    ASSERT_EQ(pSma->indexUid, qSma->indexUid);
+    ASSERT_EQ(pSma->tableUid, qSma->tableUid);
+    ASSERT_EQ(pSma->interval, qSma->interval);
+    ASSERT_EQ(pSma->sliding, qSma->sliding);
+    ASSERT_EQ(pSma->exprLen, qSma->exprLen);
+    ASSERT_STRCASEEQ(pSma->expr, qSma->expr);
+    ASSERT_EQ(pSma->tagsFilterLen, qSma->tagsFilterLen);
+    ASSERT_STRCASEEQ(pSma->tagsFilter, qSma->tagsFilter);
   }
 
   // resource release
@@ -103,9 +103,9 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   // encode
   STSma tSma = {0};
   tSma.version = 0;
-  tSma.intervalUnit = TD_TIME_UNIT_DAY;
+  tSma.intervalUnit = TIME_UNIT_DAY;
   tSma.interval = 1;
-  tSma.slidingUnit = TD_TIME_UNIT_HOUR;
+  tSma.slidingUnit = TIME_UNIT_HOUR;
   tSma.sliding = 0;
   tSma.indexUid = indexUid1;
   tstrncpy(tSma.indexName, smaIndexName1, TSDB_INDEX_NAME_LEN);
@@ -114,10 +114,12 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
 
   tSma.exprLen = strlen(expr);
   tSma.expr = (char *)calloc(tSma.exprLen + 1, 1);
+  ASSERT_NE(tSma.expr, nullptr);
   tstrncpy(tSma.expr, expr, tSma.exprLen + 1);
 
   tSma.tagsFilterLen = strlen(tagsFilter);
   tSma.tagsFilter = (char *)calloc(tSma.tagsFilterLen + 1, 1);
+  ASSERT_NE(tSma.tagsFilter, nullptr);
   tstrncpy(tSma.tagsFilter, tagsFilter, tSma.tagsFilterLen + 1);
 
   SMeta *         pMeta = NULL;
@@ -129,18 +131,18 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   pMeta = metaOpen(smaTestDir, pMetaCfg, NULL);
   assert(pMeta != NULL);
   // save index 1
-  EXPECT_EQ(metaSaveSmaToDB(pMeta, pSmaCfg), 0);
+  ASSERT_EQ(metaSaveSmaToDB(pMeta, pSmaCfg), 0);
 
   pSmaCfg->indexUid = indexUid2;
   tstrncpy(pSmaCfg->indexName, smaIndexName2, TSDB_INDEX_NAME_LEN);
   pSmaCfg->version = 1;
-  pSmaCfg->intervalUnit = TD_TIME_UNIT_HOUR;
+  pSmaCfg->intervalUnit = TIME_UNIT_HOUR;
   pSmaCfg->interval = 1;
-  pSmaCfg->slidingUnit = TD_TIME_UNIT_MINUTE;
+  pSmaCfg->slidingUnit = TIME_UNIT_MINUTE;
   pSmaCfg->sliding = 5;
 
   // save index 2
-  EXPECT_EQ(metaSaveSmaToDB(pMeta, pSmaCfg), 0);
+  ASSERT_EQ(metaSaveSmaToDB(pMeta, pSmaCfg), 0);
 
   // get value by indexName
   STSma *qSmaCfg = NULL;
@@ -150,8 +152,8 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   printf("timezone1 = %s\n", qSmaCfg->timezone);
   printf("expr1 = %s\n", qSmaCfg->expr != NULL ? qSmaCfg->expr : "");
   printf("tagsFilter1 = %s\n", qSmaCfg->tagsFilter != NULL ? qSmaCfg->tagsFilter : "");
-  EXPECT_STRCASEEQ(qSmaCfg->indexName, smaIndexName1);
-  EXPECT_EQ(qSmaCfg->tableUid, tSma.tableUid);
+  ASSERT_STRCASEEQ(qSmaCfg->indexName, smaIndexName1);
+  ASSERT_EQ(qSmaCfg->tableUid, tSma.tableUid);
   tdDestroyTSma(qSmaCfg);
   tfree(qSmaCfg);
 
@@ -161,8 +163,8 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   printf("timezone2 = %s\n", qSmaCfg->timezone);
   printf("expr2 = %s\n", qSmaCfg->expr != NULL ? qSmaCfg->expr : "");
   printf("tagsFilter2 = %s\n", qSmaCfg->tagsFilter != NULL ? qSmaCfg->tagsFilter : "");
-  EXPECT_STRCASEEQ(qSmaCfg->indexName, smaIndexName2);
-  EXPECT_EQ(qSmaCfg->interval, tSma.interval);
+  ASSERT_STRCASEEQ(qSmaCfg->indexName, smaIndexName2);
+  ASSERT_EQ(qSmaCfg->interval, tSma.interval);
   tdDestroyTSma(qSmaCfg);
   tfree(qSmaCfg);
 
@@ -178,25 +180,25 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
     printf("indexName = %s\n", indexName);
     ++indexCnt;
   }
-  EXPECT_EQ(indexCnt, nCntTSma);
+  ASSERT_EQ(indexCnt, nCntTSma);
   metaCloseSmaCurosr(pSmaCur);
 
   // get wrapper by table uid
   STSmaWrapper *pSW = metaGetSmaInfoByTable(pMeta, tbUid);
   assert(pSW != NULL);
-  EXPECT_EQ(pSW->number, nCntTSma);
-  EXPECT_STRCASEEQ(pSW->tSma->indexName, smaIndexName1);
-  EXPECT_STRCASEEQ(pSW->tSma->timezone, timezone);
-  EXPECT_STRCASEEQ(pSW->tSma->expr, expr);
-  EXPECT_STRCASEEQ(pSW->tSma->tagsFilter, tagsFilter);
-  EXPECT_EQ(pSW->tSma->indexUid, indexUid1);
-  EXPECT_EQ(pSW->tSma->tableUid, tbUid);
-  EXPECT_STRCASEEQ((pSW->tSma + 1)->indexName, smaIndexName2);
-  EXPECT_STRCASEEQ((pSW->tSma + 1)->timezone, timezone);
-  EXPECT_STRCASEEQ((pSW->tSma + 1)->expr, expr);
-  EXPECT_STRCASEEQ((pSW->tSma + 1)->tagsFilter, tagsFilter);
-  EXPECT_EQ((pSW->tSma + 1)->indexUid, indexUid2);
-  EXPECT_EQ((pSW->tSma + 1)->tableUid, tbUid);
+  ASSERT_EQ(pSW->number, nCntTSma);
+  ASSERT_STRCASEEQ(pSW->tSma->indexName, smaIndexName1);
+  ASSERT_STRCASEEQ(pSW->tSma->timezone, timezone);
+  ASSERT_STRCASEEQ(pSW->tSma->expr, expr);
+  ASSERT_STRCASEEQ(pSW->tSma->tagsFilter, tagsFilter);
+  ASSERT_EQ(pSW->tSma->indexUid, indexUid1);
+  ASSERT_EQ(pSW->tSma->tableUid, tbUid);
+  ASSERT_STRCASEEQ((pSW->tSma + 1)->indexName, smaIndexName2);
+  ASSERT_STRCASEEQ((pSW->tSma + 1)->timezone, timezone);
+  ASSERT_STRCASEEQ((pSW->tSma + 1)->expr, expr);
+  ASSERT_STRCASEEQ((pSW->tSma + 1)->tagsFilter, tagsFilter);
+  ASSERT_EQ((pSW->tSma + 1)->indexUid, indexUid2);
+  ASSERT_EQ((pSW->tSma + 1)->tableUid, tbUid);
 
   tdDestroyTSmaWrapper(pSW);
   tfree(pSW);
@@ -208,7 +210,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
     printf("metaGetSmaTbUids: uid[%" PRIu32 "] = %" PRIi64 "\n", i, *(tb_uid_t *)taosArrayGet(pUids, i));
     // printf("metaGetSmaTbUids: index[%" PRIu32 "] = %s", i, (char *)taosArrayGet(pUids, i));
   }
-  EXPECT_EQ(taosArrayGetSize(pUids), 1);
+  ASSERT_EQ(taosArrayGetSize(pUids), 1);
   taosArrayDestroy(pUids);
 
   // resource release
@@ -231,7 +233,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   const tb_uid_t tbUid = 1234567890;
   const int64_t  indexUid1 = 2000000001;
   const int64_t  interval1 = 1;
-  const int8_t   intervalUnit1 = TD_TIME_UNIT_DAY;
+  const int8_t   intervalUnit1 = TIME_UNIT_DAY;
   const uint32_t nCntTSma = 2;
   TSKEY          skey1 = 1646987196;
   const int64_t  testSmaData1 = 100;
@@ -239,9 +241,9 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   // encode
   STSma tSma = {0};
   tSma.version = 0;
-  tSma.intervalUnit = TD_TIME_UNIT_DAY;
+  tSma.intervalUnit = TIME_UNIT_DAY;
   tSma.interval = 1;
-  tSma.slidingUnit = TD_TIME_UNIT_HOUR;
+  tSma.slidingUnit = TIME_UNIT_HOUR;
   tSma.sliding = 0;
   tSma.indexUid = indexUid1;
   tstrncpy(tSma.indexName, smaIndexName1, TSDB_INDEX_NAME_LEN);
@@ -250,10 +252,12 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
 
   tSma.exprLen = strlen(expr);
   tSma.expr = (char *)calloc(tSma.exprLen + 1, 1);
+  ASSERT_NE(tSma.expr, nullptr);
   tstrncpy(tSma.expr, expr, tSma.exprLen + 1);
 
   tSma.tagsFilterLen = strlen(tagsFilter);
   tSma.tagsFilter = (char *)calloc(tSma.tagsFilterLen + 1, 1);
+  ASSERT_NE(tSma.tagsFilter, nullptr);
   tstrncpy(tSma.tagsFilter, tagsFilter, tSma.tagsFilterLen + 1);
 
   SMeta *         pMeta = NULL;
@@ -265,7 +269,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   pMeta = metaOpen(smaTestDir, pMetaCfg, NULL);
   assert(pMeta != NULL);
   // save index 1
-  EXPECT_EQ(metaSaveSmaToDB(pMeta, pSmaCfg), 0);
+  ASSERT_EQ(metaSaveSmaToDB(pMeta, pSmaCfg), 0);
 
   // step 2: insert data
   STSmaDataWrapper *pSmaData = NULL;
@@ -298,18 +302,19 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   }
 
   char *msg = (char *)calloc(100, 1);
-  EXPECT_EQ(tsdbUpdateSmaWindow(&tsdb, TSDB_SMA_TYPE_TIME_RANGE, msg), 0);
+  assert(msg != NULL);
+  ASSERT_EQ(tsdbUpdateSmaWindow(&tsdb, TSDB_SMA_TYPE_TIME_RANGE, msg), 0);
 
   // init
   int32_t allocCnt = 0;
-  int32_t allocStep = 40960;
-  int32_t buffer = 4096;
+  int32_t allocStep = 16384;
+  int32_t buffer = 1024;
   void *  buf = NULL;
-  EXPECT_EQ(tsdbMakeRoom(&buf, allocStep), 0);
+  ASSERT_EQ(tsdbMakeRoom(&buf, allocStep), 0);
   int32_t  bufSize = taosTSizeof(buf);
   int32_t  numOfTables = 10;
   col_id_t numOfCols = 4096;
-  EXPECT_GT(numOfCols, 0);
+  ASSERT_GT(numOfCols, 0);
 
   pSmaData = (STSmaDataWrapper *)buf;
   printf(">> allocate [%d] time to %d and addr is %p\n", ++allocCnt, bufSize, pSmaData);
@@ -326,7 +331,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
     int32_t tableDataLen = sizeof(STSmaTbData);
     for (col_id_t c = 0; c < numOfCols; ++c) {
       if (bufSize - len - tableDataLen < buffer) {
-        EXPECT_EQ(tsdbMakeRoom(&buf, bufSize + allocStep), 0);
+        ASSERT_EQ(tsdbMakeRoom(&buf, bufSize + allocStep), 0);
         pSmaData = (STSmaDataWrapper *)buf;
         pTbData = (STSmaTbData *)POINTER_SHIFT(pSmaData, len);
         bufSize = taosTSizeof(buf);
@@ -353,22 +358,22 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   }
   pSmaData->dataLen = (len - sizeof(STSmaDataWrapper));
 
-  EXPECT_GE(bufSize, pSmaData->dataLen);
+  ASSERT_GE(bufSize, pSmaData->dataLen);
 
   // execute
-  EXPECT_EQ(tsdbInsertTSmaData(&tsdb, (char *)pSmaData), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tsdbInsertTSmaData(&tsdb, (char *)pSmaData), TSDB_CODE_SUCCESS);
 
   // step 3: query
   uint32_t checkDataCnt = 0;
   for (int32_t t = 0; t < numOfTables; ++t) {
     for (col_id_t c = 0; c < numOfCols; ++c) {
-      EXPECT_EQ(tsdbGetTSmaData(&tsdb, NULL, indexUid1, interval1, intervalUnit1, tbUid + t,
+      ASSERT_EQ(tsdbGetTSmaData(&tsdb, NULL, indexUid1, interval1, intervalUnit1, tbUid + t,
                                 c + PRIMARYKEY_TIMESTAMP_COL_ID, skey1, 1),
                 TSDB_CODE_SUCCESS);
       ++checkDataCnt;
     }
   }
-  
+
   printf("%s:%d The sma data check count for insert and query is %" PRIu32 "\n", __FILE__, __LINE__, checkDataCnt);
 
   // release data
