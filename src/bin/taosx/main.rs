@@ -1,5 +1,4 @@
 mod commands;
-
 use clap::{Parser, Subcommand};
 
 use taosx::TaosOpts;
@@ -26,7 +25,8 @@ pub fn cli<'help>() -> clap::Command<'help> {
     clap::Command::new("taosx")
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let cli = Cli::parse();
     dbg!(&cli);
 
@@ -40,7 +40,7 @@ fn main() {
             app.run_with_taos_opts(&cli.options);
         }
         Commands::Backup(app) => {
-            app.run_with_taos_opts(&cli.options);
+            app.run_with_taos_opts(&cli.options).await;
         }
         Commands::Restore(app) => {
             app.run_with_taos_opts(&cli.options);
@@ -50,7 +50,10 @@ fn main() {
             let (name, args) = args.split_first().unwrap();
             println!("Call external plugin taosx-{name}: {args:?}");
             let cmd = format!("taosx-{name}");
-            std::process::Command::new(&cmd).args(args).spawn().expect(&format!("unable to run command {cmd}"));
+            std::process::Command::new(&cmd)
+                .args(args)
+                .spawn()
+                .expect(&format!("unable to run command {cmd}"));
         }
     }
 }
