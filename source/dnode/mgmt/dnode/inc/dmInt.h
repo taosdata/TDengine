@@ -23,18 +23,19 @@ extern "C" {
 #endif
 
 typedef struct SDnodeMgmt {
-  int64_t      dver;
-  int64_t      updateTime;
-  int8_t       statusSent;
-  SEpSet       mnodeEpSet;
-  SHashObj    *dnodeHash;
-  SArray      *dnodeEps;
-  pthread_t   *threadId;
-  SRWLatch     latch;
-  SDnodeWorker mgmtWorker;
-  SDnodeWorker statusWorker;
-  const char  *path;
-  SDnode      *pDnode;
+  int64_t       dver;
+  int64_t       updateTime;
+  int8_t        statusSent;
+  SEpSet        mnodeEpSet;
+  SHashObj     *dnodeHash;
+  SArray       *dnodeEps;
+  pthread_t    *threadId;
+  SRWLatch      latch;
+  SDnodeWorker  mgmtWorker;
+  SDnodeWorker  statusWorker;
+  const char   *path;
+  SDnode       *pDnode;
+  SMgmtWrapper *pWrapper;
 } SDnodeMgmt;
 
 // dmFile.c

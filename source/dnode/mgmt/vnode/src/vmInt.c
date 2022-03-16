@@ -17,6 +17,7 @@
 #include "vmFile.h"
 #include "vmMsg.h"
 #include "vmWorker.h"
+
 #include "sync.h"
 
 SVnodeObj *vmAcquireVnode(SVnodesMgmt *pMgmt, int32_t vgId) {
@@ -317,6 +318,8 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
     return -1;
   }
 
+  code = 0;
+
 _OVER:
   if (code == 0) {
     pWrapper->pMgmt = pMgmt;
@@ -329,7 +332,10 @@ _OVER:
   return 0;
 }
 
-static bool vmRequire(SMgmtWrapper *pWrapper) { return false; }
+static bool vmRequire(SMgmtWrapper *pWrapper) {
+  SDnode *pDnode = pWrapper->pDnode;
+  return pDnode->numOfSupportVnodes > 0;
+}
 
 void vmGetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};

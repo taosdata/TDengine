@@ -92,6 +92,7 @@ int32_t dmInit(SMgmtWrapper *pWrapper) {
   pDnode->clusterId = 0;
   pMgmt->path = pWrapper->path;
   pMgmt->pDnode = pDnode;
+  pMgmt->pWrapper = pWrapper;
   taosInitRWLatch(&pMgmt->latch);
 
   pMgmt->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
