@@ -263,7 +263,7 @@ int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, void *connection) {
     QW_ERR_RET(code);
   }
 
-  QW_SCH_TASK_DLOG("put task continue exec msg to query queue, vgId:%d", mgmt->nodeId);
+  QW_SCH_TASK_DLOG("query continue msg put to queue, vgId:%d", mgmt->nodeId);
 
   return TSDB_CODE_SUCCESS;
 }

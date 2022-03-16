@@ -55,25 +55,25 @@ SCtgAction gCtgAction[CTG_ACT_MAX] = {{
 
 int32_t ctgDbgEnableDebug(char *option) {
   if (0 == strcasecmp(option, "lock")) {
-    gCTGDebug.lockDebug = true;
+    gCTGDebug.lockEnable = true;
     qDebug("lock debug enabled");
     return TSDB_CODE_SUCCESS;
   }
 
   if (0 == strcasecmp(option, "cache")) {
-    gCTGDebug.cacheDebug = true;
+    gCTGDebug.cacheEnable = true;
     qDebug("cache debug enabled");
     return TSDB_CODE_SUCCESS;
   }
 
   if (0 == strcasecmp(option, "api")) {
-    gCTGDebug.apiDebug = true;
+    gCTGDebug.apiEnable = true;
     qDebug("api debug enabled");
     return TSDB_CODE_SUCCESS;
   }
 
   if (0 == strcasecmp(option, "meta")) {
-    gCTGDebug.metaDebug = true;
+    gCTGDebug.metaEnable = true;
     qDebug("api debug enabled");
     return TSDB_CODE_SUCCESS;
   }
@@ -155,7 +155,7 @@ int32_t ctgDbgGetClusterCacheNum(SCatalog* pCtg, int32_t type) {
 }
 
 void ctgDbgShowTableMeta(SCatalog* pCtg, const char *tbName, STableMeta* p) {
-  if (!gCTGDebug.metaDebug) {
+  if (!gCTGDebug.metaEnable) {
     return;
   }
 
@@ -177,7 +177,7 @@ void ctgDbgShowTableMeta(SCatalog* pCtg, const char *tbName, STableMeta* p) {
 }
 
 void ctgDbgShowDBCache(SCatalog* pCtg, SHashObj *dbHash) {
-  if (NULL == dbHash || !gCTGDebug.cacheDebug) {
+  if (NULL == dbHash || !gCTGDebug.cacheEnable) {
     return;
   }
 
@@ -217,7 +217,7 @@ void ctgDbgShowDBCache(SCatalog* pCtg, SHashObj *dbHash) {
 
 
 void ctgDbgShowClusterCache(SCatalog* pCtg) {
-  if (!gCTGDebug.cacheDebug || NULL == pCtg) {
+  if (!gCTGDebug.cacheEnable || NULL == pCtg) {
     return;
   }
 
