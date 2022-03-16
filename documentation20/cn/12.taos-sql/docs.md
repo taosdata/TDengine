@@ -1867,6 +1867,8 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 ### 时间函数
 
+从 2.6.0.0 版本开始，TDengine查询引擎支持以下时间相关函数：
+
 - **NOW**
     ```mysql
     SELECT NOW() FROM { tb_name | stb_name } [WHERE clause];
