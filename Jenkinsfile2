@@ -35,6 +35,7 @@ def abort_previous(){
 def pre_test(){
     sh'hostname'
     sh '''
+    date
     sudo rmtaos || echo "taosd has not installed"
     '''
     sh '''
@@ -99,7 +100,7 @@ pipeline {
   }
   stages {
       stage('pre_build'){
-          agent{label 'slave3_0'}
+          agent{label " slave3_0 || slave15 || slave16 || slave17 "}
           options { skipDefaultCheckout() } 
           when {
               changeRequest()
