@@ -53,62 +53,27 @@ static void *dmThreadRoutine(void *param) {
 }
 
 static void dmProcessQueue(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  int32_t       code = -1;
-  tmsg_t        msgType = pMsg->rpcMsg.msgType;
-  SDnode       *pDnode = pMgmt->pDnode;
-  SMgmtWrapper *pWrapper = NULL;
+  int32_t code = -1;
+  tmsg_t  msgType = pMsg->rpcMsg.msgType;
+  SDnode *pDnode = pMgmt->pDnode;
   dTrace("msg:%p, will be processed", pMsg);
 
   switch (msgType) {
     case TDMT_DND_CREATE_MNODE:
-      pWrapper = dndGetWrapper(pDnode, MNODE);
-      code = mmProcessCreateReq(pWrapper->pMgmt, pMsg);
-      break;
-    case TDMT_DND_DROP_MNODE:
-      pWrapper = dndGetWrapper(pDnode, MNODE);
-      code = mmProcessDropReq(pWrapper->pMgmt, pMsg);
-      break;
     case TDMT_DND_CREATE_QNODE:
-      pWrapper = dndGetWrapper(pDnode, QNODE);
-      code = qmProcessCreateReq(pWrapper->pMgmt, pMsg);
-      break;
-    case TDMT_DND_DROP_QNODE:
-      pWrapper = dndGetWrapper(pDnode, QNODE);
-      code = qmProcessDropReq(pWrapper->pMgmt, pMsg);
-      break;
     case TDMT_DND_CREATE_SNODE:
-      pWrapper = dndGetWrapper(pDnode, SNODE);
-      code = smProcessCreateReq(pWrapper->pMgmt, pMsg);
-      break;
-    case TDMT_DND_DROP_SNODE:
-      pWrapper = dndGetWrapper(pDnode, SNODE);
-      code = smProcessDropReq(pWrapper->pMgmt, pMsg);
-      break;
     case TDMT_DND_CREATE_BNODE:
-      pWrapper = dndGetWrapper(pDnode, BNODE);
-      code = bmProcessCreateReq(pWrapper->pMgmt, pMsg);
-      break;
+      code = dndProcessCreateNodeMsg(pMgmt->pDnode, pMsg);
+
+    case TDMT_DND_DROP_MNODE:
+    case TDMT_DND_DROP_QNODE:
+    case TDMT_DND_DROP_SNODE:
     case TDMT_DND_DROP_BNODE:
-      pWrapper = dndGetWrapper(pDnode, BNODE);
-      code = bmProcessDropReq(pWrapper->pMgmt, pMsg);
-      break;
-    case TDMT_DND_CONFIG_DNODE:
-      code = dmProcessConfigReq(pMgmt, pMsg);
-      break;
-    case TDMT_MND_STATUS_RSP:
-      code = dmProcessStatusRsp(pMgmt, pMsg);
-      break;
-    case TDMT_MND_AUTH_RSP:
-      code = dmProcessAuthRsp(pMgmt, pMsg);
-      break;
-    case TDMT_MND_GRANT_RSP:
-      code = dmProcessGrantRsp(pMgmt, pMsg);
-      break;
+      code = dndProcessDropNodeMsg(pMgmt->pDnode, pMsg);
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
       code = -1;
       dError("RPC %p, dnode msg:%s not processed", pMsg->rpcMsg.handle, TMSG_INFO(msgType));
-      break;
   }
 
   if (msgType & 1u) {
@@ -117,10 +82,9 @@ static void dmProcessQueue(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
     rpcSendResponse(&rsp);
   }
 
-  rpcFreeCont(pMsg->rpcMsg.pCont);
-  pMsg->rpcMsg.pCont = NULL;
-  taosFreeQitem(pMsg);
   dTrace("msg:%p, is freed", pMsg);
+  rpcFreeCont(pMsg->rpcMsg.pCont);
+  taosFreeQitem(pMsg);
 }
 
 int32_t dmStartWorker(SDnodeMgmt *pMgmt) {

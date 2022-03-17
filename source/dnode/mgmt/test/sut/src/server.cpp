@@ -16,10 +16,9 @@
 #include "sut.h"
 
 void* serverLoop(void* param) {
-  while (1) {
-    taosMsleep(100);
-    pthread_testcancel();
-  }
+  SDnode* pDnode = (SDnode*)param;
+  dndRun(pDnode);
+  return NULL;
 }
 
 SDnodeOpt TestServer::BuildOption(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
@@ -38,14 +37,16 @@ bool TestServer::DoStart() {
   taosMkDir(path);
 
   pDnode = dndCreate(&option);
-  if (pDnode != NULL) {
+  if (pDnode == NULL) {
     return false;
   }
 
-  threadId = taosCreateThread(serverLoop, NULL);
-  if (threadId != NULL) {
-    return false;
-  }
+  pthread_attr_t thAttr;
+  pthread_attr_init(&thAttr);
+  pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
+  pthread_create(&threadId, &thAttr, serverLoop, pDnode);
+  pthread_attr_destroy(&thAttr);
+  taosMsleep(1000);
   return true;
 }
 
@@ -67,10 +68,8 @@ bool TestServer::Start(const char* path, const char* fqdn, uint16_t port, const 
 }
 
 void TestServer::Stop() {
-  if (threadId != NULL) {
-    taosDestoryThread(threadId);
-    threadId = NULL;
-  }
+  dndHandleEvent(pDnode, DND_EVENT_STOP);
+  pthread_join(threadId, NULL);
 
   if (pDnode != NULL) {
     dndClose(pDnode);
