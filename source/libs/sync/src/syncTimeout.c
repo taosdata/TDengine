@@ -24,7 +24,8 @@ int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
   if (pMsg->timeoutType == SYNC_TIMEOUT_PING) {
     if (atomic_load_64(&ths->pingTimerLogicClockUser) <= pMsg->logicClock) {
       ++(ths->pingTimerCounter);
-      syncNodePingAll(ths);
+      // syncNodePingAll(ths);
+      syncNodePingPeers(ths);
     }
 
   } else if (pMsg->timeoutType == SYNC_TIMEOUT_ELECTION) {

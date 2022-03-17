@@ -68,6 +68,10 @@ int32_t sndMetaDeployTask(SStreamMeta *pMeta, SStreamTask *pTask) {
   return taosHashPut(pMeta->pHash, &pTask->taskId, sizeof(int32_t), pTask, sizeof(void *));
 }
 
+SStreamTask *sndMetaGetTask(SStreamMeta *pMeta, int32_t taskId) {
+  return taosHashGet(pMeta->pHash, &taskId, sizeof(int32_t));
+}
+
 int32_t sndMetaRemoveTask(SStreamMeta *pMeta, int32_t taskId) {
   SStreamTask *pTask = taosHashGet(pMeta->pHash, &taskId, sizeof(int32_t));
   if (pTask == NULL) {
@@ -77,6 +81,16 @@ int32_t sndMetaRemoveTask(SStreamMeta *pMeta, int32_t taskId) {
   // TODO:free executor
   free(pTask);
   return taosHashRemove(pMeta->pHash, &taskId, sizeof(int32_t));
+}
+
+static int32_t sndProcessTaskExecReq(SSnode *pSnode, SRpcMsg *pMsg) {
+  SMsgHead    *pHead = pMsg->pCont;
+  int32_t      taskId = pHead->streamTaskId;
+  SStreamTask *pTask = sndMetaGetTask(pSnode->pMeta, taskId);
+  if (pTask == NULL) {
+    return -1;
+  }
+  return 0;
 }
 
 int32_t sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) {
@@ -95,13 +109,20 @@ int32_t sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) {
     tCoderClear(&decoder);
 
     sndMetaDeployTask(pSnode->pMeta, pTask);
+  } else if (pMsg->msgType == TDMT_SND_TASK_EXEC) {
+    sndProcessTaskExecReq(pSnode, pMsg);
   } else {
-    //
+    ASSERT(0);
   }
   return 0;
 }
 
 int32_t sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg) {
   // operator exec
+  if (pMsg->msgType == TDMT_SND_TASK_EXEC) {
+    sndProcessTaskExecReq(pSnode, pMsg);
+  } else {
+    ASSERT(0);
+  }
   return 0;
 }

@@ -39,8 +39,8 @@ int32_t tDecodeSStreamObj(SCoder *pDecoder, SStreamObj *pObj) {
   if (tDecodeI64(pDecoder, &pObj->dbUid) < 0) return -1;
   if (tDecodeI32(pDecoder, &pObj->version) < 0) return -1;
   if (tDecodeI8(pDecoder, &pObj->status) < 0) return -1;
-  if (tDecodeCStr(pDecoder, (const char **)&pObj->sql) < 0) return -1;
-  if (tDecodeCStr(pDecoder, (const char **)&pObj->logicalPlan) < 0) return -1;
-  if (tDecodeCStr(pDecoder, (const char **)&pObj->physicalPlan) < 0) return -1;
+  if (tDecodeCStrAlloc(pDecoder, &pObj->sql) < 0) return -1;
+  if (tDecodeCStrAlloc(pDecoder, &pObj->logicalPlan) < 0) return -1;
+  if (tDecodeCStrAlloc(pDecoder, &pObj->physicalPlan) < 0) return -1;
   return 0;
 }

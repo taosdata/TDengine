@@ -45,6 +45,7 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
     return ret;
   }
 
+  assert(!(pMsg->term > ths->pRaftStore->currentTerm));
   // no need this code, because if I receive reply.term, then I must have sent for that term.
   //  if (pMsg->term > ths->pRaftStore->currentTerm) {
   //    syncNodeUpdateTerm(ths, pMsg->term);
@@ -52,17 +53,29 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
 
   assert(pMsg->term == ths->pRaftStore->currentTerm);
 
+  // This tallies votes even when the current state is not Candidate,
+  // but they won't be looked at, so it doesn't matter.
   if (ths->state == TAOS_SYNC_STATE_CANDIDATE) {
     votesRespondAdd(ths->pVotesRespond, pMsg);
     if (pMsg->voteGranted) {
+      // add vote
       voteGrantedVote(ths->pVotesGranted, pMsg);
+
+      // maybe to leader
       if (voteGrantedMajority(ths->pVotesGranted)) {
-        if (ths->pVotesGranted->toLeader) {
+        if (!ths->pVotesGranted->toLeader) {
           syncNodeCandidate2Leader(ths);
+
+          // prevent to leader again!
           ths->pVotesGranted->toLeader = true;
         }
       }
+    } else {
+      ;
+      // do nothing
+      // UNCHANGED <<votesGranted, voterLog>>
     }
   }
+
   return ret;
 }
