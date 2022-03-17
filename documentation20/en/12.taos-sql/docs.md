@@ -863,7 +863,9 @@ TDengine supports aggregations over data, they are listed below:
     Applicable Fields: All types except timestamp.
 
     Supported version: Version after 2.6.0 .
-
+    
+    Note: Since the amount of returned data is unknown, considering the memory factor, in order to return the result normally, it is recommended that the amount of non repeated data is 100000, otherwise an error will be reported.
+    
     Example:
     ```mysql
     taos> select voltage from d002;
@@ -1215,8 +1217,10 @@ TDengine supports aggregations over data, they are listed below:
 
     Supported version: Version after 2.6.0 .
 
-    Note: This function can be applied to ordinary tables and super tables. Cannot be used with window operations，such as interval/state_window/session_window.
-
+    Note: 
+    - This function can be applied to ordinary tables and super tables. Cannot be used with window operations，such as interval/state_window/session_window.
+    - Since the amount of returned data is unknown, considering the memory factor, in order to return the result normally, it is recommended that the amount of non repeated data is 100000, otherwise an error will be reported.
+    
     Example:
     ```mysql
     taos> select ts,voltage from unique1;
