@@ -4,19 +4,32 @@ using TDengineDriver;
 using System.Collections.Generic;
 using Xunit;
 using Test.UtilsTools.ResultSet;
+using Test.Fixture;
+using Test.Case.Attributes;
+
 namespace Cases
 {
-    public class FetchFieldsCases
+    [TestCaseOrderer("XUnit.Case.Orderers.TestExeOrderer", "Cases.ExeOrder")]
+    [Collection("Database collection")]
+    public class FetchFieldCases
     {
+
+         DatabaseFixture database;
+
+
+        public FetchFieldCases(DatabaseFixture fixture)
+        {
+            this.database = fixture;
+        }
         /// <author>xiaolei</author>
         /// <Name>FetchFieldsCases.TestFetchFieldsJsonTag</Name>
         /// <describe>test taos_fetch_fields(), check the meta data</describe>
         /// <filename>FetchFields.cs</filename>
         /// <result>pass or failed </result>  
-        [Fact(DisplayName = "FetchFieldsCases.TestFetchFieldsJsonTag()")]
-        public void TestFetchFieldsJsonTag()
+        [Fact(DisplayName = "FetchFieldsCases.TestFetchFieldJsonTag()"),TestExeOrder(1),Trait("Category", "FetchFieldJsonTag")]
+        public void TestFetchFieldJsonTag()
         {
-            IntPtr conn = UtilsTools.TDConnection();
+            IntPtr conn = database.conn;
             IntPtr _res = IntPtr.Zero;
             string tableName = "fetch_fields";
             var expectResMeta = new List<TDengineMeta> {
