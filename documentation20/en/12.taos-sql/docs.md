@@ -602,6 +602,8 @@ Query OK, 1 row(s) in set (0.000081s)
 >  `TBNAME`: It can be regarded as a special tag in a STable query, representing the name of sub-table involved in the query
 >
 > _c0: Represents the first column of a table (STable)
+> _qstart,_qstop,_qduration: Represents starting time/stopping time/duration of query time window filter in where condition (supported since 2.6.0.0）
+> _wstart,_wstop,_wduration: Used in time-dimension aggregation query(e.g. interval/session window/state window）to represent starting time/stopping time/duration of each generated time window (supported since 2.6.0.0)
 
 #### Tips
 
