@@ -125,6 +125,7 @@ typedef struct SRealTableNode {
   STableNode table; // QUERY_NODE_REAL_TABLE
   struct STableMeta* pMeta;
   SVgroupsInfo* pVgroupList;
+  char useDbName[TSDB_DB_NAME_LEN];
 } SRealTableNode;
 
 typedef struct STempTableNode {
