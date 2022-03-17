@@ -31,7 +31,7 @@ int32_t bmProcessCreateReq(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
     dError("failed to create bnode since %s", terrstr());
     return -1;
   } else {
-    return bmOpen(pDnode);
+    return bmOpen(pMgmt);
   }
 }
 
@@ -50,7 +50,7 @@ int32_t bmProcessDropReq(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
     dError("failed to drop bnode since %s", terrstr());
     return -1;
   } else {
-    return bmDrop(pDnode);
+    return bmDrop(pMgmt);
   }
 }
 

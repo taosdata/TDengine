@@ -98,7 +98,7 @@ int32_t bmWriteFile(SBnodeMgmt *pMgmt) {
   free(content);
 
   char realfile[PATH_MAX];
-  snprintf(realfile, sizeof(realfile), "%s%sbnode.json", pMgmt->path);
+  snprintf(realfile, sizeof(realfile), "%s%sbnode.json", pMgmt->path, TD_DIRSEP);
 
   if (taosRenameFile(file, realfile) != 0) {
     terrno = TSDB_CODE_DND_BNODE_WRITE_FILE_ERROR;

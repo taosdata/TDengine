@@ -14,17 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
-// #include "dndBnode.h"
-// #include "dndTransport.h"
-// #include "dndWorker.h"
+#include "bmInt.h"
 
-#if 0
-static void dndProcessBnodeQueue(SDnode *pDnode, STaosQall *qall, int32_t numOfMsgs);
+static void bmProcessQueue(SBnodeMgmt *pMgmt, STaosQall *qall, int32_t numOfMsgs);
 
-
-static int32_t bmStartWorker(SDnode *pDnode) {
-  SBnodeMgmt *pMgmt = &pDnode->bmgmt;
-  if (dndInitWorker(pDnode, &pMgmt->writeWorker, DND_WORKER_MULTI, "bnode-write", 0, 1, dndProcessBnodeQueue) != 0) {
+int32_t bmStartWorker(SBnodeMgmt *pMgmt) {
+  if (dndInitWorker(pMgmt, &pMgmt->writeWorker, DND_WORKER_MULTI, "bnode-write", 0, 1, bmProcessQueue) != 0) {
     dError("failed to start bnode write worker since %s", terrstr());
     return -1;
   }
@@ -32,9 +27,7 @@ static int32_t bmStartWorker(SDnode *pDnode) {
   return 0;
 }
 
-static void bmStopWorker(SDnode *pDnode) {
-  SBnodeMgmt *pMgmt = &pDnode->bmgmt;
-
+void bmStopWorker(SBnodeMgmt *pMgmt) {
   taosWLockLatch(&pMgmt->latch);
   pMgmt->deployed = 0;
   taosWUnLockLatch(&pMgmt->latch);
@@ -46,103 +39,68 @@ static void bmStopWorker(SDnode *pDnode) {
   dndCleanupWorker(&pMgmt->writeWorker);
 }
 
-static void dndSendBnodeErrorRsp(SRpcMsg *pMsg, int32_t code) {
-  SRpcMsg rpcRsp = {.handle = pMsg->handle, .ahandle = pMsg->ahandle, .code = code};
-  rpcSendResponse(&rpcRsp);
-  rpcFreeCont(pMsg->pCont);
+static void bmSendErrorRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
+  SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle, .code = code};
+  dndSendRsp(pWrapper, &rpcRsp);
+  rpcFreeCont(pMsg->rpcMsg.pCont);
   taosFreeQitem(pMsg);
 }
 
-static void dndSendBnodeErrorRsps(STaosQall *qall, int32_t numOfMsgs, int32_t code) {
+static void bmSendErrorRsps(SMgmtWrapper *pWrapper, STaosQall *qall, int32_t numOfMsgs, int32_t code) {
   for (int32_t i = 0; i < numOfMsgs; ++i) {
-    SRpcMsg *pMsg = NULL;
+    SNodeMsg *pMsg = NULL;
     taosGetQitem(qall, (void **)&pMsg);
-    dndSendBnodeErrorRsp(pMsg, code);
+    bmSendErrorRsp(pWrapper, pMsg, code);
   }
 }
 
-static void dndProcessBnodeQueue(SDnode *pDnode, STaosQall *qall, int32_t numOfMsgs) {
-  SBnode *pBnode = bmAcquire(pDnode);
+static void bmProcessQueue(SBnodeMgmt *pMgmt, STaosQall *qall, int32_t numOfMsgs) {
+  SMgmtWrapper *pWrapper = pMgmt->pWrapper;
+
+  SBnode *pBnode = bmAcquire(pMgmt);
   if (pBnode == NULL) {
-    dndSendBnodeErrorRsps(qall, numOfMsgs, TSDB_CODE_OUT_OF_MEMORY);
+    bmSendErrorRsps(pWrapper, qall, numOfMsgs, TSDB_CODE_OUT_OF_MEMORY);
     return;
   }
 
-  SArray *pArray = taosArrayInit(numOfMsgs, sizeof(SRpcMsg *));
+  SArray *pArray = taosArrayInit(numOfMsgs, sizeof(SNodeMsg *));
   if (pArray == NULL) {
-    bmRelease(pDnode, pBnode);
-    dndSendBnodeErrorRsps(qall, numOfMsgs, TSDB_CODE_OUT_OF_MEMORY);
+    bmRelease(pMgmt, pBnode);
+    bmSendErrorRsps(pWrapper, qall, numOfMsgs, TSDB_CODE_OUT_OF_MEMORY);
     return;
   }
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
-    SRpcMsg *pMsg = NULL;
+    SNodeMsg *pMsg = NULL;
     taosGetQitem(qall, (void **)&pMsg);
     void *ptr = taosArrayPush(pArray, &pMsg);
     if (ptr == NULL) {
-      dndSendBnodeErrorRsp(pMsg, TSDB_CODE_OUT_OF_MEMORY);
+      bmRelease(pMgmt, pBnode);
+      bmSendErrorRsp(pWrapper, pMsg, TSDB_CODE_OUT_OF_MEMORY);
     }
   }
 
   bndProcessWMsgs(pBnode, pArray);
 
   for (size_t i = 0; i < numOfMsgs; i++) {
-    SRpcMsg *pMsg = *(SRpcMsg **)taosArrayGet(pArray, i);
-    rpcFreeCont(pMsg->pCont);
-    taosFreeQitem(pMsg);
+    SNodeMsg *pNodeMsg = *(SNodeMsg **)taosArrayGet(pArray, i);
+    rpcFreeCont(pNodeMsg->rpcMsg.pCont);
+    taosFreeQitem(pNodeMsg);
   }
   taosArrayDestroy(pArray);
-  bmRelease(pDnode, pBnode);
+  bmRelease(pMgmt, pBnode);
 }
 
-static void dndWriteBnodeMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMsg *pMsg) {
-  int32_t code = TSDB_CODE_DND_BNODE_NOT_DEPLOYED;
+static int32_t bmPutMsgToWorker(SBnodeMgmt *pMgmt, SDnodeWorker *pWorker, SNodeMsg *pMsg) {
+  SBnode *pBnode = bmAcquire(pMgmt);
+  if (pBnode == NULL) return -1;
 
-  SBnode *pBnode = bmAcquire(pDnode);
-  if (pBnode != NULL) {
-    code = dndWriteMsgToWorker(pWorker, pMsg, sizeof(SRpcMsg));
-  }
-  bmRelease(pDnode, pBnode);
-
-  if (code != 0) {
-    if (pMsg->msgType & 1u) {
-      SRpcMsg rsp = {.handle = pMsg->handle, .ahandle = pMsg->ahandle, .code = code};
-      rpcSendResponse(&rsp);
-    }
-    rpcFreeCont(pMsg->pCont);
-  }
+  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
+  int32_t code = dndWriteMsgToWorker(pWorker, pMsg, 0);
+  bmRelease(pMgmt, pBnode);
+  return code;
 }
 
-void dndProcessBnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  dndWriteBnodeMsgToWorker(pDnode, &pDnode->bmgmt.writeWorker, pMsg);
+int32_t bmProcessWriteMsg(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+  return bmPutMsgToWorker(pMgmt, &pMgmt->writeWorker, pMsg);
 }
-
-int32_t dndInitBnode(SDnode *pDnode) {
-  SBnodeMgmt *pMgmt = &pDnode->bmgmt;
-  taosInitRWLatch(&pMgmt->latch);
-
-  if (dndReadBnodeFile(pDnode) != 0) {
-    return -1;
-  }
-
-  if (pMgmt->dropped) {
-    dInfo("bnode has been deployed and needs to be deleted");
-    bndDestroy(pDnode->dir.bnode);
-    return 0;
-  }
-
-  if (!pMgmt->deployed) return 0;
-
-  return bmOpen(pDnode);
-}
-
-void dndCleanupBnode(SDnode *pDnode) {
-  SBnodeMgmt *pMgmt = &pDnode->bmgmt;
-  if (pMgmt->pBnode) {
-    bmStopWorker(pDnode);
-    bndClose(pMgmt->pBnode);
-    pMgmt->pBnode = NULL;
-  }
-}
-
-#endif

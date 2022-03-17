@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "bmInt.h"
+#include "bm.h"
 #include "dmInt.h"
 #include "mm.h"
 #include "qmInt.h"

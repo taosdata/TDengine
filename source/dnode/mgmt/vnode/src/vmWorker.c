@@ -21,10 +21,10 @@ static void vmProcessQueryQueue(SVnodeObj *pVnode, SRpcMsg *pMsg) { vnodeProcess
 static void vmProcessFetchQueue(SVnodeObj *pVnode, SRpcMsg *pMsg) { vnodeProcessFetchMsg(pVnode->pImpl, pMsg); }
 
 static void vmProcessWriteQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numOfMsgs) {
-  SArray *pArray = taosArrayInit(numOfMsgs, sizeof(SRpcMsg *));
+  SArray *pArray = taosArrayInit(numOfMsgs, sizeof(SNodeMsg *));
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
-    SRpcMsg *pMsg = NULL;
+    SNodeMsg *pMsg = NULL;
     taosGetQitem(qall, (void **)&pMsg);
     void *ptr = taosArrayPush(pArray, &pMsg);
     assert(ptr != NULL);
@@ -33,9 +33,10 @@ static void vmProcessWriteQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numO
   vnodeProcessWMsgs(pVnode->pImpl, pArray);
 
   for (size_t i = 0; i < numOfMsgs; i++) {
-    SRpcMsg *pRsp = NULL;
-    SRpcMsg *pMsg = *(SRpcMsg **)taosArrayGet(pArray, i);
-    int32_t  code = vnodeApplyWMsg(pVnode->pImpl, pMsg, &pRsp);
+    SRpcMsg  *pRsp = NULL;
+    SNodeMsg *pNodeMsg = *(SNodeMsg **)taosArrayGet(pArray, i);
+    SRpcMsg  *pMsg = &pNodeMsg->rpcMsg;
+    int32_t   code = vnodeApplyWMsg(pVnode->pImpl, pMsg, &pRsp);
     if (pRsp != NULL) {
       pRsp->ahandle = pMsg->ahandle;
       rpcSendResponse(pRsp);
@@ -48,9 +49,9 @@ static void vmProcessWriteQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numO
   }
 
   for (size_t i = 0; i < numOfMsgs; i++) {
-    SRpcMsg *pMsg = *(SRpcMsg **)taosArrayGet(pArray, i);
-    rpcFreeCont(pMsg->pCont);
-    taosFreeQitem(pMsg);
+    SNodeMsg *pNodeMsg = *(SNodeMsg **)taosArrayGet(pArray, i);
+    rpcFreeCont(pNodeMsg->rpcMsg.pCont);
+    taosFreeQitem(pNodeMsg);
   }
 
   taosArrayDestroy(pArray);

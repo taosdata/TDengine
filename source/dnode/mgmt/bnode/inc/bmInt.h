@@ -16,7 +16,7 @@
 #ifndef _TD_DND_BNODE_INT_H_
 #define _TD_DND_BNODE_INT_H_
 
-#include "mm.h"
+#include "bm.h"
 #include "dm.h"
 
 #ifdef __cplusplus
@@ -35,43 +35,21 @@ typedef struct SBnodeMgmt {
   SDnodeWorker  writeWorker;
 } SBnodeMgmt;
 
-// mmFile.c
+// bmFile.c
 int32_t bmReadFile(SBnodeMgmt *pMgmt);
 int32_t bmWriteFile(SBnodeMgmt *pMgmt);
 
 SBnode *bmAcquire(SBnodeMgmt *pMgmt);
 void    bmRelease(SBnodeMgmt *pMgmt, SBnode *pBnode);
 
-// SBnode *mmAcquire(SMnodeMgmt *pMgmt);
-// void    mmRelease(SMnodeMgmt *pMgmt, SBnode *pMnode);
-// int32_t mmOpen(SMnodeMgmt *pMgmt, SMnodeOpt *pOption);
-// int32_t mmAlter(SMnodeMgmt *pMgmt, SMnodeOpt *pOption);
-// int32_t mmDrop(SMnodeMgmt *pMgmt);
+// bmInt.c
+int32_t bmOpen(SBnodeMgmt *pMgmt);
+int32_t bmDrop(SBnodeMgmt *pMgmt);
 
-
-// void bmGetMgmtFp(SMgmtWrapper *pMgmt);
-
-// int32_t dndInitBnode(SDnode *pDnode);
-// void    dndCleanupBnode(SDnode *pDnode);
-
-// void    dndProcessBnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
-// int32_t bmProcessCreateReq(SBnodeMgmt *pMgmt, SNodeMsg *pRpcMsg);
-// int32_t bmProcessDropReq(SBnodeMgmt *pMgmt, SNodeMsg *pRpcMsg);
-
-// void bmInitMsgHandles(SMgmtWrapper *pWrapper);
-
-// int32_t bmStartWorker(SDnode *pDnode);
-// void    bmStopWorker(SDnode *pDnode);
-// void    bmInitMsgFp(SMnodeMgmt *pMgmt);
-// void    bmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
-// int32_t bmPutMsgToWriteQueue(SDnode *pDnode, SRpcMsg *pRpcMsg);
-// int32_t bmPutMsgToReadQueue(SDnode *pDnode, SRpcMsg *pRpcMsg);
-// void    bmConsumeChildQueue(SDnode *pDnode, SNodeMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen);
-// void    bmConsumeParentQueue(SDnode *pDnode, SRpcMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen);
-
-// void bmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-// void bmProcessSyncMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-// void bmProcessReadMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+// bmWorker.c
+int32_t bmStartWorker(SBnodeMgmt *pMgmt);
+void    bmStopWorker(SBnodeMgmt *pMgmt);
+int32_t bmProcessWriteMsg(SBnodeMgmt *pMgmt, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

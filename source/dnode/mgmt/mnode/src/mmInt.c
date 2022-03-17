@@ -59,7 +59,7 @@ int32_t mmOpen(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
     return -1;
   }
 
-  SMnode *pMnode = mndOpen(pMgmt->path, pOption);
+  pMnode = mndOpen(pMgmt->path, pOption);
   if (pMnode == NULL) {
     dError("failed to open mnode since %s", terrstr());
     return -1;

@@ -47,7 +47,7 @@ void bmRelease(SBnodeMgmt *pMgmt, SBnode *pBnode) {
 static bool bmRequire(SMgmtWrapper *pWrapper) {
   SBnodeMgmt mgmt = {0};
   mgmt.path = pWrapper->path;
-  if (mmReadFile(&mgmt) != 0) {
+  if (bmReadFile(&mgmt) != 0) {
     return false;
   }
 
@@ -59,18 +59,12 @@ static bool bmRequire(SMgmtWrapper *pWrapper) {
 
   if (mgmt.deployed) {
     dInfo("bnode has been deployed");
-    return true;
   }
 
-  bool required = mmDeployRequired(pWrapper->pDnode);
-  if (required) {
-    dInfo("bnode need to be deployed");
-  }
-
-  return required;
+  return mgmt.deployed;
 }
 
-static void bmInitOption(SBnodeMgmt *pMgmt, SBnodeOpt *pOption) {
+void bmInitOption(SBnodeMgmt *pMgmt, SBnodeOpt *pOption) {
   SDnode *pDnode = pMgmt->pDnode;
 
   pOption->pWrapper = pMgmt->pWrapper;
@@ -80,24 +74,25 @@ static void bmInitOption(SBnodeMgmt *pMgmt, SBnodeOpt *pOption) {
   pOption->clusterId = pDnode->clusterId;
 }
 
-int32_t bmOpen(SBnodeMgmt *pMgmt, SMnodeOpt *pOption) {
-  SDnode *pDnode = pMgmt->pDnode;
+int32_t bmOpen(SBnodeMgmt *pMgmt) {
+  SBnodeOpt option = {0};
+  bmInitOption(pMgmt, &option);
 
-  SBnode *pBnode = bmAcquire(pDnode);
+  SBnode *pBnode = bmAcquire(pMgmt);
   if (pBnode != NULL) {
-    bmRelease(pDnode, pBnode);
+    bmRelease(pMgmt, pBnode);
     terrno = TSDB_CODE_DND_BNODE_ALREADY_DEPLOYED;
     dError("failed to create bnode since %s", terrstr());
     return -1;
   }
 
-  pBnode = bndOpen(pMgmt->path, pOption);
+  pBnode = bndOpen(pMgmt->path, &option);
   if (pBnode == NULL) {
     dError("failed to open bnode since %s", terrstr());
     return -1;
   }
 
-  if (bmStartWorker(pDnode) != 0) {
+  if (bmStartWorker(pMgmt) != 0) {
     dError("failed to start bnode worker since %s", terrstr());
     bndClose(pBnode);
     bndDestroy(pMgmt->path);
@@ -105,10 +100,10 @@ int32_t bmOpen(SBnodeMgmt *pMgmt, SMnodeOpt *pOption) {
   }
 
   pMgmt->deployed = 1;
-  if (bmWriteFile(pDnode) != 0) {
+  if (bmWriteFile(pMgmt) != 0) {
     dError("failed to write bnode file since %s", terrstr());
     pMgmt->deployed = 0;
-    bmStopWorker(pDnode);
+    bmStopWorker(pMgmt);
     bndClose(pBnode);
     bndDestroy(pMgmt->path);
     return -1;
@@ -155,11 +150,25 @@ int32_t bmDrop(SBnodeMgmt *pMgmt) {
   return 0;
 }
 
+static void bmCleanup(SMgmtWrapper *pWrapper) {
+  SBnodeMgmt *pMgmt = pWrapper->pMgmt;
+  if (pMgmt == NULL) return;
+
+  dInfo("bnode-mgmt start to cleanup");
+  if (pMgmt->pBnode) {
+    bmStopWorker(pMgmt);
+    bndClose(pMgmt->pBnode);
+    pMgmt->pBnode = NULL;
+  }
+  free(pMgmt);
+  pWrapper->pMgmt = NULL;
+  dInfo("bnode-mgmt is cleaned up");
+}
+
 static int32_t bmInit(SMgmtWrapper *pWrapper) {
   SDnode     *pDnode = pWrapper->pDnode;
   SBnodeMgmt *pMgmt = calloc(1, sizeof(SBnodeMgmt));
   int32_t     code = -1;
-  SBnodeOpt   option = {0};
 
   dInfo("bnode-mgmt start to init");
   if (pMgmt == NULL) goto _OVER;
@@ -175,8 +184,7 @@ static int32_t bmInit(SMgmtWrapper *pWrapper) {
   }
 
   dInfo("bnode start to open");
-  bmInitOption(pDnode, &option);
-  code = bmOpen(pMgmt, &option);
+  code = bmOpen(pMgmt);
 
 _OVER:
   if (code == 0) {
@@ -188,21 +196,6 @@ _OVER:
   }
 
   return code;
-}
-
-static void bmCleanup(SMgmtWrapper *pWrapper) {
-  SBnodeMgmt *pMgmt = pWrapper->pMgmt;
-  if (pMgmt == NULL) return;
-
-  dInfo("bnode-mgmt start to cleanup");
-  if (pMgmt->pBnode) {
-    bmStopWorker(pMgmt);
-    bndClose(pMgmt->pBnode);
-    pMgmt->pBnode = NULL;
-  }
-  free(pMgmt);
-  pWrapper->pMgmt = NULL;
-  dInfo("bnode-mgmt is cleaned up");
 }
 
 void bmGetMgmtFp(SMgmtWrapper *pWrapper) {

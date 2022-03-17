@@ -18,7 +18,7 @@
 
 #include "dnd.h"
 
-#include "bmInt.h"
+#include "bm.h"
 #include "dm.h"
 #include "dndInt.h"
 #include "mm.h"
