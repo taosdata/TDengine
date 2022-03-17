@@ -636,7 +636,7 @@ STSma *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid) {
   }
 
   // Decode
-  pCfg = (STSma *)malloc(sizeof(STSma));
+  pCfg = (STSma *)calloc(1, sizeof(STSma));
   if (pCfg == NULL) {
     return NULL;
   }

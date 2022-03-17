@@ -269,6 +269,7 @@ static void *syncIOConsumerFunc(void *param) {
       } else if (pRpcMsg->msgType == SYNC_PING_REPLY) {
         if (io->FpOnSyncPingReply != NULL) {
           SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pRpcMsg);
+          assert(pSyncMsg != NULL);
           io->FpOnSyncPingReply(io->pSyncNode, pSyncMsg);
           syncPingReplyDestroy(pSyncMsg);
         }
@@ -276,6 +277,7 @@ static void *syncIOConsumerFunc(void *param) {
       } else if (pRpcMsg->msgType == SYNC_CLIENT_REQUEST) {
         if (io->FpOnSyncClientRequest != NULL) {
           SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pRpcMsg);
+          assert(pSyncMsg != NULL);
           io->FpOnSyncClientRequest(io->pSyncNode, pSyncMsg);
           syncClientRequestDestroy(pSyncMsg);
         }
@@ -283,6 +285,7 @@ static void *syncIOConsumerFunc(void *param) {
       } else if (pRpcMsg->msgType == SYNC_REQUEST_VOTE) {
         if (io->FpOnSyncRequestVote != NULL) {
           SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pRpcMsg);
+          assert(pSyncMsg != NULL);
           io->FpOnSyncRequestVote(io->pSyncNode, pSyncMsg);
           syncRequestVoteDestroy(pSyncMsg);
         }
@@ -290,6 +293,7 @@ static void *syncIOConsumerFunc(void *param) {
       } else if (pRpcMsg->msgType == SYNC_REQUEST_VOTE_REPLY) {
         if (io->FpOnSyncRequestVoteReply != NULL) {
           SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pRpcMsg);
+          assert(pSyncMsg != NULL);
           io->FpOnSyncRequestVoteReply(io->pSyncNode, pSyncMsg);
           syncRequestVoteReplyDestroy(pSyncMsg);
         }
@@ -297,6 +301,7 @@ static void *syncIOConsumerFunc(void *param) {
       } else if (pRpcMsg->msgType == SYNC_APPEND_ENTRIES) {
         if (io->FpOnSyncAppendEntries != NULL) {
           SyncAppendEntries *pSyncMsg = syncAppendEntriesFromRpcMsg2(pRpcMsg);
+          assert(pSyncMsg != NULL);
           io->FpOnSyncAppendEntries(io->pSyncNode, pSyncMsg);
           syncAppendEntriesDestroy(pSyncMsg);
         }
@@ -304,6 +309,7 @@ static void *syncIOConsumerFunc(void *param) {
       } else if (pRpcMsg->msgType == SYNC_APPEND_ENTRIES_REPLY) {
         if (io->FpOnSyncAppendEntriesReply != NULL) {
           SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pRpcMsg);
+          assert(pSyncMsg != NULL);
           io->FpOnSyncAppendEntriesReply(io->pSyncNode, pSyncMsg);
           syncAppendEntriesReplyDestroy(pSyncMsg);
         }
@@ -311,6 +317,7 @@ static void *syncIOConsumerFunc(void *param) {
       } else if (pRpcMsg->msgType == SYNC_TIMEOUT) {
         if (io->FpOnSyncTimeout != NULL) {
           SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pRpcMsg);
+          assert(pSyncMsg != NULL);
           io->FpOnSyncTimeout(io->pSyncNode, pSyncMsg);
           syncTimeoutDestroy(pSyncMsg);
         }

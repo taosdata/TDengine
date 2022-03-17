@@ -212,6 +212,11 @@ if(${BUILD_WITH_UV})
         MESSAGE("Windows need set no-sign-compare")
         add_compile_options(-Wno-sign-compare)
     endif ()
+    if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+            file(READ "libuv/include/uv.h" CONTENTS)
+            string(REGEX REPLACE "/([\r]*)\nstruct uv_tcp_s {" "/\\1\ntypedef BOOL (PASCAL *LPFN_CONNECTEX) (SOCKET s, const struct sockaddr* name, int namelen, PVOID lpSendBuffer, DWORD dwSendDataLength,LPDWORD lpdwBytesSent, LPOVERLAPPED lpOverlapped);\\1\nstruct uv_tcp_s {" CONTENTS_NEW "${CONTENTS}")
+            file(WRITE "libuv/include/uv.h" "${CONTENTS_NEW}")
+    endif ()
     add_subdirectory(libuv)
 endif(${BUILD_WITH_UV})
 
@@ -243,6 +248,10 @@ if(${BUILD_WITH_SQLITE})
 endif(${BUILD_WITH_SQLITE})
 
 # pthread
+if(${BUILD_PTHREAD})
+    ADD_DEFINITIONS("-DPTW32_STATIC_LIB")
+    add_subdirectory(pthread-win32)
+endif(${BUILD_PTHREAD})
 
 
 # ================================================================================================

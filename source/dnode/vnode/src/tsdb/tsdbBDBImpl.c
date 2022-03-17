@@ -68,8 +68,8 @@ int32_t tsdbOpenBDBEnv(DB_ENV **ppEnv, const char *path) {
 
   ret = pEnv->open(pEnv, path, DB_CREATE | DB_INIT_CDB | DB_INIT_MPOOL, 0);
   if (ret != 0) {
-    // BDB_PERR("Failed to open tsdb env", ret);
-    tsdbWarn("Failed to open tsdb env for path %s since %d", path ? path : "NULL", ret);
+    terrno = TSDB_CODE_TDB_TDB_ENV_OPEN_ERROR;
+    tsdbWarn("Failed to open tsdb env for path %s since ret %d != 0", path ? path : "NULL", ret);
     return -1;
   }
 

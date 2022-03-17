@@ -30,11 +30,7 @@ struct STDbEnv {
   } pgfht;  // page file hash table;
 };
 
-#define TDB_ENV_PGF_HASH(fileid)        \
-  ({                                    \
-    uint8_t *tmp = (uint8_t *)(fileid); \
-    tmp[0] + tmp[1] + tmp[2];           \
-  })
+#define TDB_ENV_PGF_HASH(fileid) (((uint8_t *)(fileid))[0] + ((uint8_t *)(fileid))[1] + ((uint8_t *)(fileid))[2])
 
 static int tdbEnvDestroy(TENV *pEnv);
 
