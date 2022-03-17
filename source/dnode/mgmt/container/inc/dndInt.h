@@ -40,7 +40,7 @@ void        dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
 // dndMsg.c
 void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet);
 
-// dndNode.c
+// dndExec.c
 bool    dndRequireNode(SMgmtWrapper *pWrapper);
 int32_t dndOpenNode(SMgmtWrapper *pWrapper);
 void    dndCloseNode(SMgmtWrapper *pWrapper);
