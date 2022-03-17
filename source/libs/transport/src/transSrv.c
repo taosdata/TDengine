@@ -226,15 +226,22 @@ static void uvHandleReq(SSrvConn* pConn) {
   transMsg.msgType = pHead->msgType;
   transMsg.code = pHead->code;
   transMsg.ahandle = NULL;
-  transMsg.handle = pConn;
+  transMsg.handle = NULL;
 
   transClearBuffer(&pConn->readBuf);
   pConn->inType = pHead->msgType;
-  transRefSrvHandle(pConn);
 
-  tDebug("server conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pConn, TMSG_INFO(transMsg.msgType),
-         inet_ntoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), inet_ntoa(pConn->locaddr.sin_addr),
-         ntohs(pConn->locaddr.sin_port), transMsg.contLen);
+  if (pHead->resflag == 0) {
+    transRefSrvHandle(pConn);
+    transMsg.handle = pConn;
+    tDebug("server conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pConn, TMSG_INFO(transMsg.msgType),
+           inet_ntoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), inet_ntoa(pConn->locaddr.sin_addr),
+           ntohs(pConn->locaddr.sin_port), transMsg.contLen);
+  } else {
+    tDebug("server conn %p %s received from %s:%d, local info: %s:%d, msg size: %d, no resp ", pConn,
+           TMSG_INFO(transMsg.msgType), inet_ntoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
+           inet_ntoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port), transMsg.contLen);
+  }
 
   STrans* pTransInst = (STrans*)p->shandle;
   (*pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);

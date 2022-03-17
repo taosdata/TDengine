@@ -361,7 +361,7 @@ TEST_F(TransEnv, cliPersistHandle) {
   tr->SetCliPersistFp(cliPersistHandle);
   SRpcMsg resp = {0};
   for (int i = 0; i < 10; i++) {
-    SRpcMsg req = {.handle = resp.handle};
+    SRpcMsg req = {.handle = resp.handle, .noResp = 0};
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);
     req.contLen = 10;
@@ -448,6 +448,25 @@ TEST_F(TransEnv, srvPersistHandleExcept) {
   // conn broken
   //
 }
+TEST_F(TransEnv, cliPersistHandleExcept) {
+  tr->SetSrvContinueSend(processContinueSend);
+  tr->SetCliPersistFp(cliPersistHandle);
+  SRpcMsg resp = {0};
+  for (int i = 0; i < 5; i++) {
+    SRpcMsg req = {.handle = resp.handle};
+    req.msgType = 1;
+    req.pCont = rpcMallocCont(10);
+    req.contLen = 10;
+    tr->cliSendAndRecv(&req, &resp);
+    if (i > 2) {
+      tr->StopSrv();
+      break;
+    }
+  }
+  taosMsleep(2000);
+  // conn broken
+  //
+}
 
 TEST_F(TransEnv, multiCliPersistHandleExcept) {
   // conn broken
@@ -458,5 +477,15 @@ TEST_F(TransEnv, queryExcept) {
   // query and conn is broken
 }
 TEST_F(TransEnv, noResp) {
+  SRpcMsg resp = {0};
+  for (int i = 0; i < 5; i++) {
+    SRpcMsg req = {.noResp = 1};
+    req.msgType = 1;
+    req.pCont = rpcMallocCont(10);
+    req.contLen = 10;
+    tr->cliSendAndRecv(&req, &resp);
+  }
+  taosMsleep(2000);
+
   // no resp
 }
