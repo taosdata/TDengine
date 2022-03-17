@@ -378,7 +378,7 @@ class TdeSubProcess:
     @classmethod
     def _stopForSure(cls, proc: Popen, sig: int):
         ''' 
-        Stop a process and all sub processes with a singal, and SIGKILL if necessary
+        Stop a process and all sub processes with a signal, and SIGKILL if necessary
         '''
         def doKillTdService(proc: Popen, sig: int):
             Logging.info("Killing sub-sub process {} with signal {}".format(proc.pid, sig))
