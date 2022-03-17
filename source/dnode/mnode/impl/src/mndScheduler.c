@@ -77,6 +77,32 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
           return -1;
         }
         taosArrayPush(taskOneLevel, pTask);
+
+        SCoder encoder;
+        tCoderInit(&encoder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER);
+        tEncodeSStreamTask(&encoder, pTask);
+        int32_t tlen = sizeof(SMsgHead) + encoder.pos;
+        tCoderClear(&encoder);
+        void* buf = rpcMallocCont(tlen);
+        if (buf == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          return -1;
+        }
+        ((SMsgHead*)buf)->streamTaskId = pTask->taskId;
+        void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+        tCoderInit(&encoder, TD_LITTLE_ENDIAN, abuf, tlen, TD_ENCODER);
+        tEncodeSStreamTask(&encoder, pTask);
+        tCoderClear(&encoder);
+
+        STransAction action = {0};
+        action.epSet = plan->execNode.epSet;
+        action.pCont = buf;
+        action.contLen = tlen;
+        action.msgType = TDMT_VND_TASK_DEPLOY;
+        if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+          rpcFreeCont(buf);
+          return -1;
+        }
       }
     } else if (plan->subplanType == SUBPLAN_TYPE_SCAN) {
       // duplicatable
@@ -101,6 +127,32 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
         }
 
         taosArrayPush(taskOneLevel, pTask);
+
+        SCoder encoder;
+        tCoderInit(&encoder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER);
+        tEncodeSStreamTask(&encoder, pTask);
+        int32_t tlen = sizeof(SMsgHead) + encoder.pos;
+        tCoderClear(&encoder);
+        void* buf = rpcMallocCont(tlen);
+        if (buf == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          return -1;
+        }
+        ((SMsgHead*)buf)->streamTaskId = pTask->taskId;
+        void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+        tCoderInit(&encoder, TD_LITTLE_ENDIAN, abuf, tlen, TD_ENCODER);
+        tEncodeSStreamTask(&encoder, pTask);
+        tCoderClear(&encoder);
+
+        STransAction action = {0};
+        action.epSet = plan->execNode.epSet;
+        action.pCont = buf;
+        action.contLen = tlen;
+        action.msgType = TDMT_SND_TASK_DEPLOY;
+        if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+          rpcFreeCont(buf);
+          return -1;
+        }
       }
     } else {
       // not duplicatable
@@ -117,6 +169,32 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
         return -1;
       }
       taosArrayPush(taskOneLevel, pTask);
+
+      SCoder encoder;
+      tCoderInit(&encoder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER);
+      tEncodeSStreamTask(&encoder, pTask);
+      int32_t tlen = sizeof(SMsgHead) + encoder.pos;
+      tCoderClear(&encoder);
+      void* buf = rpcMallocCont(tlen);
+      if (buf == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
+      }
+      ((SMsgHead*)buf)->streamTaskId = pTask->taskId;
+      void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+      tCoderInit(&encoder, TD_LITTLE_ENDIAN, abuf, tlen, TD_ENCODER);
+      tEncodeSStreamTask(&encoder, pTask);
+      tCoderClear(&encoder);
+
+      STransAction action = {0};
+      action.epSet = plan->execNode.epSet;
+      action.pCont = buf;
+      action.contLen = tlen;
+      action.msgType = TDMT_SND_TASK_DEPLOY;
+      if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+        rpcFreeCont(buf);
+        return -1;
+      }
     }
     taosArrayPush(pStream->tasks, taskOneLevel);
   }

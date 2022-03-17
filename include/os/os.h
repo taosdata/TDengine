@@ -25,10 +25,11 @@ extern "C" {
 #include <pthread.h>
 #include <semaphore.h>
 
+#include <regex.h>
+
 #if !defined(WINDOWS)
 #include <unistd.h>
 #include <dirent.h>
-#include <regex.h>
 #include <sched.h>
 #include <wordexp.h>
 #include <libgen.h>
@@ -36,6 +37,12 @@ extern "C" {
 #include <sys/utsname.h>
 #include <sys/param.h>
 #include <sys/mman.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <termios.h>
+#include <sys/statvfs.h>
 
 #if defined(DARWIN)
 #else
@@ -61,12 +68,7 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/ioctl.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <sys/types.h>
 #include <wchar.h>
-#include <termios.h>
 #include <wctype.h>
 
 

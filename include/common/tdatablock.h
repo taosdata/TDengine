@@ -52,6 +52,21 @@ SEpSet getEpSet_s(SCorEpSet* pEpSet);
     BMCharPos(bm_, r_) |= (1u << (7u - BitPos(r_))); \
   } while (0)
 
+static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData, uint32_t row) {
+  if (!pColumnInfoData->hasNull) {
+    return false;
+  }
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    return pColumnInfoData->varmeta.offset[row] == -1;
+  } else {
+    if (pColumnInfoData->nullbitmap == NULL) {
+      return false;
+    }
+
+    return colDataIsNull_f(pColumnInfoData->nullbitmap, row);
+  }
+}
+
 static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, uint32_t totalRows, uint32_t row,
                                        SColumnDataAgg* pColAgg) {
   if (!pColumnInfoData->hasNull) {
@@ -79,10 +94,10 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
   }
 }
 
-#define BitmapLen(_n)     (((_n) + ((1<<NBIT)-1)) >> NBIT)
+#define BitmapLen(_n) (((_n) + ((1 << NBIT) - 1)) >> NBIT)
 
-
-#define colDataGetData(p1_, r_)                                                          \
+// SColumnInfoData, rowNumber
+#define colDataGetData(p1_, r_)                                                        \
   ((IS_VAR_DATA_TYPE((p1_)->info.type)) ? ((p1_)->pData + (p1_)->varmeta.offset[(r_)]) \
                                         : ((p1_)->pData + ((r_) * (p1_)->info.bytes)))
 
@@ -126,4 +141,4 @@ void*        blockDataDestroy(SSDataBlock* pBlock);
 }
 #endif
 
-#endif  /*_TD_COMMON_EP_H_*/
+#endif /*_TD_COMMON_EP_H_*/

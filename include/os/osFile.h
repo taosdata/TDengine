@@ -24,7 +24,7 @@ extern "C" {
 
 #if defined(WINDOWS)
 typedef int32_t FileFd;
-typedef SOCKET  SocketFd;
+typedef int32_t SocketFd;
 #else
 typedef int32_t FileFd;
 typedef int32_t SocketFd;

@@ -106,11 +106,7 @@ int pgCacheClose(SPgCache *pPgCache) {
   return 0;
 }
 
-#define PG_CACHE_HASH(fileid, pgno)       \
-  ({                                      \
-    uint64_t *tmp = (uint64_t *)(fileid); \
-    (tmp[0] + tmp[1] + tmp[2] + (pgno));  \
-  })
+#define PG_CACHE_HASH(fileid, pgno) (((uint64_t *)(fileid))[0] + ((uint64_t *)(fileid))[1] + ((uint64_t *)(fileid))[2] + (pgno))
 
 SPage *pgCacheFetch(SPgCache *pPgCache, pgid_t pgid) {
   SPage *  pPage;

@@ -39,7 +39,8 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
   syncAppendEntriesReplyLog2("==syncNodeOnAppendEntriesReplyCb==", pMsg);
 
   if (pMsg->term < ths->pRaftStore->currentTerm) {
-    sTrace("DropStaleResponse, receive term:%" PRIu64 ", current term:%" PRIu64 "", pMsg->term, ths->pRaftStore->currentTerm);
+    sTrace("DropStaleResponse, receive term:%" PRIu64 ", current term:%" PRIu64 "", pMsg->term,
+           ths->pRaftStore->currentTerm);
     return ret;
   }
 

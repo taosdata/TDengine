@@ -76,7 +76,7 @@ cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg) {
     free(s);
 
   } else {
-    pRoot = syncRpcUnknownMsg2Json();
+    pRoot = cJSON_CreateObject();
     char* s;
     s = syncUtilprintBin((char*)(pRpcMsg->pCont), pRpcMsg->contLen);
     cJSON_AddStringToObject(pRoot, "pCont", s);
@@ -608,6 +608,7 @@ SyncClientRequest* syncClientRequestBuild(uint32_t dataLen) {
   return pMsg;
 }
 
+// step 1. original SRpcMsg => SyncClientRequest, add seqNum, isWeak
 SyncClientRequest* syncClientRequestBuild2(const SRpcMsg* pOriginalRpcMsg, uint64_t seqNum, bool isWeak) {
   SyncClientRequest* pMsg = syncClientRequestBuild(pOriginalRpcMsg->contLen);
   pMsg->originalRpcType = pOriginalRpcMsg->msgType;
@@ -652,6 +653,7 @@ SyncClientRequest* syncClientRequestDeserialize2(const char* buf, uint32_t len) 
   return pMsg;
 }
 
+// step 2. SyncClientRequest => RpcMsg, to queue
 void syncClientRequest2RpcMsg(const SyncClientRequest* pMsg, SRpcMsg* pRpcMsg) {
   memset(pRpcMsg, 0, sizeof(*pRpcMsg));
   pRpcMsg->msgType = pMsg->msgType;
@@ -664,6 +666,7 @@ void syncClientRequestFromRpcMsg(const SRpcMsg* pRpcMsg, SyncClientRequest* pMsg
   syncClientRequestDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
 }
 
+// step 3. RpcMsg => SyncClientRequest, from queue
 SyncClientRequest* syncClientRequestFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncClientRequest* pMsg = syncClientRequestDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
   return pMsg;

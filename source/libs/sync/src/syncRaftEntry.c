@@ -26,6 +26,7 @@ SSyncRaftEntry* syncEntryBuild(uint32_t dataLen) {
   return pEntry;
 }
 
+// step 4. SyncClientRequest => SSyncRaftEntry, add term, index
 SSyncRaftEntry* syncEntryBuild2(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index) {
   SSyncRaftEntry* pEntry = syncEntryBuild(pMsg->dataLen);
   assert(pEntry != NULL);
@@ -48,6 +49,7 @@ void syncEntryDestory(SSyncRaftEntry* pEntry) {
   }
 }
 
+// step 5. SSyncRaftEntry => bin, to raft log
 char* syncEntrySerialize(const SSyncRaftEntry* pEntry, uint32_t* len) {
   char* buf = malloc(pEntry->bytes);
   assert(buf != NULL);
@@ -58,6 +60,7 @@ char* syncEntrySerialize(const SSyncRaftEntry* pEntry, uint32_t* len) {
   return buf;
 }
 
+// step 6. bin => SSyncRaftEntry, from raft log
 SSyncRaftEntry* syncEntryDeserialize(const char* buf, uint32_t len) {
   uint32_t        bytes = *((uint32_t*)buf);
   SSyncRaftEntry* pEntry = malloc(bytes);
@@ -104,6 +107,15 @@ char* syncEntry2Str(const SSyncRaftEntry* pEntry) {
   char*  serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
+}
+
+// step 7. SSyncRaftEntry => original SRpcMsg, commit to user, delete seqNum, isWeak, term, index
+void syncEntry2OriginalRpc(const SSyncRaftEntry* pEntry, SRpcMsg* pRpcMsg) {
+  memset(pRpcMsg, 0, sizeof(*pRpcMsg));
+  pRpcMsg->msgType = pEntry->originalRpcType;
+  pRpcMsg->contLen = pEntry->dataLen;
+  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
+  memcpy(pRpcMsg->pCont, pEntry->data, pRpcMsg->contLen);
 }
 
 // for debug ----------------------
