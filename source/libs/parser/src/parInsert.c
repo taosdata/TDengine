@@ -453,7 +453,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
       return func(&tmpVal, pSchema->bytes, param);
     }
 
-    return func(getNullValue(pSchema->type), 0, param);
+    return func(NULL, 0, param);
   }
 
   switch (pSchema->type) {
@@ -628,7 +628,11 @@ static FORCE_INLINE int32_t MemRowAppend(const void* value, int32_t len, void* p
     varDataSetLen(rowEnd, output);
     tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, rowEnd, false, pa->toffset, pa->colIdx);
   } else {
-    tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, value, true, pa->toffset, pa->colIdx);
+    if (value == NULL) {  // it is a null data
+      tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NULL, value, true, pa->toffset, pa->colIdx);
+    } else {
+      tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, value, true, pa->toffset, pa->colIdx);
+    }
   }
   return TSDB_CODE_SUCCESS;
 }

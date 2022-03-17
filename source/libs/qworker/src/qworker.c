@@ -603,28 +603,21 @@ int32_t qwGetResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void
       }
     
       QW_TASK_DLOG("no data in sink and query end, phase:%d", ctx->phase);
-      
       QW_ERR_RET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCCEED));
-
       QW_ERR_RET(qwMallocFetchRsp(len, &rsp));
+
       *rspMsg = rsp;
       *dataLen = 0;
-      
       return TSDB_CODE_SUCCESS;
     }
 
     pOutput->bufStatus = DS_BUF_EMPTY;
-    
     QW_TASK_DLOG("no res data in sink, need response later, queryEnd:%d", queryEnd);
-
     return TSDB_CODE_SUCCESS;
   }
 
-
   // Got data from sink
-
   *dataLen = len;
-
   QW_TASK_DLOG("task got data in sink, dataLength:%d", len);
   
   QW_ERR_RET(qwMallocFetchRsp(len, &rsp));

@@ -3986,7 +3986,7 @@ static int32_t doCopyToSDataBlock(SDiskbasedBuf *pBuf, SGroupResInfo* pGroupResI
 static void toSDatablock(SGroupResInfo *pGroupResInfo, SDiskbasedBuf* pBuf, SSDataBlock* pBlock, int32_t rowCapacity, int32_t* rowCellOffset) {
   assert(pGroupResInfo->currentGroup <= pGroupResInfo->totalGroup);
 
-  blockDataClearup(pBlock);
+  blockDataCleanup(pBlock);
   if (!hasRemainDataInCurrentGroup(pGroupResInfo)) {
     return;
   }
@@ -5794,7 +5794,7 @@ static void appendOneRowToDataBlock(SSDataBlock *pBlock, STupleHandle* pTupleHan
 }
 
 static SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, bool hasVarCol, int32_t capacity) {
-  blockDataClearup(pDataBlock);
+  blockDataCleanup(pDataBlock);
 
   while(1) {
     STupleHandle* pTupleHandle = tsortNextTuple(pHandle);
@@ -5950,7 +5950,7 @@ static SSDataBlock* doMerge(SOperatorInfo* pOperator) {
 
   while(1) {
 
-    blockDataClearup(pDataBlock);
+    blockDataCleanup(pDataBlock);
     while (1) {
       STupleHandle* pTupleHandle = tsortNextTuple(pHandle);
       if (pTupleHandle == NULL) {
@@ -6366,7 +6366,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo *pOperator, bool* newgroup)
   SOptrBasicInfo *pInfo = &pProjectInfo->binfo;
 
   SSDataBlock* pRes = pInfo->pRes;
-  blockDataClearup(pRes);
+  blockDataCleanup(pRes);
 
   if (pProjectInfo->existDataBlock) {  // TODO refactor
 //    STableQueryInfo* pTableQueryInfo = pRuntimeEnv->current;

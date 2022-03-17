@@ -430,11 +430,11 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
 
 /**
  *
- * +------------------+---------------+--------------------+
- * |the number of rows| column length |     column #1      |
- * |    (4 bytes)     |  (4 bytes)    |--------------------+
- * |                  |               | null bitmap| values|
- * +------------------+---------------+--------------------+
+ * +------------------+---------------------------------------------+
+ * |the number of rows|                    column #1                |
+ * |    (4 bytes)     |------------+-----------------------+--------+
+ * |                  | null bitmap| column length(4bytes) | values |
+ * +------------------+------------+-----------------------+--------+
  * @param buf
  * @param pBlock
  * @return
@@ -515,17 +515,21 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
   return TSDB_CODE_SUCCESS;
 }
 
-size_t blockDataGetRowSize(const SSDataBlock* pBlock) {
+size_t blockDataGetRowSize(SSDataBlock* pBlock) {
   ASSERT(pBlock != NULL);
-  size_t rowSize = 0;
+  if (pBlock->info.rowSize == 0) {
+    size_t rowSize = 0;
 
-  size_t numOfCols = pBlock->info.numOfCols;
-  for(int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
-    rowSize += pColInfo->info.bytes;
+    size_t numOfCols = pBlock->info.numOfCols;
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
+      rowSize += pColInfo->info.bytes;
+    }
+
+    pBlock->info.rowSize = rowSize;
   }
 
-  return rowSize;
+  return pBlock->info.rowSize;
 }
 
 /**
@@ -1059,7 +1063,7 @@ int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullF
   //  destroyTupleIndex(index);
 }
 
-void blockDataClearup(SSDataBlock* pDataBlock) {
+void blockDataCleanup(SSDataBlock* pDataBlock) {
   pDataBlock->info.rows = 0;
 
   if (pDataBlock->info.hasVarCol) {

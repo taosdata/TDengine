@@ -52,7 +52,7 @@ TEST(testCase, driverInit_Test) {
   // taosInitGlobalCfg();
 //  taos_init();
 }
-
+#if 0
 TEST(testCase, connect_Test) {
 //  taos_options(TSDB_OPTION_CONFIGDIR, "/home/ubuntu/first/cfg");
 
@@ -648,6 +648,7 @@ TEST(testCase, projection_query_stables) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
+#endif
 
 TEST(testCase, agg_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -656,18 +657,20 @@ TEST(testCase, agg_query_tables) {
   TAOS_RES* pRes = taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table tx using st1 tags(111111111111111)");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create table, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
+  pRes = taos_query(pConn, "select * from tu");
 
-  pRes = taos_query(pConn, "select count(*) from t_x_19");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
-    taos_free_result(pRes);
-    ASSERT_TRUE(false);
-  }
+//  pRes = taos_query(pConn, "create table tx using st1 tags(111111111111111)");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to create table, reason:%s\n", taos_errstr(pRes));
+//  }
+//  taos_free_result(pRes);
+//
+//  pRes = taos_query(pConn, "select count(*) from tu");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
+//    taos_free_result(pRes);
+//    ASSERT_TRUE(false);
+//  }
 
   TAOS_ROW    pRow = NULL;
   TAOS_FIELD* pFields = taos_fetch_fields(pRes);

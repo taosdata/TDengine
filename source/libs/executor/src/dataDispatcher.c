@@ -15,11 +15,12 @@
 
 #include "dataSinkInt.h"
 #include "dataSinkMgt.h"
+#include "executorimpl.h"
 #include "planner.h"
 #include "tcompression.h"
 #include "tglobal.h"
 #include "tqueue.h"
-#include "executorimpl.h"
+#include "tdatablock.h"
 
 typedef struct SDataDispatchBuf {
   int32_t useSize;
@@ -64,29 +65,47 @@ static bool needCompress(const SSDataBlock* pData, const SDataBlockDescNode* pSc
 }
 
 static int32_t compressColData(SColumnInfoData *pColRes, int32_t numOfRows, char *data, int8_t compressed) {
-  int32_t colSize = pColRes->info.bytes * numOfRows;
+  int32_t colSize = colDataGetLength(pColRes, numOfRows);
   return (*(tDataTypes[pColRes->info.type].compFunc))(
       pColRes->pData, colSize, numOfRows, data, colSize + COMP_OVERFLOW_BYTES, compressed, NULL, 0);
 }
 
-static void copyData(const SInputData* pInput, const SDataBlockDescNode* pSchema, char* data, int8_t compressed, int32_t *compLen) {
+static void copyData(const SInputData* pInput, const SDataBlockDescNode* pSchema, char* data, int8_t compressed, int32_t * dataLen) {
   int32_t numOfCols = LIST_LENGTH(pSchema->pSlots);
-  int32_t *compSizes = (int32_t*)data;
-  if (compressed) {
-    data += numOfCols * sizeof(int32_t);
-  }
+  int32_t * colSizes = (int32_t*)data;
 
+  data += numOfCols * sizeof(int32_t);
+  *dataLen = (numOfCols * sizeof(int32_t));
+
+  int32_t numOfRows = pInput->pData->info.rows;
   for (int32_t col = 0; col < numOfCols; ++col) {
     SColumnInfoData* pColRes = taosArrayGet(pInput->pData->pDataBlock, col);
-    if (compressed) {
-      compSizes[col] = compressColData(pColRes, pInput->pData->info.rows, data, compressed);
-      data += compSizes[col];
-      *compLen += compSizes[col];
-      compSizes[col] = htonl(compSizes[col]);
+
+    // copy the null bitmap
+    if (IS_VAR_DATA_TYPE(pColRes->info.type)) {
+      size_t metaSize = numOfRows * sizeof(int32_t);
+      memcpy(data, pColRes->varmeta.offset, metaSize);
+      data += metaSize;
+      (*dataLen) += metaSize;
     } else {
-      memmove(data, pColRes->pData, pColRes->info.bytes * pInput->pData->info.rows);
-      data += pColRes->info.bytes * pInput->pData->info.rows;
+      int32_t len = BitmapLen(numOfRows);
+      memcpy(data, pColRes->nullbitmap, len);
+      data += len;
+      (*dataLen) += len;
     }
+
+    if (compressed) {
+      colSizes[col] = compressColData(pColRes, numOfRows, data, compressed);
+      data += colSizes[col];
+      (*dataLen) += colSizes[col];
+    } else {
+      colSizes[col] = colDataGetLength(pColRes, numOfRows);
+      (*dataLen) += colSizes[col];
+      memmove(data, pColRes->pData, colSizes[col]);
+      data += colSizes[col];
+    }
+
+    colSizes[col] = htonl(colSizes[col]);
   }
 }
 
@@ -95,16 +114,14 @@ static void copyData(const SInputData* pInput, const SDataBlockDescNode* pSchema
 static void toDataCacheEntry(const SDataDispatchHandle* pHandle, const SInputData* pInput, SDataDispatchBuf* pBuf) {
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pBuf->pData;
   pEntry->compressed = (int8_t)needCompress(pInput->pData, pHandle->pSchema);
-  pEntry->numOfRows = pInput->pData->info.rows;
-  pEntry->dataLen = 0;
+  pEntry->numOfRows  = pInput->pData->info.rows;
+  pEntry->dataLen    = 0;
 
   pBuf->useSize = sizeof(SRetrieveTableRsp);
   copyData(pInput, pHandle->pSchema, pEntry->data, pEntry->compressed, &pEntry->dataLen);
-  if (0 == pEntry->compressed) {
-    pEntry->dataLen = pHandle->pSchema->resultRowSize * pInput->pData->info.rows;
-  }
-  pBuf->useSize += pEntry->dataLen;
-  // todo completed
+
+  pEntry->dataLen = pEntry->dataLen;
+  pBuf->useSize  += pEntry->dataLen;
 }
 
 static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput, SDataDispatchBuf* pBuf) {
@@ -169,6 +186,7 @@ static void getDataLength(SDataSinkHandle* pHandle, int32_t* pLen, bool* pQueryE
     *pLen = 0;
     return;
   }
+
   SDataDispatchBuf* pBuf = NULL;
   taosReadQitem(pDispatcher->pDataBlocks, (void**)&pBuf);
   memcpy(&pDispatcher->nextOutput, pBuf, sizeof(SDataDispatchBuf));
