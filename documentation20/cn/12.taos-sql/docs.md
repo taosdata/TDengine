@@ -2026,7 +2026,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
     示例：
     ```mysql
-    taos> SELECT TODAY() FROM meters;
+    taos> SELECT TIMEZONE() FROM meters;
                timezone()           |
     =================================
      UTC (UTC, +0000)               |
@@ -2096,7 +2096,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     
  - **TIMETRUNCATE**
     ```mysql
-    SELECT TIMEDIFF(ts_val | datetime_string | ts_col, time_unit) FROM { tb_name | stb_name } [WHERE clause];
+    SELECT TIMETRUNCATE(ts_val | datetime_string | ts_col, time_unit) FROM { tb_name | stb_name } [WHERE clause];
     ```
     功能说明：将时间戳按照指定时间单位 time_unit 进行截断。
 
