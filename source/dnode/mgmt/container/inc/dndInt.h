@@ -41,8 +41,8 @@ void        dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
 void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, SEpSet *pEpSet);
 
 // dndExec.c
-int32_t dndOpenNode(SMgmtWrapper *pWrapper);
-void    dndCloseNode(SMgmtWrapper *pWrapper);
+int32_t dndOpenNode(SDnode *pDnode, ENodeType nodeType);
+int32_t dndCloseNode(SDnode *pDnode, ENodeType nodeType);
 int32_t dndRun(SDnode *pDnode);
 
 // dndObj.c
@@ -51,6 +51,7 @@ void    dndClose(SDnode *pDnode);
 void    dndHandleEvent(SDnode *pDnode, EDndEvent event);
 
 SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, ENodeType nodeType);
+int32_t       dndMarkWrapper(SMgmtWrapper *pWrapper);
 void          dndReleaseWrapper(SMgmtWrapper *pWrapper);
 
 // dndTransport.c

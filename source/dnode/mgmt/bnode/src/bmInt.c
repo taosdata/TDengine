@@ -53,7 +53,7 @@ static bool bmRequire(SMgmtWrapper *pWrapper) {
 
   if (mgmt.dropped) {
     dInfo("bnode has been dropped and needs to be deleted");
-    mndDestroy(mgmt.path);
+    taosRemoveDir(mgmt.path);
     return false;
   }
 
@@ -66,7 +66,6 @@ static bool bmRequire(SMgmtWrapper *pWrapper) {
 
 void bmInitOption(SBnodeMgmt *pMgmt, SBnodeOpt *pOption) {
   SDnode *pDnode = pMgmt->pDnode;
-
   pOption->pWrapper = pMgmt->pWrapper;
   pOption->sendReqFp = dndSendReqToDnode;
   pOption->sendMnodeReqFp = dndSendReqToMnode;

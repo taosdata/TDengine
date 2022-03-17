@@ -35,37 +35,51 @@ static bool dndRequireNode(SMgmtWrapper *pWrapper) {
   return required;
 }
 
-int32_t dndOpenNode(SMgmtWrapper *pWrapper) { 
+int32_t dndOpenNode(SDnode *pDnode, ENodeType ntype) {
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, ntype);
+  if (pWrapper != NULL) {
+    dndReleaseWrapper(pWrapper);
+    terrno = TSDB_CODE_NODE_ALREADY_DEPLOYED;
+    return -1;
+  }
+
+  pWrapper = &pDnode->wrappers[ntype];
   int32_t code = (*pWrapper->fp.openFp)(pWrapper);
   if (code != 0) {
     dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
-    return -1;
   } else {
     dDebug("node:%s, has been opened", pWrapper->name);
+    pWrapper->deployed = true;
   }
 
-  pWrapper->deployed = true;
-  return 0;
+  return code;
 }
 
-void dndCloseNode(SMgmtWrapper *pWrapper) {
-  taosWLockLatch(&pWrapper->latch);
-  if (pWrapper->deployed) {
-    (*pWrapper->fp.closeFp)(pWrapper);
-    pWrapper->deployed = false;
+int32_t dndCloseNode(SDnode *pDnode, ENodeType ntype) {
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, ntype);
+  if (pWrapper == NULL) {
+    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
+    return -1;
   }
+
+  taosWLockLatch(&pWrapper->latch);
+  (*pWrapper->fp.closeFp)(pWrapper);
+  pWrapper->deployed = false;
   if (pWrapper->pProc) {
     taosProcCleanup(pWrapper->pProc);
     pWrapper->pProc = NULL;
   }
   taosWUnLockLatch(&pWrapper->latch);
+
+  dndReleaseWrapper(pWrapper);
+  return 0;
 }
 
 static int32_t dndRunInSingleProcess(SDnode *pDnode) {
   dInfo("dnode run in single process mode");
 
-  for (ENodeType n = 0; n < NODE_MAX; ++n) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+  for (ENodeType ntype = 0; ntype < NODE_MAX; ++ntype) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
     pWrapper->required = dndRequireNode(pWrapper);
     if (!pWrapper->required) continue;
 
@@ -77,14 +91,14 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
 
     dInfo("node:%s, will start in single process", pWrapper->name);
     pWrapper->procType = PROC_SINGLE;
-    if (dndOpenNode(pWrapper) != 0) {
+    if (dndOpenNode(pDnode, ntype) != 0) {
       dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
       return -1;
     }
   }
 
   SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, DNODE);
-  int32_t code = dmStart(pWrapper->pMgmt);
+  int32_t       code = dmStart(pWrapper->pMgmt);
   if (code != 0) {
     dError("failed to start dnode worker since %s", terrstr());
   }
@@ -95,10 +109,9 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
 
 static void dndClearNodesExecpt(SDnode *pDnode, ENodeType except) {
   dndCleanupServer(pDnode);
-  for (ENodeType n = 0; n < NODE_MAX; ++n) {
-    if (except == n) continue;
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
-    dndCloseNode(pWrapper);
+  for (ENodeType ntype = 0; ntype < NODE_MAX; ++ntype) {
+    if (except == ntype) continue;
+    (void)dndCloseNode(pDnode, ntype);
   }
 }
 
@@ -111,8 +124,7 @@ static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t
   int32_t   code = (*msgFp)(pWrapper, pMsg);
 
   if (code != 0) {
-    bool isReq = (pRpc->msgType & 1U);
-    if (isReq) {
+    if (pRpc->msgType & 1U) {
       SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
       dndSendRsp(pWrapper, &rsp);
     }
@@ -133,8 +145,8 @@ static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRsp, int32_t
 static int32_t dndRunInMultiProcess(SDnode *pDnode) {
   dInfo("dnode run in multi process mode");
 
-  for (ENodeType n = 0; n < NODE_MAX; ++n) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+  for (ENodeType ntype = 0; ntype < NODE_MAX; ++ntype) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
     pWrapper->required = dndRequireNode(pWrapper);
     if (!pWrapper->required) continue;
 
@@ -144,10 +156,10 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
       return -1;
     }
 
-    if (n == DNODE) {
+    if (ntype == DNODE) {
       dInfo("node:%s, will start in parent process", pWrapper->name);
       pWrapper->procType = PROC_SINGLE;
-      if (dndOpenNode(pWrapper) != 0) {
+      if (dndOpenNode(pDnode, ntype) != 0) {
         dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
         return -1;
       }
@@ -183,10 +195,10 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
       dndResetLog(pWrapper);
 
       dInfo("node:%s, clean up resources inherited from parent", pWrapper->name);
-      dndClearNodesExecpt(pDnode, n);
+      dndClearNodesExecpt(pDnode, ntype);
 
       dInfo("node:%s, will be initialized in child process", pWrapper->name);
-      dndOpenNode(pWrapper);
+      dndOpenNode(pDnode, ntype);
     } else {
       dInfo("node:%s, will not start in parent process", pWrapper->name);
       pWrapper->procType = PROC_PARENT;

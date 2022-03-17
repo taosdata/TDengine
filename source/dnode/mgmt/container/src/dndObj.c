@@ -124,9 +124,8 @@ void dndClose(SDnode *pDnode) {
   dndCleanupServer(pDnode);
   dndCleanupClient(pDnode);
 
-  for (ENodeType n = 0; n < NODE_MAX; ++n) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
-    dndCloseNode(pWrapper);
+  for (ENodeType ntype = 0; ntype < NODE_MAX; ++ntype) {
+    (void)dndCloseNode(pDnode, ntype);
   }
 
   dndClearMemory(pDnode);
@@ -138,8 +137,8 @@ void dndHandleEvent(SDnode *pDnode, EDndEvent event) {
   pDnode->event = event;
 }
 
-SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, ENodeType nodeType) {
-  SMgmtWrapper *pWrapper = &pDnode->wrappers[nodeType];
+SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, ENodeType ntype) {
+  SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
   SMgmtWrapper *pRetWrapper = pWrapper;
 
   taosRLockLatch(&pWrapper->latch);
@@ -153,6 +152,22 @@ SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, ENodeType nodeType) {
   taosRUnLockLatch(&pWrapper->latch);
 
   return pRetWrapper;
+}
+
+int32_t dndMarkWrapper(SMgmtWrapper *pWrapper) {
+  int32_t code = 0;
+
+  taosRLockLatch(&pWrapper->latch);
+  if (pWrapper->deployed) {
+    int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
+    dTrace("node:%s, is marked, refCount:%d", pWrapper->name, refCount);
+  } else {
+    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
+    code = -1;
+  }
+  taosRUnLockLatch(&pWrapper->latch);
+
+  return code;
 }
 
 void dndReleaseWrapper(SMgmtWrapper *pWrapper) {

@@ -63,13 +63,12 @@ static void dmProcessQueue(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
     case TDMT_DND_CREATE_QNODE:
     case TDMT_DND_CREATE_SNODE:
     case TDMT_DND_CREATE_BNODE:
-      code = dndProcessCreateNodeMsg(pMgmt->pDnode, pMsg);
-
     case TDMT_DND_DROP_MNODE:
     case TDMT_DND_DROP_QNODE:
     case TDMT_DND_DROP_SNODE:
     case TDMT_DND_DROP_BNODE:
-      code = dndProcessDropNodeMsg(pMgmt->pDnode, pMsg);
+      code = dndProcessNodeMsg(pMgmt->pDnode, pMsg);
+      break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
       code = -1;
