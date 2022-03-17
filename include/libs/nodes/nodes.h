@@ -166,6 +166,7 @@ SNodeList* nodesMakeList();
 int32_t nodesListAppend(SNodeList* pList, SNodeptr pNode);
 int32_t nodesListStrictAppend(SNodeList* pList, SNodeptr pNode);
 int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc);
+int32_t nodesListStrictAppendList(SNodeList* pTarget, SNodeList* pSrc);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
 SNodeptr nodesListGetNode(SNodeList* pList, int32_t index);
 void nodesDestroyList(SNodeList* pList);

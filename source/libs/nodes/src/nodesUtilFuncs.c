@@ -359,6 +359,17 @@ int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t nodesListStrictAppendList(SNodeList* pTarget, SNodeList* pSrc) {
+  if (NULL == pSrc) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  int32_t code = nodesListAppendList(pTarget, pSrc);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyList(pSrc);
+  }
+  return code;
+}
+
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell) {
   if (NULL == pCell->pPrev) {
     pList->pHead = pCell->pNext;
@@ -573,7 +584,7 @@ typedef struct SCollectFuncsCxt {
 static EDealRes collectFuncs(SNode* pNode, void* pContext) {
   SCollectFuncsCxt* pCxt = (SCollectFuncsCxt*)pContext;
   if (QUERY_NODE_FUNCTION == nodeType(pNode) && pCxt->classifier(((SFunctionNode*)pNode)->funcId)) {
-    pCxt->errCode = nodesListAppend(pCxt->pFuncs, pNode);
+    pCxt->errCode = nodesListStrictAppend(pCxt->pFuncs, nodesCloneNode(pNode));
     return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
   }
   return DEAL_RES_CONTINUE;

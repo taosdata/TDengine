@@ -961,23 +961,46 @@ SNode* createDropSuperTableStmt(SAstCreateContext* pCxt, bool ignoreNotExists, S
 }
 
 SNode* createAlterTableOption(SAstCreateContext* pCxt, SNode* pRealTable, SNode* pOptions) {
-
+  SAlterTableStmt* pStmt = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_OPTIONS;
+  pStmt->pOptions = (STableOptions*)pOptions;
+  return (SNode*)pStmt;
 }
 
 SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, const SToken* pColName, SDataType dataType) {
-
+  SAlterTableStmt* pStmt = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->alterType = alterType;
+  strncpy(pStmt->colName, pColName->z, pColName->n);
+  pStmt->dataType = dataType;
+  return (SNode*)pStmt;
 }
 
 SNode* createAlterTableDropCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, const SToken* pColName) {
-
+  SAlterTableStmt* pStmt = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->alterType = alterType;
+  strncpy(pStmt->colName, pColName->z, pColName->n);
+  return (SNode*)pStmt;
 }
 
 SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, const SToken* pOldColName, const SToken* pNewColName) {
-
+  SAlterTableStmt* pStmt = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->alterType = alterType;
+  strncpy(pStmt->colName, pOldColName->z, pOldColName->n);
+  strncpy(pStmt->newColName, pNewColName->z, pNewColName->n);
+  return (SNode*)pStmt;
 }
 
 SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, const SToken* pTagName, SNode* pVal) {
-
+  SAlterTableStmt* pStmt = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_TAG_VAL;
+  strncpy(pStmt->colName, pTagName->z, pTagName->n);
+  pStmt->pVal = (SValueNode*)pVal;
+  return (SNode*)pStmt;
 }
 
 SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName) {

@@ -962,8 +962,56 @@ static int32_t translateDropSuperTable(STranslateContext* pCxt, SDropSuperTableS
   return doTranslateDropSuperTable(pCxt, &tableName, pStmt->ignoreNotExists);
 }
 
+static int32_t setAlterTableField(SAlterTableStmt* pStmt, SMAltertbReq* pAlterReq) {
+  pAlterReq->pFields = taosArrayInit(2, sizeof(TAOS_FIELD));
+  if (NULL == pAlterReq->pFields) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  switch (pStmt->alterType) {
+    case TSDB_ALTER_TABLE_ADD_TAG:
+    case TSDB_ALTER_TABLE_DROP_TAG:
+    case TSDB_ALTER_TABLE_ADD_COLUMN:
+    case TSDB_ALTER_TABLE_DROP_COLUMN:
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
+    case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES: {
+      TAOS_FIELD field = { .type = pStmt->dataType.type, .bytes = pStmt->dataType.bytes };
+      strcpy(field.name, pStmt->colName);
+      taosArrayPush(pAlterReq->pFields, &field);
+      break;
+    }
+    case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME: {
+      TAOS_FIELD oldField = {0};
+      strcpy(oldField.name, pStmt->colName);
+      taosArrayPush(pAlterReq->pFields, &oldField);
+      TAOS_FIELD newField = {0};
+      strcpy(oldField.name, pStmt->newColName);
+      taosArrayPush(pAlterReq->pFields, &newField);
+      break;
+    }
+    default:
+      break;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateAlterTable(STranslateContext* pCxt, SAlterTableStmt* pStmt) {
   SMAltertbReq alterReq = {0};
+  SName tableName = { .type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId };
+  strcpy(tableName.dbname, pStmt->dbName);
+  strcpy(tableName.tname, pStmt->tableName);
+  tNameExtractFullName(&tableName, alterReq.name);
+  alterReq.alterType = pStmt->alterType;
+  alterReq.numOfFields = 1;
+  if (TSDB_ALTER_TABLE_UPDATE_OPTIONS == pStmt->alterType) {
+    // todo
+  } else {
+    if (TSDB_CODE_SUCCESS != setAlterTableField(pStmt, &alterReq)) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
 
   pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
   if (NULL == pCxt->pCmdMsg) {
@@ -1910,6 +1958,11 @@ static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) 
   return rewriteToVnodeModifOpStmt(pQuery, pBufArray);
 }
 
+static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
+  // todo
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pQuery->pRoot)) {
@@ -1920,6 +1973,11 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
       code = rewriteCreateMultiTable(pCxt, pQuery);
+      break;
+    case QUERY_NODE_ALTER_TABLE_STMT:
+      if (TSDB_ALTER_TABLE_UPDATE_TAG_VAL == ((SAlterTableStmt*)pQuery->pRoot)->alterType) {
+        code = rewriteAlterTable(pCxt, pQuery);
+      }
       break;
     default:
       break;
