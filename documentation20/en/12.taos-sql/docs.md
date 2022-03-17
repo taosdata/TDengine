@@ -1315,6 +1315,9 @@ TDengine supports aggregations over data, they are listed below:
       It is a scalar function and can not be used together with aggregate function
 
       Applies to columns of normal table, child table and super table
+      
+      Supported after version 2.6.0.x
+
 
 - **ACOS**
     ```mysql
@@ -1335,6 +1338,8 @@ TDengine supports aggregations over data, they are listed below:
       It is a scalar function and can not be used together with aggregate function
 
       Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
 
 
 - **ATAN**
@@ -1357,6 +1362,8 @@ TDengine supports aggregations over data, they are listed below:
 
       Applies to columns of normal table, child table and super table
 
+      Supported after version 2.6.0.x
+
 
 - **SIN**
     ```mysql
@@ -1377,6 +1384,8 @@ TDengine supports aggregations over data, they are listed below:
       It is a scalar function and can not be used together with aggregate function
 
       Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
 
 
 - **COS**
@@ -1399,6 +1408,8 @@ TDengine supports aggregations over data, they are listed below:
 
       Applies to columns of normal table, child table and super table
 
+      Supported after version 2.6.0.x
+
 - **TAN**
     ```mysql
     SELECT TAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
@@ -1418,6 +1429,8 @@ TDengine supports aggregations over data, they are listed below:
       It is a scalar function and can not be used together with aggregate function
 
       Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
 
 
 
@@ -1442,6 +1455,8 @@ TDengine supports aggregations over data, they are listed below:
 
       Applies to columns of normal table, child table and super table
 
+      Supported after version 2.6.0.x
+
 - **LOG**
     ```mysql
     SELECT LOG(field_name, base) FROM { tb_name | stb_name } [WHERE clause]
@@ -1462,6 +1477,8 @@ TDengine supports aggregations over data, they are listed below:
 
       Applies to columns of normal table, child table and super table
 
+      Supported after version 2.6.0.x
+
 - **ABS**
     ```mysql
     SELECT ABS(field_name) FROM { tb_name | stb_name } [WHERE clause]
@@ -1481,6 +1498,8 @@ TDengine supports aggregations over data, they are listed below:
       It is a scalar function and can not be used together with aggregate function
 
       Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
 
 
 - **SQRT**
@@ -1503,6 +1522,8 @@ TDengine supports aggregations over data, they are listed below:
 
       Applies to columns of normal table, child table and super table
 
+      Supported after version 2.6.0.x
+
 - **CAST**
     ```mysql
     SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
@@ -1518,6 +1539,8 @@ TDengine supports aggregations over data, they are listed below:
       Reports error for unsupported cast
 
       It is a scalar function and its output is NULL for input NULL
+
+      Supported after version 2.6.0.x
 
 
 - **CONCAT**
@@ -1536,6 +1559,7 @@ TDengine supports aggregations over data, they are listed below:
       The function takes 2 to 8 string values as input. all inputs must be of the same data type.
       This function applies to normal table, child table and super table
       This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
       
 - **CONCAT_WS**
     ```
@@ -1553,6 +1577,7 @@ TDengine supports aggregations over data, they are listed below:
       The function takes 3 to 9 string values as input. all inputs must be of the same data type.
       This function applies to normal table, child table and super table
       This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
       
 
 - **LENGTH**
@@ -1570,6 +1595,7 @@ TDengine supports aggregations over data, they are listed below:
       Returns NULL when input is NULL. 
       This function applies to normal table, child table and super table
       This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
 
 - **CHAR_LENGTH**
     ```
@@ -1586,6 +1612,7 @@ TDengine supports aggregations over data, they are listed below:
       Returns NULL when input is NULL. 
       This function applies to normal table, child table and super table
       This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
 
 - **LOWER**
     ```
@@ -1602,6 +1629,7 @@ TDengine supports aggregations over data, they are listed below:
       Returns NULL when input is NULL. 
       This function applies to normal table, child table and super table
       This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
 
 - **UPPER**
     ```
@@ -1618,6 +1646,7 @@ TDengine supports aggregations over data, they are listed below:
       Returns NULL when input is NULL. 
       This function applies to normal table, child table and super table
       This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
 
 - **LTRIM**
     ```
@@ -1634,6 +1663,7 @@ TDengine supports aggregations over data, they are listed below:
       Returns NULL when input is NULL. 
       This function applies to normal table, child table and super table
       This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
 
 - **RTRIM**
     ```
@@ -1650,6 +1680,7 @@ TDengine supports aggregations over data, they are listed below:
       Returns NULL when input is NULL. 
       This function applies to normal table, child table and super table
       This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
 
 - **SUBSTR**
     ```
@@ -1667,7 +1698,8 @@ TDengine supports aggregations over data, they are listed below:
       Input pos can be negative or positive. If it is a positive number, this function extracts from the beginning of the string. If it is a negative number, this function extracts from the end of the string
       If input len is ommited, the output is whole substring starting from pos.
       This function applies to normal table, child table and super table
-      This function applies to bother out query and inner query    
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x    
 
 
 - **Four Operations**
