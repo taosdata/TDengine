@@ -31,10 +31,6 @@ typedef struct SBnodeMgmt {
   SDnodeWorker  writeWorker;
 } SBnodeMgmt;
 
-// bmFile.c
-int32_t bmReadFile(SBnodeMgmt *pMgmt, bool *pDeployed);
-int32_t bmWriteFile(SBnodeMgmt *pMgmt, bool deployed);
-
 // bmInt.c
 int32_t bmOpen(SMgmtWrapper *pWrapper);
 int32_t bmDrop(SMgmtWrapper *pWrapper);

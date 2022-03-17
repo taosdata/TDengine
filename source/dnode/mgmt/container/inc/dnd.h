@@ -168,6 +168,9 @@ int32_t dndWriteMsgToWorker(SDnodeWorker *pWorker, void *pCont, int32_t contLen)
 
 int32_t dndProcessNodeMsg(SDnode *pDnode, SNodeMsg *pMsg);
 
+int32_t dndReadFile(SMgmtWrapper *pWrapper, bool *pDeployed);
+int32_t dndWriteFile(SMgmtWrapper *pWrapper, bool deployed);
+
 #ifdef __cplusplus
 }
 #endif

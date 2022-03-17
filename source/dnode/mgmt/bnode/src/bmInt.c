@@ -21,7 +21,7 @@ static bool bmRequire(SMgmtWrapper *pWrapper) {
   mgmt.path = pWrapper->path;
 
   bool deployed = false;
-  (void)bmReadFile(&mgmt, &deployed);
+  (void)dndReadFile(pWrapper, &deployed);
 
   return deployed;
 }
@@ -51,7 +51,7 @@ static int32_t bmOpenImp(SBnodeMgmt *pMgmt) {
   }
 
   bool deployed = true;
-  if (bmWriteFile(pMgmt, deployed) != 0) {
+  if (dndWriteFile(pMgmt->pWrapper, deployed) != 0) {
     dError("failed to write bnode file since %s", terrstr());
     return -1;
   }
@@ -73,7 +73,7 @@ int32_t bmDrop(SMgmtWrapper *pWrapper) {
 
   dInfo("bnode-mgmt start to drop");
   bool deployed = false;
-  if (bmWriteFile(pMgmt, deployed) != 0) {
+  if (dndWriteFile(pWrapper, deployed) != 0) {
     dError("failed to drop bnode since %s", terrstr());
     return -1;
   }
