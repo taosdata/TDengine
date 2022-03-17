@@ -13,10 +13,6 @@ TDengine 支持 X64/ARM64/MIPS64/Alpha64 硬件平台，后续将支持 ARM32、
 docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine
 ```
 
-```
-docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine
-```
-
 详细操作方法请参照 [通过 Docker 快速体验 TDengine](https://www.taosdata.com/cn/documentation/getting-started/docker)。
 
 注：暂时不建议生产环境采用 Docker 来部署 TDengine 的客户端或服务端，但在开发环境下或初次尝试时，使用 Docker 方式部署是十分方便的。特别是，利用 Docker，可以方便地在 macOS 和 Windows 环境下尝试 TDengine。
