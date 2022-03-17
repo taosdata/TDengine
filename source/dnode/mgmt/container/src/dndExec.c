@@ -25,7 +25,7 @@ static void dndResetLog(SMgmtWrapper *pMgmt) {
   taosInitLog(logname, 1);
 }
 
-bool dndRequireNode(SMgmtWrapper *pMgmt) {
+static bool dndRequireNode(SMgmtWrapper *pMgmt) {
   bool required = (*pMgmt->fp.requiredFp)(pMgmt);
   if (!required) {
     dDebug("node:%s, no need to start", pMgmt->name);
