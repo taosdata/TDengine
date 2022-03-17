@@ -392,14 +392,14 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
     FILETIME b; // unit is 100ns
     ULARGE_INTEGER c;
     SystemTimeToFileTime(&a,&b);
-    c.LowPart = b.dwLowDateTime;  
-    c.HighPart = b.dwHighDateTime;  
+    c.LowPart = b.dwLowDateTime;
+    c.HighPart = b.dwHighDateTime;
     c.QuadPart+=tt*10000000;
-    b.dwLowDateTime=c.LowPart;  
-    b.dwHighDateTime=c.HighPart;  
+    b.dwLowDateTime=c.LowPart;
+    b.dwHighDateTime=c.HighPart;
     FileTimeToLocalFileTime(&b,&b);
     FileTimeToSystemTime(&b,&a);
-    int pos = sprintf(buf,"%02d-%02d-%02d %02d:%02d:%02d", a.wYear, a.wMonth,a.wDay, a.wHour, a.wMinute, a.wSecond);   
+    int pos = sprintf(buf,"%02d-%02d-%02d %02d:%02d:%02d", a.wYear, a.wMonth,a.wDay, a.wHour, a.wMinute, a.wSecond);
     if (precision == TSDB_TIME_PRECISION_NANO) {
       sprintf(buf + pos, ".%09d", ms);
     } else if (precision == TSDB_TIME_PRECISION_MICRO) {
@@ -442,6 +442,7 @@ static void dumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32_
     return;
   }
 
+  int  n;
   char buf[TSDB_MAX_BYTES_PER_ROW];
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
@@ -475,7 +476,12 @@ static void dumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32_
       fprintf(fp, "%.5f", GET_FLOAT_VAL(val));
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      fprintf(fp, "%.9f", GET_DOUBLE_VAL(val));
+      n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", length, GET_DOUBLE_VAL(val));
+      if (n > MAX(25, length)) {
+        fprintf(fp, "%*.15e", length, GET_DOUBLE_VAL(val));
+      } else {
+        fprintf(fp, "%s", buf);
+      }
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
@@ -559,6 +565,9 @@ static void shellPrintNChar(const char *str, int length, int width) {
     if (bytes <= 0) {
       break;
     }
+    if (pos + bytes > length) {
+      break;
+    }
     int w = 0;
 #ifdef WINDOWS
     w = bytes;
@@ -569,13 +578,9 @@ static void shellPrintNChar(const char *str, int length, int width) {
       w = wcwidth(wc);
     }
 #endif
+    pos += bytes;
     if (w <= 0) {
       continue;
-    }
-
-    pos += bytes;
-    if (pos > length) {
-      break;
     }
 
     if (width <= 0) {
@@ -631,6 +636,7 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
     return;
   }
 
+  int  n;
   char buf[TSDB_MAX_BYTES_PER_ROW];
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
@@ -664,7 +670,12 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
       printf("%*.5f", width, GET_FLOAT_VAL(val));
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      printf("%*.9f", width, GET_DOUBLE_VAL(val));
+      n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", width, GET_DOUBLE_VAL(val));
+      if (n > MAX(25, width)) {
+        printf("%*.15e", width, GET_DOUBLE_VAL(val));
+      } else {
+        printf("%s", buf);
+      }
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
@@ -734,8 +745,13 @@ static int verticalPrintResult(TAOS_RES* tres) {
         putchar('\n');
       }
     } else if (showMore) {
-        printf("[100 Rows showed, and more rows are fetching but will not be showed. You can ctrl+c to stop or wait.]\n");
-        printf("[You can add limit statement to get more or redirect results to specific file to get all.]\n");
+        printf("\n");
+        printf(" Notice: The result shows only the first %d rows.\n", DEFAULT_RES_SHOW_NUM);
+        printf("         You can use the `LIMIT` clause to get fewer result to show.\n");
+        printf("           Or use '>>' to redirect the whole set of the result to a specified file.\n");
+        printf("\n");
+        printf("         You can use Ctrl+C to stop the underway fetching.\n");
+        printf("\n");
         showMore = 0;
     }
 
@@ -866,8 +882,13 @@ static int horizontalPrintResult(TAOS_RES* tres) {
       }
       putchar('\n');
     } else if (showMore) {
-        printf("[100 Rows showed, and more rows are fetching but will not be showed. You can ctrl+c to stop or wait.]\n");
-        printf("[You can add limit statement to show more or redirect results to specific file to get all.]\n");
+        printf("\n");
+        printf(" Notice: The result shows only the first %d rows.\n", DEFAULT_RES_SHOW_NUM);
+        printf("         You can use the `LIMIT` clause to get fewer result to show.\n");
+        printf("           Or use '>>' to redirect the whole set of the result to a specified file.\n");
+        printf("\n");
+        printf("         You can use Ctrl+C to stop the underway fetching.\n");
+        printf("\n");
         showMore = 0;
     }
 

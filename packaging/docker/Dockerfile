@@ -4,6 +4,7 @@ WORKDIR /root
 
 ARG pkgFile
 ARG dirName
+ARG cpuType
 RUN echo ${pkgFile} && echo ${dirName}
 
 COPY ${pkgFile} /root/
@@ -18,9 +19,12 @@ ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib" \
     LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8
 
-EXPOSE 6030-6049
-EXPOSE 6030-6039/udp
 COPY ./bin/* /usr/bin/
-ENTRYPOINT ["/usr/bin/entrypoint.sh"]
+
+ENV TINI_VERSION v0.19.0
+RUN bash -c 'echo -e "Downloading tini-${cpuType} ..."'
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${cpuType} /tini
+RUN chmod +x /tini
+ENTRYPOINT ["/tini", "--", "/usr/bin/entrypoint.sh"]
 CMD ["taosd"]
 VOLUME [ "/var/lib/taos", "/var/log/taos", "/corefile" ]

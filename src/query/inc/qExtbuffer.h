@@ -53,14 +53,14 @@ typedef struct tFlushoutInfo {
 } tFlushoutInfo;
 
 typedef struct tFlushoutData {
-  uint32_t       nAllocSize;
-  uint32_t       nLength;
-  tFlushoutInfo *pFlushoutInfo;
+  uint32_t       nAllocSize;    // capacity
+  uint32_t       nLength;       // size
+  tFlushoutInfo *pFlushoutInfo; // dynamic allocate
 } tFlushoutData;
 
 typedef struct SExtFileInfo {
-  uint32_t      nFileSize;  // in pages
-  uint32_t      pageSize;
+  uint32_t      nFileSize;  // how many pages in file
+  //uint32_t      pageSize; // useless
   uint32_t      numOfElemsInFile;
   tFlushoutData flushoutData;
 } SExtFileInfo;
@@ -254,7 +254,7 @@ int32_t compare_d(tOrderDescriptor *, int32_t numOfRow1, int32_t s1, char *data1
 struct SSDataBlock;
 int32_t compare_aRv(struct SSDataBlock* pBlock, SArray* colIndex, int32_t numOfCols, int32_t rowIndex, char** buffer, int32_t order);
 
-int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes);
+int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes, bool lenFirst);
 
 #ifdef __cplusplus
 }

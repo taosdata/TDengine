@@ -6,10 +6,11 @@ function usage() {
     echo -e "\t -t task file"
     echo -e "\t -b branch"
     echo -e "\t -l log dir"
+    echo -e "\t -o default timeout value"
     echo -e "\t -h help"
 }
 
-while getopts "m:t:b:l:h" opt; do
+while getopts "m:t:b:l:o:h" opt; do
     case $opt in
         m)
             config_file=$OPTARG
@@ -22,6 +23,9 @@ while getopts "m:t:b:l:h" opt; do
             ;;
         l)
             log_dir=$OPTARG
+            ;;
+        o)
+            timeout_param="-o $OPTARG"
             ;;
         h)
             usage
@@ -140,7 +144,7 @@ function build_src() {
         flock -x $lock_file -c "echo \"${hosts[index]} taos-tools build failed\" >>$log_dir/failed.log"
         return
     fi
-    script="cp -rf ${workdirs[index]}/taos-tools/build/build/bin/* ${workdirs[index]}/TDinternal/debug/build/bin/;cp -rf ${workdirs[index]}/taos-tools/build/build/lib/* ${workdirs[index]}/TDinternal/debug/build/lib/;cp -rf ${workdirs[index]}/taos-tools/build/build/lib64/* ${workdirs[index]}/TDinternal/debug/build/lib/;cp -rf ${workdirs[index]}/TDinternal/debug/build/bin/demo ${workdirs[index]}/TDinternal/debug/build/bin/taosdemo"
+    script="cp -rf ${workdirs[index]}/taos-tools/build/build/bin/* ${workdirs[index]}/TDinternal/debug/build/bin/;cp -rf ${workdirs[index]}/taos-tools/build/build/lib/* ${workdirs[index]}/TDinternal/debug/build/lib/;cp -rf ${workdirs[index]}/taos-tools/build/build/lib64/* ${workdirs[index]}/TDinternal/debug/build/lib/;cp -rf ${workdirs[index]}/TDinternal/debug/build/bin/taosBenchmark ${workdirs[index]}/TDinternal/debug/build/bin/taosdemo"
     cmd="${ssh_script} sh -c \"$script\""
     ${cmd}
 }
@@ -150,7 +154,7 @@ function rename_taosdemo() {
     if [ -z ${passwords[index]} ]; then
         ssh_script="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
     fi
-    local script="cp -rf ${workdirs[index]}/TDinternal/debug/build/bin/demo ${workdirs[index]}/TDinternal/debug/build/bin/taosdemo"
+    local script="cp -rf ${workdirs[index]}/TDinternal/debug/build/bin/taosBenchmark ${workdirs[index]}/TDinternal/debug/build/bin/taosdemo 2>/dev/null"
     cmd="${ssh_script} sh -c \"$script\""
     ${cmd}
 }
@@ -182,7 +186,7 @@ function run_thread() {
         fi
         local case_redo_time=`echo "$line"|cut -d, -f2`
         if [ -z "$case_redo_time" ]; then
-            case_redo_time=1
+            case_redo_time=${DEFAULT_RETRY_TIME:-2}
         fi
         local exec_dir=`echo "$line"|cut -d, -f3`
         local case_cmd=`echo "$line"|cut -d, -f4`
@@ -201,18 +205,21 @@ function run_thread() {
         if [ -z "$case_file" ]; then
             continue
         fi
-        case_file="$exec_dir/${case_file}.${index}.${thread_no}"
+        case_file="$exec_dir/${case_file}.${index}.${thread_no}.${count}"
         count=$(( count + 1 ))
         local case_path=`dirname "$case_file"`
         if [ ! -z "$case_path" ]; then
             mkdir -p $log_dir/$case_path
         fi
-        cmd="${runcase_script} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir}"
+        cmd="${runcase_script} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir} ${timeout_param}"
         # echo "$thread_no $count $cmd"
         local ret=0
         local redo_count=1
         start_time=`date +%s`
         while [ ${redo_count} -lt 6 ]; do
+            if [ -f $log_dir/$case_file.log ]; then
+                cp $log_dir/$case_file.log $log_dir/$case_file.${redo_count}.redolog
+            fi
             echo "${hosts[index]}-${thread_no} order:${count}, redo:${redo_count} task:${line}" >$log_dir/$case_file.log
             echo -e "\e[33m >>>>> \e[0m ${case_cmd}"
             date >>$log_dir/$case_file.log
@@ -220,6 +227,7 @@ function run_thread() {
             # ret=${PIPESTATUS[0]}
             $cmd >>$log_dir/$case_file.log 2>&1
             ret=$?
+            echo "${hosts[index]} `date` ret:${ret}" >>$log_dir/$case_file.log
             if [ $ret -eq 0 ]; then
                 break
             fi
@@ -229,6 +237,10 @@ function run_thread() {
                 redo=1
             fi
             grep -q "kex_exchange_identification: Connection closed by remote host" $log_dir/$case_file.log
+            if [ $? -eq 0 ]; then
+                redo=1
+            fi
+            grep -q "ssh_exchange_identification: Connection closed by remote host" $log_dir/$case_file.log
             if [ $? -eq 0 ]; then
                 redo=1
             fi
@@ -260,10 +272,11 @@ function run_thread() {
             flock -x $lock_file -c "echo \"${hosts[index]} ret:${ret} ${line}\" >>$log_dir/failed.log"
             mkdir -p $log_dir/${case_file}.coredump
             local remote_coredump_dir="${workdirs[index]}/tmp/thread_volume/$thread_no/coredump"
-            cmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
+            local scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
             if [ -z ${passwords[index]} ]; then
-                cmd="scp -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
+                scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
             fi
+            cmd="$scpcmd:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
             $cmd # 2>/dev/null
             local case_info=`echo "$line"|cut -d, -f 3,4`
             local corefile=`ls $log_dir/${case_file}.coredump/`
@@ -273,8 +286,17 @@ function run_thread() {
             cat $log_dir/$case_file.log
             echo "====================================================="
             echo -e "\e[34m log file: $log_dir/$case_file.log \e[0m"
-            if [ ! -z $corefile ]; then
+            if [ ! -z "$corefile" ]; then
                 echo -e "\e[34m corefiles: $corefile \e[0m"
+                local build_dir=$log_dir/build_${hosts[index]}
+                local remote_build_dir="${workdirs[index]}/TDinternal/debug/build"
+                mkdir $build_dir 2>/dev/null
+                if [ $? -eq 0 ]; then
+                    # scp build binary
+                    cmd="$scpcmd:${remote_build_dir}/* ${build_dir}/"
+                    echo "$cmd"
+                    $cmd >/dev/null
+                fi
             fi
         fi
     done

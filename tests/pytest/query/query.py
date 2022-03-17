@@ -198,6 +198,28 @@ class TDTestCase:
         tdLog.info("case for TS-636")
         self.escape_ascii()
 
+        # TS-1304
+        tdLog.info("case for JIRA TS-1304")
+        tdSql.execute("create stable devices (ts timestamp,tempature int,humity float,`1name`  int ) tags (`1devid` int,devname binary(20))")
+        tdSql.execute("insert into devices_001 using devices tags (111,'zzm')  values (now,10001,1,1)")
+        tdSql.execute("insert into devices_001 using devices tags (222,'cxd')  values (now + 1s,10002,2,2)")
+        tdSql.execute("insert into devices_001 using devices tags (333,'cyt')  values (now + 2s,10002,2,2)")
+
+        tdSql.error("select 1name from devices")
+        tdSql.error("select 1name from devices_001")
+        tdSql.error("select 1devid from devices")
+        tdSql.error("select 1devid from devices_001")        
+
+        tdSql.query("select `1name` from devices_001")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(2, 0, 2)
+
+        tdSql.query("select `1devid` from devices_001")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 111)
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

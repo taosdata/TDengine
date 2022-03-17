@@ -186,7 +186,7 @@ static void parse_args(
                   || (strncmp(argv[i], "--password", 10) == 0)) {
                 printf("Enter password: ");
                 taosSetConsoleEcho(false);
-                if (scanf("%20s", g_password) > 1) {
+                if (scanf("%128s", g_password) > 1) {
                     fprintf(stderr, "password reading error\n");
                 }
                 taosSetConsoleEcho(true);

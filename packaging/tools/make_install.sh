@@ -438,9 +438,9 @@ function install_connector() {
 
 function install_examples() {
   if [ "$osType" != "Darwin" ]; then
-    ${csudo}cp -rf ${source_dir}/tests/examples/* ${install_main_dir}/examples
+    ${csudo}cp -rf ${source_dir}/examples/* ${install_main_dir}/examples
   else
-    ${csudo}cp -rf ${source_dir}/tests/examples/* ${install_main_dir}/examples || ${csudo}cp -rf ${source_dir}/tests/examples/* ${install_main_2_dir}/examples
+    ${csudo}cp -rf ${source_dir}/examples/* ${install_main_dir}/examples || ${csudo}cp -rf ${source_dir}/examples/* ${install_main_2_dir}/examples
   fi
 }
 

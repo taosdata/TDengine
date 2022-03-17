@@ -423,7 +423,7 @@ static void cqProcessCreateTimer(void *param, void *tmrId) {
 }
 
 // inner implement in tscStream.c
-TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* desName, const char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
+TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* desName, int32_t dstCols, const char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
                               int64_t stime, void *param, void (*callback)(void *), void* cqhandle);
 
 static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
@@ -436,9 +436,11 @@ static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
   }
 
   pObj->tmrId = 0;
-
+  int32_t dstCols = -1;
+  if(pObj->pSchema)
+    dstCols = pObj->pSchema->numOfCols;
   if (pObj->pStream == NULL) {
-    pObj->pStream = taos_open_stream_withname(pContext->dbConn, pObj->dstTable, pObj->sqlStr, cqProcessStreamRes, \
+    pObj->pStream = taos_open_stream_withname(pContext->dbConn, pObj->dstTable, dstCols, pObj->sqlStr, cqProcessStreamRes, \
                                                INT64_MIN, (void *)pObj->rid, NULL, pContext);
 
     // TODO the pObj->pStream may be released if error happens

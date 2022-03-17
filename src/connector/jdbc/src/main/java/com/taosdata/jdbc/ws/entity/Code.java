@@ -5,7 +5,6 @@ package com.taosdata.jdbc.ws.entity;
  */
 public enum Code {
     SUCCESS(0, "success"),
-
     ;
 
     private final int code;

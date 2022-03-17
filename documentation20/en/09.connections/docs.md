@@ -27,7 +27,7 @@ GF_VERSION=3.1.3
 wget https://github.com/taosdata/grafanaplugin/releases/download/v$GF_VERSION/tdengine-datasource-$GF_VERSION.zip
 ```
 
-Taking Centos 7.2 as an example, just unpack the package to /var/lib/grafana/plugins directory and restart Grafana.
+Taking CentOS 7.2 as an example, just unpack the package to /var/lib/grafana/plugins directory and restart Grafana.
 
 ```bash
 sudo unzip tdengine-datasource-$GF_VERSION.zip /var/lib/grafana/plugins/
@@ -63,7 +63,7 @@ Enter the data source configuration page and modify the corresponding configurat
 
 ![img](../images/connections/add_datasource3.jpg)
 
-- Host: IP address of any server in TDengine cluster and port number of TDengine RESTful interface (6041), use [http://localhost:6041](http://localhost:6041/) to access the interface by default. Note the 2.4 and later version of TDengine use a stand-alone software, taosAdapter to provide RESTful interface. Please refer to its document for configuration and deployment. 
+- Host: IP address of any server in TDengine cluster and port number of TDengine RESTful interface (6041), use `http://localhost:6041` to access the interface by default. Note the 2.4 and later version of TDengine use a stand-alone software, taosAdapter to provide RESTful interface. Please refer to its document for configuration and deployment.
 - User: TDengine username.
 - Password: TDengine user password.
 
@@ -101,9 +101,10 @@ MATLAB can access data to the local workspace by connecting directly to the TDen
 
 Several steps are required to adapt MATLAB to TDengine. Taking adapting MATLAB2017a on Windows10 as an example:
 
-- Copy the file JDBCDriver-1.0.0-dist.ja*r* in TDengine package to the directory ${matlab_root}\MATLAB\R2017a\java\jar\toolbox
+- Copy the file JDBCDriver-1.0.0-dist.jar in TDengine package to the directory ${matlab_root}\MATLAB\R2017a\java\jar\toolbox
 - Copy the file taos.lib in TDengine package to ${matlab root dir}\MATLAB\R2017a\lib\win64
 - Add the .jar package just copied to the MATLAB classpath. Append the line below as the end of the file of ${matlab root dir}\MATLAB\R2017a\toolbox\local\classpath.txt
+
 - ```
   $matlabroot/java/jar/toolbox/JDBCDriver-1.0.0-dist.jar
   ```
@@ -137,9 +138,9 @@ sql1 = [‘insert into tb values (now, 1)’]
 exec(conn, sql1)
 ```
 
-For more detailed examples, please refer to the examples\Matlab\TDEngineDemo.m file in the package.
+For more detailed examples, please refer to the examples\matlab\TDengineDemo.m file in the package.
 
-## <a class="anchor" id="r"></a> R 
+## <a class="anchor" id="r"></a> R
 
 R language supports connection to the TDengine database through the JDBC interface. First, you need to install the JDBC package of R language. Launch the R language environment, and then execute the following command to install the JDBC support library for R language:
 

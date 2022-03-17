@@ -70,5 +70,6 @@ INCLUDE(cmake/install.inc)
 ADD_SUBDIRECTORY(deps)
 ADD_SUBDIRECTORY(src)
 ADD_SUBDIRECTORY(tests)
+ADD_SUBDIRECTORY(examples/c)
 
 INCLUDE(CPack)

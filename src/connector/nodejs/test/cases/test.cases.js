@@ -222,7 +222,7 @@ describe("test unsigned type", () => {
         ",us2 smallint unsigned" +
         ",ui4 int unsigned" +
         ",ubi8 bigint unsigned" +
-        ",desc_blob nchar(200)" +
+        ",desc_nchr nchar(200)" +
         ");";
       executeUpdate(createSql);
       let expectResField = getFieldArr(getFeildsFromDll(createSql));
@@ -268,7 +268,7 @@ describe("test unsigned type", () => {
         ",us2 smallint unsigned" +
         ",ui4 int unsigned" +
         ",ubi8 bigint unsigned" +
-        ",desc_blob nchar(200)" +
+        ",desc_nchr nchar(200)" +
         ");";
       executeUpdate(createSql);
       let expectResField = getFieldArr(getFeildsFromDll(createSql));
@@ -315,7 +315,7 @@ describe("test unsigned type", () => {
         ",us2 smallint unsigned" +
         ",ui4 int unsigned" +
         ",ubi8 bigint unsigned" +
-        ",desc_blob nchar(200)" +
+        ",desc_nchr nchar(200)" +
         ");";
       executeUpdate(createSql);
       let expectResField = getFieldArr(getFeildsFromDll(createSql));
@@ -384,7 +384,7 @@ describe("test cn character", () => {
     `desc:create,insert,query with cn characters;` +
     `filename:${fileName};` +
     `result:${result}`, () => {
-      createSql = "create table if not exists nchartest_s(ts timestamp,value int,text binary(200),detail nchar(200))tags(tag_bi binary(50),tag_blob nchar(50));"
+      createSql = "create table if not exists nchartest_s(ts timestamp,value int,text binary(200),detail nchar(200))tags(tag_bi binary(50),tag_nchr nchar(50));"
       executeUpdate(createSql);
       let expectResField = getFieldArr(getFeildsFromDll(createSql));
       let colData = [1641827743305, 1, 'taosdata', 'tdengine'

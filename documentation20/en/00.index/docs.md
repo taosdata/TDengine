@@ -1,6 +1,7 @@
 # TDengine Documentation
 
-TDengine is a highly efficient platform to store, query, and analyze time-series data. It is specially designed and optimized for IoT, Internet of Vehicles, Industrial IoT, IT Infrastructure and Application Monitoring, etc. It works like a relational database, such as MySQL, but you are strongly encouraged to read through the following documentation before you experience it, especially the Data Modeling sections. In addition to this document, you should also download and read the technology white paper. 
+TDengine is a highly efficient platform to store, query, and analyze time-series data. It is specially designed and optimized for IoT, Internet of Vehicles, Industrial IoT, IT Infrastructure and Application Monitoring, etc. It works like a relational database, such as MySQL, but you are strongly encouraged to read through the following documentation before you experience it, especially the Data Modeling sections. In addition to this document, you should also download and read the technology white paper.
+
 ## [TDengine Introduction](/evaluation)
 
 * [TDengine Introduction and Features](/evaluation#intro)
@@ -20,7 +21,7 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 
 - [Data Model](/architecture#model): relational database model, but one table for one data collection point with static tags
 - [Cluster and Primary Logical Unit](/architecture#cluster): Take advantage of NoSQL architecture, high availability and horizontal scalability
-- [Storage Model and Data Partitioning/Sharding](/architecture#sharding): tag data is separated from time-series data, sharded by vnodes and partitioned by time 
+- [Storage Model and Data Partitioning/Sharding](/architecture#sharding): tag data is separated from time-series data, sharded by vnodes and partitioned by time
 - [Data Writing and Replication Process](/architecture#replication): records received are written to WAL, cached, with acknowledgement sent back to client, while supporting data replications
 - [Caching and Persistence](/architecture#persistence): latest records are cached in memory, but are written in columnar format with an ultra-high compression ratio
 - [Data Query](/architecture#query): support various SQL functions, downsampling, interpolation, and multi-table aggregation
@@ -37,7 +38,9 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [Data Writing via Schemaless](/insert#schemaless): write one or multiple records with automatic table creation and adaptive table structure maintenance
 - [Data Writing via Prometheus](/insert#prometheus): Configure Prometheus to write data directly without any code
 - [Data Writing via Telegraf](/insert#telegraf): Configure Telegraf to write collected data directly without any code
-- [Data Writing via EMQ X](/insert#emq): Configure EMQ X to write MQTT data directly without any code
+- [Data Writing via collectd](/insert#collectd): Configure collectd to write collected data directly without any code
+- [Data Writing via StatsD](/insert#statsd): Configure StatsD to write collected data directly without any code
+- [Data Writing via EMQX](/insert#emq): Configure EMQX to write MQTT data directly without any code
 - [Data Writing via HiveMQ Broker](/insert#hivemq): Configure HiveMQ to write MQTT data directly without any code
 
 ## [Efficient Data Querying](/queries)
@@ -79,12 +82,13 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [Windows Client](https://www.taosdata.com/blog/2019/07/26/514.html): compile your own Windows client, which is required by various connectors on the Windows environment
 - [Rust Connector](/connector/rust): A taosc/RESTful API based TDengine client for Rust
 
-## [Components and Tools]
+## Components and Tools
 
 * [taosAdapter](/tools/adapter): a bridge/adapter between TDengine cluster and applications.
 * [TDinsight](/tools/insight): monitoring TDengine cluster with Grafana.
+* [taosTools](/tools/taos-tools): taosTools are some useful tool collections for TDengine. 
 * [taosdump](/tools/taosdump): backup tool for TDengine. Please install `taosTools` package for it.
-* [taosBenchmark](/tools/taosbenchmark): stress test tool for TDengine. Please install `taosTools` package for it.
+* [taosBenchmark](/tools/taosbenchmark): stress test tool for TDengine.
 
 ## [Connections with Other Tools](/connections)
 
@@ -92,11 +96,13 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [MATLAB](/connections#matlab): access data stored in TDengine server via JDBC configured within MATLAB
 - [R](/connections#r): access data stored in TDengine server via JDBC configured within R
 - [IDEA Database](https://www.taosdata.com/blog/2020/08/27/1767.html): use TDengine visually through IDEA Database Management Tool
+- [TDengineGUI](https://github.com/skye0207/TDengineGUI): a TDengine management tool with Graphical User Interface
+- [DataX](https://github.com/taosdata/datax): a data immigration tool with TDengine supported
 
 ## [Installation and Management of TDengine Cluster](/cluster)
 
 - [Preparation](/cluster#prepare): important steps before deploying TDengine for production usage
-- [Create the First Node](/cluster#node-one): just follow the steps in quick start 
+- [Create the First Node](/cluster#node-one): just follow the steps in quick start
 - [Create Subsequent Nodes](/cluster#node-other): configure taos.cfg for new nodes to add more to the existing cluster
 - [Node Management](/cluster#management): add, delete, and check nodes in the cluster
 - [High-availability of Vnode](/cluster#high-availability): implement high-availability of Vnode through replicas
@@ -117,6 +123,12 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [System Monitor](/administrator#monitoring): monitor TDengine cluster with log database and TDinsight.
 - [File Directory Structure](/administrator#directories): directories where TDengine data files and configuration files located
 - [Parameter Limits and Reserved Keywords](/administrator#keywords): TDengine’s list of parameter limits and reserved keywords
+
+## Rapidly build an IT DevOps system with TDengine
+
+* [devops](/devops/telegraf): Rapidly build an IT DevOps system with TDengine + Telegraf + Grafana
+* [devops](/devops/collectd): Rapidly build a IT DevOps system with TDengine + collectd/StatsD + Grafana
+* [immigration](/devops/immigrate): Best practice of immigration from OpenTSDB to TDengine
 
 ## Performance: TDengine vs Others
 

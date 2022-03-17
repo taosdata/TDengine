@@ -29,6 +29,14 @@ extern "C" {
 #include "tsched.h"
 #include "tsclient.h"
 
+#define LABEL_SQL   "sql:"
+#define LABEL_TO    " to:"
+#define LABEL_SPLIT " split:"
+
+#define LABEL_SQL_LEN   (sizeof(LABEL_SQL) - 1)
+#define LABEL_TO_LEN    (sizeof(LABEL_TO) - 1)
+#define LABEL_SPLIT_LEN (sizeof(LABEL_SPLIT) - 1)
+
 #define UTIL_TABLE_IS_SUPER_TABLE(metaInfo) \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_SUPER_TABLE))
 
@@ -223,18 +231,18 @@ void addExprParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes)
 int32_t   tscGetResRowLength(SArray* pExprList);
 
 SExprInfo* tscExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-    int16_t size, int16_t resColId, int16_t interSize, bool isTagCol);
+    int16_t size, int16_t resColId, int32_t interSize, bool isTagCol);
 
 SExprInfo* tscExprCreate(STableMetaInfo* pTableMetaInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-                         int16_t size, int16_t resColId, int16_t interSize, int32_t colType);
+                         int16_t size, int16_t resColId, int32_t interSize, int32_t colType);
 
 void tscExprAddParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes);
 
 SExprInfo* tscExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-                           int16_t size, int16_t resColId, int16_t interSize, bool isTagCol);
+                           int16_t size, int16_t resColId, int32_t interSize, bool isTagCol);
 
 SExprInfo* tscExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, int16_t srcColumnIndex, int16_t type,
-                           int16_t size);
+                           int32_t size);
 
 size_t     tscNumOfExprs(SQueryInfo* pQueryInfo);
 int32_t     tscExprTopBottomIndex(SQueryInfo* pQueryInfo);

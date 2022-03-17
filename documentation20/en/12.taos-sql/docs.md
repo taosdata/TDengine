@@ -34,7 +34,7 @@ With TDengine, the most important thing is timestamp. When creating and insertin
 - Time Format: 'YYYY-MM-DD HH:mm:ss.MS', default in milliseconds. For example,'2017-08-12 18:52:58.128'
 - Internal Function **now** : this is the current time of the server
 - When inserting a record, if timestamp is NOW, then use the server current time.
-- Epch Time: a timestamp value can also be a long integer representing milliseconds since 1970-01-01 08:00:00.000.
+- Epoch Time: a timestamp value can also be a long integer representing milliseconds since 1970-01-01 08:00:00.000.
 - Arithmetic operations can be applied to timestamp. For example: now-2h represents a timestamp which is 2 hours ago from the current server time. Units include u( microsecond), a (milliseconds), s (seconds), m (minutes), h (hours), d (days), w (weeks). In `select * from t1 where ts > now-2w and ts <= now-1w`, which queries data of the whole week before two weeks. To specify the interval of down sampling, you can also use n(calendar month) and y(calendar year) as time units.
 
 TDengine's timestamp is set to millisecond accuracy by default. Microsecond/nanosecond accuracy can be set using CREATE DATABASE with PRECISION parameter. (Nanosecond resolution is supported from version 2.1.5.0 onwards.)
@@ -44,13 +44,13 @@ In TDengine, the following 10 data types can be used in data model of an ordinar
 |      | **Data Type** | **Bytes** | **Note**                                                     |
 | ---- | ------------- | --------- | ------------------------------------------------------------ |
 | 1    | TIMESTAMP     | 8         | Time stamp. Default in milliseconds, and support microseconds. Starting from 1970-01-01 00:00:00. 000 (UTC/GMT), the timing cannot be earlier than this time. |
-| 2    | INT           | 4         | A nullable integer type with a range of [-2^31+1, 2^31-1 ]   |
-| 3    | BIGINT        | 8         | A nullable integer type with a range of [-2^59, 2^59 ]       |
-| 4    | FLOAT         | 4         | A standard nullable float type with 6 -7 significant digits and a range of [-3.4E38, 3.4E38] |
-| 5    | DOUBLE        | 8         | A standard nullable double float type with 15-16 significant digits and a range of [-1.7E308, 1.7E308] |
+| 2    | INT           | 4         | A null-able integer type with a range of [-2^31+1, 2^31-1 ]   |
+| 3    | BIGINT        | 8         | A null-able integer type with a range of [-2^59, 2^59 ]       |
+| 4    | FLOAT         | 4         | A standard null-able float type with 6 -7 significant digits and a range of [-3.4E38, 3.4E38] |
+| 5    | DOUBLE        | 8         | A standard null-able double float type with 15-16 significant digits and a range of [-1.7E308, 1.7E308] |
 | 6    | BINARY        | Custom    | Used to record ASCII strings. Theoretically, the maximum length can be 16,374 bytes, but since each row of data can be up to 16K bytes, the actual limit is generally smaller than the theoretical value. Binary only supports string input, and single quotation marks are used at both ends of the string, otherwise all English will be automatically converted to lowercase. When using, the size must be specified. For example, binary (20) defines a string with a maximum length of 20 characters, and each character occupies 1 byte of storage space. In this case, if the user string exceeds 20 bytes, an error will be reported. For single quotation marks in strings, they can be represented by escape character backslash plus single quotation marks, that is\ '. |
-| 7    | SMALLINT      | 2         | A nullable integer type with a range of [-32767, 32767]      |
-| 8    | TINYINT       | 1         | A nullable integer type with a range of [-127, 127]          |
+| 7    | SMALLINT      | 2         | A null-able integer type with a range of [-32767, 32767]      |
+| 8    | TINYINT       | 1         | A null-able integer type with a range of [-127, 127]          |
 | 9    | BOOL          | 1         | Boolean type，{true, false}                                  |
 | 10   | NCHAR         | Custom    | Used to record non-ASCII strings, such as Chinese characters. Each nchar character takes up 4 bytes of storage space. Single quotation marks are used at both ends of the string, and escape characters are required for single quotation marks in the string, that is \’. When nchar is used, the string size must be specified. A column of type nchar (10) indicates that the string of this column stores up to 10 nchar characters, which will take up 40 bytes of space. If the length of the user string exceeds the declared length, an error will be reported. |
 | 11   | JSON          |           | Json type，only support for tag                                  |
@@ -147,7 +147,7 @@ Note:
   Note:
    1. The first field must be a timestamp, and system will set it as the primary key;
    2. The max length of table name is 192;
-   3. The length of each row of the table cannot exceed 16k characters;
+   3. The length of each row of the table cannot exceed 48K (it's 16K prior to 2.1.7.0) characters;
    4. Sub-table names can only consist of letters, numbers, and underscores, and cannot begin with numbers
    5. If the data type binary or nchar is used, the maximum number of bytes should be specified, such as binary (20), which means 20 bytes;
 
@@ -186,7 +186,7 @@ Note:
 - **Show all data table information under the current database**
 
     ```mysql
-    SHOW TABLES [LIKE tb_name_wildcar];
+    SHOW TABLES [LIKE tb_name_wildcard];
     ```
     Show all data table information under the current database.
     Note: Wildcard characters can be used to match names in like. The maximum length of this wildcard character string cannot exceed 24 bytes.
@@ -236,7 +236,7 @@ Note: In 2.0.15.0 and later versions, STABLE reserved words are supported. That 
     1. Data types of TAGS column cannot be timestamp;
     2. No duplicated TAGS column names;
     3. Reversed word cannot be used as a TAGS column name;
-    4. The maximum number of TAGS is 128, and at least 1 TAG allowed, with a total length of no more than 16k characters.
+    4. The maximum number of TAGS is 128, and at least 1 TAG allowed, with a total length of no more than 16K characters.
 
 - **Drop a STable**
 
@@ -409,7 +409,7 @@ SELECT select_expr [, select_expr ...]
 
 #### SELECT Clause
 
-A select clause can be a subquery of UNION and another query.
+A select clause can be a sub-query of UNION and another query.
 
 #### Wildcard character
 
@@ -532,7 +532,7 @@ However, renaming for one single column is not supported for `first(*)`,`last(*)
 
 #### List of STable
 
-The `FROM` keyword can be followed by a list of several tables (STables) or result of a subquery. 
+The `FROM` keyword can be followed by a list of several tables (STables) or result of a sub-query. 
 
 If you do not specify user's current database, you can use the database name before the table name to specify the database to which the table belongs. For example: `power.d1001` to use tables across databases.
 
@@ -686,10 +686,10 @@ Query OK, 1 row(s) in set (0.001091s)
     SELECT (col1 + col2) AS 'complex' FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND col2 > 1.2 LIMIT 10 OFFSET 5;
     ```
 
-- Query the records of past 10 minutes, the value of col2 is greater than 3.14, and output the result to the file /home/testoutpu.csv.
+- Query the records of past 10 minutes, the value of col2 is greater than 3.14, and output the result to the file /home/testoutput.csv.
 
     ```mysql
-    SELECT COUNT(*) FROM tb1 WHERE ts >= NOW - 10m AND col2 > 3.14 >> /home/testoutpu.csv;
+    SELECT COUNT(*) FROM tb1 WHERE ts >= NOW - 10m AND col2 > 3.14 >> /home/testoutput.csv;
     ```
 
 <a class="anchor" id="functions"></a>
@@ -852,6 +852,69 @@ TDengine supports aggregations over data, they are listed below:
     Query OK, 1 row(s) in set (0.000921s)
     ```
 
+- **MODE**
+    ```mysql
+    SELECT MODE(field_name) FROM tb_name [WHERE clause];
+    ```
+    Function: Returns the value with the highest frequency. If there are multiple highest values with the same frequency, the output is NULL.
+
+    Return Data Type: Same as applicable fields.
+
+    Applicable Fields: All types except timestamp.
+
+    Supported version: Version after 2.6.0 .
+
+    Example:
+    ```mysql
+    taos> select voltage from d002;
+        voltage        |
+    ========================
+           1           |
+           1           |
+           2           |
+           19          |
+    Query OK, 4 row(s) in set (0.003545s)
+  
+    taos> select mode(voltage) from d002;
+      mode(voltage)    |
+    ========================
+           1           |
+   Query OK, 1 row(s) in set (0.019393s)
+    ```  
+
+- **HYPERLOGLOG**
+    ```mysql
+    SELECT HYPERLOGLOG(field_name) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: The hyperloglog algorithm is used to return the cardinality of a column. In the case of large amount of data, the algorithm can significantly reduce the occupation of memory, but the cardinality is an estimated value, and the standard error is 0.81%.
+
+    Return Data Type:Integer.
+
+    Applicable Fields: All types.
+
+    Supported version: Version after 2.6.0 .
+
+    Example:
+    ```mysql
+    taos> select dbig from shll;
+         dbig          |
+    ========================
+           1           |
+           1           |
+           1           |
+           NULL        |
+           2           |
+           19          |
+           NULL        |
+           9           |
+    Query OK, 8 row(s) in set (0.003755s)
+  
+    taos> select hyperloglog(dbig) from shll;
+      hyperloglog(dbig)|
+    ========================
+           4           |
+    Query OK, 1 row(s) in set (0.008388s)
+  
 ### Selector Functions
 
 - **MIN**
@@ -1102,6 +1165,83 @@ TDengine supports aggregations over data, they are listed below:
       Query OK, 1 row(s) in set (0.001042s)
     ```
 
+- **TAIL**
+    ```mysql
+    SELECT TAIL(field_name, k, offset_val) FROM {tb_name | stb_name} [WHERE clause];
+    ```
+    Function: Skip the last num of offset_value, return the k consecutive records without ignoring NULL value. offset_val can be empty, then the last K records are returned.The function is equivalent to:order by ts desc LIMIT k OFFSET offset_val.
+
+    Range：k: [1,100]  offset_val: [0,100]。
+
+    Return Data Type: Same as applicable fields.
+
+    Applicable Fields: All types except timestamp.
+
+    Applied to: **table stable**.
+
+    Supported version: Version after 2.6.0 .
+
+    Example:
+    ```mysql
+    taos> select ts,dbig from tail2;
+           ts            |         dbig          |
+    ==================================================
+    2021-10-15 00:31:33.000 |                     1 |
+    2021-10-17 00:31:31.000 |                  NULL |
+    2021-12-24 00:31:34.000 |                     2 |
+    2022-01-01 08:00:05.000 |                    19 |
+    2022-01-01 08:00:06.000 |                  NULL |
+    2022-01-01 08:00:07.000 |                     9 |
+    Query OK, 6 row(s) in set (0.001952s)
+  
+    taos> select tail(dbig,2,2) from tail2;
+    ts                      |    tail(dbig,2,2)     |
+    ==================================================
+    2021-12-24 00:31:34.000 |                     2 |
+    2022-01-01 08:00:05.000 |                    19 |
+    Query OK, 2 row(s) in set (0.002307s)
+
+- **UNIQUE**
+    ```mysql
+    SELECT UNIQUE(field_name) FROM {tb_name | stb_name} [WHERE clause];
+    ```
+    Function: Returns the first occurrence of a value in this column.
+
+    Return Data Type: Same as applicable fields.
+
+    Applicable Fields: All types except timestamp.
+
+    Applied to: **table stable**.
+
+    Supported version: Version after 2.6.0 .
+
+    Note: This function can be applied to ordinary tables and super tables. Cannot be used with window operations，such as interval/state_window/session_window.
+
+    Example:
+    ```mysql
+    taos> select ts,voltage from unique1;
+           ts            |        voltage        |
+    ==================================================
+    2021-10-17 00:31:31.000 |                     1 |
+    2022-01-24 00:31:31.000 |                     1 |
+    2021-10-17 00:31:31.000 |                     1 |
+    2021-12-24 00:31:31.000 |                     2 |
+    2022-01-01 08:00:01.000 |                    19 |
+    2021-10-17 00:31:31.000 |                  NULL |
+    2022-01-01 08:00:02.000 |                  NULL |
+    2022-01-01 08:00:03.000 |                     9 |
+    Query OK, 8 row(s) in set (0.003018s)
+  
+    taos> select unique(voltage) from unique1;
+    ts                      |    unique(voltage)    |
+    ==================================================
+    2021-10-17 00:31:31.000 |                     1 |
+    2021-10-17 00:31:31.000 |                  NULL |
+    2021-12-24 00:31:31.000 |                     2 |
+    2022-01-01 08:00:01.000 |                    19 |
+    2022-01-01 08:00:03.000 |                     9 |
+    Query OK, 5 row(s) in set (0.108458s)
+
 ### Computing Functions
 
 - **DIFF**
@@ -1172,6 +1312,97 @@ TDengine supports aggregations over data, they are listed below:
     1. Calculation between two or more columns is supported, and the calculation priorities can be controlled by parentheses();
     2. The NULL field does not participate in the calculation. If a row involved in calculation contains NULL, the calculation result of the row is NULL.
 
+- **STATECOUNT**
+    ```mysql
+    SELECT STATECOUNT(field_name, oper, val) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Returns the number of consecutive records that meet a certain condition, and the result is appended to each row as a new column. The condition is calculated according to the parameters. If the condition is true, it will be increased by 1. If the condition is false, it will be reset to -1. If the data is NULL, the data will be skipped.
+
+    Range:
+    - oper : LT(<),GT(>),LE(<=),GE(>=),NE(!=),EQ(=),case insensitive.
+    - val  : Number.
+
+    Returned Data Type: Integer。
+
+    Applicable Fields: All types except timestamp, binary, nchar, bool.
+
+    Supported version: Version after 2.6.0 .
+
+    Note:
+    - This function can be applied to ordinary tables. When a separate timeline is divided by group by, it is used for super tables (i.e. group by TBNAME).
+    - Cannot be used with window operations，such as interval/state_window/session_window.
+
+    Example:
+    ```mysql
+    taos> select ts,dbig from statef2;
+              ts               |         dbig          |
+    ========================================================
+    2021-10-15 00:31:33.000000000 |                     1 |
+    2021-10-17 00:31:31.000000000 |                  NULL |
+    2021-12-24 00:31:34.000000000 |                     2 |
+    2022-01-01 08:00:05.000000000 |                    19 |
+    2022-01-01 08:00:06.000000000 |                  NULL |
+    2022-01-01 08:00:07.000000000 |                     9 |
+    Query OK, 6 row(s) in set (0.002977s)
+  
+    taos> select stateCount(dbig,GT,2) from statef2;
+    ts               |         dbig          | statecount(dbig,gt,2) |
+    ================================================================================
+    2021-10-15 00:31:33.000000000 |                     1 |                    -1 |
+    2021-10-17 00:31:31.000000000 |                  NULL |                  NULL |
+    2021-12-24 00:31:34.000000000 |                     2 |                    -1 |
+    2022-01-01 08:00:05.000000000 |                    19 |                     1 |
+    2022-01-01 08:00:06.000000000 |                  NULL |                  NULL |
+    2022-01-01 08:00:07.000000000 |                     9 |                     2 |
+    Query OK, 6 row(s) in set (0.002791s)
+   ```
+
+- **STATEDURATION**
+    ```mysql
+    SELECT stateDuration(field_name, oper, val, unit) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Returns the length of time of continuous records that meet a certain condition, and the result is appended to each row as a new column. The condition is calculated according to the parameters. If the condition is true, the length of time between two records will be added (the length of time of the first record that meets the condition is recorded as 0). If the condition is false, it will be reset to -1. If the data is NULL, the data will be skipped.
+
+    Range：
+    - oper : LT(<),GT(>),LE(<=),GE(>=),NE(!=),EQ(=),case insensitive.
+    - val  : Number.
+    - unit : Unit of time length, range [1s, 1M, 1H], less than one unit is rounded off. The default is 1s.
+
+    Returned Data Type: Integer。
+
+    Applicable Fields: All types except timestamp, binary, nchar, bool.
+
+    Supported version: Version after 2.6.0 .
+    
+    Note:
+    - This function can be applied to ordinary tables. When a separate timeline is divided by group by, it is used for super tables (i.e. group by TBNAME).
+    - Cannot be used with window operations，such as interval/state_window/session_window.
+
+    Example:
+    ```mysql
+    taos> select ts,dbig from statef2;
+              ts               |         dbig          |
+    ========================================================
+    2021-10-15 00:31:33.000000000 |                     1 |
+    2021-10-17 00:31:31.000000000 |                  NULL |
+    2021-12-24 00:31:34.000000000 |                     2 |
+    2022-01-01 08:00:05.000000000 |                    19 |
+    2022-01-01 08:00:06.000000000 |                  NULL |
+    2022-01-01 08:00:07.000000000 |                     9 |
+    Query OK, 6 row(s) in set (0.002407s)
+  
+    taos> select stateDuration(dbig,GT,2) from statef2;
+    ts               |         dbig          | stateduration(dbig,gt,2) |
+    ===================================================================================
+    2021-10-15 00:31:33.000000000 |                     1 |                       -1 |
+    2021-10-17 00:31:31.000000000 |                  NULL |                     NULL |
+    2021-12-24 00:31:34.000000000 |                     2 |                       -1 |
+    2022-01-01 08:00:05.000000000 |                    19 |                        0 |
+    2022-01-01 08:00:06.000000000 |                  NULL |                     NULL |
+    2022-01-01 08:00:07.000000000 |                     9 |                        2 |
+    Query OK, 6 row(s) in set (0.002613s)
+     ```
+
 ## <a class="anchor" id="aggregation"></a> Time-dimension Aggregation
 
 TDengine supports aggregating by intervals (time range). Data in a table can partitioned by intervals and aggregated to generate results. For example, a temperature sensor collects data once per second, but the average temperature needs to be queried every 10 minutes. This aggregation is suitable for down sample operation, and the syntax is as follows:
@@ -1227,9 +1458,9 @@ SELECT AVG(current), MAX(current), LEASTSQUARES(current, start_val, step_val), P
 ## <a class="anchor" id="limitation"></a> TAOS SQL Boundary Restrictions
 
 - Max database name length is 32
-- Max length of table name is 192, and max length of each data row is 16k characters
+- Max length of table name is 192, and max length of each data row is 48K (it's 16K prior to 2.1.7.0) characters
 - Max length of column name is 64, max number of columns allowed is 1024, and min number of columns allowed is 2. The first column must be a timestamp
-- Max number of tags allowed is 128, down to 1, and total length of tags does not exceed 16k characters
+- Max number of tags allowed is 128, down to 1, and total length of tags does not exceed 16K characters
 - Max length of SQL statement is 65480 characters, but it can be modified by system configuration parameter maxSQLLength, and max length can be configured to 1M
 - Number of databases, STables and tables are not limited by system, but only limited by system resources
 

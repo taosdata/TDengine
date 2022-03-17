@@ -70,6 +70,10 @@ int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int1
 
   if (pToken->type == TK_NOW) {
     useconds = taosGetTimestamp(timePrec);
+  } else if (pToken->type == TK_TODAY) {
+    int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
+                     (timePrec == TSDB_TIME_PRECISION_MICRO) ? 1000000 : 1000000000;
+    useconds = taosGetTimestampToday() * factor;
   } else if (strncmp(pToken->z, "0", 1) == 0 && pToken->n == 1) {
     // do nothing
   } else if (pToken->type == TK_INTEGER) {
@@ -473,7 +477,7 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
     }
 
     int16_t type = sToken.type;
-    if ((type != TK_NOW && type != TK_INTEGER && type != TK_STRING && type != TK_FLOAT && type != TK_BOOL &&
+    if ((type != TK_NOW && type != TK_TODAY && type != TK_INTEGER && type != TK_STRING && type != TK_FLOAT && type != TK_BOOL &&
          type != TK_NULL && type != TK_HEX && type != TK_OCT && type != TK_BIN) ||
         (sToken.n == 0) || (type == TK_RP)) {
       return tscSQLSyntaxErrMsg(pInsertParam->msg, "invalid data or symbol", sToken.z);

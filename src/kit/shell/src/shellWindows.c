@@ -93,7 +93,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
                   || (strncmp(argv[i], "--password", 10) == 0)) {
             printf("Enter password: ");
             taosSetConsoleEcho(false);
-            if (scanf("%s", g_password) > 1) {
+            if (scanf("%128s", g_password) > 1) {
                 fprintf(stderr, "password read error!\n");
             }
             taosSetConsoleEcho(true);

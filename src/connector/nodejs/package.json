@@ -4,6 +4,7 @@
   "description": "A Node.js connector for TDengine.",
   "main": "tdengine.js",
   "directories": {
+    "example": "examples",
     "test": "test"
   },
   "scripts": {
@@ -29,9 +30,9 @@
   "dependencies": {
     "ffi-napi": "^3.1.0",
     "lodash": "^4.17.21",
-    "ref-array-napi": "^1.2.1",
-    "ref-napi": "^1.5.2",
-    "ref-struct-napi": "^1.1.1"
+    "ref-array-di": "^1.2.1",
+    "ref-napi": "^3.0.2",
+    "ref-struct-di": "^1.1.1"
   },
   "devDependencies": {
     "jest": "^27.4.7"

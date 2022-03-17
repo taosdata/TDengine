@@ -375,6 +375,8 @@ static int32_t tscGetTableTagValue(SCreateBuilder *builder, char *result) {
         || fields[i].type == TSDB_DATA_TYPE_BINARY 
         || fields[i].type == TSDB_DATA_TYPE_TIMESTAMP) && 0 == ret) {
       snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "\"%s\",", buf);
+    } else if (fields[i].type == TSDB_DATA_TYPE_JSON) {
+      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "'%s,", buf);
     } else {
       snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "%s,", buf);
     }
@@ -382,7 +384,11 @@ static int32_t tscGetTableTagValue(SCreateBuilder *builder, char *result) {
     free(buf);
 
     if (i == num_fields - 1) {
-      sprintf(result + strlen(result) - 1, "%s", ")");
+      if (fields[i].type == TSDB_DATA_TYPE_JSON) {
+        sprintf(result + strlen(result) - 1, "'%s", ")");
+      } else {
+        sprintf(result + strlen(result) - 1, "%s", ")");
+      }
     }
   }
 
@@ -652,7 +658,7 @@ static int32_t tscRebuildDDLForNormalTable(SSqlObj *pSql, const char *tableName,
   SSchema *pSchema = tscGetTableSchema(pMeta);
 
   char *result = ddl;
-  sprintf(result, "create table `%s` (", tableName);
+  sprintf(result, "CREATE TABLE `%s` (", tableName);
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint8_t type = pSchema[i].type;
     if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
@@ -679,7 +685,7 @@ static int32_t tscRebuildDDLForSuperTable(SSqlObj *pSql, const char *tableName, 
   int32_t totalRows = numOfRows + tscGetNumOfTags(pMeta);
   SSchema *pSchema = tscGetTableSchema(pMeta);
 
-  sprintf(result, "create table `%s` (", tableName);
+  sprintf(result, "CREATE TABLE `%s` (", tableName);
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint8_t type = pSchema[i].type;
     if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {

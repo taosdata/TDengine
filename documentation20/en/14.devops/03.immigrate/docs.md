@@ -1,8 +1,8 @@
 # Best practice of immigration from OpenTSDB to TDengine
 
-As a distributed, scalable, HBase-based distributed temporal database system, OpenTSDB has been introduced and widely used in the field of operation and monitoring by people in DevOps due to its first-mover advantage. However, in recent years, with the rapid development of new technologies such as cloud computing, microservices, and containerization, enterprise-level services have become more and more diverse, and the architecture has become more and more complex, and the application operation infrastructure environment has become more and more diverse, which brings more and more pressure on system and operation monitoring. From this status quo, the use of OpenTSDB as the monitoring backend storage for DevOps is increasingly plagued by performance issues and slow feature upgrades, as well as the resulting increase in application deployment costs and reduced operational efficiency, which are becoming more and more serious as the system scales up.
+As a distributed, scalable, HBase-based distributed temporal database system, OpenTSDB has been introduced and widely used in the field of operation and monitoring by people in DevOps due to its first-mover advantage. However, in recent years, with the rapid development of new technologies such as cloud computing, micro-services, and containerization, enterprise-level services have become more and more diverse, and the architecture has become more and more complex, and the application operation infrastructure environment has become more and more diverse, which brings more and more pressure on system and operation monitoring. From this status quo, the use of OpenTSDB as the monitoring backend storage for DevOps is increasingly plagued by performance issues and slow feature upgrades, as well as the resulting increase in application deployment costs and reduced operational efficiency, which are becoming more and more serious as the system scales up.
 
-In this context, to meet the fast-growing IoT big data market and technical demands, TOS Data has developed an innovative big data processing product TDengine independently after learning the advantages of many traditional relational databases, NoSQL databases, stream computing engines, message queues, etc. TDengine has its unique advantages in time-series big data processing. TDengine can effectively solve the problems currently encountered by OpenTSDB.
+In this context, to meet the fast-growing IoT big data market and technical demands, TAOS Data has developed an innovative big data processing product TDengine independently after learning the advantages of many traditional relational databases, NoSQL databases, stream computing engines, message queues, etc. TDengine has its unique advantages in time-series big data processing. TDengine can effectively solve the problems currently encountered by OpenTSDB.
 
 Compared with OpenTSDB, TDengine has the following distinctive features.
 
@@ -69,14 +69,12 @@ First copy the entire dist directory under the grafanaplugin directory to Grafan
 sudo cp -r . /var/lib/grafana/plugins/tdengine
 sudo chown grafana:grafana -R /var/lib/grafana/plugins/tdengine
 echo -e "[plugins]\nallow_loading_unsigned_plugins = taosdata-tdengine-datasource\n" | sudo tee -a /etc/grafana/grafana.ini
- 
+
 # start grafana service
 sudo service grafana-server restart
 # or with systemd
 sudo systemctl start grafana-server
 ```
-
-
 
 In addition, TDengine provides two default Dashboard templates for users to quickly view the information saved to the TDengine repository. You can simply import the templates from the Grafana directory into Grafana to activate their use.
 
@@ -133,8 +131,6 @@ Now let's assume a DevOps scenario where we use collectd to collect base metrics
 | 2   | swap   | value | double | host | swap_type   | swap_type_instance   | source    |        |
 | 3   | disk   | value | double | host | disk_point  | disk_instance        | disk_type | source |
 
-
-
 TDengine requires data stored to have a data schema, i.e., you need to create a supertable and specify the schema of the supertable before writing the data. For data schema creation, you have two ways to do this: 1) Take full advantage of TDengine's native data writing support for OpenTSDB by calling the API provided by TDengine to write the data (in text line or JSON format) to the super table and automate the creation of the single-value model. And automate the creation of single-value models. This approach does not require major adjustments to the data writing application, nor does it require conversion of the written data format.
 
 At the C level, TDengine provides taos_insert_lines to write data in OpenTSDB format directly (in version 2.3.x this function corresponds to taos_schemaless_insert). For the code reference example, please refer to the sample code schemaless.c in the installation package directory.
@@ -153,8 +149,6 @@ create stable swap(ts timestamp, val double) tags(host binary(12), swap_type bin
 create stable disk(ts timestamp, val double) tags(host binary(12), disk_point binary(20), disk_instance binary(20), disk_type binary(20), source binary(20));
 ```
 
-
-
 For sub-tables use dynamic table creation as shown below:
 
 ```sql
@@ -166,8 +160,6 @@ Eventually about 340 sub-tables and 3 super-tables will be created in the system
 - **Multi-value model**
 
 If you want to take advantage of TDengine's multi-value modeling capabilities, you need to first meet the requirements that different collection quantities have the same collection frequency and can reach the **data writing side simultaneously via a message queue**, thus ensuring that multiple metrics are written at once using SQL statements. The name of the metric is used as the name of the super table to create a multi-column model of data with the same collection frequency and capable of arriving at the same. The data can be collected with the same frequency and arrive in multiple columns. The names of the sub-tables are named using a fixed rule. Each metric above contains only one measurement value, so it cannot be transformed into a multi-value model.
-
-
 
 ## Data triage and application adaptation
 
@@ -203,9 +195,9 @@ The manual migration of data requires attention to two issues.
 
 (2) Under the full-load operation of the system, if there are enough remaining computing and IO resources, a multi-threaded import mechanism can be established to maximize the efficiency of data migration. Considering the huge load on the CPU brought by data parsing, the maximum number of parallel tasks needs to be controlled to avoid the overall system overload triggered by importing historical data.
 
-Due to the ease of operation of TDegnine itself, there is no need to perform index maintenance, data format change processing, etc. throughout the process, and the whole process only needs to be executed sequentially.
+Due to the ease of operation of TDengine itself, there is no need to perform index maintenance, data format change processing, etc. throughout the process, and the whole process only needs to be executed sequentially.
 
-Once the historical data is fully imported into TDengine, the two systems are running simultaneously, after which the query requests can be switched to TDengine, thus achieving a seamless application switchover.
+Once the historical data is fully imported into TDengine, the two systems are running simultaneously, after which the query requests can be switched to TDengine, thus achieving a seamless application switch-over.
 
 ## Appendix 1: Correspondence table of OpenTSDB query functions
 
@@ -220,11 +212,13 @@ SELECT avg(val) FROM (SELECT first(val) FROM super_table WHERE ts >= startTime a
 Notes.
 
 1. the value within the Interval needs to be the same as the interval value of the outer query.
-As the interpolation of values in OpenTSDB uses linear interpolation, use fill(linear) to declare the interpolation type in the interpolation clause. The following functions with the same interpolation requirements are handled by this method. 3.
-3. The 20s parameter in Interval means that the inner query will generate results in a 20-second window. In a real query, it needs to be adjusted to the time interval between different records. This ensures that the interpolation results are generated equivalently to the original data.
-Due to the special interpolation strategy and mechanism of OpenTSDB, the way of interpolation before computation in Aggregate query makes it impossible for the computation result to be the same as TDengine. However, in the case of Downsample, TDengine, and OpenTSDB can obtain the same result (because OpenTSDB uses a completely different interpolation strategy for Aggregate and Downsample queries).
-(since OpenTSDB uses a completely different interpolation strategy for aggregated and downsampled queries).[]() 
 
+As the interpolation of values in OpenTSDB uses linear interpolation, use fill(linear) to declare the interpolation type in the interpolation clause. The following functions with the same interpolation requirements are handled by this method. 3.
+
+2. The 20s parameter in Interval means that the inner query will generate results in a 20-second window. In a real query, it needs to be adjusted to the time interval between different records. This ensures that the interpolation results are generated equivalently to the original data.
+
+Due to the special interpolation strategy and mechanism of OpenTSDB, the way of interpolation before computation in Aggregate query makes it impossible for the computation result to be the same as TDengine. However, in the case of downsampling, TDengine, and OpenTSDB can obtain the same result (because OpenTSDB uses a completely different interpolation strategy for Aggregate and Downsampling queries).
+(since OpenTSDB uses a completely different interpolation strategy for aggregated and downsampled queries).[]()
 
 **Count**
 
@@ -234,8 +228,6 @@ Example.
 
 select count(*) from super_table_name;
 
- 
-
 **Dev**
 
 Equivalent function: stddev
@@ -243,8 +235,6 @@ Equivalent function: stddev
 Example.
 
 Select stddev(val) from table_name
-
- 
 
 **Estimated percentiles**
 
@@ -256,9 +246,7 @@ Select apercentile(col1, 50, “t-digest”) from table_name
 
 Remark.
 
-1. t-digest algorithm is used by default in OpenTSDB during approximate query processing, so to get the same calculation result, you need to specify the algorithm used in the apercentile function. tDengine can support two different approximate processing algorithms, which are declared by "default " and "t-digest" to declare.
-
-
+1. t-digest algorithm is used by default in OpenTSDB during approximate query processing, so to get the same calculation result, you need to specify the algorithm used in the apercentile function. TDengine can support two different approximate processing algorithms, which are declared by "default " and "t-digest" to declare.
 
 **First**
 
@@ -268,8 +256,6 @@ Example.
 
 Select first(col1) from table_name
 
- 
-
 **Last**
 
 Equivalent function: last
@@ -277,8 +263,6 @@ Equivalent function: last
 Example.
 
 Select last(col1) from table_name
-
- 
 
 **Max**
 
@@ -290,8 +274,6 @@ Select max(value) from (select first(val) value from table_name interval(10s) fi
 
 Note: The Max function requires interpolation, for the reasons given above.
 
-
-
 **Min**
 
 Equivalent function: min
@@ -299,8 +281,6 @@ Equivalent function: min
 Example.
 
 Select min(value) from (select first(val) value from table_name interval(10s) fill(linear)) interval(10s);
-
- 
 
 **MinMax**
 
@@ -310,8 +290,6 @@ Select max(val) from table_name
 
 Note: This function does not require interpolation, so it can be calculated directly.
 
-
-
 **MimMin**
 
 Equivalent function: min
@@ -319,16 +297,12 @@ Equivalent function: min
 Select min(val) from table_name
 
 Note: This function does not require interpolation, so it can be calculated directly.
- 
- 
 
 **Percentile**
 
 Equivalent function: percentile
 
-备注：
-
- 
+Note:
 
 **Sum**
 
@@ -338,8 +312,6 @@ Select max(value) from (select first(val) value from table_name interval(10s) fi
 
 Note: This function does not require interpolation, so it can be calculated directly.
 
- 
-
 **Zimsum**
 
 Equivalent function: sum
@@ -348,12 +320,9 @@ Select sum(val) from table_name
 
 Note: This function does not require interpolation, so it can be calculated directly.
 
- 
-
-完整示例：
+OpenTSDB query JSON example:
 
 ```json
-//OpenTSDB query JSON
 query = {
 "start":1510560000,
 "end": 1515000009,
@@ -362,14 +331,12 @@ query = {
 "metric":"cpu.usage_user",
 }]
 }
- 
+
 // Equivalent SQL:
 SELECT count(*)
 FROM `cpu.usage_user`
 WHERE ts>=1510560000 AND ts<=1515000009
 ```
-
-
 
 ## Appendix 2: Resource Estimation Methodology
 
@@ -419,11 +386,11 @@ Be careful not to start the taosd service immediately after the installation is 
 
 To ensure that the system can get the necessary information to run properly. Please set the following key parameters correctly on the server-side.
 
-FQDN, firstEp, secondEP, dataDir, logDir, tmpDir, serverPort. The specific meaning of each parameter and the requirements for setting them can be found in the documentation "TDengine Cluster Installation, Management" (https://www.taosdata.com/cn/ documentation/cluster)".
+FQDN, firstEp, secondEP, dataDir, logDir, tmpDir, serverPort. The specific meaning of each parameter and the requirements for setting them can be found in the documentation [TDengine Cluster Installation, Management](https://www.taosdata.com/cn/ documentation/cluster).
 
 Follow the same steps to set the parameters on the node that needs to run and start the taosd service, then add the Dnode to the cluster.
 
-Finally, start taos and execute the command show dnodes, if you can see all the nodes that have joined the cluster, then the cluster is successfully built. For the specific operation procedure and notes, please refer to the document "[TDengine Cluster Installation, Management](https://www.taosdata.com/cn/documentation/cluster)".
+Finally, start taos and execute the command show dnodes, if you can see all the nodes that have joined the cluster, then the cluster is successfully built. For the specific operation procedure and notes, please refer to the document [TDengine Cluster Installation, Management](https://www.taosdata.com/cn/documentation/cluster).
 
 ## Appendix 4: Super table names
 

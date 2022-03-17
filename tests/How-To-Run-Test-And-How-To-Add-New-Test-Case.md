@@ -101,13 +101,13 @@ failure.
 
     def info(self, info):
 
-        printf("%s %s" % (datetime.datetime.now(), info))
+        print("%s %s" % (datetime.datetime.now(), info))
 
  
 
     def sleep(self, sec):
 
-        printf("%s sleep %d seconds" % (datetime.datetime.now(), sec))
+        print("%s sleep %d seconds" % (datetime.datetime.now(), sec))
 
         time.sleep(sec)
 
@@ -115,7 +115,7 @@ failure.
 
     def debug(self, err):
 
-        printf("\\033[1;36m%s %s\\033[0m" % (datetime.datetime.now(), err))
+        print("\\033[1;36m%s %s\\033[0m" % (datetime.datetime.now(), err))
 
  
 

@@ -1,6 +1,6 @@
-# Quickly experience TDengine with Docker
+# Quickly Taste TDengine with Docker
 
-While it is not recommended to deploy TDengine services via Docker in a production environment, Docker tools do a good job of shielding the environmental differences in the underlying operating system and are well suited for use in development testing or first-time experience with the toolset for installing and running TDengine. In particular, Docker makes it relatively easy to try TDengine on Mac OSX and Windows systems without having to install a virtual machine or rent an additional Linux server. In addition, starting from version 2.0.14.0, TDengine provides images that support both X86-64, X86, arm64, and arm32 platforms, so non-mainstream computers that can run docker, such as NAS, Raspberry Pi, and embedded development boards, can also easily experience TDengine based on this document.
+While it is not recommended to deploy TDengine services via Docker in a production environment, Docker tools do a good job of shielding the environmental differences in the underlying operating system and are well suited for use in development testing or first-time taste with the toolset for installing and running TDengine. In particular, Docker makes it relatively easy to try TDengine on macOS and Windows systems without having to install a virtual machine or rent an additional Linux server. In addition, starting from version 2.0.14.0, TDengine provides images that support both X86-64, X86, arm64, and arm32 platforms, so non-mainstream computers that can run docker, such as NAS, Raspberry Pi, and embedded development boards, can also easily taste TDengine based on this document.
 
 The following article explains how to quickly build a single-node TDengine runtime environment via Docker to support development and testing through a Step by Step style introduction.
 
@@ -32,14 +32,14 @@ This command starts a docker container with TDengine server running and maps the
 - **tdengine/tdengine**: the official TDengine published application image that is pulled
 - **526aa188da767ae94b244226a2b2eec2b5f17dd8eff592893d9ec0cd0f3a1ccd**: The long character returned is the container ID, and we can also view the corresponding container by its container ID
 
-Further, you can also use the `docker run` command to start the docker container running TDengine server, and use the `--name` command line parameter to name the container tdengine, use `--hostname` to specify the hostname as tdengine-server, and use `-v` to mount the local directory (-v) to synchronize the data inside the host and the container to prevent data loss after the container is deleted.
+Further, you can also use the `docker run` command to start the docker container running TDengine server, and use the `--name` command line parameter to name the container TDengine, use `--hostname` to specify the hostname as TDengine-server, and use `-v` to mount the local directory (-v) to synchronize the data inside the host and the container to prevent data loss after the container is deleted.
 
 ```
 docker run -d --name tdengine --hostname="tdengine-server" -v ~/work/taos/log:/var/log/taos -v ~/work/taos/data:/var/lib/taos  -p 6030-6041:6030-6041 -p 6030-6041:6030-6041/udp tdengine/tdengine
 ```
 
 - **--name tdengine**: set the container name, we can access the corresponding container by container name
-- **--hostnamename=tdengine-server**: set the hostname of the Linux system inside the container, we can map the hostname and IP to solve the problem that the container IP may change.
+- **--hostname=tdengine-server**: set the hostname of the Linux system inside the container, we can map the hostname and IP to solve the problem that the container IP may change.
 - **-v**: Set the host file directory to be mapped to the inner container directory to avoid data loss after the container is deleted.
 
 ### Use the `docker ps` command to verify that the container is running correctly
@@ -121,7 +121,7 @@ TDengine RESTful interface details can be found in the [official documentation](
 
 ### Running TDengine server and taosAdapter with a Docker container
 
-Docker containers of TDegnine version 2.4.0.0 and later include a component named `taosAdapter`, which supports data writing and querying capabilities to the TDengine server through the RESTful interface and provides the data ingestion interfaces compatible with InfluxDB/OpenTSDB. Allows seamless migration of InfluxDB/OpenTSDB applications to access TDengine.
+Docker containers of TDengine version 2.4.0.0 and later include a component named `taosAdapter`, which supports data writing and querying capabilities to the TDengine server through the RESTful interface and provides the data ingestion interfaces compatible with InfluxDB/OpenTSDB. Allows seamless migration of InfluxDB/OpenTSDB applications to access TDengine.
 
 Note: If taosAdapter is running inside the container, you need to add mapping to other additional ports as needed, please refer to [taosAdapter documentation](https://github.com/taosdata/taosadapter/blob/develop/README.md) for the default port number and modification methods for the specific purpose.
 
@@ -274,7 +274,7 @@ Query OK, 1 row(s) in set (0.003490s)
 
 ### Application Example: use data collection agent to write data into TDengine
 
-taosAdapter supports multiple data collection agents (e.g. Telegraf, StatsD, collectd, etc.), here only demonstrate how StasD is simulated to write data, and the command is executed from the host side as follows.
+taosAdapter supports multiple data collection agents (e.g. Telegraf, StatsD, collectd, etc.), here only demonstrate how StatsD is simulated to write data, and the command is executed from the host side as follows.
 
 ```
 echo "foo:1|c" | nc -u -w0 127.0.0.1 6044

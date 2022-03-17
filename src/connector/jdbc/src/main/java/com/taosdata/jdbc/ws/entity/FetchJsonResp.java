@@ -1,14 +1,16 @@
 package com.taosdata.jdbc.ws.entity;
 
+import com.alibaba.fastjson.JSONArray;
+
 public class FetchJsonResp extends Response{
     private long id;
-    private Object[][] data;
+    private JSONArray data;
 
-    public Object[][] getData() {
+    public JSONArray getData() {
         return data;
     }
 
-    public void setData(Object[][] data) {
+    public void setData(JSONArray data) {
         this.data = data;
     }
 

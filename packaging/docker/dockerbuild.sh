@@ -13,6 +13,7 @@ set -e
 
 # set parameters by default value
 cpuType=""
+cpuTypeAlias=""
 version=""
 passWord=""
 pkgFile=""
@@ -88,8 +89,18 @@ cp -f ${comunityArchiveDir}/${pkgFile}  .
 
 echo "dirName=${dirName}"
 
+if [[ "${cpuType}" == "x64" ]] || [[ "${cpuType}" == "amd64" ]]; then
+    cpuTypeAlias="amd64"
+elif [[ "${cpuType}" == "aarch64" ]]; then
+    cpuTypeAlias="arm64"
+elif [[ "${cpuType}" == "aarch32" ]]; then
+    cpuTypeAlias="armhf"
+else
+    echo "Unknown cpuType: ${cpuType}"
+    exit 1
+fi
 
-docker build --rm -f "Dockerfile"  --network=host -t tdengine/tdengine-${dockername}:${version} "." --build-arg pkgFile=${pkgFile} --build-arg dirName=${dirName}
+docker build --rm -f "Dockerfile"  --network=host -t tdengine/tdengine-${dockername}:${version} "." --build-arg pkgFile=${pkgFile} --build-arg dirName=${dirName} --build-arg cpuType=${cpuTypeAlias}
 docker login -u tdengine -p ${passWord}  #replace the docker registry username and password
 docker push tdengine/tdengine-${dockername}:${version}
 

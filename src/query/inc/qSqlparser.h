@@ -25,6 +25,7 @@ extern "C" {
 #include "tstrbuild.h"
 #include "ttoken.h"
 #include "tvariant.h"
+#include "tname.h"
 
 #define ParseTOKENTYPE SStrToken
 
@@ -156,8 +157,11 @@ typedef struct SCreatedTableInfo {
 
 typedef struct SCreateTableSql {
   SStrToken          name;  // table name, create table [name] xxx
+  SStrToken          to;    // create stream to anohter table  
+  SStrToken          split; // split columns  
   int8_t             type;  // create normal table/from super table/ stream
   bool               existCheck;
+  SName              toSName;
 
   struct {
     SArray          *pTagColumns; // SArray<TAOS_FIELD>
@@ -334,6 +338,7 @@ SArray   *setSubclause(SArray *pList, void *pSqlNode);
 SArray   *appendSelectClause(SArray *pList, void *pSubclause);
 
 void setCreatedTableName(SSqlInfo *pInfo, SStrToken *pTableNameToken, SStrToken *pIfNotExists);
+void setCreatedStreamOpt(SSqlInfo *pInfo, SStrToken *pTo, SStrToken *pSplit);
 
 void SqlInfoDestroy(SSqlInfo *pInfo);
 

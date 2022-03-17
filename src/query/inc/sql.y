@@ -411,13 +411,27 @@ tagNamelist(A) ::= ids(X).                      {A = taosArrayInit(4, sizeof(SSt
 
 // create stream
 // create table table_name as select count(*) from super_table_name interval(time)
-create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) AS select(S). {
+create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) to_opt(E) split_opt(F) AS select(S). {
   A = tSetCreateTableInfo(NULL, NULL, S, TSQL_CREATE_STREAM);
   setSqlInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
 
+  setCreatedStreamOpt(pInfo, &E, &F);
   V.n += Z.n;
   setCreatedTableName(pInfo, &V, &U);
 }
+
+// to_opt
+%type to_opt {SStrToken}
+to_opt(A) ::= . {A.n = 0;}
+to_opt(A) ::= TO ids(X) cpxName(Y). {
+   A = X;
+   A.n += Y.n;
+}
+
+// split_opt
+%type to_split {SStrToken}
+split_opt(A) ::= . {A.n = 0;}
+split_opt(A) ::= SPLIT ids(X). { A = X;}
 
 %type column{TAOS_FIELD}
 %type columnlist{SArray*}
@@ -748,6 +762,7 @@ expr(A) ::= MINUS(X) FLOAT(Y).   { X.n += Y.n; X.type = TK_FLOAT; A = tSqlExprCr
 expr(A) ::= PLUS(X) FLOAT(Y).    { X.n += Y.n; X.type = TK_FLOAT; A = tSqlExprCreateIdValue(pInfo, &X, TK_FLOAT);}
 expr(A) ::= STRING(X).           { A = tSqlExprCreateIdValue(pInfo, &X, TK_STRING);}
 expr(A) ::= NOW(X).              { A = tSqlExprCreateIdValue(pInfo, &X, TK_NOW); }
+expr(A) ::= TODAY(X).            { A = tSqlExprCreateIdValue(pInfo, &X, TK_TODAY); }
 expr(A) ::= VARIABLE(X).         { A = tSqlExprCreateIdValue(pInfo, &X, TK_VARIABLE);}
 expr(A) ::= PLUS(X) VARIABLE(Y).   { X.n += Y.n; X.type = TK_VARIABLE; A = tSqlExprCreateIdValue(pInfo, &X, TK_VARIABLE);}
 expr(A) ::= MINUS(X) VARIABLE(Y).  { X.n += Y.n; X.type = TK_VARIABLE; A = tSqlExprCreateIdValue(pInfo, &X, TK_VARIABLE);}
@@ -972,4 +987,4 @@ cmd ::= KILL QUERY INTEGER(X) COLON(Z) INTEGER(Y).        {X.n += (Z.n + Y.n); s
 %fallback ID ABORT AFTER ASC ATTACH BEFORE BEGIN CASCADE CLUSTER CONFLICT COPY DATABASE DEFERRED
   DELIMITERS DESC DETACH EACH END EXPLAIN FAIL FOR GLOB IGNORE IMMEDIATE INITIALLY INSTEAD
   LIKE MATCH NMATCH KEY OF OFFSET RAISE REPLACE RESTRICT ROW STATEMENT TRIGGER VIEW ALL
-  NOW IPTOKEN SEMI NONE PREV LINEAR IMPORT TBNAME JOIN STABLE NULL INSERT INTO VALUES FILE.
+  NOW TODAY IPTOKEN SEMI NONE PREV LINEAR IMPORT TBNAME JOIN STABLE NULL INSERT INTO VALUES FILE.

@@ -310,7 +310,7 @@ class TDTestCase:
 
         tdSql.query("show create table `%s` ; " %self.regular_table)
         tdSql.checkData(0, 0, self.regular_table)
-        tdSql.checkData(0, 1, "create table `%s` (ts TIMESTAMP,i INT)" %self.regular_table)
+        tdSql.checkData(0, 1, "CREATE TABLE `%s` (ts TIMESTAMP,i INT)" %self.regular_table)
 
         tdSql.execute("insert into `%s`  values(now, 1)" %self.regular_table)
         tdSql.query("select * from  `%s` ; " %self.regular_table)
