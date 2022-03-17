@@ -8,7 +8,7 @@ from math import inf
 class TDTestCase:
     def caseDescription(self):
         '''
-        case1<shenglian zhou>: [TD-14122]: fix failed test on arm by converting from sim tst to python test to overcome NaN value and its string representation
+        case1<shenglian zhou>: [TD-14122]: fix failed test on arm64 by converting from sim tst to python test to overcome NaN value and its string representation
         ''' 
         return
     
