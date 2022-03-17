@@ -559,6 +559,33 @@ static int32_t toVgroupsInfo(SArray* pVgs, SVgroupsInfo** pVgsInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t setSysTableVgroupList(SParseContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
+  // todo release
+  // if (0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLES)) {
+  //   return TSDB_CODE_SUCCESS;
+  // }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SArray* vgroupList = NULL;
+  if ('\0' != pRealTable->useDbName[0]) {
+    code = getDBVgInfo(pCxt, pRealTable->useDbName, &vgroupList);
+  } else {
+    code = getDBVgInfoImpl(pCxt, pName, &vgroupList);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    // todo remove
+    if (NULL != vgroupList && taosArrayGetSize(vgroupList) > 0 && 0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLES)) {
+      taosArrayPopTailBatch(vgroupList, taosArrayGetSize(vgroupList) - 1);
+    }
+
+    code = toVgroupsInfo(vgroupList, &pRealTable->pVgroupList);
+  }
+  taosArrayDestroy(vgroupList);
+
+  return code;
+}
+
 static int32_t setTableVgroupList(SParseContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (TSDB_SUPER_TABLE == pRealTable->pMeta->tableType) {
@@ -569,12 +596,7 @@ static int32_t setTableVgroupList(SParseContext* pCxt, SName* pName, SRealTableN
     }
     taosArrayDestroy(vgroupList);
   } else if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType) {
-    SArray* vgroupList = NULL;
-    code = getDBVgInfoImpl(pCxt, pName, &vgroupList);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = toVgroupsInfo(vgroupList, &pRealTable->pVgroupList);
-    }
-    taosArrayDestroy(vgroupList);
+    code = setSysTableVgroupList(pCxt, pName, pRealTable);
   } else {
     pRealTable->pVgroupList = calloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo));
     if (NULL == pRealTable->pVgroupList) {
@@ -1165,9 +1187,6 @@ static int32_t translateShow(STranslateContext* pCxt, SShowStmt* pStmt) {
 
 static int32_t translateShowTables(STranslateContext* pCxt) {
   SVShowTablesReq* pShowReq = calloc(1, sizeof(SVShowTablesReq));
-  if (pCxt->pParseCxt->db == NULL || strlen(pCxt->pParseCxt->db) == 0) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "db not specified");
-  }
 
   SArray* array = NULL;
   int32_t code = getDBVgInfo(pCxt->pParseCxt, pCxt->pParseCxt->db, &array);
@@ -1355,7 +1374,7 @@ static int32_t createOperatorNode(EOperatorType opType, const char* pColName, SN
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pOper->opType = OP_TYPE_LIKE;
+  pOper->opType = opType;
   pOper->pLeft = nodesMakeNode(QUERY_NODE_COLUMN);
   pOper->pRight = nodesCloneNode(pRight);
   if (NULL == pOper->pLeft || NULL == pOper->pRight) {
@@ -1411,6 +1430,10 @@ static int32_t createShowCondition(const SShowStmt* pShow, SSelectStmt* pSelect)
     }
   } else {
     pSelect->pWhere = (NULL == pDbCond ? pTbCond : pDbCond);
+  }
+
+  if (NULL != pShow->pDbName) {
+    strcpy(((SRealTableNode*)pSelect->pFromTable)->useDbName, ((SValueNode*)pShow->pDbName)->literal);
   }
 
   return TSDB_CODE_SUCCESS;

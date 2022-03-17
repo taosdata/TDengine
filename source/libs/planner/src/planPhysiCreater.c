@@ -272,10 +272,15 @@ static SPhysiNode* createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubp
   SSystemTableScanPhysiNode* pScan = (SSystemTableScanPhysiNode*)makePhysiNode(pCxt, QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN);
   CHECK_ALLOC(pScan, NULL);
   CHECK_CODE(initScanPhysiNode(pCxt, pScanLogicNode, (SScanPhysiNode*)pScan), (SPhysiNode*)pScan);
-  for (int32_t i = 0; i < pScanLogicNode->pVgroupList->numOfVgroups; ++i) {
-    SQueryNodeAddr addr;
-    vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups + i, &addr);
-    taosArrayPush(pCxt->pExecNodeList, &addr);
+  if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_USER_TABLES)) {
+    vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
+    taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
+  } else {
+    for (int32_t i = 0; i < pScanLogicNode->pVgroupList->numOfVgroups; ++i) {
+      SQueryNodeAddr addr;
+      vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups + i, &addr);
+      taosArrayPush(pCxt->pExecNodeList, &addr);
+    }
   }
   pScan->mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
   tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);

@@ -321,103 +321,109 @@ void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
 
 static bool checkUserName(SAstCreateContext* pCxt, const SToken* pUserName) {
   if (NULL == pUserName) {
-    return false;
-  }
-  if (pUserName->n >= TSDB_USER_LEN) {
-    generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
     pCxt->valid = false;
+  } else {
+    if (pUserName->n >= TSDB_USER_LEN) {
+      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
+      pCxt->valid = false;
+    }
   }
   return pCxt->valid;
 }
 
 static bool checkPassword(SAstCreateContext* pCxt, const SToken* pPasswordToken, char* pPassword) {
   if (NULL == pPasswordToken) {
-    return false;
-  }
-  if (pPasswordToken->n >= (TSDB_USET_PASSWORD_LEN - 2)) {
+    pCxt->valid = false;
+  } else if (pPasswordToken->n >= (TSDB_USET_PASSWORD_LEN - 2)) {
     generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
     pCxt->valid = false;
-    return false;
-  }
-  strncpy(pPassword, pPasswordToken->z, pPasswordToken->n);
-  strdequote(pPassword);
-  if (strtrim(pPassword) <= 0) {
-    generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_EMPTY);
-    pCxt->valid = false;
+  } else {
+    strncpy(pPassword, pPasswordToken->z, pPasswordToken->n);
+    strdequote(pPassword);
+    if (strtrim(pPassword) <= 0) {
+      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_EMPTY);
+      pCxt->valid = false;
+    }
   }
   return pCxt->valid;
 }
 
 static bool checkAndSplitEndpoint(SAstCreateContext* pCxt, const SToken* pEp, char* pFqdn, int32_t* pPort) {
   if (NULL == pEp) {
-    return false;
-  }
-  if (pEp->n >= TSDB_FQDN_LEN + 2 + 6) { // format 'fqdn:port'
+    pCxt->valid = false;
+  } else if (pEp->n >= TSDB_FQDN_LEN + 2 + 6) { // format 'fqdn:port'
     generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
     pCxt->valid = false;
-  }
-  char ep[TSDB_FQDN_LEN + 2 + 6];
-  strncpy(ep, pEp->z, pEp->n);
-  strdequote(ep);
-  strtrim(ep);
-  char* pColon = strchr(ep, ':');
-  if (NULL == pColon) {
-    generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ENDPOINT);
-    pCxt->valid = false;
-  }
-  strncpy(pFqdn, ep, pColon - ep);
-  *pPort = strtol(pColon + 1, NULL, 10);
-  if (*pPort >= UINT16_MAX || *pPort <= 0) {
-    generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PORT);
-    pCxt->valid = false;
+  } else {
+    char ep[TSDB_FQDN_LEN + 2 + 6];
+    strncpy(ep, pEp->z, pEp->n);
+    strdequote(ep);
+    strtrim(ep);
+    char* pColon = strchr(ep, ':');
+    if (NULL == pColon) {
+      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ENDPOINT);
+      pCxt->valid = false;
+    } else {
+      strncpy(pFqdn, ep, pColon - ep);
+      *pPort = strtol(pColon + 1, NULL, 10);
+      if (*pPort >= UINT16_MAX || *pPort <= 0) {
+        generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PORT);
+        pCxt->valid = false;
+      }
+    }
   }
   return pCxt->valid;
 }
 
 static bool checkFqdn(SAstCreateContext* pCxt, const SToken* pFqdn) {
   if (NULL == pFqdn) {
-    return false;
-  }
-  if (pFqdn->n >= TSDB_FQDN_LEN) {
-    generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
     pCxt->valid = false;
+  } else {
+    if (pFqdn->n >= TSDB_FQDN_LEN) {
+      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
+      pCxt->valid = false;
+    }
   }
   return pCxt->valid;
 }
 
 static bool checkPort(SAstCreateContext* pCxt, const SToken* pPortToken, int32_t* pPort) {
   if (NULL == pPortToken) {
-    return false;
-  }
-  *pPort = strtol(pPortToken->z, NULL, 10);
-  if (*pPort >= UINT16_MAX || *pPort <= 0) {
-    generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PORT);
     pCxt->valid = false;
+  } else {
+    *pPort = strtol(pPortToken->z, NULL, 10);
+    if (*pPort >= UINT16_MAX || *pPort <= 0) {
+      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PORT);
+      pCxt->valid = false;
+    }
   }
   return pCxt->valid;
 }
 
 static bool checkDbName(SAstCreateContext* pCxt, const SToken* pDbName, bool query) {
   if (NULL == pDbName) {
-    return (query ? NULL != pCxt->pQueryCxt->db : true);
+    pCxt->valid = (query ? NULL != pCxt->pQueryCxt->db : true);
+  } else {
+    pCxt->valid = pDbName->n < TSDB_DB_NAME_LEN ? true : false;
   }
-  pCxt->valid = pDbName->n < TSDB_DB_NAME_LEN ? true : false;
   return pCxt->valid;
 }
 
 static bool checkTableName(SAstCreateContext* pCxt, const SToken* pTableName) {
   if (NULL == pTableName) {
-    return true;
+    pCxt->valid = true;
+  } else {
+    pCxt->valid = pTableName->n < TSDB_TABLE_NAME_LEN ? true : false;
   }
-  pCxt->valid = pTableName->n < TSDB_TABLE_NAME_LEN ? true : false;
   return pCxt->valid;
 }
 
 static bool checkColumnName(SAstCreateContext* pCxt, const SToken* pColumnName) {
   if (NULL == pColumnName) {
-    return true;
+    pCxt->valid = true;
+  } else {
+    pCxt->valid = pColumnName->n < TSDB_COL_NAME_LEN ? true : false;
   }
-  pCxt->valid = pColumnName->n < TSDB_COL_NAME_LEN ? true : false;
   return pCxt->valid;
 }
 
@@ -517,6 +523,10 @@ SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) 
 }
 
 SNode* createDefaultDatabaseCondValue(SAstCreateContext* pCxt) {
+  if (NULL == pCxt->pQueryCxt->db) {
+    return NULL;
+  }
+
   SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   CHECK_OUT_OF_MEM(val);
   val->literal = strdup(pCxt->pQueryCxt->db);
@@ -590,6 +600,7 @@ SNode* createRealTableNode(SAstCreateContext* pCxt, const SToken* pDbName, const
     strncpy(realTable->table.tableAlias, pTableName->z, pTableName->n);
   }
   strncpy(realTable->table.tableName, pTableName->z, pTableName->n);
+  strcpy(realTable->useDbName, pCxt->pQueryCxt->db);
   return (SNode*)realTable;
 }
 
@@ -920,7 +931,16 @@ SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
   return (SNode*)pStmt;
 }
 
+static bool needDbShowStmt(ENodeType type) {
+  return QUERY_NODE_SHOW_TABLES_STMT == type || QUERY_NODE_SHOW_STABLES_STMT == type || QUERY_NODE_SHOW_VGROUPS_STMT == type;
+}
+
 SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbNamePattern) {
+  if (needDbShowStmt(type) && NULL == pDbName && NULL == pCxt->pQueryCxt->db) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "db not specified");
+    pCxt->valid = false;
+    return NULL;
+  }
   SShowStmt* pStmt = nodesMakeNode(type);;
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->pDbName = pDbName;
