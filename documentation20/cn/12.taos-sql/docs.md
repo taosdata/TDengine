@@ -733,6 +733,8 @@ summary:
 
  >   TBNAME： 在超级表查询中可视为一个特殊的标签，代表查询涉及的子表名<br>
     \_c0: 表示表（超级表）的第一列
+    \_qstart,\_qstop,\_qduration: 表示查询过滤窗口的起始，结束以及持续时间
+    \_wstart,\_wstop,\_wduration: 窗口切分聚合查询（例如 interval/session window/state window）中表示每个切分窗口的起始，结束以及持续时间
 
 #### 小技巧
 
