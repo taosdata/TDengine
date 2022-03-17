@@ -2284,8 +2284,14 @@ static YYACTIONTYPE yy_reduce(
 { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_STREAMS_STMT, NULL, NULL); }
         break;
       case 101: /* db_name_cond_opt ::= */
-      case 103: /* like_pattern_opt ::= */ yytestcase(yyruleno==103);
       case 106: /* from_db_opt ::= */ yytestcase(yyruleno==106);
+{ yymsp[1].minor.yy68 = createDefaultDatabaseCondValue(pCxt); }
+        break;
+      case 102: /* db_name_cond_opt ::= db_name NK_DOT */
+{ yylhsminor.yy68 = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &yymsp[-1].minor.yy5); }
+  yymsp[-1].minor.yy68 = yylhsminor.yy68;
+        break;
+      case 103: /* like_pattern_opt ::= */
       case 198: /* where_clause_opt ::= */ yytestcase(yyruleno==198);
       case 202: /* twindow_clause_opt ::= */ yytestcase(yyruleno==202);
       case 207: /* sliding_opt ::= */ yytestcase(yyruleno==207);
@@ -2294,10 +2300,6 @@ static YYACTIONTYPE yy_reduce(
       case 229: /* slimit_clause_opt ::= */ yytestcase(yyruleno==229);
       case 233: /* limit_clause_opt ::= */ yytestcase(yyruleno==233);
 { yymsp[1].minor.yy68 = NULL; }
-        break;
-      case 102: /* db_name_cond_opt ::= db_name NK_DOT */
-{ yylhsminor.yy68 = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &yymsp[-1].minor.yy5); }
-  yymsp[-1].minor.yy68 = yylhsminor.yy68;
         break;
       case 104: /* like_pattern_opt ::= LIKE NK_STRING */
 { yymsp[-1].minor.yy68 = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &yymsp[0].minor.yy0); }

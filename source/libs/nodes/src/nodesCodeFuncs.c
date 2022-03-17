@@ -1040,7 +1040,7 @@ static int32_t datumToJson(const void* pObj, SJson* pJson) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
-      code = tjsonAddStringToObject(pJson, jkValueDatum, pNode->datum.p);
+      code = tjsonAddStringToObject(pJson, jkValueDatum, varDataVal(pNode->datum.p));
       break;
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_DECIMAL:
@@ -1103,9 +1103,16 @@ static int32_t jsonToDatum(const SJson* pJson, void* pObj) {
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
-    case TSDB_DATA_TYPE_VARBINARY:
-      code = tjsonDupStringValue(pJson, jkValueDatum, &pNode->datum.p);
+    case TSDB_DATA_TYPE_VARBINARY: {
+      pNode->datum.p = calloc(1, pNode->node.resType.bytes);
+      if (NULL == pNode->datum.p) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        break;
+      }
+      varDataSetLen(pNode->datum.p, pNode->node.resType.bytes);
+      code = tjsonGetStringValue(pJson, jkValueDatum, varDataVal(pNode->datum.p));
       break;
+    }
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_BLOB:
