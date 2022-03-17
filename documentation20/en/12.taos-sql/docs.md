@@ -1569,7 +1569,7 @@ Starting from version 2.6.0.0, TDengine supports following time related function
 
     Example:
     ```mysql
-    taos> SELECT TODAY() FROM meters;
+    taos> SELECT TIMEZONE() FROM meters;
                timezone()           |
     =================================
      UTC (UTC, +0000)               |
@@ -1638,7 +1638,7 @@ Starting from version 2.6.0.0, TDengine supports following time related function
 
  - **TIMETRUNCATE**
     ```mysql
-    SELECT TIMEDIFF(ts_val | datetime_string | ts_col, time_unit) FROM { tb_name | stb_name } [WHERE clause];
+    SELECT TIMETRUNCATE(ts_val | datetime_string | ts_col, time_unit) FROM { tb_name | stb_name } [WHERE clause];
     ```
     Function: Truncate timestamp by time_unit.
 
