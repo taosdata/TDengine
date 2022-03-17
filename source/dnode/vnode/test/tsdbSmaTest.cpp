@@ -301,7 +301,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
       break;
   }
 
-  char *msg = (char *)calloc(100, 1);
+  char *msg = (char *)calloc(1, 100);
   assert(msg != NULL);
   ASSERT_EQ(tsdbUpdateSmaWindow(&tsdb, TSDB_SMA_TYPE_TIME_RANGE, msg), 0);
 
