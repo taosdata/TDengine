@@ -2467,7 +2467,7 @@ int32_t tEncodeSMqCMCommitOffsetReq(SCoder *encoder, const SMqCMCommitOffsetReq 
 int32_t tDecodeSMqCMCommitOffsetReq(SCoder *decoder, SMqCMCommitOffsetReq *pReq) {
   if (tStartDecode(decoder) < 0) return -1;
   if (tDecodeI32(decoder, &pReq->num) < 0) return -1;
-  pReq->offsets = TCODER_MALLOC(pReq->num * sizeof(SMqOffset), decoder);
+  TCODER_MALLOC(pReq->offsets, SMqOffset*, pReq->num * sizeof(SMqOffset), decoder);
   if (pReq->offsets == NULL) return -1;
   for (int32_t i = 0; i < pReq->num; i++) {
     tDecodeSMqOffset(decoder, &pReq->offsets[i]);

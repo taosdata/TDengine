@@ -27,7 +27,8 @@ typedef struct {
 } SBtIdx;
 
 // Btree page header definition
-typedef struct __attribute__((__packed__)) {
+#pragma pack (push,1) 
+typedef struct {
   uint8_t  flag;        // page flag
   int32_t  vlen;        // value length of current page, TDB_VARIANT_LEN for variant length
   uint16_t nPayloads;   // number of total payloads
@@ -36,6 +37,7 @@ typedef struct __attribute__((__packed__)) {
   pgoff_t  offPayload;  // payload offset
   pgno_t   rChildPgno;  // right most child page number
 } SBtPgHdr;
+#pragma pack(pop)
 
 typedef int (*BtreeCmprFn)(const void *, const void *);
 

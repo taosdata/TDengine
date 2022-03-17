@@ -230,7 +230,7 @@ static int32_t tSStructA_v1_decode(SCoder *pCoder, SStructA_v1 *pSAV1) {
   const char *tstr;
   uint64_t    len;
   if (tDecodeCStrAndLen(pCoder, &tstr, &len) < 0) return -1;
-  pSAV1->A_c = (char *)TCODER_MALLOC(len + 1, pCoder);
+  TCODER_MALLOC(pSAV1->A_c, char*, len + 1, pCoder);
   memcpy(pSAV1->A_c, tstr, len + 1);
 
   tEndDecode(pCoder);
@@ -269,7 +269,7 @@ static int32_t tSStructA_v2_decode(SCoder *pCoder, SStructA_v2 *pSAV2) {
   const char *tstr;
   uint64_t    len;
   if (tDecodeCStrAndLen(pCoder, &tstr, &len) < 0) return -1;
-  pSAV2->A_c = (char *)TCODER_MALLOC(len + 1, pCoder);
+  TCODER_MALLOC(pSAV2->A_c, char*, len + 1, pCoder);
   memcpy(pSAV2->A_c, tstr, len + 1);
 
   // ------------------------NEW FIELDS DECODE-------------------------------
@@ -305,7 +305,7 @@ static int32_t tSFinalReq_v1_encode(SCoder *pCoder, const SFinalReq_v1 *ps1) {
 static int32_t tSFinalReq_v1_decode(SCoder *pCoder, SFinalReq_v1 *ps1) {
   if (tStartDecode(pCoder) < 0) return -1;
 
-  ps1->pA = (SStructA_v1 *)TCODER_MALLOC(sizeof(*(ps1->pA)), pCoder);
+  TCODER_MALLOC(ps1->pA, SStructA_v1*, sizeof(*(ps1->pA)), pCoder);
   if (tSStructA_v1_decode(pCoder, ps1->pA) < 0) return -1;
   if (tDecodeI32(pCoder, &ps1->v_a) < 0) return -1;
   if (tDecodeI8(pCoder, &ps1->v_b) < 0) return -1;
@@ -339,7 +339,7 @@ static int32_t tSFinalReq_v2_encode(SCoder *pCoder, const SFinalReq_v2 *ps2) {
 static int32_t tSFinalReq_v2_decode(SCoder *pCoder, SFinalReq_v2 *ps2) {
   if (tStartDecode(pCoder) < 0) return -1;
 
-  ps2->pA = (SStructA_v2 *)TCODER_MALLOC(sizeof(*(ps2->pA)), pCoder);
+  TCODER_MALLOC(ps2->pA, SStructA_v2*, sizeof(*(ps2->pA)), pCoder);
   if (tSStructA_v2_decode(pCoder, ps2->pA) < 0) return -1;
   if (tDecodeI32(pCoder, &ps2->v_a) < 0) return -1;
   if (tDecodeI8(pCoder, &ps2->v_b) < 0) return -1;

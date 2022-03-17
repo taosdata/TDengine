@@ -207,8 +207,8 @@ void cliHandleResp(SCliConn* conn) {
   }
 
   tDebug("%s cli conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pTransInst->label, conn,
-         TMSG_INFO(pHead->msgType), inet_ntoa(conn->addr.sin_addr), ntohs(conn->addr.sin_port),
-         inet_ntoa(conn->locaddr.sin_addr), ntohs(conn->locaddr.sin_port), transMsg.contLen);
+         TMSG_INFO(pHead->msgType), taosInetNtoa(conn->addr.sin_addr), ntohs(conn->addr.sin_port),
+         taosInetNtoa(conn->locaddr.sin_addr), ntohs(conn->locaddr.sin_port), transMsg.contLen);
 
   conn->secured = pHead->secured;
 
@@ -519,8 +519,8 @@ void cliSend(SCliConn* pConn) {
 
   uv_buf_t wb = uv_buf_init((char*)pHead, msgLen);
   tDebug("%s cli conn %p %s is send to %s:%d, local info %s:%d", CONN_GET_INST_LABEL(pConn), pConn,
-         TMSG_INFO(pHead->msgType), inet_ntoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
-         inet_ntoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port));
+         TMSG_INFO(pHead->msgType), taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
+         taosInetNtoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port));
 
   pConn->writeReq.data = pConn;
   uv_write(&pConn->writeReq, (uv_stream_t*)pConn->stream, &wb, 1, cliSendCb);

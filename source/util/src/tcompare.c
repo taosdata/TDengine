@@ -427,7 +427,7 @@ int32_t compareWStrPatternMatch(const void *pLeft, const void *pRight) {
   wchar_t *pattern = calloc(varDataLen(pRight) + 1, sizeof(wchar_t));
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
 
-  int32_t ret = WCSPatternMatch(pattern, varDataVal(pLeft), varDataLen(pLeft) / TSDB_NCHAR_SIZE, &pInfo);
+  int32_t ret = WCSPatternMatch(pattern, (const wchar_t *)varDataVal(pLeft), varDataLen(pLeft) / TSDB_NCHAR_SIZE, &pInfo);
   free(pattern);
 
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
