@@ -56,19 +56,27 @@ int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, 
     case JOB_TASK_STATUS_PARTIAL_SUCCEED:
       if (newStatus != JOB_TASK_STATUS_EXECUTING 
        && newStatus != JOB_TASK_STATUS_SUCCEED
-       && newStatus != JOB_TASK_STATUS_CANCELLED) {
+       && newStatus != JOB_TASK_STATUS_CANCELLED
+       && newStatus != JOB_TASK_STATUS_FAILED
+       && newStatus != JOB_TASK_STATUS_DROPPING) {
         QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
       }
       
       break;
     case JOB_TASK_STATUS_SUCCEED:
       if (newStatus != JOB_TASK_STATUS_CANCELLED
-       && newStatus != JOB_TASK_STATUS_DROPPING) {
+       && newStatus != JOB_TASK_STATUS_DROPPING
+       && newStatus != JOB_TASK_STATUS_FAILED) {
         QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
       }
 
       break;
     case JOB_TASK_STATUS_FAILED:
+      if (newStatus != JOB_TASK_STATUS_CANCELLED && newStatus != JOB_TASK_STATUS_DROPPING) {
+        QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+      }
+      break;
+      
     case JOB_TASK_STATUS_CANCELLING:
       if (newStatus != JOB_TASK_STATUS_CANCELLED) {
         QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
@@ -77,7 +85,9 @@ int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, 
       break;
     case JOB_TASK_STATUS_CANCELLED:
     case JOB_TASK_STATUS_DROPPING:
-      QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+      if (newStatus != JOB_TASK_STATUS_FAILED && newStatus != JOB_TASK_STATUS_PARTIAL_SUCCEED) {
+        QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+      }
       break;
       
     default:
@@ -459,7 +469,9 @@ int32_t qwDropTaskStatus(QW_FPARAMS_DEF) {
 
 _return:
 
-  qwReleaseTaskStatus(QW_WRITE, sch);
+  if (task) {
+    qwReleaseTaskStatus(QW_WRITE, sch);
+  }
   qwReleaseScheduler(QW_WRITE, mgmt);
   
   QW_RET(code);
@@ -477,7 +489,9 @@ int32_t qwUpdateTaskStatus(QW_FPARAMS_DEF, int8_t status) {
   
 _return:
 
-  qwReleaseTaskStatus(QW_READ, sch);
+  if (task) {
+    qwReleaseTaskStatus(QW_READ, sch);
+  }
   qwReleaseScheduler(QW_READ, mgmt);
 
   QW_RET(code);
@@ -549,6 +563,10 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryEnd) {
     if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
       break;
     }
+
+    if (atomic_load_32(&ctx->rspCode)) {
+      break;
+    }
   }
 
   QW_RET(code);
@@ -608,7 +626,7 @@ int32_t qwGetResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void
   if (ctx->emptyRes) {
     QW_TASK_DLOG_E("query end with empty result");
     
-    QW_ERR_RET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCCEED));
+    qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCCEED);
     QW_ERR_RET(qwMallocFetchRsp(len, &rsp));      
     
     *rspMsg = rsp;
@@ -635,7 +653,7 @@ int32_t qwGetResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void
     
       QW_TASK_DLOG_E("no data in sink and query end");
       
-      QW_ERR_RET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCCEED));
+      qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCCEED);
       QW_ERR_RET(qwMallocFetchRsp(len, &rsp));
       *rspMsg = rsp;
       *dataLen = 0;
@@ -665,7 +683,7 @@ int32_t qwGetResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void
 
   if (DS_BUF_EMPTY == pOutput->bufStatus && pOutput->queryEnd) {
     QW_TASK_DLOG_E("task all data fetched, done");
-    QW_ERR_RET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCCEED));
+    qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCCEED);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -687,8 +705,15 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
   
   QW_LOCK(QW_WRITE, &ctx->lock);
 
-  if (QW_PHASE_PRE_FETCH != phase) {
+  if (QW_PHASE_PRE_FETCH == phase) {
+    atomic_store_8(&ctx->queryFetched, true);
+  } else {
     atomic_store_8(&ctx->phase, phase);
+  }
+
+  if (atomic_load_8(&ctx->queryEnd)) {
+    QW_TASK_ELOG_E("query already end");
+    QW_ERR_JRET(TSDB_CODE_QW_MSG_ERROR);
   }
 
   switch (phase) {
@@ -717,12 +742,12 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
       }
 
       if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
-        QW_TASK_WLOG("last fetch not finished, phase:%s", qwPhaseStr(phase));
+        QW_TASK_WLOG("last fetch still not processed, phase:%s", qwPhaseStr(phase));
         QW_ERR_JRET(TSDB_CODE_QRY_DUPLICATTED_OPERATION);
       }
 
       if (!QW_IS_EVENT_PROCESSED(ctx, QW_EVENT_READY)) {
-        QW_TASK_ELOG("query rsp are not ready, phase:%s", qwPhaseStr(phase));
+        QW_TASK_ELOG("ready msg has not been processed, phase:%s", qwPhaseStr(phase));
         QW_ERR_JRET(TSDB_CODE_QRY_TASK_MSG_ERROR);
       }
       break;
@@ -827,6 +852,10 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
 
 _return:
 
+  if (TSDB_CODE_SUCCESS == code && QW_PHASE_POST_QUERY == phase) {
+    qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_PARTIAL_SUCCEED);
+  }
+
   if (ctx) {
     QW_UPDATE_RSP_CODE(ctx, code);
 
@@ -912,15 +941,13 @@ _return:
 
   input.code = code;
   code = qwHandlePostPhaseEvents(QW_FPARAMS(), QW_PHASE_POST_QUERY, &input, NULL);
-
-  if (TSDB_CODE_SUCCESS == code) {
-    qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_PARTIAL_SUCCEED);
-  }
   
   if (!queryRsped) {
     qwBuildAndSendQueryRsp(qwMsg->connection, code);
     QW_TASK_DLOG("query msg rsped, code:%x - %s", code, tstrerror(code));
-  }  
+  }
+
+  QW_RET(code);
 }
 
 int32_t qwProcessReady(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
@@ -947,6 +974,11 @@ int32_t qwProcessReady(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   }
 
   QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_READY);
+
+  if (atomic_load_8(&ctx->queryEnd) || atomic_load_8(&ctx->queryFetched)) {
+    QW_TASK_ELOG("got ready msg at wrong status, queryEnd:%d, queryFetched:%d", atomic_load_8(&ctx->queryEnd), atomic_load_8(&ctx->queryFetched));
+    QW_ERR_JRET(TSDB_CODE_QW_MSG_ERROR);
+  }
 
   if (ctx->phase == QW_PHASE_POST_QUERY) {
     code = ctx->rspCode;
@@ -1006,13 +1038,13 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
       if ((!sOutput.queryEnd) && (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus)) {    
         QW_TASK_DLOG("task not end and buf is %s, need to continue query", qwBufStatusStr(sOutput.bufStatus));
         
-        // RC WARNING
         atomic_store_8(&ctx->queryContinue, 1);
       }
       
       if (rsp) {
         bool qComplete = (DS_BUF_EMPTY == sOutput.bufStatus && sOutput.queryEnd);
         qwBuildFetchRsp(rsp, &sOutput, dataLen, qComplete);
+        atomic_store_8(&ctx->queryEnd, qComplete);
         
         QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_FETCH);            
         
@@ -1072,6 +1104,7 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   } else {
     bool qComplete = (DS_BUF_EMPTY == sOutput.bufStatus && sOutput.queryEnd);
     qwBuildFetchRsp(rsp, &sOutput, dataLen, qComplete);
+    atomic_store_8(&ctx->queryEnd, qComplete);
   }
 
   if ((!sOutput.queryEnd) && (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus)) {    
@@ -1084,7 +1117,7 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     if (QW_IS_QUERY_RUNNING(ctx)) {
       atomic_store_8(&ctx->queryContinue, 1);
     } else if (0 == atomic_load_8(&ctx->queryInQueue)) {
-      QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXECUTING));      
+      qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXECUTING);      
 
       atomic_store_8(&ctx->queryInQueue, 1);
       
@@ -1137,7 +1170,7 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
   if (QW_IS_QUERY_RUNNING(ctx)) {
     QW_ERR_JRET(qwKillTaskHandle(QW_FPARAMS(), ctx));
-    QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_DROPPING));
+    qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_DROPPING);
   } else if (ctx->phase > 0) {
     QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
     needRsp = true;
@@ -1154,7 +1187,9 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 _return:
 
   if (code) {
-    QW_UPDATE_RSP_CODE(ctx, code);
+    if (ctx) {
+      QW_UPDATE_RSP_CODE(ctx, code);
+    }
     
     qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_FAILED);
   }

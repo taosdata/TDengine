@@ -459,9 +459,10 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_CTG_OUT_OF_SERVICE            TAOS_DEF_ERROR_CODE(0, 0x2406)
 #define TSDB_CODE_CTG_VG_META_MISMATCH          TAOS_DEF_ERROR_CODE(0, 0x2407)
 
-//scheduler
+//scheduler&qworker
 #define TSDB_CODE_SCH_STATUS_ERROR              TAOS_DEF_ERROR_CODE(0, 0x2501)
 #define TSDB_CODE_SCH_INTERNAL_ERROR            TAOS_DEF_ERROR_CODE(0, 0x2502)
+#define TSDB_CODE_QW_MSG_ERROR                  TAOS_DEF_ERROR_CODE(0, 0x2503)
 
 //parser
 #define TSDB_CODE_PAR_SYNTAX_ERROR              TAOS_DEF_ERROR_CODE(0, 0x2600)
