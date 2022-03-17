@@ -213,11 +213,14 @@ static int32_t tsdbInitSmaStat(SSmaStat **pSmaStat) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // TODO: lock. lazy mode when update expired window, or hungry mode during tsdbNew.
+  /**
+   *  1. Lazy mode utilized when init SSmaStat to update expired window(or hungry mode when tsdbNew).
+   *  2. Currently, there is mutex lock when init SSmaEnv, thus no need add lock on SSmaStat, and please add lock if
+   * tsdbInitSmaStat invoked in other multithread environment later.
+   */
   if (*pSmaStat == NULL) {
     *pSmaStat = (SSmaStat *)calloc(1, sizeof(SSmaStat));
     if (*pSmaStat == NULL) {
-      // TODO: unlock
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return TSDB_CODE_FAILED;
     }
@@ -227,11 +230,9 @@ static int32_t tsdbInitSmaStat(SSmaStat **pSmaStat) {
 
     if ((*pSmaStat)->smaStatItems == NULL) {
       tfree(*pSmaStat);
-      // TODO: unlock
       return TSDB_CODE_FAILED;
     }
   }
-  // TODO: unlock
   return TSDB_CODE_SUCCESS;
 }
 
@@ -270,15 +271,17 @@ int32_t tsdbDestroySmaState(SSmaStat *pSmaStat) {
 }
 
 static int32_t tsdbCheckAndInitSmaEnv(STsdb *pTsdb, int8_t smaType) {
+  SSmaEnv *pEnv = NULL;
+
   // return if already init
   switch (smaType) {
     case TSDB_SMA_TYPE_TIME_RANGE:
-      if (pTsdb->pTSmaEnv) {
+      if ((pEnv = (SSmaEnv *)atomic_load_ptr(&pTsdb->pTSmaEnv)) != NULL) {
         return TSDB_CODE_SUCCESS;
       }
       break;
     case TSDB_SMA_TYPE_ROLLUP:
-      if (pTsdb->pRSmaEnv) {
+      if ((pEnv = (SSmaEnv *)atomic_load_ptr(&pTsdb->pRSmaEnv)) != NULL) {
         return TSDB_CODE_SUCCESS;
       }
       break;
@@ -307,16 +310,15 @@ static int32_t tsdbCheckAndInitSmaEnv(STsdb *pTsdb, int8_t smaType) {
       return TSDB_CODE_FAILED;
     }
 
-    SSmaEnv *pEnv = NULL;
     if (tsdbInitSmaEnv(pTsdb, aname, &pEnv) != TSDB_CODE_SUCCESS) {
       tsdbUnlockRepo(pTsdb);
       return TSDB_CODE_FAILED;
     }
 
     if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
-      pTsdb->pTSmaEnv = pEnv;
+      atomic_store_ptr(&pTsdb->pTSmaEnv, pEnv);
     } else {
-      pTsdb->pRSmaEnv = pEnv;
+      atomic_store_ptr(&pTsdb->pRSmaEnv, pEnv);
     }
   }
   tsdbUnlockRepo(pTsdb);
