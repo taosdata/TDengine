@@ -109,8 +109,13 @@ static void copyData(const SInputData* pInput, const SDataBlockDescNode* pSchema
   }
 }
 
-// data format with compress: SDataCacheEntry | cols_data_offset | col1_data col2_data ... | numOfTables | STableIdInfo STableIdInfo ...
-// data format: SDataCacheEntry | col1_data col2_data ... | numOfTables | STableIdInfo STableIdInfo ...
+// data format:
+// +----------------+--------------------------------------+-------------+-----------+-------------+-----------+
+// |SDataCacheEntry | column#1 length, column#2 length ... | col1 bitmap | col1 data | col2 bitmap | col2 data | ....
+// |                |    sizeof(int32_t) * numOfCols       | actual size |           | actual size |           |
+// +----------------+--------------------------------------+-------------+-----------+-------------+-----------+
+// The length of bitmap is decided by number of rows of this data block, and the length of each column data is
+// recorded in the first segment, next to the struct header
 static void toDataCacheEntry(const SDataDispatchHandle* pHandle, const SInputData* pInput, SDataDispatchBuf* pBuf) {
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pBuf->pData;
   pEntry->compressed = (int8_t)needCompress(pInput->pData, pHandle->pSchema);
@@ -132,8 +137,11 @@ static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput,
     return false;
   }
 
-  // struct size + data payload + length for each column
-  pBuf->allocSize = sizeof(SRetrieveTableRsp) + pDispatcher->pSchema->resultRowSize * pInput->pData->info.rows + pInput->pData->info.numOfCols * sizeof(int32_t);
+  // NOTE: there are four bytes of an integer more than the required buffer space.
+  // struct size + data payload + length for each column + bitmap length
+  pBuf->allocSize = sizeof(SRetrieveTableRsp) + blockDataGetSerialMetaSize(pInput->pData) +
+      __ceill(blockDataGetSerialRowSize(pInput->pData) * pInput->pData->info.rows);
+
   pBuf->pData = malloc(pBuf->allocSize);
   if (pBuf->pData == NULL) {
     qError("SinkNode failed to malloc memory, size:%d, code:%d", pBuf->allocSize, TAOS_SYSTEM_ERROR(errno));

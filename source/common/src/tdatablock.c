@@ -570,7 +570,7 @@ double blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
     if (IS_VAR_DATA_TYPE(pColInfo->info.type)) {
       rowSize += sizeof(int32_t);
     } else {
-      rowSize += 1/8.0;
+      rowSize += 1/8.0;  // one bit for each record
     }
   }
 
