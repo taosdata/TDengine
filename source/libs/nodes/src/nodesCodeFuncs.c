@@ -193,7 +193,6 @@ static int32_t tableMetaToJson(const void* pObj, SJson* pJson) {
   return code;
 }
 
-static const char* jkLogicPlanId = "Id";
 static const char* jkLogicPlanTargets = "Targets";
 static const char* jkLogicPlanConditions = "Conditions";
 static const char* jkLogicPlanChildren = "Children";
@@ -201,10 +200,7 @@ static const char* jkLogicPlanChildren = "Children";
 static int32_t logicPlanNodeToJson(const void* pObj, SJson* pJson) {
   const SLogicNode* pNode = (const SLogicNode*)pObj;
 
-  int32_t code = tjsonAddIntegerToObject(pJson, jkLogicPlanId, pNode->id);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodeListToJson(pJson, jkLogicPlanTargets, pNode->pTargets);
-  }
+  int32_t code = nodeListToJson(pJson, jkLogicPlanTargets, pNode->pTargets);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkLogicPlanConditions, nodeToJson, pNode->pConditions);
   }

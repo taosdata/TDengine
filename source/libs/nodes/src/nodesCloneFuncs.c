@@ -190,7 +190,6 @@ static SNode* fillNodeCopy(const SFillNode* pSrc, SFillNode* pDst) {
 }
 
 static SNode* logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
-  COPY_SCALAR_FIELD(id);
   CLONE_NODE_LIST_FIELD(pTargets);
   CLONE_NODE_FIELD(pConditions);
   CLONE_NODE_LIST_FIELD(pChildren);
