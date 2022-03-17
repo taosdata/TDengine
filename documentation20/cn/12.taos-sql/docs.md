@@ -1742,70 +1742,180 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     SELECT ASIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
     ```
     功能说明：获得指定列的反正弦结果
-    其他使用说明参见CEIL函数描述
+
+    返回结果类型：DOUBLE。如果输入值为NULL，输出值也为NULL
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+    使用说明：
+
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+      该函数可以应用在普通表和超级表上。
 
 - **ACOS**
     ```mysql
     SELECT ACOS(field_name) FROM { tb_name | stb_name } [WHERE clause]
     ```
     功能说明：获得指定列的反余弦结果
-    其他使用说明参见CEIL函数描述
+
+    返回结果类型：DOUBLE。如果输入值为NULL，输出值也为NULL
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+    使用说明：
+
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+      该函数可以应用在普通表和超级表上。
 
 - **ATAN**
     ```mysql
     SELECT ATAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
     ```
     功能说明：获得指定列的反正切结果
-    其他使用说明参见CEIL函数描述
+
+    返回结果类型：DOUBLE。如果输入值为NULL，输出值也为NULL
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+    使用说明：
+
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+      该函数可以应用在普通表和超级表上。
 
 - **SIN**
     ```mysql
     SELECT SIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
     ```
     功能说明：获得指定列的正弦结果
-    其他使用说明参见CEIL函数描述
+
+    返回结果类型：DOUBLE。如果输入值为NULL，输出值也为NULL
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+    使用说明：
+
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+      该函数可以应用在普通表和超级表上。
 
 - **COS**
     ```mysql
     SELECT COS(field_name) FROM { tb_name | stb_name } [WHERE clause]
     ```
     功能说明：获得指定列的余弦结果
-    其他使用说明参见CEIL函数描述
+
+    返回结果类型：DOUBLE。如果输入值为NULL，输出值也为NULL
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+    使用说明：
+
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+      该函数可以应用在普通表和超级表上。
 
 - **TAN**
     ```mysql
     SELECT TAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
     ```
     功能说明：获得指定列的正切结果
-    其他使用说明参见CEIL函数描述
+
+    返回结果类型：DOUBLE。如果输入值为NULL，输出值也为NULL
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+    使用说明：
+
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+      该函数可以应用在普通表和超级表上。
 
 - **POW**
     ```mysql
     SELECT POW(field_name, power) FROM { tb_name | stb_name } [WHERE clause]
     ```
     功能说明：获得指定列的指数为power的幂
-    其他使用说明参见CEIL函数描述
+
+    返回结果类型：DOUBLE。如果输入值为NULL，输出值也为NULL
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+    使用说明：
+
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+      该函数可以应用在普通表和超级表上。
 
 - **LOG**
     ```mysql
     SELECT LOG(field_name, base) FROM { tb_name | stb_name } [WHERE clause]
     ```
     功能说明：获得指定列对于底数base的对数
-    其他使用说明参见CEIL函数描述
+
+    返回结果类型：DOUBLE。如果输入值为NULL，输出值也为NULL
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+    使用说明：
+
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+      该函数可以应用在普通表和超级表上。
 
 - **ABS**
     ```mysql
     SELECT ABS(field_name) FROM { tb_name | stb_name } [WHERE clause]
     ```
     功能说明：获得指定列的绝对值
-    其他使用说明参见CEIL函数描述
+
+    返回结果类型：如果输入值为整数，输出值是UBIGINT类型。如果输入值是FLOAT/DOUBLE数据类型，输出值是DOUBLE数据类型。
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+    使用说明：
+
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+      该函数可以应用在普通表和超级表上。
 
 - **SQRT**
     ```mysql
     SELECT SQRT(field_name) FROM { tb_name | stb_name } [WHERE clause]
     ```
     功能说明：获得指定列的平方根
-    其他使用说明参见CEIL函数描述
+
+    返回结果类型：DOUBLE。如果输入值为NULL，输出值也为NULL
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+    使用说明：
+
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+      该函数可以应用在普通表和超级表上。
 
 - **CAST**
     ```mysql
@@ -1818,25 +1928,163 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     适用数据类型：输入参数expression的类型可以是除JSON外目前所有类型字段（BOOL/TINYINT/SMALLINT/INT/BIGINT/FLOAT/DOUBLE/BINARY(M)/TIMESTAMP/NCHAR(M)/TINYINT UNSIGNED/SMALLINT UNSIGNED/INT UNSIGNED/BIGINT UNSIGNED）; 输出目标类型只支持BIGINT/BINARY(N)/TIMESTAMP/NCHAR(N)/BIGINT UNSIGNED。
 
     说明：
+
       对于不能支持的类型转换会直接报错。
+
       如果输入值为NULL则输出值也为NULL。
+
       对于类型支持但某些值无法正确转换的情况对应的转换后的值以转换函数输出为准。目前可能遇到的几种情况：
-        BINARY/NCHAR转BIGINT/BIGINT UNSIGNED时可能出现的无效字符情况，例如"a"可能转为0。
-        有符号数或TIMESTAMP转BIGINT UNSIGNED可能遇到的溢出问题。
-        BIGINT UNSIGNED转BIGINT可能遇到的溢出问题。
-        FLOAT/DOUBLE转BIGINT/BIGINT UNSIGNED可能遇到的溢出问题。
+        1）BINARY/NCHAR转BIGINT/BIGINT UNSIGNED时可能出现的无效字符情况，例如"a"可能转为0。
+        2）有符号数或TIMESTAMP转BIGINT UNSIGNED可能遇到的溢出问题。
+        3）BIGINT UNSIGNED转BIGINT可能遇到的溢出问题。
+        4）FLOAT/DOUBLE转BIGINT/BIGINT UNSIGNED可能遇到的溢出问题。
 
 - **CONCAT**
     ```mysql
     SELECT CONCAT(str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHERE clause]
     ```
-    功能说明：字符串连接函数。不支持TAG列。只适用于SELECT子句中。
+    功能说明：字符串连接函数。
 
     返回结果类型：同输入参数类型，BINARY或者NCHAR。
 
-    适用数据类型：输入参数或者全部是BINARY格式的字符串或者列，或者全部是NCHAR格式的字符串或者列。
+    适用数据类型：输入参数或者全部是BINARY格式的字符串或者列，或者全部是NCHAR格式的字符串或者列。不能应用在TAG列。
 
     说明：
+    
+      如果输入值为NULL，输出值为NULL。
+      该函数最小参数个数为2个，最大参数个数为8个。
+      该函数可以应用在普通表和超级表上。
+      该函数适用于内层查询和外层查询。
+      
+- **CONCAT_WS**
+    ```
+    SELECT CONCAT_WS(separator, str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：带分隔符的字符串连接函数。
+
+    返回结果类型：同输入参数类型，BINARY或者NCHAR。
+
+    适用数据类型：输入参数或者全部是BINARY格式的字符串或者列，或者全部是NCHAR格式的字符串或者列。不能应用在TAG列。
+
+    说明：
+    
+      如果separator值为NULL，输出值为NULL。如果separator值不为NULL，其他输入为NULL，输出为空串
+      该函数最小参数个数为3个，最大参数个数为9个。
+      该函数可以应用在普通表和超级表上。
+      该函数适用于内层查询和外层查询。
+
+- **LENGTH**
+    ```
+    SELECT LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：以字节计数的字符串长度。
+
+    返回结果类型：INT。
+
+    适用数据类型：输入参数是BINARY类型或者NCHAR类型的字符串或者列。不能应用在TAG列。
+
+    说明：
+
+      如果输入值为NULL，输出值为NULL。
+      该函数可以应用在普通表和超级表上。
+      该函数适用于内层查询和外层查询。
+
+- **CHAR_LENGTH**
+    ```
+    SELECT CHAR_LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：以字符计数的字符串长度。
+
+    返回结果类型：INT。
+
+    适用数据类型：输入参数是BINARY类型或者NCHAR类型的字符串或者列。不能应用在TAG列。
+
+    说明：
+    
+      如果输入值为NULL，输出值为NULL。
+      该函数可以应用在普通表和超级表上。
+      该函数适用于内层查询和外层查询。
+
+- **LOWER**
+    ```
+    SELECT LOWER(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：将字符串参数值转换为全小写字母。
+
+    返回结果类型：同输入类型。
+
+    适用数据类型：输入参数是BINARY类型或者NCHAR类型的字符串或者列。不能应用在TAG列。
+
+    说明：
+    
+      如果输入值为NULL，输出值为NULL。
+      该函数可以应用在普通表和超级表上。
+      该函数适用于内层查询和外层查询。
+
+- **UPPER**
+    ```
+    SELECT UPPER(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：将字符串参数值转换为全大写字母。
+
+    返回结果类型：同输入类型。
+
+    适用数据类型：输入参数是BINARY类型或者NCHAR类型的字符串或者列。不能应用在TAG列。
+
+    说明：
+    
+      如果输入值为NULL，输出值为NULL。
+      该函数可以应用在普通表和超级表上。
+      该函数适用于内层查询和外层查询。
+
+- **LTRIM**
+    ```
+    SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：返回清除左边空格后的字符串。
+
+    返回结果类型：同输入类型。
+
+    适用数据类型：输入参数是BINARY类型或者NCHAR类型的字符串或者列。不能应用在TAG列。
+
+    说明：
+    
+      如果输入值为NULL，输出值为NULL。
+      该函数可以应用在普通表和超级表上。
+      该函数适用于内层查询和外层查询。
+
+- **RTRIM**
+    ```
+    SELECT RTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：返回清除右边空格后的字符串。
+
+    返回结果类型：同输入类型。
+
+    适用数据类型：输入参数是BINARY类型或者NCHAR类型的字符串或者列。不能应用在TAG列。
+
+    说明：
+    
+      如果输入值为NULL，输出值为NULL。
+      该函数可以应用在普通表和超级表上。
+      该函数适用于内层查询和外层查询。
+
+- **SUBSTR**
+    ```
+    SELECT SUBSTR(str,pos[,len]) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：从源字符串str中的指定位置pos开始取一个长度为len的子串并返回。
+
+    返回结果类型：同输入类型。
+
+    适用数据类型：输入参数是BINARY类型或者NCHAR类型的字符串或者列。不能应用在TAG列。
+
+    说明：
+    
+      如果输入值为NULL，输出值为NULL。
+      输入参数pos可以为正数，也可以为负数。如果pos是正数，表示从开始往后抽取子串。如果pos为负数，表示从结尾往前抽取字符串。如果输入参数len被忽略，返回的子串包含从pos开始的整个字串。
+      该函数可以应用在普通表和超级表上。
+      该函数适用于内层查询和外层查询。
 
 - **四则运算**
 
