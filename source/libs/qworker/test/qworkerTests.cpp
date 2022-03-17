@@ -249,6 +249,7 @@ void qwtRpcSendResponse(const SRpcMsg *pRsp) {
       if (0 == pRsp->code && 0 == rsp->completed) {
         qwtBuildFetchReqMsg(&qwtfetchMsg, &qwtfetchRpc);
         qwtPutReqToFetchQueue((void *)0x1, &qwtfetchRpc);
+        rpcFreeCont(rsp);
         return;
       }
 

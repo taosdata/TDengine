@@ -541,6 +541,8 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryEnd) {
       break;
     }
 
+    int32_t rows = pRes->info.rows;
+    
     ASSERT(pRes->info.rows > 0);
 
     SInputData inputData = {.pData = pRes};
@@ -550,7 +552,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryEnd) {
       QW_ERR_RET(code);
     }
 
-    QW_TASK_DLOG("data put into sink, rows:%d, continueExecTask:%d", pRes->info.rows, qcontinue);
+    QW_TASK_DLOG("data put into sink, rows:%d, continueExecTask:%d", rows, qcontinue);
     
     if (!qcontinue) {
       break;
