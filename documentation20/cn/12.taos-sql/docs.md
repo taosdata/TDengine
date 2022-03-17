@@ -1877,7 +1877,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     适用于：**表、（超级表）**。
 
     说明：
-    1）bin_type 参数为用户指定的分桶类型, 有效输入类型为"user_input“, ”linear_bin", "log_bin"。
+    1）bin_type 用户指定的分桶类型, 有效输入类型为"user_input“, ”linear_bin", "log_bin"。
     2）bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式(均为 JSON 格式字符串)：       
        - "user_input": "[1, 3, 5, 7]" 
        用户指定 bin 的具体数值。
@@ -1894,7 +1894,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     示例：
     ```mysql
      taos> SELECT HISTOGRAM(voltage, "user_input", "[1,3,5,7]", 1) FROM meters;
-     histogram(voltage, "user_input", "[1,3,5,7]", 1) |
+         histogram(voltage, "user_input", "[1,3,5,7]", 1) |
      =======================================================
      {"lower_bin":1, "upper_bin":3, "count":0.333333}     |
      {"lower_bin":3, "upper_bin":5, "count":0.333333}     |
@@ -1902,7 +1902,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
      Query OK, 3 row(s) in set (0.004273s)
      
      taos> SELECT HISTOGRAM(voltage, 'linear_bin', '{"start": 1, "width": 3, "count": 3, "infinity": false}', 0) FROM meters;
-     histogram(voltage, 'linear_bin', '{"start": 1, "width": 3, " |
+         histogram(voltage, 'linear_bin', '{"start": 1, "width": 3, " |
      ===================================================================
      {"lower_bin":1, "upper_bin":4, "count":3}                        |
      {"lower_bin":4, "upper_bin":7, "count":3}                        |
