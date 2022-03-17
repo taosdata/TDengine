@@ -105,6 +105,7 @@ typedef struct SMgmtWrapper {
   const char *name;
   char       *path;
   int32_t     refCount;
+  SRWLatch    latch;
   bool        deployed;
   bool        dropped;
   bool        required;
@@ -147,7 +148,7 @@ typedef struct SDnode {
 
 EDndStatus    dndGetStatus(SDnode *pDnode);
 void          dndSetStatus(SDnode *pDnode, EDndStatus stat);
-SMgmtWrapper *dndGetWrapper(SDnode *pDnode, ENodeType nodeType);
+SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, ENodeType nodeType);
 void          dndSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp);
 void          dndReportStartup(SDnode *pDnode, char *pName, char *pDesc);
 void          dndSendMonitorReport(SDnode *pDnode);

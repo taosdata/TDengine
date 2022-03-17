@@ -65,8 +65,6 @@ void dndCleanup() {
   dInfo("dnode env is cleaned up");
 }
 
-SMgmtWrapper *dndGetWrapper(SDnode *pDnode, ENodeType nodeType) { return &pDnode->wrappers[nodeType]; }
-
 void dndSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp) {
   pWrapper->msgFps[TMSG_INDEX(msgType)] = nodeMsgFp;
 }

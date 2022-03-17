@@ -94,6 +94,7 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
     }
 
     pWrapper->procType = PROC_SINGLE;
+    taosInitRWLatch(&pWrapper->latch);
   }
 
   code = 0;
@@ -135,4 +136,30 @@ void dndClose(SDnode *pDnode) {
 void dndHandleEvent(SDnode *pDnode, EDndEvent event) {
   dInfo("dnode object receive event %d, data:%p", event, pDnode);
   pDnode->event = event;
+}
+
+SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, ENodeType nodeType) {
+  SMgmtWrapper *pWrapper = &pDnode->wrappers[nodeType];
+  SMgmtWrapper *pRetWrapper = pWrapper;
+
+  taosRLockLatch(&pWrapper->latch);
+  if (pWrapper->deployed) {
+    int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
+    dTrace("node:%s, is acquired, refCount:%d", pWrapper->name, refCount);
+  } else {
+    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
+    pRetWrapper = NULL;
+  }
+  taosRUnLockLatch(&pWrapper->latch);
+
+  return pRetWrapper;
+}
+
+void dndReleaseWrapper(SMgmtWrapper *pWrapper) {
+  if (pWrapper == NULL) return;
+
+  taosRLockLatch(&pWrapper->latch);
+  int32_t refCount = atomic_sub_fetch_32(&pWrapper->refCount, 1);
+  taosRUnLockLatch(&pWrapper->latch);
+  dTrace("node:%s, is released, refCount:%d", pWrapper->name, refCount);
 }

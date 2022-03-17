@@ -25,27 +25,40 @@ static void dndResetLog(SMgmtWrapper *pMgmt) {
   taosInitLog(logname, 1);
 }
 
-static bool dndRequireNode(SMgmtWrapper *pMgmt) {
-  bool required = (*pMgmt->fp.requiredFp)(pMgmt);
+static bool dndRequireNode(SMgmtWrapper *pWrapper) {
+  bool required = (*pWrapper->fp.requiredFp)(pWrapper);
   if (!required) {
-    dDebug("node:%s, no need to start", pMgmt->name);
+    dDebug("node:%s, no need to start", pWrapper->name);
   } else {
-    dDebug("node:%s, need to start", pMgmt->name);
+    dDebug("node:%s, need to start", pWrapper->name);
   }
   return required;
 }
 
-int32_t dndOpenNode(SMgmtWrapper *pWrapper) { return (*pWrapper->fp.openFp)(pWrapper); }
+int32_t dndOpenNode(SMgmtWrapper *pWrapper) { 
+  int32_t code = (*pWrapper->fp.openFp)(pWrapper);
+  if (code != 0) {
+    dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
+    return -1;
+  } else {
+    dDebug("node:%s, has been opened", pWrapper->name);
+  }
+
+  pWrapper->deployed = true;
+  return 0;
+}
 
 void dndCloseNode(SMgmtWrapper *pWrapper) {
-  if (pWrapper->required) {
+  taosWLockLatch(&pWrapper->latch);
+  if (pWrapper->deployed) {
     (*pWrapper->fp.closeFp)(pWrapper);
-    pWrapper->required = false;
+    pWrapper->deployed = false;
   }
   if (pWrapper->pProc) {
     taosProcCleanup(pWrapper->pProc);
     pWrapper->pProc = NULL;
   }
+  taosWUnLockLatch(&pWrapper->latch);
 }
 
 static int32_t dndRunInSingleProcess(SDnode *pDnode) {
@@ -70,13 +83,14 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
     }
   }
 
-  SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, DNODE);
-  if (dmStart(pWrapper->pMgmt) != 0) {
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, DNODE);
+  int32_t code = dmStart(pWrapper->pMgmt);
+  if (code != 0) {
     dError("failed to start dnode worker since %s", terrstr());
-    return -1;
   }
 
-  return 0;
+  dndReleaseWrapper(pWrapper);
+  return code;
 }
 
 static void dndClearNodesExecpt(SDnode *pDnode, ENodeType except) {
@@ -184,12 +198,14 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
     }
   }
 
-  SMgmtWrapper *pWrapper = dndGetWrapper(pDnode, DNODE);
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, DNODE);
   if (pWrapper->procType == PROC_PARENT && dmStart(pWrapper->pMgmt) != 0) {
+    dndReleaseWrapper(pWrapper);
     dError("failed to start dnode worker since %s", terrstr());
     return -1;
   }
 
+  dndReleaseWrapper(pWrapper);
   return 0;
 }
 

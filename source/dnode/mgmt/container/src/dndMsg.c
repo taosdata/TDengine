@@ -16,8 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "dndInt.h"
 
-
-
 static int32_t dndBuildMsg(SNodeMsg *pMsg, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SRpcConnInfo connInfo = {0};
   if ((pRpc->msgType & 1U) && rpcGetConnInfo(pRpc->handle, &connInfo) != 0) {
@@ -34,7 +32,7 @@ static int32_t dndBuildMsg(SNodeMsg *pMsg, SRpcMsg *pRpc, SEpSet *pEpSet) {
 
 void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSet) {
   if (pEpSet && pEpSet->numOfEps > 0 && pRpc->msgType == TDMT_MND_STATUS_RSP) {
-    dmUpdateMnodeEpSet(dndGetWrapper(pWrapper->pDnode, DNODE)->pMgmt, pEpSet);
+    dmUpdateMnodeEpSet(dndAcquireWrapper(pWrapper->pDnode, DNODE)->pMgmt, pEpSet);
   }
 
   int32_t   code = -1;
@@ -91,13 +89,13 @@ static SMgmtWrapper *dndGetWrapperFromMsg(SDnode *pDnode, SNodeMsg *pMsg) {
   SMgmtWrapper *pWrapper = NULL;
   switch (pMsg->rpcMsg.msgType) {
     case TDMT_DND_CREATE_MNODE:
-      return dndGetWrapper(pDnode, MNODE);
+      return dndAcquireWrapper(pDnode, MNODE);
     case TDMT_DND_CREATE_QNODE:
-      return dndGetWrapper(pDnode, QNODE);
+      return dndAcquireWrapper(pDnode, QNODE);
     case TDMT_DND_CREATE_SNODE:
-      return dndGetWrapper(pDnode, SNODE);
+      return dndAcquireWrapper(pDnode, SNODE);
     case TDMT_DND_CREATE_BNODE:
-      return dndGetWrapper(pDnode, BNODE);
+      return dndAcquireWrapper(pDnode, BNODE);
     default:
       return NULL;
   }
