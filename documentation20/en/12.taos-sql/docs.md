@@ -1559,7 +1559,7 @@ Starting from version 2.6.0.0, TDengine supports following time related function
     ```mysql
     SELECT TIMEZONE() FROM { tb_name | stb_name } [WHERE clause];
     ```
-    Function: Returns current timezone information of client.
+    Function: Returns current time zone information of client.
 
     Returned Data Type: BINARY type.
 
@@ -1580,7 +1580,7 @@ Starting from version 2.6.0.0, TDengine supports following time related function
     ```mysql
     SELECT TO_ISO8601(ts_val | ts_col) FROM { tb_name | stb_name } [WHERE clause];
     ```
-    Function: Convert UNIX timestamp to ISO8601 standard date-time format string, with client timezone infomation attached.
+    Function: Convert UNIX timestamp to ISO8601 standard date-time format string, with client time zone information attached.
 
     Returned Data Type: BINARY type.
 
