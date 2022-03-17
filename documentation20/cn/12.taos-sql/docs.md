@@ -733,8 +733,8 @@ summary:
 
  >   TBNAME： 在超级表查询中可视为一个特殊的标签，代表查询涉及的子表名<br>
     \_c0: 表示表（超级表）的第一列
-    \_qstart,\_qstop,\_qduration: 表示查询过滤窗口的起始，结束以及持续时间
-    \_wstart,\_wstop,\_wduration: 窗口切分聚合查询（例如 interval/session window/state window）中表示每个切分窗口的起始，结束以及持续时间
+    \_qstart,\_qstop,\_qduration: 表示查询过滤窗口的起始，结束以及持续时间（从 2.6.0.0 版本开始支持）
+    \_wstart,\_wstop,\_wduration: 窗口切分聚合查询（例如 interval/session window/state window）中表示每个切分窗口的起始，结束以及持续时间（从 2.6.0.0 版本开始支持）
 
 #### 小技巧
 
@@ -1879,8 +1879,9 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     适用于：**表、（超级表）**。
 
     说明：
-    1）bin_type 用户指定的分桶类型, 有效输入类型为"user_input“, ”linear_bin", "log_bin"。
-    2）bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式(均为 JSON 格式字符串)：       
+    1）从 2.6.0.0 版本开始支持此函数。
+    2）bin_type 用户指定的分桶类型, 有效输入类型为"user_input“, ”linear_bin", "log_bin"。
+    3）bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式(均为 JSON 格式字符串)：       
        - "user_input": "[1, 3, 5, 7]" 
        用户指定 bin 的具体数值。
        
@@ -1891,7 +1892,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
        - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
        "start" 表示数据起始点，"factor" 表示按指数递增的因子，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点跟终点，
        生成区间为[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf]。
-    3）normalized 是否将返回结果归一化到 0~1 之间 。有效输入为 0 和 1。
+    4）normalized 是否将返回结果归一化到 0~1 之间 。有效输入为 0 和 1。
 
     示例：
     ```mysql
