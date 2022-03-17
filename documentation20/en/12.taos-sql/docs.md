@@ -1404,6 +1404,68 @@ TDengine supports aggregations over data, they are listed below:
     2022-01-01 08:00:07.000000000 |                     9 |                        2 |
     Query OK, 6 row(s) in set (0.002613s)
      ```
+- **HISTOGRAM**
+    ```mysql
+    SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_name [WHERE clause];
+    ```
+    Function：Returns count of data points in user-specified ranges.
+
+    Return Data Type：Double or INT64, depends on normalized parameter settings.
+
+    Applicable Fields：Numerical types.
+
+    Applied to: **table stable**.
+
+    Note：
+    1. This function is supported since 2.6.0.0.
+    2. bin_type: parameter to indicate the bucket type, valid inputs are: "user_input", "linear_bin", "log_bin"。
+    3）bin_description: parameter to describe how to generate buckets，can be in the following JSON formats for each bin_type respectively:
+       - "user_input": "[1, 3, 5, 7]"
+       User defined specified bin values.
+
+       - "linear_bin": "{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
+       "start" - bin starting point.
+       "width" - bin offset.
+       "count" - number of bins generated.
+       "infinity" - whether to add（-inf, inf）as start/end point in generated set of bins.
+       The above "linear_bin" descriptor generates a set of bins: [-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf].
+
+       - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
+       "start" - bin starting point.
+       "factor" - exponential factor of bin offset.
+       "count" - number of bins generated.
+       "infinity" - whether to add（-inf, inf）as start/end point in generated range of bins.
+       The above "log_bin" descriptor generates a set of bins:[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf].
+    4）normalized: setting to 1/0 to turn on/off result normalization.
+
+    Example：
+    ```mysql
+     taos> SELECT HISTOGRAM(voltage, "user_input", "[1,3,5,7]", 1) FROM meters;
+         histogram(voltage, "user_input", "[1,3,5,7]", 1) |
+     =======================================================
+     {"lower_bin":1, "upper_bin":3, "count":0.333333}     |
+     {"lower_bin":3, "upper_bin":5, "count":0.333333}     |
+     {"lower_bin":5, "upper_bin":7, "count":0.333333}     |
+     Query OK, 3 row(s) in set (0.004273s)
+     
+     taos> SELECT HISTOGRAM(voltage, 'linear_bin', '{"start": 1, "width": 3, "count": 3, "infinity": false}', 0) FROM meters;
+         histogram(voltage, 'linear_bin', '{"start": 1, "width": 3, " |
+     ===================================================================
+     {"lower_bin":1, "upper_bin":4, "count":3}                        |
+     {"lower_bin":4, "upper_bin":7, "count":3}                        |
+     {"lower_bin":7, "upper_bin":10, "count":3}                       |
+     Query OK, 3 row(s) in set (0.004887s)
+    
+     taos> SELECT HISTOGRAM(voltage, 'log_bin', '{"start": 1, "factor": 3, "count": 3, "infinity": true}', 0) FROM meters;
+     histogram(voltage, 'log_bin', '{"start": 1, "factor": 3, "count" |
+     ===================================================================
+     {"lower_bin":-inf, "upper_bin":1, "count":3}                     |
+     {"lower_bin":1, "upper_bin":3, "count":2}                        |
+     {"lower_bin":3, "upper_bin":9, "count":6}                        |
+     {"lower_bin":9, "upper_bin":27, "count":3}                       |
+     {"lower_bin":27, "upper_bin":inf, "count":1}                     |
+    ```
+
 
 ## <a class="anchor" id="aggregation"></a> Time-dimension Aggregation
 
