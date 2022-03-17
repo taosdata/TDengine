@@ -15,7 +15,7 @@ pub const TIMESTAMP_MILLISECOND: TimestampPrecision = TimestampPrecision::Millis
 pub const TIMESTAMP_MICROSECOND: TimestampPrecision = TimestampPrecision::Microsecond;
 pub const TIMESTAMP_NANOSECOND: TimestampPrecision = TimestampPrecision::Nanosecond;
 
-#[cfg(parse_time)]
+#[cfg(taos_parse_time)]
 extern "C" {
     pub fn taos_parse_time(
         time_str: *const c_char,
@@ -25,7 +25,7 @@ extern "C" {
         daylight: i8, // if in daylight saving time (DST) { 1 } else { 0 }
     ) -> i32;
 }
-#[cfg(all(not(parse_time), feature = "backport"))]
+#[cfg(all(not(taos_parse_time), feature = "backport"))]
 #[no_mangle]
 pub fn taos_parse_time(
     _time_str: *const c_char,
@@ -37,11 +37,13 @@ pub fn taos_parse_time(
     unimplemented!("the function is backport to old version but not implemented!")
 }
 #[test]
-#[cfg(parse_time)]
+#[cfg(taos_parse_time)]
 fn test_parse_time() {
     use std::ffi::CString;
-    let s = CString::new("2020-02-22 20:20:20").unwrap();
+    let s = CString::new("1970-01-01 00:00:00").unwrap();
     let mut time = 0i64;
+    unsafe { crate::taos_init() }; 
+    unsafe { crate::taos_options(crate::TSDB_OPTION_TIMEZONE, b"Europe/Landon\0" as *const u8 as *const _)};
     let res = unsafe {
         taos_parse_time(
             s.as_ptr(),
@@ -51,5 +53,22 @@ fn test_parse_time() {
             0,
         )
     };
-    assert_eq!(time, 1582402820000000, "parse time");
+    assert_eq!(res, 0, "success");
+    assert_eq!(time, 0, "parse time");
+
+
+    let s = CString::new("1970-01-01 08:00:00").unwrap(); // CST +8
+    // timezone could be set multiple times
+    unsafe { crate::taos_options(crate::TSDB_OPTION_TIMEZONE, b"Asia/Shanghai\0" as *const u8 as *const _)};
+    let res = unsafe {
+        taos_parse_time(
+            s.as_ptr(),
+            &mut time as _,
+            s.to_bytes().len() as _,
+            TIMESTAMP_MICROSECOND,
+            0,
+        )
+    };
+    assert_eq!(res, 0, "success");
+    assert_eq!(time, 0, "parse time");
 }

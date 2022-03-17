@@ -3,7 +3,8 @@ use std::{
     ffi::{c_void, CStr},
     fmt::{self, Display},
     future::Future,
-    task::{Poll, Waker}, os::raw::c_char,
+    os::raw::c_char,
+    task::{Poll, Waker},
 };
 use taos_sys::*;
 use thiserror::Error;
@@ -22,6 +23,7 @@ pub mod future;
 
 pub mod async_query;
 
+#[cfg(feature = "tmq")]
 pub mod tmq;
 #[derive(Error, Debug)]
 pub struct TaosError {
@@ -74,7 +76,15 @@ impl Taos {
         }
         unsafe {
             let null = std::ptr::null_mut() as *mut i8;
-            let conn = taos_connect(b"localhost\x00" as *const u8 as *const c_char, null, null, null, port);
+            let conn = taos_connect(
+                // b"localhost\x00" as *const u8 as *const c_char,
+                ip.as_ptr(),
+                // b"root\x00" as *const u8 as *const c_char, //null,
+                user.as_ptr(),
+                pass.as_ptr(), // null,
+                db.as_ptr(), // null,
+                port,
+            );
             // ip.as_ptr(),
             // user.as_ptr(),
             // pass.as_ptr(),
@@ -128,6 +138,15 @@ impl Taos {
     ) -> impl Future<Output = Result<TaosResult<'query>>> {
         self.query_c_str(sql.to_c_string().as_ptr() as _)
     }
+
+    pub async fn exec(&self, sql: impl AsRef<str>) -> Result<usize> {
+        let res = self.query(sql.as_ref()).await?;
+        Ok(res.affected_rows() as _)
+    }
+
+    pub(crate) fn as_raw(&self) -> *mut taos_sys::TAOS {
+        self.0
+    }
 }
 
 #[test]
@@ -154,7 +173,7 @@ fn query_async_await_future_test() {
         .build()
         .unwrap()
         .block_on(async {
-            let taos = Taos::new("mi", "root", "taosdata", "", 0).unwrap();
+            let taos = Taos::new("localhost", "root", "taosdata", "log", 0).unwrap();
             let res = taos.query("select * from log.logs ").await.unwrap();
             let stream = res.fetch_block_stream();
 
@@ -263,3 +282,5 @@ fn test_client_info() {
     let version = client_info();
     dbg!("{version}");
 }
+
+pub mod schemaless;

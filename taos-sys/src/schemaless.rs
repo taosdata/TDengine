@@ -49,13 +49,13 @@ extern "C" {
 }
 
 #[test]
-#[cfg(v2)] // TODO: SML in v3 is unimplemented.
+#[cfg(taos_v2)] // TODO: SML in v3 is unimplemented.
 fn test_sml() {
     use std::ptr;
     unsafe {
         let null = ptr::null();
         let mut lines = [
-            b"st,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin, abc\",c2=true,c4=5f64,c5=5f64,c6=7u64 1626006933640000000\0\0" as *const u8 as *mut c_char
+            b"st,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"a, abc\",c2=true,c4=5f64,c5=5f64,c6=7u64 1626006933640000000\0\0" as *const u8 as *mut c_char
         ];
         let taos = crate::taos_connect(ptr::null(), ptr::null(), null, null, 0);
         let res = crate::taos_query(taos, b"create database _rs_sml_\0" as *const u8 as _);
@@ -71,8 +71,8 @@ fn test_sml() {
         );
         assert!(crate::taos_errno(res) == 0);
         crate::taos_free_result(res);
-        let res = crate::taos_query(taos, b"select * from st\0");
-        
+        let res = crate::taos_query(taos, b"select * from st\0" as *const u8 as _);
+
         crate::taos_free_result(res);
         assert!(!taos.is_null());
         crate::taos_close(taos);
