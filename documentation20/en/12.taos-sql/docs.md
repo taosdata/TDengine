@@ -1588,7 +1588,7 @@ Starting from version 2.6.0.0, TDengine supports following time related function
 
     Applied to: **table stable**.
     
-    Note: If input is UNIX timestamp constant，returned ISO8601 format precision is determined by input timestap digits. If input is TIMSTAMP type column, returned ISO8601 format precision is consist with current DATABASE precision settings.
+    Note: If input is UNIX timestamp constant，returned ISO8601 format precision is determined by input timestamp digits. If input is TIMSTAMP type column, returned ISO8601 format precision is consist with current DATABASE precision settings.
 
     Example:
     ```mysql
