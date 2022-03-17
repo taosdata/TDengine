@@ -217,7 +217,7 @@ int32_t tNameSetDbName(SName* dst, int32_t acct, const char* dbName, size_t name
 }
 
 int32_t tNameSetAcctId(SName* dst, int32_t acctId) {
-  assert(dst != NULL && acct != NULL);
+  assert(dst != NULL);
   dst->acctId = acctId;
   return 0;
 }

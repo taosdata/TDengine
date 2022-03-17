@@ -8,7 +8,8 @@ TEST(TD_UTIL_FREELIST_TEST, simple_test) {
   tFreeListInit(&fl);
 
   for (size_t i = 0; i < 1000; i++) {
-    void *ptr = TFL_MALLOC(1024, &fl);
+    void *ptr = NULL;
+    TFL_MALLOC(ptr, void*, 1024, &fl);
     GTEST_ASSERT_NE(ptr, nullptr);
   }
 

@@ -89,7 +89,7 @@ static SSubLogicPlan* stsCreateScanSubplan(SSplitContext* pCxt, SScanLogicNode* 
   pSubplan->id.groupId = pCxt->groupId;
   pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
   pSubplan->pNode = (SLogicNode*)nodesCloneNode(pScan);
-  TSWAP(pSubplan->pVgroupList, ((SScanLogicNode*)pSubplan->pNode)->pVgroupList, SVgroupsInfo);
+  TSWAP(pSubplan->pVgroupList, ((SScanLogicNode*)pSubplan->pNode)->pVgroupList, SVgroupsInfo*);
   SPLIT_FLAG_SET_MASK(pSubplan->splitFlag, SPLIT_FLAG_STS);
   return pSubplan;
 }
