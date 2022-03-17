@@ -7053,13 +7053,17 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       return invalidOperationMsg(pMsgBuf, msg1);
     }
 
-    SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
-    if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
-      SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
-      if(pColIndex->colIndex != index.columnIndex){
+    if (index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX && !isTopBottomUniqueQuery(pQueryInfo)){
+      bool validOrder = false;
+      SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
+      if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
+        SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
+        validOrder = (pColIndex->colIndex == index.columnIndex);
+      }
+
+      if (!validOrder) {
         return invalidOperationMsg(pMsgBuf, msg7);
       }
-      pQueryInfo->groupbyExpr.orderType = pItem->sortOrder;
     }else if (isTopBottomUniqueQuery(pQueryInfo)) {
       int32_t pos = tscExprTopBottomIndex(pQueryInfo);
       assert(pos > 0);
