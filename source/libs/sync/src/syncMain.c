@@ -734,7 +734,12 @@ static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
     SSyncRaftEntry* pEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
     ths->pLogStore->appendEntry(ths->pLogStore, pEntry);
+
+    // ths->pFsm->FpPreCommitCb(0)
+
+    // start replicate right now!
     syncNodeReplicate(ths);
+
     syncEntryDestory(pEntry);
   } else {
     // ths->pFsm->FpCommitCb(-1)
