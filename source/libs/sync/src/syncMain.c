@@ -749,9 +749,10 @@ static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg
     SRpcMsg rpcMsg;
     syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
-    assert(ths->pFsm != NULL);
-    if (ths->pFsm->FpPreCommitCb != NULL) {
-      ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0);
+    if (ths->pFsm != NULL) {
+      if (ths->pFsm->FpPreCommitCb != NULL) {
+        ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0);
+      }
     }
     rpcFreeCont(rpcMsg.pCont);
 
@@ -760,9 +761,10 @@ static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg
     SRpcMsg rpcMsg;
     syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
-    assert(ths->pFsm != NULL);
-    if (ths->pFsm->FpPreCommitCb != NULL) {
-      ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, -1);
+    if (ths->pFsm != NULL) {
+      if (ths->pFsm->FpPreCommitCb != NULL) {
+        ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, -1);
+      }
     }
     rpcFreeCont(rpcMsg.pCont);
   }
