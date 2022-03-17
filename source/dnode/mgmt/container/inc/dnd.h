@@ -104,6 +104,9 @@ typedef struct SMgmtFp {
 typedef struct SMgmtWrapper {
   const char *name;
   char       *path;
+  int32_t     refCount;
+  bool        deployed;
+  bool        dropped;
   bool        required;
   EProcType   procType;
   SProcObj   *pProc;

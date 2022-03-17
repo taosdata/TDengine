@@ -16,6 +16,77 @@
 #define _DEFAULT_SOURCE
 #include "dndInt.h"
 
+
+
+static int32_t dndBuildMsg(SNodeMsg *pMsg, SRpcMsg *pRpc, SEpSet *pEpSet) {
+  SRpcConnInfo connInfo = {0};
+  if ((pRpc->msgType & 1U) && rpcGetConnInfo(pRpc->handle, &connInfo) != 0) {
+    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
+    dError("failed to build msg since %s, app:%p RPC:%p", terrstr(), pRpc->ahandle, pRpc->handle);
+    return -1;
+  }
+
+  memcpy(pMsg->user, connInfo.user, TSDB_USER_LEN);
+  pMsg->rpcMsg = *pRpc;
+
+  return 0;
+}
+
+void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSet) {
+  if (pEpSet && pEpSet->numOfEps > 0 && pRpc->msgType == TDMT_MND_STATUS_RSP) {
+    dmUpdateMnodeEpSet(dndGetWrapper(pWrapper->pDnode, DNODE)->pMgmt, pEpSet);
+  }
+
+  int32_t   code = -1;
+  SNodeMsg *pMsg = NULL;
+
+  NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pRpc->msgType)];
+  if (msgFp == NULL) {
+    terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+    goto _OVER;
+  }
+
+  pMsg = taosAllocateQitem(sizeof(SNodeMsg));
+  if (pMsg == NULL) {
+    goto _OVER;
+  }
+
+  if (dndBuildMsg(pMsg, pRpc, pEpSet) != 0) {
+    goto _OVER;
+  }
+
+  dTrace("msg:%p, is created, app:%p user:%s", pMsg, pRpc->ahandle, pMsg->user);
+
+  if (pWrapper->procType == PROC_SINGLE) {
+    code = (*msgFp)(pWrapper->pMgmt, pMsg);
+  } else if (pWrapper->procType == PROC_PARENT) {
+    code = taosProcPutToChildQueue(pWrapper->pProc, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen);
+  } else {
+    terrno = TSDB_CODE_MEMORY_CORRUPTED;
+    dError("msg:%p, won't be processed for it is child process", pMsg);
+  }
+
+_OVER:
+
+  if (code == 0) {
+    if (pWrapper->procType == PROC_PARENT) {
+      dTrace("msg:%p, is freed", pMsg);
+      taosFreeQitem(pMsg);
+      rpcFreeCont(pRpc->pCont);
+    }
+  } else {
+    dError("msg:%p, failed to process since %s", pMsg, terrstr());
+    bool isReq = (pRpc->msgType & 1U);
+    if (isReq) {
+      SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
+      dndSendRsp(pWrapper, &rsp);
+    }
+    dTrace("msg:%p, is freed", pMsg);
+    taosFreeQitem(pMsg);
+    rpcFreeCont(pRpc->pCont);
+  }
+}
+
 static SMgmtWrapper *dndGetWrapperFromMsg(SDnode *pDnode, SNodeMsg *pMsg) {
   SMgmtWrapper *pWrapper = NULL;
   switch (pMsg->rpcMsg.msgType) {

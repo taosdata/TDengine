@@ -41,7 +41,7 @@ void dndCleanup();
 typedef struct {
   int32_t   numOfSupportVnodes;
   uint16_t  serverPort;
-  char      dataDir[TSDB_FILENAME_LEN];
+  char      dataDir[PATH_MAX];
   char      localEp[TSDB_EP_LEN];
   char      localFqdn[TSDB_FQDN_LEN];
   char      firstEp[TSDB_EP_LEN];
