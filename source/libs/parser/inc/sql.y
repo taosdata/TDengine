@@ -204,7 +204,7 @@ cmd ::= SHOW FUNCTIONS.                                                         
 cmd ::= SHOW INDEXES FROM table_name_cond(A) from_db_opt(B).                      { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_INDEXES_STMT, A, B); }
 cmd ::= SHOW STREAMS.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_STREAMS_STMT, NULL, NULL); }
 
-db_name_cond_opt(A) ::= .                                                         { A = NULL; }
+db_name_cond_opt(A) ::= .                                                         { A = createDefaultDatabaseCondValue(pCxt); }
 db_name_cond_opt(A) ::= db_name(B) NK_DOT.                                        { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
 
 like_pattern_opt(A) ::= .                                                         { A = NULL; }
@@ -212,7 +212,7 @@ like_pattern_opt(A) ::= LIKE NK_STRING(B).                                      
 
 table_name_cond(A) ::= table_name(B).                                             { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
 
-from_db_opt(A) ::= .                                                              { A = NULL; }
+from_db_opt(A) ::= .                                                              { A = createDefaultDatabaseCondValue(pCxt); }
 from_db_opt(A) ::= FROM db_name(B).                                               { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
 
 /************************************************ select **************************************************************/

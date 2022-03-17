@@ -307,15 +307,6 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode* pCol) {
   return found ? DEAL_RES_CONTINUE : translateColumnWithoutPrefix(pCxt, pCol);
 }
 
-static int32_t trimStringWithVarFormat(const char* src, int32_t len, bool format, char* dst) {
-  char* dstVal = dst;
-  if (format) {
-    varDataSetLen(dst, len);
-    dstVal = varDataVal(dst);
-  }
-  return trimString(src, len, dstVal, len);
-}
-
 static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
   if (pVal->isDuration) {
     char unit = 0;
@@ -354,26 +345,18 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
       case TSDB_DATA_TYPE_NCHAR:
       case TSDB_DATA_TYPE_VARCHAR:
       case TSDB_DATA_TYPE_VARBINARY: {
-        int32_t n = strlen(pVal->literal);
-        pVal->datum.p = calloc(1, n + VARSTR_HEADER_SIZE);
+        pVal->datum.p = calloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE);
         if (NULL == pVal->datum.p) {
           return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
         }
-        trimStringWithVarFormat(pVal->literal, n, true, pVal->datum.p);
+        varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
+        strcpy(varDataVal(pVal->datum.p), pVal->literal);
         break;
       }
       case TSDB_DATA_TYPE_TIMESTAMP: {
-        int32_t n = strlen(pVal->literal);
-        char* tmp = calloc(1, n);
-        if (NULL == tmp) {
-          return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
-        }
-        int32_t len = trimStringWithVarFormat(pVal->literal, n, false, tmp);
-        if (taosParseTime(tmp, &pVal->datum.i, len, pVal->node.resType.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
-          tfree(tmp);
+        if (taosParseTime(pVal->literal, &pVal->datum.i, pVal->node.resType.bytes, pVal->node.resType.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
           return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
         }
-        tfree(tmp);
         break;
       }
       case TSDB_DATA_TYPE_JSON:

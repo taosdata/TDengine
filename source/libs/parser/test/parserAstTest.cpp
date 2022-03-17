@@ -416,11 +416,11 @@ TEST_F(ParserTest, createTable) {
 TEST_F(ParserTest, showTables) {
   setDatabase("root", "test");
 
-  // bind("show tables");
-  // ASSERT_TRUE(run());
+  bind("show tables");
+  ASSERT_TRUE(run());
 
-  // bind("show test.tables");
-  // ASSERT_TRUE(run());
+  bind("show test.tables");
+  ASSERT_TRUE(run());
 
   bind("show tables like 'c%'");
   ASSERT_TRUE(run());

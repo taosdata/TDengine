@@ -5532,6 +5532,9 @@ static SSDataBlock* doSysTableScan(void* param, bool* newgroup) {
     int64_t startTs = taosGetTimestampUs();
 
     pInfo->req.type = pInfo->type;
+//    tNameGetFullDbName(&pInfo->name, pInfo->req.db);
+    strncpy(pInfo->req.tb, tNameGetTableName(&pInfo->name), tListLen(pInfo->req.tb));
+
     int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &pInfo->req);
     char* buf1 = calloc(1, contLen);
     tSerializeSRetrieveTableReq(buf1, contLen, &pInfo->req);
@@ -5574,7 +5577,7 @@ static SSDataBlock* doSysTableScan(void* param, bool* newgroup) {
   return NULL;
 }
 
-SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataBlock* pResBlock, int32_t tableType,
+SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataBlock* pResBlock, const SName* pName,
                                               SEpSet epset, SExecTaskInfo* pTaskInfo) {
   SSysTableScanInfo* pInfo = calloc(1, sizeof(SSysTableScanInfo));
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
@@ -5587,7 +5590,41 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
 
   pInfo->pRes     = pResBlock;
   pInfo->capacity = 4096;
-  pInfo->type     = tableType;
+
+  int32_t tableType = 0;
+  const char* name = tNameGetTableName(pName);
+  if (strncasecmp(name, TSDB_INS_TABLE_USER_DATABASES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_DB;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_USERS, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_USER;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_DNODES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_DNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_MNODES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_MNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_MODULES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_MODULE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_QNODES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_QNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_FUNCTIONS, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_FUNC;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_INDEXES, tListLen(pName->tname)) == 0) {
+//    tableType = TSDB_MGMT_TABLE_INDEX;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_STABLES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_STB;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_STREAMS, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_STREAMS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_TABLE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_VGROUPS, tListLen(pName->tname)) == 0) {
+    tableType = TSDB_MGMT_TABLE_VGROUP;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED, tListLen(pName->tname)) == 0) {
+//    tableType = TSDB_MGMT_TABLE_DIST;
+  } else {
+    ASSERT(0);
+  }
+
+  tNameAssign(&pInfo->name, pName);
+  pInfo->type = tableType;
   if (pInfo->type == TSDB_MGMT_TABLE_TABLE) {
     pInfo->readHandle = pSysTableReadHandle;
     blockDataEnsureCapacity(pInfo->pRes, pInfo->capacity);
@@ -8165,7 +8202,7 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhysiNode* pPhyNode, SExecTaskInfo* pTa
       SSystemTableScanPhysiNode * pSysScanPhyNode = (SSystemTableScanPhysiNode*)pPhyNode;
       SSDataBlock* pResBlock = createOutputBuf_rv1(pSysScanPhyNode->scan.node.pOutputDataBlockDesc);
 
-      SOperatorInfo* pOperator = createSysTableScanOperatorInfo(NULL, pResBlock,  TSDB_MGMT_TABLE_DB, pSysScanPhyNode->mgmtEpSet, pTaskInfo);
+      SOperatorInfo* pOperator = createSysTableScanOperatorInfo(NULL, pResBlock,  &pSysScanPhyNode->scan.tableName, pSysScanPhyNode->mgmtEpSet, pTaskInfo);
       return pOperator;
     } else {
       ASSERT(0);

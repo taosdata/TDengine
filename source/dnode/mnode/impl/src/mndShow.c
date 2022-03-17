@@ -284,7 +284,13 @@ static int32_t mndProcessRetrieveSysTableReq(SMnodeMsg *pReq) {
     strncpy(req.db, retrieveReq.db, tListLen(req.db));
 
     pShow = mndCreateShowObj(pMnode, &req);
-    STableMetaRsp *meta = (STableMetaRsp *)taosHashGet(pMnode->infosMeta, TSDB_INS_TABLE_USER_DATABASES, strlen(TSDB_INS_TABLE_USER_DATABASES));
+    if (pShow == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      mError("failed to process show-meta req since %s", terrstr());
+      return -1;
+    }
+
+    STableMetaRsp *meta = (STableMetaRsp *)taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));
     pShow->numOfRows = 100;
 
     int32_t offset = 0;
@@ -296,12 +302,6 @@ static int32_t mndProcessRetrieveSysTableReq(SMnodeMsg *pReq) {
       pShow->rowSize += bytes;
       pShow->bytes[i] = bytes;
       offset += bytes;
-    }
-
-    if (pShow == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      mError("failed to process show-meta req since %s", terrstr());
-      return -1;
     }
   } else {
     pShow = mndAcquireShowObj(pMnode, retrieveReq.showId);

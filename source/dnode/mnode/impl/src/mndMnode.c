@@ -692,11 +692,11 @@ static int32_t mndRetrieveMnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, i
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pObj->createdTime;
+    *(int64_t *)pWrite = pObj->roleTime;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pObj->roleTime;
+    *(int64_t *)pWrite = pObj->createdTime;
     cols++;
 
     numOfRows++;
