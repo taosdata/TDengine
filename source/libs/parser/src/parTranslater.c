@@ -1374,7 +1374,7 @@ static int32_t createOperatorNode(EOperatorType opType, const char* pColName, SN
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pOper->opType = OP_TYPE_LIKE;
+  pOper->opType = opType;
   pOper->pLeft = nodesMakeNode(QUERY_NODE_COLUMN);
   pOper->pRight = nodesCloneNode(pRight);
   if (NULL == pOper->pLeft || NULL == pOper->pRight) {
