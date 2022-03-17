@@ -150,7 +150,7 @@ int32_t mmWriteFile(SMnodeMgmt *pMgmt) {
   taosCloseFile(&pFile);
   free(content);
 
-  char realfile[PATH_MAX + 20];
+  char realfile[PATH_MAX];
   snprintf(realfile, sizeof(realfile), "%s%smnode.json", pMgmt->path, TD_DIRSEP);
 
   if (taosRenameFile(file, realfile) != 0) {

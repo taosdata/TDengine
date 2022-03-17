@@ -45,9 +45,17 @@ void mmRelease(SMnodeMgmt *pMgmt, SMnode *pMnode) {
 }
 
 int32_t mmOpen(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
+  SMnode *pMnode = mmAcquire(pMgmt);
+  if (pMnode != NULL) {
+    mmRelease(pMgmt, pMnode);
+    terrno = TSDB_CODE_DND_MNODE_ALREADY_DEPLOYED;
+    dError("failed to create mnode since %s", terrstr());
+    return -1;
+  }
+
   if (walInit() != 0) {
     dError("failed to init wal since %s", terrstr());
-    dndCleanup();
+    mndDestroy(pMgmt->path);
     return -1;
   }
 

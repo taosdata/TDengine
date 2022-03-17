@@ -16,9 +16,42 @@
 #define _DEFAULT_SOURCE
 #include "bmInt.h"
 
-int32_t bmProcessCreateReq(SBnodeMgmt *pMgmt, SNodeMsg *pRpcMsg) {return 0;}
-int32_t bmProcessDropReq(SBnodeMgmt *pMgmt, SNodeMsg *pRpcMsg) {return 0;}
+int32_t bmProcessCreateReq(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+  SDnode  *pDnode = pMgmt->pDnode;
+  SRpcMsg *pReq = &pMsg->rpcMsg;
 
+  SDCreateBnodeReq createReq = {0};
+  if (tDeserializeSMCreateDropQSBNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
 
-void bmInitMsgHandles(SMgmtWrapper *pWrapper) {
+  if (createReq.dnodeId != pDnode->dnodeId) {
+    terrno = TSDB_CODE_DND_BNODE_INVALID_OPTION;
+    dError("failed to create bnode since %s", terrstr());
+    return -1;
+  } else {
+    return bmOpen(pDnode);
+  }
 }
+
+int32_t bmProcessDropReq(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+  SDnode  *pDnode = pMgmt->pDnode;
+  SRpcMsg *pReq = &pMsg->rpcMsg;
+
+  SDDropBnodeReq dropReq = {0};
+  if (tDeserializeSMCreateDropQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  if (dropReq.dnodeId != pDnode->dnodeId) {
+    terrno = TSDB_CODE_DND_BNODE_INVALID_OPTION;
+    dError("failed to drop bnode since %s", terrstr());
+    return -1;
+  } else {
+    return bmDrop(pDnode);
+  }
+}
+
+void bmInitMsgHandles(SMgmtWrapper *pWrapper) {}
