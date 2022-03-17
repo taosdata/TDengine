@@ -419,7 +419,7 @@ typedef struct {
   };
 } SColumnFilterList;
 /*
- * for client side struct, we only need the column id, type, bytes are not necessary
+ * for client side struct, only column id, type, bytes are necessary
  * But for data in vnode side, we need all the following information.
  */
 typedef struct {
@@ -2173,13 +2173,36 @@ typedef struct {
   SArray* topics;  // SArray<SMqSubTopicEp>
 } SMqCMGetSubEpRsp;
 
-struct tmq_message_t {
+typedef struct {
   SMqRspHead head;
   union {
     SMqPollRsp       consumeRsp;
     SMqCMGetSubEpRsp getEpRsp;
   };
   void* extra;
+} SMqMsgWrapper;
+
+typedef struct {
+  int32_t curBlock;
+  int32_t curRow;
+  void**  uData;
+} SMqRowIter;
+
+struct tmq_message_t_v1 {
+  SMqPollRsp rsp;
+  SMqRowIter iter;
+};
+
+struct tmq_message_t {
+  SMqRspHead head;
+  union {
+    SMqPollRsp       consumeRsp;
+    SMqCMGetSubEpRsp getEpRsp;
+  };
+  void*   extra;
+  int32_t curBlock;
+  int32_t curRow;
+  void**  uData;
 };
 
 static FORCE_INLINE void tDeleteSMqSubTopicEp(SMqSubTopicEp* pSubTopicEp) { taosArrayDestroy(pSubTopicEp->vgs); }
