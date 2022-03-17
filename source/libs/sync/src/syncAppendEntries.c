@@ -101,7 +101,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
   assert(pMsg->dataLen >= 0);
 
   SyncTerm localPreLogTerm = 0;
-  if (pMsg->prevLogTerm >= SYNC_INDEX_BEGIN && pMsg->prevLogTerm <= ths->pLogStore->getLastIndex(ths->pLogStore)) {
+  if (pMsg->prevLogIndex >= SYNC_INDEX_BEGIN && pMsg->prevLogIndex <= ths->pLogStore->getLastIndex(ths->pLogStore)) {
     SSyncRaftEntry* pEntry = logStoreGetEntry(ths->pLogStore, pMsg->prevLogIndex);
     assert(pEntry != NULL);
     localPreLogTerm = pEntry->term;
@@ -174,7 +174,12 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
       pReply->destId = pMsg->srcId;
       pReply->term = ths->pRaftStore->currentTerm;
       pReply->success = true;
-      pReply->matchIndex = pMsg->prevLogIndex + 1;
+
+      if (pMsg->dataLen > 0) {
+        pReply->matchIndex = pMsg->prevLogIndex + 1;
+      } else {
+        pReply->matchIndex = pMsg->prevLogIndex;
+      }
 
       SRpcMsg rpcMsg;
       syncAppendEntriesReply2RpcMsg(pReply, &rpcMsg);

@@ -731,14 +731,44 @@ static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg
   int32_t ret = 0;
   syncClientRequestLog2("==syncNodeOnClientRequestCb==", pMsg);
 
+  SyncIndex       index = ths->pLogStore->getLastIndex(ths->pLogStore) + 1;
+  SyncTerm        term = ths->pRaftStore->currentTerm;
+  SSyncRaftEntry* pEntry = syncEntryBuild2((SyncClientRequest*)pMsg, term, index);
+  assert(pEntry != NULL);
+
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
-    SSyncRaftEntry* pEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
     ths->pLogStore->appendEntry(ths->pLogStore, pEntry);
+
+    // only myself, maybe commit
+    syncNodeMaybeAdvanceCommitIndex(ths);
+
+    // start replicate right now!
     syncNodeReplicate(ths);
-    syncEntryDestory(pEntry);
+
+    // pre commit
+    SRpcMsg rpcMsg;
+    syncEntry2OriginalRpc(pEntry, &rpcMsg);
+
+    if (ths->pFsm != NULL) {
+      if (ths->pFsm->FpPreCommitCb != NULL) {
+        ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0);
+      }
+    }
+    rpcFreeCont(rpcMsg.pCont);
+
   } else {
-    // ths->pFsm->FpCommitCb(-1)
+    // pre commit
+    SRpcMsg rpcMsg;
+    syncEntry2OriginalRpc(pEntry, &rpcMsg);
+
+    if (ths->pFsm != NULL) {
+      if (ths->pFsm->FpPreCommitCb != NULL) {
+        ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, -1);
+      }
+    }
+    rpcFreeCont(rpcMsg.pCont);
   }
 
+  syncEntryDestory(pEntry);
   return ret;
 }
