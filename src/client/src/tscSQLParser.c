@@ -6852,7 +6852,6 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
   const char* msg5 = "only primary timestamp/column in top/bottom function allowed as order column";
   const char* msg6 = "only primary timestamp allowed as the second order column";
   const char* msg7 = "only primary timestamp/column in groupby clause allowed as order column";
-  const char* msg8 = "only column in groupby clause allowed as order column";
   const char* msg10 = "not support distinct mixed with order by";
   const char* msg11 = "not support order with udf";
   const char* msg12 = "order by tags not supported with diff/derivative/csum/mavg/stateCount/stateDuration";
@@ -7054,53 +7053,34 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       return invalidOperationMsg(pMsgBuf, msg1);
     }
 
-    if (index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX && !isTopBottomUniqueQuery(pQueryInfo)) {
-      bool validOrder = false;
-      SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
-      if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
-        SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
-        validOrder = (pColIndex->colIndex == index.columnIndex);
-      }
-
-      if (!validOrder) {
+    SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
+    if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
+      SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
+      if(pColIndex->colIndex != index.columnIndex){
         return invalidOperationMsg(pMsgBuf, msg7);
       }
-
-      if (udf) {
-        return invalidOperationMsg(pMsgBuf, msg11);
-      }
-
       pQueryInfo->groupbyExpr.orderType = pItem->sortOrder;
-    }
+    }else if (isTopBottomUniqueQuery(pQueryInfo)) {
+      int32_t pos = tscExprTopBottomIndex(pQueryInfo);
+      assert(pos > 0);
+      SExprInfo* pExpr = tscExprGet(pQueryInfo, pos - 1);
+      assert(pExpr->base.functionId == TSDB_FUNC_TS);
 
-    if (isTopBottomUniqueQuery(pQueryInfo)) {
-      SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
-      if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
-        SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
+      pExpr = tscExprGet(pQueryInfo, pos);
 
-        if (pColIndex->colIndex != index.columnIndex) {
-          return invalidOperationMsg(pMsgBuf, msg8);
-        }
-      } else {
-        int32_t pos = tscExprTopBottomIndex(pQueryInfo);
-        assert(pos > 0);
-        SExprInfo* pExpr = tscExprGet(pQueryInfo, pos - 1);
-        assert(pExpr->base.functionId == TSDB_FUNC_TS);
-
-        pExpr = tscExprGet(pQueryInfo, pos);
-
-        if (pExpr->base.colInfo.colIndex != index.columnIndex && index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-          return invalidOperationMsg(pMsgBuf, msg5);
-        }
+      if (pExpr->base.colInfo.colIndex != index.columnIndex && index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+        return invalidOperationMsg(pMsgBuf, msg5);
       }
+      pQueryInfo->order.order = pItem->sortOrder;
+      pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
+    }else{
+      pQueryInfo->order.order = pItem->sortOrder;
+      pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
     }
 
     if (udf) {
       return invalidOperationMsg(pMsgBuf, msg11);
     }
-
-    pQueryInfo->order.order = pItem->sortOrder;
-    pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
   } else {
     // handle the temp table order by clause. You can order by any single column in case of the temp table, created by
     // inner subquery.
