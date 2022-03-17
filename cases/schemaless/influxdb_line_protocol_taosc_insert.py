@@ -28,7 +28,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         normal tags and cols, one for every elm
         """
         self.tdCom.cleanTb()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql()
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(sml_type="opentsdb_telnet")
         self.tdCom.check_res(input_sql, stb_name)
 
     def bool_check(self):
@@ -405,7 +405,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         except SchemalessError as err:
             self.tdSql.checkNotEqual(err.errno, 0)
 
-        input_sql = self.tdCom.gen_full_type_sql()[0]
+        input_sql = self.tdCom.gen_full_type_sql(sml_type="opentsdb_telnet")[0]
         input_sql_tag = input_sql.replace("t5", "t6")
         try:
             self.tdSql._conn.schemaless_insert([input_sql_tag], TDSmlProtocolType.LINE.value, None)
@@ -413,7 +413,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         except SchemalessError as err:
             self.tdSql.checkNotEqual(err.errno, 0)
 
-        input_sql = self.tdCom.gen_full_type_sql()[0]
+        input_sql = self.tdCom.gen_full_type_sql(sml_type="opentsdb_telnet")[0]
         input_sql_col = input_sql.replace("c5", "c6")
         try:
             self.tdSql._conn.schemaless_insert([input_sql_col], TDSmlProtocolType.LINE.value, None)
@@ -421,7 +421,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         except SchemalessError as err:
             self.tdSql.checkNotEqual(err.errno, 0)
 
-        input_sql = self.tdCom.gen_full_type_sql()[0]
+        input_sql = self.tdCom.gen_full_type_sql(sml_type="opentsdb_telnet")[0]
         input_sql_col = input_sql.replace("c5", "C6")
         try:
             self.tdSql._conn.schemaless_insert([input_sql_col], TDSmlProtocolType.LINE.value, None)
@@ -449,7 +449,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         check duplicate insert when stb exist
         """
         self.tdCom.cleanTb()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql()
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(sml_type="opentsdb_telnet")
         self.tdCom.check_res(input_sql, stb_name)
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         self.tdCom.check_res(input_sql, stb_name)
@@ -459,7 +459,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         check length increase
         """
         self.tdCom.cleanTb()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql()
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(sml_type="opentsdb_telnet")
         self.tdCom.check_res(input_sql, stb_name)
         tb_name = self.tdCom.get_long_name(5, "letters")
         input_sql, stb_name = self.tdCom.gen_full_type_sql(stb_name=stb_name, tb_name=tb_name, t7="\"binaryTagValuebinaryTagValue\"", t8="L\"ncharTagValuencharTagValue\"", c7="\"binaryTagValuebinaryTagValue\"", c8="L\"ncharTagValuencharTagValue\"")
@@ -809,7 +809,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         thread input same stb, different tb, different data
         """
         self.tdCom.cleanTb()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql()
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(sml_type="opentsdb_telnet")
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_d_tb_list = self.tdCom.gen_sql_list(stb_name=stb_name)[4]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_list))
@@ -821,7 +821,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         thread input same stb, different tb, different data, add col, mul tag
         """
         self.tdCom.cleanTb()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql()
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(sml_type="opentsdb_telnet")
         self.tdCom.check_res(input_sql, stb_name)
         # s_stb_d_tb_a_col_m_tag_list = self.tdCom.gen_sql_list(stb_name=stb_name)[5]
         s_stb_d_tb_a_col_m_tag_list = [(f'{stb_name},t0=F,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="ngxgzdzs",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=F 1626006833639000000', 'hpxbys'), \
@@ -838,7 +838,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         thread input same stb, different tb, different data, add tag, mul col
         """
         self.tdCom.cleanTb()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql()
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(sml_type="opentsdb_telnet")
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_d_tb_a_tag_m_col_list = self.tdCom.gen_sql_list(stb_name=stb_name)[6]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_a_tag_m_col_list))
@@ -917,7 +917,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         thread input same stb, different tb, data, ts
         """
         self.tdCom.cleanTb()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql()
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(sml_type="opentsdb_telnet")
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_d_tb_d_ts_list = self.tdCom.gen_sql_list(stb_name=stb_name)[10]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_d_ts_list))
@@ -929,7 +929,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         thread input same stb, different tb, data, ts, add col, mul tag
         """
         self.tdCom.cleanTb()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql()
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(sml_type="opentsdb_telnet")
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_d_tb_d_ts_a_col_m_tag_list = [(f'{stb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="eltflgpz",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=True 0', 'ynnlov'), \
                                             (f'{stb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="ysznggwl",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=t 0', 'ynnlov'), \
@@ -942,53 +942,53 @@ class TestInfluxdbLineTaoscInsert(TDCase):
 
     def run(self) -> bool:
         self.init_check()
-        self.bool_check()
-        self.symbols_check()
-        self.ts_check()
-        self.id_seq_check()
-        self.id_letter_check()
-        self.no_id_check()
-        self.max_col_tag_check()
-        self.stb_tb_name_check()
-        self.id_start_with_num_check()
-        self.now_check()
-        self.date_format_check()
-        self.illegal_ts_check()
-        # self.tbname_check()
-        self.tag_value_length_check()
-        self.col_value_length_check()
-        self.tag_col_illegal_value_check()
-        self.duplicate_id_tag_col_insert_check()
-        self.no_id_stb_exist_check()
-        self.duplicate_insert_exist_check()
-        self.tag_col_binary_nchar_length_check()
-        # self.tag_col_add_dup_id_check()
-        self.tag_col_add_check()
-        self.tag_md5_check()
-        self.tag_col_binary_max_length_check()
-        self.batch_insert_check()
-        self.multiInsert_check(10)
-        self.batch_error_insert_check()
-        self.multi_cols_insert_check()
-        self.multi_tags_insert_check()
-        self.blank_col_insert_check()
-        self.blank_tag_insert_check()
-        self.chinese_check()
-        self.spell_check()
-        self.defaultType_check()
-        self.tbname_tags_cols_name_check()
-        self.stb_insert_multi_thread_check()
-        self.s_stb_s_tb_d_data_insert_multi_thread_check()
-        self.s_stb_s_tb_d_data_atc_insert_multi_thread_check()
-        self.s_stb_stb_d_data_mtc_insert_multi_thread_check()
-        self.s_stb_d_tb_d_data_insert_multi_thread_check()
-        self.s_stb_d_tb_d_data_ac_mt_insert_multi_thread_check()
-        self.s_stb_d_tb_d_data_at_mc_insert_multi_thread_check()
-        self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
-        self.s_stb_s_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
-        self.s_stb_s_tb_d_data_d_ts_at_mc_insert_multi_thread_check()
-        self.s_stb_d_tb_d_data_d_ts_insert_multi_thread_check()
-        self.s_stb_d_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
+        # self.bool_check()
+        # self.symbols_check()
+        # self.ts_check()
+        # self.id_seq_check()
+        # self.id_letter_check()
+        # self.no_id_check()
+        # self.max_col_tag_check()
+        # self.stb_tb_name_check()
+        # self.id_start_with_num_check()
+        # self.now_check()
+        # self.date_format_check()
+        # self.illegal_ts_check()
+        # # self.tbname_check()
+        # self.tag_value_length_check()
+        # self.col_value_length_check()
+        # self.tag_col_illegal_value_check()
+        # self.duplicate_id_tag_col_insert_check()
+        # self.no_id_stb_exist_check()
+        # self.duplicate_insert_exist_check()
+        # self.tag_col_binary_nchar_length_check()
+        # # self.tag_col_add_dup_id_check()
+        # self.tag_col_add_check()
+        # self.tag_md5_check()
+        # self.tag_col_binary_max_length_check()
+        # self.batch_insert_check()
+        # self.multiInsert_check(10)
+        # self.batch_error_insert_check()
+        # self.multi_cols_insert_check()
+        # self.multi_tags_insert_check()
+        # self.blank_col_insert_check()
+        # self.blank_tag_insert_check()
+        # self.chinese_check()
+        # self.spell_check()
+        # self.defaultType_check()
+        # self.tbname_tags_cols_name_check()
+        # self.stb_insert_multi_thread_check()
+        # self.s_stb_s_tb_d_data_insert_multi_thread_check()
+        # self.s_stb_s_tb_d_data_atc_insert_multi_thread_check()
+        # self.s_stb_stb_d_data_mtc_insert_multi_thread_check()
+        # self.s_stb_d_tb_d_data_insert_multi_thread_check()
+        # self.s_stb_d_tb_d_data_ac_mt_insert_multi_thread_check()
+        # self.s_stb_d_tb_d_data_at_mc_insert_multi_thread_check()
+        # self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
+        # self.s_stb_s_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
+        # self.s_stb_s_tb_d_data_d_ts_at_mc_insert_multi_thread_check()
+        # self.s_stb_d_tb_d_data_d_ts_insert_multi_thread_check()
+        # self.s_stb_d_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
 
     def cleanup(self):
         pass
@@ -1008,4 +1008,4 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         return "Jayden"
 
     def tags(self):
-        return T.Write.RestfulSql.Insert.BoundaryTest.Tinyint
+        return T.Write.Schemaless.Taosc.OpenTsDBTelnet
