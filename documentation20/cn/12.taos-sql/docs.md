@@ -1972,8 +1972,8 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 - **TODAY**
     ```mysql
     SELECT TODAY() FROM { tb_name | stb_name } [WHERE clause];
-    SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior TODAY()]
-    INSERT INTO tb_name VALUES (TODAY(), ...)
+    SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior TODAY()];
+    INSERT INTO tb_name VALUES (TODAY(), ...);
     ```
     功能说明：返回客户端当日零时的系统时间。
 
