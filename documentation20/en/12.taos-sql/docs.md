@@ -888,7 +888,9 @@ TDengine supports aggregations over data, they are listed below:
     ```mysql
     SELECT HYPERLOGLOG(field_name) FROM { tb_name | stb_name } [WHERE clause];
     ```
-    Function: The hyperloglog algorithm is used to return the cardinality of a column. In the case of large amount of data, the algorithm can significantly reduce the occupation of memory, but the cardinality is an estimated value, and the standard error is 0.81%.
+    Function: 
+    - The hyperloglog algorithm is used to return the cardinality of a column. In the case of large amount of data, the algorithm can significantly reduce the occupation of memory, but the cardinality is an estimated value, and the standard error(the standard error is the standard deviation of the average of multiple experiments, not the error with the real result) is 0.81%.
+    - When the amount of data is small, the algorithm is not very accurate. You can use the method like this: select count(data) from (select unique(col) as data from table).
 
     Return Data Type:Integer.
 
