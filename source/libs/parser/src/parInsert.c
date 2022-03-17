@@ -250,7 +250,6 @@ static void buildMsgHeader(STableDataBlocks* src, SVgDataBlocks* blocks) {
     SSubmitReq* submit = (SSubmitReq*)blocks->pData;
     submit->header.vgId    = htonl(blocks->vg.vgId);
     submit->header.contLen = htonl(blocks->size);
-    strcpy(submit->header.dbFName, src->dbFName);
     submit->length         = submit->header.contLen;
     submit->numOfBlocks    = htonl(blocks->numOfTables);
     SSubmitBlk* blk = (SSubmitBlk*)(submit + 1);
@@ -1049,4 +1048,6 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
   if (TSDB_CODE_SUCCESS == code) {
     code = parseInsertBody(&context);
   }
-  dest
+  destroyInsertParseContext(&context);
+  return code;
+}
