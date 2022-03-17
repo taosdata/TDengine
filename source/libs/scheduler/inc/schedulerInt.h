@@ -28,8 +28,7 @@ extern "C" {
 
 #define SCHEDULE_DEFAULT_MAX_JOB_NUM 1000
 #define SCHEDULE_DEFAULT_MAX_TASK_NUM 1000
-#define SCHEDULE_DEFAULT_MAX_NODE_TABLE_NUM 20  // unit is TSDB_TABLE_NUM_UNIT
-
+#define SCHEDULE_DEFAULT_MAX_NODE_TABLE_NUM 200  // unit is TSDB_TABLE_NUM_UNIT
 
 #define SCH_MAX_CANDIDATE_EP_NUM TSDB_MAX_REPLICA
 
@@ -113,6 +112,7 @@ typedef struct SSchTask {
   int32_t              msgLen;         // msg length
   int8_t               status;         // task status
   int32_t              lastMsgType;    // last sent msg type
+  int32_t              tryTimes;       // task already tried times
   SQueryNodeAddr       succeedAddr;    // task executed success node address
   int8_t               candidateIdx;   // current try condidation index
   SArray              *candidateAddrs; // condidate node addresses, element is SQueryNodeAddr
@@ -176,9 +176,12 @@ extern SSchedulerMgmt schMgmt;
 
 #define SCH_SET_TASK_STATUS(task, st) atomic_store_8(&(task)->status, st)
 #define SCH_GET_TASK_STATUS(task) atomic_load_8(&(task)->status)
+#define SCH_GET_TASK_STATUS_STR(task) jobTaskStatusStr(SCH_GET_TASK_STATUS(task))
+
 
 #define SCH_SET_JOB_STATUS(job, st) atomic_store_8(&(job)->status, st)
 #define SCH_GET_JOB_STATUS(job) atomic_load_8(&(job)->status)
+#define SCH_GET_JOB_STATUS_STR(job) jobTaskStatusStr(SCH_GET_JOB_STATUS(job))
 
 #define SCH_SET_JOB_NEED_FLOW_CTRL(_job) (_job)->attr.needFlowCtrl = true
 #define SCH_JOB_NEED_FLOW_CTRL(_job) ((_job)->attr.needFlowCtrl)
@@ -193,6 +196,7 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_IS_LEVEL_UNFINISHED(_level) ((_level)->taskLaunchedNum < (_level)->taskNum)
 #define SCH_GET_CUR_EP(_addr) (&(_addr)->epSet.eps[(_addr)->epSet.inUse])
 #define SCH_SWITCH_EPSET(_addr) ((_addr)->epSet.inUse = ((_addr)->epSet.inUse + 1) % (_addr)->epSet.numOfEps)
+#define SCH_TASK_NUM_OF_EPS(_addr) ((_addr)->epSet.numOfEps)
 
 #define SCH_JOB_ELOG(param, ...) qError("QID:0x%" PRIx64 " " param, pJob->queryId, __VA_ARGS__)
 #define SCH_JOB_DLOG(param, ...) qDebug("QID:0x%" PRIx64 " " param, pJob->queryId, __VA_ARGS__)
@@ -223,7 +227,7 @@ int32_t schCheckIncTaskFlowQuota(SSchJob *pJob, SSchTask *pTask, bool *enough);
 int32_t schLaunchTasksInFlowCtrlList(SSchJob *pJob, SSchTask *pTask);
 int32_t schLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask);
 int32_t schFetchFromRemote(SSchJob *pJob);
-int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode, SQueryErrorInfo *errInfo);
+int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode);
 
 
 #ifdef __cplusplus

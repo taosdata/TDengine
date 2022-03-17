@@ -342,7 +342,6 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
         pVal->datum.d = strtold(pVal->literal, &endPtr);
         break;
       }
-      case TSDB_DATA_TYPE_BINARY:
       case TSDB_DATA_TYPE_NCHAR:
       case TSDB_DATA_TYPE_VARCHAR:
       case TSDB_DATA_TYPE_VARBINARY: {
@@ -677,7 +676,6 @@ static int32_t translateStar(STranslateContext* pCxt, SSelectStmt* pSelect, bool
 static int32_t getPositionValue(const SValueNode* pVal) {
   switch (pVal->node.resType.type) {
     case TSDB_DATA_TYPE_NULL:
-    case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
@@ -784,9 +782,17 @@ static int32_t translateGroupBy(STranslateContext* pCxt, SNodeList* pGroupByList
   return translateExprList(pCxt, pGroupByList);
 }
 
+static int32_t doTranslateWindow(STranslateContext* pCxt, SNode* pWindow) {
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateWindow(STranslateContext* pCxt, SNode* pWindow) {
   pCxt->currClause = SQL_CLAUSE_WINDOW;
-  return translateExpr(pCxt, pWindow);
+  int32_t code = translateExpr(pCxt, pWindow);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = doTranslateWindow(pCxt, pWindow);
+  }
+  return code;
 }
 
 static int32_t translatePartitionBy(STranslateContext* pCxt, SNodeList* pPartitionByList) {
@@ -1449,6 +1455,7 @@ static int32_t rewriteShow(STranslateContext* pCxt, SQuery* pQuery) {
 typedef struct SVgroupTablesBatch {
   SVCreateTbBatchReq req;
   SVgroupInfo        info;
+  char               dbName[TSDB_DB_NAME_LEN];
 } SVgroupTablesBatch;
 
 static void toSchema(const SColumnDefNode* pCol, int32_t colId, SSchema* pSchema) {
@@ -1464,7 +1471,7 @@ static void destroyCreateTbReq(SVCreateTbReq* pReq) {
 }
 
 static int32_t buildNormalTableBatchReq(
-    const char* pTableName, const SNodeList* pColumns, const SVgroupInfo* pVgroupInfo, SVgroupTablesBatch* pBatch) {
+    const char* pDbName, const char* pTableName, const SNodeList* pColumns, const SVgroupInfo* pVgroupInfo, SVgroupTablesBatch* pBatch) {
   SVCreateTbReq req = {0};
   req.type = TD_NORMAL_TABLE;
   req.name = strdup(pTableName);
@@ -1482,6 +1489,7 @@ static int32_t buildNormalTableBatchReq(
   }
 
   pBatch->info = *pVgroupInfo;
+  strcpy(pBatch->dbName, pDbName);
   pBatch->req.pArray = taosArrayInit(1, sizeof(struct SVCreateTbReq));
   if (NULL == pBatch->req.pArray) {
     destroyCreateTbReq(&req);
@@ -1492,7 +1500,7 @@ static int32_t buildNormalTableBatchReq(
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t serializeVgroupTablesBatch(SVgroupTablesBatch* pTbBatch, SArray* pBufArray) {
+static int32_t serializeVgroupTablesBatch(int32_t acctId, SVgroupTablesBatch* pTbBatch, SArray* pBufArray) {
   int tlen = sizeof(SMsgHead) + tSerializeSVCreateTbBatchReq(NULL, &(pTbBatch->req));
   void* buf = malloc(tlen);
   if (NULL == buf) {
@@ -1554,16 +1562,16 @@ static void destroyCreateTbReqArray(SArray* pArray) {
   taosArrayDestroy(pArray);
 }
 
-static int32_t buildCreateTableDataBlock(const SCreateTableStmt* pStmt, const SVgroupInfo* pInfo, SArray** pBufArray) {
+static int32_t buildCreateTableDataBlock(int32_t acctId, const SCreateTableStmt* pStmt, const SVgroupInfo* pInfo, SArray** pBufArray) {
   *pBufArray = taosArrayInit(1, POINTER_BYTES);
   if (NULL == *pBufArray) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   SVgroupTablesBatch tbatch = {0};
-  int32_t code = buildNormalTableBatchReq(pStmt->tableName, pStmt->pCols, pInfo, &tbatch);
+  int32_t code = buildNormalTableBatchReq(pStmt->dbName, pStmt->tableName, pStmt->pCols, pInfo, &tbatch);
   if (TSDB_CODE_SUCCESS == code) {
-    code = serializeVgroupTablesBatch(&tbatch, *pBufArray);
+    code = serializeVgroupTablesBatch(acctId, &tbatch, *pBufArray);
   }
 
   destroyCreateTbReqBatch(&tbatch);
@@ -1580,7 +1588,7 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t code = getTableHashVgroup(pCxt->pParseCxt, pStmt->dbName, pStmt->tableName, &info);
   SArray* pBufArray = NULL;
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildCreateTableDataBlock(pStmt, &info, &pBufArray);
+    code = buildCreateTableDataBlock(pCxt->pParseCxt->acctId, pStmt, &info, &pBufArray);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteToVnodeModifOpStmt(pQuery, pBufArray);
@@ -1592,7 +1600,7 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
   return code;
 }
 
-static void addCreateTbReqIntoVgroup(SHashObj* pVgroupHashmap, const char* pTableName, SKVRow row, uint64_t suid, SVgroupInfo* pVgInfo) {
+static void addCreateTbReqIntoVgroup(SHashObj* pVgroupHashmap, const char* pDbName, const char* pTableName, SKVRow row, uint64_t suid, SVgroupInfo* pVgInfo) {
   struct SVCreateTbReq req = {0};
   req.type        = TD_CHILD_TABLE;
   req.name        = strdup(pTableName);
@@ -1603,6 +1611,7 @@ static void addCreateTbReqIntoVgroup(SHashObj* pVgroupHashmap, const char* pTabl
   if (pTableBatch == NULL) {
     SVgroupTablesBatch tBatch = {0};
     tBatch.info = *pVgInfo;
+    strcpy(tBatch.dbName, pDbName);
 
     tBatch.req.pArray = taosArrayInit(4, sizeof(struct SVCreateTbReq));
     taosArrayPush(tBatch.req.pArray, &req);
@@ -1639,7 +1648,6 @@ static void valueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
     case TSDB_DATA_TYPE_DOUBLE:
       pVal->d = pNode->datum.d;
       break;
-    case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
@@ -1747,7 +1755,7 @@ static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableCla
     code = getTableHashVgroup(pCxt->pParseCxt, pStmt->dbName, pStmt->tableName, &info);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    addCreateTbReqIntoVgroup(pVgroupHashmap, pStmt->tableName, row, pSuperTableMeta->uid, &info);
+    addCreateTbReqIntoVgroup(pVgroupHashmap, pStmt->dbName, pStmt->tableName, row, pSuperTableMeta->uid, &info);
   }
 
   tfree(pSuperTableMeta);
@@ -1755,7 +1763,7 @@ static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableCla
   return code;
 }
 
-static SArray* serializeVgroupsTablesBatch(SHashObj* pVgroupHashmap) {
+static SArray* serializeVgroupsTablesBatch(int32_t acctId, SHashObj* pVgroupHashmap) {
   SArray* pBufArray = taosArrayInit(taosHashGetSize(pVgroupHashmap), sizeof(void*));
   if (NULL == pBufArray) {
     return NULL;
@@ -1769,7 +1777,7 @@ static SArray* serializeVgroupsTablesBatch(SHashObj* pVgroupHashmap) {
       break;
     }
 
-    serializeVgroupTablesBatch(pTbBatch, pBufArray);
+    serializeVgroupTablesBatch(acctId, pTbBatch, pBufArray);
     destroyCreateTbReqBatch(pTbBatch);
   } while (true);
 
@@ -1794,7 +1802,7 @@ static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) 
     }
   }
 
-  SArray* pBufArray = serializeVgroupsTablesBatch(pVgroupHashmap);
+  SArray* pBufArray = serializeVgroupsTablesBatch(pCxt->pParseCxt->acctId, pVgroupHashmap);
   taosHashCleanup(pVgroupHashmap);
   if (NULL == pBufArray) {
     return TSDB_CODE_OUT_OF_MEMORY;

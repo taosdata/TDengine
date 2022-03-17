@@ -120,10 +120,13 @@ typedef struct {
   // SEpSet*          pSet;      // for synchronous API
 } SRpcReqContext;
 
+typedef SRpcMsg      STransMsg;
+typedef SRpcInfo     STrans;
+typedef SRpcConnInfo STransHandleInfo;
+
 typedef struct {
-  SRpcInfo* pTransInst;  // associated SRpcInfo
-  SEpSet    epSet;       // ip list provided by app
-  void*     ahandle;     // handle provided by app
+  SEpSet epSet;    // ip list provided by app
+  void*  ahandle;  // handle provided by app
   // struct SRpcConn* pConn;     // pConn allocated
   tmsg_t   msgType;  // message type
   uint8_t* pCont;    // content provided by app
@@ -135,8 +138,8 @@ typedef struct {
   int8_t  connType;  // connection type
   int64_t rid;       // refId returned by taosAddRef
 
-  SRpcMsg* pRsp;  // for synchronous API
-  tsem_t*  pSem;  // for synchronous API
+  STransMsg* pRsp;  // for synchronous API
+  tsem_t*    pSem;  // for synchronous API
 
   int      hThrdIdx;
   char*    ip;
@@ -242,8 +245,23 @@ int  transDestroyBuffer(SConnBuffer* buf);
 int  transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
 bool transReadComplete(SConnBuffer* connBuf);
 
-// int transPackMsg(SRpcMsg *rpcMsg, bool sercured, bool auth, char **msg, int32_t *msgLen);
+int transSetConnOption(uv_tcp_t* stream);
 
-// int transUnpackMsg(char *msg, SRpcMsg *pMsg, bool );
+void transRefSrvHandle(void* handle);
+void transUnrefSrvHandle(void* handle);
+
+void transRefCliHandle(void* handle);
+void transUnrefCliHandle(void* handle);
+
+void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg);
+void transSendRecv(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg, STransMsg* pRsp);
+void transSendResponse(const STransMsg* pMsg);
+int  transGetConnInfo(void* thandle, STransHandleInfo* pInfo);
+
+void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
+void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
+
+void transCloseClient(void* arg);
+void transCloseServer(void* arg);
 
 #endif

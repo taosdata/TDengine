@@ -25,8 +25,8 @@
 #include "dndMnode.h"
 #include "dndVnodes.h"
 
-#define INTERNAL_USER   "_dnd"
-#define INTERNAL_CKEY   "_key"
+#define INTERNAL_USER "_dnd"
+#define INTERNAL_CKEY "_key"
 #define INTERNAL_SECRET "_pwd"
 
 static void dndInitMsgFp(STransMgmt *pMgmt) {
@@ -157,7 +157,7 @@ static void dndInitMsgFp(STransMgmt *pMgmt) {
 }
 
 static void dndProcessResponse(void *parent, SRpcMsg *pRsp, SEpSet *pEpSet) {
-  SDnode     *pDnode = parent;
+  SDnode *    pDnode = parent;
   STransMgmt *pMgmt = &pDnode->tmgmt;
 
   tmsg_t msgType = pRsp->msgType;
@@ -195,7 +195,6 @@ static int32_t dndInitClient(SDnode *pDnode) {
   rpcInit.ckey = INTERNAL_CKEY;
   rpcInit.spi = 1;
   rpcInit.parent = pDnode;
-  rpcInit.noPool = true;
 
   char pass[TSDB_PASSWORD_LEN + 1] = {0};
   taosEncryptPass_c((uint8_t *)(INTERNAL_SECRET), strlen(INTERNAL_SECRET), pass);
@@ -221,7 +220,7 @@ static void dndCleanupClient(SDnode *pDnode) {
 }
 
 static void dndProcessRequest(void *param, SRpcMsg *pReq, SEpSet *pEpSet) {
-  SDnode     *pDnode = param;
+  SDnode *    pDnode = param;
   STransMgmt *pMgmt = &pDnode->tmgmt;
 
   tmsg_t msgType = pReq->msgType;
@@ -315,7 +314,7 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
   SAuthReq authReq = {0};
   tstrncpy(authReq.user, user, TSDB_USER_LEN);
   int32_t contLen = tSerializeSAuthReq(NULL, 0, &authReq);
-  void   *pReq = rpcMallocCont(contLen);
+  void *  pReq = rpcMallocCont(contLen);
   tSerializeSAuthReq(pReq, contLen, &authReq);
 
   SRpcMsg rpcMsg = {.pCont = pReq, .contLen = contLen, .msgType = TDMT_MND_AUTH, .ahandle = (void *)9528};

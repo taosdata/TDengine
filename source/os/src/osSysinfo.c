@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "taoserror.h"
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 
@@ -374,12 +375,12 @@ int32_t taosGetCpuCores(float *numOfCores) {
 
 int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-  *sysCpuUsage = 0;
-  *procCpuUsage = 0;
+  *cpu_system = 0;
+  *cpu_engine = 0;
   return 0;
 #elif defined(_TD_DARWIN_64)
-  *sysCpuUsage = 0;
-  *procCpuUsage = 0;
+  *cpu_system = 0;
+  *cpu_engine = 0;
   return 0;
 #else
   static uint64_t lastSysUsed = 0;
@@ -514,7 +515,7 @@ int32_t taosGetSysMemory(int64_t *usedKB) {
 }
 
 int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#if defined(WINDOWS)
   unsigned _int64 i64FreeBytesToCaller;
   unsigned _int64 i64TotalBytes;
   unsigned _int64 i64FreeBytes;
@@ -522,7 +523,7 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
   BOOL fResult = GetDiskFreeSpaceExA(dataDir, (PULARGE_INTEGER)&i64FreeBytesToCaller, (PULARGE_INTEGER)&i64TotalBytes,
                                      (PULARGE_INTEGER)&i64FreeBytes);
   if (fResult) {
-    diskSize->tsize = (int64_t)(i64TotalBytes);
+    diskSize->total = (int64_t)(i64TotalBytes);
     diskSize->avail = (int64_t)(i64FreeBytesToCaller);
     diskSize->used = (int64_t)(i64TotalBytes - i64FreeBytes);
     return 0;
@@ -538,7 +539,7 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   } else {
-    diskSize->tsize = info.f_blocks * info.f_frsize;
+    diskSize->total = info.f_blocks * info.f_frsize;
     diskSize->avail = info.f_bavail * info.f_frsize;
     diskSize->used = (info.f_blocks - info.f_bfree) * info.f_frsize;
     return 0;

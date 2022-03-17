@@ -58,10 +58,10 @@ enum {
 };
 
 typedef struct SCtgDebug {
-  bool     lockDebug;
-  bool     cacheDebug;
-  bool     apiDebug;
-  bool     metaDebug;
+  bool     lockEnable;
+  bool     cacheEnable;
+  bool     apiEnable;
+  bool     metaEnable;
   uint32_t showCachePeriodSec;
 } SCtgDebug;
 
@@ -242,9 +242,9 @@ typedef struct SCtgAction {
 #define ctgDebug(param, ...)  qDebug("CTG:%p " param, pCtg, __VA_ARGS__)
 #define ctgTrace(param, ...)  qTrace("CTG:%p " param, pCtg, __VA_ARGS__)
 
-#define CTG_LOCK_DEBUG(...) do { if (gCTGDebug.lockDebug) { qDebug(__VA_ARGS__); } } while (0)
-#define CTG_CACHE_DEBUG(...) do { if (gCTGDebug.cacheDebug) { qDebug(__VA_ARGS__); } } while (0)
-#define CTG_API_DEBUG(...) do { if (gCTGDebug.apiDebug) { qDebug(__VA_ARGS__); } } while (0)
+#define CTG_LOCK_DEBUG(...) do { if (gCTGDebug.lockEnable) { qDebug(__VA_ARGS__); } } while (0)
+#define CTG_CACHE_DEBUG(...) do { if (gCTGDebug.cacheEnable) { qDebug(__VA_ARGS__); } } while (0)
+#define CTG_API_DEBUG(...) do { if (gCTGDebug.apiEnable) { qDebug(__VA_ARGS__); } } while (0)
 
 #define TD_RWLATCH_WRITE_FLAG_COPY 0x40000000
 

@@ -89,7 +89,7 @@ int main(int argc, char** argv) {
   SSyncNode* pSyncNode = syncInitTest();
   assert(pSyncNode != NULL);
 
-  syncNodePrint((char*)"syncInitTest", pSyncNode);
+  syncNodePrint2((char*)"syncInitTest", pSyncNode);
 
   initRaftId(pSyncNode);
 

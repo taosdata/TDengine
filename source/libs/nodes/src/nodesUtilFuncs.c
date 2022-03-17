@@ -135,6 +135,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SVnodeModifLogicNode));
     case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
       return makeNode(type, sizeof(SExchangeLogicNode));
+    case QUERY_NODE_LOGIC_PLAN_WINDOW:
+      return makeNode(type, sizeof(SWindowLogicNode));
     case QUERY_NODE_LOGIC_SUBPLAN:
       return makeNode(type, sizeof(SSubLogicPlan));
     case QUERY_NODE_LOGIC_PLAN:
@@ -159,6 +161,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SExchangePhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
       return makeNode(type, sizeof(SNode));
+    case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
+      return makeNode(type, sizeof(SIntervalPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return makeNode(type, sizeof(SDataDispatcherNode));
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
@@ -389,7 +393,6 @@ void* nodesGetValueFromNode(SValueNode *pNode) {
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE: 
       return (void*)&pNode->datum.d;
-    case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY: 

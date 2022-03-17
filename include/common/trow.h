@@ -103,6 +103,7 @@ typedef struct {
 
 typedef struct {
   // TODO
+  int tmp; // TODO: to avoid compile error
 } STpRow;  // tuple
 
 #pragma pack(push, 1)

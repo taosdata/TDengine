@@ -58,9 +58,10 @@ STbCfg *        metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid);
 STbCfg *        metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid);
 SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline);
 STSchema *      metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver);
-STSma *         metaGetSmaInfoByName(SMeta *pMeta, const char *indexName);
-STSmaWrapper *  metaGetSmaInfoByUid(SMeta *pMeta, tb_uid_t uid);
+STSma *         metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid);
+STSmaWrapper *  metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid);
 SArray *        metaGetSmaTbUids(SMeta *pMeta, bool isDup);
+int             metaGetTbNum(SMeta *pMeta);
 
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta);
 void        metaCloseTbCursor(SMTbCursor *pTbCur);

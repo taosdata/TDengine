@@ -167,6 +167,13 @@ TEST_F(PlannerTest, subquery) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(PlannerTest, interval) {
+  setDatabase("root", "test");
+
+  bind("SELECT count(*) FROM t1 interval(10s)");
+  ASSERT_TRUE(run());
+}
+
 TEST_F(PlannerTest, showTables) {
   setDatabase("root", "test");
 

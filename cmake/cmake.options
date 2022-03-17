@@ -1,11 +1,34 @@
 # =========================================================
 # Deps options
 # =========================================================
+
+IF(${TD_WINDOWS})
+
+    MESSAGE("build pthread Win32")
+    option(
+            BUILD_PTHREAD
+            "If build pthread on Windows"
+            ON
+          )
+
+    MESSAGE("build gnu regex for Windows")
+    option(
+            BUILD_GNUREGEX
+            "If build gnu regex on Windows"
+            ON
+          )
+
+ENDIF ()
+
+IF(${TD_LINUX} MATCHES TRUE)
+
 option(
     BUILD_TEST 
     "If build unit tests using googletest" 
     ON
 )
+
+ENDIF ()
 
 option(
     BUILD_WITH_LEVELDB 
@@ -25,11 +48,16 @@ option(
     OFF
 )
 
-option(
-    BUILD_WITH_BDB 
-    "If build with BerkleyDB" 
-    ON
-)
+IF(${TD_WINDOWS})
+    MESSAGE("Not build BDB on Windows")
+ELSE ()
+    option(
+            BUILD_WITH_BDB
+            "If build with BerkleyDB"
+            ON
+          )
+
+ENDIF ()
 
 option(
     BUILD_WITH_LUCENE 
@@ -68,11 +96,15 @@ option(
     OFF
 )
 
+IF(${TD_LINUX} MATCHES TRUE)
+
 option(
     BUILD_DEPENDENCY_TESTS 
     "If build dependency tests" 
     ON
 )
+
+ENDIF ()
 
 option(
     BUILD_DOCS

@@ -44,12 +44,9 @@ void qwFreeFetchRsp(void *msg) {
   }
 }
 
-int32_t qwBuildAndSendQueryRsp(void *connection, int32_t code, SQueryErrorInfo *errInfo) {
+int32_t qwBuildAndSendQueryRsp(void *connection, int32_t code) {
   SRpcMsg *pMsg = (SRpcMsg *)connection;
   SQueryTableRsp rsp = {.code = code};
-  if (errInfo && errInfo->code) {
-    rsp.tableName = errInfo->tableName;
-  }
   
   int32_t contLen = tSerializeSQueryTableRsp(NULL, 0, &rsp);
   void *msg = rpcMallocCont(contLen);
@@ -266,7 +263,7 @@ int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, void *connection) {
     QW_ERR_RET(code);
   }
 
-  QW_SCH_TASK_DLOG("put task continue exec msg to query queue, vgId:%d", mgmt->nodeId);
+  QW_SCH_TASK_DLOG("query continue msg put to queue, vgId:%d", mgmt->nodeId);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -303,7 +300,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   QW_SCH_TASK_DLOG("processQuery start, node:%p, sql:%s", node, sql);
   tfree(sql);
 
-  QW_RET(qwProcessQuery(QW_FPARAMS(), &qwMsg, msg->taskType));
+  QW_ERR_RET(qwProcessQuery(QW_FPARAMS(), &qwMsg, msg->taskType));
 
   QW_SCH_TASK_DLOG("processQuery end, node:%p", node);
 

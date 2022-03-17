@@ -2634,10 +2634,6 @@ int32_t tSerializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp
 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->code) < 0) return -1;    
-  if (tEncodeI8(&encoder, pRsp->tableName.type) < 0) return -1;    
-  if (tEncodeI32(&encoder, pRsp->tableName.acctId) < 0) return -1;    
-  if (tEncodeCStr(&encoder, pRsp->tableName.dbname) < 0) return -1;  
-  if (tEncodeCStr(&encoder, pRsp->tableName.tname) < 0) return -1;  
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2651,10 +2647,52 @@ int32_t tDeserializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pR
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->code) < 0) return -1;
-  if (tDecodeI8(&decoder, &pRsp->tableName.type) < 0) return -1;
-  if (tDecodeI32(&decoder, &pRsp->tableName.acctId) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pRsp->tableName.dbname) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pRsp->tableName.tname) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tCoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSVCreateTbBatchRsp(void *buf, int32_t bufLen, SVCreateTbBatchRsp *pRsp) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (pRsp->rspList) {
+    int32_t num = taosArrayGetSize(pRsp->rspList);
+    if (tEncodeI32(&encoder, num) < 0) return -1;    
+    for (int32_t i = 0; i < num; ++i) {
+      SVCreateTbRsp *rsp = taosArrayGet(pRsp->rspList, i);
+      if (tEncodeI32(&encoder, rsp->code) < 0) return -1;    
+    }
+  } else {
+    if (tEncodeI32(&encoder, 0) < 0) return -1;    
+  }
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVCreateTbBatchRsp(void *buf, int32_t bufLen, SVCreateTbBatchRsp *pRsp) {
+  SCoder decoder = {0};
+  int32_t num = 0;
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &num) < 0) return -1;
+  if (num > 0) {
+    pRsp->rspList = taosArrayInit(num, sizeof(SVCreateTbRsp));
+    if (NULL == pRsp->rspList) return -1;
+    for (int32_t i = 0; i < num; ++i) {
+      SVCreateTbRsp rsp = {0};
+      if (tDecodeI32(&decoder, &rsp.code) < 0) return -1;
+      if (NULL == taosArrayPush(pRsp->rspList, &rsp)) return -1;
+    }
+  } else {
+    pRsp->rspList = NULL;
+  }
   tEndDecode(&decoder);
 
   tCoderClear(&decoder);
@@ -2705,7 +2743,6 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
   if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->physicalPlan) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->logicalPlan) < 0) return -1;
-
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;

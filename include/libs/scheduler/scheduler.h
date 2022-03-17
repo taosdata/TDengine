@@ -53,7 +53,6 @@ typedef struct SQueryProfileSummary {
 
 typedef struct SQueryResult {
   int32_t         code;
-  SArray         *errList;  // SArray<SQueryErrorInfo>
   uint64_t        numOfRows;
   int32_t         msgSize;
   char           *msg;

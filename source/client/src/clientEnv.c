@@ -72,8 +72,6 @@ static void deregisterRequest(SRequestObj *pRequest) {
   taosReleaseRef(clientConnRefPool, pTscObj->id);
 }
 
-
-
 // todo close the transporter properly
 void closeTransporter(STscObj *pTscObj) {
   if (pTscObj == NULL || pTscObj->pAppInfo->pTransporter == NULL) {
@@ -241,6 +239,7 @@ void taos_init_imp(void) {
   clientConnRefPool = taosOpenRef(200, destroyTscObj);
   clientReqRefPool = taosOpenRef(40960, doDestroyRequest);
 
+  // transDestroyBuffer(&conn->readBuf);
   taosGetAppName(appInfo.appName, NULL);
   pthread_mutex_init(&appInfo.mutex, NULL);
 

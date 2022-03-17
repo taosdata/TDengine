@@ -54,7 +54,6 @@ typedef struct {
   int8_t   connType;
   int64_t  index;
   char     label[TSDB_LABEL_LEN];
-  bool     noPool;  // pool or not
 
   char user[TSDB_UNI_LEN];         // meter ID
   char spi;                        // security parameter index
@@ -65,6 +64,7 @@ typedef struct {
   void (*cfp)(void* parent, SRpcMsg*, SEpSet*);
   int (*afp)(void* parent, char* user, char* spi, char* encrypt, char* secret, char* ckey);
   bool (*pfp)(void* parent, tmsg_t msgType);
+  void* (*mfp)(void* parent, tmsg_t msgType);
 
   int32_t         refCount;
   void*           parent;

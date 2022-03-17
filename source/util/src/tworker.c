@@ -188,7 +188,7 @@ void tFWorkerFreeQueue(SFWorkerPool *pool, STaosQueue *queue) { tQWorkerFreeQueu
 
 int32_t tWWorkerInit(SWWorkerPool *pool) {
   pool->nextId = 0;
-  pool->workers = calloc(sizeof(SWWorker), pool->max);
+  pool->workers = calloc(pool->max, sizeof(SWWorker));
   if (pool->workers == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;

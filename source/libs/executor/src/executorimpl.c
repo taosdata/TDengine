@@ -163,7 +163,7 @@ static void getNextTimeWindow(SInterval* pInterval, int32_t precision, int32_t o
 
   struct tm tm;
   time_t t = (time_t)key;
-  localtime_r(&t, &tm);
+  taosLocalTime(&t, &tm);
 
   int mon = (int)(tm.tm_year * 12 + tm.tm_mon + interval * factor);
   tm.tm_year = mon / 12;
@@ -211,6 +211,9 @@ static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput);
 static void destroySWindowOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyStateWindowOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyAggOperatorInfo(void* param, int32_t numOfOutput);
+static void destroyExchangeOperatorInfo(void* param, int32_t numOfOutput);
+static void destroyConditionOperatorInfo(void* param, int32_t numOfOutput);
+
 static void destroyOperatorInfo(SOperatorInfo* pOperator);
 static void destroySysTableScannerOperatorInfo(void* param, int32_t numOfOutput);
 
@@ -220,6 +223,17 @@ static void doSetOperatorCompleted(SOperatorInfo* pOperator) {
     setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
   }
 }
+
+#define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
+#define OPTR_SET_OPENED(_optr) ((_optr)->status |= OP_OPENED)
+
+static int32_t operatorDummyOpenFn(void* param) {
+  SOperatorInfo* pOperator = (SOperatorInfo*) param;
+  OPTR_SET_OPENED(pOperator);
+  return TSDB_CODE_SUCCESS;
+}
+
+static void operatorDummyCloseFn(void* param, int32_t numOfCols) {}
 
 static int32_t doCopyToSDataBlock(SDiskbasedBuf *pBuf, SGroupResInfo* pGroupResInfo, int32_t orderType, SSDataBlock* pBlock, int32_t rowCapacity);
 
@@ -4723,6 +4737,11 @@ static SSDataBlock* doTableScan(void* param, bool *newgroup) {
   STableScanInfo *pTableScanInfo = pOperator->info;
   SExecTaskInfo  *pTaskInfo = pOperator->pTaskInfo;
 
+  pTaskInfo->code = pOperator->_openFn(pOperator);
+  if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
+    return NULL;
+  }
+
   // The read handle is not initialized yet, since no qualified tables exists
   if (pTableScanInfo->pTsdbReadHandle == NULL) {
     return NULL;
@@ -4840,6 +4859,11 @@ static SSDataBlock* doStreamBlockScan(void* param, bool* newgroup) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SStreamBlockScanInfo* pInfo = pOperator->info;
 
+  pTaskInfo->code = pOperator->_openFn(pOperator);
+  if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
+    return NULL;
+  }
+
   SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
   pBlockInfo->rows = 0;
 
@@ -4880,7 +4904,7 @@ int32_t loadRemoteDataCallback(void* param, const SDataBuf* pMsg, int32_t code) 
   pRsp->useconds  = htobe64(pRsp->useconds);
   pRsp->compLen   = htonl(pRsp->compLen);
 
-  pSourceDataInfo->status = DATA_READY;
+  pSourceDataInfo->status = EX_SOURCE_DATA_READY;
   tsem_post(&pSourceDataInfo->pEx->ready);
 }
 
@@ -5010,12 +5034,12 @@ static SSDataBlock* concurrentlyLoadRemoteDataImpl(SOperatorInfo *pOperator, SEx
     for (int32_t i = 0; i < totalSources; ++i) {
       SSourceDataInfo* pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, i);
 
-      if (pDataInfo->status == DATA_EXHAUSTED) {
+      if (pDataInfo->status == EX_SOURCE_DATA_EXHAUSTED) {
         completed += 1;
         continue;
       }
 
-      if (pDataInfo->status != DATA_READY) {
+      if (pDataInfo->status != EX_SOURCE_DATA_READY) {
         continue;
       }
 
@@ -5028,7 +5052,7 @@ static SSDataBlock* concurrentlyLoadRemoteDataImpl(SOperatorInfo *pOperator, SEx
         qDebug("%s vgId:%d, taskID:0x%" PRIx64 " index:%d completed, rowsOfSource:%" PRIu64 ", totalRows:%" PRIu64 " try next",
                GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, i + 1, pDataInfo->totalRows,
                pExchangeInfo->loadInfo.totalRows);
-        pDataInfo->status = DATA_EXHAUSTED;
+        pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
         completed += 1;
         continue;
       }
@@ -5046,15 +5070,15 @@ static SSDataBlock* concurrentlyLoadRemoteDataImpl(SOperatorInfo *pOperator, SEx
                GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pRes->info.rows,
                pDataInfo->totalRows, pLoadInfo->totalRows, pLoadInfo->totalSize, i + 1,
                totalSources);
-        pDataInfo->status = DATA_EXHAUSTED;
+        pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
       } else {
         qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " numOfRows:%d, totalRows:%" PRIu64 ", totalBytes:%" PRIu64,
                GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pRes->info.rows, pLoadInfo->totalRows,
                pLoadInfo->totalSize);
       }
 
-      if (pDataInfo->status != DATA_EXHAUSTED) {
-        pDataInfo->status = DATA_NOT_READY;
+      if (pDataInfo->status != EX_SOURCE_DATA_EXHAUSTED) {
+        pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
         code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
         if (code != TSDB_CODE_SUCCESS) {
           goto _error;
@@ -5074,13 +5098,9 @@ _error:
   return NULL;
 }
 
-static SSDataBlock* concurrentlyLoadRemoteData(SOperatorInfo *pOperator) {
+static int32_t prepareConcurrentlyLoad(SOperatorInfo *pOperator) {
   SExchangeInfo *pExchangeInfo = pOperator->info;
   SExecTaskInfo *pTaskInfo = pOperator->pTaskInfo;
-  
-  if (pOperator->status == OP_RES_TO_RETURN) {
-    return concurrentlyLoadRemoteDataImpl(pOperator, pExchangeInfo, pTaskInfo);
-  }
 
   size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
   int64_t startTs = taosGetTimestampUs();
@@ -5089,7 +5109,8 @@ static SSDataBlock* concurrentlyLoadRemoteData(SOperatorInfo *pOperator) {
   for(int32_t i = 0; i < totalSources; ++i) {
     int32_t code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
     if (code != TSDB_CODE_SUCCESS) {
-      return NULL;
+      pTaskInfo->code = code;
+      return code;
     }
   }
 
@@ -5097,9 +5118,9 @@ static SSDataBlock* concurrentlyLoadRemoteData(SOperatorInfo *pOperator) {
   qDebug("%s send all fetch request to %"PRIzu" sources completed, elapsed:%"PRId64, GET_TASKID(pTaskInfo), totalSources, endTs - startTs);
 
   tsem_wait(&pExchangeInfo->ready);
+  pOperator->cost.openCost = taosGetTimestampUs() - startTs;
 
-  pOperator->status = OP_RES_TO_RETURN;
-  return concurrentlyLoadRemoteDataImpl(pOperator, pExchangeInfo, pTaskInfo);
+  return TSDB_CODE_SUCCESS;
 }
 
 static SSDataBlock* seqLoadRemoteData(SOperatorInfo *pOperator) {
@@ -5129,7 +5150,7 @@ static SSDataBlock* seqLoadRemoteData(SOperatorInfo *pOperator) {
              GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pExchangeInfo->current + 1,
              pDataInfo->totalRows, pLoadInfo->totalRows);
 
-      pDataInfo->status = DATA_EXHAUSTED;
+      pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
       pExchangeInfo->current += 1;
       continue;
     }
@@ -5146,7 +5167,7 @@ static SSDataBlock* seqLoadRemoteData(SOperatorInfo *pOperator) {
              pDataInfo->totalRows, pLoadInfo->totalRows, pLoadInfo->totalSize, pExchangeInfo->current + 1,
              totalSources);
 
-      pDataInfo->status = DATA_EXHAUSTED;
+      pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
       pExchangeInfo->current += 1;
     } else {
       qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " numOfRows:%d, totalRows:%" PRIu64 ", totalBytes:%" PRIu64,
@@ -5157,6 +5178,26 @@ static SSDataBlock* seqLoadRemoteData(SOperatorInfo *pOperator) {
   }
 }
 
+static int32_t prepareLoadRemoteData(void* param) {
+  SOperatorInfo *pOperator = (SOperatorInfo*) param;
+  if (OPTR_IS_OPENED(pOperator)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SExchangeInfo *pExchangeInfo = pOperator->info;
+  if (pExchangeInfo->seqLoadData) {
+    // do nothing for sequentially load data
+  } else {
+    int32_t code = prepareConcurrentlyLoad(pOperator);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  OPTR_SET_OPENED(pOperator);
+  return TSDB_CODE_SUCCESS;
+}
+
 static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
   SOperatorInfo *pOperator = (SOperatorInfo*) param;
 
@@ -5165,7 +5206,6 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
 
   size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
   SLoadRemoteDataInfo* pLoadInfo = &pExchangeInfo->loadInfo;
-
   if (pOperator->status == OP_EXEC_DONE) {
     qDebug("%s all %"PRIzu" source(s) are exhausted, total rows:%"PRIu64" bytes:%"PRIu64", elapsed:%.2f ms", GET_TASKID(pTaskInfo), totalSources,
            pLoadInfo->totalRows, pLoadInfo->totalSize, pLoadInfo->totalElapsed/1000.0);
@@ -5173,11 +5213,10 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
   }
 
   *newgroup = false;
-
   if (pExchangeInfo->seqLoadData) {
     return seqLoadRemoteData(pOperator);
   } else {
-    return concurrentlyLoadRemoteData(pOperator);
+    return concurrentlyLoadRemoteDataImpl(pOperator, pExchangeInfo, pTaskInfo);
   }
 
 #if 0
@@ -5190,16 +5229,35 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
 #endif
 }
 
+static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo) {
+  pInfo->pSourceDataInfo = taosArrayInit(numOfSources, sizeof(SSourceDataInfo));
+  if (pInfo->pSourceDataInfo == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  for(int32_t i = 0; i < numOfSources; ++i) {
+    SSourceDataInfo dataInfo = {0};
+    dataInfo.status = EX_SOURCE_DATA_NOT_READY;
+    dataInfo.pEx    = pInfo;
+    dataInfo.index  = i;
+
+    void* ret = taosArrayPush(pInfo->pSourceDataInfo, &dataInfo);
+    if (ret == NULL) {
+      taosArrayDestroy(pInfo->pSourceDataInfo);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 // TODO handle the error
 SOperatorInfo* createExchangeOperatorInfo(const SNodeList* pSources, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
   SExchangeInfo* pInfo    = calloc(1, sizeof(SExchangeInfo));
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
 
   if (pInfo == NULL || pOperator == NULL) {
-    tfree(pInfo);
-    tfree(pOperator);
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    return NULL;
+    goto _error;
   }
 
   size_t numOfSources = LIST_LENGTH(pSources);
@@ -5226,29 +5284,28 @@ SOperatorInfo* createExchangeOperatorInfo(const SNodeList* pSources, SSDataBlock
     return NULL;
   }
 
-  for(int32_t i = 0; i < numOfSources; ++i) {
-    SSourceDataInfo dataInfo = {0};
-    dataInfo.status = DATA_NOT_READY;
-    dataInfo.pEx    = pInfo;
-    dataInfo.index  = i;
-
-    taosArrayPush(pInfo->pSourceDataInfo, &dataInfo);
+  int32_t code = initDataSource(numOfSources, pInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
   }
 
   size_t size        = pBlock->info.numOfCols;
   pInfo->pResult     = pBlock;
   pInfo->seqLoadData = true;
 
+  pInfo->seqLoadData = true; // sequentially load data from the source node
   tsem_init(&pInfo->ready, 0, 0);
 
   pOperator->name         = "ExchangeOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
   pOperator->blockingOptr = false;
-  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->status       = OP_NOT_OPENED;
   pOperator->info         = pInfo;
   pOperator->numOfOutput  = size;
-  pOperator->nextDataFn   = doLoadRemoteData;
   pOperator->pTaskInfo    = pTaskInfo;
+  pOperator->_openFn      = prepareLoadRemoteData;  // assign a dummy function.
+  pOperator->getNextFn    = doLoadRemoteData;
+  pOperator->closeFn      = destroyExchangeOperatorInfo;
 
 #if 1
   { // todo refactor
@@ -5274,6 +5331,16 @@ SOperatorInfo* createExchangeOperatorInfo(const SNodeList* pSources, SSDataBlock
 #endif
 
   return pOperator;
+
+  _error:
+  if (pInfo != NULL) {
+    destroyExchangeOperatorInfo(pInfo, 0);
+  }
+
+  tfree(pInfo);
+  tfree(pOperator);
+  terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+  return NULL;
 }
 
 SSDataBlock* createResultDataBlock(const SArray* pExprInfo) {
@@ -5324,10 +5391,12 @@ SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order,
   pOperator->name          = "TableScanOperator";
   pOperator->operatorType  = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
   pOperator->blockingOptr  = false;
-  pOperator->status        = OP_IN_EXECUTING;
+  pOperator->status        = OP_NOT_OPENED;
   pOperator->info          = pInfo;
   pOperator->numOfOutput   = numOfOutput;
-  pOperator->nextDataFn    = doTableScan;
+  pOperator->_openFn       = operatorDummyOpenFn;
+  pOperator->getNextFn     = doTableScan;
+  pOperator->closeFn       = operatorDummyCloseFn;
   pOperator->pTaskInfo     = pTaskInfo;
 
   return pOperator;
@@ -5348,11 +5417,11 @@ SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntim
   pOperator->name         = "TableSeqScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN;
   pOperator->blockingOptr = false;
-  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->status       = OP_NOT_OPENED;
   pOperator->info         = pInfo;
   pOperator->numOfOutput  = pRuntimeEnv->pQueryAttr->numOfCols;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
-  pOperator->nextDataFn = doTableScanImpl;
+  pOperator->getNextFn = doTableScanImpl;
 
   return pOperator;
 }
@@ -5373,10 +5442,10 @@ SOperatorInfo* createTableBlockInfoScanOperator(void* pTsdbReadHandle, STaskRunt
   pOperator->name         = "TableBlockInfoScanOperator";
 //  pOperator->operatorType = OP_TableBlockInfoScan;
   pOperator->blockingOptr = false;
-  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->status       = OP_NOT_OPENED;
   pOperator->info         = pInfo;
 //  pOperator->numOfOutput  = pRuntimeEnv->pQueryAttr->numOfCols;
-  pOperator->nextDataFn = doBlockInfoScan;
+  pOperator->getNextFn = doBlockInfoScan;
 
   return pOperator;
 }
@@ -5406,10 +5475,13 @@ SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SSDataBlock*
   pOperator->name          = "StreamBlockScanOperator";
   pOperator->operatorType  = QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;
   pOperator->blockingOptr  = false;
-  pOperator->status        = OP_IN_EXECUTING;
+  pOperator->status        = OP_NOT_OPENED;
   pOperator->info          = pInfo;
   pOperator->numOfOutput   = pResBlock->info.numOfCols;
-  pOperator->nextDataFn    = doStreamBlockScan;
+  pOperator->_openFn       = operatorDummyOpenFn;
+  pOperator->getNextFn     = doStreamBlockScan;
+  pOperator->closeFn       = operatorDummyCloseFn;
+
   pOperator->pTaskInfo     = pTaskInfo;
   return pOperator;
 }
@@ -5568,7 +5640,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
   pOperator->status        = OP_IN_EXECUTING;
   pOperator->info          = pInfo;
   pOperator->numOfOutput   = pResBlock->info.numOfCols;
-  pOperator->nextDataFn    = doSysTableScan;
+  pOperator->getNextFn     = doSysTableScan;
   pOperator->closeFn       = destroySysTableScannerOperatorInfo;
   pOperator->pTaskInfo     = pTaskInfo;
 
@@ -5761,7 +5833,7 @@ SSDataBlock* loadNextDataBlock(void* param) {
   SOperatorInfo* pOperator = (SOperatorInfo*) param;
   bool newgroup = false;
 
-  return pOperator->nextDataFn(pOperator, &newgroup);
+  return pOperator->getNextFn(pOperator, &newgroup);
 }
 
 static bool needToMerge(SSDataBlock* pBlock, SArray* groupInfo, char **buf, int32_t rowIndex) {
@@ -6075,13 +6147,13 @@ SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t
   pOperator->name         = "SortedMerge";
   // pOperator->operatorType = OP_SortedMerge;
   pOperator->blockingOptr = true;
-  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->status       = OP_NOT_OPENED;
   pOperator->info         = pInfo;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->pExpr        = exprArrayDup(pExprInfo);
 
   pOperator->pTaskInfo    = pTaskInfo;
-  pOperator->nextDataFn = doSortedMerge;
+  pOperator->getNextFn = doSortedMerge;
   pOperator->closeFn = destroySortedMergeOperatorInfo;
 
   code = appendDownstream(pOperator, downstream, numOfDownstream);
@@ -6173,11 +6245,11 @@ SOperatorInfo *createOrderOperatorInfo(SOperatorInfo* downstream, SArray* pExprI
   pOperator->name          = "Order";
   pOperator->operatorType  = QUERY_NODE_PHYSICAL_PLAN_SORT;
   pOperator->blockingOptr  = true;
-  pOperator->status        = OP_IN_EXECUTING;
+  pOperator->status        = OP_NOT_OPENED;
   pOperator->info          = pInfo;
 
   pOperator->pTaskInfo     = pTaskInfo;
-  pOperator->nextDataFn = doSort;
+  pOperator->getNextFn = doSort;
   pOperator->closeFn = destroyOrderOperatorInfo;
 
   int32_t code = appendDownstream(pOperator, &downstream, 1);
@@ -6203,7 +6275,7 @@ static SSDataBlock* doAggregate(void* param, bool* newgroup) {
 
   while(1) {
     publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    SSDataBlock* pBlock = downstream->nextDataFn(downstream, newgroup);
+    SSDataBlock* pBlock = downstream->getNextFn(downstream, newgroup);
     publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (pBlock == NULL) {
@@ -6253,7 +6325,7 @@ static SSDataBlock* doMultiTableAggregate(void* param, bool* newgroup) {
 
   while(1) {
     publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    SSDataBlock* pBlock = downstream->nextDataFn(downstream, newgroup);
+    SSDataBlock* pBlock = downstream->getNextFn(downstream, newgroup);
     publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (pBlock == NULL) {
@@ -6339,7 +6411,7 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
 
     // The downstream exec may change the value of the newgroup, so use a local variable instead.
     publishOperatorProfEvent(pOperator->pDownstream[0], QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    SSDataBlock* pBlock = pOperator->pDownstream[0]->nextDataFn(pOperator->pDownstream[0], newgroup);
+    SSDataBlock* pBlock = pOperator->pDownstream[0]->getNextFn(pOperator->pDownstream[0], newgroup);
     publishOperatorProfEvent(pOperator->pDownstream[0], QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (pBlock == NULL) {
@@ -6397,7 +6469,7 @@ static SSDataBlock* doLimit(void* param, bool* newgroup) {
   SSDataBlock* pBlock = NULL;
   while (1) {
     publishOperatorProfEvent(pOperator->pDownstream[0], QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    pBlock = pOperator->pDownstream[0]->nextDataFn(pOperator->pDownstream[0], newgroup);
+    pBlock = pOperator->pDownstream[0]->getNextFn(pOperator->pDownstream[0], newgroup);
     publishOperatorProfEvent(pOperator->pDownstream[0], QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (pBlock == NULL) {
@@ -6448,7 +6520,7 @@ static SSDataBlock* doFilter(void* param, bool* newgroup) {
 
   while (1) {
     publishOperatorProfEvent(pOperator->pDownstream[0], QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    SSDataBlock *pBlock = pOperator->pDownstream[0]->nextDataFn(pOperator->pDownstream[0], newgroup);
+    SSDataBlock *pBlock = pOperator->pDownstream[0]->getNextFn(pOperator->pDownstream[0], newgroup);
     publishOperatorProfEvent(pOperator->pDownstream[0], QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (pBlock == NULL) {
@@ -6491,7 +6563,7 @@ static SSDataBlock* doIntervalAgg(void* param, bool* newgroup) {
 
   while(1) {
     publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    SSDataBlock* pBlock = downstream->nextDataFn(downstream, newgroup);
+    SSDataBlock* pBlock = downstream->getNextFn(downstream, newgroup);
     publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (pBlock == NULL) {
@@ -6551,7 +6623,7 @@ static SSDataBlock* doAllIntervalAgg(void* param, bool* newgroup) {
 
   while(1) {
     publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    SSDataBlock* pBlock = downstream->nextDataFn(downstream, newgroup);
+    SSDataBlock* pBlock = downstream->getNextFn(downstream, newgroup);
     publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (pBlock == NULL) {
@@ -6614,7 +6686,7 @@ static SSDataBlock* doSTableIntervalAgg(void* param, bool* newgroup) {
 
   while(1) {
     publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    SSDataBlock* pBlock = downstream->nextDataFn(downstream, newgroup);
+    SSDataBlock* pBlock = downstream->getNextFn(downstream, newgroup);
     publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (pBlock == NULL) {
@@ -6669,7 +6741,7 @@ static SSDataBlock* doAllSTableIntervalAgg(void* param, bool* newgroup) {
 
   while(1) {
     publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    SSDataBlock* pBlock = downstream->nextDataFn(downstream, newgroup);
+    SSDataBlock* pBlock = downstream->getNextFn(downstream, newgroup);
     publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (pBlock == NULL) {
@@ -6804,7 +6876,7 @@ static SSDataBlock* doStateWindowAgg(void *param, bool* newgroup) {
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   while (1) {
     publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    SSDataBlock* pBlock = downstream->nextDataFn(downstream, newgroup);
+    SSDataBlock* pBlock = downstream->getNextFn(downstream, newgroup);
     publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (pBlock == NULL) {
@@ -6866,7 +6938,7 @@ static SSDataBlock* doSessionWindowAgg(void* param, bool* newgroup) {
 
   while(1) {
     publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    SSDataBlock* pBlock = downstream->nextDataFn(downstream, newgroup);
+    SSDataBlock* pBlock = downstream->getNextFn(downstream, newgroup);
     publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
     if (pBlock == NULL) {
       break;
@@ -6919,7 +6991,7 @@ static SSDataBlock* hashGroupbyAggregate(void* param, bool* newgroup) {
 
   while(1) {
     publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    SSDataBlock* pBlock = downstream->nextDataFn(downstream, newgroup);
+    SSDataBlock* pBlock = downstream->getNextFn(downstream, newgroup);
     publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
     if (pBlock == NULL) {
       break;
@@ -7004,7 +7076,7 @@ static SSDataBlock* doFill(void* param, bool* newgroup) {
 
   while(1) {
     publishOperatorProfEvent(pOperator->pDownstream[0], QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    SSDataBlock* pBlock = pOperator->pDownstream[0]->nextDataFn(pOperator->pDownstream[0], newgroup);
+    SSDataBlock* pBlock = pOperator->pDownstream[0]->getNextFn(pOperator->pDownstream[0], newgroup);
     publishOperatorProfEvent(pOperator->pDownstream[0], QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (*newgroup) {
@@ -7161,13 +7233,13 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SArray* pE
   pOperator->name         = "TableAggregate";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_AGG;
   pOperator->blockingOptr = true;
-  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->status       = OP_NOT_OPENED;
   pOperator->info         = pInfo;
   pOperator->pExpr        = exprArrayDup(pExprInfo);
   pOperator->numOfOutput  = taosArrayGetSize(pExprInfo);
 
   pOperator->pTaskInfo    = pTaskInfo;
-  pOperator->nextDataFn   = doAggregate;
+  pOperator->getNextFn    = doAggregate;
   pOperator->closeFn      = destroyAggOperatorInfo;
   int32_t code = appendDownstream(pOperator, &downstream, 1);
 
@@ -7216,17 +7288,17 @@ static void destroyGroupbyOperatorInfo(void* param, int32_t numOfOutput) {
   tfree(pInfo->prevData);
 }
 
-static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyProjectOperatorInfo(void* param, int32_t numOfOutput) {
   SProjectOperatorInfo* pInfo = (SProjectOperatorInfo*) param;
   doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
 }
 
-static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
   STagScanInfo* pInfo = (STagScanInfo*) param;
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
 }
 
-static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyOrderOperatorInfo(void* param, int32_t numOfOutput) {
   SOrderOperatorInfo* pInfo = (SOrderOperatorInfo*) param;
   pInfo->pDataBlock = blockDataDestroy(pInfo->pDataBlock);
 
@@ -7256,6 +7328,17 @@ static void destroySysTableScannerOperatorInfo(void* param, int32_t numOfOutput)
   }
 }
 
+void destroyExchangeOperatorInfo(void* param, int32_t numOfOutput) {
+  SExchangeInfo* pExInfo = (SExchangeInfo*) param;
+  taosArrayDestroy(pExInfo->pSources);
+  taosArrayDestroy(pExInfo->pSourceDataInfo);
+  if (pExInfo->pResult != NULL) {
+    blockDataDestroy(pExInfo->pResult);
+  }
+
+  tsem_destroy(&pExInfo->ready);
+}
+
 SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo) {
   SAggOperatorInfo* pInfo = calloc(1, sizeof(SAggOperatorInfo));
 
@@ -7270,13 +7353,13 @@ SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray
   pOperator->name         = "MultiTableAggregate";
   // pOperator->operatorType = OP_MultiTableAggregate;
   pOperator->blockingOptr = true;
-  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->status       = OP_NOT_OPENED;
   pOperator->info         = pInfo;
   pOperator->pExpr        = exprArrayDup(pExprInfo);
   pOperator->numOfOutput  = numOfOutput;
   pOperator->pTaskInfo    = pTaskInfo;
 
-  pOperator->nextDataFn = doMultiTableAggregate;
+  pOperator->getNextFn = doMultiTableAggregate;
   pOperator->closeFn = destroyAggOperatorInfo;
   int32_t code = appendDownstream(pOperator, &downstream, 1);
 
@@ -7296,12 +7379,12 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SArray* pExp
   pOperator->name         = "ProjectOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_PROJECT;
   pOperator->blockingOptr = false;
-  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->status       = OP_NOT_OPENED;
   pOperator->info         = pInfo;
   pOperator->pExpr        = exprArrayDup(pExprInfo);
   pOperator->numOfOutput  = taosArrayGetSize(pExprInfo);
 
-  pOperator->nextDataFn   = doProjectOperation;
+  pOperator->getNextFn    = doProjectOperation;
   pOperator->pTaskInfo    = pTaskInfo;
   pOperator->closeFn      = destroyProjectOperatorInfo;
   int32_t code = appendDownstream(pOperator, &downstream, 1);
@@ -7351,11 +7434,11 @@ SOperatorInfo* createLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorIn
   pOperator->name         = "LimitOperator";
 //  pOperator->operatorType = OP_Limit;
   pOperator->blockingOptr = false;
-  pOperator->status       = OP_IN_EXECUTING;
-  pOperator->nextDataFn = doLimit;
+  pOperator->status       = OP_NOT_OPENED;
+  pOperator->getNextFn = doLimit;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
-    int32_t code = appendDownstream(pOperator, &downstream, 1);
+  int32_t code = appendDownstream(pOperator, &downstream, 1);
 
   return pOperator;
 }
@@ -7383,13 +7466,13 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SArray* pEx
   pOperator->name         = "TimeIntervalAggOperator";
   // pOperator->operatorType = OP_TimeWindow;
   pOperator->blockingOptr = true;
-  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->status       = OP_NOT_OPENED;
   pOperator->pExpr        = exprArrayDup(pExprInfo);
 
   pOperator->pTaskInfo    = pTaskInfo;
   pOperator->numOfOutput  = taosArrayGetSize(pExprInfo);
   pOperator->info         = pInfo;
-  pOperator->nextDataFn   = doIntervalAgg;
+  pOperator->getNextFn   = doIntervalAgg;
   pOperator->closeFn      = destroyBasicOperatorInfo;
 
   code = appendDownstream(pOperator, &downstream, 1);
@@ -7408,12 +7491,12 @@ SOperatorInfo* createAllTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, S
   pOperator->name         = "AllTimeIntervalAggOperator";
 //  pOperator->operatorType = OP_AllTimeWindow;
   pOperator->blockingOptr = true;
-  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->status       = OP_NOT_OPENED;
   pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
-  pOperator->nextDataFn = doAllIntervalAgg;
+  pOperator->getNextFn = doAllIntervalAgg;
   pOperator->closeFn = destroyBasicOperatorInfo;
 
     int32_t code = appendDownstream(pOperator, &downstream, 1);
@@ -7432,12 +7515,12 @@ SOperatorInfo* createStatewindowOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOper
   pOperator->name         = "StateWindowOperator";
 //  pOperator->operatorType = OP_StateWindow;
   pOperator->blockingOptr = true;
-  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->status       = OP_NOT_OPENED;
   pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
-  pOperator->nextDataFn = doStateWindowAgg;
+  pOperator->getNextFn = doStateWindowAgg;
   pOperator->closeFn = destroyStateWindowOperatorInfo;
 
     int32_t code = appendDownstream(pOperator, &downstream, 1);
@@ -7457,12 +7540,12 @@ SOperatorInfo* createSWindowOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperator
   pOperator->name         = "SessionWindowAggOperator";
 //  pOperator->operatorType = OP_SessionWindow;
   pOperator->blockingOptr = true;
-  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->status       = OP_NOT_OPENED;
   pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
-  pOperator->nextDataFn = doSessionWindowAgg;
+  pOperator->getNextFn = doSessionWindowAgg;
   pOperator->closeFn = destroySWindowOperatorInfo;
 
     int32_t code = appendDownstream(pOperator, &downstream, 1);
@@ -7480,13 +7563,13 @@ SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntim
   pOperator->name         = "MultiTableTimeIntervalOperator";
 //  pOperator->operatorType = OP_MultiTableTimeInterval;
   pOperator->blockingOptr = true;
-  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->status       = OP_NOT_OPENED;
   pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
 
-  pOperator->nextDataFn = doSTableIntervalAgg;
+  pOperator->getNextFn = doSTableIntervalAgg;
   pOperator->closeFn = destroyBasicOperatorInfo;
 
     int32_t code = appendDownstream(pOperator, &downstream, 1);
@@ -7504,13 +7587,13 @@ SOperatorInfo* createAllMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRun
   pOperator->name         = "AllMultiTableTimeIntervalOperator";
 //  pOperator->operatorType = OP_AllMultiTableTimeInterval;
   pOperator->blockingOptr = true;
-  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->status       = OP_NOT_OPENED;
   pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
 
-  pOperator->nextDataFn = doAllSTableIntervalAgg;
+  pOperator->getNextFn = doAllSTableIntervalAgg;
   pOperator->closeFn = destroyBasicOperatorInfo;
 
     int32_t code = appendDownstream(pOperator, &downstream, 1);
@@ -7536,13 +7619,13 @@ SOperatorInfo* createGroupbyOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperator
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   pOperator->name         = "GroupbyAggOperator";
   pOperator->blockingOptr = true;
-  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->status       = OP_NOT_OPENED;
 //  pOperator->operatorType = OP_Groupby;
   pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
-  pOperator->nextDataFn = hashGroupbyAggregate;
+  pOperator->getNextFn = hashGroupbyAggregate;
   pOperator->closeFn = destroyGroupbyOperatorInfo;
 
     int32_t code = appendDownstream(pOperator, &downstream, 1);
@@ -7575,13 +7658,13 @@ SOperatorInfo* createFillOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInf
 
   pOperator->name         = "FillOperator";
   pOperator->blockingOptr = false;
-  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->status       = OP_NOT_OPENED;
 //  pOperator->operatorType = OP_Fill;
   pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
-  pOperator->nextDataFn = doFill;
+  pOperator->getNextFn = doFill;
   pOperator->closeFn = destroySFillOperatorInfo;
 
     int32_t code = appendDownstream(pOperator, &downstream, 1);
@@ -7626,13 +7709,12 @@ SOperatorInfo* createSLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorI
   pOperator->name         = "SLimitOperator";
   // pOperator->operatorType = OP_SLimit;
   pOperator->blockingOptr = false;
-  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->status       = OP_NOT_OPENED;
 //  pOperator->exec         = doSLimit;
   pOperator->info         = pInfo;
-  pOperator->pRuntimeEnv  = pRuntimeEnv;
   pOperator->closeFn = destroySlimitOperatorInfo;
 
-    int32_t code = appendDownstream(pOperator, &downstream, 1);
+  int32_t code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
 }
 
@@ -7766,6 +7848,7 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
   return (pRes->info.rows == 0)? NULL:pInfo->pRes;
 
 #endif
+  return 0;
 }
 
 SOperatorInfo* createTagScanOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput) {
@@ -7782,9 +7865,9 @@ SOperatorInfo* createTagScanOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SExprInfo
   pOperator->name         = "SeqTableTagScan";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN;
   pOperator->blockingOptr = false;
-  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->status       = OP_NOT_OPENED;
   pOperator->info         = pInfo;
-  pOperator->nextDataFn = doTagScan;
+  pOperator->getNextFn = doTagScan;
   pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
@@ -7854,7 +7937,7 @@ static SSDataBlock* hashDistinct(void* param, bool* newgroup) {
    
   while(1) {
     publishOperatorProfEvent(pOperator->pDownstream[0], QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    pBlock = pOperator->pDownstream[0]->nextDataFn(pOperator->pDownstream[0], newgroup);
+    pBlock = pOperator->pDownstream[0]->getNextFn(pOperator->pDownstream[0], newgroup);
     publishOperatorProfEvent(pOperator->pDownstream[0], QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (pBlock == NULL) {
@@ -7920,13 +8003,13 @@ SOperatorInfo* createDistinctOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperato
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   pOperator->name         = "DistinctOperator";
   pOperator->blockingOptr = false;
-  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->status       = OP_NOT_OPENED;
 //  pOperator->operatorType = OP_Distinct;
   pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
-  pOperator->nextDataFn = hashDistinct;
+  pOperator->getNextFn = hashDistinct;
   pOperator->pExpr        = pExpr; 
   pOperator->closeFn = destroyDistinctOperatorInfo;
 
@@ -8080,7 +8163,7 @@ static int32_t doCreateTableGroup(void* metaHandle, int32_t tableType, uint64_t 
 static SArray* extractTableIdList(const STableGroupInfo* pTableGroupInfo);
 static SArray* extractScanColumnId(SNodeList* pNodeList);
 
-SOperatorInfo* doCreateOperatorTreeNode(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, uint64_t queryId, uint64_t taskId, STableGroupInfo* pTableGroupInfo, SQueryErrorInfo *errInfo) {
+SOperatorInfo* doCreateOperatorTreeNode(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, uint64_t queryId, uint64_t taskId, STableGroupInfo* pTableGroupInfo) {
   if (nodeType(pPhyNode) == QUERY_NODE_PHYSICAL_PLAN_PROJECT) { // ignore the project node
     pPhyNode = nodesListGetNode(pPhyNode->pChildren, 0);
   }
@@ -8089,21 +8172,11 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhysiNode* pPhyNode, SExecTaskInfo* pTa
     if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pPhyNode)) {
       SScanPhysiNode* pScanPhyNode = (SScanPhysiNode*)pPhyNode;
 
-      if (TSDB_SUPER_TABLE != pScanPhyNode->tableType) {
-        char tableFName[TSDB_TABLE_FNAME_LEN];
-        tNameExtractFullName(&pScanPhyNode->tableName, tableFName);
-        
-        int32_t code = vnodeValidateTableHash(pHandle->config, tableFName);
-        if (code) {
-          errInfo->code = code;
-          errInfo->tableName = pScanPhyNode->tableName;
-          return NULL;
-        }
-      }
-
       size_t      numOfCols = LIST_LENGTH(pScanPhyNode->pScanCols);
       tsdbReaderT pDataReader = doCreateDataReader((STableScanPhysiNode*)pPhyNode, pHandle, (uint64_t)queryId, taskId);
-
+      if (NULL == pDataReader) {
+        return NULL;
+      }
       int32_t code = doCreateTableGroup(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableGroupInfo, queryId, taskId);
       return createTableScanOperatorInfo(pDataReader, pScanPhyNode->order, numOfCols, pScanPhyNode->count,
                                          pScanPhyNode->reverse, pTaskInfo);
@@ -8142,10 +8215,7 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhysiNode* pPhyNode, SExecTaskInfo* pTa
 
     for (int32_t i = 0; i < size; ++i) {
       SPhysiNode*    pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, i);
-      SOperatorInfo* op = doCreateOperatorTreeNode(pChildNode, pTaskInfo, pHandle, queryId, taskId, pTableGroupInfo, errInfo);
-      if (errInfo->code) {
-        return NULL;
-      }
+      SOperatorInfo* op = doCreateOperatorTreeNode(pChildNode, pTaskInfo, pHandle, queryId, taskId, pTableGroupInfo);
 
       SArray* pExprInfo = createExprInfo((SAggPhysiNode*)pPhyNode);
       SSDataBlock* pResBlock = createOutputBuf_rv1(pPhyNode->pOutputDataBlockDesc);
@@ -8264,7 +8334,7 @@ tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle*
   return NULL;
 }
 
-int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId, SQueryErrorInfo *errInfo) {
+int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId) {
   uint64_t queryId = pPlan->id.queryId;
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -8275,9 +8345,9 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
   }
 
   STableGroupInfo group = {0};
-  (*pTaskInfo)->pRoot = doCreateOperatorTreeNode(pPlan->pNode, *pTaskInfo, pHandle, queryId, taskId, &group, errInfo);
-  if (errInfo->code) {
-  	code = errInfo->code;
+  (*pTaskInfo)->pRoot = doCreateOperatorTreeNode(pPlan->pNode, *pTaskInfo, pHandle, queryId, taskId, &group);
+  if (NULL == (*pTaskInfo)->pRoot) {
+  	code = terrno;
     goto _complete;
   }
   

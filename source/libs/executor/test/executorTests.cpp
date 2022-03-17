@@ -201,9 +201,9 @@ SOperatorInfo* createDummyOperator(int32_t startVal, int32_t numOfBlocks, int32_
   pOperator->name = "dummyInputOpertor4Test";
 
   if (numOfCols == 1) {
-    pOperator->nextDataFn = getDummyBlock;
+    pOperator->getNextFn = getDummyBlock;
   } else {
-    pOperator->nextDataFn = get2ColsDummyBlock;
+    pOperator->getNextFn = get2ColsDummyBlock;
   }
 
   SDummyInputInfo *pInfo = (SDummyInputInfo*) calloc(1, sizeof(SDummyInputInfo));
@@ -946,7 +946,7 @@ TEST(testCase, build_executor_tree_Test) {
   int32_t code = qStringToSubplan(msg, &plan);
   ASSERT_EQ(code, 0);
 
-  code = qCreateExecTask(&handle, 2, 1, plan, (void**) &pTaskInfo, &sinkHandle, NULL);
+  code = qCreateExecTask(&handle, 2, 1, plan, (void**) &pTaskInfo, &sinkHandle);
   ASSERT_EQ(code, 0);
 }
 
@@ -971,7 +971,7 @@ TEST(testCase, inMem_sort_Test) {
   SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(10000, 5, 1000, data_asc, 1), pExprInfo, pOrderVal, NULL);
 
   bool newgroup = false;
-  SSDataBlock* pRes = pOperator->nextDataFn(pOperator, &newgroup);
+  SSDataBlock* pRes = pOperator->getNextFn(pOperator, &newgroup);
 
   SColumnInfoData* pCol1 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 0));
   SColumnInfoData* pCol2 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 1));
@@ -1019,7 +1019,7 @@ TEST(testCase, external_sort_Test) {
   return;
 #endif
 
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
 
   SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
   SOrder o = {0};
@@ -1049,7 +1049,7 @@ TEST(testCase, external_sort_Test) {
 
   while(1) {
     int64_t s = taosGetTimestampUs();
-    pRes = pOperator->nextDataFn(pOperator, &newgroup);
+    pRes = pOperator->getNextFn(pOperator, &newgroup);
 
     int64_t e = taosGetTimestampUs();
     if (t++ == 1) {
@@ -1080,7 +1080,7 @@ TEST(testCase, external_sort_Test) {
 }
 
 TEST(testCase, sorted_merge_Test) {
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
 
   SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
   SOrder o = {0};
@@ -1121,7 +1121,7 @@ TEST(testCase, sorted_merge_Test) {
 
   while(1) {
     int64_t s = taosGetTimestampUs();
-    pRes = pOperator->nextDataFn(pOperator, &newgroup);
+    pRes = pOperator->getNextFn(pOperator, &newgroup);
 
     int64_t e = taosGetTimestampUs();
     if (t++ == 1) {
@@ -1152,7 +1152,7 @@ TEST(testCase, sorted_merge_Test) {
 }
 
 TEST(testCase, time_interval_Operator_Test) {
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
 
   SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
   SOrder o = {0};
@@ -1199,7 +1199,7 @@ TEST(testCase, time_interval_Operator_Test) {
 
   while(1) {
     int64_t s = taosGetTimestampUs();
-    pRes = pOperator->nextDataFn(pOperator, &newgroup);
+    pRes = pOperator->getNextFn(pOperator, &newgroup);
 
     int64_t e = taosGetTimestampUs();
     if (t++ == 1) {
@@ -1230,4 +1230,4 @@ TEST(testCase, time_interval_Operator_Test) {
 }
 #endif
 
-#pragma GCC diagnostic pop
+#pragma GCC diagnosti

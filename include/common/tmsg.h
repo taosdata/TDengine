@@ -460,7 +460,6 @@ typedef struct {
 
 typedef struct {
   int32_t code;
-  SName   tableName;
 } SQueryTableRsp;
 
 int32_t tSerializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp);
@@ -1159,6 +1158,17 @@ int32_t tDeserializeSCMCreateStreamReq(void* buf, int32_t bufLen, SCMCreateStrea
 void    tFreeSCMCreateStreamReq(SCMCreateStreamReq* pReq);
 
 typedef struct {
+  char    name[TSDB_TOPIC_FNAME_LEN];
+  int64_t streamId;
+  char*   sql;
+  char*   executorMsg;
+} SMVCreateStreamReq, SMSCreateStreamReq;
+
+typedef struct {
+  int64_t streamId;
+} SMVCreateStreamRsp, SMSCreateStreamRsp;
+
+typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];
   int8_t igExists;
   char*  sql;
@@ -1351,6 +1361,7 @@ typedef struct {
 
 typedef struct SVCreateTbReq {
   int64_t  ver;  // use a general definition
+  char*    dbFName;
   char*    name;
   uint32_t ttl;
   uint32_t keep;
@@ -1376,7 +1387,7 @@ typedef struct SVCreateTbReq {
 
 typedef struct {
   int32_t code;
-  SName   tableName;
+  int tmp; // TODO: to avoid compile error
 } SVCreateTbRsp, SVUpdateTbRsp;
 
 int32_t tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
@@ -1387,11 +1398,17 @@ typedef struct {
   SArray* pArray;
 } SVCreateTbBatchReq;
 
-typedef struct {
-} SVCreateTbBatchRsp;
-
 int32_t tSerializeSVCreateTbBatchReq(void** buf, SVCreateTbBatchReq* pReq);
 void*   tDeserializeSVCreateTbBatchReq(void* buf, SVCreateTbBatchReq* pReq);
+
+typedef struct {
+  SArray* rspList; // SArray<SVCreateTbRsp>
+  int tmp; // TODO: to avoid compile error
+} SVCreateTbBatchRsp;
+
+int32_t tSerializeSVCreateTbBatchRsp(void *buf, int32_t bufLen, SVCreateTbBatchRsp *pRsp);
+int32_t tDeserializeSVCreateTbBatchRsp(void *buf, int32_t bufLen, SVCreateTbBatchRsp *pRsp);
+
 
 typedef struct {
   int64_t  ver;
@@ -1401,6 +1418,7 @@ typedef struct {
 } SVDropTbReq;
 
 typedef struct {
+  int tmp; // TODO: to avoid compile error
 } SVDropTbRsp;
 
 int32_t tSerializeSVDropTbReq(void** buf, SVDropTbReq* pReq);
@@ -1916,24 +1934,19 @@ typedef enum {
 } ETDTimeUnit;
 
 typedef struct {
-  uint16_t  funcId;
-  uint16_t  nColIds;
-  col_id_t* colIds;  // sorted colIds
-} SFuncColIds;
-
-typedef struct {
-  uint8_t      version;  // for compatibility
-  uint8_t      intervalUnit;
-  uint8_t      slidingUnit;
-  char         indexName[TSDB_INDEX_NAME_LEN];
-  char         timezone[TD_TIMEZONE_LEN];
-  uint16_t     nFuncColIds;
-  uint16_t     tagsFilterLen;
-  tb_uid_t     tableUid;  // super/common table uid
-  int64_t      interval;
-  int64_t      sliding;
-  SFuncColIds* funcColIds;  // sorted funcIds
-  char*        tagsFilter;
+  int8_t   version;  // for compatibility(default 0)
+  int8_t   intervalUnit;
+  int8_t   slidingUnit;
+  char     indexName[TSDB_INDEX_NAME_LEN];
+  char     timezone[TD_TIMEZONE_LEN];  // sma data is invalid if timezone change.
+  uint16_t exprLen;
+  uint16_t tagsFilterLen;
+  int64_t  indexUid;
+  tb_uid_t tableUid;  // super/child/common table uid
+  int64_t  interval;
+  int64_t  sliding;
+  char*    expr;  // sma expression
+  char*    tagsFilter;
 } STSma;  // Time-range-wise SMA
 
 typedef struct {
@@ -1951,7 +1964,9 @@ typedef struct {
   int64_t ver;  // use a general definition
   char    indexName[TSDB_INDEX_NAME_LEN];
 } SVDropTSmaReq;
+
 typedef struct {
+  int tmp; // TODO: to avoid compile error
 } SVCreateTSmaRsp, SVDropTSmaRsp;
 
 int32_t tSerializeSVCreateTSmaReq(void** buf, SVCreateTSmaReq* pReq);
@@ -1960,24 +1975,30 @@ int32_t tSerializeSVDropTSmaReq(void** buf, SVDropTSmaReq* pReq);
 void*   tDeserializeSVDropTSmaReq(void* buf, SVDropTSmaReq* pReq);
 
 typedef struct {
-  STimeWindow tsWindow;     // [skey, ekey]
-  uint64_t    tableUid;     // sub/common table uid
-  int32_t     numOfBlocks;  // number of sma blocks for each column, total number is numOfBlocks*numOfColId
-  int32_t     dataLen;      // total data length
-  col_id_t*   colIds;       // e.g. 2,4,9,10
-  col_id_t    numOfColIds;  // e.g. 4
-  char        data[];       // the sma blocks
-} STSmaData;
+  col_id_t colId;
+  uint16_t blockSize;  // sma data block size
+  char     data[];
+} STSmaColData;
 
-// TODO: move to the final location afte schema of STSma/STSmaData defined
-static FORCE_INLINE void tdDestroySmaData(STSmaData* pSmaData) {
-  if (pSmaData) {
-    if (pSmaData->colIds) {
-      tfree(pSmaData->colIds);
-    }
-    tfree(pSmaData);
-  }
-}
+typedef struct {
+  tb_uid_t tableUid;  // super/child/normal table uid
+  int32_t  dataLen;   // not including head
+  char     data[];
+} STSmaTbData;
+
+typedef struct {
+  int64_t indexUid;
+  TSKEY   skey;  // startTS of one interval/sliding
+  int64_t interval;
+  int32_t dataLen;  // not including head
+  int8_t  intervalUnit;
+  char    data[];
+} STSmaDataWrapper;  // sma data for a interval/sliding window
+
+// interval/sliding => window
+
+// => window->table->colId
+// => 当一个window下所有的表均计算完成时，流计算告知tsdb清除window的过期标记
 
 // RSma: Rollup SMA
 typedef struct {
@@ -2000,13 +2021,7 @@ typedef struct {
 
 static FORCE_INLINE void tdDestroyTSma(STSma* pSma) {
   if (pSma) {
-    if (pSma->funcColIds != NULL) {
-      for (uint16_t i = 0; i < pSma->nFuncColIds; ++i) {
-        tfree((pSma->funcColIds + i)->colIds);
-      }
-      tfree(pSma->funcColIds);
-    }
-
+    tfree(pSma->expr);
     tfree(pSma->tagsFilter);
   }
 }
@@ -2025,24 +2040,20 @@ static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW) {
 static FORCE_INLINE int32_t tEncodeTSma(void** buf, const STSma* pSma) {
   int32_t tlen = 0;
 
-  tlen += taosEncodeFixedU8(buf, pSma->version);
-  tlen += taosEncodeFixedU8(buf, pSma->intervalUnit);
-  tlen += taosEncodeFixedU8(buf, pSma->slidingUnit);
+  tlen += taosEncodeFixedI8(buf, pSma->version);
+  tlen += taosEncodeFixedI8(buf, pSma->intervalUnit);
+  tlen += taosEncodeFixedI8(buf, pSma->slidingUnit);
   tlen += taosEncodeString(buf, pSma->indexName);
   tlen += taosEncodeString(buf, pSma->timezone);
-  tlen += taosEncodeFixedU16(buf, pSma->nFuncColIds);
+  tlen += taosEncodeFixedU16(buf, pSma->exprLen);
   tlen += taosEncodeFixedU16(buf, pSma->tagsFilterLen);
+  tlen += taosEncodeFixedI64(buf, pSma->indexUid);
   tlen += taosEncodeFixedI64(buf, pSma->tableUid);
   tlen += taosEncodeFixedI64(buf, pSma->interval);
   tlen += taosEncodeFixedI64(buf, pSma->sliding);
-
-  for (uint16_t i = 0; i < pSma->nFuncColIds; ++i) {
-    SFuncColIds* funcColIds = pSma->funcColIds + i;
-    tlen += taosEncodeFixedU16(buf, funcColIds->funcId);
-    tlen += taosEncodeFixedU16(buf, funcColIds->nColIds);
-    for (uint16_t j = 0; j < funcColIds->nColIds; ++j) {
-      tlen += taosEncodeFixedU16(buf, *(funcColIds->colIds + j));
-    }
+  
+  if (pSma->exprLen > 0) {
+    tlen += taosEncodeString(buf, pSma->expr);
   }
 
   if (pSma->tagsFilterLen > 0) {
@@ -2063,43 +2074,30 @@ static FORCE_INLINE int32_t tEncodeTSmaWrapper(void** buf, const STSmaWrapper* p
 }
 
 static FORCE_INLINE void* tDecodeTSma(void* buf, STSma* pSma) {
-  buf = taosDecodeFixedU8(buf, &pSma->version);
-  buf = taosDecodeFixedU8(buf, &pSma->intervalUnit);
-  buf = taosDecodeFixedU8(buf, &pSma->slidingUnit);
+  buf = taosDecodeFixedI8(buf, &pSma->version);
+  buf = taosDecodeFixedI8(buf, &pSma->intervalUnit);
+  buf = taosDecodeFixedI8(buf, &pSma->slidingUnit);
   buf = taosDecodeStringTo(buf, pSma->indexName);
   buf = taosDecodeStringTo(buf, pSma->timezone);
-  buf = taosDecodeFixedU16(buf, &pSma->nFuncColIds);
+  buf = taosDecodeFixedU16(buf, &pSma->exprLen);
   buf = taosDecodeFixedU16(buf, &pSma->tagsFilterLen);
+  buf = taosDecodeFixedI64(buf, &pSma->indexUid);
   buf = taosDecodeFixedI64(buf, &pSma->tableUid);
   buf = taosDecodeFixedI64(buf, &pSma->interval);
   buf = taosDecodeFixedI64(buf, &pSma->sliding);
 
-  if (pSma->nFuncColIds > 0) {
-    pSma->funcColIds = (SFuncColIds*)calloc(pSma->nFuncColIds, sizeof(SFuncColIds));
-    if (pSma->funcColIds == NULL) {
+
+  if (pSma->exprLen > 0) {
+    pSma->expr = (char*)calloc(pSma->exprLen, 1);
+    if (pSma->expr != NULL) {
+      buf = taosDecodeStringTo(buf, pSma->expr);
+    } else {
       tdDestroyTSma(pSma);
       return NULL;
     }
-    for (uint16_t i = 0; i < pSma->nFuncColIds; ++i) {
-      SFuncColIds* funcColIds = pSma->funcColIds + i;
-      buf = taosDecodeFixedU16(buf, &funcColIds->funcId);
-      buf = taosDecodeFixedU16(buf, &funcColIds->nColIds);
-      if (funcColIds->nColIds > 0) {
-        funcColIds->colIds = (col_id_t*)calloc(funcColIds->nColIds, sizeof(col_id_t));
-        if (funcColIds->colIds != NULL) {
-          for (uint16_t j = 0; j < funcColIds->nColIds; ++j) {
-            buf = taosDecodeFixedU16(buf, funcColIds->colIds + j);
-          }
-        } else {
-          tdDestroyTSma(pSma);
-          return NULL;
-        }
-      } else {
-        funcColIds->colIds = NULL;
-      }
-    }
+
   } else {
-    pSma->funcColIds = NULL;
+    pSma->expr = NULL;
   }
 
   if (pSma->tagsFilterLen > 0) {

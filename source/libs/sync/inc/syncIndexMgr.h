@@ -42,6 +42,12 @@ SyncIndex      syncIndexMgrGetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId 
 cJSON *        syncIndexMgr2Json(SSyncIndexMgr *pSyncIndexMgr);
 char *         syncIndexMgr2Str(SSyncIndexMgr *pSyncIndexMgr);
 
+// for debug -------------------
+void syncIndexMgrPrint(SSyncIndexMgr *pObj);
+void syncIndexMgrPrint2(char *s, SSyncIndexMgr *pObj);
+void syncIndexMgrLog(SSyncIndexMgr *pObj);
+void syncIndexMgrLog2(char *s, SSyncIndexMgr *pObj);
+
 #ifdef __cplusplus
 }
 #endif

@@ -82,7 +82,7 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, _
     }
   }
 
-  taosSeedRand((uint32_t)time(NULL));
+  taosSeedRand((uint32_t)taosGetTimestampSec());
 
 #if SKIP_LIST_RECORD_PERFORMANCE
   pSkipList->state.nTotalMemSize += sizeof(SSkipList);

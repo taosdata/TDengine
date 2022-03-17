@@ -220,8 +220,10 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
   }
 }
 
+
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList) {
   void* pTransporter = pRequest->pTscObj->pAppInfo->pTransporter;
+
   SQueryResult res = {.code = 0, .numOfRows = 0, .msgSize = ERROR_MSG_BUF_DEFAULT_SIZE, .msg = pRequest->msgBuf};
   int32_t      code = schedulerExecJob(pTransporter, pNodeList, pDag, &pRequest->body.queryJob, pRequest->sqlstr, &res);
   if (code != TSDB_CODE_SUCCESS) {
@@ -229,21 +231,21 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
       schedulerFreeJob(pRequest->body.queryJob);
     }
 
-    pRequest->errList = res.errList;
     pRequest->code = code;
+    terrno = code;
     return pRequest->code;
   }
 
   if (TDMT_VND_SUBMIT == pRequest->type || TDMT_VND_CREATE_TABLE == pRequest->type) {
     pRequest->body.resInfo.numOfRows = res.numOfRows;
-    
+
     if (pRequest->body.queryJob != 0) {
       schedulerFreeJob(pRequest->body.queryJob);
     }
   }
 
-  pRequest->errList = res.errList;  
   pRequest->code = res.code;
+  terrno = res.code;  
   return pRequest->code;
 }
 
@@ -273,81 +275,61 @@ _return:
   return pRequest;
 }
 
-int32_t clientProcessErrorList(SArray **pList) {
-  SArray *errList = *pList;
-  int32_t errNum = (int32_t)taosArrayGetSize(errList);
+int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {
+  SCatalog *pCatalog = NULL;
+  int32_t code = 0;
+  int32_t dbNum = taosArrayGetSize(pRequest->dbList);
+  int32_t tblNum = taosArrayGetSize(pRequest->tableList);
+
+  if (dbNum <= 0 && tblNum <= 0) {
+    return TSDB_CODE_QRY_APP_ERROR;
+  }
   
-  for (int32_t i = 0; i < errNum; ++i) {
-    SQueryErrorInfo *errInfo = taosArrayGet(errList, i);
-    if (TSDB_CODE_VND_HASH_MISMATCH == errInfo->code) {
-      if (i == (errNum - 1)) {
-        break;
-      }
-      
-      // TODO REMOVE SAME DB ERROR
-    } else {
-      taosArrayRemove(errList, i);
-      --i;
-      --errNum;
+  code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  SEpSet epset = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+
+  for (int32_t i = 0; i < dbNum; ++i) {
+    char *dbFName = taosArrayGet(pRequest->dbList, i);
+    
+    code = catalogRefreshDBVgInfo(pCatalog, pTscObj->pAppInfo->pTransporter, &epset, dbFName);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
     }
   }
 
-  if (0 == errNum) {
-    taosArrayDestroy(*pList);
-    *pList = NULL;
+  for (int32_t i = 0; i < tblNum; ++i) {
+    SName *tableName = taosArrayGet(pRequest->tableList, i);
+
+    code = catalogRefreshTableMeta(pCatalog, pTscObj->pAppInfo->pTransporter, &epset, tableName, -1);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 
 SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
   SRequestObj* pRequest = NULL;
+  int32_t retryNum = 0;
   int32_t code = 0;
-  bool quit = false;
 
-  while (!quit) {
+  while (retryNum++ < REQUEST_MAX_TRY_TIMES) {
     pRequest = execQueryImpl(pTscObj, sql, sqlLen);
-    if (TSDB_CODE_SUCCESS == pRequest->code || NULL == pRequest->errList) {
+    if (TSDB_CODE_SUCCESS == pRequest->code || !NEED_CLIENT_HANDLE_ERROR(pRequest->code)) {
       break;
     }
 
-    code = clientProcessErrorList(&pRequest->errList);
-    if (code != TSDB_CODE_SUCCESS || NULL == pRequest->errList) {
+    code = refreshMeta(pTscObj, pRequest);
+    if (code) {
+      pRequest->code = code;
       break;
     }
-
-    int32_t errNum = (int32_t)taosArrayGetSize(pRequest->errList);
-    for (int32_t i = 0; i < errNum; ++i) {
-      SQueryErrorInfo *errInfo = taosArrayGet(pRequest->errList, i);
-      
-      if (TSDB_CODE_VND_HASH_MISMATCH == errInfo->code) {
-        SCatalog *pCatalog = NULL;
-        code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
-        if (code != TSDB_CODE_SUCCESS) {
-          quit = true;
-          break;
-        }
-        SEpSet epset = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
-
-        char dbFName[TSDB_DB_FNAME_LEN];
-        tNameGetFullDbName(&errInfo->tableName, dbFName);
-        
-        code = catalogRefreshDBVgInfo(pCatalog, pTscObj->pAppInfo->pTransporter, &epset, dbFName);
-        if (code != TSDB_CODE_SUCCESS) {
-          quit = true;
-          break;
-        }
-      }
-    }
-
-    if (!quit) {
-      destroyRequest(pRequest);
-    }
-  }
-
-  if (code) {
-    pRequest->code = code;
   }
   
   return pRequest;

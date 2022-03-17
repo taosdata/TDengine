@@ -21,8 +21,6 @@
 #include "tqueue.h"
 #include "executorimpl.h"
 
-#define DATA_META_LENGTH(tables) (sizeof(int32_t) + sizeof(STableIdInfo) * taosHashGetSize(tables) + sizeof(SRetrieveTableRsp))
-
 typedef struct SDataDispatchBuf {
   int32_t useSize;
   int32_t allocSize;
@@ -90,19 +88,6 @@ static void copyData(const SInputData* pInput, const SDataBlockDescNode* pSchema
       data += pColRes->info.bytes * pInput->pData->info.rows;
     }
   }
-
-  int32_t numOfTables = (int32_t) taosHashGetSize(pInput->pTableRetrieveTsMap);
-  *(int32_t*)data = htonl(numOfTables);
-  data += sizeof(int32_t);
-
-  STableIdInfo* item = taosHashIterate(pInput->pTableRetrieveTsMap, NULL);
-  while (item) {
-    STableIdInfo* pDst = (STableIdInfo*)data;
-    pDst->uid = htobe64(item->uid);
-    pDst->key = htobe64(item->key);
-    data += sizeof(STableIdInfo);
-    item = taosHashIterate(pInput->pTableRetrieveTsMap, item);
-  }
 }
 
 // data format with compress: SDataCacheEntry | cols_data_offset | col1_data col2_data ... | numOfTables | STableIdInfo STableIdInfo ...
@@ -113,7 +98,7 @@ static void toDataCacheEntry(const SDataDispatchHandle* pHandle, const SInputDat
   pEntry->numOfRows = pInput->pData->info.rows;
   pEntry->dataLen = 0;
 
-  pBuf->useSize = DATA_META_LENGTH(pInput->pTableRetrieveTsMap);
+  pBuf->useSize = sizeof(SRetrieveTableRsp);
   copyData(pInput, pHandle->pSchema, pEntry->data, pEntry->compressed, &pEntry->dataLen);
   if (0 == pEntry->compressed) {
     pEntry->dataLen = pHandle->pSchema->resultRowSize * pInput->pData->info.rows;
@@ -130,7 +115,7 @@ static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput,
     return false;
   }
 
-  pBuf->allocSize = DATA_META_LENGTH(pInput->pTableRetrieveTsMap) + pDispatcher->pSchema->resultRowSize * pInput->pData->info.rows;
+  pBuf->allocSize = sizeof(SRetrieveTableRsp) + pDispatcher->pSchema->resultRowSize * pInput->pData->info.rows;
   pBuf->pData = malloc(pBuf->allocSize);
   if (pBuf->pData == NULL) {
     qError("SinkNode failed to malloc memory, size:%d, code:%d", pBuf->allocSize, TAOS_SYSTEM_ERROR(errno));

@@ -17,7 +17,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#if defined(WINDOWS)
 #elif defined(_TD_DARWIN_64)
 #else
 #include <dlfcn.h>
@@ -25,10 +25,12 @@
 #include <unistd.h>
 #endif
 
+#if !defined(WINDOWS)
 struct termios oldtio;
+#endif
 
 int32_t taosSystem(const char *cmd, char *buf, int32_t bufSize) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#if defined(WINDOWS)
   FILE *fp;
   if (cmd == NULL) {
     // printf("taosSystem cmd is NULL!");
@@ -51,6 +53,7 @@ int32_t taosSystem(const char *cmd, char *buf, int32_t bufSize) {
     }
 
     return 0;
+  }
 #elif defined(_TD_DARWIN_64)
   printf("no support funtion");
   return -1;
@@ -82,7 +85,7 @@ int32_t taosSystem(const char *cmd, char *buf, int32_t bufSize) {
 }
 
 void* taosLoadDll(const char* filename) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#if defined(WINDOWS)
   return NULL;
 #elif defined(_TD_DARWIN_64)
   return NULL;
@@ -252,7 +255,7 @@ void setTerminalMode() {
 }
 
 int32_t getOldTerminalMode() {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#if defined(WINDOWS)
 
 #elif defined(_TD_DARWIN_64)
   /* Make sure stdin is a terminal. */

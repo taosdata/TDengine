@@ -42,17 +42,14 @@ typedef struct {
 typedef struct {
   STsdbFSMeta meta;  // FS meta
   SArray *    df;    // data file array
-
-  // SArray *    v2t100.index_name
-  
-  SArray *    smaf;  // sma data file array    v2t1900.index_name
+  SArray *    sf;    // sma data file array    v2(t|r)1900.index_name_1
 } SFSStatus;
 
 /**
  * @brief Directory structure of .tsma data files.
- * 
- *  root@cary /vnode2/tsdb $ tree .tsma/
- *   .tsma/
+ *
+ *  /vnode2/tsdb $ tree .sma/
+ *   .sma/
  *   ├── v2t100.index_name_1
  *   ├── v2t101.index_name_1
  *   ├── v2t102.index_name_1
@@ -66,7 +63,7 @@ typedef struct {
  *   0 directories, 9 files
  */
 
-    typedef struct {
+typedef struct {
   pthread_rwlock_t lock;
 
   SFSStatus *cstatus;        // current status

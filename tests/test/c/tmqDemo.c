@@ -609,7 +609,7 @@ void printParaIntoFile() {
   };
   g_fp = pFile;
 
-  time_t tTime = time(NULL);
+  time_t tTime = taosGetTimestampSec();
   struct tm tm = *localtime(&tTime);
 
   taosFprintfFile(pFile, "###################################################################\n");

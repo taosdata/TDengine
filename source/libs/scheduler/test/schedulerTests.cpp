@@ -724,7 +724,7 @@ TEST(queryTest, flowCtrlCase) {
 
   schtInitLogFile();
 
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
   
   SArray *qnodeList = taosArrayInit(1, sizeof(SEp));
 
@@ -873,7 +873,7 @@ TEST(multiThread, forceFree) {
 }
 
 int main(int argc, char** argv) {
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

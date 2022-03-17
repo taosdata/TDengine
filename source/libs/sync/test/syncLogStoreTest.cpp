@@ -81,9 +81,12 @@ SSyncNode* syncNodeInit() {
 SSyncNode* syncInitTest() { return syncNodeInit(); }
 
 void logStoreTest() {
-  logStorePrint(pSyncNode->pLogStore);
+  logStorePrint2((char*)"logStoreTest2", pSyncNode->pLogStore);
+
+  assert(pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore) == SYNC_INDEX_INVALID);
+
   for (int i = 0; i < 5; ++i) {
-    int32_t dataLen = 10;
+    int32_t         dataLen = 10;
     SSyncRaftEntry* pEntry = syncEntryBuild(dataLen);
     assert(pEntry != NULL);
     pEntry->msgType = 1;
@@ -94,9 +97,13 @@ void logStoreTest() {
     pEntry->index = pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore) + 1;
     snprintf(pEntry->data, dataLen, "value%d", i);
 
-    //syncEntryPrint2((char*)"write entry:", pEntry);
+    // syncEntryPrint2((char*)"write entry:", pEntry);
     pSyncNode->pLogStore->appendEntry(pSyncNode->pLogStore, pEntry);
     syncEntryDestory(pEntry);
+
+    if (i == 0) {
+      assert(pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore) == SYNC_INDEX_BEGIN);
+    }
   }
   logStorePrint(pSyncNode->pLogStore);
 
@@ -129,11 +136,13 @@ int main(int argc, char** argv) {
   ret = syncEnvStart();
   assert(ret == 0);
 
+  taosRemoveDir("./wal_test");
+
   pSyncNode = syncInitTest();
   assert(pSyncNode != NULL);
 
-  //syncNodePrint((char*)"syncLogStoreTest", pSyncNode);
-  //initRaftId(pSyncNode);
+  // syncNodePrint((char*)"syncLogStoreTest", pSyncNode);
+  // initRaftId(pSyncNode);
 
   logStoreTest();
 

@@ -43,7 +43,6 @@ void logStoreDestory(SSyncLogStore* pLogStore) {
   }
 }
 
-// append one log entry
 int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
@@ -61,7 +60,6 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   free(serialized);
 }
 
-// get one log entry, user need to free pEntry->pCont
 SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
@@ -77,14 +75,12 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
   return pEntry;
 }
 
-// truncate log with index, entries after the given index (>=index) will be deleted
 int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
   walRollback(pWal, fromIndex);
 }
 
-// return index of last entry
 SyncIndex logStoreLastIndex(SSyncLogStore* pLogStore) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
@@ -92,7 +88,6 @@ SyncIndex logStoreLastIndex(SSyncLogStore* pLogStore) {
   return lastIndex;
 }
 
-// return term of last entry
 SyncTerm logStoreLastTerm(SSyncLogStore* pLogStore) {
   SyncTerm        lastTerm = 0;
   SSyncRaftEntry* pLastEntry = logStoreGetLastEntry(pLogStore);
@@ -103,14 +98,12 @@ SyncTerm logStoreLastTerm(SSyncLogStore* pLogStore) {
   return lastTerm;
 }
 
-// update log store commit index with "index"
 int32_t logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
   walCommit(pWal, index);
 }
 
-// return commit index of log
 SyncIndex logStoreGetCommitIndex(SSyncLogStore* pLogStore) {
   SSyncLogStoreData* pData = pLogStore->data;
   return pData->pSyncNode->commitIndex;
@@ -137,7 +130,7 @@ cJSON* logStore2Json(SSyncLogStore* pLogStore) {
   cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
   snprintf(u64buf, sizeof(u64buf), "%p", pData->pWal);
   cJSON_AddStringToObject(pRoot, "pWal", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%lu", logStoreLastIndex(pLogStore));
+  snprintf(u64buf, sizeof(u64buf), "%ld", logStoreLastIndex(pLogStore));
   cJSON_AddStringToObject(pRoot, "LastIndex", u64buf);
   snprintf(u64buf, sizeof(u64buf), "%lu", logStoreLastTerm(pLogStore));
   cJSON_AddStringToObject(pRoot, "LastTerm", u64buf);
@@ -163,11 +156,29 @@ char* logStore2Str(SSyncLogStore* pLogStore) {
   return serialized;
 }
 
-// for debug
+// for debug -----------------
 void logStorePrint(SSyncLogStore* pLogStore) {
-  char* s = logStore2Str(pLogStore);
-  // sTrace("%s", s);
-  fprintf(stderr, "logStorePrint: [len:%lu]| %s \n", strlen(s), s);
+  char* serialized = logStore2Str(pLogStore);
+  printf("logStorePrint | len:%lu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  free(serialized);
+}
 
-  free(s);
+void logStorePrint2(char* s, SSyncLogStore* pLogStore) {
+  char* serialized = logStore2Str(pLogStore);
+  printf("logStorePrint | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void logStoreLog(SSyncLogStore* pLogStore) {
+  char* serialized = logStore2Str(pLogStore);
+  sTrace("logStorePrint | len:%lu | %s", strlen(serialized), serialized);
+  free(serialized);
+}
+
+void logStoreLog2(char* s, SSyncLogStore* pLogStore) {
+  char* serialized = logStore2Str(pLogStore);
+  sTrace("logStorePrint | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  free(serialized);
 }

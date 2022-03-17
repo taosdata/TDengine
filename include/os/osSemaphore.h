@@ -16,11 +16,12 @@
 #ifndef _TD_OS_SEMPHONE_H_
 #define _TD_OS_SEMPHONE_H_
 
-#include <semaphore.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include <pthread.h>
+#include <semaphore.h>
 
 #if defined (_TD_DARWIN_64)
   typedef struct tsem_s *tsem_t;

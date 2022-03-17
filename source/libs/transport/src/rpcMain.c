@@ -64,7 +64,6 @@ typedef struct {
   void (*cfp)(void *parent, SRpcMsg *, SEpSet *);
   int (*afp)(void *parent, char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
-  bool             noPool;
   int32_t          refCount;
   void *           parent;
   void *           idPool;     // handle to ID pool

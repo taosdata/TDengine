@@ -42,7 +42,18 @@ int32_t     raftStoreClose(SRaftStore *pRaftStore);
 int32_t     raftStorePersist(SRaftStore *pRaftStore);
 int32_t     raftStoreSerialize(SRaftStore *pRaftStore, char *buf, size_t len);
 int32_t     raftStoreDeserialize(SRaftStore *pRaftStore, char *buf, size_t len);
-void        raftStorePrint(SRaftStore *pRaftStore);
+
+bool raftStoreHasVoted(SRaftStore *pRaftStore);
+void raftStoreVote(SRaftStore *pRaftStore, SRaftId *pRaftId);
+void raftStoreClearVote(SRaftStore *pRaftStore);
+void raftStoreNextTerm(SRaftStore *pRaftStore);
+void raftStoreSetTerm(SRaftStore *pRaftStore, SyncTerm term);
+
+// for debug -------------------
+void raftStorePrint(SRaftStore *pObj);
+void raftStorePrint2(char *s, SRaftStore *pObj);
+void raftStoreLog(SRaftStore *pObj);
+void raftStoreLog2(char *s, SRaftStore *pObj);
 
 #ifdef __cplusplus
 }

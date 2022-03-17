@@ -48,6 +48,12 @@ void           voteGrantedReset(SVotesGranted *pVotesGranted, SyncTerm term);
 cJSON *        voteGranted2Json(SVotesGranted *pVotesGranted);
 char *         voteGranted2Str(SVotesGranted *pVotesGranted);
 
+// for debug -------------------
+void voteGrantedPrint(SVotesGranted *pObj);
+void voteGrantedPrint2(char *s, SVotesGranted *pObj);
+void voteGrantedLog(SVotesGranted *pObj);
+void voteGrantedLog2(char *s, SVotesGranted *pObj);
+
 // SVotesRespond -----------------------------
 typedef struct SVotesRespond {
   SRaftId (*replicas)[TSDB_MAX_REPLICA];
@@ -64,6 +70,12 @@ void           votesRespondAdd(SVotesRespond *pVotesRespond, const SyncRequestVo
 void           votesRespondReset(SVotesRespond *pVotesRespond, SyncTerm term);
 cJSON *        votesRespond2Json(SVotesRespond *pVotesRespond);
 char *         votesRespond2Str(SVotesRespond *pVotesRespond);
+
+// for debug -------------------
+void votesRespondPrint(SVotesRespond *pObj);
+void votesRespondPrint2(char *s, SVotesRespond *pObj);
+void votesRespondLog(SVotesRespond *pObj);
+void votesRespondLog2(char *s, SVotesRespond *pObj);
 
 #ifdef __cplusplus
 }

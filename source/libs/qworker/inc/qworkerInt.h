@@ -59,23 +59,15 @@ enum {
   QW_WRITE,
 };
 
-enum {
-  QW_EXIST_ACQUIRE = 1,
-  QW_EXIST_RET_ERR,
-};
 
 enum {
   QW_NOT_EXIST_RET_ERR = 1,
   QW_NOT_EXIST_ADD,
 };
 
-enum {
-  QW_ADD_RET_ERR = 1,
-  QW_ADD_ACQUIRE,
-};
-
 typedef struct SQWDebug {
-  int32_t lockDebug;
+  bool lockEnable;
+  bool statusEnable;
 } SQWDebug;
 
 typedef struct SQWMsg {
@@ -91,14 +83,10 @@ typedef struct SQWHbInfo {
 } SQWHbInfo;
 
 typedef struct SQWPhaseInput {
-  int8_t         taskStatus;
-  int8_t         taskType;
   int32_t        code;
 } SQWPhaseInput;
 
 typedef struct SQWPhaseOutput {
-  int32_t rspCode;
-  bool    needStop;  
 } SQWPhaseOutput;
 
 
@@ -118,9 +106,10 @@ typedef struct SQWTaskCtx {
   void           *cancelConnection;
   
   bool            emptyRes;
-  bool            multiExec;
-  int8_t          queryContinue;
-  int8_t          queryInQueue;
+  bool            queryFetched;
+  bool            queryEnd;
+  bool            queryContinue;
+  bool            queryInQueue;
   int32_t         rspCode; 
 
   int8_t          events[QW_EVENT_MAX];
@@ -145,7 +134,6 @@ typedef struct SQWorkerMgmt {
   void            *timer;
   tmr_h            hbTimer;
   SRWLatch         schLock;
-  //SRWLatch         ctxLock;
   SHashObj        *schHash;       //key: schedulerId,    value: SQWSchStatus
   SHashObj        *ctxHash;       //key: queryId+taskId, value: SQWTaskCtx
   void            *nodeObj;
@@ -199,7 +187,7 @@ typedef struct SQWorkerMgmt {
 #define QW_SCH_TASK_WLOG(param, ...) qWarn("QW:%p SID:0x%"PRIx64",QID:0x%"PRIx64",TID:0x%"PRIx64" " param, mgmt, sId, qId, tId, __VA_ARGS__)
 #define QW_SCH_TASK_DLOG(param, ...) qDebug("QW:%p SID:0x%"PRIx64",QID:0x%"PRIx64",TID:0x%"PRIx64" " param, mgmt, sId, qId, tId, __VA_ARGS__)
 
-#define QW_LOCK_DEBUG(...) do { if (gQWDebug.lockDebug) { qDebug(__VA_ARGS__); } } while (0)
+#define QW_LOCK_DEBUG(...) do { if (gQWDebug.lockEnable) { qDebug(__VA_ARGS__); } } while (0)
 
 #define TD_RWLATCH_WRITE_FLAG_COPY 0x40000000
 
