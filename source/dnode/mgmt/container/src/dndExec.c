@@ -35,51 +35,37 @@ static bool dndRequireNode(SMgmtWrapper *pWrapper) {
   return required;
 }
 
-int32_t dndOpenNode(SDnode *pDnode, ENodeType ntype) {
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, ntype);
-  if (pWrapper != NULL) {
-    dndReleaseWrapper(pWrapper);
-    terrno = TSDB_CODE_NODE_ALREADY_DEPLOYED;
-    return -1;
-  }
-
-  pWrapper = &pDnode->wrappers[ntype];
+int32_t dndOpenNode(SMgmtWrapper *pWrapper) {
   int32_t code = (*pWrapper->fp.openFp)(pWrapper);
   if (code != 0) {
     dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
+    return -1;
   } else {
     dDebug("node:%s, has been opened", pWrapper->name);
-    pWrapper->deployed = true;
   }
 
-  return code;
+  pWrapper->deployed = true;
+  return 0;
 }
 
-int32_t dndCloseNode(SDnode *pDnode, ENodeType ntype) {
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, ntype);
-  if (pWrapper == NULL) {
-    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
-    return -1;
-  }
-
+void dndCloseNode(SMgmtWrapper *pWrapper) {
   taosWLockLatch(&pWrapper->latch);
-  (*pWrapper->fp.closeFp)(pWrapper);
-  pWrapper->deployed = false;
+  if (pWrapper->deployed) {
+    (*pWrapper->fp.closeFp)(pWrapper);
+    pWrapper->deployed = false;
+  }
   if (pWrapper->pProc) {
     taosProcCleanup(pWrapper->pProc);
     pWrapper->pProc = NULL;
   }
   taosWUnLockLatch(&pWrapper->latch);
-
-  dndReleaseWrapper(pWrapper);
-  return 0;
 }
 
 static int32_t dndRunInSingleProcess(SDnode *pDnode) {
   dInfo("dnode run in single process mode");
 
-  for (ENodeType ntype = 0; ntype < NODE_MAX; ++ntype) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
+  for (ENodeType n = 0; n < NODE_MAX; ++n) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     pWrapper->required = dndRequireNode(pWrapper);
     if (!pWrapper->required) continue;
 
@@ -91,7 +77,7 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
 
     dInfo("node:%s, will start in single process", pWrapper->name);
     pWrapper->procType = PROC_SINGLE;
-    if (dndOpenNode(pDnode, ntype) != 0) {
+    if (dndOpenNode(pWrapper) != 0) {
       dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
       return -1;
     }
@@ -109,9 +95,10 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
 
 static void dndClearNodesExecpt(SDnode *pDnode, ENodeType except) {
   dndCleanupServer(pDnode);
-  for (ENodeType ntype = 0; ntype < NODE_MAX; ++ntype) {
-    if (except == ntype) continue;
-    (void)dndCloseNode(pDnode, ntype);
+  for (ENodeType n = 0; n < NODE_MAX; ++n) {
+    if (except == n) continue;
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+    dndCloseNode(pWrapper);
   }
 }
 
@@ -145,8 +132,8 @@ static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRsp, int32_t
 static int32_t dndRunInMultiProcess(SDnode *pDnode) {
   dInfo("dnode run in multi process mode");
 
-  for (ENodeType ntype = 0; ntype < NODE_MAX; ++ntype) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
+  for (ENodeType n = 0; n < NODE_MAX; ++n) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     pWrapper->required = dndRequireNode(pWrapper);
     if (!pWrapper->required) continue;
 
@@ -156,10 +143,10 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
       return -1;
     }
 
-    if (ntype == DNODE) {
+    if (n == DNODE) {
       dInfo("node:%s, will start in parent process", pWrapper->name);
       pWrapper->procType = PROC_SINGLE;
-      if (dndOpenNode(pDnode, ntype) != 0) {
+      if (dndOpenNode(pWrapper) != 0) {
         dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
         return -1;
       }
@@ -195,10 +182,10 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
       dndResetLog(pWrapper);
 
       dInfo("node:%s, clean up resources inherited from parent", pWrapper->name);
-      dndClearNodesExecpt(pDnode, ntype);
+      dndClearNodesExecpt(pDnode, n);
 
       dInfo("node:%s, will be initialized in child process", pWrapper->name);
-      dndOpenNode(pDnode, ntype);
+      dndOpenNode(pWrapper);
     } else {
       dInfo("node:%s, will not start in parent process", pWrapper->name);
       pWrapper->procType = PROC_PARENT;

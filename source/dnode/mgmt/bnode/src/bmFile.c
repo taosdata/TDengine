@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "bmInt.h"
 
-int32_t bmReadFile(SBnodeMgmt *pMgmt) {
+int32_t bmReadFile(SBnodeMgmt *pMgmt, bool *pDeployed) {
   int32_t   code = TSDB_CODE_DND_BNODE_READ_FILE_ERROR;
   int32_t   len = 0;
   int32_t   maxLen = 1024;
@@ -51,17 +51,10 @@ int32_t bmReadFile(SBnodeMgmt *pMgmt) {
     dError("failed to read %s since deployed not found", file);
     goto PRASE_BNODE_OVER;
   }
-  pMgmt->deployed = deployed->valueint;
-
-  cJSON *dropped = cJSON_GetObjectItem(root, "dropped");
-  if (!dropped || dropped->type != cJSON_Number) {
-    dError("failed to read %s since dropped not found", file);
-    goto PRASE_BNODE_OVER;
-  }
-  pMgmt->dropped = dropped->valueint;
+  *pDeployed = deployed->valueint != 0;
 
   code = 0;
-  dDebug("succcessed to read file %s, deployed:%d dropped:%d", file, pMgmt->deployed, pMgmt->dropped);
+  dDebug("succcessed to read file %s, deployed:%d", file, *pDeployed);
 
 PRASE_BNODE_OVER:
   if (content != NULL) free(content);
@@ -72,7 +65,7 @@ PRASE_BNODE_OVER:
   return code;
 }
 
-int32_t bmWriteFile(SBnodeMgmt *pMgmt) {
+int32_t bmWriteFile(SBnodeMgmt *pMgmt, bool deployed) {
   char file[PATH_MAX];
   snprintf(file, sizeof(file), "%s%sbnode.json", pMgmt->path, TD_DIRSEP);
 
@@ -88,8 +81,7 @@ int32_t bmWriteFile(SBnodeMgmt *pMgmt) {
   char   *content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"deployed\": %d,\n", pMgmt->deployed);
-  len += snprintf(content + len, maxLen - len, "  \"dropped\": %d\n", pMgmt->dropped);
+  len += snprintf(content + len, maxLen - len, "  \"deployed\": %d\n", deployed);
   len += snprintf(content + len, maxLen - len, "}\n");
 
   taosWriteFile(pFile, content, len);
@@ -106,6 +98,6 @@ int32_t bmWriteFile(SBnodeMgmt *pMgmt) {
     return -1;
   }
 
-  dInfo("successed to write %s, deployed:%d dropped:%d", realfile, pMgmt->deployed, pMgmt->dropped);
+  dInfo("successed to write %s, deployed:%d", realfile, deployed);
   return 0;
 }

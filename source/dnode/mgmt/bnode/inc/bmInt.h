@@ -24,27 +24,25 @@ extern "C" {
 #endif
 
 typedef struct SBnodeMgmt {
-  int32_t       refCount;
-  int8_t        deployed;
-  int8_t        dropped;
   SBnode       *pBnode;
   SDnode       *pDnode;
   SMgmtWrapper *pWrapper;
   const char   *path;
-  SRWLatch      latch;
   SDnodeWorker  writeWorker;
 } SBnodeMgmt;
 
 // bmFile.c
-int32_t bmReadFile(SBnodeMgmt *pMgmt);
-int32_t bmWriteFile(SBnodeMgmt *pMgmt);
-
-SBnode *bmAcquire(SBnodeMgmt *pMgmt);
-void    bmRelease(SBnodeMgmt *pMgmt, SBnode *pBnode);
+int32_t bmReadFile(SBnodeMgmt *pMgmt, bool *pDeployed);
+int32_t bmWriteFile(SBnodeMgmt *pMgmt, bool deployed);
 
 // bmInt.c
-int32_t bmOpen(SBnodeMgmt *pMgmt);
-int32_t bmDrop(SBnodeMgmt *pMgmt);
+int32_t bmOpen(SMgmtWrapper *pWrapper);
+int32_t bmDrop(SMgmtWrapper *pWrapper);
+
+// bmMsg.c
+void    bmInitMsgHandles(SMgmtWrapper *pWrapper);
+int32_t bmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t bmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
 // bmWorker.c
 int32_t bmStartWorker(SBnodeMgmt *pMgmt);

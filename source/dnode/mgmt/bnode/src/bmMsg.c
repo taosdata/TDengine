@@ -16,8 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "bmInt.h"
 
-int32_t bmProcessCreateReq(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SDnode  *pDnode = pMgmt->pDnode;
+int32_t bmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+  SDnode  *pDnode = pWrapper->pDnode;
   SRpcMsg *pReq = &pMsg->rpcMsg;
 
   SDCreateBnodeReq createReq = {0};
@@ -31,12 +31,12 @@ int32_t bmProcessCreateReq(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
     dError("failed to create bnode since %s", terrstr());
     return -1;
   } else {
-    return bmOpen(pMgmt);
+    return bmOpen(pWrapper);
   }
 }
 
-int32_t bmProcessDropReq(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SDnode  *pDnode = pMgmt->pDnode;
+int32_t bmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+  SDnode  *pDnode = pWrapper->pDnode;
   SRpcMsg *pReq = &pMsg->rpcMsg;
 
   SDDropBnodeReq dropReq = {0};
@@ -50,7 +50,7 @@ int32_t bmProcessDropReq(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
     dError("failed to drop bnode since %s", terrstr());
     return -1;
   } else {
-    return bmDrop(pMgmt);
+    return bmDrop(pWrapper);
   }
 }
 

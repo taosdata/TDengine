@@ -124,8 +124,9 @@ void dndClose(SDnode *pDnode) {
   dndCleanupServer(pDnode);
   dndCleanupClient(pDnode);
 
-  for (ENodeType ntype = 0; ntype < NODE_MAX; ++ntype) {
-    (void)dndCloseNode(pDnode, ntype);
+  for (ENodeType n = 0; n < NODE_MAX; ++n) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+    dndCloseNode(pWrapper);
   }
 
   dndClearMemory(pDnode);

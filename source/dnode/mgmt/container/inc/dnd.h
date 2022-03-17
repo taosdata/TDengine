@@ -74,6 +74,8 @@ typedef struct SBnodeMgmt   SBnodeMgmt;
 typedef int32_t (*NodeMsgFp)(void *pMgmt, SNodeMsg *pMsg);
 typedef int32_t (*OpenNodeFp)(SMgmtWrapper *pWrapper);
 typedef void (*CloseNodeFp)(SMgmtWrapper *pWrapper);
+typedef int32_t (*CreateNodeFp)(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+typedef int32_t (*DropNodeFp)(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 typedef bool (*RequireNodeFp)(SMgmtWrapper *pWrapper);
 
 typedef struct {
@@ -98,6 +100,8 @@ typedef struct SMsgHandle {
 typedef struct SMgmtFp {
   OpenNodeFp    openFp;
   CloseNodeFp   closeFp;
+  CreateNodeFp  createMsgFp;
+  DropNodeFp    dropMsgFp;
   RequireNodeFp requiredFp;
 } SMgmtFp;
 

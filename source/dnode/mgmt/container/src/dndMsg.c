@@ -90,24 +90,55 @@ _OVER:
   dndReleaseWrapper(pWrapper);
 }
 
+static int32_t dndProcessCreateNodeMsg(SDnode *pDnode, ENodeType ntype, SNodeMsg *pMsg) {
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, ntype);
+  if (pWrapper != NULL) {
+    dndReleaseWrapper(pWrapper);
+    terrno = TSDB_CODE_NODE_ALREADY_DEPLOYED;
+    return -1;
+  }
+
+  pWrapper = &pDnode->wrappers[ntype];
+  int32_t code = (*pWrapper->fp.createMsgFp)(pWrapper, pMsg);
+  if (code != 0) {
+    dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
+  } else {
+    dDebug("node:%s, has been opened", pWrapper->name);
+    pWrapper->deployed = true;
+  }
+
+  return code;
+}
+
+static int32_t dndProcessDropNodeMsg(SDnode *pDnode, ENodeType ntype, SNodeMsg *pMsg) {
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, ntype);
+  if (pWrapper == NULL) {
+    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
+    return -1;
+  }
+
+  dndCloseNode(pWrapper);
+  dndReleaseWrapper(pWrapper);
+}
+
 int32_t dndProcessNodeMsg(SDnode *pDnode, SNodeMsg *pMsg) {
   switch (pMsg->rpcMsg.msgType) {
     case TDMT_DND_CREATE_MNODE:
-      return dndOpenNode(pDnode, MNODE);
+      return dndProcessCreateNodeMsg(pDnode, MNODE, pMsg);
     case TDMT_DND_DROP_MNODE:
-      return dndCloseNode(pDnode, MNODE);
+      return dndProcessDropNodeMsg(pDnode, MNODE, pMsg);
     case TDMT_DND_CREATE_QNODE:
-      return dndOpenNode(pDnode, QNODE);
+      return dndProcessCreateNodeMsg(pDnode, QNODE, pMsg);
     case TDMT_DND_DROP_QNODE:
-      return dndCloseNode(pDnode, QNODE);
+      return dndProcessDropNodeMsg(pDnode, QNODE, pMsg);
     case TDMT_DND_CREATE_SNODE:
-      return dndOpenNode(pDnode, SNODE);
+      return dndProcessCreateNodeMsg(pDnode, SNODE, pMsg);
     case TDMT_DND_DROP_SNODE:
-      return dndCloseNode(pDnode, MNODE);
+      return dndProcessDropNodeMsg(pDnode, MNODE, pMsg);
     case TDMT_DND_CREATE_BNODE:
-      return dndOpenNode(pDnode, BNODE);
+      return dndProcessCreateNodeMsg(pDnode, BNODE, pMsg);
     case TDMT_DND_DROP_BNODE:
-      return dndCloseNode(pDnode, BNODE);
+      return dndProcessDropNodeMsg(pDnode, BNODE, pMsg);
 
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;

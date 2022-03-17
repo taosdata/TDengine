@@ -16,55 +16,17 @@
 #define _DEFAULT_SOURCE
 #include "bmInt.h"
 
-SBnode *bmAcquire(SBnodeMgmt *pMgmt) {
-  SBnode *pBnode = NULL;
-  int32_t refCount = 0;
-
-  taosRLockLatch(&pMgmt->latch);
-  if (pMgmt->deployed && !pMgmt->dropped && pMgmt->pBnode != NULL) {
-    refCount = atomic_add_fetch_32(&pMgmt->refCount, 1);
-    pBnode = pMgmt->pBnode;
-  } else {
-    terrno = TSDB_CODE_DND_BNODE_NOT_DEPLOYED;
-  }
-  taosRUnLockLatch(&pMgmt->latch);
-
-  if (pBnode != NULL) {
-    dTrace("acquire bnode, refCount:%d", refCount);
-  }
-  return pBnode;
-}
-
-void bmRelease(SBnodeMgmt *pMgmt, SBnode *pBnode) {
-  if (pBnode == NULL) return;
-
-  taosRLockLatch(&pMgmt->latch);
-  int32_t refCount = atomic_sub_fetch_32(&pMgmt->refCount, 1);
-  taosRUnLockLatch(&pMgmt->latch);
-  dTrace("release bnode, refCount:%d", refCount);
-}
-
 static bool bmRequire(SMgmtWrapper *pWrapper) {
   SBnodeMgmt mgmt = {0};
   mgmt.path = pWrapper->path;
-  if (bmReadFile(&mgmt) != 0) {
-    return false;
-  }
 
-  if (mgmt.dropped) {
-    dInfo("bnode has been dropped and needs to be deleted");
-    taosRemoveDir(mgmt.path);
-    return false;
-  }
+  bool deployed = false;
+  (void)bmReadFile(&mgmt, &deployed);
 
-  if (mgmt.deployed) {
-    dInfo("bnode has been deployed");
-  }
-
-  return mgmt.deployed;
+  return deployed;
 }
 
-void bmInitOption(SBnodeMgmt *pMgmt, SBnodeOpt *pOption) {
+static void bmInitOption(SBnodeMgmt *pMgmt, SBnodeOpt *pOption) {
   SDnode *pDnode = pMgmt->pDnode;
   pOption->pWrapper = pMgmt->pWrapper;
   pOption->sendReqFp = dndSendReqToDnode;
@@ -73,125 +35,87 @@ void bmInitOption(SBnodeMgmt *pMgmt, SBnodeOpt *pOption) {
   pOption->clusterId = pDnode->clusterId;
 }
 
-int32_t bmOpen(SBnodeMgmt *pMgmt) {
+static int32_t bmOpenImp(SBnodeMgmt *pMgmt) {
   SBnodeOpt option = {0};
   bmInitOption(pMgmt, &option);
 
-  SBnode *pBnode = bmAcquire(pMgmt);
-  if (pBnode != NULL) {
-    bmRelease(pMgmt, pBnode);
-    terrno = TSDB_CODE_DND_BNODE_ALREADY_DEPLOYED;
-    dError("failed to create bnode since %s", terrstr());
-    return -1;
-  }
-
-  pBnode = bndOpen(pMgmt->path, &option);
-  if (pBnode == NULL) {
+  pMgmt->pBnode = bndOpen(pMgmt->path, &option);
+  if (pMgmt->pBnode == NULL) {
     dError("failed to open bnode since %s", terrstr());
     return -1;
   }
 
   if (bmStartWorker(pMgmt) != 0) {
     dError("failed to start bnode worker since %s", terrstr());
-    bndClose(pBnode);
-    bndDestroy(pMgmt->path);
     return -1;
   }
 
-  pMgmt->deployed = 1;
-  if (bmWriteFile(pMgmt) != 0) {
+  bool deployed = true;
+  if (bmWriteFile(pMgmt, deployed) != 0) {
     dError("failed to write bnode file since %s", terrstr());
-    pMgmt->deployed = 0;
-    bmStopWorker(pMgmt);
-    bndClose(pBnode);
-    bndDestroy(pMgmt->path);
     return -1;
   }
-
-  taosWLockLatch(&pMgmt->latch);
-  pMgmt->pBnode = pBnode;
-  pMgmt->deployed = 1;
-  taosWUnLockLatch(&pMgmt->latch);
-
-  dInfo("bnode open successfully");
-  return 0;
-}
-
-int32_t bmDrop(SBnodeMgmt *pMgmt) {
-  SBnode *pBnode = bmAcquire(pMgmt);
-  if (pBnode == NULL) {
-    dError("failed to drop bnode since %s", terrstr());
-    return -1;
-  }
-
-  taosRLockLatch(&pMgmt->latch);
-  pMgmt->dropped = 1;
-  taosRUnLockLatch(&pMgmt->latch);
-
-  if (bmWriteFile(pMgmt) != 0) {
-    taosRLockLatch(&pMgmt->latch);
-    pMgmt->dropped = 0;
-    taosRUnLockLatch(&pMgmt->latch);
-
-    bmRelease(pMgmt, pBnode);
-    dError("failed to drop bnode since %s", terrstr());
-    return -1;
-  }
-
-  bmRelease(pMgmt, pBnode);
-  bmStopWorker(pMgmt);
-  pMgmt->deployed = 0;
-  bmWriteFile(pMgmt);
-  bndClose(pBnode);
-  pMgmt->pBnode = NULL;
-  bndDestroy(pMgmt->path);
 
   return 0;
 }
 
-static void bmCleanup(SMgmtWrapper *pWrapper) {
-  SBnodeMgmt *pMgmt = pWrapper->pMgmt;
-  if (pMgmt == NULL) return;
-
-  dInfo("bnode-mgmt start to cleanup");
-  if (pMgmt->pBnode) {
+static void bmCloseImp(SBnodeMgmt *pMgmt) {
+  if (pMgmt->pBnode == NULL) {
     bmStopWorker(pMgmt);
     bndClose(pMgmt->pBnode);
     pMgmt->pBnode = NULL;
   }
-  free(pMgmt);
+}
+
+int32_t bmDrop(SMgmtWrapper *pWrapper) {
+  SBnodeMgmt *pMgmt = pWrapper->pMgmt;
+  if (pMgmt == NULL) return 0;
+
+  dInfo("bnode-mgmt start to drop");
+  bool deployed = false;
+  if (bmWriteFile(pMgmt, deployed) != 0) {
+    dError("failed to drop bnode since %s", terrstr());
+    return -1;
+  }
+
+  bmCloseImp(pMgmt);
+  bndDestroy(pMgmt->path);
   pWrapper->pMgmt = NULL;
+  free(pMgmt);
+  dInfo("bnode-mgmt is dropped");
+  return 0;
+}
+
+static void bmClose(SMgmtWrapper *pWrapper) {
+  SBnodeMgmt *pMgmt = pWrapper->pMgmt;
+  if (pMgmt == NULL) return;
+
+  dInfo("bnode-mgmt start to cleanup");
+  bmCloseImp(pMgmt);
+  pWrapper->pMgmt = NULL;
+  free(pMgmt);
   dInfo("bnode-mgmt is cleaned up");
 }
 
-static int32_t bmInit(SMgmtWrapper *pWrapper) {
-  SDnode     *pDnode = pWrapper->pDnode;
-  SBnodeMgmt *pMgmt = calloc(1, sizeof(SBnodeMgmt));
-  int32_t     code = -1;
-
+int32_t bmOpen(SMgmtWrapper *pWrapper) {
   dInfo("bnode-mgmt start to init");
-  if (pMgmt == NULL) goto _OVER;
+  SBnodeMgmt *pMgmt = calloc(1, sizeof(SBnodeMgmt));
+  if (pMgmt == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
 
   pMgmt->path = pWrapper->path;
   pMgmt->pDnode = pWrapper->pDnode;
   pMgmt->pWrapper = pWrapper;
-  taosInitRWLatch(&pMgmt->latch);
+  pWrapper->pMgmt = pMgmt;
 
-  if (bmReadFile(pMgmt) != 0) {
-    dError("failed to read file since %s", terrstr());
-    goto _OVER;
-  }
-
-  dInfo("bnode start to open");
-  code = bmOpen(pMgmt);
-
-_OVER:
-  if (code == 0) {
-    pWrapper->pMgmt = pMgmt;
-    dInfo("bnode-mgmt is initialized");
-  } else {
+  int32_t code = bmOpenImp(pMgmt);
+  if (code != 0) {
     dError("failed to init bnode-mgmt since %s", terrstr());
-    bmCleanup(pWrapper);
+    bmClose(pWrapper);
+  } else {
+    dInfo("bnode-mgmt is initialized");
   }
 
   return code;
@@ -199,8 +123,10 @@ _OVER:
 
 void bmGetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
-  mgmtFp.openFp = bmInit;
-  mgmtFp.closeFp = bmCleanup;
+  mgmtFp.openFp = bmOpen;
+  mgmtFp.closeFp = bmClose;
+  mgmtFp.createMsgFp = bmProcessCreateReq;
+  mgmtFp.dropMsgFp = bmProcessDropReq;
   mgmtFp.requiredFp = bmRequire;
 
   bmInitMsgHandles(pWrapper);
