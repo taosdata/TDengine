@@ -230,6 +230,7 @@ typedef struct SQueryAttr {
   bool             stabledev;        // super table stddev query
   bool             tsCompQuery;      // is tscomp query
   bool             diffQuery;        // is diff query
+  bool             stateQuery;       // is state query
   bool             simpleAgg;
   bool             pointInterpQuery; // point interpolation query
   bool             needTableSeqScan; // need scan table by table

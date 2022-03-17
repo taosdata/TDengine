@@ -59,14 +59,14 @@ When TDengine receives the application's request packet, it first writes the req
 
 There are two system configuration parameters involved:
 
-- walLevel: WAL level, 0: do not write wal; 1: write wal, but do not execute fsync; 2: write wal and execute fsync.
+- walLevel: WAL level, 0: do not write WAL; 1: write WAL, but do not execute fsync; 2: write WAL and execute fsync.
 - fsync: the cycle in which fsync is executed when walLevel is set to 2. Setting to 0 means that fsync is executed immediately whenever there is a write.
 
 To guarantee 100% data safe, you need to set walLevel to 2 and fsync to 0. In that way, the write speed will decrease. However, if the number of threads starting to write data on the application side reaches a certain number (more than 50), the performance of writing data will also be good, only about 30% lower than that of fsync set to 3000 milliseconds.
 
 ### Disaster recovery
 
-The cluster of TDengine provides high-availability of the system and implements disaster recovery through the multipl-replica mechanism.
+The cluster of TDengine provides high-availability of the system and implements disaster recovery through the multiple-replica mechanism.
 
 TDengine cluster is managed by mnode. In order to ensure the high reliability of the mnode, multiple mnode replicas can be configured. The number of replicas is determined by system configuration parameter numOfMnodes. In order to support high reliability, it needs to be set to be greater than 1. In order to ensure the strong consistency of metadata, mnode replicas duplicate data synchronously to ensure the strong consistency of metadata.
 
@@ -114,8 +114,8 @@ Data in different application scenarios often have different data characteristic
 - minRows: the minimum number of records in a file block, in pieces, default: 100.
 - maxRows: the maximum number of records in a file block, in pieces, default: 4096.
 - comp: file compression flag bit, 0: off; 1: one-stage compression; 2: two-stage compression. Default: 2.
-- walLevel: WAL level. 1: write wal, but do not execute fsync; 2: write wal and execute fsync. Default: 1.
-- fsync: the period during which fsync is executed when wal is set to 2. Setting to 0 means that fsync is executed immediately whenever a write happens, in milliseconds, and the default value is 3000.
+- walLevel: WAL level. 1: write WAL, but do not execute fsync; 2: write WAL and execute fsync. Default: 1.
+- fsync: the period during which fsync is executed when WAL is set to 2. Setting to 0 means that fsync is executed immediately whenever a write happens, in milliseconds, and the default value is 3000.
 - cache: the size of the memory block in megabytes (MB), default: 16.
 - blocks: how many cache-sized memory blocks are in each VNODE (TSDB). Therefore, the memory size used by a VNODE is roughly (cache * blocks), in blocks, and the default value is 4.
 - replica: number of replicas; value range: 1-3, in items, default value: 1
@@ -377,7 +377,7 @@ The system administrator can query the connection, ongoing query and stream comp
 SHOW CONNECTIONS;
 ```
 
-Show the connection of the database, and one column shows ip: port, which is the IP address and port number of the connection.
+Show the connection of the database, and one column shows IP: port, which is the IP address and port number of the connection.
 
 ```mysql
 KILL CONNECTION <connection-id>;
@@ -442,7 +442,7 @@ Some CLI options are needed to use the script:
         sudo ./TDinsight.sh -a http://localhost:6041 -u root -p taosdata -E <notifier uid>
         ```
 
-   2. Use TDengine data source plugin's builtin [Aliyun SMS](https://www.aliyun.com/product/sms) alerting support with `-s` flag, and input these options：
+   2. Use TDengine data source plugin's built-in [Aliyun SMS](https://www.aliyun.com/product/sms) alerting support with `-s` flag, and input these options：
         1. Access key id with option `-I`
         2. Access key secret with option `K`
         3. Access key sign name with option `-S`
@@ -468,7 +468,7 @@ After installing TDengine, the following directories or files are generated in t
 
 | **Directory/File**        | **Description**                                              |
 | ------------------------- | ------------------------------------------------------------ |
-| /usr/local/taos/bin       | TEngine’s executable directory. The executables are connected to the/usr/bin directory via softly links. |
+| /usr/local/taos/bin       | TDengine’s executable directory. The executables are connected to the/usr/bin directory via softly links. |
 | /usr/local/taos/connector | TDengine’s various connector directories.                    |
 | /usr/local/taos/driver    | TDengine’s dynamic link library directory. Connect to /usr/lib directory via soft links. |
 | /usr/local/taos/examples  | TDengine’s application example directory for various languages. |

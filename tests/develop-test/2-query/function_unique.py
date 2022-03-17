@@ -142,11 +142,11 @@ class TDTestCase:
         tdSql.query('select ts,unique(voltage) from unique group by location')
         tdSql.checkRows(8)
         tdSql.checkData(0, 2, 1)
-        tdSql.checkData(0, 3, "Beijing.haidian")
-        tdSql.checkData(3, 2, 1)
-        tdSql.checkData(3, 3, "Beijing.Chaoyang")
-        tdSql.checkData(5, 2, 1)
-        tdSql.checkData(5, 3, "Beijing.Tongzhou")
+        tdSql.checkData(5, 3, "Beijing.haidian")
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, "Beijing.Chaoyang")
+        tdSql.checkData(2, 2, 1)
+        tdSql.checkData(2, 3, "Beijing.Tongzhou")
         #group by ts
         tdSql.query('select ts,unique(voltage) from unique group by ts')
         tdSql.checkRows(9)
@@ -255,6 +255,20 @@ class TDTestCase:
         #subquery
         tdSql.query('select unique(num) from (select * from unique where voltage > 1)')
         tdSql.checkRows(2)
+
+        tdSql.query('select unique(num) from (select * from unique) order by ts')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "2021-10-15 00:00:01")
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(1, 0, "2021-12-25 01:31:31")
+        tdSql.checkData(1, 1, 4)
+
+        tdSql.query('select unique(num) from (select * from unique) order by ts desc')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "2021-12-25 01:31:31")
+        tdSql.checkData(0, 1, 4)
+        tdSql.checkData(1, 0, "2021-10-15 00:00:01")
+        tdSql.checkData(1, 1, 2)
 
         #union
         tdSql.query('select unique(voltage) from d002 union all select unique(voltage) from d003')

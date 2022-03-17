@@ -35,7 +35,7 @@ wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
 echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
 [Optional] echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
 sudo apt-get update
-apt-get policy tdengine
+apt-cache policy tdengine
 sudo apt-get install tdengine
 ```
 

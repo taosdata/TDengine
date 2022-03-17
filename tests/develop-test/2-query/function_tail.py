@@ -116,10 +116,10 @@ class TDTestCase:
         #group by column
         tdSql.query('select tail(dtiny,2) from tail2 group by dnchar')
         tdSql.checkRows(5)
-        tdSql.checkData(0, 0, "2021-10-15 00:31:33")
-        tdSql.checkData(0, 1, 23)
-        tdSql.checkData(2, 0, "2021-12-24 00:31:34")
-        tdSql.checkData(2, 1, None)
+        tdSql.checkData(2, 0, "2021-10-15 00:31:33")
+        tdSql.checkData(2, 1, 23)
+        tdSql.checkData(1, 0, "2021-12-24 00:31:34")
+        tdSql.checkData(1, 1, None)
         tdSql.checkData(4, 0, "2022-01-01 08:00:07")
         tdSql.checkData(4, 1, 25)
         tdSql.query('select tail(dtiny,2,1) from tail2 group by dnchar')
@@ -130,8 +130,8 @@ class TDTestCase:
         tdSql.checkData(0, 1, 123)
         tdSql.checkData(2, 0, "2021-10-17 00:31:31")
         tdSql.checkData(2, 1, 253)
-        tdSql.checkData(4, 0, "2022-01-01 08:00:07")
-        tdSql.checkData(4, 1, 25)
+        tdSql.checkData(6, 0, "2022-01-01 08:00:07")
+        tdSql.checkData(6, 1, 25)
         tdSql.query('select tail(dtiny,2,1) from stail group by dnchar')
         tdSql.checkRows(5)
 
@@ -320,6 +320,20 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.checkData(1, 0, "2022-01-01 08:00:07")
         tdSql.checkData(1, 1, "试试")
+
+        tdSql.query('select tail(dbig, 3) from (select * from stail) order by ts')
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, "2022-01-01 08:00:06")
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(1, 0, "2022-01-01 08:00:07")
+        tdSql.checkData(1, 1, 9)
+
+        tdSql.query('select tail(dbig, 3) from (select * from stail) order by ts desc')
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, "2022-01-24 00:31:32")
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 0, "2022-01-01 08:00:07")
+        tdSql.checkData(1, 1, 9)
 
         #union
         tdSql.query('select tail(dtiny,2) from tail1 union all select tail(dtiny,2) from tail2')

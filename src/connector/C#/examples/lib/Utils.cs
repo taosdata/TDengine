@@ -14,11 +14,11 @@ namespace Sample.UtilsTools
         static string db = "";
         static short port = 0;
         static string globalDbName = "csharp_example_db";
-        //get a tdengine connection
+        //get a TDengine connection
         public static IntPtr TDConnection()
         {
-            TDengine.Options((int)TDengineInitOption.TDDB_OPTION_CONFIGDIR, GetConfigPath());
-            TDengine.Options((int)TDengineInitOption.TDDB_OPTION_SHELL_ACTIVITY_TIMER, "60");
+            TDengine.Options((int)TDengineInitOption.TSDB_OPTION_CONFIGDIR, GetConfigPath());
+            TDengine.Options((int)TDengineInitOption.TSDB_OPTION_SHELL_ACTIVITY_TIMER, "60");
             TDengine.Init();
 
             IntPtr conn = TDengine.Connect(ip, user, password, db, port);
@@ -100,18 +100,18 @@ namespace Sample.UtilsTools
                 ExitProgram();
             }
 
-            List<TDengineMeta> metas = GetResField(res);
-            int fieldCount = metas.Count;
-            // metas.ForEach((item) => { Console.Write("{0} ({1}) \t|\t", item.name, item.size); });
+            List<TDengineMeta> metaList = GetResField(res);
+            int fieldCount = metaList.Count;
+            // metaList.ForEach((item) => { Console.Write("{0} ({1}) \t|\t", item.name, item.size); });
 
-            List<Object> datas = QueryRes(res, metas);
-            for (int index = 0; index < datas.Count; index++)
+            List<Object> dataList = QueryRes(res, metaList);
+            for (int index = 0; index < dataList.Count; index++)
             {
                 if (index % fieldCount == 0 && index != 0)
                 {
                     Console.WriteLine("");
                 }
-                Console.Write("{0} \t|\t", datas[index].ToString());
+                Console.Write("{0} \t|\t", dataList[index].ToString());
 
             }
             Console.WriteLine("");
@@ -127,10 +127,10 @@ namespace Sample.UtilsTools
                 ExitProgram();
             }
 
-            List<TDengineMeta> metas = GetResField(res);
+            List<TDengineMeta> meta = GetResField(res);
             result.Add(colName);
 
-            dataRaw = QueryRes(res, metas);
+            dataRaw = QueryRes(res, meta);
             result.Add(dataRaw);
 
             if (TDengine.ErrorNo(res) != 0)
@@ -161,7 +161,7 @@ namespace Sample.UtilsTools
             {
                 if (TDengine.Close(conn) == 0)
                 {
-                    Console.WriteLine("close connection sucess");
+                    Console.WriteLine("close connection success");
                 }
                 else
                 {
@@ -171,8 +171,8 @@ namespace Sample.UtilsTools
         }
         public static List<TDengineMeta> GetResField(IntPtr res)
         {
-            List<TDengineMeta> metas = TDengine.FetchFields(res);
-            return metas;
+            List<TDengineMeta> meta = TDengine.FetchFields(res);
+            return meta;
         }
         public static void ExitProgram()
         {
@@ -187,16 +187,16 @@ namespace Sample.UtilsTools
             {
                 ExitProgram();
             }
-            List<TDengineMeta> metas = GetResField(res);
-            dataRaw = QueryRes(res, metas);
+            List<TDengineMeta> meta = GetResField(res);
+            dataRaw = QueryRes(res, meta);
             return dataRaw;
         }
 
-        private static List<Object> QueryRes(IntPtr res, List<TDengineMeta> metas)
+        private static List<Object> QueryRes(IntPtr res, List<TDengineMeta> meta)
         {
             IntPtr taosRow;
             List<Object> dataRaw = new List<Object>();
-            int fieldCount = metas.Count;
+            int fieldCount = meta.Count;
             while ((taosRow = TDengine.FetchRows(res)) != IntPtr.Zero)
             {
                 dataRaw.AddRange(FetchRow(taosRow,res));
@@ -295,7 +295,7 @@ namespace Sample.UtilsTools
                         dataRaw.Add(v16);
                         break;                    
                     default:
-                        dataRaw.Add("nonsupport data type value");
+                        dataRaw.Add("nonsupport data type");
                         break;
                 }
 
