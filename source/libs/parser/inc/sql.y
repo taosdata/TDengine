@@ -44,25 +44,39 @@
 //%right NK_BITNOT.
 
 /************************************************ create/alter account *****************************************/
-cmd ::= ALTER ACCOUNT NK_ID account_options.                                      { pCxt->valid = false; generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
+cmd ::= CREATE ACCOUNT NK_ID PASS NK_STRING account_options.                      { pCxt->valid = false; generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
+cmd ::= ALTER ACCOUNT NK_ID alter_account_options.                                { pCxt->valid = false; generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
 
 %type account_options                                                             { int32_t }
 %destructor account_options                                                       { }
-account_options ::= account_option.                                               { }
-account_options ::= account_options account_option.                               { }
+account_options ::= .                                                             { }
+account_options ::= account_options PPS literal.                                  { }
+account_options ::= account_options TSERIES literal.                              { }
+account_options ::= account_options STORAGE literal.                              { }
+account_options ::= account_options STREAMS literal.                              { }
+account_options ::= account_options QTIME literal.                                { }
+account_options ::= account_options DBS literal.                                  { }
+account_options ::= account_options USERS literal.                                { }
+account_options ::= account_options CONNS literal.                                { }
+account_options ::= account_options STATE literal.                                { }
 
-%type account_option                                                              { int32_t }
-%destructor account_option                                                        { }
-account_option ::= PASS literal.                                                  { }
-account_option ::= PPS literal.                                                   { }
-account_option ::= TSERIES literal.                                               { }
-account_option ::= STORAGE literal.                                               { }
-account_option ::= STREAMS literal.                                               { }
-account_option ::= QTIME literal.                                                 { }
-account_option ::= DBS literal.                                                   { }
-account_option ::= USERS literal.                                                 { }
-account_option ::= CONNS literal.                                                 { }
-account_option ::= STATE literal.                                                 { }
+%type alter_account_options                                                       { int32_t }
+%destructor alter_account_options                                                 { }
+alter_account_options ::= alter_account_option.                                   { }
+alter_account_options ::= alter_account_options alter_account_option.             { }
+
+%type alter_account_option                                                        { int32_t }
+%destructor alter_account_option                                                  { }
+alter_account_option ::= PASS literal.                                            { }
+alter_account_option ::= PPS literal.                                             { }
+alter_account_option ::= TSERIES literal.                                         { }
+alter_account_option ::= STORAGE literal.                                         { }
+alter_account_option ::= STREAMS literal.                                         { }
+alter_account_option ::= QTIME literal.                                           { }
+alter_account_option ::= DBS literal.                                             { }
+alter_account_option ::= USERS literal.                                           { }
+alter_account_option ::= CONNS literal.                                           { }
+alter_account_option ::= STATE literal.                                           { }
 
 /************************************************ create/alter/drop/show user *****************************************/
 cmd ::= CREATE USER user_name(A) PASS NK_STRING(B).                               { pCxt->pRootNode = createCreateUserStmt(pCxt, &A, &B); }
