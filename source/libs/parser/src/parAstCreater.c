@@ -489,9 +489,12 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   CHECK_OUT_OF_MEM(val);
   val->literal = strndup(pLiteral->z, pLiteral->n);
+  if (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType) {
+    trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);
+  }
   CHECK_OUT_OF_MEM(val->literal);
   val->node.resType.type = dataType;
-  val->node.resType.bytes = tDataTypes[dataType].bytes;
+  val->node.resType.bytes = IS_VAR_DATA_TYPE(dataType) ? strlen(val->literal) : tDataTypes[dataType].bytes;
   if (TSDB_DATA_TYPE_TIMESTAMP == dataType) {
     val->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
   }
@@ -509,6 +512,19 @@ SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) 
   val->translate = false;
   val->node.resType.type = TSDB_DATA_TYPE_BIGINT;
   val->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  val->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
+  return (SNode*)val;
+}
+
+SNode* createDefaultDatabaseCondValue(SAstCreateContext* pCxt) {
+  SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  CHECK_OUT_OF_MEM(val);
+  val->literal = strdup(pCxt->pQueryCxt->db);
+  CHECK_OUT_OF_MEM(val->literal);
+  val->isDuration = false;
+  val->translate = false;
+  val->node.resType.type = TSDB_DATA_TYPE_BINARY;
+  val->node.resType.bytes = strlen(val->literal);
   val->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
   return (SNode*)val;
 }
