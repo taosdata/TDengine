@@ -39,7 +39,7 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
   syncAppendEntriesReplyLog2("==syncNodeOnAppendEntriesReplyCb==", pMsg);
 
   if (pMsg->term < ths->pRaftStore->currentTerm) {
-    sTrace("DropStaleResponse, receive term:%lu, current term:%lu", pMsg->term, ths->pRaftStore->currentTerm);
+    sTrace("DropStaleResponse, receive term:%" PRIu64 ", current term:%" PRIu64 "", pMsg->term, ths->pRaftStore->currentTerm);
     return ret;
   }
 
@@ -51,10 +51,10 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
   assert(pMsg->term == ths->pRaftStore->currentTerm);
 
   if (pMsg->success) {
-    // nextIndex = reply.matchIndex + 1
+    // nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.mmatchIndex + 1]
     syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), pMsg->matchIndex + 1);
 
-    // matchIndex = reply.matchIndex
+    // matchIndex' = [matchIndex EXCEPT ![i][j] = m.mmatchIndex]
     syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), pMsg->matchIndex);
 
     // maybe commit
@@ -62,6 +62,8 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
 
   } else {
     SyncIndex nextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
+
+    // notice! int64, uint64
     if (nextIndex > SYNC_INDEX_BEGIN) {
       --nextIndex;
     } else {

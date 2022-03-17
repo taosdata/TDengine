@@ -413,7 +413,7 @@ int32_t tHashRemove(SLHashObj* pHashObj, const void *key, size_t keyLen) {
 
 void tHashPrint(const SLHashObj* pHashObj, int32_t type) {
   printf("==================== linear hash ====================\n");
-  printf("total bucket:%d, size:%ld, ratio:%.2f\n", pHashObj->numOfBuckets, pHashObj->size, LHASH_CAP_RATIO);
+  printf("total bucket:%d, size:%" PRId64 ", ratio:%.2f\n", pHashObj->numOfBuckets, pHashObj->size, LHASH_CAP_RATIO);
 
   dBufSetPrintInfo(pHashObj->pBuf);
 

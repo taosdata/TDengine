@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "parser.h"
+#include "planner.h"
 #include "query.h"
 #include "taos.h"
 #include "tcommon.h"
@@ -238,6 +239,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
 int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj** pRequest);
 
 int32_t parseSql(SRequestObj* pRequest, SQuery** pQuery);
+int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList);
 
 // --- heartbeat
 // global, called by mgmt

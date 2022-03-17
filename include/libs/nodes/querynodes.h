@@ -82,6 +82,7 @@ typedef struct SValueNode {
     double d;
     char* p;
   } datum;
+  char unit;
 } SValueNode;
 
 typedef struct SOperatorNode {

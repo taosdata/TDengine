@@ -1,8 +1,6 @@
 
 #include "clientInt.h"
 #include "clientLog.h"
-#include "parser.h"
-#include "planner.h"
 #include "scheduler.h"
 #include "tdatablock.h"
 #include "tdef.h"
@@ -210,7 +208,6 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
     tstrncpy(pResInfo->fields[i].name, pSchema[i].name, tListLen(pResInfo->fields[i].name));
   }
 }
-
 
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList) {
   void* pTransporter = pRequest->pTscObj->pAppInfo->pTransporter;

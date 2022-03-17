@@ -67,6 +67,9 @@ typedef enum ENodeType {
   QUERY_NODE_SLOT_DESC,
   QUERY_NODE_COLUMN_DEF,
   QUERY_NODE_DOWNSTREAM_SOURCE,
+  QUERY_NODE_DATABASE_OPTIONS,
+  QUERY_NODE_TABLE_OPTIONS,
+  QUERY_NODE_INDEX_OPTIONS,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR,
@@ -74,6 +77,7 @@ typedef enum ENodeType {
   QUERY_NODE_VNODE_MODIF_STMT,
   QUERY_NODE_CREATE_DATABASE_STMT,
   QUERY_NODE_DROP_DATABASE_STMT,
+  QUERY_NODE_ALTER_DATABASE_STMT,
   QUERY_NODE_SHOW_DATABASES_STMT, // temp
   QUERY_NODE_CREATE_TABLE_STMT,
   QUERY_NODE_CREATE_SUBTABLE_CLAUSE,
@@ -93,6 +97,13 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_DNODES_STMT,
   QUERY_NODE_SHOW_VGROUPS_STMT,
   QUERY_NODE_SHOW_MNODES_STMT,
+  QUERY_NODE_SHOW_QNODES_STMT,
+  QUERY_NODE_CREATE_INDEX_STMT,
+  QUERY_NODE_DROP_INDEX_STMT,
+  QUERY_NODE_CREATE_QNODE_STMT,
+  QUERY_NODE_DROP_QNODE_STMT,
+  QUERY_NODE_CREATE_TOPIC_STMT,
+  QUERY_NODE_DROP_TOPIC_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN,
@@ -184,6 +195,9 @@ SNodeList* nodesCloneList(const SNodeList* pList);
 const char* nodesNodeName(ENodeType type);
 int32_t nodesNodeToString(const SNodeptr pNode, bool format, char** pStr, int32_t* pLen);
 int32_t nodesStringToNode(const char* pStr, SNode** pNode);
+
+int32_t nodesListToString(const SNodeList* pList, bool format, char** pStr, int32_t* pLen);
+int32_t nodesStringToList(const char* pStr, SNodeList** pList);
 
 #ifdef __cplusplus
 }

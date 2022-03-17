@@ -29,7 +29,6 @@ extern "C" {
 
 extern int tsRpcHeadSize;
 
-
 typedef struct SRpcConnInfo {
   uint32_t clientIp;
   uint16_t clientPort;
@@ -39,13 +38,15 @@ typedef struct SRpcConnInfo {
 
 typedef struct SRpcMsg {
   tmsg_t  msgType;
+  tmsg_t  expectMsgType;
   void *  pCont;
   int     contLen;
   int32_t code;
   void *  handle;   // rpc handle returned to app
   void *  ahandle;  // app handle set by client
-} SRpcMsg;
+  int     noResp;   // has response or not(default 0 indicate resp);
 
+} SRpcMsg;
 
 typedef struct SRpcInit {
   uint16_t localPort;     // local port
@@ -71,9 +72,11 @@ typedef struct SRpcInit {
   // call back to keep conn or not
   bool (*pfp)(void *parent, tmsg_t msgType);
 
-  // to support Send messages multiple times on a link  
-  // 
-  void* (*mfp)(void *parent, tmsg_t msgType);
+  // to support Send messages multiple times on a link
+  void *(*mfp)(void *parent, tmsg_t msgType);
+
+  // call back  to handle except when query/fetch in progress
+  bool (*efp)(void *parent, tmsg_t msgType);
 
   void *parent;
 } SRpcInit;
@@ -94,7 +97,7 @@ int     rpcReportProgress(void *pConn, char *pCont, int contLen);
 void    rpcCancelRequest(int64_t rid);
 
 // just release client conn to rpc instance, no close sock
-void rpcReleaseHandle(void *handle);   
+void rpcReleaseHandle(void *handle, int8_t type);
 
 void rpcRefHandle(void *handle, int8_t type);
 void rpcUnrefHandle(void *handle, int8_t type);

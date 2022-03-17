@@ -81,7 +81,7 @@ SSyncNode* syncNodeInit() {
 SSyncNode* syncInitTest() { return syncNodeInit(); }
 
 void logStoreTest() {
-  logStorePrint2((char*)"logStoreTest2", pSyncNode->pLogStore);
+  logStorePrint2((char*)"logStoreTest", pSyncNode->pLogStore);
 
   assert(pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore) == SYNC_INDEX_INVALID);
 
@@ -105,10 +105,10 @@ void logStoreTest() {
       assert(pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore) == SYNC_INDEX_BEGIN);
     }
   }
-  logStorePrint(pSyncNode->pLogStore);
+  logStorePrint2((char*)"after appendEntry", pSyncNode->pLogStore);
 
   pSyncNode->pLogStore->truncate(pSyncNode->pLogStore, 3);
-  logStorePrint(pSyncNode->pLogStore);
+  logStorePrint2((char*)"after truncate 3", pSyncNode->pLogStore);
 }
 
 void initRaftId(SSyncNode* pSyncNode) {

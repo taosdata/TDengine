@@ -18,6 +18,7 @@
 #include "syncMessage.h"
 #include "syncRaftEntry.h"
 #include "syncRaftLog.h"
+#include "syncRaftStore.h"
 #include "syncUtil.h"
 
 // TLA+ Spec
@@ -50,33 +51,54 @@ int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
 
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
-    SRaftId*  pDestId = &(pSyncNode->peersId[i]);
-    SyncIndex nextIndex = syncIndexMgrGetIndex(pSyncNode->pNextIndex, pDestId);
+    SRaftId* pDestId = &(pSyncNode->peersId[i]);
 
+    // set prevLogIndex
+    SyncIndex nextIndex = syncIndexMgrGetIndex(pSyncNode->pNextIndex, pDestId);
     SyncIndex preLogIndex = nextIndex - 1;
 
+    // set preLogTerm
     SyncTerm preLogTerm = 0;
     if (preLogIndex >= SYNC_INDEX_BEGIN) {
       SSyncRaftEntry* pPreEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, preLogIndex);
+      assert(pPreEntry != NULL);
+
       preLogTerm = pPreEntry->term;
+      syncEntryDestory(pPreEntry);
     }
 
-    SyncIndex lastIndex = syncUtilMinIndex(pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore), nextIndex);
-    assert(nextIndex == lastIndex);
+    // batch optimized
+    // SyncIndex lastIndex = syncUtilMinIndex(pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore), nextIndex);
 
-    SSyncRaftEntry* pEntry = logStoreGetEntry(pSyncNode->pLogStore, nextIndex);
-    assert(pEntry != NULL);
+    SyncAppendEntries* pMsg = NULL;
+    SSyncRaftEntry*    pEntry = logStoreGetEntry(pSyncNode->pLogStore, nextIndex);
+    if (pEntry != NULL) {
+      SyncAppendEntries* pMsg = syncAppendEntriesBuild(pEntry->bytes);
 
-    SyncAppendEntries* pMsg = syncAppendEntriesBuild(pEntry->bytes);
+      // add pEntry into msg
+      uint32_t len;
+      char*    serialized = syncEntrySerialize(pEntry, &len);
+      assert(len == pEntry->bytes);
+      memcpy(pMsg->data, serialized, len);
+
+      free(serialized);
+      syncEntryDestory(pEntry);
+
+    } else {
+      // maybe overflow, send empty record
+      SyncAppendEntries* pMsg = syncAppendEntriesBuild(0);
+    }
+
     pMsg->srcId = pSyncNode->myRaftId;
     pMsg->destId = *pDestId;
+    pMsg->term = pSyncNode->pRaftStore->currentTerm;
     pMsg->prevLogIndex = preLogIndex;
     pMsg->prevLogTerm = preLogTerm;
     pMsg->commitIndex = pSyncNode->commitIndex;
-    pMsg->dataLen = pEntry->bytes;
-    // add pEntry into msg
 
+    // send AppendEntries
     syncNodeAppendEntries(pSyncNode, pDestId, pMsg);
+    syncAppendEntriesDestroy(pMsg);
   }
 
   return ret;

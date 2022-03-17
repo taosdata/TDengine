@@ -1467,8 +1467,7 @@ int32_t tDeserializeSUseDbReq(void *buf, int32_t bufLen, SUseDbReq *pReq) {
   return 0;
 }
 
-
-int32_t tSerializeSQnodeListReq(void* buf, int32_t bufLen, SQnodeListReq* pReq) {
+int32_t tSerializeSQnodeListReq(void *buf, int32_t bufLen, SQnodeListReq *pReq) {
   SCoder encoder = {0};
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
 
@@ -1499,7 +1498,7 @@ int32_t tSerializeSQnodeListRsp(void *buf, int32_t bufLen, SQnodeListRsp *pRsp) 
 
   if (tStartEncode(&encoder) < 0) return -1;
   int32_t num = taosArrayGetSize(pRsp->epSetList);
-  if (tEncodeI32(&encoder, num) < 0) return -1;    
+  if (tEncodeI32(&encoder, num) < 0) return -1;
   for (int32_t i = 0; i < num; ++i) {
     SEpSet *epSet = taosArrayGet(pRsp->epSetList, i);
     if (tEncodeSEpSet(&encoder, epSet) < 0) return -1;
@@ -1990,11 +1989,9 @@ int32_t tDeserializeSMDropTopicReq(void *buf, int32_t bufLen, SMDropTopicReq *pR
 
 int32_t tSerializeSCMCreateTopicReq(void *buf, int32_t bufLen, const SCMCreateTopicReq *pReq) {
   int32_t sqlLen = 0;
-  int32_t physicalPlanLen = 0;
-  int32_t logicalPlanLen = 0;
+  int32_t astLen = 0;
   if (pReq->sql != NULL) sqlLen = (int32_t)strlen(pReq->sql);
-  if (pReq->physicalPlan != NULL) physicalPlanLen = (int32_t)strlen(pReq->physicalPlan);
-  if (pReq->logicalPlan != NULL) logicalPlanLen = (int32_t)strlen(pReq->logicalPlan);
+  if (pReq->ast != NULL) astLen = (int32_t)strlen(pReq->ast);
 
   SCoder encoder = {0};
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
@@ -2003,11 +2000,9 @@ int32_t tSerializeSCMCreateTopicReq(void *buf, int32_t bufLen, const SCMCreateTo
   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->igExists) < 0) return -1;
   if (tEncodeI32(&encoder, sqlLen) < 0) return -1;
-  if (tEncodeI32(&encoder, physicalPlanLen) < 0) return -1;
-  if (tEncodeI32(&encoder, logicalPlanLen) < 0) return -1;
-  if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
-  if (tEncodeCStr(&encoder, pReq->physicalPlan) < 0) return -1;
-  if (tEncodeCStr(&encoder, pReq->logicalPlan) < 0) return -1;
+  if (tEncodeI32(&encoder, astLen) < 0) return -1;
+  if (sqlLen > 0 && tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
+  if (astLen > 0 && tEncodeCStr(&encoder, pReq->ast) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -2018,8 +2013,7 @@ int32_t tSerializeSCMCreateTopicReq(void *buf, int32_t bufLen, const SCMCreateTo
 
 int32_t tDeserializeSCMCreateTopicReq(void *buf, int32_t bufLen, SCMCreateTopicReq *pReq) {
   int32_t sqlLen = 0;
-  int32_t physicalPlanLen = 0;
-  int32_t logicalPlanLen = 0;
+  int32_t astLen = 0;
 
   SCoder decoder = {0};
   tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
@@ -2028,17 +2022,20 @@ int32_t tDeserializeSCMCreateTopicReq(void *buf, int32_t bufLen, SCMCreateTopicR
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igExists) < 0) return -1;
   if (tDecodeI32(&decoder, &sqlLen) < 0) return -1;
-  if (tDecodeI32(&decoder, &physicalPlanLen) < 0) return -1;
-  if (tDecodeI32(&decoder, &logicalPlanLen) < 0) return -1;
+  if (tDecodeI32(&decoder, &astLen) < 0) return -1;
 
-  pReq->sql = calloc(1, sqlLen + 1);
-  pReq->physicalPlan = calloc(1, physicalPlanLen + 1);
-  pReq->logicalPlan = calloc(1, logicalPlanLen + 1);
-  if (pReq->sql == NULL || pReq->physicalPlan == NULL || pReq->logicalPlan == NULL) return -1;
+  if (sqlLen > 0) {
+    pReq->sql = calloc(1, sqlLen + 1);
+    if (pReq->sql == NULL) return -1;
+    if (tDecodeCStrTo(&decoder, pReq->sql) < 0) return -1;
+  }
 
-  if (tDecodeCStrTo(&decoder, pReq->sql) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pReq->physicalPlan) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pReq->logicalPlan) < 0) return -1;
+  if (astLen > 0) {
+    pReq->ast = calloc(1, astLen + 1);
+    if (pReq->ast == NULL) return -1;
+    if (tDecodeCStrTo(&decoder, pReq->ast) < 0) return -1;
+  }
+
   tEndDecode(&decoder);
 
   tCoderClear(&decoder);
@@ -2047,8 +2044,7 @@ int32_t tDeserializeSCMCreateTopicReq(void *buf, int32_t bufLen, SCMCreateTopicR
 
 void tFreeSCMCreateTopicReq(SCMCreateTopicReq *pReq) {
   tfree(pReq->sql);
-  tfree(pReq->physicalPlan);
-  tfree(pReq->logicalPlan);
+  tfree(pReq->ast);
 }
 
 int32_t tSerializeSCMCreateTopicRsp(void *buf, int32_t bufLen, const SCMCreateTopicRsp *pRsp) {
@@ -2491,27 +2487,27 @@ int32_t tSerializeSSchedulerHbReq(void *buf, int32_t bufLen, SSchedulerHbReq *pR
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
 
   if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeU64(&encoder, pReq->sId) < 0) return -1; 
-  if (tEncodeI32(&encoder, pReq->epId.nodeId) < 0) return -1; 
+  if (tEncodeU64(&encoder, pReq->sId) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->epId.nodeId) < 0) return -1;
   if (tEncodeU16(&encoder, pReq->epId.ep.port) < 0) return -1;
-  if (tEncodeCStr(&encoder, pReq->epId.ep.fqdn) < 0) return -1;  
+  if (tEncodeCStr(&encoder, pReq->epId.ep.fqdn) < 0) return -1;
   if (pReq->taskAction) {
     int32_t num = taosArrayGetSize(pReq->taskAction);
-    if (tEncodeI32(&encoder, num) < 0) return -1;    
+    if (tEncodeI32(&encoder, num) < 0) return -1;
     for (int32_t i = 0; i < num; ++i) {
       STaskAction *action = taosArrayGet(pReq->taskAction, i);
-      if (tEncodeU64(&encoder, action->queryId) < 0) return -1;    
-      if (tEncodeU64(&encoder, action->taskId) < 0) return -1;    
-      if (tEncodeI8(&encoder, action->action) < 0) return -1;    
+      if (tEncodeU64(&encoder, action->queryId) < 0) return -1;
+      if (tEncodeU64(&encoder, action->taskId) < 0) return -1;
+      if (tEncodeI8(&encoder, action->action) < 0) return -1;
     }
   } else {
-    if (tEncodeI32(&encoder, 0) < 0) return -1;    
+    if (tEncodeI32(&encoder, 0) < 0) return -1;
   }
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
   tCoderClear(&encoder);
-  
+
   if (buf != NULL) {
     SMsgHead *pHead = (SMsgHead *)((char *)buf - headLen);
     pHead->vgId = htonl(pReq->header.vgId);
@@ -2559,29 +2555,27 @@ int32_t tDeserializeSSchedulerHbReq(void *buf, int32_t bufLen, SSchedulerHbReq *
 
 void tFreeSSchedulerHbReq(SSchedulerHbReq *pReq) { taosArrayDestroy(pReq->taskAction); }
 
-
-
 int32_t tSerializeSSchedulerHbRsp(void *buf, int32_t bufLen, SSchedulerHbRsp *pRsp) {
   SCoder encoder = {0};
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
 
   if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeU64(&encoder, pRsp->seqId) < 0) return -1;    
-  if (tEncodeI32(&encoder, pRsp->epId.nodeId) < 0) return -1;    
+  if (tEncodeU64(&encoder, pRsp->seqId) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->epId.nodeId) < 0) return -1;
   if (tEncodeU16(&encoder, pRsp->epId.ep.port) < 0) return -1;
-  if (tEncodeCStr(&encoder, pRsp->epId.ep.fqdn) < 0) return -1;  
+  if (tEncodeCStr(&encoder, pRsp->epId.ep.fqdn) < 0) return -1;
   if (pRsp->taskStatus) {
     int32_t num = taosArrayGetSize(pRsp->taskStatus);
-    if (tEncodeI32(&encoder, num) < 0) return -1;    
+    if (tEncodeI32(&encoder, num) < 0) return -1;
     for (int32_t i = 0; i < num; ++i) {
       STaskStatus *status = taosArrayGet(pRsp->taskStatus, i);
-      if (tEncodeU64(&encoder, status->queryId) < 0) return -1;    
-      if (tEncodeU64(&encoder, status->taskId) < 0) return -1;    
-      if (tEncodeI64(&encoder, status->refId) < 0) return -1;    
-      if (tEncodeI8(&encoder, status->status) < 0) return -1;    
+      if (tEncodeU64(&encoder, status->queryId) < 0) return -1;
+      if (tEncodeU64(&encoder, status->taskId) < 0) return -1;
+      if (tEncodeI64(&encoder, status->refId) < 0) return -1;
+      if (tEncodeI8(&encoder, status->status) < 0) return -1;
     }
   } else {
-    if (tEncodeI32(&encoder, 0) < 0) return -1;    
+    if (tEncodeI32(&encoder, 0) < 0) return -1;
   }
   tEndEncode(&encoder);
 
@@ -2680,9 +2674,9 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igExists) < 0) return -1;
-  if (tDecodeCStr(&decoder, (const char **)&pReq->sql) < 0) return -1;
-  if (tDecodeCStr(&decoder, (const char **)&pReq->physicalPlan) < 0) return -1;
-  if (tDecodeCStr(&decoder, (const char **)&pReq->logicalPlan) < 0) return -1;
+  if (tDecodeCStrAlloc(&decoder, &pReq->sql) < 0) return -1;
+  if (tDecodeCStrAlloc(&decoder, &pReq->physicalPlan) < 0) return -1;
+  if (tDecodeCStrAlloc(&decoder, &pReq->logicalPlan) < 0) return -1;
   tEndDecode(&decoder);
 
   tCoderClear(&decoder);
@@ -2693,4 +2687,33 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   tfree(pReq->sql);
   tfree(pReq->physicalPlan);
   tfree(pReq->logicalPlan);
+}
+
+int32_t tEncodeSStreamTask(SCoder *pEncoder, const SStreamTask *pTask) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeI64(pEncoder, pTask->streamId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pTask->taskId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pTask->level) < 0) return -1;
+  if (tEncodeI8(pEncoder, pTask->status) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pTask->qmsg) < 0) return -1;
+  tEndEncode(pEncoder);
+  return pEncoder->pos;
+}
+
+int32_t tDecodeSStreamTask(SCoder *pDecoder, SStreamTask *pTask) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pTask->streamId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pTask->taskId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pTask->level) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pTask->status) < 0) return -1;
+  if (tDecodeCStrAlloc(pDecoder, &pTask->qmsg) < 0) return -1;
+  tEndDecode(pDecoder);
+  return 0;
+}
+
+void tFreeSStreamTask(SStreamTask *pTask) {
+  // TODO
+  /*free(pTask->qmsg);*/
+  /*free(pTask->executor);*/
+  /*free(pTask);*/
 }

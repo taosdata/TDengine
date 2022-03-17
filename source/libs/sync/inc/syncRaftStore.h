@@ -43,11 +43,14 @@ int32_t     raftStorePersist(SRaftStore *pRaftStore);
 int32_t     raftStoreSerialize(SRaftStore *pRaftStore, char *buf, size_t len);
 int32_t     raftStoreDeserialize(SRaftStore *pRaftStore, char *buf, size_t len);
 
-bool raftStoreHasVoted(SRaftStore *pRaftStore);
-void raftStoreVote(SRaftStore *pRaftStore, SRaftId *pRaftId);
-void raftStoreClearVote(SRaftStore *pRaftStore);
-void raftStoreNextTerm(SRaftStore *pRaftStore);
-void raftStoreSetTerm(SRaftStore *pRaftStore, SyncTerm term);
+bool    raftStoreHasVoted(SRaftStore *pRaftStore);
+void    raftStoreVote(SRaftStore *pRaftStore, SRaftId *pRaftId);
+void    raftStoreClearVote(SRaftStore *pRaftStore);
+void    raftStoreNextTerm(SRaftStore *pRaftStore);
+void    raftStoreSetTerm(SRaftStore *pRaftStore, SyncTerm term);
+int32_t raftStoreFromJson(SRaftStore *pRaftStore, cJSON *pJson);
+cJSON * raftStore2Json(SRaftStore *pRaftStore);
+char *  raftStore2Str(SRaftStore *pRaftStore);
 
 // for debug -------------------
 void raftStorePrint(SRaftStore *pObj);

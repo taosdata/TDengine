@@ -22,6 +22,11 @@ void* (*taosInitHandle[])(uint32_t ip, uint32_t port, char* label, int numOfThre
 
 void (*taosCloseHandle[])(void* arg) = {transCloseServer, transCloseClient};
 
+void (*taosRefHandle[])(void* handle) = {transRefSrvHandle, transRefCliHandle};
+void (*taosUnRefHandle[])(void* handle) = {transUnrefSrvHandle, transUnrefCliHandle};
+
+void (*transReleaseHandle[])(void* handle) = {transReleaseSrvHandle, transReleaseCliHandle};
+
 void* rpcOpen(const SRpcInit* pInit) {
   SRpcInfo* pRpc = calloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) {
@@ -36,6 +41,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->afp = pInit->afp;
   pRpc->pfp = pInit->pfp;
   pRpc->mfp = pInit->mfp;
+  pRpc->efp = pInit->efp;
 
   if (pInit->connType == TAOS_CONN_SERVER) {
     pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
@@ -126,9 +132,6 @@ void rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
 void rpcSendResponse(const SRpcMsg* pMsg) { transSendResponse(pMsg); }
 int  rpcGetConnInfo(void* thandle, SRpcConnInfo* pInfo) { return transGetConnInfo((void*)thandle, pInfo); }
 
-void (*taosRefHandle[])(void* handle) = {transRefSrvHandle, transRefCliHandle};
-void (*taosUnRefHandle[])(void* handle) = {transUnrefSrvHandle, transUnrefCliHandle};
-
 void rpcRefHandle(void* handle, int8_t type) {
   assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
   (*taosRefHandle[type])(handle);
@@ -137,6 +140,11 @@ void rpcRefHandle(void* handle, int8_t type) {
 void rpcUnrefHandle(void* handle, int8_t type) {
   assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
   (*taosUnRefHandle[type])(handle);
+}
+
+void rpcReleaseHandle(void* handle, int8_t type) {
+  assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
+  (*transReleaseHandle[type])(handle);
 }
 
 int32_t rpcInit() {
