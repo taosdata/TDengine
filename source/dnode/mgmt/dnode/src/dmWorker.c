@@ -17,8 +17,8 @@
 #include "bm.h"
 #include "dmInt.h"
 #include "mm.h"
-#include "qmInt.h"
-#include "smInt.h"
+#include "qm.h"
+#include "sm.h"
 #include "vm.h"
 
 static void *dmThreadRoutine(void *param) {
@@ -136,5 +136,5 @@ int32_t dmProcessMgmtMsg(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   }
 
   dTrace("msg:%p, will be written to worker %s", pMsg, pWorker->name);
-  return dndWriteMsgToWorker(pWorker, pMsg, 0);
+  return dndWriteMsgToWorker(pWorker, pMsg);
 }

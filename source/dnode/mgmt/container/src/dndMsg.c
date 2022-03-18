@@ -154,7 +154,7 @@ int32_t dndProcessNodeMsg(SDnode *pDnode, SNodeMsg *pMsg) {
     case TDMT_DND_CREATE_SNODE:
       return dndProcessCreateNodeMsg(pDnode, SNODE, pMsg);
     case TDMT_DND_DROP_SNODE:
-      return dndProcessDropNodeMsg(pDnode, MNODE, pMsg);
+      return dndProcessDropNodeMsg(pDnode, SNODE, pMsg);
     case TDMT_DND_CREATE_BNODE:
       return dndProcessCreateNodeMsg(pDnode, BNODE, pMsg);
     case TDMT_DND_DROP_BNODE:

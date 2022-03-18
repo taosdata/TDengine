@@ -85,7 +85,7 @@ static int32_t mmPutMsgToWorker(SMnodeMgmt *pMgmt, SDnodeWorker *pWorker, SNodeM
   if (pMnode == NULL) return -1;
 
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
-  int32_t code = dndWriteMsgToWorker(pWorker, pMsg, 0);
+  int32_t code = dndWriteMsgToWorker(pWorker, pMsg);
   mmRelease(pMgmt, pMnode);
   return code;
 }

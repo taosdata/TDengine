@@ -21,8 +21,8 @@
 #include "bm.h"
 #include "dm.h"
 #include "mm.h"
-#include "qmInt.h"
-#include "smInt.h"
+#include "qm.h"
+#include "sm.h"
 #include "vm.h"
 
 #ifdef __cplusplus

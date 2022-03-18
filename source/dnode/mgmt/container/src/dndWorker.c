@@ -81,31 +81,13 @@ void dndCleanupWorker(SDnodeWorker *pWorker) {
   }
 }
 
-int32_t dndWriteMsgToWorker(SDnodeWorker *pWorker, void *pCont, int32_t contLen) {
-  if (pWorker == NULL || pWorker->queue == NULL ) {
+int32_t dndWriteMsgToWorker(SDnodeWorker *pWorker, void *pMsg) {
+  if (pWorker == NULL || pWorker->queue == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return -1;
   }
 
-  void *pMsg = NULL;
-  if (contLen != 0) {
-    pMsg = taosAllocateQitem(contLen);
-    if (pMsg != NULL) {
-      memcpy(pMsg, pCont, contLen);
-    }
-  } else {
-    pMsg = pCont;
-  }
-
-  if (pMsg == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
   if (taosWriteQitem(pWorker->queue, pMsg) != 0) {
-    if (contLen != 0) {
-      taosFreeQitem(pMsg);
-    }
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }

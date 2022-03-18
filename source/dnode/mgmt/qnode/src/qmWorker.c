@@ -43,14 +43,14 @@ int32_t qmProcessQueryMsg(SQnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   SDnodeWorker *pWorker = &pMgmt->queryWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
-  return dndWriteMsgToWorker(pWorker, pMsg, 0);
+  return dndWriteMsgToWorker(pWorker, pMsg);
 }
 
 int32_t qmProcessFetchMsg(SQnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   SDnodeWorker *pWorker = &pMgmt->fetchWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
-  return dndWriteMsgToWorker(pWorker, pMsg, 0);
+  return dndWriteMsgToWorker(pWorker, pMsg);
 }
 
 int32_t qmStartWorker(SQnodeMgmt *pMgmt) {

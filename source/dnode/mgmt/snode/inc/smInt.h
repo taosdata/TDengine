@@ -43,10 +43,11 @@ int32_t smProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t smProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
 // smWorker.c
-int32_t smStartWorker(SQnodeMgmt *pMgmt);
-void    smStopWorker(SQnodeMgmt *pMgmt);
-int32_t smProcessQueryMsg(SQnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t smProcessFetchMsg(SQnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t smStartWorker(SSnodeMgmt *pMgmt);
+void    smStopWorker(SSnodeMgmt *pMgmt);
+int32_t smProcessMgmtMsg(SSnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t smProcessUniqueMsg(SSnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t smProcessSharedMsg(SSnodeMgmt *pMgmt, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

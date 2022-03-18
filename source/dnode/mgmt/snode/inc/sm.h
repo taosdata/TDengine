@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-void bmGetMgmtFp(SMgmtWrapper *pWrapper);
+void smGetMgmtFp(SMgmtWrapper *pWrapper);
 
 #ifdef __cplusplus
 }

@@ -303,5 +303,5 @@ void vmStopWorker(SVnodesMgmt *pMgmt) {
 int32_t vmProcessMgmtMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   SDnodeWorker *pWorker = &pMgmt->mgmtWorker;
   dTrace("msg:%p, will be written to worker %s", pMsg, pWorker->name);
-  return dndWriteMsgToWorker(pWorker, pMsg, 0);
+  return dndWriteMsgToWorker(pWorker, pMsg);
 }

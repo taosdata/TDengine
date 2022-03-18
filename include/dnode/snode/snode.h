@@ -29,7 +29,6 @@ typedef struct SMgmtWrapper SMgmtWrapper;
 typedef struct SSnode       SSnode;
 
 typedef struct {
-  int64_t numOfErrors;
 } SSnodeLoad;
 
 typedef struct {
@@ -73,20 +72,9 @@ int32_t sndGetLoad(SSnode *pSnode, SSnodeLoad *pLoad);
  * @param pSnode The snode object.
  * @param pMsg The request message
  * @param pRsp The response message
- * @return int32_t 0 for success, -1 for failure
  */
-// int32_t sndProcessMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
-
-int32_t sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg);
-
-int32_t sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg);
-
-/**
- * @brief Drop a snode.
- *
- * @param path Path of the snode.
- */
-void sndDestroy(const char *path);
+void sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg);
+void sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

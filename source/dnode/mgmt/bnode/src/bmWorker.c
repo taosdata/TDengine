@@ -65,7 +65,7 @@ int32_t bmProcessWriteMsg(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   SDnodeWorker *pWorker = &pMgmt->writeWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
-  return dndWriteMsgToWorker(pWorker, pMsg, 0);
+  return dndWriteMsgToWorker(pWorker, pMsg);
 }
 
 int32_t bmStartWorker(SBnodeMgmt *pMgmt) {

@@ -163,7 +163,7 @@ void    dndSendRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp);
 int32_t dndInitWorker(void *param, SDnodeWorker *pWorker, EWorkerType type, const char *name, int32_t minNum,
                       int32_t maxNum, void *queueFp);
 void    dndCleanupWorker(SDnodeWorker *pWorker);
-int32_t dndWriteMsgToWorker(SDnodeWorker *pWorker, void *pCont, int32_t contLen);
+int32_t dndWriteMsgToWorker(SDnodeWorker *pWorker, void *pMsg);
 
 int32_t dndProcessNodeMsg(SDnode *pDnode, SNodeMsg *pMsg);
 
