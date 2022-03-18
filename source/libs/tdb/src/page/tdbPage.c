@@ -19,8 +19,8 @@ extern SPageMethods pageMethods;
 extern SPageMethods pageLargeMethods;
 
 typedef struct __attribute__((__packed__)) {
-  u16 szCell[2];
-  u16 nxOffset[2];
+  u16 szCell;
+  u16 nxOffset;
 } SFreeCell;
 
 static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell);
