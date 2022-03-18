@@ -253,11 +253,6 @@ typedef struct STaskIdInfo {
   char*    str;
 } STaskIdInfo;
 
-typedef struct STaskBufInfo {
-  int32_t         bufSize;    // total available buffer size in bytes
-  int32_t         remainBuf;  // remain buffer size
-} STaskBufInfo;
-
 typedef struct SExecTaskInfo {
   STaskIdInfo     id;
   char*           content;
@@ -269,8 +264,7 @@ typedef struct SExecTaskInfo {
   uint64_t        totalRows;            // total number of rows
   STableGroupInfo tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   char*           sql;                  // query sql string
-  jmp_buf         env;                  // when error occurs, abort
-  STaskBufInfo    bufInfo;              // available buffer info this task
+  jmp_buf         env;                  //
   struct SOperatorInfo* pRoot;
 } SExecTaskInfo;
 
@@ -313,11 +307,9 @@ typedef struct STaskRuntimeEnv {
 } STaskRuntimeEnv;
 
 enum {
-  OP_NOT_OPENED    = 0x0,
-  OP_OPENED        = 0x1,
-  OP_IN_EXECUTING  = 0x3,
-  OP_RES_TO_RETURN = 0x5,
-  OP_EXEC_DONE     = 0x9,
+  OP_IN_EXECUTING = 1,
+  OP_RES_TO_RETURN = 2,
+  OP_EXEC_DONE = 3,
 };
 
 typedef struct SOperatorInfo {
@@ -330,14 +322,12 @@ typedef struct SOperatorInfo {
   SExprInfo*             pExpr;
   STaskRuntimeEnv*       pRuntimeEnv;  // todo remove it
   SExecTaskInfo*         pTaskInfo;
-  SOperatorCostInfo      cost;
 
   struct SOperatorInfo** pDownstream;      // downstram pointer list
   int32_t                numOfDownstream;  // number of downstream. The value is always ONE expect for join operator
-  __optr_fn_t            getNextFn;
-  __optr_fn_t            cleanupFn;
+  __optr_open_fn_t       openFn;
+  __optr_fn_t            nextDataFn;
   __optr_close_fn_t      closeFn;
-  __optr_open_fn_t       _openFn;          // DO NOT invoke this function directly
 } SOperatorInfo;
 
 typedef struct {
@@ -366,9 +356,9 @@ typedef struct SQInfo {
 } SQInfo;
 
 enum {
-  EX_SOURCE_DATA_NOT_READY = 0x1,
-  EX_SOURCE_DATA_READY     = 0x2,
-  EX_SOURCE_DATA_EXHAUSTED = 0x3,
+  DATA_NOT_READY = 0x1,
+  DATA_READY     = 0x2,
+  DATA_EXHAUSTED = 0x3,
 };
 
 typedef struct SSourceDataInfo {
@@ -384,6 +374,12 @@ typedef struct SLoadRemoteDataInfo {
   uint64_t           totalRows;     // total number of rows
   uint64_t           totalElapsed;  // total elapsed time
 } SLoadRemoteDataInfo;
+
+enum {
+  EX_SOURCE_DATA_NOT_READY = 0x1,
+  EX_SOURCE_DATA_READY     = 0x2,
+  EX_SOURCE_DATA_EXHAUSTED = 0x3,
+};
 
 typedef struct SExchangeInfo {
   SArray*            pSources;
@@ -439,13 +435,14 @@ typedef struct SSysTableScanInfo {
   };
 
   SRetrieveMetaTableRsp *pRsp;
-  void               *pCur; // cursor
   SRetrieveTableReq   req;
   SEpSet              epSet;
-  int32_t             type;  // show type
-  SName               name;
   tsem_t              ready;
-  SSchema*            pSchema;
+
+  SNode*              pCondition; // db_name filter condition, to discard data that are not in current database
+  void               *pCur;  // cursor for iterate the local table meta store.
+  int32_t             type;  // show type, TODO remove it
+  SName               name;
   SSDataBlock*        pRes;
   int32_t             capacity;
   int64_t             numOfBlocks;  // extract basic running information.
@@ -630,13 +627,11 @@ SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntim
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataBlock* pResBlock, const SName* pName, SEpSet epset,
+SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataBlock* pResBlock, const SName* pName, SNode* pCondition, SEpSet epset,
                                               SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream);
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SInterval* pInterval, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream);
 
 SOperatorInfo* createAllTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
                                                  SExprInfo* pExpr, int32_t numOfOutput);
@@ -682,6 +677,7 @@ void* doDestroyFilterInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFil
 void setInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order);
 void finalizeQueryResult(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo,
                          int32_t* rowCellInfoOffset);
+void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t* bufCapacity, int32_t numOfInputRows);
 void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t* bufCapacity);
 void copyTsColoum(SSDataBlock* pRes, SqlFunctionCtx* pCtx, int32_t numOfOutput);
 
