@@ -325,6 +325,7 @@ class TDTestCase:
         tdSql.query('select unique(unique.voltage) from unique, unique2 where unique.ts=unique2.ts and unique.groupid=unique2.groupid')
         tdSql.checkRows(1)
 
+        #TD-14104
         ts = 1642592221000
         sql = "insert into D004 values"
         for i in range(3000):
