@@ -197,6 +197,11 @@ typedef struct {
   };
 } SMsgHead;
 
+typedef struct {
+  int32_t workerType;
+  int32_t streamTaskId;
+} SStreamExecMsgHead;
+
 // Submit message for one table
 typedef struct SSubmitBlk {
   int64_t uid;        // table unique id
@@ -1892,9 +1897,9 @@ static FORCE_INLINE void* tDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) 
   return buf;
 }
 typedef struct {
-  int8_t   version;  // for compatibility(default 0)
-  int8_t   intervalUnit; // MACRO: TIME_UNIT_XXX
-  int8_t   slidingUnit; // MACRO: TIME_UNIT_XXX
+  int8_t   version;       // for compatibility(default 0)
+  int8_t   intervalUnit;  // MACRO: TIME_UNIT_XXX
+  int8_t   slidingUnit;   // MACRO: TIME_UNIT_XXX
   char     indexName[TSDB_INDEX_NAME_LEN];
   char     timezone[TD_TIMEZONE_LEN];  // sma data expired if timezone changes.
   int32_t  exprLen;
@@ -1902,7 +1907,7 @@ typedef struct {
   int64_t  indexUid;
   tb_uid_t tableUid;  // super/child/common table uid
   int64_t  interval;
-  int64_t  offset; // use unit by precision of DB
+  int64_t  offset;  // use unit by precision of DB
   int64_t  sliding;
   char*    expr;  // sma expression
   char*    tagsFilter;
@@ -2311,7 +2316,7 @@ typedef struct {
 } SStreamTaskDeployRsp;
 
 typedef struct {
-  SMsgHead head;
+  SStreamExecMsgHead head;
   // TODO: other info needed by task
 } SStreamTaskExecReq;
 

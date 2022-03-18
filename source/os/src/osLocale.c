@@ -81,7 +81,7 @@ void taosSetSystemLocale(const char *inLocale, const char *inCharSet) {
   }
 
   if (!taosValidateEncodec(inCharSet)) {
-    printf("Invalid charset:%s, please set the valid charset in config file", inCharSet);
+    printf("Invalid charset:%s, please set the valid charset in config file\n", inCharSet);
     exit(-1);
   }
 }

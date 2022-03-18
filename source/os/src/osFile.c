@@ -46,6 +46,23 @@ extern int openU(const char *, int, ...); /* MsvcLibX UTF-8 version of open */
 #define O_TEXT                    LINUX_FILE_NO_TEXT_OPTION
 #endif
 
+#if defined(WINDOWS)
+typedef int32_t FileFd;
+typedef int32_t SocketFd;
+#else
+typedef int32_t FileFd;
+typedef int32_t SocketFd;
+#endif
+
+typedef int32_t FileFd;
+
+typedef struct TdFile {
+  pthread_rwlock_t rwlock;
+  int      refId;
+  FileFd   fd;
+  FILE    *fp;
+} * TdFilePtr, TdFile;
+
 #define FILE_WITH_LOCK 1
 
 void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, char *dstPath) {
