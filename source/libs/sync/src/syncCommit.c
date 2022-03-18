@@ -110,6 +110,7 @@ bool syncAgreeIndex(SSyncNode* pSyncNode, SRaftId* pRaftId, SyncIndex index) {
     return true;
   }
 
+  // not agree
   return false;
 }
 
