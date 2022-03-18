@@ -5869,7 +5869,7 @@ static void state_count_function(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   SStateInfo *pStateInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
-  void *data = GET_INPUT_DATA_LIST(pCtx);
+  char *data = GET_INPUT_DATA_LIST(pCtx);
   int64_t *pOutput = (int64_t *)pCtx->pOutput;
 
   for (int32_t i = 0; i < pCtx->size;  i++,pOutput++,data += pCtx->inputBytes) {
@@ -5898,7 +5898,7 @@ static void state_duration_function(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   SStateInfo *pStateInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
-  void *data = GET_INPUT_DATA_LIST(pCtx);
+  char *data = GET_INPUT_DATA_LIST(pCtx);
   TSKEY* tsList = GET_TS_LIST(pCtx);
   int64_t *pOutput = (int64_t *)pCtx->pOutput;
 
