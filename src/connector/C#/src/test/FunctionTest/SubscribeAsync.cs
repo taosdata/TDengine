@@ -83,9 +83,13 @@ namespace Cases
                     // cannot free taosRes using taosRes, otherwise will cause crash.
                     UtilsTools.GetResDataWithoutFree(taosRes);
                 }
+                else if (taosRes != IntPtr.Zero)
+                {
+                    output.WriteLine($"async query data failed, failed code {TDengine.Error(taosRes)}");
+                }
                 else
                 {
-                    output.WriteLine($"async query data failed, failed code {code}");
+                    output.WriteLine($"async query data failed");
                 }
 
             }
@@ -125,9 +129,13 @@ namespace Cases
 
 
                 }
+                else if (taosRes != IntPtr.Zero)
+                {
+                    output.WriteLine($"async query data failed, failed code {TDengine.Error(taosRes)}");
+                }
                 else
                 {
-                    output.WriteLine($"async query data failed, failed code {code}");
+                    output.WriteLine($"async query data failed");
                 }
 
             }
@@ -189,9 +197,13 @@ namespace Cases
                     // cannot free taosRes using taosRes, otherwise will cause crash.
                     UtilsTools.GetResDataWithoutFree(taosRes);
                 }
+                else if (taosRes != IntPtr.Zero)
+                {
+                    output.WriteLine($"async query data failed, failed code {TDengine.Error(taosRes)}");
+                }
                 else
                 {
-                    output.WriteLine($"async query data failed, failed code {code}");
+                    output.WriteLine($"async query data failed");
                 }
 
             }
@@ -229,9 +241,13 @@ namespace Cases
                         }
                     }
                 }
+                else if (taosRes != IntPtr.Zero)
+                {
+                    output.WriteLine($"async query data failed, failed code {TDengine.Error(taosRes)}");
+                }
                 else
                 {
-                    output.WriteLine($"async query data failed, failed code {code}");
+                    output.WriteLine($"async query data failed");
                 }
 
             }
