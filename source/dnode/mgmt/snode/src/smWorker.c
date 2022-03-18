@@ -30,12 +30,12 @@ static void smProcessUniqueQueue(SSnodeMgmt *pMgmt, STaosQall *qall, int32_t num
   }
 }
 
-static void smProcessSharedQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+static void smProcessSharedQueue(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   dTrace("msg:%p, will be processed in snode shared queue", pMsg);
-  sndProcessSMsg(pMgmt->pSnode, pMsg);
+  sndProcessSMsg(pMgmt->pSnode, &pMsg->rpcMsg);
 
   dTrace("msg:%p, is freed", pMsg);
-  rpcFreeCont(pMsg->pCont);
+  rpcFreeCont(pMsg->rpcMsg.pCont);
   taosFreeQitem(pMsg);
 }
 

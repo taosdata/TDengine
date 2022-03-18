@@ -45,6 +45,7 @@ static void bmProcessQueue(SBnodeMgmt *pMgmt, STaosQall *qall, int32_t numOfMsgs
   for (int32_t i = 0; i < numOfMsgs; ++i) {
     SNodeMsg *pMsg = NULL;
     taosGetQitem(qall, (void **)&pMsg);
+    dTrace("msg:%p, will be processed in bnode queue", pMsg);
     if (taosArrayPush(pArray, &pMsg) == NULL) {
       bmSendErrorRsp(pWrapper, pMsg, TSDB_CODE_OUT_OF_MEMORY);
     }

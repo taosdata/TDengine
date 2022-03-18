@@ -53,12 +53,12 @@ static void *dmThreadRoutine(void *param) {
 }
 
 static void dmProcessQueue(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  int32_t code = -1;
-  tmsg_t  msgType = pMsg->rpcMsg.msgType;
   SDnode *pDnode = pMgmt->pDnode;
+  SRpcMsg *pRpc = &pMsg->rpcMsg;
+  int32_t code = -1;
   dTrace("msg:%p, will be processed in dnode queue", pMsg);
 
-  switch (msgType) {
+  switch (pRpc->msgType) {
     case TDMT_DND_CREATE_MNODE:
     case TDMT_DND_CREATE_QNODE:
     case TDMT_DND_CREATE_SNODE:
@@ -84,16 +84,16 @@ static void dmProcessQueue(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
       code = -1;
-      dError("RPC %p, dnode msg:%s not processed in dnode queue", pMsg->rpcMsg.handle, TMSG_INFO(msgType));
+      dError("msg:%p, type:%s not processed in dnode queue", pRpc->handle, TMSG_INFO(pRpc->msgType));
   }
 
-  if (msgType & 1u) {
+  if (pRpc->msgType & 1u) {
     if (code != 0) code = terrno;
-    SRpcMsg rsp = {.code = code, .handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle};
+    SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = code};
     rpcSendResponse(&rsp);
   }
 
-  dTrace("msg:%p, is freed", pMsg);
+  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
   rpcFreeCont(pMsg->rpcMsg.pCont);
   taosFreeQitem(pMsg);
 }

@@ -34,7 +34,7 @@ static void qmProcessQueue(SQnodeMgmt *pMgmt, SNodeMsg *pMsg) {
     }
   }
 
-  dTrace("msg:%p, is freed", pMsg);
+  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
   rpcFreeCont(pRpc->pCont);
   taosFreeQitem(pMsg);
 }

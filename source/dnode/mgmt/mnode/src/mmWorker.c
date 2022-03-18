@@ -32,7 +32,7 @@ static void mmProcessQueue(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
     if (pRpc->handle == NULL) return;
     if (code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       if (code != 0) code = terrno;
-      SRpcMsg rsp = {.handle = pRpc->handle, .contLen = pMsg->rspLen, .pCont = pMsg->pRsp, .code = code};
+      SRpcMsg rsp = {.handle = pRpc->handle, .code = code, .contLen = pMsg->rspLen, .pCont = pMsg->pRsp};
       dndSendRsp(pMgmt->pWrapper, &rsp);
     }
   }

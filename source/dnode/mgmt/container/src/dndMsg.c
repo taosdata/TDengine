@@ -77,7 +77,7 @@ _OVER:
       rpcFreeCont(pRpc->pCont);
     }
   } else {
-    dError("msg:%p, failed to process since %s", pMsg, terrstr());
+    dError("msg:%p, failed to process since 0x%04x:%s", pMsg, code & 0XFFFF, terrstr());
     if (pRpc->msgType & 1U) {
       SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
       dndSendRsp(pWrapper, &rsp);
@@ -95,6 +95,7 @@ static int32_t dndProcessCreateNodeMsg(SDnode *pDnode, ENodeType ntype, SNodeMsg
   if (pWrapper != NULL) {
     dndReleaseWrapper(pWrapper);
     terrno = TSDB_CODE_NODE_ALREADY_DEPLOYED;
+    dError("failed to create node since %s", terrstr());
     return -1;
   }
 
@@ -121,6 +122,7 @@ static int32_t dndProcessDropNodeMsg(SDnode *pDnode, ENodeType ntype, SNodeMsg *
   SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, ntype);
   if (pWrapper == NULL) {
     terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
+    dError("failed to drop node since %s", terrstr());
     return -1;
   }
 

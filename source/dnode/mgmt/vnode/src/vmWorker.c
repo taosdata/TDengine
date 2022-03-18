@@ -26,6 +26,7 @@ static void vmProcessWriteQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numO
   for (int32_t i = 0; i < numOfMsgs; ++i) {
     SNodeMsg *pMsg = NULL;
     taosGetQitem(qall, (void **)&pMsg);
+    dTrace("msg:%p, will be processed in vnode write queue", pMsg);
     void *ptr = taosArrayPush(pArray, &pMsg);
     assert(ptr != NULL);
   }
@@ -34,24 +35,25 @@ static void vmProcessWriteQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numO
 
   for (size_t i = 0; i < numOfMsgs; i++) {
     SRpcMsg  *pRsp = NULL;
-    SNodeMsg *pNodeMsg = *(SNodeMsg **)taosArrayGet(pArray, i);
-    SRpcMsg  *pMsg = &pNodeMsg->rpcMsg;
-    int32_t   code = vnodeApplyWMsg(pVnode->pImpl, pMsg, &pRsp);
+    SNodeMsg *pMsg = *(SNodeMsg **)taosArrayGet(pArray, i);
+    SRpcMsg  *pRpc = &pMsg->rpcMsg;
+    int32_t   code = vnodeApplyWMsg(pVnode->pImpl, pRpc, &pRsp);
     if (pRsp != NULL) {
-      pRsp->ahandle = pMsg->ahandle;
+      pRsp->ahandle = pRpc->ahandle;
       rpcSendResponse(pRsp);
       free(pRsp);
     } else {
       if (code != 0) code = terrno;
-      SRpcMsg rpcRsp = {.handle = pMsg->handle, .ahandle = pMsg->ahandle, .code = code};
+      SRpcMsg rpcRsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = code};
       rpcSendResponse(&rpcRsp);
     }
   }
 
   for (size_t i = 0; i < numOfMsgs; i++) {
-    SNodeMsg *pNodeMsg = *(SNodeMsg **)taosArrayGet(pArray, i);
-    rpcFreeCont(pNodeMsg->rpcMsg.pCont);
-    taosFreeQitem(pNodeMsg);
+    SNodeMsg *pMsg = *(SNodeMsg **)taosArrayGet(pArray, i);
+    dTrace("msg:%p, is freed", pMsg);
+    rpcFreeCont(pMsg->rpcMsg.pCont);
+    taosFreeQitem(pMsg);
   }
 
   taosArrayDestroy(pArray);
