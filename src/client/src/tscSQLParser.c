@@ -7054,7 +7054,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       return invalidOperationMsg(pMsgBuf, msg1);
     }
 
-    if (index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX && !isTopBottomUniqueQuery(pQueryInfo)) {
+    if (index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX && !isTopBottomUniqueQuery(pQueryInfo)){
       bool validOrder = false;
       SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
       if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
@@ -7065,15 +7065,8 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       if (!validOrder) {
         return invalidOperationMsg(pMsgBuf, msg7);
       }
-
-      if (udf) {
-        return invalidOperationMsg(pMsgBuf, msg11);
-      }
-
       pQueryInfo->groupbyExpr.orderType = pItem->sortOrder;
-    }
-
-    if (isTopBottomUniqueQuery(pQueryInfo)) {
+    }else if (isTopBottomUniqueQuery(pQueryInfo)) {
       SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
       if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
         SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
@@ -7093,14 +7086,16 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
           return invalidOperationMsg(pMsgBuf, msg5);
         }
       }
+      pQueryInfo->order.order = pItem->sortOrder;
+      pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
+    }else{
+      pQueryInfo->order.order = pItem->sortOrder;
+      pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
     }
 
     if (udf) {
       return invalidOperationMsg(pMsgBuf, msg11);
     }
-
-    pQueryInfo->order.order = pItem->sortOrder;
-    pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
   } else {
     // handle the temp table order by clause. You can order by any single column in case of the temp table, created by
     // inner subquery.

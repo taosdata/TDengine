@@ -385,6 +385,11 @@ int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t
     case TSDB_DATA_TYPE_TINYINT: DEFAULT_COMP(GET_INT8_VAL(f1), GET_INT8_VAL(f2));
 
     case TSDB_DATA_TYPE_BINARY: {
+      bool leftIsNull = isNull(f1, TSDB_DATA_TYPE_BINARY);
+      bool rightIsNull = isNull(f2, TSDB_DATA_TYPE_BINARY);
+      if(leftIsNull && rightIsNull) return 0;
+      else if(leftIsNull) return -1;
+      else if(rightIsNull) return 1;
       int32_t len1 = varDataLen(f1);
       int32_t len2 = varDataLen(f2);
 
@@ -408,6 +413,12 @@ int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t
       return (ret < 0) ? -1 : 1;
     };
     case TSDB_DATA_TYPE_NCHAR: { // todo handle the var string compare
+      bool leftIsNull = isNull(f1, TSDB_DATA_TYPE_NCHAR);
+      bool rightIsNull = isNull(f2, TSDB_DATA_TYPE_NCHAR);
+      if(leftIsNull && rightIsNull) return 0;
+      else if(leftIsNull) return -1;
+      else if(rightIsNull) return 1;
+
       int32_t len1 = varDataLen(f1);
       int32_t len2 = varDataLen(f2);
 
