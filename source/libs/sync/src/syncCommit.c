@@ -18,6 +18,7 @@
 #include "syncInt.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
+#include "syncUtil.h"
 
 // \* Leader i advances its commitIndex.
 // \* This is done as a separate step from handling AppendEntries responses,
@@ -50,7 +51,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
   SyncIndex newCommitIndex = pSyncNode->commitIndex;
   for (SyncIndex index = pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore); index > pSyncNode->commitIndex;
        ++index) {
-    if (syncAgree(pSyncNode, index)) {
+    bool agree = syncAgree(pSyncNode, index);
+    if (agree) {
       // term
       SSyncRaftEntry* pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, index);
       assert(pEntry != NULL);
@@ -97,14 +99,18 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
 }
 
 bool syncAgreeIndex(SSyncNode* pSyncNode, SRaftId* pRaftId, SyncIndex index) {
-  SyncIndex matchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, pRaftId);
-
-  // b for debug
-  bool b = false;
-  if (matchIndex >= index) {
-    b = true;
+  // I am leader, I agree
+  if (syncUtilSameId(pRaftId, &(pSyncNode->myRaftId)) && pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+    return true;
   }
-  return b;
+
+  // follower agree
+  SyncIndex matchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, pRaftId);
+  if (matchIndex >= index) {
+    return true;
+  }
+
+  return false;
 }
 
 bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {

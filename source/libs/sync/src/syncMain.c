@@ -195,7 +195,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   // init TLA+ log vars
   pSyncNode->pLogStore = logStoreCreate(pSyncNode);
   assert(pSyncNode->pLogStore != NULL);
-  pSyncNode->commitIndex = 0;
+  pSyncNode->commitIndex = SYNC_INDEX_INVALID;
 
   // init ping timer
   pSyncNode->pPingTimer = NULL;
@@ -774,9 +774,6 @@ static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
     ths->pLogStore->appendEntry(ths->pLogStore, pEntry);
 
-    // only myself, maybe commit
-    syncMaybeAdvanceCommitIndex(ths);
-
     // start replicate right now!
     syncNodeReplicate(ths);
 
@@ -790,6 +787,9 @@ static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg
       }
     }
     rpcFreeCont(rpcMsg.pCont);
+
+    // only myself, maybe commit
+    syncMaybeAdvanceCommitIndex(ths);
 
   } else {
     // pre commit
