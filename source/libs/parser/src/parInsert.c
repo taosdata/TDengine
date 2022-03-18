@@ -622,7 +622,7 @@ static FORCE_INLINE int32_t MemRowAppend(const void* value, int32_t len, void* p
     // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
     int32_t     output = 0;
     const char* rowEnd = tdRowEnd(rb->pBuf);
-    if (!taosMbsToUcs4(value, len, (char*)varDataVal(rowEnd), pa->schema->bytes - VARSTR_HEADER_SIZE, &output)) {
+    if (!taosMbsToUcs4(value, len, (TdUcs4*)varDataVal(rowEnd), pa->schema->bytes - VARSTR_HEADER_SIZE, &output)) {
       return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
     varDataSetLen(rowEnd, output);
@@ -725,7 +725,7 @@ static int32_t KvRowAppend(const void *value, int32_t len, void *param) {
   } else if (TSDB_DATA_TYPE_NCHAR == type) {
     // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
     int32_t output = 0;
-    if (!taosMbsToUcs4(value, len, varDataVal(pa->buf), pa->schema->bytes - VARSTR_HEADER_SIZE, &output)) {
+    if (!taosMbsToUcs4(value, len, (TdUcs4*)varDataVal(pa->buf), pa->schema->bytes - VARSTR_HEADER_SIZE, &output)) {
       return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
 
