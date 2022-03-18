@@ -37,7 +37,10 @@
 //
 int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
   int32_t ret = 0;
-  syncAppendEntriesReplyLog2("==syncNodeOnAppendEntriesReplyCb==", pMsg);
+
+  char logBuf[128];
+  snprintf(logBuf, sizeof(logBuf), "==syncNodeOnAppendEntriesReplyCb== term:%lu", ths->pRaftStore->currentTerm);
+  syncAppendEntriesReplyLog2(logBuf, pMsg);
 
   if (pMsg->term < ths->pRaftStore->currentTerm) {
     sTrace("DropStaleResponse, receive term:%" PRIu64 ", current term:%" PRIu64 "", pMsg->term,
