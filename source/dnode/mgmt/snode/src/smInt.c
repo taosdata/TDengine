@@ -16,14 +16,13 @@
 #define _DEFAULT_SOURCE
 #include "smInt.h"
 
-bool smRequireNode(SMgmtWrapper *pWrapper) { return false; }
-
+static int32_t smRequire(SMgmtWrapper *pWrapper, bool *required) { return dndReadFile(pWrapper, required); }
 
 void smGetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = NULL;
   mgmtFp.closeFp = NULL;
-  mgmtFp.requiredFp = smRequireNode;
+  mgmtFp.requiredFp = smRequire;
 
   // smInitMsgHandles(pWrapper);
   pWrapper->name = "snode";

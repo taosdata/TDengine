@@ -277,30 +277,31 @@ static bool mmDeployRequired(SDnode *pDnode) {
   return true;
 }
 
-static bool mmRequire(SMgmtWrapper *pWrapper) {
+static int32_t mmRequire(SMgmtWrapper *pWrapper, bool *required) {
   SMnodeMgmt mgmt = {0};
   mgmt.path = pWrapper->path;
   if (mmReadFile(&mgmt) != 0) {
-    return false;
+    return -1;
   }
 
   if (mgmt.dropped) {
     dInfo("mnode has been dropped and needs to be deleted");
     mndDestroy(mgmt.path);
-    return false;
+    return -1;
   }
 
   if (mgmt.deployed) {
+    *required = true;
     dInfo("mnode has been deployed");
-    return true;
+    return 0;
   }
 
-  bool required = mmDeployRequired(pWrapper->pDnode);
-  if (required) {
+  *required = mmDeployRequired(pWrapper->pDnode);
+  if (*required) {
     dInfo("mnode need to be deployed");
   }
 
-  return required;
+  return 0;
 }
 
 void mmGetMgmtFp(SMgmtWrapper *pWrapper) {

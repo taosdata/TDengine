@@ -26,7 +26,8 @@ static void dndResetLog(SMgmtWrapper *pMgmt) {
 }
 
 static bool dndRequireNode(SMgmtWrapper *pWrapper) {
-  bool required = (*pWrapper->fp.requiredFp)(pWrapper);
+  bool required = false;
+  int32_t code =(*pWrapper->fp.requiredFp)(pWrapper, &required);
   if (!required) {
     dDebug("node:%s, no need to start", pWrapper->name);
   } else {

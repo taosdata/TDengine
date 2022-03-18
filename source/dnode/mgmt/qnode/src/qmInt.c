@@ -16,13 +16,13 @@
 #define _DEFAULT_SOURCE
 #include "qmInt.h"
 
-bool qmRequireNode(SMgmtWrapper *pWrapper) { return false; }
+static int32_t qmRequire(SMgmtWrapper *pWrapper, bool *required) { return dndReadFile(pWrapper, required); }
 
 void qmGetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = NULL;
   mgmtFp.closeFp = NULL;
-  mgmtFp.requiredFp = qmRequireNode;
+  mgmtFp.requiredFp = qmRequire;
 
   // qmInitMsgHandles(pWrapper);
   pWrapper->name = "qnode";

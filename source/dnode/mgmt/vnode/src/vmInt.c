@@ -324,9 +324,10 @@ _OVER:
   return 0;
 }
 
-static bool vmRequire(SMgmtWrapper *pWrapper) {
+static int32_t vmRequire(SMgmtWrapper *pWrapper, bool *required) {
   SDnode *pDnode = pWrapper->pDnode;
-  return pDnode->numOfSupportVnodes > 0;
+  *required = pDnode->numOfSupportVnodes > 0;
+  return 0;
 }
 
 void vmGetMgmtFp(SMgmtWrapper *pWrapper) {

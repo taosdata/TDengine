@@ -76,7 +76,7 @@ typedef int32_t (*OpenNodeFp)(SMgmtWrapper *pWrapper);
 typedef void (*CloseNodeFp)(SMgmtWrapper *pWrapper);
 typedef int32_t (*CreateNodeFp)(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 typedef int32_t (*DropNodeFp)(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-typedef bool (*RequireNodeFp)(SMgmtWrapper *pWrapper);
+typedef int32_t (*RequireNodeFp)(SMgmtWrapper *pWrapper, bool *required);
 
 typedef struct {
   EWorkerType type;

@@ -30,33 +30,33 @@ int32_t dndReadFile(SMgmtWrapper *pWrapper, bool *pDeployed) {
   if (pFile == NULL) {
     dDebug("file %s not exist", file);
     code = 0;
-    goto PRASE_BNODE_OVER;
+    goto _OVER;
   }
 
   len = (int32_t)taosReadFile(pFile, content, maxLen);
   if (len <= 0) {
     dError("failed to read %s since content is null", file);
-    goto PRASE_BNODE_OVER;
+    goto _OVER;
   }
 
   content[len] = 0;
   root = cJSON_Parse(content);
   if (root == NULL) {
     dError("failed to read %s since invalid json format", file);
-    goto PRASE_BNODE_OVER;
+    goto _OVER;
   }
 
   cJSON *deployed = cJSON_GetObjectItem(root, "deployed");
   if (!deployed || deployed->type != cJSON_Number) {
     dError("failed to read %s since deployed not found", file);
-    goto PRASE_BNODE_OVER;
+    goto _OVER;
   }
   *pDeployed = deployed->valueint != 0;
 
   code = 0;
   dDebug("succcessed to read file %s, deployed:%d", file, *pDeployed);
 
-PRASE_BNODE_OVER:
+_OVER:
   if (content != NULL) free(content);
   if (root != NULL) cJSON_Delete(root);
   if (pFile != NULL) taosCloseFile(&pFile);

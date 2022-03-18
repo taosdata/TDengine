@@ -16,15 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "bmInt.h"
 
-static bool bmRequire(SMgmtWrapper *pWrapper) {
-  SBnodeMgmt mgmt = {0};
-  mgmt.path = pWrapper->path;
-
-  bool deployed = false;
-  (void)dndReadFile(pWrapper, &deployed);
-
-  return deployed;
-}
+static int32_t bmRequire(SMgmtWrapper *pWrapper, bool *required) { return dndReadFile(pWrapper, required); }
 
 static void bmInitOption(SBnodeMgmt *pMgmt, SBnodeOpt *pOption) {
   SDnode *pDnode = pMgmt->pDnode;

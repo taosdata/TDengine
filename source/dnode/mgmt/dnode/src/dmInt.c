@@ -136,7 +136,10 @@ void dmCleanup(SMgmtWrapper *pWrapper) {
   dInfo("dnode-mgmt is cleaned up");
 }
 
-bool dmRequire(SMgmtWrapper *pWrapper) { return true; }
+int32_t dmRequire(SMgmtWrapper *pWrapper, bool *required) {
+  *required = true;
+  return 0;
+}
 
 void dmGetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
