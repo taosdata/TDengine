@@ -884,7 +884,7 @@ const char *metaSmaCursorNext(SMSmaCursor *pCur) {
 STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
   STSmaWrapper *pSW = NULL;
 
-  pSW = calloc(sizeof(*pSW), 1);
+  pSW = calloc(1, sizeof(*pSW));
   if (pSW == NULL) {
     return NULL;
   }
