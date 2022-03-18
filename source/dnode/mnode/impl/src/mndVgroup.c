@@ -701,7 +701,7 @@ static int32_t mndRetrieveVnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, i
   SVgObj *pVgroup = NULL;
   char   *pWrite;
   int32_t cols = 0;
-  int32_t dnodeId = pShow->replica;
+//  int32_t dnodeId = pShow->replica;
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_VGROUP, pShow->pIter, (void **)&pVgroup);
@@ -709,17 +709,33 @@ static int32_t mndRetrieveVnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, i
 
     for (int32_t i = 0; i < pVgroup->replica && numOfRows < rows; ++i) {
       SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
-      if (pVgid->dnodeId != dnodeId) continue;
-
       cols = 0;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(uint32_t *)pWrite = pVgroup->vgId;
       cols++;
 
+      SName name = {0};
+      char  db[TSDB_DB_NAME_LEN] = {0};
+      tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT|T_NAME_DB);
+      tNameGetDbName(&name, db);
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      STR_TO_VARSTR(pWrite, db);
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(uint32_t *)pWrite = 0;  //todo: Tables
+      cols++;
+
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       STR_TO_VARSTR(pWrite, mndGetRoleStr(pVgid->role));
       cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(uint32_t *)pWrite = pVgroup->replica;  //onlines
+      cols++;
+
       numOfRows++;
     }
 

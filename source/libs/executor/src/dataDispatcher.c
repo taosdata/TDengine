@@ -15,11 +15,12 @@
 
 #include "dataSinkInt.h"
 #include "dataSinkMgt.h"
+#include "executorimpl.h"
 #include "planner.h"
 #include "tcompression.h"
 #include "tglobal.h"
 #include "tqueue.h"
-#include "executorimpl.h"
+#include "tdatablock.h"
 
 typedef struct SDataDispatchBuf {
   int32_t useSize;
@@ -84,8 +85,11 @@ static void copyData(const SInputData* pInput, const SDataBlockDescNode* pSchema
       *compLen += compSizes[col];
       compSizes[col] = htonl(compSizes[col]);
     } else {
-      memmove(data, pColRes->pData, pColRes->info.bytes * pInput->pData->info.rows);
-      data += pColRes->info.bytes * pInput->pData->info.rows;
+      for(int32_t i = 0; i < pInput->pData->info.rows; ++i) {
+        char* pData = colDataGetData(pColRes, i);
+        memmove(data, pData, pColRes->info.bytes);
+        data += pColRes->info.bytes;
+      }
     }
   }
 }
