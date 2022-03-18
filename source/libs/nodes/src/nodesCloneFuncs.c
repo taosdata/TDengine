@@ -190,7 +190,6 @@ static SNode* fillNodeCopy(const SFillNode* pSrc, SFillNode* pDst) {
 }
 
 static SNode* logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
-  COPY_SCALAR_FIELD(id);
   CLONE_NODE_LIST_FIELD(pTargets);
   CLONE_NODE_FIELD(pConditions);
   CLONE_NODE_LIST_FIELD(pChildren);
@@ -198,7 +197,7 @@ static SNode* logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
 }
 
 static STableMeta* tableMetaClone(const STableMeta* pSrc) {
-  int32_t len = sizeof(STableMeta) + (pSrc->tableInfo.numOfTags + pSrc->tableInfo.numOfColumns) * sizeof(SSchema);
+  int32_t len = TABLE_META_SIZE(pSrc);
   STableMeta* pDst = malloc(len);
   if (NULL == pDst) {
     return NULL;
@@ -208,7 +207,7 @@ static STableMeta* tableMetaClone(const STableMeta* pSrc) {
 }
 
 static SVgroupsInfo* vgroupsInfoClone(const SVgroupsInfo* pSrc) {
-  int32_t len = sizeof(SVgroupsInfo) + pSrc->numOfVgroups * sizeof(SVgroupInfo);
+  int32_t len = VGROUPS_INFO_SIZE(pSrc);
   SVgroupsInfo* pDst = malloc(len);
   if (NULL == pDst) {
     return NULL;

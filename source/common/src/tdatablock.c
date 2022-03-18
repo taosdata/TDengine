@@ -1072,6 +1072,10 @@ void blockDataClearup(SSDataBlock* pDataBlock) {
 }
 
 int32_t blockDataEnsureColumnCapacity(SColumnInfoData* pColumn, uint32_t numOfRows) {
+  if (0 == numOfRows) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
     char* tmp = realloc(pColumn->varmeta.offset, sizeof(int32_t) * numOfRows);
     if (tmp == NULL) {
@@ -1092,7 +1096,7 @@ int32_t blockDataEnsureColumnCapacity(SColumnInfoData* pColumn, uint32_t numOfRo
 
     pColumn->nullbitmap = tmp;
     memset(pColumn->nullbitmap, 0, BitmapLen(numOfRows));
-
+    assert(pColumn->info.bytes);
     tmp = realloc(pColumn->pData, numOfRows * pColumn->info.bytes);
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -1137,7 +1141,7 @@ void* blockDataDestroy(SSDataBlock* pBlock) {
 
   taosArrayDestroy(pBlock->pDataBlock);
   tfree(pBlock->pBlockAgg);
-  tfree(pBlock);
+  // tfree(pBlock);
   return NULL;
 }
 
@@ -1190,7 +1194,7 @@ int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock) {
     }
 
     int32_t len = colDataGetLength(pColData, rows);
-    taosEncodeFixedI32(buf, len);
+    tlen += taosEncodeFixedI32(buf, len);
 
     tlen += taosEncodeBinary(buf, pColData->pData, len);
   }

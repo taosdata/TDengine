@@ -26,7 +26,6 @@ extern "C" {
 
 typedef struct SLogicNode {
   ENodeType type;
-  int32_t id;
   SNodeList* pTargets; // SColumnNode
   SNode* pConditions;
   SNodeList* pChildren;
@@ -167,6 +166,7 @@ typedef struct SScanPhysiNode {
 
 typedef SScanPhysiNode SSystemTableScanPhysiNode;
 typedef SScanPhysiNode STagScanPhysiNode;
+typedef SScanPhysiNode SStreamScanPhysiNode;
 
 typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;
