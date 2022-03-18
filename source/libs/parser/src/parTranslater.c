@@ -126,7 +126,7 @@ static void setColumnInfoByExpr(const STableNode* pTable, SExprNode* pExpr, SCol
 static int32_t createColumnNodeByTable(STranslateContext* pCxt, const STableNode* pTable, SNodeList* pList) {
   if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
     const STableMeta* pMeta = ((SRealTableNode*)pTable)->pMeta;
-    int32_t nums = pMeta->tableInfo.numOfColumns + ((TSDB_SUPER_TABLE == pMeta->tableType)? pMeta->tableInfo.numOfTags:0);
+    int32_t nums = pMeta->tableInfo.numOfColumns + ((TSDB_SUPER_TABLE == pMeta->tableType) ? pMeta->tableInfo.numOfTags : 0);
     for (int32_t i = 0; i < nums; ++i) {
       SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
       if (NULL == pCol) {
@@ -499,6 +499,10 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
 }
 
 static int32_t setTableVgroupList(SParseContext* pCxt, SName* name, SRealTableNode* pRealTable) {
+  if (pCxt->streamQuery) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (TSDB_SUPER_TABLE == pRealTable->pMeta->tableType) {
     SArray* vgroupList = NULL;
     int32_t code = catalogGetTableDistVgInfo(pCxt->pCatalog, pCxt->pTransporter, &pCxt->mgmtEpSet, name, &vgroupList);
@@ -1389,6 +1393,7 @@ static int32_t translateCreateTopic(STranslateContext* pCxt, SCreateTopicStmt* p
   SCMCreateTopicReq createReq = {0};
 
   if (NULL != pStmt->pQuery) {
+    pCxt->pParseCxt->streamQuery = true;
     int32_t code = translateQuery(pCxt, pStmt->pQuery);
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesNodeToString(pStmt->pQuery, false, &createReq.ast, NULL);

@@ -202,9 +202,16 @@ int32_t tjsonGetUBigIntValue(const SJson* pJson, const char* pName, uint64_t* pV
   return (errno == ERANGE||errno == EINVAL) ? TSDB_CODE_FAILED:TSDB_CODE_SUCCESS;
 }
 
+int32_t tjsonGetUIntValue(const SJson* pJson, const char* pName, uint32_t* pVal) {
+  uint64_t val = 0;
+  int32_t code = tjsonGetUBigIntValue(pJson, pName, &val);
+  *pVal = val;
+  return code;
+}
+
 int32_t tjsonGetUTinyIntValue(const SJson* pJson, const char* pName, uint8_t* pVal) {
   uint64_t val = 0;
-  int32_t  code = tjsonGetUBigIntValue(pJson, pName, &val);
+  int32_t code = tjsonGetUBigIntValue(pJson, pName, &val);
   *pVal = val;
   return code;
 }
@@ -237,6 +244,22 @@ int32_t tjsonToObject(const SJson* pJson, const char* pName, FToObject func, voi
     return TSDB_CODE_FAILED;
   }
   return func(pJsonObj, pObj);
+}
+
+int32_t tjsonMakeObject(const SJson* pJson, const char* pName, FToObject func, void** pObj, int32_t objSize) {
+  if (objSize <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SJson* pJsonObj = tjsonGetObjectItem(pJson, pName);
+  if (NULL == pJsonObj) {
+    return TSDB_CODE_FAILED;
+  }
+  *pObj = calloc(1, objSize);
+  if (NULL == *pObj) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return func(pJsonObj, *pObj);
 }
 
 int32_t tjsonToArray(const SJson* pJson, const char* pName, FToObject func, void* pArray, int32_t itemSize) {

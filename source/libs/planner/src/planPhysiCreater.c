@@ -259,15 +259,21 @@ static SPhysiNode* createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   return (SPhysiNode*)pTableScan;
 }
 
+static SPhysiNode* createStreamScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode) {
+  SStreamScanPhysiNode* pTableScan = (SStreamScanPhysiNode*)makePhysiNode(pCxt, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN);
+  CHECK_ALLOC(pTableScan, NULL);
+  CHECK_CODE(initScanPhysiNode(pCxt, pScanLogicNode, (SScanPhysiNode*)pTableScan), (SPhysiNode*)pTableScan);
+  return (SPhysiNode*)pTableScan;
+}
+
 static SPhysiNode* createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode) {
   switch (pScanLogicNode->scanType) {
     case SCAN_TYPE_TAG:
       return createTagScanPhysiNode(pCxt, pScanLogicNode);
     case SCAN_TYPE_TABLE:
       return createTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode);
-    case SCAN_TYPE_STABLE:
     case SCAN_TYPE_STREAM:
-      break;
+      return createStreamScanPhysiNode(pCxt, pSubplan, pScanLogicNode);
     default:
       break;
   }

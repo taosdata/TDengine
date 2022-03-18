@@ -137,13 +137,14 @@ int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj*
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t parseSql(SRequestObj* pRequest, SQuery** pQuery) {
+int32_t parseSql(SRequestObj* pRequest, bool streamQuery, SQuery** pQuery) {
   STscObj* pTscObj = pRequest->pTscObj;
 
   SParseContext cxt = {
       .requestId = pRequest->requestId,
       .acctId = pTscObj->acctId,
-      .db = getDbOfConnection(pTscObj),
+      .db = pRequest->pDb,
+      .streamQuery = streamQuery,
       .pSql = pRequest->sqlstr,
       .sqlLen = pRequest->sqlLen,
       .pMsg = pRequest->msgBuf,
@@ -154,7 +155,6 @@ int32_t parseSql(SRequestObj* pRequest, SQuery** pQuery) {
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
-    tfree(cxt.db);
     return code;
   }
 
@@ -163,7 +163,6 @@ int32_t parseSql(SRequestObj* pRequest, SQuery** pQuery) {
     setResSchemaInfo(&pRequest->body.resInfo, (*pQuery)->pResSchema, (*pQuery)->numOfResCols);
   }
 
-  tfree(cxt.db);
   return code;
 }
 
@@ -249,7 +248,7 @@ TAOS_RES* taos_query_l(TAOS* taos, const char* sql, int sqlLen) {
 
   terrno = TSDB_CODE_SUCCESS;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
-  CHECK_CODE_GOTO(parseSql(pRequest, &pQuery), _return);
+  CHECK_CODE_GOTO(parseSql(pRequest, false, &pQuery), _return);
 
   if (pQuery->directRpc) {
     CHECK_CODE_GOTO(execDdlQuery(pRequest, pQuery), _return);
