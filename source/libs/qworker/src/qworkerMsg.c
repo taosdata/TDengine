@@ -26,6 +26,8 @@ int32_t qwMallocFetchRsp(int32_t length, SRetrieveTableRsp **rsp) {
   return TSDB_CODE_SUCCESS;
 }
 
+
+
 void qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len, bool qComplete) {
   SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)msg;
   
@@ -44,8 +46,7 @@ void qwFreeFetchRsp(void *msg) {
   }
 }
 
-int32_t qwBuildAndSendQueryRsp(void *connection, int32_t code) {
-  SRpcMsg *pMsg = (SRpcMsg *)connection;
+int32_t qwBuildAndSendQueryRsp(SQWConnInfo *pConn, int32_t code) {
   SQueryTableRsp rsp = {.code = code};
   
   int32_t contLen = tSerializeSQueryTableRsp(NULL, 0, &rsp);
@@ -54,8 +55,8 @@ int32_t qwBuildAndSendQueryRsp(void *connection, int32_t code) {
 
   SRpcMsg rpcRsp = {
     .msgType = TDMT_VND_QUERY_RSP,
-    .handle  = pMsg->handle,
-    .ahandle = pMsg->ahandle,
+    .handle  = pConn->handle,
+    .ahandle = pConn->ahandle,
     .pCont   = msg,
     .contLen = contLen,
     .code    = code,
@@ -66,15 +67,14 @@ int32_t qwBuildAndSendQueryRsp(void *connection, int32_t code) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendReadyRsp(void *connection, int32_t code) {
-  SRpcMsg *pMsg = (SRpcMsg *)connection;
+int32_t qwBuildAndSendReadyRsp(SQWConnInfo *pConn, int32_t code) {
   SResReadyRsp *pRsp = (SResReadyRsp *)rpcMallocCont(sizeof(SResReadyRsp));
   pRsp->code = code;
 
   SRpcMsg rpcRsp = {
     .msgType = TDMT_VND_RES_READY_RSP,
-    .handle  = pMsg->handle,
-    .ahandle = pMsg->ahandle,
+    .handle  = pConn->handle,
+    .ahandle = pConn->ahandle,
     .pCont   = pRsp,
     .contLen = sizeof(*pRsp),
     .code    = code,
@@ -85,15 +85,15 @@ int32_t qwBuildAndSendReadyRsp(void *connection, int32_t code) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendHbRsp(SRpcMsg *pMsg, SSchedulerHbRsp *pStatus, int32_t code) {
+int32_t qwBuildAndSendHbRsp(SQWConnInfo *pConn, SSchedulerHbRsp *pStatus, int32_t code) {
   int32_t contLen = tSerializeSSchedulerHbRsp(NULL, 0, pStatus);
   void *pRsp = rpcMallocCont(contLen);
   tSerializeSSchedulerHbRsp(pRsp, contLen, pStatus);
 
   SRpcMsg rpcRsp = {
     .msgType = TDMT_VND_QUERY_HEARTBEAT_RSP,
-    .handle  = pMsg->handle,
-    .ahandle = pMsg->ahandle,
+    .handle  = pConn->handle,
+    .ahandle = pConn->ahandle,
     .pCont   = pRsp,
     .contLen = contLen,
     .code    = code,
@@ -104,9 +104,7 @@ int32_t qwBuildAndSendHbRsp(SRpcMsg *pMsg, SSchedulerHbRsp *pStatus, int32_t cod
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendFetchRsp(void *connection, SRetrieveTableRsp *pRsp, int32_t dataLength, int32_t code) {
-  SRpcMsg *pMsg = (SRpcMsg *)connection;
-  
+int32_t qwBuildAndSendFetchRsp(SQWConnInfo *pConn, SRetrieveTableRsp *pRsp, int32_t dataLength, int32_t code) {
   if (NULL == pRsp) {
     pRsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
     memset(pRsp, 0, sizeof(SRetrieveTableRsp));
@@ -115,8 +113,8 @@ int32_t qwBuildAndSendFetchRsp(void *connection, SRetrieveTableRsp *pRsp, int32_
 
   SRpcMsg rpcRsp = {
     .msgType = TDMT_VND_FETCH_RSP,
-    .handle  = pMsg->handle,
-    .ahandle = pMsg->ahandle,
+    .handle  = pConn->handle,
+    .ahandle = pConn->ahandle,
     .pCont   = pRsp,
     .contLen = sizeof(*pRsp) + dataLength,
     .code    = code,
@@ -127,14 +125,14 @@ int32_t qwBuildAndSendFetchRsp(void *connection, SRetrieveTableRsp *pRsp, int32_
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendCancelRsp(SRpcMsg *pMsg, int32_t code) {
+int32_t qwBuildAndSendCancelRsp(SQWConnInfo *pConn, int32_t code) {
   STaskCancelRsp *pRsp = (STaskCancelRsp *)rpcMallocCont(sizeof(STaskCancelRsp));
   pRsp->code = code;
 
   SRpcMsg rpcRsp = {
     .msgType = TDMT_VND_CANCEL_TASK_RSP,
-    .handle  = pMsg->handle,
-    .ahandle = pMsg->ahandle,
+    .handle  = pConn->handle,
+    .ahandle = pConn->ahandle,
     .pCont   = pRsp,
     .contLen = sizeof(*pRsp),
     .code    = code,
@@ -144,15 +142,14 @@ int32_t qwBuildAndSendCancelRsp(SRpcMsg *pMsg, int32_t code) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendDropRsp(void *connection, int32_t code) {
-  SRpcMsg *pMsg = (SRpcMsg *)connection;
+int32_t qwBuildAndSendDropRsp(SQWConnInfo *pConn, int32_t code) {
   STaskDropRsp *pRsp = (STaskDropRsp *)rpcMallocCont(sizeof(STaskDropRsp));
   pRsp->code = code;
 
   SRpcMsg rpcRsp = {
     .msgType = TDMT_VND_DROP_TASK_RSP,
-    .handle  = pMsg->handle,
-    .ahandle = pMsg->ahandle,
+    .handle  = pConn->handle,
+    .ahandle = pConn->ahandle,
     .pCont   = pRsp,
     .contLen = sizeof(*pRsp),
     .code    = code,
@@ -234,8 +231,7 @@ int32_t qwBuildAndSendShowFetchRsp(SRpcMsg *pMsg, SVShowTablesFetchReq* pFetchRe
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, void *connection) {
-  SRpcMsg *pMsg = (SRpcMsg *)connection;
+int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, SQWConnInfo *pConn) {
   SQueryContinueReq * req = (SQueryContinueReq *)rpcMallocCont(sizeof(SQueryContinueReq));
   if (NULL == req) {
     QW_SCH_TASK_ELOG("rpcMallocCont %d failed", (int32_t)sizeof(SQueryContinueReq));
@@ -248,8 +244,8 @@ int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, void *connection) {
   req->taskId = tId;
 
   SRpcMsg pNewMsg = {
-    .handle = pMsg->handle,
-    .ahandle = pMsg->ahandle,
+    .handle  = pConn->handle,
+    .ahandle = pConn->ahandle,
     .msgType = TDMT_VND_QUERY_CONTINUE,
     .pCont   = req,
     .contLen = sizeof(SQueryContinueReq),
@@ -267,6 +263,35 @@ int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, void *connection) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+
+int32_t qwRegisterBrokenLinkArg(QW_FPARAMS_DEF, SQWConnInfo *pConn) {
+  STaskDropReq * req = (STaskDropReq *)rpcMallocCont(sizeof(STaskDropReq));
+  if (NULL == req) {
+    QW_SCH_TASK_ELOG("rpcMallocCont %d failed", (int32_t)sizeof(STaskDropReq));
+    QW_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }  
+
+  req->header.vgId = mgmt->nodeId;
+  req->sId = sId;
+  req->queryId = qId;
+  req->taskId = tId;
+  req->refId = rId;
+  
+  SRpcMsg pMsg = {
+    .handle  = pConn->handle,
+    .ahandle = pConn->ahandle,
+    .msgType = TDMT_VND_DROP_TASK,
+    .pCont   = req,
+    .contLen = sizeof(STaskDropReq),
+    .code    = TSDB_CODE_RPC_NETWORK_UNAVAIL,
+  };
+  
+  rpcRegisterBrokenLinkArg(&pMsg);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
@@ -294,7 +319,9 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   uint64_t tId = msg->taskId;
   int64_t  rId = msg->refId;
 
-  SQWMsg qwMsg = {.node = node, .msg = msg->msg + msg->sqlLen, .msgLen = msg->phyLen, .connection = pMsg};
+  SQWMsg qwMsg = {.node = node, .msg = msg->msg + msg->sqlLen, .msgLen = msg->phyLen};
+  qwMsg.connInfo.handle = pMsg->handle;
+  qwMsg.connInfo.ahandle = pMsg->ahandle;
 
   char* sql = strndup(msg->msg, msg->sqlLen);
   QW_SCH_TASK_DLOG("processQuery start, node:%p, sql:%s", node, sql);
@@ -326,7 +353,9 @@ int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   uint64_t tId = msg->taskId;
   int64_t rId = 0;
 
-  SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .connection = pMsg};
+  SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0};
+  qwMsg.connInfo.handle = pMsg->handle;
+  qwMsg.connInfo.ahandle = pMsg->ahandle;
 
   QW_SCH_TASK_DLOG("processCQuery start, node:%p", node);
 
@@ -358,7 +387,9 @@ int32_t qWorkerProcessReadyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg){
   uint64_t tId = msg->taskId;
   int64_t rId = 0;
 
-  SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .connection = pMsg};
+  SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0};
+  qwMsg.connInfo.handle = pMsg->handle;
+  qwMsg.connInfo.ahandle = pMsg->ahandle;
 
   QW_SCH_TASK_DLOG("processReady start, node:%p", node);
 
@@ -418,7 +449,9 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   uint64_t tId = msg->taskId;
   int64_t rId = 0;
 
-  SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .connection = pMsg};
+  SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0};
+  qwMsg.connInfo.handle = pMsg->handle;
+  qwMsg.connInfo.ahandle = pMsg->ahandle;
 
   QW_SCH_TASK_DLOG("processFetch start, node:%p", node);
 
@@ -484,7 +517,9 @@ int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   uint64_t tId = msg->taskId;
   int64_t  rId = msg->refId;
 
-  SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .connection = pMsg};
+  SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0};
+  qwMsg.connInfo.handle = pMsg->handle;
+  qwMsg.connInfo.ahandle = pMsg->ahandle;
 
   QW_SCH_TASK_DLOG("processDrop start, node:%p", node);
 
@@ -516,7 +551,9 @@ int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   }
 
   uint64_t sId = req.sId;
-  SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .connection = pMsg};
+  SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0};
+  qwMsg.connInfo.handle = pMsg->handle;
+  qwMsg.connInfo.ahandle = pMsg->ahandle;
 
   QW_SCH_DLOG("processHb start, node:%p", node);
 

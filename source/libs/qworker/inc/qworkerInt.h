@@ -70,11 +70,16 @@ typedef struct SQWDebug {
   bool statusEnable;
 } SQWDebug;
 
+typedef struct SQWConnInfo {
+  void *handle;
+  void *ahandle;
+} SQWConnInfo;
+
 typedef struct SQWMsg {
-  void   *node;
-  char   *msg;
-  int32_t msgLen;
-  void   *connection;
+  void        *node;
+  char        *msg;
+  int32_t      msgLen;
+  SQWConnInfo  connInfo;
 } SQWMsg;
 
 typedef struct SQWHbInfo {
@@ -100,10 +105,6 @@ typedef struct SQWTaskCtx {
   SRWLatch        lock;
   int8_t          phase;
   int8_t          taskType;
-
-  void           *readyConnection;
-  void           *dropConnection;
-  void           *cancelConnection;
   
   bool            emptyRes;
   bool            queryFetched;
@@ -112,6 +113,7 @@ typedef struct SQWTaskCtx {
   bool            queryInQueue;
   int32_t         rspCode; 
 
+  SQWConnInfo     connInfo;
   int8_t          events[QW_EVENT_MAX];
   
   qTaskInfo_t     taskHandle;
@@ -119,11 +121,11 @@ typedef struct SQWTaskCtx {
 } SQWTaskCtx;
 
 typedef struct SQWSchStatus {
-  int32_t   lastAccessTs; // timestamp in second
-  uint64_t  hbSeqId;
-  void     *hbConnection;
-  SRWLatch  tasksLock;
-  SHashObj *tasksHash;   // key:queryId+taskId, value: SQWTaskStatus
+  int32_t      lastAccessTs; // timestamp in second
+  uint64_t     hbSeqId;
+  SQWConnInfo *hbConnection;
+  SRWLatch     tasksLock;
+  SHashObj    *tasksHash;   // key:queryId+taskId, value: SQWTaskStatus
 } SQWSchStatus;
 
 // Qnode/Vnode level task management
