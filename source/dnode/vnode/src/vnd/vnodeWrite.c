@@ -17,17 +17,19 @@
 #include "vnd.h"
 
 int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
-  SRpcMsg *pMsg;
+  SNodeMsg *pMsg;
+  SRpcMsg *pRpc;
 
   for (int i = 0; i < taosArrayGetSize(pMsgs); i++) {
-    pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
+    pMsg = *(SNodeMsg **)taosArrayGet(pMsgs, i);
+    pRpc = &pMsg->rpcMsg;
 
     // set request version
-    void   *pBuf = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+    void   *pBuf = POINTER_SHIFT(pRpc->pCont, sizeof(SMsgHead));
     int64_t ver = pVnode->state.processed++;
     taosEncodeFixedI64(&pBuf, ver);
 
-    if (walWrite(pVnode->pWal, ver, pMsg->msgType, pMsg->pCont, pMsg->contLen) < 0) {
+    if (walWrite(pVnode->pWal, ver, pRpc->msgType, pRpc->pCont, pRpc->contLen) < 0) {
       // TODO: handle error
       /*ASSERT(false);*/
       vError("vnode:%d  write wal error since %s", pVnode->vgId, terrstr());

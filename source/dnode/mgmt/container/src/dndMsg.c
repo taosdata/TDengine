@@ -161,7 +161,6 @@ int32_t dndProcessNodeMsg(SDnode *pDnode, SNodeMsg *pMsg) {
       return dndProcessCreateNodeMsg(pDnode, BNODE, pMsg);
     case TDMT_DND_DROP_BNODE:
       return dndProcessDropNodeMsg(pDnode, BNODE, pMsg);
-
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
       return -1;

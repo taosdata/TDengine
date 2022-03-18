@@ -83,7 +83,6 @@ static void dmProcessQueue(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
       break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
-      code = -1;
       dError("msg:%p, type:%s not processed in dnode queue", pRpc->handle, TMSG_INFO(pRpc->msgType));
   }
 
