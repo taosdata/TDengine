@@ -15,14 +15,6 @@
 
 #include "tdbInt.h"
 
-typedef struct __attribute__((__packed__)) {
-  u16 flags;
-  u16 cellNum;
-  u16 cellBody;
-  u16 cellFree;
-  u16 nFree;
-} SPageHdr;
-
 extern SPageMethods pageMethods;
 extern SPageMethods pageLargeMethods;
 
@@ -210,6 +202,14 @@ static int tdbPageDefragment(SPage *pPage) {
 }
 
 /* ---------------------------------------------------------------------------------------------------------- */
+typedef struct __attribute__((__packed__)) {
+  u16 flags;
+  u16 cellNum;
+  u16 cellBody;
+  u16 cellFree;
+  u16 nFree;
+} SPageHdr;
+
 // flags
 static inline u16  getPageFlags(SPage *pPage) { return ((SPageHdr *)(pPage->pPageHdr))[0].flags; }
 static inline void setPageFlags(SPage *pPage, u16 flags) { ((SPageHdr *)(pPage->pPageHdr))[0].flags = flags; }
