@@ -52,6 +52,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
   for (SyncIndex index = pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore); index > pSyncNode->commitIndex;
        ++index) {
     bool agree = syncAgree(pSyncNode, index);
+    sTrace("syncMaybeAdvanceCommitIndex syncAgree:%d, index:%ld", agree, index);
     if (agree) {
       // term
       SSyncRaftEntry* pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, index);
@@ -69,6 +70,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
   if (newCommitIndex > pSyncNode->commitIndex) {
     SyncIndex beginIndex = pSyncNode->commitIndex + 1;
     SyncIndex endIndex = newCommitIndex;
+
+    sTrace("syncMaybeAdvanceCommitIndex sync commit %ld", newCommitIndex);
 
     // update commit index
     pSyncNode->commitIndex = newCommitIndex;

@@ -3,6 +3,8 @@
 #include "syncEnv.h"
 #include "syncIO.h"
 #include "syncInt.h"
+#include "syncMessage.h"
+#include "syncRaftEntry.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
@@ -22,18 +24,40 @@ int32_t  myIndex = 0;
 
 SRaftId    ids[TSDB_MAX_REPLICA];
 SSyncInfo  syncInfo;
-SSyncFSM*  pFsm;
-SWal*      pWal;
-SSyncNode* gSyncNode;
+SSyncFSM * pFsm;
+SWal *     pWal;
+SSyncNode *gSyncNode;
 
-SSyncNode* syncNodeInit() {
+void CommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pBuf, SyncIndex index, bool isWeak, int32_t code) {
+  printf("==CommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d \n", pFsm, index, isWeak, code);
+  syncRpcMsgPrint2((char *)"==CommitCb==", (SRpcMsg *)pBuf);
+}
+
+void PreCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pBuf, SyncIndex index, bool isWeak, int32_t code) {
+  printf("==PreCommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d \n", pFsm, index, isWeak, code);
+  syncRpcMsgPrint2((char *)"==PreCommitCb==", (SRpcMsg *)pBuf);
+}
+
+void RollBackCb(struct SSyncFSM *pFsm, const SRpcMsg *pBuf, SyncIndex index, bool isWeak, int32_t code) {
+  printf("==RollBackCb== pFsm:%p, index:%ld, isWeak:%d, code:%d \n", pFsm, index, isWeak, code);
+  syncRpcMsgPrint2((char *)"==RollBackCb==", (SRpcMsg *)pBuf);
+}
+
+void initFsm() {
+  pFsm = (SSyncFSM *)malloc(sizeof(SSyncFSM));
+  pFsm->FpCommitCb = CommitCb;
+  pFsm->FpPreCommitCb = PreCommitCb;
+  pFsm->FpRollBackCb = RollBackCb;
+}
+
+SSyncNode *syncNodeInit() {
   syncInfo.vgId = 1234;
   syncInfo.rpcClient = gSyncIO->clientRpc;
   syncInfo.FpSendMsg = syncIOSendMsg;
   syncInfo.queue = gSyncIO->pMsgQ;
   syncInfo.FpEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
-  snprintf(syncInfo.path, sizeof(syncInfo.path), "./elect_test_%d", myIndex);
+  snprintf(syncInfo.path, sizeof(syncInfo.path), "./replicate_test_%d", myIndex);
 
   int code = walInit();
   assert(code == 0);
@@ -48,13 +72,13 @@ SSyncNode* syncNodeInit() {
   walCfg.level = TAOS_WAL_FSYNC;
 
   char tmpdir[128];
-  snprintf(tmpdir, sizeof(tmpdir), "./elect_test_wal_%d", myIndex);
+  snprintf(tmpdir, sizeof(tmpdir), "./replicate_test_wal_%d", myIndex);
   pWal = walOpen(tmpdir, &walCfg);
   assert(pWal != NULL);
 
   syncInfo.pWal = pWal;
 
-  SSyncCfg* pCfg = &syncInfo.syncCfg;
+  SSyncCfg *pCfg = &syncInfo.syncCfg;
   pCfg->myIndex = myIndex;
   pCfg->replicaNum = replicaNum;
 
@@ -64,57 +88,95 @@ SSyncNode* syncNodeInit() {
     // taosGetFqdn(pCfg->nodeInfo[0].nodeFqdn);
   }
 
-  SSyncNode* pSyncNode = syncNodeOpen(&syncInfo);
+  SSyncNode *pSyncNode = syncNodeOpen(&syncInfo);
   assert(pSyncNode != NULL);
 
   gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
+  gSyncIO->FpOnSyncClientRequest = pSyncNode->FpOnClientRequest;
   gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
   gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
   gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
   gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
   gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
-  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
-  gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
   gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
   gSyncIO->pSyncNode = pSyncNode;
 
   return pSyncNode;
 }
 
-SSyncNode* syncInitTest() { return syncNodeInit(); }
+SSyncNode *syncInitTest() { return syncNodeInit(); }
 
-void initRaftId(SSyncNode* pSyncNode) {
+void initRaftId(SSyncNode *pSyncNode) {
   for (int i = 0; i < replicaNum; ++i) {
     ids[i] = pSyncNode->replicasId[i];
-    char* s = syncUtilRaftId2Str(&ids[i]);
+    char *s = syncUtilRaftId2Str(&ids[i]);
     printf("raftId[%d] : %s\n", i, s);
     free(s);
   }
 }
 
-int main(int argc, char** argv) {
+SRpcMsg *step0(int i) {
+  SRpcMsg *pMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg));
+  memset(pMsg, 0, sizeof(SRpcMsg));
+  pMsg->msgType = 9999;
+  pMsg->contLen = 32;
+  pMsg->pCont = malloc(pMsg->contLen);
+  snprintf((char *)(pMsg->pCont), pMsg->contLen, "value-%u-%d", ports[myIndex], i);
+  return pMsg;
+}
+
+SyncClientRequest *step1(const SRpcMsg *pMsg) {
+  SyncClientRequest *pRetMsg = syncClientRequestBuild2(pMsg, 123, true);
+  return pRetMsg;
+}
+
+int main(int argc, char **argv) {
   // taosInitLog((char *)"syncTest.log", 100000, 10);
   tsAsyncLog = 0;
   sDebugFlag = 143 + 64;
+  void logTest();
 
   myIndex = 0;
   if (argc >= 2) {
     myIndex = atoi(argv[1]);
   }
 
-  int32_t ret = syncIOStart((char*)"127.0.0.1", ports[myIndex]);
+  int32_t ret = syncIOStart((char *)"127.0.0.1", ports[myIndex]);
   assert(ret == 0);
 
   ret = syncEnvStart();
   assert(ret == 0);
 
+  taosRemoveDir("./wal_test");
+
+  initFsm();
+
   gSyncNode = syncInitTest();
   assert(gSyncNode != NULL);
-  syncNodePrint2((char*)"", gSyncNode);
+  syncNodePrint2((char *)"", gSyncNode);
 
   initRaftId(gSyncNode);
 
-  //---------------------------
+  for (int i = 0; i < 30; ++i) {
+    // step0
+    SRpcMsg *pMsg0 = step0(i);
+    syncRpcMsgPrint2((char *)"==step0==", pMsg0);
+
+    // step1
+    SyncClientRequest *pMsg1 = step1(pMsg0);
+    syncClientRequestPrint2((char *)"==step1==", pMsg1);
+
+    SyncClientRequest *pSyncClientRequest = pMsg1;
+    SRpcMsg            rpcMsg;
+    syncClientRequest2RpcMsg(pSyncClientRequest, &rpcMsg);
+    gSyncNode->FpEqMsg(gSyncNode->queue, &rpcMsg);
+
+    taosMsleep(1000);
+    sTrace("replicate sleep, state: %d, %s, electTimerLogicClock:%lu, electTimerLogicClockUser:%lu, electTimerMS:%d",
+           gSyncNode->state, syncUtilState2String(gSyncNode->state), gSyncNode->electTimerLogicClock,
+           gSyncNode->electTimerLogicClockUser, gSyncNode->electTimerMS);
+  }
+
   while (1) {
     sTrace("while 1 sleep, state: %d, %s, electTimerLogicClock:%lu, electTimerLogicClockUser:%lu, electTimerMS:%d",
            gSyncNode->state, syncUtilState2String(gSyncNode->state), gSyncNode->electTimerLogicClock,
