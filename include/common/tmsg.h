@@ -2047,27 +2047,19 @@ static FORCE_INLINE void* tDecodeTSma(void* buf, STSma* pSma) {
   buf = taosDecodeFixedI64(buf, &pSma->sliding);
 
   if (pSma->exprLen > 0) {
-    pSma->expr = (char*)calloc(pSma->exprLen, 1);
-    if (pSma->expr != NULL) {
-      buf = taosDecodeStringTo(buf, pSma->expr);
-    } else {
+    if ((buf = taosDecodeString(buf, &pSma->expr)) == NULL) {
       tdDestroyTSma(pSma);
       return NULL;
     }
-
   } else {
     pSma->expr = NULL;
   }
 
   if (pSma->tagsFilterLen > 0) {
-    pSma->tagsFilter = (char*)calloc(pSma->tagsFilterLen, 1);
-    if (pSma->tagsFilter != NULL) {
-      buf = taosDecodeStringTo(buf, pSma->tagsFilter);
-    } else {
+    if ((buf = taosDecodeString(buf, &pSma->tagsFilter)) == NULL) {
       tdDestroyTSma(pSma);
       return NULL;
     }
-
   } else {
     pSma->tagsFilter = NULL;
   }
