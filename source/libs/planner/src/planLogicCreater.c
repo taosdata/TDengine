@@ -392,12 +392,12 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  SValueNode* pIntervalNode = (SValueNode*)((SRawExprNode*)(pInterval->pInterval))->pNode;
-
   pWindow->winType = WINDOW_TYPE_INTERVAL;
-  pWindow->interval = pIntervalNode->datum.i;
+  pWindow->interval = ((SValueNode*)pInterval->pInterval)->datum.i;
+  pWindow->intervalUnit = ((SValueNode*)pInterval->pInterval)->unit;
   pWindow->offset = (NULL != pInterval->pOffset ? ((SValueNode*)pInterval->pOffset)->datum.i : 0);
   pWindow->sliding = (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->datum.i : pWindow->interval);
+  pWindow->slidingUnit = (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
 
   int32_t code = TSDB_CODE_SUCCESS;
 

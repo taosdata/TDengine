@@ -26,8 +26,9 @@ typedef struct SDBFile SDBFile;
 typedef DB_ENV*        TDBEnv;
 
 struct SDBFile {
-  DB*   pDB;
-  char* path;
+  int32_t fid;
+  DB*     pDB;
+  char*   path;
 };
 
 int32_t tsdbOpenDBF(TDBEnv pEnv, SDBFile* pDBF);

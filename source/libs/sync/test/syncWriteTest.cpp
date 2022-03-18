@@ -162,7 +162,7 @@ int main(int argc, char **argv) {
   SyncClientRequest *pMsg1 = step1(pMsg0);
   syncClientRequestPrint2((char *)"==step1==", pMsg1);
 
-  for (int i = 0; i < 5; ++i) {
+  for (int i = 0; i < 10; ++i) {
     SyncClientRequest *pSyncClientRequest = pMsg1;
     SRpcMsg            rpcMsg;
     syncClientRequest2RpcMsg(pSyncClientRequest, &rpcMsg);
