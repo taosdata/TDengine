@@ -391,7 +391,7 @@ static FORCE_INLINE int32_t checkAndTrimValue(SToken* pToken, uint32_t type, cha
   }
 
   // Remove quotation marks
-  if (TSDB_DATA_TYPE_BINARY == type) {
+  if (TK_NK_STRING == pToken->type) {
     if (pToken->n >= TSDB_MAX_BYTES_PER_ROW) {
       return buildSyntaxErrMsg(pMsgBuf, "too long string", pToken->z);
     }
