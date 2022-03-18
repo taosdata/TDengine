@@ -60,11 +60,14 @@ int64_t syncStart(const SSyncInfo* pSyncInfo) {
   int32_t    ret = 0;
   SSyncNode* pSyncNode = syncNodeOpen(pSyncInfo);
   assert(pSyncNode != NULL);
+
+  // todo : return ref id
   return ret;
 }
 
 void syncStop(int64_t rid) {
-  SSyncNode* pSyncNode = NULL;  // get pointer from rid
+  // todo : get pointer from rid
+  SSyncNode* pSyncNode = NULL;
   syncNodeClose(pSyncNode);
 }
 
@@ -74,8 +77,10 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg) {
 }
 
 int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
-  int32_t    ret = 0;
-  SSyncNode* pSyncNode = NULL;  // get pointer from rid
+  int32_t ret = 0;
+
+  // todo : get pointer from rid
+  SSyncNode* pSyncNode = NULL;
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     SyncClientRequest* pSyncMsg = syncClientRequestBuild2(pMsg, 0, isWeak);
     SRpcMsg            rpcMsg;
@@ -86,13 +91,14 @@ int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
 
   } else {
     sTrace("syncForwardToPeer not leader, %s", syncUtilState2String(pSyncNode->state));
-    ret = -1;  // need define err code !!
+    ret = -1;  // todo : need define err code !!
   }
   return ret;
 }
 
 ESyncState syncGetMyRole(int64_t rid) {
-  SSyncNode* pSyncNode = NULL;  // get pointer from rid
+  // todo : get pointer from rid
+  SSyncNode* pSyncNode = NULL;
   return pSyncNode->state;
 }
 
@@ -195,7 +201,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   // init TLA+ log vars
   pSyncNode->pLogStore = logStoreCreate(pSyncNode);
   assert(pSyncNode->pLogStore != NULL);
-  pSyncNode->commitIndex = 0;
+  pSyncNode->commitIndex = SYNC_INDEX_INVALID;
 
   // init ping timer
   pSyncNode->pPingTimer = NULL;
@@ -774,9 +780,6 @@ static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
     ths->pLogStore->appendEntry(ths->pLogStore, pEntry);
 
-    // only myself, maybe commit
-    syncMaybeAdvanceCommitIndex(ths);
-
     // start replicate right now!
     syncNodeReplicate(ths);
 
@@ -790,6 +793,9 @@ static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg
       }
     }
     rpcFreeCont(rpcMsg.pCont);
+
+    // only myself, maybe commit
+    syncMaybeAdvanceCommitIndex(ths);
 
   } else {
     // pre commit
