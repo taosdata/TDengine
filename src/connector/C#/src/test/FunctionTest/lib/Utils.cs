@@ -104,7 +104,7 @@ namespace Test.UtilsTools
 
             IntPtr rowdata;
             List<string> dataList = QueryRes(res, metaList);
-            for (int i = 0; i < dataList.Count; i+=metaList.Count)
+            for (int i = 0; i < dataList.Count; i += metaList.Count)
             {
                 for (int j = 0; j < metaList.Count; j++)
                 {
