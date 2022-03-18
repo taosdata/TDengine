@@ -1296,6 +1296,412 @@ TDengine supports aggregations over data, they are listed below:
     Query OK, 1 row(s) in set (0.000836s)
     ```
 
+- **ASIN**
+    ```mysql
+    SELECT ASIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the arc-sine of the input value.
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+      
+      Supported after version 2.6.0.x
+
+
+- **ACOS**
+    ```mysql
+    SELECT ACOS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the arc-cosine of the input value.
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+
+- **ATAN**
+    ```mysql
+    SELECT ATAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the arc-tangent of the input value.
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+
+- **SIN**
+    ```mysql
+    SELECT SIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the sine of the input value.
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+
+- **COS**
+    ```mysql
+    SELECT COS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the cosine of the input value.
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+- **TAN**
+    ```mysql
+    SELECT TAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the tangent of the input value.
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+
+
+- **POW**
+    ```mysql
+    SELECT POW(field_name, power) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+
+    Function: Returns the input value raised to the specified power of the second argument
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+- **LOG**
+    ```mysql
+    SELECT LOG(field_name, base) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the logarithm of the input value with base
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+- **ABS**
+    ```mysql
+    SELECT ABS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the absolute value of the input value
+
+    Output Data Type: If the input data is an integer numeric value, the output data type is ubigint. If the input data is a float or double value, the output data type is double
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+
+- **SQRT**
+    ```mysql
+    SELECT SQRT(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the square root value of the input value
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+- **CAST**
+    ```mysql
+    SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Converts a value into as a specific data type of type_name.
+
+    Output Data Type: type_name specificied. Supported types include BIGINT, BINARY(N), TIMESTAMP and NCHAR(N) and BIGINT UNSIGNED
+
+    Input: Normal column, constant, scalar function and the arithmetic computation(+,-,*,/,%) among them. Input data type includes BOOL, TINYINT, SMALLINT, INT, BIGINT, FLOAT, DOUBLE, BINARY(M), TIMESTAMP, NCHAR(M), TINYINT UNSIGNED, SMALLINT UNSIGNED, INT UNSIGNED, and BIGINT UNSIGNED
+
+    Notes:
+
+      Reports error for unsupported cast
+
+      It is a scalar function and its output is NULL for input NULL
+
+      Supported after version 2.6.0.x
+
+
+- **CONCAT**
+    ```mysql
+    SELECT CONCAT(str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the string from concatenating the arguments
+
+    Output Data Type: With binary inputs, the output data type is binary. With nchar inputs, the output data type is nchar.
+
+    Input: all inputs shall be of data type binary or nchar. Can not apply to tag columns.
+
+    Notes:
+    
+      If one of the string inputs is NULL, the resulting output is NULL.
+      The function takes 2 to 8 string values as input. all inputs must be of the same data type.
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+      
+- **CONCAT_WS**
+    ```
+    SELECT CONCAT_WS(separator, str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the string from concatenating the arguments with separator.
+
+    Output Data Type: With binary inputs, the output data type is binary. With nchar inputs, the output data type is nchar.
+
+    Input: all inputs shall be of data type binary or nchar. Can not apply to tag columns.
+
+    Notes:
+    
+      Returns NULL when the separator is NULL. If the separator is not NULL and all the other string values are NULL, the result is an empty string. 
+      The function takes 3 to 9 string values as input. all inputs must be of the same data type.
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+      
+
+- **LENGTH**
+    ```
+    SELECT LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the length of the string measure in bytes
+
+    Output Data Type: INT。
+
+    Input: BINARY or NCHAR values. Can not apply to tag columns
+
+    Notes:
+    
+      Returns NULL when input is NULL. 
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+
+- **CHAR_LENGTH**
+    ```
+    SELECT CHAR_LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the length of the string measure in characters
+
+    Output Data Type: INT。
+
+    Input: BINARY or NCHAR values. Can not apply to tag columns
+
+    Notes:
+    
+      Returns NULL when input is NULL. 
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+
+- **LOWER**
+    ```
+    SELECT LOWER(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the lower case of input value
+
+    Output Data Type: BINARY or NCHAR. Same data type as Input.
+
+    Input: BINARY or NCHAR values. Can not apply to tag columns
+
+    Notes:
+    
+      Returns NULL when input is NULL. 
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+
+- **UPPER**
+    ```
+    SELECT UPPER(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the upper case of input value
+
+    Output Data Type: BINARY or NCHAR. Same data type as Input.
+
+    Input: BINARY or NCHAR values. Can not apply to tag columns
+
+    Notes:
+    
+      Returns NULL when input is NULL. 
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+
+- **LTRIM**
+    ```
+    SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: removes leading spaces from a string
+
+    Output Data Type: BINARY or NCHAR. Same data type as Input.
+
+    Input: BINARY or NCHAR values. Can not apply to tag columns
+
+    Notes:
+    
+      Returns NULL when input is NULL. 
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+
+- **RTRIM**
+    ```
+    SELECT RTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: removes trailing spaces from a string
+
+    Output Data Type: BINARY or NCHAR. Same data type as Input.
+
+    Input: BINARY or NCHAR values. Can not apply to tag columns
+
+    Notes:
+    
+      Returns NULL when input is NULL. 
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+
+- **SUBSTR**
+    ```
+    SELECT SUBSTR(str,pos[,len]) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: extracts substring from a string str, starting from pos and extracting len characters.
+
+    Output Data Type: BINARY or NCHAR. Same data type as Input.
+
+    Input: BINARY or NCHAR values. Can not apply to tag columns
+
+    Notes:
+    
+      Returns NULL when input is NULL. 
+      Input pos can be negative or positive. If it is a positive number, this function extracts from the beginning of the string. If it is a negative number, this function extracts from the end of the string
+      If input len is ommited, the output is whole substring starting from pos.
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x    
+
+
 - **Four Operations**
 
     ```mysql
