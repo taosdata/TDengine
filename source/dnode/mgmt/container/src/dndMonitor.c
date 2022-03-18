@@ -22,7 +22,7 @@ static int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {
   tstrncpy(pInfo->tempdir.name, tsTempDir, sizeof(pInfo->tempdir.name));
   pInfo->tempdir.size = tsTempSpace.size;
 
-  return vmGetTfsMonitorInfo(dndAcquireWrapper(pDnode, VNODES), pInfo);
+  return vmMonitorTfsInfo(dndAcquireWrapper(pDnode, VNODES), pInfo);
 }
 
 static void dndGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
@@ -45,7 +45,7 @@ static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
   taosGetCardInfo(&pInfo->net_in, &pInfo->net_out);
   taosGetProcIO(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
 
-  vmGetVnodeReqs(dndAcquireWrapper(pDnode, VNODES), pInfo);
+  vmMonitorVnodeReqs(dndAcquireWrapper(pDnode, VNODES), pInfo);
   pInfo->has_mnode = (dndAcquireWrapper(pDnode, MNODE)->required);
 }
 
@@ -63,7 +63,7 @@ void dndSendMonitorReport(SDnode *pDnode) {
   SMonClusterInfo clusterInfo = {0};
   SMonVgroupInfo  vgroupInfo = {0};
   SMonGrantInfo   grantInfo = {0};
-  if (mmGetMonitorInfo(dndAcquireWrapper(pDnode, MNODE), &clusterInfo, &vgroupInfo, &grantInfo) == 0) {
+  if (mmMonitorMnodeInfo(dndAcquireWrapper(pDnode, MNODE), &clusterInfo, &vgroupInfo, &grantInfo) == 0) {
     monSetClusterInfo(pMonitor, &clusterInfo);
     monSetVgroupInfo(pMonitor, &vgroupInfo);
     monSetGrantInfo(pMonitor, &grantInfo);

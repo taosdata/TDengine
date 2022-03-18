@@ -34,11 +34,10 @@ typedef struct {
 } SVnodesStat;
 
 void vmGetMgmtFp(SMgmtWrapper *pWrapper);
-void vmInitMsgHandles(SMgmtWrapper *pWrapper);
 
-void    vmGetVnodeLoads(SMgmtWrapper *pWrapper, SArray *pLoads);
-int32_t vmGetTfsMonitorInfo(SMgmtWrapper *pWrapper, SMonDiskInfo *pInfo);
-void    vmGetVnodeReqs(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo);
+void    vmMonitorVnodeLoads(SMgmtWrapper *pWrapper, SArray *pLoads);
+int32_t vmMonitorTfsInfo(SMgmtWrapper *pWrapper, SMonDiskInfo *pInfo);
+void    vmMonitorVnodeReqs(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo);
 
 #ifdef __cplusplus
 }

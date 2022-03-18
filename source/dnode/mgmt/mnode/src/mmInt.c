@@ -132,7 +132,7 @@ static int32_t mmOpenImp(SMnodeMgmt *pMgmt, SDCreateMnodeReq *pReq) {
   }
 
   bool deployed = true;
-  if (dndWriteFile(pMgmt->pWrapper, deployed) != 0) {
+  if (mmWriteFile(pMgmt, deployed) != 0) {
     dError("failed to write mnode file since %s", terrstr());
     return -1;
   }
@@ -243,7 +243,7 @@ int32_t mmGetUserAuth(SMgmtWrapper *pWrapper, char *user, char *spi, char *encry
   return code;
 }
 
-int32_t mmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
+int32_t mmMonitorMnodeInfo(SMgmtWrapper *pWrapper, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
                          SMonGrantInfo *pGrantInfo) {
   SMnodeMgmt *pMgmt = pWrapper->pMgmt;
   return mndGetMonitorInfo(pMgmt->pMnode, pClusterInfo, pVgroupInfo, pGrantInfo);

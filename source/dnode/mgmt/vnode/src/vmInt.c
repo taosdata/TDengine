@@ -341,14 +341,14 @@ void vmGetMgmtFp(SMgmtWrapper *pWrapper) {
   pWrapper->fp = mgmtFp;
 }
 
-int32_t vmGetTfsMonitorInfo(SMgmtWrapper *pWrapper, SMonDiskInfo *pInfo) {
+int32_t vmMonitorTfsInfo(SMgmtWrapper *pWrapper, SMonDiskInfo *pInfo) {
   SVnodesMgmt *pMgmt = pWrapper->pMgmt;
   if (pMgmt == NULL) return -1;
 
   return tfsGetMonitorInfo(pMgmt->pTfs, pInfo);
 }
 
-void vmGetVnodeReqs(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo) {
+void vmMonitorVnodeReqs(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo) {
   SVnodesMgmt *pMgmt = pWrapper->pMgmt;
   if (pMgmt == NULL) return;
 
@@ -363,7 +363,7 @@ void vmGetVnodeReqs(SMgmtWrapper *pWrapper, SMonDnodeInfo *pInfo) {
   pInfo->masters = pStat->masterNum;
 }
 
-void vmGetVnodeLoads(SMgmtWrapper *pWrapper, SArray *pLoads) {
+void vmMonitorVnodeLoads(SMgmtWrapper *pWrapper, SArray *pLoads) {
   SVnodesMgmt *pMgmt = pWrapper->pMgmt;
   SVnodesStat *pStat = &pMgmt->state;
   int32_t      totalVnodes = 0;
