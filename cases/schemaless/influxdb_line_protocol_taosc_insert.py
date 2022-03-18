@@ -19,6 +19,7 @@ import datetime
 class TestInfluxdbLineTaoscInsert(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
+        self.tdCom.sml_type = "influxdb"
         self.tdCom.drop_all_db()
         self.dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdCom.createDb(dbname=self.dbname, precision="us")
@@ -28,7 +29,8 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         normal tags and cols, one for every elm
         """
         self.tdCom.cleanTb()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql(sml_type="opentsdb_telnet")
+        input_sql, stb_name = self.tdCom.gen_full_type_sql()
+        print(input_sql)
         self.tdCom.check_res(input_sql, stb_name)
 
     def bool_check(self):
