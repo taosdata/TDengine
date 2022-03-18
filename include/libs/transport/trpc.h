@@ -42,9 +42,10 @@ typedef struct SRpcMsg {
   void *  pCont;
   int     contLen;
   int32_t code;
-  void *  handle;   // rpc handle returned to app
-  void *  ahandle;  // app handle set by client
-  int     noResp;   // has response or not(default 0 indicate resp);
+  void *  handle;         // rpc handle returned to app
+  void *  ahandle;        // app handle set by client
+  int     noResp;         // has response or not(default 0 indicate resp);
+  int     persistHandle;  // persist handle or not
 
 } SRpcMsg;
 
@@ -69,14 +70,8 @@ typedef struct SRpcInit {
   // call back to retrieve the client auth info, for server app only
   int (*afp)(void *parent, char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
 
-  // call back to keep conn or not
-  bool (*pfp)(void *parent, tmsg_t msgType);
-
   // to support Send messages multiple times on a link
   void *(*mfp)(void *parent, tmsg_t msgType);
-
-  // call back  to handle except when query/fetch in progress
-  bool (*efp)(void *parent, tmsg_t msgType);
 
   void *parent;
 } SRpcInit;

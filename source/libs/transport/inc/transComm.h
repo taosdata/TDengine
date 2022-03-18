@@ -150,11 +150,12 @@ typedef struct {
 
 typedef struct {
   char version : 4;  // RPC version
-  char comp : 4;     // compression algorithm, 0:no compression 1:lz4
-  char resflag : 2;  // reserved bits
-  char spi : 1;      // security parameter index
+  char comp : 2;     // compression algorithm, 0:no compression 1:lz4
+  char noResp : 2;   // noResp bits, 0: resp, 1: resp
+  char persist : 2;  // persist handle,0: no persit, 1: persist handle
+  char release : 2;
   char secured : 2;
-  char encrypt : 3;  // encrypt algorithm, 0: no encryption
+  char spi : 2;
 
   uint32_t code;  // del later
   uint32_t msgType;
@@ -178,6 +179,9 @@ typedef struct {
 } STransUserMsg;
 
 #pragma pack(pop)
+
+typedef enum { Normal, Quit, Release } STransMsgType;
+typedef enum { ConnNormal, ConnAcquire, ConnRelease } ConnStatus;
 
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
 #define RPC_RESERVE_SIZE (sizeof(STranConnCtx))

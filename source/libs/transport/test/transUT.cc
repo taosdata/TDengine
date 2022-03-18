@@ -31,11 +31,6 @@ class Server;
 int port = 7000;
 // server process
 
-static bool cliPersistHandle(void *parent, tmsg_t msgType) {
-  // client persist handle
-  return msgType == 2 || msgType == 4;
-}
-
 typedef struct CbArgs {
   tmsg_t msgType;
 } CbArgs;
@@ -93,7 +88,6 @@ class Client {
   }
   void SetPersistFP(bool (*pfp)(void *parent, tmsg_t msgType)) {
     rpcClose(this->transCli);
-    rpcInit_.pfp = pfp;
     this->transCli = rpcOpen(&rpcInit_);
   }
   void SetConstructFP(void *(*mfp)(void *parent, tmsg_t msgType)) {
@@ -103,8 +97,6 @@ class Client {
   }
   void SetPAndMFp(bool (*pfp)(void *parent, tmsg_t msgType), void *(*mfp)(void *parent, tmsg_t msgType)) {
     rpcClose(this->transCli);
-
-    rpcInit_.pfp = pfp;
     rpcInit_.mfp = mfp;
     this->transCli = rpcOpen(&rpcInit_);
   }
@@ -149,7 +141,6 @@ class Server {
     rpcInit_.label = (char *)label;
     rpcInit_.numOfThreads = 5;
     rpcInit_.cfp = processReq;
-    rpcInit_.efp = NULL;
     rpcInit_.user = (char *)user;
     rpcInit_.secret = (char *)secret;
     rpcInit_.ckey = (char *)ckey;
@@ -167,7 +158,6 @@ class Server {
   }
   void SetExceptFp(bool (*efp)(void *parent, tmsg_t msgType)) {
     this->Stop();
-    rpcInit_.efp = efp;
     this->Start();
   }
   void SetSrvContinueSend(void (*cfp)(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet)) {
@@ -358,10 +348,10 @@ TEST_F(TransEnv, clientUserDefined) {
 }
 
 TEST_F(TransEnv, cliPersistHandle) {
-  tr->SetCliPersistFp(cliPersistHandle);
+  // tr->SetCliPersistFp(cliPersistHandle);
   SRpcMsg resp = {0};
   for (int i = 0; i < 10; i++) {
-    SRpcMsg req = {.handle = resp.handle, .noResp = 0};
+    SRpcMsg req = {.handle = resp.handle, .persistHandle = 1};
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);
     req.contLen = 10;
@@ -378,11 +368,9 @@ TEST_F(TransEnv, cliPersistHandle) {
 }
 
 TEST_F(TransEnv, cliReleaseHandle) {
-  tr->SetCliPersistFp(cliPersistHandle);
-
   SRpcMsg resp = {0};
   for (int i = 0; i < 10; i++) {
-    SRpcMsg req = {.handle = resp.handle};
+    SRpcMsg req = {.handle = resp.handle, .persistHandle = 1};
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);
     req.contLen = 10;
@@ -398,7 +386,7 @@ TEST_F(TransEnv, cliReleaseHandle) {
   //////////////////
 }
 TEST_F(TransEnv, cliReleaseHandleExcept) {
-  tr->SetCliPersistFp(cliPersistHandle);
+  // tr->SetCliPersistFp(cliPersistHandle);
 
   SRpcMsg resp = {0};
   for (int i = 0; i < 10; i++) {
@@ -431,7 +419,7 @@ TEST_F(TransEnv, srvContinueSend) {
 
 TEST_F(TransEnv, srvPersistHandleExcept) {
   tr->SetSrvContinueSend(processContinueSend);
-  tr->SetCliPersistFp(cliPersistHandle);
+  // tr->SetCliPersistFp(cliPersistHandle);
   SRpcMsg resp = {0};
   for (int i = 0; i < 5; i++) {
     SRpcMsg req = {.handle = resp.handle};
@@ -450,7 +438,6 @@ TEST_F(TransEnv, srvPersistHandleExcept) {
 }
 TEST_F(TransEnv, cliPersistHandleExcept) {
   tr->SetSrvContinueSend(processContinueSend);
-  tr->SetCliPersistFp(cliPersistHandle);
   SRpcMsg resp = {0};
   for (int i = 0; i < 5; i++) {
     SRpcMsg req = {.handle = resp.handle};
