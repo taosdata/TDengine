@@ -46,25 +46,61 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
   syncIndexMgrLog2("==syncNodeMaybeAdvanceCommitIndex== pMatchIndex", pSyncNode->pMatchIndex);
 
   // update commit index
+  SyncIndex newCommitIndex = pSyncNode->commitIndex;
+  for (SyncIndex index = pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore); index > pSyncNode->commitIndex;
+       ++index) {
+    if (syncAgree(pSyncNode, index)) {
+      newCommitIndex = index;
+      break;
+    }
+  }
 
-  if (pSyncNode->pFsm != NULL) {
-    SyncIndex beginIndex = SYNC_INDEX_INVALID;
-    SyncIndex endIndex = SYNC_INDEX_INVALID;
-    for (SyncIndex i = beginIndex; i <= endIndex; ++i) {
-      if (i != SYNC_INDEX_INVALID) {
-        SSyncRaftEntry* pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, i);
-        assert(pEntry != NULL);
+  if (newCommitIndex > pSyncNode->commitIndex) {
+    SyncIndex beginIndex = pSyncNode->commitIndex + 1;
+    SyncIndex endIndex = newCommitIndex;
+    pSyncNode->commitIndex = newCommitIndex;
 
-        SRpcMsg rpcMsg;
-        syncEntry2OriginalRpc(pEntry, &rpcMsg);
+    if (pSyncNode->pFsm != NULL) {
+      for (SyncIndex i = beginIndex; i <= endIndex; ++i) {
+        if (i != SYNC_INDEX_INVALID) {
+          SSyncRaftEntry* pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, i);
+          assert(pEntry != NULL);
 
-        if (pSyncNode->pFsm->FpCommitCb != NULL) {
-          pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0);
+          SRpcMsg rpcMsg;
+          syncEntry2OriginalRpc(pEntry, &rpcMsg);
+
+          if (pSyncNode->pFsm->FpCommitCb != NULL) {
+            pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0);
+          }
+
+          rpcFreeCont(rpcMsg.pCont);
+          syncEntryDestory(pEntry);
         }
-
-        rpcFreeCont(rpcMsg.pCont);
-        syncEntryDestory(pEntry);
       }
     }
   }
+}
+
+bool syncAgreeIndex(SSyncNode* pSyncNode, SRaftId* pRaftId, SyncIndex index) {
+  SyncIndex matchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, pRaftId);
+
+  // b for debug
+  bool b = false;
+  if (matchIndex >= index) {
+    b = true;
+  }
+  return b;
+}
+
+bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
+  int agreeCount = 0;
+  for (int i = 0; i < pSyncNode->replicaNum; ++i) {
+    if (syncAgreeIndex(pSyncNode, &(pSyncNode->replicasId[i]), index)) {
+      ++agreeCount;
+    }
+    if (agreeCount >= pSyncNode->quorum) {
+      return true;
+    }
+  }
+  return false;
 }

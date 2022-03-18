@@ -26,7 +26,32 @@ extern "C" {
 #include "syncInt.h"
 #include "taosdef.h"
 
+// \* Leader i advances its commitIndex.
+// \* This is done as a separate step from handling AppendEntries responses,
+// \* in part to minimize atomic regions, and in part so that leaders of
+// \* single-server clusters are able to mark entries committed.
+// AdvanceCommitIndex(i) ==
+//     /\ state[i] = Leader
+//     /\ LET \* The set of servers that agree up through index.
+//            Agree(index) == {i} \cup {k \in Server :
+//                                          matchIndex[i][k] >= index}
+//            \* The maximum indexes for which a quorum agrees
+//            agreeIndexes == {index \in 1..Len(log[i]) :
+//                                 Agree(index) \in Quorum}
+//            \* New value for commitIndex'[i]
+//            newCommitIndex ==
+//               IF /\ agreeIndexes /= {}
+//                  /\ log[i][Max(agreeIndexes)].term = currentTerm[i]
+//               THEN
+//                   Max(agreeIndexes)
+//               ELSE
+//                   commitIndex[i]
+//        IN commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
+//     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log>>
+//
 void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode);
+bool syncAgreeIndex(SSyncNode* pSyncNode, SRaftId* pRaftId, SyncIndex index);
+bool syncAgree(SSyncNode* pSyncNode, SyncIndex index);
 
 #ifdef __cplusplus
 }
