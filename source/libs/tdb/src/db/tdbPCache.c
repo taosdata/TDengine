@@ -34,6 +34,18 @@ struct SPCache {
   })
 #define PAGE_IS_PINNED(pPage) ((pPage)->pLruNext == NULL)
 
+// For page ref
+#define TDB_INIT_PAGE_REF(pPage) ((pPage)->nRef = 0)
+#if 0
+#define TDB_REF_PAGE(pPage)     (++(pPage)->nRef)
+#define TDB_UNREF_PAGE(pPage)   (--(pPage)->nRef)
+#define TDB_GET_PAGE_REF(pPage) ((pPage)->nRef)
+#else
+#define TDB_REF_PAGE(pPage)     atomic_add_fetch_32(&((pPage)->nRef), 1)
+#define TDB_UNREF_PAGE(pPage)   atomic_sub_fetch_32(&((pPage)->nRef), 1)
+#define TDB_GET_PAGE_REF(pPage) atomic_load_32(&((pPage)->nRef))
+#endif
+
 static int    tdbPCacheOpenImpl(SPCache *pCache);
 static void   tdbPCacheInitLock(SPCache *pCache);
 static void   tdbPCacheClearLock(SPCache *pCache);
