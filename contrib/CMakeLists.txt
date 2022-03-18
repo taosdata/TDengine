@@ -83,6 +83,11 @@ if(${BUILD_WITH_NURAFT})
     cat("${CMAKE_SUPPORT_DIR}/nuraft_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(${BUILD_WITH_NURAFT})
 
+# iconv
+if(${BUILD_WITH_ICONV})
+    cat("${CMAKE_SUPPORT_DIR}/iconv_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif(${BUILD_WITH_ICONV})
+
 # download dependencies
 configure_file(${CONTRIB_TMP_FILE} "${CMAKE_CONTRIB_DIR}/deps-download/CMakeLists.txt")
 execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
@@ -208,14 +213,10 @@ endif(${BUILD_WITH_TRAFT})
 
 # LIBUV
 if(${BUILD_WITH_UV})
-    if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-        MESSAGE("Windows need set no-sign-compare")
-        add_compile_options(-Wno-sign-compare)
-    endif ()
-    if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-            file(READ "libuv/include/uv.h" CONTENTS)
-            string(REGEX REPLACE "/([\r]*)\nstruct uv_tcp_s {" "/\\1\ntypedef BOOL (PASCAL *LPFN_CONNECTEX) (SOCKET s, const struct sockaddr* name, int namelen, PVOID lpSendBuffer, DWORD dwSendDataLength,LPDWORD lpdwBytesSent, LPOVERLAPPED lpOverlapped);\\1\nstruct uv_tcp_s {" CONTENTS_NEW "${CONTENTS}")
-            file(WRITE "libuv/include/uv.h" "${CONTENTS_NEW}")
+    if (${TD_WINDOWS})
+        file(READ "libuv/include/uv.h" CONTENTS)
+        string(REGEX REPLACE "/([\r]*)\nstruct uv_tcp_s {" "/\\1\ntypedef BOOL (PASCAL *LPFN_CONNECTEX) (SOCKET s, const struct sockaddr* name, int namelen, PVOID lpSendBuffer, DWORD dwSendDataLength,LPDWORD lpdwBytesSent, LPOVERLAPPED lpOverlapped);\\1\nstruct uv_tcp_s {" CONTENTS_NEW "${CONTENTS}")
+        file(WRITE "libuv/include/uv.h" "${CONTENTS_NEW}")
     endif ()
     add_subdirectory(libuv)
 endif(${BUILD_WITH_UV})
@@ -249,10 +250,14 @@ endif(${BUILD_WITH_SQLITE})
 
 # pthread
 if(${BUILD_PTHREAD})
-    ADD_DEFINITIONS("-DPTW32_STATIC_LIB")
-    add_subdirectory(pthread-win32)
+    add_definitions(-DPTW32_STATIC_LIB)
+    add_subdirectory(pthread)
 endif(${BUILD_PTHREAD})
 
+# iconv
+if(${BUILD_WITH_ICONV})
+    add_subdirectory(iconv)
+endif(${BUILD_WITH_ICONV})
 
 # ================================================================================================
 # Build test

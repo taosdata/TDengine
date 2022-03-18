@@ -22,15 +22,6 @@ extern "C" {
 
 #include "osSocket.h"
 
-#if defined(WINDOWS)
-typedef int32_t FileFd;
-typedef int32_t SocketFd;
-#else
-typedef int32_t FileFd;
-typedef int32_t SocketFd;
-#endif
-
-int64_t taosRead(FileFd fd, void *buf, int64_t count);
 // If the error is in a third-party library, place this header file under the third-party library header file.
 #ifndef ALLOW_FORBID_FUNC
     #define open OPEN_FUNC_TAOS_FORBID
@@ -42,21 +33,13 @@ int64_t taosRead(FileFd fd, void *buf, int64_t count);
     #define close CLOSE_FUNC_TAOS_FORBID
     #define fclose FCLOSE_FUNC_TAOS_FORBID
     #define fsync FSYNC_FUNC_TAOS_FORBID
+    #define getline GETLINE_FUNC_TAOS_FORBID
     // #define fflush FFLUSH_FUNC_TAOS_FORBID
 #endif
 
 #ifndef PATH_MAX
 #define PATH_MAX 256
 #endif
-
-typedef int32_t FileFd;
-
-typedef struct TdFile {
-  pthread_rwlock_t rwlock;
-  int      refId;
-  FileFd   fd;
-  FILE    *fp;
-} * TdFilePtr, TdFile;
 
 typedef struct TdFile *TdFilePtr;
  
@@ -95,10 +78,6 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
 int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count);
 void    taosFprintfFile(TdFilePtr pFile, const char *format, ...);
 
-#if defined(WINDOWS)
-#define __restrict__
-#endif // WINDOWS
-
 int64_t taosGetLineFile(TdFilePtr pFile, char ** __restrict__ ptrBuf);
 
 int32_t taosEOFFile(TdFilePtr pFile);
@@ -111,15 +90,7 @@ int32_t taosRemoveFile(const char *path);
  
 void    taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, char *dstPath);
 
-#if defined(_TD_DARWIN_64)
-typedef int32_t SocketFd;
-
-int64_t taosSendFile(SocketFd fdDst, FileFd pFileSrc, int64_t *offset, int64_t size);
-int64_t taosFSendFile(FILE *pFileOut, FILE *pFileIn, int64_t *offset, int64_t size);
-#else
-int64_t taosSendFile(SocketFd fdDst, TdFilePtr pFileSrc, int64_t *offset, int64_t size);
 int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, int64_t size);
-#endif
 
 void *taosMmapReadOnlyFile(TdFilePtr pFile, int64_t length);
 bool taosValidFile(TdFilePtr pFile);
