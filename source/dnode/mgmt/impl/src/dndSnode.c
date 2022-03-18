@@ -382,6 +382,12 @@ static void dndProcessSnodeSharedQueue(SDnode *pDnode, SRpcMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
+static FORCE_INLINE int32_t dndGetSWTypeFromMsg(SRpcMsg *pMsg) {
+  SStreamExecMsgHead *pHead = pMsg->pCont;
+  pHead->workerType = htonl(pHead->workerType);
+  return pHead->workerType;
+}
+
 static FORCE_INLINE int32_t dndGetSWIdFromMsg(SRpcMsg *pMsg) {
   SMsgHead *pHead = pMsg->pCont;
   pHead->streamTaskId = htonl(pHead->streamTaskId);
@@ -448,6 +454,18 @@ static void dndWriteSnodeMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpc
 
 void dndProcessSnodeMgmtMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   dndWriteSnodeMsgToMgmtWorker(pDnode, pMsg);
+}
+
+void dndProcessSnodeExecMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  SSnode *pSnode = dndAcquireSnode(pDnode);
+  if (pSnode != NULL) {
+    int32_t workerType = dndGetSWTypeFromMsg(pMsg);
+    if (workerType == SND_WORKER_TYPE__SHARED) {
+      dndWriteSnodeMsgToWorker(pDnode, &pDnode->smgmt.sharedWorker, pMsg);
+    } else {
+      dndWriteSnodeMsgToWorkerByMsg(pDnode, pMsg);
+    }
+  }
 }
 
 void dndProcessSnodeUniqueMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
