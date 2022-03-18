@@ -85,7 +85,7 @@ namespace Cases
                 }
                 else if (taosRes != IntPtr.Zero)
                 {
-                    output.WriteLine($"async query data failed, failed code {TDengine.Error(taosRes)}");
+                    output.WriteLine($"async query data failed, failed code:{code}, reason:{TDengine.Error(taosRes)}");
                 }
                 else
                 {
@@ -131,7 +131,7 @@ namespace Cases
                 }
                 else if (taosRes != IntPtr.Zero)
                 {
-                    output.WriteLine($"async query data failed, failed code {TDengine.Error(taosRes)}");
+                    output.WriteLine($"async query data failed, failed code:{code}, reason:{TDengine.Error(taosRes)}");
                 }
                 else
                 {
@@ -199,7 +199,7 @@ namespace Cases
                 }
                 else if (taosRes != IntPtr.Zero)
                 {
-                    output.WriteLine($"async query data failed, failed code {TDengine.Error(taosRes)}");
+                    output.WriteLine($"async query data failed, failed code:{code}, reason:{TDengine.Error(taosRes)}");
                 }
                 else
                 {
@@ -243,7 +243,7 @@ namespace Cases
                 }
                 else if (taosRes != IntPtr.Zero)
                 {
-                    output.WriteLine($"async query data failed, failed code {TDengine.Error(taosRes)}");
+                    output.WriteLine($"async query data failed, failed code:{code}, reason:{TDengine.Error(taosRes)}");
                 }
                 else
                 {

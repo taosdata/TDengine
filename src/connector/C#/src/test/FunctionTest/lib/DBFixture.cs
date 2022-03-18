@@ -48,30 +48,30 @@ namespace Test.Fixture
 
         public void Dispose()
         {
-            //     IntPtr res;
-            //     if (conn != IntPtr.Zero)
-            //     {
-            //         if ((res = TDengine.Query(conn, $"drop database if exists {db}")) != IntPtr.Zero)
-            //         {
-            //             if (TDengine.Close(conn) == 0)
-            //             {
-            //                 Console.WriteLine("close connection success");
-            //             }
-            //             else
-            //             {
-            //                 throw new Exception("close connection failed");
-            //             }
+                IntPtr res;
+                if (conn != IntPtr.Zero)
+                {
+                    if ((res = TDengine.Query(conn, $"drop database if exists {db}")) != IntPtr.Zero)
+                    {
+                        if (TDengine.Close(conn) == 0)
+                        {
+                            Console.WriteLine("close connection success");
+                        }
+                        else
+                        {
+                            throw new Exception("close connection failed");
+                        }
 
-            //         }
-            //         else
-            //         {
-            //             throw new Exception(TDengine.Error(res));
-            //         }
-            //     }
-            //     else
-            //     {
-            //         throw new Exception("connection if already null");
-            //     }
+                    }
+                    else
+                    {
+                        throw new Exception(TDengine.Error(res));
+                    }
+                }
+                else
+                {
+                    throw new Exception("connection if already null");
+                }
 
         }
 
