@@ -181,7 +181,7 @@ typedef struct {
 
 #pragma pack(pop)
 
-typedef enum { Normal, Quit, Release } STransMsgType;
+typedef enum { Normal, Quit, Release, Register } STransMsgType;
 typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken } ConnStatus;
 
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
@@ -262,7 +262,8 @@ void transReleaseSrvHandle(void* handle);
 
 void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg, STransCtx* pCtx);
 void transSendRecv(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg, STransMsg* pRsp);
-void transSendResponse(const STransMsg* pMsg);
+void transSendResponse(const STransMsg* msg);
+void transRegisterMsg(const STransMsg* msg);
 int  transGetConnInfo(void* thandle, STransHandleInfo* pInfo);
 
 void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
