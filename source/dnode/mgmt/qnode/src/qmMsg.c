@@ -16,9 +16,42 @@
 #define _DEFAULT_SOURCE
 #include "qmInt.h"
 
-int32_t qmProcessCreateReq(SQnodeMgmt *pMgmt, SNodeMsg *pMsg) {return 0;}
-int32_t qmProcessDropReq(SQnodeMgmt *pMgmt, SNodeMsg *pMsg){return 0;}
+int32_t qmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+  SDnode  *pDnode = pWrapper->pDnode;
+  SRpcMsg *pReq = &pMsg->rpcMsg;
 
-void qmInitMsgHandles(SMgmtWrapper *pWrapper) {
+  SDCreateQnodeReq createReq = {0};
+  if (tDeserializeSMCreateDropQSBNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  if (createReq.dnodeId != pDnode->dnodeId) {
+    terrno = TSDB_CODE_NODE_INVALID_OPTION;
+    dError("failed to create qnode since %s, input:%d cur:%d", terrstr(), createReq.dnodeId, pDnode->dnodeId);
+    return -1;
+  } else {
+    return qmOpen(pWrapper);
+  }
 }
 
+int32_t qmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+  SDnode  *pDnode = pWrapper->pDnode;
+  SRpcMsg *pReq = &pMsg->rpcMsg;
+
+  SDDropQnodeReq dropReq = {0};
+  if (tDeserializeSMCreateDropQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  if (dropReq.dnodeId != pDnode->dnodeId) {
+    terrno = TSDB_CODE_NODE_INVALID_OPTION;
+    dError("failed to drop qnode since %s", terrstr());
+    return -1;
+  } else {
+    return qmDrop(pWrapper);
+  }
+}
+
+void qmInitMsgHandles(SMgmtWrapper *pWrapper) {}

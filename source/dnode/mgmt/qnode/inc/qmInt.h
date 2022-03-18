@@ -16,55 +16,35 @@
 #ifndef _TD_DND_QNODE_INT_H_
 #define _TD_DND_QNODE_INT_H_
 
-#include "dnd.h"
+#include "qm.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct SQnodeMgmt {
-  int32_t      refCount;
-  int8_t       deployed;
-  int8_t       dropped;
-  SQnode      *pQnode;
-  SRWLatch     latch;
-  SDnodeWorker queryWorker;
-  SDnodeWorker fetchWorker;
-
-  //
-  SProcObj  *pProcess;
-  bool       singleProc;
+  SQnode       *pQnode;
+  SDnode       *pDnode;
+  SMgmtWrapper *pWrapper;
+  const char   *path;
+  SDnodeWorker  queryWorker;
+  SDnodeWorker  fetchWorker;
 } SQnodeMgmt;
 
-void qmGetMgmtFp(SMgmtWrapper *pMgmt);
+// qmInt.c
+int32_t qmOpen(SMgmtWrapper *pWrapper);
+int32_t qmDrop(SMgmtWrapper *pWrapper);
 
-int32_t dndInitQnode(SDnode *pDnode);
-void    dndCleanupQnode(SDnode *pDnode);
-
-void    dndProcessQnodeQueryMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
-void    dndProcessQnodeFetchMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
-
-// qmHandle.h
-int32_t qmProcessCreateReq(SQnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t qmProcessDropReq(SQnodeMgmt *pMgmt, SNodeMsg *pMsg);
-
+// qmMsg.c
 void    qmInitMsgHandles(SMgmtWrapper *pWrapper);
-int32_t qmProcessCreateReq(SQnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t qmProcessDropReq(SQnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t qmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t qmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
-int32_t qmStartWorker(SDnode *pDnode);
-void    qmStopWorker(SDnode *pDnode);
-void    qmInitMsgFp(SMnodeMgmt *pMgmt);
-void    qmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
-int32_t qmPutMsgToWriteQueue(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t qmPutMsgToReadQueue(SDnode *pDnode, SRpcMsg *pRpcMsg);
-void    qmConsumeChildQueue(SDnode *pDnode, SNodeMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen);
-void    qmConsumeParentQueue(SDnode *pDnode, SRpcMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen);
-
-void qmProcessWriteMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-void qmProcessSyncMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-void qmProcessReadMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-
+// qmWorker.c
+int32_t qmStartWorker(SQnodeMgmt *pMgmt);
+void    qmStopWorker(SQnodeMgmt *pMgmt);
+int32_t qmProcessQueryMsg(SQnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t qmProcessFetchMsg(SQnodeMgmt *pMgmt, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

@@ -18,13 +18,110 @@
 
 static int32_t qmRequire(SMgmtWrapper *pWrapper, bool *required) { return dndReadFile(pWrapper, required); }
 
+static void qmInitOption(SQnodeMgmt *pMgmt, SQnodeOpt *pOption) {
+  SDnode *pDnode = pMgmt->pDnode;
+  pOption->pWrapper = pMgmt->pWrapper;
+  pOption->sendReqFp = dndSendReqToDnode;
+  pOption->sendMnodeReqFp = dndSendReqToMnode;
+  pOption->dnodeId = pDnode->dnodeId;
+  pOption->clusterId = pDnode->clusterId;
+}
+
+static int32_t qmOpenImp(SQnodeMgmt *pMgmt) {
+  SQnodeOpt option = {0};
+  qmInitOption(pMgmt, &option);
+
+  pMgmt->pQnode = qndOpen(&option);
+  if (pMgmt->pQnode == NULL) {
+    dError("failed to open qnode since %s", terrstr());
+    return -1;
+  }
+
+  if (qmStartWorker(pMgmt) != 0) {
+    dError("failed to start qnode worker since %s", terrstr());
+    return -1;
+  }
+
+  bool deployed = true;
+  if (dndWriteFile(pMgmt->pWrapper, deployed) != 0) {
+    dError("failed to write qnode file since %s", terrstr());
+    return -1;
+  }
+
+  return 0;
+}
+
+static void qmCloseImp(SQnodeMgmt *pMgmt) {
+  if (pMgmt->pQnode != NULL) {
+    qmStopWorker(pMgmt);
+    qndClose(pMgmt->pQnode);
+    pMgmt->pQnode = NULL;
+  }
+}
+
+int32_t qmDrop(SMgmtWrapper *pWrapper) {
+  SQnodeMgmt *pMgmt = pWrapper->pMgmt;
+  if (pMgmt == NULL) return 0;
+
+  dInfo("qnode-mgmt start to drop");
+  bool deployed = false;
+  if (dndWriteFile(pWrapper, deployed) != 0) {
+    dError("failed to drop qnode since %s", terrstr());
+    return -1;
+  }
+
+  qmCloseImp(pMgmt);
+  taosRemoveDir(pMgmt->path);
+  pWrapper->pMgmt = NULL;
+  free(pMgmt);
+  dInfo("qnode-mgmt is dropped");
+  return 0;
+}
+
+static void qmClose(SMgmtWrapper *pWrapper) {
+  SQnodeMgmt *pMgmt = pWrapper->pMgmt;
+  if (pMgmt == NULL) return;
+
+  dInfo("qnode-mgmt start to cleanup");
+  qmCloseImp(pMgmt);
+  pWrapper->pMgmt = NULL;
+  free(pMgmt);
+  dInfo("qnode-mgmt is cleaned up");
+}
+
+int32_t qmOpen(SMgmtWrapper *pWrapper) {
+  dInfo("qnode-mgmt start to init");
+  SQnodeMgmt *pMgmt = calloc(1, sizeof(SQnodeMgmt));
+  if (pMgmt == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  pMgmt->path = pWrapper->path;
+  pMgmt->pDnode = pWrapper->pDnode;
+  pMgmt->pWrapper = pWrapper;
+  pWrapper->pMgmt = pMgmt;
+
+  int32_t code = qmOpenImp(pMgmt);
+  if (code != 0) {
+    dError("failed to init qnode-mgmt since %s", terrstr());
+    qmClose(pWrapper);
+  } else {
+    dInfo("qnode-mgmt is initialized");
+  }
+
+  return code;
+}
+
 void qmGetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
-  mgmtFp.openFp = NULL;
-  mgmtFp.closeFp = NULL;
+  mgmtFp.openFp = qmOpen;
+  mgmtFp.closeFp = qmClose;
+  mgmtFp.createMsgFp = qmProcessCreateReq;
+  mgmtFp.dropMsgFp = qmProcessDropReq;
   mgmtFp.requiredFp = qmRequire;
 
-  // qmInitMsgHandles(pWrapper);
+  qmInitMsgHandles(pWrapper);
   pWrapper->name = "qnode";
   pWrapper->fp = mgmtFp;
 }
