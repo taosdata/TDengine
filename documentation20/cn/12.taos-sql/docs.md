@@ -801,21 +801,54 @@ Query OK, 1 row(s) in set (0.001091s)
 
 6. 从 2.1.4.0 版本开始，条件过滤开始支持 IN 算子，例如 `WHERE city IN ('Beijing', 'Shanghai')`。说明：BOOL 类型写作 `{true, false}` 或 `{0, 1}` 均可，但不能写作 0、1 之外的整数；FLOAT 和 DOUBLE 类型会受到浮点数精度影响，集合内的值在精度范围内认为和数据行的值完全相等才能匹配成功；TIMESTAMP 类型支持非主键的列。
 
-7. 从2.3.0.0版本开始，条件过滤开始支持正则表达式，关键字match/nmatch，不区分大小写。
+7. 从2.3.0.0版本开始，条件过滤开始支持正则表达式，关键字 match/nmatch 不区分大小写。
 
    **语法**
 
-   WHERE (column|tbname) **match/MATCH/nmatch/NMATCH** *regex*
+   WHERE (tag|tbname) **match/MATCH/nmatch/NMATCH** *regex*
+
+   match/MATCH 匹配正则表达式
+
+   nmatch/NMATCH 不匹配正则表达式
 
    **正则表达式规范**
 
    确保使用的正则表达式符合POSIX的规范，具体规范内容可参见[Regular Expressions](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html)
 
+   **正则表达使用示例**
+
+    ```sql
+    taos> select distinct location from meters;
+        location     |
+    ===================
+    beijing          |
+    shanghai         |
+    Query OK, 2 row(s) in set (0.003513s)
+
+    taos> select count(*) from meters;
+        count(*)        |
+    ========================
+                    100000 |
+    Query OK, 1 row(s) in set (0.015054s)
+
+    taos> select count(*) from meters where location match '^b';
+        count(*)        |
+    ========================
+                    48000 |
+    Query OK, 1 row(s) in set (0.006977s)
+
+    taos> select count(*) from meters where location nmatch '^b';
+        count(*)        |
+    ========================
+                    52000 |
+    Query OK, 1 row(s) in set (0.008188s)
+    ```
+
    **使用限制**
 
    只能针对表名（即 tbname 筛选）、binary/nchar类型标签值进行正则表达式过滤，不支持普通列的过滤。
 
-   正则匹配字符串长度不能超过 128 字节。可以通过参数 *maxRegexStringLen* 设置和调整最大允许的正则匹配字符串，该参数是客户端配置参数，需要重启才能生效。
+   正则匹配字符串长度不能超过 128 字节。可以通过参数 *maxRegexStringLen* 设置和调整最大允许的正则匹配字符串，该参数是客户端配置参数，需要重启客户端才能生效。
 
 
 <a class="anchor" id="join"></a>
