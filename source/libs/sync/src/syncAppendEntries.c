@@ -255,7 +255,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
       pReply->term = ths->pRaftStore->currentTerm;
       pReply->success = true;
 
-      if (hasAppendEntries > 0) {
+      if (hasAppendEntries) {
         pReply->matchIndex = pMsg->prevLogIndex + 1;
       } else {
         pReply->matchIndex = pMsg->prevLogIndex;
