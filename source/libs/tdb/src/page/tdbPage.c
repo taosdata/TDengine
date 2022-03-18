@@ -23,6 +23,9 @@ typedef struct __attribute__((__packed__)) {
   u16 nFree;
 } SPageHdr;
 
+extern SPageMethods pageMethods;
+extern SPageMethods pageLargeMethods;
+
 typedef struct __attribute__((__packed__)) {
   u8 szCell[2];
   u8 nxOffset[2];

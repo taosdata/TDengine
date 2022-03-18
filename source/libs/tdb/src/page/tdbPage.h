@@ -47,9 +47,6 @@ typedef struct {
   void (*setCellOffset)(SPage *, int, int);
 } SPageMethods;
 
-extern SPageMethods pageMethods;
-extern SPageMethods pageLargeMethods;
-
 // Page footer
 typedef struct __attribute__((__packed__)) {
   u8 cksm[4];
