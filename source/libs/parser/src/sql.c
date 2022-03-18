@@ -2499,20 +2499,35 @@ static YYACTIONTYPE yy_reduce(
   yymsp[-1].minor.yy26 = yylhsminor.yy26;
         break;
       case 93: /* alter_table_clause ::= full_table_name ADD COLUMN column_name type_name */
-      case 95: /* alter_table_clause ::= full_table_name MODIFY COLUMN column_name type_name */ yytestcase(yyruleno==95);
-      case 97: /* alter_table_clause ::= full_table_name ADD TAG column_name type_name */ yytestcase(yyruleno==97);
-      case 99: /* alter_table_clause ::= full_table_name MODIFY TAG column_name type_name */ yytestcase(yyruleno==99);
 { yylhsminor.yy26 = createAlterTableAddModifyCol(pCxt, yymsp[-4].minor.yy26, TSDB_ALTER_TABLE_ADD_COLUMN, &yymsp[-1].minor.yy353, yymsp[0].minor.yy370); }
   yymsp[-4].minor.yy26 = yylhsminor.yy26;
         break;
       case 94: /* alter_table_clause ::= full_table_name DROP COLUMN column_name */
-      case 98: /* alter_table_clause ::= full_table_name DROP TAG column_name */ yytestcase(yyruleno==98);
-{ yylhsminor.yy26 = createAlterTableDropCol(pCxt, yymsp[-3].minor.yy26, TSDB_ALTER_TABLE_ADD_COLUMN, &yymsp[0].minor.yy353); }
+{ yylhsminor.yy26 = createAlterTableDropCol(pCxt, yymsp[-3].minor.yy26, TSDB_ALTER_TABLE_DROP_COLUMN, &yymsp[0].minor.yy353); }
   yymsp[-3].minor.yy26 = yylhsminor.yy26;
         break;
+      case 95: /* alter_table_clause ::= full_table_name MODIFY COLUMN column_name type_name */
+{ yylhsminor.yy26 = createAlterTableAddModifyCol(pCxt, yymsp[-4].minor.yy26, TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, &yymsp[-1].minor.yy353, yymsp[0].minor.yy370); }
+  yymsp[-4].minor.yy26 = yylhsminor.yy26;
+        break;
       case 96: /* alter_table_clause ::= full_table_name RENAME COLUMN column_name column_name */
-      case 100: /* alter_table_clause ::= full_table_name RENAME TAG column_name column_name */ yytestcase(yyruleno==100);
-{ yylhsminor.yy26 = createAlterTableRenameCol(pCxt, yymsp[-4].minor.yy26, TSDB_ALTER_TABLE_ADD_COLUMN, &yymsp[-1].minor.yy353, &yymsp[0].minor.yy353); }
+{ yylhsminor.yy26 = createAlterTableRenameCol(pCxt, yymsp[-4].minor.yy26, TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME, &yymsp[-1].minor.yy353, &yymsp[0].minor.yy353); }
+  yymsp[-4].minor.yy26 = yylhsminor.yy26;
+        break;
+      case 97: /* alter_table_clause ::= full_table_name ADD TAG column_name type_name */
+{ yylhsminor.yy26 = createAlterTableAddModifyCol(pCxt, yymsp[-4].minor.yy26, TSDB_ALTER_TABLE_ADD_TAG, &yymsp[-1].minor.yy353, yymsp[0].minor.yy370); }
+  yymsp[-4].minor.yy26 = yylhsminor.yy26;
+        break;
+      case 98: /* alter_table_clause ::= full_table_name DROP TAG column_name */
+{ yylhsminor.yy26 = createAlterTableDropCol(pCxt, yymsp[-3].minor.yy26, TSDB_ALTER_TABLE_DROP_TAG, &yymsp[0].minor.yy353); }
+  yymsp[-3].minor.yy26 = yylhsminor.yy26;
+        break;
+      case 99: /* alter_table_clause ::= full_table_name MODIFY TAG column_name type_name */
+{ yylhsminor.yy26 = createAlterTableAddModifyCol(pCxt, yymsp[-4].minor.yy26, TSDB_ALTER_TABLE_UPDATE_TAG_BYTES, &yymsp[-1].minor.yy353, yymsp[0].minor.yy370); }
+  yymsp[-4].minor.yy26 = yylhsminor.yy26;
+        break;
+      case 100: /* alter_table_clause ::= full_table_name RENAME TAG column_name column_name */
+{ yylhsminor.yy26 = createAlterTableRenameCol(pCxt, yymsp[-4].minor.yy26, TSDB_ALTER_TABLE_UPDATE_TAG_NAME, &yymsp[-1].minor.yy353, &yymsp[0].minor.yy353); }
   yymsp[-4].minor.yy26 = yylhsminor.yy26;
         break;
       case 101: /* alter_table_clause ::= full_table_name SET TAG column_name NK_EQ literal */

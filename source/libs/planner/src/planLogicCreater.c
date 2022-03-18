@@ -114,7 +114,7 @@ static int32_t pushLogicNode(SLogicPlanContext* pCxt, SLogicNode** pOldRoot, SLo
 static int32_t createChildLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, FCreateLogicNode func, SLogicNode** pRoot) {
   SLogicNode* pNode = NULL;
   int32_t code = func(pCxt, pSelect, &pNode);
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pNode) {
     code = pushLogicNode(pCxt, pRoot, pNode);
   }
   if (TSDB_CODE_SUCCESS != code) {
