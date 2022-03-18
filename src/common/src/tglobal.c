@@ -161,7 +161,7 @@ bool    tsdbForceCompactFile = false;                    // compact TSDB fileset
 int32_t tsdbWalFlushSize = TSDB_DEFAULT_WAL_FLUSH_SIZE;  // MB
 
 // balance
-int8_t  tsEnableBalance = 1;
+int8_t  tsEnableBalance = 0;
 int8_t  tsAlternativeRole = 0;
 int32_t tsBalanceInterval = 300;          // seconds
 int32_t tsOfflineInterval = 3;
