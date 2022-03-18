@@ -155,6 +155,9 @@ static void dndInitMsgFp(STransMgmt *pMgmt) {
   pMgmt->msgFp[TMSG_INDEX(TDMT_VND_CONSUME)] = dndProcessVnodeFetchMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_VND_QUERY_HEARTBEAT)] = dndProcessVnodeFetchMsg;
 
+  pMgmt->msgFp[TMSG_INDEX(TDMT_VND_TASK_DEPLOY)] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TMSG_INDEX(TDMT_VND_TASK_EXEC)] = dndProcessVnodeFetchMsg;
+
   // Requests handled by SNODE
   pMgmt->msgFp[TMSG_INDEX(TDMT_SND_TASK_DEPLOY)] = dndProcessSnodeMgmtMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_SND_TASK_EXEC)] = dndProcessSnodeExecMsg;

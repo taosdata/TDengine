@@ -457,14 +457,11 @@ void dndProcessSnodeMgmtMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
 }
 
 void dndProcessSnodeExecMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  SSnode *pSnode = dndAcquireSnode(pDnode);
-  if (pSnode != NULL) {
-    int32_t workerType = dndGetSWTypeFromMsg(pMsg);
-    if (workerType == SND_WORKER_TYPE__SHARED) {
-      dndWriteSnodeMsgToWorker(pDnode, &pDnode->smgmt.sharedWorker, pMsg);
-    } else {
-      dndWriteSnodeMsgToWorkerByMsg(pDnode, pMsg);
-    }
+  int32_t workerType = dndGetSWTypeFromMsg(pMsg);
+  if (workerType == SND_WORKER_TYPE__SHARED) {
+    dndWriteSnodeMsgToWorker(pDnode, &pDnode->smgmt.sharedWorker, pMsg);
+  } else {
+    dndWriteSnodeMsgToWorkerByMsg(pDnode, pMsg);
   }
 }
 
