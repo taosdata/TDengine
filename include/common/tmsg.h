@@ -111,15 +111,16 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
-#define TSDB_ALTER_TABLE_ADD_TAG         1
-#define TSDB_ALTER_TABLE_DROP_TAG        2
-#define TSDB_ALTER_TABLE_UPDATE_TAG_NAME 3
-#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL  4
-
+#define TSDB_ALTER_TABLE_ADD_TAG             1
+#define TSDB_ALTER_TABLE_DROP_TAG            2
+#define TSDB_ALTER_TABLE_UPDATE_TAG_NAME     3
+#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL      4
 #define TSDB_ALTER_TABLE_ADD_COLUMN          5
 #define TSDB_ALTER_TABLE_DROP_COLUMN         6
 #define TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES 7
 #define TSDB_ALTER_TABLE_UPDATE_TAG_BYTES    8
+#define TSDB_ALTER_TABLE_UPDATE_OPTIONS      9
+#define TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME  10
 
 #define TSDB_FILL_NONE      0
 #define TSDB_FILL_NULL      1
@@ -2052,27 +2053,19 @@ static FORCE_INLINE void* tDecodeTSma(void* buf, STSma* pSma) {
   buf = taosDecodeFixedI64(buf, &pSma->sliding);
 
   if (pSma->exprLen > 0) {
-    pSma->expr = (char*)calloc(pSma->exprLen, 1);
-    if (pSma->expr != NULL) {
-      buf = taosDecodeStringTo(buf, pSma->expr);
-    } else {
+    if ((buf = taosDecodeString(buf, &pSma->expr)) == NULL) {
       tdDestroyTSma(pSma);
       return NULL;
     }
-
   } else {
     pSma->expr = NULL;
   }
 
   if (pSma->tagsFilterLen > 0) {
-    pSma->tagsFilter = (char*)calloc(pSma->tagsFilterLen, 1);
-    if (pSma->tagsFilter != NULL) {
-      buf = taosDecodeStringTo(buf, pSma->tagsFilter);
-    } else {
+    if ((buf = taosDecodeString(buf, &pSma->tagsFilter)) == NULL) {
       tdDestroyTSma(pSma);
       return NULL;
     }
-
   } else {
     pSma->tagsFilter = NULL;
   }

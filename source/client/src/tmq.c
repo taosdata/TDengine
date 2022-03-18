@@ -482,38 +482,24 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
   }
 
   tscDebug("start to create topic, %s", topicName);
-#if 0
-  CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
-  CHECK_CODE_GOTO(parseSql(pRequest, &pQueryNode), _return);
 
-  pQueryNode->streamQuery = true;
+  CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
+  CHECK_CODE_GOTO(parseSql(pRequest, true, &pQueryNode), _return);
 
   // todo check for invalid sql statement and return with error code
 
-  SSchema* schema = NULL;
-  int32_t  numOfCols = 0;
-  CHECK_CODE_GOTO(getPlan(pRequest, pQueryNode, &pRequest->body.pDag, NULL), _return);
-
-  pStr = qQueryPlanToString(pRequest->body.pDag);
-  if (pStr == NULL) {
-    goto _return;
-  }
+  CHECK_CODE_GOTO(nodesNodeToString(pQueryNode->pRoot, false, &pStr, NULL), _return);
 
   /*printf("%s\n", pStr);*/
 
-  // The topic should be related to a database that the queried table is belonged to.
-  SName name = {0};
-  char  dbName[TSDB_DB_FNAME_LEN] = {0};
-  // tNameGetFullDbName(&((SQueryStmtInfo*)pQueryNode)->pTableMetaInfo[0]->name, dbName);
-
-  tNameFromString(&name, dbName, T_NAME_ACCT | T_NAME_DB);
-  tNameFromString(&name, topicName, T_NAME_TABLE);
+  SName name = { .acctId = pTscObj->acctId, .type = TSDB_TABLE_NAME_T };
+  strcpy(name.dbname, pRequest->pDb);
+  strcpy(name.tname, topicName);
 
   SCMCreateTopicReq req = {
       .igExists = 1,
-      .physicalPlan = (char*)pStr,
+      .ast = (char*)pStr,
       .sql = (char*)sql,
-      .logicalPlan = (char*)"no logic plan",
   };
   tNameExtractFullName(&name, req.name);
 
@@ -536,7 +522,7 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
   asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
 
   tsem_wait(&pRequest->body.rspSem);
-#endif
+
 _return:
   qDestroyQuery(pQueryNode);
   /*if (sendInfo != NULL) {*/

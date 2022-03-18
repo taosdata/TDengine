@@ -17,6 +17,7 @@
 #include "sync.h"
 #include "syncAppendEntries.h"
 #include "syncAppendEntriesReply.h"
+#include "syncCommit.h"
 #include "syncElection.h"
 #include "syncEnv.h"
 #include "syncIndexMgr.h"
@@ -59,11 +60,14 @@ int64_t syncStart(const SSyncInfo* pSyncInfo) {
   int32_t    ret = 0;
   SSyncNode* pSyncNode = syncNodeOpen(pSyncInfo);
   assert(pSyncNode != NULL);
+
+  // todo : return ref id
   return ret;
 }
 
 void syncStop(int64_t rid) {
-  SSyncNode* pSyncNode = NULL;  // get pointer from rid
+  // todo : get pointer from rid
+  SSyncNode* pSyncNode = NULL;
   syncNodeClose(pSyncNode);
 }
 
@@ -73,8 +77,10 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg) {
 }
 
 int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
-  int32_t    ret = 0;
-  SSyncNode* pSyncNode = NULL;  // get pointer from rid
+  int32_t ret = 0;
+
+  // todo : get pointer from rid
+  SSyncNode* pSyncNode = NULL;
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     SyncClientRequest* pSyncMsg = syncClientRequestBuild2(pMsg, 0, isWeak);
     SRpcMsg            rpcMsg;
@@ -85,13 +91,14 @@ int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
 
   } else {
     sTrace("syncForwardToPeer not leader, %s", syncUtilState2String(pSyncNode->state));
-    ret = -1;  // need define err code !!
+    ret = -1;  // todo : need define err code !!
   }
   return ret;
 }
 
 ESyncState syncGetMyRole(int64_t rid) {
-  SSyncNode* pSyncNode = NULL;  // get pointer from rid
+  // todo : get pointer from rid
+  SSyncNode* pSyncNode = NULL;
   return pSyncNode->state;
 }
 
@@ -150,6 +157,30 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
 
   // init life cycle
 
+  // TLA+ Spec
+  // InitHistoryVars == /\ elections = {}
+  //                    /\ allLogs   = {}
+  //                    /\ voterLog  = [i \in Server |-> [j \in {} |-> <<>>]]
+  // InitServerVars == /\ currentTerm = [i \in Server |-> 1]
+  //                   /\ state       = [i \in Server |-> Follower]
+  //                   /\ votedFor    = [i \in Server |-> Nil]
+  // InitCandidateVars == /\ votesResponded = [i \in Server |-> {}]
+  //                      /\ votesGranted   = [i \in Server |-> {}]
+  // \* The values nextIndex[i][i] and matchIndex[i][i] are never read, since the
+  // \* leader does not send itself messages. It's still easier to include these
+  // \* in the functions.
+  // InitLeaderVars == /\ nextIndex  = [i \in Server |-> [j \in Server |-> 1]]
+  //                   /\ matchIndex = [i \in Server |-> [j \in Server |-> 0]]
+  // InitLogVars == /\ log          = [i \in Server |-> << >>]
+  //                /\ commitIndex  = [i \in Server |-> 0]
+  // Init == /\ messages = [m \in {} |-> 0]
+  //         /\ InitHistoryVars
+  //         /\ InitServerVars
+  //         /\ InitCandidateVars
+  //         /\ InitLeaderVars
+  //         /\ InitLogVars
+  //
+
   // init TLA+ server vars
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
   pSyncNode->pRaftStore = raftStoreOpen(pSyncNode->raftStorePath);
@@ -170,7 +201,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   // init TLA+ log vars
   pSyncNode->pLogStore = logStoreCreate(pSyncNode);
   assert(pSyncNode->pLogStore != NULL);
-  pSyncNode->commitIndex = 0;
+  pSyncNode->commitIndex = SYNC_INDEX_INVALID;
 
   // init ping timer
   pSyncNode->pPingTimer = NULL;
@@ -727,6 +758,16 @@ static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg) {
   return ret;
 }
 
+// TLA+ Spec
+// ClientRequest(i, v) ==
+//     /\ state[i] = Leader
+//     /\ LET entry == [term  |-> currentTerm[i],
+//                      value |-> v]
+//            newLog == Append(log[i], entry)
+//        IN  log' = [log EXCEPT ![i] = newLog]
+//     /\ UNCHANGED <<messages, serverVars, candidateVars,
+//                    leaderVars, commitIndex>>
+//
 static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg) {
   int32_t ret = 0;
   syncClientRequestLog2("==syncNodeOnClientRequestCb==", pMsg);
@@ -738,9 +779,6 @@ static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg
 
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
     ths->pLogStore->appendEntry(ths->pLogStore, pEntry);
-
-    // only myself, maybe commit
-    syncNodeMaybeAdvanceCommitIndex(ths);
 
     // start replicate right now!
     syncNodeReplicate(ths);
@@ -755,6 +793,9 @@ static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg
       }
     }
     rpcFreeCont(rpcMsg.pCont);
+
+    // only myself, maybe commit
+    syncMaybeAdvanceCommitIndex(ths);
 
   } else {
     // pre commit

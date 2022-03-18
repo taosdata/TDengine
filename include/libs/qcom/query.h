@@ -49,6 +49,10 @@ typedef struct STableComInfo {
   int32_t rowSize;       // row size of the schema
 } STableComInfo;
 
+typedef struct SIndexMeta {
+
+} SIndexMeta;
+
 /*
  * ASSERT(sizeof(SCTableMeta) == 24)
  * ASSERT(tableType == TSDB_CHILD_TABLE)

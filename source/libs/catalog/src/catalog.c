@@ -2349,6 +2349,9 @@ _return:
   CTG_API_LEAVE(code);
 }
 
+int32_t catalogUpdateVgEpSet(SCatalog* pCtg, const char* dbFName, int32_t vgId, SEpSet *epSet) {
+
+}
 
 int32_t catalogRemoveDB(SCatalog* pCtg, const char* dbFName, uint64_t dbId) {
   CTG_API_ENTER();
@@ -2394,6 +2397,9 @@ _return:
   CTG_API_LEAVE(code);
 }
 
+int32_t catalogGetIndexMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, const SName* pTableName, const char *pIndexName, SIndexMeta** pIndexMeta) {
+
+}
 
 int32_t catalogGetTableMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta) {
   CTG_API_ENTER();
@@ -2662,12 +2668,15 @@ _return:
 
 int32_t catalogGetQnodeList(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, SArray* pQnodeList) {
   CTG_API_ENTER();
-
+  
+  int32_t code = 0;
   if (NULL == pCtg || NULL == pRpc  || NULL == pMgmtEps || NULL == pQnodeList) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  //TODO
+  CTG_ERR_JRET(ctgGetQnodeListFromMnode(pCtg, pRpc, pMgmtEps, &pQnodeList));
+
+_return:
 
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 }

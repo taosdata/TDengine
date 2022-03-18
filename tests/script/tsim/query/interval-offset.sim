@@ -1,27 +1,136 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c wal -v 1
 system sh/exec.sh -n dnode1 -s start
-sleep 2000
+sleep 50
 sql connect
 
-$dbPrefix = m_in_db
-$tbPrefix = m_in_tb
-$mtPrefix = m_in_mt
-$tbNum = 10
-$rowNum = 20
-$totalNum = 200
+print =============== create database
+sql create database d0
+sql show databases
+if $rows != 1 then 
+  return -1
+endi
 
-print =============== step1
-$i = 0
-$db = $dbPrefix . $i
-$mt = $mtPrefix . $i
+print $data00 $data01 $data02
 
-sql drop database $db -x step1
-step1:
-sql create database $db
-sql use $db
+sql use d0
+
+
+sql create table vehicle (ts timestamp, s int) tags (t1 int)
+sql show stables
+if $rows != 1 then 
+  return -1
+endi
+
+sql create table car using vehicle tags(1000)
+#sql create table ct1 using vehicle tags (1000)
+sql show tables;
+if $rows != 1 then
+  print rows: $rows 
+  return -1
+endi 
+
+sql insert into ct1 values('2019-01-01 00:00:00', 1)
+sql insert into car values('2019-05-13 12:00:00', 1)
+sql insert into car values('2019-12-31 23:59:59', 1)
+sql insert into car values('2020-01-01 12:00:00', 1)
+sql insert into car values('2020-01-02 12:00:00', 1)
+sql insert into car values('2020-01-03 12:00:00', 1)
+sql insert into car values('2020-01-04 12:00:00', 1)
+sql insert into car values('2020-01-05 12:00:00', 1)
+sql insert into car values('2020-01-31 12:00:00', 1)
+sql insert into car values('2020-02-01 12:00:00', 1)
+sql insert into car values('2020-02-02 12:00:00', 1)
+sql insert into car values('2020-02-29 12:00:00', 1)
+sql insert into car values('2020-03-01 12:00:00', 1)
+sql insert into car values('2020-03-02 12:00:00', 1)
+sql insert into car values('2020-03-15 12:00:00', 1)
+sql insert into car values('2020-03-31 12:00:00', 1)
+sql insert into car values('2020-05-01 12:00:00', 1)
+
+sql select count(*) from car interval(1n, 10d)
+#        tdSql.checkData(0, 1, 1)
+#        tdSql.checkData(1, 1, 1)
+#        tdSql.checkData(2, 1, 6)
+#        tdSql.checkData(3, 1, 3)
+#        tdSql.checkData(4, 1, 3)
+#        tdSql.checkData(5, 1, 2)
+#        tdSql.checkData(6, 1, 1)
+if $rows != 17 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != 1 then 
+  return -1
+endi
+if $data20 != 6 then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 3 then 
+  return -1
+endi
+if $data50 != 2 then 
+  return -1
+endi
+if $data60 != 1 then 
+  return -1
+endi
+
+return
+
+sql select count(*) from car interval(1n, 10d) order by ts desc
+#        tdSql.checkData(0, 1, 1)
+#        tdSql.checkData(1, 1, 2)
+#        tdSql.checkData(2, 1, 3)
+#        tdSql.checkData(3, 1, 3)
+#        tdSql.checkData(4, 1, 6)
+#        tdSql.checkData(5, 1, 1)
+#        tdSql.checkData(6, 1, 1)
+#
+sql select count(*) from car interval(2n, 5d)
+#        tdSql.checkData(0, 1, 1)
+#        tdSql.checkData(1, 1, 1)
+#        tdSql.checkData(2, 1, 6)
+#        tdSql.checkData(3, 1, 6)
+#        tdSql.checkData(4, 1, 3)
+
+sql select count(*) from car interval(2n) order by ts desc
+#        tdSql.checkData(0, 1, 3)
+#        tdSql.checkData(1, 1, 6)
+#        tdSql.checkData(2, 1, 6)
+#        tdSql.checkData(3, 1, 1)
+#        tdSql.checkData(4, 1, 1)
+#
+sql select count(*) from car interval(1y, 1n)
+#        tdSql.checkData(0, 1, 1)
+#        tdSql.checkData(1, 1, 8)
+#        tdSql.checkData(2, 1, 8)
+#
+sql select count(*) from car interval(1y, 2n)
+#        tdSql.checkData(0, 1, 1)
+#        tdSql.checkData(1, 1, 11)
+#        tdSql.checkData(2, 1, 5)
+
+sql select count(*) from car where ts > '2019-05-14 00:00:00' interval(1y, 5d)
+#       tdSql.checkData(0, 1, 6)
+#       tdSql.checkData(1, 1, 9)
+
+
+
+
+
+
+
+
+
+
+
+
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int)
 
 print ====== start create child tables and insert data

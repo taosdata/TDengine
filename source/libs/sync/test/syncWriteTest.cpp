@@ -26,7 +26,29 @@ SRaftId    ids[TSDB_MAX_REPLICA];
 SSyncInfo  syncInfo;
 SSyncFSM * pFsm;
 SWal *     pWal;
-SSyncNode *pSyncNode;
+SSyncNode *gSyncNode;
+
+void CommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pBuf, SyncIndex index, bool isWeak, int32_t code) {
+  printf("==CommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d \n", pFsm, index, isWeak, code);
+  syncRpcMsgPrint2((char *)"==CommitCb==", (SRpcMsg *)pBuf);
+}
+
+void PreCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pBuf, SyncIndex index, bool isWeak, int32_t code) {
+  printf("==PreCommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d \n", pFsm, index, isWeak, code);
+  syncRpcMsgPrint2((char *)"==PreCommitCb==", (SRpcMsg *)pBuf);
+}
+
+void RollBackCb(struct SSyncFSM *pFsm, const SRpcMsg *pBuf, SyncIndex index, bool isWeak, int32_t code) {
+  printf("==RollBackCb== pFsm:%p, index:%ld, isWeak:%d, code:%d \n", pFsm, index, isWeak, code);
+  syncRpcMsgPrint2((char *)"==RollBackCb==", (SRpcMsg *)pBuf);
+}
+
+void initFsm() {
+  pFsm = (SSyncFSM *)malloc(sizeof(SSyncFSM));
+  pFsm->FpCommitCb = CommitCb;
+  pFsm->FpPreCommitCb = PreCommitCb;
+  pFsm->FpRollBackCb = RollBackCb;
+}
 
 SSyncNode *syncNodeInit() {
   syncInfo.vgId = 1234;
@@ -35,7 +57,7 @@ SSyncNode *syncNodeInit() {
   syncInfo.queue = gSyncIO->pMsgQ;
   syncInfo.FpEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
-  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./");
+  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./write_test");
 
   int code = walInit();
   assert(code == 0);
@@ -48,7 +70,7 @@ SSyncNode *syncNodeInit() {
   walCfg.retentionSize = 1000;
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
-  pWal = walOpen("./wal_test", &walCfg);
+  pWal = walOpen("./write_test_wal", &walCfg);
   assert(pWal != NULL);
 
   syncInfo.pWal = pWal;
@@ -63,17 +85,16 @@ SSyncNode *syncNodeInit() {
     // taosGetFqdn(pCfg->nodeInfo[0].nodeFqdn);
   }
 
-  pSyncNode = syncNodeOpen(&syncInfo);
+  SSyncNode *pSyncNode = syncNodeOpen(&syncInfo);
   assert(pSyncNode != NULL);
 
   gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
+  gSyncIO->FpOnSyncClientRequest = pSyncNode->FpOnClientRequest;
   gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
   gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
   gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
   gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
   gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
-  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
-  gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
   gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
   gSyncIO->pSyncNode = pSyncNode;
 
@@ -106,38 +127,6 @@ SyncClientRequest *step1(const SRpcMsg *pMsg) {
   return pRetMsg;
 }
 
-SRpcMsg *step2(const SyncClientRequest *pMsg) {
-  SRpcMsg *pRetMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg));
-  syncClientRequest2RpcMsg(pMsg, pRetMsg);
-  return pRetMsg;
-}
-
-SyncClientRequest *step3(const SRpcMsg *pMsg) {
-  SyncClientRequest *pRetMsg = syncClientRequestFromRpcMsg2(pMsg);
-  return pRetMsg;
-}
-
-SSyncRaftEntry *step4(const SyncClientRequest *pMsg) {
-  SSyncRaftEntry *pRetMsg = syncEntryBuild2((SyncClientRequest *)pMsg, 100, 0);
-  return pRetMsg;
-}
-
-char *step5(const SSyncRaftEntry *pMsg, uint32_t *len) {
-  char *pRetMsg = syncEntrySerialize(pMsg, len);
-  return pRetMsg;
-}
-
-SSyncRaftEntry *step6(const char *pMsg, uint32_t len) {
-  SSyncRaftEntry *pRetMsg = syncEntryDeserialize(pMsg, len);
-  return pRetMsg;
-}
-
-SRpcMsg *step7(const SSyncRaftEntry *pMsg) {
-  SRpcMsg *pRetMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg));
-  syncEntry2OriginalRpc(pMsg, pRetMsg);
-  return pRetMsg;
-}
-
 int main(int argc, char **argv) {
   // taosInitLog((char *)"syncTest.log", 100000, 10);
   tsAsyncLog = 0;
@@ -157,6 +146,14 @@ int main(int argc, char **argv) {
 
   taosRemoveDir("./wal_test");
 
+  initFsm();
+
+  gSyncNode = syncInitTest();
+  assert(gSyncNode != NULL);
+  syncNodePrint2((char *)"", gSyncNode);
+
+  initRaftId(gSyncNode);
+
   // step0
   SRpcMsg *pMsg0 = step0();
   syncRpcMsgPrint2((char *)"==step0==", pMsg0);
@@ -165,40 +162,19 @@ int main(int argc, char **argv) {
   SyncClientRequest *pMsg1 = step1(pMsg0);
   syncClientRequestPrint2((char *)"==step1==", pMsg1);
 
-  // step2
-  SRpcMsg *pMsg2 = step2(pMsg1);
-  syncRpcMsgPrint2((char *)"==step2==", pMsg2);
+  for (int i = 0; i < 10; ++i) {
+    SyncClientRequest *pSyncClientRequest = pMsg1;
+    SRpcMsg            rpcMsg;
+    syncClientRequest2RpcMsg(pSyncClientRequest, &rpcMsg);
+    gSyncNode->FpEqMsg(gSyncNode->queue, &rpcMsg);
 
-  // step3
-  SyncClientRequest *pMsg3 = step3(pMsg2);
-  syncClientRequestPrint2((char *)"==step3==", pMsg3);
+    taosMsleep(1000);
+  }
 
-  // step4
-  SSyncRaftEntry *pMsg4 = step4(pMsg3);
-  syncEntryPrint2((char *)"==step4==", pMsg4);
-
-  // log, relog
-  SSyncNode *pSyncNode = syncNodeInit();
-  assert(pSyncNode != NULL);
-  SSyncRaftEntry *pEntry = pMsg4;
-  pSyncNode->pLogStore->appendEntry(pSyncNode->pLogStore, pEntry);
-  SSyncRaftEntry *pEntry2 = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, pEntry->index);
-  syncEntryPrint2((char *)"==pEntry2==", pEntry2);
-
-  // step5
-  uint32_t len;
-  char *   pMsg5 = step5(pMsg4, &len);
-  char *   s = syncUtilprintBin(pMsg5, len);
-  printf("==step5== [%s] \n", s);
-  free(s);
-
-  // step6
-  SSyncRaftEntry *pMsg6 = step6(pMsg5, len);
-  syncEntryPrint2((char *)"==step6==", pMsg6);
-
-  // step7
-  SRpcMsg *pMsg7 = step7(pMsg6);
-  syncRpcMsgPrint2((char *)"==step7==", pMsg7);
+  while (1) {
+    sTrace("while 1 sleep");
+    taosMsleep(1000);
+  }
 
   return 0;
 }

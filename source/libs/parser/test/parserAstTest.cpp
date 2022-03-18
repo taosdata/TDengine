@@ -302,6 +302,13 @@ TEST_F(ParserTest, createUser) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(ParserTest, alterAccount) {
+  setDatabase("root", "test");
+
+  bind("alter account ac_wxy pass '123456'");
+  ASSERT_TRUE(run(TSDB_CODE_PAR_EXPRIE_STATEMENT));
+}
+
 TEST_F(ParserTest, createDnode) {
   setDatabase("root", "test");
 
@@ -309,6 +316,16 @@ TEST_F(ParserTest, createDnode) {
   ASSERT_TRUE(run());
 
   bind("create dnode 1.1.1.1 port 9000");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, alterDnode) {
+  setDatabase("root", "test");
+
+  bind("alter dnode 1 'resetLog'");
+  ASSERT_TRUE(run());
+
+  bind("alter dnode 1 'debugFlag' '134'");
   ASSERT_TRUE(run());
 }
 
