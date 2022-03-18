@@ -637,8 +637,9 @@ static int tdbBtreeBalanceStep2(SBtreeBalanceHelper *pBlh) {
 }
 
 static int tdbBtreeBalanceStep3(SBtreeBalanceHelper *pBlh) {
+  // Figure out number of pages needed after balance
   for (int i = 0; i < pBlh->nOld; i++) {
-    /* code */
+    /* TODO */
   }
 
   return 0;
