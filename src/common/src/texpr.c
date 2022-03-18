@@ -1725,6 +1725,9 @@ void castConvert(int16_t inputType, int16_t inputBytes, char *input, int16_t Out
         tfree(newColData);
       } else {
         GET_TYPED_DATA(*(int64_t *)output, int64_t, inputType, input);
+        if (*(int64_t *)output == TSDB_DATA_BIGINT_NULL) {
+          SET_TYPED_DATA(output, OutputType, INT64_MAX);
+        }
       }
       break;
     case TSDB_DATA_TYPE_UBIGINT:
@@ -1754,6 +1757,9 @@ void castConvert(int16_t inputType, int16_t inputBytes, char *input, int16_t Out
         assert(0);
       } else {
         GET_TYPED_DATA(*(int64_t *)output, int64_t, inputType, input);
+      }
+      if (*(int64_t *)output == TSDB_DATA_BIGINT_NULL) {
+        SET_TYPED_DATA(output, OutputType, INT64_MAX);
       }
       break;
     case TSDB_DATA_TYPE_BINARY:

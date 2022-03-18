@@ -1158,10 +1158,10 @@ endi
 if $data40 != 4 then 
   return -1
 endi
-if $data50 != NULL then 
+if $data50 != 9223372036854775807 then 
   return -1
 endi
-if $data60 != NULL then 
+if $data60 != 9223372036854775807 then 
   return -1
 endi
 sql select cast(c6 as binary(60)) from tb1; 
@@ -1233,10 +1233,11 @@ endi
 if $data40 != @70-01-01 08:00:00.004@ then 
   return -1
 endi
-if $data50 != NULL then 
+print $data50
+if $data50 != @94-08-17 15:12:55.807@ then 
   return -1
 endi
-if $data60 != NULL then 
+if $data60 != @94-08-17 15:12:55.807@ then 
   return -1
 endi
 sql select cast(c6 as nchar(50)) from tb1;
@@ -1331,10 +1332,10 @@ endi
 if $data40 != 4 then 
   return -1
 endi
-if $data50 != NULL then 
+if $data50 != 9223372036854775807 then 
   return -1
 endi
-if $data60 != NULL then 
+if $data60 != 9223372036854775807 then 
   return -1
 endi
 sql select cast(c7 as binary(400)) from tb1; 
@@ -1406,10 +1407,10 @@ endi
 if $data40 != @70-01-01 08:00:00.004@ then 
   return -1
 endi
-if $data50 != NULL then 
+if $data50 != @94-08-17 15:12:55.807@ then 
   return -1
 endi
-if $data60 != NULL then 
+if $data60 != @94-08-17 15:12:55.807@ then 
   return -1
 endi
 sql select cast(c7 as nchar(500)) from tb1;
