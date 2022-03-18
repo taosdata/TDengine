@@ -25,11 +25,9 @@ typedef struct SMgmtWrapper SMgmtWrapper;
 typedef struct SBnode       SBnode;
 
 typedef struct {
-  int64_t numOfErrors;
 } SBnodeLoad;
 
 typedef struct {
-  int32_t        sver;
   int32_t        dnodeId;
   int64_t        clusterId;
   SMgmtWrapper  *pWrapper;

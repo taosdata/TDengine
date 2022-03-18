@@ -87,7 +87,7 @@ int32_t dmProcessStatusRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
       dmUpdateDnodeCfg(pMgmt, &statusRsp.dnodeCfg);
       dmUpdateDnodeEps(pMgmt, statusRsp.pDnodeEps);
     }
-    taosArrayDestroy(statusRsp.pDnodeEps);
+    tFreeSStatusRsp(&statusRsp);
   }
 
   pMgmt->statusSent = 0;

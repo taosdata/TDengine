@@ -56,7 +56,7 @@ static void dmProcessQueue(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   int32_t code = -1;
   tmsg_t  msgType = pMsg->rpcMsg.msgType;
   SDnode *pDnode = pMgmt->pDnode;
-  dTrace("msg:%p, will be processed", pMsg);
+  dTrace("msg:%p, will be processed in dnode queue", pMsg);
 
   switch (msgType) {
     case TDMT_DND_CREATE_MNODE:
@@ -69,10 +69,22 @@ static void dmProcessQueue(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
     case TDMT_DND_DROP_BNODE:
       code = dndProcessNodeMsg(pMgmt->pDnode, pMsg);
       break;
+    case TDMT_DND_CONFIG_DNODE:
+      code = dmProcessConfigReq(pMgmt, pMsg);
+      break;
+    case TDMT_MND_STATUS_RSP:
+      code = dmProcessStatusRsp(pMgmt, pMsg);
+      break;
+    case TDMT_MND_AUTH_RSP:
+      code = dmProcessAuthRsp(pMgmt, pMsg);
+      break;
+    case TDMT_MND_GRANT_RSP:
+      code = dmProcessGrantRsp(pMgmt, pMsg);
+      break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
       code = -1;
-      dError("RPC %p, dnode msg:%s not processed", pMsg->rpcMsg.handle, TMSG_INFO(msgType));
+      dError("RPC %p, dnode msg:%s not processed in dnode queue", pMsg->rpcMsg.handle, TMSG_INFO(msgType));
   }
 
   if (msgType & 1u) {

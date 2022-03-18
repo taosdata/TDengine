@@ -13,7 +13,10 @@
 
 class DndTestBnode : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/dnode_test_snode", 9112); }
+  static void SetUpTestSuite() {
+    test.Init("/tmp/dnode_test_bnode", 9112);
+    taosMsleep(1100);
+  }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;
@@ -36,7 +39,7 @@ TEST_F(DndTestBnode, 01_Create_Bnode) {
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_BNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_DND_BNODE_INVALID_OPTION);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_INVALID_OPTION);
   }
 
   {
@@ -62,7 +65,7 @@ TEST_F(DndTestBnode, 01_Create_Bnode) {
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_BNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_DND_BNODE_ALREADY_DEPLOYED);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_ALREADY_DEPLOYED);
   }
 
   test.Restart();
@@ -76,11 +79,11 @@ TEST_F(DndTestBnode, 01_Create_Bnode) {
     tSerializeSMCreateDropQSBNodeReq(pReq, contLen, &createReq);
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_BNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_DND_BNODE_ALREADY_DEPLOYED);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_ALREADY_DEPLOYED);
   }
 }
 
-TEST_F(DndTestBnode, 01_Drop_Bnode) {
+TEST_F(DndTestBnode, 02_Drop_Bnode) {
   {
     SDDropBnodeReq dropReq = {0};
     dropReq.dnodeId = 2;
@@ -91,7 +94,7 @@ TEST_F(DndTestBnode, 01_Drop_Bnode) {
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_BNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_DND_BNODE_INVALID_OPTION);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_INVALID_OPTION);
   }
 
   {
@@ -117,7 +120,7 @@ TEST_F(DndTestBnode, 01_Drop_Bnode) {
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_BNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_DND_BNODE_NOT_DEPLOYED);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_NOT_DEPLOYED);
   }
 
   test.Restart();
@@ -132,7 +135,7 @@ TEST_F(DndTestBnode, 01_Drop_Bnode) {
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_BNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_DND_BNODE_NOT_DEPLOYED);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_NOT_DEPLOYED);
   }
 
   {

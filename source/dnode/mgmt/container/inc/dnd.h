@@ -111,7 +111,6 @@ typedef struct SMgmtWrapper {
   int32_t     refCount;
   SRWLatch    latch;
   bool        deployed;
-  bool        dropped;
   bool        required;
   EProcType   procType;
   SProcObj   *pProc;

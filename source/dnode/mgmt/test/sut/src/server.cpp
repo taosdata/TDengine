@@ -46,7 +46,7 @@ bool TestServer::DoStart() {
   pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
   pthread_create(&threadId, &thAttr, serverLoop, pDnode);
   pthread_attr_destroy(&thAttr);
-  taosMsleep(1000);
+  taosMsleep(2100);
   return true;
 }
 

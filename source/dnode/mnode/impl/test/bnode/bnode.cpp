@@ -49,7 +49,7 @@ TEST_F(MndTestBnode, 01_Show_Bnode) {
   test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 0);
 }
-#if 0
+
 TEST_F(MndTestBnode, 02_Create_Bnode) {
   {
     SMCreateBnodeReq createReq = {0};
@@ -318,4 +318,3 @@ TEST_F(MndTestBnode, 04_Drop_Bnode_Rollback) {
     ASSERT_NE(retry, retryMax);
   }
 }
-#endif

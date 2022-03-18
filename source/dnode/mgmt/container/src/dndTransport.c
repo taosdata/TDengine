@@ -38,7 +38,7 @@ static void dndProcessResponse(void *parent, SRpcMsg *pRsp, SEpSet *pEpSet) {
            pRsp->ahandle, pRsp->code & 0XFFFF, tstrerror(pRsp->code));
     dndProcessRpcMsg(pHandle->pWrapper, pRsp, pEpSet);
   } else {
-    dError("rsp:%s not processed, app:%p", TMSG_INFO(msgType), pRsp->ahandle);
+    dError("rsp:%s not processed since no handle, app:%p", TMSG_INFO(msgType), pRsp->ahandle);
     rpcFreeCont(pRsp->pCont);
   }
 }

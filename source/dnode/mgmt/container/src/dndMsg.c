@@ -99,6 +99,13 @@ static int32_t dndProcessCreateNodeMsg(SDnode *pDnode, ENodeType ntype, SNodeMsg
   }
 
   pWrapper = &pDnode->wrappers[ntype];
+
+  if (taosMkDir(pWrapper->path) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to create dir:%s since %s", pWrapper->path, terrstr());
+    return -1;
+  }
+
   int32_t code = (*pWrapper->fp.createMsgFp)(pWrapper, pMsg);
   if (code != 0) {
     dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
@@ -117,8 +124,21 @@ static int32_t dndProcessDropNodeMsg(SDnode *pDnode, ENodeType ntype, SNodeMsg *
     return -1;
   }
 
-  dndCloseNode(pWrapper);
+  taosWLockLatch(&pWrapper->latch);
+  pWrapper->deployed = false;
+
+  int32_t code = (*pWrapper->fp.dropMsgFp)(pWrapper, pMsg);
+  if (code != 0) {
+    pWrapper->deployed = true;
+    dError("node:%s, failed to drop since %s", pWrapper->name, terrstr());
+  } else {
+    pWrapper->deployed = false;
+    dDebug("node:%s, has been dropped", pWrapper->name);
+  }
+
+  taosWUnLockLatch(&pWrapper->latch);
   dndReleaseWrapper(pWrapper);
+  return code;
 }
 
 int32_t dndProcessNodeMsg(SDnode *pDnode, SNodeMsg *pMsg) {

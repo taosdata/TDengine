@@ -27,8 +27,8 @@ int32_t bmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   }
 
   if (createReq.dnodeId != pDnode->dnodeId) {
-    terrno = TSDB_CODE_DND_BNODE_INVALID_OPTION;
-    dError("failed to create bnode since %s", terrstr());
+    terrno = TSDB_CODE_NODE_INVALID_OPTION;
+    dError("failed to create bnode since %s, input:%d cur:%d", terrstr(), createReq.dnodeId, pDnode->dnodeId);
     return -1;
   } else {
     return bmOpen(pWrapper);
@@ -46,7 +46,7 @@ int32_t bmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   }
 
   if (dropReq.dnodeId != pDnode->dnodeId) {
-    terrno = TSDB_CODE_DND_BNODE_INVALID_OPTION;
+    terrno = TSDB_CODE_NODE_INVALID_OPTION;
     dError("failed to drop bnode since %s", terrstr());
     return -1;
   } else {

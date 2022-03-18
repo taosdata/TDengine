@@ -52,7 +52,7 @@ static int32_t bmOpenImp(SBnodeMgmt *pMgmt) {
 }
 
 static void bmCloseImp(SBnodeMgmt *pMgmt) {
-  if (pMgmt->pBnode == NULL) {
+  if (pMgmt->pBnode != NULL) {
     bmStopWorker(pMgmt);
     bndClose(pMgmt->pBnode);
     pMgmt->pBnode = NULL;

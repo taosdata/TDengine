@@ -32,7 +32,7 @@ static SQnode *dndAcquireQnode(SDnode *pDnode) {
     refCount = atomic_add_fetch_32(&pMgmt->refCount, 1);
     pQnode = pMgmt->pQnode;
   } else {
-    terrno = TSDB_CODE_DND_QNODE_NOT_DEPLOYED;
+    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
   }
   taosRUnLockLatch(&pMgmt->latch);
 
@@ -54,7 +54,7 @@ static void dndReleaseQnode(SDnode *pDnode, SQnode *pQnode) {
 
 static int32_t dndReadQnodeFile(SDnode *pDnode) {
   SQnodeMgmt *pMgmt = &pDnode->qmgmt;
-  int32_t     code = TSDB_CODE_DND_QNODE_READ_FILE_ERROR;
+  int32_t     code = TSDB_CODE_NODE_PARSE_FILE_ERROR;
   int32_t     len = 0;
   int32_t     maxLen = 1024;
   char       *content = calloc(1, maxLen + 1);
@@ -119,7 +119,7 @@ static int32_t dndWriteQnodeFile(SDnode *pDnode) {
   // FILE *fp = fopen(file, "w");
   TdFilePtr pFile = taosOpenFile(file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
-    terrno = TSDB_CODE_DND_QNODE_WRITE_FILE_ERROR;
+    terrno = TSDB_CODE_NODE_WRITE_FILE_ERROR;
     dError("failed to write %s since %s", file, terrstr());
     return -1;
   }
@@ -142,7 +142,7 @@ static int32_t dndWriteQnodeFile(SDnode *pDnode) {
   snprintf(realfile, PATH_MAX + 20, "%s/qnode.json", pDnode->dir.dnode);
 
   if (taosRenameFile(file, realfile) != 0) {
-    terrno = TSDB_CODE_DND_QNODE_WRITE_FILE_ERROR;
+    terrno = TSDB_CODE_NODE_WRITE_FILE_ERROR;
     dError("failed to rename %s since %s", file, terrstr());
     return -1;
   }
@@ -197,7 +197,7 @@ static int32_t dndOpenQnode(SDnode *pDnode) {
   SQnode *pQnode = dndAcquireQnode(pDnode);
   if (pQnode != NULL) {
     dndReleaseQnode(pDnode, pQnode);
-    terrno = TSDB_CODE_DND_QNODE_ALREADY_DEPLOYED;
+    terrno = TSDB_CODE_NODE_ALREADY_DEPLOYED;
     dError("failed to create qnode since %s", terrstr());
     return -1;
   }
@@ -275,7 +275,7 @@ int32_t qmProcessCreateReq(SDnode *pDnode, SRpcMsg *pReq) {
   }
 
   if (createReq.dnodeId != pDnode->dnodeId) {
-    terrno = TSDB_CODE_DND_QNODE_INVALID_OPTION;
+    terrno = TSDB_CODE_NODE_INVALID_OPTION;
     dError("failed to create qnode since %s", terrstr());
     return -1;
   } else {
@@ -291,7 +291,7 @@ int32_t qmProcessDropReq(SDnode *pDnode, SRpcMsg *pReq) {
   }
 
   if (dropReq.dnodeId != pDnode->dnodeId) {
-    terrno = TSDB_CODE_DND_QNODE_INVALID_OPTION;
+    terrno = TSDB_CODE_NODE_INVALID_OPTION;
     dError("failed to drop qnode since %s", terrstr());
     return -1;
   } else {
@@ -302,7 +302,7 @@ int32_t qmProcessDropReq(SDnode *pDnode, SRpcMsg *pReq) {
 static void dndProcessQnodeQueue(SDnode *pDnode, SRpcMsg *pMsg) {
   SQnodeMgmt *pMgmt = &pDnode->qmgmt;
   SRpcMsg    *pRsp = NULL;
-  int32_t     code = TSDB_CODE_DND_QNODE_NOT_DEPLOYED;
+  int32_t     code = TSDB_CODE_NODE_NOT_DEPLOYED;
 
   SQnode *pQnode = dndAcquireQnode(pDnode);
   if (pQnode != NULL) {
@@ -327,7 +327,7 @@ static void dndProcessQnodeQueue(SDnode *pDnode, SRpcMsg *pMsg) {
 }
 
 static void dndWriteQnodeMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMsg *pMsg) {
-  int32_t code = TSDB_CODE_DND_QNODE_NOT_DEPLOYED;
+  int32_t code = TSDB_CODE_NODE_NOT_DEPLOYED;
 
   SQnode *pQnode = dndAcquireQnode(pDnode);
   if (pQnode != NULL) {

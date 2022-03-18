@@ -49,7 +49,6 @@ void Testbase::Init(const char* path, int16_t port) {
   InitLog("/tmp/td");
   server.Start(path, fqdn, port, firstEp);
   client.Init("root", "taosdata", fqdn, port);
-  taosMsleep(1100);
 
   tFreeSTableMetaRsp(&metaRsp);
   showId = 0;

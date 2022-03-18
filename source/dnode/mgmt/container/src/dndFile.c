@@ -17,7 +17,7 @@
 #include "dndInt.h"
 
 int32_t dndReadFile(SMgmtWrapper *pWrapper, bool *pDeployed) {
-  int32_t   code = TSDB_CODE_NODE_READ_FILE_ERROR;
+  int32_t   code = TSDB_CODE_NODE_PARSE_FILE_ERROR;
   int32_t   len = 0;
   int32_t   maxLen = 1024;
   char     *content = calloc(1, maxLen + 1);
@@ -25,7 +25,7 @@ int32_t dndReadFile(SMgmtWrapper *pWrapper, bool *pDeployed) {
   char      file[PATH_MAX];
   TdFilePtr pFile = NULL;
 
-  snprintf(file, sizeof(file), "%s%s%s.json", pWrapper->path, pWrapper->name, TD_DIRSEP);
+  snprintf(file, sizeof(file), "%s%s%s.json", pWrapper->path, TD_DIRSEP, pWrapper->name);
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
     dDebug("file %s not exist", file);
@@ -67,11 +67,11 @@ _OVER:
 
 int32_t dndWriteFile(SMgmtWrapper *pWrapper, bool deployed) {
   char file[PATH_MAX];
-  snprintf(file, sizeof(file), "%s%s%s.json", pWrapper->path, pWrapper->name, TD_DIRSEP);
+  snprintf(file, sizeof(file), "%s%s%s.json", pWrapper->path, TD_DIRSEP, pWrapper->name);
 
   TdFilePtr pFile = taosOpenFile(file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
-    terrno = TSDB_CODE_NODE_WRITE_FILE_ERROR;
+    terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to write %s since %s", file, terrstr());
     return -1;
   }
@@ -90,10 +90,10 @@ int32_t dndWriteFile(SMgmtWrapper *pWrapper, bool deployed) {
   free(content);
 
   char realfile[PATH_MAX];
-  snprintf(realfile, sizeof(realfile), "%s%s%s.json", pWrapper->path, pWrapper->name, TD_DIRSEP);
+  snprintf(realfile, sizeof(realfile), "%s%s%s.json", pWrapper->path, TD_DIRSEP, pWrapper->name);
 
   if (taosRenameFile(file, realfile) != 0) {
-    terrno = TSDB_CODE_NODE_WRITE_FILE_ERROR;
+    terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to rename %s since %s", file, terrstr());
     return -1;
   }

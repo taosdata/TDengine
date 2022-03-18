@@ -691,6 +691,7 @@ typedef struct {
 
 int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
 int32_t tDeserializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
+void    tFreeSStatusRsp(SStatusRsp* pRsp);
 
 typedef struct {
   int32_t reserved;

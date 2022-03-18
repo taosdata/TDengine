@@ -26,4 +26,4 @@ int32_t bndGetLoad(SBnode *pBnode, SBnodeLoad *pLoad) { return 0; }
 
 int32_t bndProcessWMsgs(SBnode *pBnode, SArray *pMsgs) { return 0; }
 
-void bndDestroy(const char *path) {}
+void bndDestroy(const char *path) { taosRemoveDir(path); }

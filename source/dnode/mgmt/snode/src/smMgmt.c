@@ -46,7 +46,7 @@ static SSnode *dndAcquireSnode(SDnode *pDnode) {
     refCount = atomic_add_fetch_32(&pMgmt->refCount, 1);
     pSnode = pMgmt->pSnode;
   } else {
-    terrno = TSDB_CODE_DND_SNODE_NOT_DEPLOYED;
+    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
   }
   taosRUnLockLatch(&pMgmt->latch);
 
@@ -68,7 +68,7 @@ static void dndReleaseSnode(SDnode *pDnode, SSnode *pSnode) {
 
 static int32_t dndReadSnodeFile(SDnode *pDnode) {
   SSnodeMgmt *pMgmt = &pDnode->smgmt;
-  int32_t     code = TSDB_CODE_DND_SNODE_READ_FILE_ERROR;
+  int32_t     code = TSDB_CODE_NODE_PARSE_FILE_ERROR;
   int32_t     len = 0;
   int32_t     maxLen = 1024;
   char       *content = calloc(1, maxLen + 1);
@@ -133,7 +133,7 @@ static int32_t dndWriteSnodeFile(SDnode *pDnode) {
   // FILE *fp = fopen(file, "w");
   TdFilePtr pFile = taosOpenFile(file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
-    terrno = TSDB_CODE_DND_SNODE_WRITE_FILE_ERROR;
+    terrno = TSDB_CODE_NODE_WRITE_FILE_ERROR;
     dError("failed to write %s since %s", file, terrstr());
     return -1;
   }
@@ -156,7 +156,7 @@ static int32_t dndWriteSnodeFile(SDnode *pDnode) {
   snprintf(realfile, PATH_MAX + 20, "%s/snode.json", pDnode->dir.dnode);
 
   if (taosRenameFile(file, realfile) != 0) {
-    terrno = TSDB_CODE_DND_SNODE_WRITE_FILE_ERROR;
+    terrno = TSDB_CODE_NODE_WRITE_FILE_ERROR;
     dError("failed to rename %s since %s", file, terrstr());
     return -1;
   }
@@ -221,7 +221,7 @@ static int32_t dndOpenSnode(SDnode *pDnode) {
   SSnode     *pSnode = dndAcquireSnode(pDnode);
   if (pSnode != NULL) {
     dndReleaseSnode(pDnode, pSnode);
-    terrno = TSDB_CODE_DND_SNODE_ALREADY_DEPLOYED;
+    terrno = TSDB_CODE_NODE_ALREADY_DEPLOYED;
     dError("failed to create snode since %s", terrstr());
     return -1;
   }
@@ -300,7 +300,7 @@ int32_t smProcessCreateReq(SDnode *pDnode, SRpcMsg *pReq) {
   }
 
   if (createReq.dnodeId != pDnode->dnodeId) {
-    terrno = TSDB_CODE_DND_SNODE_INVALID_OPTION;
+    terrno = TSDB_CODE_NODE_INVALID_OPTION;
     dError("failed to create snode since %s", terrstr());
     return -1;
   } else {
@@ -316,7 +316,7 @@ int32_t smProcessDropReq(SDnode *pDnode, SRpcMsg *pReq) {
   }
 
   if (dropReq.dnodeId != pDnode->dnodeId) {
-    terrno = TSDB_CODE_DND_SNODE_INVALID_OPTION;
+    terrno = TSDB_CODE_NODE_INVALID_OPTION;
     dError("failed to drop snode since %s", terrstr());
     return -1;
   } else {
@@ -326,7 +326,7 @@ int32_t smProcessDropReq(SDnode *pDnode, SRpcMsg *pReq) {
 
 static void dndProcessSnodeUniqueQueue(SDnode *pDnode, STaosQall *qall, int32_t numOfMsgs) {
   /*SSnodeMgmt *pMgmt = &pDnode->smgmt;*/
-  int32_t code = TSDB_CODE_DND_SNODE_NOT_DEPLOYED;
+  int32_t code = TSDB_CODE_NODE_NOT_DEPLOYED;
 
   SSnode *pSnode = dndAcquireSnode(pDnode);
   if (pSnode != NULL) {
@@ -355,7 +355,7 @@ static void dndProcessSnodeUniqueQueue(SDnode *pDnode, STaosQall *qall, int32_t 
 
 static void dndProcessSnodeSharedQueue(SDnode *pDnode, SRpcMsg *pMsg) {
   /*SSnodeMgmt *pMgmt = &pDnode->smgmt;*/
-  int32_t code = TSDB_CODE_DND_SNODE_NOT_DEPLOYED;
+  int32_t code = TSDB_CODE_NODE_NOT_DEPLOYED;
 
   SSnode *pSnode = dndAcquireSnode(pDnode);
   if (pSnode != NULL) {
@@ -391,7 +391,7 @@ static FORCE_INLINE int32_t dndGetSWIdFromMsg(SRpcMsg *pMsg) {
 }
 
 static void dndWriteSnodeMsgToWorkerByMsg(SDnode *pDnode, SRpcMsg *pMsg) {
-  int32_t code = TSDB_CODE_DND_SNODE_NOT_DEPLOYED;
+  int32_t code = TSDB_CODE_NODE_NOT_DEPLOYED;
 
   SSnode *pSnode = dndAcquireSnode(pDnode);
   if (pSnode != NULL) {
@@ -412,7 +412,7 @@ static void dndWriteSnodeMsgToWorkerByMsg(SDnode *pDnode, SRpcMsg *pMsg) {
 }
 
 static void dndWriteSnodeMsgToMgmtWorker(SDnode *pDnode, SRpcMsg *pMsg) {
-  int32_t code = TSDB_CODE_DND_SNODE_NOT_DEPLOYED;
+  int32_t code = TSDB_CODE_NODE_NOT_DEPLOYED;
 
   SSnode *pSnode = dndAcquireSnode(pDnode);
   if (pSnode != NULL) {
@@ -431,7 +431,7 @@ static void dndWriteSnodeMsgToMgmtWorker(SDnode *pDnode, SRpcMsg *pMsg) {
 }
 
 static void dndWriteSnodeMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMsg *pMsg) {
-  int32_t code = TSDB_CODE_DND_SNODE_NOT_DEPLOYED;
+  int32_t code = TSDB_CODE_NODE_NOT_DEPLOYED;
 
   SSnode *pSnode = dndAcquireSnode(pDnode);
   if (pSnode != NULL) {
