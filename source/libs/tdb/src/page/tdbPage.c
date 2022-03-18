@@ -31,6 +31,9 @@ typedef struct __attribute__((__packed__)) {
   u8 nxOffset[2];
 } SFreeCell;
 
+static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell);
+static int tdbPageDefragment(SPage *pPage);
+
 int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg) {
   SPage *pPage;
   u8    *ptr;
@@ -79,7 +82,7 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
   u8    *pTmp;
   int    j;
 
-  if (pPage->nOverflow || szCell + pPage->szOffset > pPage->nFree) {
+  if (pPage->nOverflow || szCell + TDB_PAGE_OFFSET_SIZE(pPage) > pPage->nFree) {
     // TODO: need to figure out if pCell may be used by outside of this function
     j = pPage->nOverflow++;
 
@@ -92,8 +95,8 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
     }
 
     memcpy(pTarget, pCell, szCell);
-    pTmp = pPage->pCellIdx + idx * pPage->szOffset;
-    memmove(pTmp + pPage->szOffset, pTmp, pPage->pFreeStart - pTmp - pPage->szOffset);
+    pTmp = pPage->pCellIdx + idx * TDB_PAGE_OFFSET_SIZE(pPage);
+    memmove(pTmp + TDB_PAGE_OFFSET_SIZE(pPage), pTmp, pPage->pFreeStart - pTmp - TDB_PAGE_OFFSET_SIZE(pPage));
     TDB_PAGE_CELL_OFFSET_AT_SET(pPage, idx, pTarget - pPage->pData);
     TDB_PAGE_NCELLS_SET(pPage, TDB_PAGE_NCELLS(pPage) + 1);
   }
@@ -112,20 +115,22 @@ static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell) {
   u8        *pOffset;
   int        ret;
 
-  ASSERT(pPage->nFree > size + pPage->szOffset);
+  ASSERT(pPage->nFree > size + TDB_PAGE_OFFSET_SIZE(pPage));
 
   pCell = NULL;
   *ppCell = NULL;
 
   // 1. Try to allocate from the free space area
-  if (pPage->pFreeEnd - pPage->pFreeStart > size + pPage->szOffset) {
+  if (pPage->pFreeEnd - pPage->pFreeStart > size + TDB_PAGE_OFFSET_SIZE(pPage)) {
     pPage->pFreeEnd -= size;
-    pPage->pFreeStart += pPage->szOffset;
+    pPage->pFreeStart += TDB_PAGE_OFFSET_SIZE(pPage);
     pCell = pPage->pFreeEnd;
   }
 
   // 2. Try to allocate from the page free list
-  if ((pCell == NULL) && (pPage->pFreeEnd - pPage->pFreeStart >= pPage->szOffset) && TDB_PAGE_FCELL(pPage)) {
+  if ((pCell == NULL) && (pPage->pFreeEnd - pPage->pFreeStart >= TDB_PAGE_OFFSET_SIZE(pPage)) &&
+      TDB_PAGE_FCELL(pPage)) {
+#if 0
     int szCell;
     int nxOffset;
 
@@ -167,6 +172,7 @@ static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell) {
     if (pCell) {
       pPage->pFreeStart = pPage->pFreeStart + pPage->szOffset;
     }
+#endif
   }
 
   // 3. Try to dfragment and allocate again
@@ -176,18 +182,18 @@ static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell) {
       return -1;
     }
 
-    ASSERT(pPage->pFreeEnd - pPage->pFreeStart > size + pPage->szOffset);
+    ASSERT(pPage->pFreeEnd - pPage->pFreeStart > size + TDB_PAGE_OFFSET_SIZE(pPage));
     ASSERT(pPage->nFree == pPage->pFreeEnd - pPage->pFreeStart);
 
     // Allocate from the free space area again
     pPage->pFreeEnd -= size;
-    pPage->pFreeStart += pPage->szOffset;
+    pPage->pFreeStart += TDB_PAGE_OFFSET_SIZE(pPage);
     pCell = pPage->pFreeEnd;
   }
 
   ASSERT(pCell != NULL);
 
-  pPage->nFree = pPage->nFree - size - pPage->szOffset;
+  pPage->nFree = pPage->nFree - size - TDB_PAGE_OFFSET_SIZE(pPage);
   *ppCell = pCell;
   return 0;
 }
@@ -232,7 +238,7 @@ static inline void setPageCellFree(SPage *pPage, int cellFree) {
 // nFree
 static inline int  getPageNFree(SPage *pPage) { return ((SPageHdr *)(pPage->pPageHdr))[0].nFree; }
 static inline void setPageNFree(SPage *pPage, int nFree) {
-  ASSERT(cellFree < 65536);
+  ASSERT(nFree < 65536);
   ((SPageHdr *)(pPage->pPageHdr))[0].nFree = (u16)nFree;
 }
 

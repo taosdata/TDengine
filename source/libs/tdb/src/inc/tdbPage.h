@@ -22,23 +22,30 @@ extern "C" {
 
 typedef u8 SCell;
 
-// Page header (pageSize < 65536 (64K))
-typedef struct __attribute__((__packed__)) {
-  u16 flags;
-  u16 nCells;  // number of cells
-  u16 cCells;  // cell content offset
-  u16 fCell;   // first free cell offset
-  u16 nFree;   // total fragment bytes in this page
-} SPageHdr;
-
-// Large page header (pageSize >= 65536 (64K))
-typedef struct __attribute__((__packed__)) {
-  u16 flags;
-  u8  nCells[3];
-  u8  cCells[3];
-  u8  fCell[3];
-  u8  nFree[3];
-} SPageHdrL;
+// PAGE APIS implemented
+typedef struct {
+  int szOffset;
+  int szPageHdr;
+  int szFreeCell;
+  // flags
+  u16 (*getFlags)(SPage *);
+  void (*setFlags)(SPage *, u16);
+  // cell number
+  int (*getCellNum)(SPage *);
+  void (*setCellNum)(SPage *, int);
+  // cell content offset
+  int (*getCellBody)(SPage *);
+  void (*setCellBody)(SPage *, int);
+  // first free cell offset (0 means no free cells)
+  int (*getCellFree)(SPage *);
+  void (*setCellFree)(SPage *, int);
+  // total free bytes
+  int (*getFreeBytes)(SPage *);
+  void (*setFreeBytes)(SPage *, int);
+  // cell offset at idx
+  int (*getCellOffset)(SPage *, int);
+  void (*setCellOffset)(SPage *, int, int);
+} SPageMethods;
 
 // Page footer
 typedef struct __attribute__((__packed__)) {
@@ -49,9 +56,7 @@ struct SPage {
   pthread_spinlock_t lock;
   u8                *pData;
   int                pageSize;
-  u8                 szOffset;
-  u8                 szPageHdr;
-  u8                 szFreeCell;
+  SPageMethods      *pPageMethods;
   // Fields below used by pager and am
   u8        szAmHdr;
   u8       *pPageHdr;
@@ -72,101 +77,22 @@ struct SPage {
   TDB_PCACHE_PAGE
 };
 
-// Macros
-#define TDB_IS_LARGE_PAGE(pPage) ((pPage)->szOffset == 3)
-
-/* For small page */
-#define TDB_SPAGE_FLAGS(pPage)               (((SPageHdr *)(pPage)->pPageHdr)->flags)
-#define TDB_SPAGE_NCELLS(pPage)              (((SPageHdr *)(pPage)->pPageHdr)->nCells)
-#define TDB_SPAGE_CCELLS(pPage)              (((SPageHdr *)(pPage)->pPageHdr)->cCells)
-#define TDB_SPAGE_FCELL(pPage)               (((SPageHdr *)(pPage)->pPageHdr)->fCell)
-#define TDB_SPAGE_NFREE(pPage)               (((SPageHdr *)(pPage)->pPageHdr)->nFree)
-#define TDB_SPAGE_CELL_OFFSET_AT(pPage, idx) ((u16 *)((pPage)->pCellIdx))[idx]
-
-#define TDB_SPAGE_FLAGS_SET(pPage, FLAGS)                TDB_SPAGE_FLAGS(pPage) = (FLAGS)
-#define TDB_SPAGE_NCELLS_SET(pPage, NCELLS)              TDB_SPAGE_NCELLS(pPage) = (NCELLS)
-#define TDB_SPAGE_CCELLS_SET(pPage, CCELLS)              TDB_SPAGE_CCELLS(pPage) = (CCELLS)
-#define TDB_SPAGE_FCELL_SET(pPage, FCELL)                TDB_SPAGE_FCELL(pPage) = (FCELL)
-#define TDB_SPAGE_NFREE_SET(pPage, NFREE)                TDB_SPAGE_NFREE(pPage) = (NFREE)
-#define TDB_SPAGE_CELL_OFFSET_AT_SET(pPage, idx, OFFSET) TDB_SPAGE_CELL_OFFSET_AT(pPage, idx) = (OFFSET)
-
-/* For large page */
-#define TDB_LPAGE_FLAGS(pPage)               (((SPageHdrL *)(pPage)->pPageHdr)->flags)
-#define TDB_LPAGE_NCELLS(pPage)              TDB_GET_U24(((SPageHdrL *)(pPage)->pPageHdr)->nCells)
-#define TDB_LPAGE_CCELLS(pPage)              TDB_GET_U24(((SPageHdrL *)(pPage)->pPageHdr)->cCells)
-#define TDB_LPAGE_FCELL(pPage)               TDB_GET_U24(((SPageHdrL *)(pPage)->pPageHdr)->fCell)
-#define TDB_LPAGE_NFREE(pPage)               TDB_GET_U24(((SPageHdrL *)(pPage)->pPageHdr)->nFree)
-#define TDB_LPAGE_CELL_OFFSET_AT(pPage, idx) TDB_GET_U24((pPage)->pCellIdx + idx * 3)
-
-#define TDB_LPAGE_FLAGS_SET(pPage, FLAGS)                TDB_LPAGE_FLAGS(pPage) = (flags)
-#define TDB_LPAGE_NCELLS_SET(pPage, NCELLS)              TDB_PUT_U24(((SPageHdrL *)(pPage)->pPageHdr)->nCells, NCELLS)
-#define TDB_LPAGE_CCELLS_SET(pPage, CCELLS)              TDB_PUT_U24(((SPageHdrL *)(pPage)->pPageHdr)->cCells, CCELLS)
-#define TDB_LPAGE_FCELL_SET(pPage, FCELL)                TDB_PUT_U24(((SPageHdrL *)(pPage)->pPageHdr)->fCell, FCELL)
-#define TDB_LPAGE_NFREE_SET(pPage, NFREE)                TDB_PUT_U24(((SPageHdrL *)(pPage)->pPageHdr)->nFree, NFREE)
-#define TDB_LPAGE_CELL_OFFSET_AT_SET(pPage, idx, OFFSET) TDB_PUT_U24((pPage)->pCellIdx + idx * 3, OFFSET)
-
 /* For page */
-#define TDB_PAGE_FLAGS(pPage)  (TDB_IS_LARGE_PAGE(pPage) ? TDB_LPAGE_FLAGS(pPage) : TDB_SPAGE_FLAGS(pPage))
-#define TDB_PAGE_NCELLS(pPage) (TDB_IS_LARGE_PAGE(pPage) ? TDB_LPAGE_NCELLS(pPage) : TDB_SPAGE_NCELLS(pPage))
-#define TDB_PAGE_CCELLS(pPage) (TDB_IS_LARGE_PAGE(pPage) ? TDB_LPAGE_CCELLS(pPage) : TDB_SPAGE_CCELLS(pPage))
-#define TDB_PAGE_FCELL(pPage)  (TDB_IS_LARGE_PAGE(pPage) ? TDB_LPAGE_FCELL(pPage) : TDB_SPAGE_FCELL(pPage))
-#define TDB_PAGE_NFREE(pPage)  (TDB_IS_LARGE_PAGE(pPage) ? TDB_LPAGE_NFREE(pPage) : TDB_SPAGE_NFREE(pPage))
-#define TDB_PAGE_CELL_OFFSET_AT(pPage, idx) \
-  (TDB_IS_LARGE_PAGE(pPage) ? TDB_LPAGE_CELL_OFFSET_AT(pPage, idx) : TDB_SPAGE_CELL_OFFSET_AT(pPage, idx))
+#define TDB_PAGE_FLAGS(pPage)               (*(pPage)->pPageMethods->getFlags)(pPage)
+#define TDB_PAGE_NCELLS(pPage)              (*(pPage)->pPageMethods->getCellNum)(pPage)
+#define TDB_PAGE_CCELLS(pPage)              (*(pPage)->pPageMethods->getCellBody)(pPage)
+#define TDB_PAGE_FCELL(pPage)               (*(pPage)->pPageMethods->getCellFree)(pPage)
+#define TDB_PAGE_NFREE(pPage)               (*(pPage)->pPageMethods->getFreeBytes)(pPage)
+#define TDB_PAGE_CELL_OFFSET_AT(pPage, idx) (*(pPage)->pPageMethods->getCellOffset)(pPage, idx)
 
-#define TDB_PAGE_FLAGS_SET(pPage, FLAGS) \
-  do {                                   \
-    if (TDB_IS_LARGE_PAGE(pPage)) {      \
-      TDB_LPAGE_FLAGS_SET(pPage, FLAGS); \
-    } else {                             \
-      TDB_SPAGE_FLAGS_SET(pPage, FLAGS); \
-    }                                    \
-  } while (0)
+#define TDB_PAGE_FLAGS_SET(pPage, FLAGS)                (*(pPage)->pPageMethods->setFlags)(pPage, FLAGS)
+#define TDB_PAGE_NCELLS_SET(pPage, NCELLS)              (*(pPage)->pPageMethods->setCellNum)(pPage, NCELLS)
+#define TDB_PAGE_CCELLS_SET(pPage, CCELLS)              (*(pPage)->pPageMethods->setCellBody)(pPage, CCELLS)
+#define TDB_PAGE_FCELL_SET(pPage, FCELL)                (*(pPage)->pPageMethods->setCellFree)(pPage, FCELL)
+#define TDB_PAGE_NFREE_SET(pPage, NFREE)                (*(pPage)->pPageMethods->setFreeBytes)(pPage, NFREE)
+#define TDB_PAGE_CELL_OFFSET_AT_SET(pPage, idx, OFFSET) (*(pPage)->pPageMethods->setCellOffset)(pPage, idx, OFFSET)
 
-#define TDB_PAGE_NCELLS_SET(pPage, NCELLS) \
-  do {                                     \
-    if (TDB_IS_LARGE_PAGE(pPage)) {        \
-      TDB_LPAGE_NCELLS_SET(pPage, NCELLS); \
-    } else {                               \
-      TDB_SPAGE_NCELLS_SET(pPage, NCELLS); \
-    }                                      \
-  } while (0)
-
-#define TDB_PAGE_CCELLS_SET(pPage, CCELLS) \
-  do {                                     \
-    if (TDB_IS_LARGE_PAGE(pPage)) {        \
-      TDB_LPAGE_CCELLS_SET(pPage, CCELLS); \
-    } else {                               \
-      TDB_SPAGE_CCELLS_SET(pPage, CCELLS); \
-    }                                      \
-  } while (0)
-
-#define TDB_PAGE_FCELL_SET(pPage, FCELL) \
-  do {                                   \
-    if (TDB_IS_LARGE_PAGE(pPage)) {      \
-      TDB_LPAGE_FCELL_SET(pPage, FCELL); \
-    } else {                             \
-      TDB_SPAGE_FCELL_SET(pPage, FCELL); \
-    }                                    \
-  } while (0)
-
-#define TDB_PAGE_NFREE_SET(pPage, NFREE) \
-  do {                                   \
-    if (TDB_IS_LARGE_PAGE(pPage)) {      \
-      TDB_LPAGE_NFREE_SET(pPage, NFREE); \
-    } else {                             \
-      TDB_SPAGE_NFREE_SET(pPage, NFREE); \
-    }                                    \
-  } while (0)
-
-#define TDB_PAGE_CELL_OFFSET_AT_SET(pPage, idx, OFFSET) \
-  do {                                                  \
-    if (TDB_IS_LARGE_PAGE(pPage)) {                     \
-      TDB_LPAGE_CELL_OFFSET_AT_SET(pPage, idx, OFFSET); \
-    } else {                                            \
-      TDB_SPAGE_CELL_OFFSET_AT_SET(pPage, idx, OFFSET); \
-    }                                                   \
-  } while (0)
+#define TDB_PAGE_OFFSET_SIZE(pPage) ((pPage)->pPageMethods->szOffset)
 
 #define TDB_PAGE_CELL_AT(pPage, idx) ((pPage)->pData + TDB_PAGE_CELL_OFFSET_AT(pPage, idx))
 

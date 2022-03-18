@@ -96,11 +96,11 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, S
   // pBt->pageSize
   pBt->pageSize = tdbPagerGetPageSize(pPager);
   // pBt->maxLocal
-  pBt->maxLocal = (pBt->pageSize - sizeof(SPageHdr)) / pBt->fanout;
+  pBt->maxLocal = (pBt->pageSize - 14) / pBt->fanout;
   // pBt->minLocal: Should not be allowed smaller than 15, which is [nPayload][nKey][nData]
-  pBt->minLocal = (pBt->pageSize - sizeof(SPageHdr)) / pBt->fanout / 2;
+  pBt->minLocal = (pBt->pageSize - 14) / pBt->fanout / 2;
   // pBt->maxLeaf
-  pBt->maxLeaf = pBt->pageSize - sizeof(SPageHdr);
+  pBt->maxLeaf = pBt->pageSize - 14;
   // pBt->minLeaf
   pBt->minLeaf = pBt->minLocal;
 
@@ -392,9 +392,9 @@ static int tdbBtreeInitPage(SPage *pPage, void *arg) {
     pPage->szAmHdr = sizeof(SBtPageHdr);
   }
   pPage->pPageHdr = pPage->pData;
-  pPage->pAmHdr = pPage->pPageHdr + pPage->szPageHdr;
+  pPage->pAmHdr = pPage->pPageHdr + pPage->pPageMethods->szPageHdr;
   pPage->pCellIdx = pPage->pAmHdr + pPage->szAmHdr;
-  pPage->pFreeStart = pPage->pCellIdx + pPage->szOffset * TDB_PAGE_NCELLS(pPage);
+  pPage->pFreeStart = pPage->pCellIdx + pPage->pPageMethods->szOffset * TDB_PAGE_NCELLS(pPage);
   pPage->pFreeEnd = pPage->pData + TDB_PAGE_CCELLS(pPage);
   pPage->pPageFtr = (SPageFtr *)(pPage->pData + pPage->pageSize - sizeof(SPageFtr));
 
@@ -458,8 +458,8 @@ static int tdbBtreeCopyPageContent(SPage *pFrom, SPage *pTo) {
   int fCell = TDB_PAGE_FCELL(pFrom);
   int nFree = TDB_PAGE_NFREE(pFrom);
 
-  pTo->pFreeStart = pTo->pCellIdx + nCells * pFrom->szOffset;
-  memcpy(pTo->pCellIdx, pFrom->pCellIdx, nCells * pFrom->szOffset);
+  pTo->pFreeStart = pTo->pCellIdx + nCells * pFrom->pPageMethods->szOffset;
+  memcpy(pTo->pCellIdx, pFrom->pCellIdx, nCells * pFrom->pPageMethods->szOffset);
   pTo->pFreeEnd = (u8 *)pTo->pPageFtr - (u8 *)(pFrom->pPageFtr) + pFrom->pFreeEnd;
   memcpy(pTo->pFreeEnd, pFrom->pFreeEnd, (u8 *)pFrom->pPageFtr - pFrom->pFreeEnd);
 
