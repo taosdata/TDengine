@@ -560,7 +560,6 @@
 10,,script,./test.sh -f unique/stable/replica2_vnode3.sim 
 10,,pytest,python3 testCompress.py 
 10,,pytest,python3 test.py -f client/client.py 
-10,,script,eval sh -c \"if [ `uname -m` != aarch64 ]; then ./test.sh -f general/parser/scalar_expression.sim; fi\"
 10,,script,./test.sh -f general/compute/scalar_pow.sim 
 9,,script,./test.sh -f general/parser/alter1.sim 
 9,,script,./test.sh -f general/db/delete.sim 
@@ -715,6 +714,8 @@
 5,,develop-test,python3 ./test.py -f 2-query/time_window_keywords.py
 5,,develop-test,python3 ./test.py -f 2-query/TD-13946.py
 5,,develop-test,python3 ./test.py -f 2-query/query_window_keywords.py
+5,,develop-test,python3 ./test.py -f 2-query/scalar_triangle.py
+5,,develop-test,python3 ./test.py -f 2-query/scalar_expression.py
 4,,system-test,python3 test.py -f 4-taosAdapter/TD-12163.py
 4,,system-test,python3 ./test.py -f 3-connectors/restful/restful_binddbname.py 
 4,,system-test,python3 ./test.py -f 2-query/TD-12614.py 
@@ -792,7 +793,6 @@
 3,,develop-test,python3 ./test.py -f 2-query/ts_hidden_column.py 
 3,,develop-test,python3 ./test.py -f 2-query/ts_shortcut.py
 3,,develop-test,python3 ./test.py -f 2-query/TD-5902.py
-3,,script,eval sh -c \"if [ `uname -m` != aarch64 ]; then ./test.sh -f general/compute/scalar_triangle.sim; fi\"
 3,,script,./test.sh -f general/compute/scalar_str_concat_len.sim
 3,,develop-test,python3 ./test.py -f 2-query/function_tail.py
 2,,develop-test,python3 ./test.py -f 2-query/function_unique.py
