@@ -14,6 +14,7 @@
  */
 
 #include "syncAppendEntriesReply.h"
+#include "syncCommit.h"
 #include "syncIndexMgr.h"
 #include "syncInt.h"
 #include "syncRaftLog.h"
@@ -59,7 +60,7 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
     syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), pMsg->matchIndex);
 
     // maybe commit
-    syncNodeMaybeAdvanceCommitIndex(ths);
+    syncMaybeAdvanceCommitIndex(ths);
 
   } else {
     SyncIndex nextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
