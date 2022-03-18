@@ -1813,7 +1813,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     if(type == TSDB_DATA_TYPE_NCHAR &&
         (unit->compare.optr == OP_TYPE_MATCH || unit->compare.optr == OP_TYPE_NMATCH)){
       char newValData[TSDB_REGEX_STRING_DEFAULT_LEN * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE] = {0};
-      int32_t len = taosUcs4ToMbs(varDataVal(fi->data), varDataLen(fi->data), varDataVal(newValData));
+      int32_t len = taosUcs4ToMbs((TdUcs4*)varDataVal(fi->data), varDataLen(fi->data), varDataVal(newValData));
       if (len < 0){
         qError("filterInitValFieldData taosUcs4ToMbs error 1");
         return TSDB_CODE_QRY_APP_ERROR;
@@ -2992,7 +2992,7 @@ bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, int8_t** p, SColumnDa
 
     if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_NCHAR && (info->cunits[uidx].optr == OP_TYPE_MATCH || info->cunits[uidx].optr == OP_TYPE_NMATCH)){
       char *newColData = calloc(info->cunits[uidx].dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
-      int32_t len = taosUcs4ToMbs(varDataVal(colData), varDataLen(colData), varDataVal(newColData));
+      int32_t len = taosUcs4ToMbs((TdUcs4*)varDataVal(colData), varDataLen(colData), varDataVal(newColData));
       if (len < 0){
         qError("castConvert1 taosUcs4ToMbs error");
       }else{
@@ -3052,7 +3052,7 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, int8_t** p, SColumnDataAg
             } else {
               if(cunit->dataType == TSDB_DATA_TYPE_NCHAR && (cunit->optr == OP_TYPE_MATCH || cunit->optr == OP_TYPE_NMATCH)){
                 char *newColData = calloc(cunit->dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
-                int32_t len = taosUcs4ToMbs(varDataVal(colData), varDataLen(colData), varDataVal(newColData));
+                int32_t len = taosUcs4ToMbs((TdUcs4*)varDataVal(colData), varDataLen(colData), varDataVal(newColData));
                 if (len < 0){
                   qError("castConvert1 taosUcs4ToMbs error");
                 }else{
@@ -3433,7 +3433,7 @@ int32_t filterConverNcharColumns(SFilterInfo* info, int32_t rows, bool *gotNchar
           varDataCopy(dst, src);
           continue;
         }
-        bool ret = taosMbsToUcs4(varDataVal(src), varDataLen(src), varDataVal(dst), bufSize, &len);
+        bool ret = taosMbsToUcs4(varDataVal(src), varDataLen(src), (TdUcs4*)varDataVal(dst), bufSize, &len);
         if(!ret) {
           qError("filterConverNcharColumns taosMbsToUcs4 error");
           return TSDB_CODE_FAILED;

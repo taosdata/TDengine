@@ -560,12 +560,12 @@ static int dumpResultToFile(const char *fname, TAOS_RES *tres) {
 }
 
 static void shellPrintNChar(const char *str, int length, int width) {
-  wchar_t tail[3];
+  TdWchar tail[3];
   int     pos = 0, cols = 0, totalCols = 0, tailLen = 0;
 
   while (pos < length) {
-    wchar_t wc;
-    int     bytes = mbtowc(&wc, str + pos, MB_CUR_MAX);
+    TdWchar wc;
+    int     bytes = taosMbToWchar(&wc, str + pos, MB_CUR_MAX);
     if (bytes == 0) {
       break;
     }
@@ -577,7 +577,7 @@ static void shellPrintNChar(const char *str, int length, int width) {
 #ifdef WINDOWS
     int w = bytes;
 #else
-    int w = wcwidth(wc);
+    int w = taosWcharWidth(wc);
 #endif
     if (w <= 0) {
       continue;

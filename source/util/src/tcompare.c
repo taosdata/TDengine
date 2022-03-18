@@ -208,7 +208,7 @@ int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight) {
   if (len1 != len2) {
     return len1 > len2 ? 1 : -1;
   } else {
-    int32_t ret = memcmp((wchar_t *)pLeft, (wchar_t *)pRight, len1);
+    int32_t ret = memcmp((TdUcs4 *)pLeft, (TdUcs4 *)pRight, len1);
     if (ret == 0) {
       return 0;
     } else {
@@ -295,10 +295,10 @@ int32_t patternMatch(const char *patterStr, const char *str, size_t size, const 
   return (str[j] == 0 || j >= size) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
 }
 
-int32_t WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, const SPatternCompareInfo *pInfo) {
-  wchar_t c, c1;
-  wchar_t matchOne = L'_';  // "_"
-  wchar_t matchAll = L'%';  // "%"
+int32_t WCSPatternMatch(const TdUcs4 *patterStr, const TdUcs4 *str, size_t size, const SPatternCompareInfo *pInfo) {
+  TdUcs4 c, c1;
+  TdUcs4 matchOne = L'_';  // "_"
+  TdUcs4 matchAll = L'%';  // "%"
 
   int32_t i = 0;
   int32_t j = 0;
@@ -315,7 +315,7 @@ int32_t WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t siz
         return TSDB_PATTERN_MATCH;
       }
 
-      wchar_t accept[3] = {towupper(c), towlower(c), 0};
+      TdUcs4 accept[3] = {towupper(c), towlower(c), 0};
       while (1) {
         size_t n = wcscspn(str, accept);
 
@@ -424,10 +424,10 @@ int32_t compareWStrPatternMatch(const void *pLeft, const void *pRight) {
 
   assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN * TSDB_NCHAR_SIZE);
 
-  wchar_t *pattern = calloc(varDataLen(pRight) + 1, sizeof(wchar_t));
+  char *pattern = calloc(varDataLen(pRight) + TSDB_NCHAR_SIZE, 1);
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
 
-  int32_t ret = WCSPatternMatch(pattern, (const wchar_t *)varDataVal(pLeft), varDataLen(pLeft) / TSDB_NCHAR_SIZE, &pInfo);
+  int32_t ret = WCSPatternMatch((TdUcs4*)pattern, (TdUcs4*)varDataVal(pLeft), varDataLen(pLeft) / TSDB_NCHAR_SIZE, &pInfo);
   free(pattern);
 
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
@@ -647,7 +647,7 @@ int32_t doCompare(const char *f1, const char *f2, int32_t type, size_t size) {
       if (t1->len != t2->len) {
         return t1->len > t2->len ? 1 : -1;
       }
-      int32_t ret = memcmp((wchar_t *)t1, (wchar_t *)t2, t2->len);
+      int32_t ret = memcmp((TdUcs4 *)t1, (TdUcs4 *)t2, t2->len);
       if (ret == 0) {
         return ret;
       }

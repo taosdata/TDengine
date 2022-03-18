@@ -316,7 +316,7 @@ int32_t vectorConvertFromVarData(SScalarParam* pIn, SScalarParam* pOut, int32_t 
         tmp = realloc(tmp, bufSize);
       }
       
-      int len = taosUcs4ToMbs(varDataVal(pIn->data), varDataLen(pIn->data), tmp);
+      int len = taosUcs4ToMbs((TdUcs4*)varDataVal(pIn->data), varDataLen(pIn->data), tmp);
       if (len < 0){
         sclError("castConvert taosUcs4ToMbs error 1");
         tfree(tmp);

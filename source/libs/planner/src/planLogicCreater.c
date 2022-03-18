@@ -310,7 +310,8 @@ static SLogicNode* createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInt
   pWindow->node.id = pCxt->planNodeId++;
 
   pWindow->winType = WINDOW_TYPE_INTERVAL;
-  SValueNode* pIntervalNode = (SValueNode*)((SRawExprNode*)(pInterval->pInterval))->pNode;
+  //SValueNode* pIntervalNode = (SValueNode*)((SRawExprNode*)(pInterval->pInterval))->pNode;
+  SValueNode* pIntervalNode = (SValueNode*)(pInterval->pInterval);
 
   pWindow->interval = pIntervalNode->datum.i;
   pWindow->offset = (NULL != pInterval->pOffset ? ((SValueNode*)pInterval->pOffset)->datum.i : 0);
