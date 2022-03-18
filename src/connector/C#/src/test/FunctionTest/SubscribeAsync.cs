@@ -89,7 +89,7 @@ namespace Cases
                 }
                 else
                 {
-                    output.WriteLine($"async query data failed");
+                    output.WriteLine($"async query data failed, failed code:{code}");
                 }
 
             }
@@ -135,7 +135,7 @@ namespace Cases
                 }
                 else
                 {
-                    output.WriteLine($"async query data failed");
+                    output.WriteLine($"async query data failed, failed code:{code}");
                 }
 
             }
@@ -203,7 +203,7 @@ namespace Cases
                 }
                 else
                 {
-                    output.WriteLine($"async query data failed");
+                    output.WriteLine($"async query data failed, failed code:{code}");
                 }
 
             }
@@ -247,7 +247,7 @@ namespace Cases
                 }
                 else
                 {
-                    output.WriteLine($"async query data failed");
+                    output.WriteLine($"async query data failed, failed code:{code}");
                 }
 
             }
