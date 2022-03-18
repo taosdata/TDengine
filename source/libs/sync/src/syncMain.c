@@ -151,6 +151,30 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
 
   // init life cycle
 
+  // TLA+ Spec
+  // InitHistoryVars == /\ elections = {}
+  //                    /\ allLogs   = {}
+  //                    /\ voterLog  = [i \in Server |-> [j \in {} |-> <<>>]]
+  // InitServerVars == /\ currentTerm = [i \in Server |-> 1]
+  //                   /\ state       = [i \in Server |-> Follower]
+  //                   /\ votedFor    = [i \in Server |-> Nil]
+  // InitCandidateVars == /\ votesResponded = [i \in Server |-> {}]
+  //                      /\ votesGranted   = [i \in Server |-> {}]
+  // \* The values nextIndex[i][i] and matchIndex[i][i] are never read, since the
+  // \* leader does not send itself messages. It's still easier to include these
+  // \* in the functions.
+  // InitLeaderVars == /\ nextIndex  = [i \in Server |-> [j \in Server |-> 1]]
+  //                   /\ matchIndex = [i \in Server |-> [j \in Server |-> 0]]
+  // InitLogVars == /\ log          = [i \in Server |-> << >>]
+  //                /\ commitIndex  = [i \in Server |-> 0]
+  // Init == /\ messages = [m \in {} |-> 0]
+  //         /\ InitHistoryVars
+  //         /\ InitServerVars
+  //         /\ InitCandidateVars
+  //         /\ InitLeaderVars
+  //         /\ InitLogVars
+  //
+
   // init TLA+ server vars
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
   pSyncNode->pRaftStore = raftStoreOpen(pSyncNode->raftStorePath);
@@ -728,6 +752,16 @@ static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg) {
   return ret;
 }
 
+// TLA+ Spec
+// ClientRequest(i, v) ==
+//     /\ state[i] = Leader
+//     /\ LET entry == [term  |-> currentTerm[i],
+//                      value |-> v]
+//            newLog == Append(log[i], entry)
+//        IN  log' = [log EXCEPT ![i] = newLog]
+//     /\ UNCHANGED <<messages, serverVars, candidateVars,
+//                    leaderVars, commitIndex>>
+//
 static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg) {
   int32_t ret = 0;
   syncClientRequestLog2("==syncNodeOnClientRequestCb==", pMsg);
