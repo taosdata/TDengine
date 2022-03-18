@@ -279,6 +279,7 @@ if [[ $dbName == "taos" ]]; then
     cp -r ${examples_dir}/go ${install_dir}/examples
     cp -r ${examples_dir}/nodejs ${install_dir}/examples
     cp -r ${examples_dir}/C# ${install_dir}/examples
+    cp -r ${examples_dir}/taosbenchmark-json ${install_dir}/examples
   fi
 fi
 
