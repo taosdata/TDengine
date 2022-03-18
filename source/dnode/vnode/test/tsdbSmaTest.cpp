@@ -33,6 +33,7 @@ int main(int argc, char **argv) {
   return RUN_ALL_TESTS();
 }
 
+#if 1
 TEST(testCase, tSma_Meta_Encode_Decode_Test) {
   // encode
   STSma tSma = {0};
@@ -88,6 +89,7 @@ TEST(testCase, tSma_Meta_Encode_Decode_Test) {
   tdDestroyTSma(&tSma);
   tdDestroyTSmaWrapper(&dstTSmaWrapper);
 }
+#endif
 
 #if 1
 TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
