@@ -22,16 +22,6 @@ target_link_libraries(
     PUBLIC util
 )
 
-# for tdb_sqlite
-add_library(tdb_sqlite "")
-target_sources(tdb_sqlite
-    PRIVATE
-    "src/sqlite/pcache.c"
-    "src/sqlite/pcache1.c"
-    "src/sqlite/pager.c"
-)
-target_include_directories(tdb_sqlite PUBLIC "src/sqliteinc")
-
 # for test
 if(${BUILD_TEST})
     add_subdirectory(test)
