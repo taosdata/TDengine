@@ -83,13 +83,9 @@ namespace Cases
                     // cannot free taosRes using taosRes, otherwise will cause crash.
                     UtilsTools.GetResDataWithoutFree(taosRes);
                 }
-                else if (taosRes != IntPtr.Zero)
-                {
-                    output.WriteLine($"async query data failed, failed code:{code}, reason:{TDengine.Error(taosRes)}");
-                }
                 else
                 {
-                    output.WriteLine($"async query data failed, failed code:{code}");
+                    output.WriteLine($"async query data failed, failed code:{code}, reason:{TDengine.Error(taosRes)}");
                 }
 
             }
@@ -126,18 +122,11 @@ namespace Cases
                             Assert.Equal(expectResData[i].ToString(), actualResData[i]);
                         }
                     }
-
-
-                }
-                else if (taosRes != IntPtr.Zero)
-                {
-                    output.WriteLine($"async query data failed, failed code:{code}, reason:{TDengine.Error(taosRes)}");
                 }
                 else
                 {
-                    output.WriteLine($"async query data failed, failed code:{code}");
+                    output.WriteLine($"async query data failed, failed code:{code}, reason:{TDengine.Error(taosRes)}");
                 }
-
             }
 
         }
@@ -201,10 +190,6 @@ namespace Cases
                 {
                     output.WriteLine($"async query data failed, failed code:{code}, reason:{TDengine.Error(taosRes)}");
                 }
-                else
-                {
-                    output.WriteLine($"async query data failed, failed code:{code}");
-                }
 
             }
 
@@ -241,15 +226,10 @@ namespace Cases
                         }
                     }
                 }
-                else if (taosRes != IntPtr.Zero)
+                else
                 {
                     output.WriteLine($"async query data failed, failed code:{code}, reason:{TDengine.Error(taosRes)}");
                 }
-                else
-                {
-                    output.WriteLine($"async query data failed, failed code:{code}");
-                }
-
             }
 
         }
