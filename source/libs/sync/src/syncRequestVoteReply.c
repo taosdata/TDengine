@@ -41,7 +41,8 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
   syncRequestVoteReplyLog2("==syncNodeOnRequestVoteReplyCb==", pMsg);
 
   if (pMsg->term < ths->pRaftStore->currentTerm) {
-    sTrace("DropStaleResponse, receive term:%" PRIu64 ", current term:%" PRIu64 "", pMsg->term, ths->pRaftStore->currentTerm);
+    sTrace("DropStaleResponse, receive term:%" PRIu64 ", current term:%" PRIu64 "", pMsg->term,
+           ths->pRaftStore->currentTerm);
     return ret;
   }
 

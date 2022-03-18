@@ -27,7 +27,7 @@ static struct {
 } global = {0};
 
 static void dndSigintHandle(int signum, void *info, void *ctx) {
-  dInfo("singal:%d is received", signum);
+  dInfo("signal:%d is received", signum);
   dndHandleEvent(global.pDnode, DND_EVENT_STOP);
 }
 

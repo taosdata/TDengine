@@ -15,6 +15,7 @@
 
 #include "syncIndexMgr.h"
 #include "syncInt.h"
+#include "syncRaftLog.h"
 
 // \* Leader i advances its commitIndex.
 // \* This is done as a separate step from handling AppendEntries responses,
@@ -42,4 +43,27 @@
 void syncNodeMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
   syncIndexMgrLog2("==syncNodeMaybeAdvanceCommitIndex== pNextIndex", pSyncNode->pNextIndex);
   syncIndexMgrLog2("==syncNodeMaybeAdvanceCommitIndex== pMatchIndex", pSyncNode->pMatchIndex);
+
+  // update commit index
+
+  if (pSyncNode->pFsm != NULL) {
+    SyncIndex beginIndex = SYNC_INDEX_INVALID;
+    SyncIndex endIndex = SYNC_INDEX_INVALID;
+    for (SyncIndex i = beginIndex; i <= endIndex; ++i) {
+      if (i != SYNC_INDEX_INVALID) {
+        SSyncRaftEntry* pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, i);
+        assert(pEntry != NULL);
+
+        SRpcMsg rpcMsg;
+        syncEntry2OriginalRpc(pEntry, &rpcMsg);
+
+        if (pSyncNode->pFsm->FpCommitCb != NULL) {
+          pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0);
+        }
+
+        rpcFreeCont(rpcMsg.pCont);
+        syncEntryDestory(pEntry);
+      }
+    }
+  }
 }

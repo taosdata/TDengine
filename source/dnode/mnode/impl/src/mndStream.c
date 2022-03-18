@@ -230,6 +230,12 @@ static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamRe
   }
   mDebug("trans:%d, used to create stream:%s", pTrans->id, pCreate->name);
 
+  if (mndScheduleStream(pMnode, pTrans, &streamObj) < 0) {
+    mError("stream:%ld, schedule stream since %s", streamObj.uid, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
   SSdbRaw *pRedoRaw = mndStreamActionEncode(&streamObj);
   if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
     mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
@@ -237,12 +243,6 @@ static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamRe
     return -1;
   }
   sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
-
-  if (mndScheduleStream(pMnode, pTrans, &streamObj) < 0) {
-    mError("stream:%ld, schedule stream since %s", streamObj.uid, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());

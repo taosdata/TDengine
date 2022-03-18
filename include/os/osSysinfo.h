@@ -16,7 +16,6 @@
 #ifndef _TD_OS_SYSINFO_H_
 #define _TD_OS_SYSINFO_H_
 
-#include <sys/statvfs.h>
 #include "os.h"
 
 #ifdef __cplusplus

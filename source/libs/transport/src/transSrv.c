@@ -202,7 +202,7 @@ static void uvHandleReq(SSrvConn* pConn) {
 
   STransMsgHead* pHead = (STransMsgHead*)p->msg;
   if (pHead->secured == 1) {
-    STransUserMsg* uMsg = (p->msg + p->msgLen - sizeof(STransUserMsg));
+    STransUserMsg* uMsg = (STransUserMsg*)((char*)p->msg + p->msgLen - sizeof(STransUserMsg));
     memcpy(pConn->user, uMsg->user, tListLen(uMsg->user));
     memcpy(pConn->secret, uMsg->secret, tListLen(uMsg->secret));
   }
@@ -235,12 +235,12 @@ static void uvHandleReq(SSrvConn* pConn) {
     transRefSrvHandle(pConn);
     transMsg.handle = pConn;
     tDebug("server conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pConn, TMSG_INFO(transMsg.msgType),
-           inet_ntoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), inet_ntoa(pConn->locaddr.sin_addr),
+           taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->locaddr.sin_addr),
            ntohs(pConn->locaddr.sin_port), transMsg.contLen);
   } else {
     tDebug("server conn %p %s received from %s:%d, local info: %s:%d, msg size: %d, no resp ", pConn,
-           TMSG_INFO(transMsg.msgType), inet_ntoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
-           inet_ntoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port), transMsg.contLen);
+           TMSG_INFO(transMsg.msgType), taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
+           taosInetNtoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port), transMsg.contLen);
   }
 
   STrans* pTransInst = (STrans*)p->shandle;
@@ -347,7 +347,7 @@ static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
     // impl later
   }
   tDebug("server conn %p %s is sent to %s:%d, local info: %s:%d", pConn, TMSG_INFO(pHead->msgType),
-         inet_ntoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), inet_ntoa(pConn->locaddr.sin_addr),
+         taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->locaddr.sin_addr),
          ntohs(pConn->locaddr.sin_port));
 
   pHead->msgLen = htonl(len);
@@ -374,8 +374,8 @@ static void uvStartSendResp(SSrvMsg* smsg) {
   transUnrefSrvHandle(pConn);
 
   if (taosArrayGetSize(pConn->srvMsgs) > 0) {
-    tDebug("server conn %p push data to client %s:%d, local info: %s:%d", pConn, inet_ntoa(pConn->addr.sin_addr),
-           ntohs(pConn->addr.sin_port), inet_ntoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port));
+    tDebug("server conn %p push data to client %s:%d, local info: %s:%d", pConn, taosInetNtoa(pConn->addr.sin_addr),
+           ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port));
     taosArrayPush(pConn->srvMsgs, &smsg);
     return;
   }

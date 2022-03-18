@@ -75,7 +75,7 @@ typedef struct {
 #define TD_CODER_CURRENT(CODER)                        ((CODER)->data + (CODER)->pos)
 #define TD_CODER_MOVE_POS(CODER, MOVE)                 ((CODER)->pos += (MOVE))
 #define TD_CODER_CHECK_CAPACITY_FAILED(CODER, EXPSIZE) (((CODER)->size - (CODER)->pos) < (EXPSIZE))
-#define TCODER_MALLOC(SIZE, CODER)                     TFL_MALLOC(SIZE, &((CODER)->fl))
+#define TCODER_MALLOC(PTR, TYPE, SIZE, CODER)          TFL_MALLOC(PTR, TYPE, SIZE, &((CODER)->fl))
 
 void tCoderInit(SCoder* pCoder, td_endian_t endian, uint8_t* data, int32_t size, td_coder_t type);
 void tCoderClear(SCoder* pCoder);
