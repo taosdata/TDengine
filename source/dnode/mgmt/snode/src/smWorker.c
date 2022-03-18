@@ -86,6 +86,12 @@ static FORCE_INLINE int32_t smGetSWIdFromMsg(SRpcMsg *pMsg) {
   return pHead->streamTaskId % SND_UNIQUE_THREAD_NUM;
 }
 
+static FORCE_INLINE int32_t smGetSWTypeFromMsg(SRpcMsg *pMsg) {
+  SStreamExecMsgHead *pHead = pMsg->pCont;
+  pHead->workerType = htonl(pHead->workerType);
+  return pHead->workerType;
+}
+
 int32_t smProcessMgmtMsg(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   SDnodeWorker *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, 0);
   if (pWorker == NULL) {
@@ -114,4 +120,13 @@ int32_t smProcessSharedMsg(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
   return dndWriteMsgToWorker(pWorker, pMsg);
+}
+
+int32_t smProcessExecMsg(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+  int32_t workerType = smGetSWTypeFromMsg(&pMsg->rpcMsg);
+  if (workerType == SND_WORKER_TYPE__SHARED) {
+    return smProcessSharedMsg(pMgmt, pMsg);
+  } else {
+    return smProcessUniqueMsg(pMgmt, pMsg);
+  }
 }
