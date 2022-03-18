@@ -33,7 +33,6 @@ typedef struct {
 } SSnodeLoad;
 
 typedef struct {
-  int32_t        sver;
   int32_t        dnodeId;
   int64_t        clusterId;
   SMgmtWrapper  *pWrapper;

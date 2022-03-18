@@ -16,47 +16,37 @@
 #ifndef _TD_DND_SNODE_INT_H_
 #define _TD_DND_SNODE_INT_H_
 
-#include "dnd.h"
+#include "sm.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct SSnodeMgmt {
-  int32_t      refCount;
-  int8_t       deployed;
-  int8_t       dropped;
-  int8_t       uniqueWorkerInUse;
-  SSnode      *pSnode;
-  SRWLatch     latch;
-  SArray      *uniqueWorkers;  // SArray<SDnodeWorker*>
-  SDnodeWorker sharedWorker;
+  SSnode       *pSnode;
+  SDnode       *pDnode;
+  SMgmtWrapper *pWrapper;
+  const char   *path;
+  SRWLatch      latch;
+  int8_t        uniqueWorkerInUse;
+  SArray       *uniqueWorkers;  // SArray<SDnodeWorker*>
+  SDnodeWorker  sharedWorker;
 } SSnodeMgmt;
 
-void smGetMgmtFp(SMgmtWrapper *pMgmt);
+// smInt.c
+int32_t smOpen(SMgmtWrapper *pWrapper);
+int32_t smDrop(SMgmtWrapper *pWrapper);
 
-int32_t dndInitSnode(SDnode *pDnode);
-void    dndCleanupSnode(SDnode *pDnode);
+// smMsg.c
+void    smInitMsgHandles(SMgmtWrapper *pWrapper);
+int32_t smProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t smProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
-void    dndProcessSnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
-int32_t smProcessCreateReq(SSnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t smProcessDropReq(SSnodeMgmt *pMgmt, SNodeMsg *pMsg);
-
-void smInitMsgHandles(SMgmtWrapper *pWrapper);
-
-int32_t smStartWorker(SDnode *pDnode);
-void    smStopWorker(SDnode *pDnode);
-void    smInitMsgFp(SMnodeMgmt *pMgmt);
-void    smProcessRpcMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
-int32_t smPutMsgToWriteQueue(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t smPutMsgToReadQueue(SDnode *pDnode, SRpcMsg *pRpcMsg);
-void    smConsumeChildQueue(SDnode *pDnode, SNodeMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen);
-void    smConsumeParentQueue(SDnode *pDnode, SRpcMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen);
-
-void smProcessWriteMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-void smProcessSyncMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-void smProcessReadMsg(SDnode *pDnode, SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-
+// smWorker.c
+int32_t smStartWorker(SQnodeMgmt *pMgmt);
+void    smStopWorker(SQnodeMgmt *pMgmt);
+int32_t smProcessQueryMsg(SQnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t smProcessFetchMsg(SQnodeMgmt *pMgmt, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

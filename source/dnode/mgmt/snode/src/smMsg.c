@@ -16,8 +16,42 @@
 #define _DEFAULT_SOURCE
 #include "smInt.h"
 
-int32_t smProcessCreateReq(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {return 0;}
-int32_t smProcessDropReq(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {return 0;}
+int32_t smProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+  SDnode  *pDnode = pWrapper->pDnode;
+  SRpcMsg *pReq = &pMsg->rpcMsg;
 
-void smInitMsgHandles(SMgmtWrapper *pWrapper) {
+  SDCreateSnodeReq createReq = {0};
+  if (tDeserializeSMCreateDropQSBNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  if (createReq.dnodeId != pDnode->dnodeId) {
+    terrno = TSDB_CODE_NODE_INVALID_OPTION;
+    dError("failed to create snode since %s, input:%d cur:%d", terrstr(), createReq.dnodeId, pDnode->dnodeId);
+    return -1;
+  } else {
+    return smOpen(pWrapper);
+  }
 }
+
+int32_t smProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+  SDnode  *pDnode = pWrapper->pDnode;
+  SRpcMsg *pReq = &pMsg->rpcMsg;
+
+  SDDropSnodeReq dropReq = {0};
+  if (tDeserializeSMCreateDropQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  if (dropReq.dnodeId != pDnode->dnodeId) {
+    terrno = TSDB_CODE_NODE_INVALID_OPTION;
+    dError("failed to drop snode since %s", terrstr());
+    return -1;
+  } else {
+    return smDrop(pWrapper);
+  }
+}
+
+void smInitMsgHandles(SMgmtWrapper *pWrapper) {}
