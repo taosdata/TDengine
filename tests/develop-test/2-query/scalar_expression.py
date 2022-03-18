@@ -30,16 +30,12 @@ class TDTestCase:
         tdSql.execute('create table st0 (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 nchar(5), c9 binary(10)) TAGS (tgcol int);')
 
         tdSql.execute('create table ct0 using st0 tags( 0 );')
-
         tdSql.execute('insert into ct0 values (1601481600000 , 0 , 0.25 , 0 , 0 , 0 , 0.25 , 0 , 0 , 0 );')
-
         for i in range(1, 50):
             tdSql.execute('insert into ct0 values ({}, {}, {}, {}, {}, {}, {}, {}, {}, {});'.format(1601481600000 + i * 60000,
                 i , i , i , i , i , i , i , i , i ))
 
         tdSql.execute('create table ct1 using st0 tags( 1 );')
-
-
         tdSql.execute('insert into ct1 values (1601481600000 , 0 , 0.25 , 0 , 0 , 0 , 0.25 , 0 , 0 , 0 );')
         for i in range(1, 50):
             tdSql.execute('insert into ct1 values ({}, {}, {}, {}, {}, {}, {}, {}, {}, {});'.format(1601481600000 + i * 60000,
