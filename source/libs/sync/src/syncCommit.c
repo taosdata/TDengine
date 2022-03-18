@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "syncCommit.h"
 #include "syncIndexMgr.h"
 #include "syncInt.h"
 #include "syncRaftLog.h"
@@ -40,7 +41,7 @@
 //        IN commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
 //     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log>>
 //
-void syncNodeMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
+void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
   syncIndexMgrLog2("==syncNodeMaybeAdvanceCommitIndex== pNextIndex", pSyncNode->pNextIndex);
   syncIndexMgrLog2("==syncNodeMaybeAdvanceCommitIndex== pMatchIndex", pSyncNode->pMatchIndex);
 

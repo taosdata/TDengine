@@ -17,6 +17,7 @@
 #include "sync.h"
 #include "syncAppendEntries.h"
 #include "syncAppendEntriesReply.h"
+#include "syncCommit.h"
 #include "syncElection.h"
 #include "syncEnv.h"
 #include "syncIndexMgr.h"
@@ -740,7 +741,7 @@ static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg
     ths->pLogStore->appendEntry(ths->pLogStore, pEntry);
 
     // only myself, maybe commit
-    syncNodeMaybeAdvanceCommitIndex(ths);
+    syncMaybeAdvanceCommitIndex(ths);
 
     // start replicate right now!
     syncNodeReplicate(ths);
