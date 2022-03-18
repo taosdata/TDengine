@@ -50,18 +50,20 @@ void syncNodeMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
     SyncIndex beginIndex = SYNC_INDEX_INVALID;
     SyncIndex endIndex = SYNC_INDEX_INVALID;
     for (SyncIndex i = beginIndex; i <= endIndex; ++i) {
-      SSyncRaftEntry* pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, i);
-      assert(pEntry != NULL);
+      if (i != SYNC_INDEX_INVALID) {
+        SSyncRaftEntry* pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, i);
+        assert(pEntry != NULL);
 
-      SRpcMsg rpcMsg;
-      syncEntry2OriginalRpc(pEntry, &rpcMsg);
+        SRpcMsg rpcMsg;
+        syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
-      if (pSyncNode->pFsm->FpCommitCb != NULL) {
-        pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0);
+        if (pSyncNode->pFsm->FpCommitCb != NULL) {
+          pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0);
+        }
+
+        rpcFreeCont(rpcMsg.pCont);
+        syncEntryDestory(pEntry);
       }
-
-      rpcFreeCont(rpcMsg.pCont);
-      syncEntryDestory(pEntry);
     }
   }
 }
