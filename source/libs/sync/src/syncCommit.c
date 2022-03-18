@@ -17,6 +17,7 @@
 #include "syncIndexMgr.h"
 #include "syncInt.h"
 #include "syncRaftLog.h"
+#include "syncRaftStore.h"
 
 // \* Leader i advances its commitIndex.
 // \* This is done as a separate step from handling AppendEntries responses,
@@ -50,16 +51,30 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
   for (SyncIndex index = pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore); index > pSyncNode->commitIndex;
        ++index) {
     if (syncAgree(pSyncNode, index)) {
-      newCommitIndex = index;
-      break;
+      // term
+      SSyncRaftEntry* pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, index);
+      assert(pEntry != NULL);
+
+      // cannot commit, even if quorum agree. need check term!
+      if (pEntry->term == pSyncNode->pRaftStore->currentTerm) {
+        // update commit index
+        newCommitIndex = index;
+        break;
+      }
     }
   }
 
   if (newCommitIndex > pSyncNode->commitIndex) {
     SyncIndex beginIndex = pSyncNode->commitIndex + 1;
     SyncIndex endIndex = newCommitIndex;
+
+    // update commit index
     pSyncNode->commitIndex = newCommitIndex;
 
+    // call back Wal
+    pSyncNode->pLogStore->updateCommitIndex(pSyncNode->pLogStore, pSyncNode->commitIndex);
+
+    // execute fsm
     if (pSyncNode->pFsm != NULL) {
       for (SyncIndex i = beginIndex; i <= endIndex; ++i) {
         if (i != SYNC_INDEX_INVALID) {
