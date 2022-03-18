@@ -49,13 +49,9 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
   pPage->pData = ptr;
   pPage->pageSize = pageSize;
   if (pageSize < 65536) {
-    pPage->szOffset = 2;
-    pPage->szPageHdr = sizeof(SPageHdr);
-    pPage->szFreeCell = sizeof(SFreeCell);
+    pPage->pPageMethods = &pageMethods;
   } else {
-    pPage->szOffset = 3;
-    pPage->szPageHdr = sizeof(SPageHdrL);
-    pPage->szFreeCell = sizeof(SFreeCellL);
+    pPage->pPageMethods = &pageLargeMethods;
   }
   TDB_INIT_PAGE_LOCK(pPage);
 
@@ -249,6 +245,9 @@ static inline void setPageCellOffset(SPage *pPage, int idx, int offset) {
 }
 
 SPageMethods pageMethods = {
+    2,                  // szOffset
+    sizeof(SPageHdr),   // szPageHdr
+    sizeof(SFreeCell),  // szFreeCell
     getPageFlags,       // getPageFlags
     setPageFlags,       // setFlagsp
     getPageCellNum,     // getCellNum

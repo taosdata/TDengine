@@ -24,6 +24,9 @@ typedef u8 SCell;
 
 // PAGE APIS implemented
 typedef struct {
+  int szOffset;
+  int szPageHdr;
+  int szFreeCell;
   // flags
   u16 (*getFlags)(SPage *);
   void (*setFlags)(SPage *, u16);
@@ -56,26 +59,23 @@ struct SPage {
   pthread_spinlock_t lock;
   u8                *pData;
   int                pageSize;
-  u8                 szOffset;
-  u8                 szPageHdr;
-  u8                 szFreeCell;
+  SPageMethods      *pPageMethods;
   // Fields below used by pager and am
-  u8            szAmHdr;
-  u8           *pPageHdr;
-  u8           *pAmHdr;
-  u8           *pCellIdx;
-  u8           *pFreeStart;
-  u8           *pFreeEnd;
-  SPageFtr     *pPageFtr;
-  int           kLen;  // key length of the page, -1 for unknown
-  int           vLen;  // value length of the page, -1 for unknown
-  int           nFree;
-  int           maxLocal;
-  int           minLocal;
-  int           nOverflow;
-  SCell        *apOvfl[4];
-  int           aiOvfl[4];
-  SPageMethods *pPageMethods;
+  u8        szAmHdr;
+  u8       *pPageHdr;
+  u8       *pAmHdr;
+  u8       *pCellIdx;
+  u8       *pFreeStart;
+  u8       *pFreeEnd;
+  SPageFtr *pPageFtr;
+  int       kLen;  // key length of the page, -1 for unknown
+  int       vLen;  // value length of the page, -1 for unknown
+  int       nFree;
+  int       maxLocal;
+  int       minLocal;
+  int       nOverflow;
+  SCell    *apOvfl[4];
+  int       aiOvfl[4];
   // Fields used by SPCache
   TDB_PCACHE_PAGE
 };

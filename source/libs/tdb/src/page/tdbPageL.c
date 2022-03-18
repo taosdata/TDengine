@@ -67,16 +67,19 @@ static inline void setPageCellOffset(SPage *pPage, int idx, int offset) {
 }
 
 SPageMethods pageLargeMethods = {
-    getPageFlags,       // getPageFlags
-    setPageFlags,       // setFlagsp
-    getPageCellNum,     // getCellNum
-    setPageCellNum,     // setCellNum
-    getPageCellBody,    // getCellBody
-    setPageCellBody,    // setCellBody
-    getPageCellFree,    // getCellFree
-    setPageCellFree,    // setCellFree
-    getPageNFree,       // getFreeBytes
-    setPageNFree,       // setFreeBytes
-    getPageCellOffset,  // getCellOffset
-    setPageCellOffset   // setCellOffset
+    3,                   // szOffset
+    sizeof(SPageHdrL),   // szPageHdr
+    sizeof(SFreeCellL),  // szFreeCell
+    getPageFlags,        // getPageFlags
+    setPageFlags,        // setFlagsp
+    getPageCellNum,      // getCellNum
+    setPageCellNum,      // setCellNum
+    getPageCellBody,     // getCellBody
+    setPageCellBody,     // setCellBody
+    getPageCellFree,     // getCellFree
+    setPageCellFree,     // setCellFree
+    getPageNFree,        // getFreeBytes
+    setPageNFree,        // setFreeBytes
+    getPageCellOffset,   // getCellOffset
+    setPageCellOffset    // setCellOffset
 };
