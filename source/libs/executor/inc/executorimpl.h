@@ -440,8 +440,10 @@ typedef struct SSysTableScanInfo {
   tsem_t              ready;
 
   SNode*              pCondition; // db_name filter condition, to discard data that are not in current database
-  void               *pCur;  // cursor for iterate the local table meta store.
-  int32_t             type;  // show type, TODO remove it
+  void               *pCur;       // cursor for iterate the local table meta store.
+  SArray             *scanCols;   // SArray<int16_t> scan column id list
+
+  int32_t             type;       // show type, TODO remove it
   SName               name;
   SSDataBlock*        pRes;
   int32_t             capacity;
@@ -628,7 +630,7 @@ SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntim
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataBlock* pResBlock, const SName* pName, SNode* pCondition, SEpSet epset,
+SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataBlock* pResBlock, const SName* pName, SNode* pCondition, SEpSet epset, SArray* colList,
                                               SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream);

@@ -1221,9 +1221,9 @@ static void projectApplyFunctions(SSDataBlock* pResult, SqlFunctionCtx *pCtx, in
   for (int32_t k = 0; k < numOfOutput; ++k) {
     if (pCtx[k].fpSet.init == NULL) { // it is a project query
       SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, k);
-      memcpy(pColInfoData->pData, pCtx[k].input.pData[0]->pData, colDataGetLength(pColInfoData, pCtx[k].input.numOfRows));
+      colDataAssign(pColInfoData, pCtx[k].input.pData[0], pCtx[k].input.numOfRows);
     } else { // TODO: arithmetic and other process.
-
+      ASSERT(0);
     }
   }
 
@@ -4937,16 +4937,36 @@ static int32_t doSendFetchDataRequest(SExchangeInfo *pExchangeInfo, SExecTaskInf
   return TSDB_CODE_SUCCESS;
 }
 
+// TODO if only one or two columnss required, how to extract data?
 static int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadInfo, int32_t numOfRows, char* pData, int32_t compLen,
-    int32_t numOfOutput, int64_t startTs, uint64_t* total) {
+    int32_t numOfOutput, int64_t startTs, uint64_t* total, SArray* pColList) {
   blockDataEnsureCapacity(pRes, numOfRows);
 
-  for (int32_t i = 0; i < numOfOutput; ++i) {
-    SColumnInfoData* pColInfoData = taosArrayGet(pRes->pDataBlock, i);
+  if (pColList == NULL) {
+    for (int32_t i = 0; i < numOfOutput; ++i) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pRes->pDataBlock, i);
 
-    for(int32_t j = 0; j < numOfRows; ++j) {
-      colDataAppend(pColInfoData, j, pData, false);
-      pData += pColInfoData->info.bytes;
+      for (int32_t j = 0; j < numOfRows; ++j) {
+        colDataAppend(pColInfoData, j, pData, false);
+        pData += pColInfoData->info.bytes;
+      }
+    }
+  } else {  // extract data acording to pColList
+    ASSERT(numOfOutput == taosArrayGetSize(pColList));
+    for(int32_t i = 0; i < numOfOutput; ++i) {
+
+      for(int32_t j = 0; j < numOfOutput; ++j) {
+        int16_t colIndex = *(int16_t*) taosArrayGet(pColList, j);
+        if (colIndex - 1 == i) {
+          SColumnInfoData* pColInfoData = taosArrayGet(pRes->pDataBlock, j);
+
+          for (int32_t k = 0; k < numOfRows; ++k) {
+            colDataAppend(pColInfoData, k, pData, false);
+            pData += pColInfoData->info.bytes;
+          }
+          break;
+        }
+      }
     }
   }
 
@@ -5016,7 +5036,7 @@ static SSDataBlock* concurrentlyLoadRemoteDataImpl(SOperatorInfo *pOperator, SEx
 
       SRetrieveTableRsp* pTableRsp = pDataInfo->pRsp;
       code = setSDataBlockFromFetchRsp(pExchangeInfo->pResult, pLoadInfo, pTableRsp->numOfRows,
-                                       pTableRsp->data, pTableRsp->compLen, pOperator->numOfOutput, startTs, &pDataInfo->totalRows);
+                                       pTableRsp->data, pTableRsp->compLen, pOperator->numOfOutput, startTs, &pDataInfo->totalRows, NULL);
       if (code != 0) {
         goto _error;
       }
@@ -5118,7 +5138,7 @@ static SSDataBlock* seqLoadRemoteData(SOperatorInfo *pOperator) {
     SSDataBlock* pRes = pExchangeInfo->pResult;
     SRetrieveTableRsp* pTableRsp = pDataInfo->pRsp;
     int32_t code = setSDataBlockFromFetchRsp(pExchangeInfo->pResult, pLoadInfo, pTableRsp->numOfRows,
-                                             pTableRsp->data, pTableRsp->compLen, pOperator->numOfOutput, startTs, &pDataInfo->totalRows);
+                                             pTableRsp->data, pTableRsp->compLen, pOperator->numOfOutput, startTs, &pDataInfo->totalRows, NULL);
 
     if (pRsp->completed == 1) {
       qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " numOfRows:%d, rowsOfSource:%" PRIu64
@@ -5460,12 +5480,17 @@ static SSDataBlock* doSysTableScan(void* param, bool* newgroup) {
       pInfo->pCur = metaOpenTbCursor(pInfo->readHandle);
     }
 
+    blockDataClearup(pInfo->pRes, true);
+
     SColumnInfoData* pTableNameCol = taosArrayGet(pInfo->pRes->pDataBlock, 0);
 
     char *  name = NULL;
     int32_t numOfRows = 0;
+
+    char n[TSDB_TABLE_NAME_LEN] = {0};
     while ((name = metaTbCursorNext(pInfo->pCur)) != NULL) {
-      colDataAppend(pTableNameCol, numOfRows, name, false);
+      STR_TO_VARSTR(n, name);
+      colDataAppend(pTableNameCol, numOfRows, n, false);
       numOfRows += 1;
       if (numOfRows >= pInfo->capacity) {
         break;
@@ -5518,7 +5543,7 @@ static SSDataBlock* doSysTableScan(void* param, bool* newgroup) {
 
     SRetrieveMetaTableRsp* pTableRsp = pInfo->pRsp;
     setSDataBlockFromFetchRsp(pInfo->pRes, &pInfo->loadInfo, pTableRsp->numOfRows,
-                              pTableRsp->data, pTableRsp->compLen, pOperator->numOfOutput, startTs, NULL);
+                              pTableRsp->data, pTableRsp->compLen, pOperator->numOfOutput, startTs, NULL, pInfo->scanCols);
 
     return doFilterResult(pInfo);
   }
@@ -5527,7 +5552,7 @@ static SSDataBlock* doSysTableScan(void* param, bool* newgroup) {
 }
 
 SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataBlock* pResBlock, const SName* pName,
-                                              SNode* pCondition, SEpSet epset, SExecTaskInfo* pTaskInfo) {
+                                              SNode* pCondition, SEpSet epset, SArray* colList, SExecTaskInfo* pTaskInfo) {
   SSysTableScanInfo* pInfo = calloc(1, sizeof(SSysTableScanInfo));
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -5540,6 +5565,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
   pInfo->pRes       = pResBlock;
   pInfo->capacity   = 4096;
   pInfo->pCondition = pCondition;
+  pInfo->scanCols   = colList;
 
   // TODO remove it
   int32_t tableType = 0;
@@ -5582,9 +5608,31 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
   } else {
     tsem_init(&pInfo->ready, 0, 0);
     pInfo->epSet = epset;
-  }
 
-  pInfo->readHandle        = pSysTableReadHandle;
+#if 1
+    { // todo refactor
+      SRpcInit rpcInit;
+      memset(&rpcInit, 0, sizeof(rpcInit));
+      rpcInit.localPort = 0;
+      rpcInit.label = "DB-META";
+      rpcInit.numOfThreads = 1;
+      rpcInit.cfp = qProcessFetchRsp;
+      rpcInit.sessions = tsMaxConnections;
+      rpcInit.connType = TAOS_CONN_CLIENT;
+      rpcInit.user = (char *)"root";
+      rpcInit.idleTime = tsShellActivityTimer * 1000;
+      rpcInit.ckey = "key";
+      rpcInit.spi = 1;
+      rpcInit.secret = (char *)"dcc5bed04851fec854c035b2e40263b6";
+
+      pInfo->pTransporter = rpcOpen(&rpcInit);
+      if (pInfo->pTransporter == NULL) {
+        return NULL; // todo
+      }
+    }
+#endif
+  }
+  
   pOperator->name          = "SysTableScanOperator";
   pOperator->operatorType  = QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN;
   pOperator->blockingOptr  = false;
@@ -5594,29 +5642,6 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
   pOperator->nextDataFn    = doSysTableScan;
   pOperator->closeFn       = destroySysTableScannerOperatorInfo;
   pOperator->pTaskInfo     = pTaskInfo;
-
-#if 1
-  { // todo refactor
-    SRpcInit rpcInit;
-    memset(&rpcInit, 0, sizeof(rpcInit));
-    rpcInit.localPort = 0;
-    rpcInit.label = "DB-META";
-    rpcInit.numOfThreads = 1;
-    rpcInit.cfp = qProcessFetchRsp;
-    rpcInit.sessions = tsMaxConnections;
-    rpcInit.connType = TAOS_CONN_CLIENT;
-    rpcInit.user = (char *)"root";
-    rpcInit.idleTime = tsShellActivityTimer * 1000;
-    rpcInit.ckey = "key";
-    rpcInit.spi = 1;
-    rpcInit.secret = (char *)"dcc5bed04851fec854c035b2e40263b6";
-
-    pInfo->pTransporter = rpcOpen(&rpcInit);
-    if (pInfo->pTransporter == NULL) {
-      return NULL; // todo
-    }
-  }
-#endif
 
   return pOperator;
 }
@@ -6375,15 +6400,11 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
         pProjectInfo->existDataBlock = pBlock;
         break;
       } else { // init output buffer for a new group data
-//        for (int32_t j = 0; j < pOperator->numOfOutput; ++j) {
-//          aAggs[pInfo->pCtx[j].functionId].xFinalize(&pInfo->pCtx[j]);
-//        }
         initCtxOutputBuffer(pInfo->pCtx, pOperator->numOfOutput);
       }
     }
 
     // todo dynamic set tags
-
     //    STableQueryInfo* pTableQueryInfo = pRuntimeEnv->current;
     //    if (pTableQueryInfo != NULL) {
     //      setTagValue(pOperator, pTableQueryInfo->pTable, pInfo->pCtx, pOperator->numOfOutput);
@@ -6400,7 +6421,6 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
   }
 
   copyTsColoum(pRes, pInfo->pCtx, pOperator->numOfOutput);
-//  resetResultRowEntryResult(pInfo->pCtx, pOperator->numOfOutput);
   return (pInfo->pRes->info.rows > 0)? pInfo->pRes:NULL;
 }
 
@@ -8165,7 +8185,11 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhysiNode* pPhyNode, SExecTaskInfo* pTa
       SSystemTableScanPhysiNode * pSysScanPhyNode = (SSystemTableScanPhysiNode*)pPhyNode;
       SSDataBlock* pResBlock = createOutputBuf_rv1(pSysScanPhyNode->scan.node.pOutputDataBlockDesc);
 
-      SOperatorInfo* pOperator = createSysTableScanOperatorInfo(NULL, pResBlock, &pSysScanPhyNode->scan.tableName, pSysScanPhyNode->scan.node.pConditions, pSysScanPhyNode->mgmtEpSet, pTaskInfo);
+      struct SScanPhysiNode* pScanNode = &pSysScanPhyNode->scan;
+      SArray* colList = extractScanColumnId(pScanNode->pScanCols);
+
+      SOperatorInfo* pOperator = createSysTableScanOperatorInfo(pHandle->meta, pResBlock, &pScanNode->tableName,
+                                                                pScanNode->node.pConditions, pSysScanPhyNode->mgmtEpSet, colList, pTaskInfo);
       return pOperator;
     } else {
       ASSERT(0);

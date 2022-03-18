@@ -239,6 +239,56 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, co
   return numOfRow1 + numOfRow2;
 }
 
+int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* pSource, int32_t numOfRows) {
+  ASSERT(pColumnInfoData != NULL && pSource != NULL && pColumnInfoData->info.type == pSource->info.type);
+  if (numOfRows == 0) {
+    return numOfRows;
+  }
+
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    // Handle the bitmap
+    char* p = realloc(pColumnInfoData->varmeta.offset, sizeof(int32_t) * numOfRows);
+    if (p == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    pColumnInfoData->varmeta.offset = (int32_t*) p;
+    memcpy(pColumnInfoData->varmeta.offset, pSource->varmeta.offset, sizeof(int32_t) * numOfRows);
+
+    if (pColumnInfoData->varmeta.allocLen < pSource->varmeta.length) {
+      char* tmp = realloc(pColumnInfoData->pData, pSource->varmeta.length);
+      if (tmp == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+
+      pColumnInfoData->pData = tmp;
+      pColumnInfoData->varmeta.allocLen = pSource->varmeta.length;
+    }
+
+    memcpy(pColumnInfoData->pData, pSource->pData, pSource->varmeta.length);
+    pColumnInfoData->varmeta.length = pSource->varmeta.length;
+  } else {
+    char* tmp = realloc(pColumnInfoData->nullbitmap, BitmapLen(numOfRows));
+    if (tmp == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    pColumnInfoData->nullbitmap = tmp;
+    memcpy(pColumnInfoData->nullbitmap, pSource->nullbitmap, BitmapLen(numOfRows));
+
+    int32_t newSize = numOfRows * pColumnInfoData->info.bytes;
+    tmp = realloc(pColumnInfoData->pData, newSize);
+    if (tmp == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    pColumnInfoData->pData = tmp;
+    memcpy(pColumnInfoData->pData, pSource->pData, pSource->info.bytes * numOfRows);
+  }
+
+  return 0;
+}
+
 size_t blockDataGetNumOfCols(const SSDataBlock* pBlock) {
   ASSERT(pBlock);
 

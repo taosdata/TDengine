@@ -1447,8 +1447,8 @@ static void dumpDbInfoToPayload(char* data, SDbObj* pDb, SShowObj* pShow, int32_
   STR_WITH_SIZE_TO_VARSTR(pWrite, prec, 2);
   cols++;
 
-  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
-  *(int8_t *)pWrite = pDb->cfg.update;
+//  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+//  *(int8_t *)pWrite = pDb->cfg.update;
 }
 
 static void setInformationSchemaDbCfg(SDbObj* pDbObj) {
