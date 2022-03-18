@@ -24,6 +24,9 @@
 #include "iconv.h"
 #endif
 
+extern int wcwidth(wchar_t c);
+extern int wcswidth(const wchar_t *s, size_t n);
+
 int64_t taosStr2int64(const char *str) {
   char *endptr = NULL;
   return strtoll(str, &endptr, 10);
@@ -70,6 +73,11 @@ int32_t tasoUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes) {
   free(f2_mbs);
   return ret;
 #endif
+}
+
+
+TdUcs4* tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4) {
+  memcpy(target_ucs4, source_ucs4, len_ucs4*sizeof(TdUcs4));
 }
 
 int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
@@ -144,6 +152,18 @@ int32_t taosUcs4len(TdUcs4 *ucs4) {
 
   return n;
 }
+
+int32_t taosWcharWidth(TdWchar wchar) { return wcwidth(wchar); }
+
+int32_t taosWcharsWidth(TdWchar *pWchar, int32_t size) { return wcswidth(pWchar, size); }
+
+int32_t taosMbToWchar(TdWchar *pWchar, const char *pStr, int32_t size) { return mbtowc(pWchar, pStr, size); }
+
+int32_t taosMbsToWchars(TdWchar *pWchars, const char *pStrs, int32_t size) { return mbstowcs(pWchars, pStrs, size); }
+
+int32_t taosWcharToMb(char *pStr, TdWchar wchar) { return wctomb(pStr, wchar); }
+
+int32_t taosWcharsToMbs(char *pStrs, TdWchar *pWchars, int32_t size) { return wcstombs(pStrs, pWchars, size); }
 
 // #ifdef USE_LIBICONV
 // #include "iconv.h"
