@@ -199,6 +199,16 @@ void tfsBasename(const STfsFile *pFile, char *dest);
 void tfsDirname(const STfsFile *pFile, char *dest);
 
 /**
+ * @brief Get the absolute file name of rname.
+ *
+ * @param pTfs
+ * @param diskId
+ * @param rname relative file name
+ * @param aname absolute file name
+ */
+void tfsAbsoluteName(STfs *pTfs, SDiskID diskId, const char *rname, char *aname);
+
+/**
  * @brief Remove file in tfs.
  *
  * @param pFile The file to be removed.

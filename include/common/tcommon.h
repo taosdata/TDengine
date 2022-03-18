@@ -62,18 +62,17 @@ typedef struct SDataBlockInfo {
   union {int64_t uid; int64_t blockId;};
 } SDataBlockInfo;
 
-typedef struct SConstantItem {
-  SColumnInfo info;
-  int32_t     startRow;  // run-length-encoding to save the space for multiple rows
-  int32_t     endRow;
-  SVariant    value;
-} SConstantItem;
+//typedef struct SConstantItem {
+//  SColumnInfo info;
+//  int32_t     startRow;  // run-length-encoding to save the space for multiple rows
+//  int32_t     endRow;
+//  SVariant    value;
+//} SConstantItem;
 
 // info.numOfCols = taosArrayGetSize(pDataBlock) + taosArrayGetSize(pConstantList);
 typedef struct SSDataBlock {
   SColumnDataAgg *pBlockAgg;
   SArray         *pDataBlock;    // SArray<SColumnInfoData>
-  SArray         *pConstantList; // SArray<SConstantItem>, it is a constant/tags value of the corresponding result value.
   SDataBlockInfo  info;
 } SSDataBlock;
 
@@ -95,66 +94,15 @@ typedef struct SColumnInfoData {
   };
 } SColumnInfoData;
 
-static FORCE_INLINE int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock) {
-  int64_t tbUid = pBlock->info.uid;
-  int16_t numOfCols = pBlock->info.numOfCols;
-  int16_t hasVarCol = pBlock->info.hasVarCol;
-  int32_t rows = pBlock->info.rows;
-  int32_t sz = taosArrayGetSize(pBlock->pDataBlock);
-
-  int32_t tlen = 0;
-  tlen += taosEncodeFixedI64(buf, tbUid);
-  tlen += taosEncodeFixedI16(buf, numOfCols);
-  tlen += taosEncodeFixedI16(buf, hasVarCol);
-  tlen += taosEncodeFixedI32(buf, rows);
-  tlen += taosEncodeFixedI32(buf, sz);
-  for (int32_t i = 0; i < sz; i++) {
-    SColumnInfoData* pColData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
-    tlen += taosEncodeFixedI16(buf, pColData->info.colId);
-    tlen += taosEncodeFixedI16(buf, pColData->info.type);
-    tlen += taosEncodeFixedI32(buf, pColData->info.bytes);
-    int32_t colSz = rows * pColData->info.bytes;
-    tlen += taosEncodeBinary(buf, pColData->pData, colSz);
-  }
-  return tlen;
-}
-
-static FORCE_INLINE void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
-  int32_t sz;
-
-  buf = taosDecodeFixedI64(buf, &pBlock->info.uid);
-  buf = taosDecodeFixedI16(buf, &pBlock->info.numOfCols);
-  buf = taosDecodeFixedI16(buf, &pBlock->info.hasVarCol);
-  buf = taosDecodeFixedI32(buf, &pBlock->info.rows);
-  buf = taosDecodeFixedI32(buf, &sz);
-  pBlock->pDataBlock = taosArrayInit(sz, sizeof(SColumnInfoData));
-  for (int32_t i = 0; i < sz; i++) {
-    SColumnInfoData data = {0};
-    buf = taosDecodeFixedI16(buf, &data.info.colId);
-    buf = taosDecodeFixedI16(buf, &data.info.type);
-    buf = taosDecodeFixedI32(buf, &data.info.bytes);
-    int32_t colSz = pBlock->info.rows * data.info.bytes;
-    buf = taosDecodeBinary(buf, (void**)&data.pData, colSz);
-    taosArrayPush(pBlock->pDataBlock, &data);
-  }
-  return (void*)buf;
-}
+void*   blockDataDestroy(SSDataBlock* pBlock);
+int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);
+void*   tDecodeDataBlock(const void* buf, SSDataBlock* pBlock);
 
 static FORCE_INLINE void tDeleteSSDataBlock(SSDataBlock* pBlock) {
   if (pBlock == NULL) {
     return;
   }
-
-  // int32_t numOfOutput = pBlock->info.numOfCols;
-  int32_t sz = taosArrayGetSize(pBlock->pDataBlock);
-  for (int32_t i = 0; i < sz; ++i) {
-    SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
-    tfree(pColInfoData->pData);
-  }
-
-  taosArrayDestroy(pBlock->pDataBlock);
-  tfree(pBlock->pBlockAgg);
-  // tfree(pBlock);
+  blockDataDestroy(pBlock);
 }
 
 static FORCE_INLINE int32_t tEncodeSMqPollRsp(void** buf, const SMqPollRsp* pRsp) {

@@ -301,8 +301,14 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
       break;
   }
 
+  SDiskCfg pDisks = {.level = 0, .primary = 1};
+  strncpy(pDisks.dir, "/var/lib/taos", TSDB_FILENAME_LEN);
+  int32_t numOfDisks = 1;
+  tsdb.pTfs = tfsOpen(&pDisks, numOfDisks);
+  ASSERT_NE(tsdb.pTfs, nullptr);
+
   char *msg = (char *)calloc(1, 100);
-  assert(msg != NULL);
+  ASSERT_NE(msg, nullptr);
   ASSERT_EQ(tsdbUpdateSmaWindow(&tsdb, TSDB_SMA_TYPE_TIME_RANGE, msg), 0);
 
   // init

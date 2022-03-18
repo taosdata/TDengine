@@ -27,7 +27,7 @@ static struct {
 } dmn = {0};
 
 static void dmnSigintHandle(int signum, void *info, void *ctx) {
-  uInfo("singal:%d is received", signum);
+  uInfo("signal:%d is received", signum);
   dmn.stop = true;
 }
 
