@@ -23,10 +23,11 @@
 #include "dndTransport.h"
 #include "dndMgmt.h"
 #include "dndMnode.h"
+#include "dndSnode.h"
 #include "dndVnodes.h"
 
-#define INTERNAL_USER "_dnd"
-#define INTERNAL_CKEY "_key"
+#define INTERNAL_USER   "_dnd"
+#define INTERNAL_CKEY   "_key"
 #define INTERNAL_SECRET "_pwd"
 
 static void dndInitMsgFp(STransMgmt *pMgmt) {
@@ -153,10 +154,14 @@ static void dndInitMsgFp(STransMgmt *pMgmt) {
   pMgmt->msgFp[TMSG_INDEX(TDMT_VND_MQ_SET_CUR)] = dndProcessVnodeFetchMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_VND_CONSUME)] = dndProcessVnodeFetchMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_VND_QUERY_HEARTBEAT)] = dndProcessVnodeFetchMsg;
+
+  // Requests handled by SNODE
+  pMgmt->msgFp[TMSG_INDEX(TDMT_SND_TASK_DEPLOY)] = dndProcessSnodeMgmtMsg;
+  pMgmt->msgFp[TMSG_INDEX(TDMT_SND_TASK_EXEC)] = dndProcessSnodeExecMsg;
 }
 
 static void dndProcessResponse(void *parent, SRpcMsg *pRsp, SEpSet *pEpSet) {
-  SDnode *    pDnode = parent;
+  SDnode     *pDnode = parent;
   STransMgmt *pMgmt = &pDnode->tmgmt;
 
   tmsg_t msgType = pRsp->msgType;
@@ -219,7 +224,7 @@ static void dndCleanupClient(SDnode *pDnode) {
 }
 
 static void dndProcessRequest(void *param, SRpcMsg *pReq, SEpSet *pEpSet) {
-  SDnode *    pDnode = param;
+  SDnode     *pDnode = param;
   STransMgmt *pMgmt = &pDnode->tmgmt;
 
   tmsg_t msgType = pReq->msgType;
@@ -313,7 +318,7 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
   SAuthReq authReq = {0};
   tstrncpy(authReq.user, user, TSDB_USER_LEN);
   int32_t contLen = tSerializeSAuthReq(NULL, 0, &authReq);
-  void *  pReq = rpcMallocCont(contLen);
+  void   *pReq = rpcMallocCont(contLen);
   tSerializeSAuthReq(pReq, contLen, &authReq);
 
   SRpcMsg rpcMsg = {.pCont = pReq, .contLen = contLen, .msgType = TDMT_MND_AUTH, .ahandle = (void *)9528};

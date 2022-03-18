@@ -25,6 +25,8 @@
     #define epoll_create EPOLL_CREATE_FUNC_TAOS_FORBID
     #define epoll_ctl EPOLL_CTL_FUNC_TAOS_FORBID
     #define epoll_wait EPOLL_WAIT_FUNC_TAOS_FORBID
+    #define inet_addr INET_ADDR_FUNC_TAOS_FORBID
+    #define inet_ntoa INET_NTOA_FUNC_TAOS_FORBID
 #endif
 
 #if defined(WINDOWS)

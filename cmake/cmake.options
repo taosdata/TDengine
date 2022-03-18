@@ -18,6 +18,13 @@ IF(${TD_WINDOWS})
             ON
           )
 
+    MESSAGE("build iconv Win32")
+    option(
+            BUILD_WITH_ICONV
+            "If build iconv on Windows"
+            ON
+          )
+
 ENDIF ()
 
 IF(${TD_LINUX} MATCHES TRUE)

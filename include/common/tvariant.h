@@ -31,7 +31,7 @@ typedef struct SVariant {
     uint64_t u;
     double   d;
     char    *pz;
-    wchar_t *wpz;
+    TdUcs4  *ucs4;
     SArray  *arr;  // only for 'in' query to hold value list, not value for a field
   };
 } SVariant;

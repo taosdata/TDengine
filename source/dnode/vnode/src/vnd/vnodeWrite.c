@@ -41,7 +41,7 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
   return 0;
 }
 
-int  vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   void *ptr = NULL;
 
   if (pVnode->config.streamMode == 0) {
@@ -63,7 +63,7 @@ int  vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
   switch (pMsg->msgType) {
     case TDMT_VND_CREATE_STB: {
-      SVCreateTbReq      vCreateTbReq = {0};
+      SVCreateTbReq vCreateTbReq = {0};
       tDeserializeSVCreateTbReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbReq);
       if (metaCreateTable(pVnode->pMeta, &(vCreateTbReq)) < 0) {
         // TODO: handle error
@@ -100,7 +100,7 @@ int  vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       break;
     }
     case TDMT_VND_ALTER_STB: {
-      SVCreateTbReq      vAlterTbReq = {0};
+      SVCreateTbReq vAlterTbReq = {0};
       vTrace("vgId:%d, process alter stb req", pVnode->vgId);
       tDeserializeSVCreateTbReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vAlterTbReq);
       free(vAlterTbReq.stbCfg.pSchema);
@@ -132,12 +132,20 @@ int  vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       if (tqProcessRebReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
       }
     } break;
+    case TDMT_VND_TASK_DEPLOY: {
+      if (tqProcessTaskDeploy(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
+                              pMsg->contLen - sizeof(SMsgHead)) < 0) {
+      }
+    } break;
     case TDMT_VND_CREATE_SMA: {  // timeRangeSMA
       SSmaCfg vCreateSmaReq = {0};
       if (tDeserializeSVCreateTSmaReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateSmaReq) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         return -1;
       }
+
+      // record current timezone of server side
+      tstrncpy(vCreateSmaReq.tSma.timezone, tsTimezone, TD_TIMEZONE_LEN);
 
       if (metaCreateTSma(pVnode->pMeta, &vCreateSmaReq) < 0) {
         // TODO: handle error

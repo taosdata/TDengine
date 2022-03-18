@@ -197,6 +197,11 @@ typedef struct {
   };
 } SMsgHead;
 
+typedef struct {
+  int32_t workerType;
+  int32_t streamTaskId;
+} SStreamExecMsgHead;
+
 // Submit message for one table
 typedef struct SSubmitBlk {
   int64_t uid;        // table unique id
@@ -419,7 +424,7 @@ typedef struct {
   };
 } SColumnFilterList;
 /*
- * for client side struct, we only need the column id, type, bytes are not necessary
+ * for client side struct, only column id, type, bytes are necessary
  * But for data in vnode side, we need all the following information.
  */
 typedef struct {
@@ -1891,9 +1896,9 @@ static FORCE_INLINE void* tDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) 
   return buf;
 }
 typedef struct {
-  int8_t   version;  // for compatibility(default 0)
-  int8_t   intervalUnit; // MACRO: TIME_UNIT_XXX
-  int8_t   slidingUnit; // MACRO: TIME_UNIT_XXX
+  int8_t   version;       // for compatibility(default 0)
+  int8_t   intervalUnit;  // MACRO: TIME_UNIT_XXX
+  int8_t   slidingUnit;   // MACRO: TIME_UNIT_XXX
   char     indexName[TSDB_INDEX_NAME_LEN];
   char     timezone[TD_TIMEZONE_LEN];  // sma data expired if timezone changes.
   int32_t  exprLen;
@@ -1901,7 +1906,7 @@ typedef struct {
   int64_t  indexUid;
   tb_uid_t tableUid;  // super/child/common table uid
   int64_t  interval;
-  int64_t  offset; // use unit by precision of DB
+  int64_t  offset;  // use unit by precision of DB
   int64_t  sliding;
   char*    expr;  // sma expression
   char*    tagsFilter;
@@ -2047,27 +2052,19 @@ static FORCE_INLINE void* tDecodeTSma(void* buf, STSma* pSma) {
   buf = taosDecodeFixedI64(buf, &pSma->sliding);
 
   if (pSma->exprLen > 0) {
-    pSma->expr = (char*)calloc(pSma->exprLen, 1);
-    if (pSma->expr != NULL) {
-      buf = taosDecodeStringTo(buf, pSma->expr);
-    } else {
+    if ((buf = taosDecodeString(buf, &pSma->expr)) == NULL) {
       tdDestroyTSma(pSma);
       return NULL;
     }
-
   } else {
     pSma->expr = NULL;
   }
 
   if (pSma->tagsFilterLen > 0) {
-    pSma->tagsFilter = (char*)calloc(pSma->tagsFilterLen, 1);
-    if (pSma->tagsFilter != NULL) {
-      buf = taosDecodeStringTo(buf, pSma->tagsFilter);
-    } else {
+    if ((buf = taosDecodeString(buf, &pSma->tagsFilter)) == NULL) {
       tdDestroyTSma(pSma);
       return NULL;
     }
-
   } else {
     pSma->tagsFilter = NULL;
   }
@@ -2158,13 +2155,36 @@ typedef struct {
   SArray* topics;  // SArray<SMqSubTopicEp>
 } SMqCMGetSubEpRsp;
 
-struct tmq_message_t {
+typedef struct {
   SMqRspHead head;
   union {
     SMqPollRsp       consumeRsp;
     SMqCMGetSubEpRsp getEpRsp;
   };
   void* extra;
+} SMqMsgWrapper;
+
+typedef struct {
+  int32_t curBlock;
+  int32_t curRow;
+  void**  uData;
+} SMqRowIter;
+
+struct tmq_message_t_v1 {
+  SMqPollRsp rsp;
+  SMqRowIter iter;
+};
+
+struct tmq_message_t {
+  SMqRspHead head;
+  union {
+    SMqPollRsp       consumeRsp;
+    SMqCMGetSubEpRsp getEpRsp;
+  };
+  void*   extra;
+  int32_t curBlock;
+  int32_t curRow;
+  void**  uData;
 };
 
 static FORCE_INLINE void tDeleteSMqSubTopicEp(SMqSubTopicEp* pSubTopicEp) { taosArrayDestroy(pSubTopicEp->vgs); }
@@ -2287,7 +2307,7 @@ typedef struct {
 } SStreamTaskDeployRsp;
 
 typedef struct {
-  SMsgHead head;
+  SStreamExecMsgHead head;
   // TODO: other info needed by task
 } SStreamTaskExecReq;
 

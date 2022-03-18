@@ -49,7 +49,7 @@ TEST(testCase, tSma_Meta_Encode_Decode_Test) {
   STSmaWrapper tSmaWrapper = {.number = 1, .tSma = &tSma};
   uint32_t     bufLen = tEncodeTSmaWrapper(NULL, &tSmaWrapper);
 
-  void *buf = calloc(bufLen, 1);
+  void *buf = calloc(1, bufLen);
   ASSERT_NE(buf, nullptr);
 
   STSmaWrapper *pSW = (STSmaWrapper *)buf;
@@ -84,6 +84,7 @@ TEST(testCase, tSma_Meta_Encode_Decode_Test) {
   }
 
   // resource release
+  tfree(pSW);
   tdDestroyTSma(&tSma);
   tdDestroyTSmaWrapper(&dstTSmaWrapper);
 }
@@ -113,7 +114,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   tSma.tableUid = tbUid;
 
   tSma.exprLen = strlen(expr);
-  tSma.expr = (char *)calloc(tSma.exprLen + 1, 1);
+  tSma.expr = (char *)calloc(1, tSma.exprLen + 1);
   ASSERT_NE(tSma.expr, nullptr);
   tstrncpy(tSma.expr, expr, tSma.exprLen + 1);
 
@@ -251,12 +252,12 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   tSma.tableUid = tbUid;
 
   tSma.exprLen = strlen(expr);
-  tSma.expr = (char *)calloc(tSma.exprLen + 1, 1);
+  tSma.expr = (char *)calloc(1, tSma.exprLen + 1);
   ASSERT_NE(tSma.expr, nullptr);
   tstrncpy(tSma.expr, expr, tSma.exprLen + 1);
 
   tSma.tagsFilterLen = strlen(tagsFilter);
-  tSma.tagsFilter = (char *)calloc(tSma.tagsFilterLen + 1, 1);
+  tSma.tagsFilter = (char *)calloc(1, tSma.tagsFilterLen + 1);
   ASSERT_NE(tSma.tagsFilter, nullptr);
   tstrncpy(tSma.tagsFilter, tagsFilter, tSma.tagsFilterLen + 1);
 
@@ -273,20 +274,20 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
 
   // step 2: insert data
   STSmaDataWrapper *pSmaData = NULL;
-  STsdb             tsdb = {0};
-  STsdbCfg *        pCfg = &tsdb.config;
+  STsdb *           pTsdb = (STsdb *)calloc(1, sizeof(STsdb));
+  STsdbCfg *        pCfg = &pTsdb->config;
 
-  tsdb.pMeta = pMeta;
-  tsdb.vgId = 2;
-  tsdb.config.daysPerFile = 10;  // default days is 10
-  tsdb.config.keep1 = 30;
-  tsdb.config.keep2 = 90;
-  tsdb.config.keep = 365;
-  tsdb.config.precision = TSDB_TIME_PRECISION_MILLI;
-  tsdb.config.update = TD_ROW_OVERWRITE_UPDATE;
-  tsdb.config.compression = TWO_STAGE_COMP;
+  pTsdb->pMeta = pMeta;
+  pTsdb->vgId = 2;
+  pTsdb->config.daysPerFile = 10;  // default days is 10
+  pTsdb->config.keep1 = 30;
+  pTsdb->config.keep2 = 90;
+  pTsdb->config.keep = 365;
+  pTsdb->config.precision = TSDB_TIME_PRECISION_MILLI;
+  pTsdb->config.update = TD_ROW_OVERWRITE_UPDATE;
+  pTsdb->config.compression = TWO_STAGE_COMP;
 
-  switch (tsdb.config.precision) {
+  switch (pTsdb->config.precision) {
     case TSDB_TIME_PRECISION_MILLI:
       skey1 *= 1e3;
       break;
@@ -301,9 +302,15 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
       break;
   }
 
-  char *msg = (char *)calloc(100, 1);
-  assert(msg != NULL);
-  ASSERT_EQ(tsdbUpdateSmaWindow(&tsdb, TSDB_SMA_TYPE_TIME_RANGE, msg), 0);
+  SDiskCfg pDisks = {.level = 0, .primary = 1};
+  strncpy(pDisks.dir, "/var/lib/taos", TSDB_FILENAME_LEN);
+  int32_t numOfDisks = 1;
+  pTsdb->pTfs = tfsOpen(&pDisks, numOfDisks);
+  ASSERT_NE(pTsdb->pTfs, nullptr);
+
+  char *msg = (char *)calloc(1, 100);
+  ASSERT_NE(msg, nullptr);
+  ASSERT_EQ(tsdbUpdateSmaWindow(pTsdb, TSDB_SMA_TYPE_TIME_RANGE, msg), 0);
 
   // init
   int32_t allocCnt = 0;
@@ -361,13 +368,13 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   ASSERT_GE(bufSize, pSmaData->dataLen);
 
   // execute
-  ASSERT_EQ(tsdbInsertTSmaData(&tsdb, (char *)pSmaData), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tsdbInsertTSmaData(pTsdb, (char *)pSmaData), TSDB_CODE_SUCCESS);
 
   // step 3: query
   uint32_t checkDataCnt = 0;
   for (int32_t t = 0; t < numOfTables; ++t) {
     for (col_id_t c = 0; c < numOfCols; ++c) {
-      ASSERT_EQ(tsdbGetTSmaData(&tsdb, NULL, indexUid1, interval1, intervalUnit1, tbUid + t,
+      ASSERT_EQ(tsdbGetTSmaData(pTsdb, NULL, indexUid1, interval1, intervalUnit1, tbUid + t,
                                 c + PRIMARYKEY_TIMESTAMP_COL_ID, skey1, 1),
                 TSDB_CODE_SUCCESS);
       ++checkDataCnt;
@@ -377,9 +384,12 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   printf("%s:%d The sma data check count for insert and query is %" PRIu32 "\n", __FILE__, __LINE__, checkDataCnt);
 
   // release data
+  tfree(msg);
   taosTZfree(buf);
   // release meta
   tdDestroyTSma(&tSma);
+  tfsClose(pTsdb->pTfs);
+  tsdbClose(pTsdb);
   metaClose(pMeta);
 }
 #endif
