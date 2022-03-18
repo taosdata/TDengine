@@ -119,7 +119,7 @@ SRpcMsg *step0(int i) {
   SRpcMsg *pMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg));
   memset(pMsg, 0, sizeof(SRpcMsg));
   pMsg->msgType = 9999;
-  pMsg->contLen = 32;
+  pMsg->contLen = 128;
   pMsg->pCont = malloc(pMsg->contLen);
   snprintf((char *)(pMsg->pCont), pMsg->contLen, "value-%u-%d", ports[myIndex], i);
   return pMsg;
@@ -172,14 +172,14 @@ int main(int argc, char **argv) {
     gSyncNode->FpEqMsg(gSyncNode->queue, &rpcMsg);
 
     taosMsleep(1000);
-    sTrace("replicate sleep, state: %d, %s, electTimerLogicClock:%lu, electTimerLogicClockUser:%lu, electTimerMS:%d",
-           gSyncNode->state, syncUtilState2String(gSyncNode->state), gSyncNode->electTimerLogicClock,
+    sTrace("replicate sleep, state: %d, %s, term:%lu electTimerLogicClock:%lu, electTimerLogicClockUser:%lu, electTimerMS:%d",
+           gSyncNode->state, syncUtilState2String(gSyncNode->state), gSyncNode->pRaftStore->currentTerm, gSyncNode->electTimerLogicClock,
            gSyncNode->electTimerLogicClockUser, gSyncNode->electTimerMS);
   }
 
   while (1) {
-    sTrace("while 1 sleep, state: %d, %s, electTimerLogicClock:%lu, electTimerLogicClockUser:%lu, electTimerMS:%d",
-           gSyncNode->state, syncUtilState2String(gSyncNode->state), gSyncNode->electTimerLogicClock,
+    sTrace("replicate sleep, state: %d, %s, term:%lu electTimerLogicClock:%lu, electTimerLogicClockUser:%lu, electTimerMS:%d",
+           gSyncNode->state, syncUtilState2String(gSyncNode->state), gSyncNode->pRaftStore->currentTerm, gSyncNode->electTimerLogicClock,
            gSyncNode->electTimerLogicClockUser, gSyncNode->electTimerMS);
     taosMsleep(1000);
   }

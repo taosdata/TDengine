@@ -87,7 +87,10 @@
 //
 int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
   int32_t ret = 0;
-  syncAppendEntriesLog2("==syncNodeOnAppendEntriesCb==", pMsg);
+
+  char logBuf[128];
+  snprintf(logBuf, sizeof(logBuf), "==syncNodeOnAppendEntriesCb== term:%lu", ths->pRaftStore->currentTerm);
+  syncAppendEntriesLog2(logBuf, pMsg);
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
     syncNodeUpdateTerm(ths, pMsg->term);
