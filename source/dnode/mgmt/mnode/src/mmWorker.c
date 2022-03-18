@@ -18,27 +18,22 @@
 
 static void mmProcessQueue(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   dTrace("msg:%p, will be processed in mnode queue", pMsg);
-  SMnode  *pMnode = mmAcquire(pMgmt);
   SRpcMsg *pRpc = &pMsg->rpcMsg;
-  bool     isReq = (pRpc->msgType & 1U);
   int32_t  code = -1;
 
-  if (pMnode != NULL) {
-    pMsg->pNode = pMnode;
+  if (pMsg->rpcMsg.msgType != TDMT_DND_ALTER_MNODE) {
+    pMsg->pNode = pMgmt->pMnode;
     code = mndProcessMsg(pMsg);
-    mmRelease(pMgmt, pMnode);
+  } else {
+    code = mmProcessAlterReq(pMgmt, pMsg);
   }
 
-  if (isReq) {
-    if (pMsg->rpcMsg.handle == NULL) return;
-    if (code == 0) {
+  if (pRpc->msgType & 1U) {
+    if (pRpc->handle == NULL) return;
+    if (code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+      if (code != 0) code = terrno;
       SRpcMsg rsp = {.handle = pRpc->handle, .contLen = pMsg->rspLen, .pCont = pMsg->pRsp};
       dndSendRsp(pMgmt->pWrapper, &rsp);
-    } else {
-      if (terrno != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-        SRpcMsg rsp = {.handle = pRpc->handle, .contLen = pMsg->rspLen, .pCont = pMsg->pRsp, .code = terrno};
-        dndSendRsp(pMgmt->pWrapper, &rsp);
-      }
     }
   }
 
@@ -67,27 +62,14 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
 }
 
 void mmStopWorker(SMnodeMgmt *pMgmt) {
-  taosWLockLatch(&pMgmt->latch);
-  pMgmt->deployed = 0;
-  taosWUnLockLatch(&pMgmt->latch);
-
-  while (pMgmt->refCount > 1) {
-    taosMsleep(10);
-  }
-
   dndCleanupWorker(&pMgmt->readWorker);
   dndCleanupWorker(&pMgmt->writeWorker);
   dndCleanupWorker(&pMgmt->syncWorker);
 }
 
 static int32_t mmPutMsgToWorker(SMnodeMgmt *pMgmt, SDnodeWorker *pWorker, SNodeMsg *pMsg) {
-  SMnode *pMnode = mmAcquire(pMgmt);
-  if (pMnode == NULL) return -1;
-
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
-  int32_t code = dndWriteMsgToWorker(pWorker, pMsg);
-  mmRelease(pMgmt, pMnode);
-  return code;
+  return dndWriteMsgToWorker(pWorker, pMsg);
 }
 
 int32_t mmProcessWriteMsg(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {

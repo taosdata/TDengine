@@ -16,138 +16,35 @@
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
 
-SMnode *mmAcquire(SMnodeMgmt *pMgmt) {
-  SMnode *pMnode = NULL;
-  int32_t refCount = 0;
-
-  taosRLockLatch(&pMgmt->latch);
-  if (pMgmt->deployed && !pMgmt->dropped) {
-    refCount = atomic_add_fetch_32(&pMgmt->refCount, 1);
-    pMnode = pMgmt->pMnode;
-  } else {
-    terrno = TSDB_CODE_DND_MNODE_NOT_DEPLOYED;
-  }
-  taosRUnLockLatch(&pMgmt->latch);
-
-  if (pMnode != NULL) {
-    dTrace("acquire mnode, refCount:%d", refCount);
-  }
-  return pMnode;
+static bool mmDeployRequired(SDnode *pDnode) {
+  if (pDnode->dnodeId > 0) return false;
+  if (pDnode->clusterId > 0) return false;
+  if (strcmp(pDnode->localEp, pDnode->firstEp) != 0) return false;
+  return true;
 }
 
-void mmRelease(SMnodeMgmt *pMgmt, SMnode *pMnode) {
-  if (pMnode == NULL) return;
-
-  taosRLockLatch(&pMgmt->latch);
-  int32_t refCount = atomic_sub_fetch_32(&pMgmt->refCount, 1);
-  taosRUnLockLatch(&pMgmt->latch);
-  dTrace("release mnode, refCount:%d", refCount);
-}
-
-int32_t mmOpen(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
-  SMnode *pMnode = mmAcquire(pMgmt);
-  if (pMnode != NULL) {
-    mmRelease(pMgmt, pMnode);
-    terrno = TSDB_CODE_DND_MNODE_ALREADY_DEPLOYED;
-    dError("failed to create mnode since %s", terrstr());
+static int32_t mmRequire(SMgmtWrapper *pWrapper, bool *required) {
+  SMnodeMgmt mgmt = {0};
+  mgmt.path = pWrapper->path;
+  if (mmReadFile(&mgmt, required) != 0) {
     return -1;
   }
 
-  if (walInit() != 0) {
-    dError("failed to init wal since %s", terrstr());
-    mndDestroy(pMgmt->path);
-    return -1;
+  if (!(*required)) {
+    *required = mmDeployRequired(pWrapper->pDnode);
   }
-
-  pMnode = mndOpen(pMgmt->path, pOption);
-  if (pMnode == NULL) {
-    dError("failed to open mnode since %s", terrstr());
-    return -1;
-  }
-
-  if (mmStartWorker(pMgmt) != 0) {
-    dError("failed to start mnode worker since %s", terrstr());
-    mndClose(pMnode);
-    mndDestroy(pMgmt->path);
-    return -1;
-  }
-
-  pMgmt->deployed = 1;
-  if (mmWriteFile(pMgmt) != 0) {
-    dError("failed to write mnode file since %s", terrstr());
-    pMgmt->deployed = 0;
-    mmStopWorker(pMgmt);
-    mndClose(pMnode);
-    mndDestroy(pMgmt->path);
-    return -1;
-  }
-
-  taosWLockLatch(&pMgmt->latch);
-  pMgmt->pMnode = pMnode;
-  pMgmt->deployed = 1;
-  taosWUnLockLatch(&pMgmt->latch);
-
-  dInfo("mnode open successfully");
-  return 0;
-}
-
-int32_t mmAlter(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
-  SMnode *pMnode = mmAcquire(pMgmt);
-  if (pMnode == NULL) {
-    dError("failed to alter mnode since %s", terrstr());
-    return -1;
-  }
-
-  if (mndAlter(pMnode, pOption) != 0) {
-    dError("failed to alter mnode since %s", terrstr());
-    mmRelease(pMgmt, pMnode);
-    return -1;
-  }
-
-  mmRelease(pMgmt, pMnode);
-  return 0;
-}
-
-int32_t mmDrop(SMnodeMgmt *pMgmt) {
-  SMnode *pMnode = mmAcquire(pMgmt);
-  if (pMnode == NULL) {
-    dError("failed to drop mnode since %s", terrstr());
-    return -1;
-  }
-
-  taosRLockLatch(&pMgmt->latch);
-  pMgmt->dropped = 1;
-  taosRUnLockLatch(&pMgmt->latch);
-
-  if (mmWriteFile(pMgmt) != 0) {
-    taosRLockLatch(&pMgmt->latch);
-    pMgmt->dropped = 0;
-    taosRUnLockLatch(&pMgmt->latch);
-
-    mmRelease(pMgmt, pMnode);
-    dError("failed to drop mnode since %s", terrstr());
-    return -1;
-  }
-
-  mmRelease(pMgmt, pMnode);
-  mmStopWorker(pMgmt);
-  pMgmt->deployed = 0;
-  mmWriteFile(pMgmt);
-  mndClose(pMnode);
-  pMgmt->pMnode = NULL;
-  mndDestroy(pMgmt->path);
 
   return 0;
 }
 
 static void mmInitOption(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
   SDnode *pDnode = pMgmt->pDnode;
-
   pOption->pWrapper = pMgmt->pWrapper;
-  pOption->sendReqFp = dndSendReqToDnode;
-  pOption->sendMnodeReqFp = dndSendReqToMnode;
   pOption->putToWriteQFp = mmPutMsgToWriteQueue;
   pOption->putToReadQFp = mmPutMsgToReadQueue;
+  pOption->sendReqFp = dndSendReqToDnode;
+  pOption->sendMnodeReqFp = dndSendReqToMnode;
+  pOption->sendRspFp = dndSendRsp;
   pOption->dnodeId = pDnode->dnodeId;
   pOption->clusterId = pDnode->clusterId;
 }
@@ -175,12 +72,8 @@ static void mmBuildOptionForOpen(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
   memcpy(&pOption->replicas, pMgmt->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
 }
 
-int32_t mmBuildOptionFromReq(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCreateMnodeReq *pCreate) {
-  SDnode *pDnode = pMgmt->pDnode;
-
+static int32_t mmBuildOptionFromReq(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCreateMnodeReq *pCreate) {
   mmInitOption(pMgmt, pOption);
-  pOption->dnodeId = pDnode->dnodeId;
-  pOption->clusterId = pDnode->clusterId;
 
   pOption->replica = pCreate->replica;
   pOption->selfIndex = -1;
@@ -205,109 +98,136 @@ int32_t mmBuildOptionFromReq(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCreateMnod
   return 0;
 }
 
-static void mmCleanup(SMgmtWrapper *pWrapper) {
-  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
-  if (pMgmt == NULL) return;
-
-  dInfo("mnode-mgmt start to cleanup");
-  if (pMgmt->pMnode) {
-    mmStopWorker(pMgmt);
-    mndClose(pMgmt->pMnode);
-    pMgmt->pMnode = NULL;
-  }
-  free(pMgmt);
-  pWrapper->pMgmt = NULL;
-  dInfo("mnode-mgmt is cleaned up");
-}
-
-static int32_t mmInit(SMgmtWrapper *pWrapper) {
-  SDnode     *pDnode = pWrapper->pDnode;
-  SMnodeMgmt *pMgmt = calloc(1, sizeof(SMnodeMgmt));
-  int32_t     code = -1;
-  SMnodeOpt   option = {0};
-
-  dInfo("mnode-mgmt start to init");
-  if (pMgmt == NULL) goto _OVER;
-
-  pMgmt->path = pWrapper->path;
-  pMgmt->pDnode = pWrapper->pDnode;
-  pMgmt->pWrapper = pWrapper;
-  taosInitRWLatch(&pMgmt->latch);
-
-  if (mmReadFile(pMgmt) != 0) {
-    dError("failed to read file since %s", terrstr());
-    goto _OVER;
-  }
-
-  if (!pMgmt->deployed) {
-    dInfo("mnode start to deploy");
-    mmBuildOptionForDeploy(pMgmt, &option);
-    code = mmOpen(pMgmt, &option);
+static int32_t mmOpenImp(SMnodeMgmt *pMgmt, SDCreateMnodeReq *pReq) {
+  SMnodeOpt option = {0};
+  if (pReq != NULL) {
+    if (mmBuildOptionFromReq(pMgmt, &option, pReq) != 0) {
+      return -1;
+    }
   } else {
-    dInfo("mnode start to open");
-    mmBuildOptionForOpen(pMgmt, &option);
-    code = mmOpen(pMgmt, &option);
+    bool deployed = false;
+    if (mmReadFile(pMgmt, &deployed) != 0) {
+      dError("failed to read file since %s", terrstr());
+      return -1;
+    }
+
+    if (!deployed) {
+      dInfo("mnode start to deploy");
+      mmBuildOptionForDeploy(pMgmt, &option);
+    } else {
+      dInfo("mnode start to open");
+      mmBuildOptionForOpen(pMgmt, &option);
+    }
   }
 
-_OVER:
-  if (code == 0) {
-    pWrapper->pMgmt = pMgmt;
-    dInfo("mnode-mgmt is initialized");
-  } else {
-    dError("failed to init mnode-mgmt since %s", terrstr());
-    mmCleanup(pWrapper);
-  }
-
-  return code;
-}
-
-static bool mmDeployRequired(SDnode *pDnode) {
-  if (pDnode->dnodeId > 0) {
-    return false;
-  }
-
-  if (pDnode->clusterId > 0) {
-    return false;
-  }
-
-  if (strcmp(pDnode->localEp, pDnode->firstEp) != 0) {
-    return false;
-  }
-
-  return true;
-}
-
-static int32_t mmRequire(SMgmtWrapper *pWrapper, bool *required) {
-  SMnodeMgmt mgmt = {0};
-  mgmt.path = pWrapper->path;
-  if (mmReadFile(&mgmt) != 0) {
+  pMgmt->pMnode = mndOpen(pMgmt->path, &option);
+  if (pMgmt->pMnode == NULL) {
+    dError("failed to open mnode since %s", terrstr());
     return -1;
   }
 
-  if (mgmt.dropped) {
-    dInfo("mnode has been dropped and needs to be deleted");
-    mndDestroy(mgmt.path);
+  if (mmStartWorker(pMgmt) != 0) {
+    dError("failed to start mnode worker since %s", terrstr());
     return -1;
   }
 
-  if (mgmt.deployed) {
-    *required = true;
-    dInfo("mnode has been deployed");
-    return 0;
-  }
-
-  *required = mmDeployRequired(pWrapper->pDnode);
-  if (*required) {
-    dInfo("mnode need to be deployed");
+  bool deployed = true;
+  if (dndWriteFile(pMgmt->pWrapper, deployed) != 0) {
+    dError("failed to write mnode file since %s", terrstr());
+    return -1;
   }
 
   return 0;
 }
 
+static void mmCloseImp(SMnodeMgmt *pMgmt) {
+  if (pMgmt->pMnode != NULL) {
+    mmStopWorker(pMgmt);
+    mndClose(pMgmt->pMnode);
+    pMgmt->pMnode = NULL;
+  }
+}
+
+int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pReq) {
+  SMnodeOpt option = {0};
+  if (pReq != NULL) {
+    if (mmBuildOptionFromReq(pMgmt, &option, pReq) != 0) {
+      return -1;
+    }
+  }
+
+  return mndAlter(pMgmt->pMnode, &option);
+}
+
+int32_t mmDrop(SMgmtWrapper *pWrapper) {
+  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
+  if (pMgmt == NULL) return 0;
+
+  dInfo("mnode-mgmt start to drop");
+  bool deployed = false;
+  if (mmWriteFile(pMgmt, deployed) != 0) {
+    dError("failed to drop mnode since %s", terrstr());
+    return -1;
+  }
+
+  mmCloseImp(pMgmt);
+  taosRemoveDir(pMgmt->path);
+  pWrapper->pMgmt = NULL;
+  free(pMgmt);
+  dInfo("mnode-mgmt is dropped");
+  return 0;
+}
+
+static void mmClose(SMgmtWrapper *pWrapper) {
+  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
+  if (pMgmt == NULL) return;
+
+  dInfo("mnode-mgmt start to cleanup");
+  mmCloseImp(pMgmt);
+  pWrapper->pMgmt = NULL;
+  free(pMgmt);
+  dInfo("mnode-mgmt is cleaned up");
+}
+
+int32_t mmOpenFromMsg(SMgmtWrapper *pWrapper, SDCreateMnodeReq *pReq) {
+  dInfo("mnode-mgmt start to init");
+  if (walInit() != 0) {
+    dError("failed to init wal since %s", terrstr());
+    return -1;
+  }
+
+  SMnodeMgmt *pMgmt = calloc(1, sizeof(SMnodeMgmt));
+  if (pMgmt == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  pMgmt->path = pWrapper->path;
+  pMgmt->pDnode = pWrapper->pDnode;
+  pMgmt->pWrapper = pWrapper;
+  pWrapper->pMgmt = pMgmt;
+
+  int32_t code = mmOpenImp(pMgmt, pReq);
+  if (code != 0) {
+    dError("failed to init mnode-mgmt since %s", terrstr());
+    mmClose(pWrapper);
+  } else {
+    dInfo("mnode-mgmt is initialized");
+  }
+
+  return code;
+}
+
+static int32_t mmOpen(SMgmtWrapper *pWrapper) {
+  return mmOpenFromMsg(pWrapper, NULL);
+}
+
 void mmGetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
-  mgmtFp.openFp = mmInit;
-  mgmtFp.closeFp = mmCleanup;
+  mgmtFp.openFp = mmOpen;
+  mgmtFp.closeFp = mmClose;
+  mgmtFp.createMsgFp = mmProcessCreateReq;
+  mgmtFp.dropMsgFp = mmProcessDropReq;
   mgmtFp.requiredFp = mmRequire;
 
   mmInitMsgHandles(pWrapper);
@@ -318,16 +238,7 @@ void mmGetMgmtFp(SMgmtWrapper *pWrapper) {
 int32_t mmGetUserAuth(SMgmtWrapper *pWrapper, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   SMnodeMgmt *pMgmt = pWrapper->pMgmt;
 
-  SMnode *pMnode = mmAcquire(pMgmt);
-  if (pMnode == NULL) {
-    terrno = TSDB_CODE_APP_NOT_READY;
-    dTrace("failed to get user auth since %s", terrstr());
-    return -1;
-  }
-
-  int32_t code = mndRetriveAuth(pMnode, user, spi, encrypt, secret, ckey);
-  mmRelease(pMgmt, pMnode);
-
+  int32_t code = mndRetriveAuth(pMgmt->pMnode, user, spi, encrypt, secret, ckey);
   dTrace("user:%s, retrieve auth spi:%d encrypt:%d", user, *spi, *encrypt);
   return code;
 }
@@ -335,10 +246,5 @@ int32_t mmGetUserAuth(SMgmtWrapper *pWrapper, char *user, char *spi, char *encry
 int32_t mmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
                          SMonGrantInfo *pGrantInfo) {
   SMnodeMgmt *pMgmt = pWrapper->pMgmt;
-  SMnode     *pMnode = mmAcquire(pMgmt);
-  if (pMnode == NULL) return -1;
-
-  int32_t code = mndGetMonitorInfo(pMnode, pClusterInfo, pVgroupInfo, pGrantInfo);
-  mmRelease(pMgmt, pMnode);
-  return code;
+  return mndGetMonitorInfo(pMgmt->pMnode, pClusterInfo, pVgroupInfo, pGrantInfo);
 }

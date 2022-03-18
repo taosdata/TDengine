@@ -17,6 +17,7 @@
 #define _TD_DND_SNODE_INT_H_
 
 #include "sm.h"
+#include "snode.h"
 
 #ifdef __cplusplus
 extern "C" {

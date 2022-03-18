@@ -16,43 +16,39 @@
 #ifndef _TD_DND_MNODE_INT_H_
 #define _TD_DND_MNODE_INT_H_
 
-#include "dm.h"
 #include "mm.h"
+#include "mnode.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct SMnodeMgmt {
-  int32_t       refCount;
-  int8_t        deployed;
-  int8_t        dropped;
-  int8_t        replica;
-  int8_t        selfIndex;
-  SReplica      replicas[TSDB_MAX_REPLICA];
   SMnode       *pMnode;
   SDnode       *pDnode;
   SMgmtWrapper *pWrapper;
   const char   *path;
-  SRWLatch      latch;
   SDnodeWorker  readWorker;
   SDnodeWorker  writeWorker;
   SDnodeWorker  syncWorker;
+  SReplica      replicas[TSDB_MAX_REPLICA];
+  int8_t        replica;
+  int8_t        selfIndex;
 } SMnodeMgmt;
 
 // mmFile.c
-int32_t mmReadFile(SMnodeMgmt *pMgmt);
-int32_t mmWriteFile(SMnodeMgmt *pMgmt);
+int32_t mmReadFile(SMnodeMgmt *pMgmt, bool *pDeployed);
+int32_t mmWriteFile(SMnodeMgmt *pMgmt, bool deployed);
 
 // mmInt.c
-SMnode *mmAcquire(SMnodeMgmt *pMgmt);
-void    mmRelease(SMnodeMgmt *pMgmt, SMnode *pMnode);
-int32_t mmOpen(SMnodeMgmt *pMgmt, SMnodeOpt *pOption);
-int32_t mmAlter(SMnodeMgmt *pMgmt, SMnodeOpt *pOption);
-int32_t mmDrop(SMnodeMgmt *pMgmt);
-int32_t mmBuildOptionFromReq(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCreateMnodeReq *pCreate);
+int32_t mmOpenFromMsg(SMgmtWrapper *pWrapper, SDCreateMnodeReq *pReq);
+int32_t mmDrop(SMgmtWrapper *pWrapper);
+int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pReq);
 
 // mmMsg.c
+void    mmInitMsgHandles(SMgmtWrapper *pWrapper);
+int32_t mmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t mmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
 
 // mmWorker.c
@@ -61,7 +57,6 @@ void    mmStopWorker(SMnodeMgmt *pMgmt);
 int32_t mmProcessWriteMsg(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t mmProcessSyncMsg(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t mmProcessReadMsg(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
-
 int32_t mmPutMsgToWriteQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpcMsg);
 int32_t mmPutMsgToReadQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpcMsg);
 

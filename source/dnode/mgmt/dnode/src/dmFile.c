@@ -21,7 +21,7 @@ static bool dmIsEpChanged(SDnodeMgmt *pMgmt, int32_t dnodeId, const char *ep);
 static void dmResetDnodes(SDnodeMgmt *pMgmt, SArray *dnodeEps);
 
 int32_t dmReadFile(SDnodeMgmt *pMgmt) {
-  int32_t   code = TSDB_CODE_DND_DNODE_READ_FILE_ERROR;
+  int32_t   code = TSDB_CODE_NODE_PARSE_FILE_ERROR;
   int32_t   len = 0;
   int32_t   maxLen = 256 * 1024;
   char     *content = calloc(1, maxLen + 1);
@@ -203,7 +203,7 @@ int32_t dmWriteFile(SDnodeMgmt *pMgmt) {
   snprintf(realfile, sizeof(realfile), "%s%smnode.json", pMgmt->path, TD_DIRSEP);
 
   if (taosRenameFile(file, realfile) != 0) {
-    terrno = TSDB_CODE_DND_MNODE_WRITE_FILE_ERROR;
+    terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to rename %s since %s", file, terrstr());
     return -1;
   }

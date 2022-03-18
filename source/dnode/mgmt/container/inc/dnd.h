@@ -36,13 +36,8 @@
 #include "tworker.h"
 
 #include "dnode.h"
-
-#include "bnode.h"
-#include "mnode.h"
-#include "qnode.h"
-#include "snode.h"
 #include "tfs.h"
-#include "vnode.h"
+#include "wal.h"
 
 #ifdef __cplusplus
 extern "C" {

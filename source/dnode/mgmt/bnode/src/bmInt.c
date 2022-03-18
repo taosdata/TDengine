@@ -23,6 +23,7 @@ static void bmInitOption(SBnodeMgmt *pMgmt, SBnodeOpt *pOption) {
   pOption->pWrapper = pMgmt->pWrapper;
   pOption->sendReqFp = dndSendReqToDnode;
   pOption->sendMnodeReqFp = dndSendReqToMnode;
+  pOption->sendRspFp = dndSendRsp;
   pOption->dnodeId = pDnode->dnodeId;
   pOption->clusterId = pDnode->clusterId;
 }

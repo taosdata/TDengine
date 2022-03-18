@@ -320,7 +320,7 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
     action.pCont = pReq;
     action.contLen = contLen;
     action.msgType = TDMT_DND_ALTER_MNODE;
-    action.acceptableCode = TSDB_CODE_DND_MNODE_ALREADY_DEPLOYED;
+    action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
 
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       free(pReq);
@@ -345,7 +345,7 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
     action.pCont = pReq;
     action.contLen = contLen;
     action.msgType = TDMT_DND_CREATE_MNODE;
-    action.acceptableCode = TSDB_CODE_DND_MNODE_ALREADY_DEPLOYED;
+    action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       free(pReq);
       return -1;
@@ -490,7 +490,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
       action.pCont = pReq;
       action.contLen = contLen;
       action.msgType = TDMT_DND_ALTER_MNODE;
-      action.acceptableCode = TSDB_CODE_DND_MNODE_ALREADY_DEPLOYED;
+      action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
 
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         free(pReq);
@@ -517,7 +517,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
     action.pCont = pReq;
     action.contLen = contLen;
     action.msgType = TDMT_DND_DROP_MNODE;
-    action.acceptableCode = TSDB_CODE_DND_MNODE_NOT_DEPLOYED;
+    action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       free(pReq);
       return -1;

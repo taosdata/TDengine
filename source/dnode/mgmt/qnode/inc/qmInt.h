@@ -17,6 +17,7 @@
 #define _TD_DND_QNODE_INT_H_
 
 #include "qm.h"
+#include "qnode.h"
 
 #ifdef __cplusplus
 extern "C" {

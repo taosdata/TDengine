@@ -17,6 +17,7 @@
 #define _TD_DND_BNODE_INT_H_
 
 #include "bm.h"
+#include "bnode.h"
 
 #ifdef __cplusplus
 extern "C" {

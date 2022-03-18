@@ -293,7 +293,7 @@ int32_t dndSendReqToMnode(SMgmtWrapper *pWrapper, SRpcMsg *pReq) {
 }
 
 void dndSendRpcRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
-  if (pRsp->code == TSDB_CODE_DND_MNODE_NOT_DEPLOYED || pRsp->code == TSDB_CODE_APP_NOT_READY) {
+  if (pRsp->code == TSDB_CODE_NODE_NOT_DEPLOYED || pRsp->code == TSDB_CODE_APP_NOT_READY) {
     SMgmtWrapper *pDnodeWrapper = dndAcquireWrapper(pWrapper->pDnode, DNODE);
     dmSendRedirectRsp(pDnodeWrapper->pMgmt, pRsp);
   } else {

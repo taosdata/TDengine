@@ -16,8 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
 
-int32_t mmReadFile(SMnodeMgmt *pMgmt) {
-  int32_t   code = TSDB_CODE_DND_MNODE_READ_FILE_ERROR;
+int32_t mmReadFile(SMnodeMgmt *pMgmt, bool *pDeployed) {
+  int32_t   code = TSDB_CODE_NODE_PARSE_FILE_ERROR;
   int32_t   len = 0;
   int32_t   maxLen = 4096;
   char     *content = calloc(1, maxLen + 1);
@@ -51,14 +51,7 @@ int32_t mmReadFile(SMnodeMgmt *pMgmt) {
     dError("failed to read %s since deployed not found", file);
     goto PRASE_MNODE_OVER;
   }
-  pMgmt->deployed = deployed->valueint;
-
-  cJSON *dropped = cJSON_GetObjectItem(root, "dropped");
-  if (!dropped || dropped->type != cJSON_Number) {
-    dError("failed to read %s since dropped not found", file);
-    goto PRASE_MNODE_OVER;
-  }
-  pMgmt->dropped = dropped->valueint;
+  *pDeployed = deployed->valueint;
 
   cJSON *mnodes = cJSON_GetObjectItem(root, "mnodes");
   if (!mnodes || mnodes->type != cJSON_Array) {
@@ -101,7 +94,7 @@ int32_t mmReadFile(SMnodeMgmt *pMgmt) {
   }
 
   code = 0;
-  dDebug("succcessed to read file %s, deployed:%d dropped:%d", file, pMgmt->deployed, pMgmt->dropped);
+  dDebug("succcessed to read file %s, deployed:%d", file, *pDeployed);
 
 PRASE_MNODE_OVER:
   if (content != NULL) free(content);
@@ -112,13 +105,13 @@ PRASE_MNODE_OVER:
   return code;
 }
 
-int32_t mmWriteFile(SMnodeMgmt *pMgmt) {
+int32_t mmWriteFile(SMnodeMgmt *pMgmt, bool deployed) {
   char file[PATH_MAX];
   snprintf(file, sizeof(file), "%s%smnode.json.bak", pMgmt->path, TD_DIRSEP);
 
   TdFilePtr pFile = taosOpenFile(file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
-    terrno = TSDB_CODE_DND_MNODE_WRITE_FILE_ERROR;
+    terrno = TAOS_SYSTEM_ERROR(errno);;
     dError("failed to write %s since %s", file, terrstr());
     return -1;
   }
@@ -128,9 +121,7 @@ int32_t mmWriteFile(SMnodeMgmt *pMgmt) {
   char   *content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"deployed\": %d,\n", pMgmt->deployed);
-
-  len += snprintf(content + len, maxLen - len, "  \"dropped\": %d,\n", pMgmt->dropped);
+  len += snprintf(content + len, maxLen - len, "  \"deployed\": %d,\n", deployed);
   len += snprintf(content + len, maxLen - len, "  \"mnodes\": [{\n");
   for (int32_t i = 0; i < pMgmt->replica; ++i) {
     SReplica *pReplica = &pMgmt->replicas[i];
@@ -154,11 +145,11 @@ int32_t mmWriteFile(SMnodeMgmt *pMgmt) {
   snprintf(realfile, sizeof(realfile), "%s%smnode.json", pMgmt->path, TD_DIRSEP);
 
   if (taosRenameFile(file, realfile) != 0) {
-    terrno = TSDB_CODE_DND_MNODE_WRITE_FILE_ERROR;
+    terrno = TAOS_SYSTEM_ERROR(errno);;
     dError("failed to rename %s since %s", file, terrstr());
     return -1;
   }
 
-  dInfo("successed to write %s, deployed:%d dropped:%d", realfile, pMgmt->deployed, pMgmt->dropped);
+  dInfo("successed to write %s, deployed:%d", realfile, deployed);
   return 0;
 }

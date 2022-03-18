@@ -23,10 +23,6 @@ extern "C" {
 #endif
 
 void mmGetMgmtFp(SMgmtWrapper *pMgmt);
-void mmInitMsgHandles(SMgmtWrapper *pWrapper);
-
-int32_t mmProcessCreateReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t mmProcessDropReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
 
 int32_t mmGetUserAuth(SMgmtWrapper *pWrapper, char *user, char *spi, char *encrypt, char *secret, char *ckey);
 int32_t mmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
