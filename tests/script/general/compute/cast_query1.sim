@@ -1423,7 +1423,7 @@ if $data50 != NULL then
     return -1
   endi
 endi
-if $data50 != NULL then 
+if $data60 != NULL then 
   if $data60 != @94-08-17 15:12:55.807@ then #for arm64
     return -1
   endi
