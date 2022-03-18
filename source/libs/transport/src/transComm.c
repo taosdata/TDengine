@@ -155,9 +155,9 @@ bool transReadComplete(SConnBuffer* connBuf) {
   }
   return false;
 }
-int transPackMsg(STransMsgHead* msgHead, bool sercured, bool auth) {return 0;}
+int transPackMsg(STransMsgHead* msgHead, bool sercured, bool auth) { return 0; }
 
-int transUnpackMsg(STransMsgHead* msgHead) {return 0;}
+int transUnpackMsg(STransMsgHead* msgHead) { return 0; }
 int transDestroyBuffer(SConnBuffer* buf) {
   if (buf->cap > 0) {
     tfree(buf->buf);
@@ -222,6 +222,58 @@ int transSendAsync(SAsyncPool* pool, queue* q) {
     // tInfo("lock and unlock cost: %d", (int)el);
   }
   return uv_async_send(async);
+}
+
+void transCtxInit(STransCtx* ctx) {
+  // init transCtx
+  ctx->args = taosHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UINT), true, HASH_NO_LOCK);
+}
+void transCtxDestroy(STransCtx* ctx) {
+  if (ctx->args == NULL) {
+    return;
+  }
+
+  STransCtxVal* iter = taosHashIterate(ctx->args, NULL);
+  while (iter) {
+    iter->free(iter->val);
+    iter = taosHashIterate(ctx->args, iter);
+  }
+  taosHashCleanup(ctx->args);
+}
+
+void transCtxMerge(STransCtx* dst, STransCtx* src) {
+  if (dst->args == NULL) {
+    dst->args = src->args;
+    src->args = NULL;
+    return;
+  }
+  void*  key = NULL;
+  size_t klen = 0;
+  void*  iter = taosHashIterate(src->args, NULL);
+  while (iter) {
+    STransCtxVal* sVal = (STransCtxVal*)iter;
+    key = taosHashGetKey(sVal, &klen);
+
+    STransCtxVal* dVal = taosHashGet(dst->args, key, klen);
+    if (dVal) {
+      dVal->free(dVal->val);
+    }
+    taosHashPut(dst->args, key, klen, sVal, sizeof(*sVal));
+    iter = taosHashIterate(src->args, iter);
+  }
+  taosHashCleanup(src->args);
+}
+void* transCtxDumpVal(STransCtx* ctx, int32_t key) {
+  if (ctx->args == NULL) {
+    return NULL;
+  }
+  STransCtxVal* cVal = taosHashGet(ctx->args, (const void*)&key, sizeof(key));
+  if (cVal == NULL) {
+    return NULL;
+  }
+  char* ret = calloc(1, cVal->len);
+  memcpy(ret, (char*)cVal->val, cVal->len);
+  return (void*)ret;
 }
 
 #endif

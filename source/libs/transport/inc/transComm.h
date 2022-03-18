@@ -14,6 +14,10 @@
  */
 #ifdef USE_UV
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <uv.h>
 #include "lz4.h"
 #include "os.h"
@@ -121,24 +125,21 @@ typedef struct {
 } SRpcReqContext;
 
 typedef SRpcMsg      STransMsg;
+typedef SRpcCtx      STransCtx;
+typedef SRpcCtxVal   STransCtxVal;
 typedef SRpcInfo     STrans;
 typedef SRpcConnInfo STransHandleInfo;
 
 typedef struct {
-  SEpSet   epSet;    // ip list provided by app
-  void*    ahandle;  // handle provided by app
-  tmsg_t   msgType;  // message type
-  uint8_t* pCont;    // content provided by app
-  int32_t  contLen;  // content length
-  // int32_t  code;     // error code
-  // int16_t  numOfTry;  // number of try for different servers
-  // int8_t   oldInUse;  // server EP inUse passed by app
-  // int8_t   redirect;  // flag to indicate redirect
+  SEpSet  epSet;     // ip list provided by app
+  void*   ahandle;   // handle provided by app
+  tmsg_t  msgType;   // message type
   int8_t  connType;  // connection type cli/srv
   int64_t rid;       // refId returned by taosAddRef
 
-  STransMsg* pRsp;  // for synchronous API
-  tsem_t*    pSem;  // for synchronous API
+  STransCtx  appCtx;  //
+  STransMsg* pRsp;    // for synchronous API
+  tsem_t*    pSem;    // for synchronous API
 
   int      hThrdIdx;
   char*    ip;
@@ -181,7 +182,7 @@ typedef struct {
 #pragma pack(pop)
 
 typedef enum { Normal, Quit, Release } STransMsgType;
-typedef enum { ConnNormal, ConnAcquire, ConnRelease } ConnStatus;
+typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken } ConnStatus;
 
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
 #define RPC_RESERVE_SIZE (sizeof(STranConnCtx))
@@ -259,7 +260,7 @@ void transUnrefCliHandle(void* handle);
 void transReleaseCliHandle(void* handle);
 void transReleaseSrvHandle(void* handle);
 
-void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg);
+void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg, STransCtx* pCtx);
 void transSendRecv(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg, STransMsg* pRsp);
 void transSendResponse(const STransMsg* pMsg);
 int  transGetConnInfo(void* thandle, STransHandleInfo* pInfo);
@@ -269,5 +270,15 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
 void transCloseClient(void* arg);
 void transCloseServer(void* arg);
+
+void  transCtxInit(STransCtx* ctx);
+void  transCtxDestroy(STransCtx* ctx);
+void  transCtxClear(STransCtx* ctx);
+void  transCtxMerge(STransCtx* dst, STransCtx* src);
+void* transCtxDumpVal(STransCtx* ctx, int32_t key);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

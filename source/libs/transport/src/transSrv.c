@@ -403,16 +403,16 @@ static void uvStartSendResp(SSrvMsg* smsg) {
   return;
 }
 
-static void uvNotifyLinkBrokenToApp(SSrvConn* conn) {
-  STrans* pTransInst = conn->pTransInst;
-  if (pTransInst->efp != NULL && (*pTransInst->efp)(NULL, conn->inType) && T_REF_VAL_GET(conn) >= 2) {
-    STransMsg transMsg = {0};
-    transMsg.msgType = conn->inType;
-    transMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
-    // transRefSrvHandle(conn);
-    (*pTransInst->cfp)(pTransInst->parent, &transMsg, 0);
-  }
-}
+// static void uvNotifyLinkBrokenToApp(SSrvConn* conn) {
+//  STrans* pTransInst = conn->pTransInst;
+//  if (pTransInst->efp != NULL && (*pTransInst->efp)(NULL, conn->inType) && T_REF_VAL_GET(conn) >= 2) {
+//    STransMsg transMsg = {0};
+//    transMsg.msgType = conn->inType;
+//    transMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+//    // transRefSrvHandle(conn);
+//    (*pTransInst->cfp)(pTransInst->parent, &transMsg, 0);
+//  }
+//}
 static void destroySmsg(SSrvMsg* smsg) {
   if (smsg == NULL) {
     return;

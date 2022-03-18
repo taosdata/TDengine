@@ -30,6 +30,7 @@ typedef struct SCliConn {
   uint64_t     expireTime;
   int          hThrdIdx;
   bool         broken;  // link broken or not
+  STransCtx    ctx;
 
   ConnStatus status;   //
   int        release;  // 1: release
@@ -207,7 +208,7 @@ void cliHandleResp(SCliConn* conn) {
 
   STransConnCtx* pCtx = pMsg ? pMsg->ctx : NULL;
   if (pMsg == NULL && !CONN_NO_PERSIST_BY_APP(conn)) {
-    transMsg.ahandle = pTransInst->mfp ? (*pTransInst->mfp)(pTransInst->parent, transMsg.msgType) : NULL;
+    transMsg.ahandle = transCtxDumpVal(&conn->ctx, transMsg.msgType);
   } else {
     transMsg.ahandle = pCtx ? pCtx->ahandle : NULL;
   }
@@ -283,7 +284,7 @@ void cliHandleExcept(SCliConn* pConn) {
     transMsg.ahandle = NULL;
 
     if (pMsg == NULL && !CONN_NO_PERSIST_BY_APP(pConn)) {
-      transMsg.ahandle = pTransInst->mfp ? (*pTransInst->mfp)(pTransInst->parent, transMsg.msgType) : NULL;
+      transMsg.ahandle = transCtxDumpVal(&pConn->ctx, transMsg.msgType);
     } else {
       transMsg.ahandle = pCtx ? pCtx->ahandle : NULL;
     }
@@ -374,6 +375,7 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
 static void addConnToPool(void* pool, SCliConn* conn) {
   char key[128] = {0};
 
+  transCtxDestroy(&conn->ctx);
   tstrncpy(key, conn->ip, strlen(conn->ip));
   tstrncpy(key + strlen(key), (char*)(&conn->port), sizeof(conn->port));
   tTrace("cli conn %p added to conn pool, read buf cap: %d", conn, conn->readBuf.cap);
@@ -436,7 +438,6 @@ static SCliConn* cliCreateConn(SCliThrdObj* pThrd) {
   conn->writeReq.data = conn;
   conn->connReq.data = conn;
   conn->cliMsgs = taosArrayInit(2, sizeof(void*));
-
   QUEUE_INIT(&conn->conn);
   conn->hostThrd = pThrd;
   conn->status = ConnNormal;
@@ -446,6 +447,7 @@ static SCliConn* cliCreateConn(SCliThrdObj* pThrd) {
 }
 static void cliDestroyConn(SCliConn* conn, bool clear) {
   tTrace("%s cli conn %p remove from conn pool", CONN_GET_INST_LABEL(conn), conn);
+
   QUEUE_REMOVE(&conn->conn);
   if (clear) {
     uv_close((uv_handle_t*)conn->stream, cliDestroy);
@@ -455,6 +457,7 @@ static void cliDestroy(uv_handle_t* handle) {
   SCliConn* conn = handle->data;
   free(conn->ip);
   free(conn->stream);
+  transCtxDestroy(&conn->ctx);
   taosArrayDestroy(conn->cliMsgs);
   tTrace("%s cli conn %p destroy successfully", CONN_GET_INST_LABEL(conn), conn);
   free(conn);
@@ -630,10 +633,12 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   if (conn != NULL) {
     conn->hThrdIdx = pCtx->hThrdIdx;
 
+    transCtxMerge(&conn->ctx, &pCtx->appCtx);
     if (taosArrayGetSize(conn->cliMsgs) > 0) {
       taosArrayPush(conn->cliMsgs, &pMsg);
       return;
     }
+
     taosArrayPush(conn->cliMsgs, &pMsg);
     transDestroyBuffer(&conn->readBuf);
     cliSend(conn);
@@ -825,7 +830,7 @@ void transReleaseCliHandle(void* handle) {
   transSendAsync(thrd->asyncPool, &cmsg->q);
 }
 
-void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg) {
+void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg, STransCtx* ctx) {
   STrans* pTransInst = (STrans*)shandle;
   int     index = CONN_HOST_THREAD_INDEX((SCliConn*)pMsg->handle);
   if (index == -1) {
@@ -835,13 +840,14 @@ void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* p
   if (transCompressMsg(pMsg->pCont, pMsg->contLen, &flen)) {
     // imp later
   }
-  tDebug("send request at thread:%d %p", index, pMsg);
+  tDebug("send request at thread:%d %p, dst: %s:%d", index, pMsg, ip, port);
   STransConnCtx* pCtx = calloc(1, sizeof(STransConnCtx));
   pCtx->ahandle = pMsg->ahandle;
   pCtx->msgType = pMsg->msgType;
   pCtx->ip = strdup(ip);
   pCtx->port = port;
   pCtx->hThrdIdx = index;
+  pCtx->appCtx = *ctx;
 
   assert(pTransInst->connType == TAOS_CONN_CLIENT);
   // atomic or not
@@ -855,6 +861,7 @@ void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* p
   SCliThrdObj* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[index];
   transSendAsync(thrd->asyncPool, &(cliMsg->q));
 }
+
 void transSendRecv(void* shandle, const char* ip, uint32_t port, STransMsg* pReq, STransMsg* pRsp) {
   STrans* pTransInst = (STrans*)shandle;
   int     index = CONN_HOST_THREAD_INDEX(pReq->handle);

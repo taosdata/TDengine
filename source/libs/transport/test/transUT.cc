@@ -86,18 +86,8 @@ class Client {
     rpcClose(this->transCli);
     this->transCli = NULL;
   }
-  void SetPersistFP(bool (*pfp)(void *parent, tmsg_t msgType)) {
-    rpcClose(this->transCli);
-    this->transCli = rpcOpen(&rpcInit_);
-  }
   void SetConstructFP(void *(*mfp)(void *parent, tmsg_t msgType)) {
     rpcClose(this->transCli);
-    rpcInit_.mfp = mfp;
-    this->transCli = rpcOpen(&rpcInit_);
-  }
-  void SetPAndMFp(bool (*pfp)(void *parent, tmsg_t msgType), void *(*mfp)(void *parent, tmsg_t msgType)) {
-    rpcClose(this->transCli);
-    rpcInit_.mfp = mfp;
     this->transCli = rpcOpen(&rpcInit_);
   }
 
@@ -155,10 +145,6 @@ class Server {
     if (this->transSrv == NULL) return;
     rpcClose(this->transSrv);
     this->transSrv = NULL;
-  }
-  void SetExceptFp(bool (*efp)(void *parent, tmsg_t msgType)) {
-    this->Stop();
-    this->Start();
   }
   void SetSrvContinueSend(void (*cfp)(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet)) {
     this->Stop();
@@ -252,23 +238,11 @@ class TransObj {
     //
     srv->Stop();
   }
-  void SetCliPersistFp(bool (*pfp)(void *parent, tmsg_t msgType)) {
-    // do nothing
-    cli->SetPersistFP(pfp);
-  }
   void SetCliMFp(void *(*mfp)(void *parent, tmsg_t msgType)) {
     // do nothing
     cli->SetConstructFP(mfp);
   }
-  void SetCliMAndPFp(bool (*pfp)(void *parent, tmsg_t msgType), void *(*mfp)(void *parent, tmsg_t msgType)) {
-    // do nothing
-    cli->SetPAndMFp(pfp, mfp);
-  }
   // call when link broken, and notify query or fetch stop
-  void SetSrvExceptFp(bool (*efp)(void *parent, tmsg_t msgType)) {
-    ////////
-    srv->SetExceptFp(efp);
-  }
   void SetSrvContinueSend(void (*cfp)(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet)) {
     ///////
     srv->SetSrvContinueSend(cfp);
@@ -375,22 +349,15 @@ TEST_F(TransEnv, cliReleaseHandle) {
     req.pCont = rpcMallocCont(10);
     req.contLen = 10;
     tr->cliSendAndRecvNoHandle(&req, &resp);
-    // if (i == 5) {
-    //  std::cout << "stop server" << std::endl;
-    //  tr->StopSrv();
-    //}
-    // if (i >= 6) {
     EXPECT_TRUE(resp.code == 0);
     //}
   }
   //////////////////
 }
 TEST_F(TransEnv, cliReleaseHandleExcept) {
-  // tr->SetCliPersistFp(cliPersistHandle);
-
   SRpcMsg resp = {0};
   for (int i = 0; i < 10; i++) {
-    SRpcMsg req = {.handle = resp.handle};
+    SRpcMsg req = {.handle = resp.handle, .persistHandle = 1};
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);
     req.contLen = 10;
@@ -459,7 +426,7 @@ TEST_F(TransEnv, multiCliPersistHandleExcept) {
   // conn broken
 }
 TEST_F(TransEnv, queryExcept) {
-  tr->SetSrvExceptFp(handleExcept);
+  // tr->SetSrvExceptFp(handleExcept);
 
   // query and conn is broken
 }

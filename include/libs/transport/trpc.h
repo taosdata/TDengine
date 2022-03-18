@@ -70,11 +70,18 @@ typedef struct SRpcInit {
   // call back to retrieve the client auth info, for server app only
   int (*afp)(void *parent, char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
 
-  // to support Send messages multiple times on a link
-  void *(*mfp)(void *parent, tmsg_t msgType);
-
   void *parent;
 } SRpcInit;
+
+typedef struct {
+  void *  val;
+  int32_t len;
+  void (*free)(void *arg);
+} SRpcCtxVal;
+
+typedef struct {
+  SHashObj *args;
+} SRpcCtx;
 
 int32_t rpcInit();
 void    rpcCleanup();
@@ -84,16 +91,17 @@ void *  rpcMallocCont(int contLen);
 void    rpcFreeCont(void *pCont);
 void *  rpcReallocCont(void *ptr, int contLen);
 void    rpcSendRequest(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid);
-void    rpcSendResponse(const SRpcMsg *pMsg);
-void    rpcSendRedirectRsp(void *pConn, const SEpSet *pEpSet);
-int     rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
-void    rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
-int     rpcReportProgress(void *pConn, char *pCont, int contLen);
-void    rpcCancelRequest(int64_t rid);
+void    rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid, SRpcCtx *ctx);
 
+void rpcSendResponse(const SRpcMsg *pMsg);
+void rpcSendRedirectRsp(void *pConn, const SEpSet *pEpSet);
+int  rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
+void rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
+int  rpcReportProgress(void *pConn, char *pCont, int contLen);
+void rpcCancelRequest(int64_t rid);
+void rpcRegisterBrokenLinkArg(SRpcMsg *msg);
 // just release client conn to rpc instance, no close sock
-void rpcReleaseHandle(void *handle, int8_t type);
-
+void rpcReleaseHandle(void *handle, int8_t type);  //
 void rpcRefHandle(void *handle, int8_t type);
 void rpcUnrefHandle(void *handle, int8_t type);
 
