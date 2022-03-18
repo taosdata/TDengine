@@ -61,7 +61,7 @@ void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSet) {
   if ((pMsg = taosAllocateQitem(sizeof(SNodeMsg))) == NULL) goto _OVER;
   if (dndBuildMsg(pMsg, pRpc) != 0) goto _OVER;
 
-  dTrace("msg:%p, is created, app:%p user:%s", pMsg, pRpc->ahandle, pMsg->user);
+  dTrace("msg:%p, is created, handle:%p app:%p user:%s", pMsg, pRpc->handle, pRpc->ahandle, pMsg->user);
   if (pWrapper->procType == PROC_SINGLE) {
     code = (*msgFp)(pWrapper->pMgmt, pMsg);
   } else if (pWrapper->procType == PROC_PARENT) {

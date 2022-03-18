@@ -760,7 +760,7 @@ static void mndTransSendRpcRsp(STrans *pTrans) {
     }
     free(pTrans->rpcRsp);
 
-    mDebug("trans:%d, send rsp, code:0x%x stage:%d app:%p", pTrans->id, pTrans->code & 0xFFFF, pTrans->stage,
+    mDebug("trans:%d, send rsp, code:0x%04x stage:%d app:%p", pTrans->id, pTrans->code & 0xFFFF, pTrans->stage,
            pTrans->rpcAHandle);
     SRpcMsg rspMsg = {.handle = pTrans->rpcHandle,
                       .code = pTrans->code,
@@ -816,7 +816,7 @@ void mndTransProcessRsp(SNodeMsg *pRsp) {
     }
   }
 
-  mDebug("trans:%d, action:%d response is received, code:0x%x, accept:0x%x", transId, action, pRsp->rpcMsg.code,
+  mDebug("trans:%d, action:%d response is received, code:0x%04x, accept:0x%04x", transId, action, pRsp->rpcMsg.code,
          pAction->acceptableCode);
   mndTransExecute(pMnode, pTrans);
 
@@ -928,13 +928,13 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
       mDebug("trans:%d, all %d actions execute successfully", pTrans->id, numOfActions);
       return 0;
     } else {
-      mError("trans:%d, all %d actions executed, code:0x%x", pTrans->id, numOfActions, errCode);
+      mError("trans:%d, all %d actions executed, code:0x%04x", pTrans->id, numOfActions, errCode);
       mndTransResetActions(pMnode, pTrans, pArray);
       terrno = errCode;
       return errCode;
     }
   } else {
-    mDebug("trans:%d, %d of %d actions executed, code:0x%x", pTrans->id, numOfReceived, numOfActions, errCode);
+    mDebug("trans:%d, %d of %d actions executed, code:0x%04x", pTrans->id, numOfReceived, numOfActions, errCode);
     return TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 }
@@ -1111,7 +1111,7 @@ static bool mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans) {
     mError("trans:%d, failed to write sdb since %s", pTrans->id, terrstr());
   }
 
-  mDebug("trans:%d, finished, code:0x%x, failedTimes:%d", pTrans->id, pTrans->code, pTrans->failedTimes);
+  mDebug("trans:%d, finished, code:0x%04x, failedTimes:%d", pTrans->id, pTrans->code, pTrans->failedTimes);
   return continueExec;
 }
 

@@ -21,9 +21,9 @@ void Testbase::InitLog(const char* path) {
   mDebugFlag = 143;
   cDebugFlag = 0;
   jniDebugFlag = 0;
-  tmrDebugFlag = 143;
-  uDebugFlag = 143;
-  rpcDebugFlag = 143;
+  tmrDebugFlag = 135;
+  uDebugFlag = 135;
+  rpcDebugFlag = 135;
   qDebugFlag = 0;
   wDebugFlag = 0;
   sDebugFlag = 0;

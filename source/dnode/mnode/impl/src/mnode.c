@@ -392,7 +392,7 @@ int32_t mndProcessMsg(SNodeMsg *pMsg) {
   void    *ahandle = pMsg->rpcMsg.ahandle;
   bool     isReq = (pRpc->msgType & 1U);
 
-  mTrace("msg:%p, type:%s will be processed, app:%p", pMsg, TMSG_INFO(msgType), ahandle);
+  mTrace("msg:%p, will be processed, type:%s app:%p", pMsg, TMSG_INFO(msgType), ahandle);
 
   if (isReq && !mndIsMaster(pMnode)) {
     terrno = TSDB_CODE_APP_NOT_READY;

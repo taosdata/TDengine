@@ -32,12 +32,12 @@ static void mmProcessQueue(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
     if (pRpc->handle == NULL) return;
     if (code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       if (code != 0) code = terrno;
-      SRpcMsg rsp = {.handle = pRpc->handle, .contLen = pMsg->rspLen, .pCont = pMsg->pRsp};
+      SRpcMsg rsp = {.handle = pRpc->handle, .contLen = pMsg->rspLen, .pCont = pMsg->pRsp, .code = code};
       dndSendRsp(pMgmt->pWrapper, &rsp);
     }
   }
 
-  dTrace("msg:%p, is freed", pMsg);
+  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
   rpcFreeCont(pRpc->pCont);
   taosFreeQitem(pMsg);
 }
@@ -90,7 +90,7 @@ static int32_t mmPutRpcMsgToWorker(SMnodeMgmt *pMgmt, SDnodeWorker *pWorker, SRp
     return -1;
   }
 
-  dTrace("msg:%p, is created", pMsg);
+  dTrace("msg:%p, is created, type:%s", pMsg, TMSG_INFO(pRpc->msgType));
   pMsg->rpcMsg = *pRpc;
 
   int32_t code = mmPutMsgToWorker(pMgmt, pWorker, pMsg);
