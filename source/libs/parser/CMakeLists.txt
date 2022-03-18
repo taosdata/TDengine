@@ -1,5 +1,5 @@
 aux_source_directory(src PARSER_SRC)
-add_library(parser ${PARSER_SRC})
+add_library(parser STATIC ${PARSER_SRC})
 target_include_directories(
         parser
         PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/parser"

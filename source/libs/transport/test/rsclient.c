@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
   rpcInit.label        = "APP";
   rpcInit.numOfThreads = 1;
   rpcInit.sessions     = 100;
-  rpcInit.idleTime     = tsShellActivityTimer*1000;
+  rpcInit.idleTime     = 3000; //tsShellActivityTimer*1000;
   rpcInit.user         = "michael";
   rpcInit.secret       = secret;
   rpcInit.ckey         = "key";
@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  taosInitLog("client.log", 100000, 10);
+  taosInitLog("client.log", 10);
 
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {
@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
 
   tInfo("client is initialized");
 
-  gettimeofday(&systemTime, NULL);
+  taosGetTimeOfDay(&systemTime);
   startTime = systemTime.tv_sec*1000000 + systemTime.tv_usec;
 
   SInfo *pInfo = (SInfo *)calloc(1, sizeof(SInfo)*appThreads);
@@ -178,10 +178,10 @@ int main(int argc, char *argv[]) {
   }
 
   do {
-    usleep(1);
+    taosUsleep(1);
   } while ( tcount < appThreads);
 
-  gettimeofday(&systemTime, NULL);
+  taosGetTimeOfDay(&systemTime);
   endTime = systemTime.tv_sec*1000000 + systemTime.tv_usec;  
   float usedTime = (endTime - startTime)/1000.0;  // mseconds
 

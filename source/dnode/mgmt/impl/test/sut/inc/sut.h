@@ -20,17 +20,16 @@
 #include "os.h"
 
 #include "dnode.h"
-#include "tconfig.h"
+#include "tmsg.h"
 #include "tdataformat.h"
 #include "tglobal.h"
 #include "tmsg.h"
-#include "tnote.h"
 #include "trpc.h"
 #include "tthread.h"
-#include "ulog.h"
 
 #include "client.h"
 #include "server.h"
+#include "tlog.h"
 
 class Testbase {
  public:

@@ -31,7 +31,7 @@ typedef struct {
   SDnode     *pDnode;
   STaosQueue *queue;
   union {
-    SQWorkerPool  pool;
+    SQWorkerPool pool;
     SWWorkerPool mpool;
   };
 } SDnodeWorker;
@@ -90,9 +90,11 @@ typedef struct {
   int32_t      refCount;
   int8_t       deployed;
   int8_t       dropped;
+  int8_t       uniqueWorkerInUse;
   SSnode      *pSnode;
   SRWLatch     latch;
-  SDnodeWorker writeWorker;
+  SArray      *uniqueWorkers;  // SArray<SDnodeWorker*>
+  SDnodeWorker sharedWorker;
 } SSnodeMgmt;
 
 typedef struct {
@@ -105,9 +107,19 @@ typedef struct {
 } SBnodeMgmt;
 
 typedef struct {
+  int32_t openVnodes;
+  int32_t totalVnodes;
+  int32_t masterNum;
+  int64_t numOfSelectReqs;
+  int64_t numOfInsertReqs;
+  int64_t numOfInsertSuccessReqs;
+  int64_t numOfBatchInsertReqs;
+  int64_t numOfBatchInsertSuccessReqs;
+} SVnodesStat;
+
+typedef struct {
+  SVnodesStat  stat;
   SHashObj    *hash;
-  int32_t      openVnodes;
-  int32_t      totalVnodes;
   SRWLatch     latch;
   SQWorkerPool queryPool;
   SFWorkerPool fetchPool;
@@ -124,9 +136,8 @@ typedef struct {
 typedef struct SDnode {
   EStat        stat;
   SDnodeObjCfg cfg;
-  SDnodeEnvCfg env;
   SDnodeDir    dir;
-  FileFd       lockFd;
+  TdFilePtr    pLockFile;
   SDnodeMgmt   dmgmt;
   SMnodeMgmt   mmgmt;
   SQnodeMgmt   qmgmt;
@@ -138,10 +149,7 @@ typedef struct SDnode {
   SStartupReq  startup;
 } SDnode;
 
-typedef struct {
-  int8_t       once;
-  SDnodeEnvCfg cfg;
-} SDnodeEnv;
+int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo);
 
 #ifdef __cplusplus
 }

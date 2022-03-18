@@ -29,8 +29,6 @@ extern "C" {
 
 extern int tsRpcHeadSize;
 
-typedef struct SRpcPush SRpcPush;
-
 typedef struct SRpcConnInfo {
   uint32_t clientIp;
   uint16_t clientPort;
@@ -40,21 +38,15 @@ typedef struct SRpcConnInfo {
 
 typedef struct SRpcMsg {
   tmsg_t  msgType;
+  tmsg_t  expectMsgType;
   void *  pCont;
   int     contLen;
   int32_t code;
   void *  handle;   // rpc handle returned to app
   void *  ahandle;  // app handle set by client
-  int     persist;  // keep handle or not, default 0
-
-  SRpcPush *push;
+  int     noResp;   // has response or not(default 0 indicate resp);
 
 } SRpcMsg;
-
-typedef struct SRpcPush {
-  void *arg;
-  int (*callback)(void *arg, SRpcMsg *rpcMsg);
-} SRpcPush;
 
 typedef struct SRpcInit {
   uint16_t localPort;     // local port
@@ -64,7 +56,6 @@ typedef struct SRpcInit {
   int8_t   connType;      // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
   int      idleTime;      // milliseconds, 0 means idle timer is disabled
 
-  bool noPool;  //  create conn pool or not
   // the following is for client app ecurity only
   char *user;     // user name
   char  spi;      // security parameter index
@@ -77,6 +68,15 @@ typedef struct SRpcInit {
 
   // call back to retrieve the client auth info, for server app only
   int (*afp)(void *parent, char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
+
+  // call back to keep conn or not
+  bool (*pfp)(void *parent, tmsg_t msgType);
+
+  // to support Send messages multiple times on a link
+  void *(*mfp)(void *parent, tmsg_t msgType);
+
+  // call back  to handle except when query/fetch in progress
+  bool (*efp)(void *parent, tmsg_t msgType);
 
   void *parent;
 } SRpcInit;
@@ -95,6 +95,12 @@ int     rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
 void    rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
 int     rpcReportProgress(void *pConn, char *pCont, int contLen);
 void    rpcCancelRequest(int64_t rid);
+
+// just release client conn to rpc instance, no close sock
+void rpcReleaseHandle(void *handle, int8_t type);
+
+void rpcRefHandle(void *handle, int8_t type);
+void rpcUnrefHandle(void *handle, int8_t type);
 
 #ifdef __cplusplus
 }

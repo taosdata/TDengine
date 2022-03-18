@@ -14,28 +14,13 @@
  */
 
 #include "syncRequestVote.h"
-#include "sync.h"
-
-void requestVote(SRaft *pRaft, const SyncRequestVote *pMsg) {
-
-// TLA+ Spec
-//RequestVote(i, j) ==
-//    /\ state[i] = Candidate
-//    /\ j \notin votesResponded[i]
-//    /\ Send([mtype         |-> RequestVoteRequest,
-//             mterm         |-> currentTerm[i],
-//             mlastLogTerm  |-> LastTerm(log[i]),
-//             mlastLogIndex |-> Len(log[i]),
-//             msource       |-> i,
-//             mdest         |-> j])
-//    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
-
-}
-
-void onRequestVote(SRaft *pRaft, const SyncRequestVote *pMsg) {
+#include "syncInt.h"
+#include "syncRaftStore.h"
+#include "syncUtil.h"
+#include "syncVoteMgr.h"
 
 // TLA+ Spec
-//HandleRequestVoteRequest(i, j, m) ==
+// HandleRequestVoteRequest(i, j, m) ==
 //    LET logOk == \/ m.mlastLogTerm > LastTerm(log[i])
 //                 \/ /\ m.mlastLogTerm = LastTerm(log[i])
 //                    /\ m.mlastLogIndex >= Len(log[i])
@@ -55,5 +40,37 @@ void onRequestVote(SRaft *pRaft, const SyncRequestVote *pMsg) {
 //                 mdest        |-> j],
 //                 m)
 //       /\ UNCHANGED <<state, currentTerm, candidateVars, leaderVars, logVars>>
+//
+int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg) {
+  int32_t ret = 0;
+  syncRequestVoteLog2("==syncNodeOnRequestVoteCb==", pMsg);
 
+  if (pMsg->term > ths->pRaftStore->currentTerm) {
+    syncNodeUpdateTerm(ths, pMsg->term);
+  }
+  assert(pMsg->term <= ths->pRaftStore->currentTerm);
+
+  bool logOK = (pMsg->lastLogTerm > ths->pLogStore->getLastTerm(ths->pLogStore)) ||
+               ((pMsg->lastLogTerm == ths->pLogStore->getLastTerm(ths->pLogStore)) &&
+                (pMsg->lastLogIndex >= ths->pLogStore->getLastIndex(ths->pLogStore)));
+  bool grant = (pMsg->term == ths->pRaftStore->currentTerm) && logOK &&
+               ((!raftStoreHasVoted(ths->pRaftStore)) || (syncUtilSameId(&(ths->pRaftStore->voteFor), &(pMsg->srcId))));
+  if (grant) {
+    // maybe has already voted for pMsg->srcId
+    // vote again, no harm
+    raftStoreVote(ths->pRaftStore, &(pMsg->srcId));
+  }
+
+  SyncRequestVoteReply* pReply = syncRequestVoteReplyBuild();
+  pReply->srcId = ths->myRaftId;
+  pReply->destId = pMsg->srcId;
+  pReply->term = ths->pRaftStore->currentTerm;
+  pReply->voteGranted = grant;
+
+  SRpcMsg rpcMsg;
+  syncRequestVoteReply2RpcMsg(pReply, &rpcMsg);
+  syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
+  syncRequestVoteReplyDestroy(pReply);
+
+  return ret;
 }

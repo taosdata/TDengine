@@ -16,7 +16,7 @@
 #include "function.h"
 #include "os.h"
 
-#include "exception.h"
+#include "texception.h"
 #include "taosdef.h"
 #include "tmsg.h"
 #include "tarray.h"
@@ -25,6 +25,7 @@
 #include "thash.h"
 #include "texpr.h"
 #include "tvariant.h"
+#include "tdef.h"
 
 //static uint8_t UNUSED_FUNC isQueryOnPrimaryKey(const char *primaryColumnName, const tExprNode *pLeft, const tExprNode *pRight) {
 //  if (pLeft->nodeType == TEXPR_COL_NODE) {
@@ -94,7 +95,7 @@ bool exprTreeApplyFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp 
 
   //non-leaf nodes, recursively traverse the expression tree in the post-root order
   if (pLeft->nodeType == TEXPR_BINARYEXPR_NODE && pRight->nodeType == TEXPR_BINARYEXPR_NODE) {
-    if (pExpr->_node.optr == TSDB_RELATION_OR) {  // or
+    if (pExpr->_node.optr == LOGIC_COND_TYPE_OR) {  // or
       if (exprTreeApplyFilter(pLeft, pItem, param)) {
         return true;
       }
@@ -255,7 +256,7 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
 
   if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_LIKE, QUERY_COND_REL_PREFIX_LIKE_LEN) == 0) {
     right->nodeType = TEXPR_VALUE_NODE;
-    expr->_node.optr = TSDB_RELATION_LIKE;
+    expr->_node.optr = OP_TYPE_LIKE;
     SVariant* pVal = exception_calloc(1, sizeof(SVariant));
     right->pVal = pVal;
     size_t len = strlen(tbnameCond + QUERY_COND_REL_PREFIX_LIKE_LEN) + 1;
@@ -266,7 +267,7 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
 
   } else if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_MATCH, QUERY_COND_REL_PREFIX_MATCH_LEN) == 0) {
     right->nodeType = TEXPR_VALUE_NODE;
-    expr->_node.optr = TSDB_RELATION_MATCH;
+    expr->_node.optr = OP_TYPE_MATCH;
     SVariant* pVal = exception_calloc(1, sizeof(SVariant));
     right->pVal = pVal;
     size_t len = strlen(tbnameCond + QUERY_COND_REL_PREFIX_MATCH_LEN) + 1;
@@ -276,7 +277,7 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
     pVal->nLen = (int32_t)len;
   } else if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_NMATCH, QUERY_COND_REL_PREFIX_NMATCH_LEN) == 0) {
     right->nodeType = TEXPR_VALUE_NODE;
-    expr->_node.optr = TSDB_RELATION_NMATCH;
+    expr->_node.optr = OP_TYPE_NMATCH;
     SVariant* pVal = exception_calloc(1, sizeof(SVariant));
     right->pVal = pVal;
     size_t len = strlen(tbnameCond + QUERY_COND_REL_PREFIX_NMATCH_LEN) + 1;
@@ -286,7 +287,7 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
     pVal->nLen = (int32_t)len;
   } else if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_IN, QUERY_COND_REL_PREFIX_IN_LEN) == 0) {
     right->nodeType = TEXPR_VALUE_NODE;
-    expr->_node.optr = TSDB_RELATION_IN;
+    expr->_node.optr = OP_TYPE_IN;
     SVariant* pVal = exception_calloc(1, sizeof(SVariant));
     right->pVal = pVal;
     pVal->nType = TSDB_DATA_TYPE_POINTER_ARRAY;

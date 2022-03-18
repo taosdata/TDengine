@@ -1,0 +1,312 @@
+system sh/stop_dnodes.sh
+
+
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/cfg.sh -n dnode1 -c statusInterval -v 1
+system sh/cfg.sh -n dnode2 -c statusInterval -v 1
+system sh/cfg.sh -n dnode1 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode2 -c walLevel -v 1
+system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 2
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 2
+
+$dbPrefix = db
+$tbPrefix = tb
+$mtPrefix = mt
+$stPrefix = st
+$tbNum = 3
+$rowNum = 200
+
+print ========= start dnode1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ============== step1
+$db = $dbPrefix
+sql create database $db 
+sql use $db
+
+$i = 0
+$st = $stPrefix . $i
+$mt = $mtPrefix . $i
+$tbNum = 3
+sql create table $mt (ts timestamp, tbcol int, tbcol2 float) TAGS(tgcol int)
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+  if $i == 0 then 
+    sleep 2000
+  endi
+  
+  $x = 0
+  $y = 0
+  while $y < $rowNum
+    $ms = $x . s
+    sql insert into $tb values (now + $ms , $y , $y ) 
+    $x = $x + 1
+	$y = $y + 1
+  endw 
+ 
+  $i = $i + 1
+endw 
+sql create table $st as select count(*), count(tbcol), count(tbcol2) from $tb interval(10s)
+
+$st = $stPrefix . $i
+$mt = $mtPrefix . $i
+$tbNum = 6
+sql create table $mt (ts timestamp, tbcol int, tbcol2 float) TAGS(tgcol int)
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+  if $i == 0 then 
+    sleep 2000
+  endi
+  
+  $x = 0
+  $y = 0
+  while $y < $rowNum
+    $ms = $x . s
+    sql insert into $tb values (now + $ms , $y , $y ) 
+    $x = $x + 1
+	$y = $y + 1
+  endw 
+ 
+  $i = $i + 1
+endw 
+sql create table $st as select count(*), count(tbcol), count(tbcol2) from $tb interval(10s)
+
+$st = $stPrefix . $i
+$mt = $mtPrefix . $i
+$tbNum = 9
+sql create table $mt (ts timestamp, tbcol int, tbcol2 float) TAGS(tgcol int)
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+  if $i == 0 then 
+    sleep 2000
+  endi
+  
+  $x = 0
+  $y = 0
+  while $y < $rowNum
+    $ms = $x . s
+    sql insert into $tb values (now + $ms , $y , $y ) 
+    $x = $x + 1
+	$y = $y + 1
+  endw 
+ 
+  $i = $i + 1
+endw 
+sql create table $st as select count(*), count(tbcol), count(tbcol2) from $tb interval(10s)
+
+$st = $stPrefix . $i
+$mt = $mtPrefix . $i
+$tbNum = 12
+sql create table $mt (ts timestamp, tbcol int, tbcol2 float) TAGS(tgcol int)
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+  if $i == 0 then 
+    sleep 2000
+  endi
+  
+  $x = 0
+  $y = 0
+  while $y < $rowNum
+    $ms = $x . s
+    sql insert into $tb values (now + $ms , $y , $y ) 
+    $x = $x + 1
+	$y = $y + 1
+  endw 
+ 
+  $i = $i + 1
+endw 
+sql create table $st as select count(*), count(tbcol), count(tbcol2) from $tb interval(10s)
+
+
+print =============== step2
+
+sql show tables
+if $rows != 16 then 
+  return -1
+endi
+
+print =============== step3
+print sleep 22 seconds
+sleep 22000 
+
+$i = 0
+$mt = $mtPrefix . $i
+$st = $stPrefix . $i
+sql select * from $st
+$r0 = $rows
+print $st ==> $r0 $data00 $data01 $data10 $data11
+
+$i = 3
+$mt = $mtPrefix . $i
+$st = $stPrefix . $i
+sql select * from $st
+$r3 = $rows
+print $st ==> $r3 $data00 $data01 $data10 $data11
+
+$i = 6
+$mt = $mtPrefix . $i
+$st = $stPrefix . $i
+sql select * from $st
+$r6 = $rows
+print $st ==> $r6 $data00 $data01 $data10 $data11
+
+$i = 9
+$mt = $mtPrefix . $i
+$st = $stPrefix . $i
+sql select * from $st
+$r9 = $rows
+print $st ==> $r9 $data00 $data01 $data10 $data11
+
+print rows0=>$r0 rows3=>$r3 rows6=>$r6  rows9=>$r9
+
+$x = 0
+show1: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 20 then 
+	  return -1
+	endi
+sql show dnodes -x show1
+$dnode1Vnodes = $data3_192.168.0.1
+print dnode1 $dnode1Vnodes
+$dnode2Vnodes = $data3_192.168.0.2
+print dnode2 $dnode2Vnodes
+
+if $dnode1Vnodes != 0 then
+  goto show1
+endi
+if $dnode2Vnodes != NULL then
+  goto show1
+endi
+
+print =============== step4 start dnode2
+sql create dnode $hostname2
+system sh/exec.sh -n dnode2 -s start
+sleep 8000
+
+$x = 0
+show2: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 20 then 
+	  return -1
+	endi
+sql show dnodes -x show2
+$dnode1Vnodes = $data3_192.168.0.1
+print dnode1 $dnode1Vnodes
+$dnode2Vnodes = $data3_192.168.0.2
+print dnode2 $dnode2Vnodes
+
+if $dnode1Vnodes != 2 then
+  goto show2
+endi
+if $dnode2Vnodes != 2 then
+  goto show2
+endi
+
+print rows0=>$r0 rows3=>$r3 rows6=>$r6  rows9=>$r9
+print =============== step5
+print sleep 22 seconds
+sleep 22000 
+
+print =============== step6
+$i = 0
+$tb = $tbPrefix . $i
+$st = $stPrefix . $i
+sql select * from $tb
+if $rows != $rowNum then
+  return -1
+endi
+
+$i = 3
+$tb = $tbPrefix . $i
+$st = $stPrefix . $i
+sql select * from $tb
+if $rows != $rowNum then
+  return -1
+endi
+
+$i = 6
+$tb = $tbPrefix . $i
+$st = $stPrefix . $i
+sql select * from $tb
+if $rows != $rowNum then
+  return -1
+endi
+
+$i = 9
+$tb = $tbPrefix . $i
+$st = $stPrefix . $i
+sql select * from $tb
+if $rows != $rowNum then
+  return -1
+endi
+
+print rows0=>$r0 rows3=>$r3 rows6=>$r6  rows9=>$r9
+print =============== step7
+$i = 0
+$tb = $tbPrefix . $i
+$st = $stPrefix . $i
+sql select * from $st
+print $st ==> $r0 $rows , $data00 $data01 $data10 $data11
+if $rows == 0 then
+  return -1
+endi
+if $rows <= $r0 then
+  return -1
+endi
+
+$i = 3
+$tb = $tbPrefix . $i
+$st = $stPrefix . $i
+sql select * from $st
+print $st ==> $r3 $rows , $data00 $data01 $data10 $data11
+if $rows == 0 then
+  return -1
+endi
+if $rows <= $r3 then
+  return -1
+endi
+
+
+$i = 6
+$tb = $tbPrefix . $i
+$st = $stPrefix . $i
+sql select * from $st
+print $st ==> $r6 $rows , $data00 $data01 $data10 $data11
+if $rows == 0 then
+  return -1
+endi
+if $rows <= $r6 then
+  return -1
+endi
+
+$i = 9
+$tb = $tbPrefix . $i
+$st = $stPrefix . $i
+sql select * from $st
+print $st ==> $r0 $rows , $data00 $data01 $data10 $data11
+if $rows == 0 then
+  return -1
+endi
+if $rows <= $r9 then
+  return -1
+endi
+
+print  =============== clear
+system sh/exec.sh -n dnode1 -s stop
+system sh/exec.sh -n dnode2 -s stop
+

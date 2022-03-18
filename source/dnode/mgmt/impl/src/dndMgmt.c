@@ -22,6 +22,7 @@
 #include "dndTransport.h"
 #include "dndVnodes.h"
 #include "dndWorker.h"
+#include "monitor.h"
 
 static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg);
 
@@ -185,16 +186,16 @@ static int32_t dndReadDnodes(SDnode *pDnode) {
   int32_t maxLen = 256 * 1024;
   char   *content = calloc(1, maxLen + 1);
   cJSON  *root = NULL;
-  FILE   *fp = NULL;
 
-  fp = fopen(pMgmt->file, "r");
-  if (fp == NULL) {
+  // fp = fopen(pMgmt->file, "r");
+  TdFilePtr pFile = taosOpenFile(pMgmt->file, TD_FILE_READ);
+  if (pFile == NULL) {
     dDebug("file %s not exist", pMgmt->file);
     code = 0;
     goto PRASE_DNODE_OVER;
   }
 
-  len = (int32_t)fread(content, 1, maxLen, fp);
+  len = (int32_t)taosReadFile(pFile, content, maxLen);
   if (len <= 0) {
     dError("failed to read %s since content is null", pMgmt->file);
     goto PRASE_DNODE_OVER;
@@ -286,7 +287,7 @@ static int32_t dndReadDnodes(SDnode *pDnode) {
 PRASE_DNODE_OVER:
   if (content != NULL) free(content);
   if (root != NULL) cJSON_Delete(root);
-  if (fp != NULL) fclose(fp);
+  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (dndIsEpChanged(pDnode, pMgmt->dnodeId, pDnode->cfg.localEp)) {
     dError("localEp %s different with %s and need reconfigured", pDnode->cfg.localEp, pMgmt->file);
@@ -309,8 +310,9 @@ PRASE_DNODE_OVER:
 static int32_t dndWriteDnodes(SDnode *pDnode) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
 
-  FILE *fp = fopen(pMgmt->file, "w");
-  if (fp == NULL) {
+  // FILE *fp = fopen(pMgmt->file, "w");
+  TdFilePtr pFile = taosOpenFile(pMgmt->file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pFile == NULL) {
     dError("failed to write %s since %s", pMgmt->file, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -341,9 +343,9 @@ static int32_t dndWriteDnodes(SDnode *pDnode) {
   }
   len += snprintf(content + len, maxLen - len, "}\n");
 
-  fwrite(content, 1, len, fp);
-  taosFsyncFile(fileno(fp));
-  fclose(fp);
+  taosWriteFile(pFile, content, len);
+  taosFsyncFile(pFile);
+  taosCloseFile(&pFile);
   free(content);
   terrno = 0;
 
@@ -357,23 +359,23 @@ void dndSendStatusReq(SDnode *pDnode) {
 
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   taosRLockLatch(&pMgmt->latch);
-  req.sver = pDnode->env.sver;
+  req.sver = tsVersion;
   req.dver = pMgmt->dver;
   req.dnodeId = pMgmt->dnodeId;
   req.clusterId = pMgmt->clusterId;
   req.rebootTime = pMgmt->rebootTime;
   req.updateTime = pMgmt->updateTime;
-  req.numOfCores = pDnode->env.numOfCores;
+  req.numOfCores = tsNumOfCores;
   req.numOfSupportVnodes = pDnode->cfg.numOfSupportVnodes;
   memcpy(req.dnodeEp, pDnode->cfg.localEp, TSDB_EP_LEN);
 
-  req.clusterCfg.statusInterval = pDnode->cfg.statusInterval;
+  req.clusterCfg.statusInterval = tsStatusInterval;
   req.clusterCfg.checkTime = 0;
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
-  memcpy(req.clusterCfg.timezone, pDnode->env.timezone, TSDB_TIMEZONE_LEN);
-  memcpy(req.clusterCfg.locale, pDnode->env.locale, TSDB_LOCALE_LEN);
-  memcpy(req.clusterCfg.charset, pDnode->env.charset, TSDB_LOCALE_LEN);
+  memcpy(req.clusterCfg.timezone, tsTimezone, TD_TIMEZONE_LEN);
+  memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
+  memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
   taosRUnLockLatch(&pMgmt->latch);
 
   req.pVloads = taosArrayInit(TSDB_MAX_VNODES, sizeof(SVnodeLoad));
@@ -472,19 +474,103 @@ void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
   rpcSendResponse(&rpcRsp);
 }
 
+static void dndGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
+  pInfo->dnode_id = dndGetDnodeId(pDnode);
+  tstrncpy(pInfo->dnode_ep, tsLocalEp, TSDB_EP_LEN);
+  pInfo->cluster_id = dndGetClusterId(pDnode);
+  pInfo->protocol = 1;
+}
+
+static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
+  pInfo->uptime = (taosGetTimestampMs() - pDnode->dmgmt.rebootTime) / (86400000.0f);
+  taosGetCpuUsage(&pInfo->cpu_engine, &pInfo->cpu_system);
+  pInfo->cpu_cores = tsNumOfCores;
+  taosGetProcMemory(&pInfo->mem_engine);
+  taosGetSysMemory(&pInfo->mem_system);
+  pInfo->mem_total = tsTotalMemoryKB;
+  pInfo->disk_engine = 0;
+  pInfo->disk_used = tsDataSpace.size.used;
+  pInfo->disk_total = tsDataSpace.size.total;
+  taosGetCardInfo(&pInfo->net_in, &pInfo->net_out);
+  taosGetProcIO(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
+
+  SVnodesStat *pStat = &pDnode->vmgmt.stat;
+  pInfo->req_select = pStat->numOfSelectReqs;
+  pInfo->req_insert = pStat->numOfInsertReqs;
+  pInfo->req_insert_success = pStat->numOfInsertSuccessReqs;
+  pInfo->req_insert_batch = pStat->numOfBatchInsertReqs;
+  pInfo->req_insert_batch_success = pStat->numOfBatchInsertSuccessReqs;
+  pInfo->errors = tsNumOfErrorLogs;
+  pInfo->vnodes_num = pStat->totalVnodes;
+  pInfo->masters = pStat->masterNum;
+  pInfo->has_mnode = pDnode->mmgmt.deployed;
+}
+
+static void dndSendMonitorReport(SDnode *pDnode) {
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
+  dTrace("pDnode:%p, send monitor report to %s:%u", pDnode, tsMonitorFqdn, tsMonitorPort);
+
+  SMonInfo *pMonitor = monCreateMonitorInfo();
+  if (pMonitor == NULL) return;
+
+  SMonBasicInfo basicInfo = {0};
+  dndGetMonitorBasicInfo(pDnode, &basicInfo);
+  monSetBasicInfo(pMonitor, &basicInfo);
+
+  SMonClusterInfo clusterInfo = {0};
+  SMonVgroupInfo  vgroupInfo = {0};
+  SMonGrantInfo   grantInfo = {0};
+  if (dndGetMnodeMonitorInfo(pDnode, &clusterInfo, &vgroupInfo, &grantInfo) == 0) {
+    monSetClusterInfo(pMonitor, &clusterInfo);
+    monSetVgroupInfo(pMonitor, &vgroupInfo);
+    monSetGrantInfo(pMonitor, &grantInfo);
+  }
+
+  SMonDnodeInfo dnodeInfo = {0};
+  dndGetMonitorDnodeInfo(pDnode, &dnodeInfo);
+  monSetDnodeInfo(pMonitor, &dnodeInfo);
+
+  SMonDiskInfo diskInfo = {0};
+  if (dndGetMonitorDiskInfo(pDnode, &diskInfo) == 0) {
+    monSetDiskInfo(pMonitor, &diskInfo);
+  }
+
+  taosArrayDestroy(clusterInfo.dnodes);
+  taosArrayDestroy(clusterInfo.mnodes);
+  taosArrayDestroy(vgroupInfo.vgroups);
+  taosArrayDestroy(diskInfo.datadirs);
+
+  monSendReport(pMonitor);
+  monCleanupMonitorInfo(pMonitor);
+}
+
 static void *dnodeThreadRoutine(void *param) {
   SDnode     *pDnode = param;
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-  int32_t     ms = pDnode->cfg.statusInterval * 1000;
+  int64_t     lastStatusTime = taosGetTimestampMs();
+  int64_t     lastMonitorTime = lastStatusTime;
 
   setThreadName("dnode-hb");
 
   while (true) {
     pthread_testcancel();
-    taosMsleep(ms);
+    taosMsleep(200);
+    if (dndGetStat(pDnode) != DND_STAT_RUNNING || pMgmt->dropped) {
+      continue;
+    }
 
-    if (dndGetStat(pDnode) == DND_STAT_RUNNING && !pMgmt->statusSent && !pMgmt->dropped) {
+    int64_t curTime = taosGetTimestampMs();
+
+    float statusInterval = (curTime - lastStatusTime) / 1000.0f;
+    if (statusInterval >= tsStatusInterval && !pMgmt->statusSent) {
       dndSendStatusReq(pDnode);
+      lastStatusTime = curTime;
+    }
+
+    float monitorInterval = (curTime - lastMonitorTime) / 1000.0f;
+    if (monitorInterval >= tsMonitorInterval) {
+      dndSendMonitorReport(pDnode);
+      lastMonitorTime = curTime;
     }
   }
 }

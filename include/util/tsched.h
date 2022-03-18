@@ -13,8 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_SCHED_H
-#define _TD_UTIL_SCHED_H
+#ifndef _TD_UTIL_SCHED_H_
+#define _TD_UTIL_SCHED_H_
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,7 +38,7 @@ typedef struct SSchedMsg {
  * @param label the label of the queue
  * @return the created queue scheduler
  */
-void *taosInitScheduler(int capacity, int numOfThreads, const char *label);
+void *taosInitScheduler(int32_t capacity, int32_t numOfThreads, const char *label);
 
 /**
  * Create a thread-safe ring-buffer based task queue and return the instance.
@@ -47,7 +49,7 @@ void *taosInitScheduler(int capacity, int numOfThreads, const char *label);
  * @param tmrCtrl the timer controller, tmr_ctrl_t*
  * @return the created queue scheduler
  */
-void *taosInitSchedulerWithInfo(int capacity, int numOfThreads, const char *label, void *tmrCtrl);
+void *taosInitSchedulerWithInfo(int32_t capacity, int32_t numOfThreads, const char *label, void *tmrCtrl);
 
 /**
  * Clean up the queue scheduler instance and free the memory.
@@ -68,4 +70,4 @@ void taosScheduleTask(void *queueScheduler, SSchedMsg *pMsg);
 }
 #endif
 
-#endif  /*_TD_UTIL_SCHED_H*/
+#endif /*_TD_UTIL_SCHED_H_*/

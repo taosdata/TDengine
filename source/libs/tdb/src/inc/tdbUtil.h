@@ -30,10 +30,10 @@ extern "C" {
 
 int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique);
 
-#define TDB_F_OK 0x1
-#define TDB_R_OK 0x2
-#define TDB_W_OK 0x4
-int tdbCheckFileAccess(const char *pathname, int mode);
+// #define TDB_F_OK 0x1
+// #define TDB_R_OK 0x2
+// #define TDB_W_OK 0x4
+// int tdbCheckFileAccess(const char *pathname, int mode);
 
 int tdbGetFileSize(const char *fname, int pgSize, SPgno *pSize);
 

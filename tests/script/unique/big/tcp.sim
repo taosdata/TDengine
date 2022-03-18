@@ -1,0 +1,113 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode    -v 30000
+
+system sh/cfg.sh -n dnode1 -c dDebugFlag      -v 131
+system sh/cfg.sh -n dnode1 -c mDebugFlag      -v 131
+system sh/cfg.sh -n dnode1 -c sdbDebugFlag    -v 131
+system sh/cfg.sh -n dnode1 -c rpcDebugFlag   -v 131
+system sh/cfg.sh -n dnode1 -c cDebugFlag      -v 131
+system sh/cfg.sh -n dnode1 -c gcDebugFlag     -v 131
+system sh/cfg.sh -n dnode1 -c adminDebugFlag  -v 131
+system sh/cfg.sh -n dnode1 -c httpDebugFlag   -v 135
+system sh/cfg.sh -n dnode1 -c debugFlag       -v 131
+
+system sh/exec.sh -n dnode1 -s start
+sql connect
+print ======================== dnode1 start
+
+$dbPrefix = db
+$tbPrefix = tb
+$mtPrefix = mt
+$tbNum = 22000
+$rowNum = 10
+
+print =============== step1
+$i = 0
+$db = $dbPrefix
+$mt = $mtPrefix
+
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol int, tbcol2 float) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+  
+  $i = $i + 1
+endw 
+
+print =============== step2
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql insert into $tb values (now, $i , $i ) 
+  
+  $i = $i + 1000
+endw 
+
+$i = 0
+while $i < 5
+	print =============== step3 $i
+	sql select count(*) from $mt
+	print ===> $data00 $data01
+	if $rows != 1 then 
+	  return -1
+	endi
+	if $data00 != 22 then 
+	  return -1
+	endi
+
+	print =============== step4 $i
+	sql select * from $mt
+	print ===> $data00 $data01
+	if $rows != 22 then 
+	  return -1
+	endi
+	
+	$i = $i + 1
+endw 
+
+print =============== step3
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql insert into $tb values (now, $i , $i ) 
+  
+  $i = $i + 1000
+endw 
+
+$i = 0
+while $i < 5
+	print =============== step5 $i
+	sql select count(*) from $mt where tgcol < 20200
+	print ===> $data00 $data01
+	if $rows != 1 then 
+	  return -1
+	endi
+	if $data00 != 42 then 
+	  return -1
+	endi
+
+	print =============== step6 $i
+	sql select * from $mt where tgcol < 20200
+	print ===> $data00 $data01
+	if $rows != 42 then 
+	  return -1
+	endi
+	
+	$i = $i + 1
+endw 
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

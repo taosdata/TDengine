@@ -1,0 +1,269 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+
+system sh/cfg.sh -n dnode1 -c statusInterval -v 1
+system sh/cfg.sh -n dnode2 -c statusInterval -v 1
+system sh/cfg.sh -n dnode3 -c statusInterval -v 1
+system sh/cfg.sh -n dnode4 -c statusInterval -v 1
+
+system sh/cfg.sh -n dnode1 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode3 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode4 -c balanceInterval -v 10
+
+system sh/cfg.sh -n dnode1 -c wallevel -v 1
+system sh/cfg.sh -n dnode2 -c wallevel -v 1
+system sh/cfg.sh -n dnode3 -c wallevel -v 1
+system sh/cfg.sh -n dnode4 -c wallevel -v 1
+
+system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 0
+
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 4
+
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode3 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode4 -c maxTablesPerVnode -v 4
+
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode4 -c numOfMnodes -v 3
+
+system sh/cfg.sh -n dnode1 -c maxVnodeConnections -v 1000
+system sh/cfg.sh -n dnode1 -c maxMeterConnections -v 1000
+system sh/cfg.sh -n dnode1 -c maxShellConns       -v 1000
+system sh/cfg.sh -n dnode1 -c maxMgmtConnections  -v 1000
+
+system sh/cfg.sh -n dnode2 -c maxVnodeConnections -v 1000
+system sh/cfg.sh -n dnode2 -c maxMeterConnections -v 1000
+system sh/cfg.sh -n dnode2 -c maxShellConns       -v 1000
+system sh/cfg.sh -n dnode2 -c maxMgmtConnections  -v 1000
+
+$dbPrefix = db
+$tbPrefix = tb
+$mtPrefix = mt
+$stPrefix = st
+$tbNum = 5
+$rowNum = 20
+$totalNum = 200
+
+print ============== step1
+print ========= start dnode1
+system sh/exec.sh -n dnode1 -s start
+
+sql connect
+sleep 2000
+
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+$st = $stPrefix . $i
+
+sql create database $db 
+sql use $db
+sql create table $mt (ts timestamp, tbcol int, tbcol2 float) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+  
+  $x = -20
+  $y = 0
+  while $y < $rowNum
+    $ms = $x . s 
+    sql insert into $tb values (now $ms , $x , $x ) 
+    $x = $x + 1
+	$y = $y + 1
+  endw 
+ 
+  $i = $i + 1
+endw 
+
+sleep 100
+
+print =============== step2
+$i = 0
+$tb = $tbPrefix . $i
+$st = $stPrefix . $i
+
+sql select count(*), count(tbcol), count(tbcol2) from $tb interval(1d)
+print select count(*), count(tbcol), count(tbcol2) from $tb interval(1d) ===> $data00 $data01 $data02, $data03
+if $data01 != $rowNum then 
+  return -1
+endi
+if $data02 != $rowNum then 
+  return -1
+endi
+if $data03 != $rowNum then 
+  return -1
+endi
+
+sql show tables
+if $rows != 5 then 
+  return -1
+endi
+
+sql create table $st as select count(*), count(tbcol), count(tbcol2) from $tb interval(10s)
+
+sql show tables
+if $rows != 6 then 
+  return -1
+endi
+
+print =============== step3
+print sleep 22 seconds
+sleep 22000 
+
+sql select * from $tb
+if $rows != 20 then
+  return -1
+endi
+
+sql select * from $mt
+if $rows != 100 then
+  return -1
+endi
+
+sql select * from $st
+print select * from $st => $data01
+if $rows == 0 then 
+  return -1
+endi
+
+$x = 0
+show1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then 
+	  return -1
+	endi
+sql show dnodes -x show1
+$dnode1Vnodes = $data3_192.168.0.1
+print dnode1 $dnode1Vnodes
+$dnode2Vnodes = $data3_192.168.0.2
+print dnode2 $dnode2Vnodes
+
+if $dnode1Vnodes != 6 then
+  goto show1
+endi
+if $dnode2Vnodes != NULL then
+  goto show1
+endi
+
+print =============== step4 start dnode2
+sql create dnode $hostname2
+system sh/exec.sh -n dnode2 -s start
+sleep 8000
+
+$x = 0
+show2: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 20 then 
+	  return -1
+	endi
+sql show dnodes -x show2
+$dnode1Vnodes = $data3_192.168.0.1
+print dnode1 $dnode1Vnodes
+$dnode2Vnodes = $data3_192.168.0.2
+print dnode2 $dnode2Vnodes
+
+if $dnode1Vnodes != 7 then
+  goto show2
+endi
+if $dnode2Vnodes != 7 then
+  goto show2
+endi
+
+print =============== step5 drop dnode1
+system sh/exec.sh -n dnode1 -s stop
+print stop dnode1 and sleep 10000
+sleep 10000
+
+sql drop dnode $hostname1
+print drop dnode1 and sleep 9000
+sleep 9000
+
+$x = 0
+show6: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 20 then 
+	  return -1
+	endi
+sql show dnodes -x show6
+$dnode1Vnodes = $data3_192.168.0.1
+print dnode1 $dnode1Vnodes
+$dnode2Vnodes = $data3_192.168.0.2
+print dnode2 $dnode2Vnodes
+
+if $dnode1Vnodes != NULL then
+  goto show6
+endi
+if $dnode2Vnodes != 6 then
+  goto show6
+endi
+
+print =============== step6
+
+print select * from $tb
+sql select * from $tb
+if $rows != 20 then
+  return -1
+endi
+
+print select * from $mt
+sql select * from $mt
+if $rows != 80 then
+  return -1
+endi
+
+
+print =============== step7
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  
+  $x = 0
+  $y = 0
+  while $y < $rowNum
+    $ms = $x . s
+    sql insert into $tb values (now + $ms , $y , $y ) 
+    $x = $x + 1
+	$y = $y + 1
+  endw 
+ 
+  $i = $i + 1
+endw 
+
+$i = 0
+$tb = $tbPrefix . $i
+$st = $stPrefix . $i
+
+print =============== step8
+print sleep 22 seconds
+sleep 22000 
+
+print select * from $st
+sql select * from $st
+if $rows == 0 then
+  return -1
+endi
+
+
+print  =============== clear
+system sh/exec.sh -n dnode1 -s stop
+system sh/exec.sh -n dnode2 -s stop
+

@@ -105,6 +105,9 @@ static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FNodeWalker walker
     case QUERY_NODE_RAW_EXPR:
       res = walkNode(((SRawExprNode*)pNode)->pNode, order, walker, pContext);
       break;
+    case QUERY_NODE_TARGET:
+      res = walkNode(((STargetNode*)pNode)->pExpr, order, walker, pContext);
+      break;
     default:
       break;
   }
@@ -126,7 +129,7 @@ static EDealRes walkList(SNodeList* pNodeList, ETraversalOrder order, FNodeWalke
   return DEAL_RES_CONTINUE;
 }
 
-void nodesWalkNode(SNode* pNode, FNodeWalker walker, void* pContext) {
+void nodesWalkNode(SNodeptr pNode, FNodeWalker walker, void* pContext) {
   (void)walkNode(pNode, TRAVERSAL_PREORDER, walker, pContext);
 }
 
@@ -134,7 +137,7 @@ void nodesWalkList(SNodeList* pNodeList, FNodeWalker walker, void* pContext) {
   (void)walkList(pNodeList, TRAVERSAL_PREORDER, walker, pContext);
 }
 
-void nodesWalkNodePostOrder(SNode* pNode, FNodeWalker walker, void* pContext) {
+void nodesWalkNodePostOrder(SNodeptr pNode, FNodeWalker walker, void* pContext) {
   (void)walkNode(pNode, TRAVERSAL_POSTORDER, walker, pContext);
 }
 
@@ -227,6 +230,9 @@ static EDealRes rewriteNode(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       break;
     case QUERY_NODE_RAW_EXPR:
       res = rewriteNode(&(((SRawExprNode*)pNode)->pNode), order, rewriter, pContext);
+      break;
+    case QUERY_NODE_TARGET:
+      res = rewriteNode(&(((STargetNode*)pNode)->pExpr), order, rewriter, pContext);
       break;
     default:
       break;

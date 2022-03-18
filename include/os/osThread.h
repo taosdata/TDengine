@@ -16,11 +16,11 @@
 #ifndef _TD_OS_THREAD_H_
 #define _TD_OS_THREAD_H_
 
+#include <pthread.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include <pthread.h>
 
 #ifdef __cplusplus
 }

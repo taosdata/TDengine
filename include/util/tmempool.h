@@ -12,25 +12,24 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef _TD_UTIL_MEMPOOL_H
-#define _TD_UTIL_MEMPOOL_H
+#ifndef _TD_UTIL_MEMPOOL_H_
+#define _TD_UTIL_MEMPOOL_H_
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define mpool_h void *
+typedef void *mpool_h;
 
-mpool_h taosMemPoolInit(int maxNum, int blockSize);
-
-char *taosMemPoolMalloc(mpool_h handle);
-
-void taosMemPoolFree(mpool_h handle, char *p);
-
-void taosMemPoolCleanUp(mpool_h handle);
+mpool_h taosMemPoolInit(int32_t maxNum, int32_t blockSize);
+char   *taosMemPoolMalloc(mpool_h handle);
+void    taosMemPoolFree(mpool_h handle, char *p);
+void    taosMemPoolCleanUp(mpool_h handle);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_UTIL_MEMPOOL_H*/
+#endif /*_TD_UTIL_MEMPOOL_H_*/

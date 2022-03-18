@@ -14,6 +14,7 @@
  */
 
 #include "index_cache.h"
+#include "index_comm.h"
 #include "index_util.h"
 #include "tcompare.h"
 #include "tsched.h"
@@ -44,8 +45,9 @@ IndexCache* indexCacheCreate(SIndex* idx, uint64_t suid, const char* colName, in
     indexError("failed to create index cache");
     return NULL;
   };
+
   cache->mem = indexInternalCacheCreate(type);
-  cache->colName = tstrdup(colName);
+  cache->colName = INDEX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? tstrdup(JSON_COLUMN) : tstrdup(colName);
   cache->type = type;
   cache->index = idx;
   cache->version = 0;
@@ -119,13 +121,17 @@ void indexCacheDestroySkiplist(SSkipList* slt) {
   tSkipListDestroy(slt);
 }
 void indexCacheDestroyImm(IndexCache* cache) {
-  if (cache == NULL) { return; }
+  if (cache == NULL) {
+    return;
+  }
 
   MemTable* tbl = NULL;
   pthread_mutex_lock(&cache->mtx);
+
   tbl = cache->imm;
   cache->imm = NULL;  // or throw int bg thread
   pthread_cond_broadcast(&cache->finished);
+
   pthread_mutex_unlock(&cache->mtx);
 
   indexMemUnRef(tbl);
@@ -133,7 +139,9 @@ void indexCacheDestroyImm(IndexCache* cache) {
 }
 void indexCacheDestroy(void* cache) {
   IndexCache* pCache = cache;
-  if (pCache == NULL) { return; }
+  if (pCache == NULL) {
+    return;
+  }
   indexMemUnRef(pCache->mem);
   indexMemUnRef(pCache->imm);
   free(pCache->colName);
@@ -146,7 +154,9 @@ void indexCacheDestroy(void* cache) {
 
 Iterate* indexCacheIteratorCreate(IndexCache* cache) {
   Iterate* iiter = calloc(1, sizeof(Iterate));
-  if (iiter == NULL) { return NULL; }
+  if (iiter == NULL) {
+    return NULL;
+  }
 
   pthread_mutex_lock(&cache->mtx);
 
@@ -164,7 +174,9 @@ Iterate* indexCacheIteratorCreate(IndexCache* cache) {
   return iiter;
 }
 void indexCacheIteratorDestroy(Iterate* iter) {
-  if (iter == NULL) { return; }
+  if (iter == NULL) {
+    return;
+  }
   tSkipListDestroyIter(iter->iter);
   iterateValueDestroy(&iter->val, true);
   free(iter);
@@ -178,7 +190,10 @@ int indexCacheSchedToMerge(IndexCache* pCache) {
   schedMsg.msg = NULL;
 
   taosScheduleTask(indexQhandle, &schedMsg);
+
+  return 0;
 }
+
 static void indexCacheMakeRoomForWrite(IndexCache* cache) {
   while (true) {
     if (cache->occupiedMem * MEM_ESTIMATE_RADIO < MEM_THRESHOLD) {
@@ -186,9 +201,6 @@ static void indexCacheMakeRoomForWrite(IndexCache* cache) {
     } else if (cache->imm != NULL) {
       // TODO: wake up by condition variable
       pthread_cond_wait(&cache->finished, &cache->mtx);
-      // pthread_mutex_unlock(&cache->mtx);
-      // taosMsleep(50);
-      // pthread_mutex_lock(&cache->mtx);
     } else {
       indexCacheRef(cache);
       cache->imm = cache->mem;
@@ -200,19 +212,27 @@ static void indexCacheMakeRoomForWrite(IndexCache* cache) {
     }
   }
 }
-
 int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
-  if (cache == NULL) { return -1; }
+  if (cache == NULL) {
+    return -1;
+  }
+  bool hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON);
 
   IndexCache* pCache = cache;
   indexCacheRef(pCache);
   // encode data
   CacheTerm* ct = calloc(1, sizeof(CacheTerm));
-  if (cache == NULL) { return -1; }
+  if (cache == NULL) {
+    return -1;
+  }
   // set up key
   ct->colType = term->colType;
-  ct->colVal = (char*)calloc(1, sizeof(char) * (term->nColVal + 1));
-  memcpy(ct->colVal, term->colVal, term->nColVal);
+  if (hasJson) {
+    ct->colVal = indexPackJsonData(term);
+  } else {
+    ct->colVal = (char*)calloc(1, sizeof(char) * (term->nColVal + 1));
+    memcpy(ct->colVal, term->colVal, term->nColVal);
+  }
   ct->version = atomic_add_fetch_32(&pCache->version, 1);
   // set value
   ct->uid = uid;
@@ -239,8 +259,10 @@ int indexCacheDel(void* cache, const char* fieldValue, int32_t fvlen, uint64_t u
   return 0;
 }
 
-static int indexQueryMem(MemTable* mem, CacheTerm* ct, EIndexQueryType qtype, SArray* result, STermValueType* s) {
-  if (mem == NULL) { return 0; }
+static int indexQueryMem(MemTable* mem, CacheTerm* ct, EIndexQueryType qtype, SIdxTempResult* tr, STermValueType* s) {
+  if (mem == NULL) {
+    return 0;
+  }
   char* key = indexCacheTermGet(ct);
 
   SSkipListIterator* iter = tSkipListCreateIterFromVal(mem->mem, key, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
@@ -248,25 +270,32 @@ static int indexQueryMem(MemTable* mem, CacheTerm* ct, EIndexQueryType qtype, SA
     SSkipListNode* node = tSkipListIterGet(iter);
     if (node != NULL) {
       CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
-      if (c->operaType == ADD_VALUE || qtype == QUERY_TERM) {
-        if (strcmp(c->colVal, ct->colVal) == 0) {
-          taosArrayPush(result, &c->uid);
-          *s = kTypeValue;
+      if (qtype == QUERY_TERM) {
+        if (0 == strcmp(c->colVal, ct->colVal)) {
+          if (c->operaType == ADD_VALUE) {
+            INDEX_MERGE_ADD_DEL(tr->deled, tr->added, c->uid)
+            // taosArrayPush(result, &c->uid);
+            *s = kTypeValue;
+          } else if (c->operaType == DEL_VALUE) {
+            INDEX_MERGE_ADD_DEL(tr->added, tr->deled, c->uid)
+          }
         } else {
           break;
         }
-      } else if (c->operaType == DEL_VALUE) {
-        // table is del, not need
-        *s = kTypeDeletion;
-        break;
+      } else if (qtype == QUERY_PREFIX) {
+      } else if (qtype == QUERY_SUFFIX) {
+      } else if (qtype == QUERY_RANGE) {
       }
     }
   }
   tSkipListDestroyIter(iter);
   return 0;
 }
-int indexCacheSearch(void* cache, SIndexTermQuery* query, SArray* result, STermValueType* s) {
-  if (cache == NULL) { return 0; }
+int indexCacheSearch(void* cache, SIndexTermQuery* query, SIdxTempResult* result, STermValueType* s) {
+  int64_t st = taosGetTimestampUs();
+  if (cache == NULL) {
+    return 0;
+  }
   IndexCache* pCache = cache;
 
   MemTable *mem = NULL, *imm = NULL;
@@ -279,7 +308,13 @@ int indexCacheSearch(void* cache, SIndexTermQuery* query, SArray* result, STermV
 
   SIndexTerm*     term = query->term;
   EIndexQueryType qtype = query->qType;
-  CacheTerm       ct = {.colVal = term->colVal, .version = atomic_load_32(&pCache->version)};
+
+  bool  hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON);
+  char* p = term->colVal;
+  if (hasJson) {
+    p = indexPackJsonData(term);
+  }
+  CacheTerm ct = {.colVal = p, .version = atomic_load_32(&pCache->version)};
 
   int ret = indexQueryMem(mem, &ct, qtype, result, s);
   if (ret == 0 && *s != kTypeDeletion) {
@@ -287,30 +322,45 @@ int indexCacheSearch(void* cache, SIndexTermQuery* query, SArray* result, STermV
     ret = indexQueryMem(imm, &ct, qtype, result, s);
   }
 
+  if (hasJson) {
+    tfree(p);
+  }
+
   indexMemUnRef(mem);
   indexMemUnRef(imm);
+  indexInfo("cache search, time cost %" PRIu64 "us", taosGetTimestampUs() - st);
 
   return ret;
 }
 
 void indexCacheRef(IndexCache* cache) {
-  if (cache == NULL) { return; }
+  if (cache == NULL) {
+    return;
+  }
   int ref = T_REF_INC(cache);
   UNUSED(ref);
 }
 void indexCacheUnRef(IndexCache* cache) {
-  if (cache == NULL) { return; }
+  if (cache == NULL) {
+    return;
+  }
   int ref = T_REF_DEC(cache);
-  if (ref == 0) { indexCacheDestroy(cache); }
+  if (ref == 0) {
+    indexCacheDestroy(cache);
+  }
 }
 
 void indexMemRef(MemTable* tbl) {
-  if (tbl == NULL) { return; }
+  if (tbl == NULL) {
+    return;
+  }
   int ref = T_REF_INC(tbl);
   UNUSED(ref);
 }
 void indexMemUnRef(MemTable* tbl) {
-  if (tbl == NULL) { return; }
+  if (tbl == NULL) {
+    return;
+  }
   int ref = T_REF_DEC(tbl);
   if (ref == 0) {
     SSkipList* slt = tbl->mem;
@@ -320,7 +370,9 @@ void indexMemUnRef(MemTable* tbl) {
 }
 
 static void indexCacheTermDestroy(CacheTerm* ct) {
-  if (ct == NULL) { return; }
+  if (ct == NULL) {
+    return;
+  }
   free(ct->colVal);
   free(ct);
 }
@@ -333,11 +385,15 @@ static int32_t indexCacheTermCompare(const void* l, const void* r) {
   CacheTerm* rt = (CacheTerm*)r;
   // compare colVal
   int32_t cmp = strcmp(lt->colVal, rt->colVal);
-  if (cmp == 0) { return rt->version - lt->version; }
+  if (cmp == 0) {
+    return rt->version - lt->version;
+  }
   return cmp;
 }
 
 static MemTable* indexInternalCacheCreate(int8_t type) {
+  type = INDEX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? TSDB_DATA_TYPE_BINARY : type;
+
   MemTable* tbl = calloc(1, sizeof(MemTable));
   indexMemRef(tbl);
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
@@ -354,36 +410,23 @@ static void doMergeWork(SSchedMsg* msg) {
 }
 static bool indexCacheIteratorNext(Iterate* itera) {
   SSkipListIterator* iter = itera->iter;
-  if (iter == NULL) { return false; }
+  if (iter == NULL) {
+    return false;
+  }
   IterateValue* iv = &itera->val;
   iterateValueDestroy(iv, false);
-
-  // IterateValue* iv = &itera->val;
-  // IterateValue tIterVal = {.colVal = NULL, .val = taosArrayInit(1, sizeof(uint64_t))};
 
   bool next = tSkipListIterNext(iter);
   if (next) {
     SSkipListNode* node = tSkipListIterGet(iter);
     CacheTerm*     ct = (CacheTerm*)SL_GET_NODE_DATA(node);
 
-    // equal func
-    // if (iv->colVal != NULL && ct->colVal != NULL) {
-    //  if (0 == strcmp(iv->colVal, ct->colVal)) { if (iv->type == ADD_VALUE) }
-    //} else {
-    //  tIterVal.colVal = calloc(1, strlen(ct->colVal) + 1);
-    //  tIterval.colVal = tstrdup(ct->colVal);
-    //}
     iv->type = ct->operaType;
+    iv->ver = ct->version;
     iv->colVal = tstrdup(ct->colVal);
-    // iv->colVal = calloc(1, strlen(ct->colVal) + 1);
-    // memcpy(iv->colVal, ct->colVal, strlen(ct->colVal));
 
     taosArrayPush(iv->val, &ct->uid);
   }
-  // IterateValue* iv = &itera->val;
-  // iterateValueDestroy(iv, true);
-  //*iv = tIterVal;
-
   return next;
 }
 

@@ -1,0 +1,91 @@
+sleep 2000
+sql connect
+
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
+
+$dbPrefix = m_di_db
+$tbPrefix = m_di_tb
+$mtPrefix = m_di_mt
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+  
+  $x = 0
+  while $x < $rowNum
+    $ms = $x . m 
+    sql insert into $tb values (now + $ms , $x ) 
+    $x = $x + 1
+  endw 
+ 
+  $i = $i + 1
+endw 
+
+sleep 100
+
+print =============== step2
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select diff(tbcol) from $tb
+print ===> $data11
+if $data11 != 1 then 
+  return -1
+endi
+
+print =============== step3
+sql select diff(tbcol) from $tb where ts > now + 4m
+print ===> $data11
+if $data11 != 1 then 
+  return -1
+endi
+
+sql select diff(tbcol) from $tb where ts < now + 4m
+print ===> $data11
+if $data11 != 1 then 
+  return -1
+endi
+
+print =============== step4
+sql select diff(tbcol) as b from $tb
+print ===> $data11
+if $data11 != 1 then 
+  return -1
+endi
+
+print =============== step5
+sql select diff(tbcol) as b from $tb interval(1m) -x step5
+  return -1
+step5:
+
+print =============== step6
+sql select diff(tbcol) as b from $tb where ts < now + 4m interval(1m) -x step6
+  return -1
+step6:
+
+print =============== clear
+sql drop database $db
+sql show databases
+if $rows != 0 then 
+  return -1
+endi

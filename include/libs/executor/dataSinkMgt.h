@@ -23,6 +23,7 @@ extern "C" {
 #include "os.h"
 #include "thash.h"
 #include "executor.h"
+#include "plannodes.h"
 
 #define DS_BUF_LOW   1
 #define DS_BUF_FULL  2
@@ -40,7 +41,6 @@ int32_t dsDataSinkMgtInit(SDataSinkMgtCfg *cfg);
 
 typedef struct SInputData {
   const struct SSDataBlock* pData;
-  SHashObj* pTableRetrieveTsMap;
 } SInputData;
 
 typedef struct SOutputData {
@@ -59,7 +59,7 @@ typedef struct SOutputData {
  * @param pHandle output
  * @return error code
  */
-int32_t dsCreateDataSinker(const struct SDataSink *pDataSink, DataSinkHandle* pHandle);
+int32_t dsCreateDataSinker(const SDataSinkNode* pDataSink, DataSinkHandle* pHandle);
 
 /**
  * Put the result set returned by the executor into datasinker.

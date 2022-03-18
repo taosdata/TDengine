@@ -16,7 +16,7 @@
 #ifndef _TD_VNODE_DEF_H_
 #define _TD_VNODE_DEF_H_
 
-#include "mallocator.h"
+#include "tmallocator.h"
 // #include "sync.h"
 #include "tcoding.h"
 #include "tfs.h"
@@ -88,44 +88,41 @@ int vnodeScheduleTask(SVnodeTask* task);
 int32_t vnodePutReqToVQueryQ(SVnode* pVnode, struct SRpcMsg* pReq);
 void    vnodeSendReqToDnode(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pReq);
 
-// For Log
-extern int32_t vDebugFlag;
-
-#define vFatal(...)                                 \
-  do {                                              \
-    if (vDebugFlag & DEBUG_FATAL) {                 \
-      taosPrintLog("VND FATAL ", 255, __VA_ARGS__); \
-    }                                               \
+#define vFatal(...)                                              \
+  do {                                                           \
+    if (vDebugFlag & DEBUG_FATAL) {                              \
+      taosPrintLog("VND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); \
+    }                                                            \
   } while (0)
-#define vError(...)                                 \
-  do {                                              \
-    if (vDebugFlag & DEBUG_ERROR) {                 \
-      taosPrintLog("VND ERROR ", 255, __VA_ARGS__); \
-    }                                               \
+#define vError(...)                                              \
+  do {                                                           \
+    if (vDebugFlag & DEBUG_ERROR) {                              \
+      taosPrintLog("VND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); \
+    }                                                            \
   } while (0)
-#define vWarn(...)                                 \
-  do {                                             \
-    if (vDebugFlag & DEBUG_WARN) {                 \
-      taosPrintLog("VND WARN ", 255, __VA_ARGS__); \
-    }                                              \
+#define vWarn(...)                                             \
+  do {                                                         \
+    if (vDebugFlag & DEBUG_WARN) {                             \
+      taosPrintLog("VND WARN ", DEBUG_WARN, 255, __VA_ARGS__); \
+    }                                                          \
   } while (0)
-#define vInfo(...)                            \
-  do {                                        \
-    if (vDebugFlag & DEBUG_INFO) {            \
-      taosPrintLog("VND ", 255, __VA_ARGS__); \
-    }                                         \
+#define vInfo(...)                                        \
+  do {                                                    \
+    if (vDebugFlag & DEBUG_INFO) {                        \
+      taosPrintLog("VND ", DEBUG_INFO, 255, __VA_ARGS__); \
+    }                                                     \
   } while (0)
-#define vDebug(...)                                     \
-  do {                                                  \
-    if (vDebugFlag & DEBUG_DEBUG) {                     \
-      taosPrintLog("VND ", tsdbDebugFlag, __VA_ARGS__); \
-    }                                                   \
+#define vDebug(...)                                                  \
+  do {                                                               \
+    if (vDebugFlag & DEBUG_DEBUG) {                                  \
+      taosPrintLog("VND ", DEBUG_DEBUG, tsdbDebugFlag, __VA_ARGS__); \
+    }                                                                \
   } while (0)
-#define vTrace(...)                                     \
-  do {                                                  \
-    if (vDebugFlag & DEBUG_TRACE) {                     \
-      taosPrintLog("VND ", tsdbDebugFlag, __VA_ARGS__); \
-    }                                                   \
+#define vTrace(...)                                                  \
+  do {                                                               \
+    if (vDebugFlag & DEBUG_TRACE) {                                  \
+      taosPrintLog("VND ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); \
+    }                                                                \
   } while (0)
 
 // vnodeCfg.h

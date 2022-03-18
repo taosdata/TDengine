@@ -19,6 +19,10 @@
 #include "tchecksum.h"
 #include "tfs.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define TSDB_FILE_HEAD_SIZE 512
 #define TSDB_FILE_DELIMITER 0xF00AFA0F
 #define TSDB_FILE_INIT_MAGIC 0xFFFFFFFF
@@ -28,23 +32,54 @@
 
 #define TSDB_FILE_INFO(tf) (&((tf)->info))
 #define TSDB_FILE_F(tf) (&((tf)->f))
-#define TSDB_FILE_FD(tf) ((tf)->fd)
+#define TSDB_FILE_PFILE(tf) ((tf)->pFile)
 #define TSDB_FILE_FULL_NAME(tf) (TSDB_FILE_F(tf)->aname)
-#define TSDB_FILE_OPENED(tf) (TSDB_FILE_FD(tf) >= 0)
+#define TSDB_FILE_OPENED(tf) (TSDB_FILE_PFILE(tf) != NULL)
 #define TSDB_FILE_CLOSED(tf) (!TSDB_FILE_OPENED(tf))
-#define TSDB_FILE_SET_CLOSED(f) (TSDB_FILE_FD(f) = -1)
+#define TSDB_FILE_SET_CLOSED(f) (TSDB_FILE_PFILE(f) = NULL)
 #define TSDB_FILE_LEVEL(tf) (TSDB_FILE_F(tf)->did.level)
 #define TSDB_FILE_ID(tf) (TSDB_FILE_F(tf)->did.id)
 #define TSDB_FILE_DID(tf) (TSDB_FILE_F(tf)->did)
 #define TSDB_FILE_REL_NAME(tf) (TSDB_FILE_F(tf)->rname)
 #define TSDB_FILE_ABS_NAME(tf) (TSDB_FILE_F(tf)->aname)
-#define TSDB_FILE_FSYNC(tf) taosFsyncFile(TSDB_FILE_FD(tf))
+#define TSDB_FILE_FSYNC(tf) taosFsyncFile(TSDB_FILE_PFILE(tf))
 #define TSDB_FILE_STATE(tf) ((tf)->state)
 #define TSDB_FILE_SET_STATE(tf, s) ((tf)->state = (s))
 #define TSDB_FILE_IS_OK(tf) (TSDB_FILE_STATE(tf) == TSDB_FILE_STATE_OK)
 #define TSDB_FILE_IS_BAD(tf) (TSDB_FILE_STATE(tf) == TSDB_FILE_STATE_BAD)
 
-typedef enum { TSDB_FILE_HEAD = 0, TSDB_FILE_DATA, TSDB_FILE_LAST, TSDB_FILE_MAX, TSDB_FILE_META } TSDB_FILE_T;
+typedef enum {
+  TSDB_FILE_HEAD = 0,  // .head
+  TSDB_FILE_DATA,      // .data
+  TSDB_FILE_LAST,      // .last
+  TSDB_FILE_SMAD,      // .smad(Block-wise SMA)
+  TSDB_FILE_SMAL,      // .smal(Block-wise SMA)
+  TSDB_FILE_MAX,       //
+  TSDB_FILE_META,      // meta
+  TSDB_FILE_TSMA,      // v2t100.${sma_index_name}, Time-range-wise SMA
+  TSDB_FILE_RSMA,      // v2r100.${sma_index_name}, Time-range-wise Rollup SMA
+} E_TSDB_FILE_T;
+
+typedef int32_t TSDB_FILE_T;
+typedef enum {
+  TSDB_FS_VER_0 = 0,
+  TSDB_FS_VER_MAX,
+} ETsdbFsVer;
+
+#define TSDB_LATEST_FVER    TSDB_FS_VER_0  // latest version for DFile
+#define TSDB_LATEST_SFS_VER TSDB_FS_VER_0  // latest version for 'current' file
+
+static FORCE_INLINE uint32_t tsdbGetDFSVersion(TSDB_FILE_T fType) {  // latest version for DFile
+  switch (fType) {
+    case TSDB_FILE_HEAD:  // .head
+    case TSDB_FILE_DATA:  // .data
+    case TSDB_FILE_LAST:  // .last
+    case TSDB_FILE_SMAD:  // .smad(Block-wise SMA)
+    case TSDB_FILE_SMAL:  // .smal(Block-wise SMA)
+    default:
+      return TSDB_LATEST_FVER;
+  }
+}
 
 #if 0
 // =============== SMFile
@@ -169,6 +204,7 @@ static FORCE_INLINE int64_t tsdbReadMFile(SMFile* pMFile, void* buf, int64_t nby
 // =============== SDFile
 typedef struct {
   uint32_t magic;
+  uint32_t fver;
   uint32_t len;
   uint32_t totalBlocks;
   uint32_t totalSubBlocks;
@@ -178,17 +214,17 @@ typedef struct {
 } SDFInfo;
 
 typedef struct {
-  SDFInfo  info;
-  STfsFile f;
-  int      fd;
-  uint8_t  state;
+  SDFInfo   info;
+  STfsFile  f;
+  TdFilePtr pFile;
+  uint8_t   state;
 } SDFile;
 
 void  tsdbInitDFile(STsdb *pRepo, SDFile* pDFile, SDiskID did, int fid, uint32_t ver, TSDB_FILE_T ftype);
 void  tsdbInitDFileEx(SDFile* pDFile, SDFile* pODFile);
 int   tsdbEncodeSDFile(void** buf, SDFile* pDFile);
 void* tsdbDecodeSDFile(STsdb *pRepo, void* buf, SDFile* pDFile);
-int   tsdbCreateDFile(STsdb *pRepo, SDFile* pDFile, bool updateHeader);
+int   tsdbCreateDFile(STsdb *pRepo, SDFile* pDFile, bool updateHeader, TSDB_FILE_T fType);
 int   tsdbUpdateDFileHeader(SDFile* pDFile);
 int   tsdbLoadDFileHeader(SDFile* pDFile, SDFInfo* pInfo);
 int   tsdbParseDFilename(const char* fname, int* vid, int* fid, TSDB_FILE_T* ftype, uint32_t* version);
@@ -198,8 +234,8 @@ static FORCE_INLINE void tsdbSetDFileInfo(SDFile* pDFile, SDFInfo* pInfo) { pDFi
 static FORCE_INLINE int tsdbOpenDFile(SDFile* pDFile, int flags) {
   ASSERT(!TSDB_FILE_OPENED(pDFile));
 
-  pDFile->fd = open(TSDB_FILE_FULL_NAME(pDFile), flags);
-  if (pDFile->fd < 0) {
+  pDFile->pFile = taosOpenFile(TSDB_FILE_FULL_NAME(pDFile), flags);
+  if (pDFile->pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -209,15 +245,15 @@ static FORCE_INLINE int tsdbOpenDFile(SDFile* pDFile, int flags) {
 
 static FORCE_INLINE void tsdbCloseDFile(SDFile* pDFile) {
   if (TSDB_FILE_OPENED(pDFile)) {
-    close(pDFile->fd);
+    taosCloseFile(&pDFile->pFile);
     TSDB_FILE_SET_CLOSED(pDFile);
   }
 }
 
 static FORCE_INLINE int64_t tsdbSeekDFile(SDFile* pDFile, int64_t offset, int whence) {
-  ASSERT(TSDB_FILE_OPENED(pDFile));
+  // ASSERT(TSDB_FILE_OPENED(pDFile));
 
-  int64_t loffset = taosLSeekFile(TSDB_FILE_FD(pDFile), offset, whence);
+  int64_t loffset = taosLSeekFile(TSDB_FILE_PFILE(pDFile), offset, whence);
   if (loffset < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -229,7 +265,7 @@ static FORCE_INLINE int64_t tsdbSeekDFile(SDFile* pDFile, int64_t offset, int wh
 static FORCE_INLINE int64_t tsdbWriteDFile(SDFile* pDFile, void* buf, int64_t nbyte) {
   ASSERT(TSDB_FILE_OPENED(pDFile));
 
-  int64_t nwrite = taosWriteFile(pDFile->fd, buf, nbyte);
+  int64_t nwrite = taosWriteFile(pDFile->pFile, buf, nbyte);
   if (nwrite < nbyte) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -271,7 +307,7 @@ static FORCE_INLINE int tsdbRemoveDFile(SDFile* pDFile) { return tfsRemoveFile(T
 static FORCE_INLINE int64_t tsdbReadDFile(SDFile* pDFile, void* buf, int64_t nbyte) {
   ASSERT(TSDB_FILE_OPENED(pDFile));
 
-  int64_t nread = taosReadFile(pDFile->fd, buf, nbyte);
+  int64_t nread = taosReadFile(pDFile->pFile, buf, nbyte);
   if (nread < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -292,12 +328,31 @@ static FORCE_INLINE int tsdbCopyDFile(SDFile* pSrc, SDFile* pDest) {
 
 // =============== SDFileSet
 typedef struct {
-  int    fid;
-  int    state;
-  SDFile files[TSDB_FILE_MAX];
+  int      fid;
+  int8_t   state;  // -128~127
+  uint8_t  ver;    // 0~255, DFileSet version
+  uint16_t reserve;
+  SDFile   files[TSDB_FILE_MAX];
 } SDFileSet;
 
+typedef struct {
+  int      fid;
+  int8_t   state;
+  uint8_t  ver;
+  uint16_t reserve;
+#if 0
+  SDFInfo   info;
+#endif
+  STfsFile  f;
+  TdFilePtr pFile;
+
+} SSFile;  // files split by days with fid
+
+#define TSDB_LATEST_FSET_VER 0
+
 #define TSDB_FSET_FID(s) ((s)->fid)
+#define TSDB_FSET_STATE(s) ((s)->state)
+#define TSDB_FSET_VER(s) ((s)->ver)
 #define TSDB_DFILE_IN_SET(s, t) ((s)->files + (t))
 #define TSDB_FSET_LEVEL(s) TSDB_FILE_LEVEL(TSDB_DFILE_IN_SET(s, 0))
 #define TSDB_FSET_ID(s) TSDB_FILE_ID(TSDB_DFILE_IN_SET(s, 0))
@@ -372,5 +427,9 @@ static FORCE_INLINE bool tsdbFSetIsOk(SDFileSet* pSet) {
 
   return true;
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _TS_TSDB_FILE_H_ */

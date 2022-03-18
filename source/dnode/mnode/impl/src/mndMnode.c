@@ -99,10 +99,14 @@ void mndUpdateMnodeRole(SMnode *pMnode) {
     pIter = sdbFetch(pSdb, SDB_MNODE, pIter, (void **)&pObj);
     if (pIter == NULL) break;
 
+    ESyncState lastRole = pObj->role;
     if (pObj->id == 1) {
       pObj->role = TAOS_SYNC_STATE_LEADER;
     } else {
       pObj->role = TAOS_SYNC_STATE_CANDIDATE;
+    }
+    if (pObj->role != lastRole) {
+      pObj->roleTime = taosGetTimestampMs();
     }
 
     sdbRelease(pSdb, pObj);

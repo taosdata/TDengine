@@ -2,11 +2,7 @@ aux_source_directory(src TMQ_DEMO_SRC)
 
 add_executable(tmq ${TMQ_DEMO_SRC})
 target_link_libraries(
-    tmq
-    PUBLIC taos
-    #PUBLIC util
-    #PUBLIC common
-    #PUBLIC os
+    tmq taos
 )
 target_include_directories(
     tmq

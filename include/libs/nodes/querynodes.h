@@ -21,6 +21,10 @@ extern "C" {
 #endif
 
 #include "nodes.h"
+#include "tmsg.h"
+
+#define TABLE_META_SIZE(pMeta) (NULL == (pMeta) ? 0 : (sizeof(STableMeta) + ((pMeta)->tableInfo.numOfColumns + (pMeta)->tableInfo.numOfTags) * sizeof(SSchema)))
+#define VGROUPS_INFO_SIZE(pInfo) (NULL == (pInfo) ? 0 : (sizeof(SVgroupsInfo) + (pInfo)->numOfVgroups * sizeof(SVgroupInfo)))
 
 typedef struct SRawExprNode {
   ENodeType nodeType;
@@ -58,20 +62,22 @@ typedef struct SColumnNode {
   char tableAlias[TSDB_TABLE_NAME_LEN];
   char colName[TSDB_COL_NAME_LEN];
   SNode* pProjectRef;
+  int16_t dataBlockId;
+  int16_t slotId;
 } SColumnNode;
 
-typedef struct SColumnRefNode {
+typedef struct STargetNode {
   ENodeType type;
-  SDataType dataType;
-  int16_t tupleId;
+  int16_t dataBlockId;
   int16_t slotId;
-  int16_t columnId;
-} SColumnRefNode;
+  SNode* pExpr;
+} STargetNode;
 
 typedef struct SValueNode {
   SExprNode node; // QUERY_NODE_VALUE
   char* literal;
   bool isDuration;
+  bool translate;
   union {
     bool b;
     int64_t i;
@@ -79,46 +85,8 @@ typedef struct SValueNode {
     double d;
     char* p;
   } datum;
+  char unit;
 } SValueNode;
-
-typedef enum EOperatorType {
-  // arithmetic operator
-  OP_TYPE_ADD = 1,
-  OP_TYPE_SUB,
-  OP_TYPE_MULTI,
-  OP_TYPE_DIV,
-  OP_TYPE_MOD,
-
-  // bit operator
-  OP_TYPE_BIT_AND,
-  OP_TYPE_BIT_OR,
-
-  // comparison operator
-  OP_TYPE_GREATER_THAN,
-  OP_TYPE_GREATER_EQUAL,
-  OP_TYPE_LOWER_THAN,
-  OP_TYPE_LOWER_EQUAL,
-  OP_TYPE_EQUAL,
-  OP_TYPE_NOT_EQUAL,
-  OP_TYPE_IN,
-  OP_TYPE_NOT_IN,
-  OP_TYPE_LIKE,
-  OP_TYPE_NOT_LIKE,
-  OP_TYPE_MATCH,
-  OP_TYPE_NMATCH,
-  OP_TYPE_IS_NULL,
-  OP_TYPE_IS_NOT_NULL,
-  OP_TYPE_IS_TRUE,
-  OP_TYPE_IS_FALSE,
-  OP_TYPE_IS_UNKNOWN,
-  OP_TYPE_IS_NOT_TRUE,
-  OP_TYPE_IS_NOT_FALSE,
-  OP_TYPE_IS_NOT_UNKNOWN,
-
-  // json operator
-  OP_TYPE_JSON_GET_VALUE,
-  OP_TYPE_JSON_CONTAINS
-} EOperatorType;
 
 typedef struct SOperatorNode {
   SExprNode node; // QUERY_NODE_OPERATOR
@@ -127,11 +95,6 @@ typedef struct SOperatorNode {
   SNode* pRight;
 } SOperatorNode;
 
-typedef enum ELogicConditionType {
-  LOGIC_COND_TYPE_AND,
-  LOGIC_COND_TYPE_OR,
-  LOGIC_COND_TYPE_NOT,
-} ELogicConditionType;
 
 typedef struct SLogicConditionNode {
   SExprNode node; // QUERY_NODE_LOGIC_CONDITION
@@ -141,6 +104,7 @@ typedef struct SLogicConditionNode {
 
 typedef struct SNodeListNode {
   ENodeType type; // QUERY_NODE_NODE_LIST
+  SDataType dataType;
   SNodeList* pNodeList;
 } SNodeListNode;
 
@@ -164,6 +128,7 @@ struct STableMeta;
 typedef struct SRealTableNode {
   STableNode table; // QUERY_NODE_REAL_TABLE
   struct STableMeta* pMeta;
+  SVgroupsInfo* pVgroupList;
 } SRealTableNode;
 
 typedef struct STempTableNode {
@@ -290,6 +255,29 @@ typedef enum ESqlClause {
   SQL_CLAUSE_ORDER_BY
 } ESqlClause;
 
+
+typedef enum {
+  PAYLOAD_TYPE_KV = 0,
+  PAYLOAD_TYPE_RAW = 1,
+} EPayloadType;
+
+typedef struct SVgDataBlocks {
+  SVgroupInfo vg;
+  int32_t     numOfTables;  // number of tables in current submit block
+  uint32_t    size;
+  char       *pData;        // SMsgDesc + SSubmitReq + SSubmitBlk + ...
+} SVgDataBlocks;
+
+typedef struct SVnodeModifOpStmt {
+  ENodeType   nodeType;
+  ENodeType   sqlNodeType;
+  SArray*     pDataBlocks;         // data block for each vgroup, SArray<SVgDataBlocks*>.
+  int8_t      schemaAttache;       // denote if submit block is built with table schema or not
+  uint8_t     payloadType;         // EPayloadType. 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
+  uint32_t    insertType;          // insert data from [file|sql statement| bound statement]
+  const char* sql;                 // current sql statement position
+} SVnodeModifOpStmt;
+
 void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
 void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewriter rewriter, void* pContext);
 
@@ -306,7 +294,8 @@ bool nodesIsJsonOp(const SOperatorNode* pOp);
 
 bool nodesIsTimeorderQuery(const SNode* pQuery);
 bool nodesIsTimelineQuery(const SNode* pQuery);
-void *nodesGetValueFromNode(SValueNode *pNode);
+
+void* nodesGetValueFromNode(SValueNode *pNode);
 
 #ifdef __cplusplus
 }

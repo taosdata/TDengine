@@ -16,23 +16,11 @@
 #ifndef _TD_OS_SYSINFO_H_
 #define _TD_OS_SYSINFO_H_
 
+#include "os.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "os.h"
-  
-#define TSDB_LOCALE_LEN   64
-#define TSDB_TIMEZONE_LEN 96
-
-extern int64_t tsPageSize;
-extern int64_t tsOpenMax;
-extern int64_t tsStreamMax;
-extern int32_t tsNumOfCores;
-extern int32_t tsTotalMemoryMB;
-extern char     tsTimezone[];
-extern char     tsLocale[];
-extern char     tsCharset[];            // default encode string
 
 typedef struct {
   int64_t total;
@@ -40,23 +28,36 @@ typedef struct {
   int64_t avail;
 } SDiskSize;
 
-int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize);
-int32_t taosGetCpuCores();
+typedef struct {
+  int64_t   reserved;
+  SDiskSize size;
+} SDiskSpace;
+
+bool    taosCheckSystemIsSmallEnd();
 void    taosGetSystemInfo();
-bool    taosReadProcIO(int64_t *rchars, int64_t *wchars);
-bool    taosGetProcIO(float *readKB, float *writeKB);
-bool    taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes);
-bool    taosGetBandSpeed(float *bandSpeedKb);
-void    taosGetDisk();
-bool    taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage);
-bool    taosGetProcMemory(float *memoryUsedMB);
-bool    taosGetSysMemory(float *memoryUsedMB);
-void    taosPrintOsInfo();
-int     taosSystem(const char *cmd);
+int32_t taosGetEmail(char *email, int32_t maxLen);
+int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen);
+int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores);
+int32_t taosGetCpuCores(float *numOfCores);
+int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine);
+int32_t taosGetTotalMemory(int64_t *totalKB);
+int32_t taosGetProcMemory(int64_t *usedKB);
+int32_t taosGetSysMemory(int64_t *usedKB);
+int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize);
+int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes);
+int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes);
+
 void    taosKillSystem();
 int32_t taosGetSystemUUID(char *uid, int32_t uidlen);
-char *  taosGetCmdlineByPID(int pid);
+char   *taosGetCmdlineByPID(int32_t pid);
 void    taosSetCoreDump(bool enable);
+
+#if !defined(LINUX)
+
+#define _UTSNAME_LENGTH 65
+#define _UTSNAME_MACHINE_LENGTH _UTSNAME_LENGTH
+
+#endif // WINDOWS
 
 typedef struct {
   char sysname[_UTSNAME_MACHINE_LENGTH];

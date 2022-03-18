@@ -16,9 +16,9 @@
 #ifndef _TD_TSDB_H_
 #define _TD_TSDB_H_
 
-#include "mallocator.h"
+#include "tmallocator.h"
 #include "meta.h"
-#include "common.h"
+#include "tcommon.h"
 #include "tfs.h"
 
 #ifdef __cplusplus
@@ -27,12 +27,12 @@ extern "C" {
 
 typedef struct SDataStatis {
   int16_t colId;
-  int64_t sum;
-  int64_t max;
-  int64_t min;
   int16_t maxIndex;
   int16_t minIndex;
   int16_t numOfNull;
+  int64_t sum;
+  int64_t max;
+  int64_t min;
 } SDataStatis;
 
 typedef struct STable {
@@ -53,6 +53,8 @@ typedef struct STsdb STsdb;
 
 typedef struct STsdbCfg {
   int8_t   precision;
+  int8_t   update;
+  int8_t   compression;
   uint64_t lruCacheSize;
   int32_t  daysPerFile;
   int32_t  minRowsPerFileBlock;
@@ -60,8 +62,6 @@ typedef struct STsdbCfg {
   int32_t  keep;
   int32_t  keep1;
   int32_t  keep2;
-  int8_t   update;
-  int8_t   compression;
 } STsdbCfg;
 
 // query condition to build multi-table data block iterator
@@ -86,6 +86,29 @@ void   tsdbRemove(const char *path);
 int    tsdbInsertData(STsdb *pTsdb, SSubmitReq *pMsg, SSubmitRsp *pRsp);
 int    tsdbPrepareCommit(STsdb *pTsdb);
 int    tsdbCommit(STsdb *pTsdb);
+
+/**
+ * @brief Insert tSma(Time-range-wise SMA) data from stream computing engine
+ *
+ * @param pTsdb
+ * @param msg
+ * @return int32_t
+ */
+int32_t tsdbInsertTSmaData(STsdb *pTsdb, char *msg);
+int32_t tsdbUpdateSmaWindow(STsdb *pTsdb, int8_t smaType, char *msg);
+
+/**
+ * @brief Insert RSma(Time-range-wise Rollup SMA) data.
+ *
+ * @param pTsdb
+ * @param msg
+ * @return int32_t
+ */
+int32_t tsdbInsertRSmaData(STsdb *pTsdb, char *msg);
+
+// TODO: This is the basic params, and should wrap the params to a queryHandle.
+int32_t tsdbGetTSmaData(STsdb *pTsdb, STSmaDataWrapper *pData, int64_t indexUid, int64_t interval, int8_t intervalUnit,
+                        tb_uid_t tableUid, col_id_t colId, TSKEY querySKey, int32_t nMaxResult);
 
 // STsdbCfg
 int  tsdbOptionsInit(STsdbCfg *);

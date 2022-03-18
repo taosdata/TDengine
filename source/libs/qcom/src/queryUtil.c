@@ -1,23 +1,36 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "os.h"
-#include "tmsg.h"
 #include "query.h"
 #include "tglobal.h"
-#include "tsched.h"
+#include "tmsg.h"
 #include "trpc.h"
+#include "tsched.h"
 
-#define VALIDNUMOFCOLS(x)  ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
-#define VALIDNUMOFTAGS(x)  ((x) >= 0 && (x) <= TSDB_MAX_TAGS)
+#define VALIDNUMOFCOLS(x) ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
+#define VALIDNUMOFTAGS(x) ((x) >= 0 && (x) <= TSDB_MAX_TAGS)
 
 static struct SSchema _s = {
     .colId = TSDB_TBNAME_COLUMN_INDEX,
-    .type  = TSDB_DATA_TYPE_BINARY,
+    .type = TSDB_DATA_TYPE_BINARY,
     .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE,
     .name = "tbname",
 };
 
-const SSchema* tGetTbnameColumnSchema() {
-  return &_s;
-}
+const SSchema* tGetTbnameColumnSchema() { return &_s; }
 
 static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen) {
   int32_t rowLen = 0;
@@ -85,6 +98,7 @@ static void* pTaskQueue = NULL;
 
 int32_t initTaskQueue() {
   double factor = 4.0;
+
   int32_t numOfThreads = TMAX((int)(tsNumOfCores * tsNumOfThreadsPerCore / factor), 2);
 
   int32_t queueSize = tsMaxConnections * 2;
@@ -95,19 +109,21 @@ int32_t initTaskQueue() {
   }
 
   qDebug("task queue is initialized, numOfThreads: %d", numOfThreads);
+  return 0;
 }
 
 int32_t cleanupTaskQueue() {
   taosCleanUpScheduler(pTaskQueue);
+  return 0;
 }
 
 static void execHelper(struct SSchedMsg* pSchedMsg) {
   assert(pSchedMsg != NULL && pSchedMsg->ahandle != NULL);
 
-  __async_exec_fn_t execFn = (__async_exec_fn_t) pSchedMsg->ahandle;
-  int32_t code = execFn(pSchedMsg->thandle);
+  __async_exec_fn_t execFn = (__async_exec_fn_t)pSchedMsg->ahandle;
+  int32_t           code = execFn(pSchedMsg->thandle);
   if (code != 0 && pSchedMsg->msg != NULL) {
-    *(int32_t*) pSchedMsg->msg = code;
+    *(int32_t*)pSchedMsg->msg = code;
   }
 }
 
@@ -115,31 +131,30 @@ int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) 
   assert(execFn != NULL);
 
   SSchedMsg schedMsg = {0};
-  schedMsg.fp      = execHelper;
+  schedMsg.fp = execHelper;
   schedMsg.ahandle = execFn;
   schedMsg.thandle = execParam;
-  schedMsg.msg     = code;
+  schedMsg.msg = code;
 
   taosScheduleTask(pTaskQueue, &schedMsg);
+  return 0;
 }
 
-int32_t asyncSendMsgToServer(void *pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo) {
-  char *pMsg = rpcMallocCont(pInfo->msgInfo.len);
+int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo) {
+  char* pMsg = rpcMallocCont(pInfo->msgInfo.len);
   if (NULL == pMsg) {
-    qError("0x%"PRIx64" msg:%s malloc failed", pInfo->requestId, TMSG_INFO(pInfo->msgType));
+    qError("0x%" PRIx64 " msg:%s malloc failed", pInfo->requestId, TMSG_INFO(pInfo->msgType));
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return terrno;
   }
 
   memcpy(pMsg, pInfo->msgInfo.pData, pInfo->msgInfo.len);
-  SRpcMsg rpcMsg = {
-      .msgType = pInfo->msgType,
-      .pCont   = pMsg,
-      .contLen = pInfo->msgInfo.len,
-      .ahandle = (void*) pInfo,
-      .handle  = pInfo->msgInfo.handle,
-      .code    = 0
-  };
+  SRpcMsg rpcMsg = {.msgType = pInfo->msgType,
+                    .pCont = pMsg,
+                    .contLen = pInfo->msgInfo.len,
+                    .ahandle = (void*)pInfo,
+                    .handle = pInfo->msgInfo.handle,
+                    .code = 0};
 
   assert(pInfo->fp != NULL);
 

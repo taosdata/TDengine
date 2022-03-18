@@ -16,6 +16,10 @@
 #ifndef _TD_SNODE_H_
 #define _TD_SNODE_H_
 
+#include "tcommon.h"
+#include "tmsg.h"
+#include "trpc.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -75,7 +79,11 @@ int32_t sndGetLoad(SSnode *pSnode, SSnodeLoad *pLoad);
  * @param pRsp The response message
  * @return int32_t 0 for success, -1 for failure
  */
-int32_t sndProcessMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+// int32_t sndProcessMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+
+int32_t sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg);
+
+int32_t sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg);
 
 /**
  * @brief Drop a snode.

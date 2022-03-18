@@ -1,14 +1,11 @@
 
 #include "clientInt.h"
 #include "clientLog.h"
-#include "parser.h"
-#include "planner.h"
 #include "scheduler.h"
+#include "tdatablock.h"
 #include "tdef.h"
-#include "tep.h"
 #include "tglobal.h"
 #include "tmsgtype.h"
-#include "tnote.h"
 #include "tpagedbuf.h"
 #include "tref.h"
 
@@ -140,13 +137,14 @@ int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj*
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t parseSql(SRequestObj* pRequest, SQueryNode** pQuery) {
+int32_t parseSql(SRequestObj* pRequest, bool streamQuery, SQuery** pQuery) {
   STscObj* pTscObj = pRequest->pTscObj;
 
   SParseContext cxt = {
       .requestId = pRequest->requestId,
       .acctId = pTscObj->acctId,
-      .db = getDbOfConnection(pTscObj),
+      .db = pRequest->pDb,
+      .streamQuery = streamQuery,
       .pSql = pRequest->sqlstr,
       .sqlLen = pRequest->sqlLen,
       .pMsg = pRequest->msgBuf,
@@ -157,59 +155,44 @@ int32_t parseSql(SRequestObj* pRequest, SQueryNode** pQuery) {
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
-    tfree(cxt.db);
     return code;
   }
 
   code = qParseQuerySql(&cxt, pQuery);
+  if (TSDB_CODE_SUCCESS == code && ((*pQuery)->haveResultSet)) {
+    setResSchemaInfo(&pRequest->body.resInfo, (*pQuery)->pResSchema, (*pQuery)->numOfResCols);
+  }
 
-  tfree(cxt.db);
   return code;
 }
 
-int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
-  SDclStmtInfo* pDcl = (SDclStmtInfo*)pQuery;
-  pRequest->type = pDcl->msgType;
-  pRequest->body.requestMsg = (SDataBuf){.pData = pDcl->pMsg, .len = pDcl->msgLen, .handle = NULL};
+int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
+  SCmdMsgInfo* pMsgInfo = pQuery->pCmdMsg;
+  pRequest->type = pMsgInfo->msgType;
+  pRequest->body.requestMsg = (SDataBuf){.pData = pMsgInfo->pMsg, .len = pMsgInfo->msgLen, .handle = NULL};
+  pMsgInfo->pMsg = NULL; // pMsg transferred to SMsgSendInfo management
 
   STscObj*      pTscObj = pRequest->pTscObj;
   SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
 
-  int64_t transporterId = 0;
-  if (pDcl->msgType == TDMT_VND_CREATE_TABLE || pDcl->msgType == TDMT_VND_SHOW_TABLES) {
-    if (pDcl->msgType == TDMT_VND_SHOW_TABLES) {
-      SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
-      if (pShowReqInfo->pArray == NULL) {
-        pShowReqInfo->currentIndex = 0;  // set the first vnode/ then iterate the next vnode
-        pShowReqInfo->pArray = pDcl->pExtension;
-      }
+  if (pMsgInfo->msgType == TDMT_VND_SHOW_TABLES) {
+    SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
+    if (pShowReqInfo->pArray == NULL) {
+      pShowReqInfo->currentIndex = 0;  // set the first vnode/ then iterate the next vnode
+      pShowReqInfo->pArray = pMsgInfo->pExtension;
     }
-    asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pDcl->epSet, &transporterId, pSendMsg);
-  } else {
-    asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pDcl->epSet, &transporterId, pSendMsg);
   }
+  int64_t transporterId = 0;
+  asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pMsgInfo->epSet, &transporterId, pSendMsg);
 
   tsem_wait(&pRequest->body.rspSem);
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getPlan(SRequestObj* pRequest, SQueryNode* pQueryNode, SQueryDag** pDag, SArray* pNodeList) {
-  pRequest->type = pQueryNode->type;
-
-  SSchema* pSchema = NULL;
-  int32_t  numOfCols = 0;
-  int32_t  code = qCreateQueryDag(pQueryNode, pDag, &pSchema, &numOfCols, pNodeList, pRequest->requestId);
-  if (code != 0) {
-    return code;
-  }
-
-  if (pQueryNode->type == TSDB_SQL_SELECT) {
-    setResSchemaInfo(&pRequest->body.resInfo, pSchema, numOfCols);
-    pRequest->type = TDMT_VND_QUERY;
-  }
-
-  tfree(pSchema);
-  return code;
+int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList) {
+  pRequest->type = pQuery->msgType;
+  SPlanContext cxt = { .queryId = pRequest->requestId, .pAstRoot = pQuery->pRoot, .acctId = pRequest->pTscObj->acctId };
+  return qCreateQueryPlan(&cxt, pPlan, pNodeList);
 }
 
 void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols) {
@@ -225,25 +208,30 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
   }
 }
 
-int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag, SArray* pNodeList) {
+int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList) {
   void* pTransporter = pRequest->pTscObj->pAppInfo->pTransporter;
-  if (TSDB_SQL_INSERT == pRequest->type || TSDB_SQL_CREATE_TABLE == pRequest->type) {
-    SQueryResult res = {.code = 0, .numOfRows = 0, .msgSize = ERROR_MSG_BUF_DEFAULT_SIZE, .msg = pRequest->msgBuf};
-    int32_t      code = schedulerExecJob(pTransporter, NULL, pDag, &pRequest->body.pQueryJob, pRequest->sqlstr, &res);
-    if (code != TSDB_CODE_SUCCESS) {
-      // handle error and retry
-    } else {
-      if (pRequest->body.pQueryJob != NULL) {
-        schedulerFreeJob(pRequest->body.pQueryJob);
-      }
+
+  SQueryResult res = {.code = 0, .numOfRows = 0, .msgSize = ERROR_MSG_BUF_DEFAULT_SIZE, .msg = pRequest->msgBuf};
+  int32_t      code = schedulerExecJob(pTransporter, pNodeList, pDag, &pRequest->body.queryJob, pRequest->sqlstr, &res);
+  if (code != TSDB_CODE_SUCCESS) {
+    if (pRequest->body.queryJob != 0) {
+      schedulerFreeJob(pRequest->body.queryJob);
     }
 
-    pRequest->body.resInfo.numOfRows = res.numOfRows;
-    pRequest->code = res.code;
+    pRequest->code = code;
     return pRequest->code;
   }
 
-  return schedulerAsyncExecJob(pTransporter, pNodeList, pDag, pRequest->sqlstr, &pRequest->body.pQueryJob);
+  if (TDMT_VND_SUBMIT == pRequest->type || TDMT_VND_CREATE_TABLE == pRequest->type) {
+    pRequest->body.resInfo.numOfRows = res.numOfRows;
+
+    if (pRequest->body.queryJob != 0) {
+      schedulerFreeJob(pRequest->body.queryJob);
+    }
+  }
+
+  pRequest->code = res.code;
+  return pRequest->code;
 }
 
 TAOS_RES* taos_query_l(TAOS* taos, const char* sql, int sqlLen) {
@@ -254,27 +242,25 @@ TAOS_RES* taos_query_l(TAOS* taos, const char* sql, int sqlLen) {
     return NULL;
   }
 
-  nPrintTsc("%s", sql)
-
-      SRequestObj* pRequest = NULL;
-  SQueryNode*      pQueryNode = NULL;
-  SArray*          pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
+  SRequestObj* pRequest = NULL;
+  SQuery* pQuery = NULL;
+  SArray* pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
 
   terrno = TSDB_CODE_SUCCESS;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
-  CHECK_CODE_GOTO(parseSql(pRequest, &pQueryNode), _return);
+  CHECK_CODE_GOTO(parseSql(pRequest, false, &pQuery), _return);
 
-  if (qIsDdlQuery(pQueryNode)) {
-    CHECK_CODE_GOTO(execDdlQuery(pRequest, pQueryNode), _return);
+  if (pQuery->directRpc) {
+    CHECK_CODE_GOTO(execDdlQuery(pRequest, pQuery), _return);
   } else {
-    CHECK_CODE_GOTO(getPlan(pRequest, pQueryNode, &pRequest->body.pDag, pNodeList), _return);
+    CHECK_CODE_GOTO(getPlan(pRequest, pQuery, &pRequest->body.pDag, pNodeList), _return);
     CHECK_CODE_GOTO(scheduleQuery(pRequest, pRequest->body.pDag, pNodeList), _return);
     pRequest->code = terrno;
   }
 
 _return:
   taosArrayDestroy(pNodeList);
-  qDestroyQuery(pQueryNode);
+  qDestroyQuery(pQuery);
   if (NULL != pRequest && TSDB_CODE_SUCCESS != terrno) {
     pRequest->code = terrno;
   }
@@ -370,7 +356,6 @@ static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest) {
   pMsgSendInfo->fp = handleRequestRspFp[TMSG_INDEX(pMsgSendInfo->msgType)];
   pMsgSendInfo->param = pRequest;
 
-
   SConnectReq connectReq = {0};
   STscObj*    pObj = pRequest->pTscObj;
 
@@ -398,7 +383,9 @@ static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   tfree(pMsgBody->msgInfo.pData);
   tfree(pMsgBody);
 }
-
+bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType) {
+  return msgType == TDMT_VND_QUERY_RSP || msgType == TDMT_VND_FETCH_RSP || msgType == TDMT_VND_RES_READY_RSP;
+}
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->ahandle;
   assert(pMsg->ahandle != NULL);
@@ -492,7 +479,7 @@ void* doFetchRow(SRequestObj* pRequest) {
       }
 
       SReqResultInfo* pResInfo = &pRequest->body.resInfo;
-      int32_t         code = schedulerFetchRows(pRequest->body.pQueryJob, (void**)&pResInfo->pData);
+      int32_t         code = schedulerFetchRows(pRequest->body.queryJob, (void**)&pResInfo->pData);
       if (code != TSDB_CODE_SUCCESS) {
         pRequest->code = code;
         return NULL;
@@ -515,7 +502,7 @@ void* doFetchRow(SRequestObj* pRequest) {
       SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
       SVgroupInfo*  pVgroupInfo = taosArrayGet(pShowReqInfo->pArray, pShowReqInfo->currentIndex);
 
-      epSet = pVgroupInfo->epset;
+      epSet = pVgroupInfo->epSet;
     } else if (pRequest->type == TDMT_VND_SHOW_TABLES_FETCH) {
       pRequest->type = TDMT_VND_SHOW_TABLES;
       SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
@@ -532,7 +519,7 @@ void* doFetchRow(SRequestObj* pRequest) {
       pRequest->body.requestMsg.pData = pShowReq;
 
       SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
-      epSet = pVgroupInfo->epset;
+      epSet = pVgroupInfo->epSet;
 
       int64_t  transporterId = 0;
       STscObj* pTscObj = pRequest->pTscObj;

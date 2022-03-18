@@ -1,0 +1,66 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+sleep 2000
+
+print ============= step1
+sql create user read pass 'taosdata'
+sql create user write pass 'taosdata'
+sql show users
+if $rows != 5 then
+  return -1
+endi
+
+print ============= step2
+sql close
+sql connect read
+sleep 2000
+
+sql create database dread
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+
+print ============= step3
+sql close
+sql connect write
+sleep 2000
+
+sql create database dwrite
+sql show databases
+if $rows != 2 then
+  return -1
+endi
+
+print ============ step4
+sql close
+sql connect
+sleep 2000
+
+sql show databases
+if $row != 2 then
+  return -1
+endi
+
+print ============ step5
+sql close
+sql connect read
+sleep 2000
+sql drop database dread
+sql drop database dwrite
+
+
+sql close
+sql connect
+sql show databases
+if $rows != 0 then
+  return -1
+endi
+
+sql close
+sql connect
+sleep 2000
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT

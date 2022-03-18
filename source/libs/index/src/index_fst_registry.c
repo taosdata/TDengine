@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "os.h"
 #include "index_fst_registry.h"
 
 uint64_t fstRegistryHash(FstRegistry* registry, FstBuilderNode* bNode) {

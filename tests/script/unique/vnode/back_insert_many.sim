@@ -1,0 +1,10 @@
+sql connect
+$x = 1
+begin:
+  sql insert into db1.tb1 values(now, $x ) -x begin  
+  sql insert into db2.tb2 values(now, $x ) -x begin  
+  sql insert into db3.tb3 values(now, $x ) -x begin  
+  sql insert into db4.tb4 values(now, $x ) -x begin  
+  #print ===> insert successed $x 
+  $x = $x + 1   
+goto begin

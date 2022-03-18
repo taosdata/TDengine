@@ -13,16 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_TALGO_H
-#define _TD_UTIL_TALGO_H
+#ifndef _TD_UTIL_TALGO_H_
+#define _TD_UTIL_TALGO_H_
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #ifndef __COMPAR_FN_T
-# define __COMPAR_FN_T
-typedef int (*__compar_fn_t) (const void *, const void *);
+#define __COMPAR_FN_T
+typedef int32_t (*__compar_fn_t)(const void *, const void *);
 #endif
 
 #define TD_EQ 0x1
@@ -45,7 +47,7 @@ typedef void (*__ext_swap_fn_t)(void *p1, void *p2, const void *param);
  * @param param
  * @param comparFn
  */
-void taosqsort(void *src, size_t numOfElem, size_t size, const void* param, __ext_compar_fn_t comparFn);
+void taosqsort(void *src, int64_t numOfElem, int64_t size, const void *param, __ext_compar_fn_t comparFn);
 
 /**
  * binary search, with range support
@@ -58,7 +60,7 @@ void taosqsort(void *src, size_t numOfElem, size_t size, const void* param, __ex
  * @param flags
  * @return
  */
-void *taosbsearch(const void *key, const void *base, size_t nmemb, size_t size, __compar_fn_t fn, int flags);
+void *taosbsearch(const void *key, const void *base, int64_t nmemb, int64_t size, __compar_fn_t fn, int32_t flags);
 
 /**
  * adjust heap
@@ -74,7 +76,8 @@ void *taosbsearch(const void *key, const void *base, size_t nmemb, size_t size, 
  * @param maxroot: if heap is max root heap
  * @return
  */
-void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const void *parcompar, __ext_compar_fn_t compar, const void *parswap, __ext_swap_fn_t swap, bool maxroot);
+void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const void *parcompar,
+                    __ext_compar_fn_t compar, const void *parswap, __ext_swap_fn_t swap, bool maxroot);
 
 /**
  * sort heap to make sure it is a max/min root heap
@@ -89,10 +92,11 @@ void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const 
  * @param maxroot: if heap is max root heap
  * @return
  */
-void taosheapsort(void *base, int32_t size, int32_t len, const void *parcompar, __ext_compar_fn_t compar, const void *parswap, __ext_swap_fn_t swap, bool maxroot);
-
+void taosheapsort(void *base, int32_t size, int32_t len, const void *parcompar, __ext_compar_fn_t compar,
+                  const void *parswap, __ext_swap_fn_t swap, bool maxroot);
 
 #ifdef __cplusplus
 }
 #endif
-#endif  /*_TD_UTIL_TALGO_H*/
+
+#endif /*_TD_UTIL_TALGO_H_*/

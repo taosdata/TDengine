@@ -24,7 +24,6 @@ mac/
 *.orig
 src/connector/nodejs/node_modules/
 src/connector/nodejs/out/
-tests/test/
 tests/taoshebei/
 tests/taoscsv/
 tests/taosdalipu/
@@ -88,7 +87,7 @@ tests/comparisonTest/opentsdb/opentsdbtest/.settings/
 tests/examples/JDBC/JDBCDemo/.classpath
 tests/examples/JDBC/JDBCDemo/.project
 tests/examples/JDBC/JDBCDemo/.settings/
-source/libs/parser/inc/new_sql.*
+source/libs/parser/inc/sql.*
 
 # Emacs
 # -*- mode: gitignore; -*-

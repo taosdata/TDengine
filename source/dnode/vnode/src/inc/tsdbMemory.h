@@ -16,6 +16,10 @@
 #ifndef _TD_TSDB_MEMORY_H_
 #define _TD_TSDB_MEMORY_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 static void * taosTMalloc(size_t size);
 static void * taosTCalloc(size_t nmemb, size_t size);
 static void * taosTRealloc(void *ptr, size_t size);
@@ -70,5 +74,8 @@ static FORCE_INLINE void* taosTZfree(void* ptr) {
   return NULL;
 }
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _TD_TSDB_MEMORY_H_ */

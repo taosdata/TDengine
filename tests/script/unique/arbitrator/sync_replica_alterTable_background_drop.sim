@@ -1,0 +1,25 @@
+sql connect
+
+$db = db
+$stb = stb
+print =============== sync_replica_alterTable_background_drop.sim step0: alter table and insert data
+$totalTableNum = 100
+
+sql use $db
+
+#sql create table $stb (ts timestamp, c1 int) tags(t1 int)
+sql alter table $stb add column f1 double
+sql alter table $stb drop column c1
+
+$tblNum = $totalTableNum
+$alterTblNum = 10
+
+$i = 1
+while $i < $alterTblNum
+  $tb = tb . $i
+  sql insert into $tb values (now, 10001) (now + 1s, 10002) (now + 2s, 10003) (now + 3s, 10004)
+  $i = $i + 1
+endw 
+
+
+

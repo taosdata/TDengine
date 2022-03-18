@@ -8,7 +8,7 @@
 #include "tlog.h"
 #include "tglobal.h"
 #include "taoserror.h"
-#include "ulog.h"
+#include "tlog.h"
 
 typedef struct {
   int     refNum;
@@ -42,7 +42,7 @@ void *addRef(void *param) {
       pSpace->p[id] = malloc(128);
       pSpace->rid[id] = taosAddRef(pSpace->rsetId, pSpace->p[id]);
     }
-    usleep(100);
+    taosUsleep(100);
   }  
 
   return NULL;
@@ -60,7 +60,7 @@ void *removeRef(void *param) {
       if (code == 0) pSpace->rid[id] = 0;
     }
 
-    usleep(100);
+    taosUsleep(100);
   }  
 
   return NULL;
@@ -76,7 +76,7 @@ void *acquireRelease(void *param) {
     id = random() % pSpace->refNum; 
     void *p = taosAcquireRef(pSpace->rsetId, (int64_t) pSpace->p[id]);
     if (p) {
-      usleep(id % 5 + 1);
+      taosUsleep(id % 5 + 1);
       taosReleaseRef(pSpace->rsetId, (int64_t) pSpace->p[id]);
     }
   }  
@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  taosInitLog("tref.log", 5000000, 10);
+  taosInitLog("tref.log", 10);
 
   SRefSpace *pSpaceList = (SRefSpace *) calloc(sizeof(SRefSpace), threads);
   pthread_t *pThreadList = (pthread_t *) calloc(sizeof(pthread_t), threads);

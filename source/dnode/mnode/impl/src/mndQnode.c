@@ -36,6 +36,7 @@ static int32_t  mndProcessDropQnodeRsp(SMnodeMsg *pRsp);
 static int32_t  mndGetQnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t  mndRetrieveQnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextQnode(SMnode *pMnode, void *pIter);
+static int32_t  mndProcessQnodeListReq(SMnodeMsg *pReq);
 
 int32_t mndInitQnode(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_QNODE,
@@ -48,6 +49,7 @@ int32_t mndInitQnode(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_QNODE, mndProcessCreateQnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_QNODE, mndProcessDropQnodeReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_QNODE_LIST, mndProcessQnodeListReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_QNODE_RSP, mndProcessCreateQnodeRsp);
   mndSetMsgHandle(pMnode, TDMT_DND_DROP_QNODE_RSP, mndProcessDropQnodeRsp);
 
@@ -429,6 +431,69 @@ DROP_QNODE_OVER:
 
   return code;
 }
+
+
+static int32_t mndProcessQnodeListReq(SMnodeMsg *pReq) {
+  int32_t        code = -1;
+  SQnodeListReq  qlistReq = {0};
+  int32_t numOfRows = 0;
+  SMnode    *pMnode = pReq->pMnode;
+  SSdb      *pSdb = pMnode->pSdb;
+  SQnodeObj *pObj = NULL;
+  SQnodeListRsp qlistRsp = {0};
+
+  if (tDeserializeSQnodeListReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &qlistReq) != 0) {
+    mError("invalid qnode list msg");
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto QNODE_LIST_OVER;
+  }
+
+  qlistRsp.epSetList = taosArrayInit(5, sizeof(SEpSet));
+  if (NULL == qlistRsp.epSetList) {
+    mError("taosArrayInit epSet failed");
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto QNODE_LIST_OVER;
+  }
+  
+  while (true) {
+    void *pIter = sdbFetch(pSdb, SDB_QNODE, NULL, (void **)&pObj);
+    if (pIter == NULL) break;
+
+    SEpSet epSet = {0};
+    strcpy(epSet.eps[0].fqdn, pObj->pDnode->fqdn);
+    epSet.eps[0].port = pObj->pDnode->port;
+    epSet.numOfEps = 1;
+
+    taosArrayPush(qlistRsp.epSetList, &epSet);
+
+    numOfRows++;
+    sdbRelease(pSdb, pObj);
+
+    if (qlistReq.rowNum > 0 && numOfRows >= qlistReq.rowNum) {
+      break;
+    }
+  }
+
+  int32_t rspLen = tSerializeSQnodeListRsp(NULL, 0, &qlistRsp);
+  void   *pRsp = malloc(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto QNODE_LIST_OVER;
+  }
+  
+  tSerializeSQnodeListRsp(pRsp, rspLen, &qlistRsp);
+  
+  pReq->contLen = rspLen;
+  pReq->pCont = pRsp;
+  code = 0;
+
+QNODE_LIST_OVER:
+
+  tFreeSQnodeListRsp(&qlistRsp);
+  
+  return code;
+}
+
 
 static int32_t mndProcessCreateQnodeRsp(SMnodeMsg *pRsp) {
   mndTransProcessRsp(pRsp);

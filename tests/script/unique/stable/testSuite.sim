@@ -1,0 +1,8 @@
+run unique/metrics/balance_replica1.sim
+run unique/metrics/dnode2_stop.sim
+run unique/metrics/dnode2.sim
+run unique/metrics/dnode3.sim
+run unique/metrics/replica2_dnode4.sim
+run unique/metrics/replica2_vnode3.sim
+run unique/metrics/replica3_dnode6.sim
+run unique/metrics/replica3_vnode3.sim

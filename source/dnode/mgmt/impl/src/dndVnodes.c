@@ -17,6 +17,7 @@
 #include "dndVnodes.h"
 #include "dndMgmt.h"
 #include "dndTransport.h"
+#include "sync.h"
 
 typedef struct {
   int32_t  vgId;
@@ -85,7 +86,7 @@ static SVnodeObj *dndAcquireVnode(SDnode *pDnode, int32_t vgId) {
   int32_t      refCount = 0;
 
   taosRLockLatch(&pMgmt->latch);
-  taosHashGetClone(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
+  taosHashGetDup(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
   if (pVnode == NULL) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
   } else {
@@ -219,14 +220,15 @@ static int32_t dndGetVnodesFromFile(SDnode *pDnode, SWrapperCfg **ppCfgs, int32_
 
   snprintf(file, PATH_MAX + 20, "%s/vnodes.json", pDnode->dir.vnodes);
 
-  fp = fopen(file, "r");
-  if (fp == NULL) {
+  // fp = fopen(file, "r");
+  TdFilePtr pFile = taosOpenFile(file, TD_FILE_READ);
+  if (pFile == NULL) {
     dDebug("file %s not exist", file);
     code = 0;
     goto PRASE_VNODE_OVER;
   }
 
-  len = (int32_t)fread(content, 1, maxLen, fp);
+  len = (int32_t)taosReadFile(pFile, content, maxLen);
   if (len <= 0) {
     dError("failed to read %s since content is null", file);
     goto PRASE_VNODE_OVER;
@@ -304,7 +306,7 @@ static int32_t dndGetVnodesFromFile(SDnode *pDnode, SWrapperCfg **ppCfgs, int32_
 PRASE_VNODE_OVER:
   if (content != NULL) free(content);
   if (root != NULL) cJSON_Delete(root);
-  if (fp != NULL) fclose(fp);
+  if (pFile != NULL) taosCloseFile(&pFile);
 
   return code;
 }
@@ -315,8 +317,9 @@ static int32_t dndWriteVnodesToFile(SDnode *pDnode) {
   snprintf(file, PATH_MAX + 20, "%s/vnodes.json.bak", pDnode->dir.vnodes);
   snprintf(realfile, PATH_MAX + 20, "%s/vnodes.json", pDnode->dir.vnodes);
 
-  FILE *fp = fopen(file, "w");
-  if (fp == NULL) {
+  // FILE *fp = fopen(file, "w");
+  TdFilePtr pFile = taosOpenFile(file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to write %s since %s", file, terrstr());
     return -1;
@@ -347,9 +350,9 @@ static int32_t dndWriteVnodesToFile(SDnode *pDnode) {
   len += snprintf(content + len, maxLen - len, "  ]\n");
   len += snprintf(content + len, maxLen - len, "}\n");
 
-  fwrite(content, 1, len, fp);
-  taosFsyncFile(fileno(fp));
-  fclose(fp);
+  taosWriteFile(pFile, content, len);
+  taosFsyncFile(pFile);
+  taosCloseFile(&pFile);
   free(content);
   terrno = 0;
 
@@ -379,7 +382,7 @@ static void *dnodeOpenVnodeFunc(void *param) {
 
     char stepDesc[TSDB_STEP_DESC_LEN] = {0};
     snprintf(stepDesc, TSDB_STEP_DESC_LEN, "vgId:%d, start to restore, %d of %d have been opened", pCfg->vgId,
-             pMgmt->openVnodes, pMgmt->totalVnodes);
+             pMgmt->stat.openVnodes, pMgmt->stat.totalVnodes);
     dndReportStartup(pDnode, "open-vnodes", stepDesc);
 
     SVnodeCfg cfg = {.pDnode = pDnode, .pTfs = pDnode->pTfs, .vgId = pCfg->vgId, .dbId = pCfg->dbUid};
@@ -393,7 +396,7 @@ static void *dnodeOpenVnodeFunc(void *param) {
       pThread->opened++;
     }
 
-    atomic_add_fetch_32(&pMgmt->openVnodes, 1);
+    atomic_add_fetch_32(&pMgmt->stat.openVnodes, 1);
   }
 
   dDebug("thread:%d, total vnodes:%d, opened:%d failed:%d", pThread->threadIndex, pThread->vnodeNum, pThread->opened,
@@ -419,9 +422,9 @@ static int32_t dndOpenVnodes(SDnode *pDnode) {
     return -1;
   }
 
-  pMgmt->totalVnodes = numOfVnodes;
+  pMgmt->stat.totalVnodes = numOfVnodes;
 
-  int32_t threadNum = pDnode->env.numOfCores;
+  int32_t threadNum = tsNumOfCores;
 #if 1
   threadNum = 1;
 #endif
@@ -467,11 +470,11 @@ static int32_t dndOpenVnodes(SDnode *pDnode) {
   free(threads);
   free(pCfgs);
 
-  if (pMgmt->openVnodes != pMgmt->totalVnodes) {
-    dError("there are total vnodes:%d, opened:%d", pMgmt->totalVnodes, pMgmt->openVnodes);
+  if (pMgmt->stat.openVnodes != pMgmt->stat.totalVnodes) {
+    dError("there are total vnodes:%d, opened:%d", pMgmt->stat.totalVnodes, pMgmt->stat.openVnodes);
     return -1;
   } else {
-    dInfo("total vnodes:%d open successfully", pMgmt->totalVnodes);
+    dInfo("total vnodes:%d open successfully", pMgmt->stat.totalVnodes);
     return 0;
   }
 }
@@ -521,6 +524,9 @@ static void dndGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->walCfg.rollPeriod = 128;
   pCfg->walCfg.segSize = 128;
   pCfg->walCfg.vgId = pCreate->vgId;
+  pCfg->hashBegin = pCreate->hashBegin;
+  pCfg->hashEnd = pCreate->hashEnd;
+  pCfg->hashMethod = pCreate->hashMethod;
 }
 
 static void dndGenerateWrapperCfg(SDnode *pDnode, SCreateVnodeReq *pCreate, SWrapperCfg *pCfg) {
@@ -874,11 +880,11 @@ static int32_t dndInitVnodeWorkers(SDnode *pDnode) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
 
   int32_t maxFetchThreads = 4;
-  int32_t minFetchThreads = TMIN(maxFetchThreads, pDnode->env.numOfCores);
-  int32_t minQueryThreads = TMAX((int32_t)(pDnode->env.numOfCores * pDnode->cfg.ratioOfQueryCores), 1);
+  int32_t minFetchThreads = TMIN(maxFetchThreads, tsNumOfCores);
+  int32_t minQueryThreads = TMAX((int32_t)(tsNumOfCores * tsRatioOfQueryCores), 1);
   int32_t maxQueryThreads = minQueryThreads;
-  int32_t maxWriteThreads = TMAX(pDnode->env.numOfCores, 1);
-  int32_t maxSyncThreads = TMAX(pDnode->env.numOfCores / 2, 1);
+  int32_t maxWriteThreads = TMAX(tsNumOfCores, 1);
+  int32_t maxSyncThreads = TMAX(tsNumOfCores / 2, 1);
 
   SQWorkerPool *pQPool = &pMgmt->queryPool;
   pQPool->name = "vnode-query";
@@ -974,11 +980,18 @@ void dndCleanupVnodes(SDnode *pDnode) {
 
 void dndGetVnodeLoads(SDnode *pDnode, SArray *pLoads) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
+  SVnodesStat *pStat = &pMgmt->stat;
+  int32_t      totalVnodes = 0;
+  int32_t      masterNum = 0;
+  int64_t      numOfSelectReqs = 0;
+  int64_t      numOfInsertReqs = 0;
+  int64_t      numOfInsertSuccessReqs = 0;
+  int64_t      numOfBatchInsertReqs = 0;
+  int64_t      numOfBatchInsertSuccessReqs = 0;
 
   taosRLockLatch(&pMgmt->latch);
 
-  int32_t v = 0;
-  void   *pIter = taosHashIterate(pMgmt->hash, NULL);
+  void *pIter = taosHashIterate(pMgmt->hash, NULL);
   while (pIter) {
     SVnodeObj **ppVnode = pIter;
     if (ppVnode == NULL || *ppVnode == NULL) continue;
@@ -988,8 +1001,24 @@ void dndGetVnodeLoads(SDnode *pDnode, SArray *pLoads) {
     vnodeGetLoad(pVnode->pImpl, &vload);
     taosArrayPush(pLoads, &vload);
 
+    numOfSelectReqs += vload.numOfSelectReqs;
+    numOfInsertReqs += vload.numOfInsertReqs;
+    numOfInsertSuccessReqs += vload.numOfInsertSuccessReqs;
+    numOfBatchInsertReqs += vload.numOfBatchInsertReqs;
+    numOfBatchInsertSuccessReqs += vload.numOfBatchInsertSuccessReqs;
+    totalVnodes++;
+    if (vload.role == TAOS_SYNC_STATE_LEADER) masterNum++;
+
     pIter = taosHashIterate(pMgmt->hash, pIter);
   }
 
   taosRUnLockLatch(&pMgmt->latch);
+
+  pStat->totalVnodes = totalVnodes;
+  pStat->masterNum = masterNum;
+  pStat->numOfSelectReqs = numOfSelectReqs;
+  pStat->numOfInsertReqs = numOfInsertReqs;
+  pStat->numOfInsertSuccessReqs = numOfInsertSuccessReqs;
+  pStat->numOfBatchInsertReqs = numOfBatchInsertReqs;
+  pStat->numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs;
 }

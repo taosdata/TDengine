@@ -1,0 +1,333 @@
+system sh/stop_dnodes.sh
+
+
+
+
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode2 -c walLevel -v 1
+system sh/cfg.sh -n dnode3 -c walLevel -v 1
+system sh/cfg.sh -n dnode4 -c walLevel -v 1
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 4
+system sh/exec.sh -n dnode1 -s start
+
+sql connect
+
+sql create dnode $hostname2
+sql create dnode $hostname3
+sql create dnode $hostname4
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode4 -s start
+$x = 0
+createDnode: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then 
+	  return -1
+	endi
+sql show dnodes;
+if $data4_192.168.0.2 == offline then
+  goto createDnode
+endi  
+if $data4_192.168.0.3 == offline then
+  goto createDnode
+endi  
+if $data4_192.168.0.4 == offline then
+  goto createDnode
+endi  
+
+print ======================== dnode1 start
+
+$dbPrefix = t3d_db
+$tbPrefix = t3d_tb
+$mtPrefix = t3d_mt
+$stPrefix = t3d_st
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+$st = $stPrefix . $i
+
+sql drop databae $db -x step1
+step1:
+sql create database $db replica 3
+sql use $db
+sql create table $mt (ts timestamp, tbcol int, tbcol2 float) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+  
+  $x = -1440
+  $y = 0
+  while $y < $rowNum
+    $ms = $x . m 
+    sql insert into $tb values (now $ms , $y , $y ) 
+    $x = $x + 1
+	$y = $y + 1
+  endw 
+ 
+  $i = $i + 1
+endw 
+
+sleep 100
+
+print =============== step2 c1
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select count(*) from $tb interval(1d)
+print select count(*) from $tb interval(1d) ===> $data00 $data01
+if $data01 != $rowNum then 
+  return -1
+endi
+
+$st = $stPrefix . c1
+sql create table $st as select count(*) from $tb interval(1d)
+
+print =============== step3 c2
+sql select count(tbcol) from $tb interval(1d)
+print select count(tbcol) from $tb interval(1d) ===> $data00 $data01
+if $data01 != $rowNum then 
+  return -1
+endi
+
+$st = $stPrefix . c2
+sql create table $st as select count(tbcol) from $tb interval(1d)
+
+print =============== step4 c3
+sql select count(tbcol2) from $tb interval(1d)
+print select count(tbcol2) from $tb interval(1d) ===> $data00 $data01
+if $data01 != $rowNum then 
+  return -1
+endi
+
+$st = $stPrefix . c3
+sql create table $st as select count(tbcol2) from $tb interval(1d)
+
+print =============== step5 avg
+sql select avg(tbcol) from $tb interval(1d)
+print select avg(tbcol) from $tb interval(1d) ===> $data00 $data01
+if $data01 != 9.500000000 then 
+  return -1
+endi
+
+$st = $stPrefix . av
+sql create table $st as select avg(tbcol) from $tb interval(1d)
+
+print =============== step6 su
+sql select sum(tbcol) from $tb interval(1d)
+print select sum(tbcol) from $tb interval(1d) ===> $data00 $data01
+if $data01 != 190 then 
+  return -1
+endi
+
+$st = $stPrefix . su
+sql create table $st as select sum(tbcol) from $tb interval(1d)
+
+print =============== step7 mi
+sql select min(tbcol) from $tb interval(1d)
+print select min(tbcol) from $tb interval(1d) ===> $data00 $data01
+if $data01 != 0 then 
+  return -1
+endi
+
+$st = $stPrefix . mi
+sql create table $st as select min(tbcol) from $tb interval(1d)
+
+print =============== step8 ma
+sql select max(tbcol) from $tb interval(1d)
+print select max(tbcol) from $tb interval(1d) ===> $data00 $data01
+if $data01 != 19 then 
+  return -1
+endi
+
+$st = $stPrefix . ma
+sql create table $st as select max(tbcol) from $tb interval(1d)
+
+print =============== step9 fi
+sql select first(tbcol) from $tb interval(1d)
+print select first(tbcol) from $tb interval(1d) ===> $data00 $data01
+if $data01 != 0 then 
+  return -1
+endi
+
+$st = $stPrefix . fi
+sql create table $st as select first(tbcol) from $tb interval(1d)
+
+print =============== step10 la
+sql select last(tbcol) from $tb interval(1d)
+print select last(tbcol) from $tb interval(1d) ===> $data00 $data01
+if $data01 != 19 then 
+  return -1
+endi
+
+$st = $stPrefix . la
+sql create table $st as select last(tbcol) from $tb interval(1d)
+
+print =============== step11 st
+sql select stddev(tbcol) from $tb interval(1d)
+print select stddev(tbcol) from $tb interval(1d) ===> $data00 $data01
+if $data01 != 5.766281297 then 
+  return -1
+endi
+
+$st = $stPrefix . std
+sql create table $st as select stddev(tbcol) from $tb interval(1d)
+
+print =============== step12 le
+sql select leastsquares(tbcol, 1, 1) from $tb interval(1d)
+print select leastsquares(tbcol, 1, 1) from $tb interval(1d) ===> $data00 $data01
+#if $data01 != @(0.000017, -25362055.126740)@ then 
+#  return -1
+#endi
+
+$st = $stPrefix . le
+sql create table $st as select leastsquares(tbcol, 1, 1) from $tb interval(1d)
+
+print =============== step13 pe
+
+sql select percentile(tbcol, 1) from $tb interval(1d)
+print select percentile(tbcol, 1) from $tb interval(1d) ===> $data00 $data01
+if $data01 != 0.190000000 then 
+  return -1
+endi
+
+$st = $stPrefix . pe
+sql create table $st as select percentile(tbcol, 1) from $tb interval(1d)
+
+print =============== step14 wh
+sql select count(tbcol) from $tb where ts < now + 4m interval(1d)
+print select count(tbcol) from $tb where ts < now + 4m interval(1d) ===> $data00 $data01
+if $data01 != $rowNum then 
+  return -1
+endi
+
+$st = $stPrefix . wh
+#sql create table $st as select count(tbcol) from $tb where ts < now + 4m interval(1d)
+
+print =============== step15 as
+sql select count(tbcol) from $tb interval(1d)
+print select count(tbcol) from $tb interval(1d) ===> $data00 $data01
+if $data01 != $rowNum then 
+  return -1
+endi
+
+$st = $stPrefix . as
+sql create table $st as select count(tbcol) as c from $tb interval(1d)
+
+print =============== step16
+print sleep 22 seconds
+sleep 22000 
+
+print =============== step17
+$st = $stPrefix . c1
+sql select * from $st
+print ===> select * from $st ===> $data00 $data01
+if $data01 != $rowNum then 
+  return -1
+endi
+
+$st = $stPrefix . c2
+sql select * from $st
+print ===> select * from $st ===> $data00 $data01
+if $data01 != $rowNum then 
+  return -1
+endi
+
+$st = $stPrefix . c3
+sql select * from $st
+print ===> select * from $st ===> $data00 $data01
+if $data01 != $rowNum then 
+  return -1
+endi
+
+$st = $stPrefix . av
+sql select * from $st
+print ===> select * from $st ===> $data00 $data01
+if $data01 != 9.500000000 then 
+  return -1
+endi
+
+$st = $stPrefix . su
+sql select * from $st
+print ===> select * from $st ===> $data00 $data01
+if $data01 != 190 then 
+  return -1
+endi
+
+$st = $stPrefix . mi
+sql select * from $st
+print ===> select * from $st ===> $data00 $data01
+if $data01 != 0 then 
+  return -1
+endi
+
+$st = $stPrefix . ma
+sql select * from $st
+print ===> select * from $st ===> $data00 $data01
+if $data01 != 19 then 
+  return -1
+endi
+
+$st = $stPrefix . fi
+sql select * from $st
+print ===> select * from $st ===> $data00 $data01
+if $data01 != 0 then 
+  return -1
+endi
+
+$st = $stPrefix . la
+sql select * from $st
+print ===> select * from $st ===> $data00 $data01
+if $data01 != 19 then 
+  return -1
+endi
+
+$st = $stPrefix . std
+sql select * from $st
+print ===> select * from $st ===> $data00 $data01
+if $data01 != 5.766281297 then 
+  return -1
+endi
+
+$st = $stPrefix . le
+sql select * from $st
+#print ===> select * from $st ===> $data00 $data01
+#if $data01 != @(0.000017, -25270086.331047)@ then 
+#  return -1
+#endi
+
+$st = $stPrefix . pe
+sql select * from $st
+print ===> select * from $st ===> $data00 $data01
+if $data01 != 0.190000000 then 
+  return -1
+endi
+
+$st = $stPrefix . wh
+#sql select * from $st
+#print ===> select * from $st ===> $data00 $data01
+#if $data01 != $rowNum then 
+#  return -1
+#endi
+
+$st = $stPrefix . as
+sql select * from $st
+print ===> select * from $st ===> $data00 $data01
+if $data01 != $rowNum then 
+  return -1
+endi

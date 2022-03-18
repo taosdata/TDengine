@@ -16,6 +16,8 @@
 #ifndef _TD_MND_H_
 #define _TD_MND_H_
 
+#include "monitor.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -30,39 +32,12 @@ typedef int32_t (*PutReqToMWriteQFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 typedef int32_t (*PutReqToMReadQFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 typedef void (*SendRedirectRspFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 
-typedef struct SMnodeLoad {
-  int64_t numOfDnode;
-  int64_t numOfMnode;
-  int64_t numOfVgroup;
-  int64_t numOfDatabase;
-  int64_t numOfSuperTable;
-  int64_t numOfChildTable;
-  int64_t numOfNormalTable;
-  int64_t numOfColumn;
-  int64_t totalPoints;
-  int64_t totalStorage;
-  int64_t compStorage;
-} SMnodeLoad;
-
-typedef struct SMnodeCfg {
-  int32_t sver;
-  int8_t  enableTelem;
-  int32_t statusInterval;
-  int32_t shellActivityTimer;
-  char   *timezone;
-  char   *locale;
-  char   *charset;
-  char   *buildinfo;
-  char   *gitinfo;
-} SMnodeCfg;
-
 typedef struct {
   int32_t           dnodeId;
   int64_t           clusterId;
   int8_t            replica;
   int8_t            selfIndex;
   SReplica          replicas[TSDB_MAX_REPLICA];
-  SMnodeCfg         cfg;
   SDnode           *pDnode;
   PutReqToMWriteQFp putReqToMWriteQFp;
   PutReqToMReadQFp  putReqToMReadQFp;
@@ -105,13 +80,16 @@ int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption);
 void mndDestroy(const char *path);
 
 /**
- * @brief Get mnode statistics info.
+ * @brief Get mnode monitor info.
  *
  * @param pMnode The mnode object.
- * @param pLoad Statistics of the mnode.
+ * @param pClusterInfo
+ * @param pVgroupInfo
+ * @param pGrantInfo
  * @return int32_t 0 for success, -1 for failure.
  */
-int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
+int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
+                          SMonGrantInfo *pGrantInfo);
 
 /**
  * @brief Get user authentication info.

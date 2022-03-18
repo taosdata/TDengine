@@ -1,5 +1,5 @@
 aux_source_directory(src SUT_SRC)
-add_library(sut STATIC ${SUT_SRC})
+add_library(sut STATIC STATIC ${SUT_SRC})
 target_link_libraries(
     sut
     PUBLIC dnode

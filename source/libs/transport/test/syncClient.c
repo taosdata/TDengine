@@ -14,7 +14,7 @@
  */
 #include <sys/time.h>
 
-#include <tep.h>
+#include <tdatablock.h>
 #include "os.h"
 #include "rpcLog.h"
 #include "taoserror.h"
@@ -85,7 +85,7 @@ static void *sendRequest(void *param) {
 
     tDebug("recv response succefully");
 
-    // usleep(100000000);
+    // taosSsleep(100);
   }
 
   tError("send and recv sum: %d, %d, %d, %d", u100, u500, u1000, u10000);
@@ -170,7 +170,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  taosInitLog("client.log", 100000, 10);
+  taosInitLog("client.log", 10);
 
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {
@@ -181,7 +181,7 @@ int main(int argc, char *argv[]) {
   tInfo("client is initialized");
   tInfo("threads:%d msgSize:%d requests:%d", appThreads, msgSize, numOfReqs);
 
-  gettimeofday(&systemTime, NULL);
+  taosGetTimeOfDay(&systemTime);
   startTime = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
 
   SInfo *pInfo = (SInfo *)calloc(1, sizeof(SInfo) * appThreads);
@@ -201,10 +201,10 @@ int main(int argc, char *argv[]) {
   }
 
   do {
-    usleep(1);
+    taosUsleep(1);
   } while (tcount < appThreads);
 
-  gettimeofday(&systemTime, NULL);
+  taosGetTimeOfDay(&systemTime);
   endTime = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
   float usedTime = (endTime - startTime) / 1000.0f;  // mseconds
 

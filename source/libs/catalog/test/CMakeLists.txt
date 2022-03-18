@@ -17,7 +17,7 @@ TARGET_INCLUDE_DIRECTORIES(
         PRIVATE "${CMAKE_SOURCE_DIR}/source/libs/catalog/inc"
 )
 
-add_test(
-    NAME catalogTest
-    COMMAND catalogTest
-)
+# add_test(
+#     NAME catalogTest
+#     COMMAND catalogTest
+# )

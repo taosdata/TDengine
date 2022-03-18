@@ -20,192 +20,32 @@
 extern "C" {
 #endif
 
-#include "query.h"
-#include "tmsg.h"
-#include "tarray.h"
-#include "trpc.h"
+#include "plannodes.h"
 
-#define QUERY_TYPE_MERGE       1
-#define QUERY_TYPE_PARTIAL     2
-#define QUERY_TYPE_SCAN        3
-#define QUERY_TYPE_MODIFY      4
-
-enum OPERATOR_TYPE_E {
-  OP_Unknown,
-#define INCLUDE_AS_ENUM
-#include "plannerOp.h"
-#undef INCLUDE_AS_ENUM
-  OP_TotalNum
-};
-
-enum DATASINK_TYPE_E {
-  DSINK_Unknown,
-  DSINK_Dispatch,
-  DSINK_Insert,
-  DSINK_TotalNum
-};
-
-struct SEpSet;
-struct SQueryStmtInfo;
-
-typedef SSchema SSlotSchema;
-
-typedef struct SDataBlockSchema {
-  SSlotSchema *pSchema;
-  int32_t      numOfCols;    // number of columns
-  int32_t      resultRowSize;
-  int16_t      precision;
-} SDataBlockSchema;
-
-typedef struct SQueryNodeBasicInfo {
-  int32_t     type;          // operator type
-  const char *name;          // operator name
-} SQueryNodeBasicInfo;
-
-typedef struct SDataSink {
-  SQueryNodeBasicInfo info;
-  SDataBlockSchema schema;
-} SDataSink;
-
-typedef struct SDataDispatcher {
-  SDataSink sink;
-} SDataDispatcher;
-
-typedef struct SDataInserter {
-  SDataSink sink;
-  int32_t   numOfTables;
-  uint32_t  size;
-  char     *pData;
-} SDataInserter;
-
-typedef struct SPhyNode {
-  SQueryNodeBasicInfo info;
-  SArray             *pTargets;      // target list to be computed or scanned at this node
-  SArray             *pConditions;   // implicitly-ANDed qual conditions
-  SDataBlockSchema    targetSchema;
-  // children plan to generated result for current node to process
-  // in case of join, multiple plan nodes exist.
-  SArray             *pChildren;
-  struct SPhyNode    *pParent;
-} SPhyNode;
-
-typedef struct SScanPhyNode {
-  SPhyNode    node;
-  uint64_t    uid;           // unique id of the table
-  int8_t      tableType;
-  int32_t     order;         // scan order: TSDB_ORDER_ASC|TSDB_ORDER_DESC
-  int32_t     count;         // repeat count
-  int32_t     reverse;       // reverse scan count
-} SScanPhyNode;
-
-typedef SScanPhyNode SSystemTableScanPhyNode;
-typedef SScanPhyNode STagScanPhyNode;
-
-typedef struct STableScanPhyNode {
-  SScanPhyNode scan;
-  uint8_t      scanFlag;         // denotes reversed scan of data or not
-  STimeWindow  window;
-  SArray      *pTagsConditions; // implicitly-ANDed tag qual conditions
-} STableScanPhyNode;
-
-typedef STableScanPhyNode STableSeqScanPhyNode;
-
-typedef struct SProjectPhyNode {
-  SPhyNode node;
-} SProjectPhyNode;
-
-typedef struct SDownstreamSource {
-  SQueryNodeAddr addr;
-  uint64_t       taskId;
-  uint64_t       schedId;
-} SDownstreamSource;
-
-typedef struct SExchangePhyNode {
-  SPhyNode    node;
-  uint64_t    srcTemplateId;  // template id of datasource suplans
-  SArray     *pSrcEndPoints;  // SArray<SDownstreamSource>, scheduler fill by calling qSetSuplanExecutionNode
-} SExchangePhyNode;
-
-typedef enum EAggAlgo {
-	AGG_ALGO_PLAIN = 1, // simple agg across all input rows
-	AGG_ALGO_SORTED,    // grouped agg, input must be sorted
-	AGG_ALGO_HASHED     // grouped agg, use internal hashtable
-} EAggAlgo;
-
-typedef enum EAggSplit {
-	AGG_SPLIT_PRE = 1, // first level agg, maybe don't need calculate the final result
-	AGG_SPLIT_FINAL    // second level agg, must calculate the final result
-} EAggSplit;
-
-typedef struct SAggPhyNode {
-  SPhyNode    node;
-  EAggAlgo    aggAlgo;  // algorithm used by agg operator 
-  EAggSplit   aggSplit; // distributed splitting mode
-  SArray     *pExprs;   // SExprInfo list, these are expression list of group_by_clause and parameter expression of aggregate function
-  SArray     *pGroupByList; // SColIndex list, but these must be column node
-} SAggPhyNode;
-
-typedef struct SSubplanId {
+typedef struct SPlanContext {
   uint64_t queryId;
-  uint64_t templateId;
-  uint64_t subplanId;
-} SSubplanId;
+  int32_t acctId;
+  SNode* pAstRoot;
+  bool streamQuery;
+} SPlanContext;
 
-typedef struct SSubplan {
-  SSubplanId id;           // unique id of the subplan
-  int32_t    type;         // QUERY_TYPE_MERGE|QUERY_TYPE_PARTIAL|QUERY_TYPE_SCAN|QUERY_TYPE_MODIFY
-  int32_t    msgType;      // message type for subplan, used to denote the send message type to vnode.
-  int32_t    level;        // the execution level of current subplan, starting from 0 in a top-down manner.
-  SQueryNodeAddr     execNode;    // for the scan/modify subplan, the optional execution node
-  SArray    *pChildren;    // the datasource subplan,from which to fetch the result
-  SArray    *pParents;     // the data destination subplan, get data from current subplan
-  SPhyNode  *pNode;        // physical plan of current subplan
-  SDataSink *pDataSink;    // data of the subplan flow into the datasink
-} SSubplan;
-
-typedef struct SQueryDag {
-  uint64_t queryId;
-  int32_t  numOfSubplans;
-  SArray  *pSubplans; // SArray*<SArray*<SSubplan*>>. The execution level of subplan, starting from 0.
-} SQueryDag;
-
-struct SQueryNode;
-
- /**
-  * Create the physical plan for the query, according to the AST.
-  * @param pQueryInfo
-  * @param pDag
-  * @param requestId
-  * @return
-  */
- int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag, SSchema** pResSchema, int32_t* numOfCols, SArray* pNodeList, uint64_t requestId);
+// Create the physical plan for the query, according to the AST.
+int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList);
 
 // Set datasource of this subplan, multiple calls may be made to a subplan.
-// @subplan subplan to be schedule
-// @templateId templateId of a group of datasource subplans of this @subplan
-// @ep one execution location of this group of datasource subplans 
-void qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SDownstreamSource* pSource);
+// @pSubplan subplan to be schedule
+// @groupId id of a group of datasource subplans of this @pSubplan
+// @pSource one execution location of this group of datasource subplans 
+int32_t qSetSubplanExecutionNode(SSubplan* pSubplan, int32_t groupId, SDownstreamSourceNode* pSource);
 
-int32_t qExplainQuery(const struct SQueryNode* pQueryInfo, struct SEpSet* pQnode, char** str);
+// Convert to subplan to string for the scheduler to send to the executor
+int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen);
+int32_t qStringToSubplan(const char* pStr, SSubplan** pSubplan);
 
-/**
- * Convert to subplan to string for the scheduler to send to the executor
- */
-int32_t qSubPlanToString(const SSubplan* subplan, char** str, int32_t* len);
+char* qQueryPlanToString(const SQueryPlan* pPlan);
+SQueryPlan* qStringToQueryPlan(const char* pStr);
 
-int32_t qStringToSubplan(const char* str, SSubplan** subplan);
-
-void qDestroySubplan(SSubplan* pSubplan);
-
-/**
- * Destroy the physical plan.
- * @param pQueryPhyNode
- * @return
- */
-void qDestroyQueryDag(SQueryDag* pDag);
-
-char* qDagToString(const SQueryDag* pDag);
-SQueryDag* qStringToDag(const char* pStr);
+void qDestroyQueryPlan(SQueryPlan* pPlan);
 
 #ifdef __cplusplus
 }

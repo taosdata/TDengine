@@ -21,11 +21,12 @@
 #include "dndSnode.h"
 #include "dndTransport.h"
 #include "dndVnodes.h"
+#include "monitor.h"
 #include "sync.h"
 #include "tfs.h"
 #include "wal.h"
 
-static SDnodeEnv dndEnv = {0};
+static int8_t once = DND_ENV_INIT;
 
 EStat dndGetStat(SDnode *pDnode) { return pDnode->stat; }
 
@@ -59,31 +60,31 @@ void dndGetStartup(SDnode *pDnode, SStartupReq *pStartup) {
   pStartup->finished = (dndGetStat(pDnode) == DND_STAT_RUNNING);
 }
 
-static FileFd dndCheckRunning(char *dataDir) {
+static TdFilePtr dndCheckRunning(char *dataDir) {
   char filepath[PATH_MAX] = {0};
   snprintf(filepath, sizeof(filepath), "%s/.running", dataDir);
 
-  FileFd fd = taosOpenFileCreateWriteTrunc(filepath);
-  if (fd < 0) {
+  TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to lock file:%s since %s, quit", filepath, terrstr());
-    return -1;
+    return NULL;
   }
 
-  int32_t ret = taosLockFile(fd);
+  int32_t ret = taosLockFile(pFile);
   if (ret != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to lock file:%s since %s, quit", filepath, terrstr());
-    taosCloseFile(fd);
-    return -1;
+    taosCloseFile(&pFile);
+    return NULL;
   }
 
-  return fd;
+  return pFile;
 }
 
-static int32_t dndCreateImp(SDnode *pDnode, SDnodeObjCfg *pCfg) {
-  pDnode->lockFd = dndCheckRunning(pCfg->dataDir);
-  if (pDnode->lockFd < 0) {
+static int32_t dndInitDir(SDnode *pDnode, SDnodeObjCfg *pCfg) {
+  pDnode->pLockFile = dndCheckRunning(pCfg->dataDir);
+  if (pDnode->pLockFile == NULL) {
     return -1;
   }
 
@@ -137,21 +138,20 @@ static int32_t dndCreateImp(SDnode *pDnode, SDnodeObjCfg *pCfg) {
   }
 
   memcpy(&pDnode->cfg, pCfg, sizeof(SDnodeObjCfg));
-  memcpy(&pDnode->env, &dndEnv.cfg, sizeof(SDnodeEnvCfg));
   return 0;
 }
 
-static void dndCloseImp(SDnode *pDnode) {
+static void dndCloseDir(SDnode *pDnode) {
   tfree(pDnode->dir.mnode);
   tfree(pDnode->dir.vnodes);
   tfree(pDnode->dir.dnode);
   tfree(pDnode->dir.snode);
   tfree(pDnode->dir.bnode);
 
-  if (pDnode->lockFd >= 0) {
-    taosUnLockFile(pDnode->lockFd);
-    taosCloseFile(pDnode->lockFd);
-    pDnode->lockFd = 0;
+  if (pDnode->pLockFile != NULL) {
+    taosUnLockFile(pDnode->pLockFile);
+    taosCloseFile(&pDnode->pLockFile);
+    pDnode->pLockFile = NULL;
   }
 }
 
@@ -167,7 +167,7 @@ SDnode *dndCreate(SDnodeObjCfg *pCfg) {
 
   dndSetStat(pDnode, DND_STAT_INIT);
 
-  if (dndCreateImp(pDnode, pCfg) != 0) {
+  if (dndInitDir(pDnode, pCfg) != 0) {
     dError("failed to init dnode dir since %s", terrstr());
     dndClose(pDnode);
     return NULL;
@@ -177,7 +177,14 @@ SDnode *dndCreate(SDnodeObjCfg *pCfg) {
   tstrncpy(dCfg.dir, pDnode->cfg.dataDir, TSDB_FILENAME_LEN);
   dCfg.level = 0;
   dCfg.primary = 1;
-  pDnode->pTfs = tfsOpen(&dCfg, 1);
+  SDiskCfg *pDisks = pDnode->cfg.pDisks;
+  int32_t   numOfDisks = pDnode->cfg.numOfDisks;
+  if (numOfDisks <= 0 || pDisks == NULL) {
+    pDisks = &dCfg;
+    numOfDisks = 1;
+  }
+
+  pDnode->pTfs = tfsOpen(pDisks, numOfDisks);
   if (pDnode->pTfs == NULL) {
     dError("failed to init tfs since %s", terrstr());
     dndClose(pDnode);
@@ -254,13 +261,13 @@ void dndClose(SDnode *pDnode) {
   dndCleanupMgmt(pDnode);
   tfsClose(pDnode->pTfs);
 
-  dndCloseImp(pDnode);
+  dndCloseDir(pDnode);
   free(pDnode);
   dInfo("dnode object is closed, data:%p", pDnode);
 }
 
-int32_t dndInit(const SDnodeEnvCfg *pCfg) {
-  if (atomic_val_compare_exchange_8(&dndEnv.once, DND_ENV_INIT, DND_ENV_READY) != DND_ENV_INIT) {
+int32_t dndInit() {
+  if (atomic_val_compare_exchange_8(&once, DND_ENV_INIT, DND_ENV_READY) != DND_ENV_INIT) {
     terrno = TSDB_CODE_REPEAT_INIT;
     dError("failed to init dnode env since %s", terrstr());
     return -1;
@@ -283,14 +290,7 @@ int32_t dndInit(const SDnodeEnvCfg *pCfg) {
   }
 
   SVnodeOpt vnodeOpt = {
-      .sver = pCfg->sver,
-      .timezone = pCfg->timezone,
-      .locale = pCfg->locale,
-      .charset = pCfg->charset,
-      .nthreads = pCfg->numOfCommitThreads,
-      .putReqToVQueryQFp = dndPutReqToVQueryQ,
-      .sendReqToDnodeFp = dndSendReqToDnode
-  };
+      .nthreads = tsNumOfCommitThreads, .putReqToVQueryQFp = dndPutReqToVQueryQ, .sendReqToDnodeFp = dndSendReqToDnode};
 
   if (vnodeInit(&vnodeOpt) != 0) {
     dError("failed to init vnode since %s", terrstr());
@@ -298,13 +298,19 @@ int32_t dndInit(const SDnodeEnvCfg *pCfg) {
     return -1;
   }
 
-  memcpy(&dndEnv.cfg, pCfg, sizeof(SDnodeEnvCfg));
+  SMonCfg monCfg = {.maxLogs = tsMonitorMaxLogs, .port = tsMonitorPort, .server = tsMonitorFqdn, .comp = tsMonitorComp};
+  if (monInit(&monCfg) != 0) {
+    dError("failed to init monitor since %s", terrstr());
+    dndCleanup();
+    return -1;
+  }
+
   dInfo("dnode env is initialized");
   return 0;
 }
 
 void dndCleanup() {
-  if (atomic_val_compare_exchange_8(&dndEnv.once, DND_ENV_READY, DND_ENV_CLEANUP) != DND_ENV_READY) {
+  if (atomic_val_compare_exchange_8(&once, DND_ENV_READY, DND_ENV_CLEANUP) != DND_ENV_READY) {
     dError("dnode env is already cleaned up");
     return;
   }
@@ -312,31 +318,17 @@ void dndCleanup() {
   walCleanUp();
   vnodeCleanup();
   rpcCleanup();
+  monCleanup();
 
   taosStopCacheRefreshWorker();
   dInfo("dnode env is cleaned up");
 }
 
-// OTHER FUNCTIONS ===================================
-void taosGetDisk() {
-#if 0  
-  const double unit = 1024 * 1024 * 1024;
-  
-  SDiskSize    diskSize = tfsGetSize(pTfs);
-  
-  tfsUpdateSize(&fsMeta);
-  tsTotalDataDirGB = (float)(fsMeta.total / unit);
-  tsUsedDataDirGB = (float)(fsMeta.used / unit);
-  tsAvailDataDirGB = (float)(fsMeta.avail / unit);
+int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {
+  tstrncpy(pInfo->logdir.name, tsLogDir, sizeof(pInfo->logdir.name));
+  pInfo->logdir.size = tsLogSpace.size;
+  tstrncpy(pInfo->tempdir.name, tsTempDir, sizeof(pInfo->tempdir.name));
+  pInfo->tempdir.size = tsTempSpace.size;
 
-  if (taosGetDiskSize(tsLogDir, &diskSize) == 0) {
-    tsTotalLogDirGB = (float)(diskSize.total / unit);
-    tsAvailLogDirGB = (float)(diskSize.avail / unit);
-  }
-
-  if (taosGetDiskSize(tsTempDir, &diskSize) == 0) {
-    tsTotalTmpDirGB = (float)(diskSize.total / unit);
-    tsAvailTmpDirectorySpace = (float)(diskSize.avail / unit);
-  }
-#endif
+  return tfsGetMonitorInfo(pDnode->pTfs, pInfo);
 }

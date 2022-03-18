@@ -1,0 +1,28 @@
+sql connect
+
+$db = db
+$stb = stb
+print =============== sync_replica_alterTable_background_add.sim step0: alter table and insert data
+$totalTableNum = 10
+
+sql use $db
+
+#sql create table $stb (ts timestamp, c1 int) tags(t1 int)
+print alter table $stb add column f1 float
+sql alter table $stb add column f1 float
+
+$tblNum = $totalTableNum
+$alterTblNum = 10
+
+sql reset query cache 
+sleep 100
+
+$i = 1
+while $i < $alterTblNum
+  $tb = tb . $i
+  sql insert into $tb values (now, 10001, 10001) (now + 1s, 10002, 10002) (now + 2s, 10003, 10003) (now + 3s, 10004, 10004)
+  $i = $i + 1
+endw 
+
+
+

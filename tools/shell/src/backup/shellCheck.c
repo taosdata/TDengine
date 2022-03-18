@@ -116,7 +116,7 @@ static void *shellCheckThreadFp(void *arg) {
   char file[32] = {0};
   snprintf(file, 32, "tb%d.txt", pThread->threadIndex);
 
-  FILE *fp = fopen(file, "w");
+  TdFilePtr pFile = taosOpenFile(file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (!fp) {
     fprintf(stdout, "failed to open %s, reason:%s", file, strerror(errno));
     return NULL;
@@ -133,7 +133,7 @@ static void *shellCheckThreadFp(void *arg) {
     int32_t   code = taos_errno(pSql);
     if (code != 0) {
       int32_t len = snprintf(sql, SHELL_SQL_LEN, "drop table %s.%s;\n", pThread->db, tbname);
-      fwrite(sql, 1, len, fp);
+      taosWriteFile(pFile, sql, len);
       atomic_add_fetch_32(&errorNum, 1);
     }
 
@@ -145,8 +145,8 @@ static void *shellCheckThreadFp(void *arg) {
     taos_free_result(pSql);
   }
 
-  taosFsync(fileno(fp));
-  fclose(fp);
+  taosFsync(pFile);
+  taosCloseFile(&pFile);
 
   return NULL;
 }

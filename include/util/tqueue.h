@@ -13,8 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_QUEUE_H
-#define _TD_UTIL_QUEUE_H
+#ifndef _TD_UTIL_QUEUE_H_
+#define _TD_UTIL_QUEUE_H_
+
 #include "os.h"
 
 #ifdef __cplusplus
@@ -47,7 +48,7 @@ typedef void (*FItems)(void *ahandle, STaosQall *qall, int32_t numOfItems);
 STaosQueue *taosOpenQueue();
 void        taosCloseQueue(STaosQueue *queue);
 void        taosSetQueueFp(STaosQueue *queue, FItem itemFp, FItems itemsFp);
-void *      taosAllocateQitem(int32_t size);
+void       *taosAllocateQitem(int32_t size);
 void        taosFreeQitem(void *pItem);
 int32_t     taosWriteQitem(STaosQueue *queue, void *pItem);
 int32_t     taosReadQitem(STaosQueue *queue, void **ppItem);
@@ -80,4 +81,4 @@ int32_t taosGetQsetItemsNumber(STaosQset *qset);
 }
 #endif
 
-#endif /*_TD_UTIL_QUEUE_H*/
+#endif /*_TD_UTIL_QUEUE_H_*/

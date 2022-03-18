@@ -21,6 +21,7 @@
 #include "mndStb.h"
 #include "mndUser.h"
 #include "tglobal.h"
+#include "version.h"
 
 #define QUERY_ID_SIZE 20
 #define QUERY_OBJ_ID_SIZE 18
@@ -47,7 +48,7 @@ static SConnObj *mndCreateConn(SMnode *pMnode, SRpcConnInfo *pInfo, int32_t pid,
 static void      mndFreeConn(SConnObj *pConn);
 static SConnObj *mndAcquireConn(SMnode *pMnode, int32_t connId);
 static void      mndReleaseConn(SMnode *pMnode, SConnObj *pConn);
-static void     *mndGetNextConn(SMnode *pMnode, void *pIter, SConnObj **pConn);
+static void     *mndGetNextConn(SMnode *pMnode, SCacheIter *pIter);
 static void      mndCancelGetNextConn(SMnode *pMnode, void *pIter);
 static int32_t   mndProcessHeartBeatReq(SMnodeMsg *pReq);
 static int32_t   mndProcessConnectReq(SMnodeMsg *pReq);
@@ -62,7 +63,7 @@ static void      mndCancelGetNextQuery(SMnode *pMnode, void *pIter);
 int32_t mndInitProfile(SMnode *pMnode) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
-  int32_t connCheckTime = pMnode->cfg.shellActivityTimer * 2;
+  int32_t connCheckTime = tsShellActivityTimer * 2;
   pMgmt->cache = taosCacheInit(TSDB_DATA_TYPE_INT, connCheckTime, true, (__cache_free_fn_t)mndFreeConn, "conn");
   if (pMgmt->cache == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -116,7 +117,7 @@ static SConnObj *mndCreateConn(SMnode *pMnode, SRpcConnInfo *pInfo, int32_t pid,
   tstrncpy(connObj.user, pInfo->user, TSDB_USER_LEN);
   tstrncpy(connObj.app, app, TSDB_APP_NAME_LEN);
 
-  int32_t   keepTime = pMnode->cfg.shellActivityTimer * 3;
+  int32_t   keepTime = tsShellActivityTimer * 3;
   SConnObj *pConn = taosCachePut(pMgmt->cache, &connId, sizeof(int32_t), &connObj, sizeof(connObj), keepTime * 1000);
   if (pConn == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -142,7 +143,7 @@ static SConnObj *mndAcquireConn(SMnode *pMnode, int32_t connId) {
     return NULL;
   }
 
-  int32_t keepTime = pMnode->cfg.shellActivityTimer * 3;
+  int32_t keepTime = tsShellActivityTimer * 3;
   pConn->lastAccessTimeMs = keepTime * 1000 + (uint64_t)taosGetTimestampMs();
 
   mTrace("conn:%d, acquired from cache, data:%p", pConn->id, pConn);
@@ -157,27 +158,23 @@ static void mndReleaseConn(SMnode *pMnode, SConnObj *pConn) {
   taosCacheRelease(pMgmt->cache, (void **)&pConn, false);
 }
 
-static void *mndGetNextConn(SMnode *pMnode, void *pIter, SConnObj **pConn) {
-  SProfileMgmt *pMgmt = &pMnode->profileMgmt;
-
-  *pConn = NULL;
-
-  pIter = taosHashIterate(pMgmt->cache->pHashTable, pIter);
-  if (pIter == NULL) return NULL;
-
-  SCacheDataNode **pNode = pIter;
-  if (pNode == NULL || *pNode == NULL) {
-    taosHashCancelIterate(pMgmt->cache->pHashTable, pIter);
-    return NULL;
+void *mndGetNextConn(SMnode *pMnode, SCacheIter *pIter) {
+  SConnObj* pConn = NULL;
+  bool hasNext = taosCacheIterNext(pIter);
+  if (hasNext) {
+    size_t dataLen = 0;
+    pConn = taosCacheIterGetData(pIter, &dataLen);
+  } else {
+    taosCacheDestroyIter(pIter);
   }
 
-  *pConn = (SConnObj *)((*pNode)->data);
-  return pIter;
+  return pConn;
 }
 
 static void mndCancelGetNextConn(SMnode *pMnode, void *pIter) {
-  SProfileMgmt *pMgmt = &pMnode->profileMgmt;
-  taosHashCancelIterate(pMgmt->cache->pHashTable, pIter);
+  if (pIter != NULL) {
+    taosCacheDestroyIter(pIter);
+  }
 }
 
 static int32_t mndProcessConnectReq(SMnodeMsg *pReq) {
@@ -375,8 +372,8 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
             int32_t rspLen = 0;
             mndValidateDbInfo(pMnode, kv->value, kv->valueLen / sizeof(SDbVgVersion), &rspMsg, &rspLen);
             if (rspMsg && rspLen > 0) {
-              SKv kv = {.key = HEARTBEAT_KEY_DBINFO, .valueLen = rspLen, .value = rspMsg};
-              taosArrayPush(hbRsp.info, &kv);
+              SKv kv1 = {.key = HEARTBEAT_KEY_DBINFO, .valueLen = rspLen, .value = rspMsg};
+              taosArrayPush(hbRsp.info, &kv1);
             }
             break;
           }
@@ -385,8 +382,8 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
             int32_t rspLen = 0;
             mndValidateStbInfo(pMnode, kv->value, kv->valueLen / sizeof(SSTableMetaVersion), &rspMsg, &rspLen);
             if (rspMsg && rspLen > 0) {
-              SKv kv = {.key = HEARTBEAT_KEY_STBINFO, .valueLen = rspLen, .value = rspMsg};
-              taosArrayPush(hbRsp.info, &kv);
+              SKv kv1 = {.key = HEARTBEAT_KEY_STBINFO, .valueLen = rspLen, .value = rspMsg};
+              taosArrayPush(hbRsp.info, &kv1);
             }
             break;
           }
@@ -637,7 +634,7 @@ static int32_t mndGetConnsMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
     pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
   }
 
-  pShow->numOfRows = taosHashGetSize(pMgmt->cache->pHashTable);
+  pShow->numOfRows = taosCacheGetNumOfObj(pMgmt->cache);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   strcpy(pMeta->tbName, mndShowStr(pShow->type));
 
@@ -652,8 +649,13 @@ static int32_t mndRetrieveConns(SMnodeMsg *pReq, SShowObj *pShow, char *data, in
   char     *pWrite;
   char      ipStr[TSDB_IPv4ADDR_LEN + 6];
 
+  if (pShow->pIter == NULL) {
+    SProfileMgmt *pMgmt = &pMnode->profileMgmt;
+    pShow->pIter = taosCacheCreateIter(pMgmt->cache);
+  }
+
   while (numOfRows < rows) {
-    pShow->pIter = mndGetNextConn(pMnode, pShow->pIter, &pConn);
+    pConn = mndGetNextConn(pMnode, pShow->pIter);
     if (pConn == NULL) break;
 
     cols = 0;
@@ -822,19 +824,24 @@ static int32_t mndRetrieveQueries(SMnodeMsg *pReq, SShowObj *pShow, char *data, 
   void     *pIter;
   char      str[TSDB_IPv4ADDR_LEN + 6] = {0};
 
+  if (pShow->pIter == NULL) {
+    SProfileMgmt *pMgmt = &pMnode->profileMgmt;
+    pShow->pIter = taosCacheCreateIter(pMgmt->cache);
+  }
+
   while (numOfRows < rows) {
-    pIter = mndGetNextConn(pMnode, pShow->pIter, &pConn);
+    pConn = mndGetNextConn(pMnode, pShow->pIter);
     if (pConn == NULL) {
-      pShow->pIter = pIter;
+      pShow->pIter = NULL;
       break;
     }
 
     if (numOfRows + pConn->numOfQueries >= rows) {
-      mndCancelGetNextConn(pMnode, pIter);
+      taosCacheDestroyIter(pShow->pIter);
+      pShow->pIter = NULL;
       break;
     }
 
-    pShow->pIter = pIter;
     for (int32_t i = 0; i < pConn->numOfQueries; ++i) {
       SQueryDesc *pDesc = pConn->pQueries + i;
       cols = 0;
@@ -912,6 +919,12 @@ static int32_t mndRetrieveQueries(SMnodeMsg *pReq, SShowObj *pShow, char *data, 
 }
 
 static void mndCancelGetNextQuery(SMnode *pMnode, void *pIter) {
+  if (pIter != NULL) {
+    taosCacheDestroyIter(pIter);
+  }
+}
+
+int32_t mndGetNumOfConnections(SMnode *pMnode) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
-  taosHashCancelIterate(pMgmt->cache->pHashTable, pIter);
+  return taosCacheGetNumOfObj(pMgmt->cache);
 }

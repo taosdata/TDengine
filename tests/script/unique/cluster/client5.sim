@@ -1,0 +1,53 @@
+$tblStart = 0
+$tblEnd = 2000
+$tsStart = 1325347200000  # 2012-01-01 00:00:00.000
+$tsEnd   = 1325347210000
+###############################################################
+
+sql connect
+$db = db1
+$stb = stb1
+#subtable: tb0 - tb4999
+#print create table $stb (ts timestamp, c1 int) tags(t1 int, t2 binary(16))
+
+sleep 20000 # wait other client insert data
+
+loop_lable:
+print ====================== client5 start loop query
+
+sql use $db   
+
+sql select count(*) from $stb
+
+$tsQueryStart = $tsStart
+$tsQueryStart = $tsStart + 90000
+sql select * from $stb where ts > $tsQueryStart and ts < $tsQueryStart order by ts asc limit 500 offset 7
+sql select * from $stb where ts > $tsQueryStart and ts < $tsQueryStart order by ts desc limit 500 offset 7
+
+sql select * from $stb where ts > $tsQueryStart and ts < $tsQueryStart and t2 == 'client1_0'
+sql select * from $stb where ts > $tsQueryStart and ts < $tsQueryStart and t2 == 'client1_1'
+sql select * from $stb where ts > $tsQueryStart and ts < $tsQueryStart and t2 == 'client1_2'
+sql select * from $stb where ts > $tsQueryStart and ts < $tsQueryStart and t2 == 'client1_3'
+
+sql select * from $stb where ts > $tsQueryStart and ts < $tsQueryStart and t2 == 'client2_0'
+sql select * from $stb where ts > $tsQueryStart and ts < $tsQueryStart and t2 == 'client2_1'
+sql select * from $stb where ts > $tsQueryStart and ts < $tsQueryStart and t2 == 'client2_2'
+sql select * from $stb where ts > $tsQueryStart and ts < $tsQueryStart and t2 == 'client2_3'
+
+sql select min(c1)      from $stb
+sql select max(c1)      from $stb
+sql select first(*)     from $stb
+sql select last(*)      from $stb
+sql select last_row(*)  from $stb
+sql select sum(c1)      from $stb
+sql select avg(c1)      from $stb
+
+sql select min(c1)      from tb1
+sql select max(c1)      from tb10
+sql select first(*)     from tb100
+sql select last(*)      from tb1000
+sql select last_row(*)  from tb20
+sql select sum(c1)      from tb200
+sql select avg(c1)      from tb2000
+
+goto loop_lable

@@ -23,7 +23,7 @@
 #include "tfill.h"
 #include "thash.h"
 #include "function.h"
-#include "common.h"
+#include "tcommon.h"
 #include "ttime.h"
 
 #define FILL_IS_ASC_FILL(_f) ((_f)->order == TSDB_ORDER_ASC)
@@ -543,7 +543,7 @@ struct SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, co
     pFillCol[i].col.offset = offset;
     pFillCol[i].col.colId  = pExprInfo->base.resSchema.colId;
     pFillCol[i].tagIndex   = -2;
-    pFillCol[i].flag       = pExprInfo->base.pColumns->flag;    // always be the normal column for table query
+    pFillCol[i].flag       = pExprInfo->base.pParam[0].pCol->flag;    // always be the normal column for table query
 //    pFillCol[i].functionId = pExprInfo->pExpr->_function.functionId;
     pFillCol[i].fillVal.i  = fillVal[i];
 

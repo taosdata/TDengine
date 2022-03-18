@@ -14,15 +14,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-
-#include "compare.h"
+#define _DEFAULT_SOURCE
 #include "tskiplist.h"
+#include "tcompare.h"
+#include "tlog.h"
 #include "tutil.h"
-#include "ulog.h"
 
-static int                initForwardBackwardPtr(SSkipList *pSkipList);
-static SSkipListNode *    getPriorNode(SSkipList *pSkipList, const char *val, int32_t order, SSkipListNode **pCur);
+static int32_t            initForwardBackwardPtr(SSkipList *pSkipList);
+static SSkipListNode     *getPriorNode(SSkipList *pSkipList, const char *val, int32_t order, SSkipListNode **pCur);
 static void               tSkipListRemoveNodeImpl(SSkipList *pSkipList, SSkipListNode *pNode);
 static void               tSkipListCorrectLevel(SSkipList *pSkipList);
 static SSkipListIterator *doCreateSkipListIterator(SSkipList *pSkipList, int32_t order);
@@ -33,10 +32,9 @@ static SSkipListNode *tSkipListNewNode(uint8_t level);
 static SSkipListNode *tSkipListPutImpl(SSkipList *pSkipList, void *pData, SSkipListNode **direction, bool isForward,
                                        bool hasDup);
 
-
-static FORCE_INLINE int     tSkipListWLock(SSkipList *pSkipList);
-static FORCE_INLINE int     tSkipListRLock(SSkipList *pSkipList);
-static FORCE_INLINE int     tSkipListUnlock(SSkipList *pSkipList);
+static FORCE_INLINE int32_t tSkipListWLock(SSkipList *pSkipList);
+static FORCE_INLINE int32_t tSkipListRLock(SSkipList *pSkipList);
+static FORCE_INLINE int32_t tSkipListUnlock(SSkipList *pSkipList);
 static FORCE_INLINE int32_t getSkipListRandLevel(SSkipList *pSkipList);
 
 SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, __compar_fn_t comparFn, uint8_t flags,
@@ -53,7 +51,7 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, _
   pSkipList->len = keyLen;
   pSkipList->flags = flags;
   pSkipList->keyFn = fn;
-  pSkipList->seed = rand();
+  pSkipList->seed = taosRand();
 
 #if 0 
   // the function getkeycomparfunc is defined in common
@@ -84,7 +82,7 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, _
     }
   }
 
-  srand((uint32_t)time(NULL));
+  taosSeedRand((uint32_t)taosGetTimestampSec());
 
 #if SKIP_LIST_RECORD_PERFORMANCE
   pSkipList->state.nTotalMemSize += sizeof(SSkipList);
@@ -140,21 +138,21 @@ void tSkipListPutBatchByIter(SSkipList *pSkipList, void *iter, iter_next_fn_t it
   SSkipListNode *backward[MAX_SKIP_LIST_LEVEL] = {0};
   SSkipListNode *forward[MAX_SKIP_LIST_LEVEL] = {0};
   bool           hasDup = false;
-  char *         pKey = NULL;
-  char *         pDataKey = NULL;
-  int            compare = 0;
+  char          *pKey = NULL;
+  char          *pDataKey = NULL;
+  int32_t        compare = 0;
 
   tSkipListWLock(pSkipList);
 
-  void* pData = iterate(iter);
-  if(pData == NULL) return;
+  void *pData = iterate(iter);
+  if (pData == NULL) return;
 
   // backward to put the first data
   hasDup = tSkipListGetPosToPut(pSkipList, backward, pData);
 
   tSkipListPutImpl(pSkipList, pData, backward, false, hasDup);
 
-  for (int level = 0; level < pSkipList->maxLevel; level++) {
+  for (int32_t level = 0; level < pSkipList->maxLevel; level++) {
     forward[level] = SL_NODE_GET_BACKWARD_POINTER(backward[level], level);
   }
 
@@ -167,12 +165,12 @@ void tSkipListPutBatchByIter(SSkipList *pSkipList, void *iter, iter_next_fn_t it
     pKey = SL_GET_MAX_KEY(pSkipList);
     compare = pSkipList->comparFn(pDataKey, pKey);
     if (compare > 0) {
-      for (int i = 0; i < pSkipList->maxLevel; i++) {
+      for (int32_t i = 0; i < pSkipList->maxLevel; i++) {
         forward[i] = SL_NODE_GET_BACKWARD_POINTER(pSkipList->pTail, i);
       }
     } else {
       SSkipListNode *px = pSkipList->pHead;
-      for (int i = pSkipList->maxLevel - 1; i >= 0; --i) {
+      for (int32_t i = pSkipList->maxLevel - 1; i >= 0; --i) {
         if (i < pSkipList->level) {
           // set new px
           if (forward[i] != pSkipList->pHead) {
@@ -359,7 +357,7 @@ void tSkipListPrint(SSkipList *pSkipList, int16_t nlevel) {
   SSkipListNode *p = SL_NODE_GET_FORWARD_POINTER(pSkipList->pHead, nlevel - 1);
 
   int32_t id = 1;
-  char *  prev = NULL;
+  char   *prev = NULL;
 
   while (p != pSkipList->pTail) {
     char *key = SL_GET_NODE_KEY(pSkipList, p);
@@ -435,21 +433,21 @@ static SSkipListIterator *doCreateSkipListIterator(SSkipList *pSkipList, int32_t
   return iter;
 }
 
-static FORCE_INLINE int tSkipListWLock(SSkipList *pSkipList) {
+static FORCE_INLINE int32_t tSkipListWLock(SSkipList *pSkipList) {
   if (pSkipList->lock) {
     return pthread_rwlock_wrlock(pSkipList->lock);
   }
   return 0;
 }
 
-static FORCE_INLINE int tSkipListRLock(SSkipList *pSkipList) {
+static FORCE_INLINE int32_t tSkipListRLock(SSkipList *pSkipList) {
   if (pSkipList->lock) {
     return pthread_rwlock_rdlock(pSkipList->lock);
   }
   return 0;
 }
 
-static FORCE_INLINE int tSkipListUnlock(SSkipList *pSkipList) {
+static FORCE_INLINE int32_t tSkipListUnlock(SSkipList *pSkipList) {
   if (pSkipList->lock) {
     return pthread_rwlock_unlock(pSkipList->lock);
   }
@@ -457,12 +455,12 @@ static FORCE_INLINE int tSkipListUnlock(SSkipList *pSkipList) {
 }
 
 static bool tSkipListGetPosToPut(SSkipList *pSkipList, SSkipListNode **backward, void *pData) {
-  int     compare = 0;
+  int32_t compare = 0;
   bool    hasDupKey = false;
-  char *  pDataKey = pSkipList->keyFn(pData);
+  char   *pDataKey = pSkipList->keyFn(pData);
 
   if (pSkipList->size == 0) {
-    for (int i = 0; i < pSkipList->maxLevel; i++) {
+    for (int32_t i = 0; i < pSkipList->maxLevel; i++) {
       backward[i] = pSkipList->pTail;
     }
   } else {
@@ -472,7 +470,7 @@ static bool tSkipListGetPosToPut(SSkipList *pSkipList, SSkipListNode **backward,
     pKey = SL_GET_MAX_KEY(pSkipList);
     compare = pSkipList->comparFn(pDataKey, pKey);
     if (compare >= 0) {
-      for (int i = 0; i < pSkipList->maxLevel; i++) {
+      for (int32_t i = 0; i < pSkipList->maxLevel; i++) {
         backward[i] = pSkipList->pTail;
       }
 
@@ -483,7 +481,7 @@ static bool tSkipListGetPosToPut(SSkipList *pSkipList, SSkipListNode **backward,
     pKey = SL_GET_MIN_KEY(pSkipList);
     compare = pSkipList->comparFn(pDataKey, pKey);
     if (compare < 0) {
-      for (int i = 0; i < pSkipList->maxLevel; i++) {
+      for (int32_t i = 0; i < pSkipList->maxLevel; i++) {
         backward[i] = SL_NODE_GET_FORWARD_POINTER(pSkipList->pHead, i);
       }
 
@@ -491,7 +489,7 @@ static bool tSkipListGetPosToPut(SSkipList *pSkipList, SSkipListNode **backward,
     }
 
     SSkipListNode *px = pSkipList->pTail;
-    for (int i = pSkipList->maxLevel - 1; i >= 0; --i) {
+    for (int32_t i = pSkipList->maxLevel - 1; i >= 0; --i) {
       if (i < pSkipList->level) {
         SSkipListNode *p = SL_NODE_GET_BACKWARD_POINTER(px, i);
         while (p != pSkipList->pHead) {
@@ -534,7 +532,8 @@ static void tSkipListRemoveNodeImpl(SSkipList *pSkipList, SSkipListNode *pNode) 
 
 // Function must be called after calling tSkipListRemoveNodeImpl() function
 static void tSkipListCorrectLevel(SSkipList *pSkipList) {
-  while (pSkipList->level > 0 && SL_NODE_GET_FORWARD_POINTER(pSkipList->pHead, pSkipList->level - 1) == pSkipList->pTail) {
+  while (pSkipList->level > 0 &&
+         SL_NODE_GET_FORWARD_POINTER(pSkipList->pHead, pSkipList->level - 1) == pSkipList->pTail) {
     pSkipList->level -= 1;
   }
 }
@@ -561,9 +560,9 @@ static FORCE_INLINE int32_t getSkipListNodeRandomHeight(SSkipList *pSkipList) {
 
   int32_t n = 1;
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-  while ((rand() % factor) == 0 && n <= pSkipList->maxLevel) {
+  while ((taosRand() % factor) == 0 && n <= pSkipList->maxLevel) {
 #else
-  while ((rand_r(&(pSkipList->seed)) % factor) == 0 && n <= pSkipList->maxLevel) {
+  while ((taosRandR(&(pSkipList->seed)) % factor) == 0 && n <= pSkipList->maxLevel) {
 #endif
     n++;
   }
@@ -638,7 +637,7 @@ static SSkipListNode *getPriorNode(SSkipList *pSkipList, const char *val, int32_
   return pNode;
 }
 
-static int initForwardBackwardPtr(SSkipList *pSkipList) {
+static int32_t initForwardBackwardPtr(SSkipList *pSkipList) {
   uint32_t maxLevel = pSkipList->maxLevel;
 
   // head info
@@ -687,12 +686,12 @@ static SSkipListNode *tSkipListPutImpl(SSkipList *pSkipList, void *pData, SSkipL
         pSkipList->insertHandleFn->args[1] = pNode->pData;
         pData = genericInvoke(pSkipList->insertHandleFn);
       }
-      if(pData) {
+      if (pData) {
         atomic_store_ptr(&(pNode->pData), pData);
       }
     } else {
-      //for compatiblity, duplicate key inserted when update=0 should be also calculated as affected rows!
-      if(pSkipList->insertHandleFn) {
+      // for compatiblity, duplicate key inserted when update=0 should be also calculated as affected rows!
+      if (pSkipList->insertHandleFn) {
         pSkipList->insertHandleFn->args[0] = NULL;
         pSkipList->insertHandleFn->args[1] = NULL;
         genericInvoke(pSkipList->insertHandleFn);

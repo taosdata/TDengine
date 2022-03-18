@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
+#define _DEFAULT_SOURCE
 #include "tlockfree.h"
 
 #define TD_RWLATCH_WRITE_FLAG 0x40000000
@@ -22,7 +22,7 @@ void taosInitRWLatch(SRWLatch *pLatch) { *pLatch = 0; }
 
 void taosWLockLatch(SRWLatch *pLatch) {
   SRWLatch oLatch, nLatch;
-  int      nLoops = 0;
+  int32_t  nLoops = 0;
 
   // Set write flag
   while (1) {
@@ -57,7 +57,7 @@ void taosWUnLockLatch(SRWLatch *pLatch) { atomic_store_32(pLatch, 0); }
 
 void taosRLockLatch(SRWLatch *pLatch) {
   SRWLatch oLatch, nLatch;
-  int      nLoops = 0;
+  int32_t  nLoops = 0;
 
   while (1) {
     oLatch = atomic_load_32(pLatch);

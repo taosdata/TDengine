@@ -61,16 +61,15 @@ void* MndTestTopic::BuildCreateDbReq(const char* dbname, int32_t* pContLen) {
 }
 
 void* MndTestTopic::BuildCreateTopicReq(const char* topicName, const char* sql, int32_t* pContLen) {
-  SMCreateTopicReq createReq = {0};
+  SCMCreateTopicReq createReq = {0};
   strcpy(createReq.name, topicName);
   createReq.igExists = 0;
   createReq.sql = (char*)sql;
-  createReq.physicalPlan = (char*)"physicalPlan";
-  createReq.logicalPlan = (char*)"logicalPlan";
+  createReq.ast = NULL;
 
-  int32_t contLen = tSerializeMCreateTopicReq(NULL, 0, &createReq);
+  int32_t contLen = tSerializeSCMCreateTopicReq(NULL, 0, &createReq);
   void*   pReq = rpcMallocCont(contLen);
-  tSerializeMCreateTopicReq(pReq, contLen, &createReq);
+  tSerializeSCMCreateTopicReq(pReq, contLen, &createReq);
 
   *pContLen = contLen;
   return pReq;
@@ -100,9 +99,7 @@ TEST_F(MndTestTopic, 01_Create_Topic) {
     ASSERT_EQ(pRsp->code, 0);
   }
 
-  {
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_TP, "");
-  }
+  { test.SendShowMetaReq(TSDB_MGMT_TABLE_TP, ""); }
 
   {
     int32_t  contLen = 0;

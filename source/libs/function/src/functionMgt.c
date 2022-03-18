@@ -26,18 +26,27 @@ typedef struct SFuncMgtService {
 } SFuncMgtService;
 
 static SFuncMgtService gFunMgtService;
+static pthread_once_t functionHashTableInit = PTHREAD_ONCE_INIT;
+static int32_t initFunctionCode = 0;
 
-int32_t fmFuncMgtInit() {
+static void doInitFunctionHashTable() {
   gFunMgtService.pFuncNameHashTable = taosHashInit(funcMgtBuiltinsNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (NULL == gFunMgtService.pFuncNameHashTable) {
-    return TSDB_CODE_FAILED;
+    initFunctionCode = TSDB_CODE_FAILED;
+    return;
   }
+
   for (int32_t i = 0; i < funcMgtBuiltinsNum; ++i) {
     if (TSDB_CODE_SUCCESS != taosHashPut(gFunMgtService.pFuncNameHashTable, funcMgtBuiltins[i].name, strlen(funcMgtBuiltins[i].name), &i, sizeof(int32_t))) {
-      return TSDB_CODE_FAILED;
+      initFunctionCode = TSDB_CODE_FAILED;
+      return;
     }
   }
-  return TSDB_CODE_SUCCESS;
+}
+
+int32_t fmFuncMgtInit() {
+  pthread_once(&functionHashTableInit, doInitFunctionHashTable);
+  return initFunctionCode;
 }
 
 int32_t fmGetFuncInfo(const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType) {
@@ -71,9 +80,24 @@ int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return TSDB_CODE_FAILED;
+  }
+  pFpSet->process = funcMgtBuiltins[funcId].sprocessFunc;
+  return TSDB_CODE_SUCCESS;
+}
+
 bool fmIsAggFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;
   }
   return FUNC_MGT_TEST_MASK(funcMgtBuiltins[funcId].classification, FUNC_MGT_AGG_FUNC);
+}
+
+void fmFuncMgtDestroy() {
+  void* m = gFunMgtService.pFuncNameHashTable;
+  if (m != NULL && atomic_val_compare_exchange_ptr(&gFunMgtService.pFuncNameHashTable, m, 0) == m) {
+    taosHashCleanup(m);
+  }
 }

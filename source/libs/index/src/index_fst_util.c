@@ -29,18 +29,6 @@ const uint64_t VERSION = 3;
 
 const uint64_t TRANS_INDEX_THRESHOLD = 32;
 
-// uint8_t commonInput(uint8_t idx) {
-//  if (idx == 0) { return -1; }
-//  else {
-//    return COMMON_INPUTS_INV[idx - 1];
-//  }
-//}
-//
-// uint8_t commonIdx(uint8_t v, uint8_t max) {
-//  uint8_t v = ((uint16_t)tCOMMON_INPUTS[v] + 1)%256;
-//  return v > max ? 0: v;
-//}
-
 uint8_t packSize(uint64_t n) {
   if (n < (1u << 8)) {
     return 1;
@@ -103,9 +91,6 @@ FstSlice fstSliceCreate(uint8_t* data, uint64_t len) {
 FstSlice fstSliceCopy(FstSlice* s, int32_t start, int32_t end) {
   FstString* str = s->str;
   str->ref++;
-  // uint8_t *buf = fstSliceData(s, &alen);
-  // start = buf + start - (buf - s->start);
-  // end   = buf + end - (buf - s->start);
 
   FstSlice t = {.str = str, .start = start + s->start, .end = end + s->start};
   return t;
@@ -130,19 +115,19 @@ FstSlice fstSliceDeepCopy(FstSlice* s, int32_t start, int32_t end) {
   ans.end = tlen - 1;
   return ans;
 }
-bool fstSliceIsEmpty(FstSlice* s) {
-  return s->str == NULL || s->str->len == 0 || s->start < 0 || s->end < 0;
-}
+bool fstSliceIsEmpty(FstSlice* s) { return s->str == NULL || s->str->len == 0 || s->start < 0 || s->end < 0; }
 
 uint8_t* fstSliceData(FstSlice* s, int32_t* size) {
   FstString* str = s->str;
-  if (size != NULL) { *size = s->end - s->start + 1; }
+  if (size != NULL) {
+    *size = s->end - s->start + 1;
+  }
   return str->data + s->start;
 }
 void fstSliceDestroy(FstSlice* s) {
   FstString* str = s->str;
   str->ref--;
-  if (str->ref <= 0) {
+  if (str->ref == 0) {
     free(str->data);
     free(str);
     s->str = NULL;

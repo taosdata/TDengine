@@ -168,10 +168,10 @@ TEST_F(TqMetaUpdateAppendTest, intxnPersist) {
 }
 
 TEST_F(TqMetaUpdateAppendTest, multiplePage) {
-  srand(0);
+  taosSeedRand(0);
   std::vector<int> v;
   for (int i = 0; i < 1000; i++) {
-    v.push_back(rand());
+    v.push_back(taosRand());
     Foo foo;
     foo.a = v[i];
     tqHandleCopyPut(pMeta, i, &foo, sizeof(Foo));
@@ -202,10 +202,10 @@ TEST_F(TqMetaUpdateAppendTest, multiplePage) {
 }
 
 TEST_F(TqMetaUpdateAppendTest, multipleRewrite) {
-  srand(0);
+  taosSeedRand(0);
   std::vector<int> v;
   for (int i = 0; i < 1000; i++) {
-    v.push_back(rand());
+    v.push_back(taosRand());
     Foo foo;
     foo.a = v[i];
     tqHandleCopyPut(pMeta, i, &foo, sizeof(Foo));
@@ -213,14 +213,14 @@ TEST_F(TqMetaUpdateAppendTest, multipleRewrite) {
 
   for (int i = 0; i < 500; i++) {
     tqHandleCommit(pMeta, i);
-    v[i] = rand();
+    v[i] = taosRand();
     Foo foo;
     foo.a = v[i];
     tqHandleCopyPut(pMeta, i, &foo, sizeof(Foo));
   }
 
   for (int i = 500; i < 1000; i++) {
-    v[i] = rand();
+    v[i] = taosRand();
     Foo foo;
     foo.a = v[i];
     tqHandleCopyPut(pMeta, i, &foo, sizeof(Foo));
@@ -235,7 +235,7 @@ TEST_F(TqMetaUpdateAppendTest, multipleRewrite) {
   ASSERT(pMeta);
 
   for (int i = 500; i < 1000; i++) {
-    v[i] = rand();
+    v[i] = taosRand();
     Foo foo;
     foo.a = v[i];
     tqHandleCopyPut(pMeta, i, &foo, sizeof(Foo));
@@ -250,10 +250,10 @@ TEST_F(TqMetaUpdateAppendTest, multipleRewrite) {
 }
 
 TEST_F(TqMetaUpdateAppendTest, dupCommit) {
-  srand(0);
+  taosSeedRand(0);
   std::vector<int> v;
   for (int i = 0; i < 1000; i++) {
-    v.push_back(rand());
+    v.push_back(taosRand());
     Foo foo;
     foo.a = v[i];
     tqHandleCopyPut(pMeta, i, &foo, sizeof(Foo));

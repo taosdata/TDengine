@@ -23,10 +23,11 @@ static SDataSinkManager gDataSinkManager = {0};
 int32_t dsDataSinkMgtInit(SDataSinkMgtCfg *cfg) {
   gDataSinkManager.cfg = *cfg;
   pthread_mutex_init(&gDataSinkManager.mutex, NULL);
+  return 0; // to avoid compiler eror
 }
 
-int32_t dsCreateDataSinker(const struct SDataSink *pDataSink, DataSinkHandle* pHandle) {
-  if (DSINK_Dispatch == pDataSink->info.type) {
+int32_t dsCreateDataSinker(const SDataSinkNode *pDataSink, DataSinkHandle* pHandle) {
+  if (QUERY_NODE_PHYSICAL_PLAN_DISPATCH == nodeType(pDataSink)) {
     return createDataDispatcher(&gDataSinkManager, pDataSink, pHandle);
   }
   return TSDB_CODE_FAILED;

@@ -1,5 +1,5 @@
 aux_source_directory(src SCHEDULER_SRC)
-add_library(scheduler ${SCHEDULER_SRC})
+add_library(scheduler STATIC ${SCHEDULER_SRC})
 
 target_include_directories(
         scheduler
@@ -9,7 +9,7 @@ target_include_directories(
 
 target_link_libraries(
         scheduler
-        PUBLIC os util planner qcom common catalog transport
+        PUBLIC os util nodes planner qcom common catalog transport
 )
 
 if(${BUILD_TEST})

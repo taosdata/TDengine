@@ -1,0 +1,147 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+system sh/cfg.sh -n dnode1 -c wallevel -v 2
+system sh/cfg.sh -n dnode2 -c wallevel -v 2
+system sh/cfg.sh -n dnode3 -c wallevel -v 2
+system sh/cfg.sh -n dnode4 -c wallevel -v 2
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode4 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 4
+system sh/exec.sh -n dnode1 -s start
+
+sql connect
+sql create dnode $hostname2
+sql create dnode $hostname3
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+print dnode4 $data4_4
+
+if $data4_1 != ready then
+  goto step1
+endi
+if $data4_2 != ready then
+  goto step1
+endi
+if $data4_3 != ready then
+  goto step1
+endi
+
+sql show mnodes
+print mnode1 $data2_1
+print mnode1 $data2_2
+print mnode1 $data2_3
+if $data2_1 != master then
+  goto step1
+endi
+
+print ========= step1
+sql create database db1 replica 2 
+sql create database db2 replica 2 
+sql create database db3 replica 2 
+sql create database db4 replica 2 
+sql create table db1.tb1 (ts timestamp, i int)
+sql create table db2.tb2 (ts timestamp, i int)
+sql create table db3.tb3 (ts timestamp, i int)
+sql create table db4.tb4 (ts timestamp, i int)
+sql insert into db1.tb1 values(now, 1)
+sql insert into db2.tb2 values(now, 1)
+sql insert into db3.tb3 values(now, 1)
+sql insert into db4.tb4 values(now, 1)
+
+sql select count(*) from db1.tb1
+$lastRows1 = $rows
+sql select count(*) from db2.tb2
+$lastRows2 = $rows
+sql select count(*) from db3.tb3
+$lastRows3 = $rows
+sql select count(*) from db4.tb4
+$lastRows4 = $rows
+
+print ======== step2
+run_back unique/vnode/back_insert_many.sim
+sleep 3000
+
+print ======== step3
+
+$x = 0
+loop:
+
+print ======== step4
+system sh/exec.sh -n dnode3 -s stop
+sleep 3000
+system sh/exec.sh -n dnode3 -s start
+sleep 3000
+
+print ======== step5
+system sh/exec.sh -n dnode2 -s stop
+sleep 3000
+system sh/exec.sh -n dnode2 -s start
+sleep 3000
+
+print ======== step6
+sql select count(*) from db1.tb1
+print select count(*) from db1.tb1 ==> $data00 $lastRows1 
+if $data00 <= $lastRows1 then
+  return -1
+endi
+$lastRows1 = $data00
+
+sql select count(*) from db2.tb2
+print select count(*) from db2.tb2 ==> $data00 $lastRows2 
+if $data00 <= $lastRows2 then
+  return -1
+endi
+$lastRows2 = $data00
+
+sql select count(*) from db3.tb3
+print select count(*) from  db3.tb3 ==> $data00 $lastRows3 
+if $data00 <= $lastRows3 then
+  return -1
+endi
+$lastRows3 = $data00
+
+sql select count(*) from db4.tb4
+print select count(*) from  db4.tb4 ==> $data00 $lastRows4 
+if $data00 <= $lastRows4 then
+  return -1
+endi
+$lastRows4 = $data00
+
+print ======== step7
+
+print ======== loop Times $x
+
+if $x < 2 then
+  $x = $x + 1
+  goto loop
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

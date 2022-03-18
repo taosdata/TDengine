@@ -23,10 +23,9 @@ extern "C" {
 #include "catalog.h"
 #include "planner.h"
 
-struct SSchJob;
-
 typedef struct SSchedulerCfg {
   uint32_t maxJobNum;
+  int32_t  maxNodeTableNum;
 } SSchedulerCfg;
 
 typedef struct SQueryProfileSummary {
@@ -72,7 +71,7 @@ int32_t schedulerInit(SSchedulerCfg *cfg);
  * @param nodeList  Qnode/Vnode address list, element is SQueryNodeAddr
  * @return
  */
-int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, struct SSchJob** pJob, const char* sql, SQueryResult *pRes);
+int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryPlan* pDag, int64_t* pJob, const char* sql, SQueryResult *pRes);
 
 /**
  * Process the query job, generated according to the query physical plan.
@@ -80,7 +79,7 @@ int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, str
  * @param pNodeList  Qnode/Vnode address list, element is SQueryNodeAddr
  * @return
  */
-int32_t schedulerAsyncExecJob(void *transport, SArray *pNodeList, SQueryDag* pDag, const char* sql, struct SSchJob** pJob);
+int32_t schedulerAsyncExecJob(void *transport, SArray *pNodeList, SQueryPlan* pDag, const char* sql, int64_t *pJob);
 
 /**
  * Fetch query result from the remote query executor
@@ -88,7 +87,7 @@ int32_t schedulerAsyncExecJob(void *transport, SArray *pNodeList, SQueryDag* pDa
  * @param data
  * @return
  */
-int32_t schedulerFetchRows(struct SSchJob *pJob, void **data);
+int32_t schedulerFetchRows(int64_t job, void **data);
 
 
 /**
@@ -102,7 +101,7 @@ int32_t schedulerFetchRows(struct SSchJob *pJob, void **data);
  * Free the query job
  * @param pJob
  */
-void schedulerFreeJob(void *pJob);
+void schedulerFreeJob(int64_t job);
 
 void schedulerDestroy(void);
 
@@ -112,7 +111,7 @@ void schedulerDestroy(void);
  * @param pTasks SArray**<STaskInfo>
  * @return
  */
-int32_t schedulerConvertDagToTaskList(SQueryDag* pDag, SArray **pTasks);
+int32_t schedulerConvertDagToTaskList(SQueryPlan* pDag, SArray **pTasks);
 
 /**
  * make one task info's multiple copies

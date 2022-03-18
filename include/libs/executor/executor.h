@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "common.h"
+#include "tcommon.h"
 
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
@@ -31,6 +31,7 @@ typedef struct SReadHandle {
   void* reader;
   void* meta;
 } SReadHandle;
+
  /**
   * Create the exec task for streaming mode
   * @param pMsg
@@ -40,12 +41,22 @@ typedef struct SReadHandle {
 qTaskInfo_t qCreateStreamExecTaskInfo(void *msg, void* streamReadHandle);
 
 /**
- *
+ * Set the input data block for the stream scan.
  * @param tinfo
  * @param input
  * @return
  */
-int32_t     qSetStreamInput(qTaskInfo_t tinfo, const void* input);
+int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input);
+
+/**
+ * Update the table id list, add or remove.
+ *
+ * @param tinfo
+ * @param id
+ * @param isAdd
+ * @return
+ */
+int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, SArray* tableIdList, bool isAdd);
 
  /**
   * Create the exec task object according to task json
@@ -77,25 +88,6 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds);
  * @return
  */
 int32_t qRetrieveQueryResultInfo(qTaskInfo_t tinfo, bool* buildRes, void* pRspContext);
-
-/**
- *
- * Retrieve the actual results to fill the response message payload.
- * Note that this function must be executed after qRetrieveQueryResultInfo is invoked.
- *
- * @param tinfo  tinfo object
- * @param pRsp    response message
- * @param contLen payload length
- * @return
- */
-//int32_t qDumpRetrieveResult(qTaskInfo_t tinfo, SRetrieveTableRsp** pRsp, int32_t* contLen, bool* continueExec);
-
-/**
- * return the transporter context (RPC)
- * @param tinfo
- * @return
- */
-void* qGetResultRetrieveMsg(qTaskInfo_t tinfo);
 
 /**
  * kill the ongoing query and free the query handle and corresponding resources automatically

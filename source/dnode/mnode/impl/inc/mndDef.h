@@ -34,46 +34,6 @@
 extern "C" {
 #endif
 
-extern int32_t mDebugFlag;
-
-// mnode log function
-#define mFatal(...)                                 \
-  {                                                 \
-    if (mDebugFlag & DEBUG_FATAL) {                 \
-      taosPrintLog("MND FATAL ", 255, __VA_ARGS__); \
-    }                                               \
-  }
-#define mError(...)                                 \
-  {                                                 \
-    if (mDebugFlag & DEBUG_ERROR) {                 \
-      taosPrintLog("MND ERROR ", 255, __VA_ARGS__); \
-    }                                               \
-  }
-#define mWarn(...)                                 \
-  {                                                \
-    if (mDebugFlag & DEBUG_WARN) {                 \
-      taosPrintLog("MND WARN ", 255, __VA_ARGS__); \
-    }                                              \
-  }
-#define mInfo(...)                            \
-  {                                           \
-    if (mDebugFlag & DEBUG_INFO) {            \
-      taosPrintLog("MND ", 255, __VA_ARGS__); \
-    }                                         \
-  }
-#define mDebug(...)                                  \
-  {                                                  \
-    if (mDebugFlag & DEBUG_DEBUG) {                  \
-      taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); \
-    }                                                \
-  }
-#define mTrace(...)                                  \
-  {                                                  \
-    if (mDebugFlag & DEBUG_TRACE) {                  \
-      taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); \
-    }                                                \
-  }
-
 typedef enum {
   MND_AUTH_ACCT_START = 0,
   MND_AUTH_ACCT_USER,
@@ -123,6 +83,10 @@ typedef enum {
   TRN_TYPE_DROP_TOPIC = 1015,
   TRN_TYPE_SUBSCRIBE = 1016,
   TRN_TYPE_REBALANCE = 1017,
+  TRN_TYPE_COMMIT_OFFSET = 1018,
+  TRN_TYPE_CREATE_STREAM = 1019,
+  TRN_TYPE_DROP_STREAM = 1020,
+  TRN_TYPE_ALTER_STREAM = 1021,
   TRN_TYPE_BASIC_SCOPE_END,
   TRN_TYPE_GLOBAL_SCOPE = 2000,
   TRN_TYPE_CREATE_DNODE = 2001,
@@ -176,7 +140,7 @@ typedef struct {
   SArray*    undoActions;
   int64_t    createdTime;
   int64_t    lastExecTime;
-  uint64_t   dbUid;
+  int64_t    dbUid;
   char       dbname[TSDB_DB_FNAME_LEN];
   char       lastError[TSDB_TRANS_ERROR_LEN];
 } STrans;
@@ -304,16 +268,16 @@ typedef struct {
 } SDbCfg;
 
 typedef struct {
-  char     name[TSDB_DB_FNAME_LEN];
-  char     acct[TSDB_USER_LEN];
-  char     createUser[TSDB_USER_LEN];
-  int64_t  createdTime;
-  int64_t  updateTime;
-  uint64_t uid;
-  int32_t  cfgVersion;
-  int32_t  vgVersion;
-  int8_t   hashMethod;  // default is 1
-  SDbCfg   cfg;
+  char    name[TSDB_DB_FNAME_LEN];
+  char    acct[TSDB_USER_LEN];
+  char    createUser[TSDB_USER_LEN];
+  int64_t createdTime;
+  int64_t updateTime;
+  int64_t uid;
+  int32_t cfgVersion;
+  int32_t vgVersion;
+  int8_t  hashMethod;  // default is 1
+  SDbCfg  cfg;
 } SDbObj;
 
 typedef struct {
@@ -346,8 +310,8 @@ typedef struct {
   char     db[TSDB_DB_FNAME_LEN];
   int64_t  createdTime;
   int64_t  updateTime;
-  uint64_t uid;
-  uint64_t dbUid;
+  int64_t  uid;
+  int64_t  dbUid;
   int32_t  version;
   int32_t  nextColId;
   int32_t  numOfColumns;
@@ -391,6 +355,23 @@ typedef struct {
   int32_t bytes[TSDB_MAX_COLUMNS];
   char    payload[];
 } SShowObj;
+
+typedef struct {
+  int64_t id;
+  int8_t  type;
+  int8_t  replica;
+  int16_t numOfColumns;
+  int32_t rowSize;
+  int32_t numOfRows;
+  int32_t numOfReads;
+  int32_t payloadLen;
+  void*   pIter;
+  SMnode* pMnode;
+  char    db[TSDB_DB_FNAME_LEN];
+  int16_t offset[TSDB_MAX_COLUMNS];
+  int32_t bytes[TSDB_MAX_COLUMNS];
+  char    payload[];
+} SSysTableRetrieveObj;
 
 typedef struct {
   int32_t vgId;  // -1 for unassigned
@@ -463,6 +444,24 @@ static FORCE_INLINE void tDeleteSMqSubConsumer(SMqSubConsumer* pSubConsumer) {
     taosArrayDestroyEx(pSubConsumer->vgInfo, (void (*)(void*))tDeleteSMqConsumerEp);
     pSubConsumer->vgInfo = NULL;
   }
+}
+
+typedef struct {
+  char    key[TSDB_PARTITION_KEY_LEN];
+  int64_t offset;
+} SMqOffsetObj;
+
+static FORCE_INLINE int32_t tEncodeSMqOffsetObj(void** buf, const SMqOffsetObj* pOffset) {
+  int32_t tlen = 0;
+  tlen += taosEncodeString(buf, pOffset->key);
+  tlen += taosEncodeFixedI64(buf, pOffset->offset);
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeSMqOffsetObj(void* buf, SMqOffsetObj* pOffset) {
+  buf = taosDecodeStringTo(buf, pOffset->key);
+  buf = taosDecodeFixedI64(buf, &pOffset->offset);
+  return buf;
 }
 
 typedef struct {
@@ -615,7 +614,7 @@ typedef struct {
   int64_t  consumerId;
   int64_t  connId;
   SRWLatch lock;
-  char     cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char     cgroup[TSDB_CGROUP_LEN];
   SArray*  currentTopics;        // SArray<char*>
   SArray*  recentRemovedTopics;  // SArray<char*>
   int32_t  epoch;
@@ -681,6 +680,27 @@ static FORCE_INLINE void* tDecodeSMqConsumerObj(void* buf, SMqConsumerObj* pCons
   }
   return buf;
 }
+
+typedef struct {
+  char     name[TSDB_TOPIC_FNAME_LEN];
+  char     db[TSDB_DB_FNAME_LEN];
+  int64_t  createTime;
+  int64_t  updateTime;
+  int64_t  uid;
+  int64_t  dbUid;
+  int32_t  version;
+  int32_t  vgNum;
+  SRWLatch lock;
+  int8_t   status;
+  // int32_t  sqlLen;
+  char*   sql;
+  char*   logicalPlan;
+  char*   physicalPlan;
+  SArray* tasks;  // SArray<SArray<SStreamTask>>
+} SStreamObj;
+
+int32_t tEncodeSStreamObj(SCoder* pEncoder, const SStreamObj* pObj);
+int32_t tDecodeSStreamObj(SCoder* pDecoder, SStreamObj* pObj);
 
 typedef struct SMnodeMsg {
   char    user[TSDB_USER_LEN];

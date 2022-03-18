@@ -1,5 +1,5 @@
 aux_source_directory(src QNODE_SRC)
-add_library(qnode ${QNODE_SRC})
+add_library(qnode STATIC ${QNODE_SRC})
 target_include_directories(
     qnode
     PUBLIC "${CMAKE_SOURCE_DIR}/include/dnode/qnode"
@@ -11,4 +11,7 @@ target_link_libraries(
     PRIVATE os
     PRIVATE common
     PRIVATE util
+    PRIVATE qworker
+    PRIVATE qcom
+    PRIVATE executor
 )

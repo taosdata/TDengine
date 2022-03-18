@@ -1,8 +1,9 @@
 aux_source_directory(src DAEMON_SRC)
 add_executable(taosd ${DAEMON_SRC})
-target_link_libraries(
+
+target_include_directories(
     taosd
-    PUBLIC dnode
-    PUBLIC util
-    PUBLIC os
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
+
+target_link_libraries(taosd dnode)

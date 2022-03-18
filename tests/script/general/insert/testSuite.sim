@@ -1,0 +1,9 @@
+run general/insert/basic.sim
+run general/insert/insert_drop.sim
+run general/insert/query_block1_memory.sim
+run general/insert/query_block2_memory.sim
+run general/insert/query_block1_file.sim
+run general/insert/query_block2_file.sim
+run general/insert/query_file_memory.sim
+run general/insert/query_multi_file.sim
+run general/insert/tcp.sim

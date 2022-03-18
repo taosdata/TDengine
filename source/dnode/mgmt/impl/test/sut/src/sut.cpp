@@ -28,25 +28,19 @@ void Testbase::InitLog(const char* path) {
   wDebugFlag = 0;
   sDebugFlag = 0;
   tsdbDebugFlag = 0;
-  cqDebugFlag = 0;
-  tscEmbeddedInUtil = 1;
+  tsLogEmbedded = 1;
   tsAsyncLog = 0;
 
   taosRemoveDir(path);
   taosMkDir(path);
-
-  char temp[PATH_MAX];
-  snprintf(temp, PATH_MAX, "%s/taosdlog", path);
-  if (taosInitLog(temp, tsNumOfLogLines, 1) != 0) {
+  tstrncpy(tsLogDir, path, PATH_MAX);
+  if (taosInitLog("taosdlog", 1) != 0) {
     printf("failed to init log file\n");
   }
 }
 
 void Testbase::Init(const char* path, int16_t port) {
-  SDnodeEnvCfg cfg = {0};
-  cfg.numOfCommitThreads = 1;
-  cfg.numOfCores = 1;
-  dndInit(&cfg);
+  dndInit();
 
   char fqdn[] = "localhost";
   char firstEp[TSDB_EP_LEN] = {0};

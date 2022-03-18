@@ -13,31 +13,34 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_IDPOOL_H
-#define _TD_UTIL_IDPOOL_H
+#ifndef _TD_UTIL_IDPOOL_H_
+#define _TD_UTIL_IDPOOL_H_
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void *taosInitIdPool(int maxId);
+typedef struct {
+  int32_t         maxId;
+  int32_t         numOfFree;
+  int32_t         freeSlot;
+  bool           *freeList;
+  pthread_mutex_t mutex;
+} id_pool_t;
 
-int taosUpdateIdPool(void *handle, int maxId);
-
-int taosIdPoolMaxSize(void *handle);
-
-int taosAllocateId(void *handle);
-
-void taosFreeId(void *handle, int id);
-
-void taosIdPoolCleanUp(void *handle);
-
-int taosIdPoolNumOfUsed(void *handle);
-
-bool taosIdPoolMarkStatus(void *handle, int id);
+void   *taosInitIdPool(int32_t maxId);
+int32_t taosUpdateIdPool(id_pool_t *handle, int32_t maxId);
+int32_t taosIdPoolMaxSize(id_pool_t *handle);
+int32_t taosAllocateId(id_pool_t *handle);
+void    taosFreeId(id_pool_t *handle, int32_t id);
+void    taosIdPoolCleanUp(id_pool_t *handle);
+int32_t taosIdPoolNumOfUsed(id_pool_t *handle);
+bool    taosIdPoolMarkStatus(id_pool_t *handle, int32_t id);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_UTIL_IDPOOL_H*/
+#endif /*_TD_UTIL_IDPOOL_H_*/

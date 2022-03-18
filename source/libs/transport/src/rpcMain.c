@@ -64,7 +64,6 @@ typedef struct {
   void (*cfp)(void *parent, SRpcMsg *, SEpSet *);
   int (*afp)(void *parent, char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
-  bool             noPool;
   int32_t          refCount;
   void *           parent;
   void *           idPool;     // handle to ID pool
@@ -143,6 +142,7 @@ typedef struct SRpcConn {
 
 static int     tsRpcRefId = -1;
 static int32_t tsRpcNum = 0;
+
 // static pthread_once_t tsRpcInit = PTHREAD_ONCE_INIT;
 
 // server:0 client:1  tcp:2 udp:0
@@ -222,7 +222,7 @@ static void rpcInitImp(void) {
   tsFqdnHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
 }
 
-int32_t rpcInit(void) {
+int32_t rpcInit() {
   pthread_once(&tsRpcInitOnce, rpcInitImp);
   return 0;
 }
@@ -748,7 +748,7 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
     memcpy(pConn->user, pHead->user, tListLen(pConn->user));
     pConn->pRpc = pRpc;
     pConn->sid = sid;
-    pConn->tranId = (uint16_t)(rand() & 0xFFFF);
+    pConn->tranId = (uint16_t)(taosRand() & 0xFFFF);
     pConn->ownId = htonl(pConn->sid);
     pConn->linkUid = pHead->linkUid;
     if (pRpc->afp) {

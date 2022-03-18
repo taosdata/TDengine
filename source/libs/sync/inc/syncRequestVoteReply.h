@@ -23,11 +23,28 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "syncInt.h"
 #include "syncMessage.h"
-#include "syncRaft.h"
 #include "taosdef.h"
 
-void onRequestVoteReply(SRaft *pRaft, const SyncRequestVoteReply *pMsg);
+// TLA+ Spec
+// HandleRequestVoteResponse(i, j, m) ==
+//    \* This tallies votes even when the current state is not Candidate, but
+//    \* they won't be looked at, so it doesn't matter.
+//    /\ m.mterm = currentTerm[i]
+//    /\ votesResponded' = [votesResponded EXCEPT ![i] =
+//                              votesResponded[i] \cup {j}]
+//    /\ \/ /\ m.mvoteGranted
+//          /\ votesGranted' = [votesGranted EXCEPT ![i] =
+//                                  votesGranted[i] \cup {j}]
+//          /\ voterLog' = [voterLog EXCEPT ![i] =
+//                              voterLog[i] @@ (j :> m.mlog)]
+//       \/ /\ ~m.mvoteGranted
+//          /\ UNCHANGED <<votesGranted, voterLog>>
+//    /\ Discard(m)
+//    /\ UNCHANGED <<serverVars, votedFor, leaderVars, logVars>>
+//
+int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg);
 
 #ifdef __cplusplus
 }

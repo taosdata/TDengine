@@ -49,12 +49,13 @@ int main(int argc, char** argv) {
 }
 
 TEST(testCase, driverInit_Test) {
-  taosInitGlobalCfg();
+  // taosInitGlobalCfg();
 //  taos_init();
 }
 
-#if 0
 TEST(testCase, connect_Test) {
+//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/ubuntu/first/cfg");
+
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   if (pConn == NULL) {
     printf("failed to connect to server, reason:%s\n", taos_errstr(NULL));
@@ -332,7 +333,7 @@ TEST(testCase, create_ctable_Test) {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table tm0 using st1 tags(1)");
+  pRes = taos_query(pConn, "create table tu using sts tags('2021-10-10 1:1:1');");
   if (taos_errno(pRes) != 0) {
     printf("failed to create child table tm0, reason:%s\n", taos_errstr(pRes));
   }
@@ -562,20 +563,18 @@ TEST(testCase, insert_test) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
-#endif
-
 
 TEST(testCase, projection_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 2");
-  if (taos_errno(pRes) != 0) {
-    printf("error in create db, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
+//  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 2");
+//  if (taos_errno(pRes) != 0) {
+//    printf("error in create db, reason:%s\n", taos_errstr(pRes));
+//  }
+//  taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "use abc1");
+  TAOS_RES* pRes = taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "create stable st1 (ts timestamp, k int) tags(a int)");
@@ -590,7 +589,7 @@ TEST(testCase, projection_query_tables) {
   }
   taos_free_result(pRes);
 
-  for(int32_t i = 0; i < 10000000; ++i) {
+  for(int32_t i = 0; i < 10000; ++i) {
     char sql[512] = {0};
     sprintf(sql, "insert into tu values(now+%da, %d)", i, i);
     TAOS_RES* p = taos_query(pConn, sql);
@@ -621,7 +620,6 @@ TEST(testCase, projection_query_tables) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
-#if 0
 
 TEST(testCase, projection_query_stables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -684,6 +682,5 @@ TEST(testCase, agg_query_tables) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
-#endif
 
 #pragma GCC diagnostic pop

@@ -63,14 +63,15 @@ static int32_t dndReadMnodeFile(SDnode *pDnode) {
   char file[PATH_MAX + 20];
   snprintf(file, PATH_MAX + 20, "%s/mnode.json", pDnode->dir.dnode);
 
-  FILE *fp = fopen(file, "r");
-  if (fp == NULL) {
+  // FILE *fp = fopen(file, "r");
+  TdFilePtr pFile = taosOpenFile(file, TD_FILE_READ);
+  if (pFile == NULL) {
     dDebug("file %s not exist", file);
     code = 0;
     goto PRASE_MNODE_OVER;
   }
 
-  len = (int32_t)fread(content, 1, maxLen, fp);
+  len = (int32_t)taosReadFile(pFile, content, maxLen);
   if (len <= 0) {
     dError("failed to read %s since content is null", file);
     goto PRASE_MNODE_OVER;
@@ -143,7 +144,7 @@ static int32_t dndReadMnodeFile(SDnode *pDnode) {
 PRASE_MNODE_OVER:
   if (content != NULL) free(content);
   if (root != NULL) cJSON_Delete(root);
-  if (fp != NULL) fclose(fp);
+  if (pFile != NULL) taosCloseFile(&pFile);
 
   terrno = code;
   return code;
@@ -155,8 +156,9 @@ static int32_t dndWriteMnodeFile(SDnode *pDnode) {
   char file[PATH_MAX + 20];
   snprintf(file, PATH_MAX + 20, "%s/mnode.json.bak", pDnode->dir.dnode);
 
-  FILE *fp = fopen(file, "w");
-  if (fp == NULL) {
+  // FILE *fp = fopen(file, "w");
+  TdFilePtr pFile = taosOpenFile(file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pFile == NULL) {
     terrno = TSDB_CODE_DND_MNODE_WRITE_FILE_ERROR;
     dError("failed to write %s since %s", file, terrstr());
     return -1;
@@ -184,9 +186,9 @@ static int32_t dndWriteMnodeFile(SDnode *pDnode) {
   }
   len += snprintf(content + len, maxLen - len, "}\n");
 
-  fwrite(content, 1, len, fp);
-  taosFsyncFile(fileno(fp));
-  fclose(fp);
+  taosWriteFile(pFile, content, len);
+  taosFsyncFile(pFile);
+  taosCloseFile(&pFile);
   free(content);
 
   char realfile[PATH_MAX + 20];
@@ -273,15 +275,6 @@ static void dndInitMnodeOption(SDnode *pDnode, SMnodeOpt *pOption) {
   pOption->putReqToMReadQFp = dndPutMsgToMReadQ;
   pOption->dnodeId = dndGetDnodeId(pDnode);
   pOption->clusterId = dndGetClusterId(pDnode);
-  pOption->cfg.sver = pDnode->env.sver;
-  pOption->cfg.enableTelem = pDnode->env.enableTelem;
-  pOption->cfg.statusInterval = pDnode->cfg.statusInterval;
-  pOption->cfg.shellActivityTimer = pDnode->cfg.shellActivityTimer;
-  pOption->cfg.timezone = pDnode->env.timezone;
-  pOption->cfg.charset = pDnode->env.charset;
-  pOption->cfg.locale = pDnode->env.locale;
-  pOption->cfg.gitinfo = pDnode->env.gitinfo;
-  pOption->cfg.buildinfo = pDnode->env.buildinfo;
 }
 
 static void dndBuildMnodeDeployOption(SDnode *pDnode, SMnodeOpt *pOption) {
@@ -635,5 +628,15 @@ int32_t dndGetUserAuthFromMnode(SDnode *pDnode, char *user, char *spi, char *enc
   dndReleaseMnode(pDnode, pMnode);
 
   dTrace("user:%s, retrieve auth spi:%d encrypt:%d", user, *spi, *encrypt);
+  return code;
+}
+
+int32_t dndGetMnodeMonitorInfo(SDnode *pDnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
+                               SMonGrantInfo *pGrantInfo) {
+  SMnode *pMnode = dndAcquireMnode(pDnode);
+  if (pMnode == NULL) return -1;
+
+  int32_t code = mndGetMonitorInfo(pMnode, pClusterInfo, pVgroupInfo, pGrantInfo);
+  dndReleaseMnode(pDnode, pMnode);
   return code;
 }

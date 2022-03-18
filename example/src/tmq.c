@@ -66,7 +66,7 @@ int32_t init_env() {
 }
 
 int32_t create_topic() {
-  printf("create topic");
+  printf("create topic\n");
   TAOS_RES* pRes;
   TAOS*     pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   if (pConn == NULL) {
@@ -91,6 +91,10 @@ int32_t create_topic() {
   return 0;
 }
 
+void tmq_commit_cb_print(tmq_t* tmq, tmq_resp_err_t resp, tmq_topic_vgroup_list_t* offsets, void* param) {
+  printf("commit %d\n", resp);
+}
+
 tmq_t* build_consumer() {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
@@ -103,6 +107,7 @@ tmq_t* build_consumer() {
 
   tmq_conf_t* conf = tmq_conf_new();
   tmq_conf_set(conf, "group.id", "tg2");
+  tmq_conf_set_offset_commit_cb(conf, tmq_commit_cb_print);
   tmq_t* tmq = tmq_consumer_new(pConn, conf, NULL, 0);
   return tmq;
 }
@@ -144,7 +149,7 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
 }
 
 void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
-  static const int MIN_COMMIT_COUNT = 1000;
+  static const int MIN_COMMIT_COUNT = 1;
 
   int            msg_count = 0;
   tmq_resp_err_t err;
@@ -155,7 +160,7 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   }
 
   while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 500);
+    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 1000);
     if (tmqmessage) {
       msg_process(tmqmessage);
       tmq_message_destroy(tmqmessage);
@@ -214,6 +219,6 @@ int main(int argc, char* argv[]) {
   tmq_t*      tmq = build_consumer();
   tmq_list_t* topic_list = build_topic_list();
   /*perf_loop(tmq, topic_list);*/
-  basic_consume_loop(tmq, topic_list);
-  /*sync_consume_loop(tmq, topic_list);*/
+  /*basic_consume_loop(tmq, topic_list);*/
+  sync_consume_loop(tmq, topic_list);
 }

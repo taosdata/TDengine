@@ -22,7 +22,7 @@
 
 int         msgSize = 128;
 int         commit = 0;
-int         dataFd = -1;
+TdFilePtr   pDataFile = NULL;
 STaosQueue *qhandle = NULL;
 STaosQset * qset = NULL;
 
@@ -43,8 +43,8 @@ void processShellMsg() {
     for (int i = 0; i < numOfMsgs; ++i) {
       taosGetQitem(qall, (void **)&pRpcMsg);
 
-      if (dataFd >= 0) {
-        if (write(dataFd, pRpcMsg->pCont, pRpcMsg->contLen) < 0) {
+      if (pDataFile != NULL) {
+        if (taosWriteFile(pDataFile, pRpcMsg->pCont, pRpcMsg->contLen) < 0) {
           tInfo("failed to write data file, reason:%s", strerror(errno));
         }
       }
@@ -52,7 +52,7 @@ void processShellMsg() {
 
     if (commit >= 2) {
       num += numOfMsgs;
-      // if (taosFsync(dataFd) < 0) {
+      // if (taosFsync(pDataFile) < 0) {
       //  tInfo("failed to flush data to file, reason:%s", strerror(errno));
       //}
 
@@ -77,7 +77,7 @@ void processShellMsg() {
       taosFreeQitem(pRpcMsg);
 
       {
-        // sleep(1);
+        // taosSsleep(1);
         SRpcMsg nRpcMsg = {0};
         nRpcMsg.pCont = rpcMallocCont(msgSize);
         nRpcMsg.contLen = msgSize;
@@ -169,20 +169,20 @@ int main(int argc, char *argv[]) {
 
   tsAsyncLog = 0;
   rpcInit.connType = TAOS_CONN_SERVER;
-  taosInitLog("server.log", 100000, 10);
+  taosInitLog("server.log", 10);
 
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {
     tError("failed to start RPC server");
     return -1;
   }
-  // sleep(5);
+  // taosSsleep(5);
 
   tInfo("RPC server is running, ctrl-c to exit");
 
   if (commit) {
-    dataFd = open(dataName, O_APPEND | O_CREAT | O_WRONLY, S_IRWXU | S_IRWXG | S_IRWXO);
-    if (dataFd < 0) tInfo("failed to open data file, reason:%s", strerror(errno));
+    pDataFile = taosOpenFile(dataName, TD_FILE_APPEND | TD_FILE_CTEATE | TD_FILE_WRITE);
+    if (pDataFile == NULL) tInfo("failed to open data file, reason:%s", strerror(errno));
   }
   qhandle = taosOpenQueue();
   qset = taosOpenQset();
@@ -190,9 +190,9 @@ int main(int argc, char *argv[]) {
 
   processShellMsg();
 
-  if (dataFd >= 0) {
-    close(dataFd);
-    remove(dataName);
+  if (pDataFile != NULL) {
+    taosCloseFile(&pDataFile);
+    taosRemoveFile(dataName);
   }
 
   return 0;

@@ -25,15 +25,13 @@
 #include "thash.h"
 #include "tlog.h"
 
-extern int32_t fsDebugFlag;
-
 // For debug purpose
-#define fFatal(...) { if (fsDebugFlag & DEBUG_FATAL) { taosPrintLog("TFS FATAL ", 255, __VA_ARGS__); }}
-#define fError(...) { if (fsDebugFlag & DEBUG_ERROR) { taosPrintLog("TFS ERROR ", 255, __VA_ARGS__); }}
-#define fWarn(...)  { if (fsDebugFlag & DEBUG_WARN)  { taosPrintLog("TFS WARN ", 255, __VA_ARGS__); }}
-#define fInfo(...)  { if (fsDebugFlag & DEBUG_INFO)  { taosPrintLog("TFS ", 255, __VA_ARGS__); }}
-#define fDebug(...) { if (fsDebugFlag & DEBUG_DEBUG) { taosPrintLog("TFS ", fsDebugFlag, __VA_ARGS__); }}
-#define fTrace(...) { if (fsDebugFlag & DEBUG_TRACE) { taosPrintLog("TFS ", fsDebugFlag, __VA_ARGS__); }}
+#define fFatal(...) { if (fsDebugFlag & DEBUG_FATAL) { taosPrintLog("TFS FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}
+#define fError(...) { if (fsDebugFlag & DEBUG_ERROR) { taosPrintLog("TFS ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}
+#define fWarn(...)  { if (fsDebugFlag & DEBUG_WARN)  { taosPrintLog("TFS WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}
+#define fInfo(...)  { if (fsDebugFlag & DEBUG_INFO)  { taosPrintLog("TFS ", DEBUG_INFO, 255, __VA_ARGS__); }}
+#define fDebug(...) { if (fsDebugFlag & DEBUG_DEBUG) { taosPrintLog("TFS ", DEBUG_DEBUG, fsDebugFlag, __VA_ARGS__); }}
+#define fTrace(...) { if (fsDebugFlag & DEBUG_TRACE) { taosPrintLog("TFS ", DEBUG_TRACE, fsDebugFlag, __VA_ARGS__); }}
 
 typedef struct {
   int32_t   level;
@@ -61,7 +59,7 @@ typedef struct STfsDir {
   SDiskID   did;
   char      dirname[TSDB_FILENAME_LEN];
   STfsFile  tfile;
-  DIR      *dir;
+  TdDirPtr  pDir;
   STfs     *pTfs;
 } STfsDir;
 

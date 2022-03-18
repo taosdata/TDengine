@@ -23,28 +23,36 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "sync.h"
+#include "syncInt.h"
+#include "syncRaftEntry.h"
 #include "taosdef.h"
 
-int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncBuffer* pBuf);
+#define SYNC_INDEX_BEGIN 0
+#define SYNC_INDEX_INVALID -1
 
-// get one log entry, user need to free pBuf->data
-int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncBuffer* pBuf);
+typedef struct SSyncLogStoreData {
+  SSyncNode* pSyncNode;
+  SWal*      pWal;
+} SSyncLogStoreData;
 
-// update log store commit index with "index"
-int32_t raftLogUpdateCommitIndex(struct SSyncLogStore* pLogStore, SyncIndex index);
+SSyncLogStore*  logStoreCreate(SSyncNode* pSyncNode);
+void            logStoreDestory(SSyncLogStore* pLogStore);
+int32_t         logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
+SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index);
+int32_t         logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex);
+SyncIndex       logStoreLastIndex(SSyncLogStore* pLogStore);
+SyncTerm        logStoreLastTerm(SSyncLogStore* pLogStore);
+int32_t         logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index);
+SyncIndex       logStoreGetCommitIndex(SSyncLogStore* pLogStore);
+SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore);
+cJSON*          logStore2Json(SSyncLogStore* pLogStore);
+char*           logStore2Str(SSyncLogStore* pLogStore);
 
-// truncate log with index, entries after the given index (>index) will be deleted
-int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex index);
-
-// return commit index of log
-SyncIndex raftLogGetCommitIndex(struct SSyncLogStore* pLogStore);
-
-// return index of last entry
-SyncIndex raftLogGetLastIndex(struct SSyncLogStore* pLogStore);
-
-// return term of last entry
-SyncTerm raftLogGetLastTerm(struct SSyncLogStore* pLogStore);
+// for debug
+void logStorePrint(SSyncLogStore* pLogStore);
+void logStorePrint2(char* s, SSyncLogStore* pLogStore);
+void logStoreLog(SSyncLogStore* pLogStore);
+void logStoreLog2(char* s, SSyncLogStore* pLogStore);
 
 #ifdef __cplusplus
 }

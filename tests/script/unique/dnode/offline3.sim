@@ -1,0 +1,111 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+
+system sh/cfg.sh -n dnode1 -c offlineThreshold -v 3
+system sh/cfg.sh -n dnode2 -c offlineThreshold -v 3
+system sh/cfg.sh -n dnode3 -c offlineThreshold -v 3
+system sh/cfg.sh -n dnode4 -c offlineThreshold -v 3
+
+system sh/cfg.sh -n dnode1 -c balanceInterval -v 300
+system sh/cfg.sh -n dnode2 -c balanceInterval -v 300
+system sh/cfg.sh -n dnode3 -c balanceInterval -v 300
+system sh/cfg.sh -n dnode4 -c balanceInterval -v 300
+
+system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 4
+
+print ========== step1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+sql create dnode $hostname2
+system sh/exec.sh -n dnode2 -s start
+sql create dnode $hostname3
+system sh/exec.sh -n dnode3 -s start
+sql create dnode $hostname4
+system sh/exec.sh -n dnode4 -s start
+
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+print dnode4 $data4_4
+
+if $data4_1 != ready then
+  goto step1
+endi
+if $data4_2 != ready then
+  goto step1
+endi
+if $data4_3 != ready then
+  goto step1
+endi
+if $data4_4 != ready then
+  goto step1
+endi
+
+sql show mnodes
+print mnode1 $data2_1
+if $data2_1 != master then
+  goto step1
+endi
+
+print ========== step2
+sql create database db replica 3
+sql use db
+sql create table tb (ts timestamp, value int)
+sql insert into tb values (now, 1)
+sql insert into tb values (now, 2)
+
+sql show vgroups;
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+print ========== step2
+system sh/exec.sh -n dnode4 -s stop -x SIGINT
+
+$x = 0
+step2: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+		return -1
+	endi
+
+sql show vgroups;
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+print dnode4 $data4_4
+
+if $data4_1 != ready then
+  goto step2
+endi
+if $data4_2 != ready then
+  goto step2
+endi
+if $data4_3 != ready then
+  goto step2
+endi
+if $data4_4 != null then
+  goto step2
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT

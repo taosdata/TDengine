@@ -124,12 +124,12 @@ class WalRetentionEnv : public ::testing::Test {
 
   void SetUp() override {
     SWalCfg cfg;
-    cfg.rollPeriod = -1,
-    cfg.segSize = -1,
-    cfg.retentionPeriod = -1,
-    cfg.retentionSize = 0,
-    cfg.rollPeriod = 0,
-    cfg.vgId = 0,
+    cfg.rollPeriod = -1;
+    cfg.segSize = -1;
+    cfg.retentionPeriod = -1;
+    cfg.retentionSize = 0;
+    cfg.rollPeriod = 0;
+    cfg.vgId = 0;
     cfg.level = TAOS_WAL_FSYNC;
     pWal = walOpen(pathName, &cfg);
     ASSERT(pWal != NULL);
@@ -241,6 +241,12 @@ TEST_F(WalCleanEnv, rollback) {
     ASSERT_EQ(code, 0);
     ASSERT_EQ(pWal->vers.lastVer, i);
   }
+  code = walRollback(pWal, 12);
+  ASSERT_NE(code, 0);
+  ASSERT_EQ(pWal->vers.lastVer, 9);
+  code = walRollback(pWal, 9);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pWal->vers.lastVer, 8);
   code = walRollback(pWal, 5);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(pWal->vers.lastVer, 4);
@@ -299,7 +305,7 @@ TEST_F(WalKeepEnv, readHandleRead) {
     ASSERT_EQ(code, 0);
   }
   for (int i = 0; i < 1000; i++) {
-    int ver = rand() % 100;
+    int ver = taosRand() % 100;
     code = walReadWithHandle(pRead, ver);
     ASSERT_EQ(code, 0);
 
@@ -324,7 +330,7 @@ TEST_F(WalKeepEnv, readHandleRead) {
 TEST_F(WalRetentionEnv, repairMeta1) {
   walResetEnv();
   int code;
-  
+
   int i;
   for (i = 0; i < 100; i++) {
     char newStr[100];
@@ -336,14 +342,14 @@ TEST_F(WalRetentionEnv, repairMeta1) {
 
   TearDown();
 
-  //getchar();
+  // getchar();
   char buf[100];
   sprintf(buf, "%s/meta-ver%d", pathName, 0);
-  remove(buf);
+  taosRemoveFile(buf);
   sprintf(buf, "%s/meta-ver%d", pathName, 1);
-  remove(buf);
+  taosRemoveFile(buf);
   SetUp();
-  //getchar();
+  // getchar();
 
   ASSERT_EQ(pWal->vers.lastVer, 99);
 
@@ -351,7 +357,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
   ASSERT(pRead != NULL);
 
   for (int i = 0; i < 1000; i++) {
-    int ver = rand() % 100;
+    int ver = taosRand() % 100;
     code = walReadWithHandle(pRead, ver);
     ASSERT_EQ(code, 0);
 
@@ -381,7 +387,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
   }
 
   for (int i = 0; i < 1000; i++) {
-    int ver = rand() % 200;
+    int ver = taosRand() % 200;
     code = walReadWithHandle(pRead, ver);
     ASSERT_EQ(code, 0);
 
@@ -401,5 +407,4 @@ TEST_F(WalRetentionEnv, repairMeta1) {
       EXPECT_EQ(newStr[j], pRead->pHead->head.body[j]);
     }
   }
-
 }

@@ -15,7 +15,7 @@
 
 #include <tsdb.h>
 #include "dataSinkMgt.h"
-#include "exception.h"
+#include "texception.h"
 #include "os.h"
 #include "tarray.h"
 #include "tcache.h"
@@ -158,7 +158,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
   int64_t st = 0;
 
   st = taosGetTimestampUs();
-  *pRes = pTaskInfo->pRoot->exec(pTaskInfo->pRoot, &newgroup);
+  *pRes = pTaskInfo->pRoot->getNextFn(pTaskInfo->pRoot, &newgroup);
 
   uint64_t el = (taosGetTimestampUs() - st);
   pTaskInfo->cost.elapsedTime += el;
@@ -177,13 +177,6 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
 
   atomic_store_64(&pTaskInfo->owner, 0);
   return pTaskInfo->code;
-}
-
-void* qGetResultRetrieveMsg(qTaskInfo_t qinfo) {
-  SQInfo* pQInfo = (SQInfo*) qinfo;
-  assert(pQInfo != NULL);
-
-  return pQInfo->rspContext;
 }
 
 int32_t qKillTask(qTaskInfo_t qinfo) {
@@ -221,7 +214,7 @@ int32_t qAsyncKillTask(qTaskInfo_t qinfo) {
 int32_t qIsTaskCompleted(qTaskInfo_t qinfo) {
   SExecTaskInfo *pTaskInfo = (SExecTaskInfo *)qinfo;
 
-  if (pTaskInfo == NULL /*|| !isValidQInfo(pTaskInfo)*/) {
+  if (pTaskInfo == NULL) {
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
 
@@ -235,33 +228,3 @@ void qDestroyTask(qTaskInfo_t qTaskHandle) {
   queryCostStatis(pTaskInfo);   // print the query cost summary
   doDestroyTask(pTaskInfo);
 }
-
-#if 0
-//kill by qid
-int32_t qKillQueryByQId(void* pMgmt, int64_t qId, int32_t waitMs, int32_t waitCount) {
-  int32_t error = TSDB_CODE_SUCCESS;
-  void** handle = qAcquireTask(pMgmt, qId);
-  if(handle == NULL) return terrno;
-
-  SQInfo* pQInfo = (SQInfo*)(*handle);
-  if (pQInfo == NULL || !isValidQInfo(pQInfo)) {
-    return TSDB_CODE_QRY_INVALID_QHANDLE;
-  }
-  qWarn("%s be killed(no memory commit).", pQInfo->qId);
-  setTaskKilled(pQInfo);
-
-  // wait query stop
-  int32_t loop = 0;
-  while (pQInfo->owner != 0) {
-    taosMsleep(waitMs);
-    if(loop++ > waitCount){
-      error = TSDB_CODE_FAILED;
-      break;
-    }
-  }
-
-  qReleaseTask(pMgmt, (void **)&handle, true);
-  return error;
-}
-
-#endif
