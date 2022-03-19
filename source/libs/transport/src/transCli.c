@@ -844,7 +844,10 @@ void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* p
   pCtx->ip = strdup(ip);
   pCtx->port = port;
   pCtx->hThrdIdx = index;
-  pCtx->appCtx = *ctx;
+
+  if (ctx != NULL) {
+    pCtx->appCtx = *ctx;
+  }
 
   assert(pTransInst->connType == TAOS_CONN_CLIENT);
   // atomic or not
