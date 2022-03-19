@@ -230,7 +230,7 @@ void setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t 
 
 int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj** pRequest);
 
-int32_t parseSql(SRequestObj* pRequest, bool streamQuery, SQuery** pQuery);
+int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery);
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList);
 
 // --- heartbeat

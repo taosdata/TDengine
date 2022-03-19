@@ -137,14 +137,14 @@ int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj*
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t parseSql(SRequestObj* pRequest, bool streamQuery, SQuery** pQuery) {
+int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery) {
   STscObj* pTscObj = pRequest->pTscObj;
 
   SParseContext cxt = {
       .requestId = pRequest->requestId,
       .acctId = pTscObj->acctId,
       .db = pRequest->pDb,
-      .streamQuery = streamQuery,
+      .topicQuery = topicQuery,
       .pSql = pRequest->sqlstr,
       .sqlLen = pRequest->sqlLen,
       .pMsg = pRequest->msgBuf,

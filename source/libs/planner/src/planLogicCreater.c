@@ -131,7 +131,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   TSWAP(pScan->pMeta, pRealTable->pMeta, STableMeta*);
   TSWAP(pScan->pVgroupList, pRealTable->pVgroupList, SVgroupsInfo*);
-  pScan->scanType = pCxt->pPlanCxt->streamQuery ? SCAN_TYPE_STREAM : SCAN_TYPE_TABLE;
+  pScan->scanType = pCxt->pPlanCxt->topicQuery ? SCAN_TYPE_TOPIC : SCAN_TYPE_TABLE;
   pScan->scanFlag = MAIN_SCAN;
   pScan->scanRange = TSWINDOW_INITIALIZER;  
   pScan->tableName.type = TSDB_TABLE_NAME_T;

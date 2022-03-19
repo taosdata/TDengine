@@ -499,7 +499,7 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
 }
 
 static int32_t setTableVgroupList(SParseContext* pCxt, SName* name, SRealTableNode* pRealTable) {
-  if (pCxt->streamQuery) {
+  if (pCxt->topicQuery) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1393,7 +1393,7 @@ static int32_t translateCreateTopic(STranslateContext* pCxt, SCreateTopicStmt* p
   SCMCreateTopicReq createReq = {0};
 
   if (NULL != pStmt->pQuery) {
-    pCxt->pParseCxt->streamQuery = true;
+    pCxt->pParseCxt->topicQuery = true;
     int32_t code = translateQuery(pCxt, pStmt->pQuery);
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesNodeToString(pStmt->pQuery, false, &createReq.ast, NULL);
