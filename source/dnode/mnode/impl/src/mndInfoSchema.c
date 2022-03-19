@@ -86,8 +86,9 @@ static const SInfosTableSchema userStreamsSchema[] = {{.name = "stream_name",  .
                                                       {.name = "create_time", .bytes = 8,    .type = TSDB_DATA_TYPE_TIMESTAMP},
                                                       {.name = "sql",          .bytes = 1024, .type = TSDB_DATA_TYPE_BINARY},
                                                      };
-static const SInfosTableSchema userTblsSchema[] = {{.name = "db_name",         .bytes = 32,   .type = TSDB_DATA_TYPE_BINARY},
+static const SInfosTableSchema userTblsSchema[] = {
                                                    {.name = "table_name",      .bytes = 192,  .type = TSDB_DATA_TYPE_BINARY},
+                                                   {.name = "db_name",         .bytes = 32,   .type = TSDB_DATA_TYPE_BINARY},
                                                    {.name = "create_time",    .bytes = 8,    .type = TSDB_DATA_TYPE_TIMESTAMP},
                                                    {.name = "columns",         .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
                                                    {.name = "stable_name",     .bytes = 192,  .type = TSDB_DATA_TYPE_BINARY},

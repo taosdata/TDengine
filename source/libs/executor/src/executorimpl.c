@@ -5482,7 +5482,7 @@ static SSDataBlock* doSysTableScan(void* param, bool* newgroup) {
 
     blockDataClearup(pInfo->pRes, true);
 
-    SColumnInfoData* pTableNameCol = taosArrayGet(pInfo->pRes->pDataBlock, 0);
+    SColumnInfoData* pTableNameCol = taosArrayGet(pInfo->pRes->pDataBlock, 1);
 
     char *  name = NULL;
     int32_t numOfRows = 0;
@@ -5494,6 +5494,22 @@ static SSDataBlock* doSysTableScan(void* param, bool* newgroup) {
       numOfRows += 1;
       if (numOfRows >= pInfo->capacity) {
         break;
+      }
+
+      for(int32_t i = 0; i < pInfo->pRes->info.numOfCols; ++i) {
+        if (i == 1) {
+          continue;
+        }
+
+        SColumnInfoData* pColInfoData = taosArrayGet(pInfo->pRes->pDataBlock, i);
+        int64_t tmp = 0;
+        char t[10] = {0};
+        STR_TO_VARSTR(t, "_");
+        if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+          colDataAppend(pColInfoData, numOfRows, t, false);
+        } else {
+          colDataAppend(pColInfoData, numOfRows, (char*) &tmp, false);
+        }
       }
     }
 
