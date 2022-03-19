@@ -53,7 +53,7 @@ typedef struct __attribute__((__packed__)) {
 } SPageFtr;
 
 struct SPage {
-  pthread_spinlock_t lock;
+  TdThreadSpinlock lock;
   u8                *pData;
   int                pageSize;
   SPageMethods      *pPageMethods;
@@ -101,10 +101,10 @@ struct SPage {
 #define P_LOCK_BUSY 1
 #define P_LOCK_FAIL -1
 
-#define TDB_INIT_PAGE_LOCK(pPage)    pthread_spin_init(&((pPage)->lock), 0)
-#define TDB_DESTROY_PAGE_LOCK(pPage) pthread_spin_destroy(&((pPage)->lock))
-#define TDB_LOCK_PAGE(pPage)         pthread_spin_lock(&((pPage)->lock))
-#define TDB_UNLOCK_PAGE(pPage)       pthread_spin_unlock(&((pPage)->lock))
+#define TDB_INIT_PAGE_LOCK(pPage)    taosThreadSpinInit(&((pPage)->lock), 0)
+#define TDB_DESTROY_PAGE_LOCK(pPage) taosThreadSpinDestroy(&((pPage)->lock))
+#define TDB_LOCK_PAGE(pPage)         taosThreadSpinLock(&((pPage)->lock))
+#define TDB_UNLOCK_PAGE(pPage)       taosThreadSpinUnlock(&((pPage)->lock))
 #define TDB_TRY_LOCK_PAGE(pPage)                       \
   ({                                                   \
     int ret;                                           \

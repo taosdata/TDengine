@@ -54,8 +54,8 @@ IndexCache* indexCacheCreate(SIndex* idx, uint64_t suid, const char* colName, in
   cache->suid = suid;
   cache->occupiedMem = 0;
 
-  pthread_mutex_init(&cache->mtx, NULL);
-  pthread_cond_init(&cache->finished, NULL);
+  taosThreadMutexInit(&cache->mtx, NULL);
+  taosThreadCondInit(&cache->finished, NULL);
 
   indexCacheRef(cache);
   return cache;
@@ -63,10 +63,10 @@ IndexCache* indexCacheCreate(SIndex* idx, uint64_t suid, const char* colName, in
 void indexCacheDebug(IndexCache* cache) {
   MemTable* tbl = NULL;
 
-  pthread_mutex_lock(&cache->mtx);
+  taosThreadMutexLock(&cache->mtx);
   tbl = cache->mem;
   indexMemRef(tbl);
-  pthread_mutex_unlock(&cache->mtx);
+  taosThreadMutexUnlock(&cache->mtx);
 
   {
     SSkipList*         slt = tbl->mem;
@@ -85,10 +85,10 @@ void indexCacheDebug(IndexCache* cache) {
   }
 
   {
-    pthread_mutex_lock(&cache->mtx);
+    taosThreadMutexLock(&cache->mtx);
     tbl = cache->imm;
     indexMemRef(tbl);
-    pthread_mutex_unlock(&cache->mtx);
+    taosThreadMutexUnlock(&cache->mtx);
     if (tbl != NULL) {
       SSkipList*         slt = tbl->mem;
       SSkipListIterator* iter = tSkipListCreateIter(slt);
@@ -126,13 +126,13 @@ void indexCacheDestroyImm(IndexCache* cache) {
   }
 
   MemTable* tbl = NULL;
-  pthread_mutex_lock(&cache->mtx);
+  taosThreadMutexLock(&cache->mtx);
 
   tbl = cache->imm;
   cache->imm = NULL;  // or throw int bg thread
-  pthread_cond_broadcast(&cache->finished);
+  taosThreadCondBroadcast(&cache->finished);
 
-  pthread_mutex_unlock(&cache->mtx);
+  taosThreadMutexUnlock(&cache->mtx);
 
   indexMemUnRef(tbl);
   indexMemUnRef(tbl);
@@ -146,8 +146,8 @@ void indexCacheDestroy(void* cache) {
   indexMemUnRef(pCache->imm);
   free(pCache->colName);
 
-  pthread_mutex_destroy(&pCache->mtx);
-  pthread_cond_destroy(&pCache->finished);
+  taosThreadMutexDestroy(&pCache->mtx);
+  taosThreadCondDestroy(&pCache->finished);
 
   free(pCache);
 }
@@ -158,7 +158,7 @@ Iterate* indexCacheIteratorCreate(IndexCache* cache) {
     return NULL;
   }
 
-  pthread_mutex_lock(&cache->mtx);
+  taosThreadMutexLock(&cache->mtx);
 
   indexMemRef(cache->imm);
 
@@ -169,7 +169,7 @@ Iterate* indexCacheIteratorCreate(IndexCache* cache) {
   iiter->next = indexCacheIteratorNext;
   iiter->getValue = indexCacheIteratorGetValue;
 
-  pthread_mutex_unlock(&cache->mtx);
+  taosThreadMutexUnlock(&cache->mtx);
 
   return iiter;
 }
@@ -200,7 +200,7 @@ static void indexCacheMakeRoomForWrite(IndexCache* cache) {
       break;
     } else if (cache->imm != NULL) {
       // TODO: wake up by condition variable
-      pthread_cond_wait(&cache->finished, &cache->mtx);
+      taosThreadCondWait(&cache->finished, &cache->mtx);
     } else {
       indexCacheRef(cache);
       cache->imm = cache->mem;
@@ -240,7 +240,7 @@ int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   // ugly code, refactor later
   int64_t estimate = sizeof(ct) + strlen(ct->colVal);
 
-  pthread_mutex_lock(&pCache->mtx);
+  taosThreadMutexLock(&pCache->mtx);
   pCache->occupiedMem += estimate;
   indexCacheMakeRoomForWrite(pCache);
   MemTable* tbl = pCache->mem;
@@ -248,7 +248,7 @@ int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   tSkipListPut(tbl->mem, (char*)ct);
   indexMemUnRef(tbl);
 
-  pthread_mutex_unlock(&pCache->mtx);
+  taosThreadMutexUnlock(&pCache->mtx);
 
   indexCacheUnRef(pCache);
   return 0;
@@ -299,12 +299,12 @@ int indexCacheSearch(void* cache, SIndexTermQuery* query, SIdxTempResult* result
   IndexCache* pCache = cache;
 
   MemTable *mem = NULL, *imm = NULL;
-  pthread_mutex_lock(&pCache->mtx);
+  taosThreadMutexLock(&pCache->mtx);
   mem = pCache->mem;
   imm = pCache->imm;
   indexMemRef(mem);
   indexMemRef(imm);
-  pthread_mutex_unlock(&pCache->mtx);
+  taosThreadMutexUnlock(&pCache->mtx);
 
   SIndexTerm*     term = query->term;
   EIndexQueryType qtype = query->qType;

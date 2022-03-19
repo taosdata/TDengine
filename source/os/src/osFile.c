@@ -57,7 +57,7 @@ typedef int32_t SocketFd;
 typedef int32_t FileFd;
 
 typedef struct TdFile {
-  pthread_rwlock_t rwlock;
+  TdThreadRwlock rwlock;
   int      refId;
   FileFd   fd;
   FILE    *fp;
@@ -275,7 +275,7 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     return NULL;
   }
 #if FILE_WITH_LOCK
-  pthread_rwlock_init(&(pFile->rwlock), NULL);
+  taosThreadRwlockInit(&(pFile->rwlock), NULL);
 #endif
   pFile->fd = fd;
   pFile->fp = fp;
@@ -292,7 +292,7 @@ int64_t taosCloseFile(TdFilePtr *ppFile) {
     return 0;
   }
 #if FILE_WITH_LOCK
-  pthread_rwlock_wrlock(&((*ppFile)->rwlock));
+  taosThreadRwlockWrlock(&((*ppFile)->rwlock));
 #endif
   if (ppFile == NULL || *ppFile == NULL || (*ppFile)->fd == -1) {
     return 0;
@@ -309,8 +309,8 @@ int64_t taosCloseFile(TdFilePtr *ppFile) {
   }
   (*ppFile)->refId = 0;
 #if FILE_WITH_LOCK
-  pthread_rwlock_unlock(&((*ppFile)->rwlock));
-  pthread_rwlock_destroy(&((*ppFile)->rwlock));
+  taosThreadRwlockUnlock(&((*ppFile)->rwlock));
+  taosThreadRwlockDestroy(&((*ppFile)->rwlock));
 #endif
   free(*ppFile);
   *ppFile = NULL;
@@ -323,7 +323,7 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
     return 0;
   }
 #if FILE_WITH_LOCK
-  pthread_rwlock_rdlock(&(pFile->rwlock));
+  taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
   assert(pFile->fd >= 0);
   int64_t leftbytes = count;
@@ -337,13 +337,13 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
         continue;
       } else {
 #if FILE_WITH_LOCK
-        pthread_rwlock_unlock(&(pFile->rwlock));
+        taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
         return -1;
       }
     } else if (readbytes == 0) {
 #if FILE_WITH_LOCK
-      pthread_rwlock_unlock(&(pFile->rwlock));
+      taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
       return (int64_t)(count - leftbytes);
     }
@@ -353,7 +353,7 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
   }
 
 #if FILE_WITH_LOCK
-  pthread_rwlock_unlock(&(pFile->rwlock));
+  taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
   return count;
 }
@@ -363,12 +363,12 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
     return 0;
   }
 #if FILE_WITH_LOCK
-  pthread_rwlock_rdlock(&(pFile->rwlock));
+  taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
   assert(pFile->fd >= 0);
   int64_t ret = pread(pFile->fd, buf, count, offset);
 #if FILE_WITH_LOCK
-  pthread_rwlock_unlock(&(pFile->rwlock));
+  taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
   return ret;
 }
@@ -378,7 +378,7 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
     return 0;
   }
 #if FILE_WITH_LOCK
-  pthread_rwlock_wrlock(&(pFile->rwlock));
+  taosThreadRwlockWrlock(&(pFile->rwlock));
 #endif
   assert(pFile->fd >= 0);
 
@@ -393,7 +393,7 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
         continue;
       }
 #if FILE_WITH_LOCK
-      pthread_rwlock_unlock(&(pFile->rwlock));
+      taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
       return -1;
     }
@@ -402,7 +402,7 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
   }
 
 #if FILE_WITH_LOCK
-  pthread_rwlock_unlock(&(pFile->rwlock));
+  taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
   return count;
 }
@@ -412,12 +412,12 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
     return 0;
   }
 #if FILE_WITH_LOCK
-  pthread_rwlock_rdlock(&(pFile->rwlock));
+  taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
   assert(pFile->fd >= 0);
   int64_t ret = lseek(pFile->fd, (long)offset, whence);
 #if FILE_WITH_LOCK
-  pthread_rwlock_unlock(&(pFile->rwlock));
+  taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
   return ret;
 }

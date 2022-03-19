@@ -31,17 +31,17 @@ int vnodeInit(const SVnodeOpt *pOption) {
   // Start commit handers
   if (pOption->nthreads > 0) {
     vnodeMgr.nthreads = pOption->nthreads;
-    vnodeMgr.threads = (pthread_t*)calloc(pOption->nthreads, sizeof(pthread_t));
+    vnodeMgr.threads = (TdThread*)calloc(pOption->nthreads, sizeof(TdThread));
     if (vnodeMgr.threads == NULL) {
       return -1;
     }
 
-    pthread_mutex_init(&(vnodeMgr.mutex), NULL);
-    pthread_cond_init(&(vnodeMgr.hasTask), NULL);
+    taosThreadMutexInit(&(vnodeMgr.mutex), NULL);
+    taosThreadCondInit(&(vnodeMgr.hasTask), NULL);
     TD_DLIST_INIT(&(vnodeMgr.queue));
 
     for (uint16_t i = 0; i < pOption->nthreads; i++) {
-      pthread_create(&(vnodeMgr.threads[i]), NULL, loop, NULL);
+      taosThreadCreate(&(vnodeMgr.threads[i]), NULL, loop, NULL);
       // pthread_setname_np(vnodeMgr.threads[i], "VND Commit Thread");
     }
   } else {
@@ -63,28 +63,28 @@ void vnodeCleanup() {
   }
 
   // Stop commit handler
-  pthread_mutex_lock(&(vnodeMgr.mutex));
+  taosThreadMutexLock(&(vnodeMgr.mutex));
   vnodeMgr.stop = true;
-  pthread_cond_broadcast(&(vnodeMgr.hasTask));
-  pthread_mutex_unlock(&(vnodeMgr.mutex));
+  taosThreadCondBroadcast(&(vnodeMgr.hasTask));
+  taosThreadMutexUnlock(&(vnodeMgr.mutex));
 
   for (uint16_t i = 0; i < vnodeMgr.nthreads; i++) {
-    pthread_join(vnodeMgr.threads[i], NULL);
+    taosThreadJoin(vnodeMgr.threads[i], NULL);
   }
 
   tfree(vnodeMgr.threads);
-  pthread_cond_destroy(&(vnodeMgr.hasTask));
-  pthread_mutex_destroy(&(vnodeMgr.mutex));
+  taosThreadCondDestroy(&(vnodeMgr.hasTask));
+  taosThreadMutexDestroy(&(vnodeMgr.mutex));
 }
 
 int vnodeScheduleTask(SVnodeTask* pTask) {
-  pthread_mutex_lock(&(vnodeMgr.mutex));
+  taosThreadMutexLock(&(vnodeMgr.mutex));
 
   TD_DLIST_APPEND(&(vnodeMgr.queue), pTask);
 
-  pthread_cond_signal(&(vnodeMgr.hasTask));
+  taosThreadCondSignal(&(vnodeMgr.hasTask));
 
-  pthread_mutex_unlock(&(vnodeMgr.mutex));
+  taosThreadMutexUnlock(&(vnodeMgr.mutex));
 
   return 0;
 }
@@ -107,15 +107,15 @@ static void* loop(void* arg) {
 
   SVnodeTask* pTask;
   for (;;) {
-    pthread_mutex_lock(&(vnodeMgr.mutex));
+    taosThreadMutexLock(&(vnodeMgr.mutex));
     for (;;) {
       pTask = TD_DLIST_HEAD(&(vnodeMgr.queue));
       if (pTask == NULL) {
         if (vnodeMgr.stop) {
-          pthread_mutex_unlock(&(vnodeMgr.mutex));
+          taosThreadMutexUnlock(&(vnodeMgr.mutex));
           return NULL;
         } else {
-          pthread_cond_wait(&(vnodeMgr.hasTask), &(vnodeMgr.mutex));
+          taosThreadCondWait(&(vnodeMgr.hasTask), &(vnodeMgr.mutex));
         }
       } else {
         TD_DLIST_POP(&(vnodeMgr.queue), pTask);
@@ -123,7 +123,7 @@ static void* loop(void* arg) {
       }
     }
 
-    pthread_mutex_unlock(&(vnodeMgr.mutex));
+    taosThreadMutexUnlock(&(vnodeMgr.mutex));
 
     (*(pTask->execute))(pTask->arg);
     free(pTask);

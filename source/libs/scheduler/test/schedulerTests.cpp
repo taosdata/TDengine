@@ -684,11 +684,11 @@ TEST(queryTest, normalCase) {
     pIter = taosHashIterate(pJob->execTasks, pIter);
   }  
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
 
-  pthread_t thread1;
-  pthread_create(&(thread1), &thattr, schtCreateFetchRspThread, &job);
+  TdThread thread1;
+  taosThreadCreate(&(thread1), &thattr, schtCreateFetchRspThread, &job);
 
   void *data = NULL;  
   code = schedulerFetchRows(job, &data);
@@ -780,11 +780,11 @@ TEST(queryTest, flowCtrlCase) {
   }
 
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
 
-  pthread_t thread1;
-  pthread_create(&(thread1), &thattr, schtCreateFetchRspThread, &job);
+  TdThread thread1;
+  taosThreadCreate(&(thread1), &thattr, schtCreateFetchRspThread, &job);
 
   void *data = NULL;  
   code = schedulerFetchRows(job, &data);
@@ -834,11 +834,11 @@ TEST(insertTest, normalCase) {
   schtSetPlanToString();
   schtSetAsyncSendMsgToServer();
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
 
-  pthread_t thread1;
-  pthread_create(&(thread1), &thattr, schtSendRsp, &insertJobRefId);
+  TdThread thread1;
+  taosThreadCreate(&(thread1), &thattr, schtSendRsp, &insertJobRefId);
 
   SQueryResult res = {0};
   code = schedulerExecJob(mockPointer, qnodeList, &dag, &insertJobRefId, "insert into tb values(now,1)", &res);
@@ -851,13 +851,13 @@ TEST(insertTest, normalCase) {
 }
 
 TEST(multiThread, forceFree) {
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
 
-  pthread_t thread1, thread2, thread3;
-  pthread_create(&(thread1), &thattr, schtRunJobThread, NULL);
-  pthread_create(&(thread2), &thattr, schtFreeJobThread, NULL);
-  pthread_create(&(thread3), &thattr, schtFetchRspThread, NULL);
+  TdThread thread1, thread2, thread3;
+  taosThreadCreate(&(thread1), &thattr, schtRunJobThread, NULL);
+  taosThreadCreate(&(thread2), &thattr, schtFreeJobThread, NULL);
+  taosThreadCreate(&(thread3), &thattr, schtFetchRspThread, NULL);
 
   while (true) {
     if (schtTestDeadLoop) {

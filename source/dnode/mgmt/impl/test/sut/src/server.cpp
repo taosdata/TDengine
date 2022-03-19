@@ -18,7 +18,7 @@
 void* serverLoop(void* param) {
   while (1) {
     taosMsleep(100);
-    pthread_testcancel();
+    taosThreadTestCancel();
   }
 }
 

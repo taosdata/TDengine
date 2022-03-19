@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tsdbDef.h"
 #include <tdatablock.h>
 #include "os.h"
 #include "talgo.h"
@@ -20,7 +21,6 @@
 #include "tdataformat.h"
 #include "texception.h"
 #include "tsdb.h"
-#include "tsdbDef.h"
 #include "tsdbFS.h"
 #include "tsdbLog.h"
 #include "tsdbReadImpl.h"

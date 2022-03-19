@@ -14,10 +14,13 @@
  */
 
 #define _DEFAULT_SOURCE
+#ifdef USE_UV
+#include <uv.h>
+#endif
+#include "zlib.h"
 #include "thttp.h"
 #include "taoserror.h"
 #include "tlog.h"
-#include "zlib.h"
 
 static int32_t taosBuildHttpHeader(const char* server, int32_t contLen, char* pHead, int32_t headLen,
                                    EHttpCompFlag flag) {
@@ -111,7 +114,6 @@ _OVER:
 }
 
 #ifdef USE_UV
-#include <uv.h>
 static void clientConnCb(uv_connect_t* req, int32_t status) {
   if (status < 0) {
     terrno = TAOS_SYSTEM_ERROR(status);

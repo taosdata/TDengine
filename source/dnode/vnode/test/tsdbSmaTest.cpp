@@ -14,13 +14,13 @@
  */
 
 #include <gtest/gtest.h>
+#include <tsdbDef.h>
 #include <taoserror.h>
 #include <tglobal.h>
 #include <iostream>
 
 #include <metaDef.h>
 #include <tmsg.h>
-#include <tsdbDef.h>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"

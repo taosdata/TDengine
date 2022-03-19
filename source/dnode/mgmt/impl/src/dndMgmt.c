@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "os.h"
 #include "dndMgmt.h"
 #include "dndBnode.h"
 #include "dndMnode.h"
@@ -553,7 +554,7 @@ static void *dnodeThreadRoutine(void *param) {
   setThreadName("dnode-hb");
 
   while (true) {
-    pthread_testcancel();
+    taosThreadTestCancel();
     taosMsleep(200);
     if (dndGetStat(pDnode) != DND_STAT_RUNNING || pMgmt->dropped) {
       continue;

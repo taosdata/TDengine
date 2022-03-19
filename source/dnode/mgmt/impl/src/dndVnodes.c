@@ -50,7 +50,7 @@ typedef struct {
   int32_t      opened;
   int32_t      failed;
   int32_t      threadIndex;
-  pthread_t    thread;
+  TdThread    thread;
   SDnode      *pDnode;
   SWrapperCfg *pCfgs;
 } SVnodeThread;
@@ -450,20 +450,20 @@ static int32_t dndOpenVnodes(SDnode *pDnode) {
     SVnodeThread *pThread = &threads[t];
     if (pThread->vnodeNum == 0) continue;
 
-    pthread_attr_t thAttr;
-    pthread_attr_init(&thAttr);
-    pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
-    if (pthread_create(&pThread->thread, &thAttr, dnodeOpenVnodeFunc, pThread) != 0) {
+    TdThreadAttr thAttr;
+    taosThreadAttrInit(&thAttr);
+    taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+    if (taosThreadCreate(&pThread->thread, &thAttr, dnodeOpenVnodeFunc, pThread) != 0) {
       dError("thread:%d, failed to create thread to open vnode, reason:%s", pThread->threadIndex, strerror(errno));
     }
 
-    pthread_attr_destroy(&thAttr);
+    taosThreadAttrDestroy(&thAttr);
   }
 
   for (int32_t t = 0; t < threadNum; ++t) {
     SVnodeThread *pThread = &threads[t];
     if (pThread->vnodeNum > 0 && taosCheckPthreadValid(pThread->thread)) {
-      pthread_join(pThread->thread, NULL);
+      taosThreadJoin(pThread->thread, NULL);
     }
     free(pThread->pCfgs);
   }
