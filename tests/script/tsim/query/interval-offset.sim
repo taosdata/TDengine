@@ -1,83 +1,96 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
-sleep 50
+sleep 500
 sql connect
 
 print =============== create database
+sql drop database d0 -x step1
+step1:
 sql create database d0
 sql show databases
 if $rows != 1 then 
   return -1
 endi
 
-print $data00 $data01 $data02
-
 sql use d0
 
-
-sql create table vehicle (ts timestamp, s int) tags (t1 int)
+print =============== create super table and child table
+sql create table stb (ts timestamp, tbcol int) tags (t1 int)
 sql show stables
+print $rows $data00 $data01 $data02
 if $rows != 1 then 
   return -1
 endi
 
-sql create table car using vehicle tags(1000)
-#sql create table ct1 using vehicle tags (1000)
-sql show tables;
-if $rows != 1 then
-  print rows: $rows 
+sql create table ct1 using stb tags ( 1 )
+sql create table ct2 using stb tags ( 2 )
+sql show tables
+print $rows $data00 $data10 $data20
+if $rows != 2 then
   return -1
 endi 
 
-sql insert into ct1 values('2019-01-01 00:00:00', 1)
-sql insert into car values('2019-05-13 12:00:00', 1)
-sql insert into car values('2019-12-31 23:59:59', 1)
-sql insert into car values('2020-01-01 12:00:00', 1)
-sql insert into car values('2020-01-02 12:00:00', 1)
-sql insert into car values('2020-01-03 12:00:00', 1)
-sql insert into car values('2020-01-04 12:00:00', 1)
-sql insert into car values('2020-01-05 12:00:00', 1)
-sql insert into car values('2020-01-31 12:00:00', 1)
-sql insert into car values('2020-02-01 12:00:00', 1)
-sql insert into car values('2020-02-02 12:00:00', 1)
-sql insert into car values('2020-02-29 12:00:00', 1)
-sql insert into car values('2020-03-01 12:00:00', 1)
-sql insert into car values('2020-03-02 12:00:00', 1)
-sql insert into car values('2020-03-15 12:00:00', 1)
-sql insert into car values('2020-03-31 12:00:00', 1)
-sql insert into car values('2020-05-01 12:00:00', 1)
+print =============== insert data into child table
+sql insert into ct1 values ( '2022-01-01 01:01:01.000', 1 )
+sql insert into ct1 values ( '2022-01-01 01:01:06.000', 1 )
+sql insert into ct1 values ( '2022-01-01 01:01:10.000', 1 )
+sql insert into ct1 values ( '2022-01-01 01:01:16.000', 1 )
+sql insert into ct1 values ( '2022-01-01 01:01:20.000', 1 )
+sql insert into ct1 values ( '2022-01-01 01:01:26.000', 1 )
+sql insert into ct1 values ( '2022-01-01 01:01:30.000', 1 )
+sql insert into ct1 values ( '2022-01-01 01:01:36.000', 1 )
+sql insert into ct1 values ( '2022-01-01 01:01:40.000', 1 )
+sql insert into ct1 values ( '2022-01-01 01:01:46.000', 1 )
+sql insert into ct1 values ( '2022-01-01 01:01:50.000', 1 )
+sql insert into ct1 values ( '2022-01-01 01:01:56.000', 1 )
+sql insert into ct1 values ( '2022-01-01 01:02:00.000', 1 )
+sql insert into ct1 values ( '2022-01-01 01:02:06.000', 1 )
+sql insert into ct1 values ( '2022-01-01 01:02:10.000', 1 )
+sql insert into ct1 values ( '2022-01-01 01:02:16.000', 1 )
+sql insert into ct1 values ( '2022-01-01 01:02:20.000', 1 )
+sql insert into ct1 values ( '2022-01-01 01:02:26.000', 1 )
+sql insert into ct1 values ( '2022-01-01 01:02:30.000', 1 )
+sql insert into ct1 values ( '2022-01-01 01:02:36.000', 1 )
 
-sql select count(*) from car interval(1n, 10d)
-#        tdSql.checkData(0, 1, 1)
-#        tdSql.checkData(1, 1, 1)
-#        tdSql.checkData(2, 1, 6)
-#        tdSql.checkData(3, 1, 3)
-#        tdSql.checkData(4, 1, 3)
-#        tdSql.checkData(5, 1, 2)
-#        tdSql.checkData(6, 1, 1)
-if $rows != 17 then 
+sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct1 interval(10s, 2s)
+print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct1 interval(10s, 2s)
+print ===> $rows $data00 $data01 $data02 $data03 $data04
+if $rows != 10 then
   return -1
-endi
-if $data00 != 1 then 
+endi 
+if $data00 != 2 then
   return -1
-endi
-if $data10 != 1 then 
+endi 
+if $data04 != 2 then
   return -1
-endi
-if $data20 != 6 then 
+endi 
+
+sql insert into ct2 values ( '2022-01-01 01:00:01.000', 1 )
+sql insert into ct2 values ( '2022-01-01 12:00:01.000', 2 )
+sql insert into ct2 values ( '2022-01-01 23:00:01.000', 3 )
+sql insert into ct2 values ( '2022-01-02 10:00:01.000', 1 )
+sql insert into ct2 values ( '2022-01-03 10:00:01.000', 1 )
+sql insert into ct2 values ( '2022-01-04 10:00:01.000', 1 )
+sql insert into ct2 values ( '2022-01-05 10:00:01.000', 1 )
+sql insert into ct2 values ( '2022-01-06 10:00:01.000', 1 )
+sql insert into ct2 values ( '2022-01-07 10:00:01.000', 1 )
+sql insert into ct2 values ( '2022-01-08 10:00:01.000', 1 )
+sql insert into ct2 values ( '2022-01-09 10:00:01.000', 1 )
+sql insert into ct2 values ( '2022-01-10 10:00:01.000', 1 )
+
+sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct2 interval(1d, 2h)
+print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct2 interval(1d, 2w)
+print ===> rows0: $data00 $data01 $data02 $data03 $data04
+print ===> rows1: $data10 $data11 $data12 $data13 $data14
+print ===> rows2: $data20 $data21 $data22 $data23 $data24
+if $rows != 11 then
   return -1
-endi
-if $data30 != 3 then 
+endi 
+if $data00 != 1 then
   return -1
-endi
-if $data40 != 3 then 
-  return -1
-endi
-if $data50 != 2 then 
-  return -1
-endi
-if $data60 != 1 then 
+endi 
+if $data10 != 2 then
   return -1
 endi
 
