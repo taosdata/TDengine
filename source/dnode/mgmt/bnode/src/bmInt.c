@@ -72,7 +72,7 @@ int32_t bmDrop(SMgmtWrapper *pWrapper) {
   }
 
   bmCloseImp(pMgmt);
-  bndDestroy(pMgmt->path);
+  taosRemoveDir(pMgmt->path);
   pWrapper->pMgmt = NULL;
   free(pMgmt);
   dInfo("bnode-mgmt is dropped");
