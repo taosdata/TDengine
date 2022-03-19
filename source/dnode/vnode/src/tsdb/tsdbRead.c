@@ -401,14 +401,20 @@ static STsdbReadHandle* tsdbQueryTablesImpl(STsdb* tsdb, STsdbQueryCond* pCond, 
 
     for (int32_t i = 0; i < pCond->numOfCols; ++i) {
       SColumnInfoData colInfo = {{0}, 0};
-
       colInfo.info = pCond->colList[i];
+
       colInfo.pData = calloc(1, EXTRA_BYTES + pReadHandle->outputCapacity * pCond->colList[i].bytes);
-      if (colInfo.pData == NULL) {
+      if (!IS_VAR_DATA_TYPE(colInfo.info.type)) {
+        colInfo.nullbitmap = calloc(1, BitmapLen(pReadHandle->outputCapacity));
+      }
+
+      if (colInfo.pData == NULL || (colInfo.nullbitmap == NULL && (!IS_VAR_DATA_TYPE(colInfo.info.type)))) {
         goto _end;
       }
 
       taosArrayPush(pReadHandle->pColumns, &colInfo);
+
+
       pReadHandle->statis[i].colId = colInfo.info.colId;
     }
 
