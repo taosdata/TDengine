@@ -35,7 +35,7 @@ static void dndGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
 static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
   pInfo->uptime = (taosGetTimestampMs() - pDnode->rebootTime) / (86400000.0f);
   taosGetCpuUsage(&pInfo->cpu_engine, &pInfo->cpu_system);
-  pInfo->cpu_cores = tsNumOfCores;
+  taosGetCpuCores(&pInfo->cpu_cores);
   taosGetProcMemory(&pInfo->mem_engine);
   taosGetSysMemory(&pInfo->mem_system);
   pInfo->mem_total = tsTotalMemoryKB;
