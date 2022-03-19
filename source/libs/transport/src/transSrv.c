@@ -99,7 +99,19 @@ static const char* notify = "a";
       conn->status = ConnRelease;                                  \
       transClearBuffer(&conn->readBuf);                            \
       transFreeMsg(transContFromHead((char*)head));                \
-      goto _RETURE;                                                \
+      tTrace("server conn %p received release request", conn);     \
+                                                                   \
+      STransMsg tmsg = {.handle = (void*)conn, .code = 0};         \
+      SSrvMsg*  srvMsg = calloc(1, sizeof(SSrvMsg));               \
+      srvMsg->msg = tmsg;                                          \
+      srvMsg->type = Release;                                      \
+      srvMsg->pConn = conn;                                        \
+      taosArrayPush(conn->srvMsgs, &srvMsg);                       \
+      if (taosArrayGetSize(conn->srvMsgs) > 1) {                   \
+        return;                                                    \
+      }                                                            \
+      uvStartSendRespInternal(srvMsg);                             \
+      return;                                                      \
     }                                                              \
   } while (0)
 // refactor later
@@ -242,6 +254,7 @@ static void uvHandleReq(SSrvConn* pConn) {
       pHead->msgLen -= sizeof(STransUserMsg);
     }
   }
+
   CONN_SHOULD_RELEASE(pConn, pHead);
 
   STransMsg transMsg;
@@ -280,8 +293,6 @@ static void uvHandleReq(SSrvConn* pConn) {
   (*pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
   // uv_timer_start(&pConn->pTimer, uvHandleActivityTimeout, pRpc->idleTime * 10000, 0);
   // auth
-_RETURE:
-  return;
 }
 
 void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
@@ -798,11 +809,10 @@ void uvHandleRelease(SSrvMsg* msg, SWorkThrdObj* thrd) {
   // release handle to rpc init
   SSrvConn* conn = msg->pConn;
   if (conn->status == ConnAcquire) {
-    if (taosArrayGetSize(conn->srvMsgs) > 0) {
-      taosArrayPush(conn->srvMsgs, &msg);
+    taosArrayPush(conn->srvMsgs, &msg);
+    if (taosArrayGetSize(conn->srvMsgs) > 1) {
       return;
     }
-    taosArrayPush(conn->srvMsgs, &msg);
     uvStartSendRespInternal(msg);
     return;
   } else if (conn->status == ConnRelease) {
