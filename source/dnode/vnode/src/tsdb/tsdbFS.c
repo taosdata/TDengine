@@ -14,8 +14,8 @@
  */
 
 #include <regex.h>
-#include "os.h"
 #include "tsdbDef.h"
+#include "os.h"
 
 typedef enum { TSDB_TXN_TEMP_FILE = 0, TSDB_TXN_CURR_FILE } TSDB_TXN_FILE_T;
 static const char *tsdbTxnFname[] = {"current.t", "current"};
@@ -203,7 +203,7 @@ STsdbFS *tsdbNewFS(const STsdbCfg *pCfg) {
     return NULL;
   }
 
-  int code = pthread_rwlock_init(&(pfs->lock), NULL);
+  int code = taosThreadRwlockInit(&(pfs->lock), NULL);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
     free(pfs);
@@ -241,7 +241,7 @@ void *tsdbFreeFS(STsdbFS *pfs) {
     taosHashCleanup(pfs->metaCache);
     pfs->metaCache = NULL;
     pfs->cstatus = tsdbFreeFSStatus(pfs->cstatus);
-    pthread_rwlock_destroy(&(pfs->lock));
+    taosThreadRwlockDestroy(&(pfs->lock));
     free(pfs);
   }
 

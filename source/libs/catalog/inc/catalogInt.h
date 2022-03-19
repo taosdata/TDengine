@@ -176,7 +176,7 @@ typedef struct SCatalogMgmt {
   SCtgQNode            *tail;
   tsem_t                sem;  
   uint64_t              qRemainNum;
-  pthread_t             updateThread;  
+  TdThread             updateThread;  
   SHashObj             *pCluster;     //key: clusterId, value: SCatalog*
   SCatalogStat          stat;
   SCatalogCfg           cfg;

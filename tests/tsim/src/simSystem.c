@@ -55,7 +55,7 @@ void simFreeScript(SScript *script) {
       simDebug("script:%s, is background script, set stop flag", bgScript->fileName);
       bgScript->killed = true;
       if (taosCheckPthreadValid(bgScript->bgPid)) {
-        pthread_join(bgScript->bgPid, NULL);
+        taosThreadJoin(bgScript->bgPid, NULL);
       }
 
       simDebug("script:%s, background thread joined", bgScript->fileName);

@@ -35,7 +35,7 @@ typedef struct {
   uint16_t    port;                   // peer port
   uint16_t    localPort;              // local port
   char        label[TSDB_LABEL_LEN];  // copy from udpConnSet;
-  pthread_t   thread;
+  TdThread   thread;
   void       *hash;
   void       *shandle;  // handle passed by upper layer during server initialization
   void       *pSet;
@@ -77,9 +77,9 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
   pSet->threads = threads;
   tstrncpy(pSet->label, label, sizeof(pSet->label));
 
-  pthread_attr_t thAttr;
-  pthread_attr_init(&thAttr);
-  pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
 
   int      i;
   uint16_t ownPort;
@@ -111,14 +111,14 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
     pConn->index = i;
     pConn->pSet = pSet;
 
-    int code = pthread_create(&pConn->thread, &thAttr, taosRecvUdpData, pConn);
+    int code = taosThreadCreate(&pConn->thread, &thAttr, taosRecvUdpData, pConn);
     if (code != 0) {
       tError("%s failed to create thread to process UDP data(%s)", label, strerror(errno));
       break;
     }
   }
 
-  pthread_attr_destroy(&thAttr);
+  taosThreadAttrDestroy(&thAttr);
 
   if (i != threads) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -146,7 +146,7 @@ void taosStopUdpConnection(void *handle) {
   for (int i = 0; i < pSet->threads; ++i) {
     pConn = pSet->udpConn + i;
     if (taosCheckPthreadValid(pConn->thread)) {
-      pthread_join(pConn->thread, NULL);
+      taosThreadJoin(pConn->thread, NULL);
     }
     tfree(pConn->buffer);
     // tTrace("%s UDP thread is closed, index:%d", pConn->label, i);

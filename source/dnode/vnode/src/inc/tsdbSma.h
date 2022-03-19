@@ -20,7 +20,7 @@ typedef struct SSmaStat SSmaStat;
 typedef struct SSmaEnv  SSmaEnv;
 
 struct SSmaEnv {
-  pthread_rwlock_t lock;
+  TdThreadRwlock lock;
   SDiskID          did;
   TDBEnv           dbEnv;  // TODO: If it's better to put it in smaIndex level?
   char *           path;   // relative path
@@ -51,7 +51,7 @@ static FORCE_INLINE int32_t tsdbEncodeTSmaKey(tb_uid_t tableUid, col_id_t colId,
 }
 
 static FORCE_INLINE int tsdbRLockSma(SSmaEnv *pEnv) {
-  int code = pthread_rwlock_rdlock(&(pEnv->lock));
+  int code = taosThreadRwlockRdlock(&(pEnv->lock));
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
     return -1;
@@ -60,7 +60,7 @@ static FORCE_INLINE int tsdbRLockSma(SSmaEnv *pEnv) {
 }
 
 static FORCE_INLINE int tsdbWLockSma(SSmaEnv *pEnv) {
-  int code = pthread_rwlock_wrlock(&(pEnv->lock));
+  int code = taosThreadRwlockWrlock(&(pEnv->lock));
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
     return -1;
@@ -69,7 +69,7 @@ static FORCE_INLINE int tsdbWLockSma(SSmaEnv *pEnv) {
 }
 
 static FORCE_INLINE int tsdbUnLockSma(SSmaEnv *pEnv) {
-  int code = pthread_rwlock_unlock(&(pEnv->lock));
+  int code = taosThreadRwlockUnlock(&(pEnv->lock));
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
     return -1;

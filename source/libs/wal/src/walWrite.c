@@ -38,7 +38,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
     terrno = TSDB_CODE_WAL_INVALID_VER;
     return -1;
   }
-  pthread_mutex_lock(&pWal->mutex);
+  taosThreadMutexLock(&pWal->mutex);
 
   // find correct file
   if (ver < walGetLastFileFirstVer(pWal)) {
@@ -65,20 +65,20 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
 
   // TODO:change to deserialize function
   if (pIdxTFile == NULL) {
-    pthread_mutex_unlock(&pWal->mutex);
+    taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
   int64_t idxOff = walGetVerIdxOffset(pWal, ver);
   code = taosLSeekFile(pIdxTFile, idxOff, SEEK_SET);
   if (code < 0) {
-    pthread_mutex_unlock(&pWal->mutex);
+    taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
   // read idx file and get log file pos
   // TODO:change to deserialize function
   SWalIdxEntry entry;
   if (taosReadFile(pIdxTFile, &entry, sizeof(SWalIdxEntry)) != sizeof(SWalIdxEntry)) {
-    pthread_mutex_unlock(&pWal->mutex);
+    taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
   ASSERT(entry.ver == ver);
@@ -87,13 +87,13 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   TdFilePtr pLogTFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ);
   if (pLogTFile == NULL) {
     // TODO
-    pthread_mutex_unlock(&pWal->mutex);
+    taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
   code = taosLSeekFile(pLogTFile, entry.offset, SEEK_SET);
   if (code < 0) {
     // TODO
-    pthread_mutex_unlock(&pWal->mutex);
+    taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
   // validate offset
@@ -127,7 +127,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->fileSize = entry.offset;
 
   // unlock
-  pthread_mutex_unlock(&pWal->mutex);
+  taosThreadMutexUnlock(&pWal->mutex);
   return 0;
 }
 
@@ -283,7 +283,7 @@ int64_t walWrite(SWal *pWal, int64_t index, tmsg_t msgType, const void *body, in
 
   ASSERT(pWal->writeCur >= 0);
 
-  pthread_mutex_lock(&pWal->mutex);
+  taosThreadMutexLock(&pWal->mutex);
 
   if (pWal->pWriteIdxTFile == NULL || pWal->pWriteLogTFile == NULL) {
     walSetWrite(pWal);
@@ -327,7 +327,7 @@ int64_t walWrite(SWal *pWal, int64_t index, tmsg_t msgType, const void *body, in
   walGetCurFileInfo(pWal)->lastVer = index;
   walGetCurFileInfo(pWal)->fileSize += sizeof(SWalHead) + bodyLen;
 
-  pthread_mutex_unlock(&pWal->mutex);
+  taosThreadMutexUnlock(&pWal->mutex);
 
   return 0;
 }

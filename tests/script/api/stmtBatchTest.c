@@ -1,7 +1,6 @@
 // TAOS standard API example. The same syntax as MySQL, but only a subet 
 // to compile: gcc -o prepare prepare.c -ltaos
 
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -5080,7 +5079,7 @@ int main(int argc, char *argv[])
 #if 0
   printf("server:%s, threadNum:%d, rows:%d\n\n", serverIp, threadNum, g_rows);
 
-  pthread_t *pThreadList = (pthread_t *) calloc(sizeof(pthread_t), (size_t)threadNum);
+  TdThread *pThreadList = (TdThread *) calloc(sizeof(TdThread), (size_t)threadNum);
   ThreadInfo* threadInfo = (ThreadInfo *) calloc(sizeof(ThreadInfo), (size_t)threadNum);
 
   ThreadInfo*  tInfo = threadInfo;
@@ -5094,16 +5093,16 @@ int main(int argc, char *argv[])
     tInfo->taos = taos;
     tInfo->idx = i;
     if (0 == i) {
-      //pthread_create(&(pThreadList[0]), NULL, runCase, (void *)tInfo);      
-      pthread_create(&(pThreadList[0]), NULL, SpecifyColumnBatchCase, (void *)tInfo);
+      //taosThreadCreate(&(pThreadList[0]), NULL, runCase, (void *)tInfo);      
+      taosThreadCreate(&(pThreadList[0]), NULL, SpecifyColumnBatchCase, (void *)tInfo);
     } else if (1 == i){
-      pthread_create(&(pThreadList[0]), NULL, runCase_long, (void *)tInfo);
+      taosThreadCreate(&(pThreadList[0]), NULL, runCase_long, (void *)tInfo);
     }
     tInfo++;
   }
 
   for (int i = 0; i < threadNum; i++) {
-    pthread_join(pThreadList[i], NULL);
+    taosThreadJoin(pThreadList[i], NULL);
   }
 
   free(pThreadList);

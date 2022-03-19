@@ -57,7 +57,7 @@ typedef struct SSkipListNode {
  * @date   2017/11/12
  * the simple version of skip list.
  *
- * for multi-thread safe purpose, we employ pthread_rwlock_t to guarantee to generate
+ * for multi-thread safe purpose, we employ TdThreadRwlock to guarantee to generate
  * deterministic result. Later, we will remove the lock in SkipList to further enhance the performance.
  * In this case, one should use the concurrent skip list (by using michael-scott algorithm) instead of
  * this simple version in a multi-thread environment, to achieve higher performance of read/write operations.
@@ -106,7 +106,7 @@ typedef struct SSkipList {
   uint32_t          seed;
   __compar_fn_t     comparFn;
   __sl_key_fn_t     keyFn;
-  pthread_rwlock_t *lock;
+  TdThreadRwlock *lock;
   uint16_t          len;
   uint8_t           maxLevel;
   uint8_t           flags;

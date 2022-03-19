@@ -19,7 +19,7 @@
 int32_t tfsInitTier(STfsTier *pTier, int32_t level) {
   memset(pTier, 0, sizeof(STfsTier));
 
-  if (pthread_spin_init(&pTier->lock, 0) != 0) {
+  if (taosThreadSpinInit(&pTier->lock, 0) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -34,7 +34,7 @@ void tfsDestroyTier(STfsTier *pTier) {
   }
 
   pTier->ndisk = 0;
-  pthread_spin_destroy(&pTier->lock);
+  taosThreadSpinDestroy(&pTier->lock);
 }
 
 STfsDisk *tfsMountDiskToTier(STfsTier *pTier, SDiskCfg *pCfg) {

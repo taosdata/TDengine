@@ -22,7 +22,6 @@ extern "C" {
 
 #include <assert.h>
 #include <ctype.h>
-#include <pthread.h>
 #include <semaphore.h>
 
 #include <regex.h>
@@ -83,6 +82,7 @@ extern "C" {
 #include "osMath.h"
 #include "osMemory.h"
 #include "osRand.h"
+#include "osThread.h"
 #include "osSemaphore.h"
 #include "osSignal.h"
 #include "osSleep.h"
@@ -90,7 +90,6 @@ extern "C" {
 #include "osString.h"
 #include "osSysinfo.h"
 #include "osSystem.h"
-#include "osThread.h"
 #include "osTime.h"
 #include "osTimer.h"
 #include "osTimezone.h"

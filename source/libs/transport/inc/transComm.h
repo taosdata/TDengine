@@ -230,7 +230,7 @@ typedef void (*AsyncCB)(uv_async_t* handle);
 typedef struct {
   void*           pThrd;
   queue           qmsg;
-  pthread_mutex_t mtx;  // protect qmsg;
+  TdThreadMutex mtx;  // protect qmsg;
 } SAsyncItem;
 
 typedef struct {

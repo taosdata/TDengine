@@ -56,7 +56,7 @@ typedef struct {
   char        *file;
   SHashObj    *dnodeHash;
   SArray      *pDnodeEps;
-  pthread_t   *threadId;
+  TdThread   *threadId;
   SRWLatch     latch;
   SDnodeWorker mgmtWorker;
   SDnodeWorker statusWorker;

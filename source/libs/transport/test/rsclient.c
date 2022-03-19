@@ -29,7 +29,7 @@ typedef struct {
   int       msgSize;
   tsem_t    rspSem; 
   tsem_t   *pOverSem; 
-  pthread_t thread;
+  TdThread thread;
   void     *pRpc;
 } SInfo;
 
@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
   char     secret[TSDB_KEY_LEN] = "mypassword";
   struct   timeval systemTime;
   int64_t  startTime, endTime;
-  pthread_attr_t thattr;
+  TdThreadAttr thattr;
 
   // server info
   epSet.numOfEps = 1;
@@ -163,8 +163,8 @@ int main(int argc, char *argv[]) {
 
   SInfo *pInfo = (SInfo *)calloc(1, sizeof(SInfo)*appThreads);
  
-  pthread_attr_init(&thattr);
-  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
+  taosThreadAttrInit(&thattr);
+  taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
 
   for (int i=0; i<appThreads; ++i) {
     pInfo->index = i;
@@ -173,7 +173,7 @@ int main(int argc, char *argv[]) {
     pInfo->msgSize = msgSize;
     tsem_init(&pInfo->rspSem, 0, 0);
     pInfo->pRpc = pRpc;
-    pthread_create(&pInfo->thread, &thattr, sendRequest, pInfo);
+    taosThreadCreate(&pInfo->thread, &thattr, sendRequest, pInfo);
     pInfo++;
   }
 

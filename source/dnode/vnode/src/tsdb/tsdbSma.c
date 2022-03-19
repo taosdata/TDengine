@@ -124,7 +124,7 @@ static SSmaEnv *tsdbNewSmaEnv(const STsdb *pTsdb, const char *path, SDiskID did)
     return NULL;
   }
 
-  int code = pthread_rwlock_init(&(pEnv->lock), NULL);
+  int code = taosThreadRwlockInit(&(pEnv->lock), NULL);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
     free(pEnv);
@@ -181,7 +181,7 @@ void tsdbDestroySmaEnv(SSmaEnv *pSmaEnv) {
     tsdbDestroySmaState(pSmaEnv->pStat);
     tfree(pSmaEnv->pStat);
     tfree(pSmaEnv->path);
-    pthread_rwlock_destroy(&(pSmaEnv->lock));
+    taosThreadRwlockDestroy(&(pSmaEnv->lock));
     tsdbCloseBDBEnv(pSmaEnv->dbEnv);
   }
 }

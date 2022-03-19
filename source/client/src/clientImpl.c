@@ -95,7 +95,7 @@ TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, 
   char*          key = getClusterKey(user, secretEncrypt, ip, port);
   SAppInstInfo** pInst = NULL;
 
-  pthread_mutex_lock(&appInfo.mutex);
+  taosThreadMutexLock(&appInfo.mutex);
 
   pInst = taosHashGet(appInfo.pInstMap, key, strlen(key));
   SAppInstInfo* p = NULL;
@@ -109,7 +109,7 @@ TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, 
     pInst = &p;
   }
 
-  pthread_mutex_unlock(&appInfo.mutex);
+  taosThreadMutexUnlock(&appInfo.mutex);
 
   tfree(key);
   return taosConnectImpl(user, &secretEncrypt[0], localDb, NULL, NULL, *pInst);
@@ -591,21 +591,21 @@ void setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t 
 
 char* getDbOfConnection(STscObj* pObj) {
   char* p = NULL;
-  pthread_mutex_lock(&pObj->mutex);
+  taosThreadMutexLock(&pObj->mutex);
   size_t len = strlen(pObj->db);
   if (len > 0) {
     p = strndup(pObj->db, tListLen(pObj->db));
   }
 
-  pthread_mutex_unlock(&pObj->mutex);
+  taosThreadMutexUnlock(&pObj->mutex);
   return p;
 }
 
 void setConnectionDB(STscObj* pTscObj, const char* db) {
   assert(db != NULL && pTscObj != NULL);
-  pthread_mutex_lock(&pTscObj->mutex);
+  taosThreadMutexLock(&pTscObj->mutex);
   tstrncpy(pTscObj->db, db, tListLen(pTscObj->db));
-  pthread_mutex_unlock(&pTscObj->mutex);
+  taosThreadMutexUnlock(&pTscObj->mutex);
 }
 
 void setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp) {
