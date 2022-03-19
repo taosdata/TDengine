@@ -30,7 +30,6 @@ void dmInitMsgHandles(SMgmtWrapper *pWrapper);
 void    dmGetMnodeEpSet(SDnodeMgmt *pMgmt, SEpSet *pEpSet);
 void    dmUpdateMnodeEpSet(SDnodeMgmt *pMgmt, SEpSet *pEpSet);
 void    dmSendRedirectRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t dmStart(SDnodeMgmt *pMgmt);
 
 #ifdef __cplusplus
 }

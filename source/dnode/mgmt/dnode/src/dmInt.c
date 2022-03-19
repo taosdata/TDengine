@@ -73,7 +73,10 @@ void dmSendRedirectRsp(SDnodeMgmt *pMgmt, SRpcMsg *pReq) {
   rpcSendRedirectRsp(pReq->handle, &epSet);
 }
 
-int32_t dmStart(SDnodeMgmt *pMgmt) { return dmStartWorker(pMgmt); }
+static int32_t dmStart(SMgmtWrapper *pWrapper) {
+  dDebug("dnode mgmt start to run");
+  return dmStartThread(pWrapper->pMgmt);
+}
 
 int32_t dmInit(SMgmtWrapper *pWrapper) {
   SDnode     *pDnode = pWrapper->pDnode;
@@ -102,6 +105,10 @@ int32_t dmInit(SMgmtWrapper *pWrapper) {
 
   if (pDnode->dropped) {
     dError("dnode will not start since its already dropped");
+    return -1;
+  }
+
+  if (dmStartWorker(pMgmt) != 0) {
     return -1;
   }
 
@@ -145,6 +152,7 @@ void dmGetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = dmInit;
   mgmtFp.closeFp = dmCleanup;
+  mgmtFp.startFp = dmStart;
   mgmtFp.requiredFp = dmRequire;
 
   dmInitMsgHandles(pWrapper);

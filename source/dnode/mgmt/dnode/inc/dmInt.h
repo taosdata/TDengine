@@ -53,6 +53,7 @@ int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
 // dmWorker.c
 int32_t dmStartWorker(SDnodeMgmt *pMgmt);
 void    dmStopWorker(SDnodeMgmt *pMgmt);
+int32_t dmStartThread(SDnodeMgmt *pMgmt);
 int32_t dmProcessMgmtMsg(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
 
 #ifdef __cplusplus

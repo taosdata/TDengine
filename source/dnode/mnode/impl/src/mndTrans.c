@@ -928,13 +928,13 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
       mDebug("trans:%d, all %d actions execute successfully", pTrans->id, numOfActions);
       return 0;
     } else {
-      mError("trans:%d, all %d actions executed, code:0x%04x", pTrans->id, numOfActions, errCode);
+      mError("trans:%d, all %d actions executed, code:0x%04x", pTrans->id, numOfActions, errCode & 0XFFFF);
       mndTransResetActions(pMnode, pTrans, pArray);
       terrno = errCode;
       return errCode;
     }
   } else {
-    mDebug("trans:%d, %d of %d actions executed, code:0x%04x", pTrans->id, numOfReceived, numOfActions, errCode);
+    mDebug("trans:%d, %d of %d actions executed, code:0x%04x", pTrans->id, numOfReceived, numOfActions, errCode & 0XFFFF);
     return TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 }

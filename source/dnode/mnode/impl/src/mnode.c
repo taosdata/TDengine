@@ -230,7 +230,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   } else {
     if (mndAllocStep(pMnode, "mnode-sdb-read", mndReadSdb, NULL) != 0) return -1;
   }
-  if (mndAllocStep(pMnode, "mnode-timer", mndInitTimer, NULL) != 0) return -1;
+  // if (mndAllocStep(pMnode, "mnode-timer", mndInitTimer, NULL) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-profile", mndInitProfile, mndCleanupProfile) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-show", mndInitShow, mndCleanupShow) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-sync", mndInitSync, mndCleanupSync) != 0) return -1;
@@ -379,10 +379,8 @@ int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption) {
   return 0;
 }
 
-void mndDestroy(const char *path) {
-  mDebug("start to destroy mnode at %s", path);
-  taosRemoveDir(path);
-  mDebug("mnode is destroyed");
+int32_t mndStart(SMnode *pMnode) {
+  return mndInitTimer(pMnode);
 }
 
 int32_t mndProcessMsg(SNodeMsg *pMsg) {

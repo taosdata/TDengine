@@ -23,7 +23,7 @@ void Testbase::InitLog(const char* path) {
   jniDebugFlag = 0;
   tmrDebugFlag = 135;
   uDebugFlag = 135;
-  rpcDebugFlag = 135;
+  rpcDebugFlag = 143;
   qDebugFlag = 0;
   wDebugFlag = 0;
   sDebugFlag = 0;

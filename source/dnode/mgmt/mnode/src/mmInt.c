@@ -222,10 +222,17 @@ static int32_t mmOpen(SMgmtWrapper *pWrapper) {
   return mmOpenFromMsg(pWrapper, NULL);
 }
 
+static int32_t mmStart(SMgmtWrapper *pWrapper) {
+  dDebug("mnode mgmt start to run");
+  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
+  return mndStart(pMgmt->pMnode);
+}
+
 void mmGetMgmtFp(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = mmOpen;
   mgmtFp.closeFp = mmClose;
+  mgmtFp.startFp = mmStart;
   mgmtFp.createMsgFp = mmProcessCreateReq;
   mgmtFp.dropMsgFp = mmProcessDropReq;
   mgmtFp.requiredFp = mmRequire;

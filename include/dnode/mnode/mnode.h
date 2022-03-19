@@ -67,11 +67,11 @@ void mndClose(SMnode *pMnode);
 int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption);
 
 /**
- * @brief Drop a mnode.
+ * @brief Start mnode
  *
- * @param path Path of the mnode.
+ * @param pMnode The mnode object.
  */
-void mndDestroy(const char *path);
+int32_t mndStart(SMnode *pMnode);
 
 /**
  * @brief Get mnode monitor info.

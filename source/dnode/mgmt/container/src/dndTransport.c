@@ -26,8 +26,8 @@ static void dndProcessResponse(void *parent, SRpcMsg *pRsp, SEpSet *pEpSet) {
   tmsg_t      msgType = pRsp->msgType;
 
   if (dndGetStatus(pDnode) != DND_STAT_RUNNING) {
-    if (pRsp == NULL || pRsp->pCont == NULL) return;
-    dTrace("rsp:%s ignored since dnode exiting, handle:%p app:%p", TMSG_INFO(msgType), pRsp->handle, pRsp->ahandle);
+    // if (pRsp == NULL || pRsp->pCont == NULL) return;
+    dTrace("rsp:%s ignored since dnode not running, handle:%p app:%p", TMSG_INFO(msgType), pRsp->handle, pRsp->ahandle);
     rpcFreeCont(pRsp->pCont);
     return;
   }
@@ -276,8 +276,13 @@ static int32_t dndSendRpcReq(STransMgmt *pMgmt, SEpSet *pEpSet, SRpcMsg *pReq) {
 int32_t dndSendReqToDnode(SMgmtWrapper *pWrapper, SEpSet *pEpSet, SRpcMsg *pReq) {
   if (pWrapper->procType == PROC_CHILD) {
   } else {
-    STransMgmt *pTrans = &pWrapper->pDnode->trans;
-    return dndSendRpcReq(pTrans, pEpSet, pReq);
+    SDnode *pDnode = pWrapper->pDnode;
+    if (dndGetStatus(pDnode) != DND_STAT_RUNNING) {
+      terrno = TSDB_CODE_DND_OFFLINE;
+      dError("failed to send rpc msg since %s, handle:%p", terrstr(), pReq->handle);
+      return -1;
+    }
+    return dndSendRpcReq(&pDnode->trans, pEpSet, pReq);
   }
 }
 

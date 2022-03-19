@@ -84,14 +84,19 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
     }
   }
 
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, DNODE);
-  int32_t       code = dmStart(pWrapper->pMgmt);
-  if (code != 0) {
-    dError("failed to start dnode worker since %s", terrstr());
+  dndSetStatus(pDnode, DND_STAT_RUNNING);
+
+  for (ENodeType n = 0; n < NODE_MAX; ++n) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+    if (!pWrapper->required) continue;
+    if (pWrapper->fp.startFp == NULL) continue;
+    if ((*pWrapper->fp.startFp)(pWrapper) != 0) {
+      dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
+      return -1;
+    }
   }
 
-  dndReleaseWrapper(pWrapper);
-  return code;
+  return 0;
 }
 
 static void dndClearNodesExecpt(SDnode *pDnode, ENodeType except) {
@@ -198,6 +203,7 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
     }
   }
 
+#if 0
   SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, DNODE);
   if (pWrapper->procType == PROC_PARENT && dmStart(pWrapper->pMgmt) != 0) {
     dndReleaseWrapper(pWrapper);
@@ -206,6 +212,7 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
   }
 
   dndReleaseWrapper(pWrapper);
+#endif
   return 0;
 }
 
@@ -222,7 +229,6 @@ int32_t dndRun(SDnode *pDnode) {
     }
   }
 
-  dndSetStatus(pDnode, DND_STAT_RUNNING);
   dndReportStartup(pDnode, "TDengine", "initialized successfully");
 
   while (1) {

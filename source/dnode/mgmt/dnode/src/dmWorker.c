@@ -108,6 +108,10 @@ int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
     return -1;
   }
 
+  return 0;
+}
+
+int32_t dmStartThread(SDnodeMgmt *pMgmt) {
   pMgmt->threadId = taosCreateThread(dmThreadRoutine, pMgmt);
   if (pMgmt->threadId == NULL) {
     dError("failed to init dnode thread");
