@@ -27,7 +27,7 @@ SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg) {
   SVnodeCfg cfg = defaultVnodeOptions;
   if (pVnodeCfg != NULL) {
     cfg.vgId = pVnodeCfg->vgId;
-    cfg.pMgmt = pVnodeCfg->pMgmt;
+    cfg.pWrapper = pVnodeCfg->pWrapper;
     cfg.pTfs = pVnodeCfg->pTfs;
     cfg.dbId = pVnodeCfg->dbId;
     cfg.hashBegin = pVnodeCfg->hashBegin;
@@ -79,7 +79,7 @@ static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg) {
   }
 
   pVnode->vgId = pVnodeCfg->vgId;
-  pVnode->pMgmt = pVnodeCfg->pMgmt;
+  pVnode->pWrapper = pVnodeCfg->pWrapper;
   pVnode->pTfs = pVnodeCfg->pTfs;
   pVnode->path = strdup(path);
   vnodeOptionsCopy(&(pVnode->config), pVnodeCfg);

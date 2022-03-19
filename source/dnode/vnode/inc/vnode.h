@@ -40,7 +40,7 @@ typedef struct {
 typedef struct {
   int32_t  vgId;
   uint64_t dbId;
-  void    *pMgmt;
+  void    *pWrapper;
   STfs    *pTfs;
   uint64_t wsize;
   uint64_t ssize;

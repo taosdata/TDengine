@@ -21,7 +21,7 @@ static int     vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg);
 
 int vnodeQueryOpen(SVnode *pVnode) {
   return qWorkerInit(NODE_TYPE_VNODE, pVnode->vgId, NULL, (void **)&pVnode->pQuery, pVnode,
-                     (putReqToQueryQFp)vnodePutReqToVQueryQ, (sendReqFp)vnodeSendReqToDnode);
+                     (putReqToQueryQFp)vnodePutToVQueryQ, (sendReqFp)vnodeSendReq);
 }
 
 void vnodeQueryClose(SVnode *pVnode) {

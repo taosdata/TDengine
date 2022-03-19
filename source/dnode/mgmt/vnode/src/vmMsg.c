@@ -82,7 +82,7 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
     return -1;
   }
 
-  vnodeCfg.pMgmt = pMgmt;
+  vnodeCfg.pWrapper = pMgmt->pWrapper;
   vnodeCfg.pTfs = pMgmt->pTfs;
   vnodeCfg.dbId = wrapperCfg.dbUid;
   SVnode *pImpl = vnodeOpen(wrapperCfg.path, &vnodeCfg);

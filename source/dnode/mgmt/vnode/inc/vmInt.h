@@ -49,20 +49,21 @@ typedef struct {
 } SWrapperCfg;
 
 typedef struct {
-  int32_t     vgId;
-  int32_t     refCount;
-  int32_t     vgVersion;
-  int8_t      dropped;
-  int8_t      accessState;
-  uint64_t    dbUid;
-  char       *db;
-  char       *path;
-  SVnode     *pImpl;
-  STaosQueue *pWriteQ;
-  STaosQueue *pSyncQ;
-  STaosQueue *pApplyQ;
-  STaosQueue *pQueryQ;
-  STaosQueue *pFetchQ;
+  int32_t       vgId;
+  int32_t       refCount;
+  int32_t       vgVersion;
+  int8_t        dropped;
+  int8_t        accessState;
+  uint64_t      dbUid;
+  char         *db;
+  char         *path;
+  SVnode       *pImpl;
+  STaosQueue   *pWriteQ;
+  STaosQueue   *pSyncQ;
+  STaosQueue   *pApplyQ;
+  STaosQueue   *pQueryQ;
+  STaosQueue   *pFetchQ;
+  SMgmtWrapper *pWrapper;
 } SVnodeObj;
 
 typedef struct {

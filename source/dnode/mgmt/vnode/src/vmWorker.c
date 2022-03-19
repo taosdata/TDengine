@@ -46,12 +46,12 @@ static void vmProcessWriteQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numO
     int32_t   code = vnodeApplyWMsg(pVnode->pImpl, pRpc, &pRsp);
     if (pRsp != NULL) {
       pRsp->ahandle = pRpc->ahandle;
-      rpcSendResponse(pRsp);
+      dndSendRsp(pVnode->pWrapper, pRsp);
       free(pRsp);
     } else {
       if (code != 0) code = terrno;
       SRpcMsg rpcRsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = code};
-      rpcSendResponse(&rpcRsp);
+      dndSendRsp(pVnode->pWrapper, &rpcRsp);
     }
   }
 
@@ -236,7 +236,7 @@ static void vmProcessMgmtQueue(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   if (msgType & 1u) {
     if (code != 0) code = terrno;
     SRpcMsg rsp = {.code = code, .handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle};
-    rpcSendResponse(&rsp);
+    dndSendRsp(pMgmt->pWrapper, &rsp);
   }
 
   dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));

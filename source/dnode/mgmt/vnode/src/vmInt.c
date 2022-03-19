@@ -56,6 +56,7 @@ int32_t vmOpenVnode(SVnodesMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   pVnode->refCount = 0;
   pVnode->dropped = 0;
   pVnode->accessState = TSDB_VN_ALL_ACCCESS;
+  pVnode->pWrapper = pMgmt->pWrapper;
   pVnode->pImpl = pImpl;
   pVnode->vgVersion = pCfg->vgVersion;
   pVnode->dbUid = pCfg->dbUid;
@@ -127,7 +128,7 @@ static void *vmOpenVnodeFunc(void *param) {
              pMgmt->state.openVnodes, pMgmt->state.totalVnodes);
     dndReportStartup(pDnode, "open-vnodes", stepDesc);
 
-    SVnodeCfg cfg = {.pMgmt = pMgmt, .pTfs = pMgmt->pTfs, .vgId = pCfg->vgId, .dbId = pCfg->dbUid};
+    SVnodeCfg cfg = {.pWrapper = pMgmt->pWrapper, .pTfs = pMgmt->pTfs, .vgId = pCfg->vgId, .dbId = pCfg->dbUid};
     SVnode   *pImpl = vnodeOpen(pCfg->path, &cfg);
     if (pImpl == NULL) {
       dError("vgId:%d, failed to open vnode by thread:%d", pCfg->vgId, pThread->threadIndex);

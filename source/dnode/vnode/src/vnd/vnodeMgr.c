@@ -89,16 +89,16 @@ int vnodeScheduleTask(SVnodeTask* pTask) {
   return 0;
 }
 
-int32_t vnodePutReqToVQueryQ(SVnode* pVnode, struct SRpcMsg* pReq) {
+int32_t vnodePutToVQueryQ(SVnode* pVnode, struct SRpcMsg* pReq) {
   if (pVnode == NULL || pVnode->pMeta == NULL || vnodeMgr.putToQueryQFp == NULL) {
     terrno = TSDB_CODE_VND_APP_ERROR;
     return -1;
   }
-  return (*vnodeMgr.putToQueryQFp)(pVnode->pMgmt, pReq);
+  return (*vnodeMgr.putToQueryQFp)(pVnode->pWrapper, pReq);
 }
 
-void vnodeSendReqToDnode(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pReq) {
-  (*vnodeMgr.sendReqFp)(pVnode->pMgmt, epSet, pReq);
+void vnodeSendReq(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pReq) {
+  (*vnodeMgr.sendReqFp)(pVnode->pWrapper, epSet, pReq);
 }
 
 /* ------------------------ STATIC METHODS ------------------------ */
