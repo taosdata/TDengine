@@ -62,6 +62,76 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = functionFinalizer
   },
   {
+      .name = "stddev",
+      .type = FUNCTION_TYPE_STDDEV,
+      .classification = FUNC_MGT_AGG_FUNC,
+      .checkFunc    = stubCheckAndGetResultType,
+      .getEnvFunc   = getMinmaxFuncEnv,
+      .initFunc     = maxFunctionSetup,
+      .processFunc  = maxFunction,
+      .finalizeFunc = functionFinalizer
+  },
+  {
+      .name = "percentile",
+      .type = FUNCTION_TYPE_PERCENTILE,
+      .classification = FUNC_MGT_AGG_FUNC,
+      .checkFunc    = stubCheckAndGetResultType,
+      .getEnvFunc   = getMinmaxFuncEnv,
+      .initFunc     = maxFunctionSetup,
+      .processFunc  = maxFunction,
+      .finalizeFunc = functionFinalizer
+  },
+  {
+      .name = "apercentile",
+      .type = FUNCTION_TYPE_APERCENTILE,
+      .classification = FUNC_MGT_AGG_FUNC,
+      .checkFunc    = stubCheckAndGetResultType,
+      .getEnvFunc   = getMinmaxFuncEnv,
+      .initFunc     = maxFunctionSetup,
+      .processFunc  = maxFunction,
+      .finalizeFunc = functionFinalizer
+  },
+  {
+      .name = "top",
+      .type = FUNCTION_TYPE_TOP,
+      .classification = FUNC_MGT_AGG_FUNC,
+      .checkFunc    = stubCheckAndGetResultType,
+      .getEnvFunc   = getMinmaxFuncEnv,
+      .initFunc     = maxFunctionSetup,
+      .processFunc  = maxFunction,
+      .finalizeFunc = functionFinalizer
+  },
+  {
+      .name = "bottom",
+      .type = FUNCTION_TYPE_BOTTOM,
+      .classification = FUNC_MGT_AGG_FUNC,
+      .checkFunc    = stubCheckAndGetResultType,
+      .getEnvFunc   = getMinmaxFuncEnv,
+      .initFunc     = maxFunctionSetup,
+      .processFunc  = maxFunction,
+      .finalizeFunc = functionFinalizer
+  },
+  {
+      .name = "spread",
+      .type = FUNCTION_TYPE_SPREAD,
+      .classification = FUNC_MGT_AGG_FUNC,
+      .checkFunc    = stubCheckAndGetResultType,
+      .getEnvFunc   = getMinmaxFuncEnv,
+      .initFunc     = maxFunctionSetup,
+      .processFunc  = maxFunction,
+      .finalizeFunc = functionFinalizer
+  },
+  {
+      .name = "last_row",
+      .type = FUNCTION_TYPE_LAST_ROW,
+      .classification = FUNC_MGT_AGG_FUNC,
+      .checkFunc    = stubCheckAndGetResultType,
+      .getEnvFunc   = getMinmaxFuncEnv,
+      .initFunc     = maxFunctionSetup,
+      .processFunc  = maxFunction,
+      .finalizeFunc = functionFinalizer
+  },
+  {
     .name = "concat",
     .type = FUNCTION_TYPE_CONCAT,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
