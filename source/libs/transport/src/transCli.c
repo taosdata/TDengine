@@ -138,11 +138,12 @@ static void         destroyThrdObj(SCliThrdObj* pThrd);
       conn->status = ConnRelease;                                  \
       transClearBuffer(&conn->readBuf);                            \
       transFreeMsg(transContFromHead((char*)head));                \
+      tDebug("cli conn %p receive release request", conn);         \
       if (T_REF_VAL_GET(conn) == 1) {                              \
         SCliThrdObj* thrd = conn->hostThrd;                        \
         addConnToPool(thrd->pool, conn);                           \
       }                                                            \
-      goto _RETURN;                                                \
+      return;                                                      \
     }                                                              \
   } while (0)
 
@@ -150,7 +151,7 @@ static void         destroyThrdObj(SCliThrdObj* pThrd);
   do {                                      \
     if (thrd->quit) {                       \
       cliHandleExcept(conn);                \
-      goto _RETURE;                         \
+      return;                               \
     }                                       \
   } while (0)
 
@@ -158,9 +159,9 @@ static void         destroyThrdObj(SCliThrdObj* pThrd);
   do {                           \
     if (conn->broken) {          \
       cliHandleExcept(conn);     \
-      goto _RETURE;              \
+      return;                    \
     }                            \
-  } while (0);
+  } while (0)
 
 #define CONN_SET_PERSIST_BY_APP(conn) \
   do {                                \
@@ -389,12 +390,11 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   // list already create before
   assert(plist != NULL);
   QUEUE_PUSH(&plist->conn, &conn->conn);
+  assert(!QUEUE_IS_EMPTY(&plist->conn));
 }
 static void cliAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   SCliConn*    conn = handle->data;
   SConnBuffer* pBuf = &conn->readBuf;
-  // avoid conn
-  QUEUE_REMOVE(&conn->conn);
   transAllocBuffer(pBuf, buf);
 }
 static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
@@ -420,6 +420,7 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
     // ref http://docs.libuv.org/en/v1.x/stream.html?highlight=uv_read_start#c.uv_read_cb
     // nread might be 0, which does not indicate an error or EOF. This is equivalent to EAGAIN or EWOULDBLOCK under
     // read(2).
+    tTrace("%s cli conn %p read empty", CONN_GET_INST_LABEL(conn), conn);
     return;
   }
   if (nread < 0) {
@@ -556,8 +557,6 @@ void cliSend(SCliConn* pConn) {
   uv_write(&pConn->writeReq, (uv_stream_t*)pConn->stream, &wb, 1, cliSendCb);
 
   return;
-_RETURE:
-  return;
 }
 
 void cliConnCb(uv_connect_t* req, int status) {
@@ -594,6 +593,7 @@ static void cliHandleRelease(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   SCliConn* conn = pMsg->msg.handle;
   tDebug("%s cli conn %p start to release to inst", CONN_GET_INST_LABEL(conn), conn);
 
+  transUnrefCliHandle(conn);
   taosArrayPush(conn->cliMsgs, &pMsg);
   if (taosArrayGetSize(conn->cliMsgs) >= 2) {
     return;  // send one by one
@@ -613,6 +613,8 @@ SCliConn* cliGetConn(SCliMsg* pMsg, SCliThrdObj* pThrd) {
     conn = getConnFromPool(pThrd->pool, pCtx->ip, pCtx->port);
     if (conn != NULL) {
       tTrace("%s cli conn %p get from conn pool", CONN_GET_INST_LABEL(conn), conn);
+    } else {
+      tTrace("not found conn in conn pool %p", pThrd->pool);
     }
   }
   return conn;
