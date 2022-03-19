@@ -22,44 +22,42 @@
 extern "C" {
 #endif
 
-typedef struct STDb       TDB;
-typedef struct STDbEnv    TENV;
-typedef struct STDbCurosr TDBC;
+// typedef struct STDb       TDB;
+// typedef struct STDbEnv    TENV;
+// typedef struct STDbCurosr TDBC;
 
-typedef int32_t pgsz_t;
-typedef int32_t cachesz_t;
+// typedef int32_t pgsz_t;
+// typedef int32_t cachesz_t;
 
-typedef int (*TdbKeyCmprFn)(int keyLen1, const void *pKey1, int keyLen2, const void *pKey2);
+// typedef int (*TdbKeyCmprFn)(int keyLen1, const void *pKey1, int keyLen2, const void *pKey2);
 
-// TEVN
-int tdbEnvCreate(TENV **ppEnv, const char *rootDir);
-int tdbEnvOpen(TENV *ppEnv);
-int tdbEnvClose(TENV *pEnv);
+// // TEVN
+// int tdbEnvCreate(TENV **ppEnv, const char *rootDir);
+// int tdbEnvOpen(TENV *ppEnv);
+// int tdbEnvClose(TENV *pEnv);
 
-int       tdbEnvSetCache(TENV *pEnv, pgsz_t pgSize, cachesz_t cacheSize);
-pgsz_t    tdbEnvGetPageSize(TENV *pEnv);
-cachesz_t tdbEnvGetCacheSize(TENV *pEnv);
+// int       tdbEnvSetCache(TENV *pEnv, pgsz_t pgSize, cachesz_t cacheSize);
+// pgsz_t    tdbEnvGetPageSize(TENV *pEnv);
+// cachesz_t tdbEnvGetCacheSize(TENV *pEnv);
 
-int tdbEnvBeginTxn(TENV *pEnv);
-int tdbEnvCommit(TENV *pEnv);
+// int tdbEnvBeginTxn(TENV *pEnv);
+// int tdbEnvCommit(TENV *pEnv);
 
-// TDB
-int tdbCreate(TDB **ppDb);
-int tdbOpen(TDB *pDb, const char *fname, const char *dbname, TENV *pEnv);
-int tdbClose(TDB *pDb);
-int tdbDrop(TDB *pDb);
+// // TDB
+// int tdbCreate(TDB **ppDb);
+// int tdbOpen(TDB *pDb, const char *fname, const char *dbname, TENV *pEnv);
+// int tdbClose(TDB *pDb);
+// int tdbDrop(TDB *pDb);
 
-int tdbSetKeyLen(TDB *pDb, int klen);
-int tdbSetValLen(TDB *pDb, int vlen);
-int tdbSetDup(TDB *pDb, int dup);
-int tdbSetCmprFunc(TDB *pDb, TdbKeyCmprFn fn);
-int tdbGetKeyLen(TDB *pDb);
-int tdbGetValLen(TDB *pDb);
-int tdbGetDup(TDB *pDb);
+// int tdbSetKeyLen(TDB *pDb, int klen);
+// int tdbSetValLen(TDB *pDb, int vlen);
+// int tdbSetDup(TDB *pDb, int dup);
+// int tdbSetCmprFunc(TDB *pDb, TdbKeyCmprFn fn);
+// int tdbGetKeyLen(TDB *pDb);
+// int tdbGetValLen(TDB *pDb);
+// int tdbGetDup(TDB *pDb);
 
-int tdbInsert(TDB *pDb, const void *pKey, int nKey, const void *pData, int nData);
-
-// TDBC
+// int tdbInsert(TDB *pDb, const void *pKey, int nKey, const void *pData, int nData);
 
 #ifdef __cplusplus
 }

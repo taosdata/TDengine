@@ -90,7 +90,6 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.label = "TSC";
   rpcInit.numOfThreads = numOfThread;
   rpcInit.cfp = processMsgFromServer;
-  rpcInit.pfp = persistConnForSpecificMsg;
   rpcInit.sessions = tsMaxConnections;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = (char *)user;
@@ -150,6 +149,7 @@ void *createRequest(STscObj *pObj, __taos_async_fn_t fp, void *param, int32_t ty
     return NULL;
   }
 
+  pRequest->pDb = getDbOfConnection(pObj);
   pRequest->requestId = generateRequestId();
   pRequest->metric.start = taosGetTimestampMs();
 
@@ -180,6 +180,7 @@ static void doDestroyRequest(void *p) {
   tfree(pRequest->msgBuf);
   tfree(pRequest->sqlstr);
   tfree(pRequest->pInfo);
+  tfree(pRequest->pDb);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
   qDestroyQueryPlan(pRequest->body.pDag);

@@ -1,10 +1,17 @@
-
-set(TDB_SUBDIRS "db")
-foreach(TDB_SUBDIR ${TDB_SUBDIRS})
-    aux_source_directory("src/${TDB_SUBDIR}" TDB_SRC)
-endforeach()
-
-add_library(tdb STATIC ${TDB_SRC})
+# tdb
+add_library(tdb "")
+target_sources(tdb
+    PRIVATE
+    "src/db/tdbPCache.c"
+    "src/db/tdbPager.c"
+    "src/db/tdbUtil.c"
+    "src/db/tdbBtree.c"
+    "src/db/tdbDb.c"
+    "src/db/tdbEnv.c"
+    # "src/db/tdbPage.c"
+    "src/page/tdbPage.c"
+    "src/page/tdbPageL.c"
+)
 
 target_include_directories(
     tdb
@@ -17,6 +24,7 @@ target_link_libraries(
     PUBLIC util
 )
 
+# for test
 if(${BUILD_TEST})
     add_subdirectory(test)
 endif(${BUILD_TEST})

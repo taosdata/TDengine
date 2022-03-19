@@ -204,7 +204,8 @@ void tfsDirname(const STfsFile *pFile, char *dest) {
 
 void tfsAbsoluteName(STfs *pTfs, SDiskID diskId, const char *rname, char *aname) {
   STfsDisk *pDisk = TFS_DISK_AT(pTfs, diskId);
-  snprintf(aname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, rname);
+  
+  snprintf(aname, TSDB_FILENAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, rname);
 }
 
 int32_t tfsRemoveFile(const STfsFile *pFile) { return taosRemoveFile(pFile->aname); }

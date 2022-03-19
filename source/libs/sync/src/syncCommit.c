@@ -18,6 +18,7 @@
 #include "syncInt.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
+#include "syncUtil.h"
 
 // \* Leader i advances its commitIndex.
 // \* This is done as a separate step from handling AppendEntries responses,
@@ -49,8 +50,11 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
   // update commit index
   SyncIndex newCommitIndex = pSyncNode->commitIndex;
   for (SyncIndex index = pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore); index > pSyncNode->commitIndex;
-       ++index) {
-    if (syncAgree(pSyncNode, index)) {
+       --index) {
+    bool agree = syncAgree(pSyncNode, index);
+    sTrace("syncMaybeAdvanceCommitIndex syncAgree:%d, index:%ld, pSyncNode->commitIndex:%ld", agree, index,
+           pSyncNode->commitIndex);
+    if (agree) {
       // term
       SSyncRaftEntry* pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, index);
       assert(pEntry != NULL);
@@ -67,6 +71,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
   if (newCommitIndex > pSyncNode->commitIndex) {
     SyncIndex beginIndex = pSyncNode->commitIndex + 1;
     SyncIndex endIndex = newCommitIndex;
+
+    sTrace("syncMaybeAdvanceCommitIndex sync commit %ld", newCommitIndex);
 
     // update commit index
     pSyncNode->commitIndex = newCommitIndex;
@@ -97,14 +103,19 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
 }
 
 bool syncAgreeIndex(SSyncNode* pSyncNode, SRaftId* pRaftId, SyncIndex index) {
-  SyncIndex matchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, pRaftId);
-
-  // b for debug
-  bool b = false;
-  if (matchIndex >= index) {
-    b = true;
+  // I am leader, I agree
+  if (syncUtilSameId(pRaftId, &(pSyncNode->myRaftId)) && pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+    return true;
   }
-  return b;
+
+  // follower agree
+  SyncIndex matchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, pRaftId);
+  if (matchIndex >= index) {
+    return true;
+  }
+
+  // not agree
+  return false;
 }
 
 bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {

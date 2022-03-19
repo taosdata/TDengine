@@ -26,7 +26,6 @@ extern "C" {
 
 typedef struct SLogicNode {
   ENodeType type;
-  int32_t id;
   SNodeList* pTargets; // SColumnNode
   SNode* pConditions;
   SNodeList* pChildren;
@@ -37,6 +36,7 @@ typedef enum EScanType {
   SCAN_TYPE_TAG,
   SCAN_TYPE_TABLE,
   SCAN_TYPE_STABLE,
+  SCAN_TYPE_TOPIC,
   SCAN_TYPE_STREAM
 } EScanType;
 
@@ -155,7 +155,7 @@ typedef struct SPhysiNode {
 } SPhysiNode;
 
 typedef struct SScanPhysiNode {
-  SPhysiNode  node;
+  SPhysiNode node;
   SNodeList* pScanCols;
   uint64_t uid;           // unique id of the table
   int8_t tableType;
@@ -167,6 +167,7 @@ typedef struct SScanPhysiNode {
 
 typedef SScanPhysiNode SSystemTableScanPhysiNode;
 typedef SScanPhysiNode STagScanPhysiNode;
+typedef SScanPhysiNode SStreamScanPhysiNode;
 
 typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;

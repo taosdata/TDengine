@@ -85,6 +85,7 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_TABLE_CLAUSE,
   QUERY_NODE_DROP_TABLE_STMT,
   QUERY_NODE_DROP_SUPER_TABLE_STMT,
+  QUERY_NODE_ALTER_TABLE_STMT,
   QUERY_NODE_SHOW_TABLES_STMT, // temp
   QUERY_NODE_SHOW_STABLES_STMT,
   QUERY_NODE_CREATE_USER_STMT,
@@ -94,6 +95,7 @@ typedef enum ENodeType {
   QUERY_NODE_USE_DATABASE_STMT,
   QUERY_NODE_CREATE_DNODE_STMT,
   QUERY_NODE_DROP_DNODE_STMT,
+  QUERY_NODE_ALTER_DNODE_STMT,
   QUERY_NODE_SHOW_DNODES_STMT,
   QUERY_NODE_SHOW_VGROUPS_STMT,
   QUERY_NODE_SHOW_MNODES_STMT,
@@ -104,6 +106,7 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_QNODE_STMT,
   QUERY_NODE_CREATE_TOPIC_STMT,
   QUERY_NODE_DROP_TOPIC_STMT,
+  QUERY_NODE_ALTER_LOCAL_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN,
@@ -163,6 +166,7 @@ SNodeList* nodesMakeList();
 int32_t nodesListAppend(SNodeList* pList, SNodeptr pNode);
 int32_t nodesListStrictAppend(SNodeList* pList, SNodeptr pNode);
 int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc);
+int32_t nodesListStrictAppendList(SNodeList* pTarget, SNodeList* pSrc);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
 SNodeptr nodesListGetNode(SNodeList* pList, int32_t index);
 void nodesDestroyList(SNodeList* pList);

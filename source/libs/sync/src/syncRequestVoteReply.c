@@ -38,7 +38,10 @@
 //
 int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg) {
   int32_t ret = 0;
-  syncRequestVoteReplyLog2("==syncNodeOnRequestVoteReplyCb==", pMsg);
+
+  char logBuf[128];
+  snprintf(logBuf, sizeof(logBuf), "==syncNodeOnRequestVoteReplyCb== term:%lu", ths->pRaftStore->currentTerm);
+  syncRequestVoteReplyLog2(logBuf, pMsg);
 
   if (pMsg->term < ths->pRaftStore->currentTerm) {
     sTrace("DropStaleResponse, receive term:%" PRIu64 ", current term:%" PRIu64 "", pMsg->term,

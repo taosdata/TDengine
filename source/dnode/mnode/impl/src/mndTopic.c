@@ -246,7 +246,7 @@ static int32_t mndGetPlanString(SCMCreateTopicReq *pCreate, char **pStr) {
 
   SQueryPlan* pPlan = NULL;
   if (TSDB_CODE_SUCCESS == code) {
-    SPlanContext cxt = { .pAstRoot = pAst, .streamQuery = true };
+    SPlanContext cxt = { .pAstRoot = pAst, .topicQuery = true };
     code = qCreateQueryPlan(&cxt, &pPlan, NULL);
   }
 

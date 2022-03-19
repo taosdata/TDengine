@@ -13,27 +13,35 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TDB_ENV_H_
-#define _TDB_ENV_H_
+#ifndef _TD_PAGE_CACHE_H_
+#define _TD_PAGE_CACHE_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct STEnv {
-  char *   rootDir;
-  char *   jfname;
-  int      jfd;
-  SPCache *pCache;
-} STEnv;
+#define TDB_PCACHE_PAGE \
+  u8       isAnchor;    \
+  u8       isLocalPage; \
+  u8       isDirty;     \
+  i32      nRef;        \
+  SPCache *pCache;      \
+  SPage   *pFreeNext;   \
+  SPage   *pHashNext;   \
+  SPage   *pLruNext;    \
+  SPage   *pLruPrev;    \
+  SPage   *pDirtyNext;  \
+  SPager  *pPager;      \
+  SPgid    pgid;
 
-int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv);
-int tdbEnvClose(STEnv *pEnv);
-
-SPager *tdbEnvGetPager(STEnv *pEnv, const char *fname);
+int    tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache);
+int    tdbPCacheClose(SPCache *pCache);
+SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage);
+void   tdbPCacheRelease(SPage *pPage);
+int    tdbPCacheGetPageSize(SPCache *pCache);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TDB_ENV_H_*/
+#endif /*_TD_PAGE_CACHE_H_*/

@@ -126,7 +126,7 @@ static void setColumnInfoByExpr(const STableNode* pTable, SExprNode* pExpr, SCol
 static int32_t createColumnNodeByTable(STranslateContext* pCxt, const STableNode* pTable, SNodeList* pList) {
   if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
     const STableMeta* pMeta = ((SRealTableNode*)pTable)->pMeta;
-    int32_t nums = pMeta->tableInfo.numOfColumns + ((TSDB_SUPER_TABLE == pMeta->tableType)? pMeta->tableInfo.numOfTags:0);
+    int32_t nums = pMeta->tableInfo.numOfColumns + ((TSDB_SUPER_TABLE == pMeta->tableType) ? pMeta->tableInfo.numOfTags : 0);
     for (int32_t i = 0; i < nums; ++i) {
       SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
       if (NULL == pCol) {
@@ -499,6 +499,10 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
 }
 
 static int32_t setTableVgroupList(SParseContext* pCxt, SName* name, SRealTableNode* pRealTable) {
+  if (pCxt->topicQuery) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (TSDB_SUPER_TABLE == pRealTable->pMeta->tableType) {
     SArray* vgroupList = NULL;
     int32_t code = catalogGetTableDistVgInfo(pCxt->pCatalog, pCxt->pTransporter, &pCxt->mgmtEpSet, name, &vgroupList);
@@ -962,6 +966,73 @@ static int32_t translateDropSuperTable(STranslateContext* pCxt, SDropSuperTableS
   return doTranslateDropSuperTable(pCxt, &tableName, pStmt->ignoreNotExists);
 }
 
+static int32_t setAlterTableField(SAlterTableStmt* pStmt, SMAltertbReq* pAlterReq) {
+  pAlterReq->pFields = taosArrayInit(2, sizeof(TAOS_FIELD));
+  if (NULL == pAlterReq->pFields) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  switch (pStmt->alterType) {
+    case TSDB_ALTER_TABLE_ADD_TAG:
+    case TSDB_ALTER_TABLE_DROP_TAG:
+    case TSDB_ALTER_TABLE_ADD_COLUMN:
+    case TSDB_ALTER_TABLE_DROP_COLUMN:
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
+    case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES: {
+      TAOS_FIELD field = { .type = pStmt->dataType.type, .bytes = pStmt->dataType.bytes };
+      strcpy(field.name, pStmt->colName);
+      taosArrayPush(pAlterReq->pFields, &field);
+      break;
+    }
+    case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME: {
+      TAOS_FIELD oldField = {0};
+      strcpy(oldField.name, pStmt->colName);
+      taosArrayPush(pAlterReq->pFields, &oldField);
+      TAOS_FIELD newField = {0};
+      strcpy(oldField.name, pStmt->newColName);
+      taosArrayPush(pAlterReq->pFields, &newField);
+      break;
+    }
+    default:
+      break;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateAlterTable(STranslateContext* pCxt, SAlterTableStmt* pStmt) {
+  SMAltertbReq alterReq = {0};
+  SName tableName = { .type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId };
+  strcpy(tableName.dbname, pStmt->dbName);
+  strcpy(tableName.tname, pStmt->tableName);
+  tNameExtractFullName(&tableName, alterReq.name);
+  alterReq.alterType = pStmt->alterType;
+  alterReq.numOfFields = 1;
+  if (TSDB_ALTER_TABLE_UPDATE_OPTIONS == pStmt->alterType) {
+    // todo
+  } else {
+    if (TSDB_CODE_SUCCESS != setAlterTableField(pStmt, &alterReq)) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
+  if (NULL == pCxt->pCmdMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
+  pCxt->pCmdMsg->msgType = TDMT_MND_ALTER_STB;
+  pCxt->pCmdMsg->msgLen = tSerializeSMAlterStbReq(NULL, 0, &alterReq);
+  pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
+  if (NULL == pCxt->pCmdMsg->pMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tSerializeSMAlterStbReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &alterReq);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* pStmt) {
   SName name = {0};
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
@@ -1095,6 +1166,28 @@ static int32_t translateDropDnode(STranslateContext* pCxt, SDropDnodeStmt* pStmt
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   tSerializeSDropDnodeReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &dropReq);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pStmt) {
+  SMCfgDnodeReq cfgReq = {0};
+  cfgReq.dnodeId = pStmt->dnodeId;
+  strcpy(cfgReq.config, pStmt->config);
+  strcpy(cfgReq.value, pStmt->value);
+
+  pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
+  if (NULL == pCxt->pCmdMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
+  pCxt->pCmdMsg->msgType = TDMT_MND_CONFIG_DNODE;
+  pCxt->pCmdMsg->msgLen = tSerializeSMCfgDnodeReq(NULL, 0, &cfgReq);
+  pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
+  if (NULL == pCxt->pCmdMsg->pMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tSerializeSMCfgDnodeReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &cfgReq);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1300,6 +1393,7 @@ static int32_t translateCreateTopic(STranslateContext* pCxt, SCreateTopicStmt* p
   SCMCreateTopicReq createReq = {0};
 
   if (NULL != pStmt->pQuery) {
+    pCxt->pParseCxt->topicQuery = true;
     int32_t code = translateQuery(pCxt, pStmt->pQuery);
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesNodeToString(pStmt->pQuery, false, &createReq.ast, NULL);
@@ -1364,6 +1458,11 @@ static int32_t translateDropTopic(STranslateContext* pCxt, SDropTopicStmt* pStmt
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateAlterLocal(STranslateContext* pCxt, SAlterLocalStmt* pStmt) {
+  // todo
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
@@ -1388,6 +1487,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:
       code = translateDropSuperTable(pCxt, (SDropSuperTableStmt*)pNode);
       break;
+    case QUERY_NODE_ALTER_TABLE_STMT:
+      code = translateAlterTable(pCxt, (SAlterTableStmt*)pNode);
+      break;
     case QUERY_NODE_CREATE_USER_STMT:
       code = translateCreateUser(pCxt, (SCreateUserStmt*)pNode);
       break;
@@ -1405,6 +1507,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_DROP_DNODE_STMT:
       code = translateDropDnode(pCxt, (SDropDnodeStmt*)pNode);
+      break;
+    case QUERY_NODE_ALTER_DNODE_STMT:
+      code = translateAlterDnode(pCxt, (SAlterDnodeStmt*)pNode);
       break;
     case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_STABLES_STMT:
@@ -1435,6 +1540,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_DROP_TOPIC_STMT:
       code = translateDropTopic(pCxt, (SDropTopicStmt*)pNode);
+      break;
+    case QUERY_NODE_ALTER_LOCAL_STMT:
+      code = translateAlterLocal(pCxt, (SAlterLocalStmt*)pNode);
       break;
     default:
       break;
@@ -1855,6 +1963,11 @@ static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) 
   return rewriteToVnodeModifOpStmt(pQuery, pBufArray);
 }
 
+static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
+  // todo
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pQuery->pRoot)) {
@@ -1865,6 +1978,11 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
       code = rewriteCreateMultiTable(pCxt, pQuery);
+      break;
+    case QUERY_NODE_ALTER_TABLE_STMT:
+      if (TSDB_ALTER_TABLE_UPDATE_TAG_VAL == ((SAlterTableStmt*)pQuery->pRoot)->alterType) {
+        code = rewriteAlterTable(pCxt, pQuery);
+      }
       break;
     default:
       break;

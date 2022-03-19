@@ -259,15 +259,22 @@ static SPhysiNode* createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   return (SPhysiNode*)pTableScan;
 }
 
+static SPhysiNode* createStreamScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode) {
+  SStreamScanPhysiNode* pTableScan = (SStreamScanPhysiNode*)makePhysiNode(pCxt, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN);
+  CHECK_ALLOC(pTableScan, NULL);
+  CHECK_CODE(initScanPhysiNode(pCxt, pScanLogicNode, (SScanPhysiNode*)pTableScan), (SPhysiNode*)pTableScan);
+  return (SPhysiNode*)pTableScan;
+}
+
 static SPhysiNode* createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode) {
   switch (pScanLogicNode->scanType) {
     case SCAN_TYPE_TAG:
       return createTagScanPhysiNode(pCxt, pScanLogicNode);
     case SCAN_TYPE_TABLE:
       return createTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode);
-    case SCAN_TYPE_STABLE:
+    case SCAN_TYPE_TOPIC:
     case SCAN_TYPE_STREAM:
-      break;
+      return createStreamScanPhysiNode(pCxt, pSubplan, pScanLogicNode);
     default:
       break;
   }
@@ -466,11 +473,20 @@ static SPhysiNode* createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
 }
 
 static SPhysiNode* createExchangePhysiNode(SPhysiPlanContext* pCxt, SExchangeLogicNode* pExchangeLogicNode) {
-  SExchangePhysiNode* pExchange = (SExchangePhysiNode*)makePhysiNode(pCxt, QUERY_NODE_PHYSICAL_PLAN_EXCHANGE);
-  CHECK_ALLOC(pExchange, NULL);
-  CHECK_CODE(addDataBlockDesc(pCxt, pExchangeLogicNode->node.pTargets, pExchange->node.pOutputDataBlockDesc), (SPhysiNode*)pExchange);
-  pExchange->srcGroupId = pExchangeLogicNode->srcGroupId;
-  return (SPhysiNode*)pExchange;
+  if (pCxt->pPlanCxt->streamQuery) {
+    SStreamScanPhysiNode* pScan = (SStreamScanPhysiNode*)makePhysiNode(pCxt, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN);
+    CHECK_ALLOC(pScan, NULL);
+    pScan->pScanCols = nodesCloneList(pExchangeLogicNode->node.pTargets);
+    CHECK_ALLOC(pScan->pScanCols, (SPhysiNode*)pScan);
+    CHECK_CODE(addDataBlockDesc(pCxt, pExchangeLogicNode->node.pTargets, pScan->node.pOutputDataBlockDesc), (SPhysiNode*)pScan);
+    return (SPhysiNode*)pScan;
+  } else {
+    SExchangePhysiNode* pExchange = (SExchangePhysiNode*)makePhysiNode(pCxt, QUERY_NODE_PHYSICAL_PLAN_EXCHANGE);
+    CHECK_ALLOC(pExchange, NULL);
+    CHECK_CODE(addDataBlockDesc(pCxt, pExchangeLogicNode->node.pTargets, pExchange->node.pOutputDataBlockDesc), (SPhysiNode*)pExchange);
+    pExchange->srcGroupId = pExchangeLogicNode->srcGroupId;
+    return (SPhysiNode*)pExchange;
+  }
 }
 
 static SPhysiNode* createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SWindowLogicNode* pWindowLogicNode) {
@@ -608,7 +624,9 @@ static SSubplan* createPhysiSubplan(SPhysiPlanContext* pCxt, SSubLogicPlan* pLog
     taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
   } else {
     pSubplan->pNode = createPhysiNode(pCxt, pSubplan, pLogicSubplan->pNode);
-    pSubplan->pDataSink = createDataDispatcher(pCxt, pSubplan->pNode);
+    if (!pCxt->pPlanCxt->streamQuery && !pCxt->pPlanCxt->topicQuery) {
+      pSubplan->pDataSink = createDataDispatcher(pCxt, pSubplan->pNode);
+    }
     pSubplan->msgType = TDMT_VND_QUERY;
   }
   return pSubplan;

@@ -146,6 +146,9 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
         return -1;
       }
 
+      // record current timezone of server side
+      tstrncpy(vCreateSmaReq.tSma.timezone, tsTimezone, TD_TIMEZONE_LEN);
+
       if (metaCreateTSma(pVnode->pMeta, &vCreateSmaReq) < 0) {
         // TODO: handle error
         tdDestroyTSma(&vCreateSmaReq.tSma);

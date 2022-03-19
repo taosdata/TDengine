@@ -30,29 +30,8 @@ const char *ckey = "ckey";
 class Server;
 int port = 7000;
 // server process
-
-static bool cliPersistHandle(void *parent, tmsg_t msgType) {
-  // client persist handle
-  return msgType == 2 || msgType == 4;
-}
-
-typedef struct CbArgs {
-  tmsg_t msgType;
-} CbArgs;
-
-static void *ConstructArgForSpecificMsgType(void *parent, tmsg_t msgType) {
-  if (msgType == 1 || msgType == 2) {
-    CbArgs *args = (CbArgs *)calloc(1, sizeof(CbArgs));
-    args->msgType = msgType;
-    return args;
-  }
-  return NULL;
-}
 // server except
-static bool handleExcept(void *parent, tmsg_t msgType) {
-  //
-  return msgType == TDMT_VND_QUERY || msgType == TDMT_VND_FETCH_RSP || msgType == TDMT_VND_RES_READY_RSP;
-}
+
 typedef void (*CB)(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet);
 
 static void processContinueSend(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet);
@@ -91,23 +70,6 @@ class Client {
     rpcClose(this->transCli);
     this->transCli = NULL;
   }
-  void SetPersistFP(bool (*pfp)(void *parent, tmsg_t msgType)) {
-    rpcClose(this->transCli);
-    rpcInit_.pfp = pfp;
-    this->transCli = rpcOpen(&rpcInit_);
-  }
-  void SetConstructFP(void *(*mfp)(void *parent, tmsg_t msgType)) {
-    rpcClose(this->transCli);
-    rpcInit_.mfp = mfp;
-    this->transCli = rpcOpen(&rpcInit_);
-  }
-  void SetPAndMFp(bool (*pfp)(void *parent, tmsg_t msgType), void *(*mfp)(void *parent, tmsg_t msgType)) {
-    rpcClose(this->transCli);
-
-    rpcInit_.pfp = pfp;
-    rpcInit_.mfp = mfp;
-    this->transCli = rpcOpen(&rpcInit_);
-  }
 
   void SendAndRecv(SRpcMsg *req, SRpcMsg *resp) {
     SEpSet epSet = {0};
@@ -126,7 +88,6 @@ class Client {
     SendAndRecv(req, resp);
   }
 
-  void SendWithHandle(SRpcMsg *req, SRpcMsg *resp) {}
   void SemWait() { tsem_wait(&this->sem); }
   void SemPost() { tsem_post(&this->sem); }
   void Reset() {}
@@ -149,7 +110,6 @@ class Server {
     rpcInit_.label = (char *)label;
     rpcInit_.numOfThreads = 5;
     rpcInit_.cfp = processReq;
-    rpcInit_.efp = NULL;
     rpcInit_.user = (char *)user;
     rpcInit_.secret = (char *)secret;
     rpcInit_.ckey = (char *)ckey;
@@ -160,17 +120,17 @@ class Server {
     this->transSrv = rpcOpen(&this->rpcInit_);
     taosMsleep(1000);
   }
+  void SetSrvContinueSend(CB cb) {
+    this->Stop();
+    rpcInit_.cfp = cb;
+    this->Start();
+  }
   void Stop() {
     if (this->transSrv == NULL) return;
     rpcClose(this->transSrv);
     this->transSrv = NULL;
   }
-  void SetExceptFp(bool (*efp)(void *parent, tmsg_t msgType)) {
-    this->Stop();
-    rpcInit_.efp = efp;
-    this->Start();
-  }
-  void SetSrvContinueSend(void (*cfp)(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet)) {
+  void SetSrvSend(void (*cfp)(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet)) {
     this->Stop();
     rpcInit_.cfp = cfp;
     this->Start();
@@ -198,9 +158,6 @@ static void processReq(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
 }
 
 static void processContinueSend(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  for (int i = 0; i < 9; i++) {
-    rpcRefHandle(pMsg->handle, TAOS_CONN_SERVER);
-  }
   for (int i = 0; i < 10; i++) {
     SRpcMsg rpcMsg = {0};
     rpcMsg.pCont = rpcMallocCont(100);
@@ -262,23 +219,7 @@ class TransObj {
     //
     srv->Stop();
   }
-  void SetCliPersistFp(bool (*pfp)(void *parent, tmsg_t msgType)) {
-    // do nothing
-    cli->SetPersistFP(pfp);
-  }
-  void SetCliMFp(void *(*mfp)(void *parent, tmsg_t msgType)) {
-    // do nothing
-    cli->SetConstructFP(mfp);
-  }
-  void SetCliMAndPFp(bool (*pfp)(void *parent, tmsg_t msgType), void *(*mfp)(void *parent, tmsg_t msgType)) {
-    // do nothing
-    cli->SetPAndMFp(pfp, mfp);
-  }
   // call when link broken, and notify query or fetch stop
-  void SetSrvExceptFp(bool (*efp)(void *parent, tmsg_t msgType)) {
-    ////////
-    srv->SetExceptFp(efp);
-  }
   void SetSrvContinueSend(void (*cfp)(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet)) {
     ///////
     srv->SetSrvContinueSend(cfp);
@@ -315,7 +256,7 @@ class TransEnv : public ::testing::Test {
 };
 
 TEST_F(TransEnv, 01sendAndRec) {
-  for (int i = 0; i < 1; i++) {
+  for (int i = 0; i < 10; i++) {
     SRpcMsg req = {0}, resp = {0};
     req.msgType = 0;
     req.pCont = rpcMallocCont(10);
@@ -358,51 +299,53 @@ TEST_F(TransEnv, clientUserDefined) {
 }
 
 TEST_F(TransEnv, cliPersistHandle) {
-  tr->SetCliPersistFp(cliPersistHandle);
   SRpcMsg resp = {0};
+  void *  handle = NULL;
   for (int i = 0; i < 10; i++) {
-    SRpcMsg req = {.handle = resp.handle, .noResp = 0};
+    SRpcMsg req = {.handle = resp.handle, .persistHandle = 1};
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);
     req.contLen = 10;
     tr->cliSendAndRecv(&req, &resp);
-    if (i == 5) {
-      std::cout << "stop server" << std::endl;
-      tr->StopSrv();
-    }
-    if (i >= 6) {
-      EXPECT_TRUE(resp.code != 0);
-    }
-  }
-  //////////////////
-}
-
-TEST_F(TransEnv, cliReleaseHandle) {
-  tr->SetCliPersistFp(cliPersistHandle);
-
-  SRpcMsg resp = {0};
-  for (int i = 0; i < 10; i++) {
-    SRpcMsg req = {.handle = resp.handle};
-    req.msgType = 1;
-    req.pCont = rpcMallocCont(10);
-    req.contLen = 10;
-    tr->cliSendAndRecvNoHandle(&req, &resp);
     // if (i == 5) {
     //  std::cout << "stop server" << std::endl;
     //  tr->StopSrv();
     //}
     // if (i >= 6) {
+    //  EXPECT_TRUE(resp.code != 0);
+    //}
+    handle = resp.handle;
+  }
+  rpcReleaseHandle(handle, TAOS_CONN_CLIENT);
+  for (int i = 0; i < 10; i++) {
+    SRpcMsg req = {0};
+    req.msgType = 1;
+    req.pCont = rpcMallocCont(10);
+    req.contLen = 10;
+    tr->cliSendAndRecv(&req, &resp);
+  }
+
+  taosMsleep(1000);
+  //////////////////
+}
+
+TEST_F(TransEnv, cliReleaseHandle) {
+  SRpcMsg resp = {0};
+  for (int i = 0; i < 10; i++) {
+    SRpcMsg req = {.handle = resp.handle, .persistHandle = 1};
+    req.msgType = 1;
+    req.pCont = rpcMallocCont(10);
+    req.contLen = 10;
+    tr->cliSendAndRecvNoHandle(&req, &resp);
     EXPECT_TRUE(resp.code == 0);
     //}
   }
   //////////////////
 }
 TEST_F(TransEnv, cliReleaseHandleExcept) {
-  tr->SetCliPersistFp(cliPersistHandle);
-
   SRpcMsg resp = {0};
   for (int i = 0; i < 10; i++) {
-    SRpcMsg req = {.handle = resp.handle};
+    SRpcMsg req = {.handle = resp.handle, .persistHandle = 1};
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);
     req.contLen = 10;
@@ -426,12 +369,12 @@ TEST_F(TransEnv, srvContinueSend) {
     req.contLen = 10;
     tr->cliSendAndRecv(&req, &resp);
   }
-  taosMsleep(2000);
+  taosMsleep(1000);
 }
 
 TEST_F(TransEnv, srvPersistHandleExcept) {
   tr->SetSrvContinueSend(processContinueSend);
-  tr->SetCliPersistFp(cliPersistHandle);
+  // tr->SetCliPersistFp(cliPersistHandle);
   SRpcMsg resp = {0};
   for (int i = 0; i < 5; i++) {
     SRpcMsg req = {.handle = resp.handle};
@@ -450,7 +393,6 @@ TEST_F(TransEnv, srvPersistHandleExcept) {
 }
 TEST_F(TransEnv, cliPersistHandleExcept) {
   tr->SetSrvContinueSend(processContinueSend);
-  tr->SetCliPersistFp(cliPersistHandle);
   SRpcMsg resp = {0};
   for (int i = 0; i < 5; i++) {
     SRpcMsg req = {.handle = resp.handle};
@@ -471,11 +413,7 @@ TEST_F(TransEnv, cliPersistHandleExcept) {
 TEST_F(TransEnv, multiCliPersistHandleExcept) {
   // conn broken
 }
-TEST_F(TransEnv, queryExcept) {
-  tr->SetSrvExceptFp(handleExcept);
-
-  // query and conn is broken
-}
+TEST_F(TransEnv, queryExcept) {}
 TEST_F(TransEnv, noResp) {
   SRpcMsg resp = {0};
   for (int i = 0; i < 5; i++) {

@@ -125,6 +125,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateDnodeStmt));
     case QUERY_NODE_DROP_DNODE_STMT:
       return makeNode(type, sizeof(SDropDnodeStmt));
+    case QUERY_NODE_ALTER_DNODE_STMT:
+      return makeNode(type, sizeof(SAlterDnodeStmt));
     case QUERY_NODE_SHOW_DNODES_STMT:
       return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_SHOW_VGROUPS_STMT:
@@ -168,7 +170,7 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
       return makeNode(type, sizeof(STableSeqScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
-      return makeNode(type, sizeof(SNode));
+      return makeNode(type, sizeof(SStreamScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return makeNode(type, sizeof(SProjectPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_JOIN:
@@ -355,6 +357,17 @@ int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc) {
   tfree(pSrc);
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t nodesListStrictAppendList(SNodeList* pTarget, SNodeList* pSrc) {
+  if (NULL == pSrc) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  int32_t code = nodesListAppendList(pTarget, pSrc);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyList(pSrc);
+  }
+  return code;
 }
 
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell) {
@@ -571,7 +584,7 @@ typedef struct SCollectFuncsCxt {
 static EDealRes collectFuncs(SNode* pNode, void* pContext) {
   SCollectFuncsCxt* pCxt = (SCollectFuncsCxt*)pContext;
   if (QUERY_NODE_FUNCTION == nodeType(pNode) && pCxt->classifier(((SFunctionNode*)pNode)->funcId)) {
-    pCxt->errCode = nodesListAppend(pCxt->pFuncs, pNode);
+    pCxt->errCode = nodesListStrictAppend(pCxt->pFuncs, nodesCloneNode(pNode));
     return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
   }
   return DEAL_RES_CONTINUE;
