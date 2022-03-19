@@ -369,7 +369,7 @@ TEST_F(TransEnv, srvContinueSend) {
     req.contLen = 10;
     tr->cliSendAndRecv(&req, &resp);
   }
-  taosMsleep(2000);
+  taosMsleep(1000);
 }
 
 TEST_F(TransEnv, srvPersistHandleExcept) {
