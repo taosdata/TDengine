@@ -29,15 +29,17 @@ struct SFreeListNode {
 
 typedef TD_SLIST(SFreeListNode) SFreeList;
 
-#define TFL_MALLOC(SIZE, LIST)                                 \
-  ({                                                           \
+#define TFL_MALLOC(PTR, TYPE, SIZE, LIST)                      \
+  do {                                                         \
     void *ptr = malloc((SIZE) + sizeof(struct SFreeListNode)); \
     if (ptr) {                                                 \
       TD_SLIST_PUSH((LIST), (struct SFreeListNode *)ptr);      \
       ptr = ((struct SFreeListNode *)ptr)->payload;            \
+      (PTR) = (TYPE)(ptr);                                     \
+    }else{                                                     \
+      (PTR) = NULL;                                            \
     }                                                          \
-    ptr;                                                       \
-  })
+  }while(0);
 
 #define tFreeListInit(pFL) TD_SLIST_INIT(pFL)
 

@@ -20,13 +20,15 @@
 extern "C" {
 #endif
 
-typedef struct __attribute__((__packed__)) {
+#pragma pack (push,1) 
+typedef struct {
   char    hdrInfo[16];  // info string
   pgsz_t  szPage;       // page size of current file
   int32_t cno;          // commit number counter
   pgno_t  freePgno;     // freelist page number
   uint8_t resv[100];    // reserved space
 } SPgFileHdr;
+#pragma pack(pop)
 
 #define TDB_PG_FILE_HDR_SIZE 128
 

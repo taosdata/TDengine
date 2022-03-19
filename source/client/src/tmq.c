@@ -484,36 +484,22 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
   tscDebug("start to create topic, %s", topicName);
 
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
-  CHECK_CODE_GOTO(parseSql(pRequest, &pQueryNode), _return);
-
-  pQueryNode->streamQuery = true;
+  CHECK_CODE_GOTO(parseSql(pRequest, true, &pQueryNode), _return);
 
   // todo check for invalid sql statement and return with error code
 
-  SSchema* schema = NULL;
-  int32_t  numOfCols = 0;
-  CHECK_CODE_GOTO(getPlan(pRequest, pQueryNode, &pRequest->body.pDag, NULL), _return);
-
-  pStr = qQueryPlanToString(pRequest->body.pDag);
-  if (pStr == NULL) {
-    goto _return;
-  }
+  CHECK_CODE_GOTO(nodesNodeToString(pQueryNode->pRoot, false, &pStr, NULL), _return);
 
   /*printf("%s\n", pStr);*/
 
-  // The topic should be related to a database that the queried table is belonged to.
-  SName name = {0};
-  char  dbName[TSDB_DB_FNAME_LEN] = {0};
-  // tNameGetFullDbName(&((SQueryStmtInfo*)pQueryNode)->pTableMetaInfo[0]->name, dbName);
-
-  tNameFromString(&name, dbName, T_NAME_ACCT | T_NAME_DB);
-  tNameFromString(&name, topicName, T_NAME_TABLE);
+  SName name = { .acctId = pTscObj->acctId, .type = TSDB_TABLE_NAME_T };
+  strcpy(name.dbname, pRequest->pDb);
+  strcpy(name.tname, topicName);
 
   SCMCreateTopicReq req = {
       .igExists = 1,
-      .physicalPlan = (char*)pStr,
+      .ast = (char*)pStr,
       .sql = (char*)sql,
-      .logicalPlan = (char*)"no logic plan",
   };
   tNameExtractFullName(&name, req.name);
 
@@ -700,6 +686,10 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   }
   memcpy(pRsp, pMsg->pData, sizeof(SMqRspHead));
   tDecodeSMqPollRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pRsp->consumeRsp);
+  pRsp->curBlock = 0;
+  pRsp->curRow = 0;
+  // TODO: alloc mem
+  /*pRsp->*/
   /*printf("rsp commit off:%ld rsp off:%ld has data:%d\n", pRsp->committedOffset, pRsp->rspOffset, pRsp->numOfTopics);*/
   if (pRsp->consumeRsp.numOfTopics == 0) {
     /*printf("no data\n");*/
@@ -758,9 +748,9 @@ int32_t tmqAskEpCb(void* param, const SDataBuf* pMsg, int32_t code) {
     goto END;
   }
 
-  // tmq's epoch is monotomically increase,
+  // tmq's epoch is monotonically increase,
   // so it's safe to discard any old epoch msg.
-  // epoch will only increase when received newer epoch ep msg
+  // Epoch will only increase when received newer epoch ep msg
   SMqRspHead* head = pMsg->pData;
   int32_t     epoch = atomic_load_32(&tmq->epoch);
   if (head->epoch <= epoch) {
@@ -1281,6 +1271,34 @@ const char* tmq_err2str(tmq_resp_err_t err) {
   }
   return "fail";
 }
+
+TAOS_ROW tmq_get_row(tmq_message_t* message) {
+  SMqPollRsp* rsp = &message->consumeRsp;
+  while (1) {
+    if (message->curBlock < taosArrayGetSize(rsp->pBlockData)) {
+      SSDataBlock* pBlock = taosArrayGet(rsp->pBlockData, message->curBlock);
+      if (message->curRow < pBlock->info.rows) {
+        for (int i = 0; i < pBlock->info.numOfCols; i++) {
+          SColumnInfoData* pData = taosArrayGet(pBlock->pDataBlock, i);
+          if (colDataIsNull_s(pData, message->curRow))
+            message->uData[i] = NULL;
+          else {
+            message->uData[i] = colDataGetData(pData, message->curRow);
+          }
+        }
+        message->curRow++;
+        return message->uData;
+      } else {
+        message->curBlock++;
+        message->curRow = 0;
+        continue;
+      }
+    }
+    return NULL;
+  }
+}
+
+char* tmq_get_topic_name(tmq_message_t* message) { return "not implemented yet"; }
 
 #if 0
 tmq_t* tmqCreateConsumerImpl(TAOS* conn, tmq_conf_t* conf) {

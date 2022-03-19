@@ -18,4 +18,7 @@
 
 # ---- insert
 ./test.sh -f tsim/insert/basic0.sim
+
+# ---- query
+./test.sh -f tsim/query/interval.sim
 #======================b1-end===============

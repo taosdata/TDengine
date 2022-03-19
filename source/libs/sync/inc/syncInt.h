@@ -236,7 +236,6 @@ void syncNodeCandidate2Follower(SSyncNode* pSyncNode);
 // raft vote --------------
 void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId);
 void syncNodeVoteForSelf(SSyncNode* pSyncNode);
-void syncNodeMaybeAdvanceCommitIndex(SSyncNode* pSyncNode);
 
 // for debug --------------
 void syncNodePrint(SSyncNode* pObj);

@@ -21,12 +21,14 @@ typedef struct SSmaEnv  SSmaEnv;
 
 struct SSmaEnv {
   pthread_rwlock_t lock;
-  TDBEnv           dbEnv;
-  char *           path;
+  SDiskID          did;
+  TDBEnv           dbEnv;  // TODO: If it's better to put it in smaIndex level?
+  char *           path;   // relative path
   SSmaStat *       pStat;
 };
 
 #define SMA_ENV_LOCK(env)       ((env)->lock)
+#define SMA_ENV_DID(env)        ((env)->did)
 #define SMA_ENV_ENV(env)        ((env)->dbEnv)
 #define SMA_ENV_PATH(env)       ((env)->path)
 #define SMA_ENV_STAT(env)       ((env)->pStat)

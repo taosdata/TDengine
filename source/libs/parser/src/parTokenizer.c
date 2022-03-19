@@ -28,6 +28,7 @@ typedef struct SKeyword {
 
 // keywords in sql string
 static SKeyword keywordTable[] = {
+    {"ACCOUNT",       TK_ACCOUNT},
     {"ALL",           TK_ALL},
     {"ALTER",         TK_ALTER},
     {"AND",           TK_AND},
@@ -121,6 +122,7 @@ static SKeyword keywordTable[] = {
     {"TAGS",          TK_TAGS},
     {"TIMESTAMP",     TK_TIMESTAMP},
     {"TINYINT",       TK_TINYINT},
+    {"TOPIC",         TK_TOPIC},
     {"TTL",           TK_TTL},
     {"UNION",         TK_UNION},
     {"UNSIGNED",      TK_UNSIGNED},
@@ -167,7 +169,6 @@ static SKeyword keywordTable[] = {
     // {"SCORES",       TK_SCORES},
     // {"GRANTS",       TK_GRANTS},
     // {"DOT",          TK_DOT},
-    // {"ACCOUNT",      TK_ACCOUNT},
     // {"DESCRIBE",     TK_DESCRIBE},
     // {"SYNCDB",       TK_SYNCDB},
     // {"LOCAL",        TK_LOCAL},
@@ -230,7 +231,6 @@ static SKeyword keywordTable[] = {
     // {"TBNAME",       TK_TBNAME},
     // {"VNODES",       TK_VNODES},
 //    {"PARTITIONS",   TK_PARTITIONS},
-    // {"TOPIC",        TK_TOPIC},
     // {"TOPICS",       TK_TOPICS},
     // {"COMPACT",      TK_COMPACT},
     // {"MODIFY",       TK_MODIFY},

@@ -26,7 +26,6 @@ extern "C" {
 
 typedef struct SLogicNode {
   ENodeType type;
-  int32_t id;
   SNodeList* pTargets; // SColumnNode
   SNode* pConditions;
   SNodeList* pChildren;
@@ -69,7 +68,7 @@ typedef struct SProjectLogicNode {
 } SProjectLogicNode;
 
 typedef struct SVnodeModifLogicNode {
-  SLogicNode node;;
+  SLogicNode node;
   int32_t msgType;
   SArray* pDataBlocks;
   SVgDataBlocks* pVgDataBlocks;
@@ -124,7 +123,7 @@ typedef struct SSubLogicPlan {
 } SSubLogicPlan;
 
 typedef struct SQueryLogicPlan {
-  ENodeType type;;
+  ENodeType type;
   int32_t totalLevel;
   SNodeList* pTopSubplans;
 } SQueryLogicPlan;
@@ -167,6 +166,7 @@ typedef struct SScanPhysiNode {
 
 typedef SScanPhysiNode SSystemTableScanPhysiNode;
 typedef SScanPhysiNode STagScanPhysiNode;
+typedef SScanPhysiNode SStreamScanPhysiNode;
 
 typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;
@@ -252,7 +252,7 @@ typedef struct SSubplan {
 } SSubplan;
 
 typedef struct SQueryPlan {
-  ENodeType type;;
+  ENodeType type;
   uint64_t queryId;
   int32_t numOfSubplans;
   SNodeList* pSubplans; // Element is SNodeListNode. The execution level of subplan, starting from 0.

@@ -18,6 +18,7 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
+#include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndTrans.h"
@@ -228,6 +229,12 @@ static int32_t mndCreateStream(SMnode *pMnode, SMnodeMsg *pReq, SCMCreateStreamR
     return -1;
   }
   mDebug("trans:%d, used to create stream:%s", pTrans->id, pCreate->name);
+
+  if (mndScheduleStream(pMnode, pTrans, &streamObj) < 0) {
+    mError("stream:%ld, schedule stream since %s", streamObj.uid, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
 
   SSdbRaw *pRedoRaw = mndStreamActionEncode(&streamObj);
   if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
