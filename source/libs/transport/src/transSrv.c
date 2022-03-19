@@ -93,6 +93,15 @@ typedef struct SServerObj {
 
 static const char* notify = "a";
 
+#define CONN_SHOULD_RELEASE(conn, head)                            \
+  do {                                                             \
+    if ((head)->release == 1 && (head->msgLen) == sizeof(*head)) { \
+      conn->status = ConnRelease;                                  \
+      transClearBuffer(&conn->readBuf);                            \
+      transFreeMsg(transContFromHead((char*)head));                \
+      goto _RETURE;                                                \
+    }                                                              \
+  } while (0)
 // refactor later
 static int transAddAuthPart(SSrvConn* pConn, char* msg, int msgLen);
 
@@ -233,6 +242,7 @@ static void uvHandleReq(SSrvConn* pConn) {
       pHead->msgLen -= sizeof(STransUserMsg);
     }
   }
+  CONN_SHOULD_RELEASE(pConn, pHead);
 
   STransMsg transMsg;
   transMsg.contLen = transContLenFromMsg(pHead->msgLen);
@@ -257,8 +267,8 @@ static void uvHandleReq(SSrvConn* pConn) {
            ntohs(pConn->locaddr.sin_port), transMsg.contLen);
   } else {
     tDebug("server conn %p %s received from %s:%d, local info: %s:%d, msg size: %d, resp:%d ", pConn,
-           TMSG_INFO(transMsg.msgType), inet_ntoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
-           inet_ntoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port), transMsg.contLen, pHead->noResp);
+           TMSG_INFO(transMsg.msgType), taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
+           taosInetNtoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port), transMsg.contLen, pHead->noResp);
     // no ref here
   }
 
@@ -270,6 +280,8 @@ static void uvHandleReq(SSrvConn* pConn) {
   (*pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
   // uv_timer_start(&pConn->pTimer, uvHandleActivityTimeout, pRpc->idleTime * 10000, 0);
   // auth
+_RETURE:
+  return;
 }
 
 void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
@@ -350,7 +362,7 @@ void uvOnSendCb(uv_write_t* req, int status) {
     }
   } else {
     tError("server conn %p failed to write data, %s", conn, uv_err_name(status));
-    conn->broken = false;
+    conn->broken = true;
     transUnrefSrvHandle(conn);
   }
 }
@@ -407,6 +419,7 @@ static void uvStartSendResp(SSrvMsg* smsg) {
   SSrvConn* pConn = smsg->pConn;
 
   if (pConn->broken == true) {
+    // persist by
     transUnrefSrvHandle(pConn);
     return;
   }
@@ -415,8 +428,8 @@ static void uvStartSendResp(SSrvMsg* smsg) {
   }
 
   if (taosArrayGetSize(pConn->srvMsgs) > 0) {
-    tDebug("server conn %p send data to client %s:%d, local info: %s:%d", pConn, inet_ntoa(pConn->addr.sin_addr),
-           ntohs(pConn->addr.sin_port), inet_ntoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port));
+    tDebug("server conn %p send data to client %s:%d, local info: %s:%d", pConn, taosInetNtoa(pConn->addr.sin_addr),
+           ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port));
     taosArrayPush(pConn->srvMsgs, &smsg);
     return;
   }

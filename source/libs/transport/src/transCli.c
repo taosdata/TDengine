@@ -173,6 +173,7 @@ static void         destroyThrdObj(SCliThrdObj* pThrd);
 
 #define REQUEST_NO_RESP(msg) ((msg)->noResp == 1)
 #define REQUEST_PERSIS_HANDLE(msg) ((msg)->persistHandle == 1)
+#define REQUEST_RELEASE_HANDLE(cmsg) ((cmsg)->type == Release)
 
 static void* cliWorkThread(void* arg);
 
@@ -509,7 +510,10 @@ void cliSend(SCliConn* pConn) {
   STrans*      pTransInst = pThrd->pTransInst;
 
   STransMsg* pMsg = (STransMsg*)(&pCliMsg->msg);
-
+  if (pMsg->pCont == 0) {
+    pMsg->pCont = (void*)rpcMallocCont(0);
+    pMsg->contLen = 0;
+  }
   STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
   int            msgLen = transMsgLenFromCont(pMsg->contLen);
 
@@ -537,6 +541,7 @@ void cliSend(SCliConn* pConn) {
   pHead->persist = REQUEST_PERSIS_HANDLE(pMsg) ? 1 : 0;
   pHead->msgType = pMsg->msgType;
   pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
+  pHead->release = REQUEST_RELEASE_HANDLE(pCliMsg) ? 1 : 0;
 
   uv_buf_t wb = uv_buf_init((char*)pHead, msgLen);
   tDebug("%s cli conn %p %s is send to %s:%d, local info %s:%d", CONN_GET_INST_LABEL(pConn), pConn,
@@ -546,6 +551,7 @@ void cliSend(SCliConn* pConn) {
   if (pHead->persist == 1) {
     CONN_SET_PERSIST_BY_APP(pConn);
   }
+
   pConn->writeReq.data = pConn;
   uv_write(&pConn->writeReq, (uv_stream_t*)pConn->stream, &wb, 1, cliSendCb);
 
@@ -586,22 +592,13 @@ static void cliHandleQuit(SCliMsg* pMsg, SCliThrdObj* pThrd) {
 }
 static void cliHandleRelease(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   SCliConn* conn = pMsg->msg.handle;
-  tDebug("%s cli conn %p release to inst", CONN_GET_INST_LABEL(conn), conn);
+  tDebug("%s cli conn %p start to release to inst", CONN_GET_INST_LABEL(conn), conn);
 
-  while (taosArrayGetSize(conn->cliMsgs) > 0) {
-    SCliMsg* pMsg = taosArrayGetP(conn->cliMsgs, 0);
-    destroyCmsg(pMsg);
-    taosArrayRemove(conn->cliMsgs, 0);
+  taosArrayPush(conn->cliMsgs, &pMsg);
+  if (taosArrayGetSize(conn->cliMsgs) >= 2) {
+    return;  // send one by one
   }
-
-  transDestroyBuffer(&conn->readBuf);
-  conn->status = ConnRelease;
-  int ref = T_REF_VAL_GET(conn);
-  if (ref == 2) {
-    transUnrefCliHandle(conn);
-  } else if (ref == 1) {
-    addConnToPool(pThrd->pool, conn);
-  }
+  cliSend(conn);
 }
 
 SCliConn* cliGetConn(SCliMsg* pMsg, SCliThrdObj* pThrd) {
