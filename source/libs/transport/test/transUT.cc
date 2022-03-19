@@ -30,8 +30,24 @@ const char *ckey = "ckey";
 class Server;
 int port = 7000;
 // server process
-// server except
 
+typedef struct CbArgs {
+  tmsg_t msgType;
+} CbArgs;
+
+static void *ConstructArgForSpecificMsgType(void *parent, tmsg_t msgType) {
+  if (msgType == 1 || msgType == 2) {
+    CbArgs *args = (CbArgs *)calloc(1, sizeof(CbArgs));
+    args->msgType = msgType;
+    return args;
+  }
+  return NULL;
+}
+// server except
+static bool handleExcept(void *parent, tmsg_t msgType) {
+  //
+  return msgType == TDMT_VND_QUERY || msgType == TDMT_VND_FETCH_RSP || msgType == TDMT_VND_RES_READY_RSP;
+}
 typedef void (*CB)(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet);
 
 static void processContinueSend(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet);
@@ -70,6 +86,10 @@ class Client {
     rpcClose(this->transCli);
     this->transCli = NULL;
   }
+  void SetConstructFP(void *(*mfp)(void *parent, tmsg_t msgType)) {
+    rpcClose(this->transCli);
+    this->transCli = rpcOpen(&rpcInit_);
+  }
 
   void SendAndRecv(SRpcMsg *req, SRpcMsg *resp) {
     SEpSet epSet = {0};
@@ -88,6 +108,7 @@ class Client {
     SendAndRecv(req, resp);
   }
 
+  void SendWithHandle(SRpcMsg *req, SRpcMsg *resp) {}
   void SemWait() { tsem_wait(&this->sem); }
   void SemPost() { tsem_post(&this->sem); }
   void Reset() {}
@@ -120,17 +141,12 @@ class Server {
     this->transSrv = rpcOpen(&this->rpcInit_);
     taosMsleep(1000);
   }
-  void SetSrvContinueSend(CB cb) {
-    this->Stop();
-    rpcInit_.cfp = cb;
-    this->Start();
-  }
   void Stop() {
     if (this->transSrv == NULL) return;
     rpcClose(this->transSrv);
     this->transSrv = NULL;
   }
-  void SetSrvSend(void (*cfp)(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet)) {
+  void SetSrvContinueSend(void (*cfp)(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet)) {
     this->Stop();
     rpcInit_.cfp = cfp;
     this->Start();
@@ -158,6 +174,9 @@ static void processReq(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
 }
 
 static void processContinueSend(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  for (int i = 0; i < 9; i++) {
+    rpcRefHandle(pMsg->handle, TAOS_CONN_SERVER);
+  }
   for (int i = 0; i < 10; i++) {
     SRpcMsg rpcMsg = {0};
     rpcMsg.pCont = rpcMallocCont(100);
@@ -219,6 +238,10 @@ class TransObj {
     //
     srv->Stop();
   }
+  void SetCliMFp(void *(*mfp)(void *parent, tmsg_t msgType)) {
+    // do nothing
+    cli->SetConstructFP(mfp);
+  }
   // call when link broken, and notify query or fetch stop
   void SetSrvContinueSend(void (*cfp)(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet)) {
     ///////
@@ -256,7 +279,7 @@ class TransEnv : public ::testing::Test {
 };
 
 TEST_F(TransEnv, 01sendAndRec) {
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 1; i++) {
     SRpcMsg req = {0}, resp = {0};
     req.msgType = 0;
     req.pCont = rpcMallocCont(10);
@@ -299,33 +322,22 @@ TEST_F(TransEnv, clientUserDefined) {
 }
 
 TEST_F(TransEnv, cliPersistHandle) {
+  // tr->SetCliPersistFp(cliPersistHandle);
   SRpcMsg resp = {0};
-  void *  handle = NULL;
   for (int i = 0; i < 10; i++) {
     SRpcMsg req = {.handle = resp.handle, .persistHandle = 1};
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);
     req.contLen = 10;
     tr->cliSendAndRecv(&req, &resp);
-    // if (i == 5) {
-    //  std::cout << "stop server" << std::endl;
-    //  tr->StopSrv();
-    //}
-    // if (i >= 6) {
-    //  EXPECT_TRUE(resp.code != 0);
-    //}
-    handle = resp.handle;
+    if (i == 5) {
+      std::cout << "stop server" << std::endl;
+      tr->StopSrv();
+    }
+    if (i >= 6) {
+      EXPECT_TRUE(resp.code != 0);
+    }
   }
-  rpcReleaseHandle(handle, TAOS_CONN_CLIENT);
-  for (int i = 0; i < 10; i++) {
-    SRpcMsg req = {0};
-    req.msgType = 1;
-    req.pCont = rpcMallocCont(10);
-    req.contLen = 10;
-    tr->cliSendAndRecv(&req, &resp);
-  }
-
-  taosMsleep(1000);
   //////////////////
 }
 
@@ -413,7 +425,11 @@ TEST_F(TransEnv, cliPersistHandleExcept) {
 TEST_F(TransEnv, multiCliPersistHandleExcept) {
   // conn broken
 }
-TEST_F(TransEnv, queryExcept) {}
+TEST_F(TransEnv, queryExcept) {
+  // tr->SetSrvExceptFp(handleExcept);
+
+  // query and conn is broken
+}
 TEST_F(TransEnv, noResp) {
   SRpcMsg resp = {0};
   for (int i = 0; i < 5; i++) {
