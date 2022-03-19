@@ -26,7 +26,7 @@ typedef struct SParseContext {
   uint64_t         requestId;
   int32_t          acctId;
   const char      *db;
-  bool             streamQuery;
+  bool             topicQuery;
   void            *pTransporter;
   SEpSet           mgmtEpSet;
   const char      *pSql;           // sql string
