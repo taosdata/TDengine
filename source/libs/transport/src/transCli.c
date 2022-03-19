@@ -389,6 +389,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   conn->status = ConnNormal;
   // list already create before
   assert(plist != NULL);
+  taosArrayClear(conn->cliMsgs);
   QUEUE_PUSH(&plist->conn, &conn->conn);
   assert(!QUEUE_IS_EMPTY(&plist->conn));
 }
