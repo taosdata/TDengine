@@ -20,7 +20,6 @@
 extern "C" {
 #endif
 
-#include <pthread.h>
 #include <semaphore.h>
 
 #if defined (_TD_DARWIN_64)
@@ -38,25 +37,25 @@ extern "C" {
 #endif
 
 #if defined (_TD_DARWIN_64)
-//  #define pthread_rwlock_t pthread_mutex_t
-//  #define pthread_rwlock_init(lock, NULL) pthread_mutex_init(lock, NULL)
-//  #define pthread_rwlock_destroy(lock) pthread_mutex_destroy(lock)
-// #define pthread_rwlock_wrlock(lock) pthread_mutex_lock(lock)
-//  #define pthread_rwlock_rdlock(lock) pthread_mutex_lock(lock)
-//  #define pthread_rwlock_unlock(lock) pthread_mutex_unlock(lock)
+//  #define TdThreadRwlock TdThreadMutex
+//  #define taosThreadRwlockInit(lock, NULL) taosThreadMutexInit(lock, NULL)
+//  #define taosThreadRwlockDestroy(lock) taosThreadMutexDestroy(lock)
+// #define taosThreadRwlockWrlock(lock) taosThreadMutexLock(lock)
+//  #define taosThreadRwlockRdlock(lock) taosThreadMutexLock(lock)
+//  #define taosThreadRwlockUnlock(lock) taosThreadMutexUnlock(lock)
 
-  #define pthread_spinlock_t pthread_mutex_t
-  #define pthread_spin_init(lock, NULL) pthread_mutex_init(lock, NULL)
-  #define pthread_spin_destroy(lock) pthread_mutex_destroy(lock)
-  #define pthread_spin_lock(lock) pthread_mutex_lock(lock)
-  #define pthread_spin_unlock(lock) pthread_mutex_unlock(lock)
+  #define TdThreadSpinlock TdThreadMutex
+  #define taosThreadSpinInit(lock, NULL) taosThreadMutexInit(lock, NULL)
+  #define taosThreadSpinDestroy(lock) taosThreadMutexDestroy(lock)
+  #define taosThreadSpinLock(lock) taosThreadMutexLock(lock)
+  #define taosThreadSpinUnlock(lock) taosThreadMutexUnlock(lock)
 #endif
 
-bool    taosCheckPthreadValid(pthread_t thread);
+bool    taosCheckPthreadValid(TdThread thread);
 int64_t taosGetSelfPthreadId();
-int64_t taosGetPthreadId(pthread_t thread);
-void    taosResetPthread(pthread_t* thread);
-bool    taosComparePthread(pthread_t first, pthread_t second);
+int64_t taosGetPthreadId(TdThread thread);
+void    taosResetPthread(TdThread* thread);
+bool    taosComparePthread(TdThread first, TdThread second);
 int32_t taosGetPId();
 int32_t taosGetAppName(char* name, int32_t* len);
 

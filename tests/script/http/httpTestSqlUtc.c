@@ -5,12 +5,11 @@
 #include <unistd.h>
 #include <netinet/in.h>
 #include <stdlib.h>
-#include <pthread.h>
  
 #define MAXLINE 1024
 
 typedef struct {
-  pthread_t pid;
+  TdThread pid;
   int threadId;
   int rows;
   int tables;
@@ -107,16 +106,16 @@ void multiThread() {
     ThreadObj *threads = calloc((size_t)numOfThreads, sizeof(ThreadObj));
     for (int i = 0; i < numOfThreads; i++) {
         ThreadObj *pthread = threads + i;
-        pthread_attr_t thattr;
+        TdThreadAttr thattr;
         pthread->threadId = i + 1;
         pthread->rows = numOfRows;
         pthread->tables = numOfTables;
-        pthread_attr_init(&thattr);
-        pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
-        pthread_create(&pthread->pid, &thattr, (void *(*)(void *))execute, pthread);
+        taosThreadAttrInit(&thattr);
+        taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
+        taosThreadCreate(&pthread->pid, &thattr, (void *(*)(void *))execute, pthread);
     }
     for (int i = 0; i < numOfThreads; i++) {
-        pthread_join(threads[i].pid, NULL);
+        taosThreadJoin(threads[i].pid, NULL);
     }
     free(threads);
 }
