@@ -13,36 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_PAGE_CACHE_H_
-#define _TD_PAGE_CACHE_H_
+#ifndef _TD_TDB_DB_H_
+#define _TD_TDB_DB_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct SPgCache SPgCache;
-typedef struct SPage    SPage;
+typedef struct STDb STDb;
 
-// SPgCache
-int pgCacheOpen(SPgCache **ppPgCache, TENV *pEnv);
-int pgCacheClose(SPgCache *pPgCache);
-
-SPage *pgCacheFetch(SPgCache *pPgCache, pgid_t pgid);
-int    pgCacheRelease(SPage *pPage);
-
-// SPage
-typedef TD_DLIST_NODE(SPage) SPgListNode;
-struct SPage {
-  pgid_t      pgid;      // page id
-  frame_id_t  frameid;   // frame id
-  uint8_t *   pData;     // real data
-  SPgListNode freeNode;  // for SPgCache.freeList
-  SPgListNode pghtNode;  // for pght
-  SPgListNode lruNode;   // for LRU
-};
+int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, STEnv *pEnv, STDb **ppDb);
+int tdbDbClose(STDb *pDb);
+int tdbDbDrop(STDb *pDb);
+int tdbDbInsert(STDb *pDb, const void *pKey, int keyLen, const void *pVal, int valLen);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_PAGE_CACHE_H_*/
+#endif /*_TD_TDB_DB_H_*/
