@@ -168,34 +168,20 @@ static void uvHandleActivityTimeout(uv_timer_t* handle) {
 }
 
 static void uvHandleReq(SSrvConn* pConn) {
-  SRecvInfo    info;
-  SRecvInfo*   p = &info;
   SConnBuffer* pBuf = &pConn->readBuf;
-  p->msg = pBuf->buf;
-  p->msgLen = pBuf->len;
-  p->ip = 0;
-  p->port = 0;
-  p->shandle = pConn->pTransInst;  //
-  p->thandle = pConn;
-  p->chandle = NULL;
+  char*        msg = pBuf->buf;
+  uint32_t     msgLen = pBuf->len;
 
-  STransMsgHead* pHead = (STransMsgHead*)p->msg;
+  STransMsgHead* pHead = (STransMsgHead*)msg;
   if (pHead->secured == 1) {
-    STransUserMsg* uMsg = (STransUserMsg*)((char*)p->msg + p->msgLen - sizeof(STransUserMsg));
+    STransUserMsg* uMsg = (STransUserMsg*)((char*)msg + msgLen - sizeof(STransUserMsg));
     memcpy(pConn->user, uMsg->user, tListLen(uMsg->user));
     memcpy(pConn->secret, uMsg->secret, tListLen(uMsg->secret));
   }
   pHead->code = htonl(pHead->code);
-
-  int32_t dlen = 0;
-  if (transDecompressMsg(NULL, 0, NULL)) {
-    // add compress later
-    // pHead = rpcDecompresSTransMsg(pHead);
-  } else {
-    pHead->msgLen = htonl(pHead->msgLen);
-    if (pHead->secured == 1) {
-      pHead->msgLen -= sizeof(STransUserMsg);
-    }
+  pHead->msgLen = htonl(pHead->msgLen);
+  if (pHead->secured == 1) {
+    pHead->msgLen -= sizeof(STransUserMsg);
   }
 
   CONN_SHOULD_RELEASE(pConn, pHead);
@@ -232,7 +218,7 @@ static void uvHandleReq(SSrvConn* pConn) {
     transMsg.handle = pConn;
   }
 
-  STrans* pTransInst = (STrans*)p->shandle;
+  STrans* pTransInst = pConn->hostThrd;
   (*pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
   // uv_timer_start(&pConn->pTimer, uvHandleActivityTimeout, pRpc->idleTime * 10000, 0);
 }
@@ -341,21 +327,27 @@ static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
   }
   STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
 
-  pHead->secured = pMsg->code == 0 ? 1 : 0;  //
-  pHead->msgType = smsg->pConn->inType + 1;
+  // pHead->secured = pMsg->code == 0 ? 1 : 0;  //
+  if (!pConn->secured) {
+    pConn->secured = pMsg->code == 0 ? 1 : 0;
+  }
+  pHead->secured = pConn->secured;
+
+  if (pConn->status == ConnNormal) {
+    pHead->msgType = pConn->inType + 1;
+  } else {
+    pHead->msgType = smsg->type == Release ? 0 : pMsg->msgType;
+  }
   pHead->release = smsg->type == Release ? 1 : 0;
   pHead->code = htonl(pMsg->code);
-  // add more info
+
   char*   msg = (char*)pHead;
   int32_t len = transMsgLenFromCont(pMsg->contLen);
-  if (transCompressMsg(msg, len, NULL)) {
-    // impl later
-  }
   tDebug("server conn %p %s is sent to %s:%d, local info: %s:%d", pConn, TMSG_INFO(pHead->msgType),
          taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->locaddr.sin_addr),
          ntohs(pConn->locaddr.sin_port));
-
   pHead->msgLen = htonl(len);
+
   wb->base = msg;
   wb->len = len;
 }
