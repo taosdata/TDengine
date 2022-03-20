@@ -144,7 +144,7 @@ void rpcUnrefHandle(void* handle, int8_t type) {
   (*taosUnRefHandle[type])(handle);
 }
 
-void rpcRegisterBrokenLinkArg(SRpcMsg* msg) { rpcSendResponse(msg); }
+void rpcRegisterBrokenLinkArg(SRpcMsg* msg) { transRegisterMsg(msg); }
 void rpcReleaseHandle(void* handle, int8_t type) {
   assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
   (*transReleaseHandle[type])(handle);

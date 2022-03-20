@@ -132,27 +132,29 @@ static void         destroyThrdObj(SCliThrdObj* pThrd);
 #define CONN_PERSIST_TIME(para) (para * 1000 * 10)
 #define CONN_GET_HOST_THREAD(conn) (conn ? ((SCliConn*)conn)->hostThrd : NULL)
 #define CONN_GET_INST_LABEL(conn) (((STrans*)(((SCliThrdObj*)(conn)->hostThrd)->pTransInst))->label)
-#define CONN_SHOULD_RELEASE(conn, head)                            \
-  do {                                                             \
-    if ((head)->release == 1 && (head->msgLen) == sizeof(*head)) { \
-      conn->status = ConnRelease;                                  \
-      transClearBuffer(&conn->readBuf);                            \
-      transFreeMsg(transContFromHead((char*)head));                \
-      tDebug("cli conn %p receive release request", conn);         \
-      if (T_REF_VAL_GET(conn) == 1) {                              \
-        SCliThrdObj* thrd = conn->hostThrd;                        \
-        addConnToPool(thrd->pool, conn);                           \
-      }                                                            \
-      return;                                                      \
-    }                                                              \
+#define CONN_SHOULD_RELEASE(conn, head)                                                  \
+  do {                                                                                   \
+    if ((head)->release == 1 && (head->msgLen) == sizeof(*head)) {                       \
+      conn->status = ConnRelease;                                                        \
+      transClearBuffer(&conn->readBuf);                                                  \
+      transFreeMsg(transContFromHead((char*)head));                                      \
+      tDebug("cli conn %p receive release request, ref: %d", conn, T_REF_VAL_GET(conn)); \
+      while (T_REF_VAL_GET(conn) > 1) {                                                  \
+        transUnrefCliHandle(conn);                                                       \
+      }                                                                                  \
+      if (T_REF_VAL_GET(conn) == 1) {                                                    \
+        SCliThrdObj* thrd = conn->hostThrd;                                              \
+        addConnToPool(thrd->pool, conn);                                                 \
+      }                                                                                  \
+      return;                                                                            \
+    }                                                                                    \
   } while (0)
 
-#define CONN_HANDLE_THREAD_QUIT(conn, thrd) \
-  do {                                      \
-    if (thrd->quit) {                       \
-      cliHandleExcept(conn);                \
-      return;                               \
-    }                                       \
+#define CONN_HANDLE_THREAD_QUIT(thrd) \
+  do {                                \
+    if (thrd->quit) {                 \
+      return;                         \
+    }                                 \
   } while (0)
 
 #define CONN_HANDLE_BROKEN(conn) \
@@ -263,7 +265,7 @@ _RETURN:
 
 void cliHandleExcept(SCliConn* pConn) {
   if (taosArrayGetSize(pConn->cliMsgs) == 0) {
-    if (pConn->broken == true || CONN_NO_PERSIST_BY_APP(pConn)) {
+    if (pConn->broken == true && CONN_NO_PERSIST_BY_APP(pConn)) {
       transUnrefCliHandle(pConn);
       return;
     }
@@ -375,6 +377,9 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
   return conn;
 }
 static void addConnToPool(void* pool, SCliConn* conn) {
+  SCliThrdObj* thrd = conn->hostThrd;
+  CONN_HANDLE_THREAD_QUIT(thrd);
+
   char key[128] = {0};
 
   transCtxDestroy(&conn->ctx);
@@ -539,7 +544,6 @@ void cliSend(SCliConn* pConn) {
   }
 
   pHead->noResp = REQUEST_NO_RESP(pMsg) ? 1 : 0;
-
   pHead->persist = REQUEST_PERSIS_HANDLE(pMsg) ? 1 : 0;
   pHead->msgType = pMsg->msgType;
   pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
@@ -594,12 +598,17 @@ static void cliHandleRelease(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   SCliConn* conn = pMsg->msg.handle;
   tDebug("%s cli conn %p start to release to inst", CONN_GET_INST_LABEL(conn), conn);
 
-  transUnrefCliHandle(conn);
-  taosArrayPush(conn->cliMsgs, &pMsg);
-  if (taosArrayGetSize(conn->cliMsgs) >= 2) {
-    return;  // send one by one
+  if (T_REF_VAL_GET(conn) == 2) {
+    transUnrefCliHandle(conn);
+    taosArrayPush(conn->cliMsgs, &pMsg);
+    if (taosArrayGetSize(conn->cliMsgs) >= 2) {
+      return;  // send one by one
+    }
+    cliSend(conn);
+  } else {
+    // conn already broken down
+    transUnrefCliHandle(conn);
   }
-  cliSend(conn);
 }
 
 SCliConn* cliGetConn(SCliMsg* pMsg, SCliThrdObj* pThrd) {
@@ -836,11 +845,7 @@ void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* p
   if (index == -1) {
     index = cliRBChoseIdx(pTransInst);
   }
-  int32_t flen = 0;
-  if (transCompressMsg(pMsg->pCont, pMsg->contLen, &flen)) {
-    // imp later
-  }
-  tDebug("send request at thread:%d %p, dst: %s:%d", index, pMsg, ip, port);
+
   STransConnCtx* pCtx = calloc(1, sizeof(STransConnCtx));
   pCtx->ahandle = pMsg->ahandle;
   pCtx->msgType = pMsg->msgType;
@@ -851,9 +856,7 @@ void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* p
   if (ctx != NULL) {
     pCtx->appCtx = *ctx;
   }
-
   assert(pTransInst->connType == TAOS_CONN_CLIENT);
-  // atomic or not
 
   SCliMsg* cliMsg = calloc(1, sizeof(SCliMsg));
   cliMsg->ctx = pCtx;
@@ -862,6 +865,8 @@ void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* p
   cliMsg->type = Normal;
 
   SCliThrdObj* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[index];
+
+  tDebug("send request at thread:%d %p, dst: %s:%d", index, pMsg, ip, port);
   transSendAsync(thrd->asyncPool, &(cliMsg->q));
 }
 

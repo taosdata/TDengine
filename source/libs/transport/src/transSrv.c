@@ -114,10 +114,6 @@ static const char* notify = "a";
       return;                                                      \
     }                                                              \
   } while (0)
-// refactor later
-static int transAddAuthPart(SSrvConn* pConn, char* msg, int msgLen);
-
-static int uvAuthMsg(SSrvConn* pConn, char* msg, int msgLen);
 
 static void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
 static void uvAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
@@ -144,9 +140,9 @@ static void      destroyConn(SSrvConn* conn, bool clear /*clear handle or not*/)
 
 static void uvHandleQuit(SSrvMsg* msg, SWorkThrdObj* thrd);
 static void uvHandleRelease(SSrvMsg* msg, SWorkThrdObj* thrd);
-static void uvHandleSendResp(SSrvMsg* msg, SWorkThrdObj* thrd);
+static void uvHandleResp(SSrvMsg* msg, SWorkThrdObj* thrd);
 static void uvHandleRegister(SSrvMsg* msg, SWorkThrdObj* thrd);
-static void (*transAsyncHandle[])(SSrvMsg* msg, SWorkThrdObj* thrd) = {uvHandleSendResp, uvHandleQuit, uvHandleRelease,
+static void (*transAsyncHandle[])(SSrvMsg* msg, SWorkThrdObj* thrd) = {uvHandleResp, uvHandleQuit, uvHandleRelease,
                                                                        uvHandleRegister};
 
 static void uvDestroyConn(uv_handle_t* handle);
@@ -163,59 +159,6 @@ void uvAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* b
   SSrvConn*    conn = handle->data;
   SConnBuffer* pBuf = &conn->readBuf;
   transAllocBuffer(pBuf, buf);
-}
-
-static int uvAuthMsg(SSrvConn* pConn, char* msg, int len) {
-  STransMsgHead* pHead = (STransMsgHead*)msg;
-
-  int code = 0;
-
-  if ((pConn->secured && pHead->spi == 0) || (pHead->spi == 0 && pConn->spi == 0)) {
-    // secured link, or no authentication
-    pHead->msgLen = (int32_t)htonl((uint32_t)pHead->msgLen);
-    // tTrace("%s, secured link, no auth is required", pConn->info);
-    return 0;
-  }
-
-  if (!rpcIsReq(pHead->msgType)) {
-    // for response, if code is auth failure, it shall bypass the auth process
-    code = htonl(pHead->code);
-    if (code == TSDB_CODE_RPC_INVALID_TIME_STAMP || code == TSDB_CODE_RPC_AUTH_FAILURE ||
-        code == TSDB_CODE_RPC_INVALID_VERSION || code == TSDB_CODE_RPC_AUTH_REQUIRED ||
-        code == TSDB_CODE_MND_USER_NOT_EXIST || code == TSDB_CODE_RPC_NOT_READY) {
-      pHead->msgLen = (int32_t)htonl((uint32_t)pHead->msgLen);
-      // tTrace("%s, dont check authentication since code is:0x%x", pConn->info, code);
-      return 0;
-    }
-  }
-
-  code = 0;
-  if (pHead->spi == pConn->spi) {
-    // authentication
-    SRpcDigest* pDigest = (SRpcDigest*)((char*)pHead + len - sizeof(SRpcDigest));
-
-    int32_t delta;
-    delta = (int32_t)htonl(pDigest->timeStamp);
-    delta -= (int32_t)taosGetTimestampSec();
-    if (abs(delta) > 900) {
-      tWarn("%s, time diff:%d is too big, msg discarded", pConn->info, delta);
-      code = TSDB_CODE_RPC_INVALID_TIME_STAMP;
-    } else {
-      if (transAuthenticateMsg(pHead, len - TSDB_AUTH_LEN, pDigest->auth, pConn->secret) < 0) {
-        // tDebug("%s, authentication failed, msg discarded", pConn->info);
-        code = TSDB_CODE_RPC_AUTH_FAILURE;
-      } else {
-        pHead->msgLen = (int32_t)htonl((uint32_t)pHead->msgLen) - sizeof(SRpcDigest);
-        if (!rpcIsReq(pHead->msgType)) pConn->secured = 1;  // link is secured for client
-        // tTrace("%s, message is authenticated", pConn->info);
-      }
-    }
-  } else {
-    tDebug("%s, auth spi:%d not matched with received:%d", pConn->info, pConn->spi, pHead->spi);
-    code = pHead->spi ? TSDB_CODE_RPC_AUTH_FAILURE : TSDB_CODE_RPC_AUTH_REQUIRED;
-  }
-
-  return code;
 }
 
 // refers specifically to query or insert timeout
@@ -292,7 +235,6 @@ static void uvHandleReq(SSrvConn* pConn) {
   STrans* pTransInst = (STrans*)p->shandle;
   (*pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
   // uv_timer_start(&pConn->pTimer, uvHandleActivityTimeout, pRpc->idleTime * 10000, 0);
-  // auth
 }
 
 void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
@@ -351,24 +293,26 @@ void uvOnSendCb(uv_write_t* req, int status) {
       if (msg->type == Release && conn->status != ConnNormal) {
         conn->status = ConnNormal;
         transUnrefSrvHandle(conn);
-      } else if (msg->type == Register && conn->status == ConnAcquire) {
-        conn->regArg.notifyCount = 0;
-        conn->regArg.init = 1;
-        conn->regArg.msg = msg->msg;
-        if (conn->broken) {
-          STrans* pTransInst = conn->pTransInst;
-          (pTransInst->cfp)(pTransInst->parent, &(conn->regArg.msg), NULL);
-          memset(&conn->regArg, 0, sizeof(conn->regArg));
-        }
-        free(msg);
-        return;
       }
       destroySmsg(msg);
       // send second data, just use for push
       if (taosArrayGetSize(conn->srvMsgs) > 0) {
         tTrace("resent server conn %p sending msg size: %d", conn, (int)taosArrayGetSize(conn->srvMsgs));
         msg = (SSrvMsg*)taosArrayGetP(conn->srvMsgs, 0);
-        uvStartSendRespInternal(msg);
+        if (msg->type == Register && conn->status == ConnAcquire) {
+          conn->regArg.notifyCount = 0;
+          conn->regArg.init = 1;
+          conn->regArg.msg = msg->msg;
+          if (conn->broken) {
+            STrans* pTransInst = conn->pTransInst;
+            (pTransInst->cfp)(pTransInst->parent, &(conn->regArg.msg), NULL);
+            memset(&conn->regArg, 0, sizeof(conn->regArg));
+          }
+          taosArrayRemove(conn->srvMsgs, 0);
+          free(msg);
+        } else {
+          uvStartSendRespInternal(msg);
+        }
       }
     }
   } else {
@@ -387,7 +331,6 @@ static void uvOnPipeWriteCb(uv_write_t* req, int status) {
 }
 
 static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
-  // impl later;
   tTrace("server conn %p prepare to send resp", smsg->pConn);
 
   SSrvConn*  pConn = smsg->pConn;
@@ -438,13 +381,12 @@ static void uvStartSendResp(SSrvMsg* smsg) {
     transUnrefSrvHandle(pConn);
   }
 
-  if (taosArrayGetSize(pConn->srvMsgs) > 0) {
+  taosArrayPush(pConn->srvMsgs, &smsg);
+  if (taosArrayGetSize(pConn->srvMsgs) > 1) {
     tDebug("server conn %p send data to client %s:%d, local info: %s:%d", pConn, taosInetNtoa(pConn->addr.sin_addr),
            ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port));
-    taosArrayPush(pConn->srvMsgs, &smsg);
     return;
   }
-  taosArrayPush(pConn->srvMsgs, &smsg);
   uvStartSendRespInternal(smsg);
   return;
 }
@@ -675,7 +617,7 @@ static SSrvConn* createConn(void* hThrd) {
 
   QUEUE_PUSH(&pThrd->conn, &pConn->queue);
   pConn->srvMsgs = taosArrayInit(2, sizeof(void*));  //
-  tTrace("conn %p created", pConn);
+  tTrace("server conn %p created", pConn);
 
   memset(&pConn->regArg, 0, sizeof(pConn->regArg));
   pConn->broken = false;
@@ -697,7 +639,7 @@ static void destroyConn(SSrvConn* conn, bool clear) {
   }
   conn->srvMsgs = taosArrayDestroy(conn->srvMsgs);
   if (clear) {
-    tTrace("try to destroy conn %p", conn);
+    tTrace("server conn %p to be destroyed", conn);
     uv_shutdown_t* req = malloc(sizeof(uv_shutdown_t));
     uv_shutdown(req, (uv_stream_t*)conn->pTcp, uvShutDownCb);
   }
@@ -719,25 +661,6 @@ static void uvDestroyConn(uv_handle_t* handle) {
     uv_loop_close(thrd->loop);
     uv_stop(thrd->loop);
   }
-}
-static int transAddAuthPart(SSrvConn* pConn, char* msg, int msgLen) {
-  STransMsgHead* pHead = (STransMsgHead*)msg;
-
-  if (pConn->spi && pConn->secured == 0) {
-    // add auth part
-    pHead->spi = pConn->spi;
-    STransDigestMsg* pDigest = (STransDigestMsg*)(msg + msgLen);
-    pDigest->timeStamp = htonl(taosGetTimestampSec());
-    msgLen += sizeof(SRpcDigest);
-    pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
-    // transBuildAuthHead(pHead, msgLen - TSDB_AUTH_LEN, pDigest->auth, pConn->secret);
-    // transBuildAuthHead(pHead, msgLen - TSDB_AUTH_LEN, pDigest->auth, pConn->secret);
-  } else {
-    pHead->spi = 0;
-    pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
-  }
-
-  return msgLen;
 }
 
 void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle) {
@@ -815,20 +738,19 @@ void uvHandleRelease(SSrvMsg* msg, SWorkThrdObj* thrd) {
     }
     uvStartSendRespInternal(msg);
     return;
-  } else if (conn->status == ConnRelease) {
-    // already release by server app, do nothing
-  } else if (conn->status == ConnNormal) {
-    // no nothing
-    // user should not call this rpcRelease handle;
+  } else if (conn->status == ConnRelease || conn->status == ConnNormal) {
+    tDebug("server conn %p already released, ignore release-msg", conn);
   }
-  free(msg);
+  destroySmsg(msg);
 }
-void uvHandleSendResp(SSrvMsg* msg, SWorkThrdObj* thrd) {
+void uvHandleResp(SSrvMsg* msg, SWorkThrdObj* thrd) {
   // send msg to client
+  tDebug("server conn %p start to send resp", msg->pConn);
   uvStartSendResp(msg);
 }
 void uvHandleRegister(SSrvMsg* msg, SWorkThrdObj* thrd) {
   SSrvConn* conn = msg->pConn;
+  tDebug("server conn %p register brokenlink callback", conn);
   if (conn->status == ConnAcquire) {
     if (taosArrayGetSize(conn->srvMsgs) > 0) {
       taosArrayPush(conn->srvMsgs, &msg);
@@ -901,12 +823,10 @@ void transUnrefSrvHandle(void* handle) {
     return;
   }
   int ref = T_REF_DEC((SSrvConn*)handle);
-  tDebug("handle %p ref count: %d", handle, ref);
-
+  tDebug("server conn %p ref count: %d", handle, ref);
   if (ref == 0) {
     destroyConn((SSrvConn*)handle, true);
   }
-  // unref srv handle
 }
 
 void transReleaseSrvHandle(void* handle) {
@@ -951,7 +871,7 @@ void transRegisterMsg(const STransMsg* msg) {
   srvMsg->pConn = pConn;
   srvMsg->msg = *msg;
   srvMsg->type = Register;
-  tTrace("server conn %p start to send resp", pConn);
+  tTrace("server conn %p start to register brokenlink callback", pConn);
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
 }
 int transGetConnInfo(void* thandle, STransHandleInfo* pInfo) {
