@@ -141,6 +141,7 @@ static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {
   int    nFree;
   int    ret;
   int    cellFree;
+  SCell *pCell = NULL;
 
   *ppCell = NULL;
   nFree = TDB_PAGE_NFREE(pPage);
@@ -150,14 +151,10 @@ static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {
 
   // 1. Try to allocate from the free space block area
   if (pPage->pFreeEnd - pPage->pFreeStart >= szCell + TDB_PAGE_OFFSET_SIZE(pPage)) {
-    pPage->pFreeStart += TDB_PAGE_OFFSET_SIZE(pPage);
     pPage->pFreeEnd -= szCell;
-
+    pCell = pPage->pFreeEnd;
     TDB_PAGE_CCELLS_SET(pPage, pPage->pFreeEnd - pPage->pData);
-    TDB_PAGE_NFREE_SET(pPage, nFree - szCell - TDB_PAGE_OFFSET_SIZE(pPage));
-
-    *ppCell = pPage->pFreeEnd;
-    return 0;
+    goto _alloc_finish;
   }
 
   // 2. Try to allocate from the page free list
@@ -177,9 +174,7 @@ static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {
       pPage->pPageMethods->getFreeCellInfo(pFreeCell, &szFreeCell, &nxFreeCell);
 
       if (szFreeCell >= szCell) {
-        pPage->pFreeStart += TDB_PAGE_OFFSET_SIZE(pPage);
-        TDB_PAGE_NFREE_SET(pPage, nFree - TDB_PAGE_OFFSET_SIZE(pPage) - szCell);
-        *ppCell = pFreeCell;
+        pCell = pFreeCell;
 
         newSize = szFreeCell - szCell;
         pFreeCell += szCell;
@@ -191,7 +186,7 @@ static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {
             TDB_PAGE_FCELL_SET(pPage, pFreeCell - pPage->pData);
           }
 
-          return 0;
+          goto _alloc_finish;
         } else {
           if (pPrevFreeCell) {
             pPage->pPageMethods->setFreeCellInfo(pPrevFreeCell, szPrevFreeCell, nxFreeCell);
@@ -207,28 +202,21 @@ static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {
     }
   }
 
-// 3. Try to dfragment and allocate again
-#if 0
-  if (pCell == NULL) {
-    ret = tdbPageDefragment(pPage);
-    if (ret < 0) {
-      return -1;
-    }
+  // 3. Try to dfragment and allocate again
+  tdbPageDefragment(pPage);
+  ASSERT(pPage->pFreeEnd - pPage->pFreeStart == nFree);
+  ASSERT(nFree == TDB_PAGE_NFREE(pPage));
+  ASSERT(pPage->pFreeEnd - pPage->pData == TDB_PAGE_CCELLS(pPage));
 
-    ASSERT(pPage->pFreeEnd - pPage->pFreeStart > size + TDB_PAGE_OFFSET_SIZE(pPage));
-    // ASSERT(pPage->nFree == pPage->pFreeEnd - pPage->pFreeStart);
+  pPage->pFreeEnd -= szCell;
+  pCell = pPage->pFreeEnd;
+  TDB_PAGE_CCELLS_SET(pPage, pPage->pFreeEnd - pPage->pData);
 
-    // Allocate from the free space area again
-    pPage->pFreeEnd -= size;
-    pPage->pFreeStart += TDB_PAGE_OFFSET_SIZE(pPage);
-    pCell = pPage->pFreeEnd;
-  }
-
-  ASSERT(pCell != NULL);
-
-  // pPage->nFree = pPage->nFree - size - TDB_PAGE_OFFSET_SIZE(pPage);
+_alloc_finish:
+  ASSERT(pCell);
+  pPage->pFreeStart += TDB_PAGE_OFFSET_SIZE(pPage);
+  TDB_PAGE_NFREE_SET(pPage, nFree - szCell - TDB_PAGE_OFFSET_SIZE(pPage));
   *ppCell = pCell;
-#endif
   return 0;
 }
 
