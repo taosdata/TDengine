@@ -71,7 +71,7 @@ typedef struct {
   int32_t      opened;
   int32_t      failed;
   int32_t      threadIndex;
-  pthread_t    thread;
+  TdThread     thread;
   SVnodesMgmt *pMgmt;
   SWrapperCfg *pCfgs;
 } SVnodeThread;

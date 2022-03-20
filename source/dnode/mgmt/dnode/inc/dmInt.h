@@ -29,7 +29,7 @@ typedef struct SDnodeMgmt {
   SEpSet        mnodeEpSet;
   SHashObj     *dnodeHash;
   SArray       *dnodeEps;
-  pthread_t    *threadId;
+  TdThread    *threadId;
   SRWLatch      latch;
   SDnodeWorker  mgmtWorker;
   SDnodeWorker  statusWorker;

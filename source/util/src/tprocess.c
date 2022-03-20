@@ -41,16 +41,16 @@ typedef struct SProcQueue {
   ProcConsumeFp    consumeFp;
   void            *pParent;
   tsem_t           sem;
-  pthread_mutex_t *mutex;
+  TdThreadMutex   *mutex;
   int32_t          mutexShmid;
   int32_t          bufferShmid;
   const char      *name;
 } SProcQueue;
 
 typedef struct SProcObj {
-  pthread_t   childThread;
+  TdThread    childThread;
   SProcQueue *pChildQueue;
-  pthread_t   parentThread;
+  TdThread    parentThread;
   SProcQueue *pParentQueue;
   const char *name;
   int32_t     pid;
@@ -59,11 +59,11 @@ typedef struct SProcObj {
   bool        testFlag;
 } SProcObj;
 
-static int32_t taosProcInitMutex(pthread_mutex_t **ppMutex, int32_t *pShmid) {
-  pthread_mutex_t    *pMutex = NULL;
-  pthread_mutexattr_t mattr = {0};
-  int32_t             shmid = -1;
-  int32_t             code = -1;
+static int32_t taosProcInitMutex(TdThreadMutex **ppMutex, int32_t *pShmid) {
+  TdThreadMutex    *pMutex = NULL;
+  TdThreadMutexAttr mattr = {0};
+  int32_t           shmid = -1;
+  int32_t           code = -1;
 
   if (pthread_mutexattr_init(&mattr) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -77,21 +77,21 @@ static int32_t taosProcInitMutex(pthread_mutex_t **ppMutex, int32_t *pShmid) {
     goto _OVER;
   }
 
-  shmid = shmget(IPC_PRIVATE, sizeof(pthread_mutex_t), 0600);
+  shmid = shmget(IPC_PRIVATE, sizeof(TdThreadMutex), 0600);
   if (shmid <= 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to init mutex while shmget since %s", terrstr());
     goto _OVER;
   }
 
-  pMutex = (pthread_mutex_t *)shmat(shmid, NULL, 0);
+  pMutex = (TdThreadMutex *)shmat(shmid, NULL, 0);
   if (pMutex == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to init mutex while shmat since %s", terrstr());
     goto _OVER;
   }
 
-  if (pthread_mutex_init(pMutex, &mattr) != 0) {
+  if (taosThreadMutexInit(pMutex, &mattr) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to init mutex since %s", terrstr());
     goto _OVER;
@@ -101,7 +101,7 @@ static int32_t taosProcInitMutex(pthread_mutex_t **ppMutex, int32_t *pShmid) {
 
 _OVER:
   if (code != 0) {
-    pthread_mutex_destroy(pMutex);
+    taosThreadMutexDestroy(pMutex);
     shmctl(shmid, IPC_RMID, NULL);
   } else {
     *ppMutex = pMutex;
@@ -112,9 +112,9 @@ _OVER:
   return code;
 }
 
-static void taosProcDestroyMutex(pthread_mutex_t *pMutex, int32_t *pShmid) {
+static void taosProcDestroyMutex(TdThreadMutex *pMutex, int32_t *pShmid) {
   if (pMutex != NULL) {
-    pthread_mutex_destroy(pMutex);
+    taosThreadMutexDestroy(pMutex);
   }
   if (*pShmid > 0) {
     shmctl(*pShmid, IPC_RMID, NULL);
@@ -129,7 +129,7 @@ static int32_t taosProcInitBuffer(void **ppBuffer, int32_t size) {
     return -1;
   }
 
-  void *shmptr = (pthread_mutex_t *)shmat(shmid, NULL, 0);
+  void *shmptr = shmat(shmid, NULL, 0);
   if (shmptr == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to init buffer while shmat since %s", terrstr());
@@ -204,9 +204,9 @@ static int32_t taosProcQueuePush(SProcQueue *pQueue, char *pHead, int32_t rawHea
   const int32_t bodyLen = CEIL8(rawBodyLen);
   const int32_t fullLen = headLen + bodyLen + 8;
 
-  pthread_mutex_lock(pQueue->mutex);
+  taosThreadMutexLock(pQueue->mutex);
   if (fullLen > pQueue->avail) {
-    pthread_mutex_unlock(pQueue->mutex);
+    taosThreadMutexUnlock(pQueue->mutex);
     terrno = TSDB_CODE_OUT_OF_SHM_MEM;
     return -1;
   }
@@ -252,7 +252,7 @@ static int32_t taosProcQueuePush(SProcQueue *pQueue, char *pHead, int32_t rawHea
 
   pQueue->avail -= fullLen;
   pQueue->items++;
-  pthread_mutex_unlock(pQueue->mutex);
+  taosThreadMutexUnlock(pQueue->mutex);
   tsem_post(&pQueue->sem);
 
   uTrace("proc:%s, push msg:%p:%d cont:%p:%d to queue:%p", pQueue->name, pHead, rawHeadLen, pBody, rawBodyLen, pQueue);
@@ -263,9 +263,9 @@ static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int32_t *pHea
                                 int32_t *pBodyLen) {
   tsem_wait(&pQueue->sem);
 
-  pthread_mutex_lock(pQueue->mutex);
+  taosThreadMutexLock(pQueue->mutex);
   if (pQueue->total - pQueue->avail <= 0) {
-    pthread_mutex_unlock(pQueue->mutex);
+    taosThreadMutexUnlock(pQueue->mutex);
     tsem_post(&pQueue->sem);
     terrno = TSDB_CODE_OUT_OF_SHM_MEM;
     return -1;
@@ -284,7 +284,7 @@ static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int32_t *pHea
   void *pHead = (*pQueue->mallocHeadFp)(headLen);
   void *pBody = (*pQueue->mallocBodyFp)(bodyLen);
   if (pHead == NULL || pBody == NULL) {
-    pthread_mutex_unlock(pQueue->mutex);
+    taosThreadMutexUnlock(pQueue->mutex);
     tsem_post(&pQueue->sem);
     (*pQueue->freeHeadFp)(pHead);
     (*pQueue->freeBodyFp)(pBody);
@@ -325,7 +325,7 @@ static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int32_t *pHea
 
   pQueue->avail = pQueue->avail + headLen + bodyLen + 8;
   pQueue->items--;
-  pthread_mutex_unlock(pQueue->mutex);
+  taosThreadMutexUnlock(pQueue->mutex);
 
   *ppHead = pHead;
   *ppBody = pBody;
@@ -409,12 +409,12 @@ static void taosProcThreadLoop(SProcQueue *pQueue) {
 }
 
 int32_t taosProcRun(SProcObj *pProc) {
-  pthread_attr_t thAttr = {0};
-  pthread_attr_init(&thAttr);
-  pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
 
   if (pProc->isChild || pProc->testFlag) {
-    if (pthread_create(&pProc->childThread, &thAttr, (ProcThreadFp)taosProcThreadLoop, pProc->pChildQueue) != 0) {
+    if (taosThreadCreate(&pProc->childThread, &thAttr, (ProcThreadFp)taosProcThreadLoop, pProc->pChildQueue) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       uError("failed to create thread since %s", terrstr());
       return -1;
@@ -423,7 +423,7 @@ int32_t taosProcRun(SProcObj *pProc) {
   }
 
   if (!pProc->isChild || pProc->testFlag) {
-    if (pthread_create(&pProc->parentThread, &thAttr, (ProcThreadFp)taosProcThreadLoop, pProc->pParentQueue) != 0) {
+    if (taosThreadCreate(&pProc->parentThread, &thAttr, (ProcThreadFp)taosProcThreadLoop, pProc->pParentQueue) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       uError("failed to create thread since %s", terrstr());
       return -1;

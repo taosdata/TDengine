@@ -30,7 +30,7 @@ static void *dmThreadRoutine(void *param) {
   setThreadName("dnode-hb");
 
   while (true) {
-    pthread_testcancel();
+    taosThreadTestCancel();
     taosMsleep(200);
     if (dndGetStatus(pDnode) != DND_STAT_RUNNING || pDnode->dropped) {
       continue;

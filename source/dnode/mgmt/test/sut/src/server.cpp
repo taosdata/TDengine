@@ -41,11 +41,11 @@ bool TestServer::DoStart() {
     return false;
   }
 
-  pthread_attr_t thAttr;
-  pthread_attr_init(&thAttr);
-  pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
-  pthread_create(&threadId, &thAttr, serverLoop, pDnode);
-  pthread_attr_destroy(&thAttr);
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  taosThreadCreate(&threadId, &thAttr, serverLoop, pDnode);
+  taosThreadAttrDestroy(&thAttr);
   taosMsleep(2100);
   return true;
 }
@@ -69,7 +69,7 @@ bool TestServer::Start(const char* path, const char* fqdn, uint16_t port, const 
 
 void TestServer::Stop() {
   dndHandleEvent(pDnode, DND_EVENT_STOP);
-  pthread_join(threadId, NULL);
+  taosThreadJoin(threadId, NULL);
 
   if (pDnode != NULL) {
     dndClose(pDnode);

@@ -71,13 +71,6 @@ int32_t bndGetLoad(SBnode *pBnode, SBnodeLoad *pLoad);
  */
 int32_t bndProcessWMsgs(SBnode *pBnode, SArray *pMsgs);
 
-/**
- * @brief Drop a bnode.
- *
- * @param path Path of the bnode.
- */
-void bndDestroy(const char *path);
-
 #ifdef __cplusplus
 }
 #endif
