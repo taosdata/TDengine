@@ -45,6 +45,9 @@ typedef struct {
   // cell offset at idx
   int (*getCellOffset)(SPage *, int);
   void (*setCellOffset)(SPage *, int, int);
+  // free cell info
+  void (*getFreeCellInfo)(SCell *pCell, int *szCell, int *nxOffset);
+  void (*setFreeCellInfo)(SCell *pCell, int szCell, int nxOffset);
 } SPageMethods;
 
 // Page footer
@@ -59,20 +62,19 @@ struct SPage {
   SPageMethods      *pPageMethods;
   // Fields below used by pager and am
   u8        szAmHdr;
-  u8       *pPageHdr;
   u8       *pAmHdr;
+  u8       *pPageHdr;
   u8       *pCellIdx;
   u8       *pFreeStart;
   u8       *pFreeEnd;
   SPageFtr *pPageFtr;
-  int       kLen;  // key length of the page, -1 for unknown
-  int       vLen;  // value length of the page, -1 for unknown
-  int       nFree;
-  int       maxLocal;
-  int       minLocal;
   int       nOverflow;
   SCell    *apOvfl[4];
   int       aiOvfl[4];
+  int       kLen;  // key length of the page, -1 for unknown
+  int       vLen;  // value length of the page, -1 for unknown
+  int       maxLocal;
+  int       minLocal;
   // Fields used by SPCache
   TDB_PCACHE_PAGE
 };
@@ -91,8 +93,6 @@ struct SPage {
 #define TDB_PAGE_FCELL_SET(pPage, FCELL)                (*(pPage)->pPageMethods->setCellFree)(pPage, FCELL)
 #define TDB_PAGE_NFREE_SET(pPage, NFREE)                (*(pPage)->pPageMethods->setFreeBytes)(pPage, NFREE)
 #define TDB_PAGE_CELL_OFFSET_AT_SET(pPage, idx, OFFSET) (*(pPage)->pPageMethods->setCellOffset)(pPage, idx, OFFSET)
-
-#define TDB_PAGE_OFFSET_SIZE(pPage) ((pPage)->pPageMethods->szOffset)
 
 #define TDB_PAGE_CELL_AT(pPage, idx) ((pPage)->pData + TDB_PAGE_CELL_OFFSET_AT(pPage, idx))
 
@@ -119,10 +119,12 @@ struct SPage {
   })
 
 // APIs
-int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg);
-int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg);
-int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell);
-int tdbPageDropCell(SPage *pPage, int idx);
+int  tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg);
+int  tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg);
+void tdbPageZero(SPage *pPage);
+void tdbPageInit(SPage *pPage);
+int  tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell);
+int  tdbPageDropCell(SPage *pPage, int idx);
 
 #ifdef __cplusplus
 }

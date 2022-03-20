@@ -414,7 +414,7 @@ static int tdbBtreeInitPage(SPage *pPage, void *arg) {
   }
 
   // TODO: need to update the SPage.nFree
-  pPage->nFree = pPage->pFreeEnd - pPage->pFreeStart;
+  // pPage->nFree = pPage->pFreeEnd - pPage->pFreeStart;
   pPage->nOverflow = 0;
 
   return 0;

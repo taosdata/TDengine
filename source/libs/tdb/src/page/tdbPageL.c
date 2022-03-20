@@ -66,20 +66,35 @@ static inline void setPageCellOffset(SPage *pPage, int idx, int offset) {
   TDB_PUT_U24(pPage->pCellIdx + 3 * idx, offset);
 }
 
+// free cell info
+static inline void getPageFreeCellInfo(SCell *pCell, int *szCell, int *nxOffset) {
+  SFreeCellL *pFreeCell = (SFreeCellL *)pCell;
+  *szCell = TDB_GET_U24(pFreeCell->szCell);
+  *nxOffset = TDB_GET_U24(pFreeCell->nxOffset);
+}
+
+static inline void setPageFreeCellInfo(SCell *pCell, int szCell, int nxOffset) {
+  SFreeCellL *pFreeCell = (SFreeCellL *)pCell;
+  TDB_PUT_U24(pFreeCell->szCell, szCell);
+  TDB_PUT_U24(pFreeCell->nxOffset, nxOffset);
+}
+
 SPageMethods pageLargeMethods = {
-    3,                   // szOffset
-    sizeof(SPageHdrL),   // szPageHdr
-    sizeof(SFreeCellL),  // szFreeCell
-    getPageFlags,        // getPageFlags
-    setPageFlags,        // setFlagsp
-    getPageCellNum,      // getCellNum
-    setPageCellNum,      // setCellNum
-    getPageCellBody,     // getCellBody
-    setPageCellBody,     // setCellBody
-    getPageCellFree,     // getCellFree
-    setPageCellFree,     // setCellFree
-    getPageNFree,        // getFreeBytes
-    setPageNFree,        // setFreeBytes
-    getPageCellOffset,   // getCellOffset
-    setPageCellOffset    // setCellOffset
+    3,                    // szOffset
+    sizeof(SPageHdrL),    // szPageHdr
+    sizeof(SFreeCellL),   // szFreeCell
+    getPageFlags,         // getPageFlags
+    setPageFlags,         // setFlagsp
+    getPageCellNum,       // getCellNum
+    setPageCellNum,       // setCellNum
+    getPageCellBody,      // getCellBody
+    setPageCellBody,      // setCellBody
+    getPageCellFree,      // getCellFree
+    setPageCellFree,      // setCellFree
+    getPageNFree,         // getFreeBytes
+    setPageNFree,         // setFreeBytes
+    getPageCellOffset,    // getCellOffset
+    setPageCellOffset,    // setCellOffset
+    getPageFreeCellInfo,  // getFreeCellInfo
+    setPageFreeCellInfo   // setFreeCellInfo
 };
