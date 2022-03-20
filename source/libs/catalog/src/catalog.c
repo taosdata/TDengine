@@ -2070,16 +2070,16 @@ void* ctgUpdateThreadFunc(void* param) {
 
 
 int32_t ctgStartUpdateThread() {
-  pthread_attr_t thAttr;
-  pthread_attr_init(&thAttr);
-  pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
 
-  if (pthread_create(&gCtgMgmt.updateThread, &thAttr, ctgUpdateThreadFunc, NULL) != 0) {
+  if (taosThreadCreate(&gCtgMgmt.updateThread, &thAttr, ctgUpdateThreadFunc, NULL) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     CTG_ERR_RET(terrno);
   }
   
-  pthread_attr_destroy(&thAttr);
+  taosThreadAttrDestroy(&thAttr);
   return TSDB_CODE_SUCCESS;
 }
 

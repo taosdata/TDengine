@@ -110,7 +110,7 @@ static void tsdbCloseImpl(STsdb *pTsdb) {
 }
 
 int tsdbLockRepo(STsdb *pTsdb) {
-  int code = pthread_mutex_lock(&pTsdb->mutex);
+  int code = taosThreadMutexLock(&pTsdb->mutex);
   if (code != 0) {
     tsdbError("vgId:%d failed to lock tsdb since %s", REPO_ID(pTsdb), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -123,7 +123,7 @@ int tsdbLockRepo(STsdb *pTsdb) {
 int tsdbUnlockRepo(STsdb *pTsdb) {
   ASSERT(IS_REPO_LOCKED(pTsdb));
   pTsdb->repoLocked = false;
-  int code = pthread_mutex_unlock(&pTsdb->mutex);
+  int code = taosThreadMutexUnlock(&pTsdb->mutex);
   if (code != 0) {
     tsdbError("vgId:%d failed to unlock tsdb since %s", REPO_ID(pTsdb), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -298,7 +298,7 @@ STsdbCfg *tsdbGetCfg(const STsdbRepo *repo) {
 }
 
 int tsdbLockRepo(STsdbRepo *pRepo) {
-  int code = pthread_mutex_lock(&pRepo->mutex);
+  int code = taosThreadMutexLock(&pRepo->mutex);
   if (code != 0) {
     tsdbError("vgId:%d failed to lock tsdb since %s", REPO_ID(pRepo), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -311,7 +311,7 @@ int tsdbLockRepo(STsdbRepo *pRepo) {
 int tsdbUnlockRepo(STsdbRepo *pRepo) {
   ASSERT(IS_REPO_LOCKED(pRepo));
   pRepo->repoLocked = false;
-  int code = pthread_mutex_unlock(&pRepo->mutex);
+  int code = taosThreadMutexUnlock(&pRepo->mutex);
   if (code != 0) {
     tsdbError("vgId:%d failed to unlock tsdb since %s", REPO_ID(pRepo), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -388,7 +388,7 @@ int32_t tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg) {
     tsdbError("vgId:%d no config changed", REPO_ID(repo));
   }
 
-  int code = pthread_mutex_lock(&repo->save_mutex);
+  int code = taosThreadMutexLock(&repo->save_mutex);
   if (code != 0) {
     tsdbError("vgId:%d failed to lock tsdb save config mutex since %s", REPO_ID(repo), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -416,7 +416,7 @@ int32_t tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg) {
 
   repo->config_changed = true;
 
-  pthread_mutex_unlock(&repo->save_mutex);
+  taosThreadMutexUnlock(&repo->save_mutex);
 
   // schedule a commit msg and wait for the new config applied
   tsdbSyncCommitConfig(repo);
@@ -690,14 +690,14 @@ static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
   pRepo->repoLocked = false;
   pRepo->pthread = NULL;
 
-  int code = pthread_mutex_init(&(pRepo->mutex), NULL);
+  int code = taosThreadMutexInit(&(pRepo->mutex), NULL);
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
     tsdbFreeRepo(pRepo);
     return NULL;
   }
 
-  code = pthread_mutex_init(&(pRepo->save_mutex), NULL);
+  code = taosThreadMutexInit(&(pRepo->save_mutex), NULL);
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
     tsdbFreeRepo(pRepo);
@@ -747,7 +747,7 @@ static void tsdbFreeRepo(STsdbRepo *pRepo) {
     // tsdbFreeMemTable(pRepo->mem);
     // tsdbFreeMemTable(pRepo->imem);
     tsem_destroy(&(pRepo->readyToCommit));
-    pthread_mutex_destroy(&pRepo->mutex);
+    taosThreadMutexDestroy(&pRepo->mutex);
     free(pRepo);
   }
 }

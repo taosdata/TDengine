@@ -70,7 +70,7 @@ typedef struct {
   void*           tmrCtrl;    // handle to timer
   SHashObj*       hash;       // handle returned by hash utility
   void*           tcphandle;  // returned handle from TCP initialization
-  pthread_mutex_t mutex;
+  TdThreadMutex mutex;
 } SRpcInfo;
 
 #endif  // USE_LIBUV

@@ -33,7 +33,7 @@ SAppInfo appInfo;
 int32_t  clientReqRefPool = -1;
 int32_t  clientConnRefPool = -1;
 
-static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
+static TdThreadOnce tscinit = PTHREAD_ONCE_INIT;
 volatile int32_t      tscInitRes = 0;
 
 static void registerRequest(SRequestObj *pRequest) {
@@ -114,7 +114,7 @@ void destroyTscObj(void *pObj) {
   hbDeregisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey);
   atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
   tscDebug("connObj 0x%" PRIx64 " destroyed, totalConn:%" PRId64, pTscObj->id, pTscObj->pAppInfo->numOfConns);
-  pthread_mutex_destroy(&pTscObj->mutex);
+  taosThreadMutexDestroy(&pTscObj->mutex);
   tfree(pTscObj);
 }
 
@@ -133,7 +133,7 @@ void *createTscObj(const char *user, const char *auth, const char *db, SAppInstI
     tstrncpy(pObj->db, db, tListLen(pObj->db));
   }
 
-  pthread_mutex_init(&pObj->mutex, NULL);
+  taosThreadMutexInit(&pObj->mutex, NULL);
   pObj->id = taosAddRef(clientConnRefPool, pObj);
 
   tscDebug("connObj created, 0x%" PRIx64, pObj->id);
@@ -242,7 +242,7 @@ void taos_init_imp(void) {
 
   // transDestroyBuffer(&conn->readBuf);
   taosGetAppName(appInfo.appName, NULL);
-  pthread_mutex_init(&appInfo.mutex, NULL);
+  taosThreadMutexInit(&appInfo.mutex, NULL);
 
   appInfo.pid = taosGetPId();
   appInfo.startTime = taosGetTimestampMs();
@@ -251,7 +251,7 @@ void taos_init_imp(void) {
 }
 
 int taos_init() {
-  pthread_once(&tscinit, taos_init_imp);
+  taosThreadOnce(&tscinit, taos_init_imp);
   return tscInitRes;
 }
 
@@ -507,9 +507,9 @@ static setConfRet taos_set_config_imp(const char *config){
 }
 
 setConfRet taos_set_config(const char *config){
-  pthread_mutex_lock(&setConfMutex);
+  taosThreadMutexLock(&setConfMutex);
   setConfRet ret = taos_set_config_imp(config);
-  pthread_mutex_unlock(&setConfMutex);
+  taosThreadMutexUnlock(&setConfMutex);
   return ret;
 }
 #endif

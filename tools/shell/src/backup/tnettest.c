@@ -519,7 +519,7 @@ static void taosNetTestServer(char *host, int32_t startPort, int32_t pkgLen) {
   int32_t num = endPort - startPort + 1;
   if (num < 0) num = 1;
 
-  pthread_t *pids = malloc(2 * num * sizeof(pthread_t));
+  TdThread *pids = malloc(2 * num * sizeof(TdThread));
   STestInfo *tinfos = malloc(num * sizeof(STestInfo));
   STestInfo *uinfos = malloc(num * sizeof(STestInfo));
 
@@ -528,7 +528,7 @@ static void taosNetTestServer(char *host, int32_t startPort, int32_t pkgLen) {
     tcpInfo->port = port + i;
     tcpInfo->pktLen = pkgLen;
 
-    if (pthread_create(pids + i, NULL, taosNetBindTcpPort, tcpInfo) != 0) {
+    if (taosThreadCreate(pids + i, NULL, taosNetBindTcpPort, tcpInfo) != 0) {
       uInfo("failed to create TCP test thread, %s:%d", tcpInfo->hostFqdn, tcpInfo->port);
       exit(-1);
     }
@@ -536,15 +536,15 @@ static void taosNetTestServer(char *host, int32_t startPort, int32_t pkgLen) {
     STestInfo *udpInfo = uinfos + i;
     udpInfo->port = port + i;
     tcpInfo->pktLen = pkgLen;
-    if (pthread_create(pids + num + i, NULL, taosNetBindUdpPort, udpInfo) != 0) {
+    if (taosThreadCreate(pids + num + i, NULL, taosNetBindUdpPort, udpInfo) != 0) {
       uInfo("failed to create UDP test thread, %s:%d", tcpInfo->hostFqdn, tcpInfo->port);
       exit(-1);
     }
   }
 
   for (int32_t i = 0; i < num; i++) {
-    pthread_join(pids[i], NULL);
-    pthread_join(pids[(num + i)], NULL);
+    taosThreadJoin(pids[i], NULL);
+    taosThreadJoin(pids[(num + i)], NULL);
   }
 }
 

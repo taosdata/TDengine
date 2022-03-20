@@ -56,7 +56,7 @@ typedef struct SCliMsg {
 } SCliMsg;
 
 typedef struct SCliThrdObj {
-  pthread_t   thread;
+  TdThread   thread;
   uv_loop_t*  loop;
   SAsyncPool* asyncPool;
   uv_timer_t  timer;
@@ -64,7 +64,7 @@ typedef struct SCliThrdObj {
 
   // msg queue
   queue           msg;
-  pthread_mutex_t msgMtx;
+  TdThreadMutex msgMtx;
 
   uint64_t nextTimeout;  // next timeout
   void*    pTransInst;   //
@@ -668,9 +668,9 @@ static void cliAsyncCb(uv_async_t* handle) {
 
   // batch process to avoid to lock/unlock frequently
   queue wq;
-  pthread_mutex_lock(&item->mtx);
+  taosThreadMutexLock(&item->mtx);
   QUEUE_MOVE(&item->qmsg, &wq);
-  pthread_mutex_unlock(&item->mtx);
+  taosThreadMutexUnlock(&item->mtx);
 
   int count = 0;
   while (!QUEUE_IS_EMPTY(&wq)) {
@@ -710,7 +710,7 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     pThrd->nextTimeout = taosGetTimestampMs() + CONN_PERSIST_TIME(pTransInst->idleTime);
     pThrd->pTransInst = shandle;
 
-    int err = pthread_create(&pThrd->thread, NULL, cliWorkThread, (void*)(pThrd));
+    int err = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread, (void*)(pThrd));
     if (err == 0) {
       tDebug("success to create tranport-cli thread %d", i);
     }
@@ -739,7 +739,7 @@ static SCliThrdObj* createThrdObj() {
   SCliThrdObj* pThrd = (SCliThrdObj*)calloc(1, sizeof(SCliThrdObj));
 
   QUEUE_INIT(&pThrd->msg);
-  pthread_mutex_init(&pThrd->msgMtx, NULL);
+  taosThreadMutexInit(&pThrd->msgMtx, NULL);
 
   pThrd->loop = (uv_loop_t*)malloc(sizeof(uv_loop_t));
   uv_loop_init(pThrd->loop);
@@ -759,8 +759,8 @@ static void destroyThrdObj(SCliThrdObj* pThrd) {
     return;
   }
   uv_stop(pThrd->loop);
-  pthread_join(pThrd->thread, NULL);
-  pthread_mutex_destroy(&pThrd->msgMtx);
+  taosThreadJoin(pThrd->thread, NULL);
+  taosThreadMutexDestroy(&pThrd->msgMtx);
   transDestroyAsyncPool(pThrd->asyncPool);
 
   uv_timer_stop(&pThrd->timer);

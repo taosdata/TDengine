@@ -436,14 +436,14 @@ static int32_t taosCompareTaosError(const void* a, const void* b) {
   return 0;
 }
 
-static pthread_once_t tsErrorInit = PTHREAD_ONCE_INIT;
+static TdThreadOnce tsErrorInit = PTHREAD_ONCE_INIT;
 
 static void tsSortError(void) {
   qsort(errors, sizeof(errors) / sizeof(errors[0]), sizeof(errors[0]), taosCompareTaosError);
 }
 
 const char* tstrerror(int32_t err) {
-  pthread_once(&tsErrorInit, tsSortError);
+  taosThreadOnce(&tsErrorInit, tsSortError);
 
   // this is a system errno
   if ((err & 0x00ff0000) == 0x00ff0000) {

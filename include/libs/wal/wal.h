@@ -127,7 +127,7 @@ typedef struct SWal {
   int64_t lastRollSeq;
   // ctl
   int64_t         refId;
-  pthread_mutex_t mutex;
+  TdThreadMutex mutex;
   // path
   char path[WAL_PATH_LEN];
   // reusable write head

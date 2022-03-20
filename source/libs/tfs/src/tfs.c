@@ -36,7 +36,7 @@ STfs *tfsOpen(SDiskCfg *pCfg, int32_t ndisk) {
     return NULL;
   }
 
-  if (pthread_spin_init(&pTfs->lock, 0) != 0) {
+  if (taosThreadSpinInit(&pTfs->lock, 0) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     tfsClose(pTfs);
     return NULL;
@@ -85,7 +85,7 @@ void tfsClose(STfs *pTfs) {
   }
 
   taosHashCleanup(pTfs->hash);
-  pthread_spin_destroy(&pTfs->lock);
+  taosThreadSpinDestroy(&pTfs->lock);
   free(pTfs);
 }
 

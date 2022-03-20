@@ -62,13 +62,13 @@ typedef struct SSrvMsg {
 } SSrvMsg;
 
 typedef struct SWorkThrdObj {
-  pthread_t       thread;
+  TdThread       thread;
   uv_pipe_t*      pipe;
   uv_os_fd_t      fd;
   uv_loop_t*      loop;
   SAsyncPool*     asyncPool;
   queue           msg;
-  pthread_mutex_t msgMtx;
+  TdThreadMutex msgMtx;
 
   queue conn;
   void* pTransInst;
@@ -76,7 +76,7 @@ typedef struct SWorkThrdObj {
 } SWorkThrdObj;
 
 typedef struct SServerObj {
-  pthread_t  thread;
+  TdThread  thread;
   uv_tcp_t   server;
   uv_loop_t* loop;
 
@@ -476,9 +476,9 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
   queue         wq;
 
   // batch process to avoid to lock/unlock frequently
-  pthread_mutex_lock(&item->mtx);
+  taosThreadMutexLock(&item->mtx);
   QUEUE_MOVE(&item->qmsg, &wq);
-  pthread_mutex_unlock(&item->mtx);
+  taosThreadMutexUnlock(&item->mtx);
 
   while (!QUEUE_IS_EMPTY(&wq)) {
     queue* head = QUEUE_HEAD(&wq);
@@ -622,7 +622,7 @@ static bool addHandleToWorkloop(void* arg) {
   pThrd->pipe->data = pThrd;
 
   QUEUE_INIT(&pThrd->msg);
-  pthread_mutex_init(&pThrd->msgMtx, NULL);
+  taosThreadMutexInit(&pThrd->msgMtx, NULL);
 
   // conn set
   QUEUE_INIT(&pThrd->conn);
@@ -771,7 +771,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     if (false == addHandleToWorkloop(thrd)) {
       goto End;
     }
-    int err = pthread_create(&(thrd->thread), NULL, workerThread, (void*)(thrd));
+    int err = taosThreadCreate(&(thrd->thread), NULL, workerThread, (void*)(thrd));
     if (err == 0) {
       tDebug("sucess to create worker-thread %d", i);
       // printf("thread %d create\n", i);
@@ -783,7 +783,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   if (false == addHandleToAcceptloop(srv)) {
     goto End;
   }
-  int err = pthread_create(&srv->thread, NULL, acceptThread, (void*)srv);
+  int err = taosThreadCreate(&srv->thread, NULL, acceptThread, (void*)srv);
   if (err == 0) {
     tDebug("success to create accept-thread");
   } else {
@@ -850,7 +850,7 @@ void destroyWorkThrd(SWorkThrdObj* pThrd) {
   if (pThrd == NULL) {
     return;
   }
-  pthread_join(pThrd->thread, NULL);
+  taosThreadJoin(pThrd->thread, NULL);
   free(pThrd->loop);
   transDestroyAsyncPool(pThrd->asyncPool);
   free(pThrd);
@@ -872,7 +872,7 @@ void transCloseServer(void* arg) {
 
   tDebug("send quit msg to accept thread");
   uv_async_send(srv->pAcceptAsync);
-  pthread_join(srv->thread, NULL);
+  taosThreadJoin(srv->thread, NULL);
 
   free(srv->pThreadObj);
   free(srv->pAcceptAsync);

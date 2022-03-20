@@ -28,7 +28,7 @@ class TestServer {
 
  private:
   SDnode*    pDnode;
-  pthread_t  threadId;
+  TdThread*  threadId;
   char       path[PATH_MAX];
   char       fqdn[TSDB_FQDN_LEN];
   char       firstEp[TSDB_EP_LEN];

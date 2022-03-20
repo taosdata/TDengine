@@ -19,8 +19,8 @@
 #define VNODE_BUF_POOL_SHARDS 3
 
 struct SVBufPool {
-  pthread_mutex_t mutex;
-  pthread_cond_t  hasFree;
+  TdThreadMutex mutex;
+  TdThreadCond  hasFree;
   TD_DLIST(SVMemAllocator) free;
   TD_DLIST(SVMemAllocator) incycle;
   SVMemAllocator *inuse;

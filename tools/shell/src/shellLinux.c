@@ -395,7 +395,7 @@ void *shellLoopQuery(void *arg) {
 
   setThreadName("shellLoopQuery");
 
-  pthread_cleanup_push(cleanup_handler, NULL);
+  taosThreadCleanupPush(cleanup_handler, NULL);
 
   char *command = malloc(MAX_COMMAND_SIZE);
   if (command == NULL){
@@ -419,7 +419,7 @@ void *shellLoopQuery(void *arg) {
   tfree(command);
   exitShell();
 
-  pthread_cleanup_pop(1);
+  taosThreadCleanupPop(1);
   
   return NULL;
 }

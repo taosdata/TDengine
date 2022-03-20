@@ -26,12 +26,12 @@ typedef struct {
   char            label[TSDB_LABEL_LEN];
   tsem_t          emptySem;
   tsem_t          fullSem;
-  pthread_mutex_t queueMutex;
+  TdThreadMutex queueMutex;
   int32_t         fullSlot;
   int32_t         emptySlot;
   int32_t         queueSize;
   int32_t         numOfThreads;
-  pthread_t      *qthread;
+  TdThread      *qthread;
   SSchedMsg      *queue;
   bool            stop;
   void           *pTmrCtrl;
@@ -55,7 +55,7 @@ void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *lab
     return NULL;
   }
 
-  pSched->qthread = calloc(sizeof(pthread_t), numOfThreads);
+  pSched->qthread = calloc(sizeof(TdThread), numOfThreads);
   if (pSched->qthread == NULL) {
     uError("%s: no enough memory for qthread", label);
     taosCleanUpScheduler(pSched);
@@ -68,7 +68,7 @@ void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *lab
   pSched->fullSlot = 0;
   pSched->emptySlot = 0;
 
-  if (pthread_mutex_init(&pSched->queueMutex, NULL) < 0) {
+  if (taosThreadMutexInit(&pSched->queueMutex, NULL) < 0) {
     uError("init %s:queueMutex failed(%s)", label, strerror(errno));
     taosCleanUpScheduler(pSched);
     return NULL;
@@ -88,11 +88,11 @@ void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *lab
 
   pSched->stop = false;
   for (int32_t i = 0; i < numOfThreads; ++i) {
-    pthread_attr_t attr;
-    pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-    int32_t code = pthread_create(pSched->qthread + i, &attr, taosProcessSchedQueue, (void *)pSched);
-    pthread_attr_destroy(&attr);
+    TdThreadAttr attr;
+    taosThreadAttrInit(&attr);
+    taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_JOINABLE);
+    int32_t code = taosThreadCreate(pSched->qthread + i, &attr, taosProcessSchedQueue, (void *)pSched);
+    taosThreadAttrDestroy(&attr);
     if (code != 0) {
       uError("%s: failed to create rpc thread(%s)", label, strerror(errno));
       taosCleanUpScheduler(pSched);
@@ -135,7 +135,7 @@ void *taosProcessSchedQueue(void *scheduler) {
       break;
     }
 
-    if ((ret = pthread_mutex_lock(&pSched->queueMutex)) != 0) {
+    if ((ret = taosThreadMutexLock(&pSched->queueMutex)) != 0) {
       uFatal("lock %s queueMutex failed(%s)", pSched->label, strerror(errno));
       exit(ret);
     }
@@ -144,7 +144,7 @@ void *taosProcessSchedQueue(void *scheduler) {
     memset(pSched->queue + pSched->fullSlot, 0, sizeof(SSchedMsg));
     pSched->fullSlot = (pSched->fullSlot + 1) % pSched->queueSize;
 
-    if ((ret = pthread_mutex_unlock(&pSched->queueMutex)) != 0) {
+    if ((ret = taosThreadMutexUnlock(&pSched->queueMutex)) != 0) {
       uFatal("unlock %s queueMutex failed(%s)", pSched->label, strerror(errno));
       exit(ret);
     }
@@ -177,7 +177,7 @@ void taosScheduleTask(void *queueScheduler, SSchedMsg *pMsg) {
     exit(ret);
   }
 
-  if ((ret = pthread_mutex_lock(&pSched->queueMutex)) != 0) {
+  if ((ret = taosThreadMutexLock(&pSched->queueMutex)) != 0) {
     uFatal("lock %s queueMutex failed(%s)", pSched->label, strerror(errno));
     exit(ret);
   }
@@ -185,7 +185,7 @@ void taosScheduleTask(void *queueScheduler, SSchedMsg *pMsg) {
   pSched->queue[pSched->emptySlot] = *pMsg;
   pSched->emptySlot = (pSched->emptySlot + 1) % pSched->queueSize;
 
-  if ((ret = pthread_mutex_unlock(&pSched->queueMutex)) != 0) {
+  if ((ret = taosThreadMutexUnlock(&pSched->queueMutex)) != 0) {
     uFatal("unlock %s queueMutex failed(%s)", pSched->label, strerror(errno));
     exit(ret);
   }
@@ -208,13 +208,13 @@ void taosCleanUpScheduler(void *param) {
   }
   for (int32_t i = 0; i < pSched->numOfThreads; ++i) {
     if (taosCheckPthreadValid(pSched->qthread[i])) {
-      pthread_join(pSched->qthread[i], NULL);
+      taosThreadJoin(pSched->qthread[i], NULL);
     }
   }
 
   tsem_destroy(&pSched->emptySem);
   tsem_destroy(&pSched->fullSem);
-  pthread_mutex_destroy(&pSched->queueMutex);
+  taosThreadMutexDestroy(&pSched->queueMutex);
 
   if (pSched->pTimer) {
     taosTmrStopA(&pSched->pTimer);

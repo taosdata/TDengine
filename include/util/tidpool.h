@@ -27,7 +27,7 @@ typedef struct {
   int32_t         numOfFree;
   int32_t         freeSlot;
   bool           *freeList;
-  pthread_mutex_t mutex;
+  TdThreadMutex mutex;
 } id_pool_t;
 
 void   *taosInitIdPool(int32_t maxId);

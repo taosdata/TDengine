@@ -33,7 +33,7 @@ typedef struct {
 
 struct SMetaDB {
 #if IMPL_WITH_LOCK
-  pthread_rwlock_t rwlock;
+  TdThreadRwlock rwlock;
 #endif
   // DB
   DB *pTbDB;
@@ -317,7 +317,7 @@ static SMetaDB *metaNewDB() {
   }
 
 #if IMPL_WITH_LOCK
-  pthread_rwlock_init(&pDB->rwlock, NULL);
+  taosThreadRwlockInit(&pDB->rwlock, NULL);
 #endif
 
   return pDB;
@@ -326,7 +326,7 @@ static SMetaDB *metaNewDB() {
 static void metaFreeDB(SMetaDB *pDB) {
   if (pDB) {
 #if IMPL_WITH_LOCK
-    pthread_rwlock_destroy(&pDB->rwlock);
+    taosThreadRwlockDestroy(&pDB->rwlock);
 #endif
     free(pDB);
   }
@@ -965,18 +965,18 @@ SArray *metaGetSmaTbUids(SMeta *pMeta, bool isDup) {
 
 static void metaDBWLock(SMetaDB *pDB) {
 #if IMPL_WITH_LOCK
-  pthread_rwlock_wrlock(&(pDB->rwlock));
+  taosThreadRwlockWrlock(&(pDB->rwlock));
 #endif
 }
 
 static void metaDBRLock(SMetaDB *pDB) {
 #if IMPL_WITH_LOCK
-  pthread_rwlock_rdlock(&(pDB->rwlock));
+  taosThreadRwlockRdlock(&(pDB->rwlock));
 #endif
 }
 
 static void metaDBULock(SMetaDB *pDB) {
 #if IMPL_WITH_LOCK
-  pthread_rwlock_unlock(&(pDB->rwlock));
+  taosThreadRwlockUnlock(&(pDB->rwlock));
 #endif
 }

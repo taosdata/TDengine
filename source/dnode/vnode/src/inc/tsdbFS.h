@@ -64,7 +64,7 @@ typedef struct {
  */
 
 typedef struct {
-  pthread_rwlock_t lock;
+  TdThreadRwlock lock;
 
   SFSStatus *cstatus;        // current status
   SHashObj * metaCache;      // meta cache
@@ -108,7 +108,7 @@ SDFileSet *tsdbFSIterNext(SFSIter *pIter);
 int        tsdbLoadMetaCache(STsdb *pRepo, bool recoverMeta);
 
 static FORCE_INLINE int tsdbRLockFS(STsdbFS *pFs) {
-  int code = pthread_rwlock_rdlock(&(pFs->lock));
+  int code = taosThreadRwlockRdlock(&(pFs->lock));
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
     return -1;
@@ -117,7 +117,7 @@ static FORCE_INLINE int tsdbRLockFS(STsdbFS *pFs) {
 }
 
 static FORCE_INLINE int tsdbWLockFS(STsdbFS *pFs) {
-  int code = pthread_rwlock_wrlock(&(pFs->lock));
+  int code = taosThreadRwlockWrlock(&(pFs->lock));
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
     return -1;
@@ -126,7 +126,7 @@ static FORCE_INLINE int tsdbWLockFS(STsdbFS *pFs) {
 }
 
 static FORCE_INLINE int tsdbUnLockFS(STsdbFS *pFs) {
-  int code = pthread_rwlock_unlock(&(pFs->lock));
+  int code = taosThreadRwlockUnlock(&(pFs->lock));
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
     return -1;

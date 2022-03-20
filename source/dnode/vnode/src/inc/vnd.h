@@ -48,9 +48,9 @@ typedef struct SVnodeMgr {
   // For commit
   bool            stop;
   uint16_t        nthreads;
-  pthread_t*      threads;
-  pthread_mutex_t mutex;
-  pthread_cond_t  hasTask;
+  TdThread*      threads;
+  TdThreadMutex mutex;
+  TdThreadCond  hasTask;
   TD_DLIST(SVnodeTask) queue;
   // For vnode Mgmt
   PutToQueueFp putToQueryQFp;

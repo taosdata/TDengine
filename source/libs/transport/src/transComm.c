@@ -186,7 +186,7 @@ SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
     SAsyncItem* item = calloc(1, sizeof(SAsyncItem));
     item->pThrd = arg;
     QUEUE_INIT(&item->qmsg);
-    pthread_mutex_init(&item->mtx, NULL);
+    taosThreadMutexInit(&item->mtx, NULL);
 
     async->data = item;
   }
@@ -197,7 +197,7 @@ void transDestroyAsyncPool(SAsyncPool* pool) {
     uv_async_t* async = &(pool->asyncs[i]);
 
     SAsyncItem* item = async->data;
-    pthread_mutex_destroy(&item->mtx);
+    taosThreadMutexDestroy(&item->mtx);
     free(item);
   }
   free(pool->asyncs);
@@ -214,9 +214,9 @@ int transSendAsync(SAsyncPool* pool, queue* q) {
   SAsyncItem* item = async->data;
 
   int64_t st = taosGetTimestampUs();
-  pthread_mutex_lock(&item->mtx);
+  taosThreadMutexLock(&item->mtx);
   QUEUE_PUSH(&item->qmsg, q);
-  pthread_mutex_unlock(&item->mtx);
+  taosThreadMutexUnlock(&item->mtx);
   int64_t el = taosGetTimestampUs() - st;
   if (el > 50) {
     // tInfo("lock and unlock cost: %d", (int)el);
