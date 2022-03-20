@@ -218,7 +218,7 @@ static void uvHandleReq(SSrvConn* pConn) {
     transMsg.handle = pConn;
   }
 
-  STrans* pTransInst = pConn->hostThrd;
+  STrans* pTransInst = pConn->pTransInst;
   (*pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
   // uv_timer_start(&pConn->pTimer, uvHandleActivityTimeout, pRpc->idleTime * 10000, 0);
 }
