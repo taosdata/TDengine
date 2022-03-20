@@ -220,8 +220,38 @@ _alloc_finish:
   return 0;
 }
 
-static int tdbPageFree(SPage *pPage, int idx, SCell *pCell, int size) {
-  // TODO
+static int tdbPageFree(SPage *pPage, int idx, SCell *pCell, int szCell) {
+  int nFree;
+  int cellFree;
+  u8 *dest;
+  u8 *src;
+
+  ASSERT(pCell >= pPage->pFreeEnd);
+  ASSERT(pCell + szCell <= (u8 *)(pPage->pPageFtr));
+  ASSERT(pCell == TDB_PAGE_CELL_AT(pPage, idx));
+
+  nFree = TDB_PAGE_NFREE(pPage);
+
+  if (pCell == pPage->pFreeEnd) {
+    pPage->pFreeEnd += szCell;
+    TDB_PAGE_CCELLS_SET(pPage, pPage->pFreeEnd - pPage->pData);
+  } else {
+    if (szCell >= TDB_PAGE_FREE_CELL_SIZE(pPage)) {
+      cellFree = TDB_PAGE_FCELL(pPage);
+      pPage->pPageMethods->setFreeCellInfo(pCell, szCell, cellFree);
+      TDB_PAGE_FCELL_SET(pPage, pCell - pPage->pData);
+    } else {
+      ASSERT(0);
+    }
+  }
+
+  dest = pPage->pCellIdx + TDB_PAGE_OFFSET_SIZE(pPage) * idx;
+  src = dest + TDB_PAGE_OFFSET_SIZE(pPage);
+  memmove(dest, src, pPage->pFreeStart - src);
+
+  pPage->pFreeStart -= TDB_PAGE_OFFSET_SIZE(pPage);
+  nFree = nFree + szCell + TDB_PAGE_OFFSET_SIZE(pPage);
+  TDB_PAGE_NFREE_SET(pPage, nFree);
   return 0;
 }
 
