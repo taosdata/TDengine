@@ -265,7 +265,7 @@ _RETURN:
 
 void cliHandleExcept(SCliConn* pConn) {
   if (taosArrayGetSize(pConn->cliMsgs) == 0) {
-    if (pConn->broken == true && CONN_NO_PERSIST_BY_APP(pConn)) {
+    if (pConn->broken == true || CONN_NO_PERSIST_BY_APP(pConn)) {
       transUnrefCliHandle(pConn);
       return;
     }
