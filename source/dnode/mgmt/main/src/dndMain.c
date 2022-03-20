@@ -28,7 +28,10 @@ static struct {
 
 static void dndSigintHandle(int signum, void *info, void *ctx) {
   dInfo("signal:%d is received", signum);
-  dndHandleEvent(global.pDnode, DND_EVENT_STOP);
+  SDnode *pDnode = atomic_val_compare_exchange_ptr(&global.pDnode, 0, global.pDnode);
+  if (pDnode != NULL) {
+    dndHandleEvent(pDnode, DND_EVENT_STOP);
+  }
 }
 
 static void dndSetSignalHandle() {

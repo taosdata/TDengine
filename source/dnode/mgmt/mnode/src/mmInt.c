@@ -58,7 +58,7 @@ static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
   SReplica *pReplica = &pOption->replicas[0];
   pReplica->id = 1;
   pReplica->port = pDnode->serverPort;
-  memcpy(pReplica->fqdn, pDnode->localFqdn, TSDB_FQDN_LEN);
+  tstrncpy(pReplica->fqdn, pDnode->localFqdn, TSDB_FQDN_LEN);
 
   pMgmt->selfIndex = pOption->selfIndex;
   pMgmt->replica = pOption->replica;
