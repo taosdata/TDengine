@@ -26,6 +26,7 @@ extern SPageMethods pageLargeMethods;
 
 static int tdbPageAllocate(SPage *pPage, int size, SCell **ppCell);
 static int tdbPageDefragment(SPage *pPage);
+static int tdbPageFree(SPage *pPage, int idx, SCell *pCell, int szCell);
 
 int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg) {
   SPage *pPage;
@@ -131,7 +132,25 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
 }
 
 int tdbPageDropCell(SPage *pPage, int idx) {
-  // TODO
+  int    lidx;
+  SCell *pCell;
+  int    szCell;
+  int    nCells;
+
+  nCells = TDB_PAGE_NCELLS(pPage);
+
+  if (pPage->nOverflow == 0) {
+    lidx = idx;
+  } else {
+    // TODO
+  }
+
+  pCell = TDB_PAGE_CELL_AT(pPage, lidx);
+  szCell = (*pPage->xCellSize)(pCell);
+  tdbPageFree(pPage, lidx, pCell, szCell);
+
+  TDB_PAGE_NCELLS_SET(pPage, nCells - 1);
+
   return 0;
 }
 
