@@ -145,7 +145,13 @@ int tdbPageDropCell(SPage *pPage, int idx) {
   iOvfl = 0;
   for (; iOvfl < pPage->nOverflow; iOvfl++) {
     if (pPage->aiOvfl[iOvfl] == idx) {
-      // TODO: remove the over flow cell
+      // remove the over flow cell
+      for (; (++iOvfl) < pPage->nOverflow;) {
+        pPage->aiOvfl[iOvfl - 1] = pPage->aiOvfl[iOvfl] - 1;
+        pPage->apOvfl[iOvfl - 1] = pPage->apOvfl[iOvfl];
+      }
+
+      pPage->nOverflow--;
       return 0;
     } else if (pPage->aiOvfl[iOvfl] > idx) {
       break;
@@ -157,6 +163,11 @@ int tdbPageDropCell(SPage *pPage, int idx) {
   szCell = (*pPage->xCellSize)(pCell);
   tdbPageFree(pPage, lidx, pCell, szCell);
   TDB_PAGE_NCELLS_SET(pPage, nCells - 1);
+
+  for (; iOvfl < pPage->nOverflow; iOvfl++) {
+    pPage->aiOvfl[iOvfl]--;
+    ASSERT(pPage->aiOvfl[iOvfl] > 0);
+  }
 
   return 0;
 }
