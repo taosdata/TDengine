@@ -38,13 +38,6 @@ void sndClose(SSnode *pSnode) {
 
 int32_t sndGetLoad(SSnode *pSnode, SSnodeLoad *pLoad) { return 0; }
 
-/*int32_t sndProcessMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {*/
-/**pRsp = NULL;*/
-/*return 0;*/
-/*}*/
-
-void sndDestroy(const char *path) {}
-
 SStreamMeta *sndMetaNew() {
   SStreamMeta *pMeta = calloc(1, sizeof(SStreamMeta));
   if (pMeta == NULL) {
@@ -93,7 +86,7 @@ static int32_t sndProcessTaskExecReq(SSnode *pSnode, SRpcMsg *pMsg) {
   return 0;
 }
 
-int32_t sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) {
+void sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) {
   // stream deploy
   // stream stop/resume
   // operator exec
@@ -101,7 +94,7 @@ int32_t sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) {
     void        *msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
     SStreamTask *pTask = malloc(sizeof(SStreamTask));
     if (pTask == NULL) {
-      return -1;
+      ASSERT(0);
     }
     SCoder decoder;
     tCoderInit(&decoder, TD_LITTLE_ENDIAN, msg, pMsg->contLen - sizeof(SMsgHead), TD_DECODER);
@@ -114,15 +107,13 @@ int32_t sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) {
   } else {
     ASSERT(0);
   }
-  return 0;
 }
 
-int32_t sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg) {
+void sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg) {
   // operator exec
   if (pMsg->msgType == TDMT_SND_TASK_EXEC) {
     sndProcessTaskExecReq(pSnode, pMsg);
   } else {
     ASSERT(0);
   }
-  return 0;
 }

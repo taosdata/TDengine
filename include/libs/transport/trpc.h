@@ -48,6 +48,14 @@ typedef struct SRpcMsg {
 
 } SRpcMsg;
 
+typedef struct {
+  char    user[TSDB_USER_LEN];
+  SRpcMsg rpcMsg;
+  int32_t rspLen;
+  void   *pRsp;
+  void   *pNode;
+} SNodeMsg;
+
 typedef struct SRpcInit {
   uint16_t localPort;     // local port
   char *   label;         // for debug purpose

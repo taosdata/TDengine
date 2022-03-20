@@ -1443,7 +1443,7 @@ _return:
 }
 
 int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, void *nodeObj,
-                    putReqToQueryQFp fp1, sendReqToDnodeFp fp2) {
+                    putReqToQueryQFp fp1, sendReqFp fp2) {
   if (NULL == qWorkerMgmt || NULL == nodeObj || NULL == fp1 || NULL == fp2) {
     qError("invalid param to init qworker");
     QW_RET(TSDB_CODE_QRY_INVALID_INPUT);

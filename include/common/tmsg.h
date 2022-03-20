@@ -697,6 +697,7 @@ typedef struct {
 
 int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
 int32_t tDeserializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
+void    tFreeSStatusRsp(SStatusRsp* pRsp);
 
 typedef struct {
   int32_t reserved;
@@ -2317,6 +2318,14 @@ typedef struct {
 } SStreamTaskExecRsp;
 
 #pragma pack(pop)
+
+struct SRpcMsg;
+struct SEpSet;
+struct SMgmtWrapper;
+typedef int32_t (*PutToQueueFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* pReq);
+typedef int32_t (*SendReqFp)(struct SMgmtWrapper* pWrapper, struct SEpSet* epSet, struct SRpcMsg* rpcMsg);
+typedef int32_t (*SendMnodeReqFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* rpcMsg);
+typedef void (*SendRspFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* rpcMsg);
 
 #ifdef __cplusplus
 }

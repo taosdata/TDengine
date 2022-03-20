@@ -53,9 +53,8 @@ typedef struct SVnodeMgr {
   TdThreadCond  hasTask;
   TD_DLIST(SVnodeTask) queue;
   // For vnode Mgmt
-  SDnode*           pDnode;
-  PutReqToVQueryQFp putReqToVQueryQFp;
-  SendReqToDnodeFp  sendReqToDnodeFp;
+  PutToQueueFp putToQueryQFp;
+  SendReqFp    sendReqFp;
 } SVnodeMgr;
 
 extern SVnodeMgr vnodeMgr;
@@ -79,14 +78,14 @@ struct SVnode {
   SWal*      pWal;
   tsem_t     canCommit;
   SQHandle*  pQuery;
-  SDnode*    pDnode;
+  void*      pWrapper;
   STfs*      pTfs;
 };
 
 int vnodeScheduleTask(SVnodeTask* task);
 
-int32_t vnodePutReqToVQueryQ(SVnode* pVnode, struct SRpcMsg* pReq);
-void    vnodeSendReqToDnode(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pReq);
+int32_t vnodePutToVQueryQ(SVnode* pVnode, struct SRpcMsg* pReq);
+void    vnodeSendReq(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pReq);
 
 #define vFatal(...)                                              \
   do {                                                           \

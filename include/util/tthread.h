@@ -26,6 +26,8 @@ TdThread* taosCreateThread(void* (*__start_routine)(void*), void* param);
 bool       taosDestoryThread(TdThread* pthread);
 bool       taosThreadRunning(TdThread* pthread);
 
+typedef void *(*ThreadFp)(void *param);
+
 #ifdef __cplusplus
 }
 #endif
