@@ -35,6 +35,8 @@ int port = 7000;
 typedef void (*CB)(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet);
 
 static void processContinueSend(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet);
+static void processReleaseHandleCb(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet);
+static void processRegisterFailure(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet);
 static void processReq(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet);
 // client process;
 static void processResp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet);
@@ -167,6 +169,35 @@ static void processContinueSend(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
     rpcSendResponse(&rpcMsg);
   }
 }
+static void processReleaseHandleCb(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  SRpcMsg rpcMsg = {0};
+  rpcMsg.pCont = rpcMallocCont(100);
+  rpcMsg.contLen = 100;
+  rpcMsg.handle = pMsg->handle;
+  rpcMsg.code = 0;
+  rpcSendResponse(&rpcMsg);
+
+  rpcReleaseHandle(pMsg->handle, TAOS_CONN_SERVER);
+}
+static void processRegisterFailure(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  void *handle = pMsg->handle;
+  {
+    SRpcMsg rpcMsg1 = {0};
+    rpcMsg1.pCont = rpcMallocCont(100);
+    rpcMsg1.contLen = 100;
+    rpcMsg1.handle = handle;
+    rpcMsg1.code = 0;
+    rpcRegisterBrokenLinkArg(&rpcMsg1);
+  }
+  taosMsleep(10);
+
+  SRpcMsg rpcMsg = {0};
+  rpcMsg.pCont = rpcMallocCont(100);
+  rpcMsg.contLen = 100;
+  rpcMsg.handle = pMsg->handle;
+  rpcMsg.code = 0;
+  rpcSendResponse(&rpcMsg);
+}
 // client process;
 static void processResp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   Client *client = (Client *)parent;
@@ -225,7 +256,7 @@ class TransObj {
     srv->SetSrvContinueSend(cfp);
   }
   void RestartSrv() { srv->Restart(); }
-  void cliStop() {
+  void StopCli() {
     ///////
     cli->Stop();
   }
@@ -329,32 +360,35 @@ TEST_F(TransEnv, cliPersistHandle) {
   //////////////////
 }
 
-TEST_F(TransEnv, cliReleaseHandle) {
+TEST_F(TransEnv, srvReleaseHandle) {
   SRpcMsg resp = {0};
-  for (int i = 0; i < 10; i++) {
+  tr->SetSrvContinueSend(processReleaseHandleCb);
+  // tr->Restart(processReleaseHandleCb);
+  void *handle = NULL;
+  for (int i = 0; i < 1; i++) {
     SRpcMsg req = {.handle = resp.handle, .persistHandle = 1};
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);
     req.contLen = 10;
-    tr->cliSendAndRecvNoHandle(&req, &resp);
+    tr->cliSendAndRecv(&req, &resp);
+    // tr->cliSendAndRecvNoHandle(&req, &resp);
     EXPECT_TRUE(resp.code == 0);
-    //}
   }
   //////////////////
 }
 TEST_F(TransEnv, cliReleaseHandleExcept) {
   SRpcMsg resp = {0};
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 3; i++) {
     SRpcMsg req = {.handle = resp.handle, .persistHandle = 1};
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);
     req.contLen = 10;
-    tr->cliSendAndRecvNoHandle(&req, &resp);
-    if (i == 5) {
+    tr->cliSendAndRecv(&req, &resp);
+    if (i == 1) {
       std::cout << "stop server" << std::endl;
       tr->StopSrv();
     }
-    if (i >= 6) {
+    if (i > 1) {
       EXPECT_TRUE(resp.code != 0);
     }
   }
@@ -383,7 +417,7 @@ TEST_F(TransEnv, srvPersistHandleExcept) {
     req.contLen = 10;
     tr->cliSendAndRecv(&req, &resp);
     if (i > 2) {
-      tr->cliStop();
+      tr->StopCli();
       break;
     }
   }
@@ -413,7 +447,23 @@ TEST_F(TransEnv, cliPersistHandleExcept) {
 TEST_F(TransEnv, multiCliPersistHandleExcept) {
   // conn broken
 }
-TEST_F(TransEnv, queryExcept) {}
+TEST_F(TransEnv, queryExcept) {
+  tr->SetSrvContinueSend(processRegisterFailure);
+  SRpcMsg resp = {0};
+  for (int i = 0; i < 5; i++) {
+    SRpcMsg req = {.handle = resp.handle, .persistHandle = 1};
+    req.msgType = 1;
+    req.pCont = rpcMallocCont(10);
+    req.contLen = 10;
+    tr->cliSendAndRecv(&req, &resp);
+    if (i == 2) {
+      rpcReleaseHandle(resp.handle, TAOS_CONN_CLIENT);
+      tr->StopCli();
+      break;
+    }
+  }
+  taosMsleep(4 * 1000);
+}
 TEST_F(TransEnv, noResp) {
   SRpcMsg resp = {0};
   for (int i = 0; i < 5; i++) {
