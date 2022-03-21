@@ -13,14 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "executor.h"
 #include "qndInt.h"
 #include "query.h"
 #include "qworker.h"
-#include "executor.h"
-
-int32_t qnodePutReqToVQueryQ(SQnode* pQnode, struct SRpcMsg* pReq) {}
-void    qnodeSendReqToDnode(SQnode* pQnode, struct SEpSet* epSet, struct SRpcMsg* pReq) {}
-
 
 SQnode *qndOpen(const SQnodeOpt *pOption) {
   SQnode *pQnode = calloc(1, sizeof(SQnode));
@@ -29,12 +25,12 @@ SQnode *qndOpen(const SQnodeOpt *pOption) {
     return NULL;
   }
 
-  if (qWorkerInit(NODE_TYPE_QNODE, pQnode->qndId, NULL, (void **)&pQnode->pQuery, pQnode,
-                     (putReqToQueryQFp)qnodePutReqToVQueryQ, (sendReqFp)qnodeSendReqToDnode)) {
+  if (qWorkerInit(NODE_TYPE_QNODE, pQnode->qndId, NULL, (void **)&pQnode->pQuery, &pOption->msgCb)) {
     tfree(pQnode);
     return NULL;
   }
-  
+
+  pQnode->msgCb = pOption->msgCb;
   return pQnode;
 }
 

@@ -16,7 +16,7 @@
 #ifndef _TD_SNODE_H_
 #define _TD_SNODE_H_
 
-#include "tcommon.h"
+#include "tmsgcb.h"
 #include "tmsg.h"
 #include "trpc.h"
 
@@ -25,17 +25,13 @@ extern "C" {
 #endif
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
-typedef struct SMgmtWrapper SMgmtWrapper;
-typedef struct SSnode       SSnode;
+typedef struct SSnode SSnode;
 
 typedef struct {
 } SSnodeLoad;
 
 typedef struct {
-  SMgmtWrapper  *pWrapper;
-  SendReqFp      sendReqFp;
-  SendMnodeReqFp sendMnodeReqFp;
-  SendRspFp      sendRspFp;
+  SMsgCb msgCb;
 } SSnodeOpt;
 
 /* ------------------------ SSnode ------------------------ */

@@ -16,22 +16,20 @@
 #ifndef _TD_BNODE_H_
 #define _TD_BNODE_H_
 
+#include "tmsgcb.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
-typedef struct SMgmtWrapper SMgmtWrapper;
-typedef struct SBnode       SBnode;
+typedef struct SBnode SBnode;
 
 typedef struct {
 } SBnodeLoad;
 
 typedef struct {
-  SMgmtWrapper  *pWrapper;
-  SendReqFp      sendReqFp;
-  SendMnodeReqFp sendMnodeReqFp;
-  SendRspFp      sendRspFp;
+  SMsgCb msgCb;
 } SBnodeOpt;
 
 /* ------------------------ SBnode ------------------------ */

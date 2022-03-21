@@ -82,7 +82,14 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
     return -1;
   }
 
-  vnodeCfg.pWrapper = pMgmt->pWrapper;
+  SMsgCb msgCb = {0};
+  msgCb.pWrapper = pMgmt->pWrapper;
+  msgCb.queueFps[QUERY_QUEUE] = vmPutMsgToQueryQueue;
+  msgCb.sendReqFp = dndSendReqToDnode;
+  msgCb.sendMnodeReqFp = dndSendReqToMnode;
+  msgCb.sendRspFp = dndSendRsp;
+
+  vnodeCfg.msgCb = msgCb;
   vnodeCfg.pTfs = pMgmt->pTfs;
   vnodeCfg.dbId = wrapperCfg.dbUid;
   SVnode *pImpl = vnodeOpen(wrapperCfg.path, &vnodeCfg);

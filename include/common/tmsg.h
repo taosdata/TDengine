@@ -2319,14 +2319,6 @@ typedef struct {
 
 #pragma pack(pop)
 
-struct SRpcMsg;
-struct SEpSet;
-struct SMgmtWrapper;
-typedef int32_t (*PutToQueueFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* pReq);
-typedef int32_t (*SendReqFp)(struct SMgmtWrapper* pWrapper, struct SEpSet* epSet, struct SRpcMsg* pReq);
-typedef int32_t (*SendMnodeReqFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* pReq);
-typedef void (*SendRspFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* pRsp);
-
 #ifdef __cplusplus
 }
 #endif

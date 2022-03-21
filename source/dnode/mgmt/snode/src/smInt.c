@@ -19,11 +19,12 @@
 static int32_t smRequire(SMgmtWrapper *pWrapper, bool *required) { return dndReadFile(pWrapper, required); }
 
 static void smInitOption(SSnodeMgmt *pMgmt, SSnodeOpt *pOption) {
-  SDnode *pDnode = pMgmt->pDnode;
-  pOption->pWrapper = pMgmt->pWrapper;
-  pOption->sendReqFp = dndSendReqToDnode;
-  pOption->sendMnodeReqFp = dndSendReqToMnode;
-  pOption->sendRspFp = dndSendRsp;
+  SMsgCb msgCb = {0};
+  msgCb.pWrapper = pMgmt->pWrapper;
+  msgCb.sendReqFp = dndSendReqToDnode;
+  msgCb.sendMnodeReqFp = dndSendReqToMnode;
+  msgCb.sendRspFp = dndSendRsp;
+  pOption->msgCb = msgCb;
 }
 
 static int32_t smOpenImp(SSnodeMgmt *pMgmt) {

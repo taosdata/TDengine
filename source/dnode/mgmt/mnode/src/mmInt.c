@@ -39,14 +39,17 @@ static int32_t mmRequire(SMgmtWrapper *pWrapper, bool *required) {
 
 static void mmInitOption(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
   SDnode *pDnode = pMgmt->pDnode;
-  pOption->pWrapper = pMgmt->pWrapper;
-  pOption->putToWriteQFp = mmPutMsgToWriteQueue;
-  pOption->putToReadQFp = mmPutMsgToReadQueue;
-  pOption->sendReqFp = dndSendReqToDnode;
-  pOption->sendMnodeReqFp = dndSendReqToMnode;
-  pOption->sendRspFp = dndSendRsp;
   pOption->dnodeId = pDnode->dnodeId;
   pOption->clusterId = pDnode->clusterId;
+
+  SMsgCb msgCb = {0};
+  msgCb.pWrapper = pMgmt->pWrapper;
+  msgCb.queueFps[QUERY_QUEUE] = mmPutMsgToReadQueue;
+  msgCb.queueFps[WRITE_QUEUE] = mmPutMsgToWriteQueue;
+  msgCb.sendReqFp = dndSendReqToDnode;
+  msgCb.sendMnodeReqFp = dndSendReqToMnode;
+  msgCb.sendRspFp = dndSendRsp;
+  pOption->msgCb = msgCb;
 }
 
 static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {

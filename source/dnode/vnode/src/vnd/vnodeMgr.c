@@ -14,43 +14,33 @@
  */
 
 #include "vnd.h"
+#include "tglobal.h"
 
 SVnodeMgr vnodeMgr = {.vnodeInitFlag = TD_MOD_UNINITIALIZED};
 
 static void* loop(void* arg);
 
-int vnodeInit(const SVnodeOpt *pOption) {
+int vnodeInit() {
   if (TD_CHECK_AND_SET_MODE_INIT(&(vnodeMgr.vnodeInitFlag)) == TD_MOD_INITIALIZED) {
     return 0;
   }
 
   vnodeMgr.stop = false;
-  vnodeMgr.putToQueryQFp = pOption->putToQueryQFp;
-  vnodeMgr.putToFetchQFp = pOption->putToFetchQFp;
-  vnodeMgr.sendReqFp = pOption->sendReqFp;
-  vnodeMgr.sendMnodeReqFp = pOption->sendMnodeReqFp;
-  vnodeMgr.sendRspFp = pOption->sendRspFp;
 
   // Start commit handers
-  if (pOption->nthreads > 0) {
-    vnodeMgr.nthreads = pOption->nthreads;
-    vnodeMgr.threads = (TdThread*)calloc(pOption->nthreads, sizeof(TdThread));
-    if (vnodeMgr.threads == NULL) {
-      return -1;
-    }
+  vnodeMgr.nthreads = tsNumOfCommitThreads;
+  vnodeMgr.threads = calloc(vnodeMgr.nthreads, sizeof(TdThread));
+  if (vnodeMgr.threads == NULL) {
+    return -1;
+  }
 
-    taosThreadMutexInit(&(vnodeMgr.mutex), NULL);
-    taosThreadCondInit(&(vnodeMgr.hasTask), NULL);
-    TD_DLIST_INIT(&(vnodeMgr.queue));
+  taosThreadMutexInit(&(vnodeMgr.mutex), NULL);
+  taosThreadCondInit(&(vnodeMgr.hasTask), NULL);
+  TD_DLIST_INIT(&(vnodeMgr.queue));
 
-    for (uint16_t i = 0; i < pOption->nthreads; i++) {
-      taosThreadCreate(&(vnodeMgr.threads[i]), NULL, loop, NULL);
-      // pthread_setname_np(vnodeMgr.threads[i], "VND Commit Thread");
-    }
-  } else {
-    // TODO: if no commit thread is set, then another mechanism should be
-    // given. Otherwise, it is a false.
-    ASSERT(0);
+  for (uint16_t i = 0; i < vnodeMgr.nthreads; i++) {
+    taosThreadCreate(&(vnodeMgr.threads[i]), NULL, loop, NULL);
+    // pthread_setname_np(vnodeMgr.threads[i], "VND Commit Thread");
   }
 
   if (walInit() < 0) {
@@ -90,26 +80,6 @@ int vnodeScheduleTask(SVnodeTask* pTask) {
   taosThreadMutexUnlock(&(vnodeMgr.mutex));
 
   return 0;
-}
-
-int32_t vnodePutToVQueryQ(SVnode* pVnode, struct SRpcMsg* pReq) {
-  return (*vnodeMgr.putToQueryQFp)(pVnode->pWrapper, pReq);
-}
-
-int32_t vnodePutToVFetchQ(SVnode* pVnode, struct SRpcMsg* pReq) {
-  return (*vnodeMgr.putToFetchQFp)(pVnode->pWrapper, pReq);
-}
-
-int32_t vnodeSendReq(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pReq) {
-  return (*vnodeMgr.sendReqFp)(pVnode->pWrapper, epSet, pReq);
-}
-
-int32_t vnodeSendMnodeReq(SVnode* pVnode, struct SRpcMsg* pReq) {
-  return (*vnodeMgr.sendMnodeReqFp)(pVnode->pWrapper, pReq);
-}
-
-void vnodeSendRsp(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pRsp) {
-  (*vnodeMgr.sendRspFp)(pVnode->pWrapper, pRsp);
 }
 
 /* ------------------------ STATIC METHODS ------------------------ */
