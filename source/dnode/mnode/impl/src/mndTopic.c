@@ -176,7 +176,7 @@ static int32_t mndTopicActionDelete(SSdb *pSdb, SMqTopicObj *pTopic) {
 
 static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pOldTopic, SMqTopicObj *pNewTopic) {
   mTrace("topic:%s, perform update action", pOldTopic->name);
-  atomic_exchange_32(&pOldTopic->updateTime, pNewTopic->updateTime);
+  atomic_exchange_64(&pOldTopic->updateTime, pNewTopic->updateTime);
   atomic_exchange_32(&pOldTopic->version, pNewTopic->version);
 
   taosWLockLatch(&pOldTopic->lock);

@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 // If the error is in a third-party library, place this header file under the third-party library header file.
+// When you want to use this feature, you should find or add the same function in the following section.
 #ifndef ALLOW_FORBID_FUNC
     #define strptime STRPTIME_FUNC_TAOS_FORBID
     #define gettimeofday GETTIMEOFDAY_FUNC_TAOS_FORBID
@@ -33,11 +34,7 @@ extern "C" {
 
   #define CLOCK_REALTIME 	0
 
-  #ifdef _TD_GO_DLL_
-    #define MILLISECOND_PER_SECOND (1000LL)
-  #else
-    #define MILLISECOND_PER_SECOND (1000i64)
-  #endif
+  #define MILLISECOND_PER_SECOND (1000i64)
 #else
   #define MILLISECOND_PER_SECOND ((int64_t)1000L)
 #endif
