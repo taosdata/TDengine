@@ -25,3 +25,4 @@ taos = { path = "taos" }
 taos-sys = { path = "taos-sys"}
 futures = "0.3.21"
 libtaos = "*"
+parquet = "9.1.0"
