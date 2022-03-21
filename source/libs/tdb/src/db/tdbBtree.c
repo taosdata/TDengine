@@ -430,7 +430,7 @@ static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
   tdbPageZero(pPage, isLeaf ? sizeof(SLeafHdr) : sizeof(SIntHdr), tdbBtreeCellSize);
 
   if (isLeaf) {
-    SLeafHdr *pLeafHdr = (SLeafHdr *)(pPage->pPageHdr);
+    SLeafHdr *pLeafHdr = (SLeafHdr *)(pPage->pAmHdr);
     pLeafHdr->flags = flags;
 
     pPage->kLen = pBt->keyLen;
@@ -438,7 +438,7 @@ static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
     pPage->maxLocal = pBt->maxLeaf;
     pPage->minLocal = pBt->minLeaf;
   } else {
-    SIntHdr *pIntHdr = (SIntHdr *)(pPage->pPageHdr);
+    SIntHdr *pIntHdr = (SIntHdr *)(pPage->pAmHdr);
     pIntHdr->flags = flags;
     pIntHdr->pgno = 0;
 
