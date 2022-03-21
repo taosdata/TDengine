@@ -42,31 +42,6 @@ static void mmProcessQueue(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
-int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
-  if (dndInitWorker(pMgmt, &pMgmt->readWorker, DND_WORKER_SINGLE, "mnode-read", 0, 1, mmProcessQueue) != 0) {
-    dError("failed to start mnode read worker since %s", terrstr());
-    return -1;
-  }
-
-  if (dndInitWorker(pMgmt, &pMgmt->writeWorker, DND_WORKER_SINGLE, "mnode-write", 0, 1, mmProcessQueue) != 0) {
-    dError("failed to start mnode write worker since %s", terrstr());
-    return -1;
-  }
-
-  if (dndInitWorker(pMgmt, &pMgmt->syncWorker, DND_WORKER_SINGLE, "mnode-sync", 0, 1, mmProcessQueue) != 0) {
-    dError("failed to start mnode sync worker since %s", terrstr());
-    return -1;
-  }
-
-  return 0;
-}
-
-void mmStopWorker(SMnodeMgmt *pMgmt) {
-  dndCleanupWorker(&pMgmt->readWorker);
-  dndCleanupWorker(&pMgmt->writeWorker);
-  dndCleanupWorker(&pMgmt->syncWorker);
-}
-
 static int32_t mmPutMsgToWorker(SMnodeMgmt *pMgmt, SDnodeWorker *pWorker, SNodeMsg *pMsg) {
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   return dndWriteMsgToWorker(pWorker, pMsg);
@@ -90,10 +65,10 @@ static int32_t mmPutRpcMsgToWorker(SMnodeMgmt *pMgmt, SDnodeWorker *pWorker, SRp
     return -1;
   }
 
-  dTrace("msg:%p, is created, type:%s", pMsg, TMSG_INFO(pRpc->msgType));
+  dTrace("msg:%p, is created and put into worker:%s, type:%s", pMsg, pWorker->name, TMSG_INFO(pRpc->msgType));
   pMsg->rpcMsg = *pRpc;
 
-  int32_t code = mmPutMsgToWorker(pMgmt, pWorker, pMsg);
+  int32_t code = dndWriteMsgToWorker(pWorker, pMsg);
   if (code != 0) {
     dTrace("msg:%p, is freed", pMsg);
     taosFreeQitem(pMsg);
@@ -111,4 +86,29 @@ int32_t mmPutMsgToWriteQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
 int32_t mmPutMsgToReadQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
   SMnodeMgmt *pMgmt = pWrapper->pMgmt;
   return mmPutRpcMsgToWorker(pMgmt, &pMgmt->readWorker, pRpc);
+}
+
+int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
+  if (dndInitWorker(pMgmt, &pMgmt->readWorker, DND_WORKER_SINGLE, "mnode-read", 0, 1, mmProcessQueue) != 0) {
+    dError("failed to start mnode read worker since %s", terrstr());
+    return -1;
+  }
+
+  if (dndInitWorker(pMgmt, &pMgmt->writeWorker, DND_WORKER_SINGLE, "mnode-write", 0, 1, mmProcessQueue) != 0) {
+    dError("failed to start mnode write worker since %s", terrstr());
+    return -1;
+  }
+
+  if (dndInitWorker(pMgmt, &pMgmt->syncWorker, DND_WORKER_SINGLE, "mnode-sync", 0, 1, mmProcessQueue) != 0) {
+    dError("failed to start mnode sync worker since %s", terrstr());
+    return -1;
+  }
+
+  return 0;
+}
+
+void mmStopWorker(SMnodeMgmt *pMgmt) {
+  dndCleanupWorker(&pMgmt->readWorker);
+  dndCleanupWorker(&pMgmt->writeWorker);
+  dndCleanupWorker(&pMgmt->syncWorker);
 }

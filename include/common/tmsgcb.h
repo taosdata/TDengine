@@ -22,30 +22,29 @@
 extern "C" {
 #endif
 
-struct SRpcMsg;
-struct SEpSet;
-struct SMgmtWrapper;
+typedef struct SRpcMsg      SRpcMsg;
+typedef struct SEpSet       SEpSet;
 typedef struct SMgmtWrapper SMgmtWrapper;
 
-typedef int32_t (*PutToQueueFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* pReq);
-typedef int32_t (*SendReqFp)(struct SMgmtWrapper* pWrapper, struct SEpSet* epSet, struct SRpcMsg* pReq);
-typedef int32_t (*SendMnodeReqFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* pReq);
-typedef void (*SendRspFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* pRsp);
+typedef int32_t (*PutToQueueFp)(SMgmtWrapper* pWrapper, SRpcMsg* pReq);
+typedef int32_t (*SendReqFp)(SMgmtWrapper* pWrapper, SEpSet* epSet, SRpcMsg* pReq);
+typedef int32_t (*SendMnodeReqFp)(SMgmtWrapper* pWrapper, SRpcMsg* pReq);
+typedef void (*SendRspFp)(SMgmtWrapper* pWrapper, SRpcMsg* pRsp);
 
-typedef enum { QUERY_QUEUE, FETCH_QUEUE, WRITE_QUEUE, APPLY_QUEUE, SYNC_QUEUE, QUEUE_MAX } EMsgQueueType;
+typedef enum { QUERY_QUEUE, FETCH_QUEUE, WRITE_QUEUE, APPLY_QUEUE, SYNC_QUEUE, QUEUE_MAX } EQueueType;
 
 typedef struct {
-  struct SMgmtWrapper* pWrapper;
-  PutToQueueFp         queueFps[QUEUE_MAX];
-  SendReqFp            sendReqFp;
-  SendMnodeReqFp       sendMnodeReqFp;
-  SendRspFp            sendRspFp;
+  SMgmtWrapper*  pWrapper;
+  PutToQueueFp   queueFps[QUEUE_MAX];
+  SendReqFp      sendReqFp;
+  SendMnodeReqFp sendMnodeReqFp;
+  SendRspFp      sendRspFp;
 } SMsgCb;
 
-int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EMsgQueueType qtype, struct SRpcMsg* pReq);
-int32_t tmsgSendReq(const SMsgCb* pMsgCb, struct SEpSet* epSet, struct SRpcMsg* pReq);
-int32_t tmsgSendMnodeReq(const SMsgCb* pMsgCb, struct SRpcMsg* pReq);
-void    tmsgSendRsp(const SMsgCb* pMsgCb, struct SRpcMsg* pRsp);
+int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq);
+int32_t tmsgSendReq(const SMsgCb* pMsgCb, SEpSet* epSet, SRpcMsg* pReq);
+int32_t tmsgSendMnodeReq(const SMsgCb* pMsgCb, SRpcMsg* pReq);
+void    tmsgSendRsp(const SMsgCb* pMsgCb, SRpcMsg* pRsp);
 
 #ifdef __cplusplus
 }
