@@ -715,7 +715,34 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
 
     // back loop to make the distribution even
     for (int iNew = nNews - 1; iNew > 0; iNew--) {
-      /* code */
+      // TODO: find the last cell of page (iNew-1)
+      int    cIdx;
+      int    iPage;
+      int    cellBytes;
+      SPage *pPage;
+      SCell *pCell;
+
+      for (;;) {
+        pCell = tdbPageGetCell(pPage, cIdx);
+        cellBytes = TDB_BYTES_CELL_TAKEN(pPage, pCell);
+
+        if (szNews[iNew] + cellBytes >= szNews[iNew - 1] + cellBytes) {
+          break;
+        }
+
+        // Move the cell right
+        szNews[iNew] += cellBytes;
+        cntNews[iNew]++;
+
+        szNews[iNew - 1] -= cellBytes;
+        cntNews[iNew - 1]++;
+
+        cIdx--;
+        if (cIdx < 0) {
+          pPage = pOlds[--iPage];
+          cIdx = TDB_PAGE_TOTAL_CELLS(pPage) - 1;
+        }
+      }
     }
   }
 
