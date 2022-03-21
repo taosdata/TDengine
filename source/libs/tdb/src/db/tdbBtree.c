@@ -690,7 +690,6 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
   int nNews = 0;
   int cntNews[5] = {0};  // TODO: maybe 5 is not enough
   int szNews[5] = {0};
-  int maxPageCapacity;  // TODO
 
   {  // Get how many new pages are needed and the new distribution
 
@@ -699,11 +698,12 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
       SPage *pPage = pOlds[i];
       SCell *pCell;
       int    cellBytes;
+
       for (int cIdx = 0; cIdx < TDB_PAGE_TOTAL_CELLS(pPage); cIdx++) {
         pCell = tdbPageGetCell(pPage, cIdx);
         cellBytes = TDB_BYTES_CELL_TAKEN(pPage, pCell);
 
-        if (szNews[nNews] + cellBytes > maxPageCapacity) {
+        if (szNews[nNews] + cellBytes > TDB_PAGE_USABLE_SIZE(pPage)) {
           nNews++;
         }
         cntNews[nNews]++;
