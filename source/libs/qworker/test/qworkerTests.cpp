@@ -878,7 +878,7 @@ TEST(seqTest, normalCase) {
   stubSetPutDataBlock();
   stubSetGetDataBlock();
   
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqToDnodeFp)qwtSendReqToDnode);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqFp)qwtSendReqToDnode);
   ASSERT_EQ(code, 0);
 
   code = qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc);
@@ -917,7 +917,7 @@ TEST(seqTest, cancelFirst) {
   stubSetStringToPlan();
   stubSetRpcSendResponse();
   
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqToDnodeFp)qwtSendReqToDnode);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqFp)qwtSendReqToDnode);
   ASSERT_EQ(code, 0);
 
   qwtBuildStatusReqMsg(&qwtstatusMsg, &statusRpc);
@@ -963,7 +963,7 @@ TEST(seqTest, randCase) {
 
   taosSeedRand(taosGetTimestampSec());
   
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqToDnodeFp)qwtSendReqToDnode);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqFp)qwtSendReqToDnode);
   ASSERT_EQ(code, 0);
 
   int32_t t = 0;
@@ -1034,19 +1034,19 @@ TEST(seqTest, multithreadRand) {
 
   taosSeedRand(taosGetTimestampSec());
   
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqToDnodeFp)qwtSendReqToDnode);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqFp)qwtSendReqToDnode);
   ASSERT_EQ(code, 0);
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
 
-  pthread_t t1,t2,t3,t4,t5,t6;
-  pthread_create(&(t1), &thattr, queryThread, mgmt);
-  //pthread_create(&(t2), &thattr, readyThread, NULL);
-  pthread_create(&(t3), &thattr, fetchThread, NULL);
-  pthread_create(&(t4), &thattr, dropThread, NULL);
-  pthread_create(&(t5), &thattr, statusThread, NULL);
-  pthread_create(&(t6), &thattr, fetchQueueThread, mgmt);
+  TdThread t1,t2,t3,t4,t5,t6;
+  taosThreadCreate(&(t1), &thattr, queryThread, mgmt);
+  //taosThreadCreate(&(t2), &thattr, readyThread, NULL);
+  taosThreadCreate(&(t3), &thattr, fetchThread, NULL);
+  taosThreadCreate(&(t4), &thattr, dropThread, NULL);
+  taosThreadCreate(&(t5), &thattr, statusThread, NULL);
+  taosThreadCreate(&(t6), &thattr, fetchQueueThread, mgmt);
 
   while (true) {
     if (qwtTestDeadLoop) {
@@ -1095,7 +1095,7 @@ TEST(rcTest, shortExecshortDelay) {
   qwtTestStop = false;
   qwtTestQuitThreadNum = 0;
 
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqToDnodeFp)qwtSendReqToDnode);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqFp)qwtSendReqToDnode);
   ASSERT_EQ(code, 0);
 
   qwtTestMaxExecTaskUsec = 0;
@@ -1104,13 +1104,13 @@ TEST(rcTest, shortExecshortDelay) {
   tsem_init(&qwtTestQuerySem, 0, 0);
   tsem_init(&qwtTestFetchSem, 0, 0);
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
 
-  pthread_t t1,t2,t3,t4,t5;
-  pthread_create(&(t1), &thattr, qwtclientThread, mgmt);
-  pthread_create(&(t2), &thattr, queryQueueThread, mgmt);
-  pthread_create(&(t3), &thattr, fetchQueueThread, mgmt);
+  TdThread t1,t2,t3,t4,t5;
+  taosThreadCreate(&(t1), &thattr, qwtclientThread, mgmt);
+  taosThreadCreate(&(t2), &thattr, queryQueueThread, mgmt);
+  taosThreadCreate(&(t3), &thattr, fetchQueueThread, mgmt);
 
   while (true) {
     if (qwtTestDeadLoop) {
@@ -1176,7 +1176,7 @@ TEST(rcTest, longExecshortDelay) {
   qwtTestStop = false;
   qwtTestQuitThreadNum = 0;
 
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqToDnodeFp)qwtSendReqToDnode);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqFp)qwtSendReqToDnode);
   ASSERT_EQ(code, 0);
 
   qwtTestMaxExecTaskUsec = 1000000;
@@ -1185,13 +1185,13 @@ TEST(rcTest, longExecshortDelay) {
   tsem_init(&qwtTestQuerySem, 0, 0);
   tsem_init(&qwtTestFetchSem, 0, 0);
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
 
-  pthread_t t1,t2,t3,t4,t5;
-  pthread_create(&(t1), &thattr, qwtclientThread, mgmt);
-  pthread_create(&(t2), &thattr, queryQueueThread, mgmt);
-  pthread_create(&(t3), &thattr, fetchQueueThread, mgmt);
+  TdThread t1,t2,t3,t4,t5;
+  taosThreadCreate(&(t1), &thattr, qwtclientThread, mgmt);
+  taosThreadCreate(&(t2), &thattr, queryQueueThread, mgmt);
+  taosThreadCreate(&(t3), &thattr, fetchQueueThread, mgmt);
 
   while (true) {
     if (qwtTestDeadLoop) {
@@ -1259,7 +1259,7 @@ TEST(rcTest, shortExeclongDelay) {
   qwtTestStop = false;
   qwtTestQuitThreadNum = 0;
 
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqToDnodeFp)qwtSendReqToDnode);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqFp)qwtSendReqToDnode);
   ASSERT_EQ(code, 0);
 
   qwtTestMaxExecTaskUsec = 0;
@@ -1268,13 +1268,13 @@ TEST(rcTest, shortExeclongDelay) {
   tsem_init(&qwtTestQuerySem, 0, 0);
   tsem_init(&qwtTestFetchSem, 0, 0);
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
 
-  pthread_t t1,t2,t3,t4,t5;
-  pthread_create(&(t1), &thattr, qwtclientThread, mgmt);
-  pthread_create(&(t2), &thattr, queryQueueThread, mgmt);
-  pthread_create(&(t3), &thattr, fetchQueueThread, mgmt);
+  TdThread t1,t2,t3,t4,t5;
+  taosThreadCreate(&(t1), &thattr, qwtclientThread, mgmt);
+  taosThreadCreate(&(t2), &thattr, queryQueueThread, mgmt);
+  taosThreadCreate(&(t3), &thattr, fetchQueueThread, mgmt);
 
   while (true) {
     if (qwtTestDeadLoop) {
@@ -1340,19 +1340,19 @@ TEST(rcTest, dropTest) {
 
   taosSeedRand(taosGetTimestampSec());
   
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqToDnodeFp)qwtSendReqToDnode);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqFp)qwtSendReqToDnode);
   ASSERT_EQ(code, 0);
 
   tsem_init(&qwtTestQuerySem, 0, 0);
   tsem_init(&qwtTestFetchSem, 0, 0);
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
 
-  pthread_t t1,t2,t3,t4,t5;
-  pthread_create(&(t1), &thattr, qwtclientThread, mgmt);
-  pthread_create(&(t2), &thattr, queryQueueThread, mgmt);
-  pthread_create(&(t3), &thattr, fetchQueueThread, mgmt);
+  TdThread t1,t2,t3,t4,t5;
+  taosThreadCreate(&(t1), &thattr, qwtclientThread, mgmt);
+  taosThreadCreate(&(t2), &thattr, queryQueueThread, mgmt);
+  taosThreadCreate(&(t3), &thattr, fetchQueueThread, mgmt);
 
   while (true) {
     if (qwtTestDeadLoop) {

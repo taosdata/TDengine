@@ -43,7 +43,10 @@
 //
 int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg) {
   int32_t ret = 0;
-  syncRequestVoteLog2("==syncNodeOnRequestVoteCb==", pMsg);
+
+  char logBuf[128];
+  snprintf(logBuf, sizeof(logBuf), "==syncNodeOnRequestVoteCb== term:%lu", ths->pRaftStore->currentTerm);
+  syncRequestVoteLog2(logBuf, pMsg);
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
     syncNodeUpdateTerm(ths, pMsg->term);
@@ -56,6 +59,8 @@ int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg) {
   bool grant = (pMsg->term == ths->pRaftStore->currentTerm) && logOK &&
                ((!raftStoreHasVoted(ths->pRaftStore)) || (syncUtilSameId(&(ths->pRaftStore->voteFor), &(pMsg->srcId))));
   if (grant) {
+    // maybe has already voted for pMsg->srcId
+    // vote again, no harm
     raftStoreVote(ths->pRaftStore, &(pMsg->srcId));
   }
 

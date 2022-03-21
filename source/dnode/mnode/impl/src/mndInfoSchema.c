@@ -86,8 +86,9 @@ static const SInfosTableSchema userStreamsSchema[] = {{.name = "stream_name",  .
                                                       {.name = "create_time", .bytes = 8,    .type = TSDB_DATA_TYPE_TIMESTAMP},
                                                       {.name = "sql",          .bytes = 1024, .type = TSDB_DATA_TYPE_BINARY},
                                                      };
-static const SInfosTableSchema userTblsSchema[] = {{.name = "db_name",         .bytes = 32,   .type = TSDB_DATA_TYPE_BINARY},
+static const SInfosTableSchema userTblsSchema[] = {
                                                    {.name = "table_name",      .bytes = 192,  .type = TSDB_DATA_TYPE_BINARY},
+                                                   {.name = "db_name",         .bytes = 32,   .type = TSDB_DATA_TYPE_BINARY},
                                                    {.name = "create_time",    .bytes = 8,    .type = TSDB_DATA_TYPE_TIMESTAMP},
                                                    {.name = "columns",         .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
                                                    {.name = "stable_name",     .bytes = 192,  .type = TSDB_DATA_TYPE_BINARY},
@@ -118,7 +119,7 @@ static const SInfosTableSchema userUsersSchema[] = {{.name = "name",           .
 static const SInfosTableSchema vgroupsSchema[] = {{.name = "vgroup_id",        .bytes = 4,   .type = TSDB_DATA_TYPE_INT},
                                                   {.name = "db_name",          .bytes = (TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE,   .type = TSDB_DATA_TYPE_BINARY},
                                                   {.name = "tables",           .bytes = 4,   .type = TSDB_DATA_TYPE_INT},
-                                                  {.name = "status",           .bytes = 10,  .type = TSDB_DATA_TYPE_BINARY},
+                                                  {.name = "status",           .bytes = 12 + VARSTR_HEADER_SIZE,  .type = TSDB_DATA_TYPE_BINARY},
                                                   {.name = "onlines",          .bytes = 4,   .type = TSDB_DATA_TYPE_INT},
                                                   {.name = "v1_dnode",         .bytes = 4,   .type = TSDB_DATA_TYPE_INT},
                                                   {.name = "v1_status",        .bytes = 10,  .type = TSDB_DATA_TYPE_BINARY},

@@ -7,8 +7,10 @@ target_include_directories(
 )
 target_link_libraries(
     snode
+    PRIVATE executor
     PRIVATE transport
     PRIVATE os
     PRIVATE common
     PRIVATE util
+    PRIVATE qcom
 )

@@ -67,6 +67,9 @@ typedef enum ENodeType {
   QUERY_NODE_SLOT_DESC,
   QUERY_NODE_COLUMN_DEF,
   QUERY_NODE_DOWNSTREAM_SOURCE,
+  QUERY_NODE_DATABASE_OPTIONS,
+  QUERY_NODE_TABLE_OPTIONS,
+  QUERY_NODE_INDEX_OPTIONS,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR,
@@ -74,18 +77,28 @@ typedef enum ENodeType {
   QUERY_NODE_VNODE_MODIF_STMT,
   QUERY_NODE_CREATE_DATABASE_STMT,
   QUERY_NODE_DROP_DATABASE_STMT,
+  QUERY_NODE_ALTER_DATABASE_STMT,
   QUERY_NODE_CREATE_TABLE_STMT,
   QUERY_NODE_CREATE_SUBTABLE_CLAUSE,
   QUERY_NODE_CREATE_MULTI_TABLE_STMT,
   QUERY_NODE_DROP_TABLE_CLAUSE,
   QUERY_NODE_DROP_TABLE_STMT,
   QUERY_NODE_DROP_SUPER_TABLE_STMT,
+  QUERY_NODE_ALTER_TABLE_STMT,
   QUERY_NODE_CREATE_USER_STMT,
   QUERY_NODE_ALTER_USER_STMT,
   QUERY_NODE_DROP_USER_STMT,
   QUERY_NODE_USE_DATABASE_STMT,
   QUERY_NODE_CREATE_DNODE_STMT,
   QUERY_NODE_DROP_DNODE_STMT,
+  QUERY_NODE_ALTER_DNODE_STMT,
+  QUERY_NODE_CREATE_INDEX_STMT,
+  QUERY_NODE_DROP_INDEX_STMT,
+  QUERY_NODE_CREATE_QNODE_STMT,
+  QUERY_NODE_DROP_QNODE_STMT,
+  QUERY_NODE_CREATE_TOPIC_STMT,
+  QUERY_NODE_DROP_TOPIC_STMT,
+  QUERY_NODE_ALTER_LOCAL_STMT,
   QUERY_NODE_SHOW_DATABASES_STMT,
   QUERY_NODE_SHOW_TABLES_STMT,
   QUERY_NODE_SHOW_STABLES_STMT,
@@ -157,6 +170,7 @@ SNodeList* nodesMakeList();
 int32_t nodesListAppend(SNodeList* pList, SNodeptr pNode);
 int32_t nodesListStrictAppend(SNodeList* pList, SNodeptr pNode);
 int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc);
+int32_t nodesListStrictAppendList(SNodeList* pTarget, SNodeList* pSrc);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
 SNodeptr nodesListGetNode(SNodeList* pList, int32_t index);
 void nodesDestroyList(SNodeList* pList);
@@ -189,6 +203,9 @@ SNodeList* nodesCloneList(const SNodeList* pList);
 const char* nodesNodeName(ENodeType type);
 int32_t nodesNodeToString(const SNodeptr pNode, bool format, char** pStr, int32_t* pLen);
 int32_t nodesStringToNode(const char* pStr, SNode** pNode);
+
+int32_t nodesListToString(const SNodeList* pList, bool format, char** pStr, int32_t* pLen);
+int32_t nodesStringToList(const char* pStr, SNodeList** pList);
 
 #ifdef __cplusplus
 }

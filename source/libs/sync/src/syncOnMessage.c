@@ -14,3 +14,43 @@
  */
 
 #include "syncOnMessage.h"
+
+// TLA+ Spec
+// Receive(m) ==
+//     LET i == m.mdest
+//         j == m.msource
+//     IN \* Any RPC with a newer term causes the recipient to advance
+//        \* its term first. Responses with stale terms are ignored.
+//        \/ UpdateTerm(i, j, m)
+//        \/ /\ m.mtype = RequestVoteRequest
+//           /\ HandleRequestVoteRequest(i, j, m)
+//        \/ /\ m.mtype = RequestVoteResponse
+//           /\ \/ DropStaleResponse(i, j, m)
+//              \/ HandleRequestVoteResponse(i, j, m)
+//        \/ /\ m.mtype = AppendEntriesRequest
+//           /\ HandleAppendEntriesRequest(i, j, m)
+//        \/ /\ m.mtype = AppendEntriesResponse
+//           /\ \/ DropStaleResponse(i, j, m)
+//              \/ HandleAppendEntriesResponse(i, j, m)
+
+// DuplicateMessage(m) ==
+//     /\ Send(m)
+//     /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
+
+// DropMessage(m) ==
+//     /\ Discard(m)
+//     /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
+
+// Next == /\ \/ \E i \in Server : Restart(i)
+//            \/ \E i \in Server : Timeout(i)
+//            \/ \E i,j \in Server : RequestVote(i, j)
+//            \/ \E i \in Server : BecomeLeader(i)
+//            \/ \E i \in Server, v \in Value : ClientRequest(i, v)
+//            \/ \E i \in Server : AdvanceCommitIndex(i)
+//            \/ \E i,j \in Server : AppendEntries(i, j)
+//            \/ \E m \in DOMAIN messages : Receive(m)
+//            \/ \E m \in DOMAIN messages : DuplicateMessage(m)
+//            \/ \E m \in DOMAIN messages : DropMessage(m)
+//            \* History variable that tracks every log ever:
+//         /\ allLogs' = allLogs \cup {log[i] : i \in Server}
+//

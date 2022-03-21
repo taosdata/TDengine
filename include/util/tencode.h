@@ -75,7 +75,7 @@ typedef struct {
 #define TD_CODER_CURRENT(CODER)                        ((CODER)->data + (CODER)->pos)
 #define TD_CODER_MOVE_POS(CODER, MOVE)                 ((CODER)->pos += (MOVE))
 #define TD_CODER_CHECK_CAPACITY_FAILED(CODER, EXPSIZE) (((CODER)->size - (CODER)->pos) < (EXPSIZE))
-#define TCODER_MALLOC(SIZE, CODER)                     TFL_MALLOC(SIZE, &((CODER)->fl))
+#define TCODER_MALLOC(PTR, TYPE, SIZE, CODER)          TFL_MALLOC(PTR, TYPE, SIZE, &((CODER)->fl))
 
 void tCoderInit(SCoder* pCoder, td_endian_t endian, uint8_t* data, int32_t size, td_coder_t type);
 void tCoderClear(SCoder* pCoder);
@@ -400,6 +400,29 @@ static int32_t tDecodeCStrTo(SCoder* pDecoder, char* val) {
 
   memcpy(val, pStr, len + 1);
   return 0;
+}
+
+static FORCE_INLINE int32_t tDecodeBinaryAlloc(SCoder* pDecoder, void** val, uint64_t* len) {
+  if (tDecodeU64v(pDecoder, len) < 0) return -1;
+
+  if (TD_CODER_CHECK_CAPACITY_FAILED(pDecoder, *len)) return -1;
+  *val = malloc(*len);
+  if (*val == NULL) return -1;
+  memcpy(*val, TD_CODER_CURRENT(pDecoder), *len);
+
+  TD_CODER_MOVE_POS(pDecoder, *len);
+  return 0;
+}
+
+static FORCE_INLINE int32_t tDecodeCStrAndLenAlloc(SCoder* pDecoder, char** val, uint64_t* len) {
+  if (tDecodeBinaryAlloc(pDecoder, (void**)val, len) < 0) return -1;
+  (*len) -= 1;
+  return 0;
+}
+
+static FORCE_INLINE int32_t tDecodeCStrAlloc(SCoder* pDecoder, char** val) {
+  uint64_t len;
+  return tDecodeCStrAndLenAlloc(pDecoder, val, &len);
 }
 
 static FORCE_INLINE bool tDecodeIsEnd(SCoder* pCoder) { return (pCoder->size == pCoder->pos); }

@@ -26,7 +26,6 @@ extern "C" {
 
 typedef struct SLogicNode {
   ENodeType type;
-  int32_t id;
   SNodeList* pTargets; // SColumnNode
   SNode* pConditions;
   SNodeList* pChildren;
@@ -69,7 +68,7 @@ typedef struct SProjectLogicNode {
 } SProjectLogicNode;
 
 typedef struct SVnodeModifLogicNode {
-  SLogicNode node;;
+  SLogicNode node;
   int32_t msgType;
   SArray* pDataBlocks;
   SVgDataBlocks* pVgDataBlocks;
@@ -93,6 +92,8 @@ typedef struct SWindowLogicNode {
   int64_t interval;
   int64_t offset;
   int64_t sliding;
+  int8_t  intervalUnit;
+  int8_t  slidingUnit;
   SFillNode* pFill;
 } SWindowLogicNode;
 
@@ -153,7 +154,7 @@ typedef struct SPhysiNode {
 } SPhysiNode;
 
 typedef struct SScanPhysiNode {
-  SPhysiNode  node;
+  SPhysiNode node;
   SNodeList* pScanCols;
   uint64_t uid;           // unique id of the table
   int8_t tableType;
@@ -164,6 +165,7 @@ typedef struct SScanPhysiNode {
 } SScanPhysiNode;
 
 typedef SScanPhysiNode STagScanPhysiNode;
+typedef SScanPhysiNode SStreamScanPhysiNode;
 
 typedef struct SSystemTableScanPhysiNode {
   SScanPhysiNode scan;
@@ -207,7 +209,7 @@ typedef struct SDownstreamSourceNode {
 
 typedef struct SExchangePhysiNode {
   SPhysiNode node;
-  int32_t srcGroupId;  // group id of datasource suplans
+  int32_t    srcGroupId;  // group id of datasource suplans
   SNodeList* pSrcEndPoints;  // element is SDownstreamSource, scheduler fill by calling qSetSuplanExecutionNode
 } SExchangePhysiNode;
 
@@ -215,9 +217,11 @@ typedef struct SIntervalPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;   // these are expression list of parameter expression of function
   SNodeList* pFuncs;
-  int64_t interval;
-  int64_t offset;
-  int64_t sliding;
+  int64_t    interval;
+  int64_t    offset;
+  int64_t    sliding;
+  int8_t     intervalUnit;
+  int8_t     slidingUnit;
   SFillNode* pFill;
 } SIntervalPhysiNode;
 
@@ -253,7 +257,7 @@ typedef struct SSubplan {
 } SSubplan;
 
 typedef struct SQueryPlan {
-  ENodeType type;;
+  ENodeType type;
   uint64_t queryId;
   int32_t numOfSubplans;
   SNodeList* pSubplans; // Element is SNodeListNode. The execution level of subplan, starting from 0.

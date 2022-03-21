@@ -48,7 +48,7 @@ typedef struct SMonInfo {
 } SMonInfo;
 
 typedef struct {
-  pthread_mutex_t lock;
+  TdThreadMutex lock;
   SArray         *logs;  // array of SMonLogItem
   int32_t         maxLogs;
   const char     *server;

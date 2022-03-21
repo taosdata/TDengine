@@ -21,8 +21,6 @@
 
 #include <regex.h>
 
-extern int wcwidth(wchar_t c);
-extern int wcswidth(const wchar_t *s, size_t n);
 typedef struct {
   char widthInString;
   char widthOnScreen;
@@ -43,7 +41,7 @@ int countPrefixOnes(unsigned char c) {
 void getPrevCharSize(const char *str, int pos, int *size, int *width) {
   assert(pos > 0);
 
-  wchar_t wc;
+  TdWchar wc;
   *size = 0;
   *width = 0;
 
@@ -53,25 +51,25 @@ void getPrevCharSize(const char *str, int pos, int *size, int *width) {
     if (str[pos] > 0 || countPrefixOnes((unsigned char )str[pos]) > 1) break;
   }
 
-  int rc = mbtowc(&wc, str + pos, MB_CUR_MAX);
+  int rc = taosMbToWchar(&wc, str + pos, MB_CUR_MAX);
   assert(rc == *size);
 
-  *width = wcwidth(wc);
+  *width = taosWcharWidth(wc);
 }
 
 void getNextCharSize(const char *str, int pos, int *size, int *width) {
   assert(pos >= 0);
 
-  wchar_t wc;
-  *size = mbtowc(&wc, str + pos, MB_CUR_MAX);
-  *width = wcwidth(wc);
+  TdWchar wc;
+  *size = taosMbToWchar(&wc, str + pos, MB_CUR_MAX);
+  *width = taosWcharWidth(wc);
 }
 
 void insertChar(Command *cmd, char *c, int size) {
   assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
 
-  wchar_t wc;
-  if (mbtowc(&wc, c, size) < 0) return;
+  TdWchar wc;
+  if (taosMbToWchar(&wc, c, size) < 0) return;
 
   clearScreen(cmd->endOffset + prompt_size, cmd->screenOffset + prompt_size);
   /* update the buffer */
@@ -81,8 +79,8 @@ void insertChar(Command *cmd, char *c, int size) {
   /* update the values */
   cmd->commandSize += size;
   cmd->cursorOffset += size;
-  cmd->screenOffset += wcwidth(wc);
-  cmd->endOffset += wcwidth(wc);
+  cmd->screenOffset += taosWcharWidth(wc);
+  cmd->endOffset += taosWcharWidth(wc);
   showOnScreen(cmd);
 }
 
@@ -249,10 +247,10 @@ int isReadyGo(Command *cmd) {
 }
 
 void getMbSizeInfo(const char *str, int *size, int *width) {
-  wchar_t *wc = (wchar_t *)calloc(sizeof(wchar_t), MAX_COMMAND_SIZE);
+  TdWchar *wc = (TdWchar *)calloc(sizeof(TdWchar), MAX_COMMAND_SIZE);
   *size = strlen(str);
-  mbstowcs(wc, str, MAX_COMMAND_SIZE);
-  *width = wcswidth(wc, MAX_COMMAND_SIZE);
+  taosMbsToWchars(wc, str, MAX_COMMAND_SIZE);
+  *width = taosWcharsWidth(wc, MAX_COMMAND_SIZE);
   free(wc);
 }
 

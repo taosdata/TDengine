@@ -26,6 +26,7 @@ SSyncRaftEntry* syncEntryBuild(uint32_t dataLen) {
   return pEntry;
 }
 
+// step 4. SyncClientRequest => SSyncRaftEntry, add term, index
 SSyncRaftEntry* syncEntryBuild2(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index) {
   SSyncRaftEntry* pEntry = syncEntryBuild(pMsg->dataLen);
   assert(pEntry != NULL);
@@ -48,6 +49,7 @@ void syncEntryDestory(SSyncRaftEntry* pEntry) {
   }
 }
 
+// step 5. SSyncRaftEntry => bin, to raft log
 char* syncEntrySerialize(const SSyncRaftEntry* pEntry, uint32_t* len) {
   char* buf = malloc(pEntry->bytes);
   assert(buf != NULL);
@@ -58,6 +60,7 @@ char* syncEntrySerialize(const SSyncRaftEntry* pEntry, uint32_t* len) {
   return buf;
 }
 
+// step 6. bin => SSyncRaftEntry, from raft log
 SSyncRaftEntry* syncEntryDeserialize(const char* buf, uint32_t len) {
   uint32_t        bytes = *((uint32_t*)buf);
   SSyncRaftEntry* pEntry = malloc(bytes);
@@ -68,29 +71,31 @@ SSyncRaftEntry* syncEntryDeserialize(const char* buf, uint32_t len) {
 }
 
 cJSON* syncEntry2Json(const SSyncRaftEntry* pEntry) {
-  char u64buf[128];
-
+  char   u64buf[128];
   cJSON* pRoot = cJSON_CreateObject();
-  cJSON_AddNumberToObject(pRoot, "bytes", pEntry->bytes);
-  cJSON_AddNumberToObject(pRoot, "msgType", pEntry->msgType);
-  cJSON_AddNumberToObject(pRoot, "originalRpcType", pEntry->originalRpcType);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pEntry->seqNum);
-  cJSON_AddStringToObject(pRoot, "seqNum", u64buf);
-  cJSON_AddNumberToObject(pRoot, "isWeak", pEntry->isWeak);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pEntry->term);
-  cJSON_AddStringToObject(pRoot, "term", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%lu", pEntry->index);
-  cJSON_AddStringToObject(pRoot, "index", u64buf);
-  cJSON_AddNumberToObject(pRoot, "dataLen", pEntry->dataLen);
 
-  char* s;
-  s = syncUtilprintBin((char*)(pEntry->data), pEntry->dataLen);
-  cJSON_AddStringToObject(pRoot, "data", s);
-  free(s);
+  if (pEntry != NULL) {
+    cJSON_AddNumberToObject(pRoot, "bytes", pEntry->bytes);
+    cJSON_AddNumberToObject(pRoot, "msgType", pEntry->msgType);
+    cJSON_AddNumberToObject(pRoot, "originalRpcType", pEntry->originalRpcType);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pEntry->seqNum);
+    cJSON_AddStringToObject(pRoot, "seqNum", u64buf);
+    cJSON_AddNumberToObject(pRoot, "isWeak", pEntry->isWeak);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pEntry->term);
+    cJSON_AddStringToObject(pRoot, "term", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pEntry->index);
+    cJSON_AddStringToObject(pRoot, "index", u64buf);
+    cJSON_AddNumberToObject(pRoot, "dataLen", pEntry->dataLen);
 
-  s = syncUtilprintBin2((char*)(pEntry->data), pEntry->dataLen);
-  cJSON_AddStringToObject(pRoot, "data2", s);
-  free(s);
+    char* s;
+    s = syncUtilprintBin((char*)(pEntry->data), pEntry->dataLen);
+    cJSON_AddStringToObject(pRoot, "data", s);
+    free(s);
+
+    s = syncUtilprintBin2((char*)(pEntry->data), pEntry->dataLen);
+    cJSON_AddStringToObject(pRoot, "data2", s);
+    free(s);
+  }
 
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SSyncRaftEntry", pRoot);
@@ -104,29 +109,38 @@ char* syncEntry2Str(const SSyncRaftEntry* pEntry) {
   return serialized;
 }
 
+// step 7. SSyncRaftEntry => original SRpcMsg, commit to user, delete seqNum, isWeak, term, index
+void syncEntry2OriginalRpc(const SSyncRaftEntry* pEntry, SRpcMsg* pRpcMsg) {
+  memset(pRpcMsg, 0, sizeof(*pRpcMsg));
+  pRpcMsg->msgType = pEntry->originalRpcType;
+  pRpcMsg->contLen = pEntry->dataLen;
+  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
+  memcpy(pRpcMsg->pCont, pEntry->data, pRpcMsg->contLen);
+}
+
 // for debug ----------------------
 void syncEntryPrint(const SSyncRaftEntry* pObj) {
   char* serialized = syncEntry2Str(pObj);
-  printf("syncEntryPrint | len:%lu | %s \n", strlen(serialized), serialized);
+  printf("syncEntryPrint | len:%zu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncEntryPrint2(char* s, const SSyncRaftEntry* pObj) {
   char* serialized = syncEntry2Str(pObj);
-  printf("syncEntryPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncEntryPrint2 | len:%zu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   free(serialized);
 }
 
 void syncEntryLog(const SSyncRaftEntry* pObj) {
   char* serialized = syncEntry2Str(pObj);
-  sTrace("syncEntryLog | len:%lu | %s", strlen(serialized), serialized);
+  sTrace("syncEntryLog | len:%zu | %s", strlen(serialized), serialized);
   free(serialized);
 }
 
 void syncEntryLog2(char* s, const SSyncRaftEntry* pObj) {
   char* serialized = syncEntry2Str(pObj);
-  sTrace("syncEntryLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  sTrace("syncEntryLog2 | len:%zu | %s | %s", strlen(serialized), s, serialized);
   free(serialized);
 }

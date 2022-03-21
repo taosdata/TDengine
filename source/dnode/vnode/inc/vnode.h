@@ -30,11 +30,8 @@ extern "C" {
 #endif
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
-typedef struct SVnode SVnode;
-typedef struct SDnode SDnode;
-typedef int32_t (*PutReqToVQueryQFp)(SDnode *pDnode, struct SRpcMsg *pReq);
-typedef int32_t (*SendReqToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
-
+typedef struct SMgmtWrapper SMgmtWrapper;
+typedef struct SVnode       SVnode;
 typedef struct {
   // TODO
   int32_t reserved;
@@ -43,7 +40,7 @@ typedef struct {
 typedef struct {
   int32_t  vgId;
   uint64_t dbId;
-  SDnode  *pDnode;
+  void    *pWrapper;
   STfs    *pTfs;
   uint64_t wsize;
   uint64_t ssize;
@@ -63,9 +60,11 @@ typedef struct {
 } SVnodeCfg;
 
 typedef struct {
-  uint16_t          nthreads;  // number of commit threads. 0 for no threads and a schedule queue should be given (TODO)
-  PutReqToVQueryQFp putReqToVQueryQFp;
-  SendReqToDnodeFp  sendReqToDnodeFp;
+  uint16_t       nthreads;  // number of commit threads. 0 for no threads and a schedule queue should be given (TODO)
+  PutToQueueFp   putToQueryQFp;
+  SendReqFp      sendReqFp;
+  SendMnodeReqFp sendMnodeReqFp;
+  SendRspFp      sendRspFp;
 } SVnodeOpt;
 
 typedef struct {

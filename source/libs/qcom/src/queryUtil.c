@@ -156,6 +156,10 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
                     .handle = pInfo->msgInfo.handle,
                     .persistHandle = persistHandle,
                     .code = 0};
+  if (pInfo->msgType == TDMT_VND_QUERY || pInfo->msgType == TDMT_VND_FETCH ||
+      pInfo->msgType == TDMT_VND_QUERY_CONTINUE) {
+    rpcMsg.persistHandle = 1;
+  }
 
   assert(pInfo->fp != NULL);
 

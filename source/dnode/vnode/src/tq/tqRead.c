@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tdatablock.h"
 #include "vnode.h"
 
 STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta) {
@@ -128,9 +129,12 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
 
   int j = 0;
   for (int32_t i = 0; i < colNumNeed; i++) {
-    int32_t colId = *(int32_t*)taosArrayGet(pHandle->pColIdList, i);
+    int16_t colId = *(int16_t*)taosArrayGet(pHandle->pColIdList, i);
     while (j < pSchemaWrapper->nCols && pSchemaWrapper->pSchema[j].colId < colId) {
       j++;
+    }
+    if (j >= pSchemaWrapper->nCols) {
+      continue;
     }
     SSchema*        pColSchema = &pSchemaWrapper->pSchema[j];
     SColumnInfoData colInfo = {0};
@@ -145,6 +149,8 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
       taosArrayDestroy(pArray);
       return NULL;
     }
+
+    blockDataEnsureColumnCapacity(&colInfo, numOfRows);
     taosArrayPush(pArray, &colInfo);
   }
 

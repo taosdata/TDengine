@@ -58,7 +58,7 @@ struct SIndex {
   char* path;
 
   SIndexStat      stat;
-  pthread_mutex_t mtx;
+  TdThreadMutex mtx;
 };
 
 struct SIndexOpts {

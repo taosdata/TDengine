@@ -70,6 +70,9 @@ extern "C" {
 struct SyncTimeout;
 typedef struct SyncTimeout SyncTimeout;
 
+struct SyncClientRequest;
+typedef struct SyncClientRequest SyncClientRequest;
+
 struct SyncPing;
 typedef struct SyncPing SyncPing;
 
@@ -185,6 +188,7 @@ typedef struct SSyncNode {
   // callback
   int32_t (*FpOnPing)(SSyncNode* ths, SyncPing* pMsg);
   int32_t (*FpOnPingReply)(SSyncNode* ths, SyncPingReply* pMsg);
+  int32_t (*FpOnClientRequest)(SSyncNode* ths, SyncClientRequest* pMsg);
   int32_t (*FpOnRequestVote)(SSyncNode* ths, SyncRequestVote* pMsg);
   int32_t (*FpOnRequestVoteReply)(SSyncNode* ths, SyncRequestVoteReply* pMsg);
   int32_t (*FpOnAppendEntries)(SSyncNode* ths, SyncAppendEntries* pMsg);
@@ -232,7 +236,6 @@ void syncNodeCandidate2Follower(SSyncNode* pSyncNode);
 // raft vote --------------
 void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId);
 void syncNodeVoteForSelf(SSyncNode* pSyncNode);
-void syncNodeMaybeAdvanceCommitIndex(SSyncNode* pSyncNode);
 
 // for debug --------------
 void syncNodePrint(SSyncNode* pObj);

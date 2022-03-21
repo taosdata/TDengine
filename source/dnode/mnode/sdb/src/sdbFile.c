@@ -196,7 +196,7 @@ int32_t sdbReadFile(SSdb *pSdb) {
     }
 
     int32_t totalLen = sizeof(SSdbRaw) + pRaw->dataLen + sizeof(int32_t);
-    if (!taosCheckChecksumWhole((const uint8_t *)pRaw, totalLen) != 0) {
+    if ((!taosCheckChecksumWhole((const uint8_t *)pRaw, totalLen)) != 0) {
       code = TSDB_CODE_CHECKSUM_ERROR;
       mError("failed to read file:%s since %s", file, tstrerror(code));
       break;

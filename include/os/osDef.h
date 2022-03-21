@@ -56,6 +56,7 @@ extern "C" {
   // specific
   typedef int (*__compar_fn_t)(const void *, const void *);
   #define ssize_t int
+  #define _SSIZE_T_
   #define bzero(ptr, size) memset((ptr), 0, (size))
   #define strcasecmp  _stricmp
   #define strncasecmp _strnicmp

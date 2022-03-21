@@ -282,8 +282,10 @@ int32_t schLaunchTasksInFlowCtrlList(SSchJob *pJob, SSchTask *pTask) {
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
   
-  SCH_ERR_RET(schLaunchTasksInFlowCtrlListImpl(pJob, ctrl));
+  int32_t code = schLaunchTasksInFlowCtrlListImpl(pJob, ctrl);;
+  SCH_ERR_RET(code);
   
+  return code; // to avoid compiler error
 }
 
 

@@ -333,7 +333,7 @@ void destroyLuaEnv(lua_State *lua) {
 int32_t scriptEnvPoolInit() {
   const int size = 10; // configure or not 
   pool = malloc(sizeof(ScriptEnvPool));  
-  pthread_mutex_init(&pool->mutex, NULL);
+  taosThreadMutexInit(&pool->mutex, NULL);
 
   pool->scriptEnvs = tdListNew(sizeof(ScriptEnv *));
   for (int i = 0; i < size; i++) {
@@ -359,7 +359,7 @@ void scriptEnvPoolCleanup() {
     listNodeFree(pNode); 
   }  
   tdListFree(pool->scriptEnvs);
-  pthread_mutex_destroy(&pool->mutex);
+  taosThreadMutexDestroy(&pool->mutex);
   free(pool);
 }
 
@@ -372,9 +372,9 @@ void destroyScriptEnv(ScriptEnv *pEnv) {
 ScriptEnv* getScriptEnvFromPool() {
   ScriptEnv *pEnv = NULL;
 
-  pthread_mutex_lock(&pool->mutex); 
+  taosThreadMutexLock(&pool->mutex); 
   if (pool->cSize <= 0) {
-    pthread_mutex_unlock(&pool->mutex); 
+    taosThreadMutexUnlock(&pool->mutex); 
     return NULL;
   }  
   SListNode *pNode = tdListPopHead(pool->scriptEnvs);
@@ -384,7 +384,7 @@ ScriptEnv* getScriptEnvFromPool() {
   }
 
   pool->cSize--;
-  pthread_mutex_unlock(&pool->mutex); 
+  taosThreadMutexUnlock(&pool->mutex); 
   return pEnv; 
 }
 
@@ -392,11 +392,11 @@ void addScriptEnvToPool(ScriptEnv *pEnv) {
   if (pEnv == NULL) {
     return;
   }
-  pthread_mutex_lock(&pool->mutex); 
+  taosThreadMutexLock(&pool->mutex); 
   lua_settop(pEnv->lua_state, 0);
   tdListAppend(pool->scriptEnvs, (void *)(&pEnv));  
   pool->cSize++;
-  pthread_mutex_unlock(&pool->mutex); 
+  taosThreadMutexUnlock(&pool->mutex); 
 }
 
 bool hasBaseFuncDefinedInScript(lua_State *lua, const char *funcPrefix, int32_t len) {

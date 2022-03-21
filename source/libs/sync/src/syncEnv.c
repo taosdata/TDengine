@@ -54,27 +54,29 @@ static void syncEnvTick(void *param, void *tmrId) {
   SSyncEnv *pSyncEnv = (SSyncEnv *)param;
   if (atomic_load_64(&pSyncEnv->envTickTimerLogicClockUser) <= atomic_load_64(&pSyncEnv->envTickTimerLogicClock)) {
     ++(pSyncEnv->envTickTimerCounter);
-    sTrace(
-        "syncEnvTick do ... envTickTimerLogicClockUser:%lu, envTickTimerLogicClock:%lu, envTickTimerCounter:%lu, "
-        "envTickTimerMS:%d, tmrId:%p",
-        pSyncEnv->envTickTimerLogicClockUser, pSyncEnv->envTickTimerLogicClock, pSyncEnv->envTickTimerCounter,
-        pSyncEnv->envTickTimerMS, tmrId);
+    sTrace("syncEnvTick do ... envTickTimerLogicClockUser:%" PRIu64 ", envTickTimerLogicClock:%" PRIu64
+           ", envTickTimerCounter:%" PRIu64
+           ", "
+           "envTickTimerMS:%d, tmrId:%p",
+           pSyncEnv->envTickTimerLogicClockUser, pSyncEnv->envTickTimerLogicClock, pSyncEnv->envTickTimerCounter,
+           pSyncEnv->envTickTimerMS, tmrId);
 
     // do something, tick ...
     taosTmrReset(syncEnvTick, pSyncEnv->envTickTimerMS, pSyncEnv, pSyncEnv->pTimerManager, &pSyncEnv->pEnvTickTimer);
   } else {
-    sTrace(
-        "syncEnvTick pass ... envTickTimerLogicClockUser:%lu, envTickTimerLogicClock:%lu, envTickTimerCounter:%lu, "
-        "envTickTimerMS:%d, tmrId:%p",
-        pSyncEnv->envTickTimerLogicClockUser, pSyncEnv->envTickTimerLogicClock, pSyncEnv->envTickTimerCounter,
-        pSyncEnv->envTickTimerMS, tmrId);
+    sTrace("syncEnvTick pass ... envTickTimerLogicClockUser:%" PRIu64 ", envTickTimerLogicClock:%" PRIu64
+           ", envTickTimerCounter:%" PRIu64
+           ", "
+           "envTickTimerMS:%d, tmrId:%p",
+           pSyncEnv->envTickTimerLogicClockUser, pSyncEnv->envTickTimerLogicClock, pSyncEnv->envTickTimerCounter,
+           pSyncEnv->envTickTimerMS, tmrId);
   }
 }
 
 static SSyncEnv *doSyncEnvStart() {
   SSyncEnv *pSyncEnv = (SSyncEnv *)malloc(sizeof(SSyncEnv));
   assert(pSyncEnv != NULL);
-  memset(pSyncEnv, 0, sizeof(pSyncEnv));
+  memset(pSyncEnv, 0, sizeof(SSyncEnv));
 
   pSyncEnv->envTickTimerCounter = 0;
   pSyncEnv->envTickTimerMS = ENV_TICK_TIMER_MS;

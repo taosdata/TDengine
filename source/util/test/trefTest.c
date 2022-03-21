@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
 #include <string.h>
 #include <unistd.h>
 #include "os.h"
@@ -102,18 +101,18 @@ void *openRefSpace(void *param) {
   pSpace->p = (void **) calloc(sizeof(void *), pSpace->refNum);
   pSpace->rid = calloc(pSpace->refNum, sizeof(int64_t));
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
-  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
+  taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
 
-  pthread_t thread1, thread2, thread3;
-  pthread_create(&(thread1), &thattr, addRef, (void *)(pSpace));
-  pthread_create(&(thread2), &thattr, removeRef, (void *)(pSpace));
-  pthread_create(&(thread3), &thattr, acquireRelease, (void *)(pSpace));
+  TdThread thread1, thread2, thread3;
+  taosThreadCreate(&(thread1), &thattr, addRef, (void *)(pSpace));
+  taosThreadCreate(&(thread2), &thattr, removeRef, (void *)(pSpace));
+  taosThreadCreate(&(thread3), &thattr, acquireRelease, (void *)(pSpace));
 
-  pthread_join(thread1, NULL);
-  pthread_join(thread2, NULL);
-  pthread_join(thread3, NULL);
+  taosThreadJoin(thread1, NULL);
+  taosThreadJoin(thread2, NULL);
+  taosThreadJoin(thread3, NULL);
 
   for (int i=0; i<pSpace->refNum; ++i) {
     taosRemoveRef(pSpace->rsetId, pSpace->rid[i]);
@@ -161,22 +160,22 @@ int main(int argc, char *argv[]) {
   taosInitLog("tref.log", 10);
 
   SRefSpace *pSpaceList = (SRefSpace *) calloc(sizeof(SRefSpace), threads);
-  pthread_t *pThreadList = (pthread_t *) calloc(sizeof(pthread_t), threads);
+  TdThread *pThreadList = (TdThread *) calloc(sizeof(TdThread), threads);
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
-  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
+  taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
 
   for (int i=0; i<loops; ++i) {
     printf("\nloop: %d\n", i);
     for (int j=0; j<threads; ++j) {
       pSpaceList[j].steps = steps;
       pSpaceList[j].refNum = refNum;
-      pthread_create(&(pThreadList[j]), &thattr, openRefSpace, (void *)(pSpaceList+j));
+      taosThreadCreate(&(pThreadList[j]), &thattr, openRefSpace, (void *)(pSpaceList+j));
     }
 
     for (int j=0; j<threads; ++j) {
-      pthread_join(pThreadList[j], NULL);
+      taosThreadJoin(pThreadList[j], NULL);
     }
   }
 

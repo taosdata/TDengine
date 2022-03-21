@@ -55,6 +55,7 @@ int tqCommit(STQ*);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
 int32_t tqProcessRebReq(STQ* pTq, char* msg);
+int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
 
 #ifdef __cplusplus
 }

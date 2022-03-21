@@ -27,6 +27,8 @@ void    mndCleanupScheduler(SMnode* pMnode);
 
 int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscribeObj* pSub);
 
+int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream);
+
 #ifdef __cplusplus
 }
 #endif

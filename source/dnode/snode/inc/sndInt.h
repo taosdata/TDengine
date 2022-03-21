@@ -30,47 +30,34 @@ extern "C" {
 #endif
 
 enum {
-  STREAM_STATUS__READY = 1,
+  STREAM_STATUS__RUNNING = 1,
   STREAM_STATUS__STOPPED,
   STREAM_STATUS__CREATING,
   STREAM_STATUS__STOPING,
-  STREAM_STATUS__RESUMING,
+  STREAM_STATUS__RESTORING,
   STREAM_STATUS__DELETING,
 };
 
-enum {
-  STREAM_RUNNER__RUNNING = 1,
-  STREAM_RUNNER__STOP,
-};
-
-typedef struct SSnode {
-  SSnodeOpt cfg;
-} SSnode;
-
 typedef struct {
-  int64_t streamId;
-  int32_t IdxInLevel;
-  int32_t level;
-} SStreamInfo;
-
-typedef struct {
-  SStreamInfo meta;
-  int8_t      status;
-  void*       executor;
-  STaosQueue* queue;
-  void*       stateStore;
-  // storage handle
-} SStreamRunner;
-
-typedef struct {
-  SHashObj* pHash;
+  SHashObj* pHash;  // taskId -> SStreamTask
 } SStreamMeta;
 
-int32_t sndCreateStream();
-int32_t sndDropStream();
+typedef struct SSnode {
+  SStreamMeta* pMeta;
+  SSnodeOpt    cfg;
+} SSnode;
 
-int32_t sndStopStream();
-int32_t sndResumeStream();
+SStreamMeta* sndMetaNew();
+void         sndMetaDelete(SStreamMeta* pMeta);
+
+int32_t      sndMetaDeployTask(SStreamMeta* pMeta, SStreamTask* pTask);
+SStreamTask* sndMetaGetTask(SStreamMeta* pMeta, int32_t taskId);
+int32_t      sndMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
+
+int32_t sndDropTaskOfStream(SStreamMeta* pMeta, int64_t streamId);
+
+int32_t sndStopTaskOfStream(SStreamMeta* pMeta, int64_t streamId);
+int32_t sndResumeTaskOfStream(SStreamMeta* pMeta, int64_t streamId);
 
 #ifdef __cplusplus
 }

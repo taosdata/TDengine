@@ -140,7 +140,7 @@ typedef struct SQWorkerMgmt {
   SHashObj        *ctxHash;       //key: queryId+taskId, value: SQWTaskCtx
   void            *nodeObj;
   putReqToQueryQFp putToQueueFp;
-  sendReqToDnodeFp sendReqFp;
+  sendReqFp sendReqFp;
 } SQWorkerMgmt;
 
 #define QW_FPARAMS_DEF SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId
