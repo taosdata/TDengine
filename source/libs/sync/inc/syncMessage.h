@@ -163,15 +163,15 @@ typedef struct SyncClientRequest {
 } SyncClientRequest;
 
 SyncClientRequest* syncClientRequestBuild(uint32_t dataLen);
-SyncClientRequest* syncClientRequestBuild2(const SRpcMsg* pOriginalRpcMsg, uint64_t seqNum, bool isWeak);
+SyncClientRequest* syncClientRequestBuild2(const SRpcMsg* pOriginalRpcMsg, uint64_t seqNum, bool isWeak);  // step 1
 void               syncClientRequestDestroy(SyncClientRequest* pMsg);
 void               syncClientRequestSerialize(const SyncClientRequest* pMsg, char* buf, uint32_t bufLen);
 void               syncClientRequestDeserialize(const char* buf, uint32_t len, SyncClientRequest* pMsg);
 char*              syncClientRequestSerialize2(const SyncClientRequest* pMsg, uint32_t* len);
 SyncClientRequest* syncClientRequestDeserialize2(const char* buf, uint32_t len);
-void               syncClientRequest2RpcMsg(const SyncClientRequest* pMsg, SRpcMsg* pRpcMsg);
+void               syncClientRequest2RpcMsg(const SyncClientRequest* pMsg, SRpcMsg* pRpcMsg);  // step 2
 void               syncClientRequestFromRpcMsg(const SRpcMsg* pRpcMsg, SyncClientRequest* pMsg);
-SyncClientRequest* syncClientRequestFromRpcMsg2(const SRpcMsg* pRpcMsg);
+SyncClientRequest* syncClientRequestFromRpcMsg2(const SRpcMsg* pRpcMsg);  // step 3
 cJSON*             syncClientRequest2Json(const SyncClientRequest* pMsg);
 char*              syncClientRequest2Str(const SyncClientRequest* pMsg);
 

@@ -30,7 +30,7 @@ SQnode *qndOpen(const SQnodeOpt *pOption) {
   }
 
   if (qWorkerInit(NODE_TYPE_QNODE, pQnode->qndId, NULL, (void **)&pQnode->pQuery, pQnode,
-                     (putReqToQueryQFp)qnodePutReqToVQueryQ, (sendReqToDnodeFp)qnodeSendReqToDnode)) {
+                     (putReqToQueryQFp)qnodePutReqToVQueryQ, (sendReqFp)qnodeSendReqToDnode)) {
     tfree(pQnode);
     return NULL;
   }

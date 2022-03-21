@@ -101,6 +101,8 @@ void osUpdate() {
   }
 }
 
+void osCleanup() {}
+
 bool osLogSpaceAvailable() { return tsLogSpace.reserved <= tsLogSpace.size.avail; }
 
 void osSetTimezone(const char *timezone) { taosSetSystemTimezone(tsTimezone, tsTimezone, &tsDaylight); }

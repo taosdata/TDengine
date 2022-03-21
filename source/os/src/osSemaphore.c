@@ -24,11 +24,11 @@
 
 #include <windows.h>
 
-bool taosCheckPthreadValid(pthread_t thread) { return thread.p != NULL; }
+bool taosCheckPthreadValid(TdThread thread) { return thread.p != NULL; }
 
-void taosResetPthread(pthread_t* thread) { thread->p = 0; }
+void taosResetPthread(TdThread* thread) { thread->p = 0; }
 
-int64_t taosGetPthreadId(pthread_t thread) {
+int64_t taosGetPthreadId(TdThread thread) {
 #ifdef PTW32_VERSION
   return pthread_getw32threadid_np(thread);
 #else
@@ -38,7 +38,7 @@ int64_t taosGetPthreadId(pthread_t thread) {
 
 int64_t taosGetSelfPthreadId() { return GetCurrentThreadId(); }
 
-bool taosComparePthread(pthread_t first, pthread_t second) { return first.p == second.p; }
+bool taosComparePthread(TdThread first, TdThread second) { return first.p == second.p; }
 
 int32_t taosGetPId() { return GetCurrentProcessId(); }
 
@@ -84,10 +84,9 @@ int32_t tsem_wait(tsem_t* sem) {
 #include <mach/mach_init.h>
 #include <mach/semaphore.h>
 #include <mach/task.h>
-#include <pthread.h>
 
-static pthread_t      sem_thread;
-static pthread_once_t sem_once;
+static TdThread      sem_thread;
+static TdThreadOnce sem_once;
 static task_t         sem_port;
 static volatile int   sem_inited = 0;
 static semaphore_t    sem_exit;
@@ -110,7 +109,7 @@ static void *sem_thread_routine(void *arg) {
 
 static void once_init(void) {
   int r = 0;
-  r = pthread_create(&sem_thread, NULL, sem_thread_routine, NULL);
+  r = taosThreadCreate(&sem_thread, NULL, sem_thread_routine, NULL);
   if (r) {
     fprintf(stderr, "==%s[%d]%s()==failed to create thread\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__);
     return;
@@ -123,8 +122,8 @@ static void once_init(void) {
 
 struct tsem_s {
 #ifdef SEM_USE_PTHREAD
-  pthread_mutex_t  lock;
-  pthread_cond_t   cond;
+  TdThreadMutex  lock;
+  TdThreadCond   cond;
   volatile int64_t val;
 #elif defined(SEM_USE_POSIX)
   size_t        id;
@@ -151,12 +150,12 @@ int tsem_init(tsem_t *sem, int pshared, unsigned int value) {
   }
 
 #ifdef SEM_USE_PTHREAD
-  int r = pthread_mutex_init(&p->lock, NULL);
+  int r = taosThreadMutexInit(&p->lock, NULL);
   do {
     if (r) break;
-    r = pthread_cond_init(&p->cond, NULL);
+    r = taosThreadCondInit(&p->cond, NULL);
     if (r) {
-      pthread_mutex_destroy(&p->lock);
+      taosThreadMutexDestroy(&p->lock);
       break;
     }
     p->val = value;
@@ -186,7 +185,7 @@ int tsem_init(tsem_t *sem, int pshared, unsigned int value) {
     abort();
   } while (p->sem == SEM_FAILED);
 #elif defined(SEM_USE_SEM)
-  pthread_once(&sem_once, once_init);
+  taosThreadOnce(&sem_once, once_init);
   if (sem_inited != 1) {
     fprintf(stderr, "==%s[%d]%s():[%p]==internal resource init failed\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
     errno = ENOMEM;
@@ -224,18 +223,18 @@ int tsem_wait(tsem_t *sem) {
     abort();
   }
 #ifdef SEM_USE_PTHREAD
-  if (pthread_mutex_lock(&p->lock)) {
+  if (taosThreadMutexLock(&p->lock)) {
     fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
     abort();
   }
   p->val -= 1;
   if (p->val < 0) {
-    if (pthread_cond_wait(&p->cond, &p->lock)) {
+    if (taosThreadCondWait(&p->cond, &p->lock)) {
       fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
       abort();
     }
   }
-  if (pthread_mutex_unlock(&p->lock)) {
+  if (taosThreadMutexUnlock(&p->lock)) {
     fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
     abort();
   }
@@ -260,18 +259,18 @@ int tsem_post(tsem_t *sem) {
     abort();
   }
 #ifdef SEM_USE_PTHREAD
-  if (pthread_mutex_lock(&p->lock)) {
+  if (taosThreadMutexLock(&p->lock)) {
     fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
     abort();
   }
   p->val += 1;
   if (p->val <= 0) {
-    if (pthread_cond_signal(&p->cond)) {
+    if (taosThreadCondSignal(&p->cond)) {
       fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
       abort();
     }
   }
-  if (pthread_mutex_unlock(&p->lock)) {
+  if (taosThreadMutexUnlock(&p->lock)) {
     fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
     abort();
   }
@@ -299,20 +298,20 @@ int tsem_destroy(tsem_t *sem) {
     return 0;
   }
 #ifdef SEM_USE_PTHREAD
-  if (pthread_mutex_lock(&p->lock)) {
+  if (taosThreadMutexLock(&p->lock)) {
     fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
     abort();
   }
   p->valid = 0;
-  if (pthread_cond_destroy(&p->cond)) {
+  if (taosThreadCondDestroy(&p->cond)) {
     fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
     abort();
   }
-  if (pthread_mutex_unlock(&p->lock)) {
+  if (taosThreadMutexUnlock(&p->lock)) {
     fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
     abort();
   }
-  if (pthread_mutex_destroy(&p->lock)) {
+  if (taosThreadMutexDestroy(&p->lock)) {
     fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
     abort();
   }
@@ -338,23 +337,23 @@ int tsem_destroy(tsem_t *sem) {
   return 0;
 }
 
-bool taosCheckPthreadValid(pthread_t thread) {
+bool taosCheckPthreadValid(TdThread thread) {
   uint64_t id = 0;
-  int      r = pthread_threadid_np(thread, &id);
+  int      r = TdThreadhreadid_np(thread, &id);
   return r ? false : true;
 }
 
 int64_t taosGetSelfPthreadId() {
   uint64_t id;
-  pthread_threadid_np(0, &id);
+  TdThreadhreadid_np(0, &id);
   return (int64_t)id;
 }
 
-int64_t taosGetPthreadId(pthread_t thread) { return (int64_t)thread; }
+int64_t taosGetPthreadId(TdThread thread) { return (int64_t)thread; }
 
-void taosResetPthread(pthread_t *thread) { *thread = NULL; }
+void taosResetPthread(TdThread *thread) { *thread = NULL; }
 
-bool taosComparePthread(pthread_t first, pthread_t second) { return pthread_equal(first, second) ? true : false; }
+bool taosComparePthread(TdThread first, TdThread second) { return taosThreadEqual(first, second) ? true : false; }
 
 int32_t taosGetPId() { return (int32_t)getpid(); }
 
@@ -378,7 +377,7 @@ int32_t taosGetAppName(char *name, int32_t *len) {
 #include <sys/syscall.h>
 #include <unistd.h>
 
-bool taosCheckPthreadValid(pthread_t thread) { return thread != 0; }
+bool taosCheckPthreadValid(TdThread thread) { return thread != 0; }
 
 int64_t taosGetSelfPthreadId() {
   static __thread int id = 0;
@@ -387,9 +386,9 @@ int64_t taosGetSelfPthreadId() {
   return id;
 }
 
-int64_t taosGetPthreadId(pthread_t thread) { return (int64_t)thread; }
-void    taosResetPthread(pthread_t* thread) { *thread = 0; }
-bool    taosComparePthread(pthread_t first, pthread_t second) { return first == second; }
+int64_t taosGetPthreadId(TdThread thread) { return (int64_t)thread; }
+void    taosResetPthread(TdThread* thread) { *thread = 0; }
+bool    taosComparePthread(TdThread first, TdThread second) { return first == second; }
 int32_t taosGetPId() { return getpid(); }
 
 int32_t taosGetAppName(char* name, int32_t* len) {

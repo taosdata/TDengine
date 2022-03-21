@@ -76,6 +76,12 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SColumnDefNode));
     case QUERY_NODE_DOWNSTREAM_SOURCE:
       return makeNode(type, sizeof(SDownstreamSourceNode));
+    case QUERY_NODE_DATABASE_OPTIONS:
+      return makeNode(type, sizeof(SDatabaseOptions));
+    case QUERY_NODE_TABLE_OPTIONS:
+      return makeNode(type, sizeof(STableOptions));
+    case QUERY_NODE_INDEX_OPTIONS:
+      return makeNode(type, sizeof(SIndexOptions));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
@@ -86,6 +92,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateDatabaseStmt));
     case QUERY_NODE_DROP_DATABASE_STMT:
       return makeNode(type, sizeof(SDropDatabaseStmt));    
+    case QUERY_NODE_ALTER_DATABASE_STMT:
+      return makeNode(type, sizeof(SAlterDatabaseStmt));
     case QUERY_NODE_CREATE_TABLE_STMT:
       return makeNode(type, sizeof(SCreateTableStmt));
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
@@ -110,6 +118,20 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateDnodeStmt));
     case QUERY_NODE_DROP_DNODE_STMT:
       return makeNode(type, sizeof(SDropDnodeStmt));
+    case QUERY_NODE_ALTER_DNODE_STMT:
+      return makeNode(type, sizeof(SAlterDnodeStmt));
+    case QUERY_NODE_CREATE_INDEX_STMT:
+      return makeNode(type, sizeof(SCreateIndexStmt));
+    case QUERY_NODE_DROP_INDEX_STMT:
+      return makeNode(type, sizeof(SDropIndexStmt));
+    case QUERY_NODE_CREATE_QNODE_STMT:
+      return makeNode(type, sizeof(SCreateQnodeStmt));
+    case QUERY_NODE_DROP_QNODE_STMT:
+      return makeNode(type, sizeof(SDropQnodeStmt));
+    case QUERY_NODE_CREATE_TOPIC_STMT:
+      return makeNode(type, sizeof(SCreateTopicStmt));
+    case QUERY_NODE_DROP_TOPIC_STMT:
+      return makeNode(type, sizeof(SDropTopicStmt));
     case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_TABLES_STMT:
     case QUERY_NODE_SHOW_STABLES_STMT:
@@ -148,7 +170,7 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
       return makeNode(type, sizeof(STableSeqScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
-      return makeNode(type, sizeof(SNode));
+      return makeNode(type, sizeof(SStreamScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
       return makeNode(type, sizeof(SSystemTableScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
@@ -211,6 +233,14 @@ static EDealRes destroyNode(SNode** pNode, void* pContext) {
     case QUERY_NODE_NODE_LIST:
       nodesClearList(((SNodeListNode*)(*pNode))->pNodeList);
       break;
+    case QUERY_NODE_INDEX_OPTIONS: {
+      SIndexOptions* pStmt = (SIndexOptions*)*pNode;
+      nodesDestroyList(pStmt->pFuncs);
+      nodesDestroyNode(pStmt->pInterval);
+      nodesDestroyNode(pStmt->pOffset);
+      nodesDestroyNode(pStmt->pSliding);
+      break;
+    }
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pStmt = (SSelectStmt*)*pNode;
       nodesDestroyList(pStmt->pProjectionList);
@@ -251,6 +281,12 @@ static EDealRes destroyNode(SNode** pNode, void* pContext) {
     case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
       nodesDestroyList(((SCreateMultiTableStmt*)(*pNode))->pSubTables);
       break;
+    case QUERY_NODE_CREATE_INDEX_STMT: {
+      SCreateIndexStmt* pStmt = (SCreateIndexStmt*)*pNode;
+      nodesDestroyNode(pStmt->pOptions);
+      nodesDestroyList(pStmt->pCols);
+      break;
+    }
     default:
       break;
   }
@@ -323,6 +359,17 @@ int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc) {
   tfree(pSrc);
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t nodesListStrictAppendList(SNodeList* pTarget, SNodeList* pSrc) {
+  if (NULL == pSrc) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  int32_t code = nodesListAppendList(pTarget, pSrc);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyList(pSrc);
+  }
+  return code;
 }
 
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell) {
@@ -539,7 +586,7 @@ typedef struct SCollectFuncsCxt {
 static EDealRes collectFuncs(SNode* pNode, void* pContext) {
   SCollectFuncsCxt* pCxt = (SCollectFuncsCxt*)pContext;
   if (QUERY_NODE_FUNCTION == nodeType(pNode) && pCxt->classifier(((SFunctionNode*)pNode)->funcId)) {
-    pCxt->errCode = nodesListAppend(pCxt->pFuncs, pNode);
+    pCxt->errCode = nodesListStrictAppend(pCxt->pFuncs, nodesCloneNode(pNode));
     return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
   }
   return DEAL_RES_CONTINUE;

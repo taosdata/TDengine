@@ -1174,7 +1174,7 @@ int32_t ctgMetaRentInit(SCtgRentMgmt *mgmt, uint32_t rentSec, int8_t type) {
 
 
 int32_t ctgMetaRentAdd(SCtgRentMgmt *mgmt, void *meta, int64_t id, int32_t size) {
-  int16_t widx = abs(id % mgmt->slotNum);
+  int16_t widx = abs((int)(id % mgmt->slotNum));
 
   SCtgRentSlot *slot = &mgmt->slots[widx];
   int32_t code = 0;
@@ -1204,11 +1204,11 @@ _return:
 }
 
 int32_t ctgMetaRentUpdate(SCtgRentMgmt *mgmt, void *meta, int64_t id, int32_t size, __compar_fn_t sortCompare, __compar_fn_t searchCompare) {
-  int16_t widx = abs(id % mgmt->slotNum);
+  int16_t widx = abs((int)(id % mgmt->slotNum));
 
   SCtgRentSlot *slot = &mgmt->slots[widx];
   int32_t code = 0;
-  
+
   CTG_LOCK(CTG_WRITE, &slot->lock);
   if (NULL == slot->meta) {
     qError("empty meta slot, id:%"PRIx64", slot idx:%d, type:%d", id, widx, mgmt->type);
@@ -1245,7 +1245,7 @@ _return:
 }
 
 int32_t ctgMetaRentRemove(SCtgRentMgmt *mgmt, int64_t id, __compar_fn_t sortCompare, __compar_fn_t searchCompare) {
-  int16_t widx = abs(id % mgmt->slotNum);
+  int16_t widx = abs((int)(id % mgmt->slotNum));
 
   SCtgRentSlot *slot = &mgmt->slots[widx];
   int32_t code = 0;
@@ -2174,16 +2174,16 @@ void* ctgUpdateThreadFunc(void* param) {
 
 
 int32_t ctgStartUpdateThread() {
-  pthread_attr_t thAttr;
-  pthread_attr_init(&thAttr);
-  pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
 
-  if (pthread_create(&gCtgMgmt.updateThread, &thAttr, ctgUpdateThreadFunc, NULL) != 0) {
+  if (taosThreadCreate(&gCtgMgmt.updateThread, &thAttr, ctgUpdateThreadFunc, NULL) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     CTG_ERR_RET(terrno);
   }
   
-  pthread_attr_destroy(&thAttr);
+  taosThreadAttrDestroy(&thAttr);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2530,6 +2530,10 @@ _return:
   CTG_API_LEAVE(code);
 }
 
+int32_t catalogUpdateVgEpSet(SCatalog* pCtg, const char* dbFName, int32_t vgId, SEpSet *epSet) {
+
+}
+
 int32_t catalogRemoveTableMeta(SCatalog* pCtg, SName* pTableName) {
   CTG_API_ENTER();
 
@@ -2593,6 +2597,9 @@ _return:
   CTG_API_LEAVE(code);
 }
 
+int32_t catalogGetIndexMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, const SName* pTableName, const char *pIndexName, SIndexMeta** pIndexMeta) {
+
+}
 
 int32_t catalogGetTableMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta) {
   CTG_API_ENTER();
@@ -2800,12 +2807,15 @@ _return:
 
 int32_t catalogGetQnodeList(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, SArray* pQnodeList) {
   CTG_API_ENTER();
-
+  
+  int32_t code = 0;
   if (NULL == pCtg || NULL == pRpc  || NULL == pMgmtEps || NULL == pQnodeList) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  //TODO
+  CTG_ERR_JRET(ctgGetQnodeListFromMnode(pCtg, pRpc, pMgmtEps, &pQnodeList));
+
+_return:
 
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 }

@@ -253,7 +253,8 @@ endi
 print =============== query data from normal table after restart dnode
 sql use ndb
 sql select * from nt1
-if $rows != 3 then 
+if $rows != 3 then
+  print expect 3, actual: $rows
   return -1
 endi
 

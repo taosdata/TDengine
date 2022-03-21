@@ -372,7 +372,7 @@ static void *hbThreadFunc(void *param) {
       break;
     }
 
-    pthread_mutex_lock(&clientHbMgr.lock);
+    taosThreadMutexLock(&clientHbMgr.lock);
 
     int sz = taosArrayGetSize(clientHbMgr.appHbMgrs);
     for (int i = 0; i < sz; i++) {
@@ -423,7 +423,7 @@ static void *hbThreadFunc(void *param) {
       atomic_add_fetch_32(&pAppHbMgr->reportCnt, 1);
     }
 
-    pthread_mutex_unlock(&clientHbMgr.lock);
+    taosThreadMutexUnlock(&clientHbMgr.lock);
 
     taosMsleep(HEARTBEAT_INTERVAL);
   }
@@ -431,15 +431,15 @@ static void *hbThreadFunc(void *param) {
 }
 
 static int32_t hbCreateThread() {
-  pthread_attr_t thAttr;
-  pthread_attr_init(&thAttr);
-  pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
 
-//  if (pthread_create(&clientHbMgr.thread, &thAttr, hbThreadFunc, NULL) != 0) {
+//  if (taosThreadCreate(&clientHbMgr.thread, &thAttr, hbThreadFunc, NULL) != 0) {
 //    terrno = TAOS_SYSTEM_ERROR(errno);
 //    return -1;
 //  }
-//  pthread_attr_destroy(&thAttr);
+//  taosThreadAttrDestroy(&thAttr);
   return 0;
 }
 
@@ -492,15 +492,15 @@ SAppHbMgr *appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key) {
     return NULL;
   }
 
-  pthread_mutex_lock(&clientHbMgr.lock);
+  taosThreadMutexLock(&clientHbMgr.lock);
   taosArrayPush(clientHbMgr.appHbMgrs, &pAppHbMgr);
-  pthread_mutex_unlock(&clientHbMgr.lock);
+  taosThreadMutexUnlock(&clientHbMgr.lock);
 
   return pAppHbMgr;
 }
 
 void appHbMgrCleanup(void) {
-  pthread_mutex_lock(&clientHbMgr.lock);
+  taosThreadMutexLock(&clientHbMgr.lock);
 
   int sz = taosArrayGetSize(clientHbMgr.appHbMgrs);
   for (int i = 0; i < sz; i++) {
@@ -511,7 +511,7 @@ void appHbMgrCleanup(void) {
     pTarget->connInfo = NULL;
   }
 
-  pthread_mutex_unlock(&clientHbMgr.lock);
+  taosThreadMutexUnlock(&clientHbMgr.lock);
 }
 
 int hbMgrInit() {
@@ -520,7 +520,7 @@ int hbMgrInit() {
   if (old == 1) return 0;
 
   clientHbMgr.appHbMgrs = taosArrayInit(0, sizeof(void *));
-  pthread_mutex_init(&clientHbMgr.lock, NULL);
+  taosThreadMutexInit(&clientHbMgr.lock, NULL);
 
   // init handle funcs
   hbMgrInitHandle();
@@ -539,10 +539,10 @@ void hbMgrCleanUp() {
   int8_t old = atomic_val_compare_exchange_8(&clientHbMgr.inited, 1, 0);
   if (old == 0) return;
 
-  pthread_mutex_lock(&clientHbMgr.lock);
+  taosThreadMutexLock(&clientHbMgr.lock);
   appHbMgrCleanup();
   taosArrayDestroy(clientHbMgr.appHbMgrs);
-  pthread_mutex_unlock(&clientHbMgr.lock);
+  taosThreadMutexUnlock(&clientHbMgr.lock);
 
   clientHbMgr.appHbMgrs = NULL;
 #endif

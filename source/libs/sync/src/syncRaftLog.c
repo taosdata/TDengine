@@ -34,6 +34,7 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   pLogStore->getLastTerm = logStoreLastTerm;
   pLogStore->updateCommitIndex = logStoreUpdateCommitIndex;
   pLogStore->getCommitIndex = logStoreGetCommitIndex;
+  return pLogStore;  // to avoid compiler error
 }
 
 void logStoreDestory(SSyncLogStore* pLogStore) {
@@ -58,20 +59,24 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
 
   walFsync(pWal, true);
   free(serialized);
+  return code;  // to avoid compiler error
 }
 
 SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  SSyncRaftEntry*    pEntry;
+  SSyncRaftEntry*    pEntry = NULL;
 
-  SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
-  walReadWithHandle(pWalHandle, index);
-  pEntry = syncEntryDeserialize(pWalHandle->pHead->head.body, pWalHandle->pHead->head.len);
-  assert(pEntry != NULL);
+  if (index >= SYNC_INDEX_BEGIN && index <= logStoreLastIndex(pLogStore)) {
+    SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
+    walReadWithHandle(pWalHandle, index);
+    pEntry = syncEntryDeserialize(pWalHandle->pHead->head.body, pWalHandle->pHead->head.len);
+    assert(pEntry != NULL);
 
-  // need to hold, do not new every time!!
-  walCloseReadHandle(pWalHandle);
+    // need to hold, do not new every time!!
+    walCloseReadHandle(pWalHandle);
+  }
+
   return pEntry;
 }
 
@@ -79,6 +84,7 @@ int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
   walRollback(pWal, fromIndex);
+  return 0;  // to avoid compiler error
 }
 
 SyncIndex logStoreLastIndex(SSyncLogStore* pLogStore) {
@@ -102,6 +108,7 @@ int32_t logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
   walCommit(pWal, index);
+  return 0;  // to avoid compiler error
 }
 
 SyncIndex logStoreGetCommitIndex(SSyncLogStore* pLogStore) {
@@ -122,26 +129,28 @@ SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore) {
 }
 
 cJSON* logStore2Json(SSyncLogStore* pLogStore) {
-  char u64buf[128];
-
+  char               u64buf[128];
   SSyncLogStoreData* pData = (SSyncLogStoreData*)pLogStore->data;
   cJSON*             pRoot = cJSON_CreateObject();
-  snprintf(u64buf, sizeof(u64buf), "%p", pData->pSyncNode);
-  cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%p", pData->pWal);
-  cJSON_AddStringToObject(pRoot, "pWal", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%ld", logStoreLastIndex(pLogStore));
-  cJSON_AddStringToObject(pRoot, "LastIndex", u64buf);
-  snprintf(u64buf, sizeof(u64buf), "%lu", logStoreLastTerm(pLogStore));
-  cJSON_AddStringToObject(pRoot, "LastTerm", u64buf);
 
-  cJSON* pEntries = cJSON_CreateArray();
-  cJSON_AddItemToObject(pRoot, "pEntries", pEntries);
-  SyncIndex lastIndex = logStoreLastIndex(pLogStore);
-  for (SyncIndex i = 0; i <= lastIndex; ++i) {
-    SSyncRaftEntry* pEntry = logStoreGetEntry(pLogStore, i);
-    cJSON_AddItemToArray(pEntries, syncEntry2Json(pEntry));
-    syncEntryDestory(pEntry);
+  if (pData != NULL && pData->pWal != NULL) {
+    snprintf(u64buf, sizeof(u64buf), "%p", pData->pSyncNode);
+    cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%p", pData->pWal);
+    cJSON_AddStringToObject(pRoot, "pWal", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%ld", logStoreLastIndex(pLogStore));
+    cJSON_AddStringToObject(pRoot, "LastIndex", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%lu", logStoreLastTerm(pLogStore));
+    cJSON_AddStringToObject(pRoot, "LastTerm", u64buf);
+
+    cJSON* pEntries = cJSON_CreateArray();
+    cJSON_AddItemToObject(pRoot, "pEntries", pEntries);
+    SyncIndex lastIndex = logStoreLastIndex(pLogStore);
+    for (SyncIndex i = 0; i <= lastIndex; ++i) {
+      SSyncRaftEntry* pEntry = logStoreGetEntry(pLogStore, i);
+      cJSON_AddItemToArray(pEntries, syncEntry2Json(pEntry));
+      syncEntryDestory(pEntry);
+    }
   }
 
   cJSON* pJson = cJSON_CreateObject();

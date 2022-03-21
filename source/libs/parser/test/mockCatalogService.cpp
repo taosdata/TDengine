@@ -13,12 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "mockCatalogService.h"
-
 #include <iomanip>
 #include <iostream>
 #include <map>
 #include "tdatablock.h"
+#include "mockCatalogService.h"
 
 #include "tname.h"
 #include "ttypes.h"

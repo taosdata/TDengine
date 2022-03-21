@@ -186,7 +186,7 @@ typedef struct SCatalogMgmt {
   bool                  exit;
   SRWLatch              lock;
   SCtgQueue             queue;
-  pthread_t             updateThread;  
+  TdThread             updateThread;  
   SHashObj             *pCluster;     //key: clusterId, value: SCatalog*
   SCatalogStat          stat;
   SCatalogCfg           cfg;

@@ -40,12 +40,13 @@ typedef struct SSyncRaftEntry {
 } SSyncRaftEntry;
 
 SSyncRaftEntry* syncEntryBuild(uint32_t dataLen);
-SSyncRaftEntry* syncEntryBuild2(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index);
+SSyncRaftEntry* syncEntryBuild2(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index);  // step 4
 void            syncEntryDestory(SSyncRaftEntry* pEntry);
-char*           syncEntrySerialize(const SSyncRaftEntry* pEntry, uint32_t* len);
-SSyncRaftEntry* syncEntryDeserialize(const char* buf, uint32_t len);
+char*           syncEntrySerialize(const SSyncRaftEntry* pEntry, uint32_t* len);  // step 5
+SSyncRaftEntry* syncEntryDeserialize(const char* buf, uint32_t len);              // step 6
 cJSON*          syncEntry2Json(const SSyncRaftEntry* pEntry);
 char*           syncEntry2Str(const SSyncRaftEntry* pEntry);
+void            syncEntry2OriginalRpc(const SSyncRaftEntry* pEntry, SRpcMsg* pRpcMsg);  // step 7
 
 // for debug ----------------------
 void syncEntryPrint(const SSyncRaftEntry* pObj);

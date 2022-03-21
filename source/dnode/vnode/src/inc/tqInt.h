@@ -161,6 +161,7 @@ struct STQ {
   STqMemRef     tqMemRef;
   STqMetaStore* tqMeta;
   STqPushMgr*   tqPushMgr;
+  SHashObj*     pStreamTasks;
   SWal*         pWal;
   SMeta*        pVnodeMeta;
 };

@@ -51,7 +51,8 @@ int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique) {
 //   return access(pathname, flags);
 // }
 
-int tdbGetFileSize(const char *fname, pgsz_t pgSize, pgno_t *pSize) {
+int tdbGetFileSize(const char *fname, int pgSize, SPgno *pSize) {
+  struct stat st;
   int         ret;
   int64_t file_size = 0;
   ret = taosStatFile(fname, &file_size, NULL);
@@ -63,4 +64,29 @@ int tdbGetFileSize(const char *fname, pgsz_t pgSize, pgno_t *pSize) {
 
   *pSize = file_size / pgSize;
   return 0;
+}
+
+int tdbPRead(int fd, void *pData, int count, i64 offset) {
+  void *pBuf;
+  int   nbytes;
+  i64   ioffset;
+  int   iread;
+
+  pBuf = pData;
+  nbytes = count;
+  ioffset = offset;
+  while (nbytes > 0) {
+    iread = pread(fd, pBuf, nbytes, ioffset);
+    if (iread < 0) {
+      /* TODO */
+    } else if (iread == 0) {
+      return (count - iread);
+    }
+
+    nbytes = nbytes - iread;
+    pBuf = (void *)((u8 *)pBuf + iread);
+    ioffset += iread;
+  }
+
+  return count;
 }

@@ -55,8 +55,7 @@ typedef struct SDummyInputInfo {
   SSDataBlock* pBlock;
 } SDummyInputInfo;
 
-SSDataBlock* getDummyBlock(void* param, bool* newgroup) {
-  SOperatorInfo* pOperator = static_cast<SOperatorInfo*>(param);
+SSDataBlock* getDummyBlock(SOperatorInfo* pOperator, bool* newgroup) {
   SDummyInputInfo* pInfo = static_cast<SDummyInputInfo*>(pOperator->info);
   if (pInfo->current >= pInfo->totalPages) {
     return NULL;
@@ -87,7 +86,7 @@ SSDataBlock* getDummyBlock(void* param, bool* newgroup) {
 //
 //    taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo1);
   } else {
-    blockDataClearup(pInfo->pBlock, true);
+    blockDataClearup(pInfo->pBlock);
   }
 
   SSDataBlock* pBlock = pInfo->pBlock;
@@ -122,8 +121,7 @@ SSDataBlock* getDummyBlock(void* param, bool* newgroup) {
   return pBlock;
 }
 
-SSDataBlock* get2ColsDummyBlock(void* param, bool* newgroup) {
-  SOperatorInfo* pOperator = static_cast<SOperatorInfo*>(param);
+SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator, bool* newgroup) {
   SDummyInputInfo* pInfo = static_cast<SDummyInputInfo*>(pOperator->info);
   if (pInfo->current >= pInfo->totalPages) {
     return NULL;
@@ -153,7 +151,7 @@ SSDataBlock* get2ColsDummyBlock(void* param, bool* newgroup) {
 
     taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo1);
   } else {
-    blockDataClearup(pInfo->pBlock, false);
+    blockDataClearup(pInfo->pBlock);
   }
 
   SSDataBlock* pBlock = pInfo->pBlock;
@@ -201,9 +199,9 @@ SOperatorInfo* createDummyOperator(int32_t startVal, int32_t numOfBlocks, int32_
   pOperator->name = "dummyInputOpertor4Test";
 
   if (numOfCols == 1) {
-    pOperator->nextDataFn = getDummyBlock;
+    pOperator->getNextFn = getDummyBlock;
   } else {
-    pOperator->nextDataFn = get2ColsDummyBlock;
+    pOperator->getNextFn = get2ColsDummyBlock;
   }
 
   SDummyInputInfo *pInfo = (SDummyInputInfo*) calloc(1, sizeof(SDummyInputInfo));

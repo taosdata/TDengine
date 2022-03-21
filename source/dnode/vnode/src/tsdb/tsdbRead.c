@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tsdbDef.h"
 #include <tdatablock.h>
 #include "os.h"
 #include "talgo.h"
@@ -20,7 +21,6 @@
 #include "tdataformat.h"
 #include "texception.h"
 #include "tsdb.h"
-#include "tsdbDef.h"
 #include "tsdbFS.h"
 #include "tsdbLog.h"
 #include "tsdbReadImpl.h"
@@ -3392,7 +3392,7 @@ void filterPrepare(void* expr, void* param) {
     if (size < (uint32_t)pSchema->bytes) {
       size = pSchema->bytes;
     }
-    // to make sure tonchar does not cause invalid write, since the '\0' needs at least sizeof(wchar_t) space.
+    // to make sure tonchar does not cause invalid write, since the '\0' needs at least sizeof(TdUcs4) space.
     pInfo->q = calloc(1, size + TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
     tVariantDump(pCond, pInfo->q, pSchema->type, true);
   }

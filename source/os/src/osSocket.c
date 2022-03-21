@@ -17,7 +17,7 @@
 #define ALLOW_FORBID_FUNC
 #include "os.h"
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#if defined(WINDOWS)
 #include <IPHlpApi.h>
 #include <WS2tcpip.h>
 #include <Winsock2.h>
@@ -37,8 +37,14 @@
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
 #include <sys/socket.h>
-#include <sys/epoll.h>
 #include <unistd.h>
+
+#if defined(DARWIN)
+  #include <dispatch/dispatch.h>
+  #include "osEok.h"
+#else
+  #include <sys/epoll.h>
+#endif
 #endif
 
 typedef int32_t SocketFd;
@@ -46,7 +52,7 @@ typedef SocketFd  EpollFd;
 
 typedef struct TdSocketServer {
 #if SOCKET_WITH_LOCK
-  pthread_rwlock_t rwlock;
+  TdThreadRwlock rwlock;
 #endif
   int      refId;
   SocketFd fd;
@@ -54,7 +60,7 @@ typedef struct TdSocketServer {
 
 typedef struct TdSocket {
 #if SOCKET_WITH_LOCK
-  pthread_rwlock_t rwlock;
+  TdThreadRwlock rwlock;
 #endif
   int      refId;
   SocketFd fd;
@@ -62,7 +68,7 @@ typedef struct TdSocket {
 
 typedef struct TdEpoll {
 #if SOCKET_WITH_LOCK
-  pthread_rwlock_t rwlock;
+  TdThreadRwlock rwlock;
 #endif
   int      refId;
   EpollFd  fd;
@@ -210,7 +216,7 @@ int32_t taosShutDownSocketServerRDWR(TdSocketServerPtr pSocketServer) {
 #endif
 }
 
-#if (defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)) 
+#if (defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32))
   #if defined(_TD_GO_DLL_)
     uint64_t htonll(uint64_t val) { return (((uint64_t)htonl(val)) << 32) + htonl(val >> 32); }
   #endif
@@ -769,7 +775,7 @@ void taosBlockSIGPIPE() {
   sigset_t signal_mask;
   sigemptyset(&signal_mask);
   sigaddset(&signal_mask, SIGPIPE);
-  int32_t rc = pthread_sigmask(SIG_BLOCK, &signal_mask, NULL);
+  int32_t rc = taosThreadSigmask(SIG_BLOCK, &signal_mask, NULL);
   if (rc != 0) {
     // printf("failed to block SIGPIPE");
   }
@@ -887,7 +893,7 @@ void taosSetMaskSIGPIPE() {
   sigset_t signal_mask;
   sigemptyset(&signal_mask);
   sigaddset(&signal_mask, SIGPIPE);
-  int32_t rc = pthread_sigmask(SIG_SETMASK, &signal_mask, NULL);
+  int32_t rc = taosThreadSigmask(SIG_SETMASK, &signal_mask, NULL);
   if (rc != 0) {
     // printf("failed to setmask SIGPIPE");
   }

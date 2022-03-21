@@ -23,8 +23,8 @@ static const char *TSDB_FNAME_SUFFIX[] = {
     "smal",  // TSDB_FILE_SMAL
     "",      // TSDB_FILE_MAX
     "meta",  // TSDB_FILE_META
-    "sma",   // TSDB_FILE_TSMA(directory name)
-    "sma",   // TSDB_FILE_RSMA(directory name)
+    "tsma",  // TSDB_FILE_TSMA
+    "rsma",  // TSDB_FILE_RSMA
 };
 
 static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, char *fname);

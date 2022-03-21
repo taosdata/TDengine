@@ -309,6 +309,13 @@ TEST_F(ParserTest, showUsers) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(ParserTest, alterAccount) {
+  setDatabase("root", "test");
+
+  bind("alter account ac_wxy pass '123456'");
+  ASSERT_TRUE(run(TSDB_CODE_PAR_EXPRIE_STATEMENT));
+}
+
 TEST_F(ParserTest, createDnode) {
   setDatabase("root", "test");
 
@@ -323,6 +330,16 @@ TEST_F(ParserTest, showDnodes) {
   setDatabase("root", "test");
 
   bind("show dnodes");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, alterDnode) {
+  setDatabase("root", "test");
+
+  bind("alter dnode 1 'resetLog'");
+  ASSERT_TRUE(run());
+
+  bind("alter dnode 1 'debugFlag' '134'");
   ASSERT_TRUE(run());
 }
 
@@ -354,7 +371,24 @@ TEST_F(ParserTest, createDatabase) {
   ASSERT_TRUE(run());
 }
 
-TEST_F(ParserTest, showDatabases) {
+TEST_F(ParserTest, alterDatabase) {
+  setDatabase("root", "test");
+
+  bind("alter database wxy_db BLOCKS 200");
+  ASSERT_TRUE(run());
+
+  bind("alter database wxy_db "
+       "BLOCKS 200 "
+       "CACHELAST 1 "
+       "FSYNC 200 "
+       "KEEP 200 "
+       "QUORUM 2 "
+       "WAL 1 "
+      );
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, showDatabase) {
   setDatabase("root", "test");
 
   bind("show databases");
@@ -497,5 +531,59 @@ TEST_F(ParserTest, showStreams) {
   setDatabase("root", "test");
 
   bind("show streams");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, createSmaIndex) {
+  setDatabase("root", "test");
+
+  bind("create sma index index1 on t1 function(max(c1), min(c3 + 10), sum(c4)) INTERVAL(10s)");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, dropIndex) {
+  setDatabase("root", "test");
+
+  bind("drop index index1 on t1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, createQnode) {
+  setDatabase("root", "test");
+
+  bind("create qnode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, dropQnode) {
+  setDatabase("root", "test");
+
+  bind("drop qnode on dnode 1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, createTopic) {
+  setDatabase("root", "test");
+
+  bind("create topic tp1 as select * from t1");
+  ASSERT_TRUE(run());
+
+  bind("create topic if not exists tp1 as select * from t1");
+  ASSERT_TRUE(run());
+
+  bind("create topic tp1 as test");
+  ASSERT_TRUE(run());
+
+  bind("create topic if not exists tp1 as test");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, dropTopic) {
+  setDatabase("root", "test");
+
+  bind("drop topic tp1");
+  ASSERT_TRUE(run());
+
+  bind("drop topic if exists tp1");
   ASSERT_TRUE(run());
 }

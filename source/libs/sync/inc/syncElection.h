@@ -39,7 +39,6 @@ extern "C" {
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 //
 int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode);
-
 int32_t syncNodeElect(SSyncNode* pSyncNode);
 int32_t syncNodeRequestVote(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncRequestVote* pMsg);
 

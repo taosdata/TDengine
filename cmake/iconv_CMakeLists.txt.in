@@ -1,0 +1,12 @@
+
+# iconv
+ExternalProject_Add(iconv
+        GIT_REPOSITORY https://github.com/win-iconv/win-iconv.git
+        GIT_TAG v0.0.8
+        SOURCE_DIR "${CMAKE_CONTRIB_DIR}/iconv"
+        BINARY_DIR ""
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        TEST_COMMAND ""
+        )

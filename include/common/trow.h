@@ -98,13 +98,13 @@ typedef void *SRow;
 
 typedef struct {
   TDRowValT valType;
-  void     *val;
+  void *    val;
 } SCellVal;
 
 typedef struct {
   // TODO
-  int tmp; // TODO: to avoid compile error
-} STpRow;  // tuple
+  int tmp;  // TODO: to avoid compile error
+} STpRow;   // tuple
 
 #pragma pack(push, 1)
 typedef struct {
@@ -158,8 +158,8 @@ typedef struct {
   int16_t nBitmaps;
   int16_t nBoundBitmaps;
   int32_t offset;
-  void   *pBitmap;
-  void   *pOffset;
+  void *  pBitmap;
+  void *  pOffset;
   int32_t extendedRowSize;
 } SRowBuilder;
 
@@ -273,7 +273,7 @@ static FORCE_INLINE int32_t tdSetBitmapValType(void *pBitmap, int16_t colIdx, TD
   }
   int16_t nBytes = colIdx / TD_VTYPE_PARTS;
   int16_t nOffset = colIdx & TD_VTYPE_OPTR;
-  char   *pDestByte = (char *)POINTER_SHIFT(pBitmap, nBytes);
+  char *  pDestByte = (char *)POINTER_SHIFT(pBitmap, nBytes);
   switch (nOffset) {
     case 0:
       *pDestByte = ((*pDestByte) & 0x3F) | (valType << 6);
@@ -311,7 +311,7 @@ static FORCE_INLINE int32_t tdGetBitmapValType(void *pBitmap, int16_t colIdx, TD
   }
   int16_t nBytes = colIdx / TD_VTYPE_PARTS;
   int16_t nOffset = colIdx & TD_VTYPE_OPTR;
-  char   *pDestByte = (char *)POINTER_SHIFT(pBitmap, nBytes);
+  char *  pDestByte = (char *)POINTER_SHIFT(pBitmap, nBytes);
   switch (nOffset) {
     case 0:
       *pValType = (((*pDestByte) & 0xC0) >> 6);
@@ -617,7 +617,7 @@ static FORCE_INLINE int32_t tdAppendColValToKvRow(SRowBuilder *pBuilder, TDRowVa
   if (tdValIsNorm(valType, val, colType)) {
     // ts key stored in STSRow.ts
     SKvRowIdx *pColIdx = (SKvRowIdx *)POINTER_SHIFT(TD_ROW_COL_IDX(row), offset);
-    char      *ptr = (char *)POINTER_SHIFT(row, TD_ROW_LEN(row));
+    char *     ptr = (char *)POINTER_SHIFT(row, TD_ROW_LEN(row));
     pColIdx->colId = colId;
     pColIdx->offset = TD_ROW_LEN(row);  // the offset include the TD_ROW_HEAD_LEN
 
@@ -635,7 +635,7 @@ static FORCE_INLINE int32_t tdAppendColValToKvRow(SRowBuilder *pBuilder, TDRowVa
   // NULL/None value
   else {
     SKvRowIdx *pColIdx = (SKvRowIdx *)POINTER_SHIFT(TD_ROW_COL_IDX(row), offset);
-    char      *ptr = (char *)POINTER_SHIFT(row, TD_ROW_LEN(row));
+    char *     ptr = (char *)POINTER_SHIFT(row, TD_ROW_LEN(row));
     pColIdx->colId = colId;
     pColIdx->offset = TD_ROW_LEN(row);  // the offset include the TD_ROW_HEAD_LEN
     const void *nullVal = getNullValue(colType);
@@ -697,9 +697,9 @@ static FORCE_INLINE int32_t tdAppendColValToRow(SRowBuilder *pBuilder, int16_t c
   }
   // TODO:  We can avoid the type judegement by FP, but would prevent the inline scheme.
   if (TD_IS_TP_ROW(pRow)) {
-    tdAppendColValToTpRow(pBuilder, valType, val, true, colType, colIdx, offset);
+    tdAppendColValToTpRow(pBuilder, valType, val, isCopyVarData, colType, colIdx, offset);
   } else {
-    tdAppendColValToKvRow(pBuilder, valType, val, true, colType, colIdx, offset, colId);
+    tdAppendColValToKvRow(pBuilder, valType, val, isCopyVarData, colType, colIdx, offset, colId);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -771,8 +771,8 @@ static FORCE_INLINE int32_t tdGetKvRowValOfCol(SCellVal *output, STSRow *pRow, v
 
 typedef struct {
   STSchema *pSchema;
-  STSRow   *pRow;
-  void     *pBitmap;
+  STSRow *  pRow;
+  void *    pBitmap;
   uint32_t  offset;
   col_id_t  maxColId;
   col_id_t  colIdx;  // [PRIMARYKEY_TIMESTAMP_COL_ID, nSchemaCols], PRIMARYKEY_TIMESTAMP_COL_ID equals 1
@@ -877,7 +877,7 @@ static FORCE_INLINE bool tdGetTpRowDataOfCol(STSRowIter *pIter, col_type_t colTy
 // internal
 static FORCE_INLINE bool tdGetKvRowValOfColEx(STSRowIter *pIter, col_id_t colId, col_type_t colType, col_id_t *nIdx,
                                               SCellVal *pVal) {
-  STSRow    *pRow = pIter->pRow;
+  STSRow *   pRow = pIter->pRow;
   SKvRowIdx *pKvIdx = NULL;
   bool       colFound = false;
   col_id_t   kvNCols = tdRowGetNCols(pRow);
@@ -1068,7 +1068,7 @@ typedef struct {
 
 typedef struct {
   STSchema *pSchema;
-  STSRow   *pRow;
+  STSRow *  pRow;
 } STSRowReader;
 
 typedef struct {

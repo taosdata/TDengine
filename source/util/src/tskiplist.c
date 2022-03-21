@@ -70,13 +70,13 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, _
   }
 
   if (SL_IS_THREAD_SAFE(pSkipList)) {
-    pSkipList->lock = (pthread_rwlock_t *)calloc(1, sizeof(pthread_rwlock_t));
+    pSkipList->lock = (TdThreadRwlock *)calloc(1, sizeof(TdThreadRwlock));
     if (pSkipList->lock == NULL) {
       tSkipListDestroy(pSkipList);
       return NULL;
     }
 
-    if (pthread_rwlock_init(pSkipList->lock, NULL) != 0) {
+    if (taosThreadRwlockInit(pSkipList->lock, NULL) != 0) {
       tSkipListDestroy(pSkipList);
       return NULL;
     }
@@ -109,7 +109,7 @@ void tSkipListDestroy(SSkipList *pSkipList) {
 
   tSkipListUnlock(pSkipList);
   if (pSkipList->lock != NULL) {
-    pthread_rwlock_destroy(pSkipList->lock);
+    taosThreadRwlockDestroy(pSkipList->lock);
     tfree(pSkipList->lock);
   }
 
@@ -435,21 +435,21 @@ static SSkipListIterator *doCreateSkipListIterator(SSkipList *pSkipList, int32_t
 
 static FORCE_INLINE int32_t tSkipListWLock(SSkipList *pSkipList) {
   if (pSkipList->lock) {
-    return pthread_rwlock_wrlock(pSkipList->lock);
+    return taosThreadRwlockWrlock(pSkipList->lock);
   }
   return 0;
 }
 
 static FORCE_INLINE int32_t tSkipListRLock(SSkipList *pSkipList) {
   if (pSkipList->lock) {
-    return pthread_rwlock_rdlock(pSkipList->lock);
+    return taosThreadRwlockRdlock(pSkipList->lock);
   }
   return 0;
 }
 
 static FORCE_INLINE int32_t tSkipListUnlock(SSkipList *pSkipList) {
   if (pSkipList->lock) {
-    return pthread_rwlock_unlock(pSkipList->lock);
+    return taosThreadRwlockUnlock(pSkipList->lock);
   }
   return 0;
 }

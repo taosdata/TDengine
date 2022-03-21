@@ -28,6 +28,7 @@ typedef struct SKeyword {
 
 // keywords in sql string
 static SKeyword keywordTable[] = {
+    {"ACCOUNT",       TK_ACCOUNT},
     {"ALL",           TK_ALL},
     {"ALTER",         TK_ALTER},
     {"AND",           TK_AND},
@@ -59,12 +60,14 @@ static SKeyword keywordTable[] = {
     {"FLOAT",         TK_FLOAT},
     {"FROM",          TK_FROM},
     {"FSYNC",         TK_FSYNC},
+    {"FUNCTION",      TK_FUNCTION},
     {"FUNCTIONS",     TK_FUNCTIONS},
     {"GROUP",         TK_GROUP},
     {"HAVING",        TK_HAVING},
     {"IF",            TK_IF},
     {"IMPORT",        TK_IMPORT},
     {"IN",            TK_IN},
+    {"INDEX",         TK_INDEX},
     {"INDEXES",       TK_INDEXES},
     {"INNER",         TK_INNER},
     {"INT",           TK_INT},
@@ -100,6 +103,7 @@ static SKeyword keywordTable[] = {
     {"PRECISION",     TK_PRECISION},
     {"PRIVILEGE",     TK_PRIVILEGE},
     {"PREV",          TK_PREV},
+    {"QNODE",         TK_QNODE},
     {"QNODES",        TK_QNODES},
     {"QUORUM",        TK_QUORUM},
     {"REPLICA",       TK_REPLICA},
@@ -122,6 +126,7 @@ static SKeyword keywordTable[] = {
     {"TAGS",          TK_TAGS},
     {"TIMESTAMP",     TK_TIMESTAMP},
     {"TINYINT",       TK_TINYINT},
+    {"TOPIC",         TK_TOPIC},
     {"TTL",           TK_TTL},
     {"UNION",         TK_UNION},
     {"UNSIGNED",      TK_UNSIGNED},
@@ -166,7 +171,6 @@ static SKeyword keywordTable[] = {
     // {"SCORES",       TK_SCORES},
     // {"GRANTS",       TK_GRANTS},
     // {"DOT",          TK_DOT},
-    // {"ACCOUNT",      TK_ACCOUNT},
     // {"DESCRIBE",     TK_DESCRIBE},
     // {"SYNCDB",       TK_SYNCDB},
     // {"LOCAL",        TK_LOCAL},
@@ -229,11 +233,9 @@ static SKeyword keywordTable[] = {
     // {"TBNAME",       TK_TBNAME},
     // {"VNODES",       TK_VNODES},
 //    {"PARTITIONS",   TK_PARTITIONS},
-    // {"TOPIC",        TK_TOPIC},
     // {"TOPICS",       TK_TOPICS},
     // {"COMPACT",      TK_COMPACT},
     // {"MODIFY",       TK_MODIFY},
-    // {"FUNCTION",     TK_FUNCTION},
     // {"OUTPUTTYPE",   TK_OUTPUTTYPE},
     // {"AGGREGATE",    TK_AGGREGATE},
     // {"BUFSIZE",      TK_BUFSIZE},
@@ -265,10 +267,10 @@ static void doInitKeywordsTable(void) {
   }
 }
 
-static pthread_once_t keywordsHashTableInit = PTHREAD_ONCE_INIT;
+static TdThreadOnce keywordsHashTableInit = PTHREAD_ONCE_INIT;
 
 static int32_t tKeywordCode(const char* z, int n) {
-  pthread_once(&keywordsHashTableInit, doInitKeywordsTable);
+  taosThreadOnce(&keywordsHashTableInit, doInitKeywordsTable);
   
   char key[512] = {0};
   if (n > tListLen(key)) { // too long token, can not be any other token type
