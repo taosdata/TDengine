@@ -3083,7 +3083,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
     case TSDB_FUNC_LAST:
     case TSDB_FUNC_SPREAD:
     case TSDB_FUNC_LAST_ROW:
-    case TSDB_FUNC_INTERP: {
+    case TSDB_FUNC_INTERP: {  // link to TD-14196, if add FUNC in this place, please search TD-14196, because there are connection in exprTreeFromSqlExpr
       bool requireAllFields = (pItem->pNode->Expr.paramList == NULL);
 
       // NOTE: has time range condition or normal column filter condition, the last_row query will be transferred to last query
@@ -10735,14 +10735,23 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
       *pExpr = calloc(1, sizeof(tExprNode));
       (*pExpr)->nodeType = TSQL_NODE_COL;
       (*pExpr)->pSchema = calloc(1, sizeof(SSchema));
-      strncpy((*pExpr)->pSchema->name, pSqlExpr->exprToken.z, pSqlExpr->exprToken.n);
+      if (tsKeepOriginalColumnName &&   // TD-14196, tsKeepOriginalColumnName params makes logic special
+          (pSqlExpr->functionId == TSDB_FUNC_FIRST ||
+           pSqlExpr->functionId == TSDB_FUNC_LAST ||
+           pSqlExpr->functionId == TSDB_FUNC_SPREAD ||
+           pSqlExpr->functionId == TSDB_FUNC_LAST_ROW ||
+           pSqlExpr->functionId == TSDB_FUNC_INTERP)) {
+        tSqlExprItem* pParamElem = taosArrayGet(pSqlExpr->Expr.paramList, 0);
+        strncpy((*pExpr)->pSchema->name, pParamElem->pNode->columnName.z, pParamElem->pNode->columnName.n);
+      }else{
+        strncpy((*pExpr)->pSchema->name, pSqlExpr->exprToken.z, pSqlExpr->exprToken.n);
+      }
 
       // set the input column data byte and type.
       size_t size = taosArrayGetSize(pQueryInfo->exprList);
 
       for (int32_t i = 0; i < size; ++i) {
         SExprInfo* p1 = taosArrayGetP(pQueryInfo->exprList, i);
-
         if (strcmp((*pExpr)->pSchema->name, p1->base.aliasName) == 0) {
           (*pExpr)->pSchema->type = (uint8_t)p1->base.resType;
           (*pExpr)->pSchema->bytes = p1->base.resBytes;
