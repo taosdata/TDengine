@@ -467,6 +467,7 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
   SPage            *pChild;
   SPgno             pgnoChild;
   int               ret;
+  SIntHdr          *pIntHdr;
   SBtreeInitPageArg zArg;
 
   pPager = pRoot->pPager;
@@ -490,7 +491,8 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
     return -1;
   }
 
-  // TODO: ((SBtPageHdr *)pRoot->pAmHdr)[0].rChild = pgnoChild;
+  pIntHdr = (SIntHdr *)(pRoot->pAmHdr);
+  pIntHdr->pgno = pgnoChild;
 
   *ppChild = pChild;
   return 0;
@@ -731,7 +733,7 @@ static int tdbBtreeBalance(SBtCursor *pCur) {
       // ignore the case of empty
       if (pPage->nOverflow == 0) break;
 
-      ret = tdbBtreeBalanceDeeper(pCur->pBt, pCur->pPage, &(pCur->pgStack[1]));
+      ret = tdbBtreeBalanceDeeper(pCur->pBt, pPage, &(pCur->pgStack[1]));
       if (ret < 0) {
         return -1;
       }

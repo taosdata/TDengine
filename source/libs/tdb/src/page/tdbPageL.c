@@ -16,11 +16,10 @@
 #include "tdbInt.h"
 
 typedef struct __attribute__((__packed__)) {
-  u16 flags;
-  u8  cellNum[3];
-  u8  cellBody[3];
-  u8  cellFree[3];
-  u8  nFree[3];
+  u8 cellNum[3];
+  u8 cellBody[3];
+  u8 cellFree[3];
+  u8 nFree[3];
 } SPageHdrL;
 
 typedef struct __attribute__((__packed__)) {

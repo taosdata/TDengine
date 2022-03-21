@@ -416,7 +416,6 @@ static int tdbPageDefragment(SPage *pPage) {
 
 /* ---------------------------------------------------------------------------------------------------------- */
 typedef struct __attribute__((__packed__)) {
-  u16 flags;
   u16 cellNum;
   u16 cellBody;
   u16 cellFree;
