@@ -95,6 +95,7 @@ void *func(void *param) {
   }
 
   taosReleaseRef(tsNodeRefId, rid);
+  return NULL;
 }
 
 int main() {
