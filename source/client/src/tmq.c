@@ -460,7 +460,7 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
   STscObj*     pTscObj = (STscObj*)taos;
   SRequestObj* pRequest = NULL;
   SQuery*      pQueryNode = NULL;
-  char*        pStr = NULL;
+  char*        astStr = NULL;
 
   terrno = TSDB_CODE_SUCCESS;
   if (taos == NULL || topicName == NULL || sql == NULL) {
@@ -489,17 +489,17 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
 
   // todo check for invalid sql statement and return with error code
 
-  CHECK_CODE_GOTO(nodesNodeToString(pQueryNode->pRoot, false, &pStr, NULL), _return);
+  CHECK_CODE_GOTO(nodesNodeToString(pQueryNode->pRoot, false, &astStr, NULL), _return);
 
   /*printf("%s\n", pStr);*/
 
-  SName name = { .acctId = pTscObj->acctId, .type = TSDB_TABLE_NAME_T };
+  SName name = {.acctId = pTscObj->acctId, .type = TSDB_TABLE_NAME_T};
   strcpy(name.dbname, pRequest->pDb);
   strcpy(name.tname, topicName);
 
   SCMCreateTopicReq req = {
       .igExists = 1,
-      .ast = (char*)pStr,
+      .ast = (char*)astStr,
       .sql = (char*)sql,
   };
   tNameExtractFullName(&name, req.name);
@@ -513,7 +513,11 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
   tSerializeSCMCreateTopicReq(buf, tlen, &req);
   /*printf("formatted: %s\n", dagStr);*/
 
-  pRequest->body.requestMsg = (SDataBuf){.pData = buf, .len = tlen, .handle = NULL};
+  pRequest->body.requestMsg = (SDataBuf){
+      .pData = buf,
+      .len = tlen,
+      .handle = NULL,
+  };
   pRequest->type = TDMT_MND_CREATE_TOPIC;
 
   SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);

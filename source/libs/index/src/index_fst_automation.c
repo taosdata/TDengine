@@ -154,15 +154,7 @@ AutomationCtx* automCtxCreate(void* data, AutomationType atype) {
     // add more search type
   }
 
-  char* dst = NULL;
-  if (data != NULL) {
-    char*  src = (char*)data;
-    size_t len = strlen(src);
-    dst = (char*)calloc(1, len * sizeof(char) + 1);
-    memcpy(dst, src, len);
-  }
-
-  ctx->data = dst;
+  ctx->data = strdup((char*)data);
   ctx->type = atype;
   ctx->stdata = (void*)sv;
   return ctx;

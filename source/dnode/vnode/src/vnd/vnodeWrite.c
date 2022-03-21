@@ -16,7 +16,7 @@
 #include "tq.h"
 #include "vnd.h"
 
-int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
+void vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
   SNodeMsg *pMsg;
   SRpcMsg *pRpc;
 
@@ -40,7 +40,8 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
 
   // TODO: Integrate RAFT module here
 
-  return 0;
+  // No results are returned because error handling is difficult
+  // return 0;
 }
 
 int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
