@@ -39,8 +39,10 @@ struct SBTree {
   u8            *pTmp;
 };
 
-#define TDB_BTREE_PAGE_COMMON_HDR  u8 flags;
-#define TDB_BTREE_PAGE_FLAGS(PAGE) (PAGE)->pAmHdr[0]
+#define TDB_BTREE_PAGE_COMMON_HDR u8 flags;
+
+#define TDB_BTREE_PAGE_GET_FLAGS(PAGE)        (PAGE)->pAmHdr[0]
+#define TDB_BTREE_PAGE_SET_FLAGS(PAGE, flags) ((PAGE)->pAmHdr[0] = (flags))
 
 typedef struct __attribute__((__packed__)) {
   TDB_BTREE_PAGE_COMMON_HDR
@@ -274,8 +276,8 @@ static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen, int *p
       }
 
       // Move downward or break
-      u16 flags = 0;  // TODO: TDB_PAGE_FLAGS(pPage);
-      u8  leaf = TDB_BTREE_PAGE_IS_LEAF(flags);
+      u8 flags = TDB_BTREE_PAGE_GET_FLAGS(pPage);
+      u8 leaf = TDB_BTREE_PAGE_IS_LEAF(flags);
       if (leaf) {
         pCur->idx = midx;
         *pCRst = c;
@@ -388,25 +390,23 @@ static int tdbBtreeOpenImpl(SBTree *pBt) {
 
 static int tdbBtreeInitPage(SPage *pPage, void *arg) {
   SBTree *pBt;
-  u16     flags;
+  u8      flags;
   u8      isLeaf;
   u8      szAmHdr;
 
-  pBt = (SBTree *)arg;
-
-  ASSERT(0);
-
-  // TODO: here has problem
-  flags = 0;  // TODO: TDB_PAGE_FLAGS(pPage);
+  pBt = ((SBtreeInitPageArg *)arg)->pBt;
+  flags = ((SBtreeInitPageArg *)arg)->flags;
   isLeaf = TDB_BTREE_PAGE_IS_LEAF(flags);
+
+  ASSERT(flags == TDB_BTREE_PAGE_GET_FLAGS(pPage));
+
   if (isLeaf) {
     szAmHdr = sizeof(SLeafHdr);
   } else {
     szAmHdr = sizeof(SIntHdr);
   }
-  pPage->xCellSize = NULL;  // TODO
 
-  tdbPageInit(pPage, szAmHdr);
+  tdbPageInit(pPage, szAmHdr, tdbBtreeCellSize);
 
   TDB_BTREE_ASSERT_FLAG(flags);
 
@@ -426,7 +426,7 @@ static int tdbBtreeInitPage(SPage *pPage, void *arg) {
 }
 
 static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
-  u16     flags;
+  u8      flags;
   SBTree *pBt;
   u8      isLeaf;
   u8      szAmHdr;
@@ -440,10 +440,8 @@ static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
   } else {
     szAmHdr = sizeof(SIntHdr);
   }
-  pPage->xCellSize = NULL;  // TODO
 
-  tdbPageZero(pPage, szAmHdr);
-  // TDB_PAGE_FLAGS_SET(pPage, flags);
+  tdbPageZero(pPage, szAmHdr, tdbBtreeCellSize);
 
   if (isLeaf) {
     pPage->kLen = pBt->keyLen;
@@ -749,7 +747,7 @@ static int tdbBtreeBalance(SBtCursor *pCur) {
   SPage *pParent;
   SPage *pPage;
   int    ret;
-  u16    flags;
+  u8     flags;
   u8     leaf;
   u8     root;
 
@@ -757,7 +755,7 @@ static int tdbBtreeBalance(SBtCursor *pCur) {
   for (;;) {
     iPage = pCur->iPage;
     pPage = pCur->pPage;
-    flags = 0;  // TODO: TDB_PAGE_FLAGS(pPage);
+    flags = TDB_BTREE_PAGE_GET_FLAGS(pPage);
     leaf = TDB_BTREE_PAGE_IS_LEAF(flags);
     root = TDB_BTREE_PAGE_IS_ROOT(flags);
 
@@ -840,7 +838,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, u8 *pPayload, const void *pKey, i
 
 static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const void *pVal, int vLen, SCell *pCell,
                               int *szCell) {
-  u16 flags;
+  u8  flags;
   u8  leaf;
   int nHeader;
   int nPayload;
@@ -851,7 +849,7 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
 
   nPayload = 0;
   nHeader = 0;
-  flags = 0;  // TODO: TDB_PAGE_FLAGS(pPage);
+  flags = TDB_BTREE_PAGE_GET_FLAGS(pPage);
   leaf = TDB_BTREE_PAGE_IS_LEAF(flags);
 
   // 1. Encode Header part
@@ -914,13 +912,13 @@ static int tdbBtreeDecodePayload(SPage *pPage, const u8 *pPayload, SCellDecoder 
 }
 
 static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pDecoder) {
-  u16 flags;
+  u8  flags;
   u8  leaf;
   int nHeader;
   int ret;
 
   nHeader = 0;
-  flags = 0;  // TODO: TDB_PAGE_FLAGS(pPage);
+  flags = TDB_BTREE_PAGE_GET_FLAGS(pPage);
   leaf = TDB_BTREE_PAGE_IS_LEAF(flags);
 
   // Clear the state of decoder

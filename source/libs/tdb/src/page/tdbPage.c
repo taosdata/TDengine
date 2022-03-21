@@ -79,7 +79,7 @@ int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg)
   return 0;
 }
 
-void tdbPageZero(SPage *pPage, u8 szAmHdr) {
+void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *)) {
   pPage->pAmHdr = pPage->pData;
   pPage->pPageHdr = pPage->pAmHdr + szAmHdr;
   TDB_PAGE_NCELLS_SET(pPage, 0);
@@ -91,11 +91,12 @@ void tdbPageZero(SPage *pPage, u8 szAmHdr) {
   pPage->pFreeEnd = pPage->pData + TDB_PAGE_CCELLS(pPage);
   pPage->pPageFtr = (SPageFtr *)(pPage->pData + pPage->pageSize - sizeof(SPageFtr));
   pPage->nOverflow = 0;
+  pPage->xCellSize = xCellSize;
 
   ASSERT((u8 *)pPage->pPageFtr == pPage->pFreeEnd);
 }
 
-void tdbPageInit(SPage *pPage, u8 szAmHdr) {
+void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *)) {
   pPage->pAmHdr = pPage->pData;
   pPage->pPageHdr = pPage->pAmHdr + szAmHdr;
   pPage->pCellIdx = pPage->pPageHdr + TDB_PAGE_HDR_SIZE(pPage);
@@ -103,6 +104,7 @@ void tdbPageInit(SPage *pPage, u8 szAmHdr) {
   pPage->pFreeEnd = pPage->pData + TDB_PAGE_CCELLS(pPage);
   pPage->pPageFtr = (SPageFtr *)(pPage->pData + pPage->pageSize - sizeof(SPageFtr));
   pPage->nOverflow = 0;
+  pPage->xCellSize = xCellSize;
 
   ASSERT(pPage->pFreeEnd >= pPage->pFreeStart);
   ASSERT(pPage->pFreeEnd - pPage->pFreeStart <= TDB_PAGE_NFREE(pPage));

@@ -103,8 +103,8 @@ struct SPage {
 
 int  tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg);
 int  tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg);
-void tdbPageZero(SPage *pPage, u8 szAmHdr);
-void tdbPageInit(SPage *pPage, u8 szAmHdr);
+void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *));
+void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *));
 int  tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell);
 int  tdbPageDropCell(SPage *pPage, int idx);
 
