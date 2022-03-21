@@ -3359,11 +3359,6 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       } else {
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT, true);
 
-        int64_t numRowsSelected = GET_INT64_VAL(val);
-        if (functionId != TSDB_FUNC_UNIQUE && (numRowsSelected <= 0 || numRowsSelected > 100)) {  // todo use macro
-          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg12);
-        }
-
         if(functionId == TSDB_FUNC_UNIQUE){   // consider of memory size
           if(pSchema->bytes < 10){
             GET_INT64_VAL(val) = MAX_UNIQUE_RESULT_ROWS * 100;
@@ -3372,6 +3367,11 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           }else{
             GET_INT64_VAL(val) = MAX_UNIQUE_RESULT_ROWS;
           }
+        }
+
+        int64_t numRowsSelected = GET_INT64_VAL(val);
+        if (functionId != TSDB_FUNC_UNIQUE && (numRowsSelected <= 0 || numRowsSelected > 100)) {  // todo use macro
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg12);
         }
         // todo REFACTOR
         // set the first column ts for top/bottom query
@@ -3385,9 +3385,10 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
                           aAggs[TSDB_FUNC_TS].name, pExpr);
 
         colIndex += 1;  // the first column is ts
-
+        getResultDataInfo(pSchema->type, pSchema->bytes, functionId, (int32_t)numRowsSelected, &resultType,
+                          &resultSize, &interResult, 0, false, pUdfInfo);
         pExpr = tscExprAppend(pQueryInfo, functionId, &index, resultType, resultSize, getNewResColId(pCmd),
-                              resultSize, false);
+                              interResult, false);
         if (functionId == TSDB_FUNC_TAIL){
           int64_t offset = 0;
           if (taosArrayGetSize(pItem->pNode->Expr.paramList) == 3){
@@ -7054,7 +7055,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       return invalidOperationMsg(pMsgBuf, msg1);
     }
 
-    if (index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX && !isTopBottomUniqueQuery(pQueryInfo)) {
+    if (index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX && !isTopBottomUniqueQuery(pQueryInfo)){
       bool validOrder = false;
       SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
       if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
@@ -7065,15 +7066,8 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       if (!validOrder) {
         return invalidOperationMsg(pMsgBuf, msg7);
       }
-
-      if (udf) {
-        return invalidOperationMsg(pMsgBuf, msg11);
-      }
-
       pQueryInfo->groupbyExpr.orderType = pItem->sortOrder;
-    }
-
-    if (isTopBottomUniqueQuery(pQueryInfo)) {
+    }else if (isTopBottomUniqueQuery(pQueryInfo)) {
       SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
       if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
         SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
@@ -7093,14 +7087,16 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
           return invalidOperationMsg(pMsgBuf, msg5);
         }
       }
+      pQueryInfo->order.order = pItem->sortOrder;
+      pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
+    }else{
+      pQueryInfo->order.order = pItem->sortOrder;
+      pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
     }
 
     if (udf) {
       return invalidOperationMsg(pMsgBuf, msg11);
     }
-
-    pQueryInfo->order.order = pItem->sortOrder;
-    pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
   } else {
     // handle the temp table order by clause. You can order by any single column in case of the temp table, created by
     // inner subquery.

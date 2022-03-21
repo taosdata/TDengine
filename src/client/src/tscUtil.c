@@ -1491,7 +1491,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
           pex->base.param[2].nType = TSDB_DATA_TYPE_INT;
           pex->base.param[2].i64 = pInputQI->order.order;
         }
-      }      
+      }
     }
 
     tscDebug("0x%"PRIx64" create QInfo 0x%"PRIx64" to execute the main query while all nest queries are ready", pSql->self, pSql->self);
