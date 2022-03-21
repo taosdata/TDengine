@@ -126,9 +126,8 @@ void vnodeDestroy(const char *path);
  *
  * @param pVnode The vnode object.
  * @param pMsgs The array of SRpcMsg
- * @return int 0 for success, -1 for failure
  */
-int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs);
+void vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs);
 
 /**
  * @brief Apply a write request message.

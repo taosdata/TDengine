@@ -63,36 +63,50 @@ static void vmProcessFetchQueue(SVnodeObj *pVnode, SNodeMsg *pMsg) {
   vnodeProcessFetchMsg(pVnode->pImpl, &pMsg->rpcMsg);
 }
 
+static void vmSendRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
+  SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle, .code = code};
+  dndSendRsp(pWrapper, &rsp);
+}
+
 static void vmProcessWriteQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numOfMsgs) {
   SArray *pArray = taosArrayInit(numOfMsgs, sizeof(SNodeMsg *));
+  if (pArray == NULL) {
+    dError("failed to process %d msgs in write-queue since %s", numOfMsgs, terrstr());
+    return;
+  }
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
     SNodeMsg *pMsg = NULL;
-    taosGetQitem(qall, (void **)&pMsg);
-    dTrace("msg:%p, will be processed in vnode write queue", pMsg);
-    void *ptr = taosArrayPush(pArray, &pMsg);
-    assert(ptr != NULL);
+    if (taosGetQitem(qall, (void **)&pMsg) == 0) continue;
+
+    dTrace("msg:%p, will be processed in vnode-write queue", pMsg);
+    if (taosArrayPush(pArray, &pMsg) == NULL) {
+      dTrace("msg:%p, failed to process since %s", pMsg, terrstr());
+      vmSendRsp(pVnode->pWrapper, pMsg, TSDB_CODE_OUT_OF_MEMORY);
+    }
   }
 
   vnodeProcessWMsgs(pVnode->pImpl, pArray);
 
-  for (size_t i = 0; i < numOfMsgs; i++) {
-    SRpcMsg  *pRsp = NULL;
+  numOfMsgs = taosArrayGetSize(pArray);
+  for (int32_t i = 0; i < numOfMsgs; i++) {
     SNodeMsg *pMsg = *(SNodeMsg **)taosArrayGet(pArray, i);
     SRpcMsg  *pRpc = &pMsg->rpcMsg;
-    int32_t   code = vnodeApplyWMsg(pVnode->pImpl, pRpc, &pRsp);
+    SRpcMsg  *pRsp = NULL;
+
+    int32_t code = vnodeApplyWMsg(pVnode->pImpl, pRpc, &pRsp);
     if (pRsp != NULL) {
       pRsp->ahandle = pRpc->ahandle;
       dndSendRsp(pVnode->pWrapper, pRsp);
       free(pRsp);
     } else {
-      if (code != 0) code = terrno;
+      if (code != 0 && terrno != 0) code = terrno;
       SRpcMsg rpcRsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = code};
       dndSendRsp(pVnode->pWrapper, &rpcRsp);
     }
   }
 
-  for (size_t i = 0; i < numOfMsgs; i++) {
+  for (int32_t i = 0; i < numOfMsgs; i++) {
     SNodeMsg *pMsg = *(SNodeMsg **)taosArrayGet(pArray, i);
     dTrace("msg:%p, is freed", pMsg);
     rpcFreeCont(pMsg->rpcMsg.pCont);
