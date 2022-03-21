@@ -307,11 +307,10 @@ typedef struct STaskRuntimeEnv {
 } STaskRuntimeEnv;
 
 enum {
-  OP_IN_EXECUTING = 1,
-  OP_RES_TO_RETURN = 2,
-  OP_EXEC_DONE = 3,
-  OP_OPENED = 4,
-  OP_NOT_OPENED = 5
+  OP_NOT_OPENED    = 0x0,
+  OP_OPENED        = 0x1,
+  OP_RES_TO_RETURN = 0x5,
+  OP_EXEC_DONE     = 0x9,
 };
 
 typedef struct SOperatorInfo {
