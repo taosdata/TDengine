@@ -210,7 +210,7 @@ void vmFreeQueue(SVnodesMgmt *pMgmt, SVnodeObj *pVnode) {
 static void vmProcessMgmtQueue(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   int32_t code = -1;
   tmsg_t  msgType = pMsg->rpcMsg.msgType;
-  dTrace("msg:%p, will be processed in vnode mgmt queue", pMsg);
+  dTrace("msg:%p, will be processed in vnode-mgmt queue", pMsg);
 
   switch (msgType) {
     case TDMT_DND_CREATE_VNODE:
