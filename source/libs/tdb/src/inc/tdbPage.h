@@ -27,11 +27,6 @@ typedef struct {
   int szOffset;
   int szPageHdr;
   int szFreeCell;
-#if 0
-  // flags
-  u16 (*getFlags)(SPage *);
-  void (*setFlags)(SPage *, u16);
-#endif
   // cell number
   int (*getCellNum)(SPage *);
   void (*setCellNum)(SPage *, int);
@@ -80,12 +75,6 @@ struct SPage {
   // Fields used by SPCache
   TDB_PCACHE_PAGE
 };
-
-#if 0
-/* For page */
-#define TDB_PAGE_FLAGS(pPage)            (*(pPage)->pPageMethods->getFlags)(pPage)
-#define TDB_PAGE_FLAGS_SET(pPage, FLAGS) (*(pPage)->pPageMethods->setFlags)(pPage, FLAGS)
-#endif
 
 // For page lock
 #define P_LOCK_SUCC 0

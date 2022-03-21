@@ -39,7 +39,8 @@ struct SBTree {
   u8            *pTmp;
 };
 
-#define TDB_BTREE_PAGE_COMMON_HDR u8 flags;
+#define TDB_BTREE_PAGE_COMMON_HDR  u8 flags;
+#define TDB_BTREE_PAGE_FLAGS(PAGE) (PAGE)->pAmHdr[0]
 
 typedef struct __attribute__((__packed__)) {
   TDB_BTREE_PAGE_COMMON_HDR
