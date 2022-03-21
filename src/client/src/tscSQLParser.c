@@ -10700,7 +10700,8 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
         if (pLeft->_node.optr == TSDB_RELATION_ARROW){
           pLeft = pLeft->_node.pLeft;
         }
-        if (pRight->pVal->nType == TSDB_DATA_TYPE_BOOL && (pLeft->pSchema->type == TSDB_DATA_TYPE_BOOL || pLeft->pSchema->type == TSDB_DATA_TYPE_JSON)) {
+        if (pRight->pVal->nType == TSDB_DATA_TYPE_BOOL && pLeft->nodeType == TSQL_NODE_COL &&
+           (pLeft->pSchema->type == TSDB_DATA_TYPE_BOOL || pLeft->pSchema->type == TSDB_DATA_TYPE_JSON)) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
       }
