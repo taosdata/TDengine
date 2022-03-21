@@ -515,7 +515,7 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   CHECK_OUT_OF_MEM(val);
   val->literal = strndup(pLiteral->z, pLiteral->n);
-  if (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType) {
+  if (TK_NK_ID != pLiteral->type && (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
     trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);
   }
   CHECK_OUT_OF_MEM(val->literal);

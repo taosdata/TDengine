@@ -5337,11 +5337,13 @@ SOperatorInfo* createExchangeOperatorInfo(const SNodeList* pSources, SSDataBlock
   pOperator->name         = "ExchangeOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
   pOperator->blockingOptr = false;
-  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->status       = OP_NOT_OPENED;
   pOperator->info         = pInfo;
   pOperator->numOfOutput  = size;
-  pOperator->getNextFn   = doLoadRemoteData;
   pOperator->pTaskInfo    = pTaskInfo;
+  pOperator->_openFn      = prepareLoadRemoteData;  // assign a dummy function.
+  pOperator->getNextFn    = doLoadRemoteData;
+  pOperator->closeFn      = destroyExchangeOperatorInfo;
 
 #if 1
   { // todo refactor

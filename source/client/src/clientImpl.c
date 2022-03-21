@@ -159,8 +159,12 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery) {
   }
 
   code = qParseQuerySql(&cxt, pQuery);
-  if (TSDB_CODE_SUCCESS == code && ((*pQuery)->haveResultSet)) {
-    setResSchemaInfo(&pRequest->body.resInfo, (*pQuery)->pResSchema, (*pQuery)->numOfResCols);
+  if (TSDB_CODE_SUCCESS == code) {
+    if ((*pQuery)->haveResultSet) {
+      setResSchemaInfo(&pRequest->body.resInfo, (*pQuery)->pResSchema, (*pQuery)->numOfResCols);
+    }
+    TSWAP(pRequest->dbList, (*pQuery)->pDbList, SArray*);
+    TSWAP(pRequest->tableList, (*pQuery)->pTableList, SArray*);
   }
 
   return code;
