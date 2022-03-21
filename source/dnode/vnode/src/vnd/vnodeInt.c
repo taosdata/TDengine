@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "vnd.h"
 #include "sync.h"
+#include "vnd.h"
 // #include "vnodeInt.h"
 
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg) { return 0; }
@@ -41,6 +41,6 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
 }
 
 int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  vInfo("sync message is processed");
+  /*vInfo("sync message is processed");*/
   return 0;
 }
