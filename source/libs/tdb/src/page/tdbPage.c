@@ -141,7 +141,7 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
     u8 *src = pPage->pCellIdx + TDB_PAGE_OFFSET_SIZE(pPage) * lidx;
     u8 *dest = src + TDB_PAGE_OFFSET_SIZE(pPage);
     memmove(dest, src, pPage->pFreeStart - dest);
-    TDB_PAGE_CELL_OFFSET_AT_SET(pPage, lidx, TDB_PAGE_OFFSET_SIZE(pPage) * lidx);
+    TDB_PAGE_CELL_OFFSET_AT_SET(pPage, lidx, pNewCell - pPage->pData);
     TDB_PAGE_NCELLS_SET(pPage, nCells + 1);
 
     ASSERT(pPage->pFreeStart == pPage->pCellIdx + TDB_PAGE_OFFSET_SIZE(pPage) * (nCells + 1));
