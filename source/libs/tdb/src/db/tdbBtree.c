@@ -711,7 +711,16 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
       }
     }
 
-    // Loop to make the distribution even
+    nNews = nNews + 1;
+
+    // back loop to make the distribution even
+    for (int iNew = nNews - 1; iNew > 0; iNew--) {
+      /* code */
+    }
+  }
+
+  SPage *pNews[5];
+  {  // Allocate the new pages
   }
 
 #if 0
