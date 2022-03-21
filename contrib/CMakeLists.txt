@@ -213,6 +213,7 @@ endif(${BUILD_WITH_TRAFT})
 
 # LIBUV
 if(${BUILD_WITH_UV})
+    add_compile_options(-Wno-sign-compare)
     if (${TD_WINDOWS})
         file(READ "libuv/include/uv.h" CONTENTS)
         string(REGEX REPLACE "/([\r]*)\nstruct uv_tcp_s {" "/\\1\ntypedef BOOL (PASCAL *LPFN_CONNECTEX) (SOCKET s, const struct sockaddr* name, int namelen, PVOID lpSendBuffer, DWORD dwSendDataLength,LPDWORD lpdwBytesSent, LPOVERLAPPED lpOverlapped);\\1\nstruct uv_tcp_s {" CONTENTS_NEW "${CONTENTS}")
