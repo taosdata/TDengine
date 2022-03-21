@@ -978,10 +978,37 @@ static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pD
   return 0;
 }
 
-#endif
-
 static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell) {
-  // TODO
-  ASSERT(0);
-  return 0;
+  u8  flags;
+  u8  isLeaf;
+  int szCell;
+  int kLen = 0, vLen = 0;
+
+  flags = TDB_BTREE_PAGE_GET_FLAGS(pPage);
+  isLeaf = TDB_BTREE_PAGE_IS_LEAF(flags);
+  szCell = 0;
+
+  if (!isLeaf) {
+    szCell += sizeof(SPgno);
+  }
+
+  if (pPage->kLen == TDB_VARIANT_LEN) {
+    szCell += tdbGetVarInt(pCell + szCell, &kLen);
+  } else {
+    kLen = pPage->kLen;
+  }
+
+  if (isLeaf) {
+    if (pPage->vLen == TDB_VARIANT_LEN) {
+      szCell += tdbGetVarInt(pCell + szCell, &vLen);
+    } else {
+      vLen = pPage->vLen;
+    }
+  }
+
+  szCell = szCell + kLen + vLen;
+
+  return szCell;
 }
+
+#endif
