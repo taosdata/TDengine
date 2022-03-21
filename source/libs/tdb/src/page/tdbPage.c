@@ -226,7 +226,12 @@ void tdbPageCopy(SPage *pFromPage, SPage *pToPage) {
     TDB_PAGE_NFREE_SET(pToPage, nFree - delta);
   }
 
-  // TODO: do we need to copy the overflow part ???
+  // Copy the overflow cells
+  for (int iOvfl = 0; iOvfl < pFromPage->nOverflow; iOvfl++) {
+    pToPage->aiOvfl[iOvfl] = pFromPage->aiOvfl[iOvfl];
+    pToPage->apOvfl[iOvfl] = pFromPage->apOvfl[iOvfl];
+  }
+  pToPage->nOverflow = pFromPage->nOverflow;
 }
 
 static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {

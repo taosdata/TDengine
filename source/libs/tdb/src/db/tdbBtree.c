@@ -482,12 +482,6 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
   // Copy the root page content to the child page
   tdbPageCopy(pRoot, pChild);
 
-  pChild->nOverflow = pRoot->nOverflow;
-  for (int i = 0; i < pChild->nOverflow; i++) {
-    pChild->apOvfl[i] = pRoot->apOvfl[i];
-    pChild->aiOvfl[i] = pRoot->aiOvfl[i];
-  }
-
   // Reinitialize the root page
   zArg.flags = TDB_BTREE_ROOT;
   zArg.pBt = pBt;
