@@ -28,9 +28,11 @@ typedef struct __attribute__((__packed__)) {
   u8 nxOffset[3];
 } SFreeCellL;
 
+#if 0
 // flags
 static inline u16  getPageFlags(SPage *pPage) { return ((SPageHdrL *)(pPage->pPageHdr))[0].flags; }
 static inline void setPageFlags(SPage *pPage, u16 flags) { ((SPageHdrL *)(pPage->pPageHdr))[0].flags = flags; }
+#endif
 
 // cellNum
 static inline int  getPageCellNum(SPage *pPage) { return TDB_GET_U24(((SPageHdrL *)(pPage->pPageHdr))[0].cellNum); }
@@ -80,11 +82,13 @@ static inline void setPageFreeCellInfo(SCell *pCell, int szCell, int nxOffset) {
 }
 
 SPageMethods pageLargeMethods = {
-    3,                    // szOffset
-    sizeof(SPageHdrL),    // szPageHdr
-    sizeof(SFreeCellL),   // szFreeCell
+    3,                   // szOffset
+    sizeof(SPageHdrL),   // szPageHdr
+    sizeof(SFreeCellL),  // szFreeCell
+#if 0
     getPageFlags,         // getPageFlags
     setPageFlags,         // setFlagsp
+#endif
     getPageCellNum,       // getCellNum
     setPageCellNum,       // setCellNum
     getPageCellBody,      // getCellBody
