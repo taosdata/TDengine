@@ -172,10 +172,10 @@ int tsdbSetReadTable(SReadH *pReadh, STable *pTable) {
 
   size_t size = taosArrayGetSize(pReadh->aBlkIdx);
   if (size > 0) {
-    size_t left = 0, right = size - 1;
+    int64_t left = 0, right = size - 1;
     while (left <= right) {
-      pReadh->cidx = (int)((left + right) / 2);
-      SBlockIdx *pBlkIdx = taosArrayGet(pReadh->aBlkIdx, pReadh->cidx);
+      int64_t mid = (left + right) / 2;
+      SBlockIdx *pBlkIdx = taosArrayGet(pReadh->aBlkIdx, (size_t)mid);
       if (pBlkIdx->tid == TABLE_TID(pTable)) {
         if (pBlkIdx->uid == TABLE_UID(pTable)) {
           pReadh->pBlkIdx = pBlkIdx;
@@ -185,9 +185,9 @@ int tsdbSetReadTable(SReadH *pReadh, STable *pTable) {
 
         break;
       } else if (pBlkIdx->tid < TABLE_TID(pTable)) {
-        left = pReadh->cidx + 1;
+        left = mid + 1;
       } else {
-        right = pReadh->cidx - 1;
+        right = mid - 1;
       }
     }
 
