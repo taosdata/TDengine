@@ -29,7 +29,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getCountFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = countFunction,
-    .finalizeFunc = functionFinalizer
+    .finalizeFunc = functionFinalize
   },
   {
     .name = "sum",
@@ -39,7 +39,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSumFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = sumFunction,
-    .finalizeFunc = functionFinalizer
+    .finalizeFunc = functionFinalize
   },
   {
     .name = "min",
@@ -49,7 +49,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = minFunctionSetup,
     .processFunc  = minFunction,
-    .finalizeFunc = functionFinalizer
+    .finalizeFunc = functionFinalize
   },
   {
     .name = "max",
@@ -59,17 +59,17 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = maxFunctionSetup,
     .processFunc  = maxFunction,
-    .finalizeFunc = functionFinalizer
+    .finalizeFunc = functionFinalize
   },
   {
       .name = "stddev",
       .type = FUNCTION_TYPE_STDDEV,
       .classification = FUNC_MGT_AGG_FUNC,
       .checkFunc    = stubCheckAndGetResultType,
-      .getEnvFunc   = getMinmaxFuncEnv,
+      .getEnvFunc   = getStddevFuncEnv,
       .initFunc     = maxFunctionSetup,
       .processFunc  = maxFunction,
-      .finalizeFunc = functionFinalizer
+      .finalizeFunc = functionFinalize
   },
   {
       .name = "percentile",
@@ -79,7 +79,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
       .getEnvFunc   = getMinmaxFuncEnv,
       .initFunc     = maxFunctionSetup,
       .processFunc  = maxFunction,
-      .finalizeFunc = functionFinalizer
+      .finalizeFunc = functionFinalize
   },
   {
       .name = "apercentile",
@@ -89,7 +89,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
       .getEnvFunc   = getMinmaxFuncEnv,
       .initFunc     = maxFunctionSetup,
       .processFunc  = maxFunction,
-      .finalizeFunc = functionFinalizer
+      .finalizeFunc = functionFinalize
   },
   {
       .name = "top",
@@ -99,7 +99,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
       .getEnvFunc   = getMinmaxFuncEnv,
       .initFunc     = maxFunctionSetup,
       .processFunc  = maxFunction,
-      .finalizeFunc = functionFinalizer
+      .finalizeFunc = functionFinalize
   },
   {
       .name = "bottom",
@@ -109,7 +109,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
       .getEnvFunc   = getMinmaxFuncEnv,
       .initFunc     = maxFunctionSetup,
       .processFunc  = maxFunction,
-      .finalizeFunc = functionFinalizer
+      .finalizeFunc = functionFinalize
   },
   {
       .name = "spread",
@@ -119,7 +119,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
       .getEnvFunc   = getMinmaxFuncEnv,
       .initFunc     = maxFunctionSetup,
       .processFunc  = maxFunction,
-      .finalizeFunc = functionFinalizer
+      .finalizeFunc = functionFinalize
   },
   {
       .name = "last_row",
@@ -129,7 +129,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
       .getEnvFunc   = getMinmaxFuncEnv,
       .initFunc     = maxFunctionSetup,
       .processFunc  = maxFunction,
-      .finalizeFunc = functionFinalizer
+      .finalizeFunc = functionFinalize
   },
   {
     .name = "concat",
