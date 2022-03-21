@@ -33,9 +33,8 @@ int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   SReadHandle handle = {.reader = pVnode->pTsdb, .meta = pVnode->pMeta, .config = &pVnode->config};
 
   switch (pMsg->msgType) {
-    case TDMT_VND_QUERY: {
+    case TDMT_VND_QUERY:
       return qWorkerProcessQueryMsg(&handle, pVnode->pQuery, pMsg);
-    }
     case TDMT_VND_QUERY_CONTINUE:
       return qWorkerProcessCQueryMsg(&handle, pVnode->pQuery, pMsg);
     default:
@@ -205,7 +204,7 @@ _exit:
 
   rpcSendResponse(&rpcMsg);
 
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 static void freeItemHelper(void *pItem) {

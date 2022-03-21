@@ -746,7 +746,7 @@ TEST(queryTest, readyFirstCase) {
   
   SSchJob *pJob = schAcquireJob(job);
 
-  pIter = taosHashIterate(pJob->execTasks, NULL);
+  void *pIter = taosHashIterate(pJob->execTasks, NULL);
   while (pIter) {
     SSchTask *task = *(SSchTask **)pIter;
 
@@ -757,7 +757,7 @@ TEST(queryTest, readyFirstCase) {
     pIter = taosHashIterate(pJob->execTasks, pIter);
   }  
   
-  void *pIter = taosHashIterate(pJob->execTasks, NULL);
+  pIter = taosHashIterate(pJob->execTasks, NULL);
   while (pIter) {
     SSchTask *task = *(SSchTask **)pIter;
 
@@ -792,11 +792,11 @@ TEST(queryTest, readyFirstCase) {
 
 
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
 
-  pthread_t thread1;
-  pthread_create(&(thread1), &thattr, schtCreateFetchRspThread, &job);
+  TdThread thread1;
+  taosThreadCreate(&(thread1), &thattr, schtCreateFetchRspThread, &job);
 
   void *data = NULL;  
   code = schedulerFetchRows(job, &data);

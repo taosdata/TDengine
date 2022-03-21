@@ -2567,7 +2567,6 @@ int32_t tSerializeSSchedulerHbRsp(void *buf, int32_t bufLen, SSchedulerHbRsp *pR
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
 
   if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeU64(&encoder, pRsp->seqId) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->epId.nodeId) < 0) return -1;
   if (tEncodeU16(&encoder, pRsp->epId.ep.port) < 0) return -1;
   if (tEncodeCStr(&encoder, pRsp->epId.ep.fqdn) < 0) return -1;
@@ -2596,7 +2595,6 @@ int32_t tDeserializeSSchedulerHbRsp(void *buf, int32_t bufLen, SSchedulerHbRsp *
   tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
 
   if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeU64(&decoder, &pRsp->seqId) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->epId.nodeId) < 0) return -1;
   if (tDecodeU16(&decoder, &pRsp->epId.ep.port) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pRsp->epId.ep.fqdn) < 0) return -1;

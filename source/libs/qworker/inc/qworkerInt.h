@@ -84,7 +84,7 @@ typedef struct SQWMsg {
 
 typedef struct SQWHbInfo {
   SSchedulerHbRsp  rsp;
-  void            *connection;
+  SQWConnInfo      connInfo;
 } SQWHbInfo;
 
 typedef struct SQWPhaseInput {
@@ -122,8 +122,8 @@ typedef struct SQWTaskCtx {
 
 typedef struct SQWSchStatus {
   int32_t      lastAccessTs; // timestamp in second
-  uint64_t     hbSeqId;
-  SQWConnInfo *hbConnection;
+  SRWLatch     connLock;
+  SQWConnInfo  connInfo;
   SRWLatch     tasksLock;
   SHashObj    *tasksHash;   // key:queryId+taskId, value: SQWTaskStatus
 } SQWSchStatus;
@@ -224,8 +224,6 @@ typedef struct SQWorkerMgmt {
     assert(atomic_load_32((_lock)) >= 0);  \
   }                                                       \
 } while (0)
-
-int32_t qwBuildAndSendCancelRsp(SRpcMsg *pMsg, int32_t code);
 
 #ifdef __cplusplus
 }

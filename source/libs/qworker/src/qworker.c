@@ -402,7 +402,7 @@ int32_t qwKillTaskHandle(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 
 
 void qwFreeTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
-  rpcReleaseHandle(ctx->connInfo.handle, CONN_SERVER);
+  rpcReleaseHandle(ctx->connInfo.handle, TAOS_CONN_SERVER);
   ctx->connInfo.handle = NULL;
 
   qwFreeTaskHandle(QW_FPARAMS(), &ctx->taskHandle);
@@ -591,8 +591,7 @@ int32_t qwGenerateSchHbRsp(SQWorkerMgmt *mgmt, SQWSchStatus *sch, SQWHbInfo *hbI
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
-  hbInfo->connection = sch->hbConnection;
-  hbInfo->rsp.seqId = -1;
+  hbInfo->connInfo = sch->connInfo;
 
   void *key = NULL;
   size_t keyLen = 0;
@@ -947,7 +946,7 @@ _return:
     QW_TASK_DLOG("query msg rsped, code:%x - %s", code, tstrerror(code));
   }
 
-  QW_RET(code);
+  QW_RET(TSDB_CODE_SUCCESS);
 }
 
 int32_t qwProcessReady(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
@@ -1010,7 +1009,7 @@ _return:
     QW_TASK_DLOG("ready msg rsped, code:%x - %s", code, tstrerror(code));
   }
 
-  QW_RET(code);
+  QW_RET(TSDB_CODE_SUCCESS);
 }
 
 
@@ -1081,7 +1080,9 @@ _return:
   } while (true);
 
   input.code = code;
-  QW_RET(qwHandlePostPhaseEvents(QW_FPARAMS(), QW_PHASE_POST_CQUERY, &input, NULL));    
+  qwHandlePostPhaseEvents(QW_FPARAMS(), QW_PHASE_POST_CQUERY, &input, NULL);    
+
+  QW_RET(TSDB_CODE_SUCCESS);  
 }
 
 
@@ -1148,7 +1149,7 @@ _return:
     QW_TASK_DLOG("fetch msg rsped, code:%x, dataLen:%d", code, dataLen);
   }
 
-  QW_RET(code);
+  QW_RET(TSDB_CODE_SUCCESS);
 }
 
 
@@ -1207,12 +1208,12 @@ _return:
   }
 
   if (TSDB_CODE_SUCCESS != code || needRsp) {
-    QW_ERR_RET(qwBuildAndSendDropRsp(&qwMsg->connInfo, code));
+    qwBuildAndSendDropRsp(&qwMsg->connInfo, code);
 
     QW_TASK_DLOG("drop msg rsped, code:%x", code);
   }
 
-  QW_RET(code);
+  QW_RET(TSDB_CODE_SUCCESS);
 }
 
 int32_t qwProcessHb(SQWorkerMgmt *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
@@ -1220,18 +1221,22 @@ int32_t qwProcessHb(SQWorkerMgmt *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
   SSchedulerHbRsp rsp = {0};
   SQWSchStatus *sch = NULL;
   uint64_t seqId = 0;
+  void *origHandle = NULL;
 
   memcpy(&rsp.epId, &req->epId, sizeof(req->epId));
   
   QW_ERR_JRET(qwAcquireAddScheduler(mgmt, req->sId, QW_READ, &sch));
 
-  atomic_store_ptr(&sch->hbConnection, qwMsg->connInfo);
-  ++sch->hbSeqId;
-
-  rsp.seqId = sch->hbSeqId;
-
-  QW_DLOG("hb connection updated, seqId:%" PRIx64 ", sId:%" PRIx64 ", nodeId:%d, fqdn:%s, port:%d, handle:%p, ahandle:%p",
-    sch->hbSeqId, req->sId, req->epId.nodeId, req->epId.ep.fqdn, req->epId.ep.port, qwMsg->connInfo.handle, qwMsg->connInfo.ahandle);
+  QW_LOCK(QW_WRITE, &sch->connLock);
+  
+  origHandle = sch->connInfo.handle;
+  
+  memcpy(&sch->connInfo, &qwMsg->connInfo, sizeof(qwMsg->connInfo));
+  
+  QW_UNLOCK(QW_WRITE, &sch->connLock);
+  
+  QW_DLOG("hb connection updated, sId:%" PRIx64 ", nodeId:%d, fqdn:%s, port:%d, handle:%p, ahandle:%p",
+    req->sId, req->epId.nodeId, req->epId.ep.fqdn, req->epId.ep.port, qwMsg->connInfo.handle, qwMsg->connInfo.ahandle);
 
   qwReleaseScheduler(QW_READ, mgmt);
 
@@ -1239,7 +1244,7 @@ _return:
 
   qwBuildAndSendHbRsp(&qwMsg->connInfo, &rsp, code);
   
-  QW_RET(code);
+  QW_RET(TSDB_CODE_SUCCESS);
 }
 
 
@@ -1288,8 +1293,8 @@ _return:
   QW_UNLOCK(QW_READ, &mgmt->schLock);
 
   for (int32_t j = 0; j < i; ++j) {
-    QW_DLOG("hb on connection %p, taskNum:%d", rspList[j].connection, (rspList[j].rsp.taskStatus ? (int32_t)taosArrayGetSize(rspList[j].rsp.taskStatus) : 0));
-    qwBuildAndSendHbRsp(rspList[j].connection, &rspList[j].rsp, code);
+    QW_DLOG("hb on connection handle %p, taskNum:%d", rspList[j].connInfo.handle, (rspList[j].rsp.taskStatus ? (int32_t)taosArrayGetSize(rspList[j].rsp.taskStatus) : 0));
+    qwBuildAndSendHbRsp(&rspList[j].connInfo, &rspList[j].rsp, code);
     tFreeSSchedulerHbRsp(&rspList[j].rsp);
   }
 

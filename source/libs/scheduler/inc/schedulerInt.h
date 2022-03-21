@@ -44,7 +44,6 @@ typedef struct SSchTrans {
 
 typedef struct SSchHbTrans {
   SRWLatch  lock;
-  uint64_t  seqId;
   SSchTrans trans;
 } SSchHbTrans;
 

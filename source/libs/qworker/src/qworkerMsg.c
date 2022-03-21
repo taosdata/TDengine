@@ -484,11 +484,15 @@ int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   msg->taskId = be64toh(msg->taskId);
   msg->refId = be64toh(msg->refId);
 
+  SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0};
+  qwMsg.connInfo.handle = pMsg->handle;
+  qwMsg.connInfo.ahandle = pMsg->ahandle;
+
   //QW_ERR_JRET(qwCancelTask(qWorkerMgmt, msg->sId, msg->queryId, msg->taskId));
 
 _return:
 
-  QW_ERR_RET(qwBuildAndSendCancelRsp(pMsg, code));
+  QW_ERR_RET(qwBuildAndSendCancelRsp(&qwMsg.connInfo, code));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -572,7 +576,7 @@ int32_t qWorkerProcessShowMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
 
   int32_t code = 0;
   SVShowTablesReq *pReq = pMsg->pCont;
-  QW_ERR_RET(qwBuildAndSendShowRsp(pMsg, code));
+  QW_RET(qwBuildAndSendShowRsp(pMsg, code));
 }
 
 int32_t qWorkerProcessShowFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
@@ -581,7 +585,7 @@ int32_t qWorkerProcessShowFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg)
   }
 
   SVShowTablesFetchReq *pFetchReq = pMsg->pCont;
-  QW_ERR_RET(qwBuildAndSendShowFetchRsp(pMsg, pFetchReq));
+  QW_RET(qwBuildAndSendShowFetchRsp(pMsg, pFetchReq));
 }
 
 

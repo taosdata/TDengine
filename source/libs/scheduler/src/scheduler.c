@@ -18,6 +18,7 @@
 #include "schedulerInt.h"
 #include "tmsg.h"
 #include "tref.h"
+#include "trpc.h"
 
 SSchedulerMgmt schMgmt = {0};
 
@@ -73,7 +74,7 @@ void schFreeRpcCtx(SRpcCtx *pCtx) {
   while (pIter) {
     SRpcCtxVal *ctxVal = (SRpcCtxVal *)pIter;
 
-    ctxVal->free(ctxVal->v);
+    ctxVal->free(ctxVal->val);
     
     pIter = taosHashIterate(pCtx->args, pIter);
   }
@@ -127,7 +128,7 @@ int32_t schValidateTaskReceivedMsgType(SSchJob *pJob, SSchTask *pTask, int32_t m
       }
     
       SCH_SET_TASK_LASTMSG_TYPE(pTask, -1);
-      return;
+      return TSDB_CODE_SUCCESS;
     case TDMT_VND_RES_READY_RSP:
       reqMsgType = TDMT_VND_QUERY;
       break;
@@ -658,52 +659,42 @@ int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t schRegisterHbConnection(SQueryNodeEpId *epId, bool *exist) {
+  int32_t      code = 0;
+  SSchHbTrans hb = {0};
+
+  code = taosHashPut(schMgmt.hbConnections, epId, sizeof(SQueryNodeEpId), &hb, sizeof(SSchHbTrans));
+  if (code) {
+    if (HASH_NODE_EXIST(code)) {
+      *exist = true;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    qError("taosHashPut hb trans failed, nodeId:%d, fqdn:%s, port:%d", epId->nodeId, epId->ep.fqdn, epId->ep.port);
+    SCH_ERR_RET(code);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t schUpdateHbConnection(SQueryNodeEpId *epId, SSchHbTrans *trans) {
   int32_t      code = 0;
   SSchHbTrans *hb = NULL;
 
-  while (true) {
-    hb = taosHashGet(schMgmt.hbConnections, epId, sizeof(SQueryNodeEpId));
-    if (NULL == hb) {
-      code = taosHashPut(schMgmt.hbConnections, epId, sizeof(SQueryNodeEpId), trans, sizeof(SSchHbTrans));
-      if (code) {
-        if (HASH_NODE_EXIST(code)) {
-          continue;
-        }
-
-        qError("taosHashPut hb trans failed, nodeId:%d, fqdn:%s, port:%d", epId->nodeId, epId->ep.fqdn, epId->ep.port);
-        SCH_ERR_RET(code);
-      }
-
-      qDebug("hb connection updated, seqId:%" PRIx64 ", sId:%" PRIx64
-             ", nodeId:%d, fqdn:%s, port:%d, instance:%p, connection:%p",
-             trans->seqId, schMgmt.sId, epId->nodeId, epId->ep.fqdn, epId->ep.port, trans->trans.transInst,
-             trans->trans.transHandle);
-
-      return TSDB_CODE_SUCCESS;
-    }
-
-    break;
+  hb = taosHashGet(schMgmt.hbConnections, epId, sizeof(SQueryNodeEpId));
+  if (NULL == hb) {
+    qError("taosHashGet hb connection failed, nodeId:%d, fqdn:%s, port:%d", epId->nodeId, epId->ep.fqdn, epId->ep.port);
+    SCH_ERR_RET(code);
   }
 
   SCH_LOCK(SCH_WRITE, &hb->lock);
-
-  if (hb->seqId >= trans->seqId) {
-    qDebug("hb trans seqId is old, seqId:%" PRId64 ", currentId:%" PRId64 ", nodeId:%d, fqdn:%s, port:%d", trans->seqId,
-           hb->seqId, epId->nodeId, epId->ep.fqdn, epId->ep.port);
-
-    SCH_UNLOCK(SCH_WRITE, &hb->lock);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  hb->seqId = trans->seqId;
   memcpy(&hb->trans, &trans->trans, sizeof(trans->trans));
-
   SCH_UNLOCK(SCH_WRITE, &hb->lock);
 
-  qDebug("hb connection updated, seqId:%" PRIx64 ", sId:%" PRIx64
+  qDebug("hb connection updated, sId:%" PRIx64
          ", nodeId:%d, fqdn:%s, port:%d, instance:%p, connection:%p",
-         trans->seqId, schMgmt.sId, epId->nodeId, epId->ep.fqdn, epId->ep.port, trans->trans.transInst,
+         schMgmt.sId, epId->nodeId, epId->ep.fqdn, epId->ep.port, trans->trans.transInst,
          trans->trans.transHandle);
 
   return TSDB_CODE_SUCCESS;
@@ -1159,14 +1150,11 @@ int32_t schHandleHbCallback(void *param, const SDataBuf *pMsg, int32_t code) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  if (rsp.seqId != (uint64_t)-1) {
-    SSchHbTrans trans = {0};
-    trans.seqId = rsp.seqId;
-    trans.trans.transInst = pParam->transport;
-    trans.trans.transHandle = pMsg->handle;
+  SSchHbTrans trans = {0};
+  trans.trans.transInst = pParam->transport;
+  trans.trans.transHandle = pMsg->handle;
 
-    SCH_RET(schUpdateHbConnection(&rsp.epId, &trans));
-  }
+  SCH_RET(schUpdateHbConnection(&rsp.epId, &trans));
 
   int32_t taskNum = (int32_t)taosArrayGetSize(rsp.taskStatus);
   for (int32_t i = 0; i < taskNum; ++i) {
@@ -1268,7 +1256,7 @@ int32_t schMakeQueryRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
   pMsgSendInfo->param = param;
   pMsgSendInfo->fp = fp;
 
-  SRpcCtxVal ctxVal = {.v = pMsgSendInfo, .len = sizeof(SMsgSendInfo), .free = schFreeRpcCtxVal};
+  SRpcCtxVal ctxVal = {.val = pMsgSendInfo, .len = sizeof(SMsgSendInfo), .free = schFreeRpcCtxVal};
   if (taosHashPut(pCtx->args, &msgType, sizeof(msgType), &ctxVal, sizeof(ctxVal))) {
     SCH_TASK_ELOG("taosHashPut msg %d to rpcCtx failed", msgType);
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -1320,7 +1308,7 @@ int32_t schMakeHbRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
   pMsgSendInfo->param = param;
   pMsgSendInfo->fp = fp;
 
-  SRpcCtxVal ctxVal = {.v = pMsgSendInfo, .len = sizeof(SMsgSendInfo), .free = schFreeRpcCtxVal};
+  SRpcCtxVal ctxVal = {.val = pMsgSendInfo, .len = sizeof(SMsgSendInfo), .free = schFreeRpcCtxVal};
   if (taosHashPut(pCtx->args, &msgType, sizeof(msgType), &ctxVal, sizeof(ctxVal))) {
     SCH_TASK_ELOG("taosHashPut msg %d to rpcCtx failed", msgType);
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -1557,7 +1545,11 @@ int32_t schEnsureHbConnection(SSchJob *pJob, SSchTask *pTask) {
 
   SSchHbTrans *hb = taosHashGet(schMgmt.hbConnections, &epId, sizeof(SQueryNodeEpId));
   if (NULL == hb) {
-    SCH_ERR_RET(schBuildAndSendMsg(pJob, NULL, addr, TDMT_VND_QUERY_HEARTBEAT));
+    bool exist = false;
+    SCH_ERR_RET(schRegisterHbConnection(&epId, &exist));
+    if (!exist) {
+      SCH_ERR_RET(schBuildAndSendMsg(pJob, NULL, addr, TDMT_VND_QUERY_HEARTBEAT));
+    }
   }
 
   return TSDB_CODE_SUCCESS;
