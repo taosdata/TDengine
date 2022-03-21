@@ -644,19 +644,11 @@ static int tdbBtreeBalanceStep6(SBtreeBalanceHelper *pBlh) {
 
 static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
   int ret;
-#if 0
-  SBtreeBalanceHelper blh;
-
-  blh.pBt = pBt;
-  blh.pParent = pParent;
-  blh.idx = idx;
-#endif
 
   int    nOlds;
   SPage *pOlds[3];
 
-  {
-    // Find 3 child pages at most to do balance
+  {  // Find 3 child pages at most to do balance
     int nCells = TDB_PAGE_TOTAL_CELLS(pParent);
     int sIdx;
     if (nCells <= 2) {
@@ -695,7 +687,32 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
     }
   }
 
-  // >>>>>>>>>>>>>>>>>>>
+  int nNews = 0;
+  int cntNews[5] = {0};  // TODO: maybe 5 is not enough
+  int szNews[5] = {0};
+  int maxPageCapacity;  // TODO
+
+  {  // Get how many new pages are needed and the new distribution
+
+    // loop to find number of pages needed
+    for (int i = 0; i < nOlds; i++) {
+      SPage *pPage = pOlds[i];
+      SCell *pCell;
+      int    cellBytes;
+      for (int cIdx = 0; cIdx < TDB_PAGE_TOTAL_CELLS(pPage); cIdx++) {
+        pCell = tdbPageGetCell(pPage, cIdx);
+        cellBytes = TDB_BYTES_CELL_TAKEN(pPage, pCell);
+
+        if (szNews[nNews] + cellBytes > maxPageCapacity) {
+          nNews++;
+        }
+        cntNews[nNews]++;
+        szNews[nNews] = szNews[nNews] + cellBytes;
+      }
+    }
+
+    // Loop to make the distribution even
+  }
 
 #if 0
   // Step 1: find two sibling pages and get engough info about the old pages
