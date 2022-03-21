@@ -18,9 +18,20 @@
 extern SPageMethods pageMethods;
 extern SPageMethods pageLargeMethods;
 
-#define TDB_PAGE_OFFSET_SIZE(pPage)    ((pPage)->pPageMethods->szOffset)
-#define TDB_PAGE_HDR_SIZE(pPage)       ((pPage)->pPageMethods->szPageHdr)
-#define TDB_PAGE_FREE_CELL_SIZE(pPage) ((pPage)->pPageMethods->szFreeCell)
+#define TDB_PAGE_OFFSET_SIZE(pPage)                     ((pPage)->pPageMethods->szOffset)
+#define TDB_PAGE_HDR_SIZE(pPage)                        ((pPage)->pPageMethods->szPageHdr)
+#define TDB_PAGE_FREE_CELL_SIZE(pPage)                  ((pPage)->pPageMethods->szFreeCell)
+#define TDB_PAGE_NCELLS(pPage)                          (*(pPage)->pPageMethods->getCellNum)(pPage)
+#define TDB_PAGE_CCELLS(pPage)                          (*(pPage)->pPageMethods->getCellBody)(pPage)
+#define TDB_PAGE_FCELL(pPage)                           (*(pPage)->pPageMethods->getCellFree)(pPage)
+#define TDB_PAGE_NFREE(pPage)                           (*(pPage)->pPageMethods->getFreeBytes)(pPage)
+#define TDB_PAGE_CELL_OFFSET_AT(pPage, idx)             (*(pPage)->pPageMethods->getCellOffset)(pPage, idx)
+#define TDB_PAGE_NCELLS_SET(pPage, NCELLS)              (*(pPage)->pPageMethods->setCellNum)(pPage, NCELLS)
+#define TDB_PAGE_CCELLS_SET(pPage, CCELLS)              (*(pPage)->pPageMethods->setCellBody)(pPage, CCELLS)
+#define TDB_PAGE_FCELL_SET(pPage, FCELL)                (*(pPage)->pPageMethods->setCellFree)(pPage, FCELL)
+#define TDB_PAGE_NFREE_SET(pPage, NFREE)                (*(pPage)->pPageMethods->setFreeBytes)(pPage, NFREE)
+#define TDB_PAGE_CELL_OFFSET_AT_SET(pPage, idx, OFFSET) (*(pPage)->pPageMethods->setCellOffset)(pPage, idx, OFFSET)
+#define TDB_PAGE_CELL_AT(pPage, idx)                    ((pPage)->pData + TDB_PAGE_CELL_OFFSET_AT(pPage, idx))
 #define TDB_PAGE_MAX_FREE_BLOCK(pPage) \
   ((pPage)->pageSize - (pPage)->szAmHdr - TDB_PAGE_HDR_SIZE(pPage) - sizeof(SPageFtr))
 
@@ -47,8 +58,8 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
   pPage = (SPage *)(ptr + pageSize);
 
   TDB_INIT_PAGE_LOCK(pPage);
-  pPage->pData = ptr;
   pPage->pageSize = pageSize;
+  pPage->pData = ptr;
   if (pageSize < 65536) {
     pPage->pPageMethods = &pageMethods;
   } else {
@@ -125,6 +136,7 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
 
     ASSERT(pPage->pFreeStart == pPage->pCellIdx + TDB_PAGE_OFFSET_SIZE(pPage) * (nCells + 1));
   } else {
+    // TODO: make it extensible
     // add the cell as an overflow cell
     for (int i = pPage->nOverflow; i > iOvfl; i--) {
       pPage->apOvfl[i] = pPage->apOvfl[i - 1];

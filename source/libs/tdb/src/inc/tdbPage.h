@@ -57,8 +57,8 @@ typedef struct __attribute__((__packed__)) {
 
 struct SPage {
   pthread_spinlock_t lock;
-  u8                *pData;
   int                pageSize;
+  u8                *pData;
   SPageMethods      *pPageMethods;
   // Fields below used by pager and am
   u8        szAmHdr;
@@ -81,21 +81,8 @@ struct SPage {
 };
 
 /* For page */
-#define TDB_PAGE_FLAGS(pPage)               (*(pPage)->pPageMethods->getFlags)(pPage)
-#define TDB_PAGE_NCELLS(pPage)              (*(pPage)->pPageMethods->getCellNum)(pPage)
-#define TDB_PAGE_CCELLS(pPage)              (*(pPage)->pPageMethods->getCellBody)(pPage)
-#define TDB_PAGE_FCELL(pPage)               (*(pPage)->pPageMethods->getCellFree)(pPage)
-#define TDB_PAGE_NFREE(pPage)               (*(pPage)->pPageMethods->getFreeBytes)(pPage)
-#define TDB_PAGE_CELL_OFFSET_AT(pPage, idx) (*(pPage)->pPageMethods->getCellOffset)(pPage, idx)
-
-#define TDB_PAGE_FLAGS_SET(pPage, FLAGS)                (*(pPage)->pPageMethods->setFlags)(pPage, FLAGS)
-#define TDB_PAGE_NCELLS_SET(pPage, NCELLS)              (*(pPage)->pPageMethods->setCellNum)(pPage, NCELLS)
-#define TDB_PAGE_CCELLS_SET(pPage, CCELLS)              (*(pPage)->pPageMethods->setCellBody)(pPage, CCELLS)
-#define TDB_PAGE_FCELL_SET(pPage, FCELL)                (*(pPage)->pPageMethods->setCellFree)(pPage, FCELL)
-#define TDB_PAGE_NFREE_SET(pPage, NFREE)                (*(pPage)->pPageMethods->setFreeBytes)(pPage, NFREE)
-#define TDB_PAGE_CELL_OFFSET_AT_SET(pPage, idx, OFFSET) (*(pPage)->pPageMethods->setCellOffset)(pPage, idx, OFFSET)
-
-#define TDB_PAGE_CELL_AT(pPage, idx) ((pPage)->pData + TDB_PAGE_CELL_OFFSET_AT(pPage, idx))
+#define TDB_PAGE_FLAGS(pPage)            (*(pPage)->pPageMethods->getFlags)(pPage)
+#define TDB_PAGE_FLAGS_SET(pPage, FLAGS) (*(pPage)->pPageMethods->setFlags)(pPage, FLAGS)
 
 // For page lock
 #define P_LOCK_SUCC 0
@@ -120,12 +107,37 @@ struct SPage {
   })
 
 // APIs
+#define TDB_PAGE_TOTAL_CELLS(pPage) ((pPage)->nOverflow + (pPage)->pPageMethods->getCellNum(pPage))
+
 int  tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg);
 int  tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg);
 void tdbPageZero(SPage *pPage);
 void tdbPageInit(SPage *pPage);
 int  tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell);
 int  tdbPageDropCell(SPage *pPage, int idx);
+
+static inline SCell *tdbPageGetCell(SPage *pPage, int idx) {
+  SCell *pCell;
+  int    iOvfl;
+  int    lidx;
+
+  ASSERT(idx >= 0 && idx < pPage->nOverflow + pPage->pPageMethods->getCellNum(pPage));
+
+  iOvfl = 0;
+  for (; iOvfl < pPage->nOverflow; iOvfl++) {
+    if (pPage->aiOvfl[iOvfl] == idx) {
+      pCell = pPage->apOvfl[iOvfl];
+      return pCell;
+    } else if (pPage->aiOvfl[iOvfl] > idx) {
+      break;
+    }
+  }
+
+  lidx = idx - iOvfl;
+  pCell = pPage->pData + pPage->pPageMethods->getCellOffset(pPage, lidx);
+
+  return pCell;
+}
 
 #ifdef __cplusplus
 }
