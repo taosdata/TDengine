@@ -24,8 +24,6 @@ static void bmInitOption(SBnodeMgmt *pMgmt, SBnodeOpt *pOption) {
   pOption->sendReqFp = dndSendReqToDnode;
   pOption->sendMnodeReqFp = dndSendReqToMnode;
   pOption->sendRspFp = dndSendRsp;
-  pOption->dnodeId = pDnode->dnodeId;
-  pOption->clusterId = pDnode->clusterId;
 }
 
 static int32_t bmOpenImp(SBnodeMgmt *pMgmt) {

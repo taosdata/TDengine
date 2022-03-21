@@ -24,8 +24,6 @@ static void qmInitOption(SQnodeMgmt *pMgmt, SQnodeOpt *pOption) {
   pOption->sendReqFp = dndSendReqToDnode;
   pOption->sendMnodeReqFp = dndSendReqToMnode;
   pOption->sendRspFp = dndSendRsp;
-  pOption->dnodeId = pDnode->dnodeId;
-  pOption->clusterId = pDnode->clusterId;
 }
 
 static int32_t qmOpenImp(SQnodeMgmt *pMgmt) {
