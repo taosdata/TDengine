@@ -21,10 +21,10 @@ uint16_t ports[] = {7010, 7110, 7210, 7310, 7410};
 int32_t  replicaNum = 3;
 int32_t  myIndex = 0;
 
-SRaftId    ids[TSDB_MAX_REPLICA];
-SSyncInfo  syncInfo;
-SSyncFSM*  pFsm;
-SWal*      pWal;
+SRaftId   ids[TSDB_MAX_REPLICA];
+SSyncInfo syncInfo;
+SSyncFSM* pFsm;
+SWal*     pWal;
 
 int64_t syncNodeInit() {
   syncInfo.vgId = 1234;
@@ -33,7 +33,7 @@ int64_t syncNodeInit() {
   syncInfo.queue = gSyncIO->pMsgQ;
   syncInfo.FpEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
-  snprintf(syncInfo.path, sizeof(syncInfo.path), "./elect_test_%d", myIndex);
+  snprintf(syncInfo.path, sizeof(syncInfo.path), "./elect2_test_%d", myIndex);
 
   int code = walInit();
   assert(code == 0);
@@ -48,7 +48,7 @@ int64_t syncNodeInit() {
   walCfg.level = TAOS_WAL_FSYNC;
 
   char tmpdir[128];
-  snprintf(tmpdir, sizeof(tmpdir), "./elect_test_wal_%d", myIndex);
+  snprintf(tmpdir, sizeof(tmpdir), "./elect2_test_wal_%d", myIndex);
   pWal = walOpen(tmpdir, &walCfg);
   assert(pWal != NULL);
 
@@ -63,7 +63,6 @@ int64_t syncNodeInit() {
     snprintf(pCfg->nodeInfo[i].nodeFqdn, sizeof(pCfg->nodeInfo[i].nodeFqdn), "%s", "127.0.0.1");
     // taosGetFqdn(pCfg->nodeInfo[0].nodeFqdn);
   }
-
 
   int64_t rid = syncStart(&syncInfo);
   assert(rid > 0);
@@ -127,6 +126,7 @@ int main(int argc, char** argv) {
         "elect sleep, state: %d, %s, term:%lu electTimerLogicClock:%lu, electTimerLogicClockUser:%lu, electTimerMS:%d",
         pSyncNode->state, syncUtilState2String(pSyncNode->state), pSyncNode->pRaftStore->currentTerm,
         pSyncNode->electTimerLogicClock, pSyncNode->electTimerLogicClockUser, pSyncNode->electTimerMS);
+    taosMsleep(1000);
   }
 
   syncNodeRelease(pSyncNode);
