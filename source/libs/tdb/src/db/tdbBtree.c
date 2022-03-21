@@ -392,7 +392,6 @@ static int tdbBtreeInitPage(SPage *pPage, void *arg) {
   SBTree *pBt;
   u8      flags;
   u8      isLeaf;
-  u8      szAmHdr;
 
   pBt = ((SBtreeInitPageArg *)arg)->pBt;
   flags = ((SBtreeInitPageArg *)arg)->flags;
@@ -400,13 +399,7 @@ static int tdbBtreeInitPage(SPage *pPage, void *arg) {
 
   ASSERT(flags == TDB_BTREE_PAGE_GET_FLAGS(pPage));
 
-  if (isLeaf) {
-    szAmHdr = sizeof(SLeafHdr);
-  } else {
-    szAmHdr = sizeof(SIntHdr);
-  }
-
-  tdbPageInit(pPage, szAmHdr, tdbBtreeCellSize);
+  tdbPageInit(pPage, isLeaf ? sizeof(SLeafHdr) : sizeof(SIntHdr), tdbBtreeCellSize);
 
   TDB_BTREE_ASSERT_FLAG(flags);
 
@@ -429,26 +422,26 @@ static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
   u8      flags;
   SBTree *pBt;
   u8      isLeaf;
-  u8      szAmHdr;
 
   flags = ((SBtreeInitPageArg *)arg)->flags;
   pBt = ((SBtreeInitPageArg *)arg)->pBt;
   isLeaf = TDB_BTREE_PAGE_IS_LEAF(flags);
 
-  if (isLeaf) {
-    szAmHdr = sizeof(SLeafHdr);
-  } else {
-    szAmHdr = sizeof(SIntHdr);
-  }
-
-  tdbPageZero(pPage, szAmHdr, tdbBtreeCellSize);
+  tdbPageZero(pPage, isLeaf ? sizeof(SLeafHdr) : sizeof(SIntHdr), tdbBtreeCellSize);
 
   if (isLeaf) {
+    SLeafHdr *pLeafHdr = (SLeafHdr *)(pPage->pPageHdr);
+    pLeafHdr->flags = flags;
+
     pPage->kLen = pBt->keyLen;
     pPage->vLen = pBt->valLen;
     pPage->maxLocal = pBt->maxLeaf;
     pPage->minLocal = pBt->minLeaf;
   } else {
+    SIntHdr *pIntHdr = (SIntHdr *)(pPage->pPageHdr);
+    pIntHdr->flags = flags;
+    pIntHdr->pgno = 0;
+
     pPage->kLen = pBt->keyLen;
     pPage->vLen = sizeof(SPgno);
     pPage->maxLocal = pBt->maxLocal;
