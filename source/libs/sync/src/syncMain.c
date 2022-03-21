@@ -103,11 +103,16 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg) {
   return ret;
 }
 
-int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
+int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
   int32_t ret = 0;
 
   // todo : get pointer from rid
-  SSyncNode* pSyncNode = NULL;
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return -1;
+  }
+  assert(rid == pSyncNode->rid);
+
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     SyncClientRequest* pSyncMsg = syncClientRequestBuild2(pMsg, 0, isWeak);
     SRpcMsg            rpcMsg;
@@ -120,6 +125,13 @@ int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
     sTrace("syncForwardToPeer not leader, %s", syncUtilState2String(pSyncNode->state));
     ret = -1;  // todo : need define err code !!
   }
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return ret;
+}
+
+int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
+  int32_t ret = syncPropose(rid, pMsg, isWeak);
   return ret;
 }
 
