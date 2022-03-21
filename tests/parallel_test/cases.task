@@ -793,6 +793,7 @@
 3,,develop-test,python3 ./test.py -f 2-query/ts_hidden_column.py 
 3,,develop-test,python3 ./test.py -f 2-query/ts_shortcut.py
 3,,develop-test,python3 ./test.py -f 2-query/TD-5902.py
+3,,script,./test.sh -f general/compute/scalar_str_concat_len.sim
 3,,develop-test,python3 ./test.py -f 2-query/TD-13414.py
 3,,develop-test,python3 ./test.py -f 2-query/function_tail.py
 2,,develop-test,python3 ./test.py -f 2-query/function_unique.py
