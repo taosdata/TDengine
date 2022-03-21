@@ -423,9 +423,6 @@ static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
   pBt = ((SBtreeZeroPageArg *)arg)->pBt;
   isLeaf = TDB_BTREE_PAGE_IS_LEAF(flags);
 
-  // Init the page header
-  TDB_PAGE_FLAGS_SET(pPage, flags);
-  // Set szAmHdr
   if (isLeaf) {
     szAmHdr = 0;
   } else {
@@ -433,6 +430,7 @@ static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
   }
   pPage->xCellSize = NULL;  // TODO
 
+  TDB_PAGE_FLAGS_SET(pPage, flags);
   tdbPageZero(pPage, szAmHdr);
 
   if (isLeaf) {
