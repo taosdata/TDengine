@@ -282,7 +282,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     if (pHead->head.msgType == TDMT_VND_SUBMIT) {
       SSubmitReq* pCont = (SSubmitReq*)&pHead->head.body;
       qTaskInfo_t task = pTopic->buffer.output[pos].task;
-      qSetStreamInput(task, pCont);
+      qSetStreamInput(task, pCont, STREAM_DATA_TYPE_SUBMIT_BLOCK);
       SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
       while (1) {
         SSDataBlock* pDataBlock;
