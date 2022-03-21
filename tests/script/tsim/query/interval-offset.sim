@@ -1,0 +1,365 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sleep 500
+sql connect
+
+print =============== create database
+sql drop database d0 -x step1
+step1:
+sql create database d0
+sql show databases
+if $rows != 1 then 
+  return -1
+endi
+
+sql use d0
+
+print =============== create super table and child table
+sql create table stb (ts timestamp, tbcol int) tags (t1 int)
+sql show stables
+print $rows $data00 $data01 $data02
+if $rows != 1 then 
+  return -1
+endi
+
+sql create table ct1 using stb tags ( 1 )
+sql create table ct2 using stb tags ( 2 )
+sql show tables
+print $rows $data00 $data10 $data20
+if $rows != 2 then
+  return -1
+endi 
+
+print =============== insert data into child table ct1 (s)
+sql insert into ct1 values ( '2022-01-01 01:01:01.000', 1 )
+sql insert into ct1 values ( '2022-01-01 01:01:06.000', 2 )
+sql insert into ct1 values ( '2022-01-01 01:01:10.000', 3 )
+sql insert into ct1 values ( '2022-01-01 01:01:16.000', 4 )
+sql insert into ct1 values ( '2022-01-01 01:01:20.000', 5 )
+sql insert into ct1 values ( '2022-01-01 01:01:26.000', 6 )
+sql insert into ct1 values ( '2022-01-01 01:01:30.000', 7 )
+sql insert into ct1 values ( '2022-01-01 01:01:36.000', 8 )
+
+sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct1 interval(10s, 2s)
+print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct1 interval(10s, 2s)
+print ===> rows: $rows
+print ===> rows0: $data00 $data01 $data02 $data03 $data04
+print ===> rows1: $data10 $data11 $data12 $data13 $data14
+print ===> rows2: $data20 $data21 $data22 $data23 $data24
+print ===> rows3: $data30 $data31 $data32 $data33 $data34
+print ===> rows4: $data40 $data41 $data42 $data43 $data44
+if $rows != 5 then
+  return -1
+endi 
+if $data00 != 1 then
+  return -1
+endi 
+if $data40 != 1 then
+  return -1
+endi 
+
+sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct1 interval(10s, 2s) sliding(10s)
+print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct1 interval(10s, 2s) sliding(10s)
+print ===> rows: $rows
+print ===> rows0: $data00 $data01 $data02 $data03 $data04
+print ===> rows1: $data10 $data11 $data12 $data13 $data14
+print ===> rows2: $data20 $data21 $data22 $data23 $data24
+print ===> rows3: $data30 $data31 $data32 $data33 $data34
+print ===> rows4: $data40 $data41 $data42 $data43 $data44
+if $rows != 5 then
+  return -1
+endi 
+if $data00 != 1 then
+  return -1
+endi 
+if $data40 != 1 then
+  return -1
+endi 
+
+sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct1 interval(10s, 2s) sliding(5s)
+print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct1 interval(10s, 2s) sliding(5s)
+print ===> rows: $rows
+print ===> rows0: $data00 $data01 $data02 $data03 $data04
+print ===> rows1: $data10 $data11 $data12 $data13 $data14
+print ===> rows2: $data20 $data21 $data22 $data23 $data24
+print ===> rows3: $data30 $data31 $data32 $data33 $data34
+print ===> rows4: $data40 $data41 $data42 $data43 $data44
+print ===> rows5: $data50 $data51 $data52 $data53 $data54
+print ===> rows6: $data60 $data61 $data62 $data63 $data64
+print ===> rows7: $data70 $data71 $data72 $data73 $data74
+if $rows != 8 then
+  return -1
+endi 
+if $data00 != 2 then
+  return -1
+endi 
+if $data70 != 1 then
+  return -1
+endi 
+
+print =============== insert data into child table ct2 (d)
+sql insert into ct2 values ( '2022-01-01 01:00:01.000', 1 )
+sql insert into ct2 values ( '2022-01-01 10:00:01.000', 2 )
+sql insert into ct2 values ( '2022-01-01 20:00:01.000', 3 )
+sql insert into ct2 values ( '2022-01-02 10:00:01.000', 4 )
+sql insert into ct2 values ( '2022-01-02 20:00:01.000', 5 )
+sql insert into ct2 values ( '2022-01-03 10:00:01.000', 6 )
+sql insert into ct2 values ( '2022-01-03 20:00:01.000', 7 )
+
+sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct2 interval(1d, 2h)
+print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct2 interval(1d, 2h)
+print ===> rows: $rows
+print ===> rows0: $data00 $data01 $data02 $data03 $data04
+print ===> rows1: $data10 $data11 $data12 $data13 $data14
+print ===> rows2: $data20 $data21 $data22 $data23 $data24
+print ===> rows3: $data30 $data31 $data32 $data33 $data34
+print ===> rows4: $data40 $data41 $data42 $data43 $data44
+if $rows != 4 then
+  return -1
+endi 
+if $data00 != 1 then
+  return -1
+endi 
+if $data10 != 2 then
+  return -1
+endi
+
+sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct2 interval(1d, 2h) sliding(12h)
+print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct2 interval(1d, 2h) sliding(12h)
+print ===> rows: $rows
+print ===> rows0: $data00 $data01 $data02 $data03 $data04
+print ===> rows1: $data10 $data11 $data12 $data13 $data14
+print ===> rows2: $data20 $data21 $data22 $data23 $data24
+print ===> rows3: $data30 $data31 $data32 $data33 $data34
+print ===> rows4: $data40 $data41 $data42 $data43 $data44
+print ===> rows5: $data50 $data51 $data52 $data53 $data54
+print ===> rows6: $data60 $data61 $data62 $data63 $data64
+print ===> rows7: $data70 $data71 $data72 $data73 $data74
+if $rows != 7 then
+  return -1
+endi 
+if $data00 != 2 then
+  return -1
+endi 
+if $data60 != 1 then
+  return -1
+endi
+
+return
+
+
+
+
+
+
+
+
+
+sql select count(*) from car interval(1n, 10d) order by ts desc
+#        tdSql.checkData(0, 1, 1)
+#        tdSql.checkData(1, 1, 2)
+#        tdSql.checkData(2, 1, 3)
+#        tdSql.checkData(3, 1, 3)
+#        tdSql.checkData(4, 1, 6)
+#        tdSql.checkData(5, 1, 1)
+#        tdSql.checkData(6, 1, 1)
+#
+sql select count(*) from car interval(2n, 5d)
+#        tdSql.checkData(0, 1, 1)
+#        tdSql.checkData(1, 1, 1)
+#        tdSql.checkData(2, 1, 6)
+#        tdSql.checkData(3, 1, 6)
+#        tdSql.checkData(4, 1, 3)
+
+sql select count(*) from car interval(2n) order by ts desc
+#        tdSql.checkData(0, 1, 3)
+#        tdSql.checkData(1, 1, 6)
+#        tdSql.checkData(2, 1, 6)
+#        tdSql.checkData(3, 1, 1)
+#        tdSql.checkData(4, 1, 1)
+#
+sql select count(*) from car interval(1y, 1n)
+#        tdSql.checkData(0, 1, 1)
+#        tdSql.checkData(1, 1, 8)
+#        tdSql.checkData(2, 1, 8)
+#
+sql select count(*) from car interval(1y, 2n)
+#        tdSql.checkData(0, 1, 1)
+#        tdSql.checkData(1, 1, 11)
+#        tdSql.checkData(2, 1, 5)
+
+sql select count(*) from car where ts > '2019-05-14 00:00:00' interval(1y, 5d)
+#       tdSql.checkData(0, 1, 6)
+#       tdSql.checkData(1, 1, 9)
+
+
+
+
+
+
+
+
+
+
+
+
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int)
+
+print ====== start create child tables and insert data
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+  
+  $x = 0
+  while $x < $rowNum
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+
+    sql insert into $tb values ($ms , $x ) 
+    $x = $x + 1
+  endw 
+ 
+  $i = $i + 1
+endw 
+
+print =============== step2
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb interval(1m)
+print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb interval(1m)
+print ===> $rows $data01 $data05
+if $rows != $rowNum then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data04 != 1 then 
+  return -1
+endi
+
+#print =============== step3
+#$cc = 4 * 60000
+#$ms = 1601481600000 + $cc
+#sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts <= $ms interval(1m)
+#print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts <= $ms interval(1m)
+#print ===> $rows $data01 $data05
+#if $rows != 5 then 
+#  return -1
+#endi
+#if $data00 != 1 then 
+#  return -1
+#endi
+#if $data04 != 1 then 
+#  return -1
+#endi
+
+#print =============== step4
+#$cc = 40 * 60000
+#$ms = 1601481600000 + $cc
+
+#$cc = 1 * 60000
+#$ms2 = 1601481600000 - $cc
+
+#sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts <= $ms and ts > $ms2 interval(1m)
+#print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts <= $ms and ts > $ms2 interval(1m)
+#print ===> $rows $data01 $data05
+#if $rows != 20 then 
+#  return -1
+#endi
+#if $data00 != 1 then 
+#  return -1
+#endi
+#if $data04 != 1 then 
+#  return -1
+#endi
+
+#print =============== step5
+#$cc = 40 * 60000
+#$ms = 1601481600000 + $cc
+
+#$cc = 1 * 60000
+#$ms2 = 1601481600000 - $cc
+
+#sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts <= $ms and ts > $ms2 interval(1m) fill(value,0)
+#print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts <= $ms and ts > $ms2 interval(1m) fill(value,0)
+#print ===> $rows $data21 $data25
+#if $rows != 42 then 
+#  return -1
+#endi
+#if $data20 != 1 then 
+#  return -1
+#endi
+#if $data24 != 1 then 
+#  return -1
+#endi
+
+#print =============== step6
+#sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt interval(1m)
+#print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt interval(1m)
+#print ===> $rows $data11
+#if $rows != 20 then 
+#  return -1
+#endi
+#if $data11 != 10 then 
+#  return -1
+#endi
+
+#print =============== step7
+#$cc = 4 * 60000
+#$ms = 1601481600000 + $cc
+#sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts <= $ms interval(1m)
+#print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts <= $ms interval(1m)
+#print ===> $rows $data11
+#if $rows != 5 then 
+#  return -1
+#endi
+#if $data11 != 10 then 
+#  return -1
+#endi
+
+#print =============== step8
+#$cc = 40 * 60000
+#$ms1 = 1601481600000 + $cc
+#
+#$cc = 1 * 60000
+#$ms2 = 1601481600000 - $cc
+#
+#sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts <= $ms1 and ts > $ms2 interval(1m)
+#print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts <= $ms1 and ts > $ms2 interval(1m)
+#print ===> $rows $data11
+#if $rows != 20 then 
+#  return -1
+#endi
+#if $data11 != 10 then 
+#  return -1
+#endi
+#
+#print =============== step9
+#$cc = 40 * 60000
+#$ms1 = 1601481600000 + $cc
+#
+#$cc = 1 * 60000
+#$ms2 = 1601481600000 - $cc
+#
+#sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts <= $ms1 and ts > $ms2 interval(1m) fill(value, 0)
+#print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts <= $ms1 and ts > $ms2 interval(1m) fill(value, 0)
+#print ===> $rows $data11
+#if $rows != 42 then 
+#  return -1
+#endi
+#if $data11 != 10 then 
+#  return -1
+#endi
+
+print =============== clear
+#sql drop database $db
+#sql show databases
+#if $rows != 0 then 
+#  return -1
+#endi
+
+#system sh/exec.sh -n dnode1 -s stop -x SIGINT

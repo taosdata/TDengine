@@ -27,7 +27,7 @@ typedef struct SWWorkerPool SWWorkerPool;
 
 typedef struct SQWorker {
   int32_t       id;      // worker ID
-  pthread_t     thread;  // thread
+  TdThread     thread;  // thread
   SQWorkerPool *pool;
 } SQWorker, SFWorker;
 
@@ -38,12 +38,12 @@ typedef struct SQWorkerPool {
   STaosQset      *qset;
   const char     *name;
   SQWorker       *workers;
-  pthread_mutex_t mutex;
+  TdThreadMutex mutex;
 } SQWorkerPool, SFWorkerPool;
 
 typedef struct SWWorker {
   int32_t       id;      // worker id
-  pthread_t     thread;  // thread
+  TdThread     thread;  // thread
   STaosQall    *qall;
   STaosQset    *qset;  // queue set
   SWWorkerPool *pool;
@@ -54,7 +54,7 @@ typedef struct SWWorkerPool {
   int32_t         nextId;  // from 0 to max-1, cyclic
   const char     *name;
   SWWorker       *workers;
-  pthread_mutex_t mutex;
+  TdThreadMutex mutex;
 } SWWorkerPool;
 
 int32_t     tQWorkerInit(SQWorkerPool *pool);

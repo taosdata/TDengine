@@ -25,24 +25,20 @@ extern "C" {
 #endif
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
-typedef struct SDnode SDnode;
-typedef struct SSnode SSnode;
-typedef int32_t (*SendReqToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *pMsg);
-typedef int32_t (*SendReqToMnodeFp)(SDnode *pDnode, struct SRpcMsg *pMsg);
-typedef void (*SendRedirectRspFp)(SDnode *pDnode, struct SRpcMsg *pMsg);
+typedef struct SMgmtWrapper SMgmtWrapper;
+typedef struct SSnode       SSnode;
 
 typedef struct {
-  int64_t numOfErrors;
+  int32_t reserved;
 } SSnodeLoad;
 
 typedef struct {
-  int32_t           sver;
-  int32_t           dnodeId;
-  int64_t           clusterId;
-  SDnode           *pDnode;
-  SendReqToDnodeFp  sendReqToDnodeFp;
-  SendReqToMnodeFp  sendReqToMnodeFp;
-  SendRedirectRspFp sendRedirectRspFp;
+  int32_t        dnodeId;
+  int64_t        clusterId;
+  SMgmtWrapper  *pWrapper;
+  SendReqFp      sendReqFp;
+  SendMnodeReqFp sendMnodeReqFp;
+  SendRspFp      sendRspFp;
 } SSnodeOpt;
 
 /* ------------------------ SSnode ------------------------ */
@@ -77,20 +73,9 @@ int32_t sndGetLoad(SSnode *pSnode, SSnodeLoad *pLoad);
  * @param pSnode The snode object.
  * @param pMsg The request message
  * @param pRsp The response message
- * @return int32_t 0 for success, -1 for failure
  */
-// int32_t sndProcessMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
-
-int32_t sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg);
-
-int32_t sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg);
-
-/**
- * @brief Drop a snode.
- *
- * @param path Path of the snode.
- */
-void sndDestroy(const char *path);
+void sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg);
+void sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

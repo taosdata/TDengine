@@ -43,7 +43,7 @@ typedef struct SDataDispatchHandle {
   int32_t status;
   bool queryEnd;
   uint64_t useconds;
-  pthread_mutex_t mutex;
+  TdThreadMutex mutex;
 } SDataDispatchHandle;
 
 static bool needCompress(const SSDataBlock* pData, const SDataBlockDescNode* pSchema) {
@@ -126,19 +126,19 @@ static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput,
 }
 
 static int32_t updateStatus(SDataDispatchHandle* pDispatcher) {
-  pthread_mutex_lock(&pDispatcher->mutex);
+  taosThreadMutexLock(&pDispatcher->mutex);
   int32_t blockNums = taosQueueSize(pDispatcher->pDataBlocks);
   int32_t status = (0 == blockNums ? DS_BUF_EMPTY :
       (blockNums < pDispatcher->pManager->cfg.maxDataBlockNumPerQuery ? DS_BUF_LOW : DS_BUF_FULL));
   pDispatcher->status = status;
-  pthread_mutex_unlock(&pDispatcher->mutex);
+  taosThreadMutexUnlock(&pDispatcher->mutex);
   return status;
 }
 
 static int32_t getStatus(SDataDispatchHandle* pDispatcher) {
-  pthread_mutex_lock(&pDispatcher->mutex);
+  taosThreadMutexLock(&pDispatcher->mutex);
   int32_t status = pDispatcher->status;
-  pthread_mutex_unlock(&pDispatcher->mutex);
+  taosThreadMutexUnlock(&pDispatcher->mutex);
   return status;
 }
 
@@ -156,10 +156,10 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
 
 static void endPut(struct SDataSinkHandle* pHandle, uint64_t useconds) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
-  pthread_mutex_lock(&pDispatcher->mutex);
+  taosThreadMutexLock(&pDispatcher->mutex);
   pDispatcher->queryEnd = true;
   pDispatcher->useconds = useconds;
-  pthread_mutex_unlock(&pDispatcher->mutex);
+  taosThreadMutexUnlock(&pDispatcher->mutex);
 }
 
 static void getDataLength(SDataSinkHandle* pHandle, int32_t* pLen, bool* pQueryEnd) {
@@ -191,11 +191,11 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   pOutput->compressed = pEntry->compressed;
   tfree(pDispatcher->nextOutput.pData);  // todo persistent
   pOutput->bufStatus = updateStatus(pDispatcher);
-  pthread_mutex_lock(&pDispatcher->mutex);
+  taosThreadMutexLock(&pDispatcher->mutex);
   pOutput->queryEnd = pDispatcher->queryEnd;
   pOutput->useconds = pDispatcher->useconds;
   pOutput->precision = pDispatcher->pSchema->precision;
-  pthread_mutex_unlock(&pDispatcher->mutex);
+  taosThreadMutexUnlock(&pDispatcher->mutex);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -209,7 +209,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
     taosFreeQitem(pBuf);
   }
   taosCloseQueue(pDispatcher->pDataBlocks);
-  pthread_mutex_destroy(&pDispatcher->mutex);
+  taosThreadMutexDestroy(&pDispatcher->mutex);
 }
 
 int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle) {
@@ -228,7 +228,7 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
   dispatcher->status = DS_BUF_EMPTY;
   dispatcher->queryEnd = false;
   dispatcher->pDataBlocks = taosOpenQueue();
-  pthread_mutex_init(&dispatcher->mutex, NULL);
+  taosThreadMutexInit(&dispatcher->mutex, NULL);
   if (NULL == dispatcher->pDataBlocks) {
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return TSDB_CODE_QRY_OUT_OF_MEMORY;

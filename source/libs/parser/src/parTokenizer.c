@@ -28,6 +28,7 @@ typedef struct SKeyword {
 
 // keywords in sql string
 static SKeyword keywordTable[] = {
+    {"ACCOUNT",       TK_ACCOUNT},
     {"ALL",           TK_ALL},
     {"ALTER",         TK_ALTER},
     {"AND",           TK_AND},
@@ -168,7 +169,6 @@ static SKeyword keywordTable[] = {
     // {"SCORES",       TK_SCORES},
     // {"GRANTS",       TK_GRANTS},
     // {"DOT",          TK_DOT},
-    // {"ACCOUNT",      TK_ACCOUNT},
     // {"DESCRIBE",     TK_DESCRIBE},
     // {"SYNCDB",       TK_SYNCDB},
     // {"LOCAL",        TK_LOCAL},
@@ -266,10 +266,10 @@ static void doInitKeywordsTable(void) {
   }
 }
 
-static pthread_once_t keywordsHashTableInit = PTHREAD_ONCE_INIT;
+static TdThreadOnce keywordsHashTableInit = PTHREAD_ONCE_INIT;
 
 static int32_t tKeywordCode(const char* z, int n) {
-  pthread_once(&keywordsHashTableInit, doInitKeywordsTable);
+  taosThreadOnce(&keywordsHashTableInit, doInitKeywordsTable);
   
   char key[512] = {0};
   if (n > tListLen(key)) { // too long token, can not be any other token type

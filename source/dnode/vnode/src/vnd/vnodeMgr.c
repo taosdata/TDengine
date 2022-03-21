@@ -25,23 +25,26 @@ int vnodeInit(const SVnodeOpt *pOption) {
   }
 
   vnodeMgr.stop = false;
-  vnodeMgr.putReqToVQueryQFp = pOption->putReqToVQueryQFp;
-  vnodeMgr.sendReqToDnodeFp = pOption->sendReqToDnodeFp;
+  vnodeMgr.putToQueryQFp = pOption->putToQueryQFp;
+  vnodeMgr.putToFetchQFp = pOption->putToFetchQFp;
+  vnodeMgr.sendReqFp = pOption->sendReqFp;
+  vnodeMgr.sendMnodeReqFp = pOption->sendMnodeReqFp;
+  vnodeMgr.sendRspFp = pOption->sendRspFp;
 
   // Start commit handers
   if (pOption->nthreads > 0) {
     vnodeMgr.nthreads = pOption->nthreads;
-    vnodeMgr.threads = (pthread_t*)calloc(pOption->nthreads, sizeof(pthread_t));
+    vnodeMgr.threads = (TdThread*)calloc(pOption->nthreads, sizeof(TdThread));
     if (vnodeMgr.threads == NULL) {
       return -1;
     }
 
-    pthread_mutex_init(&(vnodeMgr.mutex), NULL);
-    pthread_cond_init(&(vnodeMgr.hasTask), NULL);
+    taosThreadMutexInit(&(vnodeMgr.mutex), NULL);
+    taosThreadCondInit(&(vnodeMgr.hasTask), NULL);
     TD_DLIST_INIT(&(vnodeMgr.queue));
 
     for (uint16_t i = 0; i < pOption->nthreads; i++) {
-      pthread_create(&(vnodeMgr.threads[i]), NULL, loop, NULL);
+      taosThreadCreate(&(vnodeMgr.threads[i]), NULL, loop, NULL);
       // pthread_setname_np(vnodeMgr.threads[i], "VND Commit Thread");
     }
   } else {
@@ -63,42 +66,50 @@ void vnodeCleanup() {
   }
 
   // Stop commit handler
-  pthread_mutex_lock(&(vnodeMgr.mutex));
+  taosThreadMutexLock(&(vnodeMgr.mutex));
   vnodeMgr.stop = true;
-  pthread_cond_broadcast(&(vnodeMgr.hasTask));
-  pthread_mutex_unlock(&(vnodeMgr.mutex));
+  taosThreadCondBroadcast(&(vnodeMgr.hasTask));
+  taosThreadMutexUnlock(&(vnodeMgr.mutex));
 
   for (uint16_t i = 0; i < vnodeMgr.nthreads; i++) {
-    pthread_join(vnodeMgr.threads[i], NULL);
+    taosThreadJoin(vnodeMgr.threads[i], NULL);
   }
 
   tfree(vnodeMgr.threads);
-  pthread_cond_destroy(&(vnodeMgr.hasTask));
-  pthread_mutex_destroy(&(vnodeMgr.mutex));
+  taosThreadCondDestroy(&(vnodeMgr.hasTask));
+  taosThreadMutexDestroy(&(vnodeMgr.mutex));
 }
 
 int vnodeScheduleTask(SVnodeTask* pTask) {
-  pthread_mutex_lock(&(vnodeMgr.mutex));
+  taosThreadMutexLock(&(vnodeMgr.mutex));
 
   TD_DLIST_APPEND(&(vnodeMgr.queue), pTask);
 
-  pthread_cond_signal(&(vnodeMgr.hasTask));
+  taosThreadCondSignal(&(vnodeMgr.hasTask));
 
-  pthread_mutex_unlock(&(vnodeMgr.mutex));
+  taosThreadMutexUnlock(&(vnodeMgr.mutex));
 
   return 0;
 }
 
-int32_t vnodePutReqToVQueryQ(SVnode* pVnode, struct SRpcMsg* pReq) {
-  if (pVnode == NULL || pVnode->pDnode == NULL || vnodeMgr.putReqToVQueryQFp == NULL) {
-    terrno = TSDB_CODE_VND_APP_ERROR;
-    return -1;
-  }
-  return (*vnodeMgr.putReqToVQueryQFp)(pVnode->pDnode, pReq);
+int32_t vnodePutToVQueryQ(SVnode* pVnode, struct SRpcMsg* pReq) {
+  return (*vnodeMgr.putToQueryQFp)(pVnode->pWrapper, pReq);
 }
 
-void vnodeSendReqToDnode(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pReq) {
-  (*vnodeMgr.sendReqToDnodeFp)(pVnode->pDnode, epSet, pReq);
+int32_t vnodePutToVFetchQ(SVnode* pVnode, struct SRpcMsg* pReq) {
+  return (*vnodeMgr.putToFetchQFp)(pVnode->pWrapper, pReq);
+}
+
+int32_t vnodeSendReq(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pReq) {
+  return (*vnodeMgr.sendReqFp)(pVnode->pWrapper, epSet, pReq);
+}
+
+int32_t vnodeSendMnodeReq(SVnode* pVnode, struct SRpcMsg* pReq) {
+  return (*vnodeMgr.sendMnodeReqFp)(pVnode->pWrapper, pReq);
+}
+
+void vnodeSendRsp(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pRsp) {
+  (*vnodeMgr.sendRspFp)(pVnode->pWrapper, pRsp);
 }
 
 /* ------------------------ STATIC METHODS ------------------------ */
@@ -107,15 +118,15 @@ static void* loop(void* arg) {
 
   SVnodeTask* pTask;
   for (;;) {
-    pthread_mutex_lock(&(vnodeMgr.mutex));
+    taosThreadMutexLock(&(vnodeMgr.mutex));
     for (;;) {
       pTask = TD_DLIST_HEAD(&(vnodeMgr.queue));
       if (pTask == NULL) {
         if (vnodeMgr.stop) {
-          pthread_mutex_unlock(&(vnodeMgr.mutex));
+          taosThreadMutexUnlock(&(vnodeMgr.mutex));
           return NULL;
         } else {
-          pthread_cond_wait(&(vnodeMgr.hasTask), &(vnodeMgr.mutex));
+          taosThreadCondWait(&(vnodeMgr.hasTask), &(vnodeMgr.mutex));
         }
       } else {
         TD_DLIST_POP(&(vnodeMgr.queue), pTask);
@@ -123,7 +134,7 @@ static void* loop(void* arg) {
       }
     }
 
-    pthread_mutex_unlock(&(vnodeMgr.mutex));
+    taosThreadMutexUnlock(&(vnodeMgr.mutex));
 
     (*(pTask->execute))(pTask->arg);
     free(pTask);

@@ -293,7 +293,7 @@ bool simExecuteRunBackCmd(SScript *script, char *option) {
   script->bgScripts[script->bgScriptLen++] = newScript;
   simInfo("script:%s, start to execute in background,", newScript->fileName);
 
-  if (pthread_create(&newScript->bgPid, NULL, simExecuteScript, (void *)newScript) != 0) {
+  if (taosThreadCreate(&newScript->bgPid, NULL, simExecuteScript, (void *)newScript) != 0) {
     sprintf(script->error, "lineNum:%d. create background thread failed", script->lines[script->linePos].lineNum);
     return false;
   } else {

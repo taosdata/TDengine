@@ -39,9 +39,6 @@ void* rpcOpen(const SRpcInit* pInit) {
   // register callback handle
   pRpc->cfp = pInit->cfp;
   pRpc->afp = pInit->afp;
-  pRpc->pfp = pInit->pfp;
-  pRpc->mfp = pInit->mfp;
-  pRpc->efp = pInit->efp;
 
   if (pInit->connType == TAOS_CONN_SERVER) {
     pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
@@ -121,7 +118,12 @@ void rpcCancelRequest(int64_t rid) { return; }
 void rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
   char*    ip = (char*)(pEpSet->eps[pEpSet->inUse].fqdn);
   uint32_t port = pEpSet->eps[pEpSet->inUse].port;
-  transSendRequest(shandle, ip, port, pMsg);
+  transSendRequest(shandle, ip, port, pMsg, NULL);
+}
+void rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid, SRpcCtx* pCtx) {
+  char*    ip = (char*)(pEpSet->eps[pEpSet->inUse].fqdn);
+  uint32_t port = pEpSet->eps[pEpSet->inUse].port;
+  transSendRequest(shandle, ip, port, pMsg, pCtx);
 }
 void rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
   char*    ip = (char*)(pEpSet->eps[pEpSet->inUse].fqdn);
@@ -142,6 +144,7 @@ void rpcUnrefHandle(void* handle, int8_t type) {
   (*taosUnRefHandle[type])(handle);
 }
 
+void rpcRegisterBrokenLinkArg(SRpcMsg* msg) { transRegisterMsg(msg); }
 void rpcReleaseHandle(void* handle, int8_t type) {
   assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
   (*transReleaseHandle[type])(handle);

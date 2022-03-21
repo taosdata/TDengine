@@ -26,9 +26,10 @@ endi
 print =============== create child table
 sql create table ct1 using stb tags(1000)
 sql create table ct2 using stb tags(2000)
+sql create table ct3 using stb tags(3000)
 
 sql show tables
-if $rows != 2 then 
+if $rows != 3 then 
   return -1
 endi
 
@@ -44,6 +45,8 @@ sql insert into ct2 values(now+1s, 11, 2.1, 3.1)(now+2s, 12, 2.2, 3.2)(now+3s, 1
 # after fix bug, modify sql_error to sql
 sql_error insert into ct1 values(now+4s, -14, -2.4, -3.4) ct2 values(now+4s, -14, -2.4, -3.4)
 sql_error insert into ct1 values(now+5s, -15, -2.5, -3.5)(now+6s, -16, -2.6, -3.6) ct2 values(now+5s, -15, -2.5, -3.5)(now+6s, -16, -2.6, -3.6)
+
+sql insert into ct3 values('2021-01-01 00:00:00.000', 10, 2.0, 3.0)
 
 #===================================================================
 #===================================================================

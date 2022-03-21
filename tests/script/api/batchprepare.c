@@ -1,7 +1,6 @@
 // TAOS standard API example. The same syntax as MySQL, but only a subet 
 // to compile: gcc -o prepare prepare.c -ltaos
 
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -5067,11 +5066,11 @@ int main(int argc, char *argv[])
     exit(1);
   }     
 
-  pthread_t *pThreadList = (pthread_t *) calloc(sizeof(pthread_t), 4);
+  TdThread *pThreadList = (TdThread *) calloc(sizeof(TdThread), 4);
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
-  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
+  taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
   T_par par[4];
 
   par[0].taos = taos[0];
@@ -5083,10 +5082,10 @@ int main(int argc, char *argv[])
   par[3].taos = taos[3];
   par[3].idx = 3;
   
-  pthread_create(&(pThreadList[0]), &thattr, runcase, (void *)&par[0]);
-  //pthread_create(&(pThreadList[1]), &thattr, runcase, (void *)&par[1]);
-  //pthread_create(&(pThreadList[2]), &thattr, runcase, (void *)&par[2]);
-  //pthread_create(&(pThreadList[3]), &thattr, runcase, (void *)&par[3]);
+  taosThreadCreate(&(pThreadList[0]), &thattr, runcase, (void *)&par[0]);
+  //taosThreadCreate(&(pThreadList[1]), &thattr, runcase, (void *)&par[1]);
+  //taosThreadCreate(&(pThreadList[2]), &thattr, runcase, (void *)&par[2]);
+  //taosThreadCreate(&(pThreadList[3]), &thattr, runcase, (void *)&par[3]);
 
   while(1) {
     taosSsleep(1);

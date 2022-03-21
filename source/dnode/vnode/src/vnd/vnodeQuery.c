@@ -21,12 +21,10 @@ static int     vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg);
 
 int vnodeQueryOpen(SVnode *pVnode) {
   return qWorkerInit(NODE_TYPE_VNODE, pVnode->vgId, NULL, (void **)&pVnode->pQuery, pVnode,
-                     (putReqToQueryQFp)vnodePutReqToVQueryQ, (sendReqToDnodeFp)vnodeSendReqToDnode);
+                     (putReqToQueryQFp)vnodePutToVQueryQ, (sendReqFp)vnodeSendReq);
 }
 
-void vnodeQueryClose(SVnode *pVnode) {
-  qWorkerDestroy((void **)&pVnode->pQuery);
-}
+void vnodeQueryClose(SVnode *pVnode) { qWorkerDestroy((void **)&pVnode->pQuery); }
 
 int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in query queue is processing");
@@ -68,6 +66,8 @@ int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       return vnodeGetTableMeta(pVnode, pMsg);
     case TDMT_VND_CONSUME:
       return tqProcessPollReq(pVnode->pTq, pMsg);
+    case TDMT_VND_TASK_EXEC:
+      return tqProcessTaskExec(pVnode->pTq, pMsg);
     case TDMT_VND_QUERY_HEARTBEAT:
       return qWorkerProcessHbMsg(pVnode, pVnode->pQuery, pMsg);
     default:

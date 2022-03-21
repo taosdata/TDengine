@@ -111,15 +111,16 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
-#define TSDB_ALTER_TABLE_ADD_TAG         1
-#define TSDB_ALTER_TABLE_DROP_TAG        2
-#define TSDB_ALTER_TABLE_UPDATE_TAG_NAME 3
-#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL  4
-
+#define TSDB_ALTER_TABLE_ADD_TAG             1
+#define TSDB_ALTER_TABLE_DROP_TAG            2
+#define TSDB_ALTER_TABLE_UPDATE_TAG_NAME     3
+#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL      4
 #define TSDB_ALTER_TABLE_ADD_COLUMN          5
 #define TSDB_ALTER_TABLE_DROP_COLUMN         6
 #define TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES 7
 #define TSDB_ALTER_TABLE_UPDATE_TAG_BYTES    8
+#define TSDB_ALTER_TABLE_UPDATE_OPTIONS      9
+#define TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME  10
 
 #define TSDB_FILL_NONE      0
 #define TSDB_FILL_NULL      1
@@ -696,6 +697,7 @@ typedef struct {
 
 int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
 int32_t tDeserializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
+void    tFreeSStatusRsp(SStatusRsp* pRsp);
 
 typedef struct {
   int32_t reserved;
@@ -1127,10 +1129,10 @@ typedef struct {
 
 typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];
+  char   outputTbName[TSDB_TABLE_NAME_LEN];
   int8_t igExists;
   char*  sql;
-  char*  physicalPlan;
-  char*  logicalPlan;
+  char*  ast;
 } SCMCreateStreamReq;
 
 typedef struct {
@@ -1918,13 +1920,14 @@ typedef struct {
 } SVCreateTSmaReq;
 
 typedef struct {
-  int8_t      type;                            // 0 status report, 1 update data
-  char        indexName[TSDB_INDEX_NAME_LEN];  //
-  STimeWindow windows;
+  int8_t  type;  // 0 status report, 1 update data
+  int64_t indexUid;
+  int64_t skey;  // start TS key of interval/sliding window
 } STSmaMsg;
 
 typedef struct {
   int64_t ver;  // use a general definition
+  int64_t indexUid;
   char    indexName[TSDB_INDEX_NAME_LEN];
 } SVDropTSmaReq;
 
@@ -2272,12 +2275,22 @@ enum {
 };
 
 typedef struct {
+  void*  inputHandle;
+  void** executor;
+} SStreamTaskParRunner;
+
+typedef struct {
   int64_t streamId;
   int32_t taskId;
   int32_t level;
   int8_t  status;
+  int8_t  pipeEnd;
+  int8_t  parallel;
+  SEpSet  NextOpEp;
   char*   qmsg;
-  void*   executor;
+  // not applied to encoder and decoder
+  SStreamTaskParRunner runner;
+  // void*                executor;
   // void*   stateStore;
   //  storage handle
 } SStreamTask;
@@ -2316,6 +2329,14 @@ typedef struct {
 } SStreamTaskExecRsp;
 
 #pragma pack(pop)
+
+struct SRpcMsg;
+struct SEpSet;
+struct SMgmtWrapper;
+typedef int32_t (*PutToQueueFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* pReq);
+typedef int32_t (*SendReqFp)(struct SMgmtWrapper* pWrapper, struct SEpSet* epSet, struct SRpcMsg* pReq);
+typedef int32_t (*SendMnodeReqFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* pReq);
+typedef void (*SendRspFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* pRsp);
 
 #ifdef __cplusplus
 }

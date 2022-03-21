@@ -211,7 +211,7 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
 
   // start consumer thread
   {
-    if (pthread_create(&io->consumerTid, NULL, syncIOConsumerFunc, io) != 0) {
+    if (taosThreadCreate(&io->consumerTid, NULL, syncIOConsumerFunc, io) != 0) {
       sError("failed to create sync consumer thread since %s", strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
       return -1;
@@ -228,7 +228,7 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
 static int32_t syncIOStopInternal(SSyncIO *io) {
   int32_t ret = 0;
   atomic_store_8(&io->isStart, 0);
-  pthread_join(io->consumerTid, NULL);
+  taosThreadJoin(io->consumerTid, NULL);
   taosTmrCleanUp(io->timerMgr);
   return ret;
 }

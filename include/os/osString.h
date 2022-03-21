@@ -35,7 +35,7 @@ typedef int32_t TdUcs4;
     #define wctomb WCTOMB_FUNC_TAOS_FORBID
     #define wcstombs WCSTOMBS_FUNC_TAOS_FORBID
     #define wcsncpy WCSNCPY_FUNC_TAOS_FORBID
-    #define wchar_t WCHAR_T_FUNC_TAOS_FORBID
+    #define wchar_t WCHAR_T_TYPE_TAOS_FORBID
 #endif
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)

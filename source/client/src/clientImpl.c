@@ -95,7 +95,7 @@ TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, 
   char*          key = getClusterKey(user, secretEncrypt, ip, port);
   SAppInstInfo** pInst = NULL;
 
-  pthread_mutex_lock(&appInfo.mutex);
+  taosThreadMutexLock(&appInfo.mutex);
 
   pInst = taosHashGet(appInfo.pInstMap, key, strlen(key));
   SAppInstInfo* p = NULL;
@@ -109,7 +109,7 @@ TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, 
     pInst = &p;
   }
 
-  pthread_mutex_unlock(&appInfo.mutex);
+  taosThreadMutexUnlock(&appInfo.mutex);
 
   tfree(key);
   return taosConnectImpl(user, &secretEncrypt[0], localDb, NULL, NULL, *pInst);
@@ -137,13 +137,14 @@ int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj*
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t parseSql(SRequestObj* pRequest, SQuery** pQuery) {
+int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery) {
   STscObj* pTscObj = pRequest->pTscObj;
 
   SParseContext cxt = {
       .requestId = pRequest->requestId,
       .acctId = pTscObj->acctId,
-      .db = getDbOfConnection(pTscObj),
+      .db = pRequest->pDb,
+      .topicQuery = topicQuery,
       .pSql = pRequest->sqlstr,
       .sqlLen = pRequest->sqlLen,
       .pMsg = pRequest->msgBuf,
@@ -154,7 +155,6 @@ int32_t parseSql(SRequestObj* pRequest, SQuery** pQuery) {
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
-    tfree(cxt.db);
     return code;
   }
 
@@ -163,7 +163,6 @@ int32_t parseSql(SRequestObj* pRequest, SQuery** pQuery) {
     setResSchemaInfo(&pRequest->body.resInfo, (*pQuery)->pResSchema, (*pQuery)->numOfResCols);
   }
 
-  tfree(cxt.db);
   return code;
 }
 
@@ -249,7 +248,7 @@ TAOS_RES* taos_query_l(TAOS* taos, const char* sql, int sqlLen) {
 
   terrno = TSDB_CODE_SUCCESS;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
-  CHECK_CODE_GOTO(parseSql(pRequest, &pQuery), _return);
+  CHECK_CODE_GOTO(parseSql(pRequest, false, &pQuery), _return);
 
   if (pQuery->directRpc) {
     CHECK_CODE_GOTO(execDdlQuery(pRequest, pQuery), _return);
@@ -592,21 +591,21 @@ void setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t 
 
 char* getDbOfConnection(STscObj* pObj) {
   char* p = NULL;
-  pthread_mutex_lock(&pObj->mutex);
+  taosThreadMutexLock(&pObj->mutex);
   size_t len = strlen(pObj->db);
   if (len > 0) {
     p = strndup(pObj->db, tListLen(pObj->db));
   }
 
-  pthread_mutex_unlock(&pObj->mutex);
+  taosThreadMutexUnlock(&pObj->mutex);
   return p;
 }
 
 void setConnectionDB(STscObj* pTscObj, const char* db) {
   assert(db != NULL && pTscObj != NULL);
-  pthread_mutex_lock(&pTscObj->mutex);
+  taosThreadMutexLock(&pTscObj->mutex);
   tstrncpy(pTscObj->db, db, tListLen(pTscObj->db));
-  pthread_mutex_unlock(&pTscObj->mutex);
+  taosThreadMutexUnlock(&pTscObj->mutex);
 }
 
 void setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp) {

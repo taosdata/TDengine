@@ -46,17 +46,19 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_NOT_SINGLE_GROUP:
       return "Not a single-group group function";
     case TSDB_CODE_PAR_TAGS_NOT_MATCHED:
-      return "tags number not matched";
+      return "Tags number not matched";
     case TSDB_CODE_PAR_INVALID_TAG_NAME:
-      return "invalid tag name : %s";
+      return "Invalid tag name : %s";
     case TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG:
-      return "name or password too long";
+      return "Name or password too long";
     case TSDB_CODE_PAR_PASSWD_EMPTY:
-      return "password can not be empty";
+      return "Password can not be empty";
     case TSDB_CODE_PAR_INVALID_PORT:
-      return "port should be an integer that is less than 65535 and greater than 0";
+      return "Port should be an integer that is less than 65535 and greater than 0";
     case TSDB_CODE_PAR_INVALID_ENDPOINT:
-      return "endpoint should be in the format of 'fqdn:port'";
+      return "Endpoint should be in the format of 'fqdn:port'";
+    case TSDB_CODE_PAR_EXPRIE_STATEMENT:
+      return "This statement is no longer supported";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:

@@ -33,8 +33,7 @@ typedef struct SDnode SDnode;
 int32_t dndInit();
 
 /**
- * @brief clear the environment
- *
+ * @brief Clear the environment
  */
 void dndCleanup();
 
@@ -42,22 +41,24 @@ void dndCleanup();
 typedef struct {
   int32_t   numOfSupportVnodes;
   uint16_t  serverPort;
-  char      dataDir[TSDB_FILENAME_LEN];
+  char      dataDir[PATH_MAX];
   char      localEp[TSDB_EP_LEN];
   char      localFqdn[TSDB_FQDN_LEN];
   char      firstEp[TSDB_EP_LEN];
   char      secondEp[TSDB_EP_LEN];
   SDiskCfg *pDisks;
   int32_t   numOfDisks;
-} SDnodeObjCfg;
+} SDnodeOpt;
+
+typedef enum { DND_EVENT_START, DND_EVENT_STOP = 1, DND_EVENT_RELOAD } EDndEvent;
 
 /**
  * @brief Initialize and start the dnode.
  *
- * @param pCfg Config of the dnode.
+ * @param pOption Option of the dnode.
  * @return SDnode* The dnode object.
  */
-SDnode *dndCreate(SDnodeObjCfg *pCfg);
+SDnode *dndCreate(const SDnodeOpt *pOption);
 
 /**
  * @brief Stop and cleanup the dnode.
@@ -65,6 +66,21 @@ SDnode *dndCreate(SDnodeObjCfg *pCfg);
  * @param pDnode The dnode object to close.
  */
 void dndClose(SDnode *pDnode);
+
+/**
+ * @brief Run dnode until specific event is receive.
+ *
+ * @param pDnode The dnode object to run.
+ */
+int32_t dndRun(SDnode *pDnode);
+
+/**
+ * @brief Handle event in the dnode.
+ *
+ * @param pDnode The dnode object to close.
+ * @param event The event to handle.
+ */
+void dndHandleEvent(SDnode *pDnode, EDndEvent event);
 
 #ifdef __cplusplus
 }

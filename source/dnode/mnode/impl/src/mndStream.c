@@ -32,12 +32,12 @@
 static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pStream, SStreamObj *pNewStream);
-static int32_t mndProcessCreateStreamReq(SMnodeMsg *pReq);
-/*static int32_t mndProcessDropStreamReq(SMnodeMsg *pReq);*/
-/*static int32_t mndProcessDropStreamInRsp(SMnodeMsg *pRsp);*/
-static int32_t mndProcessStreamMetaReq(SMnodeMsg *pReq);
-static int32_t mndGetStreamMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t mndRetrieveStream(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t mndProcessCreateStreamReq(SNodeMsg *pReq);
+/*static int32_t mndProcessDropStreamReq(SNodeMsg *pReq);*/
+/*static int32_t mndProcessDropStreamInRsp(SNodeMsg *pRsp);*/
+static int32_t mndProcessStreamMetaReq(SNodeMsg *pReq);
+static int32_t mndGetStreamMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t mndRetrieveStream(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextStream(SMnode *pMnode, void *pIter);
 
 int32_t mndInitStream(SMnode *pMnode) {
@@ -209,7 +209,7 @@ static int32_t mndCheckCreateStreamReq(SCMCreateStreamReq *pCreate) {
   return 0;
 }
 
-static int32_t mndCreateStream(SMnode *pMnode, SMnodeMsg *pReq, SCMCreateStreamReq *pCreate, SDbObj *pDb) {
+static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamReq *pCreate, SDbObj *pDb) {
   mDebug("stream:%s to create", pCreate->name);
   SStreamObj streamObj = {0};
   tstrncpy(streamObj.name, pCreate->name, TSDB_STREAM_FNAME_LEN);
@@ -220,8 +220,8 @@ static int32_t mndCreateStream(SMnode *pMnode, SMnodeMsg *pReq, SCMCreateStreamR
   streamObj.dbUid = pDb->uid;
   streamObj.version = 1;
   streamObj.sql = pCreate->sql;
-  streamObj.physicalPlan = pCreate->physicalPlan;
-  streamObj.logicalPlan = pCreate->logicalPlan;
+  streamObj.physicalPlan = "";
+  streamObj.logicalPlan = "";
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_STREAM, &pReq->rpcMsg);
   if (pTrans == NULL) {
@@ -254,8 +254,8 @@ static int32_t mndCreateStream(SMnode *pMnode, SMnodeMsg *pReq, SCMCreateStreamR
   return 0;
 }
 
-static int32_t mndProcessCreateStreamReq(SMnodeMsg *pReq) {
-  SMnode            *pMnode = pReq->pMnode;
+static int32_t mndProcessCreateStreamReq(SNodeMsg *pReq) {
+  SMnode            *pMnode = pReq->pNode;
   int32_t            code = -1;
   SStreamObj        *pStream = NULL;
   SDbObj            *pDb = NULL;
@@ -346,8 +346,8 @@ static int32_t mndGetNumOfStreams(SMnode *pMnode, char *dbName, int32_t *pNumOfS
   return 0;
 }
 
-static int32_t mndGetStreamMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
-  SMnode *pMnode = pReq->pMnode;
+static int32_t mndGetStreamMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+  SMnode *pMnode = pReq->pNode;
   SSdb   *pSdb = pMnode->pSdb;
 
   if (mndGetNumOfStreams(pMnode, pShow->db, &pShow->numOfRows) != 0) {
@@ -390,8 +390,8 @@ static int32_t mndGetStreamMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp 
   return 0;
 }
 
-static int32_t mndRetrieveStream(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode     *pMnode = pReq->pMnode;
+static int32_t mndRetrieveStream(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+  SMnode     *pMnode = pReq->pNode;
   SSdb       *pSdb = pMnode->pSdb;
   int32_t     numOfRows = 0;
   SStreamObj *pStream = NULL;

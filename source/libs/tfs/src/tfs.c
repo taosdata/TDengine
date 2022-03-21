@@ -36,7 +36,7 @@ STfs *tfsOpen(SDiskCfg *pCfg, int32_t ndisk) {
     return NULL;
   }
 
-  if (pthread_spin_init(&pTfs->lock, 0) != 0) {
+  if (taosThreadSpinInit(&pTfs->lock, 0) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     tfsClose(pTfs);
     return NULL;
@@ -85,7 +85,7 @@ void tfsClose(STfs *pTfs) {
   }
 
   taosHashCleanup(pTfs->hash);
-  pthread_spin_destroy(&pTfs->lock);
+  taosThreadSpinDestroy(&pTfs->lock);
   free(pTfs);
 }
 
@@ -395,7 +395,7 @@ static int32_t tfsMount(STfs *pTfs, SDiskCfg *pCfg) {
 }
 
 static int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
-  char        dirName[TSDB_FILENAME_LEN] = "\0";
+  char dirName[TSDB_FILENAME_LEN] = "\0";
 
   if (pCfg->level < 0 || pCfg->level >= TFS_MAX_TIERS) {
     fError("failed to mount %s to FS since invalid level %d", pCfg->dir, pCfg->level);

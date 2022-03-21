@@ -45,8 +45,8 @@ typedef struct {
 } SRefSet;
 
 static SRefSet         tsRefSetList[TSDB_REF_OBJECTS];
-static pthread_once_t  tsRefModuleInit = PTHREAD_ONCE_INIT;
-static pthread_mutex_t tsRefMutex;
+static TdThreadOnce  tsRefModuleInit = PTHREAD_ONCE_INIT;
+static TdThreadMutex tsRefMutex;
 static int32_t         tsRefSetNum = 0;
 static int32_t         tsNextId = 0;
 
@@ -63,7 +63,7 @@ int32_t taosOpenRef(int32_t max, void (*fp)(void *)) {
   int64_t   *lockedBy;
   int32_t    i, rsetId;
 
-  pthread_once(&tsRefModuleInit, taosInitRefModule);
+  taosThreadOnce(&tsRefModuleInit, taosInitRefModule);
 
   nodeList = calloc(sizeof(SRefNode *), (size_t)max);
   if (nodeList == NULL) {
@@ -78,7 +78,7 @@ int32_t taosOpenRef(int32_t max, void (*fp)(void *)) {
     return -1;
   }
 
-  pthread_mutex_lock(&tsRefMutex);
+  taosThreadMutexLock(&tsRefMutex);
 
   for (i = 0; i < TSDB_REF_OBJECTS; ++i) {
     tsNextId = (tsNextId + 1) % TSDB_REF_OBJECTS;
@@ -107,7 +107,7 @@ int32_t taosOpenRef(int32_t max, void (*fp)(void *)) {
     uTrace("run out of Ref ID, maximum:%d refSetNum:%d", TSDB_REF_OBJECTS, tsRefSetNum);
   }
 
-  pthread_mutex_unlock(&tsRefMutex);
+  taosThreadMutexUnlock(&tsRefMutex);
 
   return rsetId;
 }
@@ -124,7 +124,7 @@ int32_t taosCloseRef(int32_t rsetId) {
 
   pSet = tsRefSetList + rsetId;
 
-  pthread_mutex_lock(&tsRefMutex);
+  taosThreadMutexLock(&tsRefMutex);
 
   if (pSet->state == TSDB_REF_STATE_ACTIVE) {
     pSet->state = TSDB_REF_STATE_DELETED;
@@ -134,7 +134,7 @@ int32_t taosCloseRef(int32_t rsetId) {
     uTrace("rsetId:%d is already closed, count:%d", rsetId, pSet->count);
   }
 
-  pthread_mutex_unlock(&tsRefMutex);
+  taosThreadMutexUnlock(&tsRefMutex);
 
   if (deleted) taosDecRsetCount(pSet);
 
@@ -354,7 +354,7 @@ int32_t taosListRef() {
   SRefNode *pNode;
   int32_t   num = 0;
 
-  pthread_mutex_lock(&tsRefMutex);
+  taosThreadMutexLock(&tsRefMutex);
 
   for (int32_t i = 0; i < TSDB_REF_OBJECTS; ++i) {
     pSet = tsRefSetList + i;
@@ -374,7 +374,7 @@ int32_t taosListRef() {
     }
   }
 
-  pthread_mutex_unlock(&tsRefMutex);
+  taosThreadMutexUnlock(&tsRefMutex);
 
   return num;
 }
@@ -470,7 +470,7 @@ static void taosUnlockList(int64_t *lockedBy) {
   }
 }
 
-static void taosInitRefModule(void) { pthread_mutex_init(&tsRefMutex, NULL); }
+static void taosInitRefModule(void) { taosThreadMutexInit(&tsRefMutex, NULL); }
 
 static void taosIncRsetCount(SRefSet *pSet) {
   atomic_add_fetch_32(&pSet->count, 1);
@@ -483,7 +483,7 @@ static void taosDecRsetCount(SRefSet *pSet) {
 
   if (count > 0) return;
 
-  pthread_mutex_lock(&tsRefMutex);
+  taosThreadMutexLock(&tsRefMutex);
 
   if (pSet->state != TSDB_REF_STATE_EMPTY) {
     pSet->state = TSDB_REF_STATE_EMPTY;
@@ -497,5 +497,5 @@ static void taosDecRsetCount(SRefSet *pSet) {
     uTrace("rsetId:%d is cleaned, refSetNum:%d count:%d", pSet->rsetId, tsRefSetNum, pSet->count);
   }
 
-  pthread_mutex_unlock(&tsRefMutex);
+  taosThreadMutexUnlock(&tsRefMutex);
 }

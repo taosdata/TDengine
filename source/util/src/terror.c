@@ -84,6 +84,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_PARA,                 "Invalid parameters")
 TAOS_DEFINE_ERROR(TSDB_CODE_REPEAT_INIT,                  "Repeat initialization")
 TAOS_DEFINE_ERROR(TSDB_CODE_CFG_NOT_FOUND,                "Config not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CFG,                  "Invalid config option")
+TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_SHM_MEM,               "Out of Share memory")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_NO_MEMORY,                "Ref out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_FULL,                     "too many Ref Objs")
@@ -273,33 +274,13 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_UNSUPPORTED_TOPIC,        "Topic with aggregatio
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_ACTION_IN_PROGRESS,       "Action in progress")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_OFFLINE,                  "Dnode is offline")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_INVALID_MSG_LEN,          "Invalid message length")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_DNODE_READ_FILE_ERROR,    "Read dnode.json error")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_DNODE_WRITE_FILE_ERROR,   "Write dnode.json error")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_MNODE_ALREADY_DEPLOYED,   "Mnode already deployed")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_MNODE_NOT_DEPLOYED,       "Mnode not deployed")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_MNODE_INVALID_OPTION,     "Mnode option invalid")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_MNODE_READ_FILE_ERROR,    "Read mnode.json error")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_MNODE_WRITE_FILE_ERROR,   "Write mnode.json error")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_QNODE_ALREADY_DEPLOYED,   "Qnode already deployed")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_QNODE_NOT_DEPLOYED,       "Qnode not deployed")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_QNODE_INVALID_OPTION,     "Qnode option invalid")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_QNODE_READ_FILE_ERROR,    "Read qnode.json error")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_QNODE_WRITE_FILE_ERROR,   "Write qnode.json error")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_SNODE_ALREADY_DEPLOYED,   "Snode already deployed")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_SNODE_NOT_DEPLOYED,       "Snode not deployed")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_SNODE_INVALID_OPTION,     "Snode option invalid")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_SNODE_READ_FILE_ERROR,    "Read snode.json error")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_SNODE_WRITE_FILE_ERROR,   "Write snode.json error")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_BNODE_ALREADY_DEPLOYED,   "Bnode already deployed")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_BNODE_NOT_DEPLOYED,       "Bnode not deployed")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_BNODE_INVALID_OPTION,     "Bnode option invalid")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_BNODE_READ_FILE_ERROR,    "Read bnode.json error")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_BNODE_WRITE_FILE_ERROR,   "Write bnode.json error")
+TAOS_DEFINE_ERROR(TSDB_CODE_NODE_ALREADY_DEPLOYED,        "Node already deployed")
+TAOS_DEFINE_ERROR(TSDB_CODE_NODE_NOT_DEPLOYED,            "Node not deployed")
+TAOS_DEFINE_ERROR(TSDB_CODE_NODE_PARSE_FILE_ERROR,        "Invalid json format")
+TAOS_DEFINE_ERROR(TSDB_CODE_NODE_INVALID_OPTION,          "Invalid node option")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED,   "Vnode already deployed")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_VNODE_NOT_DEPLOYED,       "Vnode not deployed")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_VNODE_INVALID_OPTION,     "Vnode option invalid")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_VNODE_READ_FILE_ERROR,    "Read vnodes.json error")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_VNODE_WRITE_FILE_ERROR,   "Write vnodes.json error")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_VNODE_TOO_MANY_VNODES,    "Too many vnodes")
 
 // vnode
@@ -455,14 +436,14 @@ static int32_t taosCompareTaosError(const void* a, const void* b) {
   return 0;
 }
 
-static pthread_once_t tsErrorInit = PTHREAD_ONCE_INIT;
+static TdThreadOnce tsErrorInit = PTHREAD_ONCE_INIT;
 
 static void tsSortError(void) {
   qsort(errors, sizeof(errors) / sizeof(errors[0]), sizeof(errors[0]), taosCompareTaosError);
 }
 
 const char* tstrerror(int32_t err) {
-  pthread_once(&tsErrorInit, tsSortError);
+  taosThreadOnce(&tsErrorInit, tsSortError);
 
   // this is a system errno
   if ((err & 0x00ff0000) == 0x00ff0000) {

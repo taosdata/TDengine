@@ -45,8 +45,8 @@ typedef struct {
   int32_t         minBuffSize;
   TdFilePtr       pFile;
   int32_t         stop;
-  pthread_t       asyncThread;
-  pthread_mutex_t buffMutex;
+  TdThread       asyncThread;
+  TdThreadMutex buffMutex;
   tsem_t          buffNotEmpty;
 } SLogBuff;
 
@@ -59,7 +59,7 @@ typedef struct {
   pid_t           pid;
   char            logName[LOG_FILE_NAME_LEN];
   SLogBuff       *logHandle;
-  pthread_mutex_t logMutex;
+  TdThreadMutex logMutex;
 } SLogObj;
 
 static int8_t  tsLogInited = 0;
@@ -107,12 +107,12 @@ static int32_t   taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum)
 static int32_t   taosCompressFile(char *srcFileName, char *destFileName);
 
 static int32_t taosStartLog() {
-  pthread_attr_t threadAttr;
-  pthread_attr_init(&threadAttr);
-  if (pthread_create(&(tsLogObj.logHandle->asyncThread), &threadAttr, taosAsyncOutputLog, tsLogObj.logHandle) != 0) {
+  TdThreadAttr threadAttr;
+  taosThreadAttrInit(&threadAttr);
+  if (taosThreadCreate(&(tsLogObj.logHandle->asyncThread), &threadAttr, taosAsyncOutputLog, tsLogObj.logHandle) != 0) {
     return -1;
   }
-  pthread_attr_destroy(&threadAttr);
+  taosThreadAttrDestroy(&threadAttr);
   return 0;
 }
 
@@ -139,8 +139,9 @@ static void taosStopLog() {
 void taosCloseLog() {
   taosStopLog();
   if (taosCheckPthreadValid(tsLogObj.logHandle->asyncThread)) {
-    pthread_join(tsLogObj.logHandle->asyncThread, NULL);
+    taosThreadJoin(tsLogObj.logHandle->asyncThread, NULL);
   }
+  tsLogInited = 0;
   // In case that other threads still use log resources causing invalid write in valgrind
   // we comment two lines below.
   // taosLogBuffDestroy(tsLogObj.logHandle);
@@ -223,22 +224,22 @@ static void *taosThreadToOpenNewFile(void *param) {
 }
 
 static int32_t taosOpenNewLogFile() {
-  pthread_mutex_lock(&tsLogObj.logMutex);
+  taosThreadMutexLock(&tsLogObj.logMutex);
 
   if (tsLogObj.lines > tsLogObj.maxLines && tsLogObj.openInProgress == 0) {
     tsLogObj.openInProgress = 1;
 
     uInfo("open new log file ......");
-    pthread_t      thread;
-    pthread_attr_t attr;
-    pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    TdThread      thread;
+    TdThreadAttr attr;
+    taosThreadAttrInit(&attr);
+    taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_DETACHED);
 
-    pthread_create(&thread, &attr, taosThreadToOpenNewFile, NULL);
-    pthread_attr_destroy(&attr);
+    taosThreadCreate(&thread, &attr, taosThreadToOpenNewFile, NULL);
+    taosThreadAttrDestroy(&attr);
   }
 
-  pthread_mutex_unlock(&tsLogObj.logMutex);
+  taosThreadMutexUnlock(&tsLogObj.logMutex);
 
   return 0;
 }
@@ -343,7 +344,7 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
 
   char fileName[LOG_FILE_NAME_LEN + 50] = "\0";
   sprintf(fileName, "%s.%d", tsLogObj.logName, tsLogObj.flag);
-  pthread_mutex_init(&tsLogObj.logMutex, NULL);
+  taosThreadMutexInit(&tsLogObj.logMutex, NULL);
 
   taosUmaskFile(0);
   tsLogObj.logHandle->pFile = taosOpenFile(fileName, TD_FILE_CTEATE | TD_FILE_WRITE);
@@ -517,7 +518,7 @@ static SLogBuff *taosLogBuffNew(int32_t bufSize) {
   tLogBuff->minBuffSize = bufSize / 10;
   tLogBuff->stop = 0;
 
-  if (pthread_mutex_init(&LOG_BUF_MUTEX(tLogBuff), NULL) < 0) goto _err;
+  if (taosThreadMutexInit(&LOG_BUF_MUTEX(tLogBuff), NULL) < 0) goto _err;
   // tsem_init(&(tLogBuff->buffNotEmpty), 0, 0);
 
   return tLogBuff;
@@ -552,7 +553,7 @@ static int32_t taosPushLogBuffer(SLogBuff *tLogBuff, const char *msg, int32_t ms
 
   if (tLogBuff == NULL || tLogBuff->stop) return -1;
 
-  pthread_mutex_lock(&LOG_BUF_MUTEX(tLogBuff));
+  taosThreadMutexLock(&LOG_BUF_MUTEX(tLogBuff));
   start = LOG_BUF_START(tLogBuff);
   end = LOG_BUF_END(tLogBuff);
 
@@ -566,7 +567,7 @@ static int32_t taosPushLogBuffer(SLogBuff *tLogBuff, const char *msg, int32_t ms
   if (remainSize <= msgLen || ((lostLine > 0) && (remainSize <= (msgLen + tmpBufLen)))) {
     lostLine++;
     tsAsyncLogLostLines++;
-    pthread_mutex_unlock(&LOG_BUF_MUTEX(tLogBuff));
+    taosThreadMutexUnlock(&LOG_BUF_MUTEX(tLogBuff));
     return -1;
   }
 
@@ -587,7 +588,7 @@ static int32_t taosPushLogBuffer(SLogBuff *tLogBuff, const char *msg, int32_t ms
   }
   */
 
-  pthread_mutex_unlock(&LOG_BUF_MUTEX(tLogBuff));
+  taosThreadMutexUnlock(&LOG_BUF_MUTEX(tLogBuff));
 
   return 0;
 }

@@ -49,7 +49,7 @@ typedef struct {
   int64_t   startMs;
   int64_t   maxDelay;
   int64_t   minDelay;
-  pthread_t thread;
+  TdThread thread;
 } SThreadInfo;
 
 // void  parseArgument(int32_t argc, char *argv[]);
@@ -400,9 +400,9 @@ int32_t main(int32_t argc, char *argv[]) {
   pPrint("%d threads are spawned to create %" PRId64 " tables, offset is %" PRId64 " ", numOfThreads, numOfTables,
          startOffset);
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
-  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
+  taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
   SThreadInfo *pInfo = (SThreadInfo *)calloc(numOfThreads, sizeof(SThreadInfo));
 
   // int64_t numOfTablesPerThread = numOfTables / numOfThreads;
@@ -430,12 +430,12 @@ int32_t main(int32_t argc, char *argv[]) {
     pInfo[i].minDelay = INT64_MAX;
     strcpy(pInfo[i].dbName, dbName);
     strcpy(pInfo[i].stbName, stbName);
-    pthread_create(&(pInfo[i].thread), &thattr, threadFunc, (void *)(pInfo + i));
+    taosThreadCreate(&(pInfo[i].thread), &thattr, threadFunc, (void *)(pInfo + i));
   }
 
   taosMsleep(300);
   for (int32_t i = 0; i < numOfThreads; i++) {
-    pthread_join(pInfo[i].thread, NULL);
+    taosThreadJoin(pInfo[i].thread, NULL);
   }
 
   int64_t maxDelay = 0;
@@ -465,6 +465,6 @@ int32_t main(int32_t argc, char *argv[]) {
            numOfThreads, NC);
   }
 
-  pthread_attr_destroy(&thattr);
+  taosThreadAttrDestroy(&thattr);
   free(pInfo);
 }

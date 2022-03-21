@@ -14,6 +14,10 @@
  */
 #ifdef USE_UV
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <uv.h>
 #include "lz4.h"
 #include "os.h"
@@ -121,24 +125,21 @@ typedef struct {
 } SRpcReqContext;
 
 typedef SRpcMsg      STransMsg;
+typedef SRpcCtx      STransCtx;
+typedef SRpcCtxVal   STransCtxVal;
 typedef SRpcInfo     STrans;
 typedef SRpcConnInfo STransHandleInfo;
 
 typedef struct {
-  SEpSet   epSet;    // ip list provided by app
-  void*    ahandle;  // handle provided by app
-  tmsg_t   msgType;  // message type
-  uint8_t* pCont;    // content provided by app
-  int32_t  contLen;  // content length
-  // int32_t  code;     // error code
-  // int16_t  numOfTry;  // number of try for different servers
-  // int8_t   oldInUse;  // server EP inUse passed by app
-  // int8_t   redirect;  // flag to indicate redirect
+  SEpSet  epSet;     // ip list provided by app
+  void*   ahandle;   // handle provided by app
+  tmsg_t  msgType;   // message type
   int8_t  connType;  // connection type cli/srv
   int64_t rid;       // refId returned by taosAddRef
 
-  STransMsg* pRsp;  // for synchronous API
-  tsem_t*    pSem;  // for synchronous API
+  STransCtx  appCtx;  //
+  STransMsg* pRsp;    // for synchronous API
+  tsem_t*    pSem;    // for synchronous API
 
   int      hThrdIdx;
   char*    ip;
@@ -150,11 +151,12 @@ typedef struct {
 
 typedef struct {
   char version : 4;  // RPC version
-  char comp : 4;     // compression algorithm, 0:no compression 1:lz4
-  char resflag : 2;  // reserved bits
-  char spi : 1;      // security parameter index
+  char comp : 2;     // compression algorithm, 0:no compression 1:lz4
+  char noResp : 2;   // noResp bits, 0: resp, 1: resp
+  char persist : 2;  // persist handle,0: no persit, 1: persist handle
+  char release : 2;
   char secured : 2;
-  char encrypt : 3;  // encrypt algorithm, 0: no encryption
+  char spi : 2;
 
   uint32_t code;  // del later
   uint32_t msgType;
@@ -178,6 +180,9 @@ typedef struct {
 } STransUserMsg;
 
 #pragma pack(pop)
+
+typedef enum { Normal, Quit, Release, Register } STransMsgType;
+typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken } ConnStatus;
 
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
 #define RPC_RESERVE_SIZE (sizeof(STranConnCtx))
@@ -223,9 +228,9 @@ typedef struct SConnBuffer {
 typedef void (*AsyncCB)(uv_async_t* handle);
 
 typedef struct {
-  void*           pThrd;
-  queue           qmsg;
-  pthread_mutex_t mtx;  // protect qmsg;
+  void*         pThrd;
+  queue         qmsg;
+  TdThreadMutex mtx;  // protect qmsg;
 } SAsyncItem;
 
 typedef struct {
@@ -255,9 +260,10 @@ void transUnrefCliHandle(void* handle);
 void transReleaseCliHandle(void* handle);
 void transReleaseSrvHandle(void* handle);
 
-void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg);
+void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg, STransCtx* pCtx);
 void transSendRecv(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg, STransMsg* pRsp);
-void transSendResponse(const STransMsg* pMsg);
+void transSendResponse(const STransMsg* msg);
+void transRegisterMsg(const STransMsg* msg);
 int  transGetConnInfo(void* thandle, STransHandleInfo* pInfo);
 
 void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
@@ -265,5 +271,56 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
 void transCloseClient(void* arg);
 void transCloseServer(void* arg);
+
+void  transCtxInit(STransCtx* ctx);
+void  transCtxCleanup(STransCtx* ctx);
+void  transCtxClear(STransCtx* ctx);
+void  transCtxMerge(STransCtx* dst, STransCtx* src);
+void* transCtxDumpVal(STransCtx* ctx, int32_t key);
+
+// queue sending msgs
+typedef struct {
+  SArray* q;
+  void (*free)(void* arg);
+} STransQueue;
+
+/*
+ * init queue
+ * note: queue'size is small, default 1
+ */
+void transQueueInit(STransQueue* queue, void (*free)(void* arg));
+
+/*
+ * put arg into queue
+ * if queue'size > 1, return false; else return true
+ */
+bool transQueuePush(STransQueue* queue, void* arg);
+/*
+ * pop head from queue
+ */
+
+void* transQueuePop(STransQueue* queue);
+/*
+ * get head from queue
+ */
+void* transQueueGet(STransQueue* queue);
+
+/*
+ * queue empty or not
+ */
+
+bool transQueueEmpty(STransQueue* queue);
+/*
+ * clear queue
+ */
+void transQueueClear(STransQueue* queue);
+/*
+ * destroy queue
+ */
+void transQueueDestroy(STransQueue* queue);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
