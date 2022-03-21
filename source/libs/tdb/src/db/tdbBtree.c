@@ -385,6 +385,9 @@ static int tdbBtreeInitPage(SPage *pPage, void *arg) {
 
   pBt = (SBTree *)arg;
 
+  ASSERT(0);
+
+  // TODO: here has problem
   flags = TDB_PAGE_FLAGS(pPage);
   isLeaf = TDB_BTREE_PAGE_IS_LEAF(flags);
   if (isLeaf) {
@@ -430,8 +433,8 @@ static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
   }
   pPage->xCellSize = NULL;  // TODO
 
-  TDB_PAGE_FLAGS_SET(pPage, flags);
   tdbPageZero(pPage, szAmHdr);
+  TDB_PAGE_FLAGS_SET(pPage, flags);
 
   if (isLeaf) {
     pPage->kLen = pBt->keyLen;
