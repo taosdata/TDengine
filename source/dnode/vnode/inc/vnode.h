@@ -62,6 +62,7 @@ typedef struct {
 typedef struct {
   uint16_t       nthreads;  // number of commit threads. 0 for no threads and a schedule queue should be given (TODO)
   PutToQueueFp   putToQueryQFp;
+  PutToQueueFp   putToFetchQFp;
   SendReqFp      sendReqFp;
   SendMnodeReqFp sendMnodeReqFp;
   SendRspFp      sendRspFp;
