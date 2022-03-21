@@ -308,7 +308,7 @@ int32_t qwtExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
 
     if (qwtTestEnableSleep) {
       if (runTime) {
-        usleep(runTime);
+        taosUsleep(runTime);
       }
     }
       
@@ -590,7 +590,7 @@ void *queryThread(void *param) {
     qwtBuildQueryReqMsg(&queryRpc);
     qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc);    
     if (qwtTestEnableSleep) {
-      usleep(taosRand()%5);
+      taosUsleep(taosRand()%5);
     }
     if (++n % qwtTestPrintNum == 0) {
       printf("query:%d\n", n);
@@ -612,7 +612,7 @@ void *readyThread(void *param) {
     qwtBuildReadyReqMsg(&readyMsg, &readyRpc);
     code = qWorkerProcessReadyMsg(mockPointer, mgmt, &readyRpc);
     if (qwtTestEnableSleep) {
-      usleep(taosRand()%5);
+      taosUsleep(taosRand()%5);
     }
     if (++n % qwtTestPrintNum == 0) {
       printf("ready:%d\n", n);
@@ -634,7 +634,7 @@ void *fetchThread(void *param) {
     qwtBuildFetchReqMsg(&fetchMsg, &fetchRpc);
     code = qWorkerProcessFetchMsg(mockPointer, mgmt, &fetchRpc);
     if (qwtTestEnableSleep) {
-      usleep(taosRand()%5);
+      taosUsleep(taosRand()%5);
     }
     if (++n % qwtTestPrintNum == 0) {
       printf("fetch:%d\n", n);
@@ -656,7 +656,7 @@ void *dropThread(void *param) {
     qwtBuildDropReqMsg(&dropMsg, &dropRpc);
     code = qWorkerProcessDropMsg(mockPointer, mgmt, &dropRpc);
     if (qwtTestEnableSleep) {
-      usleep(taosRand()%5);
+      taosUsleep(taosRand()%5);
     }
     if (++n % qwtTestPrintNum == 0) {
       printf("drop:%d\n", n);
@@ -678,7 +678,7 @@ void *statusThread(void *param) {
     qwtBuildStatusReqMsg(&statusMsg, &statusRpc);
     code = qWorkerProcessStatusMsg(mockPointer, mgmt, &statusRpc);
     if (qwtTestEnableSleep) {
-      usleep(taosRand()%5);
+      taosUsleep(taosRand()%5);
     }
     if (++n % qwtTestPrintNum == 0) {
       printf("status:%d\n", n);
@@ -696,7 +696,7 @@ void *qwtclientThread(void *param) {
   void *mockPointer = (void *)0x1;    
   SRpcMsg queryRpc = {0};
 
-  sleep(1);
+  taosSsleep(1);
 
   while (!qwtTestStop) {
     qwtTestCaseFinished = false;
@@ -705,7 +705,7 @@ void *qwtclientThread(void *param) {
     qwtPutReqToQueue((void *)0x1, &queryRpc);
 
     while (!qwtTestCaseFinished) {
-      usleep(1);
+      taosUsleep(1);
     }
     
     
@@ -751,7 +751,7 @@ void *queryQueueThread(void *param) {
       int32_t delay = taosRand() % qwtTestReqMaxDelayUsec;
 
       if (delay) {
-        usleep(delay);
+        taosUsleep(delay);
       }
     }
     
@@ -807,7 +807,7 @@ void *fetchQueueThread(void *param) {
       int32_t delay = taosRand() % qwtTestReqMaxDelayUsec;
 
       if (delay) {
-        usleep(delay);
+        taosUsleep(delay);
       }
     }
 
@@ -963,7 +963,7 @@ TEST(seqTest, randCase) {
   stubSetRpcSendResponse();
   stubSetCreateExecTask();
 
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
   
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue);
   ASSERT_EQ(code, 0);
@@ -982,21 +982,21 @@ TEST(seqTest, randCase) {
       qwtBuildReadyReqMsg(&readyMsg, &readyRpc);
       code = qWorkerProcessReadyMsg(mockPointer, mgmt, &readyRpc);
       if (qwtTestEnableSleep) {
-        usleep(1);
+        taosUsleep(1);
       }
     } else if (r >= maxr * 2/5 && r < maxr* 3/5) {
       printf("Fetch,%d\n", t++);
       qwtBuildFetchReqMsg(&fetchMsg, &fetchRpc);
       code = qWorkerProcessFetchMsg(mockPointer, mgmt, &fetchRpc);
       if (qwtTestEnableSleep) {
-        usleep(1);
+        taosUsleep(1);
       }
     } else if (r >= maxr * 3/5 && r < maxr * 4/5) {
       printf("Drop,%d\n", t++);
       qwtBuildDropReqMsg(&dropMsg, &dropRpc);
       code = qWorkerProcessDropMsg(mockPointer, mgmt, &dropRpc);
       if (qwtTestEnableSleep) {
-        usleep(1);
+        taosUsleep(1);
       }
     } else if (r >= maxr * 4/5 && r < maxr-1) {
       printf("Status,%d\n", t++);
@@ -1004,7 +1004,7 @@ TEST(seqTest, randCase) {
       code = qWorkerProcessStatusMsg(mockPointer, mgmt, &statusRpc);
       ASSERT_EQ(code, 0);
       if (qwtTestEnableSleep) {
-        usleep(1);
+        taosUsleep(1);
       }      
     } else {
       printf("QUIT RAND NOW");
@@ -1025,32 +1025,32 @@ TEST(seqTest, multithreadRand) {
   stubSetStringToPlan();
   stubSetRpcSendResponse();
 
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
   
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue);
   ASSERT_EQ(code, 0);
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
 
-  pthread_t t1,t2,t3,t4,t5;
-  pthread_create(&(t1), &thattr, queryThread, mgmt);
-  pthread_create(&(t2), &thattr, readyThread, NULL);
-  pthread_create(&(t3), &thattr, fetchThread, NULL);
-  pthread_create(&(t4), &thattr, dropThread, NULL);
-  pthread_create(&(t5), &thattr, statusThread, NULL);
+  TdThread t1,t2,t3,t4,t5;
+  taosThreadCreate(&(t1), &thattr, queryThread, mgmt);
+  taosThreadCreate(&(t2), &thattr, readyThread, NULL);
+  taosThreadCreate(&(t3), &thattr, fetchThread, NULL);
+  taosThreadCreate(&(t4), &thattr, dropThread, NULL);
+  taosThreadCreate(&(t5), &thattr, statusThread, NULL);
 
   while (true) {
     if (qwtTestDeadLoop) {
-      sleep(1);
+      taosSsleep(1);
     } else {
-      sleep(qwtTestMTRunSec);
+      taosSsleep(qwtTestMTRunSec);
       break;
     }
   }
   
   qwtTestStop = true;
-  sleep(3);
+  taosSsleep(3);
   
   qWorkerDestroy(&mgmt);
 }
@@ -1076,7 +1076,7 @@ TEST(rcTest, shortExecshortDelay) {
   stubSetPutDataBlock();
   stubSetGetDataBlock();
 
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
   qwtTestStop = false;
   qwtTestQuitThreadNum = 0;
 
@@ -1089,19 +1089,19 @@ TEST(rcTest, shortExecshortDelay) {
   tsem_init(&qwtTestQuerySem, 0, 0);
   tsem_init(&qwtTestFetchSem, 0, 0);
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
 
-  pthread_t t1,t2,t3,t4,t5;
-  pthread_create(&(t1), &thattr, qwtclientThread, mgmt);
-  pthread_create(&(t2), &thattr, queryQueueThread, mgmt);
-  pthread_create(&(t3), &thattr, fetchQueueThread, mgmt);
+  TdThread t1,t2,t3,t4,t5;
+  taosThreadCreate(&(t1), &thattr, qwtclientThread, mgmt);
+  taosThreadCreate(&(t2), &thattr, queryQueueThread, mgmt);
+  taosThreadCreate(&(t3), &thattr, fetchQueueThread, mgmt);
 
   while (true) {
     if (qwtTestDeadLoop) {
-      sleep(1);
+      taosSsleep(1);
     } else {
-      sleep(qwtTestMTRunSec);
+      taosSsleep(qwtTestMTRunSec);
       break;
     }
   }
@@ -1113,14 +1113,14 @@ TEST(rcTest, shortExecshortDelay) {
       break;
     }
     
-    sleep(1);
+    taosSsleep(1);
 
     if (qwtTestCaseFinished) {
       if (qwtTestQuitThreadNum < 3) { 
         tsem_post(&qwtTestQuerySem);
         tsem_post(&qwtTestFetchSem);
 
-        usleep(10);
+        taosUsleep(10);
       }
     }
     
@@ -1157,7 +1157,7 @@ TEST(rcTest, longExecshortDelay) {
   stubSetPutDataBlock();
   stubSetGetDataBlock();
 
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
   qwtTestStop = false;
   qwtTestQuitThreadNum = 0;
 
@@ -1170,19 +1170,19 @@ TEST(rcTest, longExecshortDelay) {
   tsem_init(&qwtTestQuerySem, 0, 0);
   tsem_init(&qwtTestFetchSem, 0, 0);
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
 
-  pthread_t t1,t2,t3,t4,t5;
-  pthread_create(&(t1), &thattr, qwtclientThread, mgmt);
-  pthread_create(&(t2), &thattr, queryQueueThread, mgmt);
-  pthread_create(&(t3), &thattr, fetchQueueThread, mgmt);
+  TdThread t1,t2,t3,t4,t5;
+  taosThreadCreate(&(t1), &thattr, qwtclientThread, mgmt);
+  taosThreadCreate(&(t2), &thattr, queryQueueThread, mgmt);
+  taosThreadCreate(&(t3), &thattr, fetchQueueThread, mgmt);
 
   while (true) {
     if (qwtTestDeadLoop) {
-      sleep(1);
+      taosSsleep(1);
     } else {
-      sleep(qwtTestMTRunSec);
+      taosSsleep(qwtTestMTRunSec);
       break;
     }
   }
@@ -1195,14 +1195,14 @@ TEST(rcTest, longExecshortDelay) {
       break;
     }
     
-    sleep(1);
+    taosSsleep(1);
 
     if (qwtTestCaseFinished) {
       if (qwtTestQuitThreadNum < 3) { 
         tsem_post(&qwtTestQuerySem);
         tsem_post(&qwtTestFetchSem);
         
-        usleep(10);
+        taosUsleep(10);
       }
     }
     
@@ -1240,7 +1240,7 @@ TEST(rcTest, shortExeclongDelay) {
   stubSetPutDataBlock();
   stubSetGetDataBlock();
 
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
   qwtTestStop = false;
   qwtTestQuitThreadNum = 0;
 
@@ -1253,19 +1253,19 @@ TEST(rcTest, shortExeclongDelay) {
   tsem_init(&qwtTestQuerySem, 0, 0);
   tsem_init(&qwtTestFetchSem, 0, 0);
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
 
-  pthread_t t1,t2,t3,t4,t5;
-  pthread_create(&(t1), &thattr, qwtclientThread, mgmt);
-  pthread_create(&(t2), &thattr, queryQueueThread, mgmt);
-  pthread_create(&(t3), &thattr, fetchQueueThread, mgmt);
+  TdThread t1,t2,t3,t4,t5;
+  taosThreadCreate(&(t1), &thattr, qwtclientThread, mgmt);
+  taosThreadCreate(&(t2), &thattr, queryQueueThread, mgmt);
+  taosThreadCreate(&(t3), &thattr, fetchQueueThread, mgmt);
 
   while (true) {
     if (qwtTestDeadLoop) {
-      sleep(1);
+      taosSsleep(1);
     } else {
-      sleep(qwtTestMTRunSec);
+      taosSsleep(qwtTestMTRunSec);
       break;
     }
   }
@@ -1278,14 +1278,14 @@ TEST(rcTest, shortExeclongDelay) {
       break;
     }
     
-    sleep(1);
+    taosSsleep(1);
 
     if (qwtTestCaseFinished) {
       if (qwtTestQuitThreadNum < 3) { 
         tsem_post(&qwtTestQuerySem);
         tsem_post(&qwtTestFetchSem);
         
-        usleep(10);
+        taosUsleep(10);
       }
     }
     
@@ -1324,7 +1324,7 @@ TEST(rcTest, dropTest) {
   stubSetPutDataBlock();
   stubSetGetDataBlock();
 
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
   
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue);
   ASSERT_EQ(code, 0);
@@ -1332,25 +1332,25 @@ TEST(rcTest, dropTest) {
   tsem_init(&qwtTestQuerySem, 0, 0);
   tsem_init(&qwtTestFetchSem, 0, 0);
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
 
-  pthread_t t1,t2,t3,t4,t5;
-  pthread_create(&(t1), &thattr, clientThread, mgmt);
-  pthread_create(&(t2), &thattr, queryQueueThread, mgmt);
-  pthread_create(&(t3), &thattr, fetchQueueThread, mgmt);
+  TdThread t1,t2,t3,t4,t5;
+  taosThreadCreate(&(t1), &thattr, clientThread, mgmt);
+  taosThreadCreate(&(t2), &thattr, queryQueueThread, mgmt);
+  taosThreadCreate(&(t3), &thattr, fetchQueueThread, mgmt);
 
   while (true) {
     if (qwtTestDeadLoop) {
-      sleep(1);
+      taosSsleep(1);
     } else {
-      sleep(qwtTestMTRunSec);
+      taosSsleep(qwtTestMTRunSec);
       break;
     }
   }
   
   qwtTestStop = true;
-  sleep(3);
+  taosSsleep(3);
   
   qWorkerDestroy(&mgmt);
 }
@@ -1358,7 +1358,7 @@ TEST(rcTest, dropTest) {
 
 
 int main(int argc, char** argv) {
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

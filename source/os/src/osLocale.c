@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define ALLOW_FORBID_FUNC
 #define _DEFAULT_SOURCE
 #include "osLocale.h"
 
@@ -80,7 +81,7 @@ void taosSetSystemLocale(const char *inLocale, const char *inCharSet) {
   }
 
   if (!taosValidateEncodec(inCharSet)) {
-    printf("Invalid charset:%s, please set the valid charset in config file", inCharSet);
+    printf("Invalid charset:%s, please set the valid charset in config file\n", inCharSet);
     exit(-1);
   }
 }

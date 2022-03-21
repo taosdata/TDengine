@@ -17,10 +17,14 @@
 #define _TD_OS_LOCALE_H_
 
 #include "os.h"
-#include "osString.h"
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+// If the error is in a third-party library, place this header file under the third-party library header file.
+#ifndef ALLOW_FORBID_FUNC
+    #define setlocale SETLOCALE_FUNC_TAOS_FORBID
 #endif
 
 char *taosCharsetReplace(char *charsetstr);

@@ -35,7 +35,48 @@ int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique);
 // #define TDB_W_OK 0x4
 // int tdbCheckFileAccess(const char *pathname, int mode);
 
-int tdbGetFileSize(const char *fname, pgsz_t pgSize, pgno_t *pSize);
+int tdbGetFileSize(const char *fname, int pgSize, SPgno *pSize);
+
+int tdbPRead(int fd, void *pData, int count, i64 offset);
+
+static inline int tdbPutVarInt(u8 *p, int v) {
+  int n = 0;
+
+  for (;;) {
+    if (v <= 0x7f) {
+      p[n++] = v;
+      break;
+    }
+
+    p[n++] = (v & 0x7f) | 0x80;
+    v >>= 7;
+  }
+
+  ASSERT(n < 6);
+
+  return n;
+}
+
+static inline int tdbGetVarInt(const u8 *p, int *v) {
+  int n = 0;
+  int tv = 0;
+
+  for (;;) {
+    if (p[n] <= 0x7f) {
+      tv = (tv << 7) | p[n];
+      n++;
+      break;
+    }
+
+    tv = (tv << 7) | (p[n] & 0x7f);
+    n++;
+  }
+
+  ASSERT(n < 6);
+
+  *v = tv;
+  return n;
+}
 
 #ifdef __cplusplus
 }

@@ -51,7 +51,7 @@ typedef struct SMetaData {
   SArray    *pTableMeta;  // STableMeta array
   SArray    *pVgroupInfo; // SVgroupInfo list
   SArray    *pUdfList;    // udf info list
-  SEpSet    *pEpSet;      // qnode epset list
+  SArray    *pEpSetList;  // qnode epset list, SArray<SEpSet>
 } SMetaData;
 
 typedef struct SCatalogCfg {
@@ -74,8 +74,8 @@ typedef struct SDbVgVersion {
   char    dbFName[TSDB_DB_FNAME_LEN];
   int64_t dbId;
   int32_t vgVersion;
+  int32_t numOfTable; // unit is TSDB_TABLE_NUM_UNIT
 } SDbVgVersion;
-
 
 int32_t catalogInit(SCatalogCfg *cfg);
 
@@ -95,7 +95,7 @@ int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle);
  */
 void catalogFreeHandle(SCatalog* pCatalog);
 
-int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* version, int64_t* dbId);
+int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* version, int64_t* dbId, int32_t *tableNum);
 
 /**
  * Get a DB's all vgroup info.

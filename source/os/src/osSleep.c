@@ -13,47 +13,35 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define ALLOW_FORBID_FUNC
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 
-void taosMsleep(int32_t ms) { Sleep(ms); }
-
-#else
-
+#if !(defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32))
 #include <unistd.h>
+#endif
 
-/*
-  to make taosMsleep work,
-   signal SIGALRM shall be blocked in the calling thread,
-
-  sigset_t set;
-  sigemptyset(&set);
-  sigaddset(&set, SIGALRM);
-  pthread_sigmask(SIG_BLOCK, &set, NULL);
-*/
-void taosMsleep(int32_t mseconds) {
-#if 1
-  usleep(mseconds * 1000);
+void taosSsleep(int32_t s) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+   Sleep(1000 * s); 
 #else
-  struct timeval timeout;
-  int32_t        seconds, useconds;
-
-  seconds = mseconds / 1000;
-  useconds = (mseconds % 1000) * 1000;
-  timeout.tv_sec = seconds;
-  timeout.tv_usec = useconds;
-
-  /* sigset_t set; */
-  /* sigemptyset(&set); */
-  /* sigaddset(&set, SIGALRM); */
-  /* pthread_sigmask(SIG_BLOCK, &set, NULL); */
-
-  select(0, NULL, NULL, NULL, &timeout);
-
-/* pthread_sigmask(SIG_UNBLOCK, &set, NULL); */
+  sleep(s);
 #endif
 }
 
+void taosMsleep(int32_t ms) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+   Sleep(ms); 
+#else
+  usleep(ms * 1000);
 #endif
+}
+
+void taosUsleep(int32_t us) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+   nanosleep(1000 * us); 
+#else
+  usleep(us);
+#endif
+}

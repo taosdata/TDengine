@@ -86,10 +86,6 @@ extern char           PROMPT_HEADER[];
 extern char           CONTINUE_PROMPT[];
 extern int            prompt_size;
 extern SShellHistory  history;
-extern struct termios oldtio;
-extern void           set_terminal_mode();
-extern int get_old_terminal_mode(struct termios* tio);
-extern void            reset_terminal_mode();
 extern SShellArguments args;
 extern int64_t         result;
 

@@ -49,13 +49,14 @@ extern "C" {
 #endif
 
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#if defined(WINDOWS)
   char *stpcpy (char *dest, const char *src);
   char *stpncpy (char *dest, const char *src, size_t n);
 
   // specific
   typedef int (*__compar_fn_t)(const void *, const void *);
   #define ssize_t int
+  #define _SSIZE_T_
   #define bzero(ptr, size) memset((ptr), 0, (size))
   #define strcasecmp  _stricmp
   #define strncasecmp _strnicmp
@@ -63,16 +64,46 @@ extern "C" {
   #define strtok_r strtok_s
   #define snprintf _snprintf
   #define in_addr_t unsigned long
-  #define socklen_t int
+//  #define socklen_t int
 
-  struct tm *localtime_r(const time_t *timep, struct tm *result);
-  char *     strptime(const char *buf, const char *fmt, struct tm *tm);
   char *     strsep(char **stringp, const char *delim);
   char *     getpass(const char *prefix);
   char *     strndup(const char *s, size_t n);
-  
-#endif
+  int        gettimeofday(struct timeval *ptv, void *pTimeZone);
 
+  // for send function in tsocket.c
+  #define MSG_NOSIGNAL             0
+  #define SO_NO_CHECK              0x1234
+  #define SOL_TCP                  0x1234
+
+  #define SHUT_RDWR                SD_BOTH
+  #define SHUT_RD                  SD_RECEIVE
+  #define SHUT_WR                  SD_SEND
+
+  #define LOCK_EX 1
+  #define LOCK_NB 2
+  #define LOCK_UN 3
+
+  #ifndef PATH_MAX
+  #define PATH_MAX 256
+  #endif
+
+  typedef struct {
+    int    we_wordc;
+    char  *we_wordv[1];
+    int    we_offs;
+    char   wordPos[1025];
+  } wordexp_t;
+  int  wordexp(char *words, wordexp_t *pwordexp, int flags);
+  void wordfree(wordexp_t *pwordexp);
+
+  #define openlog(a, b, c)
+  #define closelog()
+  #define LOG_ERR 0
+  #define LOG_INFO 1
+  void syslog(int unused, const char *format, ...);
+#endif // WINDOWS
+  
 #ifndef WINDOWS
   #ifndef O_BINARY
     #define O_BINARY 0
@@ -166,7 +197,7 @@ extern "C" {
   #define PRIzu "zu"  
 #endif
 
-#if defined(_TD_LINUX_64) || defined(_TD_LINUX_32) || defined(_TD_MIPS_64)  || defined(_TD_ARM_32) || defined(_TD_ARM_64)  || defined(_TD_DARWIN_64)
+#if !defined(WINDOWS)
   #if defined(_TD_DARWIN_64)
     // MacOS
     #if !defined(_GNU_SOURCE)
@@ -181,8 +212,7 @@ extern "C" {
   #endif
 #else
   // Windows
-//  #define setThreadName(name)
-#define setThreadName(name) do { prctl(PR_SET_NAME, (name)); } while (0)
+  #define setThreadName(name)
 #endif
 
 #if defined(_WIN32)

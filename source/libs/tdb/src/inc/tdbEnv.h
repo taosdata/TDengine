@@ -20,11 +20,17 @@
 extern "C" {
 #endif
 
-const char* tdbEnvGetRootDir(TENV* pEnv);
-SPgFile*    tdbEnvGetPageFile(TENV* pEnv, const uint8_t fileid[]);
-SPgCache*   tdbEnvGetPgCache(TENV* pEnv);
-int         tdbEnvRgstPageFile(TENV* pEnv, SPgFile* pPgFile);
-int         tdbEnvRgstDB(TENV* pEnv, TDB* pDb);
+typedef struct STEnv {
+  char *   rootDir;
+  char *   jfname;
+  int      jfd;
+  SPCache *pCache;
+} STEnv;
+
+int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv);
+int tdbEnvClose(STEnv *pEnv);
+
+SPager *tdbEnvGetPager(STEnv *pEnv, const char *fname);
 
 #ifdef __cplusplus
 }

@@ -22,9 +22,18 @@
 extern "C" {
 #endif
 
+#define tjsonGetNumberValue(pJson, pName, val) \
+  ({ \
+    uint64_t _tmp = 0; \
+    int32_t _code = tjsonGetUBigIntValue(pJson, pName, &_tmp); \
+    val = _tmp; \
+    _code; \
+  })
+
 typedef void SJson;
 
 SJson* tjsonCreateObject();
+SJson* tjsonCreateArray();
 void   tjsonDelete(SJson* pJson);
 
 SJson*  tjsonAddArrayToObject(SJson* pJson, const char* pName);
@@ -43,6 +52,7 @@ int32_t tjsonGetIntValue(const SJson* pJson, const char* pName, int32_t* pVal);
 int32_t tjsonGetSmallIntValue(const SJson* pJson, const char* pName, int16_t* pVal);
 int32_t tjsonGetTinyIntValue(const SJson* pJson, const char* pName, int8_t* pVal);
 int32_t tjsonGetUBigIntValue(const SJson* pJson, const char* pName, uint64_t* pVal);
+int32_t tjsonGetUIntValue(const SJson* pJson, const char* pName, uint32_t* pVal);
 int32_t tjsonGetUTinyIntValue(const SJson* pJson, const char* pName, uint8_t* pVal);
 int32_t tjsonGetBoolValue(const SJson* pJson, const char* pName, bool* pVal);
 int32_t tjsonGetDoubleValue(const SJson* pJson, const char* pName, double* pVal);
@@ -54,10 +64,13 @@ typedef int32_t (*FToJson)(const void* pObj, SJson* pJson);
 
 int32_t tjsonAddObject(SJson* pJson, const char* pName, FToJson func, const void* pObj);
 int32_t tjsonAddItem(SJson* pJson, FToJson func, const void* pObj);
+int32_t tjsonAddArray(SJson* pJson, const char* pName, FToJson func, const void* pArray, int32_t itemSize, int32_t num);
 
 typedef int32_t (*FToObject)(const SJson* pJson, void* pObj);
 
 int32_t tjsonToObject(const SJson* pJson, const char* pName, FToObject func, void* pObj);
+int32_t tjsonMakeObject(const SJson* pJson, const char* pName, FToObject func, void** pObj, int32_t objSize);
+int32_t tjsonToArray(const SJson* pJson, const char* pName, FToObject func, void* pArray, int32_t itemSize);
 
 char* tjsonToString(const SJson* pJson);
 char* tjsonToUnformattedString(const SJson* pJson);

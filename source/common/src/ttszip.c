@@ -845,7 +845,11 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf) {
 
   int64_t offset = getDataStartOffset();
   int32_t size = (int32_t)pSrcBuf->fileSize - (int32_t)offset;
+#if defined(_TD_DARWIN_64)
+  int64_t written = taosFSendFile(pDestBuf->pFile->fp, pSrcBuf->pFile->fp, &offset, size);
+#else
   int64_t written = taosFSendFile(pDestBuf->pFile, pSrcBuf->pFile, &offset, size);
+#endif
 
   if (written == -1 || written != size) {
     return -1;

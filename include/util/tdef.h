@@ -41,7 +41,7 @@ extern const int32_t TYPE_BYTES[15];
 #define DOUBLE_BYTES    sizeof(double)
 #define POINTER_BYTES   sizeof(void *)  // 8 by default  assert(sizeof(ptrdiff_t) == sizseof(void*)
 #define TSDB_KEYSIZE    sizeof(TSKEY)
-#define TSDB_NCHAR_SIZE sizeof(int32_t)
+#define TSDB_NCHAR_SIZE sizeof(TdUcs4)
 
 // NULL definition
 #define TSDB_DATA_BOOL_NULL      0x02
@@ -207,10 +207,11 @@ typedef enum ELogicConditionType {
 #define TSDB_FUNC_TYPE_AGGREGATE 2
 #define TSDB_FUNC_MAX_RETRIEVE   1024
 
-#define TSDB_INDEX_NAME_LEN      32
+#define TSDB_INDEX_NAME_LEN      33  // 32 + 1 '\0'
 #define TSDB_TYPE_STR_MAX_LEN    32
 #define TSDB_TABLE_FNAME_LEN     (TSDB_DB_FNAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_TOPIC_FNAME_LEN     TSDB_TABLE_FNAME_LEN
+#define TSDB_STREAM_FNAME_LEN    TSDB_TABLE_FNAME_LEN
 #define TSDB_SUBSCRIBE_KEY_LEN   (TSDB_CGROUP_LEN + TSDB_TOPIC_FNAME_LEN + 2)
 #define TSDB_PARTITION_KEY_LEN   (TSDB_SUBSCRIBE_KEY_LEN + 20)
 #define TSDB_COL_NAME_LEN        65
@@ -344,6 +345,20 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_DB_QUORUM_OPTION     2
 #define TSDB_DEFAULT_DB_QUORUM_OPTION 1
 
+#define TSDB_MIN_DB_TTL_OPTION     1
+#define TSDB_DEFAULT_DB_TTL_OPTION 0
+
+#define TSDB_MIN_DB_SINGLE_STABLE_OPTION     0
+#define TSDB_MAX_DB_SINGLE_STABLE_OPTION     1
+#define TSDB_DEFAULT_DB_SINGLE_STABLE_OPTION 0
+
+#define TSDB_MIN_DB_STREAM_MODE_OPTION     0
+#define TSDB_MAX_DB_STREAM_MODE_OPTION     1
+#define TSDB_DEFAULT_DB_STREAM_MODE_OPTION 0
+
+#define TSDB_MAX_JOIN_TABLE_NUM 10
+#define TSDB_MAX_UNION_CLAUSE   5
+
 #define TSDB_MIN_DB_UPDATE            0
 #define TSDB_MAX_DB_UPDATE            2
 #define TSDB_DEFAULT_DB_UPDATE_OPTION 0
@@ -429,6 +444,14 @@ typedef struct {
 } SDiskCfg;
 
 #define TMQ_SEPARATOR ':'
+
+#define SND_UNIQUE_THREAD_NUM 2
+#define SND_SHARED_THREAD_NUM 2
+
+enum {
+  SND_WORKER_TYPE__SHARED = 1,
+  SND_WORKER_TYPE__UNIQUE,
+};
 
 #ifdef __cplusplus
 }

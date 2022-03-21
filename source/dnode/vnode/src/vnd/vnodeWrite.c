@@ -16,18 +16,20 @@
 #include "tq.h"
 #include "vnd.h"
 
-int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
-  SRpcMsg *pMsg;
+void vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
+  SNodeMsg *pMsg;
+  SRpcMsg *pRpc;
 
   for (int i = 0; i < taosArrayGetSize(pMsgs); i++) {
-    pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
+    pMsg = *(SNodeMsg **)taosArrayGet(pMsgs, i);
+    pRpc = &pMsg->rpcMsg;
 
     // set request version
-    void   *pBuf = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+    void   *pBuf = POINTER_SHIFT(pRpc->pCont, sizeof(SMsgHead));
     int64_t ver = pVnode->state.processed++;
     taosEncodeFixedI64(&pBuf, ver);
 
-    if (walWrite(pVnode->pWal, ver, pMsg->msgType, pMsg->pCont, pMsg->contLen) < 0) {
+    if (walWrite(pVnode->pWal, ver, pRpc->msgType, pRpc->pCont, pRpc->contLen) < 0) {
       // TODO: handle error
       /*ASSERT(false);*/
       vError("vnode:%d  write wal error since %s", pVnode->vgId, terrstr());
@@ -38,10 +40,11 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
 
   // TODO: Integrate RAFT module here
 
-  return 0;
+  // No results are returned because error handling is difficult
+  // return 0;
 }
 
-int  vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   void *ptr = NULL;
 
   if (pVnode->config.streamMode == 0) {
@@ -63,7 +66,7 @@ int  vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
   switch (pMsg->msgType) {
     case TDMT_VND_CREATE_STB: {
-      SVCreateTbReq      vCreateTbReq = {0};
+      SVCreateTbReq vCreateTbReq = {0};
       tDeserializeSVCreateTbReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbReq);
       if (metaCreateTable(pVnode->pMeta, &(vCreateTbReq)) < 0) {
         // TODO: handle error
@@ -100,7 +103,7 @@ int  vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       break;
     }
     case TDMT_VND_ALTER_STB: {
-      SVCreateTbReq      vAlterTbReq = {0};
+      SVCreateTbReq vAlterTbReq = {0};
       vTrace("vgId:%d, process alter stb req", pVnode->vgId);
       tDeserializeSVCreateTbReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vAlterTbReq);
       free(vAlterTbReq.stbCfg.pSchema);
@@ -132,12 +135,20 @@ int  vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       if (tqProcessRebReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
       }
     } break;
+    case TDMT_VND_TASK_DEPLOY: {
+      if (tqProcessTaskDeploy(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
+                              pMsg->contLen - sizeof(SMsgHead)) < 0) {
+      }
+    } break;
     case TDMT_VND_CREATE_SMA: {  // timeRangeSMA
       SSmaCfg vCreateSmaReq = {0};
       if (tDeserializeSVCreateTSmaReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateSmaReq) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         return -1;
       }
+
+      // record current timezone of server side
+      tstrncpy(vCreateSmaReq.tSma.timezone, tsTimezone, TD_TIMEZONE_LEN);
 
       if (metaCreateTSma(pVnode->pMeta, &vCreateSmaReq) < 0) {
         // TODO: handle error

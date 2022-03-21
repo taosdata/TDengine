@@ -45,6 +45,7 @@ float   tsRatioOfQueryCores = 1.0f;
 int32_t tsMaxBinaryDisplayWidth = 30;
 bool    tsEnableSlaveQuery = 1;
 bool    tsPrintAuth = 0;
+int32_t tsMultiProcess = 0;
 
 // monitor
 bool     tsEnableMonitor = 1;
@@ -309,7 +310,6 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "os release", info.release, 1) != 0) return -1;
   if (cfgAddString(pCfg, "os version", info.version, 1) != 0) return -1;
   if (cfgAddString(pCfg, "os machine", info.machine, 1) != 0) return -1;
-  if (cfgAddString(pCfg, "os sysname", info.sysname, 1) != 0) return -1;
 
   if (cfgAddString(pCfg, "version", version, 1) != 0) return -1;
   if (cfgAddString(pCfg, "compatible_version", compatible_version, 1) != 0) return -1;
@@ -340,6 +340,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "printAuth", tsPrintAuth, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "slaveQuery", tsEnableSlaveQuery, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "deadLockKillQuery", tsDeadLockKillQuery, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "multiProcess", tsMultiProcess, 0, 2, 0) != 0) return -1;
 
   if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 360000, 0) != 0) return -1;
@@ -403,7 +404,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
     return -1;
   }
 
-  tsNumOfThreadsPerCore = cfgGetItem(pCfg, "maxTmrCtrl")->fval;
+  tsNumOfThreadsPerCore = cfgGetItem(pCfg, "numOfThreadsPerCore")->fval;
   tsMaxTmrCtrl = cfgGetItem(pCfg, "maxTmrCtrl")->i32;
   tsRpcTimer = cfgGetItem(pCfg, "rpcTimer")->i32;
   tsRpcMaxTime = cfgGetItem(pCfg, "rpcMaxTime")->i32;
@@ -457,6 +458,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsPrintAuth = cfgGetItem(pCfg, "printAuth")->bval;
   tsEnableSlaveQuery = cfgGetItem(pCfg, "slaveQuery")->bval;
   tsDeadLockKillQuery = cfgGetItem(pCfg, "deadLockKillQuery")->bval;
+  tsMultiProcess = cfgGetItem(pCfg, "multiProcess")->i32;
 
   tsEnableMonitor = cfgGetItem(pCfg, "monitor")->bval;
   tsMonitorInterval = cfgGetItem(pCfg, "monitorInterval")->i32;

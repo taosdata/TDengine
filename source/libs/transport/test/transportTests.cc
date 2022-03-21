@@ -136,4 +136,98 @@ TEST_F(QueueEnv, testIter) {
   assert(result.size() == vals.size());
 }
 
+class TransCtxEnv : public ::testing::Test {
+ protected:
+  virtual void SetUp() {
+    ctx = (STransCtx *)calloc(1, sizeof(STransCtx));
+    transCtxInit(ctx);
+    // TODO
+  }
+  virtual void TearDown() {
+    transCtxCleanup(ctx);
+    // formate
+  }
+  STransCtx *ctx;
+};
+
+TEST_F(TransCtxEnv, mergeTest) {
+  int key = 1;
+  {
+    STransCtx *src = (STransCtx *)calloc(1, sizeof(STransCtx));
+    transCtxInit(src);
+    {
+      STransCtxVal val1 = {.val = NULL, .len = 0, .free = free};
+      val1.val = malloc(12);
+      val1.len = 12;
+
+      taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));
+      key++;
+    }
+    {
+      STransCtxVal val1 = {.val = NULL, .len = 0, .free = free};
+      val1.val = malloc(12);
+      val1.len = 12;
+      taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));
+      key++;
+    }
+    transCtxMerge(ctx, src);
+    free(src);
+  }
+  EXPECT_EQ(2, taosHashGetSize(ctx->args));
+  {
+    STransCtx *src = (STransCtx *)calloc(1, sizeof(STransCtx));
+    transCtxInit(src);
+    {
+      STransCtxVal val1 = {.val = NULL, .len = 0, .free = free};
+      val1.val = malloc(12);
+      val1.len = 12;
+
+      taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));
+      key++;
+    }
+    {
+      STransCtxVal val1 = {.val = NULL, .len = 0, .free = free};
+      val1.val = malloc(12);
+      val1.len = 12;
+      taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));
+      key++;
+    }
+    transCtxMerge(ctx, src);
+    free(src);
+  }
+  std::string val("Hello");
+  EXPECT_EQ(4, taosHashGetSize(ctx->args));
+  {
+    key = 1;
+    STransCtx *src = (STransCtx *)calloc(1, sizeof(STransCtx));
+    transCtxInit(src);
+    {
+      STransCtxVal val1 = {.val = NULL, .len = 0, .free = free};
+      val1.val = calloc(1, 11);
+      memcpy(val1.val, val.c_str(), val.size());
+      val1.len = 11;
+
+      taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));
+      key++;
+    }
+    {
+      STransCtxVal val1 = {.val = NULL, .len = 0, .free = free};
+      val1.val = calloc(1, 11);
+      memcpy(val1.val, val.c_str(), val.size());
+      val1.len = 11;
+      taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));
+      key++;
+    }
+    transCtxMerge(ctx, src);
+    free(src);
+  }
+  EXPECT_EQ(4, taosHashGetSize(ctx->args));
+
+  char *skey = (char *)transCtxDumpVal(ctx, 1);
+  EXPECT_EQ(0, strcmp(skey, val.c_str()));
+  free(skey);
+
+  skey = (char *)transCtxDumpVal(ctx, 2);
+  EXPECT_EQ(0, strcmp(skey, val.c_str()));
+}
 #endif

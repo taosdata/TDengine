@@ -32,7 +32,7 @@
 static int32_t mndOffsetActionInsert(SSdb *pSdb, SMqOffsetObj *pOffset);
 static int32_t mndOffsetActionDelete(SSdb *pSdb, SMqOffsetObj *pOffset);
 static int32_t mndOffsetActionUpdate(SSdb *pSdb, SMqOffsetObj *pOffset, SMqOffsetObj *pNewOffset);
-static int32_t mndProcessCommitOffsetReq(SMnodeMsg *pReq);
+static int32_t mndProcessCommitOffsetReq(SNodeMsg *pReq);
 
 int32_t mndInitOffset(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_OFFSET,
@@ -152,10 +152,10 @@ int32_t mndCreateOffset(STrans *pTrans, const char *cgroup, const char *topicNam
   return 0;
 }
 
-static int32_t mndProcessCommitOffsetReq(SMnodeMsg *pMsg) {
+static int32_t mndProcessCommitOffsetReq(SNodeMsg *pMsg) {
   char key[TSDB_PARTITION_KEY_LEN];
 
-  SMnode              *pMnode = pMsg->pMnode;
+  SMnode              *pMnode = pMsg->pNode;
   char                *msgStr = pMsg->rpcMsg.pCont;
   SMqCMCommitOffsetReq commitOffsetReq;
   SCoder               decoder;

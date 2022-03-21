@@ -17,7 +17,7 @@
 #include "shell.h"
 #include "tglobal.h"
 
-pthread_t pid;
+TdThread pid;
 static tsem_t cancelSem;
 
 void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) {
@@ -41,11 +41,11 @@ void *cancelHandler(void *arg) {
     taosReleaseRef(tscObjRef, rid);
 #endif    
 #else
-    reset_terminal_mode();
+    resetTerminalMode();
     printf("\nReceive ctrl+c or other signal, quit shell.\n");
     exit(0);
 #endif
-    reset_terminal_mode();
+    resetTerminalMode();
     printf("\nReceive ctrl+c or other signal, quit shell.\n");
     exit(0);
   }
@@ -140,8 +140,8 @@ int main(int argc, char *argv[]) {
     exit(EXIT_FAILURE);
   }
 
-  pthread_t spid;
-  pthread_create(&spid, NULL, cancelHandler, NULL);
+  TdThread spid;
+  taosThreadCreate(&spid, NULL, cancelHandler, NULL);
 
   /* Interrupt handler. */
   taosSetSignal(SIGTERM, shellQueryInterruptHandler);
@@ -154,7 +154,7 @@ int main(int argc, char *argv[]) {
 
   /* Loop to query the input. */
   while (1) {
-    pthread_create(&pid, NULL, shellLoopQuery, con);
-    pthread_join(pid, NULL);
+    taosThreadCreate(&pid, NULL, shellLoopQuery, con);
+    taosThreadJoin(pid, NULL);
   }
 }

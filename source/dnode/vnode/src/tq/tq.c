@@ -55,6 +55,8 @@ STQ* tqOpen(const char* path, SWal* pWal, SMeta* pVnodeMeta, STqCfg* tqConfig, S
     return NULL;
   }
 
+  pTq->pStreamTasks = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+
   return pTq;
 }
 
@@ -414,5 +416,25 @@ int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
   tqHandleMovePut(pTq->tqMeta, req.consumerId, pConsumer);
   tqHandleCommit(pTq->tqMeta, req.consumerId);
   terrno = TSDB_CODE_SUCCESS;
+  return 0;
+}
+
+int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
+  SStreamTask* pTask = malloc(sizeof(SStreamTask));
+  if (pTask == NULL) {
+    return -1;
+  }
+  SCoder decoder;
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, (uint8_t*)msg, msgLen, TD_DECODER);
+  tDecodeSStreamTask(&decoder, pTask);
+  tCoderClear(&decoder);
+
+  taosHashPut(pTq->pStreamTasks, &pTask->taskId, sizeof(int32_t), pTask, sizeof(SStreamTask));
+
+  return 0;
+}
+
+int32_t tqProcessTaskExec(STQ* pTq, SRpcMsg* msg) {
+  //
   return 0;
 }

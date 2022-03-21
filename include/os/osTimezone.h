@@ -20,6 +20,11 @@
 extern "C" {
 #endif
 
+// If the error is in a third-party library, place this header file under the third-party library header file.
+#ifndef ALLOW_FORBID_FUNC
+    #define tzset TZSET_FUNC_TAOS_FORBID
+#endif
+
 void taosGetSystemTimezone(char *outTimezone);
 void taosSetSystemTimezone(const char *inTimezone, char *outTimezone, int8_t *outDaylight);
 

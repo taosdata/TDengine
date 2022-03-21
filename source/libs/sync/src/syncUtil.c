@@ -14,15 +14,12 @@
  */
 
 #include "syncUtil.h"
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
 #include "syncEnv.h"
 
 // ---- encode / decode
 uint64_t syncUtilAddr2U64(const char* host, uint16_t port) {
   uint64_t u64;
-  uint32_t hostU32 = (uint32_t)inet_addr(host);
+  uint32_t hostU32 = (uint32_t)taosInetAddr(host);
   // assert(hostU32 != (uint32_t)-1);
   u64 = (((uint64_t)hostU32) << 32) | (((uint32_t)port) << 16);
   return u64;
@@ -33,7 +30,7 @@ void syncUtilU642Addr(uint64_t u64, char* host, size_t len, uint16_t* port) {
 
   struct in_addr addr;
   addr.s_addr = hostU32;
-  snprintf(host, len, "%s", inet_ntoa(addr));
+  snprintf(host, len, "%s", taosInetNtoa(addr));
   *port = (uint16_t)((u64 & 0x00000000FFFF0000) >> 16);
 }
 
@@ -73,6 +70,8 @@ bool syncUtilSameId(const SRaftId* pId1, const SRaftId* pId2) {
   bool ret = pId1->addr == pId2->addr && pId1->vgId == pId2->vgId;
   return ret;
 }
+
+bool syncUtilEmptyId(const SRaftId* pId) { return (pId->addr == 0 && pId->vgId == 0); }
 
 // ---- SSyncBuffer -----
 void syncUtilbufBuild(SSyncBuffer* syncBuf, size_t len) {
@@ -117,7 +116,7 @@ cJSON* syncUtilRaftId2Json(const SRaftId* p) {
   char   u64buf[128];
   cJSON* pRoot = cJSON_CreateObject();
 
-  snprintf(u64buf, sizeof(u64buf), "%lu", p->addr);
+  snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", p->addr);
   cJSON_AddStringToObject(pRoot, "addr", u64buf);
   char     host[128];
   uint16_t port;
@@ -148,4 +147,50 @@ const char* syncUtilState2String(ESyncState state) {
   } else {
     return "TAOS_SYNC_STATE_UNKNOWN";
   }
+}
+
+bool syncUtilCanPrint(char c) {
+  if (c >= 32 && c <= 126) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+char* syncUtilprintBin(char* ptr, uint32_t len) {
+  char* s = malloc(len + 1);
+  assert(s != NULL);
+  memset(s, 0, len + 1);
+  memcpy(s, ptr, len);
+
+  for (int i = 0; i < len; ++i) {
+    if (!syncUtilCanPrint(s[i])) {
+      s[i] = '.';
+    }
+  }
+  return s;
+}
+
+char* syncUtilprintBin2(char* ptr, uint32_t len) {
+  uint32_t len2 = len * 4 + 1;
+  char*    s = malloc(len2);
+  assert(s != NULL);
+  memset(s, 0, len2);
+
+  char* p = s;
+  for (int i = 0; i < len; ++i) {
+    int n = sprintf(p, "%d,", ptr[i]);
+    p += n;
+  }
+  return s;
+}
+
+SyncIndex syncUtilMinIndex(SyncIndex a, SyncIndex b) {
+  SyncIndex r = a < b ? a : b;
+  return r;
+}
+
+SyncIndex syncUtilMaxIndex(SyncIndex a, SyncIndex b) {
+  SyncIndex r = a > b ? a : b;
+  return r;
 }

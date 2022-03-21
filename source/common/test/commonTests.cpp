@@ -160,8 +160,8 @@ TEST(testCase, Datablock_test) {
 
   printf("binary column length:%d\n", *(int32_t*) p1->pData);
 
-  ASSERT_EQ(colDataGetNumOfCols(b), 2);
-  ASSERT_EQ(colDataGetNumOfRows(b), 40);
+  ASSERT_EQ(blockDataGetNumOfCols(b), 2);
+  ASSERT_EQ(blockDataGetNumOfRows(b), 40);
 
   char* pData = colDataGetData(p1, 3);
   printf("the second row of binary:%s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));

@@ -61,7 +61,7 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
     }
     struct tm tm;
     time_t t = (time_t)start;
-    localtime_r(&t, &tm);
+    taosLocalTime(&t, &tm);
     tm.tm_sec = 0;
     tm.tm_min = 0;
     tm.tm_hour = 0;
@@ -217,7 +217,7 @@ int32_t tNameSetDbName(SName* dst, int32_t acct, const char* dbName, size_t name
 }
 
 int32_t tNameSetAcctId(SName* dst, int32_t acctId) {
-  assert(dst != NULL && acct != NULL);
+  assert(dst != NULL);
   dst->acctId = acctId;
   return 0;
 }

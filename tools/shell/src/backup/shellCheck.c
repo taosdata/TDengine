@@ -31,7 +31,7 @@ static int32_t checkedNum = 0;
 static int32_t errorNum = 0;
 
 typedef struct {
-  pthread_t threadID;
+  TdThread threadID;
   int       threadIndex;
   int       totalThreads;
   void *    taos;
@@ -152,7 +152,7 @@ static void *shellCheckThreadFp(void *arg) {
 }
 
 static void shellRunCheckThreads(TAOS *con, SShellArguments *_args) {
-  pthread_attr_t  thattr;
+  TdThreadAttr  thattr;
   ShellThreadObj *threadObj = (ShellThreadObj *)calloc(_args->threadNum, sizeof(ShellThreadObj));
   for (int t = 0; t < _args->threadNum; ++t) {
     ShellThreadObj *pThread = threadObj + t;
@@ -161,17 +161,17 @@ static void shellRunCheckThreads(TAOS *con, SShellArguments *_args) {
     pThread->taos = con;
     pThread->db = _args->database;
 
-    pthread_attr_init(&thattr);
-    pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
+    taosThreadAttrInit(&thattr);
+    taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
 
-    if (pthread_create(&(pThread->threadID), &thattr, shellCheckThreadFp, (void *)pThread) != 0) {
+    if (taosThreadCreate(&(pThread->threadID), &thattr, shellCheckThreadFp, (void *)pThread) != 0) {
       fprintf(stderr, "ERROR: thread:%d failed to start\n", pThread->threadIndex);
       exit(0);
     }
   }
 
   for (int t = 0; t < _args->threadNum; ++t) {
-    pthread_join(threadObj[t].threadID, NULL);
+    taosThreadJoin(threadObj[t].threadID, NULL);
   }
 
   for (int t = 0; t < _args->threadNum; ++t) {

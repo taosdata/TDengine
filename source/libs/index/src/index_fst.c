@@ -571,6 +571,8 @@ uint64_t fstStateFindInput(FstState* s, FstNode* node, uint8_t b, bool* null) {
     }
     fstSliceDestroy(&t);
   }
+
+  return 0;
 }
 
 // fst node function
@@ -1021,26 +1023,28 @@ Fst* fstCreate(FstSlice* slice) {
   *s = fstSliceCopy(slice, 0, FST_SLICE_LEN(slice) - 1);
   fst->data = s;
 
-  pthread_mutex_init(&fst->mtx, NULL);
+  taosThreadMutexInit(&fst->mtx, NULL);
   return fst;
 
 FST_CREAT_FAILED:
   free(fst->meta);
   free(fst);
+
+  return NULL;
 }
 void fstDestroy(Fst* fst) {
   if (fst) {
     free(fst->meta);
     fstSliceDestroy(fst->data);
     free(fst->data);
-    pthread_mutex_destroy(&fst->mtx);
+    taosThreadMutexDestroy(&fst->mtx);
   }
   free(fst);
 }
 
 bool fstGet(Fst* fst, FstSlice* b, Output* out) {
   // dec lock range
-  // pthread_mutex_lock(&fst->mtx);
+  // taosThreadMutexLock(&fst->mtx);
   FstNode* root = fstGetRoot(fst);
   Output   tOut = 0;
   int32_t  len;
@@ -1053,7 +1057,7 @@ bool fstGet(Fst* fst, FstSlice* b, Output* out) {
     uint8_t inp = data[i];
     Output  res = 0;
     if (false == fstNodeFindInput(root, inp, &res)) {
-      // pthread_mutex_unlock(&fst->mtx);
+      // taosThreadMutexUnlock(&fst->mtx);
       return false;
     }
 
@@ -1064,7 +1068,7 @@ bool fstGet(Fst* fst, FstSlice* b, Output* out) {
     taosArrayPush(nodes, &root);
   }
   if (!FST_NODE_IS_FINAL(root)) {
-    // pthread_mutex_unlock(&fst->mtx);
+    // taosThreadMutexUnlock(&fst->mtx);
     return false;
   } else {
     tOut = tOut + FST_NODE_FINAL_OUTPUT(root);
@@ -1076,7 +1080,7 @@ bool fstGet(Fst* fst, FstSlice* b, Output* out) {
   }
   taosArrayDestroy(nodes);
   // fst->root = NULL;
-  // pthread_mutex_unlock(&fst->mtx);
+  // taosThreadMutexUnlock(&fst->mtx);
   *out = tOut;
   return true;
 }
@@ -1286,6 +1290,8 @@ bool streamWithStateSeekMin(StreamWithState* sws, FstBoundWithData* min) {
     }
     return false;
   }
+
+  return false;
 }
 
 StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallback callback) {

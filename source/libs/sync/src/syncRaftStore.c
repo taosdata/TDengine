@@ -15,6 +15,8 @@
 
 #include "syncRaftStore.h"
 #include "cJSON.h"
+#include "syncEnv.h"
+#include "syncUtil.h"
 
 // private function
 static int32_t raftStoreInit(SRaftStore *pRaftStore);
@@ -95,15 +97,31 @@ int32_t raftStorePersist(SRaftStore *pRaftStore) {
   return 0;
 }
 
-static bool raftStoreFileExist(char *path) { return taosStatFile(path, NULL, NULL) >= 0; }
+static bool raftStoreFileExist(char *path) {
+  bool b = taosStatFile(path, NULL, NULL) >= 0;
+  return b;
+}
 
 int32_t raftStoreSerialize(SRaftStore *pRaftStore, char *buf, size_t len) {
   assert(pRaftStore != NULL);
 
   cJSON *pRoot = cJSON_CreateObject();
-  cJSON_AddNumberToObject(pRoot, "current_term", pRaftStore->currentTerm);
-  cJSON_AddNumberToObject(pRoot, "vote_for_addr", pRaftStore->voteFor.addr);
+
+  char u64Buf[128];
+  snprintf(u64Buf, sizeof(u64Buf), "%lu", pRaftStore->currentTerm);
+  cJSON_AddStringToObject(pRoot, "current_term", u64Buf);
+
+  snprintf(u64Buf, sizeof(u64Buf), "%lu", pRaftStore->voteFor.addr);
+  cJSON_AddStringToObject(pRoot, "vote_for_addr", u64Buf);
+
   cJSON_AddNumberToObject(pRoot, "vote_for_vgid", pRaftStore->voteFor.vgId);
+
+  uint64_t u64 = pRaftStore->voteFor.addr;
+  char     host[128];
+  uint16_t port;
+  syncUtilU642Addr(u64, host, sizeof(host), &port);
+  cJSON_AddStringToObject(pRoot, "addr_host", host);
+  cJSON_AddNumberToObject(pRoot, "addr_port", port);
 
   char *serialized = cJSON_Print(pRoot);
   int   len2 = strlen(serialized);
@@ -123,10 +141,12 @@ int32_t raftStoreDeserialize(SRaftStore *pRaftStore, char *buf, size_t len) {
   cJSON *pRoot = cJSON_Parse(buf);
 
   cJSON *pCurrentTerm = cJSON_GetObjectItem(pRoot, "current_term");
-  pRaftStore->currentTerm = pCurrentTerm->valueint;
+  assert(cJSON_IsString(pCurrentTerm));
+  sscanf(pCurrentTerm->valuestring, "%lu", &(pRaftStore->currentTerm));
 
   cJSON *pVoteForAddr = cJSON_GetObjectItem(pRoot, "vote_for_addr");
-  pRaftStore->voteFor.addr = pVoteForAddr->valueint;
+  assert(cJSON_IsString(pVoteForAddr));
+  sscanf(pVoteForAddr->valuestring, "%lu", &(pRaftStore->voteFor.addr));
 
   cJSON *pVoteForVgid = cJSON_GetObjectItem(pRoot, "vote_for_vgid");
   pRaftStore->voteFor.vgId = pVoteForVgid->valueint;
@@ -135,8 +155,94 @@ int32_t raftStoreDeserialize(SRaftStore *pRaftStore, char *buf, size_t len) {
   return 0;
 }
 
-void raftStorePrint(SRaftStore *pRaftStore) {
-  char storeBuf[RAFT_STORE_BLOCK_SIZE];
-  raftStoreSerialize(pRaftStore, storeBuf, sizeof(storeBuf));
-  printf("%s\n", storeBuf);
+bool raftStoreHasVoted(SRaftStore *pRaftStore) {
+  bool b = syncUtilEmptyId(&(pRaftStore->voteFor));
+  return (!b);
+}
+
+void raftStoreVote(SRaftStore *pRaftStore, SRaftId *pRaftId) {
+  assert(!syncUtilEmptyId(pRaftId));
+  pRaftStore->voteFor = *pRaftId;
+  raftStorePersist(pRaftStore);
+}
+
+void raftStoreClearVote(SRaftStore *pRaftStore) {
+  pRaftStore->voteFor = EMPTY_RAFT_ID;
+  raftStorePersist(pRaftStore);
+}
+
+void raftStoreNextTerm(SRaftStore *pRaftStore) {
+  ++(pRaftStore->currentTerm);
+  raftStorePersist(pRaftStore);
+}
+
+void raftStoreSetTerm(SRaftStore *pRaftStore, SyncTerm term) {
+  pRaftStore->currentTerm = term;
+  raftStorePersist(pRaftStore);
+}
+
+int32_t raftStoreFromJson(SRaftStore *pRaftStore, cJSON *pJson) { return 0; }
+
+cJSON *raftStore2Json(SRaftStore *pRaftStore) {
+  char   u64buf[128];
+  cJSON *pRoot = cJSON_CreateObject();
+
+  if (pRaftStore != NULL) {
+    snprintf(u64buf, sizeof(u64buf), "%lu", pRaftStore->currentTerm);
+    cJSON_AddStringToObject(pRoot, "currentTerm", u64buf);
+
+    cJSON *pVoteFor = cJSON_CreateObject();
+    snprintf(u64buf, sizeof(u64buf), "%lu", pRaftStore->voteFor.addr);
+    cJSON_AddStringToObject(pVoteFor, "addr", u64buf);
+    {
+      uint64_t u64 = pRaftStore->voteFor.addr;
+      char     host[128];
+      uint16_t port;
+      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      cJSON_AddStringToObject(pVoteFor, "addr_host", host);
+      cJSON_AddNumberToObject(pVoteFor, "addr_port", port);
+    }
+    cJSON_AddNumberToObject(pVoteFor, "vgId", pRaftStore->voteFor.vgId);
+    cJSON_AddItemToObject(pRoot, "voteFor", pVoteFor);
+
+    int hasVoted = raftStoreHasVoted(pRaftStore);
+    cJSON_AddNumberToObject(pRoot, "hasVoted", hasVoted);
+  }
+
+  cJSON *pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SRaftStore", pRoot);
+  return pJson;
+}
+
+char *raftStore2Str(SRaftStore *pRaftStore) {
+  cJSON *pJson = raftStore2Json(pRaftStore);
+  char * serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
+// for debug -------------------
+void raftStorePrint(SRaftStore *pObj) {
+  char *serialized = raftStore2Str(pObj);
+  printf("raftStorePrint | len:%lu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void raftStorePrint2(char *s, SRaftStore *pObj) {
+  char *serialized = raftStore2Str(pObj);
+  printf("raftStorePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  free(serialized);
+}
+void raftStoreLog(SRaftStore *pObj) {
+  char *serialized = raftStore2Str(pObj);
+  sTrace("raftStoreLog | len:%lu | %s", strlen(serialized), serialized);
+  free(serialized);
+}
+
+void raftStoreLog2(char *s, SRaftStore *pObj) {
+  char *serialized = raftStore2Str(pObj);
+  sTrace("raftStoreLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  free(serialized);
 }

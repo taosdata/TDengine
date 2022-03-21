@@ -19,9 +19,6 @@
 #include "tref.h"
 #include "walInt.h"
 
-#include <libgen.h>
-#include <regex.h>
-
 int64_t inline walGetFirstVer(SWal* pWal) { return pWal->vers.firstVer; }
 
 int64_t inline walGetSnaphostVer(SWal* pWal) { return pWal->vers.snapshotVer; }

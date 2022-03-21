@@ -16,13 +16,13 @@
 #define _DEFAULT_SOURCE
 #include "tthread.h"
 
-pthread_t* taosCreateThread(void* (*__start_routine)(void*), void* param) {
-  pthread_t*     pthread = (pthread_t*)malloc(sizeof(pthread_t));
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
-  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
-  int32_t ret = pthread_create(pthread, &thattr, __start_routine, param);
-  pthread_attr_destroy(&thattr);
+TdThread* taosCreateThread(void* (*__start_routine)(void*), void* param) {
+  TdThread*     pthread = (TdThread*)malloc(sizeof(TdThread));
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
+  taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
+  int32_t ret = taosThreadCreate(pthread, &thattr, __start_routine, param);
+  taosThreadAttrDestroy(&thattr);
 
   if (ret != 0) {
     free(pthread);
@@ -31,20 +31,20 @@ pthread_t* taosCreateThread(void* (*__start_routine)(void*), void* param) {
   return pthread;
 }
 
-bool taosDestoryThread(pthread_t* pthread) {
+bool taosDestoryThread(TdThread* pthread) {
   if (pthread == NULL) return false;
   if (taosThreadRunning(pthread)) {
-    pthread_cancel(*pthread);
-    pthread_join(*pthread, NULL);
+    taosThreadCancel(*pthread);
+    taosThreadJoin(*pthread, NULL);
   }
 
   free(pthread);
   return true;
 }
 
-bool taosThreadRunning(pthread_t* pthread) {
+bool taosThreadRunning(TdThread* pthread) {
   if (pthread == NULL) return false;
-  int32_t ret = pthread_kill(*pthread, 0);
+  int32_t ret = taosThreadKill(*pthread, 0);
   if (ret == ESRCH) return false;
   if (ret == EINVAL) return false;
   // alive

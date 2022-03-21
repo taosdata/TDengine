@@ -46,7 +46,7 @@ typedef struct SPatternCompareInfo {
 
 int32_t patternMatch(const char *pattern, const char *str, size_t size, const SPatternCompareInfo *pInfo);
 
-int32_t WCSPatternMatch(const wchar_t *pattern, const wchar_t *str, size_t size, const SPatternCompareInfo *pInfo);
+int32_t WCSPatternMatch(const TdUcs4 *pattern, const TdUcs4 *str, size_t size, const SPatternCompareInfo *pInfo);
 
 int32_t taosArrayCompareString(const void *a, const void *b);
 

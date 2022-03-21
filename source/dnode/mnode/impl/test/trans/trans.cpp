@@ -204,6 +204,8 @@ TEST_F(MndTestTrans, 03_Create_Qnode2_Crash) {
     ASSERT_EQ(pRsp->code, TSDB_CODE_RPC_NETWORK_UNAVAIL);
   }
 
+  taosMsleep(1000);
+
   {
     // show trans
     test.SendShowMetaReq(TSDB_MGMT_TABLE_TRANS, "");
@@ -241,6 +243,7 @@ TEST_F(MndTestTrans, 03_Create_Qnode2_Crash) {
     EXPECT_EQ(test.GetShowRows(), 0);
   }
 
+  uInfo("======== re-create trans");
   // re-create trans
   {
     SMCreateQnodeReq createReq = {0};
@@ -255,9 +258,13 @@ TEST_F(MndTestTrans, 03_Create_Qnode2_Crash) {
     ASSERT_EQ(pRsp->code, TSDB_CODE_RPC_NETWORK_UNAVAIL);
   }
 
+  uInfo("======== kill and restart server")
   KillThenRestartServer();
 
+  uInfo("======== server2 start")
   server2.DoStart();
+
+  uInfo("======== server2 started")
 
   {
     int32_t retry = 0;

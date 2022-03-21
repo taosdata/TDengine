@@ -306,8 +306,9 @@ int32_t init_env() {
   }
 
   //const char* sql = "select * from tu1";
-  sprintf(sqlStr, "select * from %s%d", g_stConfInfo.stbName, 0);
-  pRes = tmq_create_topic(pConn, "test_stb_topic_1", sqlStr, strlen(sqlStr));
+  sprintf(sqlStr, "create topic test_stb_topic_1 as select * from %s%d", g_stConfInfo.stbName, 0);
+  /*pRes = tmq_create_topic(pConn, "test_stb_topic_1", sqlStr, strlen(sqlStr));*/
+  pRes = taos_query(pConn, sqlStr);
   if (taos_errno(pRes) != 0) {
     printf("failed to create topic test_stb_topic_1, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -609,7 +610,7 @@ void printParaIntoFile() {
   };
   g_fp = pFile;
 
-  time_t tTime = time(NULL);
+  time_t tTime = taosGetTimestampSec();
   struct tm tm = *localtime(&tTime);
 
   taosFprintfFile(pFile, "###################################################################\n");

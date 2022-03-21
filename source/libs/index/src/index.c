@@ -45,7 +45,7 @@ typedef struct SIdxColInfo {
   int cVersion;
 } SIdxColInfo;
 
-static pthread_once_t isInit = PTHREAD_ONCE_INIT;
+static TdThreadOnce isInit = PTHREAD_ONCE_INIT;
 // static void           indexInit();
 static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* term, SArray** result);
 
@@ -61,7 +61,7 @@ static void indexMergeCacheAndTFile(SArray* result, IterateValue* icache, Iterat
 // int32_t        indexSerialKey(ICacheKey* key, char* buf);
 
 int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
-  pthread_once(&isInit, indexInit);
+  taosThreadOnce(&isInit, indexInit);
   SIndex* sIdx = calloc(1, sizeof(SIndex));
   if (sIdx == NULL) {
     return -1;
@@ -82,7 +82,7 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   sIdx->colObj = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   sIdx->cVersion = 1;
   sIdx->path = tstrdup(path);
-  pthread_mutex_init(&sIdx->mtx, NULL);
+  taosThreadMutexInit(&sIdx->mtx, NULL);
   *index = sIdx;
   return 0;
 #endif
@@ -112,7 +112,7 @@ void indexClose(SIndex* sIdx) {
     iter = taosHashIterate(sIdx->colObj, iter);
   }
   taosHashCleanup(sIdx->colObj);
-  pthread_mutex_destroy(&sIdx->mtx);
+  taosThreadMutexDestroy(&sIdx->mtx);
   indexTFileDestroy(sIdx->tindex);
 #endif
   free(sIdx->path);
@@ -140,7 +140,7 @@ int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
 #ifdef USE_INVERTED_INDEX
 
   // TODO(yihao): reduce the lock range
-  pthread_mutex_lock(&index->mtx);
+  taosThreadMutexLock(&index->mtx);
   for (int i = 0; i < taosArrayGetSize(fVals); i++) {
     SIndexTerm* p = taosArrayGetP(fVals, i);
 
@@ -154,7 +154,7 @@ int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
       taosHashPut(index->colObj, buf, sz, &pCache, sizeof(void*));
     }
   }
-  pthread_mutex_unlock(&index->mtx);
+  taosThreadMutexUnlock(&index->mtx);
 
   for (int i = 0; i < taosArrayGetSize(fVals); i++) {
     SIndexTerm* p = taosArrayGetP(fVals, i);
@@ -240,6 +240,7 @@ int indexRebuild(SIndex* index, SIndexOpts* opts){
 #ifdef USE_INVERTED_INDEX
 #endif
 
+    return 0;
 }
 
 SIndexOpts* indexOptsCreate() {
@@ -332,14 +333,16 @@ static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result
       .suid = term->suid, .colName = term->colName, .nColName = strlen(term->colName), .colType = term->colType};
   int32_t sz = indexSerialCacheKey(&key, buf);
 
-  pthread_mutex_lock(&sIdx->mtx);
+  taosThreadMutexLock(&sIdx->mtx);
   IndexCache** pCache = taosHashGet(sIdx->colObj, buf, sz);
   cache = (pCache == NULL) ? NULL : *pCache;
-  pthread_mutex_unlock(&sIdx->mtx);
+  taosThreadMutexUnlock(&sIdx->mtx);
 
   *result = taosArrayInit(4, sizeof(uint64_t));
   // TODO: iterator mem and tidex
   STermValueType s = kTypeValue;
+
+  int64_t st = taosGetTimestampUs();
 
   SIdxTempResult* tr = sIdxTempResultCreate();
   if (0 == indexCacheSearch(cache, query, tr, &s)) {
@@ -348,17 +351,23 @@ static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result
       // coloum already drop by other oper, no need to query tindex
       return 0;
     } else {
+      st = taosGetTimestampUs();
       if (0 != indexTFileSearch(sIdx->tindex, query, tr)) {
         indexError("corrupt at index(TFile) col:%s val: %s", term->colName, term->colVal);
         goto END;
       }
+      int64_t tfCost = taosGetTimestampUs() - st;
+      indexInfo("tfile search cost: %" PRIu64 "us", tfCost);
     }
   } else {
     indexError("corrupt at index(cache) col:%s val: %s", term->colName, term->colVal);
     goto END;
   }
+  int64_t cost = taosGetTimestampUs() - st;
+  indexInfo("search cost: %" PRIu64 "us", cost);
 
   sIdxTempResultMergeTo(*result, tr);
+
   sIdxTempResultDestroy(tr);
   return 0;
 END:
@@ -555,10 +564,10 @@ static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   TFileHeader* header = &reader->header;
   ICacheKey    key = {.suid = cache->suid, .colName = header->colName, .nColName = strlen(header->colName)};
 
-  pthread_mutex_lock(&sIdx->mtx);
+  taosThreadMutexLock(&sIdx->mtx);
   IndexTFile* ifile = (IndexTFile*)sIdx->tindex;
   tfileCachePut(ifile->cache, &key, reader);
-  pthread_mutex_unlock(&sIdx->mtx);
+  taosThreadMutexUnlock(&sIdx->mtx);
   return ret;
 END:
   if (tw != NULL) {

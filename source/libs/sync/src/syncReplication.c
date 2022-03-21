@@ -14,7 +14,12 @@
  */
 
 #include "syncReplication.h"
+#include "syncIndexMgr.h"
 #include "syncMessage.h"
+#include "syncRaftEntry.h"
+#include "syncRaftLog.h"
+#include "syncRaftStore.h"
+#include "syncUtil.h"
 
 // TLA+ Spec
 // AppendEntries(i, j) ==
@@ -42,7 +47,63 @@
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 //
 int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
+  assert(pSyncNode->state == TAOS_SYNC_STATE_LEADER);
+
   int32_t ret = 0;
+  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+    SRaftId* pDestId = &(pSyncNode->peersId[i]);
+
+    // set prevLogIndex
+    SyncIndex nextIndex = syncIndexMgrGetIndex(pSyncNode->pNextIndex, pDestId);
+    SyncIndex preLogIndex = nextIndex - 1;
+
+    // set preLogTerm
+    SyncTerm preLogTerm = 0;
+    if (preLogIndex >= SYNC_INDEX_BEGIN) {
+      SSyncRaftEntry* pPreEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, preLogIndex);
+      assert(pPreEntry != NULL);
+
+      preLogTerm = pPreEntry->term;
+      syncEntryDestory(pPreEntry);
+    }
+
+    // batch optimized
+    // SyncIndex lastIndex = syncUtilMinIndex(pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore), nextIndex);
+
+    SyncAppendEntries* pMsg = NULL;
+    SSyncRaftEntry*    pEntry = logStoreGetEntry(pSyncNode->pLogStore, nextIndex);
+    if (pEntry != NULL) {
+      pMsg = syncAppendEntriesBuild(pEntry->bytes);
+      assert(pMsg != NULL);
+
+      // add pEntry into msg
+      uint32_t len;
+      char*    serialized = syncEntrySerialize(pEntry, &len);
+      assert(len == pEntry->bytes);
+      memcpy(pMsg->data, serialized, len);
+
+      free(serialized);
+      syncEntryDestory(pEntry);
+
+    } else {
+      // maybe overflow, send empty record
+      pMsg = syncAppendEntriesBuild(0);
+      assert(pMsg != NULL);
+    }
+
+    assert(pMsg != NULL);
+    pMsg->srcId = pSyncNode->myRaftId;
+    pMsg->destId = *pDestId;
+    pMsg->term = pSyncNode->pRaftStore->currentTerm;
+    pMsg->prevLogIndex = preLogIndex;
+    pMsg->prevLogTerm = preLogTerm;
+    pMsg->commitIndex = pSyncNode->commitIndex;
+
+    // send AppendEntries
+    syncNodeAppendEntries(pSyncNode, pDestId, pMsg);
+    syncAppendEntriesDestroy(pMsg);
+  }
+
   return ret;
 }
 

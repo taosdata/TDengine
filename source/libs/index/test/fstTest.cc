@@ -258,7 +258,7 @@ void checkFstCheckIterator() {
   // prefix search
   std::vector<uint64_t> result;
 
-  AutomationCtx* ctx = automCtxCreate((void*)"ab", AUTOMATION_ALWAYS);
+  AutomationCtx* ctx = automCtxCreate((void*)"H", AUTOMATION_PREFIX);
   m->Search(ctx, result);
   std::cout << "size: " << result.size() << std::endl;
   // assert(result.size() == count);
@@ -328,11 +328,11 @@ void iterTFileReader(char* path, char* uid, char* colName, char* ver) {
 int main(int argc, char* argv[]) {
   // tool to check all kind of fst test
   // if (argc > 1) { validateTFile(argv[1]); }
-  if (argc > 4) {
-    // path suid colName ver
-    iterTFileReader(argv[1], argv[2], argv[3], argv[4]);
-  }
-  // checkFstCheckIterator();
+  // if (argc > 4) {
+  // path suid colName ver
+  // iterTFileReader(argv[1], argv[2], argv[3], argv[4]);
+  //}
+  checkFstCheckIterator();
   // checkFstLongTerm();
   // checkFstPrefixSearch();
 

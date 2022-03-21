@@ -1,8 +1,12 @@
+#include <gtest/gtest.h>
 #include <stdio.h>
 #include "syncEnv.h"
 #include "syncIO.h"
 #include "syncInt.h"
 #include "syncMessage.h"
+#include "syncRaftEntry.h"
+#include "syncRaftLog.h"
+#include "syncRaftStore.h"
 #include "syncUtil.h"
 
 void logTest() {
@@ -14,496 +18,187 @@ void logTest() {
   sFatal("--- sync log test: fatal");
 }
 
-#define PING_MSG_LEN 20
-#define APPEND_ENTRIES_VALUE_LEN 32
+uint16_t ports[] = {7010, 7110, 7210, 7310, 7410};
+int32_t  replicaNum = 1;
+int32_t  myIndex = 0;
 
-void test1() {
-  sTrace("test1: ---- syncPingSerialize, syncPingDeserialize");
+SRaftId    ids[TSDB_MAX_REPLICA];
+SSyncInfo  syncInfo;
+SSyncFSM * pFsm;
+SWal *     pWal;
+SSyncNode *pSyncNode;
 
-  char msg[PING_MSG_LEN];
-  snprintf(msg, sizeof(msg), "%s", "test ping");
-  SyncPing* pMsg = syncPingBuild(PING_MSG_LEN);
-  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 1111);
-  pMsg->srcId.vgId = 100;
-  pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 2222);
-  pMsg->destId.vgId = 100;
-  memcpy(pMsg->data, msg, PING_MSG_LEN);
+SSyncNode *syncNodeInit() {
+  syncInfo.vgId = 1234;
+  syncInfo.rpcClient = gSyncIO->clientRpc;
+  syncInfo.FpSendMsg = syncIOSendMsg;
+  syncInfo.queue = gSyncIO->pMsgQ;
+  syncInfo.FpEqMsg = syncIOEqMsg;
+  syncInfo.pFsm = pFsm;
+  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./");
 
-  {
-    cJSON* pJson = syncPing2Json(pMsg);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
+  int code = walInit();
+  assert(code == 0);
+  SWalCfg walCfg;
+  memset(&walCfg, 0, sizeof(SWalCfg));
+  walCfg.vgId = syncInfo.vgId;
+  walCfg.fsyncPeriod = 1000;
+  walCfg.retentionPeriod = 1000;
+  walCfg.rollPeriod = 1000;
+  walCfg.retentionSize = 1000;
+  walCfg.segSize = 1000;
+  walCfg.level = TAOS_WAL_FSYNC;
+  pWal = walOpen("./wal_test", &walCfg);
+  assert(pWal != NULL);
+
+  syncInfo.pWal = pWal;
+
+  SSyncCfg *pCfg = &syncInfo.syncCfg;
+  pCfg->myIndex = myIndex;
+  pCfg->replicaNum = replicaNum;
+
+  for (int i = 0; i < replicaNum; ++i) {
+    pCfg->nodeInfo[i].nodePort = ports[i];
+    snprintf(pCfg->nodeInfo[i].nodeFqdn, sizeof(pCfg->nodeInfo[i].nodeFqdn), "%s", "127.0.0.1");
+    // taosGetFqdn(pCfg->nodeInfo[0].nodeFqdn);
   }
 
-  uint32_t bufLen = pMsg->bytes;
-  char*    buf = (char*)malloc(bufLen);
-  syncPingSerialize(pMsg, buf, bufLen);
+  pSyncNode = syncNodeOpen(&syncInfo);
+  assert(pSyncNode != NULL);
 
-  SyncPing* pMsg2 = (SyncPing*)malloc(pMsg->bytes);
-  syncPingDeserialize(buf, bufLen, pMsg2);
+  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
+  gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
+  gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
+  gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
+  gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
+  gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
+  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
+  gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
+  gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
+  gSyncIO->pSyncNode = pSyncNode;
 
-  {
-    cJSON* pJson = syncPing2Json(pMsg2);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  syncPingDestroy(pMsg);
-  syncPingDestroy(pMsg2);
-  free(buf);
+  return pSyncNode;
 }
 
-void test2() {
-  sTrace("test2: ---- syncPing2RpcMsg, syncPingFromRpcMsg");
+SSyncNode *syncInitTest() { return syncNodeInit(); }
 
-  char msg[PING_MSG_LEN];
-  snprintf(msg, sizeof(msg), "%s", "hello raft");
-  SyncPing* pMsg = syncPingBuild(PING_MSG_LEN);
-  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 3333);
-  pMsg->srcId.vgId = 200;
-  pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 4444);
-  pMsg->destId.vgId = 200;
-  memcpy(pMsg->data, msg, PING_MSG_LEN);
-
-  {
-    cJSON* pJson = syncPing2Json(pMsg);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
+void initRaftId(SSyncNode *pSyncNode) {
+  for (int i = 0; i < replicaNum; ++i) {
+    ids[i] = pSyncNode->replicasId[i];
+    char *s = syncUtilRaftId2Str(&ids[i]);
+    printf("raftId[%d] : %s\n", i, s);
+    free(s);
   }
-
-  SRpcMsg rpcMsg;
-  syncPing2RpcMsg(pMsg, &rpcMsg);
-  SyncPing* pMsg2 = (SyncPing*)malloc(pMsg->bytes);
-  syncPingFromRpcMsg(&rpcMsg, pMsg2);
-  rpcFreeCont(rpcMsg.pCont);
-
-  {
-    cJSON* pJson = syncPing2Json(pMsg2);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  syncPingDestroy(pMsg);
-  syncPingDestroy(pMsg2);
 }
 
-void test3() {
-  sTrace("test3: ---- syncPingReplySerialize, syncPingReplyDeserialize");
-
-  char msg[PING_MSG_LEN];
-  snprintf(msg, sizeof(msg), "%s", "test ping");
-  SyncPingReply* pMsg = syncPingReplyBuild(PING_MSG_LEN);
-  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 5555);
-  pMsg->srcId.vgId = 100;
-  pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 6666);
-  pMsg->destId.vgId = 100;
-  memcpy(pMsg->data, msg, PING_MSG_LEN);
-
-  {
-    cJSON* pJson = syncPingReply2Json(pMsg);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  uint32_t bufLen = pMsg->bytes;
-  char*    buf = (char*)malloc(bufLen);
-  syncPingReplySerialize(pMsg, buf, bufLen);
-
-  SyncPingReply* pMsg2 = (SyncPingReply*)malloc(pMsg->bytes);
-  syncPingReplyDeserialize(buf, bufLen, pMsg2);
-
-  {
-    cJSON* pJson = syncPingReply2Json(pMsg2);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  syncPingReplyDestroy(pMsg);
-  syncPingReplyDestroy(pMsg2);
-  free(buf);
+SRpcMsg *step0() {
+  SRpcMsg *pMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg));
+  memset(pMsg, 0, sizeof(SRpcMsg));
+  pMsg->msgType = 9999;
+  pMsg->contLen = 32;
+  pMsg->pCont = malloc(pMsg->contLen);
+  snprintf((char *)(pMsg->pCont), pMsg->contLen, "hello, world");
+  return pMsg;
 }
 
-void test4() {
-  sTrace("test4: ---- syncPingReply2RpcMsg, syncPingReplyFromRpcMsg");
-
-  char msg[PING_MSG_LEN];
-  snprintf(msg, sizeof(msg), "%s", "hello raft");
-  SyncPingReply* pMsg = syncPingReplyBuild(PING_MSG_LEN);
-  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 7777);
-  pMsg->srcId.vgId = 100;
-  pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 8888);
-  pMsg->destId.vgId = 100;
-  memcpy(pMsg->data, msg, PING_MSG_LEN);
-
-  {
-    cJSON* pJson = syncPingReply2Json(pMsg);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  SRpcMsg rpcMsg;
-  syncPingReply2RpcMsg(pMsg, &rpcMsg);
-  SyncPingReply* pMsg2 = (SyncPingReply*)malloc(pMsg->bytes);
-  syncPingReplyFromRpcMsg(&rpcMsg, pMsg2);
-  rpcFreeCont(rpcMsg.pCont);
-
-  {
-    cJSON* pJson = syncPingReply2Json(pMsg2);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  syncPingReplyDestroy(pMsg);
-  syncPingReplyDestroy(pMsg2);
+SyncClientRequest *step1(const SRpcMsg *pMsg) {
+  SyncClientRequest *pRetMsg = syncClientRequestBuild2(pMsg, 123, true);
+  return pRetMsg;
 }
 
-void test5() {
-  sTrace("test5: ---- syncRequestVoteSerialize, syncRequestVoteDeserialize");
-
-  SyncRequestVote* pMsg = syncRequestVoteBuild();
-  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 1234);
-  pMsg->srcId.vgId = 100;
-  pMsg->destId.addr = syncUtilAddr2U64("8.8.8.8", 5678);
-  pMsg->destId.vgId = 100;
-  pMsg->currentTerm = 20;
-  pMsg->lastLogIndex = 21;
-  pMsg->lastLogTerm = 22;
-
-  {
-    cJSON* pJson = syncRequestVote2Json(pMsg);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  uint32_t bufLen = pMsg->bytes;
-  char*    buf = (char*)malloc(bufLen);
-  syncRequestVoteSerialize(pMsg, buf, bufLen);
-
-  SyncRequestVote* pMsg2 = (SyncRequestVote*)malloc(pMsg->bytes);
-  syncRequestVoteDeserialize(buf, bufLen, pMsg2);
-
-  {
-    cJSON* pJson = syncRequestVote2Json(pMsg2);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  syncRequestVoteDestroy(pMsg);
-  syncRequestVoteDestroy(pMsg2);
-  free(buf);
+SRpcMsg *step2(const SyncClientRequest *pMsg) {
+  SRpcMsg *pRetMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg));
+  syncClientRequest2RpcMsg(pMsg, pRetMsg);
+  return pRetMsg;
 }
 
-void test6() {
-  sTrace("test6: ---- syncRequestVote2RpcMsg, syncRequestVoteFromRpcMsg");
-
-  SyncRequestVote* pMsg = syncRequestVoteBuild();
-  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 1234);
-  pMsg->srcId.vgId = 100;
-  pMsg->destId.addr = syncUtilAddr2U64("8.8.8.8", 5678);
-  pMsg->destId.vgId = 100;
-  pMsg->currentTerm = 20;
-  pMsg->lastLogIndex = 21;
-  pMsg->lastLogTerm = 22;
-
-  {
-    cJSON* pJson = syncRequestVote2Json(pMsg);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  SRpcMsg rpcMsg;
-  syncRequestVote2RpcMsg(pMsg, &rpcMsg);
-  SyncRequestVote* pMsg2 = (SyncRequestVote*)malloc(pMsg->bytes);
-  syncRequestVoteFromRpcMsg(&rpcMsg, pMsg2);
-  rpcFreeCont(rpcMsg.pCont);
-
-  {
-    cJSON* pJson = syncRequestVote2Json(pMsg2);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  syncRequestVoteDestroy(pMsg);
-  syncRequestVoteDestroy(pMsg2);
+SyncClientRequest *step3(const SRpcMsg *pMsg) {
+  SyncClientRequest *pRetMsg = syncClientRequestFromRpcMsg2(pMsg);
+  return pRetMsg;
 }
 
-void test7() {
-  sTrace("test7: ---- syncRequestVoteReplySerialize, syncRequestVoteReplyDeserialize");
-
-  SyncRequestVoteReply* pMsg = SyncRequestVoteReplyBuild();
-  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 1234);
-  pMsg->srcId.vgId = 100;
-  pMsg->destId.addr = syncUtilAddr2U64("8.8.8.8", 5678);
-  pMsg->destId.vgId = 100;
-  pMsg->term = 20;
-  pMsg->voteGranted = 1;
-
-  {
-    cJSON* pJson = syncRequestVoteReply2Json(pMsg);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  uint32_t bufLen = pMsg->bytes;
-  char*    buf = (char*)malloc(bufLen);
-  syncRequestVoteReplySerialize(pMsg, buf, bufLen);
-
-  SyncRequestVoteReply* pMsg2 = (SyncRequestVoteReply*)malloc(pMsg->bytes);
-  syncRequestVoteReplyDeserialize(buf, bufLen, pMsg2);
-
-  {
-    cJSON* pJson = syncRequestVoteReply2Json(pMsg2);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  syncRequestVoteReplyDestroy(pMsg);
-  syncRequestVoteReplyDestroy(pMsg2);
-  free(buf);
+SSyncRaftEntry *step4(const SyncClientRequest *pMsg) {
+  SSyncRaftEntry *pRetMsg = syncEntryBuild2((SyncClientRequest *)pMsg, 100, 0);
+  return pRetMsg;
 }
 
-void test8() {
-  sTrace("test8: ---- syncRequestVoteReply2RpcMsg, syncRequestVoteReplyFromRpcMsg");
-
-  SyncRequestVoteReply* pMsg = SyncRequestVoteReplyBuild();
-  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 1234);
-  pMsg->srcId.vgId = 100;
-  pMsg->destId.addr = syncUtilAddr2U64("8.8.8.8", 5678);
-  pMsg->destId.vgId = 100;
-  pMsg->term = 20;
-  pMsg->voteGranted = 1;
-
-  {
-    cJSON* pJson = syncRequestVoteReply2Json(pMsg);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  SRpcMsg rpcMsg;
-  syncRequestVoteReply2RpcMsg(pMsg, &rpcMsg);
-  SyncRequestVoteReply* pMsg2 = (SyncRequestVoteReply*)malloc(pMsg->bytes);
-  syncRequestVoteReplyFromRpcMsg(&rpcMsg, pMsg2);
-  rpcFreeCont(rpcMsg.pCont);
-
-  {
-    cJSON* pJson = syncRequestVoteReply2Json(pMsg2);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  syncRequestVoteReplyDestroy(pMsg);
-  syncRequestVoteReplyDestroy(pMsg2);
+char *step5(const SSyncRaftEntry *pMsg, uint32_t *len) {
+  char *pRetMsg = syncEntrySerialize(pMsg, len);
+  return pRetMsg;
 }
 
-void test9() {
-  sTrace("test9: ---- syncAppendEntriesSerialize, syncAppendEntriesDeserialize");
-
-  char msg[APPEND_ENTRIES_VALUE_LEN];
-  snprintf(msg, sizeof(msg), "%s", "test value");
-  SyncAppendEntries* pMsg = syncAppendEntriesBuild(APPEND_ENTRIES_VALUE_LEN);
-  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 1111);
-  pMsg->srcId.vgId = 100;
-  pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 2222);
-  pMsg->destId.vgId = 100;
-  pMsg->prevLogIndex = 55;
-  pMsg->prevLogTerm = 66;
-  pMsg->commitIndex = 77;
-  memcpy(pMsg->data, msg, APPEND_ENTRIES_VALUE_LEN);
-
-  {
-    cJSON* pJson = syncAppendEntries2Json(pMsg);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  uint32_t bufLen = pMsg->bytes;
-  char*    buf = (char*)malloc(bufLen);
-  syncAppendEntriesSerialize(pMsg, buf, bufLen);
-
-  SyncAppendEntries* pMsg2 = (SyncAppendEntries*)malloc(pMsg->bytes);
-  syncAppendEntriesDeserialize(buf, bufLen, pMsg2);
-
-  {
-    cJSON* pJson = syncAppendEntries2Json(pMsg2);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  syncAppendEntriesDestroy(pMsg);
-  syncAppendEntriesDestroy(pMsg2);
-  free(buf);
+SSyncRaftEntry *step6(const char *pMsg, uint32_t len) {
+  SSyncRaftEntry *pRetMsg = syncEntryDeserialize(pMsg, len);
+  return pRetMsg;
 }
 
-void test10() {
-  sTrace("test10: ---- syncAppendEntries2RpcMsg, syncAppendEntriesFromRpcMsg");
-
-  char msg[APPEND_ENTRIES_VALUE_LEN];
-  snprintf(msg, sizeof(msg), "%s", "test value");
-  SyncAppendEntries* pMsg = syncAppendEntriesBuild(APPEND_ENTRIES_VALUE_LEN);
-  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 1111);
-  pMsg->srcId.vgId = 100;
-  pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 2222);
-  pMsg->destId.vgId = 100;
-  pMsg->prevLogIndex = 55;
-  pMsg->prevLogTerm = 66;
-  pMsg->commitIndex = 77;
-  memcpy(pMsg->data, msg, APPEND_ENTRIES_VALUE_LEN);
-
-  {
-    cJSON* pJson = syncAppendEntries2Json(pMsg);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  SRpcMsg rpcMsg;
-  syncAppendEntries2RpcMsg(pMsg, &rpcMsg);
-  SyncAppendEntries* pMsg2 = (SyncAppendEntries*)malloc(pMsg->bytes);
-  syncAppendEntriesFromRpcMsg(&rpcMsg, pMsg2);
-  rpcFreeCont(rpcMsg.pCont);
-
-  {
-    cJSON* pJson = syncAppendEntries2Json(pMsg2);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  syncAppendEntriesDestroy(pMsg);
-  syncAppendEntriesDestroy(pMsg2);
+SRpcMsg *step7(const SSyncRaftEntry *pMsg) {
+  SRpcMsg *pRetMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg));
+  syncEntry2OriginalRpc(pMsg, pRetMsg);
+  return pRetMsg;
 }
 
-void test11() {
-  sTrace("test11: ---- syncAppendEntriesReplySerialize, syncAppendEntriesReplyDeserialize");
-
-  SyncAppendEntriesReply* pMsg = syncAppendEntriesReplyBuild();
-  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 1111);
-  pMsg->srcId.vgId = 100;
-  pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 2222);
-  pMsg->destId.vgId = 100;
-  pMsg->success = 1;
-  pMsg->matchIndex = 23;
-
-  {
-    cJSON* pJson = syncAppendEntriesReply2Json(pMsg);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  uint32_t bufLen = pMsg->bytes;
-  char*    buf = (char*)malloc(bufLen);
-  syncAppendEntriesReplySerialize(pMsg, buf, bufLen);
-
-  SyncAppendEntriesReply* pMsg2 = (SyncAppendEntriesReply*)malloc(pMsg->bytes);
-  syncAppendEntriesReplyDeserialize(buf, bufLen, pMsg2);
-
-  {
-    cJSON* pJson = syncAppendEntriesReply2Json(pMsg2);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  syncAppendEntriesReplyDestroy(pMsg);
-  syncAppendEntriesReplyDestroy(pMsg2);
-  free(buf);
-}
-
-void test12() {
-  sTrace("test12: ---- syncAppendEntriesReply2RpcMsg, syncAppendEntriesReplyFromRpcMsg");
-
-  SyncAppendEntriesReply* pMsg = syncAppendEntriesReplyBuild();
-  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 1111);
-  pMsg->srcId.vgId = 100;
-  pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 2222);
-  pMsg->destId.vgId = 100;
-  pMsg->success = 1;
-  pMsg->matchIndex = 23;
-
-  {
-    cJSON* pJson = syncAppendEntriesReply2Json(pMsg);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  SRpcMsg rpcMsg;
-  syncAppendEntriesReply2RpcMsg(pMsg, &rpcMsg);
-  SyncAppendEntriesReply* pMsg2 = (SyncAppendEntriesReply*)malloc(pMsg->bytes);
-  syncAppendEntriesReplyFromRpcMsg(&rpcMsg, pMsg2);
-  rpcFreeCont(rpcMsg.pCont);
-
-  {
-    cJSON* pJson = syncAppendEntriesReply2Json(pMsg2);
-    char*  serialized = cJSON_Print(pJson);
-    printf("\n%s\n\n", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  syncAppendEntriesReplyDestroy(pMsg);
-  syncAppendEntriesReplyDestroy(pMsg2);
-}
-
-int main() {
-  // taosInitLog((char*)"syncPingTest.log", 100000, 10);
+int main(int argc, char **argv) {
+  // taosInitLog((char *)"syncTest.log", 100000, 10);
   tsAsyncLog = 0;
   sDebugFlag = 143 + 64;
+  void logTest();
 
-  test1();
-  test2();
-  test3();
-  test4();
-  test5();
-  test6();
-  test7();
-  test8();
-  test9();
-  test10();
-  test11();
-  test12();
+  myIndex = 0;
+  if (argc >= 2) {
+    myIndex = atoi(argv[1]);
+  }
+
+  int32_t ret = syncIOStart((char *)"127.0.0.1", ports[myIndex]);
+  assert(ret == 0);
+
+  ret = syncEnvStart();
+  assert(ret == 0);
+
+  taosRemoveDir("./wal_test");
+
+  // step0
+  SRpcMsg *pMsg0 = step0();
+  syncRpcMsgPrint2((char *)"==step0==", pMsg0);
+
+  // step1
+  SyncClientRequest *pMsg1 = step1(pMsg0);
+  syncClientRequestPrint2((char *)"==step1==", pMsg1);
+
+  // step2
+  SRpcMsg *pMsg2 = step2(pMsg1);
+  syncRpcMsgPrint2((char *)"==step2==", pMsg2);
+
+  // step3
+  SyncClientRequest *pMsg3 = step3(pMsg2);
+  syncClientRequestPrint2((char *)"==step3==", pMsg3);
+
+  // step4
+  SSyncRaftEntry *pMsg4 = step4(pMsg3);
+  syncEntryPrint2((char *)"==step4==", pMsg4);
+
+  // log, relog
+  SSyncNode *pSyncNode = syncNodeInit();
+  assert(pSyncNode != NULL);
+  SSyncRaftEntry *pEntry = pMsg4;
+  pSyncNode->pLogStore->appendEntry(pSyncNode->pLogStore, pEntry);
+  SSyncRaftEntry *pEntry2 = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, pEntry->index);
+  syncEntryPrint2((char *)"==pEntry2==", pEntry2);
+
+  // step5
+  uint32_t len;
+  char *   pMsg5 = step5(pMsg4, &len);
+  char *   s = syncUtilprintBin(pMsg5, len);
+  printf("==step5== [%s] \n", s);
+  free(s);
+
+  // step6
+  SSyncRaftEntry *pMsg6 = step6(pMsg5, len);
+  syncEntryPrint2((char *)"==step6==", pMsg6);
+
+  // step7
+  SRpcMsg *pMsg7 = step7(pMsg6);
+  syncRpcMsgPrint2((char *)"==step7==", pMsg7);
 
   return 0;
 }

@@ -8,7 +8,7 @@ AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 ADD_EXECUTABLE(qworkerTest ${SOURCE_LIST})
 TARGET_LINK_LIBRARIES(
         qworkerTest
-        PUBLIC os util common transport gtest qcom planner qworker executor
+        PUBLIC os util common transport gtest qcom nodes planner qworker executor
 )
 
 TARGET_INCLUDE_DIRECTORIES(

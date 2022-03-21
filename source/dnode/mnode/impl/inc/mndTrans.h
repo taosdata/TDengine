@@ -47,7 +47,7 @@ void    mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen);
 void    mndTransSetDbInfo(STrans *pTrans, SDbObj *pDb);
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
-void    mndTransProcessRsp(SMnodeMsg *pRsp);
+void    mndTransProcessRsp(SNodeMsg *pRsp);
 void    mndTransPullup(SMnode *pMnode);
 
 #ifdef __cplusplus

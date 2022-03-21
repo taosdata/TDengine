@@ -21,11 +21,14 @@ extern "C" {
 #endif
 
 #include "tlockfree.h"
+#include "ttimer.h"
 
 #define QW_DEFAULT_SCHEDULER_NUMBER 10000
 #define QW_DEFAULT_TASK_NUMBER 10000
 #define QW_DEFAULT_SCH_TASK_NUMBER 10000
 #define QW_DEFAULT_SHORT_RUN_TIMES 2
+#define QW_DEFAULT_HEARTBEAT_MSEC 3000
+
 enum {
   QW_PHASE_PRE_QUERY = 1,
   QW_PHASE_POST_QUERY,
@@ -82,6 +85,11 @@ typedef struct SQWMsg {
   void   *connection;
 } SQWMsg;
 
+typedef struct SQWHbInfo {
+  SSchedulerHbRsp  rsp;
+  void            *connection;
+} SQWHbInfo;
+
 typedef struct SQWPhaseInput {
   int8_t         taskStatus;
   int8_t         taskType;
@@ -95,6 +103,7 @@ typedef struct SQWPhaseOutput {
 
 
 typedef struct SQWTaskStatus {  
+  int64_t  refId;        // job's refId
   int32_t  code;
   int8_t   status;
 } SQWTaskStatus;
@@ -122,6 +131,8 @@ typedef struct SQWTaskCtx {
 
 typedef struct SQWSchStatus {
   int32_t   lastAccessTs; // timestamp in second
+  uint64_t  hbSeqId;
+  void     *hbConnection;
   SRWLatch  tasksLock;
   SHashObj *tasksHash;   // key:queryId+taskId, value: SQWTaskStatus
 } SQWSchStatus;
@@ -131,17 +142,19 @@ typedef struct SQWorkerMgmt {
   SQWorkerCfg      cfg;
   int8_t           nodeType;
   int32_t          nodeId;
+  void            *timer;
+  tmr_h            hbTimer;
   SRWLatch         schLock;
   //SRWLatch         ctxLock;
   SHashObj        *schHash;       //key: schedulerId,    value: SQWSchStatus
   SHashObj        *ctxHash;       //key: queryId+taskId, value: SQWTaskCtx
   void            *nodeObj;
   putReqToQueryQFp putToQueueFp;
-  sendReqToDnodeFp sendReqFp;
+  sendReqFp sendReqFp;
 } SQWorkerMgmt;
 
-#define QW_FPARAMS_DEF SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId
-#define QW_IDS() sId, qId, tId
+#define QW_FPARAMS_DEF SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId
+#define QW_IDS() sId, qId, tId, rId
 #define QW_FPARAMS() mgmt, QW_IDS()
 
 #define QW_GET_EVENT_VALUE(ctx, event) atomic_load_8(&(ctx)->events[event])

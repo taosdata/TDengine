@@ -70,22 +70,24 @@ cJSON *syncIndexMgr2Json(SSyncIndexMgr *pSyncIndexMgr) {
   char   u64buf[128];
   cJSON *pRoot = cJSON_CreateObject();
 
-  cJSON_AddNumberToObject(pRoot, "replicaNum", pSyncIndexMgr->replicaNum);
-  cJSON *pReplicas = cJSON_CreateArray();
-  cJSON_AddItemToObject(pRoot, "replicas", pReplicas);
-  for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
-    cJSON_AddItemToArray(pReplicas, syncUtilRaftId2Json(&(*(pSyncIndexMgr->replicas))[i]));
+  if (pSyncIndexMgr != NULL) {
+    cJSON_AddNumberToObject(pRoot, "replicaNum", pSyncIndexMgr->replicaNum);
+    cJSON *pReplicas = cJSON_CreateArray();
+    cJSON_AddItemToObject(pRoot, "replicas", pReplicas);
+    for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
+      cJSON_AddItemToArray(pReplicas, syncUtilRaftId2Json(&(*(pSyncIndexMgr->replicas))[i]));
+    }
+    int  respondNum = 0;
+    int *arr = (int *)malloc(sizeof(int) * pSyncIndexMgr->replicaNum);
+    for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
+      arr[i] = pSyncIndexMgr->index[i];
+    }
+    cJSON *pIndex = cJSON_CreateIntArray(arr, pSyncIndexMgr->replicaNum);
+    free(arr);
+    cJSON_AddItemToObject(pRoot, "index", pIndex);
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncIndexMgr->pSyncNode);
+    cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
   }
-  int  respondNum = 0;
-  int *arr = (int *)malloc(sizeof(int) * pSyncIndexMgr->replicaNum);
-  for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
-    arr[i] = pSyncIndexMgr->index[i];
-  }
-  cJSON *pIndex = cJSON_CreateIntArray(arr, pSyncIndexMgr->replicaNum);
-  free(arr);
-  cJSON_AddItemToObject(pRoot, "index", pIndex);
-  snprintf(u64buf, sizeof(u64buf), "%p", pSyncIndexMgr->pSyncNode);
-  cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
 
   cJSON *pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "pSyncIndexMgr", pRoot);
@@ -97,4 +99,31 @@ char *syncIndexMgr2Str(SSyncIndexMgr *pSyncIndexMgr) {
   char * serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
+}
+
+// for debug -------------------
+void syncIndexMgrPrint(SSyncIndexMgr *pObj) {
+  char *serialized = syncIndexMgr2Str(pObj);
+  printf("syncIndexMgrPrint | len:%lu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncIndexMgrPrint2(char *s, SSyncIndexMgr *pObj) {
+  char *serialized = syncIndexMgr2Str(pObj);
+  printf("syncIndexMgrPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void syncIndexMgrLog(SSyncIndexMgr *pObj) {
+  char *serialized = syncIndexMgr2Str(pObj);
+  sTrace("syncIndexMgrLog | len:%lu | %s", strlen(serialized), serialized);
+  free(serialized);
+}
+
+void syncIndexMgrLog2(char *s, SSyncIndexMgr *pObj) {
+  char *serialized = syncIndexMgr2Str(pObj);
+  sTrace("syncIndexMgrLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  free(serialized);
 }

@@ -66,7 +66,7 @@ void flttInitLogFile() {
 
 
 void flttMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
-  SNode *node = nodesMakeNode(QUERY_NODE_VALUE);
+  SNode *node = (SNode*)nodesMakeNode(QUERY_NODE_VALUE);
   SValueNode *vnode = (SValueNode *)node;
   vnode->node.resType.type = dataType;
 
@@ -85,7 +85,7 @@ void flttMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
 void flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, int32_t dataBytes, int32_t rowNum, void *value) {
   static uint64_t dbidx = 0;
   
-  SNode *node = nodesMakeNode(QUERY_NODE_COLUMN);
+  SNode *node = (SNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   SColumnNode *rnode = (SColumnNode *)node;
   rnode->node.resType.type = dataType;
   rnode->node.resType.bytes = dataBytes;
@@ -174,7 +174,7 @@ void flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
 }
 
 void flttMakeOpNode(SNode **pNode, EOperatorType opType, int32_t resType, SNode *pLeft, SNode *pRight) {
-  SNode *node = nodesMakeNode(QUERY_NODE_OPERATOR);
+  SNode *node = (SNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
   SOperatorNode *onode = (SOperatorNode *)node;
   onode->node.resType.type = resType;
   onode->node.resType.bytes = tDataTypes[resType].bytes;
@@ -187,7 +187,7 @@ void flttMakeOpNode(SNode **pNode, EOperatorType opType, int32_t resType, SNode 
 }
 
 void flttMakeLogicNode(SNode **pNode, ELogicConditionType opType, SNode **nodeList, int32_t nodeNum) {
-  SNode *node = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+  SNode *node = (SNode*)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
   SLogicConditionNode *onode = (SLogicConditionNode *)node;
   onode->condType = opType;
   onode->node.resType.type = TSDB_DATA_TYPE_BOOL;
@@ -202,7 +202,7 @@ void flttMakeLogicNode(SNode **pNode, ELogicConditionType opType, SNode **nodeLi
 }
 
 void flttMakeLogicNodeFromList(SNode **pNode, ELogicConditionType opType, SNodeList *nodeList) {
-  SNode *node = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+  SNode *node = (SNode*)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
   SLogicConditionNode *onode = (SLogicConditionNode *)node;
   onode->condType = opType;
   onode->node.resType.type = TSDB_DATA_TYPE_BOOL;
@@ -214,7 +214,7 @@ void flttMakeLogicNodeFromList(SNode **pNode, ELogicConditionType opType, SNodeL
 }
 
 void flttMakeListNode(SNode **pNode, SNodeList *list, int32_t resType) {
-  SNode *node = nodesMakeNode(QUERY_NODE_NODE_LIST);
+  SNode *node = (SNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
   SNodeListNode *lnode = (SNodeListNode *)node;
   lnode->dataType.type = resType;
   lnode->pNodeList = list;
@@ -1286,7 +1286,7 @@ TEST(scalarModelogicTest, diff_columns_or_and_or) {
 
 
 int main(int argc, char** argv) {
-  taosSeedRand(time(NULL));
+  taosSeedRand(taosGetTimestampSec());
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

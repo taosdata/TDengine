@@ -65,24 +65,76 @@ typedef enum ENodeType {
   QUERY_NODE_TARGET,
   QUERY_NODE_DATABLOCK_DESC,
   QUERY_NODE_SLOT_DESC,
+  QUERY_NODE_COLUMN_DEF,
+  QUERY_NODE_DOWNSTREAM_SOURCE,
+  QUERY_NODE_DATABASE_OPTIONS,
+  QUERY_NODE_TABLE_OPTIONS,
+  QUERY_NODE_INDEX_OPTIONS,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR,
   QUERY_NODE_SELECT_STMT,
-  QUERY_NODE_SHOW_STMT,
+  QUERY_NODE_VNODE_MODIF_STMT,
+  QUERY_NODE_CREATE_DATABASE_STMT,
+  QUERY_NODE_DROP_DATABASE_STMT,
+  QUERY_NODE_ALTER_DATABASE_STMT,
+  QUERY_NODE_SHOW_DATABASES_STMT, // temp
+  QUERY_NODE_CREATE_TABLE_STMT,
+  QUERY_NODE_CREATE_SUBTABLE_CLAUSE,
+  QUERY_NODE_CREATE_MULTI_TABLE_STMT,
+  QUERY_NODE_DROP_TABLE_CLAUSE,
+  QUERY_NODE_DROP_TABLE_STMT,
+  QUERY_NODE_DROP_SUPER_TABLE_STMT,
+  QUERY_NODE_ALTER_TABLE_STMT,
+  QUERY_NODE_SHOW_TABLES_STMT, // temp
+  QUERY_NODE_SHOW_STABLES_STMT,
+  QUERY_NODE_CREATE_USER_STMT,
+  QUERY_NODE_ALTER_USER_STMT,
+  QUERY_NODE_DROP_USER_STMT,
+  QUERY_NODE_SHOW_USERS_STMT,
+  QUERY_NODE_USE_DATABASE_STMT,
+  QUERY_NODE_CREATE_DNODE_STMT,
+  QUERY_NODE_DROP_DNODE_STMT,
+  QUERY_NODE_ALTER_DNODE_STMT,
+  QUERY_NODE_SHOW_DNODES_STMT,
+  QUERY_NODE_SHOW_VGROUPS_STMT,
+  QUERY_NODE_SHOW_MNODES_STMT,
+  QUERY_NODE_SHOW_QNODES_STMT,
+  QUERY_NODE_CREATE_INDEX_STMT,
+  QUERY_NODE_DROP_INDEX_STMT,
+  QUERY_NODE_CREATE_QNODE_STMT,
+  QUERY_NODE_DROP_QNODE_STMT,
+  QUERY_NODE_CREATE_TOPIC_STMT,
+  QUERY_NODE_DROP_TOPIC_STMT,
+  QUERY_NODE_ALTER_LOCAL_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN,
   QUERY_NODE_LOGIC_PLAN_JOIN,
   QUERY_NODE_LOGIC_PLAN_AGG,
   QUERY_NODE_LOGIC_PLAN_PROJECT,
+  QUERY_NODE_LOGIC_PLAN_VNODE_MODIF,
+  QUERY_NODE_LOGIC_PLAN_EXCHANGE,
+  QUERY_NODE_LOGIC_PLAN_WINDOW,
+  QUERY_NODE_LOGIC_SUBPLAN,
+  QUERY_NODE_LOGIC_PLAN,
 
   // physical plan node
   QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
+  QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN,
+  QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_PROJECT,
   QUERY_NODE_PHYSICAL_PLAN_JOIN,
-  QUERY_NODE_PHYSICAL_PLAN_AGG
+  QUERY_NODE_PHYSICAL_PLAN_AGG,
+  QUERY_NODE_PHYSICAL_PLAN_EXCHANGE,
+  QUERY_NODE_PHYSICAL_PLAN_SORT,
+  QUERY_NODE_PHYSICAL_PLAN_INTERVAL,
+  QUERY_NODE_PHYSICAL_PLAN_DISPATCH,
+  QUERY_NODE_PHYSICAL_PLAN_INSERT,
+  QUERY_NODE_PHYSICAL_SUBPLAN,
+  QUERY_NODE_PHYSICAL_PLAN
 } ENodeType;
 
 /**
@@ -105,15 +157,21 @@ typedef struct SNodeList {
   SListCell* pTail;
 } SNodeList;
 
-SNode* nodesMakeNode(ENodeType type);
-void nodesDestroyNode(SNode* pNode);
+#define SNodeptr void*  
+
+SNodeptr nodesMakeNode(ENodeType type);
+void nodesDestroyNode(SNodeptr pNode);
 
 SNodeList* nodesMakeList();
-int32_t nodesListAppend(SNodeList* pList, SNode* pNode);
+int32_t nodesListAppend(SNodeList* pList, SNodeptr pNode);
+int32_t nodesListStrictAppend(SNodeList* pList, SNodeptr pNode);
 int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc);
+int32_t nodesListStrictAppendList(SNodeList* pTarget, SNodeList* pSrc);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
-SNode* nodesListGetNode(SNodeList* pList, int32_t index);
+SNodeptr nodesListGetNode(SNodeList* pList, int32_t index);
 void nodesDestroyList(SNodeList* pList);
+// Only clear the linked list structure, without releasing the elements inside
+void nodesClearList(SNodeList* pList);
 
 typedef enum EDealRes {
   DEAL_RES_CONTINUE = 1,
@@ -122,9 +180,9 @@ typedef enum EDealRes {
 } EDealRes;
 
 typedef EDealRes (*FNodeWalker)(SNode* pNode, void* pContext);
-void nodesWalkNode(SNode* pNode, FNodeWalker walker, void* pContext);
+void nodesWalkNode(SNodeptr pNode, FNodeWalker walker, void* pContext);
 void nodesWalkList(SNodeList* pList, FNodeWalker walker, void* pContext);
-void nodesWalkNodePostOrder(SNode* pNode, FNodeWalker walker, void* pContext);
+void nodesWalkNodePostOrder(SNodeptr pNode, FNodeWalker walker, void* pContext);
 void nodesWalkListPostOrder(SNodeList* pList, FNodeWalker walker, void* pContext);
 
 typedef EDealRes (*FNodeRewriter)(SNode** pNode, void* pContext);
@@ -133,13 +191,17 @@ void nodesRewriteList(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
 void nodesRewriteNodePostOrder(SNode** pNode, FNodeRewriter rewriter, void* pContext);
 void nodesRewriteListPostOrder(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
 
-bool nodesEqualNode(const SNode* a, const SNode* b);
+bool nodesEqualNode(const SNodeptr a, const SNodeptr b);
 
-SNode* nodesCloneNode(const SNode* pNode);
+SNodeptr nodesCloneNode(const SNodeptr pNode);
 SNodeList* nodesCloneList(const SNodeList* pList);
 
-int32_t nodesNodeToString(const SNode* pNode, bool format, char** pStr, int32_t* pLen);
+const char* nodesNodeName(ENodeType type);
+int32_t nodesNodeToString(const SNodeptr pNode, bool format, char** pStr, int32_t* pLen);
 int32_t nodesStringToNode(const char* pStr, SNode** pNode);
+
+int32_t nodesListToString(const SNodeList* pList, bool format, char** pStr, int32_t* pLen);
+int32_t nodesStringToList(const char* pStr, SNodeList** pList);
 
 #ifdef __cplusplus
 }

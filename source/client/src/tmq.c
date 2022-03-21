@@ -459,8 +459,8 @@ void tmq_conf_set_offset_commit_cb(tmq_conf_t* conf, tmq_commit_cb* cb) { conf->
 TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, int sqlLen) {
   STscObj*     pTscObj = (STscObj*)taos;
   SRequestObj* pRequest = NULL;
-  SQueryNode*  pQueryNode = NULL;
-  char*        pStr = NULL;
+  SQuery*      pQueryNode = NULL;
+  char*        astStr = NULL;
 
   terrno = TSDB_CODE_SUCCESS;
   if (taos == NULL || topicName == NULL || sql == NULL) {
@@ -484,51 +484,39 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
   tscDebug("start to create topic, %s", topicName);
 
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
-  CHECK_CODE_GOTO(parseSql(pRequest, &pQueryNode), _return);
-
-  SQueryStmtInfo* pQueryStmtInfo = (SQueryStmtInfo*)pQueryNode;
-  pQueryStmtInfo->info.continueQuery = true;
+  CHECK_CODE_GOTO(parseSql(pRequest, true, &pQueryNode), _return);
 
   // todo check for invalid sql statement and return with error code
 
-  SSchema* schema = NULL;
-  int32_t  numOfCols = 0;
-  CHECK_CODE_GOTO(qCreateQueryDag(pQueryNode, &pRequest->body.pDag, &schema, &numOfCols, NULL, pRequest->requestId),
-                  _return);
-
-  pStr = qDagToString(pRequest->body.pDag);
-  if (pStr == NULL) {
-    goto _return;
-  }
+  CHECK_CODE_GOTO(nodesNodeToString(pQueryNode->pRoot, false, &astStr, NULL), _return);
 
   /*printf("%s\n", pStr);*/
 
-  // The topic should be related to a database that the queried table is belonged to.
-  SName name = {0};
-  char  dbName[TSDB_DB_FNAME_LEN] = {0};
-  tNameGetFullDbName(&((SQueryStmtInfo*)pQueryNode)->pTableMetaInfo[0]->name, dbName);
+  SName name = {.acctId = pTscObj->acctId, .type = TSDB_TABLE_NAME_T};
+  strcpy(name.dbname, pRequest->pDb);
+  strcpy(name.tname, topicName);
 
-  tNameFromString(&name, dbName, T_NAME_ACCT | T_NAME_DB);
-  tNameFromString(&name, topicName, T_NAME_TABLE);
-
-  SMCreateTopicReq req = {
+  SCMCreateTopicReq req = {
       .igExists = 1,
-      .physicalPlan = (char*)pStr,
+      .ast = (char*)astStr,
       .sql = (char*)sql,
-      .logicalPlan = (char*)"no logic plan",
   };
   tNameExtractFullName(&name, req.name);
 
-  int   tlen = tSerializeMCreateTopicReq(NULL, 0, &req);
+  int   tlen = tSerializeSCMCreateTopicReq(NULL, 0, &req);
   void* buf = malloc(tlen);
   if (buf == NULL) {
     goto _return;
   }
 
-  tSerializeMCreateTopicReq(buf, tlen, &req);
+  tSerializeSCMCreateTopicReq(buf, tlen, &req);
   /*printf("formatted: %s\n", dagStr);*/
 
-  pRequest->body.requestMsg = (SDataBuf){.pData = buf, .len = tlen, .handle = NULL};
+  pRequest->body.requestMsg = (SDataBuf){
+      .pData = buf,
+      .len = tlen,
+      .handle = NULL,
+  };
   pRequest->type = TDMT_MND_CREATE_TOPIC;
 
   SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);
@@ -702,6 +690,10 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   }
   memcpy(pRsp, pMsg->pData, sizeof(SMqRspHead));
   tDecodeSMqPollRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pRsp->consumeRsp);
+  pRsp->curBlock = 0;
+  pRsp->curRow = 0;
+  // TODO: alloc mem
+  /*pRsp->*/
   /*printf("rsp commit off:%ld rsp off:%ld has data:%d\n", pRsp->committedOffset, pRsp->rspOffset, pRsp->numOfTopics);*/
   if (pRsp->consumeRsp.numOfTopics == 0) {
     /*printf("no data\n");*/
@@ -760,9 +752,9 @@ int32_t tmqAskEpCb(void* param, const SDataBuf* pMsg, int32_t code) {
     goto END;
   }
 
-  // tmq's epoch is monotomically increase,
+  // tmq's epoch is monotonically increase,
   // so it's safe to discard any old epoch msg.
-  // epoch will only increase when received newer epoch ep msg
+  // Epoch will only increase when received newer epoch ep msg
   SMqRspHead* head = pMsg->pData;
   int32_t     epoch = atomic_load_32(&tmq->epoch);
   if (head->epoch <= epoch) {
@@ -1146,13 +1138,13 @@ tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
   if (taosArrayGetSize(tmq->clientTopics) == 0) {
     tscDebug("consumer:%ld poll but not assigned", tmq->consumerId);
     /*printf("over1\n");*/
-    usleep(blocking_time * 1000);
+    taosMsleep(blocking_time);
     return NULL;
   }
   SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, tmq->nextTopicIdx);
   if (taosArrayGetSize(pTopic->vgs) == 0) {
     /*printf("over2\n");*/
-    usleep(blocking_time * 1000);
+    taosMsleep(blocking_time);
     return NULL;
   }
 
@@ -1165,14 +1157,14 @@ tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
     SMqConsumeReq* pReq = tmqBuildConsumeReqImpl(tmq, blocking_time, pTopic, pVg);
     if (pReq == NULL) {
       ASSERT(false);
-      usleep(blocking_time * 1000);
+      taosMsleep(blocking_time);
       return NULL;
     }
 
     SMqPollCbParam* param = malloc(sizeof(SMqPollCbParam));
     if (param == NULL) {
       ASSERT(false);
-      usleep(blocking_time * 1000);
+      taosMsleep(blocking_time);
       return NULL;
     }
     param->tmq = tmq;
@@ -1204,7 +1196,7 @@ tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
 
     if (tmq_message == NULL) {
       if (beginVgIdx == pTopic->nextVgIdx) {
-        usleep(blocking_time * 1000);
+        taosMsleep(blocking_time);
       } else {
         continue;
       }
@@ -1283,6 +1275,34 @@ const char* tmq_err2str(tmq_resp_err_t err) {
   }
   return "fail";
 }
+
+TAOS_ROW tmq_get_row(tmq_message_t* message) {
+  SMqPollRsp* rsp = &message->consumeRsp;
+  while (1) {
+    if (message->curBlock < taosArrayGetSize(rsp->pBlockData)) {
+      SSDataBlock* pBlock = taosArrayGet(rsp->pBlockData, message->curBlock);
+      if (message->curRow < pBlock->info.rows) {
+        for (int i = 0; i < pBlock->info.numOfCols; i++) {
+          SColumnInfoData* pData = taosArrayGet(pBlock->pDataBlock, i);
+          if (colDataIsNull_s(pData, message->curRow))
+            message->uData[i] = NULL;
+          else {
+            message->uData[i] = colDataGetData(pData, message->curRow);
+          }
+        }
+        message->curRow++;
+        return message->uData;
+      } else {
+        message->curBlock++;
+        message->curRow = 0;
+        continue;
+      }
+    }
+    return NULL;
+  }
+}
+
+char* tmq_get_topic_name(tmq_message_t* message) { return "not implemented yet"; }
 
 #if 0
 tmq_t* tmqCreateConsumerImpl(TAOS* conn, tmq_conf_t* conf) {

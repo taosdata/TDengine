@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "parser.h"
+#include "planner.h"
 #include "query.h"
 #include "taos.h"
 #include "tcommon.h"
@@ -76,8 +77,8 @@ typedef struct {
   int8_t inited;
   // ctl
   int8_t          threadStop;
-  pthread_t       thread;
-  pthread_mutex_t lock;       // used when app init and cleanup
+  TdThread       thread;
+  TdThreadMutex lock;       // used when app init and cleanup
   SArray*         appHbMgrs;  // SArray<SAppHbMgr*> one for each cluster
   FHbReqHandle    reqHandle[HEARTBEAT_TYPE_MAX];
   FHbRspHandle    rspHandle[HEARTBEAT_TYPE_MAX];
@@ -124,7 +125,7 @@ typedef struct SAppInfo {
   int32_t         pid;
   int32_t         numOfThreads;
   SHashObj*       pInstMap;
-  pthread_mutex_t mutex;
+  TdThreadMutex mutex;
 } SAppInfo;
 
 typedef struct STscObj {
@@ -136,7 +137,7 @@ typedef struct STscObj {
   uint32_t        connId;
   int32_t         connType;
   uint64_t        id;         // ref ID returned by taosAddRef
-  pthread_mutex_t mutex;      // used to protect the operation on db
+  TdThreadMutex mutex;      // used to protect the operation on db
   int32_t         numOfReqs;  // number of sqlObj bound to this connection
   SAppInstInfo*   pAppInfo;
 } STscObj;
@@ -163,13 +164,13 @@ typedef struct SShowReqInfo {
 } SShowReqInfo;
 
 typedef struct SRequestSendRecvBody {
-  tsem_t            rspSem;  // not used now
-  void*             fp;
-  SShowReqInfo      showInfo;  // todo this attribute will be removed after the query framework being completed.
-  SDataBuf          requestMsg;
-  int64_t           queryJob;  // query job, created according to sql query DAG.
-  struct SQueryDag* pDag;      // the query dag, generated according to the sql statement.
-  SReqResultInfo    resInfo;
+  tsem_t             rspSem;  // not used now
+  void*              fp;
+  SShowReqInfo       showInfo;  // todo this attribute will be removed after the query framework being completed.
+  SDataBuf           requestMsg;
+  int64_t            queryJob;  // query job, created according to sql query DAG.
+  struct SQueryPlan* pDag;       // the query dag, generated according to the sql statement.
+  SReqResultInfo     resInfo;
 } SRequestSendRecvBody;
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
@@ -178,6 +179,7 @@ typedef struct SRequestObj {
   uint64_t             requestId;
   int32_t              type;  // request type
   STscObj*             pTscObj;
+  char*                pDb;
   char*                sqlstr;  // sql string
   int32_t              sqlLen;
   int64_t              self;
@@ -228,7 +230,8 @@ void setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t 
 
 int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj** pRequest);
 
-int32_t parseSql(SRequestObj* pRequest, SQueryNode** pQuery);
+int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery);
+int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList);
 
 // --- heartbeat
 // global, called by mgmt
