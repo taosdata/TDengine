@@ -114,8 +114,8 @@ int main() {
   assert(rid > 0);
 
   for (int i = 0; i < 20; ++i) {
-    pthread_t tid;
-    pthread_create(&tid, NULL, func, (void *)rid);
+    TdThread tid;
+    taosThreadCreate(&tid, NULL, func, (void *)rid);
   }
 
   int32_t ms = taosRand() % 10000;
