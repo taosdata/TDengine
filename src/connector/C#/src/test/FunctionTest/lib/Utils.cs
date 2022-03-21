@@ -104,11 +104,12 @@ namespace Test.UtilsTools
 
             IntPtr rowdata;
             List<string> dataList = QueryRes(res, metaList);
-            for (int i = 0; i < metaList.Count; i++)
+            for (int i = 0; i < dataList.Count; i += metaList.Count)
             {
-                for (int j = 0; j < dataList.Count; j++)
+                for (int j = 0; j < metaList.Count; j++)
                 {
-                    Console.Write(" {0} \t|", dataList[j]);
+                    Console.Write(" {0} \t|", dataList[i + j]);
+
                 }
                 Console.WriteLine("");
             }

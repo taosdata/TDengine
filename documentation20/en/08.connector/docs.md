@@ -570,13 +570,15 @@ for row in results:
 - Write data
 
     ```python
+    import taos
     import datetime
-
+    conn = taos.connect()
+    c1 = conn.cursor()
     # Create a database
-    c1.execute('create database db')
-    c1.execute('use db')
+    c1.execute('create database if not exists db1')
+    c1.execute('use db1')
     # Create a table
-    c1.execute('create table tb (ts timestamp, temperature int, humidity float)')
+    c1.execute('create table if not exists tb (ts timestamp, temperature int, humidity float)')
     # Insert data
     start_time = datetime.datetime(2019, 11, 1)
     affected_rows = c1.execute('insert into tb values (\'%s\', 0, 0.0)' %start_time)
@@ -584,9 +586,11 @@ for row in results:
     time_interval = datetime.timedelta(seconds=60)
     sqlcmd = ['insert into tb values']
     for irow in range(1,11):
-    start_time += time_interval
-    sqlcmd.append('(\'%s\', %d, %f)' %(start_time, irow, irow*1.2))
-    affected_rows = c1.execute(' '.join(sqlcmd))
+        start_time += time_interval
+        sqlcmd.append('(\'%s\', %d, %f)' %(start_time, irow, irow*1.2))
+    affected_rows += c1.execute(' '.join(sqlcmd))
+
+    print("inserted %s records" % affected_rows)
     ```
 
 - Query data
@@ -599,12 +603,12 @@ for row in results:
     numOfRows = c1.rowcount
     numOfCols = len(c1.description)
     for irow in range(numOfRows):
-    print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2]))
+        print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2]))
 
     # Use cursor loop directly to pull query result
     c1.execute('select * from tb')
     for data in c1:
-    print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2]))
+        print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2]))
     ```
 
 #### Query API
