@@ -31,7 +31,7 @@ static int32_t checkedNum = 0;
 static int32_t errorNum = 0;
 
 typedef struct {
-  pthread_t threadID;
+  TdThread threadID;
   int       threadIndex;
   int       totalThreads;
   void *    taos;
@@ -116,7 +116,7 @@ static void *shellCheckThreadFp(void *arg) {
   char file[32] = {0};
   snprintf(file, 32, "tb%d.txt", pThread->threadIndex);
 
-  FILE *fp = fopen(file, "w");
+  TdFilePtr pFile = taosOpenFile(file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (!fp) {
     fprintf(stdout, "failed to open %s, reason:%s", file, strerror(errno));
     return NULL;
@@ -133,7 +133,7 @@ static void *shellCheckThreadFp(void *arg) {
     int32_t   code = taos_errno(pSql);
     if (code != 0) {
       int32_t len = snprintf(sql, SHELL_SQL_LEN, "drop table %s.%s;\n", pThread->db, tbname);
-      fwrite(sql, 1, len, fp);
+      taosWriteFile(pFile, sql, len);
       atomic_add_fetch_32(&errorNum, 1);
     }
 
@@ -145,14 +145,14 @@ static void *shellCheckThreadFp(void *arg) {
     taos_free_result(pSql);
   }
 
-  taosFsync(fileno(fp));
-  fclose(fp);
+  taosFsync(pFile);
+  taosCloseFile(&pFile);
 
   return NULL;
 }
 
 static void shellRunCheckThreads(TAOS *con, SShellArguments *_args) {
-  pthread_attr_t  thattr;
+  TdThreadAttr  thattr;
   ShellThreadObj *threadObj = (ShellThreadObj *)calloc(_args->threadNum, sizeof(ShellThreadObj));
   for (int t = 0; t < _args->threadNum; ++t) {
     ShellThreadObj *pThread = threadObj + t;
@@ -161,17 +161,17 @@ static void shellRunCheckThreads(TAOS *con, SShellArguments *_args) {
     pThread->taos = con;
     pThread->db = _args->database;
 
-    pthread_attr_init(&thattr);
-    pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
+    taosThreadAttrInit(&thattr);
+    taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
 
-    if (pthread_create(&(pThread->threadID), &thattr, shellCheckThreadFp, (void *)pThread) != 0) {
+    if (taosThreadCreate(&(pThread->threadID), &thattr, shellCheckThreadFp, (void *)pThread) != 0) {
       fprintf(stderr, "ERROR: thread:%d failed to start\n", pThread->threadIndex);
       exit(0);
     }
   }
 
   for (int t = 0; t < _args->threadNum; ++t) {
-    pthread_join(threadObj[t].threadID, NULL);
+    taosThreadJoin(threadObj[t].threadID, NULL);
   }
 
   for (int t = 0; t < _args->threadNum; ++t) {

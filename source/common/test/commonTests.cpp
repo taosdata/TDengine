@@ -1,6 +1,4 @@
-#include <common.h>
 #include <gtest/gtest.h>
-#include <tep.h>
 #include <iostream>
 
 #pragma GCC diagnostic push
@@ -10,6 +8,9 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #include "os.h"
 
+#include "tcommon.h"
+#include "tdatablock.h"
+#include "tcommon.h"
 #include "taos.h"
 #include "tvariant.h"
 #include "tdef.h"
@@ -159,10 +160,10 @@ TEST(testCase, Datablock_test) {
 
   printf("binary column length:%d\n", *(int32_t*) p1->pData);
 
-  ASSERT_EQ(colDataGetNumOfCols(b), 2);
-  ASSERT_EQ(colDataGetNumOfRows(b), 40);
+  ASSERT_EQ(blockDataGetNumOfCols(b), 2);
+  ASSERT_EQ(blockDataGetNumOfRows(b), 40);
 
-  char* pData = colDataGet(p1, 3);
+  char* pData = colDataGetData(p1, 3);
   printf("the second row of binary:%s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
 
   SArray* pOrderInfo = taosArrayInit(3, sizeof(SBlockOrderInfo));

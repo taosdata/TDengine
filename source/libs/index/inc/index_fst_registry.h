@@ -19,9 +19,9 @@
 extern "C" {
 #endif
 
+#include "indexInt.h"
 #include "index_fst_node.h"
 #include "index_fst_util.h"
-#include "tarray.h"
 
 typedef struct FstRegistryCell {
   CompiledAddr    addr;

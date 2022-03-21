@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_VERSION_H
-#define _TD_UTIL_VERSION_H
+#ifndef _TD_UTIL_VERSION_H_
+#define _TD_UTIL_VERSION_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,11 +23,10 @@ extern "C" {
 extern char version[];
 extern char compatible_version[];
 extern char gitinfo[];
-extern char gitinfoOfInternal[];
 extern char buildinfo[];
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_UTIL_VERSION_H*/
+#endif /*_TD_UTIL_VERSION_H_*/

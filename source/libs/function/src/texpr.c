@@ -16,7 +16,7 @@
 #include "function.h"
 #include "os.h"
 
-#include "exception.h"
+#include "texception.h"
 #include "taosdef.h"
 #include "tmsg.h"
 #include "tarray.h"

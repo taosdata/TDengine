@@ -30,7 +30,7 @@ void *taosOpenUdpConnection(void *shandle, void *thandle, uint32_t ip, uint16_t 
 
 void  taosFreeMsgHdr(void *hdr);
 int   taosMsgHdrSize(void *hdr);
-void  taosSendMsgHdr(void *hdr, int fd);
+void  taosSendMsgHdr(void *hdr, TdFilePtr pFile);
 void  taosInitMsgHdr(void **hdr, void *dest, int maxPkts);
 void  taosSetMsgHdrData(void *hdr, char *data, int dataLen);
 

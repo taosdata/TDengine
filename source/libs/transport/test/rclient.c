@@ -14,7 +14,7 @@
  */
 #include <sys/time.h>
 
-#include <tep.h>
+#include <tdatablock.h>
 #include "os.h"
 #include "rpcLog.h"
 #include "taoserror.h"
@@ -30,7 +30,7 @@ typedef struct {
   int       msgSize;
   tsem_t    rspSem;
   tsem_t *  pOverSem;
-  pthread_t thread;
+  TdThread thread;
   void *    pRpc;
 } SInfo;
 static void processResponse(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
@@ -84,7 +84,7 @@ static void *sendRequest(void *param) {
 
     tDebug("recv response succefully");
 
-    // usleep(100000000);
+    // taosSsleep(100);
   }
 
   tError("send and recv sum: %d, %d, %d, %d", u100, u500, u1000, u10000);
@@ -104,7 +104,7 @@ int main(int argc, char *argv[]) {
   char           secret[20] = "mypassword";
   struct timeval systemTime;
   int64_t        startTime, endTime;
-  pthread_attr_t thattr;
+  TdThreadAttr thattr;
 
   // server info
   epSet.inUse = 0;
@@ -124,6 +124,7 @@ int main(int argc, char *argv[]) {
   rpcInit.ckey = "key";
   rpcInit.spi = 1;
   rpcInit.connType = TAOS_CONN_CLIENT;
+  rpcDebugFlag = 143;
 
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-p") == 0 && i < argc - 1) {
@@ -180,13 +181,13 @@ int main(int argc, char *argv[]) {
   tInfo("client is initialized");
   tInfo("threads:%d msgSize:%d requests:%d", appThreads, msgSize, numOfReqs);
 
-  gettimeofday(&systemTime, NULL);
+  taosGetTimeOfDay(&systemTime);
   startTime = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
 
   SInfo *pInfo = (SInfo *)calloc(1, sizeof(SInfo) * appThreads);
 
-  pthread_attr_init(&thattr);
-  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
+  taosThreadAttrInit(&thattr);
+  taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
 
   for (int i = 0; i < appThreads; ++i) {
     pInfo->index = i;
@@ -195,15 +196,15 @@ int main(int argc, char *argv[]) {
     pInfo->msgSize = msgSize;
     tsem_init(&pInfo->rspSem, 0, 0);
     pInfo->pRpc = pRpc;
-    pthread_create(&pInfo->thread, &thattr, sendRequest, pInfo);
+    taosThreadCreate(&pInfo->thread, &thattr, sendRequest, pInfo);
     pInfo++;
   }
 
   do {
-    usleep(1);
+    taosUsleep(1);
   } while (tcount < appThreads);
 
-  gettimeofday(&systemTime, NULL);
+  taosGetTimeOfDay(&systemTime);
   endTime = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
   float usedTime = (endTime - startTime) / 1000.0f;  // mseconds
 

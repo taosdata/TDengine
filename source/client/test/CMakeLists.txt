@@ -8,13 +8,13 @@ AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 ADD_EXECUTABLE(clientTest clientTests.cpp)
 TARGET_LINK_LIBRARIES(
         clientTest
-        PUBLIC os util common transport parser catalog scheduler function gtest taos qcom config
+        PUBLIC os util common transport parser catalog scheduler function gtest taos qcom
 )
 
 ADD_EXECUTABLE(tmqTest tmqTest.cpp)
 TARGET_LINK_LIBRARIES(
         tmqTest
-        PUBLIC os util common transport parser catalog scheduler function gtest taos qcom config
+        PUBLIC os util common transport parser catalog scheduler function gtest taos qcom
 )
 
 TARGET_INCLUDE_DIRECTORIES(

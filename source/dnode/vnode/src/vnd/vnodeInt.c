@@ -32,6 +32,11 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->totalStorage = 300;
   pLoad->compStorage = 200;
   pLoad->pointsWritten = 100;
+  pLoad->numOfSelectReqs = 1;
+  pLoad->numOfInsertReqs = 3;
+  pLoad->numOfInsertSuccessReqs = 2;
+  pLoad->numOfBatchInsertReqs = 5;
+  pLoad->numOfBatchInsertSuccessReqs = 4;
   return 0;
 }
 

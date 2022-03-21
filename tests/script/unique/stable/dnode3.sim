@@ -1,0 +1,229 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode2 -c walLevel -v 1
+system sh/cfg.sh -n dnode3 -c walLevel -v 1
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4
+system sh/exec.sh -n dnode1 -s start
+
+sql connect
+
+sql create dnode $hostname2
+sql create dnode $hostname3
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+
+$x = 0
+createDnode: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then 
+	  return -1
+	endi
+sql show dnodes;
+if $data4_2 == offline then
+  goto createDnode
+endi  
+if $data4_3 == offline then
+  goto createDnode
+endi  
+ 
+
+print ======================== dnode1 start
+
+$dbPrefix = d3_db
+$tbPrefix = d3_tb
+$mtPrefix = d3_mt
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql create database $db 
+sql use $db
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+  
+  $x = 0
+  while $x < $rowNum
+    $val = $x * 60000
+    $ms = 1519833600000 + $val 
+    sql insert into $tb values ($ms , $x ) 
+    $x = $x + 1
+  endw 
+ 
+  $i = $i + 1
+endw 
+
+sql show vgroups
+print vgroups ==> $rows
+if $rows != 3 then 
+  return -1
+endi
+
+sql show dnodes
+$dnode1Vnodes = $data2_1
+print dnode1 $dnode1Vnodes
+$dnode2Vnodes = $data2_2
+print dnode2 $dnode2Vnodes
+$dnode3Vnodes = $data2_3
+print dnode3 $dnode3Vnodes
+
+if $dnode1Vnodes != 1 then
+  return -1
+endi
+if $dnode2Vnodes != 1 then
+  return -1
+endi
+if $dnode3Vnodes != 1 then
+  return -1
+endi
+
+sleep 100
+
+print =============== step2
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select count(*) from $tb
+print ===> $data00
+if $data00 != $rowNum then 
+  return -1
+endi
+
+sql select count(tbcol) from $tb
+print ===> $data00
+if $data00 != $rowNum then 
+  return -1
+endi
+
+print =============== step3
+sql select count(tbcol) from $tb where ts <= 1519833840000
+print ===> $data00
+if $data00 != 5 then 
+  return -1
+endi
+
+print =============== step4
+sql select count(tbcol) as b from $tb
+print ===> $data00
+if $data00 != $rowNum then 
+  return -1
+endi
+
+print =============== step5
+sql select count(tbcol) as b from $tb interval(1m)
+print ===> $data01
+if $data01 != 1 then 
+  return -1
+endi
+
+sql select count(tbcol) as b from $tb interval(1d)
+print ===> $data01
+if $data01 != $rowNum then 
+  return -1
+endi
+
+print =============== step6
+sql select count(tbcol) as b from $tb where ts <= 1519833840000 interval(1m)
+print ===> $data01
+if $data01 != 1 then 
+  return -1
+endi
+if $rows != 5 then 
+  return -1
+endi
+
+print =============== step7
+sql select count(*) from $mt
+print ===> $data00
+if $data00 != $totalNum then 
+  return -1
+endi
+
+sql select count(tbcol) from $mt
+print ===> $data00
+if $data00 != $totalNum then 
+  return -1
+endi
+
+print =============== step8
+sql select count(tbcol) as c from $mt where ts <= 1519833840000
+print ===> $data00
+if $data00 != 50 then 
+  return -1
+endi
+
+sql select count(tbcol) as c from $mt where tgcol < 5
+print ===> $data00
+if $data00 != 100 then 
+  return -1
+endi
+
+sql select count(tbcol) as c from $mt where tgcol < 5 and ts <= 1519833840000
+print ===> $data00
+if $data00 != 25 then 
+  return -1
+endi
+
+print =============== step9
+sql select count(tbcol) as b from $mt interval(1m)
+print ===> $data01
+if $data01 != 10 then 
+  return -1
+endi
+
+sql select count(tbcol) as b from $mt interval(1d)
+print ===> $data01
+if $data01 != 200 then 
+  return -1
+endi
+
+print =============== step10
+sql select count(tbcol) as b from $mt group by tgcol
+print ===> $data00
+if $data00 != $rowNum then 
+  return -1
+endi
+
+if $rows != $tbNum then 
+  return -1
+endi
+
+print =============== step11
+sql select count(tbcol) as b from $mt  where ts <= 1519833840000 interval(1m) group by tgcol
+print ===> $data01
+if $data01 != 1 then 
+  return -1
+endi
+if $rows != 50 then 
+  return -1
+endi
+
+print =============== clear
+sql drop database $db
+sql show databases
+if $rows != 0 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

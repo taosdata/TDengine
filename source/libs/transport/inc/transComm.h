@@ -14,14 +14,16 @@
  */
 #ifdef USE_UV
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <uv.h>
 #include "lz4.h"
 #include "os.h"
 #include "rpcCache.h"
 #include "rpcHead.h"
 #include "rpcLog.h"
-#include "rpcTcp.h"
-#include "rpcUdp.h"
 #include "taoserror.h"
 #include "tglobal.h"
 #include "thash.h"
@@ -122,23 +124,22 @@ typedef struct {
   // SEpSet*          pSet;      // for synchronous API
 } SRpcReqContext;
 
+typedef SRpcMsg      STransMsg;
+typedef SRpcCtx      STransCtx;
+typedef SRpcCtxVal   STransCtxVal;
+typedef SRpcInfo     STrans;
+typedef SRpcConnInfo STransHandleInfo;
+
 typedef struct {
-  SRpcInfo* pTransInst;  // associated SRpcInfo
-  SEpSet    epSet;       // ip list provided by app
-  void*     ahandle;     // handle provided by app
-  // struct SRpcConn* pConn;     // pConn allocated
-  tmsg_t   msgType;  // message type
-  uint8_t* pCont;    // content provided by app
-  int32_t  contLen;  // content length
-  // int32_t  code;     // error code
-  // int16_t  numOfTry;  // number of try for different servers
-  // int8_t   oldInUse;  // server EP inUse passed by app
-  // int8_t   redirect;  // flag to indicate redirect
-  int8_t  connType;  // connection type
+  SEpSet  epSet;     // ip list provided by app
+  void*   ahandle;   // handle provided by app
+  tmsg_t  msgType;   // message type
+  int8_t  connType;  // connection type cli/srv
   int64_t rid;       // refId returned by taosAddRef
 
-  SRpcMsg* pRsp;  // for synchronous API
-  tsem_t*  pSem;  // for synchronous API
+  STransCtx  appCtx;  //
+  STransMsg* pRsp;    // for synchronous API
+  tsem_t*    pSem;    // for synchronous API
 
   int      hThrdIdx;
   char*    ip;
@@ -150,11 +151,12 @@ typedef struct {
 
 typedef struct {
   char version : 4;  // RPC version
-  char comp : 4;     // compression algorithm, 0:no compression 1:lz4
-  char resflag : 2;  // reserved bits
-  char spi : 1;      // security parameter index
+  char comp : 2;     // compression algorithm, 0:no compression 1:lz4
+  char noResp : 2;   // noResp bits, 0: resp, 1: resp
+  char persist : 2;  // persist handle,0: no persit, 1: persist handle
+  char release : 2;
   char secured : 2;
-  char encrypt : 3;  // encrypt algorithm, 0: no encryption
+  char spi : 2;
 
   uint32_t code;  // del later
   uint32_t msgType;
@@ -178,6 +180,9 @@ typedef struct {
 } STransUserMsg;
 
 #pragma pack(pop)
+
+typedef enum { Normal, Quit, Release, Register } STransMsgType;
+typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken } ConnStatus;
 
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
 #define RPC_RESERVE_SIZE (sizeof(STranConnCtx))
@@ -225,7 +230,7 @@ typedef void (*AsyncCB)(uv_async_t* handle);
 typedef struct {
   void*           pThrd;
   queue           qmsg;
-  pthread_mutex_t mtx;  // protect qmsg;
+  TdThreadMutex mtx;  // protect qmsg;
 } SAsyncItem;
 
 typedef struct {
@@ -244,8 +249,37 @@ int  transDestroyBuffer(SConnBuffer* buf);
 int  transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
 bool transReadComplete(SConnBuffer* connBuf);
 
-// int transPackMsg(SRpcMsg *rpcMsg, bool sercured, bool auth, char **msg, int32_t *msgLen);
+int transSetConnOption(uv_tcp_t* stream);
 
-// int transUnpackMsg(char *msg, SRpcMsg *pMsg, bool );
+void transRefSrvHandle(void* handle);
+void transUnrefSrvHandle(void* handle);
+
+void transRefCliHandle(void* handle);
+void transUnrefCliHandle(void* handle);
+
+void transReleaseCliHandle(void* handle);
+void transReleaseSrvHandle(void* handle);
+
+void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg, STransCtx* pCtx);
+void transSendRecv(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg, STransMsg* pRsp);
+void transSendResponse(const STransMsg* msg);
+void transRegisterMsg(const STransMsg* msg);
+int  transGetConnInfo(void* thandle, STransHandleInfo* pInfo);
+
+void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
+void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
+
+void transCloseClient(void* arg);
+void transCloseServer(void* arg);
+
+void  transCtxInit(STransCtx* ctx);
+void  transCtxDestroy(STransCtx* ctx);
+void  transCtxClear(STransCtx* ctx);
+void  transCtxMerge(STransCtx* dst, STransCtx* src);
+void* transCtxDumpVal(STransCtx* ctx, int32_t key);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

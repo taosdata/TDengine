@@ -13,16 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_CHECKSUM_H
-#define _TD_UTIL_CHECKSUM_H
+#ifndef _TD_UTIL_CHECKSUM_H_
+#define _TD_UTIL_CHECKSUM_H_
+
+#include "tcrc32c.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "os.h"
-#include "tcrc32c.h"
-#include "tutil.h"
 
 typedef uint32_t TSCKSUM;
 
@@ -30,7 +28,7 @@ static FORCE_INLINE TSCKSUM taosCalcChecksum(TSCKSUM csi, const uint8_t *stream,
   return (*crc32c)(csi, stream, (size_t)ssize);
 }
 
-static FORCE_INLINE int taosCalcChecksumAppend(TSCKSUM csi, uint8_t *stream, uint32_t ssize) {
+static FORCE_INLINE int32_t taosCalcChecksumAppend(TSCKSUM csi, uint8_t *stream, uint32_t ssize) {
   if (ssize < sizeof(TSCKSUM)) return -1;
 
   *((TSCKSUM *)(stream + ssize - sizeof(TSCKSUM))) = (*crc32c)(csi, stream, (size_t)(ssize - sizeof(TSCKSUM)));
@@ -38,11 +36,11 @@ static FORCE_INLINE int taosCalcChecksumAppend(TSCKSUM csi, uint8_t *stream, uin
   return 0;
 }
 
-static FORCE_INLINE int taosCheckChecksum(const uint8_t *stream, uint32_t ssize, TSCKSUM checksum) {
+static FORCE_INLINE int32_t taosCheckChecksum(const uint8_t *stream, uint32_t ssize, TSCKSUM checksum) {
   return (checksum != (*crc32c)(0, stream, (size_t)ssize));
 }
 
-static FORCE_INLINE int taosCheckChecksumWhole(const uint8_t *stream, uint32_t ssize) {
+static FORCE_INLINE int32_t taosCheckChecksumWhole(const uint8_t *stream, uint32_t ssize) {
   if (ssize < sizeof(TSCKSUM)) return 0;
 
 #if (_WIN64)
@@ -56,4 +54,4 @@ static FORCE_INLINE int taosCheckChecksumWhole(const uint8_t *stream, uint32_t s
 }
 #endif
 
-#endif  /*_TD_UTIL_CHECKSUM_H*/
+#endif /*_TD_UTIL_CHECKSUM_H_*/

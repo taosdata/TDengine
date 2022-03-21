@@ -1,0 +1,293 @@
+# Test case describe: dnode1 is only mnode, dnode2/dnode3 are only vnode
+# step 1: start dnode1
+# step 2: start dnode2 and dnode3, and all added into cluster (Suppose dnode2 is master-vnode)
+# step 3: create db, table, insert data, and Falling disc into file (control only one file, e.g. 1841)
+# step 4: insert old data(now-15d) and new data(now+15d), control data rows  in order to save in cache, not falling disc 
+# step 5: stop dnode2, so date rows falling disc, generate two new files 1840, 1842 in dnode2
+# step 6: insert two data rows: now-16d, now+16d
+# step 7: restart dnode2, waiting sync end
+# expect: in dnode2, the files 1840 and 1842 will be removed
+
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode4 -c numOfMnodes -v 1
+
+system sh/cfg.sh -n dnode1 -c walLevel -v 2
+system sh/cfg.sh -n dnode2 -c walLevel -v 2
+system sh/cfg.sh -n dnode3 -c walLevel -v 2
+system sh/cfg.sh -n dnode4 -c walLevel -v 2
+
+system sh/cfg.sh -n dnode1 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode3 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode4 -c balanceInterval -v 10
+
+system sh/cfg.sh -n dnode1 -c role -v 1
+system sh/cfg.sh -n dnode2 -c role -v 2
+system sh/cfg.sh -n dnode3 -c role -v 2
+system sh/cfg.sh -n dnode4 -c role -v 2
+
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 4
+
+system sh/cfg.sh -n dnode1 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode2 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode3 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode4 -c arbitrator -v $arbitrator
+
+print ============== step0: start tarbitrator
+system sh/exec_tarbitrator.sh -s start
+
+print ============== step1: start dnode1, only deploy mnode
+system sh/exec.sh -n dnode1 -s start
+sleep 2000
+sql connect
+
+print ============== step2: start dnode2/dnode3 and add into cluster , then create database with replica 2, and create table, insert data
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+sql create dnode $hostname2
+sql create dnode $hostname3
+sleep 2000
+
+$totalTableNum = 1
+$sleepTimer = 3000
+
+$db = db
+sql create database $db replica 2 cache 1
+sql use $db
+
+# create table , insert data
+$stb = stb
+sql create table $stb (ts timestamp, c1 double) tags(t1 int)
+$rowNum = 130000
+$tblNum = $totalTableNum
+$totalRows = 0
+$tsStart = 1577808000000  # 2020-01-01 00:00:00.000
+
+# insert over 2M data in order to falling disc, generate one file
+$i = 0
+while $i < $tblNum
+  $tb = tb . $i
+  sql create table $tb using $stb tags( $i )
+ 
+  $x = 0
+  while $x < $rowNum
+#    $ts = $tsStart + $x
+    sql insert into $tb values ( now + 0s , $x ) ( now + 1s , $x ) ( now + 2s , $x ) ( now + 3s , $x ) ( now + 4s , $x ) ( now + 5s , $x ) ( now + 6s , $x ) ( now + 7s , $x ) ( now + 8s , $x ) ( now + 9s , $x )
+    $x = $x + 10
+  endw 
+  $totalRows = $totalRows + $x
+  print       info: inserted $x rows into $tb and totalRows: $totalRows
+  $i = $i + 1
+endw 
+
+sql show db.vgroups;
+print d1: $data04 $data05 , d2: $data06 $data07
+
+sql select count(*) from $stb
+print rtest1==> rows:$rows data00:$data00
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 == 0 then
+  return -1
+endi
+
+$totalRows = $data00
+
+sql select count(*) from $stb
+print test2==> rows:$rows data00:$data00
+sql select count(*) from $stb
+print test3==> rows:$rows data00:$data00
+sql select count(*) from $stb
+print test4==> rows:$rows data00:$data00
+sql select count(*) from $stb
+print test5==> rows:$rows data00:$data00
+
+print ============== step3: insert old data(now-15d) and new data(now+15d), control data rows  in order to save in cache, not falling disc
+sql insert into $tb values ( now - 20d , -20 )
+sql insert into $tb values ( now - 40d , -40 )
+$totalRows = $totalRows + 2
+
+print ============== step4: stop dnode2, so date rows falling disc, generate two new files in dnode2
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+sleep $sleepTimer
+
+$loopCnt = 0
+wait_dnode2_offline:
+$loopCnt = $loopCnt + 1
+if $loopCnt == 10 then
+  return -1
+endi
+
+sql show dnodes
+if $rows != 4 then
+  sleep 2000
+  goto wait_dnode2_offline
+endi
+print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
+print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
+print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
+#print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
+#print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
+#print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
+#$dnode1Status = $data4_1  
+$dnode2Status = $data4_2
+$dnode3Status = $data4_3  
+#$dnode4Status = $data4_4 
+#$dnode5Status = $data4_5
+
+if $dnode2Status != offline then
+  sleep 2000
+  goto wait_dnode2_offline
+endi
+if $dnode3Status != ready then
+  sleep 2000
+  goto wait_dnode2_offline
+endi
+
+sleep $sleepTimer   # waitting for move master vnode of dnode2 to dnode3
+# check using select
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+sql select count(*) from $stb
+print data00 $data00
+sql select count(*) from $stb
+print data00 $data00
+sql select count(*) from $stb
+print data00 $data00
+
+print ============== step5: insert two data rows: now-16d, now+16d, 
+sql insert into $tb values ( now - 21d , -21 )
+sql insert into $tb values ( now - 41d , -41 )
+$totalRows = $totalRows + 2
+
+print ============== step6: restart dnode2, waiting sync end
+system sh/exec.sh -n dnode2 -s start
+sleep 2000
+$loopCnt = 0
+wait_dnode2_ready:
+$loopCnt = $loopCnt + 1
+if $loopCnt == 10 then
+  return -1
+endi
+
+sql show dnodes
+if $rows != 4 then
+  sleep 2000
+  goto wait_dnode2_ready
+endi
+print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
+print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
+print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
+#print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
+#print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
+#print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
+#$dnode1Status = $data4_1  
+$dnode2Status = $data4_2
+$dnode3Status = $data4_3  
+#$dnode4Status = $data4_4 
+#$dnode5Status = $data4_5
+
+if $dnode2Status != ready then
+  sleep 2000
+  goto wait_dnode2_ready
+endi
+
+sleep $sleepTimer
+# check using select
+sleep 3000
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi

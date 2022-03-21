@@ -1,0 +1,190 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== create database
+sql create database d1 vgroups 2
+sql show databases
+if $rows != 1 then 
+  return -1
+endi
+
+if $data00 != d1 then 
+  return -1
+endi
+
+if $data02 != 2 then 
+  return -1
+endi
+
+if $data03 != 0 then 
+  return -1
+endi
+
+print =============== show vgroups1
+sql use d1
+sql show vgroups
+if $rows != 2 then 
+  return -1
+endi
+
+if $data00 != 2 then 
+  return -1
+endi
+
+if $data10 != 3 then 
+  return -1
+endi
+
+print =============== drop database
+sql drop database d1
+sql show databases
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== more databases
+sql create database d2 vgroups 2
+sql create database d3 vgroups 3
+sql create database d4 vgroups 4
+sql show databases
+if $rows != 3 then 
+  return -1
+endi
+
+print =============== show vgroups2
+sql show d2.vgroups
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != 4 then 
+  return -1
+endi
+
+if $data10 != 5 then 
+  return -1
+endi
+
+print =============== show vgroups3
+sql show d3.vgroups
+if $rows != 3 then
+  return -1
+endi
+
+if $data00 != 6 then 
+  return -1
+endi
+
+if $data10 != 7 then 
+  return -1
+endi
+
+if $data20 != 8 then 
+  return -1
+endi
+
+print =============== show vgroups4
+sql show d4.vgroups
+if $rows != 4 then
+  return -1
+endi
+
+if $data00 != 9 then 
+  return -1
+endi
+
+if $data10 != 10 then 
+  return -1
+endi
+
+if $data20 != 11 then 
+  return -1
+endi
+
+if $data30 != 12 then 
+  return -1
+endi
+
+print =============== drop database
+sql drop database d2
+sql drop database d3
+sql show databases
+if $rows != 1 then 
+  return -1
+endi
+
+if $data00 != d4 then 
+  return -1
+endi
+
+if $data02 != 4 then 
+  return -1
+endi
+
+if $data03 != 0 then 
+  return -1
+endi
+
+print =============== show vgroups4 again
+sql_error use d1
+
+sql use d4
+sql show vgroups
+if $rows != 4 then
+  return -1
+endi
+
+print =============== show dnodes
+sql show dnodes
+
+if $data00 != 1 then
+  return -1
+endi
+
+if $data02 != 4 then
+  return -1
+endi
+
+print =============== restart
+
+system sh/exec.sh -n dnode1 -s stop -x SIGKILL
+system sh/exec.sh -n dnode1 -s start
+
+print =============== show databases
+sql show databases
+if $rows != 1 then 
+  return -1
+endi
+
+sql_error use d1
+
+sql use d4
+sql show vgroups
+
+if $rows != 4 then
+  return -1
+endi
+
+print =============== create databases
+sql create database d5 vgroups 5;
+
+print =============== show vgroups
+sql use d5
+sql show vgroups
+if $rows != 5 then
+  return -1
+endi
+
+sql show d4.vgroups
+if $rows != 4 then
+  return -1
+endi
+
+sql show d5.vgroups
+if $rows != 5 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

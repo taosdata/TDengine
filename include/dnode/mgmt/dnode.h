@@ -25,59 +25,40 @@ extern "C" {
 /* ------------------------ TYPES EXPOSED ---------------- */
 typedef struct SDnode SDnode;
 
-/* ------------------------ Environment ------------------ */
-typedef struct {
-  int32_t  sver;
-  int32_t  numOfCores;
-  uint16_t numOfCommitThreads;
-  bool     enableTelem;
-  bool     printAuth;
-  int32_t  rpcTimer;
-  int32_t  rpcMaxTime;
-  char     timezone[TSDB_TIMEZONE_LEN];
-  char     locale[TSDB_LOCALE_LEN];
-  char     charset[TSDB_LOCALE_LEN];
-  char     buildinfo[64];
-  char     gitinfo[48];
-} SDnodeEnvCfg;
-
 /**
  * @brief Initialize the environment
  *
- * @param pOption Option of the environment
  * @return int32_t 0 for success and -1 for failure
  */
-int32_t dndInit(const SDnodeEnvCfg *pCfg);
+int32_t dndInit();
 
 /**
- * @brief clear the environment
- *
+ * @brief Clear the environment
  */
 void dndCleanup();
 
 /* ------------------------ SDnode ----------------------- */
 typedef struct {
-  int32_t  numOfSupportVnodes;
-  int32_t  statusInterval;
-  float    numOfThreadsPerCore;
-  float    ratioOfQueryCores;
-  int32_t  maxShellConns;
-  int32_t  shellActivityTimer;
-  uint16_t serverPort;
-  char     dataDir[TSDB_FILENAME_LEN];
-  char     localEp[TSDB_EP_LEN];
-  char     localFqdn[TSDB_FQDN_LEN];
-  char     firstEp[TSDB_EP_LEN];
-  char     secondEp[TSDB_EP_LEN];
-} SDnodeObjCfg;
+  int32_t   numOfSupportVnodes;
+  uint16_t  serverPort;
+  char      dataDir[PATH_MAX];
+  char      localEp[TSDB_EP_LEN];
+  char      localFqdn[TSDB_FQDN_LEN];
+  char      firstEp[TSDB_EP_LEN];
+  char      secondEp[TSDB_EP_LEN];
+  SDiskCfg *pDisks;
+  int32_t   numOfDisks;
+} SDnodeOpt;
+
+typedef enum { DND_EVENT_START, DND_EVENT_STOP = 1, DND_EVENT_RELOAD } EDndEvent;
 
 /**
  * @brief Initialize and start the dnode.
  *
- * @param pCfg Config of the dnode.
+ * @param pOption Option of the dnode.
  * @return SDnode* The dnode object.
  */
-SDnode *dndCreate(SDnodeObjCfg *pCfg);
+SDnode *dndCreate(const SDnodeOpt *pOption);
 
 /**
  * @brief Stop and cleanup the dnode.
@@ -85,6 +66,21 @@ SDnode *dndCreate(SDnodeObjCfg *pCfg);
  * @param pDnode The dnode object to close.
  */
 void dndClose(SDnode *pDnode);
+
+/**
+ * @brief Run dnode until specific event is receive.
+ *
+ * @param pDnode The dnode object to run.
+ */
+int32_t dndRun(SDnode *pDnode);
+
+/**
+ * @brief Handle event in the dnode.
+ *
+ * @param pDnode The dnode object to close.
+ * @param event The event to handle.
+ */
+void dndHandleEvent(SDnode *pDnode, EDndEvent event);
 
 #ifdef __cplusplus
 }

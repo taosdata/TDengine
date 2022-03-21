@@ -1,0 +1,200 @@
+system sh/stop_dnodes.sh
+
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 0
+
+print ========== step1
+system sh/cfg.sh -n dnode1 -c monitor         -v 1
+system sh/cfg.sh -n dnode1 -c monitorInterval -v 1
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+print =============== step1
+sleep 2000
+sql select * from log.dn
+if $rows == 0 then
+  return -1
+endi
+
+print =============== step2
+sql create database d4 precision 'us'
+sql use d4
+sql create table t1 (ts timestamp, i int)
+sql insert into d4.t1 values(1626739200000, 1)
+
+sql create table d4.s1 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd), stddev(cpu_taosd), count(*) as c1, count(*) as c2, count(*) as c3, count(*) as c4, count(*) as c5, count(*) as c6, count(*) as c7, count(*) as c8, count(*) as c9, count(*) as c10, count(*) as c11, count(*) as c12, count(*) as c13, count(*) as c14, count(*) as c15, count(*) as c16, count(*) as c17, count(*) as c18, count(*) as c19, count(*) as c20, count(*) as c21, count(*) as c22, count(*) as c23, count(*) as c24, count(*) as c25, count(*) as c26, count(*) as c27, count(*) as c28, count(*) as c29, count(*) as c30 from log.dn_192_168_0_1 interval(5s)
+
+sql create table d4.s2 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd), stddev(cpu_taosd), count(*) as c1, count(*) as c2, count(*) as c3, count(*) as c4, count(*) as c5, count(*) as c6, count(*) as c7, count(*) as c8, count(*) as c9, count(*) as c10, count(*) as c11, count(*) as c12, count(*) as c13, count(*) as c14, count(*) as c15, count(*) as c16, count(*) as c17, count(*) as c18, count(*) as c19, count(*) as c20, count(*) as c21, count(*) as c22, count(*) as c23, count(*) as c24, count(*) as c25, count(*) as c26, count(*) as c27, count(*) as c28, count(*) as c29, count(*) as c30 from log.dn_192_168_0_1 interval(5s)
+
+sql create table d4.s3 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used), stddev(disk_used), count(*) as c1, count(*) as c2, count(*) as c3, count(*) as c4, count(*) as c5, count(*) as c6, count(*) as c7, count(*) as c8, count(*) as c9, count(*) as c10, count(*) as c11, count(*) as c12, count(*) as c13, count(*) as c14, count(*) as c15, count(*) as c16, count(*) as c17, count(*) as c18, count(*) as c19, count(*) as c20, count(*) as c21, count(*) as c22, count(*) as c23, count(*) as c24, count(*) as c25, count(*) as c26, count(*) as c27, count(*) as c28, count(*) as c29, count(*) as c30 from log.dn_192_168_0_1 interval(5s)
+
+sql create table d4.s4 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read), stddev(io_write), count(*) as c1, count(*) as c2, count(*) as c3, count(*) as c4, count(*) as c5, count(*) as c6, count(*) as c7, count(*) as c8, count(*) as c9, count(*) as c10, count(*) as c11, count(*) as c12, count(*) as c13, count(*) as c14, count(*) as c15, count(*) as c16, count(*) as c17, count(*) as c18, count(*) as c19, count(*) as c20, count(*) as c21, count(*) as c22, count(*) as c23, count(*) as c24, count(*) as c25, count(*) as c26, count(*) as c27, count(*) as c28, count(*) as c29, count(*) as c30 from log.dn_192_168_0_1 interval(5s)
+
+sql create table d4.s5 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed), stddev(band_speed), count(*) as c1, count(*) as c2, count(*) as c3, count(*) as c4, count(*) as c5, count(*) as c6, count(*) as c7, count(*) as c8, count(*) as c9, count(*) as c10, count(*) as c11, count(*) as c12, count(*) as c13, count(*) as c14, count(*) as c15, count(*) as c16, count(*) as c17, count(*) as c18, count(*) as c19, count(*) as c20, count(*) as c21, count(*) as c22, count(*) as c23, count(*) as c24, count(*) as c25, count(*) as c26, count(*) as c27, count(*) as c28, count(*) as c29, count(*) as c30 from log.dn_192_168_0_1 interval(5s)
+
+sql create table d4.s6 as select count(req_http), count(req_insert), avg(req_http), avg(req_select), sum(req_insert), max(req_select), min(req_insert), stddev(req_select), count(*) as c1, count(*) as c2, count(*) as c3, count(*) as c4, count(*) as c5, count(*) as c6, count(*) as c7, count(*) as c8, count(*) as c9, count(*) as c10, count(*) as c11, count(*) as c12, count(*) as c13, count(*) as c14, count(*) as c15, count(*) as c16, count(*) as c17, count(*) as c18, count(*) as c19, count(*) as c20, count(*) as c21, count(*) as c22, count(*) as c23, count(*) as c24, count(*) as c25, count(*) as c26, count(*) as c27, count(*) as c28, count(*) as c29, count(*) as c30 from log.dn_192_168_0_1 interval(5s)
+
+sql create table d4.s7 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd), count(*) as c1, count(*) as c2, count(*) as c3, count(*) as c4, count(*) as c5, count(*) as c6, count(*) as c7, count(*) as c8, count(*) as c9, count(*) as c10, count(*) as c11, count(*) as c12, count(*) as c13, count(*) as c14, count(*) as c15, count(*) as c16, count(*) as c17, count(*) as c18, count(*) as c19, count(*) as c20, count(*) as c21, count(*) as c22, count(*) as c23, count(*) as c24, count(*) as c25, count(*) as c26, count(*) as c27, count(*) as c28, count(*) as c29, count(*) as c30 from log.dn interval(5s)
+
+sql create table d4.s8 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd), count(*) as c1, count(*) as c2, count(*) as c3, count(*) as c4, count(*) as c5, count(*) as c6, count(*) as c7, count(*) as c8, count(*) as c9, count(*) as c10, count(*) as c11, count(*) as c12, count(*) as c13, count(*) as c14, count(*) as c15, count(*) as c16, count(*) as c17, count(*) as c18, count(*) as c19, count(*) as c20, count(*) as c21, count(*) as c22, count(*) as c23, count(*) as c24, count(*) as c25, count(*) as c26, count(*) as c27, count(*) as c28, count(*) as c29, count(*) as c30 from log.dn interval(5s)
+
+sql create table d4.s9 as select count(disk_used), count(disk_total), avg(disk_used), avg(disk_total), sum(disk_used), max(disk_used), min(disk_used), count(*) as c1, count(*) as c2, count(*) as c3, count(*) as c4, count(*) as c5, count(*) as c6, count(*) as c7, count(*) as c8, count(*) as c9, count(*) as c10, count(*) as c11, count(*) as c12, count(*) as c13, count(*) as c14, count(*) as c15, count(*) as c16, count(*) as c17, count(*) as c18, count(*) as c19, count(*) as c20, count(*) as c21, count(*) as c22, count(*) as c23, count(*) as c24, count(*) as c25, count(*) as c26, count(*) as c27, count(*) as c28, count(*) as c29, count(*) as c30 from log.dn interval(5s)
+
+sql create table d4.s10 as select count(io_read), count(io_write), avg(io_read), avg(io_write), sum(io_read), max(io_write), min(io_read), count(*) as c1, count(*) as c2, count(*) as c3, count(*) as c4, count(*) as c5, count(*) as c6, count(*) as c7, count(*) as c8, count(*) as c9, count(*) as c10, count(*) as c11, count(*) as c12, count(*) as c13, count(*) as c14, count(*) as c15, count(*) as c16, count(*) as c17, count(*) as c18, count(*) as c19, count(*) as c20, count(*) as c21, count(*) as c22, count(*) as c23, count(*) as c24, count(*) as c25, count(*) as c26, count(*) as c27, count(*) as c28, count(*) as c29, count(*) as c30 from log.dn interval(5s)
+
+sql create table d4.s11 as select count(band_speed), avg(band_speed), sum(band_speed), max(band_speed), min(band_speed), count(*) as c1, count(*) as c2, count(*) as c3, count(*) as c4, count(*) as c5, count(*) as c6, count(*) as c7, count(*) as c8, count(*) as c9, count(*) as c10, count(*) as c11, count(*) as c12, count(*) as c13, count(*) as c14, count(*) as c15, count(*) as c16, count(*) as c17, count(*) as c18, count(*) as c19, count(*) as c20, count(*) as c21, count(*) as c22, count(*) as c23, count(*) as c24, count(*) as c25, count(*) as c26, count(*) as c27, count(*) as c28, count(*) as c29, count(*) as c30 from log.dn interval(5s)
+
+sql create table d4.s12 as select count(req_http), count(req_insert), avg(req_select), avg(req_insert), sum(req_insert), max(req_select), min(req_insert), count(*) as c1, count(*) as c2, count(*) as c3, count(*) as c4, count(*) as c5, count(*) as c6, count(*) as c7, count(*) as c8, count(*) as c9, count(*) as c10, count(*) as c11, count(*) as c12, count(*) as c13, count(*) as c14, count(*) as c15, count(*) as c16, count(*) as c17, count(*) as c18, count(*) as c19, count(*) as c20, count(*) as c21, count(*) as c22, count(*) as c23, count(*) as c24, count(*) as c25, count(*) as c26, count(*) as c27, count(*) as c28, count(*) as c29, count(*) as c30 from log.dn interval(5s)
+
+print =============== step3
+print sleep 22 seconds
+sleep 22000 
+
+sql select * from d4.s1
+$s1 = $rows
+print select * from d4.s1 ==> $s1
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s2
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s3
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s4
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s5
+$s5 = $rows
+print select * from d4.s5 ==> $s5
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s6
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s7
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s8
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s9
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s10
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s11
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s12
+$s12 = $rows
+print select * from d4.s12 ==> $s12
+if $rows <= 0 then 
+  return -1
+endi
+
+print =============== step4
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 3000
+system sh/exec.sh -n dnode1 -s start
+print sleep 22 seconds
+sleep 22000 
+
+sql select * from d4.s1
+print select * from d4.s1 ==> $rows $s1
+if $rows <= 0 then 
+  return -1
+endi
+if $rows <= $s1 then 
+  return -1
+endi
+
+sql select * from d4.s2
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s3
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s4
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s5
+print select * from d4.s5 ==> $rows $s5
+if $rows <= 0 then 
+  return -1
+endi
+if $rows <= $s5 then 
+  return -1
+endi
+
+
+sql select * from d4.s6
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s7
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s8
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s9
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s10
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s11
+if $rows <= 0 then 
+  return -1
+endi
+
+sql select * from d4.s12
+print select * from d4.s12 ==> $rows $s12
+if $rows <= 0 then 
+  return -1
+endi
+if $rows <= $s12 then 
+  return -1
+endi

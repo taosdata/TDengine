@@ -16,7 +16,8 @@
 #ifndef _TD_TFS_H_
 #define _TD_TFS_H_
 
-#include "tcfg.h"
+#include "tdef.h"
+#include "monitor.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -198,6 +199,16 @@ void tfsBasename(const STfsFile *pFile, char *dest);
 void tfsDirname(const STfsFile *pFile, char *dest);
 
 /**
+ * @brief Get the absolute file name of rname.
+ *
+ * @param pTfs
+ * @param diskId
+ * @param rname relative file name
+ * @param aname absolute file name
+ */
+void tfsAbsoluteName(STfs *pTfs, SDiskID diskId, const char *rname, char *aname);
+
+/**
  * @brief Remove file in tfs.
  *
  * @param pFile The file to be removed.
@@ -236,6 +247,14 @@ const STfsFile *tfsReaddir(STfsDir *pDir);
  * @param pDir The dir object.
  */
 void tfsClosedir(STfsDir *pDir);
+
+/**
+ * @brief Get disk info of tfs.
+ *
+ * @param pTfs The fs object.
+ * @param pInfo The info object.
+ */
+int32_t tfsGetMonitorInfo(STfs *pTfs, SMonDiskInfo *pInfo);
 
 #ifdef __cplusplus
 }

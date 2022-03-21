@@ -19,7 +19,7 @@ void shuffle(char**lines, size_t n)
     size_t i;
     for (i = 0; i < n - 1; i++)
     {
-      size_t j = i + rand() / (RAND_MAX / (n - i) + 1);
+      size_t j = i + taosRand() / (RAND_MAX / (n - i) + 1);
       char* t = lines[j];
       lines[j] = lines[i];
       lines[i] = t;

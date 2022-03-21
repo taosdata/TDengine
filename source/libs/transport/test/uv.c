@@ -1,17 +1,16 @@
 #include <assert.h>
-#include <pthread.h>
+#include <uv.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "task.h"
-#include <uv.h>
 
 #define NUM_OF_THREAD 1
 #define TIMEOUT 10000
 
 typedef struct SThreadObj {
-  pthread_t thread;
+  TdThread thread;
   uv_pipe_t *pipe;
   uv_loop_t *loop;
   uv_async_t *workerAsync; //
@@ -183,7 +182,7 @@ int main() {
 
     server->pThreadObj[i]->fd = fds[0];
     server->pThreadObj[i]->pipe = &(server->pipe[i][1]); // init read
-    int err = pthread_create(&(server->pThreadObj[i]->thread), NULL,
+    int err = taosThreadCreate(&(server->pThreadObj[i]->thread), NULL,
                              worker_thread, (void *)(server->pThreadObj[i]));
     if (err == 0) {
       printf("thread %d create\n", i);

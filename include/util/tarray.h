@@ -13,15 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_ARRAY_H
-#define _TD_UTIL_ARRAY_H
+#ifndef _TD_UTIL_ARRAY_H_
+#define _TD_UTIL_ARRAY_H_
+
+#include "talgo.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "os.h"
-#include "talgo.h"
 
 #if 0
 #define TARRAY(TYPE)             \
@@ -31,20 +30,20 @@ extern "C" {
     struct TYPE* td_array_data_; \
   }
 
-#define TARRAY_SIZE(ARRAY) (ARRAY)->tarray_size_
-#define TARRAY_NELES(ARRAY) (ARRAY)->tarray_neles_
+#define TARRAY_SIZE(ARRAY)        (ARRAY)->tarray_size_
+#define TARRAY_NELES(ARRAY)       (ARRAY)->tarray_neles_
 #define TARRAY_ELE_AT(ARRAY, IDX) ((ARRAY)->td_array_data_ + idx)
 #endif
 
-#define TARRAY_MIN_SIZE 8
+#define TARRAY_MIN_SIZE               8
 #define TARRAY_GET_ELEM(array, index) ((void*)((char*)((array)->pData) + (index) * (array)->elemSize))
-#define TARRAY_ELEM_IDX(array, ele) (POINTER_DISTANCE(ele, (array)->pData) / (array)->elemSize)
-#define TARRAY_GET_START(array) ((array)->pData)
+#define TARRAY_ELEM_IDX(array, ele)   (POINTER_DISTANCE(ele, (array)->pData) / (array)->elemSize)
+#define TARRAY_GET_START(array)       ((array)->pData)
 
 typedef struct SArray {
   size_t size;
-  size_t capacity;
-  size_t elemSize;
+  uint32_t capacity;
+  uint32_t elemSize;
   void*  pData;
 } SArray;
 
@@ -70,7 +69,7 @@ int32_t taosArrayEnsureCap(SArray* pArray, size_t tsize);
  * @param nEles
  * @return
  */
-void* taosArrayAddBatch(SArray* pArray, const void* pData, int nEles);
+void* taosArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles);
 
 /**
  *
@@ -238,7 +237,7 @@ void taosArraySortString(SArray* pArray, __compar_fn_t comparFn);
  * @param compar
  * @param key
  */
-void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t comparFn, int flags);
+void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t comparFn, int32_t flags);
 
 /**
  * search the array, return index of the element
@@ -246,14 +245,14 @@ void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t compa
  * @param compar
  * @param key
  */
-int32_t taosArraySearchIdx(const SArray* pArray, const void* key, __compar_fn_t comparFn, int flags);
+int32_t taosArraySearchIdx(const SArray* pArray, const void* key, __compar_fn_t comparFn, int32_t flags);
 
 /**
  * search the array
  * @param pArray
  * @param key
  */
-char* taosArraySearchString(const SArray* pArray, const char* key, __compar_fn_t comparFn, int flags);
+char* taosArraySearchString(const SArray* pArray, const char* key, __compar_fn_t comparFn, int32_t flags);
 
 /**
  * sort the pointer data in the array
@@ -269,4 +268,4 @@ void taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void* par
 }
 #endif
 
-#endif /*_TD_UTIL_ARRAY_H*/
+#endif /*_TD_UTIL_ARRAY_H_*/

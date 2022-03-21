@@ -27,9 +27,12 @@ SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg) {
   SVnodeCfg cfg = defaultVnodeOptions;
   if (pVnodeCfg != NULL) {
     cfg.vgId = pVnodeCfg->vgId;
-    cfg.pDnode = pVnodeCfg->pDnode;
+    cfg.pWrapper = pVnodeCfg->pWrapper;
     cfg.pTfs = pVnodeCfg->pTfs;
     cfg.dbId = pVnodeCfg->dbId;
+    cfg.hashBegin = pVnodeCfg->hashBegin;
+    cfg.hashEnd = pVnodeCfg->hashEnd;
+    cfg.hashMethod = pVnodeCfg->hashMethod;
   }
 
   // Validate options
@@ -76,7 +79,7 @@ static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg) {
   }
 
   pVnode->vgId = pVnodeCfg->vgId;
-  pVnode->pDnode = pVnodeCfg->pDnode;
+  pVnode->pWrapper = pVnodeCfg->pWrapper;
   pVnode->pTfs = pVnodeCfg->pTfs;
   pVnode->path = strdup(path);
   vnodeOptionsCopy(&(pVnode->config), pVnodeCfg);
@@ -151,5 +154,6 @@ static void vnodeCloseImpl(SVnode *pVnode) {
     tsdbClose(pVnode->pTsdb);
     tqClose(pVnode->pTq);
     walClose(pVnode->pWal);
+    vnodeQueryClose(pVnode);
   }
 }

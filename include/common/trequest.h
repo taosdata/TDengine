@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TREQUEST_H_
-#define _TD_TREQUEST_H_
+#ifndef _TD_COMMON_REQUEST_H_
+#define _TD_COMMON_REQUEST_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,7 +36,7 @@ void            tdClearRBIter(SReqBatchIter *pIter);
 
 /* ------------------------ TYPES DEFINITION ------------------------ */
 struct SReqBatchIter {
-  int        iReq;
+  int32_t    iReq;
   SReqBatch *pReqBatch;
 };
 
@@ -44,4 +44,4 @@ struct SReqBatchIter {
 }
 #endif
 
-#endif /*_TD_TREQUEST_H_*/
+#endif /*_TD_COMMON_REQUEST_H_*/

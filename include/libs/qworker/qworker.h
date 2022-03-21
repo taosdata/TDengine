@@ -49,10 +49,10 @@ typedef struct {
 } SQWorkerStat;
 
 typedef int32_t (*putReqToQueryQFp)(void *, struct SRpcMsg *);
-typedef int32_t (*sendReqToDnodeFp)(void *, struct SEpSet *, struct SRpcMsg *);
+typedef int32_t (*sendReqFp)(void *, struct SEpSet *, struct SRpcMsg *);
 
 int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, void *nodeObj,
-                    putReqToQueryQFp fp1, sendReqToDnodeFp fp2);
+                    putReqToQueryQFp fp1, sendReqFp fp2);
 
 int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
 
@@ -71,6 +71,8 @@ int32_t qWorkerProcessFetchRsp(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
 int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
 
 int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
+
+int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
 
 int32_t qWorkerProcessShowMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
 

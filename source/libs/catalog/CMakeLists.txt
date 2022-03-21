@@ -1,5 +1,5 @@
 aux_source_directory(src CATALOG_SRC)
-add_library(catalog ${CATALOG_SRC})
+add_library(catalog STATIC ${CATALOG_SRC})
 target_include_directories(
     catalog
     PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/catalog"

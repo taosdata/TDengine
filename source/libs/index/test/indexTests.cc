@@ -24,6 +24,7 @@
 #include "index_fst_counting_writer.h"
 #include "index_fst_util.h"
 #include "index_tfile.h"
+#include "index_util.h"
 #include "tskiplist.h"
 #include "tutil.h"
 using namespace std;
@@ -393,7 +394,13 @@ class TFileObj {
       //
       //
     }
-    return tfileReaderSearch(reader_, query, result);
+    SIdxTempResult* tr = sIdxTempResultCreate();
+
+    int ret = tfileReaderSearch(reader_, query, tr);
+
+    sIdxTempResultMergeTo(result, tr);
+    sIdxTempResultDestroy(tr);
+    return ret;
   }
   ~TFileObj() {
     if (writer_) {
@@ -420,7 +427,6 @@ class IndexTFileEnv : public ::testing::Test {
   virtual void SetUp() {
     taosRemoveDir(dir.c_str());
     taosMkDir(dir.c_str());
-    tfInit();
     fObj = new TFileObj(dir, colName);
   }
 
@@ -428,7 +434,6 @@ class IndexTFileEnv : public ::testing::Test {
     // indexClose(index);
     // indexeptsDestroy(opts);
     delete fObj;
-    tfCleanup();
     // tfileWriterDestroy(twrite);
   }
   TFileObj*   fObj;
@@ -509,9 +514,13 @@ class CacheObj {
     indexCacheDebug(cache);
   }
   int Get(SIndexTermQuery* query, int16_t colId, int32_t version, SArray* result, STermValueType* s) {
-    int ret = indexCacheSearch(cache, query, result, s);
+    SIdxTempResult* tr = sIdxTempResultCreate();
+
+    int ret = indexCacheSearch(cache, query, tr, s);
+    sIdxTempResultMergeTo(result, tr);
+    sIdxTempResultDestroy(tr);
+
     if (ret != 0) {
-      //
       std::cout << "failed to get from cache:" << ret << std::endl;
     }
     return ret;
@@ -651,7 +660,7 @@ class IndexObj {
     indexInit();
   }
   int Init(const std::string& dir) {
-    // taosRemoveDir(dir.c_str());
+    taosRemoveDir(dir.c_str());
     taosMkDir(dir.c_str());
     int ret = indexOpen(&opts, dir.c_str(), &idx);
     if (ret != 0) {
@@ -659,6 +668,14 @@ class IndexObj {
       std::cout << "failed to open index: %s" << dir << std::endl;
     }
     return ret;
+  }
+  void Del(const std::string& colName, const std::string& colVal, uint64_t uid) {
+    SIndexTerm*      term = indexTermCreate(0, DEL_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                       colVal.c_str(), colVal.size());
+    SIndexMultiTerm* terms = indexMultiTermCreate();
+    indexMultiTermAdd(terms, term);
+    Put(terms, uid);
+    indexMultiTermDestroy(terms);
   }
   int WriteMillonData(const std::string& colName, const std::string& colVal = "Hello world",
                       size_t numOfTable = 100 * 10000) {
@@ -682,7 +699,7 @@ class IndexObj {
     for (int i = 0; i < numOfTable; i++) {
       for (int k = 0; k < 10 && k < colVal.size(); k++) {
         // opt
-        tColVal[rand() % colValSize] = 'a' + k % 26;
+        tColVal[taosRand() % colValSize] = 'a' + k % 26;
       }
       SIndexTerm*      term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                          tColVal.c_str(), tColVal.size());
@@ -732,6 +749,7 @@ class IndexObj {
       std::cout << "search and time cost:" << e - s << "\tquery col:" << colName << "\t val: " << colVal
                 << "\t size:" << taosArrayGetSize(result) << std::endl;
     } else {
+      return -1;
     }
     int sz = taosArrayGetSize(result);
     indexMultiTermQueryDestroy(mq);
@@ -750,7 +768,7 @@ class IndexObj {
     int64_t s = taosGetTimestampUs();
     if (Search(mq, result) == 0) {
       int64_t e = taosGetTimestampUs();
-      std::cout << "search one successfully and time cost:" << e - s << "\tquery col:" << colName
+      std::cout << "search one successfully and time cost:" << e - s << "us\tquery col:" << colName
                 << "\t val: " << colVal << "\t size:" << taosArrayGetSize(result) << std::endl;
     } else {
     }
@@ -799,16 +817,9 @@ class IndexObj {
 
 class IndexEnv2 : public ::testing::Test {
  protected:
-  virtual void SetUp() {
-    tfInit();
-    index = new IndexObj();
-    //
-  }
-  virtual void TearDown() {
-    delete index;
-    tfCleanup();
-  }
-  IndexObj* index;
+  virtual void SetUp() { index = new IndexObj(); }
+  virtual void TearDown() { delete index; }
+  IndexObj*    index;
 };
 TEST_F(IndexEnv2, testIndexOpen) {
   std::string path = "/tmp/test";
@@ -1046,4 +1057,58 @@ TEST_F(IndexEnv2, testIndex_read_performance4) {
   index->ReadMultiMillonData("tag10", "Hello", 1000 * 100);
   std::cout << "reader sz: " << index->SearchOne("tag1", "Hello") << std::endl;
   assert(3 == index->SearchOne("tag10", "Hello"));
+}
+TEST_F(IndexEnv2, testIndex_cache_del) {
+  std::string path = "/tmp/cache_and_tfile";
+  if (index->Init(path) != 0) {
+  }
+  for (int i = 0; i < 100; i++) {
+    index->PutOneTarge("tag10", "Hello", i);
+  }
+  index->Del("tag10", "Hello", 12);
+  index->Del("tag10", "Hello", 11);
+
+  // index->WriteMultiMillonData("tag10", "xxxxxxxxxxxxxx", 100 * 10000);
+  index->Del("tag10", "Hello", 17);
+  EXPECT_EQ(97, index->SearchOne("tag10", "Hello"));
+
+  index->PutOneTarge("tag10", "Hello", 17);  // add again
+  EXPECT_EQ(98, index->SearchOne("tag10", "Hello"));
+
+  // del all
+  for (int i = 0; i < 200; i++) {
+    index->Del("tag10", "Hello", i);
+  }
+  EXPECT_EQ(0, index->SearchOne("tag10", "Hello"));
+
+  // add other item
+  for (int i = 0; i < 2000; i++) {
+    index->PutOneTarge("tag10", "World", i);
+  }
+
+  for (int i = 0; i < 2000; i++) {
+    index->PutOneTarge("tag10", "Hello", i);
+  }
+  EXPECT_EQ(2000, index->SearchOne("tag10", "Hello"));
+
+  for (int i = 0; i < 2000; i++) {
+    index->Del("tag10", "Hello", i);
+  }
+  EXPECT_EQ(0, index->SearchOne("tag10", "Hello"));
+}
+
+TEST_F(IndexEnv2, testIndex_del) {
+  std::string path = "/tmp/cache_and_tfile";
+  if (index->Init(path) != 0) {
+  }
+  for (int i = 0; i < 100; i++) {
+    index->PutOneTarge("tag10", "Hello", i);
+  }
+  index->Del("tag10", "Hello", 12);
+  index->Del("tag10", "Hello", 11);
+  EXPECT_EQ(98, index->SearchOne("tag10", "Hello"));
+
+  index->WriteMultiMillonData("tag10", "xxxxxxxxxxxxxx", 100 * 10000);
+  index->Del("tag10", "Hello", 17);
+  EXPECT_EQ(97, index->SearchOne("tag10", "Hello"));
 }

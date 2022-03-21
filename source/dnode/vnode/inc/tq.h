@@ -13,17 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TQ_H_
-#define _TD_TQ_H_
+#ifndef _TQ_H_
+#define _TQ_H_
 
-#include "common.h"
 #include "executor.h"
-#include "mallocator.h"
 #include "meta.h"
-#include "os.h"
-#include "scheduler.h"
 #include "taoserror.h"
-#include "tlist.h"
+#include "tcommon.h"
+#include "tmallocator.h"
 #include "tmsg.h"
 #include "trpc.h"
 #include "ttimer.h"
@@ -52,15 +49,18 @@ STQ* tqOpen(const char* path, SWal* pWal, SMeta* pMeta, STqCfg* tqConfig, SMemAl
 void tqClose(STQ*);
 
 // required by vnode
-int tqPushMsg(STQ*, void* msg, int64_t version);
+int tqPushMsg(STQ*, void* msg, tmsg_t msgType, int64_t version);
 int tqCommit(STQ*);
 
-int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
 int32_t tqProcessRebReq(STQ* pTq, char* msg);
+int32_t tqProcessTaskExec(STQ* pTq, SRpcMsg* msg);
+
+int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TQ_H_*/
+#endif /*_TQ_H_*/

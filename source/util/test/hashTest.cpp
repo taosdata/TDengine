@@ -1,9 +1,9 @@
-#include "os.h"
 #include <gtest/gtest.h>
 #include <limits.h>
-#include <taosdef.h>
 #include <iostream>
 
+#include "os.h"
+#include "taosdef.h"
 #include "thash.h"
 #include "taos.h"
 
@@ -106,7 +106,7 @@ void noLockPerformanceTest() {
   ASSERT_EQ(taosHashGetSize(hashTable), 0);
   
   char key[128] = {0};
-  int32_t num = 5000000;
+  int32_t num = 5000;
   
   int64_t st = taosGetTimestampUs();
   
@@ -186,10 +186,15 @@ void acquireRleaseTest() {
 
   printf("%s,expect:%s", pdata->p, str3);
   ASSERT_TRUE(strcmp(pdata->p, str3) == 0);
-  
+
+  tfree(pdata->p);
+
   taosHashRelease(hashTable, pdata);
   num = taosHashGetSize(hashTable);
   ASSERT_EQ(num, 1);
+
+  taosHashCleanup(hashTable);
+  tfree(data.p);
 }
 
 }

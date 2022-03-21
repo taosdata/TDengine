@@ -459,44 +459,44 @@ static char *formatTimestamp(char *buf, int64_t val, int precision) {
   return buf;
 }
 
-static void dumpFieldToFile(FILE *fp, const char *val, TAOS_FIELD *field, int32_t length, int precision) {
+static void dumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length, int precision) {
   if (val == NULL) {
-    fprintf(fp, "%s", TSDB_DATA_NULL_STR);
+    taosFprintfFile(pFile, "%s", TSDB_DATA_NULL_STR);
     return;
   }
 
   char buf[TSDB_MAX_BYTES_PER_ROW];
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
-      fprintf(fp, "%d", ((((int32_t)(*((char *)val))) == 1) ? 1 : 0));
+      taosFprintfFile(pFile, "%d", ((((int32_t)(*((char *)val))) == 1) ? 1 : 0));
       break;
     case TSDB_DATA_TYPE_TINYINT:
-      fprintf(fp, "%d", *((int8_t *)val));
+      taosFprintfFile(pFile, "%d", *((int8_t *)val));
       break;
     case TSDB_DATA_TYPE_SMALLINT:
-      fprintf(fp, "%d", *((int16_t *)val));
+      taosFprintfFile(pFile, "%d", *((int16_t *)val));
       break;
     case TSDB_DATA_TYPE_INT:
-      fprintf(fp, "%d", *((int32_t *)val));
+      taosFprintfFile(pFile, "%d", *((int32_t *)val));
       break;
     case TSDB_DATA_TYPE_BIGINT:
-      fprintf(fp, "%" PRId64, *((int64_t *)val));
+      taosFprintfFile(pFile, "%" PRId64, *((int64_t *)val));
       break;
     case TSDB_DATA_TYPE_FLOAT:
-      fprintf(fp, "%.5f", GET_FLOAT_VAL(val));
+      taosFprintfFile(pFile, "%.5f", GET_FLOAT_VAL(val));
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      fprintf(fp, "%.9f", GET_DOUBLE_VAL(val));
+      taosFprintfFile(pFile, "%.9f", GET_DOUBLE_VAL(val));
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
       memcpy(buf, val, length);
       buf[length] = 0;
-      fprintf(fp, "\'%s\'", buf);
+      taosFprintfFile(pFile, "\'%s\'", buf);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
       formatTimestamp(buf, *(int64_t *)val, precision);
-      fprintf(fp, "'%s'", buf);
+      taosFprintfFile(pFile, "'%s'", buf);
       break;
     default:
       break;
@@ -516,8 +516,9 @@ static int dumpResultToFile(const char *fname, TAOS_RES *tres) {
     return -1;
   }
 
-  FILE *fp = fopen(full_path.we_wordv[0], "w");
-  if (fp == NULL) {
+  // FILE *fp = fopen(full_path.we_wordv[0], "w");
+  TdFilePtr pFile = taosOpenFile(full_path.we_wordv[0], TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
+  if (pFile == NULL) {
     fprintf(stderr, "ERROR: failed to open file: %s\n", full_path.we_wordv[0]);
     wordfree(&full_path);
     return -1;
@@ -531,40 +532,40 @@ static int dumpResultToFile(const char *fname, TAOS_RES *tres) {
 
   for (int col = 0; col < num_fields; col++) {
     if (col > 0) {
-      fprintf(fp, ",");
+      taosFprintfFile(pFile, ",");
     }
-    fprintf(fp, "%s", fields[col].name);
+    taosFprintfFile(pFile, "%s", fields[col].name);
   }
-  fputc('\n', fp);
+  taosFprintfFile(pFile, "\n");
 
   int numOfRows = 0;
   do {
     int32_t *length = taos_fetch_lengths(tres);
     for (int i = 0; i < num_fields; i++) {
       if (i > 0) {
-        fputc(',', fp);
+        taosFprintfFile(pFile, "\n");
       }
-      dumpFieldToFile(fp, (const char *)row[i], fields + i, length[i], precision);
+      dumpFieldToFile(pFile, (const char *)row[i], fields + i, length[i], precision);
     }
-    fputc('\n', fp);
+    taosFprintfFile(pFile, "\n");
 
     numOfRows++;
     row = taos_fetch_row(tres);
   } while (row != NULL);
 
   result = 0;
-  fclose(fp);
+  taosCloseFile(&pFile);
 
   return numOfRows;
 }
 
 static void shellPrintNChar(const char *str, int length, int width) {
-  wchar_t tail[3];
+  TdWchar tail[3];
   int     pos = 0, cols = 0, totalCols = 0, tailLen = 0;
 
   while (pos < length) {
-    wchar_t wc;
-    int     bytes = mbtowc(&wc, str + pos, MB_CUR_MAX);
+    TdWchar wc;
+    int     bytes = taosMbToWchar(&wc, str + pos, MB_CUR_MAX);
     if (bytes == 0) {
       break;
     }
@@ -576,7 +577,7 @@ static void shellPrintNChar(const char *str, int length, int width) {
 #ifdef WINDOWS
     int w = bytes;
 #else
-    int w = wcwidth(wc);
+    int w = taosWcharWidth(wc);
 #endif
     if (w <= 0) {
       continue;
@@ -897,14 +898,14 @@ void read_history() {
   history.hstart = 0;
   history.hend = 0;
   char  *line = NULL;
-  size_t line_size = 0;
   int    read_size = 0;
 
   char f_history[TSDB_FILENAME_LEN];
   get_history_path(f_history);
 
-  FILE *f = fopen(f_history, "r");
-  if (f == NULL) {
+  // FILE *f = fopen(f_history, "r");
+  TdFilePtr pFile = taosOpenFile(f_history, TD_FILE_READ | TD_FILE_STREAM);
+  if (pFile == NULL) {
 #ifndef WINDOWS
     if (errno != ENOENT) {
       fprintf(stderr, "Failed to open file %s, reason:%s\n", f_history, strerror(errno));
@@ -913,7 +914,7 @@ void read_history() {
     return;
   }
 
-  while ((read_size = tgetline(&line, &line_size, f)) != -1) {
+  while ((read_size = taosGetLineFile(pFile, &line)) != -1) {
     line[read_size - 1] = '\0';
     history.hist[history.hend] = strdup(line);
 
@@ -924,16 +925,17 @@ void read_history() {
     }
   }
 
-  free(line);
-  fclose(f);
+  if(line != NULL) free(line);
+  taosCloseFile(&pFile);
 }
 
 void write_history() {
   char f_history[TSDB_FILENAME_LEN];
   get_history_path(f_history);
 
-  FILE *f = fopen(f_history, "w");
-  if (f == NULL) {
+  // FILE *f = fopen(f_history, "w");
+  TdFilePtr pFile = taosOpenFile(f_history, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
+  if (pFile == NULL) {
 #ifndef WINDOWS
     fprintf(stderr, "Failed to open file %s for write, reason:%s\n", f_history, strerror(errno));
 #endif
@@ -942,12 +944,12 @@ void write_history() {
 
   for (int i = history.hstart; i != history.hend;) {
     if (history.hist[i] != NULL) {
-      fprintf(f, "%s\n", history.hist[i]);
+      taosFprintfFile(pFile, "%s\n", history.hist[i]);
       tfree(history.hist[i]);
     }
     i = (i + 1) % MAX_HISTORY_SIZE;
   }
-  fclose(f);
+  taosCloseFile(&pFile);
 }
 
 void taos_error(TAOS_RES *tres, int64_t st) {
@@ -969,7 +971,6 @@ void source_file(TAOS *con, char *fptr) {
   char     *cmd = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN + 1);
   size_t    cmd_len = 0;
   char     *line = NULL;
-  size_t    line_len = 0;
 
   if (wordexp(fptr, &full_path, 0) != 0) {
     fprintf(stderr, "ERROR: illegal file name\n");
@@ -989,15 +990,16 @@ void source_file(TAOS *con, char *fptr) {
   }
   */
 
-  FILE *f = fopen(fname, "r");
-  if (f == NULL) {
+  // FILE *f = fopen(fname, "r");
+  TdFilePtr pFile = taosOpenFile(fname, TD_FILE_READ | TD_FILE_STREAM);
+  if (pFile == NULL) {
     fprintf(stderr, "ERROR: failed to open file %s\n", fname);
     wordfree(&full_path);
     free(cmd);
     return;
   }
 
-  while ((read_len = tgetline(&line, &line_len, f)) != -1) {
+  while ((read_len = taosGetLineFile(pFile, &line)) != -1) {
     if (read_len >= TSDB_MAX_ALLOWED_SQL_LEN) continue;
     line[--read_len] = '\0';
 
@@ -1020,9 +1022,9 @@ void source_file(TAOS *con, char *fptr) {
   }
 
   free(cmd);
-  if (line) free(line);
+  if(line != NULL) free(line);
   wordfree(&full_path);
-  fclose(f);
+  taosCloseFile(&pFile);
 }
 
 void shellGetGrantInfo(void *con) {

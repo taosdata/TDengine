@@ -16,9 +16,11 @@
 #include <tlog.h>
 #include "thash.h"
 //#include "queryLog.h"
-#include "tcompare.h"
-#include "filterInt.h"
 #include "filter.h"
+#include "filterInt.h"
+#include "sclInt.h"
+#include "tcompare.h"
+#include "tdatablock.h"
 
 OptrStr gOptrStr[] = {
   {0,                                      "invalid"},
@@ -790,7 +792,7 @@ int32_t filterDetachCnfGroups(SArray* group, SArray* left, SArray* right) {
     }
 
     SFilterGroup *gp = NULL;
-    while (gp = (SFilterGroup *)taosArrayPop(right)) {
+    while ((gp = (SFilterGroup *)taosArrayPop(right)) != NULL) {
       taosArrayPush(group, gp);
     }
 
@@ -799,7 +801,7 @@ int32_t filterDetachCnfGroups(SArray* group, SArray* left, SArray* right) {
 
   if (taosArrayGetSize(right) <= 0) { 
     SFilterGroup *gp = NULL;
-    while (gp = (SFilterGroup *)taosArrayPop(left)) {
+    while ((gp = (SFilterGroup *)taosArrayPop(left)) != NULL) {
       taosArrayPush(group, gp);
     }
 
@@ -914,14 +916,14 @@ int32_t filterAddFieldFromNode(SFilterInfo *info, SNode *node, SFilterFieldId *f
     FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
   
-  if (nodeType(node) != QUERY_NODE_COLUMN_REF && nodeType(node) != QUERY_NODE_VALUE) {
+  if (nodeType(node) != QUERY_NODE_COLUMN && nodeType(node) != QUERY_NODE_VALUE && nodeType(node) != QUERY_NODE_NODE_LIST) {
     FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
   
   int32_t type;
   void *v;
 
-  if (nodeType(node) == QUERY_NODE_COLUMN_REF) {
+  if (nodeType(node) == QUERY_NODE_COLUMN) {
     type = FLD_TYPE_COLUMN;
     v = node;
   } else {
@@ -968,8 +970,10 @@ int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFi
     SFilterField *val = FILTER_UNIT_RIGHT_FIELD(info, u);  
     assert(FILTER_GET_FLAG(val->flag, FLD_TYPE_VALUE));
   } else {
-    if(optr != OP_TYPE_IS_NULL && optr != OP_TYPE_IS_NOT_NULL && optr != FILTER_DUMMY_EMPTY_OPTR){
-      return -1;
+    int32_t paramNum = scalarGetOperatorParamNum(optr);
+    if (1 != paramNum) {
+      fltError("invalid right field in unit, operator:%s, rightType:%d", gOptrStr[optr].str, u->right.type);
+      return TSDB_CODE_QRY_APP_ERROR;
     }
   }
   
@@ -1016,7 +1020,6 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode* tree, SArray *group) {
 
   if (node->opType == OP_TYPE_IN && (!IS_VAR_DATA_TYPE(type))) {
     SNodeListNode *listNode = (SNodeListNode *)node->pRight;
-    void *fdata = NULL;
     SListCell *cell = listNode->pNodeList->pHead;
     SScalarParam in = {.num = 1}, out = {.num = 1, .type = type};
     
@@ -1036,7 +1039,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode* tree, SArray *group) {
       
       len = tDataTypes[type].bytes;
 
-      filterAddField(info, NULL, &fdata, FLD_TYPE_VALUE, &right, len, true);
+      filterAddField(info, NULL, &out.data, FLD_TYPE_VALUE, &right, len, true);
 
       filterAddUnit(info, OP_TYPE_EQUAL, &left, &right, &uidx);
       
@@ -1337,6 +1340,8 @@ EDealRes fltTreeToGroup(SNode* pNode, void* pContext) {
       return DEAL_RES_IGNORE_CHILD;
     }
 
+    ctx->code = TSDB_CODE_QRY_APP_ERROR;
+    
     fltError("invalid condition type, type:%d", node->condType);
 
     return DEAL_RES_ERROR;
@@ -1451,8 +1456,8 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
       qDebug("COLUMN Field Num:%u", info->fields[FLD_TYPE_COLUMN].num);
       for (uint32_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
         SFilterField *field = &info->fields[FLD_TYPE_COLUMN].fields[i];
-        SColumnRefNode *refNode = (SColumnRefNode *)field->desc;
-        qDebug("COL%d => [%d][%d]", i, refNode->tupleId, refNode->slotId);
+        SColumnNode *refNode = (SColumnNode *)field->desc;
+        qDebug("COL%d => [%d][%d]", i, refNode->dataBlockId, refNode->slotId);
       }
 
       qDebug("VALUE Field Num:%u", info->fields[FLD_TYPE_VALUE].num);
@@ -1480,9 +1485,9 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
         char str[512] = {0};
         
         SFilterField *left = FILTER_UNIT_LEFT_FIELD(info, unit);
-        SColumnRefNode *refNode = (SColumnRefNode *)left->desc;
+        SColumnNode *refNode = (SColumnNode *)left->desc;
         if (unit->compare.optr >= 0 && unit->compare.optr <= OP_TYPE_JSON_CONTAINS){
-          len = sprintf(str, "UNIT[%d] => [%d][%d]  %s  [", i, refNode->tupleId, refNode->slotId, gOptrStr[unit->compare.optr].str);
+          len = sprintf(str, "UNIT[%d] => [%d][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId, gOptrStr[unit->compare.optr].str);
         }
 
         if (unit->right.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != OP_TYPE_IN) {
@@ -1501,7 +1506,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
         if (unit->compare.optr2) {
           strcat(str, " && ");
           if (unit->compare.optr2 >= 0 && unit->compare.optr2 <= OP_TYPE_JSON_CONTAINS){
-            sprintf(str + strlen(str), "[%d][%d]  %s  [", refNode->tupleId, refNode->slotId, gOptrStr[unit->compare.optr2].str);
+            sprintf(str + strlen(str), "[%d][%d]  %s  [", refNode->dataBlockId, refNode->slotId, gOptrStr[unit->compare.optr2].str);
           }
           
           if (unit->right2.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != OP_TYPE_IN) {
@@ -1674,7 +1679,7 @@ void filterFreeInfo(SFilterInfo *info) {
   tfree(info->cunits);
   tfree(info->blkUnitRes);
   tfree(info->blkUnits);
-  
+
   for (int32_t i = 0; i < FLD_TYPE_MAX; ++i) {
     for (uint32_t f = 0; f < info->fields[i].num; ++f) {
       filterFreeField(&info->fields[i].fields[f], i);
@@ -1736,7 +1741,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
   for (uint32_t i = 0; i < info->unitNum; ++i) {
     SFilterUnit* unit = &info->units[i];
     if (unit->right.type != FLD_TYPE_VALUE) {
-      assert(unit->compare.optr == OP_TYPE_IS_NULL || unit->compare.optr == OP_TYPE_IS_NOT_NULL || unit->compare.optr == FILTER_DUMMY_EMPTY_OPTR);
+      assert(unit->compare.optr == FILTER_DUMMY_EMPTY_OPTR || scalarGetOperatorParamNum(unit->compare.optr) == 1);
       continue;
     }
     
@@ -1792,13 +1797,15 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     }
 
     if(type != TSDB_DATA_TYPE_JSON){
-      bool converted = false;
-      char extInfo = 0;
-      SScalarParam in = {.data = nodesGetValueFromNode(var), .num = 1, .type = dType->type, .bytes = dType->bytes};
-      SScalarParam out = {.data = fi->data, .num = 1, .type = type};
-      if (vectorConvertImpl(&in, &out)) {
-        qError("convert value to type[%d] failed", type);
-        return TSDB_CODE_TSC_INVALID_OPERATION;
+      if (dType->type == type) {
+        assignVal(fi->data, nodesGetValueFromNode(var), dType->bytes, type);
+      } else {
+        SScalarParam in = {.data = nodesGetValueFromNode(var), .num = 1, .type = dType->type, .bytes = dType->bytes};
+        SScalarParam out = {.data = fi->data, .num = 1, .type = type};
+        if (vectorConvertImpl(&in, &out)) {
+          qError("convert value to type[%d] failed", type);
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
       }
     }
 
@@ -1806,10 +1813,10 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     if(type == TSDB_DATA_TYPE_NCHAR &&
         (unit->compare.optr == OP_TYPE_MATCH || unit->compare.optr == OP_TYPE_NMATCH)){
       char newValData[TSDB_REGEX_STRING_DEFAULT_LEN * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE] = {0};
-      int32_t len = taosUcs4ToMbs(varDataVal(fi->data), varDataLen(fi->data), varDataVal(newValData));
+      int32_t len = taosUcs4ToMbs((TdUcs4*)varDataVal(fi->data), varDataLen(fi->data), varDataVal(newValData));
       if (len < 0){
         qError("filterInitValFieldData taosUcs4ToMbs error 1");
-        return TSDB_CODE_FAILED;
+        return TSDB_CODE_QRY_APP_ERROR;
       }
       varDataSetLen(newValData, len);
       varDataCopy(fi->data, newValData);
@@ -2565,7 +2572,8 @@ int32_t filterUpdateComUnits(SFilterInfo *info) {
   for (uint32_t i = 0; i < info->unitNum; ++i) {
     SFilterUnit *unit = &info->units[i];
 
-    info->cunits[i].colData = FILTER_UNIT_COL_DATA(info, unit, 0);
+    SFilterField *col = FILTER_UNIT_LEFT_FIELD(info, unit);
+    info->cunits[i].colData = col->data;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2770,14 +2778,14 @@ bool filterExecuteBasedOnStatisImpl(void *pinfo, int32_t numOfRows, int8_t** p, 
       uint32_t unitNum = *(unitIdx++);
       for (uint32_t u = 0; u < unitNum; ++u) {
         SFilterComUnit *cunit = &info->cunits[*(unitIdx + u)];
-        void *colData = (char *)cunit->colData + cunit->dataSize * i;
+        void *colData = colDataGetData((SColumnInfoData *)cunit->colData, i);
       
         //if (FILTER_UNIT_GET_F(info, uidx)) {
         //  p[i] = FILTER_UNIT_GET_R(info, uidx);
         //} else {
           uint8_t optr = cunit->optr;
 
-          if (isNull(colData, cunit->dataType)) {
+          if (colDataIsNull((SColumnInfoData *)(cunit->colData), 0, i, NULL)) {
             (*p)[i] = optr == OP_TYPE_IS_NULL ? true : false;
           } else {
             if (optr == OP_TYPE_IS_NOT_NULL) {
@@ -2868,18 +2876,18 @@ static FORCE_INLINE bool filterExecuteImplIsNull(void *pinfo, int32_t numOfRows,
   
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint32_t uidx = info->groups[0].unitIdxs[0];
-    void *colData = (char *)info->cunits[uidx].colData + info->cunits[uidx].dataSize * i;
+    void *colData = colDataGetData((SColumnInfoData *)info->cunits[uidx].colData, i);
     if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_JSON){
       if (!colData){  // for json->'key' is null
         (*p)[i] = 1;
       }else if( *(char*)colData == TSDB_DATA_TYPE_JSON){  // for json is null
         colData = POINTER_SHIFT(colData, CHAR_BYTES);
-        (*p)[i] = isNull(colData, info->cunits[uidx].dataType);
+        (*p)[i] = colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL);
       }else{
         (*p)[i] = 0;
       }
     }else{
-      (*p)[i] = ((colData == NULL) || isNull(colData, info->cunits[uidx].dataType));
+      (*p)[i] = ((colData == NULL) || colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL));
     }
     if ((*p)[i] == 0) {
       all = false;
@@ -2902,19 +2910,19 @@ static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows
   
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint32_t uidx = info->groups[0].unitIdxs[0];
-    void *colData = (char *)info->cunits[uidx].colData + info->cunits[uidx].dataSize * i;
+    void *colData = colDataGetData((SColumnInfoData *)info->cunits[uidx].colData, i);
 
     if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_JSON){
       if (!colData) {   // for json->'key' is not null
         (*p)[i] = 0;
       }else if( *(char*)colData == TSDB_DATA_TYPE_JSON){   // for json is not null
         colData = POINTER_SHIFT(colData, CHAR_BYTES);
-        (*p)[i] = !isNull(colData, info->cunits[uidx].dataType);
+        (*p)[i] = !colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL);
       }else{    // for json->'key' is not null
         (*p)[i] = 1;
       }
     }else {
-      (*p)[i] = ((colData != NULL) && !isNull(colData, info->cunits[uidx].dataType));
+      (*p)[i] = ((colData != NULL) && !colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL));
     }
 
     if ((*p)[i] == 0) {
@@ -2929,7 +2937,6 @@ bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t** p, SColumnD
   SFilterInfo *info = (SFilterInfo *)pinfo;
   bool all = true;
   uint16_t dataSize = info->cunits[0].dataSize;
-  char *colData = (char *)info->cunits[0].colData;
   rangeCompFunc rfunc = gRangeCompare[info->cunits[0].rfunc];
   void *valData = info->cunits[0].valData;
   void *valData2 = info->cunits[0].valData2;
@@ -2943,10 +2950,11 @@ bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t** p, SColumnD
     *p = calloc(numOfRows, sizeof(int8_t));
   }
   
-  for (int32_t i = 0; i < numOfRows; ++i) {
-    if (colData == NULL || isNull(colData, info->cunits[0].dataType)) {
+  for (int32_t i = 0; i < numOfRows; ++i) {    
+    void *colData = colDataGetData((SColumnInfoData *)info->cunits[0].colData, i);
+
+    if (colData == NULL || colDataIsNull((SColumnInfoData *)info->cunits[0].colData, 0, i, NULL)) {
       all = false;
-      colData += dataSize;
       continue;
     }
 
@@ -2955,8 +2963,6 @@ bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t** p, SColumnD
     if ((*p)[i] == 0) {
       all = false;
     }
-    
-    colData += dataSize;
   }
 
   return all;
@@ -2976,8 +2982,8 @@ bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, int8_t** p, SColumnDa
   
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint32_t uidx = info->groups[0].unitIdxs[0];
-    void *colData = (char *)info->cunits[uidx].colData + info->cunits[uidx].dataSize * i;
-    if (colData == NULL || isNull(colData, info->cunits[uidx].dataType)) {
+    void *colData = colDataGetData((SColumnInfoData *)info->cunits[uidx].colData, i);
+    if (colData == NULL || colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL)) {
       (*p)[i] = 0;
       all = false;
       continue;
@@ -2986,7 +2992,7 @@ bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, int8_t** p, SColumnDa
 
     if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_NCHAR && (info->cunits[uidx].optr == OP_TYPE_MATCH || info->cunits[uidx].optr == OP_TYPE_NMATCH)){
       char *newColData = calloc(info->cunits[uidx].dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
-      int32_t len = taosUcs4ToMbs(varDataVal(colData), varDataLen(colData), varDataVal(newColData));
+      int32_t len = taosUcs4ToMbs((TdUcs4*)varDataVal(colData), varDataLen(colData), varDataVal(newColData));
       if (len < 0){
         qError("castConvert1 taosUcs4ToMbs error");
       }else{
@@ -3027,14 +3033,14 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, int8_t** p, SColumnDataAg
       for (uint32_t u = 0; u < group->unitNum; ++u) {
         uint32_t uidx = group->unitIdxs[u];
         SFilterComUnit *cunit = &info->cunits[uidx];
-        void *colData = (char *)cunit->colData + cunit->dataSize * i;
+        void *colData = colDataGetData((SColumnInfoData *)(cunit->colData), i);
       
         //if (FILTER_UNIT_GET_F(info, uidx)) {
         //  p[i] = FILTER_UNIT_GET_R(info, uidx);
         //} else {
           uint8_t optr = cunit->optr;
 
-          if (colData == NULL || isNull(colData, cunit->dataType)) {
+          if (colData == NULL || colDataIsNull((SColumnInfoData *)(cunit->colData), 0, i, NULL)) {
             (*p)[i] = optr == OP_TYPE_IS_NULL ? true : false;
           } else {
             if (optr == OP_TYPE_IS_NOT_NULL) {
@@ -3046,7 +3052,7 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, int8_t** p, SColumnDataAg
             } else {
               if(cunit->dataType == TSDB_DATA_TYPE_NCHAR && (cunit->optr == OP_TYPE_MATCH || cunit->optr == OP_TYPE_NMATCH)){
                 char *newColData = calloc(cunit->dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
-                int32_t len = taosUcs4ToMbs(varDataVal(colData), varDataLen(colData), varDataVal(newColData));
+                int32_t len = taosUcs4ToMbs((TdUcs4*)varDataVal(colData), varDataLen(colData), varDataVal(newColData));
                 if (len < 0){
                   qError("castConvert1 taosUcs4ToMbs error");
                 }else{
@@ -3427,7 +3433,7 @@ int32_t filterConverNcharColumns(SFilterInfo* info, int32_t rows, bool *gotNchar
           varDataCopy(dst, src);
           continue;
         }
-        bool ret = taosMbsToUcs4(varDataVal(src), varDataLen(src), varDataVal(dst), bufSize, &len);
+        bool ret = taosMbsToUcs4(varDataVal(src), varDataLen(src), (TdUcs4*)varDataVal(dst), bufSize, &len);
         if(!ret) {
           qError("filterConverNcharColumns taosMbsToUcs4 error");
           return TSDB_CODE_FAILED;
@@ -3483,11 +3489,7 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
     return DEAL_RES_CONTINUE;
   }
 
-  if (stat->scalarMode) {
-    return DEAL_RES_CONTINUE;
-  }
-  
-  if (QUERY_NODE_VALUE == nodeType(*pNode) || QUERY_NODE_NODE_LIST == nodeType(*pNode) || QUERY_NODE_COLUMN_REF == nodeType(*pNode)) {
+  if (QUERY_NODE_VALUE == nodeType(*pNode) || QUERY_NODE_NODE_LIST == nodeType(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
     return DEAL_RES_CONTINUE;
   }
 
@@ -3505,22 +3507,28 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
 
     if (NULL == node->pRight) {
       if (scalarGetOperatorParamNum(node->opType) > 1) {
-        fltError("invalid operator, pRight:%p, type:%d", node->pRight, nodeType(node));
+        fltError("invalid operator, pRight:%p, nodeType:%d, opType:%d", node->pRight, nodeType(node), node->opType);
         stat->code = TSDB_CODE_QRY_APP_ERROR;
         return DEAL_RES_ERROR;
       }
       
-      if (QUERY_NODE_COLUMN_REF != nodeType(node->pLeft)) {
-        stat->scalarMode = true;
-        return DEAL_RES_CONTINUE;
-      }
-    } else {
-      if ((QUERY_NODE_COLUMN_REF != nodeType(node->pLeft)) && (QUERY_NODE_VALUE != nodeType(node->pLeft))) {
+      if (QUERY_NODE_COLUMN != nodeType(node->pLeft)) {
         stat->scalarMode = true;
         return DEAL_RES_CONTINUE;
       }
 
-      if ((QUERY_NODE_COLUMN_REF != nodeType(node->pRight)) && (QUERY_NODE_VALUE != nodeType(node->pRight))) {
+      if (OP_TYPE_IS_TRUE == node->opType || OP_TYPE_IS_FALSE == node->opType || OP_TYPE_IS_UNKNOWN == node->opType
+       || OP_TYPE_IS_NOT_TRUE == node->opType || OP_TYPE_IS_NOT_FALSE == node->opType || OP_TYPE_IS_NOT_UNKNOWN == node->opType) {
+        stat->scalarMode = true;
+        return DEAL_RES_CONTINUE;
+      }
+    } else {
+      if ((QUERY_NODE_COLUMN != nodeType(node->pLeft)) && (QUERY_NODE_VALUE != nodeType(node->pLeft))) {
+        stat->scalarMode = true;
+        return DEAL_RES_CONTINUE;
+      }
+
+      if ((QUERY_NODE_COLUMN != nodeType(node->pRight)) && (QUERY_NODE_VALUE != nodeType(node->pRight))) {
         stat->scalarMode = true;
         return DEAL_RES_CONTINUE;
       }      
@@ -3530,7 +3538,7 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
         return DEAL_RES_CONTINUE;
       }
 
-      if (QUERY_NODE_COLUMN_REF != nodeType(node->pLeft)) {
+      if (QUERY_NODE_COLUMN != nodeType(node->pLeft)) {
         SNode *t = node->pLeft;
         node->pLeft = node->pRight;
         node->pRight = t;
@@ -3543,10 +3551,10 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
       }
 
       if (OP_TYPE_IN != node->opType) {
-        SColumnRefNode *refNode = (SColumnRefNode *)node->pLeft;
+        SColumnNode *refNode = (SColumnNode *)node->pLeft;
         SValueNode *valueNode = (SValueNode *)node->pRight;
-        int32_t type = vectorGetConvertType(refNode->dataType.type, valueNode->node.resType.type);
-        if (0 != type && type != refNode->dataType.type) {
+        int32_t type = vectorGetConvertType(refNode->node.resType.type, valueNode->node.resType.type);
+        if (0 != type && type != refNode->node.resType.type) {
           stat->scalarMode = true;
           return DEAL_RES_CONTINUE;
         }
@@ -3570,18 +3578,19 @@ int32_t fltReviseNodes(SFilterInfo *pInfo, SNode** pNode, SFltTreeStat *pStat) {
 }
 
 int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode** pNode, SFltTreeStat *pStat) {
-
+  //TODO
+  return TSDB_CODE_SUCCESS;
 }
 
 
-int32_t filterGetDataFromColId(void *param, int32_t id, void **data) {
+int32_t fltGetDataFromColId(void *param, int32_t id, void **data) {
   int32_t numOfCols = ((SFilterColumnParam *)param)->numOfCols;
   SArray* pDataBlock = ((SFilterColumnParam *)param)->pDataBlock;
   
   for (int32_t j = 0; j < numOfCols; ++j) {
     SColumnInfoData* pColInfo = taosArrayGet(pDataBlock, j);
     if (id == pColInfo->info.colId) {
-      *data = pColInfo->pData;
+      *data = pColInfo;
       break;
     }
   }
@@ -3589,13 +3598,28 @@ int32_t filterGetDataFromColId(void *param, int32_t id, void **data) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t fltGetDataFromSlotId(void *param, int32_t id, void **data) {
+  int32_t numOfCols = ((SFilterColumnParam *)param)->numOfCols;
+  SArray* pDataBlock = ((SFilterColumnParam *)param)->pDataBlock;
+  if (id < 0 || id >= numOfCols || id >= taosArrayGetSize(pDataBlock)) {
+    fltError("invalid slot id, id:%d, numOfCols:%d, arraySize:%d", id, numOfCols, (int32_t)taosArrayGetSize(pDataBlock));
+    return TSDB_CODE_QRY_APP_ERROR;
+  }
+  
+  SColumnInfoData* pColInfo = taosArrayGet(pDataBlock, id);
+  *data = pColInfo;
 
-int32_t filterSetDataFromSlotId(SFilterInfo *info, void *param, filer_get_col_from_id fp) {
-  return fltSetColFieldDataImpl(info, param, fp, false);
+  return TSDB_CODE_SUCCESS;
 }
 
-int32_t filterSetDataFromColId(SFilterInfo *info, void *param, filer_get_col_from_id fp) {
-  return fltSetColFieldDataImpl(info, param, fp, true);
+
+
+int32_t filterSetDataFromSlotId(SFilterInfo *info, void *param) {
+  return fltSetColFieldDataImpl(info, param, fltGetDataFromSlotId, false);
+}
+
+int32_t filterSetDataFromColId(SFilterInfo *info, void *param) {
+  return fltSetColFieldDataImpl(info, param, fltGetDataFromColId, true);
 }
 
 
@@ -3623,6 +3647,8 @@ int32_t filterInitFromNode(SNode* pNode, SFilterInfo **pInfo, uint32_t options) 
   SFltTreeStat stat = {0};
   FLT_ERR_JRET(fltReviseNodes(info, &pNode, &stat));
 
+  info->scalarMode = stat.scalarMode;
+
   if (!info->scalarMode) {
     FLT_ERR_JRET(fltInitFromNode(pNode, info, options));
   } else {
@@ -3644,10 +3670,26 @@ _return:
 bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnDataAgg *statis, int16_t numOfCols) {
   if (info->scalarMode) {
     SScalarParam output = {0};
-    FLT_ERR_RET(scalarCalculate(info->sclCtx.node, pSrc, &output));
+    SArray *pList = taosArrayInit(1, POINTER_BYTES);
+    taosArrayPush(pList, &pSrc);
+    
+    FLT_ERR_RET(scalarCalculate(info->sclCtx.node, pList, &output));
 
-    *p = output.data;
-    return TSDB_CODE_SUCCESS;
+    taosArrayDestroy(pList);
+
+    *p = output.orig.data;
+    output.orig.data = NULL;
+
+    sclFreeParam(&output);
+
+    int8_t *r = output.data;
+    for (int32_t i = 0; i < output.num; ++i) {
+      if (0 == *(r+i)) {
+        return false;
+      }
+    }
+    
+    return true;
   }
 
   return (*info->func)(info, pSrc->info.rows, p, statis, numOfCols);

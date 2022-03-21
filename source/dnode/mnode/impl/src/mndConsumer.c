@@ -34,9 +34,9 @@
 static int32_t mndConsumerActionInsert(SSdb *pSdb, SMqConsumerObj *pConsumer);
 static int32_t mndConsumerActionDelete(SSdb *pSdb, SMqConsumerObj *pConsumer);
 static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pConsumer, SMqConsumerObj *pNewConsumer);
-static int32_t mndProcessConsumerMetaMsg(SMnodeMsg *pMsg);
-static int32_t mndGetConsumerMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t mndRetrieveConsumer(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
+static int32_t mndProcessConsumerMetaMsg(SNodeMsg *pMsg);
+static int32_t mndGetConsumerMeta(SNodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t mndRetrieveConsumer(SNodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextConsumer(SMnode *pMnode, void *pIter);
 
 int32_t mndInitConsumer(SMnode *pMnode) {
@@ -96,12 +96,12 @@ SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
 CM_ENCODE_OVER:
   tfree(buf);
   if (terrno != 0) {
-    mError("consumer:%ld, failed to encode to raw:%p since %s", pConsumer->consumerId, pRaw, terrstr());
+    mError("consumer:%" PRId64 ", failed to encode to raw:%p since %s", pConsumer->consumerId, pRaw, terrstr());
     sdbFreeRaw(pRaw);
     return NULL;
   }
 
-  mTrace("consumer:%ld, encode to raw:%p, row:%p", pConsumer->consumerId, pRaw, pConsumer);
+  mTrace("consumer:%" PRId64 ", encode to raw:%p, row:%p", pConsumer->consumerId, pRaw, pConsumer);
   return pRaw;
 }
 
@@ -140,7 +140,7 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
 CM_DECODE_OVER:
   tfree(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
-    mError("consumer:%ld, failed to decode from raw:%p since %s", pConsumer->consumerId, pRaw, terrstr());
+    mError("consumer:%" PRId64 ", failed to decode from raw:%p since %s", pConsumer->consumerId, pRaw, terrstr());
     tfree(pRow);
     return NULL;
   }
@@ -149,17 +149,17 @@ CM_DECODE_OVER:
 }
 
 static int32_t mndConsumerActionInsert(SSdb *pSdb, SMqConsumerObj *pConsumer) {
-  mTrace("consumer:%ld, perform insert action", pConsumer->consumerId);
+  mTrace("consumer:%" PRId64 ", perform insert action", pConsumer->consumerId);
   return 0;
 }
 
 static int32_t mndConsumerActionDelete(SSdb *pSdb, SMqConsumerObj *pConsumer) {
-  mTrace("consumer:%ld, perform delete action", pConsumer->consumerId);
+  mTrace("consumer:%" PRId64 ", perform delete action", pConsumer->consumerId);
   return 0;
 }
 
 static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer, SMqConsumerObj *pNewConsumer) {
-  mTrace("consumer:%ld, perform update action", pOldConsumer->consumerId);
+  mTrace("consumer:%" PRId64 ", perform update action", pOldConsumer->consumerId);
 
   // TODO handle update
   /*taosWLockLatch(&pOldConsumer->lock);*/

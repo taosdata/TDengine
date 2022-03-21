@@ -1,0 +1,193 @@
+sleep 2000
+sql connect
+
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
+
+print ============================ dnode1 start
+
+$i = 0
+$dbPrefix = ob_db_db
+$tbPrefix = ob_db_tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =============== step1
+sql create database $db replica 1 days 20 keep 2000 cache 16
+sql show databases
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07
+if $data00 != $db then 
+  return -1
+endi
+if $data02 != 0 then 
+  return -1
+endi
+if $data03 != 0 then 
+  return -1
+endi
+if $data04 != 1 then 
+  return -1
+endi
+if $data06 != 20 then 
+  return -1
+endi
+if $data08 != 16 then 
+  return -1
+endi
+ 
+print =============== step2
+sql create database $db
+sql show databases
+if $rows != 1 then 
+  return -1
+endi 
+
+print =============== step3
+sql drop database $db
+sql show databases
+if $rows != 0 then 
+  return -1
+endi 
+
+print =============== step4
+sql_error drop database $db
+
+print =============== step5
+sql create database $db replica 1 days 15 keep 1500
+sql show databases
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07
+if $data00 != $db then 
+  return -1
+endi
+if $data02 != 0 then 
+  return -1
+endi
+if $data03 != 0 then 
+  return -1
+endi
+if $data04 != 1 then 
+  return -1
+endi
+if $data06 != 15 then 
+  return -1
+endi
+
+print =============== step6
+sql use $db
+sql create table $tb (ts timestamp, speed int)
+$i = 1
+while $i < 4
+  $db = $dbPrefix . $i
+  $tb = $tbPrefix . $i
+  sql create database $db
+  sql use $db
+  sql create table $tb (ts timestamp, speed int)
+  $i = $i + 1
+endw
+
+sql show databases
+if $rows != 4 then 
+  return -1
+endi
+
+$i = 4
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+sql create database $db
+sql use $db
+sql create table $tb (ts timestamp, speed int)
+
+print =============== step7
+$i = 0
+while $i < 5
+  $db = $dbPrefix . $i  
+  sql drop database $db 
+  $i = $i + 1
+endw
+
+print =============== step8
+$i = 0
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+sql create database $db
+sql use $db
+sql create table $tb (ts timestamp, speed int)
+sql show tables
+if $rows != 1 then 
+  return -1
+endi
+
+print =============== step9
+sql drop database $db
+
+print =============== step10
+sql create database $db
+sql use $db
+sql show tables
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== step11
+sql create table $tb (ts timestamp, speed int)
+sql show tables
+if $rows != 1 then 
+  return -1
+endi
+
+print =============== step12
+sql drop database $db
+
+print =============== step13
+sql create database $db
+sql use $db
+sql show tables
+if $rows != 0 then 
+  return -1
+endi
+sql create table $tb (ts timestamp, speed int)
+sql show tables
+if $rows != 1 then 
+  return -1
+endi
+sql insert into $tb values (now+1a, 0)
+sql insert into $tb values (now+2a, 1)
+sql insert into $tb values (now+3a, 2)
+sql insert into $tb values (now+4a, 3)
+sql insert into $tb values (now+5a, 4)
+sql select * from $tb
+if $rows != 5 then 
+  return -1
+endi
+
+print =============== step14
+sql drop database $db
+
+print =============== step15
+sql create database $db
+sql use $db
+sql show tables
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== step16
+sql create table $tb (ts timestamp, speed int)
+sql show tables
+if $rows != 1 then 
+  return -1
+endi
+sql select * from $tb
+if $rows != 0 then 
+  return -1
+endi
+
+sql drop database $db
+sql show databases
+if $rows != 0 then 
+  return -1
+endi

@@ -13,22 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_COMPRESSION_H
-#define _TD_UTIL_COMPRESSION_H
+#ifndef _TD_UTIL_COMPRESSION_H_
+#define _TD_UTIL_COMPRESSION_H_
+
+#include "os.h"
+#include "taos.h"
+#include "tutil.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "taos.h"
-#include "tutil.h"
-
 #define COMP_OVERFLOW_BYTES 2
-#define BITS_PER_BYTE 8
+#define BITS_PER_BYTE       8
 // Masks
 #define INT64MASK(_x) ((((uint64_t)1) << _x) - 1)
 #define INT32MASK(_x) (((uint32_t)1 << _x) - 1)
-#define INT8MASK(_x) (((uint8_t)1 << _x) - 1)
+#define INT8MASK(_x)  (((uint8_t)1 << _x) - 1)
 // Compression algorithm
 #define NO_COMPRESSION 0
 #define ONE_STAGE_COMP 1
@@ -41,48 +42,51 @@ extern "C" {
 //
 
 // compression data mode save first byte lower 1 bit
-#define MODE_NOCOMPRESS  0  // original data
-#define MODE_COMPRESS    1  // compatible old compress
+#define MODE_NOCOMPRESS 0  // original data
+#define MODE_COMPRESS   1  // compatible old compress
 
 // compression algorithm save first byte higher 7 bit
-#define ALGO_SZ_LOSSY     1 // SZ compress 
+#define ALGO_SZ_LOSSY 1  // SZ compress
 
-#define HEAD_MODE(x)  x%2
-#define HEAD_ALGO(x)  x/2
+#define HEAD_MODE(x) x % 2
+#define HEAD_ALGO(x) x / 2
 
-extern int tsCompressINTImp(const char *const input, const int nelements, char *const output, const char type);
-extern int tsDecompressINTImp(const char *const input, const int nelements, char *const output, const char type);
-extern int tsCompressBoolImp(const char *const input, const int nelements, char *const output);
-extern int tsDecompressBoolImp(const char *const input, const int nelements, char *const output);
-extern int tsCompressStringImp(const char *const input, int inputSize, char *const output, int outputSize);
-extern int tsDecompressStringImp(const char *const input, int compressedSize, char *const output, int outputSize);
-extern int tsCompressTimestampImp(const char *const input, const int nelements, char *const output);
-extern int tsDecompressTimestampImp(const char *const input, const int nelements, char *const output);
-extern int tsCompressDoubleImp(const char *const input, const int nelements, char *const output);
-extern int tsDecompressDoubleImp(const char *const input, const int nelements, char *const output);
-extern int tsCompressFloatImp(const char *const input, const int nelements, char *const output);
-extern int tsDecompressFloatImp(const char *const input, const int nelements, char *const output);
+extern int32_t tsCompressINTImp(const char *const input, const int32_t nelements, char *const output, const char type);
+extern int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, char *const output,
+                                  const char type);
+extern int32_t tsCompressBoolImp(const char *const input, const int32_t nelements, char *const output);
+extern int32_t tsDecompressBoolImp(const char *const input, const int32_t nelements, char *const output);
+extern int32_t tsCompressStringImp(const char *const input, int32_t inputSize, char *const output, int32_t outputSize);
+extern int32_t tsDecompressStringImp(const char *const input, int32_t compressedSize, char *const output,
+                                     int32_t outputSize);
+extern int32_t tsCompressTimestampImp(const char *const input, const int32_t nelements, char *const output);
+extern int32_t tsDecompressTimestampImp(const char *const input, const int32_t nelements, char *const output);
+extern int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, char *const output);
+extern int32_t tsDecompressDoubleImp(const char *const input, const int32_t nelements, char *const output);
+extern int32_t tsCompressFloatImp(const char *const input, const int32_t nelements, char *const output);
+extern int32_t tsDecompressFloatImp(const char *const input, const int32_t nelements, char *const output);
 // lossy
-extern int tsCompressFloatLossyImp(const char * input, const int nelements, char *const output);
-extern int tsDecompressFloatLossyImp(const char * input, int compressedSize, const int nelements, char *const output);
-extern int tsCompressDoubleLossyImp(const char * input, const int nelements, char *const output);
-extern int tsDecompressDoubleLossyImp(const char * input, int compressedSize, const int nelements, char *const output);
+extern int32_t tsCompressFloatLossyImp(const char *input, const int32_t nelements, char *const output);
+extern int32_t tsDecompressFloatLossyImp(const char *input, int32_t compressedSize, const int32_t nelements,
+                                         char *const output);
+extern int32_t tsCompressDoubleLossyImp(const char *input, const int32_t nelements, char *const output);
+extern int32_t tsDecompressDoubleLossyImp(const char *input, int32_t compressedSize, const int32_t nelements,
+                                          char *const output);
 
 #ifdef TD_TSZ
 extern bool lossyFloat;
 extern bool lossyDouble;
-// init call
-int tsCompressInit();
-// exit call
-void tsCompressExit();
+int32_t     tsCompressInit();
+void        tsCompressExit();
 #endif
 
-static FORCE_INLINE int tsCompressTinyint(const char *const input, int inputSize, const int nelements, char *const output, int outputSize, char algorithm,
-                      char *const buffer, int bufferSize) {
+static FORCE_INLINE int32_t tsCompressTinyint(const char *const input, int32_t inputSize, const int32_t nelements,
+                                              char *const output, int32_t outputSize, char algorithm,
+                                              char *const buffer, int32_t bufferSize) {
   if (algorithm == ONE_STAGE_COMP) {
     return tsCompressINTImp(input, nelements, output, TSDB_DATA_TYPE_TINYINT);
   } else if (algorithm == TWO_STAGE_COMP) {
-    int len = tsCompressINTImp(input, nelements, buffer, TSDB_DATA_TYPE_TINYINT);
+    int32_t len = tsCompressINTImp(input, nelements, buffer, TSDB_DATA_TYPE_TINYINT);
     return tsCompressStringImp(buffer, len, output, outputSize);
   } else {
     assert(0);
@@ -90,8 +94,9 @@ static FORCE_INLINE int tsCompressTinyint(const char *const input, int inputSize
   }
 }
 
-static FORCE_INLINE int tsDecompressTinyint(const char *const input, int compressedSize, const int nelements, char *const output,
-                        int outputSize, char algorithm, char *const buffer, int bufferSize) {
+static FORCE_INLINE int32_t tsDecompressTinyint(const char *const input, int32_t compressedSize,
+                                                const int32_t nelements, char *const output, int32_t outputSize,
+                                                char algorithm, char *const buffer, int32_t bufferSize) {
   if (algorithm == ONE_STAGE_COMP) {
     return tsDecompressINTImp(input, nelements, output, TSDB_DATA_TYPE_TINYINT);
   } else if (algorithm == TWO_STAGE_COMP) {
@@ -103,12 +108,13 @@ static FORCE_INLINE int tsDecompressTinyint(const char *const input, int compres
   }
 }
 
-static FORCE_INLINE int tsCompressSmallint(const char *const input, int inputSize, const int nelements, char *const output, int outputSize, char algorithm,
-                       char *const buffer, int bufferSize) {
+static FORCE_INLINE int32_t tsCompressSmallint(const char *const input, int32_t inputSize, const int32_t nelements,
+                                               char *const output, int32_t outputSize, char algorithm,
+                                               char *const buffer, int32_t bufferSize) {
   if (algorithm == ONE_STAGE_COMP) {
     return tsCompressINTImp(input, nelements, output, TSDB_DATA_TYPE_SMALLINT);
   } else if (algorithm == TWO_STAGE_COMP) {
-    int len = tsCompressINTImp(input, nelements, buffer, TSDB_DATA_TYPE_SMALLINT);
+    int32_t len = tsCompressINTImp(input, nelements, buffer, TSDB_DATA_TYPE_SMALLINT);
     return tsCompressStringImp(buffer, len, output, outputSize);
   } else {
     assert(0);
@@ -116,8 +122,9 @@ static FORCE_INLINE int tsCompressSmallint(const char *const input, int inputSiz
   }
 }
 
-static FORCE_INLINE int tsDecompressSmallint(const char *const input, int compressedSize, const int nelements, char *const output,
-                         int outputSize, char algorithm, char *const buffer, int bufferSize) {
+static FORCE_INLINE int32_t tsDecompressSmallint(const char *const input, int32_t compressedSize,
+                                                 const int32_t nelements, char *const output, int32_t outputSize,
+                                                 char algorithm, char *const buffer, int32_t bufferSize) {
   if (algorithm == ONE_STAGE_COMP) {
     return tsDecompressINTImp(input, nelements, output, TSDB_DATA_TYPE_SMALLINT);
   } else if (algorithm == TWO_STAGE_COMP) {
@@ -129,12 +136,13 @@ static FORCE_INLINE int tsDecompressSmallint(const char *const input, int compre
   }
 }
 
-static FORCE_INLINE int tsCompressInt(const char *const input, int inputSize, const int nelements, char *const output, int outputSize, char algorithm,
-                  char *const buffer, int bufferSize) {
+static FORCE_INLINE int32_t tsCompressInt(const char *const input, int32_t inputSize, const int32_t nelements,
+                                          char *const output, int32_t outputSize, char algorithm, char *const buffer,
+                                          int32_t bufferSize) {
   if (algorithm == ONE_STAGE_COMP) {
     return tsCompressINTImp(input, nelements, output, TSDB_DATA_TYPE_INT);
   } else if (algorithm == TWO_STAGE_COMP) {
-    int len = tsCompressINTImp(input, nelements, buffer, TSDB_DATA_TYPE_INT);
+    int32_t len = tsCompressINTImp(input, nelements, buffer, TSDB_DATA_TYPE_INT);
     return tsCompressStringImp(buffer, len, output, outputSize);
   } else {
     assert(0);
@@ -142,8 +150,9 @@ static FORCE_INLINE int tsCompressInt(const char *const input, int inputSize, co
   }
 }
 
-static FORCE_INLINE int tsDecompressInt(const char *const input, int compressedSize, const int nelements, char *const output,
-                    int outputSize, char algorithm, char *const buffer, int bufferSize) {
+static FORCE_INLINE int32_t tsDecompressInt(const char *const input, int32_t compressedSize, const int32_t nelements,
+                                            char *const output, int32_t outputSize, char algorithm, char *const buffer,
+                                            int32_t bufferSize) {
   if (algorithm == ONE_STAGE_COMP) {
     return tsDecompressINTImp(input, nelements, output, TSDB_DATA_TYPE_INT);
   } else if (algorithm == TWO_STAGE_COMP) {
@@ -155,12 +164,13 @@ static FORCE_INLINE int tsDecompressInt(const char *const input, int compressedS
   }
 }
 
-static FORCE_INLINE int tsCompressBigint(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
-                     char algorithm, char *const buffer, int bufferSize) {
+static FORCE_INLINE int32_t tsCompressBigint(const char *const input, int32_t inputSize, const int32_t nelements,
+                                             char *const output, int32_t outputSize, char algorithm, char *const buffer,
+                                             int32_t bufferSize) {
   if (algorithm == ONE_STAGE_COMP) {
     return tsCompressINTImp(input, nelements, output, TSDB_DATA_TYPE_BIGINT);
   } else if (algorithm == TWO_STAGE_COMP) {
-    int len = tsCompressINTImp(input, nelements, buffer, TSDB_DATA_TYPE_BIGINT);
+    int32_t len = tsCompressINTImp(input, nelements, buffer, TSDB_DATA_TYPE_BIGINT);
     return tsCompressStringImp(buffer, len, output, outputSize);
   } else {
     assert(0);
@@ -168,8 +178,9 @@ static FORCE_INLINE int tsCompressBigint(const char *const input, int inputSize,
   }
 }
 
-static FORCE_INLINE int tsDecompressBigint(const char *const input, int compressedSize, const int nelements, char *const output,
-                       int outputSize, char algorithm, char *const buffer, int bufferSize) {
+static FORCE_INLINE int32_t tsDecompressBigint(const char *const input, int32_t compressedSize, const int32_t nelements,
+                                               char *const output, int32_t outputSize, char algorithm,
+                                               char *const buffer, int32_t bufferSize) {
   if (algorithm == ONE_STAGE_COMP) {
     return tsDecompressINTImp(input, nelements, output, TSDB_DATA_TYPE_BIGINT);
   } else if (algorithm == TWO_STAGE_COMP) {
@@ -181,12 +192,13 @@ static FORCE_INLINE int tsDecompressBigint(const char *const input, int compress
   }
 }
 
-static FORCE_INLINE int tsCompressBool(const char *const input, int inputSize, const int nelements, char *const output, int outputSize, 
-                   char algorithm, char *const buffer, int bufferSize) {
+static FORCE_INLINE int32_t tsCompressBool(const char *const input, int32_t inputSize, const int32_t nelements,
+                                           char *const output, int32_t outputSize, char algorithm, char *const buffer,
+                                           int32_t bufferSize) {
   if (algorithm == ONE_STAGE_COMP) {
     return tsCompressBoolImp(input, nelements, output);
   } else if (algorithm == TWO_STAGE_COMP) {
-    int len = tsCompressBoolImp(input, nelements, buffer);
+    int32_t len = tsCompressBoolImp(input, nelements, buffer);
     return tsCompressStringImp(buffer, len, output, outputSize);
   } else {
     assert(0);
@@ -194,8 +206,9 @@ static FORCE_INLINE int tsCompressBool(const char *const input, int inputSize, c
   }
 }
 
-static FORCE_INLINE int tsDecompressBool(const char *const input, int compressedSize, const int nelements, char *const output,
-                     int outputSize, char algorithm, char *const buffer, int bufferSize) {
+static FORCE_INLINE int32_t tsDecompressBool(const char *const input, int32_t compressedSize, const int32_t nelements,
+                                             char *const output, int32_t outputSize, char algorithm, char *const buffer,
+                                             int32_t bufferSize) {
   if (algorithm == ONE_STAGE_COMP) {
     return tsDecompressBoolImp(input, nelements, output);
   } else if (algorithm == TWO_STAGE_COMP) {
@@ -207,47 +220,51 @@ static FORCE_INLINE int tsDecompressBool(const char *const input, int compressed
   }
 }
 
-static FORCE_INLINE int tsCompressString(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
-                     char algorithm, char *const buffer, int bufferSize) {
+static FORCE_INLINE int32_t tsCompressString(const char *const input, int32_t inputSize, const int32_t nelements,
+                                             char *const output, int32_t outputSize, char algorithm, char *const buffer,
+                                             int32_t bufferSize) {
   return tsCompressStringImp(input, inputSize, output, outputSize);
 }
 
-static FORCE_INLINE int tsDecompressString(const char *const input, int compressedSize, const int nelements, char *const output,
-                       int outputSize, char algorithm, char *const buffer, int bufferSize) {
+static FORCE_INLINE int32_t tsDecompressString(const char *const input, int32_t compressedSize, const int32_t nelements,
+                                               char *const output, int32_t outputSize, char algorithm,
+                                               char *const buffer, int32_t bufferSize) {
   return tsDecompressStringImp(input, compressedSize, output, outputSize);
 }
 
-static FORCE_INLINE int tsCompressFloat(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
-                    char algorithm, char *const buffer, int bufferSize) {
+static FORCE_INLINE int32_t tsCompressFloat(const char *const input, int32_t inputSize, const int32_t nelements,
+                                            char *const output, int32_t outputSize, char algorithm, char *const buffer,
+                                            int32_t bufferSize) {
 #ifdef TD_TSZ
   // lossy mode
-  if(lossyFloat) {
+  if (lossyFloat) {
     return tsCompressFloatLossyImp(input, nelements, output);
-  // lossless mode  
+    // lossless mode
   } else {
-#endif    
+#endif
     if (algorithm == ONE_STAGE_COMP) {
       return tsCompressFloatImp(input, nelements, output);
     } else if (algorithm == TWO_STAGE_COMP) {
-      int len = tsCompressFloatImp(input, nelements, buffer);
+      int32_t len = tsCompressFloatImp(input, nelements, buffer);
       return tsCompressStringImp(buffer, len, output, outputSize);
     } else {
       assert(0);
       return -1;
-    }    
-#ifdef TD_TSZ  
+    }
+#ifdef TD_TSZ
   }
 #endif
 }
 
-static FORCE_INLINE int tsDecompressFloat(const char *const input, int compressedSize, const int nelements, char *const output,
-                      int outputSize, char algorithm, char *const buffer, int bufferSize) {
+static FORCE_INLINE int32_t tsDecompressFloat(const char *const input, int32_t compressedSize, const int32_t nelements,
+                                              char *const output, int32_t outputSize, char algorithm,
+                                              char *const buffer, int32_t bufferSize) {
 #ifdef TD_TSZ
-  if(HEAD_ALGO(input[0]) == ALGO_SZ_LOSSY){
+  if (HEAD_ALGO(input[0]) == ALGO_SZ_LOSSY) {
     // decompress lossy
     return tsDecompressFloatLossyImp(input, compressedSize, nelements, output);
   } else {
-#endif    
+#endif
     // decompress lossless
     if (algorithm == ONE_STAGE_COMP) {
       return tsDecompressFloatImp(input, nelements, output);
@@ -258,43 +275,44 @@ static FORCE_INLINE int tsDecompressFloat(const char *const input, int compresse
       assert(0);
       return -1;
     }
-#ifdef TD_TSZ  
+#ifdef TD_TSZ
   }
 #endif
 }
 
-
-static FORCE_INLINE int tsCompressDouble(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
-                     char algorithm, char *const buffer, int bufferSize) {
-#ifdef TD_TSZ  
-  if(lossyDouble){
+static FORCE_INLINE int32_t tsCompressDouble(const char *const input, int32_t inputSize, const int32_t nelements,
+                                             char *const output, int32_t outputSize, char algorithm, char *const buffer,
+                                             int32_t bufferSize) {
+#ifdef TD_TSZ
+  if (lossyDouble) {
     // lossy mode
     return tsCompressDoubleLossyImp(input, nelements, output);
   } else {
-#endif    
+#endif
     // lossless mode
     if (algorithm == ONE_STAGE_COMP) {
       return tsCompressDoubleImp(input, nelements, output);
     } else if (algorithm == TWO_STAGE_COMP) {
-      int len = tsCompressDoubleImp(input, nelements, buffer);
+      int32_t len = tsCompressDoubleImp(input, nelements, buffer);
       return tsCompressStringImp(buffer, len, output, outputSize);
     } else {
       assert(0);
       return -1;
     }
-#ifdef TD_TSZ      
+#ifdef TD_TSZ
   }
-#endif  
+#endif
 }
 
-static FORCE_INLINE int tsDecompressDouble(const char *const input, int compressedSize, const int nelements, char *const output,
-                       int outputSize, char algorithm, char *const buffer, int bufferSize) {
-  #ifdef TD_TSZ  
-  if(HEAD_ALGO(input[0]) == ALGO_SZ_LOSSY){
+static FORCE_INLINE int32_t tsDecompressDouble(const char *const input, int32_t compressedSize, const int32_t nelements,
+                                               char *const output, int32_t outputSize, char algorithm,
+                                               char *const buffer, int32_t bufferSize) {
+#ifdef TD_TSZ
+  if (HEAD_ALGO(input[0]) == ALGO_SZ_LOSSY) {
     // decompress lossy
     return tsDecompressDoubleLossyImp(input, compressedSize, nelements, output);
   } else {
-  #endif  
+#endif
     // decompress lossless
     if (algorithm == ONE_STAGE_COMP) {
       return tsDecompressDoubleImp(input, nelements, output);
@@ -305,43 +323,48 @@ static FORCE_INLINE int tsDecompressDouble(const char *const input, int compress
       assert(0);
       return -1;
     }
-#ifdef TD_TSZ      
+#ifdef TD_TSZ
   }
-#endif  
+#endif
 }
 
-#ifdef TD_TSZ  
+#ifdef TD_TSZ
 //
 //  lossy float double
 //
-static FORCE_INLINE int tsCompressFloatLossy(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
-                    char algorithm, char *const buffer, int bufferSize) {
+static FORCE_INLINE int32_t tsCompressFloatLossy(const char *const input, int32_t inputSize, const int32_t nelements,
+                                                 char *const output, int32_t outputSize, char algorithm,
+                                                 char *const buffer, int32_t bufferSize) {
   return tsCompressFloatLossyImp(input, nelements, output);
 }
 
-static FORCE_INLINE int tsDecompressFloatLossy(const char *const input, int compressedSize, const int nelements, char *const output,
-                      int outputSize, char algorithm, char *const buffer, int bufferSize){
+static FORCE_INLINE int32_t tsDecompressFloatLossy(const char *const input, int32_t compressedSize,
+                                                   const int32_t nelements, char *const output, int32_t outputSize,
+                                                   char algorithm, char *const buffer, int32_t bufferSize) {
   return tsDecompressFloatLossyImp(input, compressedSize, nelements, output);
 }
 
-static FORCE_INLINE int tsCompressDoubleLossy(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
-                     char algorithm, char *const buffer, int bufferSize){
+static FORCE_INLINE int32_t tsCompressDoubleLossy(const char *const input, int32_t inputSize, const int32_t nelements,
+                                                  char *const output, int32_t outputSize, char algorithm,
+                                                  char *const buffer, int32_t bufferSize) {
   return tsCompressDoubleLossyImp(input, nelements, output);
 }
 
-static FORCE_INLINE int tsDecompressDoubleLossy(const char *const input, int compressedSize, const int nelements, char *const output,
-                       int outputSize, char algorithm, char *const buffer, int bufferSize){
+static FORCE_INLINE int32_t tsDecompressDoubleLossy(const char *const input, int32_t compressedSize,
+                                                    const int32_t nelements, char *const output, int32_t outputSize,
+                                                    char algorithm, char *const buffer, int32_t bufferSize) {
   return tsDecompressDoubleLossyImp(input, compressedSize, nelements, output);
 }
 
 #endif
 
-static FORCE_INLINE int tsCompressTimestamp(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
-                        char algorithm, char *const buffer, int bufferSize) {
+static FORCE_INLINE int32_t tsCompressTimestamp(const char *const input, int32_t inputSize, const int32_t nelements,
+                                                char *const output, int32_t outputSize, char algorithm,
+                                                char *const buffer, int32_t bufferSize) {
   if (algorithm == ONE_STAGE_COMP) {
     return tsCompressTimestampImp(input, nelements, output);
   } else if (algorithm == TWO_STAGE_COMP) {
-    int len = tsCompressTimestampImp(input, nelements, buffer);
+    int32_t len = tsCompressTimestampImp(input, nelements, buffer);
     return tsCompressStringImp(buffer, len, output, outputSize);
   } else {
     assert(0);
@@ -349,8 +372,9 @@ static FORCE_INLINE int tsCompressTimestamp(const char *const input, int inputSi
   }
 }
 
-static FORCE_INLINE int tsDecompressTimestamp(const char *const input, int compressedSize, const int nelements, char *const output,
-                          int outputSize, char algorithm, char *const buffer, int bufferSize) {
+static FORCE_INLINE int32_t tsDecompressTimestamp(const char *const input, int32_t compressedSize,
+                                                  const int32_t nelements, char *const output, int32_t outputSize,
+                                                  char algorithm, char *const buffer, int32_t bufferSize) {
   if (algorithm == ONE_STAGE_COMP) {
     return tsDecompressTimestampImp(input, nelements, output);
   } else if (algorithm == TWO_STAGE_COMP) {
@@ -366,4 +390,4 @@ static FORCE_INLINE int tsDecompressTimestamp(const char *const input, int compr
 }
 #endif
 
-#endif  /*_TD_UTIL_COMPRESSION_H*/
+#endif /*_TD_UTIL_COMPRESSION_H_*/

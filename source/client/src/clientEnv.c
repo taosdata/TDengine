@@ -25,7 +25,6 @@
 #include "tref.h"
 #include "trpc.h"
 #include "ttime.h"
-#include "ttimezone.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED 0
@@ -34,7 +33,7 @@ SAppInfo appInfo;
 int32_t  clientReqRefPool = -1;
 int32_t  clientConnRefPool = -1;
 
-static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
+static TdThreadOnce tscinit = PTHREAD_ONCE_INIT;
 volatile int32_t      tscInitRes = 0;
 
 static void registerRequest(SRequestObj *pRequest) {
@@ -73,8 +72,6 @@ static void deregisterRequest(SRequestObj *pRequest) {
   taosReleaseRef(clientConnRefPool, pTscObj->id);
 }
 
-
-
 // todo close the transporter properly
 void closeTransporter(STscObj *pTscObj) {
   if (pTscObj == NULL || pTscObj->pAppInfo->pTransporter == NULL) {
@@ -93,11 +90,10 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.label = "TSC";
   rpcInit.numOfThreads = numOfThread;
   rpcInit.cfp = processMsgFromServer;
-  rpcInit.pfp = persistConnForSpecificMsg;
-  rpcInit.sessions = cfgGetItem(tscCfg, "maxConnections")->i32;
+  rpcInit.sessions = tsMaxConnections;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = (char *)user;
-  rpcInit.idleTime = cfgGetItem(tscCfg, "shellActivityTimer")->i32 * 1000;
+  rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.ckey = "key";
   rpcInit.spi = 1;
   rpcInit.secret = (char *)auth;
@@ -118,7 +114,7 @@ void destroyTscObj(void *pObj) {
   hbDeregisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey);
   atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
   tscDebug("connObj 0x%" PRIx64 " destroyed, totalConn:%" PRId64, pTscObj->id, pTscObj->pAppInfo->numOfConns);
-  pthread_mutex_destroy(&pTscObj->mutex);
+  taosThreadMutexDestroy(&pTscObj->mutex);
   tfree(pTscObj);
 }
 
@@ -137,7 +133,7 @@ void *createTscObj(const char *user, const char *auth, const char *db, SAppInstI
     tstrncpy(pObj->db, db, tListLen(pObj->db));
   }
 
-  pthread_mutex_init(&pObj->mutex, NULL);
+  taosThreadMutexInit(&pObj->mutex, NULL);
   pObj->id = taosAddRef(clientConnRefPool, pObj);
 
   tscDebug("connObj created, 0x%" PRIx64, pObj->id);
@@ -153,6 +149,7 @@ void *createRequest(STscObj *pObj, __taos_async_fn_t fp, void *param, int32_t ty
     return NULL;
   }
 
+  pRequest->pDb = getDbOfConnection(pObj);
   pRequest->requestId = generateRequestId();
   pRequest->metric.start = taosGetTimestampMs();
 
@@ -183,9 +180,10 @@ static void doDestroyRequest(void *p) {
   tfree(pRequest->msgBuf);
   tfree(pRequest->sqlstr);
   tfree(pRequest->pInfo);
+  tfree(pRequest->pDb);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
-  qDestroyQueryDag(pRequest->body.pDag);
+  qDestroyQueryPlan(pRequest->body.pDag);
 
   if (pRequest->body.showInfo.pArray != NULL) {
     taosArrayDestroy(pRequest->body.showInfo.pArray);
@@ -209,16 +207,16 @@ void taos_init_imp(void) {
   atexit(taos_cleanup);
 
   errno = TSDB_CODE_SUCCESS;
-  srand(taosGetTimestampSec());
+  taosSeedRand(taosGetTimestampSec());
 
   deltaToUtcInitOnce();
 
-  if (tscInitLog(configDir, NULL, NULL) != 0) {
+  if (taosCreateLog("taoslog", 10, configDir, NULL, NULL, NULL, 1) != 0) {
     tscInitRes = -1;
     return;
   }
 
-  if (tscInitCfg(configDir, NULL, NULL) != 0) {
+  if (taosInitCfg(configDir, NULL, NULL, NULL, 1) != 0) {
     tscInitRes = -1;
     return;
   }
@@ -226,11 +224,7 @@ void taos_init_imp(void) {
   initMsgHandleFp();
   initQueryModuleMsgHandle();
 
-  SRpcCfg rpcCfg = {0};
-  rpcCfg.rpcTimer = cfgGetItem(tscCfg, "rpcTimer")->i32;
-  rpcCfg.rpcMaxTime = cfgGetItem(tscCfg, "rpcMaxTime")->i32;
-  rpcCfg.sver = 30000000;
-  rpcInit(&rpcCfg);
+  rpcInit();
 
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   catalogInit(&cfg);
@@ -246,8 +240,9 @@ void taos_init_imp(void) {
   clientConnRefPool = taosOpenRef(200, destroyTscObj);
   clientReqRefPool = taosOpenRef(40960, doDestroyRequest);
 
+  // transDestroyBuffer(&conn->readBuf);
   taosGetAppName(appInfo.appName, NULL);
-  pthread_mutex_init(&appInfo.mutex, NULL);
+  taosThreadMutexInit(&appInfo.mutex, NULL);
 
   appInfo.pid = taosGetPId();
   appInfo.startTime = taosGetTimestampMs();
@@ -256,7 +251,7 @@ void taos_init_imp(void) {
 }
 
 int taos_init() {
-  pthread_once(&tscinit, taos_init_imp);
+  taosThreadOnce(&tscinit, taos_init_imp);
   return tscInitRes;
 }
 
@@ -300,7 +295,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
       assert(cfg != NULL);
 
       size_t len = strlen(str);
-      if (len == 0 || len > TSDB_LOCALE_LEN) {
+      if (len == 0 || len > TD_LOCALE_LEN) {
         tscInfo("Invalid locale:%s, use default", str);
         return -1;
       }
@@ -318,7 +313,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
             return -1;
           }
 
-          tstrncpy(tsLocale, defaultLocale, TSDB_LOCALE_LEN);
+          tstrncpy(tsLocale, defaultLocale, TD_LOCALE_LEN);
         }
 
         // set the user specified locale
@@ -332,7 +327,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
           tscInfo("failed to set locale:%s, current locale:%s", str, tsLocale);
         }
 
-        tstrncpy(tsLocale, locale, TSDB_LOCALE_LEN);
+        tstrncpy(tsLocale, locale, TD_LOCALE_LEN);
 
         char *charset = strrchr(tsLocale, sep);
         if (charset != NULL) {
@@ -347,7 +342,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
               tscInfo("charset changed from %s to %s", tsCharset, charset);
             }
 
-            tstrncpy(tsCharset, charset, TSDB_LOCALE_LEN);
+            tstrncpy(tsCharset, charset, TD_LOCALE_LEN);
             cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
 
           } else {
@@ -371,7 +366,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
       assert(cfg != NULL);
 
       size_t len = strlen(str);
-      if (len == 0 || len > TSDB_LOCALE_LEN) {
+      if (len == 0 || len > TD_LOCALE_LEN) {
         tscInfo("failed to set charset:%s", str);
         return -1;
       }
@@ -384,7 +379,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
             tscInfo("charset changed from %s to %s", tsCharset, str);
           }
 
-          tstrncpy(tsCharset, str, TSDB_LOCALE_LEN);
+          tstrncpy(tsCharset, str, TD_LOCALE_LEN);
           cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         } else {
           tscInfo("charset:%s not valid", str);
@@ -402,7 +397,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
       assert(cfg != NULL);
 
       if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
-        tstrncpy(tsTimezone, str, TSDB_TIMEZONE_LEN);
+        tstrncpy(tsTimezone, str, TD_TIMEZONE_LEN);
         tsSetTimeZone();
         cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         tscDebug("timezone set:%s, input:%s by taos_options", tsTimezone, str);
@@ -512,9 +507,9 @@ static setConfRet taos_set_config_imp(const char *config){
 }
 
 setConfRet taos_set_config(const char *config){
-  pthread_mutex_lock(&setConfMutex);
+  taosThreadMutexLock(&setConfMutex);
   setConfRet ret = taos_set_config_imp(config);
-  pthread_mutex_unlock(&setConfMutex);
+  taosThreadMutexUnlock(&setConfMutex);
   return ret;
 }
 #endif

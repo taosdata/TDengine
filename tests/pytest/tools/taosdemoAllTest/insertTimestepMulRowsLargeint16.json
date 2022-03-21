@@ -1,0 +1,65 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "localhost",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "thread_count": 4,
+    "thread_count_create_tbl": 4,
+    "result_file": "./insert_res.txt",
+    "confirm_parameter_prompt": "no",
+    "insert_interval": 0,
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "blf",
+                "drop": "yes"
+            },
+            "super_tables": [
+                {
+                    "name": "p_0_topics",
+                    "child_table_exists": "no",
+                    "childtable_count": 10,
+                    "childtable_prefix": "p_0_topics_",
+                    "auto_create_table": "no",
+                    "data_source": "rand",
+                    "insert_mode": "taosc",
+                    "insert_rows": 525600,
+                    "multi_thread_write_one_tbl": "no",
+                    "interlace_rows": 1000,
+                    "max_sql_len": 1048576,
+                    "disorder_ratio": 0,
+                    "disorder_range": 1000,
+                    "timestamp_step": 60000,
+                    "start_timestamp": "2019-10-01 00:00:00.000",
+                    "sample_format": "csv",
+                    "sample_file": "./sample.csv",
+                    "tags_file": "",
+                    "columns": [
+                        {
+                            "type": "INT",
+                            "count": 1
+                        },
+                        {
+                            "type": "FLOAT",
+                            "count": 1
+                        },
+                        {
+                            "type": "BINARY",
+                            "len": 12,
+                            "count": 1
+                        }
+                    ],
+                    "tags": [
+                        {
+                            "type": "BINARY",
+                            "len": 12,
+                            "count": 10
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

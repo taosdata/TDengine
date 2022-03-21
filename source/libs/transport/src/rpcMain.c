@@ -14,6 +14,7 @@
  */
 
 #include "lz4.h"
+#include "transportInt.h"
 #include "os.h"
 #include "rpcCache.h"
 #include "rpcHead.h"
@@ -27,13 +28,12 @@
 #include "tmd5.h"
 #include "tmempool.h"
 #include "tmsg.h"
-#include "transportInt.h"
 #include "tref.h"
 #include "trpc.h"
 #include "ttimer.h"
 #include "tutil.h"
 
-static pthread_once_t tsRpcInitOnce = PTHREAD_ONCE_INIT;
+static TdThreadOnce tsRpcInitOnce = PTHREAD_ONCE_INIT;
 
 int tsRpcMaxUdpSize = 15000;  // bytes
 int tsProgressTimer = 100;
@@ -41,8 +41,6 @@ int tsProgressTimer = 100;
 int tsRpcMaxRetry;
 int tsRpcHeadSize;
 int tsRpcOverhead;
-
-int32_t tsRpcForceTcp = 1;   // disable this, means query, show command use udp protocol as default
 
 SHashObj *tsFqdnHash;
 
@@ -66,7 +64,6 @@ typedef struct {
   void (*cfp)(void *parent, SRpcMsg *, SEpSet *);
   int (*afp)(void *parent, char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
-  bool             noPool;
   int32_t          refCount;
   void *           parent;
   void *           idPool;     // handle to ID pool
@@ -75,7 +72,7 @@ typedef struct {
   void *           tcphandle;  // returned handle from TCP initialization
   void *           udphandle;  // returned handle from UDP initialization
   void *           pCache;     // connection cache
-  pthread_mutex_t  mutex;
+  TdThreadMutex  mutex;
   struct SRpcConn *connList;  // connection list
 } SRpcInfo;
 
@@ -146,11 +143,7 @@ typedef struct SRpcConn {
 static int     tsRpcRefId = -1;
 static int32_t tsRpcNum = 0;
 
-int32_t  tsRpcTimer = 300;
-int32_t  tsRpcMaxTime = 600;  // seconds;
-uint32_t tsVersion = 0;
-
-// static pthread_once_t tsRpcInit = PTHREAD_ONCE_INIT;
+// static TdThreadOnce tsRpcInit = PTHREAD_ONCE_INIT;
 
 // server:0 client:1  tcp:2 udp:0
 #define RPC_CONN_UDPS 0
@@ -229,10 +222,8 @@ static void rpcInitImp(void) {
   tsFqdnHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
 }
 
-int32_t rpcInit(SRpcCfg *pCfg) {
-  tsRpcTimer = pCfg->rpcTimer;
-  tsRpcMaxTime = pCfg->rpcMaxTime;
-  pthread_once(&tsRpcInitOnce, rpcInitImp);
+int32_t rpcInit() {
+  taosThreadOnce(&tsRpcInitOnce, rpcInitImp);
   return 0;
 }
 
@@ -247,7 +238,7 @@ void rpcCleanup(void) {
 void *rpcOpen(const SRpcInit *pInit) {
   SRpcInfo *pRpc;
 
-  // pthread_once(&tsRpcInit, rpcInit);
+  // taosThreadOnce(&tsRpcInit, rpcInit);
 
   pRpc = (SRpcInfo *)calloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) return NULL;
@@ -316,7 +307,7 @@ void *rpcOpen(const SRpcInit *pInit) {
     }
   }
 
-  pthread_mutex_init(&pRpc->mutex, NULL);
+  taosThreadMutexInit(&pRpc->mutex, NULL);
 
   pRpc->tcphandle = (*taosInitConn[pRpc->connType | RPC_CONN_TCP])(0, pRpc->localPort, pRpc->label, pRpc->numOfThreads,
                                                                    rpcProcessMsgFromPeer, pRpc);
@@ -757,7 +748,7 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
     memcpy(pConn->user, pHead->user, tListLen(pConn->user));
     pConn->pRpc = pRpc;
     pConn->sid = sid;
-    pConn->tranId = (uint16_t)(rand() & 0xFFFF);
+    pConn->tranId = (uint16_t)(taosRand() & 0xFFFF);
     pConn->ownId = htonl(pConn->sid);
     pConn->linkUid = pHead->linkUid;
     if (pRpc->afp) {
@@ -1681,7 +1672,7 @@ static void rpcDecRef(SRpcInfo *pRpc) {
     taosIdPoolCleanUp(pRpc->idPool);
 
     tfree(pRpc->connList);
-    pthread_mutex_destroy(&pRpc->mutex);
+    taosThreadMutexDestroy(&pRpc->mutex);
     tDebug("%s rpc resources are released", pRpc->label);
     tfree(pRpc);
 

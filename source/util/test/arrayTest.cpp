@@ -43,6 +43,9 @@ static void remove_batch_test() {
   taosArrayPush(delList, &a);
   taosArrayRemoveBatch(pa, (const int32_t*) TARRAY_GET_START(delList), taosArrayGetSize(delList));
   EXPECT_EQ(taosArrayGetSize(pa), 17);
+
+  taosArrayDestroy(pa);
+  taosArrayDestroy(delList);
 }
 }  // namespace
 
@@ -79,4 +82,6 @@ TEST(arrayTest, array_search_test) {
     }
     
   }
+
+  taosArrayDestroy(pa);
 }

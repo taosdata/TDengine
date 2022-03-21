@@ -28,8 +28,12 @@
 extern "C" {
 #endif
 
+typedef struct SQWorkerMgmt SQHandle;
+
 typedef struct SQnode {
+  int32_t   qndId;
   SQnodeOpt opt;
+  SQHandle*  pQuery;  
 } SQnode;
 
 #ifdef __cplusplus

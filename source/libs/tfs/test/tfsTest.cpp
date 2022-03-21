@@ -119,29 +119,29 @@ TEST_F(TfsTest, 03_Dir) {
   char p1[] = "p1";
   char ap1[128] = {0};
   snprintf(ap1, 128, "%s%s%s", root, TD_DIRSEP, p1);
-  EXPECT_NE(taosDirExist(ap1), 0);
+  EXPECT_NE(taosDirExist(ap1), 1);
   EXPECT_EQ(tfsMkdir(pTfs, p1), 0);
-  EXPECT_EQ(taosDirExist(ap1), 0);
+  EXPECT_EQ(taosDirExist(ap1), 1);
 
   char p2[] = "p2";
   char ap2[128] = {0};
   snprintf(ap2, 128, "%s%s%s", root, TD_DIRSEP, p2);
   SDiskID did = {0};
-  EXPECT_NE(taosDirExist(ap2), 0);
+  EXPECT_NE(taosDirExist(ap2), 1);
   EXPECT_EQ(tfsMkdirAt(pTfs, p2, did), 0);
-  EXPECT_EQ(taosDirExist(ap2), 0);
+  EXPECT_EQ(taosDirExist(ap2), 1);
 
   char p3[] = "p3/p2/p1/p0";
   char ap3[128] = {0};
   snprintf(ap3, 128, "%s%s%s", root, TD_DIRSEP, p3);
-  EXPECT_NE(taosDirExist(ap3), 0);
+  EXPECT_NE(taosDirExist(ap3), 1);
   EXPECT_NE(tfsMkdir(pTfs, p3), 0);
   EXPECT_NE(tfsMkdirAt(pTfs, p3, did), 0);
   EXPECT_EQ(tfsMkdirRecurAt(pTfs, p3, did), 0);
-  EXPECT_EQ(taosDirExist(ap3), 0);
+  EXPECT_EQ(taosDirExist(ap3), 1);
 
   EXPECT_EQ(tfsRmdir(pTfs, p3), 0);
-  EXPECT_NE(taosDirExist(ap3), 0);
+  EXPECT_NE(taosDirExist(ap3), 1);
 
   char p45[] = "p5";
   char p44[] = "p4";
@@ -149,12 +149,12 @@ TEST_F(TfsTest, 03_Dir) {
   char ap4[128] = {0};
   snprintf(ap4, 128, "%s%s%s", root, TD_DIRSEP, p4);
 
-  EXPECT_NE(taosDirExist(ap4), 0);
+  EXPECT_NE(taosDirExist(ap4), 1);
   EXPECT_EQ(tfsMkdirRecurAt(pTfs, p4, did), 0);
-  EXPECT_EQ(taosDirExist(ap4), 0);
+  EXPECT_EQ(taosDirExist(ap4), 1);
   EXPECT_EQ(tfsRename(pTfs, p44, p45), 0);
   EXPECT_EQ(tfsRmdir(pTfs, p4), 0);
-  EXPECT_NE(taosDirExist(ap4), 0);
+  EXPECT_NE(taosDirExist(ap4), 1);
 
   tfsClose(pTfs);
 }
@@ -230,10 +230,11 @@ TEST_F(TfsTest, 04_File) {
 
     EXPECT_EQ(tfsMkdir(pTfs, "t3"), 0);
 
-    FILE *fp = fopen(f1.aname, "w");
-    ASSERT_NE(fp, nullptr);
-    fwrite("12345678", 1, 5, fp);
-    fclose(fp);
+    // FILE *fp = fopen(f1.aname, "w");
+    TdFilePtr pFile = taosOpenFile(f1.aname, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+    ASSERT_NE(pFile, nullptr);
+    taosWriteFile(pFile, "12345678", 5);
+    taosCloseFile(&pFile);
 
     char base[128] = {0};
     tfsBasename(&f1, base);
@@ -250,9 +251,9 @@ TEST_F(TfsTest, 04_File) {
 
     char af2[128] = {0};
     snprintf(af2, 128, "%s%s%s", root, TD_DIRSEP, n2);
-    EXPECT_EQ(taosDirExist(af2), 0);
+    EXPECT_EQ(taosDirExist(af2), 1);
     tfsRemoveFile(&f2);
-    EXPECT_NE(taosDirExist(af2), 0);
+    EXPECT_NE(taosDirExist(af2), 1);
 
     {
       STfsDir *pDir = tfsOpendir(pTfs, "t3");
@@ -528,35 +529,35 @@ TEST_F(TfsTest, 05_MultiDisk) {
     snprintf(ap22, 128, "%s%s%s", root22, TD_DIRSEP, p1);
     char ap23[128] = {0};
     snprintf(ap23, 128, "%s%s%s", root23, TD_DIRSEP, p1);
-    EXPECT_NE(taosDirExist(ap00), 0);
-    EXPECT_NE(taosDirExist(ap01), 0);
-    EXPECT_NE(taosDirExist(ap10), 0);
-    EXPECT_NE(taosDirExist(ap11), 0);
-    EXPECT_NE(taosDirExist(ap12), 0);
-    EXPECT_NE(taosDirExist(ap20), 0);
-    EXPECT_NE(taosDirExist(ap21), 0);
-    EXPECT_NE(taosDirExist(ap22), 0);
-    EXPECT_NE(taosDirExist(ap23), 0);
+    EXPECT_NE(taosDirExist(ap00), 1);
+    EXPECT_NE(taosDirExist(ap01), 1);
+    EXPECT_NE(taosDirExist(ap10), 1);
+    EXPECT_NE(taosDirExist(ap11), 1);
+    EXPECT_NE(taosDirExist(ap12), 1);
+    EXPECT_NE(taosDirExist(ap20), 1);
+    EXPECT_NE(taosDirExist(ap21), 1);
+    EXPECT_NE(taosDirExist(ap22), 1);
+    EXPECT_NE(taosDirExist(ap23), 1);
     EXPECT_EQ(tfsMkdir(pTfs, p1), 0);
-    EXPECT_EQ(taosDirExist(ap00), 0);
-    EXPECT_EQ(taosDirExist(ap01), 0);
-    EXPECT_EQ(taosDirExist(ap10), 0);
-    EXPECT_EQ(taosDirExist(ap11), 0);
-    EXPECT_EQ(taosDirExist(ap12), 0);
-    EXPECT_EQ(taosDirExist(ap20), 0);
-    EXPECT_EQ(taosDirExist(ap21), 0);
-    EXPECT_EQ(taosDirExist(ap22), 0);
-    EXPECT_EQ(taosDirExist(ap23), 0);
+    EXPECT_EQ(taosDirExist(ap00), 1);
+    EXPECT_EQ(taosDirExist(ap01), 1);
+    EXPECT_EQ(taosDirExist(ap10), 1);
+    EXPECT_EQ(taosDirExist(ap11), 1);
+    EXPECT_EQ(taosDirExist(ap12), 1);
+    EXPECT_EQ(taosDirExist(ap20), 1);
+    EXPECT_EQ(taosDirExist(ap21), 1);
+    EXPECT_EQ(taosDirExist(ap22), 1);
+    EXPECT_EQ(taosDirExist(ap23), 1);
     EXPECT_EQ(tfsRmdir(pTfs, p1), 0);
-    EXPECT_NE(taosDirExist(ap00), 0);
-    EXPECT_NE(taosDirExist(ap01), 0);
-    EXPECT_NE(taosDirExist(ap10), 0);
-    EXPECT_NE(taosDirExist(ap11), 0);
-    EXPECT_NE(taosDirExist(ap12), 0);
-    EXPECT_NE(taosDirExist(ap20), 0);
-    EXPECT_NE(taosDirExist(ap21), 0);
-    EXPECT_NE(taosDirExist(ap22), 0);
-    EXPECT_NE(taosDirExist(ap23), 0);
+    EXPECT_NE(taosDirExist(ap00), 1);
+    EXPECT_NE(taosDirExist(ap01), 1);
+    EXPECT_NE(taosDirExist(ap10), 1);
+    EXPECT_NE(taosDirExist(ap11), 1);
+    EXPECT_NE(taosDirExist(ap12), 1);
+    EXPECT_NE(taosDirExist(ap20), 1);
+    EXPECT_NE(taosDirExist(ap21), 1);
+    EXPECT_NE(taosDirExist(ap22), 1);
+    EXPECT_NE(taosDirExist(ap23), 1);
 
     char p2[] = "p2";
     char _ap21[128] = {0};
@@ -564,22 +565,22 @@ TEST_F(TfsTest, 05_MultiDisk) {
     SDiskID did = {0};
     did.level = 2;
     did.id = 1;
-    EXPECT_NE(taosDirExist(_ap21), 0);
+    EXPECT_NE(taosDirExist(_ap21), 1);
     EXPECT_EQ(tfsMkdirAt(pTfs, p2, did), 0);
-    EXPECT_EQ(taosDirExist(_ap21), 0);
+    EXPECT_EQ(taosDirExist(_ap21), 1);
 
     char p3[] = "p3/p2/p1/p0";
     char _ap12[128] = {0};
     snprintf(_ap12, 128, "%s%s%s", root12, TD_DIRSEP, p3);
     did.level = 1;
     did.id = 2;
-    EXPECT_NE(taosDirExist(_ap12), 0);
+    EXPECT_NE(taosDirExist(_ap12), 1);
     EXPECT_NE(tfsMkdir(pTfs, p3), 0);
     EXPECT_NE(tfsMkdirAt(pTfs, p3, did), 0);
     EXPECT_EQ(tfsMkdirRecurAt(pTfs, p3, did), 0);
-    EXPECT_EQ(taosDirExist(_ap12), 0);
+    EXPECT_EQ(taosDirExist(_ap12), 1);
     EXPECT_EQ(tfsRmdir(pTfs, p3), 0);
-    EXPECT_NE(taosDirExist(_ap12), 0);
+    EXPECT_NE(taosDirExist(_ap12), 1);
 
     char p45[] = "p5";
     char p44[] = "p4";
@@ -589,12 +590,12 @@ TEST_F(TfsTest, 05_MultiDisk) {
     did.level = 2;
     did.id = 2;
 
-    EXPECT_NE(taosDirExist(_ap22), 0);
+    EXPECT_NE(taosDirExist(_ap22), 1);
     EXPECT_EQ(tfsMkdirRecurAt(pTfs, p4, did), 0);
-    EXPECT_EQ(taosDirExist(_ap22), 0);
+    EXPECT_EQ(taosDirExist(_ap22), 1);
     EXPECT_EQ(tfsRename(pTfs, p44, p45), 0);
     EXPECT_EQ(tfsRmdir(pTfs, p4), 0);
-    EXPECT_NE(taosDirExist(_ap22), 0);
+    EXPECT_NE(taosDirExist(_ap22), 1);
   }
 
   //------------- File -----------------//
@@ -638,10 +639,11 @@ TEST_F(TfsTest, 05_MultiDisk) {
 
       EXPECT_EQ(tfsMkdir(pTfs, "t3"), 0);
 
-      FILE *fp = fopen(f1.aname, "w");
-      ASSERT_NE(fp, nullptr);
-      fwrite("12345678", 1, 5, fp);
-      fclose(fp);
+      // FILE *fp = fopen(f1.aname, "w");
+      TdFilePtr pFile = taosOpenFile(f1.aname, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+      ASSERT_NE(pFile, nullptr);
+      taosWriteFile(pFile, "12345678", 5);
+      taosCloseFile(&pFile);
 
       char base[128] = {0};
       tfsBasename(&f1, base);
@@ -658,7 +660,7 @@ TEST_F(TfsTest, 05_MultiDisk) {
 
       char af2[128] = {0};
       snprintf(af2, 128, "%s%s%s", root23, TD_DIRSEP, n2);
-      EXPECT_EQ(taosDirExist(af2), 0);
+      EXPECT_EQ(taosDirExist(af2), 1);
       tfsRemoveFile(&f2);
 
       {
@@ -676,7 +678,7 @@ TEST_F(TfsTest, 05_MultiDisk) {
         tfsClosedir(pDir);
       }
 
-      EXPECT_NE(taosDirExist(af2), 0);
+      EXPECT_NE(taosDirExist(af2), 1);
       EXPECT_GT(tfsCopyFile(&f1, &f2), 0);
 
       {

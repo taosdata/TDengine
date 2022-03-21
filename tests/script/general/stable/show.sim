@@ -1,0 +1,48 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+print ======================== create stable
+
+sql create database d1
+
+$x = 0
+while $x < 128
+  $tb = d1.s . $x
+  sql create table $tb (ts timestamp, i int) tags (j int)
+  $x = $x + 1
+endw 
+
+print ======================== show stables
+
+sql show d1.stables
+
+print num of stables is $rows
+if $rows != 128 then 
+  return -1
+endi
+
+print ======================== create table
+
+$x = 0
+while $x < 424
+  $tb = d1.t . $x
+  sql create table $tb using d1.s0 tags( $x )
+  $x = $x + 1
+endw 
+
+print ======================== show stables
+
+sql show d1.tables
+
+print num of tables is $rows
+if $rows != 424 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

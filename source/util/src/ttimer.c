@@ -13,53 +13,52 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "ttimer.h"
-#include "os.h"
 #include "taoserror.h"
 #include "tlog.h"
 #include "tsched.h"
-#include "tutil.h"
 
-#define tmrFatal(...)                                        \
-  {                                                          \
-    if (tmrDebugFlag & DEBUG_FATAL) {                        \
-      taosPrintLog("TMR FATAL ", tmrDebugFlag, __VA_ARGS__); \
-    }                                                        \
+#define tmrFatal(...)                                                     \
+  {                                                                       \
+    if (tmrDebugFlag & DEBUG_FATAL) {                                     \
+      taosPrintLog("TMR FATAL ", DEBUG_FATAL, tmrDebugFlag, __VA_ARGS__); \
+    }                                                                     \
   }
-#define tmrError(...)                                        \
-  {                                                          \
-    if (tmrDebugFlag & DEBUG_ERROR) {                        \
-      taosPrintLog("TMR ERROR ", tmrDebugFlag, __VA_ARGS__); \
-    }                                                        \
+#define tmrError(...)                                                     \
+  {                                                                       \
+    if (tmrDebugFlag & DEBUG_ERROR) {                                     \
+      taosPrintLog("TMR ERROR ", DEBUG_ERROR, tmrDebugFlag, __VA_ARGS__); \
+    }                                                                     \
   }
-#define tmrWarn(...)                                        \
-  {                                                         \
-    if (tmrDebugFlag & DEBUG_WARN) {                        \
-      taosPrintLog("TMR WARN ", tmrDebugFlag, __VA_ARGS__); \
-    }                                                       \
+#define tmrWarn(...)                                                    \
+  {                                                                     \
+    if (tmrDebugFlag & DEBUG_WARN) {                                    \
+      taosPrintLog("TMR WARN ", DEBUG_WARN, tmrDebugFlag, __VA_ARGS__); \
+    }                                                                   \
   }
-#define tmrInfo(...)                                   \
-  {                                                    \
-    if (tmrDebugFlag & DEBUG_INFO) {                   \
-      taosPrintLog("TMR ", tmrDebugFlag, __VA_ARGS__); \
-    }                                                  \
+#define tmrInfo(...)                                               \
+  {                                                                \
+    if (tmrDebugFlag & DEBUG_INFO) {                               \
+      taosPrintLog("TMR ", DEBUG_INFO, tmrDebugFlag, __VA_ARGS__); \
+    }                                                              \
   }
-#define tmrDebug(...)                                  \
-  {                                                    \
-    if (tmrDebugFlag & DEBUG_DEBUG) {                  \
-      taosPrintLog("TMR ", tmrDebugFlag, __VA_ARGS__); \
-    }                                                  \
+#define tmrDebug(...)                                               \
+  {                                                                 \
+    if (tmrDebugFlag & DEBUG_DEBUG) {                               \
+      taosPrintLog("TMR ", DEBUG_DEBUG, tmrDebugFlag, __VA_ARGS__); \
+    }                                                               \
   }
-#define tmrTrace(...)                                  \
-  {                                                    \
-    if (tmrDebugFlag & DEBUG_TRACE) {                  \
-      taosPrintLog("TMR ", tmrDebugFlag, __VA_ARGS__); \
-    }                                                  \
+#define tmrTrace(...)                                               \
+  {                                                                 \
+    if (tmrDebugFlag & DEBUG_TRACE) {                               \
+      taosPrintLog("TMR ", DEBUG_TRACE, tmrDebugFlag, __VA_ARGS__); \
+    }                                                               \
   }
 
-#define TIMER_STATE_WAITING 0
-#define TIMER_STATE_EXPIRED 1
-#define TIMER_STATE_STOPPED 2
+#define TIMER_STATE_WAITING  0
+#define TIMER_STATE_EXPIRED  1
+#define TIMER_STATE_STOPPED  2
 #define TIMER_STATE_CANCELED 3
 
 typedef union _tmr_ctrl_t {
@@ -103,7 +102,7 @@ typedef struct timer_map_t {
 } timer_map_t;
 
 typedef struct time_wheel_t {
-  pthread_mutex_t mutex;
+  TdThreadMutex mutex;
   int64_t         nextScanAt;
   uint32_t        resolution;
   uint16_t        size;
@@ -111,16 +110,16 @@ typedef struct time_wheel_t {
   tmr_obj_t**     slots;
 } time_wheel_t;
 
-uint32_t tsMaxTmrCtrl = 512;
+int32_t tsMaxTmrCtrl = 512;
 
-static pthread_once_t  tmrModuleInit = PTHREAD_ONCE_INIT;
-static pthread_mutex_t tmrCtrlMutex;
+static TdThreadOnce  tmrModuleInit = PTHREAD_ONCE_INIT;
+static TdThreadMutex tmrCtrlMutex;
 static tmr_ctrl_t*     tmrCtrls;
 static tmr_ctrl_t*     unusedTmrCtrl = NULL;
 static void*           tmrQhandle;
-static int             numOfTmrCtrl = 0;
+static int32_t         numOfTmrCtrl = 0;
 
-int              taosTmrThreads = 1;
+int32_t          taosTmrThreads = 1;
 static uintptr_t nextTimerId = 0;
 
 static time_wheel_t wheels[] = {
@@ -148,7 +147,7 @@ static void timerDecRef(tmr_obj_t* timer) {
 
 static void lockTimerList(timer_list_t* list) {
   int64_t tid = taosGetSelfPthreadId();
-  int     i = 0;
+  int32_t i = 0;
   while (atomic_val_compare_exchange_64(&(list->lockedBy), 0, tid) != 0) {
     if (++i % 1000 == 0) {
       sched_yield();
@@ -231,7 +230,7 @@ static void addToWheel(tmr_obj_t* timer, uint32_t delay) {
   timer->prev = NULL;
   timer->expireAt = taosGetMonotonicMs() + delay;
 
-  pthread_mutex_lock(&wheel->mutex);
+  taosThreadMutexLock(&wheel->mutex);
 
   uint32_t idx = 0;
   if (timer->expireAt > wheel->nextScanAt) {
@@ -249,7 +248,7 @@ static void addToWheel(tmr_obj_t* timer, uint32_t delay) {
     p->prev = timer;
   }
 
-  pthread_mutex_unlock(&wheel->mutex);
+  taosThreadMutexUnlock(&wheel->mutex);
 }
 
 static bool removeFromWheel(tmr_obj_t* timer) {
@@ -260,7 +259,7 @@ static bool removeFromWheel(tmr_obj_t* timer) {
   time_wheel_t* wheel = wheels + wheelIdx;
 
   bool removed = false;
-  pthread_mutex_lock(&wheel->mutex);
+  taosThreadMutexLock(&wheel->mutex);
   // other thread may modify timer->wheel, check again.
   if (timer->wheel < tListLen(wheels)) {
     if (timer->prev != NULL) {
@@ -278,7 +277,7 @@ static bool removeFromWheel(tmr_obj_t* timer) {
     timerDecRef(timer);
     removed = true;
   }
-  pthread_mutex_unlock(&wheel->mutex);
+  taosThreadMutexUnlock(&wheel->mutex);
 
   return removed;
 }
@@ -322,7 +321,7 @@ static void addToExpired(tmr_obj_t* head) {
   }
 }
 
-static uintptr_t doStartTimer(tmr_obj_t* timer, TAOS_TMR_CALLBACK fp, int mseconds, void* param, tmr_ctrl_t* ctrl) {
+static uintptr_t doStartTimer(tmr_obj_t* timer, TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, tmr_ctrl_t* ctrl) {
   uintptr_t id = getNextTimerId();
   timer->id = id;
   timer->state = TIMER_STATE_WAITING;
@@ -346,7 +345,7 @@ static uintptr_t doStartTimer(tmr_obj_t* timer, TAOS_TMR_CALLBACK fp, int msecon
   return id;
 }
 
-tmr_h taosTmrStart(TAOS_TMR_CALLBACK fp, int mseconds, void* param, void* handle) {
+tmr_h taosTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle) {
   tmr_ctrl_t* ctrl = (tmr_ctrl_t*)handle;
   if (ctrl == NULL || ctrl->label[0] == 0) {
     return NULL;
@@ -361,10 +360,10 @@ tmr_h taosTmrStart(TAOS_TMR_CALLBACK fp, int mseconds, void* param, void* handle
   return (tmr_h)doStartTimer(timer, fp, mseconds, param, ctrl);
 }
 
-static void taosTimerLoopFunc(int signo) {
+static void taosTimerLoopFunc(int32_t signo) {
   int64_t now = taosGetMonotonicMs();
 
-  for (int i = 0; i < tListLen(wheels); i++) {
+  for (int32_t i = 0; i < tListLen(wheels); i++) {
     // `expried` is a temporary expire list.
     // expired timers are first add to this list, then move
     // to expired queue as a batch to improve performance.
@@ -373,7 +372,7 @@ static void taosTimerLoopFunc(int signo) {
 
     time_wheel_t* wheel = wheels + i;
     while (now >= wheel->nextScanAt) {
-      pthread_mutex_lock(&wheel->mutex);
+      taosThreadMutexLock(&wheel->mutex);
       wheel->index = (wheel->index + 1) % wheel->size;
       tmr_obj_t* timer = wheel->slots[wheel->index];
       while (timer != NULL) {
@@ -408,7 +407,7 @@ static void taosTimerLoopFunc(int signo) {
         timer = next;
       }
       wheel->nextScanAt += wheel->resolution;
-      pthread_mutex_unlock(&wheel->mutex);
+      taosThreadMutexUnlock(&wheel->mutex);
     }
 
     addToExpired(expired);
@@ -471,7 +470,7 @@ bool taosTmrStopA(tmr_h* timerId) {
   return ret;
 }
 
-bool taosTmrReset(TAOS_TMR_CALLBACK fp, int mseconds, void* param, void* handle, tmr_h* pTmrId) {
+bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle, tmr_h* pTmrId) {
   tmr_ctrl_t* ctrl = (tmr_ctrl_t*)handle;
   if (ctrl == NULL || ctrl->label[0] == 0) {
     return false;
@@ -500,7 +499,7 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int mseconds, void* param, void* handle,
 
   // wait until there's no other reference to this timer,
   // so that we can reuse this timer safely.
-  for (int i = 1; atomic_load_8(&timer->refCount) > 1; ++i) {
+  for (int32_t i = 1; atomic_load_8(&timer->refCount) > 1; ++i) {
     if (i % 1000 == 0) {
       sched_yield();
     }
@@ -529,12 +528,12 @@ static void taosTmrModuleInit(void) {
   (tmrCtrls + tsMaxTmrCtrl - 1)->next = NULL;
   unusedTmrCtrl = tmrCtrls;
 
-  pthread_mutex_init(&tmrCtrlMutex, NULL);
+  taosThreadMutexInit(&tmrCtrlMutex, NULL);
 
   int64_t now = taosGetMonotonicMs();
-  for (int i = 0; i < tListLen(wheels); i++) {
+  for (int32_t i = 0; i < tListLen(wheels); i++) {
     time_wheel_t* wheel = wheels + i;
-    if (pthread_mutex_init(&wheel->mutex, NULL) != 0) {
+    if (taosThreadMutexInit(&wheel->mutex, NULL) != 0) {
       tmrError("failed to create the mutex for wheel, reason:%s", strerror(errno));
       return;
     }
@@ -561,19 +560,19 @@ static void taosTmrModuleInit(void) {
   tmrDebug("timer module is initialized, number of threads: %d", taosTmrThreads);
 }
 
-void* taosTmrInit(int maxNumOfTmrs, int resolution, int longest, const char* label) {
+void* taosTmrInit(int32_t maxNumOfTmrs, int32_t resolution, int32_t longest, const char* label) {
   const char* ret = taosMonotonicInit();
   tmrDebug("ttimer monotonic clock source:%s", ret);
 
-  pthread_once(&tmrModuleInit, taosTmrModuleInit);
+  taosThreadOnce(&tmrModuleInit, taosTmrModuleInit);
 
-  pthread_mutex_lock(&tmrCtrlMutex);
+  taosThreadMutexLock(&tmrCtrlMutex);
   tmr_ctrl_t* ctrl = unusedTmrCtrl;
   if (ctrl != NULL) {
     unusedTmrCtrl = ctrl->next;
     numOfTmrCtrl++;
   }
-  pthread_mutex_unlock(&tmrCtrlMutex);
+  taosThreadMutexUnlock(&tmrCtrlMutex);
 
   if (ctrl == NULL) {
     tmrError("%s too many timer controllers, failed to create timer controller.", label);
@@ -595,11 +594,11 @@ void taosTmrCleanUp(void* handle) {
   tmrDebug("%s timer controller is cleaned up.", ctrl->label);
   ctrl->label[0] = 0;
 
-  pthread_mutex_lock(&tmrCtrlMutex);
+  taosThreadMutexLock(&tmrCtrlMutex);
   ctrl->next = unusedTmrCtrl;
   numOfTmrCtrl--;
   unusedTmrCtrl = ctrl;
-  pthread_mutex_unlock(&tmrCtrlMutex);
+  taosThreadMutexUnlock(&tmrCtrlMutex);
 
   tmrDebug("time controller's tmr ctrl size:  %d", numOfTmrCtrl);
   if (numOfTmrCtrl <= 0) {
@@ -607,13 +606,13 @@ void taosTmrCleanUp(void* handle) {
 
     taosCleanUpScheduler(tmrQhandle);
 
-    for (int i = 0; i < tListLen(wheels); i++) {
+    for (int32_t i = 0; i < tListLen(wheels); i++) {
       time_wheel_t* wheel = wheels + i;
-      pthread_mutex_destroy(&wheel->mutex);
+      taosThreadMutexDestroy(&wheel->mutex);
       free(wheel->slots);
     }
 
-    pthread_mutex_destroy(&tmrCtrlMutex);
+    taosThreadMutexDestroy(&tmrCtrlMutex);
 
     for (size_t i = 0; i < timerMap.size; i++) {
       timer_list_t* list = timerMap.slots + i;
@@ -629,6 +628,8 @@ void taosTmrCleanUp(void* handle) {
 
     tmrCtrls = NULL;
     unusedTmrCtrl = NULL;
+#if defined(LINUX)
     tmrModuleInit = PTHREAD_ONCE_INIT;  // to support restart
+#endif
   }
 }

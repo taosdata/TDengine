@@ -13,8 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_WORKER_H
-#define _TD_UTIL_WORKER_H
+#ifndef _TD_UTIL_WORKER_H_
+#define _TD_UTIL_WORKER_H_
+
 #include "tqueue.h"
 
 #ifdef __cplusplus
@@ -26,7 +27,7 @@ typedef struct SWWorkerPool SWWorkerPool;
 
 typedef struct SQWorker {
   int32_t       id;      // worker ID
-  pthread_t     thread;  // thread
+  TdThread     thread;  // thread
   SQWorkerPool *pool;
 } SQWorker, SFWorker;
 
@@ -34,26 +35,26 @@ typedef struct SQWorkerPool {
   int32_t         max;  // max number of workers
   int32_t         min;  // min number of workers
   int32_t         num;  // current number of workers
-  STaosQset *     qset;
-  const char *    name;
-  SQWorker *      workers;
-  pthread_mutex_t mutex;
+  STaosQset      *qset;
+  const char     *name;
+  SQWorker       *workers;
+  TdThreadMutex mutex;
 } SQWorkerPool, SFWorkerPool;
 
 typedef struct SWWorker {
   int32_t       id;      // worker id
-  pthread_t     thread;  // thread
-  STaosQall *   qall;
-  STaosQset *   qset;  // queue set
+  TdThread     thread;  // thread
+  STaosQall    *qall;
+  STaosQset    *qset;  // queue set
   SWWorkerPool *pool;
 } SWWorker;
 
 typedef struct SWWorkerPool {
   int32_t         max;     // max number of workers
   int32_t         nextId;  // from 0 to max-1, cyclic
-  const char *    name;
-  SWWorker *      workers;
-  pthread_mutex_t mutex;
+  const char     *name;
+  SWWorker       *workers;
+  TdThreadMutex mutex;
 } SWWorkerPool;
 
 int32_t     tQWorkerInit(SQWorkerPool *pool);
@@ -75,4 +76,4 @@ void        tWWorkerFreeQueue(SWWorkerPool *pool, STaosQueue *queue);
 }
 #endif
 
-#endif /*_TD_UTIL_WORKER_H*/
+#endif /*_TD_UTIL_WORKER_H_*/

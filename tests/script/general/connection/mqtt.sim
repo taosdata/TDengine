@@ -1,0 +1,19 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 2
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 100000
+system sh/cfg.sh -n dnode1 -c http -v 1
+system sh/cfg.sh -n dnode1 -c mqtt -v 1
+
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+sql create database mqttdb;
+sql create table mqttdb.devices(ts timestamp, value double) tags(name binary(32), model binary(32), serial binary(16), param binary(16), unit binary(16));
+
+sleep 1000
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

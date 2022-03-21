@@ -20,7 +20,19 @@
 extern "C" {
 #endif
 
+// If the error is in a third-party library, place this header file under the third-party library header file.
+#ifndef ALLOW_FORBID_FUNC
+    #define strptime STRPTIME_FUNC_TAOS_FORBID
+    #define gettimeofday GETTIMEOFDAY_FUNC_TAOS_FORBID
+    #define localtime_s LOCALTIMES_FUNC_TAOS_FORBID
+    #define localtime_r LOCALTIMER_FUNC_TAOS_FORBID
+    #define time TIME_FUNC_TAOS_FORBID
+#endif
+
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+
+  #define CLOCK_REALTIME 	0
+
   #ifdef _TD_GO_DLL_
     #define MILLISECOND_PER_SECOND (1000LL)
   #else
@@ -60,6 +72,9 @@ static FORCE_INLINE int64_t taosGetTimestampNs() {
   clock_gettime(CLOCK_REALTIME, &systemTime);
   return (int64_t)systemTime.tv_sec * 1000000000L + (int64_t)systemTime.tv_nsec;
 }
+
+char *taosStrpTime(const char *buf, const char *fmt, struct tm *tm);
+struct tm *taosLocalTime(const time_t *timep, struct tm *result);
 
 #ifdef __cplusplus
 }

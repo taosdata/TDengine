@@ -13,18 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdb.h"
 #include "tsdbDef.h"
-#include "tsdbFS.h"
-#include "tsdbLog.h"
-#include "tsdbReadImpl.h"
-#include "ttime.h"
-#include "exception.h"
+#include <tdatablock.h>
 #include "os.h"
 #include "talgo.h"
 #include "tcompare.h"
 #include "tdataformat.h"
+#include "texception.h"
+#include "tsdb.h"
+#include "tsdbFS.h"
+#include "tsdbLog.h"
+#include "tsdbReadImpl.h"
 #include "tskiplist.h"
+#include "ttime.h"
 
 #include "taosdef.h"
 #include "tlosertree.h"
@@ -88,7 +89,7 @@ typedef struct STableCheckInfo {
   int32_t       compSize;
   int32_t       numOfBlocks:29; // number of qualified data blocks not the original blocks
   uint8_t       chosen:2;       // indicate which iterator should move forward
-  bool          initBuf;        // whether to initialize the in-memory skip list iterator or not
+  bool          initBuf:1;        // whether to initialize the in-memory skip list iterator or not
   SSkipListIterator* iter;      // mem buffer skip list iterator
   SSkipListIterator* iiter;     // imem buffer skip list iterator
 } STableCheckInfo;
@@ -1472,6 +1473,8 @@ static int32_t doCopyRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, int32_t
   return numOfRows + num;
 }
 
+// TODO fix bug for reverse copy data
+// TODO handle the null data
 // Note: row1 always has high priority
 static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacity, int32_t numOfRows, STSRow* row1,
                                STSRow* row2, int32_t numOfCols, uint64_t uid, STSchema* pSchema1, STSchema* pSchema2,
@@ -1514,7 +1517,6 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
       numOfColsOfRow2 = tdRowGetNCols(row2);
     }
   }
-
 
   int32_t i = 0, j = 0, k = 0;
   while(i < numOfCols && (j < numOfColsOfRow1 || k < numOfColsOfRow2)) {
@@ -1586,7 +1588,6 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
       tdSKvRowGetVal(row, colId, offset, chosen_itr, &sVal);
     }
 
-
     if (colId == pColInfo->info.colId) {
       if (tdValTypeIsNorm(sVal.valType)) {
         switch (pColInfo->info.type) {
@@ -1594,7 +1595,6 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
           case TSDB_DATA_TYPE_NCHAR:
             memcpy(pData, sVal.val, varDataTLen(sVal.val));
             break;
-          case TSDB_DATA_TYPE_NULL:
           case TSDB_DATA_TYPE_BOOL:
           case TSDB_DATA_TYPE_TINYINT:
           case TSDB_DATA_TYPE_UTINYINT:
@@ -1625,11 +1625,7 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
             memcpy(pData, sVal.val, pColInfo->info.bytes);
         }
       } else if (forceSetNull) {
-        if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
-          setVardataNull(pData, pColInfo->info.type);
-        } else {
-          setNull(pData, pColInfo->info.type, pColInfo->info.bytes);
-        }
+        colDataAppend(pColInfo, numOfRows, NULL, true);
       }
       i++;
 
@@ -1640,11 +1636,7 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
       }
     } else {
       if(forceSetNull) {
-        if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
-          setVardataNull(pData, pColInfo->info.type);
-        } else {
-          setNull(pData, pColInfo->info.type, pColInfo->info.bytes);
-        }
+        colDataAppend(pColInfo, numOfRows, NULL, true);
       }
       i++;
     }
@@ -1653,18 +1645,7 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
   if(forceSetNull) {
     while (i < numOfCols) { // the remain columns are all null data
       SColumnInfoData* pColInfo = taosArrayGet(pTsdbReadHandle->pColumns, i);
-      if (ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
-        pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
-      } else {
-        pData = (char*)pColInfo->pData + (capacity - numOfRows - 1) * pColInfo->info.bytes;
-      }
-
-      if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
-        setVardataNull(pData, pColInfo->info.type);
-      } else {
-        setNull(pData, pColInfo->info.type, pColInfo->info.bytes);
-      }
-
+      colDataAppend(pColInfo, numOfRows, NULL, true);
       i++;
     }
   }
@@ -3276,8 +3257,12 @@ int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReaderT* pTsdbReadHandle, SDataStati
   }
 
   int64_t stime = taosGetTimestampUs();
-  if (tsdbLoadBlockStatis(&pHandle->rhelper, pBlockInfo->compBlock) < 0) {
+  int     statisStatus = tsdbLoadBlockStatis(&pHandle->rhelper, pBlockInfo->compBlock);
+  if (statisStatus < TSDB_STATIS_OK) {
     return terrno;
+  } else if (statisStatus > TSDB_STATIS_OK) {
+    *pBlockStatis = NULL;
+    return TSDB_CODE_SUCCESS;
   }
 
   int16_t* colIds = pHandle->defaultLoadColumn->pData;
@@ -3288,7 +3273,7 @@ int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReaderT* pTsdbReadHandle, SDataStati
     pHandle->statis[i].colId = colIds[i];
   }
 
-  tsdbGetBlockStatis(&pHandle->rhelper, pHandle->statis, (int)numOfCols);
+  tsdbGetBlockStatis(&pHandle->rhelper, pHandle->statis, (int)numOfCols, pBlockInfo->compBlock);
 
   // always load the first primary timestamp column data
   SDataStatis* pPrimaryColStatis = &pHandle->statis[0];
@@ -3401,7 +3386,7 @@ void filterPrepare(void* expr, void* param) {
     if (size < (uint32_t)pSchema->bytes) {
       size = pSchema->bytes;
     }
-    // to make sure tonchar does not cause invalid write, since the '\0' needs at least sizeof(wchar_t) space.
+    // to make sure tonchar does not cause invalid write, since the '\0' needs at least sizeof(TdUcs4) space.
     pInfo->q = calloc(1, size + TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
     tVariantDump(pCond, pInfo->q, pSchema->type, true);
   }

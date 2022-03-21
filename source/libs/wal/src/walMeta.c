@@ -19,9 +19,6 @@
 #include "tref.h"
 #include "walInt.h"
 
-#include <libgen.h>
-#include <regex.h>
-
 int64_t inline walGetFirstVer(SWal* pWal) { return pWal->vers.firstVer; }
 
 int64_t inline walGetSnaphostVer(SWal* pWal) { return pWal->vers.snapshotVer; }
@@ -64,13 +61,13 @@ static inline int64_t walScanLogGetLastVer(SWal* pWal) {
   char fnameStr[WAL_FILE_LEN];
   walBuildLogName(pWal, pLastFileInfo->firstVer, fnameStr);
 
-  struct stat statbuf;
-  stat(fnameStr, &statbuf);
-  int readSize = TMIN(WAL_MAX_SIZE + 2, statbuf.st_size);
-  pLastFileInfo->fileSize = statbuf.st_size;
+  int64_t file_size = 0;
+  taosStatFile(fnameStr, &file_size, NULL);
+  int readSize = TMIN(WAL_MAX_SIZE + 2, file_size);
+  pLastFileInfo->fileSize = file_size;
 
-  FileFd fd = taosOpenFileRead(fnameStr);
-  if (fd < 0) {
+  TdFilePtr pFile = taosOpenFile(fnameStr, TD_FILE_READ);
+  if (pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -79,15 +76,15 @@ static inline int64_t walScanLogGetLastVer(SWal* pWal) {
 
   char* buf = malloc(readSize + 5);
   if (buf == NULL) {
-    taosCloseFile(fd);
+    taosCloseFile(&pFile);
     terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
     return -1;
   }
 
-  taosLSeekFile(fd, -readSize, SEEK_END);
-  if (readSize != taosReadFile(fd, buf, readSize)) {
+  taosLSeekFile(pFile, -readSize, SEEK_END);
+  if (readSize != taosReadFile(pFile, buf, readSize)) {
     free(buf);
-    taosCloseFile(fd);
+    taosCloseFile(&pFile);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -108,12 +105,12 @@ static inline int64_t walScanLogGetLastVer(SWal* pWal) {
     if (walValidHeadCksum(logContent) != 0 || walValidBodyCksum(logContent) != 0) {
       // file has to be deleted
       free(buf);
-      taosCloseFile(fd);
+      taosCloseFile(&pFile);
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
       return -1;
     }
   }
-  taosCloseFile(fd);
+  taosCloseFile(&pFile);
   SWalHead *lastEntry = (SWalHead*)found;
 
   return lastEntry->head.version;
@@ -130,16 +127,16 @@ int walCheckAndRepairMeta(SWal* pWal) {
   regcomp(&logRegPattern, logPattern, REG_EXTENDED);
   regcomp(&idxRegPattern, idxPattern, REG_EXTENDED);
 
-  DIR* dir = opendir(pWal->path);
-  if (dir == NULL) {
+  TdDirPtr pDir = taosOpenDir(pWal->path);
+  if (pDir == NULL) {
     wError("vgId:%d, path:%s, failed to open since %s", pWal->cfg.vgId, pWal->path, strerror(errno));
     return -1;
   }
 
   // scan log files and build new meta
-  struct dirent* ent;
-  while ((ent = readdir(dir)) != NULL) {
-    char* name = basename(ent->d_name);
+  TdDirEntryPtr pDirEntry;
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
     int   code = regexec(&logRegPattern, name, 0, NULL, 0);
     if (code == 0) {
       SWalFileInfo fileInfo;
@@ -149,7 +146,7 @@ int walCheckAndRepairMeta(SWal* pWal) {
     }
   }
 
-  closedir(dir);
+  taosCloseDir(pDir);
   regfree(&logRegPattern);
   regfree(&idxRegPattern);
 
@@ -177,11 +174,11 @@ int walCheckAndRepairMeta(SWal* pWal) {
     SWalFileInfo *pLastFileInfo = taosArrayGet(pWal->fileInfoSet, newSz-1);
     char fnameStr[WAL_FILE_LEN];
     walBuildLogName(pWal, pLastFileInfo->firstVer, fnameStr);
-    struct stat statbuf;
-    stat(fnameStr, &statbuf);
+    int64_t file_size = 0;
+    taosStatFile(fnameStr, &file_size, NULL);
 
-    if (oldSz != newSz || pLastFileInfo->fileSize != statbuf.st_size) {
-      pLastFileInfo->fileSize = statbuf.st_size;
+    if (oldSz != newSz || pLastFileInfo->fileSize != file_size) {
+      pLastFileInfo->fileSize = file_size;
       pWal->vers.lastVer = walScanLogGetLastVer(pWal);
       ((SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet))->lastVer = pWal->vers.lastVer;
       ASSERT(pWal->vers.lastVer != -1);
@@ -337,25 +334,25 @@ static int walFindCurMetaVer(SWal* pWal) {
   regex_t     walMetaRegexPattern;
   regcomp(&walMetaRegexPattern, pattern, REG_EXTENDED);
 
-  DIR* dir = opendir(pWal->path);
-  if (dir == NULL) {
+  TdDirPtr pDir = taosOpenDir(pWal->path);
+  if (pDir == NULL) {
     wError("vgId:%d, path:%s, failed to open since %s", pWal->cfg.vgId, pWal->path, strerror(errno));
     return -1;
   }
 
-  struct dirent* ent;
+  TdDirEntryPtr pDirEntry;
 
   // find existing meta-ver[x].json
   int metaVer = -1;
-  while ((ent = readdir(dir)) != NULL) {
-    char* name = basename(ent->d_name);
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
     int   code = regexec(&walMetaRegexPattern, name, 0, NULL, 0);
     if (code == 0) {
       sscanf(name, "meta-ver%d", &metaVer);
       break;
     }
   }
-  closedir(dir);
+  taosCloseDir(pDir);
   regfree(&walMetaRegexPattern);
   return metaVer;
 }
@@ -364,22 +361,22 @@ int walSaveMeta(SWal* pWal) {
   int  metaVer = walFindCurMetaVer(pWal);
   char fnameStr[WAL_FILE_LEN];
   walBuildMetaName(pWal, metaVer + 1, fnameStr);
-  FileFd metaFd = taosOpenFileCreateWrite(fnameStr);
-  if (metaFd < 0) {
+  TdFilePtr pMataFile = taosOpenFile(fnameStr, TD_FILE_CTEATE | TD_FILE_WRITE);
+  if (pMataFile == NULL) {
     return -1;
   }
   char* serialized = walMetaSerialize(pWal);
   int   len = strlen(serialized);
-  if (len != taosWriteFile(metaFd, serialized, len)) {
+  if (len != taosWriteFile(pMataFile, serialized, len)) {
     // TODO:clean file
     return -1;
   }
 
-  taosCloseFile(metaFd);
+  taosCloseFile(&pMataFile);
   // delete old file
   if (metaVer > -1) {
     walBuildMetaName(pWal, metaVer, fnameStr);
-    remove(fnameStr);
+    taosRemoveFile(fnameStr);
   }
   free(serialized);
   return 0;
@@ -395,29 +392,29 @@ int walLoadMeta(SWal* pWal) {
   char fnameStr[WAL_FILE_LEN];
   walBuildMetaName(pWal, metaVer, fnameStr);
   // read metafile
-  struct stat statbuf;
-  stat(fnameStr, &statbuf);
-  int   size = statbuf.st_size;
+  int64_t file_size = 0;
+  taosStatFile(fnameStr, &file_size, NULL);
+  int   size = (int)file_size;
   char* buf = malloc(size + 5);
   if (buf == NULL) {
     terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
     return -1;
   }
   memset(buf, 0, size + 5);
-  FileFd fd = taosOpenFileRead(fnameStr);
-  if (fd < 0) {
+  TdFilePtr pFile = taosOpenFile(fnameStr, TD_FILE_READ);
+  if (pFile == NULL) {
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
-  if (taosReadFile(fd, buf, size) != size) {
+  if (taosReadFile(pFile, buf, size) != size) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    taosCloseFile(fd);
+    taosCloseFile(&pFile);
     free(buf);
     return -1;
   }
   // load into fileInfoSet
   int code = walMetaDeserialize(pWal, buf);
-  taosCloseFile(fd);
+  taosCloseFile(&pFile);
   free(buf);
   return code;
 }

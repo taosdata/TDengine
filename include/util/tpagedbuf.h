@@ -13,27 +13,25 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TPAGEDBUF_H
-#define TDENGINE_TPAGEDBUF_H
+#ifndef _TD_UTIL_PAGEDBUF_H_
+#define _TD_UTIL_PAGEDBUF_H_
+
+#include "thash.h"
+#include "tlist.h"
+#include "tlockfree.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "tlist.h"
-#include "thash.h"
-#include "os.h"
-#include "tlockfree.h"
-
-typedef struct SArray* SIDList;
-typedef struct SPageInfo SPageInfo;
+typedef struct SArray*       SIDList;
+typedef struct SPageInfo     SPageInfo;
 typedef struct SDiskbasedBuf SDiskbasedBuf;
 
-#define DEFAULT_INTERN_BUF_PAGE_SIZE  (1024L)                          // in bytes
-#define DEFAULT_PAGE_SIZE             (16384L)
+#define DEFAULT_INTERN_BUF_PAGE_SIZE (1024L)  // in bytes
 
 typedef struct SFilePage {
-  int64_t num;
+  int32_t num;
   char    data[];
 } SFilePage;
 
@@ -55,7 +53,7 @@ typedef struct SDiskbasedBufStatis {
  * @param handle
  * @return
  */
-int32_t createDiskbasedBuffer(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId, const char* dir);
+int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, const char* id, const char* dir);
 
 /**
  *
@@ -64,7 +62,7 @@ int32_t createDiskbasedBuffer(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t in
  * @param pageId
  * @return
  */
-SFilePage* getNewDataBuf(SDiskbasedBuf* pBuf, int32_t groupId, int32_t* pageId);
+void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t groupId, int32_t* pageId);
 
 /**
  *
@@ -80,7 +78,7 @@ SIDList getDataBufPagesIdList(SDiskbasedBuf* pBuf, int32_t groupId);
  * @param id
  * @return
  */
-SFilePage* getBufPage(SDiskbasedBuf* pBuf, int32_t id);
+void* getBufPage(SDiskbasedBuf* pBuf, int32_t id);
 
 /**
  * release the referenced buf pages
@@ -108,13 +106,13 @@ size_t getTotalBufSize(const SDiskbasedBuf* pBuf);
  * @param pBuf
  * @return
  */
-size_t getNumOfResultBufGroupId(const SDiskbasedBuf* pBuf);
+size_t getNumOfBufGroupId(const SDiskbasedBuf* pBuf);
 
 /**
  * destroy result buffer
  * @param pBuf
  */
-void destroyResultBuf(SDiskbasedBuf* pBuf);
+void destroyDiskbasedBuf(SDiskbasedBuf* pBuf);
 
 /**
  *
@@ -137,6 +135,11 @@ int32_t getPageId(const SPageInfo* pPgInfo);
  */
 int32_t getBufPageSize(const SDiskbasedBuf* pBuf);
 
+/**
+ *
+ * @param pBuf
+ * @return
+ */
 int32_t getNumOfInMemBufPages(const SDiskbasedBuf* pBuf);
 
 /**
@@ -148,24 +151,45 @@ bool isAllDataInMemBuf(const SDiskbasedBuf* pBuf);
 
 /**
  * Set the buffer page is dirty, and needs to be flushed to disk when swap out.
- * @param pPageInfo
+ * @param pPage
  * @param dirty
  */
-void setBufPageDirty(SFilePage* pPageInfo, bool dirty);
+void setBufPageDirty(void* pPage, bool dirty);
+
+/**
+ * Set the compress/ no-compress flag for paged buffer, when flushing data in disk.
+ * @param pBuf
+ */
+void setBufPageCompressOnDisk(SDiskbasedBuf* pBuf, bool comp);
+
+/**
+ * Set the pageId page buffer is not need
+ * @param pBuf
+ * @param pageId
+ */
+void dBufSetBufPageRecycled(SDiskbasedBuf *pBuf, void* pPage);
 
 /**
  * Print the statistics when closing this buffer
  * @param pBuf
  */
-void printStatisBeforeClose(SDiskbasedBuf* pBuf);
+void dBufSetPrintInfo(SDiskbasedBuf* pBuf);
 
 /**
- * return buf statistics.
+ * Return buf statistics.
+ * @param pBuf
+ * @return
  */
 SDiskbasedBufStatis getDBufStatis(const SDiskbasedBuf* pBuf);
+
+/**
+ * Print the buffer statistics information
+ * @param pBuf
+ */
+void dBufPrintStatis(const SDiskbasedBuf* pBuf);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_TPAGEDBUF_H
+#endif  // _TD_UTIL_PAGEDBUF_H_

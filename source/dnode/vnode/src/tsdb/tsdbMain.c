@@ -80,6 +80,8 @@ static STsdb *tsdbNew(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, 
   pTsdb->pmaf = pMAF;
   pTsdb->pMeta = pMeta;
   pTsdb->pTfs = pTfs;
+  pTsdb->pTSmaEnv = NULL;
+  pTsdb->pRSmaEnv = NULL;
 
   pTsdb->fs = tsdbNewFS(pTsdbCfg);
 
@@ -88,6 +90,8 @@ static STsdb *tsdbNew(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, 
 
 static void tsdbFree(STsdb *pTsdb) {
   if (pTsdb) {
+    tsdbFreeSmaEnv(pTsdb->pRSmaEnv);
+    tsdbFreeSmaEnv(pTsdb->pTSmaEnv);
     tsdbFreeFS(pTsdb->fs);
     tfree(pTsdb->path);
     free(pTsdb);
@@ -104,6 +108,30 @@ static void tsdbCloseImpl(STsdb *pTsdb) {
   tsdbCloseFS(pTsdb);
   // TODO
 }
+
+int tsdbLockRepo(STsdb *pTsdb) {
+  int code = taosThreadMutexLock(&pTsdb->mutex);
+  if (code != 0) {
+    tsdbError("vgId:%d failed to lock tsdb since %s", REPO_ID(pTsdb), strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  pTsdb->repoLocked = true;
+  return 0;
+}
+
+int tsdbUnlockRepo(STsdb *pTsdb) {
+  ASSERT(IS_REPO_LOCKED(pTsdb));
+  pTsdb->repoLocked = false;
+  int code = taosThreadMutexUnlock(&pTsdb->mutex);
+  if (code != 0) {
+    tsdbError("vgId:%d failed to unlock tsdb since %s", REPO_ID(pTsdb), strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
+}
+
 #if 0
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
@@ -270,7 +298,7 @@ STsdbCfg *tsdbGetCfg(const STsdbRepo *repo) {
 }
 
 int tsdbLockRepo(STsdbRepo *pRepo) {
-  int code = pthread_mutex_lock(&pRepo->mutex);
+  int code = taosThreadMutexLock(&pRepo->mutex);
   if (code != 0) {
     tsdbError("vgId:%d failed to lock tsdb since %s", REPO_ID(pRepo), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -283,7 +311,7 @@ int tsdbLockRepo(STsdbRepo *pRepo) {
 int tsdbUnlockRepo(STsdbRepo *pRepo) {
   ASSERT(IS_REPO_LOCKED(pRepo));
   pRepo->repoLocked = false;
-  int code = pthread_mutex_unlock(&pRepo->mutex);
+  int code = taosThreadMutexUnlock(&pRepo->mutex);
   if (code != 0) {
     tsdbError("vgId:%d failed to unlock tsdb since %s", REPO_ID(pRepo), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -360,7 +388,7 @@ int32_t tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg) {
     tsdbError("vgId:%d no config changed", REPO_ID(repo));
   }
 
-  int code = pthread_mutex_lock(&repo->save_mutex);
+  int code = taosThreadMutexLock(&repo->save_mutex);
   if (code != 0) {
     tsdbError("vgId:%d failed to lock tsdb save config mutex since %s", REPO_ID(repo), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -388,7 +416,7 @@ int32_t tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg) {
 
   repo->config_changed = true;
 
-  pthread_mutex_unlock(&repo->save_mutex);
+  taosThreadMutexUnlock(&repo->save_mutex);
 
   // schedule a commit msg and wait for the new config applied
   tsdbSyncCommitConfig(repo);
@@ -662,14 +690,14 @@ static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
   pRepo->repoLocked = false;
   pRepo->pthread = NULL;
 
-  int code = pthread_mutex_init(&(pRepo->mutex), NULL);
+  int code = taosThreadMutexInit(&(pRepo->mutex), NULL);
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
     tsdbFreeRepo(pRepo);
     return NULL;
   }
 
-  code = pthread_mutex_init(&(pRepo->save_mutex), NULL);
+  code = taosThreadMutexInit(&(pRepo->save_mutex), NULL);
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
     tsdbFreeRepo(pRepo);
@@ -719,7 +747,7 @@ static void tsdbFreeRepo(STsdbRepo *pRepo) {
     // tsdbFreeMemTable(pRepo->mem);
     // tsdbFreeMemTable(pRepo->imem);
     tsem_destroy(&(pRepo->readyToCommit));
-    pthread_mutex_destroy(&pRepo->mutex);
+    taosThreadMutexDestroy(&pRepo->mutex);
     free(pRepo);
   }
 }
@@ -821,9 +849,10 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
 
     // file block with sub-blocks has no statistics data
     if (pBlock->numOfSubBlocks <= 1) {
-      tsdbLoadBlockStatis(pReadh, pBlock);
-      tsdbGetBlockStatis(pReadh, pBlockStatis, (int)numColumns);
-      loadStatisData = true;
+      if (tsdbLoadBlockStatis(pReadh, pBlock) == TSDB_STATIS_OK) {
+        tsdbGetBlockStatis(pReadh, pBlockStatis, (int)numColumns, pBlock);
+        loadStatisData = true;
+      }
     }
 
     for (int16_t i = 0; i < numColumns && numColumns > pTable->restoreColumnNum; ++i) {

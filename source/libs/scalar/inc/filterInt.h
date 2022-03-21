@@ -20,12 +20,13 @@
 extern "C" {
 #endif
 
+#include "query.h"
+#include "querynodes.h"
+#include "scalar.h"
+#include "tcommon.h"
+#include "tdatablock.h"
 #include "thash.h"
 #include "tname.h"
-#include "common.h"
-#include "scalar.h"
-#include "querynodes.h"
-#include "query.h"
 
 #define FILTER_DEFAULT_GROUP_SIZE 4
 #define FILTER_DEFAULT_UNIT_SIZE 4
@@ -199,7 +200,7 @@ typedef struct SFilterUnit {
 } SFilterUnit;
 
 typedef struct SFilterComUnit {
-  void *colData;
+  void *colData;     // pointer to SColumnInfoData
   void *valData;
   void *valData2;
   uint16_t colId;
@@ -252,6 +253,7 @@ typedef struct SFilterInfo {
   uint32_t         *blkUnits;
   int8_t           *blkUnitRes;
   void             *pTable;
+  SArray           *blkList;
 
   SFilterPCtx       pctx;
 } SFilterInfo;
@@ -282,7 +284,7 @@ typedef struct SFilterInfo {
 #define INSERT_RANGE(ctx, r, ra) do { SFilterRangeNode *n = filterNewRange(ctx, ra); n->prev = (r)->prev; if ((r)->prev) { (r)->prev->next = n; } else { (ctx)->rs = n; } (r)->prev = n; n->next = r; } while (0)
 #define APPEND_RANGE(ctx, r, ra) do { SFilterRangeNode *n = filterNewRange(ctx, ra); n->prev = (r); if (r) { (r)->next = n; } else { (ctx)->rs = n; } } while (0)
 
-#define FLT_IS_COMPARISON_OPERATOR(_op) ((_op) >= OP_TYPE_GREATER_THAN && (_op) < OP_TYPE_IS_NOT_NULL)
+#define FLT_IS_COMPARISON_OPERATOR(_op) ((_op) >= OP_TYPE_GREATER_THAN && (_op) < OP_TYPE_IS_NOT_UNKNOWN)
 
 #define fltFatal(...)  qFatal(__VA_ARGS__)
 #define fltError(...)  qError(__VA_ARGS__)
@@ -300,12 +302,12 @@ typedef struct SFilterInfo {
 
 #define FILTER_GET_FIELD(i, id) (&((i)->fields[(id).type].fields[(id).idx]))
 #define FILTER_GET_COL_FIELD(i, idx) (&((i)->fields[FLD_TYPE_COLUMN].fields[idx]))
-#define FILTER_GET_COL_FIELD_TYPE(fi) (((SColumnRefNode *)((fi)->desc))->dataType.type)
-#define FILTER_GET_COL_FIELD_SIZE(fi) (((SColumnRefNode *)((fi)->desc))->dataType.bytes)
-#define FILTER_GET_COL_FIELD_ID(fi) (((SColumnRefNode *)((fi)->desc))->columnId)
-#define FILTER_GET_COL_FIELD_SLOT_ID(fi) (((SColumnRefNode *)((fi)->desc))->slotId)
-#define FILTER_GET_COL_FIELD_DESC(fi) ((SColumnRefNode *)((fi)->desc))
-#define FILTER_GET_COL_FIELD_DATA(fi, ri) ((char *)(fi)->data + ((SColumnRefNode *)((fi)->desc))->dataType.bytes * (ri))
+#define FILTER_GET_COL_FIELD_TYPE(fi) (((SColumnNode *)((fi)->desc))->node.resType.type)
+#define FILTER_GET_COL_FIELD_SIZE(fi) (((SColumnNode *)((fi)->desc))->node.resType.bytes)
+#define FILTER_GET_COL_FIELD_ID(fi) (((SColumnNode *)((fi)->desc))->colId)
+#define FILTER_GET_COL_FIELD_SLOT_ID(fi) (((SColumnNode *)((fi)->desc))->slotId)
+#define FILTER_GET_COL_FIELD_DESC(fi) ((SColumnNode *)((fi)->desc))
+#define FILTER_GET_COL_FIELD_DATA(fi, ri) (colDataGetData(((SColumnInfoData *)(fi)->data), (ri)))
 #define FILTER_GET_VAL_FIELD_TYPE(fi) (((SValueNode *)((fi)->desc))->node.resType.type)
 #define FILTER_GET_VAL_FIELD_DATA(fi) ((char *)(fi)->data)
 #define FILTER_GET_JSON_VAL_FIELD_DATA(fi) ((char *)(fi)->desc)

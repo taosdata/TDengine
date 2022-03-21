@@ -1,0 +1,16 @@
+run general/db/basic.sim
+run general/db/basic1.sim
+run general/db/basic2.sim
+run general/db/basic3.sim
+run general/db/basic4.sim
+run general/db/basic5.sim
+run general/db/delete_reuse1.sim
+run general/db/delete_reuse2.sim
+run general/db/delete_reusevnode.sim
+run general/db/delete_reusevnode2.sim
+run general/db/delete_writing1.sim
+run general/db/delete_writing2.sim
+run general/db/len.sim
+run general/db/repeat.sim
+run general/db/tables.sim
+run general/db/vnodes.sim

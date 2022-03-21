@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#define ALLOW_FORBID_FUNC
 
 #include "os.h"
 #include "osString.h"
@@ -36,6 +37,10 @@
 #include <unistd.h>
 #include <wordexp.h>
 
+typedef struct dirent dirent;
+typedef struct DIR TdDir;
+typedef struct dirent TdDirent;
+
 void taosRemoveDir(const char *dirname) {
   DIR *dir = opendir(dirname);
   if (dir == NULL) return;
@@ -49,7 +54,7 @@ void taosRemoveDir(const char *dirname) {
     if (de->d_type & DT_DIR) {
       taosRemoveDir(filename);
     } else {
-      (void)remove(filename);
+      (void)taosRemoveFile(filename);
       //printf("file:%s is removed\n", filename);
     }
   }
@@ -60,7 +65,7 @@ void taosRemoveDir(const char *dirname) {
   //printf("dir:%s is removed\n", dirname);
 }
 
-int32_t taosDirExist(char *dirname) { return access(dirname, F_OK); }
+bool taosDirExist(char *dirname) { return taosCheckExistFile(dirname); }
 
 int32_t taosMkDir(const char *dirname) {
   int32_t code = mkdir(dirname, 0755);
@@ -71,7 +76,7 @@ int32_t taosMkDir(const char *dirname) {
   return code;
 }
 
-void taosRemoveOldFiles(char *dirname, int32_t keepDays) {
+void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {
   DIR *dir = opendir(dirname);
   if (dir == NULL) return;
 
@@ -102,7 +107,7 @@ void taosRemoveOldFiles(char *dirname, int32_t keepDays) {
       if (fileSec <= 100) continue;
       int32_t days = (int32_t)(TABS(sec - fileSec) / 86400 + 1);
       if (days > keepDays) {
-        (void)remove(filename);
+        (void)taosRemoveFile(filename);
         //printf("file:%s is removed, days:%d keepDays:%d", filename, days, keepDays);
       } else {
         //printf("file:%s won't be removed, days:%d keepDays:%d", filename, days, keepDays);
@@ -138,6 +143,58 @@ int32_t taosRealPath(char *dirname, int32_t maxlen) {
   }
 
   return 0;
+}
+
+bool taosIsDir(const char *dirname) {
+  DIR *dir = opendir(dirname);
+  if (dir != NULL) {
+    closedir(dir);
+    return true;
+  }
+  return false;
+}
+
+char* taosDirName(char *name) {
+  return dirname(name);
+}
+
+char* taosDirEntryBaseName(char *name) {
+  return basename(name);
+}
+
+TdDirPtr taosOpenDir(const char *dirname) {
+  if (dirname == NULL) {
+    return NULL;
+  }
+  return (TdDirPtr)opendir(dirname);
+}
+
+TdDirEntryPtr taosReadDir(TdDirPtr pDir) {
+  if (pDir == NULL) {
+    return NULL;
+  }
+  return (TdDirEntryPtr)readdir((DIR*)pDir);
+}
+
+bool taosDirEntryIsDir(TdDirEntryPtr pDirEntry) {
+  if (pDirEntry == NULL) {
+    return false;
+  }
+  return (((dirent*)pDirEntry)->d_type & DT_DIR) != 0;
+}
+
+char* taosGetDirEntryName(TdDirEntryPtr pDirEntry) {
+  if (pDirEntry == NULL) {
+    return NULL;
+  }
+  return ((dirent*)pDirEntry)->d_name;
+}
+
+int32_t taosCloseDir(TdDirPtr pDir) {
+  if (pDir == NULL) {
+    return -1;
+  }
+  return closedir((DIR*)pDir);
 }
 
 #endif

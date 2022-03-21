@@ -18,11 +18,11 @@
 
 #include "os.h"
 #include "talgo.h"
+#include "taosdef.h"
 #include "taoserror.h"
 #include "tbuffer.h"
-#include "tdef.h"
-#include "taosdef.h"
 #include "tdataformat.h"
+#include "tdef.h"
 #include "tschema.h"
 #include "ttypes.h"
 #include "tutil.h"
@@ -47,21 +47,21 @@ extern "C" {
 #define TD_VTYPE_NONE 0x0U   // none or unknown/undefined
 #define TD_VTYPE_NULL 0x01U  // null val
 #define TD_VTYPE_NORM 0x02U  // normal val: not none, not null
-#define TD_VTYPE_MAX 0x03U   //
+#define TD_VTYPE_MAX  0x03U  //
 
 #define TD_VTYPE_NONE_BYTE 0x0U
 #define TD_VTYPE_NULL_BYTE 0x55U
 #define TD_VTYPE_NORM_BYTE 0xAAU
 
-#define TD_ROWS_ALL_NORM 0x01U
+#define TD_ROWS_ALL_NORM  0x01U
 #define TD_ROWS_NULL_NORM 0x0U
 
-#define TD_COL_ROWS_NORM(c) ((c)->bitmap == TD_ROWS_ALL_NORM)  // all rows of SDataCol/SBlockCol is NORM
+#define TD_COL_ROWS_NORM(c)          ((c)->bitmap == TD_ROWS_ALL_NORM)  // all rows of SDataCol/SBlockCol is NORM
 #define TD_SET_COL_ROWS_BTIMAP(c, v) ((c)->bitmap = (v))
-#define TD_SET_COL_ROWS_NORM(c) TD_SET_COL_ROWS_BTIMAP((c), TD_ROWS_ALL_NORM)
-#define TD_SET_COL_ROWS_MISC(c) TD_SET_COL_ROWS_BTIMAP((c), TD_ROWS_NULL_NORM)
+#define TD_SET_COL_ROWS_NORM(c)      TD_SET_COL_ROWS_BTIMAP((c), TD_ROWS_ALL_NORM)
+#define TD_SET_COL_ROWS_MISC(c)      TD_SET_COL_ROWS_BTIMAP((c), TD_ROWS_NULL_NORM)
 
-#define KvConvertRatio (0.9f)
+#define KvConvertRatio            (0.9f)
 #define isSelectKVRow(klen, tlen) ((klen) < ((tlen)*KvConvertRatio))
 
 #ifdef TD_SUPPORT_BITMAP
@@ -103,7 +103,8 @@ typedef struct {
 
 typedef struct {
   // TODO
-} STpRow;  // tuple
+  int tmp;  // TODO: to avoid compile error
+} STpRow;   // tuple
 
 #pragma pack(push, 1)
 typedef struct {
@@ -118,6 +119,8 @@ typedef struct {
 } SKvRow;
 
 typedef struct {
+  /// timestamp
+  TSKEY ts;
   union {
     /// union field for encode and decode
     uint32_t info;
@@ -138,8 +141,6 @@ typedef struct {
   uint32_t len;
   /// row version
   uint64_t ver;
-  /// timestamp
-  TSKEY ts;
   /// the inline data, maybe a tuple or a k-v tuple
   char data[];
 } STSRow;
@@ -162,36 +163,36 @@ typedef struct {
   int32_t extendedRowSize;
 } SRowBuilder;
 
-#define TD_ROW_HEAD_LEN (sizeof(STSRow))
+#define TD_ROW_HEAD_LEN  (sizeof(STSRow))
 #define TD_ROW_NCOLS_LEN (sizeof(col_id_t))
 
-#define TD_ROW_TYPE(r) ((r)->type)
-#define TD_ROW_DELETE(r) ((r)->del)
-#define TD_ROW_ENDIAN(r) ((r)->endian)
-#define TD_ROW_SVER(r) ((r)->sver)
-#define TD_ROW_NCOLS(r) ((r)->data)  // only valid for SKvRow
-#define TD_ROW_DATA(r) ((r)->data)
-#define TD_ROW_LEN(r) ((r)->len)
-#define TD_ROW_KEY(r) ((r)->ts)
-#define TD_ROW_KEY_ADDR(r) POINTER_SHIFT((r), 16)
+#define TD_ROW_TYPE(r)     ((r)->type)
+#define TD_ROW_DELETE(r)   ((r)->del)
+#define TD_ROW_ENDIAN(r)   ((r)->endian)
+#define TD_ROW_SVER(r)     ((r)->sver)
+#define TD_ROW_NCOLS(r)    ((r)->data)  // only valid for SKvRow
+#define TD_ROW_DATA(r)     ((r)->data)
+#define TD_ROW_LEN(r)      ((r)->len)
+#define TD_ROW_KEY(r)      ((r)->ts)
+#define TD_ROW_KEY_ADDR(r) (r)
 
 // N.B. If without STSchema, getExtendedRowSize() is used to get the rowMaxBytes and
-// (int)ceil((double)nCols/TD_VTYPE_PARTS) should be added if TD_SUPPORT_BITMAP defined.
+// (int32_t)ceil((double)nCols/TD_VTYPE_PARTS) should be added if TD_SUPPORT_BITMAP defined.
 #define TD_ROW_MAX_BYTES_FROM_SCHEMA(s) (schemaTLen(s) + TD_ROW_HEAD_LEN)
 
-#define TD_ROW_SET_TYPE(r, t) (TD_ROW_TYPE(r) = (t))
-#define TD_ROW_SET_DELETE(r) (TD_ROW_DELETE(r) = 1)
-#define TD_ROW_SET_SVER(r, v) (TD_ROW_SVER(r) = (v))
-#define TD_ROW_SET_LEN(r, l) (TD_ROW_LEN(r) = (l))
+#define TD_ROW_SET_TYPE(r, t)  (TD_ROW_TYPE(r) = (t))
+#define TD_ROW_SET_DELETE(r)   (TD_ROW_DELETE(r) = 1)
+#define TD_ROW_SET_SVER(r, v)  (TD_ROW_SVER(r) = (v))
+#define TD_ROW_SET_LEN(r, l)   (TD_ROW_LEN(r) = (l))
 #define TD_ROW_SET_NCOLS(r, n) (*(col_id_t *)TD_ROW_NCOLS(r) = (n))
 
 #define TD_ROW_IS_DELETED(r) (TD_ROW_DELETE(r) == 1)
-#define TD_IS_TP_ROW(r) (TD_ROW_TYPE(r) == TD_ROW_TP)
-#define TD_IS_KV_ROW(r) (TD_ROW_TYPE(r) == TD_ROW_KV)
-#define TD_IS_TP_ROW_T(t) ((t) == TD_ROW_TP)
-#define TD_IS_KV_ROW_T(t) ((t) == TD_ROW_KV)
+#define TD_IS_TP_ROW(r)      (TD_ROW_TYPE(r) == TD_ROW_TP)
+#define TD_IS_KV_ROW(r)      (TD_ROW_TYPE(r) == TD_ROW_KV)
+#define TD_IS_TP_ROW_T(t)    ((t) == TD_ROW_TP)
+#define TD_IS_KV_ROW_T(t)    ((t) == TD_ROW_KV)
 
-#define TD_BOOL_STR(b) ((b) ? "true" : "false")
+#define TD_BOOL_STR(b)       ((b) ? "true" : "false")
 #define isUtilizeKVRow(k, d) ((k) < ((d)*KVRatioConvert))
 
 #define TD_ROW_COL_IDX(r) POINTER_SHIFT(TD_ROW_DATA(r), sizeof(col_id_t))
@@ -217,7 +218,7 @@ static FORCE_INLINE void    tdRowCopy(void *dst, STSRow *row) { memcpy(dst, row,
 static FORCE_INLINE int32_t tdSetBitmapValType(void *pBitmap, int16_t colIdx, TDRowValT valType);
 int32_t                     tdSetBitmapValTypeN(void *pBitmap, int16_t nEle, TDRowValT valType);
 static FORCE_INLINE int32_t tdGetBitmapValType(void *pBitmap, int16_t colIdx, TDRowValT *pValType);
-int tdAppendValToDataCol(SDataCol *pCol, TDRowValT valType, const void *val, int numOfRows, int maxPoints);
+int32_t tdAppendValToDataCol(SDataCol *pCol, TDRowValT valType, const void *val, int32_t numOfRows, int32_t maxPoints);
 static FORCE_INLINE int32_t tdAppendColValToTpRow(SRowBuilder *pBuilder, TDRowValT valType, const void *val,
                                                   bool isCopyVarData, int8_t colType, int16_t colIdx, int32_t offset);
 static FORCE_INLINE int32_t tdAppendColValToKvRow(SRowBuilder *pBuilder, TDRowValT valType, const void *val,
@@ -355,7 +356,6 @@ static FORCE_INLINE int32_t tdGetBitmapValType(void *pBitmap, int16_t colIdx, TD
  *
  */
 
-
 /**
  * @brief
  *
@@ -431,7 +431,6 @@ static FORCE_INLINE int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t
     } else {
       pBuilder->rowType = TD_ROW_TP;
     }
-
 
   } else {
     pBuilder->rowType = TD_ROW_TP;
@@ -698,9 +697,9 @@ static FORCE_INLINE int32_t tdAppendColValToRow(SRowBuilder *pBuilder, int16_t c
   }
   // TODO:  We can avoid the type judegement by FP, but would prevent the inline scheme.
   if (TD_IS_TP_ROW(pRow)) {
-    tdAppendColValToTpRow(pBuilder, valType, val, true, colType, colIdx, offset);
+    tdAppendColValToTpRow(pBuilder, valType, val, isCopyVarData, colType, colIdx, offset);
   } else {
-    tdAppendColValToKvRow(pBuilder, valType, val, true, colType, colIdx, offset, colId);
+    tdAppendColValToKvRow(pBuilder, valType, val, isCopyVarData, colType, colIdx, offset, colId);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -731,7 +730,7 @@ static FORCE_INLINE int32_t tdGetTpRowValOfCol(SCellVal *output, STSRow *pRow, v
   return TSDB_CODE_SUCCESS;
 }
 
-static FORCE_INLINE int compareKvRowColId(const void *key1, const void *key2) {
+static FORCE_INLINE int32_t compareKvRowColId(const void *key1, const void *key2) {
   if (*(int16_t *)key1 > ((SColIdx *)key2)->colId) {
     return 1;
   } else if (*(int16_t *)key1 < ((SColIdx *)key2)->colId) {
@@ -793,8 +792,8 @@ static FORCE_INLINE void tdSTSRowIterInit(STSRowIter *pIter, STSchema *pSchema) 
   pIter->maxColId = pSchema->columns[pSchema->numOfCols - 1].colId;
 }
 
-static int tdCompareColId(const void *arg1, const void *arg2) {
-  int       colId = *(int *)arg1;
+static int32_t tdCompareColId(const void *arg1, const void *arg2) {
+  int32_t   colId = *(int32_t *)arg1;
   STColumn *pCol = (STColumn *)arg2;
 
   if (colId < pCol->colId) {
@@ -959,11 +958,11 @@ static FORCE_INLINE bool tdSTSRowIterNext(STSRowIter *pIter, col_id_t colId, col
 STSRow *mergeTwoRows(void *buffer, STSRow *row1, STSRow *row2, STSchema *pSchema1, STSchema *pSchema2);
 
 // Get the data pointer from a column-wised data
-static FORCE_INLINE int32_t tdGetColDataOfRow(SCellVal *pVal, SDataCol *pCol, int row) {
+static FORCE_INLINE int32_t tdGetColDataOfRow(SCellVal *pVal, SDataCol *pCol, int32_t row) {
   if (isAllRowsNone(pCol)) {
     pVal->valType = TD_VTYPE_NULL;
 #ifdef TD_SUPPORT_READ2
-    pVal->val = (void*)getNullValue(pCol->type);
+    pVal->val = (void *)getNullValue(pCol->type);
 #else
     pVal->val = NULL;
 #endif
@@ -981,7 +980,7 @@ static FORCE_INLINE int32_t tdGetColDataOfRow(SCellVal *pVal, SDataCol *pCol, in
   } else {
     pVal->valType = TD_VTYPE_NULL;
 #ifdef TD_SUPPORT_READ2
-    pVal->val = (void*)getNullValue(pCol->type);
+    pVal->val = (void *)getNullValue(pCol->type);
 #else
     pVal->val = NULL;
 #endif
@@ -1000,7 +999,8 @@ static FORCE_INLINE bool tdSTpRowGetVal(STSRow *pRow, col_id_t colId, col_type_t
   return true;
 }
 
-static FORCE_INLINE bool tdSKvRowGetVal(STSRow *pRow, col_id_t colId, uint32_t offset, col_id_t colIdx, SCellVal *pVal) {
+static FORCE_INLINE bool tdSKvRowGetVal(STSRow *pRow, col_id_t colId, uint32_t offset, col_id_t colIdx,
+                                        SCellVal *pVal) {
   if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
     tdRowSetVal(pVal, TD_VTYPE_NORM, TD_ROW_KEY_ADDR(pRow));
     return true;
@@ -1010,7 +1010,7 @@ static FORCE_INLINE bool tdSKvRowGetVal(STSRow *pRow, col_id_t colId, uint32_t o
   return true;
 }
 
-static FORCE_INLINE int32_t dataColGetNEleLen(SDataCol *pDataCol, int rows) {
+static FORCE_INLINE int32_t dataColGetNEleLen(SDataCol *pDataCol, int32_t rows) {
   ASSERT(rows > 0);
   int32_t result = 0;
 
@@ -1079,15 +1079,15 @@ typedef struct {
 // STSRowBuilder
 #define trbInit(rt, allocator, endian, target, size) \
   { .type = (rt), .bw = tbufInitWriter(allocator, endian), .pRow = (target) }
-void trbSetRowInfo(STSRowBuilder *pRB, bool del, uint16_t sver);
-void trbSetRowVersion(STSRowBuilder *pRB, uint64_t ver);
-void trbSetRowTS(STSRowBuilder *pRB, TSKEY ts);
-int  trbWriteCol(STSRowBuilder *pRB, void *pData, col_id_t cid);
+void    trbSetRowInfo(STSRowBuilder *pRB, bool del, uint16_t sver);
+void    trbSetRowVersion(STSRowBuilder *pRB, uint64_t ver);
+void    trbSetRowTS(STSRowBuilder *pRB, TSKEY ts);
+int32_t trbWriteCol(STSRowBuilder *pRB, void *pData, col_id_t cid);
 
 // STSRowReader
 #define tRowReaderInit(schema, row) \
   { .schema = (schema), .row = (row) }
-int tRowReaderRead(STSRowReader *pRowReader, col_id_t cid, void *target, uint64_t size);
+int32_t tRowReaderRead(STSRowReader *pRowReader, col_id_t cid, void *target, uint64_t size);
 
 // STSRowBatchIter
 #define tRowBatchIterInit(pRB) \

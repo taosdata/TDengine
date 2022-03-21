@@ -20,19 +20,20 @@
 extern "C" {
 #endif
 
-#include "common.h"
 #include "parser.h"
+#include "planner.h"
 #include "query.h"
 #include "taos.h"
+#include "tcommon.h"
+#include "tdatablock.h"
 #include "tdef.h"
-#include "tep.h"
 #include "thash.h"
 #include "tlist.h"
 #include "tmsg.h"
 #include "tmsgtype.h"
 #include "trpc.h"
 
-#include "config.h"
+#include "tconfig.h"
 
 #define CHECK_CODE_GOTO(expr, label) \
   do {                               \
@@ -47,12 +48,12 @@ extern "C" {
 
 typedef struct SAppInstInfo SAppInstInfo;
 
-typedef struct SHbConnInfo {
+typedef struct {
   void*         param;
   SClientHbReq* req;
 } SHbConnInfo;
 
-typedef struct SAppHbMgr {
+typedef struct {
   char* key;
   // statistics
   int32_t reportCnt;
@@ -68,16 +69,16 @@ typedef struct SAppHbMgr {
   SHashObj* connInfo;    // hash<SClientHbKey, SHbConnInfo>
 } SAppHbMgr;
 
-typedef int32_t (*FHbRspHandle)(struct SAppHbMgr* pAppHbMgr, SClientHbRsp* pRsp);
+typedef int32_t (*FHbRspHandle)(SAppHbMgr* pAppHbMgr, SClientHbRsp* pRsp);
 
 typedef int32_t (*FHbReqHandle)(SClientHbKey* connKey, void* param, SClientHbReq* req);
 
-typedef struct SClientHbMgr {
+typedef struct {
   int8_t inited;
   // ctl
   int8_t          threadStop;
-  pthread_t       thread;
-  pthread_mutex_t lock;       // used when app init and cleanup
+  TdThread       thread;
+  TdThreadMutex lock;       // used when app init and cleanup
   SArray*         appHbMgrs;  // SArray<SAppHbMgr*> one for each cluster
   FHbReqHandle    reqHandle[HEARTBEAT_TYPE_MAX];
   FHbRspHandle    rspHandle[HEARTBEAT_TYPE_MAX];
@@ -108,13 +109,13 @@ typedef struct SHeartBeatInfo {
 } SHeartBeatInfo;
 
 struct SAppInstInfo {
-  int64_t           numOfConns;
-  SCorEpSet         mgmtEp;
-  SInstanceSummary  summary;
-  SList*            pConnList;  // STscObj linked list
-  int64_t           clusterId;
-  void*             pTransporter;
-  struct SAppHbMgr* pAppHbMgr;
+  int64_t          numOfConns;
+  SCorEpSet        mgmtEp;
+  SInstanceSummary summary;
+  SList*           pConnList;  // STscObj linked list
+  int64_t          clusterId;
+  void*            pTransporter;
+  SAppHbMgr*       pAppHbMgr;
 };
 
 typedef struct SAppInfo {
@@ -124,7 +125,7 @@ typedef struct SAppInfo {
   int32_t         pid;
   int32_t         numOfThreads;
   SHashObj*       pInstMap;
-  pthread_mutex_t mutex;
+  TdThreadMutex mutex;
 } SAppInfo;
 
 typedef struct STscObj {
@@ -136,14 +137,10 @@ typedef struct STscObj {
   uint32_t        connId;
   int32_t         connType;
   uint64_t        id;         // ref ID returned by taosAddRef
-  pthread_mutex_t mutex;      // used to protect the operation on db
+  TdThreadMutex mutex;      // used to protect the operation on db
   int32_t         numOfReqs;  // number of sqlObj bound to this connection
   SAppInstInfo*   pAppInfo;
 } STscObj;
-
-typedef struct SMqConsumer {
-  STscObj* pTscObj;
-} SMqConsumer;
 
 typedef struct SReqResultInfo {
   const char* pRspMsg;
@@ -167,13 +164,13 @@ typedef struct SShowReqInfo {
 } SShowReqInfo;
 
 typedef struct SRequestSendRecvBody {
-  tsem_t            rspSem;  // not used now
-  void*             fp;
-  SShowReqInfo      showInfo;  // todo this attribute will be removed after the query framework being completed.
-  SDataBuf          requestMsg;
-  struct SSchJob*   pQueryJob;  // query job, created according to sql query DAG.
-  struct SQueryDag* pDag;       // the query dag, generated according to the sql statement.
-  SReqResultInfo    resInfo;
+  tsem_t             rspSem;  // not used now
+  void*              fp;
+  SShowReqInfo       showInfo;  // todo this attribute will be removed after the query framework being completed.
+  SDataBuf           requestMsg;
+  int64_t            queryJob;  // query job, created according to sql query DAG.
+  struct SQueryPlan* pDag;       // the query dag, generated according to the sql statement.
+  SReqResultInfo     resInfo;
 } SRequestSendRecvBody;
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
@@ -182,6 +179,7 @@ typedef struct SRequestObj {
   uint64_t             requestId;
   int32_t              type;  // request type
   STscObj*             pTscObj;
+  char*                pDb;
   char*                sqlstr;  // sql string
   int32_t              sqlLen;
   int64_t              self;
@@ -232,7 +230,8 @@ void setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t 
 
 int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj** pRequest);
 
-int32_t parseSql(SRequestObj* pRequest, SQueryNode** pQuery);
+int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery);
+int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList);
 
 // --- heartbeat
 // global, called by mgmt
@@ -252,13 +251,6 @@ int hbAddConnInfo(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, void* key, void* v
 
 // --- mq
 void hbMgrInitMqHbRspHandle();
-
-
-// config
-int32_t tscInitLog(const char *cfgDir, const char *envFile, const char *apolloUrl);
-int32_t tscInitCfg(const char *cfgDir, const char *envFile, const char *apolloUrl);
-
-extern SConfig *tscCfg;
 
 #ifdef __cplusplus
 }

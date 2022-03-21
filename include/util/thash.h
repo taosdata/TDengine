@@ -13,27 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_HASH_H
-#define TDENGINE_HASH_H
+#ifndef _TD_UTIL_HASH_H_
+#define _TD_UTIL_HASH_H_
+
+#include "tarray.h"
+#include "tlockfree.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "tarray.h"
-#include "tlockfree.h"
-
 typedef uint32_t (*_hash_fn_t)(const char *, uint32_t);
-typedef int32_t  (*_equal_fn_t)(const void*, const void*, size_t len);
+typedef int32_t (*_equal_fn_t)(const void *, const void *, size_t len);
 typedef void (*_hash_before_fn_t)(void *);
 typedef void (*_hash_free_fn_t)(void *);
 
-#define HASH_MAX_CAPACITY (1024 * 1024 * 16)
-#define HASH_DEFAULT_LOAD_FACTOR (0.75)
-
-#define HASH_INDEX(v, c) ((v) & ((c)-1))
-
-#define HASH_NODE_EXIST(code) (code == -2)
+#define HASH_KEY_ALREADY_EXISTS (-2)
+#define HASH_NODE_EXIST(code) (code == HASH_KEY_ALREADY_EXISTS)
 
 /**
  * murmur hash algorithm
@@ -54,49 +50,15 @@ uint32_t taosIntHash_32(const char *key, uint32_t len);
 uint32_t taosIntHash_64(const char *key, uint32_t len);
 
 _hash_fn_t taosGetDefaultHashFunction(int32_t type);
-
 _equal_fn_t taosGetDefaultEqualFunction(int32_t type);
 
-typedef struct SHashNode {
-  struct SHashNode *next;
-  uint32_t          hashVal;     // the hash value of key
-  uint32_t          dataLen;     // length of data
-  uint32_t          keyLen;      // length of the key
-  uint16_t          count;       // reference count
-  int8_t            removed;     // flag to indicate removed
-  char              data[];
-} SHashNode;
-
-#define GET_HASH_NODE_KEY(_n)  ((char*)(_n) + sizeof(SHashNode) + (_n)->dataLen)
-#define GET_HASH_NODE_DATA(_n) ((char*)(_n) + sizeof(SHashNode))
-#define GET_HASH_PNODE(_n) ((SHashNode *)((char*)(_n) - sizeof(SHashNode)))
-
 typedef enum SHashLockTypeE {
-  HASH_NO_LOCK     = 0,
-  HASH_ENTRY_LOCK  = 1,
+  HASH_NO_LOCK = 0,
+  HASH_ENTRY_LOCK = 1,
 } SHashLockTypeE;
 
-typedef struct SHashEntry {
-  int32_t    num;      // number of elements in current entry
-  SRWLatch   latch;    // entry latch
-  SHashNode *next;
-} SHashEntry;
-
-typedef struct SHashObj {
-  SHashEntry    **hashList;
-  uint32_t        capacity;     // number of slots
-  uint32_t        size;         // number of elements in hash table
-
-  _hash_fn_t      hashFp;       // hash function
-  _hash_free_fn_t freeFp;       // hash node free callback function
-  _equal_fn_t     equalFp;      // equal function
-  _hash_before_fn_t callbackFp; // function invoked before return the value to caller
-
-  SRWLatch        lock;         // read-write spin lock
-  SHashLockTypeE  type;         // lock type
-  bool            enableUpdate; // enable update
-  SArray         *pMemBlock;    // memory block allocated for SHashEntry
-} SHashObj;
+typedef struct SHashNode SHashNode;
+typedef struct SHashObj SHashObj;
 
 /**
  * init the hash table
@@ -126,9 +88,6 @@ int32_t taosHashGetSize(const SHashObj *pHashObj);
  */
 int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size);
 
-int32_t taosHashPutExt(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size, bool *newAdded);
-
-
 /**
  * return the payload data with the specified key
  *
@@ -147,17 +106,18 @@ void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen);
  * @param destBuf
  * @return
  */
-void *taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void* destBuf);
+int32_t taosHashGetDup(SHashObj *pHashObj, const void *key, size_t keyLen, void *destBuf);
 
 /**
- * Clone the result to interval allocated buffer
+ *
  * @param pHashObj
  * @param key
  * @param keyLen
  * @param destBuf
+ * @param size
  * @return
  */
-void* taosHashGetCloneExt(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void** d, size_t *sz);
+int32_t taosHashGetDup_m(SHashObj* pHashObj, const void* key, size_t keyLen, void** destBuf, int32_t* size);
 
 /**
  * remove item with the specified key
@@ -206,40 +166,15 @@ void *taosHashIterate(SHashObj *pHashObj, void *p);
  * @param pHashObj
  * @param p
  */
-void  taosHashCancelIterate(SHashObj *pHashObj, void *p);
+void taosHashCancelIterate(SHashObj *pHashObj, void *p);
 
-/**
- * Get the corresponding key information for a given data in hash table
- * @param data
- * @return
- */
-int32_t taosHashGetKey(void *data, void** key, size_t* keyLen);
-
-
-/**
- * Get the corresponding key information for a given data in hash table, using memcpy
- * @param data
- * @param dst
- * @return
- */
-static FORCE_INLINE int32_t taosHashCopyKey(void *data, void* dst) {
-  if (NULL == data || NULL == dst) {
-    return -1;
-  }
-  
-  SHashNode * node = GET_HASH_PNODE(data);
-  void* key = GET_HASH_NODE_KEY(node);
-  memcpy(dst, key, node->keyLen);
-
-  return 0;
-}
-
-/**
- * Get the corresponding data length for a given data in hash table
- * @param data
- * @return
- */
-int32_t taosHashGetDataLen(void *data);
+ /**
+  * Get the corresponding key information for a given data in hash table
+  * @param data
+  * @param keyLen
+  * @return
+  */
+void *taosHashGetKey(void *data, size_t* keyLen);
 
 /**
  * return the payload data with the specified key(reference number added)
@@ -249,7 +184,7 @@ int32_t taosHashGetDataLen(void *data);
  * @param keyLen
  * @return
  */
-void* taosHashAcquire(SHashObj *pHashObj, const void *key, size_t keyLen);
+void *taosHashAcquire(SHashObj *pHashObj, const void *key, size_t keyLen);
 
 /**
  * release the prevous acquired obj
@@ -260,11 +195,22 @@ void* taosHashAcquire(SHashObj *pHashObj, const void *key, size_t keyLen);
  */
 void taosHashRelease(SHashObj *pHashObj, void *p);
 
+/**
+ *
+ * @param pHashObj
+ * @param fp
+ */
 void taosHashSetEqualFp(SHashObj *pHashObj, _equal_fn_t fp);
 
+/**
+ *
+ * @param pHashObj
+ * @param fp
+ */
+void taosHashSetFreeFp(SHashObj *pHashObj, _hash_free_fn_t fp);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_HASH_H
+#endif  // _TD_UTIL_HASH_H_

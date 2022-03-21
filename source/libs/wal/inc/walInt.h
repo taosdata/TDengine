@@ -16,7 +16,7 @@
 #ifndef _TD_WAL_INT_H_
 #define _TD_WAL_INT_H_
 
-#include "compare.h"
+#include "tcompare.h"
 #include "taoserror.h"
 #include "tchecksum.h"
 #include "tcoding.h"

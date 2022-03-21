@@ -20,7 +20,7 @@
 
 static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, char* id) {
   ASSERT(pOperator != NULL);
-  if (pOperator->operatorType != OP_StreamScan) {
+  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     if (pOperator->numOfDownstream == 0) {
       qError("failed to find stream scan operator to set the input data block, %s" PRIx64, id);
       return TSDB_CODE_QRY_APP_ERROR;
@@ -92,4 +92,26 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle) {
   }
 
   return pTaskInfo;
+}
+
+int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, SArray* tableIdList, bool isAdd) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+
+  // traverse to the streamscan node to add this table id
+  SOperatorInfo* pInfo = pTaskInfo->pRoot;
+  while(pInfo->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    pInfo = pInfo->pDownstream[0];
+  }
+
+  SStreamBlockScanInfo* pScanInfo = pInfo->info;
+  if (isAdd) {
+    int32_t code = tqReadHandleAddTbUidList(pScanInfo->readerHandle, tableIdList);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  } else {
+    assert(0);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
