@@ -52,6 +52,8 @@ sql insert into ct3 values('2021-01-01 00:00:00.000', 10, 2.0, 3.0)
 #===================================================================
 print =============== query data from child table
 sql select * from ct1
+print ========> value is : $data00
+
 if $rows != 4 then         # after fix bug, modify 4 to 7
   return -1
 endi
