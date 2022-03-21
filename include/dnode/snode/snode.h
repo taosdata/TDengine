@@ -29,6 +29,7 @@ typedef struct SMgmtWrapper SMgmtWrapper;
 typedef struct SSnode       SSnode;
 
 typedef struct {
+  int32_t reserved;
 } SSnodeLoad;
 
 typedef struct {

@@ -296,7 +296,10 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
 
   vnodeOpt.nthreads = tsNumOfCommitThreads;
   vnodeOpt.putToQueryQFp = vmPutMsgToQueryQueue;
+  vnodeOpt.putToFetchQFp = vmPutMsgToQueryQueue;
   vnodeOpt.sendReqFp = dndSendReqToDnode;
+  vnodeOpt.sendMnodeReqFp = dndSendReqToMnode;
+  vnodeOpt.sendRspFp = dndSendRsp;
   if (vnodeInit(&vnodeOpt) != 0) {
     dError("failed to init vnode since %s", terrstr());
     goto _OVER;

@@ -1147,10 +1147,10 @@ typedef struct {
 
 typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];
+  char   outputTbName[TSDB_TABLE_NAME_LEN];
   int8_t igExists;
   char*  sql;
-  char*  physicalPlan;
-  char*  logicalPlan;
+  char*  ast;
 } SCMCreateStreamReq;
 
 typedef struct {
@@ -1943,13 +1943,14 @@ typedef struct {
 } SVCreateTSmaReq;
 
 typedef struct {
-  int8_t      type;                            // 0 status report, 1 update data
-  char        indexName[TSDB_INDEX_NAME_LEN];  //
-  STimeWindow windows;
+  int8_t  type;  // 0 status report, 1 update data
+  int64_t indexUid;
+  int64_t skey;  // start TS key of interval/sliding window
 } STSmaMsg;
 
 typedef struct {
   int64_t ver;  // use a general definition
+  int64_t indexUid;
   char    indexName[TSDB_INDEX_NAME_LEN];
 } SVDropTSmaReq;
 
@@ -2297,12 +2298,22 @@ enum {
 };
 
 typedef struct {
+  void*  inputHandle;
+  void** executor;
+} SStreamTaskParRunner;
+
+typedef struct {
   int64_t streamId;
   int32_t taskId;
   int32_t level;
   int8_t  status;
+  int8_t  pipeEnd;
+  int8_t  parallel;
+  SEpSet  NextOpEp;
   char*   qmsg;
-  void*   executor;
+  // not applied to encoder and decoder
+  SStreamTaskParRunner runner;
+  // void*                executor;
   // void*   stateStore;
   //  storage handle
 } SStreamTask;
@@ -2346,9 +2357,9 @@ struct SRpcMsg;
 struct SEpSet;
 struct SMgmtWrapper;
 typedef int32_t (*PutToQueueFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* pReq);
-typedef int32_t (*SendReqFp)(struct SMgmtWrapper* pWrapper, struct SEpSet* epSet, struct SRpcMsg* rpcMsg);
-typedef int32_t (*SendMnodeReqFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* rpcMsg);
-typedef void (*SendRspFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* rpcMsg);
+typedef int32_t (*SendReqFp)(struct SMgmtWrapper* pWrapper, struct SEpSet* epSet, struct SRpcMsg* pReq);
+typedef int32_t (*SendMnodeReqFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* pReq);
+typedef void (*SendRspFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* pRsp);
 
 #ifdef __cplusplus
 }

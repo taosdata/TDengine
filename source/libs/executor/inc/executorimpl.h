@@ -425,6 +425,8 @@ typedef struct STagScanInfo {
 
 typedef struct SStreamBlockScanInfo {
   SSDataBlock* pRes;          // result SSDataBlock
+  int32_t      blockType;     // current block type
+  bool         blockValid;    // Is current data has returned?
   SColumnInfo* pCols;         // the output column info
   uint64_t     numOfRows;     // total scanned rows
   uint64_t     numOfExec;     // execution times

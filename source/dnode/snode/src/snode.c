@@ -57,7 +57,7 @@ void sndMetaDelete(SStreamMeta *pMeta) {
 }
 
 int32_t sndMetaDeployTask(SStreamMeta *pMeta, SStreamTask *pTask) {
-  pTask->executor = qCreateStreamExecTaskInfo(pTask->qmsg, NULL);
+  pTask->runner.executor = qCreateStreamExecTaskInfo(pTask->qmsg, NULL);
   return taosHashPut(pMeta->pHash, &pTask->taskId, sizeof(int32_t), pTask, sizeof(void *));
 }
 
@@ -77,9 +77,9 @@ int32_t sndMetaRemoveTask(SStreamMeta *pMeta, int32_t taskId) {
 }
 
 static int32_t sndProcessTaskExecReq(SSnode *pSnode, SRpcMsg *pMsg) {
-  SMsgHead    *pHead = pMsg->pCont;
-  int32_t      taskId = pHead->streamTaskId;
-  SStreamTask *pTask = sndMetaGetTask(pSnode->pMeta, taskId);
+  SStreamExecMsgHead *pHead = pMsg->pCont;
+  int32_t             taskId = pHead->streamTaskId;
+  SStreamTask        *pTask = sndMetaGetTask(pSnode->pMeta, taskId);
   if (pTask == NULL) {
     return -1;
   }

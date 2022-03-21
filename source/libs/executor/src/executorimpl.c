@@ -4862,12 +4862,26 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo *pOperator, bool* newgroup) {
 }
 
 static SSDataBlock* doStreamBlockScan(SOperatorInfo *pOperator, bool* newgroup) {
-  // NOTE: this operator never check if current status is done or not
+  // NOTE: this operator does never check if current status is done or not
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SStreamBlockScanInfo* pInfo = pOperator->info;
 
+  pTaskInfo->code = pOperator->_openFn(pOperator);
+  if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
+    return NULL;
+  }
+
+  if (pInfo->blockType == STREAM_DATA_TYPE_SSDAT_BLOCK) {
+    if (pInfo->blockValid) {
+      pInfo->blockValid = false;  // this block can only be used once.
+      return pInfo->pRes;
+    } else {
+      return NULL;
+    }
+  }
+
   SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
-  pBlockInfo->rows = 0;
+  blockDataClearup(pInfo->pRes);
 
   while (tqNextDataBlock(pInfo->readerHandle)) {
     pTaskInfo->code = tqRetrieveDataBlockInfo(pInfo->readerHandle, pBlockInfo);
@@ -5118,7 +5132,7 @@ _error:
 static SSDataBlock* concurrentlyLoadRemoteData(SOperatorInfo *pOperator) {
   SExchangeInfo *pExchangeInfo = pOperator->info;
   SExecTaskInfo *pTaskInfo = pOperator->pTaskInfo;
-  
+
   if (pOperator->status == OP_RES_TO_RETURN) {
     return concurrentlyLoadRemoteDataImpl(pOperator, pExchangeInfo, pTaskInfo);
   }
@@ -5754,7 +5768,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
     }
 #endif
   }
-  
+
   pOperator->name          = "SysTableScanOperator";
   pOperator->operatorType  = QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN;
   pOperator->blockingOptr  = false;
@@ -8582,7 +8596,7 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
   	code = terrno;
     goto _complete;
   }
-  
+
   if ((*pTaskInfo)->pRoot == NULL) {
     code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _complete;

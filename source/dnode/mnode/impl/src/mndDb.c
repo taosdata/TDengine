@@ -802,6 +802,32 @@ static int32_t mndSetDropDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
   return 0;
 }
 
+static int32_t mndBuildDropDbRsp(SDbObj *pDb, int32_t *pRspLen, void **ppRsp, bool useRpcMalloc) {
+  SDropDbRsp dropRsp = {0};
+  if (pDb != NULL) {
+    memcpy(dropRsp.db, pDb->name, TSDB_DB_FNAME_LEN);
+    dropRsp.uid = pDb->uid;
+  }
+
+  int32_t rspLen = tSerializeSDropDbRsp(NULL, 0, &dropRsp);
+  void   *pRsp = NULL;
+  if (useRpcMalloc) {
+    pRsp = rpcMallocCont(rspLen);
+  } else {
+    pRsp = malloc(rspLen);
+  }
+
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSDropDbRsp(pRsp, rspLen, &dropRsp);
+  *pRspLen = rspLen;
+  *ppRsp = pRsp;
+  return 0;
+}
+
 static int32_t mndDropDb(SMnode *pMnode, SNodeMsg *pReq, SDbObj *pDb) {
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_DROP_DB, &pReq->rpcMsg);
@@ -814,18 +840,9 @@ static int32_t mndDropDb(SMnode *pMnode, SNodeMsg *pReq, SDbObj *pDb) {
   if (mndSetDropDbCommitLogs(pMnode, pTrans, pDb) != 0) goto DROP_DB_OVER;
   if (mndSetDropDbRedoActions(pMnode, pTrans, pDb) != 0) goto DROP_DB_OVER;
 
-  SDropDbRsp dropRsp = {0};
-  memcpy(dropRsp.db, pDb->name, TSDB_DB_FNAME_LEN);
-  dropRsp.uid = pDb->uid;
-
-  int32_t rspLen = tSerializeSDropDbRsp(NULL, 0, &dropRsp);
-  void   *pRsp = malloc(rspLen);
-  if (pRsp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto DROP_DB_OVER;
-  }
-  tSerializeSDropDbRsp(pRsp, rspLen, &dropRsp);
-
+  int32_t rspLen = 0;
+  void   *pRsp = NULL;
+  if (mndBuildDropDbRsp(pDb, &rspLen, &pRsp, false) < 0) goto DROP_DB_OVER;
   mndTransSetRpcRsp(pTrans, pRsp, rspLen);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto DROP_DB_OVER;
@@ -854,7 +871,7 @@ static int32_t mndProcessDropDbReq(SNodeMsg *pReq) {
   pDb = mndAcquireDb(pMnode, dropReq.db);
   if (pDb == NULL) {
     if (dropReq.ignoreNotExists) {
-      code = 0;
+      code = mndBuildDropDbRsp(pDb, &pReq->rspLen, &pReq->pRsp, true);
       goto DROP_DB_OVER;
     } else {
       terrno = TSDB_CODE_MND_DB_NOT_EXIST;
