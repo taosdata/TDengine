@@ -228,8 +228,8 @@ typedef struct SConnBuffer {
 typedef void (*AsyncCB)(uv_async_t* handle);
 
 typedef struct {
-  void*           pThrd;
-  queue           qmsg;
+  void*         pThrd;
+  queue         qmsg;
   TdThreadMutex mtx;  // protect qmsg;
 } SAsyncItem;
 
@@ -273,10 +273,51 @@ void transCloseClient(void* arg);
 void transCloseServer(void* arg);
 
 void  transCtxInit(STransCtx* ctx);
-void  transCtxDestroy(STransCtx* ctx);
+void  transCtxCleanup(STransCtx* ctx);
 void  transCtxClear(STransCtx* ctx);
 void  transCtxMerge(STransCtx* dst, STransCtx* src);
 void* transCtxDumpVal(STransCtx* ctx, int32_t key);
+
+// queue sending msgs
+typedef struct {
+  SArray* q;
+  void (*free)(void* arg);
+} STransQueue;
+
+/*
+ * init queue
+ * note: queue'size is small, default 1
+ */
+void transQueueInit(STransQueue* queue, void (*free)(void* arg));
+
+/*
+ * put arg into queue
+ * if queue'size > 1, return false; else return true
+ */
+bool transQueuePush(STransQueue* queue, void* arg);
+/*
+ * pop head from queue
+ */
+
+void* transQueuePop(STransQueue* queue);
+/*
+ * get head from queue
+ */
+void* transQueueGet(STransQueue* queue);
+
+/*
+ * queue empty or not
+ */
+
+bool transQueueEmpty(STransQueue* queue);
+/*
+ * clear queue
+ */
+void transQueueClear(STransQueue* queue);
+/*
+ * destroy queue
+ */
+void transQueueDestroy(STransQueue* queue);
 
 #ifdef __cplusplus
 }
