@@ -82,7 +82,7 @@ void stop(int64_t rid) {
 }
 
 void *func(void *param) {
-  int64_t  rid = (int64_t)param;
+  int64_t rid = (int64_t)param;
 
   int32_t ms = taosRand() % 10000;
   taosMsleep(ms);
@@ -115,7 +115,7 @@ int main() {
 
   for (int i = 0; i < 20; ++i) {
     pthread_t tid;
-    pthread_create(&tid, NULL, func, (void*)rid);
+    pthread_create(&tid, NULL, func, (void *)rid);
   }
 
   int32_t ms = taosRand() % 10000;
