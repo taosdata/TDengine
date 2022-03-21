@@ -22,7 +22,7 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
   if (pSnode == NULL) {
     return NULL;
   }
-  memcpy(&pSnode->cfg, pOption, sizeof(SSnodeOpt));
+  pSnode->msgCb = pOption->msgCb;
   pSnode->pMeta = sndMetaNew();
   if (pSnode->pMeta == NULL) {
     free(pSnode);

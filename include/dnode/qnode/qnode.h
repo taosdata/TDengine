@@ -16,13 +16,14 @@
 #ifndef _TD_QNODE_H_
 #define _TD_QNODE_H_
 
+#include "tmsgcb.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
-typedef struct SMgmtWrapper SMgmtWrapper;
-typedef struct SQnode       SQnode;
+typedef struct SQnode SQnode;
 
 typedef struct {
   int64_t numOfStartTask;
@@ -36,12 +37,7 @@ typedef struct {
 } SQnodeLoad;
 
 typedef struct {
-  int32_t        dnodeId;
-  int64_t        clusterId;
-  SMgmtWrapper  *pWrapper;
-  SendReqFp      sendReqFp;
-  SendMnodeReqFp sendMnodeReqFp;
-  SendRspFp      sendRspFp;
+  SMsgCb msgCb;
 } SQnodeOpt;
 
 /* ------------------------ SQnode ------------------------ */
