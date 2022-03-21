@@ -5519,13 +5519,16 @@ SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SSDataBlock*
 
 static int32_t loadSysTableContentCb(void* param, const SDataBuf* pMsg, int32_t code) {
   SSysTableScanInfo* pScanResInfo = (SSysTableScanInfo*) param;
-  pScanResInfo->pRsp = pMsg->pData;
+  if (TSDB_CODE_SUCCESS == code) {
+    pScanResInfo->pRsp = pMsg->pData;
 
-  SRetrieveMetaTableRsp* pRsp = pScanResInfo->pRsp;
-  pRsp->numOfRows = htonl(pRsp->numOfRows);
-  pRsp->useconds  = htobe64(pRsp->useconds);
-  pRsp->handle    = htobe64(pRsp->handle);
-  pRsp->compLen   = htonl(pRsp->compLen);
+    SRetrieveMetaTableRsp* pRsp = pScanResInfo->pRsp;
+    pRsp->numOfRows = htonl(pRsp->numOfRows);
+    pRsp->useconds  = htobe64(pRsp->useconds);
+    pRsp->handle    = htobe64(pRsp->handle);
+    pRsp->compLen   = htonl(pRsp->compLen);
+  }
+
   tsem_post(&pScanResInfo->ready);
 }
 

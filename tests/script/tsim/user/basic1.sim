@@ -3,6 +3,16 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
+# todo remove
+print =============== create database
+sleep 3000
+sql create database useless_db
+sleep 1000
+sql show databases
+if $rows != 1 then 
+  return -1
+endi
+
 print =============== show users
 sql show users
 if $rows != 1 then 
