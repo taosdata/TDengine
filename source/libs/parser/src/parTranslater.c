@@ -2304,8 +2304,8 @@ int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery) {
     .pNsLevel = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES),
     .currLevel = 0,
     .currClause = 0,
-    .pDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK),
-    .pTables = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK)
+    .pDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK),
+    .pTables = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)
   };
   if (NULL == cxt.pNsLevel) {
     return TSDB_CODE_OUT_OF_MEMORY;
