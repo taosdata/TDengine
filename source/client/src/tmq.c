@@ -456,6 +456,94 @@ _return:
 
 void tmq_conf_set_offset_commit_cb(tmq_conf_t* conf, tmq_commit_cb* cb) { conf->commit_cb = cb; }
 
+TAOS_RES* tmq_create_stream(TAOS* taos, const char* streamName, const char* tbName, const char* sql) {
+  STscObj*     pTscObj = (STscObj*)taos;
+  SRequestObj* pRequest = NULL;
+  SQuery*      pQueryNode = NULL;
+  char*        astStr = NULL;
+  int32_t      sqlLen;
+
+  terrno = TSDB_CODE_SUCCESS;
+  if (taos == NULL || streamName == NULL || sql == NULL) {
+    tscError("invalid parameters for creating stream, connObj:%p, stream name:%s, sql:%s", taos, streamName, sql);
+    terrno = TSDB_CODE_TSC_INVALID_INPUT;
+    goto _return;
+  }
+  sqlLen = strlen(sql);
+
+  if (strlen(streamName) >= TSDB_TABLE_NAME_LEN) {
+    tscError("stream name too long, max length:%d", TSDB_TABLE_NAME_LEN - 1);
+    terrno = TSDB_CODE_TSC_INVALID_INPUT;
+    goto _return;
+  }
+
+  if (sqlLen > TSDB_MAX_ALLOWED_SQL_LEN) {
+    tscError("sql string exceeds max length:%d", TSDB_MAX_ALLOWED_SQL_LEN);
+    terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
+    goto _return;
+  }
+
+  tscDebug("start to create stream: %s", streamName);
+
+  CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
+  CHECK_CODE_GOTO(parseSql(pRequest, false, &pQueryNode), _return);
+
+  // todo check for invalid sql statement and return with error code
+
+  CHECK_CODE_GOTO(nodesNodeToString(pQueryNode->pRoot, false, &astStr, NULL), _return);
+
+  /*printf("%s\n", pStr);*/
+
+  SName name = {.acctId = pTscObj->acctId, .type = TSDB_TABLE_NAME_T};
+  strcpy(name.dbname, pRequest->pDb);
+  strcpy(name.tname, streamName);
+
+  SCMCreateStreamReq req = {
+      .igExists = 1,
+      .ast = astStr,
+      .sql = (char*)sql,
+  };
+  tNameExtractFullName(&name, req.name);
+  strcpy(req.outputTbName, tbName);
+
+  int   tlen = tSerializeSCMCreateStreamReq(NULL, 0, &req);
+  void* buf = malloc(tlen);
+  if (buf == NULL) {
+    goto _return;
+  }
+
+  tSerializeSCMCreateStreamReq(buf, tlen, &req);
+  /*printf("formatted: %s\n", dagStr);*/
+
+  pRequest->body.requestMsg = (SDataBuf){
+      .pData = buf,
+      .len = tlen,
+      .handle = NULL,
+  };
+  pRequest->type = TDMT_MND_CREATE_STREAM;
+
+  SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);
+  SEpSet        epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+
+  int64_t transporterId = 0;
+  asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
+
+  tsem_wait(&pRequest->body.rspSem);
+
+_return:
+  tfree(astStr);
+  qDestroyQuery(pQueryNode);
+  /*if (sendInfo != NULL) {*/
+  /*destroySendMsgInfo(sendInfo);*/
+  /*}*/
+
+  if (pRequest != NULL && terrno != TSDB_CODE_SUCCESS) {
+    pRequest->code = terrno;
+  }
+
+  return pRequest;
+}
+
 TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, int sqlLen) {
   STscObj*     pTscObj = (STscObj*)taos;
   SRequestObj* pRequest = NULL;
@@ -481,7 +569,7 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
     goto _return;
   }
 
-  tscDebug("start to create topic, %s", topicName);
+  tscDebug("start to create topic: %s", topicName);
 
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
   CHECK_CODE_GOTO(parseSql(pRequest, true, &pQueryNode), _return);
@@ -498,7 +586,7 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
 
   SCMCreateTopicReq req = {
       .igExists = 1,
-      .ast = (char*)astStr,
+      .ast = astStr,
       .sql = (char*)sql,
   };
   tNameExtractFullName(&name, req.name);
@@ -528,6 +616,7 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
   tsem_wait(&pRequest->body.rspSem);
 
 _return:
+  tfree(astStr);
   qDestroyQuery(pQueryNode);
   /*if (sendInfo != NULL) {*/
   /*destroySendMsgInfo(sendInfo);*/

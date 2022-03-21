@@ -433,12 +433,12 @@ ALLOC_VGROUP_OVER:
   return code;
 }
 
-SEpSet mndGetVgroupEpset(SMnode *pMnode, SVgObj *pVgroup) {
+SEpSet mndGetVgroupEpset(SMnode *pMnode, const SVgObj *pVgroup) {
   SEpSet epset = {0};
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
-    SVnodeGid *pVgid = &pVgroup->vnodeGid[v];
-    SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
+    const SVnodeGid *pVgid = &pVgroup->vnodeGid[v];
+    SDnodeObj       *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
     if (pDnode == NULL) continue;
 
     if (pVgid->role == TAOS_SYNC_STATE_LEADER) {
