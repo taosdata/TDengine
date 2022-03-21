@@ -25,13 +25,14 @@ typedef struct SCliConn {
   void*        hostThrd;
   SConnBuffer  readBuf;
   void*        data;
-  SArray*      cliMsgs;
-  queue        conn;
-  uint64_t     expireTime;
-  int          hThrdIdx;
-  bool         broken;  // link broken or not
-  STransCtx    ctx;
+  // SArray*      cliMsgs;
+  STransQueue cliMsgs;
+  queue       conn;
+  uint64_t    expireTime;
+  int         hThrdIdx;
+  STransCtx   ctx;
 
+  bool       broken;   // link broken or not
   ConnStatus status;   //
   int        release;  // 1: release
   // spi configure
@@ -56,14 +57,14 @@ typedef struct SCliMsg {
 } SCliMsg;
 
 typedef struct SCliThrdObj {
-  TdThread   thread;
+  TdThread    thread;
   uv_loop_t*  loop;
   SAsyncPool* asyncPool;
   uv_timer_t  timer;
   void*       pool;  // conn pool
 
   // msg queue
-  queue           msg;
+  queue         msg;
   TdThreadMutex msgMtx;
 
   uint64_t nextTimeout;  // next timeout
@@ -181,12 +182,11 @@ static void         destroyThrdObj(SCliThrdObj* pThrd);
 static void* cliWorkThread(void* arg);
 
 bool cliMaySendCachedMsg(SCliConn* conn) {
-  if (taosArrayGetSize(conn->cliMsgs) > 0) {
+  if (!transQueueEmpty(&conn->cliMsgs)) {
     cliSend(conn);
     return true;
-  } else {
-    return false;
   }
+  return false;
 }
 void cliHandleResp(SCliConn* conn) {
   SCliThrdObj* pThrd = conn->hostThrd;
@@ -195,6 +195,7 @@ void cliHandleResp(SCliConn* conn) {
   STransMsgHead* pHead = (STransMsgHead*)(conn->readBuf.buf);
   pHead->code = htonl(pHead->code);
   pHead->msgLen = htonl(pHead->msgLen);
+
   STransMsg transMsg = {0};
   transMsg.contLen = transContLenFromMsg(pHead->msgLen);
   transMsg.pCont = transContFromHead((char*)pHead);
@@ -204,11 +205,7 @@ void cliHandleResp(SCliConn* conn) {
 
   CONN_SHOULD_RELEASE(conn, pHead);
 
-  SCliMsg* pMsg = NULL;
-  if (taosArrayGetSize(conn->cliMsgs) > 0) {
-    pMsg = taosArrayGetP(conn->cliMsgs, 0);
-    taosArrayRemove(conn->cliMsgs, 0);
-  }
+  SCliMsg* pMsg = transQueuePop(&conn->cliMsgs);
 
   STransConnCtx* pCtx = pMsg ? pMsg->ctx : NULL;
   if (pMsg == NULL && !CONN_NO_PERSIST_BY_APP(conn)) {
@@ -264,7 +261,7 @@ _RETURN:
 }
 
 void cliHandleExcept(SCliConn* pConn) {
-  if (taosArrayGetSize(pConn->cliMsgs) == 0) {
+  if (transQueueEmpty(&pConn->cliMsgs)) {
     if (pConn->broken == true || CONN_NO_PERSIST_BY_APP(pConn)) {
       transUnrefCliHandle(pConn);
       return;
@@ -274,11 +271,7 @@ void cliHandleExcept(SCliConn* pConn) {
   STrans*      pTransInst = pThrd->pTransInst;
 
   do {
-    SCliMsg* pMsg = NULL;
-    if (taosArrayGetSize(pConn->cliMsgs) > 0) {
-      pMsg = taosArrayGetP(pConn->cliMsgs, 0);
-      taosArrayRemove(pConn->cliMsgs, 0);
-    }
+    SCliMsg* pMsg = transQueuePop(&pConn->cliMsgs);
 
     STransConnCtx* pCtx = pMsg ? pMsg->ctx : NULL;
 
@@ -303,7 +296,7 @@ void cliHandleExcept(SCliConn* pConn) {
     }
     destroyCmsg(pMsg);
     tTrace("%s cli conn %p start to destroy", CONN_GET_INST_LABEL(pConn), pConn);
-  } while (taosArrayGetSize(pConn->cliMsgs) > 0);
+  } while (!transQueueEmpty(&pConn->cliMsgs));
 
   transUnrefCliHandle(pConn);
 }
@@ -380,21 +373,20 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   SCliThrdObj* thrd = conn->hostThrd;
   CONN_HANDLE_THREAD_QUIT(thrd);
 
-  char key[128] = {0};
+  STrans* pTransInst = ((SCliThrdObj*)conn->hostThrd)->pTransInst;
+  conn->expireTime = taosGetTimestampMs() + CONN_PERSIST_TIME(pTransInst->idleTime);
+  transCtxCleanup(&conn->ctx);
+  transQueueClear(&conn->cliMsgs);
+  conn->status = ConnNormal;
 
-  transCtxDestroy(&conn->ctx);
+  char key[128] = {0};
   tstrncpy(key, conn->ip, strlen(conn->ip));
   tstrncpy(key + strlen(key), (char*)(&conn->port), sizeof(conn->port));
   tTrace("cli conn %p added to conn pool, read buf cap: %d", conn, conn->readBuf.cap);
 
-  STrans* pTransInst = ((SCliThrdObj*)conn->hostThrd)->pTransInst;
-
-  conn->expireTime = taosGetTimestampMs() + CONN_PERSIST_TIME(pTransInst->idleTime);
   SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key));
-  conn->status = ConnNormal;
   // list already create before
   assert(plist != NULL);
-  taosArrayClear(conn->cliMsgs);
   QUEUE_PUSH(&plist->conn, &conn->conn);
   assert(!QUEUE_IS_EMPTY(&plist->conn));
 }
@@ -445,7 +437,8 @@ static SCliConn* cliCreateConn(SCliThrdObj* pThrd) {
 
   conn->writeReq.data = conn;
   conn->connReq.data = conn;
-  conn->cliMsgs = taosArrayInit(2, sizeof(void*));
+
+  transQueueInit(&conn->cliMsgs, NULL);
   QUEUE_INIT(&conn->conn);
   conn->hostThrd = pThrd;
   conn->status = ConnNormal;
@@ -465,18 +458,18 @@ static void cliDestroy(uv_handle_t* handle) {
   SCliConn* conn = handle->data;
   free(conn->ip);
   free(conn->stream);
-  transCtxDestroy(&conn->ctx);
-  taosArrayDestroy(conn->cliMsgs);
+  transCtxCleanup(&conn->ctx);
+  transQueueDestroy(&conn->cliMsgs);
   tTrace("%s cli conn %p destroy successfully", CONN_GET_INST_LABEL(conn), conn);
   free(conn);
 }
 static bool cliHandleNoResp(SCliConn* conn) {
-  bool    res = false;
-  SArray* msgs = conn->cliMsgs;
-  if (taosArrayGetSize(msgs) > 0) {
-    SCliMsg* pMsg = taosArrayGetP(msgs, 0);
+  bool res = false;
+  if (!transQueueEmpty(&conn->cliMsgs)) {
+    SCliMsg* pMsg = transQueueGet(&conn->cliMsgs);
     if (REQUEST_NO_RESP(&pMsg->msg)) {
-      taosArrayRemove(msgs, 0);
+      transQueuePop(&conn->cliMsgs);
+      // taosArrayRemove(msgs, 0);
       destroyCmsg(pMsg);
       res = true;
     }
@@ -509,8 +502,9 @@ static void cliSendCb(uv_write_t* req, int status) {
 void cliSend(SCliConn* pConn) {
   CONN_HANDLE_BROKEN(pConn);
 
-  assert(taosArrayGetSize(pConn->cliMsgs) > 0);
-  SCliMsg*       pCliMsg = taosArrayGetP(pConn->cliMsgs, 0);
+  // assert(taosArrayGetSize(pConn->cliMsgs) > 0);
+  assert(!transQueueEmpty(&pConn->cliMsgs));
+  SCliMsg*       pCliMsg = transQueueGet(&pConn->cliMsgs);
   STransConnCtx* pCtx = pCliMsg->ctx;
 
   SCliThrdObj* pThrd = pConn->hostThrd;
@@ -600,9 +594,8 @@ static void cliHandleRelease(SCliMsg* pMsg, SCliThrdObj* pThrd) {
 
   if (T_REF_VAL_GET(conn) == 2) {
     transUnrefCliHandle(conn);
-    taosArrayPush(conn->cliMsgs, &pMsg);
-    if (taosArrayGetSize(conn->cliMsgs) >= 2) {
-      return;  // send one by one
+    if (!transQueuePush(&conn->cliMsgs, pMsg)) {
+      return;
     }
     cliSend(conn);
   } else {
@@ -643,17 +636,14 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
     conn->hThrdIdx = pCtx->hThrdIdx;
 
     transCtxMerge(&conn->ctx, &pCtx->appCtx);
-    if (taosArrayGetSize(conn->cliMsgs) > 0) {
-      taosArrayPush(conn->cliMsgs, &pMsg);
+    if (!transQueuePush(&conn->cliMsgs, pMsg)) {
       return;
     }
-
-    taosArrayPush(conn->cliMsgs, &pMsg);
     transDestroyBuffer(&conn->readBuf);
     cliSend(conn);
   } else {
     conn = cliCreateConn(pThrd);
-    taosArrayPush(conn->cliMsgs, &pMsg);
+    transQueuePush(&conn->cliMsgs, pMsg);
 
     conn->hThrdIdx = pCtx->hThrdIdx;
     conn->ip = strdup(pMsg->ctx->ip);

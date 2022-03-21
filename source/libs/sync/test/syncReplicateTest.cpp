@@ -172,15 +172,19 @@ int main(int argc, char **argv) {
     gSyncNode->FpEqMsg(gSyncNode->queue, &rpcMsg);
 
     taosMsleep(1000);
-    sTrace("replicate sleep, state: %d, %s, term:%lu electTimerLogicClock:%lu, electTimerLogicClockUser:%lu, electTimerMS:%d",
-           gSyncNode->state, syncUtilState2String(gSyncNode->state), gSyncNode->pRaftStore->currentTerm, gSyncNode->electTimerLogicClock,
-           gSyncNode->electTimerLogicClockUser, gSyncNode->electTimerMS);
+    sTrace(
+        "replicate sleep, state: %d, %s, term:%lu electTimerLogicClock:%lu, electTimerLogicClockUser:%lu, "
+        "electTimerMS:%d",
+        gSyncNode->state, syncUtilState2String(gSyncNode->state), gSyncNode->pRaftStore->currentTerm,
+        gSyncNode->electTimerLogicClock, gSyncNode->electTimerLogicClockUser, gSyncNode->electTimerMS);
   }
 
   while (1) {
-    sTrace("replicate sleep, state: %d, %s, term:%lu electTimerLogicClock:%lu, electTimerLogicClockUser:%lu, electTimerMS:%d",
-           gSyncNode->state, syncUtilState2String(gSyncNode->state), gSyncNode->pRaftStore->currentTerm, gSyncNode->electTimerLogicClock,
-           gSyncNode->electTimerLogicClockUser, gSyncNode->electTimerMS);
+    sTrace(
+        "replicate sleep, state: %d, %s, term:%lu electTimerLogicClock:%lu, electTimerLogicClockUser:%lu, "
+        "electTimerMS:%d",
+        gSyncNode->state, syncUtilState2String(gSyncNode->state), gSyncNode->pRaftStore->currentTerm,
+        gSyncNode->electTimerLogicClock, gSyncNode->electTimerLogicClockUser, gSyncNode->electTimerMS);
     taosMsleep(1000);
   }
 

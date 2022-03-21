@@ -2641,12 +2641,14 @@ int32_t tSerializeSVDropTSmaReq(void **buf, SVDropTSmaReq *pReq) {
   int32_t tlen = 0;
 
   tlen += taosEncodeFixedI64(buf, pReq->ver);
+  tlen += taosEncodeFixedI64(buf, pReq->indexUid);
   tlen += taosEncodeString(buf, pReq->indexName);
 
   return tlen;
 }
 void *tDeserializeSVDropTSmaReq(void *buf, SVDropTSmaReq *pReq) {
   buf = taosDecodeFixedI64(buf, &(pReq->ver));
+  buf = taosDecodeFixedI64(buf, &(pReq->indexUid));
   buf = taosDecodeStringTo(buf, pReq->indexName);
 
   return buf;
