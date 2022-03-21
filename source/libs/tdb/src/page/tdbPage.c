@@ -207,6 +207,16 @@ int tdbPageDropCell(SPage *pPage, int idx) {
   return 0;
 }
 
+void tdbPageCopy(SPage *pFromPage, SPage *pToPage) {
+  pToPage->pFreeStart = pToPage->pPageHdr + (pFromPage->pFreeStart - pFromPage->pPageHdr);
+  pToPage->pFreeEnd = (u8 *)(pToPage->pPageFtr) - ((u8 *)pFromPage->pPageFtr - pFromPage->pFreeEnd);
+
+  ASSERT(pToPage->pFreeEnd >= pToPage->pFreeStart);
+
+  memcpy(pToPage->pPageHdr, pFromPage->pPageHdr, pFromPage->pFreeStart - pFromPage->pPageHdr);
+  memcpy(pToPage->pFreeEnd, pFromPage->pFreeEnd, (u8 *)pFromPage->pPageFtr - pFromPage->pFreeEnd);
+}
+
 static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {
   SCell *pFreeCell;
   u8    *pOffset;

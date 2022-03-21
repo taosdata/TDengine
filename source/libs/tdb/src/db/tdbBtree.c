@@ -752,13 +752,6 @@ static int tdbBtreeBalance(SBtCursor *pCur) {
     leaf = TDB_BTREE_PAGE_IS_LEAF(flags);
     root = TDB_BTREE_PAGE_IS_ROOT(flags);
 
-    // TODO: Get the page free space if not get yet
-    // if (pPage->nFree < 0) {
-    //   if (tdbBtreeComputeFreeSpace(pPage) < 0) {
-    //     return -1;
-    //   }
-    // }
-
     // when the page is not overflow and not too empty, the balance work
     // is finished. Just break out the balance loop.
     if (pPage->nOverflow == 0 /* TODO: && pPage->nFree <= */) {
