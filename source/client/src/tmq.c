@@ -735,7 +735,7 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   SMqClientVg*    pVg = pParam->pVg;
   tmq_t*          tmq = pParam->tmq;
   if (code != 0) {
-    printf("msg discard\n");
+    printf("msg discard %x\n", code);
     goto WRITE_QUEUE_FAIL;
   }
 

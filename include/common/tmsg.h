@@ -2145,11 +2145,12 @@ typedef struct {
 
 typedef struct {
   SMqRspHead head;
+  int64_t    reqOffset;
+  int64_t    rspOffset;
+  int32_t    skipLogNum;
+  // TODO: replace with topic name
+  int32_t numOfTopics;
   // TODO: remove from msg
-  int64_t         reqOffset;
-  int64_t         rspOffset;
-  int32_t         skipLogNum;
-  int32_t         numOfTopics;
   SSchemaWrapper* schema;
   SArray*         pBlockData;  // SArray<SSDataBlock>
 } SMqPollRsp;

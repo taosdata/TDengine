@@ -316,7 +316,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
 
         void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
         tEncodeSMqPollRsp(&abuf, &rsp);
-        taosArrayDestroyEx(rsp.pBlockData, (void (*)(void*))tDeleteSSDataBlock);
+        /*taosArrayDestroyEx(rsp.pBlockData, (void (*)(void*))tDeleteSSDataBlock);*/
         pMsg->pCont = buf;
         pMsg->contLen = tlen;
         pMsg->code = 0;

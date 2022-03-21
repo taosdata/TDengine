@@ -337,9 +337,9 @@ static int32_t mndSplitSubscribeKey(const char *key, char *topic, char *cgroup) 
   while (key[i] != TMQ_SEPARATOR) {
     i++;
   }
-  memcpy(topic, key, i - 1);
-  topic[i] = 0;
-  strcpy(cgroup, &key[i + 1]);
+  memcpy(cgroup, key, i);
+  cgroup[i] = 0;
+  strcpy(topic, &key[i + 1]);
   return 0;
 }
 
@@ -539,8 +539,8 @@ static int32_t mndProcessDoRebalanceMsg(SNodeMsg *pMsg) {
               mndSplitSubscribeKey(pSub->key, topic, cgroup);
               SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
 
-              mInfo("mq set conn: assign vgroup %d of topic %s to consumer %" PRId64 "", pConsumerEp->vgId, topic,
-                    pConsumerEp->consumerId);
+              mInfo("mq set conn: assign vgroup %d of topic %s to consumer %" PRId64 " cgroup: %s", pConsumerEp->vgId,
+                    topic, pConsumerEp->consumerId, cgroup);
 
               mndPersistMqSetConnReq(pMnode, pTrans, pTopic, cgroup, pConsumerEp);
               mndReleaseTopic(pMnode, pTopic);
