@@ -433,3 +433,8 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
 
   return 0;
 }
+
+int32_t tqProcessTaskExec(STQ* pTq, SRpcMsg* msg) {
+  //
+  return 0;
+}
