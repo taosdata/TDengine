@@ -2274,8 +2274,8 @@ enum {
 };
 
 typedef struct {
-  void*  inputHandle;
-  void** executor;
+  void* inputHandle;
+  void* executor[4];
 } SStreamTaskParRunner;
 
 typedef struct {

@@ -2718,6 +2718,8 @@ int32_t tEncodeSStreamTask(SCoder *pEncoder, const SStreamTask *pTask) {
   if (tEncodeI32(pEncoder, pTask->taskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->level) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->status) < 0) return -1;
+  if (tEncodeI8(pEncoder, pTask->pipeEnd) < 0) return -1;
+  if (tEncodeI8(pEncoder, pTask->parallel) < 0) return -1;
   if (tEncodeSEpSet(pEncoder, &pTask->NextOpEp) < 0) return -1;
   if (tEncodeCStr(pEncoder, pTask->qmsg) < 0) return -1;
   tEndEncode(pEncoder);
@@ -2730,6 +2732,8 @@ int32_t tDecodeSStreamTask(SCoder *pDecoder, SStreamTask *pTask) {
   if (tDecodeI32(pDecoder, &pTask->taskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->level) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->status) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pTask->pipeEnd) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pTask->parallel) < 0) return -1;
   if (tDecodeSEpSet(pDecoder, &pTask->NextOpEp) < 0) return -1;
   if (tDecodeCStrAlloc(pDecoder, &pTask->qmsg) < 0) return -1;
   tEndDecode(pDecoder);
