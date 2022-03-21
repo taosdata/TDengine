@@ -462,29 +462,6 @@ typedef struct {
   SPage  *pNewPages[5];
 } SBtreeBalanceHelper;
 
-static int tdbBtreeCopyPageContent(SPage *pFrom, SPage *pTo) {
-#if 0
-  int nCells = TDB_PAGE_TOTAL_CELLS(pFrom);
-  int cCells = TDB_PAGE_CCELLS(pFrom);
-  int fCell = TDB_PAGE_FCELL(pFrom);
-  int nFree = TDB_PAGE_NFREE(pFrom);
-
-  pTo->pFreeStart = pTo->pCellIdx + nCells * pFrom->pPageMethods->szOffset;
-  memcpy(pTo->pCellIdx, pFrom->pCellIdx, nCells * pFrom->pPageMethods->szOffset);
-  pTo->pFreeEnd = (u8 *)pTo->pPageFtr - (u8 *)(pFrom->pPageFtr) + pFrom->pFreeEnd;
-  memcpy(pTo->pFreeEnd, pFrom->pFreeEnd, (u8 *)pFrom->pPageFtr - pFrom->pFreeEnd);
-
-  TDB_PAGE_NCELLS_SET(pTo, nCells);
-  TDB_PAGE_CCELLS_SET(pTo, cCells);
-  TDB_PAGE_FCELL_SET(pTo, fCell);
-  TDB_PAGE_NFREE_SET(pTo, nFree);
-
-  // TODO: update other fields
-#endif
-
-  return 0;
-}
-
 static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
   SPager           *pPager;
   SPage            *pChild;
@@ -503,10 +480,7 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
   }
 
   // Copy the root page content to the child page
-  ret = tdbBtreeCopyPageContent(pRoot, pChild);
-  if (ret < 0) {
-    return -1;
-  }
+  tdbPageCopy(pRoot, pChild);
 
   pChild->nOverflow = pRoot->nOverflow;
   for (int i = 0; i < pChild->nOverflow; i++) {

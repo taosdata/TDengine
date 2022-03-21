@@ -208,6 +208,8 @@ int tdbPageDropCell(SPage *pPage, int idx) {
 }
 
 void tdbPageCopy(SPage *pFromPage, SPage *pToPage) {
+  int delta, nFree;
+
   pToPage->pFreeStart = pToPage->pPageHdr + (pFromPage->pFreeStart - pFromPage->pPageHdr);
   pToPage->pFreeEnd = (u8 *)(pToPage->pPageFtr) - ((u8 *)pFromPage->pPageFtr - pFromPage->pFreeEnd);
 
@@ -215,6 +217,16 @@ void tdbPageCopy(SPage *pFromPage, SPage *pToPage) {
 
   memcpy(pToPage->pPageHdr, pFromPage->pPageHdr, pFromPage->pFreeStart - pFromPage->pPageHdr);
   memcpy(pToPage->pFreeEnd, pFromPage->pFreeEnd, (u8 *)pFromPage->pPageFtr - pFromPage->pFreeEnd);
+
+  ASSERT(TDB_PAGE_CCELLS(pToPage) == pToPage->pFreeEnd - pToPage->pData);
+
+  delta = (pToPage->pPageHdr - pToPage->pAmHdr) - (pFromPage->pPageHdr - pFromPage->pAmHdr);
+  if (delta != 0) {
+    nFree = TDB_PAGE_NFREE(pFromPage);
+    TDB_PAGE_NFREE_SET(pToPage, nFree - delta);
+  }
+
+  // TODO: do we need to copy the overflow part ???
 }
 
 static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {
