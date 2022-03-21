@@ -50,7 +50,7 @@ namespace {
 int32_t qwtTestMaxExecTaskUsec = 2;
 int32_t qwtTestReqMaxDelayUsec = 2;
 
-uint64_t qwtTestQueryId = 0;
+int64_t qwtTestQueryId = 0;
 bool qwtTestEnableSleep = true;
 bool qwtTestStop = false;
 bool qwtTestDeadLoop = false;

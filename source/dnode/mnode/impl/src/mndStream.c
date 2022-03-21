@@ -166,7 +166,7 @@ static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream) {
 
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStreamObj *pNewStream) {
   mTrace("stream:%s, perform update action", pOldStream->name);
-  atomic_exchange_32(&pOldStream->updateTime, pNewStream->updateTime);
+  atomic_exchange_64(&pOldStream->updateTime, pNewStream->updateTime);
   atomic_exchange_32(&pOldStream->version, pNewStream->version);
 
   taosWLockLatch(&pOldStream->lock);

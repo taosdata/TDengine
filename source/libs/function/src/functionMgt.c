@@ -97,7 +97,7 @@ bool fmIsAggFunc(int32_t funcId) {
 
 void fmFuncMgtDestroy() {
   void* m = gFunMgtService.pFuncNameHashTable;
-  if (m != NULL && atomic_val_compare_exchange_ptr(&gFunMgtService.pFuncNameHashTable, m, 0) == m) {
+  if (m != NULL && atomic_val_compare_exchange_ptr((void**)&gFunMgtService.pFuncNameHashTable, m, 0) == m) {
     taosHashCleanup(m);
   }
 }
