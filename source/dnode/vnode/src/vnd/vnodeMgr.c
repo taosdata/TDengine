@@ -26,7 +26,10 @@ int vnodeInit(const SVnodeOpt *pOption) {
 
   vnodeMgr.stop = false;
   vnodeMgr.putToQueryQFp = pOption->putToQueryQFp;
+  vnodeMgr.putToFetchQFp = pOption->putToFetchQFp;
   vnodeMgr.sendReqFp = pOption->sendReqFp;
+  vnodeMgr.sendMnodeReqFp = pOption->sendMnodeReqFp;
+  vnodeMgr.sendRspFp = pOption->sendRspFp;
 
   // Start commit handers
   if (pOption->nthreads > 0) {
@@ -90,15 +93,23 @@ int vnodeScheduleTask(SVnodeTask* pTask) {
 }
 
 int32_t vnodePutToVQueryQ(SVnode* pVnode, struct SRpcMsg* pReq) {
-  if (pVnode == NULL || pVnode->pMeta == NULL || vnodeMgr.putToQueryQFp == NULL) {
-    terrno = TSDB_CODE_VND_APP_ERROR;
-    return -1;
-  }
   return (*vnodeMgr.putToQueryQFp)(pVnode->pWrapper, pReq);
 }
 
-void vnodeSendReq(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pReq) {
-  (*vnodeMgr.sendReqFp)(pVnode->pWrapper, epSet, pReq);
+int32_t vnodePutToVFetchQ(SVnode* pVnode, struct SRpcMsg* pReq) {
+  return (*vnodeMgr.putToFetchQFp)(pVnode->pWrapper, pReq);
+}
+
+int32_t vnodeSendReq(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pReq) {
+  return (*vnodeMgr.sendReqFp)(pVnode->pWrapper, epSet, pReq);
+}
+
+int32_t vnodeSendMnodeReq(SVnode* pVnode, struct SRpcMsg* pReq) {
+  return (*vnodeMgr.sendMnodeReqFp)(pVnode->pWrapper, pReq);
+}
+
+void vnodeSendRsp(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pRsp) {
+  (*vnodeMgr.sendRspFp)(pVnode->pWrapper, pRsp);
 }
 
 /* ------------------------ STATIC METHODS ------------------------ */
