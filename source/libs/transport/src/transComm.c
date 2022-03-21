@@ -238,12 +238,14 @@ void transCtxCleanup(STransCtx* ctx) {
     iter->free(iter->val);
     iter = taosHashIterate(ctx->args, iter);
   }
+
   taosHashCleanup(ctx->args);
 }
 
 void transCtxMerge(STransCtx* dst, STransCtx* src) {
   if (dst->args == NULL) {
     dst->args = src->args;
+    dst->brokenVal = src->brokenVal;
     src->args = NULL;
     return;
   }
@@ -273,6 +275,14 @@ void* transCtxDumpVal(STransCtx* ctx, int32_t key) {
   }
   char* ret = calloc(1, cVal->len);
   memcpy(ret, (char*)cVal->val, cVal->len);
+  return (void*)ret;
+}
+void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
+  char* ret = calloc(1, ctx->brokenVal.len);
+
+  memcpy(ret, (char*)(ctx->brokenVal.val), ctx->brokenVal.len);
+  *msgType = ctx->brokenVal.msgType;
+
   return (void*)ret;
 }
 

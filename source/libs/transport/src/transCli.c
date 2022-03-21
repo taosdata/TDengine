@@ -210,6 +210,9 @@ void cliHandleResp(SCliConn* conn) {
   STransConnCtx* pCtx = pMsg ? pMsg->ctx : NULL;
   if (pMsg == NULL && !CONN_NO_PERSIST_BY_APP(conn)) {
     transMsg.ahandle = transCtxDumpVal(&conn->ctx, transMsg.msgType);
+    if (transMsg.ahandle == NULL) {
+      transMsg.ahandle = transCtxDumpBrokenlinkVal(&conn->ctx, (int32_t*)&(transMsg.msgType));
+    }
   } else {
     transMsg.ahandle = pCtx ? pCtx->ahandle : NULL;
   }
@@ -282,6 +285,9 @@ void cliHandleExcept(SCliConn* pConn) {
 
     if (pMsg == NULL && !CONN_NO_PERSIST_BY_APP(pConn)) {
       transMsg.ahandle = transCtxDumpVal(&pConn->ctx, transMsg.msgType);
+      if (transMsg.ahandle == NULL) {
+        transMsg.ahandle = transCtxDumpBrokenlinkVal(&pConn->ctx, (int32_t*)&(transMsg.msgType));
+      }
     } else {
       transMsg.ahandle = pCtx ? pCtx->ahandle : NULL;
     }
