@@ -1129,10 +1129,10 @@ typedef struct {
 
 typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];
+  char   outputTbName[TSDB_TABLE_NAME_LEN];
   int8_t igExists;
   char*  sql;
-  char*  physicalPlan;
-  char*  logicalPlan;
+  char*  ast;
 } SCMCreateStreamReq;
 
 typedef struct {
@@ -2274,12 +2274,22 @@ enum {
 };
 
 typedef struct {
+  void*  inputHandle;
+  void** executor;
+} SStreamTaskParRunner;
+
+typedef struct {
   int64_t streamId;
   int32_t taskId;
   int32_t level;
   int8_t  status;
+  int8_t  pipeEnd;
+  int8_t  parallel;
+  SEpSet  NextOpEp;
   char*   qmsg;
-  void*   executor;
+  // not applied to encoder and decoder
+  SStreamTaskParRunner runner;
+  // void*                executor;
   // void*   stateStore;
   //  storage handle
 } SStreamTask;

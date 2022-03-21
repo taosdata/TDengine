@@ -220,8 +220,8 @@ static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamRe
   streamObj.dbUid = pDb->uid;
   streamObj.version = 1;
   streamObj.sql = pCreate->sql;
-  streamObj.physicalPlan = pCreate->physicalPlan;
-  streamObj.logicalPlan = pCreate->logicalPlan;
+  streamObj.physicalPlan = "";
+  streamObj.logicalPlan = "";
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_STREAM, &pReq->rpcMsg);
   if (pTrans == NULL) {
