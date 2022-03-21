@@ -57,7 +57,7 @@ void sndMetaDelete(SStreamMeta *pMeta) {
 }
 
 int32_t sndMetaDeployTask(SStreamMeta *pMeta, SStreamTask *pTask) {
-  pTask->executor = qCreateStreamExecTaskInfo(pTask->qmsg, NULL);
+  pTask->runner.executor = qCreateStreamExecTaskInfo(pTask->qmsg, NULL);
   return taosHashPut(pMeta->pHash, &pTask->taskId, sizeof(int32_t), pTask, sizeof(void *));
 }
 

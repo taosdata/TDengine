@@ -32,6 +32,9 @@ typedef struct SReadHandle {
   void* meta;
 } SReadHandle;
 
+#define STREAM_DATA_TYPE_SUBMIT_BLOCK 0x1
+#define STREAM_DATA_TYPE_SSDAT_BLOCK  0x2
+
  /**
   * Create the exec task for streaming mode
   * @param pMsg
@@ -44,9 +47,10 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void *msg, void* streamReadHandle);
  * Set the input data block for the stream scan.
  * @param tinfo
  * @param input
+ * @param type
  * @return
  */
-int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input);
+int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type);
 
 /**
  * Update the table id list, add or remove.

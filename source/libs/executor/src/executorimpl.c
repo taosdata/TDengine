@@ -4869,9 +4869,18 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo *pOperator, bool* newgroup) {
 }
 
 static SSDataBlock* doStreamBlockScan(SOperatorInfo *pOperator, bool* newgroup) {
-  // NOTE: this operator never check if current status is done or not
+  // NOTE: this operator does never check if current status is done or not
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SStreamBlockScanInfo* pInfo = pOperator->info;
+
+  if (pInfo->blockType == STREAM_DATA_TYPE_SSDAT_BLOCK) {
+    if (pInfo->blockValid) {
+      pInfo->blockValid = false;  // this block can only be used once.
+      return pInfo->pRes;
+    } else {
+      return NULL;
+    }
+  }
 
   pTaskInfo->code = pOperator->_openFn(pOperator);
   if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
@@ -4879,7 +4888,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo *pOperator, bool* newgroup) 
   }
 
   SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
-  pBlockInfo->rows = 0;
+  blockDataClearup(pInfo->pRes);
 
   while (tqNextDataBlock(pInfo->readerHandle)) {
     pTaskInfo->code = tqRetrieveDataBlockInfo(pInfo->readerHandle, pBlockInfo);

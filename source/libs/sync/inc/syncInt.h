@@ -142,7 +142,6 @@ typedef struct SSyncNode {
   SRaftId   leaderCache;
 
   // life cycle
-  int32_t refCount;
   int64_t rid;
 
   // tla+ server vars

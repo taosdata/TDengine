@@ -2469,7 +2469,7 @@ int32_t tEncodeSMqCMCommitOffsetReq(SCoder *encoder, const SMqCMCommitOffsetReq 
 int32_t tDecodeSMqCMCommitOffsetReq(SCoder *decoder, SMqCMCommitOffsetReq *pReq) {
   if (tStartDecode(decoder) < 0) return -1;
   if (tDecodeI32(decoder, &pReq->num) < 0) return -1;
-  TCODER_MALLOC(pReq->offsets, SMqOffset*, pReq->num * sizeof(SMqOffset), decoder);
+  TCODER_MALLOC(pReq->offsets, SMqOffset *, pReq->num * sizeof(SMqOffset), decoder);
   if (pReq->offsets == NULL) return -1;
   for (int32_t i = 0; i < pReq->num; i++) {
     tDecodeSMqOffset(decoder, &pReq->offsets[i]);
@@ -2641,27 +2641,36 @@ int32_t tSerializeSVDropTSmaReq(void **buf, SVDropTSmaReq *pReq) {
   int32_t tlen = 0;
 
   tlen += taosEncodeFixedI64(buf, pReq->ver);
+  tlen += taosEncodeFixedI64(buf, pReq->indexUid);
   tlen += taosEncodeString(buf, pReq->indexName);
 
   return tlen;
 }
 void *tDeserializeSVDropTSmaReq(void *buf, SVDropTSmaReq *pReq) {
   buf = taosDecodeFixedI64(buf, &(pReq->ver));
+  buf = taosDecodeFixedI64(buf, &(pReq->indexUid));
   buf = taosDecodeStringTo(buf, pReq->indexName);
 
   return buf;
 }
 
 int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateStreamReq *pReq) {
+  int32_t sqlLen = 0;
+  int32_t astLen = 0;
+  if (pReq->sql != NULL) sqlLen = (int32_t)strlen(pReq->sql);
+  if (pReq->ast != NULL) astLen = (int32_t)strlen(pReq->ast);
+
   SCoder encoder = {0};
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->outputTbName) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->igExists) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
-  if (tEncodeCStr(&encoder, pReq->physicalPlan) < 0) return -1;
-  if (tEncodeCStr(&encoder, pReq->logicalPlan) < 0) return -1;
+  if (sqlLen > 0 && tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
+  if (astLen > 0 && tEncodeCStr(&encoder, pReq->ast) < 0) return -1;
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2670,15 +2679,30 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
 }
 
 int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStreamReq *pReq) {
+  int32_t sqlLen = 0;
+  int32_t astLen = 0;
+
   SCoder decoder = {0};
   tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->outputTbName) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igExists) < 0) return -1;
-  if (tDecodeCStrAlloc(&decoder, &pReq->sql) < 0) return -1;
-  if (tDecodeCStrAlloc(&decoder, &pReq->physicalPlan) < 0) return -1;
-  if (tDecodeCStrAlloc(&decoder, &pReq->logicalPlan) < 0) return -1;
+  if (tDecodeI32(&decoder, &sqlLen) < 0) return -1;
+  if (tDecodeI32(&decoder, &astLen) < 0) return -1;
+
+  if (sqlLen > 0) {
+    pReq->sql = calloc(1, sqlLen + 1);
+    if (pReq->sql == NULL) return -1;
+    if (tDecodeCStrTo(&decoder, pReq->sql) < 0) return -1;
+  }
+
+  if (astLen > 0) {
+    pReq->ast = calloc(1, astLen + 1);
+    if (pReq->ast == NULL) return -1;
+    if (tDecodeCStrTo(&decoder, pReq->ast) < 0) return -1;
+  }
   tEndDecode(&decoder);
 
   tCoderClear(&decoder);
@@ -2687,8 +2711,7 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
 
 void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   tfree(pReq->sql);
-  tfree(pReq->physicalPlan);
-  tfree(pReq->logicalPlan);
+  tfree(pReq->ast);
 }
 
 int32_t tEncodeSStreamTask(SCoder *pEncoder, const SStreamTask *pTask) {
@@ -2697,6 +2720,7 @@ int32_t tEncodeSStreamTask(SCoder *pEncoder, const SStreamTask *pTask) {
   if (tEncodeI32(pEncoder, pTask->taskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->level) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->status) < 0) return -1;
+  if (tEncodeSEpSet(pEncoder, &pTask->NextOpEp) < 0) return -1;
   if (tEncodeCStr(pEncoder, pTask->qmsg) < 0) return -1;
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -2708,6 +2732,7 @@ int32_t tDecodeSStreamTask(SCoder *pDecoder, SStreamTask *pTask) {
   if (tDecodeI32(pDecoder, &pTask->taskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->level) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->status) < 0) return -1;
+  if (tDecodeSEpSet(pDecoder, &pTask->NextOpEp) < 0) return -1;
   if (tDecodeCStrAlloc(pDecoder, &pTask->qmsg) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;

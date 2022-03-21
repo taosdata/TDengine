@@ -144,7 +144,7 @@ class TransCtxEnv : public ::testing::Test {
     // TODO
   }
   virtual void TearDown() {
-    transCtxDestroy(ctx);
+    transCtxCleanup(ctx);
     // formate
   }
   STransCtx *ctx;
