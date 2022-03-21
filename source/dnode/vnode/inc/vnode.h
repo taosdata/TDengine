@@ -62,6 +62,7 @@ typedef struct {
 typedef struct {
   uint16_t       nthreads;  // number of commit threads. 0 for no threads and a schedule queue should be given (TODO)
   PutToQueueFp   putToQueryQFp;
+  PutToQueueFp   putToFetchQFp;
   SendReqFp      sendReqFp;
   SendMnodeReqFp sendMnodeReqFp;
   SendRspFp      sendRspFp;
@@ -125,9 +126,8 @@ void vnodeDestroy(const char *path);
  *
  * @param pVnode The vnode object.
  * @param pMsgs The array of SRpcMsg
- * @return int 0 for success, -1 for failure
  */
-int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs);
+void vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs);
 
 /**
  * @brief Apply a write request message.
