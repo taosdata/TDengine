@@ -58,7 +58,6 @@ struct SPage {
   u8                *pData;
   SPageMethods      *pPageMethods;
   // Fields below used by pager and am
-  u8       *pAmHdr;
   u8       *pPageHdr;
   u8       *pCellIdx;
   u8       *pFreeStart;
@@ -114,7 +113,7 @@ static inline SCell *tdbPageGetCell(SPage *pPage, int idx) {
   int    iOvfl;
   int    lidx;
 
-  ASSERT(idx >= 0 && idx < pPage->nOverflow + pPage->pPageMethods->getCellNum(pPage));
+  ASSERT(idx >= 0 && idx < TDB_PAGE_TOTAL_CELLS(pPage));
 
   iOvfl = 0;
   for (; iOvfl < pPage->nOverflow; iOvfl++) {

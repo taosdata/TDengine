@@ -80,8 +80,7 @@ int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg)
 }
 
 void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *)) {
-  pPage->pAmHdr = pPage->pData;
-  pPage->pPageHdr = pPage->pAmHdr + szAmHdr;
+  pPage->pPageHdr = pPage->pData + szAmHdr;
   TDB_PAGE_NCELLS_SET(pPage, 0);
   TDB_PAGE_CCELLS_SET(pPage, pPage->pageSize - sizeof(SPageFtr));
   TDB_PAGE_FCELL_SET(pPage, 0);
@@ -97,8 +96,7 @@ void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell
 }
 
 void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *)) {
-  pPage->pAmHdr = pPage->pData;
-  pPage->pPageHdr = pPage->pAmHdr + szAmHdr;
+  pPage->pPageHdr = pPage->pData + szAmHdr;
   pPage->pCellIdx = pPage->pPageHdr + TDB_PAGE_HDR_SIZE(pPage);
   pPage->pFreeStart = pPage->pCellIdx + TDB_PAGE_OFFSET_SIZE(pPage) * TDB_PAGE_NCELLS(pPage);
   pPage->pFreeEnd = pPage->pData + TDB_PAGE_CCELLS(pPage);
@@ -117,7 +115,7 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
   int    lidx;  // local idx
   SCell *pNewCell;
 
-  ASSERT(szCell <= TDB_PAGE_MAX_FREE_BLOCK(pPage, pPage->pPageHdr - pPage->pAmHdr));
+  ASSERT(szCell <= TDB_PAGE_MAX_FREE_BLOCK(pPage, pPage->pPageHdr - pPage->pData));
 
   nFree = TDB_PAGE_NFREE(pPage);
   nCells = TDB_PAGE_NCELLS(pPage);
@@ -220,7 +218,7 @@ void tdbPageCopy(SPage *pFromPage, SPage *pToPage) {
 
   ASSERT(TDB_PAGE_CCELLS(pToPage) == pToPage->pFreeEnd - pToPage->pData);
 
-  delta = (pToPage->pPageHdr - pToPage->pAmHdr) - (pFromPage->pPageHdr - pFromPage->pAmHdr);
+  delta = (pToPage->pPageHdr - pToPage->pData) - (pFromPage->pPageHdr - pFromPage->pData);
   if (delta != 0) {
     nFree = TDB_PAGE_NFREE(pFromPage);
     TDB_PAGE_NFREE_SET(pToPage, nFree - delta);

@@ -41,8 +41,8 @@ struct SBTree {
 
 #define TDB_BTREE_PAGE_COMMON_HDR u8 flags;
 
-#define TDB_BTREE_PAGE_GET_FLAGS(PAGE)        (PAGE)->pAmHdr[0]
-#define TDB_BTREE_PAGE_SET_FLAGS(PAGE, flags) ((PAGE)->pAmHdr[0] = (flags))
+#define TDB_BTREE_PAGE_GET_FLAGS(PAGE)        (PAGE)->pData[0]
+#define TDB_BTREE_PAGE_SET_FLAGS(PAGE, flags) ((PAGE)->pData[0] = (flags))
 
 typedef struct __attribute__((__packed__)) {
   TDB_BTREE_PAGE_COMMON_HDR
@@ -393,8 +393,8 @@ static int tdbBtreeInitPage(SPage *pPage, void *arg) {
   u8      flags;
   u8      isLeaf;
 
-  pBt = ((SBtreeInitPageArg *)arg)->pBt;
-  flags = ((SBtreeInitPageArg *)arg)->flags;
+  pBt = (SBTree *)arg;
+  flags = TDB_BTREE_PAGE_GET_FLAGS(pPage);
   isLeaf = TDB_BTREE_PAGE_IS_LEAF(flags);
 
   ASSERT(flags == TDB_BTREE_PAGE_GET_FLAGS(pPage));
@@ -430,7 +430,7 @@ static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
   tdbPageZero(pPage, isLeaf ? sizeof(SLeafHdr) : sizeof(SIntHdr), tdbBtreeCellSize);
 
   if (isLeaf) {
-    SLeafHdr *pLeafHdr = (SLeafHdr *)(pPage->pAmHdr);
+    SLeafHdr *pLeafHdr = (SLeafHdr *)(pPage->pData);
     pLeafHdr->flags = flags;
 
     pPage->kLen = pBt->keyLen;
@@ -438,7 +438,7 @@ static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
     pPage->maxLocal = pBt->maxLeaf;
     pPage->minLocal = pBt->minLeaf;
   } else {
-    SIntHdr *pIntHdr = (SIntHdr *)(pPage->pAmHdr);
+    SIntHdr *pIntHdr = (SIntHdr *)(pPage->pData);
     pIntHdr->flags = flags;
     pIntHdr->pgno = 0;
 
@@ -491,7 +491,7 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
     return -1;
   }
 
-  pIntHdr = (SIntHdr *)(pRoot->pAmHdr);
+  pIntHdr = (SIntHdr *)(pRoot->pData);
   pIntHdr->pgno = pgnoChild;
 
   *ppChild = pChild;
@@ -643,15 +643,59 @@ static int tdbBtreeBalanceStep6(SBtreeBalanceHelper *pBlh) {
 }
 
 static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
-  int                 ret;
+  int ret;
+#if 0
   SBtreeBalanceHelper blh;
-
-  // ASSERT(!TDB_BTREE_PGE_IS_LEAF(TDB_PAGE_FLAGS(pParent)));
 
   blh.pBt = pBt;
   blh.pParent = pParent;
   blh.idx = idx;
+#endif
 
+  int    nOlds;
+  SPage *pOlds[3];
+
+  {
+    // Find 3 child pages at most to do balance
+    int nCells = TDB_PAGE_TOTAL_CELLS(pParent);
+    int sIdx;
+    if (nCells <= 2) {
+      sIdx = 0;
+      nOlds = nCells + 1;
+    } else {
+      // has more than three child pages
+      if (idx == 0) {
+        sIdx = 0;
+      } else if (idx == nCells) {
+        sIdx = idx - 2;
+      } else {
+        sIdx = idx - 1;
+      }
+      nOlds = 3;
+    }
+    for (int i = 0; i < nOlds; i++, sIdx++) {
+      ASSERT(sIdx <= nCells);
+
+      SPgno pgno;
+      if (sIdx == nCells) {
+        ASSERT(!TDB_BTREE_PAGE_IS_LEAF(TDB_BTREE_PAGE_GET_FLAGS(pParent)));
+        pgno = ((SIntHdr *)(pParent->pData))->pgno;
+      } else {
+        SCell *pCell;
+
+        pCell = tdbPageGetCell(pParent, sIdx);
+        pgno = *(SPgno *)pCell;
+      }
+
+      ret = tdbPagerFetchPage(pBt->pPager, pgno, pOlds + i, tdbBtreeInitPage, pBt);
+      if (ret < 0) {
+        ASSERT(0);
+        return -1;
+      }
+    }
+  }
+
+#if 0
   // Step 1: find two sibling pages and get engough info about the old pages
   ret = tdbBtreeBalanceStep1(&blh);
   if (ret < 0) {
@@ -693,6 +737,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
     ASSERT(0);
     return -1;
   }
+#endif
 
   {
       // TODO: Reset states
