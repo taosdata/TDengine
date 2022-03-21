@@ -695,6 +695,8 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
     }
   }
 
+  // >>>>>>>>>>>>>>>>>>>
+
 #if 0
   // Step 1: find two sibling pages and get engough info about the old pages
   ret = tdbBtreeBalanceStep1(&blh);
@@ -854,6 +856,14 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
   leaf = TDB_BTREE_PAGE_IS_LEAF(flags);
 
   // 1. Encode Header part
+  /* Encode SPgno if interior page */
+  if (!leaf) {
+    ASSERT(pPage->vLen == sizeof(SPgno));
+
+    ((SPgno *)(pCell + nHeader))[0] = ((SPgno *)pVal)[0];
+    nHeader = nHeader + sizeof(SPgno);
+  }
+
   /* Encode kLen if need */
   if (pPage->kLen == TDB_VARIANT_LEN) {
     nHeader += tdbPutVarInt(pCell + nHeader, kLen);
@@ -862,14 +872,6 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
   /* Encode vLen if need */
   if (pPage->vLen == TDB_VARIANT_LEN) {
     nHeader += tdbPutVarInt(pCell + nHeader, vLen);
-  }
-
-  /* Encode SPgno if interior page */
-  if (!leaf) {
-    ASSERT(pPage->vLen == sizeof(SPgno));
-
-    ((SPgno *)(pCell + nHeader))[0] = ((SPgno *)pVal)[0];
-    nHeader = nHeader + sizeof(SPgno);
   }
 
   // 2. Encode payload part
@@ -930,6 +932,14 @@ static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pD
   pDecoder->pgno = 0;
 
   // 1. Decode header part
+  if (!leaf) {
+    ASSERT(pPage->vLen == sizeof(SPgno));
+
+    pDecoder->pgno = ((SPgno *)(pCell + nHeader))[0];
+    pDecoder->pVal = (u8 *)(&(pDecoder->pgno));
+    nHeader = nHeader + sizeof(SPgno);
+  }
+
   if (pPage->kLen == TDB_VARIANT_LEN) {
     nHeader += tdbGetVarInt(pCell + nHeader, &(pDecoder->kLen));
   } else {
@@ -940,14 +950,6 @@ static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pD
     nHeader += tdbGetVarInt(pCell + nHeader, &(pDecoder->vLen));
   } else {
     pDecoder->vLen = pPage->vLen;
-  }
-
-  if (!leaf) {
-    ASSERT(pPage->vLen == sizeof(SPgno));
-
-    pDecoder->pgno = ((SPgno *)(pCell + nHeader))[0];
-    pDecoder->pVal = (u8 *)(&(pDecoder->pgno));
-    nHeader = nHeader + sizeof(SPgno);
   }
 
   // 2. Decode payload part
