@@ -46,15 +46,18 @@ typedef struct SVnodeTask {
 typedef struct SVnodeMgr {
   td_mode_flag_t vnodeInitFlag;
   // For commit
-  bool            stop;
-  uint16_t        nthreads;
-  TdThread*      threads;
+  bool          stop;
+  uint16_t      nthreads;
+  TdThread*     threads;
   TdThreadMutex mutex;
   TdThreadCond  hasTask;
   TD_DLIST(SVnodeTask) queue;
   // For vnode Mgmt
-  PutToQueueFp putToQueryQFp;
-  SendReqFp    sendReqFp;
+  PutToQueueFp   putToQueryQFp;
+  PutToQueueFp   putToFetchQFp;
+  SendReqFp      sendReqFp;
+  SendMnodeReqFp sendMnodeReqFp;
+  SendRspFp      sendRspFp;
 } SVnodeMgr;
 
 extern SVnodeMgr vnodeMgr;
@@ -85,7 +88,10 @@ struct SVnode {
 int vnodeScheduleTask(SVnodeTask* task);
 
 int32_t vnodePutToVQueryQ(SVnode* pVnode, struct SRpcMsg* pReq);
-void    vnodeSendReq(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pReq);
+int32_t vnodePutToVFetchQ(SVnode* pVnode, struct SRpcMsg* pReq);
+int32_t vnodeSendReq(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pReq);
+int32_t vnodeSendMnodeReq(SVnode* pVnode, struct SRpcMsg* pReq);
+void    vnodeSendRsp(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pRsp);
 
 #define vFatal(...)                                              \
   do {                                                           \
