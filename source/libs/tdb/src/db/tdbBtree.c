@@ -381,19 +381,20 @@ static int tdbBtreeInitPage(SPage *pPage, void *arg) {
   SBTree *pBt;
   u16     flags;
   u8      isLeaf;
+  u8      szAmHdr;
 
   pBt = (SBTree *)arg;
 
   flags = TDB_PAGE_FLAGS(pPage);
   isLeaf = TDB_BTREE_PAGE_IS_LEAF(flags);
   if (isLeaf) {
-    pPage->szAmHdr = 0;
+    szAmHdr = 0;
   } else {
-    pPage->szAmHdr = sizeof(SBtPageHdr);
+    szAmHdr = sizeof(SBtPageHdr);
   }
   pPage->xCellSize = NULL;  // TODO
 
-  tdbPageInit(pPage);
+  tdbPageInit(pPage, szAmHdr);
 
   TDB_BTREE_ASSERT_FLAG(flags);
 
@@ -416,6 +417,7 @@ static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
   u16     flags;
   SBTree *pBt;
   u8      isLeaf;
+  u8      szAmHdr;
 
   flags = ((SBtreeZeroPageArg *)arg)->flags;
   pBt = ((SBtreeZeroPageArg *)arg)->pBt;
@@ -425,13 +427,13 @@ static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
   TDB_PAGE_FLAGS_SET(pPage, flags);
   // Set szAmHdr
   if (isLeaf) {
-    pPage->szAmHdr = 0;
+    szAmHdr = 0;
   } else {
-    pPage->szAmHdr = sizeof(SBtPageHdr);
+    szAmHdr = sizeof(SBtPageHdr);
   }
   pPage->xCellSize = NULL;  // TODO
 
-  tdbPageZero(pPage);
+  tdbPageZero(pPage, szAmHdr);
 
   if (isLeaf) {
     pPage->kLen = pBt->keyLen;

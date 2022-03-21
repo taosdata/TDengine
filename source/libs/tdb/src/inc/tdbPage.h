@@ -61,7 +61,6 @@ struct SPage {
   u8                *pData;
   SPageMethods      *pPageMethods;
   // Fields below used by pager and am
-  u8        szAmHdr;
   u8       *pAmHdr;
   u8       *pPageHdr;
   u8       *pCellIdx;
@@ -111,8 +110,8 @@ struct SPage {
 
 int  tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg);
 int  tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg);
-void tdbPageZero(SPage *pPage);
-void tdbPageInit(SPage *pPage);
+void tdbPageZero(SPage *pPage, u8 szAmHdr);
+void tdbPageInit(SPage *pPage, u8 szAmHdr);
 int  tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell);
 int  tdbPageDropCell(SPage *pPage, int idx);
 
@@ -134,6 +133,7 @@ static inline SCell *tdbPageGetCell(SPage *pPage, int idx) {
   }
 
   lidx = idx - iOvfl;
+  ASSERT(lidx >= 0 && lidx < pPage->pPageMethods->getCellNum(pPage));
   pCell = pPage->pData + pPage->pPageMethods->getCellOffset(pPage, lidx);
 
   return pCell;
