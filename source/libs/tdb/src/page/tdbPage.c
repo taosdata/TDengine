@@ -193,7 +193,7 @@ int tdbPageDropCell(SPage *pPage, int idx) {
 
   lidx = idx - iOvfl;
   pCell = TDB_PAGE_CELL_AT(pPage, lidx);
-  szCell = (*pPage->xCellSize)(pCell);
+  szCell = (*pPage->xCellSize)(pPage, pCell);
   tdbPageFree(pPage, lidx, pCell, szCell);
   TDB_PAGE_NCELLS_SET(pPage, nCells - 1);
 
@@ -366,7 +366,7 @@ static int tdbPageDefragment(SPage *pPage) {
 
     ASSERT(pCell != NULL);
 
-    szCell = (*pPage->xCellSize)(pCell);
+    szCell = (*pPage->xCellSize)(pPage, pCell);
 
     ASSERT(pCell + szCell <= pNextCell);
     if (pCell + szCell < pNextCell) {

@@ -52,9 +52,9 @@ typedef struct __attribute__((__packed__)) {
 } SIntHdr;
 
 typedef struct {
-  u16     flags;
+  u8      flags;
   SBTree *pBt;
-} SBtreeZeroPageArg;
+} SBtreeInitPageArg;
 
 typedef struct {
   int   kLen;
@@ -74,6 +74,7 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
                               int *szCell);
 static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pDecoder);
 static int tdbBtreeBalance(SBtCursor *pCur);
+static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell);
 
 int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, SBTree **ppBt) {
   SBTree *pBt;
@@ -371,7 +372,7 @@ static int tdbBtreeOpenImpl(SBTree *pBt) {
   }
 
   // Try to create a new database
-  SBtreeZeroPageArg zArg = {.flags = TDB_BTREE_ROOT | TDB_BTREE_LEAF, .pBt = pBt};
+  SBtreeInitPageArg zArg = {.flags = TDB_BTREE_ROOT | TDB_BTREE_LEAF, .pBt = pBt};
   ret = tdbPagerNewPage(pBt->pPager, &pgno, &pPage, tdbBtreeZeroPage, &zArg);
   if (ret < 0) {
     return -1;
@@ -430,8 +431,8 @@ static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
   u8      isLeaf;
   u8      szAmHdr;
 
-  flags = ((SBtreeZeroPageArg *)arg)->flags;
-  pBt = ((SBtreeZeroPageArg *)arg)->pBt;
+  flags = ((SBtreeInitPageArg *)arg)->flags;
+  pBt = ((SBtreeInitPageArg *)arg)->pBt;
   isLeaf = TDB_BTREE_PAGE_IS_LEAF(flags);
 
   if (isLeaf) {
@@ -498,7 +499,7 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
   SPage            *pChild;
   SPgno             pgnoChild;
   int               ret;
-  SBtreeZeroPageArg zArg;
+  SBtreeInitPageArg zArg;
 
   pPager = pRoot->pPager;
 
@@ -960,3 +961,9 @@ static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pD
 }
 
 #endif
+
+static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell) {
+  // TODO
+  ASSERT(0);
+  return 0;
+}

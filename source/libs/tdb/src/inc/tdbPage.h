@@ -71,7 +71,7 @@ struct SPage {
   int       vLen;  // value length of the page, -1 for unknown
   int       maxLocal;
   int       minLocal;
-  int (*xCellSize)(SCell *pCell);
+  int (*xCellSize)(const SPage *, SCell *);
   // Fields used by SPCache
   TDB_PCACHE_PAGE
 };
