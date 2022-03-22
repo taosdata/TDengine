@@ -165,6 +165,9 @@ int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);        // us
 int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak);  // for compatibility, the same as syncPropose
 ESyncState syncGetMyRole(int64_t rid);
 
+// propose with sequence number, to implement linearizable semantics
+int32_t syncPropose2(int64_t rid, const SRpcMsg* pMsg, bool isWeak, uint64_t seqNum);
+
 extern int32_t sDebugFlag;
 
 #ifdef __cplusplus
