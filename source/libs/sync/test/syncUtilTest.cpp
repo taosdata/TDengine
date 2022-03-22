@@ -16,7 +16,7 @@ void logTest() {
 
 void electRandomMSTest() {
   for (int i = 0; i < 10; ++i) {
-    int32_t ms = syncUtilElectRandomMS();
+    int32_t ms = syncUtilElectRandomMS(150, 300);
     printf("syncUtilElectRandomMS: %d \n", ms);
   }
 }

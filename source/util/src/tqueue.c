@@ -68,7 +68,6 @@ STaosQueue *taosOpenQueue() {
     return NULL;
   }
 
-  queue->threadId = -1;
   uDebug("queue:%p is opened", queue);
   return queue;
 }
@@ -437,59 +436,11 @@ int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, void **ahand
   return code;
 }
 
-int32_t taosReadQitemFromQsetByThread(STaosQset *qset, void **ppItem, void **ahandle, FItem *itemFp, int32_t threadId) {
-  STaosQnode *pNode = NULL;
-  int32_t     code = -1;
-
-  tsem_wait(&qset->sem);
-
-  taosThreadMutexLock(&qset->mutex);
-
-  for (int32_t i = 0; i < qset->numOfQueues; ++i) {
-    if (qset->current == NULL) qset->current = qset->head;
-    STaosQueue *queue = qset->current;
-    if (queue) qset->current = queue->next;
-    if (queue == NULL) break;
-    if (queue->head == NULL) continue;
-    if (queue->threadId != -1 && queue->threadId != threadId) {
-      code = 0;
-      continue;
-    }
-
-    taosThreadMutexLock(&queue->mutex);
-
-    if (queue->head) {
-      pNode = queue->head;
-      pNode->queue = queue;
-      queue->threadId = threadId;
-      *ppItem = pNode->item;
-
-      if (ahandle) *ahandle = queue->ahandle;
-      if (itemFp) *itemFp = queue->itemFp;
-
-      queue->head = pNode->next;
-      if (queue->head == NULL) queue->tail = NULL;
-      queue->numOfItems--;
-      atomic_sub_fetch_32(&qset->numOfItems, 1);
-      code = 1;
-      uTrace("item:%p is read out from queue:%p, items:%d", *ppItem, queue, queue->numOfItems);
-    }
-
-    taosThreadMutexUnlock(&queue->mutex);
-    if (pNode) break;
-  }
-
-  taosThreadMutexUnlock(&qset->mutex);
-
-  return code;
-}
-
 void taosResetQsetThread(STaosQset *qset, void *pItem) {
   if (pItem == NULL) return;
   STaosQnode *pNode = (STaosQnode *)((char *)pItem - sizeof(STaosQnode));
 
   taosThreadMutexLock(&qset->mutex);
-  pNode->queue->threadId = -1;
   for (int32_t i = 0; i < pNode->queue->numOfItems; ++i) {
     tsem_post(&qset->sem);
   }

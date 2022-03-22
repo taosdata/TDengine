@@ -1,0 +1,75 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c wal -v 1
+system sh/exec.sh -n dnode1 -s start
+sleep 500
+sql connect
+
+$loop_cnt = 0
+check_dnode_ready:
+	$loop_cnt = $loop_cnt + 1
+	sleep 100
+	if $loop_cnt == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql show dnodes
+print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
+if $data00 != 1 then
+  return -1
+endi
+if $data04 != ready then
+  goto check_dnode_ready
+endi
+
+#root@trd02 /data2/dnode $ tmq_demo --help                                                                          
+#Used to tmq_demo                                                                   
+#        -c      Configuration directory, default is                                                                
+#        -d      The name of the database to be created, default is tmqdb                                           
+#        -s      The name of the super table to be created, default is stb
+#        -f      The file of result, default is ./tmqResult.txt
+#        -w      The path of vnode of wal, default is /data2/dnode/data/vnodes/vnode2/wal
+#        -t      numOfThreads, default is 1
+#        -n      numOfTables, default is 1
+#        -v      numOfVgroups, default is 1
+#        -a      runMode, default is 0
+#        -l      numOfColumn, default is 1
+#        -q      ratio, default is 1.000000
+#        -b      batchNumOfRow, default is 1
+#        -r      totalRowsOfPerTbl, default is 10000
+#        -m      startTimestamp, default is 1640966400000 [2022-01-01 00:00:00]
+#        -g      showMsgFlag, default is 0
+#        
+#system_content ../../debug/tests/test/c/tmq_demo -c ../../sim/tsim/cfg
+system ../../debug/tests/test/c/tmq_demo -c ../../sim/tsim/cfg
+print result-> $system_content
+
+sql show databases
+print ===> $rows $data00 $data01 $data02 $data03
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != tmqdb then 
+  return -1
+endi
+
+sql use tmqdb
+sql show tables
+print ===> $rows $data00 $data01 $data02 $data03
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != stb0 then 
+  return -1
+endi
+
+sql select count(*) from stb0
+print ===> $rows $data00 $data01 $data02 $data03
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != 10000 then 
+  return -1
+endi
+#system sh/exec.sh -n dnode1 -s stop -x SIGINT

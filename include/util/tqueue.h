@@ -70,10 +70,7 @@ int32_t    taosGetQueueNumber(STaosQset *qset);
 
 int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, void **ahandle, FItem *itemFp);
 int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, void **ahandle, FItems *itemsFp);
-
-int32_t taosReadQitemFromQsetByThread(STaosQset *qset, void **ppItem, void **ahandle, FItem *itemFp, int32_t threadId);
 void    taosResetQsetThread(STaosQset *qset, void *pItem);
-
 int32_t taosGetQueueItemsNumber(STaosQueue *queue);
 int32_t taosGetQsetItemsNumber(STaosQset *qset);
 
