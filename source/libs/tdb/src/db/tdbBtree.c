@@ -520,7 +520,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
     }
     // copy the parent key out if child pages are not leaf page
     childLeaf = TDB_BTREE_PAGE_IS_LEAF(TDB_BTREE_PAGE_GET_FLAGS(pOlds[0]));
-    if (childLeaf) {
+    if (!childLeaf) {
       for (int i = 0; i < nOlds - 1; i++) {
         pCell = tdbPageGetCell(pParent, sIdx + i);
 
@@ -564,8 +564,8 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
         if (infoNews[nNews].size + cellBytes > TDB_PAGE_USABLE_SIZE(pPage)) {
           // page is full, use a new page
           nNews++;
-          // for a child leaf case, this cell is used as the new divider cell to parent
-          if (childLeaf) continue;
+          // for a internal leaf case, this cell is used as the new divider cell to parent
+          if (!childLeaf) continue;
         }
         infoNews[nNews].cnt++;
         infoNews[nNews].size += cellBytes;
@@ -573,8 +573,8 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
         infoNews[nNews].oIdx = oIdx;
       }
 
-      // For child leaf pages
-      if (childLeaf && oPage < nOlds - 1) {
+      // For internal pages
+      if (!childLeaf && oPage < nOlds - 1) {
         if (infoNews[nNews].size + szDivCell[oPage] + TDB_PAGE_OFFSET_SIZE(pPage) > TDB_PAGE_USABLE_SIZE(pPage)) {
           nNews++;
         }
@@ -594,27 +594,31 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
       int    nCells;
       int    cellBytes;
 
-      pPage = pOlds[infoNews[iNew - 1].oPage];
-      nCells = TDB_PAGE_TOTAL_CELLS(pPage);
+      if (childLeaf) {  // child leaf
+        pPage = pOlds[infoNews[iNew - 1].oPage];
+        nCells = TDB_PAGE_TOTAL_CELLS(pPage);
 
-      for (;;) {
-        pCell = tdbPageGetCell(pPage, infoNews[iNew - 1].oIdx);
-        cellBytes = TDB_BYTES_CELL_TAKEN(pPage, pCell);
+        for (;;) {
+          pCell = tdbPageGetCell(pPage, infoNews[iNew - 1].oIdx);
+          cellBytes = TDB_BYTES_CELL_TAKEN(pPage, pCell);
 
-        infoNews[iNew].cnt++;
-        infoNews[iNew].size += cellBytes;
-        infoNews[iNew - 1].cnt--;
-        infoNews[iNew - 1].size -= cellBytes;
-        if ((infoNews[iNew - 1].oIdx--) == 0) {
-          infoNews[iNew - 1].oPage--;
-          pPage = pOlds[infoNews[iNew - 1].oPage];
-          nCells = TDB_PAGE_TOTAL_CELLS(pPage);
-          infoNews[iNew - 1].oIdx = TDB_PAGE_TOTAL_CELLS(pPage);
+          infoNews[iNew].cnt++;
+          infoNews[iNew].size += cellBytes;
+          infoNews[iNew - 1].cnt--;
+          infoNews[iNew - 1].size -= cellBytes;
+          if ((infoNews[iNew - 1].oIdx--) == 0) {
+            infoNews[iNew - 1].oPage--;
+            pPage = pOlds[infoNews[iNew - 1].oPage];
+            nCells = TDB_PAGE_TOTAL_CELLS(pPage);
+            infoNews[iNew - 1].oIdx = TDB_PAGE_TOTAL_CELLS(pPage);
+          }
+
+          if (infoNews[iNew].size > infoNews[iNew - 1].size) {
+            break;
+          }
         }
-
-        if (infoNews[iNew].size > infoNews[iNew - 1].size) {
-          break;
-        }
+      } else {  // internal leaf
+        // TODO
       }
     }
   }
