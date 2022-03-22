@@ -44,22 +44,22 @@ static void smProcessSharedQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
 }
 
 int32_t smStartWorker(SSnodeMgmt *pMgmt) {
-  pMgmt->uniqueWorkers = taosArrayInit(0, sizeof(SWWorkerAll *));
+  pMgmt->uniqueWorkers = taosArrayInit(0, sizeof(SMultiWorker *));
   if (pMgmt->uniqueWorkers == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
   for (int32_t i = 0; i < SND_UNIQUE_THREAD_NUM; i++) {
-    SWWorkerAll *pUniqueWorker = malloc(sizeof(SWWorkerAll));
+    SMultiWorker *pUniqueWorker = malloc(sizeof(SMultiWorker));
     if (pUniqueWorker == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
 
-    SWWorkerAllCfg cfg = {.maxNum = 1, .name = "snode-unique", .fp = smProcessUniqueQueue, .param = pMgmt};
+    SMultiWorkerCfg cfg = {.maxNum = 1, .name = "snode-unique", .fp = smProcessUniqueQueue, .param = pMgmt};
 
-    if (tWWorkerAllInit(pUniqueWorker, &cfg) != 0) {
+    if (tMultiWorkerInit(pUniqueWorker, &cfg) != 0) {
       dError("failed to start snode-unique worker since %s", terrstr());
       return -1;
     }
@@ -69,13 +69,13 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
     }
   }
 
-  SQWorkerAllCfg cfg = {.minNum = SND_SHARED_THREAD_NUM,
-                        .maxNum = SND_SHARED_THREAD_NUM,
-                        .name = "snode-shared",
-                        .fp = (FItem)smProcessSharedQueue,
-                        .param = pMgmt};
+  SSingleWorkerCfg cfg = {.minNum = SND_SHARED_THREAD_NUM,
+                          .maxNum = SND_SHARED_THREAD_NUM,
+                          .name = "snode-shared",
+                          .fp = (FItem)smProcessSharedQueue,
+                          .param = pMgmt};
 
-  if (tQWorkerAllInit(&pMgmt->sharedWorker, &cfg)) {
+  if (tSingleWorkerInit(&pMgmt->sharedWorker, &cfg)) {
     dError("failed to start snode shared-worker since %s", terrstr());
     return -1;
   }
@@ -85,11 +85,11 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
 
 void smStopWorker(SSnodeMgmt *pMgmt) {
   for (int32_t i = 0; i < taosArrayGetSize(pMgmt->uniqueWorkers); i++) {
-    SWWorkerAll *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, i);
-    tWWorkerAllCleanup(pWorker);
+    SMultiWorker *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, i);
+    tMultiWorkerCleanup(pWorker);
   }
   taosArrayDestroy(pMgmt->uniqueWorkers);
-  tQWorkerAllCleanup(&pMgmt->sharedWorker);
+  tSingleWorkerCleanup(&pMgmt->sharedWorker);
 }
 
 static FORCE_INLINE int32_t smGetSWIdFromMsg(SRpcMsg *pMsg) {
@@ -105,7 +105,7 @@ static FORCE_INLINE int32_t smGetSWTypeFromMsg(SRpcMsg *pMsg) {
 }
 
 int32_t smProcessMgmtMsg(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SWWorkerAll *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, 0);
+  SMultiWorker *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, 0);
   if (pWorker == NULL) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
@@ -116,8 +116,8 @@ int32_t smProcessMgmtMsg(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
 }
 
 int32_t smProcessUniqueMsg(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  int32_t      index = smGetSWIdFromMsg(&pMsg->rpcMsg);
-  SWWorkerAll *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, index);
+  int32_t       index = smGetSWIdFromMsg(&pMsg->rpcMsg);
+  SMultiWorker *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, index);
   if (pWorker == NULL) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
@@ -128,7 +128,7 @@ int32_t smProcessUniqueMsg(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
 }
 
 int32_t smProcessSharedMsg(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SQWorkerAll *pWorker = &pMgmt->sharedWorker;
+  SSingleWorker *pWorker = &pMgmt->sharedWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
   return taosWriteQitem(pWorker->queue, pMsg);

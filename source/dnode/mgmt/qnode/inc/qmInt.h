@@ -28,8 +28,8 @@ typedef struct SQnodeMgmt {
   SDnode       *pDnode;
   SMgmtWrapper *pWrapper;
   const char   *path;
-  SQWorkerAll   queryWorker;
-  SQWorkerAll   fetchWorker;
+  SSingleWorker queryWorker;
+  SSingleWorker fetchWorker;
 } SQnodeMgmt;
 
 // qmInt.c

@@ -200,24 +200,16 @@ static int32_t vmPutNodeMsgToQueue(SVnodesMgmt *pMgmt, SNodeMsg *pMsg, EQueueTyp
   return code;
 }
 
-int32_t vmProcessSyncMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
-  return vmPutNodeMsgToQueue(pMgmt, pMsg, SYNC_QUEUE);
-}
+int32_t vmProcessSyncMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) { return vmPutNodeMsgToQueue(pMgmt, pMsg, SYNC_QUEUE); }
 
-int32_t vmProcessWriteMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
-  return vmPutNodeMsgToQueue(pMgmt, pMsg, WRITE_QUEUE);
-}
+int32_t vmProcessWriteMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) { return vmPutNodeMsgToQueue(pMgmt, pMsg, WRITE_QUEUE); }
 
-int32_t vmProcessQueryMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
-  return vmPutNodeMsgToQueue(pMgmt, pMsg, QUERY_QUEUE);
-}
+int32_t vmProcessQueryMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) { return vmPutNodeMsgToQueue(pMgmt, pMsg, QUERY_QUEUE); }
 
-int32_t vmProcessFetchMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
-  return vmPutNodeMsgToQueue(pMgmt, pMsg, FETCH_QUEUE);
-}
+int32_t vmProcessFetchMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) { return vmPutNodeMsgToQueue(pMgmt, pMsg, FETCH_QUEUE); }
 
 int32_t vmProcessMgmtMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
-  SQWorkerAll *pWorker = &pMgmt->mgmtWorker;
+  SSingleWorker *pWorker = &pMgmt->mgmtWorker;
   dTrace("msg:%p, will be written to vnode-mgmt queue, worker:%s", pMsg, pWorker->name);
   return taosWriteQitem(pWorker->queue, pMsg);
 }
@@ -357,9 +349,9 @@ int32_t vmStartWorker(SVnodesMgmt *pMgmt) {
   pWPool->max = maxSyncThreads;
   if (tWWorkerInit(pWPool) != 0) return -1;
 
-  SQWorkerAllCfg cfg = {
+  SSingleWorkerCfg cfg = {
       .minNum = 1, .maxNum = 1, .name = "vnode-mgmt", .fp = (FItem)vmProcessMgmtQueue, .param = pMgmt};
-  if (tQWorkerAllInit(&pMgmt->mgmtWorker, &cfg) != 0) {
+  if (tSingleWorkerInit(&pMgmt->mgmtWorker, &cfg) != 0) {
     dError("failed to start vnode-mgmt worker since %s", terrstr());
     return -1;
   }
@@ -369,7 +361,7 @@ int32_t vmStartWorker(SVnodesMgmt *pMgmt) {
 }
 
 void vmStopWorker(SVnodesMgmt *pMgmt) {
-  tQWorkerAllCleanup(&pMgmt->mgmtWorker);
+  tSingleWorkerCleanup(&pMgmt->mgmtWorker);
   tQWorkerCleanup(&pMgmt->fetchPool);
   tQWorkerCleanup(&pMgmt->queryPool);
   tWWorkerCleanup(&pMgmt->writePool);

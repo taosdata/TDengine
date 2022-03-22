@@ -100,16 +100,16 @@ static void dmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
 }
 
 int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
-  SQWorkerAllCfg mgmtCfg = {
+  SSingleWorkerCfg mgmtCfg = {
       .minNum = 1, .maxNum = 1, .name = "dnode-mgmt", .fp = (FItem)dmProcessQueue, .param = pMgmt};
-  if (tQWorkerAllInit(&pMgmt->mgmtWorker, &mgmtCfg) != 0) {
+  if (tSingleWorkerInit(&pMgmt->mgmtWorker, &mgmtCfg) != 0) {
     dError("failed to start dnode mgmt worker since %s", terrstr());
     return -1;
   }
 
-  SQWorkerAllCfg statusCfg = {
+  SSingleWorkerCfg statusCfg = {
       .minNum = 1, .maxNum = 1, .name = "dnode-status", .fp = (FItem)dmProcessQueue, .param = pMgmt};
-  if (tQWorkerAllInit(&pMgmt->statusWorker, &statusCfg) != 0) {
+  if (tSingleWorkerInit(&pMgmt->statusWorker, &statusCfg) != 0) {
     dError("failed to start dnode status worker since %s", terrstr());
     return -1;
   }
@@ -129,8 +129,8 @@ int32_t dmStartThread(SDnodeMgmt *pMgmt) {
 }
 
 void dmStopWorker(SDnodeMgmt *pMgmt) {
-  tQWorkerAllCleanup(&pMgmt->mgmtWorker);
-  tQWorkerAllCleanup(&pMgmt->statusWorker);
+  tSingleWorkerCleanup(&pMgmt->mgmtWorker);
+  tSingleWorkerCleanup(&pMgmt->statusWorker);
 
   if (pMgmt->threadId != NULL) {
     taosDestoryThread(pMgmt->threadId);
@@ -139,7 +139,7 @@ void dmStopWorker(SDnodeMgmt *pMgmt) {
 }
 
 int32_t dmProcessMgmtMsg(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SQWorkerAll *pWorker = &pMgmt->mgmtWorker;
+  SSingleWorker *pWorker = &pMgmt->mgmtWorker;
   if (pMsg->rpcMsg.msgType == TDMT_MND_STATUS_RSP) {
     pWorker = &pMgmt->statusWorker;
   }

@@ -31,8 +31,8 @@ typedef struct SDnodeMgmt {
   SArray       *dnodeEps;
   TdThread     *threadId;
   SRWLatch      latch;
-  SQWorkerAll   mgmtWorker;
-  SQWorkerAll   statusWorker;
+  SSingleWorker mgmtWorker;
+  SSingleWorker statusWorker;
   const char   *path;
   SDnode       *pDnode;
   SMgmtWrapper *pWrapper;
