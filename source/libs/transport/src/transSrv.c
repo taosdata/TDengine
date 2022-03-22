@@ -199,6 +199,7 @@ static void uvHandleReq(SSrvConn* pConn) {
     if (pHead->persist == 1) {
       pConn->status = ConnAcquire;
       transRefSrvHandle(pConn);
+      tDebug("server conn %p acquired by server app", pConn);
     }
   }
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
@@ -725,7 +726,7 @@ void uvHandleRelease(SSrvMsg* msg, SWorkThrdObj* thrd) {
 }
 void uvHandleResp(SSrvMsg* msg, SWorkThrdObj* thrd) {
   // send msg to client
-  tDebug("server conn %p start to send resp", msg->pConn);
+  tDebug("server conn %p start to send resp (2/2)", msg->pConn);
   uvStartSendResp(msg);
 }
 void uvHandleRegister(SSrvMsg* msg, SWorkThrdObj* thrd) {
@@ -735,9 +736,11 @@ void uvHandleRegister(SSrvMsg* msg, SWorkThrdObj* thrd) {
     if (!transQueuePush(&conn->srvMsgs, msg)) {
       return;
     }
+    transQueuePop(&conn->srvMsgs);
     conn->regArg.notifyCount = 0;
     conn->regArg.init = 1;
     conn->regArg.msg = msg->msg;
+    tDebug("server conn %p register brokenlink callback succ", conn);
 
     if (conn->broken) {
       STrans* pTransInst = conn->pTransInst;
@@ -836,7 +839,7 @@ void transSendResponse(const STransMsg* pMsg) {
   srvMsg->pConn = pConn;
   srvMsg->msg = *pMsg;
   srvMsg->type = Normal;
-  tTrace("server conn %p start to send resp", pConn);
+  tTrace("server conn %p start to send resp (1/2)", pConn);
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
 }
 void transRegisterMsg(const STransMsg* msg) {
