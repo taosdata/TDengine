@@ -4,8 +4,11 @@ using System.Collections.Generic;
 using Xunit;
 using TDengineDriver;
 using Test.UtilsTools.ResultSet;
+using Test.Case.Attributes;
 namespace Cases
 {
+    [TestCaseOrderer("XUnit.Case.Orderers.TestExeOrderer", "Cases.ExeOrder")]
+
     public class FetchLengthCase
     {
         /// <author>xiaolei</author>
@@ -13,7 +16,7 @@ namespace Cases
         /// <describe>TD-12103 C# connector fetch_row with binary data retrieving error</describe>
         /// <filename>FetchLength.cs</filename>
         /// <result>pass or failed </result>
-        [Fact(DisplayName = "Skip FetchLengthCase.TestRetrieveBinary()")]
+        [Fact(DisplayName = "FetchLengthCase.TestRetrieveBinary()"),TestExeOrder(1)]
         public void TestRetrieveBinary()
         {
             IntPtr conn = UtilsTools.TDConnection();

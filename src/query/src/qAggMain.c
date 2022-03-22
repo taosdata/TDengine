@@ -769,6 +769,10 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   return TSDB_CODE_SUCCESS;
 }
 
+bool isTimeWindowFunction(int32_t functionId) {
+  return ((functionId >= TSDB_FUNC_WSTART) && (functionId <= TSDB_FUNC_QDURATION));
+}
+
 // TODO use hash table
 int32_t isValidFunction(const char* name, int32_t len) {
 
@@ -5865,7 +5869,7 @@ static void state_count_function(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   SStateInfo *pStateInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
-  void *data = GET_INPUT_DATA_LIST(pCtx);
+  char *data = GET_INPUT_DATA_LIST(pCtx);
   int64_t *pOutput = (int64_t *)pCtx->pOutput;
 
   for (int32_t i = 0; i < pCtx->size;  i++,pOutput++,data += pCtx->inputBytes) {
@@ -5894,7 +5898,7 @@ static void state_duration_function(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   SStateInfo *pStateInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
-  void *data = GET_INPUT_DATA_LIST(pCtx);
+  char *data = GET_INPUT_DATA_LIST(pCtx);
   TSKEY* tsList = GET_TS_LIST(pCtx);
   int64_t *pOutput = (int64_t *)pCtx->pOutput;
 
@@ -5936,28 +5940,87 @@ int16_t getTimeWindowFunctionID(int16_t colIndex) {
     case TSDB_TSWIN_DURATION_COLUMN_INDEX: {
       return TSDB_FUNC_WDURATION;
     }
+    case TSDB_QUERY_START_COLUMN_INDEX: {
+      return TSDB_FUNC_QSTART;
+    }
+    case TSDB_QUERY_STOP_COLUMN_INDEX: {
+      return TSDB_FUNC_QSTOP;
+    }
+    case TSDB_QUERY_DURATION_COLUMN_INDEX: {
+      return TSDB_FUNC_QDURATION;
+    }
     default:
       return TSDB_FUNC_INVALID_ID;
   }
 }
 
-static void wstart_function(SQLFunctionCtx *pCtx) {
-  SET_VAL(pCtx, pCtx->size, 1);
-  *(int64_t *)(pCtx->pOutput) = pCtx->startTs;
-}
-
-static void wstop_function(SQLFunctionCtx *pCtx) {
-  SET_VAL(pCtx, pCtx->size, 1);
-  *(int64_t *)(pCtx->pOutput) = pCtx->endTs;
-}
-
-static void wduration_function(SQLFunctionCtx *pCtx) {
-  SET_VAL(pCtx, pCtx->size, 1);
-  int64_t duration = pCtx->endTs - pCtx->startTs;
-  if (duration < 0) {
-    duration = -duration;
+static void window_start_function(SQLFunctionCtx *pCtx) {
+  if (pCtx->functionId == TSDB_FUNC_WSTART) {
+    SET_VAL(pCtx, pCtx->size, 1);
+    *(int64_t *)(pCtx->pOutput) = pCtx->startTs;
+  } else { //TSDB_FUNC_QSTART
+    int32_t size = MIN(pCtx->size, pCtx->allocRows); //size cannot exceeds allocated rows
+    SET_VAL(pCtx, pCtx->size, size);
+    //INC_INIT_VAL(pCtx, size);
+    char *output = pCtx->pOutput;
+    for (int32_t i = 0; i < size; ++i) {
+      if (pCtx->qWindow.skey == INT64_MIN) {
+        *(TKEY *)output = TSDB_DATA_TIMESTAMP_NULL;
+      } else {
+        memcpy(output, &pCtx->qWindow.skey, pCtx->outputBytes);
+      }
+      output += pCtx->outputBytes;
+    }
   }
-  *(int64_t *)(pCtx->pOutput) = duration;
+}
+
+static void window_stop_function(SQLFunctionCtx *pCtx) {
+  if (pCtx->functionId == TSDB_FUNC_WSTOP) {
+    SET_VAL(pCtx, pCtx->size, 1);
+    *(int64_t *)(pCtx->pOutput) = pCtx->endTs;
+  } else { //TSDB_FUNC_QSTOP
+    int32_t size = MIN(pCtx->size, pCtx->allocRows); //size cannot exceeds allocated rows
+    SET_VAL(pCtx, pCtx->size, size);
+    //INC_INIT_VAL(pCtx, size);
+    char *output = pCtx->pOutput;
+    for (int32_t i = 0; i < size; ++i) {
+      if (pCtx->qWindow.ekey == INT64_MAX) {
+        *(TKEY *)output = TSDB_DATA_TIMESTAMP_NULL;
+      } else {
+        memcpy(output, &pCtx->qWindow.ekey, pCtx->outputBytes);
+      }
+      output += pCtx->outputBytes;
+    }
+  }
+}
+
+static void window_duration_function(SQLFunctionCtx *pCtx) {
+  int64_t duration;
+  if (pCtx->functionId == TSDB_FUNC_WDURATION) {
+    SET_VAL(pCtx, pCtx->size, 1);
+    duration = pCtx->endTs - pCtx->startTs;
+    if (duration < 0) {
+      duration = -duration;
+    }
+    *(int64_t *)(pCtx->pOutput) = duration;
+  } else { //TSDB_FUNC_QDURATION
+    int32_t size = MIN(pCtx->size, pCtx->allocRows); //size cannot exceeds allocated rows
+    SET_VAL(pCtx, pCtx->size, size);
+    //INC_INIT_VAL(pCtx, size);
+    duration = pCtx->qWindow.ekey - pCtx->qWindow.skey;
+    if (duration < 0) {
+      duration = -duration;
+    }
+    char *output = pCtx->pOutput;
+    for (int32_t i = 0; i < size; ++i) {
+      if (pCtx->qWindow.skey == INT64_MIN || pCtx->qWindow.ekey == INT64_MAX) {
+        *(int64_t *)output = TSDB_DATA_BIGINT_NULL;
+      } else {
+        memcpy(output, &duration, pCtx->outputBytes);
+      }
+      output += pCtx->outputBytes;
+    }
+  }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -5972,16 +6035,16 @@ static void wduration_function(SQLFunctionCtx *pCtx) {
  *
  */
 int32_t functionCompatList[] = {
-    // count,       sum,            avg,       min,        max,         stddev,    percentile,   apercentile, first,     last
-    1,              1,              1,         1,          1,           1,          1,           1,           1,         1,
-    // last_row,    top,            bottom,    spread,     twa,         leastsqr,   ts,          ts_dummy,    tag_dummy, ts_comp
-    4,              -1,             -1,        1,          1,           1,          1,           1,           1,         -1,
-    //  tag,        colprj,         tagprj,    arithm,    diff,         first_dist, last_dist,   stddev_dst,  interp     rate,   irate
-    1,              1,              1,         1,         -1,           1,          1,           1,           5,         1,      1,
-    // tid_tag,     deriv,          csum,      mavg,      sample,       block_info, elapsed,     histogram,   unique,    mode,   tail
-    6,              8,              -1,        -1,        -1,           7,          1,           -1,          -1,        1,      -1,
-    // stateCount,  stateDuration,  wstart,    wstop,     wduration,    hyperloglog
-    1,              1,              1,         1,         1,            1
+    // count,       sum,            avg,       min,        max,         stddev,    percentile,   apercentile, first,        last
+    1,              1,              1,         1,          1,           1,          1,           1,           1,            1,
+    // last_row,    top,            bottom,    spread,     twa,         leastsqr,   ts,          ts_dummy,    tag_dummy,    ts_comp
+    4,              -1,             -1,        1,          1,           1,          1,           1,           1,            -1,
+    //  tag,        colprj,         tagprj,    arithm,    diff,         first_dist, last_dist,   stddev_dst,  interp        rate,       irate
+    1,              1,              1,         1,         -1,           1,          1,           1,           5,            1,          1,
+    // tid_tag,     deriv,          csum,      mavg,      sample,       block_info, elapsed,     histogram,   unique,       mode,       tail
+    6,              8,              -1,        -1,        -1,           7,          1,           -1,          -1,           1,          -1,
+    // stateCount,  stateDuration,  wstart,    wstop,     wduration,    qstart,     qstop,       qduration,   hyperloglog
+    1,              1,              1,         1,         1,            1,          1,           1,           1,
 };
 
 SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
@@ -6522,7 +6585,7 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                               TSDB_FUNC_WSTART,
                               TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
                               function_setup,
-                              wstart_function,
+                              window_start_function,
                               doFinalizer,
                               copy_function,
                               dataBlockRequired,
@@ -6534,7 +6597,7 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                               TSDB_FUNC_WSTOP,
                               TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
                               function_setup,
-                              wstop_function,
+                              window_stop_function,
                               doFinalizer,
                               copy_function,
                               dataBlockRequired,
@@ -6546,13 +6609,49 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                               TSDB_FUNC_WDURATION,
                               TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
                               function_setup,
-                              wduration_function,
+                              window_duration_function,
                               doFinalizer,
                               copy_function,
                               dataBlockRequired,
                           },
                           {
                               // 47
+                              "_qstart",
+                              TSDB_FUNC_QSTART,
+                              TSDB_FUNC_QSTART,
+                              TSDB_BASE_FUNC_MO | TSDB_FUNCSTATE_SELECTIVITY,
+                              function_setup,
+                              window_start_function,
+                              doFinalizer,
+                              copy_function,
+                              dataBlockRequired,
+                          },
+                          {
+                              // 48
+                              "_qstop",
+                              TSDB_FUNC_QSTOP,
+                              TSDB_FUNC_QSTOP,
+                              TSDB_BASE_FUNC_MO | TSDB_FUNCSTATE_SELECTIVITY,
+                              function_setup,
+                              window_stop_function,
+                              doFinalizer,
+                              copy_function,
+                              dataBlockRequired,
+                          },
+                          {
+                              // 49
+                              "_qduration",
+                              TSDB_FUNC_QDURATION,
+                              TSDB_FUNC_QDURATION,
+                              TSDB_BASE_FUNC_MO | TSDB_FUNCSTATE_SELECTIVITY,
+                              function_setup,
+                              window_duration_function,
+                              doFinalizer,
+                              copy_function,
+                              dataBlockRequired,
+                          },
+                          {
+                              // 50
                               "hyperloglog",
                               TSDB_FUNC_HYPERLOGLOG,
                               TSDB_FUNC_HYPERLOGLOG,

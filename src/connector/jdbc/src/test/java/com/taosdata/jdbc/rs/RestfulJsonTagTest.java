@@ -8,6 +8,8 @@ import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
 
 import java.sql.*;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Most of the functionality is consistent with {@link com.taosdata.jdbc.JsonTagTest},
@@ -1143,13 +1145,14 @@ public class RestfulJsonTagTest {
         ResultSet resultSet = statement.executeQuery("select stddev(dataint) from jsons1 group by jtag->'tag1'");
         String s = "";
         int count = 0;
+        Set<String> set = new HashSet<>();
         while (resultSet.next()) {
             count++;
-            s = resultSet.getString(2);
-
+            set.add(resultSet.getString(2));
         }
         Assert.assertEquals(8, count);
-        Assert.assertEquals("\"收到货\"", s);
+        Assert.assertTrue(set.contains("\"femail\""));
+        Assert.assertTrue(set.contains("\"收到货\""));
         close(resultSet);
     }
 

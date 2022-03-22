@@ -382,7 +382,7 @@ int32_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, int3
      * the number of output result is decided by main output
      */
     if (hasMainFunction && (id == TSDB_FUNC_TS || id == TSDB_FUNC_TAG || id == TSDB_FUNC_TAGPRJ ||
-                            id == TSDB_FUNC_TS_DUMMY || id == TSDB_FUNC_TAG_DUMMY)) {
+                            id == TSDB_FUNC_TS_DUMMY || id == TSDB_FUNC_TAG_DUMMY || isTimeWindowFunction(id))) {
       continue;
     }
 
@@ -1905,7 +1905,7 @@ static int32_t setCtxTagColumnInfo(SQLFunctionCtx *pCtx, int32_t numOfOutput) {
 }
 
 static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput,
-                                            int32_t** rowCellInfoOffset) {
+                                            int32_t** rowCellInfoOffset, int32_t numOfRows) {
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
 
   SQLFunctionCtx * pFuncCtx = (SQLFunctionCtx *)calloc(numOfOutput, sizeof(SQLFunctionCtx));
@@ -1935,7 +1935,7 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
     pCtx->inputType  = pSqlExpr->colType;
     if (pRuntimeEnv->pQueryAttr->interBytesForGlobal > INT16_MAX &&
         (pSqlExpr->functionId == TSDB_FUNC_UNIQUE || pSqlExpr->functionId == TSDB_FUNC_MODE
-         || pSqlExpr->functionId == TSDB_FUNC_TAIL)){
+         || pSqlExpr->functionId == TSDB_FUNC_TAIL || pSqlExpr->functionId == TSDB_FUNC_SAMPLE)) {
       pCtx->inputBytes  = pRuntimeEnv->pQueryAttr->interBytesForGlobal;
     }else{
       pCtx->inputBytes = pSqlExpr->colBytes;
@@ -1954,6 +1954,9 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
     pCtx->start.key    = INT64_MIN;
     pCtx->end.key      = INT64_MIN;
     pCtx->startTs      = INT64_MIN;
+
+    pCtx->qWindow      = pQueryAttr->window;
+    pCtx->allocRows    = numOfRows;
 
     pCtx->numOfParams  = pSqlExpr->numOfParams;
     for (int32_t j = 0; j < pCtx->numOfParams; ++j) {
@@ -3922,7 +3925,8 @@ static bool hasMainOutput(SQueryAttr *pQueryAttr) {
   for (int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
     int32_t functionId = pQueryAttr->pExpr1[i].base.functionId;
 
-    if (functionId != TSDB_FUNC_TS && functionId != TSDB_FUNC_TAG && functionId != TSDB_FUNC_TAGPRJ) {
+    if (functionId != TSDB_FUNC_TS && functionId != TSDB_FUNC_TAG &&
+        functionId != TSDB_FUNC_TAGPRJ && !isTimeWindowFunction(functionId)) {
       return true;
     }
   }
@@ -5637,7 +5641,8 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
   pInfo->bufCapacity       = 200;   // TD-10899
   pInfo->udfInfo           = pUdfInfo;
   pInfo->binfo.pRes        = createOutputBuf(pExpr, numOfOutput, pInfo->bufCapacity * pInfo->resultRowFactor);
-  pInfo->binfo.pCtx        = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
+  pInfo->binfo.pCtx        = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset,
+                                                  pInfo->bufCapacity * pInfo->resultRowFactor);
   pInfo->orderColumnList   = getOrderCheckColumns(pRuntimeEnv->pQueryAttr);
   pInfo->groupColumnList   = getResultGroupCheckColumns(pRuntimeEnv->pQueryAttr);
 
@@ -5956,7 +5961,7 @@ static SSDataBlock* doAggregate(void* param, bool* newgroup) {
     doAggregateImpl(pOperator, pQueryAttr->window.skey, pInfo->pCtx, pBlock);
     // if all pCtx is completed, then query should be over
     if(allCtxCompleted(pOperator, pInfo->pCtx))
-      break;    
+      break;
   }
 
   doSetOperatorCompleted(pOperator);
@@ -7278,7 +7283,7 @@ SOperatorInfo* createAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
   int32_t numOfRows = (int32_t)(getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
 
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, numOfRows);
-  pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
+  pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset, numOfRows);
 
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
@@ -7450,7 +7455,7 @@ SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SO
   size_t tableGroup = GET_NUM_OF_TABLEGROUP(pRuntimeEnv);
 
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, (int32_t) tableGroup);
-  pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
+  pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset, (int32_t) tableGroup);
   initResultRowInfo(&pInfo->binfo.resultRowInfo, (int32_t)tableGroup, TSDB_DATA_TYPE_INT);
 
   if (pInfo->binfo.pRes == NULL || pInfo->binfo.pCtx == NULL || pInfo->binfo.resultRowInfo.pResult == NULL) {
@@ -7495,7 +7500,7 @@ SOperatorInfo* createProjectOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
 
   SOptrBasicInfo* pBInfo = &pInfo->binfo;
   pBInfo->pRes  = createOutputBuf(pExpr, numOfOutput, pInfo->bufCapacity);
-  pBInfo->pCtx  = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pBInfo->rowCellInfoOffset);
+  pBInfo->pCtx  = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pBInfo->rowCellInfoOffset, pInfo->bufCapacity);
 
   initResultRowInfo(&pBInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
@@ -7630,7 +7635,7 @@ SOperatorInfo* createTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOp
     return NULL;
   }
 
-  pInfo->pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->rowCellInfoOffset);
+  pInfo->pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->rowCellInfoOffset, pRuntimeEnv->resultInfo.capacity);
   pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
   initResultRowInfo(&pInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
@@ -7680,7 +7685,7 @@ SOperatorInfo* createTimeEveryOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
 
   SOptrBasicInfo* pBInfo = &pInfo->binfo;
   pBInfo->pRes  = createOutputBuf(pExpr, numOfOutput, pInfo->bufCapacity);
-  pBInfo->pCtx  = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pBInfo->rowCellInfoOffset);
+  pBInfo->pCtx  = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pBInfo->rowCellInfoOffset, pInfo->bufCapacity);
 
   if (pQueryAttr->needReverseScan) {
     pInfo->rangeStart = taosHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP), false, false);
@@ -7732,7 +7737,8 @@ SOperatorInfo* createStatewindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpe
 
   pInfo->colIndex   = -1;
   pInfo->reptScan   = false;
-  pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
+  pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset,
+                                           pRuntimeEnv->resultInfo.capacity);
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
@@ -7772,7 +7778,8 @@ SOperatorInfo* createSWindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
     return NULL;
   }
 
-  pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
+  pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset,
+                                           pRuntimeEnv->resultInfo.capacity);
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
@@ -7814,7 +7821,7 @@ SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRunti
     return NULL;
   }
 
-  pInfo->pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->rowCellInfoOffset);
+  pInfo->pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->rowCellInfoOffset, pRuntimeEnv->resultInfo.capacity);
   pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
   initResultRowInfo(&pInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
@@ -7857,7 +7864,8 @@ SOperatorInfo* createGroupbyOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
   }
 
   pInfo->colIndex = -1;  // group by column index
-  pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
+  pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset,
+                                           pRuntimeEnv->resultInfo.capacity);
 
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
 
@@ -9168,7 +9176,7 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
       type = s->type;
       bytes = s->bytes;
     } else if (TSDB_COL_IS_TSWIN_COL(pExprs[i].base.colInfo.colId) &&
-               (pExprs[i].base.functionId >= TSDB_FUNC_WSTART || pExprs[i].base.functionId <= TSDB_FUNC_WDURATION)) {
+               isTimeWindowFunction(pExprs[i].base.functionId)) {
       SSchema* s = tGetTimeWindowColumnSchema(pExprs[i].base.colInfo.colId);
       type = s->type;
       bytes = s->bytes;
@@ -9219,19 +9227,15 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
     int32_t param = (int32_t)pExprs[i].base.param[0].i64;
     if (pExprs[i].base.functionId > 0 &&
         pExprs[i].base.functionId != TSDB_FUNC_SCALAR_EXPR &&
-        pExprs[i].base.functionId != TSDB_FUNC_WSTART &&
-        pExprs[i].base.functionId != TSDB_FUNC_WSTOP &&
-        pExprs[i].base.functionId != TSDB_FUNC_WDURATION &&
-       (type != pExprs[i].base.colType || bytes != pExprs[i].base.colBytes)) {
+        !isTimeWindowFunction(pExprs[i].base.functionId) &&
+        (type != pExprs[i].base.colType || bytes != pExprs[i].base.colBytes)) {
       tfree(pExprs);
       return TSDB_CODE_QRY_INVALID_MSG;
     }
 
     // todo remove it
     if (pExprs[i].base.functionId != TSDB_FUNC_SCALAR_EXPR &&
-        pExprs[i].base.functionId != TSDB_FUNC_WSTART &&
-        pExprs[i].base.functionId != TSDB_FUNC_WSTOP &&
-        pExprs[i].base.functionId != TSDB_FUNC_WDURATION &&
+        !isTimeWindowFunction(pExprs[i].base.functionId) &&
         getResultDataInfo(type, bytes, pExprs[i].base.functionId, param, &pExprs[i].base.resType, &pExprs[i].base.resBytes,
         &pExprs[i].base.interBytes, 0, isSuperTable, pUdfInfo) != TSDB_CODE_SUCCESS) {
       tfree(pExprs);
@@ -9447,9 +9451,7 @@ static void doUpdateExprColumnIndex(SQueryAttr *pQueryAttr) {
   for (int32_t k = 0; k < pQueryAttr->numOfOutput; ++k) {
     SSqlExpr *pSqlExprMsg = &pQueryAttr->pExpr1[k].base;
     if (pSqlExprMsg->functionId == TSDB_FUNC_SCALAR_EXPR ||
-        pSqlExprMsg->functionId == TSDB_FUNC_WSTART ||
-        pSqlExprMsg->functionId == TSDB_FUNC_WSTOP ||
-        pSqlExprMsg->functionId == TSDB_FUNC_WDURATION) {
+        isTimeWindowFunction(pSqlExprMsg->functionId)) {
       continue;
     }
 

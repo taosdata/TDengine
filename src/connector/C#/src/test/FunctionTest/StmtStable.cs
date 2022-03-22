@@ -5,17 +5,30 @@ using Test.UtilsTools.DataSource;
 using System.Collections.Generic;
 using Test.UtilsTools.ResultSet;
 using Xunit;
+using Test.Fixture;
+using Test.Case.Attributes;
 
 namespace Cases
 {
+    [TestCaseOrderer("XUnit.Case.Orderers.TestExeOrderer", "Cases.ExeOrder")]
+    [Collection("Database collection")]
+
     public class StableStmtCases
     {
+
+        DatabaseFixture database;
+
+
+        public StableStmtCases(DatabaseFixture fixture)
+        {
+            this.database = fixture;
+        }
         /// <author>xiaolei</author>
         /// <Name>StableStmtCases.TestBindSingleLineCN</Name>
         /// <describe>Test stmt insert single line of chinese character into stable by column after column </describe>
         /// <filename>StmtSTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "StableStmtCases.TestBindSingleLineCN()")]
+        [Fact(DisplayName = "StableStmtCases.TestBindSingleLineCN()"),TestExeOrder(2),Trait("Category", "BindParamCN")]
         public void TestBindSingleLineCN()
         {
             string tableName = "stb_stmt_cases_test_bind_single_line_cn";
@@ -57,7 +70,7 @@ namespace Cases
             TAOS_BIND[] tags = DataSource.GetCNTags();
             TAOS_BIND[] binds = DataSource.GetNTableCNRow();
 
-            IntPtr conn = UtilsTools.TDConnection();
+            IntPtr conn = database.conn;
             UtilsTools.ExecuteUpdate(conn, dropSql);
             UtilsTools.ExecuteUpdate(conn, createSql);
 
@@ -99,7 +112,7 @@ namespace Cases
         /// <describe>Test stmt insert single line of chinese character into stable by column after column </describe>
         /// <filename>StmtSTable.cs</filename>
         /// <result>pass or failed </result>
-        [Fact(DisplayName = "StableStmtCases.TestBindColumnCN()")]
+        [Fact(DisplayName = "StableStmtCases.TestBindColumnCN()"),TestExeOrder(4),Trait("Category", "BindParamColumnCN")]
         public void TestBindColumnCN()
         {
             string tableName = "stb_stmt_cases_test_bindcolumn_cn";
@@ -141,7 +154,7 @@ namespace Cases
             List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createSql);
             List<String> expectResData = DataSource.GetMultiBindStableCNRowData();
 
-            IntPtr conn = UtilsTools.TDConnection();
+            IntPtr conn = database.conn;
             UtilsTools.ExecuteUpdate(conn, dropSql);
             UtilsTools.ExecuteUpdate(conn, createSql);
 
@@ -199,7 +212,7 @@ namespace Cases
         /// <describe>Test stmt insert single line of chinese character into stable by column after column </describe>
         /// <filename>StmtSTable.cs</filename>
         /// <result>pass or failed </result>
-        [Fact(DisplayName = "StableStmtCases.TestBindMultiLineCN()")]
+        [Fact(DisplayName = "StableStmtCases.TestBindMultiLineCN()"),TestExeOrder(6),Trait("Category", "BindParamBatchCN")]
         public void TestBindMultiLineCN()
         {
             string tableName = "stb_stmt_cases_test_bind_multi_line_cn";
@@ -241,7 +254,7 @@ namespace Cases
             List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createSql);
             List<String> expectResData = DataSource.GetMultiBindStableCNRowData();
 
-            IntPtr conn = UtilsTools.TDConnection();
+            IntPtr conn = database.conn;
             UtilsTools.ExecuteUpdate(conn, dropSql);
             UtilsTools.ExecuteUpdate(conn, createSql);
 
@@ -282,11 +295,11 @@ namespace Cases
         /// <describe>Test stmt insert single line into stable by column after column </describe>
         /// <filename>StmtSTable.cs</filename>
         /// <result>pass or failed </result>         
-        [Fact(DisplayName = "StableStmtCases.TestBindMultiLine()")]
+        [Fact(DisplayName = "StableStmtCases.TestBindMultiLine()"),TestExeOrder(5),Trait("Category", "BindParamBatch")]
         public void TestBindMultiLine()
         {
             string tableName = "stb_stmt_cases_test_bind_multi_line";
-            string createSql = $"create stable  if not exists {tableName} " +
+            string createSql = $"create stable if not exists {tableName} " +
                                 "(ts timestamp," +
                                 "b bool," +
                                 "v1 tinyint," +
@@ -324,7 +337,7 @@ namespace Cases
             List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createSql);
             List<String> expectResData = DataSource.GetMultiBindStableRowData();
 
-            IntPtr conn = UtilsTools.TDConnection();
+            IntPtr conn = database.conn;
             UtilsTools.ExecuteUpdate(conn, dropSql);
             UtilsTools.ExecuteUpdate(conn, createSql);
 
@@ -370,7 +383,7 @@ namespace Cases
         /// <describe>Test stmt insert single line of chinese character into stable by column after column </describe>
         /// <filename>StmtSTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "StableStmtCases.TestBindColumn()")]
+        [Fact(DisplayName = "StableStmtCases.TestBindColumn()"),TestExeOrder(3),Trait("Category", "BindParamColumn")]
         public void TestBindColumn()
         {
             string tableName = "stb_stmt_cases_test_bindcolumn";
@@ -412,7 +425,7 @@ namespace Cases
             List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createSql);
             List<String> expectResData = DataSource.GetMultiBindStableRowData();
 
-            IntPtr conn = UtilsTools.TDConnection();
+            IntPtr conn = database.conn;
             UtilsTools.ExecuteUpdate(conn, dropSql);
             UtilsTools.ExecuteUpdate(conn, createSql);
 

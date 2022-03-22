@@ -5,16 +5,27 @@ using Test.UtilsTools.DataSource;
 using Xunit;
 using System.Collections.Generic;
 using Test.UtilsTools.ResultSet;
+using Test.Fixture;
+using Test.Case.Attributes;
+
 namespace Cases
 {
+    [TestCaseOrderer("XUnit.Case.Orderers.TestExeOrderer", "Cases.ExeOrder")]
+    [Collection("Database collection")]
     public class NormalTableStmtCases
     {
+        DatabaseFixture database;
+
+        public NormalTableStmtCases(DatabaseFixture fixture)
+        {
+            this.database = fixture;
+        }
         /// <author>xiaolei</author>
         /// <Name>NormalTableStmtCases.TestBindSingleLineCN</Name>
         /// <describe>Test stmt insert single line of chinese character into normal table by column after column </describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result>  
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindSingleLineCN()")]
+        [Fact(DisplayName = "NormalTableStmtCases.TestBindSingleLineCN()"),TestExeOrder(2),Trait("Category", "bindParamCN")]
         public void TestBindSingleLineCN()
         {
             string tableName = "ntb_stmt_cases_test_bind_single_line_cn";
@@ -42,7 +53,7 @@ namespace Cases
             List<string> expectResData = DataSource.GetNTableCNRowData();
             List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createTb);
 
-            IntPtr conn = UtilsTools.TDConnection();
+            IntPtr conn = database.conn;
             UtilsTools.ExecuteUpdate(conn, dropSql);
             UtilsTools.ExecuteUpdate(conn, createTb);
 
@@ -80,7 +91,7 @@ namespace Cases
         /// <describe>Test stmt insert single line of chinese character into normal table by column after column </describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindColumnCN()")]
+        [Fact(DisplayName = "NormalTableStmtCases.TestBindColumnCN()"),TestExeOrder(4),Trait("Category", "bindSingleColumnCN")]
         public void TestBindColumnCN()
         {
             string tableName = "ntb_stmt_cases_test_bind_column_cn";
@@ -107,7 +118,7 @@ namespace Cases
             TAOS_MULTI_BIND[] mBind = DataSource.GetMultiBindCNArr();
             List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createTb);
 
-            IntPtr conn = UtilsTools.TDConnection();
+            IntPtr conn = database.conn;
             UtilsTools.ExecuteUpdate(conn, dropSql);
             UtilsTools.ExecuteUpdate(conn, createTb);
 
@@ -162,7 +173,7 @@ namespace Cases
         /// <describe>Test stmt insert single line of chinese character into normal table by column after column </describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindMultiLineCN()")]
+        [Fact(DisplayName = "NormalTableStmtCases.TestBindMultiLineCN()"),TestExeOrder(6),Trait("Category", "bindParamBatchCN")]
         public void TestBindMultiLineCN()
         {
             string tableName = "ntb_stmt_cases_test_bind_multi_lines_cn";
@@ -189,7 +200,7 @@ namespace Cases
             List<string> expectResData = DataSource.GetMultiBindCNRowData();
             List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createTb);
 
-            IntPtr conn = UtilsTools.TDConnection(); ;
+            IntPtr conn = database.conn; ;
             UtilsTools.ExecuteUpdate(conn, dropSql);
             UtilsTools.ExecuteUpdate(conn, createTb);
 
@@ -231,7 +242,7 @@ namespace Cases
         /// <describe>Test stmt insert single line data into normal table</describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result>
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindSingleLine")]
+        [Fact(DisplayName = "NormalTableStmtCases.TestBindSingleLine"),TestExeOrder(3),Trait("Category", "BindSingleColumn")]
         public void TestBindSingleLine()
         {
             string tableName = "ntb_stmt_cases_test_bind_single_line";
@@ -259,7 +270,7 @@ namespace Cases
             List<string> expectResData = DataSource.GetNTableRowData();
             List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createTb);
 
-            IntPtr conn = UtilsTools.TDConnection();
+            IntPtr conn = database.conn;
             UtilsTools.ExecuteQuery(conn, dropSql);
             UtilsTools.ExecuteQuery(conn, createTb);
 
@@ -296,14 +307,14 @@ namespace Cases
         }
 
         /// <author>xiaolei</author>
-        /// <Name>NTableMultipleLine.TestBindMultiLine</Name>
+        /// <Name>NormalTableStmtCases.TestBindMultiLine</Name>
         /// <describe>Test stmt insert multiple rows of data into normal table</describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindMultiLine()")]
+        [Fact(DisplayName = "NormalTableStmtCases.TestBindMultiLine()"),TestExeOrder(5),Trait("Category", "bindParamBatch")]
         public void TestBindMultiLine()
         {
-            string tableName = "normal_table_stmt_cases_test_bind_multi_lines";
+            string tableName = "ntb_stmt_case_test_bind_multi_lines";
             String createTb = $"create table if not exists {tableName} " +
                                 " (" +
                                 "ts timestamp," +
@@ -327,7 +338,7 @@ namespace Cases
             TAOS_MULTI_BIND[] mBind = DataSource.GetMultiBindArr();
             List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createTb);
 
-            IntPtr conn = UtilsTools.TDConnection();
+            IntPtr conn = database.conn;
             UtilsTools.ExecuteUpdate(conn, dropSql);
             UtilsTools.ExecuteUpdate(conn, createTb);
 
@@ -365,14 +376,14 @@ namespace Cases
         }
 
         /// <author>xiaolei</author>
-        /// <Name>NormalTableStmtCases.TestBindColumnCn</Name>
+        /// <Name>NormalTableStmtCases.TestBindColumn</Name>
         /// <describe>Test stmt insert multiple rows of data into normal table by column after column </describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindColumn()")]
+        [Fact(DisplayName = "NormalTableStmtCases.TestBindColumn()"),TestExeOrder(1),Trait("Category", "bindParam")]
         public void TestBindColumn()
         {
-            string tableName = "ntb_stmt_cases_test_bind_column_cn";
+            string tableName = "ntb_stmt_cases_test_bind_column";
             DataSource data = new DataSource();
             String createTb = $"create table if not exists {tableName} " +
                                 " (" +
@@ -398,7 +409,7 @@ namespace Cases
             List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDDL(createTb);
 
 
-            IntPtr conn = UtilsTools.TDConnection();
+            IntPtr conn = database.conn;
             UtilsTools.ExecuteUpdate(conn, dropSql);
             UtilsTools.ExecuteUpdate(conn, createTb);
 
