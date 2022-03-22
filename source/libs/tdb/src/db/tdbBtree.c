@@ -745,13 +745,29 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
         }
       }
     }
-
-    int k = 0;
   }
 
-  SPage *pNews[5];
-  {
-      // Allocate the new pages
+  SPage *pNews[5] = {0};
+  {  // Allocate new pages, reuse the old page when possible
+
+    SPgno             pgno;
+    SBtreeInitPageArg iarg;
+    u8                flags;
+
+    flags = TDB_BTREE_PAGE_GET_FLAGS(pOlds[0]);
+
+    for (int iNew = 0; iNew < nNews; iNew++) {
+      if (iNew < nOlds) {
+        pNews[iNew] = pOlds[iNew];
+      } else {
+        iarg.pBt = pBt;
+        iarg.flags = flags;
+        ret = tdbPagerNewPage(pBt->pPager, &pgno, pNews + iNew, tdbBtreeZeroPage, &iarg);
+        if (ret < 0) {
+          ASSERT(0);
+        }
+      }
+    }
   }
 
   {
