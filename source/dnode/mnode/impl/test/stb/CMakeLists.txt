@@ -5,7 +5,7 @@ target_link_libraries(
     PUBLIC sut
 )
 
-add_test(
-    NAME mnode_test_stb
-    COMMAND mnode_test_stb
-)
+#add_test(
+#    NAME mnode_test_stb
+#    COMMAND mnode_test_stb
+#)

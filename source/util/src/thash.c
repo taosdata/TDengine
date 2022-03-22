@@ -305,7 +305,7 @@ int32_t taosHashGetSize(const SHashObj *pHashObj) {
   return (int32_t)atomic_load_64((int64_t*)&pHashObj->size);
 }
 
-int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size) {
+int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const void *data, size_t size) {
   if (pHashObj == NULL || key == NULL || keyLen == 0) {
     return -1;
   }

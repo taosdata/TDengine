@@ -271,6 +271,8 @@ TEST(testCase, create_stable_Test) {
   }
   taos_free_result(pRes);
 
+  pRes = taos_query(pConn, "use abc1");
+
   pRes = taos_query(pConn, "create table if not exists abc1.st1(ts timestamp, k int) tags(a int)");
   if (taos_errno(pRes) != 0) {
     printf("error in create stable, reason:%s\n", taos_errstr(pRes));

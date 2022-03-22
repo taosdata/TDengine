@@ -183,6 +183,9 @@ void vnodeOptionsInit(SVnodeCfg *pOptions);
  */
 void vnodeOptionsClear(SVnodeCfg *pOptions);
 
+int vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName);
+
+
 /* ------------------------ FOR COMPILE ------------------------ */
 
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg);

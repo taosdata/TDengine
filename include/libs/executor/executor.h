@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "tcommon.h"
+#include "query.h"
 
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
@@ -30,6 +31,7 @@ struct SSubplan;
 typedef struct SReadHandle {
   void* reader;
   void* meta;
+  void* config;
 } SReadHandle;
 
 #define STREAM_DATA_TYPE_SUBMIT_BLOCK 0x1

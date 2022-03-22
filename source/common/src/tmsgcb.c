@@ -20,6 +20,10 @@ int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq) {
   return (*pMsgCb->queueFps[qtype])(pMsgCb->pWrapper, pReq);
 }
 
+int32_t tmsgGetQueueSize(const SMsgCb* pMsgCb, int32_t vgId, EQueueType qtype) {
+  return (*pMsgCb->qsizeFp)(pMsgCb->pWrapper, vgId, qtype);
+}
+
 int32_t tmsgSendReq(const SMsgCb* pMsgCb, SEpSet* epSet, SRpcMsg* pReq) {
   return (*pMsgCb->sendReqFp)(pMsgCb->pWrapper, epSet, pReq);
 }

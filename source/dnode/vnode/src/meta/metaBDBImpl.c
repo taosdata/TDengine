@@ -705,6 +705,18 @@ SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
   return pTbCur;
 }
 
+int metaGetTbNum(SMeta *pMeta) {
+  SMetaDB    *pDB = pMeta->pDB;
+
+  DB_BTREE_STAT *sp1;
+  pDB->pTbDB->stat(pDB->pNtbIdx, NULL, &sp1, 0);
+  
+  DB_BTREE_STAT *sp2;
+  pDB->pTbDB->stat(pDB->pCtbIdx, NULL, &sp2, 0);
+  
+  return sp1->bt_nkeys + sp2->bt_nkeys;
+}
+
 void metaCloseTbCursor(SMTbCursor *pTbCur) {
   if (pTbCur) {
     if (pTbCur->pCur) {

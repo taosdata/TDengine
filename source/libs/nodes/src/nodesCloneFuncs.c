@@ -31,6 +31,9 @@
 
 #define COPY_CHAR_POINT_FIELD(fldname) \
 	do { \
+    if (NULL == (pSrc)->fldname) { \
+      break; \
+    } \
     (pDst)->fldname = strdup((pSrc)->fldname); \
 	} while (0)
 
@@ -108,6 +111,10 @@ static SNode* valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
   exprNodeCopy((const SExprNode*)pSrc, (SExprNode*)pDst);
   COPY_CHAR_POINT_FIELD(literal);
   COPY_SCALAR_FIELD(isDuration);
+  COPY_SCALAR_FIELD(translate);
+  if (!pSrc->translate) {
+    return (SNode*)pDst;
+  }
   switch (pSrc->node.resType.type) {
     case TSDB_DATA_TYPE_NULL:
       break;
@@ -134,7 +141,12 @@ static SNode* valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
-      COPY_CHAR_POINT_FIELD(datum.p);
+      pDst->datum.p = malloc(pSrc->node.resType.bytes + VARSTR_HEADER_SIZE);
+      if (NULL == pDst->datum.p) {
+        nodesDestroyNode(pDst);
+        return NULL;
+      }
+      memcpy(pDst->datum.p, pSrc->datum.p, pSrc->node.resType.bytes + VARSTR_HEADER_SIZE);
       break;
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_DECIMAL:
