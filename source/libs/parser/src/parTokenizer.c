@@ -320,7 +320,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
         *tokenId = TK_NK_COMMENT;
         return i;
       }
-      *tokenId = TK_MINUS;
+      *tokenId = TK_NK_MINUS;
       return 1;
     }
     case '(': {
@@ -674,7 +674,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
 
   } else {
     // support parse the -/+number format
-    if ((isPrevOptr) && (t0.type == TK_MINUS || t0.type == TK_NK_PLUS)) {
+    if ((isPrevOptr) && (t0.type == TK_NK_MINUS || t0.type == TK_NK_PLUS)) {
       len = tGetToken(&str[*i + t0.n], &type);
       if (type == TK_NK_INTEGER || type == TK_NK_FLOAT) {
         t0.type = type;

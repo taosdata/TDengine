@@ -873,12 +873,22 @@ static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStm
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t calcTypeBytes(SDataType dt) {
+  if (TSDB_DATA_TYPE_BINARY == dt.type) {
+    return dt.bytes + VARSTR_HEADER_SIZE;
+  } else if (TSDB_DATA_TYPE_NCHAR == dt.type) {
+    return dt.bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+  } else {
+    return dt.bytes;
+  }
+}
+
 static int32_t columnNodeToField(SNodeList* pList, SArray** pArray) {
   *pArray = taosArrayInit(LIST_LENGTH(pList), sizeof(SField));
   SNode* pNode;
   FOREACH(pNode, pList) {
     SColumnDefNode* pCol = (SColumnDefNode*)pNode;
-    SField field = { .type = pCol->dataType.type, .bytes = pCol->dataType.bytes };
+    SField field = { .type = pCol->dataType.type, .bytes = calcTypeBytes(pCol->dataType) };
     strcpy(field.name, pCol->colName);
     taosArrayPush(*pArray, &field);
   }

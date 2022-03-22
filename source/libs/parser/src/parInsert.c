@@ -28,6 +28,13 @@
     pSql += index; \
   } while (0)
 
+#define NEXT_TOKEN_WITH_PREV(pSql, sToken) \
+  do { \
+    int32_t index = 0; \
+    sToken = tStrGetToken(pSql, &index, true); \
+    pSql += index; \
+  } while (0)
+
 #define NEXT_TOKEN_KEEP_SQL(pSql, sToken, index) \
   do { \
     sToken = tStrGetToken(pSql, &index, false); \
@@ -352,7 +359,7 @@ static int parseTime(char **end, SToken *pToken, int16_t timePrec, int64_t *time
   sToken = tStrGetToken(pTokenEnd, &index, false);
   pTokenEnd += index;
 
-  if (sToken.type == TK_MINUS || sToken.type == TK_NK_PLUS) {
+  if (sToken.type == TK_NK_MINUS || sToken.type == TK_NK_PLUS) {
     index = 0;
     valueToken = tStrGetToken(pTokenEnd, &index, false);
     pTokenEnd += index;
@@ -748,7 +755,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pTagsSchema, 
   SToken sToken;
   char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0};  // used for deleting Escape character: \\, \', \"
   for (int i = 0; i < pCxt->tags.numOfBound; ++i) {
-    NEXT_TOKEN(pCxt->pSql, sToken);
+    NEXT_TOKEN_WITH_PREV(pCxt->pSql, sToken);
     SSchema* pSchema = &pTagsSchema[pCxt->tags.boundedColumns[i]];
     param.schema = pSchema;
     CHECK_CODE(parseValueToken(&pCxt->pSql, &sToken, pSchema, precision, tmpTokenBuf, KvRowAppend, &param, &pCxt->msg));
@@ -814,7 +821,7 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
   SToken sToken = {0};
   // 1. set the parsed value from sql string
   for (int i = 0; i < spd->numOfBound; ++i) {
-    NEXT_TOKEN(pCxt->pSql, sToken);
+    NEXT_TOKEN_WITH_PREV(pCxt->pSql, sToken);
     SSchema *pSchema = &schema[spd->boundedColumns[i] - 1];
     param.schema = pSchema;
     getMemRowAppendInfo(schema, pBuilder->rowType, spd, i, &param.toffset, &param.colIdx);
