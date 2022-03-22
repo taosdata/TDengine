@@ -29,6 +29,7 @@ add_executable(syncPingTimerTest2 "")
 add_executable(syncPingSelfTest "")
 add_executable(syncElectTest "")
 add_executable(syncElectTest2 "")
+add_executable(syncElectTest3 "")
 add_executable(syncEncodeTest "")
 add_executable(syncWriteTest "")
 add_executable(syncReplicateTest "")
@@ -158,6 +159,10 @@ target_sources(syncElectTest
 target_sources(syncElectTest2
     PRIVATE
     "syncElectTest2.cpp"
+)
+target_sources(syncElectTest3
+    PRIVATE
+    "syncElectTest3.cpp"
 )
 target_sources(syncEncodeTest
     PRIVATE
@@ -332,6 +337,11 @@ target_include_directories(syncElectTest2
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(syncElectTest3
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 target_include_directories(syncEncodeTest
     PUBLIC
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
@@ -475,6 +485,10 @@ target_link_libraries(syncElectTest
     gtest_main
 )
 target_link_libraries(syncElectTest2
+    sync
+    gtest_main
+)
+target_link_libraries(syncElectTest3
     sync
     gtest_main
 )
