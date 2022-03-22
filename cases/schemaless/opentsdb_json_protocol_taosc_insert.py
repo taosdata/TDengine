@@ -1044,4 +1044,4 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         return "Jayden"
 
     def tags(self):
-        return T.Write.Schemaless.Taosc.InfluxDB
+        return T.Write.Schemaless.Taosc.OpenTsDBJson
