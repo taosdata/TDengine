@@ -325,6 +325,14 @@ class TDTestCase:
         tdSql.query('select unique(unique.voltage) from unique, unique2 where unique.ts=unique2.ts and unique.groupid=unique2.groupid')
         tdSql.checkRows(1)
 
+        #TD-14104
+        ts = 1642592221000
+        sql = "insert into D004 values"
+        for i in range(3000):
+            sql += " (%d,%d,%d)"%(ts + i*1000, i, i)
+        tdSql.execute(sql)
+        tdSql.query("select unique(num) from (select * from unique)")
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
