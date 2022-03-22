@@ -57,7 +57,9 @@ void sndMetaDelete(SStreamMeta *pMeta) {
 }
 
 int32_t sndMetaDeployTask(SStreamMeta *pMeta, SStreamTask *pTask) {
-  pTask->runner.executor = qCreateStreamExecTaskInfo(pTask->qmsg, NULL);
+  for (int i = 0; i < pTask->parallel; i++) {
+    pTask->runner.executor[i] = qCreateStreamExecTaskInfo(pTask->qmsg, NULL);
+  }
   return taosHashPut(pMeta->pHash, &pTask->taskId, sizeof(int32_t), pTask, sizeof(void *));
 }
 
@@ -95,6 +97,7 @@ void sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) {
     SStreamTask *pTask = malloc(sizeof(SStreamTask));
     if (pTask == NULL) {
       ASSERT(0);
+      return;
     }
     SCoder decoder;
     tCoderInit(&decoder, TD_LITTLE_ENDIAN, msg, pMsg->contLen - sizeof(SMsgHead), TD_DECODER);
