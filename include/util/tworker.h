@@ -50,7 +50,8 @@ typedef struct SWWorker {
 } SWWorker;
 
 typedef struct SWWorkerPool {
-  int32_t       max;     // max number of workers
+  int32_t       max;  // max number of workers
+  int32_t       num;
   int32_t       nextId;  // from 0 to max-1, cyclic
   const char   *name;
   SWWorker     *workers;
@@ -73,31 +74,31 @@ typedef struct {
   int32_t     maxNum;
   FItem       fp;
   void       *param;
-} SQWorkerAllCfg;
+} SSingleWorkerCfg;
 
 typedef struct {
   const char  *name;
   STaosQueue  *queue;
   SQWorkerPool pool;
-} SQWorkerAll;
+} SSingleWorker;
 
 typedef struct {
   const char *name;
   int32_t     maxNum;
   FItems      fp;
   void       *param;
-} SWWorkerAllCfg;
+} SMultiWorkerCfg;
 
 typedef struct {
   const char  *name;
   STaosQueue  *queue;
   SWWorkerPool pool;
-} SWWorkerAll;
+} SMultiWorker;
 
-int32_t tQWorkerAllInit(SQWorkerAll *pWorker, const SQWorkerAllCfg *pCfg);
-void    tQWorkerAllCleanup(SQWorkerAll *pWorker);
-int32_t tWWorkerAllInit(SWWorkerAll *pWorker, const SWWorkerAllCfg *pCfg);
-void    tWWorkerAllCleanup(SWWorkerAll *pWorker);
+int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg);
+void    tSingleWorkerCleanup(SSingleWorker *pWorker);
+int32_t tMultiWorkerInit(SMultiWorker *pWorker, const SMultiWorkerCfg *pCfg);
+void    tMultiWorkerCleanup(SMultiWorker *pWorker);
 
 #ifdef __cplusplus
 }

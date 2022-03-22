@@ -28,7 +28,7 @@ typedef struct SBnodeMgmt {
   SDnode       *pDnode;
   SMgmtWrapper *pWrapper;
   const char   *path;
-  SDnodeWorker  writeWorker;
+  SMultiWorker  writeWorker;
 } SBnodeMgmt;
 
 // bmInt.c
