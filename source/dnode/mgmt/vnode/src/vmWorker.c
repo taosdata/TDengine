@@ -62,11 +62,10 @@ static void vmProcessQueryQueue(SVnodeObj *pVnode, SNodeMsg *pMsg) {
   int32_t code = vnodeProcessQueryMsg(pVnode->pImpl, &pMsg->rpcMsg);
   if (code != 0) {
     vmSendRsp(pVnode->pWrapper, pMsg, code);
+    dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
+    rpcFreeCont(pMsg->rpcMsg.pCont);
+    taosFreeQitem(pMsg);
   }
-
-  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
-  rpcFreeCont(pMsg->rpcMsg.pCont);
-  taosFreeQitem(pMsg);
 }
 
 static void vmProcessFetchQueue(SVnodeObj *pVnode, SNodeMsg *pMsg) {
@@ -74,12 +73,10 @@ static void vmProcessFetchQueue(SVnodeObj *pVnode, SNodeMsg *pMsg) {
   int32_t code = vnodeProcessFetchMsg(pVnode->pImpl, &pMsg->rpcMsg);
   if (code != 0) {
     vmSendRsp(pVnode->pWrapper, pMsg, code);
+    dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
+    rpcFreeCont(pMsg->rpcMsg.pCont);
+    taosFreeQitem(pMsg);
   }
-
-  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
-  // TODO: handle invalid write
-  /*rpcFreeCont(pMsg->rpcMsg.pCont);*/
-  /*taosFreeQitem(pMsg);*/
 }
 
 static void vmProcessWriteQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numOfMsgs) {
@@ -163,7 +160,7 @@ static int32_t vmPutNodeMsgToQueue(SVnodesMgmt *pMgmt, SNodeMsg *pMsg, EQueueTyp
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, pHead->vgId);
   if (pVnode == NULL) {
-    dError("vgId:%d, failed to write msg:%p to queue since %s", pHead->vgId, pMsg, terrstr());
+    dError("vgId:%d, failed to write msg:%p to vnode-queue since %s", pHead->vgId, pMsg, terrstr());
     return -1;
   }
 
