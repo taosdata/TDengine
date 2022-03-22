@@ -662,6 +662,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
       } else {
         filterVgroupTables(pQueryInfo, pTableMetaInfo->pVgroupTables);
       }
+      pQueryInfo->stableQuery = true;
     }
 
     subquerySetState(pNew, &pSql->subState, i, 0);
