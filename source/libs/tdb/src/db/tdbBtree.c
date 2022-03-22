@@ -495,17 +495,17 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
       }
       nOlds = 3;
     }
-    for (int i = 0; i < nOlds; i++, sIdx++) {
-      ASSERT(sIdx <= nCells);
+    for (int i = 0; i < nOlds; i++) {
+      ASSERT(sIdx + i <= nCells);
 
       SPgno pgno;
-      if (sIdx == nCells) {
+      if (sIdx + i == nCells) {
         ASSERT(!TDB_BTREE_PAGE_IS_LEAF(TDB_BTREE_PAGE_GET_FLAGS(pParent)));
         pgno = ((SIntHdr *)(pParent->pData))->pgno;
       } else {
         SCell *pCell;
 
-        pCell = tdbPageGetCell(pParent, sIdx);
+        pCell = tdbPageGetCell(pParent, sIdx + i);
         pgno = *(SPgno *)pCell;
       }
 
@@ -513,6 +513,15 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
       if (ret < 0) {
         ASSERT(0);
         return -1;
+      }
+    }
+    // drop the cells
+    for (int i = 0; i < nOlds; i++) {
+      nCells = TDB_PAGE_TOTAL_CELLS(pParent);
+      if (sIdx < nCells) {
+        tdbPageDropCell(pParent, sIdx);
+      } else {
+        ((SIntHdr *)pParent->pData)->pgno = 0;
       }
     }
   }
@@ -657,12 +666,24 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
     SCellDecoder cd;
 
     for (int iNew = 0; iNew < nNews; iNew++) {
+      if (iNew == nNews - 1) {
+        // The last new page
+
+        SIntHdr *pIntHdr = (SIntHdr *)pParent->pData;
+        if (pIntHdr->pgno == 0) {
+          pIntHdr->pgno = TDB_PAGE_PGNO(pNews[iNew]);
+          break;
+        }
+      }
+
       tdbBtreeDecodeCell(pNews[iNew], tdbPageGetCell(pNews[iNew], TDB_PAGE_TOTAL_CELLS(pNews[iNew]) - 1), &cd);
 
       tdbBtreeEncodeCell(pParent, cd.pKey, cd.kLen, (void *)&TDB_PAGE_PGNO(pNews[iNew]), sizeof(SPgno), pCell, &szCell);
       tdbPageInsertCell(pParent, cIdx, pCell, szCell);
     }
   }
+
+  int k = 0;
 
   return 0;
 }
