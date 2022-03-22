@@ -688,26 +688,33 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
   }
 
   int nNews = 0;
-  int cntNews[5] = {0};  // TODO: maybe 5 is not enough
-  int szNews[5] = {0};
+  struct {
+    int cnt;
+    int size;
+    int oPage;
+    int oIdx;
+  } infoNews[5] = {0};
 
   {  // Get how many new pages are needed and the new distribution
 
-    // loop to find number of pages needed
-    for (int i = 0; i < nOlds; i++) {
-      SPage *pPage = pOlds[i];
+    // first loop to find minimum number of pages needed
+    for (int oPage = 0; oPage < nOlds; oPage++) {
+      SPage *pPage = pOlds[oPage];
       SCell *pCell;
       int    cellBytes;
 
-      for (int cIdx = 0; cIdx < TDB_PAGE_TOTAL_CELLS(pPage); cIdx++) {
-        pCell = tdbPageGetCell(pPage, cIdx);
+      for (int oIdx = 0; oIdx < TDB_PAGE_TOTAL_CELLS(pPage); oIdx++) {
+        pCell = tdbPageGetCell(pPage, oIdx);
         cellBytes = TDB_BYTES_CELL_TAKEN(pPage, pCell);
 
-        if (szNews[nNews] + cellBytes > TDB_PAGE_USABLE_SIZE(pPage)) {
+        if (infoNews[nNews].size + cellBytes > TDB_PAGE_USABLE_SIZE(pPage)) {
+          // page is full, use a new page
           nNews++;
         }
-        cntNews[nNews]++;
-        szNews[nNews] = szNews[nNews] + cellBytes;
+        infoNews[nNews].cnt++;
+        infoNews[nNews].size += cellBytes;
+        infoNews[nNews].oPage = oPage;
+        infoNews[nNews].oIdx = oIdx;
       }
     }
 
@@ -715,84 +722,37 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
 
     // back loop to make the distribution even
     for (int iNew = nNews - 1; iNew > 0; iNew--) {
-      // TODO: find the last cell of page (iNew-1)
-      int    cIdx;
-      int    iPage;
-      int    cellBytes;
-      SPage *pPage;
       SCell *pCell;
+      SPage *pPage;
+      int    cellBytes;
 
       for (;;) {
-        pCell = tdbPageGetCell(pPage, cIdx);
+        pPage = pOlds[infoNews[iNew - 1].oPage];
+        pCell = tdbPageGetCell(pPage, infoNews[iNew - 1].oIdx);
         cellBytes = TDB_BYTES_CELL_TAKEN(pPage, pCell);
 
-        if (szNews[iNew] + cellBytes >= szNews[iNew - 1] + cellBytes) {
-          break;
+        infoNews[iNew].cnt++;
+        infoNews[iNew].size += cellBytes;
+        infoNews[iNew - 1].cnt--;
+        infoNews[iNew - 1].size -= cellBytes;
+        if ((infoNews[iNew - 1].oIdx--) == 0) {
+          infoNews[iNew - 1].oPage--;
+          infoNews[iNew - 1].oIdx = TDB_PAGE_TOTAL_CELLS(pOlds[infoNews[iNew - 1].oPage]);
         }
 
-        // Move the cell right
-        szNews[iNew] += cellBytes;
-        cntNews[iNew]++;
-
-        szNews[iNew - 1] -= cellBytes;
-        cntNews[iNew - 1]++;
-
-        cIdx--;
-        if (cIdx < 0) {
-          pPage = pOlds[--iPage];
-          cIdx = TDB_PAGE_TOTAL_CELLS(pPage) - 1;
+        if (infoNews[iNew].size > infoNews[iNew - 1].size) {
+          break;
         }
       }
     }
+
+    int k = 0;
   }
 
   SPage *pNews[5];
-  {  // Allocate the new pages
+  {
+      // Allocate the new pages
   }
-
-#if 0
-  // Step 1: find two sibling pages and get engough info about the old pages
-  ret = tdbBtreeBalanceStep1(&blh);
-  if (ret < 0) {
-    ASSERT(0);
-    return -1;
-  }
-
-  // Step 2: Load all cells on the old page and the divider cells
-  ret = tdbBtreeBalanceStep2(&blh);
-  if (ret < 0) {
-    ASSERT(0);
-    return -1;
-  }
-
-  // Step 3: Get the number of pages needed to hold all cells
-  ret = tdbBtreeBalanceStep3(&blh);
-  if (ret < 0) {
-    ASSERT(0);
-    return -1;
-  }
-
-  // Step 4: Allocate enough new pages. Reuse old pages as much as possible
-  ret = tdbBtreeBalanceStep4(&blh);
-  if (ret < 0) {
-    ASSERT(0);
-    return -1;
-  }
-
-  // Step 5: Insert new divider cells into pParent
-  ret = tdbBtreeBalanceStep5(&blh);
-  if (ret < 0) {
-    ASSERT(0);
-    return -1;
-  }
-
-  // Step 6: Update the sibling pages
-  ret = tdbBtreeBalanceStep6(&blh);
-  if (ret < 0) {
-    ASSERT(0);
-    return -1;
-  }
-#endif
 
   {
       // TODO: Reset states
