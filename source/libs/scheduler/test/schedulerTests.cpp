@@ -387,7 +387,7 @@ void *schtCreateFetchRspThread(void *param) {
 
 void *schtFetchRspThread(void *aa) {
   SDataBuf dataBuf = {0};
-  SSchCallbackParam* param = NULL;
+  SSchTaskCallbackParam* param = NULL;
 
   while (!schtTestStop) {
     if (0 == atomic_val_compare_exchange_32(&schtStartFetch, 1, 0)) {
@@ -396,7 +396,7 @@ void *schtFetchRspThread(void *aa) {
 
     taosUsleep(1);
     
-    param = (SSchCallbackParam *)calloc(1, sizeof(*param));
+    param = (SSchTaskCallbackParam *)calloc(1, sizeof(*param));
 
     param->queryId = schtQueryId;  
     param->taskId = schtFetchTaskId;
@@ -449,7 +449,7 @@ void* schtRunJobThread(void *aa) {
   schtSetAsyncSendMsgToServer();
 
   SSchJob *pJob = NULL;
-  SSchCallbackParam *param = NULL;
+  SSchTaskCallbackParam *param = NULL;
   SHashObj *execTasks = NULL;
   SDataBuf dataBuf = {0};
   uint32_t jobFinished = 0;
@@ -484,7 +484,7 @@ void* schtRunJobThread(void *aa) {
       pIter = taosHashIterate(pJob->execTasks, pIter);
     }    
 
-    param = (SSchCallbackParam *)calloc(1, sizeof(*param));
+    param = (SSchTaskCallbackParam *)calloc(1, sizeof(*param));
     param->refId = queryJobRefId;
     param->queryId = pJob->queryId;   
 
@@ -504,7 +504,7 @@ void* schtRunJobThread(void *aa) {
     }    
 
 
-    param = (SSchCallbackParam *)calloc(1, sizeof(*param));
+    param = (SSchTaskCallbackParam *)calloc(1, sizeof(*param));
     param->refId = queryJobRefId;
     param->queryId = pJob->queryId;   
     
@@ -524,7 +524,7 @@ void* schtRunJobThread(void *aa) {
     }  
 
 
-    param = (SSchCallbackParam *)calloc(1, sizeof(*param));
+    param = (SSchTaskCallbackParam *)calloc(1, sizeof(*param));
     param->refId = queryJobRefId;
     param->queryId = pJob->queryId;   
 
@@ -544,7 +544,7 @@ void* schtRunJobThread(void *aa) {
     }    
 
 
-    param = (SSchCallbackParam *)calloc(1, sizeof(*param));
+    param = (SSchTaskCallbackParam *)calloc(1, sizeof(*param));
     param->refId = queryJobRefId;
     param->queryId = pJob->queryId;   
 

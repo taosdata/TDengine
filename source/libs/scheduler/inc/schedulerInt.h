@@ -25,6 +25,7 @@ extern "C" {
 #include "planner.h"
 #include "scheduler.h"
 #include "thash.h"
+#include "trpc.h"
 
 #define SCHEDULE_DEFAULT_MAX_JOB_NUM 1000
 #define SCHEDULE_DEFAULT_MAX_TASK_NUM 1000
@@ -44,6 +45,7 @@ typedef struct SSchTrans {
 
 typedef struct SSchHbTrans {
   SRWLatch  lock;
+  SRpcCtx   rpcCtx;
   SSchTrans trans;
 } SSchHbTrans;
 
@@ -75,12 +77,23 @@ typedef struct SSchedulerMgmt {
   SHashObj       *hbConnections;
 } SSchedulerMgmt;
 
-typedef struct SSchCallbackParam {
-  uint64_t queryId;
-  int64_t  refId;
-  uint64_t taskId;
-  void    *transport;
-} SSchCallbackParam;
+typedef struct SSchCallbackParamHeader {
+  bool isHbParam;
+} SSchCallbackParamHeader;
+
+typedef struct SSchTaskCallbackParam {
+  SSchCallbackParamHeader head;
+  uint64_t                queryId;
+  int64_t                 refId;
+  uint64_t                taskId;
+  void                   *transport;
+} SSchTaskCallbackParam;
+
+typedef struct SSchHbCallbackParam {
+  SSchCallbackParamHeader head;
+  SQueryNodeEpId          nodeEpId;
+  void                   *transport;
+} SSchHbCallbackParam;
 
 typedef struct SSchFlowControl {
   SRWLatch  lock;
@@ -227,6 +240,7 @@ int32_t schLaunchTasksInFlowCtrlList(SSchJob *pJob, SSchTask *pTask);
 int32_t schLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask);
 int32_t schFetchFromRemote(SSchJob *pJob);
 int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode);
+int32_t schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId);
 
 
 #ifdef __cplusplus
