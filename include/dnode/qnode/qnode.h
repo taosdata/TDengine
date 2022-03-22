@@ -70,10 +70,9 @@ int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad);
  *
  * @param pQnode The qnode object.
  * @param pMsg The request message
- * @param pRsp The response message
- * @return int32_t 0 for success, -1 for failure
  */
-int32_t qndProcessMsg(SQnode *pQnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+int32_t qndProcessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg);
+int32_t qndProcessFetchMsg(SQnode *pQnode, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

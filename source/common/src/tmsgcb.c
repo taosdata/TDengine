@@ -16,16 +16,16 @@
 #define _DEFAULT_SOURCE
 #include "tmsgcb.h"
 
-int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EMsgQueueType qtype, struct SRpcMsg* pReq) {
+int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq) {
   return (*pMsgCb->queueFps[qtype])(pMsgCb->pWrapper, pReq);
 }
 
-int32_t tmsgSendReq(const SMsgCb* pMsgCb, struct SEpSet* epSet, struct SRpcMsg* pReq) {
+int32_t tmsgSendReq(const SMsgCb* pMsgCb, SEpSet* epSet, SRpcMsg* pReq) {
   return (*pMsgCb->sendReqFp)(pMsgCb->pWrapper, epSet, pReq);
 }
 
-int32_t tmsgSendMnodeReq(const SMsgCb* pMsgCb, struct SRpcMsg* pReq) {
+int32_t tmsgSendMnodeReq(const SMsgCb* pMsgCb, SRpcMsg* pReq) {
   return (*pMsgCb->sendMnodeReqFp)(pMsgCb->pWrapper, pReq);
 }
 
-void tmsgSendRsp(const SMsgCb* pMsgCb, struct SRpcMsg* pRsp) { return (*pMsgCb->sendRspFp)(pMsgCb->pWrapper, pRsp); }
+void tmsgSendRsp(const SMsgCb* pMsgCb, SRpcMsg* pRsp) { return (*pMsgCb->sendRspFp)(pMsgCb->pWrapper, pRsp); }

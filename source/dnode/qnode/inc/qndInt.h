@@ -21,6 +21,7 @@
 #include "tlog.h"
 #include "tmsg.h"
 #include "trpc.h"
+#include "tmsgcb.h"
 
 #include "qnode.h"
 
