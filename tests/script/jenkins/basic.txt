@@ -21,4 +21,7 @@
 
 # ---- query
 ./test.sh -f tsim/query/interval.sim
+
+# ---- tmq
+./test.sh -f tsim/tmq/basic.sim
 #======================b1-end===============

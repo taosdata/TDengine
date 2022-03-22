@@ -52,7 +52,7 @@ bool qwtEnableLog = true;
 int32_t qwtTestMaxExecTaskUsec = 2;
 int32_t qwtTestReqMaxDelayUsec = 2;
 
-uint64_t qwtTestQueryId = 0;
+int64_t qwtTestQueryId = 0;
 bool qwtTestEnableSleep = true;
 bool qwtTestStop = false;
 bool qwtTestDeadLoop = false;
@@ -878,7 +878,10 @@ TEST(seqTest, normalCase) {
   stubSetPutDataBlock();
   stubSetGetDataBlock();
   
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqFp)qwtSendReqToDnode);
+  SMsgCb msgCb = {0};
+  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
   code = qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc);
@@ -917,7 +920,10 @@ TEST(seqTest, cancelFirst) {
   stubSetStringToPlan();
   stubSetRpcSendResponse();
   
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqFp)qwtSendReqToDnode);
+  SMsgCb msgCb = {0};
+  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
   qwtBuildStatusReqMsg(&qwtstatusMsg, &statusRpc);
@@ -963,7 +969,10 @@ TEST(seqTest, randCase) {
 
   taosSeedRand(taosGetTimestampSec());
   
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqFp)qwtSendReqToDnode);
+  SMsgCb msgCb = {0};
+  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
   int32_t t = 0;
@@ -1034,7 +1043,10 @@ TEST(seqTest, multithreadRand) {
 
   taosSeedRand(taosGetTimestampSec());
   
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqFp)qwtSendReqToDnode);
+  SMsgCb msgCb = {0};
+  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
   TdThreadAttr thattr;
@@ -1095,7 +1107,10 @@ TEST(rcTest, shortExecshortDelay) {
   qwtTestStop = false;
   qwtTestQuitThreadNum = 0;
 
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqFp)qwtSendReqToDnode);
+  SMsgCb msgCb = {0};
+  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
   qwtTestMaxExecTaskUsec = 0;
@@ -1176,7 +1191,10 @@ TEST(rcTest, longExecshortDelay) {
   qwtTestStop = false;
   qwtTestQuitThreadNum = 0;
 
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqFp)qwtSendReqToDnode);
+  SMsgCb msgCb = {0};
+  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
   qwtTestMaxExecTaskUsec = 1000000;
@@ -1259,7 +1277,10 @@ TEST(rcTest, shortExeclongDelay) {
   qwtTestStop = false;
   qwtTestQuitThreadNum = 0;
 
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqFp)qwtSendReqToDnode);
+  SMsgCb msgCb = {0};
+  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
   qwtTestMaxExecTaskUsec = 0;
@@ -1340,7 +1361,10 @@ TEST(rcTest, dropTest) {
 
   taosSeedRand(taosGetTimestampSec());
   
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, (sendReqFp)qwtSendReqToDnode);
+  SMsgCb msgCb = {0};
+  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
   tsem_init(&qwtTestQuerySem, 0, 0);

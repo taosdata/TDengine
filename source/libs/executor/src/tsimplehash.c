@@ -40,7 +40,7 @@ typedef struct SHNode {
 typedef struct SSHashObj {
   SHNode         **hashList;
   size_t           capacity;     // number of slots
-  size_t           size;         // number of elements in hash table
+  int64_t          size;         // number of elements in hash table
   _hash_fn_t       hashFp;       // hash function
   _equal_fn_t      equalFp;      // equal function
   int32_t          keyLen;
@@ -91,7 +91,7 @@ int32_t tSimpleHashGetSize(const SSHashObj *pHashObj) {
   if (pHashObj == NULL) {
     return 0;
   }
-  return (int32_t)atomic_load_64(&pHashObj->size);
+  return (int32_t)atomic_load_64((int64_t*)&pHashObj->size);
 }
 
 static SHNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, size_t dsize, uint32_t hashVal) {

@@ -119,19 +119,12 @@ typedef struct SMnode {
   SHashObj         *infosMeta;
   SGrantInfo        grant;
   MndMsgFp          msgFp[TDMT_MAX];
-  SendReqFp         sendReqFp;
-  SendMnodeReqFp    sendMnodeReqFp;
-  PutToQueueFp      putToWriteQFp;
-  PutToQueueFp      putToReadQFp;
+  SMsgCb            msgCb;
 } SMnode;
 
-int32_t mndSendReqToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *rpcMsg);
-int32_t mndSendReqToMnode(SMnode *pMnode, SRpcMsg *pMsg);
-void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
-
+void     mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
 uint64_t mndGenerateUid(char *name, int32_t len);
-
-void mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
+void     mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
 
 #ifdef __cplusplus
 }

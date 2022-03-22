@@ -44,7 +44,7 @@ typedef struct {
 
 typedef struct SSnode {
   SStreamMeta* pMeta;
-  SSnodeOpt    cfg;
+  SMsgCb       msgCb;
 } SSnode;
 
 SStreamMeta* sndMetaNew();

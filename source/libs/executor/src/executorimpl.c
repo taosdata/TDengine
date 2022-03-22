@@ -5397,7 +5397,9 @@ SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SSDataBlock*
   pOperator->status        = OP_NOT_OPENED;
   pOperator->info          = pInfo;
   pOperator->numOfOutput   = pResBlock->info.numOfCols;
-  pOperator->getNextFn    = doStreamBlockScan;
+  pOperator->_openFn       = operatorDummyOpenFn;
+  pOperator->getNextFn     = doStreamBlockScan;
+  pOperator->closeFn       = operatorDummyCloseFn;
   pOperator->pTaskInfo     = pTaskInfo;
   return pOperator;
 }

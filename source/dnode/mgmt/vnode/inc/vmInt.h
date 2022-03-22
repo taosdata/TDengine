@@ -24,15 +24,13 @@
 extern "C" {
 #endif
 
-typedef enum { VND_WRITE_QUEUE, VND_QUERY_QUEUE, VND_FETCH_QUEUE, VND_APPLY_QUEUE, VND_SYNC_QUEUE } EVndQueueType;
-
 typedef struct SVnodesMgmt {
   SHashObj     *hash;
   SRWLatch      latch;
   SVnodesStat   state;
   STfs         *pTfs;
   SQWorkerPool  queryPool;
-  SFWorkerPool  fetchPool;
+  SQWorkerPool  fetchPool;
   SWWorkerPool  syncPool;
   SWWorkerPool  writePool;
   const char   *path;
