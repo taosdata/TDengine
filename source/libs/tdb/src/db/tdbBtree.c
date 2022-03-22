@@ -564,7 +564,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
         if (infoNews[nNews].size + cellBytes > TDB_PAGE_USABLE_SIZE(pPage)) {
           // page is full, use a new page
           nNews++;
-          // for a child leaf case, this cell is used as the new divider cell
+          // for a child leaf case, this cell is used as the new divider cell to parent
           if (childLeaf) continue;
         }
         infoNews[nNews].cnt++;
@@ -591,10 +591,13 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
     for (int iNew = nNews - 1; iNew > 0; iNew--) {
       SCell *pCell;
       SPage *pPage;
+      int    nCells;
       int    cellBytes;
 
+      pPage = pOlds[infoNews[iNew - 1].oPage];
+      nCells = TDB_PAGE_TOTAL_CELLS(pPage);
+
       for (;;) {
-        pPage = pOlds[infoNews[iNew - 1].oPage];
         pCell = tdbPageGetCell(pPage, infoNews[iNew - 1].oIdx);
         cellBytes = TDB_BYTES_CELL_TAKEN(pPage, pCell);
 
@@ -604,7 +607,9 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
         infoNews[iNew - 1].size -= cellBytes;
         if ((infoNews[iNew - 1].oIdx--) == 0) {
           infoNews[iNew - 1].oPage--;
-          infoNews[iNew - 1].oIdx = TDB_PAGE_TOTAL_CELLS(pOlds[infoNews[iNew - 1].oPage]);
+          pPage = pOlds[infoNews[iNew - 1].oPage];
+          nCells = TDB_PAGE_TOTAL_CELLS(pPage);
+          infoNews[iNew - 1].oIdx = TDB_PAGE_TOTAL_CELLS(pPage);
         }
 
         if (infoNews[iNew].size > infoNews[iNew - 1].size) {
