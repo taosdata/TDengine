@@ -16,8 +16,8 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
-#include "tdatablock.h"
 #include "mockCatalogService.h"
+#include "tdatablock.h"
 
 #include "tname.h"
 #include "ttypes.h"

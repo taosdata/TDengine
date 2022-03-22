@@ -245,15 +245,15 @@ int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, void *connection) {
   req->taskId = tId;
 
   SRpcMsg pNewMsg = {
-    .handle = pMsg->handle,
-    .ahandle = pMsg->ahandle,
-    .msgType = TDMT_VND_QUERY_CONTINUE,
-    .pCont   = req,
-    .contLen = sizeof(SQueryContinueReq),
-    .code    = 0,
+      .handle = pMsg->handle,
+      .ahandle = pMsg->ahandle,
+      .msgType = TDMT_VND_QUERY_CONTINUE,
+      .pCont = req,
+      .contLen = sizeof(SQueryContinueReq),
+      .code = 0,
   };
 
-  int32_t code = (*mgmt->putToQueueFp)(mgmt->nodeObj, &pNewMsg);
+  int32_t code = tmsgPutToQueue(&mgmt->msgCb, QUERY_QUEUE, &pNewMsg);
   if (TSDB_CODE_SUCCESS != code) {
     QW_SCH_TASK_ELOG("put query continue msg to queue failed, vgId:%d, code:%s", mgmt->nodeId, tstrerror(code));
     rpcFreeCont(req);

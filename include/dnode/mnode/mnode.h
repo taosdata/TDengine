@@ -17,27 +17,22 @@
 #define _TD_MND_H_
 
 #include "monitor.h"
+#include "tmsgcb.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
-typedef struct SMgmtWrapper SMgmtWrapper;
-typedef struct SMnode       SMnode;
+typedef struct SMnode SMnode;
 
 typedef struct {
-  int32_t        dnodeId;
-  int64_t        clusterId;
-  int8_t         replica;
-  int8_t         selfIndex;
-  SReplica       replicas[TSDB_MAX_REPLICA];
-  SMgmtWrapper  *pWrapper;
-  PutToQueueFp   putToWriteQFp;
-  PutToQueueFp   putToReadQFp;
-  SendReqFp      sendReqFp;
-  SendMnodeReqFp sendMnodeReqFp;
-  SendRspFp      sendRspFp;
+  int32_t  dnodeId;
+  int64_t  clusterId;
+  int8_t   replica;
+  int8_t   selfIndex;
+  SReplica replicas[TSDB_MAX_REPLICA];
+  SMsgCb   msgCb;
 } SMnodeOpt;
 
 /* ------------------------ SMnode ------------------------ */

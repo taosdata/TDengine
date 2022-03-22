@@ -892,7 +892,7 @@ SDataType createDataType(uint8_t type) {
 }
 
 SDataType createVarLenDataType(uint8_t type, const SToken* pLen) {
-  SDataType dt = { .type = type, .precision = 0, .scale = 0, .bytes = tDataTypes[type].bytes };
+  SDataType dt = { .type = type, .precision = 0, .scale = 0, .bytes = strtol(pLen->z, NULL, 10) };
   return dt;
 }
 

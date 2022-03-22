@@ -157,7 +157,8 @@ void    syncCleanUp();
 int64_t    syncStart(const SSyncInfo* pSyncInfo);
 void       syncStop(int64_t rid);
 int32_t    syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg);
-int32_t    syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
+int32_t    syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);        // use this function
+int32_t    syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak);  // just for compatibility
 ESyncState syncGetMyRole(int64_t rid);
 void       syncGetNodesRole(int64_t rid, SNodesRole* pNodeRole);
 

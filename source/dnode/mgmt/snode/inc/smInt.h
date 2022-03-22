@@ -30,8 +30,8 @@ typedef struct SSnodeMgmt {
   const char   *path;
   SRWLatch      latch;
   int8_t        uniqueWorkerInUse;
-  SArray       *uniqueWorkers;  // SArray<SDnodeWorker*>
-  SDnodeWorker  sharedWorker;
+  SArray       *uniqueWorkers;  // SArray<SMultiWorker*>
+  SSingleWorker sharedWorker;
 } SSnodeMgmt;
 
 // smInt.c

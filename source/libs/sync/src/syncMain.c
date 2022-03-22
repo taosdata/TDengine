@@ -31,6 +31,7 @@
 #include "syncTimeout.h"
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
+#include "tref.h"
 
 static int32_t tsNodeRefId = -1;
 
@@ -44,31 +45,57 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId);
 static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
 static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
 static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg);
+
+// life cycle
+static void syncFreeNode(void* param);
 // ---------------------------------
 
 int32_t syncInit() {
-  int32_t ret = syncEnvStart();
+  int32_t ret;
+  tsNodeRefId = taosOpenRef(200, syncFreeNode);
+  if (tsNodeRefId < 0) {
+    sError("failed to init node ref");
+    syncCleanUp();
+    ret = -1;
+  } else {
+    ret = syncEnvStart();
+  }
+
   return ret;
 }
 
 void syncCleanUp() {
   int32_t ret = syncEnvStop();
   assert(ret == 0);
+
+  if (tsNodeRefId != -1) {
+    taosCloseRef(tsNodeRefId);
+    tsNodeRefId = -1;
+  }
 }
 
 int64_t syncStart(const SSyncInfo* pSyncInfo) {
-  int32_t    ret = 0;
   SSyncNode* pSyncNode = syncNodeOpen(pSyncInfo);
   assert(pSyncNode != NULL);
 
-  // todo : return ref id
-  return ret;
+  pSyncNode->rid = taosAddRef(tsNodeRefId, pSyncNode);
+  if (pSyncNode->rid < 0) {
+    syncFreeNode(pSyncNode);
+    return -1;
+  }
+
+  return pSyncNode->rid;
 }
 
 void syncStop(int64_t rid) {
-  // todo : get pointer from rid
-  SSyncNode* pSyncNode = NULL;
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return;
+  }
   syncNodeClose(pSyncNode);
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  taosRemoveRef(tsNodeRefId, rid);
 }
 
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg) {
@@ -76,11 +103,16 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg) {
   return ret;
 }
 
-int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
+int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
   int32_t ret = 0;
 
   // todo : get pointer from rid
-  SSyncNode* pSyncNode = NULL;
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return -1;
+  }
+  assert(rid == pSyncNode->rid);
+
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     SyncClientRequest* pSyncMsg = syncClientRequestBuild2(pMsg, 0, isWeak);
     SRpcMsg            rpcMsg;
@@ -93,6 +125,13 @@ int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
     sTrace("syncForwardToPeer not leader, %s", syncUtilState2String(pSyncNode->state));
     ret = -1;  // todo : need define err code !!
   }
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return ret;
+}
+
+int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
+  int32_t ret = syncPropose(rid, pMsg, isWeak);
   return ret;
 }
 
@@ -155,7 +194,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   pSyncNode->quorum = syncUtilQuorum(pSyncInfo->syncCfg.replicaNum);
   pSyncNode->leaderCache = EMPTY_RAFT_ID;
 
-  // init life cycle
+  // init life cycle outside
 
   // TLA+ Spec
   // InitHistoryVars == /\ elections = {}
@@ -203,9 +242,14 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   assert(pSyncNode->pLogStore != NULL);
   pSyncNode->commitIndex = SYNC_INDEX_INVALID;
 
+  // timer ms init
+  pSyncNode->pingBaseLine = PING_TIMER_MS;
+  pSyncNode->electBaseLine = ELECT_TIMER_MS_MIN;
+  pSyncNode->hbBaseLine = HEARTBEAT_TIMER_MS;
+
   // init ping timer
   pSyncNode->pPingTimer = NULL;
-  pSyncNode->pingTimerMS = PING_TIMER_MS;
+  pSyncNode->pingTimerMS = pSyncNode->pingBaseLine;
   atomic_store_64(&pSyncNode->pingTimerLogicClock, 0);
   atomic_store_64(&pSyncNode->pingTimerLogicClockUser, 0);
   pSyncNode->FpPingTimerCB = syncNodeEqPingTimer;
@@ -213,7 +257,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
 
   // init elect timer
   pSyncNode->pElectTimer = NULL;
-  pSyncNode->electTimerMS = syncUtilElectRandomMS();
+  pSyncNode->electTimerMS = syncUtilElectRandomMS(pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine);
   atomic_store_64(&pSyncNode->electTimerLogicClock, 0);
   atomic_store_64(&pSyncNode->electTimerLogicClockUser, 0);
   pSyncNode->FpElectTimerCB = syncNodeEqElectTimer;
@@ -221,7 +265,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
 
   // init heartbeat timer
   pSyncNode->pHeartbeatTimer = NULL;
-  pSyncNode->heartbeatTimerMS = HEARTBEAT_TIMER_MS;
+  pSyncNode->heartbeatTimerMS = pSyncNode->hbBaseLine;
   atomic_store_64(&pSyncNode->heartbeatTimerLogicClock, 0);
   atomic_store_64(&pSyncNode->heartbeatTimerLogicClockUser, 0);
   pSyncNode->FpHeartbeatTimerCB = syncNodeEqHeartbeatTimer;
@@ -355,7 +399,7 @@ int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms) {
 
 int32_t syncNodeResetElectTimer(SSyncNode* pSyncNode) {
   int32_t ret = 0;
-  int32_t electMS = syncUtilElectRandomMS();
+  int32_t electMS = syncUtilElectRandomMS(pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine);
   ret = syncNodeRestartElectTimer(pSyncNode, electMS);
   return ret;
 }
@@ -444,6 +488,10 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
     cJSON* pLaderCache = syncUtilRaftId2Json(&pSyncNode->leaderCache);
     cJSON_AddItemToObject(pRoot, "leaderCache", pLaderCache);
 
+    // life cycle
+    snprintf(u64buf, sizeof(u64buf), "%ld", pSyncNode->rid);
+    cJSON_AddStringToObject(pRoot, "rid", u64buf);
+
     // tla+ server vars
     cJSON_AddNumberToObject(pRoot, "state", pSyncNode->state);
     cJSON_AddStringToObject(pRoot, "state_str", syncUtilState2String(pSyncNode->state));
@@ -531,6 +579,17 @@ char* syncNode2Str(const SSyncNode* pSyncNode) {
   cJSON_Delete(pJson);
   return serialized;
 }
+
+SSyncNode* syncNodeAcquire(int64_t rid) {
+  SSyncNode* pNode = taosAcquireRef(tsNodeRefId, rid);
+  if (pNode == NULL) {
+    sTrace("failed to acquire node from refId:%" PRId64, rid);
+  }
+
+  return pNode;
+}
+
+void syncNodeRelease(SSyncNode* pNode) { taosReleaseRef(tsNodeRefId, pNode->rid); }
 
 // raft state change --------------
 void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
@@ -709,7 +768,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
     syncTimeoutDestroy(pSyncMsg);
 
     // reset timer ms
-    pSyncNode->electTimerMS = syncUtilElectRandomMS();
+    pSyncNode->electTimerMS = syncUtilElectRandomMS(pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine);
     taosTmrReset(syncNodeEqPingTimer, pSyncNode->pingTimerMS, pSyncNode, gSyncEnv->pTimerManager,
                  &pSyncNode->pPingTimer);
   } else {
@@ -812,4 +871,11 @@ static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg
 
   syncEntryDestory(pEntry);
   return ret;
+}
+
+static void syncFreeNode(void* param) {
+  SSyncNode* pNode = param;
+  syncNodePrint2((char*)"==syncFreeNode==", pNode);
+
+  free(pNode);
 }

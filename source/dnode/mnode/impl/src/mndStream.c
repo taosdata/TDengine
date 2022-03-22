@@ -166,7 +166,7 @@ static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream) {
 
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStreamObj *pNewStream) {
   mTrace("stream:%s, perform update action", pOldStream->name);
-  atomic_exchange_32(&pOldStream->updateTime, pNewStream->updateTime);
+  atomic_exchange_64(&pOldStream->updateTime, pNewStream->updateTime);
   atomic_exchange_32(&pOldStream->version, pNewStream->version);
 
   taosWLockLatch(&pOldStream->lock);
@@ -220,8 +220,8 @@ static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamRe
   streamObj.dbUid = pDb->uid;
   streamObj.version = 1;
   streamObj.sql = pCreate->sql;
-  streamObj.physicalPlan = pCreate->physicalPlan;
-  streamObj.logicalPlan = pCreate->logicalPlan;
+  streamObj.physicalPlan = "";
+  streamObj.logicalPlan = "";
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_STREAM, &pReq->rpcMsg);
   if (pTrans == NULL) {

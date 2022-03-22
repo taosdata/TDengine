@@ -1129,10 +1129,10 @@ typedef struct {
 
 typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];
+  char   outputTbName[TSDB_TABLE_NAME_LEN];
   int8_t igExists;
   char*  sql;
-  char*  physicalPlan;
-  char*  logicalPlan;
+  char*  ast;
 } SCMCreateStreamReq;
 
 typedef struct {
@@ -1282,7 +1282,7 @@ static FORCE_INLINE SMqRebSubscribe* tNewSMqRebSubscribe(const char* key) {
   if (pRebSub == NULL) {
     goto _err;
   }
-  pRebSub->key = key;
+  pRebSub->key = strdup(key);
   pRebSub->lostConsumers = taosArrayInit(0, sizeof(int64_t));
   if (pRebSub->lostConsumers == NULL) {
     goto _err;
@@ -2116,25 +2116,16 @@ typedef struct {
   int8_t  mqMsgType;
   int32_t code;
   int32_t epoch;
+  int64_t consumerId;
 } SMqRspHead;
 
-typedef struct {
-  int64_t         consumerId;
-  SSchemaWrapper* schemas;
-  int64_t         reqOffset;
-  int64_t         rspOffset;
-  int32_t         skipLogNum;
-  int32_t         numOfTopics;
-  SArray*         pBlockData;  // SArray<SSDataBlock>
-} SMqPollRsp;
-
-// one req for one vg+topic
 typedef struct {
   SMsgHead head;
 
   int64_t consumerId;
   int64_t blockingTime;
   int32_t epoch;
+  int8_t  withSchema;
   char    cgroup[TSDB_CGROUP_LEN];
 
   int64_t currentOffset;
@@ -2153,19 +2144,22 @@ typedef struct {
 } SMqSubTopicEp;
 
 typedef struct {
-  int64_t consumerId;
-  char    cgroup[TSDB_CGROUP_LEN];
-  SArray* topics;  // SArray<SMqSubTopicEp>
-} SMqCMGetSubEpRsp;
+  SMqRspHead head;
+  int64_t    reqOffset;
+  int64_t    rspOffset;
+  int32_t    skipLogNum;
+  // TODO: replace with topic name
+  int32_t numOfTopics;
+  // TODO: remove from msg
+  SSchemaWrapper* schema;
+  SArray*         pBlockData;  // SArray<SSDataBlock>
+} SMqPollRsp;
 
 typedef struct {
   SMqRspHead head;
-  union {
-    SMqPollRsp       consumeRsp;
-    SMqCMGetSubEpRsp getEpRsp;
-  };
-  void* extra;
-} SMqMsgWrapper;
+  char       cgroup[TSDB_CGROUP_LEN];
+  SArray*    topics;  // SArray<SMqSubTopicEp>
+} SMqCMGetSubEpRsp;
 
 typedef struct {
   int32_t curBlock;
@@ -2173,11 +2167,13 @@ typedef struct {
   void**  uData;
 } SMqRowIter;
 
-struct tmq_message_t_v1 {
-  SMqPollRsp rsp;
+struct tmq_message_t {
+  SMqPollRsp msg;
+  void*      vg;
   SMqRowIter iter;
 };
 
+#if 0
 struct tmq_message_t {
   SMqRspHead head;
   union {
@@ -2189,6 +2185,7 @@ struct tmq_message_t {
   int32_t curRow;
   void**  uData;
 };
+#endif
 
 static FORCE_INLINE void tDeleteSMqSubTopicEp(SMqSubTopicEp* pSubTopicEp) { taosArrayDestroy(pSubTopicEp->vgs); }
 
@@ -2241,8 +2238,7 @@ static FORCE_INLINE void* tDecodeSMqSubTopicEp(void* buf, SMqSubTopicEp* pTopicE
 
 static FORCE_INLINE int32_t tEncodeSMqCMGetSubEpRsp(void** buf, const SMqCMGetSubEpRsp* pRsp) {
   int32_t tlen = 0;
-  tlen += taosEncodeFixedI64(buf, pRsp->consumerId);
-  tlen += taosEncodeString(buf, pRsp->cgroup);
+  // tlen += taosEncodeString(buf, pRsp->cgroup);
   int32_t sz = taosArrayGetSize(pRsp->topics);
   tlen += taosEncodeFixedI32(buf, sz);
   for (int32_t i = 0; i < sz; i++) {
@@ -2253,8 +2249,7 @@ static FORCE_INLINE int32_t tEncodeSMqCMGetSubEpRsp(void** buf, const SMqCMGetSu
 }
 
 static FORCE_INLINE void* tDecodeSMqCMGetSubEpRsp(void* buf, SMqCMGetSubEpRsp* pRsp) {
-  buf = taosDecodeFixedI64(buf, &pRsp->consumerId);
-  buf = taosDecodeStringTo(buf, pRsp->cgroup);
+  // buf = taosDecodeStringTo(buf, pRsp->cgroup);
   int32_t sz;
   buf = taosDecodeFixedI32(buf, &sz);
   pRsp->topics = taosArrayInit(sz, sizeof(SMqSubTopicEp));
@@ -2275,12 +2270,22 @@ enum {
 };
 
 typedef struct {
+  void* inputHandle;
+  void* executor[4];
+} SStreamTaskParRunner;
+
+typedef struct {
   int64_t streamId;
   int32_t taskId;
   int32_t level;
   int8_t  status;
+  int8_t  pipeEnd;
+  int8_t  parallel;
+  SEpSet  NextOpEp;
   char*   qmsg;
-  void*   executor;
+  // not applied to encoder and decoder
+  SStreamTaskParRunner runner;
+  // void*                executor;
   // void*   stateStore;
   //  storage handle
 } SStreamTask;
@@ -2319,14 +2324,6 @@ typedef struct {
 } SStreamTaskExecRsp;
 
 #pragma pack(pop)
-
-struct SRpcMsg;
-struct SEpSet;
-struct SMgmtWrapper;
-typedef int32_t (*PutToQueueFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* pReq);
-typedef int32_t (*SendReqFp)(struct SMgmtWrapper* pWrapper, struct SEpSet* epSet, struct SRpcMsg* rpcMsg);
-typedef int32_t (*SendMnodeReqFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* rpcMsg);
-typedef void (*SendRspFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* rpcMsg);
 
 #ifdef __cplusplus
 }

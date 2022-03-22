@@ -43,24 +43,6 @@
 #define TRNAS_TIMER_MS 6000
 #define TELEM_TIMER_MS 86400000
 
-int32_t mndSendReqToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *pMsg) {
-  if (pMnode == NULL || pMnode->sendReqFp == NULL) {
-    terrno = TSDB_CODE_MND_NOT_READY;
-    return -1;
-  }
-
-  return (*pMnode->sendReqFp)(pMnode->pWrapper, pEpSet, pMsg);
-}
-
-int32_t mndSendReqToMnode(SMnode *pMnode, SRpcMsg *pMsg) {
-  if (pMnode == NULL || pMnode->sendReqFp == NULL) {
-    terrno = TSDB_CODE_MND_NOT_READY;
-    return -1;
-  }
-
-  return (*pMnode->sendMnodeReqFp)(pMnode->pWrapper, pMsg);
-}
-
 static void *mndBuildTimerMsg(int32_t *pContLen) {
   SMTimerReq timerReq = {0};
 
@@ -80,7 +62,7 @@ static void mndPullupTrans(void *param, void *tmrId) {
     int32_t contLen = 0;
     void   *pReq = mndBuildTimerMsg(&contLen);
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRANS_TIMER, .pCont = pReq, .contLen = contLen};
-    pMnode->putToWriteQFp(pMnode->pWrapper, &rpcMsg);
+    tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
 
   taosTmrReset(mndPullupTrans, TRNAS_TIMER_MS, pMnode, pMnode->timer, &pMnode->transTimer);
@@ -96,7 +78,7 @@ static void mndCalMqRebalance(void *param, void *tmrId) {
         .pCont = pReq,
         .contLen = contLen,
     };
-    pMnode->putToReadQFp(pMnode->pWrapper, &rpcMsg);
+    tmsgPutToQueue(&pMnode->msgCb, QUERY_QUEUE, &rpcMsg);
   }
 
   taosTmrReset(mndCalMqRebalance, MQ_TIMER_MS, pMnode, pMnode->timer, &pMnode->mqTimer);
@@ -108,7 +90,7 @@ static void mndPullupTelem(void *param, void *tmrId) {
     int32_t contLen = 0;
     void   *pReq = mndBuildTimerMsg(&contLen);
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_TELEM_TIMER, .pCont = pReq, .contLen = contLen};
-    pMnode->putToReadQFp(pMnode->pWrapper, &rpcMsg);
+    tmsgPutToQueue(&pMnode->msgCb, QUERY_QUEUE, &rpcMsg);
   }
 
   taosTmrReset(mndPullupTelem, TELEM_TIMER_MS, pMnode, pMnode->timer, &pMnode->telemTimer);
@@ -286,14 +268,9 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->replica = pOption->replica;
   pMnode->selfIndex = pOption->selfIndex;
   memcpy(&pMnode->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
-  pMnode->pWrapper = pOption->pWrapper;
-  pMnode->putToWriteQFp = pOption->putToWriteQFp;
-  pMnode->putToReadQFp = pOption->putToReadQFp;
-  pMnode->sendReqFp = pOption->sendReqFp;
-  pMnode->sendMnodeReqFp = pOption->sendMnodeReqFp;
+  pMnode->msgCb = pOption->msgCb;
 
-  if (pMnode->sendReqFp == NULL || pMnode->sendMnodeReqFp == NULL  ||
-      pMnode->putToWriteQFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0) {
+  if (pMnode->dnodeId < 0 || pMnode->clusterId < 0) {
     terrno = TSDB_CODE_MND_INVALID_OPTIONS;
     return -1;
   }

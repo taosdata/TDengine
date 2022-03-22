@@ -25,7 +25,7 @@ extern "C" {
 #include "tlog.h"
 #include "tmsg.h"
 
-enum {
+typedef enum {
   JOB_TASK_STATUS_NULL = 0,
   JOB_TASK_STATUS_NOT_START = 1,
   JOB_TASK_STATUS_EXECUTING,
@@ -35,12 +35,12 @@ enum {
   JOB_TASK_STATUS_CANCELLING,
   JOB_TASK_STATUS_CANCELLED,
   JOB_TASK_STATUS_DROPPING,
-};
+} EJobTaskType;
 
-enum {
+typedef enum {
   TASK_TYPE_PERSISTENT = 1,
   TASK_TYPE_TEMP,
-};
+} ETaskType;
 
 typedef struct STableComInfo {
   uint8_t numOfTags;     // the number of tags in schema

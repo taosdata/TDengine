@@ -48,8 +48,8 @@ static void registerRequest(SRequestObj *pRequest) {
   if (pTscObj->pAppInfo) {
     SInstanceSummary *pSummary = &pTscObj->pAppInfo->summary;
 
-    int32_t total = atomic_add_fetch_32(&pSummary->totalRequests, 1);
-    int32_t currentInst = atomic_add_fetch_32(&pSummary->currentRequests, 1);
+    int32_t total = atomic_add_fetch_64(&pSummary->totalRequests, 1);
+    int32_t currentInst = atomic_add_fetch_64(&pSummary->currentRequests, 1);
     tscDebug("0x%" PRIx64 " new Request from connObj:0x%" PRIx64
              ", current:%d, app current:%d, total:%d, reqId:0x%" PRIx64,
              pRequest->self, pRequest->pTscObj->id, num, currentInst, total, pRequest->requestId);
@@ -62,7 +62,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
   STscObj *         pTscObj = pRequest->pTscObj;
   SInstanceSummary *pActivity = &pTscObj->pAppInfo->summary;
 
-  int32_t currentInst = atomic_sub_fetch_32(&pActivity->currentRequests, 1);
+  int32_t currentInst = atomic_sub_fetch_64(&pActivity->currentRequests, 1);
   int32_t num = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
 
   int64_t duration = taosGetTimestampMs() - pRequest->metric.start;

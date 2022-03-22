@@ -37,6 +37,7 @@ typedef pthread_condattr_t TdThreadCondAttr;
 #define taosThreadCleanupPop pthread_cleanup_pop
 
 // If the error is in a third-party library, place this header file under the third-party library header file.
+// When you want to use this feature, you should find or add the same function in the following section.
 #ifndef ALLOW_FORBID_FUNC
     #define pthread_t PTHREAD_T_TYPE_TAOS_FORBID
     #define pthread_spinlock_t PTHREAD_SPINLOCK_T_TYPE_TAOS_FORBID

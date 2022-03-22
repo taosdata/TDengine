@@ -65,8 +65,9 @@ void dndCleanup() {
   dInfo("dnode env is cleaned up");
 }
 
-void dndSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp) {
+void dndSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp, int32_t vgId) {
   pWrapper->msgFps[TMSG_INDEX(msgType)] = nodeMsgFp;
+  pWrapper->msgVgIds[TMSG_INDEX(msgType)] = vgId;
 }
 
 EDndStatus dndGetStatus(SDnode *pDnode) { return pDnode->status; }

@@ -6,6 +6,7 @@
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
+#include "tref.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -20,20 +21,19 @@ uint16_t ports[] = {7010, 7110, 7210, 7310, 7410};
 int32_t  replicaNum = 3;
 int32_t  myIndex = 0;
 
-SRaftId    ids[TSDB_MAX_REPLICA];
-SSyncInfo  syncInfo;
-SSyncFSM*  pFsm;
-SWal*      pWal;
-SSyncNode* gSyncNode;
+SRaftId   ids[TSDB_MAX_REPLICA];
+SSyncInfo syncInfo;
+SSyncFSM* pFsm;
+SWal*     pWal;
 
-SSyncNode* syncNodeInit() {
+int64_t syncNodeInit() {
   syncInfo.vgId = 1234;
   syncInfo.rpcClient = gSyncIO->clientRpc;
   syncInfo.FpSendMsg = syncIOSendMsg;
   syncInfo.queue = gSyncIO->pMsgQ;
   syncInfo.FpEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
-  snprintf(syncInfo.path, sizeof(syncInfo.path), "./elect_test_%d", myIndex);
+  snprintf(syncInfo.path, sizeof(syncInfo.path), "./elect2_test_%d", myIndex);
 
   int code = walInit();
   assert(code == 0);
@@ -48,7 +48,7 @@ SSyncNode* syncNodeInit() {
   walCfg.level = TAOS_WAL_FSYNC;
 
   char tmpdir[128];
-  snprintf(tmpdir, sizeof(tmpdir), "./elect_test_wal_%d", myIndex);
+  snprintf(tmpdir, sizeof(tmpdir), "./elect2_test_wal_%d", myIndex);
   pWal = walOpen(tmpdir, &walCfg);
   assert(pWal != NULL);
 
@@ -64,7 +64,10 @@ SSyncNode* syncNodeInit() {
     // taosGetFqdn(pCfg->nodeInfo[0].nodeFqdn);
   }
 
-  SSyncNode* pSyncNode = syncNodeOpen(&syncInfo);
+  int64_t rid = syncStart(&syncInfo);
+  assert(rid > 0);
+
+  SSyncNode* pSyncNode = (SSyncNode*)syncNodeAcquire(rid);
   assert(pSyncNode != NULL);
 
   gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
@@ -78,10 +81,10 @@ SSyncNode* syncNodeInit() {
   gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
   gSyncIO->pSyncNode = pSyncNode;
 
-  return pSyncNode;
-}
+  syncNodeRelease(pSyncNode);
 
-SSyncNode* syncInitTest() { return syncNodeInit(); }
+  return rid;
+}
 
 void initRaftId(SSyncNode* pSyncNode) {
   for (int i = 0; i < replicaNum; ++i) {
@@ -105,23 +108,28 @@ int main(int argc, char** argv) {
   int32_t ret = syncIOStart((char*)"127.0.0.1", ports[myIndex]);
   assert(ret == 0);
 
-  ret = syncEnvStart();
+  ret = syncInit();
   assert(ret == 0);
 
-  gSyncNode = syncInitTest();
-  assert(gSyncNode != NULL);
-  syncNodePrint2((char*)"", gSyncNode);
+  int64_t rid = syncNodeInit();
+  assert(rid > 0);
 
-  initRaftId(gSyncNode);
+  SSyncNode* pSyncNode = (SSyncNode*)syncNodeAcquire(rid);
+  assert(pSyncNode != NULL);
+
+  syncNodePrint2((char*)"", pSyncNode);
+  initRaftId(pSyncNode);
 
   //---------------------------
   while (1) {
     sTrace(
         "elect sleep, state: %d, %s, term:%lu electTimerLogicClock:%lu, electTimerLogicClockUser:%lu, electTimerMS:%d",
-        gSyncNode->state, syncUtilState2String(gSyncNode->state), gSyncNode->pRaftStore->currentTerm,
-        gSyncNode->electTimerLogicClock, gSyncNode->electTimerLogicClockUser, gSyncNode->electTimerMS);
+        pSyncNode->state, syncUtilState2String(pSyncNode->state), pSyncNode->pRaftStore->currentTerm,
+        pSyncNode->electTimerLogicClock, pSyncNode->electTimerLogicClockUser, pSyncNode->electTimerMS);
     taosMsleep(1000);
   }
+
+  syncNodeRelease(pSyncNode);
 
   return 0;
 }

@@ -50,7 +50,7 @@ namespace {
 int32_t qwtTestMaxExecTaskUsec = 2;
 int32_t qwtTestReqMaxDelayUsec = 2;
 
-uint64_t qwtTestQueryId = 0;
+int64_t qwtTestQueryId = 0;
 bool qwtTestEnableSleep = true;
 bool qwtTestStop = false;
 bool qwtTestDeadLoop = false;
@@ -1080,7 +1080,10 @@ TEST(rcTest, shortExecshortDelay) {
   qwtTestStop = false;
   qwtTestQuitThreadNum = 0;
 
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, NULL);
+  SMsgCb msgCb = {0};
+  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
   qwtTestMaxExecTaskUsec = 0;
@@ -1161,7 +1164,10 @@ TEST(rcTest, longExecshortDelay) {
   qwtTestStop = false;
   qwtTestQuitThreadNum = 0;
 
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, NULL);
+  SMsgCb msgCb = {0};
+  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
   qwtTestMaxExecTaskUsec = 1000000;
@@ -1244,7 +1250,10 @@ TEST(rcTest, shortExeclongDelay) {
   qwtTestStop = false;
   qwtTestQuitThreadNum = 0;
 
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, NULL);
+  SMsgCb msgCb = {0};
+  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
   qwtTestMaxExecTaskUsec = 0;
