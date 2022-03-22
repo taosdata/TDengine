@@ -137,7 +137,18 @@ int32_t schValidateTaskReceivedMsgType(SSchJob *pJob, SSchTask *pTask, int32_t m
       return TSDB_CODE_SUCCESS;
     case TDMT_VND_RES_READY_RSP:
       reqMsgType = TDMT_VND_QUERY;
-      break;
+      if (lastMsgType != reqMsgType && -1 != lastMsgType) {
+        SCH_TASK_ELOG("rsp msg type mis-match, last sent msgType:%s, rspType:%s", (lastMsgType > 0 ? TMSG_INFO(lastMsgType) : "null"), TMSG_INFO(msgType));
+        SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
+      }
+      
+      if (taskStatus != JOB_TASK_STATUS_EXECUTING && taskStatus != JOB_TASK_STATUS_PARTIAL_SUCCEED) {
+        SCH_TASK_ELOG("rsp msg conflicted with task status, status:%s, rspType:%s", jobTaskStatusStr(taskStatus), TMSG_INFO(msgType));
+        SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
+      }
+
+      SCH_SET_TASK_LASTMSG_TYPE(pTask, -1);
+      return TSDB_CODE_SUCCESS;
     case TDMT_VND_CREATE_TABLE_RSP:
     case TDMT_VND_SUBMIT_RSP:
     case TDMT_VND_FETCH_RSP:
@@ -1085,7 +1096,7 @@ int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t msgType, in
   }
 
   pTask = *task;
-  SCH_TASK_DLOG("rsp msg received, type:%s, code:%s", TMSG_INFO(msgType), tstrerror(rspCode));
+  SCH_TASK_DLOG("rsp msg received, type:%s, handle:%p, code:%s", TMSG_INFO(msgType), pMsg->handle, tstrerror(rspCode));
 
   pTask->handle = pMsg->handle;
   SCH_ERR_JRET(schHandleResponseMsg(pJob, pTask, msgType, pMsg->pData, pMsg->len, rspCode));
@@ -1173,6 +1184,8 @@ _return:
 int32_t schHandleLinkBrokenCallback(void *param, const SDataBuf *pMsg, int32_t code) {
   SSchCallbackParamHeader *head = (SSchCallbackParamHeader *)param;
   rpcReleaseHandle(pMsg->handle, TAOS_CONN_CLIENT);
+
+  qDebug("handle %p is broken", pMsg->handle);
 
   if (head->isHbParam) {
     SSchHbCallbackParam *hbParam = (SSchHbCallbackParam *)param;

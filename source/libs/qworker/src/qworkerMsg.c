@@ -324,7 +324,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   qwMsg.connInfo.ahandle = pMsg->ahandle;
 
   char* sql = strndup(msg->msg, msg->sqlLen);
-  QW_SCH_TASK_DLOG("processQuery start, node:%p, sql:%s", node, sql);
+  QW_SCH_TASK_DLOG("processQuery start, node:%p, handle:%p, sql:%s", node, pMsg->handle, sql);
   tfree(sql);
 
   QW_ERR_RET(qwProcessQuery(QW_FPARAMS(), &qwMsg, msg->taskType));
@@ -357,7 +357,7 @@ int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   qwMsg.connInfo.handle = pMsg->handle;
   qwMsg.connInfo.ahandle = pMsg->ahandle;
 
-  QW_SCH_TASK_DLOG("processCQuery start, node:%p", node);
+  QW_SCH_TASK_DLOG("processCQuery start, node:%p, handle:%p", node, pMsg->handle);
 
   QW_ERR_RET(qwProcessCQuery(QW_FPARAMS(), &qwMsg));
 
@@ -391,7 +391,7 @@ int32_t qWorkerProcessReadyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg){
   qwMsg.connInfo.handle = pMsg->handle;
   qwMsg.connInfo.ahandle = pMsg->ahandle;
 
-  QW_SCH_TASK_DLOG("processReady start, node:%p", node);
+  QW_SCH_TASK_DLOG("processReady start, node:%p, handle:%p", node, pMsg->handle);
 
   QW_ERR_RET(qwProcessReady(QW_FPARAMS(), &qwMsg));
 
@@ -453,7 +453,7 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   qwMsg.connInfo.handle = pMsg->handle;
   qwMsg.connInfo.ahandle = pMsg->ahandle;
 
-  QW_SCH_TASK_DLOG("processFetch start, node:%p", node);
+  QW_SCH_TASK_DLOG("processFetch start, node:%p, handle:%p", node, pMsg->handle);
 
   QW_ERR_RET(qwProcessFetch(QW_FPARAMS(), &qwMsg));
 
@@ -472,6 +472,7 @@ int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
+  SQWorkerMgmt *mgmt = (SQWorkerMgmt *)qWorkerMgmt;
   int32_t code = 0;
   STaskCancelReq *msg = pMsg->pCont;
   if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
@@ -484,6 +485,11 @@ int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   msg->taskId = be64toh(msg->taskId);
   msg->refId = be64toh(msg->refId);
 
+  uint64_t sId = msg->sId;
+  uint64_t qId = msg->queryId;
+  uint64_t tId = msg->taskId;
+  int64_t  rId = msg->refId;
+
   SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0};
   qwMsg.connInfo.handle = pMsg->handle;
   qwMsg.connInfo.ahandle = pMsg->ahandle;
@@ -493,6 +499,7 @@ int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
 _return:
 
   QW_ERR_RET(qwBuildAndSendCancelRsp(&qwMsg.connInfo, code));
+  QW_SCH_TASK_DLOG("cancel rsp send, handle:%p, code:%x - %s", qwMsg.connInfo.handle, code, tstrerror(code));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -525,7 +532,7 @@ int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   qwMsg.connInfo.handle = pMsg->handle;
   qwMsg.connInfo.ahandle = pMsg->ahandle;
 
-  QW_SCH_TASK_DLOG("processDrop start, node:%p", node);
+  QW_SCH_TASK_DLOG("processDrop start, node:%p, handle:%p", node, pMsg->handle);
 
   QW_ERR_RET(qwProcessDrop(QW_FPARAMS(), &qwMsg));
 
@@ -559,7 +566,7 @@ int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   qwMsg.connInfo.handle = pMsg->handle;
   qwMsg.connInfo.ahandle = pMsg->ahandle;
 
-  QW_SCH_DLOG("processHb start, node:%p", node);
+  QW_SCH_DLOG("processHb start, node:%p, handle:%p", node, pMsg->handle);
 
   QW_ERR_RET(qwProcessHb(mgmt, &qwMsg, &req));
 
