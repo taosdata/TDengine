@@ -4721,12 +4721,13 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo *pOperator, bool* newgroup) 
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SStreamBlockScanInfo* pInfo = pOperator->info;
 
+
   pTaskInfo->code = pOperator->_openFn(pOperator);
   if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
     return NULL;
   }
 
-  if (pInfo->blockType == STREAM_DATA_TYPE_SSDAT_BLOCK) {
+  if (pInfo->blockType == STREAM_DATA_TYPE_SSDATA_BLOCK) {
     if (pInfo->blockValid) {
       pInfo->blockValid = false;  // this block can only be used once.
       return pInfo->pRes;

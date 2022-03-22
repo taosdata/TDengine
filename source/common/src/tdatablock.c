@@ -1300,3 +1300,26 @@ void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
   }
   return (void*)buf;
 }
+
+int32_t tEncodeDataBlocks(void** buf, const SArray* blocks) {
+  int32_t tlen = 0;
+  int32_t sz = taosArrayGetSize(blocks);
+  tlen += taosEncodeFixedI32(buf, sz);
+
+  for (int32_t i = 0; i < sz; i++) {
+    SSDataBlock* pBlock = taosArrayGet(blocks, i);
+    tlen += tEncodeDataBlock(buf, pBlock);
+  }
+
+  return tlen;
+}
+
+void* tDecodeDataBlocks(const void* buf, SArray* blocks) {
+  int32_t sz;
+  buf = taosDecodeFixedI32(buf, &sz);
+  for (int32_t i = 0; i < sz; i++) {
+    SSDataBlock pBlock = {0};
+    buf = tDecodeDataBlock(buf, &pBlock);
+  }
+  return (void*)buf;
+}
