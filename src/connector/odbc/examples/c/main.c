@@ -641,7 +641,6 @@ static int do_taos_query(TAOS *taos, insert_arg_t *arg) {
     sqls[i]       = (char*)malloc(bytes);
     OILE(sqls[i], "");
     char   *p     = sqls[i];
-    size_t  count = 0;
 
     while (1) {
       int n = 0;
@@ -651,7 +650,6 @@ static int do_taos_query(TAOS *taos, insert_arg_t *arg) {
       OILE(bytes>n, "");
       if (bytes>=n) bytes -= (size_t)n;
       else          bytes  = 0;
-      count += (size_t)n;
 
       for (int j=0; j<arg->batch_size; ++j) {
         int8_t  v1 = (int8_t)rand();         if (v1==INT8_MIN) v1++;
@@ -664,7 +662,6 @@ static int do_taos_query(TAOS *taos, insert_arg_t *arg) {
         OILE(bytes>n, "");
         if (bytes>=n) bytes -= (size_t)n;
         else          bytes  = 0;
-        count += (size_t)n;
       }
 
       if (p) break;

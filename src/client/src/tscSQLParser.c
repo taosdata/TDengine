@@ -3166,8 +3166,6 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         }
 
       } else {  // select * from xxx
-        int32_t numOfFields = 0;
-
         // multicolumn selection does not support alias name
         if (pItem->aliasName != NULL && strlen(pItem->aliasName) > 0) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
@@ -3190,8 +3188,6 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
             }
             colIndex++;
           }
-
-          numOfFields += tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
         }
       }
       return TSDB_CODE_SUCCESS;

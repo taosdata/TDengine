@@ -268,7 +268,6 @@ void writeData() {
   int sqlLen = 0;
   int lastMachineid = 0;
   int counter = 0;
-  int totalRecords = 0;
   for (int i = 0; i < arguments.filesNum; i++) {
     char fileName[300];
     sprintf(fileName, "%s/testdata%d.csv", arguments.dataDir, i);
@@ -318,7 +317,6 @@ void writeData() {
         }
         taos_free_result(result);
 
-        totalRecords += counter;
         counter = 0;
         lastMachineid = -1;
         sqlLen = 0;
