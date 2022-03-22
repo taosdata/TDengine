@@ -87,6 +87,7 @@ SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode
 SNode* createColumnNode(SAstCreateContext* pCxt, const SToken* pTableAlias, const SToken* pColumnName);
 SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral);
 SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral);
+SNode* createDefaultDatabaseCondValue(SAstCreateContext* pCxt);
 SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, const SToken* pAlias);
 SNode* createLogicConditionNode(SAstCreateContext* pCxt, ELogicConditionType type, SNode* pParam1, SNode* pParam2);
 SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pLeft, SNode* pRight);
@@ -142,7 +143,7 @@ SNode* createAlterTableDropCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_
 SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, const SToken* pOldColName, const SToken* pNewColName);
 SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, const SToken* pTagName, SNode* pVal);
 SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName);
-SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pDbName);
+SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbNamePattern);
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, const SToken* pUserName, const SToken* pPassword);
 SNode* createAlterUserStmt(SAstCreateContext* pCxt, const SToken* pUserName, int8_t alterType, const SToken* pVal);
 SNode* createDropUserStmt(SAstCreateContext* pCxt, const SToken* pUserName);
