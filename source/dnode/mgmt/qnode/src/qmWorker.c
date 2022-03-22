@@ -83,6 +83,23 @@ int32_t qmPutMsgToFetchQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
   return qmPutRpcMsgToWorker(pMgmt, &pMgmt->fetchWorker, pRpc);
 }
 
+int32_t qmGetQueueSize(SMgmtWrapper *pWrapper, int32_t vgId, EQueueType qtype) {
+  int32_t     size = -1;
+  SQnodeMgmt *pMgmt = pWrapper->pMgmt;
+  switch (qtype) {
+    case QUERY_QUEUE:
+      size = taosQueueSize(pMgmt->queryWorker.queue);
+      break;
+    case FETCH_QUEUE:
+      size = taosQueueSize(pMgmt->fetchWorker.queue);
+      break;
+    default:
+      break;
+  }
+
+  return size;
+}
+
 int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
   int32_t maxFetchThreads = 4;
   int32_t minFetchThreads = TMIN(maxFetchThreads, tsNumOfCores);

@@ -258,6 +258,34 @@ int32_t vmPutMsgToApplyQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
   return vmPutRpcMsgToQueue(pWrapper, pRpc, APPLY_QUEUE);
 }
 
+int32_t vmGetQueueSize(SMgmtWrapper *pWrapper, int32_t vgId, EQueueType qtype) {
+  int32_t    size = -1;
+  SVnodeObj *pVnode = vmAcquireVnode(pWrapper->pMgmt, vgId);
+  if (pVnode != NULL) {
+    switch (qtype) {
+      case QUERY_QUEUE:
+        size = taosQueueSize(pVnode->pQueryQ);
+        break;
+      case FETCH_QUEUE:
+        size = taosQueueSize(pVnode->pFetchQ);
+        break;
+      case WRITE_QUEUE:
+        size = taosQueueSize(pVnode->pWriteQ);
+        break;
+      case SYNC_QUEUE:
+        size = taosQueueSize(pVnode->pSyncQ);
+        break;
+      case APPLY_QUEUE:
+        size = taosQueueSize(pVnode->pApplyQ);
+        break;
+      default:
+        break;
+    }
+  }
+  vmReleaseVnode(pWrapper->pMgmt, pVnode);
+  return size;
+}
+
 int32_t vmAllocQueue(SVnodesMgmt *pMgmt, SVnodeObj *pVnode) {
   pVnode->pWriteQ = tWWorkerAllocQueue(&pMgmt->writePool, pVnode, (FItems)vmProcessWriteQueue);
   pVnode->pApplyQ = tWWorkerAllocQueue(&pMgmt->writePool, pVnode, (FItems)vmProcessApplyQueue);
