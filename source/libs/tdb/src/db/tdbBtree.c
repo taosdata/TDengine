@@ -602,7 +602,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
     // TODO: sort the page according to the page number
   }
 
-  {  // Do the actual cell distribution
+  {  // Do the real cell distribution
 
     SPage            *pTPage[2];
     int               tPage, tIdx, iOld;
@@ -647,6 +647,20 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
 
     for (int i = 0; i < 2; i++) {
       tdbPageDestroy(pTPage[i], NULL, NULL);
+    }
+  }
+
+  {  // Insert records in parent page
+    int          cIdx;
+    int          szCell;
+    SCell        pCell[128];  // TODO
+    SCellDecoder cd;
+
+    for (int iNew = 0; iNew < nNews; iNew++) {
+      tdbBtreeDecodeCell(pNews[iNew], tdbPageGetCell(pNews[iNew], TDB_PAGE_TOTAL_CELLS(pNews[iNew]) - 1), &cd);
+
+      tdbBtreeEncodeCell(pParent, cd.pKey, cd.kLen, (void *)&TDB_PAGE_PGNO(pNews[iNew]), sizeof(SPgno), pCell, &szCell);
+      tdbPageInsertCell(pParent, cIdx, pCell, szCell);
     }
   }
 
