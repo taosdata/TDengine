@@ -38,11 +38,14 @@ static int32_t parseSqlIntoAst(SParseContext* pCxt, SQuery** pQuery) {
 }
 
 int32_t qParseQuerySql(SParseContext* pCxt, SQuery** pQuery) {
+  int32_t code = TSDB_CODE_SUCCESS;
   if (isInsertSql(pCxt->pSql, pCxt->sqlLen)) {
-    return parseInsertSql(pCxt, pQuery);
+    code = parseInsertSql(pCxt, pQuery);
   } else {
-    return parseSqlIntoAst(pCxt, pQuery);
+    code = parseSqlIntoAst(pCxt, pQuery);
   }
+  terrno = code;
+  return code;
 }
 
 void qDestroyQuery(SQuery* pQueryNode) {

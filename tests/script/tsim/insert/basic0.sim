@@ -7,7 +7,7 @@ sql connect
 print =============== create database
 sql create database d0
 sql show databases
-if $rows != 1 then 
+if $rows != 2 then 
   return -1
 endi
 
@@ -51,6 +51,7 @@ sql insert into ct3 values('2021-01-01 00:00:00.000', 10, 2.0, 3.0)
 #===================================================================
 print =============== query data from child table
 sql select * from ct1
+
 if $rows != 7 then
   return -1
 endi

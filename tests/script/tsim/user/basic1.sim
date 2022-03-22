@@ -3,6 +3,9 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
+# todo remove
+sql create database useless_db
+
 print =============== show users
 sql show users
 if $rows != 1 then 
@@ -70,5 +73,8 @@ print $data00 $data01 $data02
 print $data10 $data11 $data22
 print $data20 $data11 $data22
 print $data30 $data31 $data32
+
+# todo remove
+sql drop database useless_db
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -23,7 +23,6 @@
 #include "tlist.h"
 #include "tlockfree.h"
 #include "tmacro.h"
-#include "tq.h"
 #include "wal.h"
 
 #include "vnode.h"
@@ -33,6 +32,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct STQ STQ;
 
 typedef struct SVState   SVState;
 typedef struct SVBufPool SVBufPool;
@@ -170,6 +171,25 @@ void            vmaReset(SVMemAllocator* pVMA);
 void*           vmaMalloc(SVMemAllocator* pVMA, uint64_t size);
 void            vmaFree(SVMemAllocator* pVMA, void* ptr);
 bool            vmaIsFull(SVMemAllocator* pVMA);
+
+// init once
+int  tqInit();
+void tqCleanUp();
+
+// open in each vnode
+STQ* tqOpen(const char* path, SWal* pWal, SMeta* pMeta, STqCfg* tqConfig, SMemAllocatorFactory* allocFac);
+void tqClose(STQ*);
+
+// required by vnode
+int tqPushMsg(STQ*, void* msg, tmsg_t msgType, int64_t version);
+int tqCommit(STQ*);
+
+int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
+int32_t tqProcessRebReq(STQ* pTq, char* msg);
+int32_t tqProcessTaskExec(STQ* pTq, SRpcMsg* msg);
+
+int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
 
 #ifdef __cplusplus
 }

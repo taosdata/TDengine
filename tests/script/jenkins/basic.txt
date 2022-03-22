@@ -17,7 +17,7 @@
 ./test.sh -f tsim/dnode/basic1.sim
 
 # ---- insert
-./test.sh -f tsim/insert/basic0.sim
+#./test.sh -f tsim/insert/basic0.sim
 
 # ---- query
 ./test.sh -f tsim/query/interval.sim

@@ -30,6 +30,7 @@ extern "C" {
 #define CTG_DEFAULT_CACHE_TBLMETA_NUMBER 1000
 #define CTG_DEFAULT_RENT_SECOND 10
 #define CTG_DEFAULT_RENT_SLOT_SIZE 10
+#define CTG_DEFAULT_MAX_RETRY_TIMES 3
 
 #define CTG_RENT_SLOT_SECOND 1.5
 
@@ -57,10 +58,10 @@ enum {
 };
 
 typedef struct SCtgDebug {
-  bool     lockDebug;
-  bool     cacheDebug;
-  bool     apiDebug;
-  bool     metaDebug;
+  bool     lockEnable;
+  bool     cacheEnable;
+  bool     apiEnable;
+  bool     metaEnable;
   uint32_t showCachePeriodSec;
 } SCtgDebug;
 
@@ -159,8 +160,10 @@ typedef struct SCtgRemoveTblMsg {
 
 
 typedef struct SCtgMetaAction {
-  int32_t act;
-  void   *data;
+  int32_t  act;
+  void    *data;
+  bool     syncReq;
+  uint64_t seqId;
 } SCtgMetaAction;
 
 typedef struct SCtgQNode {
@@ -168,14 +171,21 @@ typedef struct SCtgQNode {
   struct SCtgQNode      *next;
 } SCtgQNode;
 
+typedef struct SCtgQueue {
+  SRWLatch              qlock;
+  uint64_t              seqId;
+  uint64_t              seqDone;
+  SCtgQNode            *head;
+  SCtgQNode            *tail;
+  tsem_t                reqSem;  
+  tsem_t                rspSem;  
+  uint64_t              qRemainNum;
+} SCtgQueue;
+
 typedef struct SCatalogMgmt {
   bool                  exit;
   SRWLatch              lock;
-  SRWLatch              qlock;
-  SCtgQNode            *head;
-  SCtgQNode            *tail;
-  tsem_t                sem;  
-  uint64_t              qRemainNum;
+  SCtgQueue             queue;
   TdThread             updateThread;  
   SHashObj             *pCluster;     //key: clusterId, value: SCatalog*
   SCatalogStat          stat;
@@ -191,8 +201,8 @@ typedef struct SCtgAction {
   ctgActFunc func;
 } SCtgAction;
 
-#define CTG_QUEUE_ADD() atomic_add_fetch_64(&gCtgMgmt.qRemainNum, 1)
-#define CTG_QUEUE_SUB() atomic_sub_fetch_64(&gCtgMgmt.qRemainNum, 1)
+#define CTG_QUEUE_ADD() atomic_add_fetch_64(&gCtgMgmt.queue.qRemainNum, 1)
+#define CTG_QUEUE_SUB() atomic_sub_fetch_64(&gCtgMgmt.queue.qRemainNum, 1)
 
 #define CTG_STAT_ADD(n) atomic_add_fetch_64(&(n), 1)
 #define CTG_STAT_SUB(n) atomic_sub_fetch_64(&(n), 1)
@@ -232,9 +242,9 @@ typedef struct SCtgAction {
 #define ctgDebug(param, ...)  qDebug("CTG:%p " param, pCtg, __VA_ARGS__)
 #define ctgTrace(param, ...)  qTrace("CTG:%p " param, pCtg, __VA_ARGS__)
 
-#define CTG_LOCK_DEBUG(...) do { if (gCTGDebug.lockDebug) { qDebug(__VA_ARGS__); } } while (0)
-#define CTG_CACHE_DEBUG(...) do { if (gCTGDebug.cacheDebug) { qDebug(__VA_ARGS__); } } while (0)
-#define CTG_API_DEBUG(...) do { if (gCTGDebug.apiDebug) { qDebug(__VA_ARGS__); } } while (0)
+#define CTG_LOCK_DEBUG(...) do { if (gCTGDebug.lockEnable) { qDebug(__VA_ARGS__); } } while (0)
+#define CTG_CACHE_DEBUG(...) do { if (gCTGDebug.cacheEnable) { qDebug(__VA_ARGS__); } } while (0)
+#define CTG_API_DEBUG(...) do { if (gCTGDebug.apiEnable) { qDebug(__VA_ARGS__); } } while (0)
 
 #define TD_RWLATCH_WRITE_FLAG_COPY 0x40000000
 
