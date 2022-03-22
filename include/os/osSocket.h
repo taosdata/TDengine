@@ -17,6 +17,7 @@
 #define _TD_OS_SOCKET_H_
 
 // If the error is in a third-party library, place this header file under the third-party library header file.
+// When you want to use this feature, you should find or add the same function in the following section.
 #ifndef ALLOW_FORBID_FUNC
     #define socket SOCKET_FUNC_TAOS_FORBID
     #define bind   BIND_FUNC_TAOS_FORBID
@@ -52,9 +53,6 @@ extern "C" {
 
 #if (defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)) 
   #define htobe64 htonll
-  #if defined(_TD_GO_DLL_)
-    uint64_t htonll(uint64_t val);
-  #endif
 #endif
 
 #if defined(_TD_DARWIN_64)

@@ -316,7 +316,7 @@ void ctgWaitAction(SCtgMetaAction *action) {
   while (true) {
     tsem_wait(&gCtgMgmt.queue.rspSem);
     
-    if (atomic_load_8(&gCtgMgmt.exit)) {
+    if (atomic_load_8((int8_t*)&gCtgMgmt.exit)) {
       tsem_post(&gCtgMgmt.queue.rspSem);
       break;
     }
@@ -2141,7 +2141,7 @@ void* ctgUpdateThreadFunc(void* param) {
   while (true) {
     tsem_wait(&gCtgMgmt.queue.reqSem);
     
-    if (atomic_load_8(&gCtgMgmt.exit)) {
+    if (atomic_load_8((int8_t*)&gCtgMgmt.exit)) {
       tsem_post(&gCtgMgmt.queue.rspSem);
       break;
     }
@@ -2270,7 +2270,7 @@ int32_t catalogInit(SCatalogCfg *cfg) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  atomic_store_8(&gCtgMgmt.exit, false);
+  atomic_store_8((int8_t*)&gCtgMgmt.exit, false);
 
   if (cfg) {
     memcpy(&gCtgMgmt.cfg, cfg, sizeof(*cfg));
@@ -2844,11 +2844,11 @@ int32_t catalogGetExpiredDBs(SCatalog* pCtg, SDbVgVersion **dbs, uint32_t *num) 
 void catalogDestroy(void) {
   qInfo("start to destroy catalog");
   
-  if (NULL == gCtgMgmt.pCluster || atomic_load_8(&gCtgMgmt.exit)) {
+  if (NULL == gCtgMgmt.pCluster || atomic_load_8((int8_t*)&gCtgMgmt.exit)) {
     return;
   }
 
-  atomic_store_8(&gCtgMgmt.exit, true);
+  atomic_store_8((int8_t*)&gCtgMgmt.exit, true);
 
   tsem_post(&gCtgMgmt.queue.reqSem);
   tsem_post(&gCtgMgmt.queue.rspSem);

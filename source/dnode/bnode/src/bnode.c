@@ -17,6 +17,7 @@
 
 SBnode *bndOpen(const char *path, const SBnodeOpt *pOption) {
   SBnode *pBnode = calloc(1, sizeof(SBnode));
+  pBnode->msgCb = pOption->msgCb;
   return pBnode;
 }
 

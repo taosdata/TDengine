@@ -13,32 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_QNODE_INT_H_
-#define _TD_QNODE_INT_H_
-
-#include "os.h"
-
-#include "tlog.h"
-#include "tmsg.h"
-#include "trpc.h"
+#define _DEFAULT_SOURCE
 #include "tmsgcb.h"
 
-#include "qnode.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-typedef struct SQWorkerMgmt SQHandle;
-
-typedef struct SQnode {
-  int32_t   qndId;
-  SMsgCb    msgCb;
-  SQHandle* pQuery;
-} SQnode;
-
-#ifdef __cplusplus
+int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq) {
+  return (*pMsgCb->queueFps[qtype])(pMsgCb->pWrapper, pReq);
 }
-#endif
 
-#endif /*_TD_QNODE_INT_H_*/
+int32_t tmsgSendReq(const SMsgCb* pMsgCb, SEpSet* epSet, SRpcMsg* pReq) {
+  return (*pMsgCb->sendReqFp)(pMsgCb->pWrapper, epSet, pReq);
+}
+
+int32_t tmsgSendMnodeReq(const SMsgCb* pMsgCb, SRpcMsg* pReq) {
+  return (*pMsgCb->sendMnodeReqFp)(pMsgCb->pWrapper, pReq);
+}
+
+void tmsgSendRsp(const SMsgCb* pMsgCb, SRpcMsg* pRsp) { return (*pMsgCb->sendRspFp)(pMsgCb->pWrapper, pRsp); }

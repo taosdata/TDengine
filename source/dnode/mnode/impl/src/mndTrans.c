@@ -888,7 +888,7 @@ static int32_t mndTransSendActionMsg(SMnode *pMnode, STrans *pTrans, SArray *pAr
     }
     memcpy(rpcMsg.pCont, pAction->pCont, pAction->contLen);
 
-    if (mndSendReqToDnode(pMnode, &pAction->epSet, &rpcMsg) == 0) {
+    if (tmsgSendReq(&pMnode->msgCb, &pAction->epSet, &rpcMsg) == 0) {
       mDebug("trans:%d, action:%d is sent", pTrans->id, action);
       pAction->msgSent = 1;
       pAction->msgReceived = 0;

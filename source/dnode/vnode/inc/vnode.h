@@ -18,6 +18,7 @@
 
 #include "os.h"
 #include "trpc.h"
+#include "tmsgcb.h"
 
 #include "meta.h"
 #include "tarray.h"
@@ -40,7 +41,6 @@ typedef struct {
 typedef struct {
   int32_t  vgId;
   uint64_t dbId;
-  void    *pWrapper;
   STfs    *pTfs;
   uint64_t wsize;
   uint64_t ssize;
@@ -54,19 +54,11 @@ typedef struct {
   SMetaCfg metaCfg;
   STqCfg   tqCfg;
   SWalCfg  walCfg;
+  SMsgCb   msgCb;
   uint32_t hashBegin;
   uint32_t hashEnd;
   int8_t   hashMethod;
 } SVnodeCfg;
-
-typedef struct {
-  uint16_t       nthreads;  // number of commit threads. 0 for no threads and a schedule queue should be given (TODO)
-  PutToQueueFp   putToQueryQFp;
-  PutToQueueFp   putToFetchQFp;
-  SendReqFp      sendReqFp;
-  SendMnodeReqFp sendMnodeReqFp;
-  SendRspFp      sendRspFp;
-} SVnodeOpt;
 
 typedef struct {
   int64_t           ver;
@@ -87,10 +79,9 @@ typedef struct {
 /**
  * @brief Initialize the vnode module
  *
- * @param pOption Option of the vnode mnodule
  * @return int 0 for success and -1 for failure
  */
-int vnodeInit(const SVnodeOpt *pOption);
+int vnodeInit();
 
 /**
  * @brief Cleanup the vnode module
