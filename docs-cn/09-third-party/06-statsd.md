@@ -1,8 +1,8 @@
 ---
-sidebar_label: StatsD 直接写入 
+sidebar_label: StatsD
 ---
 
-# StatsD 直接写入(通过 taosAdapter)
+# StatsD 直接写入
 
 安装 StatsD
 请参考[官方文档](https://github.com/statsd/statsd)。

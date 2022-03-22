@@ -1,8 +1,8 @@
 ---
-sidebar_label: collectd 直接写入
+sidebar_label: collectd
 ---
 
-# collectd 直接写入(通过 taosAdapter)
+# collectd 写入
 
 安装 collectd，请参考[官方文档](https://collectd.org/download.shtml)。
 
