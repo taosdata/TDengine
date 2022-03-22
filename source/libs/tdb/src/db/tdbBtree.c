@@ -204,7 +204,19 @@ int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *p
 }
 
 static int tdbBtCursorMoveToChild(SBtCursor *pCur, SPgno pgno) {
-  // TODO
+  int ret;
+
+  pCur->pgStack[pCur->iPage] = pCur->pPage;
+  pCur->idxStack[pCur->iPage] = pCur->idx;
+  pCur->iPage++;
+  pCur->pPage = NULL;
+  pCur->idx = -1;
+
+  ret = tdbPagerFetchPage(pCur->pBt->pPager, pgno, &pCur->pPage, tdbBtreeInitPage, pCur->pBt);
+  if (ret < 0) {
+    ASSERT(0);
+  }
+
   return 0;
 }
 
@@ -287,14 +299,12 @@ static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen, int *p
           pCur->idx = midx;
           tdbBtCursorMoveToChild(pCur, cd.pgno);
         } else {
+          pCur->idx = midx + 1;
           if (midx == nCells - 1) {
             /* Move to right-most child */
-            pCur->idx = midx + 1;
-            // tdbBtCursorMoveToChild(pCur, ((SBtPageHdr *)(pPage->pAmHdr))->rChild);
+            tdbBtCursorMoveToChild(pCur, ((SIntHdr *)pCur->pPage->pData)->pgno);
           } else {
-            // TODO: reset cd as uninitialized
-            pCur->idx = midx + 1;
-            pCell = tdbPageGetCell(pPage, midx + 1);
+            pCell = tdbPageGetCell(pPage, pCur->idx);
             tdbBtreeDecodeCell(pPage, pCell, &cd);
             tdbBtCursorMoveToChild(pCur, cd.pgno);
           }
