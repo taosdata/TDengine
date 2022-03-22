@@ -173,10 +173,8 @@ typedef struct SColumn {
     int64_t  dataBlockId;
   };
 
-  union {
-    int16_t colId;
-    int16_t slotId;
-  };
+  int16_t colId;
+  int16_t slotId;
 
   char    name[TSDB_COL_NAME_LEN];
   int8_t  flag;  // column type: normal column, tag, or user-input column (integer/float/string)
