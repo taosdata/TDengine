@@ -291,7 +291,11 @@ void uvOnSendCb(uv_write_t* req, int status) {
             memset(&conn->regArg, 0, sizeof(conn->regArg));
           }
           transQueuePop(&conn->srvMsgs);
-          free(msg);
+          tfree(msg);
+          msg = (SSrvMsg*)transQueuePop(&conn->srvMsgs);
+          if (msg != NULL) {
+            uvStartSendRespInternal(msg);
+          }
         } else {
           uvStartSendRespInternal(msg);
         }
