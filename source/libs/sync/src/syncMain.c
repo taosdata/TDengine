@@ -849,7 +849,7 @@ static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg
 
     if (ths->pFsm != NULL) {
       if (ths->pFsm->FpPreCommitCb != NULL) {
-        ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0);
+        ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0, ths->state);
       }
     }
     rpcFreeCont(rpcMsg.pCont);
@@ -864,7 +864,7 @@ static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg
 
     if (ths->pFsm != NULL) {
       if (ths->pFsm->FpPreCommitCb != NULL) {
-        ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 1);
+        ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 1, ths->state);
       }
     }
     rpcFreeCont(rpcMsg.pCont);

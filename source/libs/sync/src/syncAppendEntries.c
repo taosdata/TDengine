@@ -213,7 +213,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
 
               SRpcMsg rpcMsg;
               syncEntry2OriginalRpc(pRollBackEntry, &rpcMsg);
-              ths->pFsm->FpRollBackCb(ths->pFsm, &rpcMsg, pRollBackEntry->index, pRollBackEntry->isWeak, 0);
+              ths->pFsm->FpRollBackCb(ths->pFsm, &rpcMsg, pRollBackEntry->index, pRollBackEntry->isWeak, 0, ths->state);
               rpcFreeCont(rpcMsg.pCont);
               syncEntryDestory(pRollBackEntry);
             }
@@ -230,7 +230,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
           syncEntry2OriginalRpc(pAppendEntry, &rpcMsg);
           if (ths->pFsm != NULL) {
             if (ths->pFsm->FpPreCommitCb != NULL) {
-              ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pAppendEntry->index, pAppendEntry->isWeak, 2);
+              ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pAppendEntry->index, pAppendEntry->isWeak, 2, ths->state);
             }
           }
           rpcFreeCont(rpcMsg.pCont);
@@ -255,7 +255,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
         syncEntry2OriginalRpc(pAppendEntry, &rpcMsg);
         if (ths->pFsm != NULL) {
           if (ths->pFsm->FpPreCommitCb != NULL) {
-            ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pAppendEntry->index, pAppendEntry->isWeak, 3);
+            ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pAppendEntry->index, pAppendEntry->isWeak, 3, ths->state);
           }
         }
         rpcFreeCont(rpcMsg.pCont);
@@ -326,7 +326,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
               syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
               if (ths->pFsm->FpCommitCb != NULL) {
-                ths->pFsm->FpCommitCb(ths->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0);
+                ths->pFsm->FpCommitCb(ths->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0, ths->state);
               }
 
               rpcFreeCont(rpcMsg.pCont);

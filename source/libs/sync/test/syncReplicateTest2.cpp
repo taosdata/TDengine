@@ -27,24 +27,28 @@ SSyncInfo syncInfo;
 SSyncFSM *pFsm;
 SWal *    pWal;
 
-void CommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SyncIndex index, bool isWeak, int32_t code) {
+void CommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SyncIndex index, bool isWeak, int32_t code,
+              ESyncState state) {
   char logBuf[256];
-  snprintf(logBuf, sizeof(logBuf), "==callback== ==CommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d \n", pFsm, index,
-           isWeak, code);
+  snprintf(logBuf, sizeof(logBuf), "==callback== ==CommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n",
+           pFsm, index, isWeak, code, state, syncUtilState2String(state));
   syncRpcMsgPrint2(logBuf, (SRpcMsg *)pMsg);
 }
 
-void PreCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SyncIndex index, bool isWeak, int32_t code) {
+void PreCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SyncIndex index, bool isWeak, int32_t code,
+                 ESyncState state) {
   char logBuf[256];
-  snprintf(logBuf, sizeof(logBuf), "==callback== ==PreCommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d \n", pFsm,
-           index, isWeak, code);
+  snprintf(logBuf, sizeof(logBuf),
+           "==callback== ==PreCommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n", pFsm, index, isWeak,
+           code, state, syncUtilState2String(state));
   syncRpcMsgPrint2(logBuf, (SRpcMsg *)pMsg);
 }
 
-void RollBackCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SyncIndex index, bool isWeak, int32_t code) {
+void RollBackCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SyncIndex index, bool isWeak, int32_t code,
+                ESyncState state) {
   char logBuf[256];
-  snprintf(logBuf, sizeof(logBuf), "==callback== ==RollBackCb== pFsm:%p, index:%ld, isWeak:%d, code:%d \n", pFsm, index,
-           isWeak, code);
+  snprintf(logBuf, sizeof(logBuf), "==callback== ==RollBackCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n",
+           pFsm, index, isWeak, code, state, syncUtilState2String(state));
   syncRpcMsgPrint2(logBuf, (SRpcMsg *)pMsg);
 }
 
