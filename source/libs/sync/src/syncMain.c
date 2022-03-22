@@ -575,6 +575,17 @@ char* syncNode2Str(const SSyncNode* pSyncNode) {
   return serialized;
 }
 
+SSyncNode* syncNodeAcquire(int64_t rid) {
+  SSyncNode* pNode = taosAcquireRef(tsNodeRefId, rid);
+  if (pNode == NULL) {
+    sTrace("failed to acquire node from refId:%" PRId64, rid);
+  }
+
+  return pNode;
+}
+
+void syncNodeRelease(SSyncNode* pNode) { taosReleaseRef(tsNodeRefId, pNode->rid); }
+
 // raft state change --------------
 void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
   if (term > pSyncNode->pRaftStore->currentTerm) {
