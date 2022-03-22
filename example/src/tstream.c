@@ -215,10 +215,12 @@ int main(int argc, char* argv[]) {
     printf("env init\n");
     code = init_env();
   }
-  create_topic();
+  create_stream();
+#if 0
   tmq_t*      tmq = build_consumer();
   tmq_list_t* topic_list = build_topic_list();
   /*perf_loop(tmq, topic_list);*/
   /*basic_consume_loop(tmq, topic_list);*/
   sync_consume_loop(tmq, topic_list);
+#endif
 }
