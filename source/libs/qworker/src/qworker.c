@@ -580,6 +580,9 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryEnd) {
 int32_t qwGenerateSchHbRsp(SQWorkerMgmt *mgmt, SQWSchStatus *sch, SQWHbInfo *hbInfo) {
   int32_t taskNum = 0;
 
+  hbInfo->connInfo = sch->hbConnInfo;
+  hbInfo->rsp.epId = sch->epId;
+
   QW_LOCK(QW_READ, &sch->tasksLock);
   
   taskNum = taosHashGetSize(sch->tasksHash);
@@ -590,8 +593,6 @@ int32_t qwGenerateSchHbRsp(SQWorkerMgmt *mgmt, SQWSchStatus *sch, SQWHbInfo *hbI
     QW_ELOG("taosArrayInit taskStatus failed, num:%d", taskNum);
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
-
-  hbInfo->connInfo = sch->connInfo;
 
   void *key = NULL;
   size_t keyLen = 0;
@@ -1228,10 +1229,13 @@ int32_t qwProcessHb(SQWorkerMgmt *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
   QW_ERR_JRET(qwAcquireAddScheduler(mgmt, req->sId, QW_READ, &sch));
 
   QW_LOCK(QW_WRITE, &sch->connLock);
+
+  if (sch->hbConnInfo.handle) {
+    rpcReleaseHandle(sch->hbConnInfo.handle, TAOS_CONN_SERVER);
+  }
   
-  origHandle = sch->connInfo.handle;
-  
-  memcpy(&sch->connInfo, &qwMsg->connInfo, sizeof(qwMsg->connInfo));
+  memcpy(&sch->hbConnInfo, &qwMsg->connInfo, sizeof(qwMsg->connInfo));
+  memcpy(&sch->epId, &req->epId, sizeof(req->epId));
   
   QW_UNLOCK(QW_WRITE, &sch->connLock);
   

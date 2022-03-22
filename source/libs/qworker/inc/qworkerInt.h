@@ -121,11 +121,12 @@ typedef struct SQWTaskCtx {
 } SQWTaskCtx;
 
 typedef struct SQWSchStatus {
-  int32_t      lastAccessTs; // timestamp in second
-  SRWLatch     connLock;
-  SQWConnInfo  connInfo;
-  SRWLatch     tasksLock;
-  SHashObj    *tasksHash;   // key:queryId+taskId, value: SQWTaskStatus
+  int32_t        lastAccessTs; // timestamp in second
+  SRWLatch       connLock;
+  SQWConnInfo    hbConnInfo;
+  SQueryNodeEpId epId;  
+  SRWLatch       tasksLock;
+  SHashObj      *tasksHash;   // key:queryId+taskId, value: SQWTaskStatus
 } SQWSchStatus;
 
 // Qnode/Vnode level task management

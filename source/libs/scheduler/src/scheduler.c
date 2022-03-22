@@ -672,15 +672,14 @@ int32_t schUpdateHbConnection(SQueryNodeEpId *epId, SSchTrans *trans) {
   hb = taosHashGet(schMgmt.hbConnections, epId, sizeof(SQueryNodeEpId));
   if (NULL == hb) {
     qError("taosHashGet hb connection failed, nodeId:%d, fqdn:%s, port:%d", epId->nodeId, epId->ep.fqdn, epId->ep.port);
-    SCH_ERR_RET(code);
+    SCH_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
 
   SCH_LOCK(SCH_WRITE, &hb->lock);
   memcpy(&hb->trans, trans, sizeof(*trans));
   SCH_UNLOCK(SCH_WRITE, &hb->lock);
 
-  qDebug("hb connection updated, sId:%" PRIx64
-         ", nodeId:%d, fqdn:%s, port:%d, instance:%p, handle:%p",
+  qDebug("hb connection updated, sId:%" PRIx64 ", nodeId:%d, fqdn:%s, port:%d, instance:%p, handle:%p",
          schMgmt.sId, epId->nodeId, epId->ep.fqdn, epId->ep.port, trans->transInst,
          trans->transHandle);
 
@@ -1563,6 +1562,9 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, void *transport, SEpSet*
   pMsgSendInfo->msgInfo.handle = trans->transHandle;
   pMsgSendInfo->msgType = msgType;
   pMsgSendInfo->fp = fp;
+
+  qDebug("start to send %s msg, refId:%" PRIx64 "instance:%p, handle:%p", 
+    TMSG_INFO(msgType), pJob->refId, trans->transInst, trans->transHandle);
   
   int64_t  transporterId = 0;
   code = asyncSendMsgToServerExt(trans->transInst, epSet, &transporterId, pMsgSendInfo, persistHandle, ctx);
@@ -1646,13 +1648,17 @@ int32_t schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId) {
   int64_t  transporterId = 0;
   SEpSet epSet = {.inUse = 0, .numOfEps = 1};
   memcpy(&epSet.eps[0], &nodeEpId->ep, sizeof(nodeEpId->ep));
+
+  qDebug("start to send hb msg, instance:%p, handle:%p, fqdn:%s, port:%d", trans.transInst, trans.transHandle, nodeEpId->ep.fqdn, nodeEpId->ep.port);
   
   code = asyncSendMsgToServerExt(trans.transInst, &epSet, &transporterId, pMsgSendInfo, true, &rpcCtx);
   if (code) {
+    qError("fail to send hb msg, instance:%p, handle:%p, fqdn:%s, port:%d, error:%x - %s", 
+      trans.transInst, trans.transHandle, nodeEpId->ep.fqdn, nodeEpId->ep.port, code, tstrerror(code));
     SCH_ERR_JRET(code);
   }
 
-  qDebug("req msg sent, type:%d, %s", msgType, TMSG_INFO(msgType));
+  qDebug("hb msg sent");
   return TSDB_CODE_SUCCESS;
 
 _return:
@@ -1833,6 +1839,7 @@ int32_t schEnsureHbConnection(SSchJob *pJob, SSchTask *pTask) {
   epId.nodeId = addr->nodeId;
   memcpy(&epId.ep, SCH_GET_CUR_EP(addr), sizeof(SEp));
 
+#if 0
   SSchHbTrans *hb = taosHashGet(schMgmt.hbConnections, &epId, sizeof(SQueryNodeEpId));
   if (NULL == hb) {
     bool exist = false;
@@ -1841,6 +1848,7 @@ int32_t schEnsureHbConnection(SSchJob *pJob, SSchTask *pTask) {
       SCH_ERR_RET(schBuildAndSendHbMsg(&epId));
     }
   }
+#endif
 
   return TSDB_CODE_SUCCESS;
 }
