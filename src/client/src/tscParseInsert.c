@@ -1153,7 +1153,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
 
     code = validateTableName(tableToken.z, tableToken.n, &sTblToken, &dbIncluded2);
     if (code != TSDB_CODE_SUCCESS) {
-      return tscInvalidOperationMsg(pInsertParam->msg, "invalid table name", *sqlstr);
+      return tscInvalidOperationMsg(pInsertParam->msg, STR_INVALID_TABLE_NAME, *sqlstr);
     }
 
     int32_t ret = tscSetTableFullName(&pTableMetaInfo->name, &sTblToken, pSql, dbIncluded2);
@@ -1441,7 +1441,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
     bool dbIncluded = false;
     // Check if the table name available or not
     if (validateTableName(sToken.z, sToken.n, &sTblToken, &dbIncluded) != TSDB_CODE_SUCCESS) {
-      code = tscInvalidOperationMsg(pInsertParam->msg, "table name invalid", sToken.z);
+      code = tscInvalidOperationMsg(pInsertParam->msg, STR_INVALID_TABLE_NAME, sToken.z);
       goto _clean;
     }
 

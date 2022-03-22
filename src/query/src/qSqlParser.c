@@ -1310,6 +1310,22 @@ void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrTo
   pInfo->pMiscInfo->tableType = tableType;
 }
 
+void setTruncateTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck, int16_t dbType, int16_t tableType) {
+  pInfo->type = type;
+
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = (SMiscInfo *)calloc(1, sizeof(SMiscInfo));
+    pInfo->pMiscInfo->a = taosArrayInit(4, sizeof(SStrToken));
+  }
+
+  taosArrayPush(pInfo->pMiscInfo->a, pToken);
+
+  pInfo->pMiscInfo->existsCheck = (existsCheck->n == 1);
+  pInfo->pMiscInfo->dbType = dbType;
+  pInfo->pMiscInfo->tableType = tableType;
+}
+
+
 void setDropFuncInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken) {
   pInfo->type = type;
 
@@ -1473,4 +1489,16 @@ void setDefaultCreateTopicOption(SCreateDbInfo *pDBInfo) {
 
   pDBInfo->dbType = TSDB_DB_TYPE_TOPIC;
   pDBInfo->partitions = TSDB_DEFAULT_DB_PARTITON_OPTION;
+}
+
+// malloc new SDelData and set with args
+SDelData* tGetDelData(SStrToken* pTableName, SStrToken* existsCheck, tSqlExpr* pWhere) {
+  // malloc
+  SDelData* pDelData = (SDelData *) calloc(1, sizeof(SDelData));
+  // set value
+  pDelData->existsCheck = (existsCheck->n == 1);
+  pDelData->tableName   = *pTableName;
+  pDelData->pWhere      = pWhere;
+
+  return pDelData;
 }

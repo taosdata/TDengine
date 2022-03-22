@@ -400,8 +400,8 @@ static int tsdbInitTruncateH(STruncateH *pTruncateH, STsdbRepo *pRepo) {
 
 static void tsdbDestroyTruncateH(STruncateH *pTruncateH) {
   pTruncateH->pDCols = tdFreeDataCols(pTruncateH->pDCols);
-  pTruncateH->aSupBlk = taosArrayDestroy(pTruncateH->aSupBlk);
-  pTruncateH->aBlkIdx = taosArrayDestroy(pTruncateH->aBlkIdx);
+  pTruncateH->aSupBlk = taosArrayDestroy(&pTruncateH->aSupBlk);
+  pTruncateH->aBlkIdx = taosArrayDestroy(&pTruncateH->aBlkIdx);
   tsdbDestroyTruncateTblArray(pTruncateH);
   tsdbDestroyReadH(&(pTruncateH->readh));
   tsdbCloseDFileSet(TSDB_TRUNCATE_WSET(pTruncateH));
@@ -453,7 +453,7 @@ static void tsdbDestroyTruncateTblArray(STruncateH *pTruncateH) {
     tfree(pTblHandle->pInfo);
   }
 
-  pTruncateH->tblArray = taosArrayDestroy(pTruncateH->tblArray);
+  pTruncateH->tblArray = taosArrayDestroy(&pTruncateH->tblArray);
 }
 
 static int tsdbCacheFSetIndex(STruncateH *pTruncateH) {

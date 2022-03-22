@@ -169,7 +169,7 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
     pRsp = pRet->rsp;
   }
 
-  if (tsdbInsertData(pVnode->tsdb, pCont, pRsp) < 0) {
+  if (tsdbInsertData(pVnode->tsdb, pCont, pRsp, pRet->psem_rsp) < 0) {
     code = terrno;
   } else {
     if (pRsp != NULL) atomic_fetch_add_64(&tsSubmitReqSucNum, 1);

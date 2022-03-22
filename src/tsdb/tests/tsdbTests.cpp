@@ -74,7 +74,7 @@ static int insertData(SInsertInfo *pInfo) {
     pBlock->tid = htonl(pBlock->tid);
 
     pBlock->sversion = htonl(pBlock->sversion);
-    pBlock->padding = htonl(pBlock->padding);
+    pBlock->flag = htonl(pBlock->flag);
 
     pMsg->length = htonl(pMsg->length);
     pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);

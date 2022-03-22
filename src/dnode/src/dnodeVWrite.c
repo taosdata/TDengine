@@ -17,6 +17,7 @@
 #include "os.h"
 #include "tqueue.h"
 #include "dnodeVWrite.h"
+#include "tthread.h"
 
 typedef struct {
   taos_qall qall;
@@ -161,6 +162,29 @@ void dnodeFreeVWriteQueue(void *pWqueue) {
   taosCloseQueue(pWqueue);
 }
 
+void* waitingResultThread(void* param) {
+  SVWriteMsg* pWrite = (SVWriteMsg* )param;
+  int32_t ret = sem_wait(pWrite->rspRet.psem_rsp);
+  if(ret == 0) {
+    // success
+
+  }
+  sem_destroy(pWrite->rspRet.psem_rsp);
+  // wait ok
+  SRpcMsg rpcRsp = {
+    .handle  = pWrite->rpcMsg.handle,
+    .pCont   = pWrite->rspRet.rsp,
+    .contLen = pWrite->rspRet.len,
+    .code    = pWrite->code,
+  };
+
+  rpcSendResponse(&rpcRsp);
+  // remove from thread manager
+  vnodeRemoveWait(pWrite->pVnode, pWrite);
+  vnodeFreeFromWQueue(pWrite->pVnode, pWrite);
+  return NULL;
+}
+
 void dnodeSendRpcVWriteRsp(void *pVnode, void *wparam, int32_t code) {
   if (wparam == NULL) return;
   SVWriteMsg *pWrite = wparam;
@@ -170,15 +194,22 @@ void dnodeSendRpcVWriteRsp(void *pVnode, void *wparam, int32_t code) {
 
   if (count <= 1) return;
 
-  SRpcMsg rpcRsp = {
-    .handle  = pWrite->rpcMsg.handle,
-    .pCont   = pWrite->rspRet.rsp,
-    .contLen = pWrite->rspRet.len,
-    .code    = pWrite->code,
-  };
+  if(pWrite->rspRet.psem_rsp == 0)  {
+    SRpcMsg rpcRsp = {
+      .handle  = pWrite->rpcMsg.handle,
+      .pCont   = pWrite->rspRet.rsp,
+      .contLen = pWrite->rspRet.len,
+      .code    = pWrite->code,
+    };
 
-  rpcSendResponse(&rpcRsp);
-  vnodeFreeFromWQueue(pVnode, pWrite);
+    rpcSendResponse(&rpcRsp);
+    vnodeFreeFromWQueue(pVnode, pWrite);
+  } else {
+    // need async to wait result in another thread
+    pthread_t* thread = taosCreateThread(waitingResultThread, pWrite);
+    // add to wait thread manager
+    vnodeAddWait(pVnode, thread, pWrite->rspRet.psem_rsp, pWrite);
+  }  
 }
 
 static void *dnodeProcessVWriteQueue(void *wparam) {

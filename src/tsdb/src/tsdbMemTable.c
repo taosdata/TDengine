@@ -49,15 +49,17 @@ static int          tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIte
 static int          tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock);
 static int          tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pTable);
 static int          tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SMemRow row);
+static int32_t      tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmitRspMsg *pRsp, sem_t* pSem);
 
 static FORCE_INLINE int tsdbCheckRowRange(STsdbRepo *pRepo, STable *pTable, SMemRow row, TSKEY minKey, TSKEY maxKey,
                                           TSKEY now);
 
-int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp) {
+int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp, sem_t* pSem) {
   STsdbRepo *    pRepo = repo;
   SSubmitMsgIter msgIter = {0};
   SSubmitBlk *   pBlock = NULL;
   int32_t        affectedrows = 0, numOfRows = 0;
+  int32_t        ret = TSDB_CODE_SUCCESS;
 
   if (tsdbScanAndConvertSubmitMsg(pRepo, pMsg) < 0) {
     if (terrno != TSDB_CODE_TDB_TABLE_RECONFIGURE) {
@@ -70,8 +72,16 @@ int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pR
   while (true) {
     tsdbGetSubmitMsgNext(&msgIter, &pBlock);
     if (pBlock == NULL) break;
-    if (tsdbInsertDataToTable(pRepo, pBlock, &affectedrows) < 0) {
-      return -1;
+    if (IS_CONTROL_BLOCK(pBlock)) {
+      // COMMAND DATA BLOCK
+      ret = tsdbInsertControlData(pRepo, pBlock, pRsp, pSem);
+      // all control msg is one SSubmitMsg, so need return
+      return ret; 
+    } else {
+      // INSERT DATA BLOCK
+      if (tsdbInsertDataToTable(pRepo, pBlock, &affectedrows) < 0) {
+        return -1;
+      }
     }
     numOfRows += pBlock->numOfRows;
   }
@@ -82,7 +92,7 @@ int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pR
   }
 
   if (tsdbCheckCommit(pRepo) < 0) return -1;
-  return 0;
+  return ret;
 }
 
 // ---------------- INTERNAL FUNCTIONS ----------------
@@ -702,10 +712,13 @@ static int tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg) {
       }
     }
 
-    tsdbInitSubmitBlkIter(pBlock, &blkIter);
-    while ((row = tsdbGetSubmitBlkNext(&blkIter)) != NULL) {
-      if (tsdbCheckRowRange(pRepo, pTable, row, minKey, maxKey, now) < 0) {
-        return -1;
+    // check each row time invalid if not control block
+    if (!IS_CONTROL_BLOCK(pBlock)) {
+      tsdbInitSubmitBlkIter(pBlock, &blkIter);
+      while ((row = tsdbGetSubmitBlkNext(&blkIter)) != NULL) {
+        if (tsdbCheckRowRange(pRepo, pTable, row, minKey, maxKey, now) < 0) {
+          return -1;
+        }
       }
     }
   }
@@ -1081,4 +1094,40 @@ static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SMemRow r
   pTable->cacheLastConfigVersion = pRepo->cacheLastConfigVersion;
 
   return 0;
+}
+
+// Delete Data
+int32_t tsdbInsertDeleteData(STsdbRepo* pRepo, SControlData* pCtlData, SShellSubmitRspMsg *pRsp, sem_t* pSem) {
+  pRsp->affectedRows = htonl(99);
+
+  // INIT SEM
+  int32_t ret = sem_init(pSem, 0, 0);
+  if(ret != 0) {
+    return TAOS_SYSTEM_ERROR(ret);
+  }
+
+  // CREATE DELETE MEMTABLE
+
+
+  // FORCE COMMIT ALL MEM AND IMEM
+
+
+  return 0;
+}
+
+// Control Data
+int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmitRspMsg *pRsp, sem_t* pSem) {
+  int32_t ret = TSDB_CODE_SUCCESS;
+  assert(pBlock->dataLen == sizeof(SControlData));
+  SControlData* pCtlData = (SControlData* )pBlock->data;
+
+  // anti-serialize
+  pCtlData->command  = htonl(pCtlData->command);
+  pCtlData->win.skey = htobe64(pCtlData->win.skey);
+  pCtlData->win.ekey = htobe64(pCtlData->win.ekey);
+
+  if(pCtlData->command == CMD_DELETE_DATA) {
+    ret = tsdbInsertDeleteData(pRepo, pCtlData, pRsp, pSem);
+  }
+  return ret;
 }

@@ -120,6 +120,10 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_TP, "drop-tp" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_USE_TP, "use-tp" )	 
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_TP, "alter-tp" )
 
+// delete
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DELDATA, "delete-data" )
+
+
 #ifndef TAOS_MESSAGE_C
   TSDB_MSG_TYPE_MAX  // 105
 #endif
@@ -195,6 +199,9 @@ enum _mgmt_table {
 #define TSDB_COL_IS_UD_COL(f)       ((f&(~(TSDB_COL_NULL))) == TSDB_COL_UDC)
 #define TSDB_COL_REQ_NULL(f)        (((f)&TSDB_COL_NULL) != 0)
 
+// SSubmitBlk->flag define
+#define FLAG_BLK_CONTROL            0x00000001 // SSubmitBlk is a control block to submit
+#define IS_CONTROL_BLOCK(x)         (x->flag & FLAG_BLK_CONTROL)
 
 extern char *taosMsg[];
 
@@ -219,7 +226,7 @@ typedef struct SMsgHead {
 typedef struct SSubmitBlk {
   uint64_t uid;        // table unique id
   int32_t  tid;        // table id
-  int32_t  padding;    // TODO just for padding here
+  int32_t  flag;       // extend special information, can see FLAG_BLK_??? define
   int32_t  sversion;   // data schema version
   int32_t  dataLen;    // data part length, not including the SSubmitBlk head
   int32_t  schemaLen;  // schema length, if length is 0, no schema exists
@@ -995,6 +1002,12 @@ typedef struct {
   int32_t len;
   char    value[];
 } STLV;
+
+#define CMD_DELETE_DATA 0x00000001
+typedef struct SControlData{
+  uint32_t command;  // see define CMD_???
+  STimeWindow win;
+} SControlData;
 
 enum {
   TLV_TYPE_END_MARK = -1,

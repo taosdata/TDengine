@@ -3313,6 +3313,77 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
   return code;
 }
 
+// Super Table
+int buildSTableDelDataMsg(SSqlObj *pSql, SSqlCmd* pCmd, SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SSqlInfo *pInfo) {
+  return 0;
+}
+
+// Normal Child Table
+int buildTableDelDataMsg(SSqlObj* pSql, SSqlCmd* pCmd, SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SSqlInfo *pInfo) {
+  STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+  // pSql->cmd.payloadLen is set during copying data into payload
+  pCmd->msgType = TSDB_MSG_TYPE_SUBMIT;
+
+  SNewVgroupInfo vgroupInfo = {0};
+  taosHashGetClone(UTIL_GET_VGROUPMAP(pSql), &pTableMeta->vgId, sizeof(pTableMeta->vgId), NULL, &vgroupInfo);
+  tscDumpEpSetFromVgroupInfo(&pSql->epSet, &vgroupInfo);
+
+  tscDebug("0x%"PRIx64" table deldata submit msg built, numberOfEP:%d", pSql->self, pSql->epSet.numOfEps);
+  
+  // set payload
+  size_t payloadLen = sizeof(SMsgDesc) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + sizeof(SControlData);
+  int32_t ret = tscAllocPayload(pCmd, payloadLen);
+  if (ret != TSDB_CODE_SUCCESS) {
+    return ret;
+  }
+  pCmd->payloadLen = payloadLen;
+
+  char* p = pCmd->payload;
+  SMsgDesc* pMsgDesc = (SMsgDesc* )p;
+  p += sizeof(SMsgDesc);
+  SSubmitMsg* pSubmitMsg = (SSubmitMsg* )p;
+  p += sizeof(SSubmitMsg);
+  SSubmitBlk* pSubmitBlk = (SSubmitBlk*)p;
+  p += sizeof(SSubmitBlk);
+  SControlData* pControlData = (SControlData* )p;
+
+  // SMsgDesc
+  pMsgDesc->numOfVnodes = htonl(1);
+  // SSubmitMsg
+  int32_t size = pCmd->payloadLen - sizeof(SMsgDesc);
+  pSubmitMsg->header.vgId = htonl(pTableMeta->vgId);
+  pSubmitMsg->header.contLen = htonl(size);
+  pSubmitMsg->length = pSubmitMsg->header.contLen;
+  pSubmitMsg->numOfBlocks = htonl(1);
+  // SSubmitBlk
+  pSubmitBlk->flag = FLAG_BLK_CONTROL; // this is control block
+  pSubmitBlk->tid = htonl(pTableMeta->id.tid);
+  pSubmitBlk->uid = htobe64(pTableMeta->id.uid);
+  pSubmitBlk->numOfRows = htons(1);
+  pSubmitBlk->schemaLen = 0; // only server return TSDB_CODE_TDB_TABLE_RECONFIGURE need schema attached
+  pSubmitBlk->sversion = htonl(pTableMeta->sversion);
+  pSubmitBlk->dataLen  = htonl(sizeof(SControlData));
+  // SControlData
+  pControlData->command  = htonl(CMD_DELETE_DATA);
+  pControlData->win.skey = htobe64(pQueryInfo->window.skey);
+  pControlData->win.ekey = htobe64(pQueryInfo->window.ekey);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int tscBuildDelDataMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
+  SSqlCmd        *pCmd = &pSql->cmd;
+  SQueryInfo     *pQueryInfo = tscGetQueryInfo(pCmd);
+  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+
+  if(UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+    return buildSTableDelDataMsg(pSql, pCmd, pQueryInfo, pTableMetaInfo, pInfo);
+  } else {
+    return buildTableDelDataMsg(pSql, pCmd, pQueryInfo, pTableMetaInfo, pInfo);
+  }
+}
+
 void tscInitMsgsFp() {
   tscBuildMsg[TSDB_SQL_SELECT] = tscBuildQueryMsg;
   tscBuildMsg[TSDB_SQL_INSERT] = tscBuildSubmitMsg;
@@ -3352,6 +3423,7 @@ void tscInitMsgsFp() {
   tscBuildMsg[TSDB_SQL_KILL_QUERY] = tscBuildKillMsg;
   tscBuildMsg[TSDB_SQL_KILL_STREAM] = tscBuildKillMsg;
   tscBuildMsg[TSDB_SQL_KILL_CONNECTION] = tscBuildKillMsg;
+  tscBuildMsg[TSDB_SQL_DELETE_DATA] = tscBuildDelDataMsg;
 
   tscProcessMsgRsp[TSDB_SQL_SELECT] = tscProcessQueryRsp;
   tscProcessMsgRsp[TSDB_SQL_FETCH] = tscProcessRetrieveRspFromNode;

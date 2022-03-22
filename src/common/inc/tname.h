@@ -141,4 +141,7 @@ int32_t tNameSetAcctId(SName* dst, const char* acct);
 
 int32_t tNameSetDbName(SName* dst, const char* acct, SStrToken* dbToken);
 
+// define uniform string
+#define STR_INVALID_TABLE_NAME "invalid table name"
+
 #endif  // TDENGINE_NAME_H

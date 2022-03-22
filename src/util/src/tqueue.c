@@ -160,6 +160,47 @@ int taosReadQitem(taos_queue param, int *type, void **pitem) {
   return code;
 }
 
+// search Qitem with type
+int taosSearchQitem(taos_queue param, int type, void **pitem) {
+  STaosQueue *queue = (STaosQueue *)param;
+  STaosQnode *pNode = NULL;
+  STaosQnode *pPre  = NULL; 
+  int         code = 0;
+
+  pthread_mutex_lock(&queue->mutex);
+
+  pNode = queue->head;
+  while (pNode) {
+    if(pNode->type == type) {
+      // found
+      *pitem = pNode->item;
+      if(pPre == NULL) {
+        queue->head = pNode->next;
+      } else {
+        pPre->next = pNode->next;
+      }
+      if (queue->head == NULL) 
+        queue->tail = NULL;
+      // reduce number  
+      queue->numOfItems--;
+      if (queue->qset) {
+        atomic_sub_fetch_32(&queue->qset->numOfItems, 1);
+      }
+      code = 1;
+      uDebug("item:%p is read out from queue:%p, type:%d items:%d", *pitem, queue, type, queue->numOfItems);
+      break;
+    }
+    // move next
+    pPre  = pNode;
+    pNode = pNode->next;
+  } 
+
+  pthread_mutex_unlock(&queue->mutex);
+
+  return code;
+}
+
+
 void *taosAllocateQall() {
   void *p = calloc(sizeof(STaosQall), 1);
   return p;
