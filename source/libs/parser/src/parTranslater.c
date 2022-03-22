@@ -348,7 +348,7 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode* pCol) {
 
 static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
   if (pVal->isDuration) {
-    if (parseAbsoluteDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit, pVal->node.resType.precision) != TSDB_CODE_SUCCESS) {
+    if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit, pVal->node.resType.precision) != TSDB_CODE_SUCCESS) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
     }
   } else {
