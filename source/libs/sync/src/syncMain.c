@@ -242,9 +242,14 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   assert(pSyncNode->pLogStore != NULL);
   pSyncNode->commitIndex = SYNC_INDEX_INVALID;
 
+  // timer ms init
+  pSyncNode->pingBaseLine = PING_TIMER_MS;
+  pSyncNode->electBaseLine = ELECT_TIMER_MS_MIN;
+  pSyncNode->hbBaseLine = HEARTBEAT_TIMER_MS;
+
   // init ping timer
   pSyncNode->pPingTimer = NULL;
-  pSyncNode->pingTimerMS = PING_TIMER_MS;
+  pSyncNode->pingTimerMS = pSyncNode->pingBaseLine;
   atomic_store_64(&pSyncNode->pingTimerLogicClock, 0);
   atomic_store_64(&pSyncNode->pingTimerLogicClockUser, 0);
   pSyncNode->FpPingTimerCB = syncNodeEqPingTimer;
@@ -252,7 +257,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
 
   // init elect timer
   pSyncNode->pElectTimer = NULL;
-  pSyncNode->electTimerMS = syncUtilElectRandomMS();
+  pSyncNode->electTimerMS = syncUtilElectRandomMS(pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine);
   atomic_store_64(&pSyncNode->electTimerLogicClock, 0);
   atomic_store_64(&pSyncNode->electTimerLogicClockUser, 0);
   pSyncNode->FpElectTimerCB = syncNodeEqElectTimer;
@@ -260,7 +265,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
 
   // init heartbeat timer
   pSyncNode->pHeartbeatTimer = NULL;
-  pSyncNode->heartbeatTimerMS = HEARTBEAT_TIMER_MS;
+  pSyncNode->heartbeatTimerMS = pSyncNode->hbBaseLine;
   atomic_store_64(&pSyncNode->heartbeatTimerLogicClock, 0);
   atomic_store_64(&pSyncNode->heartbeatTimerLogicClockUser, 0);
   pSyncNode->FpHeartbeatTimerCB = syncNodeEqHeartbeatTimer;
@@ -394,7 +399,7 @@ int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms) {
 
 int32_t syncNodeResetElectTimer(SSyncNode* pSyncNode) {
   int32_t ret = 0;
-  int32_t electMS = syncUtilElectRandomMS();
+  int32_t electMS = syncUtilElectRandomMS(pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine);
   ret = syncNodeRestartElectTimer(pSyncNode, electMS);
   return ret;
 }
@@ -763,7 +768,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
     syncTimeoutDestroy(pSyncMsg);
 
     // reset timer ms
-    pSyncNode->electTimerMS = syncUtilElectRandomMS();
+    pSyncNode->electTimerMS = syncUtilElectRandomMS(pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine);
     taosTmrReset(syncNodeEqPingTimer, pSyncNode->pingTimerMS, pSyncNode, gSyncEnv->pTimerManager,
                  &pSyncNode->pPingTimer);
   } else {
