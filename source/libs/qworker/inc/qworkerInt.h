@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include "qworker.h"
 #include "tlockfree.h"
 #include "ttimer.h"
 
@@ -131,17 +132,16 @@ typedef struct SQWSchStatus {
 
 // Qnode/Vnode level task management
 typedef struct SQWorkerMgmt {
-  SQWorkerCfg      cfg;
-  int8_t           nodeType;
-  int32_t          nodeId;
-  void            *timer;
-  tmr_h            hbTimer;
-  SRWLatch         schLock;
-  SHashObj        *schHash;       //key: schedulerId,    value: SQWSchStatus
-  SHashObj        *ctxHash;       //key: queryId+taskId, value: SQWTaskCtx
-  void            *nodeObj;
-  putReqToQueryQFp putToQueueFp;
-  sendReqFp sendReqFp;
+  SQWorkerCfg cfg;
+  int8_t      nodeType;
+  int32_t     nodeId;
+  void       *timer;
+  tmr_h       hbTimer;
+  SRWLatch    schLock;
+  // SRWLatch ctxLock;
+  SHashObj   *schHash;  // key: schedulerId,    value: SQWSchStatus
+  SHashObj   *ctxHash;  // key: queryId+taskId, value: SQWTaskCtx
+  SMsgCb      msgCb;
 } SQWorkerMgmt;
 
 #define QW_FPARAMS_DEF SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId

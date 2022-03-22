@@ -89,6 +89,9 @@ typedef struct {
 } SDnodeWorker;
 
 typedef struct SMsgHandle {
+  int32_t       vgId;
+  NodeMsgFp     vgIdMsgFp;
+  SMgmtWrapper *pVgIdWrapper;  // Handle the case where the same message type is distributed to qnode or vnode
   NodeMsgFp     msgFp;
   SMgmtWrapper *pWrapper;
 } SMsgHandle;
@@ -114,6 +117,7 @@ typedef struct SMgmtWrapper {
   void       *pMgmt;
   SDnode     *pDnode;
   NodeMsgFp   msgFps[TDMT_MAX];
+  int32_t     msgVgIds[TDMT_MAX];  // Handle the case where the same message type is distributed to qnode or vnode
   SMgmtFp     fp;
 } SMgmtWrapper;
 
@@ -149,7 +153,7 @@ typedef struct SDnode {
 EDndStatus    dndGetStatus(SDnode *pDnode);
 void          dndSetStatus(SDnode *pDnode, EDndStatus stat);
 SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, ENodeType nodeType);
-void          dndSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp);
+void          dndSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp, int32_t vgId);
 void          dndReportStartup(SDnode *pDnode, char *pName, char *pDesc);
 void          dndSendMonitorReport(SDnode *pDnode);
 

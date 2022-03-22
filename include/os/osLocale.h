@@ -23,6 +23,7 @@ extern "C" {
 #endif
 
 // If the error is in a third-party library, place this header file under the third-party library header file.
+// When you want to use this feature, you should find or add the same function in the following section.
 #ifndef ALLOW_FORBID_FUNC
     #define setlocale SETLOCALE_FUNC_TAOS_FORBID
 #endif

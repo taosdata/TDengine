@@ -245,7 +245,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   SMqPollRsp rsp = {
-      .consumerId = consumerId,
+      /*.consumerId = consumerId,*/
       .numOfTopics = 0,
       .pBlockData = NULL,
   };
@@ -298,7 +298,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         }
 
         taosArrayPush(pRes, pDataBlock);
-        rsp.schemas = pTopic->buffer.output[pos].pReadHandle->pSchemaWrapper;
+        rsp.schema = pTopic->buffer.output[pos].pReadHandle->pSchemaWrapper;
         rsp.rspOffset = fetchOffset;
 
         rsp.numOfTopics = 1;
@@ -312,10 +312,11 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         }
         ((SMqRspHead*)buf)->mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
         ((SMqRspHead*)buf)->epoch = pReq->epoch;
+        ((SMqRspHead*)buf)->consumerId = consumerId;
 
         void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
         tEncodeSMqPollRsp(&abuf, &rsp);
-        taosArrayDestroyEx(rsp.pBlockData, (void (*)(void*))tDeleteSSDataBlock);
+        /*taosArrayDestroyEx(rsp.pBlockData, (void (*)(void*))tDeleteSSDataBlock);*/
         pMsg->pCont = buf;
         pMsg->contLen = tlen;
         pMsg->code = 0;

@@ -42,6 +42,9 @@ int32_t qmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t qmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
 // qmWorker.c
+int32_t qmPutMsgToQueryQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
+int32_t qmPutMsgToFetchQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
+
 int32_t qmStartWorker(SQnodeMgmt *pMgmt);
 void    qmStopWorker(SQnodeMgmt *pMgmt);
 int32_t qmProcessQueryMsg(SQnodeMgmt *pMgmt, SNodeMsg *pMsg);

@@ -1158,6 +1158,8 @@ int32_t schHandleHbCallback(void *param, const SDataBuf *pMsg, int32_t code) {
   SCH_RET(schUpdateHbConnection(&rsp.epId, &trans));
 
   int32_t taskNum = (int32_t)taosArrayGetSize(rsp.taskStatus);
+  qDebug("%d task status in hb rsp, nodeId:%d, fqdn:%s, port:%d", taskNum, rsp.epId.nodeId, rsp.epId.ep.fqdn, rsp.epId.ep.port);
+
   for (int32_t i = 0; i < taskNum; ++i) {
     STaskStatus *taskStatus = taosArrayGet(rsp.taskStatus, i);
 

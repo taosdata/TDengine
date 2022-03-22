@@ -711,12 +711,12 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
   QW_LOCK(QW_WRITE, &ctx->lock);
 
   if (QW_PHASE_PRE_FETCH == phase) {
-    atomic_store_8(&ctx->queryFetched, true);
+    atomic_store_8((int8_t*)&ctx->queryFetched, true);
   } else {
     atomic_store_8(&ctx->phase, phase);
   }
 
-  if (atomic_load_8(&ctx->queryEnd)) {
+  if (atomic_load_8((int8_t*)&ctx->queryEnd)) {
     QW_TASK_ELOG_E("query already end");
     QW_ERR_JRET(TSDB_CODE_QW_MSG_ERROR);
   }
@@ -978,8 +978,8 @@ int32_t qwProcessReady(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
   QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_READY);
 
-  if (atomic_load_8(&ctx->queryEnd) || atomic_load_8(&ctx->queryFetched)) {
-    QW_TASK_ELOG("got ready msg at wrong status, queryEnd:%d, queryFetched:%d", atomic_load_8(&ctx->queryEnd), atomic_load_8(&ctx->queryFetched));
+  if (atomic_load_8((int8_t*)&ctx->queryEnd) || atomic_load_8((int8_t*)&ctx->queryFetched)) {
+    QW_TASK_ELOG("got ready msg at wrong status, queryEnd:%d, queryFetched:%d", atomic_load_8((int8_t*)&ctx->queryEnd), atomic_load_8((int8_t*)&ctx->queryFetched));
     QW_ERR_JRET(TSDB_CODE_QW_MSG_ERROR);
   }
 
@@ -1029,8 +1029,8 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
     QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
 
-    atomic_store_8(&ctx->queryInQueue, 0);
-    atomic_store_8(&ctx->queryContinue, 0);
+    atomic_store_8((int8_t*)&ctx->queryInQueue, 0);
+    atomic_store_8((int8_t*)&ctx->queryContinue, 0);
 
     QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, &queryEnd));
 
@@ -1041,20 +1041,20 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
       if ((!sOutput.queryEnd) && (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus)) {    
         QW_TASK_DLOG("task not end and buf is %s, need to continue query", qwBufStatusStr(sOutput.bufStatus));
         
-        atomic_store_8(&ctx->queryContinue, 1);
+        atomic_store_8((int8_t*)&ctx->queryContinue, 1);
       }
       
       if (rsp) {
         bool qComplete = (DS_BUF_EMPTY == sOutput.bufStatus && sOutput.queryEnd);
         qwBuildFetchRsp(rsp, &sOutput, dataLen, qComplete);
-        atomic_store_8(&ctx->queryEnd, qComplete);
+        atomic_store_8((int8_t*)&ctx->queryEnd, qComplete);
         
         QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_FETCH);            
         
         qwBuildAndSendFetchRsp(&qwMsg->connInfo, rsp, dataLen, code);                
         QW_TASK_DLOG("fetch rsp send, handle:%p, code:%x - %s, dataLen:%d", qwMsg->connInfo.handle, code, tstrerror(code), dataLen);
       } else {
-        atomic_store_8(&ctx->queryContinue, 1);
+        atomic_store_8((int8_t*)&ctx->queryContinue, 1);
       }
     }
 
@@ -1073,7 +1073,7 @@ _return:
     }
 
     QW_LOCK(QW_WRITE, &ctx->lock);
-    if (queryEnd || code || 0 == atomic_load_8(&ctx->queryContinue)) {
+    if (queryEnd || code || 0 == atomic_load_8((int8_t*)&ctx->queryContinue)) {
       // Note: if necessary, fetch need to put cquery to queue again
       atomic_store_8(&ctx->phase, 0);
       QW_UNLOCK(QW_WRITE,&ctx->lock);
@@ -1111,7 +1111,7 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   } else {
     bool qComplete = (DS_BUF_EMPTY == sOutput.bufStatus && sOutput.queryEnd);
     qwBuildFetchRsp(rsp, &sOutput, dataLen, qComplete);
-    atomic_store_8(&ctx->queryEnd, qComplete);
+    atomic_store_8((int8_t*)&ctx->queryEnd, qComplete);
   }
 
   if ((!sOutput.queryEnd) && (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus)) {    
@@ -1122,11 +1122,11 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
     // RC WARNING
     if (QW_IS_QUERY_RUNNING(ctx)) {
-      atomic_store_8(&ctx->queryContinue, 1);
-    } else if (0 == atomic_load_8(&ctx->queryInQueue)) {
+      atomic_store_8((int8_t*)&ctx->queryContinue, 1);
+    } else if (0 == atomic_load_8((int8_t*)&ctx->queryInQueue)) {
       qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXECUTING);      
 
-      atomic_store_8(&ctx->queryInQueue, 1);
+      atomic_store_8((int8_t*)&ctx->queryInQueue, 1);
       
       QW_ERR_JRET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo));
     }
@@ -1309,9 +1309,8 @@ _return:
   taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer);  
 }
 
-int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, void *nodeObj,
-                    putReqToQueryQFp fp1, sendReqFp fp2) {
-  if (NULL == qWorkerMgmt || NULL == nodeObj || NULL == fp1 || NULL == fp2) {
+int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, const SMsgCb *pMsgCb) {
+  if (NULL == qWorkerMgmt || pMsgCb->pWrapper == NULL) {
     qError("invalid param to init qworker");
     QW_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -1367,9 +1366,7 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qW
 
   mgmt->nodeType = nodeType;
   mgmt->nodeId = nodeId;
-  mgmt->nodeObj = nodeObj;
-  mgmt->putToQueueFp = fp1;
-  mgmt->sendReqFp = fp2;
+  mgmt->msgCb = *pMsgCb;
 
   *qWorkerMgmt = mgmt;
 
