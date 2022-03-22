@@ -65,11 +65,11 @@ typedef struct {
 static SConfInfo g_stConfInfo = {
     "tmqdb",
     "stb",
-	"./tmqResult.txt",	// output_file
-	"/data2/dnode/data/vnode/vnode2/wal",
+    "./tmqResult.txt",	// output_file
+    "/data2/dnode/data/vnodes/vnode2/wal",
     1, // threads
     1, // tables
-	1, // vgroups
+    1, // vgroups
     0, // run mode
     1, // columns
     1, // ratio
