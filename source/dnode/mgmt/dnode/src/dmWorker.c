@@ -52,7 +52,9 @@ static void *dmThreadRoutine(void *param) {
   }
 }
 
-static void dmProcessQueue(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+static void dmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+  SDnodeMgmt *pMgmt = pInfo->ahandle;
+
   SDnode  *pDnode = pMgmt->pDnode;
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   int32_t  code = -1;

@@ -86,7 +86,8 @@ static void *tQWorkerThreadFp(SQWorker *worker) {
     }
 
     if (fp != NULL) {
-      (*fp)(ahandle, msg);
+      SQueueInfo info = {.ahandle = ahandle, .workerId = worker->id, .threadNum = pool->num};
+      (*fp)(&info, msg);
     }
   }
 
@@ -210,6 +211,7 @@ static void *tWWorkerThreadFp(SWWorker *worker) {
     }
 
     if (fp != NULL) {
+      SQueueInfo info = {.ahandle = ahandle, .workerId = worker->id, .threadNum = pool->num};
       (*fp)(ahandle, worker->qall, numOfMsgs);
     }
   }
@@ -264,6 +266,8 @@ STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp) {
     }
 
     taosThreadAttrDestroy(&thAttr);
+    pool->num++;
+    if (pool->num > pool->max) pool->num = pool->max;
   } else {
     taosAddIntoQset(worker->qset, queue, ahandle);
     pool->nextId = (pool->nextId + 1) % pool->max;

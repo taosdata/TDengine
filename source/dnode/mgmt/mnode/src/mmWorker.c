@@ -16,7 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
 
-static void mmProcessQueue(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+static void mmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+  SMnodeMgmt *pMgmt = pInfo->ahandle;
+
   dTrace("msg:%p, will be processed in mnode queue", pMsg);
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   int32_t  code = -1;

@@ -33,7 +33,8 @@ static void bmSendErrorRsps(SMgmtWrapper *pWrapper, STaosQall *qall, int32_t num
   }
 }
 
-static void bmProcessQueue(SBnodeMgmt *pMgmt, STaosQall *qall, int32_t numOfMsgs) {
+static void bmProcessQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
+  SBnodeMgmt   *pMgmt = pInfo->ahandle;
   SMgmtWrapper *pWrapper = pMgmt->pWrapper;
 
   SArray *pArray = taosArrayInit(numOfMsgs, sizeof(SNodeMsg *));

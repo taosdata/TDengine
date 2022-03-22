@@ -21,7 +21,9 @@ static void qmSendRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
   dndSendRsp(pWrapper, &rsp);
 }
 
-static void qmProcessQueryQueue(SQnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+static void qmProcessQueryQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+  SQnodeMgmt *pMgmt = pInfo->ahandle;
+
   dTrace("msg:%p, will be processed in qnode-query queue", pMsg);
   int32_t code = qndProcessQueryMsg(pMgmt->pQnode, &pMsg->rpcMsg);
   if (code != 0) {
@@ -33,7 +35,9 @@ static void qmProcessQueryQueue(SQnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
-static void qmProcessFetchQueue(SQnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+static void qmProcessFetchQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+  SQnodeMgmt *pMgmt = pInfo->ahandle;
+
   dTrace("msg:%p, will be processed in qnode-fetch queue", pMsg);
   int32_t code = qndProcessFetchMsg(pMgmt->pQnode, &pMsg->rpcMsg);
   if (code != 0) {

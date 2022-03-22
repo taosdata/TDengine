@@ -21,7 +21,9 @@ static void vmSendRsp(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t code) {
   dndSendRsp(pWrapper, &rsp);
 }
 
-static void vmProcessMgmtQueue(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
+static void vmProcessMgmtQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+  SVnodesMgmt *pMgmt = pInfo->ahandle;
+
   int32_t code = -1;
   tmsg_t  msgType = pMsg->rpcMsg.msgType;
   dTrace("msg:%p, will be processed in vnode-mgmt queue", pMsg);
@@ -57,7 +59,9 @@ static void vmProcessMgmtQueue(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
-static void vmProcessQueryQueue(SVnodeObj *pVnode, SNodeMsg *pMsg) {
+static void vmProcessQueryQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+  SVnodeObj *pVnode = pInfo->ahandle;
+
   dTrace("msg:%p, will be processed in vnode-query queue", pMsg);
   int32_t code = vnodeProcessQueryMsg(pVnode->pImpl, &pMsg->rpcMsg);
   if (code != 0) {
@@ -68,7 +72,9 @@ static void vmProcessQueryQueue(SVnodeObj *pVnode, SNodeMsg *pMsg) {
   }
 }
 
-static void vmProcessFetchQueue(SVnodeObj *pVnode, SNodeMsg *pMsg) {
+static void vmProcessFetchQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+  SVnodeObj *pVnode = pInfo->ahandle;
+
   dTrace("msg:%p, will be processed in vnode-fetch queue", pMsg);
   int32_t code = vnodeProcessFetchMsg(pVnode->pImpl, &pMsg->rpcMsg);
   if (code != 0) {
@@ -79,7 +85,9 @@ static void vmProcessFetchQueue(SVnodeObj *pVnode, SNodeMsg *pMsg) {
   }
 }
 
-static void vmProcessWriteQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numOfMsgs) {
+static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
+  SVnodeObj *pVnode = pInfo->ahandle;
+
   SArray *pArray = taosArrayInit(numOfMsgs, sizeof(SNodeMsg *));
   if (pArray == NULL) {
     dError("failed to process %d msgs in write-queue since %s", numOfMsgs, terrstr());
@@ -126,8 +134,9 @@ static void vmProcessWriteQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numO
   taosArrayDestroy(pArray);
 }
 
-static void vmProcessApplyQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numOfMsgs) {
-  SNodeMsg *pMsg = NULL;
+static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
+  SVnodeObj *pVnode = pInfo->ahandle;
+  SNodeMsg  *pMsg = NULL;
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
     taosGetQitem(qall, (void **)&pMsg);
@@ -138,8 +147,9 @@ static void vmProcessApplyQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numO
   }
 }
 
-static void vmProcessSyncQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numOfMsgs) {
-  SNodeMsg *pMsg = NULL;
+static void vmProcessSyncQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
+  SVnodeObj *pVnode = pInfo->ahandle;
+  SNodeMsg  *pMsg = NULL;
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
     taosGetQitem(qall, (void **)&pMsg);

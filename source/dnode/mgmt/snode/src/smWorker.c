@@ -16,7 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "smInt.h"
 
-static void smProcessUniqueQueue(SSnodeMgmt *pMgmt, STaosQall *qall, int32_t numOfMsgs) {
+static void smProcessUniqueQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
+  SSnodeMgmt *pMgmt = pInfo->ahandle;
+
   for (int32_t i = 0; i < numOfMsgs; i++) {
     SNodeMsg *pMsg = NULL;
     taosGetQitem(qall, (void **)&pMsg);
@@ -30,7 +32,9 @@ static void smProcessUniqueQueue(SSnodeMgmt *pMgmt, STaosQall *qall, int32_t num
   }
 }
 
-static void smProcessSharedQueue(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+static void smProcessSharedQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+  SSnodeMgmt *pMgmt = pInfo->ahandle;
+
   dTrace("msg:%p, will be processed in snode shared queue", pMsg);
   sndProcessSMsg(pMgmt->pSnode, &pMsg->rpcMsg);
 
@@ -53,7 +57,7 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
       return -1;
     }
 
-    SWWorkerAllCfg cfg = {.maxNum = 1, .name = "snode-unique", .fp = (FItems)smProcessUniqueQueue, .param = pMgmt};
+    SWWorkerAllCfg cfg = {.maxNum = 1, .name = "snode-unique", .fp = smProcessUniqueQueue, .param = pMgmt};
 
     if (tWWorkerAllInit(pUniqueWorker, &cfg) != 0) {
       dError("failed to start snode-unique worker since %s", terrstr());
