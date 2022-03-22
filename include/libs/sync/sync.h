@@ -161,12 +161,14 @@ void    syncCleanUp();
 int64_t syncStart(const SSyncInfo* pSyncInfo);
 void    syncStop(int64_t rid);
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg);
-int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);        // use this function
-int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak);  // for compatibility, the same as syncPropose
+int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);       
 ESyncState syncGetMyRole(int64_t rid);
 
 // propose with sequence number, to implement linearizable semantics
 int32_t syncPropose2(int64_t rid, const SRpcMsg* pMsg, bool isWeak, uint64_t seqNum);
+
+// for compatibility, the same as syncPropose
+int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak);  
 
 extern int32_t sDebugFlag;
 
