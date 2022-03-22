@@ -81,6 +81,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = lastFunction,
     .finalizeFunc = functionFinalizer
   },
+//  {
+//    .name = "valueAssigner",
+//    .type = FUNCTION_TYPE_ASSIGNER,
+//    .classification = FUNC_MGT_AGG_FUNC,
+//    .checkFunc    = stubCheckAndGetResultType,
+//    .getEnvFunc   = getFirstLastFuncEnv,
+//    .initFunc     = functionSetup,
+//    .processFunc  = valFunction,
+//    .finalizeFunc = functionFinalizer
+//  },
   {
     .name = "concat",
     .type = FUNCTION_TYPE_CONCAT,
