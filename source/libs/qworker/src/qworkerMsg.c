@@ -74,7 +74,7 @@ int32_t qwBuildAndSendReadyRsp(SQWConnInfo *pConn, int32_t code) {
   SRpcMsg rpcRsp = {
     .msgType = TDMT_VND_RES_READY_RSP,
     .handle  = pConn->handle,
-    .ahandle = pConn->ahandle,
+    .ahandle = NULL,
     .pCont   = pRsp,
     .contLen = sizeof(*pRsp),
     .code    = code,
