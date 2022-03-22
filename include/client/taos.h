@@ -214,7 +214,6 @@ typedef void(tmq_commit_cb(tmq_t *, tmq_resp_err_t, tmq_topic_vgroup_list_t *, v
 DLL_EXPORT tmq_list_t *tmq_list_new();
 DLL_EXPORT int32_t     tmq_list_append(tmq_list_t *, const char *);
 
-DLL_EXPORT TAOS_RES   *tmq_create_topic(TAOS *taos, const char *name, const char *sql, int sqlLen);
 DLL_EXPORT tmq_t      *tmq_consumer_new(void *conn, tmq_conf_t *conf, char *errstr, int32_t errstrLen);
 DLL_EXPORT void        tmq_message_destroy(tmq_message_t *tmq_message);
 DLL_EXPORT const char *tmq_err2str(tmq_resp_err_t);
@@ -258,7 +257,12 @@ int32_t tmqGetSkipLogNum(tmq_message_t *tmq_message);
 DLL_EXPORT TAOS_ROW tmq_get_row(tmq_message_t *message);
 DLL_EXPORT char    *tmq_get_topic_name(tmq_message_t *message);
 
-/* ---------------------- OTHER ---------------------------- */
+/* --------------------TMPORARY INTERFACE FOR TESTING--------------------- */
+DLL_EXPORT TAOS_RES *tmq_create_topic(TAOS *taos, const char *name, const char *sql, int sqlLen);
+
+DLL_EXPORT TAOS_RES *tmq_create_stream(TAOS *taos, const char *streamName, const char *tbName, const char *sql);
+
+/* -------------------------------- OTHER -------------------------------- */
 typedef void (*TAOS_SUBSCRIBE_CALLBACK)(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code);
 
 DLL_EXPORT int taos_stmt_affected_rows(TAOS_STMT *stmt);

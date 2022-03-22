@@ -2271,20 +2271,22 @@ enum {
 
 typedef struct {
   void* inputHandle;
-  void* executor[4];
-} SStreamTaskParRunner;
+  void* executor;
+} SStreamRunner;
 
 typedef struct {
   int64_t streamId;
   int32_t taskId;
   int32_t level;
   int8_t  status;
-  int8_t  pipeEnd;
-  int8_t  parallel;
+  int8_t  pipeSource;
+  int8_t  pipeSink;
+  int8_t  numOfRunners;
+  int8_t  parallelizable;
   SEpSet  NextOpEp;
   char*   qmsg;
   // not applied to encoder and decoder
-  SStreamTaskParRunner runner;
+  SStreamRunner runner[8];
   // void*                executor;
   // void*   stateStore;
   //  storage handle
@@ -2316,7 +2318,7 @@ typedef struct {
 
 typedef struct {
   SStreamExecMsgHead head;
-  // TODO: other info needed by task
+  SArray*            data;  // SArray<SSDataBlock>
 } SStreamTaskExecReq;
 
 typedef struct {

@@ -101,6 +101,9 @@ void*   blockDataDestroy(SSDataBlock* pBlock);
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);
 void*   tDecodeDataBlock(const void* buf, SSDataBlock* pBlock);
 
+int32_t tEncodeDataBlocks(void** buf, const SArray* blocks);
+void*   tDecodeDataBlocks(const void* buf, SArray* blocks);
+
 static FORCE_INLINE void blockDestroyInner(SSDataBlock* pBlock) {
   // WARNING: do not use info.numOfCols,
   // sometimes info.numOfCols != array size
