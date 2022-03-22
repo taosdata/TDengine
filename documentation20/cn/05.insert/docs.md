@@ -175,8 +175,7 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c6="passit"   1626006833640000000
 **错误码**
 <br/>如果是无模式写入过程中的数据本身错误，应用会得到 TSDB_CODE_TSC_LINE_SYNTAX_ERROR 错误信息，该错误信息表明错误发生在写入文本中。其他的错误码与原系统一致，可以通过 `taos_errstr()` 获取具体的错误原因。
 
-**后续升级计划**
-<br/>当前版本只提供了 C 版本的 API，后续将提供 其他高级语言的 API，例如 Java/Go/Python/C# 等。此外，在TDengine v2.3及后续版本中，您还可以通过 taosAdapter 采用 REST 的方式直接写入无模式数据。
+<br/>除使用 C 版本的 API，也可以使用官网连接器，包括 Java/Go/Python/C#/Node.js/Rust 等。此外，在 TDengine v2.4 及后续版本中，您还可以通过 taosAdapter 采用 RESTful 的方式直接写入无模式数据。
 
 ## <a class="anchor" id="prometheus"></a>Prometheus 直接写入（通过 taosAdapter）
 
