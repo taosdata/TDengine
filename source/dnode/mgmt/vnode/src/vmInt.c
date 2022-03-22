@@ -342,7 +342,7 @@ void vmGetMgmtFp(SMgmtWrapper *pWrapper) {
   mgmtFp.requiredFp = vmRequire;
 
   vmInitMsgHandles(pWrapper);
-  pWrapper->name = "vnode";
+  pWrapper->name = "vnodes";
   pWrapper->fp = mgmtFp;
 }
 
