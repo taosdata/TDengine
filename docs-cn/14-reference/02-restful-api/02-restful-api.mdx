@@ -1,18 +1,14 @@
----
-sidebar_position: 7
----
-
-# RESTful Connector
+# RESTful API
 
 为支持各种不同类型平台的开发，TDengine 提供符合 REST 设计标准的 API，即 RESTful API。为最大程度降低学习成本，不同于其他数据库 RESTful API 的设计方法，TDengine 直接通过 HTTP POST 请求 BODY 中包含的 SQL 语句来操作数据库，仅需要一个 URL。RESTful 连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1965.html)。
 
 注意：与原生连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。（从 2.2.0.0 版本开始，支持在 RESTful url 中指定 db_name，这时如果 SQL 语句中没有指定数据库名前缀的话，会使用 url 中指定的这个 db_name。从 2.4.0.0 版本开始，RESTful 默认由 taosAdapter 提供，要求必须在 url 中指定 db_name。）
 
-### 安装
+## 安装
 
 RESTful 接口不依赖于任何 TDengine 的库，因此客户端不需要安装任何 TDengine 的库，只要客户端的开发语言支持 HTTP 协议即可。
 
-### 验证
+## 验证
 
 在已经安装 TDengine 服务器端的情况下，可以按照如下方式进行验证。
 
@@ -74,9 +70,9 @@ h1.taosdata.com:6041/rest/sql
 }
 ```
 
-### RESTful 连接器的使用
+## RESTful 连接器的使用
 
-#### HTTP 请求格式
+### HTTP 请求格式
 
 ```
 http://<fqdn>:<port>/rest/sql/[db_name]
@@ -120,7 +116,7 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql/[db_name]
 
 其中，`TOKEN` 为 `{username}:{password}` 经过 Base64 编码之后的字符串，例如 `root:taosdata` 编码后为 `cm9vdDp0YW9zZGF0YQ==`
 
-### HTTP 返回格式
+## HTTP 返回格式
 
 返回值为 JSON 格式，如下:
 
@@ -145,11 +141,20 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql/[db_name]
 - data: 具体返回的数据，一行一行的呈现，如果不返回结果集，那么就仅有 [[affected_rows]]。data 中每一行的数据列顺序，与 column_meta 中描述数据列的顺序完全一致。
 - rows: 表明总共多少行数据。
 
-<a class="anchor" id="column_meta"></a>column_meta 中的列类型说明： * 1：BOOL * 2：TINYINT
-* 3：SMALLINT * 4：INT * 5：BIGINT * 6：FLOAT * 7：DOUBLE * 8：BINARY * 9：TIMESTAMP
-* 10：NCHAR
+column_meta 中的列类型说明：
 
-### 自定义授权码
+- 1：BOOL
+- 2：TINYINT
+- 3：SMALLINT
+- 4：INT
+- 5：BIGINT
+- 6：FLOAT
+- 7：DOUBLE
+- 8：BINARY
+- 9：TIMESTAMP
+- 10：NCHAR
+
+## 自定义授权码
 
 HTTP 请求中需要带有授权码 `<TOKEN>`，用于身份识别。授权码通常由管理员提供，可简单的通过发送 `HTTP GET` 请求来获取授权码，操作如下：
 
@@ -181,7 +186,7 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 }
 ```
 
-### 使用示例
+## 使用示例
 
 - 在 demo 库里查询表 d1001 的所有记录：
 
@@ -227,9 +232,9 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 19
 }
 ```
 
-### 其他用法
+## 其他用法
 
-#### 结果集采用 Unix 时间戳
+### 结果集采用 Unix 时间戳
 
 HTTP 请求 URL 采用 `sqlt` 时，返回结果集的时间戳将采用 Unix 时间戳格式表示，例如
 
@@ -257,7 +262,7 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001
 }
 ```
 
-#### 结果集采用 UTC 时间字符串
+### 结果集采用 UTC 时间字符串
 
 HTTP 请求 URL 采用 `sqlutc` 时，返回结果集的时间戳将采用 UTC 时间字符串表示，例如
 
@@ -285,7 +290,7 @@ HTTP 请求 URL 采用 `sqlutc` 时，返回结果集的时间戳将采用 UTC �
 }
 ```
 
-### 重要配置项
+## 重要配置项
 
 下面仅列出一些与 RESTful 接口有关的配置参数，其他系统参数请看配置文件里的说明。（注意：配置修改后，需要重启 taosd 服务才能生效）
 
