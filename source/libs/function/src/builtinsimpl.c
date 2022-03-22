@@ -554,3 +554,11 @@ void lastFunction(SqlFunctionCtx *pCtx) {
 
   SET_VAL(pResInfo, numOfElems, 1);
 }
+
+void valFunction(SqlFunctionCtx *pCtx) {
+  SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
+  char* buf = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SColumnInfoData* pInputCol = pCtx->input.pData[0];
+  memcpy(buf, pInputCol->pData, pInputCol->info.bytes);
+}

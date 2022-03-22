@@ -16,7 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
 
-static void mmProcessQueue(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+static void mmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+  SMnodeMgmt *pMgmt = pInfo->ahandle;
+
   dTrace("msg:%p, will be processed in mnode queue", pMsg);
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   int32_t  code = -1;
@@ -42,7 +44,7 @@ static void mmProcessQueue(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
-static int32_t mmPutMsgToWorker(SMnodeMgmt *pMgmt, SQWorkerAll *pWorker, SNodeMsg *pMsg) {
+static int32_t mmPutMsgToWorker(SMnodeMgmt *pMgmt, SSingleWorker *pWorker, SNodeMsg *pMsg) {
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   return taosWriteQitem(pWorker->queue, pMsg);
 }
@@ -59,7 +61,7 @@ int32_t mmProcessReadMsg(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->readWorker, pMsg);
 }
 
-static int32_t mmPutRpcMsgToWorker(SMnodeMgmt *pMgmt, SQWorkerAll *pWorker, SRpcMsg *pRpc) {
+static int32_t mmPutRpcMsgToWorker(SMnodeMgmt *pMgmt, SSingleWorker *pWorker, SRpcMsg *pRpc) {
   SNodeMsg *pMsg = taosAllocateQitem(sizeof(SNodeMsg));
   if (pMsg == NULL) {
     return -1;
@@ -89,19 +91,19 @@ int32_t mmPutMsgToReadQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
 }
 
 int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
-  SQWorkerAllCfg cfg = {.minNum = 0, .maxNum = 1, .name = "mnode-read", .fp = (FItem)mmProcessQueue, .param = pMgmt};
+  SSingleWorkerCfg cfg = {.minNum = 0, .maxNum = 1, .name = "mnode-read", .fp = (FItem)mmProcessQueue, .param = pMgmt};
 
-  if (tQWorkerAllInit(&pMgmt->readWorker, &cfg) != 0) {
+  if (tSingleWorkerInit(&pMgmt->readWorker, &cfg) != 0) {
     dError("failed to start mnode-read worker since %s", terrstr());
     return -1;
   }
 
-  if (tQWorkerAllInit(&pMgmt->writeWorker, &cfg) != 0) {
+  if (tSingleWorkerInit(&pMgmt->writeWorker, &cfg) != 0) {
     dError("failed to start mnode-write worker since %s", terrstr());
     return -1;
   }
 
-  if (tQWorkerAllInit(&pMgmt->syncWorker, &cfg) != 0) {
+  if (tSingleWorkerInit(&pMgmt->syncWorker, &cfg) != 0) {
     dError("failed to start mnode sync-worker since %s", terrstr());
     return -1;
   }
@@ -110,7 +112,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
 }
 
 void mmStopWorker(SMnodeMgmt *pMgmt) {
-  tQWorkerAllCleanup(&pMgmt->readWorker);
-  tQWorkerAllCleanup(&pMgmt->writeWorker);
-  tQWorkerAllCleanup(&pMgmt->syncWorker);
+  tSingleWorkerCleanup(&pMgmt->readWorker);
+  tSingleWorkerCleanup(&pMgmt->writeWorker);
+  tSingleWorkerCleanup(&pMgmt->syncWorker);
 }
