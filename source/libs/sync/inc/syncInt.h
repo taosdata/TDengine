@@ -160,6 +160,11 @@ typedef struct SSyncNode {
   SSyncLogStore* pLogStore;
   SyncIndex      commitIndex;
 
+  // timer ms init
+  int32_t pingBaseLine;
+  int32_t electBaseLine;
+  int32_t hbBaseLine;
+
   // ping timer
   tmr_h             pPingTimer;
   int32_t           pingTimerMS;
