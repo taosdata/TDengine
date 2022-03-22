@@ -16,7 +16,7 @@
 #include "executor.h"
 #include "executorimpl.h"
 #include "planner.h"
-#include "tq.h"
+#include "vnode.h"
 
 static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, int32_t type, char* id) {
   ASSERT(pOperator != NULL);

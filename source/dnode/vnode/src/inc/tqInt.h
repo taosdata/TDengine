@@ -18,8 +18,8 @@
 
 #include "meta.h"
 #include "tlog.h"
-#include "tq.h"
 #include "tqPush.h"
+#include "vnd.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -152,6 +152,11 @@ typedef struct {
   FTqDeserialize pDeserializer;
   FTqDelete      pDeleter;
 } STqMetaStore;
+
+typedef struct {
+  SMemAllocatorFactory* pAllocatorFactory;
+  SMemAllocator*        pAllocator;
+} STqMemRef;
 
 struct STQ {
   // the collection of groups
