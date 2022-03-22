@@ -42,8 +42,14 @@ shall be used to set up the protection.
 typedef struct STaosQueue STaosQueue;
 typedef struct STaosQset  STaosQset;
 typedef struct STaosQall  STaosQall;
-typedef void (*FItem)(void *ahandle, void *pItem);
-typedef void (*FItems)(void *ahandle, STaosQall *qall, int32_t numOfItems);
+typedef struct {
+  void   *ahandle;
+  int32_t workerId;
+  int32_t threadNum;
+} SQueueInfo;
+
+typedef void (*FItem)(SQueueInfo *pInfo, void *pItem);
+typedef void (*FItems)(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfItems);
 
 STaosQueue *taosOpenQueue();
 void        taosCloseQueue(STaosQueue *queue);

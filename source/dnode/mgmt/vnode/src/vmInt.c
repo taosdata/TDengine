@@ -133,6 +133,7 @@ static void *vmOpenVnodeFunc(void *param) {
     msgCb.queueFps[QUERY_QUEUE] = vmPutMsgToQueryQueue;
     msgCb.queueFps[FETCH_QUEUE] = vmPutMsgToFetchQueue;
     msgCb.queueFps[APPLY_QUEUE] = vmPutMsgToApplyQueue;
+    msgCb.qsizeFp = vmGetQueueSize;
     msgCb.sendReqFp = dndSendReqToDnode;
     msgCb.sendMnodeReqFp = dndSendReqToMnode;
     msgCb.sendRspFp = dndSendRsp;
