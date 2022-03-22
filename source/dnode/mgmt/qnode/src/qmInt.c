@@ -23,6 +23,7 @@ static void qmInitOption(SQnodeMgmt *pMgmt, SQnodeOpt *pOption) {
   msgCb.pWrapper = pMgmt->pWrapper;
   msgCb.queueFps[QUERY_QUEUE] = qmPutMsgToQueryQueue;
   msgCb.queueFps[FETCH_QUEUE] = qmPutMsgToFetchQueue;
+  msgCb.qsizeFp = qmGetQueueSize;
   msgCb.sendReqFp = dndSendReqToDnode;
   msgCb.sendMnodeReqFp = dndSendReqToMnode;
   msgCb.sendRspFp = dndSendRsp;

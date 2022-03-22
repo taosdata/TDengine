@@ -25,23 +25,25 @@ extern "C" {
 typedef struct SRpcMsg      SRpcMsg;
 typedef struct SEpSet       SEpSet;
 typedef struct SMgmtWrapper SMgmtWrapper;
+typedef enum { QUERY_QUEUE, FETCH_QUEUE, WRITE_QUEUE, APPLY_QUEUE, SYNC_QUEUE, QUEUE_MAX } EQueueType;
 
 typedef int32_t (*PutToQueueFp)(SMgmtWrapper* pWrapper, SRpcMsg* pReq);
+typedef int32_t (*GetQueueSizeFp)(SMgmtWrapper* pWrapper, int32_t vgId, EQueueType qtype);
 typedef int32_t (*SendReqFp)(SMgmtWrapper* pWrapper, SEpSet* epSet, SRpcMsg* pReq);
 typedef int32_t (*SendMnodeReqFp)(SMgmtWrapper* pWrapper, SRpcMsg* pReq);
 typedef void (*SendRspFp)(SMgmtWrapper* pWrapper, SRpcMsg* pRsp);
 
-typedef enum { QUERY_QUEUE, FETCH_QUEUE, WRITE_QUEUE, APPLY_QUEUE, SYNC_QUEUE, QUEUE_MAX } EQueueType;
-
 typedef struct {
   SMgmtWrapper*  pWrapper;
   PutToQueueFp   queueFps[QUEUE_MAX];
+  GetQueueSizeFp qsizeFp;
   SendReqFp      sendReqFp;
   SendMnodeReqFp sendMnodeReqFp;
   SendRspFp      sendRspFp;
 } SMsgCb;
 
 int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq);
+int32_t tmsgGetQueueSize(const SMsgCb* pMsgCb, int32_t vgId, EQueueType qtype);
 int32_t tmsgSendReq(const SMsgCb* pMsgCb, SEpSet* epSet, SRpcMsg* pReq);
 int32_t tmsgSendMnodeReq(const SMsgCb* pMsgCb, SRpcMsg* pReq);
 void    tmsgSendRsp(const SMsgCb* pMsgCb, SRpcMsg* pRsp);
