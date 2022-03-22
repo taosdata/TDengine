@@ -1499,6 +1499,8 @@ int32_t schCloneSMsgSendInfo(SMsgSendInfo *pSrc, SMsgSendInfo **pDst) {
 
   SCH_ERR_JRET(schCloneCallbackParam(pSrc->param, (SSchCallbackParamHeader **)&dst->param));
 
+  *pDst = dst;
+
   return TSDB_CODE_SUCCESS;
   
 _return:
