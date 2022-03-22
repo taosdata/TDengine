@@ -307,11 +307,10 @@ typedef struct STaskRuntimeEnv {
 } STaskRuntimeEnv;
 
 enum {
-  OP_IN_EXECUTING = 1,
-  OP_RES_TO_RETURN = 2,
-  OP_EXEC_DONE = 3,
-  OP_OPENED = 4,
-  OP_NOT_OPENED = 5
+  OP_NOT_OPENED    = 0x0,
+  OP_OPENED        = 0x1,
+  OP_RES_TO_RETURN = 0x5,
+  OP_EXEC_DONE     = 0x9,
 };
 
 typedef struct SOperatorInfo {
@@ -426,6 +425,8 @@ typedef struct STagScanInfo {
 
 typedef struct SStreamBlockScanInfo {
   SSDataBlock* pRes;          // result SSDataBlock
+  int32_t      blockType;     // current block type
+  bool         blockValid;    // Is current data has returned?
   SColumnInfo* pCols;         // the output column info
   uint64_t     numOfRows;     // total scanned rows
   uint64_t     numOfExec;     // execution times
@@ -544,6 +545,7 @@ typedef struct SGroupbyOperatorInfo {
   SOptrBasicInfo binfo;
   int32_t        colIndex;
   char*          prevData;  // previous group by value
+  SGroupResInfo  groupResInfo;
 } SGroupbyOperatorInfo;
 
 typedef struct SSessionAggOperatorInfo {
@@ -648,8 +650,7 @@ SOperatorInfo* createAllTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, S
 
 SOperatorInfo* createFillOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr,
                                       int32_t numOfOutput, bool multigroupResult);
-SOperatorInfo* createGroupbyOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr,
-                                         int32_t numOfOutput);
+SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfOutput, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
                                                         SExprInfo* pExpr, int32_t numOfOutput);
@@ -672,7 +673,6 @@ SOperatorInfo* createSLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorI
 SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pdownstream, int32_t numOfDownstream, SSchema* pSchema,
                                       int32_t numOfOutput);
 
-// SSDataBlock* doSLimit(void* param, bool* newgroup);
 void doSetFilterColumnInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols, SSDataBlock* pBlock);
 bool doFilterDataBlock(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols, int32_t numOfRows, int8_t* p);
 void doCompactSDataBlock(SSDataBlock* pBlock, int32_t numOfRows, int8_t* p);
@@ -696,11 +696,8 @@ void    freeColumnFilterInfo(SColumnFilterInfo* pFilter, int32_t numOfFilters);
 STableQueryInfo* createTableQueryInfo(void* buf, bool groupbyColumn, STimeWindow win);
 STableQueryInfo* createTmpTableQueryInfo(STimeWindow win);
 
-int32_t buildArithmeticExprFromMsg(SExprInfo* pArithExprInfo, void* pQueryMsg);
-
 bool    isTaskKilled(SExecTaskInfo* pTaskInfo);
 int32_t checkForQueryBuf(size_t numOfTables);
-bool    checkNeedToCompressQueryCol(SQInfo* pQInfo);
 
 void   setTaskKilled(SExecTaskInfo* pTaskInfo);
 

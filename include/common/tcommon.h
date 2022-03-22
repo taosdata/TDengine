@@ -60,16 +60,10 @@ typedef struct SDataBlockInfo {
   int16_t        numOfCols;
   int16_t        hasVarCol;
   union {int64_t uid; int64_t blockId;};
+  int64_t        groupId;     // no need to serialize
 } SDataBlockInfo;
 
-//typedef struct SConstantItem {
-//  SColumnInfo info;
-//  int32_t     startRow;  // run-length-encoding to save the space for multiple rows
-//  int32_t     endRow;
-//  SVariant    value;
-//} SConstantItem;
-
-// info.numOfCols = taosArrayGetSize(pDataBlock) + taosArrayGetSize(pConstantList);
+// info.numOfCols = taosArrayGetSize(pDataBlock)
 typedef struct SSDataBlock {
   SColumnDataAgg *pBlockAgg;
   SArray         *pDataBlock;    // SArray<SColumnInfoData>

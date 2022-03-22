@@ -18,7 +18,7 @@
 #include "planner.h"
 #include "tq.h"
 
-static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, char* id) {
+static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, int32_t type, char* id) {
   ASSERT(pOperator != NULL);
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     if (pOperator->numOfDownstream == 0) {
@@ -31,18 +31,40 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, char* id)
       return TSDB_CODE_QRY_APP_ERROR;
     }
 
-    return doSetStreamBlock(pOperator->pDownstream[0], input, id);
+    return doSetStreamBlock(pOperator->pDownstream[0], input, type, id);
   } else {
     SStreamBlockScanInfo* pInfo = pOperator->info;
-    if (tqReadHandleSetMsg(pInfo->readerHandle, input, 0) < 0) {
-      qError("submit msg messed up when initing stream block, %s" PRIx64, id);
+
+    // the block type can not be changed in the streamscan operators
+    if (pInfo->blockType == 0) {
+      pInfo->blockType = type;
+    } else if (pInfo->blockType != type) {
       return TSDB_CODE_QRY_APP_ERROR;
     }
+
+    if (type == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
+      if (tqReadHandleSetMsg(pInfo->readerHandle, input, 0) < 0) {
+        qError("submit msg messed up when initing stream block, %s" PRIx64, id);
+        return TSDB_CODE_QRY_APP_ERROR;
+      }
+    } else {
+      ASSERT(!pInfo->blockValid);
+
+      SSDataBlock* pDataBlock = input;
+      pInfo->pRes->info = pDataBlock->info;
+      for(int32_t i = 0; i < pInfo->pRes->info.numOfCols; ++i) {
+        pInfo->pRes->pDataBlock = pDataBlock->pDataBlock;
+      }
+
+      // set current block valid.
+      pInfo->blockValid = true;
+    }
+
     return TSDB_CODE_SUCCESS;
   }
 }
 
-int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input) {
+int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type) {
   if (tinfo == NULL) {
     return TSDB_CODE_QRY_APP_ERROR;
   }
@@ -53,7 +75,7 @@ int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input) {
 
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
-  int32_t code = doSetStreamBlock(pTaskInfo->pRoot, (void*)input, GET_TASKID(pTaskInfo));
+  int32_t code = doSetStreamBlock(pTaskInfo->pRoot, (void*)input, type, GET_TASKID(pTaskInfo));
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed to set the stream block data", GET_TASKID(pTaskInfo));
   } else {

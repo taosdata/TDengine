@@ -29,61 +29,6 @@
 struct termios oldtio;
 #endif
 
-int32_t taosSystem(const char *cmd, char *buf, int32_t bufSize) {
-#if defined(WINDOWS)
-  FILE *fp;
-  if (cmd == NULL) {
-    // printf("taosSystem cmd is NULL!");
-    return -1;
-  }
-
-  if ((fp = _popen(cmd, "r")) == NULL) {
-    // printf("popen cmd:%s error: %s", cmd, strerror(errno));
-    return -1;
-  } else {
-    while (fgets(buf, bufSize, fp)) {
-      // printf("popen result:%s", buf);
-    }
-
-    if (!_pclose(fp)) {
-      // printf("close popen file pointer fp error!");
-      return -1;
-    } else {
-      // printf("popen res is :%d", res);
-    }
-
-    return 0;
-  }
-#elif defined(_TD_DARWIN_64)
-  printf("no support funtion");
-  return -1;
-#else
-  FILE *fp;
-  int32_t res;
-  if (cmd == NULL) {
-    // printf("taosSystem cmd is NULL!");
-    return -1;
-  }
-
-  if ((fp = popen(cmd, "r")) == NULL) {
-    // printf("popen cmd:%s error: %s", cmd, strerror(errno));
-    return -1;
-  } else {
-    while (fgets(buf, bufSize, fp)) {
-      // printf("popen result:%s", buf);
-    }
-
-    if ((res = pclose(fp)) == -1) {
-      // printf("close popen file pointer fp error!");
-    } else {
-      // printf("popen res is :%d", res);
-    }
-
-    return res;
-  }
-#endif
-}
-
 void* taosLoadDll(const char* filename) {
 #if defined(WINDOWS)
   return NULL;
@@ -103,7 +48,7 @@ void* taosLoadDll(const char* filename) {
 }
 
 void* taosLoadSym(void* handle, char* name) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#if defined(WINDOWS)
   return NULL;
 #elif defined(_TD_DARWIN_64)
   return NULL;
@@ -123,7 +68,7 @@ void* taosLoadSym(void* handle, char* name) {
 }
 
 void  taosCloseDll(void* handle) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#if defined(WINDOWS)
   return;
 #elif defined(_TD_DARWIN_64)
   return;
@@ -135,7 +80,7 @@ void  taosCloseDll(void* handle) {
 }
 
 int taosSetConsoleEcho(bool on) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#if defined(WINDOWS)
   HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
   DWORD  mode = 0;
   GetConsoleMode(hStdin, &mode);
@@ -145,28 +90,6 @@ int taosSetConsoleEcho(bool on) {
     mode &= ~ENABLE_ECHO_INPUT;
   }
   SetConsoleMode(hStdin, mode);
-
-  return 0;
-#elif defined(_TD_DARWIN_64)
-#define ECHOFLAGS (ECHO | ECHOE | ECHOK | ECHONL)
-  int            err;
-  struct termios term;
-
-  if (tcgetattr(STDIN_FILENO, &term) == -1) {
-    perror("Cannot get the attribution of the terminal");
-    return -1;
-  }
-
-  if (on)
-    term.c_lflag |= ECHOFLAGS;
-  else
-    term.c_lflag &= ~ECHOFLAGS;
-
-  err = tcsetattr(STDIN_FILENO, TCSAFLUSH, &term);
-  if (err == -1 && err == EINTR) {
-    perror("Cannot set the attribution of the terminal");
-    return -1;
-  }
 
   return 0;
 #else
@@ -186,7 +109,7 @@ int taosSetConsoleEcho(bool on) {
 
   err = tcsetattr(STDIN_FILENO, TCSAFLUSH, &term);
   if (err == -1 || err == EINTR) {
-    //printf("Cannot set the attribution of the terminal");
+    printf("Cannot set the attribution of the terminal");
     return -1;
   }
 
@@ -195,35 +118,8 @@ int taosSetConsoleEcho(bool on) {
 }
 
 void setTerminalMode() {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#if defined(WINDOWS)
 
-#elif defined(_TD_DARWIN_64)
-  struct termios newtio;
-
-  /* if (atexit() != 0) { */
-  /*     fprintf(stderr, "Error register exit function!\n"); */
-  /*     exit(EXIT_FAILURE); */
-  /* } */
-
-  memcpy(&newtio, &oldtio, sizeof(oldtio));
-
-  // Set new terminal attributes.
-  newtio.c_iflag &= ~(IXON | IXOFF | ICRNL | INLCR | IGNCR | IMAXBEL | ISTRIP);
-  newtio.c_iflag |= IGNBRK;
-
-  // newtio.c_oflag &= ~(OPOST|ONLCR|OCRNL|ONLRET);
-  newtio.c_oflag |= OPOST;
-  newtio.c_oflag |= ONLCR;
-  newtio.c_oflag &= ~(OCRNL | ONLRET);
-
-  newtio.c_lflag &= ~(IEXTEN | ICANON | ECHO | ECHOE | ECHONL | ECHOCTL | ECHOPRT | ECHOKE | ISIG);
-  newtio.c_cc[VMIN] = 1;
-  newtio.c_cc[VTIME] = 0;
-
-  if (tcsetattr(0, TCSANOW, &newtio) != 0) {
-    fprintf(stderr, "Fail to set terminal properties!\n");
-    exit(EXIT_FAILURE);
-  }
 #else
   struct termios newtio;
 
@@ -256,19 +152,7 @@ void setTerminalMode() {
 
 int32_t getOldTerminalMode() {
 #if defined(WINDOWS)
-
-#elif defined(_TD_DARWIN_64)
-  /* Make sure stdin is a terminal. */
-  if (!isatty(STDIN_FILENO)) {
-    return -1;
-  }
-
-  // Get the parameter of current terminal
-  if (tcgetattr(0, &oldtio) != 0) {
-    return -1;
-  }
-
-  return 1;
+  
 #else
   /* Make sure stdin is a terminal. */
   if (!isatty(STDIN_FILENO)) {
@@ -285,13 +169,8 @@ int32_t getOldTerminalMode() {
 }
 
 void resetTerminalMode() {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#if defined(WINDOWS)
 
-#elif defined(_TD_DARWIN_64)
-  if (tcsetattr(0, TCSANOW, &oldtio) != 0) {
-    fprintf(stderr, "Fail to reset the terminal properties!\n");
-    exit(EXIT_FAILURE);
-  }
 #else
   if (tcsetattr(0, TCSANOW, &oldtio) != 0) {
     fprintf(stderr, "Fail to reset the terminal properties!\n");

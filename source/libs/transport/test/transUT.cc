@@ -333,7 +333,10 @@ TEST_F(TransEnv, cliPersistHandle) {
   SRpcMsg resp = {0};
   void *  handle = NULL;
   for (int i = 0; i < 10; i++) {
-    SRpcMsg req = {.handle = resp.handle, .persistHandle = 1};
+    SRpcMsg req = {0};
+    req.handle = resp.handle;
+    req.persistHandle = 1;
+
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);
     req.contLen = 10;
