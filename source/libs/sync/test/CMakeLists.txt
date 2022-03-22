@@ -28,6 +28,11 @@ add_executable(syncRpcMsgTest "")
 add_executable(syncPingTimerTest2 "")
 add_executable(syncPingSelfTest "")
 add_executable(syncElectTest "")
+add_executable(syncElectTest2 "")
+add_executable(syncEncodeTest "")
+add_executable(syncWriteTest "")
+add_executable(syncReplicateTest "")
+add_executable(syncRefTest "")
 
 
 target_sources(syncTest
@@ -149,6 +154,26 @@ target_sources(syncPingSelfTest
 target_sources(syncElectTest
     PRIVATE
     "syncElectTest.cpp"
+)
+target_sources(syncElectTest2
+    PRIVATE
+    "syncElectTest2.cpp"
+)
+target_sources(syncEncodeTest
+    PRIVATE
+    "syncEncodeTest.cpp"
+)
+target_sources(syncWriteTest
+    PRIVATE
+    "syncWriteTest.cpp"
+)
+target_sources(syncReplicateTest
+    PRIVATE
+    "syncReplicateTest.cpp"
+)
+target_sources(syncRefTest
+    PRIVATE
+    "syncRefTest.cpp"
 )
 
 
@@ -302,7 +327,27 @@ target_include_directories(syncElectTest
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
-target_include_directories(syncElectTest
+target_include_directories(syncElectTest2
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncEncodeTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncWriteTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncReplicateTest
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncRefTest
     PUBLIC
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
@@ -426,6 +471,26 @@ target_link_libraries(syncPingSelfTest
     gtest_main
 )
 target_link_libraries(syncElectTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncElectTest2
+    sync
+    gtest_main
+)
+target_link_libraries(syncEncodeTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncWriteTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncReplicateTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncRefTest
     sync
     gtest_main
 )

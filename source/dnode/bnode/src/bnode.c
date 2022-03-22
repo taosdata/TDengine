@@ -17,6 +17,7 @@
 
 SBnode *bndOpen(const char *path, const SBnodeOpt *pOption) {
   SBnode *pBnode = calloc(1, sizeof(SBnode));
+  pBnode->msgCb = pOption->msgCb;
   return pBnode;
 }
 
@@ -25,5 +26,3 @@ void bndClose(SBnode *pBnode) { free(pBnode); }
 int32_t bndGetLoad(SBnode *pBnode, SBnodeLoad *pLoad) { return 0; }
 
 int32_t bndProcessWMsgs(SBnode *pBnode, SArray *pMsgs) { return 0; }
-
-void bndDestroy(const char *path) {}

@@ -27,7 +27,7 @@ extern "C" {
 typedef int32_t  VarDataOffsetT;
 typedef uint32_t TDRowLenT;
 typedef uint8_t  TDRowValT;
-typedef uint16_t col_id_t;
+typedef int16_t  col_id_t;
 typedef int8_t   col_type_t;
 
 #pragma pack(push, 1)

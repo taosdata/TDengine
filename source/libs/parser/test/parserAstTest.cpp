@@ -302,6 +302,20 @@ TEST_F(ParserTest, createUser) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(ParserTest, showUsers) {
+  setDatabase("root", "test");
+
+  bind("show users");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, alterAccount) {
+  setDatabase("root", "test");
+
+  bind("alter account ac_wxy pass '123456'");
+  ASSERT_TRUE(run(TSDB_CODE_PAR_EXPRIE_STATEMENT));
+}
+
 TEST_F(ParserTest, createDnode) {
   setDatabase("root", "test");
 
@@ -309,6 +323,23 @@ TEST_F(ParserTest, createDnode) {
   ASSERT_TRUE(run());
 
   bind("create dnode 1.1.1.1 port 9000");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, showDnodes) {
+  setDatabase("root", "test");
+
+  bind("show dnodes");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, alterDnode) {
+  setDatabase("root", "test");
+
+  bind("alter dnode 1 'resetLog'");
+  ASSERT_TRUE(run());
+
+  bind("alter dnode 1 'debugFlag' '134'");
   ASSERT_TRUE(run());
 }
 
@@ -413,6 +444,93 @@ TEST_F(ParserTest, createTable) {
        "a9 SMALLINT UNSIGNED COMMENT 'test column comment', a10 TINYINT, a11 TINYINT UNSIGNED, a12 BOOL, a13 NCHAR(30), a14 JSON, a15 VARCHAR(50)) "
        "KEEP 100 TTL 100 COMMENT 'test create table' SMA(c1, c2, c3)"
       );
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, showTables) {
+  setDatabase("root", "test");
+
+  bind("show tables");
+  ASSERT_TRUE(run());
+
+  bind("show test.tables");
+  ASSERT_TRUE(run());
+
+  bind("show tables like 'c%'");
+  ASSERT_TRUE(run());
+
+  bind("show test.tables like 'c%'");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, showStables) {
+  setDatabase("root", "test");
+
+  bind("show stables");
+  ASSERT_TRUE(run());
+
+  bind("show test.stables");
+  ASSERT_TRUE(run());
+
+  bind("show stables like 'c%'");
+  ASSERT_TRUE(run());
+
+  bind("show test.stables like 'c%'");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, showVgroups) {
+  setDatabase("root", "test");
+
+  bind("show vgroups");
+  ASSERT_TRUE(run());
+
+  bind("show test.vgroups");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, showMnodes) {
+  setDatabase("root", "test");
+
+  bind("show mnodes");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, showModules) {
+  setDatabase("root", "test");
+
+  bind("show modules");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, showQnodes) {
+  setDatabase("root", "test");
+
+  bind("show qnodes");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, showFunctions) {
+  setDatabase("root", "test");
+
+  bind("show functions");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, showIndexes) {
+  setDatabase("root", "test");
+
+  bind("show indexes from t1");
+  ASSERT_TRUE(run());
+
+  bind("show indexes from t1 from test");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, showStreams) {
+  setDatabase("root", "test");
+
+  bind("show streams");
   ASSERT_TRUE(run());
 }
 

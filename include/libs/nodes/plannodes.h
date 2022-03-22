@@ -26,7 +26,6 @@ extern "C" {
 
 typedef struct SLogicNode {
   ENodeType type;
-  int32_t id;
   SNodeList* pTargets; // SColumnNode
   SNode* pConditions;
   SNodeList* pChildren;
@@ -36,7 +35,7 @@ typedef struct SLogicNode {
 typedef enum EScanType {
   SCAN_TYPE_TAG,
   SCAN_TYPE_TABLE,
-  SCAN_TYPE_STABLE,
+  SCAN_TYPE_SYSTEM_TABLE,
   SCAN_TYPE_STREAM
 } EScanType;
 
@@ -69,7 +68,7 @@ typedef struct SProjectLogicNode {
 } SProjectLogicNode;
 
 typedef struct SVnodeModifLogicNode {
-  SLogicNode node;;
+  SLogicNode node;
   int32_t msgType;
   SArray* pDataBlocks;
   SVgDataBlocks* pVgDataBlocks;
@@ -124,7 +123,7 @@ typedef struct SSubLogicPlan {
 } SSubLogicPlan;
 
 typedef struct SQueryLogicPlan {
-  ENodeType type;;
+  ENodeType type;
   int32_t totalLevel;
   SNodeList* pTopSubplans;
 } SQueryLogicPlan;
@@ -155,7 +154,7 @@ typedef struct SPhysiNode {
 } SPhysiNode;
 
 typedef struct SScanPhysiNode {
-  SPhysiNode  node;
+  SPhysiNode node;
   SNodeList* pScanCols;
   uint64_t uid;           // unique id of the table
   int8_t tableType;
@@ -165,8 +164,13 @@ typedef struct SScanPhysiNode {
   SName tableName;
 } SScanPhysiNode;
 
-typedef SScanPhysiNode SSystemTableScanPhysiNode;
 typedef SScanPhysiNode STagScanPhysiNode;
+typedef SScanPhysiNode SStreamScanPhysiNode;
+
+typedef struct SSystemTableScanPhysiNode {
+  SScanPhysiNode scan;
+  SEpSet mgmtEpSet;
+} SSystemTableScanPhysiNode;
 
 typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;
@@ -243,6 +247,7 @@ typedef struct SSubplan {
   ESubplanType subplanType;
   int32_t msgType;      // message type for subplan, used to denote the send message type to vnode.
   int32_t level;        // the execution level of current subplan, starting from 0 in a top-down manner.
+  char dbFName[TSDB_DB_FNAME_LEN];
   SQueryNodeAddr execNode;    // for the scan/modify subplan, the optional execution node
   SQueryNodeStat execNodeStat; // only for scan subplan
   SNodeList* pChildren;    // the datasource subplan,from which to fetch the result
@@ -252,7 +257,7 @@ typedef struct SSubplan {
 } SSubplan;
 
 typedef struct SQueryPlan {
-  ENodeType type;;
+  ENodeType type;
   uint64_t queryId;
   int32_t numOfSubplans;
   SNodeList* pSubplans; // Element is SNodeListNode. The execution level of subplan, starting from 0.

@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define ALLOW_FORBID_FUNC
 #define _DEFAULT_SOURCE
 #include "os.h"
 
@@ -48,16 +49,11 @@
 void taosSetSystemTimezone(const char *inTimezone, char *outTimezone, int8_t *outDaylight) {
   if (inTimezone == NULL || inTimezone[0] == 0) return;
 
-#ifdef WINDOWS
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   char winStr[TD_LOCALE_LEN * 2];
   sprintf(winStr, "TZ=%s", inTimezone);
   putenv(winStr);
-#else
-  setenv("TZ", inTimezone, 1);
-#endif
   tzset();
-
-  /*
    * get CURRENT time zone.
    * system current time zone is affected by daylight saving time(DST)
    *
@@ -75,15 +71,34 @@ void taosSetSystemTimezone(const char *inTimezone, char *outTimezone, int8_t *ou
 
   int32_t tz = (int32_t)((-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR);
   tz += daylight;
-
   /*
    * format:
    * (CST, +0800)
    * (BST, +0100)
    */
+  sprintf(outTimezone, "(%s, %s%02d00)", tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
+  *outDaylight = daylight;
+
+#elif defined(_TD_DARWIN_64)
+
+  setenv("TZ", inTimezone, 1);
+  tzset();
+  int32_t tz = (int32_t)((-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR);
+  tz += daylight;
 
   sprintf(outTimezone, "(%s, %s%02d00)", tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
   *outDaylight = daylight;
+
+#else
+  setenv("TZ", inTimezone, 1);
+  tzset();
+  int32_t tz = (int32_t)((-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR);
+  tz += daylight;
+  sprintf(outTimezone, "(%s, %s%02d00)", tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
+  *outDaylight = daylight;
+
+#endif
+
 }
 
 void taosGetSystemTimezone(char *outTimezone) {

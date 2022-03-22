@@ -52,6 +52,21 @@ SEpSet getEpSet_s(SCorEpSet* pEpSet);
     BMCharPos(bm_, r_) |= (1u << (7u - BitPos(r_))); \
   } while (0)
 
+static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData, uint32_t row) {
+  if (!pColumnInfoData->hasNull) {
+    return false;
+  }
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    return pColumnInfoData->varmeta.offset[row] == -1;
+  } else {
+    if (pColumnInfoData->nullbitmap == NULL) {
+      return false;
+    }
+
+    return colDataIsNull_f(pColumnInfoData->nullbitmap, row);
+  }
+}
+
 static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, uint32_t totalRows, uint32_t row,
                                        SColumnDataAgg* pColAgg) {
   if (!pColumnInfoData->hasNull) {
@@ -79,16 +94,16 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
   }
 }
 
-#define BitmapLen(_n)     (((_n) + ((1<<NBIT)-1)) >> NBIT)
+#define BitmapLen(_n) (((_n) + ((1 << NBIT) - 1)) >> NBIT)
 
-
-#define colDataGetData(p1_, r_)                                                          \
+// SColumnInfoData, rowNumber
+#define colDataGetData(p1_, r_)                                                        \
   ((IS_VAR_DATA_TYPE((p1_)->info.type)) ? ((p1_)->pData + (p1_)->varmeta.offset[(r_)]) \
                                         : ((p1_)->pData + ((r_) * (p1_)->info.bytes)))
 
 int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, bool isNull);
-int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, const SColumnInfoData* pSource,
-                        uint32_t numOfRow2);
+int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, const SColumnInfoData* pSource, uint32_t numOfRow2);
+int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* pSource, int32_t numOfRows);
 int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock);
 
 int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows);
@@ -97,13 +112,12 @@ void    colDataTrim(SColumnInfoData* pColumnInfoData);
 size_t blockDataGetNumOfCols(const SSDataBlock* pBlock);
 size_t blockDataGetNumOfRows(const SSDataBlock* pBlock);
 
-int32_t      blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc);
-int32_t      blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startIndex, int32_t* stopIndex,
-                                int32_t pageSize);
-SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int32_t rowCount);
-
+int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc);
+int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startIndex, int32_t* stopIndex, int32_t pageSize);
 int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock);
 int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf);
+
+SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int32_t rowCount);
 
 size_t blockDataGetSize(const SSDataBlock* pBlock);
 size_t blockDataGetRowSize(SSDataBlock* pBlock);
@@ -126,4 +140,4 @@ void*        blockDataDestroy(SSDataBlock* pBlock);
 }
 #endif
 
-#endif  /*_TD_COMMON_EP_H_*/
+#endif /*_TD_COMMON_EP_H_*/

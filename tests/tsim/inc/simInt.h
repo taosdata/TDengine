@@ -143,7 +143,7 @@ typedef struct _script_t {
   char             *optionBuffer;
   SCmdLine         *lines;  // command list
   SVariable         variables[MAX_VAR_LEN];
-  pthread_t         bgPid;
+  TdThread         bgPid;
   char              auth[128];
   struct _script_t *bgScripts[MAX_BACKGROUND_SCRIPT_NUM];
 } SScript;

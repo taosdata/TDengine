@@ -41,7 +41,7 @@ extern const int32_t TYPE_BYTES[15];
 #define DOUBLE_BYTES    sizeof(double)
 #define POINTER_BYTES   sizeof(void *)  // 8 by default  assert(sizeof(ptrdiff_t) == sizseof(void*)
 #define TSDB_KEYSIZE    sizeof(TSKEY)
-#define TSDB_NCHAR_SIZE sizeof(int32_t)
+#define TSDB_NCHAR_SIZE sizeof(TdUcs4)
 
 // NULL definition
 #define TSDB_DATA_BOOL_NULL      0x02
@@ -99,7 +99,7 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_INS_TABLE_MNODES                 "mnodes"
 #define TSDB_INS_TABLE_MODULES                "modules"
 #define TSDB_INS_TABLE_QNODES                 "qnodes"
-#define TSDB_INS_TABLE_USER_DATABASE          "user_database"
+#define TSDB_INS_TABLE_USER_DATABASES         "user_databases"
 #define TSDB_INS_TABLE_USER_FUNCTIONS         "user_functions"
 #define TSDB_INS_TABLE_USER_INDEXES           "user_indexes"
 #define TSDB_INS_TABLE_USER_STABLES           "user_stables"
@@ -447,6 +447,11 @@ typedef struct {
 
 #define SND_UNIQUE_THREAD_NUM 2
 #define SND_SHARED_THREAD_NUM 2
+
+enum {
+  SND_WORKER_TYPE__SHARED = 1,
+  SND_WORKER_TYPE__UNIQUE,
+};
 
 #ifdef __cplusplus
 }

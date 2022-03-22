@@ -132,6 +132,26 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
       .finalizeFunc = functionFinalize
   },
   {
+    .name = "first",
+    .type = FUNCTION_TYPE_FIRST,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = getFirstLastFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = firstFunction,
+    .finalizeFunc = functionFinalize
+  },
+  {
+    .name = "last",
+    .type = FUNCTION_TYPE_LAST,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = getFirstLastFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = lastFunction,
+    .finalizeFunc = functionFinalize
+  },
+  {
     .name = "concat",
     .type = FUNCTION_TYPE_CONCAT,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
@@ -168,6 +188,8 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       pFunc->node.resType = (SDataType) { .bytes = tDataTypes[resType].bytes, .type = resType };
       break;
     }
+    case FUNCTION_TYPE_FIRST:
+    case FUNCTION_TYPE_LAST:
     case FUNCTION_TYPE_MIN:
     case FUNCTION_TYPE_MAX: {
       SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);

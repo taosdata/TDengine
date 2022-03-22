@@ -13,14 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "executor.h"
 #include "qndInt.h"
 #include "query.h"
 #include "qworker.h"
-#include "executor.h"
-
-int32_t qnodePutReqToVQueryQ(SQnode* pQnode, struct SRpcMsg* pReq) {}
-void    qnodeSendReqToDnode(SQnode* pQnode, struct SEpSet* epSet, struct SRpcMsg* pReq) {}
-
 
 SQnode *qndOpen(const SQnodeOpt *pOption) {
   SQnode *pQnode = calloc(1, sizeof(SQnode));
@@ -29,34 +25,29 @@ SQnode *qndOpen(const SQnodeOpt *pOption) {
     return NULL;
   }
 
-  if (qWorkerInit(NODE_TYPE_QNODE, pQnode->qndId, NULL, (void **)&pQnode->pQuery, pQnode,
-                     (putReqToQueryQFp)qnodePutReqToVQueryQ, (sendReqToDnodeFp)qnodeSendReqToDnode)) {
+  if (qWorkerInit(NODE_TYPE_QNODE, pQnode->qndId, NULL, (void **)&pQnode->pQuery, &pOption->msgCb)) {
     tfree(pQnode);
     return NULL;
   }
-  
+
+  pQnode->msgCb = pOption->msgCb;
   return pQnode;
 }
 
-void qndClose(SQnode *pQnode) { 
+void qndClose(SQnode *pQnode) {
   qWorkerDestroy((void **)&pQnode->pQuery);
 
-  free(pQnode); 
+  free(pQnode);
 }
 
 int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) { return 0; }
 
-int32_t qndProcessMsg(SQnode *pQnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  *pRsp = NULL;
-  return 0;
-}
-
-int qnodeProcessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
+int32_t qndProcessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
   qTrace("message in query queue is processing");
   SReadHandle handle = {0};
 
   switch (pMsg->msgType) {
-    case TDMT_VND_QUERY:{
+    case TDMT_VND_QUERY: {
       return qWorkerProcessQueryMsg(&handle, pQnode->pQuery, pMsg);
     }
     case TDMT_VND_QUERY_CONTINUE:
@@ -67,7 +58,7 @@ int qnodeProcessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
   }
 }
 
-int qnodeProcessFetchMsg(SQnode *pQnode, SRpcMsg *pMsg) {
+int32_t qndProcessFetchMsg(SQnode *pQnode, SRpcMsg *pMsg) {
   qTrace("message in fetch queue is processing");
   switch (pMsg->msgType) {
     case TDMT_VND_FETCH:
@@ -85,17 +76,13 @@ int qnodeProcessFetchMsg(SQnode *pQnode, SRpcMsg *pMsg) {
     case TDMT_VND_SHOW_TABLES:
       return qWorkerProcessShowMsg(pQnode, pQnode->pQuery, pMsg);
     case TDMT_VND_SHOW_TABLES_FETCH:
-      //return vnodeGetTableList(pQnode, pMsg);
+      // return vnodeGetTableList(pQnode, pMsg);
     case TDMT_VND_TABLE_META:
-      //return vnodeGetTableMeta(pQnode, pMsg);
+      // return vnodeGetTableMeta(pQnode, pMsg);
     case TDMT_VND_CONSUME:
-      //return tqProcessConsumeReq(pQnode->pTq, pMsg);
+      // return tqProcessConsumeReq(pQnode->pTq, pMsg);
     default:
       qError("unknown msg type:%d in fetch queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;
   }
 }
-
-
-
-

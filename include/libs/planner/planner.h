@@ -25,7 +25,9 @@ extern "C" {
 typedef struct SPlanContext {
   uint64_t queryId;
   int32_t acctId;
+  SEpSet mgmtEpSet;
   SNode* pAstRoot;
+  bool topicQuery;
   bool streamQuery;
 } SPlanContext;
 

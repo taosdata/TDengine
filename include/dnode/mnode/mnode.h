@@ -17,33 +17,22 @@
 #define _TD_MND_H_
 
 #include "monitor.h"
+#include "tmsgcb.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
-typedef struct SDnode    SDnode;
-typedef struct SMnode    SMnode;
-typedef struct SMnodeMsg SMnodeMsg;
-typedef int32_t (*SendReqToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
-typedef int32_t (*SendReqToMnodeFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
-typedef int32_t (*PutReqToMWriteQFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
-typedef int32_t (*PutReqToMReadQFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
-typedef void (*SendRedirectRspFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
+typedef struct SMnode SMnode;
 
 typedef struct {
-  int32_t           dnodeId;
-  int64_t           clusterId;
-  int8_t            replica;
-  int8_t            selfIndex;
-  SReplica          replicas[TSDB_MAX_REPLICA];
-  SDnode           *pDnode;
-  PutReqToMWriteQFp putReqToMWriteQFp;
-  PutReqToMReadQFp  putReqToMReadQFp;
-  SendReqToDnodeFp  sendReqToDnodeFp;
-  SendReqToMnodeFp  sendReqToMnodeFp;
-  SendRedirectRspFp sendRedirectRspFp;
+  int32_t  dnodeId;
+  int64_t  clusterId;
+  int8_t   replica;
+  int8_t   selfIndex;
+  SReplica replicas[TSDB_MAX_REPLICA];
+  SMsgCb   msgCb;
 } SMnodeOpt;
 
 /* ------------------------ SMnode ------------------------ */
@@ -73,11 +62,11 @@ void mndClose(SMnode *pMnode);
 int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption);
 
 /**
- * @brief Drop a mnode.
+ * @brief Start mnode
  *
- * @param path Path of the mnode.
+ * @param pMnode The mnode object.
  */
-void mndDestroy(const char *path);
+int32_t mndStart(SMnode *pMnode);
 
 /**
  * @brief Get mnode monitor info.
@@ -105,36 +94,12 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
 int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
 /**
- * @brief Initialize mnode msg.
- *
- * @param pMnode The mnode object.
- * @param pMsg The request rpc msg.
- * @return int32_t The created mnode msg.
- */
-SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg);
-
-/**
- * @brief Cleanup mnode msg.
- *
- * @param pMsg The request msg.
- */
-void mndCleanupMsg(SMnodeMsg *pMsg);
-
-/**
- * @brief Cleanup mnode msg.
- *
- * @param pMsg The request msg.
- * @param code The error code.
- */
-void mndSendRsp(SMnodeMsg *pMsg, int32_t code);
-
-/**
  * @brief Process the read, write, sync request.
  *
  * @param pMsg The request msg.
  * @return int32_t 0 for success, -1 for failure.
  */
-void mndProcessMsg(SMnodeMsg *pMsg);
+int32_t mndProcessMsg(SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

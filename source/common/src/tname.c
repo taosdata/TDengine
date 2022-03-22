@@ -217,10 +217,31 @@ int32_t tNameSetDbName(SName* dst, int32_t acct, const char* dbName, size_t name
 }
 
 int32_t tNameSetAcctId(SName* dst, int32_t acctId) {
-  assert(dst != NULL && acct != NULL);
+  assert(dst != NULL);
   dst->acctId = acctId;
   return 0;
 }
+
+bool tNameDBNameEqual(SName* left, SName* right) {
+  if (NULL == left) {
+    if (NULL == right) {
+      return true;
+    }
+
+    return false;
+  }
+
+  if (NULL == right) {
+    return false;
+  }
+
+  if (left->acctId != right->acctId) {
+    return false;
+  }
+
+  return (0 == strcmp(left->dbname, right->dbname));
+}
+
 
 int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
   assert(dst != NULL && str != NULL && strlen(str) > 0);
@@ -273,13 +294,4 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
   return 0;
 }
 
-SSchema createSchema(uint8_t type, int32_t bytes, int32_t colId, const char* name) {
-  SSchema s = {0};
-  s.type  = type;
-  s.bytes = bytes;
-  s.colId = colId;
-
-  tstrncpy(s.name, name, tListLen(s.name));
-  return s;
-}
 

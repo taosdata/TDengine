@@ -28,7 +28,6 @@
 int indicator = 1;
 struct termios oldtio;
 
-extern int wcwidth(wchar_t c);
 void insertChar(Command *cmd, char *c, int size);
 
 
@@ -366,7 +365,7 @@ void *shellLoopQuery(void *arg) {
 
   setThreadName("shellLoopQuery");
 
-  pthread_cleanup_push(cleanup_handler, NULL);
+  taosThreadCleanupPush(cleanup_handler, NULL);
 
     char *command = malloc(MAX_COMMAND_SIZE);
     if (command == NULL){
@@ -390,7 +389,7 @@ void *shellLoopQuery(void *arg) {
   tfree(command);
   exitShell();
 
-  pthread_cleanup_pop(1);
+  taosThreadCleanupPop(1);
 
   return NULL;
 }
@@ -426,7 +425,7 @@ void showOnScreen(Command *cmd) {
     w.ws_row = 30;
   }
 
-  wchar_t wc;
+  TdWchar wc;
   int size = 0;
 
   // Print out the command.
@@ -441,11 +440,11 @@ void showOnScreen(Command *cmd) {
   int remain_column = w.ws_col;
   /* size = cmd->commandSize + prompt_size; */
   for (char *str = total_string; size < cmd->commandSize + prompt_size;) {
-    int ret = mbtowc(&wc, str, MB_CUR_MAX);
+    int ret = taosMbToWchar(&wc, str, MB_CUR_MAX);
     if (ret < 0) break;
     size += ret;
     /* assert(size >= 0); */
-    int width = wcwidth(wc);
+    int width = taosWcharWidth(wc);
     if (remain_column > width) {
       printf("%lc", wc);
       remain_column -= width;

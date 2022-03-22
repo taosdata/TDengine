@@ -44,7 +44,7 @@ static MMRESULT timerId;
 
 static void (*timer_callback)(int);
 static int          timer_ms = 0;
-static pthread_t    timer_thread;
+static TdThread    timer_thread;
 static int          timer_kq = -1;
 static volatile int timer_stop = 0;
 
@@ -83,7 +83,7 @@ static void taosDeleteTimer(void *tharg) {
   timer_delete(*pTimer);
 }
 
-static pthread_t     timerThread;
+static TdThread     timerThread;
 static timer_t       timerId;
 static volatile bool stopTimer = false;
 static void *        taosProcessAlarmSignal(void *tharg) {
@@ -112,7 +112,7 @@ static void *        taosProcessAlarmSignal(void *tharg) {
     // printf("Failed to create timer");
   }
 
-  pthread_cleanup_push(taosDeleteTimer, &timerId);
+  taosThreadCleanupPush(taosDeleteTimer, &timerId);
 
   struct itimerspec ts;
   ts.it_value.tv_sec = 0;
@@ -136,7 +136,7 @@ static void *        taosProcessAlarmSignal(void *tharg) {
     callback(0);
   }
 
-  pthread_cleanup_pop(1);
+  taosThreadCleanupPop(1);
 
   return NULL;
 }
@@ -165,7 +165,7 @@ int taosInitTimer(void (*callback)(int), int ms) {
     abort();
   }
 
-  r = pthread_create(&timer_thread, NULL, timer_routine, NULL);
+  r = taosThreadCreate(&timer_thread, NULL, timer_routine, NULL);
   if (r) {
     fprintf(stderr, "==%s[%d]%s()==failed to create timer thread\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__);
     // since no caller of this func checks the return value for the moment
@@ -174,10 +174,10 @@ int taosInitTimer(void (*callback)(int), int ms) {
   return 0;
 #else
   stopTimer = false;
-  pthread_attr_t tattr;
-  pthread_attr_init(&tattr);
-  int code = pthread_create(&timerThread, &tattr, taosProcessAlarmSignal, callback);
-  pthread_attr_destroy(&tattr);
+  TdThreadAttr tattr;
+  taosThreadAttrInit(&tattr);
+  int code = taosThreadCreate(&timerThread, &tattr, taosProcessAlarmSignal, callback);
+  taosThreadAttrDestroy(&tattr);
   if (code != 0) {
     // printf("failed to create timer thread");
     return -1;
@@ -195,7 +195,7 @@ void taosUninitTimer() {
 #elif defined(_TD_DARWIN_64)
   int r = 0;
   timer_stop = 1;
-  r = pthread_join(timer_thread, NULL);
+  r = taosThreadJoin(timer_thread, NULL);
   if (r) {
     fprintf(stderr, "==%s[%d]%s()==failed to join timer thread\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__);
     // since no caller of this func checks the return value for the moment
@@ -207,7 +207,7 @@ void taosUninitTimer() {
   stopTimer = true;
 
   // printf("join timer thread:0x%08" PRIx64, taosGetPthreadId(timerThread));
-  pthread_join(timerThread, NULL);
+  taosThreadJoin(timerThread, NULL);
 #endif
 }
 

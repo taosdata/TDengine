@@ -14,40 +14,33 @@
  */
 
 #include "vnd.h"
+#include "tglobal.h"
 
 SVnodeMgr vnodeMgr = {.vnodeInitFlag = TD_MOD_UNINITIALIZED};
 
 static void* loop(void* arg);
 
-int vnodeInit(const SVnodeOpt *pOption) {
+int vnodeInit() {
   if (TD_CHECK_AND_SET_MODE_INIT(&(vnodeMgr.vnodeInitFlag)) == TD_MOD_INITIALIZED) {
     return 0;
   }
 
   vnodeMgr.stop = false;
-  vnodeMgr.putReqToVQueryQFp = pOption->putReqToVQueryQFp;
-  vnodeMgr.sendReqToDnodeFp = pOption->sendReqToDnodeFp;
 
   // Start commit handers
-  if (pOption->nthreads > 0) {
-    vnodeMgr.nthreads = pOption->nthreads;
-    vnodeMgr.threads = (pthread_t*)calloc(pOption->nthreads, sizeof(pthread_t));
-    if (vnodeMgr.threads == NULL) {
-      return -1;
-    }
+  vnodeMgr.nthreads = tsNumOfCommitThreads;
+  vnodeMgr.threads = calloc(vnodeMgr.nthreads, sizeof(TdThread));
+  if (vnodeMgr.threads == NULL) {
+    return -1;
+  }
 
-    pthread_mutex_init(&(vnodeMgr.mutex), NULL);
-    pthread_cond_init(&(vnodeMgr.hasTask), NULL);
-    TD_DLIST_INIT(&(vnodeMgr.queue));
+  taosThreadMutexInit(&(vnodeMgr.mutex), NULL);
+  taosThreadCondInit(&(vnodeMgr.hasTask), NULL);
+  TD_DLIST_INIT(&(vnodeMgr.queue));
 
-    for (uint16_t i = 0; i < pOption->nthreads; i++) {
-      pthread_create(&(vnodeMgr.threads[i]), NULL, loop, NULL);
-      // pthread_setname_np(vnodeMgr.threads[i], "VND Commit Thread");
-    }
-  } else {
-    // TODO: if no commit thread is set, then another mechanism should be
-    // given. Otherwise, it is a false.
-    ASSERT(0);
+  for (uint16_t i = 0; i < vnodeMgr.nthreads; i++) {
+    taosThreadCreate(&(vnodeMgr.threads[i]), NULL, loop, NULL);
+    // pthread_setname_np(vnodeMgr.threads[i], "VND Commit Thread");
   }
 
   if (walInit() < 0) {
@@ -63,42 +56,30 @@ void vnodeCleanup() {
   }
 
   // Stop commit handler
-  pthread_mutex_lock(&(vnodeMgr.mutex));
+  taosThreadMutexLock(&(vnodeMgr.mutex));
   vnodeMgr.stop = true;
-  pthread_cond_broadcast(&(vnodeMgr.hasTask));
-  pthread_mutex_unlock(&(vnodeMgr.mutex));
+  taosThreadCondBroadcast(&(vnodeMgr.hasTask));
+  taosThreadMutexUnlock(&(vnodeMgr.mutex));
 
   for (uint16_t i = 0; i < vnodeMgr.nthreads; i++) {
-    pthread_join(vnodeMgr.threads[i], NULL);
+    taosThreadJoin(vnodeMgr.threads[i], NULL);
   }
 
   tfree(vnodeMgr.threads);
-  pthread_cond_destroy(&(vnodeMgr.hasTask));
-  pthread_mutex_destroy(&(vnodeMgr.mutex));
+  taosThreadCondDestroy(&(vnodeMgr.hasTask));
+  taosThreadMutexDestroy(&(vnodeMgr.mutex));
 }
 
 int vnodeScheduleTask(SVnodeTask* pTask) {
-  pthread_mutex_lock(&(vnodeMgr.mutex));
+  taosThreadMutexLock(&(vnodeMgr.mutex));
 
   TD_DLIST_APPEND(&(vnodeMgr.queue), pTask);
 
-  pthread_cond_signal(&(vnodeMgr.hasTask));
+  taosThreadCondSignal(&(vnodeMgr.hasTask));
 
-  pthread_mutex_unlock(&(vnodeMgr.mutex));
+  taosThreadMutexUnlock(&(vnodeMgr.mutex));
 
   return 0;
-}
-
-int32_t vnodePutReqToVQueryQ(SVnode* pVnode, struct SRpcMsg* pReq) {
-  if (pVnode == NULL || pVnode->pDnode == NULL || vnodeMgr.putReqToVQueryQFp == NULL) {
-    terrno = TSDB_CODE_VND_APP_ERROR;
-    return -1;
-  }
-  return (*vnodeMgr.putReqToVQueryQFp)(pVnode->pDnode, pReq);
-}
-
-void vnodeSendReqToDnode(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pReq) {
-  (*vnodeMgr.sendReqToDnodeFp)(pVnode->pDnode, epSet, pReq);
 }
 
 /* ------------------------ STATIC METHODS ------------------------ */
@@ -107,15 +88,15 @@ static void* loop(void* arg) {
 
   SVnodeTask* pTask;
   for (;;) {
-    pthread_mutex_lock(&(vnodeMgr.mutex));
+    taosThreadMutexLock(&(vnodeMgr.mutex));
     for (;;) {
       pTask = TD_DLIST_HEAD(&(vnodeMgr.queue));
       if (pTask == NULL) {
         if (vnodeMgr.stop) {
-          pthread_mutex_unlock(&(vnodeMgr.mutex));
+          taosThreadMutexUnlock(&(vnodeMgr.mutex));
           return NULL;
         } else {
-          pthread_cond_wait(&(vnodeMgr.hasTask), &(vnodeMgr.mutex));
+          taosThreadCondWait(&(vnodeMgr.hasTask), &(vnodeMgr.mutex));
         }
       } else {
         TD_DLIST_POP(&(vnodeMgr.queue), pTask);
@@ -123,7 +104,7 @@ static void* loop(void* arg) {
       }
     }
 
-    pthread_mutex_unlock(&(vnodeMgr.mutex));
+    taosThreadMutexUnlock(&(vnodeMgr.mutex));
 
     (*(pTask->execute))(pTask->arg);
     free(pTask);

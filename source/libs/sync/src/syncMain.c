@@ -17,6 +17,7 @@
 #include "sync.h"
 #include "syncAppendEntries.h"
 #include "syncAppendEntriesReply.h"
+#include "syncCommit.h"
 #include "syncElection.h"
 #include "syncEnv.h"
 #include "syncIndexMgr.h"
@@ -30,6 +31,7 @@
 #include "syncTimeout.h"
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
+#include "tref.h"
 
 static int32_t tsNodeRefId = -1;
 
@@ -43,28 +45,57 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId);
 static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
 static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
 static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg);
+
+// life cycle
+static void syncFreeNode(void* param);
 // ---------------------------------
 
 int32_t syncInit() {
-  int32_t ret = syncEnvStart();
+  int32_t ret;
+  tsNodeRefId = taosOpenRef(200, syncFreeNode);
+  if (tsNodeRefId < 0) {
+    sError("failed to init node ref");
+    syncCleanUp();
+    ret = -1;
+  } else {
+    ret = syncEnvStart();
+  }
+
   return ret;
 }
 
 void syncCleanUp() {
   int32_t ret = syncEnvStop();
   assert(ret == 0);
+
+  if (tsNodeRefId != -1) {
+    taosCloseRef(tsNodeRefId);
+    tsNodeRefId = -1;
+  }
 }
 
 int64_t syncStart(const SSyncInfo* pSyncInfo) {
-  int32_t    ret = 0;
   SSyncNode* pSyncNode = syncNodeOpen(pSyncInfo);
   assert(pSyncNode != NULL);
-  return ret;
+
+  pSyncNode->rid = taosAddRef(tsNodeRefId, pSyncNode);
+  if (pSyncNode->rid < 0) {
+    syncFreeNode(pSyncNode);
+    return -1;
+  }
+
+  return pSyncNode->rid;
 }
 
 void syncStop(int64_t rid) {
-  SSyncNode* pSyncNode = NULL;  // get pointer from rid
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return;
+  }
   syncNodeClose(pSyncNode);
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  taosRemoveRef(tsNodeRefId, rid);
 }
 
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg) {
@@ -72,9 +103,16 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg) {
   return ret;
 }
 
-int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
-  int32_t    ret = 0;
-  SSyncNode* pSyncNode = NULL;  // get pointer from rid
+int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
+  int32_t ret = 0;
+
+  // todo : get pointer from rid
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return -1;
+  }
+  assert(rid == pSyncNode->rid);
+
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     SyncClientRequest* pSyncMsg = syncClientRequestBuild2(pMsg, 0, isWeak);
     SRpcMsg            rpcMsg;
@@ -85,13 +123,21 @@ int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
 
   } else {
     sTrace("syncForwardToPeer not leader, %s", syncUtilState2String(pSyncNode->state));
-    ret = -1;  // need define err code !!
+    ret = -1;  // todo : need define err code !!
   }
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return ret;
+}
+
+int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
+  int32_t ret = syncPropose(rid, pMsg, isWeak);
   return ret;
 }
 
 ESyncState syncGetMyRole(int64_t rid) {
-  SSyncNode* pSyncNode = NULL;  // get pointer from rid
+  // todo : get pointer from rid
+  SSyncNode* pSyncNode = NULL;
   return pSyncNode->state;
 }
 
@@ -148,7 +194,31 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   pSyncNode->quorum = syncUtilQuorum(pSyncInfo->syncCfg.replicaNum);
   pSyncNode->leaderCache = EMPTY_RAFT_ID;
 
-  // init life cycle
+  // init life cycle outside
+
+  // TLA+ Spec
+  // InitHistoryVars == /\ elections = {}
+  //                    /\ allLogs   = {}
+  //                    /\ voterLog  = [i \in Server |-> [j \in {} |-> <<>>]]
+  // InitServerVars == /\ currentTerm = [i \in Server |-> 1]
+  //                   /\ state       = [i \in Server |-> Follower]
+  //                   /\ votedFor    = [i \in Server |-> Nil]
+  // InitCandidateVars == /\ votesResponded = [i \in Server |-> {}]
+  //                      /\ votesGranted   = [i \in Server |-> {}]
+  // \* The values nextIndex[i][i] and matchIndex[i][i] are never read, since the
+  // \* leader does not send itself messages. It's still easier to include these
+  // \* in the functions.
+  // InitLeaderVars == /\ nextIndex  = [i \in Server |-> [j \in Server |-> 1]]
+  //                   /\ matchIndex = [i \in Server |-> [j \in Server |-> 0]]
+  // InitLogVars == /\ log          = [i \in Server |-> << >>]
+  //                /\ commitIndex  = [i \in Server |-> 0]
+  // Init == /\ messages = [m \in {} |-> 0]
+  //         /\ InitHistoryVars
+  //         /\ InitServerVars
+  //         /\ InitCandidateVars
+  //         /\ InitLeaderVars
+  //         /\ InitLogVars
+  //
 
   // init TLA+ server vars
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
@@ -170,11 +240,16 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   // init TLA+ log vars
   pSyncNode->pLogStore = logStoreCreate(pSyncNode);
   assert(pSyncNode->pLogStore != NULL);
-  pSyncNode->commitIndex = 0;
+  pSyncNode->commitIndex = SYNC_INDEX_INVALID;
+
+  // timer ms init
+  pSyncNode->pingBaseLine = PING_TIMER_MS;
+  pSyncNode->electBaseLine = ELECT_TIMER_MS_MIN;
+  pSyncNode->hbBaseLine = HEARTBEAT_TIMER_MS;
 
   // init ping timer
   pSyncNode->pPingTimer = NULL;
-  pSyncNode->pingTimerMS = PING_TIMER_MS;
+  pSyncNode->pingTimerMS = pSyncNode->pingBaseLine;
   atomic_store_64(&pSyncNode->pingTimerLogicClock, 0);
   atomic_store_64(&pSyncNode->pingTimerLogicClockUser, 0);
   pSyncNode->FpPingTimerCB = syncNodeEqPingTimer;
@@ -182,7 +257,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
 
   // init elect timer
   pSyncNode->pElectTimer = NULL;
-  pSyncNode->electTimerMS = syncUtilElectRandomMS();
+  pSyncNode->electTimerMS = syncUtilElectRandomMS(pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine);
   atomic_store_64(&pSyncNode->electTimerLogicClock, 0);
   atomic_store_64(&pSyncNode->electTimerLogicClockUser, 0);
   pSyncNode->FpElectTimerCB = syncNodeEqElectTimer;
@@ -190,7 +265,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
 
   // init heartbeat timer
   pSyncNode->pHeartbeatTimer = NULL;
-  pSyncNode->heartbeatTimerMS = HEARTBEAT_TIMER_MS;
+  pSyncNode->heartbeatTimerMS = pSyncNode->hbBaseLine;
   atomic_store_64(&pSyncNode->heartbeatTimerLogicClock, 0);
   atomic_store_64(&pSyncNode->heartbeatTimerLogicClockUser, 0);
   pSyncNode->FpHeartbeatTimerCB = syncNodeEqHeartbeatTimer;
@@ -324,7 +399,7 @@ int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms) {
 
 int32_t syncNodeResetElectTimer(SSyncNode* pSyncNode) {
   int32_t ret = 0;
-  int32_t electMS = syncUtilElectRandomMS();
+  int32_t electMS = syncUtilElectRandomMS(pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine);
   ret = syncNodeRestartElectTimer(pSyncNode, electMS);
   return ret;
 }
@@ -413,6 +488,10 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
     cJSON* pLaderCache = syncUtilRaftId2Json(&pSyncNode->leaderCache);
     cJSON_AddItemToObject(pRoot, "leaderCache", pLaderCache);
 
+    // life cycle
+    snprintf(u64buf, sizeof(u64buf), "%ld", pSyncNode->rid);
+    cJSON_AddStringToObject(pRoot, "rid", u64buf);
+
     // tla+ server vars
     cJSON_AddNumberToObject(pRoot, "state", pSyncNode->state);
     cJSON_AddStringToObject(pRoot, "state_str", syncUtilState2String(pSyncNode->state));
@@ -500,6 +579,17 @@ char* syncNode2Str(const SSyncNode* pSyncNode) {
   cJSON_Delete(pJson);
   return serialized;
 }
+
+SSyncNode* syncNodeAcquire(int64_t rid) {
+  SSyncNode* pNode = taosAcquireRef(tsNodeRefId, rid);
+  if (pNode == NULL) {
+    sTrace("failed to acquire node from refId:%" PRId64, rid);
+  }
+
+  return pNode;
+}
+
+void syncNodeRelease(SSyncNode* pNode) { taosReleaseRef(tsNodeRefId, pNode->rid); }
 
 // raft state change --------------
 void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
@@ -678,7 +768,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
     syncTimeoutDestroy(pSyncMsg);
 
     // reset timer ms
-    pSyncNode->electTimerMS = syncUtilElectRandomMS();
+    pSyncNode->electTimerMS = syncUtilElectRandomMS(pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine);
     taosTmrReset(syncNodeEqPingTimer, pSyncNode->pingTimerMS, pSyncNode, gSyncEnv->pTimerManager,
                  &pSyncNode->pPingTimer);
   } else {
@@ -727,18 +817,65 @@ static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg) {
   return ret;
 }
 
+// TLA+ Spec
+// ClientRequest(i, v) ==
+//     /\ state[i] = Leader
+//     /\ LET entry == [term  |-> currentTerm[i],
+//                      value |-> v]
+//            newLog == Append(log[i], entry)
+//        IN  log' = [log EXCEPT ![i] = newLog]
+//     /\ UNCHANGED <<messages, serverVars, candidateVars,
+//                    leaderVars, commitIndex>>
+//
 static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg) {
   int32_t ret = 0;
   syncClientRequestLog2("==syncNodeOnClientRequestCb==", pMsg);
 
+  SyncIndex       index = ths->pLogStore->getLastIndex(ths->pLogStore) + 1;
+  SyncTerm        term = ths->pRaftStore->currentTerm;
+  SSyncRaftEntry* pEntry = syncEntryBuild2((SyncClientRequest*)pMsg, term, index);
+  assert(pEntry != NULL);
+
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
-    SSyncRaftEntry* pEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
     ths->pLogStore->appendEntry(ths->pLogStore, pEntry);
+
+    // start replicate right now!
     syncNodeReplicate(ths);
-    syncEntryDestory(pEntry);
+
+    // pre commit
+    SRpcMsg rpcMsg;
+    syncEntry2OriginalRpc(pEntry, &rpcMsg);
+
+    if (ths->pFsm != NULL) {
+      if (ths->pFsm->FpPreCommitCb != NULL) {
+        ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0);
+      }
+    }
+    rpcFreeCont(rpcMsg.pCont);
+
+    // only myself, maybe commit
+    syncMaybeAdvanceCommitIndex(ths);
+
   } else {
-    // ths->pFsm->FpCommitCb(-1)
+    // pre commit
+    SRpcMsg rpcMsg;
+    syncEntry2OriginalRpc(pEntry, &rpcMsg);
+
+    if (ths->pFsm != NULL) {
+      if (ths->pFsm->FpPreCommitCb != NULL) {
+        ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, -2);
+      }
+    }
+    rpcFreeCont(rpcMsg.pCont);
   }
 
+  syncEntryDestory(pEntry);
   return ret;
+}
+
+static void syncFreeNode(void* param) {
+  SSyncNode* pNode = param;
+  syncNodePrint2((char*)"==syncFreeNode==", pNode);
+
+  free(pNode);
 }

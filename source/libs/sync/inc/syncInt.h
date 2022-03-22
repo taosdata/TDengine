@@ -142,7 +142,6 @@ typedef struct SSyncNode {
   SRaftId   leaderCache;
 
   // life cycle
-  int32_t refCount;
   int64_t rid;
 
   // tla+ server vars
@@ -160,6 +159,11 @@ typedef struct SSyncNode {
   // tla+ log vars
   SSyncLogStore* pLogStore;
   SyncIndex      commitIndex;
+
+  // timer ms init
+  int32_t pingBaseLine;
+  int32_t electBaseLine;
+  int32_t hbBaseLine;
 
   // ping timer
   tmr_h             pPingTimer;
@@ -218,10 +222,12 @@ int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
 
 // utils --------------
-int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
-int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
-cJSON*  syncNode2Json(const SSyncNode* pSyncNode);
-char*   syncNode2Str(const SSyncNode* pSyncNode);
+int32_t    syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
+int32_t    syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
+cJSON*     syncNode2Json(const SSyncNode* pSyncNode);
+char*      syncNode2Str(const SSyncNode* pSyncNode);
+SSyncNode* syncNodeAcquire(int64_t rid);
+void       syncNodeRelease(SSyncNode* pNode);
 
 // raft state change --------------
 void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
@@ -236,7 +242,6 @@ void syncNodeCandidate2Follower(SSyncNode* pSyncNode);
 // raft vote --------------
 void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId);
 void syncNodeVoteForSelf(SSyncNode* pSyncNode);
-void syncNodeMaybeAdvanceCommitIndex(SSyncNode* pSyncNode);
 
 // for debug --------------
 void syncNodePrint(SSyncNode* pObj);

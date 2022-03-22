@@ -26,7 +26,7 @@ typedef struct SFuncMgtService {
 } SFuncMgtService;
 
 static SFuncMgtService gFunMgtService;
-static pthread_once_t functionHashTableInit = PTHREAD_ONCE_INIT;
+static TdThreadOnce functionHashTableInit = PTHREAD_ONCE_INIT;
 static int32_t initFunctionCode = 0;
 
 static void doInitFunctionHashTable() {
@@ -45,7 +45,7 @@ static void doInitFunctionHashTable() {
 }
 
 int32_t fmFuncMgtInit() {
-  pthread_once(&functionHashTableInit, doInitFunctionHashTable);
+  taosThreadOnce(&functionHashTableInit, doInitFunctionHashTable);
   return initFunctionCode;
 }
 
@@ -97,7 +97,7 @@ bool fmIsAggFunc(int32_t funcId) {
 
 void fmFuncMgtDestroy() {
   void* m = gFunMgtService.pFuncNameHashTable;
-  if (m != NULL && atomic_val_compare_exchange_ptr(&gFunMgtService.pFuncNameHashTable, m, 0) == m) {
+  if (m != NULL && atomic_val_compare_exchange_ptr((void**)&gFunMgtService.pFuncNameHashTable, m, 0) == m) {
     taosHashCleanup(m);
   }
 }

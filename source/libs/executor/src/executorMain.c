@@ -30,7 +30,7 @@
 #include "query.h"
 
 typedef struct STaskMgmt {
-  pthread_mutex_t lock;
+  TdThreadMutex lock;
   SCacheObj      *qinfoPool;      // query handle pool
   int32_t         vgId;
   bool            closed;

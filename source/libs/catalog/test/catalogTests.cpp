@@ -713,7 +713,7 @@ void *ctgTestGetDbVgroupThread(void *param) {
   int32_t          n = 0;
 
   while (!ctgTestStop) {
-    code = catalogGetDBVgInfo(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, false, &vgList);
+    code = catalogGetDBVgInfo(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, &vgList);
     if (code) {
       assert(0);
     }
@@ -2009,7 +2009,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
 
-  code = catalogGetDBVgInfo(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, false, &vgList);
+  code = catalogGetDBVgInfo(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), ctgTestVgNum);
 
@@ -2094,14 +2094,14 @@ TEST(multiThread, getSetRmSameDbVgroup) {
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
 
-  pthread_t thread1, thread2;
-  pthread_create(&(thread1), &thattr, ctgTestSetSameDbVgroupThread, pCtg);
+  TdThread thread1, thread2;
+  taosThreadCreate(&(thread1), &thattr, ctgTestSetSameDbVgroupThread, pCtg);
 
   taosSsleep(1);
-  pthread_create(&(thread2), &thattr, ctgTestGetDbVgroupThread, pCtg);
+  taosThreadCreate(&(thread2), &thattr, ctgTestGetDbVgroupThread, pCtg);
 
   while (true) {
     if (ctgTestDeadLoop) {
@@ -2146,14 +2146,14 @@ TEST(multiThread, getSetRmDiffDbVgroup) {
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
 
-  pthread_t thread1, thread2;
-  pthread_create(&(thread1), &thattr, ctgTestSetDiffDbVgroupThread, pCtg);
+  TdThread thread1, thread2;
+  taosThreadCreate(&(thread1), &thattr, ctgTestSetDiffDbVgroupThread, pCtg);
 
   taosSsleep(1);
-  pthread_create(&(thread2), &thattr, ctgTestGetDbVgroupThread, pCtg);
+  taosThreadCreate(&(thread2), &thattr, ctgTestGetDbVgroupThread, pCtg);
 
   while (true) {
     if (ctgTestDeadLoop) {
@@ -2198,13 +2198,13 @@ TEST(multiThread, ctableMeta) {
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
 
-  pthread_t thread1, thread2;
-  pthread_create(&(thread1), &thattr, ctgTestSetCtableMetaThread, pCtg);
+  TdThread thread1, thread2;
+  taosThreadCreate(&(thread1), &thattr, ctgTestSetCtableMetaThread, pCtg);
   taosSsleep(1);
-  pthread_create(&(thread1), &thattr, ctgTestGetCtableMetaThread, pCtg);
+  taosThreadCreate(&(thread1), &thattr, ctgTestGetCtableMetaThread, pCtg);
 
   while (true) {
     if (ctgTestDeadLoop) {

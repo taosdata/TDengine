@@ -41,6 +41,12 @@ bool getStddevFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 void stddevFunction(SqlFunctionCtx* pCtx);
 void stddevFinalize(SqlFunctionCtx* pCtx);
 
+bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+void firstFunction(SqlFunctionCtx *pCtx);
+void lastFunction(SqlFunctionCtx *pCtx);
+
+void valFunction(SqlFunctionCtx *pCtx);
+
 #ifdef __cplusplus
 }
 #endif

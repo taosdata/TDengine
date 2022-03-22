@@ -22,13 +22,13 @@ extern "C" {
 
 #include <assert.h>
 #include <ctype.h>
-#include <pthread.h>
 #include <semaphore.h>
+
+#include <regex.h>
 
 #if !defined(WINDOWS)
 #include <unistd.h>
 #include <dirent.h>
-#include <regex.h>
 #include <sched.h>
 #include <wordexp.h>
 #include <libgen.h>
@@ -36,6 +36,12 @@ extern "C" {
 #include <sys/utsname.h>
 #include <sys/param.h>
 #include <sys/mman.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <termios.h>
+#include <sys/statvfs.h>
 
 #if defined(DARWIN)
 #else
@@ -61,12 +67,7 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/ioctl.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <sys/types.h>
 #include <wchar.h>
-#include <termios.h>
 #include <wctype.h>
 
 
@@ -81,6 +82,7 @@ extern "C" {
 #include "osMath.h"
 #include "osMemory.h"
 #include "osRand.h"
+#include "osThread.h"
 #include "osSemaphore.h"
 #include "osSignal.h"
 #include "osSleep.h"
@@ -88,7 +90,6 @@ extern "C" {
 #include "osString.h"
 #include "osSysinfo.h"
 #include "osSystem.h"
-#include "osThread.h"
 #include "osTime.h"
 #include "osTimer.h"
 #include "osTimezone.h"

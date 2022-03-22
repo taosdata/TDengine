@@ -127,6 +127,18 @@ typedef struct SDropSuperTableStmt {
   bool ignoreNotExists;
 } SDropSuperTableStmt;
 
+typedef struct SAlterTableStmt {
+  ENodeType type;
+  char dbName[TSDB_DB_NAME_LEN];
+  char tableName[TSDB_TABLE_NAME_LEN];
+  int8_t alterType;
+  char colName[TSDB_COL_NAME_LEN];
+  char newColName[TSDB_COL_NAME_LEN];
+  STableOptions* pOptions;
+  SDataType dataType;
+  SValueNode* pVal;
+} SAlterTableStmt;
+
 typedef struct SCreateUserStmt {
   ENodeType type;
   char useName[TSDB_USER_LEN];
@@ -158,9 +170,17 @@ typedef struct SDropDnodeStmt {
   int32_t port;
 } SDropDnodeStmt;
 
+typedef struct SAlterDnodeStmt {
+  ENodeType type;
+  int32_t dnodeId;
+  char config[TSDB_DNODE_CONFIG_LEN];
+  char value[TSDB_DNODE_VALUE_LEN];
+} SAlterDnodeStmt;
+
 typedef struct SShowStmt {
   ENodeType type;
-  char dbName[TSDB_DB_NAME_LEN];
+  SNode* pDbName;        // SValueNode
+  SNode* pTbNamePattern; // SValueNode
 } SShowStmt;
 
 typedef enum EIndexType {
@@ -214,6 +234,12 @@ typedef struct SDropTopicStmt {
   char topicName[TSDB_TABLE_NAME_LEN];
   bool ignoreNotExists;
 } SDropTopicStmt;
+
+typedef struct SAlterLocalStmt {
+  ENodeType type;
+  char config[TSDB_DNODE_CONFIG_LEN];
+  char value[TSDB_DNODE_VALUE_LEN];
+} SAlterLocalStmt;
 
 #ifdef __cplusplus
 }

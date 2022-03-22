@@ -29,7 +29,7 @@ static int32_t  syncIODestroy(SSyncIO *io);
 static int32_t  syncIOStartInternal(SSyncIO *io);
 static int32_t  syncIOStopInternal(SSyncIO *io);
 
-static void   *syncIOConsumerFunc(void *param);
+static void *  syncIOConsumerFunc(void *param);
 static void    syncIOProcessRequest(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
 static void    syncIOProcessReply(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
 static int32_t syncIOAuth(void *parent, char *meterId, char *spi, char *encrypt, char *secret, char *ckey);
@@ -211,7 +211,7 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
 
   // start consumer thread
   {
-    if (pthread_create(&io->consumerTid, NULL, syncIOConsumerFunc, io) != 0) {
+    if (taosThreadCreate(&io->consumerTid, NULL, syncIOConsumerFunc, io) != 0) {
       sError("failed to create sync consumer thread since %s", strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
       return -1;
@@ -228,15 +228,15 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
 static int32_t syncIOStopInternal(SSyncIO *io) {
   int32_t ret = 0;
   atomic_store_8(&io->isStart, 0);
-  pthread_join(io->consumerTid, NULL);
+  taosThreadJoin(io->consumerTid, NULL);
   taosTmrCleanUp(io->timerMgr);
   return ret;
 }
 
 static void *syncIOConsumerFunc(void *param) {
-  SSyncIO   *io = param;
+  SSyncIO *  io = param;
   STaosQall *qall;
-  SRpcMsg   *pRpcMsg, rpcMsg;
+  SRpcMsg *  pRpcMsg, rpcMsg;
   qall = taosAllocateQall();
 
   while (1) {

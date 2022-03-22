@@ -14,15 +14,12 @@
  */
 
 #include "syncUtil.h"
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
 #include "syncEnv.h"
 
 // ---- encode / decode
 uint64_t syncUtilAddr2U64(const char* host, uint16_t port) {
   uint64_t u64;
-  uint32_t hostU32 = (uint32_t)inet_addr(host);
+  uint32_t hostU32 = (uint32_t)taosInetAddr(host);
   // assert(hostU32 != (uint32_t)-1);
   u64 = (((uint64_t)hostU32) << 32) | (((uint32_t)port) << 16);
   return u64;
@@ -33,7 +30,7 @@ void syncUtilU642Addr(uint64_t u64, char* host, size_t len, uint16_t* port) {
 
   struct in_addr addr;
   addr.s_addr = hostU32;
-  snprintf(host, len, "%s", inet_ntoa(addr));
+  snprintf(host, len, "%s", taosInetNtoa(addr));
   *port = (uint16_t)((u64 & 0x00000000FFFF0000) >> 16);
 }
 
@@ -99,7 +96,10 @@ void syncUtilbufCopyDeep(const SSyncBuffer* src, SSyncBuffer* dest) {
 
 int32_t syncUtilRand(int32_t max) { return taosRand() % max; }
 
-int32_t syncUtilElectRandomMS() { return ELECT_TIMER_MS_MIN + syncUtilRand(ELECT_TIMER_MS_RANGE); }
+int32_t syncUtilElectRandomMS(int32_t min, int32_t max) {
+  assert(min > 0 && max > 0 && max >= min);
+  return min + syncUtilRand(max - min);
+}
 
 int32_t syncUtilQuorum(int32_t replicaNum) { return replicaNum / 2 + 1; }
 

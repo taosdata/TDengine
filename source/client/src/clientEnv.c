@@ -33,7 +33,7 @@ SAppInfo appInfo;
 int32_t  clientReqRefPool = -1;
 int32_t  clientConnRefPool = -1;
 
-static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
+static TdThreadOnce tscinit = PTHREAD_ONCE_INIT;
 volatile int32_t      tscInitRes = 0;
 
 static void registerRequest(SRequestObj *pRequest) {
@@ -48,8 +48,8 @@ static void registerRequest(SRequestObj *pRequest) {
   if (pTscObj->pAppInfo) {
     SInstanceSummary *pSummary = &pTscObj->pAppInfo->summary;
 
-    int32_t total = atomic_add_fetch_32(&pSummary->totalRequests, 1);
-    int32_t currentInst = atomic_add_fetch_32(&pSummary->currentRequests, 1);
+    int32_t total = atomic_add_fetch_64(&pSummary->totalRequests, 1);
+    int32_t currentInst = atomic_add_fetch_64(&pSummary->currentRequests, 1);
     tscDebug("0x%" PRIx64 " new Request from connObj:0x%" PRIx64
              ", current:%d, app current:%d, total:%d, reqId:0x%" PRIx64,
              pRequest->self, pRequest->pTscObj->id, num, currentInst, total, pRequest->requestId);
@@ -62,7 +62,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
   STscObj *         pTscObj = pRequest->pTscObj;
   SInstanceSummary *pActivity = &pTscObj->pAppInfo->summary;
 
-  int32_t currentInst = atomic_sub_fetch_32(&pActivity->currentRequests, 1);
+  int32_t currentInst = atomic_sub_fetch_64(&pActivity->currentRequests, 1);
   int32_t num = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
 
   int64_t duration = taosGetTimestampMs() - pRequest->metric.start;
@@ -90,7 +90,6 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.label = "TSC";
   rpcInit.numOfThreads = numOfThread;
   rpcInit.cfp = processMsgFromServer;
-  rpcInit.pfp = persistConnForSpecificMsg;
   rpcInit.sessions = tsMaxConnections;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = (char *)user;
@@ -115,7 +114,7 @@ void destroyTscObj(void *pObj) {
   hbDeregisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey);
   atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
   tscDebug("connObj 0x%" PRIx64 " destroyed, totalConn:%" PRId64, pTscObj->id, pTscObj->pAppInfo->numOfConns);
-  pthread_mutex_destroy(&pTscObj->mutex);
+  taosThreadMutexDestroy(&pTscObj->mutex);
   tfree(pTscObj);
 }
 
@@ -134,7 +133,7 @@ void *createTscObj(const char *user, const char *auth, const char *db, SAppInstI
     tstrncpy(pObj->db, db, tListLen(pObj->db));
   }
 
-  pthread_mutex_init(&pObj->mutex, NULL);
+  taosThreadMutexInit(&pObj->mutex, NULL);
   pObj->id = taosAddRef(clientConnRefPool, pObj);
 
   tscDebug("connObj created, 0x%" PRIx64, pObj->id);
@@ -150,6 +149,7 @@ void *createRequest(STscObj *pObj, __taos_async_fn_t fp, void *param, int32_t ty
     return NULL;
   }
 
+  pRequest->pDb = getDbOfConnection(pObj);
   pRequest->requestId = generateRequestId();
   pRequest->metric.start = taosGetTimestampMs();
 
@@ -180,6 +180,7 @@ static void doDestroyRequest(void *p) {
   tfree(pRequest->msgBuf);
   tfree(pRequest->sqlstr);
   tfree(pRequest->pInfo);
+  tfree(pRequest->pDb);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
   qDestroyQueryPlan(pRequest->body.pDag);
@@ -241,7 +242,7 @@ void taos_init_imp(void) {
 
   // transDestroyBuffer(&conn->readBuf);
   taosGetAppName(appInfo.appName, NULL);
-  pthread_mutex_init(&appInfo.mutex, NULL);
+  taosThreadMutexInit(&appInfo.mutex, NULL);
 
   appInfo.pid = taosGetPId();
   appInfo.startTime = taosGetTimestampMs();
@@ -250,7 +251,7 @@ void taos_init_imp(void) {
 }
 
 int taos_init() {
-  pthread_once(&tscinit, taos_init_imp);
+  taosThreadOnce(&tscinit, taos_init_imp);
   return tscInitRes;
 }
 
@@ -506,9 +507,9 @@ static setConfRet taos_set_config_imp(const char *config){
 }
 
 setConfRet taos_set_config(const char *config){
-  pthread_mutex_lock(&setConfMutex);
+  taosThreadMutexLock(&setConfMutex);
   setConfRet ret = taos_set_config_imp(config);
-  pthread_mutex_unlock(&setConfMutex);
+  taosThreadMutexUnlock(&setConfMutex);
   return ret;
 }
 #endif

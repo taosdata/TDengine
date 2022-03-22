@@ -19,16 +19,33 @@
 #include "tlist.h"
 #include "tlockfree.h"
 
-#include "tdb.h"
+// #include "tdb.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct SPgFile SPgFile;
+typedef int8_t   i8;
+typedef int16_t  i16;
+typedef int32_t  i32;
+typedef int64_t  i64;
+typedef uint8_t  u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
 
-// pgno_t
-typedef int32_t pgno_t;
+// p must be u8 *
+#define TDB_GET_U24(p) ((p)[0] * 65536 + *(u16 *)((p) + 1))
+#define TDB_PUT_U24(p, v)       \
+  do {                          \
+    int tv = (v);               \
+    (p)[2] = tv & 0xff;         \
+    (p)[1] = (tv >> 8) & 0xff;  \
+    (p)[0] = (tv >> 16) & 0xff; \
+  } while (0)
+
+// SPgno
+typedef u32 SPgno;
 #define TDB_IVLD_PGNO ((pgno_t)0)
 
 // fileid
@@ -37,8 +54,8 @@ typedef int32_t pgno_t;
 // pgid_t
 typedef struct {
   uint8_t fileid[TDB_FILE_ID_LEN];
-  pgno_t  pgno;
-} pgid_t;
+  SPgno   pgno;
+} pgid_t, SPgid;
 
 #define TDB_IVLD_PGID (pgid_t){0, TDB_IVLD_PGNO};
 
@@ -61,17 +78,13 @@ static FORCE_INLINE int tdbCmprPgId(const void *p1, const void *p2) {
   }
 }
 
-// framd_id_t
-typedef int32_t frame_id_t;
+#define TDB_IS_SAME_PAGE(pPgid1, pPgid2) (tdbCmprPgId(pPgid1, pPgid2) == 0)
 
 // pgsz_t
-#define TDB_MIN_PGSIZE 512
-#define TDB_MAX_PGSIZE 65536
-#define TDB_DEFAULT_PGSIZE 4096
+#define TDB_MIN_PGSIZE       512       // 512B
+#define TDB_MAX_PGSIZE       16777216  // 16M
+#define TDB_DEFAULT_PGSIZE   4096
 #define TDB_IS_PGSIZE_VLD(s) (((s) >= TDB_MIN_PGSIZE) && ((s) <= TDB_MAX_PGSIZE))
-
-// pgoff_t
-typedef pgsz_t pgoff_t;
 
 // cache
 #define TDB_DEFAULT_CACHE_SIZE (256 * 4096)  // 1M
@@ -100,7 +113,7 @@ typedef TD_DLIST_NODE(SPgFile) SPgFileListNode;
     }                             \
   } while (0)
 
-#define TDB_VARIANT_LEN (int)-1
+#define TDB_VARIANT_LEN ((int)-1)
 
 // page payload format
 // <keyLen> + <valLen> + [key] + [value]
@@ -115,17 +128,39 @@ typedef TD_DLIST_NODE(SPgFile) SPgFileListNode;
     /* TODO */                                                   \
   } while (0)
 
+typedef int (*FKeyComparator)(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
+
 #define TDB_JOURNAL_NAME "tdb.journal"
+
+#define TDB_FILENAME_LEN 128
+
+#define TDB_DEFAULT_FANOUT 6
+
+#define BTREE_MAX_DEPTH 20
+
+#define TDB_FLAG_IS(flags, flag)     ((flags) == (flag))
+#define TDB_FLAG_HAS(flags, flag)    (((flags) & (flag)) != 0)
+#define TDB_FLAG_NO(flags, flag)     ((flags) & (flag) == 0)
+#define TDB_FLAG_ADD(flags, flag)    ((flags) |= (flag))
+#define TDB_FLAG_REMOVE(flags, flag) ((flags) &= (~(flag)))
+
+typedef struct SPager  SPager;
+typedef struct SPCache SPCache;
+typedef struct SPage   SPage;
 
 #include "tdbUtil.h"
 
+#include "tdbPCache.h"
+
+#include "tdbPager.h"
+
 #include "tdbBtree.h"
 
-#include "tdbPgCache.h"
-
-#include "tdbPgFile.h"
-
 #include "tdbEnv.h"
+
+#include "tdbDb.h"
+
+#include "tdbPage.h"
 
 #ifdef __cplusplus
 }

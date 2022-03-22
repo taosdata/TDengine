@@ -30,12 +30,13 @@ typedef int64_t tb_uid_t;
 #define IS_TSWINDOW_SPECIFIED(win) (((win).skey != INT64_MIN) || ((win).ekey != INT64_MAX))
 
 typedef enum {
-  TSDB_SUPER_TABLE = 1,   // super table
-  TSDB_CHILD_TABLE = 2,   // table created from super table
-  TSDB_NORMAL_TABLE = 3,  // ordinary table
-  TSDB_STREAM_TABLE = 4,  // table created by stream processing
-  TSDB_TEMP_TABLE = 5,    // temp table created by nest query
-  TSDB_TABLE_MAX = 6
+  TSDB_SUPER_TABLE  = 1,    // super table
+  TSDB_CHILD_TABLE  = 2,    // table created from super table
+  TSDB_NORMAL_TABLE = 3,    // ordinary table
+  TSDB_STREAM_TABLE = 4,    // table created from stream computing
+  TSDB_TEMP_TABLE   = 5,    // temp table created by nest query
+  TSDB_SYSTEM_TABLE = 6,
+  TSDB_TABLE_MAX    = 7
 } ETableType;
 
 typedef enum {

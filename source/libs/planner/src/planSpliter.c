@@ -44,7 +44,8 @@ typedef struct SStsInfo {
 } SStsInfo;
 
 static SLogicNode* stsMatchByNode(SLogicNode* pNode) {
-  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) && TSDB_SUPER_TABLE == ((SScanLogicNode*)pNode)->pMeta->tableType) {
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) &&
+      NULL != ((SScanLogicNode*)pNode)->pVgroupList && ((SScanLogicNode*)pNode)->pVgroupList->numOfVgroups > 1) {
     return pNode;
   }
   SNode* pChild;
@@ -89,7 +90,7 @@ static SSubLogicPlan* stsCreateScanSubplan(SSplitContext* pCxt, SScanLogicNode* 
   pSubplan->id.groupId = pCxt->groupId;
   pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
   pSubplan->pNode = (SLogicNode*)nodesCloneNode(pScan);
-  TSWAP(pSubplan->pVgroupList, ((SScanLogicNode*)pSubplan->pNode)->pVgroupList, SVgroupsInfo);
+  TSWAP(pSubplan->pVgroupList, ((SScanLogicNode*)pSubplan->pNode)->pVgroupList, SVgroupsInfo*);
   SPLIT_FLAG_SET_MASK(pSubplan->splitFlag, SPLIT_FLAG_STS);
   return pSubplan;
 }

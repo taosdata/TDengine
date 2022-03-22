@@ -260,7 +260,7 @@ typedef struct Fst {
   FstMeta*        meta;
   FstSlice*       data;  //
   FstNode*        root;  //
-  pthread_mutex_t mtx;
+  TdThreadMutex mtx;
 } Fst;
 
 // refactor simple function

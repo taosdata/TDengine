@@ -17,6 +17,7 @@
 
 #include <gtest/gtest.h>
 
+#include "cmdnodes.h"
 #include "parser.h"
 #include "planInt.h"
 
@@ -56,7 +57,8 @@ protected:
     const string syntaxTreeStr = toString(query_->pRoot, false);
   
     SLogicNode* pLogicPlan = nullptr;
-    SPlanContext cxt = { .queryId = 1, .acctId = 0, .pAstRoot = query_->pRoot };
+    SPlanContext cxt = { .queryId = 1, .acctId = 0 };
+    setPlanContext(query_, &cxt);
     code = createLogicPlan(&cxt, &pLogicPlan);
     if (code != TSDB_CODE_SUCCESS) {
       cout << "sql:[" << cxt_.pSql << "] logic plan code:" << code << ", strerror:" << tstrerror(code) << endl;
@@ -93,6 +95,15 @@ protected:
 
 private:
   static const int max_err_len = 1024;
+
+  void setPlanContext(SQuery* pQuery, SPlanContext* pCxt) {
+    if (QUERY_NODE_CREATE_TOPIC_STMT == nodeType(pQuery->pRoot)) {
+      pCxt->pAstRoot = ((SCreateTopicStmt*)pQuery->pRoot)->pQuery;
+      pCxt->topicQuery = true;
+    } else {
+      pCxt->pAstRoot = pQuery->pRoot;
+    }
+  }
 
   void reset() {
     memset(&cxt_, 0, sizeof(cxt_));
@@ -171,5 +182,18 @@ TEST_F(PlannerTest, interval) {
   setDatabase("root", "test");
 
   bind("SELECT count(*) FROM t1 interval(10s)");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, showTables) {
+  setDatabase("root", "test");
+
+  bind("show tables");
+}
+
+TEST_F(PlannerTest, createTopic) {
+  setDatabase("root", "test");
+
+  bind("create topic tp as SELECT * FROM st1");
   ASSERT_TRUE(run());
 }

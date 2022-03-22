@@ -70,7 +70,7 @@ typedef struct {
   SList     *scriptEnvs; //  
   int32_t   mSize;  // pool limit
   int32_t   cSize;  // current available size
-  pthread_mutex_t mutex;
+  TdThreadMutex mutex;
 } ScriptEnvPool;
 
 ScriptCtx* createScriptCtx(char *str, int8_t resType, int16_t resBytes);

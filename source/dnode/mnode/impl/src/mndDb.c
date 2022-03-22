@@ -31,14 +31,14 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
 static int32_t  mndDbActionDelete(SSdb *pSdb, SDbObj *pDb);
 static int32_t  mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew);
-static int32_t  mndProcessCreateDbReq(SMnodeMsg *pReq);
-static int32_t  mndProcessAlterDbReq(SMnodeMsg *pReq);
-static int32_t  mndProcessDropDbReq(SMnodeMsg *pReq);
-static int32_t  mndProcessUseDbReq(SMnodeMsg *pReq);
-static int32_t  mndProcessSyncDbReq(SMnodeMsg *pReq);
-static int32_t  mndProcessCompactDbReq(SMnodeMsg *pReq);
-static int32_t  mndGetDbMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t  mndRetrieveDbs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndProcessCreateDbReq(SNodeMsg *pReq);
+static int32_t  mndProcessAlterDbReq(SNodeMsg *pReq);
+static int32_t  mndProcessDropDbReq(SNodeMsg *pReq);
+static int32_t  mndProcessUseDbReq(SNodeMsg *pReq);
+static int32_t  mndProcessSyncDbReq(SNodeMsg *pReq);
+static int32_t  mndProcessCompactDbReq(SNodeMsg *pReq);
+static int32_t  mndGetDbMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t  mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextDb(SMnode *pMnode, void *pIter);
 
 int32_t mndInitDb(SMnode *pMnode) {
@@ -384,7 +384,7 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   return 0;
 }
 
-static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pReq, SCreateDbReq *pCreate, SUserObj *pUser) {
+static int32_t mndCreateDb(SMnode *pMnode, SNodeMsg *pReq, SCreateDbReq *pCreate, SUserObj *pUser) {
   SDbObj dbObj = {0};
   memcpy(dbObj.name, pCreate->db, TSDB_DB_FNAME_LEN);
   memcpy(dbObj.acct, pUser->acct, TSDB_USER_LEN);
@@ -458,8 +458,8 @@ CREATE_DB_OVER:
   return code;
 }
 
-static int32_t mndProcessCreateDbReq(SMnodeMsg *pReq) {
-  SMnode      *pMnode = pReq->pMnode;
+static int32_t mndProcessCreateDbReq(SNodeMsg *pReq) {
+  SMnode      *pMnode = pReq->pNode;
   int32_t      code = -1;
   SDbObj      *pDb = NULL;
   SUserObj    *pUser = NULL;
@@ -622,7 +622,7 @@ static int32_t mndSetUpdateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   return 0;
 }
 
-static int32_t mndUpdateDb(SMnode *pMnode, SMnodeMsg *pReq, SDbObj *pOld, SDbObj *pNew) {
+static int32_t mndUpdateDb(SMnode *pMnode, SNodeMsg *pReq, SDbObj *pOld, SDbObj *pNew) {
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_ALTER_DB, &pReq->rpcMsg);
   if (pTrans == NULL) goto UPDATE_DB_OVER;
@@ -642,8 +642,8 @@ UPDATE_DB_OVER:
   return code;
 }
 
-static int32_t mndProcessAlterDbReq(SMnodeMsg *pReq) {
-  SMnode     *pMnode = pReq->pMnode;
+static int32_t mndProcessAlterDbReq(SNodeMsg *pReq) {
+  SMnode     *pMnode = pReq->pNode;
   int32_t     code = -1;
   SDbObj     *pDb = NULL;
   SUserObj   *pUser = NULL;
@@ -802,7 +802,33 @@ static int32_t mndSetDropDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
   return 0;
 }
 
-static int32_t mndDropDb(SMnode *pMnode, SMnodeMsg *pReq, SDbObj *pDb) {
+static int32_t mndBuildDropDbRsp(SDbObj *pDb, int32_t *pRspLen, void **ppRsp, bool useRpcMalloc) {
+  SDropDbRsp dropRsp = {0};
+  if (pDb != NULL) {
+    memcpy(dropRsp.db, pDb->name, TSDB_DB_FNAME_LEN);
+    dropRsp.uid = pDb->uid;
+  }
+
+  int32_t rspLen = tSerializeSDropDbRsp(NULL, 0, &dropRsp);
+  void   *pRsp = NULL;
+  if (useRpcMalloc) {
+    pRsp = rpcMallocCont(rspLen);
+  } else {
+    pRsp = malloc(rspLen);
+  }
+
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSDropDbRsp(pRsp, rspLen, &dropRsp);
+  *pRspLen = rspLen;
+  *ppRsp = pRsp;
+  return 0;
+}
+
+static int32_t mndDropDb(SMnode *pMnode, SNodeMsg *pReq, SDbObj *pDb) {
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_DROP_DB, &pReq->rpcMsg);
   if (pTrans == NULL) goto DROP_DB_OVER;
@@ -814,18 +840,9 @@ static int32_t mndDropDb(SMnode *pMnode, SMnodeMsg *pReq, SDbObj *pDb) {
   if (mndSetDropDbCommitLogs(pMnode, pTrans, pDb) != 0) goto DROP_DB_OVER;
   if (mndSetDropDbRedoActions(pMnode, pTrans, pDb) != 0) goto DROP_DB_OVER;
 
-  SDropDbRsp dropRsp = {0};
-  memcpy(dropRsp.db, pDb->name, TSDB_DB_FNAME_LEN);
-  dropRsp.uid = pDb->uid;
-
-  int32_t rspLen = tSerializeSDropDbRsp(NULL, 0, &dropRsp);
-  void   *pRsp = malloc(rspLen);
-  if (pRsp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto DROP_DB_OVER;
-  }
-  tSerializeSDropDbRsp(pRsp, rspLen, &dropRsp);
-
+  int32_t rspLen = 0;
+  void   *pRsp = NULL;
+  if (mndBuildDropDbRsp(pDb, &rspLen, &pRsp, false) < 0) goto DROP_DB_OVER;
   mndTransSetRpcRsp(pTrans, pRsp, rspLen);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto DROP_DB_OVER;
@@ -837,8 +854,8 @@ DROP_DB_OVER:
   return code;
 }
 
-static int32_t mndProcessDropDbReq(SMnodeMsg *pReq) {
-  SMnode    *pMnode = pReq->pMnode;
+static int32_t mndProcessDropDbReq(SNodeMsg *pReq) {
+  SMnode    *pMnode = pReq->pNode;
   int32_t    code = -1;
   SDbObj    *pDb = NULL;
   SUserObj  *pUser = NULL;
@@ -854,7 +871,7 @@ static int32_t mndProcessDropDbReq(SMnodeMsg *pReq) {
   pDb = mndAcquireDb(pMnode, dropReq.db);
   if (pDb == NULL) {
     if (dropReq.ignoreNotExists) {
-      code = 0;
+      code = mndBuildDropDbRsp(pDb, &pReq->rspLen, &pReq->pRsp, true);
       goto DROP_DB_OVER;
     } else {
       terrno = TSDB_CODE_MND_DB_NOT_EXIST;
@@ -913,12 +930,12 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
   SSdb   *pSdb = pMnode->pSdb;
 
   void *pIter = NULL;
-  while (vindex < pDb->cfg.numOfVgroups) {
+  while (true) {
     SVgObj *pVgroup = NULL;
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
-    if (pVgroup->dbUid == pDb->uid) {
+    if (NULL == pDb || pVgroup->dbUid == pDb->uid) {
       SVgroupInfo vgInfo = {0};
       vgInfo.vgId = pVgroup->vgId;
       vgInfo.hashBegin = pVgroup->hashBegin;
@@ -943,13 +960,17 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
     }
 
     sdbRelease(pSdb, pVgroup);
+    
+    if (pDb && (vindex >= pDb->cfg.numOfVgroups)) {
+      break;
+    }
   }
 
   sdbCancelFetch(pSdb, pIter);
 }
 
-static int32_t mndProcessUseDbReq(SMnodeMsg *pReq) {
-  SMnode   *pMnode = pReq->pMnode;
+static int32_t mndProcessUseDbReq(SNodeMsg *pReq) {
+  SMnode   *pMnode = pReq->pNode;
   int32_t   code = -1;
   SDbObj   *pDb = NULL;
   SUserObj *pUser = NULL;
@@ -964,7 +985,25 @@ static int32_t mndProcessUseDbReq(SMnodeMsg *pReq) {
   char *p = strchr(usedbReq.db, '.');
   if (p && 0 == strcmp(p + 1, TSDB_INFORMATION_SCHEMA_DB)) {
     memcpy(usedbRsp.db, usedbReq.db, TSDB_DB_FNAME_LEN);
-    code = 0;
+    static int32_t vgVersion = 1;
+    if (usedbReq.vgVersion < vgVersion) {
+      usedbRsp.pVgroupInfos = taosArrayInit(10, sizeof(SVgroupInfo));
+      if (usedbRsp.pVgroupInfos == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        goto USE_DB_OVER;
+      }
+    
+      mndBuildDBVgroupInfo(NULL, pMnode, usedbRsp.pVgroupInfos);
+      usedbRsp.vgVersion = vgVersion++;
+      
+      if (taosArrayGetSize(usedbRsp.pVgroupInfos) <= 0) {
+        terrno = TSDB_CODE_MND_DB_NOT_EXIST;
+      }
+    } else {
+      usedbRsp.vgVersion = usedbReq.vgVersion;
+      code = 0;
+    }
+    usedbRsp.vgNum = taosArrayGetSize(usedbRsp.pVgroupInfos);    
   } else {
     pDb = mndAcquireDb(pMnode, usedbReq.db);
     if (pDb == NULL) {
@@ -1017,8 +1056,8 @@ static int32_t mndProcessUseDbReq(SMnodeMsg *pReq) {
 
   tSerializeSUseDbRsp(pRsp, contLen, &usedbRsp);
 
-  pReq->pCont = pRsp;
-  pReq->contLen = contLen;
+  pReq->pRsp = pRsp;
+  pReq->rspLen = contLen;
 
 USE_DB_OVER:
   if (code != 0) {
@@ -1101,8 +1140,8 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
   return 0;
 }
 
-static int32_t mndProcessSyncDbReq(SMnodeMsg *pReq) {
-  SMnode    *pMnode = pReq->pMnode;
+static int32_t mndProcessSyncDbReq(SNodeMsg *pReq) {
+  SMnode    *pMnode = pReq->pNode;
   int32_t    code = -1;
   SDbObj    *pDb = NULL;
   SUserObj  *pUser = NULL;
@@ -1142,8 +1181,8 @@ SYNC_DB_OVER:
   return code;
 }
 
-static int32_t mndProcessCompactDbReq(SMnodeMsg *pReq) {
-  SMnode       *pMnode = pReq->pMnode;
+static int32_t mndProcessCompactDbReq(SNodeMsg *pReq) {
+  SMnode       *pMnode = pReq->pNode;
   int32_t       code = -1;
   SDbObj       *pDb = NULL;
   SUserObj     *pUser = NULL;
@@ -1183,8 +1222,8 @@ SYNC_DB_OVER:
   return code;
 }
 
-static int32_t mndGetDbMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
-  SMnode *pMnode = pReq->pMnode;
+static int32_t mndGetDbMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+  SMnode *pMnode = pReq->pNode;
   SSdb   *pSdb = pMnode->pSdb;
 
   int32_t  cols = 0;
@@ -1324,123 +1363,149 @@ char *mnGetDbStr(char *src) {
   return pos;
 }
 
-static int32_t mndRetrieveDbs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode *pMnode = pReq->pMnode;
+static char* getDataPosition(char* pData, SShowObj* pShow, int32_t cols, int32_t rows, int32_t capacityOfRow) {
+  return pData + pShow->offset[cols] * capacityOfRow + pShow->bytes[cols] * rows;
+}
+
+static void dumpDbInfoToPayload(char* data, SDbObj* pDb, SShowObj* pShow, int32_t rows, int32_t rowCapacity, int64_t numOfTables) {
+  int32_t cols = 0;
+
+  char* pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  char *name = mnGetDbStr(pDb->name);
+  if (name != NULL) {
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, name, pShow->bytes[cols]);
+  } else {
+    STR_TO_VARSTR(pWrite, "NULL");
+  }
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int64_t *)pWrite = pDb->createdTime;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int16_t *)pWrite = pDb->cfg.numOfVgroups;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int64_t *)pWrite = numOfTables;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int16_t *)pWrite = pDb->cfg.replications;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int16_t *)pWrite = pDb->cfg.quorum;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int16_t *)pWrite = pDb->cfg.daysPerFile;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  char tmp[128] = {0};
+  if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
+    sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2, pDb->cfg.daysToKeep0);
+  } else {
+    sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep0, pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2);
+  }
+  STR_WITH_SIZE_TO_VARSTR(pWrite, tmp, strlen(tmp));
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int32_t *)pWrite = pDb->cfg.cacheBlockSize;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int32_t *)pWrite = pDb->cfg.totalBlocks;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int32_t *)pWrite = pDb->cfg.minRows;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int32_t *)pWrite = pDb->cfg.maxRows;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int8_t *)pWrite = pDb->cfg.walLevel;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int32_t *)pWrite = pDb->cfg.fsyncPeriod;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int8_t *)pWrite = pDb->cfg.compression;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  *(int8_t *)pWrite = pDb->cfg.cacheLastRow;
+  cols++;
+
+  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  char *prec = NULL;
+  switch (pDb->cfg.precision) {
+    case TSDB_TIME_PRECISION_MILLI:
+      prec = TSDB_TIME_PRECISION_MILLI_STR;
+      break;
+    case TSDB_TIME_PRECISION_MICRO:
+      prec = TSDB_TIME_PRECISION_MICRO_STR;
+      break;
+    case TSDB_TIME_PRECISION_NANO:
+      prec = TSDB_TIME_PRECISION_NANO_STR;
+      break;
+    default:
+      prec = "none";
+      break;
+  }
+  STR_WITH_SIZE_TO_VARSTR(pWrite, prec, 2);
+  cols++;
+
+//  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+//  *(int8_t *)pWrite = pDb->cfg.update;
+}
+
+static void setInformationSchemaDbCfg(SDbObj* pDbObj) {
+  ASSERT(pDbObj != NULL);
+  strncpy(pDbObj->name, TSDB_INFORMATION_SCHEMA_DB, tListLen(pDbObj->name));
+
+  pDbObj->createdTime      = 0;
+  pDbObj->cfg.numOfVgroups = 0;
+  pDbObj->cfg.quorum       = 1;
+  pDbObj->cfg.replications = 1;
+  pDbObj->cfg.update       = 1;
+  pDbObj->cfg.precision    = TSDB_TIME_PRECISION_MILLI;
+}
+
+static int32_t mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rowsCapacity) {
+  SMnode *pMnode = pReq->pNode;
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfRows = 0;
   SDbObj *pDb = NULL;
-  char   *pWrite;
-  int32_t cols = 0;
 
-  while (numOfRows < rows) {
+  while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetch(pSdb, SDB_DB, pShow->pIter, (void **)&pDb);
-    if (pShow->pIter == NULL) break;
-
-    cols = 0;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    char *name = mnGetDbStr(pDb->name);
-    if (name != NULL) {
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, name, pShow->bytes[cols]);
-    } else {
-      STR_TO_VARSTR(pWrite, "NULL");
+    if (pShow->pIter == NULL) {
+      break;
     }
-    cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pDb->createdTime;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pDb->cfg.numOfVgroups;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = 0;  // todo
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pDb->cfg.replications;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pDb->cfg.quorum;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pDb->cfg.daysPerFile;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    char tmp[128] = {0};
-    if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
-      sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2, pDb->cfg.daysToKeep0);
-    } else {
-      sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep0, pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2);
-    }
-    STR_WITH_SIZE_TO_VARSTR(pWrite, tmp, strlen(tmp));
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pDb->cfg.cacheBlockSize;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pDb->cfg.totalBlocks;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pDb->cfg.minRows;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pDb->cfg.maxRows;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int8_t *)pWrite = pDb->cfg.walLevel;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pDb->cfg.fsyncPeriod;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int8_t *)pWrite = pDb->cfg.compression;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int8_t *)pWrite = pDb->cfg.cacheLastRow;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    char *prec = NULL;
-    switch (pDb->cfg.precision) {
-      case TSDB_TIME_PRECISION_MILLI:
-        prec = TSDB_TIME_PRECISION_MILLI_STR;
-        break;
-      case TSDB_TIME_PRECISION_MICRO:
-        prec = TSDB_TIME_PRECISION_MICRO_STR;
-        break;
-      case TSDB_TIME_PRECISION_NANO:
-        prec = TSDB_TIME_PRECISION_NANO_STR;
-        break;
-      default:
-        prec = "none";
-        break;
-    }
-    STR_WITH_SIZE_TO_VARSTR(pWrite, prec, 2);
-    cols++;
-
-//    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-//    *(int8_t *)pWrite = pDb->cfg.update;
-//    cols++;
-
+    dumpDbInfoToPayload(data, pDb, pShow, numOfRows, rowsCapacity, 0);
     numOfRows++;
     sdbRelease(pSdb, pDb);
   }
 
-  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
+  // Append the information_schema database into the result.
+  if (numOfRows < rowsCapacity) {
+    SDbObj dummyISDb = {0};
+    setInformationSchemaDbCfg(&dummyISDb);
+    dumpDbInfoToPayload(data, &dummyISDb, pShow, numOfRows, rowsCapacity, 14);
+    numOfRows += 1;
+  }
+
+  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rowsCapacity, pShow);
   pShow->numOfReads += numOfRows;
 
   return numOfRows;

@@ -20,8 +20,7 @@ static const char *TSDB_SMA_DNAME[] = {
     "tsma",  // TSDB_SMA_TYPE_TIME_RANGE
     "rsma",  // TSDB_SMA_TYPE_ROLLUP
 };
-#define SMA_CHECK_HASH
-#undef SMA_PRINT_DEBUG_LOG
+#undef _TEST_SMA_PRINT_DEBUG_LOG_
 #define SMA_STORAGE_TSDB_DAYS   30
 #define SMA_STORAGE_TSDB_TIMES  10
 #define SMA_STORAGE_SPLIT_HOURS 24
@@ -33,8 +32,8 @@ static const char *TSDB_SMA_DNAME[] = {
 #define SMA_TEST_INDEX_NAME "smaTestIndexName"  // TODO: just for test
 #define SMA_TEST_INDEX_UID  2000000001          // TODO: just for test
 typedef enum {
-  SMA_STORAGE_LEVEL_TSDB = 0,     // use days of self-defined  e.g. vnode${N}/tsdb/tsma/sma_index_uid/v2t200.dat
-  SMA_STORAGE_LEVEL_DFILESET = 1  // use days of TS data       e.g. vnode${N}/tsdb/rsma/sma_index_uid/v2r200.dat
+  SMA_STORAGE_LEVEL_TSDB = 0,     // use days of self-defined  e.g. vnode${N}/tsdb/tsma/sma_index_uid/v2f200.tsma
+  SMA_STORAGE_LEVEL_DFILESET = 1  // use days of TS data       e.g. vnode${N}/tsdb/tsma/sma_index_uid/v2f1906.tsma
 } ESmaStorageLevel;
 
 typedef struct {
@@ -47,6 +46,7 @@ typedef struct {
   int32_t iter;
   int32_t fid;
 } SmaFsIter;
+
 typedef struct {
   STsdb *   pTsdb;
   SDBFile   dFile;
@@ -67,21 +67,22 @@ typedef struct {
    */
   int8_t    state;           // ETsdbSmaStat
   SHashObj *expiredWindows;  // key: skey of time window, value: N/A
-  STSma *   pSma;
+  STSma *   pSma;            // cache schema
 } SSmaStatItem;
 
 struct SSmaStat {
-  SHashObj *smaStatItems;  // key: indexName, value: SSmaStatItem
+  SHashObj *smaStatItems;  // key: indexUid, value: SSmaStatItem
   T_REF_DECLARE()
 };
 
 // declaration of static functions
+
 // expired window
 static int32_t  tsdbUpdateExpiredWindow(STsdb *pTsdb, ETsdbSmaType smaType, char *msg);
 static int32_t  tsdbInitSmaStat(SSmaStat **pSmaStat);
 static int32_t  tsdbDestroySmaState(SSmaStat *pSmaStat);
-static SSmaEnv *tsdbNewSmaEnv(const STsdb *pTsdb, const char *path);
-static int32_t  tsdbInitSmaEnv(STsdb *pTsdb, const char *path, SSmaEnv **pEnv);
+static SSmaEnv *tsdbNewSmaEnv(const STsdb *pTsdb, const char *path, SDiskID did);
+static int32_t  tsdbInitSmaEnv(STsdb *pTsdb, const char *path, SDiskID did, SSmaEnv **pEnv);
 static int32_t  tsdbResetExpiredWindow(STsdb *pTsdb, SSmaStat *pStat, int64_t indexUid, TSKEY skey);
 static int32_t  tsdbRefSmaStat(STsdb *pTsdb, SSmaStat *pStat);
 static int32_t  tsdbUnRefSmaStat(STsdb *pTsdb, SSmaStat *pStat);
@@ -101,8 +102,8 @@ static int32_t tsdbInsertTSmaDataSection(STSmaWriteH *pSmaH, STSmaDataWrapper *p
 static int32_t tsdbInsertTSmaBlocks(STSmaWriteH *pSmaH, void *smaKey, uint32_t keyLen, void *pData, uint32_t dataLen);
 static int64_t tsdbGetIntervalByPrecision(int64_t interval, uint8_t intervalUnit, int8_t precision);
 static int32_t tsdbGetTSmaDays(STsdb *pTsdb, int64_t interval, int32_t storageLevel);
-static int32_t tsdbSetTSmaDataFile(STSmaWriteH *pSmaH, STSmaDataWrapper *pData, int32_t storageLevel, int32_t fid);
-static int32_t tsdbInitTSmaFile(STSmaReadH *pSmaH, TSKEY skey);
+static int32_t tsdbSetTSmaDataFile(STSmaWriteH *pSmaH, STSmaDataWrapper *pData, int64_t indexUid, int32_t fid);
+static int32_t tsdbInitTSmaFile(STSmaReadH *pSmaH, int64_t indexUid, TSKEY skey);
 static bool    tsdbSetAndOpenTSmaFile(STSmaReadH *pReadH, TSKEY *queryKey);
 static void    tsdbGetSmaDir(int32_t vgId, ETsdbSmaType smaType, char dirName[]);
 static int32_t tsdbInsertTSmaDataImpl(STsdb *pTsdb, char *msg);
@@ -110,10 +111,11 @@ static int32_t tsdbInsertRSmaDataImpl(STsdb *pTsdb, char *msg);
 
 // implementation
 static void tsdbGetSmaDir(int32_t vgId, ETsdbSmaType smaType, char dirName[]) {
-  snprintf(dirName, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/%s", vgId, TSDB_SMA_DNAME[smaType]);
+  snprintf(dirName, TSDB_FILENAME_LEN, "vnode%svnode%d%stsdb%s%s", TD_DIRSEP, vgId, TD_DIRSEP, TD_DIRSEP,
+           TSDB_SMA_DNAME[smaType]);
 }
 
-static SSmaEnv *tsdbNewSmaEnv(const STsdb *pTsdb, const char *path) {
+static SSmaEnv *tsdbNewSmaEnv(const STsdb *pTsdb, const char *path, SDiskID did) {
   SSmaEnv *pEnv = NULL;
 
   pEnv = (SSmaEnv *)calloc(1, sizeof(SSmaEnv));
@@ -122,7 +124,7 @@ static SSmaEnv *tsdbNewSmaEnv(const STsdb *pTsdb, const char *path) {
     return NULL;
   }
 
-  int code = pthread_rwlock_init(&(pEnv->lock), NULL);
+  int code = taosThreadRwlockInit(&(pEnv->lock), NULL);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
     free(pEnv);
@@ -136,12 +138,16 @@ static SSmaEnv *tsdbNewSmaEnv(const STsdb *pTsdb, const char *path) {
     return NULL;
   }
 
+  pEnv->did = did;
+
   if (tsdbInitSmaStat(&pEnv->pStat) != TSDB_CODE_SUCCESS) {
     tsdbFreeSmaEnv(pEnv);
     return NULL;
   }
 
-  if (tsdbOpenBDBEnv(&pEnv->dbEnv, pEnv->path) != TSDB_CODE_SUCCESS) {
+  char aname[TSDB_FILENAME_LEN] = {0};
+  tfsAbsoluteName(pTsdb->pTfs, did, path, aname);
+  if (tsdbOpenBDBEnv(&pEnv->dbEnv, aname) != TSDB_CODE_SUCCESS) {
     tsdbFreeSmaEnv(pEnv);
     return NULL;
   }
@@ -149,30 +155,16 @@ static SSmaEnv *tsdbNewSmaEnv(const STsdb *pTsdb, const char *path) {
   return pEnv;
 }
 
-static int32_t tsdbInitSmaEnv(STsdb *pTsdb, const char *path, SSmaEnv **pEnv) {
+static int32_t tsdbInitSmaEnv(STsdb *pTsdb, const char *path, SDiskID did, SSmaEnv **pEnv) {
   if (!pEnv) {
     terrno = TSDB_CODE_INVALID_PTR;
     return TSDB_CODE_FAILED;
   }
 
-  if (*pEnv) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (tsdbLockRepo(pTsdb) != 0) {
-    return TSDB_CODE_FAILED;
-  }
-
-  if (*pEnv == NULL) {  // 2nd phase check
-    if ((*pEnv = tsdbNewSmaEnv(pTsdb, path)) == NULL) {
-      tsdbUnlockRepo(pTsdb);
+  if (*pEnv == NULL) {
+    if ((*pEnv = tsdbNewSmaEnv(pTsdb, path, did)) == NULL) {
       return TSDB_CODE_FAILED;
     }
-  }
-
-  if (tsdbUnlockRepo(pTsdb) != 0) {
-    *pEnv = tsdbFreeSmaEnv(*pEnv);
-    return TSDB_CODE_FAILED;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -189,7 +181,7 @@ void tsdbDestroySmaEnv(SSmaEnv *pSmaEnv) {
     tsdbDestroySmaState(pSmaEnv->pStat);
     tfree(pSmaEnv->pStat);
     tfree(pSmaEnv->path);
-    pthread_rwlock_destroy(&(pSmaEnv->lock));
+    taosThreadRwlockDestroy(&(pSmaEnv->lock));
     tsdbCloseBDBEnv(pSmaEnv->dbEnv);
   }
 }
@@ -222,11 +214,14 @@ static int32_t tsdbInitSmaStat(SSmaStat **pSmaStat) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // TODO: lock. lazy mode when update expired window, or hungry mode during tsdbNew.
+  /**
+   *  1. Lazy mode utilized when init SSmaStat to update expired window(or hungry mode when tsdbNew).
+   *  2. Currently, there is mutex lock when init SSmaEnv, thus no need add lock on SSmaStat, and please add lock if
+   * tsdbInitSmaStat invoked in other multithread environment later.
+   */
   if (*pSmaStat == NULL) {
     *pSmaStat = (SSmaStat *)calloc(1, sizeof(SSmaStat));
     if (*pSmaStat == NULL) {
-      // TODO: unlock
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return TSDB_CODE_FAILED;
     }
@@ -236,11 +231,9 @@ static int32_t tsdbInitSmaStat(SSmaStat **pSmaStat) {
 
     if ((*pSmaStat)->smaStatItems == NULL) {
       tfree(*pSmaStat);
-      // TODO: unlock
       return TSDB_CODE_FAILED;
     }
   }
-  // TODO: unlock
   return TSDB_CODE_SUCCESS;
 }
 
@@ -268,10 +261,15 @@ static SSmaStatItem *tsdbNewSmaStatItem(int8_t state) {
 int32_t tsdbDestroySmaState(SSmaStat *pSmaStat) {
   if (pSmaStat) {
     // TODO: use taosHashSetFreeFp when taosHashSetFreeFp is ready.
-    SSmaStatItem *item = taosHashIterate(pSmaStat->smaStatItems, NULL);
+    void *item = taosHashIterate(pSmaStat->smaStatItems, NULL);
     while (item != NULL) {
-      tfree(item->pSma);
-      taosHashCleanup(item->expiredWindows);
+      SSmaStatItem *pItem = *(SSmaStatItem **)item;
+      if (pItem != NULL) {
+        tdDestroyTSma(pItem->pSma);
+        tfree(pItem->pSma);
+        taosHashCleanup(pItem->expiredWindows);
+        tfree(pItem);
+      }
       item = taosHashIterate(pSmaStat->smaStatItems, item);
     }
     taosHashCleanup(pSmaStat->smaStatItems);
@@ -279,14 +277,17 @@ int32_t tsdbDestroySmaState(SSmaStat *pSmaStat) {
 }
 
 static int32_t tsdbCheckAndInitSmaEnv(STsdb *pTsdb, int8_t smaType) {
+  SSmaEnv *pEnv = NULL;
+
+  // return if already init
   switch (smaType) {
     case TSDB_SMA_TYPE_TIME_RANGE:
-      if (pTsdb->pTSmaEnv) {
+      if ((pEnv = (SSmaEnv *)atomic_load_ptr(&pTsdb->pTSmaEnv)) != NULL) {
         return TSDB_CODE_SUCCESS;
       }
       break;
     case TSDB_SMA_TYPE_ROLLUP:
-      if (pTsdb->pRSmaEnv) {
+      if ((pEnv = (SSmaEnv *)atomic_load_ptr(&pTsdb->pRSmaEnv)) != NULL) {
         return TSDB_CODE_SUCCESS;
       }
       break;
@@ -295,18 +296,34 @@ static int32_t tsdbCheckAndInitSmaEnv(STsdb *pTsdb, int8_t smaType) {
       return TSDB_CODE_FAILED;
   }
 
-  // SDiskID  did = {0};
-  SSmaEnv *pEnv = NULL;
-  char     smaPath[TSDB_FILENAME_LEN] = "/proj/.sma/";
-  if (tsdbInitSmaEnv(pTsdb, smaPath, &pEnv) != TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_FAILED;
-  }
+  // init sma env
+  tsdbLockRepo(pTsdb);
+  pEnv = (smaType == TSDB_SMA_TYPE_TIME_RANGE) ? atomic_load_ptr(&pTsdb->pTSmaEnv) : atomic_load_ptr(&pTsdb->pRSmaEnv);
+  if (pEnv == NULL) {
+    char rname[TSDB_FILENAME_LEN] = {0};
 
-  if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
-    pTsdb->pTSmaEnv = pEnv;
-  } else {
-    pTsdb->pRSmaEnv = pEnv;
+    SDiskID did = {0};
+    tfsAllocDisk(pTsdb->pTfs, TFS_PRIMARY_LEVEL, &did);
+    if (did.level < 0 || did.id < 0) {
+      tsdbUnlockRepo(pTsdb);
+      return TSDB_CODE_FAILED;
+    }
+    tsdbGetSmaDir(REPO_ID(pTsdb), smaType, rname);
+
+    if (tfsMkdirRecurAt(pTsdb->pTfs, rname, did) != TSDB_CODE_SUCCESS) {
+      tsdbUnlockRepo(pTsdb);
+      return TSDB_CODE_FAILED;
+    }
+
+    if (tsdbInitSmaEnv(pTsdb, rname, did, &pEnv) != TSDB_CODE_SUCCESS) {
+      tsdbUnlockRepo(pTsdb);
+      return TSDB_CODE_FAILED;
+    }
+
+    (smaType == TSDB_SMA_TYPE_TIME_RANGE) ? atomic_store_ptr(&pTsdb->pTSmaEnv, pEnv)
+                                          : atomic_store_ptr(&pTsdb->pRSmaEnv, pEnv);
   }
+  tsdbUnlockRepo(pTsdb);
 
   return TSDB_CODE_SUCCESS;
 };
@@ -325,11 +342,6 @@ int32_t tsdbUpdateExpiredWindow(STsdb *pTsdb, ETsdbSmaType smaType, char *msg) {
     return TSDB_CODE_FAILED;
   }
 
-  if (tsdbCheckAndInitSmaEnv(pTsdb, smaType) != TSDB_CODE_SUCCESS) {
-    terrno = TSDB_CODE_TDB_INIT_FAILED;
-    return TSDB_CODE_FAILED;
-  }
-
   // TODO: decode the msg from Stream Computing module => start
   int64_t       indexUid = SMA_TEST_INDEX_UID;
   const int32_t SMA_TEST_EXPIRED_WINDOW_SIZE = 10;
@@ -340,12 +352,19 @@ int32_t tsdbUpdateExpiredWindow(STsdb *pTsdb, ETsdbSmaType smaType, char *msg) {
   }
   // TODO: decode the msg <= end
 
+  if (tsdbCheckAndInitSmaEnv(pTsdb, smaType) != TSDB_CODE_SUCCESS) {
+    terrno = TSDB_CODE_TDB_INIT_FAILED;
+    return TSDB_CODE_FAILED;
+  }
+
   SSmaEnv * pEnv = REPO_SMA_ENV(pTsdb, smaType);
   SSmaStat *pStat = SMA_ENV_STAT(pEnv);
   SHashObj *pItemsHash = SMA_ENV_STAT_ITEMS(pEnv);
 
+  TASSERT(pEnv != NULL && pStat != NULL && pItemsHash != NULL);
+
   tsdbRefSmaStat(pTsdb, pStat);
-  SSmaStatItem *pItem = (SSmaStatItem *)taosHashGet(pItemsHash, &indexUid, sizeof(indexUid));
+  SSmaStatItem *pItem = taosHashGet(pItemsHash, &indexUid, sizeof(indexUid));
   if (pItem == NULL) {
     pItem = tsdbNewSmaStatItem(TSDB_SMA_STAT_EXPIRED);  // TODO use the real state
     if (pItem == NULL) {
@@ -379,7 +398,7 @@ int32_t tsdbUpdateExpiredWindow(STsdb *pTsdb, ETsdbSmaType smaType, char *msg) {
 
   int8_t state = TSDB_SMA_STAT_EXPIRED;
   for (int32_t i = 0; i < SMA_TEST_EXPIRED_WINDOW_SIZE; ++i) {
-    if (taosHashPut(pItem->expiredWindows, (void *)(expiredWindows + i), sizeof(TSKEY), &state, sizeof(state)) != 0) {
+    if (taosHashPut(pItem->expiredWindows, expiredWindows + i, sizeof(TSKEY), &state, sizeof(state)) != 0) {
       // If error occurs during taosHashPut expired windows, remove the smaIndex from pTsdb->pSmaStat, thus TSDB would
       // tell query module to query raw TS data.
       // N.B.
@@ -406,9 +425,9 @@ static int32_t tsdbResetExpiredWindow(STsdb *pTsdb, SSmaStat *pStat, int64_t ind
   tsdbRefSmaStat(pTsdb, pStat);
 
   if (pStat && pStat->smaStatItems) {
-    pItem = *(SSmaStatItem **)taosHashGet(pStat->smaStatItems, &indexUid, sizeof(indexUid));
+    pItem = taosHashGet(pStat->smaStatItems, &indexUid, sizeof(indexUid));
   }
-  if (pItem != NULL) {
+  if ((pItem != NULL) && ((pItem = *(SSmaStatItem **)pItem) != NULL)) {
     // pItem resides in hash buffer all the time unless drop sma index
     // TODO: multithread protect
     if (taosHashRemove(pItem->expiredWindows, &skey, sizeof(TSKEY)) != 0) {
@@ -479,7 +498,7 @@ static int32_t tsdbGetSmaStorageLevel(int64_t interval, int8_t intervalUnit) {
  * @brief Insert TSma data blocks to DB File build by B+Tree
  *
  * @param pSmaH
- * @param smaKey
+ * @param smaKey  tableUid-colId-skeyOfWindow(8-2-8)
  * @param keyLen
  * @param pData
  * @param dataLen
@@ -487,22 +506,21 @@ static int32_t tsdbGetSmaStorageLevel(int64_t interval, int8_t intervalUnit) {
  */
 static int32_t tsdbInsertTSmaBlocks(STSmaWriteH *pSmaH, void *smaKey, uint32_t keyLen, void *pData, uint32_t dataLen) {
   SDBFile *pDBFile = &pSmaH->dFile;
-
-  // TODO: insert sma data blocks into B+Tree
   tsdbDebug("vgId:%d insert sma data blocks into %s: smaKey %" PRIx64 "-%" PRIu16 "-%" PRIx64 ", dataLen %d",
             REPO_ID(pSmaH->pTsdb), pDBFile->path, *(tb_uid_t *)smaKey, *(uint16_t *)POINTER_SHIFT(smaKey, 8),
             *(int64_t *)POINTER_SHIFT(smaKey, 10), dataLen);
 
+  // TODO: insert sma data blocks into B+Tree(TDB)
   if (tsdbSaveSmaToDB(pDBFile, smaKey, keyLen, pData, dataLen) != 0) {
     return TSDB_CODE_FAILED;
   }
 
-#ifdef SMA_PRINT_DEBUG_LOG
+#ifdef _TEST_SMA_PRINT_DEBUG_LOG_
   uint32_t valueSize = 0;
   void *   data = tsdbGetSmaDataByKey(pDBFile, smaKey, keyLen, &valueSize);
   ASSERT(data != NULL);
   for (uint32_t v = 0; v < valueSize; v += 8) {
-    tsdbWarn("vgId:%d sma data - val[%d] is %" PRIi64, REPO_ID(pSmaH->pTsdb), v, *(int64_t *)POINTER_SHIFT(data, v));
+    tsdbWarn("vgId:%d insert sma data val[%d] %" PRIi64, REPO_ID(pSmaH->pTsdb), v, *(int64_t *)POINTER_SHIFT(data, v));
   }
 #endif
   return TSDB_CODE_SUCCESS;
@@ -549,34 +567,34 @@ static int64_t tsdbGetIntervalByPrecision(int64_t interval, uint8_t intervalUnit
         return interval / 1e3;
       } else if (TIME_UNIT_NANOSECOND == intervalUnit) {  //  nano second
         return interval / 1e6;
-      } else {
+      } else {  // ms
         return interval;
       }
       break;
     case TSDB_TIME_PRECISION_MICRO:
       if (TIME_UNIT_MICROSECOND == intervalUnit) {  // us
         return interval;
-      } else if (TIME_UNIT_NANOSECOND == intervalUnit) {  //  nano second
+      } else if (TIME_UNIT_NANOSECOND == intervalUnit) {  //  ns
         return interval / 1e3;
-      } else {
+      } else {  // ms
         return interval * 1e3;
       }
       break;
     case TSDB_TIME_PRECISION_NANO:
-      if (TIME_UNIT_MICROSECOND == intervalUnit) {
+      if (TIME_UNIT_MICROSECOND == intervalUnit) {  // us
         return interval * 1e3;
-      } else if (TIME_UNIT_NANOSECOND == intervalUnit) {  // nano second
+      } else if (TIME_UNIT_NANOSECOND == intervalUnit) {  // ns
         return interval;
-      } else {
+      } else {  // ms
         return interval * 1e6;
       }
       break;
     default:                                        // ms
       if (TIME_UNIT_MICROSECOND == intervalUnit) {  // us
         return interval / 1e3;
-      } else if (TIME_UNIT_NANOSECOND == intervalUnit) {  //  nano second
+      } else if (TIME_UNIT_NANOSECOND == intervalUnit) {  //  ns
         return interval / 1e6;
-      } else {
+      } else {  // ms
         return interval;
       }
       break;
@@ -645,12 +663,15 @@ static void tsdbDestroyTSmaWriteH(STSmaWriteH *pSmaH) {
   }
 }
 
-static int32_t tsdbSetTSmaDataFile(STSmaWriteH *pSmaH, STSmaDataWrapper *pData, int32_t storageLevel, int32_t fid) {
+static int32_t tsdbSetTSmaDataFile(STSmaWriteH *pSmaH, STSmaDataWrapper *pData, int64_t indexUid, int32_t fid) {
   STsdb *pTsdb = pSmaH->pTsdb;
   ASSERT(pSmaH->dFile.path == NULL && pSmaH->dFile.pDB == NULL);
+
+  pSmaH->dFile.fid = fid;
   char tSmaFile[TSDB_FILENAME_LEN] = {0};
-  snprintf(tSmaFile, TSDB_FILENAME_LEN, "v%df%d.tsma", REPO_ID(pTsdb), fid);
+  snprintf(tSmaFile, TSDB_FILENAME_LEN, "%" PRIi64 "%sv%df%d.tsma", indexUid, TD_DIRSEP, REPO_ID(pTsdb), fid);
   pSmaH->dFile.path = strdup(tSmaFile);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -689,8 +710,9 @@ static int32_t tsdbGetTSmaDays(STsdb *pTsdb, int64_t interval, int32_t storageLe
 static int32_t tsdbInsertTSmaDataImpl(STsdb *pTsdb, char *msg) {
   STsdbCfg *        pCfg = REPO_CFG(pTsdb);
   STSmaDataWrapper *pData = (STSmaDataWrapper *)msg;
+  SSmaEnv *         pEnv = atomic_load_ptr(&pTsdb->pTSmaEnv);
 
-  if (!pTsdb->pTSmaEnv) {
+  if (pEnv == NULL) {
     terrno = TSDB_CODE_INVALID_PTR;
     tsdbWarn("vgId:%d insert tSma data failed since pTSmaEnv is NULL", REPO_ID(pTsdb));
     return terrno;
@@ -708,6 +730,17 @@ static int32_t tsdbInsertTSmaDataImpl(STsdb *pTsdb, char *msg) {
     return TSDB_CODE_FAILED;
   }
 
+  int64_t indexUid = SMA_TEST_INDEX_UID;
+  char    rPath[TSDB_FILENAME_LEN] = {0};
+  char    aPath[TSDB_FILENAME_LEN] = {0};
+  snprintf(rPath, TSDB_FILENAME_LEN, "%s%s%" PRIi64, SMA_ENV_PATH(pEnv), TD_DIRSEP, indexUid);
+  tfsAbsoluteName(REPO_TFS(pTsdb), SMA_ENV_DID(pEnv), rPath, aPath);
+  if (!taosCheckExistFile(aPath)) {
+    if (tfsMkdirRecurAt(REPO_TFS(pTsdb), rPath, SMA_ENV_DID(pEnv)) != TSDB_CODE_SUCCESS) {
+      return TSDB_CODE_FAILED;
+    }
+  }
+
   // Step 1: Judge the storage level and days
   int32_t storageLevel = tsdbGetSmaStorageLevel(pData->interval, pData->intervalUnit);
   int32_t daysPerFile = tsdbGetTSmaDays(pTsdb, tSmaH.interval, storageLevel);
@@ -716,7 +749,7 @@ static int32_t tsdbInsertTSmaDataImpl(STsdb *pTsdb, char *msg) {
   // Step 2: Set the DFile for storage of SMA index, and iterate/split the TSma data and store to B+Tree index file
   //         - Set and open the DFile or the B+Tree file
   // TODO: tsdbStartTSmaCommit();
-  tsdbSetTSmaDataFile(&tSmaH, pData, storageLevel, fid);
+  tsdbSetTSmaDataFile(&tSmaH, pData, indexUid, fid);
   if (tsdbOpenDBF(pTsdb->pTSmaEnv->dbEnv, &tSmaH.dFile) != 0) {
     tsdbWarn("vgId:%d open DB file %s failed since %s", REPO_ID(pTsdb),
              tSmaH.dFile.path ? tSmaH.dFile.path : "path is NULL", tstrerror(terrno));
@@ -803,13 +836,16 @@ static int32_t tsdbInitTSmaReadH(STSmaReadH *pSmaH, STsdb *pTsdb, int64_t interv
  * @brief Init of tSma FS
  *
  * @param pReadH
+ * @param indexUid
  * @param skey
  * @return int32_t
  */
-static int32_t tsdbInitTSmaFile(STSmaReadH *pSmaH, TSKEY skey) {
-  int32_t fid = (int32_t)(TSDB_KEY_FID(skey, pSmaH->days, REPO_CFG(pSmaH->pTsdb)->precision));
+static int32_t tsdbInitTSmaFile(STSmaReadH *pSmaH, int64_t indexUid, TSKEY skey) {
+  STsdb *pTsdb = pSmaH->pTsdb;
+
+  int32_t fid = (int32_t)(TSDB_KEY_FID(skey, pSmaH->days, REPO_CFG(pTsdb)->precision));
   char    tSmaFile[TSDB_FILENAME_LEN] = {0};
-  snprintf(tSmaFile, TSDB_FILENAME_LEN, "v%df%d.tsma", REPO_ID(pSmaH->pTsdb), fid);
+  snprintf(tSmaFile, TSDB_FILENAME_LEN, "%" PRIi64 "%sv%df%d.tsma", indexUid, TD_DIRSEP, REPO_ID(pTsdb), fid);
   pSmaH->dFile.path = strdup(tSmaFile);
   pSmaH->smaFsIter.iter = 0;
   pSmaH->smaFsIter.fid = fid;
@@ -868,15 +904,17 @@ static bool tsdbSetAndOpenTSmaFile(STSmaReadH *pReadH, TSKEY *queryKey) {
 static int32_t tsdbGetTSmaDataImpl(STsdb *pTsdb, STSmaDataWrapper *pData, int64_t indexUid, int64_t interval,
                                    int8_t intervalUnit, tb_uid_t tableUid, col_id_t colId, TSKEY querySKey,
                                    int32_t nMaxResult) {
-  if (!pTsdb->pTSmaEnv) {
+  SSmaEnv *pEnv = atomic_load_ptr(&pTsdb->pTSmaEnv);
+
+  if (!pEnv) {
     terrno = TSDB_CODE_INVALID_PTR;
     tsdbWarn("vgId:%d getTSmaDataImpl failed since pTSmaEnv is NULL", REPO_ID(pTsdb));
     return TSDB_CODE_FAILED;
   }
 
-  tsdbRefSmaStat(pTsdb, SMA_ENV_STAT(pTsdb->pTSmaEnv));
-  SSmaStatItem *pItem = *(SSmaStatItem **)taosHashGet(SMA_ENV_STAT_ITEMS(pTsdb->pTSmaEnv), &indexUid, sizeof(indexUid));
-  if (pItem == NULL) {
+  tsdbRefSmaStat(pTsdb, SMA_ENV_STAT(pEnv));
+  SSmaStatItem *pItem = taosHashGet(SMA_ENV_STAT_ITEMS(pEnv), &indexUid, sizeof(indexUid));
+  if ((pItem == NULL) || ((pItem = *(SSmaStatItem **)pItem) == NULL)) {
     // Normally pItem should not be NULL, mark all windows as expired and notify query module to fetch raw TS data if
     // it's NULL.
     tsdbUnRefSmaStat(pTsdb, SMA_ENV_STAT(pTsdb->pTSmaEnv));
@@ -907,11 +945,12 @@ static int32_t tsdbGetTSmaDataImpl(STsdb *pTsdb, STSmaDataWrapper *pData, int64_
   tsdbUnRefSmaStat(pTsdb, SMA_ENV_STAT(pTsdb->pTSmaEnv));
 
 #endif
+
   STSmaReadH tReadH = {0};
   tsdbInitTSmaReadH(&tReadH, pTsdb, interval, intervalUnit);
   tsdbCloseDBF(&tReadH.dFile);
 
-  tsdbInitTSmaFile(&tReadH, querySKey);
+  tsdbInitTSmaFile(&tReadH, indexUid, querySKey);
   if (tsdbOpenDBF(SMA_ENV_ENV(pTsdb->pTSmaEnv), &tReadH.dFile) != 0) {
     tsdbWarn("vgId:%d open DBF %s failed since %s", REPO_ID(pTsdb), tReadH.dFile.path, tstrerror(terrno));
     return TSDB_CODE_FAILED;
@@ -935,12 +974,14 @@ static int32_t tsdbGetTSmaDataImpl(STsdb *pTsdb, STSmaDataWrapper *pData, int64_
     tsdbCloseDBF(&tReadH.dFile);
     return TSDB_CODE_FAILED;
   }
-  tfree(result);
-#ifdef SMA_PRINT_DEBUG_LOG
+
+#ifdef _TEST_SMA_PRINT_DEBUG_LOG_
   for (uint32_t v = 0; v < valueSize; v += 8) {
-    tsdbWarn("vgId:%d v[%d]=%" PRIi64, REPO_ID(pTsdb), v, *(int64_t *)POINTER_SHIFT(result, v));
+    tsdbWarn("vgId:%d get sma data v[%d]=%" PRIi64, REPO_ID(pTsdb), v, *(int64_t *)POINTER_SHIFT(result, v));
   }
 #endif
+  tfree(result);  // TODO: fill the result to output
+
 #if 0
   int32_t nResult = 0;
   int64_t lastKey = 0;

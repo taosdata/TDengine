@@ -541,7 +541,7 @@ int tsdbUnRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
       }      
     }
     if (addNew) {
-      int code = pthread_cond_signal(&pBufPool->poolNotEmpty);
+      int code = taosThreadCondSignal(&pBufPool->poolNotEmpty);
       if (code != 0) {
         if (tsdbUnlockRepo(pRepo) < 0) return -1;
         tsdbError("vgId:%d failed to signal pool not empty since %s", REPO_ID(pRepo), strerror(code));

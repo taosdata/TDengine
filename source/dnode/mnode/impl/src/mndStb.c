@@ -33,15 +33,15 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionDelete(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew);
-static int32_t  mndProcessMCreateStbReq(SMnodeMsg *pReq);
-static int32_t  mndProcessMAlterStbReq(SMnodeMsg *pReq);
-static int32_t  mndProcessMDropStbReq(SMnodeMsg *pReq);
-static int32_t  mndProcessVCreateStbRsp(SMnodeMsg *pRsp);
-static int32_t  mndProcessVAlterStbRsp(SMnodeMsg *pRsp);
-static int32_t  mndProcessVDropStbRsp(SMnodeMsg *pRsp);
-static int32_t  mndProcessTableMetaReq(SMnodeMsg *pReq);
-static int32_t  mndGetStbMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t  mndRetrieveStb(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndProcessMCreateStbReq(SNodeMsg *pReq);
+static int32_t  mndProcessMAlterStbReq(SNodeMsg *pReq);
+static int32_t  mndProcessMDropStbReq(SNodeMsg *pReq);
+static int32_t  mndProcessVCreateStbRsp(SNodeMsg *pRsp);
+static int32_t  mndProcessVAlterStbRsp(SNodeMsg *pRsp);
+static int32_t  mndProcessVDropStbRsp(SNodeMsg *pRsp);
+static int32_t  mndProcessTableMetaReq(SNodeMsg *pReq);
+static int32_t  mndGetStbMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t  mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextStb(SMnode *pMnode, void *pIter);
 
 int32_t mndInitStb(SMnode *pMnode) {
@@ -490,7 +490,7 @@ static int32_t mndSetCreateStbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj
   return 0;
 }
 
-static int32_t mndCreateStb(SMnode *pMnode, SMnodeMsg *pReq, SMCreateStbReq *pCreate, SDbObj *pDb) {
+static int32_t mndCreateStb(SMnode *pMnode, SNodeMsg *pReq, SMCreateStbReq *pCreate, SDbObj *pDb) {
   SStbObj stbObj = {0};
   memcpy(stbObj.name, pCreate->name, TSDB_TABLE_FNAME_LEN);
   memcpy(stbObj.db, pDb->name, TSDB_DB_FNAME_LEN);
@@ -551,8 +551,8 @@ CREATE_STB_OVER:
   return code;
 }
 
-static int32_t mndProcessMCreateStbReq(SMnodeMsg *pReq) {
-  SMnode        *pMnode = pReq->pMnode;
+static int32_t mndProcessMCreateStbReq(SNodeMsg *pReq) {
+  SMnode        *pMnode = pReq->pNode;
   int32_t        code = -1;
   SStbObj       *pTopicStb = NULL;
   SStbObj       *pStb = NULL;
@@ -623,7 +623,7 @@ CREATE_STB_OVER:
   return code;
 }
 
-static int32_t mndProcessVCreateStbRsp(SMnodeMsg *pRsp) {
+static int32_t mndProcessVCreateStbRsp(SNodeMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }
@@ -980,7 +980,7 @@ static int32_t mndSetAlterStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   return 0;
 }
 
-static int32_t mndAlterStb(SMnode *pMnode, SMnodeMsg *pReq, const SMAltertbReq *pAlter, SDbObj *pDb, SStbObj *pOld) {
+static int32_t mndAlterStb(SMnode *pMnode, SNodeMsg *pReq, const SMAltertbReq *pAlter, SDbObj *pDb, SStbObj *pOld) {
   SStbObj stbObj = {0};
   taosRLockLatch(&pOld->lock);
   memcpy(&stbObj, pOld, sizeof(SStbObj));
@@ -1043,8 +1043,8 @@ ALTER_STB_OVER:
   return code;
 }
 
-static int32_t mndProcessMAlterStbReq(SMnodeMsg *pReq) {
-  SMnode      *pMnode = pReq->pMnode;
+static int32_t mndProcessMAlterStbReq(SNodeMsg *pReq) {
+  SMnode      *pMnode = pReq->pNode;
   int32_t      code = -1;
   SDbObj      *pDb = NULL;
   SStbObj     *pStb = NULL;
@@ -1096,7 +1096,7 @@ ALTER_STB_OVER:
   return code;
 }
 
-static int32_t mndProcessVAlterStbRsp(SMnodeMsg *pRsp) {
+static int32_t mndProcessVAlterStbRsp(SNodeMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }
@@ -1160,7 +1160,7 @@ static int32_t mndSetDropStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
   return 0;
 }
 
-static int32_t mndDropStb(SMnode *pMnode, SMnodeMsg *pReq, SDbObj *pDb, SStbObj *pStb) {
+static int32_t mndDropStb(SMnode *pMnode, SNodeMsg *pReq, SDbObj *pDb, SStbObj *pStb) {
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK,TRN_TYPE_DROP_STB, &pReq->rpcMsg);
   if (pTrans == NULL) goto DROP_STB_OVER;
@@ -1180,8 +1180,8 @@ DROP_STB_OVER:
   return code;
 }
 
-static int32_t mndProcessMDropStbReq(SMnodeMsg *pReq) {
-  SMnode      *pMnode = pReq->pMnode;
+static int32_t mndProcessMDropStbReq(SNodeMsg *pReq) {
+  SMnode      *pMnode = pReq->pNode;
   int32_t      code = -1;
   SUserObj    *pUser = NULL;
   SDbObj      *pDb = NULL;
@@ -1237,7 +1237,7 @@ DROP_STB_OVER:
   return code;
 }
 
-static int32_t mndProcessVDropStbRsp(SMnodeMsg *pRsp) {
+static int32_t mndProcessVDropStbRsp(SNodeMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }
@@ -1311,8 +1311,8 @@ static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char
   return code;
 }
 
-static int32_t mndProcessTableMetaReq(SMnodeMsg *pReq) {
-  SMnode       *pMnode = pReq->pMnode;
+static int32_t mndProcessTableMetaReq(SNodeMsg *pReq) {
+  SMnode       *pMnode = pReq->pNode;
   int32_t       code = -1;
   STableInfoReq infoReq = {0};
   STableMetaRsp metaRsp = {0};
@@ -1347,8 +1347,8 @@ static int32_t mndProcessTableMetaReq(SMnodeMsg *pReq) {
   }
 
   tSerializeSTableMetaRsp(pRsp, rspLen, &metaRsp);
-  pReq->pCont = pRsp;
-  pReq->contLen = rspLen;
+  pReq->pRsp = pRsp;
+  pReq->rspLen = rspLen;
   code = 0;
 
   mDebug("stb:%s.%s, meta is retrieved", infoReq.dbFName, infoReq.tbName);
@@ -1436,8 +1436,8 @@ static int32_t mndGetNumOfStbs(SMnode *pMnode, char *dbName, int32_t *pNumOfStbs
   return 0;
 }
 
-static int32_t mndGetStbMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
-  SMnode *pMnode = pReq->pMnode;
+static int32_t mndGetStbMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+  SMnode *pMnode = pReq->pNode;
   SSdb   *pSdb = pMnode->pSdb;
 
   if (mndGetNumOfStbs(pMnode, pShow->db, &pShow->numOfRows) != 0) {
@@ -1490,7 +1490,7 @@ static void mndExtractTableName(char *tableId, char *name) {
   int32_t pos = -1;
   int32_t num = 0;
   for (pos = 0; tableId[pos] != 0; ++pos) {
-    if (tableId[pos] == '.') num++;
+    if (tableId[pos] == TS_PATH_DELIMITER[0]) num++;
     if (num == 2) break;
   }
 
@@ -1499,8 +1499,8 @@ static void mndExtractTableName(char *tableId, char *name) {
   }
 }
 
-static int32_t mndRetrieveStb(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode  *pMnode = pReq->pMnode;
+static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+  SMnode  *pMnode = pReq->pNode;
   SSdb    *pSdb = pMnode->pSdb;
   int32_t  numOfRows = 0;
   SStbObj *pStb = NULL;
@@ -1508,8 +1508,11 @@ static int32_t mndRetrieveStb(SMnodeMsg *pReq, SShowObj *pShow, char *data, int3
   char    *pWrite;
   char     prefix[TSDB_DB_FNAME_LEN] = {0};
 
-  SDbObj *pDb = mndAcquireDb(pMnode, pShow->db);
-  if (pDb == NULL) return 0;
+  SDbObj* pDb = NULL;
+  if (strlen(pShow->db) > 0) {
+    pDb = mndAcquireDb(pMnode, pShow->db);
+    if (pDb == NULL) return 0;
+  }
 
   tstrncpy(prefix, pShow->db, TSDB_DB_FNAME_LEN);
   strcat(prefix, TS_PATH_DELIMITER);
@@ -1519,7 +1522,7 @@ static int32_t mndRetrieveStb(SMnodeMsg *pReq, SShowObj *pShow, char *data, int3
     pShow->pIter = sdbFetch(pSdb, SDB_STB, pShow->pIter, (void **)&pStb);
     if (pShow->pIter == NULL) break;
 
-    if (pStb->dbUid != pDb->uid) {
+    if (pDb != NULL && pStb->dbUid != pDb->uid) {
       if (strncmp(pStb->db, pDb->name, prefixLen) == 0) {
         mError("Inconsistent table data, name:%s, db:%s, dbUid:%" PRIu64, pStb->name, pDb->name, pDb->uid);
       }
@@ -1530,10 +1533,18 @@ static int32_t mndRetrieveStb(SMnodeMsg *pReq, SShowObj *pShow, char *data, int3
 
     cols = 0;
 
+    SName name = {0};
     char stbName[TSDB_TABLE_NAME_LEN] = {0};
-    tstrncpy(stbName, pStb->name + prefixLen, TSDB_TABLE_NAME_LEN);
+    mndExtractTableName(pStb->name, stbName);
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     STR_TO_VARSTR(pWrite, stbName);
+    cols++;
+
+    char  db[TSDB_DB_NAME_LEN] = {0};
+    tNameFromString(&name, pStb->db, T_NAME_ACCT|T_NAME_DB);
+    tNameGetDbName(&name, db);
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_TO_VARSTR(pWrite, db);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -1548,11 +1559,26 @@ static int32_t mndRetrieveStb(SMnodeMsg *pReq, SShowObj *pShow, char *data, int3
     *(int32_t *)pWrite = pStb->numOfTags;
     cols++;
 
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int32_t *)pWrite = 0; // number of tables
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int64_t *)pWrite = pStb->updateTime; // number of tables
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_TO_VARSTR(pWrite, pStb->comment);
+    cols++;
+
     numOfRows++;
     sdbRelease(pSdb, pStb);
   }
 
-  mndReleaseDb(pMnode, pDb);
+  if (pDb != NULL) {
+    mndReleaseDb(pMnode, pDb);
+  }
+
   pShow->numOfReads += numOfRows;
   mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   return numOfRows;

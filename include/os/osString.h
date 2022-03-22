@@ -20,16 +20,29 @@
 extern "C" {
 #endif
 
+typedef wchar_t TdWchar;
+typedef int32_t TdUcs4;
+
+// If the error is in a third-party library, place this header file under the third-party library header file.
+// When you want to use this feature, you should find or add the same function in the following section.
+#ifndef ALLOW_FORBID_FUNC
+    #define iconv_open ICONV_OPEN_FUNC_TAOS_FORBID
+    #define iconv_close ICONV_CLOSE_FUNC_TAOS_FORBID
+    #define iconv ICONV_FUNC_TAOS_FORBID
+    #define wcwidth WCWIDTH_FUNC_TAOS_FORBID
+    #define wcswidth WCSWIDTH_FUNC_TAOS_FORBID
+    #define mbtowc MBTOWC_FUNC_TAOS_FORBID
+    #define mbstowcs MBSTOWCS_FUNC_TAOS_FORBID
+    #define wctomb WCTOMB_FUNC_TAOS_FORBID
+    #define wcstombs WCSTOMBS_FUNC_TAOS_FORBID
+    #define wcsncpy WCSNCPY_FUNC_TAOS_FORBID
+    #define wchar_t WCHAR_T_TYPE_TAOS_FORBID
+#endif
+
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   #define tstrdup(str) _strdup(str)
-  #define tstrndup(str, size) _strndup(str, size)  
-  int32_t tgetline(char **lineptr, size_t *n, FILE *stream);
-  int32_t twcslen(const wchar_t *wcs);
 #else
   #define tstrdup(str) strdup(str)
-  #define tstrndup(str, size) strndup(str, size)
-  #define tgetline(lineptr, n, stream) getline(lineptr, n, stream)
-  #define twcslen wcslen
 #endif
 
 #define tstrncpy(dst, src, size) \
@@ -38,13 +51,21 @@ extern "C" {
     (dst)[(size)-1] = 0;            \
   } while (0)
 
+int32_t taosUcs4len(TdUcs4 *ucs4);
 int64_t taosStr2int64(const char *str);
 
-// USE_LIBICONV
-int32_t taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs);
-bool    taosMbsToUcs4(const char *mbs, size_t mbs_len, char *ucs4, int32_t ucs4_max_len, int32_t *len);
-int32_t tasoUcs4Compare(void *f1_ucs4, void *f2_ucs4, int32_t bytes, int8_t ncharSize);
+int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs);
+bool    taosMbsToUcs4(const char *mbs, size_t mbs_len, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len);
+int32_t tasoUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes);
+TdUcs4* tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4);
 bool    taosValidateEncodec(const char *encodec);
+
+int32_t taosWcharWidth(TdWchar wchar);
+int32_t taosWcharsWidth(TdWchar *pWchar, int32_t size);
+int32_t taosMbToWchar(TdWchar *pWchar, const char *pStr, int32_t size);
+int32_t taosMbsToWchars(TdWchar *pWchars, const char *pStrs, int32_t size);
+int32_t taosWcharToMb(char *pStr, TdWchar wchar);
+int32_t taosWcharsToMbs(char *pStrs, TdWchar *pWchars, int32_t size);
 
 #ifdef __cplusplus
 }

@@ -41,7 +41,7 @@ typedef struct {
 } STfsDisk;
 
 typedef struct {
-  pthread_spinlock_t lock;
+  TdThreadSpinlock lock;
   int32_t            level;
   int32_t            nextid;       // next disk id to allocate
   int32_t            ndisk;        // # of disks mounted to this tier
@@ -64,7 +64,7 @@ typedef struct STfsDir {
 } STfsDir;
 
 typedef struct STfs {
-  pthread_spinlock_t lock;
+  TdThreadSpinlock lock;
   SDiskSize          size;
   int32_t            nlevel;
   STfsTier           tiers[TFS_MAX_TIERS];
@@ -82,11 +82,11 @@ void      tfsUpdateTierSize(STfsTier *pTier);
 int32_t   tfsAllocDiskOnTier(STfsTier *pTier);
 void      tfsPosNextId(STfsTier *pTier);
 
-#define tfsLockTier(pTier) pthread_spin_lock(&(pTier)->lock)
-#define tfsUnLockTier(pTier) pthread_spin_unlock(&(pTier)->lock)
+#define tfsLockTier(pTier) taosThreadSpinLock(&(pTier)->lock)
+#define tfsUnLockTier(pTier) taosThreadSpinUnlock(&(pTier)->lock)
 
-#define tfsLock(pTfs) pthread_spin_lock(&(pTfs)->lock)
-#define tfsUnLock(pTfs) pthread_spin_unlock(&(pTfs)->lock)
+#define tfsLock(pTfs) taosThreadSpinLock(&(pTfs)->lock)
+#define tfsUnLock(pTfs) taosThreadSpinUnlock(&(pTfs)->lock)
 
 #define TFS_TIER_AT(pTfs, level) (&(pTfs)->tiers[level])
 #define TFS_DISK_AT(pTfs, did) ((pTfs)->tiers[(did).level].disks[(did).id])

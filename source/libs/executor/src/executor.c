@@ -31,18 +31,35 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, int32_t t
       return TSDB_CODE_QRY_APP_ERROR;
     }
 
-    // TODO handle the join case
     return doSetStreamBlock(pOperator->pDownstream[0], input, type, id);
   } else {
     SStreamBlockScanInfo* pInfo = pOperator->info;
-    if (type == STREAM_DATA_TYPE_SUBMITBLK) {
+
+    // the block type can not be changed in the streamscan operators
+    if (pInfo->blockType == 0) {
+      pInfo->blockType = type;
+    } else if (pInfo->blockType != type) {
+      return TSDB_CODE_QRY_APP_ERROR;
+    }
+
+    if (type == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
       if (tqReadHandleSetMsg(pInfo->readerHandle, input, 0) < 0) {
         qError("submit msg messed up when initing stream block, %s" PRIx64, id);
         return TSDB_CODE_QRY_APP_ERROR;
       }
-    } else {  // TODO
+    } else {
+      ASSERT(!pInfo->blockValid);
 
+      SSDataBlock* pDataBlock = input;
+      pInfo->pRes->info = pDataBlock->info;
+      for(int32_t i = 0; i < pInfo->pRes->info.numOfCols; ++i) {
+        pInfo->pRes->pDataBlock = pDataBlock->pDataBlock;
+      }
+
+      // set current block valid.
+      pInfo->blockValid = true;
     }
+
     return TSDB_CODE_SUCCESS;
   }
 }

@@ -1,6 +1,6 @@
 add_subdirectory(transport)
 add_subdirectory(sync)
-add_subdirectory(tdb)
+# add_subdirectory(tdb)
 add_subdirectory(index)
 add_subdirectory(wal)
 add_subdirectory(parser)
