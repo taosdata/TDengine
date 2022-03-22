@@ -43,7 +43,7 @@ async fn main() {
             app.run_with_taos_opts(&cli.options).await;
         }
         Commands::Restore(app) => {
-            app.run_with_taos_opts(&cli.options);
+            app.run_with_taos_opts(&cli.options).await;
         }
 
         Commands::External(args) => {

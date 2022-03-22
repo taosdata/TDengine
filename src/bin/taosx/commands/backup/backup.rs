@@ -6,12 +6,12 @@ use taos::Taos;
 use taosx::TaosOpts;
 
 use self::{
-    parquet_backup::{backup_data_parquet, generate_parquet_schema},
-    sql_backup::{backup_database_sql, backup_stable_sql, backup_table_sql},
+    backup_parquet::{backup_data_parquet, generate_parquet_schema},
+    backup_sql::{backup_database_sql, backup_stable_sql, backup_table_sql},
 };
 
-mod parquet_backup;
-mod sql_backup;
+mod backup_parquet;
+mod backup_sql;
 
 #[derive(Debug, Args)]
 /// Backup database or tables to specific files.
