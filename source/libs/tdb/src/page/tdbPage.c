@@ -48,6 +48,9 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
 
   *ppPage = NULL;
   size = pageSize + sizeof(*pPage);
+  if (xMalloc == NULL) {
+    xMalloc = tdbOsMalloc;
+  }
 
   ptr = (u8 *)((*xMalloc)(arg, size));
   if (pPage == NULL) {
@@ -72,6 +75,10 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
 
 int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg) {
   u8 *ptr;
+
+  if (!xFree) {
+    xFree = tdbOsFree;
+  }
 
   ptr = pPage->pData;
   (*xFree)(arg, ptr);

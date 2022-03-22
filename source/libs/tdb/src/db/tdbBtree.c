@@ -598,10 +598,56 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
         }
       }
     }
+
+    // TODO: sort the page according to the page number
   }
 
-  {
-      // Do the actual redistribute
+  {  // Do the actual cell distribution
+
+    SPage            *pTPage[2];
+    int               tPage, tIdx, iOld;
+    SCell            *pCell;
+    int               szCell;
+    SBtreeInitPageArg iarg = {.flags = TDB_BTREE_PAGE_GET_FLAGS(pOlds[0]), .pBt = pBt};
+
+    for (int i = 0; i < 2; i++) {
+      ret = tdbPageCreate(pOlds[0]->pageSize, &pTPage[i], NULL, NULL);
+      if (ret < 0) {
+        ASSERT(0);
+      }
+    }
+
+    tPage = 0;
+    tIdx = 0;
+    iOld = 0;
+    tdbBtreeZeroPage(pTPage[tPage], &iarg);
+    tdbPageCopy(pOlds[iOld++], pTPage[tPage]);
+
+    for (int iNew = 0; iNew < nNews; iNew++) {
+      // fill the iNew page
+      tdbBtreeZeroPage(pNews[iNew], &iarg);
+
+      for (int iCell = 0; iCell < infoNews[iNew].cnt; iCell++) {
+        while (tIdx >= TDB_PAGE_TOTAL_CELLS(pTPage[tPage])) {
+          tPage = (tPage + 1) % 2;
+          tIdx = 0;
+
+          tdbBtreeZeroPage(pTPage[tPage], &iarg);
+          tdbPageCopy(pOlds[iOld++], pTPage[tPage]);
+        }
+
+        pCell = tdbPageGetCell(pTPage[tPage], tIdx);
+        szCell = tdbBtreeCellSize(pTPage[tPage], pCell);
+
+        tdbPageInsertCell(pNews[iNew], iCell, pCell, szCell);
+
+        tIdx++;
+      }
+    }
+
+    for (int i = 0; i < 2; i++) {
+      tdbPageDestroy(pTPage[i], NULL, NULL);
+    }
   }
 
   return 0;

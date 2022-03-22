@@ -39,6 +39,16 @@ int tdbGetFileSize(const char *fname, int pgSize, SPgno *pSize);
 
 int tdbPRead(int fd, void *pData, int count, i64 offset);
 
+static inline void *tdbOsMalloc(void *arg, size_t size) {
+  void *ptr;
+
+  ptr = malloc(size);
+
+  return ptr;
+}
+
+static inline void tdbOsFree(void *arg, void *ptr) { free(ptr); }
+
 static inline int tdbPutVarInt(u8 *p, int v) {
   int n = 0;
 
