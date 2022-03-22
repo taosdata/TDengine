@@ -727,9 +727,9 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
       }
 
       ASSERT(pBlockCol->colId == pDataCol->colId);
-      // set the bitmap
-      pDataCol->bitmap = pBlockCol->bitmap;
     }
+    // set the bitmap
+    pDataCol->bitmap = pBlockCol->bitmap;
 
     if (tsdbLoadColData(pReadh, pDFile, pBlock, pBlockCol, pDataCol) < 0) return -1;
   }
