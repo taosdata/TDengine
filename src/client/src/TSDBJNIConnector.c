@@ -573,8 +573,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchBlockImp(JNI
     return code;
   }
 
-  TAOS_RES   *tres = (TAOS_RES *)res;
-  TAOS_FIELD *fields = taos_fetch_fields(tres);
+  TAOS_RES *tres = (TAOS_RES *)res;
 
   int32_t numOfFields = taos_num_fields(tres);
   assert(numOfFields > 0);
@@ -596,14 +595,10 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchBlockImp(JNI
   (*env)->CallVoidMethod(env, rowobj, g_blockdataSetNumOfRowsFp, (jint)numOfRows);
   (*env)->CallVoidMethod(env, rowobj, g_blockdataSetNumOfColsFp, (jint)numOfFields);
 
+  int32_t *field = taos_fetch_lengths(tres);
   for (int i = 0; i < numOfFields; i++) {
-    int bytes = fields[i].bytes;
-
-    if (fields[i].type == TSDB_DATA_TYPE_BINARY || fields[i].type == TSDB_DATA_TYPE_NCHAR) {
-      bytes += 2;
-    }
-    (*env)->CallVoidMethod(env, rowobj, g_blockdataSetByteArrayFp, i, bytes * numOfRows,
-                           jniFromNCharToByteArray(env, (char *)row[i], bytes * numOfRows));
+    (*env)->CallVoidMethod(env, rowobj, g_blockdataSetByteArrayFp, i, field[i] * numOfRows,
+                           jniFromNCharToByteArray(env, (char *)row[i], field[i] * numOfRows));
   }
 
   return JNI_SUCCESS;
