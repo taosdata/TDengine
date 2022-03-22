@@ -53,9 +53,9 @@ static void *dmThreadRoutine(void *param) {
 }
 
 static void dmProcessQueue(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SDnode *pDnode = pMgmt->pDnode;
+  SDnode  *pDnode = pMgmt->pDnode;
   SRpcMsg *pRpc = &pMsg->rpcMsg;
-  int32_t code = -1;
+  int32_t  code = -1;
   dTrace("msg:%p, will be processed in dnode queue", pMsg);
 
   switch (pRpc->msgType) {
@@ -98,13 +98,17 @@ static void dmProcessQueue(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
 }
 
 int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
-  if (dndInitWorker(pMgmt, &pMgmt->mgmtWorker, DND_WORKER_SINGLE, "dnode-mgmt", 1, 1, dmProcessQueue) != 0) {
+  SQWorkerAllCfg mgmtCfg = {
+      .minNum = 0, .maxNum = 1, .name = "dnode-mgmt", .fp = (FItem)dmProcessQueue, .param = pMgmt};
+  if (tQWorkerAllInit(&pMgmt->mgmtWorker, &mgmtCfg) != 0) {
     dError("failed to start dnode mgmt worker since %s", terrstr());
     return -1;
   }
 
-  if (dndInitWorker(pMgmt, &pMgmt->statusWorker, DND_WORKER_SINGLE, "dnode-status", 1, 1, dmProcessQueue) != 0) {
-    dError("failed to start dnode mgmt worker since %s", terrstr());
+  SQWorkerAllCfg statusCfg = {
+      .minNum = 0, .maxNum = 1, .name = "dnode-status", .fp = (FItem)dmProcessQueue, .param = pMgmt};
+  if (tQWorkerAllInit(&pMgmt->statusWorker, &statusCfg) != 0) {
+    dError("failed to start dnode status worker since %s", terrstr());
     return -1;
   }
 
@@ -123,8 +127,8 @@ int32_t dmStartThread(SDnodeMgmt *pMgmt) {
 }
 
 void dmStopWorker(SDnodeMgmt *pMgmt) {
-  dndCleanupWorker(&pMgmt->mgmtWorker);
-  dndCleanupWorker(&pMgmt->statusWorker);
+  tQWorkerAllCleanup(&pMgmt->mgmtWorker);
+  tQWorkerAllCleanup(&pMgmt->statusWorker);
 
   if (pMgmt->threadId != NULL) {
     taosDestoryThread(pMgmt->threadId);
@@ -133,11 +137,11 @@ void dmStopWorker(SDnodeMgmt *pMgmt) {
 }
 
 int32_t dmProcessMgmtMsg(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SDnodeWorker *pWorker = &pMgmt->mgmtWorker;
+  SQWorkerAll *pWorker = &pMgmt->mgmtWorker;
   if (pMsg->rpcMsg.msgType == TDMT_MND_STATUS_RSP) {
     pWorker = &pMgmt->statusWorker;
   }
 
   dTrace("msg:%p, will be written to worker %s", pMsg, pWorker->name);
-  return dndWriteMsgToWorker(pWorker, pMsg);
+  return taosWriteQitem(pWorker->queue, pMsg);
 }

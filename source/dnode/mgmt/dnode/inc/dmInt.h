@@ -29,10 +29,10 @@ typedef struct SDnodeMgmt {
   SEpSet        mnodeEpSet;
   SHashObj     *dnodeHash;
   SArray       *dnodeEps;
-  TdThread    *threadId;
+  TdThread     *threadId;
   SRWLatch      latch;
-  SDnodeWorker  mgmtWorker;
-  SDnodeWorker  statusWorker;
+  SQWorkerAll   mgmtWorker;
+  SQWorkerAll   statusWorker;
   const char   *path;
   SDnode       *pDnode;
   SMgmtWrapper *pWrapper;

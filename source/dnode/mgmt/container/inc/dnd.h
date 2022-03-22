@@ -74,20 +74,6 @@ typedef int32_t (*CreateNodeFp)(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 typedef int32_t (*DropNodeFp)(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 typedef int32_t (*RequireNodeFp)(SMgmtWrapper *pWrapper, bool *required);
 
-typedef struct {
-  EWorkerType type;
-  const char *name;
-  int32_t     minNum;
-  int32_t     maxNum;
-  void       *queueFp;
-  void       *param;
-  STaosQueue *queue;
-  union {
-    SQWorkerPool pool;
-    SWWorkerPool mpool;
-  };
-} SDnodeWorker;
-
 typedef struct SMsgHandle {
   int32_t       vgId;
   NodeMsgFp     vgIdMsgFp;
@@ -160,11 +146,6 @@ void          dndSendMonitorReport(SDnode *pDnode);
 int32_t dndSendReqToMnode(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 int32_t dndSendReqToDnode(SMgmtWrapper *pWrapper, SEpSet *pEpSet, SRpcMsg *pMsg);
 void    dndSendRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp);
-
-int32_t dndInitWorker(void *param, SDnodeWorker *pWorker, EWorkerType type, const char *name, int32_t minNum,
-                      int32_t maxNum, void *queueFp);
-void    dndCleanupWorker(SDnodeWorker *pWorker);
-int32_t dndWriteMsgToWorker(SDnodeWorker *pWorker, void *pMsg);
 
 int32_t dndProcessNodeMsg(SDnode *pDnode, SNodeMsg *pMsg);
 

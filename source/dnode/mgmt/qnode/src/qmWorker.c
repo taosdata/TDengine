@@ -45,16 +45,16 @@ static void qmProcessFetchQueue(SQnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
-static int32_t qmPutMsgToWorker(SDnodeWorker *pWorker, SNodeMsg *pMsg) {
+static int32_t qmPutMsgToWorker(SQWorkerAll *pWorker, SNodeMsg *pMsg) {
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
-  return dndWriteMsgToWorker(pWorker, pMsg);
+  return taosWriteQitem(pWorker->queue, pMsg);
 }
 
 int32_t qmProcessQueryMsg(SQnodeMgmt *pMgmt, SNodeMsg *pMsg) { return qmPutMsgToWorker(&pMgmt->queryWorker, pMsg); }
 
 int32_t qmProcessFetchMsg(SQnodeMgmt *pMgmt, SNodeMsg *pMsg) { return qmPutMsgToWorker(&pMgmt->fetchWorker, pMsg); }
 
-static int32_t qmPutRpcMsgToWorker(SQnodeMgmt *pMgmt, SDnodeWorker *pWorker, SRpcMsg *pRpc) {
+static int32_t qmPutRpcMsgToWorker(SQnodeMgmt *pMgmt, SQWorkerAll *pWorker, SRpcMsg *pRpc) {
   SNodeMsg *pMsg = taosAllocateQitem(sizeof(SNodeMsg));
   if (pMsg == NULL) {
     return -1;
@@ -63,7 +63,7 @@ static int32_t qmPutRpcMsgToWorker(SQnodeMgmt *pMgmt, SDnodeWorker *pWorker, SRp
   dTrace("msg:%p, is created and put into worker:%s, type:%s", pMsg, pWorker->name, TMSG_INFO(pRpc->msgType));
   pMsg->rpcMsg = *pRpc;
 
-  int32_t code = dndWriteMsgToWorker(pWorker, pMsg);
+  int32_t code = taosWriteQitem(pWorker->queue, pMsg);
   if (code != 0) {
     dTrace("msg:%p, is freed", pMsg);
     taosFreeQitem(pMsg);
@@ -89,15 +89,25 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
   int32_t minQueryThreads = TMAX((int32_t)(tsNumOfCores * tsRatioOfQueryCores), 1);
   int32_t maxQueryThreads = minQueryThreads;
 
-  if (dndInitWorker(pMgmt, &pMgmt->queryWorker, DND_WORKER_SINGLE, "qnode-query", minQueryThreads, maxQueryThreads,
-                    qmProcessQueryQueue) != 0) {
-    dError("failed to start qnode query worker since %s", terrstr());
+  SQWorkerAllCfg queryCfg = {.minNum = minQueryThreads,
+                             .maxNum = maxQueryThreads,
+                             .name = "qnode-query",
+                             .fp = (FItem)qmProcessQueryQueue,
+                             .param = pMgmt};
+
+  if (tQWorkerAllInit(&pMgmt->queryWorker, &queryCfg) != 0) {
+    dError("failed to start qnode-query worker since %s", terrstr());
     return -1;
   }
 
-  if (dndInitWorker(pMgmt, &pMgmt->fetchWorker, DND_WORKER_SINGLE, "qnode-fetch", minFetchThreads, maxFetchThreads,
-                    qmProcessFetchQueue) != 0) {
-    dError("failed to start qnode fetch worker since %s", terrstr());
+  SQWorkerAllCfg fetchCfg = {.minNum = minFetchThreads,
+                             .maxNum = maxFetchThreads,
+                             .name = "qnode-fetch",
+                             .fp = (FItem)qmProcessFetchQueue,
+                             .param = pMgmt};
+
+  if (tQWorkerAllInit(&pMgmt->queryWorker, &fetchCfg) != 0) {
+    dError("failed to start qnode-fetch worker since %s", terrstr());
     return -1;
   }
 
@@ -105,6 +115,6 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
 }
 
 void qmStopWorker(SQnodeMgmt *pMgmt) {
-  dndCleanupWorker(&pMgmt->queryWorker);
-  dndCleanupWorker(&pMgmt->fetchWorker);
+  tQWorkerAllCleanup(&pMgmt->queryWorker);
+  tQWorkerAllCleanup(&pMgmt->fetchWorker);
 }

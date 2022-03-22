@@ -36,7 +36,7 @@ typedef struct SVnodesMgmt {
   const char   *path;
   SDnode       *pDnode;
   SMgmtWrapper *pWrapper;
-  SDnodeWorker  mgmtWorker;
+  SQWorkerAll   mgmtWorker;
 } SVnodesMgmt;
 
 typedef struct {

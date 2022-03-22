@@ -63,14 +63,15 @@ static void bmProcessQueue(SBnodeMgmt *pMgmt, STaosQall *qall, int32_t numOfMsgs
 }
 
 int32_t bmProcessWriteMsg(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SDnodeWorker *pWorker = &pMgmt->writeWorker;
+  SWWorkerAll *pWorker = &pMgmt->writeWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
-  return dndWriteMsgToWorker(pWorker, pMsg);
+  return taosWriteQitem(pWorker->queue, pMsg);
 }
 
 int32_t bmStartWorker(SBnodeMgmt *pMgmt) {
-  if (dndInitWorker(pMgmt, &pMgmt->writeWorker, DND_WORKER_MULTI, "bnode-write", 0, 1, bmProcessQueue) != 0) {
+  SWWorkerAllCfg cfg = {.maxNum = 1, .name = "bnode-write", .fp = (FItems)bmProcessQueue, .param = pMgmt};
+  if (tWWorkerAllInit(&pMgmt->writeWorker, &cfg) != 0) {
     dError("failed to start bnode write worker since %s", terrstr());
     return -1;
   }
@@ -78,4 +79,4 @@ int32_t bmStartWorker(SBnodeMgmt *pMgmt) {
   return 0;
 }
 
-void bmStopWorker(SBnodeMgmt *pMgmt) { dndCleanupWorker(&pMgmt->writeWorker); }
+void bmStopWorker(SBnodeMgmt *pMgmt) { tWWorkerAllCleanup(&pMgmt->writeWorker); }

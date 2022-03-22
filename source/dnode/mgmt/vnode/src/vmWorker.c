@@ -207,9 +207,9 @@ int32_t vmProcessFetchMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
 }
 
 int32_t vmProcessMgmtMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
-  SDnodeWorker *pWorker = &pMgmt->mgmtWorker;
+  SQWorkerAll *pWorker = &pMgmt->mgmtWorker;
   dTrace("msg:%p, will be written to vnode-mgmt queue, worker:%s", pMsg, pWorker->name);
-  return dndWriteMsgToWorker(pWorker, pMsg);
+  return taosWriteQitem(pWorker->queue, pMsg);
 }
 
 static int32_t vmPutRpcMsgToQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, EQueueType qtype) {
@@ -319,7 +319,9 @@ int32_t vmStartWorker(SVnodesMgmt *pMgmt) {
   pWPool->max = maxSyncThreads;
   if (tWWorkerInit(pWPool) != 0) return -1;
 
-  if (dndInitWorker(pMgmt, &pMgmt->mgmtWorker, DND_WORKER_SINGLE, "vnode-mgmt", 1, 1, vmProcessMgmtQueue) != 0) {
+  SQWorkerAllCfg cfg = {
+      .minNum = 1, .maxNum = 1, .name = "vnode-mgmt", .fp = (FItem)vmProcessMgmtQueue, .param = pMgmt};
+  if (tQWorkerAllInit(&pMgmt->mgmtWorker, &cfg) != 0) {
     dError("failed to start vnode-mgmt worker since %s", terrstr());
     return -1;
   }
@@ -329,7 +331,7 @@ int32_t vmStartWorker(SVnodesMgmt *pMgmt) {
 }
 
 void vmStopWorker(SVnodesMgmt *pMgmt) {
-  dndCleanupWorker(&pMgmt->mgmtWorker);
+  tQWorkerAllCleanup(&pMgmt->mgmtWorker);
   tQWorkerCleanup(&pMgmt->fetchPool);
   tQWorkerCleanup(&pMgmt->queryPool);
   tWWorkerCleanup(&pMgmt->writePool);
