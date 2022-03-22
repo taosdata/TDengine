@@ -4,7 +4,7 @@ TDengine 提供了遵循 JDBC 标准（3.0）API 规范的 `taos-jdbcdriver` 实
 
 `taos-jdbcdriver` 的实现包括 2 种形式： JDBC-JNI 和 JDBC-RESTful（taos-jdbcdriver-2.0.18 开始支持 JDBC-RESTful）。 JDBC-JNI 通过调用客户端 libtaos.so（或 taos.dll ）的本地方法实现， JDBC-RESTful 则在内部封装了 RESTful 接口实现。
 
-![tdengine-connector](https://www.taosdata.com/cn/documentation/user/pages/images/tdengine-jdbc-connector.png)
+![tdengine-connector](https://www.taosdata.com/cn/documentation20/user/pages/images/tdengine-jdbc-connector.png)
 
 上图显示了 3 种 Java 应用使用连接器访问 TDengine 的方式：
 
