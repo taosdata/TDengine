@@ -477,10 +477,10 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
 
   int    nOlds;
   SPage *pOlds[3];
+  int    sIdx;
 
   {  // Find 3 child pages at most to do balance
     int nCells = TDB_PAGE_TOTAL_CELLS(pParent);
-    int sIdx;
     if (nCells <= 2) {
       sIdx = 0;
       nOlds = nCells + 1;
@@ -515,7 +515,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
         return -1;
       }
     }
-    // drop the cells
+    // drop the cells on parent page
     for (int i = 0; i < nOlds; i++) {
       nCells = TDB_PAGE_TOTAL_CELLS(pParent);
       if (sIdx < nCells) {
@@ -660,7 +660,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
   }
 
   {  // Insert records in parent page
-    int          cIdx;
+    int          cIdx = sIdx;
     int          szCell;
     SCell        pCell[128];  // TODO
     SCellDecoder cd;
@@ -679,11 +679,10 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
       tdbBtreeDecodeCell(pNews[iNew], tdbPageGetCell(pNews[iNew], TDB_PAGE_TOTAL_CELLS(pNews[iNew]) - 1), &cd);
 
       tdbBtreeEncodeCell(pParent, cd.pKey, cd.kLen, (void *)&TDB_PAGE_PGNO(pNews[iNew]), sizeof(SPgno), pCell, &szCell);
+      // TODO: the cell here may be used by pParent as an overflow cell
       tdbPageInsertCell(pParent, cIdx, pCell, szCell);
     }
   }
-
-  int k = 0;
 
   return 0;
 }
