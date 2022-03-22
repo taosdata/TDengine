@@ -1007,3 +1007,257 @@ ts               |         dbig          | stateduration(dbig,gt,2) |
 Query OK, 6 row(s) in set (0.002613s)
 ```
 
+### 时间函数
+
+从 2.6.0.0 版本开始，TDengine查询引擎支持以下时间相关函数：
+
+### NOW
+```mysql
+SELECT NOW() FROM { tb_name | stb_name } [WHERE clause];
+SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior NOW();
+INSERT INTO tb_name VALUES (NOW(), ...);
+```
+
+**功能说明**：返回客户端当前系统时间。
+
+**返回结果数据类型**：TIMESTAMP 时间戳类型。
+
+**应用字段**：在 WHERE 或 INSERT 语句中使用时只能作用于TIMESTAMP类型的字段。
+
+**适用于**：表、超级表。
+
+**说明**：
+  1）支持时间加减操作，如NOW() + 1s, 支持的时间单位如下：
+     b(纳秒)、u(微秒)、a(毫秒)、s(秒)、m(分)、h(小时)、d(天)、w(周)。
+  2）返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+
+示例：
+```mysql
+taos> SELECT NOW() FROM meters;
+          now()          |
+==========================
+  2022-02-02 02:02:02.456 |
+Query OK, 1 row(s) in set (0.002093s)
+
+taos> SELECT NOW() + 1h FROM meters;
+       now() + 1h         |
+==========================
+  2022-02-02 03:02:02.456 |
+Query OK, 1 row(s) in set (0.002093s)
+
+taos> SELECT COUNT(voltage) FROM d1001 WHERE ts < NOW();
+        count(voltage)       |
+=============================
+                           5 |
+Query OK, 5 row(s) in set (0.004475s)
+
+taos> INSERT INTO d1001 VALUES (NOW(), 10.2, 219, 0.32);
+Query OK, 1 of 1 row(s) in database (0.002210s)
+```
+
+## TODAY
+```mysql
+SELECT TODAY() FROM { tb_name | stb_name } [WHERE clause];
+SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior TODAY()];
+INSERT INTO tb_name VALUES (TODAY(), ...);
+```
+**功能说明**：返回客户端当日零时的系统时间。
+
+**返回结果数据类型**：TIMESTAMP 时间戳类型。
+
+**应用字段**：在 WHERE 或 INSERT 语句中使用时只能作用于 TIMESTAMP 类型的字段。
+
+**适用于**：表、超级表。
+
+**说明**：
+  1）支持时间加减操作，如TODAY() + 1s, 支持的时间单位如下：
+     b(纳秒)，u(微秒)，a(毫秒)，s(秒)，m(分)，h(小时)，d(天)，w(周)。
+  2）返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+
+示例：
+```mysql
+taos> SELECT TODAY() FROM meters;
+         today()          |
+==========================
+  2022-02-02 00:00:00.000 |
+Query OK, 1 row(s) in set (0.002093s)
+
+taos> SELECT TODAY() + 1h FROM meters;
+      today() + 1h        |
+==========================
+  2022-02-02 01:00:00.000 |
+Query OK, 1 row(s) in set (0.002093s)
+
+taos> SELECT COUNT(voltage) FROM d1001 WHERE ts < TODAY();
+        count(voltage)       |
+=============================
+                           5 |
+Query OK, 5 row(s) in set (0.004475s)
+
+taos> INSERT INTO d1001 VALUES (TODAY(), 10.2, 219, 0.32);
+Query OK, 1 of 1 row(s) in database (0.002210s)
+```
+
+## TIMEZONE
+```mysql
+SELECT TIMEZONE() FROM { tb_name | stb_name } [WHERE clause];
+```
+**功能说明**：返回客户端当前时区信息。
+
+**返回结果数据类型**：BINARY 类型。
+
+**应用字段**：无
+
+**适用于**：表、超级表。
+
+示例：
+```mysql
+taos> SELECT TIMEZONE() FROM meters;
+           timezone()           |
+=================================
+ UTC (UTC, +0000)               |
+Query OK, 1 row(s) in set (0.002093s)
+```
+
+## TO_ISO8601
+```mysql
+SELECT TO_ISO8601(ts_val | ts_col) FROM { tb_name | stb_name } [WHERE clause];
+```
+**功能说明**：将 UNIX 时间戳转换成为 ISO8601 标准的日期时间格式，并附加客户端时区信息。
+
+**返回结果数据类型**：BINARY 类型。
+
+**应用字段**：UNIX 时间戳常量或是 TIMESTAMP 类型的列
+
+**适用于**：表、超级表。
+
+**说明**：如果输入是 UNIX 时间戳常量，返回格式精度由时间戳的位数决定，如果输入是 TIMSTAMP 类型的列，返回格式的时间戳精度与当前 DATABASE 设置的时间精度一致。
+
+示例：
+```mysql
+taos> SELECT TO_ISO8601(1643738400) FROM meters;
+   to_iso8601(1643738400)    |
+==============================
+ 2022-02-02T02:00:00+0800    |
+
+taos> SELECT TO_ISO8601(ts) FROM meters;
+       to_iso8601(ts)        |
+==============================
+ 2022-02-02T02:00:00+0800    |
+ 2022-02-02T02:00:00+0800    |
+ 2022-02-02T02:00:00+0800    |
+```
+
+## TO_UNIXTIMESTAMP
+```mysql
+SELECT TO_UNIXTIMESTAMP(datetime_string | ts_col) FROM { tb_name | stb_name } [WHERE clause];
+```
+**功能说明**：将日期时间格式的字符串转换成为 UNIX 时间戳。
+
+**返回结果数据类型**：长整型INT64。
+
+**应用字段**：字符串常量或是 BINARY/NCHAR 类型的列。
+
+**适用于**：表、超级表。
+
+说明：
+1）输入的日期时间字符串须符合 ISO8601/RFC3339 标准，无法转换的字符串格式将返回0。
+2）返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+
+示例：
+```mysql
+taos> SELECT TO_UNIXTIMESTAMP("2022-02-02T02:00:00.000Z") FROM meters;
+to_unixtimestamp("2022-02-02T02:00:00.000Z") |
+==============================================
+                               1643767200000 |
+
+taos> SELECT TO_UNIXTIMESTAMP(col_binary) FROM meters;
+      to_unixtimestamp(col_binary)     |
+========================================
+                         1643767200000 |
+                         1643767200000 |
+                         1643767200000 |
+```
+
+## TIMETRUNCATE
+```mysql
+SELECT TIMETRUNCATE(ts_val | datetime_string | ts_col, time_unit) FROM { tb_name | stb_name } [WHERE clause];
+```
+**功能说明**：将时间戳按照指定时间单位 time_unit 进行截断。
+
+**返回结果数据类型**：TIMESTAMP 时间戳类型。
+
+**应用字段**：UNIX 时间戳，日期时间格式的字符串，或者 TIMESTAMP 类型的列。
+
+**适用于**：表、超级表。
+
+说明：
+1）支持的时间单位 time_unit 如下：
+     1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)。
+2）返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+
+示例：
+```mysql
+taos> SELECT TIMETRUNCATE(1643738522000, 1h) FROM meters;
+  timetruncate(1643738522000, 1h) |
+===================================
+      2022-02-02 02:00:00.000     |
+Query OK, 1 row(s) in set (0.001499s)
+
+taos> SELECT TIMETRUNCATE("2022-02-02 02:02:02", 1h) FROM meters;
+  timetruncate("2022-02-02 02:02:02", 1h) |
+===========================================
+      2022-02-02 02:00:00.000             |
+Query OK, 1 row(s) in set (0.003903s)
+
+taos> SELECT TIMETRUNCATE(ts, 1h) FROM meters;
+  timetruncate(ts, 1h)   |
+==========================
+ 2022-02-02 02:00:00.000 |
+ 2022-02-02 02:00:00.000 |
+ 2022-02-02 02:00:00.000 |
+Query OK, 3 row(s) in set (0.003903s)
+```
+
+## TIMEDIFF
+```mysql
+SELECT TIMEDIFF(ts_val1 | datetime_string1 | ts_col1, ts_val2 | datetime_string2 | ts_col2 [, time_unit]) FROM { tb_name | stb_name } [WHERE clause];
+```
+**功能说明**：计算两个时间戳之间的差值，并近似到时间单位 time_unit 指定的精度。
+
+**返回结果数据类型**：长整型INT64。
+
+**应用字段**：UNIX 时间戳，日期时间格式的字符串，或者 TIMESTAMP 类型的列。
+
+**适用于**：表、超级表。
+
+说明：
+1）支持的时间单位 time_unit 如下：
+     1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)。
+2）如果时间单位 time_unit 未指定， 返回的时间差值精度与当前 DATABASE 设置的时间精度一致。
+
+示例：
+```mysql
+taos> SELECT TIMEDIFF(1643738400000, 1643742000000) FROM meters;
+ timediff(1643738400000, 1643742000000) |
+=========================================
+                                3600000 |
+Query OK, 1 row(s) in set (0.002553s)
+taos> SELECT TIMEDIFF(1643738400000, 1643742000000, 1h) FROM meters;
+ timediff(1643738400000, 1643742000000, 1h) |
+=============================================
+                                          1 |
+Query OK, 1 row(s) in set (0.003726s)
+
+taos> SELECT TIMEDIFF("2022-02-02 03:00:00", "2022-02-02 02:00:00", 1h) FROM meters;
+ timediff("2022-02-02 03:00:00", "2022-02-02 02:00:00", 1h) |
+=============================================================
+                                                          1 |
+Query OK, 1 row(s) in set (0.001937s)
+
+taos> SELECT TIMEDIFF(ts_col1, ts_col2, 1h) FROM meters;
+   timediff(ts_col1, ts_col2, 1h) |
+===================================
+                                1 |
+Query OK, 1 row(s) in set (0.001937s)
+```
