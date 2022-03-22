@@ -136,12 +136,13 @@ int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
 }
 
 ESyncState syncGetMyRole(int64_t rid) {
-  // todo : get pointer from rid
-  SSyncNode* pSyncNode = NULL;
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return TAOS_SYNC_STATE_ERROR;
+  }
+  assert(rid == pSyncNode->rid);
   return pSyncNode->state;
 }
-
-void syncGetNodesRole(int64_t rid, SNodesRole* pNodeRole) {}
 
 // open/close --------------
 SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
