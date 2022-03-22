@@ -660,20 +660,12 @@ TEST(testCase, agg_query_tables) {
   TAOS_RES* pRes = taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "select * from tu");
-
-//  pRes = taos_query(pConn, "create table tx using st1 tags(111111111111111)");
-//  if (taos_errno(pRes) != 0) {
-//    printf("failed to create table, reason:%s\n", taos_errstr(pRes));
-//  }
-//  taos_free_result(pRes);
-//
-//  pRes = taos_query(pConn, "select count(*) from tu");
-//  if (taos_errno(pRes) != 0) {
-//    printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
-//    taos_free_result(pRes);
-//    ASSERT_TRUE(false);
-//  }
+  pRes = taos_query(pConn, "select count(*), sum(k),min(k),max(k) from tu");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
+    taos_free_result(pRes);
+    ASSERT_TRUE(false);
+  }
 
   TAOS_ROW    pRow = NULL;
   TAOS_FIELD* pFields = taos_fetch_fields(pRes);
