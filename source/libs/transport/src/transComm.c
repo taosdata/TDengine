@@ -305,14 +305,34 @@ void* transQueuePop(STransQueue* queue) {
   taosArrayRemove(queue->q, 0);
   return ptr;
 }
-
-void* transQueueGet(STransQueue* queue) {
+int32_t transQueueSize(STransQueue* queue) {
+  // Get size
+  return taosArrayGetSize(queue->q);
+}
+void* transQueueGet(STransQueue* queue, int i) {
   if (taosArrayGetSize(queue->q) == 0) {
     return NULL;
   }
-  void* ptr = taosArrayGetP(queue->q, 0);
+  if (i >= taosArrayGetSize(queue->q)) {
+    return NULL;
+  }
+
+  void* ptr = taosArrayGetP(queue->q, i);
   return ptr;
 }
+
+void* transQueueRm(STransQueue* queue, int i) {
+  if (taosArrayGetSize(queue->q) == 0) {
+    return NULL;
+  }
+  if (i >= taosArrayGetSize(queue->q)) {
+    return NULL;
+  }
+  void* ptr = taosArrayGetP(queue->q, i);
+  taosArrayRemove(queue->q, i);
+  return ptr;
+}
+
 bool transQueueEmpty(STransQueue* queue) {
   //
   return taosArrayGetSize(queue->q) == 0;

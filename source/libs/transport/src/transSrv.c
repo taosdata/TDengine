@@ -190,7 +190,7 @@ static void uvHandleReq(SSrvConn* pConn) {
   transMsg.pCont = pHead->content;
   transMsg.msgType = pHead->msgType;
   transMsg.code = pHead->code;
-  transMsg.ahandle = NULL;
+  transMsg.ahandle = (void*)pHead->ahandle;
   transMsg.handle = NULL;
 
   transClearBuffer(&pConn->readBuf);
@@ -280,7 +280,7 @@ void uvOnSendCb(uv_write_t* req, int status) {
       destroySmsg(msg);
       // send second data, just use for push
       if (!transQueueEmpty(&conn->srvMsgs)) {
-        msg = (SSrvMsg*)transQueueGet(&conn->srvMsgs);
+        msg = (SSrvMsg*)transQueueGet(&conn->srvMsgs, 0);
         if (msg->type == Register && conn->status == ConnAcquire) {
           conn->regArg.notifyCount = 0;
           conn->regArg.init = 1;
@@ -326,6 +326,7 @@ static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
     pMsg->contLen = 0;
   }
   STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
+  pHead->ahandle = (uint64_t)pMsg->ahandle;
 
   // pHead->secured = pMsg->code == 0 ? 1 : 0;  //
   if (!pConn->secured) {
