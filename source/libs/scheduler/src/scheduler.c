@@ -1852,7 +1852,7 @@ int32_t schEnsureHbConnection(SSchJob *pJob, SSchTask *pTask) {
   epId.nodeId = addr->nodeId;
   memcpy(&epId.ep, SCH_GET_CUR_EP(addr), sizeof(SEp));
 
-#if 0
+#if 1
   SSchHbTrans *hb = taosHashGet(schMgmt.hbConnections, &epId, sizeof(SQueryNodeEpId));
   if (NULL == hb) {
     bool exist = false;
