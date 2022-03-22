@@ -310,32 +310,6 @@ static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen, int *p
   return 0;
 }
 
-static int tdbBtCursorMoveToRoot(SBtCursor *pCur) {
-  SBTree *pBt;
-  SPager *pPager;
-  SPage  *pPage;
-  int     ret;
-
-  pBt = pCur->pBt;
-  pPager = pBt->pPager;
-
-  // pPage = tdbPagerGet(pPager, pBt->root, true);
-  // if (pPage == NULL) {
-  //   // TODO: handle error
-  // }
-
-  // ret = tdbInitBtPage(pPage, &pBtPage);
-  // if (ret < 0) {
-  //   // TODO
-  //   return 0;
-  // }
-
-  // pCur->pPage = pBtPage;
-  // pCur->iPage = 0;
-
-  return 0;
-}
-
 static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2) {
   int mlen;
   int cret;
