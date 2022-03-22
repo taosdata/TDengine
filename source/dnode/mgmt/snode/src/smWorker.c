@@ -16,7 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "smInt.h"
 
-static void smProcessUniqueQueue(SSnodeMgmt *pMgmt, STaosQall *qall, int32_t numOfMsgs) {
+static void smProcessUniqueQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
+  SSnodeMgmt *pMgmt = pInfo->ahandle;
+
   for (int32_t i = 0; i < numOfMsgs; i++) {
     SNodeMsg *pMsg = NULL;
     taosGetQitem(qall, (void **)&pMsg);
@@ -30,7 +32,9 @@ static void smProcessUniqueQueue(SSnodeMgmt *pMgmt, STaosQall *qall, int32_t num
   }
 }
 
-static void smProcessSharedQueue(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+static void smProcessSharedQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+  SSnodeMgmt *pMgmt = pInfo->ahandle;
+
   dTrace("msg:%p, will be processed in snode shared queue", pMsg);
   sndProcessSMsg(pMgmt->pSnode, &pMsg->rpcMsg);
 
@@ -40,20 +44,23 @@ static void smProcessSharedQueue(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
 }
 
 int32_t smStartWorker(SSnodeMgmt *pMgmt) {
-  pMgmt->uniqueWorkers = taosArrayInit(0, sizeof(void *));
+  pMgmt->uniqueWorkers = taosArrayInit(0, sizeof(SMultiWorker *));
   if (pMgmt->uniqueWorkers == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
   for (int32_t i = 0; i < SND_UNIQUE_THREAD_NUM; i++) {
-    SDnodeWorker *pUniqueWorker = malloc(sizeof(SDnodeWorker));
+    SMultiWorker *pUniqueWorker = malloc(sizeof(SMultiWorker));
     if (pUniqueWorker == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-    if (dndInitWorker(pMgmt, pUniqueWorker, DND_WORKER_MULTI, "snode-unique", 1, 1, smProcessSharedQueue) != 0) {
-      dError("failed to start snode unique worker since %s", terrstr());
+
+    SMultiWorkerCfg cfg = {.maxNum = 1, .name = "snode-unique", .fp = smProcessUniqueQueue, .param = pMgmt};
+
+    if (tMultiWorkerInit(pUniqueWorker, &cfg) != 0) {
+      dError("failed to start snode-unique worker since %s", terrstr());
       return -1;
     }
     if (taosArrayPush(pMgmt->uniqueWorkers, &pUniqueWorker) == NULL) {
@@ -62,9 +69,14 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
     }
   }
 
-  if (dndInitWorker(pMgmt, &pMgmt->sharedWorker, DND_WORKER_SINGLE, "snode-shared", SND_SHARED_THREAD_NUM,
-                    SND_SHARED_THREAD_NUM, smProcessSharedQueue)) {
-    dError("failed to start snode shared worker since %s", terrstr());
+  SSingleWorkerCfg cfg = {.minNum = SND_SHARED_THREAD_NUM,
+                          .maxNum = SND_SHARED_THREAD_NUM,
+                          .name = "snode-shared",
+                          .fp = (FItem)smProcessSharedQueue,
+                          .param = pMgmt};
+
+  if (tSingleWorkerInit(&pMgmt->sharedWorker, &cfg)) {
+    dError("failed to start snode shared-worker since %s", terrstr());
     return -1;
   }
 
@@ -73,11 +85,11 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
 
 void smStopWorker(SSnodeMgmt *pMgmt) {
   for (int32_t i = 0; i < taosArrayGetSize(pMgmt->uniqueWorkers); i++) {
-    SDnodeWorker *worker = taosArrayGetP(pMgmt->uniqueWorkers, i);
-    dndCleanupWorker(worker);
+    SMultiWorker *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, i);
+    tMultiWorkerCleanup(pWorker);
   }
   taosArrayDestroy(pMgmt->uniqueWorkers);
-  dndCleanupWorker(&pMgmt->sharedWorker);
+  tSingleWorkerCleanup(&pMgmt->sharedWorker);
 }
 
 static FORCE_INLINE int32_t smGetSWIdFromMsg(SRpcMsg *pMsg) {
@@ -93,33 +105,33 @@ static FORCE_INLINE int32_t smGetSWTypeFromMsg(SRpcMsg *pMsg) {
 }
 
 int32_t smProcessMgmtMsg(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SDnodeWorker *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, 0);
+  SMultiWorker *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, 0);
   if (pWorker == NULL) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
-  return dndWriteMsgToWorker(pWorker, pMsg);
+  return taosWriteQitem(pWorker->queue, pMsg);
 }
 
 int32_t smProcessUniqueMsg(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   int32_t       index = smGetSWIdFromMsg(&pMsg->rpcMsg);
-  SDnodeWorker *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, index);
+  SMultiWorker *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, index);
   if (pWorker == NULL) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
-  return dndWriteMsgToWorker(pWorker, pMsg);
+  return taosWriteQitem(pWorker->queue, pMsg);
 }
 
 int32_t smProcessSharedMsg(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SDnodeWorker *pWorker = &pMgmt->sharedWorker;
+  SSingleWorker *pWorker = &pMgmt->sharedWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
-  return dndWriteMsgToWorker(pWorker, pMsg);
+  return taosWriteQitem(pWorker->queue, pMsg);
 }
 
 int32_t smProcessExecMsg(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {

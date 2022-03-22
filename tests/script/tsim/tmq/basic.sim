@@ -6,6 +6,9 @@ system sh/exec.sh -n dnode1 -s start
 sleep 500
 sql connect
 
+# todo remove
+sql create database useless_db
+
 $loop_cnt = 0
 check_dnode_ready:
 	$loop_cnt = $loop_cnt + 1
@@ -22,6 +25,9 @@ endi
 if $data04 != ready then
   goto check_dnode_ready
 endi
+
+# todo remove
+sql drop database useless_db
 
 #root@trd02 /data2/dnode $ tmq_demo --help                                                                          
 #Used to tmq_demo                                                                   
@@ -47,7 +53,7 @@ print result-> $system_content
 
 sql show databases
 print ===> $rows $data00 $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 2 then 
   return -1
 endi
 if $data00 != tmqdb then 

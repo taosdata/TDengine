@@ -485,6 +485,7 @@ TAOS_RES* tmq_create_stream(TAOS* taos, const char* streamName, const char* tbNa
 
   tscDebug("start to create stream: %s", streamName);
 
+  int32_t code = 0;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
   CHECK_CODE_GOTO(parseSql(pRequest, false, &pQueryNode), _return);
 
@@ -571,6 +572,7 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
 
   tscDebug("start to create topic: %s", topicName);
 
+  int32_t code = TSDB_CODE_SUCCESS;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
   CHECK_CODE_GOTO(parseSql(pRequest, true, &pQueryNode), _return);
 

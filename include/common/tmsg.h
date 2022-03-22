@@ -24,6 +24,7 @@
 #include "thash.h"
 #include "tlist.h"
 #include "trow.h"
+#include "tname.h"
 #include "tuuid.h"
 
 #ifdef __cplusplus
@@ -471,6 +472,11 @@ typedef struct {
   int32_t code;
 } SQueryTableRsp;
 
+int32_t tSerializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp);
+
+int32_t tDeserializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp);
+
+
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   int32_t numOfVgroups;
@@ -863,6 +869,7 @@ void    tFreeSShowRsp(SShowRsp* pRsp);
 typedef struct {
   int32_t type;
   char    db[TSDB_DB_FNAME_LEN];
+  char    tb[TSDB_TABLE_NAME_LEN];
   int64_t showId;
   int8_t  free;
 } SRetrieveTableReq;
@@ -879,6 +886,17 @@ typedef struct {
   int32_t numOfRows;
   char    data[];
 } SRetrieveTableRsp;
+
+typedef struct {
+  int64_t  handle;
+  int64_t  useconds;
+  int8_t   completed;  // all results are returned to client
+  int8_t   precision;
+  int8_t   compressed;
+  int32_t  compLen;
+  int32_t  numOfRows;
+  char     data[];
+} SRetrieveMetaTableRsp;
 
 typedef struct {
   char    fqdn[TSDB_FQDN_LEN];  // end point, hostname:port
@@ -1347,6 +1365,7 @@ typedef struct {
 
 typedef struct SVCreateTbReq {
   int64_t  ver;  // use a general definition
+  char*    dbFName;
   char*    name;
   uint32_t ttl;
   uint32_t keep;
@@ -1371,7 +1390,7 @@ typedef struct SVCreateTbReq {
 } SVCreateTbReq, SVUpdateTbReq;
 
 typedef struct {
-  int tmp;  // TODO: to avoid compile error
+  int32_t code;
 } SVCreateTbRsp, SVUpdateTbRsp;
 
 int32_t tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
@@ -1382,12 +1401,16 @@ typedef struct {
   SArray* pArray;
 } SVCreateTbBatchReq;
 
-typedef struct {
-  int tmp;  // TODO: to avoid compile error
-} SVCreateTbBatchRsp;
-
 int32_t tSerializeSVCreateTbBatchReq(void** buf, SVCreateTbBatchReq* pReq);
 void*   tDeserializeSVCreateTbBatchReq(void* buf, SVCreateTbBatchReq* pReq);
+
+typedef struct {
+  SArray* rspList; // SArray<SVCreateTbRsp>
+} SVCreateTbBatchRsp;
+
+int32_t tSerializeSVCreateTbBatchRsp(void *buf, int32_t bufLen, SVCreateTbBatchRsp *pRsp);
+int32_t tDeserializeSVCreateTbBatchRsp(void *buf, int32_t bufLen, SVCreateTbBatchRsp *pRsp);
+
 
 typedef struct {
   int64_t  ver;

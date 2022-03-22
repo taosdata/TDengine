@@ -123,6 +123,30 @@ static int32_t createChildLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelec
   return code;
 }
 
+static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanCols, STableMeta* pMeta) {
+  if (pCxt->pPlanCxt->topicQuery || pCxt->pPlanCxt->streamQuery) {
+    return SCAN_TYPE_STREAM;
+  }
+
+  if (NULL == pScanCols) {
+    // select count(*) from t
+    return SCAN_TYPE_TABLE;
+  }
+
+  if (TSDB_SYSTEM_TABLE == pMeta->tableType) {
+    return SCAN_TYPE_SYSTEM_TABLE;
+  }
+
+  SNode* pCol = NULL;
+  FOREACH(pCol, pScanCols) {
+    if (COLUMN_TYPE_COLUMN == ((SColumnNode*)pCol)->colType) {
+      return SCAN_TYPE_TABLE;
+    }
+  }
+
+  return SCAN_TYPE_TAG;
+}
+
 static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SRealTableNode* pRealTable, SLogicNode** pLogicNode) {
   SScanLogicNode* pScan = (SScanLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN);
   if (NULL == pScan) {
@@ -131,7 +155,6 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   TSWAP(pScan->pMeta, pRealTable->pMeta, STableMeta*);
   TSWAP(pScan->pVgroupList, pRealTable->pVgroupList, SVgroupsInfo*);
-  pScan->scanType = pCxt->pPlanCxt->topicQuery ? SCAN_TYPE_TOPIC : SCAN_TYPE_TABLE;
   pScan->scanFlag = MAIN_SCAN;
   pScan->scanRange = TSWINDOW_INITIALIZER;  
   pScan->tableName.type = TSDB_TABLE_NAME_T;
@@ -148,6 +171,8 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
   }
+
+  pScan->scanType = getScanType(pCxt, pCols, pScan->pMeta);
 
   // set output
   if (TSDB_CODE_SUCCESS == code && NULL != pCols) {

@@ -91,11 +91,9 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_CREATE_DATABASE_STMT:
       return makeNode(type, sizeof(SCreateDatabaseStmt));
     case QUERY_NODE_DROP_DATABASE_STMT:
-      return makeNode(type, sizeof(SDropDatabaseStmt));
+      return makeNode(type, sizeof(SDropDatabaseStmt));    
     case QUERY_NODE_ALTER_DATABASE_STMT:
       return makeNode(type, sizeof(SAlterDatabaseStmt));
-    case QUERY_NODE_SHOW_DATABASES_STMT:
-      return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_CREATE_TABLE_STMT:
       return makeNode(type, sizeof(SCreateTableStmt));
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
@@ -108,17 +106,12 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SDropTableStmt));
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:
       return makeNode(type, sizeof(SDropSuperTableStmt));
-    case QUERY_NODE_SHOW_TABLES_STMT:
-    case QUERY_NODE_SHOW_STABLES_STMT:
-      return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_CREATE_USER_STMT:
       return makeNode(type, sizeof(SCreateUserStmt));
     case QUERY_NODE_ALTER_USER_STMT:
       return makeNode(type, sizeof(SAlterUserStmt));
     case QUERY_NODE_DROP_USER_STMT:
       return makeNode(type, sizeof(SDropUserStmt));
-    case QUERY_NODE_SHOW_USERS_STMT:
-      return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_USE_DATABASE_STMT:
       return makeNode(type, sizeof(SUseDatabaseStmt));
     case QUERY_NODE_CREATE_DNODE_STMT:
@@ -127,12 +120,6 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SDropDnodeStmt));
     case QUERY_NODE_ALTER_DNODE_STMT:
       return makeNode(type, sizeof(SAlterDnodeStmt));
-    case QUERY_NODE_SHOW_DNODES_STMT:
-      return makeNode(type, sizeof(SShowStmt));
-    case QUERY_NODE_SHOW_VGROUPS_STMT:
-    case QUERY_NODE_SHOW_MNODES_STMT:
-    case QUERY_NODE_SHOW_QNODES_STMT:
-      return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_CREATE_INDEX_STMT:
       return makeNode(type, sizeof(SCreateIndexStmt));
     case QUERY_NODE_DROP_INDEX_STMT:
@@ -145,6 +132,19 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateTopicStmt));
     case QUERY_NODE_DROP_TOPIC_STMT:
       return makeNode(type, sizeof(SDropTopicStmt));
+    case QUERY_NODE_SHOW_DATABASES_STMT:
+    case QUERY_NODE_SHOW_TABLES_STMT:
+    case QUERY_NODE_SHOW_STABLES_STMT:
+    case QUERY_NODE_SHOW_USERS_STMT:
+    case QUERY_NODE_SHOW_DNODES_STMT:
+    case QUERY_NODE_SHOW_VGROUPS_STMT:
+    case QUERY_NODE_SHOW_MNODES_STMT:
+    case QUERY_NODE_SHOW_MODULES_STMT:
+    case QUERY_NODE_SHOW_QNODES_STMT:
+    case QUERY_NODE_SHOW_FUNCTIONS_STMT:
+    case QUERY_NODE_SHOW_INDEXES_STMT:
+    case QUERY_NODE_SHOW_STREAMS_STMT:
+      return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -171,6 +171,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(STableSeqScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
       return makeNode(type, sizeof(SStreamScanPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
+      return makeNode(type, sizeof(SSystemTableScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return makeNode(type, sizeof(SProjectPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_JOIN:

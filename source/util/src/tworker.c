@@ -86,7 +86,8 @@ static void *tQWorkerThreadFp(SQWorker *worker) {
     }
 
     if (fp != NULL) {
-      (*fp)(ahandle, msg);
+      SQueueInfo info = {.ahandle = ahandle, .workerId = worker->id, .threadNum = pool->num};
+      (*fp)(&info, msg);
     }
   }
 
@@ -210,7 +211,8 @@ static void *tWWorkerThreadFp(SWWorker *worker) {
     }
 
     if (fp != NULL) {
-      (*fp)(ahandle, worker->qall, numOfMsgs);
+      SQueueInfo info = {.ahandle = ahandle, .workerId = worker->id, .threadNum = pool->num};
+      (*fp)(&info, worker->qall, numOfMsgs);
     }
   }
 
@@ -264,6 +266,8 @@ STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp) {
     }
 
     taosThreadAttrDestroy(&thAttr);
+    pool->num++;
+    if (pool->num > pool->max) pool->num = pool->max;
   } else {
     taosAddIntoQset(worker->qset, queue, ahandle);
     pool->nextId = (pool->nextId + 1) % pool->max;
@@ -280,7 +284,7 @@ void tWWorkerFreeQueue(SWWorkerPool *pool, STaosQueue *queue) {
   uDebug("worker:%s, queue:%p is freed", pool->name, queue);
 }
 
-int32_t tQWorkerAllInit(SQWorkerAll *pWorker, const SQWorkerAllCfg *pCfg) {
+int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg) {
   SQWorkerPool *pPool = &pWorker->pool;
   pPool->name = pCfg->name;
   pPool->min = pCfg->minNum;
@@ -298,7 +302,7 @@ int32_t tQWorkerAllInit(SQWorkerAll *pWorker, const SQWorkerAllCfg *pCfg) {
   return 0;
 }
 
-void tQWorkerAllCleanup(SQWorkerAll *pWorker) {
+void tSingleWorkerCleanup(SSingleWorker *pWorker) {
   if (pWorker->queue == NULL) return;
 
   while (!taosQueueEmpty(pWorker->queue)) {
@@ -309,7 +313,7 @@ void tQWorkerAllCleanup(SQWorkerAll *pWorker) {
   tQWorkerFreeQueue(&pWorker->pool, pWorker->queue);
 }
 
-int32_t tWWorkerAllInit(SWWorkerAll *pWorker, const SWWorkerAllCfg *pCfg) {
+int32_t tMultiWorkerInit(SMultiWorker *pWorker, const SMultiWorkerCfg *pCfg) {
   SWWorkerPool *pPool = &pWorker->pool;
   pPool->name = pCfg->name;
   pPool->max = pCfg->maxNum;
@@ -326,7 +330,7 @@ int32_t tWWorkerAllInit(SWWorkerAll *pWorker, const SWWorkerAllCfg *pCfg) {
   return 0;
 }
 
-void tWWorkerAllCleanup(SWWorkerAll *pWorker) {
+void tMultiWorkerCleanup(SMultiWorker *pWorker) {
   if (pWorker->queue == NULL) return;
 
   while (!taosQueueEmpty(pWorker->queue)) {
