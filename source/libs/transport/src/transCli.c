@@ -649,6 +649,7 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
     cliSend(conn);
   } else {
     conn = cliCreateConn(pThrd);
+    transCtxMerge(&conn->ctx, &pCtx->appCtx);
     transQueuePush(&conn->cliMsgs, pMsg);
 
     conn->hThrdIdx = pCtx->hThrdIdx;
