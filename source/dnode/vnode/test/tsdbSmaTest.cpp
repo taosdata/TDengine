@@ -304,7 +304,9 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
       break;
   }
 
-  SDiskCfg pDisks = {.level = 0, .primary = 1};
+  SDiskCfg pDisks = {0};
+  pDisks.level = 0;
+  pDisks.primary = 1;
   strncpy(pDisks.dir, "/var/lib/taos", TSDB_FILENAME_LEN);
   int32_t numOfDisks = 1;
   pTsdb->pTfs = tfsOpen(&pDisks, numOfDisks);

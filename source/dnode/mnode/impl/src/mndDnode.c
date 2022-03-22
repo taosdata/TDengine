@@ -752,7 +752,7 @@ static int32_t mndGetDnodeMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *p
   pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
-  pShow->bytes[cols] = 24 + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = 256 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "offline_reason");
   pSchema[cols].bytes = pShow->bytes[cols];

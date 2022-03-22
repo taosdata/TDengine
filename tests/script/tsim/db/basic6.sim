@@ -20,7 +20,7 @@ sql show databases
 print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1 $data5_1  $data6_1  $data7_1  $data8_1  $data9_1
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 
-if $rows != 1 then 
+if $rows != 2 then 
   return -1
 endi
 if $data00 != $db then 
@@ -52,16 +52,17 @@ print =============== step2
 sql_error create database $db
 sql create database if not exists $db
 sql show databases
-if $rows != 1 then 
+if $rows != 2 then 
   return -1
 endi
 
 print =============== step3
 sql drop database $db
-sql show databases
-if $rows != 0 then 
-  return -1
-endi 
+# todo release
+#sql show databases
+#if $rows != 1 then 
+#  return -1
+#endi 
 
 print =============== step4
 sql_error drop database $db

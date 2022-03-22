@@ -289,6 +289,20 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
       mError("failed to process show-meta req since %s", terrstr());
       return -1;
     }
+
+    STableMetaRsp *meta = (STableMetaRsp *)taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));
+    pShow->numOfRows = 100;
+
+    int32_t offset = 0;
+    for(int32_t i = 0; i < meta->numOfColumns; ++i) {
+      pShow->numOfColumns = meta->numOfColumns;
+      pShow->offset[i] = offset;
+
+      int32_t bytes = meta->pSchemas[i].bytes;
+      pShow->rowSize += bytes;
+      pShow->bytes[i] = bytes;
+      offset += bytes;
+    }
   } else {
     pShow = mndAcquireShowObj(pMnode, retrieveReq.showId);
     if (pShow == NULL) {
@@ -330,13 +344,15 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
   size = pShow->rowSize * rowsToRead;
 
   size += SHOW_STEP_SIZE;
-  SRetrieveTableRsp *pRsp = rpcMallocCont(size);
+  SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
     mndReleaseShowObj((SShowObj*) pShow, false);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, terrstr());
     return -1;
   }
+
+  pRsp->handle = htobe64(pShow->id);
 
   // if free flag is set, client wants to clean the resources
   if ((retrieveReq.free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {

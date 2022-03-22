@@ -28,9 +28,9 @@ typedef struct SMnodeMgmt {
   SDnode       *pDnode;
   SMgmtWrapper *pWrapper;
   const char   *path;
-  SDnodeWorker  readWorker;
-  SDnodeWorker  writeWorker;
-  SDnodeWorker  syncWorker;
+  SSingleWorker readWorker;
+  SSingleWorker writeWorker;
+  SSingleWorker syncWorker;
   SReplica      replicas[TSDB_MAX_REPLICA];
   int8_t        replica;
   int8_t        selfIndex;
