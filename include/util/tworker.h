@@ -67,6 +67,38 @@ void        tWWorkerCleanup(SWWorkerPool *pool);
 STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp);
 void        tWWorkerFreeQueue(SWWorkerPool *pool, STaosQueue *queue);
 
+typedef struct {
+  const char *name;
+  int32_t     minNum;
+  int32_t     maxNum;
+  FItem       fp;
+  void       *param;
+} SQWorkerAllCfg;
+
+typedef struct {
+  const char  *name;
+  STaosQueue  *queue;
+  SQWorkerPool pool;
+} SQWorkerAll;
+
+typedef struct {
+  const char *name;
+  int32_t     maxNum;
+  FItems      fp;
+  void       *param;
+} SWWorkerAllCfg;
+
+typedef struct {
+  const char  *name;
+  STaosQueue  *queue;
+  SWWorkerPool pool;
+} SWWorkerAll;
+
+int32_t tQWorkerAllInit(SQWorkerAll *pWorker, const SQWorkerAllCfg *pCfg);
+void    tQWorkerAllCleanup(SQWorkerAll *pWorker);
+int32_t tWWorkerAllInit(SWWorkerAll *pWorker, const SWWorkerAllCfg *pCfg);
+void    tWWorkerAllCleanup(SWWorkerAll *pWorker);
+
 #ifdef __cplusplus
 }
 #endif

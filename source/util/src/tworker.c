@@ -22,7 +22,7 @@ typedef void *(*ThreadFp)(void *param);
 
 int32_t tQWorkerInit(SQWorkerPool *pool) {
   pool->qset = taosOpenQset();
-  pool->workers = calloc(sizeof(SQWorker), pool->max);
+  pool->workers = calloc(pool->max, sizeof(SQWorker));
   if (pool->workers == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -278,4 +278,61 @@ STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp) {
 void tWWorkerFreeQueue(SWWorkerPool *pool, STaosQueue *queue) {
   taosCloseQueue(queue);
   uDebug("worker:%s, queue:%p is freed", pool->name, queue);
+}
+
+int32_t tQWorkerAllInit(SQWorkerAll *pWorker, const SQWorkerAllCfg *pCfg) {
+  SQWorkerPool *pPool = &pWorker->pool;
+  pPool->name = pCfg->name;
+  pPool->min = pCfg->minNum;
+  pPool->max = pCfg->maxNum;
+  if (tQWorkerInit(pPool) != 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  pWorker->queue = tQWorkerAllocQueue(pPool, pCfg->param, pCfg->fp);
+  if (pWorker->queue == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  pWorker->name = pCfg->name;
+  return 0;
+}
+
+void tQWorkerAllCleanup(SQWorkerAll *pWorker) {
+  if (pWorker->queue == NULL) return;
+
+  while (!taosQueueEmpty(pWorker->queue)) {
+    taosMsleep(10);
+  }
+
+  tQWorkerCleanup(&pWorker->pool);
+  tQWorkerFreeQueue(&pWorker->pool, pWorker->queue);
+}
+
+int32_t tWWorkerAllInit(SWWorkerAll *pWorker, const SWWorkerAllCfg *pCfg) {
+  SWWorkerPool *pPool = &pWorker->pool;
+  pPool->name = pCfg->name;
+  pPool->max = pCfg->maxNum;
+  if (tWWorkerInit(pPool) != 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  pWorker->queue = tWWorkerAllocQueue(pPool, pCfg->param, pCfg->fp);
+  if (pWorker->queue == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  pWorker->name = pCfg->name;
+  return 0;
+}
+
+void tWWorkerAllCleanup(SWWorkerAll *pWorker) {
+  if (pWorker->queue == NULL) return;
+
+  while (!taosQueueEmpty(pWorker->queue)) {
+    taosMsleep(10);
+  }
+
+  tWWorkerCleanup(&pWorker->pool);
+  tWWorkerFreeQueue(&pWorker->pool, pWorker->queue);
 }

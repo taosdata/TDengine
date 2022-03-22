@@ -441,7 +441,6 @@ void taosResetQsetThread(STaosQset *qset, void *pItem) {
   STaosQnode *pNode = (STaosQnode *)((char *)pItem - sizeof(STaosQnode));
 
   taosThreadMutexLock(&qset->mutex);
-  pNode->queue->threadId = -1;
   for (int32_t i = 0; i < pNode->queue->numOfItems; ++i) {
     tsem_post(&qset->sem);
   }
