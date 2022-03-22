@@ -513,7 +513,8 @@ public class TSDBResultSetBlockData {
             case TSDBConstants.TSDB_DATA_TYPE_JSON:
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR: {
                 ByteBuffer bb = (ByteBuffer) this.colData.get(col);
-                bb.position((fieldSize + BINARY_LENGTH_OFFSET) * this.rowIndex);
+//                bb.position((fieldSize * 4 + 2 + 1) * this.rowIndex);
+                bb.position(bb.capacity() / numOfRows * this.rowIndex);
                 int length = bb.getShort();
                 byte[] dest = new byte[length];
                 bb.get(dest, 0, length);
