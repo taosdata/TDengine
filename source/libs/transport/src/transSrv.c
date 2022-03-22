@@ -558,7 +558,7 @@ static bool addHandleToWorkloop(void* arg) {
   // conn set
   QUEUE_INIT(&pThrd->conn);
 
-  pThrd->asyncPool = transCreateAsyncPool(pThrd->loop, 4, pThrd, uvWorkerAsyncCb);
+  pThrd->asyncPool = transCreateAsyncPool(pThrd->loop, 1, pThrd, uvWorkerAsyncCb);
   uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
   return true;
 }
