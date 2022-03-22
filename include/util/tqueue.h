@@ -44,7 +44,6 @@ typedef struct STaosQset  STaosQset;
 typedef struct STaosQall  STaosQall;
 typedef struct {
   void   *ahandle;
-  int32_t qsize;
   int32_t workerId;
   int32_t threadNum;
 } SQueueInfo;

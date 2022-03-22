@@ -127,7 +127,7 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
                              .fp = (FItem)qmProcessFetchQueue,
                              .param = pMgmt};
 
-  if (tQWorkerAllInit(&pMgmt->queryWorker, &fetchCfg) != 0) {
+  if (tQWorkerAllInit(&pMgmt->fetchWorker, &fetchCfg) != 0) {
     dError("failed to start qnode-fetch worker since %s", terrstr());
     return -1;
   }

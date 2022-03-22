@@ -212,7 +212,7 @@ static void *tWWorkerThreadFp(SWWorker *worker) {
 
     if (fp != NULL) {
       SQueueInfo info = {.ahandle = ahandle, .workerId = worker->id, .threadNum = pool->num};
-      (*fp)(ahandle, worker->qall, numOfMsgs);
+      (*fp)(&info, worker->qall, numOfMsgs);
     }
   }
 
