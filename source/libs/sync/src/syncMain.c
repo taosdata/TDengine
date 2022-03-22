@@ -122,7 +122,7 @@ int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
     ret = 0;
 
   } else {
-    sTrace("syncForwardToPeer not leader, %s", syncUtilState2String(pSyncNode->state));
+    sTrace("syncPropose not leader, %s", syncUtilState2String(pSyncNode->state));
     ret = -1;  // todo : need define err code !!
   }
 
