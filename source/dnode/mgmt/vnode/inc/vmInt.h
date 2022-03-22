@@ -30,7 +30,7 @@ typedef struct SVnodesMgmt {
   SVnodesStat   state;
   STfs         *pTfs;
   SQWorkerPool  queryPool;
-  SFWorkerPool  fetchPool;
+  SQWorkerPool  fetchPool;
   SWWorkerPool  syncPool;
   SWWorkerPool  writePool;
   const char   *path;
