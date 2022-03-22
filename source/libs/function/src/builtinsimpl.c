@@ -456,7 +456,7 @@ void firstFunction(SqlFunctionCtx *pCtx) {
 
   int32_t numOfElems = 0;
 
-  struct SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
   char* buf = GET_ROWCELL_INTERBUF(pResInfo);
 
   SInputColumnInfoData* pInput = &pCtx->input;
@@ -500,7 +500,7 @@ void lastFunction(SqlFunctionCtx *pCtx) {
 
   int32_t numOfElems = 0;
 
-  struct SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
   char* buf = GET_ROWCELL_INTERBUF(pResInfo);
 
   SInputColumnInfoData* pInput = &pCtx->input;
