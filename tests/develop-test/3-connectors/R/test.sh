@@ -16,11 +16,12 @@ rm -rf /var/lib/taos/*
 rm -rf /var/log/taos/*
 nohup taosd -c /etc/taos/ > /dev/null 2>&1 &
 sleep 10
-cd ../../examples/R
+cd ../../
 WKC=`pwd`
 echo ${WKC}
 
-JDBC_PATH='../../src/connector/jdbc/'
+JDBC_PATH='/src/connector/jdbc/'
+CASE_PATH='/examples/R/'
 cd ${JDBC_PATH}
 
 mvn clean package -Dmaven.test.skip=true
@@ -32,4 +33,4 @@ JDBC_PATH=${JDBC_PATH}target
 #echo ${jdbc_path}
 cd ${WKC}
 # remove 
-Rscript rjdbc.sample.R ${JDBC_PATH} ${JDBC} 
+Rscript ${CASE_PATH}rjdbc.sample.R ${JDBC_PATH} ${JDBC} 
