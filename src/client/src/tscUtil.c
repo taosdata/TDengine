@@ -394,7 +394,7 @@ bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo) {
 }
 
 bool tscNeedTableSeqScan(SQueryInfo* pQueryInfo) {
-  return pQueryInfo->stableQuery && (tscQueryContainsFunction(pQueryInfo, TSDB_FUNC_TWA) || tscQueryContainsFunction(pQueryInfo, TSDB_FUNC_ELAPSED));
+  return pQueryInfo->stableQuery && (tscQueryContainsFunction(pQueryInfo, TSDB_FUNC_TWA) || tscQueryContainsFunction(pQueryInfo, TSDB_FUNC_ELAPSED) || (pQueryInfo->tsBuf != NULL));
 }
 
 bool tscGetPointInterpQuery(SQueryInfo* pQueryInfo) {
