@@ -8,7 +8,7 @@ TEST(tdb_test, simple_test) {
   STDb  *pDb;
 
   // Open Env
-  ret = tdbEnvOpen("tdb", 1024, 20, &pEnv);
+  ret = tdbEnvOpen("tdb", 1024, 256, &pEnv);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
