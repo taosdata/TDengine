@@ -603,16 +603,30 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
 
     // back loop to make the distribution even
     for (int iNew = nNews - 1; iNew > 0; iNew--) {
-      SCell *pLCell, pRCell;
+      SCell *pCell;
       int    szLCell, szRCell;
 
       for (;;) {
+        pCell = tdbPageGetCell(infoNews[iNew - 1].pPage, infoNews[iNew - 1].oIdx);
+
         if (childNotLeaf) {
-          pLCell = pRCell = tdbPageGetCell(infoNews[iNew - 1].pPage, infoNews[iNew - 1].oIdx);
-          szLCell = szRCell = tdbBtreeCellSize(infoNews[iNew - 1].pPage, pLCell);
+          szLCell = szRCell = tdbBtreeCellSize(infoNews[iNew - 1].pPage, pCell);
         } else {
-          // For internal page, find the left cell
-          // TODO: fill pLCell, pRCell, szLCell, szRCell
+          szLCell = tdbBtreeCellSize(infoNews[iNew - 1].pPage, pCell);
+
+          SPage *pPage = infoNews[iNew - 1].pPage;
+          int    oIdx = infoNews[iNew - 1].oIdx + 1;
+          for (;;) {
+            if (oIdx < TDB_PAGE_TOTAL_CELLS(pPage)) {
+              break;
+            }
+
+            pPage++;
+            oIdx = 0;
+          }
+
+          pCell = tdbPageGetCell(pPage, oIdx);
+          szRCell = tdbBtreeCellSize(pPage, pCell);
         }
 
         ASSERT(infoNews[iNew - 1].cnt > 0);
@@ -621,105 +635,22 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
           break;
         }
 
-        // move cell divider left
-        infoNews[iNew].cnt++;
-        infoNews[iNew].size += szRCell;
-        {
-          // TODO
-          // infoNews[iNew].oPage = ;
-          // infoNews[iNew].oIdx = ;
-        }
-
+        // Move a cell right forward
         infoNews[iNew - 1].cnt--;
         infoNews[iNew - 1].size -= szLCell;
-        {
-          // TODO
-          // infoNews[iNew-1].oPage = ;
-          // infoNews[iNew-1].oIdx = ;
-        }
-      }
-
-#if 0
-      SCell *pCell;
-      SPage *pPage;
-      int    nCells;
-      int    cellBytes;
-
-      pPage = pOlds[infoNews[iNew - 1].oPage];
-      nCells = TDB_PAGE_TOTAL_CELLS(pPage);
-
-      if (!childNotLeaf) {  // child leaf
+        infoNews[iNew - 1].oIdx--;
         for (;;) {
-          pCell = tdbPageGetCell(pPage, infoNews[iNew - 1].oIdx);
-          cellBytes = TDB_BYTES_CELL_TAKEN(pPage, pCell);
-
-          infoNews[iNew].cnt++;
-          infoNews[iNew].size += cellBytes;
-          infoNews[iNew - 1].cnt--;
-          infoNews[iNew - 1].size -= cellBytes;
-          if ((infoNews[iNew - 1].oIdx--) == 0) {
-            infoNews[iNew - 1].oPage--;
-            pPage = pOlds[infoNews[iNew - 1].oPage];
-            nCells = TDB_PAGE_TOTAL_CELLS(pPage);
-            infoNews[iNew - 1].oIdx = TDB_PAGE_TOTAL_CELLS(pPage);
-          }
-
-          if (infoNews[iNew].size > infoNews[iNew - 1].size) {
+          if (infoNews[iNew - 1].oIdx >= 0) {
             break;
           }
-        }
-      } else {  // internal leaf
-        SCell *pCellRight;
-        SCell *pCellLeft;
-        int    szCellRight, szCellLeft;
 
-        // get pCellLeft, szCellLeft
-        if (infoNews[iNew - 1].oIdx == nCells) {
-          ASSERT(infoNews[iNew - 1].oPage < nOlds - 1);
-          pCellLeft = pDivCell[infoNews[iNew - 1].oPage];
-          szCellLeft = szDivCell[infoNews[iNew - 1].oPage];
-        } else {
-          pCellLeft = tdbPageGetCell(pPage, infoNews[iNew - 1].oIdx);
-          szCellLeft = tdbBtreeCellSize(pPage, pCellLeft);
+          infoNews[iNew - 1].pPage--;
+          infoNews[iNew - 1].oIdx = TDB_PAGE_TOTAL_CELLS(infoNews[iNew - 1].pPage) - 1;
         }
 
-        // get pCellRight, szCellRight
-        if (infoNews[iNew - 1].oIdx + 1 < nCells) {
-          pCellRight = tdbPageGetCell(pPage, infoNews[iNew - 1].oIdx + 1);
-          szCellRight = tdbBtreeCellSize(pPage, pCellRight);
-        } else {
-          if (infoNews[iNew - 1].oPage < nOlds - 1) {
-            pCellRight = pDivCell[infoNews[iNew - 1].oPage];
-            szCellRight = szDivCell[infoNews[iNew - 1].oPage];
-          } else {
-            // TODO: what if the next old page is empty?
-            pCellRight = tdbPageGetCell(pOlds[infoNews[iNew - 1].oPage + 1], 0);
-            szCellRight = tdbBtreeCellSize(pPage, pCellRight);
-          }
-        }
-
-        if (infoNews[iNew - 1].size - szCellLeft - TDB_PAGE_OFFSET_SIZE(pPage) <=
-            infoNews[iNew].size + szCellRight + TDB_PAGE_OFFSET_SIZE(pPage)) {
-          break;
-        }
-
-        // TODO: ASSERT(infoNews[iNew].size < PAGE_MAX_CAPACITY);
         infoNews[iNew].cnt++;
-        infoNews[iNew].size += szCellRight;
-        infoNews[iNew - 1].cnt--;
-        infoNews[iNew - 1].size -= szCellLeft;
-        if ((infoNews[iNew - 1].oIdx--) == 0) {
-          infoNews[iNew - 1].oPage--;
-          pPage = pOlds[infoNews[iNew - 1].oPage];
-          nCells = TDB_PAGE_TOTAL_CELLS(pPage);
-          if (infoNews[iNew - 1].oPage < nOlds - 1) {
-            infoNews[iNew - 1].oIdx = nCells;
-          } else {
-            infoNews[iNew - 1].oIdx = nCells - 1;
-          }
-        }
+        infoNews[iNew].size += szRCell;
       }
-#endif
     }
   }
 
