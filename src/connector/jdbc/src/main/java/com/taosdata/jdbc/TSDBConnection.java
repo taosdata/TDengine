@@ -1,13 +1,15 @@
 package com.taosdata.jdbc;
 
 import java.sql.*;
-import java.util.Properties;
+import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class TSDBConnection extends AbstractConnection {
 
     private TSDBJNIConnector connector;
     private final TSDBDatabaseMetaData databaseMetaData;
     private boolean batchFetch;
+    private CopyOnWriteArrayList<Statement> statements = new CopyOnWriteArrayList<>();
 
     public Boolean getBatchFetch() {
         return this.batchFetch;
@@ -67,11 +69,25 @@ public class TSDBConnection extends AbstractConnection {
     }
 
     public void close() throws SQLException {
-        if (isClosed) {
+        if (isClosed)
             return;
+        synchronized (this) {
+            if (isClosed) {
+                return;
+            }
+            for (Statement statement : statements) {
+                statement.close();
+            }
+            this.connector.closeConnection();
+            this.isClosed = true;
         }
-        this.connector.closeConnection();
-        this.isClosed = true;
+    }
+
+    public void unregisterStatement(Statement stmt) {
+        this.statements.remove(stmt);
+    }
+    public void registerStatement(Statement stmt) {
+        this.statements.addIfAbsent(stmt);
     }
 
     public boolean isClosed() throws SQLException {
