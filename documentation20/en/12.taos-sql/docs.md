@@ -1538,7 +1538,7 @@ TDengine supports aggregations over data, they are listed below:
     ```
     Function: Converts a value into as a specific data type of type_name.
 
-    Output Data Type: type_name specificied. Supported types include BIGINT, BINARY(N), TIMESTAMP and NCHAR(N) and BIGINT UNSIGNED
+    Output Data Type: type_name specified. Supported types include BIGINT, BINARY(N), TIMESTAMP and NCHAR(N) and BIGINT UNSIGNED
 
     Input: Normal column, constant, scalar function and the arithmetic computation(+,-,*,/,%) among them. Input data type includes BOOL, TINYINT, SMALLINT, INT, BIGINT, FLOAT, DOUBLE, BINARY(M), TIMESTAMP, NCHAR(M), TINYINT UNSIGNED, SMALLINT UNSIGNED, INT UNSIGNED, and BIGINT UNSIGNED
 
@@ -1704,7 +1704,7 @@ TDengine supports aggregations over data, they are listed below:
     
       Returns NULL when input is NULL. 
       Input pos can be negative or positive. If it is a positive number, this function extracts from the beginning of the string. If it is a negative number, this function extracts from the end of the string
-      If input len is ommited, the output is whole substring starting from pos.
+      If input len is omitted, the output is whole substring starting from pos.
       This function applies to normal table, child table and super table
       This function applies to bother out query and inner query
       Supported after version 2.6.0.x    
@@ -1884,7 +1884,7 @@ Starting from version 2.6.0.0, TDengine supports following time related function
 - **NOW**
     ```mysql
     SELECT NOW() FROM { tb_name | stb_name } [WHERE clause];
-    SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior NOW();
+    SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operator NOW();
     INSERT INTO tb_name VALUES (NOW(), ...);
     ```
     Function: Returns current time of client.
@@ -1927,7 +1927,7 @@ Starting from version 2.6.0.0, TDengine supports following time related function
 - **TODAY**
     ```mysql
     SELECT TODAY() FROM { tb_name | stb_name } [WHERE clause];
-    SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior TODAY()];
+    SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operator TODAY()];
     INSERT INTO tb_name VALUES (TODAY(), ...);
     ```
     Function: Returns current date of client.
@@ -2000,7 +2000,7 @@ Starting from version 2.6.0.0, TDengine supports following time related function
 
     Applied to: **table stable**.
     
-    Note: If input is UNIX timestamp constant，returned ISO8601 format precision is determined by input timestamp digits. If input is TIMSTAMP type column, returned ISO8601 format precision is consist with current DATABASE precision settings.
+    Note: If input is UNIX timestamp constant，returned ISO8601 format precision is determined by input timestamp digits. If input is TIMESTAMP type column, returned ISO8601 format precision is consist with current DATABASE precision settings.
 
     Example:
     ```mysql
