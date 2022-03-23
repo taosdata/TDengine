@@ -326,20 +326,20 @@ typedef struct {
 } SSmaObj;
 
 typedef struct {
-  char      name[TSDB_TABLE_FNAME_LEN];
-  char      db[TSDB_DB_FNAME_LEN];
-  int64_t   createdTime;
-  int64_t   updateTime;
-  int64_t   uid;
-  int64_t   dbUid;
-  int32_t   version;
-  int32_t   nextColId;
-  int32_t   numOfColumns;
-  int32_t   numOfTags;
-  SSchema*  pColumns;
-  SSchema*  pTags;
-  SRWLatch  lock;
-  char      comment[TSDB_STB_COMMENT_LEN];
+  char     name[TSDB_TABLE_FNAME_LEN];
+  char     db[TSDB_DB_FNAME_LEN];
+  int64_t  createdTime;
+  int64_t  updateTime;
+  int64_t  uid;
+  int64_t  dbUid;
+  int32_t  version;
+  int32_t  nextColId;
+  int32_t  numOfColumns;
+  int32_t  numOfTags;
+  SSchema* pColumns;
+  SSchema* pTags;
+  SRWLatch lock;
+  char     comment[TSDB_STB_COMMENT_LEN];
 } SStbObj;
 
 typedef struct {
