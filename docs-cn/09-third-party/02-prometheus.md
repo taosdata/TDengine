@@ -1,8 +1,8 @@
 ---
-sidebar_label: Prometheus 直接写入
+sidebar_label: Prometheus
 ---
 
-# Prometheus 直接写入（通过 taosAdapter）
+# Prometheus 写入
 
 remote_read 和 remote_write 是 Prometheus 数据读写分离的集群方案。
 只需要将 remote_read 和 remote_write url 指向 taosAdapter 对应的 url 同时设置 Basic 验证即可使用。

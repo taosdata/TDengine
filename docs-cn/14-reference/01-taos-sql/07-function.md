@@ -174,6 +174,70 @@ taos> SELECT LEASTSQUARES(current, 1, 1) FROM d1001;
 Query OK, 1 row(s) in set (0.000921s)
 ```
 
+### MODE
+
+```
+SELECT MODE(field_name) FROM tb_name [WHERE clause];
+```
+- **功能说明**：返回出现频率最高的值，若存在多个频率相同的最高值，输出空。不能匹配标签、时间戳输出。
+- **返回数据类型**：同应用的字段。
+- **应用字段**：适合于除时间主列外的任何类型字段。
+- **说明**：由于返回数据量未知，考虑到内存因素，为了函数可以正常返回结果，建议不重复的数据量在10万级别，否则会报错。
+- **支持的版本**：2.6开始的版本。
+
+示例：
+
+```
+taos> select voltage from d002;
+    voltage        |
+========================
+       1           |
+       1           |
+       2           |
+       19          |
+Query OK, 4 row(s) in set (0.003545s)
+
+taos> select mode(voltage) from d002;
+  mode(voltage)    |
+========================
+       1           |
+Query OK, 1 row(s) in set (0.019393s)
+```  
+
+### HYPERLOGLOG
+```
+SELECT HYPERLOGLOG(field_name) FROM { tb_name | stb_name } [WHERE clause];
+```
+- **功能说明**：
+    - 采用hyperloglog算法，返回某列的基数。该算法在数据量很大的情况下，可以明显降低内存的占用，但是求出来的基数是个估算值，标准误差（标准误差是多次实验，每次的平均数的标准差，不是与真实结果的误差）为0.81%。
+    - 在数据量较少的时候该算法不是很准确，可以使用select count(data) from (select unique(col) as data from table) 的方法。
+- **返回结果类型**：整形。
+- **应用字段**：适合于任何类型字段。
+- **支持的版本**：2.6开始的版本。
+
+示例：
+
+```
+taos> select dbig from shll;
+     dbig          |
+========================
+       1           |
+       1           |
+       1           |
+       NULL        |
+       2           |
+       19          |
+       NULL        |
+       9           |
+Query OK, 8 row(s) in set (0.003755s)
+
+taos> select hyperloglog(dbig) from shll;
+  hyperloglog(dbig)|
+========================
+       4           |
+Query OK, 1 row(s) in set (0.008388s)
+ ```
+
 ## 选择函数
 
 在使用所有的选择函数的时候，可以同时指定输出 ts 列或标签列（包括 tbname），这样就可以方便地知道被选出的值是源于哪个数据行的。
@@ -609,6 +673,83 @@ SELECT INTERP(field_name) FROM { tb_name | stb_name } WHERE ts='timestamp' [FILL
  Query OK, 2 row(s) in set (0.003487s)
 ```
 
+### TAIL
+```
+SELECT TAIL(field_name, k, offset_val) FROM {tb_name | stb_name} [WHERE clause];
+```
+**功能说明**：返回跳过最后 offset_value个，然后取连续 k 个记录，不忽略 NULL 值。offset_val 可以不输入。此时返回最后的 k 个记录。当有 offset_val 输入的情况下，该函数功能等效于order by ts desc LIMIT  k OFFSET offset_val。
+
+**参数范围**：k: [1,100]  offset_val: [0,100]。
+
+**返回结果数据类型**：同应用的字段。
+
+**应用字段**：适合于除时间主列外的任何类型字段。
+
+**支持版本**：2.6 开始的版本。
+
+示例：
+```
+taos> select ts,dbig from tail2;
+       ts            |         dbig          |
+==================================================
+2021-10-15 00:31:33.000 |                     1 |
+2021-10-17 00:31:31.000 |                  NULL |
+2021-12-24 00:31:34.000 |                     2 |
+2022-01-01 08:00:05.000 |                    19 |
+2022-01-01 08:00:06.000 |                  NULL |
+2022-01-01 08:00:07.000 |                     9 |
+Query OK, 6 row(s) in set (0.001952s)
+
+taos> select tail(dbig,2,2) from tail2;
+ts                      |    tail(dbig,2,2)     |
+==================================================
+2021-12-24 00:31:34.000 |                     2 |
+2022-01-01 08:00:05.000 |                    19 |
+Query OK, 2 row(s) in set (0.002307s)
+```
+
+### UNIQUE
+```
+SELECT UNIQUE(field_name) FROM {tb_name | stb_name} [WHERE clause];
+```
+**功能说明**：返回该列的数值首次出现的值。该函数功能与 distinct 相似，但是可以匹配标签和时间戳信息。可以针对除时间列以外的字段进行查询，可以匹配标签和时间戳，其中的标签和时间戳是第一次出现时刻的标签和时间戳。
+
+**返回结果数据类型**：同应用的字段。
+
+**应用字段**：适合于除时间类型以外的字段。
+
+**支持版本**：2.6 开始的版本。
+
+**说明**：
+  - 该函数可以应用在普通表和超级表上。不能和窗口操作一起使用，例如 interval/state_window/session_window 。
+  - 由于返回数据量未知，考虑到内存因素，为了函数可以正常返回结果，建议不重复的数据量在10万级别，否则会报错。
+  
+示例：
+```
+taos> select ts,voltage from unique1;
+       ts            |        voltage        |
+==================================================
+2021-10-17 00:31:31.000 |                     1 |
+2022-01-24 00:31:31.000 |                     1 |
+2021-10-17 00:31:31.000 |                     1 |
+2021-12-24 00:31:31.000 |                     2 |
+2022-01-01 08:00:01.000 |                    19 |
+2021-10-17 00:31:31.000 |                  NULL |
+2022-01-01 08:00:02.000 |                  NULL |
+2022-01-01 08:00:03.000 |                     9 |
+Query OK, 8 row(s) in set (0.003018s)
+
+taos> select unique(voltage) from unique1;
+ts                      |    unique(voltage)    |
+==================================================
+2021-10-17 00:31:31.000 |                     1 |
+2021-10-17 00:31:31.000 |                  NULL |
+2021-12-24 00:31:31.000 |                     2 |
+2022-01-01 08:00:01.000 |                    19 |
+2022-01-01 08:00:03.000 |                     9 |
+Query OK, 5 row(s) in set (0.108458s)
+```
+
 ## 计算函数
 
 ### DIFF
@@ -728,42 +869,395 @@ SELECT FLOOR(field_name) FROM { tb_name | stb_name } [WHERE clause];
 **功能说明**：获得指定列的向下取整数的结果。  
  其他使用说明参见 CEIL 函数描述。
 
-- **ROUND**
+### ROUND
 
-  ```
-  SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
-  ```
+```
+SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
+```
 
-  **功能说明**：获得指定列的四舍五入的结果。  
-   其他使用说明参见 CEIL 函数描述。
+**功能说明**：获得指定列的四舍五入的结果。  
+ 其他使用说明参见 CEIL 函数描述。
 
-- **四则运算**
+### 四则运算
 
-  ```
-  SELECT field_name [+|-|*|/|%][Value|field_name] FROM { tb_name | stb_name }  [WHERE clause];
-  ```
+```
+SELECT field_name [+|-|*|/|%][Value|field_name] FROM { tb_name | stb_name }  [WHERE clause];
+```
 
-  **功能说明**：统计表/超级表中某列或多列间的值加、减、乘、除、取余计算结果。
+**功能说明**：统计表/超级表中某列或多列间的值加、减、乘、除、取余计算结果。
 
-  **返回数据类型**：双精度浮点数。
+**返回数据类型**：双精度浮点数。
 
-  **应用字段**：不能应用在 timestamp、binary、nchar、bool 类型字段。
+**应用字段**：不能应用在 timestamp、binary、nchar、bool 类型字段。
 
-  **适用于**：表、超级表。
+**适用于**：表、超级表。
 
-  说明：
+说明：
 
-  1）支持两列或多列之间进行计算，可使用括号控制计算优先级；
+1）支持两列或多列之间进行计算，可使用括号控制计算优先级；
 
-  2）NULL 字段不参与计算，如果参与计算的某行中包含 NULL，该行的计算结果为 NULL。
+2）NULL 字段不参与计算，如果参与计算的某行中包含 NULL，该行的计算结果为 NULL。
 
-  ```
-  taos> SELECT current + voltage * phase FROM d1001;
-  (current+(voltage*phase)) |
-  ============================
-              78.190000713 |
-              84.540003240 |
-              80.810000718 |
-  Query OK, 3 row(s) in set (0.001046s)
-  ```
+```
+taos> SELECT current + voltage * phase FROM d1001;
+(current+(voltage*phase)) |
+============================
+            78.190000713 |
+            84.540003240 |
+            80.810000718 |
+Query OK, 3 row(s) in set (0.001046s)
+```
 
+### STATECOUNT
+```
+SELECT STATECOUNT(field_name, oper, val) FROM { tb_name | stb_name } [WHERE clause];
+```
+**功能说明**：返回满足某个条件的连续记录的个数，结果作为新的一列追加在每行后面。条件根据参数计算，如果条件为true则加1，条件为false则重置为-1，如果数据为NULL，跳过该条数据。
+
+**参数范围**：
+- oper : LT (小于)、GT（大于）、LE（小于等于）、GE（大于等于）、NE（不等于）、EQ（等于），不区分大小写。
+- val : 数值型
+
+**返回结果类型**：整形。
+
+**适用数据类型**：不能应用在 timestamp、binary、nchar、bool 类型字段上。
+
+**嵌套子查询支持**：不支持应用在子查询上。
+
+**支持的版本**：2.6 开始的版本。
+
+**说明**：
+
+- 该函数可以应用在普通表上，在由 GROUP BY 划分出单独时间线的情况下用于超级表（也即 GROUP BY tbname）
+
+- 不能和窗口操作一起使用，例如interval/state_window/session_window。
+
+示例：
+```
+taos> select ts,dbig from statef2;
+          ts               |         dbig          |
+========================================================
+2021-10-15 00:31:33.000000000 |                     1 |
+2021-10-17 00:31:31.000000000 |                  NULL |
+2021-12-24 00:31:34.000000000 |                     2 |
+2022-01-01 08:00:05.000000000 |                    19 |
+2022-01-01 08:00:06.000000000 |                  NULL |
+2022-01-01 08:00:07.000000000 |                     9 |
+Query OK, 6 row(s) in set (0.002977s)
+
+taos> select stateCount(dbig,GT,2) from statef2;
+ts               |         dbig          | statecount(dbig,gt,2) |
+================================================================================
+2021-10-15 00:31:33.000000000 |                     1 |                    -1 |
+2021-10-17 00:31:31.000000000 |                  NULL |                  NULL |
+2021-12-24 00:31:34.000000000 |                     2 |                    -1 |
+2022-01-01 08:00:05.000000000 |                    19 |                     1 |
+2022-01-01 08:00:06.000000000 |                  NULL |                  NULL |
+2022-01-01 08:00:07.000000000 |                     9 |                     2 |
+Query OK, 6 row(s) in set (0.002791s)
+```
+
+### STATEDURATION
+```
+SELECT stateDuration(field_name, oper, val, unit) FROM { tb_name | stb_name } [WHERE clause];
+```
+**功能说明**：返回满足某个条件的连续记录的时间长度，结果作为新的一列追加在每行后面。条件根据参数计算，如果条件为true则加上两个记录之间的时间长度（第一个满足条件的记录时间长度记为0），条件为false则重置为-1，如果数据为NULL，跳过该条数据。
+
+**参数范围**：
+- oper : LT (小于)、GT（大于）、LE（小于等于）、GE（大于等于）、NE（不等于）、EQ（等于），不区分大小写。
+- val : 数值型
+- unit : 时间长度的单位，范围[1s、1m、1h ]，不足一个单位舍去。默认为1s。
+
+**返回结果类型**：整形。
+
+**适用数据类型**：不能应用在 timestamp、binary、nchar、bool 类型字段上。
+
+**嵌套子查询支持**：不支持应用在子查询上。
+
+**支持的版本**：2.6 开始的版本。
+
+**说明**：
+
+- 该函数可以应用在普通表上，在由 GROUP BY 划分出单独时间线的情况下用于超级表（也即 GROUP BY tbname）
+
+- 不能和窗口操作一起使用，例如interval/state_window/session_window。
+
+示例：
+```
+taos> select ts,dbig from statef2;
+          ts               |         dbig          |
+========================================================
+2021-10-15 00:31:33.000000000 |                     1 |
+2021-10-17 00:31:31.000000000 |                  NULL |
+2021-12-24 00:31:34.000000000 |                     2 |
+2022-01-01 08:00:05.000000000 |                    19 |
+2022-01-01 08:00:06.000000000 |                  NULL |
+2022-01-01 08:00:07.000000000 |                     9 |
+Query OK, 6 row(s) in set (0.002407s)
+
+taos> select stateDuration(dbig,GT,2) from statef2;
+ts               |         dbig          | stateduration(dbig,gt,2) |
+===================================================================================
+2021-10-15 00:31:33.000000000 |                     1 |                       -1 |
+2021-10-17 00:31:31.000000000 |                  NULL |                     NULL |
+2021-12-24 00:31:34.000000000 |                     2 |                       -1 |
+2022-01-01 08:00:05.000000000 |                    19 |                        0 |
+2022-01-01 08:00:06.000000000 |                  NULL |                     NULL |
+2022-01-01 08:00:07.000000000 |                     9 |                        2 |
+Query OK, 6 row(s) in set (0.002613s)
+```
+
+### 时间函数
+
+从 2.6.0.0 版本开始，TDengine查询引擎支持以下时间相关函数：
+
+### NOW
+```mysql
+SELECT NOW() FROM { tb_name | stb_name } [WHERE clause];
+SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior NOW();
+INSERT INTO tb_name VALUES (NOW(), ...);
+```
+
+**功能说明**：返回客户端当前系统时间。
+
+**返回结果数据类型**：TIMESTAMP 时间戳类型。
+
+**应用字段**：在 WHERE 或 INSERT 语句中使用时只能作用于TIMESTAMP类型的字段。
+
+**适用于**：表、超级表。
+
+**说明**：
+  1）支持时间加减操作，如NOW() + 1s, 支持的时间单位如下：
+     b(纳秒)、u(微秒)、a(毫秒)、s(秒)、m(分)、h(小时)、d(天)、w(周)。
+  2）返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+
+示例：
+```mysql
+taos> SELECT NOW() FROM meters;
+          now()          |
+==========================
+  2022-02-02 02:02:02.456 |
+Query OK, 1 row(s) in set (0.002093s)
+
+taos> SELECT NOW() + 1h FROM meters;
+       now() + 1h         |
+==========================
+  2022-02-02 03:02:02.456 |
+Query OK, 1 row(s) in set (0.002093s)
+
+taos> SELECT COUNT(voltage) FROM d1001 WHERE ts < NOW();
+        count(voltage)       |
+=============================
+                           5 |
+Query OK, 5 row(s) in set (0.004475s)
+
+taos> INSERT INTO d1001 VALUES (NOW(), 10.2, 219, 0.32);
+Query OK, 1 of 1 row(s) in database (0.002210s)
+```
+
+## TODAY
+```mysql
+SELECT TODAY() FROM { tb_name | stb_name } [WHERE clause];
+SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior TODAY()];
+INSERT INTO tb_name VALUES (TODAY(), ...);
+```
+**功能说明**：返回客户端当日零时的系统时间。
+
+**返回结果数据类型**：TIMESTAMP 时间戳类型。
+
+**应用字段**：在 WHERE 或 INSERT 语句中使用时只能作用于 TIMESTAMP 类型的字段。
+
+**适用于**：表、超级表。
+
+**说明**：
+  1）支持时间加减操作，如TODAY() + 1s, 支持的时间单位如下：
+     b(纳秒)，u(微秒)，a(毫秒)，s(秒)，m(分)，h(小时)，d(天)，w(周)。
+  2）返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+
+示例：
+```mysql
+taos> SELECT TODAY() FROM meters;
+         today()          |
+==========================
+  2022-02-02 00:00:00.000 |
+Query OK, 1 row(s) in set (0.002093s)
+
+taos> SELECT TODAY() + 1h FROM meters;
+      today() + 1h        |
+==========================
+  2022-02-02 01:00:00.000 |
+Query OK, 1 row(s) in set (0.002093s)
+
+taos> SELECT COUNT(voltage) FROM d1001 WHERE ts < TODAY();
+        count(voltage)       |
+=============================
+                           5 |
+Query OK, 5 row(s) in set (0.004475s)
+
+taos> INSERT INTO d1001 VALUES (TODAY(), 10.2, 219, 0.32);
+Query OK, 1 of 1 row(s) in database (0.002210s)
+```
+
+## TIMEZONE
+```mysql
+SELECT TIMEZONE() FROM { tb_name | stb_name } [WHERE clause];
+```
+**功能说明**：返回客户端当前时区信息。
+
+**返回结果数据类型**：BINARY 类型。
+
+**应用字段**：无
+
+**适用于**：表、超级表。
+
+示例：
+```mysql
+taos> SELECT TIMEZONE() FROM meters;
+           timezone()           |
+=================================
+ UTC (UTC, +0000)               |
+Query OK, 1 row(s) in set (0.002093s)
+```
+
+## TO_ISO8601
+```mysql
+SELECT TO_ISO8601(ts_val | ts_col) FROM { tb_name | stb_name } [WHERE clause];
+```
+**功能说明**：将 UNIX 时间戳转换成为 ISO8601 标准的日期时间格式，并附加客户端时区信息。
+
+**返回结果数据类型**：BINARY 类型。
+
+**应用字段**：UNIX 时间戳常量或是 TIMESTAMP 类型的列
+
+**适用于**：表、超级表。
+
+**说明**：如果输入是 UNIX 时间戳常量，返回格式精度由时间戳的位数决定，如果输入是 TIMSTAMP 类型的列，返回格式的时间戳精度与当前 DATABASE 设置的时间精度一致。
+
+示例：
+```mysql
+taos> SELECT TO_ISO8601(1643738400) FROM meters;
+   to_iso8601(1643738400)    |
+==============================
+ 2022-02-02T02:00:00+0800    |
+
+taos> SELECT TO_ISO8601(ts) FROM meters;
+       to_iso8601(ts)        |
+==============================
+ 2022-02-02T02:00:00+0800    |
+ 2022-02-02T02:00:00+0800    |
+ 2022-02-02T02:00:00+0800    |
+```
+
+## TO_UNIXTIMESTAMP
+```mysql
+SELECT TO_UNIXTIMESTAMP(datetime_string | ts_col) FROM { tb_name | stb_name } [WHERE clause];
+```
+**功能说明**：将日期时间格式的字符串转换成为 UNIX 时间戳。
+
+**返回结果数据类型**：长整型INT64。
+
+**应用字段**：字符串常量或是 BINARY/NCHAR 类型的列。
+
+**适用于**：表、超级表。
+
+说明：
+1）输入的日期时间字符串须符合 ISO8601/RFC3339 标准，无法转换的字符串格式将返回0。
+2）返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+
+示例：
+```mysql
+taos> SELECT TO_UNIXTIMESTAMP("2022-02-02T02:00:00.000Z") FROM meters;
+to_unixtimestamp("2022-02-02T02:00:00.000Z") |
+==============================================
+                               1643767200000 |
+
+taos> SELECT TO_UNIXTIMESTAMP(col_binary) FROM meters;
+      to_unixtimestamp(col_binary)     |
+========================================
+                         1643767200000 |
+                         1643767200000 |
+                         1643767200000 |
+```
+
+## TIMETRUNCATE
+```mysql
+SELECT TIMETRUNCATE(ts_val | datetime_string | ts_col, time_unit) FROM { tb_name | stb_name } [WHERE clause];
+```
+**功能说明**：将时间戳按照指定时间单位 time_unit 进行截断。
+
+**返回结果数据类型**：TIMESTAMP 时间戳类型。
+
+**应用字段**：UNIX 时间戳，日期时间格式的字符串，或者 TIMESTAMP 类型的列。
+
+**适用于**：表、超级表。
+
+说明：
+1）支持的时间单位 time_unit 如下：
+     1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)。
+2）返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+
+示例：
+```mysql
+taos> SELECT TIMETRUNCATE(1643738522000, 1h) FROM meters;
+  timetruncate(1643738522000, 1h) |
+===================================
+      2022-02-02 02:00:00.000     |
+Query OK, 1 row(s) in set (0.001499s)
+
+taos> SELECT TIMETRUNCATE("2022-02-02 02:02:02", 1h) FROM meters;
+  timetruncate("2022-02-02 02:02:02", 1h) |
+===========================================
+      2022-02-02 02:00:00.000             |
+Query OK, 1 row(s) in set (0.003903s)
+
+taos> SELECT TIMETRUNCATE(ts, 1h) FROM meters;
+  timetruncate(ts, 1h)   |
+==========================
+ 2022-02-02 02:00:00.000 |
+ 2022-02-02 02:00:00.000 |
+ 2022-02-02 02:00:00.000 |
+Query OK, 3 row(s) in set (0.003903s)
+```
+
+## TIMEDIFF
+```mysql
+SELECT TIMEDIFF(ts_val1 | datetime_string1 | ts_col1, ts_val2 | datetime_string2 | ts_col2 [, time_unit]) FROM { tb_name | stb_name } [WHERE clause];
+```
+**功能说明**：计算两个时间戳之间的差值，并近似到时间单位 time_unit 指定的精度。
+
+**返回结果数据类型**：长整型INT64。
+
+**应用字段**：UNIX 时间戳，日期时间格式的字符串，或者 TIMESTAMP 类型的列。
+
+**适用于**：表、超级表。
+
+说明：
+1）支持的时间单位 time_unit 如下：
+     1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)。
+2）如果时间单位 time_unit 未指定， 返回的时间差值精度与当前 DATABASE 设置的时间精度一致。
+
+示例：
+```mysql
+taos> SELECT TIMEDIFF(1643738400000, 1643742000000) FROM meters;
+ timediff(1643738400000, 1643742000000) |
+=========================================
+                                3600000 |
+Query OK, 1 row(s) in set (0.002553s)
+taos> SELECT TIMEDIFF(1643738400000, 1643742000000, 1h) FROM meters;
+ timediff(1643738400000, 1643742000000, 1h) |
+=============================================
+                                          1 |
+Query OK, 1 row(s) in set (0.003726s)
+
+taos> SELECT TIMEDIFF("2022-02-02 03:00:00", "2022-02-02 02:00:00", 1h) FROM meters;
+ timediff("2022-02-02 03:00:00", "2022-02-02 02:00:00", 1h) |
+=============================================================
+                                                          1 |
+Query OK, 1 row(s) in set (0.001937s)
+
+taos> SELECT TIMEDIFF(ts_col1, ts_col2, 1h) FROM meters;
+   timediff(ts_col1, ts_col2, 1h) |
+===================================
+                                1 |
+Query OK, 1 row(s) in set (0.001937s)
+```
