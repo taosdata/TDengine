@@ -205,17 +205,17 @@ endi
 #if $rows != 4 then 
 #  return -1
 #endi
+
 #print =============== select count(*) from supter table
 #sql select count(*) from stb
+#print $data00 $data01 $data02
 #if $rows != 1 then 
 #  return -1
 #endi
-#
-#print $data00 $data01 $data02
-#if $data00 != 8 then 
+#if $data00 != 9 then 
 #  return -1
 #endi
-#
+
 #print =============== select count(column) from supter table
 #sql select count(ts), count(c1), count(c2), count(c3) from stb
 #print $data00 $data01 $data02  $data03
@@ -412,18 +412,18 @@ endi
 #sql select * from stb
 #if $rows != 4 then 
 #  return -1
-#endi
+#endi      
+
 #print =============== select count(*) from supter table
 #sql select count(*) from stb
+#print $data00 $data01 $data02
 #if $rows != 1 then 
 #  return -1
 #endi
-#
-#print $data00 $data01 $data02
-#if $data00 != 8 then 
+#if $data00 != 9 then 
 #  return -1
 #endi
-#
+
 #print =============== select count(column) from supter table
 #sql select count(ts), count(c1), count(c2), count(c3) from stb
 #print $data00 $data01 $data02  $data03
