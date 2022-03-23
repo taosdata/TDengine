@@ -733,14 +733,6 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
             nNewCells++;
           }
         }
-
-        if (nNewCells == infoNews[iNew].cnt) {
-          if (childNotLeaf) {
-            // TODO
-          } else {
-            // TODO
-          }
-        }
       }
     }
 
