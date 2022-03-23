@@ -12,7 +12,7 @@
 static int32_t       initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
 static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest);
 static void          destroySendMsgInfo(SMsgSendInfo* pMsgBody);
-static void          setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp);
+static int32_t       setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp);
 
 static bool stringLengthCheck(const char* str, size_t maxsize) {
   if (str == NULL) {
@@ -556,13 +556,16 @@ void* doFetchRow(SRequestObj* pRequest) {
       }
 
       SReqResultInfo* pResInfo = &pRequest->body.resInfo;
-      int32_t         code = schedulerFetchRows(pRequest->body.queryJob, (void**)&pResInfo->pData);
-      if (code != TSDB_CODE_SUCCESS) {
-        pRequest->code = code;
+      pRequest->code = schedulerFetchRows(pRequest->body.queryJob, (void**)&pResInfo->pData);
+      if (pRequest->code != TSDB_CODE_SUCCESS) {
         return NULL;
       }
 
-      setQueryResultFromRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pResInfo->pData);
+      pRequest->code = setQueryResultFromRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pResInfo->pData);
+      if (pRequest->code != TSDB_CODE_SUCCESS) {
+        return NULL;
+      }
+
       tscDebug("0x%" PRIx64 " fetch results, numOfRows:%d total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
                pRequest->self, pResInfo->numOfRows, pResInfo->totalRows, pResInfo->completed, pRequest->requestId);
 
@@ -629,10 +632,23 @@ void* doFetchRow(SRequestObj* pRequest) {
 _return:
 
   for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
-    pResultInfo->row[i] = pResultInfo->pCol[i] + pResultInfo->fields[i].bytes * pResultInfo->current;
+    SResultColumn* pCol = &pResultInfo->pCol[i];
+
     if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
-      pResultInfo->length[i] = varDataLen(pResultInfo->row[i]);
-      pResultInfo->row[i] = varDataVal(pResultInfo->row[i]);
+      if (pCol->offset[pResultInfo->current] != -1) {
+        char* pStart = pResultInfo->pCol[i].offset[pResultInfo->current] + pResultInfo->pCol[i].pData;
+
+        pResultInfo->length[i] = varDataLen(pStart);
+        pResultInfo->row[i] = varDataVal(pStart);
+      } else {
+        pResultInfo->row[i] = NULL;
+      }
+    } else {
+      if (!colDataIsNull_f(pCol->nullbitmap, pResultInfo->current)) {
+        pResultInfo->row[i] = pResultInfo->pCol[i].pData + pResultInfo->fields[i].bytes * pResultInfo->current;
+      } else {
+        pResultInfo->row[i] = NULL;
+      }
     }
   }
 
@@ -640,30 +656,52 @@ _return:
   return pResultInfo->row;
 }
 
-static void doPrepareResPtr(SReqResultInfo* pResInfo) {
+static int32_t doPrepareResPtr(SReqResultInfo* pResInfo) {
   if (pResInfo->row == NULL) {
-    pResInfo->row = calloc(pResInfo->numOfCols, POINTER_BYTES);
-    pResInfo->pCol = calloc(pResInfo->numOfCols, POINTER_BYTES);
+    pResInfo->row    = calloc(pResInfo->numOfCols, POINTER_BYTES);
+    pResInfo->pCol   = calloc(pResInfo->numOfCols, sizeof(SResultColumn));
     pResInfo->length = calloc(pResInfo->numOfCols, sizeof(int32_t));
+  }
+
+  if (pResInfo->row == NULL || pResInfo->pCol == NULL || pResInfo->length == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    return TSDB_CODE_SUCCESS;
   }
 }
 
-void setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows) {
+int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows) {
   assert(numOfCols > 0 && pFields != NULL && pResultInfo != NULL);
   if (numOfRows == 0) {
-    return;
+    return TSDB_CODE_SUCCESS;
   }
 
-  // todo check for the failure of malloc
-  doPrepareResPtr(pResultInfo);
+  int32_t code = doPrepareResPtr(pResultInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
-  int32_t offset = 0;
+  int32_t* colLength = (int32_t*)pResultInfo->pData;
+  char*    pStart = ((char*)pResultInfo->pData) + sizeof(int32_t) * numOfCols;
   for (int32_t i = 0; i < numOfCols; ++i) {
+    colLength[i] = htonl(colLength[i]);
+
+    if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
+      pResultInfo->pCol[i].offset = (int32_t*)pStart;
+      pStart += numOfRows * sizeof(int32_t);
+    } else {
+      pResultInfo->pCol[i].nullbitmap = pStart;
+      pStart += BitmapLen(pResultInfo->numOfRows);
+    }
+
+    pResultInfo->pCol[i].pData = pStart;
     pResultInfo->length[i] = pResultInfo->fields[i].bytes;
-    pResultInfo->row[i] = (char*)(pResultInfo->pData + offset * pResultInfo->numOfRows);
-    pResultInfo->pCol[i] = pResultInfo->row[i];
-    offset += pResultInfo->fields[i].bytes;
+    pResultInfo->row[i] = pResultInfo->pCol[i].pData;
+
+    pStart += colLength[i];
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 char* getDbOfConnection(STscObj* pObj) {
@@ -685,15 +723,17 @@ void setConnectionDB(STscObj* pTscObj, const char* db) {
   taosThreadMutexUnlock(&pTscObj->mutex);
 }
 
-void setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp) {
+int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp) {
   assert(pResultInfo != NULL && pRsp != NULL);
 
-  pResultInfo->pRspMsg = (const char*)pRsp;
-  pResultInfo->pData = (void*)pRsp->data;
-  pResultInfo->numOfRows = htonl(pRsp->numOfRows);
-  pResultInfo->current = 0;
-  pResultInfo->completed = (pRsp->completed == 1);
+  pResultInfo->pRspMsg    = (const char*)pRsp;
+  pResultInfo->pData      = (void*)pRsp->data;
+  pResultInfo->numOfRows  = htonl(pRsp->numOfRows);
+  pResultInfo->current    = 0;
+  pResultInfo->completed  = (pRsp->completed == 1);
+  pResultInfo->payloadLen = htonl(pRsp->compLen);
 
+  // TODO handle the compressed case
   pResultInfo->totalRows += pResultInfo->numOfRows;
-  setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows);
+  return setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows);
 }

@@ -36,7 +36,7 @@ typedef struct SReadHandle {
 
 #define STREAM_DATA_TYPE_SUBMIT_BLOCK 0x1
 #define STREAM_DATA_TYPE_SSDATA_BLOCK 0x2
-
+  
 /**
  * Create the exec task for streaming mode
  * @param pMsg
