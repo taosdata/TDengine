@@ -624,7 +624,7 @@ partition_by_clause_opt(A) ::= PARTITION BY expression_list(B).                 
 
 twindow_clause_opt(A) ::= .                                                       { A = NULL; }
 twindow_clause_opt(A) ::=
-  SESSION NK_LP column_reference(B) NK_COMMA NK_INTEGER(C) NK_RP.                 { A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
+  SESSION NK_LP column_reference(B) NK_COMMA duration_literal(C) NK_RP.           { A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), C); }
 twindow_clause_opt(A) ::= STATE_WINDOW NK_LP column_reference(B) NK_RP.           { A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B)); }
 twindow_clause_opt(A) ::=
   INTERVAL NK_LP duration_literal(B) NK_RP sliding_opt(C) fill_opt(D).            { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, B), NULL, C, D); }

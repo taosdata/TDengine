@@ -95,6 +95,7 @@ typedef struct SWindowLogicNode {
   int8_t  intervalUnit;
   int8_t  slidingUnit;
   SFillNode* pFill;
+  int64_t sessionGap;
 } SWindowLogicNode;
 
 typedef enum ESubplanType {
@@ -110,7 +111,7 @@ typedef struct SSubplanId {
   int32_t subplanId;
 } SSubplanId;
 
-typedef struct SSubLogicPlan {
+typedef struct SLogicSubplan {
   ENodeType type;
   SSubplanId id;
   SNodeList* pChildren;
@@ -120,7 +121,7 @@ typedef struct SSubLogicPlan {
   SVgroupsInfo* pVgroupList;
   int32_t level;
   int32_t splitFlag;
-} SSubLogicPlan;
+} SLogicSubplan;
 
 typedef struct SQueryLogicPlan {
   ENodeType type;
@@ -213,10 +214,14 @@ typedef struct SExchangePhysiNode {
   SNodeList* pSrcEndPoints;  // element is SDownstreamSource, scheduler fill by calling qSetSuplanExecutionNode
 } SExchangePhysiNode;
 
-typedef struct SIntervalPhysiNode {
+typedef struct SWinodwPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;   // these are expression list of parameter expression of function
   SNodeList* pFuncs;
+} SWinodwPhysiNode;
+
+typedef struct SIntervalPhysiNode {
+  SWinodwPhysiNode window;
   int64_t    interval;
   int64_t    offset;
   int64_t    sliding;
@@ -224,6 +229,11 @@ typedef struct SIntervalPhysiNode {
   int8_t     slidingUnit;
   SFillNode* pFill;
 } SIntervalPhysiNode;
+
+typedef struct SSessionWinodwPhysiNode {
+  SWinodwPhysiNode window;
+  int64_t    gap;
+} SSessionWinodwPhysiNode;
 
 typedef struct SDataSinkNode {
   ENodeType type;

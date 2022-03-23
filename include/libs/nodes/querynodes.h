@@ -191,8 +191,8 @@ typedef struct SStateWindowNode {
 
 typedef struct SSessionWindowNode {
   ENodeType type; // QUERY_NODE_SESSION_WINDOW
-  int64_t gap;             // gap between two session window(in microseconds)
   SNode* pCol;
+  SNode* pGap; // gap between two session window(in microseconds)
 } SSessionWindowNode;
 
 typedef struct SIntervalWindowNode {
