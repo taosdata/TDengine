@@ -6,6 +6,7 @@ TEST(tdb_test, simple_test) {
   int    ret;
   STEnv *pEnv;
   STDb  *pDb;
+  int    nData = 1000;
 
   // Open Env
   ret = tdbEnvOpen("tdb", 1024, 256, &pEnv);
@@ -15,15 +16,33 @@ TEST(tdb_test, simple_test) {
   ret = tdbDbOpen("db.db", TDB_VARIANT_LEN, TDB_VARIANT_LEN, NULL, pEnv, &pDb);
   GTEST_ASSERT_EQ(ret, 0);
 
-  {  // Insert some data
-    char key[64];
-    char val[64];
+  {
+    char  key[64];
+    char  val[64];
+    void *pVal;
+    int   vLen;
 
-    for (int i = 1; i <= 1000; i++) {
-      sprintf(key, "key%d", i);
-      sprintf(val, "value%d", i);
-      ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val));
-      GTEST_ASSERT_EQ(ret, 0);
+    {  // Insert some data
+
+      for (int i = 1; i <= nData; i++) {
+        sprintf(key, "key%d", i);
+        sprintf(val, "value%d", i);
+        ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val));
+        GTEST_ASSERT_EQ(ret, 0);
+      }
+    }
+
+    {  // Query the data
+      for (int i = 1; i <= nData; i++) {
+        sprintf(key, "key%d", i);
+        sprintf(val, "value%d", i);
+
+        ret = tdbDbGet(pDb, key, strlen(key), pVal, &vLen);
+        GTEST_ASSERT_EQ(ret, 0);
+
+        GTEST_ASSERT_EQ(vLen, strlen(val));
+        GTEST_ASSERT_EQ(memcmp(val, pVal, vLen), 0);
+      }
     }
   }
 

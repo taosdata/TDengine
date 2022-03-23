@@ -87,3 +87,8 @@ int tdbDbInsert(STDb *pDb, const void *pKey, int keyLen, const void *pVal, int v
 
   return 0;
 }
+
+int tdbDbGet(STDb *pDb, const void *pKey, int kLen, void *pVal, int *vLen) {
+  // TODO
+  return 0;
+}

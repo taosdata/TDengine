@@ -26,6 +26,7 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
 int tdbDbClose(STDb *pDb);
 int tdbDbDrop(STDb *pDb);
 int tdbDbInsert(STDb *pDb, const void *pKey, int keyLen, const void *pVal, int valLen);
+int tdbDbGet(STDb *pDb, const void *pKey, int kLen, void *pVal, int *vLen);
 
 #ifdef __cplusplus
 }
