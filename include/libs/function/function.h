@@ -163,7 +163,7 @@ typedef struct SInputColumnInfoData {
 typedef struct SqlFunctionCtx {
   SInputColumnInfoData input;
   SResultDataInfo      resDataInfo;
-  uint32_t             order;  // asc|desc
+  uint32_t             order;  // data block scanner order: asc|desc
   ////////////////////////////////////////////////////////////////
   int32_t          startRow;   // start row index
   int32_t          size;       // handled processed row number

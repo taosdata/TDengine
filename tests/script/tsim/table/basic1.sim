@@ -3,10 +3,33 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
+#=========== TD-14042 start
+sql create database db1;
+sql create database db2;
+sql create database db3;
+
+sql use db1;
+sql create table st1 (ts timestamp, i int) tags (j int);
+sql create table tb1 using st1 tags(1);
+
+sql use db2;
+sql create table st2 (ts timestamp, i int) tags (j int);
+sql create table tb2 using st2 tags(1);
+
+sql use db3;
+sql create table st3 (ts timestamp, i int) tags (j int);
+sql create table tb3 using st3 tags(1);
+
+sql show tables
+if $rows != 1 then 
+  return -1
+endi
+#=========== TD-14042 end
+
 print =============== create database
 sql create database d1
 sql show databases
-if $rows != 1 then 
+if $rows != 5 then 
   return -1
 endi
 
@@ -187,10 +210,25 @@ if $rows != 21 then
 endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-
 system sh/exec.sh -n dnode1 -s start
 
-sleep 2000
+$loop_cnt = 0
+check_dnode_ready:
+	$loop_cnt = $loop_cnt + 1
+	sleep 200
+	if $loop_cnt == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql show dnodes
+print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
+if $data00 != 1 then
+  return -1
+endi
+if $data04 != ready then
+  goto check_dnode_ready
+endi
+
 print =============== query data
 sql select * from c1
 if $rows != 3 then 

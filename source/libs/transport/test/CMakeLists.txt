@@ -7,11 +7,11 @@ add_executable(pushServer "")
 
 target_sources(transUT
   PRIVATE
-  "transUT.cc"
+  "transUT.cpp"
 )  
 target_sources(transportTest 
   PRIVATE
-  "transportTests.cc"
+  "transportTests.cpp"
 )  
 target_sources (client
   PRIVATE

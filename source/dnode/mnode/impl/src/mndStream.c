@@ -21,6 +21,7 @@
 #include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndStb.h"
+#include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
@@ -33,6 +34,7 @@ static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pStream, SStreamObj *pNewStream);
 static int32_t mndProcessCreateStreamReq(SNodeMsg *pReq);
+static int32_t mndProcessTaskDeployInternalRsp(SNodeMsg *pRsp);
 /*static int32_t mndProcessDropStreamReq(SNodeMsg *pReq);*/
 /*static int32_t mndProcessDropStreamInRsp(SNodeMsg *pRsp);*/
 static int32_t mndProcessStreamMetaReq(SNodeMsg *pReq);
@@ -50,6 +52,8 @@ int32_t mndInitStream(SMnode *pMnode) {
                      .deleteFp = (SdbDeleteFp)mndStreamActionDelete};
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STREAM, mndProcessCreateStreamReq);
+  mndSetMsgHandle(pMnode, TDMT_VND_TASK_DEPLOY_RSP, mndProcessTaskDeployInternalRsp);
+  mndSetMsgHandle(pMnode, TDMT_SND_TASK_DEPLOY_RSP, mndProcessTaskDeployInternalRsp);
   /*mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);*/
   /*mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM_RSP, mndProcessDropStreamInRsp);*/
 
@@ -68,7 +72,7 @@ SSdbRaw *mndStreamActionEncode(SStreamObj *pStream) {
 
   SCoder encoder;
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER);
-  if (tEncodeSStreamObj(NULL, pStream) < 0) {
+  if (tEncodeSStreamObj(&encoder, pStream) < 0) {
     tCoderClear(&encoder);
     goto STREAM_ENCODE_OVER;
   }
@@ -83,7 +87,7 @@ SSdbRaw *mndStreamActionEncode(SStreamObj *pStream) {
   if (buf == NULL) goto STREAM_ENCODE_OVER;
 
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, tlen, TD_ENCODER);
-  if (tEncodeSStreamObj(NULL, pStream) < 0) {
+  if (tEncodeSStreamObj(&encoder, pStream) < 0) {
     tCoderClear(&encoder);
     goto STREAM_ENCODE_OVER;
   }
@@ -135,7 +139,7 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   SDB_GET_BINARY(pRaw, dataPos, buf, tlen, STREAM_DECODE_OVER);
 
   SCoder decoder;
-  tCoderInit(&decoder, TD_LITTLE_ENDIAN, NULL, 0, TD_DECODER);
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, tlen + 1, TD_DECODER);
   if (tDecodeSStreamObj(&decoder, pStream) < 0) {
     goto STREAM_DECODE_OVER;
   }
@@ -191,6 +195,11 @@ void mndReleaseStream(SMnode *pMnode, SStreamObj *pStream) {
   sdbRelease(pSdb, pStream);
 }
 
+static int32_t mndProcessTaskDeployInternalRsp(SNodeMsg *pRsp) {
+  mndTransProcessRsp(pRsp);
+  return 0;
+}
+
 static SDbObj *mndAcquireDbByStream(SMnode *pMnode, char *streamName) {
   SName name = {0};
   tNameFromString(&name, streamName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
@@ -209,6 +218,33 @@ static int32_t mndCheckCreateStreamReq(SCMCreateStreamReq *pCreate) {
   return 0;
 }
 
+static int32_t mndStreamGetPlanString(const SCMCreateStreamReq *pCreate, char **pStr) {
+  if (NULL == pCreate->ast) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode  *pAst = NULL;
+  int32_t code = nodesStringToNode(pCreate->ast, &pAst);
+
+  SQueryPlan *pPlan = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    SPlanContext cxt = {
+        .pAstRoot = pAst,
+        .topicQuery = false,
+        .streamQuery = true,
+    };
+    code = qCreateQueryPlan(&cxt, &pPlan, NULL);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesNodeToString(pPlan, false, pStr, NULL);
+  }
+  nodesDestroyNode(pAst);
+  nodesDestroyNode(pPlan);
+  terrno = code;
+  return code;
+}
+
 static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamReq *pCreate, SDbObj *pDb) {
   mDebug("stream:%s to create", pCreate->name);
   SStreamObj streamObj = {0};
@@ -220,8 +256,13 @@ static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamRe
   streamObj.dbUid = pDb->uid;
   streamObj.version = 1;
   streamObj.sql = pCreate->sql;
-  streamObj.physicalPlan = "";
-  streamObj.logicalPlan = "";
+  /*streamObj.physicalPlan = "";*/
+  streamObj.logicalPlan = "not implemented";
+
+  if (TSDB_CODE_SUCCESS != mndStreamGetPlanString(pCreate, &streamObj.physicalPlan)) {
+    mError("topic:%s, failed to get plan since %s", pCreate->name, terrstr());
+    return -1;
+  }
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_STREAM, &pReq->rpcMsg);
   if (pTrans == NULL) {

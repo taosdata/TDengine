@@ -12,7 +12,7 @@
 static int32_t       initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
 static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest);
 static void          destroySendMsgInfo(SMsgSendInfo* pMsgBody);
-static void          setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp);
+static int32_t       setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp);
 
 static bool stringLengthCheck(const char* str, size_t maxsize) {
   if (str == NULL) {
@@ -159,8 +159,12 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery) {
   }
 
   code = qParseQuerySql(&cxt, pQuery);
-  if (TSDB_CODE_SUCCESS == code && ((*pQuery)->haveResultSet)) {
-    setResSchemaInfo(&pRequest->body.resInfo, (*pQuery)->pResSchema, (*pQuery)->numOfResCols);
+  if (TSDB_CODE_SUCCESS == code) {
+    if ((*pQuery)->haveResultSet) {
+      setResSchemaInfo(&pRequest->body.resInfo, (*pQuery)->pResSchema, (*pQuery)->numOfResCols);
+    }
+    TSWAP(pRequest->dbList, (*pQuery)->pDbList, SArray*);
+    TSWAP(pRequest->tableList, (*pQuery)->pTableList, SArray*);
   }
 
   return code;
@@ -191,8 +195,17 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
 
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList) {
   pRequest->type = pQuery->msgType;
-  SPlanContext cxt = { .queryId = pRequest->requestId, .pAstRoot = pQuery->pRoot, .acctId = pRequest->pTscObj->acctId };
-  return qCreateQueryPlan(&cxt, pPlan, pNodeList);
+  SPlanContext cxt = {
+    .queryId = pRequest->requestId,
+    .acctId = pRequest->pTscObj->acctId,
+    .mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp),
+    .pAstRoot = pQuery->pRoot
+  };
+  int32_t  code = qCreateQueryPlan(&cxt, pPlan, pNodeList);
+  if (code != 0) {
+    return code;
+  }
+  return code;
 }
 
 void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols) {
@@ -219,6 +232,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
     }
 
     pRequest->code = code;
+    terrno = code;
     return pRequest->code;
   }
 
@@ -231,7 +245,94 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   }
 
   pRequest->code = res.code;
+  terrno = res.code;  
   return pRequest->code;
+}
+
+SRequestObj* execQueryImpl(STscObj* pTscObj, const char* sql, int sqlLen) {
+  SRequestObj* pRequest = NULL;
+  SQuery* pQuery = NULL;
+  int32_t code = 0;
+  SArray* pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
+
+  CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
+  CHECK_CODE_GOTO(parseSql(pRequest, false, &pQuery), _return);
+
+  if (pQuery->directRpc) {
+    CHECK_CODE_GOTO(execDdlQuery(pRequest, pQuery), _return);
+  } else {
+    CHECK_CODE_GOTO(getPlan(pRequest, pQuery, &pRequest->body.pDag, pNodeList), _return);
+    CHECK_CODE_GOTO(scheduleQuery(pRequest, pRequest->body.pDag, pNodeList), _return);
+  }
+
+_return:
+  taosArrayDestroy(pNodeList);
+  qDestroyQuery(pQuery);
+  if (NULL != pRequest && TSDB_CODE_SUCCESS != code) {
+    pRequest->code = terrno;
+  }
+
+  return pRequest;
+}
+
+int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {
+  SCatalog *pCatalog = NULL;
+  int32_t code = 0;
+  int32_t dbNum = taosArrayGetSize(pRequest->dbList);
+  int32_t tblNum = taosArrayGetSize(pRequest->tableList);
+
+  if (dbNum <= 0 && tblNum <= 0) {
+    return TSDB_CODE_QRY_APP_ERROR;
+  }
+  
+  code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  SEpSet epset = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+
+  for (int32_t i = 0; i < dbNum; ++i) {
+    char *dbFName = taosArrayGet(pRequest->dbList, i);
+    
+    code = catalogRefreshDBVgInfo(pCatalog, pTscObj->pAppInfo->pTransporter, &epset, dbFName);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  for (int32_t i = 0; i < tblNum; ++i) {
+    SName *tableName = taosArrayGet(pRequest->tableList, i);
+
+    code = catalogRefreshTableMeta(pCatalog, pTscObj->pAppInfo->pTransporter, &epset, tableName, -1);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  return code;
+}
+
+
+SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
+  SRequestObj* pRequest = NULL;
+  int32_t retryNum = 0;
+  int32_t code = 0;
+
+  while (retryNum++ < REQUEST_MAX_TRY_TIMES) {
+    pRequest = execQueryImpl(pTscObj, sql, sqlLen);
+    if (TSDB_CODE_SUCCESS == pRequest->code || !NEED_CLIENT_HANDLE_ERROR(pRequest->code)) {
+      break;
+    }
+
+    code = refreshMeta(pTscObj, pRequest);
+    if (code) {
+      pRequest->code = code;
+      break;
+    }
+  }
+  
+  return pRequest;
 }
 
 TAOS_RES* taos_query_l(TAOS* taos, const char* sql, int sqlLen) {
@@ -242,30 +343,7 @@ TAOS_RES* taos_query_l(TAOS* taos, const char* sql, int sqlLen) {
     return NULL;
   }
 
-  SRequestObj* pRequest = NULL;
-  SQuery* pQuery = NULL;
-  SArray* pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
-
-  terrno = TSDB_CODE_SUCCESS;
-  CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
-  CHECK_CODE_GOTO(parseSql(pRequest, false, &pQuery), _return);
-
-  if (pQuery->directRpc) {
-    CHECK_CODE_GOTO(execDdlQuery(pRequest, pQuery), _return);
-  } else {
-    CHECK_CODE_GOTO(getPlan(pRequest, pQuery, &pRequest->body.pDag, pNodeList), _return);
-    CHECK_CODE_GOTO(scheduleQuery(pRequest, pRequest->body.pDag, pNodeList), _return);
-    pRequest->code = terrno;
-  }
-
-_return:
-  taosArrayDestroy(pNodeList);
-  qDestroyQuery(pQuery);
-  if (NULL != pRequest && TSDB_CODE_SUCCESS != terrno) {
-    pRequest->code = terrno;
-  }
-
-  return pRequest;
+  return execQuery(pTscObj, sql, sqlLen);
 }
 
 int initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet) {
@@ -384,7 +462,7 @@ static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   tfree(pMsgBody);
 }
 bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType) {
-  return msgType == TDMT_VND_QUERY_RSP || msgType == TDMT_VND_FETCH_RSP || msgType == TDMT_VND_RES_READY_RSP;
+  return msgType == TDMT_VND_QUERY_RSP || msgType == TDMT_VND_FETCH_RSP || msgType == TDMT_VND_RES_READY_RSP || msgType == TDMT_VND_QUERY_HEARTBEAT_RSP;
 }
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->ahandle;
@@ -395,7 +473,6 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     assert(pRequest->self == pSendInfo->requestObjRefId);
 
     pRequest->metric.rsp = taosGetTimestampMs();
-    pRequest->code = pMsg->code;
 
     STscObj* pTscObj = pRequest->pTscObj;
     if (pEpSet) {
@@ -479,13 +556,16 @@ void* doFetchRow(SRequestObj* pRequest) {
       }
 
       SReqResultInfo* pResInfo = &pRequest->body.resInfo;
-      int32_t         code = schedulerFetchRows(pRequest->body.queryJob, (void**)&pResInfo->pData);
-      if (code != TSDB_CODE_SUCCESS) {
-        pRequest->code = code;
+      pRequest->code = schedulerFetchRows(pRequest->body.queryJob, (void**)&pResInfo->pData);
+      if (pRequest->code != TSDB_CODE_SUCCESS) {
         return NULL;
       }
 
-      setQueryResultFromRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pResInfo->pData);
+      pRequest->code = setQueryResultFromRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pResInfo->pData);
+      if (pRequest->code != TSDB_CODE_SUCCESS) {
+        return NULL;
+      }
+
       tscDebug("0x%" PRIx64 " fetch results, numOfRows:%d total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
                pRequest->self, pResInfo->numOfRows, pResInfo->totalRows, pResInfo->completed, pRequest->requestId);
 
@@ -552,10 +632,23 @@ void* doFetchRow(SRequestObj* pRequest) {
 _return:
 
   for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
-    pResultInfo->row[i] = pResultInfo->pCol[i] + pResultInfo->fields[i].bytes * pResultInfo->current;
+    SResultColumn* pCol = &pResultInfo->pCol[i];
+
     if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
-      pResultInfo->length[i] = varDataLen(pResultInfo->row[i]);
-      pResultInfo->row[i] = varDataVal(pResultInfo->row[i]);
+      if (pCol->offset[pResultInfo->current] != -1) {
+        char* pStart = pResultInfo->pCol[i].offset[pResultInfo->current] + pResultInfo->pCol[i].pData;
+
+        pResultInfo->length[i] = varDataLen(pStart);
+        pResultInfo->row[i] = varDataVal(pStart);
+      } else {
+        pResultInfo->row[i] = NULL;
+      }
+    } else {
+      if (!colDataIsNull_f(pCol->nullbitmap, pResultInfo->current)) {
+        pResultInfo->row[i] = pResultInfo->pCol[i].pData + pResultInfo->fields[i].bytes * pResultInfo->current;
+      } else {
+        pResultInfo->row[i] = NULL;
+      }
     }
   }
 
@@ -563,30 +656,52 @@ _return:
   return pResultInfo->row;
 }
 
-static void doPrepareResPtr(SReqResultInfo* pResInfo) {
+static int32_t doPrepareResPtr(SReqResultInfo* pResInfo) {
   if (pResInfo->row == NULL) {
-    pResInfo->row = calloc(pResInfo->numOfCols, POINTER_BYTES);
-    pResInfo->pCol = calloc(pResInfo->numOfCols, POINTER_BYTES);
+    pResInfo->row    = calloc(pResInfo->numOfCols, POINTER_BYTES);
+    pResInfo->pCol   = calloc(pResInfo->numOfCols, sizeof(SResultColumn));
     pResInfo->length = calloc(pResInfo->numOfCols, sizeof(int32_t));
+  }
+
+  if (pResInfo->row == NULL || pResInfo->pCol == NULL || pResInfo->length == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    return TSDB_CODE_SUCCESS;
   }
 }
 
-void setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows) {
+int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows) {
   assert(numOfCols > 0 && pFields != NULL && pResultInfo != NULL);
   if (numOfRows == 0) {
-    return;
+    return TSDB_CODE_SUCCESS;
   }
 
-  // todo check for the failure of malloc
-  doPrepareResPtr(pResultInfo);
+  int32_t code = doPrepareResPtr(pResultInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
-  int32_t offset = 0;
+  int32_t* colLength = (int32_t*)pResultInfo->pData;
+  char*    pStart = ((char*)pResultInfo->pData) + sizeof(int32_t) * numOfCols;
   for (int32_t i = 0; i < numOfCols; ++i) {
+    colLength[i] = htonl(colLength[i]);
+
+    if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
+      pResultInfo->pCol[i].offset = (int32_t*)pStart;
+      pStart += numOfRows * sizeof(int32_t);
+    } else {
+      pResultInfo->pCol[i].nullbitmap = pStart;
+      pStart += BitmapLen(pResultInfo->numOfRows);
+    }
+
+    pResultInfo->pCol[i].pData = pStart;
     pResultInfo->length[i] = pResultInfo->fields[i].bytes;
-    pResultInfo->row[i] = (char*)(pResultInfo->pData + offset * pResultInfo->numOfRows);
-    pResultInfo->pCol[i] = pResultInfo->row[i];
-    offset += pResultInfo->fields[i].bytes;
+    pResultInfo->row[i] = pResultInfo->pCol[i].pData;
+
+    pStart += colLength[i];
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 char* getDbOfConnection(STscObj* pObj) {
@@ -608,15 +723,17 @@ void setConnectionDB(STscObj* pTscObj, const char* db) {
   taosThreadMutexUnlock(&pTscObj->mutex);
 }
 
-void setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp) {
+int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp) {
   assert(pResultInfo != NULL && pRsp != NULL);
 
-  pResultInfo->pRspMsg = (const char*)pRsp;
-  pResultInfo->pData = (void*)pRsp->data;
-  pResultInfo->numOfRows = htonl(pRsp->numOfRows);
-  pResultInfo->current = 0;
-  pResultInfo->completed = (pRsp->completed == 1);
+  pResultInfo->pRspMsg    = (const char*)pRsp;
+  pResultInfo->pData      = (void*)pRsp->data;
+  pResultInfo->numOfRows  = htonl(pRsp->numOfRows);
+  pResultInfo->current    = 0;
+  pResultInfo->completed  = (pRsp->completed == 1);
+  pResultInfo->payloadLen = htonl(pRsp->compLen);
 
+  // TODO handle the compressed case
   pResultInfo->totalRows += pResultInfo->numOfRows;
-  setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows);
+  return setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows);
 }

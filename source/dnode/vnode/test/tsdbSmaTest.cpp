@@ -33,6 +33,61 @@ int main(int argc, char **argv) {
   return RUN_ALL_TESTS();
 }
 
+TEST(testCase, unionEncodeDecodeTest) {
+  typedef struct {
+    union {
+      uint8_t info;
+      struct {
+        uint8_t rollup : 1;  // 1 means rollup sma
+        uint8_t type : 7;
+      };
+    };
+    col_id_t  nBSmaCols;
+    col_id_t* pBSmaCols;
+  } SUnionTest;
+
+  SUnionTest sut = {0};
+  sut.rollup = 1;
+  sut.type = 1;
+
+  sut.nBSmaCols = 2;
+  sut.pBSmaCols = (col_id_t*)malloc(sut.nBSmaCols * sizeof(col_id_t));
+  for (col_id_t i = 0; i < sut.nBSmaCols; ++i) {
+    sut.pBSmaCols[i] = i + 100;
+  }
+
+  void* buf = malloc(1024);
+  void *  pBuf = buf;
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedU8(&buf, sut.info);
+  tlen += taosEncodeFixedI16(&buf, sut.nBSmaCols);
+  for (col_id_t i = 0; i < sut.nBSmaCols; ++i) {
+    tlen += taosEncodeFixedI16(&buf, sut.pBSmaCols[i]);
+  }
+
+  SUnionTest dut = {0};
+  pBuf = taosDecodeFixedU8(pBuf, &dut.info);
+  pBuf = taosDecodeFixedI16(pBuf, &dut.nBSmaCols);
+  if(dut.nBSmaCols > 0) {
+    dut.pBSmaCols = (col_id_t*)malloc(dut.nBSmaCols * sizeof(col_id_t));
+    for(col_id_t i=0; i < dut.nBSmaCols; ++i) {
+      pBuf = taosDecodeFixedI16(pBuf, dut.pBSmaCols + i);
+    }
+  } else {
+    dut.pBSmaCols = NULL;
+  }
+
+  printf("sut.rollup=%" PRIu8 ", type=%" PRIu8 ", info=%" PRIu8 "\n", sut.rollup, sut.type, sut.info);
+  printf("dut.rollup=%" PRIu8 ", type=%" PRIu8 ", info=%" PRIu8 "\n", dut.rollup, dut.type, dut.info);
+
+  ASSERT_EQ(sut.rollup, dut.rollup);
+  ASSERT_EQ(sut.type, dut.type);
+  ASSERT_EQ(sut.nBSmaCols, dut.nBSmaCols);
+  for (col_id_t i = 0; i< sut.nBSmaCols; ++i) {
+    ASSERT_EQ(*(col_id_t*)(sut.pBSmaCols + i), sut.pBSmaCols[i]);
+    ASSERT_EQ(*(col_id_t*)(sut.pBSmaCols + i), dut.pBSmaCols[i]);
+  }
+}
 #if 1
 TEST(testCase, tSma_Meta_Encode_Decode_Test) {
   // encode
@@ -304,7 +359,9 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
       break;
   }
 
-  SDiskCfg pDisks = {.level = 0, .primary = 1};
+  SDiskCfg pDisks = {0};
+  pDisks.level = 0;
+  pDisks.primary = 1;
   strncpy(pDisks.dir, "/var/lib/taos", TSDB_FILENAME_LEN);
   int32_t numOfDisks = 1;
   pTsdb->pTfs = tfsOpen(&pDisks, numOfDisks);

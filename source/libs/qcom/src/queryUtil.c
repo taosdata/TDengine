@@ -165,3 +165,43 @@ int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransp
   rpcSendRequest(pTransporter, epSet, &rpcMsg, pTransporterId);
   return TSDB_CODE_SUCCESS;
 }
+
+char *jobTaskStatusStr(int32_t status) {
+  switch (status) {
+    case JOB_TASK_STATUS_NULL:
+      return "NULL";
+    case JOB_TASK_STATUS_NOT_START:
+      return "NOT_START";
+    case JOB_TASK_STATUS_EXECUTING:
+      return "EXECUTING";
+    case JOB_TASK_STATUS_PARTIAL_SUCCEED:
+      return "PARTIAL_SUCCEED";
+    case JOB_TASK_STATUS_SUCCEED:
+      return "SUCCEED";
+    case JOB_TASK_STATUS_FAILED:
+      return "FAILED";
+    case JOB_TASK_STATUS_CANCELLING:
+      return "CANCELLING";
+    case JOB_TASK_STATUS_CANCELLED:
+      return "CANCELLED";
+    case JOB_TASK_STATUS_DROPPING:
+      return "DROPPING";
+    default:
+      break;
+  }
+
+  return "UNKNOWN";
+}
+
+SSchema createSchema(uint8_t type, int32_t bytes, int32_t colId, const char* name) {
+  SSchema s = {0};
+  s.type  = type;
+  s.bytes = bytes;
+  s.colId = colId;
+
+  tstrncpy(s.name, name, tListLen(s.name));
+  return s;
+}
+
+
+

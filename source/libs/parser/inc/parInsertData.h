@@ -78,6 +78,8 @@ typedef struct STableDataBlocks {
   char       *pData;
   bool        cloned;
   STagData    tagData; 
+  char        tableName[TSDB_TABLE_NAME_LEN];
+  char        dbFName[TSDB_DB_FNAME_LEN];
   
   SParsedDataColInfo boundColumnInfo;
   SRowBuilder        rowBuilder;
@@ -115,10 +117,10 @@ static FORCE_INLINE void getMemRowAppendInfo(SSchema *pSchema, uint8_t rowType, 
   }
 }
 
-static FORCE_INLINE int32_t setBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, int32_t numOfRows) {
-  pBlocks->tid = pTableMeta->suid;
-  pBlocks->uid = pTableMeta->uid;
-  pBlocks->sversion = pTableMeta->sversion;
+static FORCE_INLINE int32_t setBlockInfo(SSubmitBlk *pBlocks, STableDataBlocks* dataBuf, int32_t numOfRows) {
+  pBlocks->tid = dataBuf->pTableMeta->suid;
+  pBlocks->uid = dataBuf->pTableMeta->uid;
+  pBlocks->sversion = dataBuf->pTableMeta->sversion;
 
   if (pBlocks->numOfRows + numOfRows >= INT16_MAX) {
     return TSDB_CODE_TSC_INVALID_OPERATION;

@@ -44,8 +44,8 @@ typedef struct SStsInfo {
 } SStsInfo;
 
 static SLogicNode* stsMatchByNode(SLogicNode* pNode) {
-  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) && TSDB_SUPER_TABLE == ((SScanLogicNode*)pNode)->pMeta->tableType &&
-      SCAN_TYPE_TOPIC != ((SScanLogicNode*)pNode)->scanType) {
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) &&
+      NULL != ((SScanLogicNode*)pNode)->pVgroupList && ((SScanLogicNode*)pNode)->pVgroupList->numOfVgroups > 1) {
     return pNode;
   }
   SNode* pChild;

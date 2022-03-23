@@ -238,7 +238,11 @@ int32_t processCreateDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   // todo rsp with the vnode id list
   SRequestObj* pRequest = param;
   free(pMsg->pData);
+  if (code != TSDB_CODE_SUCCESS) {
+    setErrno(pRequest, code);
+  }
   tsem_post(&pRequest->body.rspSem);
+  return code;
 }
 
 int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {

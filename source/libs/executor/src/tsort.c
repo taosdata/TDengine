@@ -182,7 +182,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
     start = stop + 1;
   }
 
-  blockDataClearup(pDataBlock);
+  blockDataCleanup(pDataBlock);
 
   SSDataBlock* pBlock = createOneDataBlock(pDataBlock);
   int32_t code = doAddNewExternalMemSource(pHandle->pBuf, pHandle->pOrderedSource, pBlock, &pHandle->sourceId);
@@ -312,7 +312,7 @@ static int32_t adjustMergeTreeForNextTuple(SExternalMemSource *pSource, SMultiwa
 }
 
 static SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SMsortComparParam* cmpParam, int32_t capacity) {
-  blockDataClearup(pHandle->pDataBlock);
+  blockDataCleanup(pHandle->pDataBlock);
 
   while(1) {
     if (cmpParam->numOfSources == pHandle->numOfCompletedSources) {
@@ -478,7 +478,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
         setBufPageDirty(pPage, true);
         releaseBufPage(pHandle->pBuf, pPage);
 
-        blockDataClearup(pDataBlock);
+        blockDataCleanup(pDataBlock);
       }
 
       tMergeTreeDestroy(pHandle->pMergeTree);

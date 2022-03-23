@@ -23,7 +23,7 @@ extern "C" {
 #include "function.h"
 
 bool functionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
-void functionFinalizer(SqlFunctionCtx *pCtx);
+void functionFinalize(SqlFunctionCtx *pCtx);
 
 bool getCountFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 void countFunction(SqlFunctionCtx *pCtx);
@@ -36,6 +36,16 @@ bool maxFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 bool getMinmaxFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 void minFunction(SqlFunctionCtx* pCtx);
 void maxFunction(SqlFunctionCtx *pCtx);
+
+bool getStddevFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+void stddevFunction(SqlFunctionCtx* pCtx);
+void stddevFinalize(SqlFunctionCtx* pCtx);
+
+bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+void firstFunction(SqlFunctionCtx *pCtx);
+void lastFunction(SqlFunctionCtx *pCtx);
+
+void valFunction(SqlFunctionCtx *pCtx);
 
 #ifdef __cplusplus
 }

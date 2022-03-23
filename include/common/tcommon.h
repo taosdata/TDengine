@@ -54,25 +54,15 @@ typedef struct SColumnDataAgg {
 } SColumnDataAgg;
 
 typedef struct SDataBlockInfo {
-  STimeWindow window;
-  int32_t     rows;
-  int32_t     rowSize;
-  int16_t     numOfCols;
-  int16_t     hasVarCol;
-  union {
-    int64_t uid;
-    int64_t blockId;
-  };
+  STimeWindow    window;
+  int32_t        rows;
+  int32_t        rowSize;
+  int16_t        numOfCols;
+  int16_t        hasVarCol;
+  union {int64_t uid; int64_t blockId;};
+  int64_t        groupId;     // no need to serialize
 } SDataBlockInfo;
 
-// typedef struct SConstantItem {
-//   SColumnInfo info;
-//   int32_t     startRow;  // run-length-encoding to save the space for multiple rows
-//   int32_t     endRow;
-//   SVariant    value;
-// } SConstantItem;
-
-// info.numOfCols = taosArrayGetSize(pDataBlock) + taosArrayGetSize(pConstantList);
 typedef struct SSDataBlock {
   SColumnDataAgg* pBlockAgg;
   SArray*         pDataBlock;  // SArray<SColumnInfoData>
@@ -100,6 +90,9 @@ typedef struct SColumnInfoData {
 void*   blockDataDestroy(SSDataBlock* pBlock);
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);
 void*   tDecodeDataBlock(const void* buf, SSDataBlock* pBlock);
+
+int32_t tEncodeDataBlocks(void** buf, const SArray* blocks);
+void*   tDecodeDataBlocks(const void* buf, SArray* blocks);
 
 static FORCE_INLINE void blockDestroyInner(SSDataBlock* pBlock) {
   // WARNING: do not use info.numOfCols,
@@ -183,10 +176,8 @@ typedef struct SColumn {
     int64_t  dataBlockId;
   };
 
-  union {
-    int16_t colId;
-    int16_t slotId;
-  };
+  int16_t colId;
+  int16_t slotId;
 
   char    name[TSDB_COL_NAME_LEN];
   int8_t  flag;  // column type: normal column, tag, or user-input column (integer/float/string)
