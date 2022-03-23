@@ -685,6 +685,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
     int               szCell;
     SBtreeInitPageArg iarg;
     int               iNew, nNewCells;
+    SCellDecoder      cd;
 
     iarg.pBt = pBt;
     iarg.flags = TDB_BTREE_PAGE_GET_FLAGS(pOlds[0]);
@@ -718,10 +719,15 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
             if (iNew == nNews - 1 && pIntHdr->pgno == 0) {
               pIntHdr->pgno = TDB_PAGE_PGNO(pNews[iNew]);
             } else {
-              // TODO:
-              ((SPgno *)pCell)[0] = TDB_PAGE_PGNO(pNews[iNew]);
+              tdbBtreeDecodeCell(pPage, pCell, &cd);
+
               // TODO: pCell here may be inserted as an overflow cell, handle it
-              tdbPageInsertCell(pParent, sIdx++, pCell, szCell, 0);
+              SCell *pNewCell = malloc(cd.kLen + 9);
+              int    szNewCell;
+              SPgno  pgno;
+              pgno = TDB_PAGE_PGNO(pNews[iNew]);
+              tdbBtreeEncodeCell(pPage, cd.pKey, cd.kLen, (void *)&pgno, sizeof(SPgno), pNewCell, &szNewCell);
+              tdbPageInsertCell(pParent, sIdx++, pNewCell, szNewCell, 0);
             }
 
             // move to next new page
