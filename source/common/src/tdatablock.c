@@ -497,11 +497,11 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
 
 /**
  *
- * +------------------+---------------+--------------------+
- * |the number of rows| column length |     column #1      |
- * |    (4 bytes)     |  (4 bytes)    |--------------------+
- * |                  |               | null bitmap| values|
- * +------------------+---------------+--------------------+
+ * +------------------+---------------------------------------------+
+ * |the number of rows|                    column #1                |
+ * |    (4 bytes)     |------------+-----------------------+--------+
+ * |                  | null bitmap| column length(4bytes) | values |
+ * +------------------+------------+-----------------------+--------+
  * @param buf
  * @param pBlock
  * @return
@@ -582,9 +582,10 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
   return TSDB_CODE_SUCCESS;
 }
 
-size_t blockDataGetRowSize(const SSDataBlock* pBlock) {
+size_t blockDataGetRowSize(SSDataBlock* pBlock) {
   ASSERT(pBlock != NULL);
-  size_t rowSize = 0;
+  if (pBlock->info.rowSize == 0) {
+    size_t rowSize = 0;
 
   size_t numOfCols = pBlock->info.numOfCols;
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -592,7 +593,10 @@ size_t blockDataGetRowSize(const SSDataBlock* pBlock) {
     rowSize += pColInfo->info.bytes;
   }
 
-  return rowSize;
+    pBlock->info.rowSize = rowSize;
+  }
+
+  return pBlock->info.rowSize;
 }
 
 /**
@@ -633,7 +637,7 @@ double blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
     if (IS_VAR_DATA_TYPE(pColInfo->info.type)) {
       rowSize += sizeof(int32_t);
     } else {
-      rowSize += 1 / 8.0;
+      rowSize += 1/8.0;  // one bit for each record
     }
   }
 
@@ -1139,7 +1143,7 @@ int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullF
   return 0;
 }
 
-void blockDataClearup(SSDataBlock* pDataBlock) {
+void blockDataCleanup(SSDataBlock* pDataBlock) {
   pDataBlock->info.rows = 0;
 
   if (pDataBlock->info.hasVarCol) {

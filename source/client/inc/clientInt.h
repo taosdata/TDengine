@@ -141,18 +141,27 @@ typedef struct STscObj {
   SAppInstInfo*   pAppInfo;
 } STscObj;
 
+typedef struct SResultColumn {
+  union {
+    char*       nullbitmap;  // bitmap, one bit for each item in the list
+    int32_t*    offset;
+  };
+  char*         pData;
+} SResultColumn;
+
 typedef struct SReqResultInfo {
-  const char* pRspMsg;
-  const char* pData;
-  TAOS_FIELD* fields;
-  uint32_t    numOfCols;
-  int32_t*    length;
-  TAOS_ROW    row;
-  char**      pCol;
-  uint32_t    numOfRows;
-  uint64_t    totalRows;
-  uint32_t    current;
-  bool        completed;
+  const char*    pRspMsg;
+  const char*    pData;
+  TAOS_FIELD*    fields;
+  uint32_t       numOfCols;
+  int32_t*       length;
+  TAOS_ROW       row;
+  SResultColumn* pCol;
+  uint32_t       numOfRows;
+  uint64_t       totalRows;
+  uint32_t       current;
+  bool           completed;
+  int32_t        payloadLen;
 } SReqResultInfo;
 
 typedef struct SShowReqInfo {
@@ -227,7 +236,7 @@ TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, 
 
 void* doFetchRow(SRequestObj* pRequest);
 
-void setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows);
+int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows);
 
 int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj** pRequest);
 
