@@ -238,11 +238,17 @@ void cliHandleResp(SCliConn* conn) {
 
   if (CONN_NO_PERSIST_BY_APP(conn)) {
     pMsg = transQueuePop(&conn->cliMsgs);
-    /// uint64_t ahandle = (uint64_t)pHead->ahandle;
-    // CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle);
-    pCtx = pMsg ? pMsg->ctx : NULL;
-    transMsg.ahandle = pCtx ? pCtx->ahandle : NULL;
-    tDebug("cli conn %p get ahandle %p, persist: 0", conn, transMsg.ahandle);
+    pCtx = pMsg ? pMsg->ctx: NULL; 
+     if (pMsg == NULL && !CONN_NO_PERSIST_BY_APP(conn)) {
+     transMsg.ahandle = transCtxDumpVal(&conn->ctx, transMsg.msgType);
+     if (transMsg.ahandle == NULL) {
+       transMsg.ahandle = transCtxDumpBrokenlinkVal(&conn->ctx, (int32_t*)&(transMsg.msgType));
+     }
+     tDebug("cli conn %p construct ahandle %p, persist: 0", conn, transMsg.ahandle);
+   } else {
+     transMsg.ahandle = pCtx ? pCtx->ahandle : NULL;
+     tDebug("cli conn %p get ahandle %p, persist: 0", conn, transMsg.ahandle);
+   }
   } else {
     uint64_t ahandle = (uint64_t)pHead->ahandle;
     CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle);
@@ -414,8 +420,8 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
   }
   queue* h = QUEUE_HEAD(&plist->conn);
   QUEUE_REMOVE(h);
-
   SCliConn* conn = QUEUE_DATA(h, SCliConn, conn);
+  conn->status = ConnNormal;
   QUEUE_INIT(&conn->conn);
   return conn;
 }
