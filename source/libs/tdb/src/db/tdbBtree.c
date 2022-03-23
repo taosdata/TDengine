@@ -563,10 +563,10 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
 
   int nNews = 0;
   struct {
-    int    cnt;
-    int    size;
-    SPage *pPage;
-    int    oIdx;
+    int cnt;
+    int size;
+    int iPage;
+    int oIdx;
   } infoNews[5] = {0};
 
   {  // Get how many new pages are needed and the new distribution
@@ -596,7 +596,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
         }
         infoNews[nNews].cnt++;
         infoNews[nNews].size += cellBytes;
-        infoNews[nNews].pPage = pPage;
+        infoNews[nNews].iPage = oPage;
         infoNews[nNews].oIdx = oIdx;
       }
     }
@@ -609,21 +609,23 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
       int    szLCell, szRCell;
 
       for (;;) {
-        pCell = tdbPageGetCell(infoNews[iNew - 1].pPage, infoNews[iNew - 1].oIdx);
+        pCell = tdbPageGetCell(pOlds[infoNews[iNew - 1].iPage], infoNews[iNew - 1].oIdx);
 
         if (childNotLeaf) {
-          szLCell = szRCell = tdbBtreeCellSize(infoNews[iNew - 1].pPage, pCell);
+          szLCell = szRCell = tdbBtreeCellSize(pOlds[infoNews[iNew - 1].iPage], pCell);
         } else {
-          szLCell = tdbBtreeCellSize(infoNews[iNew - 1].pPage, pCell);
+          szLCell = tdbBtreeCellSize(pOlds[infoNews[iNew - 1].iPage], pCell);
 
-          SPage *pPage = infoNews[iNew - 1].pPage;
+          int    iPage = infoNews[iNew - 1].iPage;
           int    oIdx = infoNews[iNew - 1].oIdx + 1;
+          SPage *pPage;
           for (;;) {
+            pPage = pOlds[iPage];
             if (oIdx < TDB_PAGE_TOTAL_CELLS(pPage)) {
               break;
             }
 
-            pPage++;
+            iPage++;
             oIdx = 0;
           }
 
@@ -646,8 +648,8 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
             break;
           }
 
-          infoNews[iNew - 1].pPage--;
-          infoNews[iNew - 1].oIdx = TDB_PAGE_TOTAL_CELLS(infoNews[iNew - 1].pPage) - 1;
+          infoNews[iNew - 1].iPage--;
+          infoNews[iNew - 1].oIdx = TDB_PAGE_TOTAL_CELLS(pOlds[infoNews[iNew - 1].iPage]) - 1;
         }
 
         infoNews[iNew].cnt++;
