@@ -16,10 +16,13 @@
 #define _DEFAULT_SOURCE
 #include "mndInfoSchema.h"
 
+#define SYSTABLE_SCH_TABLE_NAME_LEN ((TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
+#define SYSTABLE_SCH_DB_NAME_LEN    ((TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
+
 static const SInfosTableSchema dnodesSchema[] = {{.name = "id",             .bytes = 2,   .type = TSDB_DATA_TYPE_SMALLINT},
                                                  {.name = "endpoint",       .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
                                                  {.name = "vnodes",         .bytes = 2,   .type = TSDB_DATA_TYPE_SMALLINT},
-                                                 {.name = "max_vnodes",.bytes = 2,   .type = TSDB_DATA_TYPE_SMALLINT},
+                                                 {.name = "max_vnodes",     .bytes = 2,   .type = TSDB_DATA_TYPE_SMALLINT},
                                                  {.name = "status",         .bytes = 10 + VARSTR_HEADER_SIZE,  .type = TSDB_DATA_TYPE_BINARY},
                                                  {.name = "create_time",    .bytes = 8,   .type = TSDB_DATA_TYPE_TIMESTAMP},
                                                  {.name = "note",           .bytes = 256 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
@@ -38,7 +41,7 @@ static const SInfosTableSchema qnodesSchema[] = {{.name = "id",             .byt
                                                  {.name = "endpoint",       .bytes = 134, .type = TSDB_DATA_TYPE_BINARY},
                                                  {.name = "create_time",    .bytes = 8,   .type = TSDB_DATA_TYPE_TIMESTAMP},
                                                 };
-static const SInfosTableSchema userDBSchema[] = {{.name = "name",             .bytes = (TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE,   .type = TSDB_DATA_TYPE_BINARY},
+static const SInfosTableSchema userDBSchema[] = {{.name = "name",             .bytes = SYSTABLE_SCH_DB_NAME_LEN,   .type = TSDB_DATA_TYPE_BINARY},
                                                  {.name = "create_time",      .bytes = 8,    .type = TSDB_DATA_TYPE_TIMESTAMP},
                                                  {.name = "vgroups",          .bytes = 2,    .type = TSDB_DATA_TYPE_SMALLINT},
                                                  {.name = "ntables",          .bytes = 8,    .type = TSDB_DATA_TYPE_BIGINT},
@@ -58,21 +61,21 @@ static const SInfosTableSchema userDBSchema[] = {{.name = "name",             .b
 //                                                 {.name = "update",           .bytes = 1,   .type = TSDB_DATA_TYPE_TINYINT},  // disable update
                                                 };
 static const SInfosTableSchema userFuncSchema[] = {{.name = "name",           .bytes = 32,   .type = TSDB_DATA_TYPE_BINARY},
-                                                   {.name = "create_time",   .bytes = 8,    .type = TSDB_DATA_TYPE_TIMESTAMP},
+                                                   {.name = "create_time",    .bytes = 8,    .type = TSDB_DATA_TYPE_TIMESTAMP},
                                                    {.name = "ntables",        .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
                                                    {.name = "precision",      .bytes = 2,    .type = TSDB_DATA_TYPE_BINARY},
                                                    {.name = "status",         .bytes = 10,   .type = TSDB_DATA_TYPE_BINARY},
                                                   };
 static const SInfosTableSchema userIdxSchema[] = {{.name = "db_name",          .bytes = 32,   .type = TSDB_DATA_TYPE_BINARY},
-                                                  {.name = "table_name",       .bytes = 192,  .type = TSDB_DATA_TYPE_BINARY},
+                                                  {.name = "table_name",       .bytes = SYSTABLE_SCH_DB_NAME_LEN,  .type = TSDB_DATA_TYPE_BINARY},
                                                   {.name = "index_database",   .bytes = 32,   .type = TSDB_DATA_TYPE_BINARY},
-                                                  {.name = "index_name",       .bytes = 192,  .type = TSDB_DATA_TYPE_BINARY},
+                                                  {.name = "index_name",       .bytes = SYSTABLE_SCH_DB_NAME_LEN,  .type = TSDB_DATA_TYPE_BINARY},
                                                   {.name = "column_name",      .bytes = 64,   .type = TSDB_DATA_TYPE_BINARY},
                                                   {.name = "index_type",       .bytes = 10,   .type = TSDB_DATA_TYPE_BINARY},
                                                   {.name = "index_extensions", .bytes = 256,  .type = TSDB_DATA_TYPE_BINARY},
                                                  };
-static const SInfosTableSchema userStbsSchema[] = {{.name = "db_name",         .bytes = (TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE,   .type = TSDB_DATA_TYPE_BINARY},
-                                                   {.name = "stable_name",     .bytes = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE,  .type = TSDB_DATA_TYPE_BINARY},
+static const SInfosTableSchema userStbsSchema[] = {{.name = "stable_name",     .bytes = SYSTABLE_SCH_TABLE_NAME_LEN,  .type = TSDB_DATA_TYPE_BINARY},
+                                                   {.name = "db_name",         .bytes = SYSTABLE_SCH_DB_NAME_LEN,   .type = TSDB_DATA_TYPE_BINARY},
                                                    {.name = "create_time",     .bytes = 8,    .type = TSDB_DATA_TYPE_TIMESTAMP},
                                                    {.name = "columns",         .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
                                                    {.name = "tags",            .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
@@ -80,25 +83,25 @@ static const SInfosTableSchema userStbsSchema[] = {{.name = "db_name",         .
                                                    {.name = "last_update",     .bytes = 8,    .type = TSDB_DATA_TYPE_TIMESTAMP},
                                                    {.name = "table_comment",   .bytes = 1024 + VARSTR_HEADER_SIZE,    .type = TSDB_DATA_TYPE_INT},
                                                   };
-static const SInfosTableSchema userStreamsSchema[] = {{.name = "stream_name",  .bytes = 192,  .type = TSDB_DATA_TYPE_BINARY},
+static const SInfosTableSchema userStreamsSchema[] = {{.name = "stream_name",  .bytes = SYSTABLE_SCH_DB_NAME_LEN,  .type = TSDB_DATA_TYPE_BINARY},
                                                       {.name = "user_name",    .bytes = 23,   .type = TSDB_DATA_TYPE_BINARY},
-                                                      {.name = "dest_table",   .bytes = 192,  .type = TSDB_DATA_TYPE_BINARY},
-                                                      {.name = "create_time", .bytes = 8,    .type = TSDB_DATA_TYPE_TIMESTAMP},
+                                                      {.name = "dest_table",   .bytes = SYSTABLE_SCH_DB_NAME_LEN,  .type = TSDB_DATA_TYPE_BINARY},
+                                                      {.name = "create_time",  .bytes = 8,    .type = TSDB_DATA_TYPE_TIMESTAMP},
                                                       {.name = "sql",          .bytes = 1024, .type = TSDB_DATA_TYPE_BINARY},
                                                      };
 static const SInfosTableSchema userTblsSchema[] = {
-                                                   {.name = "table_name",      .bytes = 192,  .type = TSDB_DATA_TYPE_BINARY},
-                                                   {.name = "db_name",         .bytes = 32,   .type = TSDB_DATA_TYPE_BINARY},
-                                                   {.name = "create_time",    .bytes = 8,    .type = TSDB_DATA_TYPE_TIMESTAMP},
+                                                   {.name = "table_name",      .bytes = SYSTABLE_SCH_TABLE_NAME_LEN,  .type = TSDB_DATA_TYPE_BINARY},
+                                                   {.name = "db_name",         .bytes = SYSTABLE_SCH_DB_NAME_LEN,   .type = TSDB_DATA_TYPE_BINARY},
+                                                   {.name = "create_time",     .bytes = 8,    .type = TSDB_DATA_TYPE_TIMESTAMP},
                                                    {.name = "columns",         .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
-                                                   {.name = "stable_name",     .bytes = 192,  .type = TSDB_DATA_TYPE_BINARY},
+                                                   {.name = "stable_name",     .bytes = SYSTABLE_SCH_TABLE_NAME_LEN,  .type = TSDB_DATA_TYPE_BINARY},
                                                    {.name = "uid",             .bytes = 8,    .type = TSDB_DATA_TYPE_BIGINT},
-                                                   {.name = "vgroup_id",           .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
+                                                   {.name = "vgroup_id",       .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
                                                    {.name = "ttl",             .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
-                                                   {.name = "table_comment",           .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
+                                                   {.name = "table_comment",    .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
                                                   };
 static const SInfosTableSchema userTblDistSchema[] = {{.name = "db_name",                .bytes = 32,   .type = TSDB_DATA_TYPE_BINARY},
-                                                      {.name = "table_name",             .bytes = 192,  .type = TSDB_DATA_TYPE_BINARY},
+                                                      {.name = "table_name",             .bytes = SYSTABLE_SCH_DB_NAME_LEN,  .type = TSDB_DATA_TYPE_BINARY},
                                                       {.name = "distributed_histogram",  .bytes = 500,  .type = TSDB_DATA_TYPE_BINARY},
                                                       {.name = "min_of_rows",            .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
                                                       {.name = "max_of_rows",            .bytes = 4,    .type = TSDB_DATA_TYPE_INT},
@@ -117,7 +120,7 @@ static const SInfosTableSchema userUsersSchema[] = {{.name = "name",           .
                                                     {.name = "account",        .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE,    .type = TSDB_DATA_TYPE_BINARY},
                                                    };
 static const SInfosTableSchema vgroupsSchema[] = {{.name = "vgroup_id",        .bytes = 4,   .type = TSDB_DATA_TYPE_INT},
-                                                  {.name = "db_name",          .bytes = (TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE,   .type = TSDB_DATA_TYPE_BINARY},
+                                                  {.name = "db_name",          .bytes = SYSTABLE_SCH_DB_NAME_LEN,   .type = TSDB_DATA_TYPE_BINARY},
                                                   {.name = "tables",           .bytes = 4,   .type = TSDB_DATA_TYPE_INT},
                                                   {.name = "status",           .bytes = 12 + VARSTR_HEADER_SIZE,  .type = TSDB_DATA_TYPE_BINARY},
                                                   {.name = "onlines",          .bytes = 4,   .type = TSDB_DATA_TYPE_INT},

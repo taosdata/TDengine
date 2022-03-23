@@ -50,7 +50,7 @@ bool functionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
 
 static void doFinalizer(SResultRowEntryInfo* pResInfo) { cleanupResultRowEntry(pResInfo); }
 
-void functionFinalizer(SqlFunctionCtx *pCtx) {
+void functionFinalize(SqlFunctionCtx *pCtx) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   doFinalizer(pResInfo);
 }
@@ -440,6 +440,74 @@ void maxFunction(SqlFunctionCtx *pCtx) {
   int32_t numOfElems = doMinMaxHelper(pCtx, 0);
   SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
 }
+
+typedef struct STopBotRes {
+  int32_t num;
+} STopBotRes;
+
+bool getTopBotFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+    SColumnNode* pColNode = (SColumnNode*) nodesListGetNode(pFunc->pParameterList, 0);
+  int32_t bytes = pColNode->node.resType.bytes;
+  SValueNode* pkNode = (SValueNode*) nodesListGetNode(pFunc->pParameterList, 1);
+  return true;
+}
+
+typedef struct SStddevRes {
+  int64_t count;
+  union  {double  quadraticDSum; int64_t quadraticISum;};
+  union  {double  dsum; int64_t isum;};
+} SStddevRes;
+
+bool getStddevFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SStddevRes);
+  return true;
+}
+
+void stddevFunction(SqlFunctionCtx* pCtx) {
+  int32_t numOfElem = 0;
+
+  // Only the pre-computing information loaded and actual data does not loaded
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnDataAgg *pAgg = pInput->pColumnDataAgg[0];
+  int32_t type = pInput->pData[0]->info.type;
+
+  SStddevRes* pStddevRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+//  } else {  // computing based on the true data block
+    SColumnInfoData* pCol = pInput->pData[0];
+
+    int32_t start     = pInput->startRowIndex;
+    int32_t numOfRows = pInput->numOfRows;
+
+    switch(type) {
+      case TSDB_DATA_TYPE_INT: {
+        int32_t* plist = (int32_t*)pCol->pData;
+        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+            continue;
+          }
+
+          pStddevRes->count += 1;
+          pStddevRes->isum  += plist[i];
+          pStddevRes->quadraticISum += plist[i] * plist[i];
+        }
+      }
+      break;
+    }
+
+  // data in the check operation are all null, not output
+  SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
+}
+
+void stddevFinalize(SqlFunctionCtx* pCtx) {
+  functionFinalize(pCtx);
+
+  SStddevRes* pStddevRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  double res = pStddevRes->quadraticISum/pStddevRes->count - (pStddevRes->isum / pStddevRes->count) * (pStddevRes->isum / pStddevRes->count);
+}
+
+
+
 
 bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pNode = nodesListGetNode(pFunc->pParameterList, 0);

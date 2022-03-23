@@ -1534,18 +1534,17 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
     cols = 0;
 
     SName name = {0};
-    char  db[TSDB_DB_NAME_LEN] = {0};
-    tNameFromString(&name, pStb->db, T_NAME_ACCT|T_NAME_DB);
-    tNameGetDbName(&name, db);
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_TO_VARSTR(pWrite, db);
-    cols++;
-
     char stbName[TSDB_TABLE_NAME_LEN] = {0};
     mndExtractTableName(pStb->name, stbName);
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     STR_TO_VARSTR(pWrite, stbName);
+    cols++;
+
+    char  db[TSDB_DB_NAME_LEN] = {0};
+    tNameFromString(&name, pStb->db, T_NAME_ACCT|T_NAME_DB);
+    tNameGetDbName(&name, db);
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_TO_VARSTR(pWrite, db);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

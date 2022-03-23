@@ -3914,7 +3914,7 @@ static int32_t doCopyToSDataBlock(SDiskbasedBuf *pBuf, SGroupResInfo* pGroupResI
 static void toSDatablock(SGroupResInfo *pGroupResInfo, SDiskbasedBuf* pBuf, SSDataBlock* pBlock, int32_t rowCapacity, int32_t* rowCellOffset) {
   assert(pGroupResInfo->currentGroup <= pGroupResInfo->totalGroup);
 
-  blockDataClearup(pBlock);
+  blockDataCleanup(pBlock);
   if (!hasRemainDataInCurrentGroup(pGroupResInfo)) {
     return;
   }
@@ -4737,7 +4737,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo *pOperator, bool* newgroup) 
   }
 
   SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
-  blockDataClearup(pInfo->pRes);
+  blockDataCleanup(pInfo->pRes);
 
   while (tqNextDataBlock(pInfo->readerHandle)) {
     pTaskInfo->code = tqRetrieveDataBlockInfo(pInfo->readerHandle, pBlockInfo);
@@ -4852,17 +4852,35 @@ static int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo*
     int32_t numOfOutput, int64_t startTs, uint64_t* total, SArray* pColList) {
   blockDataEnsureCapacity(pRes, numOfRows);
 
-  if (pColList == NULL) {
-    for (int32_t i = 0; i < numOfOutput; ++i) {
-      SColumnInfoData* pColInfoData = taosArrayGet(pRes->pDataBlock, i);
+  if (pColList == NULL) {  // data from other sources
+    int32_t* colLen = (int32_t*)pData;
+    char* pStart = pData + sizeof(int32_t) * numOfOutput;
 
-      for (int32_t j = 0; j < numOfRows; ++j) {
-        colDataAppend(pColInfoData, j, pData, false);
-        pData += pColInfoData->info.bytes;
+    for (int32_t i = 0; i < numOfOutput; ++i) {
+      colLen[i] = htonl(colLen[i]);
+      ASSERT(colLen[i] > 0);
+
+      SColumnInfoData* pColInfoData = taosArrayGet(pRes->pDataBlock, i);
+      if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+        pColInfoData->varmeta.length = colLen[i];
+        pColInfoData->varmeta.allocLen = colLen[i];
+
+        memcpy(pColInfoData->varmeta.offset, pStart, sizeof(int32_t)*numOfRows);
+        pStart += sizeof(int32_t)*numOfRows;
+
+        pColInfoData->pData = malloc(colLen[i]);
+      } else {
+        memcpy(pColInfoData->nullbitmap, pStart, BitmapLen(numOfRows));
+        pStart += BitmapLen(numOfRows);
       }
+
+      memcpy(pColInfoData->pData, pStart, colLen[i]);
+      pStart += colLen[i];
     }
-  } else {  // extract data acording to pColList
+  } else {  // extract data according to pColList
     ASSERT(numOfOutput == taosArrayGetSize(pColList));
+
+    // data from mnode
     for(int32_t i = 0; i < numOfOutput; ++i) {
 
       for(int32_t j = 0; j < numOfOutput; ++j) {
@@ -5458,9 +5476,10 @@ static SSDataBlock* doSysTableScan(SOperatorInfo *pOperator, bool* newgroup) {
       pInfo->pCur = metaOpenTbCursor(pInfo->readHandle);
     }
 
-    blockDataClearup(pInfo->pRes);
+    blockDataCleanup(pInfo->pRes);
 
-    SColumnInfoData* pTableNameCol = taosArrayGet(pInfo->pRes->pDataBlock, 1);
+    int32_t tableNameSlotId = 1;
+    SColumnInfoData* pTableNameCol = taosArrayGet(pInfo->pRes->pDataBlock, tableNameSlotId);
 
     char *  name = NULL;
     int32_t numOfRows = 0;
@@ -5475,7 +5494,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo *pOperator, bool* newgroup) {
       }
 
       for(int32_t i = 0; i < pInfo->pRes->info.numOfCols; ++i) {
-        if (i == 1) {
+        if (i == tableNameSlotId) {
           continue;
         }
 
@@ -5782,7 +5801,7 @@ static void appendOneRowToDataBlock(SSDataBlock *pBlock, STupleHandle* pTupleHan
 }
 
 static SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, bool hasVarCol, int32_t capacity) {
-  blockDataClearup(pDataBlock);
+  blockDataCleanup(pDataBlock);
 
   while(1) {
     STupleHandle* pTupleHandle = tsortNextTuple(pHandle);
@@ -5938,7 +5957,7 @@ static SSDataBlock* doMerge(SOperatorInfo* pOperator) {
 
   while(1) {
 
-    blockDataClearup(pDataBlock);
+    blockDataCleanup(pDataBlock);
     while (1) {
       STupleHandle* pTupleHandle = tsortNextTuple(pHandle);
       if (pTupleHandle == NULL) {
@@ -6354,8 +6373,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo *pOperator, bool* newgroup)
   SOptrBasicInfo *pInfo = &pProjectInfo->binfo;
 
   SSDataBlock* pRes = pInfo->pRes;
-
-  blockDataClearup(pRes);
+  blockDataCleanup(pRes);
 
   if (pProjectInfo->existDataBlock) {  // TODO refactor
 //    STableQueryInfo* pTableQueryInfo = pRuntimeEnv->current;
