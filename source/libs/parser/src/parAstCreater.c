@@ -331,7 +331,14 @@ void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
   initSetTableOptionFp();
 }
 
-static bool checkUserName(SAstCreateContext* pCxt, const SToken* pUserName) {
+static void trimEscape(SToken* pName) {
+  if (NULL != pName && pName->n > 1 && '`' == pName->z[0]) {
+    pName->z += 1;
+    pName->n -= 2;
+  }
+}
+
+static bool checkUserName(SAstCreateContext* pCxt, SToken* pUserName) {
   if (NULL == pUserName) {
     pCxt->valid = false;
   } else {
@@ -340,6 +347,7 @@ static bool checkUserName(SAstCreateContext* pCxt, const SToken* pUserName) {
       pCxt->valid = false;
     }
   }
+  trimEscape(pUserName);
   return pCxt->valid;
 }
 
@@ -412,38 +420,43 @@ static bool checkPort(SAstCreateContext* pCxt, const SToken* pPortToken, int32_t
   return pCxt->valid;
 }
 
-static bool checkDbName(SAstCreateContext* pCxt, const SToken* pDbName, bool query) {
+static bool checkDbName(SAstCreateContext* pCxt, SToken* pDbName, bool query) {
   if (NULL == pDbName) {
     pCxt->valid = (query ? NULL != pCxt->pQueryCxt->db : true);
   } else {
     pCxt->valid = pDbName->n < TSDB_DB_NAME_LEN ? true : false;
   }
+  trimEscape(pDbName);
   return pCxt->valid;
 }
 
-static bool checkTableName(SAstCreateContext* pCxt, const SToken* pTableName) {
+static bool checkTableName(SAstCreateContext* pCxt, SToken* pTableName) {
   if (NULL == pTableName) {
     pCxt->valid = true;
   } else {
     pCxt->valid = pTableName->n < TSDB_TABLE_NAME_LEN ? true : false;
   }
+  trimEscape(pTableName);
   return pCxt->valid;
 }
 
-static bool checkColumnName(SAstCreateContext* pCxt, const SToken* pColumnName) {
+static bool checkColumnName(SAstCreateContext* pCxt, SToken* pColumnName) {
   if (NULL == pColumnName) {
     pCxt->valid = true;
   } else {
     pCxt->valid = pColumnName->n < TSDB_COL_NAME_LEN ? true : false;
   }
+  trimEscape(pColumnName);
   return pCxt->valid;
 }
 
-static bool checkIndexName(SAstCreateContext* pCxt, const SToken* pIndexName) {
+static bool checkIndexName(SAstCreateContext* pCxt, SToken* pIndexName) {
   if (NULL == pIndexName) {
-    return false;
+    pCxt->valid = false;
+  } else {
+    pCxt->valid = pIndexName->n < TSDB_INDEX_NAME_LEN ? true : false;
   }
-  pCxt->valid = pIndexName->n < TSDB_INDEX_NAME_LEN ? true : false;
+  trimEscape(pIndexName);
   return pCxt->valid;
 }
 
@@ -498,7 +511,7 @@ SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode
   return pList;
 }
 
-SNode* createColumnNode(SAstCreateContext* pCxt, const SToken* pTableAlias, const SToken* pColumnName) {
+SNode* createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pColumnName) {
   if (!checkTableName(pCxt, pTableAlias) || !checkColumnName(pCxt, pColumnName)) {
     return NULL;
   }
@@ -603,8 +616,8 @@ SNode* createNodeListNode(SAstCreateContext* pCxt, SNodeList* pList) {
   return (SNode*)list;
 }
 
-SNode* createRealTableNode(SAstCreateContext* pCxt, const SToken* pDbName, const SToken* pTableName, const SToken* pTableAlias) {
-  if (!checkDbName(pCxt, pDbName, true) || !checkTableName(pCxt, pTableName)) {
+SNode* createRealTableNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pTableName, SToken* pTableAlias) {
+  if (!checkDbName(pCxt, pDbName, true) || !checkTableName(pCxt, pTableName) || !checkTableName(pCxt, pTableAlias)) {
     return NULL;
   }
   SRealTableNode* realTable = (SRealTableNode*)nodesMakeNode(QUERY_NODE_REAL_TABLE);
@@ -620,7 +633,9 @@ SNode* createRealTableNode(SAstCreateContext* pCxt, const SToken* pDbName, const
     strncpy(realTable->table.tableAlias, pTableName->z, pTableName->n);
   }
   strncpy(realTable->table.tableName, pTableName->z, pTableName->n);
-  strcpy(realTable->useDbName, pCxt->pQueryCxt->db);
+  if (NULL != pCxt->pQueryCxt->db) {
+    strcpy(realTable->useDbName, pCxt->pQueryCxt->db);
+  }  
   return (SNode*)realTable;
 }
 
@@ -839,7 +854,7 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
   return (SNode*)setDbOptionFuncs[type](pCxt, (SDatabaseOptions*)pOptions, pVal);
 }
 
-SNode* createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pDbName, SNode* pOptions) {
+SNode* createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pDbName, SNode* pOptions) {
   if (!checkDbName(pCxt, pDbName, false)) {
     return NULL;
   }
@@ -851,7 +866,7 @@ SNode* createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, cons
   return (SNode*)pStmt;
 }
 
-SNode* createDropDatabaseStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pDbName) {
+SNode* createDropDatabaseStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pDbName) {
   if (!checkDbName(pCxt, pDbName, false)) {
     return NULL;
   }
@@ -862,7 +877,7 @@ SNode* createDropDatabaseStmt(SAstCreateContext* pCxt, bool ignoreNotExists, con
   return (SNode*)pStmt;
 }
 
-SNode* createAlterDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName, SNode* pOptions) {
+SNode* createAlterDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pOptions) {
   if (!checkDbName(pCxt, pDbName, false)) {
     return NULL;
   }
@@ -1031,7 +1046,10 @@ SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, const 
   return (SNode*)pStmt;
 }
 
-SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
+SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
+  if (!checkDbName(pCxt, pDbName, false)) {
+    return NULL;
+  }
   SUseDatabaseStmt* pStmt = (SUseDatabaseStmt*)nodesMakeNode(QUERY_NODE_USE_DATABASE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   strncpy(pStmt->dbName, pDbName->z, pDbName->n);
@@ -1055,7 +1073,7 @@ SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, S
   return (SNode*)pStmt;
 }
 
-SNode* createCreateUserStmt(SAstCreateContext* pCxt, const SToken* pUserName, const SToken* pPassword) {
+SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword) {
   char password[TSDB_USET_PASSWORD_LEN] = {0};
   if (!checkUserName(pCxt, pUserName) || !checkPassword(pCxt, pPassword, password)) {
     return NULL;
@@ -1067,7 +1085,7 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, const SToken* pUserName, co
   return (SNode*)pStmt;
 }
 
-SNode* createAlterUserStmt(SAstCreateContext* pCxt, const SToken* pUserName, int8_t alterType, const SToken* pVal) {
+SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t alterType, const SToken* pVal) {
   if (!checkUserName(pCxt, pUserName)) {
     return NULL;
   }
@@ -1086,7 +1104,7 @@ SNode* createAlterUserStmt(SAstCreateContext* pCxt, const SToken* pUserName, int
   return (SNode*)pStmt;
 }
 
-SNode* createDropUserStmt(SAstCreateContext* pCxt, const SToken* pUserName) {
+SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName) {
   if (!checkUserName(pCxt, pUserName)) {
     return NULL;
   }
@@ -1142,7 +1160,7 @@ SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const
   return (SNode*)pStmt;
 }
 
-SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, const SToken* pIndexName, const SToken* pTableName, SNodeList* pCols, SNode* pOptions) {
+SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, SToken* pIndexName, SToken* pTableName, SNodeList* pCols, SNode* pOptions) {
   if (!checkIndexName(pCxt, pIndexName) || !checkTableName(pCxt, pTableName)) {
     return NULL;
   }
@@ -1166,7 +1184,7 @@ SNode* createIndexOption(SAstCreateContext* pCxt, SNodeList* pFuncs, SNode* pInt
   return (SNode*)pOptions;
 }
 
-SNode* createDropIndexStmt(SAstCreateContext* pCxt, const SToken* pIndexName, const SToken* pTableName) {
+SNode* createDropIndexStmt(SAstCreateContext* pCxt, SToken* pIndexName, SToken* pTableName) {
   if (!checkIndexName(pCxt, pIndexName) || !checkTableName(pCxt, pTableName)) {
     return NULL;
   }
