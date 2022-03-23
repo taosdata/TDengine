@@ -190,7 +190,7 @@ TDengine 中时间戳的时区总是由客户端进行处理，而与服务端�
 
 **19. TDengine 都会用到哪些网络端口？**
 
-参考 [serverPort](/reference/server-config/#serverport)。 
+参考 [serverPort](../reference/server-config/#serverport)。 
 
 **20. go 语言编写组件编译失败怎样解决？**
 
