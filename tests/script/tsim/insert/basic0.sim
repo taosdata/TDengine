@@ -51,7 +51,14 @@ sql insert into ct3 values('2021-01-01 00:00:00.000', 10, 2.0, 3.0)
 #===================================================================
 print =============== query data from child table
 sql select * from ct1
-
+print rows: $rows 
+print $data00  $data01
+print $data10  $data11 
+print $data20  $data21
+print $data30  $data31
+print $data40  $data41
+print $data50  $data51
+print $data60  $data61
 if $rows != 7 then
   return -1
 endi

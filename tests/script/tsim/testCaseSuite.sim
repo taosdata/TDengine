@@ -1,0 +1,18 @@
+
+run tsim/db/basic1.sim
+run tsim/db/basic6.sim
+run tsim/db/basic7.sim
+run tsim/db/error1.sim
+
+run tsim/dnode/basic1.sim
+
+run tsim/insert/basic0.sim
+run tsim/insert/basic1.sim
+run tsim/insert/null.sim
+
+run tsim/query/interval-offset.sim
+run tsim/query/interval.sim
+
+run tsim/table/basic1.sim
+
+run tsim/user/basic1.sim
