@@ -183,7 +183,6 @@ static void    changeQueryHandleForInterpQuery(TsdbQueryHandleT pHandle);
 static void    doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo* pCheckInfo, SBlock* pBlock);
 static int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
 static int32_t tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int maxRowsToRead, STimeWindow* win, STsdbQueryHandle* pQueryHandle);
-static int32_t tsdbCheckInfoCompar(const void* key1, const void* key2);
 static int32_t doGetExternalRow(STsdbQueryHandle* pQueryHandle, int16_t type, SMemRef* pMemRef);
 static void*   doFreeColumnInfoData(SArray* pColumnInfoData);
 static void*   destroyTableCheckInfo(SArray* pTableCheckInfo);
@@ -332,8 +331,6 @@ static SArray* createCheckInfoFromTableGroup(STsdbQueryHandle* pQueryHandle, STa
                 info.tableId.tid, info.lastKey, pQueryHandle->qId);
     }
   }
-
-  taosArraySort(pTableCheckInfo, tsdbCheckInfoCompar);
 
   size_t gsize = taosArrayGetSize(pTableCheckInfo);
 
@@ -3909,17 +3906,6 @@ static int32_t tableGroupComparFn(const void *p1, const void *p2, const void *pa
   }
 
   return 0;
-}
-
-static int tsdbCheckInfoCompar(const void* key1, const void* key2) {
-  if (((STableCheckInfo*)key1)->tableId.tid < ((STableCheckInfo*)key2)->tableId.tid) {
-    return -1;
-  } else if (((STableCheckInfo*)key1)->tableId.tid > ((STableCheckInfo*)key2)->tableId.tid) {
-    return 1;
-  } else {
-    ASSERT(false);
-    return 0;
-  }
 }
 
 void createTableGroupImpl(SArray* pGroups, SArray* pTableList, size_t numOfTables, TSKEY skey,
