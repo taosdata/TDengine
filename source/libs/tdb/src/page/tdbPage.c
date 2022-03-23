@@ -288,8 +288,6 @@ static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {
           } else {
             TDB_PAGE_FCELL_SET(pPage, pFreeCell - pPage->pData);
           }
-
-          goto _alloc_finish;
         } else {
           if (pPrevFreeCell) {
             pPage->pPageMethods->setFreeCellInfo(pPrevFreeCell, szPrevFreeCell, nxFreeCell);
@@ -297,6 +295,8 @@ static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {
             TDB_PAGE_FCELL_SET(pPage, nxFreeCell);
           }
         }
+
+        goto _alloc_finish;
       } else {
         pPrevFreeCell = pFreeCell;
         szPrevFreeCell = szFreeCell;
