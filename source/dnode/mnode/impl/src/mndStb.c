@@ -18,15 +18,15 @@
 #include "mndAuth.h"
 #include "mndDb.h"
 #include "mndDnode.h"
+#include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
-#include "mndInfoSchema.h"
 #include "tname.h"
 
-#define TSDB_STB_VER_NUMBER 1
+#define TSDB_STB_VER_NUMBER   1
 #define TSDB_STB_RESERVE_SIZE 64
 
 static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw);
@@ -88,6 +88,7 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   SDB_SET_INT32(pRaw, dataPos, pStb->nextColId, STB_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->numOfColumns, STB_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->numOfTags, STB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pStb->numOfTSmas, STB_ENCODE_OVER)
 
   for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
     SSchema *pSchema = &pStb->pColumns[i];
@@ -103,6 +104,23 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
     SDB_SET_INT32(pRaw, dataPos, pSchema->colId, STB_ENCODE_OVER)
     SDB_SET_INT32(pRaw, dataPos, pSchema->bytes, STB_ENCODE_OVER)
     SDB_SET_BINARY(pRaw, dataPos, pSchema->name, TSDB_COL_NAME_LEN, STB_ENCODE_OVER)
+  }
+
+  for (int32_t i = 0; i < pStb->numOfTSmas; ++i) {
+    STSmaObj *pTSma = &pStb->pTSmas[i];
+    SDB_SET_BINARY(pRaw, dataPos, pTSma->name, TSDB_TABLE_FNAME_LEN, STB_ENCODE_OVER)
+    SDB_SET_INT64(pRaw, dataPos, pTSma->createdTime, STB_ENCODE_OVER)
+    SDB_SET_INT64(pRaw, dataPos, pTSma->uid, STB_ENCODE_OVER)
+    SDB_SET_INT8(pRaw, dataPos, pTSma->intervalUnit, STB_ENCODE_OVER)
+    SDB_SET_INT8(pRaw, dataPos, pTSma->slidingUnit, STB_ENCODE_OVER)
+    SDB_SET_INT8(pRaw, dataPos, pTSma->timezone, STB_ENCODE_OVER)
+    SDB_SET_INT64(pRaw, dataPos, pTSma->interval, STB_ENCODE_OVER)
+    SDB_SET_INT64(pRaw, dataPos, pTSma->offset, STB_ENCODE_OVER)
+    SDB_SET_INT64(pRaw, dataPos, pTSma->sliding, STB_ENCODE_OVER)
+    SDB_SET_INT32(pRaw, dataPos, pTSma->exprLen, STB_ENCODE_OVER)
+    SDB_SET_INT32(pRaw, dataPos, pTSma->tagsFilterLen, STB_ENCODE_OVER)
+    SDB_SET_BINARY(pRaw, dataPos, pTSma->expr, pTSma->exprLen, STB_ENCODE_OVER)
+    SDB_SET_BINARY(pRaw, dataPos, pTSma->tagsFilter, pTSma->tagsFilterLen, STB_ENCODE_OVER)
   }
 
   SDB_SET_BINARY(pRaw, dataPos, pStb->comment, TSDB_STB_COMMENT_LEN, STB_ENCODE_OVER)
@@ -150,6 +168,7 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pStb->nextColId, STB_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->numOfColumns, STB_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->numOfTags, STB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pStb->numOfTSmas, STB_DECODE_OVER)
 
   pStb->pColumns = calloc(pStb->numOfColumns, sizeof(SSchema));
   pStb->pTags = calloc(pStb->numOfTags, sizeof(SSchema));
@@ -171,6 +190,23 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT32(pRaw, dataPos, &pSchema->colId, STB_DECODE_OVER)
     SDB_GET_INT32(pRaw, dataPos, &pSchema->bytes, STB_DECODE_OVER)
     SDB_GET_BINARY(pRaw, dataPos, pSchema->name, TSDB_COL_NAME_LEN, STB_DECODE_OVER)
+  }
+
+  for (int32_t i = 0; i < pStb->numOfTSmas; ++i) {
+    STSmaObj *pTSma = &pStb->pTSmas[i];
+    SDB_GET_BINARY(pRaw, dataPos, pTSma->name, TSDB_TABLE_FNAME_LEN, STB_DECODE_OVER)
+    SDB_GET_INT64(pRaw, dataPos, &pTSma->createdTime, STB_DECODE_OVER)
+    SDB_GET_INT64(pRaw, dataPos, &pTSma->uid, STB_DECODE_OVER)
+    SDB_GET_INT8(pRaw, dataPos, &pTSma->intervalUnit, STB_DECODE_OVER)
+    SDB_GET_INT8(pRaw, dataPos, &pTSma->slidingUnit, STB_DECODE_OVER)
+    SDB_GET_INT8(pRaw, dataPos, &pTSma->timezone, STB_DECODE_OVER)
+    SDB_GET_INT64(pRaw, dataPos, &pTSma->interval, STB_DECODE_OVER)
+    SDB_GET_INT64(pRaw, dataPos, &pTSma->offset, STB_DECODE_OVER)
+    SDB_GET_INT64(pRaw, dataPos, &pTSma->sliding, STB_DECODE_OVER)
+    SDB_GET_INT32(pRaw, dataPos, &pTSma->exprLen, STB_DECODE_OVER)
+    SDB_GET_INT32(pRaw, dataPos, &pTSma->tagsFilterLen, STB_DECODE_OVER)
+    SDB_GET_BINARY(pRaw, dataPos, pTSma->expr, pTSma->exprLen, STB_DECODE_OVER)
+    SDB_GET_BINARY(pRaw, dataPos, pTSma->tagsFilter, pTSma->tagsFilterLen, STB_DECODE_OVER)
   }
 
   SDB_GET_BINARY(pRaw, dataPos, pStb->comment, TSDB_STB_COMMENT_LEN, STB_DECODE_OVER)
@@ -1162,7 +1198,7 @@ static int32_t mndSetDropStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
 
 static int32_t mndDropStb(SMnode *pMnode, SNodeMsg *pReq, SDbObj *pDb, SStbObj *pStb) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK,TRN_TYPE_DROP_STB, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_STB, &pReq->rpcMsg);
   if (pTrans == NULL) goto DROP_STB_OVER;
 
   mDebug("trans:%d, used to drop stb:%s", pTrans->id, pStb->name);

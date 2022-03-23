@@ -589,6 +589,99 @@ void tFreeSMAltertbReq(SMAltertbReq *pReq) {
   pReq->pFields = NULL;
 }
 
+int32_t tSerializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateTSmaReq *pReq) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->stb) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->igExists) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->intervalUnit) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->slidingUnit) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->timezone) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->interval) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->offset) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->sliding) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->exprLen) < 0) return -1;
+  if (pReq->exprLen > 0) {
+    if (tEncodeBinary(&encoder, pReq->expr, pReq->exprLen) < 0) return -1;
+  }
+  if (tEncodeI32(&encoder, pReq->tagsFilterLen) < 0) return -1;
+  if (pReq->tagsFilterLen > 0) {
+    if (tEncodeBinary(&encoder, pReq->tagsFilter, pReq->tagsFilterLen) < 0) return -1;
+  }
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateTSmaReq *pReq) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->stb) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->igExists) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->intervalUnit) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->slidingUnit) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->timezone) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->interval) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->offset) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->sliding) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->exprLen) < 0) return -1;
+  if (pReq->exprLen > 0) {
+    pReq->expr = malloc(pReq->exprLen);
+    if (pReq->expr == NULL) return -1;
+    if (tDecodeCStrTo(&decoder, pReq->expr) < 0) return -1;
+  }
+  if (tDecodeI32(&decoder, &pReq->tagsFilterLen) < 0) return -1;
+  if (pReq->tagsFilterLen > 0) {
+    pReq->tagsFilter = malloc(pReq->tagsFilterLen);
+    if (pReq->tagsFilter == NULL) return -1;
+    if (tDecodeCStrTo(&decoder, pReq->tagsFilter) < 0) return -1;
+  }
+
+  tEndDecode(&decoder);
+  tCoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSMCreateSmaReq(SMCreateTSmaReq *pReq) {
+  tfree(pReq->expr);
+  tfree(pReq->tagsFilter);
+}
+
+int32_t tSerializeSMDropSmaReq(void *buf, int32_t bufLen, SMDropTSmaReq *pReq) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->igNotExists) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMDropSmaReq(void *buf, int32_t bufLen, SMDropTSmaReq *pReq) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->igNotExists) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tCoderClear(&decoder);
+  return 0;
+}
+
 int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   SCoder encoder = {0};
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);

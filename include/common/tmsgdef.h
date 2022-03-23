@@ -127,6 +127,8 @@ enum {
   TD_DEF_MSG_TYPE(TDMT_MND_CREATE_STB, "mnode-create-stb", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_ALTER_STB, "mnode-alter-stb", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_DROP_STB, "mnode-drop-stb", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_CREATE_SMA, "mnode-create-tsma", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_DROP_SMA, "mnode-drop-tsma", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_TABLE_META, "mnode-table-meta", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_VGROUP_LIST, "mnode-vgroup-list", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_QNODE_LIST, "mnode-qnode-list", NULL, NULL)
