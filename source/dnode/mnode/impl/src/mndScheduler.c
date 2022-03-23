@@ -117,7 +117,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
     int32_t        opNum = LIST_LENGTH(inner->pNodeList);
     ASSERT(opNum == 1);
 
-    SSubplan* plan = nodesListGetNode(inner->pNodeList, level);
+    SSubplan* plan = nodesListGetNode(inner->pNodeList, 0);
     if (level == 0) {
       ASSERT(plan->subplanType == SUBPLAN_TYPE_SCAN);
       void* pIter = NULL;

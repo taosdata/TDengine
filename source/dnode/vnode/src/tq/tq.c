@@ -17,6 +17,8 @@
 #include "tqInt.h"
 #include "tqMetaStore.h"
 
+void tqDebugShowSSData(SArray* dataBlocks);
+
 int32_t tqInit() { return tqPushMgrInit(); }
 
 void tqCleanUp() { tqPushMgrCleanUp(); }
@@ -70,59 +72,19 @@ void tqClose(STQ* pTq) {
   // TODO
 }
 
-int tqPushMsg(STQ* pTq, void* msg, tmsg_t msgType, int64_t version) {
+int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t version) {
   if (msgType != TDMT_VND_SUBMIT) return 0;
-
-  void* pIter = NULL;
-
-  while (1) {
-    pIter = taosHashIterate(pTq->pStreamTasks, pIter);
-    if (pIter == NULL) break;
-    SStreamTask* pTask = (SStreamTask*)pIter;
-    if (!pTask->pipeSource) continue;
-
-    int32_t workerId = 0;
-    void*   exec = pTask->runner[workerId].executor;
-    qSetStreamInput(exec, msg, STREAM_DATA_TYPE_SUBMIT_BLOCK);
-    SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
-    while (1) {
-      SSDataBlock* output;
-      uint64_t     ts;
-      if (qExecTask(exec, &output, &ts) < 0) {
-        ASSERT(false);
-      }
-      if (output == NULL) {
-        break;
-      }
-      taosArrayPush(pRes, output);
-    }
-    if (pTask->pipeSink) {
-      // write back
-    } else {
-      int32_t tlen = sizeof(SStreamExecMsgHead) + tEncodeDataBlocks(NULL, pRes);
-      void*   buf = rpcMallocCont(tlen);
-      if (buf == NULL) {
-        return -1;
-      }
-      void* abuf = POINTER_SHIFT(buf, sizeof(SStreamExecMsgHead));
-      tEncodeDataBlocks(abuf, pRes);
-      tmsg_t type;
-
-      if (pTask->nextOpDst == STREAM_NEXT_OP_DST__VND) {
-        type = TDMT_VND_TASK_EXEC;
-      } else {
-        type = TDMT_SND_TASK_EXEC;
-      }
-
-      SRpcMsg msg = {
-          .pCont = buf,
-          .contLen = tlen,
-          .code = 0,
-          .msgType = type,
-      };
-      tmsgSendReq(&pTq->pVnode->msgCb, &pTask->NextOpEp, &msg);
-    }
+  void* data = malloc(msgLen);
+  if (data == NULL) {
+    return -1;
   }
+  memcpy(data, msg, msgLen);
+  SRpcMsg req = {
+      .msgType = TDMT_VND_STREAM_TRIGGER,
+      .pCont = data,
+      .contLen = msgLen,
+  };
+  tmsgPutToQueue(&pTq->pVnode->msgCb, FETCH_QUEUE, &req);
 
 #if 0
   void* pIter = taosHashIterate(pTq->tqPushMgr->pHash, NULL);
@@ -577,13 +539,73 @@ void tqDebugShowSSData(SArray* dataBlocks) {
             break;
           case TSDB_DATA_TYPE_INT:
           case TSDB_DATA_TYPE_UINT:
-            printf(" %15u |", *(uint32_t*)var);
+            printf(" %15d |", *(int32_t*)var);
+            break;
+          case TSDB_DATA_TYPE_BIGINT:
+          case TSDB_DATA_TYPE_UBIGINT:
+            printf(" %15ld |", *(int64_t*)var);
             break;
         }
       }
       printf("\n");
     }
   }
+}
+
+int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen) {
+  void* pIter = NULL;
+
+  while (1) {
+    pIter = taosHashIterate(pTq->pStreamTasks, pIter);
+    if (pIter == NULL) break;
+    SStreamTask* pTask = (SStreamTask*)pIter;
+    if (!pTask->pipeSource) continue;
+
+    int32_t workerId = 0;
+    void*   exec = pTask->runner[workerId].executor;
+    qSetStreamInput(exec, data, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+    SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
+    while (1) {
+      SSDataBlock* output;
+      uint64_t     ts;
+      if (qExecTask(exec, &output, &ts) < 0) {
+        ASSERT(false);
+      }
+      if (output == NULL) {
+        break;
+      }
+      taosArrayPush(pRes, output);
+    }
+    if (pTask->pipeSink) {
+      // write back
+      /*printf("reach end\n");*/
+      tqDebugShowSSData(pRes);
+    } else {
+      int32_t tlen = sizeof(SStreamExecMsgHead) + tEncodeDataBlocks(NULL, pRes);
+      void*   buf = rpcMallocCont(tlen);
+      if (buf == NULL) {
+        return -1;
+      }
+      void* abuf = POINTER_SHIFT(buf, sizeof(SStreamExecMsgHead));
+      tEncodeDataBlocks(abuf, pRes);
+      tmsg_t type;
+
+      if (pTask->nextOpDst == STREAM_NEXT_OP_DST__VND) {
+        type = TDMT_VND_TASK_EXEC;
+      } else {
+        type = TDMT_SND_TASK_EXEC;
+      }
+
+      SRpcMsg reqMsg = {
+          .pCont = buf,
+          .contLen = tlen,
+          .code = 0,
+          .msgType = type,
+      };
+      tmsgSendReq(&pTq->pVnode->msgCb, &pTask->NextOpEp, &reqMsg);
+    }
+  }
+  return 0;
 }
 
 int32_t tqProcessTaskExec(STQ* pTq, SRpcMsg* msg) {

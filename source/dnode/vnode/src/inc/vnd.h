@@ -176,7 +176,7 @@ STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pMeta, STqCfg* 
 void tqClose(STQ*);
 
 // required by vnode
-int tqPushMsg(STQ*, void* msg, tmsg_t msgType, int64_t version);
+int tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t version);
 int tqCommit(STQ*);
 
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
@@ -184,6 +184,7 @@ int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
 int32_t tqProcessRebReq(STQ* pTq, char* msg);
 int32_t tqProcessTaskExec(STQ* pTq, SRpcMsg* msg);
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
+int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen);
 
 #ifdef __cplusplus
 }

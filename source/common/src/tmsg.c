@@ -2872,7 +2872,7 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
 }
 
 int32_t tEncodeSStreamTask(SCoder *pEncoder, const SStreamTask *pTask) {
-  if (tStartEncode(pEncoder) < 0) return -1;
+  /*if (tStartEncode(pEncoder) < 0) return -1;*/
   if (tEncodeI64(pEncoder, pTask->streamId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->taskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->level) < 0) return -1;
@@ -2884,12 +2884,12 @@ int32_t tEncodeSStreamTask(SCoder *pEncoder, const SStreamTask *pTask) {
   // if (tEncodeI8(pEncoder, pTask->numOfRunners) < 0) return -1;
   if (tEncodeSEpSet(pEncoder, &pTask->NextOpEp) < 0) return -1;
   if (tEncodeCStr(pEncoder, pTask->qmsg) < 0) return -1;
-  tEndEncode(pEncoder);
+  /*tEndEncode(pEncoder);*/
   return pEncoder->pos;
 }
 
 int32_t tDecodeSStreamTask(SCoder *pDecoder, SStreamTask *pTask) {
-  if (tStartDecode(pDecoder) < 0) return -1;
+  /*if (tStartDecode(pDecoder) < 0) return -1;*/
   if (tDecodeI64(pDecoder, &pTask->streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->taskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->level) < 0) return -1;
@@ -2901,7 +2901,7 @@ int32_t tDecodeSStreamTask(SCoder *pDecoder, SStreamTask *pTask) {
   // if (tDecodeI8(pDecoder, &pTask->numOfRunners) < 0) return -1;
   if (tDecodeSEpSet(pDecoder, &pTask->NextOpEp) < 0) return -1;
   if (tDecodeCStrAlloc(pDecoder, &pTask->qmsg) < 0) return -1;
-  tEndDecode(pDecoder);
+  /*tEndDecode(pDecoder);*/
   return 0;
 }
 
