@@ -13,12 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tq.h"
 #include "vnd.h"
 
 void vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
   SNodeMsg *pMsg;
-  SRpcMsg *pRpc;
+  SRpcMsg  *pRpc;
 
   for (int i = 0; i < taosArrayGetSize(pMsgs); i++) {
     pMsg = *(SNodeMsg **)taosArrayGet(pMsgs, i);
@@ -80,9 +79,24 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     }
     case TDMT_VND_CREATE_TABLE: {
       SVCreateTbBatchReq vCreateTbBatchReq = {0};
+      SVCreateTbBatchRsp vCreateTbBatchRsp = {0};
       tDeserializeSVCreateTbBatchReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbBatchReq);
-      for (int i = 0; i < taosArrayGetSize(vCreateTbBatchReq.pArray); i++) {
+      int reqNum = taosArrayGetSize(vCreateTbBatchReq.pArray);
+      for (int i = 0; i < reqNum; i++) {
         SVCreateTbReq *pCreateTbReq = taosArrayGet(vCreateTbBatchReq.pArray, i);
+
+        char tableFName[TSDB_TABLE_FNAME_LEN];
+        SMsgHead *pHead = (SMsgHead *)pMsg->pCont;
+        sprintf(tableFName, "%s.%s", pCreateTbReq->dbFName, pCreateTbReq->name);
+        
+        int32_t code = vnodeValidateTableHash(&pVnode->config, tableFName);
+        if (code) {
+          SVCreateTbRsp rsp;
+          rsp.code = code;
+
+          taosArrayPush(vCreateTbBatchRsp.rspList, &rsp);
+        }
+        
         if (metaCreateTable(pVnode->pMeta, pCreateTbReq) < 0) {
           // TODO: handle error
           vError("vgId:%d, failed to create table: %s", pVnode->vgId, pCreateTbReq->name);
@@ -100,6 +114,19 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
       vTrace("vgId:%d process create %" PRIzu " tables", pVnode->vgId, taosArrayGetSize(vCreateTbBatchReq.pArray));
       taosArrayDestroy(vCreateTbBatchReq.pArray);
+      if (vCreateTbBatchRsp.rspList) {
+        int32_t contLen = tSerializeSVCreateTbBatchRsp(NULL, 0, &vCreateTbBatchRsp);
+        void *msg = rpcMallocCont(contLen);
+        tSerializeSVCreateTbBatchRsp(msg, contLen, &vCreateTbBatchRsp);
+        taosArrayDestroy(vCreateTbBatchRsp.rspList);
+        
+        *pRsp = calloc(1, sizeof(SRpcMsg));
+        (*pRsp)->msgType = TDMT_VND_CREATE_TABLE_RSP;
+        (*pRsp)->pCont = msg;
+        (*pRsp)->contLen = contLen;
+        (*pRsp)->handle = pMsg->handle;
+        (*pRsp)->ahandle = pMsg->ahandle;
+      }
       break;
     }
     case TDMT_VND_ALTER_STB: {

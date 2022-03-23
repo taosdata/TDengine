@@ -86,7 +86,7 @@ SSDataBlock* getDummyBlock(SOperatorInfo* pOperator, bool* newgroup) {
 //
 //    taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo1);
   } else {
-    blockDataClearup(pInfo->pBlock);
+    blockDataCleanup(pInfo->pBlock);
   }
 
   SSDataBlock* pBlock = pInfo->pBlock;
@@ -151,7 +151,7 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator, bool* newgroup) {
 
     taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo1);
   } else {
-    blockDataClearup(pInfo->pBlock);
+    blockDataCleanup(pInfo->pBlock);
   }
 
   SSDataBlock* pBlock = pInfo->pBlock;
@@ -1228,4 +1228,4 @@ TEST(testCase, time_interval_Operator_Test) {
 }
 #endif
 
-#pragma GCC diagnostic pop
+#pragma GCC diagnosti

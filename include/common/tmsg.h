@@ -24,6 +24,7 @@
 #include "thash.h"
 #include "tlist.h"
 #include "trow.h"
+#include "tname.h"
 #include "tuuid.h"
 
 #ifdef __cplusplus
@@ -471,6 +472,11 @@ typedef struct {
   int32_t code;
 } SQueryTableRsp;
 
+int32_t tSerializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp);
+
+int32_t tDeserializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp);
+
+
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   int32_t numOfVgroups;
@@ -863,6 +869,7 @@ void    tFreeSShowRsp(SShowRsp* pRsp);
 typedef struct {
   int32_t type;
   char    db[TSDB_DB_FNAME_LEN];
+  char    tb[TSDB_TABLE_NAME_LEN];
   int64_t showId;
   int8_t  free;
 } SRetrieveTableReq;
@@ -879,6 +886,17 @@ typedef struct {
   int32_t numOfRows;
   char    data[];
 } SRetrieveTableRsp;
+
+typedef struct {
+  int64_t  handle;
+  int64_t  useconds;
+  int8_t   completed;  // all results are returned to client
+  int8_t   precision;
+  int8_t   compressed;
+  int32_t  compLen;
+  int32_t  numOfRows;
+  char     data[];
+} SRetrieveMetaTableRsp;
 
 typedef struct {
   char    fqdn[TSDB_FQDN_LEN];  // end point, hostname:port
@@ -1345,33 +1363,54 @@ typedef struct {
   int64_t  tuid;
 } SDDropTopicReq;
 
+typedef struct {
+  float    xFilesFactor;
+  int8_t   delayUnit;
+  int8_t   nFuncIds;
+  int32_t* pFuncIds;
+  int64_t  delay;
+} SRSmaParam;
+
 typedef struct SVCreateTbReq {
   int64_t  ver;  // use a general definition
+  char*    dbFName;
   char*    name;
   uint32_t ttl;
   uint32_t keep;
-  uint8_t  type;
+  union {
+    uint8_t info;
+    struct {
+      uint8_t rollup : 1;  // 1 means rollup sma
+      uint8_t type : 7;
+    };
+  };
   union {
     struct {
-      tb_uid_t suid;
-      uint32_t nCols;
-      SSchema* pSchema;
-      uint32_t nTagCols;
-      SSchema* pTagSchema;
+      tb_uid_t    suid;
+      uint32_t    nCols;
+      SSchema*    pSchema;
+      uint32_t    nTagCols;
+      SSchema*    pTagSchema;
+      col_id_t    nBSmaCols;
+      col_id_t*   pBSmaCols;
+      SRSmaParam* pRSmaParam;
     } stbCfg;
     struct {
       tb_uid_t suid;
       SKVRow   pTag;
     } ctbCfg;
     struct {
-      uint32_t nCols;
-      SSchema* pSchema;
+      uint32_t    nCols;
+      SSchema*    pSchema;
+      col_id_t    nBSmaCols;
+      col_id_t*   pBSmaCols;
+      SRSmaParam* pRSmaParam;
     } ntbCfg;
   };
 } SVCreateTbReq, SVUpdateTbReq;
 
 typedef struct {
-  int tmp;  // TODO: to avoid compile error
+  int32_t code;
 } SVCreateTbRsp, SVUpdateTbRsp;
 
 int32_t tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
@@ -1382,12 +1421,16 @@ typedef struct {
   SArray* pArray;
 } SVCreateTbBatchReq;
 
-typedef struct {
-  int tmp;  // TODO: to avoid compile error
-} SVCreateTbBatchRsp;
-
 int32_t tSerializeSVCreateTbBatchReq(void** buf, SVCreateTbBatchReq* pReq);
 void*   tDeserializeSVCreateTbBatchReq(void* buf, SVCreateTbBatchReq* pReq);
+
+typedef struct {
+  SArray* rspList; // SArray<SVCreateTbRsp>
+} SVCreateTbBatchRsp;
+
+int32_t tSerializeSVCreateTbBatchRsp(void *buf, int32_t bufLen, SVCreateTbBatchRsp *pRsp);
+int32_t tDeserializeSVCreateTbBatchRsp(void *buf, int32_t bufLen, SVCreateTbBatchRsp *pRsp);
+
 
 typedef struct {
   int64_t  ver;
@@ -2271,20 +2314,22 @@ enum {
 
 typedef struct {
   void* inputHandle;
-  void* executor[4];
-} SStreamTaskParRunner;
+  void* executor;
+} SStreamRunner;
 
 typedef struct {
   int64_t streamId;
   int32_t taskId;
   int32_t level;
   int8_t  status;
-  int8_t  pipeEnd;
-  int8_t  parallel;
+  int8_t  pipeSource;
+  int8_t  pipeSink;
+  int8_t  numOfRunners;
+  int8_t  parallelizable;
   SEpSet  NextOpEp;
   char*   qmsg;
   // not applied to encoder and decoder
-  SStreamTaskParRunner runner;
+  SStreamRunner runner[8];
   // void*                executor;
   // void*   stateStore;
   //  storage handle
@@ -2316,7 +2361,7 @@ typedef struct {
 
 typedef struct {
   SStreamExecMsgHead head;
-  // TODO: other info needed by task
+  SArray*            data;  // SArray<SSDataBlock>
 } SStreamTaskExecReq;
 
 typedef struct {

@@ -23,6 +23,13 @@ extern "C" {
 #include "os.h"
 #include "query.h"
 
+#define parserFatal(param, ...)  qFatal("PARSER: " param, __VA_ARGS__)
+#define parserError(param, ...)  qError("PARSER: " param, __VA_ARGS__)
+#define parserWarn(param, ...)   qWarn("PARSER: " param, __VA_ARGS__)
+#define parserInfo(param, ...)   qInfo("PARSER: " param, __VA_ARGS__)
+#define parserDebug(param, ...)  qDebug("PARSER: " param, __VA_ARGS__)
+#define parserTrace(param, ...)  qTrace("PARSER: " param, __VA_ARGS__)
+
 typedef struct SMsgBuf {
   int32_t len;
   char   *buf;

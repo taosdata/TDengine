@@ -306,7 +306,7 @@ int32_t init_env() {
   }
 
   //const char* sql = "select * from tu1";
-  sprintf(sqlStr, "create topic test_stb_topic_1 as select * from %s", g_stConfInfo.stbName);
+  sprintf(sqlStr, "create topic test_stb_topic_1 as select * from %s0", g_stConfInfo.stbName);
   /*pRes = tmq_create_topic(pConn, "test_stb_topic_1", sqlStr, strlen(sqlStr));*/
   pRes = taos_query(pConn, sqlStr);
   if (taos_errno(pRes) != 0) {
