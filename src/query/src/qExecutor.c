@@ -4832,7 +4832,7 @@ static int32_t setupQueryHandle(void* tsdb, SQueryRuntimeEnv* pRuntimeEnv, int64
   }
 
   STsdbQueryCond cond = createTsdbQueryCond(pQueryAttr, &pQueryAttr->window);
-  if (pQueryAttr->tsCompQuery || pQueryAttr->pointInterpQuery) {
+  if (pQueryAttr->tsCompQuery || pQueryAttr->pointInterpQuery || pQueryAttr->needTableSeqScan) {
     cond.type = BLOCK_LOAD_TABLE_SEQ_ORDER;    
   }
 
