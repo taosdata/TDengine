@@ -431,6 +431,7 @@ SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
 
   for (int i = 0; i < pDataCols->numOfCols; i++) {
     pRet->cols[i].type = pDataCols->cols[i].type;
+    pRet->cols[i].bitmap = pDataCols->cols[i].bitmap;
     pRet->cols[i].colId = pDataCols->cols[i].colId;
     pRet->cols[i].bytes = pDataCols->cols[i].bytes;
     pRet->cols[i].offset = pDataCols->cols[i].offset;
