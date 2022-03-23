@@ -493,6 +493,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
   int    szDivCell[2];
   int    sIdx;
   u8     childNotLeaf;
+  SPgno  rPgno;
 
   {  // Find 3 child pages at most to do balance
     int    nCells = TDB_PAGE_TOTAL_CELLS(pParent);
@@ -547,6 +548,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
         // the slow defragment process
         tdbPageInsertCell(pOlds[i], TDB_PAGE_TOTAL_CELLS(pOlds[i]), pDivCell[i], szDivCell[i], 1);
       }
+      rPgno = ((SIntHdr *)pOlds[nOlds - 1]->pData)->pgno;
     }
     // drop the cells on parent page
     for (int i = 0; i < nOlds; i++) {
@@ -741,14 +743,9 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
           ((SIntHdr *)pNews[iNew]->pData)->pgno = ((SPgno *)pCell)[0];
 
           // insert to parent as divider cell
-          SIntHdr *pIntHdr = (SIntHdr *)pParent->pData;
-
-          if (iNew == nNews - 1 && pIntHdr->pgno == 0) {
-            pIntHdr->pgno = TDB_PAGE_PGNO(pNews[iNew]);
-          } else {
-            ((SPgno *)pCell)[0] = TDB_PAGE_PGNO(pNews[iNew]);
-            tdbPageInsertCell(pParent, sIdx++, pCell, szCell, 0);
-          }
+          ASSERT(iNew < nNews - 1);
+          ((SPgno *)pCell)[0] = TDB_PAGE_PGNO(pNews[iNew]);
+          tdbPageInsertCell(pParent, sIdx++, pCell, szCell, 0);
 
           // move to next new page
           iNew++;
