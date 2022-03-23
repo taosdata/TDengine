@@ -712,13 +712,25 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
           nNewCells++;
         } else {
           if (childNotLeaf) {
+            // Insert to parent
+
             // set current new page right-most child
+            ((SIntHdr *)pNews[iNew]->pData)->pgno = ((SPgno *)pCell)[0];
 
             // move to next new page
+            iNew++;
+            nNewCells = 0;
           } else {
+            // TODO: Insert to parent max key and current page number or the right most child
+
             // move to next new page
+            iNew++;
+            nNewCells = 0;
 
             // insert the cell to the new page
+            ASSERT(nNewCells < infoNews[iNew].cnt);
+            tdbPageInsertCell(pNews[iNew], nNewCells, pCell, szCell, 0);
+            nNewCells++;
           }
         }
 
