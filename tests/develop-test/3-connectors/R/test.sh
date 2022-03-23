@@ -20,8 +20,8 @@ cd ../../
 WKC=`pwd`
 echo ${WKC}
 
-JDBC_PATH='/src/connector/jdbc/'
-CASE_PATH='/examples/R/'
+JDBC_PATH=${WKC}'/src/connector/jdbc/'
+CASE_PATH=${WKC}'/examples/R/'
 cd ${JDBC_PATH}
 
 mvn clean package -Dmaven.test.skip=true
