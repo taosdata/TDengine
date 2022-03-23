@@ -1046,7 +1046,10 @@ SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, const 
   return (SNode*)pStmt;
 }
 
-SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
+SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
+  if (!checkDbName(pCxt, pDbName, false)) {
+    return NULL;
+  }
   SUseDatabaseStmt* pStmt = (SUseDatabaseStmt*)nodesMakeNode(QUERY_NODE_USE_DATABASE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   strncpy(pStmt->dbName, pDbName->z, pDbName->n);
