@@ -166,7 +166,7 @@ int32_t qwSetTaskStatus(QW_FPARAMS_DEF, SQWTaskStatus *task, int8_t status) {
 }
 
 
-int32_t qwAddSchedulerImpl(SQWorkerMgmt *mgmt, uint64_t sId, int32_t rwType, SQWSchStatus **sch) {
+int32_t qwAddSchedulerImpl(SQWorkerMgmt *mgmt, uint64_t sId, int32_t rwType) {
   SQWSchStatus newSch = {0};
   newSch.tasksHash = taosHashInit(mgmt->cfg.maxSchTaskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (NULL == newSch.tasksHash) {
@@ -200,7 +200,7 @@ int32_t qwAcquireSchedulerImpl(SQWorkerMgmt *mgmt, uint64_t sId, int32_t rwType,
       QW_UNLOCK(rwType, &mgmt->schLock);
       
       if (QW_NOT_EXIST_ADD == nOpt) {
-        QW_ERR_RET(qwAddSchedulerImpl(mgmt, sId, rwType, sch));
+        QW_ERR_RET(qwAddSchedulerImpl(mgmt, sId, rwType));
 
         nOpt = QW_NOT_EXIST_RET_ERR;
         

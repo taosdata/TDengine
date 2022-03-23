@@ -125,7 +125,7 @@ int32_t schValidateTaskReceivedMsgType(SSchJob *pJob, SSchTask *pTask, int32_t m
     case TDMT_SCH_LINK_BROKEN:
       return TSDB_CODE_SUCCESS;
     case TDMT_VND_QUERY_RSP:  // query_rsp may be processed later than ready_rsp
-      if (lastMsgType != reqMsgType) {
+      if (lastMsgType != reqMsgType &&  -1 != lastMsgType && TDMT_VND_FETCH != lastMsgType) {
         SCH_TASK_DLOG("rsp msg type mis-match, last sent msgType:%s, rspType:%s", TMSG_INFO(lastMsgType), TMSG_INFO(msgType));
       }
       
@@ -1776,6 +1776,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       pMsg->sId = htobe64(schMgmt.sId);
       pMsg->queryId = htobe64(pJob->queryId);
       pMsg->taskId = htobe64(pTask->taskId);
+
       break;
     }
     case TDMT_VND_DROP_TASK: {
