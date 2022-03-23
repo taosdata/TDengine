@@ -47,12 +47,19 @@ SyncIndex       logStoreGetCommitIndex(SSyncLogStore* pLogStore);
 SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore);
 cJSON*          logStore2Json(SSyncLogStore* pLogStore);
 char*           logStore2Str(SSyncLogStore* pLogStore);
+cJSON*          logStoreSimple2Json(SSyncLogStore* pLogStore);
+char*           logStoreSimple2Str(SSyncLogStore* pLogStore);
 
 // for debug
 void logStorePrint(SSyncLogStore* pLogStore);
 void logStorePrint2(char* s, SSyncLogStore* pLogStore);
 void logStoreLog(SSyncLogStore* pLogStore);
 void logStoreLog2(char* s, SSyncLogStore* pLogStore);
+
+void logStoreSimplePrint(SSyncLogStore* pLogStore);
+void logStoreSimplePrint2(char* s, SSyncLogStore* pLogStore);
+void logStoreSimpleLog(SSyncLogStore* pLogStore);
+void logStoreSimpleLog2(char* s, SSyncLogStore* pLogStore);
 
 #ifdef __cplusplus
 }
