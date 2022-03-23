@@ -1,18 +1,18 @@
 use std::{
     fs::{self, OpenOptions},
     io::Write,
-    path::Path,
+    path::PathBuf,
 };
 
 use libtaos::{Field, Taos};
-pub async fn backup_database_sql(taos: &Taos, db: &str) {
+pub async fn backup_database_sql(taos: &Taos, db: &str, target: &PathBuf) {
     let res = taos
         .query(format!("show create database {}", db.to_string()).as_str())
         .await
         .unwrap();
-    let filename = format!("./{}/db.sql", db);
-    let path = Path::new(filename.as_str());
-    let mut file = fs::File::create(&path).unwrap();
+    let mut path = target.clone();
+    path.push("db.sql");
+    let mut file = fs::File::create(path.as_path()).unwrap();
     for row in res.rows {
         for field in row {
             match field {
@@ -29,7 +29,7 @@ pub async fn backup_database_sql(taos: &Taos, db: &str) {
     }
 }
 
-pub async fn backup_stable_sql(taos: &Taos, db: &str) -> Vec<String> {
+pub async fn backup_stable_sql(taos: &Taos, db: &str, target: &PathBuf) -> Vec<String> {
     let mut stable_list = vec![];
     taos.use_database(db).await.unwrap();
     let res = taos.query("show stables").await.unwrap();
@@ -44,12 +44,14 @@ pub async fn backup_stable_sql(taos: &Taos, db: &str) -> Vec<String> {
             }
         }
     }
-    let filename = format!("./{}/stb.sql", db);
+    let mut path = target.clone();
+    path.push("stb.sql");
+
     let mut file = OpenOptions::new()
         .write(true)
         .create(true)
         .append(true)
-        .open(filename)
+        .open(path)
         .unwrap();
     for stb in &stable_list {
         let res = taos
@@ -75,7 +77,7 @@ pub async fn backup_stable_sql(taos: &Taos, db: &str) -> Vec<String> {
     stable_list
 }
 
-pub async fn backup_table_sql(taos: &Taos, db: &str, stb: &str) -> Vec<String> {
+pub async fn backup_table_sql(taos: &Taos, db: &str, stb: &str, target: &PathBuf) -> Vec<String> {
     let mut tables_list = vec![];
     let res = taos
         .query(format!("select tbname from {}.{}", db, stb).as_str())
@@ -92,12 +94,13 @@ pub async fn backup_table_sql(taos: &Taos, db: &str, stb: &str) -> Vec<String> {
             }
         }
     }
-    let filename = format!("./{}/tb.sql", db);
+    let mut path = target.clone();
+    path.push("tb.sql");
     let mut file = OpenOptions::new()
         .write(true)
         .create(true)
         .append(true)
-        .open(filename)
+        .open(path)
         .unwrap();
     for tb in &tables_list {
         let res = taos
