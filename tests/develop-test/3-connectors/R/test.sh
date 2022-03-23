@@ -23,7 +23,7 @@ WKC=`pwd`
 echo "WKC:${WKC}"
 
 JDBC_PATH=${WKC}'/src/connector/jdbc/'
-CASE_PATH=${WKC}'/test/examples/R/'
+CASE_PATH=${WKC}'/tests/examples/R/'
 cd ${JDBC_PATH}
 echo "JDBC_PATH:${JDBC_PATH}" 
 echo "CASE_PATH:${CASE_PATH}"
