@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 // If the error is in a third-party library, place this header file under the third-party library header file.
+// When you want to use this feature, you should find or add the same function in the following section.
 #ifndef ALLOW_FORBID_FUNC
     #define popen POPEN_FUNC_TAOS_FORBID
     #define pclose PCLOSE_FUNC_TAOS_FORBID
@@ -28,7 +29,6 @@ extern "C" {
     #define tcgetattr TCGETATTR_FUNC_TAOS_FORBID
 #endif
 
-int32_t taosSystem(const char *cmd, char *buf, int32_t bufSize);
 void* taosLoadDll(const char* filename);
 void* taosLoadSym(void* handle, char* name);
 void  taosCloseDll(void* handle);

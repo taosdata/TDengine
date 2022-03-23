@@ -179,7 +179,8 @@ typedef struct SAlterDnodeStmt {
 
 typedef struct SShowStmt {
   ENodeType type;
-  char dbName[TSDB_DB_NAME_LEN];
+  SNode* pDbName;        // SValueNode
+  SNode* pTbNamePattern; // SValueNode
 } SShowStmt;
 
 typedef enum EIndexType {

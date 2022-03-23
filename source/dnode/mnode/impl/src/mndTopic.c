@@ -176,7 +176,7 @@ static int32_t mndTopicActionDelete(SSdb *pSdb, SMqTopicObj *pTopic) {
 
 static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pOldTopic, SMqTopicObj *pNewTopic) {
   mTrace("topic:%s, perform update action", pOldTopic->name);
-  atomic_exchange_32(&pOldTopic->updateTime, pNewTopic->updateTime);
+  atomic_exchange_64(&pOldTopic->updateTime, pNewTopic->updateTime);
   atomic_exchange_32(&pOldTopic->version, pNewTopic->version);
 
   taosWLockLatch(&pOldTopic->lock);
@@ -236,17 +236,17 @@ static int32_t mndCheckCreateTopicReq(SCMCreateTopicReq *pCreate) {
   return 0;
 }
 
-static int32_t mndGetPlanString(SCMCreateTopicReq *pCreate, char **pStr) {
+static int32_t mndGetPlanString(const SCMCreateTopicReq *pCreate, char **pStr) {
   if (NULL == pCreate->ast) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SNode* pAst = NULL;
+  SNode  *pAst = NULL;
   int32_t code = nodesStringToNode(pCreate->ast, &pAst);
 
-  SQueryPlan* pPlan = NULL;
+  SQueryPlan *pPlan = NULL;
   if (TSDB_CODE_SUCCESS == code) {
-    SPlanContext cxt = { .pAstRoot = pAst, .topicQuery = true };
+    SPlanContext cxt = {.pAstRoot = pAst, .topicQuery = true};
     code = qCreateQueryPlan(&cxt, &pPlan, NULL);
   }
 
@@ -274,7 +274,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
   topicObj.logicalPlan = "";
   topicObj.sqlLen = strlen(pCreate->sql);
 
-  char* pPlanStr = NULL;
+  char *pPlanStr = NULL;
   if (TSDB_CODE_SUCCESS != mndGetPlanString(pCreate, &pPlanStr)) {
     mError("topic:%s, failed to get plan since %s", pCreate->name, terrstr());
     return -1;

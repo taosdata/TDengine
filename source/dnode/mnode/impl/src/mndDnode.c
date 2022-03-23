@@ -623,7 +623,7 @@ static int32_t mndProcessConfigDnodeReq(SNodeMsg *pReq) {
       .msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen, .ahandle = pReq->rpcMsg.ahandle};
 
   mInfo("dnode:%d, app:%p config:%s req send to dnode", cfgReq.dnodeId, rpcMsg.ahandle, cfgReq.config);
-  mndSendReqToDnode(pMnode, &epSet, &rpcMsg);
+  tmsgSendReq(&pMnode->msgCb, &epSet, &rpcMsg);
 
   return 0;
 }
@@ -752,7 +752,7 @@ static int32_t mndGetDnodeMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *p
   pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
-  pShow->bytes[cols] = 24 + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = 256 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "offline_reason");
   pSchema[cols].bytes = pShow->bytes[cols];

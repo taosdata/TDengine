@@ -55,7 +55,7 @@ typedef struct SHashEntry {
 struct SHashObj {
   SHashEntry **     hashList;
   size_t            capacity;      // number of slots
-  size_t            size;          // number of elements in hash table
+  int64_t           size;          // number of elements in hash table
   _hash_fn_t        hashFp;        // hash function
   _equal_fn_t       equalFp;       // equal function
   _hash_free_fn_t   freeFp;        // hash node free callback function
@@ -186,7 +186,7 @@ static SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *p
 static FORCE_INLINE void doUpdateHashNode(SHashObj *pHashObj, SHashEntry* pe, SHashNode* prev, SHashNode *pNode, SHashNode *pNewNode) {
   assert(pNode->keyLen == pNewNode->keyLen);
 
-  atomic_sub_fetch_32(&pNode->refCount, 1);
+  atomic_sub_fetch_16(&pNode->refCount, 1);
   if (prev != NULL) {
     prev->next = pNewNode;
   } else {
@@ -302,10 +302,10 @@ int32_t taosHashGetSize(const SHashObj *pHashObj) {
   if (pHashObj == NULL) {
     return 0;
   }
-  return (int32_t)atomic_load_64(&pHashObj->size);
+  return (int32_t)atomic_load_64((int64_t*)&pHashObj->size);
 }
 
-int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size) {
+int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const void *data, size_t size) {
   if (pHashObj == NULL || key == NULL || keyLen == 0) {
     return -1;
   }
@@ -508,7 +508,7 @@ int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
         pNode->removed == 0) {
       code = 0;  // it is found
 
-      atomic_sub_fetch_32(&pNode->refCount, 1);
+      atomic_sub_fetch_16(&pNode->refCount, 1);
       pNode->removed = 1;
       if (pNode->refCount <= 0) {
         if (prevNode == NULL) {
@@ -755,7 +755,7 @@ static void *taosHashReleaseNode(SHashObj *pHashObj, void *p, int *slot) {
       pNode = pNode->next;
     }
 
-    atomic_sub_fetch_32(&pOld->refCount, 1);
+    atomic_sub_fetch_16(&pOld->refCount, 1);
     if (pOld->refCount <=0) {
       if (prevNode) {
         prevNode->next = pOld->next;

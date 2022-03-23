@@ -46,15 +46,18 @@ void qwFreeFetchRsp(void *msg) {
 
 int32_t qwBuildAndSendQueryRsp(void *connection, int32_t code) {
   SRpcMsg *pMsg = (SRpcMsg *)connection;
-  SQueryTableRsp *pRsp = (SQueryTableRsp *)rpcMallocCont(sizeof(SQueryTableRsp));
-  pRsp->code = code;
+  SQueryTableRsp rsp = {.code = code};
+  
+  int32_t contLen = tSerializeSQueryTableRsp(NULL, 0, &rsp);
+  void *msg = rpcMallocCont(contLen);
+  tSerializeSQueryTableRsp(msg, contLen, &rsp);
 
   SRpcMsg rpcRsp = {
     .msgType = TDMT_VND_QUERY_RSP,
     .handle  = pMsg->handle,
     .ahandle = pMsg->ahandle,
-    .pCont   = pRsp,
-    .contLen = sizeof(*pRsp),
+    .pCont   = msg,
+    .contLen = contLen,
     .code    = code,
   };
 
@@ -245,22 +248,22 @@ int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, void *connection) {
   req->taskId = tId;
 
   SRpcMsg pNewMsg = {
-    .handle = pMsg->handle,
-    .ahandle = pMsg->ahandle,
-    .msgType = TDMT_VND_QUERY_CONTINUE,
-    .pCont   = req,
-    .contLen = sizeof(SQueryContinueReq),
-    .code    = 0,
+      .handle = pMsg->handle,
+      .ahandle = pMsg->ahandle,
+      .msgType = TDMT_VND_QUERY_CONTINUE,
+      .pCont = req,
+      .contLen = sizeof(SQueryContinueReq),
+      .code = 0,
   };
 
-  int32_t code = (*mgmt->putToQueueFp)(mgmt->nodeObj, &pNewMsg);
+  int32_t code = tmsgPutToQueue(&mgmt->msgCb, QUERY_QUEUE, &pNewMsg);
   if (TSDB_CODE_SUCCESS != code) {
     QW_SCH_TASK_ELOG("put query continue msg to queue failed, vgId:%d, code:%s", mgmt->nodeId, tstrerror(code));
     rpcFreeCont(req);
     QW_ERR_RET(code);
   }
 
-  QW_SCH_TASK_DLOG("put task continue exec msg to query queue, vgId:%d", mgmt->nodeId);
+  QW_SCH_TASK_DLOG("query continue msg put to queue, vgId:%d", mgmt->nodeId);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -297,7 +300,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   QW_SCH_TASK_DLOG("processQuery start, node:%p, sql:%s", node, sql);
   tfree(sql);
 
-  QW_RET(qwProcessQuery(QW_FPARAMS(), &qwMsg, msg->taskType));
+  QW_ERR_RET(qwProcessQuery(QW_FPARAMS(), &qwMsg, msg->taskType));
 
   QW_SCH_TASK_DLOG("processQuery end, node:%p", node);
 

@@ -17,6 +17,7 @@
 #define _TD_OS_DIR_H_
 
 // If the error is in a third-party library, place this header file under the third-party library header file.
+// When you want to use this feature, you should find or add the same function in the following section.
 #ifndef ALLOW_FORBID_FUNC
     #define opendir OPENDIR_FUNC_TAOS_FORBID
     #define readdir READDIR_FUNC_TAOS_FORBID

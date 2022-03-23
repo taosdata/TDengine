@@ -271,6 +271,8 @@ TEST(testCase, create_stable_Test) {
   }
   taos_free_result(pRes);
 
+  pRes = taos_query(pConn, "use abc1");
+
   pRes = taos_query(pConn, "create table if not exists abc1.st1(ts timestamp, k int) tags(a int)");
   if (taos_errno(pRes) != 0) {
     printf("error in create stable, reason:%s\n", taos_errstr(pRes));
@@ -283,17 +285,17 @@ TEST(testCase, create_stable_Test) {
   ASSERT_EQ(numOfFields, 0);
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create stable if not exists abc1.`123_$^)` (ts timestamp, `abc` int) tags(a int)");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create super table 123_$^), reason:%s\n", taos_errstr(pRes));
-  }
-
-  pRes = taos_query(pConn, "use abc1");
-  taos_free_result(pRes);
-  pRes = taos_query(pConn, "drop stable `123_$^)`");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to drop super table 123_$^), reason:%s\n", taos_errstr(pRes));
-  }
+//  pRes = taos_query(pConn, "create stable if not exists abc1.`123_$^)` (ts timestamp, `abc` int) tags(a int)");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to create super table 123_$^), reason:%s\n", taos_errstr(pRes));
+//  }
+//
+//  pRes = taos_query(pConn, "use abc1");
+//  taos_free_result(pRes);
+//  pRes = taos_query(pConn, "drop stable `123_$^)`");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to drop super table 123_$^), reason:%s\n", taos_errstr(pRes));
+//  }
 
   taos_close(pConn);
 }
@@ -333,7 +335,7 @@ TEST(testCase, create_ctable_Test) {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table tu using sts tags('2021-10-10 1:1:1');");
+  pRes = taos_query(pConn, "create table tu using st1 tags('2021-10-10 1:1:1');");
   if (taos_errno(pRes) != 0) {
     printf("failed to create child table tm0, reason:%s\n", taos_errstr(pRes));
   }
@@ -483,7 +485,9 @@ TEST(testCase, show_table_Test) {
 
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "show abc1.tables");
+  taos_query(pConn, "use abc1");
+
+  pRes = taos_query(pConn, "show tables");
   if (taos_errno(pRes) != 0) {
     printf("failed to show tables, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);
@@ -656,13 +660,7 @@ TEST(testCase, agg_query_tables) {
   TAOS_RES* pRes = taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table tx using st1 tags(111111111111111)");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create table, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "select count(*) from t_x_19");
+  pRes = taos_query(pConn, "select count(*), sum(k),min(k),max(k) from tu");
   if (taos_errno(pRes) != 0) {
     printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);

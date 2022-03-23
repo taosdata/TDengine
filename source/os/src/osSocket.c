@@ -216,12 +216,6 @@ int32_t taosShutDownSocketServerRDWR(TdSocketServerPtr pSocketServer) {
 #endif
 }
 
-#if (defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32))
-  #if defined(_TD_GO_DLL_)
-    uint64_t htonll(uint64_t val) { return (((uint64_t)htonl(val)) << 32) + htonl(val >> 32); }
-  #endif
-#endif
-
 void taosWinSocketInit1() {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   static char flag = 0;

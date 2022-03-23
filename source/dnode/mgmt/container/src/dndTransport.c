@@ -20,13 +20,26 @@
 #define INTERNAL_CKEY   "_key"
 #define INTERNAL_SECRET "_pwd"
 
+static inline void dndProcessQVnodeRpcMsg(SMsgHandle *pHandle, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  SMsgHead *pHead = pMsg->pCont;
+  int32_t   vgId = htonl(pHead->vgId);
+
+  SMgmtWrapper *pWrapper = pHandle->pWrapper;
+  if (vgId == pHandle->vgId && pHandle->pVgIdWrapper != NULL) {
+    pWrapper = pHandle->pVgIdWrapper;
+  }
+
+  dTrace("msg:%s will be processed by %s, handle:%p app:%p vgId:%d", TMSG_INFO(pMsg->msgType), pWrapper->name,
+         pMsg->handle, pMsg->ahandle, vgId);
+  dndProcessRpcMsg(pWrapper, pMsg, pEpSet);
+}
+
 static void dndProcessResponse(void *parent, SRpcMsg *pRsp, SEpSet *pEpSet) {
   SDnode     *pDnode = parent;
   STransMgmt *pMgmt = &pDnode->trans;
   tmsg_t      msgType = pRsp->msgType;
 
   if (dndGetStatus(pDnode) != DND_STAT_RUNNING) {
-    // if (pRsp == NULL || pRsp->pCont == NULL) return;
     dTrace("rsp:%s ignored since dnode not running, handle:%p app:%p", TMSG_INFO(msgType), pRsp->handle, pRsp->ahandle);
     rpcFreeCont(pRsp->pCont);
     return;
@@ -34,9 +47,13 @@ static void dndProcessResponse(void *parent, SRpcMsg *pRsp, SEpSet *pEpSet) {
 
   SMsgHandle *pHandle = &pMgmt->msgHandles[TMSG_INDEX(msgType)];
   if (pHandle->msgFp != NULL) {
-    dTrace("rsp:%s will be processed by %s, handle:%p app:%p code:0x%04x:%s", TMSG_INFO(msgType),
-           pHandle->pWrapper->name, pRsp->handle, pRsp->ahandle, pRsp->code & 0XFFFF, tstrerror(pRsp->code));
-    dndProcessRpcMsg(pHandle->pWrapper, pRsp, pEpSet);
+    if (pHandle->vgId == 0) {
+      dTrace("rsp:%s will be processed by %s, handle:%p app:%p code:0x%04x:%s", TMSG_INFO(msgType),
+             pHandle->pWrapper->name, pRsp->handle, pRsp->ahandle, pRsp->code & 0XFFFF, tstrerror(pRsp->code));
+      dndProcessRpcMsg(pHandle->pWrapper, pRsp, pEpSet);
+    } else {
+      dndProcessQVnodeRpcMsg(pHandle, pRsp, pEpSet);
+    }
   } else {
     dError("rsp:%s not processed since no handle, handle:%p app:%p", TMSG_INFO(msgType), pRsp->handle, pRsp->ahandle);
     rpcFreeCont(pRsp->pCont);
@@ -110,9 +127,13 @@ static void dndProcessRequest(void *param, SRpcMsg *pReq, SEpSet *pEpSet) {
 
   SMsgHandle *pHandle = &pMgmt->msgHandles[TMSG_INDEX(msgType)];
   if (pHandle->msgFp != NULL) {
-    dTrace("req:%s will be processed by %s, handle:%p app:%p", TMSG_INFO(msgType), pHandle->pWrapper->name,
-           pReq->handle, pReq->ahandle);
-    dndProcessRpcMsg(pHandle->pWrapper, pReq, pEpSet);
+    if (pHandle->vgId == 0) {
+      dTrace("req:%s will be processed by %s, handle:%p app:%p", TMSG_INFO(msgType), pHandle->pWrapper->name,
+             pReq->handle, pReq->ahandle);
+      dndProcessRpcMsg(pHandle->pWrapper, pReq, pEpSet);
+    } else {
+      dndProcessQVnodeRpcMsg(pHandle, pReq, pEpSet);
+    }
   } else {
     dError("req:%s not processed since no handle, handle:%p app:%p", TMSG_INFO(msgType), pReq->handle, pReq->ahandle);
     SRpcMsg rspMsg = {.handle = pReq->handle, .code = TSDB_CODE_MSG_NOT_PROCESSED, .ahandle = pReq->ahandle};
@@ -245,17 +266,24 @@ int32_t dndInitMsgHandle(SDnode *pDnode) {
 
     for (int32_t msgIndex = 0; msgIndex < TDMT_MAX; ++msgIndex) {
       NodeMsgFp msgFp = pWrapper->msgFps[msgIndex];
+      int32_t   vgId = pWrapper->msgVgIds[msgIndex];
       if (msgFp == NULL) continue;
 
       SMsgHandle *pHandle = &pMgmt->msgHandles[msgIndex];
-      if (pHandle->msgFp != NULL) {
-        dError("msg:%s has multiple process nodes, prev node:%s, curr node:%s", tMsgInfo[msgIndex],
-               pHandle->pWrapper->name, pWrapper->name);
+      if (pHandle->msgFp != NULL && pHandle->vgId == vgId) {
+        dError("msg:%s has multiple process nodes, prev node:%s:%d, curr node:%s:%d", tMsgInfo[msgIndex],
+               pHandle->pWrapper->name, pHandle->pWrapper->msgVgIds[msgIndex], pWrapper->name, vgId);
         return -1;
       } else {
-        dTrace("msg:%s will be processed by %s", tMsgInfo[msgIndex], pWrapper->name);
-        pHandle->msgFp = msgFp;
-        pHandle->pWrapper = pWrapper;
+        dTrace("msg:%s will be processed by %s, vgId:%d", tMsgInfo[msgIndex], pWrapper->name, vgId);
+        if (vgId == 0) {
+          pHandle->msgFp = msgFp;
+          pHandle->pWrapper = pWrapper;
+        } else {
+          pHandle->vgId = vgId;
+          pHandle->vgIdMsgFp = msgFp;
+          pHandle->pVgIdWrapper = pWrapper;
+        }
       }
     }
   }

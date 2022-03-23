@@ -185,6 +185,12 @@ TEST_F(PlannerTest, interval) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(PlannerTest, showTables) {
+  setDatabase("root", "test");
+
+  bind("show tables");
+}
+
 TEST_F(PlannerTest, createTopic) {
   setDatabase("root", "test");
 

@@ -102,8 +102,8 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
                                         : ((p1_)->pData + ((r_) * (p1_)->info.bytes)))
 
 int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, bool isNull);
-int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, const SColumnInfoData* pSource,
-                        uint32_t numOfRow2);
+int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, const SColumnInfoData* pSource, uint32_t numOfRow2);
+int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* pSource, int32_t numOfRows);
 int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock);
 
 int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows);
@@ -112,16 +112,15 @@ void    colDataTrim(SColumnInfoData* pColumnInfoData);
 size_t blockDataGetNumOfCols(const SSDataBlock* pBlock);
 size_t blockDataGetNumOfRows(const SSDataBlock* pBlock);
 
-int32_t      blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc);
-int32_t      blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startIndex, int32_t* stopIndex,
-                                int32_t pageSize);
-SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int32_t rowCount);
-
+int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc);
+int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startIndex, int32_t* stopIndex, int32_t pageSize);
 int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock);
 int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf);
 
+SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int32_t rowCount);
+
 size_t blockDataGetSize(const SSDataBlock* pBlock);
-size_t blockDataGetRowSize(const SSDataBlock* pBlock);
+size_t blockDataGetRowSize(SSDataBlock* pBlock);
 double blockDataGetSerialRowSize(const SSDataBlock* pBlock);
 size_t blockDataGetSerialMetaSize(const SSDataBlock* pBlock);
 
@@ -132,7 +131,7 @@ int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullF
 
 int32_t      blockDataEnsureColumnCapacity(SColumnInfoData* pColumn, uint32_t numOfRows);
 int32_t      blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
-void         blockDataClearup(SSDataBlock* pDataBlock);
+void         blockDataCleanup(SSDataBlock* pDataBlock);
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock);
 size_t       blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
 void*        blockDataDestroy(SSDataBlock* pBlock);

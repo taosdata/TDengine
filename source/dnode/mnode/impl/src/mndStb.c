@@ -1490,7 +1490,7 @@ static void mndExtractTableName(char *tableId, char *name) {
   int32_t pos = -1;
   int32_t num = 0;
   for (pos = 0; tableId[pos] != 0; ++pos) {
-    if (tableId[pos] == '.') num++;
+    if (tableId[pos] == TS_PATH_DELIMITER[0]) num++;
     if (num == 2) break;
   }
 
@@ -1508,8 +1508,11 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
   char    *pWrite;
   char     prefix[TSDB_DB_FNAME_LEN] = {0};
 
-  SDbObj *pDb = mndAcquireDb(pMnode, pShow->db);
-  if (pDb == NULL) return 0;
+  SDbObj* pDb = NULL;
+  if (strlen(pShow->db) > 0) {
+    pDb = mndAcquireDb(pMnode, pShow->db);
+    if (pDb == NULL) return 0;
+  }
 
   tstrncpy(prefix, pShow->db, TSDB_DB_FNAME_LEN);
   strcat(prefix, TS_PATH_DELIMITER);
@@ -1519,7 +1522,7 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
     pShow->pIter = sdbFetch(pSdb, SDB_STB, pShow->pIter, (void **)&pStb);
     if (pShow->pIter == NULL) break;
 
-    if (pStb->dbUid != pDb->uid) {
+    if (pDb != NULL && pStb->dbUid != pDb->uid) {
       if (strncmp(pStb->db, pDb->name, prefixLen) == 0) {
         mError("Inconsistent table data, name:%s, db:%s, dbUid:%" PRIu64, pStb->name, pDb->name, pDb->uid);
       }
@@ -1530,10 +1533,18 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
 
     cols = 0;
 
+    SName name = {0};
     char stbName[TSDB_TABLE_NAME_LEN] = {0};
-    tstrncpy(stbName, pStb->name + prefixLen, TSDB_TABLE_NAME_LEN);
+    mndExtractTableName(pStb->name, stbName);
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     STR_TO_VARSTR(pWrite, stbName);
+    cols++;
+
+    char  db[TSDB_DB_NAME_LEN] = {0};
+    tNameFromString(&name, pStb->db, T_NAME_ACCT|T_NAME_DB);
+    tNameGetDbName(&name, db);
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_TO_VARSTR(pWrite, db);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -1548,11 +1559,26 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
     *(int32_t *)pWrite = pStb->numOfTags;
     cols++;
 
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int32_t *)pWrite = 0; // number of tables
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int64_t *)pWrite = pStb->updateTime; // number of tables
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_TO_VARSTR(pWrite, pStb->comment);
+    cols++;
+
     numOfRows++;
     sdbRelease(pSdb, pStb);
   }
 
-  mndReleaseDb(pMnode, pDb);
+  if (pDb != NULL) {
+    mndReleaseDb(pMnode, pDb);
+  }
+
   pShow->numOfReads += numOfRows;
   mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   return numOfRows;

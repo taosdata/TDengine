@@ -128,7 +128,16 @@ static void *vmOpenVnodeFunc(void *param) {
              pMgmt->state.openVnodes, pMgmt->state.totalVnodes);
     dndReportStartup(pDnode, "open-vnodes", stepDesc);
 
-    SVnodeCfg cfg = {.pWrapper = pMgmt->pWrapper, .pTfs = pMgmt->pTfs, .vgId = pCfg->vgId, .dbId = pCfg->dbUid};
+    SMsgCb msgCb = {0};
+    msgCb.pWrapper = pMgmt->pWrapper;
+    msgCb.queueFps[QUERY_QUEUE] = vmPutMsgToQueryQueue;
+    msgCb.queueFps[FETCH_QUEUE] = vmPutMsgToFetchQueue;
+    msgCb.queueFps[APPLY_QUEUE] = vmPutMsgToApplyQueue;
+    msgCb.qsizeFp = vmGetQueueSize;
+    msgCb.sendReqFp = dndSendReqToDnode;
+    msgCb.sendMnodeReqFp = dndSendReqToMnode;
+    msgCb.sendRspFp = dndSendRsp;
+    SVnodeCfg cfg = {.msgCb = msgCb, .pTfs = pMgmt->pTfs, .vgId = pCfg->vgId, .dbId = pCfg->dbUid};
     SVnode   *pImpl = vnodeOpen(pCfg->path, &cfg);
     if (pImpl == NULL) {
       dError("vgId:%d, failed to open vnode by thread:%d", pCfg->vgId, pThread->threadIndex);
@@ -262,7 +271,6 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
   SDnode      *pDnode = pWrapper->pDnode;
   SVnodesMgmt *pMgmt = calloc(1, sizeof(SVnodesMgmt));
   int32_t      code = -1;
-  SVnodeOpt    vnodeOpt = {0};
 
   dInfo("vnodes-mgmt start to init");
   if (pMgmt == NULL) goto _OVER;
@@ -294,13 +302,7 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
     goto _OVER;
   }
 
-  vnodeOpt.nthreads = tsNumOfCommitThreads;
-  vnodeOpt.putToQueryQFp = vmPutMsgToQueryQueue;
-  vnodeOpt.putToFetchQFp = vmPutMsgToQueryQueue;
-  vnodeOpt.sendReqFp = dndSendReqToDnode;
-  vnodeOpt.sendMnodeReqFp = dndSendReqToMnode;
-  vnodeOpt.sendRspFp = dndSendRsp;
-  if (vnodeInit(&vnodeOpt) != 0) {
+  if (vnodeInit() != 0) {
     dError("failed to init vnode since %s", terrstr());
     goto _OVER;
   }
@@ -341,7 +343,7 @@ void vmGetMgmtFp(SMgmtWrapper *pWrapper) {
   mgmtFp.requiredFp = vmRequire;
 
   vmInitMsgHandles(pWrapper);
-  pWrapper->name = "vnodes";
+  pWrapper->name = "vnode";
   pWrapper->fp = mgmtFp;
 }
 

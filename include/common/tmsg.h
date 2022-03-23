@@ -23,6 +23,7 @@
 #include "tencode.h"
 #include "thash.h"
 #include "tlist.h"
+#include "tname.h"
 #include "trow.h"
 #include "tuuid.h"
 
@@ -471,6 +472,10 @@ typedef struct {
   int32_t code;
 } SQueryTableRsp;
 
+int32_t tSerializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
+
+int32_t tDeserializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
+
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   int32_t numOfVgroups;
@@ -863,6 +868,7 @@ void    tFreeSShowRsp(SShowRsp* pRsp);
 typedef struct {
   int32_t type;
   char    db[TSDB_DB_FNAME_LEN];
+  char    tb[TSDB_TABLE_NAME_LEN];
   int64_t showId;
   int8_t  free;
 } SRetrieveTableReq;
@@ -879,6 +885,17 @@ typedef struct {
   int32_t numOfRows;
   char    data[];
 } SRetrieveTableRsp;
+
+typedef struct {
+  int64_t handle;
+  int64_t useconds;
+  int8_t  completed;  // all results are returned to client
+  int8_t  precision;
+  int8_t  compressed;
+  int32_t compLen;
+  int32_t numOfRows;
+  char    data[];
+} SRetrieveMetaTableRsp;
 
 typedef struct {
   char    fqdn[TSDB_FQDN_LEN];  // end point, hostname:port
@@ -1282,7 +1299,7 @@ static FORCE_INLINE SMqRebSubscribe* tNewSMqRebSubscribe(const char* key) {
   if (pRebSub == NULL) {
     goto _err;
   }
-  pRebSub->key = key;
+  pRebSub->key = strdup(key);
   pRebSub->lostConsumers = taosArrayInit(0, sizeof(int64_t));
   if (pRebSub->lostConsumers == NULL) {
     goto _err;
@@ -1345,33 +1362,54 @@ typedef struct {
   int64_t  tuid;
 } SDDropTopicReq;
 
+typedef struct {
+  float    xFilesFactor;
+  int8_t   delayUnit;
+  int8_t   nFuncIds;
+  int32_t* pFuncIds;
+  int64_t  delay;
+} SRSmaParam;
+
 typedef struct SVCreateTbReq {
   int64_t  ver;  // use a general definition
+  char*    dbFName;
   char*    name;
   uint32_t ttl;
   uint32_t keep;
-  uint8_t  type;
+  union {
+    uint8_t info;
+    struct {
+      uint8_t rollup : 1;  // 1 means rollup sma
+      uint8_t type : 7;
+    };
+  };
   union {
     struct {
-      tb_uid_t suid;
-      uint32_t nCols;
-      SSchema* pSchema;
-      uint32_t nTagCols;
-      SSchema* pTagSchema;
+      tb_uid_t    suid;
+      uint32_t    nCols;
+      SSchema*    pSchema;
+      uint32_t    nTagCols;
+      SSchema*    pTagSchema;
+      col_id_t    nBSmaCols;
+      col_id_t*   pBSmaCols;
+      SRSmaParam* pRSmaParam;
     } stbCfg;
     struct {
       tb_uid_t suid;
       SKVRow   pTag;
     } ctbCfg;
     struct {
-      uint32_t nCols;
-      SSchema* pSchema;
+      uint32_t    nCols;
+      SSchema*    pSchema;
+      col_id_t    nBSmaCols;
+      col_id_t*   pBSmaCols;
+      SRSmaParam* pRSmaParam;
     } ntbCfg;
   };
 } SVCreateTbReq, SVUpdateTbReq;
 
 typedef struct {
-  int tmp;  // TODO: to avoid compile error
+  int32_t code;
 } SVCreateTbRsp, SVUpdateTbRsp;
 
 int32_t tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
@@ -1382,12 +1420,15 @@ typedef struct {
   SArray* pArray;
 } SVCreateTbBatchReq;
 
-typedef struct {
-  int tmp;  // TODO: to avoid compile error
-} SVCreateTbBatchRsp;
-
 int32_t tSerializeSVCreateTbBatchReq(void** buf, SVCreateTbBatchReq* pReq);
 void*   tDeserializeSVCreateTbBatchReq(void* buf, SVCreateTbBatchReq* pReq);
+
+typedef struct {
+  SArray* rspList;  // SArray<SVCreateTbRsp>
+} SVCreateTbBatchRsp;
+
+int32_t tSerializeSVCreateTbBatchRsp(void* buf, int32_t bufLen, SVCreateTbBatchRsp* pRsp);
+int32_t tDeserializeSVCreateTbBatchRsp(void* buf, int32_t bufLen, SVCreateTbBatchRsp* pRsp);
 
 typedef struct {
   int64_t  ver;
@@ -2116,25 +2157,16 @@ typedef struct {
   int8_t  mqMsgType;
   int32_t code;
   int32_t epoch;
+  int64_t consumerId;
 } SMqRspHead;
 
-typedef struct {
-  int64_t         consumerId;
-  SSchemaWrapper* schemas;
-  int64_t         reqOffset;
-  int64_t         rspOffset;
-  int32_t         skipLogNum;
-  int32_t         numOfTopics;
-  SArray*         pBlockData;  // SArray<SSDataBlock>
-} SMqPollRsp;
-
-// one req for one vg+topic
 typedef struct {
   SMsgHead head;
 
   int64_t consumerId;
   int64_t blockingTime;
   int32_t epoch;
+  int8_t  withSchema;
   char    cgroup[TSDB_CGROUP_LEN];
 
   int64_t currentOffset;
@@ -2153,19 +2185,22 @@ typedef struct {
 } SMqSubTopicEp;
 
 typedef struct {
-  int64_t consumerId;
-  char    cgroup[TSDB_CGROUP_LEN];
-  SArray* topics;  // SArray<SMqSubTopicEp>
-} SMqCMGetSubEpRsp;
+  SMqRspHead head;
+  int64_t    reqOffset;
+  int64_t    rspOffset;
+  int32_t    skipLogNum;
+  // TODO: replace with topic name
+  int32_t numOfTopics;
+  // TODO: remove from msg
+  SSchemaWrapper* schema;
+  SArray*         pBlockData;  // SArray<SSDataBlock>
+} SMqPollRsp;
 
 typedef struct {
   SMqRspHead head;
-  union {
-    SMqPollRsp       consumeRsp;
-    SMqCMGetSubEpRsp getEpRsp;
-  };
-  void* extra;
-} SMqMsgWrapper;
+  char       cgroup[TSDB_CGROUP_LEN];
+  SArray*    topics;  // SArray<SMqSubTopicEp>
+} SMqCMGetSubEpRsp;
 
 typedef struct {
   int32_t curBlock;
@@ -2173,11 +2208,13 @@ typedef struct {
   void**  uData;
 } SMqRowIter;
 
-struct tmq_message_t_v1 {
-  SMqPollRsp rsp;
+struct tmq_message_t {
+  SMqPollRsp msg;
+  void*      vg;
   SMqRowIter iter;
 };
 
+#if 0
 struct tmq_message_t {
   SMqRspHead head;
   union {
@@ -2189,6 +2226,7 @@ struct tmq_message_t {
   int32_t curRow;
   void**  uData;
 };
+#endif
 
 static FORCE_INLINE void tDeleteSMqSubTopicEp(SMqSubTopicEp* pSubTopicEp) { taosArrayDestroy(pSubTopicEp->vgs); }
 
@@ -2241,8 +2279,7 @@ static FORCE_INLINE void* tDecodeSMqSubTopicEp(void* buf, SMqSubTopicEp* pTopicE
 
 static FORCE_INLINE int32_t tEncodeSMqCMGetSubEpRsp(void** buf, const SMqCMGetSubEpRsp* pRsp) {
   int32_t tlen = 0;
-  tlen += taosEncodeFixedI64(buf, pRsp->consumerId);
-  tlen += taosEncodeString(buf, pRsp->cgroup);
+  // tlen += taosEncodeString(buf, pRsp->cgroup);
   int32_t sz = taosArrayGetSize(pRsp->topics);
   tlen += taosEncodeFixedI32(buf, sz);
   for (int32_t i = 0; i < sz; i++) {
@@ -2253,8 +2290,7 @@ static FORCE_INLINE int32_t tEncodeSMqCMGetSubEpRsp(void** buf, const SMqCMGetSu
 }
 
 static FORCE_INLINE void* tDecodeSMqCMGetSubEpRsp(void* buf, SMqCMGetSubEpRsp* pRsp) {
-  buf = taosDecodeFixedI64(buf, &pRsp->consumerId);
-  buf = taosDecodeStringTo(buf, pRsp->cgroup);
+  // buf = taosDecodeStringTo(buf, pRsp->cgroup);
   int32_t sz;
   buf = taosDecodeFixedI32(buf, &sz);
   pRsp->topics = taosArrayInit(sz, sizeof(SMqSubTopicEp));
@@ -2274,22 +2310,30 @@ enum {
   STREAM_TASK_STATUS__STOP,
 };
 
+enum {
+  STREAM_NEXT_OP_DST__VND = 1,
+  STREAM_NEXT_OP_DST__SND,
+};
+
 typedef struct {
-  void*  inputHandle;
-  void** executor;
-} SStreamTaskParRunner;
+  void* inputHandle;
+  void* executor;
+} SStreamRunner;
 
 typedef struct {
   int64_t streamId;
   int32_t taskId;
   int32_t level;
   int8_t  status;
-  int8_t  pipeEnd;
-  int8_t  parallel;
+  int8_t  pipeSource;
+  int8_t  pipeSink;
+  int8_t  numOfRunners;
+  int8_t  parallelizable;
+  int8_t  nextOpDst;  // vnode or snode
   SEpSet  NextOpEp;
   char*   qmsg;
   // not applied to encoder and decoder
-  SStreamTaskParRunner runner;
+  SStreamRunner runner[8];
   // void*                executor;
   // void*   stateStore;
   //  storage handle
@@ -2301,6 +2345,8 @@ static FORCE_INLINE SStreamTask* streamTaskNew(int64_t streamId, int32_t level) 
     return NULL;
   }
   pTask->taskId = tGenIdPI32();
+  pTask->streamId = streamId;
+  pTask->level = level;
   pTask->status = STREAM_TASK_STATUS__RUNNING;
   pTask->qmsg = NULL;
   return pTask;
@@ -2321,7 +2367,7 @@ typedef struct {
 
 typedef struct {
   SStreamExecMsgHead head;
-  // TODO: other info needed by task
+  SArray*            data;  // SArray<SSDataBlock>
 } SStreamTaskExecReq;
 
 typedef struct {
@@ -2329,14 +2375,6 @@ typedef struct {
 } SStreamTaskExecRsp;
 
 #pragma pack(pop)
-
-struct SRpcMsg;
-struct SEpSet;
-struct SMgmtWrapper;
-typedef int32_t (*PutToQueueFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* pReq);
-typedef int32_t (*SendReqFp)(struct SMgmtWrapper* pWrapper, struct SEpSet* epSet, struct SRpcMsg* pReq);
-typedef int32_t (*SendMnodeReqFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* pReq);
-typedef void (*SendRspFp)(struct SMgmtWrapper* pWrapper, struct SRpcMsg* pRsp);
 
 #ifdef __cplusplus
 }

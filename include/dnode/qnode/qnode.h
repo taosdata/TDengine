@@ -16,13 +16,14 @@
 #ifndef _TD_QNODE_H_
 #define _TD_QNODE_H_
 
+#include "tmsgcb.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
-typedef struct SMgmtWrapper SMgmtWrapper;
-typedef struct SQnode       SQnode;
+typedef struct SQnode SQnode;
 
 typedef struct {
   int64_t numOfStartTask;
@@ -36,12 +37,7 @@ typedef struct {
 } SQnodeLoad;
 
 typedef struct {
-  int32_t        dnodeId;
-  int64_t        clusterId;
-  SMgmtWrapper  *pWrapper;
-  SendReqFp      sendReqFp;
-  SendMnodeReqFp sendMnodeReqFp;
-  SendRspFp      sendRspFp;
+  SMsgCb msgCb;
 } SQnodeOpt;
 
 /* ------------------------ SQnode ------------------------ */
@@ -74,10 +70,9 @@ int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad);
  *
  * @param pQnode The qnode object.
  * @param pMsg The request message
- * @param pRsp The response message
- * @return int32_t 0 for success, -1 for failure
  */
-int32_t qndProcessMsg(SQnode *pQnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+int32_t qndProcessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg);
+int32_t qndProcessFetchMsg(SQnode *pQnode, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }
