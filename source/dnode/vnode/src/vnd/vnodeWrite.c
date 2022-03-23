@@ -141,6 +141,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
     } break;
     case TDMT_VND_CREATE_SMA: {  // timeRangeSMA
+#if 0
       SSmaCfg vCreateSmaReq = {0};
       if (tDeserializeSVCreateTSmaReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateSmaReq) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -162,10 +163,12 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       // }
       tdDestroyTSma(&vCreateSmaReq.tSma);
       // TODO: return directly or go on follow steps?
+#endif
     } break;
     case TDMT_VND_CANCEL_SMA: {  // timeRangeSMA
     } break;
     case TDMT_VND_DROP_SMA: {  // timeRangeSMA
+#if 0    
       SVDropTSmaReq vDropSmaReq = {0};
       if (tDeserializeSVDropTSmaReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vDropSmaReq) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -182,6 +185,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       //   return -1;
       // }
       // TODO: return directly or go on follow steps?
+#endif
     } break;
     default:
       ASSERT(0);

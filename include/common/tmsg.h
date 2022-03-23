@@ -270,9 +270,10 @@ typedef struct {
   int8_t  igExists;
   int32_t numOfColumns;
   int32_t numOfTags;
+  int32_t commentLen;
   SArray* pColumns;
   SArray* pTags;
-  char    comment[TSDB_STB_COMMENT_LEN];
+  char    *comment;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -1906,13 +1907,18 @@ typedef struct {
   int8_t  intervalUnit;
   int8_t  slidingUnit;
   int8_t  timezone;
+  int32_t dstVgId;  // for stream
   int64_t interval;
   int64_t offset;
   int64_t sliding;
-  int32_t exprLen;
-  int32_t tagsFilterLen;
-  char*   expr;
+  int32_t exprLen;        // strlen + 1
+  int32_t tagsFilterLen;  // strlen + 1
+  int32_t sqlLen;         // strlen + 1
+  int32_t astLen;         // strlen + 1
+  char*   expr;  
   char*   tagsFilter;
+  char*   sql;
+  char*   ast;
 } SMCreateSmaReq;
 
 int32_t tSerializeSMCreateSmaReq(void* buf, int32_t bufLen, SMCreateSmaReq* pReq);

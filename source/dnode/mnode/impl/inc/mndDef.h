@@ -318,13 +318,18 @@ typedef struct {
   int8_t  intervalUnit;
   int8_t  slidingUnit;
   int8_t  timezone;
+  int32_t dstVgId;  // for stream
   int64_t interval;
   int64_t offset;
   int64_t sliding;
-  int32_t exprLen;
+  int32_t exprLen;  // strlen + 1
   int32_t tagsFilterLen;
+  int32_t sqlLen;
+  int32_t astLen;
   char*   expr;
   char*   tagsFilter;
+  char*   sql;
+  char*   ast;
 } SSmaObj;
 
 typedef struct {
@@ -338,10 +343,11 @@ typedef struct {
   int32_t  nextColId;
   int32_t  numOfColumns;
   int32_t  numOfTags;
+  int32_t  commentLen;
   SSchema* pColumns;
   SSchema* pTags;
+  char*    comment;
   SRWLatch lock;
-  char     comment[TSDB_STB_COMMENT_LEN];
 } SStbObj;
 
 typedef struct {

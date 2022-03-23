@@ -84,17 +84,29 @@ static SSdbRaw *mndSmaActionEncode(SSmaObj *pSma) {
   SDB_SET_INT8(pRaw, dataPos, pSma->intervalUnit, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pSma->slidingUnit, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pSma->timezone, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pSma->dstVgId, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pSma->interval, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pSma->offset, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pSma->sliding, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pSma->exprLen, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pSma->tagsFilterLen, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pSma->expr, pSma->exprLen, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pSma->tagsFilter, pSma->tagsFilterLen, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pSma->sqlLen, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pSma->astLen, _OVER)
+  if (pSma->exprLen > 0) {
+    SDB_SET_BINARY(pRaw, dataPos, pSma->expr, pSma->exprLen, _OVER)
+  }
+  if (pSma->tagsFilterLen > 0) {
+    SDB_SET_BINARY(pRaw, dataPos, pSma->tagsFilter, pSma->tagsFilterLen, _OVER)
+  }
+  if (pSma->sqlLen > 0) {
+    SDB_SET_BINARY(pRaw, dataPos, pSma->sql, pSma->sqlLen, _OVER)
+  }
+  if (pSma->astLen > 0) {
+    SDB_SET_BINARY(pRaw, dataPos, pSma->ast, pSma->astLen, _OVER)
+  }
 
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_SMA_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
-
   terrno = 0;
 
 _OVER:
@@ -137,22 +149,40 @@ static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT8(pRaw, dataPos, &pSma->intervalUnit, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pSma->slidingUnit, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pSma->timezone, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pSma->dstVgId, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pSma->interval, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pSma->offset, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pSma->sliding, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pSma->exprLen, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pSma->tagsFilterLen, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pSma->sqlLen, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pSma->astLen, _OVER)
 
-  pSma->expr = calloc(pSma->exprLen, 1);
-  pSma->tagsFilter = calloc(pSma->tagsFilterLen, 1);
-  if (pSma->expr == NULL || pSma->tagsFilter == NULL) {
-    goto _OVER;
+  if (pSma->exprLen > 0) {
+    pSma->expr = calloc(pSma->exprLen, 1);
+    if (pSma->expr == NULL) goto _OVER;
+    SDB_GET_BINARY(pRaw, dataPos, pSma->expr, pSma->exprLen, _OVER)
   }
 
-  SDB_GET_BINARY(pRaw, dataPos, pSma->expr, pSma->exprLen, _OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pSma->tagsFilter, pSma->tagsFilterLen, _OVER)
-  SDB_GET_RESERVE(pRaw, dataPos, TSDB_SMA_RESERVE_SIZE, _OVER)
+  if (pSma->tagsFilterLen > 0) {
+    pSma->tagsFilter = calloc(pSma->tagsFilterLen, 1);
+    if (pSma->tagsFilter == NULL) goto _OVER;
+    SDB_GET_BINARY(pRaw, dataPos, pSma->tagsFilter, pSma->tagsFilterLen, _OVER)
+  }
 
+  if (pSma->sqlLen > 0) {
+    pSma->sql = calloc(pSma->sqlLen, 1);
+    if (pSma->sql == NULL) goto _OVER;
+    SDB_GET_BINARY(pRaw, dataPos, pSma->sql, pSma->sqlLen, _OVER)
+  }
+
+  if (pSma->astLen > 0) {
+    pSma->ast = calloc(pSma->astLen, 1);
+    if (pSma->ast == NULL) goto _OVER;
+    SDB_GET_BINARY(pRaw, dataPos, pSma->ast, pSma->astLen, _OVER)
+  }
+
+  SDB_GET_RESERVE(pRaw, dataPos, TSDB_SMA_RESERVE_SIZE, _OVER)
   terrno = 0;
 
 _OVER:
@@ -217,7 +247,7 @@ static void *mndBuildVCreateSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSm
   req.tSma.version = 0;
   req.tSma.intervalUnit = pSma->intervalUnit;
   req.tSma.slidingUnit = pSma->slidingUnit;
-  req.tSma.slidingUnit = pSma->timezone;
+  req.tSma.timezoneInt = pSma->timezone;
   tstrncpy(req.tSma.indexName, (char *)tNameGetTableName(&name), TSDB_INDEX_NAME_LEN);
   req.tSma.exprLen = pSma->exprLen;
   req.tSma.tagsFilterLen = pSma->tagsFilterLen;
@@ -281,15 +311,6 @@ static int32_t mndSetCreateSmaRedoLogs(SMnode *pMnode, STrans *pTrans, SSmaObj *
   return 0;
 }
 
-static int32_t mndSetCreateSmaUndoLogs(SMnode *pMnode, STrans *pTrans, SSmaObj *pSma) {
-  SSdbRaw *pUndoRaw = mndSmaActionEncode(pSma);
-  if (pUndoRaw == NULL) return -1;
-  if (mndTransAppendUndolog(pTrans, pUndoRaw) != 0) return -1;
-  if (sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED) != 0) return -1;
-
-  return 0;
-}
-
 static int32_t mndSetCreateSmaCommitLogs(SMnode *pMnode, STrans *pTrans, SSmaObj *pSma) {
   SSdbRaw *pCommitRaw = mndSmaActionEncode(pSma);
   if (pCommitRaw == NULL) return -1;
@@ -338,77 +359,61 @@ static int32_t mndSetCreateSmaRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
   return 0;
 }
 
-static int32_t mndSetCreateSmaUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SSmaObj *pSma) {
-  SSdb   *pSdb = pMnode->pSdb;
-  SVgObj *pVgroup = NULL;
-  void   *pIter = NULL;
-
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-    if (pIter == NULL) break;
-    if (pVgroup->dbUid != pDb->uid) {
-      sdbRelease(pSdb, pVgroup);
-      continue;
-    }
-
-    int32_t contLen = 0;
-    void   *pReq = mndBuildVDropSmaReq(pMnode, pVgroup, pSma, &contLen);
-    if (pReq == NULL) {
-      sdbCancelFetch(pSdb, pIter);
-      sdbRelease(pSdb, pVgroup);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
-    }
-
-    STransAction action = {0};
-    action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
-    action.pCont = pReq;
-    action.contLen = contLen;
-    action.msgType = TDMT_VND_DROP_SMA;
-    if (mndTransAppendUndoAction(pTrans, &action) != 0) {
-      free(pReq);
-      sdbCancelFetch(pSdb, pIter);
-      sdbRelease(pSdb, pVgroup);
-      return -1;
-    }
-    sdbRelease(pSdb, pVgroup);
-  }
-
-  return 0;
-}
-
-static int32_t mndCreateTSma(SMnode *pMnode, SNodeMsg *pReq, SMCreateSmaReq *pCreate, SDbObj *pDb, SStbObj *pStb) {
+static int32_t mndCreateSma(SMnode *pMnode, SNodeMsg *pReq, SMCreateSmaReq *pCreate, SDbObj *pDb, SStbObj *pStb) {
   SSmaObj smaObj = {0};
   memcpy(smaObj.name, pCreate->name, TSDB_TABLE_FNAME_LEN);
   memcpy(smaObj.stb, pStb->name, TSDB_TABLE_FNAME_LEN);
+  memcpy(smaObj.db, pDb->name, TSDB_DB_FNAME_LEN);
   smaObj.createdTime = taosGetTimestampMs();
   smaObj.uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
   smaObj.stbUid = pStb->uid;
+  smaObj.dbUid = pStb->dbUid;
   smaObj.intervalUnit = pCreate->intervalUnit;
   smaObj.slidingUnit = pCreate->slidingUnit;
   smaObj.timezone = pCreate->timezone;
+  smaObj.dstVgId = pCreate->dstVgId;
   smaObj.interval = pCreate->interval;
   smaObj.offset = pCreate->offset;
   smaObj.sliding = pCreate->sliding;
   smaObj.exprLen = pCreate->exprLen;
   smaObj.tagsFilterLen = pCreate->tagsFilterLen;
-  smaObj.expr = pCreate->expr;
-  pCreate->expr = NULL;
-  smaObj.tagsFilter = pCreate->tagsFilter;
-  pCreate->tagsFilter = NULL;
+  smaObj.sqlLen = pCreate->sqlLen;
+  smaObj.astLen = pCreate->astLen;
+
+  if (smaObj.exprLen > 0) {
+    smaObj.expr = malloc(smaObj.exprLen);
+    if (smaObj.expr == NULL) goto _OVER;
+    memcpy(smaObj.expr, pCreate->expr, smaObj.exprLen);
+  }
+
+  if (smaObj.tagsFilterLen > 0) {
+    smaObj.tagsFilter = malloc(smaObj.tagsFilterLen);
+    if (smaObj.tagsFilter == NULL) goto _OVER;
+    memcpy(smaObj.tagsFilter, pCreate->tagsFilter, smaObj.tagsFilterLen);
+  }
+
+  if (smaObj.sqlLen > 0) {
+    smaObj.sql = malloc(smaObj.sqlLen);
+    if (smaObj.sql == NULL) goto _OVER;
+    memcpy(smaObj.sql, pCreate->sql, smaObj.sqlLen);
+  }
+
+  if (smaObj.astLen > 0) {
+    smaObj.ast = malloc(smaObj.astLen);
+    if (smaObj.ast == NULL) goto _OVER;
+    memcpy(smaObj.ast, pCreate->ast, smaObj.astLen);
+  }
 
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_SMA, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_SMA, &pReq->rpcMsg);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to create sma:%s", pTrans->id, pCreate->name);
   mndTransSetDbInfo(pTrans, pDb);
 
   if (mndSetCreateSmaRedoLogs(pMnode, pTrans, &smaObj) != 0) goto _OVER;
-  if (mndSetCreateSmaUndoLogs(pMnode, pTrans, &smaObj) != 0) goto _OVER;
   if (mndSetCreateSmaCommitLogs(pMnode, pTrans, &smaObj) != 0) goto _OVER;
   if (mndSetCreateSmaRedoActions(pMnode, pTrans, pDb, &smaObj) != 0) goto _OVER;
-  if (mndSetCreateSmaUndoActions(pMnode, pTrans, pDb, &smaObj) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
   code = 0;
@@ -419,11 +424,31 @@ _OVER:
 }
 
 static int32_t mndCheckCreateSmaReq(SMCreateSmaReq *pCreate) {
-  if (pCreate->igExists < 0 || pCreate->igExists > 1) {
-    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
-    return -1;
-  }
+  terrno = TSDB_CODE_MND_INVALID_SMA_OPTION;
+  if (pCreate->name[0] == 0) return -1;
+  if (pCreate->stb[0] == 0) return -1;
+  if (pCreate->igExists < 0 || pCreate->igExists > 1) return -1;
+  if (pCreate->intervalUnit < 0) return -1;
+  if (pCreate->slidingUnit < 0) return -1;
+  if (pCreate->timezone < 0) return -1;
+  if (pCreate->dstVgId < 0) return -1;
+  if (pCreate->interval < 0) return -1;
+  if (pCreate->offset < 0) return -1;
+  if (pCreate->sliding < 0) return -1;
+  if (pCreate->exprLen < 0) return -1;
+  if (pCreate->tagsFilterLen < 0) return -1;
+  if (pCreate->sqlLen < 0) return -1;
+  if (pCreate->astLen < 0) return -1;
+  if (pCreate->exprLen != 0 && strlen(pCreate->expr) + 1 != pCreate->exprLen) return -1;
+  if (pCreate->tagsFilterLen != 0 && strlen(pCreate->tagsFilter) + 1 != pCreate->tagsFilterLen) return -1;
+  if (pCreate->sqlLen != 0 && strlen(pCreate->sql) + 1 != pCreate->sqlLen) return -1;
+  if (pCreate->astLen != 0 && strlen(pCreate->ast) + 1 != pCreate->astLen) return -1;
 
+  SName smaName = {0};
+  if (tNameFromString(&smaName, pCreate->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE) < 0) return -1;
+  if (*(char *)tNameGetTableName(&smaName) == 0) return -1;
+
+  terrno = 0;
   return 0;
 }
 
@@ -479,7 +504,7 @@ static int32_t mndProcessMCreateSmaReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndCreateTSma(pMnode, pReq, &createReq, pDb, pStb);
+  code = mndCreateSma(pMnode, pReq, &createReq, pDb, pStb);
   if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
 
 _OVER:
@@ -547,7 +572,7 @@ static int32_t mndSetDropSmaRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
     action.pCont = pReq;
     action.contLen = contLen;
     action.msgType = TDMT_VND_DROP_SMA;
-    action.acceptableCode = TSDB_CODE_VND_TB_NOT_EXIST;
+    action.acceptableCode = TSDB_CODE_VND_SMA_NOT_EXIST;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       free(pReq);
       sdbCancelFetch(pSdb, pIter);
@@ -562,7 +587,7 @@ static int32_t mndSetDropSmaRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
 
 static int32_t mndDropSma(SMnode *pMnode, SNodeMsg *pReq, SDbObj *pDb, SSmaObj *pSma) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_STB, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_SMA, &pReq->rpcMsg);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to drop sma:%s", pTrans->id, pSma->name);
@@ -649,7 +674,7 @@ static int32_t mndGetSmaMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMe
   int32_t  cols = 0;
   SSchema *pSchema = pMeta->pSchemas;
 
-  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = TSDB_INDEX_NAME_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "name");
   pSchema[cols].bytes = pShow->bytes[cols];
@@ -663,7 +688,7 @@ static int32_t mndGetSmaMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMe
 
   pShow->bytes[cols] = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "name");
+  strcpy(pSchema[cols].name, "stb");
   pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
