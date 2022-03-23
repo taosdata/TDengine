@@ -9,7 +9,7 @@ sql drop database d0 -x step1
 step1:
 sql create database d0
 sql show databases
-if $rows != 1 then 
+if $rows != 2 then 
   return -1
 endi
 
