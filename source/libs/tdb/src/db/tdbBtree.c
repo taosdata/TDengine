@@ -729,7 +729,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
               int    szNewCell;
               SPgno  pgno;
               pgno = TDB_PAGE_PGNO(pNews[iNew]);
-              tdbBtreeEncodeCell(pPage, cd.pKey, cd.kLen, (void *)&pgno, sizeof(SPgno), pNewCell, &szNewCell);
+              tdbBtreeEncodeCell(pParent, cd.pKey, cd.kLen, (void *)&pgno, sizeof(SPgno), pNewCell, &szNewCell);
               tdbPageInsertCell(pParent, sIdx++, pNewCell, szNewCell, 0);
             }
 
