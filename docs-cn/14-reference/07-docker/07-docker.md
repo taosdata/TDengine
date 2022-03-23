@@ -313,12 +313,13 @@ password:             taosdata
      taoslog-td2:
    ```
 
-   :::note
-
+  :::note
    - `VERSION` 环境变量被用来设置 tdengine image tag
    - 在新创建的实例上必须设置 `TAOS_FIRST_EP` 以使其能够加入 TDengine 集群；如果有高可用需求，则需要同时使用 `TAOS_SECOND_EP`
    - `TAOS_REPLICA` 用来设置缺省的数据库副本数量，其取值范围为[1,3]
      在双副本环境下，推荐使用 arbitrator, 用 TAOS_ARBITRATOR 来设置
+  :::
+
 
 2. 启动集群
 
