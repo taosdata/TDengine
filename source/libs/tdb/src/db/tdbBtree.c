@@ -451,13 +451,15 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
   SPage            *pChild;
   SPgno             pgnoChild;
   int               ret;
+  u8                flags;
   SIntHdr          *pIntHdr;
   SBtreeInitPageArg zArg;
 
   pPager = pRoot->pPager;
+  flags = TDB_BTREE_PAGE_GET_FLAGS(pRoot);
 
   // Allocate a new child page
-  zArg.flags = TDB_BTREE_LEAF;
+  zArg.flags = TDB_FLAG_REMOVE(flags, TDB_BTREE_ROOT);
   zArg.pBt = pBt;
   ret = tdbPagerNewPage(pPager, &pgnoChild, &pChild, tdbBtreeZeroPage, &zArg);
   if (ret < 0) {
@@ -559,10 +561,10 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
 
   int nNews = 0;
   struct {
-    int cnt;
-    int size;
-    int oPage;
-    int oIdx;
+    int    cnt;
+    int    size;
+    SPage *pPage;
+    int    oIdx;
   } infoNews[5] = {0};
 
   {  // Get how many new pages are needed and the new distribution
@@ -581,31 +583,63 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
         if (infoNews[nNews].size + cellBytes > TDB_PAGE_USABLE_SIZE(pPage)) {
           // page is full, use a new page
           nNews++;
-          // for an internal leaf case, this cell is used as the new divider cell to parent
-          if (childNotLeaf) continue;
-        }
-        infoNews[nNews].cnt++;
-        infoNews[nNews].size += cellBytes;
-        infoNews[nNews].oPage = oPage;
-        infoNews[nNews].oIdx = oIdx;
-      }
 
-      // For internal pages
-      if (childNotLeaf && oPage < nOlds - 1) {
-        if (infoNews[nNews].size + szDivCell[oPage] + TDB_PAGE_OFFSET_SIZE(pPage) > TDB_PAGE_USABLE_SIZE(pPage)) {
-          nNews++;
+          ASSERT(infoNews[nNews].size + cellBytes <= TDB_PAGE_USABLE_SIZE(pPage));
+
+          if (childNotLeaf) {
+            // for non-child page, this cell is used as the right-most child,
+            // the divider cell to parent as well
+            continue;
+          }
         }
         infoNews[nNews].cnt++;
         infoNews[nNews].size += cellBytes;
-        infoNews[nNews].oPage = oPage;
+        infoNews[nNews].pPage = pPage;
         infoNews[nNews].oIdx = oIdx;
       }
     }
 
-    nNews = nNews + 1;
+    nNews++;
 
     // back loop to make the distribution even
     for (int iNew = nNews - 1; iNew > 0; iNew--) {
+      SCell *pLCell, pRCell;
+      int    szLCell, szRCell;
+
+      for (;;) {
+        if (childNotLeaf) {
+          pLCell = pRCell = tdbPageGetCell(infoNews[iNew - 1].pPage, infoNews[iNew - 1].oIdx);
+          szLCell = szRCell = tdbBtreeCellSize(infoNews[iNew - 1].pPage, pLCell);
+        } else {
+          // For internal page, find the left cell
+          // TODO: fill pLCell, pRCell, szLCell, szRCell
+        }
+
+        ASSERT(infoNews[iNew - 1].cnt > 0);
+
+        if (infoNews[iNew].size + szRCell >= infoNews[iNew - 1].size - szRCell) {
+          break;
+        }
+
+        // move cell divider left
+        infoNews[iNew].cnt++;
+        infoNews[iNew].size += szRCell;
+        {
+          // TODO
+          // infoNews[iNew].oPage = ;
+          // infoNews[iNew].oIdx = ;
+        }
+
+        infoNews[iNew - 1].cnt--;
+        infoNews[iNew - 1].size -= szLCell;
+        {
+          // TODO
+          // infoNews[iNew-1].oPage = ;
+          // infoNews[iNew-1].oIdx = ;
+        }
+      }
+
+#if 0
       SCell *pCell;
       SPage *pPage;
       int    nCells;
@@ -685,6 +719,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
           }
         }
       }
+#endif
     }
   }
 
@@ -713,146 +748,146 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
     // TODO: sort the page according to the page number
   }
 
-  {  // Do the real cell distribution
+  // {  // Do the real cell distribution
 
-    SPage            *pTPage[2];
-    int               tPage, tIdx, iOld;
-    SCell            *pCell;
-    int               szCell;
-    int               nCells;
-    SCellDecoder      cd;
-    SBtreeInitPageArg iarg = {.flags = TDB_BTREE_PAGE_GET_FLAGS(pOlds[0]), .pBt = pBt};
+  //   SPage            *pTPage[2];
+  //   int               tPage, tIdx, iOld;
+  //   SCell            *pCell;
+  //   int               szCell;
+  //   int               nCells;
+  //   SCellDecoder      cd;
+  //   SBtreeInitPageArg iarg = {.flags = TDB_BTREE_PAGE_GET_FLAGS(pOlds[0]), .pBt = pBt};
 
-    for (int i = 0; i < 2; i++) {
-      ret = tdbPageCreate(pOlds[0]->pageSize, &pTPage[i], NULL, NULL);
-      if (ret < 0) {
-        ASSERT(0);
-      }
-    }
+  //   for (int i = 0; i < 2; i++) {
+  //     ret = tdbPageCreate(pOlds[0]->pageSize, &pTPage[i], NULL, NULL);
+  //     if (ret < 0) {
+  //       ASSERT(0);
+  //     }
+  //   }
 
-    tPage = 0;
-    tIdx = 0;
-    iOld = 0;
-    nCells = TDB_PAGE_TOTAL_CELLS(pOlds[iOld]);
-    tdbBtreeZeroPage(pTPage[tPage], &iarg);
-    tdbPageCopy(pOlds[iOld], pTPage[tPage]);
-    if (childNotLeaf) {
-      ((SIntHdr *)pTPage[tPage]->pData)->pgno = ((SIntHdr *)pOlds[iOld]->pData)->pgno;
-    }
+  //   tPage = 0;
+  //   tIdx = 0;
+  //   iOld = 0;
+  //   nCells = TDB_PAGE_TOTAL_CELLS(pOlds[iOld]);
+  //   tdbBtreeZeroPage(pTPage[tPage], &iarg);
+  //   tdbPageCopy(pOlds[iOld], pTPage[tPage]);
+  //   if (childNotLeaf) {
+  //     ((SIntHdr *)pTPage[tPage]->pData)->pgno = ((SIntHdr *)pOlds[iOld]->pData)->pgno;
+  //   }
 
-    for (int iNew = 0; iNew < nNews; iNew++) {
-      // fill the iNew page
-      // TODO: copy current page to tmp space
-      tdbBtreeZeroPage(pNews[iNew], &iarg);
+  //   for (int iNew = 0; iNew < nNews; iNew++) {
+  //     // fill the iNew page
+  //     // TODO: copy current page to tmp space
+  //     tdbBtreeZeroPage(pNews[iNew], &iarg);
 
-      for (int iCell = 0; iCell < infoNews[iNew].cnt; iCell++) {
-        for (;;) {  // loop to find the next available cell
-          if (tIdx < nCells) {
-            pCell = tdbPageGetCell(pTPage[tPage], tIdx);
-            szCell = tdbBtreeCellSize(pTPage[tPage], pCell);
-            tIdx++;
-            break;
-          } else {
-            if (childNotLeaf) {
-              if (iOld < nOlds - 1) {
-                pCell = pDivCell[iOld];
-                szCell = szDivCell[iOld];
-                ((SPgno *)pCell)[0] = ((SIntHdr *)pOlds[iOld]->pData)->pgno;
+  //     for (int iCell = 0; iCell < infoNews[iNew].cnt; iCell++) {
+  //       for (;;) {  // loop to find the next available cell
+  //         if (tIdx < nCells) {
+  //           pCell = tdbPageGetCell(pTPage[tPage], tIdx);
+  //           szCell = tdbBtreeCellSize(pTPage[tPage], pCell);
+  //           tIdx++;
+  //           break;
+  //         } else {
+  //           if (childNotLeaf) {
+  //             if (iOld < nOlds - 1) {
+  //               pCell = pDivCell[iOld];
+  //               szCell = szDivCell[iOld];
+  //               ((SPgno *)pCell)[0] = ((SIntHdr *)pOlds[iOld]->pData)->pgno;
 
-                iOld++;
-                tPage = (tPage + 1) % 2;
-                tIdx = 0;
-                nCells = TDB_PAGE_TOTAL_CELLS(pOlds[iOld]);
-                tdbBtreeZeroPage(pTPage[tPage], &iarg);
-                tdbPageCopy(pOlds[iOld], pTPage[tPage]);
-                ((SIntHdr *)pTPage[tPage]->pData)->pgno = ((SIntHdr *)pOlds[iOld]->pData)->pgno;
-                break;
-              } else {
-                iOld++;
-                tPage = (tPage + 1) % 2;
-                tIdx = 0;
-                nCells = TDB_PAGE_TOTAL_CELLS(pOlds[iOld]);
-                tdbBtreeZeroPage(pTPage[tPage], &iarg);
-                tdbPageCopy(pOlds[iOld], pTPage[tPage]);
-                ((SIntHdr *)pTPage[tPage]->pData)->pgno = ((SIntHdr *)pOlds[iOld]->pData)->pgno;
-              }
-            } else {
-              iOld++;
-              tPage = (tPage + 1) % 2;
-              tIdx = 0;
-              nCells = TDB_PAGE_TOTAL_CELLS(pOlds[iOld]);
-              tdbBtreeZeroPage(pTPage[tPage], &iarg);
-              tdbPageCopy(pOlds[iOld], pTPage[tPage]);
-            }
-          }
-        }
+  //               iOld++;
+  //               tPage = (tPage + 1) % 2;
+  //               tIdx = 0;
+  //               nCells = TDB_PAGE_TOTAL_CELLS(pOlds[iOld]);
+  //               tdbBtreeZeroPage(pTPage[tPage], &iarg);
+  //               tdbPageCopy(pOlds[iOld], pTPage[tPage]);
+  //               ((SIntHdr *)pTPage[tPage]->pData)->pgno = ((SIntHdr *)pOlds[iOld]->pData)->pgno;
+  //               break;
+  //             } else {
+  //               iOld++;
+  //               tPage = (tPage + 1) % 2;
+  //               tIdx = 0;
+  //               nCells = TDB_PAGE_TOTAL_CELLS(pOlds[iOld]);
+  //               tdbBtreeZeroPage(pTPage[tPage], &iarg);
+  //               tdbPageCopy(pOlds[iOld], pTPage[tPage]);
+  //               ((SIntHdr *)pTPage[tPage]->pData)->pgno = ((SIntHdr *)pOlds[iOld]->pData)->pgno;
+  //             }
+  //           } else {
+  //             iOld++;
+  //             tPage = (tPage + 1) % 2;
+  //             tIdx = 0;
+  //             nCells = TDB_PAGE_TOTAL_CELLS(pOlds[iOld]);
+  //             tdbBtreeZeroPage(pTPage[tPage], &iarg);
+  //             tdbPageCopy(pOlds[iOld], pTPage[tPage]);
+  //           }
+  //         }
+  //       }
 
-        tdbPageInsertCell(pNews[iNew], iCell, pCell, szCell, 0);
-      }
+  //       tdbPageInsertCell(pNews[iNew], iCell, pCell, szCell, 0);
+  //     }
 
-      // fill right-most child pgno if internal page
-      if (childNotLeaf) {
-        if (tIdx < nCells) {
-          pCell = tdbPageGetCell(pTPage[tPage], tIdx);
-          szCell = tdbBtreeCellSize(pTPage[tPage], pCell);
-          tIdx++;
-          break;
-        } else {
-          if (!childNotLeaf) {
-            if (iOld < nOlds - 1) {
-              pCell = pDivCell[iOld];
-              szCell = szDivCell[iOld];
-              ((SPgno *)pCell)[0] = ((SIntHdr *)pOlds[iOld]->pData)->pgno;
+  //     // fill right-most child pgno if internal page
+  //     if (childNotLeaf) {
+  //       if (tIdx < nCells) {
+  //         pCell = tdbPageGetCell(pTPage[tPage], tIdx);
+  //         szCell = tdbBtreeCellSize(pTPage[tPage], pCell);
+  //         tIdx++;
+  //         break;
+  //       } else {
+  //         if (!childNotLeaf) {
+  //           if (iOld < nOlds - 1) {
+  //             pCell = pDivCell[iOld];
+  //             szCell = szDivCell[iOld];
+  //             ((SPgno *)pCell)[0] = ((SIntHdr *)pOlds[iOld]->pData)->pgno;
 
-              iOld++;
-              tPage = (tPage + 1) % 2;
-              tIdx = 0;
-              nCells = TDB_PAGE_TOTAL_CELLS(pOlds[iOld]);
-              tdbBtreeZeroPage(pTPage[tPage], &iarg);
-              tdbPageCopy(pOlds[iOld], pTPage[tPage]);
-              ((SIntHdr *)pTPage[tPage]->pData)->pgno = ((SIntHdr *)pOlds[iOld]->pData)->pgno;
-              break;
-            } else {
-              iOld++;
-              tPage = (tPage + 1) % 2;
-              tIdx = 0;
-              nCells = TDB_PAGE_TOTAL_CELLS(pOlds[iOld]);
-              tdbBtreeZeroPage(pTPage[tPage], &iarg);
-              tdbPageCopy(pOlds[iOld], pTPage[tPage]);
-              ((SIntHdr *)pTPage[tPage]->pData)->pgno = ((SIntHdr *)pOlds[iOld]->pData)->pgno;
-            }
-          } else {
-            iOld++;
-            tPage = (tPage + 1) % 2;
-            tIdx = 0;
-            nCells = TDB_PAGE_TOTAL_CELLS(pOlds[iOld]);
-            tdbBtreeZeroPage(pTPage[tPage], &iarg);
-            tdbPageCopy(pOlds[iOld], pTPage[tPage]);
-          }
-        }
+  //             iOld++;
+  //             tPage = (tPage + 1) % 2;
+  //             tIdx = 0;
+  //             nCells = TDB_PAGE_TOTAL_CELLS(pOlds[iOld]);
+  //             tdbBtreeZeroPage(pTPage[tPage], &iarg);
+  //             tdbPageCopy(pOlds[iOld], pTPage[tPage]);
+  //             ((SIntHdr *)pTPage[tPage]->pData)->pgno = ((SIntHdr *)pOlds[iOld]->pData)->pgno;
+  //             break;
+  //           } else {
+  //             iOld++;
+  //             tPage = (tPage + 1) % 2;
+  //             tIdx = 0;
+  //             nCells = TDB_PAGE_TOTAL_CELLS(pOlds[iOld]);
+  //             tdbBtreeZeroPage(pTPage[tPage], &iarg);
+  //             tdbPageCopy(pOlds[iOld], pTPage[tPage]);
+  //             ((SIntHdr *)pTPage[tPage]->pData)->pgno = ((SIntHdr *)pOlds[iOld]->pData)->pgno;
+  //           }
+  //         } else {
+  //           iOld++;
+  //           tPage = (tPage + 1) % 2;
+  //           tIdx = 0;
+  //           nCells = TDB_PAGE_TOTAL_CELLS(pOlds[iOld]);
+  //           tdbBtreeZeroPage(pTPage[tPage], &iarg);
+  //           tdbPageCopy(pOlds[iOld], pTPage[tPage]);
+  //         }
+  //       }
 
-        ((SIntHdr *)pNews[iNew]->pData)->pgno = ((SPgno *)pCell)[0];
-      }
+  //       ((SIntHdr *)pNews[iNew]->pData)->pgno = ((SPgno *)pCell)[0];
+  //     }
 
-      // insert divider cell into the parent page
-      SIntHdr *pIntHdr = (SIntHdr *)pParent->pData;
-      if (iNew == nNews - 1 && pIntHdr->pgno == 0) {
-        pIntHdr->pgno = TDB_PAGE_PGNO(pNews[iNew]);
-      } else {
-        tdbBtreeDecodeCell(pNews[iNew], tdbPageGetCell(pNews[iNew], TDB_PAGE_TOTAL_CELLS(pNews[iNew]) - 1), &cd);
-        tdbBtreeEncodeCell(pParent, cd.pKey, cd.kLen, (void *)&TDB_PAGE_PGNO(pNews[iNew]), sizeof(SPgno), pCell,
-                           &szCell);
-        // TODO: the cell here may be used by pParent as an overflow cell
-        tdbPageInsertCell(pParent, sIdx++, pCell, szCell, 0);
-      }
-    }
+  //     // insert divider cell into the parent page
+  //     SIntHdr *pIntHdr = (SIntHdr *)pParent->pData;
+  //     if (iNew == nNews - 1 && pIntHdr->pgno == 0) {
+  //       pIntHdr->pgno = TDB_PAGE_PGNO(pNews[iNew]);
+  //     } else {
+  //       tdbBtreeDecodeCell(pNews[iNew], tdbPageGetCell(pNews[iNew], TDB_PAGE_TOTAL_CELLS(pNews[iNew]) - 1), &cd);
+  //       tdbBtreeEncodeCell(pParent, cd.pKey, cd.kLen, (void *)&TDB_PAGE_PGNO(pNews[iNew]), sizeof(SPgno), pCell,
+  //                          &szCell);
+  //       // TODO: the cell here may be used by pParent as an overflow cell
+  //       tdbPageInsertCell(pParent, sIdx++, pCell, szCell, 0);
+  //     }
+  //   }
 
-    for (int i = 0; i < 2; i++) {
-      tdbPageDestroy(pTPage[i], NULL, NULL);
-    }
-  }
+  //   for (int i = 0; i < 2; i++) {
+  //     tdbPageDestroy(pTPage[i], NULL, NULL);
+  //   }
+}
 
-  return 0;
+return 0;
 }
 
 static int tdbBtreeBalance(SBtCursor *pCur) {
