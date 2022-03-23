@@ -233,7 +233,7 @@ char *strntolower(char *dst, const char *src, int32_t n) {
       }
     } else if (c >= 'A' && c <= 'Z') {
       c -= 'A' - 'a';
-    } else if (c == '\'' || c == '"') {
+    } else if (c == '\'' || c == '"' || c == '`') {
       quote = c;
     }
     *p++ = c;
