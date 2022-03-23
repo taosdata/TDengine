@@ -1582,7 +1582,11 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_TO_VARSTR(pWrite, pStb->comment);
+    if (pStb->commentLen != 0) {
+      STR_TO_VARSTR(pWrite, pStb->comment);
+    } else {
+      STR_TO_VARSTR(pWrite, "");
+    }
     cols++;
 
     numOfRows++;
