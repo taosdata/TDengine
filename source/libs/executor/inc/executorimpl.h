@@ -541,10 +541,20 @@ typedef struct SFillOperatorInfo {
   bool              multigroupResult;
 } SFillOperatorInfo;
 
+typedef struct SGroupKeys {
+  char   *pData;
+  bool    isNull;
+  int16_t type;
+  int32_t bytes;
+}SGroupKeys;
+
 typedef struct SGroupbyOperatorInfo {
   SOptrBasicInfo binfo;
   SArray*        pGroupCols;
-  char*          prevData;  // previous group by value
+  SArray*        pGroupColVals; // current group column values, SArray<SGroupKeys>
+  bool           isInit;       // denote if current val is initialized or not
+  char*          keyBuf;       // group by keys for hash
+  int32_t        groupKeyLen;  // total group by column width
   SGroupResInfo  groupResInfo;
   SAggSupporter  aggSup;
 } SGroupbyOperatorInfo;

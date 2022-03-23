@@ -23,8 +23,8 @@
 #include "tencode.h"
 #include "thash.h"
 #include "tlist.h"
-#include "trow.h"
 #include "tname.h"
+#include "trow.h"
 #include "tuuid.h"
 
 #ifdef __cplusplus
@@ -472,10 +472,9 @@ typedef struct {
   int32_t code;
 } SQueryTableRsp;
 
-int32_t tSerializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp);
+int32_t tSerializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
 
-int32_t tDeserializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp);
-
+int32_t tDeserializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
@@ -888,14 +887,14 @@ typedef struct {
 } SRetrieveTableRsp;
 
 typedef struct {
-  int64_t  handle;
-  int64_t  useconds;
-  int8_t   completed;  // all results are returned to client
-  int8_t   precision;
-  int8_t   compressed;
-  int32_t  compLen;
-  int32_t  numOfRows;
-  char     data[];
+  int64_t handle;
+  int64_t useconds;
+  int8_t  completed;  // all results are returned to client
+  int8_t  precision;
+  int8_t  compressed;
+  int32_t compLen;
+  int32_t numOfRows;
+  char    data[];
 } SRetrieveMetaTableRsp;
 
 typedef struct {
@@ -1425,12 +1424,11 @@ int32_t tSerializeSVCreateTbBatchReq(void** buf, SVCreateTbBatchReq* pReq);
 void*   tDeserializeSVCreateTbBatchReq(void* buf, SVCreateTbBatchReq* pReq);
 
 typedef struct {
-  SArray* rspList; // SArray<SVCreateTbRsp>
+  SArray* rspList;  // SArray<SVCreateTbRsp>
 } SVCreateTbBatchRsp;
 
-int32_t tSerializeSVCreateTbBatchRsp(void *buf, int32_t bufLen, SVCreateTbBatchRsp *pRsp);
-int32_t tDeserializeSVCreateTbBatchRsp(void *buf, int32_t bufLen, SVCreateTbBatchRsp *pRsp);
-
+int32_t tSerializeSVCreateTbBatchRsp(void* buf, int32_t bufLen, SVCreateTbBatchRsp* pRsp);
+int32_t tDeserializeSVCreateTbBatchRsp(void* buf, int32_t bufLen, SVCreateTbBatchRsp* pRsp);
 
 typedef struct {
   int64_t  ver;
@@ -2312,6 +2310,11 @@ enum {
   STREAM_TASK_STATUS__STOP,
 };
 
+enum {
+  STREAM_NEXT_OP_DST__VND = 1,
+  STREAM_NEXT_OP_DST__SND,
+};
+
 typedef struct {
   void* inputHandle;
   void* executor;
@@ -2326,6 +2329,7 @@ typedef struct {
   int8_t  pipeSink;
   int8_t  numOfRunners;
   int8_t  parallelizable;
+  int8_t  nextOpDst;  // vnode or snode
   SEpSet  NextOpEp;
   char*   qmsg;
   // not applied to encoder and decoder
@@ -2341,6 +2345,8 @@ static FORCE_INLINE SStreamTask* streamTaskNew(int64_t streamId, int32_t level) 
     return NULL;
   }
   pTask->taskId = tGenIdPI32();
+  pTask->streamId = streamId;
+  pTask->level = level;
   pTask->status = STREAM_TASK_STATUS__RUNNING;
   pTask->qmsg = NULL;
   return pTask;

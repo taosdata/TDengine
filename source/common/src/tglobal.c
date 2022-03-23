@@ -132,6 +132,9 @@ bool tsdbForceKeepFile = false;
 int32_t  tsDiskCfgNum = 0;
 SDiskCfg tsDiskCfg[TFS_MAX_DISKS] = {0};
 
+// stream scheduler
+bool tsStreamSchedV = true;
+
 /*
  * minimum scale for whole system, millisecond by default
  * for TSDB_TIME_PRECISION_MILLI: 86400000L

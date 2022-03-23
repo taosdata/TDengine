@@ -166,6 +166,7 @@ typedef struct {
 #define TD_ROW_HEAD_LEN  (sizeof(STSRow))
 #define TD_ROW_NCOLS_LEN (sizeof(col_id_t))
 
+#define TD_ROW_INFO(r)     ((r)->info)
 #define TD_ROW_TYPE(r)     ((r)->type)
 #define TD_ROW_DELETE(r)   ((r)->del)
 #define TD_ROW_ENDIAN(r)   ((r)->endian)
@@ -180,6 +181,7 @@ typedef struct {
 // (int32_t)ceil((double)nCols/TD_VTYPE_PARTS) should be added if TD_SUPPORT_BITMAP defined.
 #define TD_ROW_MAX_BYTES_FROM_SCHEMA(s) (schemaTLen(s) + TD_ROW_HEAD_LEN)
 
+#define TD_ROW_SET_INFO(r, i)  (TD_ROW_INFO(r) = (i))
 #define TD_ROW_SET_TYPE(r, t)  (TD_ROW_TYPE(r) = (t))
 #define TD_ROW_SET_DELETE(r)   (TD_ROW_DELETE(r) = 1)
 #define TD_ROW_SET_SVER(r, v)  (TD_ROW_SVER(r) = (v))
@@ -473,6 +475,7 @@ static int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
     return terrno;
   }
 
+  TD_ROW_SET_INFO(pBuilder->pBuf, 0);
   TD_ROW_SET_TYPE(pBuilder->pBuf, pBuilder->rowType);
 
   uint32_t len = 0;

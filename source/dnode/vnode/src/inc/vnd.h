@@ -82,12 +82,6 @@ struct SVnode {
 
 int vnodeScheduleTask(SVnodeTask* task);
 
-int32_t vnodePutToVQueryQ(SVnode* pVnode, struct SRpcMsg* pReq);
-int32_t vnodePutToVFetchQ(SVnode* pVnode, struct SRpcMsg* pReq);
-int32_t vnodeSendReq(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pReq);
-int32_t vnodeSendMnodeReq(SVnode* pVnode, struct SRpcMsg* pReq);
-void    vnodeSendRsp(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pRsp);
-
 #define vFatal(...)                                              \
   do {                                                           \
     if (vDebugFlag & DEBUG_FATAL) {                              \
@@ -177,19 +171,20 @@ int  tqInit();
 void tqCleanUp();
 
 // open in each vnode
-STQ* tqOpen(const char* path, SWal* pWal, SMeta* pMeta, STqCfg* tqConfig, SMemAllocatorFactory* allocFac);
+STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pMeta, STqCfg* tqConfig,
+            SMemAllocatorFactory* allocFac);
 void tqClose(STQ*);
 
 // required by vnode
-int tqPushMsg(STQ*, void* msg, tmsg_t msgType, int64_t version);
+int tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t version);
 int tqCommit(STQ*);
 
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
 int32_t tqProcessRebReq(STQ* pTq, char* msg);
 int32_t tqProcessTaskExec(STQ* pTq, SRpcMsg* msg);
-
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
+int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen);
 
 #ifdef __cplusplus
 }
