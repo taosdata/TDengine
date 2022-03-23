@@ -103,6 +103,8 @@ typedef enum {
   TRN_TYPE_CREATE_STB = 4001,
   TRN_TYPE_ALTER_STB = 4002,
   TRN_TYPE_DROP_STB = 4003,
+  TRN_TYPE_CREATE_SMA = 4004,
+  TRN_TYPE_DROP_SMA = 4005,
   TRN_TYPE_STB_SCOPE_END,
 } ETrnType;
 
@@ -306,20 +308,38 @@ typedef struct {
 } SVgObj;
 
 typedef struct {
-  char     name[TSDB_TABLE_FNAME_LEN];
-  char     db[TSDB_DB_FNAME_LEN];
-  int64_t  createdTime;
-  int64_t  updateTime;
-  int64_t  uid;
-  int64_t  dbUid;
-  int32_t  version;
-  int32_t  nextColId;
-  int32_t  numOfColumns;
-  int32_t  numOfTags;
-  SSchema* pColumns;
-  SSchema* pTags;
-  SRWLatch lock;
-  char     comment[TSDB_STB_COMMENT_LEN];
+  char    name[TSDB_TABLE_FNAME_LEN];
+  char    stb[TSDB_DB_FNAME_LEN];
+  int64_t createdTime;
+  int64_t uid;
+  int64_t stbUid;
+  int8_t  intervalUnit;
+  int8_t  slidingUnit;
+  int8_t  timezone;
+  int64_t interval;
+  int64_t offset;
+  int64_t sliding;
+  int32_t exprLen;
+  int32_t tagsFilterLen;
+  char*   expr;
+  char*   tagsFilter;
+} SSmaObj;
+
+typedef struct {
+  char      name[TSDB_TABLE_FNAME_LEN];
+  char      db[TSDB_DB_FNAME_LEN];
+  int64_t   createdTime;
+  int64_t   updateTime;
+  int64_t   uid;
+  int64_t   dbUid;
+  int32_t   version;
+  int32_t   nextColId;
+  int32_t   numOfColumns;
+  int32_t   numOfTags;
+  SSchema*  pColumns;
+  SSchema*  pTags;
+  SRWLatch  lock;
+  char      comment[TSDB_STB_COMMENT_LEN];
 } SStbObj;
 
 typedef struct {

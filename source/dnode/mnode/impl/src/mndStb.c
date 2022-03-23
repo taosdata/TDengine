@@ -18,15 +18,15 @@
 #include "mndAuth.h"
 #include "mndDb.h"
 #include "mndDnode.h"
+#include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
-#include "mndInfoSchema.h"
 #include "tname.h"
 
-#define TSDB_STB_VER_NUMBER 1
+#define TSDB_STB_VER_NUMBER   1
 #define TSDB_STB_RESERVE_SIZE 64
 
 static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw);
@@ -1162,7 +1162,7 @@ static int32_t mndSetDropStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
 
 static int32_t mndDropStb(SMnode *pMnode, SNodeMsg *pReq, SDbObj *pDb, SStbObj *pStb) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK,TRN_TYPE_DROP_STB, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_STB, &pReq->rpcMsg);
   if (pTrans == NULL) goto DROP_STB_OVER;
 
   mDebug("trans:%d, used to drop stb:%s", pTrans->id, pStb->name);

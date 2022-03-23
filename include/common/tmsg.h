@@ -1897,6 +1897,35 @@ static FORCE_INLINE void* tDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) 
   }
   return buf;
 }
+
+typedef struct {
+  char    name[TSDB_TABLE_FNAME_LEN];
+  char    stb[TSDB_TABLE_FNAME_LEN];
+  int8_t  igExists;
+  int8_t  intervalUnit;
+  int8_t  slidingUnit;
+  int8_t  timezone;
+  int64_t interval;
+  int64_t offset;
+  int64_t sliding;
+  int32_t exprLen;
+  int32_t tagsFilterLen;
+  char*   expr;
+  char*   tagsFilter;
+} SMCreateSmaReq;
+
+int32_t tSerializeSMCreateSmaReq(void* buf, int32_t bufLen, SMCreateSmaReq* pReq);
+int32_t tDeserializeSMCreateSmaReq(void* buf, int32_t bufLen, SMCreateSmaReq* pReq);
+void    tFreeSMCreateSmaReq(SMCreateSmaReq* pReq);
+
+typedef struct {
+  char   name[TSDB_TABLE_FNAME_LEN];
+  int8_t igNotExists;
+} SMDropSmaReq;
+
+int32_t tSerializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
+int32_t tDeserializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
+
 typedef struct {
   int8_t   version;       // for compatibility(default 0)
   int8_t   intervalUnit;  // MACRO: TIME_UNIT_XXX
