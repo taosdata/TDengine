@@ -8448,7 +8448,9 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhysiNode* pPhyNode, SExecTaskInfo* pTa
       SExprInfo* pExprInfo = createExprInfo(pIntervalPhyNode->pFuncs, NULL, &num);
       SSDataBlock* pResBlock = createOutputBuf_rv1(pPhyNode->pOutputDataBlockDesc);
 
-      SInterval interval = {.interval = pIntervalPhyNode->interval, .sliding = pIntervalPhyNode->sliding, .intervalUnit = 'a', .slidingUnit = 'a'};
+      SInterval interval = {.interval = pIntervalPhyNode->interval, .sliding = pIntervalPhyNode->sliding,
+                            .intervalUnit = pIntervalPhyNode->intervalUnit,
+                            .slidingUnit = pIntervalPhyNode->slidingUnit, .offset = pIntervalPhyNode->offset};
       return createIntervalOperatorInfo(op, pExprInfo, num, pResBlock, &interval, pTableGroupInfo, pTaskInfo);
     }
   } /*else if (pPhyNode->info.type == OP_MultiTableAggregate) {
