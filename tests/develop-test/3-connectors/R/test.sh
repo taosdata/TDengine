@@ -20,10 +20,10 @@ ls -al
 
 cd ../../
 WKC=`pwd`
-echo "pwd:${WKC}"
+echo "WKC:${WKC}"
 
 JDBC_PATH=${WKC}'/src/connector/jdbc/'
-CASE_PATH=${WKC}'/examples/R/'
+CASE_PATH=${WKC}'/test/examples/R/'
 cd ${JDBC_PATH}
 echo "JDBC_PATH:${JDBC_PATH}" 
 echo "CASE_PATH:${CASE_PATH}"
@@ -38,5 +38,6 @@ JDBC_PATH=${JDBC_PATH}target
 cd ${WKC}
 pwd 
 ls -al
+ls -al ${CASE_PATH}
 # remove 
 Rscript ${CASE_PATH}rjdbc.sample.R ${JDBC_PATH} ${JDBC} 
