@@ -120,7 +120,7 @@ int tqPushMsg(STQ* pTq, void* msg, tmsg_t msgType, int64_t version) {
           .code = 0,
           .msgType = type,
       };
-      /*vnodeSendReq(pTq->pVnode, &pTask->NextOpEp, &msg);*/
+      tmsgSendReq(&pTq->pVnode->msgCb, &pTask->NextOpEp, &msg);
     }
   }
 
@@ -498,7 +498,9 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
   }
   SCoder decoder;
   tCoderInit(&decoder, TD_LITTLE_ENDIAN, (uint8_t*)msg, msgLen, TD_DECODER);
-  tDecodeSStreamTask(&decoder, pTask);
+  if (tDecodeSStreamTask(&decoder, pTask) < 0) {
+    ASSERT(0);
+  }
   tCoderClear(&decoder);
 
   tqExpandTask(pTq, pTask, 8);

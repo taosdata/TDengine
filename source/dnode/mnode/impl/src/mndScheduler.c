@@ -34,20 +34,21 @@
 
 extern bool tsStreamSchedV;
 
-int32_t mndPersistTaskDeployReq(STrans* pTrans, SStreamTask* pTask, const SEpSet* pEpSet, tmsg_t type) {
+int32_t mndPersistTaskDeployReq(STrans* pTrans, SStreamTask* pTask, const SEpSet* pEpSet, tmsg_t type, int32_t nodeId) {
   SCoder encoder;
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER);
   tEncodeSStreamTask(&encoder, pTask);
-  int32_t tlen = sizeof(SMsgHead) + encoder.pos;
+  int32_t size = encoder.pos;
+  int32_t tlen = sizeof(SMsgHead) + size;
   tCoderClear(&encoder);
   void* buf = malloc(tlen);
   if (buf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  ((SMsgHead*)buf)->streamTaskId = pTask->taskId;
+  ((SMsgHead*)buf)->streamTaskId = htonl(nodeId);
   void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-  tCoderInit(&encoder, TD_LITTLE_ENDIAN, abuf, tlen, TD_ENCODER);
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, abuf, size, TD_ENCODER);
   tEncodeSStreamTask(&encoder, pTask);
   tCoderClear(&encoder);
 
@@ -72,7 +73,7 @@ int32_t mndAssignTaskToVg(SMnode* pMnode, STrans* pTrans, SStreamTask* pTask, SS
     terrno = TSDB_CODE_QRY_INVALID_INPUT;
     return -1;
   }
-  mndPersistTaskDeployReq(pTrans, pTask, &plan->execNode.epSet, TDMT_VND_TASK_DEPLOY);
+  mndPersistTaskDeployReq(pTrans, pTask, &plan->execNode.epSet, TDMT_VND_TASK_DEPLOY, pVgroup->vgId);
   return 0;
 }
 
@@ -92,7 +93,7 @@ int32_t mndAssignTaskToSnode(SMnode* pMnode, STrans* pTrans, SStreamTask* pTask,
     terrno = TSDB_CODE_QRY_INVALID_INPUT;
     return -1;
   }
-  mndPersistTaskDeployReq(pTrans, pTask, &plan->execNode.epSet, TDMT_SND_TASK_DEPLOY);
+  mndPersistTaskDeployReq(pTrans, pTask, &plan->execNode.epSet, TDMT_SND_TASK_DEPLOY, 0);
   return 0;
 }
 
@@ -118,7 +119,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
 
     SSubplan* plan = nodesListGetNode(inner->pNodeList, level);
     if (level == 0) {
-      ASSERT(plan->type == SUBPLAN_TYPE_SCAN);
+      ASSERT(plan->subplanType == SUBPLAN_TYPE_SCAN);
       void* pIter = NULL;
       while (1) {
         pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
@@ -148,7 +149,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
       SStreamTask* pTask = streamTaskNew(pStream->uid, level);
       pTask->pipeSource = 0;
       pTask->pipeSink = level == totLevel - 1 ? 1 : 0;
-      pTask->parallelizable = plan->type == SUBPLAN_TYPE_SCAN;
+      pTask->parallelizable = plan->subplanType == SUBPLAN_TYPE_SCAN;
       pTask->nextOpDst = STREAM_NEXT_OP_DST__VND;
 
       if (tsStreamSchedV) {

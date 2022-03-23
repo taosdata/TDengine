@@ -82,12 +82,6 @@ struct SVnode {
 
 int vnodeScheduleTask(SVnodeTask* task);
 
-int32_t vnodePutToVQueryQ(SVnode* pVnode, struct SRpcMsg* pReq);
-int32_t vnodePutToVFetchQ(SVnode* pVnode, struct SRpcMsg* pReq);
-int32_t vnodeSendReq(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pReq);
-int32_t vnodeSendMnodeReq(SVnode* pVnode, struct SRpcMsg* pReq);
-void    vnodeSendRsp(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pRsp);
-
 #define vFatal(...)                                              \
   do {                                                           \
     if (vDebugFlag & DEBUG_FATAL) {                              \

@@ -2345,6 +2345,8 @@ static FORCE_INLINE SStreamTask* streamTaskNew(int64_t streamId, int32_t level) 
     return NULL;
   }
   pTask->taskId = tGenIdPI32();
+  pTask->streamId = streamId;
+  pTask->level = level;
   pTask->status = STREAM_TASK_STATUS__RUNNING;
   pTask->qmsg = NULL;
   return pTask;
