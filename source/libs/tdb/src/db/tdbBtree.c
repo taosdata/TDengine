@@ -737,6 +737,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
             nNews = 0;
           }
         } else {
+          ASSERT(0);
           ASSERT(childNotLeaf);
 
           // set current new page right-most child
