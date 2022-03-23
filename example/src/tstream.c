@@ -63,7 +63,7 @@ int32_t init_env() {
 }
 
 int32_t create_stream() {
-  printf("create topic\n");
+  printf("create stream\n");
   TAOS_RES* pRes;
   TAOS*     pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   if (pConn == NULL) {
@@ -77,7 +77,7 @@ int32_t create_stream() {
   }
   taos_free_result(pRes);
 
-  const char* sql = "select ts,k from tu1";
+  const char* sql = "select ts,sum(k) from tu1";
   pRes = tmq_create_stream(pConn, "stream1", "out1", sql);
   if (taos_errno(pRes) != 0) {
     printf("failed to create stream out1, reason:%s\n", taos_errstr(pRes));

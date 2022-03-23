@@ -21,7 +21,8 @@ int32_t tqInit() { return tqPushMgrInit(); }
 
 void tqCleanUp() { tqPushMgrCleanUp(); }
 
-STQ* tqOpen(const char* path, SWal* pWal, SMeta* pVnodeMeta, STqCfg* tqConfig, SMemAllocatorFactory* allocFac) {
+STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pVnodeMeta, STqCfg* tqConfig,
+            SMemAllocatorFactory* allocFac) {
   STQ* pTq = malloc(sizeof(STQ));
   if (pTq == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
@@ -29,6 +30,7 @@ STQ* tqOpen(const char* path, SWal* pWal, SMeta* pVnodeMeta, STqCfg* tqConfig, S
   }
   pTq->path = strdup(path);
   pTq->tqConfig = tqConfig;
+  pTq->pVnode = pVnode;
   pTq->pWal = pWal;
   pTq->pVnodeMeta = pVnodeMeta;
 #if 0
@@ -104,8 +106,21 @@ int tqPushMsg(STQ* pTq, void* msg, tmsg_t msgType, int64_t version) {
       }
       void* abuf = POINTER_SHIFT(buf, sizeof(SStreamExecMsgHead));
       tEncodeDataBlocks(abuf, pRes);
-      // serialize
-      // to next level
+      tmsg_t type;
+
+      if (pTask->nextOpDst == STREAM_NEXT_OP_DST__VND) {
+        type = TDMT_VND_TASK_EXEC;
+      } else {
+        type = TDMT_SND_TASK_EXEC;
+      }
+
+      SRpcMsg msg = {
+          .pCont = buf,
+          .contLen = tlen,
+          .code = 0,
+          .msgType = type,
+      };
+      /*vnodeSendReq(pTq->pVnode, &pTask->NextOpEp, &msg);*/
     }
   }
 

@@ -2629,7 +2629,7 @@ int32_t tSerializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
 
   if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeI32(&encoder, pRsp->code) < 0) return -1;    
+  if (tEncodeI32(&encoder, pRsp->code) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2656,13 +2656,13 @@ int32_t tSerializeSVCreateTbBatchRsp(void *buf, int32_t bufLen, SVCreateTbBatchR
   if (tStartEncode(&encoder) < 0) return -1;
   if (pRsp->rspList) {
     int32_t num = taosArrayGetSize(pRsp->rspList);
-    if (tEncodeI32(&encoder, num) < 0) return -1;    
+    if (tEncodeI32(&encoder, num) < 0) return -1;
     for (int32_t i = 0; i < num; ++i) {
       SVCreateTbRsp *rsp = taosArrayGet(pRsp->rspList, i);
-      if (tEncodeI32(&encoder, rsp->code) < 0) return -1;    
+      if (tEncodeI32(&encoder, rsp->code) < 0) return -1;
     }
   } else {
-    if (tEncodeI32(&encoder, 0) < 0) return -1;    
+    if (tEncodeI32(&encoder, 0) < 0) return -1;
   }
   tEndEncode(&encoder);
 
@@ -2672,7 +2672,7 @@ int32_t tSerializeSVCreateTbBatchRsp(void *buf, int32_t bufLen, SVCreateTbBatchR
 }
 
 int32_t tDeserializeSVCreateTbBatchRsp(void *buf, int32_t bufLen, SVCreateTbBatchRsp *pRsp) {
-  SCoder decoder = {0};
+  SCoder  decoder = {0};
   int32_t num = 0;
   tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
 
@@ -2694,7 +2694,6 @@ int32_t tDeserializeSVCreateTbBatchRsp(void *buf, int32_t bufLen, SVCreateTbBatc
   tCoderClear(&decoder);
   return 0;
 }
-
 
 int32_t tSerializeSVCreateTSmaReq(void **buf, SVCreateTSmaReq *pReq) {
   int32_t tlen = 0;
@@ -2797,7 +2796,10 @@ int32_t tEncodeSStreamTask(SCoder *pEncoder, const SStreamTask *pTask) {
   if (tEncodeI32(pEncoder, pTask->taskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->level) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->status) < 0) return -1;
+  if (tEncodeI8(pEncoder, pTask->pipeSource) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->pipeSink) < 0) return -1;
+  if (tEncodeI8(pEncoder, pTask->parallelizable) < 0) return -1;
+  if (tEncodeI8(pEncoder, pTask->nextOpDst) < 0) return -1;
   // if (tEncodeI8(pEncoder, pTask->numOfRunners) < 0) return -1;
   if (tEncodeSEpSet(pEncoder, &pTask->NextOpEp) < 0) return -1;
   if (tEncodeCStr(pEncoder, pTask->qmsg) < 0) return -1;
@@ -2811,7 +2813,10 @@ int32_t tDecodeSStreamTask(SCoder *pDecoder, SStreamTask *pTask) {
   if (tDecodeI32(pDecoder, &pTask->taskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->level) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->status) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pTask->pipeSource) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->pipeSink) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pTask->parallelizable) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pTask->nextOpDst) < 0) return -1;
   // if (tDecodeI8(pDecoder, &pTask->numOfRunners) < 0) return -1;
   if (tDecodeSEpSet(pDecoder, &pTask->NextOpEp) < 0) return -1;
   if (tDecodeCStrAlloc(pDecoder, &pTask->qmsg) < 0) return -1;

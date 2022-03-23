@@ -177,7 +177,8 @@ int  tqInit();
 void tqCleanUp();
 
 // open in each vnode
-STQ* tqOpen(const char* path, SWal* pWal, SMeta* pMeta, STqCfg* tqConfig, SMemAllocatorFactory* allocFac);
+STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pMeta, STqCfg* tqConfig,
+            SMemAllocatorFactory* allocFac);
 void tqClose(STQ*);
 
 // required by vnode
@@ -188,7 +189,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
 int32_t tqProcessRebReq(STQ* pTq, char* msg);
 int32_t tqProcessTaskExec(STQ* pTq, SRpcMsg* msg);
-
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
 
 #ifdef __cplusplus

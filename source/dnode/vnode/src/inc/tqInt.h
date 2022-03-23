@@ -167,6 +167,7 @@ struct STQ {
   STqMetaStore* tqMeta;
   STqPushMgr*   tqPushMgr;
   SHashObj*     pStreamTasks;
+  SVnode*       pVnode;
   SWal*         pWal;
   SMeta*        pVnodeMeta;
 };
