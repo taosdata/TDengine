@@ -218,6 +218,28 @@ static int32_t mndCheckCreateStreamReq(SCMCreateStreamReq *pCreate) {
   return 0;
 }
 
+static SArray *mndExtractNamesFromAst(const SNode *pAst) {
+  if (pAst->type != QUERY_NODE_SELECT_STMT) return NULL;
+
+  SArray *names = taosArrayInit(0, sizeof(void *));
+  if (names == NULL) {
+    return NULL;
+  }
+  SSelectStmt *pSelect = (SSelectStmt *)pAst;
+  SNodeList   *pNodes = pSelect->pProjectionList;
+  SListCell   *pCell = pNodes->pHead;
+  while (pCell != NULL) {
+    if (pCell->pNode->type != QUERY_NODE_FUNCTION) {
+      continue;
+    }
+    SFunctionNode *pFunction = (SFunctionNode *)pCell->pNode;
+    char          *name = strdup(pFunction->node.aliasName);
+    taosArrayPush(names, &name);
+    pCell = pCell->pNext;
+  }
+  return names;
+}
+
 static int32_t mndStreamGetPlanString(const SCMCreateStreamReq *pCreate, char **pStr) {
   if (NULL == pCreate->ast) {
     return TSDB_CODE_SUCCESS;
@@ -258,6 +280,19 @@ static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamRe
   streamObj.sql = pCreate->sql;
   /*streamObj.physicalPlan = "";*/
   streamObj.logicalPlan = "not implemented";
+
+  SNode *pAst = NULL;
+  if (nodesStringToNode(pCreate->ast, &pAst) < 0) {
+    return -1;
+  }
+  SArray *names = mndExtractNamesFromAst(pAst);
+  printf("|");
+  for (int i = 0; i < taosArrayGetSize(names); i++) {
+    printf(" %15s |", (char *)taosArrayGetP(names, i));
+  }
+  printf("\n=======================================================\n");
+
+  streamObj.outputName = names;
 
   if (TSDB_CODE_SUCCESS != mndStreamGetPlanString(pCreate, &streamObj.physicalPlan)) {
     mError("topic:%s, failed to get plan since %s", pCreate->name, terrstr());

@@ -697,11 +697,11 @@ typedef struct {
   char*   logicalPlan;
   char*   physicalPlan;
   SArray* tasks;  // SArray<SArray<SStreamTask>>
+  SArray* outputName;
 } SStreamObj;
 
 int32_t tEncodeSStreamObj(SCoder* pEncoder, const SStreamObj* pObj);
 int32_t tDecodeSStreamObj(SCoder* pDecoder, SStreamObj* pObj);
-
 
 #ifdef __cplusplus
 }
