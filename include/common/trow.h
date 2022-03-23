@@ -968,10 +968,14 @@ static FORCE_INLINE int32_t tdGetColDataOfRow(SCellVal *pVal, SDataCol *pCol, in
 #endif
     return TSDB_CODE_SUCCESS;
   }
-  if (tdGetBitmapValType(pCol->pBitmap, row, &(pVal->valType)) < 0) {
+
+  if (TD_COL_ROWS_NORM(pCol)) {
+    pVal->valType = TD_VTYPE_NORM;
+  } else if (tdGetBitmapValType(pCol->pBitmap, row, &(pVal->valType)) < 0) {
     return terrno;
   }
-  if (TD_COL_ROWS_NORM(pCol) || tdValTypeIsNorm(pVal->valType)) {
+
+  if (tdValTypeIsNorm(pVal->valType)) {
     if (IS_VAR_DATA_TYPE(pCol->type)) {
       pVal->val = POINTER_SHIFT(pCol->pData, pCol->dataOff[row]);
     } else {
