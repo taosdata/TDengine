@@ -710,28 +710,43 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
         if (nNewCells < infoNews[iNew].cnt) {
           tdbPageInsertCell(pNews[iNew], nNewCells, pCell, szCell, 0);
           nNewCells++;
-        } else {
-          if (childNotLeaf) {
-            // Insert to parent
 
-            // set current new page right-most child
-            ((SIntHdr *)pNews[iNew]->pData)->pgno = ((SPgno *)pCell)[0];
+          // insert parent page
+          if (!childNotLeaf && nNewCells == infoNews[iNew].cnt) {
+            SIntHdr *pIntHdr = (SIntHdr *)pParent->pData;
+
+            if (iNew == nNews - 1 && pIntHdr->pgno == 0) {
+              pIntHdr->pgno = TDB_PAGE_PGNO(pNews[iNew]);
+            } else {
+              // TODO:
+              ((SPgno *)pCell)[0] = TDB_PAGE_PGNO(pNews[iNew]);
+              // TODO: pCell here may be inserted as an overflow cell, handle it
+              tdbPageInsertCell(pParent, sIdx++, pCell, szCell, 0);
+            }
 
             // move to next new page
             iNew++;
-            nNewCells = 0;
-          } else {
-            // TODO: Insert to parent max key and current page number or the right most child
-
-            // move to next new page
-            iNew++;
-            nNewCells = 0;
-
-            // insert the cell to the new page
-            ASSERT(nNewCells < infoNews[iNew].cnt);
-            tdbPageInsertCell(pNews[iNew], nNewCells, pCell, szCell, 0);
-            nNewCells++;
+            nNews = 0;
           }
+        } else {
+          ASSERT(childNotLeaf);
+
+          // set current new page right-most child
+          ((SIntHdr *)pNews[iNew]->pData)->pgno = ((SPgno *)pCell)[0];
+
+          // insert to parent as divider cell
+          SIntHdr *pIntHdr = (SIntHdr *)pParent->pData;
+
+          if (iNew == nNews - 1 && pIntHdr->pgno == 0) {
+            pIntHdr->pgno = TDB_PAGE_PGNO(pNews[iNew]);
+          } else {
+            ((SPgno *)pCell)[0] = TDB_PAGE_PGNO(pNews[iNew]);
+            tdbPageInsertCell(pParent, sIdx++, pCell, szCell, 0);
+          }
+
+          // move to next new page
+          iNew++;
+          nNewCells = 0;
         }
       }
     }
