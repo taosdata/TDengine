@@ -320,7 +320,7 @@ void cliHandleExcept(SCliConn* pConn) {
   SCliThrdObj* pThrd = pConn->hostThrd;
   STrans*      pTransInst = pThrd->pTransInst;
 
-  do {
+  while(!transQueueEmpty(&pConn->cliMsgs)){
     SCliMsg* pMsg = transQueuePop(&pConn->cliMsgs);
 
     STransConnCtx* pCtx = pMsg ? pMsg->ctx : NULL;
@@ -343,16 +343,19 @@ void cliHandleExcept(SCliConn* pConn) {
     }
 
     if (pCtx == NULL || pCtx->pSem == NULL) {
-      tTrace("%s cli conn %p handle resp", pTransInst->label, pConn);
+      tTrace("%s cli conn %p handle except", pTransInst->label, pConn);
+      if (transMsg.ahandle == NULL) {
+        continue;
+      }
       (pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
     } else {
-      tTrace("%s cli conn(sync) %p handle resp", pTransInst->label, pConn);
+      tTrace("%s cli conn(sync) %p handle except", pTransInst->label, pConn);
       memcpy((char*)(pCtx->pRsp), (char*)(&transMsg), sizeof(transMsg));
       tsem_post(pCtx->pSem);
     }
     destroyCmsg(pMsg);
     tTrace("%s cli conn %p start to destroy", CONN_GET_INST_LABEL(pConn), pConn);
-  } while (!transQueueEmpty(&pConn->cliMsgs));
+  };
 
   transUnrefCliHandle(pConn);
 }
