@@ -93,25 +93,25 @@ typedef struct SServerObj {
 
 static const char* notify = "a";
 
-#define CONN_SHOULD_RELEASE(conn, head)                            \
-  do {                                                             \
-    if ((head)->release == 1 && (head->msgLen) == sizeof(*head)) { \
-      conn->status = ConnRelease;                                  \
-      transClearBuffer(&conn->readBuf);                            \
-      transFreeMsg(transContFromHead((char*)head));                \
-      tTrace("server conn %p received release request", conn);     \
-                                                                   \
-      STransMsg tmsg = {.handle = (void*)conn, .code = 0};         \
-      SSrvMsg*  srvMsg = calloc(1, sizeof(SSrvMsg));               \
-      srvMsg->msg = tmsg;                                          \
-      srvMsg->type = Release;                                      \
-      srvMsg->pConn = conn;                                        \
-      if (!transQueuePush(&conn->srvMsgs, srvMsg)) {               \
-        return;                                                    \
-      }                                                            \
-      uvStartSendRespInternal(srvMsg);                             \
-      return;                                                      \
-    }                                                              \
+#define CONN_SHOULD_RELEASE(conn, head)                                     \
+  do {                                                                      \
+    if ((head)->release == 1 && (head->msgLen) == sizeof(*head)) {          \
+      conn->status = ConnRelease;                                           \
+      transClearBuffer(&conn->readBuf);                                     \
+      transFreeMsg(transContFromHead((char*)head));                         \
+      tTrace("server conn %p received release request", conn);              \
+                                                                            \
+      STransMsg tmsg = {.code = 0, .handle = (void*)conn, .ahandle = NULL}; \
+      SSrvMsg*  srvMsg = calloc(1, sizeof(SSrvMsg));                        \
+      srvMsg->msg = tmsg;                                                   \
+      srvMsg->type = Release;                                               \
+      srvMsg->pConn = conn;                                                 \
+      if (!transQueuePush(&conn->srvMsgs, srvMsg)) {                        \
+        return;                                                             \
+      }                                                                     \
+      uvStartSendRespInternal(srvMsg);                                      \
+      return;                                                               \
+    }                                                                       \
   } while (0)
 
 static void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
@@ -823,7 +823,7 @@ void transReleaseSrvHandle(void* handle) {
   SSrvConn*     pConn = handle;
   SWorkThrdObj* pThrd = pConn->hostThrd;
 
-  STransMsg tmsg = {.handle = handle, .code = 0};
+  STransMsg tmsg = {.code = 0, .handle = handle, .ahandle = NULL};
 
   SSrvMsg* srvMsg = calloc(1, sizeof(SSrvMsg));
   srvMsg->msg = tmsg;
