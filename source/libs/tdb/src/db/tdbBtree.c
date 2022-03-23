@@ -735,8 +735,10 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
 
             // move to next new page
             iNew++;
-            nNews = 0;
-            tdbBtreeZeroPage(pNews[iNew], &iarg);
+            nNewCells = 0;
+            if (iNew < nNews) {
+              tdbBtreeZeroPage(pNews[iNew], &iarg);
+            }
           }
         } else {
           ASSERT(0);
@@ -753,7 +755,9 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
           // move to next new page
           iNew++;
           nNewCells = 0;
-          tdbBtreeZeroPage(pNews[iNew], &iarg);
+          if (iNew < nNews) {
+            tdbBtreeZeroPage(pNews[iNew], &iarg);
+          }
         }
       }
     }
