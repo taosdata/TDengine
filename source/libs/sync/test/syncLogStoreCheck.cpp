@@ -26,7 +26,7 @@ SSyncFSM*  pFsm;
 SWal*      pWal;
 SSyncNode* pSyncNode;
 
-SSyncNode* syncNodeInit(const char *path) {
+SSyncNode* syncNodeInit(const char* path) {
   syncInfo.vgId = 1234;
   syncInfo.rpcClient = gSyncIO->clientRpc;
   syncInfo.FpSendMsg = syncIOSendMsg;
@@ -78,9 +78,7 @@ SSyncNode* syncNodeInit(const char *path) {
   return pSyncNode;
 }
 
-SSyncNode* logStoreCheck(const char *path) { return syncNodeInit(path); }
-
-
+SSyncNode* logStoreCheck(const char* path) { return syncNodeInit(path); }
 
 int main(int argc, char** argv) {
   // taosInitLog((char *)"syncTest.log", 100000, 10);

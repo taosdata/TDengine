@@ -63,7 +63,14 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
       if (pEntry->term == pSyncNode->pRaftStore->currentTerm) {
         // update commit index
         newCommitIndex = index;
+        sTrace("syncMaybeAdvanceCommitIndex maybe to update, newCommitIndex:%ld commit, pSyncNode->commitIndex:%ld",
+               newCommitIndex, pSyncNode->commitIndex);
         break;
+      } else {
+        sTrace(
+            "syncMaybeAdvanceCommitIndex can not commit due to term not equal, pEntry->term:%lu, "
+            "pSyncNode->pRaftStore->currentTerm:%lu",
+            pEntry->term, pSyncNode->pRaftStore->currentTerm);
       }
     }
   }
