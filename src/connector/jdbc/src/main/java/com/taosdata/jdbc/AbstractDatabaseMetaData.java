@@ -1,7 +1,10 @@
 package com.taosdata.jdbc;
 
+import com.taosdata.jdbc.utils.StringUtils;
+
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public abstract class AbstractDatabaseMetaData extends WrapperImpl implements DatabaseMetaData {
@@ -550,9 +553,9 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
     }
 
     protected ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types, Connection connection) throws SQLException {
-        if (catalog == null || catalog.isEmpty())
-            return null;
-        if (!isAvailableCatalog(connection, catalog))
+        if (StringUtils.isEmpty(catalog))
+            catalog = this.getConnection().getCatalog();
+        if (!StringUtils.isEmpty(catalog) && !isAvailableCatalog(connection, catalog))
             return new EmptyResultSet();
 
         DatabaseMetaDataResultSet resultSet = new DatabaseMetaDataResultSet();
@@ -561,8 +564,27 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
         // set row data
         List<TSDBResultSetRowData> rowDataList = new ArrayList<>();
         try (Statement stmt = connection.createStatement()) {
-            stmt.execute("use " + catalog);
-            try (ResultSet tables = stmt.executeQuery("show tables")) {
+            List<String> dbs = new ArrayList<>();
+            if (!StringUtils.isEmpty(catalog)) {
+                dbs.add(catalog);
+            } else {
+                ResultSet dbRs = stmt.executeQuery("show databases");
+                while (dbRs.next()) {
+                    dbs.add(dbRs.getString("name"));
+                }
+            }
+            if (dbs.isEmpty()) {
+                return new EmptyResultSet();
+            }
+            for (String db : dbs) {
+                stmt.execute("use " + db);
+                String sql = "show tables ";
+                String Ssql = "show stables ";
+                if (!StringUtils.isEmpty(tableNamePattern)) {
+                    sql = sql + "like '" + tableNamePattern + "'";
+                    Ssql = Ssql + "like '" + tableNamePattern + "'";
+                }
+                ResultSet tables = stmt.executeQuery(sql);
                 while (tables.next()) {
                     TSDBResultSetRowData rowData = new TSDBResultSetRowData(10);
                     rowData.setStringValue(1, catalog);                                     //TABLE_CAT
@@ -572,8 +594,7 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
                     rowData.setStringValue(5, "");                                   //REMARKS
                     rowDataList.add(rowData);
                 }
-            }
-            try (ResultSet stables = stmt.executeQuery("show stables")) {
+                ResultSet stables = stmt.executeQuery(Ssql);
                 while (stables.next()) {
                     TSDBResultSetRowData rowData = new TSDBResultSetRowData(10);
                     rowData.setStringValue(1, catalog);                                  //TABLE_CAT
