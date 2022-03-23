@@ -240,6 +240,7 @@ void transCtxCleanup(STransCtx* ctx) {
   }
 
   taosHashCleanup(ctx->args);
+  ctx->args = NULL;
 }
 
 void transCtxMerge(STransCtx* dst, STransCtx* src) {
