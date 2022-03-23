@@ -1172,6 +1172,8 @@ int32_t schHandleHbCallback(void *param, const SDataBuf *pMsg, int32_t code) {
     }
 
     // TODO
+    
+    SCH_JOB_DLOG("TID:0x%" PRIx64 " task status in server: %s", taskStatus->taskId, jobTaskStatusStr(taskStatus->status));
 
     schReleaseJob(taskStatus->refId);
   }
@@ -1309,7 +1311,7 @@ int32_t schMakeBrokenLinkVal(SSchJob *pJob, SSchTask *pTask, SRpcBrokenlinkVal *
 
   brokenVal->msgType = msgType;
   brokenVal->val = pMsgSendInfo;
-  brokenVal->len = sizeof(SMsgSendInfo);
+  brokenVal->clone = schCloneSMsgSendInfo;
   brokenVal->free = schFreeRpcCtxVal;
   
   return TSDB_CODE_SUCCESS;
@@ -1357,7 +1359,7 @@ int32_t schMakeQueryRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
   pMsgSendInfo->param = param;
   pMsgSendInfo->fp = fp;
 
-  SRpcCtxVal ctxVal = {.val = pMsgSendInfo, .len = sizeof(SMsgSendInfo), .free = schFreeRpcCtxVal};
+  SRpcCtxVal ctxVal = {.val = pMsgSendInfo, .clone = schCloneSMsgSendInfo, .free = schFreeRpcCtxVal};
   if (taosHashPut(pCtx->args, &msgType, sizeof(msgType), &ctxVal, sizeof(ctxVal))) {
     SCH_TASK_ELOG("taosHashPut msg %d to rpcCtx failed", msgType);
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -1414,7 +1416,7 @@ int32_t schMakeHbRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
   pMsgSendInfo->param = param;
   pMsgSendInfo->fp = fp;
 
-  SRpcCtxVal ctxVal = {.val = pMsgSendInfo, .len = sizeof(SMsgSendInfo), .free = schFreeRpcCtxVal};
+  SRpcCtxVal ctxVal = {.val = pMsgSendInfo, .clone = schCloneSMsgSendInfo, .free = schFreeRpcCtxVal};
   if (taosHashPut(pCtx->args, &msgType, sizeof(msgType), &ctxVal, sizeof(ctxVal))) {
     SCH_TASK_ELOG("taosHashPut msg %d to rpcCtx failed", msgType);
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -1486,26 +1488,27 @@ int32_t schCloneCallbackParam(SSchCallbackParamHeader *pSrc, SSchCallbackParamHe
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schCloneSMsgSendInfo(SMsgSendInfo *pSrc, SMsgSendInfo **pDst) {
+int32_t schCloneSMsgSendInfo(void *src, void **dst) {
+  SMsgSendInfo *pSrc = src;
   int32_t code = 0;
-  SMsgSendInfo *dst = malloc(sizeof(*pSrc));
-  if (NULL == dst) {
+  SMsgSendInfo *pDst = malloc(sizeof(*pSrc));
+  if (NULL == pDst) {
     qError("malloc SMsgSendInfo for rpcCtx failed, len:%d", (int32_t)sizeof(*pSrc));
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  memcpy(dst, pSrc, sizeof(*pSrc));
-  dst->param = NULL;
+  memcpy(pDst, pSrc, sizeof(*pSrc));
+  pDst->param = NULL;
 
-  SCH_ERR_JRET(schCloneCallbackParam(pSrc->param, (SSchCallbackParamHeader **)&dst->param));
+  SCH_ERR_JRET(schCloneCallbackParam(pSrc->param, (SSchCallbackParamHeader **)&pDst->param));
 
-  *pDst = dst;
+  *dst = pDst;
 
   return TSDB_CODE_SUCCESS;
   
 _return:
 
-  tfree(dst);
+  tfree(pDst);
   SCH_RET(code);
 }
 
@@ -1514,7 +1517,7 @@ int32_t schCloneHbRpcCtx(SRpcCtx *pSrc, SRpcCtx *pDst) {
   memcpy(&pDst->brokenVal, &pSrc->brokenVal, sizeof(pSrc->brokenVal));
   pDst->brokenVal.val = NULL;
   
-  SCH_ERR_RET(schCloneSMsgSendInfo(pSrc->brokenVal.val, (SMsgSendInfo **)&pDst->brokenVal.val));
+  SCH_ERR_RET(schCloneSMsgSendInfo(pSrc->brokenVal.val, &pDst->brokenVal.val));
 
   pDst->args = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
   if (NULL == pDst->args) {
@@ -1528,9 +1531,12 @@ int32_t schCloneHbRpcCtx(SRpcCtx *pSrc, SRpcCtx *pDst) {
     SRpcCtxVal *pVal = (SRpcCtxVal *)pIter;
     int32_t *msgType = taosHashGetKey(pIter, NULL);
 
-    SCH_ERR_JRET(schCloneSMsgSendInfo(pVal->val, (SMsgSendInfo **)&dst.val));
+    dst = *pVal;
+    dst.val = NULL;
     
-    if (taosHashPut(pDst->args, msgType, sizeof(*msgType), pVal, sizeof(*pVal))) {
+    SCH_ERR_JRET(schCloneSMsgSendInfo(pVal->val, &dst.val));
+    
+    if (taosHashPut(pDst->args, msgType, sizeof(*msgType), &dst, sizeof(dst))) {
       qError("taosHashPut msg %d to rpcCtx failed", *msgType);
       (*dst.free)(dst.val);
       SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -2047,7 +2053,7 @@ void schFreeJobImpl(void *job) {
   taosArrayDestroy(pJob->nodeList);
   
   tfree(pJob->resData);
-  tfree(pJob);
+  free(pJob);
 
   qDebug("QID:0x%" PRIx64 " job freed, refId:%" PRIx64 ", pointer:%p", queryId, refId, pJob);
 }

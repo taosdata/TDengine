@@ -241,6 +241,7 @@ int32_t schLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask);
 int32_t schFetchFromRemote(SSchJob *pJob);
 int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode);
 int32_t schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId);
+int32_t schCloneSMsgSendInfo(void *src, void **dst);
 
 
 #ifdef __cplusplus

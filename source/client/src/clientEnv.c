@@ -185,6 +185,10 @@ static void doDestroyRequest(void *p) {
   doFreeReqResultInfo(&pRequest->body.resInfo);
   qDestroyQueryPlan(pRequest->body.pDag);
 
+  if (pRequest->body.queryJob != 0) {
+    schedulerFreeJob(pRequest->body.queryJob);
+  }
+
   if (pRequest->body.showInfo.pArray != NULL) {
     taosArrayDestroy(pRequest->body.showInfo.pArray);
   }

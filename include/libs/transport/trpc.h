@@ -81,16 +81,16 @@ typedef struct SRpcInit {
 } SRpcInit;
 
 typedef struct {
-  void *  val;
-  int32_t len;
-  void (*free)(void *arg);
+  void     *val;
+  int32_t (*clone)(void *src, void **dst);
+  void    (*free)(void *arg);
 } SRpcCtxVal;
 
 typedef struct {
-  int32_t msgType;
-  void *  val;
-  int32_t len;
-  void (*free)(void *arg);
+  int32_t   msgType;
+  void     *val;
+  int32_t (*clone)(void *src, void **dst);
+  void    (*free)(void *arg);
 } SRpcBrokenlinkVal;
 
 typedef struct {

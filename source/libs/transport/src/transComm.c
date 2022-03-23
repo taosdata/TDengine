@@ -273,17 +273,17 @@ void* transCtxDumpVal(STransCtx* ctx, int32_t key) {
   if (cVal == NULL) {
     return NULL;
   }
-  char* ret = calloc(1, cVal->len);
-  memcpy(ret, (char*)cVal->val, cVal->len);
-  return (void*)ret;
+  void *ret = NULL;
+  (*cVal->clone)(cVal->val, &ret);
+  return ret;
 }
 void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
-  char* ret = calloc(1, ctx->brokenVal.len);
+  void *ret = NULL;
+  (*ctx->brokenVal.clone)(ctx->brokenVal.val, &ret);
 
-  memcpy(ret, (char*)(ctx->brokenVal.val), ctx->brokenVal.len);
   *msgType = ctx->brokenVal.msgType;
 
-  return (void*)ret;
+  return ret;
 }
 
 void transQueueInit(STransQueue* queue, void (*free)(void* arg)) {
