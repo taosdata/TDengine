@@ -167,8 +167,7 @@ In above example second line has one more column c6 with value "passit" compared
 **Error code**
 <br/>If users do not write data following corresponding protocol syntax, application will get TSDB_CODE_TSC_LINE_SYNTAX_ERROR error code, which indicates error is happened in input text. Other generic error codes returned by TDengine can also be obtained through taos_errstr API to get detailed error messages.
 
-**Future enhancement**
-<br/> Currently TDengine only provides clang API support for Schemaless. In future versions, APIs/connectors of more languages will be supported, e.g., Java/Go/Python/C# etc. From TDengine v2.3 and later versions, users can also use taosAdaptor to writing data via Schemaless through RESTful interface.
+<br/> Beside TDengine C/C++ Schemaless API, you can use the API of other official connectors as well, including Java/Go/Python/C#/Node.js/Rust. From TDengine v2.4 and later versions, users can also use taosAdaptor to writing data via Schemaless through RESTful interface.
 
 ## <a class="anchor" id="prometheus"></a> Data Writing via Prometheus via taosAdapter
 

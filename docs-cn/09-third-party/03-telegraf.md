@@ -1,8 +1,8 @@
 ---
-sidebar_label: Telegraf 直接写入
+sidebar_label: Telegraf
 ---
 
-# Telegraf 直接写入(通过 taosAdapter)
+# Telegraf 写入
 
 安装 Telegraf 请参考[官方文档](https://portal.influxdata.com/downloads/)。
 
