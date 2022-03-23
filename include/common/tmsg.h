@@ -108,6 +108,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_STREAMTABLES,
   TSDB_MGMT_TABLE_TP,
   TSDB_MGMT_TABLE_FUNC,
+  TSDB_MGMT_TABLE_INDEX,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -1930,8 +1931,9 @@ typedef struct {
   int8_t   version;       // for compatibility(default 0)
   int8_t   intervalUnit;  // MACRO: TIME_UNIT_XXX
   int8_t   slidingUnit;   // MACRO: TIME_UNIT_XXX
+  int8_t   timezoneInt;      // sma data expired if timezone changes.
   char     indexName[TSDB_INDEX_NAME_LEN];
-  char     timezone[TD_TIMEZONE_LEN];  // sma data expired if timezone changes.
+  char     timezone[TD_TIMEZONE_LEN];  
   int32_t  exprLen;
   int32_t  tagsFilterLen;
   int64_t  indexUid;
@@ -2038,8 +2040,8 @@ static FORCE_INLINE int32_t tEncodeTSma(void** buf, const STSma* pSma) {
   tlen += taosEncodeFixedI8(buf, pSma->version);
   tlen += taosEncodeFixedI8(buf, pSma->intervalUnit);
   tlen += taosEncodeFixedI8(buf, pSma->slidingUnit);
+  tlen += taosEncodeFixedI8(buf, pSma->timezoneInt);
   tlen += taosEncodeString(buf, pSma->indexName);
-  tlen += taosEncodeString(buf, pSma->timezone);
   tlen += taosEncodeFixedI32(buf, pSma->exprLen);
   tlen += taosEncodeFixedI32(buf, pSma->tagsFilterLen);
   tlen += taosEncodeFixedI64(buf, pSma->indexUid);
@@ -2073,8 +2075,8 @@ static FORCE_INLINE void* tDecodeTSma(void* buf, STSma* pSma) {
   buf = taosDecodeFixedI8(buf, &pSma->version);
   buf = taosDecodeFixedI8(buf, &pSma->intervalUnit);
   buf = taosDecodeFixedI8(buf, &pSma->slidingUnit);
+  buf = taosDecodeFixedI8(buf, &pSma->timezoneInt);
   buf = taosDecodeStringTo(buf, pSma->indexName);
-  buf = taosDecodeStringTo(buf, pSma->timezone);
   buf = taosDecodeFixedI32(buf, &pSma->exprLen);
   buf = taosDecodeFixedI32(buf, &pSma->tagsFilterLen);
   buf = taosDecodeFixedI64(buf, &pSma->indexUid);

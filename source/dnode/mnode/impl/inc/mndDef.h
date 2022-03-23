@@ -309,10 +309,12 @@ typedef struct {
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
-  char    stb[TSDB_DB_FNAME_LEN];
+  char    stb[TSDB_TABLE_FNAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
   int64_t createdTime;
   int64_t uid;
   int64_t stbUid;
+  int64_t dbUid;
   int8_t  intervalUnit;
   int8_t  slidingUnit;
   int8_t  timezone;

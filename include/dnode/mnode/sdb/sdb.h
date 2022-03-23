@@ -119,10 +119,11 @@ typedef enum {
   SDB_CONSUMER = 13,
   SDB_TOPIC = 14,
   SDB_VGROUP = 15,
-  SDB_STB = 16,
-  SDB_DB = 17,
-  SDB_FUNC = 18,
-  SDB_MAX = 19
+  SDB_SMA = 16,
+  SDB_STB = 17,
+  SDB_DB = 18,
+  SDB_FUNC = 19,
+  SDB_MAX = 20
 } ESdbType;
 
 typedef struct SSdb SSdb;

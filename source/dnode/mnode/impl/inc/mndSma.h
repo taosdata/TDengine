@@ -25,7 +25,7 @@ extern "C" {
 int32_t  mndInitSma(SMnode *pMnode);
 void     mndCleanupSma(SMnode *pMnode);
 SSmaObj *mndAcquireSma(SMnode *pMnode, char *smaName);
-void     mndReleaseSma(SMnode *pMnode, SStbObj *pStb);
+void     mndReleaseSma(SMnode *pMnode, SSmaObj *pSma);
 
 #ifdef __cplusplus
 }
