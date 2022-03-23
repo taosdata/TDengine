@@ -16,7 +16,7 @@
 #include "executor.h"
 #include "executorimpl.h"
 #include "planner.h"
-#include "tq.h"
+#include "vnode.h"
 
 static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, int32_t type, char* id) {
   ASSERT(pOperator != NULL);
@@ -52,9 +52,8 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, int32_t t
 
       SSDataBlock* pDataBlock = input;
       pInfo->pRes->info = pDataBlock->info;
-      for(int32_t i = 0; i < pInfo->pRes->info.numOfCols; ++i) {
-        pInfo->pRes->pDataBlock = pDataBlock->pDataBlock;
-      }
+      taosArrayClear(pInfo->pRes->pDataBlock);
+      taosArrayAddAll(pInfo->pRes->pDataBlock, pDataBlock->pDataBlock);
 
       // set current block valid.
       pInfo->blockValid = true;
@@ -121,7 +120,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, SArray* tableIdList, bool isA
 
   // traverse to the streamscan node to add this table id
   SOperatorInfo* pInfo = pTaskInfo->pRoot;
-  while(pInfo->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+  while (pInfo->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     pInfo = pInfo->pDownstream[0];
   }
 

@@ -471,8 +471,8 @@ TAOS_RES* tmq_create_stream(TAOS* taos, const char* streamName, const char* tbNa
   }
   sqlLen = strlen(sql);
 
-  if (strlen(streamName) >= TSDB_TABLE_NAME_LEN) {
-    tscError("stream name too long, max length:%d", TSDB_TABLE_NAME_LEN - 1);
+  if (strlen(tbName) >= TSDB_TABLE_NAME_LEN) {
+    tscError("output tb name too long, max length:%d", TSDB_TABLE_NAME_LEN - 1);
     terrno = TSDB_CODE_TSC_INVALID_INPUT;
     goto _return;
   }

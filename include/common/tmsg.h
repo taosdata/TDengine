@@ -1363,28 +1363,48 @@ typedef struct {
   int64_t  tuid;
 } SDDropTopicReq;
 
+typedef struct {
+  float    xFilesFactor;
+  int8_t   delayUnit;
+  int8_t   nFuncIds;
+  int32_t* pFuncIds;
+  int64_t  delay;
+} SRSmaParam;
+
 typedef struct SVCreateTbReq {
   int64_t  ver;  // use a general definition
   char*    dbFName;
   char*    name;
   uint32_t ttl;
   uint32_t keep;
-  uint8_t  type;
+  union {
+    uint8_t info;
+    struct {
+      uint8_t rollup : 1;  // 1 means rollup sma
+      uint8_t type : 7;
+    };
+  };
   union {
     struct {
-      tb_uid_t suid;
-      uint32_t nCols;
-      SSchema* pSchema;
-      uint32_t nTagCols;
-      SSchema* pTagSchema;
+      tb_uid_t    suid;
+      uint32_t    nCols;
+      SSchema*    pSchema;
+      uint32_t    nTagCols;
+      SSchema*    pTagSchema;
+      col_id_t    nBSmaCols;
+      col_id_t*   pBSmaCols;
+      SRSmaParam* pRSmaParam;
     } stbCfg;
     struct {
       tb_uid_t suid;
       SKVRow   pTag;
     } ctbCfg;
     struct {
-      uint32_t nCols;
-      SSchema* pSchema;
+      uint32_t    nCols;
+      SSchema*    pSchema;
+      col_id_t    nBSmaCols;
+      col_id_t*   pBSmaCols;
+      SRSmaParam* pRSmaParam;
     } ntbCfg;
   };
 } SVCreateTbReq, SVUpdateTbReq;
@@ -2294,20 +2314,22 @@ enum {
 
 typedef struct {
   void* inputHandle;
-  void* executor[4];
-} SStreamTaskParRunner;
+  void* executor;
+} SStreamRunner;
 
 typedef struct {
   int64_t streamId;
   int32_t taskId;
   int32_t level;
   int8_t  status;
-  int8_t  pipeEnd;
-  int8_t  parallel;
+  int8_t  pipeSource;
+  int8_t  pipeSink;
+  int8_t  numOfRunners;
+  int8_t  parallelizable;
   SEpSet  NextOpEp;
   char*   qmsg;
   // not applied to encoder and decoder
-  SStreamTaskParRunner runner;
+  SStreamRunner runner[8];
   // void*                executor;
   // void*   stateStore;
   //  storage handle
@@ -2339,7 +2361,7 @@ typedef struct {
 
 typedef struct {
   SStreamExecMsgHead head;
-  // TODO: other info needed by task
+  SArray*            data;  // SArray<SSDataBlock>
 } SStreamTaskExecReq;
 
 typedef struct {

@@ -70,6 +70,46 @@ void tqClose(STQ* pTq) {
 
 int tqPushMsg(STQ* pTq, void* msg, tmsg_t msgType, int64_t version) {
   if (msgType != TDMT_VND_SUBMIT) return 0;
+
+  void* pIter = NULL;
+
+  while (1) {
+    pIter = taosHashIterate(pTq->pStreamTasks, pIter);
+    if (pIter == NULL) break;
+    SStreamTask* pTask = (SStreamTask*)pIter;
+    if (!pTask->pipeSource) continue;
+
+    int32_t workerId = 0;
+    void*   exec = pTask->runner[workerId].executor;
+    qSetStreamInput(exec, msg, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+    SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
+    while (1) {
+      SSDataBlock* output;
+      uint64_t     ts;
+      if (qExecTask(exec, &output, &ts) < 0) {
+        ASSERT(false);
+      }
+      if (output == NULL) {
+        break;
+      }
+      taosArrayPush(pRes, output);
+    }
+    if (pTask->pipeSink) {
+      // write back
+    } else {
+      int32_t tlen = sizeof(SStreamExecMsgHead) + tEncodeDataBlocks(NULL, pRes);
+      void*   buf = rpcMallocCont(tlen);
+      if (buf == NULL) {
+        return -1;
+      }
+      void* abuf = POINTER_SHIFT(buf, sizeof(SStreamExecMsgHead));
+      tEncodeDataBlocks(abuf, pRes);
+      // serialize
+      // to next level
+    }
+  }
+
+#if 0
   void* pIter = taosHashIterate(pTq->tqPushMgr->pHash, NULL);
   while (pIter != NULL) {
     STqPusher* pusher = *(STqPusher**)pIter;
@@ -97,6 +137,7 @@ int tqPushMsg(STQ* pTq, void* msg, tmsg_t msgType, int64_t version) {
   // if handle waiting, launch query and response to consumer
   //
   // if no waiting handle, return
+#endif
   return 0;
 }
 
@@ -420,6 +461,21 @@ int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
   return 0;
 }
 
+int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int32_t parallel) {
+  ASSERT(parallel <= 8);
+  pTask->numOfRunners = parallel;
+  for (int32_t i = 0; i < parallel; i++) {
+    STqReadHandle* pReadHandle = tqInitSubmitMsgScanner(pTq->pVnodeMeta);
+    SReadHandle    handle = {
+           .reader = pReadHandle,
+           .meta = pTq->pVnodeMeta,
+    };
+    pTask->runner[i].inputHandle = pReadHandle;
+    pTask->runner[i].executor = qCreateStreamExecTaskInfo(pTask->qmsg, &handle);
+  }
+  return 0;
+}
+
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
   SStreamTask* pTask = malloc(sizeof(SStreamTask));
   if (pTask == NULL) {
@@ -430,12 +486,118 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
   tDecodeSStreamTask(&decoder, pTask);
   tCoderClear(&decoder);
 
+  tqExpandTask(pTq, pTask, 8);
   taosHashPut(pTq->pStreamTasks, &pTask->taskId, sizeof(int32_t), pTask, sizeof(SStreamTask));
 
   return 0;
 }
 
+static char* formatTimestamp(char* buf, int64_t val, int precision) {
+  time_t  tt;
+  int32_t ms = 0;
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    tt = (time_t)(val / 1000000000);
+    ms = val % 1000000000;
+  } else if (precision == TSDB_TIME_PRECISION_MICRO) {
+    tt = (time_t)(val / 1000000);
+    ms = val % 1000000;
+  } else {
+    tt = (time_t)(val / 1000);
+    ms = val % 1000;
+  }
+
+  /* comment out as it make testcases like select_with_tags.sim fail.
+    but in windows, this may cause the call to localtime crash if tt < 0,
+    need to find a better solution.
+    if (tt < 0) {
+      tt = 0;
+    }
+    */
+
+#ifdef WINDOWS
+  if (tt < 0) tt = 0;
+#endif
+  if (tt <= 0 && ms < 0) {
+    tt--;
+    if (precision == TSDB_TIME_PRECISION_NANO) {
+      ms += 1000000000;
+    } else if (precision == TSDB_TIME_PRECISION_MICRO) {
+      ms += 1000000;
+    } else {
+      ms += 1000;
+    }
+  }
+
+  struct tm* ptm = localtime(&tt);
+  size_t     pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", ptm);
+
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    sprintf(buf + pos, ".%09d", ms);
+  } else if (precision == TSDB_TIME_PRECISION_MICRO) {
+    sprintf(buf + pos, ".%06d", ms);
+  } else {
+    sprintf(buf + pos, ".%03d", ms);
+  }
+
+  return buf;
+}
+void tqDebugShowSSData(SArray* dataBlocks) {
+  char    pBuf[128];
+  int32_t sz = taosArrayGetSize(dataBlocks);
+  for (int32_t i = 0; i < sz; i++) {
+    SSDataBlock* pDataBlock = taosArrayGet(dataBlocks, i);
+    int32_t      colNum = pDataBlock->info.numOfCols;
+    int32_t      rows = pDataBlock->info.rows;
+    for (int32_t j = 0; j < rows; j++) {
+      printf("|");
+      for (int32_t k = 0; k < colNum; k++) {
+        SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
+        void*            var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
+        switch (pColInfoData->info.type) {
+          case TSDB_DATA_TYPE_TIMESTAMP:
+            formatTimestamp(pBuf, *(uint64_t*)var, TSDB_TIME_PRECISION_MILLI);
+            printf(" %25s |", pBuf);
+            break;
+          case TSDB_DATA_TYPE_INT:
+          case TSDB_DATA_TYPE_UINT:
+            printf(" %15u |", *(uint32_t*)var);
+            break;
+        }
+      }
+      printf("\n");
+    }
+  }
+}
+
 int32_t tqProcessTaskExec(STQ* pTq, SRpcMsg* msg) {
-  //
+  SStreamTaskExecReq* pReq = msg->pCont;
+
+  int32_t taskId = pReq->head.streamTaskId;
+  int32_t workerType = pReq->head.workerType;
+
+  SStreamTask* pTask = taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
+  // assume worker id is 1
+  int32_t workerId = 1;
+  void*   exec = pTask->runner[workerId].executor;
+  int32_t sz = taosArrayGetSize(pReq->data);
+  printf("input data:\n");
+  tqDebugShowSSData(pReq->data);
+  SArray* pRes = taosArrayInit(0, sizeof(void*));
+  for (int32_t i = 0; i < sz; i++) {
+    SSDataBlock* input = taosArrayGet(pReq->data, i);
+    SSDataBlock* output;
+    uint64_t     ts;
+    qSetStreamInput(exec, input, STREAM_DATA_TYPE_SSDATA_BLOCK);
+    if (qExecTask(exec, &output, &ts) < 0) {
+      ASSERT(0);
+    }
+    if (output == NULL) {
+      break;
+    }
+    taosArrayPush(pRes, &output);
+  }
+  printf("output data:\n");
+  tqDebugShowSSData(pRes);
+
   return 0;
 }
