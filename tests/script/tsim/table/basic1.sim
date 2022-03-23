@@ -186,9 +186,8 @@ if $rows != 21 then
   return -1
 endi
 
-system sh/exec.sh -n dnode1 -s stop -x SIGINT
-
-system sh/exec.sh -n dnode1 -s start
+#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+#system sh/exec.sh -n dnode1 -s start
 
 sleep 2000
 print =============== query data
