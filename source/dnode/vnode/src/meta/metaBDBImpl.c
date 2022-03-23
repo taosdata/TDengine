@@ -507,7 +507,7 @@ static int metaEncodeTbInfo(void **buf, STbCfg *pTbCfg) {
   tsize += taosEncodeString(buf, pTbCfg->name);
   tsize += taosEncodeFixedU32(buf, pTbCfg->ttl);
   tsize += taosEncodeFixedU32(buf, pTbCfg->keep);
-  tsize += taosEncodeFixedU8(buf, pTbCfg->type);
+  tsize += taosEncodeFixedU8(buf, pTbCfg->info);
 
   if (pTbCfg->type == META_SUPER_TABLE) {
     SSchemaWrapper sw = {.nCols = pTbCfg->stbCfg.nTagCols, .pSchema = pTbCfg->stbCfg.pTagSchema};
@@ -527,7 +527,7 @@ static void *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg) {
   buf = taosDecodeString(buf, &(pTbCfg->name));
   buf = taosDecodeFixedU32(buf, &(pTbCfg->ttl));
   buf = taosDecodeFixedU32(buf, &(pTbCfg->keep));
-  buf = taosDecodeFixedU8(buf, &(pTbCfg->type));
+  buf = taosDecodeFixedU8(buf, &(pTbCfg->info));
 
   if (pTbCfg->type == META_SUPER_TABLE) {
     SSchemaWrapper sw;
