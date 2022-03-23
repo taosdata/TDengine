@@ -12,11 +12,11 @@ print(jdbc)
 print("***************************taos-jdbcDriver support RJDBC sample begine*************************************")
 #JNI
 # Get JBDC-JNI connection
-#drv<-JDBC("com.taosdata.jdbc.TSDBDriver","~/software/jars/taos-jdbcdriver-2.0.37-dist.jar", identifier.quote="\"")
 drv<-JDBC("com.taosdata.jdbc.TSDBDriver",jdbc, identifier.quote="\"")
 conn<-dbConnect(drv,"jdbc:TAOS://127.0.0.1:6030/?user=root&password=taosdata","root","taosdata")
+
 #Restful
-#drv<-JDBC("com.taosdata.jdbc.TSDBDriver","D:/taos-jdbcdriver-2.0.37-dist.jar", identifier.quote="\"")
+#drv<-JDBC("com.taosdata.jdbc.TSDBDriver",jdbc, identifier.quote="\"")
 #conn<-dbConnect(drv,"jdbc:TAOS-RS://127.0.0.1:6041/test?user=root&password=taosdata","root","taosdata")
 
 # Get connection information
@@ -39,10 +39,10 @@ print(table1)
 # Functional support for RJDBC
 
 # List all tables
-# dbListTables(conn)
+dbListTables(conn)
 
 # Is there table "test"
-# dbExistsTable(conn,"test")
+dbExistsTable(conn,"test")
 
 # Connect summary information
 summary(conn)
@@ -55,7 +55,7 @@ dbReadTable(conn,"test_s01")
 # Execute any non-query SQL statements
 dbSendUpdate(conn, "create table t1(a timestamp, b int, c nchar(12))");
 sampleData=data.frame(ts=c('2022-03-22 00:00:00.000','2022-03-22 10:00:00.000'),id=c(1,2),u=c('涛思数据','TDengine'))
-#dbWriteTable(conn, "t1", sampleData, overwrite=FALSE, append=TRUE)
+dbWriteTable(conn, "t1", sampleData, overwrite=FALSE, append=TRUE)
 
 # Delete table t1
 dbRemoveTable(conn,"t1")

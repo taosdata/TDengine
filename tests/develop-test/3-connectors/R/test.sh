@@ -20,13 +20,13 @@ ls -al
 
 cd ../../
 WKC=`pwd`
-echo "WKC:${WKC}"
+#echo "WKC:${WKC}"
 
 JDBC_PATH=${WKC}'/src/connector/jdbc/'
 CASE_PATH=${WKC}'/tests/examples/R/'
 cd ${JDBC_PATH}
-echo "JDBC_PATH:${JDBC_PATH}" 
-echo "CASE_PATH:${CASE_PATH}"
+#echo "JDBC_PATH:${JDBC_PATH}" 
+#echo "CASE_PATH:${CASE_PATH}"
 
 mvn clean package -Dmaven.test.skip=true
 
@@ -36,8 +36,6 @@ JDBC_PATH=${JDBC_PATH}target
 #echo ${jdbc}
 #echo ${jdbc_path}
 cd ${WKC}
-pwd 
-ls -al
-ls -al ${CASE_PATH}
+
 # remove 
 Rscript ${CASE_PATH}rjdbc.sample.R ${JDBC_PATH} ${JDBC} 
