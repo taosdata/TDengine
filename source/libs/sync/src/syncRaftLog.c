@@ -165,6 +165,34 @@ char* logStore2Str(SSyncLogStore* pLogStore) {
   return serialized;
 }
 
+cJSON* logStoreSimple2Json(SSyncLogStore* pLogStore) {
+  char               u64buf[128];
+  SSyncLogStoreData* pData = (SSyncLogStoreData*)pLogStore->data;
+  cJSON*             pRoot = cJSON_CreateObject();
+
+  if (pData != NULL && pData->pWal != NULL) {
+    snprintf(u64buf, sizeof(u64buf), "%p", pData->pSyncNode);
+    cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%p", pData->pWal);
+    cJSON_AddStringToObject(pRoot, "pWal", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%ld", logStoreLastIndex(pLogStore));
+    cJSON_AddStringToObject(pRoot, "LastIndex", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%lu", logStoreLastTerm(pLogStore));
+    cJSON_AddStringToObject(pRoot, "LastTerm", u64buf);
+  }
+
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SSyncLogStoreSimple", pRoot);
+  return pJson;
+}
+
+char* logStoreSimple2Str(SSyncLogStore* pLogStore) {
+  cJSON* pJson = logStoreSimple2Json(pLogStore);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
 // for debug -----------------
 void logStorePrint(SSyncLogStore* pLogStore) {
   char* serialized = logStore2Str(pLogStore);
@@ -189,5 +217,32 @@ void logStoreLog(SSyncLogStore* pLogStore) {
 void logStoreLog2(char* s, SSyncLogStore* pLogStore) {
   char* serialized = logStore2Str(pLogStore);
   sTrace("logStorePrint | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  free(serialized);
+}
+
+// for debug -----------------
+void logStoreSimplePrint(SSyncLogStore* pLogStore) {
+  char* serialized = logStoreSimple2Str(pLogStore);
+  printf("logStoreSimplePrint | len:%lu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void logStoreSimplePrint2(char* s, SSyncLogStore* pLogStore) {
+  char* serialized = logStoreSimple2Str(pLogStore);
+  printf("logStoreSimplePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  free(serialized);
+}
+
+void logStoreSimpleLog(SSyncLogStore* pLogStore) {
+  char* serialized = logStoreSimple2Str(pLogStore);
+  sTrace("logStoreSimpleLog | len:%lu | %s", strlen(serialized), serialized);
+  free(serialized);
+}
+
+void logStoreSimpleLog2(char* s, SSyncLogStore* pLogStore) {
+  char* serialized = logStoreSimple2Str(pLogStore);
+  sTrace("logStoreSimpleLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
   free(serialized);
 }
