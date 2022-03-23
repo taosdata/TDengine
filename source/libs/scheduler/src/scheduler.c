@@ -1143,13 +1143,12 @@ int32_t schHandleHbCallback(void *param, const SDataBuf *pMsg, int32_t code) {
   }
 
   SSchedulerHbRsp rsp = {0};
-
-  SSchHbCallbackParam *pParam = (SSchHbCallbackParam *)param;
-
   if (tDeserializeSSchedulerHbRsp(pMsg->pData, pMsg->len, &rsp)) {
     qError("invalid hb rsp msg, size:%d", pMsg->len);
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
+
+  SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
 
   SSchTrans trans = {0};
   trans.transInst = pParam->transport;
