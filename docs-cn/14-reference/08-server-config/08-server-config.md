@@ -59,7 +59,7 @@ taosd -C
 | TCP  | 6042      | Arbitrator 的服务端口。             | 随 Arbitrator 启动参数设置变化。                                                                                                   |
 | TCP  | 6043      | TaosKeeper 监控服务端口。           | 随 TaosKeeper 启动参数设置变化。                                                                                                   |
 | TCP  | 6044      | 支持 StatsD 的数据接入端口。        | 随 taosAdapter 启动参数设置变化（2.3.0.1+以上版本）。                                                                              |
-| TCP  | 6045      | 支持 collectd 数据接入端口。        | 随 taosAdapter 启动参数设置变化（2.3.0.1+以上版本）。                                                                              |
+| UDP  | 6045      | 支持 collectd 数据接入端口。        | 随 taosAdapter 启动参数设置变化（2.3.0.1+以上版本）。                                                                              |
 | TCP  | 6060      | 企业版内 Monitor 服务的网络端口。   |                                                                                                                                    |
 | UDP  | 6030-6034 | 客户端与服务端之间通讯。            | 随 serverPort 端口变化。                                                                                                           |
 | UDP  | 6035-6039 | 多节点集群的节点间通讯。            | 随 serverPort 端口变化。
