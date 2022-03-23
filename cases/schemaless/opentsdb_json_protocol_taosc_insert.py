@@ -1031,12 +1031,45 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
 
     def desc(self) -> str:
         case_description = '''
-            ms_us_ns_db_check <jayden>: [TD-13419] : check db ms/us/ns precision;\n
-            h_m_s_check <jayden>: [TD-13419] : check ts second-level >= 60;\n
-            human_date_check <jayden>: [TD-13419] : human date check;\n
-            now_check <jayden>: [TD-13419] : now check;\n
-            epoch_check <jayden>: [TD-13419] : epoch check;\n
-            error_check <jayden>: [TD-13419] : erro check;
+            init_check()
+            symbols_check()
+            ts_check()
+            max_col_tag_check()
+            now_check()
+            date_format_check()
+            illegal_ts_check()
+            tag_value_length_check()
+            col_value_length_check()
+            tag_col_illegal_value_check()
+            tag_col_binary_nchar_length_increase_check()
+            tag_col_binary_max_length_check()
+            tag_col_nchar_max_length_check()
+            batch_insert_check()
+            multi_insert_check(10, )
+            multi_cols_insert_check()
+            blank_col_insert_check()
+            blank_tag_insert_check()
+            multi_field_check()
+            spell_check()
+            point_trans_check()
+            stb_insert_multi_thread_check()
+            tag_name_length_check()
+            bool_check()
+            stb_name_check()
+            batch_error_insert_check()
+            chinese_check()
+            tbname_tags_cols_name_check()
+            s_stb_s_tb_d_data_insert_multi_thread_check()
+            s_stb_s_tb_d_data_at_insert_multi_thread_check()
+            s_stb_stb_d_data_mt_insert_multi_thread_check()
+            s_stb_d_tb_d_data_insert_multi_thread_check()
+            s_stb_d_tb_d_data_mt_insert_multi_thread_check()
+            s_stb_d_tb_d_data_at_insert_multi_thread_check()
+            s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
+            s_stb_s_tb_d_data_d_ts_mt_insert_multi_thread_check()
+            s_stb_s_tb_d_data_d_ts_at_insert_multi_thread_check()
+            s_stb_d_tb_d_data_d_ts_insert_multi_thread_check()
+            s_stb_d_tb_d_data_d_ts_mt_insert_multi_thread_check()
         '''
         return case_description
 

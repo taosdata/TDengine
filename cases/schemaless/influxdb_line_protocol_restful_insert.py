@@ -23,7 +23,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         self.dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdCom.createDb(dbname=self.dbname, precision="us", api_type="restful")
 
-    def initCheckCase(self):
+    def init_check(self):
         """
         normal tags and cols, one for every elm
         """
@@ -31,7 +31,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         input_sql, stb_name = self.tdCom.gen_full_type_sql()
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
 
-    def boolTypeCheckCase(self):
+    def bool_check(self):
         """
         check all normal type
         """
@@ -41,7 +41,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
             input_sql, stb_name = self.tdCom.gen_full_type_sql(c0=t_type, t0=t_type)
             self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
 
-    def symbolsCheckCase(self):
+    def symbols_check(self):
         """
             check symbols = `~!@#$%^&*()_-+={[}]\|:;'\",<.>/?
         """
@@ -50,12 +50,12 @@ class TestInfluxdbLineRestfulInsert(TDCase):
             binary_symbols = '\"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"\'\'"\"'
         '''
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
-        binary_symbols = '\"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"\"'
+        binary_symbols = '"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"'
         nchar_symbols = f'L{binary_symbols}'
         input_sql, stb_name = self.tdCom.gen_full_type_sql(c7=binary_symbols, c8=nchar_symbols, t7=binary_symbols, t8=nchar_symbols)
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
 
-    def iuCheckCase(self):
+    def iu_check(self):
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         input_sql = f'{self.tdCom.get_long_name(length=10, mode="letters")},t0=127 c1=9223372036854775807i,c2=1u 0'
         stb_name = input_sql.split(",")[0]
@@ -65,7 +65,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         self.tdSql.checkEqual(self.tdRest.resp["data"][1][1], "BIGINT")
         self.tdSql.checkEqual(self.tdRest.resp["data"][2][1], "BIGINT UNSIGNED")
 
-    def idSeqCheckCase(self):
+    def id_seq_check(self):
         """
         check id.index in tags
         eg: t0=**,id=**,t1=**
@@ -74,7 +74,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         input_sql, stb_name = self.tdCom.gen_full_type_sql(id_change_tag=True)
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
 
-    def idLetterCheckCase(self):
+    def id_letter_check(self):
         """
         check id param
         eg: id and ID
@@ -87,7 +87,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         input_sql, stb_name = self.tdCom.gen_full_type_sql(id_change_tag=True, id_upper_tag=True)
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
 
-    def noIdCheckCase(self):
+    def no_id_check(self):
         """
         id not exist
         """
@@ -99,9 +99,9 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         if len(res_row_list[0][0]) > 0:
             self.tdSql.checkEqual(res_row_list, res_row_list)
         else:
-            self.tdSql.checkEqual(res_row_list, "please check noIdCheckCase")
+            self.tdSql.checkEqual(res_row_list, "please check no_id_check")
 
-    def maxColTagCheckCase(self):
+    def max_col_tag_check(self):
         """
         max tag count is 128
         max col count is 4096
@@ -115,7 +115,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
             self.tdSql.checkEqual(res.status_code, 500)
             self.tdSql.checkIn("Table does not exist", res.text)
 
-    def stbTbNameCheckCase(self):
+    def stb_name_check(self):
         """
         test illegal id name
         mix "~!@#$¥%^&*()-+={}|[]、「」【】:;《》<>?"
@@ -128,7 +128,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
             self.tdCom.check_res(input_sql, f'`{stb_name}`', dbname=self.dbname)
             self.tdRest.restApiPost(f"drop table if exists test.`{stb_name}`")
 
-    def idStartWithNumCheckCase(self):
+    def id_start_with_num_check(self):
         """
         id is start with num
         """
@@ -136,7 +136,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name="1aaabbb")
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
 
-    def nowTsCheckCase(self):
+    def now_check(self):
         """
         check now unsupported
         """
@@ -146,7 +146,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         self.tdSql.checkEqual(res.status_code, 500)
         self.tdSql.checkIn("Invalid combination of client/service time", res.text)
 
-    def dateFormatTsCheckCase(self):
+    def date_format_check(self):
         """
         check date format ts unsupported
         """
@@ -156,7 +156,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         self.tdSql.checkEqual(res.status_code, 500)
         self.tdSql.checkIn("Invalid combination of client/service time", res.text)
 
-    def illegalTsCheckCase(self):
+    def illegal_ts_check(self):
         """
         check ts format like 16260068336390us19
         """
@@ -166,7 +166,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         self.tdSql.checkEqual(res.status_code, 500)
         self.tdSql.checkIn("Invalid combination of client/service time", res.text)
 
-    def tbnameCheckCase(self):
+    def tbname_check(self):
         """
         check length 192
         check upper tbname
@@ -196,7 +196,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
         self.tdRest.restApiPost(f'drop table {self.dbname}.`Abcdffgg`')
 
-    def tagValueLengthCheckCase(self):
+    def tag_value_length_check(self):
         """
         check full type tag value limit
         """
@@ -211,7 +211,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         self.tdSql.checkEqual(res.status_code, 500)
         self.tdSql.checkIn("Invalid operation", res.text)
 
-    def colValueLengthCheckCase(self):
+    def col_value_length_check(self):
         """
         check full type col value limit
         """
@@ -286,7 +286,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         self.tdSql.checkEqual(res.status_code, 500)
         self.tdSql.checkIn("Invalid operation", res.text)
 
-    def tagColIllegalValueCheckCase(self):
+    def tag_col_illegal_value_check(self):
 
         """
         test illegal tag col value
@@ -317,8 +317,8 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         stb_name = self.tdCom.get_long_name(7, "letters")
         input_sql1 = f'{stb_name}_1,t0=t c0=f,c1="abc aaa" 1626006833639000000'
         input_sql2 = f'{stb_name}_2,t0=t c0=f,c1=L"abc aaa" 1626006833639000000'
-        input_sql3 = f'{stb_name}_3,t0=t,t1="abc aaa" c0=f 1626006833639000000'
-        input_sql4 = f'{stb_name}_4,t0=t,t1=L"abc aaa" c0=f 1626006833639000000'
+        input_sql3 = f'{stb_name}_3,t0=t,t1="abc\ aaa" c0=f 1626006833639000000'
+        input_sql4 = f'{stb_name}_4,t0=t,t1=L"abc\ aaa" c0=f 1626006833639000000'
         for input_sql in [input_sql1, input_sql2, input_sql3, input_sql4]:
             res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 204)
@@ -332,7 +332,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
             self.tdCom.check_res(input_sql1, f'{stb_name}_5', dbname=self.dbname)
             self.tdCom.check_res(input_sql2, f'{stb_name}_6', dbname=self.dbname)
 
-    def duplicateIdTagColInsertCheckCase(self):
+    def duplicate_id_tag_col_insert_Check(self):
         """
         check duplicate Id Tag Col
         """
@@ -355,19 +355,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         self.tdSql.checkIn("Syntax error in Line", res.text)
 
     ##### stb exist #####
-    def noIdStbExistCheckCase(self):
-        """
-        case no id when stb exist
-        """
-        self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
-        input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name="sub_table_0123456", t0="f", c0="f")
-        self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
-        input_sql, stb_name = self.tdCom.gen_full_type_sql(stb_name=stb_name, id_noexist_tag=True, t0="f", c0="f")
-        self.tdCom.check_res(input_sql, stb_name, condition='where tbname like "t_%"', dbname=self.dbname)
-        self.tdRest.request(f"select * from {self.dbname}.{stb_name}")
-        self.tdSql.checkEqual(self.tdRest.resp["rows"], 2)
-
-    def duplicateInsertExistCheckCase(self):
+    def duplicate_insert_exist_check(self):
         """
         check duplicate insert when stb exist
         """
@@ -377,7 +365,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
 
-    def tagColBinaryNcharLengthCheckCase(self):
+    def tag_col_binary_nchar_length_increase_check(self):
         """
         check length increase
         """
@@ -388,57 +376,8 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         input_sql, stb_name = self.tdCom.gen_full_type_sql(stb_name=stb_name, tb_name=tb_name, t7="\"binaryTagValuebinaryTagValue\"", t8="L\"ncharTagValuencharTagValue\"", c7="\"binaryTagValuebinaryTagValue\"", c8="L\"ncharTagValuencharTagValue\"")
         self.tdCom.check_res(input_sql, stb_name, condition=f'where t7=\'"binaryTagValuebinaryTagValue"\'', dbname=self.dbname)
 
-    def tagColAddDupIDCheckCase(self):
-        """
-        check column and tag count add, stb and tb duplicate
-        * tag: alter table ...
-        * col: when update==0 and ts is same, unchange
-        * so this case tag&&value will be added, 
-        * col is added without value when update==0
-        * col is added with value when update==1
-        """
-        self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
-        tb_name = self.tdCom.get_long_name(7, "letters")
-        for db_update_tag in [0, 1]:
-            if db_update_tag == 1 :
-                self.tdCom.createDb("test_update", db_update_tag=db_update_tag, api_type="restful")
-            input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, t0="t", c0="t")
-            self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
-            input_sql, stb_name = self.tdCom.gen_full_type_sql(stb_name=stb_name, tb_name=tb_name, t0="t", c0="f", ct_add_tag=True)
-            if db_update_tag == 1 :
-                self.tdCom.check_res(input_sql, stb_name, condition=f'where tbname like "{tb_name}"', none_check_tag=True)
-                self.tdRest.request(f'select * from {self.dbname}.{stb_name} where tbname like "{tb_name}"')
-                self.tdSql.checkEqual(self.tdRest.resp["data"][0][11], "ncharColValue")
-                self.tdSql.checkEqual(self.tdRest.resp["data"][0][12], True)
-                self.tdSql.checkEqual(self.tdRest.resp["data"][0][22], None)
-                self.tdSql.checkEqual(self.tdRest.resp["data"][0][23], None)
-            else:
-                self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
-                self.tdRest.request(f'select * from {self.dbname}.{stb_name} where tbname like "{tb_name}"')
-                self.tdSql.checkEqual(self.tdRest.resp["data"][0][1], True)
-                self.tdSql.checkEqual(self.tdRest.resp["data"][0][11], None)
-                self.tdSql.checkEqual(self.tdRest.resp["data"][0][12], None)
-                self.tdSql.checkEqual(self.tdRest.resp["data"][0][22], None)
-                self.tdSql.checkEqual(self.tdRest.resp["data"][0][23], None)
-            self.tdCom.createDb(dbname=self.dbname, precision="us", api_type="restful")
-
-    def tagColAddCheckCase(self):
-        """
-        check column and tag count add
-        """
-        self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
-        tb_name = self.tdCom.get_long_name(7, "letters")
-        input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, t0="f", c0="f")
-        self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
-        tb_name_1 = self.tdCom.get_long_name(7, "letters")
-        input_sql, stb_name = self.tdCom.gen_full_type_sql(stb_name=stb_name, tb_name=tb_name_1, t0="f", c0="f", ct_add_tag=True)
-        self.tdCom.check_res(input_sql, stb_name, condition=f'where id = "{tb_name_1}"', dbname=self.dbname)
-        res_row_list = self.tdCom.restful_res_handle(f"select c10,c11,t10,t11 from {self.dbname}.{tb_name}", stb_name, dbname=self.dbname)[0]
-        self.tdSql.checkEqual(res_row_list[0], ['None', 'None', 'None', 'None'])
-        self.tdCom.check_res(input_sql, stb_name, condition=f'where tbname like "{tb_name}"', none_check_tag=True)
-
     # * tag binary max is 16384, col+ts binary max  49151
-    def tagColBinaryMaxLengthCheckCase(self):
+    def tag_col_binary_max_length_check(self):
         """
             every binary and nchar must be length+2
         """
@@ -464,7 +403,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         self.tdSql.checkEqual(self.tdRest.resp["rows"], 2)
 
     # * tag nchar max is 16374/4, col+ts nchar max  49151
-    def tagColNcharMaxLengthCheckCase(self):
+    def tag_col_nchar_max_length_check(self):
         """
         check nchar length limit
         """
@@ -499,7 +438,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         self.tdRest.request(f"select * from {self.dbname}.{stb_name}")
         self.tdSql.checkEqual(self.tdRest.resp["rows"], 3)
 
-    def batchInsertCheckCase(self):
+    def batch_insert_check(self):
         """
         test batch insert
         """
@@ -514,7 +453,7 @@ st123456,t1=4i64,t2=5f64,t3=\"t4\" c1=3i64,c3=L\"passitagain\",c2=true,c4=5f64 1
 {stb_name},t2=5f64,t3=L\"ste2\" c3=\"iamszhou\",c4=false 1626056811843316532\n\
 {stb_name},t2=5f64,t3=L\"ste2\" c3=\"iamszhou\",c4=false,c5=32i8,c6=64i16,c7=32i32,c8=88.88f32 1626056812843316532\n\
 st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64,c6=7u64 1626006933640000000\n\
-st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64   c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64   1626006933641000000'
+st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641000000'
         res = self.tdRest.schemalessApiPost(sql=lines, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 204)
         self.tdRest.request(f'show {self.dbname}.stables')
@@ -524,7 +463,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64   c1=3i64,c3=L\"passitagin_stf\",c2=f
         self.tdRest.request(f'select * from {self.dbname}.st123456')
         self.tdSql.checkEqual(self.tdRest.resp["rows"], 5)
 
-    def multiInsertCheckCase(self, count):
+    def multi_insert_check(self, count):
         """
         test multi insert
         """
@@ -540,7 +479,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64   c1=3i64,c3=L\"passitagin_stf\",c2=f
         self.tdRest.request(f'show {self.dbname}.tables')
         self.tdSql.checkEqual(self.tdRest.resp["rows"], count)
 
-    def batchErrorInsertCheckCase(self):
+    def batch_error_insert_check(self):
         """
         test batch error insert
         """
@@ -552,7 +491,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64   c1=3i64,c3=L\"passitagin_stf\",c2=f
         self.tdSql.checkEqual(res.status_code, 500)
         self.tdSql.checkIn("Invalid combination of client/service time", res.text)
 
-    def multiColsInsertCheckCase(self):
+    def multi_cols_insert_check(self):
         """
         test multi cols insert
         """
@@ -562,7 +501,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64   c1=3i64,c3=L\"passitagin_stf\",c2=f
         self.tdSql.checkEqual(res.status_code, 500)
         self.tdSql.checkIn("Invalid combination of client/service time", res.text)
 
-    def multiTagsInsertCheckCase(self):
+    def multi_tags_insert_check(self):
         """
         test multi tags insert
         """
@@ -572,7 +511,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64   c1=3i64,c3=L\"passitagin_stf\",c2=f
         self.tdSql.checkEqual(res.status_code, 500)
         self.tdSql.checkIn("Invalid combination of client/service time", res.text)
 
-    def blankColInsertCheckCase(self):
+    def blank_col_insert_check(self):
         """
         test blank col insert
         """
@@ -582,7 +521,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64   c1=3i64,c3=L\"passitagin_stf\",c2=f
         self.tdSql.checkEqual(res.status_code, 500)
         self.tdSql.checkIn("internal error", res.text)
 
-    def blankTagInsertCheckCase(self):
+    def blank_tag_insert_check(self):
         """
         test blank tag insert
         """
@@ -592,7 +531,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64   c1=3i64,c3=L\"passitagin_stf\",c2=f
         self.tdRest.request(f'select * from {self.dbname}.{stb_name}')
         self.tdSql.checkEqual(self.tdRest.resp["rows"], 1)
 
-    def chineseCheckCase(self):
+    def chinese_check(self):
         """
         check nchar ---> chinese
         """
@@ -600,54 +539,72 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64   c1=3i64,c3=L\"passitagin_stf\",c2=f
         input_sql, stb_name = self.tdCom.gen_full_type_sql(chinese_tag=True)
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
 
-
-
     def run(self):
-        self.initCheckCase()
-        self.boolTypeCheckCase()
-        self.symbolsCheckCase()
-        self.iuCheckCase()
-        self.idSeqCheckCase()
-        self.idLetterCheckCase()
-        self.noIdCheckCase()
-        self.maxColTagCheckCase()
-        self.stbTbNameCheckCase()
-        self.idStartWithNumCheckCase()
-        self.nowTsCheckCase()
-        self.dateFormatTsCheckCase()
-        self.illegalTsCheckCase()
-        self.tbnameCheckCase()
-        self.tagValueLengthCheckCase()
-        self.colValueLengthCheckCase()
-        self.tagColIllegalValueCheckCase()
-        self.duplicateIdTagColInsertCheckCase()
-        # self.noIdStbExistCheckCase()
-        self.duplicateInsertExistCheckCase()
-        self.tagColBinaryNcharLengthCheckCase()
-        # self.tagColAddDupIDCheckCase()
-        # self.tagColAddCheckCase()
-        self.tagColBinaryMaxLengthCheckCase()
-        self.tagColNcharMaxLengthCheckCase()
-        self.batchInsertCheckCase()
-        self.multiInsertCheckCase(100)
-        self.batchErrorInsertCheckCase()
-        self.multiColsInsertCheckCase()
-        self.multiTagsInsertCheckCase()
-        self.blankColInsertCheckCase()
-        self.blankTagInsertCheckCase()
-        self.chineseCheckCase()
+        self.init_check()
+        self.bool_check()
+        self.symbols_check()
+        self.iu_check()
+        self.id_seq_check()
+        self.id_letter_check()
+        self.no_id_check()
+        self.max_col_tag_check()
+        self.stb_name_check()
+        self.id_start_with_num_check()
+        self.now_check()
+        self.date_format_check()
+        self.illegal_ts_check()
+        self.tbname_check()
+        self.tag_value_length_check()
+        self.col_value_length_check()
+        self.tag_col_illegal_value_check()
+        self.duplicate_id_tag_col_insert_Check()
+        self.duplicate_insert_exist_check()
+        self.tag_col_binary_nchar_length_increase_check()
+        self.tag_col_binary_max_length_check()
+        self.tag_col_nchar_max_length_check()
+        self.batch_insert_check()
+        self.multi_insert_check(100)
+        self.batch_error_insert_check()
+        self.multi_cols_insert_check()
+        self.multi_tags_insert_check()
+        self.blank_col_insert_check()
+        self.blank_tag_insert_check()
+        self.chinese_check()
 
     def cleanup(self):
         pass
 
     def desc(self) -> str:
         case_description = '''
-            ms_us_ns_db_check <jayden>: [TD-13419] : check db ms/us/ns precision;\n
-            h_m_s_check <jayden>: [TD-13419] : check ts second-level >= 60;\n
-            human_date_check <jayden>: [TD-13419] : human date check;\n
-            now_check <jayden>: [TD-13419] : now check;\n
-            epoch_check <jayden>: [TD-13419] : epoch check;\n
-            error_check <jayden>: [TD-13419] : erro check;
+            init_check()
+            bool_check()
+            symbols_check()
+            iu_check()
+            id_seq_check()
+            id_letter_check()
+            no_id_check()
+            max_col_tag_check()
+            stb_name_check()
+            id_start_with_num_check()
+            now_check()
+            date_format_check()
+            illegal_ts_check()
+            tbname_check()
+            tag_value_length_check()
+            col_value_length_check()
+            tag_col_illegal_value_check()
+            duplicate_id_tag_col_insert_Check()
+            duplicate_insert_exist_check()
+            tag_col_binary_nchar_length_increase_check()
+            tag_col_binary_max_length_check()
+            tag_col_nchar_max_length_check()
+            batch_insert_check()
+            multi_insert_check(100)
+            batch_error_insert_check()
+            multi_cols_insert_check()
+            multi_tags_insert_check()
+            blank_col_insert_check()
+            blank_tag_insert_check()
         '''
         return case_description
 
