@@ -199,15 +199,23 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
         return -1;
       }
 
-      if (metaDropTSma(pVnode->pMeta, vDropSmaReq.indexName) < 0) {
-        // TODO: handle error
-        return -1;
-      }
       // TODO: send msg to stream computing to drop tSma
       // if ((send msg to stream computing) < 0) {
       //   tdDestroyTSma(&vCreateSmaReq);
       //   return -1;
       // }
+      // 
+
+      if (metaDropTSma(pVnode->pMeta, vDropSmaReq.indexUid) < 0) {
+        // TODO: handle error
+        return -1;
+      }
+
+      if(tsdbDropTSmaData(pVnode->pTsdb, vDropSmaReq.indexUid) < 0) {
+        // TODO: handle error
+        return -1;
+      }
+
       // TODO: return directly or go on follow steps?
     } break;
     default:
