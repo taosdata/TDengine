@@ -114,7 +114,7 @@ void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell
   ASSERT(pPage->pFreeEnd - pPage->pFreeStart <= TDB_PAGE_NFREE(pPage));
 }
 
-int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
+int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl) {
   int    nFree;
   int    nCells;
   int    iOvfl;
@@ -135,7 +135,19 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
 
   lidx = idx - iOvfl;
 
-  if (nFree >= szCell + TDB_PAGE_OFFSET_SIZE(pPage)) {
+  if (asOvfl || nFree < szCell + TDB_PAGE_OFFSET_SIZE(pPage)) {
+    // TODO: make it extensible
+    // add the cell as an overflow cell
+    for (int i = pPage->nOverflow; i > iOvfl; i--) {
+      pPage->apOvfl[i] = pPage->apOvfl[i - 1];
+      pPage->aiOvfl[i] = pPage->aiOvfl[i - 1];
+    }
+
+    pPage->apOvfl[iOvfl] = pCell;
+    pPage->aiOvfl[iOvfl] = idx;
+    pPage->nOverflow++;
+    iOvfl++;
+  } else {
     // page must has enough space to hold the cell locally
     tdbPageAllocate(pPage, szCell, &pNewCell);
 
@@ -149,18 +161,6 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
     TDB_PAGE_NCELLS_SET(pPage, nCells + 1);
 
     ASSERT(pPage->pFreeStart == pPage->pCellIdx + TDB_PAGE_OFFSET_SIZE(pPage) * (nCells + 1));
-  } else {
-    // TODO: make it extensible
-    // add the cell as an overflow cell
-    for (int i = pPage->nOverflow; i > iOvfl; i--) {
-      pPage->apOvfl[i] = pPage->apOvfl[i - 1];
-      pPage->aiOvfl[i] = pPage->aiOvfl[i - 1];
-    }
-
-    pPage->apOvfl[iOvfl] = pCell;
-    pPage->aiOvfl[iOvfl] = idx;
-    pPage->nOverflow++;
-    iOvfl++;
   }
 
   for (; iOvfl < pPage->nOverflow; iOvfl++) {
