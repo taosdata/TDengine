@@ -36,7 +36,8 @@
 83,,script,./test.sh -f general/parser/limit1_tblocks100.sim 
 82,,script,./test.sh -f general/parser/limit1.sim 
 82,,pytest,python3 test.py -f query/last_row_cache.py 
-81,,develop-test,timeout 180 bash 3-connectors/c#/test.sh 
+81,,develop-test,timeout 180 bash 3-connectors/c#/test.sh
+80,,develop-test,timeout 180 bash 3-connectors/R/test.sh 
 80,,develop-test,timeout 180 bash 3-connectors/nodejs/test.sh 
 79,,script,./test.sh -f general/db/alter_tables_v4.sim 
 79,,pytest,python3 test.py -f insert/verifyMemToDiskCrash.py 
