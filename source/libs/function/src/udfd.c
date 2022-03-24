@@ -1,11 +1,32 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <uv.h>
-#include <udf.h>
-#include <stdbool.h>
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
-uv_loop_t *loop;
+#include "uv.h"
+#include "os.h"
+#include "tudf.h"
+#include "tudfInt.h"
+
+//TODO replaces them with qDebug
+#define DEBUG
+#ifdef DEBUG
+#define debugPrint(...) fprintf(__VA_ARGS__)
+#else
+#define debugPrint(...) /**/
+#endif
+
+static uv_loop_t *loop;
 
 typedef struct SUdfdUvConn {
     uv_stream_t *client;
@@ -21,10 +42,6 @@ typedef struct SUvUdfWork {
     uv_buf_t output;
 } SUvUdfWork;
 
-typedef void (*TUdfNormalFunc)(char *state, int32_t stateSize, char **newstate, int32_t *newStateSize,
-                               SSDataBlock input, SSDataBlock *output);
-
-
 typedef struct SUdf {
     int32_t refCount;
 
@@ -32,8 +49,7 @@ typedef struct SUdf {
     int8_t type;
 
     uv_lib_t lib;
-    TUdfNormalFunc normalFunc;
-
+    TUdfFunc normalFunc;
 } SUdf;
 
 //TODO: low priority: change name onxxx to xxxCb, and udfc or udfd as prefix
@@ -41,10 +57,6 @@ typedef struct SUdf {
 typedef struct SUdfHandle {
     SUdf *udf;
 } SUdfHandle;
-
-
-typedef void (*TUdfNormalFunc)(char *state, int32_t stateSize, char **newstate, int32_t *newStateSize,
-                               SSDataBlock input, SSDataBlock *output);
 
 
 void udfdProcessRequest(uv_work_t *req) {
@@ -67,8 +79,7 @@ void udfdProcessRequest(uv_work_t *req) {
 
             char normalFuncName[32] = {0};
             strcpy(normalFuncName, setup->udfName);
-            strcat(normalFuncName, "_normal");
-	    //TODO error, 
+	    //TODO error,
 	    //TODO find all functions normal, init, destroy, normal, merge, finalize
             uv_dlsym(&udf->lib, normalFuncName, (void **) (&udf->normalFunc));
 
@@ -104,10 +115,10 @@ void udfdProcessRequest(uv_work_t *req) {
             SUdf *udf = handle->udf;
             char *newState;
             int32_t newStateSize;
-            SSDataBlock input = {.data = call->input, .size= call->inputBytes};
-            SSDataBlock output;
+            SUdfDataBlock input = {.data = call->input, .size= call->inputBytes};
+            SUdfDataBlock output;
 	    //TODO: call different functions according to the step 
-            udf->normalFunc(call->state, call->stateBytes, &newState, &newStateSize, input, &output);
+            udf->normalFunc(call->step, call->state, call->stateBytes, input, &newState, &newStateSize, &output);
 
             SUdfResponse *rsp = malloc(sizeof(SUdfResponse));
             rsp->seqNum = request->seqNum;

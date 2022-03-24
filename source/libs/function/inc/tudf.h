@@ -20,10 +20,6 @@
 extern "C" {
 #endif
 
-#include "os.h"
-#include "taoserror.h"
-#include "tcommon.h"
-
 //======================================================================================
 //begin API to taosd and qworker
 /**
@@ -38,10 +34,20 @@ int32_t startUdfService();
  */
 int32_t stopUdfService();
 
+enum {
+  TSDB_UDF_TYPE_SCALAR = 0,
+  TSDB_UDF_TYPE_AGGREGATE = 1
+};
+
+enum {
+  TSDB_UDF_SCRIPT_BIN_LIB = 0,
+  TSDB_UDF_SCRIPT_LUA = 1,
+};
+
 typedef struct SUdfInfo {
   char   *udfName;        // function name
-  int32_t funcType;    // scalar function or aggregate function
-  int8_t    isScript;
+  int32_t udfType;    // scalar function or aggregate function
+  int8_t    scriptType;
   char *path;
 
   int8_t  resType;     // result type
@@ -80,16 +86,14 @@ enum {
  * @return error code
  */
 
+//TODO: must change the following after metadata flow and data flow between qworker and udfd is well defined
 typedef struct SUdfDataBlock {
-  int16_t numOfCols;
-  struct {
-    char* data;
-    int32_t length;
-  } *colsData;
+  char* data;
+  int32_t size;
 } SUdfDataBlock;
 
-int32_t callUdf(UdfHandle handle, int8_t step, char *state, int32_t stateSize, SUdfDataBlock *input, char **newstate,
-                int32_t *newStateSize, SUdfDataBlock **output);
+int32_t callUdf(UdfHandle handle, int8_t step, char *state, int32_t stateSize, SUdfDataBlock input, char **newstate,
+                int32_t *newStateSize, SUdfDataBlock *output);
 
 /**
  * tearn down udf
@@ -100,7 +104,8 @@ int32_t teardownUdf(UdfHandle handle);
 
 // end API to taosd and qworker
 //=============================================================================================================================
-// begin API to UDF writer
+// TODO: Must change
+// begin API to UDF writer.
 
 // script
 
@@ -113,24 +118,18 @@ int32_t teardownUdf(UdfHandle handle);
 //typedef void (*scriptDestroyFunc)(void* pCtx);
 
 // dynamic lib
-typedef int32_t (*udfInitFunc)();
-typedef void (*udfDestroyFunc)();
+typedef int32_t (*TUdfInitFunc)();
+typedef void (*TUdfDestroyFunc)();
 
-typedef void (*udfNormalFunc)(char *state, int32_t stateSize, SUdfDataBlock input, char **newstate,
-                              int32_t *newStateSize, SUdfDataBlock *output);
-typedef void (*udfMergeFunc)(char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput);
-typedef void (*udfFinalizeFunc)(char* state, int32_t stateSize, SUdfDataBlock *output);
+typedef void (*TUdfFunc)(int8_t step,
+                         char *state, int32_t stateSize, SUdfDataBlock input,
+                         char **newstate, int32_t *newStateSize, SUdfDataBlock *output);
+
+//typedef void (*udfMergeFunc)(char *data, int32_t numOfRows, char *dataOutput, int32_t* numOfOutput);
+//typedef void (*udfFinalizeFunc)(char* state, int32_t stateSize, SUdfDataBlock *output);
 
 // end API to UDF writer
 //=======================================================================================================================
-enum {
-  TSDB_UDF_FUNC_NORMAL = 0,
-  TSDB_UDF_FUNC_INIT,
-  TSDB_UDF_FUNC_FINALIZE,
-  TSDB_UDF_FUNC_MERGE,
-  TSDB_UDF_FUNC_DESTROY,
-  TSDB_UDF_FUNC_MAX_NUM
-};
 
 #ifdef __cplusplus
 }
