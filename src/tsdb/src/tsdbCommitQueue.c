@@ -189,13 +189,15 @@ static void *tsdbLoopCommit(void *arg) {
     param = ((SReq *)pNode->data)->param;
 
     if (req == COMMIT_REQ) {
-      tsdbCommitData(pRepo);
+      tsdbCommitData(pRepo, true);
     } else if (req == COMPACT_REQ) {
       tsdbCompactImpl(pRepo);
-    } else if (req == TRUNCATE_TBL_REQ) {
-      tsdbTruncateImpl(pRepo, param);
-    } else if (req == DELETE_TBL_REQ) {
-      tsdbDeleteImpl(pRepo, param);
+    } else if (req == COMMIT_BOTH_REQ) {
+      SControlDataInfo* pCtlDataInfo = (SControlDataInfo* )param;
+      if(!pCtlDataInfo->memNull) {
+        tsdbCommitData(pRepo, false);
+      }
+      tsdbCommitControl(pRepo, param);
     } else if (req == COMMIT_CONFIG_REQ) {
       ASSERT(pRepo->config_changed);
       tsdbApplyRepoConfig(pRepo);

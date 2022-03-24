@@ -49,12 +49,12 @@ static int          tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIte
 static int          tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock);
 static int          tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pTable);
 static int          tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SMemRow row);
-static int32_t      tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmitRspMsg *pRsp, sem_t* pSem);
+static int32_t      tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmitRspMsg *pRsp, tsem_t** pSem);
 
 static FORCE_INLINE int tsdbCheckRowRange(STsdbRepo *pRepo, STable *pTable, SMemRow row, TSKEY minKey, TSKEY maxKey,
                                           TSKEY now);
 
-int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp, sem_t* pSem) {
+int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp, tsem_t** ppSem) {
   STsdbRepo *    pRepo = repo;
   SSubmitMsgIter msgIter = {0};
   SSubmitBlk *   pBlock = NULL;
@@ -74,7 +74,7 @@ int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pR
     if (pBlock == NULL) break;
     if (IS_CONTROL_BLOCK(pBlock)) {
       // COMMAND DATA BLOCK
-      ret = tsdbInsertControlData(pRepo, pBlock, pRsp, pSem);
+      ret = tsdbInsertControlData(pRepo, pBlock, pRsp, ppSem);
       // all control msg is one SSubmitMsg, so need return
       return ret; 
     } else {
@@ -317,11 +317,12 @@ int tsdbSyncCommitConfig(STsdbRepo* pRepo) {
   return 0;
 }
 
-int tsdbAsyncCommit(STsdbRepo *pRepo) {
+int tsdbAsyncCommit(STsdbRepo *pRepo, SControlDataInfo* pCtlDataInfo) {
   tsem_wait(&(pRepo->readyToCommit));
 
   ASSERT(pRepo->imem == NULL);
-  if (pRepo->mem == NULL) {
+
+  if (pRepo->mem == NULL && pCtlDataInfo == NULL) {
     tsem_post(&(pRepo->readyToCommit));
     return 0;
   }
@@ -332,11 +333,33 @@ int tsdbAsyncCommit(STsdbRepo *pRepo) {
 
   if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_START, TSDB_CODE_SUCCESS);
   if (tsdbLockRepo(pRepo) < 0) return -1;
-  pRepo->imem = pRepo->mem;
-  pRepo->mem = NULL;
-  if (tsdbScheduleCommit(pRepo, NULL, COMMIT_REQ) < 0) {
-    tsem_post(&(pRepo->readyToCommit));
+  
+  bool post = false;
+  if (pRepo->mem) {
+    // has data in mem
+    pRepo->imem = pRepo->mem;
+    pRepo->mem = NULL;
+    if(pCtlDataInfo == NULL) {
+      if (tsdbScheduleCommit(pRepo, NULL, COMMIT_REQ) < 0)
+        post = true;
+    } else {
+      pCtlDataInfo->memNull = false; 
+      if(tsdbScheduleCommit(pRepo, pCtlDataInfo, COMMIT_BOTH_REQ) < 0)
+        post = true;
+    }
+  } else {
+    // no data in mem
+    if (pCtlDataInfo) {
+      pCtlDataInfo->memNull = true; 
+      if(tsdbScheduleCommit(pRepo, pCtlDataInfo, COMMIT_BOTH_REQ) < 0)
+        post = true;
+    }
   }
+
+  // need post
+  if(post)
+    tsem_post(&(pRepo->readyToCommit));
+
   if (tsdbUnlockRepo(pRepo) < 0) return -1;
 
   return 0;
@@ -345,7 +368,7 @@ int tsdbAsyncCommit(STsdbRepo *pRepo) {
 int tsdbSyncCommit(STsdbRepo *repo) {
   STsdbRepo *pRepo = repo;
 
-  tsdbAsyncCommit(pRepo);
+  tsdbAsyncCommit(pRepo, NULL);
   tsem_wait(&(pRepo->readyToCommit));
   tsem_post(&(pRepo->readyToCommit));
 
@@ -1096,38 +1119,46 @@ static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SMemRow r
   return 0;
 }
 
-// Delete Data
-int32_t tsdbInsertDeleteData(STsdbRepo* pRepo, SControlData* pCtlData, SShellSubmitRspMsg *pRsp, sem_t* pSem) {
-  pRsp->affectedRows = htonl(99);
-
-  // INIT SEM
-  int32_t ret = sem_init(pSem, 0, 0);
-  if(ret != 0) {
-    return TAOS_SYSTEM_ERROR(ret);
-  }
-
-  // CREATE DELETE MEMTABLE
-
-
-  // FORCE COMMIT ALL MEM AND IMEM
-
-
-  return 0;
-}
-
 // Control Data
-int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmitRspMsg *pRsp, sem_t* pSem) {
+int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmitRspMsg *pRsp, tsem_t** ppSem) {
   int32_t ret = TSDB_CODE_SUCCESS;
   assert(pBlock->dataLen == sizeof(SControlData));
   SControlData* pCtlData = (SControlData* )pBlock->data;
+  
+  // INIT SEM FOR ASYNC WAIT COMMIT RESULT
+  if (ppSem) {
+    *ppSem = (tsem_t* )tmalloc(sizeof(tsem_t));
+    ret = tsem_init(*ppSem, 0, 0);
+    if(ret != 0) {
+      return TAOS_SYSTEM_ERROR(ret);
+    }
+  }
 
   // anti-serialize
   pCtlData->command  = htonl(pCtlData->command);
   pCtlData->win.skey = htobe64(pCtlData->win.skey);
   pCtlData->win.ekey = htobe64(pCtlData->win.ekey);
 
+  // server data set 
+  SControlDataInfo* pNew = (SControlDataInfo* )tmalloc(sizeof(SControlDataInfo));
+  memset(pNew, 0, sizeof(SControlDataInfo));
+  pNew->ctlData = *pCtlData;
+  pNew->uid     = pBlock->uid;
+  pNew->tid     = pBlock->tid;
+  pNew->pRsp    = pRsp;
+  if (ppSem)
+     pNew->pSem = *ppSem;
+
   if(pCtlData->command == CMD_DELETE_DATA) {
-    ret = tsdbInsertDeleteData(pRepo, pCtlData, pRsp, pSem);
+    // malloc new to pass commit thread
+    ret = tsdbAsyncCommit(pRepo, pNew);
   }
+
+  // if async post failed , must set wait event ppSem NULL
+  if(ret != TSDB_CODE_SUCCESS && ppSem) {
+    tsem_destroy(*ppSem);
+    *ppSem = NULL;
+  }
+
   return ret;
 }

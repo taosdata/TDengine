@@ -18,6 +18,15 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+typedef struct {
+  SControlData ctlData;
+  // addition info
+  uint64_t     uid;        // table unique id
+  int32_t      tid;        // table id
+  tsem_t*      pSem;
+  bool         memNull; // pRepo->mem is NULL, this is true
+  SShellSubmitRspMsg *pRsp;
+} SControlDataInfo;
 
 void *tsdbTruncateImpl(STsdbRepo *pRepo, void *param);
 void *tsdbDeleteImpl(STsdbRepo *pRepo, void *param);

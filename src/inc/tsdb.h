@@ -160,7 +160,7 @@ typedef struct {
  *
  * @return the number of points inserted, -1 for failure and the error number is set
  */
-int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp, sem_t* pSem);
+int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp, tsem_t** ppSem);
 
 // -- FOR QUERY TIME SERIES DATA
 

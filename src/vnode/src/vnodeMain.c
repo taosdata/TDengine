@@ -144,9 +144,9 @@ int32_t vnodeTruncateTbl(STruncateTblMsg *pMsg) {
     param->nSpan = 1;
     param->span[0].skey = 1634701320001;
     param->span[0].ekey = 1634701320001;
-    if (tsdbTruncateTbl(((SVnodeObj *)pVnode)->tsdb, param) < 0) {
-      tfree(param);
-    }
+    //if (tsdbTruncateTbl(((SVnodeObj *)pVnode)->tsdb, param) < 0) {
+    //  tfree(param);
+    //}
     vnodeRelease(pVnode);
   } else {
     vInfo("vgId:%d, vnode not exist, can't truncate table %s in it", vgId, pMsg->tableFname);
@@ -167,9 +167,9 @@ int32_t vnodeDeleteData(SDeleteDataMsg *pMsg) {
     param->nSpan = 1;
     param->span[0].skey = 1634701320001;
     param->span[0].ekey = 1634701320001;
-    if (tsdbDeleteData(((SVnodeObj *)pVnode)->tsdb, param) < 0) {
-      tfree(param);
-    }
+    //if (tsdbDeleteData(((SVnodeObj *)pVnode)->tsdb, param) < 0) {
+    //  tfree(param);
+    //}
     vnodeRelease(pVnode);
   } else {
     vInfo("vgId:%d, vnode not exist, can't truncate table %s in it", vgId, pMsg->tableFname);
@@ -481,7 +481,7 @@ void freeWaitThread(SVnodeObj* pVnode) {
       if(loop == LOOP_CNT) 
         tsem_post(pWaitThread->psem);
       taosMsleep(50);
-      loop -= 1;
+      loop -= 1; 
       if(loop == 0 )
         break;
     }
@@ -671,7 +671,7 @@ void vnodeAddWait(void* vparam, pthread_t* pthread, sem_t* psem, void* param) {
   pWaitThread->psem        = psem;
   pWaitThread->param       = param;
 
-  int32_t crc = crc32c_sf(0, (crc_stream)pWaitThread, sizeof(void* ));
+  int32_t crc = crc32c_sf(0, (crc_stream)param, sizeof(void* ));
   taosWriteQitem(pVnode->tqueue, crc, pWaitThread);
 }
 

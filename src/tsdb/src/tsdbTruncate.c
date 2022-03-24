@@ -45,13 +45,14 @@ typedef struct {
 #define TSDB_TRUNCATE_COMP_BUF(pTruncateH) TSDB_READ_COMP_BUF(&((pTruncateH)->readh))
 #define TSDB_TRUNCATE_EXBUF(pTruncateH) TSDB_READ_EXBUF(&((pTruncateH)->readh))
 
+/*
 static int   tsdbAsyncTruncate(STsdbRepo *pRepo, void *param, TSDB_REQ_T type);
 static void  tsdbStartTruncate(STsdbRepo *pRepo);
 static void  tsdbEndTruncate(STsdbRepo *pRepo, int eno);
 static int   tsdbTruncateMeta(STsdbRepo *pRepo);
 static int   tsdbTruncateTSData(STsdbRepo *pRepo, void *param, TSDB_REQ_T type);
-static int   tsdbTruncateFSet(STruncateH *pTruncateH, SDFileSet *pSet);
-static int   tsdbDeleteFSet(STruncateH *pTruncateH, SDFileSet *pSet);
+//static int   tsdbTruncateFSet(STruncateH *pTruncateH, SDFileSet *pSet);
+//static int   tsdbDeleteFSet(STruncateH *pTruncateH, SDFileSet *pSet);
 static int   tsdbInitTruncateH(STruncateH *pTruncateH, STsdbRepo *pRepo);
 static void  tsdbDestroyTruncateH(STruncateH *pTruncateH);
 static int   tsdbInitTruncateTblArray(STruncateH *pTruncateH);
@@ -65,7 +66,7 @@ static int   tsdbDeleteFSetImpl(STruncateH *pTruncateH);
 static bool  tsdbBlockInterleaved(STruncateH *pTruncateH, SBlock *pBlock);
 static int   tsdbWriteBlockToRightFile(STruncateH *pTruncateH, STable *pTable, SDataCols *pDCols, void **ppBuf,
                                        void **ppCBuf, void **ppExBuf);
-static void *tsdbTruncateImplCommon(STsdbRepo *pRepo, void *param, TSDB_REQ_T type);
+//static void *tsdbTruncateImplCommon(STsdbRepo *pRepo, void *param, TSDB_REQ_T type);
 
 enum {
   TSDB_NO_TRUNCATE,
@@ -73,17 +74,18 @@ enum {
   TSDB_WAITING_TRUNCATE,
 };
 
-int tsdbTruncateTbl(STsdbRepo *pRepo, void *param) { return tsdbAsyncTruncate(pRepo, param, TRUNCATE_TBL_REQ); }
-int tsdbDeleteData(STsdbRepo *pRepo, void *param) { return tsdbAsyncTruncate(pRepo, param, DELETE_TBL_REQ); }
+int tsdbTruncateTbl(STsdbRepo *pRepo, void *param) { return tsdbAsyncTruncate(pRepo, param, CONTROL_REQ); }
+int tsdbDeleteData(STsdbRepo *pRepo, void *param) { return tsdbAsyncTruncate(pRepo, param, CONTROL_REQ); }
 
 void *tsdbTruncateImpl(STsdbRepo *pRepo, void *param) {
-  tsdbTruncateImplCommon(pRepo, param, TRUNCATE_TBL_REQ);
+  //tsdbTruncateImplCommon(pRepo, param, TRUNCATE_TBL_REQ);
   return NULL;
 }
 void *tsdbDeleteImpl(STsdbRepo *pRepo, void *param) {
-  tsdbTruncateImplCommon(pRepo, param, DELETE_TBL_REQ);
+  //tsdbTruncateImplCommon(pRepo, param, DELETE_TBL_REQ);
   return NULL;
 }
+
 
 static void *tsdbTruncateImplCommon(STsdbRepo *pRepo, void *param, TSDB_REQ_T type) {
   ASSERT(param != NULL);
@@ -233,6 +235,7 @@ static int tsdbTruncateTSData(STsdbRepo *pRepo, void *param, TSDB_REQ_T type) {
       continue;
     }
 #endif
+    
     if (truncateH.type == TRUNCATE_TBL_REQ) {
       if (tsdbTruncateFSet(&truncateH, pSet) < 0) {
         tsdbDestroyTruncateH(&truncateH);
@@ -248,6 +251,7 @@ static int tsdbTruncateTSData(STsdbRepo *pRepo, void *param, TSDB_REQ_T type) {
     } else {
       ASSERT(false);
     }
+    
   }
 
   tsdbDestroyTruncateH(&truncateH);
@@ -740,3 +744,4 @@ static int tsdbWriteBlockToRightFile(STruncateH *pTruncateH, STable *pTable, SDa
 
 //   return 0;
 // }
+*/

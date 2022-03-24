@@ -163,13 +163,15 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
 
   // save insert result into item
   SShellSubmitRspMsg *pRsp = NULL;
+  tsem_t** ppsem = NULL;
   if (pRet) {
     pRet->len = sizeof(SShellSubmitRspMsg);
     pRet->rsp = rpcMallocCont(pRet->len);
     pRsp = pRet->rsp;
+    ppsem = &pRet->psem;
   }
 
-  if (tsdbInsertData(pVnode->tsdb, pCont, pRsp, pRet->psem_rsp) < 0) {
+  if (tsdbInsertData(pVnode->tsdb, pCont, pRsp, ppsem) < 0) {
     code = terrno;
   } else {
     if (pRsp != NULL) atomic_fetch_add_64(&tsSubmitReqSucNum, 1);

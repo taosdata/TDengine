@@ -1005,7 +1005,7 @@ typedef struct {
 
 #define CMD_DELETE_DATA 0x00000001
 typedef struct SControlData{
-  uint32_t command;  // see define CMD_???
+  uint32_t    command;  // see define CMD_???
   STimeWindow win;
 } SControlData;
 

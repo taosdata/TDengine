@@ -164,12 +164,14 @@ void dnodeFreeVWriteQueue(void *pWqueue) {
 
 void* waitingResultThread(void* param) {
   SVWriteMsg* pWrite = (SVWriteMsg* )param;
-  int32_t ret = sem_wait(pWrite->rspRet.psem_rsp);
+  int32_t ret = sem_wait(pWrite->rspRet.psem);
   if(ret == 0) {
     // success
 
   }
-  sem_destroy(pWrite->rspRet.psem_rsp);
+  sem_destroy(pWrite->rspRet.psem);
+  tfree(pWrite->rspRet.psem);
+
   // wait ok
   SRpcMsg rpcRsp = {
     .handle  = pWrite->rpcMsg.handle,
@@ -194,7 +196,7 @@ void dnodeSendRpcVWriteRsp(void *pVnode, void *wparam, int32_t code) {
 
   if (count <= 1) return;
 
-  if(pWrite->rspRet.psem_rsp == 0)  {
+  if(pWrite->rspRet.psem == 0)  {
     SRpcMsg rpcRsp = {
       .handle  = pWrite->rpcMsg.handle,
       .pCont   = pWrite->rspRet.rsp,
@@ -208,7 +210,7 @@ void dnodeSendRpcVWriteRsp(void *pVnode, void *wparam, int32_t code) {
     // need async to wait result in another thread
     pthread_t* thread = taosCreateThread(waitingResultThread, pWrite);
     // add to wait thread manager
-    vnodeAddWait(pVnode, thread, pWrite->rspRet.psem_rsp, pWrite);
+    vnodeAddWait(pVnode, thread, pWrite->rspRet.psem, pWrite);
   }  
 }
 

@@ -32,7 +32,7 @@ typedef struct {
   int32_t len;
   void *  rsp;
   void *  qhandle;  // used by query and retrieve msg
-  sem_t*  psem_rsp;  // if it is not zero, need wait result with async 
+  tsem_t* psem;  // if it is not zero, need wait result with async 
 } SRspRet;
 
 typedef struct {
