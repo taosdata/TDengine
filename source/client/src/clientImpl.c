@@ -634,18 +634,30 @@ _return:
   for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
     SResultColumn* pCol = &pResultInfo->pCol[i];
 
-    if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
+    int32_t type = pResultInfo->fields[i].type;
+    int32_t bytes = pResultInfo->fields[i].bytes;
+
+    if (IS_VAR_DATA_TYPE(type)) {
       if (pCol->offset[pResultInfo->current] != -1) {
         char* pStart = pResultInfo->pCol[i].offset[pResultInfo->current] + pResultInfo->pCol[i].pData;
 
         pResultInfo->length[i] = varDataLen(pStart);
         pResultInfo->row[i] = varDataVal(pStart);
+
+        if (type == TSDB_DATA_TYPE_NCHAR) {
+          int32_t len = taosUcs4ToMbs((TdUcs4*)varDataVal(pStart), varDataLen(pStart), varDataVal(pResultInfo->convertBuf[i]));
+          ASSERT(len <= bytes);
+
+          pResultInfo->row[i] = varDataVal(pResultInfo->convertBuf[i]);
+          varDataSetLen(pResultInfo->convertBuf[i], len);
+          pResultInfo->length[i] = len;
+        }
       } else {
         pResultInfo->row[i] = NULL;
       }
     } else {
       if (!colDataIsNull_f(pCol->nullbitmap, pResultInfo->current)) {
-        pResultInfo->row[i] = pResultInfo->pCol[i].pData + pResultInfo->fields[i].bytes * pResultInfo->current;
+        pResultInfo->row[i] = pResultInfo->pCol[i].pData + bytes * pResultInfo->current;
       } else {
         pResultInfo->row[i] = NULL;
       }
@@ -661,13 +673,20 @@ static int32_t doPrepareResPtr(SReqResultInfo* pResInfo) {
     pResInfo->row    = calloc(pResInfo->numOfCols, POINTER_BYTES);
     pResInfo->pCol   = calloc(pResInfo->numOfCols, sizeof(SResultColumn));
     pResInfo->length = calloc(pResInfo->numOfCols, sizeof(int32_t));
+    pResInfo->convertBuf = calloc(pResInfo->numOfCols, POINTER_BYTES);
+
+    if (pResInfo->row == NULL || pResInfo->pCol == NULL || pResInfo->length == NULL || pResInfo->convertBuf == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    for(int32_t i = 0; i < pResInfo->numOfCols; ++i) {
+      if(pResInfo->fields[i].type == TSDB_DATA_TYPE_NCHAR) {
+        pResInfo->convertBuf[i] = calloc(1, NCHAR_WIDTH_TO_BYTES(pResInfo->fields[i].bytes));
+      }
+    }
   }
 
-  if (pResInfo->row == NULL || pResInfo->pCol == NULL || pResInfo->length == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  } else {
-    return TSDB_CODE_SUCCESS;
-  }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows) {

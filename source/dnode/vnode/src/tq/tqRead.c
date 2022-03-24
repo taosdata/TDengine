@@ -44,7 +44,7 @@ int32_t tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitReq* pMsg, int64_t
     if (pReadHandle->pBlock == NULL) break;
 
     pReadHandle->pBlock->uid = htobe64(pReadHandle->pBlock->uid);
-    pReadHandle->pBlock->tid = htonl(pReadHandle->pBlock->tid);
+    pReadHandle->pBlock->suid = htobe64(pReadHandle->pBlock->suid);
     pReadHandle->pBlock->sversion = htonl(pReadHandle->pBlock->sversion);
     pReadHandle->pBlock->dataLen = htonl(pReadHandle->pBlock->dataLen);
     pReadHandle->pBlock->schemaLen = htonl(pReadHandle->pBlock->schemaLen);
