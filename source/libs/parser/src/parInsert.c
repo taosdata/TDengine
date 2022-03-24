@@ -264,7 +264,7 @@ static void buildMsgHeader(STableDataBlocks* src, SVgDataBlocks* blocks) {
     while (numOfBlocks--) {
       int32_t dataLen = blk->dataLen;
       blk->uid = htobe64(blk->uid);
-      blk->tid = htonl(blk->tid);
+      blk->suid = htobe64(blk->suid);
       blk->padding = htonl(blk->padding);
       blk->sversion = htonl(blk->sversion);
       blk->dataLen = htonl(blk->dataLen);
