@@ -103,6 +103,11 @@ typedef struct SSchFlowControl {
   SArray   *taskList;      // Element is SSchTask*
 } SSchFlowControl;
 
+typedef struct SSchNodeInfo {
+  SQueryNodeAddr addr;
+  void          *handle;
+} SSchNodeInfo;
+
 typedef struct SSchLevel {
   int32_t         level;
   int8_t          status;
@@ -128,7 +133,7 @@ typedef struct SSchTask {
   SQueryNodeAddr       succeedAddr;    // task executed success node address
   int8_t               candidateIdx;   // current try condidation index
   SArray              *candidateAddrs; // condidate node addresses, element is SQueryNodeAddr
-  SArray              *execAddrs;      // all tried node for current task, element is SQueryNodeAddr
+  SArray              *execNodes;      // all tried node for current task, element is SSchNodeInfo
   SQueryProfileSummary summary;        // task execution summary
   int32_t              childReady;     // child task ready number
   SArray              *children;       // the datasource tasks,from which to fetch the result, element is SQueryTask*
@@ -190,6 +195,8 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_GET_TASK_STATUS(task) atomic_load_8(&(task)->status)
 #define SCH_GET_TASK_STATUS_STR(task) jobTaskStatusStr(SCH_GET_TASK_STATUS(task))
 
+#define SCH_GET_TASK_HANDLE(_task) ((_task) ? (_task)->handle : NULL)
+#define SCH_SET_TASK_HANDLE(_task, _handle) ((_task)->handle = (_handle))
 
 #define SCH_SET_JOB_STATUS(job, st) atomic_store_8(&(job)->status, st)
 #define SCH_GET_JOB_STATUS(job) atomic_load_8(&(job)->status)

@@ -520,7 +520,6 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryEnd) {
   while (true) {
     QW_TASK_DLOG("start to execTask, loopIdx:%d", i++);
 
-    taosSsleep(20);
     code = qExecTask(*taskHandle, &pRes, &useconds);
     if (code) {
       QW_TASK_ELOG("qExecTask failed, code:%x - %s", code, tstrerror(code));
@@ -1196,8 +1195,8 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     QW_ERR_JRET(qwKillTaskHandle(QW_FPARAMS(), ctx));
     qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_DROPPING);
   } else if (ctx->phase > 0) {
-    qwBuildAndSendDropRsp(&ctx->connInfo, code);
-    QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", ctx->connInfo.handle, code, tstrerror(code));
+    qwBuildAndSendDropRsp(&qwMsg->connInfo, code);
+    QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
   
     QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
     rsped = true;
@@ -1206,7 +1205,7 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   }
 
   if (!rsped) {
-    ctx->connInfo.handle == qwMsg->connInfo.handle;
+    ctx->connInfo.handle = qwMsg->connInfo.handle;
     ctx->connInfo.ahandle = qwMsg->connInfo.ahandle;
     
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);

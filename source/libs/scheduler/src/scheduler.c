@@ -57,9 +57,9 @@ int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *
   pTask->level = pLevel;
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_NOT_START);
   pTask->taskId = schGenTaskId();
-  pTask->execAddrs = taosArrayInit(SCH_MAX_CANDIDATE_EP_NUM, sizeof(SQueryNodeAddr));
-  if (NULL == pTask->execAddrs) {
-    SCH_TASK_ELOG("taosArrayInit %d exec addrs failed", SCH_MAX_CANDIDATE_EP_NUM);
+  pTask->execNodes = taosArrayInit(SCH_MAX_CANDIDATE_EP_NUM, sizeof(SSchNodeInfo));
+  if (NULL == pTask->execNodes) {
+    SCH_TASK_ELOG("taosArrayInit %d execNodes failed", SCH_MAX_CANDIDATE_EP_NUM);
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
@@ -101,8 +101,8 @@ void schFreeTask(SSchTask* pTask) {
     taosArrayDestroy(pTask->parents);
   }
 
-  if (pTask->execAddrs) {
-    taosArrayDestroy(pTask->execAddrs);
+  if (pTask->execNodes) {
+    taosArrayDestroy(pTask->execNodes);
   }
 }
 
@@ -355,11 +355,15 @@ int32_t schRecordTaskSucceedNode(SSchJob *pJob, SSchTask *pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schRecordTaskExecNode(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr) {
-  if (NULL == taosArrayPush(pTask->execAddrs, addr)) {
-    SCH_TASK_ELOG("taosArrayPush addr to execAddr list failed, errno:%d", errno);
+int32_t schRecordTaskExecNode(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr, void *handle) {
+  SSchNodeInfo nodeInfo = {.addr = *addr, .handle = handle};
+  
+  if (NULL == taosArrayPush(pTask->execNodes, &nodeInfo)) {
+    SCH_TASK_ELOG("taosArrayPush nodeInfo to execNodes list failed, errno:%d", errno);
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
+
+  SCH_TASK_DLOG("task execNode recorded, handle:%p", handle);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1090,7 +1094,7 @@ int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t msgType, in
 
   SSchJob *pJob = schAcquireJob(pParam->refId);
   if (NULL == pJob) {
-    qError("QID:0x%" PRIx64 ",TID:0x%" PRIx64 "taosAcquireRef job failed, may be dropped, refId:%" PRIx64,
+    qWarn("QID:0x%" PRIx64 ",TID:0x%" PRIx64 "taosAcquireRef job failed, may be dropped, refId:%" PRIx64,
            pParam->queryId, pParam->taskId, pParam->refId);
     SCH_ERR_JRET(TSDB_CODE_QRY_JOB_FREED);
   }
@@ -1110,7 +1114,7 @@ int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t msgType, in
   pTask = *task;
   SCH_TASK_DLOG("rsp msg received, type:%s, handle:%p, code:%s", TMSG_INFO(msgType), pMsg->handle, tstrerror(rspCode));
 
-  pTask->handle = pMsg->handle;
+  SCH_SET_TASK_HANDLE(pTask, pMsg->handle);  
   SCH_ERR_JRET(schHandleResponseMsg(pJob, pTask, msgType, pMsg->pData, pMsg->len, rspCode));
 
 _return:
@@ -1849,11 +1853,11 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
 
   SCH_SET_TASK_LASTMSG_TYPE(pTask, msgType);
 
-  SSchTrans trans = {.transInst = pJob->transport, .transHandle = pTask ? pTask->handle : NULL};
+  SSchTrans trans = {.transInst = pJob->transport, .transHandle = SCH_GET_TASK_HANDLE(pTask)};
   SCH_ERR_JRET(schAsyncSendMsg(pJob, pTask, &trans, &epSet, msgType, msg, msgSize, persistHandle, (rpcCtx.args ? &rpcCtx : NULL)));
 
-  if (isCandidateAddr) {
-    SCH_ERR_RET(schRecordTaskExecNode(pJob, pTask, addr));
+  if (msgType == TDMT_VND_QUERY) {
+    SCH_ERR_RET(schRecordTaskExecNode(pJob, pTask, addr, trans.transHandle));
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1935,6 +1939,8 @@ int32_t schLaunchTask(SSchJob *pJob, SSchTask *pTask) {
   bool    enough = false;
   int32_t code = 0;
 
+  SCH_SET_TASK_HANDLE(pTask, NULL);
+
   if (SCH_TASK_NEED_FLOW_CTRL(pJob, pTask)) {
     SCH_ERR_JRET(schCheckIncTaskFlowQuota(pJob, pTask, &enough));
 
@@ -1975,23 +1981,24 @@ int32_t schLaunchJob(SSchJob *pJob) {
 }
 
 void schDropTaskOnExecutedNode(SSchJob *pJob, SSchTask *pTask) {
-  if (NULL == pTask->execAddrs) {
+  if (NULL == pTask->execNodes) {
     SCH_TASK_DLOG("no exec address, status:%s", SCH_GET_TASK_STATUS_STR(pTask));
     return;
   }
 
-  int32_t size = (int32_t)taosArrayGetSize(pTask->execAddrs);
+  int32_t size = (int32_t)taosArrayGetSize(pTask->execNodes);
 
   if (size <= 0) {
-    SCH_TASK_DLOG("task has no exec address, no need to drop it, status:%s", SCH_GET_TASK_STATUS_STR(pTask));
+    SCH_TASK_DLOG("task has no execNodes, no need to drop it, status:%s", SCH_GET_TASK_STATUS_STR(pTask));
     return;
   }
 
-  SQueryNodeAddr *addr = NULL;
+  SSchNodeInfo *nodeInfo = NULL;
   for (int32_t i = 0; i < size; ++i) {
-    addr = (SQueryNodeAddr *)taosArrayGet(pTask->execAddrs, i);
+    nodeInfo = (SSchNodeInfo *)taosArrayGet(pTask->execNodes, i);
+    SCH_SET_TASK_HANDLE(pTask, nodeInfo->handle);
 
-    schBuildAndSendMsg(pJob, pTask, addr, TDMT_VND_DROP_TASK);
+    schBuildAndSendMsg(pJob, pTask, &nodeInfo->addr, TDMT_VND_DROP_TASK);
   }
 
   SCH_TASK_DLOG("task has %d exec address", size);

@@ -261,7 +261,7 @@ void cliHandleResp(SCliConn* conn) {
     if (pMsg == NULL) {
       transMsg.ahandle = transCtxDumpVal(&conn->ctx, transMsg.msgType);
       tDebug("cli conn %p construct ahandle %p by %d, persist: 1", conn, transMsg.ahandle, transMsg.msgType);
-      if (!CONN_RELEASE_BY_SERVER(conn)&& transMsg.ahandle = NULL) {
+      if (!CONN_RELEASE_BY_SERVER(conn)&& transMsg.ahandle == NULL) {
         transMsg.ahandle = transCtxDumpBrokenlinkVal(&conn->ctx, (int32_t*)&(transMsg.msgType));
         tDebug("cli conn %p construct ahandle %p due brokenlink, persist: 1", conn, transMsg.ahandle);
       }
@@ -330,10 +330,12 @@ void cliHandleExcept(SCliConn* pConn) {
   }
   SCliThrdObj* pThrd = pConn->hostThrd;
   STrans*      pTransInst = pThrd->pTransInst;
-
-  while (!transQueueEmpty(&pConn->cliMsgs)) {
+  bool once = false;  
+  do {
     SCliMsg* pMsg = transQueuePop(&pConn->cliMsgs);
-
+    if (pMsg == NULL && once) {
+      break;
+    } 
     STransConnCtx* pCtx = pMsg ? pMsg->ctx : NULL;
 
     STransMsg transMsg = {0};
@@ -356,6 +358,7 @@ void cliHandleExcept(SCliConn* pConn) {
     if (pCtx == NULL || pCtx->pSem == NULL) {
       tTrace("%s cli conn %p handle except", pTransInst->label, pConn);
       if (transMsg.ahandle == NULL) {
+        once = true;
         continue;
       }
       (pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);
@@ -366,7 +369,7 @@ void cliHandleExcept(SCliConn* pConn) {
     }
     destroyCmsg(pMsg);
     tTrace("%s cli conn %p start to destroy", CONN_GET_INST_LABEL(pConn), pConn);
-  };
+  } while (!transQueueEmpty(&pConn->cliMsgs));
 
   transUnrefCliHandle(pConn);
 }
