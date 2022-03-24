@@ -561,7 +561,7 @@ int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen) {
     pIter = taosHashIterate(pTq->pStreamTasks, pIter);
     if (pIter == NULL) break;
     SStreamTask* pTask = (SStreamTask*)pIter;
-    if (!pTask->pipeSource) continue;
+    if (!pTask->sourceType) continue;
 
     int32_t workerId = 0;
     void*   exec = pTask->runner[workerId].executor;
@@ -578,7 +578,7 @@ int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen) {
       }
       taosArrayPush(pRes, output);
     }
-    if (pTask->pipeSink) {
+    if (pTask->sinkType) {
       // write back
       /*printf("reach end\n");*/
       tqDebugShowSSData(pRes);

@@ -720,6 +720,7 @@ static FORCE_INLINE void* tDecodeSMqConsumerObj(void* buf, SMqConsumerObj* pCons
 typedef struct {
   char     name[TSDB_TOPIC_FNAME_LEN];
   char     db[TSDB_DB_FNAME_LEN];
+  char     outputSTbName[TSDB_TABLE_FNAME_LEN];
   int64_t  createTime;
   int64_t  updateTime;
   int64_t  uid;
@@ -735,7 +736,6 @@ typedef struct {
   char*   physicalPlan;
   SArray* tasks;  // SArray<SArray<SStreamTask>>
   SArray* ColAlias;
-  char*   outputSTbName;
 } SStreamObj;
 
 int32_t tEncodeSStreamObj(SCoder* pEncoder, const SStreamObj* pObj);

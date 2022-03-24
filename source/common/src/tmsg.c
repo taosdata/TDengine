@@ -314,7 +314,7 @@ int32_t tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {
       for (col_id_t i = 0; i < pReq->stbCfg.nBSmaCols; ++i) {
         tlen += taosEncodeFixedI16(buf, pReq->stbCfg.pBSmaCols[i]);
       }
-      if(pReq->rollup && pReq->stbCfg.pRSmaParam) {
+      if (pReq->rollup && pReq->stbCfg.pRSmaParam) {
         SRSmaParam *param = pReq->stbCfg.pRSmaParam;
         tlen += taosEncodeFixedU32(buf, (uint32_t)param->xFilesFactor);
         tlen += taosEncodeFixedI8(buf, param->delayUnit);
@@ -341,7 +341,7 @@ int32_t tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {
       for (col_id_t i = 0; i < pReq->ntbCfg.nBSmaCols; ++i) {
         tlen += taosEncodeFixedI16(buf, pReq->ntbCfg.pBSmaCols[i]);
       }
-      if(pReq->rollup && pReq->ntbCfg.pRSmaParam) {
+      if (pReq->rollup && pReq->ntbCfg.pRSmaParam) {
         SRSmaParam *param = pReq->ntbCfg.pRSmaParam;
         tlen += taosEncodeFixedU32(buf, (uint32_t)param->xFilesFactor);
         tlen += taosEncodeFixedI8(buf, param->delayUnit);
@@ -427,7 +427,7 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
         buf = taosDecodeStringTo(buf, pReq->ntbCfg.pSchema[i].name);
       }
       buf = taosDecodeFixedI16(buf, &(pReq->ntbCfg.nBSmaCols));
-      if(pReq->ntbCfg.nBSmaCols > 0) {
+      if (pReq->ntbCfg.nBSmaCols > 0) {
         pReq->ntbCfg.pBSmaCols = (col_id_t *)malloc(pReq->ntbCfg.nBSmaCols * sizeof(col_id_t));
         for (col_id_t i = 0; i < pReq->ntbCfg.nBSmaCols; ++i) {
           buf = taosDecodeFixedI16(buf, pReq->ntbCfg.pBSmaCols + i);
@@ -435,10 +435,10 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
       } else {
         pReq->ntbCfg.pBSmaCols = NULL;
       }
-      if(pReq->rollup) {
+      if (pReq->rollup) {
         pReq->ntbCfg.pRSmaParam = (SRSmaParam *)malloc(sizeof(SRSmaParam));
         SRSmaParam *param = pReq->ntbCfg.pRSmaParam;
-        buf = taosDecodeFixedU32(buf, (uint32_t*)&param->xFilesFactor);
+        buf = taosDecodeFixedU32(buf, (uint32_t *)&param->xFilesFactor);
         buf = taosDecodeFixedI8(buf, &param->delayUnit);
         buf = taosDecodeFixedI8(buf, &param->nFuncIds);
         if (param->nFuncIds > 0) {
@@ -3045,7 +3045,7 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
-  if (tEncodeCStr(&encoder, pReq->outputTbName) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->outputSTbName) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->igExists) < 0) return -1;
   if (tEncodeI32(&encoder, sqlLen) < 0) return -1;
   if (tEncodeI32(&encoder, astLen) < 0) return -1;
@@ -3068,7 +3068,7 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pReq->outputTbName) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->outputSTbName) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igExists) < 0) return -1;
   if (tDecodeI32(&decoder, &sqlLen) < 0) return -1;
   if (tDecodeI32(&decoder, &astLen) < 0) return -1;
@@ -3101,12 +3101,14 @@ int32_t tEncodeSStreamTask(SCoder *pEncoder, const SStreamTask *pTask) {
   if (tEncodeI32(pEncoder, pTask->taskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->level) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->status) < 0) return -1;
-  if (tEncodeI8(pEncoder, pTask->pipeSource) < 0) return -1;
-  if (tEncodeI8(pEncoder, pTask->pipeSink) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->parallelizable) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->nextOpDst) < 0) return -1;
-  // if (tEncodeI8(pEncoder, pTask->numOfRunners) < 0) return -1;
-  if (tEncodeSEpSet(pEncoder, &pTask->NextOpEp) < 0) return -1;
+  if (tEncodeI8(pEncoder, pTask->sourceType) < 0) return -1;
+  if (tEncodeI8(pEncoder, pTask->sinkType) < 0) return -1;
+  if (pTask->sinkType == STREAM_SINK_TYPE__ASSIGNED) {
+    if (tEncodeI32(pEncoder, pTask->sinkVgId) < 0) return -1;
+    if (tEncodeSEpSet(pEncoder, &pTask->NextOpEp) < 0) return -1;
+  }
   if (tEncodeCStr(pEncoder, pTask->qmsg) < 0) return -1;
   /*tEndEncode(pEncoder);*/
   return pEncoder->pos;
@@ -3118,12 +3120,14 @@ int32_t tDecodeSStreamTask(SCoder *pDecoder, SStreamTask *pTask) {
   if (tDecodeI32(pDecoder, &pTask->taskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->level) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->status) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pTask->pipeSource) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pTask->pipeSink) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->parallelizable) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->nextOpDst) < 0) return -1;
-  // if (tDecodeI8(pDecoder, &pTask->numOfRunners) < 0) return -1;
-  if (tDecodeSEpSet(pDecoder, &pTask->NextOpEp) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pTask->sourceType) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pTask->sinkType) < 0) return -1;
+  if (pTask->sinkType == STREAM_SINK_TYPE__ASSIGNED) {
+    if (tDecodeI32(pDecoder, &pTask->sinkVgId) < 0) return -1;
+    if (tDecodeSEpSet(pDecoder, &pTask->NextOpEp) < 0) return -1;
+  }
   if (tDecodeCStrAlloc(pDecoder, &pTask->qmsg) < 0) return -1;
   /*tEndDecode(pDecoder);*/
   return 0;
