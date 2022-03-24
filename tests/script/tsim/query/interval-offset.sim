@@ -88,6 +88,7 @@ print ===> rows5: $data50 $data51 $data52 $data53 $data54
 print ===> rows6: $data60 $data61 $data62 $data63 $data64
 print ===> rows7: $data70 $data71 $data72 $data73 $data74
 if $rows != 8 then
+  print expect 8, actual $rows
   return -1
 endi 
 if $data00 != 2 then
