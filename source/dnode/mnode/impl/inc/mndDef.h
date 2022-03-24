@@ -693,11 +693,13 @@ typedef struct {
   SRWLatch lock;
   int8_t   status;
   // int32_t  sqlLen;
+  int32_t sinkVgId;  // 0 for automatic
   char*   sql;
   char*   logicalPlan;
   char*   physicalPlan;
   SArray* tasks;  // SArray<SArray<SStreamTask>>
-  SArray* outputName;
+  SArray* ColAlias;
+  char*   outputSTbName;
 } SStreamObj;
 
 int32_t tEncodeSStreamObj(SCoder* pEncoder, const SStreamObj* pObj);

@@ -45,12 +45,12 @@ int32_t tEncodeSStreamObj(SCoder *pEncoder, const SStreamObj *pObj) {
     tEncodeI32(pEncoder, 0);
   }
 
-  if (pObj->outputName != NULL) {
-    outputNameSz = taosArrayGetSize(pObj->outputName);
+  if (pObj->ColAlias != NULL) {
+    outputNameSz = taosArrayGetSize(pObj->ColAlias);
   }
   if (tEncodeI32(pEncoder, outputNameSz) < 0) return -1;
   for (int32_t i = 0; i < outputNameSz; i++) {
-    char *name = taosArrayGetP(pObj->outputName, i);
+    char *name = taosArrayGetP(pObj->ColAlias, i);
     if (tEncodeCStr(pEncoder, name) < 0) return -1;
   }
   return pEncoder->pos;
@@ -88,14 +88,14 @@ int32_t tDecodeSStreamObj(SCoder *pDecoder, SStreamObj *pObj) {
   }
   int32_t outputNameSz;
   if (tDecodeI32(pDecoder, &outputNameSz) < 0) return -1;
-  pObj->outputName = taosArrayInit(outputNameSz, sizeof(void *));
-  if (pObj->outputName == NULL) {
+  pObj->ColAlias = taosArrayInit(outputNameSz, sizeof(void *));
+  if (pObj->ColAlias == NULL) {
     return -1;
   }
   for (int32_t i = 0; i < outputNameSz; i++) {
     char *name;
     if (tDecodeCStrAlloc(pDecoder, &name) < 0) return -1;
-    taosArrayPush(pObj->outputName, &name);
+    taosArrayPush(pObj->ColAlias, &name);
   }
   return 0;
 }

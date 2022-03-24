@@ -2379,7 +2379,7 @@ typedef struct {
   int64_t  streamId;
   int64_t  version;
   SArray*  res;  // SArray<SSDataBlock>
-} SStreamSmaSinkReq;
+} SStreamSinkReq;
 
 #pragma pack(pop)
 

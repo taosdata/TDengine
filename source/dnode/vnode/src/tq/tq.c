@@ -52,12 +52,14 @@ STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pVnodeMeta, STq
     return NULL;
   }
 
+#if 0
   pTq->tqPushMgr = tqPushMgrOpen();
   if (pTq->tqPushMgr == NULL) {
     // free store
     free(pTq);
     return NULL;
   }
+#endif
 
   pTq->pStreamTasks = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
 

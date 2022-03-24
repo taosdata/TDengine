@@ -292,7 +292,7 @@ static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamRe
   }
   printf("\n=======================================================\n");
 
-  streamObj.outputName = names;
+  streamObj.ColAlias = names;
 
   if (TSDB_CODE_SUCCESS != mndStreamGetPlanString(pCreate, &streamObj.physicalPlan)) {
     mError("topic:%s, failed to get plan since %s", pCreate->name, terrstr());
