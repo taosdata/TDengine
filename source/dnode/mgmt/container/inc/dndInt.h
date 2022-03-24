@@ -50,10 +50,6 @@ SDnode *dndCreate(const SDnodeOpt *pOption);
 void    dndClose(SDnode *pDnode);
 void    dndHandleEvent(SDnode *pDnode, EDndEvent event);
 
-SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, ENodeType nodeType);
-int32_t       dndMarkWrapper(SMgmtWrapper *pWrapper);
-void          dndReleaseWrapper(SMgmtWrapper *pWrapper);
-
 // dndTransport.c
 int32_t dndInitServer(SDnode *pDnode);
 void    dndCleanupServer(SDnode *pDnode);

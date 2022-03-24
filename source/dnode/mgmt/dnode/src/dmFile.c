@@ -209,7 +209,7 @@ int32_t dmWriteFile(SDnodeMgmt *pMgmt) {
   }
 
   pMgmt->updateTime = taosGetTimestampMs();
-  dDebug("successed to write %s", file);
+  dDebug("successed to write %s", realfile);
   return 0;
 }
 
