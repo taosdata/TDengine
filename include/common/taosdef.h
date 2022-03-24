@@ -69,6 +69,7 @@ typedef enum {
   TSDB_SMA_STAT_DROPPED = 2,   // sma dropped
 } ETsdbSmaStat;                // bit operation
 
+
 typedef enum {
   TSDB_SMA_TYPE_BLOCK = 0,       // Block-wise SMA
   TSDB_SMA_TYPE_TIME_RANGE = 1,  // Time-range-wise SMA
@@ -77,6 +78,8 @@ typedef enum {
 
 extern char *qtypeStr[];
 
+#define TSDB_PORT_DNODEDNODE 5
+#define TSDB_PORT_SYNC      10
 #define TSDB_PORT_HTTP      11
 
 #ifdef __cplusplus

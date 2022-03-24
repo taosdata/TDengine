@@ -493,6 +493,15 @@ static int32_t tsdbResetExpiredWindow(STsdb *pTsdb, SSmaStat *pStat, int64_t ind
                skey, indexUid);
       return TSDB_CODE_FAILED;
     }
+    // TODO: use a standalone interface to received state upate notification from stream computing module.
+    /**
+     * @brief state
+     *  - When SMA env init in TSDB, its status is TSDB_SMA_STAT_OK.
+     *  - In startup phase of stream computing module, it should notify the SMA env in TSDB to expired if needed(e.g.
+     * when batch data caculation not finised)
+     *  - When TSDB_SMA_STAT_OK, the stream computing module should also notify that to the SMA env in TSDB.
+     */
+    pItem->state = TSDB_SMA_STAT_OK;
   } else {
     // error handling
     tsdbUnRefSmaStat(pTsdb, pStat);
@@ -796,6 +805,7 @@ static int32_t tsdbInsertTSmaDataImpl(STsdb *pTsdb, char *msg) {
   if (pStat && pStat->smaStatItems) {
     pItem = taosHashGet(pStat->smaStatItems, &indexUid, sizeof(indexUid));
   }
+
   if ((pItem == NULL) || ((pItem = *(SSmaStatItem **)pItem) == NULL) || tsdbSmaStatIsDropped(pItem)) {
     terrno = TSDB_CODE_TDB_INVALID_SMA_STAT;
     tsdbUnRefSmaStat(pTsdb, pStat);
@@ -864,14 +874,14 @@ static int32_t tsdbDropTSmaDataImpl(STsdb *pTsdb, int64_t indexUid) {
     if ((pItem != NULL) || ((pItem = *(SSmaStatItem **)pItem) != NULL)) {
       if (tsdbSmaStatIsDropped(pItem)) {
         tsdbDebug("vgId:%d tSma stat is already dropped for %" PRIi64, REPO_ID(pTsdb), indexUid);
-        return TSDB_CODE_TDB_INVALID_ACTION;  // TODO: duplicate drop msg should be intercept by mnode
+        return TSDB_CODE_TDB_INVALID_ACTION;  // TODO: duplicate drop msg would be intercepted by mnode
       }
 
       tsdbWLockSma(pEnv);
       if (tsdbSmaStatIsDropped(pItem)) {
         tsdbUnLockSma(pEnv);
         tsdbDebug("vgId:%d tSma stat is already dropped for %" PRIi64, REPO_ID(pTsdb), indexUid);
-        return TSDB_CODE_TDB_INVALID_ACTION;  // TODO: duplicate drop msg should be intercept by mnode
+        return TSDB_CODE_TDB_INVALID_ACTION;  // TODO: duplicate drop msg would be intercepted by mnode
       }
       tsdbSmaStatSetDropped(pItem);
       tsdbUnLockSma(pEnv);
@@ -893,6 +903,7 @@ static int32_t tsdbDropTSmaDataImpl(STsdb *pTsdb, int64_t indexUid) {
   }
   // clear sma data files
   // TODO: 
+
 }
 
 static int32_t tsdbSetRSmaDataFile(STSmaWriteH *pSmaH, STSmaDataWrapper *pData, int32_t fid) {
@@ -1091,8 +1102,8 @@ static int32_t tsdbGetTSmaDataImpl(STsdb *pTsdb, STSmaDataWrapper *pData, int64_
   if (!tsdbSmaStatIsOK(pItem, &smaStat)) {  // TODO: multiple check for large scale sma query
     tsdbUnRefSmaStat(pTsdb, SMA_ENV_STAT(pTsdb->pTSmaEnv));
     terrno = TSDB_CODE_TDB_INVALID_SMA_STAT;
-    tsdbDebug("vgId:%d getTSmaDataImpl failed from index %" PRIi64 " since %s %" PRIi8, REPO_ID(pTsdb), indexUid,
-              tstrerror(terrno), smaStat);
+    tsdbWarn("vgId:%d getTSmaDataImpl failed from index %" PRIi64 " since %s %" PRIi8, REPO_ID(pTsdb), indexUid,
+             tstrerror(terrno), smaStat);
     return TSDB_CODE_FAILED;
   }
 

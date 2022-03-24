@@ -28,19 +28,29 @@ SSyncFSM * pFsm;
 SWal *     pWal;
 SSyncNode *gSyncNode;
 
-void CommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pBuf, SyncIndex index, bool isWeak, int32_t code) {
-  printf("==CommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d \n", pFsm, index, isWeak, code);
-  syncRpcMsgPrint2((char *)"==CommitCb==", (SRpcMsg *)pBuf);
+void CommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SyncIndex index, bool isWeak, int32_t code,
+              ESyncState state) {
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf), "==callback== ==CommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n",
+           pFsm, index, isWeak, code, state, syncUtilState2String(state));
+  syncRpcMsgPrint2(logBuf, (SRpcMsg *)pMsg);
 }
 
-void PreCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pBuf, SyncIndex index, bool isWeak, int32_t code) {
-  printf("==PreCommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d \n", pFsm, index, isWeak, code);
-  syncRpcMsgPrint2((char *)"==PreCommitCb==", (SRpcMsg *)pBuf);
+void PreCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SyncIndex index, bool isWeak, int32_t code,
+                 ESyncState state) {
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf),
+           "==callback== ==PreCommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n", pFsm, index, isWeak,
+           code, state, syncUtilState2String(state));
+  syncRpcMsgPrint2(logBuf, (SRpcMsg *)pMsg);
 }
 
-void RollBackCb(struct SSyncFSM *pFsm, const SRpcMsg *pBuf, SyncIndex index, bool isWeak, int32_t code) {
-  printf("==RollBackCb== pFsm:%p, index:%ld, isWeak:%d, code:%d \n", pFsm, index, isWeak, code);
-  syncRpcMsgPrint2((char *)"==RollBackCb==", (SRpcMsg *)pBuf);
+void RollBackCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SyncIndex index, bool isWeak, int32_t code,
+                ESyncState state) {
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf), "==callback== ==RollBackCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n",
+           pFsm, index, isWeak, code, state, syncUtilState2String(state));
+  syncRpcMsgPrint2(logBuf, (SRpcMsg *)pMsg);
 }
 
 void initFsm() {

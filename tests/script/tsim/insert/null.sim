@@ -7,7 +7,7 @@ sql connect
 print =============== create database
 sql create database d0
 sql show databases
-if $rows != 1 then 
+if $rows != 2 then 
   return -1
 endi
 
@@ -40,7 +40,7 @@ sql insert into ct1 values (now+7s, 14, NULL, 3.5, 95)
 sql insert into ct1 values (now+8s, 15, 2.5, NULL, 96)
 sql insert into ct1 values (now+9s, 16, 2.6, 3.6, NULL)
 sql insert into ct1 values (now+10s, NULL, NULL, NULL, NULL)
-sql insert into ct1 values (now+11s, -2147483648, 2.7, 3.7, 97)
+sql insert into ct1 values (now+11s, -2147483647, 2.7, 3.7, 97)
 
 #===================================================================
 #===================================================================
@@ -75,7 +75,6 @@ endi
 #  return -1
 #endi
 
-
 print =============== select count(*) from child table
 sql select count(*) from ct1
 print ===> select count(*) from ct1
@@ -84,9 +83,7 @@ print ===> rows0: $data00 $data01 $data02 $data03 $data04
 if $rows != 1 then 
   return -1
 endi
-
-print $data00 $data01 $data02
-if $data00 != 4 then 
+if $data00 != 12 then 
   return -1
 endi
 
@@ -95,17 +92,16 @@ sql select count(ts), count(c1), count(c2), count(c3) from ct1
 print ===> select count(ts), count(c1), count(c2), count(c3) from ct1
 print ===> rows: $rows
 print ===> rows0: $data00 $data01 $data02 $data03 $data04
-
-if $data00 != 4 then 
+if $data00 != 12 then 
   return -1
 endi
-if $data01 != 4 then 
+if $data01 != 8 then 
   return -1
 endi
-if $data02 != 4 then 
+if $data02 != 8 then 
   return -1
 endi
-if $data03 != 4 then 
+if $data03 != 8 then 
   return -1
 endi
 
@@ -121,7 +117,7 @@ print ===> rows0: $data00 $data01 $data02 $data03 $data04
 if $rows != 1 then 
   return -1
 endi
-if $data00 != 10 then 
+if $data00 != -2147483647 then 
   return -1
 endi
 if $data01 != 2.00000 then 
@@ -139,13 +135,13 @@ print ===> rows0: $data00 $data01 $data02 $data03 $data04
 if $rows != 1 then 
   return -1
 endi
-if $data00 != 13 then 
+if $data00 != 16 then 
   return -1
 endi
-if $data01 != 2.30000 then 
+if $data01 != 2.70000 then 
   return -1
 endi
-if $data02 != 3.300000000 then 
+if $data02 != 3.700000000 then 
   return -1
 endi
 
@@ -157,13 +153,13 @@ print ===> rows0: $data00 $data01 $data02 $data03 $data04
 if $rows != 1 then 
   return -1
 endi
-if $data00 != 46 then 
+if $data00 != -2147483556  then 
   return -1
 endi
-if $data01 != 8.599999905 then 
+if $data01 != 18.799999952 then 
   return -1
 endi
-if $data02 != 12.600000000 then 
+if $data02 != 26.800000000 then 
   return -1
 endi
 
@@ -172,41 +168,47 @@ sql select c1, c2, c3 from ct1
 print ===> select c1, c2, c3 from ct1
 print ===> rows: $rows
 print ===> rows0: $data00 $data01 $data02 $data03 $data04
-#if $rows != 4 then 
-#  return -1
-#endi
-#if $data00 != 10 then 
-#  return -1
-#endi
-#if $data01 != 2.00000 then 
-#  return -1
-#endi
-#if $data02 != 3.000000000 then 
-#  return -1
-#endi
-#if $data10 != 11 then 
-#  return -1
-#endi
-#if $data11 != 2.10000 then 
-#  return -1
-#endi
-#if $data12 != 3.100000000 then 
-#  return -1
-#endi
-#if $data30 != 13 then 
-#  return -1
-#endi
-#if $data31 != 2.30000 then 
-#  return -1
-#endi
-#if $data32 != 3.300000000 then 
-#  return -1
-#endi
+if $rows != 12 then 
+  return -1
+endi
+if $data00 != 10 then 
+  return -1
+endi
+if $data01 != 2.00000 then 
+  return -1
+endi
+if $data02 != 3.000000000 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data11 != NULL then 
+  return -1
+endi
+if $data12 != NULL then 
+  return -1
+endi
+if $data30 != 11 then 
+  return -1
+endi
+if $data31 != NULL then 
+  return -1
+endi
+if $data32 != 3.200000000 then 
+  return -1
+endi
+if $data90 != 16 then 
+  return -1
+endi
+if $data91 != 2.60000 then 
+  return -1
+endi
+if $data92 != 3.600000000 then 
+  return -1
+endi
 #===================================================================
 #===================================================================
-
-
-return 
 
 #print =============== query data from stb
 #sql select * from stb
@@ -218,19 +220,18 @@ return
 #endi
 #print =============== select count(*) from supter table
 #sql select count(*) from stb
+#print $data00 $data01 $data02
 #if $rows != 1 then 
 #  return -1
 #endi
-#
-#print $data00 $data01 $data02
-#if $data00 != 8 then 
+#if $data00 != 12 then 
 #  return -1
 #endi
-#
+
 #print =============== select count(column) from supter table
 #sql select count(ts), count(c1), count(c2), count(c3) from stb
 #print $data00 $data01 $data02  $data03
-#if $data00 != 8 then 
+#if $data00 != 12 then 
 #  return -1
 #endi
 #if $data01 != 8 then 
@@ -243,6 +244,7 @@ return
 #  return -1
 #endi
 
+return
 
 #===================================================================
 #===================================================================
@@ -251,9 +253,36 @@ print =============== stop and restart taosd, then again do query above
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start
 
-sleep 2000
+print ===> waiting dnode ready
+$loop_cnt = 0
+check_dnode_ready:
+	$loop_cnt = $loop_cnt + 1
+	sleep 200
+	if $loop_cnt == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql show dnodes
+print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
+if $data00 != 1 then
+  return -1
+endi
+if $data04 != ready then
+  goto check_dnode_ready
+endi
+
+#===================================================================
+#===================================================================
+print =============== query data from child table
 sql select * from ct1
-if $rows != 4 then         # after fix bug, modify 4 to 7
+print ===> select * from ct1
+print ===> rows: $rows
+print ===> rows0: $data00 $data01 $data02 $data03 $data04
+print ===> rows1: $data10 $data11 $data12 $data13 $data14
+print ===> rows2: $data20 $data21 $data22 $data23 $data24
+print ===> rows3: $data30 $data31 $data32 $data33 $data34
+print ===> rows4: $data40 $data41 $data42 $data43 $data44
+if $rows != 12 then
   return -1
 endi
 if $data01 != 10 then 
@@ -275,31 +304,33 @@ endi
 #  return -1
 #endi
 
-
 print =============== select count(*) from child table
 sql select count(*) from ct1
+print ===> select count(*) from ct1
+print ===> rows: $rows
+print ===> rows0: $data00 $data01 $data02 $data03 $data04
 if $rows != 1 then 
   return -1
 endi
-
-print $data00 $data01 $data02
-if $data00 != 4 then 
+if $data00 != 12 then 
   return -1
 endi
 
 print =============== select count(column) from child table
 sql select count(ts), count(c1), count(c2), count(c3) from ct1
-print $data00 $data01 $data02  $data03
-if $data00 != 4 then 
+print ===> select count(ts), count(c1), count(c2), count(c3) from ct1
+print ===> rows: $rows
+print ===> rows0: $data00 $data01 $data02 $data03 $data04
+if $data00 != 12 then 
   return -1
 endi
-if $data01 != 4 then 
+if $data01 != 8 then 
   return -1
 endi
-if $data02 != 4 then 
+if $data02 != 8 then 
   return -1
 endi
-if $data03 != 4 then 
+if $data03 != 8 then 
   return -1
 endi
 
@@ -309,11 +340,13 @@ endi
 
 print =============== select min(column) from child table
 sql select min(c1), min(c2), min(c3) from ct1
-print $data00 $data01 $data02  $data03
+print ===> select min(c1), min(c2), min(c3) from ct1
+print ===> rows: $rows
+print ===> rows0: $data00 $data01 $data02 $data03 $data04
 if $rows != 1 then 
   return -1
 endi
-if $data00 != 10 then 
+if $data00 != -2147483647 then 
   return -1
 endi
 if $data01 != 2.00000 then 
@@ -325,34 +358,119 @@ endi
 
 print =============== select max(column) from child table
 sql select max(c1), max(c2), max(c3) from ct1
-print $data00 $data01 $data02  $data03
+print ===> select max(c1), max(c2), max(c3) from ct1
+print ===> rows: $rows
+print ===> rows0: $data00 $data01 $data02 $data03 $data04
 if $rows != 1 then 
   return -1
 endi
-if $data00 != 13 then 
+if $data00 != 16 then 
   return -1
 endi
-if $data01 != 2.30000 then 
+if $data01 != 2.70000 then 
   return -1
 endi
-if $data02 != 3.300000000 then 
+if $data02 != 3.700000000 then 
   return -1
 endi
 
 print =============== select sum(column) from child table
 sql select sum(c1), sum(c2), sum(c3) from ct1
-print $data00 $data01 $data02  $data03
+print ===> select sum(c1), sum(c2), sum(c3) from ct1
+print ===> rows: $rows
+print ===> rows0: $data00 $data01 $data02 $data03 $data04
 if $rows != 1 then 
   return -1
 endi
-if $data00 != 46 then 
+if $data00 != -2147483556  then 
   return -1
 endi
-if $data01 != 8.599999905 then 
+if $data01 != 18.799999952 then 
   return -1
 endi
-if $data02 != 12.600000000 then 
+if $data02 != 26.800000000 then 
   return -1
 endi
+
+print =============== select column, from child table
+sql select c1, c2, c3 from ct1
+print ===> select c1, c2, c3 from ct1
+print ===> rows: $rows
+print ===> rows0: $data00 $data01 $data02 $data03 $data04
+if $rows != 12 then 
+  return -1
+endi
+if $data00 != 10 then 
+  return -1
+endi
+if $data01 != 2.00000 then 
+  return -1
+endi
+if $data02 != 3.000000000 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data11 != NULL then 
+  return -1
+endi
+if $data12 != NULL then 
+  return -1
+endi
+if $data30 != 11 then 
+  return -1
+endi
+if $data31 != NULL then 
+  return -1
+endi
+if $data32 != 3.200000000 then 
+  return -1
+endi
+if $data90 != 16 then 
+  return -1
+endi
+if $data91 != 2.60000 then 
+  return -1
+endi
+if $data92 != 3.600000000 then 
+  return -1
+endi
+#===================================================================
+#===================================================================
+
+#print =============== query data from stb
+#sql select * from stb
+#print ===> 
+#print ===> rows: $rows
+#print ===> rows0: $data00 $data01 $data02 $data03 $data04
+#if $rows != 4 then 
+#  return -1
+#endi
+#print =============== select count(*) from supter table
+#sql select count(*) from stb
+#print $data00 $data01 $data02
+#if $rows != 1 then 
+#  return -1
+#endi
+#if $data00 != 12 then 
+#  return -1
+#endi
+
+#print =============== select count(column) from supter table
+#sql select count(ts), count(c1), count(c2), count(c3) from stb
+#print $data00 $data01 $data02  $data03
+#if $data00 != 12 then 
+#  return -1
+#endi
+#if $data01 != 8 then 
+#  return -1
+#endi
+#if $data02 != 8 then 
+#  return -1
+#endi
+#if $data03 != 8 then 
+#  return -1
+#endi
 
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT

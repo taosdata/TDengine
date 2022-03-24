@@ -115,7 +115,8 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
   // Open tsdb
   sprintf(dir, "%s/tsdb", pVnode->path);
-  pVnode->pTsdb = tsdbOpen(dir, pVnode->vgId, &(pVnode->config.tsdbCfg), vBufPoolGetMAF(pVnode), pVnode->pMeta, pVnode->pTfs);
+  pVnode->pTsdb =
+      tsdbOpen(dir, pVnode->vgId, &(pVnode->config.tsdbCfg), vBufPoolGetMAF(pVnode), pVnode->pMeta, pVnode->pTfs);
   if (pVnode->pTsdb == NULL) {
     // TODO: handle error
     return -1;
@@ -131,7 +132,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
   // Open TQ
   sprintf(dir, "%s/tq", pVnode->path);
-  pVnode->pTq = tqOpen(dir, pVnode->pWal, pVnode->pMeta, &(pVnode->config.tqCfg), vBufPoolGetMAF(pVnode));
+  pVnode->pTq = tqOpen(dir, pVnode, pVnode->pWal, pVnode->pMeta, &(pVnode->config.tqCfg), vBufPoolGetMAF(pVnode));
   if (pVnode->pTq == NULL) {
     // TODO: handle error
     return -1;

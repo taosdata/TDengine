@@ -47,9 +47,6 @@
 #endif
 #endif
 
-typedef int32_t SocketFd;
-typedef SocketFd  EpollFd;
-
 typedef struct TdSocketServer {
 #if SOCKET_WITH_LOCK
   TdThreadRwlock rwlock;
@@ -57,14 +54,6 @@ typedef struct TdSocketServer {
   int      refId;
   SocketFd fd;
 } *TdSocketServerPtr, TdSocketServer;
-
-typedef struct TdSocket {
-#if SOCKET_WITH_LOCK
-  TdThreadRwlock rwlock;
-#endif
-  int      refId;
-  SocketFd fd;
-} *TdSocketPtr, TdSocket;
 
 typedef struct TdEpoll {
 #if SOCKET_WITH_LOCK

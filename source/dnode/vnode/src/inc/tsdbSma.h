@@ -77,6 +77,4 @@ static FORCE_INLINE int tsdbUnLockSma(SSmaEnv *pEnv) {
   return 0;
 }
 
-
-
 #endif /* _TD_TSDB_SMA_H_ */
