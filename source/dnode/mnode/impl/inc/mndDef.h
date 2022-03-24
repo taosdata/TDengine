@@ -344,11 +344,14 @@ typedef struct {
   float    xFilesFactor;
   int32_t  aggregationMethod;
   int32_t  delay;
+  int32_t  ttl;
   int32_t  numOfColumns;
   int32_t  numOfTags;
+  int32_t  numOfSmas;
   int32_t  commentLen;
   SSchema* pColumns;
   SSchema* pTags;
+  SSchema* pSmas;
   char*    comment;
   SRWLatch lock;
 } SStbObj;

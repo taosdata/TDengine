@@ -272,11 +272,14 @@ typedef struct {
   float   xFilesFactor;
   int32_t aggregationMethod;
   int32_t delay;
+  int32_t ttl;
   int32_t numOfColumns;
   int32_t numOfTags;
+  int32_t numOfSmas;
   int32_t commentLen;
-  SArray* pColumns;
-  SArray* pTags;
+  SArray* pColumns;  // array of SField
+  SArray* pTags;     // array of SField
+  SArray* pSmas;     // array of SField
   char*   comment;
 } SMCreateStbReq;
 
