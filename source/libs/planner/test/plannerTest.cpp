@@ -52,7 +52,11 @@ protected:
     const string syntaxTreeStr = toString(query_->pRoot, false);
   
     SLogicNode* pLogicNode = nullptr;
-    SPlanContext cxt = { .queryId = 1, .acctId = 0, .streamQuery = streamQuery };
+    SPlanContext cxt = {0};
+    cxt.queryId = 1;
+    cxt.acctId = 0;
+    cxt.streamQuery = streamQuery;
+
     setPlanContext(query_, &cxt);
     code = createLogicPlan(&cxt, &pLogicNode);
     if (code != TSDB_CODE_SUCCESS) {
