@@ -76,16 +76,14 @@ if $rows != 3 then
   return -1
 endi
 
-
-
-#sql select * from information_schema.dnodes
-#if $rows != 2 then 
-#  return -1
-#endi
-#sql select * from information_schema.mnodes
-#if $rows != 1 then 
-#  return -1
-#endi
+sql select * from information_schema.dnodes
+if $rows != 2 then 
+  return -1
+endi
+sql select * from information_schema.mnodes
+if $rows != 1 then 
+  return -1
+endi
 #sql select * from information_schema.modules
 #sql select * from information_schema.qnodes 
 sql select * from information_schema.user_databases
@@ -108,10 +106,10 @@ sql select * from information_schema.user_users
 if $rows != 1 then 
   return -1
 endi
-#sql select * from information_schema.vgroups
-#if $rows != 3 then 
-#  return -1
-#endi
+sql select * from information_schema.vgroups
+if $rows != 3 then 
+  return -1
+endi
 
 print ==== stop dnode1 and dnode2, and restart dnodes
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
