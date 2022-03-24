@@ -189,6 +189,7 @@ void* MndTestSma::BuildDropTSmaReq(const char* smaname, int8_t igNotExists, int3
 }
 
 TEST_F(MndTestSma, 01_Create_Show_Meta_Drop_Restart_Stb) {
+  #if 0
   const char* dbname = "1.d1";
   const char* stbname = "1.d1.stb";
   const char* smaname = "1.d1.sma";
@@ -210,7 +211,7 @@ TEST_F(MndTestSma, 01_Create_Show_Meta_Drop_Restart_Stb) {
     test.SendShowRetrieveReq();
     EXPECT_EQ(test.GetShowRows(), 1);
   }
-#if 0
+
   {
     pReq = BuildCreateTSmaReq(smaname, stbname, 0, "expr", "tagsFilter", "sql", "ast", &contLen);
     pRsp = test.SendReq(TDMT_MND_CREATE_SMA, pReq, contLen);

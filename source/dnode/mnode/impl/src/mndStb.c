@@ -1587,15 +1587,11 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
     if (pDb == NULL) return 0;
   }
 
-  tstrncpy(prefix, pShow->db, TSDB_DB_FNAME_LEN);
-  strcat(prefix, TS_PATH_DELIMITER);
-  int32_t prefixLen = (int32_t)strlen(prefix);
-
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_STB, pShow->pIter, (void **)&pStb);
     if (pShow->pIter == NULL) break;
 
-    if (pStb->dbUid != pDb->uid) {
+    if (pDb != NULL && pStb->dbUid != pDb->uid) {
       sdbRelease(pSdb, pStb);
       continue;
     }
@@ -1609,12 +1605,12 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
     STR_TO_VARSTR(pWrite, stbName);
     cols++;
 
-    // char  db[TSDB_DB_NAME_LEN] = {0};
-    // tNameFromString(&name, pStb->db, T_NAME_ACCT|T_NAME_DB);
-    // tNameGetDbName(&name, db);
-    // pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    // STR_TO_VARSTR(pWrite, db);
-    // cols++;
+    char  db[TSDB_DB_NAME_LEN] = {0};
+    tNameFromString(&name, pStb->db, T_NAME_ACCT|T_NAME_DB);
+    tNameGetDbName(&name, db);
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_TO_VARSTR(pWrite, db);
+    cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     *(int64_t *)pWrite = pStb->createdTime;
@@ -1627,7 +1623,7 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     *(int32_t *)pWrite = pStb->numOfTags;
     cols++;
-#if 0
+
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     *(int32_t *)pWrite = 0; // number of tables
     cols++;
@@ -1643,7 +1639,7 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
       STR_TO_VARSTR(pWrite, "");
     }
     cols++;
-#endif
+
     numOfRows++;
     sdbRelease(pSdb, pStb);
   }

@@ -184,6 +184,13 @@ typedef struct SField {
   int32_t bytes;
 } SField;
 
+typedef struct SRetention {
+  int32_t first;
+  int32_t second;
+  int8_t  firstUnit;
+  int8_t  secondUnit;
+} SRetention;
+
 #pragma pack(push, 1)
 
 // null-terminated string instead of char array to avoid too many memory consumption in case of more than 1M tableMeta
@@ -506,10 +513,13 @@ typedef struct {
   int8_t  cacheLastRow;
   int8_t  ignoreExist;
   int8_t  streamMode;
+  int32_t numOfRetensions;
+  SArray* pRetensions;  // SRetention
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
 int32_t tDeserializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
+void    tFreeSCreateDbReq(SCreateDbReq* pReq);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
