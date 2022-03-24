@@ -403,18 +403,12 @@ static STsdbReadHandle* tsdbQueryTablesImpl(STsdb* tsdb, STsdbQueryCond* pCond, 
       SColumnInfoData colInfo = {{0}, 0};
       colInfo.info = pCond->colList[i];
 
-      colInfo.pData = calloc(1, EXTRA_BYTES + pReadHandle->outputCapacity * pCond->colList[i].bytes);
-      if (!IS_VAR_DATA_TYPE(colInfo.info.type)) {
-        colInfo.nullbitmap = calloc(1, BitmapLen(pReadHandle->outputCapacity));
-      }
-
-      if (colInfo.pData == NULL || (colInfo.nullbitmap == NULL && (!IS_VAR_DATA_TYPE(colInfo.info.type)))) {
+      int32_t code = blockDataEnsureColumnCapacity(&colInfo, pReadHandle->outputCapacity);
+      if (code != TSDB_CODE_SUCCESS) {
         goto _end;
       }
 
       taosArrayPush(pReadHandle->pColumns, &colInfo);
-
-
       pReadHandle->statis[i].colId = colInfo.info.colId;
     }
 
@@ -1409,43 +1403,38 @@ static int32_t doCopyRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, int32_t
       continue;
     }
 
-    int32_t bytes = pColInfo->info.bytes;
-
-    if (ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
-      pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
-    } else {
-      pData = (char*)pColInfo->pData + (capacity - numOfRows - num) * pColInfo->info.bytes;
-    }
-
     if (!isAllRowsNull(src) && pColInfo->info.colId == src->colId) {
-      if (pColInfo->info.type != TSDB_DATA_TYPE_BINARY && pColInfo->info.type != TSDB_DATA_TYPE_NCHAR) {
-        memmove(pData, (char*)src->pData + bytes * start, bytes * num);
-      } else {  // handle the var-string
-        char* dst = pData;
+      if (!IS_VAR_DATA_TYPE(pColInfo->info.type)) {  // todo opt performance
+//        memmove(pData, (char*)src->pData + bytes * start, bytes * num);
+        for(int32_t k = start; k < num + start; ++k) {
+          SCellVal sVal = {0};
+          if (tdGetColDataOfRow(&sVal, src, k) < 0) {
+            TASSERT(0);
+          }
 
+          if (sVal.valType == TD_VTYPE_NULL) {
+            colDataAppend(pColInfo, k, NULL, true);
+          } else {
+            colDataAppend(pColInfo, k, sVal.val, false);
+          }
+        }
+      } else {  // handle the var-string
         // todo refactor, only copy one-by-one
         for (int32_t k = start; k < num + start; ++k) {
-          SCellVal    sVal = {0};
+          SCellVal sVal = {0};
           if(tdGetColDataOfRow(&sVal, src, k) < 0){
             TASSERT(0);
           }
-          memcpy(dst, sVal.val, varDataTLen(sVal.val));
-          dst += bytes;
+
+          colDataAppend(pColInfo, k, sVal.val, false);
         }
       }
 
       j++;
       i++;
     } else { // pColInfo->info.colId < src->colId, it is a NULL data
-      if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
-        char* dst = pData;
-
-        for(int32_t k = start; k < num + start; ++k) {
-          setVardataNull(dst, pColInfo->info.type);
-          dst += bytes;
-        }
-      } else {
-        setNullN(pData, pColInfo->info.type, pColInfo->info.bytes, num);
+      for(int32_t k = start; k < num + start; ++k) {  // TODO opt performance
+        colDataAppend(pColInfo, k, NULL, true);
       }
       i++;
     }
@@ -1453,23 +1442,9 @@ static int32_t doCopyRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, int32_t
 
   while (i < requiredNumOfCols) { // the remain columns are all null data
     SColumnInfoData* pColInfo = taosArrayGet(pTsdbReadHandle->pColumns, i);
-    if (ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
-      pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
-    } else {
-      pData = (char*)pColInfo->pData + (capacity - numOfRows - num) * pColInfo->info.bytes;
+    for(int32_t k = start; k < num + start; ++k) {
+      colDataAppend(pColInfo, k, NULL, true); // TODO add a fast version to set a number of consecutive NULL value.
     }
-
-    if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
-      char* dst = pData;
-
-      for(int32_t k = start; k < num + start; ++k) {
-        setVardataNull(dst, pColInfo->info.type);
-        dst += pColInfo->info.bytes;
-      }
-    } else {
-      setNullN(pData, pColInfo->info.type, pColInfo->info.bytes, num);
-    }
-
     i++;
   }
 

@@ -4,9 +4,7 @@ add_executable(shell ${SHELL_SRC})
 target_link_libraries(
     shell
     PUBLIC taos
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
+    PRIVATE os common transport util
 )
 target_include_directories(
     shell

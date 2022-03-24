@@ -259,7 +259,7 @@ int metaSaveSmaToDB(SMeta *pMeta, STSma *pSmaCfg) {
   return 0;
 }
 
-int metaRemoveSmaFromDb(SMeta *pMeta, const char *indexName) {
+int metaRemoveSmaFromDb(SMeta *pMeta,  int64_t indexUid) {
   // TODO
 #if 0
   DBT key = {0};

@@ -51,7 +51,7 @@ int     metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg);
 int     metaDropTable(SMeta *pMeta, tb_uid_t uid);
 int     metaCommit(SMeta *pMeta);
 int32_t metaCreateTSma(SMeta *pMeta, SSmaCfg *pCfg);
-int32_t metaDropTSma(SMeta *pMeta, char *indexName);
+int32_t metaDropTSma(SMeta *pMeta, int64_t indexUid);
 
 // For Query
 STbCfg *        metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid);

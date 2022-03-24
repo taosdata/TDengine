@@ -16,15 +16,15 @@
 #ifndef _TD_TSDB_SMA_H_
 #define _TD_TSDB_SMA_H_
 
-typedef struct SSmaStat SSmaStat;
-typedef struct SSmaEnv  SSmaEnv;
+typedef struct SSmaStat     SSmaStat;
+typedef struct SSmaEnv      SSmaEnv;
 
 struct SSmaEnv {
   TdThreadRwlock lock;
-  SDiskID          did;
-  TDBEnv           dbEnv;  // TODO: If it's better to put it in smaIndex level?
-  char *           path;   // relative path
-  SSmaStat *       pStat;
+  SDiskID        did;
+  TDBEnv         dbEnv;  // TODO: If it's better to put it in smaIndex level?
+  char          *path;   // relative path
+  SSmaStat      *pStat;
 };
 
 #define SMA_ENV_LOCK(env)       ((env)->lock)
