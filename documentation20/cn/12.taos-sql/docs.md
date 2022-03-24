@@ -86,7 +86,7 @@ CREATE DATABASE db_name PRECISION 'ns';
         
         4) 更多关于UPDATE参数的用法，请参考[FAQ](https://www.taosdata.com/cn/documentation/faq)。
 
-    3) 数据库名最大长度为33；
+    3) 数据库名最大长度为32；
 
     4) 一条SQL 语句的最大长度为65480个字符；
 
