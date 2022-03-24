@@ -6,10 +6,10 @@ TEST(tdb_test, simple_test) {
   int    ret;
   STEnv *pEnv;
   STDb  *pDb;
-  int    nData = 50000;
+  int    nData = 200000;
 
   // Open Env
-  ret = tdbEnvOpen("tdb", 1024, 2560, &pEnv);
+  ret = tdbEnvOpen("tdb", 1024, 25600, &pEnv);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
@@ -43,6 +43,9 @@ TEST(tdb_test, simple_test) {
         GTEST_ASSERT_EQ(vLen, strlen(val));
         GTEST_ASSERT_EQ(memcmp(val, pVal, vLen), 0);
       }
+    }
+
+    {  // Loop to query the data
     }
   }
 

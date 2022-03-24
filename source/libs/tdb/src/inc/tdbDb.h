@@ -20,7 +20,8 @@
 extern "C" {
 #endif
 
-typedef struct STDb STDb;
+typedef struct STDb  STDb;
+typedef struct STDbC STDbC;
 
 int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, STEnv *pEnv, STDb **ppDb);
 int tdbDbClose(STDb *pDb);
