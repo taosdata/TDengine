@@ -111,7 +111,7 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
     SDB_SET_BINARY(pRaw, dataPos, pSchema->name, TSDB_COL_NAME_LEN, STB_ENCODE_OVER)
   }
 
-  for (int32_t i = 0; i < pStb->numOfTags; ++i) {
+  for (int32_t i = 0; i < pStb->numOfSmas; ++i) {
     SSchema *pSchema = &pStb->pSmas[i];
     SDB_SET_INT8(pRaw, dataPos, pSchema->type, STB_ENCODE_OVER)
     SDB_SET_INT32(pRaw, dataPos, pSchema->colId, STB_ENCODE_OVER)

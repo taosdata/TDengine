@@ -188,7 +188,6 @@ void* MndTestSma::BuildDropTSmaReq(const char* smaname, int8_t igNotExists, int3
   return pReq;
 }
 
-#if 0
 TEST_F(MndTestSma, 01_Create_Show_Meta_Drop_Restart_Stb) {
   const char* dbname = "1.d1";
   const char* stbname = "1.d1.stb";
@@ -245,7 +244,6 @@ TEST_F(MndTestSma, 01_Create_Show_Meta_Drop_Restart_Stb) {
   }
 #endif  
 }
-#endif
 
 TEST_F(MndTestSma, 02_Create_Show_Meta_Drop_Restart_BSma) {
   const char* dbname = "1.d1";
