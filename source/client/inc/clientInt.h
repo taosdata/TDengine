@@ -155,6 +155,7 @@ typedef struct SReqResultInfo {
   TAOS_FIELD*    fields;
   uint32_t       numOfCols;
   int32_t*       length;
+  char**         convertBuf;
   TAOS_ROW       row;
   SResultColumn* pCol;
   uint32_t       numOfRows;
