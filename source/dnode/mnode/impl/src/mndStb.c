@@ -85,6 +85,9 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   SDB_SET_INT64(pRaw, dataPos, pStb->dbUid, STB_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->version, STB_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->nextColId, STB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, (int32_t)(pStb->xFilesFactor * 10000), STB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pStb->aggregationMethod, STB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pStb->delay, STB_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->numOfColumns, STB_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->numOfTags, STB_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->commentLen, STB_ENCODE_OVER)
@@ -148,6 +151,11 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pStb->dbUid, STB_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->version, STB_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->nextColId, STB_DECODE_OVER)
+  int32_t xFilesFactor = 0;
+  SDB_GET_INT32(pRaw, dataPos, &xFilesFactor, STB_DECODE_OVER)
+  pStb->xFilesFactor = xFilesFactor / 10000.0f;
+  SDB_GET_INT32(pRaw, dataPos, &pStb->aggregationMethod, STB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pStb->delay, STB_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->numOfColumns, STB_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->numOfTags, STB_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->commentLen, STB_DECODE_OVER)

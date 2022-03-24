@@ -341,6 +341,9 @@ typedef struct {
   int64_t  dbUid;
   int32_t  version;
   int32_t  nextColId;
+  float    xFilesFactor;
+  int32_t  aggregationMethod;
+  int32_t  delay;
   int32_t  numOfColumns;
   int32_t  numOfTags;
   int32_t  commentLen;
