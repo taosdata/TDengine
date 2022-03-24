@@ -205,7 +205,8 @@ static void         destroyThrdObj(SCliThrdObj* pThrd);
       transRefCliHandle(conn);        \
     }                                 \
   } while (0)
-#define CONN_NO_PERSIST_BY_APP(conn) ((conn)->status == ConnNormal && T_REF_VAL_GET(conn) == 1)
+#define CONN_NO_PERSIST_BY_APP(conn) \
+  (((conn)->status == ConnNormal || (conn->status) == ConnInPool) T_REF_VAL_GET(conn) == 1)
 #define CONN_RELEASE_BY_SERVER(conn) \
   (((conn)->status == ConnRelease || (conn)->status == ConnInPool) && T_REF_VAL_GET(conn) == 1)
 #define REQUEST_NO_RESP(msg) ((msg)->noResp == 1)
@@ -331,12 +332,12 @@ void cliHandleExcept(SCliConn* pConn) {
   }
   SCliThrdObj* pThrd = pConn->hostThrd;
   STrans*      pTransInst = pThrd->pTransInst;
-  bool once = false;  
+  bool         once = false;
   do {
     SCliMsg* pMsg = transQueuePop(&pConn->cliMsgs);
     if (pMsg == NULL && once) {
       break;
-    } 
+    }
     STransConnCtx* pCtx = pMsg ? pMsg->ctx : NULL;
 
     STransMsg transMsg = {0};
