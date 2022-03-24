@@ -15,10 +15,13 @@
 
 # ---- insert
 ./test.sh -f tsim/insert/basic0.sim
+./test.sh -f tsim/insert/basic1.sim
+./test.sh -f tsim/insert/backquote.sim
 ./test.sh -f tsim/insert/null.sim
 
 # ---- query
 ./test.sh -f tsim/query/interval.sim
+#./test.sh -f tsim/query/interval-offset.sim
 
 # ---- table
 ./test.sh -f tsim/table/basic1.sim 

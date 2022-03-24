@@ -63,9 +63,12 @@ typedef enum {
 } ETsdbStatisStatus;
 
 typedef enum {
-  TSDB_SMA_STAT_OK = 0,       // ready to provide service
-  TSDB_SMA_STAT_EXPIRED = 1,  // not ready or expired
-} ETsdbSmaStat;
+  TSDB_SMA_STAT_UNKNOWN = -1,  // unknown
+  TSDB_SMA_STAT_OK = 0,        // ready to provide service
+  TSDB_SMA_STAT_EXPIRED = 1,   // not ready or expired
+  TSDB_SMA_STAT_DROPPED = 2,   // sma dropped
+} ETsdbSmaStat;                // bit operation
+
 
 typedef enum {
   TSDB_SMA_TYPE_BLOCK = 0,       // Block-wise SMA
@@ -75,8 +78,6 @@ typedef enum {
 
 extern char *qtypeStr[];
 
-#define TSDB_PORT_DNODEDNODE 5
-#define TSDB_PORT_SYNC      10
 #define TSDB_PORT_HTTP      11
 
 #ifdef __cplusplus

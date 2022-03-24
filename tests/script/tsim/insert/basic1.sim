@@ -55,7 +55,8 @@ if $rows != 4 then
   return -1
 endi
 
-if $data01 != true then 
+if $data01 != 1 then
+  print expect 1, actual: $data01
   return -1
 endi
 
@@ -80,7 +81,7 @@ system sh/exec.sh -n dnode1 -s start
 $loop_cnt = 0
 check_dnode_ready:
 	$loop_cnt = $loop_cnt + 1
-	sleep 100
+	sleep 200
 	if $loop_cnt == 10 then
 	  print ====> dnode not ready!
 		return -1
@@ -105,7 +106,7 @@ if $rows != 4 then
   return -1
 endi
 
-if $data01 != true then 
+if $data01 != 1 then
   return -1
 endi
 

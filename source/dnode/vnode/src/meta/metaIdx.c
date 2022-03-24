@@ -121,11 +121,11 @@ int32_t metaCreateTSma(SMeta *pMeta, SSmaCfg *pCfg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t metaDropTSma(SMeta *pMeta, char* indexName) {
+int32_t metaDropTSma(SMeta *pMeta, int64_t indexUid) {
   // TODO: Validate the cfg
   // TODO: add atomicity
 
-  if (metaRemoveSmaFromDb(pMeta, indexName) < 0) {
+  if (metaRemoveSmaFromDb(pMeta, indexUid) < 0) {
     // TODO: handle error
     return -1;
   }

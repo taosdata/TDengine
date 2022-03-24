@@ -313,7 +313,7 @@ int32_t tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {
       for (col_id_t i = 0; i < pReq->stbCfg.nBSmaCols; ++i) {
         tlen += taosEncodeFixedI16(buf, pReq->stbCfg.pBSmaCols[i]);
       }
-      if (pReq->rollup && NULL != pReq->stbCfg.pRSmaParam) {
+      if(pReq->rollup && pReq->stbCfg.pRSmaParam) {
         SRSmaParam *param = pReq->stbCfg.pRSmaParam;
         tlen += taosEncodeFixedU32(buf, (uint32_t)param->xFilesFactor);
         tlen += taosEncodeFixedI8(buf, param->delayUnit);
@@ -336,12 +336,12 @@ int32_t tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {
         tlen += taosEncodeFixedI32(buf, pReq->ntbCfg.pSchema[i].bytes);
         tlen += taosEncodeString(buf, pReq->ntbCfg.pSchema[i].name);
       }
-      tlen += taosEncodeFixedI16(buf, pReq->stbCfg.nBSmaCols);
-      for (col_id_t i = 0; i < pReq->stbCfg.nBSmaCols; ++i) {
-        tlen += taosEncodeFixedI16(buf, pReq->stbCfg.pBSmaCols[i]);
+      tlen += taosEncodeFixedI16(buf, pReq->ntbCfg.nBSmaCols);
+      for (col_id_t i = 0; i < pReq->ntbCfg.nBSmaCols; ++i) {
+        tlen += taosEncodeFixedI16(buf, pReq->ntbCfg.pBSmaCols[i]);
       }
-      if (pReq->rollup && NULL != pReq->stbCfg.pRSmaParam) {
-        SRSmaParam *param = pReq->stbCfg.pRSmaParam;
+      if(pReq->rollup && pReq->ntbCfg.pRSmaParam) {
+        SRSmaParam *param = pReq->ntbCfg.pRSmaParam;
         tlen += taosEncodeFixedU32(buf, (uint32_t)param->xFilesFactor);
         tlen += taosEncodeFixedI8(buf, param->delayUnit);
         tlen += taosEncodeFixedI8(buf, param->nFuncIds);
@@ -424,19 +424,19 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
         buf = taosDecodeFixedI32(buf, &pReq->ntbCfg.pSchema[i].bytes);
         buf = taosDecodeStringTo(buf, pReq->ntbCfg.pSchema[i].name);
       }
-      buf = taosDecodeFixedI16(buf, &(pReq->stbCfg.nBSmaCols));
-      if (pReq->stbCfg.nBSmaCols > 0) {
-        pReq->stbCfg.pBSmaCols = (col_id_t *)malloc(pReq->stbCfg.nBSmaCols * sizeof(col_id_t));
-        for (col_id_t i = 0; i < pReq->stbCfg.nBSmaCols; ++i) {
-          buf = taosDecodeFixedI16(buf, pReq->stbCfg.pBSmaCols + i);
+      buf = taosDecodeFixedI16(buf, &(pReq->ntbCfg.nBSmaCols));
+      if(pReq->ntbCfg.nBSmaCols > 0) {
+        pReq->ntbCfg.pBSmaCols = (col_id_t *)malloc(pReq->ntbCfg.nBSmaCols * sizeof(col_id_t));
+        for (col_id_t i = 0; i < pReq->ntbCfg.nBSmaCols; ++i) {
+          buf = taosDecodeFixedI16(buf, pReq->ntbCfg.pBSmaCols + i);
         }
       } else {
-        pReq->stbCfg.pBSmaCols = NULL;
+        pReq->ntbCfg.pBSmaCols = NULL;
       }
-      if (pReq->rollup) {
-        pReq->stbCfg.pRSmaParam = (SRSmaParam *)malloc(sizeof(SRSmaParam));
-        SRSmaParam *param = pReq->stbCfg.pRSmaParam;
-        buf = taosDecodeFixedU32(buf, (uint32_t *)&param->xFilesFactor);
+      if(pReq->rollup) {
+        pReq->ntbCfg.pRSmaParam = (SRSmaParam *)malloc(sizeof(SRSmaParam));
+        SRSmaParam *param = pReq->ntbCfg.pRSmaParam;
+        buf = taosDecodeFixedU32(buf, (uint32_t*)&param->xFilesFactor);
         buf = taosDecodeFixedI8(buf, &param->delayUnit);
         buf = taosDecodeFixedI8(buf, &param->nFuncIds);
         if (param->nFuncIds > 0) {
@@ -448,7 +448,7 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
         }
         buf = taosDecodeFixedI64(buf, &param->delay);
       } else {
-        pReq->stbCfg.pRSmaParam = NULL;
+        pReq->ntbCfg.pRSmaParam = NULL;
       }
       break;
     default:

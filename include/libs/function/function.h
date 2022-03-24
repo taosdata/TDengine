@@ -327,7 +327,7 @@ bool taosFillHasMoreResults(struct SFillInfo* pFillInfo);
 
 struct SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
                               int64_t slidingTime, int8_t slidingUnit, int8_t precision, int32_t fillType,
-                              struct SFillColInfo* pFillCol, void* handle);
+                              struct SFillColInfo* pFillCol, const char* id);
 
 void* taosDestroyFillInfo(struct SFillInfo *pFillInfo);
 int64_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, void** output, int32_t capacity);
