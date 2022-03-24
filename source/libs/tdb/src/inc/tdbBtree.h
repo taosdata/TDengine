@@ -37,6 +37,7 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pFile, FKeyComparator kcmpr, SB
 int tdbBtreeClose(SBTree *pBt);
 int tdbBtreeCursor(SBtCursor *pCur, SBTree *pBt);
 int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *pVal, int vLen);
+int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen);
 
 #ifdef __cplusplus
 }

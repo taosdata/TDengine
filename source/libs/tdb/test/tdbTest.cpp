@@ -37,7 +37,7 @@ TEST(tdb_test, simple_test) {
         sprintf(key, "key%d", i);
         sprintf(val, "value%d", i);
 
-        ret = tdbDbGet(pDb, key, strlen(key), pVal, &vLen);
+        ret = tdbDbGet(pDb, key, strlen(key), &pVal, &vLen);
         GTEST_ASSERT_EQ(ret, 0);
 
         GTEST_ASSERT_EQ(vLen, strlen(val));

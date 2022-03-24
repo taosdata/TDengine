@@ -203,6 +203,34 @@ int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *p
   return 0;
 }
 
+int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen) {
+  SBtCursor    btc;
+  SCell       *pCell;
+  int          cret;
+  SCellDecoder cd;
+
+  tdbBtreeCursor(&btc, pBt);
+
+  tdbBtCursorMoveTo(&btc, pKey, kLen, &cret);
+
+  if (cret) {
+    return cret;
+  }
+
+  pCell = tdbPageGetCell(btc.pPage, btc.idx);
+  tdbBtreeDecodeCell(btc.pPage, pCell, &cd);
+
+  *vLen = cd.vLen;
+  // TODO: here may have memory leak
+  *ppVal = realloc(*ppVal, *vLen);
+  if (*ppVal == NULL) {
+    return -1;
+  }
+
+  memcpy(*ppVal, cd.pVal, cd.vLen);
+  return 0;
+}
+
 static int tdbBtCursorMoveToChild(SBtCursor *pCur, SPgno pgno) {
   int ret;
 
