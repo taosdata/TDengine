@@ -6,7 +6,7 @@ TEST(tdb_test, simple_test) {
   int    ret;
   STEnv *pEnv;
   STDb  *pDb;
-  int    nData = 1000000;
+  int    nData = 2000000;
 
   // Open Env
   ret = tdbEnvOpen("tdb", 4096, 25600, &pEnv);
