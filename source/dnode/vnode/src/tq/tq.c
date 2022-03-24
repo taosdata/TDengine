@@ -52,12 +52,14 @@ STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pVnodeMeta, STq
     return NULL;
   }
 
+#if 0
   pTq->tqPushMgr = tqPushMgrOpen();
   if (pTq->tqPushMgr == NULL) {
     // free store
     free(pTq);
     return NULL;
   }
+#endif
 
   pTq->pStreamTasks = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
 
@@ -559,7 +561,7 @@ int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen) {
     pIter = taosHashIterate(pTq->pStreamTasks, pIter);
     if (pIter == NULL) break;
     SStreamTask* pTask = (SStreamTask*)pIter;
-    if (!pTask->pipeSource) continue;
+    if (!pTask->sourceType) continue;
 
     int32_t workerId = 0;
     void*   exec = pTask->runner[workerId].executor;
@@ -576,7 +578,7 @@ int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen) {
       }
       taosArrayPush(pRes, output);
     }
-    if (pTask->pipeSink) {
+    if (pTask->sinkType) {
       // write back
       /*printf("reach end\n");*/
       tqDebugShowSSData(pRes);

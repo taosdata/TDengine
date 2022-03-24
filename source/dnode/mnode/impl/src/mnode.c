@@ -358,9 +358,7 @@ int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption) {
   return 0;
 }
 
-int32_t mndStart(SMnode *pMnode) {
-  return mndInitTimer(pMnode);
-}
+int32_t mndStart(SMnode *pMnode) { return mndInitTimer(pMnode); }
 
 int32_t mndProcessMsg(SNodeMsg *pMsg) {
   SMnode  *pMnode = pMsg->pNode;
@@ -415,11 +413,11 @@ int64_t mndGenerateUid(char *name, int32_t len) {
   int32_t hashval = MurmurHash3_32(name, len);
 
   do {
-    int64_t  us = taosGetTimestampUs();
+    int64_t us = taosGetTimestampUs();
     int64_t x = (us & 0x000000FFFFFFFFFF) << 24;
     int64_t uuid = x + ((hashval & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
     if (uuid) {
-      return abs(uuid);
+      return llabs(uuid);
     }
   } while (true);
 }
