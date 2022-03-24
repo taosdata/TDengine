@@ -838,6 +838,9 @@ void transSendResponse(const STransMsg* pMsg) {
   }
   SSrvConn*     pConn = pMsg->handle;
   SWorkThrdObj* pThrd = pConn->hostThrd;
+  if (pThrd->quit) {
+    return;
+  }
 
   SSrvMsg* srvMsg = calloc(1, sizeof(SSrvMsg));
   srvMsg->pConn = pConn;
