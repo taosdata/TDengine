@@ -1,9 +1,9 @@
 use std::os::raw::*;
-
 use num_enum::FromPrimitive;
 
 #[repr(i32)]
 #[derive(Debug, Copy, Clone, FromPrimitive)]
+#[cfg_attr(feature = "serde", derive(serde_repr::Serialize_repr, serde_repr::Deserialize_repr))]
 pub enum TimestampPrecision {
     #[num_enum(default)]
     Millisecond = 0,

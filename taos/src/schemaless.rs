@@ -39,13 +39,13 @@ impl Taos {
     ///     taos.schemaless_insert(&lines, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_SECONDS)?;
     ///     ```
     ///
-    pub fn schemaless_insert(
+    pub fn schemaless_insert<'a, T: IntoCStr<'a>>(
         &self,
-        lines: &[impl ToCString],
+        lines: impl IntoIterator<Item = T>,
         protocol: TSDB_SML_PROTOCOL_TYPE,
         precision: TSDB_SML_TIMESTAMP_TYPE,
     ) -> Result<i32> {
-        let lines: Vec<_> = lines.iter().map(|line| line.to_c_string()).collect();
+        let lines: Vec<_> = lines.into_iter().map(|line| line.into_c_str()).collect();
         let mut lines = lines
             .iter()
             .map(|line| line.as_ptr() as *mut i8)
@@ -101,7 +101,7 @@ mod test {
     #[tokio::test]
     /// Test schemaless insert with OpenTSDB telnet protocol
     async fn telnet_insert() -> Result<()> {
-        let mut taos = Taos::new("localhost", "root", "taosdata", "log", 0).unwrap();
+        let taos = Taos::new("localhost", "root", "taosdata", "log", 0).unwrap();
 
         let db = "rs_test_sml_telnet";
         println!("test using {}", db);
@@ -130,7 +130,7 @@ mod test {
     #[tokio::test]
     /// Test schemaless insert with OpenTSDB json protocol
     async fn json_insert() -> Result<()> {
-        let mut taos = Taos::new("localhost", "root", "taosdata", "", 0).unwrap();
+        let taos = Taos::new("localhost", "root", "taosdata", "", 0).unwrap();
 
         let db = "rs_test_sml_json";
         println!("test using {}", db);

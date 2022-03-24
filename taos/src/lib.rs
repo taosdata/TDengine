@@ -1,10 +1,8 @@
 use std::{
     borrow::Cow,
-    ffi::{c_void, CStr},
+    ffi::CStr,
     fmt::{self, Display},
     future::Future,
-    os::raw::c_char,
-    task::{Poll, Waker},
 };
 use taos_sys::*;
 use thiserror::Error;
@@ -13,7 +11,8 @@ pub mod error;
 pub mod timestamp;
 pub use error::*;
 
-pub mod options;
+mod options;
+
 pub use options::TaosOptions;
 
 pub mod util;
@@ -32,7 +31,7 @@ pub struct TaosError {
 }
 
 impl TaosError {
-    pub fn new(code: TaosCode, err: impl Into<Cow<'static, str>>) -> Self {
+    pub(crate) fn new(code: TaosCode, err: impl Into<Cow<'static, str>>) -> Self {
         Self {
             code,
             err: err.into(),
@@ -47,8 +46,9 @@ impl Display for TaosError {
 
 type Result<T> = std::result::Result<T, TaosError>;
 
-#[repr(transparent)]
 pub struct Taos(*mut TAOS);
+
+unsafe impl Send for Taos {}
 
 impl Drop for Taos {
     fn drop(&mut self) {
@@ -59,68 +59,52 @@ impl Drop for Taos {
 }
 
 impl Taos {
-    pub fn new(
-        ip: impl ToCString,
-        user: impl ToCString,
-        pass: impl ToCString,
-        db: impl ToCString,
+    pub(crate) fn new<'a>(
+        ip: impl Into<NullableCStr<'a>>,
+        user: impl Into<NullableCStr<'a>>,
+        pass: impl Into<NullableCStr<'a>>,
+        db: impl Into<NullableCStr<'a>>,
         port: u16,
     ) -> Result<Self> {
-        let ip = ip.to_c_string();
-        let user = user.to_c_string();
-        let pass = pass.to_c_string();
-        let db = db.to_c_string();
-
         unsafe {
-            taos_options(TSDB_OPTION_CHARSET, "UTF-8".to_c_string().as_ptr() as _);
-        }
-        unsafe {
-            let null = std::ptr::null_mut() as *mut i8;
-            let conn = taos_connect(
-                // b"localhost\x00" as *const u8 as *const c_char,
-                ip.as_ptr(),
-                // b"root\x00" as *const u8 as *const c_char, //null,
-                user.as_ptr(),
-                pass.as_ptr(), // null,
-                db.as_ptr(), // null,
+            taos_connect(
+                ip.into().as_ptr(),
+                user.into().as_ptr(),
+                pass.into().as_ptr(),
+                db.into().as_ptr(),
                 port,
-            );
-            // ip.as_ptr(),
-            // user.as_ptr(),
-            // pass.as_ptr(),
-            // db.as_ptr(),
-            //     port as u16,
-            // )
-            // .as_mut();
-            if conn.is_null() {
-                Err(TaosError::new(
-                    TaosCode::TscInvalidConnection,
-                    "invalid connection",
-                ))
-            } else {
-                Ok(Taos(conn as _))
-            }
+            )
+            .as_mut()
         }
+        .map(|p| Taos(p as _))
+        .ok_or(TaosError::new(
+            TaosCode::TscInvalidConnection,
+            "invalid connection",
+        ))
     }
 
-    pub fn query_sync<'query>(&'query self, sql: &str) -> Result<TaosResult<'query>> {
-        unsafe {
-            let res = taos_query(self.0, sql.to_c_string().as_ptr() as _);
-            let code = taos_errno(self.0);
-            TaosResult::new(res, code)
-        }
+    pub fn query_sync<'query>(
+        &'query self,
+        sql: impl IntoCStr<'query>,
+    ) -> Result<TaosResult<'query>> {
+        TaosResult::try_from_ptr(unsafe { taos_query(self.0, sql.into_c_str().as_ptr()) })
     }
-    pub fn query_sync2<'query>(&'query self, sql: &str) -> Result<TaosResult<'query>> {
+
+    pub fn query_sync2<'query>(
+        &'query self,
+        sql: impl IntoCStr<'query>,
+    ) -> Result<TaosResult<'query>> {
         futures::executor::block_on(self.query(sql))
     }
 
-    pub fn query_with_callback<'a, F>(&'a mut self, callback: F)
+    pub fn query_with_callback<'a, F>(&'a mut self, _callback: F)
     where
         F: FnOnce(TaosResult<'a>, i32) -> (),
     {
-        let callback = Box::new(callback);
-        eprintln!("callback: {:p}", callback);
-        let ptr = Box::into_raw(callback) as *mut c_void;
+        unimplemented!()
+        // let callback = Box::new(callback);
+        // eprintln!("callback: {:p}", callback);
+        // let ptr = Box::into_raw(callback) as *mut c_void;
     }
 
     /// b"select * from log.logs\0" as *const u8 as _
@@ -132,15 +116,15 @@ impl Taos {
     }
 
     /// Asynchronously query with sql
-    pub fn query<'query>(
+    pub fn query<'a, 'query>(
         &'query self,
-        sql: &str,
+        sql: impl IntoCStr<'a>,
     ) -> impl Future<Output = Result<TaosResult<'query>>> {
-        self.query_c_str(sql.to_c_string().as_ptr() as _)
+        self.query_c_str(sql.into_c_str().as_ptr() as _)
     }
 
-    pub async fn exec(&self, sql: impl AsRef<str>) -> Result<usize> {
-        let res = self.query(sql.as_ref()).await?;
+    pub async fn exec<'a, 'query>(&'query self, sql: impl IntoCStr<'a>) -> Result<usize> {
+        let res = self.query(sql).await?;
         Ok(res.affected_rows() as _)
     }
 
@@ -150,6 +134,7 @@ impl Taos {
 }
 
 #[test]
+#[should_panic]
 fn async_query_callback_test() {
     let mut taos = Taos::new("localhost", "root", "taosdata", "", 0).unwrap();
     let callback = |res: TaosResult, code| {
@@ -158,7 +143,6 @@ fn async_query_callback_test() {
         let rows = res.affected_rows();
         println!("rows: {rows}");
     };
-    use tokio::time::{sleep, Duration};
     taos.query_with_callback(callback);
     println!("wait for 10 seconds");
     std::thread::sleep(std::time::Duration::from_secs(10));
@@ -174,18 +158,21 @@ fn query_async_await_future_test() {
         .unwrap()
         .block_on(async {
             let taos = Taos::new("localhost", "root", "taosdata", "log", 0).unwrap();
-            let res = taos.query("select * from log.logs ").await.unwrap();
+            let res = taos
+                .query("select * from log.logs limit 10000")
+                .await
+                .unwrap();
             let stream = res.fetch_block_stream();
 
             use futures::stream::StreamExt;
             let lengths = stream
                 .enumerate()
-                .map(|(idx, partial)| {
+                .map(|(bi, partial)| {
                     partial
                         .rows_iter()
                         .enumerate()
-                        .map(|(idx, values)| {
-                            println!("block {idx}, row {idx}: {values:?}");
+                        .map(|(ri, values)| {
+                            println!("block {bi}, row {ri}: {values:?}");
                             return 1;
                         })
                         .sum::<usize>()
@@ -204,7 +191,6 @@ pub enum TaosResult<'a> {
 
 impl<'a> Drop for TaosResult<'a> {
     fn drop(&mut self) {
-        eprintln!("free result {:p}", self.as_raw());
         unsafe {
             if !self.as_raw().is_null() {
                 taos_free_result(self.as_raw());
@@ -260,7 +246,7 @@ impl<'a> TaosResult<'a> {
         unsafe { taos_result_precision(self.as_raw()) }.into()
     }
 
-    pub fn affected_rows(&self) -> i32 {
+    pub fn affected_rows(&self) -> usize {
         unsafe { taos_affected_rows(self.as_raw()) as _ }
     }
 
@@ -280,7 +266,29 @@ pub fn client_info() -> String {
 #[test]
 fn test_client_info() {
     let version = client_info();
-    dbg!("{version}");
+    dbg!(format!("{version}"));
 }
 
-pub mod schemaless;
+#[test]
+#[should_panic]
+fn test_err() {
+    fn err_with_res() -> Result<()> {
+        let taos = Taos::new(
+            "localhost",
+            std::ptr::null() as *const i8,
+            "taosdata",
+            "",
+            0,
+        )?;
+        taos.query_sync("select * from log.logs where")?;
+        Ok(())
+    }
+    err_with_res().unwrap();
+}
+
+// pub mod schemaless;
+
+pub mod stmt;
+
+#[cfg(feature = "r2d2")]
+pub mod r2d2;

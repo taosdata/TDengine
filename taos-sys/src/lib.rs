@@ -80,10 +80,10 @@ pub union taos_bind_field_anonym_union {
 #[derive(Debug, Copy, Clone)]
 pub struct TAOS_MULTI_BIND {
     pub buffer_type: c_int,
-    pub buffer: *mut c_void,
+    pub buffer: *const c_void,
     pub buffer_length: usize,
-    pub length: *mut i32,
-    pub is_null: *mut c_char,
+    pub length: *const i32,
+    pub is_null: *const c_char,
     pub num: c_int,
 }
 
@@ -155,6 +155,8 @@ extern "C" {
     pub fn taos_stmt_use_result(stmt: *mut TAOS_STMT) -> *mut TAOS_RES;
 
     pub fn taos_stmt_close(stmt: *mut TAOS_STMT) -> c_int;
+
+    pub fn taos_stmt_errstr(stmt: *mut TAOS_STMT) -> *const c_char;
 
     pub fn taos_query(taos: *mut TAOS, sql: *const c_char) -> *mut TAOS_RES;
 

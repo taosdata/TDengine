@@ -9,20 +9,28 @@ description = "resered namespace for TDengine"
 
 [dependencies]
 bitsvec = "0.1.1"
+bitvec_simd = { version = "0.20.3", features = ["use_serde"] }
 chrono = "0.4"
-derive_builder = "0.10.2"
+derive_builder = "0.11.1"
 futures = "0.3.21"
 itertools = "0.10"
 log = "0.4"
 num_enum = "0.5"
 paste = "1"
+r2d2 = { version = "0.8.9", optional = true }
 serde = { version = "1", features = ["derive"] }
-taos-sys = { path = "../taos-sys" }
+serde_json = "1"
+taos-sys = { path = "../taos-sys", features = ["serde1"] }
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
+
 [dev-dependencies]
 criterion = "0.3"
-serde_json = "1"
+rand = "0.8.5"
+
+[features]
+default = ["r2d2"]
+
 [[bench]]
 name = "async_query"
 harness = false

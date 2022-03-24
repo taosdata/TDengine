@@ -1,7 +1,6 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 
-use taos::Taos;
-use taos_sys::taos_free_result;
+use taos::{Taos, TaosBuilder};
 
 fn bench_query_sync(taos: &Taos) {
     let _ = taos.query_sync("select * from log.logs");
@@ -13,7 +12,7 @@ fn bench_query_sync2(taos: &Taos) {
 
 fn criterion_benchmark(c: &mut Criterion) {
     // Optionally include some setup
-    let taos = Taos::new("localhost", "root", "taosdata", "", 0).unwrap();
+    let taos = TaosBuilder::new().build().unwrap();
     let mut group = c.benchmark_group("query - do nothing");
     use criterion::*;
     group.sampling_mode(SamplingMode::Flat);
