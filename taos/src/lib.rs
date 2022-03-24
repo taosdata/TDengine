@@ -50,6 +50,9 @@ type Result<T> = std::result::Result<T, TaosError>;
 #[repr(transparent)]
 pub struct Taos(*mut TAOS);
 
+unsafe impl Send for Taos {}
+unsafe impl Sync for Taos {}
+
 impl Drop for Taos {
     fn drop(&mut self) {
         unsafe {
@@ -82,7 +85,7 @@ impl Taos {
                 // b"root\x00" as *const u8 as *const c_char, //null,
                 user.as_ptr(),
                 pass.as_ptr(), // null,
-                db.as_ptr(), // null,
+                db.as_ptr(),   // null,
                 port,
             );
             // ip.as_ptr(),
@@ -201,6 +204,9 @@ pub enum TaosResult<'a> {
     WithFields(*mut TAOS_RES, &'a [TAOS_FIELD]),
     WithoutFields(*mut TAOS_RES),
 }
+
+unsafe impl<'a> Send for TaosResult<'a> {}
+unsafe impl<'a> Sync for TaosResult<'a> {}
 
 impl<'a> Drop for TaosResult<'a> {
     fn drop(&mut self) {

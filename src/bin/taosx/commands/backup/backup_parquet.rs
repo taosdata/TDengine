@@ -9,12 +9,8 @@ use parquet::{
     },
     schema::types::Type,
 };
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
-use taos::{Taos as NewTaos, TaosResult};
+use std::{fs, path::PathBuf, sync::Arc};
+use taos::Taos as NewTaos;
 pub async fn generate_parquet_schema(taos: &Taos, db: &str, stb: &str) -> Arc<Type> {
     let mut fields = vec![];
     taos.use_database(db).await.unwrap();
@@ -129,7 +125,7 @@ pub async fn generate_parquet_schema(taos: &Taos, db: &str, stb: &str) -> Arc<Ty
     )
 }
 
-pub async fn backup_data_parquet(db: &str, tb: &str, schema: Arc<Type>, target: &PathBuf) {
+pub async fn backup_data_parquet(db: &str, tb: String, schema: Arc<Type>, target: PathBuf) {
     let props = Arc::new(WriterProperties::builder().build());
     let mut path = target.clone();
     path.push(format!("{}.parquet", tb));

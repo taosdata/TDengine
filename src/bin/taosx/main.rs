@@ -25,14 +25,14 @@ pub fn cli<'help>() -> clap::Command<'help> {
     clap::Command::new("taosx")
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let cli = Cli::parse();
     dbg!(&cli);
+    let command = cli.command;
 
     // You can check for the existence of subcommands, and if found use their
     // matches just as you would the top level cmd
-    match &cli.command {
+    match command {
         Commands::Export(app) => {
             app.run_with_taos_opts(&cli.options);
         }
@@ -40,10 +40,10 @@ async fn main() {
             app.run_with_taos_opts(&cli.options);
         }
         Commands::Backup(app) => {
-            app.run_with_taos_opts(&cli.options).await;
+            app.run_with_taos_opts(&cli.options);
         }
         Commands::Restore(app) => {
-            app.run_with_taos_opts(&cli.options).await;
+            app.run_with_taos_opts(&cli.options);
         }
 
         Commands::External(args) => {

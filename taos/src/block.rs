@@ -52,6 +52,9 @@ struct BlockState {
     waker: Option<Waker>,
 }
 
+unsafe impl Send for BlockState {}
+unsafe impl Sync for BlockState {}
+
 impl<'a> PartialRows<'a> {
     fn new(result: &'a TaosResult<'a>, num_of_rows: i32) -> Self {
         // let filed_count = unsafe { taos_num_fields(result) };
