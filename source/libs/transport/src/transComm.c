@@ -280,6 +280,9 @@ void* transCtxDumpVal(STransCtx* ctx, int32_t key) {
 }
 void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
   void *ret = NULL;
+  if (ctx->brokenVal.clone == NULL) {
+     return ret; 
+  }
   (*ctx->brokenVal.clone)(ctx->brokenVal.val, &ret);
 
   *msgType = ctx->brokenVal.msgType;
