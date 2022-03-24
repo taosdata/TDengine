@@ -52,7 +52,7 @@ void test3() {
   pSyncMsg->isWeak = 1;
   strcpy(pSyncMsg->data, "test3");
 
-  SSyncRaftEntry* pEntry = syncEntryBuild3(pSyncMsg, 100, 200, SYNC_RAFT_ENTRY_NULL);
+  SSyncRaftEntry* pEntry = syncEntryBuild3(pSyncMsg, 100, 200, SYNC_RAFT_ENTRY_NOOP);
   syncEntryPrint(pEntry);
 
   syncClientRequestDestroy(pSyncMsg);

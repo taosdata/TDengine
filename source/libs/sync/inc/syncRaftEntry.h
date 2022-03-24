@@ -28,7 +28,7 @@ extern "C" {
 #include "taosdef.h"
 
 typedef enum EntryType {
-  SYNC_RAFT_ENTRY_NULL = 0,
+  SYNC_RAFT_ENTRY_NOOP = 0,
   SYNC_RAFT_ENTRY_DATA = 1,
   SYNC_RAFT_ENTRY_CONFIG = 2,
 } EntryType;
@@ -49,6 +49,7 @@ typedef struct SSyncRaftEntry {
 SSyncRaftEntry* syncEntryBuild(uint32_t dataLen);
 SSyncRaftEntry* syncEntryBuild2(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index);  // step 4
 SSyncRaftEntry* syncEntryBuild3(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index, EntryType entryType);
+SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index);
 void            syncEntryDestory(SSyncRaftEntry* pEntry);
 char*           syncEntrySerialize(const SSyncRaftEntry* pEntry, uint32_t* len);  // step 5
 SSyncRaftEntry* syncEntryDeserialize(const char* buf, uint32_t len);              // step 6

@@ -34,7 +34,7 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   pLogStore->getLastTerm = logStoreLastTerm;
   pLogStore->updateCommitIndex = logStoreUpdateCommitIndex;
   pLogStore->getCommitIndex = logStoreGetCommitIndex;
-  return pLogStore;  // to avoid compiler error
+  return pLogStore;
 }
 
 void logStoreDestory(SSyncLogStore* pLogStore) {
@@ -54,12 +54,12 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   assert(serialized != NULL);
 
   int code;
-  code = walWrite(pWal, pEntry->index, pEntry->msgType, serialized, len);
+  code = walWrite(pWal, pEntry->index, pEntry->entryType, serialized, len);
   assert(code == 0);
 
   walFsync(pWal, true);
   free(serialized);
-  return code;  // to avoid compiler error
+  return code;
 }
 
 SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {

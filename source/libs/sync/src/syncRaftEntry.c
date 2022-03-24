@@ -51,6 +51,16 @@ SSyncRaftEntry* syncEntryBuild3(SyncClientRequest* pMsg, SyncTerm term, SyncInde
   return pEntry;
 }
 
+SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index) {
+  SSyncRaftEntry* pEntry = syncEntryBuild(0);
+  assert(pEntry != NULL);
+  pEntry->term = term;
+  pEntry->index = index;
+  pEntry->entryType = SYNC_RAFT_ENTRY_NOOP;
+
+  return pEntry;
+}
+
 void syncEntryDestory(SSyncRaftEntry* pEntry) {
   if (pEntry != NULL) {
     free(pEntry);

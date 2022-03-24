@@ -41,10 +41,11 @@ static void syncNodeEqPingTimer(void* param, void* tmrId);
 static void syncNodeEqElectTimer(void* param, void* tmrId);
 static void syncNodeEqHeartbeatTimer(void* param, void* tmrId);
 
-// on message ----
+// process message ----
 static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
 static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
 static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg);
+static int32_t syncNodeAppendNoop(SSyncNode* ths);
 
 // life cycle
 static void syncFreeNode(void* param);
@@ -669,6 +670,9 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
   assert(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
   assert(voteGrantedMajority(pSyncNode->pVotesGranted));
   syncNodeBecomeLeader(pSyncNode);
+
+  // Raft 3.6.2 Committing entries from previous terms
+  syncNodeAppendNoop(pSyncNode);
 }
 
 void syncNodeFollower2Candidate(SSyncNode* pSyncNode) {
@@ -851,7 +855,7 @@ static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg
     syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
     if (ths->pFsm != NULL) {
-      if (ths->pFsm->FpPreCommitCb != NULL) {
+      if (ths->pFsm->FpPreCommitCb != NULL && pEntry->entryType == SYNC_RAFT_ENTRY_DATA) {
         ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0, ths->state);
       }
     }
@@ -866,7 +870,7 @@ static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg
     syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
     if (ths->pFsm != NULL) {
-      if (ths->pFsm->FpPreCommitCb != NULL) {
+      if (ths->pFsm->FpPreCommitCb != NULL && pEntry->entryType == SYNC_RAFT_ENTRY_DATA) {
         ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 1, ths->state);
       }
     }
@@ -874,6 +878,22 @@ static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg
   }
 
   syncEntryDestory(pEntry);
+  return ret;
+}
+
+static int32_t syncNodeAppendNoop(SSyncNode* ths) {
+  int32_t ret = 0;
+
+  SyncIndex       index = ths->pLogStore->getLastIndex(ths->pLogStore) + 1;
+  SyncTerm        term = ths->pRaftStore->currentTerm;
+  SSyncRaftEntry* pEntry = syncEntryBuildNoop(term, index);
+  assert(pEntry != NULL);
+
+  if (ths->state == TAOS_SYNC_STATE_LEADER) {
+    ths->pLogStore->appendEntry(ths->pLogStore, pEntry);
+    syncNodeReplicate(ths);
+  }
+
   return ret;
 }
 
