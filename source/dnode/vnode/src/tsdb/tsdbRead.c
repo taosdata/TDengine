@@ -1403,14 +1403,6 @@ static int32_t doCopyRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, int32_t
       continue;
     }
 
-    int32_t bytes = pColInfo->info.bytes;
-
-    if (ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
-      pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
-    } else {
-      pData = (char*)pColInfo->pData + (capacity - numOfRows - num) * pColInfo->info.bytes;
-    }
-
     if (!isAllRowsNull(src) && pColInfo->info.colId == src->colId) {
       if (!IS_VAR_DATA_TYPE(pColInfo->info.type)) {  // todo opt performance
 //        memmove(pData, (char*)src->pData + bytes * start, bytes * num);
