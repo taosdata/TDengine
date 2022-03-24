@@ -17,7 +17,9 @@
 #define _TD_MND_H_
 
 #include "monitor.h"
+#include "tmsg.h"
 #include "tmsgcb.h"
+#include "trpc.h"
 
 #ifdef __cplusplus
 extern "C" {

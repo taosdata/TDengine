@@ -411,31 +411,8 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   return code;
 }
 
-static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SIntervalWindowNode* pInterval, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  SWindowLogicNode* pWindow = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW);
-  if (NULL == pWindow) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  pWindow->winType = WINDOW_TYPE_INTERVAL;
-  pWindow->interval = ((SValueNode*)pInterval->pInterval)->datum.i;
-  pWindow->intervalUnit = ((SValueNode*)pInterval->pInterval)->unit;
-  pWindow->offset = (NULL != pInterval->pOffset ? ((SValueNode*)pInterval->pOffset)->datum.i : 0);
-  pWindow->sliding = (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->datum.i : pWindow->interval);
-  pWindow->slidingUnit = (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
-
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  if (NULL != pInterval->pFill) {
-    pWindow->pFill = nodesCloneNode(pInterval->pFill);
-    if (NULL == pWindow->pFill) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-    }
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodesCollectFuncs(pSelect, fmIsAggFunc, &pWindow->pFuncs);
-  }
+static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow, SLogicNode** pLogicNode) {
+  int32_t code = nodesCollectFuncs(pSelect, fmIsAggFunc, &pWindow->pFuncs);
 
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExpr(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW);
@@ -454,14 +431,52 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
   return code;
 }
 
+static int32_t createWindowLogicNodeBySession(SLogicPlanContext* pCxt, SSessionWindowNode* pSession, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+  SWindowLogicNode* pWindow = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW);
+  if (NULL == pWindow) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pWindow->winType = WINDOW_TYPE_SESSION;
+  pWindow->sessionGap = ((SValueNode*)pSession->pGap)->datum.i;
+
+  return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
+}
+
+static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SIntervalWindowNode* pInterval, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+  SWindowLogicNode* pWindow = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW);
+  if (NULL == pWindow) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pWindow->winType = WINDOW_TYPE_INTERVAL;
+  pWindow->interval = ((SValueNode*)pInterval->pInterval)->datum.i;
+  pWindow->intervalUnit = ((SValueNode*)pInterval->pInterval)->unit;
+  pWindow->offset = (NULL != pInterval->pOffset ? ((SValueNode*)pInterval->pOffset)->datum.i : 0);
+  pWindow->sliding = (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->datum.i : pWindow->interval);
+  pWindow->slidingUnit = (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
+
+  if (NULL != pInterval->pFill) {
+    pWindow->pFill = nodesCloneNode(pInterval->pFill);
+    if (NULL == pWindow->pFill) {
+      nodesDestroyNode(pWindow);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
+}
+
 static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
   }
 
   switch (nodeType(pSelect->pWindow)) {
+    case QUERY_NODE_SESSION_WINDOW:
+      return createWindowLogicNodeBySession(pCxt, (SSessionWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
     case QUERY_NODE_INTERVAL_WINDOW:
-      return createWindowLogicNodeByInterval(pCxt, (SIntervalWindowNode*)pSelect->pWindow, pSelect, pLogicNode);    
+      return createWindowLogicNodeByInterval(pCxt, (SIntervalWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
     default:
       break;
   }

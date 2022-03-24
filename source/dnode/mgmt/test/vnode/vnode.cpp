@@ -158,6 +158,7 @@ TEST_F(DndTestVnode, 03_Create_Stb) {
   for (int i = 0; i < 1; ++i) {
     SVCreateTbReq req = {0};
     req.ver = 0;
+    req.dbFName = (char*)"1.db1";
     req.name = (char*)"stb1";
     req.ttl = 0;
     req.keep = 0;
@@ -229,6 +230,7 @@ TEST_F(DndTestVnode, 04_Alter_Stb) {
   for (int i = 0; i < 1; ++i) {
     SVCreateTbReq req = {0};
     req.ver = 0;
+    req.dbFName = (char*)"1.db1";
     req.name = (char*)"stb1";
     req.ttl = 0;
     req.keep = 0;

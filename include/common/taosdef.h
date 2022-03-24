@@ -78,8 +78,6 @@ typedef enum {
 
 extern char *qtypeStr[];
 
-#define TSDB_PORT_DNODEDNODE 5
-#define TSDB_PORT_SYNC      10
 #define TSDB_PORT_HTTP      11
 
 #ifdef __cplusplus

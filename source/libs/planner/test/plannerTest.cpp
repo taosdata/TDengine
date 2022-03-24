@@ -26,11 +26,6 @@ using namespace testing;
 
 class PlannerTest : public Test {
 protected:
-  enum TestTarget {
-    TEST_LOGIC_PLAN,
-    TEST_PHYSICAL_PLAN
-  };
-
   void setDatabase(const string& acctId, const string& db) {
     acctId_ = acctId;
     db_ = db;
@@ -46,7 +41,7 @@ protected:
     cxt_.pSql = sqlBuf_.c_str();
   }
 
-  bool run(TestTarget target = TEST_PHYSICAL_PLAN) {
+  bool run(bool streamQuery = false) {
     int32_t code = qParseQuerySql(&cxt_, &query_);
 
     if (code != TSDB_CODE_SUCCESS) {
@@ -56,37 +51,50 @@ protected:
 
     const string syntaxTreeStr = toString(query_->pRoot, false);
   
-    SLogicNode* pLogicPlan = nullptr;
-    SPlanContext cxt = { .queryId = 1, .acctId = 0 };
+    SLogicNode* pLogicNode = nullptr;
+    SPlanContext cxt = { .queryId = 1, .acctId = 0, .streamQuery = streamQuery };
     setPlanContext(query_, &cxt);
-    code = createLogicPlan(&cxt, &pLogicPlan);
+    code = createLogicPlan(&cxt, &pLogicNode);
     if (code != TSDB_CODE_SUCCESS) {
-      cout << "sql:[" << cxt_.pSql << "] logic plan code:" << code << ", strerror:" << tstrerror(code) << endl;
+      cout << "sql:[" << cxt_.pSql << "] createLogicPlan code:" << code << ", strerror:" << tstrerror(code) << endl;
       return false;
     }
   
     cout << "====================sql : [" << cxt_.pSql << "]" << endl;
-    cout << "syntax test : " << endl;
+    cout << "syntax tree : " << endl;
     cout << syntaxTreeStr << endl;
     cout << "unformatted logic plan : " << endl;
-    cout << toString((const SNode*)pLogicPlan, false) << endl;
+    cout << toString((const SNode*)pLogicNode, false) << endl;
 
-    if (TEST_PHYSICAL_PLAN == target) {
-      SQueryPlan* pPlan = nullptr;
-      code = createPhysiPlan(&cxt, pLogicPlan, &pPlan, NULL);
-      if (code != TSDB_CODE_SUCCESS) {
-        cout << "sql:[" << cxt_.pSql << "] physical plan code:" << code << ", strerror:" << tstrerror(code) << endl;
-        return false;
-      }
-      cout << "unformatted physical plan : " << endl;
-      cout << toString((const SNode*)pPlan, false) << endl;
-      SNode* pNode;
-      FOREACH(pNode, pPlan->pSubplans) {
-        SNode* pSubplan;
-        FOREACH(pSubplan, ((SNodeListNode*)pNode)->pNodeList) {
-          cout << "unformatted physical subplan : " << endl;
-          cout << toString(pSubplan, false) << endl;
-        }
+    SLogicSubplan* pLogicSubplan = nullptr;
+    code = splitLogicPlan(&cxt, pLogicNode, &pLogicSubplan);
+    if (code != TSDB_CODE_SUCCESS) {
+      cout << "sql:[" << cxt_.pSql << "] splitLogicPlan code:" << code << ", strerror:" << tstrerror(code) << endl;
+      return false;
+    }
+
+    SQueryLogicPlan* pLogicPlan = NULL;
+    code = scaleOutLogicPlan(&cxt, pLogicSubplan, &pLogicPlan);
+    if (code != TSDB_CODE_SUCCESS) {
+      cout << "sql:[" << cxt_.pSql << "] createPhysiPlan code:" << code << ", strerror:" << tstrerror(code) << endl;
+      return false;
+    }
+
+    SQueryPlan* pPlan = nullptr;
+    code = createPhysiPlan(&cxt, pLogicPlan, &pPlan, NULL);
+    if (code != TSDB_CODE_SUCCESS) {
+      cout << "sql:[" << cxt_.pSql << "] createPhysiPlan code:" << code << ", strerror:" << tstrerror(code) << endl;
+      return false;
+    }
+  
+    cout << "unformatted physical plan : " << endl;
+    cout << toString((const SNode*)pPlan, false) << endl;
+    SNode* pNode;
+    FOREACH(pNode, pPlan->pSubplans) {
+      SNode* pSubplan;
+      FOREACH(pSubplan, ((SNodeListNode*)pNode)->pNodeList) {
+        cout << "unformatted physical subplan : " << endl;
+        cout << toString(pSubplan, false) << endl;
       }
     }
 
@@ -120,14 +128,6 @@ private:
       cout << "sql:[" << cxt_.pSql << "] toString code:" << code << ", strerror:" << tstrerror(code) << endl;
       return string();
     }
-    SNode* pNode;
-    code = nodesStringToNode(pStr, &pNode);
-    if (code != TSDB_CODE_SUCCESS) {
-      tfree(pStr);
-      cout << "sql:[" << cxt_.pSql << "] toObject code:" << code << ", strerror:" << tstrerror(code) << endl;
-      return string();
-    }
-    nodesDestroyNode(pNode);
     string str(pStr);
     tfree(pStr);
     return str;
@@ -185,6 +185,13 @@ TEST_F(PlannerTest, interval) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(PlannerTest, sessionWindow) {
+  setDatabase("root", "test");
+
+  bind("SELECT count(*) FROM t1 session(ts, 10s)");
+  ASSERT_TRUE(run());
+}
+
 TEST_F(PlannerTest, showTables) {
   setDatabase("root", "test");
 
@@ -196,4 +203,11 @@ TEST_F(PlannerTest, createTopic) {
 
   bind("create topic tp as SELECT * FROM st1");
   ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, stream) {
+  setDatabase("root", "test");
+
+  bind("SELECT sum(c1) FROM st1");
+  ASSERT_TRUE(run(true));
 }

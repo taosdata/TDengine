@@ -100,6 +100,15 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.quorum, DB_ENCODE_OVER)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.update, DB_ENCODE_OVER)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.cacheLastRow, DB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.numOfRetensions, DB_ENCODE_OVER)
+  for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
+    SRetention *pRetension = taosArrayGet(pDb->cfg.pRetensions, i);
+    SDB_SET_INT32(pRaw, dataPos, pRetension->freq, DB_ENCODE_OVER)
+    SDB_SET_INT32(pRaw, dataPos, pRetension->keep, DB_ENCODE_OVER)
+    SDB_SET_INT8(pRaw, dataPos, pRetension->freqUnit, DB_ENCODE_OVER)
+    SDB_SET_INT8(pRaw, dataPos, pRetension->keepUnit, DB_ENCODE_OVER)
+  }
+
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_DB_RESERVE_SIZE, DB_ENCODE_OVER)
   SDB_SET_DATALEN(pRaw, dataPos, DB_ENCODE_OVER)
 
@@ -161,6 +170,22 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.quorum, DB_DECODE_OVER)
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.update, DB_DECODE_OVER)
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.cacheLastRow, DB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.numOfRetensions, DB_DECODE_OVER)
+  if (pDb->cfg.numOfRetensions > 0) {
+    pDb->cfg.pRetensions = taosArrayInit(pDb->cfg.numOfRetensions, sizeof(SRetention));
+    if (pDb->cfg.pRetensions == NULL) goto DB_DECODE_OVER;
+    for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
+      SRetention retension = {0};
+      SDB_GET_INT32(pRaw, dataPos, &retension.freq, DB_DECODE_OVER)
+      SDB_GET_INT32(pRaw, dataPos, &retension.keep, DB_DECODE_OVER)
+      SDB_GET_INT8(pRaw, dataPos, &retension.freqUnit, DB_DECODE_OVER)
+      SDB_GET_INT8(pRaw, dataPos, &retension.keepUnit, DB_DECODE_OVER)
+      if (taosArrayPush(pDb->cfg.pRetensions, &retension) == NULL) {
+        goto DB_DECODE_OVER;
+      }
+    }
+  }
+
   SDB_GET_RESERVE(pRaw, dataPos, TSDB_DB_RESERVE_SIZE, DB_DECODE_OVER)
 
   terrno = 0;
@@ -183,6 +208,7 @@ static int32_t mndDbActionInsert(SSdb *pSdb, SDbObj *pDb) {
 
 static int32_t mndDbActionDelete(SSdb *pSdb, SDbObj *pDb) {
   mTrace("db:%s, perform delete action, row:%p", pDb->name, pDb);
+  taosArrayDestroy(pDb->cfg.pRetensions);
   return 0;
 }
 
@@ -417,6 +443,10 @@ static int32_t mndCreateDb(SMnode *pMnode, SNodeMsg *pReq, SCreateDbReq *pCreate
       .streamMode = pCreate->streamMode,
   };
 
+  dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
+  dbObj.cfg.pRetensions = pCreate->pRetensions;
+  pCreate = NULL;
+
   mndSetDefaultDbCfg(&dbObj.cfg);
 
   if (mndCheckDbName(dbObj.name, pUser) != 0) {
@@ -505,6 +535,7 @@ CREATE_DB_OVER:
 
   mndReleaseDb(pMnode, pDb);
   mndReleaseUser(pMnode, pUser);
+  tFreeSCreateDbReq(&createReq);
 
   return code;
 }
