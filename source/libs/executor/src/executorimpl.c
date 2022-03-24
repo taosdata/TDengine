@@ -7576,7 +7576,7 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
   }
 
   pInfo->order     = TSDB_ORDER_ASC;
-  pInfo->precision = TSDB_TIME_PRECISION_MICRO;
+  pInfo->precision = TSDB_TIME_PRECISION_MILLI;
   pInfo->win       = pTaskInfo->window;
   pInfo->interval  = *pInterval;
 
