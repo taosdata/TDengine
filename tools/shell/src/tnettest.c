@@ -406,7 +406,7 @@ static int32_t taosNetCheckRpc(const char* serverFqdn, uint16_t port, uint16_t p
   reqMsg.code = 0;
   reqMsg.handle = NULL;   // rpc handle returned to app
   reqMsg.ahandle = NULL;  // app handle set by client
-  strcpy(reqMsg.pCont, "nettest");
+  strcpy(reqMsg.pCont, "dnode-nettest");
 
   rpcSendRecv(pRpcConn, &epSet, &reqMsg, &rspMsg);
 
@@ -442,7 +442,7 @@ static void taosNetTestStartup(char *host, int32_t port) {
 
   SStartupReq *pStep = malloc(sizeof(SStartupReq));
   while (1) {
-    int32_t code = taosNetCheckRpc(host, port + TSDB_PORT_DNODEDNODE, 20, 0, pStep);
+    int32_t code = taosNetCheckRpc(host, port, 20, 0, pStep);
     if (code > 0) {
       code = taosNetParseStartup(pStep);
     }
