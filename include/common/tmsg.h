@@ -215,7 +215,7 @@ typedef struct {
 // Submit message for one table
 typedef struct SSubmitBlk {
   int64_t uid;        // table unique id
-  int32_t tid;        // table id
+  int64_t suid;        // stable id
   int32_t padding;    // TODO just for padding here
   int32_t sversion;   // data schema version
   int32_t dataLen;    // data part length, not including the SSubmitBlk head
