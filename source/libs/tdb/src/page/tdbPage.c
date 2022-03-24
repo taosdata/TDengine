@@ -52,7 +52,7 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
   }
 
   ptr = (u8 *)((*xMalloc)(arg, size));
-  if (pPage == NULL) {
+  if (ptr == NULL) {
     return -1;
   }
 

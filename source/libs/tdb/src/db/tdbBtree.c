@@ -712,7 +712,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
   }
 
   {  // Do the real cell distribution
-    SPage            *pOldsCopy[3];
+    SPage            *pOldsCopy[3] = {0};
     SCell            *pCell;
     int               szCell;
     SBtreeInitPageArg iarg;
@@ -722,7 +722,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
     iarg.pBt = pBt;
     iarg.flags = TDB_BTREE_PAGE_GET_FLAGS(pOlds[0]);
     for (int i = 0; i < nOlds; i++) {
-      tdbPageCreate(pOlds[0]->pageSize, pOldsCopy + i, NULL, NULL);
+      tdbPageCreate(pOlds[0]->pageSize, &pOldsCopy[i], NULL, NULL);
       tdbBtreeZeroPage(pOldsCopy[i], &iarg);
       tdbPageCopy(pOlds[i], pOldsCopy[i]);
     }
