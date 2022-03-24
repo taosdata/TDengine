@@ -1377,7 +1377,6 @@ static int doBinarySearchKey(char* pValue, int num, TSKEY key, int order) {
 }
 
 static int32_t doCopyRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, int32_t capacity, int32_t numOfRows, int32_t start, int32_t end) {
-  char* pData = NULL;
   int32_t step = ASCENDING_TRAVERSE(pTsdbReadHandle->order)? 1 : -1;
 
   SDataCols* pCols = pTsdbReadHandle->rhelper.pDCols[0];
@@ -1454,14 +1453,12 @@ static int32_t doCopyRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, int32_t
   return numOfRows + num;
 }
 
-// TODO fix bug for reverse copy data
-// TODO handle the null data
+// TODO fix bug for reverse copy data problem
 // Note: row1 always has high priority
 static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacity, int32_t numOfRows, STSRow* row1,
                                STSRow* row2, int32_t numOfCols, uint64_t uid, STSchema* pSchema1, STSchema* pSchema2,
                                bool forceSetNull) {
 #if 1
-  char*       pData = NULL;
   STSchema*   pSchema;
   STSRow*     row;
   int16_t     colId;
@@ -1502,12 +1499,6 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
   int32_t i = 0, j = 0, k = 0;
   while(i < numOfCols && (j < numOfColsOfRow1 || k < numOfColsOfRow2)) {
     SColumnInfoData* pColInfo = taosArrayGet(pTsdbReadHandle->pColumns, i);
-
-    if (ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
-      pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
-    } else {
-      pData = (char*)pColInfo->pData + (capacity - numOfRows - 1) * pColInfo->info.bytes;
-    }
 
     int32_t colIdOfRow1;
     if(j >= numOfColsOfRow1) {
@@ -1571,43 +1562,11 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
 
     if (colId == pColInfo->info.colId) {
       if (tdValTypeIsNorm(sVal.valType)) {
-        switch (pColInfo->info.type) {
-          case TSDB_DATA_TYPE_BINARY:
-          case TSDB_DATA_TYPE_NCHAR:
-            memcpy(pData, sVal.val, varDataTLen(sVal.val));
-            break;
-          case TSDB_DATA_TYPE_BOOL:
-          case TSDB_DATA_TYPE_TINYINT:
-          case TSDB_DATA_TYPE_UTINYINT:
-            *(uint8_t *)pData = *(uint8_t *)sVal.val;
-            break;
-          case TSDB_DATA_TYPE_SMALLINT:
-          case TSDB_DATA_TYPE_USMALLINT:
-            *(uint16_t *)pData = *(uint16_t *)sVal.val;
-            break;
-          case TSDB_DATA_TYPE_INT:
-          case TSDB_DATA_TYPE_UINT:
-            *(uint32_t *)pData = *(uint32_t *)sVal.val;
-            break;
-          case TSDB_DATA_TYPE_BIGINT:
-          case TSDB_DATA_TYPE_UBIGINT:
-            *(uint64_t *)pData = *(uint64_t *)sVal.val;
-            break;
-          case TSDB_DATA_TYPE_FLOAT:
-            SET_FLOAT_PTR(pData, sVal.val);
-            break;
-          case TSDB_DATA_TYPE_DOUBLE:
-            SET_DOUBLE_PTR(pData, sVal.val);
-            break;
-          case TSDB_DATA_TYPE_TIMESTAMP:
-            *(TSKEY*)pData = *(TSKEY*)sVal.val;
-            break;
-          default:
-            memcpy(pData, sVal.val, pColInfo->info.bytes);
-        }
+        colDataAppend(pColInfo, numOfRows, sVal.val, false);
       } else if (forceSetNull) {
         colDataAppend(pColInfo, numOfRows, NULL, true);
       }
+
       i++;
 
       if(row == row1) {
