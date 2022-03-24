@@ -272,7 +272,10 @@ static SNode* logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* pD
   COPY_SCALAR_FIELD(interval);
   COPY_SCALAR_FIELD(offset);
   COPY_SCALAR_FIELD(sliding);
+  COPY_SCALAR_FIELD(intervalUnit);
+  COPY_SCALAR_FIELD(slidingUnit);
   CLONE_NODE_FIELD(pFill);
+  COPY_SCALAR_FIELD(sessionGap);
   return (SNode*)pDst;
 }
 

@@ -3230,7 +3230,7 @@ static YYACTIONTYPE yy_reduce(
 { yymsp[-2].minor.yy136 = yymsp[0].minor.yy136; }
         break;
       case 292: /* twindow_clause_opt ::= SESSION NK_LP column_reference NK_COMMA duration_literal NK_RP */
-{ yymsp[-5].minor.yy140 = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, yymsp[-3].minor.yy140), yymsp[-1].minor.yy140); }
+{ yymsp[-5].minor.yy140 = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, yymsp[-3].minor.yy140), releaseRawExprNode(pCxt, yymsp[-1].minor.yy140)); }
         break;
       case 293: /* twindow_clause_opt ::= STATE_WINDOW NK_LP column_reference NK_RP */
 { yymsp[-3].minor.yy140 = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, yymsp[-1].minor.yy140)); }

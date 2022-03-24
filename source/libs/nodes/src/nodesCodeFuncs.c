@@ -196,6 +196,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiSort";
     case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
       return "PhysiInterval";
+    case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
+      return "PhysiSessionWindow";
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return "PhysiDispatch";
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:

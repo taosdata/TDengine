@@ -185,6 +185,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SNode));
     case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
       return makeNode(type, sizeof(SIntervalPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
+      return makeNode(type, sizeof(SSessionWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return makeNode(type, sizeof(SDataDispatcherNode));
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
