@@ -817,11 +817,12 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
     }
   }
 
-  for (int i = 0; i < 3; i++) {
-    if (pDivCell[i]) {
-      free(pDivCell[i]);
-    }
-  }
+  // TODO: here has memory leak
+  // for (int i = 0; i < 3; i++) {
+  //   if (pDivCell[i]) {
+  //     free(pDivCell[i]);
+  //   }
+  // }
 
   return 0;
 }
