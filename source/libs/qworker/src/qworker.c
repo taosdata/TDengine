@@ -9,7 +9,7 @@
 #include "tname.h"
 #include "dataSinkMgt.h"
 
-SQWDebug gQWDebug = {.statusEnable = true};
+SQWDebug gQWDebug = {.statusEnable = true, .dumpEnable = true};
 
 int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore) {
   if (!gQWDebug.statusEnable) {
@@ -103,6 +103,36 @@ _return:
   QW_RET(code);
 }
 
+void qwDbgDumpSchInfo(SQWSchStatus *sch, int32_t i) {
+
+}
+
+void qwDbgDumpMgmtInfo(SQWorkerMgmt *mgmt) {
+  if (!gQWDebug.dumpEnable) {
+    return;
+  }
+
+  QW_LOCK(QW_READ, &mgmt->schLock);
+  
+  QW_DUMP("total remain schduler num:%d", taosHashGetSize(mgmt->schHash));
+
+  void *key = NULL;
+  size_t keyLen = 0;
+  int32_t i = 0;
+  SQWSchStatus *sch = NULL;
+
+  void *pIter = taosHashIterate(mgmt->schHash, NULL);
+  while (pIter) {
+    sch = (SQWSchStatus *)pIter;
+    qwDbgDumpSchInfo(sch, i);
+    ++i;
+    pIter = taosHashIterate(mgmt->schHash, pIter);
+  }
+
+  QW_UNLOCK(QW_READ, &mgmt->schLock);
+
+  QW_DUMP("total remain ctx num:%d", taosHashGetSize(mgmt->ctxHash));
+}
 
 char *qwPhaseStr(int32_t phase) {
   switch (phase) {
@@ -581,7 +611,7 @@ int32_t qwGenerateSchHbRsp(SQWorkerMgmt *mgmt, SQWSchStatus *sch, SQWHbInfo *hbI
   int32_t taskNum = 0;
 
   hbInfo->connInfo = sch->hbConnInfo;
-  hbInfo->rsp.epId = sch->epId;
+  hbInfo->rsp.epId = sch->hbEpId;
 
   QW_LOCK(QW_READ, &sch->tasksLock);
   
@@ -1248,16 +1278,16 @@ int32_t qwProcessHb(SQWorkerMgmt *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
   
   QW_ERR_JRET(qwAcquireAddScheduler(mgmt, req->sId, QW_READ, &sch));
 
-  QW_LOCK(QW_WRITE, &sch->connLock);
+  QW_LOCK(QW_WRITE, &sch->hbConnLock);
 
   if (sch->hbConnInfo.handle) {
     rpcReleaseHandle(sch->hbConnInfo.handle, TAOS_CONN_SERVER);
   }
   
   memcpy(&sch->hbConnInfo, &qwMsg->connInfo, sizeof(qwMsg->connInfo));
-  memcpy(&sch->epId, &req->epId, sizeof(req->epId));
+  memcpy(&sch->hbEpId, &req->epId, sizeof(req->epId));
   
-  QW_UNLOCK(QW_WRITE, &sch->connLock);
+  QW_UNLOCK(QW_WRITE, &sch->hbConnLock);
   
   QW_DLOG("hb connection updated, sId:%" PRIx64 ", nodeId:%d, fqdn:%s, port:%d, handle:%p, ahandle:%p",
     req->sId, req->epId.nodeId, req->epId.ep.fqdn, req->epId.ep.port, qwMsg->connInfo.handle, qwMsg->connInfo.ahandle);
@@ -1279,6 +1309,8 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
   int32_t taskNum = 0;
   SQWHbInfo *rspList = NULL;
   int32_t code = 0;
+
+  qwDbgDumpMgmtInfo(mgmt);
 
   QW_LOCK(QW_READ, &mgmt->schLock);
 

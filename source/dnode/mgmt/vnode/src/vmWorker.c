@@ -165,8 +165,8 @@ static int32_t vmPutNodeMsgToQueue(SVnodesMgmt *pMgmt, SNodeMsg *pMsg, EQueueTyp
   int32_t  code = -1;
 
   SMsgHead *pHead = pRpc->pCont;
-  pHead->contLen = htonl(pHead->contLen);
-  pHead->vgId = htonl(pHead->vgId);
+  pHead->contLen = ntohl(pHead->contLen);
+  pHead->vgId = ntohl(pHead->vgId);
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, pHead->vgId);
   if (pVnode == NULL) {

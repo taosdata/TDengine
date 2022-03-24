@@ -272,11 +272,11 @@ int32_t qwRegisterBrokenLinkArg(QW_FPARAMS_DEF, SQWConnInfo *pConn) {
     QW_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }  
 
-  req->header.vgId = mgmt->nodeId;
-  req->sId = sId;
-  req->queryId = qId;
-  req->taskId = tId;
-  req->refId = rId;
+  req->header.vgId = htonl(mgmt->nodeId);
+  req->sId = htobe64(sId);
+  req->queryId = htobe64(qId);
+  req->taskId = htobe64(tId);
+  req->refId = htobe64(rId);
   
   SRpcMsg pMsg = {
     .handle  = pConn->handle,
@@ -531,6 +531,10 @@ int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0};
   qwMsg.connInfo.handle = pMsg->handle;
   qwMsg.connInfo.ahandle = pMsg->ahandle;
+
+  if (TSDB_CODE_RPC_NETWORK_UNAVAIL == pMsg->code) {
+    QW_SCH_TASK_DLOG("receive drop task due to network broken, error:%s", tstrerror(pMsg->code));    
+  }
 
   QW_SCH_TASK_DLOG("processDrop start, node:%p, handle:%p", node, pMsg->handle);
 

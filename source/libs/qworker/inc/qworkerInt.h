@@ -69,6 +69,7 @@ enum {
 typedef struct SQWDebug {
   bool lockEnable;
   bool statusEnable;
+  bool dumpEnable;
 } SQWDebug;
 
 typedef struct SQWConnInfo {
@@ -123,9 +124,9 @@ typedef struct SQWTaskCtx {
 
 typedef struct SQWSchStatus {
   int32_t        lastAccessTs; // timestamp in second
-  SRWLatch       connLock;
+  SRWLatch       hbConnLock;
   SQWConnInfo    hbConnInfo;
-  SQueryNodeEpId epId;  
+  SQueryNodeEpId hbEpId;  
   SRWLatch       tasksLock;
   SHashObj      *tasksHash;   // key:queryId+taskId, value: SQWTaskStatus
 } SQWSchStatus;
@@ -174,6 +175,9 @@ typedef struct SQWorkerMgmt {
 
 #define QW_ELOG(param, ...) qError("QW:%p " param, mgmt, __VA_ARGS__)
 #define QW_DLOG(param, ...) qDebug("QW:%p " param, mgmt, __VA_ARGS__)
+
+#define QW_DUMP(param, ...) do { if (gQWDebug.dumpEnable) { qDebug("QW:%p " param, mgmt, __VA_ARGS__); } } while (0)
+
 
 #define QW_SCH_ELOG(param, ...) qError("QW:%p SID:%"PRIx64" " param, mgmt, sId, __VA_ARGS__)
 #define QW_SCH_DLOG(param, ...) qDebug("QW:%p SID:%"PRIx64" " param, mgmt, sId, __VA_ARGS__)
