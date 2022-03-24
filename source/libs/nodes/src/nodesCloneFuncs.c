@@ -272,11 +272,14 @@ static SNode* logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* pD
   COPY_SCALAR_FIELD(interval);
   COPY_SCALAR_FIELD(offset);
   COPY_SCALAR_FIELD(sliding);
+  COPY_SCALAR_FIELD(intervalUnit);
+  COPY_SCALAR_FIELD(slidingUnit);
   CLONE_NODE_FIELD(pFill);
+  COPY_SCALAR_FIELD(sessionGap);
   return (SNode*)pDst;
 }
 
-static SNode* logicSubplanCopy(const SSubLogicPlan* pSrc, SSubLogicPlan* pDst) {
+static SNode* logicSubplanCopy(const SLogicSubplan* pSrc, SLogicSubplan* pDst) {
   CLONE_NODE_FIELD(pNode);
   COPY_SCALAR_FIELD(subplanType);
   return (SNode*)pDst;
@@ -358,7 +361,7 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return logicWindowCopy((const SWindowLogicNode*)pNode, (SWindowLogicNode*)pDst);
     case QUERY_NODE_LOGIC_SUBPLAN:
-      return logicSubplanCopy((const SSubLogicPlan*)pNode, (SSubLogicPlan*)pDst);
+      return logicSubplanCopy((const SLogicSubplan*)pNode, (SLogicSubplan*)pDst);
     default:
       break;
   }

@@ -70,6 +70,14 @@ const char* nodesNodeName(ENodeType type) {
       return "SlotDesc";
     case QUERY_NODE_COLUMN_DEF:
       return "ColumnDef";
+    case QUERY_NODE_DOWNSTREAM_SOURCE:
+      return "DownstreamSource";
+    case QUERY_NODE_DATABASE_OPTIONS:
+      return "DatabaseOptions";
+    case QUERY_NODE_TABLE_OPTIONS:
+      return "TableOptions";
+    case QUERY_NODE_INDEX_OPTIONS:
+      return "IndexOptions";
     case QUERY_NODE_SET_OPERATOR:
       return "SetOperator";
     case QUERY_NODE_SELECT_STMT:
@@ -78,16 +86,76 @@ const char* nodesNodeName(ENodeType type) {
       return "VnodeModifStmt";
     case QUERY_NODE_CREATE_DATABASE_STMT:
       return "CreateDatabaseStmt";
+    case QUERY_NODE_DROP_DATABASE_STMT:
+      return "DropDatabaseStmt";
+    case QUERY_NODE_ALTER_DATABASE_STMT:
+      return "AlterDatabaseStmt";
     case QUERY_NODE_CREATE_TABLE_STMT:
       return "CreateTableStmt";
+    case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
+      return "CreateSubtableClause";
+    case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
+      return "CreateMultiTableStmt";
+    case QUERY_NODE_DROP_TABLE_CLAUSE:
+      return "DropTableClause";
+    case QUERY_NODE_DROP_TABLE_STMT:
+      return "DropTableStmt";
+    case QUERY_NODE_DROP_SUPER_TABLE_STMT:
+      return "DropSuperTableStmt";
+    case QUERY_NODE_ALTER_TABLE_STMT:
+      return "AlterTableStmt";
+    case QUERY_NODE_CREATE_USER_STMT:
+      return "CreateUserStmt";
+    case QUERY_NODE_ALTER_USER_STMT:
+      return "AlterUserStmt";
+    case QUERY_NODE_DROP_USER_STMT:
+      return "DropUserStmt";
     case QUERY_NODE_USE_DATABASE_STMT:
       return "UseDatabaseStmt";
+    case QUERY_NODE_CREATE_DNODE_STMT:
+      return "CreateDnodeStmt";
+    case QUERY_NODE_DROP_DNODE_STMT:
+      return "DropDnodeStmt";
+    case QUERY_NODE_ALTER_DNODE_STMT:
+      return "AlterDnodeStmt";
+    case QUERY_NODE_CREATE_INDEX_STMT:
+      return "CreateIndexStmt";
+    case QUERY_NODE_DROP_INDEX_STMT:
+      return "DropIndexStmt";
+    case QUERY_NODE_CREATE_QNODE_STMT:
+      return "CreateQnodeStmt";
+    case QUERY_NODE_DROP_QNODE_STMT:
+      return "DropQnodeStmt";
+    case QUERY_NODE_CREATE_TOPIC_STMT:
+      return "CreateTopicStmt";
+    case QUERY_NODE_DROP_TOPIC_STMT:
+      return "DropTopicStmt";
+    case QUERY_NODE_ALTER_LOCAL_STMT:
+      return "AlterLocalStmt";
     case QUERY_NODE_SHOW_DATABASES_STMT:
       return "ShowDatabaseStmt";
     case QUERY_NODE_SHOW_TABLES_STMT:
       return "ShowTablesStmt";
-    case QUERY_NODE_CREATE_TOPIC_STMT:
-      return "CreateTopicStmt";
+    case QUERY_NODE_SHOW_STABLES_STMT:
+      return "ShowStablesStmt";
+    case QUERY_NODE_SHOW_USERS_STMT:
+      return "ShowUsersStmt";
+    case QUERY_NODE_SHOW_DNODES_STMT:
+      return "ShowDnodesStmt";
+    case QUERY_NODE_SHOW_VGROUPS_STMT:
+      return "ShowVgroupsStmt";
+    case QUERY_NODE_SHOW_MNODES_STMT:
+      return "ShowMnodesStmt";
+    case QUERY_NODE_SHOW_MODULES_STMT:
+      return "ShowModulesStmt";
+    case QUERY_NODE_SHOW_QNODES_STMT:
+      return "ShowQnodesStmt";
+    case QUERY_NODE_SHOW_FUNCTIONS_STMT:
+      return "ShowFunctionsStmt";
+    case QUERY_NODE_SHOW_INDEXES_STMT:
+      return "ShowIndexesStmt";
+    case QUERY_NODE_SHOW_STREAMS_STMT:
+      return "ShowStreamsStmt";
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return "LogicScan";
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -98,6 +166,10 @@ const char* nodesNodeName(ENodeType type) {
       return "LogicProject";
     case QUERY_NODE_LOGIC_PLAN_VNODE_MODIF:
       return "LogicVnodeModif";
+    case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
+      return "LogicExchange";
+    case QUERY_NODE_LOGIC_PLAN_WINDOW:
+      return "LogicWindow";
     case QUERY_NODE_LOGIC_SUBPLAN:
       return "LogicSubplan";
     case QUERY_NODE_LOGIC_PLAN:
@@ -124,6 +196,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiSort";
     case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
       return "PhysiInterval";
+    case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
+      return "PhysiSessionWindow";
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return "PhysiDispatch";
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
@@ -846,8 +920,37 @@ static int32_t jsonToPhysiExchangeNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
-static const char* jkIntervalPhysiPlanExprs = "Exprs";
-static const char* jkIntervalPhysiPlanFuncs = "Funcs";
+static const char* jkWindowPhysiPlanExprs = "Exprs";
+static const char* jkWindowPhysiPlanFuncs = "Funcs";
+
+static int32_t physiWindowNodeToJson(const void* pObj, SJson* pJson) {
+  const SWinodwPhysiNode* pNode = (const SWinodwPhysiNode*)pObj;
+
+  int32_t code = physicPlanNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkWindowPhysiPlanExprs, pNode->pExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkWindowPhysiPlanFuncs, pNode->pFuncs);
+  }
+
+  return code;
+}
+
+static int32_t jsonToPhysiWindowNode(const SJson* pJson, void* pObj) {
+  SWinodwPhysiNode* pNode = (SWinodwPhysiNode*)pObj;
+
+  int32_t code = jsonToPhysicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkWindowPhysiPlanExprs, &pNode->pExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkWindowPhysiPlanFuncs, &pNode->pFuncs);
+  }
+
+  return code;
+}
+
 static const char* jkIntervalPhysiPlanInterval = "Interval";
 static const char* jkIntervalPhysiPlanOffset = "Offset";
 static const char* jkIntervalPhysiPlanSliding = "Sliding";
@@ -858,13 +961,7 @@ static const char* jkIntervalPhysiPlanFill = "Fill";
 static int32_t physiIntervalNodeToJson(const void* pObj, SJson* pJson) {
   const SIntervalPhysiNode* pNode = (const SIntervalPhysiNode*)pObj;
 
-  int32_t code = physicPlanNodeToJson(pObj, pJson);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodeListToJson(pJson, jkIntervalPhysiPlanExprs, pNode->pExprs);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodeListToJson(pJson, jkIntervalPhysiPlanFuncs, pNode->pFuncs);
-  }
+  int32_t code = physiWindowNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkIntervalPhysiPlanInterval, pNode->interval);
   }
@@ -890,13 +987,7 @@ static int32_t physiIntervalNodeToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToPhysiIntervalNode(const SJson* pJson, void* pObj) {
   SIntervalPhysiNode* pNode = (SIntervalPhysiNode*)pObj;
 
-  int32_t code = jsonToPhysicPlanNode(pJson, pObj);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeList(pJson, jkIntervalPhysiPlanExprs, &pNode->pExprs);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeList(pJson, jkIntervalPhysiPlanFuncs, &pNode->pFuncs);
-  }
+  int32_t code = jsonToPhysiWindowNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkIntervalPhysiPlanInterval, &pNode->interval);
   }
@@ -914,6 +1005,30 @@ static int32_t jsonToPhysiIntervalNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkIntervalPhysiPlanFill, (SNode**)&pNode->pFill);
+  }
+
+  return code;
+}
+
+static const char* jkSessionWindowPhysiPlanGap = "Gap";
+
+static int32_t physiSessionWindowNodeToJson(const void* pObj, SJson* pJson) {
+  const SSessionWinodwPhysiNode* pNode = (const SSessionWinodwPhysiNode*)pObj;
+
+  int32_t code = physiWindowNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkSessionWindowPhysiPlanGap, pNode->gap);
+  }
+
+  return code;
+}
+
+static int32_t jsonToPhysiSessionWindowNode(const SJson* pJson, void* pObj) {
+  SSessionWinodwPhysiNode* pNode = (SSessionWinodwPhysiNode*)pObj;
+
+  int32_t code = jsonToPhysiWindowNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetNumberValue(pJson, jkSessionWindowPhysiPlanGap, pNode->gap);
   }
 
   return code;
@@ -2066,6 +2181,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
       return physiIntervalNodeToJson(pObj, pJson);
+    case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
+      return physiSessionWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return physiDispatchNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
@@ -2075,7 +2192,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_PHYSICAL_PLAN:
       return planToJson(pObj, pJson);
     default:
-      assert(0);
+      // assert(0);
       break;
   }
   nodesWarn("specificNodeToJson unknown node = %s", nodesNodeName(nodeType(pObj)));
@@ -2149,14 +2266,16 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToPhysiAggNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
       return jsonToPhysiExchangeNode(pJson, pObj);
+    case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
+      return jsonToPhysiIntervalNode(pJson, pObj);
+    case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
+      return jsonToPhysiSessionWindowNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return jsonToPhysiDispatchNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       return jsonToSubplan(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN:
       return jsonToPlan(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
-      return jsonToPhysiIntervalNode(pJson, pObj);
     default:
       assert(0);
       break;

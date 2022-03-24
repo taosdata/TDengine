@@ -76,11 +76,12 @@ typedef struct SResultRowCell {
  * If the number of generated results is greater than this value,
  * query query will be halt and return results to client immediate.
  */
-typedef struct SRspResultInfo {
-  int64_t total;      // total generated result size in rows
-  int32_t capacity;   // capacity of current result output buffer
-  int32_t threshold;  // result size threshold in rows.
-} SRspResultInfo;
+typedef struct SResultInfo { // TODO refactor
+  int64_t totalRows;      // total generated result size in rows
+  int64_t totalBytes;     // total results in bytes.
+  int32_t capacity;       // capacity of current result output buffer
+  int32_t threshold;      // result size threshold in rows.
+} SResultInfo;
 
 typedef struct SColumnFilterElem {
   int16_t           bytes;  // column length
@@ -160,8 +161,8 @@ typedef struct STaskCostInfo {
 typedef struct SOperatorCostInfo {
   uint64_t openCost;
   uint64_t execCost;
-  uint64_t totalRows;
-  uint64_t totalBytes;
+//  uint64_t totalRows;
+//  uint64_t totalBytes;
 } SOperatorCostInfo;
 
 typedef struct {
@@ -301,7 +302,7 @@ typedef struct STaskRuntimeEnv {
   int64_t         currentOffset;  // dynamic offset value
 
   STableQueryInfo* current;
-  SRspResultInfo   resultInfo;
+  SResultInfo   resultInfo;
   SHashObj*        pTableRetrieveTsMap;
   struct SUdfInfo* pUdfInfo;
 } STaskRuntimeEnv;
@@ -324,7 +325,7 @@ typedef struct SOperatorInfo {
   STaskRuntimeEnv*       pRuntimeEnv;   // todo remove it
   SExecTaskInfo*         pTaskInfo;
   SOperatorCostInfo      cost;
-
+  SResultInfo            resultInfo;
   struct SOperatorInfo** pDownstream;      // downstram pointer list
   int32_t                numOfDownstream;  // number of downstream. The value is always ONE expect for join operator
   __optr_fn_t            getNextFn;
@@ -539,6 +540,8 @@ typedef struct SFillOperatorInfo {
   void**            p;
   SSDataBlock*      existNewGroupBlock;
   bool              multigroupResult;
+  SInterval         intervalInfo;
+  int32_t           capacity;
 } SFillOperatorInfo;
 
 typedef struct SGroupKeys {
@@ -649,20 +652,19 @@ SOperatorInfo* createOrderOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
 SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t numOfDownstream, SExprInfo* pExprInfo, int32_t num, SArray* pOrderVal, SArray* pGroupInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataBlock* pResBlock, const SName* pName,
                                               SNode* pCondition, SEpSet epset, SArray* colList, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createLimitOperatorInfo(SOperatorInfo* downstream, int32_t numOfDownstream, SLimit* pLimit, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createLimitOperatorInfo(SOperatorInfo* downstream, SLimit* pLimit, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SInterval* pInterval,
                                           const STableGroupInfo* pTableGroupInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock,
                                        SArray* pGroupColList, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
+SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols, SInterval* pInterval, SSDataBlock* pResBlock,
+                                      int32_t fillType, char* fillVal, bool multigroupResult, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
 SOperatorInfo* createAllTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
                                                  SExprInfo* pExpr, int32_t numOfOutput);
-
-SOperatorInfo* createFillOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr,
-                                      int32_t numOfOutput, bool multigroupResult);
 
 SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
                                                         SExprInfo* pExpr, int32_t numOfOutput);

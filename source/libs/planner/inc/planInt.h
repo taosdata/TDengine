@@ -56,9 +56,10 @@ extern "C" {
 #define planTrace(param, ...)  qTrace("PLAN: " param, __VA_ARGS__)
 
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicNode** pLogicNode);
-int32_t optimize(SPlanContext* pCxt, SLogicNode* pLogicNode);
-int32_t applySplitRule(SSubLogicPlan* pSubplan);
-int32_t createPhysiPlan(SPlanContext* pCxt, SLogicNode* pLogicNode, SQueryPlan** pPlan, SArray* pExecNodeList);
+int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicNode* pLogicNode);
+int32_t splitLogicPlan(SPlanContext* pCxt, SLogicNode* pLogicNode, SLogicSubplan** pLogicSubplan);
+int32_t scaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQueryLogicPlan** pLogicPlan);
+int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan, SArray* pExecNodeList);
 
 #ifdef __cplusplus
 }

@@ -71,6 +71,7 @@ int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...) {
   va_start(vArgList, errCode);
   vsnprintf(pBuf->buf, pBuf->len, getSyntaxErrFormat(errCode), vArgList);
   va_end(vArgList);
+  terrno = errCode;
   return errCode;
 }
 
