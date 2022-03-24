@@ -417,6 +417,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nativeexample"
+version = "0.1.0"
+dependencies = [
+ "libtaos",
+]
+
+[[package]]
 name = "ntapi"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"

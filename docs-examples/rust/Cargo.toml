@@ -1,2 +1,2 @@
 [workspace]
-members = ["restexample"]
+members = ["restexample", "nativeexample"]
