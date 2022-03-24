@@ -266,7 +266,7 @@ TEST_F(MndTestSma, 02_Create_Show_Meta_Drop_Restart_BSma) {
     test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
     test.SendShowRetrieveReq();
     EXPECT_EQ(test.GetShowRows(), 1);
-    CheckBinary("bsmastb", TSDB_TABLE_NAME_LEN);
+//    CheckBinary("bsmastb", TSDB_TABLE_NAME_LEN);
   }
 
   test.Restart();
