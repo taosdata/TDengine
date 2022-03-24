@@ -248,7 +248,7 @@ static int32_t setGroupResultOutputBuf_rv(SOptrBasicInfo *binfo, int32_t numOfCo
 static void initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size);
 static void getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key, int64_t keyFirst, int64_t keyLast, STimeWindow *win);
 
-static void setResultBufSize(STaskAttr* pQueryAttr, SRspResultInfo* pResultInfo);
+static void setResultBufSize(STaskAttr* pQueryAttr, SResultInfo* pResultInfo);
 static void setCtxTagForJoin(STaskRuntimeEnv* pRuntimeEnv, SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, void* pTable);
 static void setParamForStableStddev(STaskRuntimeEnv* pRuntimeEnv, SqlFunctionCtx* pCtx, int32_t numOfOutput, SExprInfo* pExpr);
 static void setParamForStableStddevByColData(STaskRuntimeEnv* pRuntimeEnv, SqlFunctionCtx* pCtx, int32_t numOfOutput, SExprInfo* pExpr, char* val, int16_t bytes);
@@ -1715,10 +1715,31 @@ static int32_t generatedHashKey(void* pKey, int32_t* length, SArray* pGroupColVa
   return 0;
 }
 
+// assign the group keys or user input constant values if required
+static void doAssignGroupKeys(SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t totalRows, int32_t rowIndex) {
+  for(int32_t i = 0; i < numOfOutput; ++i) {
+    if (pCtx[i].functionId == -1) {
+      SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[i]);
+
+      SColumnInfoData* pColInfoData = pCtx[i].input.pData[0];
+      if (!colDataIsNull(pColInfoData, totalRows, rowIndex, NULL)) {
+        char* dest = GET_ROWCELL_INTERBUF(pEntryInfo);
+        char* data = colDataGetData(pColInfoData, rowIndex);
+
+        // set result exists, todo refactor
+        memcpy(dest, data, pColInfoData->info.bytes);
+        pEntryInfo->hasResult = DATA_SET_FLAG;
+        pEntryInfo->numOfRes = 1;
+      }
+    }
+  }
+}
+
 static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock *pBlock) {
   SExecTaskInfo *pTaskInfo = pOperator->pTaskInfo;
   SGroupbyOperatorInfo *pInfo = pOperator->info;
 
+  SqlFunctionCtx* pCtx = pInfo->binfo.pCtx;
   int32_t numOfGroupCols = taosArrayGetSize(pInfo->pGroupCols);
 //  if (type == TSDB_DATA_TYPE_FLOAT || type == TSDB_DATA_TYPE_DOUBLE) {
     //qError("QInfo:0x%"PRIx64" group by not supported on double/float columns, abort", GET_TASKID(pRuntimeEnv));
@@ -1751,7 +1772,11 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock *pBlock) {
       longjmp(pTaskInfo->env, TSDB_CODE_QRY_APP_ERROR);
     }
 
-    doApplyFunctions(pInfo->binfo.pCtx, &w, j - num, num, NULL, pBlock->info.rows, pOperator->numOfOutput, TSDB_ORDER_ASC);
+    int32_t rowIndex = j - num;
+    doApplyFunctions(pCtx, &w, rowIndex, num, NULL, pBlock->info.rows, pOperator->numOfOutput, TSDB_ORDER_ASC);
+
+    // assign the group keys or user input constant values if required
+    doAssignGroupKeys(pCtx, pOperator->numOfOutput, pBlock->info.rows, rowIndex);
     keepGroupKeys(pInfo, pBlock, j, numOfGroupCols);
     num = 1;
   }
@@ -1764,7 +1789,9 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock *pBlock) {
       longjmp(pTaskInfo->env, TSDB_CODE_QRY_APP_ERROR);
     }
 
-    doApplyFunctions(pInfo->binfo.pCtx, &w, pBlock->info.rows - num, num, NULL, pBlock->info.rows, pOperator->numOfOutput, TSDB_ORDER_ASC);
+    int32_t rowIndex = pBlock->info.rows - num;
+    doApplyFunctions(pCtx, &w, rowIndex, num, NULL, pBlock->info.rows, pOperator->numOfOutput, TSDB_ORDER_ASC);
+    doAssignGroupKeys(pCtx, pOperator->numOfOutput, pBlock->info.rows, rowIndex);
   }
 }
 
@@ -7086,22 +7113,23 @@ static void doHandleRemainBlockFromNewGroup(SFillOperatorInfo *pInfo, STaskRunti
 
 static SSDataBlock* doFill(SOperatorInfo *pOperator, bool* newgroup) {
   SFillOperatorInfo *pInfo = pOperator->info;
-  pInfo->pRes->info.rows = 0;
 
+  SResultInfo* pResultInfo = &pOperator->resultInfo;
+  blockDataCleanup(pInfo->pRes);
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
 
-  STaskRuntimeEnv  *pRuntimeEnv = pOperator->pRuntimeEnv;
-  doHandleRemainBlockFromNewGroup(pInfo, pRuntimeEnv, newgroup);
-  if (pInfo->pRes->info.rows > pRuntimeEnv->resultInfo.threshold || (!pInfo->multigroupResult && pInfo->pRes->info.rows > 0)) {
-    return pInfo->pRes;
-  }
+//  doHandleRemainBlockFromNewGroup(pInfo, pRuntimeEnv, newgroup);
+//  if (pInfo->pRes->info.rows > pRuntimeEnv->resultInfo.threshold || (!pInfo->multigroupResult && pInfo->pRes->info.rows > 0)) {
+//    return pInfo->pRes;
+//  }
 
+  SOperatorInfo* pDownstream = pOperator->pDownstream[0];
   while(1) {
-    publishOperatorProfEvent(pOperator->pDownstream[0], QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    SSDataBlock* pBlock = pOperator->pDownstream[0]->getNextFn(pOperator->pDownstream[0], newgroup);
-    publishOperatorProfEvent(pOperator->pDownstream[0], QUERY_PROF_AFTER_OPERATOR_EXEC);
+    publishOperatorProfEvent(pDownstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
+    SSDataBlock* pBlock = pDownstream->getNextFn(pDownstream, newgroup);
+    publishOperatorProfEvent(pDownstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (*newgroup) {
       assert(pBlock != NULL);
@@ -7113,7 +7141,7 @@ static SSDataBlock* doFill(SOperatorInfo *pOperator, bool* newgroup) {
 
       // Fill the previous group data block, before handle the data block of new group.
       // Close the fill operation for previous group data block
-      taosFillSetStartInfo(pInfo->pFillInfo, 0, pRuntimeEnv->pQueryAttr->window.ekey);
+//      taosFillSetStartInfo(pInfo->pFillInfo, 0, pRuntimeEnv->pQueryAttr->window.ekey);
     } else {
       if (pBlock == NULL) {
         if (pInfo->totalInputRows == 0) {
@@ -7121,7 +7149,7 @@ static SSDataBlock* doFill(SOperatorInfo *pOperator, bool* newgroup) {
           return NULL;
         }
 
-        taosFillSetStartInfo(pInfo->pFillInfo, 0, pRuntimeEnv->pQueryAttr->window.ekey);
+//        taosFillSetStartInfo(pInfo->pFillInfo, 0, pRuntimeEnv->pQueryAttr->window.ekey);
       } else {
         pInfo->totalInputRows += pBlock->info.rows;
         taosFillSetStartInfo(pInfo->pFillInfo, pBlock->info.rows, pBlock->info.window.ekey);
@@ -7129,25 +7157,25 @@ static SSDataBlock* doFill(SOperatorInfo *pOperator, bool* newgroup) {
       }
     }
 
-    doFillTimeIntervalGapsInResults(pInfo->pFillInfo, pInfo->pRes, pRuntimeEnv->resultInfo.capacity, pInfo->p);
+    doFillTimeIntervalGapsInResults(pInfo->pFillInfo, pInfo->pRes, pInfo->capacity, pInfo->p);
 
     // current group has no more result to return
     if (pInfo->pRes->info.rows > 0) {
       // 1. The result in current group not reach the threshold of output result, continue
       // 2. If multiple group results existing in one SSDataBlock is not allowed, return immediately
-      if (pInfo->pRes->info.rows > pRuntimeEnv->resultInfo.threshold || pBlock == NULL || (!pInfo->multigroupResult)) {
+      if (pInfo->pRes->info.rows > pResultInfo->threshold || pBlock == NULL || (!pInfo->multigroupResult)) {
         return pInfo->pRes;
       }
 
-      doHandleRemainBlockFromNewGroup(pInfo, pRuntimeEnv, newgroup);
-      if (pInfo->pRes->info.rows > pRuntimeEnv->resultInfo.threshold || pBlock == NULL) {
+//      doHandleRemainBlockFromNewGroup(pInfo, pRuntimeEnv, newgroup);
+      if (pInfo->pRes->info.rows > pOperator->resultInfo.threshold || pBlock == NULL) {
         return pInfo->pRes;
       }
     } else if (pInfo->existNewGroupBlock) {  // try next group
       assert(pBlock != NULL);
-      doHandleRemainBlockForNewGroupImpl(pInfo, pRuntimeEnv, newgroup);
+//      doHandleRemainBlockForNewGroupImpl(pInfo, pRuntimeEnv, newgroup);
 
-      if (pInfo->pRes->info.rows > pRuntimeEnv->resultInfo.threshold) {
+      if (pInfo->pRes->info.rows > pResultInfo->threshold) {
         return pInfo->pRes;
       }
     } else {
@@ -7510,8 +7538,7 @@ SColumnInfo* extractColumnFilterInfo(SExprInfo* pExpr, int32_t numOfOutput, int3
   return 0;
 }
 
-SOperatorInfo* createLimitOperatorInfo(SOperatorInfo* downstream, int32_t numOfDownstream, SLimit* pLimit, SExecTaskInfo* pTaskInfo) {
-  ASSERT(numOfDownstream == 1);
+SOperatorInfo* createLimitOperatorInfo(SOperatorInfo* downstream, SLimit* pLimit, SExecTaskInfo* pTaskInfo) {
   SLimitOperatorInfo* pInfo = calloc(1, sizeof(SLimitOperatorInfo));
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -7595,7 +7622,7 @@ SOperatorInfo* createAllTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, S
   STableIntervalOperatorInfo* pInfo = calloc(1, sizeof(STableIntervalOperatorInfo));
 
   pInfo->binfo.pCtx = createSqlFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
-  pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
+//  pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pResultInfo->capacity);
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
@@ -7620,7 +7647,7 @@ SOperatorInfo* createStatewindowOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOper
   pInfo->colIndex   = -1;
   pInfo->reptScan   = false;
   pInfo->binfo.pCtx = createSqlFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
-  pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
+//  pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pResultInfo->capacity);
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
@@ -7685,7 +7712,7 @@ SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntim
   STableIntervalOperatorInfo* pInfo = calloc(1, sizeof(STableIntervalOperatorInfo));
 
   pInfo->binfo.pCtx = createSqlFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
-  pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
+//  pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pResultInfo->capacity);
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
@@ -7709,7 +7736,7 @@ SOperatorInfo* createAllMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRun
   STableIntervalOperatorInfo* pInfo = calloc(1, sizeof(STableIntervalOperatorInfo));
 
   pInfo->binfo.pCtx = createSqlFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
-  pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
+//  pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pResultInfo->capacity);
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
@@ -7800,52 +7827,58 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
   return NULL;
 }
 
-SOperatorInfo* createFillOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfOutput, bool multigroupResult) {
+SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols, SInterval* pInterval, SSDataBlock* pResBlock, bool multigroupResult, SExecTaskInfo* pTaskInfo) {
   SFillOperatorInfo* pInfo = calloc(1, sizeof(SFillOperatorInfo));
-  pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
-  pInfo->multigroupResult = multigroupResult;
+  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
 
+  pInfo->pRes             = pResBlock;
+  pInfo->multigroupResult = multigroupResult;
+  pInfo->intervalInfo     = *pInterval;
+
+  SResultInfo* pResultInfo = &pOperator->resultInfo;
   {
-    STaskAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
-    struct SFillColInfo* pColInfo = createFillColInfo(pExpr, numOfOutput, pQueryAttr->fillVal);
+//    struct SFillColInfo* pColInfo = createFillColInfo(pExpr, numOfCols, pQueryAttr->fillVal);
     STimeWindow w = TSWINDOW_INITIALIZER;
 
-    TSKEY sk = TMIN(pQueryAttr->window.skey, pQueryAttr->window.ekey);
-    TSKEY ek = TMAX(pQueryAttr->window.skey, pQueryAttr->window.ekey);
-//    getAlignQueryTimeWindow(pQueryAttr, pQueryAttr->window.skey, sk, ek, &w);
+    TSKEY sk = TMIN(pTaskInfo->window.skey, pTaskInfo->window.ekey);
+    TSKEY ek = TMAX(pTaskInfo->window.skey, pTaskInfo->window.ekey);
+    getAlignQueryTimeWindow(pInterval, pInterval->precision, pTaskInfo->window.skey, sk, ek, &w);
 
-    pInfo->pFillInfo =
-        taosCreateFillInfo(pQueryAttr->order.order, w.skey, 0, (int32_t)pRuntimeEnv->resultInfo.capacity, numOfOutput,
-                           pQueryAttr->interval.sliding, pQueryAttr->interval.slidingUnit,
-                           (int8_t)pQueryAttr->precision, pQueryAttr->fillType, pColInfo, pRuntimeEnv->qinfo);
+    int32_t order = TSDB_ORDER_ASC;
 
-    pInfo->p = calloc(numOfOutput, POINTER_BYTES);
+//    pInfo->pFillInfo =
+//        taosCreateFillInfo(order, w.skey, 0, (int32_t)pResultInfo->capacity, numOfCols,
+//                           pInterval->sliding, pInterval->slidingUnit,
+//                           (int8_t)pInterval->precision, pQueryAttr->fillType, pColInfo, pTaskInfo->id.str);
+
+    pInfo->p = calloc(numOfCols, POINTER_BYTES);
   }
-
-  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
 
   pOperator->name         = "FillOperator";
   pOperator->blockingOptr = false;
   pOperator->status       = OP_NOT_OPENED;
 //  pOperator->operatorType = OP_Fill;
   pOperator->pExpr        = pExpr;
-  pOperator->numOfOutput  = numOfOutput;
+  pOperator->numOfOutput  = numOfCols;
   pOperator->info         = pInfo;
-  pOperator->pRuntimeEnv  = pRuntimeEnv;
-  pOperator->getNextFn = doFill;
-  pOperator->closeFn = destroySFillOperatorInfo;
+  pOperator->_openFn      = operatorDummyOpenFn;
+  pOperator->getNextFn    = doFill;
+  pOperator->pTaskInfo    = pTaskInfo;
 
-    int32_t code = appendDownstream(pOperator, &downstream, 1);
+  pOperator->closeFn      = destroySFillOperatorInfo;
+
+  int32_t code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
 }
 
 SOperatorInfo* createSLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfOutput, void* pMerger, bool multigroupResult) {
   SSLimitOperatorInfo* pInfo = calloc(1, sizeof(SSLimitOperatorInfo));
+  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
 
 //  pInfo->orderColumnList = getResultGroupCheckColumns(pQueryAttr);
 //  pInfo->slimit          = pQueryAttr->slimit;
 //  pInfo->limit           = pQueryAttr->limit;
-//  pInfo->capacity        = pRuntimeEnv->resultInfo.capacity;
+//  pInfo->capacity        = pResultInfo->capacity;
 //  pInfo->threshold       = (int64_t)(pInfo->capacity * 0.8);
 //  pInfo->currentOffset   = pQueryAttr->limit.offset;
 //  pInfo->currentGroupOffset = pQueryAttr->slimit.offset;
@@ -7868,9 +7901,8 @@ SOperatorInfo* createSLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorI
     offset += pExpr[index->colIndex].base.resSchema.bytes;
   }
 
-  pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
+  pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pOperator->resultInfo.capacity);
 
-  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
 
   pOperator->name         = "SLimitOperator";
   // pOperator->operatorType = OP_SLimit;
@@ -7893,7 +7925,7 @@ static SSDataBlock* doTagScan(SOperatorInfo *pOperator, bool* newgroup) {
   }
 
   STaskRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
-  int32_t maxNumOfTables = (int32_t)pRuntimeEnv->resultInfo.capacity;
+  int32_t maxNumOfTables = (int32_t)pResultInfo->capacity;
 
   STagScanInfo *pInfo = pOperator->info;
   SSDataBlock  *pRes = pInfo->pRes;
@@ -8019,7 +8051,7 @@ static SSDataBlock* doTagScan(SOperatorInfo *pOperator, bool* newgroup) {
 
 SOperatorInfo* createTagScanOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput) {
   STagScanInfo* pInfo = calloc(1, sizeof(STagScanInfo));
-  pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
+//  pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pResultInfo->capacity);
 
   size_t numOfGroup = GET_NUM_OF_TABLEGROUP(pRuntimeEnv);
   assert(numOfGroup == 0 || numOfGroup == 1);
@@ -8363,10 +8395,7 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhysiNode* pPhyNode, SExecTaskInfo* pTa
 
       size_t      numOfCols = LIST_LENGTH(pScanPhyNode->pScanCols);
       tsdbReaderT pDataReader = doCreateDataReader((STableScanPhysiNode*)pPhyNode, pHandle, (uint64_t)queryId, taskId);
-
-      int32_t code = doCreateTableGroup(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableGroupInfo, queryId, taskId);
-      return createTableScanOperatorInfo(pDataReader, pScanPhyNode->order, numOfCols, pScanPhyNode->count,
-                                         pScanPhyNode->reverse, pTaskInfo);
+      return createTableScanOperatorInfo(pDataReader, pScanPhyNode->order, numOfCols, pScanPhyNode->count, pScanPhyNode->reverse, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == nodeType(pPhyNode)) {
       SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pPhyNode;
       SSDataBlock* pResBlock = createOutputBuf_rv1(pExchange->node.pOutputDataBlockDesc);
@@ -8820,7 +8849,7 @@ static void doUpdateExprColumnIndex(STaskAttr *pQueryAttr) {
   }
 }
 
-void setResultBufSize(STaskAttr* pQueryAttr, SRspResultInfo* pResultInfo) {
+void setResultBufSize(STaskAttr* pQueryAttr, SResultInfo* pResultInfo) {
   const int32_t DEFAULT_RESULT_MSG_SIZE = 1024 * (1024 + 512);
 
   // the minimum number of rows for projection query
@@ -8841,7 +8870,7 @@ void setResultBufSize(STaskAttr* pQueryAttr, SRspResultInfo* pResultInfo) {
   }
 
   pResultInfo->threshold = (int32_t)(pResultInfo->capacity * THRESHOLD_RATIO);
-  pResultInfo->total = 0;
+  pResultInfo->totalRows = 0;
 }
 
 //TODO refactor

@@ -427,6 +427,8 @@ char *mndShowStr(int32_t showType) {
       return "show topics";
     case TSDB_MGMT_TABLE_FUNC:
       return "show functions";
+      case TSDB_MGMT_TABLE_INDEX:
+      return "show indexes";
     default:
       return "undefined";
   }

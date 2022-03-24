@@ -218,13 +218,35 @@ static int32_t mndCheckCreateStreamReq(SCMCreateStreamReq *pCreate) {
   return 0;
 }
 
-static int32_t mndStreamGetPlanString(const SCMCreateStreamReq *pCreate, char **pStr) {
-  if (NULL == pCreate->ast) {
+static SArray *mndExtractNamesFromAst(const SNode *pAst) {
+  if (pAst->type != QUERY_NODE_SELECT_STMT) return NULL;
+
+  SArray *names = taosArrayInit(0, sizeof(void *));
+  if (names == NULL) {
+    return NULL;
+  }
+  SSelectStmt *pSelect = (SSelectStmt *)pAst;
+  SNodeList   *pNodes = pSelect->pProjectionList;
+  SListCell   *pCell = pNodes->pHead;
+  while (pCell != NULL) {
+    if (pCell->pNode->type != QUERY_NODE_FUNCTION) {
+      continue;
+    }
+    SFunctionNode *pFunction = (SFunctionNode *)pCell->pNode;
+    char          *name = strdup(pFunction->node.aliasName);
+    taosArrayPush(names, &name);
+    pCell = pCell->pNext;
+  }
+  return names;
+}
+
+static int32_t mndStreamGetPlanString(const char *ast, char **pStr) {
+  if (NULL == ast) {
     return TSDB_CODE_SUCCESS;
   }
 
   SNode  *pAst = NULL;
-  int32_t code = nodesStringToNode(pCreate->ast, &pAst);
+  int32_t code = nodesStringToNode(ast, &pAst);
 
   SQueryPlan *pPlan = NULL;
   if (TSDB_CODE_SUCCESS == code) {
@@ -245,6 +267,41 @@ static int32_t mndStreamGetPlanString(const SCMCreateStreamReq *pCreate, char **
   return code;
 }
 
+int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast, STrans *pTrans) {
+  SNode *pAst = NULL;
+  if (nodesStringToNode(ast, &pAst) < 0) {
+    return -1;
+  }
+  SArray *names = mndExtractNamesFromAst(pAst);
+  printf("|");
+  for (int i = 0; i < taosArrayGetSize(names); i++) {
+    printf(" %15s |", (char *)taosArrayGetP(names, i));
+  }
+  printf("\n=======================================================\n");
+
+  pStream->outputName = names;
+
+  if (TSDB_CODE_SUCCESS != mndStreamGetPlanString(ast, &pStream->physicalPlan)) {
+    mError("topic:%s, failed to get plan since %s", pStream->name, terrstr());
+    return -1;
+  }
+
+  if (mndScheduleStream(pMnode, pTrans, pStream) < 0) {
+    mError("stream:%ld, schedule stream since %s", pStream->uid, terrstr());
+    return -1;
+  }
+
+  SSdbRaw *pRedoRaw = mndStreamActionEncode(pStream);
+  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
+    mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
+
+  return 0;
+}
+
 static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamReq *pCreate, SDbObj *pDb) {
   mDebug("stream:%s to create", pCreate->name);
   SStreamObj streamObj = {0};
@@ -259,31 +316,18 @@ static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamRe
   /*streamObj.physicalPlan = "";*/
   streamObj.logicalPlan = "not implemented";
 
-  if (TSDB_CODE_SUCCESS != mndStreamGetPlanString(pCreate, &streamObj.physicalPlan)) {
-    mError("topic:%s, failed to get plan since %s", pCreate->name, terrstr());
-    return -1;
-  }
-
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_STREAM, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_STREAM, &pReq->rpcMsg);
   if (pTrans == NULL) {
     mError("stream:%s, failed to create since %s", pCreate->name, terrstr());
     return -1;
   }
   mDebug("trans:%d, used to create stream:%s", pTrans->id, pCreate->name);
 
-  if (mndScheduleStream(pMnode, pTrans, &streamObj) < 0) {
-    mError("stream:%ld, schedule stream since %s", streamObj.uid, terrstr());
+  if (mndAddStreamToTrans(pMnode, &streamObj, pCreate->ast, pTrans) != 0) {
+    mError("trans:%d, failed to add stream since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     return -1;
   }
-
-  SSdbRaw *pRedoRaw = mndStreamActionEncode(&streamObj);
-  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
-    mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
-  sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
