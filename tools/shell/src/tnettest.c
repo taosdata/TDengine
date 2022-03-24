@@ -501,7 +501,7 @@ static void taosNetCheckSync(char *host, int32_t port) {
 static void taosNetTestRpc(char *host, int32_t startPort, int32_t pkgLen) {
   char    spi = 0;
 
-  uInfo("check rpc, host:%s startPort:%d pkgLen:%d\n", host, startPort, pkgLen);
+  uInfo("check rpc, host:%s Port:%d pkgLen:%d\n", host, startPort, pkgLen);
 
   uint16_t port = startPort;
   int32_t sendpkgLen;
@@ -534,12 +534,11 @@ static void taosNetTestRpc(char *host, int32_t startPort, int32_t pkgLen) {
   }
   */
 
-  taosNetCheckSync(host, startPort + TSDB_PORT_SYNC);
+  taosNetCheckSync(host, startPort);
 }
 
 static void taosNetTestClient(char *host, int32_t startPort, int32_t pkgLen) {
-  int32_t endPort = startPort + 11;
-  uInfo("work as client, host:%s startPort:%d endPort:%d pkgLen:%d\n", host, startPort, endPort, pkgLen);
+  uInfo("work as client, host:%s Port:%d pkgLen:%d\n", host, startPort, pkgLen);
 
   uint32_t serverIp = taosGetIpv4FromFqdn(host);
   if (serverIp == 0xFFFFFFFF) {
@@ -548,7 +547,7 @@ static void taosNetTestClient(char *host, int32_t startPort, int32_t pkgLen) {
   }
 
   uInfo("server ip:%s is resolved from host:%s", taosIpStr(serverIp), host);
-  taosNetCheckPort(serverIp, startPort, endPort, pkgLen);
+  taosNetCheckPort(serverIp, startPort, startPort, pkgLen);
 }
 
 static void taosNetTestServer(char *host, int32_t startPort, int32_t pkgLen) {
