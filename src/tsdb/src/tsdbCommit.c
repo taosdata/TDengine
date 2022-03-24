@@ -1780,17 +1780,6 @@ int tsdbApplyRtn(STsdbRepo *pRepo) {
   return 0;
 }
 
-int tsdbControlDelete(STsdbRepo* pRepo, SControlDataInfo* pCtlDataInfo) {
-  int ret = TSDB_CODE_SUCCESS;
-
-  if(pCtlDataInfo->pRsp) {
-    pCtlDataInfo->pRsp->affectedRows = htonl(23);
-    pCtlDataInfo->pRsp->code = ret;
-  }
-
-  return ret;
-}
-
 // do control task
 int tsdbCommitControl(STsdbRepo* pRepo, SControlDataInfo* pCtlDataInfo) {
   int ret = TSDB_CODE_SUCCESS;

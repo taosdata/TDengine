@@ -1004,6 +1004,7 @@ typedef struct {
 } STLV;
 
 #define CMD_DELETE_DATA 0x00000001
+#define CMD_TRUNCATE    0x00000002
 typedef struct SControlData{
   uint32_t    command;  // see define CMD_???
   STimeWindow win;

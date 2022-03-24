@@ -18,6 +18,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// SControlData addition information
 typedef struct {
   SControlData ctlData;
   // addition info
@@ -25,11 +27,15 @@ typedef struct {
   int32_t      tid;        // table id
   tsem_t*      pSem;
   bool         memNull; // pRepo->mem is NULL, this is true
+  uint64_t*    uids;  // delete table
+  int32_t      uidCount;
   SShellSubmitRspMsg *pRsp;
 } SControlDataInfo;
 
-void *tsdbTruncateImpl(STsdbRepo *pRepo, void *param);
-void *tsdbDeleteImpl(STsdbRepo *pRepo, void *param);
+// -------- interface ---------
+
+// delete
+int tsdbControlDelete(STsdbRepo* pRepo, SControlDataInfo* pCtlDataInfo);
 
 #ifdef __cplusplus
 }
