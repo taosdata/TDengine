@@ -160,7 +160,7 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return makeNode(type, sizeof(SWindowLogicNode));
     case QUERY_NODE_LOGIC_SUBPLAN:
-      return makeNode(type, sizeof(SSubLogicPlan));
+      return makeNode(type, sizeof(SLogicSubplan));
     case QUERY_NODE_LOGIC_PLAN:
       return makeNode(type, sizeof(SQueryLogicPlan));
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
@@ -185,6 +185,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SNode));
     case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
       return makeNode(type, sizeof(SIntervalPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
+      return makeNode(type, sizeof(SSessionWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return makeNode(type, sizeof(SDataDispatcherNode));
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
@@ -332,6 +334,7 @@ int32_t nodesListAppend(SNodeList* pList, SNodeptr pNode) {
 
 int32_t nodesListStrictAppend(SNodeList* pList, SNodeptr pNode) {
   if (NULL == pNode) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   int32_t code = nodesListAppend(pList, pNode);
@@ -339,6 +342,17 @@ int32_t nodesListStrictAppend(SNodeList* pList, SNodeptr pNode) {
     nodesDestroyNode(pNode);
   }
   return code;
+}
+
+int32_t nodesListMakeAppend(SNodeList** pList, SNodeptr pNode) {
+  if (NULL == *pList) {
+    *pList = nodesMakeList();
+    if (NULL == *pList) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  return nodesListAppend(*pList, pNode);
 }
 
 int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc) {

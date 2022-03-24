@@ -286,9 +286,12 @@ static SDbObj *mndAcquireDbByStb(SMnode *pMnode, const char *stbName) {
 static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen) {
   SName name = {0};
   tNameFromString(&name, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  char dbFName[TSDB_DB_FNAME_LEN] = {0};
+  tNameGetFullDbName(&name, dbFName);
 
   SVCreateTbReq req = {0};
   req.ver = 0;
+  req.dbFName = dbFName;
   req.name = (char *)tNameGetTableName(&name);
   req.ttl = 0;
   req.keep = 0;

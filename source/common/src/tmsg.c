@@ -287,6 +287,7 @@ int32_t tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {
   int32_t tlen = 0;
 
   tlen += taosEncodeFixedI64(buf, pReq->ver);
+  tlen += taosEncodeString(buf, pReq->dbFName);
   tlen += taosEncodeString(buf, pReq->name);
   tlen += taosEncodeFixedU32(buf, pReq->ttl);
   tlen += taosEncodeFixedU32(buf, pReq->keep);
@@ -360,6 +361,7 @@ int32_t tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {
 
 void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
   buf = taosDecodeFixedI64(buf, &(pReq->ver));
+  buf = taosDecodeString(buf, &(pReq->dbFName));
   buf = taosDecodeString(buf, &(pReq->name));
   buf = taosDecodeFixedU32(buf, &(pReq->ttl));
   buf = taosDecodeFixedU32(buf, &(pReq->keep));
@@ -478,7 +480,7 @@ void *tDeserializeSVCreateTbBatchReq(void *buf, SVCreateTbBatchReq *pReq) {
   buf = taosDecodeFixedU32(buf, &nsize);
   pReq->pArray = taosArrayInit(nsize, sizeof(SVCreateTbReq));
   for (size_t i = 0; i < nsize; i++) {
-    SVCreateTbReq req;
+    SVCreateTbReq req = {0};
     buf = tDeserializeSVCreateTbReq(buf, &req);
     taosArrayPush(pReq->pArray, &req);
   }
