@@ -2414,6 +2414,13 @@ typedef struct {
   int32_t reserved;
 } SStreamTaskExecRsp;
 
+typedef struct {
+  SMsgHead head;
+  int64_t  streamId;
+  int64_t  version;
+  SArray*  res;  // SArray<SSDataBlock>
+} SStreamSmaSinkReq;
+
 #pragma pack(pop)
 
 #ifdef __cplusplus
