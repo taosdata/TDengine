@@ -22,7 +22,7 @@ typedef struct SScaleOutContext {
 
 static SLogicSubplan* singleCloneSubLogicPlan(SScaleOutContext* pCxt, SLogicSubplan* pSrc, int32_t level) {
   SLogicSubplan* pDst = nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
-  if (NULL == pDst->pNode) {
+  if (NULL == pDst) {
     return NULL;
   }
   pDst->pNode = nodesCloneNode(pSrc->pNode);
