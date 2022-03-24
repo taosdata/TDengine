@@ -552,11 +552,10 @@ static void taosNetTestClient(char *host, int32_t startPort, int32_t pkgLen) {
 }
 
 static void taosNetTestServer(char *host, int32_t startPort, int32_t pkgLen) {
-  int32_t endPort = startPort + 11;
-  uInfo("work as server, host:%s startPort:%d endPort:%d pkgLen:%d\n", host, startPort, endPort, pkgLen);
+  uInfo("work as server, host:%s Port:%d pkgLen:%d\n", host, startPort, pkgLen);
 
   int32_t port = startPort;
-  int32_t num = endPort - startPort + 1;
+  int32_t num = 1;
   if (num < 0) num = 1;
 
   TdThread *pids = malloc(2 * num * sizeof(TdThread));
