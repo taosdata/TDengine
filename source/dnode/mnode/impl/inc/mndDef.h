@@ -267,6 +267,8 @@ typedef struct {
   int8_t  update;
   int8_t  cacheLastRow;
   int8_t  streamMode;
+  int32_t numOfRetensions;
+  SArray* pRetensions;
 } SDbCfg;
 
 typedef struct {

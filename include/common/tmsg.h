@@ -185,10 +185,10 @@ typedef struct SField {
 } SField;
 
 typedef struct SRetention {
-  int32_t first;
-  int32_t second;
-  int8_t  firstUnit;
-  int8_t  secondUnit;
+  int32_t freq;
+  int32_t keep;
+  int8_t  freqUnit;
+  int8_t  keepUnit;
 } SRetention;
 
 #pragma pack(push, 1)
@@ -764,11 +764,13 @@ typedef struct {
   int8_t   selfIndex;
   int8_t   streamMode;
   SReplica replicas[TSDB_MAX_REPLICA];
-
+  int32_t  numOfRetensions;
+  SArray*  pRetensions;  // SRetention
 } SCreateVnodeReq, SAlterVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
 int32_t tDeserializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
+int32_t tFreeSCreateVnodeReq(SCreateVnodeReq* pReq);
 
 typedef struct {
   int32_t vgId;
