@@ -169,6 +169,19 @@ static void         destroyThrdObj(SCliThrdObj* pThrd);
       pMsg = transQueueRm(&conn->cliMsgs, i);                        \
     }                                                                \
   } while (0)
+#define CONN_GET_NEXT_SENDMSG(conn)                 \
+  do {                                              \
+    int i = 0;                                      \
+    do {                                            \
+      pCliMsg = transQueueGet(&conn->cliMsgs, i++); \
+      if (pCliMsg && 0 == pCliMsg->sent) {          \
+        break;                                      \
+      }                                             \
+    } while (pCliMsg != NULL);                      \
+    if (pCliMsg == NULL) {                          \
+      goto _RETURN;                                 \
+    }                                               \
+  } while (0)
 
 #define CONN_HANDLE_THREAD_QUIT(thrd) \
   do {                                \
@@ -203,18 +216,11 @@ static void* cliWorkThread(void* arg);
 bool cliMaySendCachedMsg(SCliConn* conn) {
   if (!transQueueEmpty(&conn->cliMsgs)) {
     SCliMsg* pCliMsg = NULL;
-    int      i = 0;
-    do {
-      pCliMsg = transQueueGet(&conn->cliMsgs, i++);
-      if (pCliMsg && 0 == pCliMsg->sent) {
-        break;
-      }
-    } while (pCliMsg != NULL);
-    if (pCliMsg == NULL) {
-      return false;
-    }
+    CONN_GET_NEXT_SENDMSG(conn);
     cliSend(conn);
   }
+  return false;
+_RETURN:
   return false;
 }
 void cliHandleResp(SCliConn* conn) {
@@ -570,17 +576,7 @@ void cliSend(SCliConn* pConn) {
   assert(!transQueueEmpty(&pConn->cliMsgs));
 
   SCliMsg* pCliMsg = NULL;
-  int      i = 0;
-  do {
-    pCliMsg = transQueueGet(&pConn->cliMsgs, i++);
-    if (pCliMsg && 0 == pCliMsg->sent) {
-      break;
-    }
-  } while (pCliMsg != NULL);
-  if (pCliMsg == NULL) {
-    return;
-  }
-
+  CONN_GET_NEXT_SENDMSG(pConn);
   pCliMsg->sent = 1;
 
   STransConnCtx* pCtx = pCliMsg->ctx;
@@ -635,6 +631,8 @@ void cliSend(SCliConn* pConn) {
   pConn->writeReq.data = pConn;
   uv_write(&pConn->writeReq, (uv_stream_t*)pConn->stream, &wb, 1, cliSendCb);
 
+  return;
+_RETURN:
   return;
 }
 
