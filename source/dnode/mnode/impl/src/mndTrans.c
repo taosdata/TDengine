@@ -406,6 +406,10 @@ static const char *mndTransType(ETrnType type) {
       return "alter-stb";
     case TRN_TYPE_DROP_STB:
       return "drop-stb";
+    case TRN_TYPE_CREATE_SMA:
+      return "create-sma";
+    case TRN_TYPE_DROP_SMA:
+      return "drop-sma";
     default:
       return "invalid";
   }

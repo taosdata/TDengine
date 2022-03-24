@@ -96,6 +96,7 @@ int    tsdbCommit(STsdb *pTsdb);
  */
 int32_t tsdbInsertTSmaData(STsdb *pTsdb, char *msg);
 int32_t tsdbUpdateSmaWindow(STsdb *pTsdb, int8_t smaType, char *msg);
+int32_t tsdbDropTSmaData(STsdb *pTsdb, int64_t indexUid);
 
 /**
  * @brief Insert RSma(Time-range-wise Rollup SMA) data.

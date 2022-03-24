@@ -13,20 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
 #include "mndStb.h"
 #include "mndAuth.h"
 #include "mndDb.h"
 #include "mndDnode.h"
+#include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
-#include "mndInfoSchema.h"
 #include "tname.h"
 
-#define TSDB_STB_VER_NUMBER 1
+#define TSDB_STB_VER_NUMBER   1
 #define TSDB_STB_RESERVE_SIZE 64
 
 static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw);
@@ -88,6 +87,7 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   SDB_SET_INT32(pRaw, dataPos, pStb->nextColId, STB_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->numOfColumns, STB_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->numOfTags, STB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pStb->commentLen, STB_ENCODE_OVER)
 
   for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
     SSchema *pSchema = &pStb->pColumns[i];
@@ -105,7 +105,7 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
     SDB_SET_BINARY(pRaw, dataPos, pSchema->name, TSDB_COL_NAME_LEN, STB_ENCODE_OVER)
   }
 
-  SDB_SET_BINARY(pRaw, dataPos, pStb->comment, TSDB_STB_COMMENT_LEN, STB_ENCODE_OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pStb->comment, pStb->commentLen, STB_ENCODE_OVER)
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_STB_RESERVE_SIZE, STB_ENCODE_OVER)
   SDB_SET_DATALEN(pRaw, dataPos, STB_ENCODE_OVER)
 
@@ -150,6 +150,7 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pStb->nextColId, STB_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->numOfColumns, STB_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->numOfTags, STB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pStb->commentLen, STB_DECODE_OVER)
 
   pStb->pColumns = calloc(pStb->numOfColumns, sizeof(SSchema));
   pStb->pTags = calloc(pStb->numOfTags, sizeof(SSchema));
@@ -173,7 +174,11 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     SDB_GET_BINARY(pRaw, dataPos, pSchema->name, TSDB_COL_NAME_LEN, STB_DECODE_OVER)
   }
 
-  SDB_GET_BINARY(pRaw, dataPos, pStb->comment, TSDB_STB_COMMENT_LEN, STB_DECODE_OVER)
+  if (pStb->commentLen > 0) {
+    pStb->comment = calloc(pStb->commentLen, 1);
+    if (pStb->comment == NULL) goto STB_DECODE_OVER;
+    SDB_GET_BINARY(pRaw, dataPos, pStb->comment, pStb->commentLen, STB_DECODE_OVER)
+  }
   SDB_GET_RESERVE(pRaw, dataPos, TSDB_STB_RESERVE_SIZE, STB_DECODE_OVER)
 
   terrno = 0;
@@ -183,6 +188,7 @@ STB_DECODE_OVER:
     mError("stb:%s, failed to decode from raw:%p since %s", pStb->name, pRaw, terrstr());
     tfree(pStb->pColumns);
     tfree(pStb->pTags);
+    tfree(pStb->comment);
     tfree(pRow);
     return NULL;
   }
@@ -200,6 +206,7 @@ static int32_t mndStbActionDelete(SSdb *pSdb, SStbObj *pStb) {
   mTrace("stb:%s, perform delete action, row:%p", pStb->name, pStb);
   tfree(pStb->pColumns);
   tfree(pStb->pTags);
+  tfree(pStb->comment);
   return 0;
 }
 
@@ -502,6 +509,13 @@ static int32_t mndCreateStb(SMnode *pMnode, SNodeMsg *pReq, SMCreateStbReq *pCre
   stbObj.nextColId = 1;
   stbObj.numOfColumns = pCreate->numOfColumns;
   stbObj.numOfTags = pCreate->numOfTags;
+  stbObj.commentLen = pCreate->commentLen;
+  stbObj.comment = calloc(stbObj.commentLen, 1);
+  if (stbObj.comment == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  memcpy(stbObj.comment, pCreate->comment, stbObj.commentLen);
 
   stbObj.pColumns = malloc(stbObj.numOfColumns * sizeof(SSchema));
   stbObj.pTags = malloc(stbObj.numOfTags * sizeof(SSchema));
@@ -1162,7 +1176,7 @@ static int32_t mndSetDropStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
 
 static int32_t mndDropStb(SMnode *pMnode, SNodeMsg *pReq, SDbObj *pDb, SStbObj *pStb) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK,TRN_TYPE_DROP_STB, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_STB, &pReq->rpcMsg);
   if (pTrans == NULL) goto DROP_STB_OVER;
 
   mDebug("trans:%d, used to drop stb:%s", pTrans->id, pStb->name);
@@ -1568,7 +1582,11 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_TO_VARSTR(pWrite, pStb->comment);
+    if (pStb->commentLen != 0) {
+      STR_TO_VARSTR(pWrite, pStb->comment);
+    } else {
+      STR_TO_VARSTR(pWrite, "");
+    }
     cols++;
 
     numOfRows++;

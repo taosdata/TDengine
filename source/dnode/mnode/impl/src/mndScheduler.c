@@ -32,20 +32,23 @@
 #include "tname.h"
 #include "tuuid.h"
 
-int32_t mndPersistTaskDeployReq(STrans* pTrans, SStreamTask* pTask, const SEpSet* pEpSet, tmsg_t type) {
+extern bool tsStreamSchedV;
+
+int32_t mndPersistTaskDeployReq(STrans* pTrans, SStreamTask* pTask, const SEpSet* pEpSet, tmsg_t type, int32_t nodeId) {
   SCoder encoder;
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER);
   tEncodeSStreamTask(&encoder, pTask);
-  int32_t tlen = sizeof(SMsgHead) + encoder.pos;
+  int32_t size = encoder.pos;
+  int32_t tlen = sizeof(SMsgHead) + size;
   tCoderClear(&encoder);
   void* buf = malloc(tlen);
   if (buf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  ((SMsgHead*)buf)->streamTaskId = pTask->taskId;
+  ((SMsgHead*)buf)->streamTaskId = htonl(nodeId);
   void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-  tCoderInit(&encoder, TD_LITTLE_ENDIAN, abuf, tlen, TD_ENCODER);
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, abuf, size, TD_ENCODER);
   tEncodeSStreamTask(&encoder, pTask);
   tCoderClear(&encoder);
 
@@ -70,7 +73,7 @@ int32_t mndAssignTaskToVg(SMnode* pMnode, STrans* pTrans, SStreamTask* pTask, SS
     terrno = TSDB_CODE_QRY_INVALID_INPUT;
     return -1;
   }
-  mndPersistTaskDeployReq(pTrans, pTask, &plan->execNode.epSet, TDMT_VND_TASK_DEPLOY);
+  mndPersistTaskDeployReq(pTrans, pTask, &plan->execNode.epSet, TDMT_VND_TASK_DEPLOY, pVgroup->vgId);
   return 0;
 }
 
@@ -90,7 +93,7 @@ int32_t mndAssignTaskToSnode(SMnode* pMnode, STrans* pTrans, SStreamTask* pTask,
     terrno = TSDB_CODE_QRY_INVALID_INPUT;
     return -1;
   }
-  mndPersistTaskDeployReq(pTrans, pTask, &plan->execNode.epSet, TDMT_SND_TASK_DEPLOY);
+  mndPersistTaskDeployReq(pTrans, pTask, &plan->execNode.epSet, TDMT_SND_TASK_DEPLOY, 0);
   return 0;
 }
 
@@ -106,6 +109,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
 
   int32_t totLevel = LIST_LENGTH(pPlan->pSubplans);
   pStream->tasks = taosArrayInit(totLevel, sizeof(SArray));
+  int32_t lastUsedVgId = 0;
 
   for (int32_t level = 0; level < totLevel; level++) {
     SArray*        taskOneLevel = taosArrayInit(0, sizeof(SStreamTask));
@@ -113,9 +117,9 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
     int32_t        opNum = LIST_LENGTH(inner->pNodeList);
     ASSERT(opNum == 1);
 
-    SSubplan* plan = nodesListGetNode(inner->pNodeList, level);
+    SSubplan* plan = nodesListGetNode(inner->pNodeList, 0);
     if (level == 0) {
-      ASSERT(plan->type == SUBPLAN_TYPE_SCAN);
+      ASSERT(plan->subplanType == SUBPLAN_TYPE_SCAN);
       void* pIter = NULL;
       while (1) {
         pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
@@ -125,11 +129,14 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
           continue;
         }
 
+        lastUsedVgId = pVgroup->vgId;
         pStream->vgNum++;
         // send to vnode
 
         SStreamTask* pTask = streamTaskNew(pStream->uid, level);
+        pTask->pipeSource = 1;
         pTask->pipeSink = level == totLevel - 1 ? 1 : 0;
+        pTask->parallelizable = 1;
         // TODO: set to
         if (mndAssignTaskToVg(pMnode, pTrans, pTask, plan, pVgroup) < 0) {
           sdbRelease(pSdb, pVgroup);
@@ -140,19 +147,35 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
       }
     } else {
       SStreamTask* pTask = streamTaskNew(pStream->uid, level);
+      pTask->pipeSource = 0;
       pTask->pipeSink = level == totLevel - 1 ? 1 : 0;
-      SSnodeObj* pSnode = mndSchedFetchSnode(pMnode);
-      if (pSnode != NULL) {
-        if (mndAssignTaskToSnode(pMnode, pTrans, pTask, plan, pSnode) < 0) {
-          sdbRelease(pSdb, pSnode);
+      pTask->parallelizable = plan->subplanType == SUBPLAN_TYPE_SCAN;
+      pTask->nextOpDst = STREAM_NEXT_OP_DST__VND;
+
+      if (tsStreamSchedV) {
+        ASSERT(lastUsedVgId != 0);
+        SVgObj* pVg = mndAcquireVgroup(pMnode, lastUsedVgId);
+        if (mndAssignTaskToVg(pMnode, pTrans, pTask, plan, pVg) < 0) {
+          sdbRelease(pSdb, pVg);
           qDestroyQueryPlan(pPlan);
           return -1;
         }
-        sdbRelease(pMnode->pSdb, pSnode);
+        sdbRelease(pSdb, pVg);
       } else {
-        // TODO: assign to one vg
-        ASSERT(0);
+        SSnodeObj* pSnode = mndSchedFetchSnode(pMnode);
+        if (pSnode != NULL) {
+          if (mndAssignTaskToSnode(pMnode, pTrans, pTask, plan, pSnode) < 0) {
+            sdbRelease(pSdb, pSnode);
+            qDestroyQueryPlan(pPlan);
+            return -1;
+          }
+          sdbRelease(pMnode->pSdb, pSnode);
+        } else {
+          // TODO: assign to one vg
+          ASSERT(0);
+        }
       }
+
       taosArrayPush(taskOneLevel, pTask);
     }
     taosArrayPush(pStream->tasks, taskOneLevel);

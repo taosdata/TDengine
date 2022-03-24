@@ -122,9 +122,9 @@ typedef struct SMnode {
   SMsgCb            msgCb;
 } SMnode;
 
-void     mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
-uint64_t mndGenerateUid(char *name, int32_t len);
-void     mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
+void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
+int64_t mndGenerateUid(char *name, int32_t len);
+void    mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
 
 #ifdef __cplusplus
 }

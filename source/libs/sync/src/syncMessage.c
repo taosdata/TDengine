@@ -834,7 +834,7 @@ cJSON* syncRequestVote2Json(const SyncRequestVote* pMsg) {
 
     snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->lastLogIndex);
+    snprintf(u64buf, sizeof(u64buf), "%ld", pMsg->lastLogIndex);
     cJSON_AddStringToObject(pRoot, "lastLogIndex", u64buf);
     snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->lastLogTerm);
     cJSON_AddStringToObject(pRoot, "lastLogTerm", u64buf);
@@ -1127,14 +1127,14 @@ cJSON* syncAppendEntries2Json(const SyncAppendEntries* pMsg) {
     snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);
 
-    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->prevLogIndex);
-    cJSON_AddStringToObject(pRoot, "pre_log_index", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%ld", pMsg->prevLogIndex);
+    cJSON_AddStringToObject(pRoot, "prevLogIndex", u64buf);
 
     snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->prevLogTerm);
     cJSON_AddStringToObject(pRoot, "pre_log_term", u64buf);
 
-    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->commitIndex);
-    cJSON_AddStringToObject(pRoot, "commit_index", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%ld", pMsg->commitIndex);
+    cJSON_AddStringToObject(pRoot, "commitIndex", u64buf);
 
     cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
     char* s;
@@ -1288,7 +1288,7 @@ cJSON* syncAppendEntriesReply2Json(const SyncAppendEntriesReply* pMsg) {
     snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);
     cJSON_AddNumberToObject(pRoot, "success", pMsg->success);
-    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->matchIndex);
+    snprintf(u64buf, sizeof(u64buf), "%ld", pMsg->matchIndex);
     cJSON_AddStringToObject(pRoot, "matchIndex", u64buf);
   }
 
