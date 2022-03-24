@@ -406,9 +406,9 @@ _return:
 }
 
 
-int32_t ctgPushRmStbMsgInQueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *stbName, uint64_t suid) {
+int32_t ctgPushRmStbMsgInQueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *stbName, uint64_t suid, bool syncReq) {
   int32_t code = 0;
-  SCtgMetaAction action= {.act = CTG_ACT_REMOVE_STB};
+  SCtgMetaAction action= {.act = CTG_ACT_REMOVE_STB, .syncReq = syncReq};
   SCtgRemoveStbMsg *msg = malloc(sizeof(SCtgRemoveStbMsg));
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgRemoveStbMsg));
@@ -435,9 +435,9 @@ _return:
 
 
 
-int32_t ctgPushRmTblMsgInQueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *tbName) {
+int32_t ctgPushRmTblMsgInQueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *tbName, bool syncReq) {
   int32_t code = 0;
-  SCtgMetaAction action= {.act = CTG_ACT_REMOVE_TBL};
+  SCtgMetaAction action= {.act = CTG_ACT_REMOVE_TBL, .syncReq = syncReq};
   SCtgRemoveTblMsg *msg = malloc(sizeof(SCtgRemoveTblMsg));
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgRemoveTblMsg));
@@ -496,7 +496,7 @@ _return:
 
 int32_t ctgPushUpdateTblMsgInQueue(SCatalog* pCtg, STableMetaOutput *output, bool syncReq) {
   int32_t code = 0;
-  SCtgMetaAction action= {.act = CTG_ACT_UPDATE_TBL};
+  SCtgMetaAction action= {.act = CTG_ACT_UPDATE_TBL, .syncReq = syncReq};
   SCtgUpdateTblMsg *msg = malloc(sizeof(SCtgUpdateTblMsg));
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateTblMsg));
@@ -1843,6 +1843,7 @@ int32_t ctgRefreshTblMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, 
 
   if (CTG_IS_META_NULL(output->metaType)) {
     ctgError("no tbmeta got, tbNmae:%s", tNameGetTableName(pTableName));
+    catalogRemoveTableMeta(pCtg, pTableName);
     CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
   }
 
@@ -1951,9 +1952,9 @@ _return:
     }
 
     if (TSDB_SUPER_TABLE == tbType) {
-      ctgPushRmStbMsgInQueue(pCtg, dbFName, dbId, pTableName->tname, suid);
+      ctgPushRmStbMsgInQueue(pCtg, dbFName, dbId, pTableName->tname, suid, false);
     } else {
-      ctgPushRmTblMsgInQueue(pCtg, dbFName, dbId, pTableName->tname);
+      ctgPushRmTblMsgInQueue(pCtg, dbFName, dbId, pTableName->tname, false);
     }
   }
 
@@ -2534,7 +2535,7 @@ int32_t catalogUpdateVgEpSet(SCatalog* pCtg, const char* dbFName, int32_t vgId, 
 
 }
 
-int32_t catalogRemoveTableMeta(SCatalog* pCtg, SName* pTableName) {
+int32_t catalogRemoveTableMeta(SCatalog* pCtg, const SName* pTableName) {
   CTG_API_ENTER();
 
   int32_t code = 0;
@@ -2561,9 +2562,9 @@ int32_t catalogRemoveTableMeta(SCatalog* pCtg, SName* pTableName) {
   tNameGetFullDbName(pTableName, dbFName);
   
   if (TSDB_SUPER_TABLE == tblMeta->tableType) {
-    CTG_ERR_JRET(ctgPushRmStbMsgInQueue(pCtg, dbFName, dbId, pTableName->tname, tblMeta->suid));
+    CTG_ERR_JRET(ctgPushRmStbMsgInQueue(pCtg, dbFName, dbId, pTableName->tname, tblMeta->suid, true));
   } else {
-    CTG_ERR_JRET(ctgPushRmTblMsgInQueue(pCtg, dbFName, dbId, pTableName->tname));
+    CTG_ERR_JRET(ctgPushRmTblMsgInQueue(pCtg, dbFName, dbId, pTableName->tname, true));
   }
 
  
@@ -2588,7 +2589,7 @@ int32_t catalogRemoveStbMeta(SCatalog* pCtg, const char* dbFName, uint64_t dbId,
     CTG_API_LEAVE(TSDB_CODE_SUCCESS);
   }
 
-  CTG_ERR_JRET(ctgPushRmStbMsgInQueue(pCtg, dbFName, dbId, stbName, suid));
+  CTG_ERR_JRET(ctgPushRmStbMsgInQueue(pCtg, dbFName, dbId, stbName, suid, true));
 
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
   
