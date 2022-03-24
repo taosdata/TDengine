@@ -59,6 +59,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Endpoint should be in the format of 'fqdn:port'";
     case TSDB_CODE_PAR_EXPRIE_STATEMENT:
       return "This statement is no longer supported";
+    case TSDB_CODE_PAR_INTERVAL_VALUE_TOO_SMALL:
+      return "This interval value is too small : %s";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
