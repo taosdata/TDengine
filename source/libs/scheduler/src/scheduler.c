@@ -1919,7 +1919,7 @@ int32_t schLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
                     pTask->msgLen);
       SCH_ERR_RET(code);
     } else {
-      SCH_TASK_DLOG("physical plan len:%d, %s", pTask->msgLen, pTask->msg);
+      SCH_TASK_DLOGL("physical plan len:%d, %s", pTask->msgLen, pTask->msg);
     }
   }
 
