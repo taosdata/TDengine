@@ -8,7 +8,7 @@ fn taos_connect() -> Result<Taos, Error> {
         // .db("log") // remove comment if you want to connect to database log by default.
         .port(6030u16)
         .build()
-        .expect("ToasCfg builder error")
+        .expect("TaosCfg builder error")
         .connect()
 }
 
@@ -17,5 +17,3 @@ fn main() {
     let taos = taos_connect().unwrap();
     println!("Connected")
 }
-
-//run it with: cargo run --example connect

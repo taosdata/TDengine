@@ -21,5 +21,5 @@ public class JNIConnectExample {
 }
 
 // use
-// String jdbcUrl = "jdbc:TAOS://localhost:6041/dbName?user=root&password=taosdata";
-// if you want to connect to default database.
+// String jdbcUrl = "jdbc:TAOS://localhost:6030/dbName?user=root&password=taosdata";
+// if you want to connect to a default database.
