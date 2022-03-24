@@ -274,14 +274,14 @@ void* transCtxDumpVal(STransCtx* ctx, int32_t key) {
   if (cVal == NULL) {
     return NULL;
   }
-  void *ret = NULL;
+  void* ret = NULL;
   (*cVal->clone)(cVal->val, &ret);
   return ret;
 }
 void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
-  void *ret = NULL;
+  void* ret = NULL;
   if (ctx->brokenVal.clone == NULL) {
-     return ret; 
+    return ret;
   }
   (*ctx->brokenVal.clone)(ctx->brokenVal.val, &ret);
 
@@ -295,6 +295,9 @@ void transQueueInit(STransQueue* queue, void (*free)(void* arg)) {
   queue->free = free;
 }
 bool transQueuePush(STransQueue* queue, void* arg) {
+  if (queue->q == NULL) {
+    return true;
+  }
   taosArrayPush(queue->q, &arg);
   if (taosArrayGetSize(queue->q) > 1) {
     return false;
@@ -302,7 +305,7 @@ bool transQueuePush(STransQueue* queue, void* arg) {
   return true;
 }
 void* transQueuePop(STransQueue* queue) {
-  if (taosArrayGetSize(queue->q) == 0) {
+  if (queue->q == NULL || taosArrayGetSize(queue->q) == 0) {
     return NULL;
   }
   void* ptr = taosArrayGetP(queue->q, 0);
@@ -310,11 +313,13 @@ void* transQueuePop(STransQueue* queue) {
   return ptr;
 }
 int32_t transQueueSize(STransQueue* queue) {
-  // Get size
+  if (queue->q == NULL) {
+    return 0;
+  }
   return taosArrayGetSize(queue->q);
 }
 void* transQueueGet(STransQueue* queue, int i) {
-  if (taosArrayGetSize(queue->q) == 0) {
+  if (queue->q == NULL || taosArrayGetSize(queue->q) == 0) {
     return NULL;
   }
   if (i >= taosArrayGetSize(queue->q)) {
@@ -326,7 +331,7 @@ void* transQueueGet(STransQueue* queue, int i) {
 }
 
 void* transQueueRm(STransQueue* queue, int i) {
-  if (taosArrayGetSize(queue->q) == 0) {
+  if (queue->q == NULL || taosArrayGetSize(queue->q) == 0) {
     return NULL;
   }
   if (i >= taosArrayGetSize(queue->q)) {
@@ -338,7 +343,9 @@ void* transQueueRm(STransQueue* queue, int i) {
 }
 
 bool transQueueEmpty(STransQueue* queue) {
-  //
+  if (queue->q == NULL) {
+    return true;
+  }
   return taosArrayGetSize(queue->q) == 0;
 }
 void transQueueClear(STransQueue* queue) {
