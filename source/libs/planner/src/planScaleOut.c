@@ -85,7 +85,7 @@ static int32_t setScanVgroup(SLogicNode* pNode, const SVgroupInfo* pVgroup) {
 }
 
 static int32_t scaleOutForScan(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pGroup) {
-  if (pSubplan->pVgroupList) {
+  if (pSubplan->pVgroupList && !pCxt->pPlanCxt->streamQuery) {
     int32_t code = TSDB_CODE_SUCCESS;
     for (int32_t i = 0; i < pSubplan->pVgroupList->numOfVgroups; ++i) {
       SLogicSubplan* pNewSubplan = singleCloneSubLogicPlan(pCxt, pSubplan, level);

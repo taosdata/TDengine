@@ -106,6 +106,8 @@ static int32_t stsCreateExchangeNode(SSplitContext* pCxt, SLogicSubplan* pSubpla
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
+
   if (NULL == pScan->node.pParent) {
     pSubplan->pNode = (SLogicNode*)pExchange;
     return TSDB_CODE_SUCCESS;
