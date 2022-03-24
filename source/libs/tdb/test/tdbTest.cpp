@@ -6,10 +6,10 @@ TEST(tdb_test, simple_test) {
   int    ret;
   STEnv *pEnv;
   STDb  *pDb;
-  int    nData = 10000;
+  int    nData = 50000;
 
   // Open Env
-  ret = tdbEnvOpen("tdb", 1024, 256, &pEnv);
+  ret = tdbEnvOpen("tdb", 1024, 2560, &pEnv);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
