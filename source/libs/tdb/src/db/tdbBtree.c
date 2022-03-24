@@ -482,9 +482,11 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
   u8                flags;
   SIntHdr          *pIntHdr;
   SBtreeInitPageArg zArg;
+  u8                leaf;
 
   pPager = pRoot->pPager;
   flags = TDB_BTREE_PAGE_GET_FLAGS(pRoot);
+  leaf = TDB_BTREE_PAGE_IS_LEAF(flags);
 
   // Allocate a new child page
   zArg.flags = TDB_FLAG_REMOVE(flags, TDB_BTREE_ROOT);
@@ -492,6 +494,10 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
   ret = tdbPagerNewPage(pPager, &pgnoChild, &pChild, tdbBtreeZeroPage, &zArg);
   if (ret < 0) {
     return -1;
+  }
+
+  if (!leaf) {
+    ((SIntHdr *)pChild->pData)->pgno = ((SIntHdr *)(pRoot->pData))->pgno;
   }
 
   // Copy the root page content to the child page
