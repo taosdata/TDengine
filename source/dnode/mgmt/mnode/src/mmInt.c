@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
+#include "wal.h"
 
 static bool mmDeployRequired(SDnode *pDnode) {
   if (pDnode->dnodeId > 0) return false;

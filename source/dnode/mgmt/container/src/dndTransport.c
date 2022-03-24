@@ -271,7 +271,7 @@ int32_t dndInitMsgHandle(SDnode *pDnode) {
       int32_t   vgId = pWrapper->msgVgIds[msgIndex];
       if (msgFp == NULL) continue;
 
-      dTrace("msg:%s will be processed by %s, vgId:%d", tMsgInfo[msgIndex], pWrapper->name, vgId);
+      // dTrace("msg:%s will be processed by %s, vgId:%d", tMsgInfo[msgIndex], pWrapper->name, vgId);
 
       SMsgHandle *pHandle = &pMgmt->msgHandles[msgIndex];
       if (vgId == QND_VGID) {

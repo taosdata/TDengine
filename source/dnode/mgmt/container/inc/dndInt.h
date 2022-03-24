@@ -34,7 +34,7 @@ int32_t     dndInit();
 void        dndCleanup();
 const char *dndStatStr(EDndStatus stat);
 void        dndGetStartup(SDnode *pDnode, SStartupReq *pStartup);
-TdFilePtr   dndCheckRunning(char *dataDir);
+TdFilePtr   dndCheckRunning(const char *dataDir);
 void        dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
 
 // dndMsg.c
