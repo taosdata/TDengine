@@ -269,12 +269,15 @@ typedef struct SSchema {
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
+  float   xFilesFactor;
+  int32_t aggregationMethod;
+  int32_t delay;
   int32_t numOfColumns;
   int32_t numOfTags;
   int32_t commentLen;
   SArray* pColumns;
   SArray* pTags;
-  char    *comment;
+  char*   comment;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
