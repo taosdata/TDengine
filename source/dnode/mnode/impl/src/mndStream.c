@@ -272,6 +272,7 @@ int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast
   if (nodesStringToNode(ast, &pAst) < 0) {
     return -1;
   }
+#if 1
   SArray *names = mndExtractNamesFromAst(pAst);
   printf("|");
   for (int i = 0; i < taosArrayGetSize(names); i++) {
@@ -279,7 +280,8 @@ int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast
   }
   printf("\n=======================================================\n");
 
-  pStream->outputName = names;
+  pStream->ColAlias = names;
+#endif
 
   if (TSDB_CODE_SUCCESS != mndStreamGetPlanString(ast, &pStream->physicalPlan)) {
     mError("topic:%s, failed to get plan since %s", pStream->name, terrstr());
@@ -290,6 +292,7 @@ int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast
     mError("stream:%ld, schedule stream since %s", pStream->uid, terrstr());
     return -1;
   }
+  mDebug("trans:%d, used to create stream:%s", pTrans->id, pStream->name);
 
   SSdbRaw *pRedoRaw = mndStreamActionEncode(pStream);
   if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
@@ -307,6 +310,7 @@ static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamRe
   SStreamObj streamObj = {0};
   tstrncpy(streamObj.name, pCreate->name, TSDB_STREAM_FNAME_LEN);
   tstrncpy(streamObj.db, pDb->name, TSDB_DB_FNAME_LEN);
+  tstrncpy(streamObj.outputSTbName, pCreate->outputSTbName, TSDB_TABLE_FNAME_LEN);
   streamObj.createTime = taosGetTimestampMs();
   streamObj.updateTime = streamObj.createTime;
   streamObj.uid = mndGenerateUid(pCreate->name, strlen(pCreate->name));

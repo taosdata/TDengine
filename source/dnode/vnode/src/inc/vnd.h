@@ -55,6 +55,21 @@ typedef struct SVnodeMgr {
   TD_DLIST(SVnodeTask) queue;
 } SVnodeMgr;
 
+typedef struct {
+  int8_t  streamType;  // sma or other
+  int8_t  dstType;
+  int16_t padding;
+  int32_t smaId;
+  int64_t tbUid;
+  int64_t lastReceivedVer;
+  int64_t lastCommittedVer;
+} SStreamSinkInfo;
+
+typedef struct {
+  SVnode*   pVnode;
+  SHashObj* pHash;  // streamId -> SStreamSinkInfo
+} SSink;
+
 extern SVnodeMgr vnodeMgr;
 
 // SVState
@@ -72,8 +87,9 @@ struct SVnode {
   SVBufPool* pBufPool;
   SMeta*     pMeta;
   STsdb*     pTsdb;
-  STQ*       pTq;
   SWal*      pWal;
+  STQ*       pTq;
+  SSink*     pSink;
   tsem_t     canCommit;
   SQHandle*  pQuery;
   SMsgCb     msgCb;
