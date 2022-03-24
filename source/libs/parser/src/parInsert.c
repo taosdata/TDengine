@@ -48,11 +48,6 @@
     } \
   } while (0)
 
-enum {
-  TSDB_USE_SERVER_TS = 0,
-  TSDB_USE_CLI_TS = 1,
-};
-
 typedef struct SInsertParseContext {
   SParseContext* pComCxt;       // input
   char          *pSql;          // input
@@ -303,20 +298,7 @@ static int32_t checkTimestamp(STableDataBlocks *pDataBlocks, const char *start) 
   }
 
   TSKEY k = *(TSKEY *)start;
-
-  if (k == INT64_MIN) {
-    if (pDataBlocks->tsSource == TSDB_USE_CLI_TS) {
-      return TSDB_CODE_FAILED; // client time/server time can not be mixed
-    }
-    pDataBlocks->tsSource = TSDB_USE_SERVER_TS;
-  } else {
-    if (pDataBlocks->tsSource == TSDB_USE_SERVER_TS) {
-      return TSDB_CODE_FAILED;  // client time/server time can not be mixed
-    }
-    pDataBlocks->tsSource = TSDB_USE_CLI_TS;
-  }
-
-  if (k <= pDataBlocks->prevTS && (pDataBlocks->tsSource == TSDB_USE_CLI_TS)) {
+  if (k <= pDataBlocks->prevTS) {
     pDataBlocks->ordered = false;
   }
 
