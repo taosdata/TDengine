@@ -206,7 +206,7 @@ static void         destroyThrdObj(SCliThrdObj* pThrd);
     }                                 \
   } while (0)
 #define CONN_NO_PERSIST_BY_APP(conn) \
-  (((conn)->status == ConnNormal || (conn->status) == ConnInPool) T_REF_VAL_GET(conn) == 1)
+  (((conn)->status == ConnNormal || (conn)->status == ConnInPool) && T_REF_VAL_GET(conn) == 1)
 #define CONN_RELEASE_BY_SERVER(conn) \
   (((conn)->status == ConnRelease || (conn)->status == ConnInPool) && T_REF_VAL_GET(conn) == 1)
 #define REQUEST_NO_RESP(msg) ((msg)->noResp == 1)
