@@ -19,11 +19,11 @@ mod backup_sql;
 ///
 /// Basically, an alternative command to `taosdump`.
 pub(crate) struct App {
-    #[clap(short, long, env = "BACKUP_DATABASE", group = "taos-backup")]
+    #[clap(short, long)]
     database: Option<String>,
-    #[clap(short, long, env = "BACKUP_TARGET", group = "taos-backup")]
-    target: Option<String>,
-    #[clap(short, long, env = "BACKUP_THREAD", group = "taos-backup")]
+    #[clap(short, long)]
+    output: Option<String>,
+    #[clap(short, long)]
     thread: Option<u32>,
 }
 
@@ -33,14 +33,13 @@ impl App {
         let user = opts.username.as_deref().unwrap_or("root");
         let pass = opts.password.as_deref().unwrap_or("taosdata");
         let port = opts.port.unwrap_or(6030);
-        let target = self.target.as_deref().unwrap_or("./");
+        let target = self.output.as_deref().unwrap_or("./");
         let path = PathBuf::from(target);
         let database = self.database.as_deref().unwrap_or("");
         let db = String::from(database);
         let threads = self.thread.unwrap_or(1);
         let taos = OldTaos::new(host, user, pass, "", port).unwrap();
-        let opts = TaosOptions::new();
-        let pool = TaosPool::builder().max_size(threads).build(opts).unwrap();
+
         Builder::new_multi_thread()
             .enable_all()
             .build()
@@ -57,6 +56,11 @@ impl App {
                 .build()
                 .unwrap()
                 .block_on(backup_table_sql(&taos, db.clone(), &stb, &path));
+            let opts = TaosOptions::new();
+            let pool = TaosPool::builder()
+                .max_size(table_list.len() as u32)
+                .build(opts)
+                .unwrap();
             let schema = Builder::new_multi_thread()
                 .enable_all()
                 .build()
