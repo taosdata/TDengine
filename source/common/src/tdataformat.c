@@ -421,6 +421,7 @@ SDataCols *tdFreeDataCols(SDataCols *pCols) {
   return NULL;
 }
 
+#if 0
 SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
   SDataCols *pRet = tdNewDataCols(pDataCols->maxCols, pDataCols->maxPoints);
   if (pRet == NULL) return NULL;
@@ -454,6 +455,7 @@ SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
 
   return pRet;
 }
+#endif
 
 void tdResetDataCols(SDataCols *pCols) {
   if (pCols != NULL) {

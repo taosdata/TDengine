@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_STREAM_H_
-#define _TD_MND_STREAM_H_
+#ifndef _TD_MND_SMA_H_
+#define _TD_MND_SMA_H_
 
 #include "mndInt.h"
 
@@ -22,19 +22,13 @@
 extern "C" {
 #endif
 
-int32_t mndInitStream(SMnode *pMnode);
-void    mndCleanupStream(SMnode *pMnode);
-
-SStreamObj *mndAcquireStream(SMnode *pMnode, char *streamName);
-void        mndReleaseStream(SMnode *pMnode, SStreamObj *pStream);
-
-SSdbRaw *mndStreamActionEncode(SStreamObj *pStream);
-SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw);
-
-int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast, STrans *pTrans);
+int32_t  mndInitSma(SMnode *pMnode);
+void     mndCleanupSma(SMnode *pMnode);
+SSmaObj *mndAcquireSma(SMnode *pMnode, char *smaName);
+void     mndReleaseSma(SMnode *pMnode, SSmaObj *pSma);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MND_STREAM_H_*/
+#endif /*_TD_MND_SMA_H_*/

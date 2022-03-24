@@ -272,8 +272,8 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   taosArrayDestroy(pUids);
 
   // resource release
-  metaRemoveSmaFromDb(pMeta, smaIndexName1);
-  metaRemoveSmaFromDb(pMeta, smaIndexName2);
+  metaRemoveSmaFromDb(pMeta, indexUid1);
+  metaRemoveSmaFromDb(pMeta, indexUid2);
 
   tdDestroyTSma(&tSma);
   metaClose(pMeta);

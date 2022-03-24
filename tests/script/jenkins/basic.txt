@@ -10,18 +10,20 @@
 ./test.sh -f tsim/db/basic7.sim
 ./test.sh -f tsim/db/error1.sim
 
-# ---- table
-./test.sh -f tsim/table/basic1.sim 
-
 # ---- dnode
 ./test.sh -f tsim/dnode/basic1.sim
 
 # ---- insert
-#./test.sh -f tsim/insert/basic0.sim
+./test.sh -f tsim/insert/basic0.sim
+./test.sh -f tsim/insert/null.sim
 
 # ---- query
 ./test.sh -f tsim/query/interval.sim
 
+# ---- table
+./test.sh -f tsim/table/basic1.sim 
+
 # ---- tmq
 ./test.sh -f tsim/tmq/basic.sim
+
 #======================b1-end===============

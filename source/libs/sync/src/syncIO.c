@@ -257,13 +257,6 @@ static void *syncIOConsumerFunc(void *param) {
           assert(pSyncMsg != NULL);
           io->FpOnSyncPing(io->pSyncNode, pSyncMsg);
           syncPingDestroy(pSyncMsg);
-          /*
-          pSyncMsg = syncPingBuild(pRpcMsg->contLen);
-          syncPingFromRpcMsg(pRpcMsg, pSyncMsg);
-          // memcpy(pSyncMsg, tmpRpcMsg.pCont, tmpRpcMsg.contLen);
-          io->FpOnSyncPing(io->pSyncNode, pSyncMsg);
-          syncPingDestroy(pSyncMsg);
-          */
         }
 
       } else if (pRpcMsg->msgType == SYNC_PING_REPLY) {

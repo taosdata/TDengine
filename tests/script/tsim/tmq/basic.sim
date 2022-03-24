@@ -47,9 +47,12 @@ sql drop database useless_db
 #        -m      startTimestamp, default is 1640966400000 [2022-01-01 00:00:00]
 #        -g      showMsgFlag, default is 0
 #        
-#system_content ../../debug/tests/test/c/tmq_demo -c ../../sim/tsim/cfg
-system ../../debug/tests/test/c/tmq_demo -c ../../sim/tsim/cfg
-print result-> $system_content
+print cmd===> system_content ../../debug/tests/test/c/tmq_demo -sim 1 -b 100 -c ../../sim/tsim/cfg -w ../../sim/dnode1/data/vnode/vnode4/wal
+system_content ../../debug/tests/test/c/tmq_demo -sim 1 -b 100 -c ../../sim/tsim/cfg -w ../../sim/dnode1/data/vnode/vnode4/wal
+print cmd result----> $system_content
+if $system_content != @{consume success: 100}@ then
+  print not match in pos000
+endi
 
 sql show databases
 print ===> $rows $data00 $data01 $data02 $data03
@@ -78,4 +81,5 @@ endi
 if $data00 != 10000 then 
   return -1
 endi
+
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT

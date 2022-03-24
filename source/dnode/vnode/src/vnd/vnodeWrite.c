@@ -59,7 +59,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   // todo: change the interface here
   int64_t ver;
   taosDecodeFixedI64(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &ver);
-  if (tqPushMsg(pVnode->pTq, ptr, pMsg->msgType, ver) < 0) {
+  if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, ver) < 0) {
     // TODO: handle error
   }
 
@@ -85,10 +85,10 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       for (int i = 0; i < reqNum; i++) {
         SVCreateTbReq *pCreateTbReq = taosArrayGet(vCreateTbBatchReq.pArray, i);
 
-        char tableFName[TSDB_TABLE_FNAME_LEN];
+        char      tableFName[TSDB_TABLE_FNAME_LEN];
         SMsgHead *pHead = (SMsgHead *)pMsg->pCont;
         sprintf(tableFName, "%s.%s", pCreateTbReq->dbFName, pCreateTbReq->name);
-        
+
         int32_t code = vnodeValidateTableHash(&pVnode->config, tableFName);
         if (code) {
           SVCreateTbRsp rsp;
@@ -96,7 +96,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
           taosArrayPush(vCreateTbBatchRsp.rspList, &rsp);
         }
-        
+
         if (metaCreateTable(pVnode->pMeta, pCreateTbReq) < 0) {
           // TODO: handle error
           vError("vgId:%d, failed to create table: %s", pVnode->vgId, pCreateTbReq->name);
@@ -116,10 +116,10 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       taosArrayDestroy(vCreateTbBatchReq.pArray);
       if (vCreateTbBatchRsp.rspList) {
         int32_t contLen = tSerializeSVCreateTbBatchRsp(NULL, 0, &vCreateTbBatchRsp);
-        void *msg = rpcMallocCont(contLen);
+        void   *msg = rpcMallocCont(contLen);
         tSerializeSVCreateTbBatchRsp(msg, contLen, &vCreateTbBatchRsp);
         taosArrayDestroy(vCreateTbBatchRsp.rspList);
-        
+
         *pRsp = calloc(1, sizeof(SRpcMsg));
         (*pRsp)->msgType = TDMT_VND_CREATE_TABLE_RSP;
         (*pRsp)->pCont = msg;
@@ -168,6 +168,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
     } break;
     case TDMT_VND_CREATE_SMA: {  // timeRangeSMA
+#if 0
       SSmaCfg vCreateSmaReq = {0};
       if (tDeserializeSVCreateTSmaReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateSmaReq) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -189,26 +190,37 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       // }
       tdDestroyTSma(&vCreateSmaReq.tSma);
       // TODO: return directly or go on follow steps?
+#endif
     } break;
     case TDMT_VND_CANCEL_SMA: {  // timeRangeSMA
     } break;
     case TDMT_VND_DROP_SMA: {  // timeRangeSMA
+#if 0    
       SVDropTSmaReq vDropSmaReq = {0};
       if (tDeserializeSVDropTSmaReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vDropSmaReq) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         return -1;
       }
 
-      if (metaDropTSma(pVnode->pMeta, vDropSmaReq.indexName) < 0) {
-        // TODO: handle error
-        return -1;
-      }
       // TODO: send msg to stream computing to drop tSma
       // if ((send msg to stream computing) < 0) {
       //   tdDestroyTSma(&vCreateSmaReq);
       //   return -1;
       // }
+      // 
+
+      if (metaDropTSma(pVnode->pMeta, vDropSmaReq.indexUid) < 0) {
+        // TODO: handle error
+        return -1;
+      }
+
+      if(tsdbDropTSmaData(pVnode->pTsdb, vDropSmaReq.indexUid) < 0) {
+        // TODO: handle error
+        return -1;
+      }
+
       // TODO: return directly or go on follow steps?
+#endif
     } break;
     default:
       ASSERT(0);
