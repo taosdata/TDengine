@@ -11,12 +11,15 @@ use std::{
 use futures::Stream;
 use itertools::Itertools;
 
-use bitsvec::BitVec;
+// use bitsvec::BitVec;
+use bitvec_simd::BitVec;
 
+use ::serde::{Deserialize, Serialize};
 use taos_sys::*;
 
 use crate::{timestamp::TimestampValue, TaosResult};
 
+pub mod serde;
 struct WithFields<'a>(*mut TAOS_RES, &'a [TAOS_FIELD]);
 
 pub struct BlockStream<'a> {
@@ -200,7 +203,6 @@ impl<'block> Iterator for RowsIter<'block> {
             for col_idx in 0..num_of_fields {
                 let slice = unsafe { self.partial.get_unchecked(col_idx) };
                 let field = unsafe { self.fields.get_unchecked(col_idx) };
-                dbg!(field.type_());
                 let is_null = unsafe { taos_is_null(self.result, self.current as _, col_idx as _) };
                 if is_null {
                     row.push(BorrowedValue::Null);
@@ -344,8 +346,8 @@ impl<'block> Iterator for ColumnsIter<'block> {
                             if is_nulls.get_unchecked(n) {
                                 None
                             } else {
-                                Some(ManuallyDrop::new(String::from_raw_parts(
-                                    start as _, len as _, len as _,
+                                Some(std::str::from_utf8_unchecked(slice::from_raw_parts(
+                                    start as _, len as _,
                                 )))
                             }
                         })
@@ -369,7 +371,7 @@ impl<'block> ExactSizeIterator for ColumnsIter<'block> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum BorrowedColumn<'block> {
     Null(usize),
     Bool(BitVec, &'block [bool]),  // 1
@@ -381,7 +383,7 @@ pub enum BorrowedColumn<'block> {
     Double(BitVec, &'block [f64]),
     Binary(Vec<Option<&'block [u8]>>),
     Timestamp(BitVec, &'block [i64], TimestampPrecision),
-    NChar(Vec<Option<ManuallyDrop<String>>>),
+    NChar(Vec<Option<&'block str>>),
     UTinyInt(BitVec, &'block [u8]),
     USmallInt(BitVec, &'block [u16]),
     UInt(BitVec, &'block [u32]),
