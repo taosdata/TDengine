@@ -516,7 +516,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
   int ret;
 
   int    nOlds;
-  SPage *pOlds[3];
+  SPage *pOlds[3] = {0};
   SCell *pDivCell[3] = {0};
   int    szDivCell[3];
   int    sIdx;
@@ -573,8 +573,8 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
         if (i < nOlds - 1) {
           ((SPgno *)pDivCell[i])[0] = ((SIntHdr *)pOlds[i]->pData)->pgno;
           ((SIntHdr *)pOlds[i]->pData)->pgno = 0;
+          tdbPageInsertCell(pOlds[i], TDB_PAGE_TOTAL_CELLS(pOlds[i]), pDivCell[i], szDivCell[i], 1);
         }
-        tdbPageInsertCell(pOlds[i], TDB_PAGE_TOTAL_CELLS(pOlds[i]), pDivCell[i], szDivCell[i], 1);
       }
       rPgno = ((SIntHdr *)pOlds[nOlds - 1]->pData)->pgno;
     }
@@ -740,7 +740,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
         szCell = tdbBtreeCellSize(pPage, pCell);
 
         ASSERT(nNewCells <= infoNews[iNew].cnt);
-        ASSERT(iNew < nNews - 1);
+        ASSERT(iNew < nNews);
 
         if (nNewCells < infoNews[iNew].cnt) {
           tdbPageInsertCell(pNews[iNew], nNewCells, pCell, szCell, 0);
@@ -791,18 +791,18 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
           }
         }
       }
+    }
 
-      if (childNotLeaf) {
-        ASSERT(TDB_PAGE_TOTAL_CELLS(pNews[nNews - 1]) == infoNews[nNews - 1].cnt);
-        ((SIntHdr *)(pNews[nNews - 1]->pData))->pgno = rPgno;
+    if (childNotLeaf) {
+      ASSERT(TDB_PAGE_TOTAL_CELLS(pNews[nNews - 1]) == infoNews[nNews - 1].cnt);
+      ((SIntHdr *)(pNews[nNews - 1]->pData))->pgno = rPgno;
 
-        SIntHdr *pIntHdr = (SIntHdr *)pParent->pData;
-        if (pIntHdr->pgno == 0) {
-          pIntHdr->pgno = TDB_PAGE_PGNO(pNews[nNews - 1]);
-        } else {
-          ((SPgno *)pDivCell[nOlds - 1])[0] = TDB_PAGE_PGNO(pNews[nNews - 1]);
-          tdbPageInsertCell(pParent, sIdx, pDivCell[nOlds - 1], szDivCell[nOlds - 1], 0);
-        }
+      SIntHdr *pIntHdr = (SIntHdr *)pParent->pData;
+      if (pIntHdr->pgno == 0) {
+        pIntHdr->pgno = TDB_PAGE_PGNO(pNews[nNews - 1]);
+      } else {
+        ((SPgno *)pDivCell[nOlds - 1])[0] = TDB_PAGE_PGNO(pNews[nNews - 1]);
+        tdbPageInsertCell(pParent, sIdx, pDivCell[nOlds - 1], szDivCell[nOlds - 1], 0);
       }
     }
 
