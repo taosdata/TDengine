@@ -33,12 +33,14 @@ sql connect
 
 print =============== add dnode2 into cluster
 sql create dnode $hostname port 7200
+
+print =============== create database, stable, table
 sql create database db vgroups 3
 sql use db
 sql create table stb (ts timestamp, c int) tags (t int)
 sql create table t0 using stb tags (0)
 
-
+print =============== run show xxxx
 sql show dnodes
 if $rows != 2 then 
   return -1
@@ -76,16 +78,17 @@ if $rows != 3 then
   return -1
 endi
 
-sql select * from information_schema.dnodes
+print =============== run select * from information_schema.xxxx
+sql select * from information_schema.`dnodes`
 if $rows != 2 then 
   return -1
 endi
-sql select * from information_schema.mnodes
+sql select * from information_schema.`mnodes`
 if $rows != 1 then 
   return -1
 endi
-#sql select * from information_schema.modules
-#sql select * from information_schema.qnodes 
+#sql select * from information_schema.`modules`
+#sql select * from information_schema.`qnodes`
 sql select * from information_schema.user_databases
 if $rows != 2 then 
   return -1
@@ -106,7 +109,7 @@ sql select * from information_schema.user_users
 if $rows != 1 then 
   return -1
 endi
-sql select * from information_schema.vgroups
+sql select * from information_schema.`vgroups`
 if $rows != 3 then 
   return -1
 endi
@@ -135,5 +138,78 @@ if $data04 != ready then
 endi
 
 print ==== again run show / select of above
+print =============== run show xxxx
+sql show dnodes
+if $rows != 2 then 
+  return -1
+endi
+
+sql show mnodes
+if $rows != 1 then 
+  return -1
+endi
+#sql show modules
+#sql show qnodes
+sql show databases
+if $rows != 2 then 
+  return -1
+endi
+#sql show functions
+
+#sql show indexes
+sql show stables
+if $rows != 1 then 
+  return -1
+endi
+#sql show streams, 
+sql show tables
+if $rows != 1 then 
+  return -1
+endi
+#sql show user_table_distributed
+sql show users
+if $rows != 1 then 
+  return -1
+endi
+sql show vgroups
+if $rows != 3 then 
+  return -1
+endi
+
+print =============== run select * from information_schema.xxxx
+sql select * from information_schema.`dnodes`
+if $rows != 2 then 
+  return -1
+endi
+sql select * from information_schema.`mnodes`
+if $rows != 1 then 
+  return -1
+endi
+#sql select * from information_schema.`modules`
+#sql select * from information_schema.`qnodes`
+sql select * from information_schema.user_databases
+if $rows != 2 then 
+  return -1
+endi
+#sql select * from information_schema.user_functions
+#sql select * from information_schema.user_indexes
+sql select * from information_schema.user_stables
+if $rows != 1 then 
+  return -1
+endi
+#sql select * from information_schema.user_streams 
+sql select * from information_schema.user_tables
+if $rows != 1 then 
+  return -1
+endi
+#sql select * from information_schema.user_table_distributed
+sql select * from information_schema.user_users
+if $rows != 1 then 
+  return -1
+endi
+sql select * from information_schema.`vgroups`
+if $rows != 3 then 
+  return -1
+endi
 
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -23,6 +23,9 @@
 ./test.sh -f tsim/query/interval.sim
 #./test.sh -f tsim/query/interval-offset.sim
 
+# ---- show
+./test.sh -f tsim/show/basic.sim 
+
 # ---- table
 ./test.sh -f tsim/table/basic1.sim 
 
