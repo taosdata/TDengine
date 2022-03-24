@@ -39,6 +39,7 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   nodesDestroyNode(pLogicNode);
   nodesDestroyNode(pLogicSubplan);
   nodesDestroyNode(pLogicPlan);
+  terrno = code;
   return code;
 }
 

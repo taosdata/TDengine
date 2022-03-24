@@ -669,7 +669,7 @@ static int32_t createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
   pInterval->slidingUnit = pWindowLogicNode->slidingUnit;
 
   pInterval->pFill = nodesCloneNode(pWindowLogicNode->pFill);
-  if (NULL == pInterval->pFill) {
+  if (NULL != pWindowLogicNode->pFill && NULL == pInterval->pFill) {
     nodesDestroyNode(pInterval);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
