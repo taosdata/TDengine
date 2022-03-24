@@ -499,41 +499,40 @@ static void taosNetCheckSync(char *host, int32_t port) {
 }
 
 static void taosNetTestRpc(char *host, int32_t startPort, int32_t pkgLen) {
-  int32_t endPort = startPort + TSDB_PORT_SYNC;
   char    spi = 0;
 
-  uInfo("check rpc, host:%s startPort:%d endPort:%d pkgLen:%d\n", host, startPort, endPort, pkgLen);
+  uInfo("check rpc, host:%s startPort:%d pkgLen:%d\n", host, startPort, pkgLen);
 
-  for (uint16_t port = startPort; port < endPort; port++) {
-    int32_t sendpkgLen;
-    if (pkgLen <= tsRpcMaxUdpSize) {
+  uint16_t port = startPort;
+  int32_t sendpkgLen;
+  if (pkgLen <= tsRpcMaxUdpSize) {
       sendpkgLen = tsRpcMaxUdpSize + 1000;
-    } else {
+  } else {
       sendpkgLen = pkgLen;
-    }
-
-    tsRpcForceTcp = 1;
-    int32_t ret = taosNetCheckRpc(host, port, sendpkgLen, spi, NULL);
-    if (ret < 0) {
-      printf("failed to test TCP port:%d\n", port);
-    } else {
-      printf("successed to test TCP port:%d\n", port);
-    }
-
-    if (pkgLen >= tsRpcMaxUdpSize) {
-      sendpkgLen = tsRpcMaxUdpSize - 1000;
-    } else {
-      sendpkgLen = pkgLen;
-    }
-
-    tsRpcForceTcp = 0;
-    ret = taosNetCheckRpc(host, port, pkgLen, spi, NULL);
-    if (ret < 0) {
-      printf("failed to test UDP port:%d\n", port);
-    } else {
-      printf("successed to test UDP port:%d\n", port);
-    }
   }
+
+  tsRpcForceTcp = 1;
+  int32_t ret = taosNetCheckRpc(host, port, sendpkgLen, spi, NULL);
+  if (ret < 0) {
+      printf("failed to test TCP port:%d\n", port);
+  } else {
+      printf("successed to test TCP port:%d\n", port);
+  }
+
+  if (pkgLen >= tsRpcMaxUdpSize) {
+      sendpkgLen = tsRpcMaxUdpSize - 1000;
+  } else {
+      sendpkgLen = pkgLen;
+  }
+/*
+  tsRpcForceTcp = 0;
+  ret = taosNetCheckRpc(host, port, pkgLen, spi, NULL);
+  if (ret < 0) {
+      printf("failed to test UDP port:%d\n", port);
+  } else {
+      printf("successed to test UDP port:%d\n", port);
+  }
+  */
 
   taosNetCheckSync(host, startPort + TSDB_PORT_SYNC);
 }
