@@ -79,9 +79,14 @@ static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FNodeWalker walker
     case QUERY_NODE_STATE_WINDOW:
       res = walkNode(((SStateWindowNode*)pNode)->pCol, order, walker, pContext);
       break;
-    case QUERY_NODE_SESSION_WINDOW:
-      res = walkNode(((SSessionWindowNode*)pNode)->pCol, order, walker, pContext);
+    case QUERY_NODE_SESSION_WINDOW: {
+      SSessionWindowNode* pSession = (SSessionWindowNode*)pNode;
+      res = walkNode(pSession->pCol, order, walker, pContext);
+      if (DEAL_RES_ERROR != res) {
+        res = walkNode(pSession->pGap, order, walker, pContext);
+      }
       break;
+    }
     case QUERY_NODE_INTERVAL_WINDOW: {
       SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pNode;
       res = walkNode(pInterval->pInterval, order, walker, pContext);

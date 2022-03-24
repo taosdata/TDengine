@@ -1870,14 +1870,21 @@ static void toSchema(const SColumnDefNode* pCol, int32_t colId, SSchema* pSchema
 }
 
 static void destroyCreateTbReq(SVCreateTbReq* pReq) {
+  tfree(pReq->dbFName);
   tfree(pReq->name);
   tfree(pReq->ntbCfg.pSchema);
 }
 
-static int32_t buildNormalTableBatchReq(
-    const char* pDbName, const char* pTableName, const SNodeList* pColumns, const SVgroupInfo* pVgroupInfo, SVgroupTablesBatch* pBatch) {
+static int32_t buildNormalTableBatchReq(int32_t acctId, const char* pDbName, const char* pTableName,
+    const SNodeList* pColumns, const SVgroupInfo* pVgroupInfo, SVgroupTablesBatch* pBatch) {
+  char dbFName[TSDB_DB_FNAME_LEN] = {0};
+  SName name = { .type = TSDB_DB_NAME_T, .acctId = acctId };
+  strcpy(name.dbname, pDbName);
+  tNameGetFullDbName(&name, dbFName);
+
   SVCreateTbReq req = {0};
   req.type = TD_NORMAL_TABLE;
+  req.dbFName = strdup(dbFName);
   req.name = strdup(pTableName);
   req.ntbCfg.nCols = LIST_LENGTH(pColumns);
   req.ntbCfg.pSchema = calloc(req.ntbCfg.nCols, sizeof(SSchema));
@@ -1904,7 +1911,7 @@ static int32_t buildNormalTableBatchReq(
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t serializeVgroupTablesBatch(int32_t acctId, SVgroupTablesBatch* pTbBatch, SArray* pBufArray) {
+static int32_t serializeVgroupTablesBatch(SVgroupTablesBatch* pTbBatch, SArray* pBufArray) {
   int tlen = sizeof(SMsgHead) + tSerializeSVCreateTbBatchReq(NULL, &(pTbBatch->req));
   void* buf = malloc(tlen);
   if (NULL == buf) {
@@ -1932,6 +1939,7 @@ static void destroyCreateTbReqBatch(SVgroupTablesBatch* pTbBatch) {
   size_t size = taosArrayGetSize(pTbBatch->req.pArray);
   for(int32_t i = 0; i < size; ++i) {
     SVCreateTbReq* pTableReq = taosArrayGet(pTbBatch->req.pArray, i);
+    tfree(pTableReq->dbFName);
     tfree(pTableReq->name);
 
     if (pTableReq->type == TSDB_NORMAL_TABLE) {
@@ -1973,9 +1981,9 @@ static int32_t buildCreateTableDataBlock(int32_t acctId, const SCreateTableStmt*
   }
 
   SVgroupTablesBatch tbatch = {0};
-  int32_t code = buildNormalTableBatchReq(pStmt->dbName, pStmt->tableName, pStmt->pCols, pInfo, &tbatch);
+  int32_t code = buildNormalTableBatchReq(acctId, pStmt->dbName, pStmt->tableName, pStmt->pCols, pInfo, &tbatch);
   if (TSDB_CODE_SUCCESS == code) {
-    code = serializeVgroupTablesBatch(acctId, &tbatch, *pBufArray);
+    code = serializeVgroupTablesBatch(&tbatch, *pBufArray);
   }
 
   destroyCreateTbReqBatch(&tbatch);
@@ -2004,9 +2012,16 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
   return code;
 }
 
-static void addCreateTbReqIntoVgroup(SHashObj* pVgroupHashmap, const char* pDbName, const char* pTableName, SKVRow row, uint64_t suid, SVgroupInfo* pVgInfo) {
+static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap,
+    const char* pDbName, const char* pTableName, SKVRow row, uint64_t suid, SVgroupInfo* pVgInfo) {
+  char dbFName[TSDB_DB_FNAME_LEN] = {0};
+  SName name = { .type = TSDB_DB_NAME_T, .acctId = acctId };
+  strcpy(name.dbname, pDbName);
+  tNameGetFullDbName(&name, dbFName);
+
   struct SVCreateTbReq req = {0};
   req.type        = TD_CHILD_TABLE;
+  req.dbFName        = strdup(dbFName);
   req.name        = strdup(pTableName);
   req.ctbCfg.suid = suid;
   req.ctbCfg.pTag = row;
@@ -2159,7 +2174,7 @@ static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableCla
     code = getTableHashVgroup(pCxt, pStmt->dbName, pStmt->tableName, &info);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    addCreateTbReqIntoVgroup(pVgroupHashmap, pStmt->dbName, pStmt->tableName, row, pSuperTableMeta->uid, &info);
+    addCreateTbReqIntoVgroup(pCxt->pParseCxt->acctId, pVgroupHashmap, pStmt->dbName, pStmt->tableName, row, pSuperTableMeta->uid, &info);
   }
 
   tfree(pSuperTableMeta);
@@ -2181,7 +2196,7 @@ static SArray* serializeVgroupsTablesBatch(int32_t acctId, SHashObj* pVgroupHash
       break;
     }
 
-    serializeVgroupTablesBatch(acctId, pTbBatch, pBufArray);
+    serializeVgroupTablesBatch(pTbBatch, pBufArray);
     destroyCreateTbReqBatch(pTbBatch);
   } while (true);
 

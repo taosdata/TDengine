@@ -184,6 +184,13 @@ typedef struct SField {
   int32_t bytes;
 } SField;
 
+typedef struct SRetention {
+  int32_t freq;
+  int32_t keep;
+  int8_t  freqUnit;
+  int8_t  keepUnit;
+} SRetention;
+
 #pragma pack(push, 1)
 
 // null-terminated string instead of char array to avoid too many memory consumption in case of more than 1M tableMeta
@@ -272,11 +279,14 @@ typedef struct {
   float   xFilesFactor;
   int32_t aggregationMethod;
   int32_t delay;
+  int32_t ttl;
   int32_t numOfColumns;
   int32_t numOfTags;
+  int32_t numOfSmas;
   int32_t commentLen;
-  SArray* pColumns;
-  SArray* pTags;
+  SArray* pColumns;  // array of SField
+  SArray* pTags;     // array of SField
+  SArray* pSmas;     // array of SField
   char*   comment;
 } SMCreateStbReq;
 
@@ -504,10 +514,13 @@ typedef struct {
   int8_t  cacheLastRow;
   int8_t  ignoreExist;
   int8_t  streamMode;
+  int32_t numOfRetensions;
+  SArray* pRetensions;  // SRetention
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
 int32_t tDeserializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
+void    tFreeSCreateDbReq(SCreateDbReq* pReq);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
@@ -752,11 +765,13 @@ typedef struct {
   int8_t   selfIndex;
   int8_t   streamMode;
   SReplica replicas[TSDB_MAX_REPLICA];
-
+  int32_t  numOfRetensions;
+  SArray*  pRetensions;  // SRetention
 } SCreateVnodeReq, SAlterVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
 int32_t tDeserializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
+int32_t tFreeSCreateVnodeReq(SCreateVnodeReq* pReq);
 
 typedef struct {
   int32_t vgId;
