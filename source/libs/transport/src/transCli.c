@@ -326,6 +326,7 @@ void cliHandleResp(SCliConn* conn) {
 void cliHandleExcept(SCliConn* pConn) {
   if (transQueueEmpty(&pConn->cliMsgs)) {
     if (pConn->broken == true && CONN_NO_PERSIST_BY_APP(pConn)) {
+      tTrace("%s cli conn %p handle except, persist:0", CONN_GET_INST_LABEL(pConn), pConn);
       transUnrefCliHandle(pConn);
       return;
     }
@@ -348,10 +349,12 @@ void cliHandleExcept(SCliConn* pConn) {
 
     if (pMsg == NULL && !CONN_NO_PERSIST_BY_APP(pConn)) {
       transMsg.ahandle = transCtxDumpVal(&pConn->ctx, transMsg.msgType);
-      tDebug("cli conn %p construct msgType %s ahandle %p", pConn, TMSG_INFO(transMsg.msgType), transMsg.ahandle);
+      tDebug("%s cli conn %p construct ahandle %p by %s", CONN_GET_INST_LABEL(pConn), pConn, transMsg.ahandle,
+             TMSG_INFO(transMsg.msgType));
       if (transMsg.ahandle == NULL) {
         transMsg.ahandle = transCtxDumpBrokenlinkVal(&pConn->ctx, (int32_t*)&(transMsg.msgType));
-        tDebug("cli conn %p construct brokenlink ahandle %p", pConn, transMsg.ahandle);
+        tDebug("%s cli conn %p construct ahandle %p due to brokenlink", CONN_GET_INST_LABEL(pConn), pConn,
+               transMsg.ahandle);
       }
     } else {
       transMsg.ahandle = pCtx ? pCtx->ahandle : NULL;
