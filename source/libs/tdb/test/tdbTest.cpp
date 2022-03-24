@@ -19,7 +19,7 @@ TEST(tdb_test, simple_test) {
   {
     char  key[64];
     char  val[64];
-    void *pVal;
+    void *pVal = NULL;
     int   vLen;
 
     {  // Insert some data
