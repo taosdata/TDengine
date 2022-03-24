@@ -41,7 +41,7 @@ protected:
     cxt_.pSql = sqlBuf_.c_str();
   }
 
-  bool run() {
+  bool run(bool streamQuery = false) {
     int32_t code = qParseQuerySql(&cxt_, &query_);
 
     if (code != TSDB_CODE_SUCCESS) {
@@ -52,7 +52,7 @@ protected:
     const string syntaxTreeStr = toString(query_->pRoot, false);
   
     SLogicNode* pLogicNode = nullptr;
-    SPlanContext cxt = { .queryId = 1, .acctId = 0 };
+    SPlanContext cxt = { .queryId = 1, .acctId = 0, .streamQuery = streamQuery };
     setPlanContext(query_, &cxt);
     code = createLogicPlan(&cxt, &pLogicNode);
     if (code != TSDB_CODE_SUCCESS) {
@@ -61,7 +61,7 @@ protected:
     }
   
     cout << "====================sql : [" << cxt_.pSql << "]" << endl;
-    cout << "syntax test : " << endl;
+    cout << "syntax tree : " << endl;
     cout << syntaxTreeStr << endl;
     cout << "unformatted logic plan : " << endl;
     cout << toString((const SNode*)pLogicNode, false) << endl;
@@ -203,4 +203,11 @@ TEST_F(PlannerTest, createTopic) {
 
   bind("create topic tp as SELECT * FROM st1");
   ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, stream) {
+  setDatabase("root", "test");
+
+  bind("SELECT sum(c1) FROM st1");
+  ASSERT_TRUE(run(true));
 }
