@@ -236,7 +236,7 @@ static int32_t mndCheckCreateTopicReq(SCMCreateTopicReq *pCreate) {
   return 0;
 }
 
-static int32_t mndGetPlanString(SCMCreateTopicReq *pCreate, char **pStr) {
+static int32_t mndGetPlanString(const SCMCreateTopicReq *pCreate, char **pStr) {
   if (NULL == pCreate->ast) {
     return TSDB_CODE_SUCCESS;
   }

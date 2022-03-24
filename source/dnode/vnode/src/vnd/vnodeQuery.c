@@ -14,6 +14,7 @@
  */
 
 #include "vnodeQuery.h"
+#include "executor.h"
 #include "vnd.h"
 
 static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg);
@@ -66,6 +67,8 @@ int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_VND_TASK_EXEC:
       return tqProcessTaskExec(pVnode->pTq, pMsg);
+    case TDMT_VND_STREAM_TRIGGER:
+      return tqProcessStreamTrigger(pVnode->pTq, pMsg->pCont, pMsg->contLen);
     case TDMT_VND_QUERY_HEARTBEAT:
       return qWorkerProcessHbMsg(pVnode, pVnode->pQuery, pMsg);
     default:
@@ -161,7 +164,6 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     memcpy(POINTER_SHIFT(metaRsp.pSchemas, sizeof(SSchema) * pSW->nCols), pTagSchema, sizeof(SSchema) * nTagCols);
   }
 
-
 _exit:
 
   rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
@@ -176,7 +178,6 @@ _exit:
     goto _exit;
   }
   tSerializeSTableMetaRsp(pRsp, rspLen, &metaRsp);
-
 
   tFreeSTableMetaRsp(&metaRsp);
   if (pSW != NULL) {

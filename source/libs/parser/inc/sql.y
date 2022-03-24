@@ -349,10 +349,31 @@ literal(A) ::= duration_literal(B).                                             
 
 duration_literal(A) ::= NK_VARIABLE(B).                                           { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
 
+signed(A) ::= NK_INTEGER(B).                                                      { A = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B); }
+signed(A) ::= NK_PLUS NK_INTEGER(B).                                              { A = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B); }
+signed(A) ::= NK_MINUS(B) NK_INTEGER(C).                                          { 
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &t);
+                                                                                  }
+signed(A) ::= NK_FLOAT(B).                                                        { A = createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &B); }
+signed(A) ::= NK_PLUS NK_FLOAT(B).                                                { A = createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &B); }
+signed(A) ::= NK_MINUS(B) NK_FLOAT(C).                                            { 
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &t);
+                                                                                  }
+
+signed_literal(A) ::= signed(B).                                                  { A = B; }
+signed_literal(A) ::= NK_STRING(B).                                               { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
+signed_literal(A) ::= NK_BOOL(B).                                                 { A = createValueNode(pCxt, TSDB_DATA_TYPE_BOOL, &B); }
+signed_literal(A) ::= TIMESTAMP NK_STRING(B).                                     { A = createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &B); }
+signed_literal(A) ::= duration_literal(B).                                        { A = releaseRawExprNode(pCxt, B); }
+
 %type literal_list                                                                { SNodeList* }
 %destructor literal_list                                                          { nodesDestroyList($$); }
-literal_list(A) ::= literal(B).                                                   { A = createNodeList(pCxt, releaseRawExprNode(pCxt, B)); }
-literal_list(A) ::= literal_list(B) NK_COMMA literal(C).                          { A = addNodeToList(pCxt, B, releaseRawExprNode(pCxt, C)); }
+literal_list(A) ::= signed_literal(B).                                            { A = createNodeList(pCxt, B); }
+literal_list(A) ::= literal_list(B) NK_COMMA signed_literal(C).                   { A = addNodeToList(pCxt, B, C); }
 
 /************************************************ names and identifiers ***********************************************/
 %type db_name                                                                     { SToken }

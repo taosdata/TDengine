@@ -403,18 +403,12 @@ static STsdbReadHandle* tsdbQueryTablesImpl(STsdb* tsdb, STsdbQueryCond* pCond, 
       SColumnInfoData colInfo = {{0}, 0};
       colInfo.info = pCond->colList[i];
 
-      colInfo.pData = calloc(1, EXTRA_BYTES + pReadHandle->outputCapacity * pCond->colList[i].bytes);
-      if (!IS_VAR_DATA_TYPE(colInfo.info.type)) {
-        colInfo.nullbitmap = calloc(1, BitmapLen(pReadHandle->outputCapacity));
-      }
-
-      if (colInfo.pData == NULL || (colInfo.nullbitmap == NULL && (!IS_VAR_DATA_TYPE(colInfo.info.type)))) {
+      int32_t code = blockDataEnsureColumnCapacity(&colInfo, pReadHandle->outputCapacity);
+      if (code != TSDB_CODE_SUCCESS) {
         goto _end;
       }
 
       taosArrayPush(pReadHandle->pColumns, &colInfo);
-
-
       pReadHandle->statis[i].colId = colInfo.info.colId;
     }
 
@@ -1383,7 +1377,6 @@ static int doBinarySearchKey(char* pValue, int num, TSKEY key, int order) {
 }
 
 static int32_t doCopyRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, int32_t capacity, int32_t numOfRows, int32_t start, int32_t end) {
-  char* pData = NULL;
   int32_t step = ASCENDING_TRAVERSE(pTsdbReadHandle->order)? 1 : -1;
 
   SDataCols* pCols = pTsdbReadHandle->rhelper.pDCols[0];
@@ -1409,43 +1402,38 @@ static int32_t doCopyRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, int32_t
       continue;
     }
 
-    int32_t bytes = pColInfo->info.bytes;
-
-    if (ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
-      pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
-    } else {
-      pData = (char*)pColInfo->pData + (capacity - numOfRows - num) * pColInfo->info.bytes;
-    }
-
     if (!isAllRowsNull(src) && pColInfo->info.colId == src->colId) {
-      if (pColInfo->info.type != TSDB_DATA_TYPE_BINARY && pColInfo->info.type != TSDB_DATA_TYPE_NCHAR) {
-        memmove(pData, (char*)src->pData + bytes * start, bytes * num);
-      } else {  // handle the var-string
-        char* dst = pData;
+      if (!IS_VAR_DATA_TYPE(pColInfo->info.type)) {  // todo opt performance
+//        memmove(pData, (char*)src->pData + bytes * start, bytes * num);
+        for(int32_t k = start; k < num + start; ++k) {
+          SCellVal sVal = {0};
+          if (tdGetColDataOfRow(&sVal, src, k) < 0) {
+            TASSERT(0);
+          }
 
+          if (sVal.valType == TD_VTYPE_NULL) {
+            colDataAppend(pColInfo, k, NULL, true);
+          } else {
+            colDataAppend(pColInfo, k, sVal.val, false);
+          }
+        }
+      } else {  // handle the var-string
         // todo refactor, only copy one-by-one
         for (int32_t k = start; k < num + start; ++k) {
-          SCellVal    sVal = {0};
+          SCellVal sVal = {0};
           if(tdGetColDataOfRow(&sVal, src, k) < 0){
             TASSERT(0);
           }
-          memcpy(dst, sVal.val, varDataTLen(sVal.val));
-          dst += bytes;
+
+          colDataAppend(pColInfo, k, sVal.val, false);
         }
       }
 
       j++;
       i++;
     } else { // pColInfo->info.colId < src->colId, it is a NULL data
-      if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
-        char* dst = pData;
-
-        for(int32_t k = start; k < num + start; ++k) {
-          setVardataNull(dst, pColInfo->info.type);
-          dst += bytes;
-        }
-      } else {
-        setNullN(pData, pColInfo->info.type, pColInfo->info.bytes, num);
+      for(int32_t k = start; k < num + start; ++k) {  // TODO opt performance
+        colDataAppend(pColInfo, k, NULL, true);
       }
       i++;
     }
@@ -1453,23 +1441,9 @@ static int32_t doCopyRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, int32_t
 
   while (i < requiredNumOfCols) { // the remain columns are all null data
     SColumnInfoData* pColInfo = taosArrayGet(pTsdbReadHandle->pColumns, i);
-    if (ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
-      pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
-    } else {
-      pData = (char*)pColInfo->pData + (capacity - numOfRows - num) * pColInfo->info.bytes;
+    for(int32_t k = start; k < num + start; ++k) {
+      colDataAppend(pColInfo, k, NULL, true); // TODO add a fast version to set a number of consecutive NULL value.
     }
-
-    if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
-      char* dst = pData;
-
-      for(int32_t k = start; k < num + start; ++k) {
-        setVardataNull(dst, pColInfo->info.type);
-        dst += pColInfo->info.bytes;
-      }
-    } else {
-      setNullN(pData, pColInfo->info.type, pColInfo->info.bytes, num);
-    }
-
     i++;
   }
 
@@ -1479,14 +1453,12 @@ static int32_t doCopyRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, int32_t
   return numOfRows + num;
 }
 
-// TODO fix bug for reverse copy data
-// TODO handle the null data
+// TODO fix bug for reverse copy data problem
 // Note: row1 always has high priority
 static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacity, int32_t numOfRows, STSRow* row1,
                                STSRow* row2, int32_t numOfCols, uint64_t uid, STSchema* pSchema1, STSchema* pSchema2,
                                bool forceSetNull) {
 #if 1
-  char*       pData = NULL;
   STSchema*   pSchema;
   STSRow*     row;
   int16_t     colId;
@@ -1527,12 +1499,6 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
   int32_t i = 0, j = 0, k = 0;
   while(i < numOfCols && (j < numOfColsOfRow1 || k < numOfColsOfRow2)) {
     SColumnInfoData* pColInfo = taosArrayGet(pTsdbReadHandle->pColumns, i);
-
-    if (ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
-      pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
-    } else {
-      pData = (char*)pColInfo->pData + (capacity - numOfRows - 1) * pColInfo->info.bytes;
-    }
 
     int32_t colIdOfRow1;
     if(j >= numOfColsOfRow1) {
@@ -1596,43 +1562,11 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
 
     if (colId == pColInfo->info.colId) {
       if (tdValTypeIsNorm(sVal.valType)) {
-        switch (pColInfo->info.type) {
-          case TSDB_DATA_TYPE_BINARY:
-          case TSDB_DATA_TYPE_NCHAR:
-            memcpy(pData, sVal.val, varDataTLen(sVal.val));
-            break;
-          case TSDB_DATA_TYPE_BOOL:
-          case TSDB_DATA_TYPE_TINYINT:
-          case TSDB_DATA_TYPE_UTINYINT:
-            *(uint8_t *)pData = *(uint8_t *)sVal.val;
-            break;
-          case TSDB_DATA_TYPE_SMALLINT:
-          case TSDB_DATA_TYPE_USMALLINT:
-            *(uint16_t *)pData = *(uint16_t *)sVal.val;
-            break;
-          case TSDB_DATA_TYPE_INT:
-          case TSDB_DATA_TYPE_UINT:
-            *(uint32_t *)pData = *(uint32_t *)sVal.val;
-            break;
-          case TSDB_DATA_TYPE_BIGINT:
-          case TSDB_DATA_TYPE_UBIGINT:
-            *(uint64_t *)pData = *(uint64_t *)sVal.val;
-            break;
-          case TSDB_DATA_TYPE_FLOAT:
-            SET_FLOAT_PTR(pData, sVal.val);
-            break;
-          case TSDB_DATA_TYPE_DOUBLE:
-            SET_DOUBLE_PTR(pData, sVal.val);
-            break;
-          case TSDB_DATA_TYPE_TIMESTAMP:
-            *(TSKEY*)pData = *(TSKEY*)sVal.val;
-            break;
-          default:
-            memcpy(pData, sVal.val, pColInfo->info.bytes);
-        }
+        colDataAppend(pColInfo, numOfRows, sVal.val, false);
       } else if (forceSetNull) {
         colDataAppend(pColInfo, numOfRows, NULL, true);
       }
+
       i++;
 
       if(row == row1) {

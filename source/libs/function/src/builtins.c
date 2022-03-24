@@ -29,7 +29,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getCountFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = countFunction,
-    .finalizeFunc = functionFinalizer
+    .finalizeFunc = functionFinalize
   },
   {
     .name = "sum",
@@ -39,7 +39,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSumFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = sumFunction,
-    .finalizeFunc = functionFinalizer
+    .finalizeFunc = functionFinalize
   },
   {
     .name = "min",
@@ -49,7 +49,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = minFunctionSetup,
     .processFunc  = minFunction,
-    .finalizeFunc = functionFinalizer
+    .finalizeFunc = functionFinalize
   },
   {
     .name = "max",
@@ -59,7 +59,77 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = maxFunctionSetup,
     .processFunc  = maxFunction,
-    .finalizeFunc = functionFinalizer
+    .finalizeFunc = functionFinalize
+  },
+  {
+      .name = "stddev",
+      .type = FUNCTION_TYPE_STDDEV,
+      .classification = FUNC_MGT_AGG_FUNC,
+      .checkFunc    = stubCheckAndGetResultType,
+      .getEnvFunc   = getStddevFuncEnv,
+      .initFunc     = maxFunctionSetup,
+      .processFunc  = maxFunction,
+      .finalizeFunc = functionFinalize
+  },
+  {
+      .name = "percentile",
+      .type = FUNCTION_TYPE_PERCENTILE,
+      .classification = FUNC_MGT_AGG_FUNC,
+      .checkFunc    = stubCheckAndGetResultType,
+      .getEnvFunc   = getMinmaxFuncEnv,
+      .initFunc     = maxFunctionSetup,
+      .processFunc  = maxFunction,
+      .finalizeFunc = functionFinalize
+  },
+  {
+      .name = "apercentile",
+      .type = FUNCTION_TYPE_APERCENTILE,
+      .classification = FUNC_MGT_AGG_FUNC,
+      .checkFunc    = stubCheckAndGetResultType,
+      .getEnvFunc   = getMinmaxFuncEnv,
+      .initFunc     = maxFunctionSetup,
+      .processFunc  = maxFunction,
+      .finalizeFunc = functionFinalize
+  },
+  {
+      .name = "top",
+      .type = FUNCTION_TYPE_TOP,
+      .classification = FUNC_MGT_AGG_FUNC,
+      .checkFunc    = stubCheckAndGetResultType,
+      .getEnvFunc   = getMinmaxFuncEnv,
+      .initFunc     = maxFunctionSetup,
+      .processFunc  = maxFunction,
+      .finalizeFunc = functionFinalize
+  },
+  {
+      .name = "bottom",
+      .type = FUNCTION_TYPE_BOTTOM,
+      .classification = FUNC_MGT_AGG_FUNC,
+      .checkFunc    = stubCheckAndGetResultType,
+      .getEnvFunc   = getMinmaxFuncEnv,
+      .initFunc     = maxFunctionSetup,
+      .processFunc  = maxFunction,
+      .finalizeFunc = functionFinalize
+  },
+  {
+      .name = "spread",
+      .type = FUNCTION_TYPE_SPREAD,
+      .classification = FUNC_MGT_AGG_FUNC,
+      .checkFunc    = stubCheckAndGetResultType,
+      .getEnvFunc   = getMinmaxFuncEnv,
+      .initFunc     = maxFunctionSetup,
+      .processFunc  = maxFunction,
+      .finalizeFunc = functionFinalize
+  },
+  {
+      .name = "last_row",
+      .type = FUNCTION_TYPE_LAST_ROW,
+      .classification = FUNC_MGT_AGG_FUNC,
+      .checkFunc    = stubCheckAndGetResultType,
+      .getEnvFunc   = getMinmaxFuncEnv,
+      .initFunc     = maxFunctionSetup,
+      .processFunc  = maxFunction,
+      .finalizeFunc = functionFinalize
   },
   {
     .name = "first",
@@ -69,7 +139,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = firstFunction,
-    .finalizeFunc = functionFinalizer
+    .finalizeFunc = functionFinalize
   },
   {
     .name = "last",
@@ -79,18 +149,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = lastFunction,
-    .finalizeFunc = functionFinalizer
+    .finalizeFunc = functionFinalize
   },
-//  {
-//    .name = "valueAssigner",
-//    .type = FUNCTION_TYPE_ASSIGNER,
-//    .classification = FUNC_MGT_AGG_FUNC,
-//    .checkFunc    = stubCheckAndGetResultType,
-//    .getEnvFunc   = getFirstLastFuncEnv,
-//    .initFunc     = functionSetup,
-//    .processFunc  = valFunction,
-//    .finalizeFunc = functionFinalizer
-//  },
   {
     .name = "concat",
     .type = FUNCTION_TYPE_CONCAT,

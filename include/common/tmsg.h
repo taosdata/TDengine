@@ -23,8 +23,8 @@
 #include "tencode.h"
 #include "thash.h"
 #include "tlist.h"
-#include "trow.h"
 #include "tname.h"
+#include "trow.h"
 #include "tuuid.h"
 
 #ifdef __cplusplus
@@ -109,6 +109,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_STREAMTABLES,
   TSDB_MGMT_TABLE_TP,
   TSDB_MGMT_TABLE_FUNC,
+  TSDB_MGMT_TABLE_INDEX,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -268,11 +269,15 @@ typedef struct SSchema {
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
+  float   xFilesFactor;
+  int32_t aggregationMethod;
+  int32_t delay;
   int32_t numOfColumns;
   int32_t numOfTags;
+  int32_t commentLen;
   SArray* pColumns;
   SArray* pTags;
-  char    comment[TSDB_STB_COMMENT_LEN];
+  char*   comment;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -462,7 +467,8 @@ typedef struct {
   int32_t tz;  // query client timezone
   char    intervalUnit;
   char    slidingUnit;
-  char    offsetUnit;
+  char    offsetUnit;   // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
+  int8_t  precision;
   int64_t interval;
   int64_t sliding;
   int64_t offset;
@@ -472,10 +478,9 @@ typedef struct {
   int32_t code;
 } SQueryTableRsp;
 
-int32_t tSerializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp);
+int32_t tSerializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
 
-int32_t tDeserializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp);
-
+int32_t tDeserializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
@@ -888,14 +893,14 @@ typedef struct {
 } SRetrieveTableRsp;
 
 typedef struct {
-  int64_t  handle;
-  int64_t  useconds;
-  int8_t   completed;  // all results are returned to client
-  int8_t   precision;
-  int8_t   compressed;
-  int32_t  compLen;
-  int32_t  numOfRows;
-  char     data[];
+  int64_t handle;
+  int64_t useconds;
+  int8_t  completed;  // all results are returned to client
+  int8_t  precision;
+  int8_t  compressed;
+  int32_t compLen;
+  int32_t numOfRows;
+  char    data[];
 } SRetrieveMetaTableRsp;
 
 typedef struct {
@@ -1362,28 +1367,48 @@ typedef struct {
   int64_t  tuid;
 } SDDropTopicReq;
 
+typedef struct {
+  float    xFilesFactor;
+  int8_t   delayUnit;
+  int8_t   nFuncIds;
+  int32_t* pFuncIds;
+  int64_t  delay;
+} SRSmaParam;
+
 typedef struct SVCreateTbReq {
   int64_t  ver;  // use a general definition
   char*    dbFName;
   char*    name;
   uint32_t ttl;
   uint32_t keep;
-  uint8_t  type;
+  union {
+    uint8_t info;
+    struct {
+      uint8_t rollup : 1;  // 1 means rollup sma
+      uint8_t type : 7;
+    };
+  };
   union {
     struct {
-      tb_uid_t suid;
-      uint32_t nCols;
-      SSchema* pSchema;
-      uint32_t nTagCols;
-      SSchema* pTagSchema;
+      tb_uid_t    suid;
+      uint32_t    nCols;
+      SSchema*    pSchema;
+      uint32_t    nTagCols;
+      SSchema*    pTagSchema;
+      col_id_t    nBSmaCols;
+      col_id_t*   pBSmaCols;
+      SRSmaParam* pRSmaParam;
     } stbCfg;
     struct {
       tb_uid_t suid;
       SKVRow   pTag;
     } ctbCfg;
     struct {
-      uint32_t nCols;
-      SSchema* pSchema;
+      uint32_t    nCols;
+      SSchema*    pSchema;
+      col_id_t    nBSmaCols;
+      col_id_t*   pBSmaCols;
+      SRSmaParam* pRSmaParam;
     } ntbCfg;
   };
 } SVCreateTbReq, SVUpdateTbReq;
@@ -1404,12 +1429,11 @@ int32_t tSerializeSVCreateTbBatchReq(void** buf, SVCreateTbBatchReq* pReq);
 void*   tDeserializeSVCreateTbBatchReq(void* buf, SVCreateTbBatchReq* pReq);
 
 typedef struct {
-  SArray* rspList; // SArray<SVCreateTbRsp>
+  SArray* rspList;  // SArray<SVCreateTbRsp>
 } SVCreateTbBatchRsp;
 
-int32_t tSerializeSVCreateTbBatchRsp(void *buf, int32_t bufLen, SVCreateTbBatchRsp *pRsp);
-int32_t tDeserializeSVCreateTbBatchRsp(void *buf, int32_t bufLen, SVCreateTbBatchRsp *pRsp);
-
+int32_t tSerializeSVCreateTbBatchRsp(void* buf, int32_t bufLen, SVCreateTbBatchRsp* pRsp);
+int32_t tDeserializeSVCreateTbBatchRsp(void* buf, int32_t bufLen, SVCreateTbBatchRsp* pRsp);
 
 typedef struct {
   int64_t  ver;
@@ -1919,12 +1943,47 @@ static FORCE_INLINE void* tDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) 
   }
   return buf;
 }
+
+typedef struct {
+  char    name[TSDB_TABLE_FNAME_LEN];
+  char    stb[TSDB_TABLE_FNAME_LEN];
+  int8_t  igExists;
+  int8_t  intervalUnit;
+  int8_t  slidingUnit;
+  int8_t  timezone;
+  int32_t dstVgId;  // for stream
+  int64_t interval;
+  int64_t offset;
+  int64_t sliding;
+  int32_t exprLen;        // strlen + 1
+  int32_t tagsFilterLen;  // strlen + 1
+  int32_t sqlLen;         // strlen + 1
+  int32_t astLen;         // strlen + 1
+  char*   expr;  
+  char*   tagsFilter;
+  char*   sql;
+  char*   ast;
+} SMCreateSmaReq;
+
+int32_t tSerializeSMCreateSmaReq(void* buf, int32_t bufLen, SMCreateSmaReq* pReq);
+int32_t tDeserializeSMCreateSmaReq(void* buf, int32_t bufLen, SMCreateSmaReq* pReq);
+void    tFreeSMCreateSmaReq(SMCreateSmaReq* pReq);
+
+typedef struct {
+  char   name[TSDB_TABLE_FNAME_LEN];
+  int8_t igNotExists;
+} SMDropSmaReq;
+
+int32_t tSerializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
+int32_t tDeserializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
+
 typedef struct {
   int8_t   version;       // for compatibility(default 0)
   int8_t   intervalUnit;  // MACRO: TIME_UNIT_XXX
   int8_t   slidingUnit;   // MACRO: TIME_UNIT_XXX
+  int8_t   timezoneInt;      // sma data expired if timezone changes.
   char     indexName[TSDB_INDEX_NAME_LEN];
-  char     timezone[TD_TIMEZONE_LEN];  // sma data expired if timezone changes.
+  char     timezone[TD_TIMEZONE_LEN];  
   int32_t  exprLen;
   int32_t  tagsFilterLen;
   int64_t  indexUid;
@@ -2031,8 +2090,8 @@ static FORCE_INLINE int32_t tEncodeTSma(void** buf, const STSma* pSma) {
   tlen += taosEncodeFixedI8(buf, pSma->version);
   tlen += taosEncodeFixedI8(buf, pSma->intervalUnit);
   tlen += taosEncodeFixedI8(buf, pSma->slidingUnit);
+  tlen += taosEncodeFixedI8(buf, pSma->timezoneInt);
   tlen += taosEncodeString(buf, pSma->indexName);
-  tlen += taosEncodeString(buf, pSma->timezone);
   tlen += taosEncodeFixedI32(buf, pSma->exprLen);
   tlen += taosEncodeFixedI32(buf, pSma->tagsFilterLen);
   tlen += taosEncodeFixedI64(buf, pSma->indexUid);
@@ -2066,8 +2125,8 @@ static FORCE_INLINE void* tDecodeTSma(void* buf, STSma* pSma) {
   buf = taosDecodeFixedI8(buf, &pSma->version);
   buf = taosDecodeFixedI8(buf, &pSma->intervalUnit);
   buf = taosDecodeFixedI8(buf, &pSma->slidingUnit);
+  buf = taosDecodeFixedI8(buf, &pSma->timezoneInt);
   buf = taosDecodeStringTo(buf, pSma->indexName);
-  buf = taosDecodeStringTo(buf, pSma->timezone);
   buf = taosDecodeFixedI32(buf, &pSma->exprLen);
   buf = taosDecodeFixedI32(buf, &pSma->tagsFilterLen);
   buf = taosDecodeFixedI64(buf, &pSma->indexUid);
@@ -2291,22 +2350,30 @@ enum {
   STREAM_TASK_STATUS__STOP,
 };
 
+enum {
+  STREAM_NEXT_OP_DST__VND = 1,
+  STREAM_NEXT_OP_DST__SND,
+};
+
 typedef struct {
   void* inputHandle;
-  void* executor[4];
-} SStreamTaskParRunner;
+  void* executor;
+} SStreamRunner;
 
 typedef struct {
   int64_t streamId;
   int32_t taskId;
   int32_t level;
   int8_t  status;
-  int8_t  pipeEnd;
-  int8_t  parallel;
+  int8_t  pipeSource;
+  int8_t  pipeSink;
+  int8_t  numOfRunners;
+  int8_t  parallelizable;
+  int8_t  nextOpDst;  // vnode or snode
   SEpSet  NextOpEp;
   char*   qmsg;
   // not applied to encoder and decoder
-  SStreamTaskParRunner runner;
+  SStreamRunner runner[8];
   // void*                executor;
   // void*   stateStore;
   //  storage handle
@@ -2318,6 +2385,8 @@ static FORCE_INLINE SStreamTask* streamTaskNew(int64_t streamId, int32_t level) 
     return NULL;
   }
   pTask->taskId = tGenIdPI32();
+  pTask->streamId = streamId;
+  pTask->level = level;
   pTask->status = STREAM_TASK_STATUS__RUNNING;
   pTask->qmsg = NULL;
   return pTask;
@@ -2338,12 +2407,19 @@ typedef struct {
 
 typedef struct {
   SStreamExecMsgHead head;
-  // TODO: other info needed by task
+  SArray*            data;  // SArray<SSDataBlock>
 } SStreamTaskExecReq;
 
 typedef struct {
   int32_t reserved;
 } SStreamTaskExecRsp;
+
+typedef struct {
+  SMsgHead head;
+  int64_t  streamId;
+  int64_t  version;
+  SArray*  res;  // SArray<SSDataBlock>
+} SStreamSmaSinkReq;
 
 #pragma pack(pop)
 

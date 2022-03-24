@@ -104,29 +104,7 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg) {
 }
 
 int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
-  int32_t ret = 0;
-
-  // todo : get pointer from rid
-  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
-  if (pSyncNode == NULL) {
-    return -1;
-  }
-  assert(rid == pSyncNode->rid);
-
-  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
-    SyncClientRequest* pSyncMsg = syncClientRequestBuild2(pMsg, 0, isWeak);
-    SRpcMsg            rpcMsg;
-    syncClientRequest2RpcMsg(pSyncMsg, &rpcMsg);
-    pSyncNode->FpEqMsg(pSyncNode->queue, &rpcMsg);
-    syncClientRequestDestroy(pSyncMsg);
-    ret = 0;
-
-  } else {
-    sTrace("syncForwardToPeer not leader, %s", syncUtilState2String(pSyncNode->state));
-    ret = -1;  // todo : need define err code !!
-  }
-
-  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  int32_t ret = syncPropose2(rid, pMsg, isWeak, 0);
   return ret;
 }
 
@@ -136,12 +114,38 @@ int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
 }
 
 ESyncState syncGetMyRole(int64_t rid) {
-  // todo : get pointer from rid
-  SSyncNode* pSyncNode = NULL;
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return TAOS_SYNC_STATE_ERROR;
+  }
+  assert(rid == pSyncNode->rid);
   return pSyncNode->state;
 }
 
-void syncGetNodesRole(int64_t rid, SNodesRole* pNodeRole) {}
+int32_t syncPropose2(int64_t rid, const SRpcMsg* pMsg, bool isWeak, uint64_t seqNum) {
+  int32_t    ret = 0;
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return -1;
+  }
+  assert(rid == pSyncNode->rid);
+
+  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+    SyncClientRequest* pSyncMsg = syncClientRequestBuild2(pMsg, seqNum, isWeak);
+    SRpcMsg            rpcMsg;
+    syncClientRequest2RpcMsg(pSyncMsg, &rpcMsg);
+    pSyncNode->FpEqMsg(pSyncNode->queue, &rpcMsg);
+    syncClientRequestDestroy(pSyncMsg);
+    ret = 0;
+
+  } else {
+    sTrace("syncPropose not leader, %s", syncUtilState2String(pSyncNode->state));
+    ret = -1;  // todo : need define err code !!
+  }
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return ret;
+}
 
 // open/close --------------
 SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
@@ -848,7 +852,7 @@ static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg
 
     if (ths->pFsm != NULL) {
       if (ths->pFsm->FpPreCommitCb != NULL) {
-        ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0);
+        ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0, ths->state);
       }
     }
     rpcFreeCont(rpcMsg.pCont);
@@ -863,7 +867,7 @@ static int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg
 
     if (ths->pFsm != NULL) {
       if (ths->pFsm->FpPreCommitCb != NULL) {
-        ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, -2);
+        ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 1, ths->state);
       }
     }
     rpcFreeCont(rpcMsg.pCont);

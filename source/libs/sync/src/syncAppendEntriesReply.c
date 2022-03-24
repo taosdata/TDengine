@@ -48,6 +48,9 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
     return ret;
   }
 
+  syncIndexMgrLog2("==syncNodeOnAppendEntriesReplyCb== before pNextIndex", ths->pNextIndex);
+  syncIndexMgrLog2("==syncNodeOnAppendEntriesReplyCb== before pMatchIndex", ths->pMatchIndex);
+
   // no need this code, because if I receive reply.term, then I must have sent for that term.
   //  if (pMsg->term > ths->pRaftStore->currentTerm) {
   //    syncNodeUpdateTerm(ths, pMsg->term);
@@ -76,6 +79,9 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
     }
     syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), nextIndex);
   }
+
+  syncIndexMgrLog2("==syncNodeOnAppendEntriesReplyCb== after pNextIndex", ths->pNextIndex);
+  syncIndexMgrLog2("==syncNodeOnAppendEntriesReplyCb== after pMatchIndex", ths->pMatchIndex);
 
   return ret;
 }

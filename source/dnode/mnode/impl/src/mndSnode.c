@@ -60,6 +60,15 @@ int32_t mndInitSnode(SMnode *pMnode) {
 
 void mndCleanupSnode(SMnode *pMnode) {}
 
+SEpSet mndAcquireEpFromSnode(SMnode *pMnode, const SSnodeObj *pSnode) {
+  SEpSet epSet;
+  memcpy(epSet.eps->fqdn, pSnode->pDnode->fqdn, 128);
+  epSet.eps->port = pSnode->pDnode->port;
+  epSet.numOfEps = 1;
+  epSet.inUse = 0;
+  return epSet;
+}
+
 static SSnodeObj *mndAcquireSnode(SMnode *pMnode, int32_t snodeId) {
   SSnodeObj *pObj = sdbAcquire(pMnode->pSdb, SDB_SNODE, &snodeId);
   if (pObj == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {

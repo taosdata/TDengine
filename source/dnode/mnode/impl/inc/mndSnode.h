@@ -24,6 +24,7 @@ extern "C" {
 
 int32_t mndInitSnode(SMnode *pMnode);
 void    mndCleanupSnode(SMnode *pMnode);
+SEpSet  mndAcquireEpFromSnode(SMnode *pMnode, const SSnodeObj *pSnode);
 
 #ifdef __cplusplus
 }
