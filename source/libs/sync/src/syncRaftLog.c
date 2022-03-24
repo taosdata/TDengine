@@ -111,7 +111,7 @@ SyncTerm logStoreLastTerm(SSyncLogStore* pLogStore) {
 int32_t logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  walCommit(pWal, index);
+  assert(walCommit(pWal, index) == 0);
   return 0;  // to avoid compiler error
 }
 
