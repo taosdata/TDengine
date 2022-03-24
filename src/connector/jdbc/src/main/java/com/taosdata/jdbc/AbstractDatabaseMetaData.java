@@ -553,8 +553,6 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
     }
 
     protected ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types, Connection connection) throws SQLException {
-        if (StringUtils.isEmpty(catalog))
-            catalog = this.getConnection().getCatalog();
         if (!StringUtils.isEmpty(catalog) && !isAvailableCatalog(connection, catalog))
             return new EmptyResultSet();
 
@@ -577,14 +575,13 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
                 return new EmptyResultSet();
             }
             for (String db : dbs) {
-                stmt.execute("use " + db);
-                String sql = "show tables ";
-                String Ssql = "show stables ";
+                StringBuilder sql = new StringBuilder().append("show ").append(db).append(".tables ");
+                StringBuilder Ssql = new StringBuilder().append("show ").append(db).append(".stables ");
                 if (!StringUtils.isEmpty(tableNamePattern)) {
-                    sql = sql + "like '" + tableNamePattern + "'";
-                    Ssql = Ssql + "like '" + tableNamePattern + "'";
+                    sql.append("like '").append(tableNamePattern).append("'");
+                    Ssql.append("like '").append(tableNamePattern).append("'");
                 }
-                ResultSet tables = stmt.executeQuery(sql);
+                ResultSet tables = stmt.executeQuery(sql.toString());
                 while (tables.next()) {
                     TSDBResultSetRowData rowData = new TSDBResultSetRowData(10);
                     rowData.setStringValue(1, catalog);                                     //TABLE_CAT
@@ -594,7 +591,7 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
                     rowData.setStringValue(5, "");                                   //REMARKS
                     rowDataList.add(rowData);
                 }
-                ResultSet stables = stmt.executeQuery(Ssql);
+                ResultSet stables = stmt.executeQuery(Ssql.toString());
                 while (stables.next()) {
                     TSDBResultSetRowData rowData = new TSDBResultSetRowData(10);
                     rowData.setStringValue(1, catalog);                                  //TABLE_CAT
