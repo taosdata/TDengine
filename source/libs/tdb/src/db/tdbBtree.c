@@ -517,8 +517,8 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
 
   int    nOlds;
   SPage *pOlds[3];
-  SCell *pDivCell[2] = {0};
-  int    szDivCell[2];
+  SCell *pDivCell[3] = {0};
+  int    szDivCell[3];
   int    sIdx;
   u8     childNotLeaf;
   SPgno  rPgno;
@@ -562,18 +562,18 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
     // copy the parent key out if child pages are not leaf page
     childNotLeaf = !TDB_BTREE_PAGE_IS_LEAF(TDB_BTREE_PAGE_GET_FLAGS(pOlds[0]));
     if (childNotLeaf) {
-      for (int i = 0; i < nOlds - 1; i++) {
-        pCell = tdbPageGetCell(pParent, sIdx + i);
+      for (int i = 0; i < nOlds; i++) {
+        if (sIdx + i < TDB_PAGE_TOTAL_CELLS(pParent)) {
+          pCell = tdbPageGetCell(pParent, sIdx + i);
+          szDivCell[i] = tdbBtreeCellSize(pParent, pCell);
+          pDivCell[i] = malloc(szDivCell[i]);
+          memcpy(pDivCell[i], pCell, szDivCell[i]);
+        }
 
-        szDivCell[i] = tdbBtreeCellSize(pParent, pCell);
-        pDivCell[i] = malloc(szDivCell[i]);
-        memcpy(pDivCell, pCell, szDivCell[i]);
-
-        ((SPgno *)pDivCell)[0] = ((SIntHdr *)pOlds[i]->pData)->pgno;
-        ((SIntHdr *)pOlds[i]->pData)->pgno = 0;
-
-        // here we insert the cell as an overflow cell to avoid
-        // the slow defragment process
+        if (i < nOlds - 1) {
+          ((SPgno *)pDivCell[i])[0] = ((SIntHdr *)pOlds[i]->pData)->pgno;
+          ((SIntHdr *)pOlds[i]->pData)->pgno = 0;
+        }
         tdbPageInsertCell(pOlds[i], TDB_PAGE_TOTAL_CELLS(pOlds[i]), pDivCell[i], szDivCell[i], 1);
       }
       rPgno = ((SIntHdr *)pOlds[nOlds - 1]->pData)->pgno;
@@ -740,6 +740,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
         szCell = tdbBtreeCellSize(pPage, pCell);
 
         ASSERT(nNewCells <= infoNews[iNew].cnt);
+        ASSERT(iNew < nNews - 1);
 
         if (nNewCells < infoNews[iNew].cnt) {
           tdbPageInsertCell(pNews[iNew], nNewCells, pCell, szCell, 0);
@@ -771,8 +772,8 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
             }
           }
         } else {
-          ASSERT(0);
           ASSERT(childNotLeaf);
+          ASSERT(iNew < nNews - 1);
 
           // set current new page right-most child
           ((SIntHdr *)pNews[iNew]->pData)->pgno = ((SPgno *)pCell)[0];
@@ -790,10 +791,29 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
           }
         }
       }
+
+      if (childNotLeaf) {
+        ASSERT(TDB_PAGE_TOTAL_CELLS(pNews[nNews - 1]) == infoNews[nNews - 1].cnt);
+        ((SIntHdr *)(pNews[nNews - 1]->pData))->pgno = rPgno;
+
+        SIntHdr *pIntHdr = (SIntHdr *)pParent->pData;
+        if (pIntHdr->pgno == 0) {
+          pIntHdr->pgno = TDB_PAGE_PGNO(pNews[nNews - 1]);
+        } else {
+          ((SPgno *)pDivCell[nOlds - 1])[0] = TDB_PAGE_PGNO(pNews[nNews - 1]);
+          tdbPageInsertCell(pParent, sIdx, pDivCell[nOlds - 1], szDivCell[nOlds - 1], 0);
+        }
+      }
     }
 
     for (int i = 0; i < nOlds; i++) {
       tdbPageDestroy(pOldsCopy[i], NULL, NULL);
+    }
+  }
+
+  for (int i = 0; i < 3; i++) {
+    if (pDivCell[i]) {
+      free(pDivCell[i]);
     }
   }
 
