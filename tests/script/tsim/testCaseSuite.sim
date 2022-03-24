@@ -9,12 +9,14 @@ run tsim/db/error1.sim
 run tsim/dnode/basic1.sim
 
 run tsim/insert/basic0.sim
-#run tsim/insert/basic1.sim      # TD-14246
-#run tsim/insert/backquote.sim    # TD-14261
-#run tsim/insert/null.sim
+run tsim/insert/basic1.sim      
+run tsim/insert/backquote.sim
+run tsim/insert/null.sim
 
 run tsim/query/interval.sim
 #run tsim/query/interval-offset.sim  # TD-14266
+
+run tsim/show/basic.sim
 
 run tsim/table/basic1.sim
 

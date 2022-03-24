@@ -184,6 +184,13 @@ typedef struct SField {
   int32_t bytes;
 } SField;
 
+typedef struct SRetention {
+  int32_t freq;
+  int32_t keep;
+  int8_t  freqUnit;
+  int8_t  keepUnit;
+} SRetention;
+
 #pragma pack(push, 1)
 
 // null-terminated string instead of char array to avoid too many memory consumption in case of more than 1M tableMeta
@@ -269,12 +276,18 @@ typedef struct SSchema {
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
+  float   xFilesFactor;
+  int32_t aggregationMethod;
+  int32_t delay;
+  int32_t ttl;
   int32_t numOfColumns;
   int32_t numOfTags;
+  int32_t numOfSmas;
   int32_t commentLen;
-  SArray* pColumns;
-  SArray* pTags;
-  char    *comment;
+  SArray* pColumns;  // array of SField
+  SArray* pTags;     // array of SField
+  SArray* pSmas;     // array of SField
+  char*   comment;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -501,10 +514,13 @@ typedef struct {
   int8_t  cacheLastRow;
   int8_t  ignoreExist;
   int8_t  streamMode;
+  int32_t numOfRetensions;
+  SArray* pRetensions;  // SRetention
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
 int32_t tDeserializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
+void    tFreeSCreateDbReq(SCreateDbReq* pReq);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
@@ -749,11 +765,13 @@ typedef struct {
   int8_t   selfIndex;
   int8_t   streamMode;
   SReplica replicas[TSDB_MAX_REPLICA];
-
+  int32_t  numOfRetensions;
+  SArray*  pRetensions;  // SRetention
 } SCreateVnodeReq, SAlterVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
 int32_t tDeserializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
+int32_t tFreeSCreateVnodeReq(SCreateVnodeReq* pReq);
 
 typedef struct {
   int32_t vgId;
@@ -1149,7 +1167,7 @@ typedef struct {
 
 typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];
-  char   outputTbName[TSDB_TABLE_NAME_LEN];
+  char   outputSTbName[TSDB_TABLE_FNAME_LEN];
   int8_t igExists;
   char*  sql;
   char*  ast;
@@ -1957,7 +1975,7 @@ typedef struct {
   int32_t tagsFilterLen;  // strlen + 1
   int32_t sqlLen;         // strlen + 1
   int32_t astLen;         // strlen + 1
-  char*   expr;  
+  char*   expr;
   char*   tagsFilter;
   char*   sql;
   char*   ast;
@@ -1979,9 +1997,9 @@ typedef struct {
   int8_t   version;       // for compatibility(default 0)
   int8_t   intervalUnit;  // MACRO: TIME_UNIT_XXX
   int8_t   slidingUnit;   // MACRO: TIME_UNIT_XXX
-  int8_t   timezoneInt;      // sma data expired if timezone changes.
+  int8_t   timezoneInt;   // sma data expired if timezone changes.
   char     indexName[TSDB_INDEX_NAME_LEN];
-  char     timezone[TD_TIMEZONE_LEN];  
+  char     timezone[TD_TIMEZONE_LEN];
   int32_t  exprLen;
   int32_t  tagsFilterLen;
   int64_t  indexUid;
@@ -2353,6 +2371,26 @@ enum {
   STREAM_NEXT_OP_DST__SND,
 };
 
+enum {
+  STREAM_SOURCE_TYPE__NONE = 1,
+  STREAM_SOURCE_TYPE__SUPER,
+  STREAM_SOURCE_TYPE__CHILD,
+  STREAM_SOURCE_TYPE__NORMAL,
+};
+
+enum {
+  STREAM_SINK_TYPE__NONE = 1,
+  STREAM_SINK_TYPE__INPLACE,
+  STREAM_SINK_TYPE__ASSIGNED,
+  STREAM_SINK_TYPE__MULTIPLE,
+  STREAM_SINK_TYPE__TEMPORARY,
+};
+
+enum {
+  STREAM_TYPE__NORMAL = 1,
+  STREAM_TYPE__SMA,
+};
+
 typedef struct {
   void* inputHandle;
   void* executor;
@@ -2363,28 +2401,33 @@ typedef struct {
   int32_t taskId;
   int32_t level;
   int8_t  status;
-  int8_t  pipeSource;
-  int8_t  pipeSink;
-  int8_t  numOfRunners;
   int8_t  parallelizable;
-  int8_t  nextOpDst;  // vnode or snode
+
+  // vnode or snode
+  int8_t nextOpDst;
+
+  int8_t sourceType;
+  int8_t sinkType;
+
+  // for sink type assigned
+  int32_t sinkVgId;
   SEpSet  NextOpEp;
-  char*   qmsg;
-  // not applied to encoder and decoder
+
+  // executor meta info
+  char* qmsg;
+
+  // followings are not applied to encoder and decoder
+  int8_t        numOfRunners;
   SStreamRunner runner[8];
-  // void*                executor;
-  // void*   stateStore;
-  //  storage handle
 } SStreamTask;
 
-static FORCE_INLINE SStreamTask* streamTaskNew(int64_t streamId, int32_t level) {
+static FORCE_INLINE SStreamTask* streamTaskNew(int64_t streamId) {
   SStreamTask* pTask = (SStreamTask*)calloc(1, sizeof(SStreamTask));
   if (pTask == NULL) {
     return NULL;
   }
   pTask->taskId = tGenIdPI32();
   pTask->streamId = streamId;
-  pTask->level = level;
   pTask->status = STREAM_TASK_STATUS__RUNNING;
   pTask->qmsg = NULL;
   return pTask;
@@ -2417,7 +2460,7 @@ typedef struct {
   int64_t  streamId;
   int64_t  version;
   SArray*  res;  // SArray<SSDataBlock>
-} SStreamSmaSinkReq;
+} SStreamSinkReq;
 
 #pragma pack(pop)
 

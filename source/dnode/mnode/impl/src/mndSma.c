@@ -22,6 +22,7 @@
 #include "mndMnode.h"
 #include "mndShow.h"
 #include "mndStb.c"
+#include "mndStream.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
@@ -404,6 +405,18 @@ static int32_t mndCreateSma(SMnode *pMnode, SNodeMsg *pReq, SMCreateSmaReq *pCre
     memcpy(smaObj.ast, pCreate->ast, smaObj.astLen);
   }
 
+  SStreamObj streamObj = {0};
+  tstrncpy(streamObj.name, pCreate->name, TSDB_STREAM_FNAME_LEN);
+  tstrncpy(streamObj.db, pDb->name, TSDB_DB_FNAME_LEN);
+  streamObj.createTime = taosGetTimestampMs();
+  streamObj.updateTime = streamObj.createTime;
+  streamObj.uid = mndGenerateUid(pCreate->name, strlen(pCreate->name));
+  streamObj.dbUid = pDb->uid;
+  streamObj.version = 1;
+  streamObj.sql = pCreate->sql;
+  /*streamObj.physicalPlan = "";*/
+  streamObj.logicalPlan = "not implemented";
+
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_SMA, &pReq->rpcMsg);
   if (pTrans == NULL) goto _OVER;
@@ -414,6 +427,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SNodeMsg *pReq, SMCreateSmaReq *pCre
   if (mndSetCreateSmaRedoLogs(pMnode, pTrans, &smaObj) != 0) goto _OVER;
   if (mndSetCreateSmaCommitLogs(pMnode, pTrans, &smaObj) != 0) goto _OVER;
   if (mndSetCreateSmaRedoActions(pMnode, pTrans, pDb, &smaObj) != 0) goto _OVER;
+  if (mndAddStreamToTrans(pMnode, &streamObj, pCreate->ast, pTrans) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
   code = 0;
@@ -457,6 +471,7 @@ static int32_t mndProcessMCreateSmaReq(SNodeMsg *pReq) {
   int32_t        code = -1;
   SStbObj       *pStb = NULL;
   SSmaObj       *pSma = NULL;
+  SStreamObj    *pStream = NULL;
   SDbObj        *pDb = NULL;
   SUserObj      *pUser = NULL;
   SMCreateSmaReq createReq = {0};
@@ -474,6 +489,12 @@ static int32_t mndProcessMCreateSmaReq(SNodeMsg *pReq) {
   pStb = mndAcquireStb(pMnode, createReq.stb);
   if (pStb == NULL) {
     mError("sma:%s, failed to create since stb:%s not exist", createReq.name, createReq.stb);
+    goto _OVER;
+  }
+  
+  pStream = mndAcquireStream(pMnode, createReq.name);
+  if (pStream != NULL) {
+    mError("sma:%s, failed to create since stream:%s already exist", createReq.name, createReq.name);
     goto _OVER;
   }
 
@@ -514,6 +535,7 @@ _OVER:
 
   mndReleaseStb(pMnode, pStb);
   mndReleaseSma(pMnode, pSma);
+  mndReleaseStream(pMnode, pStream);
   mndReleaseDb(pMnode, pDb);
   mndReleaseUser(pMnode, pUser);
   tFreeSMCreateSmaReq(&createReq);

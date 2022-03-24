@@ -26,9 +26,12 @@ class MndTestSma : public ::testing::Test {
   void* BuildDropDbReq(const char* dbname, int32_t* pContLen);
   void* BuildCreateStbReq(const char* stbname, int32_t* pContLen);
   void* BuildDropStbReq(const char* stbname, int32_t* pContLen);
-  void* BuildCreateSmaReq(const char* smaname, const char* stbname, int8_t igExists, const char* expr,
-                          const char* tagsFilter, const char* sql, const char* ast, int32_t* pContLen);
-  void* BuildDropSmaReq(const char* smaname, int8_t igNotExists, int32_t* pContLen);
+  void* BuildCreateBSmaStbReq(const char* stbname, int32_t* pContLen);
+  void* BuildCreateTSmaReq(const char* smaname, const char* stbname, int8_t igExists, const char* expr,
+                           const char* tagsFilter, const char* sql, const char* ast, int32_t* pContLen);
+  void* BuildDropTSmaReq(const char* smaname, int8_t igNotExists, int32_t* pContLen);
+
+  void PushField(SArray* pArray, int32_t bytes, int8_t type, const char* name);
 };
 
 Testbase MndTestSma::test;
@@ -76,6 +79,14 @@ void* MndTestSma::BuildDropDbReq(const char* dbname, int32_t* pContLen) {
   return pReq;
 }
 
+void MndTestSma::PushField(SArray* pArray, int32_t bytes, int8_t type, const char* name) {
+  SField field = {0};
+  field.bytes = bytes;
+  field.type = type;
+  strcpy(field.name, name);
+  taosArrayPush(pArray, &field);
+}
+
 void* MndTestSma::BuildCreateStbReq(const char* stbname, int32_t* pContLen) {
   SMCreateStbReq createReq = {0};
   createReq.numOfColumns = 3;
@@ -85,37 +96,35 @@ void* MndTestSma::BuildCreateStbReq(const char* stbname, int32_t* pContLen) {
   createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
   strcpy(createReq.name, stbname);
 
-  {
-    SField field = {0};
-    field.bytes = 8;
-    field.type = TSDB_DATA_TYPE_TIMESTAMP;
-    strcpy(field.name, "ts");
-    taosArrayPush(createReq.pColumns, &field);
-  }
+  PushField(createReq.pColumns, 8, TSDB_DATA_TYPE_TIMESTAMP, "ts");
+  PushField(createReq.pColumns, 2, TSDB_DATA_TYPE_TINYINT, "col1");
+  PushField(createReq.pColumns, 8, TSDB_DATA_TYPE_BIGINT, "col2");
+  PushField(createReq.pTags, 2, TSDB_DATA_TYPE_TINYINT, "tag1");
 
-  {
-    SField field = {0};
-    field.bytes = 2;
-    field.type = TSDB_DATA_TYPE_TINYINT;
-    strcpy(field.name, "col1");
-    taosArrayPush(createReq.pColumns, &field);
-  }
+  int32_t tlen = tSerializeSMCreateStbReq(NULL, 0, &createReq);
+  void*   pHead = rpcMallocCont(tlen);
+  tSerializeSMCreateStbReq(pHead, tlen, &createReq);
+  tFreeSMCreateStbReq(&createReq);
+  *pContLen = tlen;
+  return pHead;
+}
 
-  {
-    SField field = {0};
-    field.bytes = 8;
-    field.type = TSDB_DATA_TYPE_BIGINT;
-    strcpy(field.name, "col2");
-    taosArrayPush(createReq.pColumns, &field);
-  }
+void* MndTestSma::BuildCreateBSmaStbReq(const char* stbname, int32_t* pContLen) {
+  SMCreateStbReq createReq = {0};
+  createReq.numOfColumns = 3;
+  createReq.numOfTags = 1;
+  createReq.numOfSmas = 1;
+  createReq.igExists = 0;
+  createReq.pColumns = taosArrayInit(createReq.numOfColumns, sizeof(SField));
+  createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
+  createReq.pSmas = taosArrayInit(createReq.numOfSmas, sizeof(SField));
+  strcpy(createReq.name, stbname);
 
-  {
-    SField field = {0};
-    field.bytes = 2;
-    field.type = TSDB_DATA_TYPE_TINYINT;
-    strcpy(field.name, "tag1");
-    taosArrayPush(createReq.pTags, &field);
-  }
+  PushField(createReq.pColumns, 8, TSDB_DATA_TYPE_TIMESTAMP, "ts");
+  PushField(createReq.pColumns, 2, TSDB_DATA_TYPE_TINYINT, "col1");
+  PushField(createReq.pColumns, 8, TSDB_DATA_TYPE_BIGINT, "col2");
+  PushField(createReq.pTags, 2, TSDB_DATA_TYPE_TINYINT, "tag1");
+  PushField(createReq.pSmas, 2, TSDB_DATA_TYPE_TINYINT, "col1");
 
   int32_t tlen = tSerializeSMCreateStbReq(NULL, 0, &createReq);
   void*   pHead = rpcMallocCont(tlen);
@@ -137,8 +146,8 @@ void* MndTestSma::BuildDropStbReq(const char* stbname, int32_t* pContLen) {
   return pReq;
 }
 
-void* MndTestSma::BuildCreateSmaReq(const char* smaname, const char* stbname, int8_t igExists, const char* expr,
-                                    const char* tagsFilter, const char* sql, const char* ast, int32_t* pContLen) {
+void* MndTestSma::BuildCreateTSmaReq(const char* smaname, const char* stbname, int8_t igExists, const char* expr,
+                                     const char* tagsFilter, const char* sql, const char* ast, int32_t* pContLen) {
   SMCreateSmaReq createReq = {0};
   strcpy(createReq.name, smaname);
   strcpy(createReq.stb, stbname);
@@ -156,7 +165,7 @@ void* MndTestSma::BuildCreateSmaReq(const char* smaname, const char* stbname, in
   createReq.tagsFilterLen = strlen(createReq.tagsFilter) + 1;
   createReq.sql = (char*)sql;
   createReq.sqlLen = strlen(createReq.sql) + 1;
-  createReq.ast = (char*)expr;
+  createReq.ast = (char*)ast;
   createReq.astLen = strlen(createReq.ast) + 1;
 
   int32_t tlen = tSerializeSMCreateSmaReq(NULL, 0, &createReq);
@@ -166,7 +175,7 @@ void* MndTestSma::BuildCreateSmaReq(const char* smaname, const char* stbname, in
   return pHead;
 }
 
-void* MndTestSma::BuildDropSmaReq(const char* smaname, int8_t igNotExists, int32_t* pContLen) {
+void* MndTestSma::BuildDropTSmaReq(const char* smaname, int8_t igNotExists, int32_t* pContLen) {
   SMDropSmaReq dropsmaReq = {0};
   dropsmaReq.igNotExists = igNotExists;
   strcpy(dropsmaReq.name, smaname);
@@ -180,6 +189,7 @@ void* MndTestSma::BuildDropSmaReq(const char* smaname, int8_t igNotExists, int32
 }
 
 TEST_F(MndTestSma, 01_Create_Show_Meta_Drop_Restart_Stb) {
+  #if 0
   const char* dbname = "1.d1";
   const char* stbname = "1.d1.stb";
   const char* smaname = "1.d1.sma";
@@ -203,7 +213,7 @@ TEST_F(MndTestSma, 01_Create_Show_Meta_Drop_Restart_Stb) {
   }
 
   {
-    pReq = BuildCreateSmaReq(smaname, stbname, 0, "expr", "tagsFilter", "sql", "ast", &contLen);
+    pReq = BuildCreateTSmaReq(smaname, stbname, 0, "expr", "tagsFilter", "sql", "ast", &contLen);
     pRsp = test.SendReq(TDMT_MND_CREATE_SMA, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
     test.SendShowMetaReq(TSDB_MGMT_TABLE_INDEX, dbname);
@@ -226,11 +236,59 @@ TEST_F(MndTestSma, 01_Create_Show_Meta_Drop_Restart_Stb) {
   }
 
   {
-     pReq = BuildDropSmaReq(smaname, 0, &contLen);
+     pReq = BuildDropTSmaReq(smaname, 0, &contLen);
     pRsp = test.SendReq(TDMT_MND_DROP_SMA, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
     test.SendShowMetaReq(TSDB_MGMT_TABLE_INDEX, dbname);
     test.SendShowRetrieveReq();
     EXPECT_EQ(test.GetShowRows(), 0);
+  }
+#endif  
+}
+
+TEST_F(MndTestSma, 02_Create_Show_Meta_Drop_Restart_BSma) {
+  const char* dbname = "1.d1";
+  const char* stbname = "1.d1.bsmastb";
+  int32_t     contLen = 0;
+  void*       pReq;
+  SRpcMsg*    pRsp;
+
+  {
+    pReq = BuildCreateDbReq(dbname, &contLen);
+    pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, 0);
+  }
+
+  {
+    pReq = BuildCreateBSmaStbReq(stbname, &contLen);
+    pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, 0);
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
+    test.SendShowRetrieveReq();
+    EXPECT_EQ(test.GetShowRows(), 1);
+//    CheckBinary("bsmastb", TSDB_TABLE_NAME_LEN);
+  }
+
+  test.Restart();
+
+  {
+    pReq = BuildCreateBSmaStbReq(stbname, &contLen);
+    pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_STB_ALREADY_EXIST);
+  }
+
+  {
+    pReq = BuildDropStbReq(stbname, &contLen);
+    pRsp = test.SendReq(TDMT_MND_DROP_STB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, 0);
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
+    test.SendShowRetrieveReq();
+    EXPECT_EQ(test.GetShowRows(), 0);
+  }
+
+  {
+    pReq = BuildDropStbReq(stbname, &contLen);
+    pRsp = test.SendReq(TDMT_MND_DROP_STB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_STB_NOT_EXIST);
   }
 }

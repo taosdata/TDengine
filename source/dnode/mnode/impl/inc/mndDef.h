@@ -267,6 +267,8 @@ typedef struct {
   int8_t  update;
   int8_t  cacheLastRow;
   int8_t  streamMode;
+  int32_t numOfRetensions;
+  SArray* pRetensions;
 } SDbCfg;
 
 typedef struct {
@@ -341,11 +343,17 @@ typedef struct {
   int64_t  dbUid;
   int32_t  version;
   int32_t  nextColId;
+  float    xFilesFactor;
+  int32_t  aggregationMethod;
+  int32_t  delay;
+  int32_t  ttl;
   int32_t  numOfColumns;
   int32_t  numOfTags;
+  int32_t  numOfSmas;
   int32_t  commentLen;
   SSchema* pColumns;
   SSchema* pTags;
+  SSchema* pSmas;
   char*    comment;
   SRWLatch lock;
 } SStbObj;
@@ -712,6 +720,7 @@ static FORCE_INLINE void* tDecodeSMqConsumerObj(void* buf, SMqConsumerObj* pCons
 typedef struct {
   char     name[TSDB_TOPIC_FNAME_LEN];
   char     db[TSDB_DB_FNAME_LEN];
+  char     outputSTbName[TSDB_TABLE_FNAME_LEN];
   int64_t  createTime;
   int64_t  updateTime;
   int64_t  uid;
@@ -721,11 +730,12 @@ typedef struct {
   SRWLatch lock;
   int8_t   status;
   // int32_t  sqlLen;
+  int32_t sinkVgId;  // 0 for automatic
   char*   sql;
   char*   logicalPlan;
   char*   physicalPlan;
   SArray* tasks;  // SArray<SArray<SStreamTask>>
-  SArray* outputName;
+  SArray* ColAlias;
 } SStreamObj;
 
 int32_t tEncodeSStreamObj(SCoder* pEncoder, const SStreamObj* pObj);

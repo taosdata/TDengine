@@ -505,7 +505,7 @@ TAOS_RES* tmq_create_stream(TAOS* taos, const char* streamName, const char* tbNa
       .sql = (char*)sql,
   };
   tNameExtractFullName(&name, req.name);
-  strcpy(req.outputTbName, tbName);
+  strcpy(req.outputSTbName, tbName);
 
   int   tlen = tSerializeSCMCreateStreamReq(NULL, 0, &req);
   void* buf = malloc(tlen);

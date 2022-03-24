@@ -13,28 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_STREAM_H_
-#define _TD_MND_STREAM_H_
+#include "planInt.h"
 
-#include "mndInt.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-int32_t mndInitStream(SMnode *pMnode);
-void    mndCleanupStream(SMnode *pMnode);
-
-SStreamObj *mndAcquireStream(SMnode *pMnode, char *streamName);
-void        mndReleaseStream(SMnode *pMnode, SStreamObj *pStream);
-
-SSdbRaw *mndStreamActionEncode(SStreamObj *pStream);
-SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw);
-
-int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast, STrans *pTrans);
-
-#ifdef __cplusplus
+int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicNode* pLogicNode) {
+  return TSDB_CODE_SUCCESS;
 }
-#endif
-
-#endif /*_TD_MND_STREAM_H_*/
