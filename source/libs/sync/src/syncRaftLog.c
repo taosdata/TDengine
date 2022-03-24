@@ -87,7 +87,7 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
 int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  walRollback(pWal, fromIndex);
+  assert(walRollback(pWal, fromIndex) == 0);
   return 0;  // to avoid compiler error
 }
 
