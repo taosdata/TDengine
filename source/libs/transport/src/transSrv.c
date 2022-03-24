@@ -623,8 +623,6 @@ static void destroyConn(SSrvConn* conn, bool clear) {
     return;
   }
   transDestroyBuffer(&conn->readBuf);
-
-  transQueueDestroy(&conn->srvMsgs);
   if (clear) {
     tTrace("server conn %p to be destroyed", conn);
     uv_shutdown_t* req = malloc(sizeof(uv_shutdown_t));
@@ -640,6 +638,7 @@ static void uvDestroyConn(uv_handle_t* handle) {
 
   tDebug("server conn %p destroy", conn);
   uv_timer_stop(&conn->pTimer);
+  transQueueDestroy(&conn->srvMsgs);
   QUEUE_REMOVE(&conn->queue);
   free(conn->pTcp);
   // free(conn);
@@ -839,6 +838,9 @@ void transSendResponse(const STransMsg* pMsg) {
   }
   SSrvConn*     pConn = pMsg->handle;
   SWorkThrdObj* pThrd = pConn->hostThrd;
+  if (pThrd->quit) {
+    return;
+  }
 
   SSrvMsg* srvMsg = calloc(1, sizeof(SSrvMsg));
   srvMsg->pConn = pConn;
