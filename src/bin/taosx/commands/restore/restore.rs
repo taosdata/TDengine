@@ -1,5 +1,6 @@
 use clap::Args;
-use taos::Taos;
+use taos::r2d2::TaosPool;
+use taos::TaosOptions;
 use taosx::TaosOpts;
 use tokio::runtime::Builder;
 mod restore_parquet;
@@ -18,35 +19,38 @@ pub(crate) struct App {
     thread: Option<u32>,
 }
 impl App {
-    pub fn run_with_taos_opts(&'static self, opts: &TaosOpts) {
-        let host = opts.host.as_deref().unwrap_or("localhost");
-        let user = opts.username.as_deref().unwrap_or("root");
-        let pass = opts.password.as_deref().unwrap_or("taosdata");
-        let db = self.name.as_deref().unwrap_or("");
-        let port = opts.port.unwrap_or(6030);
-        let taos = Taos::new(host, user, pass, "", port).unwrap();
+    pub fn run_with_taos_opts(&self, _opts: &TaosOpts) {
+        // let db = self.name.as_deref().unwrap_or("");
+        let db = "test";
         let threads = self.thread.unwrap_or(1);
+        let opts = TaosOptions::new();
+        let pool = TaosPool::builder().max_size(threads).build(opts).unwrap();
         Builder::new_multi_thread()
             .enable_all()
             .build()
             .unwrap()
-            .block_on(restore_sql(&taos, db, "db"));
+            .block_on(restore_sql(pool.clone(), db, "db"));
         Builder::new_multi_thread()
             .enable_all()
             .build()
             .unwrap()
-            .block_on(taos.query(format!("use {}", db).as_str()))
+            .block_on(
+                pool.clone()
+                    .get()
+                    .unwrap()
+                    .query(format!("use {}", db).as_str()),
+            )
             .unwrap();
         Builder::new_multi_thread()
             .enable_all()
             .build()
             .unwrap()
-            .block_on(restore_sql(&taos, db, "stb"));
+            .block_on(restore_sql(pool.clone(), db, "stb"));
         Builder::new_multi_thread()
             .enable_all()
             .build()
             .unwrap()
-            .block_on(restore_sql(&taos, db, "tb"));
+            .block_on(restore_sql(pool.clone(), db, "tb"));
         let file_list = get_parquet_files(db);
         let runtime = Builder::new_multi_thread()
             .worker_threads(threads as usize)

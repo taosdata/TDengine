@@ -5,9 +5,9 @@ use std::{
 };
 
 use libtaos::{Field, Taos};
-pub async fn backup_database_sql(taos: &Taos, db: &str, target: &PathBuf) {
+pub async fn backup_database_sql(taos: &Taos, db: String, target: &PathBuf) {
     let res = taos
-        .query(format!("show create database {}", db.to_string()).as_str())
+        .query(format!("show create database {}", db).as_str())
         .await
         .unwrap();
     let mut path = target.clone();
@@ -29,9 +29,9 @@ pub async fn backup_database_sql(taos: &Taos, db: &str, target: &PathBuf) {
     }
 }
 
-pub async fn backup_stable_sql(taos: &Taos, db: &str, target: &PathBuf) -> Vec<String> {
+pub async fn backup_stable_sql(taos: &Taos, db: String, target: &PathBuf) -> Vec<String> {
     let mut stable_list = vec![];
-    taos.use_database(db).await.unwrap();
+    taos.use_database(&db).await.unwrap();
     let res = taos.query("show stables").await.unwrap();
     if res.rows.len() == 0 {
         unreachable!("no stable found");
@@ -77,7 +77,7 @@ pub async fn backup_stable_sql(taos: &Taos, db: &str, target: &PathBuf) -> Vec<S
     stable_list
 }
 
-pub async fn backup_table_sql(taos: &Taos, db: &str, stb: &str, target: &PathBuf) -> Vec<String> {
+pub async fn backup_table_sql(taos: &Taos, db: String, stb: &str, target: &PathBuf) -> Vec<String> {
     let mut tables_list = vec![];
     let res = taos
         .query(format!("select tbname from {}.{}", db, stb).as_str())

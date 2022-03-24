@@ -10,10 +10,10 @@ use parquet::{
     schema::types::Type,
 };
 use std::{fs, path::PathBuf, sync::Arc};
-use taos::Taos as NewTaos;
-pub async fn generate_parquet_schema(taos: &Taos, db: &str, stb: &str) -> Arc<Type> {
+use taos::r2d2::TaosPool;
+pub async fn generate_parquet_schema(taos: &Taos, db: String, stb: &str) -> Arc<Type> {
     let mut fields = vec![];
-    taos.use_database(db).await.unwrap();
+    taos.use_database(&db).await.unwrap();
     let res = taos.describe(stb).await.unwrap();
     for i in 0..res.cols.len() {
         match res.cols[i].type_ {
@@ -125,13 +125,19 @@ pub async fn generate_parquet_schema(taos: &Taos, db: &str, stb: &str) -> Arc<Ty
     )
 }
 
-pub async fn backup_data_parquet(db: &str, tb: String, schema: Arc<Type>, target: PathBuf) {
+pub async fn backup_data_parquet(
+    pool: TaosPool,
+    db: String,
+    tb: String,
+    schema: Arc<Type>,
+    target: PathBuf,
+) {
     let props = Arc::new(WriterProperties::builder().build());
     let mut path = target.clone();
     path.push(format!("{}.parquet", tb));
     let file = fs::File::create(path).unwrap();
     let mut writer = SerializedFileWriter::new(file, schema, props).unwrap();
-    let taos = NewTaos::new("localhost", "root", "taosdata", "", 6030).unwrap();
+    let taos = pool.get().unwrap();
     let res = taos
         .query(format!("select * from {}.{} ", db, tb).as_str())
         .await
