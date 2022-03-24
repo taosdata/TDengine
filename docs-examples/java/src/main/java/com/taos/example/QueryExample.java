@@ -4,7 +4,7 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 
-public class RESTQueryExample {
+public class QueryExample {
     static void printResult(ResultSet resultSet) throws SQLException {
         ResultSetMetaData metaData = resultSet.getMetaData();
         while (resultSet.next()) {
