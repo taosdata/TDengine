@@ -4,12 +4,12 @@ import (
 	"database/sql"
 	"fmt"
 
-	_ "github.com/taosdata/driver-go/v2/taosRestful"
+	_ "github.com/taosdata/driver-go/v2/taosSql"
 )
 
 func main() {
-	var taosDSN = "root:taosdata@http(localhost:6041)"
-	taos, err := sql.Open("taosRestful", taosDSN)
+	var taosDSN = "root:taosdata@tcp(localhost:6030)/"
+	taos, err := sql.Open("taosSql", taosDSN)
 	if err != nil {
 		fmt.Println("failed to connect TDengine, err:", err)
 		return
@@ -18,6 +18,6 @@ func main() {
 	defer taos.Close()
 }
 
-// use 
-// var taosDSN = "root:taosdata@http(localhost:6041)/dbName"
+// use
+// var taosDSN = "root:taosdata@tcp(localhost:6030)/dbName"
 // if you want to connect to a default database.
