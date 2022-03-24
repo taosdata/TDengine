@@ -1,5 +1,3 @@
-use std::intrinsics::transmute;
-
 use taos_sys::TimestampPrecision;
 
 #[derive(Debug)]

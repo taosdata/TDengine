@@ -32,28 +32,32 @@ pub const TSDB_DATA_TYPE_BLOB: TaosDataType = TaosDataType::Blob; // binary
 #[cfg(taos_v3)]
 pub const TSDB_DATA_TYPE_MEDIUMBLOB: TaosDataType = TaosDataType::MediumBlob; // binary
 
-#[derive(Debug, FromPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, FromPrimitive)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde_repr::Serialize_repr, serde_repr::Deserialize_repr)
+)]
 #[repr(u8)]
 pub enum TaosDataType {
     Null = 0,
-    Bool,      // 1
-    TinyInt,   // 2
-    SmallInt,  // 3
-    Int,       // 4
-    BigInt,    // 5
-    Float,     // 6
-    Double,    // 7
+    Bool,     // 1
+    TinyInt,  // 2
+    SmallInt, // 3
+    Int,      // 4
+    BigInt,   // 5
+    Float,    // 6
+    Double,   // 7
     #[cfg(taos_v2)]
-    Binary = 8,    // 8
+    Binary = 8, // 8
     #[cfg(taos_v3)]
-    VarChar = 8,   // 8, since 3.0 Binary is just an alias of VarChar
+    VarChar = 8, // 8, since 3.0 Binary is just an alias of VarChar
     Timestamp, // 9
-    NChar,     // 10
-    UTinyInt,  // 11
+    NChar,    // 10
+    UTinyInt, // 11
     USmallInt, // 12
-    UInt,      // 13
-    UBigInt,   // 14
-    Json, // 15
+    UInt,     // 13
+    UBigInt,  // 14
+    Json,     // 15
     #[cfg(taos_v3)]
     VarBinary, // 16
     #[cfg(taos_v3)]
