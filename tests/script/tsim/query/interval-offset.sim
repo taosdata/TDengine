@@ -167,17 +167,17 @@ print ===> rows7: $data70 $data71 $data72 $data73 $data74 $data75
 #if $data70 != 1 then
 #  return -1
 #endi
-return 
+
 print =============== insert data into child table ct3 (n)
-sql insert into ct3 values ( '2021-12-21 01:01:01.000', NULL )
-sql insert into ct3 values ( '2021-12-31 01:01:01.000', 1 )
-sql insert into ct3 values ( '2022-01-01 01:01:06.000', 2 )
-sql insert into ct3 values ( '2022-01-07 01:01:10.000', 3 )
-sql insert into ct3 values ( '2022-01-31 01:01:16.000', 4 )
-sql insert into ct3 values ( '2022-02-01 01:01:20.000', 5 )
-sql insert into ct3 values ( '2022-02-28 01:01:26.000', 6 )
-sql insert into ct3 values ( '2022-03-01 01:01:30.000', 7 )
-sql insert into ct3 values ( '2022-03-08 01:01:36.000', 8 )
+sql insert into ct3 values ( '2021-12-21 01:01:01.000', NULL );
+sql insert into ct3 values ( '2021-12-31 01:01:01.000', 1 );
+sql insert into ct3 values ( '2022-01-01 01:01:06.000', 2 );
+sql insert into ct3 values ( '2022-01-07 01:01:10.000', 3 );
+sql insert into ct3 values ( '2022-01-31 01:01:16.000', 4 );
+sql insert into ct3 values ( '2022-02-01 01:01:20.000', 5 );
+sql insert into ct3 values ( '2022-02-28 01:01:26.000', 6 );
+sql insert into ct3 values ( '2022-03-01 01:01:30.000', 7 );
+sql insert into ct3 values ( '2022-03-08 01:01:36.000', 8 );
 
 sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct3 interval(1n, 1w)
 print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct3 interval(1n, 1w)
