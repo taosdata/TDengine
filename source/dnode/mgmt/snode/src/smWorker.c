@@ -96,14 +96,15 @@ void smStopWorker(SSnodeMgmt *pMgmt) {
 
 static FORCE_INLINE int32_t smGetSWIdFromMsg(SRpcMsg *pMsg) {
   SMsgHead *pHead = pMsg->pCont;
-  pHead->streamTaskId = htonl(pHead->streamTaskId);
-  return pHead->streamTaskId % SND_UNIQUE_THREAD_NUM;
+  pHead->vgId = htonl(pHead->vgId);
+  return pHead->vgId % SND_UNIQUE_THREAD_NUM;
 }
 
 static FORCE_INLINE int32_t smGetSWTypeFromMsg(SRpcMsg *pMsg) {
-  SStreamExecMsgHead *pHead = pMsg->pCont;
-  pHead->workerType = htonl(pHead->workerType);
-  return pHead->workerType;
+  /*SMsgHead *pHead = pMsg->pCont;*/
+  /*pHead->workerType = htonl(pHead->workerType);*/
+  /*return pHead->workerType;*/
+  return 0;
 }
 
 int32_t smProcessMgmtMsg(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {

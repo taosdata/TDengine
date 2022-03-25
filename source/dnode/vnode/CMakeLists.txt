@@ -43,6 +43,7 @@ target_link_libraries(
     PUBLIC wal
     PUBLIC scheduler
     PUBLIC executor
+    PUBLIC stream
     PUBLIC qworker
     PUBLIC sync
 )

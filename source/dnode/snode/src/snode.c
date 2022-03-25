@@ -57,8 +57,8 @@ void sndMetaDelete(SStreamMeta *pMeta) {
 }
 
 int32_t sndMetaDeployTask(SStreamMeta *pMeta, SStreamTask *pTask) {
-  for (int i = 0; i < pTask->numOfRunners; i++) {
-    pTask->runner[i].executor = qCreateStreamExecTaskInfo(pTask->qmsg, NULL);
+  for (int i = 0; i < pTask->exec.numOfRunners; i++) {
+    pTask->exec.runners[i].executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, NULL);
   }
   return taosHashPut(pMeta->pHash, &pTask->taskId, sizeof(int32_t), pTask, sizeof(void *));
 }
@@ -72,19 +72,19 @@ int32_t sndMetaRemoveTask(SStreamMeta *pMeta, int32_t taskId) {
   if (pTask == NULL) {
     return -1;
   }
-  free(pTask->qmsg);
+  free(pTask->exec.qmsg);
   // TODO:free executor
   free(pTask);
   return taosHashRemove(pMeta->pHash, &taskId, sizeof(int32_t));
 }
 
 static int32_t sndProcessTaskExecReq(SSnode *pSnode, SRpcMsg *pMsg) {
-  SStreamExecMsgHead *pHead = pMsg->pCont;
-  int32_t             taskId = pHead->streamTaskId;
-  SStreamTask        *pTask = sndMetaGetTask(pSnode->pMeta, taskId);
-  if (pTask == NULL) {
-    return -1;
-  }
+  /*SStreamExecMsgHead *pHead = pMsg->pCont;*/
+  /*int32_t             taskId = pHead->streamTaskId;*/
+  /*SStreamTask *pTask = sndMetaGetTask(pSnode->pMeta, taskId);*/
+  /*if (pTask == NULL) {*/
+  /*return -1;*/
+  /*}*/
   return 0;
 }
 

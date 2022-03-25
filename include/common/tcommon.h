@@ -54,13 +54,16 @@ typedef struct SColumnDataAgg {
 } SColumnDataAgg;
 
 typedef struct SDataBlockInfo {
-  STimeWindow    window;
-  int32_t        rows;
-  int32_t        rowSize;
-  int16_t        numOfCols;
-  int16_t        hasVarCol;
-  union {int64_t uid; int64_t blockId;};
-  int64_t        groupId;     // no need to serialize
+  STimeWindow window;
+  int32_t     rows;
+  int32_t     rowSize;
+  int16_t     numOfCols;
+  int16_t     hasVarCol;
+  union {
+    int64_t uid;
+    int64_t blockId;
+  };
+  int64_t groupId;  // no need to serialize
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
@@ -92,7 +95,7 @@ int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);
 void*   tDecodeDataBlock(const void* buf, SSDataBlock* pBlock);
 
 int32_t tEncodeDataBlocks(void** buf, const SArray* blocks);
-void*   tDecodeDataBlocks(const void* buf, SArray* blocks);
+void*   tDecodeDataBlocks(const void* buf, SArray** blocks);
 
 static FORCE_INLINE void blockDestroyInner(SSDataBlock* pBlock) {
   // WARNING: do not use info.numOfCols,
