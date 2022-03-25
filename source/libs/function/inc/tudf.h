@@ -20,68 +20,116 @@
 extern "C" {
 #endif
 
-#include "os.h"
-#include "taoserror.h"
+//======================================================================================
+//begin API to taosd and qworker
+/**
+ * start udf dameon service
+ * @return error code
+ */
+int32_t startUdfService();
+
+/**
+ * stop udf dameon service
+ * @return error code
+ */
+int32_t stopUdfService();
 
 enum {
-  TSDB_UDF_FUNC_NORMAL = 0,
-  TSDB_UDF_FUNC_INIT,
-  TSDB_UDF_FUNC_FINALIZE,
-  TSDB_UDF_FUNC_MERGE,
-  TSDB_UDF_FUNC_DESTROY,
-  TSDB_UDF_FUNC_MAX_NUM
+  TSDB_UDF_TYPE_SCALAR = 0,
+  TSDB_UDF_TYPE_AGGREGATE = 1
 };
 
-typedef struct SUdfInit {
-  int32_t  maybe_null; /* 1 if function can return NULL */
-  uint32_t decimals;   /* for real functions */
-  uint64_t length;     /* For string functions */
-  char*    ptr;        /* free pointer for function data */
-  int32_t  const_item; /* 0 if result is independent of arguments */
-
-  // script like lua/javascript
-  void* script_ctx;
-  void (*destroyCtxFunc)(void* script_ctx);
-} SUdfInit;
+enum {
+  TSDB_UDF_SCRIPT_BIN_LIB = 0,
+  TSDB_UDF_SCRIPT_LUA = 1,
+};
 
 typedef struct SUdfInfo {
-  int32_t functionId;                    // system assigned function id
-  int32_t funcType;                      // scalar function or aggregate function
-  int8_t  resType;                       // result type
-  int16_t resBytes;                      // result byte
-  int32_t contLen;                       // content length
-  int32_t bufSize;                       // interbuf size
-  char*   name;                          // function name
-  void*   handle;                        // handle loaded in mem
-  void*   funcs[TSDB_UDF_FUNC_MAX_NUM];  // function ptr
+  char   *udfName;        // function name
+  int32_t udfType;    // scalar function or aggregate function
+  int8_t    scriptType;
+  char *path;
 
-  // for script like lua/javascript only
-  int   isScript;
-  void* pScriptCtx;
+  int8_t  resType;     // result type
+  int16_t resBytes;    // result byte
+  int32_t bufSize;     //interbuf size
 
-  SUdfInit init;
-  char*    content;
-  char*    path;
 } SUdfInfo;
+
+typedef void *UdfHandle;
+
+/**
+ * setup udf
+ * @param udf, in
+ * @param handle, out
+ * @return error code
+ */
+int32_t setupUdf(SUdfInfo* udf, UdfHandle *handle);
+
+
+enum {
+  TSDB_UDF_STEP_NORMAL = 0,
+  TSDB_UDF_STEP_MERGE,
+  TSDb_UDF_STEP_FINALIZE,
+  TSDB_UDF_STEP_MAX_NUM
+};
+/**
+ * call udf
+ * @param handle udf handle
+ * @param step
+ * @param state
+ * @param stateSize
+ * @param input
+ * @param newstate
+ * @param newStateSize
+ * @param output
+ * @return error code
+ */
+
+//TODO: must change the following after metadata flow and data flow between qworker and udfd is well defined
+typedef struct SUdfDataBlock {
+  char* data;
+  int32_t size;
+} SUdfDataBlock;
+
+int32_t callUdf(UdfHandle handle, int8_t step, char *state, int32_t stateSize, SUdfDataBlock input, char **newstate,
+                int32_t *newStateSize, SUdfDataBlock *output);
+
+/**
+ * tearn down udf
+ * @param handle
+ * @return
+ */
+int32_t teardownUdf(UdfHandle handle);
+
+// end API to taosd and qworker
+//=============================================================================================================================
+// TODO: Must change
+// begin API to UDF writer.
 
 // script
 
-typedef int32_t (*scriptInitFunc)(void* pCtx);
-typedef void (*scriptNormalFunc)(void* pCtx, char* data, int16_t iType, int16_t iBytes, int32_t numOfRows,
-                                 int64_t* ptList, int64_t key, char* dataOutput, char* tsOutput, int32_t* numOfOutput,
-                                 int16_t oType, int16_t oBytes);
-typedef void (*scriptFinalizeFunc)(void* pCtx, int64_t key, char* dataOutput, int32_t* numOfOutput);
-typedef void (*scriptMergeFunc)(void* pCtx, char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput);
-typedef void (*scriptDestroyFunc)(void* pCtx);
+//typedef int32_t (*scriptInitFunc)(void* pCtx);
+//typedef void (*scriptNormalFunc)(void* pCtx, char* data, int16_t iType, int16_t iBytes, int32_t numOfRows,
+//                                 int64_t* ptList, int64_t key, char* dataOutput, char* tsOutput, int32_t* numOfOutput,
+//                                 int16_t oType, int16_t oBytes);
+//typedef void (*scriptFinalizeFunc)(void* pCtx, int64_t key, char* dataOutput, int32_t* numOfOutput);
+//typedef void (*scriptMergeFunc)(void* pCtx, char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput);
+//typedef void (*scriptDestroyFunc)(void* pCtx);
 
 // dynamic lib
-typedef void (*udfNormalFunc)(char* data, int16_t itype, int16_t iBytes, int32_t numOfRows, int64_t* ts,
-                              char* dataOutput, char* interBuf, char* tsOutput, int32_t* numOfOutput, int16_t oType,
-                              int16_t oBytes, SUdfInit* buf);
-typedef int32_t (*udfInitFunc)(SUdfInit* data);
-typedef void (*udfFinalizeFunc)(char* dataOutput, char* interBuf, int32_t* numOfOutput, SUdfInit* buf);
-typedef void (*udfMergeFunc)(char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput, SUdfInit* buf);
-typedef void (*udfDestroyFunc)(SUdfInit* buf);
+typedef int32_t (*TUdfInitFunc)();
+typedef void (*TUdfDestroyFunc)();
+
+typedef void (*TUdfFunc)(int8_t step,
+                         char *state, int32_t stateSize, SUdfDataBlock input,
+                         char **newstate, int32_t *newStateSize, SUdfDataBlock *output);
+
+//typedef void (*udfMergeFunc)(char *data, int32_t numOfRows, char *dataOutput, int32_t* numOfOutput);
+//typedef void (*udfFinalizeFunc)(char* state, int32_t stateSize, SUdfDataBlock *output);
+
+// end API to UDF writer
+//=======================================================================================================================
 
 #ifdef __cplusplus
 }

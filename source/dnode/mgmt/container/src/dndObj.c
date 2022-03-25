@@ -58,7 +58,7 @@ static void dndClearMemory(SDnode *pDnode) {
 SDnode *dndCreate(const SDnodeOpt *pOption) {
   dInfo("start to create dnode object");
   int32_t code = -1;
-  char    path[PATH_MAX];
+  char    path[PATH_MAX] = {0};
   SDnode *pDnode = NULL;
 
   pDnode = calloc(1, sizeof(SDnode));
@@ -117,6 +117,7 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
 _OVER:
   if (code != 0 && pDnode) {
     dndClearMemory(pDnode);
+    pDnode = NULL;
     dError("failed to create dnode object since %s", terrstr());
   } else {
     dInfo("dnode object is created, data:%p", pDnode);

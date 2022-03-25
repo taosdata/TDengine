@@ -69,7 +69,7 @@ void mndCleanupSma(SMnode *pMnode) {}
 static SSdbRaw *mndSmaActionEncode(SSmaObj *pSma) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  int32_t  size = sizeof(SSmaObj) + pSma->exprLen + pSma->tagsFilterLen + TSDB_SMA_RESERVE_SIZE;
+  int32_t  size = sizeof(SSmaObj) + pSma->exprLen + pSma->tagsFilterLen + pSma->sqlLen + pSma->astLen + TSDB_SMA_RESERVE_SIZE;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_SMA, TSDB_SMA_VER_NUMBER, size);
   if (pRaw == NULL) goto _OVER;
 

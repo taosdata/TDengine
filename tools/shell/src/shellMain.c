@@ -17,6 +17,7 @@
 #include "os.h"
 #include "shell.h"
 #include "tglobal.h"
+#include "tconfig.h"
 #include "shellCommand.h"
 #include "tbase64.h"
 #include "tlog.h"
@@ -619,20 +620,17 @@ int main(int argc, char *argv[]) {
 
   shellParseArgument(argc, argv, &args);
 
-#if 0
   if (args.dump_config) {
-    taosInitGlobalCfg();
-    taosReadGlobalLogCfg();
+    taosInitCfg(configDir, NULL, NULL, NULL, 1);
 
-    if (taosReadGlobalCfg() ! =0) {
-      printf("TDengine read global config failed");
+    SConfig *pCfg = taosGetCfg();
+    if (NULL == pCfg) {
+      printf("TDengine read global config failed!\n");
       exit(EXIT_FAILURE);
     }
-
-    taosDumpGlobalCfg();
+    cfgDumpCfg(pCfg, 0, 1);
     exit(0);
   }
-#endif
 
   if (args.netTestRole && args.netTestRole[0] != 0) {
     TAOS *con = NULL;

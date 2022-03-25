@@ -16,6 +16,8 @@
 #ifndef _TD_TSDB_SMA_H_
 #define _TD_TSDB_SMA_H_
 
+#define TSDB_SMA_TEST // remove after test finished
+
 typedef struct SSmaStat     SSmaStat;
 typedef struct SSmaEnv      SSmaEnv;
 

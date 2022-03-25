@@ -458,16 +458,21 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
   if (duration == 0) {
     return t;
   }
-  if (unit == 'y') {
-    duration *= 12;
-  } else if (unit != 'n') {
+
+  if (unit != 'n' && unit != 'y') {
     return t + duration;
+  }
+
+  // The following code handles the y/n time duration
+  int64_t numOfMonth = duration;
+  if (unit == 'y') {
+    numOfMonth *= 12;
   }
 
   struct tm tm;
   time_t    tt = (time_t)(t / TSDB_TICK_PER_SECOND(precision));
   taosLocalTime(&tt, &tm);
-  int32_t mon = tm.tm_year * 12 + tm.tm_mon + (int32_t)duration;
+  int32_t mon = tm.tm_year * 12 + tm.tm_mon + (int32_t)numOfMonth;
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
 
@@ -557,8 +562,7 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
 
     // not enough time range
     if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
-      end = start + pInterval->interval - 1;
-
+      end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision) - 1;
       while (end < t && ((start + pInterval->sliding) <= INT64_MAX)) {  // move forward to the correct time window
         start += pInterval->sliding;
 
@@ -574,12 +578,23 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
     }
   }
 
+  ASSERT(pInterval->offset >= 0);
+
   if (pInterval->offset > 0) {
     start = taosTimeAdd(start, pInterval->offset, pInterval->offsetUnit, precision);
     if (start > t) {
       start = taosTimeAdd(start, -pInterval->interval, pInterval->intervalUnit, precision);
+    } else {
+      // try to move current window to the left-hande-side, due to the offset effect.
+      int64_t end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision) - 1;
+      ASSERT(end >= t);
+      end = taosTimeAdd(end, -pInterval->sliding, pInterval->slidingUnit, precision);
+      if (end >= t) {
+        start = taosTimeAdd(start, -pInterval->sliding, pInterval->slidingUnit, precision);
+      }
     }
   }
+
   return start;
 }
 

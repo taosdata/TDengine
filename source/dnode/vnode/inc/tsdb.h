@@ -88,6 +88,15 @@ int    tsdbPrepareCommit(STsdb *pTsdb);
 int    tsdbCommit(STsdb *pTsdb);
 
 /**
+ * @brief When submit msg received, update the relative expired window synchronously.
+ * 
+ * @param pTsdb 
+ * @param msg 
+ * @return int32_t 
+ */
+int32_t tsdbUpdateSmaWindow(STsdb *pTsdb, const char *msg);
+
+/**
  * @brief Insert tSma(Time-range-wise SMA) data from stream computing engine
  *
  * @param pTsdb
@@ -95,11 +104,18 @@ int    tsdbCommit(STsdb *pTsdb);
  * @return int32_t
  */
 int32_t tsdbInsertTSmaData(STsdb *pTsdb, char *msg);
-int32_t tsdbUpdateSmaWindow(STsdb *pTsdb, int8_t smaType, char *msg);
+
+/**
+ * @brief Drop tSma data and local cache.
+ * 
+ * @param pTsdb 
+ * @param indexUid 
+ * @return int32_t 
+ */
 int32_t tsdbDropTSmaData(STsdb *pTsdb, int64_t indexUid);
 
 /**
- * @brief Insert RSma(Time-range-wise Rollup SMA) data.
+ * @brief Insert RSma(Rollup SMA) data.
  *
  * @param pTsdb
  * @param msg
@@ -108,6 +124,20 @@ int32_t tsdbDropTSmaData(STsdb *pTsdb, int64_t indexUid);
 int32_t tsdbInsertRSmaData(STsdb *pTsdb, char *msg);
 
 // TODO: This is the basic params, and should wrap the params to a queryHandle.
+/**
+ * @brief Get tSma(Time-range-wise SMA) data.
+ * 
+ * @param pTsdb 
+ * @param pData 
+ * @param indexUid 
+ * @param interval 
+ * @param intervalUnit 
+ * @param tableUid 
+ * @param colId 
+ * @param querySKey 
+ * @param nMaxResult 
+ * @return int32_t 
+ */
 int32_t tsdbGetTSmaData(STsdb *pTsdb, STSmaDataWrapper *pData, int64_t indexUid, int64_t interval, int8_t intervalUnit,
                         tb_uid_t tableUid, col_id_t colId, TSKEY querySKey, int32_t nMaxResult);
 

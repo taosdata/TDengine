@@ -48,11 +48,6 @@
     } \
   } while (0)
 
-enum {
-  TSDB_USE_SERVER_TS = 0,
-  TSDB_USE_CLI_TS = 1,
-};
-
 typedef struct SInsertParseContext {
   SParseContext* pComCxt;       // input
   char          *pSql;          // input
@@ -264,7 +259,7 @@ static void buildMsgHeader(STableDataBlocks* src, SVgDataBlocks* blocks) {
     while (numOfBlocks--) {
       int32_t dataLen = blk->dataLen;
       blk->uid = htobe64(blk->uid);
-      blk->tid = htonl(blk->tid);
+      blk->suid = htobe64(blk->suid);
       blk->padding = htonl(blk->padding);
       blk->sversion = htonl(blk->sversion);
       blk->dataLen = htonl(blk->dataLen);
@@ -303,20 +298,7 @@ static int32_t checkTimestamp(STableDataBlocks *pDataBlocks, const char *start) 
   }
 
   TSKEY k = *(TSKEY *)start;
-
-  if (k == INT64_MIN) {
-    if (pDataBlocks->tsSource == TSDB_USE_CLI_TS) {
-      return TSDB_CODE_FAILED; // client time/server time can not be mixed
-    }
-    pDataBlocks->tsSource = TSDB_USE_SERVER_TS;
-  } else {
-    if (pDataBlocks->tsSource == TSDB_USE_SERVER_TS) {
-      return TSDB_CODE_FAILED;  // client time/server time can not be mixed
-    }
-    pDataBlocks->tsSource = TSDB_USE_CLI_TS;
-  }
-
-  if (k <= pDataBlocks->prevTS && (pDataBlocks->tsSource == TSDB_USE_CLI_TS)) {
+  if (k <= pDataBlocks->prevTS) {
     pDataBlocks->ordered = false;
   }
 

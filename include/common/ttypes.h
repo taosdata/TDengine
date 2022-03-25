@@ -159,6 +159,7 @@ typedef struct {
   (IS_SIGNED_NUMERIC_TYPE(_t) || (_t) == (TSDB_DATA_TYPE_BOOL) || (_t) == (TSDB_DATA_TYPE_TIMESTAMP))
 #define IS_CONVERT_AS_UNSIGNED(_t) (IS_UNSIGNED_NUMERIC_TYPE(_t) || (_t) == (TSDB_DATA_TYPE_BOOL))
 
+// TODO remove this function
 static FORCE_INLINE bool isNull(const void *val, int32_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:

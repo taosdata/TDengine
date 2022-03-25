@@ -80,6 +80,7 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
     return -1;
   }
 
+  dDebug("snode workers are initialized");
   return 0;
 }
 
@@ -90,6 +91,7 @@ void smStopWorker(SSnodeMgmt *pMgmt) {
   }
   taosArrayDestroy(pMgmt->uniqueWorkers);
   tSingleWorkerCleanup(&pMgmt->sharedWorker);
+  dDebug("snode workers are closed");
 }
 
 static FORCE_INLINE int32_t smGetSWIdFromMsg(SRpcMsg *pMsg) {

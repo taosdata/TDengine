@@ -20,13 +20,15 @@
 #define INTERNAL_CKEY   "_key"
 #define INTERNAL_SECRET "_pwd"
 
-static inline void dndProcessQVnodeRpcMsg(SMsgHandle *pHandle, SRpcMsg *pMsg, SEpSet *pEpSet) {
+static inline void dndProcessQMVnodeRpcMsg(SMsgHandle *pHandle, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SMsgHead *pHead = pMsg->pCont;
   int32_t   vgId = htonl(pHead->vgId);
 
   SMgmtWrapper *pWrapper = pHandle->pWrapper;
-  if (vgId == pHandle->vgId && pHandle->pVgIdWrapper != NULL) {
-    pWrapper = pHandle->pVgIdWrapper;
+  if (vgId == QND_VGID) {
+    pWrapper = pHandle->pQndWrapper;
+  } else if (vgId == MND_VGID) {
+    pWrapper = pHandle->pMndWrapper;
   }
 
   dTrace("msg:%s will be processed by %s, handle:%p app:%p vgId:%d", TMSG_INFO(pMsg->msgType), pWrapper->name,
@@ -46,13 +48,13 @@ static void dndProcessResponse(void *parent, SRpcMsg *pRsp, SEpSet *pEpSet) {
   }
 
   SMsgHandle *pHandle = &pMgmt->msgHandles[TMSG_INDEX(msgType)];
-  if (pHandle->msgFp != NULL) {
-    if (pHandle->vgId == 0) {
+  if (pHandle->pWrapper != NULL) {
+    if (pHandle->pMndWrapper == NULL && pHandle->pQndWrapper == NULL) {
       dTrace("rsp:%s will be processed by %s, handle:%p app:%p code:0x%04x:%s", TMSG_INFO(msgType),
              pHandle->pWrapper->name, pRsp->handle, pRsp->ahandle, pRsp->code & 0XFFFF, tstrerror(pRsp->code));
       dndProcessRpcMsg(pHandle->pWrapper, pRsp, pEpSet);
     } else {
-      dndProcessQVnodeRpcMsg(pHandle, pRsp, pEpSet);
+      dndProcessQMVnodeRpcMsg(pHandle, pRsp, pEpSet);
     }
   } else {
     dError("rsp:%s not processed since no handle, handle:%p app:%p", TMSG_INFO(msgType), pRsp->handle, pRsp->ahandle);
@@ -126,13 +128,13 @@ static void dndProcessRequest(void *param, SRpcMsg *pReq, SEpSet *pEpSet) {
   }
 
   SMsgHandle *pHandle = &pMgmt->msgHandles[TMSG_INDEX(msgType)];
-  if (pHandle->msgFp != NULL) {
-    if (pHandle->vgId == 0) {
+  if (pHandle->pWrapper != NULL) {
+    if (pHandle->pMndWrapper == NULL && pHandle->pQndWrapper == NULL) {
       dTrace("req:%s will be processed by %s, handle:%p app:%p", TMSG_INFO(msgType), pHandle->pWrapper->name,
              pReq->handle, pReq->ahandle);
       dndProcessRpcMsg(pHandle->pWrapper, pReq, pEpSet);
     } else {
-      dndProcessQVnodeRpcMsg(pHandle, pReq, pEpSet);
+      dndProcessQMVnodeRpcMsg(pHandle, pReq, pEpSet);
     }
   } else {
     dError("req:%s not processed since no handle, handle:%p app:%p", TMSG_INFO(msgType), pReq->handle, pReq->ahandle);
@@ -144,9 +146,14 @@ static void dndProcessRequest(void *param, SRpcMsg *pReq, SEpSet *pEpSet) {
 
 static void dndSendMsgToMnodeRecv(SDnode *pDnode, SRpcMsg *pRpcMsg, SRpcMsg *pRpcRsp) {
   STransMgmt *pMgmt = &pDnode->trans;
+  SEpSet      epSet = {0};
 
-  SEpSet epSet = {0};
-  dmGetMnodeEpSet(dndAcquireWrapper(pDnode, DNODE)->pMgmt, &epSet);
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, DNODE);
+  if (pWrapper != NULL) {
+    dmGetMnodeEpSet(pWrapper->pMgmt, &epSet);
+    dndReleaseWrapper(pWrapper);
+  }
+
   rpcSendRecv(pMgmt->clientRpc, &epSet, pRpcMsg, pRpcRsp);
 }
 
@@ -180,9 +187,14 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
     return 0;
   }
 
-  if (mmGetUserAuth(dndAcquireWrapper(pDnode, MNODE), user, spi, encrypt, secret, ckey) == 0) {
-    dTrace("user:%s, get auth from mnode, spi:%d encrypt:%d", user, *spi, *encrypt);
-    return 0;
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, MNODE);
+  if (pWrapper != NULL) {
+    if (mmGetUserAuth(pWrapper, user, spi, encrypt, secret, ckey) == 0) {
+      dndReleaseWrapper(pWrapper);
+      dTrace("user:%s, get auth from mnode, spi:%d encrypt:%d", user, *spi, *encrypt);
+      return 0;
+    }
+    dndReleaseWrapper(pWrapper);
   }
 
   if (terrno != TSDB_CODE_APP_NOT_READY) {
@@ -269,21 +281,27 @@ int32_t dndInitMsgHandle(SDnode *pDnode) {
       int32_t   vgId = pWrapper->msgVgIds[msgIndex];
       if (msgFp == NULL) continue;
 
+      // dTrace("msg:%s will be processed by %s, vgId:%d", tMsgInfo[msgIndex], pWrapper->name, vgId);
+
       SMsgHandle *pHandle = &pMgmt->msgHandles[msgIndex];
-      if (pHandle->msgFp != NULL && pHandle->vgId == vgId) {
-        dError("msg:%s has multiple process nodes, prev node:%s:%d, curr node:%s:%d", tMsgInfo[msgIndex],
-               pHandle->pWrapper->name, pHandle->pWrapper->msgVgIds[msgIndex], pWrapper->name, vgId);
-        return -1;
-      } else {
-        dTrace("msg:%s will be processed by %s, vgId:%d", tMsgInfo[msgIndex], pWrapper->name, vgId);
-        if (vgId == 0) {
-          pHandle->msgFp = msgFp;
-          pHandle->pWrapper = pWrapper;
-        } else {
-          pHandle->vgId = vgId;
-          pHandle->vgIdMsgFp = msgFp;
-          pHandle->pVgIdWrapper = pWrapper;
+      if (vgId == QND_VGID) {
+        if (pHandle->pQndWrapper != NULL) {
+          dError("msg:%s has multiple process nodes", tMsgInfo[msgIndex]);
+          return -1;
         }
+        pHandle->pQndWrapper = pWrapper;
+      } else if (vgId == MND_VGID) {
+        if (pHandle->pMndWrapper != NULL) {
+          dError("msg:%s has multiple process nodes", tMsgInfo[msgIndex]);
+          return -1;
+        }
+        pHandle->pMndWrapper = pWrapper;
+      } else {
+        if (pHandle->pWrapper != NULL) {
+          dError("msg:%s has multiple process nodes", tMsgInfo[msgIndex]);
+          return -1;
+        }
+        pHandle->pWrapper = pWrapper;
       }
     }
   }
@@ -320,7 +338,12 @@ int32_t dndSendReqToMnode(SMgmtWrapper *pWrapper, SRpcMsg *pReq) {
     SDnode     *pDnode = pWrapper->pDnode;
     STransMgmt *pTrans = &pDnode->trans;
     SEpSet      epSet = {0};
-    dmGetMnodeEpSet(dndAcquireWrapper(pDnode, DNODE)->pMgmt, &epSet);
+
+    SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, DNODE);
+    if (pWrapper != NULL) {
+      dmGetMnodeEpSet(pWrapper->pMgmt, &epSet);
+      dndReleaseWrapper(pWrapper);
+    }
     return dndSendRpcReq(pTrans, &epSet, pReq);
   }
 }
@@ -328,7 +351,12 @@ int32_t dndSendReqToMnode(SMgmtWrapper *pWrapper, SRpcMsg *pReq) {
 void dndSendRpcRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
   if (pRsp->code == TSDB_CODE_APP_NOT_READY) {
     SMgmtWrapper *pDnodeWrapper = dndAcquireWrapper(pWrapper->pDnode, DNODE);
-    dmSendRedirectRsp(pDnodeWrapper->pMgmt, pRsp);
+    if (pDnodeWrapper != NULL) {
+      dmSendRedirectRsp(pDnodeWrapper->pMgmt, pRsp);
+      dndReleaseWrapper(pDnodeWrapper);
+    } else {
+      rpcSendResponse(pRsp);
+    }
   } else {
     rpcSendResponse(pRsp);
   }

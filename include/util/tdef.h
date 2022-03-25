@@ -453,6 +453,10 @@ enum {
   SND_WORKER_TYPE__UNIQUE,
 };
 
+#define MND_VGID -1
+#define QND_VGID 1
+#define VND_VGID 0
+
 #ifdef __cplusplus
 }
 #endif

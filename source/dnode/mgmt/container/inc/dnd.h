@@ -19,7 +19,6 @@
 #include "os.h"
 
 #include "cJSON.h"
-#include "monitor.h"
 #include "tcache.h"
 #include "tcrc32c.h"
 #include "tdatablock.h"
@@ -36,8 +35,7 @@
 #include "tworker.h"
 
 #include "dnode.h"
-#include "tfs.h"
-#include "wal.h"
+#include "monitor.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -53,7 +51,6 @@ extern "C" {
 typedef enum { DNODE, VNODES, QNODE, SNODE, MNODE, BNODE, NODE_MAX } ENodeType;
 typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EDndStatus;
 typedef enum { DND_ENV_INIT, DND_ENV_READY, DND_ENV_CLEANUP } EEnvStatus;
-typedef enum { DND_WORKER_SINGLE, DND_WORKER_MULTI } EWorkerType;
 typedef enum { PROC_SINGLE, PROC_CHILD, PROC_PARENT } EProcType;
 
 typedef struct SMgmtFp      SMgmtFp;
@@ -75,10 +72,8 @@ typedef int32_t (*DropNodeFp)(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 typedef int32_t (*RequireNodeFp)(SMgmtWrapper *pWrapper, bool *required);
 
 typedef struct SMsgHandle {
-  int32_t       vgId;
-  NodeMsgFp     vgIdMsgFp;
-  SMgmtWrapper *pVgIdWrapper;  // Handle the case where the same message type is distributed to qnode or vnode
-  NodeMsgFp     msgFp;
+  SMgmtWrapper *pQndWrapper; 
+  SMgmtWrapper *pMndWrapper;
   SMgmtWrapper *pWrapper;
 } SMsgHandle;
 
@@ -129,28 +124,29 @@ typedef struct SDnode {
   bool         dropped;
   EDndStatus   status;
   EDndEvent    event;
-  EProcType    procType;
   SStartupReq  startup;
   TdFilePtr    pLockFile;
   STransMgmt   trans;
   SMgmtWrapper wrappers[NODE_MAX];
 } SDnode;
 
-EDndStatus    dndGetStatus(SDnode *pDnode);
-void          dndSetStatus(SDnode *pDnode, EDndStatus stat);
-SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, ENodeType nodeType);
-void          dndSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp, int32_t vgId);
-void          dndReportStartup(SDnode *pDnode, char *pName, char *pDesc);
-void          dndSendMonitorReport(SDnode *pDnode);
+EDndStatus dndGetStatus(SDnode *pDnode);
+void       dndSetStatus(SDnode *pDnode, EDndStatus stat);
+void       dndSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp, int32_t vgId);
+void       dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
+void       dndSendMonitorReport(SDnode *pDnode);
 
 int32_t dndSendReqToMnode(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 int32_t dndSendReqToDnode(SMgmtWrapper *pWrapper, SEpSet *pEpSet, SRpcMsg *pMsg);
 void    dndSendRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp);
 
 int32_t dndProcessNodeMsg(SDnode *pDnode, SNodeMsg *pMsg);
-
 int32_t dndReadFile(SMgmtWrapper *pWrapper, bool *pDeployed);
 int32_t dndWriteFile(SMgmtWrapper *pWrapper, bool deployed);
+
+SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, ENodeType nodeType);
+int32_t       dndMarkWrapper(SMgmtWrapper *pWrapper);
+void          dndReleaseWrapper(SMgmtWrapper *pWrapper);
 
 #ifdef __cplusplus
 }

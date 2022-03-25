@@ -1480,7 +1480,7 @@ static int32_t jsonToDatum(const SJson* pJson, void* pObj) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY: {
-      pNode->datum.p = calloc(1, pNode->node.resType.bytes);
+      pNode->datum.p = calloc(1, pNode->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       if (NULL == pNode->datum.p) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         break;
@@ -1807,6 +1807,45 @@ static int32_t groupingSetNodeToJson(const void* pObj, SJson* pJson) {
   return code;
 }
 
+static const char* jkIntervalWindowInterval = "Interval";
+static const char* jkIntervalWindowOffset = "Offset";
+static const char* jkIntervalWindowSliding = "Sliding";
+static const char* jkIntervalWindowFill = "Fill";
+
+static int32_t intervalWindowNodeToJson(const void* pObj, SJson* pJson) {
+  const SIntervalWindowNode* pNode = (const SIntervalWindowNode*)pObj;
+
+  int32_t code = tjsonAddObject(pJson, jkIntervalWindowInterval, nodeToJson, pNode->pInterval);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkIntervalWindowOffset, nodeToJson, pNode->pOffset);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkIntervalWindowSliding, nodeToJson, pNode->pSliding);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkIntervalWindowFill, nodeToJson, pNode->pFill);
+  }
+
+  return code;
+}
+
+static int32_t jsonToIntervalWindowNode(const SJson* pJson, void* pObj) {
+  SIntervalWindowNode* pNode = (SIntervalWindowNode*)pObj;
+
+  int32_t code = jsonToNodeObject(pJson, jkIntervalWindowInterval, &pNode->pInterval);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkIntervalWindowOffset, &pNode->pOffset);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkIntervalWindowSliding, &pNode->pSliding);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkIntervalWindowFill, &pNode->pFill);
+  }
+
+  return code;
+}
+
 static const char* jkNodeListDataType = "DataType";
 static const char* jkNodeListNodeList = "NodeList";
 
@@ -2119,8 +2158,9 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_LIMIT:
     case QUERY_NODE_STATE_WINDOW:
     case QUERY_NODE_SESSION_WINDOW:
-    case QUERY_NODE_INTERVAL_WINDOW:
       break;
+    case QUERY_NODE_INTERVAL_WINDOW:
+      return intervalWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_NODE_LIST:
       return nodeListNodeToJson(pObj, pJson);
     case QUERY_NODE_FILL:
@@ -2222,7 +2262,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     // case QUERY_NODE_LIMIT:
     // case QUERY_NODE_STATE_WINDOW:
     // case QUERY_NODE_SESSION_WINDOW:
-    // case QUERY_NODE_INTERVAL_WINDOW:
+    case QUERY_NODE_INTERVAL_WINDOW:
+      return jsonToIntervalWindowNode(pJson, pObj);
     case QUERY_NODE_NODE_LIST:
       return jsonToNodeListNode(pJson, pObj);
     // case QUERY_NODE_FILL:
