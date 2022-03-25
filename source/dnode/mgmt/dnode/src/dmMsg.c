@@ -41,8 +41,12 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
   taosRUnLockLatch(&pMgmt->latch);
 
-  req.pVloads = taosArrayInit(TSDB_MAX_VNODES, sizeof(SVnodeLoad));
-  vmMonitorVnodeLoads(dndAcquireWrapper(pDnode, VNODES), req.pVloads);
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, VNODES);
+  if (pWrapper != NULL) {
+    req.pVloads = taosArrayInit(TSDB_MAX_VNODES, sizeof(SVnodeLoad));
+    vmMonitorVnodeLoads(pWrapper, req.pVloads);
+    dndReleaseWrapper(pWrapper);
+  }
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   void   *pHead = rpcMallocCont(contLen);
