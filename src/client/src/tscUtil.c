@@ -5393,7 +5393,7 @@ char* cloneCurrentDBName(SSqlObj* pSql) {
   return p;
 }
 
-int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId){
+int parseJsontoTagData(char* json, uint32_t jsonLength, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId){
   // set json NULL data
   uint8_t nullTypeVal[CHAR_BYTES + VARSTR_HEADER_SIZE + INT_BYTES] = {0};
   uint32_t jsonNULL = TSDB_DATA_JSON_NULL;
@@ -5404,7 +5404,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
   varDataSetLen(nullTypeVal + CHAR_BYTES, INT_BYTES);
   *(uint32_t*)(varDataVal(nullTypeKey)) = jsonNULL;
   tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, nullTypeKey, false);   // add json null type
-  if (!json || strtrim(json) == 0 || strncasecmp(json, "null", 4) == 0){
+  if (!json || strtrim(json) == 0 || (jsonLength == strlen("null") && strncasecmp(json, "null", 4) == 0)){
     *(uint32_t*)(varDataVal(nullTypeVal + CHAR_BYTES)) = jsonNULL;
     tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, nullTypeVal, true);   // add json null value
     return TSDB_CODE_SUCCESS;
