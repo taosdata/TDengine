@@ -43,18 +43,17 @@ static inline int32_t dndBuildMsg(SNodeMsg *pMsg, SRpcMsg *pRpc) {
 
   memcpy(pMsg->user, connInfo.user, TSDB_USER_LEN);
   memcpy(&pMsg->rpcMsg, pRpc, sizeof(SRpcMsg));
-
   return 0;
 }
 
 void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSet) {
-  if (pEpSet && pEpSet->numOfEps > 0 && pRpc->msgType == TDMT_MND_STATUS_RSP) {
-    dndUpdateMnodeEpSet(pWrapper->pDnode, pEpSet);
-  }
-
   int32_t   code = -1;
   SNodeMsg *pMsg = NULL;
   NodeMsgFp msgFp = NULL;
+
+  if (pEpSet && pEpSet->numOfEps > 0 && pRpc->msgType == TDMT_MND_STATUS_RSP) {
+    dndUpdateMnodeEpSet(pWrapper->pDnode, pEpSet);
+  }
 
   if (dndMarkWrapper(pWrapper) != 0) goto _OVER;
   if ((msgFp = dndGetMsgFp(pWrapper, pRpc)) == NULL) goto _OVER;
@@ -67,6 +66,8 @@ void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSet) {
   } else if (pWrapper->procType == PROC_PARENT) {
     code = taosProcPutToChildQueue(pWrapper->pProc, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen);
   } else {
+    dFatal(" should not be entered in child processes");
+    ASSERT(1);
   }
 
 _OVER:

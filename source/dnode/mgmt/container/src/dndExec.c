@@ -138,7 +138,7 @@ static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t
 static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRsp, int32_t msgLen, void *pCont, int32_t contLen) {
   dTrace("msg:%p, get from parent queue", pRsp);
   pRsp->pCont = pCont;
-  dndSendRpcRsp(pWrapper, pRsp);
+  dndSendRsp(pWrapper, pRsp);
   free(pRsp);
 }
 
