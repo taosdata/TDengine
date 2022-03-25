@@ -1626,8 +1626,9 @@ int32_t schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId) {
   SRpcCtx rpcCtx = {0};
   SSchTrans trans = {0};
   int32_t msgType = TDMT_VND_QUERY_HEARTBEAT;
+
+  req.header.vgId = htonl(nodeEpId->nodeId);
   req.sId = schMgmt.sId;
-  req.header.vgId = nodeEpId->nodeId;
   memcpy(&req.epId, nodeEpId, sizeof(SQueryNodeEpId));
 
   SSchHbTrans *hb = taosHashGet(schMgmt.hbConnections, nodeEpId, sizeof(SQueryNodeEpId));

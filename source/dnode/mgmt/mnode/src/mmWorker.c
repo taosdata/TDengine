@@ -92,8 +92,9 @@ int32_t mmPutMsgToReadQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
 
 int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
   SSingleWorkerCfg cfg = {.minNum = 0, .maxNum = 1, .name = "mnode-read", .fp = (FItem)mmProcessQueue, .param = pMgmt};
+  SSingleWorkerCfg readCfg = {.minNum = 2, .maxNum = 2, .name = "mnode-read", .fp = (FItem)mmProcessQueue, .param = pMgmt};
 
-  if (tSingleWorkerInit(&pMgmt->readWorker, &cfg) != 0) {
+  if (tSingleWorkerInit(&pMgmt->readWorker, &readCfg) != 0) {
     dError("failed to start mnode-read worker since %s", terrstr());
     return -1;
   }
