@@ -1165,8 +1165,7 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
   void        *pKey, *pVal;
   int          ret;
 
-  if (0) {
-    // TODO: no valid data current cursor is pointing to
+  if (pBtc->idx < 0) {
     return -1;
   }
 
