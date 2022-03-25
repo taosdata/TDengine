@@ -1290,3 +1290,38 @@ static int tdbBtcMoveUpward(SBTC *pBtc) {
 
   return 0;
 }
+
+#ifndef NODEBUG
+typedef struct {
+  SPgno pgno;
+  u8    root;
+  u8    leaf;
+  SPgno rChild;
+  int   nCells;
+  int   nOvfl;
+} SBtPageInfo;
+
+SBtPageInfo btPageInfos[20];
+
+void tdbBtPageInfo(SPage *pPage, int idx) {
+  u8           flags;
+  SBtPageInfo *pBtPageInfo;
+
+  pBtPageInfo = btPageInfos + idx;
+
+  pBtPageInfo->pgno = TDB_PAGE_PGNO(pPage);
+
+  flags = TDB_BTREE_PAGE_GET_FLAGS(pPage);
+
+  pBtPageInfo->root = TDB_BTREE_PAGE_IS_ROOT(flags);
+  pBtPageInfo->leaf = TDB_BTREE_PAGE_IS_LEAF(flags);
+
+  pBtPageInfo->rChild = 0;
+  if (!pBtPageInfo->leaf) {
+    pBtPageInfo->rChild = *(SPgno *)(pPage->pData + 1);
+  }
+
+  pBtPageInfo->nCells = TDB_PAGE_TOTAL_CELLS(pPage) - pPage->nOverflow;
+  pBtPageInfo->nOvfl = pPage->nOverflow;
+}
+#endif
