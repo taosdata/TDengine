@@ -269,6 +269,9 @@ static int32_t mndStreamGetPlanString(const char *ast, char **pStr) {
 
 int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast, STrans *pTrans) {
   SNode *pAst = NULL;
+#if 1 // TODO: remove debug info later
+  printf("ast = %s\n", ast); 
+#endif
   if (nodesStringToNode(ast, &pAst) < 0) {
     return -1;
   }
