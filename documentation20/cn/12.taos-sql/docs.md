@@ -807,7 +807,7 @@ Query OK, 1 row(s) in set (0.001091s)
 
    **语法**
 
-   WHERE (tag|tbname) **match/MATCH/nmatch/NMATCH** *regex*
+   WHERE (column|tag|tbname) **match/MATCH/nmatch/NMATCH** *regex*
 
    match/MATCH 匹配正则表达式
 
@@ -848,7 +848,7 @@ Query OK, 1 row(s) in set (0.001091s)
 
    **使用限制**
 
-   只能针对表名（即 tbname 筛选）、binary/nchar类型标签值进行正则表达式过滤，不支持普通列的过滤。
+   只能针对表名 (tbname) 以及binary类型的普通列或标签进行正则表达式过滤。
 
    正则匹配字符串长度不能超过 128 字节。可以通过参数 *maxRegexStringLen* 设置和调整最大允许的正则匹配字符串，该参数是客户端配置参数，需要重启客户端才能生效。
 
