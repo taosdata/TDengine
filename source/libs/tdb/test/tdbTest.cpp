@@ -48,9 +48,28 @@ TEST(tdb_test, simple_test) {
       TDB_FREE(pVal);
     }
 
-    {  // Loop to query the data
-       // STDbC *pDBC;
-       // tdbDBNext(pDBC, p)
+    {  // Iterate to query the DB data
+      STDBC *pDBC;
+      void  *pKey = NULL;
+      void  *pVal = NULL;
+      int    vLen, kLen;
+      int    count = 0;
+
+      ret = tdbDbcOpen(pDb, &pDBC);
+      GTEST_ASSERT_EQ(ret, 0);
+
+      for (;;) {
+        ret = tdbDbNext(pDBC, &pKey, &kLen, &pVal, &vLen);
+        if (ret < 0) break;
+        count++;
+      }
+
+      GTEST_ASSERT_EQ(count, nData);
+
+      tdbDbcClose(pDBC);
+
+      TDB_FREE(pKey);
+      TDB_FREE(pVal);
     }
   }
 

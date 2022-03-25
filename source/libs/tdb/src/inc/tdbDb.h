@@ -21,13 +21,19 @@ extern "C" {
 #endif
 
 typedef struct STDB  STDB;
-typedef struct STDbC STDbC;
+typedef struct STDBC STDBC;
 
+// STDB
 int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, STEnv *pEnv, STDB **ppDb);
 int tdbDbClose(STDB *pDb);
 int tdbDbDrop(STDB *pDb);
 int tdbDbInsert(STDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen);
 int tdbDbGet(STDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen);
+
+// STDBC
+int tdbDbcOpen(STDB *pDb, STDBC **ppTDbc);
+int tdbDbNext(STDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen);
+int tdbDbcClose(STDBC *pDbc);
 
 #ifdef __cplusplus
 }

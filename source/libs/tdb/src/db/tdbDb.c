@@ -91,3 +91,18 @@ int tdbDbInsert(STDB *pDb, const void *pKey, int keyLen, const void *pVal, int v
 int tdbDbGet(STDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen) {
   return tdbBtreeGet(pDb->pBt, pKey, kLen, ppVal, vLen);
 }
+
+int tdbDbcOpen(STDB *pDb, STDBC **ppTDbc) {
+  // TODO
+  return 0;
+}
+
+int tdbDbNext(STDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
+  // TODO
+  return 0;
+}
+
+int tdbDbcClose(STDBC *pDbc) {
+  // TODO
+  return 0;
+}
