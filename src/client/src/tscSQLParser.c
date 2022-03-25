@@ -6955,7 +6955,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       int8_t tagVal = TSDB_DATA_JSON_PLACEHOLDER;
       tdAddColToKVRow(&kvRowBuilder, pTagsSchema->colId, pTagsSchema->type, &tagVal, false);
 
-      code = parseJsontoTagData(pItem->pVar.pz, &kvRowBuilder, pMsg, pTagsSchema->colId);
+      code = parseJsontoTagData(pItem->pVar.pz, pItem->pVar.nLen, &kvRowBuilder, pMsg, pTagsSchema->colId);
       if (code != TSDB_CODE_SUCCESS) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
         return code;
@@ -8767,7 +8767,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
 
-      ret = parseJsontoTagData(pItem->pVar.pz, &kvRowBuilder, tscGetErrorMsgPayload(pCmd), pTagSchema[0].colId);
+      ret = parseJsontoTagData(pItem->pVar.pz, pItem->pVar.nLen, &kvRowBuilder, tscGetErrorMsgPayload(pCmd), pTagSchema[0].colId);
       if (ret != TSDB_CODE_SUCCESS) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
         return ret;
