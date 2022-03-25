@@ -16,7 +16,7 @@ C/C++的 API 类似于 MySQL 的 C API。应用程序使用时，需要包含 TD
 - Linux：`/usr/local/taos/include`
 - Windows：`C:\TDengine\include`
 
-```C
+```c
 #include <taos.h>
 ```
 
@@ -72,7 +72,10 @@ C/C++的 API 类似于 MySQL 的 C API。应用程序使用时，需要包含 TD
 
   返回值为空表示失败。应用程序需要保存返回的参数，以便后续 API 调用。
 
-  **提示:** 同一进程可以根据不同的 host/port 连接多个 taosd 集群
+  :::info
+  同一进程可以根据不同的 host/port 连接多个 taosd 集群
+
+  :::
 
 - `char *taos_get_server_info(TAOS *taos)`
 
@@ -146,7 +149,10 @@ typedef struct taosField {
 
   获取最近一次 API 调用失败的原因，返回值为错误代码。
 
-**注意**：2.0 及以上版本 TDengine 推荐数据库应用的每个线程都建立一个独立的连接，或基于线程建立连接池。而不推荐在应用中将该连接 (TAOS\*) 结构体传递到不同的线程共享使用。基于 TAOS 结构体发出的查询、写入等操作具有多线程安全性，但 “USE statement” 等状态量有可能在线程之间相互干扰。此外，C 语言的连接器可以按照需求动态建立面向数据库的新连接（该过程对用户不可见），同时建议只有在程序最后退出的时候才调用 taos_close 关闭连接。
+:::note
+2.0 及以上版本 TDengine 推荐数据库应用的每个线程都建立一个独立的连接，或基于线程建立连接池。而不推荐在应用中将该连接 (TAOS\*) 结构体传递到不同的线程共享使用。基于 TAOS 结构体发出的查询、写入等操作具有多线程安全性，但 “USE statement” 等状态量有可能在线程之间相互干扰。此外，C 语言的连接器可以按照需求动态建立面向数据库的新连接（该过程对用户不可见），同时建议只有在程序最后退出的时候才调用 taos_close 关闭连接。
+
+:::
 
 ### 异步查询 API
 
@@ -174,7 +180,6 @@ typedef struct taosField {
 
 TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多线程同时打开多张表，并可以同时对每张打开的表进行查询或者插入操作。需要指出的是，**客户端应用必须确保对同一张表的操作完全串行化**，即对同一个表的插入或查询操作未完成时（未返回时），不能够执行第二个插入或查询操作。
 
-<a class="anchor" id="stmt"></a>
 ### 参数绑定 API
 
 除了直接调用 `taos_query` 进行查询，TDengine 也提供了支持参数绑定的 Prepare API，与 MySQL 一样，这些 API 目前也仅支持用问号 `?` 来代表待绑定的参数。文档中有时也会把此功能称为“原生接口写入”。
@@ -269,7 +274,6 @@ typedef struct TAOS_MULTI_BIND {
   （2.1.3.0 版本新增）  
   用于在其他 stmt API 返回错误（返回错误码或空指针）时获取错误信息。
 
-<a class="anchor" id="schemaless"></a>
 ### Schemaless 方式写入接口
 
 除了使用 SQL 方式或者使用参数绑定 API 写入数据外，还可以使用 Schemaless 的方式完成写入。Schemaless 可以免于预先创建超级表/数据子表的数据结构，而是可以直接写入数据，TDengine 系统会根据写入的数据内容自动创建和维护所需要的表结构。Schemaless 的使用方式详见 [Schemaless 写入](https://www.taosdata.com/cn/documentation/insert#schemaless) 章节，这里介绍与之配套使用的 C/C++ API。
@@ -391,13 +395,19 @@ TDengine 提供时间驱动的实时流式计算 API。可以每隔一指定的�
   - param：调用 `taos_subscribe`时客户程序提供的附加参数
   - code：错误码
 
-  **注意**：在这个回调函数里不可以做耗时过长的处理，尤其是对于返回的结果集中数据较多的情况，否则有可能导致客户端阻塞等异常状态。如果必须进行复杂计算，则建议在另外的线程中进行处理。
+  :::note
+  在这个回调函数里不可以做耗时过长的处理，尤其是对于返回的结果集中数据较多的情况，否则有可能导致客户端阻塞等异常状态。如果必须进行复杂计算，则建议在另外的线程中进行处理。
+
+  :::
 
 - `TAOS_RES *taos_consume(TAOS_SUB *tsub)`
 
   同步模式下，该函数用来获取订阅的结果。 用户应用程序将其置于一个循环之中。 如两次调用`taos_consume`的间隔小于订阅的轮询周期，API 将会阻塞，直到时间间隔超过此周期。 如果数据库有新记录到达，该 API 将返回该最新的记录，否则返回一个没有记录的空结果集。 如果返回值为 `NULL`，说明系统出错。 异步模式下，用户程序不应调用此 API。
 
-  **注意**：在调用 `taos_consume()` 之后，用户应用应确保尽快调用 `taos_fetch_row()` 或 `taos_fetch_block()` 来处理订阅结果，否则服务端会持续缓存查询结果数据等待客户端读取，极端情况下会导致服务端内存消耗殆尽，影响服务稳定性。
+  :::note
+  在调用 `taos_consume()` 之后，用户应用应确保尽快调用 `taos_fetch_row()` 或 `taos_fetch_block()` 来处理订阅结果，否则服务端会持续缓存查询结果数据等待客户端读取，极端情况下会导致服务端内存消耗殆尽，影响服务稳定性。
+
+  :::
 
 - `void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress)`
 
