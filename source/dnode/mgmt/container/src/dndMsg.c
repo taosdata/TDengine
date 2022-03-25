@@ -60,20 +60,23 @@ void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSet) {
   if ((pMsg = taosAllocateQitem(sizeof(SNodeMsg))) == NULL) goto _OVER;
   if (dndBuildMsg(pMsg, pRpc) != 0) goto _OVER;
 
-  dTrace("msg:%p, is created, handle:%p app:%p user:%s", pMsg, pRpc->handle, pRpc->ahandle, pMsg->user);
   if (pWrapper->procType == PROC_SINGLE) {
+    dTrace("msg:%p, is created, handle:%p app:%p user:%s", pMsg, pRpc->handle, pRpc->ahandle, pMsg->user);
     code = (*msgFp)(pWrapper->pMgmt, pMsg);
   } else if (pWrapper->procType == PROC_PARENT) {
+    dTrace("msg:%p, is created and will put into child queue, handle:%p app:%p user:%s", pMsg, pRpc->handle,
+           pRpc->ahandle, pMsg->user);
     code = taosProcPutToChildQueue(pWrapper->pProc, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen);
   } else {
-    dFatal(" should not be entered in child processes");
+    dTrace("msg:%p, should not processed in child process, handle:%p app:%p user:%s", pMsg, pRpc->handle, pRpc->ahandle,
+           pMsg->user);
     ASSERT(1);
   }
 
 _OVER:
   if (code == 0) {
     if (pWrapper->procType == PROC_PARENT) {
-      dTrace("msg:%p, is freed", pMsg);
+      dTrace("msg:%p, is freed in parent process", pMsg);
       taosFreeQitem(pMsg);
       rpcFreeCont(pRpc->pCont);
     }
