@@ -131,15 +131,6 @@ int tdbBtreeClose(SBTree *pBt) {
   return 0;
 }
 
-int tdbBtcOpen(SBTC *pCur, SBTree *pBt) {
-  pCur->pBt = pBt;
-  pCur->iPage = -1;
-  pCur->pPage = NULL;
-  pCur->idx = -1;
-
-  return 0;
-}
-
 int tdbBtCursorInsert(SBTC *pCur, const void *pKey, int kLen, const void *pVal, int vLen) {
   int     ret;
   int     idx;
@@ -1073,13 +1064,107 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell) {
 
 #endif
 
+int tdbBtcOpen(SBTC *pCur, SBTree *pBt) {
+  pCur->pBt = pBt;
+  pCur->iPage = -1;
+  pCur->pPage = NULL;
+  pCur->idx = -1;
+
+  return 0;
+}
+
 int tdbBtcMoveToFirst(SBTC *pBtc) {
-  // TODO
+  int     ret;
+  SBTree *pBt;
+  SPager *pPager;
+  u8      flags;
+  SCell  *pCell;
+  SPgno   pgno;
+
+  pBt = pBtc->pBt;
+  pPager = pBt->pPager;
+
+  if (pBtc->iPage < 0) {
+    // move a clean cursor
+    ret = tdbPagerFetchPage(pPager, pBt->root, &(pBtc->pPage), tdbBtreeInitPage, pBt);
+    if (ret < 0) {
+      ASSERT(0);
+      return -1;
+    }
+
+    pBtc->iPage = 0;
+    pBtc->idx = 0;
+  } else {
+    // move from a position
+    ASSERT(0);
+  }
+
+  // move downward
+  for (;;) {
+    flags = TDB_BTREE_PAGE_GET_FLAGS(pBtc->pPage);
+
+    if (TDB_BTREE_PAGE_IS_LEAF(flags)) break;
+
+    pCell = tdbPageGetCell(pBtc->pPage, 0);
+    pgno = *(SPgno *)pCell;
+
+    ret = tdbBtCursorMoveToChild(pBtc, pgno);
+    if (ret < 0) {
+      ASSERT(0);
+      return -1;
+    }
+
+    pBtc->idx = 0;
+  }
+
   return 0;
 }
 
 int tdbBtcMoveToLast(SBTC *pBtc) {
-  // TODO
+  int     ret;
+  SBTree *pBt;
+  SPager *pPager;
+  u8      flags;
+  SPgno   pgno;
+
+  pBt = pBtc->pBt;
+  pPager = pBt->pPager;
+
+  if (pBtc->iPage < 0) {
+    // move a clean cursor
+    ret = tdbPagerFetchPage(pPager, pBt->root, &(pBtc->pPage), tdbBtreeInitPage, pBt);
+    if (ret < 0) {
+      ASSERT(0);
+      return -1;
+    }
+
+    pBtc->iPage = 0;
+  } else {
+    // move from a position
+    ASSERT(0);
+  }
+
+  // move downward
+  for (;;) {
+    flags = TDB_BTREE_PAGE_GET_FLAGS(pBtc->pPage);
+
+    if (TDB_BTREE_PAGE_IS_LEAF(flags)) {
+      // TODO: handle empty case
+      ASSERT(TDB_PAGE_TOTAL_CELLS(pBtc->pPage) > 0);
+      pBtc->idx = TDB_PAGE_TOTAL_CELLS(pBtc->pPage) - 1;
+      break;
+    } else {
+      pBtc->idx = TDB_PAGE_TOTAL_CELLS(pBtc->pPage);
+      pgno = ((SIntHdr *)pBtc->pPage->pData)->pgno;
+
+      ret = tdbBtCursorMoveToChild(pBtc, pgno);
+      if (ret < 0) {
+        ASSERT(0);
+        return -1;
+      }
+    }
+  }
+
   return 0;
 }
 
