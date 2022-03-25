@@ -562,8 +562,7 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
 
     // not enough time range
     if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
-      end = start + pInterval->interval - 1;
-
+      end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision) - 1;
       while (end < t && ((start + pInterval->sliding) <= INT64_MAX)) {  // move forward to the correct time window
         start += pInterval->sliding;
 
