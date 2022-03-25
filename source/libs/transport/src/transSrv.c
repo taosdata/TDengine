@@ -292,7 +292,8 @@ void uvOnSendCb(uv_write_t* req, int status) {
           }
           transQueuePop(&conn->srvMsgs);
           tfree(msg);
-          msg = (SSrvMsg*)transQueuePop(&conn->srvMsgs);
+
+          msg = (SSrvMsg*)transQueueGet(&conn->srvMsgs, 0);
           if (msg != NULL) {
             uvStartSendRespInternal(msg);
           }
