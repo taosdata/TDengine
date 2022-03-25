@@ -3,19 +3,23 @@
 #include "tdbInt.h"
 
 static int tKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
+static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2);
 
 TEST(tdb_test, simple_test) {
-  int    ret;
-  STEnv *pEnv;
-  STDB  *pDb;
-  int    nData = 10000000;
+  int            ret;
+  STEnv         *pEnv;
+  STDB          *pDb;
+  FKeyComparator compFunc;
+  int            nData = 10000000;
+  // int    nData = 8508;
 
   // Open Env
   ret = tdbEnvOpen("tdb", 4096, 256000, &pEnv);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
-  ret = tdbDbOpen("db.db", TDB_VARIANT_LEN, TDB_VARIANT_LEN, tKeyCmpr, pEnv, &pDb);
+  compFunc = tKeyCmpr;
+  ret = tdbDbOpen("db.db", TDB_VARIANT_LEN, TDB_VARIANT_LEN, compFunc, pEnv, &pDb);
   GTEST_ASSERT_EQ(ret, 0);
 
   {
@@ -104,4 +108,24 @@ static int tKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) 
   } else {
     return 0;
   }
+}
+
+static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2) {
+  int mlen;
+  int cret;
+
+  ASSERT(keyLen1 > 0 && keyLen2 > 0 && pKey1 != NULL && pKey2 != NULL);
+
+  mlen = keyLen1 < keyLen2 ? keyLen1 : keyLen2;
+  cret = memcmp(pKey1, pKey2, mlen);
+  if (cret == 0) {
+    if (keyLen1 < keyLen2) {
+      cret = -1;
+    } else if (keyLen1 > keyLen2) {
+      cret = 1;
+    } else {
+      cret = 0;
+    }
+  }
+  return cret;
 }
