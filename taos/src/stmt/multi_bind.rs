@@ -4,6 +4,8 @@ use taos_sys::{TaosDataType, TAOS_MULTI_BIND};
 #[derive(Debug)]
 pub struct MultiBind(TAOS_MULTI_BIND);
 
+unsafe impl Send for MultiBind {}
+unsafe impl Sync for MultiBind {}
 pub(crate) trait TaosTypeOf {
     fn taos_type_of() -> TaosDataType;
 }

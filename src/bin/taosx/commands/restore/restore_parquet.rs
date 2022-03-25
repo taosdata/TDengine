@@ -3,13 +3,16 @@ use glob::glob;
 use parquet::basic::ConvertedType;
 use parquet::column::reader::{ColumnReader, ColumnReaderImpl};
 use parquet::data_type::{
-    BoolType, ByteArray, ByteArrayType, DoubleType, FloatType, Int32Type, Int64Type,
+    BoolType, ByteArray, ByteArrayType, DataType, DoubleType, FloatType, Int32Type, Int64Type,
 };
 use parquet::file::reader::FileReader;
 use parquet::file::serialized_reader::SerializedFileReader;
+use std::array;
+use std::ops::DerefMut;
 use std::path::PathBuf;
 use taos::block::serde::Block;
 use taos::r2d2::TaosPool;
+use tokio::runtime::Builder;
 
 pub fn get_parquet_files<'a>(path: PathBuf) -> Vec<String> {
     let mut file_list = vec![];
@@ -51,22 +54,28 @@ fn read_i32(mut column_reader: ColumnReaderImpl<Int32Type>, num_rows: usize) -> 
             .read_batch(BATCH_SIZE, None, None, &mut values)
             .unwrap();
         count += num;
-        data.extend(values);
+        let (l, _) = values.split_at(num);
+        data.extend(l);
     }
     (data, count)
 }
 
-fn read_f32(mut column_reader: ColumnReaderImpl<FloatType>, num_rows: usize) -> (Vec<f32>, usize) {
+fn read_f32<T>(mut column_reader: ColumnReaderImpl<T>, num_rows: usize) -> (Vec<T::T>, usize)
+where
+    T: DataType,
+    T::T: Default + Copy,
+{
     let mut data = vec![];
     const BATCH_SIZE: usize = 100;
     let mut count = 0;
-    for _ in 0..(num_rows as f64 / BATCH_SIZE as f64).ceil() as i64 {
-        let mut values: [f32; BATCH_SIZE] = [0.0; BATCH_SIZE];
+    let mut values = [T::T::default(); BATCH_SIZE];
+    for _ in 0..(num_rows + BATCH_SIZE - 1) / BATCH_SIZE {
         let (num, _) = column_reader
             .read_batch(BATCH_SIZE, None, None, &mut values)
             .unwrap();
+        // let (l, _) = values.split_at(num);
         count += num;
-        data.extend(values);
+        data.extend(&values[0..num]);
     }
     (data, count)
 }
@@ -80,8 +89,9 @@ fn read_f64(mut column_reader: ColumnReaderImpl<DoubleType>, num_rows: usize) ->
         let (num, _) = column_reader
             .read_batch(BATCH_SIZE, None, None, &mut values)
             .unwrap();
+        let (l, _) = values.split_at(num);
         count += num;
-        data.extend(values);
+        data.extend(l);
     }
     (data, count)
 }
@@ -95,8 +105,9 @@ fn read_i64(mut column_reader: ColumnReaderImpl<Int64Type>, num_rows: usize) -> 
         let (num, _) = column_reader
             .read_batch(BATCH_SIZE, None, None, &mut values)
             .unwrap();
+        let (l, _) = values.split_at(num);
         count += num;
-        data.extend(values);
+        data.extend(l);
     }
     (data, count)
 }
@@ -122,13 +133,14 @@ fn read_str(
     (data, count)
 }
 
-pub async fn restore_parquet(pool: TaosPool, path: PathBuf, filename: String) {
+pub async fn restore_parquet(pool: TaosPool, path: PathBuf, filename: String, database: String) {
+    let taos = pool.get().unwrap();
     let tb = filename.split(".").next().unwrap();
     let parquet_reader =
         SerializedFileReader::try_from(format!("{}/{}.parquet", path.to_str().unwrap(), tb))
             .unwrap();
     let read_schema = parquet_reader.metadata().file_metadata().schema();
-    let mut sql = String::from("insert into ? values(");
+    let mut sql = format!("insert into {} values(", tb);
     let fields = read_schema.get_fields();
     let column_num = fields.len();
     for i in 0..column_num {
@@ -138,6 +150,7 @@ pub async fn restore_parquet(pool: TaosPool, path: PathBuf, filename: String) {
             sql += "?)";
         }
     }
+    dbg!(&sql);
     let mut bind_array = vec![];
     for row_group in 0..parquet_reader.num_row_groups() {
         let row_group_reader = parquet_reader.get_row_group(row_group).unwrap();
@@ -216,7 +229,10 @@ pub async fn restore_parquet(pool: TaosPool, path: PathBuf, filename: String) {
                 ColumnReader::Int64ColumnReader(v) => {
                     let (column, _) = read_i64(v, row_num);
                     values = match fields.get(col_num).unwrap().get_basic_info().logical_type() {
-                        Some(_) => Block::Timestamp(nulls, column),
+                        Some(_) => {
+                            dbg!(&column);
+                            Block::Timestamp(nulls, column)
+                        }
                         None => match fields
                             .get(col_num)
                             .unwrap()
@@ -231,13 +247,14 @@ pub async fn restore_parquet(pool: TaosPool, path: PathBuf, filename: String) {
                             _ => unreachable!(),
                         },
                     };
+                    dbg!(&values);
                     bind_array.push(values.to_multi_bind());
                 }
                 _ => unreachable!(),
             }
         }
     }
-    let taos = pool.get().unwrap();
+    taos.query(format!("use {}", database)).await.unwrap();
     let mut stmt = taos.stmt(sql).unwrap();
     dbg!(&bind_array);
     stmt.multi_bind(&bind_array).unwrap();

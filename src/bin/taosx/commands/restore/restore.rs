@@ -79,6 +79,7 @@ impl App {
                 pool.clone(),
                 path.clone(),
                 file_list[i].clone(),
+                db.clone(),
             )));
         }
         for handle in handles {
