@@ -2208,7 +2208,7 @@ static SqlFunctionCtx* createSqlFunctionCtx_rv(SExprInfo* pExprInfo, int32_t num
   }
 
   for(int32_t i = 1; i < numOfOutput; ++i) {
-    (*rowCellInfoOffset)[i] = (int32_t)((*rowCellInfoOffset)[i - 1] + sizeof(SResultRowEntryInfo) + pFuncCtx[i].resDataInfo.interBufSize);
+    (*rowCellInfoOffset)[i] = (int32_t)((*rowCellInfoOffset)[i - 1] + sizeof(SResultRowEntryInfo) + pFuncCtx[i - 1].resDataInfo.interBufSize);
   }
 
   setCtxTagColumnInfo(pFuncCtx, numOfOutput);
