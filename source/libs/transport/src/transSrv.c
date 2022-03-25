@@ -644,6 +644,7 @@ static void uvDestroyConn(uv_handle_t* handle) {
   // free(conn);
 
   if (thrd->quit && QUEUE_IS_EMPTY(&thrd->conn)) {
+    tTrace("work thread quit");
     uv_loop_close(thrd->loop);
     uv_stop(thrd->loop);
   }
@@ -705,12 +706,12 @@ End:
   return NULL;
 }
 void uvHandleQuit(SSrvMsg* msg, SWorkThrdObj* thrd) {
+  thrd->quit = true;
   if (QUEUE_IS_EMPTY(&thrd->conn)) {
     uv_loop_close(thrd->loop);
     uv_stop(thrd->loop);
   } else {
     destroyAllConn(thrd);
-    thrd->quit = true;
   }
   free(msg);
 }
@@ -773,14 +774,15 @@ void sendQuitToWorkThrd(SWorkThrdObj* pThrd) {
 void transCloseServer(void* arg) {
   // impl later
   SServerObj* srv = arg;
-  for (int i = 0; i < srv->numOfThreads; i++) {
-    sendQuitToWorkThrd(srv->pThreadObj[i]);
-    destroyWorkThrd(srv->pThreadObj[i]);
-  }
 
   tDebug("send quit msg to accept thread");
   uv_async_send(srv->pAcceptAsync);
   taosThreadJoin(srv->thread, NULL);
+
+  for (int i = 0; i < srv->numOfThreads; i++) {
+    sendQuitToWorkThrd(srv->pThreadObj[i]);
+    destroyWorkThrd(srv->pThreadObj[i]);
+  }
 
   free(srv->pThreadObj);
   free(srv->pAcceptAsync);
