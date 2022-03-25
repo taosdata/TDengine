@@ -60,7 +60,7 @@ impl Drop for Taos {
 }
 
 impl Taos {
-    pub(crate) fn new<'a>(
+    pub fn new<'a>(
         ip: impl Into<NullableCStr<'a>>,
         user: impl Into<NullableCStr<'a>>,
         pass: impl Into<NullableCStr<'a>>,
