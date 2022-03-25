@@ -15,13 +15,13 @@
 
 #include "tdbInt.h"
 
-struct STDb {
+struct STDB {
   STEnv  *pEnv;
   SBTree *pBt;
 };
 
-int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, STEnv *pEnv, STDb **ppDb) {
-  STDb   *pDb;
+int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, STEnv *pEnv, STDB **ppDb) {
+  STDB   *pDb;
   SPager *pPager;
   int     ret;
   char    fFullName[TDB_FILENAME_LEN];
@@ -30,7 +30,7 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
 
   *ppDb = NULL;
 
-  pDb = (STDb *)calloc(1, sizeof(*pDb));
+  pDb = (STDB *)calloc(1, sizeof(*pDb));
   if (pDb == NULL) {
     return -1;
   }
@@ -59,17 +59,17 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
   return 0;
 }
 
-int tdbDbClose(STDb *pDb) {
+int tdbDbClose(STDB *pDb) {
   // TODO
   return 0;
 }
 
-int tdbDbDrop(STDb *pDb) {
+int tdbDbDrop(STDB *pDb) {
   // TODO
   return 0;
 }
 
-int tdbDbInsert(STDb *pDb, const void *pKey, int keyLen, const void *pVal, int valLen) {
+int tdbDbInsert(STDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen) {
   SBTC  btc;
   SBTC *pCur;
   int   ret;
@@ -88,6 +88,6 @@ int tdbDbInsert(STDb *pDb, const void *pKey, int keyLen, const void *pVal, int v
   return 0;
 }
 
-int tdbDbGet(STDb *pDb, const void *pKey, int kLen, void **ppVal, int *vLen) {
+int tdbDbGet(STDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen) {
   return tdbBtreeGet(pDb->pBt, pKey, kLen, ppVal, vLen);
 }

@@ -95,7 +95,7 @@ static FORCE_INLINE int tdbCmprPgId(const void *p1, const void *p2) {
 // tdb_log
 #define tdbError(var)
 
-typedef TD_DLIST(STDb) STDbList;
+typedef TD_DLIST(STDB) STDbList;
 typedef TD_DLIST(SPgFile) SPgFileList;
 typedef TD_DLIST_NODE(SPgFile) SPgFileListNode;
 

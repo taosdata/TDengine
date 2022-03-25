@@ -5,7 +5,7 @@
 TEST(tdb_test, simple_test) {
   int    ret;
   STEnv *pEnv;
-  STDb  *pDb;
+  STDB  *pDb;
   int    nData = 10000000;
 
   // Open Env
