@@ -4,11 +4,13 @@
 library('DBI')
 library('rJava')
 library('RJDBC')
+# get jdbc from input parameters
 args<- commandArgs(trailingOnly = TRUE)
+# arg[1] for jdbc path,arg[2] fro jdbc name 
+# like "/src/connector/jdbc/target/taos-jdbcdriver-2.0.37-dist.jar"
 jdbc<- paste(args[1],args[2],sep="/")
-#print(args[1])
-#print(args[2])
-print(jdbc)
+
+
 print("***************************taos-jdbcDriver support RJDBC sample *************************************")
 #JNI
 # Get JBDC-JNI connection
@@ -33,48 +35,52 @@ dbSendUpdate(conn,"create table if not exists test(ts timestamp,i8 tinyint,i16 s
 dbSendUpdate(conn,"insert into test_s01 using test tags(1,'sub_01') values(now,1,2,3,4,'binary1','nchar1')(now+1s,5,6,7,8,'binary2','nchar2')(now+2s,9,0,1,2,'binary3','nchar3')")
 
 # View all tables
+print("==============dbGetQuery==================")
 table1<-dbGetQuery(conn,"select * from test")
-print("================================")
 print(table1)
-print("================================")
-
 
 # Functional support for RJDBC
 
 # List all tables
-dbListTables(conn)
+print("=============dbListTables===================")
+dbListTables(conn,"test%")
 
+print("=============dbListTables===================")
 # Is there table "test"
 dbExistsTable(conn,"test")
 
 # Connect summary information
-#summary(conn)
-#dbGetInfo(conn)
+print("=============summary===================")
+summary(conn)
+print("=============dbGetInfo===================")
+dbGetInfo(conn)
 
  
-# Read all the data from the T1 table
+# Read all the data from the test table
 print("=============dbReadTable===================")
 dbReadTable(conn,"test")
-print("=============dbReadTable===================")
+
 
 # Execute any non-query SQL statements
-dbSendUpdate(conn, "create table t1(ts timestamp,id int,u nchar(40))")
-dbGetTables(conn, "test1")
+dbSendUpdate(conn, "create table if not exists t1(ts timestamp,id int,u nchar(40))")
+dbGetTables(conn, "t")
 sampleData=data.frame(ts=c('2022-03-22 00:00:00.000','2022-03-22 10:00:00.000'),id=c(1,2),u=c('涛思数据','TDengine'))
-dbWriteTable(conn, "test1", sampleData, overwrite=FALSE, append=TRUE)
-dbReadTable(conn,"test1")
+print("=============dbWriteTable===================")
+dbWriteTable(conn, "t1", sampleData, overwrite=FALSE, append=TRUE)
+dbReadTable(conn,"t1")
 
 # Delete table t1
-dbRemoveTable(conn,"test1")
+dbRemoveTable(conn,"t1")
 
 # Extracting data on demand using SQL statements
-print("line 64")
+print("=============dbGetQuery===================")
 dbGetQuery(conn, "select * from test_s01")
-print("line 65")
+
 # Drop database
-# dbSendUpdate(conn,"drop database if exists r_example_db")
+dbSendUpdate(conn,"drop database if exists r_example_db")
 
 # Close the connection
+print("=============dbDisconnect===================")
 dbDisconnect(conn)
 
 print("***************************taos-jdbcDriver support RJDBC sample done*************************************")
