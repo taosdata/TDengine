@@ -2,6 +2,8 @@
 
 #include "tdbInt.h"
 
+static int tKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
+
 TEST(tdb_test, simple_test) {
   int    ret;
   STEnv *pEnv;
@@ -61,6 +63,11 @@ TEST(tdb_test, simple_test) {
       for (;;) {
         ret = tdbDbNext(pDBC, &pKey, &kLen, &pVal, &vLen);
         if (ret < 0) break;
+
+        // std::cout.write((char *)pKey, kLen) /* << " " << kLen */ << " ";
+        // std::cout.write((char *)pVal, vLen) /* << " " << vLen */;
+        // std::cout << std::endl;
+
         count++;
       }
 
@@ -82,4 +89,19 @@ TEST(tdb_test, simple_test) {
   // Close Env
   ret = tdbEnvClose(pEnv);
   GTEST_ASSERT_EQ(ret, 0);
+}
+
+static int tKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
+  int k1, k2;
+
+  k1 = std::strtol((char *)pKey1 + 3, nullptr, kLen1 - 3);
+  k2 = std::strtol((char *)pKey2 + 3, nullptr, kLen2 - 3);
+
+  if (k1 < k2) {
+    return -1;
+  } else if (k1 > k2) {
+    return 1;
+  } else {
+    return 0;
+  }
 }
