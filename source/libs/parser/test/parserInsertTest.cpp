@@ -72,7 +72,7 @@ protected:
       SSubmitBlk* blk = (SSubmitBlk*)(submit + 1);
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         cout << "Block:" << i << endl;
-        cout << "\tuid:" << be64toh(blk->uid) << ", tid:" << ntohl(blk->tid) << ", padding:" << ntohl(blk->padding) << ", sversion:" << ntohl(blk->sversion)
+        cout << "\tuid:" << be64toh(blk->uid) << ", tid:" << be64toh(blk->suid) << ", padding:" << ntohl(blk->padding) << ", sversion:" << ntohl(blk->sversion)
             << ", dataLen:" << ntohl(blk->dataLen) << ", schemaLen:" << ntohl(blk->schemaLen) << ", numOfRows:" << ntohs(blk->numOfRows) << endl;
         blk = (SSubmitBlk*)(blk->data + ntohl(blk->dataLen));
       }

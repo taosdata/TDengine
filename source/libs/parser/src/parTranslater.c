@@ -824,11 +824,30 @@ static int32_t translateGroupBy(STranslateContext* pCxt, SNodeList* pGroupByList
   return translateExprList(pCxt, pGroupByList);
 }
 
+static int32_t translateIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode* pInterval) {
+  SValueNode* pIntervalVal = (SValueNode*)pInterval->pInterval;
+  SValueNode* pIntervalOffset = (SValueNode*)pInterval->pOffset;
+  SValueNode* pSliding = (SValueNode*)pInterval->pSliding;
+  if (pIntervalVal->datum.i <= 0) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTERVAL_VALUE_TOO_SMALL, pIntervalVal->literal);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t doTranslateWindow(STranslateContext* pCxt, SNode* pWindow) {
+  switch (nodeType(pWindow)) {
+    case QUERY_NODE_INTERVAL_WINDOW:
+      return translateIntervalWindow(pCxt, (SIntervalWindowNode*)pWindow);    
+    default:
+      break;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateWindow(STranslateContext* pCxt, SNode* pWindow) {
+  if (NULL == pWindow) {
+    return TSDB_CODE_SUCCESS;
+  }
   pCxt->currClause = SQL_CLAUSE_WINDOW;
   int32_t code = translateExpr(pCxt, pWindow);
   if (TSDB_CODE_SUCCESS == code) {

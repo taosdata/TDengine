@@ -215,7 +215,7 @@ typedef struct {
 // Submit message for one table
 typedef struct SSubmitBlk {
   int64_t uid;        // table unique id
-  int32_t tid;        // table id
+  int64_t suid;        // stable id
   int32_t padding;    // TODO just for padding here
   int32_t sversion;   // data schema version
   int32_t dataLen;    // data part length, not including the SSubmitBlk head
@@ -240,12 +240,12 @@ typedef struct {
 } SSubmitBlkIter;
 
 typedef struct {
-  int32_t totalLen;
-  int32_t len;
-  void*   pMsg;
+  int32_t     totalLen;
+  int32_t     len;
+  const void* pMsg;
 } SSubmitMsgIter;
 
-int32_t tInitSubmitMsgIter(SSubmitReq* pMsg, SSubmitMsgIter* pIter);
+int32_t tInitSubmitMsgIter(const SSubmitReq* pMsg, SSubmitMsgIter* pIter);
 int32_t tGetSubmitMsgNext(SSubmitMsgIter* pIter, SSubmitBlk** pPBlock);
 int32_t tInitSubmitBlkIter(SSubmitBlk* pBlock, SSubmitBlkIter* pIter);
 STSRow* tGetSubmitBlkNext(SSubmitBlkIter* pIter);
@@ -1167,7 +1167,7 @@ typedef struct {
 
 typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];
-  char   outputTbName[TSDB_TABLE_NAME_LEN];
+  char   outputSTbName[TSDB_TABLE_FNAME_LEN];
   int8_t igExists;
   char*  sql;
   char*  ast;
@@ -1975,7 +1975,7 @@ typedef struct {
   int32_t tagsFilterLen;  // strlen + 1
   int32_t sqlLen;         // strlen + 1
   int32_t astLen;         // strlen + 1
-  char*   expr;  
+  char*   expr;
   char*   tagsFilter;
   char*   sql;
   char*   ast;
@@ -1997,9 +1997,9 @@ typedef struct {
   int8_t   version;       // for compatibility(default 0)
   int8_t   intervalUnit;  // MACRO: TIME_UNIT_XXX
   int8_t   slidingUnit;   // MACRO: TIME_UNIT_XXX
-  int8_t   timezoneInt;      // sma data expired if timezone changes.
+  int8_t   timezoneInt;   // sma data expired if timezone changes.
   char     indexName[TSDB_INDEX_NAME_LEN];
-  char     timezone[TD_TIMEZONE_LEN];  
+  char     timezone[TD_TIMEZONE_LEN];
   int32_t  exprLen;
   int32_t  tagsFilterLen;
   int64_t  indexUid;
@@ -2098,6 +2098,11 @@ static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW) {
       tfree(pSW->tSma);
     }
   }
+}
+
+static FORCE_INLINE void tdFreeTSmaWrapper(STSmaWrapper* pSW) {
+  tdDestroyTSmaWrapper(pSW);
+  tfree(pSW);
 }
 
 static FORCE_INLINE int32_t tEncodeTSma(void** buf, const STSma* pSma) {
@@ -2371,6 +2376,26 @@ enum {
   STREAM_NEXT_OP_DST__SND,
 };
 
+enum {
+  STREAM_SOURCE_TYPE__NONE = 1,
+  STREAM_SOURCE_TYPE__SUPER,
+  STREAM_SOURCE_TYPE__CHILD,
+  STREAM_SOURCE_TYPE__NORMAL,
+};
+
+enum {
+  STREAM_SINK_TYPE__NONE = 1,
+  STREAM_SINK_TYPE__INPLACE,
+  STREAM_SINK_TYPE__ASSIGNED,
+  STREAM_SINK_TYPE__MULTIPLE,
+  STREAM_SINK_TYPE__TEMPORARY,
+};
+
+enum {
+  STREAM_TYPE__NORMAL = 1,
+  STREAM_TYPE__SMA,
+};
+
 typedef struct {
   void* inputHandle;
   void* executor;
@@ -2381,28 +2406,33 @@ typedef struct {
   int32_t taskId;
   int32_t level;
   int8_t  status;
-  int8_t  pipeSource;
-  int8_t  pipeSink;
-  int8_t  numOfRunners;
   int8_t  parallelizable;
-  int8_t  nextOpDst;  // vnode or snode
+
+  // vnode or snode
+  int8_t nextOpDst;
+
+  int8_t sourceType;
+  int8_t sinkType;
+
+  // for sink type assigned
+  int32_t sinkVgId;
   SEpSet  NextOpEp;
-  char*   qmsg;
-  // not applied to encoder and decoder
+
+  // executor meta info
+  char* qmsg;
+
+  // followings are not applied to encoder and decoder
+  int8_t        numOfRunners;
   SStreamRunner runner[8];
-  // void*                executor;
-  // void*   stateStore;
-  //  storage handle
 } SStreamTask;
 
-static FORCE_INLINE SStreamTask* streamTaskNew(int64_t streamId, int32_t level) {
+static FORCE_INLINE SStreamTask* streamTaskNew(int64_t streamId) {
   SStreamTask* pTask = (SStreamTask*)calloc(1, sizeof(SStreamTask));
   if (pTask == NULL) {
     return NULL;
   }
   pTask->taskId = tGenIdPI32();
   pTask->streamId = streamId;
-  pTask->level = level;
   pTask->status = STREAM_TASK_STATUS__RUNNING;
   pTask->qmsg = NULL;
   return pTask;
@@ -2435,7 +2465,7 @@ typedef struct {
   int64_t  streamId;
   int64_t  version;
   SArray*  res;  // SArray<SSDataBlock>
-} SStreamSmaSinkReq;
+} SStreamSinkReq;
 
 #pragma pack(pop)
 

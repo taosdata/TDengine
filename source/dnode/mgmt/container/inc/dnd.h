@@ -75,10 +75,8 @@ typedef int32_t (*DropNodeFp)(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 typedef int32_t (*RequireNodeFp)(SMgmtWrapper *pWrapper, bool *required);
 
 typedef struct SMsgHandle {
-  int32_t       vgId;
-  NodeMsgFp     vgIdMsgFp;
-  SMgmtWrapper *pVgIdWrapper;  // Handle the case where the same message type is distributed to qnode or vnode
-  NodeMsgFp     msgFp;
+  SMgmtWrapper *pQndWrapper; 
+  SMgmtWrapper *pMndWrapper;
   SMgmtWrapper *pWrapper;
 } SMsgHandle;
 

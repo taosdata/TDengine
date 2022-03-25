@@ -271,6 +271,30 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
     }
   }
 
+  if (pOld->numOfSmas < pNew->numOfSmas) {
+    void *pSmas = malloc(pNew->numOfSmas * sizeof(SSchema));
+    if (pSmas != NULL) {
+      free(pOld->pSmas);
+      pOld->pSmas = pSmas;
+    } else {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      mTrace("stb:%s, failed to perform update action since %s", pOld->name, terrstr());
+      taosWUnLockLatch(&pOld->lock);
+    }
+  }
+
+  if (pOld->commentLen < pNew->commentLen) {
+    void *comment = malloc(pNew->commentLen);
+    if (comment != NULL) {
+      free(pOld->comment);
+      pOld->comment = comment;
+    } else {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      mTrace("stb:%s, failed to perform update action since %s", pOld->name, terrstr());
+      taosWUnLockLatch(&pOld->lock);
+    }
+  }
+
   pOld->updateTime = pNew->updateTime;
   pOld->version = pNew->version;
   pOld->nextColId = pNew->nextColId;
@@ -278,7 +302,9 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   pOld->numOfTags = pNew->numOfTags;
   memcpy(pOld->pColumns, pNew->pColumns, pOld->numOfColumns * sizeof(SSchema));
   memcpy(pOld->pTags, pNew->pTags, pOld->numOfTags * sizeof(SSchema));
-  memcpy(pOld->comment, pNew->comment, TSDB_STB_COMMENT_LEN);
+  if (pNew->commentLen != 0) {
+    memcpy(pOld->comment, pNew->comment, TSDB_STB_COMMENT_LEN);
+  }
   taosWUnLockLatch(&pOld->lock);
   return 0;
 }

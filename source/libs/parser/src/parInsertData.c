@@ -141,7 +141,6 @@ static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t star
   dataBuf->prevTS   = INT64_MIN;
   dataBuf->rowSize  = rowSize;
   dataBuf->size     = startOffset;
-  dataBuf->tsSource = -1;
   dataBuf->vgId     = dataBuf->pTableMeta->vgId;
 
   assert(defaultSize > 0 && pTableMeta != NULL && dataBuf->pTableMeta != NULL);

@@ -161,15 +161,16 @@ typedef struct {
 struct STQ {
   // the collection of groups
   // the handle of meta kvstore
+  bool          writeTrigger;
   char*         path;
   STqCfg*       tqConfig;
   STqMemRef     tqMemRef;
   STqMetaStore* tqMeta;
-  STqPushMgr*   tqPushMgr;
-  SHashObj*     pStreamTasks;
-  SVnode*       pVnode;
-  SWal*         pWal;
-  SMeta*        pVnodeMeta;
+  // STqPushMgr*   tqPushMgr;
+  SHashObj* pStreamTasks;
+  SVnode*   pVnode;
+  SWal*     pWal;
+  SMeta*    pVnodeMeta;
 };
 
 typedef struct {
