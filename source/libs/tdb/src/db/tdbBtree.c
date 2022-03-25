@@ -131,7 +131,7 @@ int tdbBtreeClose(SBTree *pBt) {
   return 0;
 }
 
-int tdbBtreeCursor(SBTC *pCur, SBTree *pBt) {
+int tdbBtcOpen(SBTC *pCur, SBTree *pBt) {
   pCur->pBt = pBt;
   pCur->iPage = -1;
   pCur->pPage = NULL;
@@ -210,7 +210,7 @@ int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen
   void        *pVal;
   SCellDecoder cd;
 
-  tdbBtreeCursor(&btc, pBt);
+  tdbBtcOpen(&btc, pBt);
 
   tdbBtCursorMoveTo(&btc, pKey, kLen, &cret);
 
@@ -1072,3 +1072,28 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell) {
 }
 
 #endif
+
+int tdbBtcMoveToFirst(SBTC *pBtc) {
+  // TODO
+  return 0;
+}
+
+int tdbBtcMoveToLast(SBTC *pBtc) {
+  // TODO
+  return 0;
+}
+
+int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen) {
+  // TODO
+  return 0;
+}
+
+int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
+  // TODO
+  return 0;
+}
+
+int tdbBtcClose(SBTC *pBtc) {
+  // TODO
+  return 0;
+}

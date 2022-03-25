@@ -31,7 +31,7 @@ int tdbDbInsert(STDB *pDb, const void *pKey, int keyLen, const void *pVal, int v
 int tdbDbGet(STDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen);
 
 // STDBC
-int tdbDbcOpen(STDB *pDb, STDBC **ppTDbc);
+int tdbDbcOpen(STDB *pDb, STDBC **ppDbc);
 int tdbDbNext(STDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen);
 int tdbDbcClose(STDBC *pDbc);
 

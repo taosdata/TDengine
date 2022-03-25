@@ -38,11 +38,19 @@ struct SBTC {
   void   *pBuf;
 };
 
+// SBTree
 int tdbBtreeOpen(int keyLen, int valLen, SPager *pFile, FKeyComparator kcmpr, SBTree **ppBt);
 int tdbBtreeClose(SBTree *pBt);
-int tdbBtreeCursor(SBTC *pCur, SBTree *pBt);
 int tdbBtCursorInsert(SBTC *pCur, const void *pKey, int kLen, const void *pVal, int vLen);
 int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen);
+
+// SBTC
+int tdbBtcOpen(SBTC *pCur, SBTree *pBt);
+int tdbBtcMoveToFirst(SBTC *pBtc);
+int tdbBtcMoveToLast(SBTC *pBtc);
+int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen);
+int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen);
+int tdbBtcClose(SBTC *pBtc);
 
 #ifdef __cplusplus
 }
