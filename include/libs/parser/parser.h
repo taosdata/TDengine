@@ -60,6 +60,8 @@ int32_t qParseQuerySql(SParseContext* pCxt, SQuery** pQuery);
 
 void qDestroyQuery(SQuery* pQueryNode);
 
+int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema);
+
 #ifdef __cplusplus
 }
 #endif
