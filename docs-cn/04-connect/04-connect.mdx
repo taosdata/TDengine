@@ -9,12 +9,16 @@ import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import ConnRest from "./_connect_restful.mdx";
 import ConnJava from "./_connect_java.mdx";
-import ConnPython from "./_connect_python.mdx";
 import ConnGo from "./_connect_go.mdx";
-import ConnC from "./_connect_c.mdx";
 import ConnRust from "./_connect_rust.mdx";
 import ConnNode from "./_connect_node.mdx";
-import ConnCS from "./_connect_cs.mdx";
+import ConnJavaNative from "./_connect_java_native.mdx";
+import ConnPythonNative from "./_connect_python_native.mdx";
+import ConnGoNative from "./_connect_go_native.mdx";
+import ConnRustNative from "./_connect_rust_native.mdx";
+import ConnNodeNative from "./_connect_node_native.mdx";
+import ConnCSNative from "./_connect_cs_native.mdx";
+import ConnC from "./_connect_c.mdx";
 
 ## 连接器介绍
 
@@ -36,7 +40,7 @@ TDengine 提供了 RESTful 接口，应用程序无需安装任何依赖，只�
 
 如果你安装的是 TDengine 2.4 之后的版本，使用 RESTful 方式连接时还需启动 taosAdaper。
 
-<Tabs>
+<Tabs groupId="lang">
   <TabItem label="curl" value="">
     <ConnRest />
   </TabItem>
@@ -49,19 +53,39 @@ TDengine 提供了 RESTful 接口，应用程序无需安装任何依赖，只�
   <TabItem label="Rust" value="rust">
     <ConnRust />
   </TabItem>
-  <TabItem label="NodeJS" value="node"></TabItem>
+  <TabItem label="Node.js" value="node">
+    <ConnNode />
+  </TabItem>
 </Tabs>
 
 ### 本地驱动
 
 在没有安装 TDengine 服务端软件的系统上使用本地驱动连接 TDengine, 需要提前[安装客户端驱动程序](/reference/connector/#安装客户端驱动)。
+:::note
+需要单独安装客户端时，为避免客户端驱动和服务端不兼容，请尽量使用一致的版本。
 
-<Tabs defaultValue="java">
-  <TabItem label="Java" value="java"></TabItem>
-  <TabItem label="Python" value="Python"></TabItem>
-  <TabItem label="Go" value="go"></TabItem>
-  <TabItem label="C" value="c"></TabItem>
-  <TabItem label="Rust" value="rust"></TabItem>
-  <TabItem label="Node.js" value="nodejs"></TabItem>
-  <TabItem label="C#" value="csharp"></TabItem>
+:::
+
+<Tabs groupId="lang" defaultValue="java">
+  <TabItem label="Java" value="java">
+    <ConnJavaNative />
+  </TabItem>
+  <TabItem label="Python" value="Python">
+    <ConnPythonNative />
+  </TabItem>
+  <TabItem label="Go" value="go">
+    <ConnGoNative />
+  </TabItem>
+  <TabItem label="Rust" value="rust">
+    <ConnRustNative />
+  </TabItem>
+  <TabItem label="Node.js" value="node">
+    <ConnNodeNative />
+  </TabItem>
+  <TabItem label="C#" value="csharp">
+    <ConnCSNative />
+  </TabItem>
+  <TabItem label="C" value="c">
+    <ConnC />
+  </TabItem>
 </Tabs>
