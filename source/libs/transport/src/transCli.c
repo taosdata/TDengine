@@ -154,20 +154,20 @@ static void         destroyThrdObj(SCliThrdObj* pThrd);
     }                                                                                    \
   } while (0)
 
-#define CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle)                    \
-  do {                                                               \
-    int i = 0, sz = transQueueSize(&conn->cliMsgs);                  \
-    for (; i < sz; i++) {                                            \
-      pMsg = transQueueGet(&conn->cliMsgs, i);                       \
-      if (pMsg != NULL && (uint64_t)pMsg->ctx->ahandle == ahandle) { \
-        break;                                                       \
-      }                                                              \
-    }                                                                \
-    if (i == sz) {                                                   \
-      pMsg = NULL;                                                   \
-    } else {                                                         \
-      pMsg = transQueueRm(&conn->cliMsgs, i);                        \
-    }                                                                \
+#define CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle)                                         \
+  do {                                                                                    \
+    int i = 0, sz = transQueueSize(&conn->cliMsgs);                                       \
+    for (; i < sz; i++) {                                                                 \
+      pMsg = transQueueGet(&conn->cliMsgs, i);                                            \
+      if (pMsg != NULL && pMsg->ctx != NULL && (uint64_t)pMsg->ctx->ahandle == ahandle) { \
+        break;                                                                            \
+      }                                                                                   \
+    }                                                                                     \
+    if (i == sz) {                                                                        \
+      pMsg = NULL;                                                                        \
+    } else {                                                                              \
+      pMsg = transQueueRm(&conn->cliMsgs, i);                                             \
+    }                                                                                     \
   } while (0)
 #define CONN_GET_NEXT_SENDMSG(conn)                 \
   do {                                              \
