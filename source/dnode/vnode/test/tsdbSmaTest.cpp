@@ -367,15 +367,49 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   pTsdb->pTfs = tfsOpen(&pDisks, numOfDisks);
   ASSERT_NE(pTsdb->pTfs, nullptr);
 
-  char *msg = (char *)calloc(1, 100);
-  ASSERT_NE(msg, nullptr);
-  ASSERT_EQ(tsdbUpdateSmaWindow(pTsdb, msg), 0);
+  // generate SSubmitReq msg and update expired window
+  int16_t  schemaVer = 0;
+  uint32_t mockRowLen = sizeof(STSRow);
+  uint32_t mockRowNum = 2;
+  uint32_t mockBlkNum = 2;
+  uint32_t msgLen = sizeof(SSubmitReq) + mockBlkNum * sizeof(SSubmitBlk) + mockBlkNum * mockRowNum * mockRowLen;
+
+  SSubmitReq *pMsg = (SSubmitReq *)calloc(1, msgLen);
+  ASSERT_NE(pMsg, nullptr);
+  pMsg->version = htobe64(schemaVer);
+  pMsg->numOfBlocks = htonl(mockBlkNum);
+  pMsg->length = htonl(msgLen);
+
+  SSubmitBlk *pBlk = NULL;
+  STSRow     *pRow = NULL;
+  TSKEY       now = taosGetTimestamp(pTsdb->config.precision);
+
+  for (uint32_t b = 0; b < mockBlkNum; ++b) {
+    pBlk = (SSubmitBlk *)POINTER_SHIFT(pMsg, sizeof(SSubmitReq) + b * (sizeof(SSubmitBlk) + mockRowNum * mockRowLen));
+    pBlk->uid = htobe64(tbUid);
+    pBlk->suid = htobe64(tbUid);
+    pBlk->sversion = htonl(schemaVer);
+    pBlk->padding = htonl(0);
+    pBlk->schemaLen = htonl(0);
+    pBlk->numOfRows = htons(mockRowNum);
+    pBlk->dataLen = htonl(mockRowNum * mockRowLen);
+    for (uint32_t r = 0; r < mockRowNum; ++r) {
+      pRow = (STSRow *)POINTER_SHIFT(pBlk, sizeof(SSubmitBlk) + r * mockRowLen);
+      pRow->len = mockRowLen;
+      pRow->ts = now + b * 1000 + r * 1000;
+      pRow->sver = schemaVer;
+    }
+  }
+
+  ASSERT_EQ(tdScanAndConvertSubmitMsg(pMsg), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(tsdbUpdateSmaWindow(pTsdb, (const char *)pMsg), 0);
 
   // init
   int32_t allocCnt = 0;
   int32_t allocStep = 16384;
   int32_t buffer = 1024;
-  void *  buf = NULL;
+  void   *buf = NULL;
   ASSERT_EQ(tsdbMakeRoom(&buf, allocStep), 0);
   int32_t  bufSize = taosTSizeof(buf);
   int32_t  numOfTables = 10;
@@ -421,36 +455,36 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
     pTbData->dataLen = (tableDataLen - sizeof(STSmaTbData));
     len += tableDataLen;
     // printf("bufSize=%d, len=%d, len of table[%d]=%d\n", bufSize, len, t, tableDataLen);
-  }
-  pSmaData->dataLen = (len - sizeof(STSmaDataWrapper));
-
-  ASSERT_GE(bufSize, pSmaData->dataLen);
-
-  // execute
-  ASSERT_EQ(tsdbInsertTSmaData(pTsdb, (char *)pSmaData), TSDB_CODE_SUCCESS);
-
-  // step 3: query
-  uint32_t checkDataCnt = 0;
-  for (int32_t t = 0; t < numOfTables; ++t) {
-    for (col_id_t c = 0; c < numOfCols; ++c) {
-      ASSERT_EQ(tsdbGetTSmaData(pTsdb, NULL, indexUid1, interval1, intervalUnit1, tbUid + t,
-                                c + PRIMARYKEY_TIMESTAMP_COL_ID, skey1, 1),
-                TSDB_CODE_SUCCESS);
-      ++checkDataCnt;
     }
+    pSmaData->dataLen = (len - sizeof(STSmaDataWrapper));
+
+    ASSERT_GE(bufSize, pSmaData->dataLen);
+
+    // execute
+    ASSERT_EQ(tsdbInsertTSmaData(pTsdb, (char *)pSmaData), TSDB_CODE_SUCCESS);
+
+    // step 3: query
+    uint32_t checkDataCnt = 0;
+    for (int32_t t = 0; t < numOfTables; ++t) {
+      for (col_id_t c = 0; c < numOfCols; ++c) {
+        ASSERT_EQ(tsdbGetTSmaData(pTsdb, NULL, indexUid1, interval1, intervalUnit1, tbUid + t,
+                                           c + PRIMARYKEY_TIMESTAMP_COL_ID, skey1, 1),
+                           TSDB_CODE_SUCCESS);
+        ++checkDataCnt;
+      }
+    }
+
+    printf("%s:%d The sma data check count for insert and query is %" PRIu32 "\n", __FILE__, __LINE__, checkDataCnt);
+
+    // release data
+    tfree(pMsg);
+    taosTZfree(buf);
+    // release meta
+    tdDestroyTSma(&tSma);
+    tfsClose(pTsdb->pTfs);
+    tsdbClose(pTsdb);
+    metaClose(pMeta);
   }
-
-  printf("%s:%d The sma data check count for insert and query is %" PRIu32 "\n", __FILE__, __LINE__, checkDataCnt);
-
-  // release data
-  tfree(msg);
-  taosTZfree(buf);
-  // release meta
-  tdDestroyTSma(&tSma);
-  tfsClose(pTsdb->pTfs);
-  tsdbClose(pTsdb);
-  metaClose(pMeta);
-}
 #endif
 
 #pragma GCC diagnostic pop

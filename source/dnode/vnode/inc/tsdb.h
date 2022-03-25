@@ -276,6 +276,8 @@ int32_t tsdbGetTableGroupFromIdList(STsdb *tsdb, SArray *pTableIdList, STableGro
  */
 void tsdbCleanupReadHandle(tsdbReaderT queryHandle);
 
+int32_t tdScanAndConvertSubmitMsg(SSubmitReq *pMsg);
+
 #ifdef __cplusplus
 }
 #endif
