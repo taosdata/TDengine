@@ -528,11 +528,10 @@ void firstFunction(SqlFunctionCtx *pCtx) {
   char* buf = GET_ROWCELL_INTERBUF(pResInfo);
 
   SInputColumnInfoData* pInput = &pCtx->input;
-
   SColumnInfoData* pInputCol = pInput->pData[0];
 
   // All null data column, return directly.
-  if (pInput->pColumnDataAgg[0]->numOfNull == pInput->totalRows) {
+  if (pInput->colDataAggIsSet && (pInput->pColumnDataAgg[0]->numOfNull == pInput->totalRows)) {
     ASSERT(pInputCol->hasNull == true);
     return;
   }

@@ -97,7 +97,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
           SRpcMsg rpcMsg;
           syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
-          if (pSyncNode->pFsm->FpCommitCb != NULL) {
+          if (pSyncNode->pFsm->FpCommitCb != NULL && pEntry->entryType == SYNC_RAFT_ENTRY_DATA) {
             pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0, pSyncNode->state);
           }
 
