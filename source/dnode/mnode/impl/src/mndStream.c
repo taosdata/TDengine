@@ -14,6 +14,7 @@
  */
 
 #include "mndStream.h"
+#include "parser.h"
 #include "mndAuth.h"
 #include "mndDb.h"
 #include "mndDnode.h"
@@ -218,28 +219,6 @@ static int32_t mndCheckCreateStreamReq(SCMCreateStreamReq *pCreate) {
   return 0;
 }
 
-static SArray *mndExtractNamesFromAst(const SNode *pAst) {
-  if (pAst->type != QUERY_NODE_SELECT_STMT) return NULL;
-
-  SArray *names = taosArrayInit(0, sizeof(void *));
-  if (names == NULL) {
-    return NULL;
-  }
-  SSelectStmt *pSelect = (SSelectStmt *)pAst;
-  SNodeList   *pNodes = pSelect->pProjectionList;
-  SListCell   *pCell = pNodes->pHead;
-  while (pCell != NULL) {
-    if (pCell->pNode->type != QUERY_NODE_FUNCTION) {
-      continue;
-    }
-    SFunctionNode *pFunction = (SFunctionNode *)pCell->pNode;
-    char          *name = strdup(pFunction->node.aliasName);
-    taosArrayPush(names, &name);
-    pCell = pCell->pNext;
-  }
-  return names;
-}
-
 static int32_t mndStreamGetPlanString(const char *ast, char **pStr) {
   if (NULL == ast) {
     return TSDB_CODE_SUCCESS;
@@ -276,14 +255,16 @@ int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast
     return -1;
   }
 #if 1
-  SArray *names = mndExtractNamesFromAst(pAst);
+  SSchemaWrapper sw = {0};
+  qExtractResultSchema(pAst, (int32_t*)&sw.nCols, &sw.pSchema);
+
   printf("|");
-  for (int i = 0; i < taosArrayGetSize(names); i++) {
-    printf(" %15s |", (char *)taosArrayGetP(names, i));
+  for (int i = 0; i < sw.nCols; i++) {
+    printf(" %15s |", (char *)sw.pSchema[i].name);
   }
   printf("\n=======================================================\n");
 
-  pStream->ColAlias = names;
+  pStream->ColAlias = NULL;
 #endif
 
   if (TSDB_CODE_SUCCESS != mndStreamGetPlanString(ast, &pStream->physicalPlan)) {
