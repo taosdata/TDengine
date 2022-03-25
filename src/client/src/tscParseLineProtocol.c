@@ -1191,7 +1191,7 @@ static int32_t applyChildTableDataPoints(TAOS* taos, char* cTableName, char* sTa
                                                  SArray* cTablePoints, size_t rowSize, SSmlLinesInfo* info) {
   int32_t code = TSDB_CODE_SUCCESS;
   size_t childTableDataPoints = taosArrayGetSize(cTablePoints);
-  if (childTableDataPoints < 10) {
+  if (childTableDataPoints < 1000) {
     code = applyChildTableDataPointsWithInsertSQL(taos, cTableName, sTableName, sTableSchema, cTablePoints, rowSize, info);
   } else {
     code = applyChildTableDataPointsWithStmt(taos, cTableName, sTableName, sTableSchema, cTablePoints, rowSize, info);
@@ -2758,8 +2758,8 @@ int taos_insert_lines(TAOS* taos, char* lines[], int numLines, SMLProtocolType p
   info->tsType = tsType;
   info->protocol = protocol;
 
-  if (numLines <= 0 || numLines > 65536) {
-    tscError("SML:0x%"PRIx64" taos_insert_lines numLines should be between 1 and 65536. numLines: %d", info->id, numLines);
+  if (numLines <= 0 || numLines > 65536*32) {
+    tscError("SML:0x%"PRIx64" taos_insert_lines numLines should be between 1 and 65536*32. numLines: %d", info->id, numLines);
     tfree(info);
     code = TSDB_CODE_TSC_APP_ERROR;
     return code;
