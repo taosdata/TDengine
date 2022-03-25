@@ -198,7 +198,9 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
           if (ths->pFsm->FpRollBackCb != NULL) {
             SSyncRaftEntry* pRollBackEntry = logStoreGetEntry(ths->pLogStore, index);
             assert(pRollBackEntry != NULL);
-            assert(pRollBackEntry->entryType == SYNC_RAFT_ENTRY_DATA);
+
+            // maybe is a NOOP ENTRY
+            // assert(pRollBackEntry->entryType == SYNC_RAFT_ENTRY_DATA);
 
             SRpcMsg rpcMsg;
             syncEntry2OriginalRpc(pRollBackEntry, &rpcMsg);
