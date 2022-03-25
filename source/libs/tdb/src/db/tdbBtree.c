@@ -77,6 +77,7 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
 static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pDecoder);
 static int tdbBtreeBalance(SBTC *pCur);
 static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell);
+static int tdbBtcMoveToNext(SBTC *pBtc);
 
 int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, SBTree **ppBt) {
   SBTree *pBt;
@@ -1174,7 +1175,67 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen) {
 }
 
 int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
-  // TODO
+  SCell       *pCell;
+  SCellDecoder cd;
+  void        *pKey, *pVal;
+  int          ret;
+
+  if (0) {
+    // TODO: no valid data current cursor is pointing to
+    return -1;
+  }
+
+  pCell = tdbPageGetCell(pBtc->pPage, pBtc->idx);
+
+  tdbBtreeDecodeCell(pBtc->pPage, pCell, &cd);
+
+  pKey = TDB_REALLOC(*ppKey, cd.kLen);
+  if (pKey == NULL) {
+    return -1;
+  }
+
+  // TODO: vLen may be zero
+  pVal = TDB_REALLOC(*ppVal, cd.vLen);
+  if (pVal == NULL) {
+    TDB_FREE(pKey);
+    return -1;
+  }
+
+  *ppKey = pKey;
+  *ppVal = pVal;
+
+  *kLen = cd.kLen;
+  *vLen = cd.vLen;
+
+  memcpy(pKey, cd.pKey, cd.kLen);
+  memcpy(pVal, cd.pVal, cd.vLen);
+
+  ret = tdbBtcMoveToNext(pBtc);
+
+  return 0;
+}
+
+static int tdbBtcMoveToNext(SBTC *pBtc) {
+  pBtc->idx++;
+
+  if (pBtc->idx < 0) return -1;
+
+  if (pBtc->idx < TDB_PAGE_TOTAL_CELLS(pBtc->pPage)) {
+    return 0;
+  }
+
+  // Move upward
+  for (;;) {
+    // TODO: release the page
+
+    /* code */
+  }
+
+  // Move downward
+  for (;;) {
+    /* code */
+  }
+
   return 0;
 }
 
