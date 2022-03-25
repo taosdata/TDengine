@@ -40,6 +40,14 @@
 #include "nodes.h"
 #include "tlog.h"
 
+#define _DEBUG_PRINT_ 0
+
+#if _DEBUG_PRINT_
+#define PRINTF(...) printf(__VA_ARGS__)
+#else
+#define PRINTF(...)
+#endif
+
 namespace {
 
 SColumnInfo createColumnInfo(int32_t colId, int32_t type, int32_t bytes) {
@@ -1599,13 +1607,13 @@ TEST(ScalarFunctionTest, abs_function_constant) {
   type = TSDB_DATA_TYPE_FLOAT;
   scltMakeDataBlock(&pInput, type, &val_float, 1, true);
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
-  printf("float before ABS:%f\n", *(float *)pInput->data);
+  PRINTF("float before ABS:%f\n", *(float *)pInput->data);
 
   code = abs_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((float *)pOutput->data + i), val_float);
-    printf("float after ABS:%f\n", *((float *)pOutput->data + i));
+    PRINTF("float after ABS:%f\n", *((float *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -1613,13 +1621,13 @@ TEST(ScalarFunctionTest, abs_function_constant) {
   val_float = -10.15;
   scltMakeDataBlock(&pInput, type, &val_float, 1, true);
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
-  printf("float before ABS:%f\n", *(float *)pInput->data);
+  PRINTF("float before ABS:%f\n", *(float *)pInput->data);
 
   code = abs_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((float *)pOutput->data + i), -val_float);
-    printf("float after ABS:%f\n", *((float *)pOutput->data + i));
+    PRINTF("float after ABS:%f\n", *((float *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -1665,14 +1673,14 @@ TEST(ScalarFunctionTest, abs_function_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((int8_t *)pInput->data + i) = val_tinyint + i;
-    printf("tiny_int before ABS:%d\n", *((int8_t *)pInput->data + i));
+    PRINTF("tiny_int before ABS:%d\n", *((int8_t *)pInput->data + i));
   }
 
   code = abs_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)pOutput->data + i), val_tinyint + i);
-    printf("tiny_int after ABS:%d\n", *((int8_t *)pOutput->data + i));
+    PRINTF("tiny_int after ABS:%d\n", *((int8_t *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -1682,14 +1690,14 @@ TEST(ScalarFunctionTest, abs_function_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((int8_t *)pInput->data + i) = val_tinyint + i;
-    printf("tiny_int before ABS:%d\n", *((int8_t *)pInput->data + i));
+    PRINTF("tiny_int before ABS:%d\n", *((int8_t *)pInput->data + i));
   }
 
   code = abs_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)pOutput->data + i), -(val_tinyint + i));
-    printf("tiny_int after ABS:%d\n", *((int8_t *)pOutput->data + i));
+    PRINTF("tiny_int after ABS:%d\n", *((int8_t *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -1701,7 +1709,7 @@ TEST(ScalarFunctionTest, abs_function_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((int16_t *)pInput->data + i) = val_smallint + i;
-    printf("small_int before ABS:%d\n", *((int16_t *)pInput->data + i));
+    PRINTF("small_int before ABS:%d\n", *((int16_t *)pInput->data + i));
   }
 
 
@@ -1709,7 +1717,7 @@ TEST(ScalarFunctionTest, abs_function_column) {
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int16_t *)pOutput->data + i), val_smallint + i);
-    printf("small_int after ABS:%d\n", *((int16_t *)pOutput->data + i));
+    PRINTF("small_int after ABS:%d\n", *((int16_t *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -1719,14 +1727,14 @@ TEST(ScalarFunctionTest, abs_function_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((int16_t *)pInput->data + i) = val_smallint + i;
-    printf("small_int before ABS:%d\n", *((int16_t *)pInput->data + i));
+    PRINTF("small_int before ABS:%d\n", *((int16_t *)pInput->data + i));
   }
 
   code = abs_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int16_t *)pOutput->data + i), -(val_smallint + i));
-    printf("small_int after ABS:%d\n", *((int16_t *)pOutput->data + i));
+    PRINTF("small_int after ABS:%d\n", *((int16_t *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -1738,7 +1746,7 @@ TEST(ScalarFunctionTest, abs_function_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((int32_t *)pInput->data + i) = val_int + i;
-    printf("int before ABS:%d\n", *((int32_t *)pInput->data + i));
+    PRINTF("int before ABS:%d\n", *((int32_t *)pInput->data + i));
   }
 
 
@@ -1746,7 +1754,7 @@ TEST(ScalarFunctionTest, abs_function_column) {
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int32_t *)pOutput->data + i), val_int + i);
-    printf("int after ABS:%d\n", *((int32_t *)pOutput->data + i));
+    PRINTF("int after ABS:%d\n", *((int32_t *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -1756,14 +1764,14 @@ TEST(ScalarFunctionTest, abs_function_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((int32_t *)pInput->data + i) = val_int + i;
-    printf("int before ABS:%d\n", *((int32_t *)pInput->data + i));
+    PRINTF("int before ABS:%d\n", *((int32_t *)pInput->data + i));
   }
 
   code = abs_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int32_t *)pOutput->data + i), -(val_int + i));
-    printf("int after ABS:%d\n", *((int32_t *)pOutput->data + i));
+    PRINTF("int after ABS:%d\n", *((int32_t *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -1775,14 +1783,14 @@ TEST(ScalarFunctionTest, abs_function_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((float *)pInput->data + i) = val_float + i;
-    printf("float before ABS:%f\n", *((float *)pInput->data + i));
+    PRINTF("float before ABS:%f\n", *((float *)pInput->data + i));
   }
 
   code = abs_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((float *)pOutput->data + i), val_float + i);
-    printf("float after ABS:%f\n", *((float *)pOutput->data + i));
+    PRINTF("float after ABS:%f\n", *((float *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -1792,14 +1800,14 @@ TEST(ScalarFunctionTest, abs_function_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((float *)pInput->data + i) = val_float + i;
-    printf("float before ABS:%f\n", *((float *)pInput->data + i));
+    PRINTF("float before ABS:%f\n", *((float *)pInput->data + i));
   }
 
   code = abs_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((float *)pOutput->data + i), -(val_float + i));
-    printf("float after ABS:%f\n", *((float *)pOutput->data + i));
+    PRINTF("float after ABS:%f\n", *((float *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -1811,14 +1819,14 @@ TEST(ScalarFunctionTest, abs_function_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((double *)pInput->data + i) = val_double + i;
-    printf("double before ABS:%f\n", *((double *)pInput->data + i));
+    PRINTF("double before ABS:%f\n", *((double *)pInput->data + i));
   }
 
   code = abs_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), val_double + i);
-    printf("double after ABS:%f\n", *((double *)pOutput->data + i));
+    PRINTF("double after ABS:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -1828,14 +1836,14 @@ TEST(ScalarFunctionTest, abs_function_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((double *)pInput->data + i) = val_double + i;
-    printf("double before ABS:%f\n", *((double *)pInput->data + i));
+    PRINTF("double before ABS:%f\n", *((double *)pInput->data + i));
   }
 
   code = abs_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), -(val_double + i));
-    printf("double after ABS:%f\n", *((double *)pOutput->data + i));
+    PRINTF("double after ABS:%f\n", *((double *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(pInput);
@@ -1855,13 +1863,13 @@ TEST(ScalarFunctionTest, sin_function_constant) {
   type = TSDB_DATA_TYPE_TINYINT;
   scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
-  printf("tiny_int before SIN:%d\n", *((int8_t *)pInput->data));
+  PRINTF("tiny_int before SIN:%d\n", *((int8_t *)pInput->data));
 
   code = sin_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result);
-    printf("tiny_int after SIN:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int after SIN:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -1871,13 +1879,13 @@ TEST(ScalarFunctionTest, sin_function_constant) {
   type = TSDB_DATA_TYPE_FLOAT;
   scltMakeDataBlock(&pInput, type, &val_float, 1, true);
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
-  printf("float before SIN:%f\n", *((float *)pInput->data));
+  PRINTF("float before SIN:%f\n", *((float *)pInput->data));
 
   code = sin_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result);
-    printf("float after SIN:%f\n", *((double *)pOutput->data + i));
+    PRINTF("float after SIN:%f\n", *((double *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(pInput);
@@ -1901,14 +1909,14 @@ TEST(ScalarFunctionTest, sin_function_column) {
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((int8_t *)pInput->data + i) = val_tinyint[i];
-    printf("tiny_int before SIN:%d\n", *((int8_t *)pInput->data + i));
+    PRINTF("tiny_int before SIN:%d\n", *((int8_t *)pInput->data + i));
   }
 
   code = sin_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
-    printf("tiny_int after SIN:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int after SIN:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -1920,14 +1928,14 @@ TEST(ScalarFunctionTest, sin_function_column) {
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((float *)pInput->data + i) = val_float[i];
-    printf("float before SIN:%f\n", *((float *)pInput->data + i));
+    PRINTF("float before SIN:%f\n", *((float *)pInput->data + i));
   }
 
   code = sin_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
-    printf("float after SIN:%f\n", *((double *)pOutput->data + i));
+    PRINTF("float after SIN:%f\n", *((double *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(pInput);
@@ -1947,13 +1955,13 @@ TEST(ScalarFunctionTest, cos_function_constant) {
   type = TSDB_DATA_TYPE_TINYINT;
   scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
-  printf("tiny_int before COS:%d\n", *((int8_t *)pInput->data));
+  PRINTF("tiny_int before COS:%d\n", *((int8_t *)pInput->data));
 
   code = cos_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result);
-    printf("tiny_int after COS:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int after COS:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -1963,13 +1971,13 @@ TEST(ScalarFunctionTest, cos_function_constant) {
   type = TSDB_DATA_TYPE_FLOAT;
   scltMakeDataBlock(&pInput, type, &val_float, 1, true);
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
-  printf("float before COS:%f\n", *((float *)pInput->data));
+  PRINTF("float before COS:%f\n", *((float *)pInput->data));
 
   code = cos_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result);
-    printf("float after COS:%f\n", *((double *)pOutput->data + i));
+    PRINTF("float after COS:%f\n", *((double *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(pInput);
@@ -1991,14 +1999,14 @@ TEST(ScalarFunctionTest, cos_function_column) {
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((int8_t *)pInput->data + i) = val_tinyint[i];
-    printf("tiny_int before COS:%d\n", *((int8_t *)pInput->data + i));
+    PRINTF("tiny_int before COS:%d\n", *((int8_t *)pInput->data + i));
   }
 
   code = cos_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
-    printf("tiny_int after COS:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int after COS:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -2010,14 +2018,14 @@ TEST(ScalarFunctionTest, cos_function_column) {
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((float *)pInput->data + i) = val_float[i];
-    printf("float before COS:%f\n", *((float *)pInput->data + i));
+    PRINTF("float before COS:%f\n", *((float *)pInput->data + i));
   }
 
   code = cos_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
-    printf("float after COS:%f\n", *((double *)pOutput->data + i));
+    PRINTF("float after COS:%f\n", *((double *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(pInput);
@@ -2037,13 +2045,13 @@ TEST(ScalarFunctionTest, tan_function_constant) {
   type = TSDB_DATA_TYPE_TINYINT;
   scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
-  printf("tiny_int before TAN:%d\n", *((int8_t *)pInput->data));
+  PRINTF("tiny_int before TAN:%d\n", *((int8_t *)pInput->data));
 
   code = tan_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result);
-    printf("tiny_int after TAN:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int after TAN:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -2053,13 +2061,13 @@ TEST(ScalarFunctionTest, tan_function_constant) {
   type = TSDB_DATA_TYPE_FLOAT;
   scltMakeDataBlock(&pInput, type, &val_float, 1, true);
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
-  printf("float before TAN:%f\n", *((float *)pInput->data));
+  PRINTF("float before TAN:%f\n", *((float *)pInput->data));
 
   code = tan_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result);
-    printf("float after TAN:%f\n", *((double *)pOutput->data + i));
+    PRINTF("float after TAN:%f\n", *((double *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(pInput);
@@ -2081,14 +2089,14 @@ TEST(ScalarFunctionTest, tan_function_column) {
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((int8_t *)pInput->data + i) = val_tinyint[i];
-    printf("tiny_int before TAN:%d\n", *((int8_t *)pInput->data + i));
+    PRINTF("tiny_int before TAN:%d\n", *((int8_t *)pInput->data + i));
   }
 
   code = tan_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
-    printf("tiny_int after TAN:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int after TAN:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -2100,14 +2108,14 @@ TEST(ScalarFunctionTest, tan_function_column) {
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((float *)pInput->data + i) = val_float[i];
-    printf("float before TAN:%f\n", *((float *)pInput->data + i));
+    PRINTF("float before TAN:%f\n", *((float *)pInput->data + i));
   }
 
   code = tan_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
-    printf("float after TAN:%f\n", *((double *)pOutput->data + i));
+    PRINTF("float after TAN:%f\n", *((double *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(pInput);
@@ -2127,13 +2135,13 @@ TEST(ScalarFunctionTest, asin_function_constant) {
   type = TSDB_DATA_TYPE_TINYINT;
   scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
-  printf("tiny_int before ASIN:%d\n", *((int8_t *)pInput->data));
+  PRINTF("tiny_int before ASIN:%d\n", *((int8_t *)pInput->data));
 
   code = asin_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result);
-    printf("tiny_int after ASIN:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int after ASIN:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -2143,13 +2151,13 @@ TEST(ScalarFunctionTest, asin_function_constant) {
   type = TSDB_DATA_TYPE_FLOAT;
   scltMakeDataBlock(&pInput, type, &val_float, 1, true);
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
-  printf("float before ASIN:%f\n", *((float *)pInput->data));
+  PRINTF("float before ASIN:%f\n", *((float *)pInput->data));
 
   code = asin_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result);
-    printf("float after ASIN:%f\n", *((double *)pOutput->data + i));
+    PRINTF("float after ASIN:%f\n", *((double *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(pInput);
@@ -2172,14 +2180,14 @@ TEST(ScalarFunctionTest, asin_function_column) {
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((int8_t *)pInput->data + i) = val_tinyint[i];
-    printf("tiny_int before ASIN:%d\n", *((int8_t *)pInput->data + i));
+    PRINTF("tiny_int before ASIN:%d\n", *((int8_t *)pInput->data + i));
   }
 
   code = asin_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
-    printf("tiny_int after ASIN:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int after ASIN:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -2191,14 +2199,14 @@ TEST(ScalarFunctionTest, asin_function_column) {
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((float *)pInput->data + i) = val_float[i];
-    printf("float before ASIN:%f\n", *((float *)pInput->data + i));
+    PRINTF("float before ASIN:%f\n", *((float *)pInput->data + i));
   }
 
   code = asin_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
-    printf("float after ASIN:%f\n", *((double *)pOutput->data + i));
+    PRINTF("float after ASIN:%f\n", *((double *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(pInput);
@@ -2218,13 +2226,13 @@ TEST(ScalarFunctionTest, acos_function_constant) {
   type = TSDB_DATA_TYPE_TINYINT;
   scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
-  printf("tiny_int before ACOS:%d\n", *((int8_t *)pInput->data));
+  PRINTF("tiny_int before ACOS:%d\n", *((int8_t *)pInput->data));
 
   code = acos_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result);
-    printf("tiny_int after ACOS:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int after ACOS:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -2234,13 +2242,13 @@ TEST(ScalarFunctionTest, acos_function_constant) {
   type = TSDB_DATA_TYPE_FLOAT;
   scltMakeDataBlock(&pInput, type, &val_float, 1, true);
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
-  printf("float before ACOS:%f\n", *((float *)pInput->data));
+  PRINTF("float before ACOS:%f\n", *((float *)pInput->data));
 
   code = acos_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result);
-    printf("float after ACOS:%f\n", *((double *)pOutput->data + i));
+    PRINTF("float after ACOS:%f\n", *((double *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(pInput);
@@ -2262,14 +2270,14 @@ TEST(ScalarFunctionTest, acos_function_column) {
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((int8_t *)pInput->data + i) = val_tinyint[i];
-    printf("tiny_int before ACOS:%d\n", *((int8_t *)pInput->data + i));
+    PRINTF("tiny_int before ACOS:%d\n", *((int8_t *)pInput->data + i));
   }
 
   code = acos_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
-    printf("tiny_int after ACOS:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int after ACOS:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -2281,14 +2289,14 @@ TEST(ScalarFunctionTest, acos_function_column) {
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((float *)pInput->data + i) = val_float[i];
-    printf("float before ACOS:%f\n", *((float *)pInput->data + i));
+    PRINTF("float before ACOS:%f\n", *((float *)pInput->data + i));
   }
 
   code = acos_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
-    printf("float after ACOS:%f\n", *((double *)pOutput->data + i));
+    PRINTF("float after ACOS:%f\n", *((double *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(pInput);
@@ -2308,13 +2316,13 @@ TEST(ScalarFunctionTest, atan_function_constant) {
   type = TSDB_DATA_TYPE_TINYINT;
   scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
-  printf("tiny_int before ATAN:%d\n", *((int8_t *)pInput->data));
+  PRINTF("tiny_int before ATAN:%d\n", *((int8_t *)pInput->data));
 
   code = atan_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result);
-    printf("tiny_int after ATAN:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int after ATAN:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -2324,13 +2332,13 @@ TEST(ScalarFunctionTest, atan_function_constant) {
   type = TSDB_DATA_TYPE_FLOAT;
   scltMakeDataBlock(&pInput, type, &val_float, 1, true);
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
-  printf("float before ATAN:%f\n", *((float *)pInput->data));
+  PRINTF("float before ATAN:%f\n", *((float *)pInput->data));
 
   code = atan_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result);
-    printf("float after ATAN:%f\n", *((double *)pOutput->data + i));
+    PRINTF("float after ATAN:%f\n", *((double *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(pInput);
@@ -2352,14 +2360,14 @@ TEST(ScalarFunctionTest, atan_function_column) {
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((int8_t *)pInput->data + i) = val_tinyint[i];
-    printf("tiny_int before ATAN:%d\n", *((int8_t *)pInput->data + i));
+    PRINTF("tiny_int before ATAN:%d\n", *((int8_t *)pInput->data + i));
   }
 
   code = atan_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
-    printf("tiny_int after ATAN:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int after ATAN:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -2371,14 +2379,14 @@ TEST(ScalarFunctionTest, atan_function_column) {
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((float *)pInput->data + i) = val_float[i];
-    printf("float before ATAN:%f\n", *((float *)pInput->data + i));
+    PRINTF("float before ATAN:%f\n", *((float *)pInput->data + i));
   }
 
   code = atan_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
-    printf("float after ATAN:%f\n", *((double *)pOutput->data + i));
+    PRINTF("float after ATAN:%f\n", *((double *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(pInput);
@@ -2397,13 +2405,13 @@ TEST(ScalarFunctionTest, ceil_function_constant) {
   type = TSDB_DATA_TYPE_TINYINT;
   scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
-  printf("tiny_int before CEIL:%d\n", *((int8_t *)pInput->data));
+  PRINTF("tiny_int before CEIL:%d\n", *((int8_t *)pInput->data));
 
   code = ceil_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)pOutput->data + i), (int8_t)result);
-    printf("tiny_int after CEIL:%d\n", *((int8_t *)pOutput->data + i));
+    PRINTF("tiny_int after CEIL:%d\n", *((int8_t *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -2413,13 +2421,13 @@ TEST(ScalarFunctionTest, ceil_function_constant) {
   type = TSDB_DATA_TYPE_FLOAT;
   scltMakeDataBlock(&pInput, type, &val_float, 1, true);
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
-  printf("float before CEIL:%f\n", *((float *)pInput->data));
+  PRINTF("float before CEIL:%f\n", *((float *)pInput->data));
 
   code = ceil_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((float *)pOutput->data + i), (float)result);
-    printf("float after CEIL:%f\n", *((float *)pOutput->data + i));
+    PRINTF("float after CEIL:%f\n", *((float *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(pInput);
@@ -2440,14 +2448,14 @@ TEST(ScalarFunctionTest, ceil_function_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((int8_t *)pInput->data + i) = val_tinyint[i];
-    printf("tiny_int before CEIL:%d\n", *((int8_t *)pInput->data + i));
+    PRINTF("tiny_int before CEIL:%d\n", *((int8_t *)pInput->data + i));
   }
 
   code = ceil_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)pOutput->data + i), result[i]);
-    printf("tiny_int after CEIL:%d\n", *((int8_t *)pOutput->data + i));
+    PRINTF("tiny_int after CEIL:%d\n", *((int8_t *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -2459,14 +2467,14 @@ TEST(ScalarFunctionTest, ceil_function_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((float *)pInput->data + i) = val_float[i];
-    printf("float before CEIL:%f\n", *((float *)pInput->data + i));
+    PRINTF("float before CEIL:%f\n", *((float *)pInput->data + i));
   }
 
   code = ceil_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((float *)pOutput->data + i), result[i]);
-    printf("float after CEIL:%f\n", *((float *)pOutput->data + i));
+    PRINTF("float after CEIL:%f\n", *((float *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(pInput);
@@ -2485,13 +2493,13 @@ TEST(ScalarFunctionTest, floor_function_constant) {
   type = TSDB_DATA_TYPE_TINYINT;
   scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
-  printf("tiny_int before FLOOR:%d\n", *((int8_t *)pInput->data));
+  PRINTF("tiny_int before FLOOR:%d\n", *((int8_t *)pInput->data));
 
   code = floor_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)pOutput->data + i), (int8_t)result);
-    printf("tiny_int after FLOOR:%d\n", *((int8_t *)pOutput->data + i));
+    PRINTF("tiny_int after FLOOR:%d\n", *((int8_t *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -2501,13 +2509,13 @@ TEST(ScalarFunctionTest, floor_function_constant) {
   type = TSDB_DATA_TYPE_FLOAT;
   scltMakeDataBlock(&pInput, type, &val_float, 1, true);
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
-  printf("float before FLOOR:%f\n", *((float *)pInput->data));
+  PRINTF("float before FLOOR:%f\n", *((float *)pInput->data));
 
   code = floor_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((float *)pOutput->data + i), (float)result);
-    printf("float after FLOOR:%f\n", *((float *)pOutput->data + i));
+    PRINTF("float after FLOOR:%f\n", *((float *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(pInput);
@@ -2528,14 +2536,14 @@ TEST(ScalarFunctionTest, floor_function_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((int8_t *)pInput->data + i) = val_tinyint[i];
-    printf("tiny_int before FLOOR:%d\n", *((int8_t *)pInput->data + i));
+    PRINTF("tiny_int before FLOOR:%d\n", *((int8_t *)pInput->data + i));
   }
 
   code = floor_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)pOutput->data + i), result[i]);
-    printf("tiny_int after FLOOR:%d\n", *((int8_t *)pOutput->data + i));
+    PRINTF("tiny_int after FLOOR:%d\n", *((int8_t *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -2547,14 +2555,14 @@ TEST(ScalarFunctionTest, floor_function_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((float *)pInput->data + i) = val_float[i];
-    printf("float before FLOOR:%f\n", *((float *)pInput->data + i));
+    PRINTF("float before FLOOR:%f\n", *((float *)pInput->data + i));
   }
 
   code = floor_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((float *)pOutput->data + i), result[i]);
-    printf("float after FLOOR:%f\n", *((float *)pOutput->data + i));
+    PRINTF("float after FLOOR:%f\n", *((float *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(pInput);
@@ -2573,13 +2581,13 @@ TEST(ScalarFunctionTest, round_function_constant) {
   type = TSDB_DATA_TYPE_TINYINT;
   scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
-  printf("tiny_int before ROUND:%d\n", *((int8_t *)pInput->data));
+  PRINTF("tiny_int before ROUND:%d\n", *((int8_t *)pInput->data));
 
   code = round_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)pOutput->data + i), (int8_t)result);
-    printf("tiny_int after ROUND:%d\n", *((int8_t *)pOutput->data + i));
+    PRINTF("tiny_int after ROUND:%d\n", *((int8_t *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -2589,13 +2597,13 @@ TEST(ScalarFunctionTest, round_function_constant) {
   type = TSDB_DATA_TYPE_FLOAT;
   scltMakeDataBlock(&pInput, type, &val_float, 1, true);
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
-  printf("float before ROUND:%f\n", *((float *)pInput->data));
+  PRINTF("float before ROUND:%f\n", *((float *)pInput->data));
 
   code = round_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((float *)pOutput->data + i), (float)result);
-    printf("float after ROUND:%f\n", *((float *)pOutput->data + i));
+    PRINTF("float after ROUND:%f\n", *((float *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(pInput);
@@ -2616,14 +2624,14 @@ TEST(ScalarFunctionTest, round_function_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((int8_t *)pInput->data + i) = val_tinyint[i];
-    printf("tiny_int before ROUND:%d\n", *((int8_t *)pInput->data + i));
+    PRINTF("tiny_int before ROUND:%d\n", *((int8_t *)pInput->data + i));
   }
 
   code = round_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)pOutput->data + i), result[i]);
-    printf("tiny_int after ROUND:%d\n", *((int8_t *)pOutput->data + i));
+    PRINTF("tiny_int after ROUND:%d\n", *((int8_t *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -2635,14 +2643,14 @@ TEST(ScalarFunctionTest, round_function_column) {
   scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((float *)pInput->data + i) = val_float[i];
-    printf("float before ROUND:%f\n", *((float *)pInput->data + i));
+    PRINTF("float before ROUND:%f\n", *((float *)pInput->data + i));
   }
 
   code = round_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((float *)pOutput->data + i), result[i]);
-    printf("float after ROUND:%f\n", *((float *)pOutput->data + i));
+    PRINTF("float after ROUND:%f\n", *((float *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(pInput);
@@ -2662,13 +2670,13 @@ TEST(ScalarFunctionTest, sqrt_function_constant) {
   type = TSDB_DATA_TYPE_TINYINT;
   scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
-  printf("tiny_int before SQRT:%d\n", *((int8_t *)pInput->data));
+  PRINTF("tiny_int before SQRT:%d\n", *((int8_t *)pInput->data));
 
   code = sqrt_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result);
-    printf("tiny_int after SQRT:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int after SQRT:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -2678,13 +2686,13 @@ TEST(ScalarFunctionTest, sqrt_function_constant) {
   type = TSDB_DATA_TYPE_FLOAT;
   scltMakeDataBlock(&pInput, type, &val_float, 1, true);
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
-  printf("float before SQRT:%f\n", *((float *)pInput->data));
+  PRINTF("float before SQRT:%f\n", *((float *)pInput->data));
 
   code = sqrt_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result);
-    printf("float after SQRT:%f\n", *((double *)pOutput->data + i));
+    PRINTF("float after SQRT:%f\n", *((double *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(pInput);
@@ -2706,14 +2714,14 @@ TEST(ScalarFunctionTest, sqrt_function_column) {
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((int8_t *)pInput->data + i) = val_tinyint[i];
-    printf("tiny_int before SQRT:%d\n", *((int8_t *)pInput->data + i));
+    PRINTF("tiny_int before SQRT:%d\n", *((int8_t *)pInput->data + i));
   }
 
   code = sqrt_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
-    printf("tiny_int after SQRT:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int after SQRT:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -2725,14 +2733,14 @@ TEST(ScalarFunctionTest, sqrt_function_column) {
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
   for (int32_t i = 0; i < rowNum; ++i) {
     *((float *)pInput->data + i) = val_float[i];
-    printf("float before SQRT:%f\n", *((float *)pInput->data + i));
+    PRINTF("float before SQRT:%f\n", *((float *)pInput->data + i));
   }
 
   code = sqrt_function(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
-    printf("float after SQRT:%f\n", *((double *)pOutput->data + i));
+    PRINTF("float after SQRT:%f\n", *((double *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(pInput);
@@ -2757,14 +2765,14 @@ TEST(ScalarFunctionTest, log_function_constant) {
     pInput[i] = *input[i];
   }
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
-  printf("tiny_int before LOG: %d,%d\n", *((int8_t *)pInput[0].data),
+  PRINTF("tiny_int before LOG: %d,%d\n", *((int8_t *)pInput[0].data),
                                          *((int8_t *)pInput[1].data));
 
   code = log_function(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result);
-    printf("tiny_int after LOG:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int after LOG:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(input[0]);
   scltDestroyDataBlock(input[1]);
@@ -2778,14 +2786,14 @@ TEST(ScalarFunctionTest, log_function_constant) {
     pInput[i] = *input[i];
   }
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
-  printf("float before LOG: %f,%f\n", *((float *)pInput[0].data),
+  PRINTF("float before LOG: %f,%f\n", *((float *)pInput[0].data),
                                       *((float *)pInput[1].data));
 
   code = log_function(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result);
-    printf("float after LOG:%f\n", *((double *)pOutput->data + i));
+    PRINTF("float after LOG:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(input[0]);
   scltDestroyDataBlock(input[1]);
@@ -2800,13 +2808,13 @@ TEST(ScalarFunctionTest, log_function_constant) {
   pInput[1] = *input[1];
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
 
-  printf("tiny_int,float before LOG: %d,%f\n", *((int8_t *)pInput[0].data), *((float *)pInput[1].data));
+  PRINTF("tiny_int,float before LOG: %d,%f\n", *((int8_t *)pInput[0].data), *((float *)pInput[1].data));
 
   code = log_function(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result);
-    printf("tiny_int,float after LOG:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int,float after LOG:%f\n", *((double *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(input[0]);
@@ -2834,7 +2842,7 @@ TEST(ScalarFunctionTest, log_function_column) {
     for (int32_t j = 0; j < rowNum; ++j) {
       *((int8_t *)pInput[i].data + j) = val_tinyint[i][j];
     }
-    printf("tiny_int before LOG:%d,%d,%d\n", *((int8_t *)pInput[i].data + 0),
+    PRINTF("tiny_int before LOG:%d,%d,%d\n", *((int8_t *)pInput[i].data + 0),
                                              *((int8_t *)pInput[i].data + 1),
                                              *((int8_t *)pInput[i].data + 2));
   }
@@ -2844,7 +2852,7 @@ TEST(ScalarFunctionTest, log_function_column) {
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
-    printf("tiny_int after LOG:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int after LOG:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(input[0]);
   scltDestroyDataBlock(input[1]);
@@ -2859,7 +2867,7 @@ TEST(ScalarFunctionTest, log_function_column) {
     for (int32_t j = 0; j < rowNum; ++j) {
       *((float *)pInput[i].data + j) = val_float[i][j];
     }
-    printf("float before LOG:%f,%f,%f\n", *((float *)pInput[i].data + 0),
+    PRINTF("float before LOG:%f,%f,%f\n", *((float *)pInput[i].data + 0),
                                           *((float *)pInput[i].data + 1),
                                           *((float *)pInput[i].data + 2));
   }
@@ -2869,7 +2877,7 @@ TEST(ScalarFunctionTest, log_function_column) {
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
-    printf("float after LOG:%f\n", *((double *)pOutput->data + i));
+    PRINTF("float after LOG:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(input[0]);
   scltDestroyDataBlock(input[1]);
@@ -2888,7 +2896,7 @@ TEST(ScalarFunctionTest, log_function_column) {
   for (int32_t i = 0; i < rowNum; ++i) {
     *((float *)pInput[1].data + i) = param1[i];
   }
-  printf("tiny_int, float before LOG:{%d,%f}, {%d,%f}, {%d,%f}\n", *((int8_t *)pInput[0].data + 0), *((float *)pInput[1].data + 0),
+  PRINTF("tiny_int, float before LOG:{%d,%f}, {%d,%f}, {%d,%f}\n", *((int8_t *)pInput[0].data + 0), *((float *)pInput[1].data + 0),
                                                                    *((int8_t *)pInput[0].data + 1), *((float *)pInput[1].data + 1),
                                                                    *((int8_t *)pInput[0].data + 2), *((float *)pInput[1].data + 2));
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
@@ -2897,7 +2905,7 @@ TEST(ScalarFunctionTest, log_function_column) {
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
-    printf("tiny_int,float after LOG:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int,float after LOG:%f\n", *((double *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(input[0]);
@@ -2924,14 +2932,14 @@ TEST(ScalarFunctionTest, pow_function_constant) {
     pInput[i] = *input[i];
   }
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
-  printf("tiny_int before POW: %d,%d\n", *((int8_t *)pInput[0].data),
+  PRINTF("tiny_int before POW: %d,%d\n", *((int8_t *)pInput[0].data),
                                          *((int8_t *)pInput[1].data));
 
   code = pow_function(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result);
-    printf("tiny_int after POW:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int after POW:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(input[0]);
   scltDestroyDataBlock(input[1]);
@@ -2945,14 +2953,14 @@ TEST(ScalarFunctionTest, pow_function_constant) {
     pInput[i] = *input[i];
   }
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
-  printf("float before POW: %f,%f\n", *((float *)pInput[0].data),
+  PRINTF("float before POW: %f,%f\n", *((float *)pInput[0].data),
                                       *((float *)pInput[1].data));
 
   code = pow_function(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result);
-    printf("float after POW:%f\n", *((double *)pOutput->data + i));
+    PRINTF("float after POW:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(input[0]);
   scltDestroyDataBlock(input[1]);
@@ -2967,13 +2975,13 @@ TEST(ScalarFunctionTest, pow_function_constant) {
   pInput[1] = *input[1];
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
 
-  printf("tiny_int,float before POW: %d,%f\n", *((int8_t *)pInput[0].data), *((float *)pInput[1].data));
+  PRINTF("tiny_int,float before POW: %d,%f\n", *((int8_t *)pInput[0].data), *((float *)pInput[1].data));
 
   code = pow_function(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result);
-    printf("tiny_int,float after POW:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int,float after POW:%f\n", *((double *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(input[0]);
@@ -3001,7 +3009,7 @@ TEST(ScalarFunctionTest, pow_function_column) {
     for (int32_t j = 0; j < rowNum; ++j) {
       *((int8_t *)pInput[i].data + j) = val_tinyint[i][j];
     }
-    printf("tiny_int before POW:%d,%d,%d\n", *((int8_t *)pInput[i].data + 0),
+    PRINTF("tiny_int before POW:%d,%d,%d\n", *((int8_t *)pInput[i].data + 0),
                                              *((int8_t *)pInput[i].data + 1),
                                              *((int8_t *)pInput[i].data + 2));
   }
@@ -3011,7 +3019,7 @@ TEST(ScalarFunctionTest, pow_function_column) {
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
-    printf("tiny_int after POW:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int after POW:%f\n", *((double *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(input[0]);
@@ -3027,7 +3035,7 @@ TEST(ScalarFunctionTest, pow_function_column) {
     for (int32_t j = 0; j < rowNum; ++j) {
       *((float *)pInput[i].data + j) = val_float[i][j];
     }
-    printf("float before POW:%f,%f,%f\n", *((float *)pInput[i].data + 0),
+    PRINTF("float before POW:%f,%f,%f\n", *((float *)pInput[i].data + 0),
                                           *((float *)pInput[i].data + 1),
                                           *((float *)pInput[i].data + 2));
   }
@@ -3037,7 +3045,7 @@ TEST(ScalarFunctionTest, pow_function_column) {
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
-    printf("float after POW:%f\n", *((double *)pOutput->data + i));
+    PRINTF("float after POW:%f\n", *((double *)pOutput->data + i));
   }
   scltDestroyDataBlock(input[0]);
   scltDestroyDataBlock(input[1]);
@@ -3056,7 +3064,7 @@ TEST(ScalarFunctionTest, pow_function_column) {
   for (int32_t i = 0; i < rowNum; ++i) {
     *((float *)pInput[1].data + i) = param1[i];
   }
-  printf("tiny_int, float before POW:{%d,%f}, {%d,%f}, {%d,%f}\n", *((int8_t *)pInput[0].data + 0), *((float *)pInput[1].data + 0),
+  PRINTF("tiny_int, float before POW:{%d,%f}, {%d,%f}, {%d,%f}\n", *((int8_t *)pInput[0].data + 0), *((float *)pInput[1].data + 0),
                                                                    *((int8_t *)pInput[0].data + 1), *((float *)pInput[1].data + 1),
                                                                    *((int8_t *)pInput[0].data + 2), *((float *)pInput[1].data + 2));
   scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
@@ -3065,7 +3073,7 @@ TEST(ScalarFunctionTest, pow_function_column) {
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
-    printf("tiny_int,float after POW:%f\n", *((double *)pOutput->data + i));
+    PRINTF("tiny_int,float after POW:%f\n", *((double *)pOutput->data + i));
   }
 
   scltDestroyDataBlock(input[0]);
