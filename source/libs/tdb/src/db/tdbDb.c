@@ -30,7 +30,7 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
 
   *ppDb = NULL;
 
-  pDb = (STDb *)calloc(1, sizeof(*pDb));
+  pDb = (STDb *)taosMemoryCalloc(1, sizeof(*pDb));
   if (pDb == NULL) {
     return -1;
   }

@@ -30,7 +30,7 @@ static void   taosTMemset(void *ptr, int c);
 static FORCE_INLINE void *taosTMalloc(size_t size) {
   if (size <= 0) return NULL;
 
-  void *ret = malloc(size + sizeof(size_t));
+  void *ret = taosMemoryMalloc(size + sizeof(size_t));
   if (ret == NULL) return NULL;
 
   *(size_t *)ret = size;
@@ -58,7 +58,7 @@ static FORCE_INLINE void * taosTRealloc(void *ptr, size_t size) {
 
   void * tptr = (void *)((char *)ptr - sizeof(size_t));
   size_t tsize = size + sizeof(size_t);
-  void* tptr1 = realloc(tptr, tsize);
+  void* tptr1 = taosMemoryRealloc(tptr, tsize);
   if (tptr1 == NULL) return NULL;
   tptr = tptr1;
 
@@ -69,7 +69,7 @@ static FORCE_INLINE void * taosTRealloc(void *ptr, size_t size) {
 
 static FORCE_INLINE void* taosTZfree(void* ptr) {
   if (ptr) {
-    free((void*)((char*)ptr - sizeof(size_t)));
+    taosMemoryFree((void*)((char*)ptr - sizeof(size_t)));
   }
   return NULL;
 }

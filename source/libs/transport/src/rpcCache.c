@@ -60,21 +60,21 @@ void *rpcOpenConnCache(int maxSessions, void (*cleanFp)(void *), void *tmrCtrl, 
   connHashMemPool = taosMemPoolInit(maxSessions, sizeof(SConnHash));
   if (connHashMemPool == 0) return NULL;
 
-  connHashList = calloc(sizeof(SConnHash *), maxSessions);
+  connHashList = taosMemoryCalloc(sizeof(SConnHash *), maxSessions);
   if (connHashList == 0) {
     taosMemPoolCleanUp(connHashMemPool);
     return NULL;
   }
 
-  pCache = malloc(sizeof(SConnCache));
+  pCache = taosMemoryMalloc(sizeof(SConnCache));
   if (pCache == NULL) {
     taosMemPoolCleanUp(connHashMemPool);
-    free(connHashList);
+    taosMemoryFree(connHashList);
     return NULL;
   }
   memset(pCache, 0, sizeof(SConnCache));
 
-  pCache->count = calloc(sizeof(int), maxSessions);
+  pCache->count = taosMemoryCalloc(sizeof(int), maxSessions);
   pCache->total = 0;
   pCache->keepTimer = keepTimer;
   pCache->maxSessions = maxSessions;
@@ -82,7 +82,7 @@ void *rpcOpenConnCache(int maxSessions, void (*cleanFp)(void *), void *tmrCtrl, 
   pCache->connHashList = connHashList;
   pCache->cleanFp = cleanFp;
   pCache->tmrCtrl = tmrCtrl;
-  pCache->lockedBy = calloc(sizeof(int64_t), maxSessions);
+  pCache->lockedBy = taosMemoryCalloc(sizeof(int64_t), maxSessions);
   taosTmrReset(rpcCleanConnCache, (int32_t)(pCache->keepTimer * 2), pCache, pCache->tmrCtrl, &pCache->pTimer);
 
   taosThreadMutexInit(&pCache->mutex, NULL);
@@ -102,16 +102,16 @@ void rpcCloseConnCache(void *handle) {
 
   if (pCache->connHashMemPool) taosMemPoolCleanUp(pCache->connHashMemPool);
 
-  tfree(pCache->connHashList);
-  tfree(pCache->count);
-  tfree(pCache->lockedBy);
+  taosMemoryFreeClear(pCache->connHashList);
+  taosMemoryFreeClear(pCache->count);
+  taosMemoryFreeClear(pCache->lockedBy);
 
   taosThreadMutexUnlock(&pCache->mutex);
 
   taosThreadMutexDestroy(&pCache->mutex);
 
   memset(pCache, 0, sizeof(SConnCache));
-  free(pCache);
+  taosMemoryFree(pCache);
 }
 
 void rpcAddConnIntoCache(void *handle, void *data, char *fqdn, uint16_t port, int8_t connType) {

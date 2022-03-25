@@ -42,20 +42,20 @@ static void *taosProcessSchedQueue(void *param);
 static void  taosDumpSchedulerStatus(void *qhandle, void *tmrId);
 
 void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *label) {
-  SSchedQueue *pSched = (SSchedQueue *)calloc(sizeof(SSchedQueue), 1);
+  SSchedQueue *pSched = (SSchedQueue *)taosMemoryCalloc(sizeof(SSchedQueue), 1);
   if (pSched == NULL) {
     uError("%s: no enough memory for pSched", label);
     return NULL;
   }
 
-  pSched->queue = (SSchedMsg *)calloc(sizeof(SSchedMsg), queueSize);
+  pSched->queue = (SSchedMsg *)taosMemoryCalloc(sizeof(SSchedMsg), queueSize);
   if (pSched->queue == NULL) {
     uError("%s: no enough memory for queue", label);
     taosCleanUpScheduler(pSched);
     return NULL;
   }
 
-  pSched->qthread = calloc(sizeof(TdThread), numOfThreads);
+  pSched->qthread = taosMemoryCalloc(sizeof(TdThread), numOfThreads);
   if (pSched->qthread == NULL) {
     uError("%s: no enough memory for qthread", label);
     taosCleanUpScheduler(pSched);
@@ -220,9 +220,9 @@ void taosCleanUpScheduler(void *param) {
     taosTmrStopA(&pSched->pTimer);
   }
 
-  if (pSched->queue) free(pSched->queue);
-  if (pSched->qthread) free(pSched->qthread);
-  free(pSched);  // fix memory leak
+  if (pSched->queue) taosMemoryFree(pSched->queue);
+  if (pSched->qthread) taosMemoryFree(pSched->qthread);
+  taosMemoryFree(pSched);  // fix memory leak
 }
 
 // for debug purpose, dump the scheduler status every 1min.

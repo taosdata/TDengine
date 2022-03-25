@@ -17,7 +17,7 @@
 #include "tfsInt.h"
 
 STfsDisk *tfsNewDisk(int32_t level, int32_t id, const char *path) {
-  STfsDisk *pDisk = calloc(1, sizeof(STfsDisk));
+  STfsDisk *pDisk = taosMemoryCalloc(1, sizeof(STfsDisk));
   if (pDisk == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -25,7 +25,7 @@ STfsDisk *tfsNewDisk(int32_t level, int32_t id, const char *path) {
 
   pDisk->path = strdup(path);
   if (pDisk->path == NULL) {
-    free(pDisk);
+    taosMemoryFree(pDisk);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
@@ -38,8 +38,8 @@ STfsDisk *tfsNewDisk(int32_t level, int32_t id, const char *path) {
 
 STfsDisk *tfsFreeDisk(STfsDisk *pDisk) {
   if (pDisk != NULL) {
-    free(pDisk->path);
-    free(pDisk);
+    taosMemoryFree(pDisk->path);
+    taosMemoryFree(pDisk);
   }
 
   return NULL;

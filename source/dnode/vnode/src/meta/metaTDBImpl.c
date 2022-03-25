@@ -47,7 +47,7 @@ int metaOpenDB(SMeta *pMeta) {
   TDB *    pCtbIdx;
   int      ret;
 
-  pDb = (SMetaDB *)calloc(1, sizeof(*pDb));
+  pDb = (SMetaDB *)taosMemoryCalloc(1, sizeof(*pDb));
   if (pDb == NULL) {
     return -1;
   }

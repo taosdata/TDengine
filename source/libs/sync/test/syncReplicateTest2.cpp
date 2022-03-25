@@ -53,7 +53,7 @@ void RollBackCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SyncIndex index, boo
 }
 
 void initFsm() {
-  pFsm = (SSyncFSM *)malloc(sizeof(SSyncFSM));
+  pFsm = (SSyncFSM *)taosMemoryMalloc(sizeof(SSyncFSM));
   pFsm->FpCommitCb = CommitCb;
   pFsm->FpPreCommitCb = PreCommitCb;
   pFsm->FpRollBackCb = RollBackCb;
@@ -126,16 +126,16 @@ void initRaftId(SSyncNode *pSyncNode) {
     ids[i] = pSyncNode->replicasId[i];
     char *s = syncUtilRaftId2Str(&ids[i]);
     printf("raftId[%d] : %s\n", i, s);
-    free(s);
+    taosMemoryFree(s);
   }
 }
 
 SRpcMsg *step0(int i) {
-  SRpcMsg *pMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg));
+  SRpcMsg *pMsg = (SRpcMsg *)taosMemoryMalloc(sizeof(SRpcMsg));
   memset(pMsg, 0, sizeof(SRpcMsg));
   pMsg->msgType = 9999;
   pMsg->contLen = 128;
-  pMsg->pCont = malloc(pMsg->contLen);
+  pMsg->pCont = taosMemoryMalloc(pMsg->contLen);
   snprintf((char *)(pMsg->pCont), pMsg->contLen, "value-%u-%d", ports[myIndex], i);
   return pMsg;
 }
@@ -181,7 +181,7 @@ int main(int argc, char **argv) {
     syncPropose(rid, pMsg0, true);
     taosMsleep(1000);
 
-    free(pMsg0);
+    taosMemoryFree(pMsg0);
 
     sTrace(
         "syncPropose sleep, state: %d, %s, term:%lu electTimerLogicClock:%lu, electTimerLogicClockUser:%lu, "

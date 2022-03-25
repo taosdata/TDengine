@@ -71,7 +71,7 @@ void flttMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
   vnode->node.resType.type = dataType;
 
   if (IS_VAR_DATA_TYPE(dataType)) {
-    vnode->datum.p = (char *)malloc(varDataTLen(value));
+    vnode->datum.p = (char *)taosMemoryMalloc(varDataTLen(value));
     varDataCopy(vnode->datum.p, value);
     vnode->node.resType.bytes = varDataLen(value);
   } else {
@@ -102,7 +102,7 @@ void flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
   }
 
   if (NULL == *block) {
-    SSDataBlock *res = (SSDataBlock *)calloc(1, sizeof(SSDataBlock));
+    SSDataBlock *res = (SSDataBlock *)taosMemoryCalloc(1, sizeof(SSDataBlock));
     res->info.numOfCols = 3;
     res->info.rows = rowNum;
     res->pDataBlock = taosArrayInit(3, sizeof(SColumnInfoData));
@@ -113,7 +113,7 @@ void flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
       idata.info.colId = i + 1;
 
       int32_t size = idata.info.bytes * rowNum;
-      idata.pData = (char *)calloc(1, size);
+      idata.pData = (char *)taosMemoryCalloc(1, size);
       taosArrayPush(res->pDataBlock, &idata);
     }
 
@@ -122,7 +122,7 @@ void flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     idata.info.bytes = dataBytes;
     idata.info.colId = 3;
     int32_t size = idata.info.bytes * rowNum;
-    idata.pData = (char *)calloc(1, size);
+    idata.pData = (char *)taosMemoryCalloc(1, size);
     taosArrayPush(res->pDataBlock, &idata);
     
     blockDataEnsureCapacity(res, rowNum);
@@ -150,7 +150,7 @@ void flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     idata.info.bytes = dataBytes;
     idata.info.colId = 1 + idx;
     int32_t size = idata.info.bytes * rowNum;
-    idata.pData = (char *)calloc(1, size);
+    idata.pData = (char *)taosMemoryCalloc(1, size);
     taosArrayPush(res->pDataBlock, &idata);
     res->info.numOfCols++;
     SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
@@ -325,7 +325,7 @@ TEST(columnTest, smallint_column_greater_double_value) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   blockDataDestroy(src);
   nodesDestroyNode(opNode);
@@ -380,7 +380,7 @@ TEST(columnTest, int_column_greater_smallint_value) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
@@ -426,7 +426,7 @@ TEST(columnTest, int_column_in_double_list) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
 
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
@@ -491,7 +491,7 @@ TEST(columnTest, binary_column_in_binary_list) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
@@ -540,7 +540,7 @@ TEST(columnTest, binary_column_like_binary) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
@@ -588,7 +588,7 @@ TEST(columnTest, binary_column_is_null) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
@@ -635,7 +635,7 @@ TEST(columnTest, binary_column_is_not_null) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
@@ -674,7 +674,7 @@ TEST(opTest, smallint_column_greater_int_column) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
@@ -713,7 +713,7 @@ TEST(opTest, smallint_value_add_int_column) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
@@ -758,7 +758,7 @@ TEST(opTest, bigint_column_multi_binary_column) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
@@ -801,7 +801,7 @@ TEST(opTest, smallint_column_and_binary_column) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
@@ -839,7 +839,7 @@ TEST(opTest, smallint_column_or_float_column) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
@@ -879,7 +879,7 @@ TEST(opTest, smallint_column_or_double_value) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
@@ -924,7 +924,7 @@ TEST(opTest, binary_column_is_true) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(opNode);
   blockDataDestroy(src);
@@ -996,7 +996,7 @@ TEST(filterModelogicTest, diff_columns_and_or_and) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(logicNode1);
   blockDataDestroy(src);
@@ -1065,7 +1065,7 @@ TEST(filterModelogicTest, same_column_and_or_and) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(logicNode1);
   blockDataDestroy(src);
@@ -1135,7 +1135,7 @@ TEST(filterModelogicTest, diff_columns_or_and_or) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(logicNode1);
   blockDataDestroy(src);
@@ -1204,7 +1204,7 @@ TEST(filterModelogicTest, same_column_or_and_or) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(logicNode1);
   blockDataDestroy(src);
@@ -1277,7 +1277,7 @@ TEST(scalarModelogicTest, diff_columns_or_and_or) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
-  tfree(rowRes);
+  taosMemoryFreeClear(rowRes);
   filterFreeInfo(filter);
   nodesDestroyNode(logicNode1);
   blockDataDestroy(src);

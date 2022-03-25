@@ -17,7 +17,7 @@
 #include "tthread.h"
 
 TdThread* taosCreateThread(void* (*__start_routine)(void*), void* param) {
-  TdThread*     pthread = (TdThread*)malloc(sizeof(TdThread));
+  TdThread*     pthread = (TdThread*)taosMemoryMalloc(sizeof(TdThread));
   TdThreadAttr thattr;
   taosThreadAttrInit(&thattr);
   taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
@@ -25,7 +25,7 @@ TdThread* taosCreateThread(void* (*__start_routine)(void*), void* param) {
   taosThreadAttrDestroy(&thattr);
 
   if (ret != 0) {
-    free(pthread);
+    taosMemoryFree(pthread);
     return NULL;
   }
   return pthread;
@@ -38,7 +38,7 @@ bool taosDestoryThread(TdThread* pthread) {
     taosThreadJoin(*pthread, NULL);
   }
 
-  free(pthread);
+  taosMemoryFree(pthread);
   return true;
 }
 

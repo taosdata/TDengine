@@ -25,7 +25,7 @@ void initRaftId() {
     ids[i].vgId = 1234;
     char* s = syncUtilRaftId2Str(&ids[i]);
     printf("raftId[%d] : %s\n", i, s);
-    free(s);
+    taosMemoryFree(s);
   }
 }
 

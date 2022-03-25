@@ -38,7 +38,7 @@ void *addRef(void *param) {
     printf("a");
     id = random() % pSpace->refNum; 
     if (pSpace->rid[id] <= 0) {
-      pSpace->p[id] = malloc(128);
+      pSpace->p[id] = taosMemoryMalloc(128);
       pSpace->rid[id] = taosAddRef(pSpace->rsetId, pSpace->p[id]);
     }
     taosUsleep(100);
@@ -84,7 +84,7 @@ void *acquireRelease(void *param) {
 }
        
 void myfree(void *p) {
-  free(p);
+  taosMemoryFree(p);
 }
 
 void *openRefSpace(void *param) {
@@ -98,8 +98,8 @@ void *openRefSpace(void *param) {
     return NULL;
   } 
 
-  pSpace->p = (void **) calloc(sizeof(void *), pSpace->refNum);
-  pSpace->rid = calloc(pSpace->refNum, sizeof(int64_t));
+  pSpace->p = (void **) taosMemoryCalloc(sizeof(void *), pSpace->refNum);
+  pSpace->rid = taosMemoryCalloc(pSpace->refNum, sizeof(int64_t));
 
   TdThreadAttr thattr;
   taosThreadAttrInit(&thattr);
@@ -121,7 +121,7 @@ void *openRefSpace(void *param) {
   taosCloseRef(pSpace->rsetId);
 
   uInfo("rsetId:%d main thread exit", pSpace->rsetId);
-  free(pSpace->p);
+  taosMemoryFree(pSpace->p);
   pSpace->p = NULL;
 
   return NULL;
@@ -159,8 +159,8 @@ int main(int argc, char *argv[]) {
 
   taosInitLog("tref.log", 10);
 
-  SRefSpace *pSpaceList = (SRefSpace *) calloc(sizeof(SRefSpace), threads);
-  TdThread *pThreadList = (TdThread *) calloc(sizeof(TdThread), threads);
+  SRefSpace *pSpaceList = (SRefSpace *) taosMemoryCalloc(sizeof(SRefSpace), threads);
+  TdThread *pThreadList = (TdThread *) taosMemoryCalloc(sizeof(TdThread), threads);
 
   TdThreadAttr thattr;
   taosThreadAttrInit(&thattr);
@@ -182,8 +182,8 @@ int main(int argc, char *argv[]) {
   int num = taosListRef();
   printf("\nnumber of references:%d\n", num);
 
-  free(pSpaceList);
-  free(pThreadList);
+  taosMemoryFree(pSpaceList);
+  taosMemoryFree(pThreadList);
 
   taosCloseLog();
 

@@ -18,12 +18,12 @@
 #include "tlog.h"
 
 void *taosInitIdPool(int32_t maxId) {
-  id_pool_t *pIdPool = calloc(1, sizeof(id_pool_t));
+  id_pool_t *pIdPool = taosMemoryCalloc(1, sizeof(id_pool_t));
   if (pIdPool == NULL) return NULL;
 
-  pIdPool->freeList = calloc(maxId, sizeof(bool));
+  pIdPool->freeList = taosMemoryCalloc(maxId, sizeof(bool));
   if (pIdPool->freeList == NULL) {
-    free(pIdPool);
+    taosMemoryFree(pIdPool);
     return NULL;
   }
 
@@ -79,13 +79,13 @@ void taosIdPoolCleanUp(id_pool_t *pIdPool) {
 
   uDebug("pool:%p is cleaned", pIdPool);
 
-  if (pIdPool->freeList) free(pIdPool->freeList);
+  if (pIdPool->freeList) taosMemoryFree(pIdPool->freeList);
 
   taosThreadMutexDestroy(&pIdPool->mutex);
 
   memset(pIdPool, 0, sizeof(id_pool_t));
 
-  free(pIdPool);
+  taosMemoryFree(pIdPool);
 }
 
 int32_t taosIdPoolNumOfUsed(id_pool_t *pIdPool) {
@@ -118,7 +118,7 @@ int32_t taosUpdateIdPool(id_pool_t *pIdPool, int32_t maxId) {
     return 0;
   }
 
-  bool *idList = calloc(maxId, sizeof(bool));
+  bool *idList = taosMemoryCalloc(maxId, sizeof(bool));
   if (idList == NULL) {
     return -1;
   }
@@ -131,7 +131,7 @@ int32_t taosUpdateIdPool(id_pool_t *pIdPool, int32_t maxId) {
 
   bool *oldIdList = pIdPool->freeList;
   pIdPool->freeList = idList;
-  free(oldIdList);
+  taosMemoryFree(oldIdList);
 
   taosThreadMutexUnlock(&pIdPool->mutex);
 

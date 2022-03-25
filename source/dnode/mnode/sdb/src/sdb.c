@@ -21,7 +21,7 @@ static int32_t sdbCreateDir(SSdb *pSdb);
 SSdb *sdbInit(SSdbOpt *pOption) {
   mDebug("start to init sdb in %s", pOption->path);
 
-  SSdb *pSdb = calloc(1, sizeof(SSdb));
+  SSdb *pSdb = taosMemoryCalloc(1, sizeof(SSdb));
   if (pSdb == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to init sdb since %s", terrstr());
@@ -67,15 +67,15 @@ void sdbCleanup(SSdb *pSdb) {
   sdbWriteFile(pSdb);
 
   if (pSdb->currDir != NULL) {
-    tfree(pSdb->currDir);
+    taosMemoryFreeClear(pSdb->currDir);
   }
 
   if (pSdb->syncDir != NULL) {
-    tfree(pSdb->syncDir);
+    taosMemoryFreeClear(pSdb->syncDir);
   }
 
   if (pSdb->tmpDir != NULL) {
-    tfree(pSdb->tmpDir);
+    taosMemoryFreeClear(pSdb->tmpDir);
   }
 
   for (ESdbType i = 0; i < SDB_MAX; ++i) {
@@ -102,7 +102,7 @@ void sdbCleanup(SSdb *pSdb) {
     mDebug("sdb table:%d is cleaned up", i);
   }
 
-  free(pSdb);
+  taosMemoryFree(pSdb);
   mDebug("sdb is cleaned up");
 }
 

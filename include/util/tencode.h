@@ -406,7 +406,7 @@ static FORCE_INLINE int32_t tDecodeBinaryAlloc(SCoder* pDecoder, void** val, uin
   if (tDecodeU64v(pDecoder, len) < 0) return -1;
 
   if (TD_CODER_CHECK_CAPACITY_FAILED(pDecoder, *len)) return -1;
-  *val = malloc(*len);
+  *val = taosMemoryMalloc(*len);
   if (*val == NULL) return -1;
   memcpy(*val, TD_CODER_CURRENT(pDecoder), *len);
 

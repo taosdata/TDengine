@@ -76,7 +76,7 @@ int32_t qmDrop(SMgmtWrapper *pWrapper) {
   qmCloseImp(pMgmt);
   taosRemoveDir(pMgmt->path);
   pWrapper->pMgmt = NULL;
-  free(pMgmt);
+  taosMemoryFree(pMgmt);
   dInfo("qnode-mgmt is dropped");
   return 0;
 }
@@ -88,13 +88,13 @@ static void qmClose(SMgmtWrapper *pWrapper) {
   dInfo("qnode-mgmt start to cleanup");
   qmCloseImp(pMgmt);
   pWrapper->pMgmt = NULL;
-  free(pMgmt);
+  taosMemoryFree(pMgmt);
   dInfo("qnode-mgmt is cleaned up");
 }
 
 int32_t qmOpen(SMgmtWrapper *pWrapper) {
   dInfo("qnode-mgmt start to init");
-  SQnodeMgmt *pMgmt = calloc(1, sizeof(SQnodeMgmt));
+  SQnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SQnodeMgmt));
   if (pMgmt == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;

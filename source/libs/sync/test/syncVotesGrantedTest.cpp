@@ -67,7 +67,7 @@ void initRaftId(SSyncNode* pSyncNode) {
     ids[i] = pSyncNode->replicasId[i];
     char* s = syncUtilRaftId2Str(&ids[i]);
     printf("raftId[%d] : %s\n", i, s);
-    free(s);
+    taosMemoryFree(s);
   }
 }
 
@@ -92,7 +92,7 @@ int main(int argc, char** argv) {
 
   char* serialized = syncNode2Str(pSyncNode);
   printf("%s\n", serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 
   initRaftId(pSyncNode);
 
@@ -104,7 +104,7 @@ int main(int argc, char** argv) {
     char* serialized = voteGranted2Str(pVotesGranted);
     assert(serialized != NULL);
     printf("%s\n", serialized);
-    free(serialized);
+    taosMemoryFree(serialized);
   }
 
   SyncTerm term = 1234;
@@ -114,7 +114,7 @@ int main(int argc, char** argv) {
     char* serialized = voteGranted2Str(pVotesGranted);
     assert(serialized != NULL);
     printf("%s\n", serialized);
-    free(serialized);
+    taosMemoryFree(serialized);
   }
 
   for (int i = 0; i < replicaNum; ++i) {
@@ -129,7 +129,7 @@ int main(int argc, char** argv) {
       char* serialized = voteGranted2Str(pVotesGranted);
       assert(serialized != NULL);
       printf("%s\n", serialized);
-      free(serialized);
+      taosMemoryFree(serialized);
     }
 
     voteGrantedVote(pVotesGranted, reply);
@@ -137,7 +137,7 @@ int main(int argc, char** argv) {
       char* serialized = voteGranted2Str(pVotesGranted);
       assert(serialized != NULL);
       printf("%s\n", serialized);
-      free(serialized);
+      taosMemoryFree(serialized);
     }
   }
 
@@ -147,7 +147,7 @@ int main(int argc, char** argv) {
     char* serialized = voteGranted2Str(pVotesGranted);
     assert(serialized != NULL);
     printf("%s\n", serialized);
-    free(serialized);
+    taosMemoryFree(serialized);
   }
 
   voteGrantedDestroy(pVotesGranted);

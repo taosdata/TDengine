@@ -73,7 +73,7 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, S
 
   *ppBt = NULL;
 
-  pBt = (SBTree *)calloc(1, sizeof(*pBt));
+  pBt = (SBTree *)taosMemoryCalloc(1, sizeof(*pBt));
   if (pBt == NULL) {
     return -1;
   }
@@ -107,7 +107,7 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, S
   // TODO: pBt->root
   ret = tdbBtreeOpenImpl(pBt);
   if (ret < 0) {
-    free(pBt);
+    taosMemoryFree(pBt);
     return -1;
   }
 
@@ -161,7 +161,7 @@ int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *p
   // TODO: refact code here
   pBt = pCur->pBt;
   if (!pBt->pTmp) {
-    pBt->pTmp = (u8 *)malloc(pBt->pageSize);
+    pBt->pTmp = (u8 *)taosMemoryMalloc(pBt->pageSize);
     if (pBt->pTmp == NULL) {
       return -1;
     }

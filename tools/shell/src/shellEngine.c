@@ -210,7 +210,7 @@ int32_t shellRunCommand(TAOS *con, char *command) {
       history.hist[(history.hend + MAX_HISTORY_SIZE - 1) % MAX_HISTORY_SIZE] == NULL ||
       strcmp(command, history.hist[(history.hend + MAX_HISTORY_SIZE - 1) % MAX_HISTORY_SIZE]) != 0) {
     if (history.hist[history.hend] != NULL) {
-      tfree(history.hist[history.hend]);
+      taosMemoryFreeClear(history.hist[history.hend]);
     }
     history.hist[history.hend] = strdup(command);
 
@@ -925,7 +925,7 @@ void read_history() {
     }
   }
 
-  if(line != NULL) free(line);
+  if(line != NULL) taosMemoryFree(line);
   taosCloseFile(&pFile);
 }
 
@@ -945,7 +945,7 @@ void write_history() {
   for (int i = history.hstart; i != history.hend;) {
     if (history.hist[i] != NULL) {
       taosFprintfFile(pFile, "%s\n", history.hist[i]);
-      tfree(history.hist[i]);
+      taosMemoryFreeClear(history.hist[i]);
     }
     i = (i + 1) % MAX_HISTORY_SIZE;
   }
@@ -968,13 +968,13 @@ int isCommentLine(char *line) {
 void source_file(TAOS *con, char *fptr) {
   wordexp_t full_path;
   int       read_len = 0;
-  char     *cmd = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN + 1);
+  char     *cmd = taosMemoryCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN + 1);
   size_t    cmd_len = 0;
   char     *line = NULL;
 
   if (wordexp(fptr, &full_path, 0) != 0) {
     fprintf(stderr, "ERROR: illegal file name\n");
-    free(cmd);
+    taosMemoryFree(cmd);
     return;
   }
 
@@ -985,7 +985,7 @@ void source_file(TAOS *con, char *fptr) {
     fprintf(stderr, "ERROR: file %s is not exist\n", fptr);
 
     wordfree(&full_path);
-    free(cmd);
+    taosMemoryFree(cmd);
     return;
   }
   */
@@ -995,7 +995,7 @@ void source_file(TAOS *con, char *fptr) {
   if (pFile == NULL) {
     fprintf(stderr, "ERROR: failed to open file %s\n", fname);
     wordfree(&full_path);
-    free(cmd);
+    taosMemoryFree(cmd);
     return;
   }
 
@@ -1021,8 +1021,8 @@ void source_file(TAOS *con, char *fptr) {
     cmd_len = 0;
   }
 
-  free(cmd);
-  if(line != NULL) free(line);
+  taosMemoryFree(cmd);
+  if(line != NULL) taosMemoryFree(line);
   wordfree(&full_path);
   taosCloseFile(&pFile);
 }

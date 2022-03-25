@@ -19,14 +19,14 @@
 #include "qworker.h"
 
 SQnode *qndOpen(const SQnodeOpt *pOption) {
-  SQnode *pQnode = calloc(1, sizeof(SQnode));
+  SQnode *pQnode = taosMemoryCalloc(1, sizeof(SQnode));
   if (NULL == pQnode) {
     qError("calloc SQnode failed");
     return NULL;
   }
 
   if (qWorkerInit(NODE_TYPE_QNODE, pQnode->qndId, NULL, (void **)&pQnode->pQuery, &pOption->msgCb)) {
-    tfree(pQnode);
+    taosMemoryFreeClear(pQnode);
     return NULL;
   }
 
@@ -37,7 +37,7 @@ SQnode *qndOpen(const SQnodeOpt *pOption) {
 void qndClose(SQnode *pQnode) {
   qWorkerDestroy((void **)&pQnode->pQuery);
 
-  free(pQnode);
+  taosMemoryFree(pQnode);
 }
 
 int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) { return 0; }

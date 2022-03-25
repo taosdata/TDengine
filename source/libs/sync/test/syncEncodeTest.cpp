@@ -87,16 +87,16 @@ void initRaftId(SSyncNode *pSyncNode) {
     ids[i] = pSyncNode->replicasId[i];
     char *s = syncUtilRaftId2Str(&ids[i]);
     printf("raftId[%d] : %s\n", i, s);
-    free(s);
+    taosMemoryFree(s);
   }
 }
 
 SRpcMsg *step0() {
-  SRpcMsg *pMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg));
+  SRpcMsg *pMsg = (SRpcMsg *)taosMemoryMalloc(sizeof(SRpcMsg));
   memset(pMsg, 0, sizeof(SRpcMsg));
   pMsg->msgType = 9999;
   pMsg->contLen = 32;
-  pMsg->pCont = malloc(pMsg->contLen);
+  pMsg->pCont = taosMemoryMalloc(pMsg->contLen);
   snprintf((char *)(pMsg->pCont), pMsg->contLen, "hello, world");
   return pMsg;
 }
@@ -107,7 +107,7 @@ SyncClientRequest *step1(const SRpcMsg *pMsg) {
 }
 
 SRpcMsg *step2(const SyncClientRequest *pMsg) {
-  SRpcMsg *pRetMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg));
+  SRpcMsg *pRetMsg = (SRpcMsg *)taosMemoryMalloc(sizeof(SRpcMsg));
   syncClientRequest2RpcMsg(pMsg, pRetMsg);
   return pRetMsg;
 }
@@ -133,7 +133,7 @@ SSyncRaftEntry *step6(const char *pMsg, uint32_t len) {
 }
 
 SRpcMsg *step7(const SSyncRaftEntry *pMsg) {
-  SRpcMsg *pRetMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg));
+  SRpcMsg *pRetMsg = (SRpcMsg *)taosMemoryMalloc(sizeof(SRpcMsg));
   syncEntry2OriginalRpc(pMsg, pRetMsg);
   return pRetMsg;
 }
@@ -190,7 +190,7 @@ int main(int argc, char **argv) {
   char *   pMsg5 = step5(pMsg4, &len);
   char *   s = syncUtilprintBin(pMsg5, len);
   printf("==step5== [%s] \n", s);
-  free(s);
+  taosMemoryFree(s);
 
   // step6
   SSyncRaftEntry *pMsg6 = step6(pMsg5, len);

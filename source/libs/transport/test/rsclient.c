@@ -161,7 +161,7 @@ int main(int argc, char *argv[]) {
   taosGetTimeOfDay(&systemTime);
   startTime = systemTime.tv_sec*1000000 + systemTime.tv_usec;
 
-  SInfo *pInfo = (SInfo *)calloc(1, sizeof(SInfo)*appThreads);
+  SInfo *pInfo = (SInfo *)taosMemoryCalloc(1, sizeof(SInfo)*appThreads);
  
   taosThreadAttrInit(&thattr);
   taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);

@@ -33,7 +33,7 @@ typedef struct SyncObj {
 static void syncFreeObj(void *param) {
   SyncObj *pObj = (SyncObj *)param;
   printf("syncFreeObj name:%s rid:%ld \n", pObj->name, pObj->rid);
-  free(pObj);
+  taosMemoryFree(pObj);
 }
 
 int32_t init() {
@@ -54,7 +54,7 @@ void cleanup() {
 }
 
 int64_t start() {
-  SyncObj *pObj = (SyncObj *)malloc(sizeof(SyncObj));
+  SyncObj *pObj = (SyncObj *)taosMemoryMalloc(sizeof(SyncObj));
   assert(pObj != NULL);
 
   pObj->data = &g;

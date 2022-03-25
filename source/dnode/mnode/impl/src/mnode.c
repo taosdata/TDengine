@@ -283,7 +283,7 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
 SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   mDebug("start to open mnode in %s", path);
 
-  SMnode *pMnode = calloc(1, sizeof(SMnode));
+  SMnode *pMnode = taosMemoryCalloc(1, sizeof(SMnode));
   if (pMnode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to open mnode since %s", terrstr());
@@ -295,7 +295,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 
   pMnode->pSteps = taosArrayInit(24, sizeof(SMnodeStep));
   if (pMnode->pSteps == NULL) {
-    free(pMnode);
+    taosMemoryFree(pMnode);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to open mnode since %s", terrstr());
     return NULL;
@@ -346,8 +346,8 @@ void mndClose(SMnode *pMnode) {
   if (pMnode != NULL) {
     mDebug("start to close mnode");
     mndCleanupSteps(pMnode, -1);
-    tfree(pMnode->path);
-    tfree(pMnode);
+    taosMemoryFreeClear(pMnode->path);
+    taosMemoryFreeClear(pMnode);
     mDebug("mnode is closed");
   }
 }
