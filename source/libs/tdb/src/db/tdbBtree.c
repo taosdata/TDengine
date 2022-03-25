@@ -1201,24 +1201,58 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 }
 
 static int tdbBtcMoveToNext(SBTC *pBtc) {
-  pBtc->idx++;
+  int    nCells;
+  SPgno  pgno;
+  SCell *pCell;
+  u8     flags;
+
+  ASSERT(TDB_BTREE_PAGE_IS_LEAF(TDB_BTREE_PAGE_GET_FLAGS(pBtc->pPage)));
 
   if (pBtc->idx < 0) return -1;
 
+  pBtc->idx++;
   if (pBtc->idx < TDB_PAGE_TOTAL_CELLS(pBtc->pPage)) {
+    return 0;
+  }
+
+  if (pBtc->iPage == 0) {
+    pBtc->idx = -1;
     return 0;
   }
 
   // Move upward
   for (;;) {
-    // TODO: release the page
+    tdbBtcMoveUpward(pBtc);
+    pBtc->idx++;
 
-    /* code */
+    nCells = TDB_PAGE_TOTAL_CELLS(pBtc->pPage);
+    if (pBtc->idx <= nCells) {
+      break;
+    }
+
+    if (pBtc->iPage == 0) {
+      pBtc->idx = -1;
+      return 0;
+    }
   }
 
   // Move downward
   for (;;) {
-    /* code */
+    nCells = TDB_PAGE_TOTAL_CELLS(pBtc->pPage);
+    if (pBtc->idx < nCells) {
+      pCell = tdbPageGetCell(pBtc->pPage, pBtc->idx);
+      pgno = *(SPgno *)pCell;
+    } else {
+      pgno = ((SIntHdr *)pBtc->pPage->pData)->pgno;
+    }
+
+    tdbBtcMoveDownward(pBtc, pgno);
+    pBtc->idx = 0;
+
+    flags = TDB_BTREE_PAGE_GET_FLAGS(pBtc->pPage);
+    if (TDB_BTREE_PAGE_IS_LEAF(flags)) {
+      break;
+    }
   }
 
   return 0;
@@ -1247,6 +1281,13 @@ static int tdbBtcMoveDownward(SBTC *pCur, SPgno pgno) {
 }
 
 static int tdbBtcMoveUpward(SBTC *pBtc) {
-  // TODO
+  if (pBtc->iPage == 0) return -1;
+
+  // tdbPagerReturnPage(pBtc->pBt->pPager, pBtc->pPage);
+
+  pBtc->iPage--;
+  pBtc->pPage = pBtc->pgStack[pBtc->iPage];
+  pBtc->idx = pBtc->idxStack[pBtc->iPage];
+
   return 0;
 }
