@@ -38,7 +38,8 @@ pub struct TAOS_FIELD {
 
 impl TAOS_FIELD {
     pub fn name(&self) -> &CStr {
-        CStr::from_bytes_with_nul(&self.name).expect("field name should always be valid C-str")
+        unsafe { CStr::from_ptr(self.name.as_ptr() as _) }
+        // CStr::from_bytes_with_nul(&self.name).expect("field name should always be valid C-str")
     }
     pub fn type_(&self) -> TaosDataType {
         self.type_.into()

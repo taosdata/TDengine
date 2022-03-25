@@ -1,8 +1,12 @@
+use block::{Block, Row};
+use futures::Stream;
+use serde::de::{self, DeserializeOwned};
 use std::{
     borrow::Cow,
     ffi::CStr,
     fmt::{self, Display},
     future::Future,
+    sync::Arc,
 };
 use taos_sys::*;
 use thiserror::Error;
@@ -22,6 +26,11 @@ pub mod future;
 
 pub mod async_query;
 
+pub mod helpers;
+use helpers::*;
+
+pub mod stream;
+
 #[cfg(feature = "tmq")]
 pub mod tmq;
 #[derive(Error, Debug)]
@@ -30,10 +39,19 @@ pub struct TaosError {
     pub err: Cow<'static, str>,
 }
 
+// impl std::error::Error for TaosError {}
+
 impl TaosError {
     pub(crate) fn new(code: TaosCode, err: impl Into<Cow<'static, str>>) -> Self {
         Self {
             code,
+            err: err.into(),
+        }
+    }
+
+    pub(crate) fn from_str(err: impl Into<Cow<'static, str>>) -> Self {
+        Self {
+            code: TaosCode::Unknown,
             err: err.into(),
         }
     }
@@ -44,6 +62,17 @@ impl Display for TaosError {
     }
 }
 
+impl de::Error for TaosError {
+    fn custom<T: fmt::Display>(msg: T) -> TaosError {
+        TaosError::from_str(format!("{}", msg))
+    }
+}
+
+// impl de::StdError for TaosError {
+//     fn description(&self) -> &str {
+//         self.err.as_ref()
+//     }
+// }
 type Result<T> = std::result::Result<T, TaosError>;
 
 pub struct Taos(*mut TAOS);
@@ -131,6 +160,13 @@ impl Taos {
     pub(crate) fn as_raw(&self) -> *mut taos_sys::TAOS {
         self.0
     }
+
+    pub async fn describe(&self, table: &str) -> Result<Vec<ColumnMeta>> {
+        todo!()
+        // self.query(&format!("describe {}", table))
+        //     .await
+        //     .map(TaosDescribe::from)
+    }
 }
 
 #[test]
@@ -200,7 +236,7 @@ impl<'a> Drop for TaosResult<'a> {
 }
 
 impl<'a> TaosResult<'a> {
-    fn as_raw(&self) -> *mut TAOS_RES {
+    const fn as_raw(&self) -> *mut TAOS_RES {
         match self {
             TaosResult::WithFields(res, _) => *res,
             TaosResult::WithoutFields(res) => *res,
@@ -234,8 +270,26 @@ impl<'a> TaosResult<'a> {
             _ => unreachable!("do not fetch fields in a result without fields"),
         }
     }
+    fn get_field_names(&self) -> Vec<&'a CStr> {
+        match self {
+            TaosResult::WithFields(_, fields) => fields.into_iter().map(|f| f.name()).collect(),
+            _ => unreachable!("do not fetch fields in a result without fields"),
+        }
+    }
+    fn get_field_names_to_string_vec(&self) -> Vec<String> {
+        match self {
+            TaosResult::WithFields(_, fields) => fields.into_iter().map(|f| f.name().to_string_lossy().into_owned()).collect(),
+            _ => unreachable!("do not fetch fields in a result without fields"),
+        }
+    }
+    unsafe fn get_field_unchecked(&self, index: usize) -> &TAOS_FIELD {
+        match self {
+            TaosResult::WithFields(_, fields) => fields.get_unchecked(index),
+            _ => unreachable!("do not fetch fields in a result without fields"),
+        }
+    }
 
-    fn num_fields(&self) -> usize {
+    const fn num_fields(&self) -> usize {
         match self {
             TaosResult::WithFields(_, fields) => fields.len(),
             _ => 0,
@@ -252,6 +306,30 @@ impl<'a> TaosResult<'a> {
 
     pub fn fetch_block_stream(&self) -> block::BlockStream {
         block::BlockStream::new(self)
+    }
+
+    pub fn rows_stream(&self) -> impl Stream<Item = Row> {
+        use futures::StreamExt;
+        block::BlockStream::new(self).flat_map(|block| {
+            let size = block.num_of_rows();
+            let block = Arc::new(block);
+            futures::stream::iter(std::iter::repeat(block).take(size as _).enumerate().map(
+                |(row_i, block)| Row {
+                    result: self,
+                    block,
+                    row: row_i,
+                },
+            ))
+        })
+    }
+    pub fn rows_de_stream<T>(&self) -> impl Stream<Item = Result<T>> + '_
+    where
+        T: DeserializeOwned,
+    {
+        use futures::StreamExt;
+
+        self.rows_stream()
+            .map(|row| T::deserialize(&mut row.row_reader()))
     }
 }
 

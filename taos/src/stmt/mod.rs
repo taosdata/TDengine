@@ -1,4 +1,4 @@
-use crate::{util::IntoCStr, Result, Taos, TaosCode, TaosError, block::serde::Block, TaosResult};
+use crate::{util::IntoCStr, Result, Taos, TaosCode, TaosError, block::column::Column, TaosResult};
 use bitvec_simd::BitVec;
 use taos_sys::*;
 
@@ -187,16 +187,16 @@ fn test_stmt() {
 #[test]
 fn test_multi_bind() {
     let taos = crate::Taos::new("localhost", "root", "taosdata", "", 0).unwrap();
-    taos.stmt("create database if not exists taos_test_multi_bind keep 36500").unwrap().execute().unwrap();
+    taos.stmt("create database if not exists taos_test_multi_bind keep 3650").unwrap().execute().unwrap();
     taos.stmt("use taos_test_multi_bind").unwrap().execute().unwrap();
     taos.stmt("create table if not exists tb (ts timestamp, v int) ").unwrap().execute().unwrap();
 
     const N: usize = 100;
     let nulls = BitVec::zeros(N);
     let v: Vec<i32> = (0..N).map(|_| rand::random()).collect();
-    let ints = Block::Int(nulls.clone(), v);
-    let v: Vec<i64> = (0..N).map(|ts|ts as i64).collect();
-    let ts = Block::Timestamp(nulls, v);
+    let ints = Column::Int(nulls.clone(), v);
+    let v: Vec<i64> = (0..N).map(|ts|ts as i64 + 1_500_000_000_000).collect();
+    let ts = Column::Timestamp(nulls, v);
     let binds = dbg!([ts.to_multi_bind(), ints.to_multi_bind()]);
     let mut stmt = taos.stmt("insert into tb values(?, ?)").unwrap();
     stmt.multi_bind(&binds).unwrap();
@@ -205,7 +205,7 @@ fn test_multi_bind() {
     let result = stmt.result().unwrap();
     let rows = result.affected_rows();
     assert_eq!(N, rows);
-    taos.stmt("drop database taos_test_multi_bind").unwrap().execute().unwrap();
+    // taos.stmt("drop database taos_test_multi_bind").unwrap().execute().unwrap();
 }
 
 // #[cfg(test)]
