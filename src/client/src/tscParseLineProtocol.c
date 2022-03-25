@@ -920,8 +920,6 @@ static int32_t doRunInsertSQL(TAOS* taos, char* sql, SSmlLinesInfo* info) {
     }
   } while (tryAgain);
 
-  free(sql);
-
   return code;
 
 }
@@ -990,6 +988,7 @@ static int32_t applyDataPointsWithSqlInsert(TAOS* taos, TAOS_SML_DATA_POINT* poi
   tscDebug("SML:0x%"PRIx64" successfully applied data points", info->id);
 
 cleanup:
+  free(sql);
   pCTablePoints = taosHashIterate(cname2points, NULL);
   while (pCTablePoints) {
     SArray* pPoints = *pCTablePoints;
