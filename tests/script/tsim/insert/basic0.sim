@@ -109,7 +109,26 @@ endi
 
 #print =============== select first(*)/first(column) from child table
 #sql select first(*) from ct1
-#sql select first(ts), first(c1), first(c2), first(c3) from ct1
+#print ====> select first(*) from ct1
+#print rows: $rows 
+#print $data00  $data01 $data02 $data03
+
+sql select first(ts), first(c1), first(c2), first(c3) from ct1
+print ====> select first(ts), first(c1), first(c2), first(c3) from ct1
+print rows: $rows 
+print $data00  $data01 $data02 $data03
+if $rows != 1 then 
+  return -1
+endi
+if $data01 != 10 then 
+  return -1
+endi
+if $data02 != 2.00000 then 
+  return -1
+endi
+if $data03 != 3.000000000 then 
+  return -1
+endi
 
 print =============== select min(column) from child table
 sql select min(c1), min(c2), min(c3) from ct1
@@ -348,7 +367,26 @@ endi
 
 #print =============== select first(*)/first(column) from child table
 #sql select first(*) from ct1
-#sql select first(ts), first(c1), first(c2), first(c3) from ct1
+#print ====> select first(*) from ct1
+#print rows: $rows 
+#print $data00  $data01 $data02 $data03
+
+sql select first(ts), first(c1), first(c2), first(c3) from ct1
+print ====> select first(ts), first(c1), first(c2), first(c3) from ct1
+print rows: $rows 
+print $data00  $data01 $data02 $data03
+if $rows != 1 then 
+  return -1
+endi
+if $data01 != 10 then 
+  return -1
+endi
+if $data02 != 2.00000 then 
+  return -1
+endi
+if $data03 != 3.000000000 then 
+  return -1
+endi
 
 print =============== select min(column) from child table
 sql select min(c1), min(c2), min(c3) from ct1
