@@ -1519,7 +1519,7 @@ static int32_t translateCreateSmaIndex(STranslateContext* pCxt, SCreateIndexStmt
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
-  pCxt->pCmdMsg->msgType = TDMT_VND_CREATE_SMA;
+  pCxt->pCmdMsg->msgType = TDMT_MND_CREATE_SMA;
   pCxt->pCmdMsg->msgLen = tSerializeSMCreateSmaReq(NULL, 0, &createSmaReq);
   pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
   if (NULL == pCxt->pCmdMsg->pMsg) {
