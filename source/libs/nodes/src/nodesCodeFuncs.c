@@ -1418,6 +1418,7 @@ static int32_t datumToJson(const void* pObj, SJson* pJson) {
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
       code = tjsonAddStringToObject(pJson, jkValueDatum, varDataVal(pNode->datum.p));
+      nodesDebug("!!!!!!!!tojson, value:%s", varDataVal(pNode->datum.p));
       break;
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_DECIMAL:
@@ -2429,11 +2430,4 @@ int32_t nodesStringToList(const char* pStr, SNodeList** pList) {
   if (NULL == pJson) {
     return TSDB_CODE_FAILED;
   }
-  int32_t code = jsonToNodeListImpl(pJson, pList);
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyList(*pList);
-    terrno = code;
-    return code;
-  }
-  return TSDB_CODE_SUCCESS;
-}
+  int32_t 
