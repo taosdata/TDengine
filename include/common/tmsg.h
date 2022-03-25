@@ -240,12 +240,12 @@ typedef struct {
 } SSubmitBlkIter;
 
 typedef struct {
-  int32_t totalLen;
-  int32_t len;
-  void*   pMsg;
+  int32_t     totalLen;
+  int32_t     len;
+  const void* pMsg;
 } SSubmitMsgIter;
 
-int32_t tInitSubmitMsgIter(SSubmitReq* pMsg, SSubmitMsgIter* pIter);
+int32_t tInitSubmitMsgIter(const SSubmitReq* pMsg, SSubmitMsgIter* pIter);
 int32_t tGetSubmitMsgNext(SSubmitMsgIter* pIter, SSubmitBlk** pPBlock);
 int32_t tInitSubmitBlkIter(SSubmitBlk* pBlock, SSubmitBlkIter* pIter);
 STSRow* tGetSubmitBlkNext(SSubmitBlkIter* pIter);
@@ -2097,6 +2097,11 @@ static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW) {
       tfree(pSW->tSma);
     }
   }
+}
+
+static FORCE_INLINE void tdFreeTSmaWrapper(STSmaWrapper* pSW) {
+  tdDestroyTSmaWrapper(pSW);
+  tfree(pSW);
 }
 
 static FORCE_INLINE int32_t tEncodeTSma(void** buf, const STSma* pSma) {

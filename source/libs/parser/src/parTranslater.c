@@ -403,7 +403,8 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
           return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
         }
         varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
-        strcpy(varDataVal(pVal->datum.p), pVal->literal);
+        strncpy(varDataVal(pVal->datum.p), pVal->literal, pVal->node.resType.bytes);
+        parserDebug("!!!!!!!!!!!!value:%s,len:%d", pVal->literal, pVal->node.resType.bytes);
         break;
       }
       case TSDB_DATA_TYPE_TIMESTAMP: {
