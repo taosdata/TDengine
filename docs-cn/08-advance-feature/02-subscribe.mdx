@@ -1,9 +1,12 @@
 ---
 sidebar_position: 2
-sidebar_label: 订阅
+sidebar_label: 数据订阅
 ---
 
-# 数据订阅（Publisher/Subscriber）
+# 数据订阅
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
 
 基于数据天然的时间序列特性，TDengine 的数据写入（insert）与消息系统的数据发布（pub）逻辑上一致，均可视为系统中插入一条带时间戳的新记录。同时，TDengine 在内部严格按照数据时间序列单调递增的方式保存数据。本质上来说，TDengine 中里每一张表均可视为一个标准的消息队列。
 
@@ -160,6 +163,18 @@ $ taos
 ```
 
 这时，因为电流超过了 10A，您应该可以看到示例程序将它输出到了屏幕上。您可以继续插入一些数据观察示例程序的输出。
+
+## 示例代码
+
+<Tabs defaultValue="java" groupId="lang">
+  <TabItem label="Java" value="java"></TabItem>
+  <TabItem label="Python" value="Python"></TabItem>
+  <TabItem label="Go" value="go"></TabItem>
+  <TabItem label="C" value="c"></TabItem>
+  <TabItem label="Rust" value="rust"></TabItem>
+  <TabItem label="Node.js" value="nodejs"></TabItem>
+  <TabItem label="C#" value="csharp"></TabItem>
+</Tabs>
 
 ## Java 使用数据订阅功能
 

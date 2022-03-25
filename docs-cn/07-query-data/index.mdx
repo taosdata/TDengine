@@ -6,6 +6,18 @@ slug: /query-data
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
+import JavaQuery from "./_java.mdx";
+import PyQuery from "./_py.mdx";
+import GoQuery from "./_go.mdx";
+import RustQuery from "./_rust.mdx";
+import NodeQuery from "./_js.mdx";
+import CsQuery from "./_cs.mdx";
+import CQuery from "./_c.mdx";
+import PyAsync from "./_py_async.mdx";
+import GoAsync from "./_go_async.mdx";
+import NodeAsync from "./_js_async.mdx";
+import CsAsync from "./_cs_async.mdx";
+import CAsync from "./_c_async.mdx";
 
 ## 主要查询功能
 
@@ -109,23 +121,46 @@ Query OK, 5 row(s) in set (0.001521s)
 
 ### 同步查询
 
-<Tabs defaultValue="java">
-  <TabItem label="Java" value="java"></TabItem>
-  <TabItem label="Python" value="Python"></TabItem>
-  <TabItem label="Go" value="go"></TabItem>
-  <TabItem label="C" value="c"></TabItem>
-  <TabItem label="Rust" value="rust"></TabItem>
-  <TabItem label="Node.js" value="nodejs"></TabItem>
-  <TabItem label="C#" value="csharp"></TabItem>
+<Tabs defaultValue="java" groupId="lang">
+  <TabItem label="Java" value="java">
+    <JavaStmt />
+  </TabItem>
+  <TabItem label="Python" value="python">
+    <PyStmt />
+  </TabItem>
+  <TabItem label="Go" value="go">
+    <GoStmt />
+  </TabItem>
+  <TabItem label="Rust" value="rust">
+    <RustStmt />
+  </TabItem>
+  <TabItem label="Node.js" value="nodejs">
+    <NodeStmt />
+  </TabItem>
+  <TabItem label="C#" value="csharp">
+    <CsStmt />
+  </TabItem>
+  <TabItem label="C" value="c">
+    <CStmt />
+  </TabItem>
 </Tabs>
 
 ### 异步查询
 
-<Tabs defaultValue="go">
-  <TabItem label="Python" value="Python"></TabItem>
-  <TabItem label="Go" value="go"></TabItem>
-  <TabItem label="C" value="c"></TabItem>
-  <TabItem label="Rust" value="rust"></TabItem>
-  <TabItem label="Node.js" value="nodejs"></TabItem>
-  <TabItem label="C#" value="csharp"></TabItem>
+<Tabs defaultValue="python" groupId="lang">
+  <TabItem label="Python" value="python">
+    <PyAsync />
+  </TabItem>
+  <TabItem label="Go" value="go">
+    <GoAsync />
+  </TabItem>
+  <TabItem label="Node.js" value="nodejs">
+    <NodeAsync />
+  </TabItem>
+  <TabItem label="C#" value="csharp">
+    <CsAsync />
+  </TabItem>
+  <TabItem label="C" value="c">
+    <CAsync />
+  </TabItem>
 </Tabs>
