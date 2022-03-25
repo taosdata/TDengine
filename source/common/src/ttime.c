@@ -562,8 +562,7 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
 
     // not enough time range
     if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
-      end = start + pInterval->interval - 1;
-
+      end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision) - 1;
       while (end < t && ((start + pInterval->sliding) <= INT64_MAX)) {  // move forward to the correct time window
         start += pInterval->sliding;
 
@@ -587,7 +586,7 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
       start = taosTimeAdd(start, -pInterval->interval, pInterval->intervalUnit, precision);
     } else {
       // try to move current window to the left-hande-side, due to the offset effect.
-      int64_t end = start + pInterval->interval - 1;
+      int64_t end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision) - 1;
       ASSERT(end >= t);
       end = taosTimeAdd(end, -pInterval->sliding, pInterval->slidingUnit, precision);
       if (end >= t) {

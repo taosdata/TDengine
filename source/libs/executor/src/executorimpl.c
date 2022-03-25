@@ -674,12 +674,7 @@ static void getInitialStartTimeWindow(SInterval* pInterval, int32_t precision, T
 
     int64_t key = w->skey;
     while(key < ts) { // moving towards end
-      if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
-        key = taosTimeAdd(key, pInterval->sliding, pInterval->slidingUnit, precision);
-      } else {
-        key += pInterval->sliding;
-      }
-
+      key = taosTimeAdd(key, pInterval->sliding, pInterval->slidingUnit, precision);
       if (key >= ts) {
         break;
       }
@@ -695,12 +690,7 @@ static STimeWindow getActiveTimeWindow(SResultRowInfo * pResultRowInfo, int64_t 
 
  if (pResultRowInfo->curPos == -1) {  // the first window, from the previous stored value
     getInitialStartTimeWindow(pInterval, precision, ts, &w, win->ekey, true);
-
-    if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
-      w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
-    } else {
-      w.ekey = w.skey + pInterval->interval - 1;
-    }
+    w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
   } else {
     w = getResultRow(pResultRowInfo, pResultRowInfo->curPos)->win;
   }
@@ -722,7 +712,7 @@ static STimeWindow getActiveTimeWindow(SResultRowInfo * pResultRowInfo, int64_t 
       }
 
       w.skey = st;
-      w.ekey = w.skey + pInterval->interval - 1;
+      w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
     }
   }
   return w;
@@ -2208,7 +2198,7 @@ static SqlFunctionCtx* createSqlFunctionCtx_rv(SExprInfo* pExprInfo, int32_t num
   }
 
   for(int32_t i = 1; i < numOfOutput; ++i) {
-    (*rowCellInfoOffset)[i] = (int32_t)((*rowCellInfoOffset)[i - 1] + sizeof(SResultRowEntryInfo) + pFuncCtx[i].resDataInfo.interBufSize);
+    (*rowCellInfoOffset)[i] = (int32_t)((*rowCellInfoOffset)[i - 1] + sizeof(SResultRowEntryInfo) + pFuncCtx[i - 1].resDataInfo.interBufSize);
   }
 
   setCtxTagColumnInfo(pFuncCtx, numOfOutput);
@@ -2407,7 +2397,7 @@ static bool isCachedLastQuery(STaskAttr *pQueryAttr) {
 /////////////////////////////////////////////////////////////////////////////////////////////
 //todo refactor : return window
 void getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key, int64_t keyFirst, int64_t keyLast, STimeWindow *win) {
-  assert(key >= keyFirst && key <= keyLast && pInterval->sliding <= pInterval->interval);
+  ASSERT(key >= keyFirst && key <= keyLast);
   win->skey = taosTimeTruncate(key, pInterval, precision);
 
   /*
@@ -2417,10 +2407,8 @@ void getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t ke
   if (keyFirst > (INT64_MAX - pInterval->interval)) {
     assert(keyLast - keyFirst < pInterval->interval);
     win->ekey = INT64_MAX;
-  } else if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
-    win->ekey = taosTimeAdd(win->skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
   } else {
-    win->ekey = win->skey + pInterval->interval - 1;
+    win->ekey = taosTimeAdd(win->skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
   }
 }
 
