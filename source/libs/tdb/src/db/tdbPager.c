@@ -255,6 +255,10 @@ int tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage
   return 0;
 }
 
+void tdbPagerReturnPage(SPager *pPager, SPage *pPage) {
+  tdbPCacheRelease(pPager->pCache, pPage);
+}
+
 static int tdbPagerAllocFreePage(SPager *pPager, SPgno *ppgno) {
   // TODO: Allocate a page from the free list
   return 0;
