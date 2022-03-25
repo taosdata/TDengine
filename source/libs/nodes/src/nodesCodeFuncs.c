@@ -1480,13 +1480,14 @@ static int32_t jsonToDatum(const SJson* pJson, void* pObj) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY: {
-      pNode->datum.p = calloc(1, pNode->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
+      pNode->datum.p = calloc(1, pNode->node.resType.bytes + VARSTR_HEADER_SIZE + 1 + 100);
       if (NULL == pNode->datum.p) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         break;
       }
       varDataSetLen(pNode->datum.p, pNode->node.resType.bytes);
       code = tjsonGetStringValue(pJson, jkValueDatum, varDataVal(pNode->datum.p));
+      nodesDebug("!!!!!!!!!len:%d,string:%s", pNode->node.resType.bytes, varDataVal(pNode->datum.p));
       break;
     }
     case TSDB_DATA_TYPE_JSON:

@@ -404,6 +404,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
         }
         varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
         strncpy(varDataVal(pVal->datum.p), pVal->literal, pVal->node.resType.bytes);
+        parserDebug("!!!!!!!!!!!!value:%s,len:%d", pVal->literal, pVal->node.resType.bytes);
         break;
       }
       case TSDB_DATA_TYPE_TIMESTAMP: {
