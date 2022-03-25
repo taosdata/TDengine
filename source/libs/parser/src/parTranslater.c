@@ -1696,24 +1696,27 @@ static int32_t translateSubquery(STranslateContext* pCxt, SNode* pNode) {
   return code;
 }
 
-static int32_t setReslutSchema(STranslateContext* pCxt, SQuery* pQuery) {
-  if (QUERY_NODE_SELECT_STMT == nodeType(pQuery->pRoot)) {
-    SSelectStmt* pSelect = (SSelectStmt*)pQuery->pRoot;
-    pQuery->numOfResCols = LIST_LENGTH(pSelect->pProjectionList);
-    pQuery->pResSchema = calloc(pQuery->numOfResCols, sizeof(SSchema));
-    if (NULL == pQuery->pResSchema) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY);
+int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
+  if (QUERY_NODE_SELECT_STMT == nodeType(pRoot)) {
+    SSelectStmt* pSelect = (SSelectStmt*) pRoot;
+    *numOfCols = LIST_LENGTH(pSelect->pProjectionList);
+    *pSchema = calloc((*numOfCols), sizeof(SSchema));
+    if (NULL == (*pSchema)) {
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
+
     SNode* pNode;
     int32_t index = 0;
     FOREACH(pNode, pSelect->pProjectionList) {
       SExprNode* pExpr = (SExprNode*)pNode;
-      pQuery->pResSchema[index].type = pExpr->resType.type;
-      pQuery->pResSchema[index].bytes = pExpr->resType.bytes;
-      strcpy(pQuery->pResSchema[index].name, pExpr->aliasName);
+      (*pSchema)[index].type = pExpr->resType.type;
+      (*pSchema)[index].bytes = pExpr->resType.bytes;
+      (*pSchema)[index].colId = index + 1;
+      strcpy((*pSchema)[index].name, pExpr->aliasName);
       index +=1;
     }
   }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2297,7 +2300,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       pQuery->haveResultSet = true;
       pQuery->directRpc = false;
       pQuery->msgType = TDMT_VND_QUERY;
-      code = setReslutSchema(pCxt, pQuery);
+      code = qExtractResultSchema(pQuery->pRoot, &pQuery->numOfResCols, &pQuery->pResSchema);
       break;
     case QUERY_NODE_VNODE_MODIF_STMT:
       pQuery->haveResultSet = false;
