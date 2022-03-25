@@ -26,6 +26,7 @@
 #include "tlog.h"
 #include "tmsg.h"
 #include "trpc.h"
+#include "tstream.h"
 #include "ttimer.h"
 
 #include "mnode.h"

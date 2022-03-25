@@ -13,4 +13,5 @@ target_link_libraries(
     PRIVATE common
     PRIVATE util
     PRIVATE qcom
+    PRIVATE stream
 )
