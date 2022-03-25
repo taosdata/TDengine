@@ -159,7 +159,7 @@ static void         destroyThrdObj(SCliThrdObj* pThrd);
     int i = 0, sz = transQueueSize(&conn->cliMsgs);                  \
     for (; i < sz; i++) {                                            \
       pMsg = transQueueGet(&conn->cliMsgs, i);                       \
-      if (pMsg != NULL && (uint64_t)pMsg->ctx->ahandle == ahandle) { \
+      if (pMsg != NULL && pMsg->ctx != NULL && (uint64_t)pMsg->ctx->ahandle == ahandle) { \
         break;                                                       \
       }                                                              \
     }                                                                \
