@@ -914,6 +914,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, u8 *pPayload, const void *pKey, i
   return 0;
 }
 
+// TODO: allow vLen = 0
 static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const void *pVal, int vLen, SCell *pCell,
                               int *szCell) {
   u8  flags;

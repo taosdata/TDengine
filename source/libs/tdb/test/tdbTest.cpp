@@ -17,10 +17,8 @@ TEST(tdb_test, simple_test) {
   GTEST_ASSERT_EQ(ret, 0);
 
   {
-    char  key[64];
-    char  val[64];
-    void *pVal = NULL;
-    int   vLen;
+    char key[64];
+    char val[64];
 
     {  // Insert some data
 
@@ -33,6 +31,9 @@ TEST(tdb_test, simple_test) {
     }
 
     {  // Query the data
+      void *pVal = NULL;
+      int   vLen;
+
       for (int i = 1; i <= nData; i++) {
         sprintf(key, "key%d", i);
         sprintf(val, "value%d", i);
@@ -46,6 +47,8 @@ TEST(tdb_test, simple_test) {
     }
 
     {  // Loop to query the data
+       // STDbC *pDBC;
+       // tdbDBNext(pDBC, p)
     }
   }
 
