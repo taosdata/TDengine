@@ -207,6 +207,7 @@ int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen
   SBTC         btc;
   SCell       *pCell;
   int          cret;
+  void        *pVal;
   SCellDecoder cd;
 
   tdbBtreeCursor(&btc, pBt);
@@ -221,12 +222,12 @@ int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen
   tdbBtreeDecodeCell(btc.pPage, pCell, &cd);
 
   *vLen = cd.vLen;
-  // TODO: here may have memory leak
-  *ppVal = realloc(*ppVal, *vLen);
-  if (*ppVal == NULL) {
+  pVal = TDB_REALLOC(*ppVal, *vLen);
+  if (pVal == NULL) {
     return -1;
   }
 
+  *ppVal = pVal;
   memcpy(*ppVal, cd.pVal, cd.vLen);
   return 0;
 }

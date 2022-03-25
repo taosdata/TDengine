@@ -44,6 +44,8 @@ TEST(tdb_test, simple_test) {
         GTEST_ASSERT_EQ(vLen, strlen(val));
         GTEST_ASSERT_EQ(memcmp(val, pVal, vLen), 0);
       }
+
+      TDB_FREE(pVal);
     }
 
     {  // Loop to query the data
