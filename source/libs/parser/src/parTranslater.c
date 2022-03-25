@@ -383,12 +383,13 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
       case TSDB_DATA_TYPE_NCHAR:
       case TSDB_DATA_TYPE_VARCHAR:
       case TSDB_DATA_TYPE_VARBINARY: {
-        pVal->datum.p = calloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE);
+        pVal->datum.p = calloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
         if (NULL == pVal->datum.p) {
           return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
         }
         varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
-        strcpy(varDataVal(pVal->datum.p), pVal->literal);
+        strncpy(varDataVal(pVal->datum.p), pVal->literal, pVal->node.resType.bytes);
+        parserDebug("varchar value:%s,len:%d", pVal->literal, pVal->node.resType.bytes);
         break;
       }
       case TSDB_DATA_TYPE_TIMESTAMP: {
@@ -599,9 +600,9 @@ static int32_t toVgroupsInfo(SArray* pVgs, SVgroupsInfo** pVgsInfo) {
 
 static int32_t setSysTableVgroupList(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
   // todo release
-  // if (0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLES)) {
-  //   return TSDB_CODE_SUCCESS;
-  // }
+  if (0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLES)) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   int32_t code = TSDB_CODE_SUCCESS;
   SArray* vgroupList = NULL;
@@ -613,9 +614,9 @@ static int32_t setSysTableVgroupList(STranslateContext* pCxt, SName* pName, SRea
 
   if (TSDB_CODE_SUCCESS == code) {
     // todo remove
-    if (NULL != vgroupList && taosArrayGetSize(vgroupList) > 0 && 0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLES)) {
-      taosArrayPopTailBatch(vgroupList, taosArrayGetSize(vgroupList) - 1);
-    }
+    //if (NULL != vgroupList && taosArrayGetSize(vgroupList) > 0 && 0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLES)) {
+    //  taosArrayPopTailBatch(vgroupList, taosArrayGetSize(vgroupList) - 1);
+    //}
 
     code = toVgroupsInfo(vgroupList, &pRealTable->pVgroupList);
   }

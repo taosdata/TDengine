@@ -59,6 +59,8 @@ typedef struct SMnodeLoad {
   int64_t compStorage;
 } SMnodeLoad;
 
+typedef struct SQWorkerMgmt SQHandle;
+
 typedef struct {
   const char  *name;
   MndInitFp    initFp;
@@ -112,6 +114,7 @@ typedef struct SMnode {
   SSdb             *pSdb;
   SMgmtWrapper     *pWrapper;
   SArray           *pSteps;
+  SQHandle         *pQuery;
   SShowMgmt         showMgmt;
   SProfileMgmt      profileMgmt;
   STelemMgmt        telemMgmt;
@@ -119,7 +122,7 @@ typedef struct SMnode {
   SHashObj         *infosMeta;
   SGrantInfo        grant;
   MndMsgFp          msgFp[TDMT_MAX];
-  SMsgCb            msgCb;
+  SMsgCb            msgCb;  
 } SMnode;
 
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);

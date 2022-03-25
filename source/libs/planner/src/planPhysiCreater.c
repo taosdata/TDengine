@@ -307,11 +307,14 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
     taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
   } else {
-    for (int32_t i = 0; i < pScanLogicNode->pVgroupList->numOfVgroups; ++i) {
-      SQueryNodeAddr addr;
-      vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups + i, &addr);
-      taosArrayPush(pCxt->pExecNodeList, &addr);
-    }
+    SQueryNodeAddr addr = { .nodeId = MND_VGID, .epSet = pCxt->pPlanCxt->mgmtEpSet };
+    taosArrayPush(pCxt->pExecNodeList, &addr);
+    
+    //for (int32_t i = 0; i < pScanLogicNode->pVgroupList->numOfVgroups; ++i) {
+    //  SQueryNodeAddr addr;
+    //  vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups + i, &addr);
+    //  taosArrayPush(pCxt->pExecNodeList, &addr);
+    //}
   }
   pScan->mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
   tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
