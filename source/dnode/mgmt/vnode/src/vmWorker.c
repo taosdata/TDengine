@@ -356,7 +356,7 @@ int32_t vmStartWorker(SVnodesMgmt *pMgmt) {
     return -1;
   }
 
-  dDebug("vnode workers is initialized");
+  dDebug("vnode workers are initialized");
   return 0;
 }
 
@@ -366,5 +366,5 @@ void vmStopWorker(SVnodesMgmt *pMgmt) {
   tQWorkerCleanup(&pMgmt->queryPool);
   tWWorkerCleanup(&pMgmt->writePool);
   tWWorkerCleanup(&pMgmt->syncPool);
-  dDebug("vnode workers is closed");
+  dDebug("vnode workers are closed");
 }

@@ -22,7 +22,12 @@ static int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {
   tstrncpy(pInfo->tempdir.name, tsTempDir, sizeof(pInfo->tempdir.name));
   pInfo->tempdir.size = tsTempSpace.size;
 
-  return vmMonitorTfsInfo(dndAcquireWrapper(pDnode, VNODES), pInfo);
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, VNODES);
+  if (pWrapper != NULL) {
+    vmMonitorTfsInfo(pWrapper, pInfo);
+    dndReleaseWrapper(pWrapper);
+  }
+  return 0;
 }
 
 static void dndGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
@@ -45,8 +50,17 @@ static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
   taosGetCardInfo(&pInfo->net_in, &pInfo->net_out);
   taosGetProcIO(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
 
-  vmMonitorVnodeReqs(dndAcquireWrapper(pDnode, VNODES), pInfo);
-  pInfo->has_mnode = (dndAcquireWrapper(pDnode, MNODE)->required);
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, VNODES);
+  if (pWrapper != NULL) {
+    vmMonitorVnodeReqs(pWrapper, pInfo);
+    dndReleaseWrapper(pWrapper);
+  }
+
+  pWrapper = dndAcquireWrapper(pDnode, MNODE);
+  if (pWrapper != NULL) {
+    pInfo->has_mnode = pWrapper->required;
+    dndReleaseWrapper(pWrapper);
+  }
 }
 
 void dndSendMonitorReport(SDnode *pDnode) {
@@ -63,10 +77,15 @@ void dndSendMonitorReport(SDnode *pDnode) {
   SMonClusterInfo clusterInfo = {0};
   SMonVgroupInfo  vgroupInfo = {0};
   SMonGrantInfo   grantInfo = {0};
-  if (mmMonitorMnodeInfo(dndAcquireWrapper(pDnode, MNODE), &clusterInfo, &vgroupInfo, &grantInfo) == 0) {
-    monSetClusterInfo(pMonitor, &clusterInfo);
-    monSetVgroupInfo(pMonitor, &vgroupInfo);
-    monSetGrantInfo(pMonitor, &grantInfo);
+
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, MNODE);
+  if (pWrapper != NULL) {
+    if (mmMonitorMnodeInfo(pWrapper, &clusterInfo, &vgroupInfo, &grantInfo) == 0) {
+      monSetClusterInfo(pMonitor, &clusterInfo);
+      monSetVgroupInfo(pMonitor, &vgroupInfo);
+      monSetGrantInfo(pMonitor, &grantInfo);
+    }
+    dndReleaseWrapper(pWrapper);
   }
 
   SMonDnodeInfo dnodeInfo = {0};

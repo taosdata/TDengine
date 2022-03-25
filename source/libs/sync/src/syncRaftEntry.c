@@ -28,6 +28,13 @@ SSyncRaftEntry* syncEntryBuild(uint32_t dataLen) {
 
 // step 4. SyncClientRequest => SSyncRaftEntry, add term, index
 SSyncRaftEntry* syncEntryBuild2(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index) {
+  SSyncRaftEntry* pEntry = syncEntryBuild3(pMsg, term, index, SYNC_RAFT_ENTRY_DATA);
+  assert(pEntry != NULL);
+
+  return pEntry;
+}
+
+SSyncRaftEntry* syncEntryBuild3(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index, EntryType entryType) {
   SSyncRaftEntry* pEntry = syncEntryBuild(pMsg->dataLen);
   assert(pEntry != NULL);
 
@@ -37,8 +44,19 @@ SSyncRaftEntry* syncEntryBuild2(SyncClientRequest* pMsg, SyncTerm term, SyncInde
   pEntry->isWeak = pMsg->isWeak;
   pEntry->term = term;
   pEntry->index = index;
+  pEntry->entryType = entryType;
   pEntry->dataLen = pMsg->dataLen;
   memcpy(pEntry->data, pMsg->data, pMsg->dataLen);
+
+  return pEntry;
+}
+
+SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index) {
+  SSyncRaftEntry* pEntry = syncEntryBuild(0);
+  assert(pEntry != NULL);
+  pEntry->term = term;
+  pEntry->index = index;
+  pEntry->entryType = SYNC_RAFT_ENTRY_NOOP;
 
   return pEntry;
 }
@@ -85,6 +103,7 @@ cJSON* syncEntry2Json(const SSyncRaftEntry* pEntry) {
     cJSON_AddStringToObject(pRoot, "term", u64buf);
     snprintf(u64buf, sizeof(u64buf), "%lu", pEntry->index);
     cJSON_AddStringToObject(pRoot, "index", u64buf);
+    cJSON_AddNumberToObject(pRoot, "entryType", pEntry->entryType);
     cJSON_AddNumberToObject(pRoot, "dataLen", pEntry->dataLen);
 
     char* s;

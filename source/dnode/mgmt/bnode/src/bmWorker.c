@@ -77,7 +77,11 @@ int32_t bmStartWorker(SBnodeMgmt *pMgmt) {
     return -1;
   }
 
+  dDebug("bnode workers are initialized");
   return 0;
 }
 
-void bmStopWorker(SBnodeMgmt *pMgmt) { tMultiWorkerCleanup(&pMgmt->writeWorker); }
+void bmStopWorker(SBnodeMgmt *pMgmt) {
+  tMultiWorkerCleanup(&pMgmt->writeWorker);
+  dDebug("bnode workers are closed");
+}

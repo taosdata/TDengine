@@ -34,7 +34,7 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   pLogStore->getLastTerm = logStoreLastTerm;
   pLogStore->updateCommitIndex = logStoreUpdateCommitIndex;
   pLogStore->getCommitIndex = logStoreGetCommitIndex;
-  return pLogStore;  // to avoid compiler error
+  return pLogStore;
 }
 
 void logStoreDestory(SSyncLogStore* pLogStore) {
@@ -48,18 +48,22 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
 
-  assert(pEntry->index == logStoreLastIndex(pLogStore) + 1);
+  SyncIndex lastIndex = logStoreLastIndex(pLogStore);
+  assert(pEntry->index == lastIndex + 1);
   uint32_t len;
   char*    serialized = syncEntrySerialize(pEntry, &len);
   assert(serialized != NULL);
 
-  int code;
-  code = walWrite(pWal, pEntry->index, pEntry->msgType, serialized, len);
-  assert(code == 0);
+  int code = 0;
+  /*
+    code = walWrite(pWal, pEntry->index, pEntry->entryType, serialized, len);
+    assert(code == 0);
+  */
+  assert(walWrite(pWal, pEntry->index, pEntry->entryType, serialized, len) == 0);
 
   walFsync(pWal, true);
   free(serialized);
-  return code;  // to avoid compiler error
+  return code;
 }
 
 SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
@@ -69,7 +73,7 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
 
   if (index >= SYNC_INDEX_BEGIN && index <= logStoreLastIndex(pLogStore)) {
     SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
-    walReadWithHandle(pWalHandle, index);
+    assert(walReadWithHandle(pWalHandle, index) == 0);
     pEntry = syncEntryDeserialize(pWalHandle->pHead->head.body, pWalHandle->pHead->head.len);
     assert(pEntry != NULL);
 
@@ -83,7 +87,7 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
 int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  walRollback(pWal, fromIndex);
+  assert(walRollback(pWal, fromIndex) == 0);
   return 0;  // to avoid compiler error
 }
 
@@ -107,7 +111,7 @@ SyncTerm logStoreLastTerm(SSyncLogStore* pLogStore) {
 int32_t logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  walCommit(pWal, index);
+  assert(walCommit(pWal, index) == 0);
   return 0;  // to avoid compiler error
 }
 
