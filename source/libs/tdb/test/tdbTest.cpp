@@ -15,7 +15,7 @@ TEST(tdb_test, simple_test) {
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
-  ret = tdbDbOpen("db.db", TDB_VARIANT_LEN, TDB_VARIANT_LEN, NULL, pEnv, &pDb);
+  ret = tdbDbOpen("db.db", TDB_VARIANT_LEN, TDB_VARIANT_LEN, tKeyCmpr, pEnv, &pDb);
   GTEST_ASSERT_EQ(ret, 0);
 
   {
@@ -94,8 +94,8 @@ TEST(tdb_test, simple_test) {
 static int tKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   int k1, k2;
 
-  k1 = std::strtol((char *)pKey1 + 3, nullptr, kLen1 - 3);
-  k2 = std::strtol((char *)pKey2 + 3, nullptr, kLen2 - 3);
+  k1 = std::strtol((char *)pKey1 + 3, nullptr, 10);
+  k2 = std::strtol((char *)pKey2 + 3, nullptr, 10);
 
   if (k1 < k2) {
     return -1;
