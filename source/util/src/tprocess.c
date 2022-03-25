@@ -163,13 +163,13 @@ static SProcQueue *taosProcQueueInit(int32_t size) {
   pQueue->bufferShmid = shmId;
 
   if (taosProcInitMutex(&pQueue->mutex, &pQueue->mutexShmid) != 0) {
-    free(pQueue);
+    taosMemoryFree(pQueue);
     return NULL;
   }
 
   if (tsem_init(&pQueue->sem, 1, 0) != 0) {
     taosProcDestroyMutex(pQueue->mutex, &pQueue->mutexShmid);
-    free(pQueue);
+    taosMemoryFree(pQueue);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
@@ -177,7 +177,7 @@ static SProcQueue *taosProcQueueInit(int32_t size) {
   if (taosProcInitMutex(&pQueue->mutex, &pQueue->mutexShmid) != 0) {
     taosProcDestroyMutex(pQueue->mutex, &pQueue->mutexShmid);
     tsem_destroy(&pQueue->sem);
-    free(pQueue);
+    taosMemoryFree(pQueue);
     return NULL;
   }
 
@@ -195,7 +195,7 @@ static void taosProcQueueCleanup(SProcQueue *pQueue) {
     uDebug("proc:%s, queue:%p clean up", pQueue->name, pQueue);
     taosProcDestroyMutex(pQueue->mutex, &pQueue->mutexShmid);
     tsem_destroy(&pQueue->sem);
-    free(pQueue);
+    taosMemoryFree(pQueue);
   }
 }
 
@@ -337,7 +337,7 @@ static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int32_t *pHea
 }
 
 SProcObj *taosProcInit(const SProcCfg *pCfg) {
-  SProcObj *pProc = calloc(1, sizeof(SProcObj));
+  SProcObj *pProc = taosMemoryCalloc(1, sizeof(SProcObj));
   if (pProc == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -350,7 +350,7 @@ SProcObj *taosProcInit(const SProcCfg *pCfg) {
   pProc->pParentQueue = taosProcQueueInit(pCfg->parentQueueSize);
   if (pProc->pChildQueue == NULL || pProc->pParentQueue == NULL) {
     taosProcQueueCleanup(pProc->pChildQueue);
-    free(pProc);
+    taosMemoryFree(pProc);
     return NULL;
   }
 
@@ -447,7 +447,7 @@ void taosProcCleanup(SProcObj *pProc) {
     taosProcStop(pProc);
     taosProcQueueCleanup(pProc->pChildQueue);
     taosProcQueueCleanup(pProc->pParentQueue);
-    free(pProc);
+    taosMemoryFree(pProc);
   }
 }
 

@@ -160,25 +160,25 @@ static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pSma->astLen, _OVER)
 
   if (pSma->exprLen > 0) {
-    pSma->expr = calloc(pSma->exprLen, 1);
+    pSma->expr = taosMemoryCalloc(pSma->exprLen, 1);
     if (pSma->expr == NULL) goto _OVER;
     SDB_GET_BINARY(pRaw, dataPos, pSma->expr, pSma->exprLen, _OVER)
   }
 
   if (pSma->tagsFilterLen > 0) {
-    pSma->tagsFilter = calloc(pSma->tagsFilterLen, 1);
+    pSma->tagsFilter = taosMemoryCalloc(pSma->tagsFilterLen, 1);
     if (pSma->tagsFilter == NULL) goto _OVER;
     SDB_GET_BINARY(pRaw, dataPos, pSma->tagsFilter, pSma->tagsFilterLen, _OVER)
   }
 
   if (pSma->sqlLen > 0) {
-    pSma->sql = calloc(pSma->sqlLen, 1);
+    pSma->sql = taosMemoryCalloc(pSma->sqlLen, 1);
     if (pSma->sql == NULL) goto _OVER;
     SDB_GET_BINARY(pRaw, dataPos, pSma->sql, pSma->sqlLen, _OVER)
   }
 
   if (pSma->astLen > 0) {
-    pSma->ast = calloc(pSma->astLen, 1);
+    pSma->ast = taosMemoryCalloc(pSma->astLen, 1);
     if (pSma->ast == NULL) goto _OVER;
     SDB_GET_BINARY(pRaw, dataPos, pSma->ast, pSma->astLen, _OVER)
   }
@@ -189,9 +189,9 @@ static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw) {
 _OVER:
   if (terrno != 0) {
     mError("sma:%s, failed to decode from raw:%p since %s", pSma->name, pRaw, terrstr());
-    tfree(pSma->expr);
-    tfree(pSma->tagsFilter);
-    tfree(pRow);
+    taosMemoryFreeClear(pSma->expr);
+    taosMemoryFreeClear(pSma->tagsFilter);
+    taosMemoryFreeClear(pRow);
     return NULL;
   }
 
@@ -206,8 +206,8 @@ static int32_t mndSmaActionInsert(SSdb *pSdb, SSmaObj *pSma) {
 
 static int32_t mndSmaActionDelete(SSdb *pSdb, SSmaObj *pSma) {
   mTrace("sma:%s, perform delete action, row:%p", pSma->name, pSma);
-  tfree(pSma->tagsFilter);
-  tfree(pSma->expr);
+  taosMemoryFreeClear(pSma->tagsFilter);
+  taosMemoryFreeClear(pSma->expr);
   return 0;
 }
 
@@ -261,7 +261,7 @@ static void *mndBuildVCreateSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSm
   req.tSma.tagsFilter = pSma->tagsFilter;
 
   int32_t   contLen = tSerializeSVCreateTSmaReq(NULL, &req) + sizeof(SMsgHead);
-  SMsgHead *pHead = malloc(contLen);
+  SMsgHead *pHead = taosMemoryMalloc(contLen);
   if (pHead == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -287,7 +287,7 @@ static void *mndBuildVDropSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSma,
   tstrncpy(req.indexName, (char *)tNameGetTableName(&name), TSDB_INDEX_NAME_LEN);
 
   int32_t   contLen = tSerializeSVDropTSmaReq(NULL, &req) + sizeof(SMsgHead);
-  SMsgHead *pHead = malloc(contLen);
+  SMsgHead *pHead = taosMemoryMalloc(contLen);
   if (pHead == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -349,7 +349,7 @@ static int32_t mndSetCreateSmaRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     action.contLen = contLen;
     action.msgType = TDMT_VND_CREATE_SMA;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-      free(pReq);
+      taosMemoryFree(pReq);
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
       return -1;
@@ -382,25 +382,25 @@ static int32_t mndCreateSma(SMnode *pMnode, SNodeMsg *pReq, SMCreateSmaReq *pCre
   smaObj.astLen = pCreate->astLen;
 
   if (smaObj.exprLen > 0) {
-    smaObj.expr = malloc(smaObj.exprLen);
+    smaObj.expr = taosMemoryMalloc(smaObj.exprLen);
     if (smaObj.expr == NULL) goto _OVER;
     memcpy(smaObj.expr, pCreate->expr, smaObj.exprLen);
   }
 
   if (smaObj.tagsFilterLen > 0) {
-    smaObj.tagsFilter = malloc(smaObj.tagsFilterLen);
+    smaObj.tagsFilter = taosMemoryMalloc(smaObj.tagsFilterLen);
     if (smaObj.tagsFilter == NULL) goto _OVER;
     memcpy(smaObj.tagsFilter, pCreate->tagsFilter, smaObj.tagsFilterLen);
   }
 
   if (smaObj.sqlLen > 0) {
-    smaObj.sql = malloc(smaObj.sqlLen);
+    smaObj.sql = taosMemoryMalloc(smaObj.sqlLen);
     if (smaObj.sql == NULL) goto _OVER;
     memcpy(smaObj.sql, pCreate->sql, smaObj.sqlLen);
   }
 
   if (smaObj.astLen > 0) {
-    smaObj.ast = malloc(smaObj.astLen);
+    smaObj.ast = taosMemoryMalloc(smaObj.astLen);
     if (smaObj.ast == NULL) goto _OVER;
     memcpy(smaObj.ast, pCreate->ast, smaObj.astLen);
   }
@@ -596,7 +596,7 @@ static int32_t mndSetDropSmaRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
     action.msgType = TDMT_VND_DROP_SMA;
     action.acceptableCode = TSDB_CODE_VND_SMA_NOT_EXIST;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-      free(pReq);
+      taosMemoryFree(pReq);
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
       return -1;

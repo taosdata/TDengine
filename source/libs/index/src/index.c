@@ -62,7 +62,7 @@ static void indexMergeCacheAndTFile(SArray* result, IterateValue* icache, Iterat
 
 int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   taosThreadOnce(&isInit, indexInit);
-  SIndex* sIdx = calloc(1, sizeof(SIndex));
+  SIndex* sIdx = taosMemoryCalloc(1, sizeof(SIndex));
   if (sIdx == NULL) {
     return -1;
   }
@@ -115,8 +115,8 @@ void indexClose(SIndex* sIdx) {
   taosThreadMutexDestroy(&sIdx->mtx);
   indexTFileDestroy(sIdx->tindex);
 #endif
-  free(sIdx->path);
-  free(sIdx);
+  taosMemoryFree(sIdx->path);
+  taosMemoryFree(sIdx);
   return;
 }
 
@@ -179,16 +179,16 @@ int indexSearch(SIndex* index, SIndexMultiTermQuery* multiQuerys, SArray* result
   EIndexOperatorType opera = multiQuerys->opera;
 
   int    nQuery = taosArrayGetSize(multiQuerys->query);
-  char** fields = malloc(sizeof(char*) * nQuery);
-  char** keys = malloc(sizeof(char*) * nQuery);
-  int*   types = malloc(sizeof(int) * nQuery);
+  char** fields = taosMemoryMalloc(sizeof(char*) * nQuery);
+  char** keys = taosMemoryMalloc(sizeof(char*) * nQuery);
+  int*   types = taosMemoryMalloc(sizeof(int) * nQuery);
 
   for (int i = 0; i < nQuery; i++) {
     SIndexTermQuery* p = taosArrayGet(multiQuerys->query, i);
     SIndexTerm*      term = p->field_value;
 
-    fields[i] = calloc(1, term->nKey + 1);
-    keys[i] = calloc(1, term->nVal + 1);
+    fields[i] = taosMemoryCalloc(1, term->nKey + 1);
+    keys[i] = taosMemoryCalloc(1, term->nVal + 1);
 
     memcpy(fields[i], term->key, term->nKey);
     memcpy(keys[i], term->val, term->nVal);
@@ -203,12 +203,12 @@ int indexSearch(SIndex* index, SIndexMultiTermQuery* multiQuerys, SArray* result
   }
 
   for (int i = 0; i < nQuery; i++) {
-    free(fields[i]);
-    free(keys[i]);
+    taosMemoryFree(fields[i]);
+    taosMemoryFree(keys[i]);
   }
-  free(fields);
-  free(keys);
-  free(types);
+  taosMemoryFree(fields);
+  taosMemoryFree(keys);
+  taosMemoryFree(types);
 #endif
 
 #ifdef USE_INVERTED_INDEX
@@ -258,7 +258,7 @@ void indexOptsDestroy(SIndexOpts* opts) {
  *
  */
 SIndexMultiTermQuery* indexMultiTermQueryCreate(EIndexOperatorType opera) {
-  SIndexMultiTermQuery* p = (SIndexMultiTermQuery*)malloc(sizeof(SIndexMultiTermQuery));
+  SIndexMultiTermQuery* p = (SIndexMultiTermQuery*)taosMemoryMalloc(sizeof(SIndexMultiTermQuery));
   if (p == NULL) {
     return NULL;
   }
@@ -272,7 +272,7 @@ void indexMultiTermQueryDestroy(SIndexMultiTermQuery* pQuery) {
     indexTermDestroy(p->term);
   }
   taosArrayDestroy(pQuery->query);
-  free(pQuery);
+  taosMemoryFree(pQuery);
 };
 int indexMultiTermQueryAdd(SIndexMultiTermQuery* pQuery, SIndexTerm* term, EIndexQueryType qType) {
   SIndexTermQuery q = {.qType = qType, .term = term};
@@ -282,7 +282,7 @@ int indexMultiTermQueryAdd(SIndexMultiTermQuery* pQuery, SIndexTerm* term, EInde
 
 SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colType, const char* colName,
                             int32_t nColName, const char* colVal, int32_t nColVal) {
-  SIndexTerm* t = (SIndexTerm*)calloc(1, (sizeof(SIndexTerm)));
+  SIndexTerm* t = (SIndexTerm*)taosMemoryCalloc(1, (sizeof(SIndexTerm)));
   if (t == NULL) {
     return NULL;
   }
@@ -291,19 +291,19 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
   t->operType = oper;
   t->colType = colType;
 
-  t->colName = (char*)calloc(1, nColName + 1);
+  t->colName = (char*)taosMemoryCalloc(1, nColName + 1);
   memcpy(t->colName, colName, nColName);
   t->nColName = nColName;
 
-  t->colVal = (char*)calloc(1, nColVal + 1);
+  t->colVal = (char*)taosMemoryCalloc(1, nColVal + 1);
   memcpy(t->colVal, colVal, nColVal);
   t->nColVal = nColVal;
   return t;
 }
 void indexTermDestroy(SIndexTerm* p) {
-  free(p->colName);
-  free(p->colVal);
-  free(p);
+  taosMemoryFree(p->colName);
+  taosMemoryFree(p->colVal);
+  taosMemoryFree(p);
 }
 
 SIndexMultiTerm* indexMultiTermCreate() { return taosArrayInit(4, sizeof(SIndexTerm*)); }
@@ -536,7 +536,7 @@ void iterateValueDestroy(IterateValue* value, bool destroy) {
       taosArrayClear(value->val);
     }
   }
-  free(value->colVal);
+  taosMemoryFree(value->colVal);
   value->colVal = NULL;
 }
 static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
@@ -572,7 +572,7 @@ static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
 END:
   if (tw != NULL) {
     writerCtxDestroy(tw->ctx, true);
-    free(tw);
+    taosMemoryFree(tw);
   }
   return -1;
 }

@@ -30,7 +30,7 @@ STfs *tfsOpen(SDiskCfg *pCfg, int32_t ndisk) {
     return NULL;
   }
 
-  STfs *pTfs = calloc(1, sizeof(STfs));
+  STfs *pTfs = taosMemoryCalloc(1, sizeof(STfs));
   if (pTfs == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -86,7 +86,7 @@ void tfsClose(STfs *pTfs) {
 
   taosHashCleanup(pTfs->hash);
   taosThreadSpinDestroy(&pTfs->lock);
-  free(pTfs);
+  taosMemoryFree(pTfs);
 }
 
 void tfsUpdateSize(STfs *pTfs) {
@@ -184,7 +184,7 @@ void *tfsDecodeFile(STfs *pTfs, void *buf, STfsFile *pFile) {
 
   tfsInitFile(pTfs, pFile, diskId, rname);
 
-  tfree(rname);
+  taosMemoryFreeClear(rname);
   return buf;
 }
 
@@ -242,12 +242,12 @@ int32_t tfsMkdirRecurAt(STfs *pTfs, const char *rname, SDiskID diskId) {
       char *dir = strdup(taosDirName(s));
 
       if (tfsMkdirRecurAt(pTfs, dir, diskId) < 0) {
-        free(s);
-        free(dir);
+        taosMemoryFree(s);
+        taosMemoryFree(dir);
         return -1;
       }
-      free(s);
-      free(dir);
+      taosMemoryFree(s);
+      taosMemoryFree(dir);
 
       if (tfsMkdirAt(pTfs, rname, diskId) < 0) {
         return -1;
@@ -311,7 +311,7 @@ int32_t tfsRename(STfs *pTfs, char *orname, char *nrname) {
 }
 
 STfsDir *tfsOpendir(STfs *pTfs, const char *rname) {
-  STfsDir *pDir = calloc(1, sizeof(STfsDir));
+  STfsDir *pDir = taosMemoryCalloc(1, sizeof(STfsDir));
   if (pDir == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -323,7 +323,7 @@ STfsDir *tfsOpendir(STfs *pTfs, const char *rname) {
   tstrncpy(pDir->dirname, rname, TSDB_FILENAME_LEN);
 
   if (tfsOpendirImpl(pTfs, pDir) < 0) {
-    free(pDir);
+    taosMemoryFree(pDir);
     return NULL;
   }
 
@@ -369,7 +369,7 @@ void tfsClosedir(STfsDir *pTfsDir) {
       taosCloseDir(pTfsDir->pDir);
       pTfsDir->pDir = NULL;
     }
-    free(pTfsDir);
+    taosMemoryFree(pTfsDir);
   }
 }
 

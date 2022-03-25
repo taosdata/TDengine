@@ -88,7 +88,7 @@ static int32_t mndProcessTelemTimer(SNodeMsg* pReq) {
   char* pCont = mndBuildTelemetryReport(pMnode);
   if (pCont != NULL) {
     taosSendHttpReport(TELEMETRY_SERVER, TELEMETRY_PORT, pCont, strlen(pCont), HTTP_FLAT);
-    free(pCont);
+    taosMemoryFree(pCont);
   }
   taosWUnLockLatch(&pMgmt->lock);
   return 0;

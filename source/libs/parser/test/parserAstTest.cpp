@@ -99,7 +99,7 @@ private:
       throw "nodesNodeToString failed!";
     }
     string str(pStr);
-    tfree(pStr);
+    taosMemoryFreeClear(pStr);
     return str;
   }
 

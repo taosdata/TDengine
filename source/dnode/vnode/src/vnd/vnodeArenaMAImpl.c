@@ -19,7 +19,7 @@ static SVArenaNode *vArenaNodeNew(uint64_t capacity);
 static void         vArenaNodeFree(SVArenaNode *pNode);
 
 SVMemAllocator *vmaCreate(uint64_t capacity, uint64_t ssize, uint64_t lsize) {
-  SVMemAllocator *pVMA = (SVMemAllocator *)malloc(sizeof(*pVMA));
+  SVMemAllocator *pVMA = (SVMemAllocator *)taosMemoryMalloc(sizeof(*pVMA));
   if (pVMA == NULL) {
     return NULL;
   }
@@ -31,7 +31,7 @@ SVMemAllocator *vmaCreate(uint64_t capacity, uint64_t ssize, uint64_t lsize) {
 
   pVMA->pNode = vArenaNodeNew(capacity);
   if (pVMA->pNode == NULL) {
-    free(pVMA);
+    taosMemoryFree(pVMA);
     return NULL;
   }
 
@@ -48,7 +48,7 @@ void vmaDestroy(SVMemAllocator *pVMA) {
       vArenaNodeFree(pNode);
     }
 
-    free(pVMA);
+    taosMemoryFree(pVMA);
   }
 }
 
@@ -99,7 +99,7 @@ bool vmaIsFull(SVMemAllocator *pVMA) {
 static SVArenaNode *vArenaNodeNew(uint64_t capacity) {
   SVArenaNode *pNode = NULL;
 
-  pNode = (SVArenaNode *)malloc(sizeof(*pNode) + capacity);
+  pNode = (SVArenaNode *)taosMemoryMalloc(sizeof(*pNode) + capacity);
   if (pNode == NULL) {
     return NULL;
   }
@@ -112,6 +112,6 @@ static SVArenaNode *vArenaNodeNew(uint64_t capacity) {
 
 static void vArenaNodeFree(SVArenaNode *pNode) {
   if (pNode) {
-    free(pNode);
+    taosMemoryFree(pNode);
   }
 }

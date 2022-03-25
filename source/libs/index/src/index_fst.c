@@ -30,7 +30,7 @@ static uint8_t fstPackDetla(FstCountingWriter* wrt, CompiledAddr nodeAddr, Compi
 }
 
 FstUnFinishedNodes* fstUnFinishedNodesCreate() {
-  FstUnFinishedNodes* nodes = malloc(sizeof(FstUnFinishedNodes));
+  FstUnFinishedNodes* nodes = taosMemoryMalloc(sizeof(FstUnFinishedNodes));
   if (nodes == NULL) {
     return NULL;
   }
@@ -42,7 +42,7 @@ FstUnFinishedNodes* fstUnFinishedNodesCreate() {
 static void unFinishedNodeDestroyElem(void* elem) {
   FstBuilderNodeUnfinished* b = (FstBuilderNodeUnfinished*)elem;
   fstBuilderNodeDestroy(b->node);
-  free(b->last);
+  taosMemoryFree(b->last);
   b->last = NULL;
 }
 void fstUnFinishedNodesDestroy(FstUnFinishedNodes* nodes) {
@@ -51,11 +51,11 @@ void fstUnFinishedNodesDestroy(FstUnFinishedNodes* nodes) {
   }
 
   taosArrayDestroyEx(nodes->stack, unFinishedNodeDestroyElem);
-  free(nodes);
+  taosMemoryFree(nodes);
 }
 
 void fstUnFinishedNodesPushEmpty(FstUnFinishedNodes* nodes, bool isFinal) {
-  FstBuilderNode* node = malloc(sizeof(FstBuilderNode));
+  FstBuilderNode* node = taosMemoryMalloc(sizeof(FstBuilderNode));
   node->isFinal = isFinal;
   node->finalOutput = 0;
   node->trans = taosArrayInit(16, sizeof(FstTransition));
@@ -74,7 +74,7 @@ FstBuilderNode* fstUnFinishedNodesPopRoot(FstUnFinishedNodes* nodes) {
 FstBuilderNode* fstUnFinishedNodesPopFreeze(FstUnFinishedNodes* nodes, CompiledAddr addr) {
   FstBuilderNodeUnfinished* un = taosArrayPop(nodes->stack);
   fstBuilderNodeUnfinishedLastCompiled(un, addr);
-  // free(un->last); // TODO add func FstLastTransitionFree()
+  // taosMemoryFree(un->last); // TODO add func FstLastTransitionFree()
   // un->last = NULL;
   return un->node;
 }
@@ -103,7 +103,7 @@ void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes* nodes, FstSlice bs, Output 
   FstBuilderNodeUnfinished* un = taosArrayGet(nodes->stack, sz);
   assert(un->last == NULL);
 
-  // FstLastTransition *trn = malloc(sizeof(FstLastTransition));
+  // FstLastTransition *trn = taosMemoryMalloc(sizeof(FstLastTransition));
   // trn->inp = s->data[s->start];
   // trn->out = out;
   int32_t  len = 0;
@@ -111,12 +111,12 @@ void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes* nodes, FstSlice bs, Output 
   un->last = fstLastTransitionCreate(data[0], out);
 
   for (uint64_t i = 1; i < len; i++) {
-    FstBuilderNode* n = malloc(sizeof(FstBuilderNode));
+    FstBuilderNode* n = taosMemoryMalloc(sizeof(FstBuilderNode));
     n->isFinal = false;
     n->finalOutput = 0;
     n->trans = taosArrayInit(16, sizeof(FstTransition));
 
-    // FstLastTransition *trn = malloc(sizeof(FstLastTransition));
+    // FstLastTransition *trn = taosMemoryMalloc(sizeof(FstLastTransition));
     // trn->inp = s->data[i];
     // trn->out = out;
     FstLastTransition* trn = fstLastTransitionCreate(data[i], 0);
@@ -296,7 +296,7 @@ void fstStateCompileForAnyTrans(FstCountingWriter* w, CompiledAddr addr, FstBuil
     // at that index. (Except when there are 256 transitions.) Namely,
     // any value greater than or equal to the number of transitions in
     // this node indicates an absent transition.
-    uint8_t* index = (uint8_t*)malloc(sizeof(uint8_t) * 256);
+    uint8_t* index = (uint8_t*)taosMemoryMalloc(sizeof(uint8_t) * 256);
     memset(index, 255, sizeof(uint8_t) * 256);
     /// for (uint8_t i = 0; i < 256; i++) {
     //  index[i] = 255;
@@ -307,7 +307,7 @@ void fstStateCompileForAnyTrans(FstCountingWriter* w, CompiledAddr addr, FstBuil
       // fstPackDeltaIn(w, addr, t->addr, tSize);
     }
     fstCountingWriterWrite(w, (char*)index, 256);
-    free(index);
+    taosMemoryFree(index);
   }
   fstCountingWriterWrite(w, (char*)&packSizes, 1);
   bool null = false;
@@ -578,7 +578,7 @@ uint64_t fstStateFindInput(FstState* s, FstNode* node, uint8_t b, bool* null) {
 // fst node function
 
 FstNode* fstNodeCreate(int64_t version, CompiledAddr addr, FstSlice* slice) {
-  FstNode* n = (FstNode*)malloc(sizeof(FstNode));
+  FstNode* n = (FstNode*)taosMemoryMalloc(sizeof(FstNode));
   if (n == NULL) {
     return NULL;
   }
@@ -643,10 +643,10 @@ static const char* fstNodeState(FstNode* node) {
 
 void fstNodeDestroy(FstNode* node) {
   fstSliceDestroy(&node->data);
-  free(node);
+  taosMemoryFree(node);
 }
 FstTransitions* fstNodeTransitions(FstNode* node) {
-  FstTransitions* t = malloc(sizeof(FstTransitions));
+  FstTransitions* t = taosMemoryMalloc(sizeof(FstTransitions));
   if (NULL == t) {
     return NULL;
   }
@@ -755,7 +755,7 @@ bool fstBuilderNodeCompileTo(FstBuilderNode* b, FstCountingWriter* wrt, Compiled
 }
 
 FstBuilder* fstBuilderCreate(void* w, FstType ty) {
-  FstBuilder* b = malloc(sizeof(FstBuilder));
+  FstBuilder* b = taosMemoryMalloc(sizeof(FstBuilder));
   if (NULL == b) {
     return b;
   }
@@ -788,7 +788,7 @@ void fstBuilderDestroy(FstBuilder* b) {
   fstUnFinishedNodesDestroy(b->unfinished);
   fstRegistryDestroy(b->registry);
   fstSliceDestroy(&b->last);
-  free(b);
+  taosMemoryFree(b);
 }
 
 bool fstBuilderInsert(FstBuilder* b, FstSlice bs, Output in) {
@@ -928,7 +928,7 @@ FstSlice fstNodeAsSlice(FstNode* node) {
 }
 
 FstLastTransition* fstLastTransitionCreate(uint8_t inp, Output out) {
-  FstLastTransition* trn = malloc(sizeof(FstLastTransition));
+  FstLastTransition* trn = taosMemoryMalloc(sizeof(FstLastTransition));
   if (trn == NULL) {
     return NULL;
   }
@@ -938,7 +938,7 @@ FstLastTransition* fstLastTransitionCreate(uint8_t inp, Output out) {
   return trn;
 }
 
-void fstLastTransitionDestroy(FstLastTransition* trn) { free(trn); }
+void fstLastTransitionDestroy(FstLastTransition* trn) { taosMemoryFree(trn); }
 
 void fstBuilderNodeUnfinishedLastCompiled(FstBuilderNodeUnfinished* unNode, CompiledAddr addr) {
   FstLastTransition* trn = unNode->last;
@@ -1003,12 +1003,12 @@ Fst* fstCreate(FstSlice* slice) {
   len -= sizeof(fstLen);
   taosDecodeFixedU64(buf + len, &fstLen);
   // TODO(validate root addr)
-  Fst* fst = (Fst*)calloc(1, sizeof(Fst));
+  Fst* fst = (Fst*)taosMemoryCalloc(1, sizeof(Fst));
   if (fst == NULL) {
     return NULL;
   }
 
-  fst->meta = (FstMeta*)malloc(sizeof(FstMeta));
+  fst->meta = (FstMeta*)taosMemoryMalloc(sizeof(FstMeta));
   if (NULL == fst->meta) {
     goto FST_CREAT_FAILED;
   }
@@ -1019,7 +1019,7 @@ Fst* fstCreate(FstSlice* slice) {
   fst->meta->len = fstLen;
   fst->meta->checkSum = checkSum;
 
-  FstSlice* s = calloc(1, sizeof(FstSlice));
+  FstSlice* s = taosMemoryCalloc(1, sizeof(FstSlice));
   *s = fstSliceCopy(slice, 0, FST_SLICE_LEN(slice) - 1);
   fst->data = s;
 
@@ -1027,19 +1027,19 @@ Fst* fstCreate(FstSlice* slice) {
   return fst;
 
 FST_CREAT_FAILED:
-  free(fst->meta);
-  free(fst);
+  taosMemoryFree(fst->meta);
+  taosMemoryFree(fst);
 
   return NULL;
 }
 void fstDestroy(Fst* fst) {
   if (fst) {
-    free(fst->meta);
+    taosMemoryFree(fst->meta);
     fstSliceDestroy(fst->data);
-    free(fst->data);
+    taosMemoryFree(fst->data);
     taosThreadMutexDestroy(&fst->mtx);
   }
-  free(fst);
+  taosMemoryFree(fst);
 }
 
 bool fstGet(Fst* fst, FstSlice* b, Output* out) {
@@ -1136,7 +1136,7 @@ bool fstVerify(Fst* fst) {
 
 // data bound function
 FstBoundWithData* fstBoundStateCreate(FstBound type, FstSlice* data) {
-  FstBoundWithData* b = calloc(1, sizeof(FstBoundWithData));
+  FstBoundWithData* b = taosMemoryCalloc(1, sizeof(FstBoundWithData));
   if (b == NULL) {
     return NULL;
   }
@@ -1171,11 +1171,11 @@ bool fstBoundWithDataIsEmpty(FstBoundWithData* bound) {
 
 bool fstBoundWithDataIsIncluded(FstBoundWithData* bound) { return bound->type == Excluded ? false : true; }
 
-void fstBoundDestroy(FstBoundWithData* bound) { free(bound); }
+void fstBoundDestroy(FstBoundWithData* bound) { taosMemoryFree(bound); }
 
 StreamWithState* streamWithStateCreate(Fst* fst, AutomationCtx* automation, FstBoundWithData* min,
                                        FstBoundWithData* max) {
-  StreamWithState* sws = calloc(1, sizeof(StreamWithState));
+  StreamWithState* sws = taosMemoryCalloc(1, sizeof(StreamWithState));
   if (sws == NULL) {
     return NULL;
   }
@@ -1201,7 +1201,7 @@ void streamWithStateDestroy(StreamWithState* sws) {
   taosArrayDestroy(sws->inp);
   taosArrayDestroyEx(sws->stack, streamStateDestroy);
 
-  free(sws);
+  taosMemoryFree(sws);
 }
 
 bool streamWithStateSeekMin(StreamWithState* sws, FstBoundWithData* min) {
@@ -1346,7 +1346,7 @@ StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallb
     taosArrayPush(sws->stack, &s2);
 
     size_t   isz = taosArrayGetSize(sws->inp);
-    uint8_t* buf = (uint8_t*)malloc(isz * sizeof(uint8_t));
+    uint8_t* buf = (uint8_t*)taosMemoryMalloc(isz * sizeof(uint8_t));
     for (uint32_t i = 0; i < isz; i++) {
       buf[i] = *(uint8_t*)taosArrayGet(sws->inp, i);
     }
@@ -1354,19 +1354,19 @@ StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallb
     if (fstBoundWithDataExceededBy(sws->endAt, &slice)) {
       taosArrayDestroyEx(sws->stack, streamStateDestroy);
       sws->stack = (SArray*)taosArrayInit(256, sizeof(StreamState));
-      tfree(buf);
+      taosMemoryFreeClear(buf);
       fstSliceDestroy(&slice);
       return NULL;
     }
     if (FST_NODE_IS_FINAL(nextNode) && isMatch) {
       FstOutput              fOutput = {.null = false, .out = out + FST_NODE_FINAL_OUTPUT(nextNode)};
       StreamWithStateResult* result = swsResultCreate(&slice, fOutput, tState);
-      tfree(buf);
+      taosMemoryFreeClear(buf);
       fstSliceDestroy(&slice);
       taosArrayDestroy(nodes);
       return result;
     }
-    tfree(buf);
+    taosMemoryFreeClear(buf);
     fstSliceDestroy(&slice);
   }
   for (size_t i = 0; i < taosArrayGetSize(nodes); i++) {
@@ -1378,7 +1378,7 @@ StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallb
 }
 
 StreamWithStateResult* swsResultCreate(FstSlice* data, FstOutput fOut, void* state) {
-  StreamWithStateResult* result = calloc(1, sizeof(StreamWithStateResult));
+  StreamWithStateResult* result = taosMemoryCalloc(1, sizeof(StreamWithStateResult));
   if (result == NULL) {
     return NULL;
   }
@@ -1395,7 +1395,7 @@ void swsResultDestroy(StreamWithStateResult* result) {
 
   fstSliceDestroy(&result->data);
   startWithStateValueDestroy(result->state);
-  free(result);
+  taosMemoryFree(result);
 }
 
 void streamStateDestroy(void* s) {
@@ -1407,7 +1407,7 @@ void streamStateDestroy(void* s) {
 }
 
 FstStreamBuilder* fstStreamBuilderCreate(Fst* fst, AutomationCtx* aut) {
-  FstStreamBuilder* b = calloc(1, sizeof(FstStreamBuilder));
+  FstStreamBuilder* b = taosMemoryCalloc(1, sizeof(FstStreamBuilder));
   if (NULL == b) {
     return NULL;
   }
@@ -1421,9 +1421,9 @@ FstStreamBuilder* fstStreamBuilderCreate(Fst* fst, AutomationCtx* aut) {
 void fstStreamBuilderDestroy(FstStreamBuilder* b) {
   fstSliceDestroy(&b->min->data);
   fstSliceDestroy(&b->max->data);
-  tfree(b->min);
-  tfree(b->max);
-  free(b);
+  taosMemoryFreeClear(b->min);
+  taosMemoryFreeClear(b->max);
+  taosMemoryFree(b);
 }
 FstStreamBuilder* fstStreamBuilderRange(FstStreamBuilder* b, FstSlice* val, RangeType type) {
   if (b == NULL) {

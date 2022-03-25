@@ -142,7 +142,7 @@ static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput,
   pBuf->allocSize = sizeof(SRetrieveTableRsp) + blockDataGetSerialMetaSize(pInput->pData) +
       ceil(blockDataGetSerialRowSize(pInput->pData) * pInput->pData->info.rows);
 
-  pBuf->pData = malloc(pBuf->allocSize);
+  pBuf->pData = taosMemoryMalloc(pBuf->allocSize);
   if (pBuf->pData == NULL) {
     qError("SinkNode failed to malloc memory, size:%d, code:%d", pBuf->allocSize, TAOS_SYSTEM_ERROR(errno));
   }
@@ -215,7 +215,7 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   memcpy(pOutput->pData, pEntry->data, pEntry->dataLen);
   pOutput->numOfRows = pEntry->numOfRows;
   pOutput->compressed = pEntry->compressed;
-  tfree(pDispatcher->nextOutput.pData);  // todo persistent
+  taosMemoryFreeClear(pDispatcher->nextOutput.pData);  // todo persistent
   pOutput->bufStatus = updateStatus(pDispatcher);
   taosThreadMutexLock(&pDispatcher->mutex);
   pOutput->queryEnd = pDispatcher->queryEnd;
@@ -227,11 +227,11 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
 
 static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
-  tfree(pDispatcher->nextOutput.pData);
+  taosMemoryFreeClear(pDispatcher->nextOutput.pData);
   while (!taosQueueEmpty(pDispatcher->pDataBlocks)) {
     SDataDispatchBuf* pBuf = NULL;
     taosReadQitem(pDispatcher->pDataBlocks, (void**)&pBuf);
-    tfree(pBuf->pData);
+    taosMemoryFreeClear(pBuf->pData);
     taosFreeQitem(pBuf);
   }
   taosCloseQueue(pDispatcher->pDataBlocks);
@@ -239,7 +239,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
 }
 
 int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle) {
-  SDataDispatchHandle* dispatcher = calloc(1, sizeof(SDataDispatchHandle));
+  SDataDispatchHandle* dispatcher = taosMemoryCalloc(1, sizeof(SDataDispatchHandle));
   if (NULL == dispatcher) {
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return TSDB_CODE_QRY_OUT_OF_MEMORY;

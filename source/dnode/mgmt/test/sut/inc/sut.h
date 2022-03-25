@@ -98,7 +98,7 @@ class Testbase {
 
 #define CheckBinaryByte(b, len)                   \
   {                                               \
-    char* bytes = (char*)calloc(1, len);          \
+    char* bytes = (char*)taosMemoryCalloc(1, len);          \
     for (int32_t i = 0; i < len - 1; ++i) {       \
       bytes[i] = b;                               \
     }                                             \

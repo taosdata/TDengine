@@ -21,7 +21,7 @@ SVnodeObj **vmGetVnodesFromHash(SVnodesMgmt *pMgmt, int32_t *numOfVnodes) {
 
   int32_t     num = 0;
   int32_t     size = taosHashGetSize(pMgmt->hash);
-  SVnodeObj **pVnodes = calloc(size, sizeof(SVnodeObj *));
+  SVnodeObj **pVnodes = taosMemoryCalloc(size, sizeof(SVnodeObj *));
 
   void *pIter = taosHashIterate(pMgmt->hash, NULL);
   while (pIter) {
@@ -48,7 +48,7 @@ int32_t vmGetVnodesFromFile(SVnodesMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *n
   int32_t      code = TSDB_CODE_NODE_PARSE_FILE_ERROR;
   int32_t      len = 0;
   int32_t      maxLen = 30000;
-  char        *content = calloc(1, maxLen + 1);
+  char        *content = taosMemoryCalloc(1, maxLen + 1);
   cJSON       *root = NULL;
   FILE        *fp = NULL;
   char         file[PATH_MAX];
@@ -85,7 +85,7 @@ int32_t vmGetVnodesFromFile(SVnodesMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *n
 
   int32_t vnodesNum = cJSON_GetArraySize(vnodes);
   if (vnodesNum > 0) {
-    pCfgs = calloc(vnodesNum, sizeof(SWrapperCfg));
+    pCfgs = taosMemoryCalloc(vnodesNum, sizeof(SWrapperCfg));
     if (pCfgs == NULL) {
       dError("failed to read %s since out of memory", file);
       goto PRASE_VNODE_OVER;
@@ -140,7 +140,7 @@ int32_t vmGetVnodesFromFile(SVnodesMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *n
   dInfo("succcessed to read file %s", file);
 
 PRASE_VNODE_OVER:
-  if (content != NULL) free(content);
+  if (content != NULL) taosMemoryFree(content);
   if (root != NULL) cJSON_Delete(root);
   if (pFile != NULL) taosCloseFile(&pFile);
 
@@ -166,7 +166,7 @@ int32_t vmWriteVnodesToFile(SVnodesMgmt *pMgmt) {
 
   int32_t len = 0;
   int32_t maxLen = 65536;
-  char   *content = calloc(1, maxLen + 1);
+  char   *content = taosMemoryCalloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"vnodes\": [\n");
@@ -190,7 +190,7 @@ int32_t vmWriteVnodesToFile(SVnodesMgmt *pMgmt) {
   taosWriteFile(pFile, content, len);
   taosFsyncFile(pFile);
   taosCloseFile(&pFile);
-  free(content);
+  taosMemoryFree(content);
   terrno = 0;
 
   for (int32_t i = 0; i < numOfVnodes; ++i) {
@@ -199,7 +199,7 @@ int32_t vmWriteVnodesToFile(SVnodesMgmt *pMgmt) {
   }
 
   if (pVnodes != NULL) {
-    free(pVnodes);
+    taosMemoryFree(pVnodes);
   }
 
   dDebug("successed to write %s", realfile);

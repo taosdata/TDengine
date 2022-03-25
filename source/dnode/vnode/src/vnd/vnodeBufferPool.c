@@ -34,7 +34,7 @@ static void           vBufPoolDestroyMA(SMemAllocatorFactory *pMAF, SMemAllocato
 int vnodeOpenBufPool(SVnode *pVnode) {
   uint64_t capacity;
 
-  if ((pVnode->pBufPool = (SVBufPool *)calloc(1, sizeof(SVBufPool))) == NULL) {
+  if ((pVnode->pBufPool = (SVBufPool *)taosMemoryCalloc(1, sizeof(SVBufPool))) == NULL) {
     /* TODO */
     return -1;
   }
@@ -57,7 +57,7 @@ int vnodeOpenBufPool(SVnode *pVnode) {
     TD_DLIST_APPEND(&(pVnode->pBufPool->free), pVMA);
   }
 
-  pVnode->pBufPool->pMAF = (SMemAllocatorFactory *)malloc(sizeof(SMemAllocatorFactory));
+  pVnode->pBufPool->pMAF = (SMemAllocatorFactory *)taosMemoryMalloc(sizeof(SMemAllocatorFactory));
   if (pVnode->pBufPool->pMAF == NULL) {
     // TODO: handle error
     return -1;
@@ -71,7 +71,7 @@ int vnodeOpenBufPool(SVnode *pVnode) {
 
 void vnodeCloseBufPool(SVnode *pVnode) {
   if (pVnode->pBufPool) {
-    tfree(pVnode->pBufPool->pMAF);
+    taosMemoryFreeClear(pVnode->pBufPool->pMAF);
     vmaDestroy(pVnode->pBufPool->inuse);
 
     while (true) {
@@ -88,7 +88,7 @@ void vnodeCloseBufPool(SVnode *pVnode) {
       vmaDestroy(pVMA);
     }
 
-    free(pVnode->pBufPool);
+    taosMemoryFree(pVnode->pBufPool);
     pVnode->pBufPool = NULL;
   }
 }
@@ -161,7 +161,7 @@ static SMemAllocator *vBufPoolCreateMA(SMemAllocatorFactory *pMAF) {
   SVnode *       pVnode = (SVnode *)(pMAF->impl);
   SVMAWrapper *  pWrapper;
 
-  pMA = (SMemAllocator *)calloc(1, sizeof(*pMA) + sizeof(SVMAWrapper));
+  pMA = (SMemAllocator *)taosMemoryCalloc(1, sizeof(*pMA) + sizeof(SVMAWrapper));
   if (pMA == NULL) {
     return NULL;
   }
@@ -182,7 +182,7 @@ static void vBufPoolDestroyMA(SMemAllocatorFactory *pMAF, SMemAllocator *pMA) {
   SVnode *        pVnode = pWrapper->pVnode;
   SVMemAllocator *pVMA = pWrapper->pVMA;
 
-  free(pMA);
+  taosMemoryFree(pMA);
   if (--pVMA->_ref.val == 0) {
     TD_DLIST_POP(&(pVnode->pBufPool->incycle), pVMA);
     vmaReset(pVMA);

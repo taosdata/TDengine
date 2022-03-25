@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
     execute_simple_sql(taos, "use test");
     execute_simple_sql(taos, "create table super(ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 binary(8), c6 smallint, c7 tinyint, c8 bool, c9 nchar(8), c10 timestamp) tags (t1 int, t2 bigint, t3 float, t4 double, t5 binary(8), t6 smallint, t7 tinyint, t8 bool, t9 nchar(8))");
 
-    char *sql = calloc(1, 1024*1024);
+    char *sql = taosMemoryCalloc(1, 1024*1024);
     int sqlLen = 0;
     sqlLen = sprintf(sql, "create table");
     for (int i = 0; i < 10; i++) {

@@ -16,7 +16,7 @@
 #include "index_fst_automation.h"
 
 StartWithStateValue* startWithStateValueCreate(StartWithStateKind kind, ValueType ty, void* val) {
-  StartWithStateValue* sv = calloc(1, sizeof(StartWithStateValue));
+  StartWithStateValue* sv = taosMemoryCalloc(1, sizeof(StartWithStateValue));
   if (sv == NULL) {
     return NULL;
   }
@@ -27,7 +27,7 @@ StartWithStateValue* startWithStateValueCreate(StartWithStateKind kind, ValueTyp
     sv->val = *(int*)val;
   } else if (ty == FST_CHAR) {
     size_t len = strlen((char*)val);
-    sv->ptr = (char*)calloc(1, len + 1);
+    sv->ptr = (char*)taosMemoryCalloc(1, len + 1);
     memcpy(sv->ptr, val, len);
   } else if (ty == FST_ARRAY) {
     // TODO,
@@ -44,14 +44,14 @@ void startWithStateValueDestroy(void* val) {
   if (sv->type == FST_INT) {
     //
   } else if (sv->type == FST_CHAR) {
-    free(sv->ptr);
+    taosMemoryFree(sv->ptr);
   } else if (sv->type == FST_ARRAY) {
     taosArrayDestroy(sv->arr);
   }
-  free(sv);
+  taosMemoryFree(sv);
 }
 StartWithStateValue* startWithStateValueDump(StartWithStateValue* sv) {
-  StartWithStateValue* nsv = calloc(1, sizeof(StartWithStateValue));
+  StartWithStateValue* nsv = taosMemoryCalloc(1, sizeof(StartWithStateValue));
   if (nsv == NULL) {
     return NULL;
   }
@@ -62,7 +62,7 @@ StartWithStateValue* startWithStateValueDump(StartWithStateValue* sv) {
     nsv->val = sv->val;
   } else if (nsv->type == FST_CHAR) {
     size_t len = strlen(sv->ptr);
-    nsv->ptr = (char*)calloc(1, len + 1);
+    nsv->ptr = (char*)taosMemoryCalloc(1, len + 1);
     memcpy(nsv->ptr, sv->ptr, len);
   } else if (nsv->type == FST_ARRAY) {
     //
@@ -137,7 +137,7 @@ AutomationFunc automFuncs[] = {
 };
 
 AutomationCtx* automCtxCreate(void* data, AutomationType atype) {
-  AutomationCtx* ctx = calloc(1, sizeof(AutomationCtx));
+  AutomationCtx* ctx = taosMemoryCalloc(1, sizeof(AutomationCtx));
   if (ctx == NULL) {
     return NULL;
   }
@@ -158,7 +158,7 @@ AutomationCtx* automCtxCreate(void* data, AutomationType atype) {
   if (data != NULL) {
     char*  src = (char*)data;
     size_t len = strlen(src);
-    dst = (char*)calloc(1, len * sizeof(char) + 1);
+    dst = (char*)taosMemoryCalloc(1, len * sizeof(char) + 1);
     memcpy(dst, src, len);
   }
 
@@ -169,6 +169,6 @@ AutomationCtx* automCtxCreate(void* data, AutomationType atype) {
 }
 void automCtxDestroy(AutomationCtx* ctx) {
   startWithStateValueDestroy(ctx->stdata);
-  free(ctx->data);
-  free(ctx);
+  taosMemoryFree(ctx->data);
+  taosMemoryFree(ctx);
 }

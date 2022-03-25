@@ -1259,7 +1259,7 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
     return;
   }
 
-  rspList = calloc(schNum, sizeof(SQWHbInfo));
+  rspList = taosMemoryCalloc(schNum, sizeof(SQWHbInfo));
   if (NULL == rspList) {
     QW_UNLOCK(QW_READ, &mgmt->schLock);
     QW_ELOG("calloc %d SQWHbInfo failed", schNum);
@@ -1293,7 +1293,7 @@ _return:
     tFreeSSchedulerHbRsp(&rspList[j].rsp);
   }
 
-  tfree(rspList);
+  taosMemoryFreeClear(rspList);
 
   taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer);  
 }
@@ -1305,7 +1305,7 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qW
   }
 
   int32_t code = 0;
-  SQWorkerMgmt *mgmt = calloc(1, sizeof(SQWorkerMgmt));
+  SQWorkerMgmt *mgmt = taosMemoryCalloc(1, sizeof(SQWorkerMgmt));
   if (NULL == mgmt) {
     qError("calloc %d failed", (int32_t)sizeof(SQWorkerMgmt));
     QW_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -1330,7 +1330,7 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qW
 
   mgmt->schHash = taosHashInit(mgmt->cfg.maxSchedulerNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
   if (NULL == mgmt->schHash) {
-    tfree(mgmt);
+    taosMemoryFreeClear(mgmt);
     qError("init %d scheduler hash failed", mgmt->cfg.maxSchedulerNum);
     QW_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
@@ -1370,7 +1370,7 @@ _return:
 
   taosTmrCleanUp(mgmt->timer);
   
-  tfree(mgmt);
+  taosMemoryFreeClear(mgmt);
 
   QW_RET(code);
 }
@@ -1389,7 +1389,7 @@ void qWorkerDestroy(void **qWorkerMgmt) {
 
   //TODO FREE ALL
 
-  tfree(*qWorkerMgmt);
+  taosMemoryFreeClear(*qWorkerMgmt);
 }
 
 int32_t qwGetSchTasksStatus(SQWorkerMgmt *mgmt, uint64_t sId, SSchedulerStatusRsp **rsp) {
@@ -1406,7 +1406,7 @@ int32_t qwGetSchTasksStatus(SQWorkerMgmt *mgmt, uint64_t sId, SSchedulerStatusRs
   taskNum = taosHashGetSize(sch->tasksHash);
   
   int32_t size = sizeof(SSchedulerStatusRsp) + sizeof((*rsp)->status[0]) * taskNum;
-  *rsp = calloc(1, size);
+  *rsp = taosMemoryCalloc(1, size);
   if (NULL == *rsp) {
     QW_SCH_ELOG("calloc %d failed", size);
     QW_UNLOCK(QW_READ, &sch->tasksLock);

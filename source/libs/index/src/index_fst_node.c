@@ -15,7 +15,7 @@
 #include "index_fst_node.h"
 
 FstBuilderNode* fstBuilderNodeDefault() {
-  FstBuilderNode* bn = malloc(sizeof(FstBuilderNode));
+  FstBuilderNode* bn = taosMemoryMalloc(sizeof(FstBuilderNode));
   bn->isFinal = false;
   bn->finalOutput = 0;
   bn->trans = taosArrayInit(16, sizeof(FstTransition));
@@ -25,7 +25,7 @@ void fstBuilderNodeDestroy(FstBuilderNode* node) {
   if (node == NULL) { return; }
 
   taosArrayDestroy(node->trans);
-  free(node);
+  taosMemoryFree(node);
 }
 
 bool fstBuilderNodeEqual(FstBuilderNode* n1, FstBuilderNode* n2) {
@@ -45,7 +45,7 @@ bool fstBuilderNodeEqual(FstBuilderNode* n1, FstBuilderNode* n2) {
   return true;
 }
 FstBuilderNode* fstBuilderNodeClone(FstBuilderNode* src) {
-  FstBuilderNode* node = malloc(sizeof(FstBuilderNode));
+  FstBuilderNode* node = taosMemoryMalloc(sizeof(FstBuilderNode));
   if (node == NULL) { return NULL; }
 
   //

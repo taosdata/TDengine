@@ -145,7 +145,7 @@ void* tDecodeSStreamTaskExecReq(const void* buf, SStreamTaskExecReq* pReq) {
 void tFreeSStreamTaskExecReq(SStreamTaskExecReq* pReq) { taosArrayDestroy(pReq->data); }
 
 SStreamTask* tNewSStreamTask(int64_t streamId) {
-  SStreamTask* pTask = (SStreamTask*)calloc(1, sizeof(SStreamTask));
+  SStreamTask* pTask = (SStreamTask*)taosMemoryCalloc(1, sizeof(SStreamTask));
   if (pTask == NULL) {
     return NULL;
   }
@@ -227,9 +227,9 @@ int32_t tDecodeSStreamTask(SCoder* pDecoder, SStreamTask* pTask) {
 
 void tFreeSStreamTask(SStreamTask* pTask) {
   // TODO
-  /*free(pTask->qmsg);*/
-  /*free(pTask->executor);*/
-  /*free(pTask);*/
+  /*taosMemoryFree(pTask->qmsg);*/
+  /*taosMemoryFree(pTask->executor);*/
+  /*taosMemoryFree(pTask);*/
 }
 
 #if 0

@@ -80,7 +80,7 @@ static int32_t dmStart(SMgmtWrapper *pWrapper) {
 
 int32_t dmInit(SMgmtWrapper *pWrapper) {
   SDnode     *pDnode = pWrapper->pDnode;
-  SDnodeMgmt *pMgmt = calloc(1, sizeof(SDnodeMgmt));
+  SDnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SDnodeMgmt));
   dInfo("dnode-mgmt start to init");
 
   pDnode->dnodeId = 0;
@@ -138,7 +138,7 @@ void dmCleanup(SMgmtWrapper *pWrapper) {
 
   taosWUnLockLatch(&pMgmt->latch);
 
-  free(pMgmt);
+  taosMemoryFree(pMgmt);
   pWrapper->pMgmt = NULL;
   dInfo("dnode-mgmt is cleaned up");
 }

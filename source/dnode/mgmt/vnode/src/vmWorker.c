@@ -117,7 +117,7 @@ static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     if (pRsp != NULL) {
       pRsp->ahandle = pRpc->ahandle;
       dndSendRsp(pVnode->pWrapper, pRsp);
-      free(pRsp);
+      taosMemoryFree(pRsp);
     } else {
       if (code != 0 && terrno != 0) code = terrno;
       vmSendRsp(pVnode->pWrapper, pMsg, code);

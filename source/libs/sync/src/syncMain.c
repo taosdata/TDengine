@@ -151,7 +151,7 @@ int32_t syncPropose2(int64_t rid, const SRpcMsg* pMsg, bool isWeak, uint64_t seq
 
 // open/close --------------
 SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
-  SSyncNode* pSyncNode = (SSyncNode*)malloc(sizeof(SSyncNode));
+  SSyncNode* pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(SSyncNode));
   assert(pSyncNode != NULL);
   memset(pSyncNode, 0, sizeof(SSyncNode));
 
@@ -310,7 +310,7 @@ void syncNodeClose(SSyncNode* pSyncNode) {
   syncNodeStopElectTimer(pSyncNode);
   syncNodeStopHeartbeatTimer(pSyncNode);
 
-  free(pSyncNode);
+  taosMemoryFree(pSyncNode);
 }
 
 // ping --------------
@@ -723,26 +723,26 @@ void syncNodePrint(SSyncNode* pObj) {
   char* serialized = syncNode2Str(pObj);
   printf("syncNodePrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncNodePrint2(char* s, SSyncNode* pObj) {
   char* serialized = syncNode2Str(pObj);
   printf("syncNodePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncNodeLog(SSyncNode* pObj) {
   char* serialized = syncNode2Str(pObj);
   sTrace("syncNodeLog | len:%lu | %s", strlen(serialized), serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncNodeLog2(char* s, SSyncNode* pObj) {
   char* serialized = syncNode2Str(pObj);
   sTrace("syncNodeLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 // ------ local funciton ---------
@@ -828,7 +828,7 @@ static int32_t syncNodeEqNoop(SSyncNode* ths) {
   syncClientRequest2RpcMsg(pSyncMsg, &rpcMsg);
   ths->FpEqMsg(ths->queue, &rpcMsg);
 
-  free(serialized);
+  taosMemoryFree(serialized);
   syncClientRequestDestroy(pSyncMsg);
 
   return ret;
@@ -928,5 +928,5 @@ static void syncFreeNode(void* param) {
   SSyncNode* pNode = param;
   syncNodePrint2((char*)"==syncFreeNode==", pNode);
 
-  free(pNode);
+  taosMemoryFree(pNode);
 }

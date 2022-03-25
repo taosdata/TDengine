@@ -41,7 +41,7 @@ int32_t mndPersistTaskDeployReq(STrans* pTrans, SStreamTask* pTask, const SEpSet
   int32_t size = encoder.pos;
   int32_t tlen = sizeof(SMsgHead) + size;
   tCoderClear(&encoder);
-  void* buf = malloc(tlen);
+  void* buf = taosMemoryMalloc(tlen);
   if (buf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -58,7 +58,7 @@ int32_t mndPersistTaskDeployReq(STrans* pTrans, SStreamTask* pTask, const SEpSet
   action.contLen = tlen;
   action.msgType = type;
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-    free(buf);
+    taosMemoryFree(buf);
     return -1;
   }
   return 0;
