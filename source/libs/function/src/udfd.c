@@ -15,16 +15,11 @@
 
 #include "uv.h"
 #include "os.h"
+#include "tlog.h"
+
 #include "tudf.h"
 #include "tudfInt.h"
 
-//TODO replaces them with qDebug
-#define DEBUG
-#ifdef DEBUG
-#define debugPrint(...) fprintf(__VA_ARGS__)
-#else
-#define debugPrint(...) /**/
-#endif
 
 static uv_loop_t *loop;
 
@@ -66,14 +61,14 @@ void udfdProcessRequest(uv_work_t *req) {
 
     switch (request->type) {
         case UDF_TASK_SETUP: {
-            debugPrint(stdout, "%s\n", "process setup request");
+            debugPrint("%s", "process setup request");
             SUdf *udf = malloc(sizeof(SUdf));
             udf->refCount = 0;
             SUdfSetupRequest *setup = request->subReq;
             strcpy(udf->name, setup->udfName);
             int err = uv_dlopen(setup->path, &udf->lib);
             if (err != 0) {
-                debugPrint(stderr, "can not load library %s. error: %s", setup->path, uv_strerror(err));
+                debugPrint("can not load library %s. error: %s", setup->path, uv_strerror(err));
                 //TODO set error
             }
 
@@ -109,7 +104,7 @@ void udfdProcessRequest(uv_work_t *req) {
         }
 
         case UDF_TASK_CALL: {
-            debugPrint(stdout, "%s\n", "process call request");
+            debugPrint("%s", "process call request");
             SUdfCallRequest *call = request->subReq;
             SUdfHandle *handle = (SUdfHandle *) (call->udfHandle);
             SUdf *udf = handle->udf;
@@ -146,7 +141,7 @@ void udfdProcessRequest(uv_work_t *req) {
             break;
         }
         case UDF_TASK_TEARDOWN: {
-            debugPrint(stdout, "%s\n", "process teardown request");
+            debugPrint("%s", "process teardown request");
 
             SUdfTeardownRequest *teardown = request->subReq;
             SUdfHandle *handle = (SUdfHandle *) (teardown->udfHandle);
@@ -186,12 +181,12 @@ void udfdProcessRequest(uv_work_t *req) {
 }
 
 void udfdOnWrite(uv_write_t *req, int status) {
-    debugPrint(stdout, "%s\n", "after writing to pipe");
+    debugPrint("%s", "after writing to pipe");
     if (status < 0) {
-        debugPrint(stderr, "Write error %s\n", uv_err_name(status));
+        debugPrint("Write error %s", uv_err_name(status));
     }
     SUvUdfWork *work = (SUvUdfWork *) req->data;
-    debugPrint(stdout, "\tlength: %zu\n", work->output.len);
+    debugPrint("\tlength: %zu", work->output.len);
     free(work->output.base);
     free(work);
     free(req);
@@ -199,7 +194,7 @@ void udfdOnWrite(uv_write_t *req, int status) {
 
 
 void udfdSendResponse(uv_work_t *work, int status) {
-    debugPrint(stdout, "%s\n", "send response");
+    debugPrint("%s", "send response");
     SUvUdfWork *udfWork = (SUvUdfWork *) (work->data);
 
     uv_write_t *write_req = malloc(sizeof(uv_write_t));
@@ -210,7 +205,7 @@ void udfdSendResponse(uv_work_t *work, int status) {
 }
 
 void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
-    debugPrint(stdout, "%s\n", "allocate buffer for read");
+    debugPrint("%s", "allocate buffer for read");
     SUdfdUvConn *ctx = handle->data;
     int32_t msgHeadSize = sizeof(int32_t) + sizeof(int64_t);
     if (ctx->inputCap == 0) {
@@ -240,7 +235,7 @@ void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
             buf->len = 0;
         }
     }
-    debugPrint(stdout, "\tinput buf cap - len - total : %d - %d - %d\n", ctx->inputCap, ctx->inputLen, ctx->inputTotal);
+    debugPrint("\tinput buf cap - len - total : %d - %d - %d", ctx->inputCap, ctx->inputLen, ctx->inputTotal);
 
 }
 
@@ -279,7 +274,7 @@ void udfdUvHandleError(SUdfdUvConn *conn) {
 }
 
 void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
-    debugPrint(stdout, "%s, nread: %zd\n", "read from pipe", nread);
+    debugPrint("%s, nread: %zd", "read from pipe", nread);
 
     if (nread == 0) return;
 
@@ -296,7 +291,7 @@ void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
     }
 
     if (nread < 0) {
-        debugPrint(stderr, "Read error %s\n", uv_err_name(nread));
+        debugPrint("Read error %s", uv_err_name(nread));
         if (nread == UV_EOF) {
             //TODO check more when close
         } else {
@@ -306,7 +301,7 @@ void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
 }
 
 void udfdOnNewConnection(uv_stream_t *server, int status) {
-    debugPrint(stdout, "%s\n", "on new connection");
+    debugPrint("%s", "on new connection");
     if (status < 0) {
         // TODO
         return;
@@ -335,7 +330,7 @@ void removeListeningPipe(int sig) {
 }
 
 int main() {
-    debugPrint(stderr, "libuv version: %x\n", UV_VERSION_HEX);
+    debugPrint("libuv version: %x", UV_VERSION_HEX);
 
     loop = uv_default_loop();
     uv_fs_t req;
@@ -348,12 +343,12 @@ int main() {
 
     int r;
     if ((r = uv_pipe_bind(&server, "udf.sock"))) {
-        debugPrint(stderr, "Bind error %s\n", uv_err_name(r));
+        debugPrint("Bind error %s\n", uv_err_name(r));
         removeListeningPipe(0);
         return 1;
     }
     if ((r = uv_listen((uv_stream_t *) &server, 128, udfdOnNewConnection))) {
-        debugPrint(stderr, "Listen error %s\n", uv_err_name(r));
+        debugPrint("Listen error %s", uv_err_name(r));
         return 2;
     }
     uv_run(loop, UV_RUN_DEFAULT);
