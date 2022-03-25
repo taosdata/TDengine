@@ -132,10 +132,12 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
     return -1;
   }
 
+  dDebug("qnode workers are initialized");
   return 0;
 }
 
 void qmStopWorker(SQnodeMgmt *pMgmt) {
   tSingleWorkerCleanup(&pMgmt->queryWorker);
   tSingleWorkerCleanup(&pMgmt->fetchWorker);
+  dDebug("qnode workers are closed");
 }

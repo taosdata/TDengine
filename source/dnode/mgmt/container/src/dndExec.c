@@ -50,16 +50,23 @@ int32_t dndOpenNode(SMgmtWrapper *pWrapper) {
 }
 
 void dndCloseNode(SMgmtWrapper *pWrapper) {
+  dDebug("node:%s, start to close", pWrapper->name);
   taosWLockLatch(&pWrapper->latch);
   if (pWrapper->deployed) {
     (*pWrapper->fp.closeFp)(pWrapper);
     pWrapper->deployed = false;
   }
+  taosWUnLockLatch(&pWrapper->latch);
+
+  while (pWrapper->refCount > 0) {
+    taosMsleep(10);
+  }
+
   if (pWrapper->pProc) {
     taosProcCleanup(pWrapper->pProc);
     pWrapper->pProc = NULL;
   }
-  taosWUnLockLatch(&pWrapper->latch);
+  dDebug("node:%s, has been closed", pWrapper->name);
 }
 
 static int32_t dndRunInSingleProcess(SDnode *pDnode) {
