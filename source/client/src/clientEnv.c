@@ -169,6 +169,13 @@ static void doFreeReqResultInfo(SReqResultInfo *pResInfo) {
   tfree(pResInfo->row);
   tfree(pResInfo->pCol);
   tfree(pResInfo->fields);
+
+  if (pResInfo->convertBuf != NULL) {
+    for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
+      tfree(pResInfo->convertBuf[i]);
+    }
+    tfree(pResInfo->convertBuf);
+  }
 }
 
 static void doDestroyRequest(void *p) {

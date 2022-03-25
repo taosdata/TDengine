@@ -248,7 +248,7 @@ static int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
     if (pBlock == NULL) break;
 
     pBlock->uid = htobe64(pBlock->uid);
-    pBlock->tid = htonl(pBlock->tid);
+    pBlock->suid = htobe64(pBlock->suid);
     pBlock->sversion = htonl(pBlock->sversion);
     pBlock->dataLen = htonl(pBlock->dataLen);
     pBlock->schemaLen = htonl(pBlock->schemaLen);

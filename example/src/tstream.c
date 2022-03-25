@@ -78,7 +78,7 @@ int32_t create_stream() {
   taos_free_result(pRes);
 
   /*const char* sql = "select min(k), max(k), sum(k) from tu1";*/
-  const char* sql = "select min(k), max(k), sum(k) from st1";
+  const char* sql = "select min(k), max(k), sum(k) as sum_of_k from st1";
   /*const char* sql = "select sum(k) from tu1 interval(10m)";*/
   pRes = tmq_create_stream(pConn, "stream1", "out1", sql);
   if (taos_errno(pRes) != 0) {

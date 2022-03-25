@@ -51,8 +51,29 @@
 extern "C" {
 #endif
 
-#if (defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)) 
+#if defined(WINDOWS)
   #define htobe64 htonll
+#endif
+
+#if defined(WINDOWS)
+  #define TAOS_EPOLL_WAIT_TIME 100
+  typedef SOCKET eventfd_t;
+  #define eventfd(a, b) -1
+  typedef SOCKET EpollFd;
+  #define EpollClose(pollFd) epoll_close(pollFd)
+  #ifndef EPOLLWAKEUP
+    #define EPOLLWAKEUP (1u << 29)
+  #endif
+#elif defined(_TD_DARWIN_64)
+  #define TAOS_EPOLL_WAIT_TIME 500
+  typedef int32_t SOCKET;
+  typedef SOCKET EpollFd;
+  #define EpollClose(pollFd) epoll_close(pollFd)
+#else
+  #define TAOS_EPOLL_WAIT_TIME 500
+  typedef int32_t SOCKET;
+  typedef SOCKET EpollFd;
+  #define EpollClose(pollFd) taosCloseSocket(pollFd)
 #endif
 
 #if defined(_TD_DARWIN_64)
@@ -64,12 +85,12 @@ extern "C" {
 #	define htole16(x) OSSwapHostToLittleInt16(x)
 #	define be16toh(x) OSSwapBigToHostInt16(x)
 #	define le16toh(x) OSSwapLittleToHostInt16(x)
- 
+
 #	define htobe32(x) OSSwapHostToBigInt32(x)
 #	define htole32(x) OSSwapHostToLittleInt32(x)
 #	define be32toh(x) OSSwapBigToHostInt32(x)
 #	define le32toh(x) OSSwapLittleToHostInt32(x)
- 
+
 #	define htobe64(x) OSSwapHostToBigInt64(x)
 #	define htole64(x) OSSwapHostToLittleInt64(x)
 #	define be64toh(x) OSSwapBigToHostInt64(x)
@@ -83,6 +104,17 @@ extern "C" {
 
 #define TAOS_EPOLL_WAIT_TIME 500
 
+typedef int32_t SocketFd;
+typedef SocketFd  EpollFd;
+
+typedef struct TdSocket {
+#if SOCKET_WITH_LOCK
+  TdThreadRwlock rwlock;
+#endif
+  int      refId;
+  SocketFd fd;
+} *TdSocketPtr, TdSocket;
+
 typedef struct TdSocketServer *TdSocketServerPtr;
 typedef struct TdSocket *TdSocketPtr;
 typedef struct TdEpoll *TdEpollPtr;
@@ -91,6 +123,7 @@ int32_t taosSendto(TdSocketPtr pSocket, void * msg, int len, unsigned int flags,
 int32_t taosWriteSocket(TdSocketPtr pSocket, void *msg, int len);
 int32_t taosReadSocket(TdSocketPtr pSocket, void *msg, int len);
 int32_t taosReadFromSocket(TdSocketPtr pSocket, void *buf, int32_t len, int32_t flags, struct sockaddr *destAddr, socklen_t *addrLen);
+int32_t taosCloseSocketNoCheck1(SocketFd fd);
 int32_t taosCloseSocket(TdSocketPtr *ppSocket);
 int32_t taosCloseSocketServer(TdSocketServerPtr *ppSocketServer);
 int32_t taosShutDownSocketRD(TdSocketPtr pSocket);

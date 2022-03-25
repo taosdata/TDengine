@@ -103,6 +103,8 @@ typedef enum {
   TRN_TYPE_CREATE_STB = 4001,
   TRN_TYPE_ALTER_STB = 4002,
   TRN_TYPE_DROP_STB = 4003,
+  TRN_TYPE_CREATE_SMA = 4004,
+  TRN_TYPE_DROP_SMA = 4005,
   TRN_TYPE_STB_SCOPE_END,
 } ETrnType;
 
@@ -265,6 +267,8 @@ typedef struct {
   int8_t  update;
   int8_t  cacheLastRow;
   int8_t  streamMode;
+  int32_t numOfRetensions;
+  SArray* pRetensions;
 } SDbCfg;
 
 typedef struct {
@@ -306,6 +310,31 @@ typedef struct {
 } SVgObj;
 
 typedef struct {
+  char    name[TSDB_TABLE_FNAME_LEN];
+  char    stb[TSDB_TABLE_FNAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
+  int64_t createdTime;
+  int64_t uid;
+  int64_t stbUid;
+  int64_t dbUid;
+  int8_t  intervalUnit;
+  int8_t  slidingUnit;
+  int8_t  timezone;
+  int32_t dstVgId;  // for stream
+  int64_t interval;
+  int64_t offset;
+  int64_t sliding;
+  int32_t exprLen;  // strlen + 1
+  int32_t tagsFilterLen;
+  int32_t sqlLen;
+  int32_t astLen;
+  char*   expr;
+  char*   tagsFilter;
+  char*   sql;
+  char*   ast;
+} SSmaObj;
+
+typedef struct {
   char     name[TSDB_TABLE_FNAME_LEN];
   char     db[TSDB_DB_FNAME_LEN];
   int64_t  createdTime;
@@ -314,12 +343,19 @@ typedef struct {
   int64_t  dbUid;
   int32_t  version;
   int32_t  nextColId;
+  float    xFilesFactor;
+  int32_t  aggregationMethod;
+  int32_t  delay;
+  int32_t  ttl;
   int32_t  numOfColumns;
   int32_t  numOfTags;
+  int32_t  numOfSmas;
+  int32_t  commentLen;
   SSchema* pColumns;
   SSchema* pTags;
+  SSchema* pSmas;
+  char*    comment;
   SRWLatch lock;
-  char     comment[TSDB_STB_COMMENT_LEN];
 } SStbObj;
 
 typedef struct {
@@ -684,6 +720,7 @@ static FORCE_INLINE void* tDecodeSMqConsumerObj(void* buf, SMqConsumerObj* pCons
 typedef struct {
   char     name[TSDB_TOPIC_FNAME_LEN];
   char     db[TSDB_DB_FNAME_LEN];
+  char     outputSTbName[TSDB_TABLE_FNAME_LEN];
   int64_t  createTime;
   int64_t  updateTime;
   int64_t  uid;
@@ -693,15 +730,16 @@ typedef struct {
   SRWLatch lock;
   int8_t   status;
   // int32_t  sqlLen;
+  int32_t sinkVgId;  // 0 for automatic
   char*   sql;
   char*   logicalPlan;
   char*   physicalPlan;
   SArray* tasks;  // SArray<SArray<SStreamTask>>
+  SArray* ColAlias;
 } SStreamObj;
 
 int32_t tEncodeSStreamObj(SCoder* pEncoder, const SStreamObj* pObj);
 int32_t tDecodeSStreamObj(SCoder* pDecoder, SStreamObj* pObj);
-
 
 #ifdef __cplusplus
 }

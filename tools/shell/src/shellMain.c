@@ -32,6 +32,8 @@
 int indicator = 1;
 
 void insertChar(Command *cmd, char *c, int size);
+void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen,
+                 int32_t pkgNum, char *pkgType);
 const char *argp_program_version = version;
 const char *argp_program_bug_address = "<support@taosdata.com>";
 static char doc[] = "";
@@ -56,10 +58,11 @@ static struct argp_option options[] = {
   {"check",      'k', "CHECK",      0,                   "Check tables."},
   {"database",   'd', "DATABASE",   0,                   "Database to use when connecting to the server."},
   {"timezone",   'z', "TIMEZONE",   0,                   "Time zone of the shell, default is local."},
-  {"netrole",    'n', "NETROLE",    0,                   "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync|speen|fqdn."},
+  {"netrole",    'n', "NETROLE",    0,                   "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync|speed|fqdn."},
   {"pktlen",     'l', "PKTLEN",     0,                   "Packet length used for net test, default is 1000 bytes."},
   {"pktnum",     'N', "PKTNUM",     0,                   "Packet numbers used for net test, default is 100."},
-  {"pkttype",    'S', "PKTTYPE",    0,                   "Packet type used for net test, default is TCP."},
+// Shuduo: 3.0 does not support UDP any more
+//  {"pkttype",    'S', "PKTTYPE",    0,                   "Packet type used for net test, default is TCP."},
   {0}};
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
@@ -629,16 +632,25 @@ int main(int argc, char *argv[]) {
     taosDumpGlobalCfg();
     exit(0);
   }
+#endif
 
   if (args.netTestRole && args.netTestRole[0] != 0) {
-    if (taos_init()) {
+    TAOS *con = NULL;
+    if (args.auth == NULL) {
+      con = taos_connect(args.host, args.user, args.password, args.database, args.port);
+    } else {
+      con = taos_connect_auth(args.host, args.user, args.auth, args.database, args.port);
+    }
+
+/*    if (taos_init()) {
       printf("Failed to init taos");
       exit(EXIT_FAILURE);
     }
+    */
     taosNetTest(args.netTestRole, args.host, args.port, args.pktLen, args.pktNum, args.pktType);
+    taos_close(con);
     exit(0);
   }
-#endif
 
   /* Initialize the shell */
   TAOS *con = shellInit(&args);

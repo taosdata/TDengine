@@ -13,20 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
 #include "mndStb.h"
 #include "mndAuth.h"
 #include "mndDb.h"
 #include "mndDnode.h"
+#include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
-#include "mndInfoSchema.h"
 #include "tname.h"
 
-#define TSDB_STB_VER_NUMBER 1
+#define TSDB_STB_VER_NUMBER   1
 #define TSDB_STB_RESERVE_SIZE 64
 
 static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw);
@@ -73,7 +72,8 @@ void mndCleanupStb(SMnode *pMnode) {}
 SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  int32_t  size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags) * sizeof(SSchema) + TSDB_STB_RESERVE_SIZE;
+  int32_t size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags + pStb->numOfSmas) * sizeof(SSchema) +
+                 TSDB_STB_RESERVE_SIZE;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_STB, TSDB_STB_VER_NUMBER, size);
   if (pRaw == NULL) goto STB_ENCODE_OVER;
 
@@ -86,8 +86,14 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   SDB_SET_INT64(pRaw, dataPos, pStb->dbUid, STB_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->version, STB_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->nextColId, STB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, (int32_t)(pStb->xFilesFactor * 10000), STB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pStb->aggregationMethod, STB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pStb->delay, STB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pStb->ttl, STB_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->numOfColumns, STB_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->numOfTags, STB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pStb->numOfSmas, STB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pStb->commentLen, STB_ENCODE_OVER)
 
   for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
     SSchema *pSchema = &pStb->pColumns[i];
@@ -105,7 +111,17 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
     SDB_SET_BINARY(pRaw, dataPos, pSchema->name, TSDB_COL_NAME_LEN, STB_ENCODE_OVER)
   }
 
-  SDB_SET_BINARY(pRaw, dataPos, pStb->comment, TSDB_STB_COMMENT_LEN, STB_ENCODE_OVER)
+  for (int32_t i = 0; i < pStb->numOfSmas; ++i) {
+    SSchema *pSchema = &pStb->pSmas[i];
+    SDB_SET_INT8(pRaw, dataPos, pSchema->type, STB_ENCODE_OVER)
+    SDB_SET_INT32(pRaw, dataPos, pSchema->colId, STB_ENCODE_OVER)
+    SDB_SET_INT32(pRaw, dataPos, pSchema->bytes, STB_ENCODE_OVER)
+    SDB_SET_BINARY(pRaw, dataPos, pSchema->name, TSDB_COL_NAME_LEN, STB_ENCODE_OVER)
+  }
+
+  if (pStb->commentLen > 0) {
+    SDB_SET_BINARY(pRaw, dataPos, pStb->comment, pStb->commentLen, STB_ENCODE_OVER)
+  }
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_STB_RESERVE_SIZE, STB_ENCODE_OVER)
   SDB_SET_DATALEN(pRaw, dataPos, STB_ENCODE_OVER)
 
@@ -148,12 +164,21 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pStb->dbUid, STB_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->version, STB_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->nextColId, STB_DECODE_OVER)
+  int32_t xFilesFactor = 0;
+  SDB_GET_INT32(pRaw, dataPos, &xFilesFactor, STB_DECODE_OVER)
+  pStb->xFilesFactor = xFilesFactor / 10000.0f;
+  SDB_GET_INT32(pRaw, dataPos, &pStb->aggregationMethod, STB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pStb->delay, STB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pStb->ttl, STB_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->numOfColumns, STB_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->numOfTags, STB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pStb->numOfSmas, STB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pStb->commentLen, STB_DECODE_OVER)
 
   pStb->pColumns = calloc(pStb->numOfColumns, sizeof(SSchema));
   pStb->pTags = calloc(pStb->numOfTags, sizeof(SSchema));
-  if (pStb->pColumns == NULL || pStb->pTags == NULL) {
+  pStb->pSmas = calloc(pStb->numOfSmas, sizeof(SSchema));
+  if (pStb->pColumns == NULL || pStb->pTags == NULL || pStb->pSmas == NULL) {
     goto STB_DECODE_OVER;
   }
 
@@ -173,7 +198,19 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     SDB_GET_BINARY(pRaw, dataPos, pSchema->name, TSDB_COL_NAME_LEN, STB_DECODE_OVER)
   }
 
-  SDB_GET_BINARY(pRaw, dataPos, pStb->comment, TSDB_STB_COMMENT_LEN, STB_DECODE_OVER)
+  for (int32_t i = 0; i < pStb->numOfSmas; ++i) {
+    SSchema *pSchema = &pStb->pSmas[i];
+    SDB_GET_INT8(pRaw, dataPos, &pSchema->type, STB_DECODE_OVER)
+    SDB_GET_INT32(pRaw, dataPos, &pSchema->colId, STB_DECODE_OVER)
+    SDB_GET_INT32(pRaw, dataPos, &pSchema->bytes, STB_DECODE_OVER)
+    SDB_GET_BINARY(pRaw, dataPos, pSchema->name, TSDB_COL_NAME_LEN, STB_DECODE_OVER)
+  }
+
+  if (pStb->commentLen > 0) {
+    pStb->comment = calloc(pStb->commentLen, 1);
+    if (pStb->comment == NULL) goto STB_DECODE_OVER;
+    SDB_GET_BINARY(pRaw, dataPos, pStb->comment, pStb->commentLen, STB_DECODE_OVER)
+  }
   SDB_GET_RESERVE(pRaw, dataPos, TSDB_STB_RESERVE_SIZE, STB_DECODE_OVER)
 
   terrno = 0;
@@ -183,6 +220,7 @@ STB_DECODE_OVER:
     mError("stb:%s, failed to decode from raw:%p since %s", pStb->name, pRaw, terrstr());
     tfree(pStb->pColumns);
     tfree(pStb->pTags);
+    tfree(pStb->comment);
     tfree(pRow);
     return NULL;
   }
@@ -200,6 +238,7 @@ static int32_t mndStbActionDelete(SSdb *pSdb, SStbObj *pStb) {
   mTrace("stb:%s, perform delete action, row:%p", pStb->name, pStb);
   tfree(pStb->pColumns);
   tfree(pStb->pTags);
+  tfree(pStb->comment);
   return 0;
 }
 
@@ -232,6 +271,30 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
     }
   }
 
+  if (pOld->numOfSmas < pNew->numOfSmas) {
+    void *pSmas = malloc(pNew->numOfSmas * sizeof(SSchema));
+    if (pSmas != NULL) {
+      free(pOld->pSmas);
+      pOld->pSmas = pSmas;
+    } else {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      mTrace("stb:%s, failed to perform update action since %s", pOld->name, terrstr());
+      taosWUnLockLatch(&pOld->lock);
+    }
+  }
+
+  if (pOld->commentLen < pNew->commentLen) {
+    void *comment = malloc(pNew->commentLen);
+    if (comment != NULL) {
+      free(pOld->comment);
+      pOld->comment = comment;
+    } else {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      mTrace("stb:%s, failed to perform update action since %s", pOld->name, terrstr());
+      taosWUnLockLatch(&pOld->lock);
+    }
+  }
+
   pOld->updateTime = pNew->updateTime;
   pOld->version = pNew->version;
   pOld->nextColId = pNew->nextColId;
@@ -239,7 +302,9 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   pOld->numOfTags = pNew->numOfTags;
   memcpy(pOld->pColumns, pNew->pColumns, pOld->numOfColumns * sizeof(SSchema));
   memcpy(pOld->pTags, pNew->pTags, pOld->numOfTags * sizeof(SSchema));
-  memcpy(pOld->comment, pNew->comment, TSDB_STB_COMMENT_LEN);
+  if (pNew->commentLen != 0) {
+    memcpy(pOld->comment, pNew->comment, TSDB_STB_COMMENT_LEN);
+  }
   taosWUnLockLatch(&pOld->lock);
   return 0;
 }
@@ -271,9 +336,12 @@ static SDbObj *mndAcquireDbByStb(SMnode *pMnode, const char *stbName) {
 static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen) {
   SName name = {0};
   tNameFromString(&name, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  char dbFName[TSDB_DB_FNAME_LEN] = {0};
+  tNameGetFullDbName(&name, dbFName);
 
   SVCreateTbReq req = {0};
   req.ver = 0;
+  req.dbFName = dbFName;
   req.name = (char *)tNameGetTableName(&name);
   req.ttl = 0;
   req.keep = 0;
@@ -490,6 +558,16 @@ static int32_t mndSetCreateStbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj
   return 0;
 }
 
+static SSchema *mndFindStbColumns(const SStbObj *pStb, const char *colName) {
+  for (int32_t col = 0; col < pStb->numOfColumns; col++) {
+    SSchema *pSchema = &pStb->pColumns[col];
+    if (strcasecmp(pStb->pColumns[col].name, colName) == 0) {
+      return pSchema;
+    }
+  }
+  return NULL;
+}
+
 static int32_t mndCreateStb(SMnode *pMnode, SNodeMsg *pReq, SMCreateStbReq *pCreate, SDbObj *pDb) {
   SStbObj stbObj = {0};
   memcpy(stbObj.name, pCreate->name, TSDB_TABLE_FNAME_LEN);
@@ -500,12 +578,24 @@ static int32_t mndCreateStb(SMnode *pMnode, SNodeMsg *pReq, SMCreateStbReq *pCre
   stbObj.dbUid = pDb->uid;
   stbObj.version = 1;
   stbObj.nextColId = 1;
+  stbObj.ttl = pCreate->ttl;
   stbObj.numOfColumns = pCreate->numOfColumns;
   stbObj.numOfTags = pCreate->numOfTags;
+  stbObj.numOfSmas = pCreate->numOfSmas;
+  stbObj.commentLen = pCreate->commentLen;
+  if (stbObj.commentLen > 0) {
+    stbObj.comment = calloc(stbObj.commentLen, 1);
+    if (stbObj.comment == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+    memcpy(stbObj.comment, pCreate->comment, stbObj.commentLen);
+  }
 
   stbObj.pColumns = malloc(stbObj.numOfColumns * sizeof(SSchema));
   stbObj.pTags = malloc(stbObj.numOfTags * sizeof(SSchema));
-  if (stbObj.pColumns == NULL || stbObj.pTags == NULL) {
+  stbObj.pSmas = malloc(stbObj.numOfSmas * sizeof(SSchema));
+  if (stbObj.pColumns == NULL || stbObj.pTags == NULL || stbObj.pSmas == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -528,6 +618,18 @@ static int32_t mndCreateStb(SMnode *pMnode, SNodeMsg *pReq, SMCreateStbReq *pCre
     memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
     pSchema->colId = stbObj.nextColId;
     stbObj.nextColId++;
+  }
+
+  for (int32_t i = 0; i < stbObj.numOfSmas; ++i) {
+    SField  *pField = taosArrayGet(pCreate->pSmas, i);
+    SSchema *pSchema = &stbObj.pSmas[i];
+    SSchema *pColSchema = mndFindStbColumns(&stbObj, pField->name);
+    if (pColSchema == NULL) {
+      mError("stb:%s, sma:%s not found in columns", stbObj.name, pSchema->name);
+      terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
+      return -1;
+    }
+    memcpy(pSchema, pColSchema, sizeof(SSchema));
   }
 
   int32_t code = -1;
@@ -1162,7 +1264,7 @@ static int32_t mndSetDropStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
 
 static int32_t mndDropStb(SMnode *pMnode, SNodeMsg *pReq, SDbObj *pDb, SStbObj *pStb) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK,TRN_TYPE_DROP_STB, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_STB, &pReq->rpcMsg);
   if (pTrans == NULL) goto DROP_STB_OVER;
 
   mDebug("trans:%d, used to drop stb:%s", pTrans->id, pStb->name);
@@ -1514,19 +1616,11 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
     if (pDb == NULL) return 0;
   }
 
-  tstrncpy(prefix, pShow->db, TSDB_DB_FNAME_LEN);
-  strcat(prefix, TS_PATH_DELIMITER);
-  int32_t prefixLen = (int32_t)strlen(prefix);
-
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_STB, pShow->pIter, (void **)&pStb);
     if (pShow->pIter == NULL) break;
 
     if (pDb != NULL && pStb->dbUid != pDb->uid) {
-      if (strncmp(pStb->db, pDb->name, prefixLen) == 0) {
-        mError("Inconsistent table data, name:%s, db:%s, dbUid:%" PRIu64, pStb->name, pDb->name, pDb->uid);
-      }
-
       sdbRelease(pSdb, pStb);
       continue;
     }
@@ -1568,7 +1662,11 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_TO_VARSTR(pWrite, pStb->comment);
+    if (pStb->commentLen != 0) {
+      STR_TO_VARSTR(pWrite, pStb->comment);
+    } else {
+      STR_TO_VARSTR(pWrite, "");
+    }
     cols++;
 
     numOfRows++;
