@@ -2430,11 +2430,4 @@ int32_t nodesStringToList(const char* pStr, SNodeList** pList) {
   if (NULL == pJson) {
     return TSDB_CODE_FAILED;
   }
-  int32_t code = jsonToNodeListImpl(pJson, pList);
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyList(*pList);
-    terrno = code;
-    return code;
-  }
-  return TSDB_CODE_SUCCESS;
-}
+  int32_t 
