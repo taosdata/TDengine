@@ -178,7 +178,6 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
                      .parentFreeHeadFp = (ProcFreeFp)free,
                      .parentMallocBodyFp = (ProcMallocFp)rpcMallocCont,
                      .parentFreeBodyFp = (ProcFreeFp)rpcFreeCont,
-                     .testFlag = 0,
                      .pParent = pWrapper,
                      .name = pWrapper->name};
     SProcObj *pProc = taosProcInit(&cfg);
