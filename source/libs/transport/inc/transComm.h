@@ -158,7 +158,8 @@ typedef struct {
   char secured : 2;
   char spi : 2;
 
-  uint32_t code;  // del later
+  uint64_t ahandle;  // ahandle assigned by client
+  uint32_t code;     // del later
   uint32_t msgType;
   int32_t  msgLen;
   uint8_t  content[0];  // message body starts from here
@@ -182,7 +183,7 @@ typedef struct {
 #pragma pack(pop)
 
 typedef enum { Normal, Quit, Release, Register } STransMsgType;
-typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken } ConnStatus;
+typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } ConnStatus;
 
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
 #define RPC_RESERVE_SIZE (sizeof(STranConnCtx))
@@ -277,6 +278,7 @@ void  transCtxCleanup(STransCtx* ctx);
 void  transCtxClear(STransCtx* ctx);
 void  transCtxMerge(STransCtx* dst, STransCtx* src);
 void* transCtxDumpVal(STransCtx* ctx, int32_t key);
+void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType);
 
 // queue sending msgs
 typedef struct {
@@ -296,19 +298,24 @@ void transQueueInit(STransQueue* queue, void (*free)(void* arg));
  */
 bool transQueuePush(STransQueue* queue, void* arg);
 /*
+ * the size of queue
+ */
+int32_t transQueueSize(STransQueue* queue);
+/*
  * pop head from queue
  */
-
 void* transQueuePop(STransQueue* queue);
 /*
- * get head from queue
+ * get ith from queue
  */
-void* transQueueGet(STransQueue* queue);
-
+void* transQueueGet(STransQueue* queue, int i);
+/*
+ * rm ith from queue
+ */
+void* transQueueRm(STransQueue* queue, int i);
 /*
  * queue empty or not
  */
-
 bool transQueueEmpty(STransQueue* queue);
 /*
  * clear queue

@@ -887,8 +887,8 @@ TEST(seqTest, normalCase) {
   code = qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc);
   ASSERT_EQ(code, 0);
 
-  code = qWorkerProcessReadyMsg(mockPointer, mgmt, &readyRpc);
-  ASSERT_EQ(code, 0);
+  //code = qWorkerProcessReadyMsg(mockPointer, mgmt, &readyRpc);
+  //ASSERT_EQ(code, 0);
 
   code = qWorkerProcessFetchMsg(mockPointer, mgmt, &fetchRpc);
   ASSERT_EQ(code, 0);
@@ -985,12 +985,12 @@ TEST(seqTest, randCase) {
       qwtBuildQueryReqMsg(&queryRpc);
       code = qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc);
     } else if (r >= maxr/5 && r < maxr * 2/5) {
-      printf("Ready,%d\n", t++);
-      qwtBuildReadyReqMsg(&readyMsg, &readyRpc);
-      code = qWorkerProcessReadyMsg(mockPointer, mgmt, &readyRpc);
-      if (qwtTestEnableSleep) {
-        taosUsleep(1);
-      }
+      //printf("Ready,%d\n", t++);
+      //qwtBuildReadyReqMsg(&readyMsg, &readyRpc);
+      //code = qWorkerProcessReadyMsg(mockPointer, mgmt, &readyRpc);
+      //if (qwtTestEnableSleep) {
+      //  taosUsleep(1);
+      //}
     } else if (r >= maxr * 2/5 && r < maxr* 3/5) {
       printf("Fetch,%d\n", t++);
       qwtBuildFetchReqMsg(&fetchMsg, &fetchRpc);
@@ -1054,7 +1054,7 @@ TEST(seqTest, multithreadRand) {
 
   TdThread t1,t2,t3,t4,t5,t6;
   taosThreadCreate(&(t1), &thattr, queryThread, mgmt);
-  taosThreadCreate(&(t2), &thattr, readyThread, NULL);
+  //taosThreadCreate(&(t2), &thattr, readyThread, NULL);
   taosThreadCreate(&(t3), &thattr, fetchThread, NULL);
   taosThreadCreate(&(t4), &thattr, dropThread, NULL);
   taosThreadCreate(&(t5), &thattr, statusThread, NULL);

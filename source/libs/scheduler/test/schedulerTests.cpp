@@ -387,7 +387,7 @@ void *schtCreateFetchRspThread(void *param) {
 
 void *schtFetchRspThread(void *aa) {
   SDataBuf dataBuf = {0};
-  SSchCallbackParam* param = NULL;
+  SSchTaskCallbackParam* param = NULL;
 
   while (!schtTestStop) {
     if (0 == atomic_val_compare_exchange_32(&schtStartFetch, 1, 0)) {
@@ -396,7 +396,7 @@ void *schtFetchRspThread(void *aa) {
 
     taosUsleep(1);
     
-    param = (SSchCallbackParam *)calloc(1, sizeof(*param));
+    param = (SSchTaskCallbackParam *)calloc(1, sizeof(*param));
 
     param->queryId = schtQueryId;  
     param->taskId = schtFetchTaskId;
@@ -449,7 +449,7 @@ void* schtRunJobThread(void *aa) {
   schtSetAsyncSendMsgToServer();
 
   SSchJob *pJob = NULL;
-  SSchCallbackParam *param = NULL;
+  SSchTaskCallbackParam *param = NULL;
   SHashObj *execTasks = NULL;
   SDataBuf dataBuf = {0};
   uint32_t jobFinished = 0;
@@ -484,7 +484,7 @@ void* schtRunJobThread(void *aa) {
       pIter = taosHashIterate(pJob->execTasks, pIter);
     }    
 
-    param = (SSchCallbackParam *)calloc(1, sizeof(*param));
+    param = (SSchTaskCallbackParam *)calloc(1, sizeof(*param));
     param->refId = queryJobRefId;
     param->queryId = pJob->queryId;   
 
@@ -504,7 +504,7 @@ void* schtRunJobThread(void *aa) {
     }    
 
 
-    param = (SSchCallbackParam *)calloc(1, sizeof(*param));
+    param = (SSchTaskCallbackParam *)calloc(1, sizeof(*param));
     param->refId = queryJobRefId;
     param->queryId = pJob->queryId;   
     
@@ -524,7 +524,7 @@ void* schtRunJobThread(void *aa) {
     }  
 
 
-    param = (SSchCallbackParam *)calloc(1, sizeof(*param));
+    param = (SSchTaskCallbackParam *)calloc(1, sizeof(*param));
     param->refId = queryJobRefId;
     param->queryId = pJob->queryId;   
 
@@ -544,7 +544,7 @@ void* schtRunJobThread(void *aa) {
     }    
 
 
-    param = (SSchCallbackParam *)calloc(1, sizeof(*param));
+    param = (SSchTaskCallbackParam *)calloc(1, sizeof(*param));
     param->refId = queryJobRefId;
     param->queryId = pJob->queryId;   
 
@@ -712,6 +712,116 @@ TEST(queryTest, normalCase) {
 
   schedulerDestroy();
 }
+
+TEST(queryTest, readyFirstCase) {
+  void *mockPointer = (void *)0x1;
+  char *clusterId = "cluster1";
+  char *dbname = "1.db1";
+  char *tablename = "table1";
+  SVgroupInfo vgInfo = {0};
+  int64_t job = 0;
+  SQueryPlan dag;
+
+  memset(&dag, 0, sizeof(dag));
+
+  SArray *qnodeList = taosArrayInit(1, sizeof(SEp));
+
+  SEp qnodeAddr = {0};
+  strcpy(qnodeAddr.fqdn, "qnode0.ep");
+  qnodeAddr.port = 6031;
+  taosArrayPush(qnodeList, &qnodeAddr);
+  
+  int32_t code = schedulerInit(NULL);
+  ASSERT_EQ(code, 0);
+
+  schtBuildQueryDag(&dag);
+
+  schtSetPlanToString();
+  schtSetExecNode();
+  schtSetAsyncSendMsgToServer();
+  
+  code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, "select * from tb", &job);
+  ASSERT_EQ(code, 0);
+
+  
+  SSchJob *pJob = schAcquireJob(job);
+
+  void *pIter = taosHashIterate(pJob->execTasks, NULL);
+  while (pIter) {
+    SSchTask *task = *(SSchTask **)pIter;
+
+    SResReadyRsp rsp = {0};
+    code = schHandleResponseMsg(pJob, task, TDMT_VND_RES_READY_RSP, (char *)&rsp, sizeof(rsp), 0);
+    printf("code:%d", code);
+    ASSERT_EQ(code, 0);
+    pIter = taosHashIterate(pJob->execTasks, pIter);
+  }  
+  
+  pIter = taosHashIterate(pJob->execTasks, NULL);
+  while (pIter) {
+    SSchTask *task = *(SSchTask **)pIter;
+
+    SQueryTableRsp rsp = {0};
+    code = schHandleResponseMsg(pJob, task, TDMT_VND_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
+    
+    ASSERT_EQ(code, 0);
+    pIter = taosHashIterate(pJob->execTasks, pIter);
+  }    
+
+  pIter = taosHashIterate(pJob->execTasks, NULL);
+  while (pIter) {
+    SSchTask *task = *(SSchTask **)pIter;
+
+    SResReadyRsp rsp = {0};
+    code = schHandleResponseMsg(pJob, task, TDMT_VND_RES_READY_RSP, (char *)&rsp, sizeof(rsp), 0);
+    ASSERT_EQ(code, 0);
+    
+    pIter = taosHashIterate(pJob->execTasks, pIter);
+  }  
+
+  pIter = taosHashIterate(pJob->execTasks, NULL);
+  while (pIter) {
+    SSchTask *task = *(SSchTask **)pIter;
+
+    SQueryTableRsp rsp = {0};
+    code = schHandleResponseMsg(pJob, task, TDMT_VND_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
+    
+    ASSERT_EQ(code, 0);
+    pIter = taosHashIterate(pJob->execTasks, pIter);
+  }    
+
+
+
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
+
+  TdThread thread1;
+  taosThreadCreate(&(thread1), &thattr, schtCreateFetchRspThread, &job);
+
+  void *data = NULL;  
+  code = schedulerFetchRows(job, &data);
+  ASSERT_EQ(code, 0);
+
+  SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)data;
+  ASSERT_EQ(pRsp->completed, 1);
+  ASSERT_EQ(pRsp->numOfRows, 10);
+  tfree(data);
+
+  data = NULL;
+  code = schedulerFetchRows(job, &data);
+  ASSERT_EQ(code, 0);
+  ASSERT_TRUE(data == NULL);
+
+  schReleaseJob(job);
+
+  schedulerFreeJob(job);
+
+  schtFreeQueryDag(&dag);
+
+  schedulerDestroy();
+}
+
+
 
 TEST(queryTest, flowCtrlCase) {
   void *mockPointer = (void *)0x1;

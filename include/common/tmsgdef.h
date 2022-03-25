@@ -207,6 +207,10 @@ enum {
   TD_DEF_MSG_TYPE(TDMT_SND_TASK_DEPLOY, "snode-task-deploy", SStreamTaskDeployReq, SStreamTaskDeployRsp)
   TD_DEF_MSG_TYPE(TDMT_SND_TASK_EXEC, "snode-task-exec", SStreamTaskExecReq, SStreamTaskExecRsp)
 
+  // Requests handled by SCHEDULER
+  TD_NEW_MSG_SEG(TDMT_SCH_MSG)
+  TD_DEF_MSG_TYPE(TDMT_SCH_LINK_BROKEN, "scheduler-link-broken", NULL, NULL)
+  
 #if defined(TD_MSG_NUMBER_)
   TDMT_MAX
 #endif

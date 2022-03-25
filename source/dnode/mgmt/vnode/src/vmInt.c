@@ -257,14 +257,14 @@ static void vmCleanup(SMgmtWrapper *pWrapper) {
   SVnodesMgmt *pMgmt = pWrapper->pMgmt;
   if (pMgmt == NULL) return;
 
-  dInfo("vnodes-mgmt start to cleanup");
+  dInfo("vnode-mgmt start to cleanup");
   vmCloseVnodes(pMgmt);
   vmStopWorker(pMgmt);
   vnodeCleanup();
   // walCleanUp();
   free(pMgmt);
   pWrapper->pMgmt = NULL;
-  dInfo("vnodes-mgmt is cleaned up");
+  dInfo("vnode-mgmt is cleaned up");
 }
 
 static int32_t vmInit(SMgmtWrapper *pWrapper) {
@@ -272,7 +272,7 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
   SVnodesMgmt *pMgmt = calloc(1, sizeof(SVnodesMgmt));
   int32_t      code = -1;
 
-  dInfo("vnodes-mgmt start to init");
+  dInfo("vnode-mgmt start to init");
   if (pMgmt == NULL) goto _OVER;
 
   pMgmt->path = pWrapper->path;
@@ -312,7 +312,7 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
   }
 
   if (vmOpenVnodes(pMgmt) != 0) {
-    dError("failed to open vnodes since %s", terrstr());
+    dError("failed to open vnode since %s", terrstr());
     return -1;
   }
 

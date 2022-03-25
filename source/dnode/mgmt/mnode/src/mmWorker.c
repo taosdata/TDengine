@@ -108,6 +108,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     return -1;
   }
 
+  dDebug("mnode workers are initialized");
   return 0;
 }
 
@@ -115,4 +116,5 @@ void mmStopWorker(SMnodeMgmt *pMgmt) {
   tSingleWorkerCleanup(&pMgmt->readWorker);
   tSingleWorkerCleanup(&pMgmt->writeWorker);
   tSingleWorkerCleanup(&pMgmt->syncWorker);
+  dDebug("mnode workers are closed");
 }

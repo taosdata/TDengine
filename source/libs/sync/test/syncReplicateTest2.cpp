@@ -185,17 +185,19 @@ int main(int argc, char **argv) {
 
     sTrace(
         "syncPropose sleep, state: %d, %s, term:%lu electTimerLogicClock:%lu, electTimerLogicClockUser:%lu, "
-        "electTimerMS:%d",
+        "electTimerMS:%d, commitIndex:%ld",
         pSyncNode->state, syncUtilState2String(pSyncNode->state), pSyncNode->pRaftStore->currentTerm,
-        pSyncNode->electTimerLogicClock, pSyncNode->electTimerLogicClockUser, pSyncNode->electTimerMS);
+        pSyncNode->electTimerLogicClock, pSyncNode->electTimerLogicClockUser, pSyncNode->electTimerMS,
+        pSyncNode->commitIndex);
   }
 
   while (1) {
     sTrace(
         "replicate sleep, state: %d, %s, term:%lu electTimerLogicClock:%lu, electTimerLogicClockUser:%lu, "
-        "electTimerMS:%d",
+        "electTimerMS:%d, commitIndex:%ld",
         pSyncNode->state, syncUtilState2String(pSyncNode->state), pSyncNode->pRaftStore->currentTerm,
-        pSyncNode->electTimerLogicClock, pSyncNode->electTimerLogicClockUser, pSyncNode->electTimerMS);
+        pSyncNode->electTimerLogicClock, pSyncNode->electTimerLogicClockUser, pSyncNode->electTimerMS,
+        pSyncNode->commitIndex);
     taosMsleep(1000);
   }
 

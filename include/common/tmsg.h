@@ -1132,7 +1132,6 @@ int32_t tDeserializeSSchedulerHbReq(void* buf, int32_t bufLen, SSchedulerHbReq* 
 void    tFreeSSchedulerHbReq(SSchedulerHbReq* pReq);
 
 typedef struct {
-  uint64_t       seqId;
   SQueryNodeEpId epId;
   SArray*        taskStatus;  // SArray<STaskStatus>
 } SSchedulerHbRsp;

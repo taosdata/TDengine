@@ -165,8 +165,8 @@ static int32_t vmPutNodeMsgToQueue(SVnodesMgmt *pMgmt, SNodeMsg *pMsg, EQueueTyp
   int32_t  code = -1;
 
   SMsgHead *pHead = pRpc->pCont;
-  pHead->contLen = htonl(pHead->contLen);
-  pHead->vgId = htonl(pHead->vgId);
+  pHead->contLen = ntohl(pHead->contLen);
+  pHead->vgId = ntohl(pHead->vgId);
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, pHead->vgId);
   if (pVnode == NULL) {
@@ -356,7 +356,7 @@ int32_t vmStartWorker(SVnodesMgmt *pMgmt) {
     return -1;
   }
 
-  dDebug("vnode workers is initialized");
+  dDebug("vnode workers are initialized");
   return 0;
 }
 
@@ -366,5 +366,5 @@ void vmStopWorker(SVnodesMgmt *pMgmt) {
   tQWorkerCleanup(&pMgmt->queryPool);
   tWWorkerCleanup(&pMgmt->writePool);
   tWWorkerCleanup(&pMgmt->syncPool);
-  dDebug("vnode workers is closed");
+  dDebug("vnode workers are closed");
 }

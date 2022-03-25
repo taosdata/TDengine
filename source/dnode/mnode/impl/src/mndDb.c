@@ -1034,7 +1034,9 @@ static int32_t mndProcessUseDbReq(SNodeMsg *pReq) {
       usedbRsp.vgVersion = usedbReq.vgVersion;
       code = 0;
     }
-    usedbRsp.vgNum = taosArrayGetSize(usedbRsp.pVgroupInfos);    
+    usedbRsp.vgNum = taosArrayGetSize(usedbRsp.pVgroupInfos);  
+
+    // no jump, need to construct rsp
   } else {
     pDb = mndAcquireDb(pMnode, usedbReq.db);
     if (pDb == NULL) {

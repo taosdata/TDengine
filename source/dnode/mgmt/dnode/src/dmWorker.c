@@ -23,7 +23,7 @@
 
 static void *dmThreadRoutine(void *param) {
   SDnodeMgmt *pMgmt = param;
-  SDnode     *pDnode = pMgmt->pDnode;
+  SDnode *    pDnode = pMgmt->pDnode;
   int64_t     lastStatusTime = taosGetTimestampMs();
   int64_t     lastMonitorTime = lastStatusTime;
 
@@ -55,7 +55,7 @@ static void *dmThreadRoutine(void *param) {
 static void dmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   SDnodeMgmt *pMgmt = pInfo->ahandle;
 
-  SDnode  *pDnode = pMgmt->pDnode;
+  SDnode * pDnode = pMgmt->pDnode;
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   int32_t  code = -1;
   dTrace("msg:%p, will be processed in dnode queue", pMsg);
@@ -114,6 +114,7 @@ int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
     return -1;
   }
 
+  dDebug("dnode workers are initialized");
   return 0;
 }
 
@@ -136,6 +137,7 @@ void dmStopWorker(SDnodeMgmt *pMgmt) {
     taosDestoryThread(pMgmt->threadId);
     pMgmt->threadId = NULL;
   }
+  dDebug("dnode workers are closed");
 }
 
 int32_t dmProcessMgmtMsg(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
@@ -144,6 +146,6 @@ int32_t dmProcessMgmtMsg(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
     pWorker = &pMgmt->statusWorker;
   }
 
-  dTrace("msg:%p, will be written to worker %s", pMsg, pWorker->name);
+  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   return taosWriteQitem(pWorker->queue, pMsg);
 }

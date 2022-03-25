@@ -330,6 +330,8 @@ SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
       pRequest->code = code;
       break;
     }
+
+    destroyRequest(pRequest);
   }
   
   return pRequest;

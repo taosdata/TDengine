@@ -93,25 +93,25 @@ typedef struct SServerObj {
 
 static const char* notify = "a";
 
-#define CONN_SHOULD_RELEASE(conn, head)                            \
-  do {                                                             \
-    if ((head)->release == 1 && (head->msgLen) == sizeof(*head)) { \
-      conn->status = ConnRelease;                                  \
-      transClearBuffer(&conn->readBuf);                            \
-      transFreeMsg(transContFromHead((char*)head));                \
-      tTrace("server conn %p received release request", conn);     \
-                                                                   \
-      STransMsg tmsg = {.handle = (void*)conn, .code = 0};         \
-      SSrvMsg*  srvMsg = calloc(1, sizeof(SSrvMsg));               \
-      srvMsg->msg = tmsg;                                          \
-      srvMsg->type = Release;                                      \
-      srvMsg->pConn = conn;                                        \
-      if (!transQueuePush(&conn->srvMsgs, srvMsg)) {               \
-        return;                                                    \
-      }                                                            \
-      uvStartSendRespInternal(srvMsg);                             \
-      return;                                                      \
-    }                                                              \
+#define CONN_SHOULD_RELEASE(conn, head)                                     \
+  do {                                                                      \
+    if ((head)->release == 1 && (head->msgLen) == sizeof(*head)) {          \
+      conn->status = ConnRelease;                                           \
+      transClearBuffer(&conn->readBuf);                                     \
+      transFreeMsg(transContFromHead((char*)head));                         \
+      tTrace("server conn %p received release request", conn);              \
+                                                                            \
+      STransMsg tmsg = {.code = 0, .handle = (void*)conn, .ahandle = NULL}; \
+      SSrvMsg*  srvMsg = calloc(1, sizeof(SSrvMsg));                        \
+      srvMsg->msg = tmsg;                                                   \
+      srvMsg->type = Release;                                               \
+      srvMsg->pConn = conn;                                                 \
+      if (!transQueuePush(&conn->srvMsgs, srvMsg)) {                        \
+        return;                                                             \
+      }                                                                     \
+      uvStartSendRespInternal(srvMsg);                                      \
+      return;                                                               \
+    }                                                                       \
   } while (0)
 
 static void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
@@ -190,7 +190,7 @@ static void uvHandleReq(SSrvConn* pConn) {
   transMsg.pCont = pHead->content;
   transMsg.msgType = pHead->msgType;
   transMsg.code = pHead->code;
-  transMsg.ahandle = NULL;
+  transMsg.ahandle = (void*)pHead->ahandle;
   transMsg.handle = NULL;
 
   transClearBuffer(&pConn->readBuf);
@@ -199,6 +199,7 @@ static void uvHandleReq(SSrvConn* pConn) {
     if (pHead->persist == 1) {
       pConn->status = ConnAcquire;
       transRefSrvHandle(pConn);
+      tDebug("server conn %p acquired by server app", pConn);
     }
   }
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
@@ -279,7 +280,7 @@ void uvOnSendCb(uv_write_t* req, int status) {
       destroySmsg(msg);
       // send second data, just use for push
       if (!transQueueEmpty(&conn->srvMsgs)) {
-        msg = (SSrvMsg*)transQueueGet(&conn->srvMsgs);
+        msg = (SSrvMsg*)transQueueGet(&conn->srvMsgs, 0);
         if (msg->type == Register && conn->status == ConnAcquire) {
           conn->regArg.notifyCount = 0;
           conn->regArg.init = 1;
@@ -290,7 +291,11 @@ void uvOnSendCb(uv_write_t* req, int status) {
             memset(&conn->regArg, 0, sizeof(conn->regArg));
           }
           transQueuePop(&conn->srvMsgs);
-          free(msg);
+          tfree(msg);
+          msg = (SSrvMsg*)transQueuePop(&conn->srvMsgs);
+          if (msg != NULL) {
+            uvStartSendRespInternal(msg);
+          }
         } else {
           uvStartSendRespInternal(msg);
         }
@@ -321,6 +326,7 @@ static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
     pMsg->contLen = 0;
   }
   STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
+  pHead->ahandle = (uint64_t)pMsg->ahandle;
 
   // pHead->secured = pMsg->code == 0 ? 1 : 0;  //
   if (!pConn->secured) {
@@ -553,7 +559,7 @@ static bool addHandleToWorkloop(void* arg) {
   // conn set
   QUEUE_INIT(&pThrd->conn);
 
-  pThrd->asyncPool = transCreateAsyncPool(pThrd->loop, 4, pThrd, uvWorkerAsyncCb);
+  pThrd->asyncPool = transCreateAsyncPool(pThrd->loop, 5, pThrd, uvWorkerAsyncCb);
   uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
   return true;
 }
@@ -617,8 +623,6 @@ static void destroyConn(SSrvConn* conn, bool clear) {
     return;
   }
   transDestroyBuffer(&conn->readBuf);
-
-  transQueueDestroy(&conn->srvMsgs);
   if (clear) {
     tTrace("server conn %p to be destroyed", conn);
     uv_shutdown_t* req = malloc(sizeof(uv_shutdown_t));
@@ -634,6 +638,7 @@ static void uvDestroyConn(uv_handle_t* handle) {
 
   tDebug("server conn %p destroy", conn);
   uv_timer_stop(&conn->pTimer);
+  transQueueDestroy(&conn->srvMsgs);
   QUEUE_REMOVE(&conn->queue);
   free(conn->pTcp);
   // free(conn);
@@ -725,7 +730,7 @@ void uvHandleRelease(SSrvMsg* msg, SWorkThrdObj* thrd) {
 }
 void uvHandleResp(SSrvMsg* msg, SWorkThrdObj* thrd) {
   // send msg to client
-  tDebug("server conn %p start to send resp", msg->pConn);
+  tDebug("server conn %p start to send resp (2/2)", msg->pConn);
   uvStartSendResp(msg);
 }
 void uvHandleRegister(SSrvMsg* msg, SWorkThrdObj* thrd) {
@@ -735,9 +740,11 @@ void uvHandleRegister(SSrvMsg* msg, SWorkThrdObj* thrd) {
     if (!transQueuePush(&conn->srvMsgs, msg)) {
       return;
     }
+    transQueuePop(&conn->srvMsgs);
     conn->regArg.notifyCount = 0;
     conn->regArg.init = 1;
     conn->regArg.msg = msg->msg;
+    tDebug("server conn %p register brokenlink callback succ", conn);
 
     if (conn->broken) {
       STrans* pTransInst = conn->pTransInst;
@@ -815,7 +822,7 @@ void transReleaseSrvHandle(void* handle) {
   SSrvConn*     pConn = handle;
   SWorkThrdObj* pThrd = pConn->hostThrd;
 
-  STransMsg tmsg = {.handle = handle, .code = 0};
+  STransMsg tmsg = {.code = 0, .handle = handle, .ahandle = NULL};
 
   SSrvMsg* srvMsg = calloc(1, sizeof(SSrvMsg));
   srvMsg->msg = tmsg;
@@ -831,12 +838,15 @@ void transSendResponse(const STransMsg* pMsg) {
   }
   SSrvConn*     pConn = pMsg->handle;
   SWorkThrdObj* pThrd = pConn->hostThrd;
+  if (pThrd->quit) {
+    return;
+  }
 
   SSrvMsg* srvMsg = calloc(1, sizeof(SSrvMsg));
   srvMsg->pConn = pConn;
   srvMsg->msg = *pMsg;
   srvMsg->type = Normal;
-  tTrace("server conn %p start to send resp", pConn);
+  tTrace("server conn %p start to send resp (1/2)", pConn);
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
 }
 void transRegisterMsg(const STransMsg* msg) {
