@@ -20,8 +20,8 @@ static void dndUpdateMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
   SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, DNODE);
   if (pWrapper != NULL) {
     dmUpdateMnodeEpSet(pWrapper->pMgmt, pEpSet);
+    dndReleaseWrapper(pWrapper);
   }
-  dndReleaseWrapper(pWrapper);
 }
 
 static inline NodeMsgFp dndGetMsgFp(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
