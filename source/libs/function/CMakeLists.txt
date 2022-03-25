@@ -8,5 +8,5 @@ target_include_directories(
 
 target_link_libraries(
     function
-    PRIVATE os util common nodes
+    PRIVATE os util common nodes scalar
 )

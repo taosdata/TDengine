@@ -8,7 +8,7 @@ static void assignBasicParaInfo(struct SScalarParam* dst, const struct SScalarPa
 }
 
 /** Math functions **/
-int32_t abs_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   assignBasicParaInfo(pOutput, pInput);
   if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
     return TSDB_CODE_FAILED;
@@ -93,7 +93,7 @@ int32_t abs_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t log_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+int32_t logFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   if (inputNum != 2 || !IS_NUMERIC_TYPE(pInput[0].type) || !IS_NUMERIC_TYPE(pInput[1].type)) {
     return TSDB_CODE_FAILED;
   }
@@ -136,7 +136,7 @@ int32_t log_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t pow_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+int32_t powFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   if (inputNum != 2 || !IS_NUMERIC_TYPE(pInput[0].type) || !IS_NUMERIC_TYPE(pInput[1].type)) {
     return TSDB_CODE_FAILED;
   }
@@ -179,7 +179,7 @@ int32_t pow_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t sqrt_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+int32_t sqrtFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
     return TSDB_CODE_FAILED;
   }
@@ -210,7 +210,7 @@ int32_t sqrt_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t sin_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+int32_t sinFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
     return TSDB_CODE_FAILED;
   }
@@ -241,7 +241,7 @@ int32_t sin_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t cos_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+int32_t cosFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
     return TSDB_CODE_FAILED;
   }
@@ -272,7 +272,7 @@ int32_t cos_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tan_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+int32_t tanFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
     return TSDB_CODE_FAILED;
   }
@@ -303,7 +303,7 @@ int32_t tan_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t asin_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+int32_t asinFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
     return TSDB_CODE_FAILED;
   }
@@ -334,7 +334,7 @@ int32_t asin_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t acos_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+int32_t acosFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
     return TSDB_CODE_FAILED;
   }
@@ -365,7 +365,7 @@ int32_t acos_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t atan_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+int32_t atanFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
     return TSDB_CODE_FAILED;
   }
@@ -396,7 +396,7 @@ int32_t atan_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ceil_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+int32_t ceilFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
     return TSDB_CODE_FAILED;
   }
@@ -442,7 +442,7 @@ int32_t ceil_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t floor_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+int32_t floorFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   assignBasicParaInfo(pOutput, pInput);
   if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
     return TSDB_CODE_FAILED;
@@ -489,7 +489,7 @@ int32_t floor_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t round_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+int32_t roundFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   assignBasicParaInfo(pOutput, pInput);
   if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
     return TSDB_CODE_FAILED;
