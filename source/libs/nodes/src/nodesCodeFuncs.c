@@ -1418,6 +1418,7 @@ static int32_t datumToJson(const void* pObj, SJson* pJson) {
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
       code = tjsonAddStringToObject(pJson, jkValueDatum, varDataVal(pNode->datum.p));
+      nodesDebug("!!!!!!!!tojson, value:%s", varDataVal(pNode->datum.p));
       break;
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_DECIMAL:
