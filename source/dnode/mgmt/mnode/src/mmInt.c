@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
+#include "wal.h"
 
 static bool mmDeployRequired(SDnode *pDnode) {
   if (pDnode->dnodeId > 0) return false;
@@ -226,7 +227,7 @@ static int32_t mmOpen(SMgmtWrapper *pWrapper) {
 }
 
 static int32_t mmStart(SMgmtWrapper *pWrapper) {
-  dDebug("mnode mgmt start to run");
+  dDebug("mnode-mgmt start to run");
   SMnodeMgmt *pMgmt = pWrapper->pMgmt;
   return mndStart(pMgmt->pMnode);
 }

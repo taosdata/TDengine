@@ -199,6 +199,7 @@ typedef struct SIndexOptions {
 typedef struct SCreateIndexStmt {
   ENodeType type;
   EIndexType indexType;
+  bool ignoreExists;
   char indexName[TSDB_INDEX_NAME_LEN];
   char tableName[TSDB_TABLE_NAME_LEN];
   SNodeList* pCols;
@@ -207,6 +208,7 @@ typedef struct SCreateIndexStmt {
 
 typedef struct SDropIndexStmt {
   ENodeType type;
+  bool ignoreNotExists;
   char indexName[TSDB_INDEX_NAME_LEN];
   char tableName[TSDB_TABLE_NAME_LEN];
 } SDropIndexStmt;
