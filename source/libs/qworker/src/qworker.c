@@ -950,6 +950,8 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType) {
   atomic_store_ptr(&ctx->connInfo.handle, qwMsg->connInfo.handle);
   atomic_store_ptr(&ctx->connInfo.ahandle, qwMsg->connInfo.ahandle);
 
+  QW_TASK_DLOGL("subplan json string, len:%d, %s", qwMsg->msgLen, qwMsg->msg);
+
   code = qStringToSubplan(qwMsg->msg, &plan);
   if (TSDB_CODE_SUCCESS != code) {
     QW_TASK_ELOG("task string to subplan failed, code:%x - %s", code, tstrerror(code));
