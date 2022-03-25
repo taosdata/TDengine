@@ -201,16 +201,8 @@ typedef struct SEp {
 
 typedef struct {
   int32_t contLen;
-  union {
-    int32_t vgId;
-    int32_t streamTaskId;
-  };
+  int32_t vgId;
 } SMsgHead;
-
-typedef struct {
-  int32_t workerType;
-  int32_t streamTaskId;
-} SStreamExecMsgHead;
 
 // Submit message for one table
 typedef struct SSubmitBlk {
@@ -477,7 +469,8 @@ typedef struct {
   int32_t tz;  // query client timezone
   char    intervalUnit;
   char    slidingUnit;
-  char    offsetUnit;   // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
+  char
+      offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
   int8_t  precision;
   int64_t interval;
   int64_t sliding;
@@ -2366,30 +2359,21 @@ enum {
   STREAM_TASK_STATUS__STOP,
 };
 
+// pipe  -> fetch/pipe queue
+// merge -> merge      queue
+// write -> write      queue
 enum {
-  STREAM_NEXT_OP_DST__VND = 1,
-  STREAM_NEXT_OP_DST__SND,
+  TASK_SINK_MSG__SND_PIPE = 1,
+  TASK_SINK_MSG__SND_MERGE,
+  TASK_SINK_MSG__VND_PIPE,
+  TASK_SINK_MSG__VND_MERGE,
+  TASK_SINK_MSG__VND_WRITE,
 };
 
-enum {
-  STREAM_SOURCE_TYPE__NONE = 1,
-  STREAM_SOURCE_TYPE__SUPER,
-  STREAM_SOURCE_TYPE__CHILD,
-  STREAM_SOURCE_TYPE__NORMAL,
-};
-
-enum {
-  STREAM_SINK_TYPE__NONE = 1,
-  STREAM_SINK_TYPE__INPLACE,
-  STREAM_SINK_TYPE__ASSIGNED,
-  STREAM_SINK_TYPE__MULTIPLE,
-  STREAM_SINK_TYPE__TEMPORARY,
-};
-
-enum {
-  STREAM_TYPE__NORMAL = 1,
-  STREAM_TYPE__SMA,
-};
+typedef struct {
+  int32_t nodeId;  // 0 for snode
+  SEpSet  epSet;
+} SStreamTaskEp;
 
 typedef struct {
   void* inputHandle;
@@ -2397,48 +2381,114 @@ typedef struct {
 } SStreamRunner;
 
 typedef struct {
-  int64_t streamId;
-  int32_t taskId;
-  int32_t level;
-  int8_t  status;
-  int8_t  parallelizable;
-
-  // vnode or snode
-  int8_t nextOpDst;
-
-  int8_t sourceType;
-  int8_t sinkType;
-
-  // for sink type assigned
-  int32_t sinkVgId;
-  SEpSet  NextOpEp;
-
-  // executor meta info
-  char* qmsg;
-
-  // followings are not applied to encoder and decoder
-  int8_t        numOfRunners;
-  SStreamRunner runner[8];
-} SStreamTask;
-
-static FORCE_INLINE SStreamTask* streamTaskNew(int64_t streamId) {
-  SStreamTask* pTask = (SStreamTask*)calloc(1, sizeof(SStreamTask));
-  if (pTask == NULL) {
-    return NULL;
-  }
-  pTask->taskId = tGenIdPI32();
-  pTask->streamId = streamId;
-  pTask->status = STREAM_TASK_STATUS__RUNNING;
-  pTask->qmsg = NULL;
-  return pTask;
-}
-
-int32_t tEncodeSStreamTask(SCoder* pEncoder, const SStreamTask* pTask);
-int32_t tDecodeSStreamTask(SCoder* pDecoder, SStreamTask* pTask);
-void    tFreeSStreamTask(SStreamTask* pTask);
+  int8_t parallelizable;
+  char*  qmsg;
+  // followings are not applicable to encoder and decoder
+  int8_t         numOfRunners;
+  SStreamRunner* runners;
+} STaskExec;
 
 typedef struct {
-  SMsgHead     head;
+  int8_t reserved;
+} STaskDispatcherInplace;
+
+typedef struct {
+  int32_t nodeId;
+  SEpSet  epSet;
+} STaskDispatcherFixedEp;
+
+typedef struct {
+  int8_t  hashMethod;
+  SArray* info;
+} STaskDispatcherShuffle;
+
+typedef struct {
+  int8_t reserved;
+  // not applicable to encoder and decoder
+  SHashObj* pHash;  // groupId to tbuid
+} STaskSinkTb;
+
+typedef struct {
+  int8_t reserved;
+} STaskSinkSma;
+
+typedef struct {
+  int8_t reserved;
+} STaskSinkFetch;
+
+typedef struct {
+  int8_t reserved;
+} STaskSinkShow;
+
+enum {
+  TASK_SOURCE__SCAN = 1,
+  TASK_SOURCE__SINGLE,
+  TASK_SOURCE__MULTI,
+};
+
+enum {
+  TASK_EXEC__NONE = 1,
+  TASK_EXEC__EXEC,
+};
+
+enum {
+  TASK_DISPATCH__NONE = 1,
+  TASK_DISPATCH__INPLACE,
+  TASK_DISPATCH__FIXED,
+  TASK_DISPATCH__SHUFFLE,
+};
+
+enum {
+  TASK_SINK__NONE = 1,
+  TASK_SINK__TABLE,
+  TASK_SINK__SMA,
+  TASK_SINK__FETCH,
+  TASK_SINK__SHOW,
+};
+
+typedef struct {
+  int64_t streamId;
+  int32_t taskId;
+  int8_t  status;
+
+  int8_t  sourceType;
+  int8_t  execType;
+  int8_t  sinkType;
+  int8_t  dispatchType;
+  int16_t dispatchMsgType;
+  int32_t downstreamTaskId;
+
+  // source preprocess
+
+  // exec
+  STaskExec exec;
+
+  // local sink
+  union {
+    STaskSinkTb    tbSink;
+    STaskSinkSma   smaSink;
+    STaskSinkFetch fetchSink;
+    STaskSinkShow  showSink;
+  };
+
+  // dispatch
+  union {
+    STaskDispatcherInplace inplaceDispatcher;
+    STaskDispatcherFixedEp fixedEpDispatcher;
+    STaskDispatcherShuffle shuffleDispatcher;
+  };
+
+  // state storage
+
+} SStreamTask;
+
+SStreamTask* tNewSStreamTask(int64_t streamId);
+int32_t      tEncodeSStreamTask(SCoder* pEncoder, const SStreamTask* pTask);
+int32_t      tDecodeSStreamTask(SCoder* pDecoder, SStreamTask* pTask);
+void         tFreeSStreamTask(SStreamTask* pTask);
+
+typedef struct {
+  // SMsgHead     head;
   SStreamTask* task;
 } SStreamTaskDeployReq;
 
@@ -2447,19 +2497,25 @@ typedef struct {
 } SStreamTaskDeployRsp;
 
 typedef struct {
-  SStreamExecMsgHead head;
-  SArray*            data;  // SArray<SSDataBlock>
+  // SMsgHead head;
+  int64_t streamId;
+  int32_t taskId;
+  SArray* data;  // SArray<SSDataBlock>
 } SStreamTaskExecReq;
+
+int32_t tEncodeSStreamTaskExecReq(void** buf, const SStreamTaskExecReq* pReq);
+void*   tDecodeSStreamTaskExecReq(const void* buf, SStreamTaskExecReq* pReq);
+void    tFreeSStreamTaskExecReq(SStreamTaskExecReq* pReq);
 
 typedef struct {
   int32_t reserved;
 } SStreamTaskExecRsp;
 
 typedef struct {
-  SMsgHead head;
-  int64_t  streamId;
-  int64_t  version;
-  SArray*  res;  // SArray<SSDataBlock>
+  // SMsgHead head;
+  int64_t streamId;
+  int64_t version;
+  SArray* res;  // SArray<SSDataBlock>
 } SStreamSinkReq;
 
 #pragma pack(pop)

@@ -273,7 +273,7 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
-    pColumnInfoData->varmeta.offset = (int32_t*) p;
+    pColumnInfoData->varmeta.offset = (int32_t*)p;
     memcpy(pColumnInfoData->varmeta.offset, pSource->varmeta.offset, sizeof(int32_t) * numOfRows);
 
     if (pColumnInfoData->varmeta.allocLen < pSource->varmeta.length) {
@@ -587,11 +587,11 @@ size_t blockDataGetRowSize(SSDataBlock* pBlock) {
   if (pBlock->info.rowSize == 0) {
     size_t rowSize = 0;
 
-  size_t numOfCols = pBlock->info.numOfCols;
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
-    rowSize += pColInfo->info.bytes;
-  }
+    size_t numOfCols = pBlock->info.numOfCols;
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
+      rowSize += pColInfo->info.bytes;
+    }
 
     pBlock->info.rowSize = rowSize;
   }
@@ -637,7 +637,7 @@ double blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
     if (IS_VAR_DATA_TYPE(pColInfo->info.type)) {
       rowSize += sizeof(int32_t);
     } else {
-      rowSize += 1/8.0;  // one bit for each record
+      rowSize += 1 / 8.0;  // one bit for each record
     }
   }
 
@@ -1318,12 +1318,97 @@ int32_t tEncodeDataBlocks(void** buf, const SArray* blocks) {
   return tlen;
 }
 
-void* tDecodeDataBlocks(const void* buf, SArray* blocks) {
+void* tDecodeDataBlocks(const void* buf, SArray** blocks) {
   int32_t sz;
   buf = taosDecodeFixedI32(buf, &sz);
+
+  *blocks = taosArrayInit(sz, sizeof(SSDataBlock));
   for (int32_t i = 0; i < sz; i++) {
     SSDataBlock pBlock = {0};
     buf = tDecodeDataBlock(buf, &pBlock);
+    taosArrayPush(*blocks, &pBlock);
   }
   return (void*)buf;
 }
+
+static char* formatTimestamp(char* buf, int64_t val, int precision) {
+  time_t  tt;
+  int32_t ms = 0;
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    tt = (time_t)(val / 1000000000);
+    ms = val % 1000000000;
+  } else if (precision == TSDB_TIME_PRECISION_MICRO) {
+    tt = (time_t)(val / 1000000);
+    ms = val % 1000000;
+  } else {
+    tt = (time_t)(val / 1000);
+    ms = val % 1000;
+  }
+
+  /* comment out as it make testcases like select_with_tags.sim fail.
+    but in windows, this may cause the call to localtime crash if tt < 0,
+    need to find a better solution.
+    if (tt < 0) {
+      tt = 0;
+    }
+    */
+
+#ifdef WINDOWS
+  if (tt < 0) tt = 0;
+#endif
+  if (tt <= 0 && ms < 0) {
+    tt--;
+    if (precision == TSDB_TIME_PRECISION_NANO) {
+      ms += 1000000000;
+    } else if (precision == TSDB_TIME_PRECISION_MICRO) {
+      ms += 1000000;
+    } else {
+      ms += 1000;
+    }
+  }
+
+  struct tm* ptm = localtime(&tt);
+  size_t     pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", ptm);
+
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    sprintf(buf + pos, ".%09d", ms);
+  } else if (precision == TSDB_TIME_PRECISION_MICRO) {
+    sprintf(buf + pos, ".%06d", ms);
+  } else {
+    sprintf(buf + pos, ".%03d", ms);
+  }
+
+  return buf;
+}
+void blockDebugShowData(SArray* dataBlocks) {
+  char    pBuf[128];
+  int32_t sz = taosArrayGetSize(dataBlocks);
+  for (int32_t i = 0; i < sz; i++) {
+    SSDataBlock* pDataBlock = taosArrayGet(dataBlocks, i);
+    int32_t      colNum = pDataBlock->info.numOfCols;
+    int32_t      rows = pDataBlock->info.rows;
+    for (int32_t j = 0; j < rows; j++) {
+      printf("|");
+      for (int32_t k = 0; k < colNum; k++) {
+        SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
+        void*            var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
+        switch (pColInfoData->info.type) {
+          case TSDB_DATA_TYPE_TIMESTAMP:
+            formatTimestamp(pBuf, *(uint64_t*)var, TSDB_TIME_PRECISION_MILLI);
+            printf(" %25s |", pBuf);
+            break;
+          case TSDB_DATA_TYPE_INT:
+          case TSDB_DATA_TYPE_UINT:
+            printf(" %15d |", *(int32_t*)var);
+            break;
+          case TSDB_DATA_TYPE_BIGINT:
+          case TSDB_DATA_TYPE_UBIGINT:
+            printf(" %15ld |", *(int64_t*)var);
+            break;
+        }
+      }
+      printf("\n");
+    }
+  }
+}
+

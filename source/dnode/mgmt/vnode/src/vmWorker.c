@@ -208,6 +208,8 @@ int32_t vmProcessQueryMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) { return vmPutNode
 
 int32_t vmProcessFetchMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) { return vmPutNodeMsgToQueue(pMgmt, pMsg, FETCH_QUEUE); }
 
+int32_t vmProcessMergeMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) { return vmPutNodeMsgToQueue(pMgmt, pMsg, MERGE_QUEUE); }
+
 int32_t vmProcessMgmtMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   SSingleWorker *pWorker = &pMgmt->mgmtWorker;
   dTrace("msg:%p, will be written to vnode-mgmt queue, worker:%s", pMsg, pWorker->name);
@@ -239,6 +241,10 @@ static int32_t vmPutRpcMsgToQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, EQueueT
         dTrace("msg:%p, will be put into vnode-apply queue", pMsg);
         code = taosWriteQitem(pVnode->pApplyQ, pMsg);
         break;
+      case MERGE_QUEUE:
+        dTrace("msg:%p, will be put into vnode-merge queue", pMsg);
+        code = taosWriteQitem(pVnode->pMergeQ, pMsg);
+        break;
       default:
         terrno = TSDB_CODE_INVALID_PARA;
         break;
@@ -258,6 +264,10 @@ int32_t vmPutMsgToFetchQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
 
 int32_t vmPutMsgToApplyQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
   return vmPutRpcMsgToQueue(pWrapper, pRpc, APPLY_QUEUE);
+}
+
+int32_t vmPutMsgToMergeQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
+  return vmPutRpcMsgToQueue(pWrapper, pRpc, MERGE_QUEUE);
 }
 
 int32_t vmGetQueueSize(SMgmtWrapper *pWrapper, int32_t vgId, EQueueType qtype) {
@@ -280,6 +290,9 @@ int32_t vmGetQueueSize(SMgmtWrapper *pWrapper, int32_t vgId, EQueueType qtype) {
       case APPLY_QUEUE:
         size = taosQueueSize(pVnode->pApplyQ);
         break;
+      case MERGE_QUEUE:
+        size = taosQueueSize(pVnode->pMergeQ);
+        break;
       default:
         break;
     }
@@ -291,12 +304,13 @@ int32_t vmGetQueueSize(SMgmtWrapper *pWrapper, int32_t vgId, EQueueType qtype) {
 int32_t vmAllocQueue(SVnodesMgmt *pMgmt, SVnodeObj *pVnode) {
   pVnode->pWriteQ = tWWorkerAllocQueue(&pMgmt->writePool, pVnode, (FItems)vmProcessWriteQueue);
   pVnode->pApplyQ = tWWorkerAllocQueue(&pMgmt->writePool, pVnode, (FItems)vmProcessApplyQueue);
+  pVnode->pMergeQ = tWWorkerAllocQueue(&pMgmt->writePool, pVnode, (FItems)vmProcessApplyQueue);
   pVnode->pSyncQ = tWWorkerAllocQueue(&pMgmt->syncPool, pVnode, (FItems)vmProcessSyncQueue);
   pVnode->pFetchQ = tQWorkerAllocQueue(&pMgmt->fetchPool, pVnode, (FItem)vmProcessFetchQueue);
   pVnode->pQueryQ = tQWorkerAllocQueue(&pMgmt->queryPool, pVnode, (FItem)vmProcessQueryQueue);
 
   if (pVnode->pApplyQ == NULL || pVnode->pWriteQ == NULL || pVnode->pSyncQ == NULL || pVnode->pFetchQ == NULL ||
-      pVnode->pQueryQ == NULL) {
+      pVnode->pQueryQ == NULL || pVnode->pMergeQ) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -310,12 +324,14 @@ void vmFreeQueue(SVnodesMgmt *pMgmt, SVnodeObj *pVnode) {
   tQWorkerFreeQueue(&pMgmt->fetchPool, pVnode->pFetchQ);
   tWWorkerFreeQueue(&pMgmt->writePool, pVnode->pWriteQ);
   tWWorkerFreeQueue(&pMgmt->writePool, pVnode->pApplyQ);
+  tWWorkerFreeQueue(&pMgmt->mergePool, pVnode->pMergeQ);
   tWWorkerFreeQueue(&pMgmt->syncPool, pVnode->pSyncQ);
   pVnode->pWriteQ = NULL;
   pVnode->pApplyQ = NULL;
   pVnode->pSyncQ = NULL;
   pVnode->pFetchQ = NULL;
   pVnode->pQueryQ = NULL;
+  pVnode->pMergeQ = NULL;
   dDebug("vgId:%d, vnode queue is freed", pVnode->vgId);
 }
 

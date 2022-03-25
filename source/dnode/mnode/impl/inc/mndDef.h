@@ -729,13 +729,15 @@ typedef struct {
   int32_t  vgNum;
   SRWLatch lock;
   int8_t   status;
+  int8_t   sourceType;
+  int8_t   sinkType;
   // int32_t  sqlLen;
   int32_t sinkVgId;  // 0 for automatic
   char*   sql;
   char*   logicalPlan;
   char*   physicalPlan;
-  SArray* tasks;  // SArray<SArray<SStreamTask>>
-  SArray* ColAlias;
+  SArray* tasks;     // SArray<SArray<SStreamTask>>
+  SArray* ColAlias;  // SArray<char*>
 } SStreamObj;
 
 int32_t tEncodeSStreamObj(SCoder* pEncoder, const SStreamObj* pObj);
