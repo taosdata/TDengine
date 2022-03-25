@@ -61,6 +61,10 @@ int32_t mmProcessReadMsg(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->readWorker, pMsg);
 }
 
+int32_t mmProcessQueryMsg(SMnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+  return mmPutMsgToWorker(pMgmt, &pMgmt->queryWorker, pMsg);
+}
+
 static int32_t mmPutRpcMsgToWorker(SMnodeMgmt *pMgmt, SSingleWorker *pWorker, SRpcMsg *pRpc) {
   SNodeMsg *pMsg = taosAllocateQitem(sizeof(SNodeMsg));
   if (pMsg == NULL) {
@@ -90,11 +94,21 @@ int32_t mmPutMsgToReadQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
   return mmPutRpcMsgToWorker(pMgmt, &pMgmt->readWorker, pRpc);
 }
 
+int32_t mmPutMsgToQueryQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
+  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
+  return mmPutRpcMsgToWorker(pMgmt, &pMgmt->queryWorker, pRpc);
+}
+
+
 int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
   SSingleWorkerCfg cfg = {.minNum = 0, .maxNum = 1, .name = "mnode-read", .fp = (FItem)mmProcessQueue, .param = pMgmt};
-  SSingleWorkerCfg readCfg = {.minNum = 2, .maxNum = 2, .name = "mnode-read", .fp = (FItem)mmProcessQueue, .param = pMgmt};
 
-  if (tSingleWorkerInit(&pMgmt->readWorker, &readCfg) != 0) {
+  if (tSingleWorkerInit(&pMgmt->queryWorker, &cfg) != 0) {
+    dError("failed to start mnode-query worker since %s", terrstr());
+    return -1;
+  }
+
+  if (tSingleWorkerInit(&pMgmt->readWorker, &cfg) != 0) {
     dError("failed to start mnode-read worker since %s", terrstr());
     return -1;
   }
@@ -115,6 +129,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
 
 void mmStopWorker(SMnodeMgmt *pMgmt) {
   tSingleWorkerCleanup(&pMgmt->readWorker);
+  tSingleWorkerCleanup(&pMgmt->queryWorker);
   tSingleWorkerCleanup(&pMgmt->writeWorker);
   tSingleWorkerCleanup(&pMgmt->syncWorker);
   dDebug("mnode workers are closed");

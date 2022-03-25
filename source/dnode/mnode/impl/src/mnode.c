@@ -80,7 +80,7 @@ static void mndCalMqRebalance(void *param, void *tmrId) {
         .pCont = pReq,
         .contLen = contLen,
     };
-    tmsgPutToQueue(&pMnode->msgCb, QUERY_QUEUE, &rpcMsg);
+    tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 
   taosTmrReset(mndCalMqRebalance, MQ_TIMER_MS, pMnode, pMnode->timer, &pMnode->mqTimer);
@@ -92,7 +92,7 @@ static void mndPullupTelem(void *param, void *tmrId) {
     int32_t contLen = 0;
     void   *pReq = mndBuildTimerMsg(&contLen);
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_TELEM_TIMER, .pCont = pReq, .contLen = contLen};
-    tmsgPutToQueue(&pMnode->msgCb, QUERY_QUEUE, &rpcMsg);
+    tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 
   taosTmrReset(mndPullupTelem, TELEM_TIMER_MS, pMnode, pMnode->timer, &pMnode->telemTimer);
