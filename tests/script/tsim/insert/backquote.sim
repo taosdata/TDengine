@@ -174,10 +174,6 @@ while $dbCnt < 2
     #if $rows != 4 then 
     #  return -1
     #endi
-    ##sql select * from st
-    ##if $rows != 4 then
-    ##  return -1
-    ##endi
 
 endw
 

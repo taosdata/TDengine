@@ -231,6 +231,10 @@ endi
 
 print =============== query data
 sql select * from c1
+print rows: $rows
+print $data00 $data01
+print $data10 $data11
+print $data20 $data21
 if $rows != 3 then 
   print $rows
   return -1
