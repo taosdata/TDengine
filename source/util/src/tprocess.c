@@ -208,6 +208,11 @@ static int32_t taosProcQueuePush(SProcQueue *pQueue, char *pHead, int32_t rawHea
   const int32_t bodyLen = CEIL8(rawBodyLen);
   const int32_t fullLen = headLen + bodyLen + 8;
 
+  if (headLen <= 0 || bodyLen <= 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return -1;
+  }
+
   taosThreadMutexLock(pQueue->mutex);
   if (fullLen > pQueue->avail) {
     taosThreadMutexUnlock(pQueue->mutex);
@@ -259,7 +264,7 @@ static int32_t taosProcQueuePush(SProcQueue *pQueue, char *pHead, int32_t rawHea
   taosThreadMutexUnlock(pQueue->mutex);
   tsem_post(&pQueue->sem);
 
-  uTrace("proc:%s, push msg:%p:%d cont:%p:%d to queue:%p", pQueue->name, pHead, rawHeadLen, pBody, rawBodyLen, pQueue);
+  uTrace("proc:%s, push msg:%p:%d cont:%p:%d to queue:%p", pQueue->name, pHead, headLen, pBody, bodyLen, pQueue);
   return 0;
 }
 
@@ -376,7 +381,6 @@ SProcObj *taosProcInit(const SProcCfg *pCfg) {
   pProc->pid = fork();
   if (pProc->pid == 0) {
     pProc->isChild = 1;
-    uInfo("this is child process, pid:%d", pProc->pid);
   } else {
     pProc->isChild = 0;
     uInfo("this is parent process, child pid:%d", pProc->pid);
@@ -438,6 +442,8 @@ void taosProcStop(SProcObj *pProc) {
 }
 
 bool taosProcIsChild(SProcObj *pProc) { return pProc->isChild; }
+
+int32_t taosProcChildId(SProcObj *pProc) { return pProc->pid; }
 
 void taosProcCleanup(SProcObj *pProc) {
   if (pProc != NULL) {

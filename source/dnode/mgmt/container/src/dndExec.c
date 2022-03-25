@@ -20,7 +20,7 @@ static void dndResetLog(SMgmtWrapper *pMgmt) {
   char logname[24] = {0};
   snprintf(logname, sizeof(logname), "%slog", pMgmt->name);
 
-  dInfo("node:%s, reset log to %s", pMgmt->name, logname);
+  dInfo("node:%s, reset log to %s in child process", pMgmt->name, logname);
   taosCloseLog();
   taosInitLog(logname, 1);
 }
@@ -51,6 +51,7 @@ int32_t dndOpenNode(SMgmtWrapper *pWrapper) {
 
 void dndCloseNode(SMgmtWrapper *pWrapper) {
   dDebug("node:%s, start to close", pWrapper->name);
+  pWrapper->required = false;
   taosWLockLatch(&pWrapper->latch);
   if (pWrapper->deployed) {
     (*pWrapper->fp.closeFp)(pWrapper);
@@ -199,7 +200,7 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
       dInfo("node:%s, will be initialized in child process", pWrapper->name);
       dndOpenNode(pWrapper);
     } else {
-      dInfo("node:%s, will not start in parent process", pWrapper->name);
+      dInfo("node:%s, will not start in parent process, child pid:%d", pWrapper->name, taosProcChildId(pProc));
       pWrapper->procType = PROC_PARENT;
     }
 
@@ -209,16 +210,20 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
     }
   }
 
-#if 0
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, DNODE);
-  if (pWrapper->procType == PROC_PARENT && dmStart(pWrapper->pMgmt) != 0) {
-    dndReleaseWrapper(pWrapper);
-    dError("failed to start dnode worker since %s", terrstr());
-    return -1;
+  dndSetStatus(pDnode, DND_STAT_RUNNING);
+
+  for (ENodeType n = 0; n < NODE_MAX; ++n) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+    if (!pWrapper->required) continue;
+    if (pWrapper->fp.startFp == NULL) continue;
+    if (pWrapper->procType == PROC_PARENT && n != DNODE) continue;
+    if (pWrapper->procType == PROC_CHILD && n == DNODE) continue;
+    if ((*pWrapper->fp.startFp)(pWrapper) != 0) {
+      dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
+      return -1;
+    }
   }
 
-  dndReleaseWrapper(pWrapper);
-#endif
   return 0;
 }
 

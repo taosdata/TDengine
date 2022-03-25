@@ -175,7 +175,7 @@ int32_t dndMarkWrapper(SMgmtWrapper *pWrapper) {
   int32_t code = 0;
 
   taosRLockLatch(&pWrapper->latch);
-  if (pWrapper->deployed) {
+  if (pWrapper->deployed || (pWrapper->procType == PROC_PARENT && pWrapper->required)) {
     int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
     dTrace("node:%s, is marked, refCount:%d", pWrapper->name, refCount);
   } else {
