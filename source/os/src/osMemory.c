@@ -71,9 +71,9 @@ char **taosBackTraceSymbols(int32_t *size) {
 }
 
 void *taosMemoryMalloc(int32_t size) {
+  void *tmp = malloc(size + sizeof(TdMemoryInfo));
   if (tmp == NULL) return NULL;
 
-  void *tmp = malloc(size + sizeof(TdMemoryInfo));
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)tmp;
   pTdMemoryInfo->memorySize = size;
   pTdMemoryInfo->symbol = TD_MEMORY_SYMBOL;
