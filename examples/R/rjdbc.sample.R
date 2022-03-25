@@ -45,7 +45,7 @@ print(table1)
 print("=============dbListTables===================")
 dbListTables(conn,"test%")
 
-print("=============dbListTables===================")
+print("=============dbExistsTable===================")
 # Is there table "test"
 dbExistsTable(conn,"test")
 
