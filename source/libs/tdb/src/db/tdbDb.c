@@ -70,9 +70,9 @@ int tdbDbDrop(STDb *pDb) {
 }
 
 int tdbDbInsert(STDb *pDb, const void *pKey, int keyLen, const void *pVal, int valLen) {
-  SBtCursor  btc;
-  SBtCursor *pCur;
-  int        ret;
+  SBTC  btc;
+  SBTC *pCur;
+  int   ret;
 
   pCur = &btc;
   ret = tdbBtreeCursor(pCur, pDb->pBt);

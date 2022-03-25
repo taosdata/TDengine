@@ -67,7 +67,7 @@ typedef struct {
   u8   *pTmpSpace;
 } SCellDecoder;
 
-static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen, int *pCRst);
+static int tdbBtCursorMoveTo(SBTC *pCur, const void *pKey, int kLen, int *pCRst);
 static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2);
 static int tdbBtreeOpenImpl(SBTree *pBt);
 static int tdbBtreeZeroPage(SPage *pPage, void *arg);
@@ -75,7 +75,7 @@ static int tdbBtreeInitPage(SPage *pPage, void *arg);
 static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const void *pVal, int vLen, SCell *pCell,
                               int *szCell);
 static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pDecoder);
-static int tdbBtreeBalance(SBtCursor *pCur);
+static int tdbBtreeBalance(SBTC *pCur);
 static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell);
 
 int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, SBTree **ppBt) {
@@ -131,7 +131,7 @@ int tdbBtreeClose(SBTree *pBt) {
   return 0;
 }
 
-int tdbBtreeCursor(SBtCursor *pCur, SBTree *pBt) {
+int tdbBtreeCursor(SBTC *pCur, SBTree *pBt) {
   pCur->pBt = pBt;
   pCur->iPage = -1;
   pCur->pPage = NULL;
@@ -140,7 +140,7 @@ int tdbBtreeCursor(SBtCursor *pCur, SBTree *pBt) {
   return 0;
 }
 
-int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *pVal, int vLen) {
+int tdbBtCursorInsert(SBTC *pCur, const void *pKey, int kLen, const void *pVal, int vLen) {
   int     ret;
   int     idx;
   SPager *pPager;
@@ -204,7 +204,7 @@ int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *p
 }
 
 int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen) {
-  SBtCursor    btc;
+  SBTC         btc;
   SCell       *pCell;
   int          cret;
   SCellDecoder cd;
@@ -231,7 +231,7 @@ int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen
   return 0;
 }
 
-static int tdbBtCursorMoveToChild(SBtCursor *pCur, SPgno pgno) {
+static int tdbBtCursorMoveToChild(SBTC *pCur, SPgno pgno) {
   int ret;
 
   pCur->pgStack[pCur->iPage] = pCur->pPage;
@@ -248,7 +248,7 @@ static int tdbBtCursorMoveToChild(SBtCursor *pCur, SPgno pgno) {
   return 0;
 }
 
-static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen, int *pCRst) {
+static int tdbBtCursorMoveTo(SBTC *pCur, const void *pKey, int kLen, int *pCRst) {
   int     ret;
   SBTree *pBt;
   SPager *pPager;
@@ -827,7 +827,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
   return 0;
 }
 
-static int tdbBtreeBalance(SBtCursor *pCur) {
+static int tdbBtreeBalance(SBTC *pCur) {
   int    iPage;
   SPage *pParent;
   SPage *pPage;

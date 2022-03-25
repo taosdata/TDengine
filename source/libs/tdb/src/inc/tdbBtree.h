@@ -20,10 +20,15 @@
 extern "C" {
 #endif
 
-typedef struct SBTree    SBTree;
-typedef struct SBtCursor SBtCursor;
+typedef struct SBTree SBTree;
+typedef struct SBTC   SBTC;
+typedef struct SBtInfo {
+  SPgno root;
+  int   nLevel;
+  int   nData;
+} SBtInfo;
 
-struct SBtCursor {
+struct SBTC {
   SBTree *pBt;
   i8      iPage;
   SPage  *pPage;
@@ -35,8 +40,8 @@ struct SBtCursor {
 
 int tdbBtreeOpen(int keyLen, int valLen, SPager *pFile, FKeyComparator kcmpr, SBTree **ppBt);
 int tdbBtreeClose(SBTree *pBt);
-int tdbBtreeCursor(SBtCursor *pCur, SBTree *pBt);
-int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *pVal, int vLen);
+int tdbBtreeCursor(SBTC *pCur, SBTree *pBt);
+int tdbBtCursorInsert(SBTC *pCur, const void *pKey, int kLen, const void *pVal, int vLen);
 int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen);
 
 #ifdef __cplusplus
