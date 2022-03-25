@@ -36,7 +36,21 @@ extern struct SScalarFunctionInfo scalarFunc[8];
 int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarParam* pOutput,
                           void* param, char* (*getSourceDataBlock)(void*, const char*, int32_t));
 
+int32_t abs_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t log_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t pow_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t sqrt_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
+int32_t sin_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t cos_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t tan_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t asin_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t acos_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t atan_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+int32_t ceil_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t floor_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t round_function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 #ifdef __cplusplus
 }
