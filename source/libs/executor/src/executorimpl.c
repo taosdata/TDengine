@@ -5569,7 +5569,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo *pOperator, bool* newgroup) {
 
     blockDataCleanup(pInfo->pRes);
 
-    int32_t tableNameSlotId = 1;
+    int32_t tableNameSlotId = 0;
     SColumnInfoData* pTableNameCol = taosArrayGet(pInfo->pRes->pDataBlock, tableNameSlotId);
 
     char *  name = NULL;
