@@ -81,6 +81,7 @@ struct SSmaStat {
 
 // expired window
 static int32_t  tsdbUpdateExpiredWindowImpl(STsdb *pTsdb, const char *msg);
+static int32_t  tsdbSetExpiredWindow(STsdb *pTsdb, SHashObj *pItemsHash, int64_t indexUid, int64_t winSKey);
 static int32_t  tsdbInitSmaStat(SSmaStat **pSmaStat);
 static void    *tsdbFreeSmaStatItem(SSmaStatItem *pSmaStatItem);
 static int32_t  tsdbDestroySmaState(SSmaStat *pSmaStat);
@@ -384,12 +385,6 @@ static int32_t tsdbCheckAndInitSmaEnv(STsdb *pTsdb, int8_t smaType) {
   return TSDB_CODE_SUCCESS;
 };
 
-static STimeWindow getActiveTimeWindowX(int64_t ts, SInterval* pInterval) {
-  STimeWindow tw = {0};
-  tw.skey = 100;
-  tw.ekey = 1000;
-  return tw;
-}
 
 static int32_t tsdbSetExpiredWindow(STsdb *pTsdb, SHashObj *pItemsHash, int64_t indexUid, int64_t winSKey) {
   SSmaStatItem *pItem = taosHashGet(pItemsHash, &indexUid, sizeof(indexUid));
@@ -544,8 +539,9 @@ int32_t tsdbUpdateExpiredWindowImpl(STsdb *pTsdb, const char *msg) {
       interval.sliding = pTSma->sliding;
       interval.slidingUnit = pTSma->slidingUnit;
 
-      STimeWindow tw = getActiveTimeWindowX(TD_ROW_KEY(row), &interval);
-      tsdbSetExpiredWindow(pTsdb, pItemsHash, pTSma->indexUid, TD_ROW_KEY(row));
+      TSKEY winSKey = taosTimeTruncate(TD_ROW_KEY(row), &interval, interval.precision);
+
+      tsdbSetExpiredWindow(pTsdb, pItemsHash, pTSma->indexUid, winSKey);
     }
   }
 

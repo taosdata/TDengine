@@ -302,7 +302,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   tSma.intervalUnit = TIME_UNIT_DAY;
   tSma.interval = 1;
   tSma.slidingUnit = TIME_UNIT_HOUR;
-  tSma.sliding = 0;
+  tSma.sliding = 1; // sliding = interval when it's convert window
   tSma.indexUid = indexUid1;
   tstrncpy(tSma.indexName, smaIndexName1, TSDB_INDEX_NAME_LEN);
   tSma.timezoneInt = timezone;
