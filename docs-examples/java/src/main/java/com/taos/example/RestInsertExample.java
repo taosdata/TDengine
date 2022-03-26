@@ -59,7 +59,8 @@ public class RestInsertExample {
         try(Connection conn = getConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("CREATE DATABASE power KEEP 3650");
-                stmt.execute("CREATE STABLE power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)");
+                stmt.execute("CREATE STABLE power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) " +
+                        "TAGS (location BINARY(64), groupId INT)");
                 String sql = getSQL();
                 int rowCount = stmt.executeUpdate(sql);
                 System.out.println("rowCount=" + rowCount); // rowCount=8
