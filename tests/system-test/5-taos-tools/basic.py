@@ -36,7 +36,7 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
 
-        tools = ["taosdump", "taosBenchmark", "taosAdaptor"]
+        tools = ["taosdump", "taosBenchmark", "taosadapter"]
         tdDnodes.stop(1)
 
         for tool in tools:
@@ -46,6 +46,8 @@ class TDTestCase:
                 print(f"{path}{tool}")
                 if tool == "taosBenchmark":
                     os.system(f"{path}{tool} -y")
+                elif tool == "taosadapter":
+                    os.system(f"pkill -9 {tool}")
                 else:
                     os.system(f"{path}{tool}")
             except BaseException:
