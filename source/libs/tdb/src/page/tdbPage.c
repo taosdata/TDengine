@@ -143,7 +143,11 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
       pPage->aiOvfl[i] = pPage->aiOvfl[i - 1];
     }
 
-    pPage->apOvfl[iOvfl] = pCell;
+    // TODO: here has memory leak
+    pNewCell = (SCell *)malloc(szCell);
+    memcpy(pNewCell, pCell, szCell);
+
+    pPage->apOvfl[iOvfl] = pNewCell;
     pPage->aiOvfl[iOvfl] = idx;
     pPage->nOverflow++;
     iOvfl++;

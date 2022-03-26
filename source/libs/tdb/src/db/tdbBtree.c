@@ -746,6 +746,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
               pgno = TDB_PAGE_PGNO(pNews[iNew]);
               tdbBtreeEncodeCell(pParent, cd.pKey, cd.kLen, (void *)&pgno, sizeof(SPgno), pNewCell, &szNewCell);
               tdbPageInsertCell(pParent, sIdx++, pNewCell, szNewCell, 0);
+              free(pNewCell);
             }
 
             // move to next new page
@@ -795,12 +796,11 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
     }
   }
 
-  // TODO: here has memory leak
-  // for (int i = 0; i < 3; i++) {
-  //   if (pDivCell[i]) {
-  //     free(pDivCell[i]);
-  //   }
-  // }
+  for (int i = 0; i < 3; i++) {
+    if (pDivCell[i]) {
+      free(pDivCell[i]);
+    }
+  }
 
   return 0;
 }
