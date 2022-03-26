@@ -67,17 +67,12 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-typedef struct SNameExprCxt {
-  int32_t rewriteId;
-} SNameExprCxt;
-
 static EDealRes doNameExpr(SNode* pNode, void* pContext) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION:
     case QUERY_NODE_FUNCTION: {
-      SNameExprCxt* pCxt = (SNameExprCxt*)pContext;
-      sprintf(((SExprNode*)pNode)->aliasName, "#expr_%d", pCxt->rewriteId++);
+      sprintf(((SExprNode*)pNode)->aliasName, "#expr_%p", pNode);
       return DEAL_RES_IGNORE_CHILD;
     }
     default:
@@ -88,9 +83,7 @@ static EDealRes doNameExpr(SNode* pNode, void* pContext) {
 }
 
 static int32_t rewriteExpr(SNodeList* pExprs, SSelectStmt* pSelect, ESqlClause clause) {
-  static int32_t rewriteId = 1; // todo modify
-  SNameExprCxt nameCxt = { .rewriteId = rewriteId };
-  nodesWalkList(pExprs, doNameExpr, &nameCxt);
+  nodesWalkList(pExprs, doNameExpr, NULL);
   SRewriteExprCxt cxt = { .errCode = TSDB_CODE_SUCCESS, .pExprs = pExprs };
   nodesRewriteSelectStmt(pSelect, clause, doRewriteExpr, &cxt);
   return cxt.errCode;

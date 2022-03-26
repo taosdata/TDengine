@@ -1452,6 +1452,7 @@ static int32_t getSmaIndexBuildAst(STranslateContext* pCxt, SCreateIndexStmt* pS
   if (NULL == pSelect) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  sprintf(pSelect->stmtName, "%p", pSelect);
 
   SRealTableNode* pTable = nodesMakeNode(QUERY_NODE_REAL_TABLE);
   if (NULL == pTable) {
@@ -1467,6 +1468,10 @@ static int32_t getSmaIndexBuildAst(STranslateContext* pCxt, SCreateIndexStmt* pS
     nodesDestroyNode(pSelect);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  SNode* pProject = NULL;
+  FOREACH(pProject, pSelect->pProjectionList) {
+    sprintf(((SExprNode*)pProject)->aliasName, "#sma_%p", pProject);
+  }
 
   SIntervalWindowNode* pInterval = nodesMakeNode(QUERY_NODE_INTERVAL_WINDOW);
   if (NULL == pInterval) {
@@ -1474,14 +1479,18 @@ static int32_t getSmaIndexBuildAst(STranslateContext* pCxt, SCreateIndexStmt* pS
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pSelect->pWindow = (SNode*)pInterval;
+  pInterval->pCol = nodesMakeNode(QUERY_NODE_COLUMN);
   pInterval->pInterval = nodesCloneNode(pStmt->pOptions->pInterval);
   pInterval->pOffset = nodesCloneNode(pStmt->pOptions->pOffset);
   pInterval->pSliding = nodesCloneNode(pStmt->pOptions->pSliding);
-  if (NULL == pInterval->pInterval || (NULL != pStmt->pOptions->pOffset && NULL == pInterval->pOffset) ||
+  if (NULL == pInterval->pCol || NULL == pInterval->pInterval || 
+      (NULL != pStmt->pOptions->pOffset && NULL == pInterval->pOffset) ||
       (NULL != pStmt->pOptions->pSliding && NULL == pInterval->pSliding)) {
     nodesDestroyNode(pSelect);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  ((SColumnNode*)pInterval->pCol)->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  strcpy(((SColumnNode*)pInterval->pCol)->colName, PK_TS_COL_INTERNAL_NAME);
 
   int32_t code = translateQuery(pCxt, (SNode*)pSelect);
   if (TSDB_CODE_SUCCESS == code) {

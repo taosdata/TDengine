@@ -851,9 +851,7 @@ static int32_t jsonToPhysiJoinNode(const SJson* pJson, void* pObj) {
 
   int32_t code = jsonToPhysicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
-    int32_t val;
-    code = tjsonGetIntValue(pJson, jkJoinPhysiPlanJoinType, &val);
-    pNode->joinType = val;
+    code = tjsonGetNumberValue(pJson, jkJoinPhysiPlanJoinType, pNode->joinType);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkJoinPhysiPlanOnConditions, &pNode->pOnConditions);
@@ -1216,9 +1214,7 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
 
   int32_t code = tjsonToObject(pJson, jkSubplanId, jsonToSubplanId, &pNode->id);
   if (TSDB_CODE_SUCCESS == code) {
-    int32_t val;
-    code = tjsonGetIntValue(pJson, jkSubplanType, &val);
-    pNode->subplanType = val;
+    code = tjsonGetNumberValue(pJson, jkSubplanType, pNode->subplanType);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkSubplanMsgType, &pNode->msgType);
@@ -1408,9 +1404,7 @@ static int32_t jsonToColumnNode(const SJson* pJson, void* pObj) {
     code = tjsonGetSmallIntValue(pJson, jkColumnColId, &pNode->colId);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    int32_t tmp;
-    code = tjsonGetIntValue(pJson, jkColumnColType, &tmp);
-    pNode->colType = tmp;
+    code = tjsonGetNumberValue(pJson, jkColumnColType, pNode->colType);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetStringValue(pJson, jkColumnDbName, pNode->dbName);
@@ -1598,9 +1592,7 @@ static int32_t jsonToOperatorNode(const SJson* pJson, void* pObj) {
 
   int32_t code = jsonToExprNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
-    int32_t val;
-    code = tjsonGetIntValue(pJson, jkOperatorType, &val);
-    pNode->opType = val;
+    code = tjsonGetNumberValue(pJson, jkOperatorType, pNode->opType);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkOperatorLeft, &pNode->pLeft);
@@ -1634,9 +1626,7 @@ static int32_t jsonToLogicConditionNode(const SJson* pJson, void* pObj) {
 
   int32_t code = jsonToExprNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
-    int32_t val;
-    code = tjsonGetIntValue(pJson, jkLogicCondType, &val);
-    pNode->condType = val;
+    code = tjsonGetNumberValue(pJson, jkLogicCondType, pNode->condType);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkLogicCondParameters, &pNode->pParameterList);
@@ -1895,6 +1885,7 @@ static const char* jkIntervalWindowInterval = "Interval";
 static const char* jkIntervalWindowOffset = "Offset";
 static const char* jkIntervalWindowSliding = "Sliding";
 static const char* jkIntervalWindowFill = "Fill";
+static const char* jkIntervalWindowTsPk = "TsPk";
 
 static int32_t intervalWindowNodeToJson(const void* pObj, SJson* pJson) {
   const SIntervalWindowNode* pNode = (const SIntervalWindowNode*)pObj;
@@ -1908,6 +1899,9 @@ static int32_t intervalWindowNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkIntervalWindowFill, nodeToJson, pNode->pFill);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkIntervalWindowTsPk, nodeToJson, pNode->pCol);
   }
 
   return code;
@@ -1925,6 +1919,9 @@ static int32_t jsonToIntervalWindowNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkIntervalWindowFill, &pNode->pFill);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkIntervalWindowTsPk, &pNode->pCol);
   }
 
   return code;
@@ -2436,9 +2433,7 @@ static int32_t nodeToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToNode(const SJson* pJson, void* pObj) {
   SNode* pNode = (SNode*)pObj;
 
-  int32_t val = 0;
-  int32_t code = tjsonGetIntValue(pJson, jkNodeType, &val);
-  pNode->type = val;
+  int32_t code = tjsonGetNumberValue(pJson, jkNodeType, pNode->type);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonToObject(pJson, nodesNodeName(pNode->type), jsonToSpecificNode, pNode);
     if (TSDB_CODE_SUCCESS != code) {
