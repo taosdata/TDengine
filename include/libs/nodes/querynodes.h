@@ -231,6 +231,7 @@ typedef struct SSelectStmt {
   SNodeList* pOrderByList; // SOrderByExprNode
   SNode* pLimit;
   SNode* pSlimit;
+  char stmtName[TSDB_TABLE_NAME_LEN];
 } SSelectStmt;
 
 typedef enum ESetOperatorType {

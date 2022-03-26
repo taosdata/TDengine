@@ -170,7 +170,7 @@ TEST_F(PlannerTest, groupBy) {
   bind("SELECT count(*) FROM t1");
   ASSERT_TRUE(run());
 
-  bind("SELECT c1, count(*) FROM t1 GROUP BY c1");
+  bind("SELECT c1, max(c3), min(c2), count(*) FROM t1 GROUP BY c1");
   ASSERT_TRUE(run());
 
   bind("SELECT c1 + c3, c1 + count(*) FROM t1 where c2 = 'abc' GROUP BY c1, c3");
@@ -205,6 +205,14 @@ TEST_F(PlannerTest, showTables) {
   setDatabase("root", "test");
 
   bind("show tables");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, showStables) {
+  setDatabase("root", "test");
+
+  bind("show stables");
+  ASSERT_TRUE(run());
 }
 
 TEST_F(PlannerTest, createTopic) {

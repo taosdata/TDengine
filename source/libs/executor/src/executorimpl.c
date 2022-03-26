@@ -5557,7 +5557,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo *pOperator, bool* newgroup) {
 
     blockDataCleanup(pInfo->pRes);
 
-    int32_t tableNameSlotId = 0;
+    int32_t tableNameSlotId = 1;
     SColumnInfoData* pTableNameCol = taosArrayGet(pInfo->pRes->pDataBlock, tableNameSlotId);
 
     char *  name = NULL;
@@ -8644,9 +8644,14 @@ SArray* extractScanColumnId(SNodeList* pNodeList) {
   }
 
   for(int32_t i = 0; i < numOfCols; ++i) {
-    STargetNode* pNode = (STargetNode*) nodesListGetNode(pNodeList, i);
-    SColumnNode* pColNode = (SColumnNode*) pNode->pExpr;
-    taosArrayPush(pList, &pColNode->colId);
+    for (int32_t j = 0; j < numOfCols; ++j) {
+      STargetNode* pNode = (STargetNode*) nodesListGetNode(pNodeList, j);
+      if (pNode->slotId == i) {
+        SColumnNode* pColNode = (SColumnNode*) pNode->pExpr;
+        taosArrayPush(pList, &pColNode->colId);
+        break;
+      }
+    }
   }
 
   return pList;

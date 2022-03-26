@@ -65,6 +65,7 @@ typedef struct SAggLogicNode {
 typedef struct SProjectLogicNode {
   SLogicNode node;
   SNodeList* pProjections;
+  char stmtName[TSDB_TABLE_NAME_LEN]; 
 } SProjectLogicNode;
 
 typedef struct SVnodeModifLogicNode {

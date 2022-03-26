@@ -30,13 +30,19 @@ typedef struct SPhysiPlanContext {
   SArray* pExecNodeList;
 } SPhysiPlanContext;
 
-static int32_t getSlotKey(SNode* pNode, char* pKey) {
+static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char* pKey) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
+    if (NULL != pStmtName) {
+      return sprintf(pKey, "%s.%s", pStmtName, pCol->node.aliasName);
+    }
     if ('\0' == pCol->tableAlias[0]) {
       return sprintf(pKey, "%s", pCol->colName);
     }
     return sprintf(pKey, "%s.%s", pCol->tableAlias, pCol->colName);
+  }
+  if (NULL != pStmtName) {
+    return sprintf(pKey, "%s.%s", pStmtName, ((SExprNode*)pNode)->aliasName);
   }
   return sprintf(pKey, "%s", ((SExprNode*)pNode)->aliasName);
 }
@@ -74,7 +80,7 @@ static int32_t putSlotToHashImpl(int16_t dataBlockId, int16_t slotId, const char
 
 static int32_t putSlotToHash(int16_t dataBlockId, int16_t slotId, SNode* pNode, SHashObj* pHash) {
   char name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
-  int32_t len = getSlotKey(pNode, name);
+  int32_t len = getSlotKey(pNode, NULL, name);
   return putSlotToHashImpl(dataBlockId, slotId, name, len, pHash);
 }
 
@@ -138,14 +144,14 @@ static int32_t createDataBlockDesc(SPhysiPlanContext* pCxt, SNodeList* pList, SD
   return code;
 }
 
-static int32_t addDataBlockSlotsImpl(SPhysiPlanContext* pCxt, SNodeList* pList, SDataBlockDescNode* pDataBlockDesc, bool output) {
+static int32_t addDataBlockSlotsImpl(SPhysiPlanContext* pCxt, SNodeList* pList, SDataBlockDescNode* pDataBlockDesc, const char* pStmtName, bool output) {
   int32_t code = TSDB_CODE_SUCCESS;
   SHashObj* pHash = taosArrayGetP(pCxt->pLocationHelper, pDataBlockDesc->dataBlockId);
   int16_t nextSlotId = taosHashGetSize(pHash), slotId = 0;
   SNode* pNode = NULL;
   FOREACH(pNode, pList) {
     char name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN] = {0};
-    int32_t len = getSlotKey(pNode, name);
+    int32_t len = getSlotKey(pNode, pStmtName, name);
     SSlotIndex* pIndex = taosHashGet(pHash, name, len);
     if (NULL == pIndex) {
       code = nodesListStrictAppend(pDataBlockDesc->pSlots, createSlotDesc(pCxt, pNode, nextSlotId, output));
@@ -175,11 +181,15 @@ static int32_t addDataBlockSlotsImpl(SPhysiPlanContext* pCxt, SNodeList* pList, 
 }
 
 static int32_t addDataBlockSlots(SPhysiPlanContext* pCxt, SNodeList* pList, SDataBlockDescNode* pDataBlockDesc) {
-  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, false);
+  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, NULL, false);
+}
+
+static int32_t addDataBlockSlotsForProject(SPhysiPlanContext* pCxt, const char* pStmtName, SNodeList* pList, SDataBlockDescNode* pDataBlockDesc) {
+  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, pStmtName, true);
 }
 
 static int32_t pushdownDataBlockSlots(SPhysiPlanContext* pCxt, SNodeList* pList, SDataBlockDescNode* pDataBlockDesc) {
-  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, false);
+  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, NULL, true);
 }
 
 typedef struct SSetSlotIdCxt {
@@ -192,7 +202,7 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode) && 0 != strcmp(((SColumnNode*)pNode)->colName, "*")) {
     SSetSlotIdCxt* pCxt = (SSetSlotIdCxt*)pContext;
     char name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
-    int32_t len = getSlotKey(pNode, name);
+    int32_t len = getSlotKey(pNode, NULL, name);
     SSlotIndex* pIndex = taosHashGet(pCxt->pLeftHash, name, len);
     if (NULL == pIndex) {
       pIndex = taosHashGet(pCxt->pRightHash, name, len);
@@ -670,7 +680,7 @@ static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChild
 
   int32_t code = setListSlotId(pCxt, ((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc->dataBlockId, -1, pProjectLogicNode->pProjections, &pProject->pProjections);
   if (TSDB_CODE_SUCCESS == code) {
-    code = addDataBlockSlots(pCxt, pProject->pProjections, pProject->node.pOutputDataBlockDesc);
+    code = addDataBlockSlotsForProject(pCxt, pProjectLogicNode->stmtName, pProject->pProjections, pProject->node.pOutputDataBlockDesc);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = setConditionsSlotId(pCxt, (const SLogicNode*)pProjectLogicNode, (SPhysiNode*)pProject);

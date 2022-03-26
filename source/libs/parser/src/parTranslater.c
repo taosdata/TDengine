@@ -1850,6 +1850,7 @@ static int32_t createSelectStmtForShow(ENodeType showType, SSelectStmt** pStmt) 
   if (NULL == pSelect) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  sprintf(pSelect->stmtName, "%p", pSelect);
 
   SRealTableNode* pTable = nodesMakeNode(QUERY_NODE_REAL_TABLE);
   if (NULL == pTable) {
@@ -1858,6 +1859,7 @@ static int32_t createSelectStmtForShow(ENodeType showType, SSelectStmt** pStmt) 
   }
   strcpy(pTable->table.dbName, TSDB_INFORMATION_SCHEMA_DB);
   strcpy(pTable->table.tableName, getSysTableName(showType));
+  strcpy(pTable->table.tableAlias, pTable->table.tableName);
   pSelect->pFromTable = (SNode*)pTable;
 
   *pStmt = pSelect;

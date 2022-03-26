@@ -910,6 +910,8 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType) {
   
   atomic_store_8(&ctx->taskType, taskType);
   
+  QW_TASK_DLOGL("task string : %s", qwMsg->msg);
+
   code = qStringToSubplan(qwMsg->msg, &plan);
   if (TSDB_CODE_SUCCESS != code) {
     QW_TASK_ELOG("task string to subplan failed, code:%x - %s", code, tstrerror(code));

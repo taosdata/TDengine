@@ -645,6 +645,11 @@ SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, const STok
   tempTable->pSubquery = pSubquery;
   if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
     strncpy(tempTable->table.tableAlias, pTableAlias->z, pTableAlias->n);
+  } else {
+    sprintf(tempTable->table.tableAlias, "%p", tempTable);
+  }
+  if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
+    strcpy(((SSelectStmt*)pSubquery)->stmtName, tempTable->table.tableAlias);
   }
   return (SNode*)tempTable;
 }
@@ -792,6 +797,7 @@ SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pPr
   select->isDistinct = isDistinct;
   select->pProjectionList = pProjectionList;
   select->pFromTable = pTable;
+  sprintf(select->stmtName, "%p", select);
   return (SNode*)select;
 }
 

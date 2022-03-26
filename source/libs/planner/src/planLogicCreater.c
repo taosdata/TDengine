@@ -290,13 +290,14 @@ static int32_t createLogicNodeByTable(SLogicPlanContext* pCxt, SSelectStmt* pSel
   return code;
 }
 
-static SColumnNode* createColumnByExpr(SExprNode* pExpr) {
+static SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) {
   SColumnNode* pCol = nodesMakeNode(QUERY_NODE_COLUMN);
   if (NULL == pCol) {
     return NULL;
   }
   pCol->node.resType = pExpr->resType;
   strcpy(pCol->colName, pExpr->aliasName);
+  strcpy(pCol->tableAlias, pStmtName);
   return pCol;
 }
 
@@ -484,7 +485,7 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
   return TSDB_CODE_FAILED;
 }
 
-static int32_t createColumnByProjections(SLogicPlanContext* pCxt, SNodeList* pExprs, SNodeList** pCols) {
+static int32_t createColumnByProjections(SLogicPlanContext* pCxt, const char* pStmtName, SNodeList* pExprs, SNodeList** pCols) {
   SNodeList* pList = nodesMakeList();
   if (NULL == pList) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -492,7 +493,7 @@ static int32_t createColumnByProjections(SLogicPlanContext* pCxt, SNodeList* pEx
 
   SNode* pNode;
   FOREACH(pNode, pExprs) {    
-    if (TSDB_CODE_SUCCESS != nodesListAppend(pList, createColumnByExpr((SExprNode*)pNode))) {
+    if (TSDB_CODE_SUCCESS != nodesListAppend(pList, createColumnByExpr(pStmtName, (SExprNode*)pNode))) {
       nodesDestroyList(pList);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -514,9 +515,10 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   if (NULL == pProject->pProjections) {
     code = TSDB_CODE_OUT_OF_MEMORY;
   }
+  strcpy(pProject->stmtName, pSelect->stmtName);
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByProjections(pCxt,pSelect->pProjectionList, &pProject->node.pTargets);
+    code = createColumnByProjections(pCxt, pSelect->stmtName, pSelect->pProjectionList, &pProject->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
