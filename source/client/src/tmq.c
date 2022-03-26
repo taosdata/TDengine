@@ -218,14 +218,14 @@ tmq_list_t* tmq_list_new() {
 int32_t tmq_list_append(tmq_list_t* list, const char* src) {
   SArray* container = &list->container;
   char*   topic = strdup(src);
-  if (taosArrayPush(container, topic) == NULL) return -1;
+  if (taosArrayPush(container, &topic) == NULL) return -1;
   return 0;
 }
 
 void tmq_list_destroy(tmq_list_t* list) {
   SArray* container = (SArray*)list;
-  taosArrayDestroy(container);
-  /*taosArrayDestroyEx(container, free);*/
+  /*taosArrayDestroy(container);*/
+  taosArrayDestroyEx(container, (void (*)(void*))taosMemoryFree);
 }
 
 void tmqClearUnhandleMsg(tmq_t* tmq) {

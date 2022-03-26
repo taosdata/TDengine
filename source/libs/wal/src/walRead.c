@@ -153,6 +153,7 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
   }
   code = walValidHeadCksum(pRead->pHead);
   if (code != 0) {
+    wError("unexpected wal log version: % " PRId64 ", since head checksum not passed", ver);
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
@@ -179,7 +180,7 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
 
   code = walValidBodyCksum(pRead->pHead);
   if (code != 0) {
-    wError("unexpected wal log version: % " PRId64 "checksum not passed", ver);
+    wError("unexpected wal log version: % " PRId64 ", since body checksum not passed", ver);
     pRead->curVersion = -1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
