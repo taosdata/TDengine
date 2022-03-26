@@ -1442,7 +1442,7 @@ TEST(columnTest, greater_and_lower) {
 }
 
 void scltMakeDataBlock(SScalarParam **pInput, int32_t type, void *pVal, int32_t num, bool setVal) {
-  SScalarParam *input = (SScalarParam *)calloc(1, sizeof(SScalarParam));
+  SScalarParam *input = (SScalarParam *)taosMemoryCalloc(1, sizeof(SScalarParam));
   int32_t bytes;
   switch (type) {
     case TSDB_DATA_TYPE_TINYINT: {
@@ -1473,7 +1473,7 @@ void scltMakeDataBlock(SScalarParam **pInput, int32_t type, void *pVal, int32_t 
 
   input->type = type;
   input->num = num;
-  input->data = calloc(num, bytes);
+  input->data = taosMemoryCalloc(num, bytes);
   input->bytes = bytes;
   if (setVal) {
     for (int32_t i = 0; i < num; ++i) {
@@ -1487,8 +1487,8 @@ void scltMakeDataBlock(SScalarParam **pInput, int32_t type, void *pVal, int32_t 
 }
 
 void scltDestroyDataBlock(SScalarParam *pInput) {
-  free(pInput->data);
-  free(pInput);
+  taosMemoryFree(pInput->data);
+  taosMemoryFree(pInput);
 }
 
 TEST(ScalarFunctionTest, absFunction_constant) {
@@ -2754,7 +2754,7 @@ TEST(ScalarFunctionTest, logFunction_constant) {
   int32_t type;
   int32_t otype = TSDB_DATA_TYPE_DOUBLE;
   double  result = 3.0;
-  pInput = (SScalarParam *)calloc(2, sizeof(SScalarParam));
+  pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
 
   //TINYINT
   int8_t val_tinyint[] = {27, 3};
@@ -2819,7 +2819,7 @@ TEST(ScalarFunctionTest, logFunction_constant) {
   scltDestroyDataBlock(input[0]);
   scltDestroyDataBlock(input[1]);
   scltDestroyDataBlock(pOutput);
-  free(pInput);
+  taosMemoryFree(pInput);
 }
 
 TEST(ScalarFunctionTest, logFunction_column) {
@@ -2830,7 +2830,7 @@ TEST(ScalarFunctionTest, logFunction_column) {
   int32_t type;
   int32_t otype = TSDB_DATA_TYPE_DOUBLE;
   double  result[] = {2.0, 4.0, 3.0};
-  pInput = (SScalarParam *)calloc(2, sizeof(SScalarParam));
+  pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
 
   //TINYINT
   int8_t val_tinyint[2][3] = {{25, 81, 64}, {5, 3, 4}};
@@ -2910,7 +2910,7 @@ TEST(ScalarFunctionTest, logFunction_column) {
   scltDestroyDataBlock(input[0]);
   scltDestroyDataBlock(input[1]);
   scltDestroyDataBlock(pOutput);
-  free(pInput);
+  taosMemoryFree(pInput);
 }
 
 TEST(ScalarFunctionTest, powFunction_constant) {
@@ -2921,7 +2921,7 @@ TEST(ScalarFunctionTest, powFunction_constant) {
   int32_t type;
   int32_t otype = TSDB_DATA_TYPE_DOUBLE;
   double  result = 16.0;
-  pInput = (SScalarParam *)calloc(2, sizeof(SScalarParam));
+  pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
 
   //TINYINT
   int8_t val_tinyint[] = {2, 4};
@@ -2986,7 +2986,7 @@ TEST(ScalarFunctionTest, powFunction_constant) {
   scltDestroyDataBlock(input[0]);
   scltDestroyDataBlock(input[1]);
   scltDestroyDataBlock(pOutput);
-  free(pInput);
+  taosMemoryFree(pInput);
 }
 
 TEST(ScalarFunctionTest, powFunction_column) {
@@ -2997,7 +2997,7 @@ TEST(ScalarFunctionTest, powFunction_column) {
   int32_t type;
   int32_t otype = TSDB_DATA_TYPE_DOUBLE;
   double  result[] = {32.0, 27.0, 16.0};
-  pInput = (SScalarParam *)calloc(2, sizeof(SScalarParam));
+  pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
 
   //TINYINT
   int8_t val_tinyint[2][3] = {{2, 3, 4}, {5, 3, 2}};
@@ -3078,7 +3078,7 @@ TEST(ScalarFunctionTest, powFunction_column) {
   scltDestroyDataBlock(input[0]);
   scltDestroyDataBlock(input[1]);
   scltDestroyDataBlock(pOutput);
-  free(pInput);
+  taosMemoryFree(pInput);
 }
 
 int main(int argc, char** argv) {

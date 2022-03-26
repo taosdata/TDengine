@@ -103,7 +103,7 @@ int32_t logFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
 
   char **input = NULL, *output = NULL;
   bool hasNullInput = false;
-  input = calloc(inputNum, sizeof(char *));
+  input = taosMemoryCalloc(inputNum, sizeof(char *));
   for (int32_t i = 0; i < pOutput->num; ++i) {
     for (int32_t j = 0; j < inputNum; ++j) {
       if (pInput[j].num == 1) {
@@ -131,7 +131,7 @@ int32_t logFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     SET_TYPED_DATA(output, pOutput->type, result);
   }
 
-  free(input);
+  taosMemoryFree(input);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -146,7 +146,7 @@ int32_t powFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
 
   char **input = NULL, *output = NULL;
   bool hasNullInput = false;
-  input = calloc(inputNum, sizeof(char *));
+  input = taosMemoryCalloc(inputNum, sizeof(char *));
   for (int32_t i = 0; i < pOutput->num; ++i) {
     for (int32_t j = 0; j < inputNum; ++j) {
       if (pInput[j].num == 1) {
@@ -174,7 +174,7 @@ int32_t powFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     SET_TYPED_DATA(output, pOutput->type, result);
   }
 
-  free(input);
+  taosMemoryFree(input);
 
   return TSDB_CODE_SUCCESS;
 }
