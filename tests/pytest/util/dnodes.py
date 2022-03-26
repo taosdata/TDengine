@@ -235,7 +235,6 @@ class TDDnode:
             (self.index, self.cfgPath))
 
     def getPath(self, tool="taosd"):
-        buildPath = ""
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -250,17 +249,15 @@ class TDDnode:
                 if ("packaging" not in rootRealPath):
                     paths.append(os.path.join(root, tool))
                     break
-        return paths[0][:len(paths[0]) - len(tool)]
+        return paths[0]
 
     def start(self):
-        buildPath = self.getPath()
+        binPath = self.getPath()
 
-        if (buildPath == ""):
+        if (binPath == ""):
             tdLog.exit("taosd not found!")
         else:
-            tdLog.info("taosd found in %s" % buildPath)
-
-        binPath = buildPath + "taosd"
+            tdLog.info("taosd found: %s" % binPath)
 
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
@@ -316,14 +313,12 @@ class TDDnode:
         # time.sleep(5)
 
     def startWithoutSleep(self):
-        buildPath = self.getPath()
+        binPath = self.getPath()
 
-        if (buildPath == ""):
+        if (binPath == ""):
             tdLog.exit("taosd not found!")
         else:
-            tdLog.info("taosd found in %s" % buildPath)
-
-        binPath = buildPath + "taosd"
+            tdLog.info("taosd found: %s" % binPath)
 
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
