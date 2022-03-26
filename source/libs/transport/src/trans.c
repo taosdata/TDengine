@@ -28,7 +28,7 @@ void (*taosUnRefHandle[])(void* handle) = {transUnrefSrvHandle, transUnrefCliHan
 void (*transReleaseHandle[])(void* handle) = {transReleaseSrvHandle, transReleaseCliHandle};
 
 void* rpcOpen(const SRpcInit* pInit) {
-  SRpcInfo* pRpc = calloc(1, sizeof(SRpcInfo));
+  SRpcInfo* pRpc = taosMemoryCalloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) {
     return NULL;
   }
@@ -61,13 +61,13 @@ void* rpcOpen(const SRpcInit* pInit) {
 void rpcClose(void* arg) {
   SRpcInfo* pRpc = (SRpcInfo*)arg;
   (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
-  free(pRpc);
+  taosMemoryFree(pRpc);
   return;
 }
 void* rpcMallocCont(int contLen) {
   int size = contLen + TRANS_MSG_OVERHEAD;
 
-  char* start = (char*)calloc(1, (size_t)size);
+  char* start = (char*)taosMemoryCalloc(1, (size_t)size);
   if (start == NULL) {
     tError("failed to malloc msg, size:%d", size);
     return NULL;
@@ -81,7 +81,7 @@ void rpcFreeCont(void* cont) {
   if (cont == NULL) {
     return;
   }
-  free((char*)cont - TRANS_MSG_OVERHEAD);
+  taosMemoryFree((char*)cont - TRANS_MSG_OVERHEAD);
 }
 void* rpcReallocCont(void* ptr, int contLen) {
   if (ptr == NULL) {
@@ -89,7 +89,7 @@ void* rpcReallocCont(void* ptr, int contLen) {
   }
   char* st = (char*)ptr - TRANS_MSG_OVERHEAD;
   int   sz = contLen + TRANS_MSG_OVERHEAD;
-  st = realloc(st, sz);
+  st = taosMemoryRealloc(st, sz);
   if (st == NULL) {
     return NULL;
   }

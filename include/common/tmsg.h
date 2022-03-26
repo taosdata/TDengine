@@ -201,21 +201,13 @@ typedef struct SEp {
 
 typedef struct {
   int32_t contLen;
-  union {
-    int32_t vgId;
-    int32_t streamTaskId;
-  };
+  int32_t vgId;
 } SMsgHead;
-
-typedef struct {
-  int32_t workerType;
-  int32_t streamTaskId;
-} SStreamExecMsgHead;
 
 // Submit message for one table
 typedef struct SSubmitBlk {
   int64_t uid;        // table unique id
-  int64_t suid;        // stable id
+  int64_t suid;       // stable id
   int32_t padding;    // TODO just for padding here
   int32_t sversion;   // data schema version
   int32_t dataLen;    // data part length, not including the SSubmitBlk head
@@ -477,7 +469,8 @@ typedef struct {
   int32_t tz;  // query client timezone
   char    intervalUnit;
   char    slidingUnit;
-  char    offsetUnit;   // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
+  char
+      offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
   int8_t  precision;
   int64_t interval;
   int64_t sliding;
@@ -1316,7 +1309,7 @@ typedef struct {
 } SMqRebSubscribe;
 
 static FORCE_INLINE SMqRebSubscribe* tNewSMqRebSubscribe(const char* key) {
-  SMqRebSubscribe* pRebSub = (SMqRebSubscribe*)calloc(1, sizeof(SMqRebSubscribe));
+  SMqRebSubscribe* pRebSub = (SMqRebSubscribe*)taosMemoryCalloc(1, sizeof(SMqRebSubscribe));
   if (pRebSub == NULL) {
     goto _err;
   }
@@ -1338,7 +1331,7 @@ _err:
   taosArrayDestroy(pRebSub->lostConsumers);
   taosArrayDestroy(pRebSub->removedConsumers);
   taosArrayDestroy(pRebSub->newConsumers);
-  tfree(pRebSub);
+  taosMemoryFreeClear(pRebSub);
   return NULL;
 }
 
@@ -1639,7 +1632,7 @@ static FORCE_INLINE void tFreeReqKvHash(SHashObj* info) {
   void* pIter = taosHashIterate(info, NULL);
   while (pIter != NULL) {
     SKv* kv = (SKv*)pIter;
-    tfree(kv->value);
+    taosMemoryFreeClear(kv->value);
     pIter = taosHashIterate(info, pIter);
   }
 }
@@ -1662,13 +1655,13 @@ static FORCE_INLINE void tFreeClientHbBatchReq(void* pReq, bool deep) {
   } else {
     taosArrayDestroy(req->reqs);
   }
-  free(pReq);
+  taosMemoryFree(pReq);
 }
 
 static FORCE_INLINE void tFreeClientKv(void* pKv) {
   SKv* kv = (SKv*)pKv;
   if (kv) {
-    tfree(kv->value);
+    taosMemoryFreeClear(kv->value);
   }
 }
 
@@ -1695,7 +1688,7 @@ static FORCE_INLINE int32_t tEncodeSKv(SCoder* pEncoder, const SKv* pKv) {
 static FORCE_INLINE int32_t tDecodeSKv(SCoder* pDecoder, SKv* pKv) {
   if (tDecodeI32(pDecoder, &pKv->key) < 0) return -1;
   if (tDecodeI32(pDecoder, &pKv->valueLen) < 0) return -1;
-  pKv->value = malloc(pKv->valueLen + 1);
+  pKv->value = taosMemoryMalloc(pKv->valueLen + 1);
   if (pKv->value == NULL) return -1;
   if (tDecodeCStrTo(pDecoder, (char*)pKv->value) < 0) return -1;
   return 0;
@@ -1949,7 +1942,7 @@ static FORCE_INLINE int32_t tEncodeSSchemaWrapper(void** buf, const SSchemaWrapp
 
 static FORCE_INLINE void* tDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) {
   buf = taosDecodeFixedU32(buf, &pSW->nCols);
-  pSW->pSchema = (SSchema*)calloc(pSW->nCols, sizeof(SSchema));
+  pSW->pSchema = (SSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
   if (pSW->pSchema == NULL) {
     return NULL;
   }
@@ -2084,8 +2077,8 @@ typedef struct {
 
 static FORCE_INLINE void tdDestroyTSma(STSma* pSma) {
   if (pSma) {
-    tfree(pSma->expr);
-    tfree(pSma->tagsFilter);
+    taosMemoryFreeClear(pSma->expr);
+    taosMemoryFreeClear(pSma->tagsFilter);
   }
 }
 
@@ -2095,14 +2088,14 @@ static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW) {
       for (uint32_t i = 0; i < pSW->number; ++i) {
         tdDestroyTSma(pSW->tSma + i);
       }
-      tfree(pSW->tSma);
+      taosMemoryFreeClear(pSW->tSma);
     }
   }
 }
 
 static FORCE_INLINE void tdFreeTSmaWrapper(STSmaWrapper* pSW) {
   tdDestroyTSmaWrapper(pSW);
-  tfree(pSW);
+  taosMemoryFreeClear(pSW);
 }
 
 static FORCE_INLINE int32_t tEncodeTSma(void** buf, const STSma* pSma) {
@@ -2180,7 +2173,7 @@ static FORCE_INLINE void* tDecodeTSma(void* buf, STSma* pSma) {
 static FORCE_INLINE void* tDecodeTSmaWrapper(void* buf, STSmaWrapper* pSW) {
   buf = taosDecodeFixedU32(buf, &pSW->number);
 
-  pSW->tSma = (STSma*)calloc(pSW->number, sizeof(STSma));
+  pSW->tSma = (STSma*)taosMemoryCalloc(pSW->number, sizeof(STSma));
   if (pSW->tSma == NULL) {
     return NULL;
   }
@@ -2190,7 +2183,7 @@ static FORCE_INLINE void* tDecodeTSmaWrapper(void* buf, STSmaWrapper* pSW) {
       for (uint32_t j = i; j >= 0; --i) {
         tdDestroyTSma(pSW->tSma + j);
       }
-      free(pSW->tSma);
+      taosMemoryFree(pSW->tSma);
       return NULL;
     }
   }
@@ -2365,108 +2358,6 @@ static FORCE_INLINE void* tDecodeSMqCMGetSubEpRsp(void* buf, SMqCMGetSubEpRsp* p
   }
   return buf;
 }
-
-enum {
-  STREAM_TASK_STATUS__RUNNING = 1,
-  STREAM_TASK_STATUS__STOP,
-};
-
-enum {
-  STREAM_NEXT_OP_DST__VND = 1,
-  STREAM_NEXT_OP_DST__SND,
-};
-
-enum {
-  STREAM_SOURCE_TYPE__NONE = 1,
-  STREAM_SOURCE_TYPE__SUPER,
-  STREAM_SOURCE_TYPE__CHILD,
-  STREAM_SOURCE_TYPE__NORMAL,
-};
-
-enum {
-  STREAM_SINK_TYPE__NONE = 1,
-  STREAM_SINK_TYPE__INPLACE,
-  STREAM_SINK_TYPE__ASSIGNED,
-  STREAM_SINK_TYPE__MULTIPLE,
-  STREAM_SINK_TYPE__TEMPORARY,
-};
-
-enum {
-  STREAM_TYPE__NORMAL = 1,
-  STREAM_TYPE__SMA,
-};
-
-typedef struct {
-  void* inputHandle;
-  void* executor;
-} SStreamRunner;
-
-typedef struct {
-  int64_t streamId;
-  int32_t taskId;
-  int32_t level;
-  int8_t  status;
-  int8_t  parallelizable;
-
-  // vnode or snode
-  int8_t nextOpDst;
-
-  int8_t sourceType;
-  int8_t sinkType;
-
-  // for sink type assigned
-  int32_t sinkVgId;
-  SEpSet  NextOpEp;
-
-  // executor meta info
-  char* qmsg;
-
-  // followings are not applied to encoder and decoder
-  int8_t        numOfRunners;
-  SStreamRunner runner[8];
-} SStreamTask;
-
-static FORCE_INLINE SStreamTask* streamTaskNew(int64_t streamId) {
-  SStreamTask* pTask = (SStreamTask*)calloc(1, sizeof(SStreamTask));
-  if (pTask == NULL) {
-    return NULL;
-  }
-  pTask->taskId = tGenIdPI32();
-  pTask->streamId = streamId;
-  pTask->status = STREAM_TASK_STATUS__RUNNING;
-  pTask->qmsg = NULL;
-  return pTask;
-}
-
-int32_t tEncodeSStreamTask(SCoder* pEncoder, const SStreamTask* pTask);
-int32_t tDecodeSStreamTask(SCoder* pDecoder, SStreamTask* pTask);
-void    tFreeSStreamTask(SStreamTask* pTask);
-
-typedef struct {
-  SMsgHead     head;
-  SStreamTask* task;
-} SStreamTaskDeployReq;
-
-typedef struct {
-  int32_t reserved;
-} SStreamTaskDeployRsp;
-
-typedef struct {
-  SStreamExecMsgHead head;
-  SArray*            data;  // SArray<SSDataBlock>
-} SStreamTaskExecReq;
-
-typedef struct {
-  int32_t reserved;
-} SStreamTaskExecRsp;
-
-typedef struct {
-  SMsgHead head;
-  int64_t  streamId;
-  int64_t  version;
-  SArray*  res;  // SArray<SSDataBlock>
-} SStreamSinkReq;
-
 #pragma pack(pop)
 
 #ifdef __cplusplus

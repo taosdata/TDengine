@@ -64,7 +64,7 @@ static int32_t stsMatch(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   }
   SLogicNode* pSplitNode = stsMatchByNode(pSubplan->pNode);
   if (NULL != pSplitNode) {
-    SStsInfo* pInfo = calloc(1, sizeof(SStsInfo));
+    SStsInfo* pInfo = taosMemoryCalloc(1, sizeof(SStsInfo));
     CHECK_ALLOC(pInfo, TSDB_CODE_OUT_OF_MEMORY);
     pInfo->pScan = (SScanLogicNode*)pSplitNode;
     pInfo->pSubplan = pSubplan;

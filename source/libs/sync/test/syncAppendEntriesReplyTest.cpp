@@ -34,14 +34,14 @@ void test1() {
 void test2() {
   SyncAppendEntriesReply *pMsg = createMsg();
   uint32_t                len = pMsg->bytes;
-  char *                  serialized = (char *)malloc(len);
+  char *                  serialized = (char *)taosMemoryMalloc(len);
   syncAppendEntriesReplySerialize(pMsg, serialized, len);
   SyncAppendEntriesReply *pMsg2 = syncAppendEntriesReplyBuild();
   syncAppendEntriesReplyDeserialize(serialized, len, pMsg2);
   syncAppendEntriesReplyPrint2((char *)"test2: syncAppendEntriesReplySerialize -> syncAppendEntriesReplyDeserialize ",
                                pMsg2);
 
-  free(serialized);
+  taosMemoryFree(serialized);
   syncAppendEntriesReplyDestroy(pMsg);
   syncAppendEntriesReplyDestroy(pMsg2);
 }
@@ -54,7 +54,7 @@ void test3() {
   syncAppendEntriesReplyPrint2((char *)"test3: syncAppendEntriesReplySerialize3 -> syncAppendEntriesReplyDeserialize2 ",
                                pMsg2);
 
-  free(serialized);
+  taosMemoryFree(serialized);
   syncAppendEntriesReplyDestroy(pMsg);
   syncAppendEntriesReplyDestroy(pMsg2);
 }

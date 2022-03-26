@@ -196,7 +196,7 @@ TEST_F(TfsTest, 04_File) {
 
   {
     int32_t size = 1024;
-    void   *ret = malloc(size + sizeof(size_t));
+    void   *ret = taosMemoryMalloc(size + sizeof(size_t));
     *(size_t *)ret = size;
     void *buf = (void *)((char *)ret + sizeof(size_t));
 

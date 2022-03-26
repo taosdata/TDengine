@@ -85,7 +85,7 @@ void *tsdbDecodeSMFileEx(void *buf, SMFile *pMFile) {
   strncpy(TSDB_FILE_FULL_NAME(pMFile), aname, TSDB_FILENAME_LEN);
   TSDB_FILE_SET_CLOSED(pMFile);
 
-  tfree(aname);
+  taosMemoryFreeClear(aname);
 
   return buf;
 }
@@ -119,10 +119,10 @@ int tsdbCreateMFile(SMFile *pMFile, bool updateHeader) {
       // Try to create directory recursively
       char *s = strdup(TFILE_REL_NAME(&(pMFile->f)));
       if (tfsMkdirRecurAt(dirname(s), TSDB_FILE_LEVEL(pMFile), TSDB_FILE_ID(pMFile)) < 0) {
-        tfree(s);
+        taosMemoryFreeClear(s);
         return -1;
       }
-      tfree(s);
+      taosMemoryFreeClear(s);
 
       pMFile->fd = open(TSDB_FILE_FULL_NAME(pMFile), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0755);
       if (pMFile->fd < 0) {
@@ -352,7 +352,7 @@ static void *tsdbDecodeSDFileEx(void *buf, SDFile *pDFile) {
   buf = taosDecodeString(buf, &aname);
   strncpy(TSDB_FILE_FULL_NAME(pDFile), aname, TSDB_FILENAME_LEN);
   TSDB_FILE_SET_CLOSED(pDFile);
-  tfree(aname);
+  taosMemoryFreeClear(aname);
 
   return buf;
 }
@@ -366,10 +366,10 @@ int tsdbCreateDFile(STsdb *pRepo, SDFile *pDFile, bool updateHeader, TSDB_FILE_T
       // Try to create directory recursively
       char *s = strdup(TSDB_FILE_REL_NAME(pDFile));
       if (tfsMkdirRecurAt(pRepo->pTfs, taosDirName(s), TSDB_FILE_DID(pDFile)) < 0) {
-        tfree(s);
+        taosMemoryFreeClear(s);
         return -1;
       }
-      tfree(s);
+      taosMemoryFreeClear(s);
 
       pDFile->pFile = taosOpenFile(TSDB_FILE_FULL_NAME(pDFile), TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
       if (pDFile->pFile == NULL) {
@@ -692,7 +692,7 @@ int tsdbParseDFilename(const char *fname, int *vid, int *fid, TSDB_FILE_T *ftype
     }
   }
 
-  tfree(p);
+  taosMemoryFreeClear(p);
   return 0;
 }
 

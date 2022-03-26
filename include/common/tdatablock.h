@@ -102,7 +102,8 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
                                         : ((p1_)->pData + ((r_) * (p1_)->info.bytes)))
 
 int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, bool isNull);
-int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, const SColumnInfoData* pSource, uint32_t numOfRow2);
+int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, const SColumnInfoData* pSource,
+                        uint32_t numOfRow2);
 int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* pSource, int32_t numOfRows);
 int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock);
 
@@ -113,7 +114,8 @@ size_t blockDataGetNumOfCols(const SSDataBlock* pBlock);
 size_t blockDataGetNumOfRows(const SSDataBlock* pBlock);
 
 int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc);
-int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startIndex, int32_t* stopIndex, int32_t pageSize);
+int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startIndex, int32_t* stopIndex,
+                           int32_t pageSize);
 int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock);
 int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf);
 
@@ -135,6 +137,8 @@ void         blockDataCleanup(SSDataBlock* pDataBlock);
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock);
 size_t       blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
 void*        blockDataDestroy(SSDataBlock* pBlock);
+
+void blockDebugShowData(SArray* dataBlocks);
 
 #ifdef __cplusplus
 }

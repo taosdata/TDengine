@@ -209,7 +209,7 @@ static int32_t doAddNewBucket(SLHashObj* pHashObj) {
       newLen += 4;
     }
 
-    char* p = realloc(pHashObj->pBucket, POINTER_BYTES * newLen);
+    char* p = taosMemoryRealloc(pHashObj->pBucket, POINTER_BYTES * newLen);
     if (p == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -219,7 +219,7 @@ static int32_t doAddNewBucket(SLHashObj* pHashObj) {
     pHashObj->numOfAlloc = newLen;
   }
 
-  SLHashBucket* pBucket = calloc(1, sizeof(SLHashBucket));
+  SLHashBucket* pBucket = taosMemoryCalloc(1, sizeof(SLHashBucket));
   pHashObj->pBucket[pHashObj->numOfBuckets] = pBucket;
 
   pBucket->pPageIdList = taosArrayInit(2, sizeof(int32_t));
@@ -241,7 +241,7 @@ static int32_t doAddNewBucket(SLHashObj* pHashObj) {
 }
 
 SLHashObj* tHashInit(int32_t inMemPages, int32_t pageSize, _hash_fn_t fn, int32_t numOfTuplePerPage) {
-  SLHashObj* pHashObj = calloc(1, sizeof(SLHashObj));
+  SLHashObj* pHashObj = taosMemoryCalloc(1, sizeof(SLHashObj));
   if (pHashObj == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -265,12 +265,12 @@ SLHashObj* tHashInit(int32_t inMemPages, int32_t pageSize, _hash_fn_t fn, int32_
   pHashObj->tuplesPerPage = numOfTuplePerPage;
 
   pHashObj->numOfAlloc   = 4;  // initial allocated array list
-  pHashObj->pBucket = calloc(pHashObj->numOfAlloc, POINTER_BYTES);
+  pHashObj->pBucket = taosMemoryCalloc(pHashObj->numOfAlloc, POINTER_BYTES);
 
   code = doAddNewBucket(pHashObj);
   if (code != TSDB_CODE_SUCCESS) {
     destroyDiskbasedBuf(pHashObj->pBuf);
-    tfree(pHashObj);
+    taosMemoryFreeClear(pHashObj);
     terrno = code;
     return NULL;
   }
@@ -282,11 +282,11 @@ void* tHashCleanup(SLHashObj* pHashObj) {
   destroyDiskbasedBuf(pHashObj->pBuf);
   for(int32_t i = 0; i < pHashObj->numOfBuckets; ++i) {
     taosArrayDestroy(pHashObj->pBucket[i]->pPageIdList);
-    tfree(pHashObj->pBucket[i]);
+    taosMemoryFreeClear(pHashObj->pBucket[i]);
   }
 
-  tfree(pHashObj->pBucket);
-  tfree(pHashObj);
+  taosMemoryFreeClear(pHashObj->pBucket);
+  taosMemoryFreeClear(pHashObj);
   return NULL;
 }
 

@@ -18,14 +18,14 @@
 #include "tuuid.h"
 
 SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
-  SSnode *pSnode = calloc(1, sizeof(SSnode));
+  SSnode *pSnode = taosMemoryCalloc(1, sizeof(SSnode));
   if (pSnode == NULL) {
     return NULL;
   }
   pSnode->msgCb = pOption->msgCb;
   pSnode->pMeta = sndMetaNew();
   if (pSnode->pMeta == NULL) {
-    free(pSnode);
+    taosMemoryFree(pSnode);
     return NULL;
   }
   return pSnode;
@@ -33,19 +33,19 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
 
 void sndClose(SSnode *pSnode) {
   sndMetaDelete(pSnode->pMeta);
-  free(pSnode);
+  taosMemoryFree(pSnode);
 }
 
 int32_t sndGetLoad(SSnode *pSnode, SSnodeLoad *pLoad) { return 0; }
 
 SStreamMeta *sndMetaNew() {
-  SStreamMeta *pMeta = calloc(1, sizeof(SStreamMeta));
+  SStreamMeta *pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
   if (pMeta == NULL) {
     return NULL;
   }
   pMeta->pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   if (pMeta->pHash == NULL) {
-    free(pMeta);
+    taosMemoryFree(pMeta);
     return NULL;
   }
   return pMeta;
@@ -53,12 +53,12 @@ SStreamMeta *sndMetaNew() {
 
 void sndMetaDelete(SStreamMeta *pMeta) {
   taosHashCleanup(pMeta->pHash);
-  free(pMeta);
+  taosMemoryFree(pMeta);
 }
 
 int32_t sndMetaDeployTask(SStreamMeta *pMeta, SStreamTask *pTask) {
-  for (int i = 0; i < pTask->numOfRunners; i++) {
-    pTask->runner[i].executor = qCreateStreamExecTaskInfo(pTask->qmsg, NULL);
+  for (int i = 0; i < pTask->exec.numOfRunners; i++) {
+    pTask->exec.runners[i].executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, NULL);
   }
   return taosHashPut(pMeta->pHash, &pTask->taskId, sizeof(int32_t), pTask, sizeof(void *));
 }
@@ -72,19 +72,19 @@ int32_t sndMetaRemoveTask(SStreamMeta *pMeta, int32_t taskId) {
   if (pTask == NULL) {
     return -1;
   }
-  free(pTask->qmsg);
+  taosMemoryFree(pTask->exec.qmsg);
   // TODO:free executor
-  free(pTask);
+  taosMemoryFree(pTask);
   return taosHashRemove(pMeta->pHash, &taskId, sizeof(int32_t));
 }
 
 static int32_t sndProcessTaskExecReq(SSnode *pSnode, SRpcMsg *pMsg) {
-  SStreamExecMsgHead *pHead = pMsg->pCont;
-  int32_t             taskId = pHead->streamTaskId;
-  SStreamTask        *pTask = sndMetaGetTask(pSnode->pMeta, taskId);
-  if (pTask == NULL) {
-    return -1;
-  }
+  /*SStreamExecMsgHead *pHead = pMsg->pCont;*/
+  /*int32_t             taskId = pHead->streamTaskId;*/
+  /*SStreamTask *pTask = sndMetaGetTask(pSnode->pMeta, taskId);*/
+  /*if (pTask == NULL) {*/
+  /*return -1;*/
+  /*}*/
   return 0;
 }
 
@@ -94,7 +94,7 @@ void sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) {
   // operator exec
   if (pMsg->msgType == TDMT_SND_TASK_DEPLOY) {
     void        *msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
-    SStreamTask *pTask = malloc(sizeof(SStreamTask));
+    SStreamTask *pTask = taosMemoryMalloc(sizeof(SStreamTask));
     if (pTask == NULL) {
       ASSERT(0);
       return;

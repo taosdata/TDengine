@@ -201,7 +201,7 @@ USER_DECODE_OVER:
     mError("user:%s, failed to decode from raw:%p since %s", pUser->user, pRaw, terrstr());
     taosHashCleanup(pUser->readDbs);
     taosHashCleanup(pUser->writeDbs);
-    tfree(pRow);
+    taosMemoryFreeClear(pRow);
     return NULL;
   }
 

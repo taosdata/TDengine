@@ -169,7 +169,7 @@ static void tconcat(SScalarParam* pOutput, size_t numOfInput, const SScalarParam
     }
   }
 
-  pOutput->data = realloc(pOutput->data, rowLen * num);
+  pOutput->data = taosMemoryRealloc(pOutput->data, rowLen * num);
   assert(pOutput->data);
 
   char* rstart = pOutput->data;
@@ -284,13 +284,13 @@ int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncPa
   SScalarFuncParam rightOutput = {0};
 
   if (pLeft->nodeType == TEXPR_BINARYEXPR_NODE || pLeft->nodeType == TEXPR_UNARYEXPR_NODE) {
-    leftOutput.data = malloc(sizeof(int64_t) * numOfRows);
+    leftOutput.data = taosMemoryMalloc(sizeof(int64_t) * numOfRows);
     evaluateExprNodeTree(pLeft, numOfRows, &leftOutput, param, getSourceDataBlock);
   }
 
   // the right output has result from the right child syntax tree
   if (pRight->nodeType == TEXPR_BINARYEXPR_NODE || pRight->nodeType == TEXPR_UNARYEXPR_NODE) {
-    rightOutput.data = malloc(sizeof(int64_t) * numOfRows);
+    rightOutput.data = taosMemoryMalloc(sizeof(int64_t) * numOfRows);
     evaluateExprNodeTree(pRight, numOfRows, &rightOutput, param, getSourceDataBlock);
   }
 
@@ -322,7 +322,7 @@ int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncPa
 
     void* outputBuf = pOutput->data;
     if (isStringOp(pExprs->_node.optr)) {
-      outputBuf = realloc(pOutput->data, (left.bytes + right.bytes) * left.num);
+      outputBuf = taosMemoryRealloc(pOutput->data, (left.bytes + right.bytes) * left.num);
     }
 
     OperatorFn(&left, &right, outputBuf, TSDB_ORDER_ASC);
@@ -345,7 +345,7 @@ int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncPa
 
     // reserve enough memory buffer
     if (isBinaryStringOp(pExprs->_node.optr)) {
-      void* outputBuf = realloc(pOutput->data, left.bytes * left.num);
+      void* outputBuf = taosMemoryRealloc(pOutput->data, left.bytes * left.num);
       assert(outputBuf != NULL);
       pOutput->data = outputBuf;
     }
@@ -353,8 +353,8 @@ int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncPa
     OperatorFn(&left, pOutput);
   }
 
-  tfree(leftOutput.data);
-  tfree(rightOutput.data);
+  taosMemoryFreeClear(leftOutput.data);
+  taosMemoryFreeClear(rightOutput.data);
 
   return 0;
 }
@@ -379,13 +379,13 @@ void setScalarFunctionSupp(struct SScalarFunctionSupport* sas, SExprInfo *pExprI
     return;
   }
 
-  sas->colList = calloc(1, pSDataBlock->info.numOfCols*sizeof(SColumnInfo));
+  sas->colList = taosMemoryCalloc(1, pSDataBlock->info.numOfCols*sizeof(SColumnInfo));
   for(int32_t i = 0; i < sas->numOfCols; ++i) {
     SColumnInfoData* pColData = taosArrayGet(pSDataBlock->pDataBlock, i);
     sas->colList[i] = pColData->info;
   }
 
-  sas->data = calloc(sas->numOfCols, POINTER_BYTES);
+  sas->data = taosMemoryCalloc(sas->numOfCols, POINTER_BYTES);
 
   // set the input column data
   for (int32_t f = 0; f < pSDataBlock->info.numOfCols; ++f) {
@@ -395,7 +395,7 @@ void setScalarFunctionSupp(struct SScalarFunctionSupport* sas, SExprInfo *pExprI
 }
 
 SScalarFunctionSupport* createScalarFuncSupport(int32_t num) {
-  SScalarFunctionSupport* pSupp = calloc(num, sizeof(SScalarFunctionSupport));
+  SScalarFunctionSupport* pSupp = taosMemoryCalloc(num, sizeof(SScalarFunctionSupport));
   return pSupp;
 }
 
@@ -406,9 +406,9 @@ void destroyScalarFuncSupport(struct SScalarFunctionSupport* pSupport, int32_t n
 
   for(int32_t i = 0; i < num; ++i) {
     SScalarFunctionSupport* pSupp = &pSupport[i];
-    tfree(pSupp->data);
-    tfree(pSupp->colList);
+    taosMemoryFreeClear(pSupp->data);
+    taosMemoryFreeClear(pSupp->colList);
   }
 
-  tfree(pSupport);
+  taosMemoryFreeClear(pSupport);
 }

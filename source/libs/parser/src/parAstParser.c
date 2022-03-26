@@ -29,7 +29,7 @@ extern void ParseTrace(FILE*, char*);
 int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery) {
   SAstCreateContext cxt;
   initAstCreateContext(pParseCxt, &cxt);
-  void *pParser = ParseAlloc(malloc);
+  void *pParser = ParseAlloc((FMalloc)taosMemoryMalloc);
   int32_t i = 0;
   while (1) {
     SToken t0 = {0};
@@ -73,9 +73,9 @@ int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery) {
   }
 
 abort_parse:
-  ParseFree(pParser, free);
+  ParseFree(pParser, (FFree)taosMemoryFree);
   if (cxt.valid) {
-    *pQuery = calloc(1, sizeof(SQuery));
+    *pQuery = taosMemoryCalloc(1, sizeof(SQuery));
     if (NULL == *pQuery) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }

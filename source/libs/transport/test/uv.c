@@ -38,7 +38,7 @@ void echo_write(uv_write_t *req, int status) {
     fprintf(stderr, "Write error %s\n", uv_err_name(status));
   }
   printf("write data to client\n");
-  free(req);
+  taosMemoryFree(req);
 }
 
 void echo_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
@@ -47,14 +47,14 @@ void echo_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
   pConn->ref += 1;
   printf("read data %d\n", nread, buf->base, buf->len);
   if (nread > 0) {
-    uv_write_t *req = (uv_write_t *)malloc(sizeof(uv_write_t));
+    uv_write_t *req = (uv_write_t *)taosMemoryMalloc(sizeof(uv_write_t));
     // dispatch request to database other process thread
     // just write out
     uv_buf_t write_out;
     write_out.base = buf->base;
     write_out.len = nread;
     uv_write((uv_write_t *)req, client, &write_out, 1, echo_write);
-    free(buf->base);
+    taosMemoryFree(buf->base);
     return;
   }
 
@@ -63,11 +63,11 @@ void echo_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
       fprintf(stderr, "Read error %s\n", uv_err_name(nread));
     uv_close((uv_handle_t *)client, NULL);
   }
-  free(buf->base);
+  taosMemoryFree(buf->base);
 }
 
 void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
-  buf->base = malloc(suggested_size);
+  buf->base = taosMemoryMalloc(suggested_size);
   buf->len = suggested_size;
 }
 
@@ -79,10 +79,10 @@ void on_new_connection(uv_stream_t *s, int status) {
   SServerObj *pObj = container_of(s, SServerObj, server);
   printf("new_connection from client\n");
 
-  uv_tcp_t *client = (uv_tcp_t *)malloc(sizeof(uv_tcp_t));
+  uv_tcp_t *client = (uv_tcp_t *)taosMemoryMalloc(sizeof(uv_tcp_t));
   uv_tcp_init(pObj->loop, client);
   if (uv_accept(s, (uv_stream_t *)client) == 0) {
-    uv_write_t *write_req = (uv_write_t *)malloc(sizeof(uv_write_t));
+    uv_write_t *write_req = (uv_write_t *)taosMemoryMalloc(sizeof(uv_write_t));
     uv_buf_t dummy_buf = uv_buf_init("a", 1);
     // despatch to worker thread
     pObj->workerIdx = (pObj->workerIdx + 1) % pObj->numOfThread;
@@ -112,13 +112,13 @@ void child_on_new_connection(uv_stream_t *q, ssize_t nread,
   uv_handle_type pending = uv_pipe_pending_type(pipe);
   assert(pending == UV_TCP);
 
-  SConnCtx *pConn = malloc(sizeof(SConnCtx));
+  SConnCtx *pConn = taosMemoryMalloc(sizeof(SConnCtx));
 
   /* init conn timer*/
-  pConn->pTimer = malloc(sizeof(uv_timer_t));
+  pConn->pTimer = taosMemoryMalloc(sizeof(uv_timer_t));
   uv_timer_init(pObj->loop, pConn->pTimer);
 
-  pConn->pClient = (uv_tcp_t *)malloc(sizeof(uv_tcp_t));
+  pConn->pClient = (uv_tcp_t *)taosMemoryMalloc(sizeof(uv_tcp_t));
   pConn->pWorkerAsync = pObj->workerAsync; // thread safty
   uv_tcp_init(pObj->loop, pConn->pClient);
 
@@ -130,10 +130,10 @@ void child_on_new_connection(uv_stream_t *q, ssize_t nread,
     uv_read_start((uv_stream_t *)(pConn->pClient), alloc_buffer, echo_read);
   } else {
     uv_timer_stop(pConn->pTimer);
-    free(pConn->pTimer);
+    taosMemoryFree(pConn->pTimer);
     uv_close((uv_handle_t *)pConn->pClient, NULL);
-    free(pConn->pClient);
-    free(pConn);
+    taosMemoryFree(pConn->pClient);
+    taosMemoryFree(pConn);
   }
 }
 
@@ -144,13 +144,13 @@ static void workerAsyncCallback(uv_async_t *handle) {
 void *worker_thread(void *arg) {
   SThreadObj *pObj = (SThreadObj *)arg;
   int fd = pObj->fd;
-  pObj->loop = (uv_loop_t *)malloc(sizeof(uv_loop_t));
+  pObj->loop = (uv_loop_t *)taosMemoryMalloc(sizeof(uv_loop_t));
   uv_loop_init(pObj->loop);
 
   uv_pipe_init(pObj->loop, pObj->pipe, 1);
   uv_pipe_open(pObj->pipe, fd);
 
-  pObj->workerAsync = malloc(sizeof(uv_async_t));
+  pObj->workerAsync = taosMemoryMalloc(sizeof(uv_async_t));
   uv_async_init(pObj->loop, pObj->workerAsync, workerAsyncCallback);
   uv_read_start((uv_stream_t *)pObj->pipe, alloc_buffer,
                 child_on_new_connection);
@@ -159,19 +159,19 @@ void *worker_thread(void *arg) {
 }
 int main() {
 
-  SServerObj *server = calloc(1, sizeof(SServerObj));
-  server->loop = (uv_loop_t *)malloc(sizeof(uv_loop_t));
+  SServerObj *server = taosMemoryCalloc(1, sizeof(SServerObj));
+  server->loop = (uv_loop_t *)taosMemoryMalloc(sizeof(uv_loop_t));
   server->numOfThread = NUM_OF_THREAD;
   server->workerIdx = 0;
   server->pThreadObj =
-      (SThreadObj **)calloc(server->numOfThread, sizeof(SThreadObj *));
-  server->pipe = (uv_pipe_t **)calloc(server->numOfThread, sizeof(uv_pipe_t *));
+      (SThreadObj **)taosMemoryCalloc(server->numOfThread, sizeof(SThreadObj *));
+  server->pipe = (uv_pipe_t **)taosMemoryCalloc(server->numOfThread, sizeof(uv_pipe_t *));
 
   uv_loop_init(server->loop);
 
   for (int i = 0; i < server->numOfThread; i++) {
-    server->pThreadObj[i] = (SThreadObj *)calloc(1, sizeof(SThreadObj));
-    server->pipe[i] = (uv_pipe_t *)calloc(2, sizeof(uv_pipe_t));
+    server->pThreadObj[i] = (SThreadObj *)taosMemoryCalloc(1, sizeof(SThreadObj));
+    server->pipe[i] = (uv_pipe_t *)taosMemoryCalloc(2, sizeof(uv_pipe_t));
     int fds[2];
     if (uv_socketpair(AF_UNIX, SOCK_STREAM, fds, UV_NONBLOCK_PIPE,
                       UV_NONBLOCK_PIPE) != 0) {

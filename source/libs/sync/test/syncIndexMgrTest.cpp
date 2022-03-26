@@ -68,7 +68,7 @@ void initRaftId(SSyncNode* pSyncNode) {
     ids[i] = pSyncNode->replicasId[i];
     char* s = syncUtilRaftId2Str(&ids[i]);
     printf("raftId[%d] : %s\n", i, s);
-    free(s);
+    taosMemoryFree(s);
   }
 }
 
@@ -93,7 +93,7 @@ int main(int argc, char** argv) {
 
   char* serialized = syncNode2Str(pSyncNode);
   printf("%s\n", serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 
   initRaftId(pSyncNode);
 
@@ -105,7 +105,7 @@ int main(int argc, char** argv) {
     char* serialized = syncIndexMgr2Str(pSyncIndexMgr);
     assert(serialized != NULL);
     printf("%s\n", serialized);
-    free(serialized);
+    taosMemoryFree(serialized);
   }
 
   syncIndexMgrSetIndex(pSyncIndexMgr, &ids[0], 100);
@@ -117,7 +117,7 @@ int main(int argc, char** argv) {
     char* serialized = syncIndexMgr2Str(pSyncIndexMgr);
     assert(serialized != NULL);
     printf("%s\n", serialized);
-    free(serialized);
+    taosMemoryFree(serialized);
   }
 
   printf("---------------------------------------\n");
@@ -132,7 +132,7 @@ int main(int argc, char** argv) {
     char* serialized = syncIndexMgr2Str(pSyncIndexMgr);
     assert(serialized != NULL);
     printf("%s\n", serialized);
-    free(serialized);
+    taosMemoryFree(serialized);
   }
 
   syncIndexMgrDestroy(pSyncIndexMgr);

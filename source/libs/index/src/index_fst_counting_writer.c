@@ -81,7 +81,7 @@ static int writeCtxDoFlush(WriterCtx* ctx) {
 }
 
 WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int32_t capacity) {
-  WriterCtx* ctx = calloc(1, sizeof(WriterCtx));
+  WriterCtx* ctx = taosMemoryCalloc(1, sizeof(WriterCtx));
   if (ctx == NULL) { return NULL; }
 
   ctx->type = type;
@@ -112,7 +112,7 @@ WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int
       goto END;
     }
   } else if (ctx->type == TMemory) {
-    ctx->mem.buf = calloc(1, sizeof(char) * capacity);
+    ctx->mem.buf = taosMemoryCalloc(1, sizeof(char) * capacity);
     ctx->mem.capa = capacity;
   }
   ctx->write = writeCtxDoWrite;
@@ -126,13 +126,13 @@ WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int
 
   return ctx;
 END:
-  if (ctx->type == TMemory) { free(ctx->mem.buf); }
-  free(ctx);
+  if (ctx->type == TMemory) { taosMemoryFree(ctx->mem.buf); }
+  taosMemoryFree(ctx);
   return NULL;
 }
 void writerCtxDestroy(WriterCtx* ctx, bool remove) {
   if (ctx->type == TMemory) {
-    free(ctx->mem.buf);
+    taosMemoryFree(ctx->mem.buf);
   } else {
     ctx->flush(ctx);
     taosCloseFile(&ctx->file.pFile);
@@ -150,11 +150,11 @@ void writerCtxDestroy(WriterCtx* ctx, bool remove) {
     }
     if (remove) { unlink(ctx->file.buf); }
   }
-  free(ctx);
+  taosMemoryFree(ctx);
 }
 
 FstCountingWriter* fstCountingWriterCreate(void* wrt) {
-  FstCountingWriter* cw = calloc(1, sizeof(FstCountingWriter));
+  FstCountingWriter* cw = taosMemoryCalloc(1, sizeof(FstCountingWriter));
   if (cw == NULL) { return NULL; }
 
   cw->wrt = wrt;
@@ -165,7 +165,7 @@ void fstCountingWriterDestroy(FstCountingWriter* cw) {
   // free wrt object: close fd or free mem
   fstCountingWriterFlush(cw);
   // writerCtxDestroy((WriterCtx *)(cw->wrt));
-  free(cw);
+  taosMemoryFree(cw);
 }
 
 int fstCountingWriterWrite(FstCountingWriter* write, uint8_t* buf, uint32_t len) {
@@ -203,13 +203,13 @@ int fstCountingWriterFlush(FstCountingWriter* write) {
 
 void fstCountingWriterPackUintIn(FstCountingWriter* writer, uint64_t n, uint8_t nBytes) {
   assert(1 <= nBytes && nBytes <= 8);
-  uint8_t* buf = calloc(8, sizeof(uint8_t));
+  uint8_t* buf = taosMemoryCalloc(8, sizeof(uint8_t));
   for (uint8_t i = 0; i < nBytes; i++) {
     buf[i] = (uint8_t)n;
     n = n >> 8;
   }
   fstCountingWriterWrite(writer, buf, nBytes);
-  free(buf);
+  taosMemoryFree(buf);
   return;
 }
 

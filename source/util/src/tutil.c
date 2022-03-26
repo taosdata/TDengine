@@ -147,7 +147,7 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
   *num = 0;
   int32_t size = 4;
 
-  char **split = malloc(POINTER_BYTES * size);
+  char **split = taosMemoryMalloc(POINTER_BYTES * size);
 
   for (char *p = strsep(&z, delim); p != NULL; p = strsep(&z, delim)) {
     size_t len = strlen(p);
@@ -158,7 +158,7 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
     split[(*num)++] = p;
     if ((*num) >= size) {
       size = (size << 1);
-      split = realloc(split, POINTER_BYTES * size);
+      split = taosMemoryRealloc(split, POINTER_BYTES * size);
       assert(NULL != split);
     }
   }
@@ -349,7 +349,7 @@ char *strbetween(char *string, char *begin, char *end) {
     char   *_end = strstr(_begin + strlen(begin), end);
     int32_t size = (int32_t)(_end - _begin);
     if (_end != NULL && size > 0) {
-      result = (char *)calloc(1, size);
+      result = (char *)taosMemoryCalloc(1, size);
       memcpy(result, _begin + strlen(begin), size - +strlen(begin));
     }
   }

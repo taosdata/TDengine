@@ -52,10 +52,10 @@ void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *)) {
   } else if (pNode->nodeType == TEXPR_VALUE_NODE) {
     taosVariantDestroy(pNode->pVal);
   } else if (pNode->nodeType == TEXPR_COL_NODE) {
-    tfree(pNode->pSchema);
+    taosMemoryFreeClear(pNode->pSchema);
   }
 
-  free(pNode);
+  taosMemoryFree(pNode);
 }
 
 static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
@@ -80,12 +80,12 @@ static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
     assert((*pExpr)->_node.pRight == NULL);
   } else if (type == TEXPR_VALUE_NODE) {
     taosVariantDestroy((*pExpr)->pVal);
-    free((*pExpr)->pVal);
+    taosMemoryFree((*pExpr)->pVal);
   } else if (type == TEXPR_COL_NODE) {
-    free((*pExpr)->pSchema);
+    taosMemoryFree((*pExpr)->pSchema);
   }
 
-  free(*pExpr);
+  taosMemoryFree(*pExpr);
   *pExpr = NULL;
 }
 
@@ -154,7 +154,7 @@ void exprTreeToBinary(SBufferWriter* bw, tExprNode* expr) {
 
 // TODO: these three functions should be made global
 static void* exception_calloc(size_t nmemb, size_t size) {
-  void* p = calloc(nmemb, size);
+  void* p = taosMemoryCalloc(nmemb, size);
   if (p == NULL) {
     THROW(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
@@ -162,7 +162,7 @@ static void* exception_calloc(size_t nmemb, size_t size) {
 }
 
 static void* exception_malloc(size_t size) {
-  void* p = malloc(size);
+  void* p = taosMemoryMalloc(size);
   if (p == NULL) {
     THROW(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
@@ -195,7 +195,7 @@ static tExprNode* exprTreeFromBinaryImpl(SBufferReader* br) {
     pVal->nType = tbufReadUint32(br);
     if (pVal->nType == TSDB_DATA_TYPE_BINARY) {
       tbufReadToBuffer(br, &pVal->nLen, sizeof(pVal->nLen));
-      pVal->pz = calloc(1, pVal->nLen + 1);
+      pVal->pz = taosMemoryCalloc(1, pVal->nLen + 1);
       tbufReadToBuffer(br, pVal->pz, pVal->nLen);
     } else {
       pVal->i = tbufReadInt64(br);
@@ -377,7 +377,7 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
     bufLen = 128;
   }
 
-  char *tmp = calloc(1, bufLen * TSDB_NCHAR_SIZE);
+  char *tmp = taosMemoryCalloc(1, bufLen * TSDB_NCHAR_SIZE);
     
   for (int32_t i = 0; i < sz; i++) {
     switch (sType) {
@@ -440,7 +440,7 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
     taosVariantCreateFromBinary(&tmpVar, (char *)pvar, t, sType);
 
     if (bufLen < t) {
-      tmp = realloc(tmp, t * TSDB_NCHAR_SIZE);
+      tmp = taosMemoryRealloc(tmp, t * TSDB_NCHAR_SIZE);
       bufLen = (int32_t)t;
     }
 
@@ -530,7 +530,7 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
 err_ret:  
   taosVariantDestroy(&tmpVar);
   taosHashCleanup(pObj);
-  tfree(tmp);
+  taosMemoryFreeClear(tmp);
 }
 
 tExprNode* exprdup(tExprNode* pNode) {
@@ -538,7 +538,7 @@ tExprNode* exprdup(tExprNode* pNode) {
     return NULL;
   }
 
-  tExprNode* pCloned = calloc(1, sizeof(tExprNode));
+  tExprNode* pCloned = taosMemoryCalloc(1, sizeof(tExprNode));
   if (pNode->nodeType == TEXPR_BINARYEXPR_NODE) {
     tExprNode* pLeft  = exprdup(pNode->_node.pLeft);
     tExprNode* pRight = exprdup(pNode->_node.pRight);
@@ -547,17 +547,17 @@ tExprNode* exprdup(tExprNode* pNode) {
     pCloned->_node.pRight = pRight;
     pCloned->_node.optr  = pNode->_node.optr;
   } else if (pNode->nodeType == TEXPR_VALUE_NODE) {
-    pCloned->pVal = calloc(1, sizeof(SVariant));
+    pCloned->pVal = taosMemoryCalloc(1, sizeof(SVariant));
     taosVariantAssign(pCloned->pVal, pNode->pVal);
   } else if (pNode->nodeType == TEXPR_COL_NODE) {
-    pCloned->pSchema = calloc(1, sizeof(SSchema));
+    pCloned->pSchema = taosMemoryCalloc(1, sizeof(SSchema));
     *pCloned->pSchema = *pNode->pSchema;
   } else if (pNode->nodeType == TEXPR_FUNCTION_NODE) {
     strcpy(pCloned->_function.functionName, pNode->_function.functionName);
 
     int32_t num = pNode->_function.num;
     pCloned->_function.num = num;
-    pCloned->_function.pChild = calloc(num, POINTER_BYTES);
+    pCloned->_function.pChild = taosMemoryCalloc(num, POINTER_BYTES);
     for(int32_t i = 0; i < num; ++i) {
       pCloned->_function.pChild[i] = exprdup(pNode->_function.pChild[i]);
     }
