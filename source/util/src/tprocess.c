@@ -381,6 +381,7 @@ SProcObj *taosProcInit(const SProcCfg *pCfg) {
   pProc->pid = fork();
   if (pProc->pid == 0) {
     pProc->isChild = 1;
+    prctl(PR_SET_NAME, pProc->name, NULL, NULL, NULL); 
   } else {
     pProc->isChild = 0;
     uInfo("this is parent process, child pid:%d", pProc->pid);
