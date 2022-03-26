@@ -14,6 +14,7 @@
  */
 
 #include "mndStream.h"
+#include "parser.h"
 #include "mndAuth.h"
 #include "mndDb.h"
 #include "mndDnode.h"
@@ -83,7 +84,7 @@ SSdbRaw *mndStreamActionEncode(SStreamObj *pStream) {
   SSdbRaw *pRaw = sdbAllocRaw(SDB_STREAM, MND_STREAM_VER_NUMBER, size);
   if (pRaw == NULL) goto STREAM_ENCODE_OVER;
 
-  buf = malloc(tlen);
+  buf = taosMemoryMalloc(tlen);
   if (buf == NULL) goto STREAM_ENCODE_OVER;
 
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, tlen, TD_ENCODER);
@@ -101,7 +102,7 @@ SSdbRaw *mndStreamActionEncode(SStreamObj *pStream) {
   terrno = TSDB_CODE_SUCCESS;
 
 STREAM_ENCODE_OVER:
-  tfree(buf);
+  taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("stream:%s, failed to encode to raw:%p since %s", pStream->name, pRaw, terrstr());
     sdbFreeRaw(pRaw);
@@ -134,7 +135,7 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   int32_t tlen;
   int32_t dataPos = 0;
   SDB_GET_INT32(pRaw, dataPos, &tlen, STREAM_DECODE_OVER);
-  buf = malloc(tlen + 1);
+  buf = taosMemoryMalloc(tlen + 1);
   if (buf == NULL) goto STREAM_DECODE_OVER;
   SDB_GET_BINARY(pRaw, dataPos, buf, tlen, STREAM_DECODE_OVER);
 
@@ -147,10 +148,10 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_SUCCESS;
 
 STREAM_DECODE_OVER:
-  tfree(buf);
+  taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("stream:%s, failed to decode from raw:%p since %s", pStream->name, pRaw, terrstr());
-    tfree(pRow);
+    taosMemoryFreeClear(pRow);
     return NULL;
   }
 
@@ -218,28 +219,6 @@ static int32_t mndCheckCreateStreamReq(SCMCreateStreamReq *pCreate) {
   return 0;
 }
 
-static SArray *mndExtractNamesFromAst(const SNode *pAst) {
-  if (pAst->type != QUERY_NODE_SELECT_STMT) return NULL;
-
-  SArray *names = taosArrayInit(0, sizeof(void *));
-  if (names == NULL) {
-    return NULL;
-  }
-  SSelectStmt *pSelect = (SSelectStmt *)pAst;
-  SNodeList   *pNodes = pSelect->pProjectionList;
-  SListCell   *pCell = pNodes->pHead;
-  while (pCell != NULL) {
-    if (pCell->pNode->type != QUERY_NODE_FUNCTION) {
-      continue;
-    }
-    SFunctionNode *pFunction = (SFunctionNode *)pCell->pNode;
-    char          *name = strdup(pFunction->node.aliasName);
-    taosArrayPush(names, &name);
-    pCell = pCell->pNext;
-  }
-  return names;
-}
-
 static int32_t mndStreamGetPlanString(const char *ast, char **pStr) {
   if (NULL == ast) {
     return TSDB_CODE_SUCCESS;
@@ -269,18 +248,23 @@ static int32_t mndStreamGetPlanString(const char *ast, char **pStr) {
 
 int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast, STrans *pTrans) {
   SNode *pAst = NULL;
+#if 1 // TODO: remove debug info later
+  printf("ast = %s\n", ast); 
+#endif
   if (nodesStringToNode(ast, &pAst) < 0) {
     return -1;
   }
 #if 1
-  SArray *names = mndExtractNamesFromAst(pAst);
+  SSchemaWrapper sw = {0};
+  qExtractResultSchema(pAst, (int32_t*)&sw.nCols, &sw.pSchema);
+
   printf("|");
-  for (int i = 0; i < taosArrayGetSize(names); i++) {
-    printf(" %15s |", (char *)taosArrayGetP(names, i));
+  for (int i = 0; i < sw.nCols; i++) {
+    printf(" %15s |", (char *)sw.pSchema[i].name);
   }
   printf("\n=======================================================\n");
 
-  pStream->ColAlias = names;
+  pStream->ColAlias = NULL;
 #endif
 
   if (TSDB_CODE_SUCCESS != mndStreamGetPlanString(ast, &pStream->physicalPlan)) {

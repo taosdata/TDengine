@@ -169,7 +169,7 @@ static void tsdbGetSmaDir(int32_t vgId, ETsdbSmaType smaType, char dirName[]) {
 static SSmaEnv *tsdbNewSmaEnv(const STsdb *pTsdb, const char *path, SDiskID did) {
   SSmaEnv *pEnv = NULL;
 
-  pEnv = (SSmaEnv *)calloc(1, sizeof(SSmaEnv));
+  pEnv = (SSmaEnv *)taosMemoryCalloc(1, sizeof(SSmaEnv));
   if (pEnv == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -178,7 +178,7 @@ static SSmaEnv *tsdbNewSmaEnv(const STsdb *pTsdb, const char *path, SDiskID did)
   int code = taosThreadRwlockInit(&(pEnv->lock), NULL);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
-    free(pEnv);
+    taosMemoryFree(pEnv);
     return NULL;
   }
 
@@ -230,8 +230,8 @@ static int32_t tsdbInitSmaEnv(STsdb *pTsdb, const char *path, SDiskID did, SSmaE
 void tsdbDestroySmaEnv(SSmaEnv *pSmaEnv) {
   if (pSmaEnv) {
     tsdbDestroySmaState(pSmaEnv->pStat);
-    tfree(pSmaEnv->pStat);
-    tfree(pSmaEnv->path);
+    taosMemoryFreeClear(pSmaEnv->pStat);
+    taosMemoryFreeClear(pSmaEnv->path);
     taosThreadRwlockDestroy(&(pSmaEnv->lock));
     tsdbCloseBDBEnv(pSmaEnv->dbEnv);
   }
@@ -239,7 +239,7 @@ void tsdbDestroySmaEnv(SSmaEnv *pSmaEnv) {
 
 void *tsdbFreeSmaEnv(SSmaEnv *pSmaEnv) {
   tsdbDestroySmaEnv(pSmaEnv);
-  tfree(pSmaEnv);
+  taosMemoryFreeClear(pSmaEnv);
   return NULL;
 }
 
@@ -271,7 +271,7 @@ static int32_t tsdbInitSmaStat(SSmaStat **pSmaStat) {
    * tsdbInitSmaStat invoked in other multithread environment later.
    */
   if (*pSmaStat == NULL) {
-    *pSmaStat = (SSmaStat *)calloc(1, sizeof(SSmaStat));
+    *pSmaStat = (SSmaStat *)taosMemoryCalloc(1, sizeof(SSmaStat));
     if (*pSmaStat == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return TSDB_CODE_FAILED;
@@ -281,7 +281,7 @@ static int32_t tsdbInitSmaStat(SSmaStat **pSmaStat) {
         taosHashInit(SMA_STATE_HASH_SLOT, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
 
     if ((*pSmaStat)->smaStatItems == NULL) {
-      tfree(*pSmaStat);
+      taosMemoryFreeClear(*pSmaStat);
       return TSDB_CODE_FAILED;
     }
   }
@@ -291,13 +291,13 @@ static int32_t tsdbInitSmaStat(SSmaStat **pSmaStat) {
 static SSmaStatItem *tsdbNewSmaStatItem(int8_t state) {
   SSmaStatItem *pItem = NULL;
 
-  pItem = (SSmaStatItem *)calloc(1, sizeof(SSmaStatItem));
+  pItem = (SSmaStatItem *)taosMemoryCalloc(1, sizeof(SSmaStatItem));
   if (pItem) {
     pItem->state = state;
     pItem->expiredWindows = taosHashInit(SMA_STATE_ITEM_HASH_SLOT, taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP),
                                          true, HASH_ENTRY_LOCK);
     if (!pItem->expiredWindows) {
-      tfree(pItem);
+      taosMemoryFreeClear(pItem);
     }
   }
   return pItem;
@@ -306,9 +306,9 @@ static SSmaStatItem *tsdbNewSmaStatItem(int8_t state) {
 static void *tsdbFreeSmaStatItem(SSmaStatItem *pSmaStatItem) {
   if (pSmaStatItem != NULL) {
     tdDestroyTSma(pSmaStatItem->pSma);
-    tfree(pSmaStatItem->pSma);
+    taosMemoryFreeClear(pSmaStatItem->pSma);
     taosHashCleanup(pSmaStatItem->expiredWindows);
-    tfree(pSmaStatItem);
+    taosMemoryFreeClear(pSmaStatItem);
   }
   return NULL;
 }
@@ -406,7 +406,7 @@ static int32_t tsdbSetExpiredWindow(STsdb *pTsdb, SHashObj *pItemsHash, int64_t 
     if (pSma == NULL) {
       terrno = TSDB_CODE_TDB_NO_SMA_INDEX_IN_META;
       taosHashCleanup(pItem->expiredWindows);
-      free(pItem);
+      taosMemoryFree(pItem);
       tsdbWarn("vgId:%d update expired window failed for smaIndex %" PRIi64 " since %s", REPO_ID(pTsdb), indexUid,
                tstrerror(terrno));
       return TSDB_CODE_FAILED;
@@ -416,7 +416,7 @@ static int32_t tsdbSetExpiredWindow(STsdb *pTsdb, SHashObj *pItemsHash, int64_t 
     if (taosHashPut(pItemsHash, &indexUid, sizeof(indexUid), &pItem, sizeof(pItem)) != 0) {
       // If error occurs during put smaStatItem, free the resources of pItem
       taosHashCleanup(pItem->expiredWindows);
-      free(pItem);
+      taosMemoryFree(pItem);
       return TSDB_CODE_FAILED;
     }
   }
@@ -430,7 +430,7 @@ static int32_t tsdbSetExpiredWindow(STsdb *pTsdb, SHashObj *pItemsHash, int64_t 
     //  2) This would solve the inconsistency to some extent, but not completely, unless we record all expired
     // windows failed to put into hash table.
     taosHashCleanup(pItem->expiredWindows);
-    tfree(pItem->pSma);
+    taosMemoryFreeClear(pItem->pSma);
     taosHashRemove(pItemsHash, &indexUid, sizeof(indexUid));
     return TSDB_CODE_FAILED;
   }
@@ -1237,7 +1237,7 @@ static int32_t tsdbGetTSmaDataImpl(STsdb *pTsdb, STSmaDataWrapper *pData, int64_
     tsdbWarn("vgId:%d get sma data v[%d]=%" PRIi64, REPO_ID(pTsdb), v, *(int64_t *)POINTER_SHIFT(result, v));
   }
 #endif
-  tfree(result);  // TODO: fill the result to output
+  taosMemoryFreeClear(result);  // TODO: fill the result to output
 
 #if 0
   int32_t nResult = 0;

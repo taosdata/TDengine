@@ -17,7 +17,7 @@
 #include "vnode.h"
 
 STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta) {
-  STqReadHandle* pReadHandle = malloc(sizeof(STqReadHandle));
+  STqReadHandle* pReadHandle = taosMemoryMalloc(sizeof(STqReadHandle));
   if (pReadHandle == NULL) {
     return NULL;
   }
@@ -143,7 +143,7 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
       colInfo.info.colId = pColSchema->colId;
       colInfo.info.type = pColSchema->type;
 
-      colInfo.pData = calloc(1, sz);
+      colInfo.pData = taosMemoryCalloc(1, sz);
       if (colInfo.pData == NULL) {
         // TODO free
         taosArrayDestroy(pArray);
@@ -173,7 +173,7 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
     colInfo.info.colId = colId;
     colInfo.info.type = pColSchema->type;
 
-    colInfo.pData = calloc(1, sz);
+    colInfo.pData = taosMemoryCalloc(1, sz);
     if (colInfo.pData == NULL) {
       // TODO free
       taosArrayDestroy(pArray);

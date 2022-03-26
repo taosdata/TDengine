@@ -283,14 +283,14 @@ void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType);
 // queue sending msgs
 typedef struct {
   SArray* q;
-  void (*free)(void* arg);
+  void (*freeFunc)(const void* arg);
 } STransQueue;
 
 /*
  * init queue
  * note: queue'size is small, default 1
  */
-void transQueueInit(STransQueue* queue, void (*free)(void* arg));
+void transQueueInit(STransQueue* queue, void (*freeFunc)(const void* arg));
 
 /*
  * put arg into queue

@@ -60,7 +60,7 @@ void monCleanup() {
 }
 
 SMonInfo *monCreateMonitorInfo() {
-  SMonInfo *pMonitor = calloc(1, sizeof(SMonInfo));
+  SMonInfo *pMonitor = taosMemoryCalloc(1, sizeof(SMonInfo));
   if (pMonitor == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -88,7 +88,7 @@ void monCleanupMonitorInfo(SMonInfo *pMonitor) {
   tsMonitor.state.time = pMonitor->curTime;
   taosArrayDestroy(pMonitor->logs);
   tjsonDelete(pMonitor->pJson);
-  free(pMonitor);
+  taosMemoryFree(pMonitor);
 }
 
 void monSetBasicInfo(SMonInfo *pMonitor, SMonBasicInfo *pInfo) {
@@ -381,6 +381,6 @@ void monSendReport(SMonInfo *pMonitor) {
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.comp ? HTTP_GZIP : HTTP_FLAT;
     taosSendHttpReport(tsMonitor.server, tsMonitor.port, pCont, strlen(pCont), flag);
-    free(pCont);
+    taosMemoryFree(pCont);
   }
 }

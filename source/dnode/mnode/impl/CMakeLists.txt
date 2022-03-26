@@ -6,7 +6,7 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 target_link_libraries(
-    mnode scheduler sdb wal transport cjson sync monitor
+    mnode scheduler sdb wal transport cjson sync monitor stream parser
 )
 
 if(${BUILD_TEST})

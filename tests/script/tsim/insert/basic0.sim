@@ -109,7 +109,26 @@ endi
 
 #print =============== select first(*)/first(column) from child table
 #sql select first(*) from ct1
-#sql select first(ts), first(c1), first(c2), first(c3) from ct1
+#print ====> select first(*) from ct1
+#print rows: $rows 
+#print $data00  $data01 $data02 $data03
+
+sql select first(ts), first(c1), first(c2), first(c3) from ct1
+print ====> select first(ts), first(c1), first(c2), first(c3) from ct1
+print rows: $rows 
+print $data00  $data01 $data02 $data03
+if $rows != 1 then 
+  return -1
+endi
+if $data01 != 10 then 
+  return -1
+endi
+if $data02 != 2.00000 then 
+  return -1
+endi
+if $data03 != 3.000000000 then 
+  return -1
+endi
 
 print =============== select min(column) from child table
 sql select min(c1), min(c2), min(c3) from ct1
@@ -216,10 +235,42 @@ endi
 #  return -1
 #endi
 
+print =============== select count(column) from supter table
+sql select ts, c1, c2, c3 from stb
+print rows: $rows
+print $data00 $data01 $data02  $data03
+print $data10 $data11 $data12  $data13
+print $data20 $data21 $data22  $data23
+print $data30 $data31 $data32  $data33
+print $data40 $data41 $data42  $data43
+print $data50 $data51 $data52  $data53
+print $data60 $data61 $data62  $data63
+print $data70 $data71 $data72  $data73
+print $data80 $data81 $data82  $data83
+if $rows != 9 then 
+  return -1
+endi
+
+# The order of data from different sub tables in the super table is random, 
+# so this detection may fail randomly
+if $data01 != 10 then 
+  return -1
+endi
+if $data02 != 2.00000 then 
+  return -1
+endi
+if $data03 != 3.000000000 then 
+  return -1
+endi
+
 #print =============== select count(column) from supter table
 #sql select count(ts), count(c1), count(c2), count(c3) from stb
+#print rows: $rows
 #print $data00 $data01 $data02  $data03
-#if $data00 != 8 then 
+#print $data10 $data11 $data12  $data13
+#print $data20 $data21 $data22  $data23
+#print $data30 $data31 $data32  $data33
+#if $data00 != 9 then 
 #  return -1
 #endi
 #if $data01 != 8 then 
@@ -231,7 +282,6 @@ endi
 #if $data03 != 8 then 
 #  return -1
 #endi
-
 
 #===================================================================
 #===================================================================
@@ -317,7 +367,26 @@ endi
 
 #print =============== select first(*)/first(column) from child table
 #sql select first(*) from ct1
-#sql select first(ts), first(c1), first(c2), first(c3) from ct1
+#print ====> select first(*) from ct1
+#print rows: $rows 
+#print $data00  $data01 $data02 $data03
+
+sql select first(ts), first(c1), first(c2), first(c3) from ct1
+print ====> select first(ts), first(c1), first(c2), first(c3) from ct1
+print rows: $rows 
+print $data00  $data01 $data02 $data03
+if $rows != 1 then 
+  return -1
+endi
+if $data01 != 10 then 
+  return -1
+endi
+if $data02 != 2.00000 then 
+  return -1
+endi
+if $data03 != 3.000000000 then 
+  return -1
+endi
 
 print =============== select min(column) from child table
 sql select min(c1), min(c2), min(c3) from ct1
@@ -423,6 +492,33 @@ endi
 #if $data00 != 9 then 
 #  return -1
 #endi
+
+print =============== select count(column) from supter table
+sql select ts, c1, c2, c3 from stb
+print rows: $rows
+print $data00 $data01 $data02  $data03
+print $data10 $data11 $data12  $data13
+print $data20 $data21 $data22  $data23
+print $data30 $data31 $data32  $data33
+print $data40 $data41 $data42  $data43
+print $data50 $data51 $data52  $data53
+print $data60 $data61 $data62  $data63
+print $data70 $data71 $data72  $data73
+print $data80 $data81 $data82  $data83
+if $rows != 9 then 
+  return -1
+endi
+# The order of data from different sub tables in the super table is random, 
+# so this detection may fail randomly
+if $data01 != 10 then 
+  return -1
+endi
+if $data02 != 2.00000 then 
+  return -1
+endi
+if $data03 != 3.000000000 then 
+  return -1
+endi
 
 #print =============== select count(column) from supter table
 #sql select count(ts), count(c1), count(c2), count(c3) from stb

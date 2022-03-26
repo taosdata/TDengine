@@ -20,7 +20,7 @@ static char basis_64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01
 
 char *base64_encode(const uint8_t *value, int32_t vlen) {
   uint8_t oval = 0;
-  char   *result = (char *)malloc((size_t)(vlen * 4) / 3 + 10);
+  char   *result = (char *)taosMemoryMalloc((size_t)(vlen * 4) / 3 + 10);
   char   *out = result;
   while (vlen >= 3) {
     *out++ = basis_64[value[0] >> 2];
@@ -53,7 +53,7 @@ static signed char index_64[128] = {
 
 uint8_t *base64_decode(const char *value, int32_t inlen, int32_t *outlen) {
   int32_t  c1, c2, c3, c4;
-  uint8_t *result = (uint8_t *)malloc((size_t)(inlen * 3) / 4 + 1);
+  uint8_t *result = (uint8_t *)taosMemoryMalloc((size_t)(inlen * 3) / 4 + 1);
   uint8_t *out = result;
 
   *outlen = 0;
@@ -93,7 +93,7 @@ uint8_t *base64_decode(const char *value, int32_t inlen, int32_t *outlen) {
   }
 
 base64_decode_error:
-  free(result);
+  taosMemoryFree(result);
   result = 0;
   *outlen = 0;
 

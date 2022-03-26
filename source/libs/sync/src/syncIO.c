@@ -121,7 +121,7 @@ int32_t syncIOPingTimerStop() {
 
 // local function ------------
 static SSyncIO *syncIOCreate(char *host, uint16_t port) {
-  SSyncIO *io = (SSyncIO *)malloc(sizeof(SSyncIO));
+  SSyncIO *io = (SSyncIO *)taosMemoryMalloc(sizeof(SSyncIO));
   memset(io, 0, sizeof(*io));
 
   io->pMsgQ = taosOpenQueue();

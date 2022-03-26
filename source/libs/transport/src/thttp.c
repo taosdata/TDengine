@@ -47,7 +47,7 @@ static int32_t taosBuildHttpHeader(const char* server, int32_t contLen, char* pH
 int32_t taosCompressHttpRport(char* pSrc, int32_t srcLen) {
   int32_t code = -1;
   int32_t destLen = srcLen;
-  void*   pDest = malloc(destLen);
+  void*   pDest = taosMemoryMalloc(destLen);
 
   if (pDest == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -109,7 +109,7 @@ _OVER:
     code = gzipStream.total_out;
   }
 
-  free(pDest);
+  taosMemoryFree(pDest);
   return code;
 }
 
@@ -145,7 +145,7 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   uv_tcp_t   socket_tcp = {0};
   uv_loop_t* loop = uv_default_loop();
   uv_tcp_init(loop, &socket_tcp);
-  uv_connect_t* connect = (uv_connect_t*)malloc(sizeof(uv_connect_t));
+  uv_connect_t* connect = (uv_connect_t*)taosMemoryMalloc(sizeof(uv_connect_t));
 
   if (flag == HTTP_GZIP) {
     int32_t dstLen = taosCompressHttpRport(pCont, contLen);
@@ -168,7 +168,7 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   terrno = 0;
   uv_run(loop, UV_RUN_DEFAULT);
   uv_loop_close(loop);
-  free(connect);
+  taosMemoryFree(connect);
   return terrno;
 }
 

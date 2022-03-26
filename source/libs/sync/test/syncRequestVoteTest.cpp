@@ -35,13 +35,13 @@ void test1() {
 void test2() {
   SyncRequestVote *pMsg = createMsg();
   uint32_t         len = pMsg->bytes;
-  char *           serialized = (char *)malloc(len);
+  char *           serialized = (char *)taosMemoryMalloc(len);
   syncRequestVoteSerialize(pMsg, serialized, len);
   SyncRequestVote *pMsg2 = syncRequestVoteBuild();
   syncRequestVoteDeserialize(serialized, len, pMsg2);
   syncRequestVotePrint2((char *)"test2: syncRequestVoteSerialize -> syncRequestVoteDeserialize ", pMsg2);
 
-  free(serialized);
+  taosMemoryFree(serialized);
   syncRequestVoteDestroy(pMsg);
   syncRequestVoteDestroy(pMsg2);
 }
@@ -53,7 +53,7 @@ void test3() {
   SyncRequestVote *pMsg2 = syncRequestVoteDeserialize2(serialized, len);
   syncRequestVotePrint2((char *)"test3: syncRequestVoteSerialize3 -> syncRequestVoteDeserialize2 ", pMsg2);
 
-  free(serialized);
+  taosMemoryFree(serialized);
   syncRequestVoteDestroy(pMsg);
   syncRequestVoteDestroy(pMsg2);
 }

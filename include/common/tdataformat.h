@@ -93,7 +93,7 @@ typedef struct {
 #define schemaFLen(s)     ((s)->flen)
 #define schemaVLen(s)     ((s)->vlen)
 #define schemaColAt(s, i) ((s)->columns + i)
-#define tdFreeSchema(s)   tfree((s))
+#define tdFreeSchema(s)   taosMemoryFreeClear((s))
 
 STSchema *tdDupSchema(const STSchema *pSchema);
 int32_t   tdEncodeSchema(void **buf, STSchema *pSchema);
@@ -493,7 +493,7 @@ typedef struct {
 #define kvRowCpy(dst, r)       memcpy((dst), (r), kvRowLen(r))
 #define kvRowColVal(r, colIdx) POINTER_SHIFT(kvRowValues(r), (colIdx)->offset)
 #define kvRowColIdxAt(r, i)    (kvRowColIdx(r) + (i))
-#define kvRowFree(r)           tfree(r)
+#define kvRowFree(r)           taosMemoryFreeClear(r)
 #define kvRowEnd(r)            POINTER_SHIFT(r, kvRowLen(r))
 #define kvRowValLen(r)         (kvRowLen(r) - TD_KV_ROW_HEAD_SIZE - sizeof(SColIdx) * kvRowNCols(r))
 #define kvRowTKey(r)           (*(TKEY *)(kvRowValues(r)))
@@ -593,7 +593,7 @@ SKVRow  tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder);
 static FORCE_INLINE int32_t tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, int8_t type, const void *value) {
   if (pBuilder->nCols >= pBuilder->tCols) {
     pBuilder->tCols *= 2;
-    SColIdx *pColIdx = (SColIdx *)realloc((void *)(pBuilder->pColIdx), sizeof(SColIdx) * pBuilder->tCols);
+    SColIdx *pColIdx = (SColIdx *)taosMemoryRealloc((void *)(pBuilder->pColIdx), sizeof(SColIdx) * pBuilder->tCols);
     if (pColIdx == NULL) return -1;
     pBuilder->pColIdx = pColIdx;
   }
@@ -608,7 +608,7 @@ static FORCE_INLINE int32_t tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t col
     while (tlen > pBuilder->alloc - pBuilder->size) {
       pBuilder->alloc *= 2;
     }
-    void *buf = realloc(pBuilder->buf, pBuilder->alloc);
+    void *buf = taosMemoryRealloc(pBuilder->buf, pBuilder->alloc);
     if (buf == NULL) return -1;
     pBuilder->buf = buf;
   }

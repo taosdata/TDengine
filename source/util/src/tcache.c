@@ -221,7 +221,7 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheNode *
     pCacheObj->freeFp(pNode->data);
   }
 
-  free(pNode);
+  taosMemoryFree(pNode);
 }
 
 static FORCE_INLINE STrashElem *doRemoveElemInTrashcan(SCacheObj *pCacheObj, STrashElem *pElem) {
@@ -255,8 +255,8 @@ static FORCE_INLINE void doDestroyTrashcanElem(SCacheObj *pCacheObj, STrashElem 
     pCacheObj->freeFp(pElem->pData->data);
   }
 
-  free(pElem->pData);
-  free(pElem);
+  taosMemoryFree(pElem->pData);
+  taosMemoryFree(pElem);
 }
 
 static void pushfrontNodeInEntryList(SCacheEntry *pEntry, SCacheNode *pNode) {
@@ -358,7 +358,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool ext
     return NULL;
   }
 
-  SCacheObj *pCacheObj = (SCacheObj *)calloc(1, sizeof(SCacheObj));
+  SCacheObj *pCacheObj = (SCacheObj *)taosMemoryCalloc(1, sizeof(SCacheObj));
   if (pCacheObj == NULL) {
     uError("failed to allocate memory, reason:%s", strerror(errno));
     return NULL;
@@ -366,9 +366,9 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool ext
 
   // TODO add the auto extend procedure
   pCacheObj->capacity = 4096;
-  pCacheObj->pEntryList = calloc(pCacheObj->capacity, sizeof(SCacheEntry));
+  pCacheObj->pEntryList = taosMemoryCalloc(pCacheObj->capacity, sizeof(SCacheEntry));
   if (pCacheObj->pEntryList == NULL) {
-    free(pCacheObj);
+    taosMemoryFree(pCacheObj);
     uError("failed to allocate memory, reason:%s", strerror(errno));
     return NULL;
   }
@@ -381,8 +381,8 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool ext
   pCacheObj->extendLifespan = extendLifespan;  // the TTL after the last access
 
   if (__trashcan_lock_init(pCacheObj) != 0) {
-    tfree(pCacheObj->pEntryList);
-    free(pCacheObj);
+    taosMemoryFreeClear(pCacheObj->pEntryList);
+    taosMemoryFree(pCacheObj);
 
     uError("failed to init lock, reason:%s", strerror(errno));
     return NULL;
@@ -432,7 +432,7 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
       }
 
       atomic_sub_fetch_64(&pCacheObj->sizeInBytes, pNode->size);
-      tfree(pNode);
+      taosMemoryFreeClear(pNode);
     } else {
       taosAddToTrashcan(pCacheObj, pNode);
       uDebug("cache:%s, key:%p, %p exist in cache, updated old:%p", pCacheObj->name, key, pNode1->data, pNode->data);
@@ -625,7 +625,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
               pCacheObj->freeFp(pNode->data);
             }
 
-            free(pNode);
+            taosMemoryFree(pNode);
           }
         }
 
@@ -703,7 +703,7 @@ void taosCacheCleanup(SCacheObj *pCacheObj) {
 SCacheNode *taosCreateCacheNode(const char *key, size_t keyLen, const char *pData, size_t size, uint64_t duration) {
   size_t sizeInBytes = size + sizeof(SCacheNode) + keyLen;
 
-  SCacheNode *pNewNode = calloc(1, sizeInBytes);
+  SCacheNode *pNewNode = taosMemoryCalloc(1, sizeInBytes);
   if (pNewNode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     uError("failed to allocate memory, reason:%s", strerror(errno));
@@ -735,7 +735,7 @@ void taosAddToTrashcan(SCacheObj *pCacheObj, SCacheNode *pNode) {
   }
 
   __trashcan_wr_lock(pCacheObj);
-  STrashElem *pElem = calloc(1, sizeof(STrashElem));
+  STrashElem *pElem = taosMemoryCalloc(1, sizeof(STrashElem));
   pElem->pData = pNode;
   pElem->prev = NULL;
   pElem->next = NULL;
@@ -802,9 +802,9 @@ void doCleanupDataCache(SCacheObj *pCacheObj) {
 
   __trashcan_lock_destroy(pCacheObj);
 
-  tfree(pCacheObj->pEntryList);
-  tfree(pCacheObj->name);
-  free(pCacheObj);
+  taosMemoryFreeClear(pCacheObj->pEntryList);
+  taosMemoryFreeClear(pCacheObj->name);
+  taosMemoryFree(pCacheObj);
 }
 
 static void doCacheRefresh(SCacheObj *pCacheObj, int64_t time, __cache_trav_fn_t fp, void *param1) {
@@ -918,7 +918,7 @@ size_t taosCacheGetNumOfObj(const SCacheObj* pCacheObj) {
 
 SCacheIter* taosCacheCreateIter(const SCacheObj* pCacheObj) {
   ASSERT(pCacheObj != NULL);
-  SCacheIter* pIter = calloc(1, sizeof(SCacheIter));
+  SCacheIter* pIter = taosMemoryCalloc(1, sizeof(SCacheIter));
   pIter->pCacheObj  = (SCacheObj*) pCacheObj;
   pIter->entryIndex = -1;
   pIter->index      = -1;
@@ -955,7 +955,7 @@ bool taosCacheIterNext(SCacheIter* pIter) {
       }
 
       if (pIter->numOfObj < pEntry->num) {
-        char *tmp = realloc(pIter->pCurrent, pEntry->num * POINTER_BYTES);
+        char *tmp = taosMemoryRealloc(pIter->pCurrent, pEntry->num * POINTER_BYTES);
         if (tmp == NULL) {
           terrno = TSDB_CODE_OUT_OF_MEMORY;
           taosRUnLockLatch(&pEntry->latch);
@@ -1001,6 +1001,6 @@ void* taosCacheIterGetKey(const SCacheIter* pIter, size_t* len) {
 }
 
 void taosCacheDestroyIter(SCacheIter* pIter) {
-  tfree(pIter->pCurrent);
-  tfree(pIter);
+  taosMemoryFreeClear(pIter->pCurrent);
+  taosMemoryFreeClear(pIter);
 }

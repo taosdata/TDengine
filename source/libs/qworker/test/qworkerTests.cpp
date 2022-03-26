@@ -165,7 +165,7 @@ int32_t qwtStringToPlan(const char* str, SSubplan** subplan) {
 
 int32_t qwtPutReqToFetchQueue(void *node, struct SRpcMsg *pMsg) {
   taosWLockLatch(&qwtTestFetchQueueLock);
-  struct SRpcMsg *newMsg = (struct SRpcMsg *)calloc(1, sizeof(struct SRpcMsg));
+  struct SRpcMsg *newMsg = (struct SRpcMsg *)taosMemoryCalloc(1, sizeof(struct SRpcMsg));
   memcpy(newMsg, pMsg, sizeof(struct SRpcMsg));  
   qwtTestFetchQueue[qwtTestFetchQueueWIdx++] = newMsg;
   if (qwtTestFetchQueueWIdx >= qwtTestFetchQueueSize) {
@@ -188,7 +188,7 @@ int32_t qwtPutReqToFetchQueue(void *node, struct SRpcMsg *pMsg) {
 
 int32_t qwtPutReqToQueue(void *node, struct SRpcMsg *pMsg) {
   taosWLockLatch(&qwtTestQueryQueueLock);
-  struct SRpcMsg *newMsg = (struct SRpcMsg *)calloc(1, sizeof(struct SRpcMsg));
+  struct SRpcMsg *newMsg = (struct SRpcMsg *)taosMemoryCalloc(1, sizeof(struct SRpcMsg));
   memcpy(newMsg, pMsg, sizeof(struct SRpcMsg));
   qwtTestQueryQueue[qwtTestQueryQueueWIdx++] = newMsg;
   if (qwtTestQueryQueueWIdx >= qwtTestQueryQueueSize) {
@@ -312,7 +312,7 @@ int32_t qwtExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
     }
       
     if (endExec) {
-      *pRes = (SSDataBlock*)calloc(1, sizeof(SSDataBlock));
+      *pRes = (SSDataBlock*)taosMemoryCalloc(1, sizeof(SSDataBlock));
       (*pRes)->info.rows = taosRand() % 1000 + 1;
     } else {
       *pRes = NULL;
@@ -336,7 +336,7 @@ int32_t qwtPutDataBlock(DataSinkHandle handle, const SInputData* pInput, bool* p
     assert(0);
   }
 
-  free((void *)pInput->pData);
+  taosMemoryFree((void *)pInput->pData);
 
   taosWLockLatch(&qwtTestSinkLock);
 
@@ -763,7 +763,7 @@ void *queryQueueThread(void *param) {
       assert(0);
     }
 
-    free(queryRpc);
+    taosMemoryFree(queryRpc);
 
     if (qwtTestStop && qwtTestQueryQueueNum <= 0 && qwtTestCaseFinished) {
       break;
@@ -832,7 +832,7 @@ void *fetchQueueThread(void *param) {
         break;
     }
 
-    free(fetchRpc);
+    taosMemoryFree(fetchRpc);
 
     if (qwtTestStop && qwtTestFetchQueueNum <= 0 && qwtTestCaseFinished) {
       break;

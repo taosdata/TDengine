@@ -31,7 +31,7 @@ typedef TD_SLIST(SFreeListNode) SFreeList;
 
 #define TFL_MALLOC(PTR, TYPE, SIZE, LIST)                      \
   do {                                                         \
-    void *ptr = malloc((SIZE) + sizeof(struct SFreeListNode)); \
+    void *ptr = taosMemoryMalloc((SIZE) + sizeof(struct SFreeListNode)); \
     if (ptr) {                                                 \
       TD_SLIST_PUSH((LIST), (struct SFreeListNode *)ptr);      \
       ptr = ((struct SFreeListNode *)ptr)->payload;            \
@@ -49,7 +49,7 @@ static FORCE_INLINE void tFreeListClear(SFreeList *pFL) {
     pNode = TD_SLIST_HEAD(pFL);
     if (pNode == NULL) break;
     TD_SLIST_POP(pFL);
-    free(pNode);
+    taosMemoryFree(pNode);
   }
 }
 

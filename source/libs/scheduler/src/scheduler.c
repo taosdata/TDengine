@@ -91,7 +91,7 @@ void schFreeTask(SSchTask* pTask) {
     taosArrayDestroy(pTask->candidateAddrs);
   }
 
-  tfree(pTask->msg);
+  taosMemoryFreeClear(pTask->msg);
 
   if (pTask->children) {
     taosArrayDestroy(pTask->children);
@@ -1049,7 +1049,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
 
       if (pJob->resData) {
         SCH_TASK_ELOG("got fetch rsp while res already exists, res:%p", pJob->resData);
-        tfree(rsp);
+        taosMemoryFreeClear(rsp);
         SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
       }
 
@@ -1123,7 +1123,7 @@ _return:
     schReleaseJob(pParam->refId);
   }
 
-  tfree(param);
+  taosMemoryFreeClear(param);
   SCH_RET(code);
 }
 
@@ -1574,13 +1574,13 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, void *transport, SEpSet*
 
   SSchTrans *trans = (SSchTrans *)transport;
 
-  SMsgSendInfo *pMsgSendInfo = calloc(1, sizeof(SMsgSendInfo));
+  SMsgSendInfo *pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (NULL == pMsgSendInfo) {
     SCH_TASK_ELOG("calloc %d failed", (int32_t)sizeof(SMsgSendInfo));
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  SSchTaskCallbackParam *param = calloc(1, sizeof(SSchTaskCallbackParam));
+  SSchTaskCallbackParam *param = taosMemoryCalloc(1, sizeof(SSchTaskCallbackParam));
   if (NULL == param) {
     SCH_TASK_ELOG("calloc %d failed", (int32_t)sizeof(SSchTaskCallbackParam));
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -1615,8 +1615,8 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, void *transport, SEpSet*
 
 _return:
 
-  tfree(param);
-  tfree(pMsgSendInfo);
+  taosMemoryFreeClear(param);
+  taosMemoryFreeClear(pMsgSendInfo);
   SCH_RET(code);
 }
 
@@ -1727,7 +1727,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     case TDMT_VND_CREATE_TABLE:
     case TDMT_VND_SUBMIT: {
       msgSize = pTask->msgLen;
-      msg = calloc(1, msgSize);
+      msg = taosMemoryCalloc(1, msgSize);
       if (NULL == msg) {
         SCH_TASK_ELOG("calloc %d failed", msgSize);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -1742,7 +1742,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       
       uint32_t len = strlen(pJob->sql);
       msgSize = sizeof(SSubQueryMsg) + pTask->msgLen + len;
-      msg = calloc(1, msgSize);
+      msg = taosMemoryCalloc(1, msgSize);
       if (NULL == msg) {
         SCH_TASK_ELOG("calloc %d failed", msgSize);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -1767,7 +1767,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
 
     case TDMT_VND_RES_READY: {
       msgSize = sizeof(SResReadyReq);
-      msg = calloc(1, msgSize);
+      msg = taosMemoryCalloc(1, msgSize);
       if (NULL == msg) {
         SCH_TASK_ELOG("calloc %d failed", msgSize);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -1784,7 +1784,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     }
     case TDMT_VND_FETCH: {
       msgSize = sizeof(SResFetchReq);
-      msg = calloc(1, msgSize);
+      msg = taosMemoryCalloc(1, msgSize);
       if (NULL == msg) {
         SCH_TASK_ELOG("calloc %d failed", msgSize);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -1802,7 +1802,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     }
     case TDMT_VND_DROP_TASK: {
       msgSize = sizeof(STaskDropReq);
-      msg = calloc(1, msgSize);
+      msg = taosMemoryCalloc(1, msgSize);
       if (NULL == msg) {
         SCH_TASK_ELOG("calloc %d failed", msgSize);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -1832,7 +1832,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
         SCH_JOB_ELOG("tSerializeSSchedulerHbReq hbReq failed, size:%d", msgSize);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
-      msg = calloc(1, msgSize);
+      msg = taosMemoryCalloc(1, msgSize);
       if (NULL == msg) {
         SCH_JOB_ELOG("calloc %d failed", msgSize);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -1867,7 +1867,7 @@ _return:
   SCH_SET_TASK_LASTMSG_TYPE(pTask, -1);
   schFreeRpcCtx(&rpcCtx);
 
-  tfree(msg);
+  taosMemoryFreeClear(msg);
   SCH_RET(code);
 }
 
@@ -2070,8 +2070,8 @@ void schFreeJobImpl(void *job) {
   taosArrayDestroy(pJob->levels);
   taosArrayDestroy(pJob->nodeList);
   
-  tfree(pJob->resData);
-  free(pJob);
+  taosMemoryFreeClear(pJob->resData);
+  taosMemoryFreeClear(pJob);
 
   qDebug("QID:0x%" PRIx64 " job freed, refId:%" PRIx64 ", pointer:%p", queryId, refId, pJob);
 }
@@ -2085,7 +2085,7 @@ static int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryPlan *pD
   }
 
   int32_t  code = 0;
-  SSchJob *pJob = calloc(1, sizeof(SSchJob));
+  SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
   if (NULL == pJob) {
     qError("QID:%" PRIx64 " calloc %d failed", pDag->queryId, (int32_t)sizeof(SSchJob));
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -2272,7 +2272,7 @@ int32_t schedulerConvertDagToTaskList(SQueryPlan* pDag, SArray **pTasks) {
       SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
     
-    SSubQueryMsg* pMsg = calloc(1, msgSize);
+    SSubQueryMsg* pMsg = taosMemoryCalloc(1, msgSize);
     
     pMsg->header.vgId = tInfo.addr.nodeId;
     
@@ -2289,7 +2289,7 @@ int32_t schedulerConvertDagToTaskList(SQueryPlan* pDag, SArray **pTasks) {
 
     if (NULL == taosArrayPush(info, &tInfo)) {
       qError("taosArrayPush failed, idx:%d", i);
-      free(msg);
+      taosMemoryFree(msg);
       SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
   }
@@ -2321,7 +2321,7 @@ int32_t schedulerCopyTask(STaskInfo *src, SArray **dst, int32_t copyNum) {
   info.addr = src->addr;
 
   for (int32_t i = 0; i < copyNum; ++i) {
-    info.msg = malloc(msgSize);
+    info.msg = taosMemoryMalloc(msgSize);
     if (NULL == info.msg) {
       qError("malloc %d failed", msgSize);
       SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -2333,7 +2333,7 @@ int32_t schedulerCopyTask(STaskInfo *src, SArray **dst, int32_t copyNum) {
 
     if (NULL == taosArrayPush(*dst, &info)) {
       qError("taosArrayPush failed, idx:%d", i);
-      free(info.msg);
+      taosMemoryFree(info.msg);
       SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
   }
@@ -2413,7 +2413,7 @@ int32_t schedulerFetchRows(int64_t job, void **pData) {
   }
 
   if (NULL == *pData) {
-    SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)calloc(1, sizeof(SRetrieveTableRsp));
+    SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)taosMemoryCalloc(1, sizeof(SRetrieveTableRsp));
     if (rsp) {
       rsp->completed = 1;
     }
@@ -2475,7 +2475,7 @@ void schedulerFreeTaskList(SArray *taskList) {
   int32_t taskNum = taosArrayGetSize(taskList);
   for (int32_t i = 0; i < taskNum; ++i) {
     STaskInfo *info = taosArrayGet(taskList, i);
-    tfree(info->msg);
+    taosMemoryFreeClear(info->msg);
   }
 
   taosArrayDestroy(taskList);

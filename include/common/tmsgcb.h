@@ -25,7 +25,15 @@ extern "C" {
 typedef struct SRpcMsg      SRpcMsg;
 typedef struct SEpSet       SEpSet;
 typedef struct SMgmtWrapper SMgmtWrapper;
-typedef enum { QUERY_QUEUE, FETCH_QUEUE, WRITE_QUEUE, APPLY_QUEUE, SYNC_QUEUE, QUEUE_MAX } EQueueType;
+typedef enum {
+  QUERY_QUEUE,
+  FETCH_QUEUE,
+  WRITE_QUEUE,
+  APPLY_QUEUE,
+  SYNC_QUEUE,
+  MERGE_QUEUE,
+  QUEUE_MAX,
+} EQueueType;
 
 typedef int32_t (*PutToQueueFp)(SMgmtWrapper* pWrapper, SRpcMsg* pReq);
 typedef int32_t (*GetQueueSizeFp)(SMgmtWrapper* pWrapper, int32_t vgId, EQueueType qtype);

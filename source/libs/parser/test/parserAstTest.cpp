@@ -99,7 +99,7 @@ private:
       throw "nodesNodeToString failed!";
     }
     string str(pStr);
-    tfree(pStr);
+    taosMemoryFreeClear(pStr);
     return str;
   }
 
@@ -358,15 +358,12 @@ TEST_F(ParserTest, selectSemanticError) {
   ASSERT_TRUE(run(TSDB_CODE_SUCCESS, TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION));
 }
 
-
 TEST_F(ParserTest, showUsers) {
   setDatabase("root", "test");
 
   bind("show users");
   ASSERT_TRUE(run());
 }
-
-
 
 TEST_F(ParserTest, createDnode) {
   setDatabase("root", "test");

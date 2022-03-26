@@ -153,9 +153,9 @@ static void tqsortImpl(void *src, int32_t start, int32_t end, int64_t size, cons
 }
 
 void taosqsort(void *src, int64_t numOfElem, int64_t size, const void *param, __ext_compar_fn_t comparFn) {
-  char *buf = calloc(1, size);  // prepare the swap buffer
+  char *buf = taosMemoryCalloc(1, size);  // prepare the swap buffer
   tqsortImpl(src, 0, (int32_t)numOfElem - 1, (int32_t)size, param, comparFn, buf);
-  tfree(buf);
+  taosMemoryFreeClear(buf);
 }
 
 void *taosbsearch(const void *key, const void *base, int64_t nmemb, int64_t size, __compar_fn_t compar, int32_t flags) {
@@ -239,7 +239,7 @@ void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const 
     child = 2 * parent + 1;
 
     if (swap == NULL) {
-      buf = calloc(1, size);
+      buf = taosMemoryCalloc(1, size);
       if (buf == NULL) {
         return;
       }
@@ -288,7 +288,7 @@ void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const 
     }
 
     if (swap == NULL) {
-      tfree(buf);
+      taosMemoryFreeClear(buf);
     }
   }
 }
@@ -304,13 +304,13 @@ void taosheapsort(void *base, int32_t size, int32_t len, const void *parcompar, 
   }
 
   /*
-    char *buf = calloc(1, size);
+    char *buf = taosMemoryCalloc(1, size);
 
     for (i = len - 1; i > 0; i--) {
       doswap(elePtrAt(base, size, 0), elePtrAt(base, size, i));
       taosheapadjust(base, size, 0, i - 1, parcompar, compar, parswap, swap, maxroot);
     }
 
-    tfree(buf);
+    taosMemoryFreeClear(buf);
   */
 }

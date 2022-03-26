@@ -19,12 +19,12 @@
 	*/
 
 #define _DEFAULT_SOURCE
-#include "tcrc32c.h"
-#include "tdef.h"
-
 #if !defined(_TD_ARM_) && !defined(_TD_MIPS_)
 #include <nmmintrin.h>
 #endif
+
+#include "tcrc32c.h"
+#include "tdef.h"
 
 #define POLY 0x82f63b78
 #define LONG_SHIFT 8192

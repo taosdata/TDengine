@@ -73,7 +73,7 @@ static void *taosNetBindUdpPort(void *sarg) {
     return NULL;
   }
 
-  TdSocketPtr pSocket = (TdSocketPtr)malloc(sizeof(TdSocket));
+  TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
   if (pSocket == NULL) {
     taosCloseSocketNoCheck1(serverSocket);
     return NULL;
@@ -142,7 +142,7 @@ static void *taosNetBindTcpPort(void *sarg) {
   server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
   int32_t reuse = 1;
-  TdSocketPtr pSocket = (TdSocketPtr)malloc(sizeof(TdSocket));
+  TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
   if (pSocket == NULL) {
     taosCloseSocketNoCheck1(serverSocket);
     return NULL;
@@ -216,7 +216,7 @@ static int32_t taosNetCheckTcpPort(STestInfo *info) {
   }
 
   int32_t reuse = 1;
-  TdSocketPtr pSocket = (TdSocketPtr)malloc(sizeof(TdSocket));
+  TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
   if (pSocket == NULL) {
     taosCloseSocketNoCheck1(clientSocket);
     return -1;
@@ -278,7 +278,7 @@ static int32_t taosNetCheckUdpPort(STestInfo *info) {
     return -1;
   }
 
-  TdSocketPtr pSocket = (TdSocketPtr)malloc(sizeof(TdSocket));
+  TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
   if (pSocket == NULL) {
     taosCloseSocketNoCheck1(clientSocket);
     return -1;
@@ -440,7 +440,7 @@ static int32_t taosNetParseStartup(SStartupReq *pCont) {
 static void taosNetTestStartup(char *host, int32_t port) {
   uInfo("check startup, host:%s port:%d\n", host, port);
 
-  SStartupReq *pStep = malloc(sizeof(SStartupReq));
+  SStartupReq *pStep = taosMemoryMalloc(sizeof(SStartupReq));
   while (1) {
     int32_t code = taosNetCheckRpc(host, port, 20, 0, pStep);
     if (code > 0) {
@@ -457,7 +457,7 @@ static void taosNetTestStartup(char *host, int32_t port) {
     }
   }
 
-  free(pStep);
+  taosMemoryFree(pStep);
 }
 
 static void taosNetCheckSync(char *host, int32_t port) {
@@ -557,9 +557,9 @@ static void taosNetTestServer(char *host, int32_t startPort, int32_t pkgLen) {
   int32_t num = 1;
   if (num < 0) num = 1;
 
-  TdThread *pids = malloc(2 * num * sizeof(TdThread));
-  STestInfo *tinfos = malloc(num * sizeof(STestInfo));
-  STestInfo *uinfos = malloc(num * sizeof(STestInfo));
+  TdThread *pids = taosMemoryMalloc(2 * num * sizeof(TdThread));
+  STestInfo *tinfos = taosMemoryMalloc(num * sizeof(STestInfo));
+  STestInfo *uinfos = taosMemoryMalloc(num * sizeof(STestInfo));
 
   for (int32_t i = 0; i < num; i++) {
     STestInfo *tcpInfo = tinfos + i;

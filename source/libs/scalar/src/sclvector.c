@@ -305,7 +305,7 @@ int32_t vectorConvertFromVarData(SScalarParam* pIn, SScalarParam* pOut, int32_t 
     if (TSDB_DATA_TYPE_BINARY == inType) {
       if (varDataLen(pIn->data) >= bufSize) {
         bufSize = varDataLen(pIn->data) + 1;
-        tmp = realloc(tmp, bufSize);
+        tmp = taosMemoryRealloc(tmp, bufSize);
       }
 
       memcpy(tmp, varDataVal(pIn->data), varDataLen(pIn->data));
@@ -313,13 +313,13 @@ int32_t vectorConvertFromVarData(SScalarParam* pIn, SScalarParam* pOut, int32_t 
     } else {
       if (varDataLen(pIn->data) * TSDB_NCHAR_SIZE >= bufSize) {
         bufSize = varDataLen(pIn->data) * TSDB_NCHAR_SIZE + 1;
-        tmp = realloc(tmp, bufSize);
+        tmp = taosMemoryRealloc(tmp, bufSize);
       }
       
       int len = taosUcs4ToMbs((TdUcs4*)varDataVal(pIn->data), varDataLen(pIn->data), tmp);
       if (len < 0){
         sclError("castConvert taosUcs4ToMbs error 1");
-        tfree(tmp);
+        taosMemoryFreeClear(tmp);
         return TSDB_CODE_QRY_APP_ERROR;
       }
       
@@ -329,7 +329,7 @@ int32_t vectorConvertFromVarData(SScalarParam* pIn, SScalarParam* pOut, int32_t 
     (*func)(tmp, pOut, outType);
   }
   
-  tfree(tmp);
+  taosMemoryFreeClear(tmp);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -480,7 +480,7 @@ int32_t vectorConvert(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam* p
     paramOut1->bytes = param1->bytes;
     paramOut1->type = type;
     paramOut1->num = param1->num;
-    paramOut1->data = malloc(paramOut1->num * tDataTypes[paramOut1->type].bytes);
+    paramOut1->data = taosMemoryMalloc(paramOut1->num * tDataTypes[paramOut1->type].bytes);
     if (NULL == paramOut1->data) {
       return TSDB_CODE_QRY_OUT_OF_MEMORY;
     }
@@ -488,7 +488,7 @@ int32_t vectorConvert(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam* p
     
     code = vectorConvertImpl(param1, paramOut1);
     if (code) {
-      tfree(paramOut1->data);
+      taosMemoryFreeClear(paramOut1->data);
       return code;
     }
   }
@@ -497,17 +497,17 @@ int32_t vectorConvert(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam* p
     paramOut2->bytes = param2->bytes;
     paramOut2->type = type;
     paramOut2->num = param2->num;
-    paramOut2->data = malloc(paramOut2->num * tDataTypes[paramOut2->type].bytes);
+    paramOut2->data = taosMemoryMalloc(paramOut2->num * tDataTypes[paramOut2->type].bytes);
     if (NULL == paramOut2->data) {
-      tfree(paramOut1->data);
+      taosMemoryFreeClear(paramOut1->data);
       return TSDB_CODE_QRY_OUT_OF_MEMORY;
     }
     paramOut2->orig.data = paramOut2->data;
     
     code = vectorConvertImpl(param2, paramOut2);
     if (code) {
-      tfree(paramOut1->data);
-      tfree(paramOut2->data);
+      taosMemoryFreeClear(paramOut1->data);
+      taosMemoryFreeClear(paramOut2->data);
       return code;
     }
   }
@@ -523,7 +523,7 @@ void vectorMath(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, i
   SScalarParam leftParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pLeft->num, .dataInBlock = false};
   SScalarParam rightParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pRight->num, .dataInBlock = false};
   if (IS_VAR_DATA_TYPE(pLeft->type)) {
-    leftParam.data = calloc(leftParam.num, sizeof(double));
+    leftParam.data = taosMemoryCalloc(leftParam.num, sizeof(double));
     if (NULL == leftParam.data) {
       sclError("malloc %d failed", (int32_t)(leftParam.num * sizeof(double)));
       return;
@@ -536,7 +536,7 @@ void vectorMath(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, i
     pLeft = &leftParam;
   }
   if (IS_VAR_DATA_TYPE(pRight->type)) {
-    rightParam.data = calloc(rightParam.num, sizeof(double));
+    rightParam.data = taosMemoryCalloc(rightParam.num, sizeof(double));
     if (NULL == rightParam.data) {
       sclError("malloc %d failed", (int32_t)(rightParam.num * sizeof(double)));
       sclFreeParam(&leftParam);
@@ -681,7 +681,7 @@ void vectorAdd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, in
   SScalarParam leftParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pLeft->num, .dataInBlock = false};
   SScalarParam rightParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pRight->num, .dataInBlock = false};
   if (IS_VAR_DATA_TYPE(pLeft->type)) {
-    leftParam.data = calloc(leftParam.num, sizeof(double));
+    leftParam.data = taosMemoryCalloc(leftParam.num, sizeof(double));
     if (NULL == leftParam.data) {
       sclError("malloc %d failed", (int32_t)(leftParam.num * sizeof(double)));
       return;
@@ -694,7 +694,7 @@ void vectorAdd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, in
     pLeft = &leftParam;
   }
   if (IS_VAR_DATA_TYPE(pRight->type)) {
-    rightParam.data = calloc(rightParam.num, sizeof(double));
+    rightParam.data = taosMemoryCalloc(rightParam.num, sizeof(double));
     if (NULL == rightParam.data) {
       sclError("malloc %d failed", (int32_t)(rightParam.num * sizeof(double)));
       sclFreeParam(&leftParam);
@@ -774,7 +774,7 @@ void vectorSub(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, in
   SScalarParam leftParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pLeft->num};
   SScalarParam rightParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pRight->num};
   if (IS_VAR_DATA_TYPE(pLeft->type)) {
-    leftParam.data = calloc(leftParam.num, sizeof(double));
+    leftParam.data = taosMemoryCalloc(leftParam.num, sizeof(double));
     if (NULL == leftParam.data) {
       sclError("malloc %d failed", (int32_t)(leftParam.num * sizeof(double)));
       return;
@@ -787,7 +787,7 @@ void vectorSub(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, in
     pLeft = &leftParam;
   }
   if (IS_VAR_DATA_TYPE(pRight->type)) {
-    rightParam.data = calloc(rightParam.num, sizeof(double));
+    rightParam.data = taosMemoryCalloc(rightParam.num, sizeof(double));
     if (NULL == rightParam.data) {
       sclError("malloc %d failed", (int32_t)(rightParam.num * sizeof(double)));
       sclFreeParam(&leftParam);
@@ -863,7 +863,7 @@ void vectorMultiply(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOu
   SScalarParam leftParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pLeft->num};
   SScalarParam rightParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pRight->num};
   if (IS_VAR_DATA_TYPE(pLeft->type)) {
-    leftParam.data = calloc(leftParam.num, sizeof(double));
+    leftParam.data = taosMemoryCalloc(leftParam.num, sizeof(double));
     if (NULL == leftParam.data) {
       sclError("malloc %d failed", (int32_t)(leftParam.num * sizeof(double)));
       return;
@@ -876,7 +876,7 @@ void vectorMultiply(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOu
     pLeft = &leftParam;
   }
   if (IS_VAR_DATA_TYPE(pRight->type)) {
-    rightParam.data = calloc(rightParam.num, sizeof(double));
+    rightParam.data = taosMemoryCalloc(rightParam.num, sizeof(double));
     if (NULL == rightParam.data) {
       sclError("malloc %d failed", (int32_t)(rightParam.num * sizeof(double)));
       sclFreeParam(&leftParam);
@@ -953,7 +953,7 @@ void vectorDivide(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut,
   SScalarParam leftParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pLeft->num};
   SScalarParam rightParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pRight->num};
   if (IS_VAR_DATA_TYPE(pLeft->type)) {
-    leftParam.data = calloc(leftParam.num, sizeof(double));
+    leftParam.data = taosMemoryCalloc(leftParam.num, sizeof(double));
     if (NULL == leftParam.data) {
       sclError("malloc %d failed", (int32_t)(leftParam.num * sizeof(double)));
       return;
@@ -966,7 +966,7 @@ void vectorDivide(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut,
     pLeft = &leftParam;
   }
   if (IS_VAR_DATA_TYPE(pRight->type)) {
-    rightParam.data = calloc(rightParam.num, sizeof(double));
+    rightParam.data = taosMemoryCalloc(rightParam.num, sizeof(double));
     if (NULL == rightParam.data) {
       sclError("malloc %d failed", (int32_t)(rightParam.num * sizeof(double)));
       sclFreeParam(&leftParam);
@@ -1040,7 +1040,7 @@ void vectorRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pO
   SScalarParam leftParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pLeft->num};
   SScalarParam rightParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pRight->num};
   if (IS_VAR_DATA_TYPE(pLeft->type)) {
-    leftParam.data = calloc(leftParam.num, sizeof(double));
+    leftParam.data = taosMemoryCalloc(leftParam.num, sizeof(double));
     if (NULL == leftParam.data) {
       sclError("malloc %d failed", (int32_t)(leftParam.num * sizeof(double)));
       return;
@@ -1053,7 +1053,7 @@ void vectorRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pO
     pLeft = &leftParam;
   }
   if (IS_VAR_DATA_TYPE(pRight->type)) {
-    rightParam.data = calloc(rightParam.num, sizeof(double));
+    rightParam.data = taosMemoryCalloc(rightParam.num, sizeof(double));
     if (NULL == rightParam.data) {
       sclError("malloc %d failed", (int32_t)(rightParam.num * sizeof(double)));
       sclFreeParam(&leftParam);
@@ -1206,7 +1206,7 @@ void vectorBitAnd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut,
   SScalarParam leftParam = {.type = TSDB_DATA_TYPE_BIGINT, .num = pLeft->num};
   SScalarParam rightParam = {.type = TSDB_DATA_TYPE_BIGINT, .num = pRight->num};
   if (IS_VAR_DATA_TYPE(pLeft->type)) {
-    leftParam.data = calloc(leftParam.num, sizeof(int64_t));
+    leftParam.data = taosMemoryCalloc(leftParam.num, sizeof(int64_t));
     if (NULL == leftParam.data) {
       sclError("malloc %d failed", (int32_t)(leftParam.num * sizeof(double)));
       return;
@@ -1219,7 +1219,7 @@ void vectorBitAnd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut,
     pLeft = &leftParam;
   }
   if (IS_VAR_DATA_TYPE(pRight->type)) {
-    rightParam.data = calloc(rightParam.num, sizeof(int64_t));
+    rightParam.data = taosMemoryCalloc(rightParam.num, sizeof(int64_t));
     if (NULL == rightParam.data) {
       sclError("malloc %d failed", (int32_t)(rightParam.num * sizeof(double)));
       sclFreeParam(&leftParam);
@@ -1303,7 +1303,7 @@ void vectorBitOr(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, 
   SScalarParam leftParam = {.type = TSDB_DATA_TYPE_BIGINT, .num = pLeft->num};
   SScalarParam rightParam = {.type = TSDB_DATA_TYPE_BIGINT, .num = pRight->num};
   if (IS_VAR_DATA_TYPE(pLeft->type)) {
-    leftParam.data = calloc(leftParam.num, sizeof(int64_t));
+    leftParam.data = taosMemoryCalloc(leftParam.num, sizeof(int64_t));
     if (NULL == leftParam.data) {
       sclError("malloc %d failed", (int32_t)(leftParam.num * sizeof(double)));
       return;
@@ -1316,7 +1316,7 @@ void vectorBitOr(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, 
     pLeft = &leftParam;
   }
   if (IS_VAR_DATA_TYPE(pRight->type)) {
-    rightParam.data = calloc(rightParam.num, sizeof(int64_t));
+    rightParam.data = taosMemoryCalloc(rightParam.num, sizeof(int64_t));
     if (NULL == rightParam.data) {
       sclError("malloc %d failed", (int32_t)(rightParam.num * sizeof(double)));
       sclFreeParam(&leftParam);

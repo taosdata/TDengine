@@ -130,7 +130,7 @@ static SConnObj *mndCreateConn(SMnode *pMnode, SRpcConnInfo *pInfo, int32_t pid,
 }
 
 static void mndFreeConn(SConnObj *pConn) {
-  tfree(pConn->pQueries);
+  taosMemoryFreeClear(pConn->pQueries);
   mTrace("conn:%d, is destroyed, data:%p", pConn->id, pConn);
 }
 
@@ -260,7 +260,7 @@ static int32_t mndSaveQueryStreamList(SConnObj *pConn, SHeartBeatReq *pReq) {
 
   if (numOfQueries > 0) {
     if (pConn->pQueries == NULL) {
-      pConn->pQueries = calloc(sizeof(SQueryDesc), QUERY_SAVE_SIZE);
+      pConn->pQueries = taosMemoryCalloc(sizeof(SQueryDesc), QUERY_SAVE_SIZE);
     }
 
     pConn->numOfQueries = TMIN(QUERY_SAVE_SIZE, numOfQueries);
@@ -276,7 +276,7 @@ static int32_t mndSaveQueryStreamList(SConnObj *pConn, SHeartBeatReq *pReq) {
 
 static SClientHbRsp *mndMqHbBuildRsp(SMnode *pMnode, SClientHbReq *pReq) {
 #if 0
-  SClientHbRsp* pRsp = malloc(sizeof(SClientHbRsp));
+  SClientHbRsp* pRsp = taosMemoryMalloc(sizeof(SClientHbRsp));
   if (pRsp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -292,7 +292,7 @@ static SClientHbRsp *mndMqHbBuildRsp(SMnode *pMnode, SClientHbReq *pReq) {
   SHashObj* pObj =  pReq->info;
   SKv* pKv = taosHashGet(pObj, "mq-tmp", strlen("mq-tmp") + 1);
   if (pKv == NULL) {
-    free(pRsp);
+    taosMemoryFree(pRsp);
     return NULL;
   }
   SMqHbMsg mqHb;
@@ -325,7 +325,7 @@ static SClientHbRsp *mndMqHbBuildRsp(SMnode *pMnode, SClientHbReq *pReq) {
     taosArrayPush(batchRsp.batchRsps, &innerBatchRsp);
   }
   int32_t tlen = taosEncodeSMqHbBatchRsp(NULL, &batchRsp);
-  void* buf = malloc(tlen);
+  void* buf = taosMemoryMalloc(tlen);
   if (buf == NULL) {
     //TODO
     return NULL;
@@ -402,7 +402,7 @@ static int32_t mndProcessHeartBeatReq(SNodeMsg *pReq) {
       SClientHbRsp *pRsp = mndMqHbBuildRsp(pMnode, pHbReq);
       if (pRsp != NULL) {
         taosArrayPush(batchRsp.rsps, pRsp);
-        free(pRsp);
+        taosMemoryFree(pRsp);
       }
     }
   }
@@ -418,7 +418,7 @@ static int32_t mndProcessHeartBeatReq(SNodeMsg *pReq) {
     int32_t       kvNum = (rsp->info) ? taosArrayGetSize(rsp->info) : 0;
     for (int32_t n = 0; n < kvNum; ++n) {
       SKv *kv = taosArrayGet(rsp->info, n);
-      tfree(kv->value);
+      taosMemoryFreeClear(kv->value);
     }
     taosArrayDestroy(rsp->info);
   }
