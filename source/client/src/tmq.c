@@ -27,9 +27,7 @@
 #include "tref.h"
 
 struct tmq_list_t {
-  int32_t cnt;
-  int32_t tot;
-  char*   elems[];
+  SArray container;
 };
 
 struct tmq_topic_vgroup_t {
@@ -45,11 +43,14 @@ struct tmq_topic_vgroup_list_t {
 struct tmq_conf_t {
   char           clientId[256];
   char           groupId[TSDB_CGROUP_LEN];
-  int8_t         auto_commit;
+  int8_t         autoCommit;
   int8_t         resetOffset;
+  uint16_t       port;
+  char*          ip;
+  char*          user;
+  char*          pass;
+  char*          db;
   tmq_commit_cb* commit_cb;
-  /*char*          ip;*/
-  /*uint16_t       port;*/
 };
 
 struct tmq_t {
@@ -98,12 +99,13 @@ typedef struct {
 
 typedef struct {
   // subscribe info
-  int32_t sqlLen;
-  char*   sql;
-  char*   topicName;
-  int64_t topicId;
-  int32_t nextVgIdx;
-  SArray* vgs;  // SArray<SMqClientVg>
+  int32_t        sqlLen;
+  char*          sql;
+  char*          topicName;
+  int64_t        topicId;
+  int32_t        nextVgIdx;
+  SArray*        vgs;  // SArray<SMqClientVg>
+  SSchemaWrapper schema;
 } SMqClientTopic;
 
 typedef struct {
@@ -137,7 +139,7 @@ typedef struct {
 
 tmq_conf_t* tmq_conf_new() {
   tmq_conf_t* conf = taosMemoryCalloc(1, sizeof(tmq_conf_t));
-  conf->auto_commit = false;
+  conf->autoCommit = false;
   conf->resetOffset = TMQ_CONF__RESET_OFFSET__EARLIEAST;
   return conf;
 }
@@ -151,21 +153,24 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     strcpy(conf->groupId, value);
     return TMQ_CONF_OK;
   }
+
   if (strcmp(key, "client.id") == 0) {
     strcpy(conf->clientId, value);
     return TMQ_CONF_OK;
   }
+
   if (strcmp(key, "enable.auto.commit") == 0) {
     if (strcmp(value, "true") == 0) {
-      conf->auto_commit = true;
+      conf->autoCommit = true;
       return TMQ_CONF_OK;
     } else if (strcmp(value, "false") == 0) {
-      conf->auto_commit = false;
+      conf->autoCommit = false;
       return TMQ_CONF_OK;
     } else {
       return TMQ_CONF_INVALID;
     }
   }
+
   if (strcmp(key, "auto.offset.reset") == 0) {
     if (strcmp(value, "none") == 0) {
       conf->resetOffset = TMQ_CONF__RESET_OFFSET__NONE;
@@ -180,24 +185,47 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       return TMQ_CONF_INVALID;
     }
   }
+
+  if (strcmp(key, "connection.ip") == 0) {
+    conf->ip = strdup(value);
+    return TMQ_CONF_OK;
+  }
+  if (strcmp(key, "connection.user") == 0) {
+    conf->user = strdup(value);
+    return TMQ_CONF_OK;
+  }
+  if (strcmp(key, "connection.pass") == 0) {
+    conf->pass = strdup(value);
+    return TMQ_CONF_OK;
+  }
+  if (strcmp(key, "connection.port") == 0) {
+    conf->port = atoi(value);
+    return TMQ_CONF_OK;
+  }
+  if (strcmp(key, "connection.db") == 0) {
+    conf->db = strdup(value);
+    return TMQ_CONF_OK;
+  }
+
   return TMQ_CONF_UNKNOWN;
 }
 
 tmq_list_t* tmq_list_new() {
-  tmq_list_t* ptr = taosMemoryMalloc(sizeof(tmq_list_t) + 8 * sizeof(char*));
-  if (ptr == NULL) {
-    return ptr;
-  }
-  ptr->cnt = 0;
-  ptr->tot = 8;
-  return ptr;
+  //
+  return (tmq_list_t*)taosArrayInit(0, sizeof(void*));
 }
 
-int32_t tmq_list_append(tmq_list_t* ptr, const char* src) {
-  if (ptr->cnt >= ptr->tot - 1) return -1;
-  ptr->elems[ptr->cnt] = strdup(src);
-  ptr->cnt++;
+int32_t tmq_list_append(tmq_list_t* list, const char* src) {
+  SArray* container = &list->container;
+  char*   topic = strdup(src);
+  if (taosArrayPush(container, topic) == NULL) return -1;
   return 0;
+}
+
+void tmq_list_destroy(tmq_list_t* list) {
+  SArray* container = (SArray*)list;
+  taosArrayDestroy(container);
+  /*taosArrayDestroyEx(container, free);*/
 }
 
 void tmqClearUnhandleMsg(tmq_t* tmq) {
@@ -268,17 +296,57 @@ tmq_t* tmq_consumer_new(void* conn, tmq_conf_t* conf, char* errstr, int32_t errs
   // set conf
   strcpy(pTmq->clientId, conf->clientId);
   strcpy(pTmq->groupId, conf->groupId);
-  pTmq->autoCommit = conf->auto_commit;
+  pTmq->autoCommit = conf->autoCommit;
   pTmq->commit_cb = conf->commit_cb;
   pTmq->resetOffsetCfg = conf->resetOffset;
 
-  tsem_init(&pTmq->rspSem, 0, 0);
-
   pTmq->consumerId = generateRequestId() & (((uint64_t)-1) >> 1);
   pTmq->clientTopics = taosArrayInit(0, sizeof(SMqClientTopic));
+  if (pTmq->clientTopics == NULL) {
+    taosMemoryFree(pTmq);
+    return NULL;
+  }
 
   pTmq->mqueue = taosOpenQueue();
   pTmq->qall = taosAllocateQall();
+
+  tsem_init(&pTmq->rspSem, 0, 0);
+
+  return pTmq;
+}
+
+tmq_t* tmq_consumer_new1(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
+  tmq_t* pTmq = taosMemoryCalloc(1, sizeof(tmq_t));
+  if (pTmq == NULL) {
+    return NULL;
+  }
+  pTmq->pTscObj = taos_connect(conf->ip, conf->user, conf->pass, conf->db, conf->port);
+
+  pTmq->inWaiting = 0;
+  pTmq->status = 0;
+  pTmq->pollCnt = 0;
+  pTmq->epoch = 0;
+  pTmq->waitingRequest = 0;
+  pTmq->readyRequest = 0;
+  // set conf
+  strcpy(pTmq->clientId, conf->clientId);
+  strcpy(pTmq->groupId, conf->groupId);
+  pTmq->autoCommit = conf->autoCommit;
+  pTmq->commit_cb = conf->commit_cb;
+  pTmq->resetOffsetCfg = conf->resetOffset;
+
+  pTmq->consumerId = generateRequestId() & (((uint64_t)-1) >> 1);
+  pTmq->clientTopics = taosArrayInit(0, sizeof(SMqClientTopic));
+  if (pTmq->clientTopics == NULL) {
+    taosMemoryFree(pTmq);
+    return NULL;
+  }
+
+  pTmq->mqueue = taosOpenQueue();
+  pTmq->qall = taosAllocateQall();
+
+  tsem_init(&pTmq->rspSem, 0, 0);
+
   return pTmq;
 }
 
@@ -372,7 +440,8 @@ tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, in
 
 tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
   SRequestObj* pRequest = NULL;
-  int32_t      sz = topic_list->cnt;
+  SArray*      container = &topic_list->container;
+  int32_t      sz = taosArrayGetSize(container);
   // destroy ex
   taosArrayDestroy(tmq->clientTopics);
   tmq->clientTopics = taosArrayInit(sz, sizeof(SMqClientTopic));
@@ -384,7 +453,8 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
   req.topicNames = taosArrayInit(sz, sizeof(void*));
 
   for (int i = 0; i < sz; i++) {
-    char* topicName = topic_list->elems[i];
+    /*char* topicName = topic_list->elems[i];*/
+    char* topicName = taosArrayGetP(container, i);
 
     SName name = {0};
     char* dbName = getDbOfConnection(tmq->pTscObj);

@@ -633,18 +633,19 @@ static FORCE_INLINE void tDeleteSMqSubscribeObj(SMqSubscribeObj* pSub) {
 }
 
 typedef struct {
-  char     name[TSDB_TOPIC_FNAME_LEN];
-  char     db[TSDB_DB_FNAME_LEN];
-  int64_t  createTime;
-  int64_t  updateTime;
-  int64_t  uid;
-  int64_t  dbUid;
-  int32_t  version;
-  SRWLatch lock;
-  int32_t  sqlLen;
-  char*    sql;
-  char*    logicalPlan;
-  char*    physicalPlan;
+  char           name[TSDB_TOPIC_FNAME_LEN];
+  char           db[TSDB_DB_FNAME_LEN];
+  int64_t        createTime;
+  int64_t        updateTime;
+  int64_t        uid;
+  int64_t        dbUid;
+  int32_t        version;
+  SRWLatch       lock;
+  int32_t        sqlLen;
+  char*          sql;
+  char*          logicalPlan;
+  char*          physicalPlan;
+  SSchemaWrapper schema;
 } SMqTopicObj;
 
 typedef struct {

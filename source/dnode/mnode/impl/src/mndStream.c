@@ -248,15 +248,16 @@ static int32_t mndStreamGetPlanString(const char *ast, char **pStr) {
 
 int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast, STrans *pTrans) {
   SNode *pAst = NULL;
-#if 1  // TODO: remove debug info later
-  printf("ast = %s\n", ast);
-#endif
+
   if (nodesStringToNode(ast, &pAst) < 0) {
     return -1;
   }
-#if 1
-  qExtractResultSchema(pAst, (int32_t *)&pStream->outputSchema.nCols, &pStream->outputSchema.pSchema);
 
+  if (qExtractResultSchema(pAst, (int32_t *)&pStream->outputSchema.nCols, &pStream->outputSchema.pSchema) != 0) {
+    return -1;
+  }
+
+#if 1
   printf("|");
   for (int i = 0; i < pStream->outputSchema.nCols; i++) {
     printf(" %15s |", (char *)pStream->outputSchema.pSchema[i].name);
