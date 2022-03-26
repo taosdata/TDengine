@@ -138,7 +138,7 @@ private:
       return string();
     }
     string str(pStr);
-    tfree(pStr);
+    taosMemoryFreeClear(pStr);
     return str;
   }
 

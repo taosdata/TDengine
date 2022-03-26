@@ -60,7 +60,7 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
   zsize = sizeof(*pPager)  /* SPager */
           + fsize + 1      /* dbFileName */
           + fsize + 8 + 1; /* jFileName */
-  pPtr = (uint8_t *)calloc(1, zsize);
+  pPtr = (uint8_t *)taosMemoryCalloc(1, zsize);
   if (pPtr == NULL) {
     return -1;
   }

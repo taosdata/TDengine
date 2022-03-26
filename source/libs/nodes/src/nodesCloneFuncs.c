@@ -146,7 +146,7 @@ static SNode* valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
-      pDst->datum.p = malloc(pSrc->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
+      pDst->datum.p = taosMemoryMalloc(pSrc->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       if (NULL == pDst->datum.p) {
         nodesDestroyNode(pDst);
         return NULL;
@@ -221,7 +221,7 @@ static SNode* logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
 
 static STableMeta* tableMetaClone(const STableMeta* pSrc) {
   int32_t len = TABLE_META_SIZE(pSrc);
-  STableMeta* pDst = malloc(len);
+  STableMeta* pDst = taosMemoryMalloc(len);
   if (NULL == pDst) {
     return NULL;
   }
@@ -231,7 +231,7 @@ static STableMeta* tableMetaClone(const STableMeta* pSrc) {
 
 static SVgroupsInfo* vgroupsInfoClone(const SVgroupsInfo* pSrc) {
   int32_t len = VGROUPS_INFO_SIZE(pSrc);
-  SVgroupsInfo* pDst = malloc(len);
+  SVgroupsInfo* pDst = taosMemoryMalloc(len);
   if (NULL == pDst) {
     return NULL;
   }
@@ -248,6 +248,7 @@ static SNode* logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(scanFlag);
   COPY_SCALAR_FIELD(scanRange);
   COPY_SCALAR_FIELD(tableName);
+  COPY_SCALAR_FIELD(showRewrite);
   return (SNode*)pDst;
 }
 

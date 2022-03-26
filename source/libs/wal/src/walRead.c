@@ -17,7 +17,7 @@
 #include "taoserror.h"
 
 SWalReadHandle *walOpenReadHandle(SWal *pWal) {
-  SWalReadHandle *pRead = malloc(sizeof(SWalReadHandle));
+  SWalReadHandle *pRead = taosMemoryMalloc(sizeof(SWalReadHandle));
   if (pRead == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -30,10 +30,10 @@ SWalReadHandle *walOpenReadHandle(SWal *pWal) {
   pRead->curFileFirstVer = -1;
   pRead->capacity = 0;
   pRead->status = 0;
-  pRead->pHead = malloc(sizeof(SWalHead));
+  pRead->pHead = taosMemoryMalloc(sizeof(SWalHead));
   if (pRead->pHead == NULL) {
     terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
-    free(pRead);
+    taosMemoryFree(pRead);
     return NULL;
   }
   return pRead;
@@ -42,8 +42,8 @@ SWalReadHandle *walOpenReadHandle(SWal *pWal) {
 void walCloseReadHandle(SWalReadHandle *pRead) {
   taosCloseFile(&pRead->pReadIdxTFile);
   taosCloseFile(&pRead->pReadLogTFile);
-  tfree(pRead->pHead);
-  free(pRead);
+  taosMemoryFreeClear(pRead->pHead);
+  taosMemoryFree(pRead);
 }
 
 int32_t walRegisterRead(SWalReadHandle *pRead, int64_t ver) { return 0; }
@@ -156,7 +156,7 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
     return -1;
   }
   if (pRead->capacity < pRead->pHead->head.len) {
-    void *ptr = realloc(pRead->pHead, sizeof(SWalHead) + pRead->pHead->head.len);
+    void *ptr = taosMemoryRealloc(pRead->pHead, sizeof(SWalHead) + pRead->pHead->head.len);
     if (ptr == NULL) {
       terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
       return -1;
@@ -195,7 +195,7 @@ int32_t walRead(SWal *pWal, SWalHead **ppHead, int64_t ver) {
     return code;
   }
   if (*ppHead == NULL) {
-    void *ptr = realloc(*ppHead, sizeof(SWalHead));
+    void *ptr = taosMemoryRealloc(*ppHead, sizeof(SWalHead));
     if (ptr == NULL) {
       return -1;
     }
@@ -208,9 +208,9 @@ int32_t walRead(SWal *pWal, SWalHead **ppHead, int64_t ver) {
   if (walValidHeadCksum(*ppHead) != 0) {
     return -1;
   }
-  void *ptr = realloc(*ppHead, sizeof(SWalHead) + (*ppHead)->head.len);
+  void *ptr = taosMemoryRealloc(*ppHead, sizeof(SWalHead) + (*ppHead)->head.len);
   if (ptr == NULL) {
-    free(*ppHead);
+    taosMemoryFree(*ppHead);
     *ppHead = NULL;
     return -1;
   }

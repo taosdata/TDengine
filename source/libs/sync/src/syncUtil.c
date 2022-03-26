@@ -76,10 +76,10 @@ bool syncUtilEmptyId(const SRaftId* pId) { return (pId->addr == 0 && pId->vgId =
 // ---- SSyncBuffer -----
 void syncUtilbufBuild(SSyncBuffer* syncBuf, size_t len) {
   syncBuf->len = len;
-  syncBuf->data = malloc(syncBuf->len);
+  syncBuf->data = taosMemoryMalloc(syncBuf->len);
 }
 
-void syncUtilbufDestroy(SSyncBuffer* syncBuf) { free(syncBuf->data); }
+void syncUtilbufDestroy(SSyncBuffer* syncBuf) { taosMemoryFree(syncBuf->data); }
 
 void syncUtilbufCopy(const SSyncBuffer* src, SSyncBuffer* dest) {
   dest->len = src->len;
@@ -88,7 +88,7 @@ void syncUtilbufCopy(const SSyncBuffer* src, SSyncBuffer* dest) {
 
 void syncUtilbufCopyDeep(const SSyncBuffer* src, SSyncBuffer* dest) {
   dest->len = src->len;
-  dest->data = malloc(dest->len);
+  dest->data = taosMemoryMalloc(dest->len);
   memcpy(dest->data, src->data, dest->len);
 }
 
@@ -161,7 +161,7 @@ bool syncUtilCanPrint(char c) {
 }
 
 char* syncUtilprintBin(char* ptr, uint32_t len) {
-  char* s = malloc(len + 1);
+  char* s = taosMemoryMalloc(len + 1);
   assert(s != NULL);
   memset(s, 0, len + 1);
   memcpy(s, ptr, len);
@@ -176,7 +176,7 @@ char* syncUtilprintBin(char* ptr, uint32_t len) {
 
 char* syncUtilprintBin2(char* ptr, uint32_t len) {
   uint32_t len2 = len * 4 + 1;
-  char*    s = malloc(len2);
+  char*    s = taosMemoryMalloc(len2);
   assert(s != NULL);
   memset(s, 0, len2);
 

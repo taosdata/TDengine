@@ -72,7 +72,7 @@ void vnodeDestroy(const char *path) { taosRemoveDir(path); }
 static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg) {
   SVnode *pVnode = NULL;
 
-  pVnode = (SVnode *)calloc(1, sizeof(*pVnode));
+  pVnode = (SVnode *)taosMemoryCalloc(1, sizeof(*pVnode));
   if (pVnode == NULL) {
     // TODO
     return NULL;
@@ -92,8 +92,8 @@ static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg) {
 static void vnodeFree(SVnode *pVnode) {
   if (pVnode) {
     tsem_destroy(&(pVnode->canCommit));
-    tfree(pVnode->path);
-    free(pVnode);
+    taosMemoryFreeClear(pVnode->path);
+    taosMemoryFree(pVnode);
   }
 }
 

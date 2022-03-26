@@ -34,11 +34,11 @@ static int32_t histogramCreateBin(SHistogramInfo* pHisto, int32_t index, double 
 
 SHistogramInfo* tHistogramCreate(int32_t numOfEntries) {
   /* need one redundant slot */
-  SHistogramInfo* pHisto = malloc(sizeof(SHistogramInfo) + sizeof(SHistBin) * (numOfEntries + 1));
+  SHistogramInfo* pHisto = taosMemoryMalloc(sizeof(SHistogramInfo) + sizeof(SHistBin) * (numOfEntries + 1));
 
 #if !defined(USE_ARRAYLIST)
   pHisto->pList = SSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
-  SInsertSupporter* pss = malloc(sizeof(SInsertSupporter));
+  SInsertSupporter* pss = taosMemoryMalloc(sizeof(SInsertSupporter));
   pss->numOfEntries = pHisto->maxEntries;
   pss->pSkipList = pHisto->pList;
 
@@ -96,7 +96,7 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
   }
 #else
   tSkipListKey key = tSkipListCreateKey(TSDB_DATA_TYPE_DOUBLE, &val, tDataTypes[TSDB_DATA_TYPE_DOUBLE].nSize);
-  SHistBin*    entry = calloc(1, sizeof(SHistBin));
+  SHistBin*    entry = taosMemoryCalloc(1, sizeof(SHistBin));
   entry->val = val;
 
   tSkipListNode* pResNode = SSkipListPut((*pHisto)->pList, entry, &key, 0);
@@ -352,7 +352,7 @@ void tHistogramDestroy(SHistogramInfo** pHisto) {
     return;
   }
 
-  free(*pHisto);
+  taosMemoryFree(*pHisto);
   *pHisto = NULL;
 }
 
@@ -417,7 +417,7 @@ int64_t tHistogramSum(SHistogramInfo* pHisto, double v) {
 
 double* tHistogramUniform(SHistogramInfo* pHisto, double* ratio, int32_t num) {
 #if defined(USE_ARRAYLIST)
-  double* pVal = malloc(num * sizeof(double));
+  double* pVal = taosMemoryMalloc(num * sizeof(double));
 
   for (int32_t i = 0; i < num; ++i) {
     double numOfElem = (ratio[i] / 100) * pHisto->numOfElems;
@@ -463,7 +463,7 @@ double* tHistogramUniform(SHistogramInfo* pHisto, double* ratio, int32_t num) {
     }
   }
 #else
-  double* pVal = malloc(num * sizeof(double));
+  double* pVal = taosMemoryMalloc(num * sizeof(double));
 
   for (int32_t i = 0; i < num; ++i) {
     double numOfElem = ratio[i] * pHisto->numOfElems;
@@ -535,7 +535,7 @@ SHistogramInfo* tHistogramMerge(SHistogramInfo* pHisto1, SHistogramInfo* pHisto2
     return pResHistogram;
   }
 
-  SHistBin* pHistoBins = calloc(1, sizeof(SHistBin) * (pHisto1->numOfEntries + pHisto2->numOfEntries));
+  SHistBin* pHistoBins = taosMemoryCalloc(1, sizeof(SHistBin) * (pHisto1->numOfEntries + pHisto2->numOfEntries));
   int32_t i = 0, j = 0, k = 0;
 
   while (i < pHisto1->numOfEntries && j < pHisto2->numOfEntries) {
@@ -573,6 +573,6 @@ SHistogramInfo* tHistogramMerge(SHistogramInfo* pHisto1, SHistogramInfo* pHisto2
   pResHistogram->numOfEntries = k;
   memcpy(pResHistogram->elems, pHistoBins, sizeof(SHistBin) * k);
 
-  free(pHistoBins);
+  taosMemoryFree(pHistoBins);
   return pResHistogram;
 }

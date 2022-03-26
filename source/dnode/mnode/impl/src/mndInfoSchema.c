@@ -19,6 +19,7 @@
 #define SYSTABLE_SCH_TABLE_NAME_LEN ((TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 #define SYSTABLE_SCH_DB_NAME_LEN    ((TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 
+//!!!! Note: only APPEND columns in below tables, NO insert !!!!
 static const SInfosTableSchema dnodesSchema[] = {{.name = "id",             .bytes = 2,   .type = TSDB_DATA_TYPE_SMALLINT},
                                                  {.name = "endpoint",       .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
                                                  {.name = "vnodes",         .bytes = 2,   .type = TSDB_DATA_TYPE_SMALLINT},
@@ -152,7 +153,7 @@ static const SInfosTableMeta infosMeta[] = {{TSDB_INS_TABLE_DNODES, dnodesSchema
 
 //connection/application/
 int32_t mndInitInfosTableSchema(const SInfosTableSchema *pSrc, int32_t colNum, SSchema **pDst) {
-  SSchema *schema = calloc(colNum, sizeof(SSchema));
+  SSchema *schema = taosMemoryCalloc(colNum, sizeof(SSchema));
   if (NULL == schema) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -210,7 +211,7 @@ int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *
 
   *pRsp = *meta;
   
-  pRsp->pSchemas = calloc(meta->numOfColumns, sizeof(SSchema));
+  pRsp->pSchemas = taosMemoryCalloc(meta->numOfColumns, sizeof(SSchema));
   if (pRsp->pSchemas == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     pRsp->pSchemas = NULL;
@@ -241,7 +242,7 @@ void mndCleanupInfos(SMnode *pMnode) {
   while (pIter) {
     STableMetaRsp *meta = (STableMetaRsp *)pIter;
 
-    tfree(meta->pSchemas);
+    taosMemoryFreeClear(meta->pSchemas);
     
     pIter = taosHashIterate(pMnode->infosMeta, pIter);
   }

@@ -208,7 +208,7 @@ static void      rpcDecRef(SRpcInfo *pRpc);
 
 static void rpcFree(void *p) {
   tTrace("free mem: %p", p);
-  free(p);
+  taosMemoryFree(p);
 }
 
 static void rpcInitImp(void) {
@@ -240,7 +240,7 @@ void *rpcOpen(const SRpcInit *pInit) {
 
   // taosThreadOnce(&tsRpcInit, rpcInit);
 
-  pRpc = (SRpcInfo *)calloc(1, sizeof(SRpcInfo));
+  pRpc = (SRpcInfo *)taosMemoryCalloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) return NULL;
 
   if (pInit->label) tstrncpy(pRpc->label, pInit->label, tListLen(pInit->label));
@@ -270,7 +270,7 @@ void *rpcOpen(const SRpcInit *pInit) {
   atomic_add_fetch_32(&tsRpcNum, 1);
 
   size_t size = sizeof(SRpcConn) * pRpc->sessions;
-  pRpc->connList = (SRpcConn *)calloc(1, size);
+  pRpc->connList = (SRpcConn *)taosMemoryCalloc(1, size);
   if (pRpc->connList == NULL) {
     tError("%s failed to allocate memory for taos connections, size:%" PRId64, pRpc->label, (int64_t)size);
     rpcClose(pRpc);
@@ -350,7 +350,7 @@ void rpcClose(void *param) {
 void *rpcMallocCont(int contLen) {
   int size = contLen + RPC_MSG_OVERHEAD;
 
-  char *start = (char *)calloc(1, (size_t)size);
+  char *start = (char *)taosMemoryCalloc(1, (size_t)size);
   if (start == NULL) {
     tError("failed to malloc msg, size:%d", size);
     return NULL;
@@ -364,7 +364,7 @@ void *rpcMallocCont(int contLen) {
 void rpcFreeCont(void *cont) {
   if (cont) {
     char *temp = ((char *)cont) - sizeof(SRpcHead) - sizeof(SRpcReqContext);
-    free(temp);
+    taosMemoryFree(temp);
     tTrace("free mem: %p", temp);
   }
 }
@@ -374,12 +374,12 @@ void *rpcReallocCont(void *ptr, int contLen) {
 
   char *start = ((char *)ptr) - sizeof(SRpcReqContext) - sizeof(SRpcHead);
   if (contLen == 0) {
-    free(start);
+    taosMemoryFree(start);
     return NULL;
   }
 
   int size = contLen + RPC_MSG_OVERHEAD;
-  start = realloc(start, size);
+  start = taosMemoryRealloc(start, size);
   if (start == NULL) {
     tError("failed to realloc cont, size:%d", size);
     return NULL;
@@ -574,7 +574,7 @@ void rpcCancelRequest(int64_t rid) {
 static void rpcFreeMsg(void *msg) {
   if (msg) {
     char *temp = (char *)msg - sizeof(SRpcReqContext);
-    free(temp);
+    taosMemoryFree(temp);
     tTrace("free mem: %p", temp);
   }
 }
@@ -1039,7 +1039,7 @@ static void doRpcReportBrokenLinkToServer(void *param, void *id) {
   SRpcConn *pConn = (SRpcConn *)(pRpcMsg->handle);
   SRpcInfo *pRpc = pConn->pRpc;
   (*(pRpc->cfp))(pRpc->parent, pRpcMsg, NULL);
-  free(pRpcMsg);
+  taosMemoryFree(pRpcMsg);
 }
 static void rpcReportBrokenLinkToServer(SRpcConn *pConn) {
   SRpcInfo *pRpc = pConn->pRpc;
@@ -1049,7 +1049,7 @@ static void rpcReportBrokenLinkToServer(SRpcConn *pConn) {
   rpcAddRef(pRpc);
   tDebug("%s, notify the server app, connection is gone", pConn->info);
 
-  SRpcMsg *rpcMsg = malloc(sizeof(SRpcMsg));
+  SRpcMsg *rpcMsg = taosMemoryMalloc(sizeof(SRpcMsg));
   rpcMsg->pCont = pConn->pReqMsg;      // pReqMsg is re-used to store the APP context from server
   rpcMsg->contLen = pConn->reqMsgLen;  // reqMsgLen is re-used to store the APP context length
   rpcMsg->ahandle = pConn->ahandle;
@@ -1061,7 +1061,7 @@ static void rpcReportBrokenLinkToServer(SRpcConn *pConn) {
   if (pRpc->cfp) {
     taosTmrStart(doRpcReportBrokenLinkToServer, 0, rpcMsg, pRpc->tmrCtrl);
   } else {
-    free(rpcMsg);
+    taosMemoryFree(rpcMsg);
   }
 }
 
@@ -1484,7 +1484,7 @@ static int32_t rpcCompressRpcMsg(char *pCont, int32_t contLen) {
     return contLen;
   }
 
-  char *buf = malloc(contLen + overhead + 8);  // 8 extra bytes
+  char *buf = taosMemoryMalloc(contLen + overhead + 8);  // 8 extra bytes
   if (buf == NULL) {
     tError("failed to allocate memory for rpc msg compression, contLen:%d", contLen);
     return contLen;
@@ -1510,7 +1510,7 @@ static int32_t rpcCompressRpcMsg(char *pCont, int32_t contLen) {
     finalLen = contLen;
   }
 
-  free(buf);
+  taosMemoryFree(buf);
   return finalLen;
 }
 
@@ -1526,7 +1526,7 @@ static SRpcHead *rpcDecompressRpcMsg(SRpcHead *pHead) {
     int contLen = htonl(pComp->contLen);
 
     // prepare the temporary buffer to decompress message
-    char *temp = (char *)malloc(contLen + RPC_MSG_OVERHEAD);
+    char *temp = (char *)taosMemoryMalloc(contLen + RPC_MSG_OVERHEAD);
     pNewHead = (SRpcHead *)(temp + sizeof(SRpcReqContext));  // reserve SRpcReqContext
 
     if (pNewHead) {
@@ -1671,10 +1671,10 @@ static void rpcDecRef(SRpcInfo *pRpc) {
     taosTmrCleanUp(pRpc->tmrCtrl);
     taosIdPoolCleanUp(pRpc->idPool);
 
-    tfree(pRpc->connList);
+    taosMemoryFreeClear(pRpc->connList);
     taosThreadMutexDestroy(&pRpc->mutex);
     tDebug("%s rpc resources are released", pRpc->label);
-    tfree(pRpc);
+    taosMemoryFreeClear(pRpc);
 
     atomic_sub_fetch_32(&tsRpcNum, 1);
   }

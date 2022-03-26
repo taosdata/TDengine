@@ -122,7 +122,7 @@ bool tsRetrieveBlockingModel = 0;
 // last_row(*), first(*), last_row(ts, col1, col2) query, the result fields will be the original column name
 bool tsKeepOriginalColumnName = 0;
 
-// long query death-lock
+// kill long query
 bool tsDeadLockKillQuery = 0;
 
 // tsdb config

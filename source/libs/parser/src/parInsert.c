@@ -277,7 +277,7 @@ static int32_t buildOutput(SInsertParseContext* pCxt) {
   }
   for (size_t i = 0; i < numOfVg; ++i) {
     STableDataBlocks* src = taosArrayGetP(pCxt->pVgDataBlocks, i);
-    SVgDataBlocks* dst = calloc(1, sizeof(SVgDataBlocks));
+    SVgDataBlocks* dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
     if (NULL == dst) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
@@ -684,7 +684,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
   pColList->orderStatus = isOrdered ? ORDER_STATUS_ORDERED : ORDER_STATUS_DISORDERED;
 
   if (!isOrdered) {
-    pColList->colIdxInfo = calloc(pColList->numOfBound, sizeof(SBoundIdxInfo));
+    pColList->colIdxInfo = taosMemoryCalloc(pColList->numOfBound, sizeof(SBoundIdxInfo));
     if (NULL == pColList->colIdxInfo) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
@@ -760,7 +760,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pTagsSchema, 
 
   // todo construct payload
 
-  tfree(row);
+  taosMemoryFreeClear(row);
 
   return 0;
 }
@@ -903,7 +903,7 @@ static int32_t parseValuesClause(SInsertParseContext* pCxt, STableDataBlocks* da
 }
 
 static void destroyInsertParseContextForTable(SInsertParseContext* pCxt) {
-  tfree(pCxt->pTableMeta);
+  taosMemoryFreeClear(pCxt->pTableMeta);
   destroyBoundColumnInfo(&pCxt->tags);
   tdDestroyKVRowBuilder(&pCxt->tagsBuilder);
 }
@@ -913,16 +913,16 @@ static void destroyDataBlock(STableDataBlocks* pDataBlock) {
     return;
   }
 
-  tfree(pDataBlock->pData);
+  taosMemoryFreeClear(pDataBlock->pData);
   if (!pDataBlock->cloned) {
     // free the refcount for metermeta
     if (pDataBlock->pTableMeta != NULL) {
-      tfree(pDataBlock->pTableMeta);
+      taosMemoryFreeClear(pDataBlock->pTableMeta);
     }
 
     destroyBoundColumnInfo(&pDataBlock->boundColumnInfo);
   }
-  tfree(pDataBlock);
+  taosMemoryFreeClear(pDataBlock);
 }
 
 static void destroyInsertParseContext(SInsertParseContext* pCxt) {
@@ -1029,7 +1029,7 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  *pQuery = calloc(1, sizeof(SQuery));
+  *pQuery = taosMemoryCalloc(1, sizeof(SQuery));
   if (NULL == *pQuery) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }

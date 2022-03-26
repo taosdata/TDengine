@@ -481,7 +481,7 @@ SNode* createRawExprNodeExt(SAstCreateContext* pCxt, const SToken* pStart, const
 SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
   CHECK_RAW_EXPR_NODE(pNode);
   SNode* tmp = ((SRawExprNode*)pNode)->pNode;
-  tfree(pNode);
+  taosMemoryFreeClear(pNode);
   return tmp;
 }
 

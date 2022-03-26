@@ -48,6 +48,7 @@ typedef struct SScanLogicNode {
   uint8_t scanFlag;         // denotes reversed scan of data or not
   STimeWindow scanRange;
   SName tableName;
+  bool showRewrite;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -178,6 +179,8 @@ typedef SScanPhysiNode SStreamScanPhysiNode;
 typedef struct SSystemTableScanPhysiNode {
   SScanPhysiNode scan;
   SEpSet mgmtEpSet;
+  bool showRewrite;
+  int32_t accountId;
 } SSystemTableScanPhysiNode;
 
 typedef struct STableScanPhysiNode {

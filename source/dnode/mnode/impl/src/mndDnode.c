@@ -164,7 +164,7 @@ static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw) {
 DNODE_DECODE_OVER:
   if (terrno != 0) {
     mError("dnode:%d, failed to decode from raw:%p since %s", pDnode->id, pRaw, terrstr());
-    tfree(pRow);
+    taosMemoryFreeClear(pRow);
     return NULL;
   }
 
