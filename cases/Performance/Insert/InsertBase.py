@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 from typing import List, Dict
 
-from matplotlib import pyplot as plt
+# from matplotlib import pyplot as plt
 from prettytable import PrettyTable
 from taostest import TDCase, logger
 from taostest.components import PrometheusServer
@@ -30,16 +30,6 @@ class InsertTest(TDCase):
     def cleanup(self):
         pass
 
-    def get_json(self, filename):
-        """
-        description: This method is used to get the contents of a JSON file
-        :param filename: the JSON file in the current directory
-        :return: json_data
-        """
-        file = open(filename, 'r', encoding='utf-8')
-        json_data = json.load(file)
-        return json_data
-
     def put_file(self, iplist: list, json_data: list):
         """
         description: This method is used to put zhe file to target machine.
@@ -53,9 +43,10 @@ class InsertTest(TDCase):
         # create test_log and put task json files on target machine
         for i in range(len(iplist)):
             remote.cmd(iplist[i], [f'mkdir {json_data[i]["test_log"]}'])
-            remote.put(iplist[i], self.run_log_dir + "/insert" + str(i) + ".json", json_data[i]["test_log"])
+            remote.put(iplist[i], self.run_log_dir + "/insert" +
+                       str(i) + ".json", json_data[i]["test_log"])
 
-    def threads_run_taosBenchmark(self, iplist, json_data):
+    def threads_run_taosBenchmark(self, iplist, json_data, file_name: list):
         """
         description: This method is used to start several threads to run taosBenchmark ,and then
                     get the result file to local machine
@@ -71,7 +62,7 @@ class InsertTest(TDCase):
                                       args=(
                                           iplist[i],
                                           [
-                                              f'taosBenchmark -f {json_data[i]["test_log"]}insert{i}.json 2>&1 | tee /tmp/{i}.log '])))
+                                              f'taosBenchmark -f {json_data[i]["test_log"]}{file_name[i]} 2>&1 | tee /tmp/{i}.log '])))
 
             t[i].start()
             time.sleep(1)
@@ -82,9 +73,8 @@ class InsertTest(TDCase):
         result_files = []
 
         for i in range(len(t)):
-
             # rename result file
-            filename = self.run_log_dir + "\\" + str(i) + "-" + iplist[i]
+            filename = self.run_log_dir + "/" + str(i) + "-" + iplist[i]
             result_files.append(filename)
             # get result_files and remove test_log
             remote.get(iplist[i], f"/tmp/{i}.log", filename)
@@ -92,20 +82,20 @@ class InsertTest(TDCase):
 
         return result_files
 
-    def draw_linechart(self, dict: dict):
-        """
-        description: This method is used to draw line chart(折线图) for final result.
-        param dict: result of every time after test case running.
-        return: none
-        """
-        x = []
-        y = []
-        for name, value in dict.items():
-            x.append(name)
-            y.append(value)
+    # def draw_linechart(self, dict: dict):
+    #     """
+    #     description: This method is used to draw line chart(折线图) for final result.
+    #     param dict: result of every time after test case running.
+    #     return: none
+    #     """
+    #     x = []
+    #     y = []
+    #     for name, value in dict.items():
+    #         x.append(name)
+    #         y.append(value)
 
-        plt.plot(x, y)
-        plt.show()
+    #     plt.plot(x, y)
+    #     plt.show()
 
     def draw_table(self, tablelist: list, datalist: list):
         """
@@ -135,7 +125,8 @@ class InsertTest(TDCase):
         f = open(file_name, 'a')
 
         f.write(str(x) + '\n')
-        f.close()
+
+        # pass
 
     def full_create_tb_result(self, result_files: list):
         """
@@ -156,7 +147,8 @@ class InsertTest(TDCase):
             taosBenchmark_list.append(k)
             data_list.append(v)
 
-        table_list = ["taosBenchmark_id", "times(s)", "tables", "threads", "actual_create"]
+        table_list = ["taosBenchmark_id",
+                      "times(s)", "tables", "threads", "actual_create"]
         data_list1 = []
 
         # insert the result data
@@ -173,14 +165,17 @@ class InsertTest(TDCase):
             total_table_num += data_list1[i][2]
             actual_create_num += data_list1[i][4]
         f = open(file_name, 'a')
-        f.write("\n*********************** Create Table Result **********************\n")
+        f.write(
+            "\n*********************** Create Table Result **********************\n")
         f.close()
 
         self.draw_table(table_list, data_list1)
 
         f = open(file_name, 'a')
-        f.write("Total number of creating tables :" + str(total_table_num) + "\n")
-        f.write("Actual number of creating tables :" + str(actual_create_num) + "\n")
+        f.write("Total number of creating tables :" +
+                str(total_table_num) + "\n")
+        f.write("Actual number of creating tables :" +
+                str(actual_create_num) + "\n")
         f.write("\n")
         f.close()
 
@@ -207,7 +202,8 @@ class InsertTest(TDCase):
             data_list1 = []
 
             f = open(file_name, 'a')
-            f.write("\n************** " + thread_list[i] + " Insert Result *************\n")
+            f.write("\n************** " +
+                    thread_list[i] + " Insert Result *************\n")
             f.close()
 
             for k, v in data_list[i].items():
@@ -225,7 +221,8 @@ class InsertTest(TDCase):
                 actual_insert_num += data_list1[m][1]
 
             f = open(file_name, 'a')
-            f.write("Actual insert rows of " + thread_list[i] + ":\t" + str(actual_insert_num) + "\trows\n")
+            f.write("Actual insert rows of " +
+                    thread_list[i] + ":\t" + str(actual_insert_num) + "\trows\n")
             f.write("\n")
             f.close()
 
@@ -258,29 +255,16 @@ class InsertTest(TDCase):
 
         file_name = self.run_log_dir + '/perf_report.txt'
         f = open(file_name, 'a')
-        f.write("\n****************************** Total insert result ******************************\n")
+        f.write(
+            "\n****************************** Total insert result ******************************\n")
         f.close()
 
         self.draw_table(table_list, data_list1)
         f = open(file_name, 'a')
         f.write("The insert rate sum is :\t" + str(rate_sum) + "\t rec/s\n\n")
         f.close()
-    def get_result(self, env_setting):
-        # j_file = InsertFile()
 
-        remote = Remote(self.logger)
-        p_result = PrometheusServer(remote)
-        for i in range(len(env_setting)):
-            data_info, dataframe_dict = p_result.get_custom_query_range_datas(env_setting[i], ["net_write", "net_read"],
-                                                                              self.timestamp_start, self.timestamp_end,
-                                                                              1, {"vm85": ["taosd"],
-                                                                                  "BCC-2": ["taosBenchmark"]}
-                                                                              )
-            print(data_info)
-
-        # pass
-
-    def get_process_exporter_info(self, env_setting: list = None, interval: int = None):
+    def get_process_exporter_info(self, env_setting: list = None, interval: int = None, timestamp_start: str = None, timestamp_end: str = None):
         """
         :description: This method is used to get the result of process_thread_info
         :param result_files:env_setting in .yaml file
@@ -293,43 +277,58 @@ class InsertTest(TDCase):
         data_dict, dataframe_dict = p_result.get_custom_query_range_datas(env_setting[0],
                                                                           ["cpu_utilization", "mem_usage", "disk_write",
                                                                            "disk_read"],
-                                                                          self.timestamp_start, self.timestamp_end,
+                                                                          timestamp_start, timestamp_end,
                                                                           interval, env_setting_dict
-                                                                          )
+        )
         # get process_exporter data
         file_name = self.run_log_dir + '/perf_report.txt'
         f = open(file_name, 'a')
-        f.write("\n******************************\tprocess_info\t******************************\n")
-        f.close()
+        f.write(
+            "\n******************************\tprocess_info\t******************************\n")
+
         for fqdn_key in data_dict["process_exporter"].keys():
 
             for thread_name in data_dict["process_exporter"][fqdn_key].keys():
-                table_list = ["index_name", "max_value", "min_value", "avg_value", "p90", "p95", "p99"]
+                table_list = ["index_name", "max_value",
+                              "min_value", "avg_value", "p90", "p95", "p99"]
                 statistics_data = []
 
-                for index_name in data_dict["process_exporter"][fqdn_key][thread_name].keys():
+                # print(data_dict["process_exporter"][fqdn_key][thread_name].keys())
+                if data_dict["process_exporter"][fqdn_key][thread_name]["cpu_utilization"]:
+                    for index_name in data_dict["process_exporter"][fqdn_key][thread_name].keys():
 
-                    statistics_index = []
-                    for i in "max_value", "min_value", "avg_value", "p90", "p95", "p99":
-                        statistics_index.append(data_dict["process_exporter"][fqdn_key][thread_name][index_name][0][i])
-                    if index_name == "cpu_utilization":
-                        statistics_index.insert(0, "cpu_utilization(%)")
-                    elif index_name == "mem_usage":
-                        statistics_index.insert(0, "mem_usage(M)")
-                    elif index_name == "disk_write":
-                        statistics_index.insert(0, "disk_write(Byte/s)")
-                    elif index_name == "disk_read":
-                        statistics_index.insert(0, "disk_read(Byte/s)")
+                        statistics_index = []
+
+                        if index_name == "cpu_utilization" or index_name == "mem_usage":
+                            for i in "max_value", "min_value", "avg_value", "p90", "p95", "p99":
+                                statistics_index.append(
+                                    float(data_dict["process_exporter"][fqdn_key][thread_name][index_name][0][i]))
+                        elif index_name == "disk_write" or index_name == "disk_read":
+                            for i in "max_value", "min_value", "avg_value", "p90", "p95", "p99":
+                                statistics_index.append(round(float(
+                                    data_dict["process_exporter"][fqdn_key][thread_name][index_name][0][i]) / 1024, 2))
+
+                        if index_name == "cpu_utilization":
+                            statistics_index.insert(0, "cpu_utilization(%)")
+                        elif index_name == "mem_usage":
+                            statistics_index.insert(0, "mem_usage(M)")
+                        elif index_name == "disk_write":
+                            statistics_index.insert(0, "disk_write(Byte/s)")
+                        elif index_name == "disk_read":
+                            statistics_index.insert(0, "disk_read(Byte/s)")
 
                     statistics_data.append(statistics_index)
 
-                f = open(file_name, 'a')
-                f.write(
-                    "\n*******************\t" + fqdn_key + ":\t" + thread_name + "\t****************************\n\n")
-                f.close()
-                self.draw_table(table_list, statistics_data)
+                    f.write(
+                        "\n*******************\t" + fqdn_key + ":\t" + thread_name + "\t****************************\n\n")
+                    self.draw_table(table_list, statistics_data)
+                else:
+                    f = open(file_name, 'a')
+                    f.write(
+                        "\n*******************\tno responce data of process\t" + fqdn_key + ":\t" + thread_name + "\t****************************\n")
+                    f.close()
 
-    def get_node_exporter_info(self, env_setting: list = None, interval: int = None):
+    def get_node_exporter_info(self, env_setting: list = None, interval: int = None, timestamp_start: str = None, timestamp_end: str = None):
         """
         :description: This method is used to get the result of node_info
         :param result_files:env_setting in .yaml file
@@ -340,45 +339,58 @@ class InsertTest(TDCase):
         p_result = PrometheusServer(remote)
 
         data_dict, dataframe_dict = p_result.get_custom_query_range_datas(env_setting[0],
-                                                                          ["net_read", "net_write"],
-                                                                          self.timestamp_start, self.timestamp_end,
+                                                                          ["net_read",
+                                                                              "net_write"],
+                                                                          timestamp_start, timestamp_end,
                                                                           interval, env_setting_dict
                                                                           )
+        print(data_dict)
         file_name = self.run_log_dir + '/perf_report.txt'
         f = open(file_name, 'a')
-        f.write("\n******************************\tnode_info\t******************************\n")
-        f.close()
+        f.write(
+            "\n******************************\tnode_info\t******************************\n")
+
         for fqdn_key in data_dict["node_exporter"].keys():
+
             statistics_data = []
-            table_list = ["index_name", "max_value", "min_value", "avg_value", "p90", "p95", "p99"]
-            for index_name in data_dict["node_exporter"][fqdn_key].keys():
+            table_list = ["index_name", "max_value",
+                          "min_value", "avg_value", "p90", "p95", "p99"]
 
-                statistics_index = []
+            if data_dict["node_exporter"][fqdn_key]["net_read"]:
+                for index_name in data_dict["node_exporter"][fqdn_key].keys():
 
-                for i in "max_value", "min_value", "avg_value", "p90", "p95", "p99":
-                    statistics_index.append(data_dict["node_exporter"][fqdn_key][index_name][0][i])
+                    statistics_index = []
+                    if data_dict["node_exporter"][fqdn_key][index_name][0]:
+                        for i in "max_value", "min_value", "avg_value", "p90", "p95", "p99":
+                            statistics_index.append(
+                                round(float(data_dict["node_exporter"][fqdn_key][index_name][0][i]) / 1024, 2))
 
-                if index_name == "net_write":
-                    statistics_index.insert(0, "net_write(Byte/s)")
-                elif index_name == "net_read":
-                    statistics_index.insert(0, "net_read(Byte/s)")
-                statistics_data.append(statistics_index)
+                        if index_name == "net_write":
+                            statistics_index.insert(0, "net_write(Byte/s)")
+                        elif index_name == "net_read":
+                            statistics_index.insert(0, "net_read(Byte/s)")
+                        statistics_data.append(statistics_index)
 
-            f = open(file_name, 'a')
-            f.write("\n")
-            f.write("\n*******************\t" + fqdn_key + "\t****************************\n")
-            f.close()
-            self.draw_table(table_list, statistics_data)
+                f.write("\n")
+                f.write("\n*******************\t" + fqdn_key +
+                        "\t****************************\n")
+
+                self.draw_table(table_list, statistics_data)
+            else:
+                f = open(file_name, 'a')
+                f.write("\n*******************\tno responce data of nodes:\t" +
+                        fqdn_key + "\t****************************\n")
+                f.close()
 
     def run(self):
 
         iplist: List = self.get_fqdn("taosBenchmark")
 
         json_data: List = []
-
-
+        file_name = []
         jfile = InsertFile()
-        col = jfile.schemacfg(intcount=4, binarycount=(2, 16), doublecount=4, tscount=1)
+        col = jfile.schemacfg(intcount=4, binarycount=(
+            2, 16), doublecount=4, tscount=1)
         tag = jfile.schemacfg(intcount=1, binarycount=(1, 16))
 
         # print(col)
@@ -388,24 +400,27 @@ class InsertTest(TDCase):
                 db = jfile.setDBinfo(name="db1", drop="yes")
             else:
                 db = jfile.setDBinfo(name="db1", drop="no")
-            stb = jfile.setStbinfo(name="stb", childtable_prefix="stb_" + str(i), childtable_count=10000,
+            stb = jfile.setStbinfo(name="stb", childtable_prefix="stb_" + str(i), childtable_count=100,
                                    insert_rows=10000, columns=col, tags=tag)
 
             database1 = jfile.setDatabases(dbinfo=db, super_tables=[stb])
             json_info = jfile.setJsoninfo(host="vm85", databases=[database1])
-            json_info.update({"test_log": "/home/ubuntu/testlog/"})
+            json_info.update({"test_log": "/root/testlog/"})
             json_data.append({})
             json_data[i] = json_info
-            jfile.genBenchmarkJson(self.run_log_dir, "insert" + str(i) + ".json", json_info)
+            file_name.append("insert" + str(i) + ".json")
+            jfile.genBenchmarkJson(
+                self.run_log_dir, file_name[i], json_info)
 
         # put the file to target
         self.put_file(iplist, json_data)
-        self.timestamp_start = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+        timestamp_start = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
 
         # run taosBenchmark
-        result_filename = self.threads_run_taosBenchmark(iplist, json_data)
+        result_filename = self.threads_run_taosBenchmark(
+            iplist, json_data, file_name)
 
-        self.timestamp_end = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+        timestamp_end = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
 
         # get insert result
         self.full_create_tb_result(result_filename)
@@ -415,6 +430,8 @@ class InsertTest(TDCase):
         # get node_info and process_info
         env_setting = self.get_component_by_name("prometheus")
         # self.get_result(env_setting)
-        self.get_process_exporter_info(env_setting, 1)
-        self.get_node_exporter_info(env_setting, 1)
+        self.get_process_exporter_info(
+            env_setting, 1, timestamp_start, timestamp_end)
+        self.get_node_exporter_info(
+            env_setting, 1, timestamp_start, timestamp_end)
         # ………………
