@@ -14,9 +14,18 @@ import java.util.Arrays;
 import java.util.List;
 
 public class StmtInsertExample {
-    private static Connection getConnection() throws SQLException {
-        String jdbcUrl = "jdbc:TAOS://localhost:6030?user=root&password=taosdata";
-        return DriverManager.getConnection(jdbcUrl);
+    private static ArrayList<Long> tsToLongArray(String ts) {
+        ArrayList<Long> result = new ArrayList<>();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+        LocalDateTime localDateTime = LocalDateTime.parse(ts, formatter);
+        result.add(localDateTime.toInstant(ZoneOffset.of("+8")).toEpochMilli());
+        return result;
+    }
+
+    private static <T> ArrayList<T> toArray(T v) {
+        ArrayList<T> result = new ArrayList<>();
+        result.add(v);
+        return result;
     }
 
     private static List<String> getRawData() {
@@ -32,21 +41,11 @@ public class StmtInsertExample {
         );
     }
 
-    private static ArrayList<Long> tsToLongArray(String ts) {
-        ArrayList<Long> result = new ArrayList<>();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
-        LocalDateTime localDateTime = LocalDateTime.parse(ts, formatter);
-        result.add(localDateTime.toInstant(ZoneOffset.of("+8")).toEpochMilli());
-        return result;
+    private static Connection getConnection() throws SQLException {
+        String jdbcUrl = "jdbc:TAOS://localhost:6030?user=root&password=taosdata";
+        return DriverManager.getConnection(jdbcUrl);
     }
 
-    private static <T> ArrayList<T> toArray(T v) {
-        ArrayList<T> result = new ArrayList<>();
-        result.add(v);
-        return result;
-    }
-
-    // ANCHOR: insert
     private static void createTable(Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("CREATE DATABASE power KEEP 3650");
@@ -68,7 +67,7 @@ public class StmtInsertExample {
                     pst.setTagString(0, ps[5]);
                     pst.setTagInt(1, Integer.valueOf(ps[6]));
                     // bind values
-                    pst.setTimestamp(0, tsToLongArray(ps[1]));
+                    pst.setTimestamp(0, tsToLongArray(ps[1])); //ps[1] looks like: 2018-10-03 14:38:05.000
                     pst.setFloat(1, toArray(Float.valueOf(ps[2])));
                     pst.setInt(2, toArray(Integer.valueOf(ps[3])));
                     pst.setFloat(3, toArray(Float.valueOf(ps[4])));
@@ -78,7 +77,6 @@ public class StmtInsertExample {
             }
         }
     }
-    // ANCHOR_END: insert
 
     public static void main(String[] args) throws SQLException {
         insertData();
