@@ -138,7 +138,7 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock);
 size_t       blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
 void*        blockDataDestroy(SSDataBlock* pBlock);
 
-void blockDebugShowData(SArray* dataBlocks);
+void blockDebugShowData(const SArray* dataBlocks);
 
 #ifdef __cplusplus
 }

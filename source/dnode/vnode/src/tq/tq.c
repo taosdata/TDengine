@@ -14,11 +14,10 @@
  */
 
 #include "tcompare.h"
+#include "tdatablock.h"
 #include "tqInt.h"
 #include "tqMetaStore.h"
 #include "tstream.h"
-
-void blockDebugShowData(SArray* dataBlocks);
 
 int32_t tqInit() { return tqPushMgrInit(); }
 
@@ -445,18 +444,19 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int32_t parallel) {
   if (pTask->execType == TASK_EXEC__NONE) return 0;
 
   pTask->exec.numOfRunners = parallel;
+  pTask->exec.runners = taosMemoryCalloc(parallel, sizeof(SStreamRunner));
+  if (pTask->exec.runners == NULL) {
+    return -1;
+  }
   for (int32_t i = 0; i < parallel; i++) {
     STqReadHandle* pReadHandle = tqInitSubmitMsgScanner(pTq->pVnodeMeta);
     SReadHandle    handle = {
            .reader = pReadHandle,
            .meta = pTq->pVnodeMeta,
     };
-    pTask->exec.runners = taosMemoryCalloc(parallel, sizeof(SStreamRunner));
-    if (pTask->exec.runners == NULL) {
-      return -1;
-    }
     pTask->exec.runners[i].inputHandle = pReadHandle;
     pTask->exec.runners[i].executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
+    ASSERT(pTask->exec.runners[i].executor);
   }
   return 0;
 }
@@ -473,7 +473,10 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
   }
   tCoderClear(&decoder);
 
-  tqExpandTask(pTq, pTask, 8);
+  if (tqExpandTask(pTq, pTask, 4) < 0) {
+    ASSERT(0);
+  }
+
   taosHashPut(pTq->pStreamTasks, &pTask->taskId, sizeof(int32_t), pTask, sizeof(SStreamTask));
 
   return 0;
