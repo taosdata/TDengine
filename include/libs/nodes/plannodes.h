@@ -66,6 +66,7 @@ typedef struct SAggLogicNode {
 typedef struct SProjectLogicNode {
   SLogicNode node;
   SNodeList* pProjections;
+  char stmtName[TSDB_TABLE_NAME_LEN]; 
 } SProjectLogicNode;
 
 typedef struct SVnodeModifLogicNode {
@@ -97,7 +98,13 @@ typedef struct SWindowLogicNode {
   int8_t  slidingUnit;
   SFillNode* pFill;
   int64_t sessionGap;
+  SNode* pTspk;
 } SWindowLogicNode;
+
+typedef struct SSortLogicNode {
+  SLogicNode node;
+  SNodeList* pSortKeys;
+} SSortLogicNode;
 
 typedef enum ESubplanType {
   SUBPLAN_TYPE_MERGE = 1,
@@ -200,7 +207,7 @@ typedef struct SJoinPhysiNode {
 typedef struct SAggPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;   // these are expression list of group_by_clause and parameter expression of aggregate function
-  SNodeList* pGroupKeys; // SColumnRefNode list
+  SNodeList* pGroupKeys;
   SNodeList* pAggFuncs;
 } SAggPhysiNode;
 
@@ -225,6 +232,7 @@ typedef struct SWinodwPhysiNode {
 
 typedef struct SIntervalPhysiNode {
   SWinodwPhysiNode window;
+  SNode* pTspk; // timestamp primary key
   int64_t    interval;
   int64_t    offset;
   int64_t    sliding;
@@ -237,6 +245,12 @@ typedef struct SSessionWinodwPhysiNode {
   SWinodwPhysiNode window;
   int64_t    gap;
 } SSessionWinodwPhysiNode;
+
+typedef struct SSortPhysiNode {
+  SPhysiNode node;
+  SNodeList* pExprs;   // these are expression list of order_by_clause and parameter expression of aggregate function
+  SNodeList* pSortKeys; // element is SOrderByExprNode, and SOrderByExprNode::pExpr is SColumnNode
+} SSortPhysiNode;
 
 typedef struct SDataSinkNode {
   ENodeType type;
