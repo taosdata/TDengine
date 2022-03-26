@@ -1022,12 +1022,12 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode* tree, SArray *group) {
     SNodeListNode *listNode = (SNodeListNode *)node->pRight;
     SListCell *cell = listNode->pNodeList->pHead;
 
-    SScalarParam in = {.columnData = calloc(1, sizeof(SColumnInfoData))}, out = {.columnData = calloc(1, sizeof(SColumnInfoData))};
+    SScalarParam out = {.columnData = calloc(1, sizeof(SColumnInfoData))};
     out.columnData->info.type = type;
     
     for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
       SValueNode *valueNode = (SValueNode *)cell->pNode;
-      code = doConvertDataType(&in, &out, valueNode);
+      code = doConvertDataType(valueNode, &out);
       if (code) {
 //        fltError("convert from %d to %d failed", in.type, out.type);
         FLT_ERR_RET(code);
@@ -1791,12 +1791,11 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       if (dType->type == type) {
         assignVal(fi->data, nodesGetValueFromNode(var), dType->bytes, type);
       } else {
-        SScalarParam in = {.columnData = calloc(1, sizeof(SColumnInfoData))};
         SScalarParam out = {.columnData = calloc(1, sizeof(SColumnInfoData))};
         out.columnData->info.type = type;
 
         // todo refactor the convert
-        int32_t code = doConvertDataType(&in, &out, var);
+        int32_t code = doConvertDataType(var, &out);
         if (code != TSDB_CODE_SUCCESS) {
           qError("convert value to type[%d] failed", type);
           return TSDB_CODE_TSC_INVALID_OPERATION;

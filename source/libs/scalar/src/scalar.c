@@ -38,13 +38,17 @@ SColumnInfoData* createColumnInfoData(SDataType* pType, int32_t numOfRows) {
   }
 }
 
-int32_t doConvertDataType(SScalarParam* in, SScalarParam* out, SValueNode* pValueNode) {
-  in->columnData = createColumnInfoData(&pValueNode->node.resType, 1);
-  colDataAppend(in->columnData, 0, nodesGetValueFromNode(pValueNode), false);
-  in->numOfRows = 1;
+int32_t doConvertDataType(SValueNode* pValueNode, SScalarParam* out) {
+  SScalarParam in = {.numOfRows = 1};
+  in.columnData = createColumnInfoData(&pValueNode->node.resType, 1);
+  colDataAppend(in.columnData, 0, nodesGetValueFromNode(pValueNode), false);
 
   blockDataEnsureColumnCapacity(out->columnData, 1);
-  return vectorConvertImpl(in, out);
+
+  int32_t code = vectorConvertImpl(&in, out);
+  sclFreeParam(&in);
+
+  return code;
 }
 
 int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
@@ -60,7 +64,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
   SNodeListNode *nodeList = (SNodeListNode *)pNode;
   SListCell *cell = nodeList->pNodeList->pHead;
 
-  SScalarParam in = {.columnData = calloc(1, sizeof(SColumnInfoData))}, out = {.columnData = calloc(1, sizeof(SColumnInfoData))};
+  SScalarParam out = {.columnData = calloc(1, sizeof(SColumnInfoData))};
 
   int32_t len = 0;
   void *buf = NULL;
@@ -72,8 +76,8 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
       out.columnData->info.type = type;
       out.columnData->info.bytes = tDataTypes[type].bytes;
 
-      doConvertDataType(&in, &out, valueNode);
-      if (code) {
+      code = doConvertDataType(valueNode, &out);
+      if (code != TSDB_CODE_SUCCESS) {
 //        sclError("convert data from %d to %d failed", in.type, out.type);
         SCL_ERR_JRET(code);
       }
@@ -104,6 +108,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
   }
 
   *data = pObj;
+
   return TSDB_CODE_SUCCESS;
 
 _return:
@@ -131,13 +136,15 @@ void sclFreeParamNoData(SScalarParam *param) {
 
 void sclFreeParam(SScalarParam *param) {
   sclFreeParamNoData(param);
-//  if (!param->dataInBlock) {
-//    if (SCL_DATA_TYPE_DUMMY_HASH == param->type) {
-//      taosHashCleanup((SHashObj *)param->orig.data);
-//    } else {
-//      tfree(param->orig.data);
-//    }
-//  }
+
+  if (param->columnData != NULL) {
+    colDataDestroy(param->columnData);
+    tfree(param->columnData);
+  }
+
+  if (param->pHashFilter != NULL) {
+    taosHashCleanup(param->pHashFilter);
+  }
 }
 
 int32_t sclCopyValueNodeValue(SValueNode *pNode, void **res) {
@@ -413,7 +420,7 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
 
 _return:
   for (int32_t i = 0; i < paramNum; ++i) {
-    sclFreeParamNoData(params + i);
+//    sclFreeParam(&params[i]);
   }
 
   tfree(params);

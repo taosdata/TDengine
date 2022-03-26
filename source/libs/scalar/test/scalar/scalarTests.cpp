@@ -1270,7 +1270,7 @@ TEST(columnTest, binary_column_is_true) {
   }  
   
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
-  scltMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
+  scltMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 5, rowNum, leftv);
 
   scltMakeOpNode(&opNode, OP_TYPE_IS_TRUE, TSDB_DATA_TYPE_BOOL, pLeft, NULL);
   
