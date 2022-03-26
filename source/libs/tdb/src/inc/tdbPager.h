@@ -20,15 +20,16 @@
 extern "C" {
 #endif
 
-int    tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager);
-int    tdbPagerClose(SPager *pPager);
-int    tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate);
-int    tdbPagerWrite(SPager *pPager, SPage *pPage);
-int    tdbPagerBegin(SPager *pPager);
-int    tdbPagerCommit(SPager *pPager);
-int    tdbPagerGetPageSize(SPager *pPager);
-int    tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage, int (*initPage)(SPage *, void *), void *arg);
-int    tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *), void *arg);
+int  tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager);
+int  tdbPagerClose(SPager *pPager);
+int  tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate);
+int  tdbPagerWrite(SPager *pPager, SPage *pPage);
+int  tdbPagerBegin(SPager *pPager);
+int  tdbPagerCommit(SPager *pPager);
+int  tdbPagerGetPageSize(SPager *pPager);
+int  tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage, int (*initPage)(SPage *, void *), void *arg);
+int  tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *), void *arg);
+void tdbPagerReturnPage(SPager *pPager, SPage *pPage);
 
 #ifdef __cplusplus
 }
