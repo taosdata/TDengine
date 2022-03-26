@@ -42,6 +42,21 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type);
 int32_t vectorGetConvertType(int32_t type1, int32_t type2);
 int32_t vectorConvertImpl(SScalarParam* pIn, SScalarParam* pOut);
 
+int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t logFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t powFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t sqrtFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+int32_t sinFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t cosFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t tanFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t asinFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t acosFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t atanFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+int32_t ceilFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t floorFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t roundFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 #ifdef __cplusplus
 }
