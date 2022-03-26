@@ -2,6 +2,8 @@
 
 #include "tdbInt.h"
 
+#include <string>
+
 static int tKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2);
 
@@ -11,7 +13,6 @@ TEST(tdb_test, simple_test) {
   STDB          *pDb;
   FKeyComparator compFunc;
   int            nData = 10000000;
-  // int    nData = 8508;
 
   // Open Env
   ret = tdbEnvOpen("tdb", 4096, 256000, &pEnv);
@@ -98,8 +99,10 @@ TEST(tdb_test, simple_test) {
 static int tKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   int k1, k2;
 
-  k1 = std::strtol((char *)pKey1 + 3, nullptr, 10);
-  k2 = std::strtol((char *)pKey2 + 3, nullptr, 10);
+  std::string s1((char *)pKey1 + 3, kLen1 - 3);
+  std::string s2((char *)pKey2 + 3, kLen2 - 3);
+  k1 = stoi(s1);
+  k2 = stoi(s2);
 
   if (k1 < k2) {
     return -1;
