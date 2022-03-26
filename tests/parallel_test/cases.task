@@ -748,3 +748,4 @@
 3,,develop-test,python3 ./test.py -f 2-query/TD-13414.py
 8,,pytest,python3 test.py -f update/update2.py
 4,,pytest,python3 test.py -f insert/line_insert.py
+20,,pytest,python3 test.py -f table/create.py
