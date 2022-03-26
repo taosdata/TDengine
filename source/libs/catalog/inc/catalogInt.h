@@ -112,7 +112,13 @@ typedef struct SCtgRuntimeStat {
 } SCtgRuntimeStat;
 
 typedef struct SCtgCacheStat {
-
+  uint64_t clusterNum;
+  uint64_t dbNum;
+  uint64_t tblNum;
+  uint64_t vgHitNum;
+  uint64_t vgMissNum;
+  uint64_t tblHitNum;
+  uint64_t tblMissNum;
 } SCtgCacheStat;
 
 typedef struct SCatalogStat {
@@ -186,7 +192,7 @@ typedef struct SCatalogMgmt {
   bool                  exit;
   SRWLatch              lock;
   SCtgQueue             queue;
-  TdThread             updateThread;  
+  TdThread              updateThread;  
   SHashObj             *pCluster;     //key: clusterId, value: SCatalog*
   SCatalogStat          stat;
   SCatalogCfg           cfg;
@@ -206,6 +212,10 @@ typedef struct SCtgAction {
 
 #define CTG_STAT_ADD(n) atomic_add_fetch_64(&(n), 1)
 #define CTG_STAT_SUB(n) atomic_sub_fetch_64(&(n), 1)
+#define CTG_STAT_GET(n) atomic_load_64(&(n))
+
+#define CTG_RUNTIME_STAT_ADD(_item) (CTG_STAT_ADD(gCtgMgmt.stat.runtime._item))
+#define CTG_CACHE_STAT_ADD(_item) (CTG_STAT_ADD(gCtgMgmt.stat.cache._item))
 
 #define CTG_IS_META_NULL(type) ((type) == META_TYPE_NULL_TABLE)
 #define CTG_IS_META_CTABLE(type) ((type) == META_TYPE_CTABLE)
@@ -291,6 +301,9 @@ typedef struct SCtgAction {
 #define CTG_API_ENTER() do { CTG_API_DEBUG("CTG API enter %s", __FUNCTION__); CTG_LOCK(CTG_READ, &gCtgMgmt.lock); if (atomic_load_8((int8_t*)&gCtgMgmt.exit)) { CTG_API_LEAVE(TSDB_CODE_CTG_OUT_OF_SERVICE); }  } while (0)
 
 
+extern void ctgdShowTableMeta(SCatalog* pCtg, const char *tbName, STableMeta* p);
+extern void ctgdShowClusterCache(SCatalog* pCtg);
+extern int32_t ctgdShowCacheInfo(void);
 
 #ifdef __cplusplus
 }

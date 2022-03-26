@@ -39,10 +39,10 @@ namespace {
 
 extern "C" int32_t ctgGetTableMetaFromCache(struct SCatalog *pCatalog, const SName *pTableName, STableMeta **pTableMeta,
                                             int32_t *exist, int32_t flag, uint64_t *dbId);
-extern "C" int32_t ctgDbgGetClusterCacheNum(struct SCatalog* pCatalog, int32_t type);
+extern "C" int32_t ctgdGetClusterCacheNum(struct SCatalog* pCatalog, int32_t type);
 extern "C" int32_t ctgActUpdateTbl(SCtgMetaAction *action);
-extern "C" int32_t ctgDbgEnableDebug(char *option);
-extern "C" int32_t ctgDbgGetStatNum(char *option, void *res);
+extern "C" int32_t ctgdEnableDebug(char *option);
+extern "C" int32_t ctgdGetStatNum(char *option, void *res);
 
 void ctgTestSetRspTableMeta();
 void ctgTestSetRspCTableMeta();
@@ -140,9 +140,9 @@ void ctgTestInitLogFile() {
   qDebugFlag = 159;
   strcpy(tsLogDir, "/var/log/taos");
 
-  ctgDbgEnableDebug("api");
-  ctgDbgEnableDebug("meta");
-  ctgDbgEnableDebug("cache");
+  ctgdEnableDebug("api");
+  ctgdEnableDebug("meta");
+  ctgdEnableDebug("cache");
   
   if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
     printf("failed to open log file in directory:%s\n", tsLogDir);
@@ -879,7 +879,7 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(vgInfo.vgId, 8);
   ASSERT_EQ(vgInfo.epSet.numOfEps, 3);
 
-  while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_DB_NUM)) {
+  while (0 == ctgdGetClusterCacheNum(pCtg, CTG_DBG_DB_NUM)) {
     taosMsleep(50);
   }
   
@@ -899,7 +899,7 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
   while (true) {
-    uint32_t n = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
+    uint32_t n = ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
     if (0 == n) {
       taosMsleep(50);
     } else {
@@ -994,7 +994,7 @@ TEST(tableMeta, childTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
   while (true) {
-    uint32_t n = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
+    uint32_t n = ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
     if (0 == n) {
       taosMsleep(50);
     } else {
@@ -1103,7 +1103,7 @@ TEST(tableMeta, superTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
   while (true) {
-    uint32_t n = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
+    uint32_t n = ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
     if (0 == n) {
       taosMsleep(50);
     } else {
@@ -1130,7 +1130,7 @@ TEST(tableMeta, superTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
   while (true) {
-    uint32_t n = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
+    uint32_t n = ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
     if (2 != n) {
       taosMsleep(50);
     } else {
@@ -1228,7 +1228,7 @@ TEST(tableMeta, rmStbMeta) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
   while (true) {
-    uint32_t n = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
+    uint32_t n = ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
     if (0 == n) {
       taosMsleep(50);
     } else {
@@ -1241,8 +1241,8 @@ TEST(tableMeta, rmStbMeta) {
   ASSERT_EQ(code, 0);
 
   while (true) {
-    int32_t n = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
-    int32_t m = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM);
+    int32_t n = ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
+    int32_t m = ctgdGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM);
     if (n || m) {
       taosMsleep(50);
     } else {
@@ -1251,11 +1251,11 @@ TEST(tableMeta, rmStbMeta) {
   }
 
 
-  ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_DB_NUM), 1);
-  ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM), 0);
-  ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_STB_NUM), 0);
-  ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_DB_RENT_NUM), 1);
-  ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM), 0);
+  ASSERT_EQ(ctgdGetClusterCacheNum(pCtg, CTG_DBG_DB_NUM), 1);
+  ASSERT_EQ(ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM), 0);
+  ASSERT_EQ(ctgdGetClusterCacheNum(pCtg, CTG_DBG_STB_NUM), 0);
+  ASSERT_EQ(ctgdGetClusterCacheNum(pCtg, CTG_DBG_DB_RENT_NUM), 1);
+  ASSERT_EQ(ctgdGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM), 0);
 
   catalogDestroy();
   memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
@@ -1298,7 +1298,7 @@ TEST(tableMeta, updateStbMeta) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
   while (true) {
-    uint32_t n = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
+    uint32_t n = ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
     if (0 == n) {
       taosMsleep(50);
     } else {
@@ -1318,7 +1318,7 @@ TEST(tableMeta, updateStbMeta) {
 
   while (true) {
     uint64_t n = 0;
-    ctgDbgGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
     if (n != 3) {
       taosMsleep(50);
     } else {
@@ -1326,11 +1326,11 @@ TEST(tableMeta, updateStbMeta) {
     }
   }
 
-  ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_DB_NUM), 1);
-  ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM), 1);
-  ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_STB_NUM), 1);
-  ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_DB_RENT_NUM), 1);
-  ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM), 1);
+  ASSERT_EQ(ctgdGetClusterCacheNum(pCtg, CTG_DBG_DB_NUM), 1);
+  ASSERT_EQ(ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM), 1);
+  ASSERT_EQ(ctgdGetClusterCacheNum(pCtg, CTG_DBG_STB_NUM), 1);
+  ASSERT_EQ(ctgdGetClusterCacheNum(pCtg, CTG_DBG_DB_RENT_NUM), 1);
+  ASSERT_EQ(ctgdGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM), 1);
 
   code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
@@ -1388,7 +1388,7 @@ TEST(refreshGetMeta, normal2normal) {
 
   while (true) {
     uint64_t n = 0;
-    ctgDbgGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
     if (n > 0) {
       break;
     }
@@ -1409,7 +1409,7 @@ TEST(refreshGetMeta, normal2normal) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
   taosMemoryFreeClear(tableMeta);
 
-  while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
+  while (0 == ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
     taosMsleep(50);
   }
 
@@ -1467,7 +1467,7 @@ TEST(refreshGetMeta, normal2notexist) {
 
   while (true) {
     uint64_t n = 0;
-    ctgDbgGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
     if (n > 0) {
       break;
     }
@@ -1488,7 +1488,7 @@ TEST(refreshGetMeta, normal2notexist) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
   taosMemoryFreeClear(tableMeta);
 
-  while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
+  while (0 == ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
     taosMsleep(50);
   }
 
@@ -1541,7 +1541,7 @@ TEST(refreshGetMeta, normal2child) {
 
   while (true) {
     uint64_t n = 0;
-    ctgDbgGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
     if (n > 0) {
       break;
     }
@@ -1562,7 +1562,7 @@ TEST(refreshGetMeta, normal2child) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
   taosMemoryFreeClear(tableMeta);
 
-  while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
+  while (0 == ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
     taosMsleep(50);
   }
 
@@ -1625,7 +1625,7 @@ TEST(refreshGetMeta, stable2child) {
 
   while (true) {
     uint64_t n = 0;
-    ctgDbgGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
     if (n > 0) {
       break;
     }
@@ -1647,7 +1647,7 @@ TEST(refreshGetMeta, stable2child) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
   taosMemoryFreeClear(tableMeta);
 
-  while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
+  while (0 == ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
     taosMsleep(50);
   }
 
@@ -1710,7 +1710,7 @@ TEST(refreshGetMeta, stable2stable) {
 
   while (true) {
     uint64_t n = 0;
-    ctgDbgGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
     if (n > 0) {
       break;
     }
@@ -1732,7 +1732,7 @@ TEST(refreshGetMeta, stable2stable) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
   taosMemoryFreeClear(tableMeta);
 
-  while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
+  while (0 == ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
     taosMsleep(50);
   }
 
@@ -1798,7 +1798,7 @@ TEST(refreshGetMeta, child2stable) {
 
   while (true) {
     uint64_t n = 0;
-    ctgDbgGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
     if (n > 0) {
       break;
     }
@@ -1818,7 +1818,7 @@ TEST(refreshGetMeta, child2stable) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
   taosMemoryFreeClear(tableMeta);
 
-  while (2 != ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
+  while (2 != ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
     taosMsleep(50);
   }
 
@@ -2015,7 +2015,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
 
   while (true) {
     uint64_t n = 0;
-    ctgDbgGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
     if (n > 0) {
       break;
     }
@@ -2041,7 +2041,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
 
   while (true) {
     uint64_t n = 0;
-    ctgDbgGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
     if (n != 3) {
       taosMsleep(50);
     } else {
@@ -2266,7 +2266,7 @@ TEST(rentTest, allRent) {
     ASSERT_EQ(tableMeta->tableInfo.precision, 1);
     ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-    while (ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM) < i) {
+    while (ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM) < i) {
       taosMsleep(50);
     }
 
