@@ -1962,6 +1962,7 @@ static int32_t rewriteShow(STranslateContext* pCxt, SQuery* pQuery) {
     code = createShowCondition((SShowStmt*)pQuery->pRoot, pStmt);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    pQuery->showRewrite = true;
     nodesDestroyNode(pQuery->pRoot);
     pQuery->pRoot = (SNode*)pStmt;
   }

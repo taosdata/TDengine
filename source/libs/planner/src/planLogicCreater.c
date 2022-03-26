@@ -161,6 +161,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pScan->tableName.acctId = pCxt->pPlanCxt->acctId;
   strcpy(pScan->tableName.dbname, pRealTable->table.dbName);
   strcpy(pScan->tableName.tname, pRealTable->table.tableName);
+  pScan->showRewrite = pCxt->pPlanCxt->showRewrite;
 
   // set columns to scan
   SNodeList* pCols = NULL;

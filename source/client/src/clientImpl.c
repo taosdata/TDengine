@@ -199,7 +199,8 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
     .queryId = pRequest->requestId,
     .acctId = pRequest->pTscObj->acctId,
     .mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp),
-    .pAstRoot = pQuery->pRoot
+    .pAstRoot = pQuery->pRoot,
+    .showRewrite = pQuery->showRewrite
   };
   int32_t  code = qCreateQueryPlan(&cxt, pPlan, pNodeList);
   if (code != 0) {

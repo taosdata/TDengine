@@ -90,7 +90,7 @@ typedef struct {
   int32_t   msgType;
   void     *val;
   int32_t (*clone)(void *src, void **dst);
-  void    (*free)(void *arg);
+  void    (*freeFunc)(const void *arg);
 } SRpcBrokenlinkVal;
 
 typedef struct {

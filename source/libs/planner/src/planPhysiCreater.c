@@ -331,18 +331,14 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  pScan->showRewrite = pScanLogicNode->showRewrite;
+  pScan->accountId = pCxt->pPlanCxt->acctId;
   if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_USER_TABLES)) {
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
     taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
   } else {
     SQueryNodeAddr addr = { .nodeId = MND_VGID, .epSet = pCxt->pPlanCxt->mgmtEpSet };
     taosArrayPush(pCxt->pExecNodeList, &addr);
-    
-    //for (int32_t i = 0; i < pScanLogicNode->pVgroupList->numOfVgroups; ++i) {
-    //  SQueryNodeAddr addr;
-    //  vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups + i, &addr);
-    //  taosArrayPush(pCxt->pExecNodeList, &addr);
-    //}
   }
   pScan->mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
   tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);

@@ -805,7 +805,7 @@ TEST(queryTest, readyFirstCase) {
   SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)data;
   ASSERT_EQ(pRsp->completed, 1);
   ASSERT_EQ(pRsp->numOfRows, 10);
-  tfree(data);
+  taosMemoryFreeClear(data);
 
   data = NULL;
   code = schedulerFetchRows(job, &data);

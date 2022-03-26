@@ -61,6 +61,7 @@ endi
 print ========== stop dnode2
 system sh/exec.sh -n dnode2 -s stop -x SIGKILL
 
+sleep 1000
 print =============== create database
 sql_error drop database d1
 

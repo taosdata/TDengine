@@ -917,7 +917,7 @@ _return:
     qwReleaseTaskCtx(mgmt, ctx);
   }
 
-  if (TSDB_CODE_SUCCESS == code && readyConnection) {
+  if (readyConnection) {
     qwBuildAndSendReadyRsp(readyConnection, code);    
     QW_TASK_DLOG("ready msg rsped, handle:%p, code:%x - %s", readyConnection->handle, code, tstrerror(code));
   }
