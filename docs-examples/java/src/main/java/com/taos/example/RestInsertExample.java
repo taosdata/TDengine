@@ -14,7 +14,7 @@ public class RestInsertExample {
         return DriverManager.getConnection(jdbcUrl);
     }
 
-    private static List<String> getRawDataLines() {
+    private static List<String> getRawData() {
         return Arrays.asList(
                 "d1001,2018-10-03 14:38:05.000,10.30000,219,0.31000,Beijing.Chaoyang,2",
                 "d1001,2018-10-03 14:38:15.000,12.60000,218,0.33000,Beijing.Chaoyang,2",
@@ -41,7 +41,7 @@ public class RestInsertExample {
      */
     private static String getSQL() {
         StringBuilder sb = new StringBuilder("INSERT INTO ");
-        for (String line : getRawDataLines()) {
+        for (String line : getRawData()) {
             String[] fields = line.split(",");
             sb.append("power." + fields[0]).append(" USING power.meters TAGS(")
                     .append(fields[5]).append(", ")
@@ -59,7 +59,7 @@ public class RestInsertExample {
         try(Connection conn = getConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("CREATE DATABASE power KEEP 3650");
-                stmt.execute("CREATE STABLE power.meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int)");
+                stmt.execute("CREATE STABLE power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)");
                 String sql = getSQL();
                 int rowCount = stmt.executeUpdate(sql);
                 System.out.println("rowCount=" + rowCount); // rowCount=8
