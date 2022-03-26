@@ -143,7 +143,7 @@ int tsem_init(tsem_t *sem, int pshared, unsigned int value) {
     fprintf(stderr, "==%s[%d]%s():[%p]==already initialized\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
     abort();
   }
-  struct tsem_s *p = (struct tsem_s *)calloc(1, sizeof(*p));
+  struct tsem_s *p = (struct tsem_s *)taosMemoryCalloc(1, sizeof(*p));
   if (!p) {
     fprintf(stderr, "==%s[%d]%s():[%p]==out of memory\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
     abort();
@@ -331,7 +331,7 @@ int tsem_destroy(tsem_t *sem) {
 #endif  // SEM_USE_PTHREAD
 
   p->valid = 0;
-  free(p);
+  taosMemoryFree(p);
 
   *sem = NULL;
   return 0;

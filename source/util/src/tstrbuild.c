@@ -20,7 +20,7 @@ void taosStringBuilderEnsureCapacity(SStringBuilder* sb, size_t size) {
   size += sb->pos;
   if (size > sb->size) {
     size *= 2;
-    void* tmp = realloc(sb->buf, size);
+    void* tmp = taosMemoryRealloc(sb->buf, size);
     if (tmp == NULL) {
       longjmp(sb->jb, 1);
     }
@@ -39,7 +39,7 @@ char* taosStringBuilderGetResult(SStringBuilder* sb, size_t* len) {
 }
 
 void taosStringBuilderDestroy(SStringBuilder* sb) {
-  free(sb->buf);
+  taosMemoryFree(sb->buf);
   sb->buf = NULL;
   sb->pos = 0;
   sb->size = 0;

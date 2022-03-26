@@ -33,7 +33,7 @@
 
 #define FREE_HASH_NODE(_n) \
   do {                     \
-    tfree(_n);             \
+    taosMemoryFreeClear(_n);             \
   } while (0);
 
 struct SHashNode {
@@ -238,7 +238,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
     capacity = 4;
   }
 
-  SHashObj *pHashObj = (SHashObj *)calloc(1, sizeof(SHashObj));
+  SHashObj *pHashObj = (SHashObj *)taosMemoryCalloc(1, sizeof(SHashObj));
   if (pHashObj == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -254,26 +254,26 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
 
   ASSERT((pHashObj->capacity & (pHashObj->capacity - 1)) == 0);
 
-  pHashObj->hashList = (SHashEntry **)calloc(pHashObj->capacity, sizeof(void *));
+  pHashObj->hashList = (SHashEntry **)taosMemoryCalloc(pHashObj->capacity, sizeof(void *));
   if (pHashObj->hashList == NULL) {
-    free(pHashObj);
+    taosMemoryFree(pHashObj);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
   pHashObj->pMemBlock = taosArrayInit(8, sizeof(void *));
   if (pHashObj->pMemBlock == NULL) {
-    free(pHashObj->hashList);
-    free(pHashObj);
+    taosMemoryFree(pHashObj->hashList);
+    taosMemoryFree(pHashObj);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  void *p = calloc(pHashObj->capacity, sizeof(SHashEntry));
+  void *p = taosMemoryCalloc(pHashObj->capacity, sizeof(SHashEntry));
   if (p == NULL) {
     taosArrayDestroy(pHashObj->pMemBlock);
-    free(pHashObj->hashList);
-    free(pHashObj);
+    taosMemoryFree(pHashObj->hashList);
+    taosMemoryFree(pHashObj);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
@@ -440,14 +440,14 @@ void* taosHashGetImpl(SHashObj *pHashObj, const void *key, size_t keyLen, void**
     if (size != NULL) {
       if (*d == NULL) {
         *size =  pNode->dataLen;
-        *d = calloc(1, *size);
+        *d = taosMemoryCalloc(1, *size);
         if (*d == NULL) {
           terrno = TSDB_CODE_OUT_OF_MEMORY;
           return NULL;
         }
       } else if (*size < pNode->dataLen) {
         *size =  pNode->dataLen;
-        char* tmp = realloc(*d, *size);
+        char* tmp = taosMemoryRealloc(*d, *size);
         if (tmp == NULL) {
           terrno = TSDB_CODE_OUT_OF_MEMORY;
           return NULL;
@@ -567,24 +567,24 @@ void taosHashClear(SHashObj *pHashObj) {
   taosHashWUnlock(pHashObj);
 }
 
-// the input paras should be SHashObj **, so the origin input will be set by tfree(*pHashObj)
+// the input paras should be SHashObj **, so the origin input will be set by taosMemoryFreeClear(*pHashObj)
 void taosHashCleanup(SHashObj *pHashObj) {
   if (pHashObj == NULL) {
     return;
   }
 
   taosHashClear(pHashObj);
-  tfree(pHashObj->hashList);
+  taosMemoryFreeClear(pHashObj->hashList);
 
   // destroy mem block
   size_t memBlock = taosArrayGetSize(pHashObj->pMemBlock);
   for (int32_t i = 0; i < memBlock; ++i) {
     void *p = taosArrayGetP(pHashObj->pMemBlock, i);
-    tfree(p);
+    taosMemoryFreeClear(p);
   }
 
   taosArrayDestroy(pHashObj->pMemBlock);
-  free(pHashObj);
+  taosMemoryFree(pHashObj);
 }
 
 // for profile only
@@ -623,7 +623,7 @@ void taosHashTableResize(SHashObj *pHashObj) {
   }
 
   int64_t st = taosGetTimestampUs();
-  void *pNewEntryList = realloc(pHashObj->hashList, sizeof(void *) * newCapacity);
+  void *pNewEntryList = taosMemoryRealloc(pHashObj->hashList, sizeof(void *) * newCapacity);
   if (pNewEntryList == NULL) {
 //    uDebug("cache resize failed due to out of memory, capacity remain:%zu", pHashObj->capacity);
     return;
@@ -632,7 +632,7 @@ void taosHashTableResize(SHashObj *pHashObj) {
   pHashObj->hashList = pNewEntryList;
 
   size_t inc = newCapacity - pHashObj->capacity;
-  void * p = calloc(inc, sizeof(SHashEntry));
+  void * p = taosMemoryCalloc(inc, sizeof(SHashEntry));
 
   for (int32_t i = 0; i < inc; ++i) {
     pHashObj->hashList[i + pHashObj->capacity] = (void *)((char *)p + i * sizeof(SHashEntry));
@@ -683,7 +683,7 @@ void taosHashTableResize(SHashObj *pHashObj) {
 }
 
 SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, size_t dsize, uint32_t hashVal) {
-  SHashNode *pNewNode = malloc(sizeof(SHashNode) + keyLen + dsize);
+  SHashNode *pNewNode = taosMemoryMalloc(sizeof(SHashNode) + keyLen + dsize);
 
   if (pNewNode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;

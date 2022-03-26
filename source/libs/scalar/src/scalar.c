@@ -31,7 +31,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
   SScalarParam in = {.num = 1}, out = {.num = 1, .type = type};
   int8_t dummy = 0;
   int32_t bufLen = 60;
-  out.data = malloc(bufLen);
+  out.data = taosMemoryMalloc(bufLen);
   int32_t len = 0;
   void *buf = NULL;
   
@@ -75,14 +75,14 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
     cell = cell->pNext;
   }
 
-  tfree(out.data);
+  taosMemoryFreeClear(out.data);
   *data = pObj;
 
   return TSDB_CODE_SUCCESS;
 
 _return:
 
-  tfree(out.data);
+  taosMemoryFreeClear(out.data);
   taosHashCleanup(pObj);
   
   SCL_RET(code);
@@ -98,7 +98,7 @@ FORCE_INLINE bool sclIsNull(SScalarParam* param, int32_t idx) {
 
 FORCE_INLINE void sclSetNull(SScalarParam* param, int32_t idx) {
   if (NULL == param->bitmap) {
-    param->bitmap = calloc(BitmapLen(param->num), sizeof(char));
+    param->bitmap = taosMemoryCalloc(BitmapLen(param->num), sizeof(char));
     if (NULL == param->bitmap) {
       sclError("calloc %d failed", param->num);
       return;
@@ -126,7 +126,7 @@ void sclFreeRes(SHashObj *res) {
 }
 
 void sclFreeParamNoData(SScalarParam *param) {
-  tfree(param->bitmap);
+  taosMemoryFreeClear(param->bitmap);
 }
 
 
@@ -137,7 +137,7 @@ void sclFreeParam(SScalarParam *param) {
     if (SCL_DATA_TYPE_DUMMY_HASH == param->type) {
       taosHashCleanup((SHashObj *)param->orig.data);
     } else {
-      tfree(param->orig.data);
+      taosMemoryFreeClear(param->orig.data);
     }
   }
 }
@@ -148,7 +148,7 @@ int32_t sclCopyValueNodeValue(SValueNode *pNode, void **res) {
     return TSDB_CODE_SUCCESS;
   }
   
-  *res = malloc(pNode->node.resType.bytes);
+  *res = taosMemoryMalloc(pNode->node.resType.bytes);
   if (NULL == (*res)) {
     sclError("malloc %d failed", pNode->node.resType.bytes);
     SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -284,7 +284,7 @@ int32_t sclMoveParamListData(SScalarParam *params, int32_t listNum, int32_t idx)
 
 int32_t sclInitParamList(SScalarParam **pParams, SNodeList* pParamList, SScalarCtx *ctx, int32_t *rowNum) {
   int32_t code = 0;
-  SScalarParam *paramList = calloc(pParamList->length, sizeof(SScalarParam));
+  SScalarParam *paramList = taosMemoryCalloc(pParamList->length, sizeof(SScalarParam));
   if (NULL == paramList) {
     sclError("calloc %d failed", (int32_t)(pParamList->length * sizeof(SScalarParam)));
     SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -308,7 +308,7 @@ int32_t sclInitParamList(SScalarParam **pParams, SNodeList* pParamList, SScalarC
 
 _return:
 
-  tfree(paramList);
+  taosMemoryFreeClear(paramList);
   SCL_RET(code);
 }
 
@@ -320,7 +320,7 @@ int32_t sclInitOperatorParams(SScalarParam **pParams, SOperatorNode *node, SScal
     SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
   
-  SScalarParam *paramList = calloc(paramNum, sizeof(SScalarParam));
+  SScalarParam *paramList = taosMemoryCalloc(paramNum, sizeof(SScalarParam));
   if (NULL == paramList) {
     sclError("calloc %d failed", (int32_t)(paramNum * sizeof(SScalarParam)));
     SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -337,7 +337,7 @@ int32_t sclInitOperatorParams(SScalarParam **pParams, SOperatorNode *node, SScal
 
 _return:
 
-  tfree(paramList);
+  taosMemoryFreeClear(paramList);
   SCL_RET(code);
 }
 
@@ -360,7 +360,7 @@ int32_t sclExecFuncion(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outpu
   SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &rowNum));
 
   output->type = node->node.resType.type;
-  output->data = calloc(rowNum, sizeof(tDataTypes[output->type].bytes));
+  output->data = taosMemoryCalloc(rowNum, sizeof(tDataTypes[output->type].bytes));
   if (NULL == output->data) {
     sclError("calloc %d failed", (int32_t)(rowNum * sizeof(tDataTypes[output->type].bytes)));
     SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -384,7 +384,7 @@ _return:
     sclFreeParamNoData(params + i);
   }
 
-  tfree(params);
+  taosMemoryFreeClear(params);
   
   SCL_RET(code);
 }
@@ -415,7 +415,7 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
   output->type = node->node.resType.type;
   output->bytes = sizeof(bool);
   output->num = rowNum;
-  output->data = calloc(rowNum, sizeof(bool));
+  output->data = taosMemoryCalloc(rowNum, sizeof(bool));
   if (NULL == output->data) {
     sclError("calloc %d failed", (int32_t)(rowNum * sizeof(bool)));
     SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -449,7 +449,7 @@ _return:
     sclFreeParamNoData(params + i);
   }
 
-  tfree(params);
+  taosMemoryFreeClear(params);
   SCL_RET(code);
 }
 
@@ -463,7 +463,7 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   output->type = node->node.resType.type;
   output->num = rowNum;
   output->bytes = tDataTypes[output->type].bytes;
-  output->data = calloc(rowNum, tDataTypes[output->type].bytes);
+  output->data = taosMemoryCalloc(rowNum, tDataTypes[output->type].bytes);
   if (NULL == output->data) {
     sclError("calloc %d failed", (int32_t)rowNum * tDataTypes[output->type].bytes);
     SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -485,7 +485,7 @@ _return:
     sclFreeParamNoData(params + i);
   }
 
-  tfree(params);
+  taosMemoryFreeClear(params);
   
   SCL_RET(code);
 }

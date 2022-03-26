@@ -36,13 +36,13 @@ void test1() {
 void test2() {
   SyncAppendEntries *pMsg = createMsg();
   uint32_t           len = pMsg->bytes;
-  char *             serialized = (char *)malloc(len);
+  char *             serialized = (char *)taosMemoryMalloc(len);
   syncAppendEntriesSerialize(pMsg, serialized, len);
   SyncAppendEntries *pMsg2 = syncAppendEntriesBuild(pMsg->dataLen);
   syncAppendEntriesDeserialize(serialized, len, pMsg2);
   syncAppendEntriesPrint2((char *)"test2: syncAppendEntriesSerialize -> syncAppendEntriesDeserialize ", pMsg2);
 
-  free(serialized);
+  taosMemoryFree(serialized);
   syncAppendEntriesDestroy(pMsg);
   syncAppendEntriesDestroy(pMsg2);
 }
@@ -54,7 +54,7 @@ void test3() {
   SyncAppendEntries *pMsg2 = syncAppendEntriesDeserialize2(serialized, len);
   syncAppendEntriesPrint2((char *)"test3: syncAppendEntriesSerialize3 -> syncAppendEntriesDeserialize2 ", pMsg2);
 
-  free(serialized);
+  taosMemoryFree(serialized);
   syncAppendEntriesDestroy(pMsg);
   syncAppendEntriesDestroy(pMsg2);
 }
@@ -63,7 +63,7 @@ void test4() {
   SyncAppendEntries *pMsg = createMsg();
   SRpcMsg            rpcMsg;
   syncAppendEntries2RpcMsg(pMsg, &rpcMsg);
-  SyncAppendEntries *pMsg2 = (SyncAppendEntries *)malloc(rpcMsg.contLen);
+  SyncAppendEntries *pMsg2 = (SyncAppendEntries *)taosMemoryMalloc(rpcMsg.contLen);
   syncAppendEntriesFromRpcMsg(&rpcMsg, pMsg2);
   syncAppendEntriesPrint2((char *)"test4: syncAppendEntries2RpcMsg -> syncAppendEntriesFromRpcMsg ", pMsg2);
 

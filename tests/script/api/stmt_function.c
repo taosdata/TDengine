@@ -50,7 +50,7 @@ void taos_stmt_init_test() {
 }
 void taos_stmt_preprare_test() {
     printf("start taos_stmt_prepare test\n");
-    char *stmt_sql = calloc(1, 1048576);
+    char *stmt_sql = taosMemoryCalloc(1, 1048576);
     TAOS_STMT *stmt = NULL;
     assert(taos_stmt_prepare(stmt, stmt_sql, 0) != 0);
     void *taos = NULL;	
@@ -93,14 +93,14 @@ void taos_stmt_preprare_test() {
     assert(taos_stmt_prepare(stmt, stmt_sql, 0) == 0);
     assert(taos_stmt_close(stmt) == 0);
 
-    free(stmt_sql);
+    taosMemoryFree(stmt_sql);
     printf("finish taos_stmt_prepare test\n");
 }
 
 void taos_stmt_set_tbname_test() {
     printf("start taos_stmt_set_tbname test\n");
     TAOS_STMT *stmt = NULL;
-    char *name = calloc(1, 200);
+    char *name = taosMemoryCalloc(1, 200);
     // ASM ERROR
     // assert(taos_stmt_set_tbname(stmt, name) != 0);
     void *taos = taos_connect("127.0.0.1","root","taosdata",NULL,0);
@@ -115,14 +115,14 @@ void taos_stmt_set_tbname_test() {
     stmt = taos_stmt_init(taos);
     assert(stmt != NULL);
     assert(taos_stmt_set_tbname(stmt, name) != 0);
-    char* stmt_sql = calloc(1, 1000);
+    char* stmt_sql = taosMemoryCalloc(1, 1000);
     sprintf(stmt_sql, "insert into ? values (?,?)");
     assert(taos_stmt_prepare(stmt, stmt_sql, 0) == 0);
     sprintf(name, "super");
     assert(stmt != NULL);
     assert(taos_stmt_set_tbname(stmt, name) == 0);
-    free(name);
-    free(stmt_sql);
+    taosMemoryFree(name);
+    taosMemoryFree(stmt_sql);
     taos_stmt_close(stmt);
     printf("finish taos_stmt_set_tbname test\n");
 }
@@ -130,8 +130,8 @@ void taos_stmt_set_tbname_test() {
 void taos_stmt_set_tbname_tags_test() {
     printf("start taos_stmt_set_tbname_tags test\n");
     TAOS_STMT *stmt = NULL;
-    char *name = calloc(1,20);
-    TAOS_BIND *tags = calloc(1, sizeof(TAOS_BIND));
+    char *name = taosMemoryCalloc(1,20);
+    TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND));
     // ASM ERROR
     // assert(taos_stmt_set_tbname_tags(stmt, name, tags) != 0);
     void *taos = taos_connect("127.0.0.1","root","taosdata",NULL,0);
@@ -146,7 +146,7 @@ void taos_stmt_set_tbname_tags_test() {
     execute_simple_sql(taos, "create table tb using super tags (1)");
     stmt = taos_stmt_init(taos);
     assert(stmt != NULL);
-    char* stmt_sql = calloc(1, 1000);
+    char* stmt_sql = taosMemoryCalloc(1, 1000);
     sprintf(stmt_sql, "insert into ? using super tags (?) values (?,?)");
     assert(taos_stmt_prepare(stmt, stmt_sql, 0) == 0);
     assert(taos_stmt_set_tbname_tags(stmt, name, tags) != 0);
@@ -159,9 +159,9 @@ void taos_stmt_set_tbname_tags_test() {
     tags->length = &tags->buffer_length;
     tags->is_null = NULL;
     assert(taos_stmt_set_tbname_tags(stmt, name, tags) == 0);
-    free(stmt_sql);
-    free(name);
-    free(tags);
+    taosMemoryFree(stmt_sql);
+    taosMemoryFree(name);
+    taosMemoryFree(tags);
     taos_stmt_close(stmt);
     printf("finish taos_stmt_set_tbname_tags test\n");
 }
@@ -169,7 +169,7 @@ void taos_stmt_set_tbname_tags_test() {
 void taos_stmt_set_sub_tbname_test() {
     printf("start taos_stmt_set_sub_tbname test\n");
     TAOS_STMT *stmt = NULL;
-    char *name = calloc(1, 200);
+    char *name = taosMemoryCalloc(1, 200);
     // ASM ERROR
     // assert(taos_stmt_set_sub_tbname(stmt, name) != 0);
     void *taos = taos_connect("127.0.0.1","root","taosdata",NULL,0);
@@ -184,7 +184,7 @@ void taos_stmt_set_sub_tbname_test() {
     execute_simple_sql(taos, "create table tb using super tags (1)");
     stmt = taos_stmt_init(taos);
     assert(stmt != NULL);
-    char* stmt_sql = calloc(1, 1000);
+    char* stmt_sql = taosMemoryCalloc(1, 1000);
     sprintf(stmt_sql, "insert into ? values (?,?)");
     assert(taos_stmt_prepare(stmt, stmt_sql, 0) == 0);
     assert(taos_stmt_set_sub_tbname(stmt, name) != 0);
@@ -192,8 +192,8 @@ void taos_stmt_set_sub_tbname_test() {
     assert(taos_stmt_set_sub_tbname(stmt, name) == 0);
     // assert(taos_load_table_info(taos, "super, tb") == 0);
     // assert(taos_stmt_set_sub_tbname(stmt, name) == 0);
-    free(name);
-    free(stmt_sql);
+    taosMemoryFree(name);
+    taosMemoryFree(stmt_sql);
     assert(taos_stmt_close(stmt) == 0);
     printf("finish taos_stmt_set_sub_tbname test\n");
 }
@@ -213,12 +213,12 @@ void taos_stmt_bind_param_test() {
     execute_simple_sql(taos, "use stmt_test");
     execute_simple_sql(taos, "create table super(ts timestamp, c1 int)");
     stmt = taos_stmt_init(taos);
-    char* stmt_sql = calloc(1, 1000);
+    char* stmt_sql = taosMemoryCalloc(1, 1000);
     sprintf(stmt_sql, "insert into ? values (?,?)");
     assert(taos_stmt_prepare(stmt, stmt_sql, 0) == 0);
     assert(taos_stmt_bind_param(stmt, binds) != 0);
-    free(binds);
-    TAOS_BIND *params = calloc(2, sizeof(TAOS_BIND));
+    taosMemoryFree(binds);
+    TAOS_BIND *params = taosMemoryCalloc(2, sizeof(TAOS_BIND));
     int64_t ts = (int64_t)1591060628000;
     params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
     params[0].buffer_length = sizeof(uint64_t);
@@ -234,8 +234,8 @@ void taos_stmt_bind_param_test() {
     assert(taos_stmt_bind_param(stmt, params) != 0);
     assert(taos_stmt_set_tbname(stmt, "super") == 0);
     assert(taos_stmt_bind_param(stmt, params) == 0);
-    free(params);
-    free(stmt_sql);
+    taosMemoryFree(params);
+    taosMemoryFree(stmt_sql);
     taos_stmt_close(stmt);
     printf("finish taos_stmt_bind_param test\n");
 }
@@ -271,11 +271,11 @@ void taos_stmt_add_batch_test() {
     execute_simple_sql(taos, "create table super(ts timestamp, c1 int)");
     stmt = taos_stmt_init(taos);
     assert(stmt != NULL);
-    char* stmt_sql = calloc(1, 1000);
+    char* stmt_sql = taosMemoryCalloc(1, 1000);
     sprintf(stmt_sql, "insert into ? values (?,?)");
     assert(taos_stmt_prepare(stmt, stmt_sql, 0) == 0);
     assert(taos_stmt_add_batch(stmt) != 0);
-    TAOS_BIND *params = calloc(2, sizeof(TAOS_BIND));
+    TAOS_BIND *params = taosMemoryCalloc(2, sizeof(TAOS_BIND));
     int64_t ts = (int64_t)1591060628000;
     params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
     params[0].buffer_length = sizeof(uint64_t);
@@ -291,8 +291,8 @@ void taos_stmt_add_batch_test() {
     assert(taos_stmt_set_tbname(stmt, "super") == 0);
     assert(taos_stmt_bind_param(stmt, params) == 0);
     assert(taos_stmt_add_batch(stmt) == 0);
-    free(params);
-    free(stmt_sql);
+    taosMemoryFree(params);
+    taosMemoryFree(stmt_sql);
     assert(taos_stmt_close(stmt) == 0);
     printf("finish taos_stmt_add_batch test\n");
 }
@@ -313,11 +313,11 @@ void taos_stmt_execute_test() {
     stmt = taos_stmt_init(taos);
     assert(stmt != NULL);
     assert(taos_stmt_execute(stmt) != 0);
-    char* stmt_sql = calloc(1, 1000);
+    char* stmt_sql = taosMemoryCalloc(1, 1000);
     sprintf(stmt_sql, "insert into ? values (?,?)");
     assert(taos_stmt_prepare(stmt, stmt_sql, 0) == 0);
     assert(taos_stmt_execute(stmt) != 0);
-    TAOS_BIND *params = calloc(2, sizeof(TAOS_BIND));
+    TAOS_BIND *params = taosMemoryCalloc(2, sizeof(TAOS_BIND));
     int64_t ts = (int64_t)1591060628000;
     params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
     params[0].buffer_length = sizeof(uint64_t);
@@ -336,8 +336,8 @@ void taos_stmt_execute_test() {
     assert(taos_stmt_execute(stmt) != 0);
     assert(taos_stmt_add_batch(stmt) == 0);
     assert(taos_stmt_execute(stmt) == 0);
-    free(params);
-    free(stmt_sql);
+    taosMemoryFree(params);
+    taosMemoryFree(stmt_sql);
     assert(taos_stmt_close(stmt) == 0);
     printf("finish taos_stmt_execute test\n");
 }
@@ -345,7 +345,7 @@ void taos_stmt_execute_test() {
 void taos_stmt_use_result_query(void *taos, char *col, int type) {
     TAOS_STMT *stmt = taos_stmt_init(taos);
     assert(stmt != NULL);
-    char *stmt_sql = calloc(1, 1024);
+    char *stmt_sql = taosMemoryCalloc(1, 1024);
     struct {
         int64_t c1;
         int32_t c2;
@@ -372,7 +372,7 @@ void taos_stmt_use_result_query(void *taos, char *col, int type) {
     sprintf(stmt_sql, "select * from stmt_test.t1 where %s = ?", col);
     printf("stmt_sql: %s\n", stmt_sql);
     assert(taos_stmt_prepare(stmt, stmt_sql, 0) == 0);
-    TAOS_BIND *params = calloc(1, sizeof(TAOS_BIND));
+    TAOS_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_BIND));
     params->buffer_type = type;
     params->is_null = NULL;
     switch(type){
@@ -434,8 +434,8 @@ void taos_stmt_use_result_query(void *taos, char *col, int type) {
     assert(result != NULL);
     print_result(result);
     assert(taos_stmt_close(stmt) == 0);
-    free(params);
-    free(stmt_sql);
+    taosMemoryFree(params);
+    taosMemoryFree(stmt_sql);
     taos_free_result(result);
 }
 

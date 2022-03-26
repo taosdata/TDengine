@@ -20,7 +20,7 @@ int32_t mmReadFile(SMnodeMgmt *pMgmt, bool *pDeployed) {
   int32_t   code = TSDB_CODE_NODE_PARSE_FILE_ERROR;
   int32_t   len = 0;
   int32_t   maxLen = 4096;
-  char     *content = calloc(1, maxLen + 1);
+  char     *content = taosMemoryCalloc(1, maxLen + 1);
   cJSON    *root = NULL;
   char      file[PATH_MAX];
   TdFilePtr pFile = NULL;
@@ -97,7 +97,7 @@ int32_t mmReadFile(SMnodeMgmt *pMgmt, bool *pDeployed) {
   dDebug("succcessed to read file %s, deployed:%d", file, *pDeployed);
 
 PRASE_MNODE_OVER:
-  if (content != NULL) free(content);
+  if (content != NULL) taosMemoryFree(content);
   if (root != NULL) cJSON_Delete(root);
   if (pFile != NULL) taosCloseFile(&pFile);
 
@@ -118,7 +118,7 @@ int32_t mmWriteFile(SMnodeMgmt *pMgmt, bool deployed) {
 
   int32_t len = 0;
   int32_t maxLen = 4096;
-  char   *content = calloc(1, maxLen + 1);
+  char   *content = taosMemoryCalloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"deployed\": %d,\n", deployed);
@@ -139,7 +139,7 @@ int32_t mmWriteFile(SMnodeMgmt *pMgmt, bool deployed) {
   taosWriteFile(pFile, content, len);
   taosFsyncFile(pFile);
   taosCloseFile(&pFile);
-  free(content);
+  taosMemoryFree(content);
 
   char realfile[PATH_MAX];
   snprintf(realfile, sizeof(realfile), "%s%smnode.json", pMgmt->path, TD_DIRSEP);

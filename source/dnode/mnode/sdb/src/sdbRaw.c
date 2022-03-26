@@ -17,7 +17,7 @@
 #include "sdbInt.h"
 
 SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen) {
-  SSdbRaw *pRaw = calloc(1, dataLen + sizeof(SSdbRaw));
+  SSdbRaw *pRaw = taosMemoryCalloc(1, dataLen + sizeof(SSdbRaw));
   if (pRaw == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -33,7 +33,7 @@ SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen) {
 
 void sdbFreeRaw(SSdbRaw *pRaw) {
   mTrace("raw:%p, is freed", pRaw);
-  free(pRaw);
+  taosMemoryFree(pRaw);
 }
 
 int32_t sdbSetRawInt8(SSdbRaw *pRaw, int32_t dataPos, int8_t val) {

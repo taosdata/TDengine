@@ -128,7 +128,7 @@ static SSdbRow *mndQnodeActionDecode(SSdbRaw *pRaw) {
 QNODE_DECODE_OVER:
   if (terrno != 0) {
     mError("qnode:%d, failed to decode from raw:%p since %s", pObj->id, pRaw, terrstr());
-    tfree(pRow);
+    taosMemoryFreeClear(pRow);
     return NULL;
   }
 
@@ -193,7 +193,7 @@ static int32_t mndSetCreateQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
   createReq.dnodeId = pDnode->id;
 
   int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &createReq);
-  void   *pReq = malloc(contLen);
+  void   *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -208,7 +208,7 @@ static int32_t mndSetCreateQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
   action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-    free(pReq);
+    taosMemoryFree(pReq);
     return -1;
   }
 
@@ -220,7 +220,7 @@ static int32_t mndSetCreateQnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
   dropReq.dnodeId = pDnode->id;
 
   int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &dropReq);
-  void   *pReq = malloc(contLen);
+  void   *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -235,7 +235,7 @@ static int32_t mndSetCreateQnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
   action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
 
   if (mndTransAppendUndoAction(pTrans, &action) != 0) {
-    free(pReq);
+    taosMemoryFree(pReq);
     return -1;
   }
 
@@ -343,7 +343,7 @@ static int32_t mndSetDropQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQn
   dropReq.dnodeId = pDnode->id;
 
   int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &dropReq);
-  void   *pReq = malloc(contLen);
+  void   *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -358,7 +358,7 @@ static int32_t mndSetDropQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQn
   action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-    free(pReq);
+    taosMemoryFree(pReq);
     return -1;
   }
 
@@ -474,7 +474,7 @@ static int32_t mndProcessQnodeListReq(SNodeMsg *pReq) {
   }
 
   int32_t rspLen = tSerializeSQnodeListRsp(NULL, 0, &qlistRsp);
-  void   *pRsp = malloc(rspLen);
+  void   *pRsp = taosMemoryMalloc(rspLen);
   if (pRsp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto QNODE_LIST_OVER;

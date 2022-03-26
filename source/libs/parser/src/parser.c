@@ -53,10 +53,10 @@ void qDestroyQuery(SQuery* pQueryNode) {
     return;
   }
   nodesDestroyNode(pQueryNode->pRoot);
-  tfree(pQueryNode->pResSchema);
+  taosMemoryFreeClear(pQueryNode->pResSchema);
   if (NULL != pQueryNode->pCmdMsg) {
-    tfree(pQueryNode->pCmdMsg->pMsg);
-    tfree(pQueryNode->pCmdMsg);
+    taosMemoryFreeClear(pQueryNode->pCmdMsg->pMsg);
+    taosMemoryFreeClear(pQueryNode->pCmdMsg);
   }
-  tfree(pQueryNode);
+  taosMemoryFreeClear(pQueryNode);
 }

@@ -22,7 +22,7 @@ typedef void *(*ThreadFp)(void *param);
 
 int32_t tQWorkerInit(SQWorkerPool *pool) {
   pool->qset = taosOpenQset();
-  pool->workers = calloc(pool->max, sizeof(SQWorker));
+  pool->workers = taosMemoryCalloc(pool->max, sizeof(SQWorker));
   if (pool->workers == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -60,7 +60,7 @@ void tQWorkerCleanup(SQWorkerPool *pool) {
     }
   }
 
-  tfree(pool->workers);
+  taosMemoryFreeClear(pool->workers);
   taosCloseQset(pool->qset);
   taosThreadMutexDestroy(&pool->mutex);
 
@@ -142,7 +142,7 @@ void tQWorkerFreeQueue(SQWorkerPool *pool, STaosQueue *queue) {
 
 int32_t tWWorkerInit(SWWorkerPool *pool) {
   pool->nextId = 0;
-  pool->workers = calloc(pool->max, sizeof(SWWorker));
+  pool->workers = taosMemoryCalloc(pool->max, sizeof(SWWorker));
   if (pool->workers == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -184,7 +184,7 @@ void tWWorkerCleanup(SWWorkerPool *pool) {
     }
   }
 
-  tfree(pool->workers);
+  taosMemoryFreeClear(pool->workers);
   taosThreadMutexDestroy(&pool->mutex);
 
   uInfo("worker:%s is closed", pool->name);

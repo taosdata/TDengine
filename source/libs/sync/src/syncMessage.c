@@ -70,20 +70,20 @@ cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg) {
     char* s;
     s = syncUtilprintBin((char*)(pRpcMsg->pCont), pRpcMsg->contLen);
     cJSON_AddStringToObject(pRoot, "pCont", s);
-    free(s);
+    taosMemoryFree(s);
     s = syncUtilprintBin2((char*)(pRpcMsg->pCont), pRpcMsg->contLen);
     cJSON_AddStringToObject(pRoot, "pCont2", s);
-    free(s);
+    taosMemoryFree(s);
 
   } else {
     pRoot = cJSON_CreateObject();
     char* s;
     s = syncUtilprintBin((char*)(pRpcMsg->pCont), pRpcMsg->contLen);
     cJSON_AddStringToObject(pRoot, "pCont", s);
-    free(s);
+    taosMemoryFree(s);
     s = syncUtilprintBin2((char*)(pRpcMsg->pCont), pRpcMsg->contLen);
     cJSON_AddStringToObject(pRoot, "pCont2", s);
-    free(s);
+    taosMemoryFree(s);
   }
 
   cJSON_AddNumberToObject(pRoot, "msgType", pRpcMsg->msgType);
@@ -118,32 +118,32 @@ void syncRpcMsgPrint(SRpcMsg* pMsg) {
   char* serialized = syncRpcMsg2Str(pMsg);
   printf("syncRpcMsgPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncRpcMsgPrint2(char* s, SRpcMsg* pMsg) {
   char* serialized = syncRpcMsg2Str(pMsg);
   printf("syncRpcMsgPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncRpcMsgLog(SRpcMsg* pMsg) {
   char* serialized = syncRpcMsg2Str(pMsg);
   sTrace("syncRpcMsgLog | len:%lu | %s", strlen(serialized), serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncRpcMsgLog2(char* s, SRpcMsg* pMsg) {
   char* serialized = syncRpcMsg2Str(pMsg);
   sTrace("syncRpcMsgLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 // ---- message process SyncTimeout----
 SyncTimeout* syncTimeoutBuild() {
   uint32_t     bytes = sizeof(SyncTimeout);
-  SyncTimeout* pMsg = malloc(bytes);
+  SyncTimeout* pMsg = taosMemoryMalloc(bytes);
   memset(pMsg, 0, bytes);
   pMsg->bytes = bytes;
   pMsg->msgType = SYNC_TIMEOUT;
@@ -161,7 +161,7 @@ SyncTimeout* syncTimeoutBuild2(ESyncTimeoutType timeoutType, uint64_t logicClock
 
 void syncTimeoutDestroy(SyncTimeout* pMsg) {
   if (pMsg != NULL) {
-    free(pMsg);
+    taosMemoryFree(pMsg);
   }
 }
 
@@ -176,7 +176,7 @@ void syncTimeoutDeserialize(const char* buf, uint32_t len, SyncTimeout* pMsg) {
 }
 
 char* syncTimeoutSerialize2(const SyncTimeout* pMsg, uint32_t* len) {
-  char* buf = malloc(pMsg->bytes);
+  char* buf = taosMemoryMalloc(pMsg->bytes);
   assert(buf != NULL);
   syncTimeoutSerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
@@ -187,7 +187,7 @@ char* syncTimeoutSerialize2(const SyncTimeout* pMsg, uint32_t* len) {
 
 SyncTimeout* syncTimeoutDeserialize2(const char* buf, uint32_t len) {
   uint32_t     bytes = *((uint32_t*)buf);
-  SyncTimeout* pMsg = malloc(bytes);
+  SyncTimeout* pMsg = taosMemoryMalloc(bytes);
   assert(pMsg != NULL);
   syncTimeoutDeserialize(buf, len, pMsg);
   assert(len == pMsg->bytes);
@@ -243,32 +243,32 @@ void syncTimeoutPrint(const SyncTimeout* pMsg) {
   char* serialized = syncTimeout2Str(pMsg);
   printf("syncTimeoutPrint | len:%zu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncTimeoutPrint2(char* s, const SyncTimeout* pMsg) {
   char* serialized = syncTimeout2Str(pMsg);
   printf("syncTimeoutPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncTimeoutLog(const SyncTimeout* pMsg) {
   char* serialized = syncTimeout2Str(pMsg);
   sTrace("syncTimeoutLog | len:%lu | %s", strlen(serialized), serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncTimeoutLog2(char* s, const SyncTimeout* pMsg) {
   char* serialized = syncTimeout2Str(pMsg);
   sTrace("syncTimeoutLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 // ---- message process SyncPing----
 SyncPing* syncPingBuild(uint32_t dataLen) {
   uint32_t  bytes = sizeof(SyncPing) + dataLen;
-  SyncPing* pMsg = malloc(bytes);
+  SyncPing* pMsg = taosMemoryMalloc(bytes);
   memset(pMsg, 0, bytes);
   pMsg->bytes = bytes;
   pMsg->msgType = SYNC_PING;
@@ -292,7 +292,7 @@ SyncPing* syncPingBuild3(const SRaftId* srcId, const SRaftId* destId) {
 
 void syncPingDestroy(SyncPing* pMsg) {
   if (pMsg != NULL) {
-    free(pMsg);
+    taosMemoryFree(pMsg);
   }
 }
 
@@ -308,7 +308,7 @@ void syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pMsg) {
 }
 
 char* syncPingSerialize2(const SyncPing* pMsg, uint32_t* len) {
-  char* buf = malloc(pMsg->bytes);
+  char* buf = taosMemoryMalloc(pMsg->bytes);
   assert(buf != NULL);
   syncPingSerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
@@ -319,7 +319,7 @@ char* syncPingSerialize2(const SyncPing* pMsg, uint32_t* len) {
 
 SyncPing* syncPingDeserialize2(const char* buf, uint32_t len) {
   uint32_t  bytes = *((uint32_t*)buf);
-  SyncPing* pMsg = malloc(bytes);
+  SyncPing* pMsg = taosMemoryMalloc(bytes);
   assert(pMsg != NULL);
   syncPingDeserialize(buf, len, pMsg);
   assert(len == pMsg->bytes);
@@ -385,10 +385,10 @@ cJSON* syncPing2Json(const SyncPing* pMsg) {
     char* s;
     s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data", s);
-    free(s);
+    taosMemoryFree(s);
     s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data2", s);
-    free(s);
+    taosMemoryFree(s);
   }
 
   cJSON* pJson = cJSON_CreateObject();
@@ -408,32 +408,32 @@ void syncPingPrint(const SyncPing* pMsg) {
   char* serialized = syncPing2Str(pMsg);
   printf("syncPingPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncPingPrint2(char* s, const SyncPing* pMsg) {
   char* serialized = syncPing2Str(pMsg);
   printf("syncPingPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncPingLog(const SyncPing* pMsg) {
   char* serialized = syncPing2Str(pMsg);
   sTrace("syncPingLog | len:%lu | %s", strlen(serialized), serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncPingLog2(char* s, const SyncPing* pMsg) {
   char* serialized = syncPing2Str(pMsg);
   sTrace("syncPingLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 // ---- message process SyncPingReply----
 SyncPingReply* syncPingReplyBuild(uint32_t dataLen) {
   uint32_t       bytes = sizeof(SyncPingReply) + dataLen;
-  SyncPingReply* pMsg = malloc(bytes);
+  SyncPingReply* pMsg = taosMemoryMalloc(bytes);
   memset(pMsg, 0, bytes);
   pMsg->bytes = bytes;
   pMsg->msgType = SYNC_PING_REPLY;
@@ -457,7 +457,7 @@ SyncPingReply* syncPingReplyBuild3(const SRaftId* srcId, const SRaftId* destId) 
 
 void syncPingReplyDestroy(SyncPingReply* pMsg) {
   if (pMsg != NULL) {
-    free(pMsg);
+    taosMemoryFree(pMsg);
   }
 }
 
@@ -473,7 +473,7 @@ void syncPingReplyDeserialize(const char* buf, uint32_t len, SyncPingReply* pMsg
 }
 
 char* syncPingReplySerialize2(const SyncPingReply* pMsg, uint32_t* len) {
-  char* buf = malloc(pMsg->bytes);
+  char* buf = taosMemoryMalloc(pMsg->bytes);
   assert(buf != NULL);
   syncPingReplySerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
@@ -484,7 +484,7 @@ char* syncPingReplySerialize2(const SyncPingReply* pMsg, uint32_t* len) {
 
 SyncPingReply* syncPingReplyDeserialize2(const char* buf, uint32_t len) {
   uint32_t       bytes = *((uint32_t*)buf);
-  SyncPingReply* pMsg = malloc(bytes);
+  SyncPingReply* pMsg = taosMemoryMalloc(bytes);
   assert(pMsg != NULL);
   syncPingReplyDeserialize(buf, len, pMsg);
   assert(len == pMsg->bytes);
@@ -550,10 +550,10 @@ cJSON* syncPingReply2Json(const SyncPingReply* pMsg) {
     char* s;
     s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data", s);
-    free(s);
+    taosMemoryFree(s);
     s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data2", s);
-    free(s);
+    taosMemoryFree(s);
   }
 
   cJSON* pJson = cJSON_CreateObject();
@@ -573,32 +573,32 @@ void syncPingReplyPrint(const SyncPingReply* pMsg) {
   char* serialized = syncPingReply2Str(pMsg);
   printf("syncPingReplyPrint | len:%zu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncPingReplyPrint2(char* s, const SyncPingReply* pMsg) {
   char* serialized = syncPingReply2Str(pMsg);
   printf("syncPingReplyPrint2 | len:%zu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncPingReplyLog(const SyncPingReply* pMsg) {
   char* serialized = syncPingReply2Str(pMsg);
   sTrace("syncPingReplyLog | len:%zu | %s", strlen(serialized), serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncPingReplyLog2(char* s, const SyncPingReply* pMsg) {
   char* serialized = syncPingReply2Str(pMsg);
   sTrace("syncPingReplyLog2 | len:%zu | %s | %s", strlen(serialized), s, serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 // ---- message process SyncClientRequest----
 SyncClientRequest* syncClientRequestBuild(uint32_t dataLen) {
   uint32_t           bytes = sizeof(SyncClientRequest) + dataLen;
-  SyncClientRequest* pMsg = malloc(bytes);
+  SyncClientRequest* pMsg = taosMemoryMalloc(bytes);
   memset(pMsg, 0, bytes);
   pMsg->bytes = bytes;
   pMsg->msgType = SYNC_CLIENT_REQUEST;
@@ -620,7 +620,7 @@ SyncClientRequest* syncClientRequestBuild2(const SRpcMsg* pOriginalRpcMsg, uint6
 
 void syncClientRequestDestroy(SyncClientRequest* pMsg) {
   if (pMsg != NULL) {
-    free(pMsg);
+    taosMemoryFree(pMsg);
   }
 }
 
@@ -635,7 +635,7 @@ void syncClientRequestDeserialize(const char* buf, uint32_t len, SyncClientReque
 }
 
 char* syncClientRequestSerialize2(const SyncClientRequest* pMsg, uint32_t* len) {
-  char* buf = malloc(pMsg->bytes);
+  char* buf = taosMemoryMalloc(pMsg->bytes);
   assert(buf != NULL);
   syncClientRequestSerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
@@ -646,7 +646,7 @@ char* syncClientRequestSerialize2(const SyncClientRequest* pMsg, uint32_t* len) 
 
 SyncClientRequest* syncClientRequestDeserialize2(const char* buf, uint32_t len) {
   uint32_t           bytes = *((uint32_t*)buf);
-  SyncClientRequest* pMsg = malloc(bytes);
+  SyncClientRequest* pMsg = taosMemoryMalloc(bytes);
   assert(pMsg != NULL);
   syncClientRequestDeserialize(buf, len, pMsg);
   assert(len == pMsg->bytes);
@@ -688,10 +688,10 @@ cJSON* syncClientRequest2Json(const SyncClientRequest* pMsg) {
     char* s;
     s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data", s);
-    free(s);
+    taosMemoryFree(s);
     s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data2", s);
-    free(s);
+    taosMemoryFree(s);
   }
 
   cJSON* pJson = cJSON_CreateObject();
@@ -711,32 +711,32 @@ void syncClientRequestPrint(const SyncClientRequest* pMsg) {
   char* serialized = syncClientRequest2Str(pMsg);
   printf("syncClientRequestPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncClientRequestPrint2(char* s, const SyncClientRequest* pMsg) {
   char* serialized = syncClientRequest2Str(pMsg);
   printf("syncClientRequestPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncClientRequestLog(const SyncClientRequest* pMsg) {
   char* serialized = syncClientRequest2Str(pMsg);
   sTrace("syncClientRequestLog | len:%lu | %s", strlen(serialized), serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncClientRequestLog2(char* s, const SyncClientRequest* pMsg) {
   char* serialized = syncClientRequest2Str(pMsg);
   sTrace("syncClientRequestLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 // ---- message process SyncRequestVote----
 SyncRequestVote* syncRequestVoteBuild() {
   uint32_t         bytes = sizeof(SyncRequestVote);
-  SyncRequestVote* pMsg = malloc(bytes);
+  SyncRequestVote* pMsg = taosMemoryMalloc(bytes);
   memset(pMsg, 0, bytes);
   pMsg->bytes = bytes;
   pMsg->msgType = SYNC_REQUEST_VOTE;
@@ -745,7 +745,7 @@ SyncRequestVote* syncRequestVoteBuild() {
 
 void syncRequestVoteDestroy(SyncRequestVote* pMsg) {
   if (pMsg != NULL) {
-    free(pMsg);
+    taosMemoryFree(pMsg);
   }
 }
 
@@ -760,7 +760,7 @@ void syncRequestVoteDeserialize(const char* buf, uint32_t len, SyncRequestVote* 
 }
 
 char* syncRequestVoteSerialize2(const SyncRequestVote* pMsg, uint32_t* len) {
-  char* buf = malloc(pMsg->bytes);
+  char* buf = taosMemoryMalloc(pMsg->bytes);
   assert(buf != NULL);
   syncRequestVoteSerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
@@ -771,7 +771,7 @@ char* syncRequestVoteSerialize2(const SyncRequestVote* pMsg, uint32_t* len) {
 
 SyncRequestVote* syncRequestVoteDeserialize2(const char* buf, uint32_t len) {
   uint32_t         bytes = *((uint32_t*)buf);
-  SyncRequestVote* pMsg = malloc(bytes);
+  SyncRequestVote* pMsg = taosMemoryMalloc(bytes);
   assert(pMsg != NULL);
   syncRequestVoteDeserialize(buf, len, pMsg);
   assert(len == pMsg->bytes);
@@ -857,32 +857,32 @@ void syncRequestVotePrint(const SyncRequestVote* pMsg) {
   char* serialized = syncRequestVote2Str(pMsg);
   printf("syncRequestVotePrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncRequestVotePrint2(char* s, const SyncRequestVote* pMsg) {
   char* serialized = syncRequestVote2Str(pMsg);
   printf("syncRequestVotePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncRequestVoteLog(const SyncRequestVote* pMsg) {
   char* serialized = syncRequestVote2Str(pMsg);
   sTrace("syncRequestVoteLog | len:%lu | %s", strlen(serialized), serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncRequestVoteLog2(char* s, const SyncRequestVote* pMsg) {
   char* serialized = syncRequestVote2Str(pMsg);
   sTrace("syncRequestVoteLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 // ---- message process SyncRequestVoteReply----
 SyncRequestVoteReply* syncRequestVoteReplyBuild() {
   uint32_t              bytes = sizeof(SyncRequestVoteReply);
-  SyncRequestVoteReply* pMsg = malloc(bytes);
+  SyncRequestVoteReply* pMsg = taosMemoryMalloc(bytes);
   memset(pMsg, 0, bytes);
   pMsg->bytes = bytes;
   pMsg->msgType = SYNC_REQUEST_VOTE_REPLY;
@@ -891,7 +891,7 @@ SyncRequestVoteReply* syncRequestVoteReplyBuild() {
 
 void syncRequestVoteReplyDestroy(SyncRequestVoteReply* pMsg) {
   if (pMsg != NULL) {
-    free(pMsg);
+    taosMemoryFree(pMsg);
   }
 }
 
@@ -906,7 +906,7 @@ void syncRequestVoteReplyDeserialize(const char* buf, uint32_t len, SyncRequestV
 }
 
 char* syncRequestVoteReplySerialize2(const SyncRequestVoteReply* pMsg, uint32_t* len) {
-  char* buf = malloc(pMsg->bytes);
+  char* buf = taosMemoryMalloc(pMsg->bytes);
   assert(buf != NULL);
   syncRequestVoteReplySerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
@@ -917,7 +917,7 @@ char* syncRequestVoteReplySerialize2(const SyncRequestVoteReply* pMsg, uint32_t*
 
 SyncRequestVoteReply* syncRequestVoteReplyDeserialize2(const char* buf, uint32_t len) {
   uint32_t              bytes = *((uint32_t*)buf);
-  SyncRequestVoteReply* pMsg = malloc(bytes);
+  SyncRequestVoteReply* pMsg = taosMemoryMalloc(bytes);
   assert(pMsg != NULL);
   syncRequestVoteReplyDeserialize(buf, len, pMsg);
   assert(len == pMsg->bytes);
@@ -1000,32 +1000,32 @@ void syncRequestVoteReplyPrint(const SyncRequestVoteReply* pMsg) {
   char* serialized = syncRequestVoteReply2Str(pMsg);
   printf("syncRequestVoteReplyPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncRequestVoteReplyPrint2(char* s, const SyncRequestVoteReply* pMsg) {
   char* serialized = syncRequestVoteReply2Str(pMsg);
   printf("syncRequestVoteReplyPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncRequestVoteReplyLog(const SyncRequestVoteReply* pMsg) {
   char* serialized = syncRequestVoteReply2Str(pMsg);
   sTrace("syncRequestVoteReplyLog | len:%lu | %s", strlen(serialized), serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncRequestVoteReplyLog2(char* s, const SyncRequestVoteReply* pMsg) {
   char* serialized = syncRequestVoteReply2Str(pMsg);
   sTrace("syncRequestVoteReplyLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 // ---- message process SyncAppendEntries----
 SyncAppendEntries* syncAppendEntriesBuild(uint32_t dataLen) {
   uint32_t           bytes = sizeof(SyncAppendEntries) + dataLen;
-  SyncAppendEntries* pMsg = malloc(bytes);
+  SyncAppendEntries* pMsg = taosMemoryMalloc(bytes);
   memset(pMsg, 0, bytes);
   pMsg->bytes = bytes;
   pMsg->msgType = SYNC_APPEND_ENTRIES;
@@ -1035,7 +1035,7 @@ SyncAppendEntries* syncAppendEntriesBuild(uint32_t dataLen) {
 
 void syncAppendEntriesDestroy(SyncAppendEntries* pMsg) {
   if (pMsg != NULL) {
-    free(pMsg);
+    taosMemoryFree(pMsg);
   }
 }
 
@@ -1051,7 +1051,7 @@ void syncAppendEntriesDeserialize(const char* buf, uint32_t len, SyncAppendEntri
 }
 
 char* syncAppendEntriesSerialize2(const SyncAppendEntries* pMsg, uint32_t* len) {
-  char* buf = malloc(pMsg->bytes);
+  char* buf = taosMemoryMalloc(pMsg->bytes);
   assert(buf != NULL);
   syncAppendEntriesSerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
@@ -1062,7 +1062,7 @@ char* syncAppendEntriesSerialize2(const SyncAppendEntries* pMsg, uint32_t* len) 
 
 SyncAppendEntries* syncAppendEntriesDeserialize2(const char* buf, uint32_t len) {
   uint32_t           bytes = *((uint32_t*)buf);
-  SyncAppendEntries* pMsg = malloc(bytes);
+  SyncAppendEntries* pMsg = taosMemoryMalloc(bytes);
   assert(pMsg != NULL);
   syncAppendEntriesDeserialize(buf, len, pMsg);
   assert(len == pMsg->bytes);
@@ -1140,10 +1140,10 @@ cJSON* syncAppendEntries2Json(const SyncAppendEntries* pMsg) {
     char* s;
     s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data", s);
-    free(s);
+    taosMemoryFree(s);
     s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data2", s);
-    free(s);
+    taosMemoryFree(s);
   }
 
   cJSON* pJson = cJSON_CreateObject();
@@ -1163,32 +1163,32 @@ void syncAppendEntriesPrint(const SyncAppendEntries* pMsg) {
   char* serialized = syncAppendEntries2Str(pMsg);
   printf("syncAppendEntriesPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncAppendEntriesPrint2(char* s, const SyncAppendEntries* pMsg) {
   char* serialized = syncAppendEntries2Str(pMsg);
   printf("syncAppendEntriesPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncAppendEntriesLog(const SyncAppendEntries* pMsg) {
   char* serialized = syncAppendEntries2Str(pMsg);
   sTrace("syncAppendEntriesLog | len:%lu | %s", strlen(serialized), serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncAppendEntriesLog2(char* s, const SyncAppendEntries* pMsg) {
   char* serialized = syncAppendEntries2Str(pMsg);
   sTrace("syncAppendEntriesLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 // ---- message process SyncAppendEntriesReply----
 SyncAppendEntriesReply* syncAppendEntriesReplyBuild() {
   uint32_t                bytes = sizeof(SyncAppendEntriesReply);
-  SyncAppendEntriesReply* pMsg = malloc(bytes);
+  SyncAppendEntriesReply* pMsg = taosMemoryMalloc(bytes);
   memset(pMsg, 0, bytes);
   pMsg->bytes = bytes;
   pMsg->msgType = SYNC_APPEND_ENTRIES_REPLY;
@@ -1197,7 +1197,7 @@ SyncAppendEntriesReply* syncAppendEntriesReplyBuild() {
 
 void syncAppendEntriesReplyDestroy(SyncAppendEntriesReply* pMsg) {
   if (pMsg != NULL) {
-    free(pMsg);
+    taosMemoryFree(pMsg);
   }
 }
 
@@ -1212,7 +1212,7 @@ void syncAppendEntriesReplyDeserialize(const char* buf, uint32_t len, SyncAppend
 }
 
 char* syncAppendEntriesReplySerialize2(const SyncAppendEntriesReply* pMsg, uint32_t* len) {
-  char* buf = malloc(pMsg->bytes);
+  char* buf = taosMemoryMalloc(pMsg->bytes);
   assert(buf != NULL);
   syncAppendEntriesReplySerialize(pMsg, buf, pMsg->bytes);
   if (len != NULL) {
@@ -1223,7 +1223,7 @@ char* syncAppendEntriesReplySerialize2(const SyncAppendEntriesReply* pMsg, uint3
 
 SyncAppendEntriesReply* syncAppendEntriesReplyDeserialize2(const char* buf, uint32_t len) {
   uint32_t                bytes = *((uint32_t*)buf);
-  SyncAppendEntriesReply* pMsg = malloc(bytes);
+  SyncAppendEntriesReply* pMsg = taosMemoryMalloc(bytes);
   assert(pMsg != NULL);
   syncAppendEntriesReplyDeserialize(buf, len, pMsg);
   assert(len == pMsg->bytes);
@@ -1309,24 +1309,24 @@ void syncAppendEntriesReplyPrint(const SyncAppendEntriesReply* pMsg) {
   char* serialized = syncAppendEntriesReply2Str(pMsg);
   printf("syncAppendEntriesReplyPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncAppendEntriesReplyPrint2(char* s, const SyncAppendEntriesReply* pMsg) {
   char* serialized = syncAppendEntriesReply2Str(pMsg);
   printf("syncAppendEntriesReplyPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncAppendEntriesReplyLog(const SyncAppendEntriesReply* pMsg) {
   char* serialized = syncAppendEntriesReply2Str(pMsg);
   sTrace("syncAppendEntriesReplyLog | len:%lu | %s", strlen(serialized), serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncAppendEntriesReplyLog2(char* s, const SyncAppendEntriesReply* pMsg) {
   char* serialized = syncAppendEntriesReply2Str(pMsg);
   sTrace("syncAppendEntriesReplyLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }

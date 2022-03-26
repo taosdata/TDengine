@@ -213,6 +213,33 @@ static SNodeptr createPrimaryKeyCol(SPhysiPlanContext* pCxt, uint64_t tableId) {
   return pCol;
 }
 
+static int32_t colIdCompare(const void* pLeft, const void* pRight) {
+  SColumnNode* pLeftCol = *(SColumnNode**)pLeft;
+  SColumnNode* pRightCol = *(SColumnNode**)pRight;
+  return pLeftCol->colId > pRightCol->colId ? 1 : -1;
+}
+
+static int32_t sortScanCols(SNodeList* pScanCols) {
+  SArray* pArray = taosArrayInit(LIST_LENGTH(pScanCols), POINTER_BYTES);
+  if (NULL == pArray) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SNode* pCol = NULL;
+  FOREACH(pCol, pScanCols) {
+    taosArrayPush(pArray, &pCol);
+  }
+  taosArraySort(pArray, colIdCompare);
+
+  int32_t index = 0;
+  FOREACH(pCol, pScanCols) {
+    REPLACE_NODE(taosArrayGetP(pArray, index++));
+  }
+  taosArrayDestroy(pArray);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t createScanCols(SPhysiPlanContext* pCxt, SScanPhysiNode* pScanPhysiNode, SNodeList* pScanCols) {
   if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pScanPhysiNode)
       || QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN == nodeType(pScanPhysiNode)) {
@@ -235,6 +262,7 @@ static int32_t createScanCols(SPhysiPlanContext* pCxt, SScanPhysiNode* pScanPhys
     CHECK_ALLOC(pScanPhysiNode->pScanCols, TSDB_CODE_OUT_OF_MEMORY);
   }
 
+  // return sortScanCols(pScanPhysiNode->pScanCols);
   return TSDB_CODE_SUCCESS;
 }
 

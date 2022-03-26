@@ -47,7 +47,7 @@ char* taosDesImp(uint8_t* key, char* src, uint32_t len, int32_t process_mode) {
   uint8_t  processed_block[9] = {0};
   key_set  key_sets[17];
   memset(key_sets, 0, sizeof(key_sets));
-  char* dest = calloc(len + 1, 1);
+  char* dest = taosMemoryCalloc(len + 1, 1);
   generate_sub_keys(key, key_sets);
 
   for (uint32_t block_count = 0; block_count < number_of_blocks; block_count++) {
@@ -68,12 +68,12 @@ char* taosDesEncode(int64_t key, char* src, int32_t len) {
 
 char* taosDesDecode(int64_t key, char* src, int32_t len) {
   uint8_t* keyStr = (uint8_t*)(&key);
-  char*    temp = calloc(len + 8, 1);
+  char*    temp = taosMemoryCalloc(len + 8, 1);
   memcpy(temp, src, len);
   len += 8;
 
   char* decode = taosDesImp(keyStr, temp, len, DECRYPTION_MODE);
-  free(temp);
+  taosMemoryFree(temp);
 
   return decode;
 }

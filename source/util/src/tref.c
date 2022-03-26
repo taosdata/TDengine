@@ -65,15 +65,15 @@ int32_t taosOpenRef(int32_t max, void (*fp)(void *)) {
 
   taosThreadOnce(&tsRefModuleInit, taosInitRefModule);
 
-  nodeList = calloc(sizeof(SRefNode *), (size_t)max);
+  nodeList = taosMemoryCalloc(sizeof(SRefNode *), (size_t)max);
   if (nodeList == NULL) {
     terrno = TSDB_CODE_REF_NO_MEMORY;
     return -1;
   }
 
-  lockedBy = calloc(sizeof(int64_t), (size_t)max);
+  lockedBy = taosMemoryCalloc(sizeof(int64_t), (size_t)max);
   if (lockedBy == NULL) {
-    free(nodeList);
+    taosMemoryFree(nodeList);
     terrno = TSDB_CODE_REF_NO_MEMORY;
     return -1;
   }
@@ -102,8 +102,8 @@ int32_t taosOpenRef(int32_t max, void (*fp)(void *)) {
     uTrace("rsetId:%d is opened, max:%d, fp:%p refSetNum:%d", rsetId, max, fp, tsRefSetNum);
   } else {
     rsetId = TSDB_CODE_REF_FULL;
-    free(nodeList);
-    free(lockedBy);
+    taosMemoryFree(nodeList);
+    taosMemoryFree(lockedBy);
     uTrace("run out of Ref ID, maximum:%d refSetNum:%d", TSDB_REF_OBJECTS, tsRefSetNum);
   }
 
@@ -162,7 +162,7 @@ int64_t taosAddRef(int32_t rsetId, void *p) {
     return -1;
   }
 
-  pNode = calloc(sizeof(SRefNode), 1);
+  pNode = taosMemoryCalloc(sizeof(SRefNode), 1);
   if (pNode == NULL) {
     terrno = TSDB_CODE_REF_NO_MEMORY;
     return -1;
@@ -445,7 +445,7 @@ static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove) {
     uTrace("rsetId:%d p:%p rid:%" PRId64 " is removed, count:%d, free mem: %p", rsetId, pNode->p, rid, pSet->count,
            pNode);
     (*pSet->fp)(pNode->p);
-    free(pNode);
+    taosMemoryFree(pNode);
 
     taosDecRsetCount(pSet);
   }
@@ -490,8 +490,8 @@ static void taosDecRsetCount(SRefSet *pSet) {
     pSet->max = 0;
     pSet->fp = NULL;
 
-    tfree(pSet->nodeList);
-    tfree(pSet->lockedBy);
+    taosMemoryFreeClear(pSet->nodeList);
+    taosMemoryFreeClear(pSet->lockedBy);
 
     tsRefSetNum--;
     uTrace("rsetId:%d is cleaned, refSetNum:%d count:%d", pSet->rsetId, tsRefSetNum, pSet->count);

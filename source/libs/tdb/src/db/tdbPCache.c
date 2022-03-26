@@ -65,7 +65,7 @@ int tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache) {
   void    *pPtr;
   SPage   *pPgHdr;
 
-  pCache = (SPCache *)calloc(1, sizeof(*pCache));
+  pCache = (SPCache *)taosMemoryCalloc(1, sizeof(*pCache));
   if (pCache == NULL) {
     return -1;
   }
@@ -74,7 +74,7 @@ int tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache) {
   pCache->cacheSize = cacheSize;
 
   if (tdbPCacheOpenImpl(pCache) < 0) {
-    free(pCache);
+    taosMemoryFree(pCache);
     return -1;
   }
 
@@ -281,7 +281,7 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
   // Open the hash table
   pCache->nPage = 0;
   pCache->nHash = pCache->cacheSize;
-  pCache->pgHash = (SPage **)calloc(pCache->nHash, sizeof(SPage *));
+  pCache->pgHash = (SPage **)taosMemoryCalloc(pCache->nHash, sizeof(SPage *));
   if (pCache->pgHash == NULL) {
     // TODO
     return -1;
@@ -301,9 +301,9 @@ int tdbPCacheGetPageSize(SPCache *pCache) { return pCache->pageSize; }
 static void *tdbOsMalloc(void *arg, size_t size) {
   void *ptr;
 
-  ptr = malloc(size);
+  ptr = taosMemoryMalloc(size);
 
   return ptr;
 }
 
-static void tdbOsFree(void *arg, void *ptr) { free(ptr); }
+static void tdbOsFree(void *arg, void *ptr) { taosMemoryFree(ptr); }

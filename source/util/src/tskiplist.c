@@ -28,7 +28,7 @@ static SSkipListIterator *doCreateSkipListIterator(SSkipList *pSkipList, int32_t
 static void tSkipListDoInsert(SSkipList *pSkipList, SSkipListNode **direction, SSkipListNode *pNode, bool isForward);
 static bool tSkipListGetPosToPut(SSkipList *pSkipList, SSkipListNode **backward, void *pData);
 static SSkipListNode *tSkipListNewNode(uint8_t level);
-#define tSkipListFreeNode(n) tfree((n))
+#define tSkipListFreeNode(n) taosMemoryFreeClear((n))
 static SSkipListNode *tSkipListPutImpl(SSkipList *pSkipList, void *pData, SSkipListNode **direction, bool isForward,
                                        bool hasDup);
 
@@ -39,7 +39,7 @@ static FORCE_INLINE int32_t getSkipListRandLevel(SSkipList *pSkipList);
 
 SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, __compar_fn_t comparFn, uint8_t flags,
                            __sl_key_fn_t fn) {
-  SSkipList *pSkipList = (SSkipList *)calloc(1, sizeof(SSkipList));
+  SSkipList *pSkipList = (SSkipList *)taosMemoryCalloc(1, sizeof(SSkipList));
   if (pSkipList == NULL) return NULL;
 
   if (maxLevel > MAX_SKIP_LIST_LEVEL) {
@@ -70,7 +70,7 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, _
   }
 
   if (SL_IS_THREAD_SAFE(pSkipList)) {
-    pSkipList->lock = (TdThreadRwlock *)calloc(1, sizeof(TdThreadRwlock));
+    pSkipList->lock = (TdThreadRwlock *)taosMemoryCalloc(1, sizeof(TdThreadRwlock));
     if (pSkipList->lock == NULL) {
       tSkipListDestroy(pSkipList);
       return NULL;
@@ -105,17 +105,17 @@ void tSkipListDestroy(SSkipList *pSkipList) {
     tSkipListFreeNode(pTemp);
   }
 
-  tfree(pSkipList->insertHandleFn);
+  taosMemoryFreeClear(pSkipList->insertHandleFn);
 
   tSkipListUnlock(pSkipList);
   if (pSkipList->lock != NULL) {
     taosThreadRwlockDestroy(pSkipList->lock);
-    tfree(pSkipList->lock);
+    taosMemoryFreeClear(pSkipList->lock);
   }
 
   tSkipListFreeNode(pSkipList->pHead);
   tSkipListFreeNode(pSkipList->pTail);
-  tfree(pSkipList);
+  taosMemoryFreeClear(pSkipList);
 }
 
 SSkipListNode *tSkipListPut(SSkipList *pSkipList, void *pData) {
@@ -345,7 +345,7 @@ void *tSkipListDestroyIter(SSkipListIterator *iter) {
     return NULL;
   }
 
-  tfree(iter);
+  taosMemoryFreeClear(iter);
   return NULL;
 }
 
@@ -418,7 +418,7 @@ static void tSkipListDoInsert(SSkipList *pSkipList, SSkipListNode **direction, S
 }
 
 static SSkipListIterator *doCreateSkipListIterator(SSkipList *pSkipList, int32_t order) {
-  SSkipListIterator *iter = calloc(1, sizeof(SSkipListIterator));
+  SSkipListIterator *iter = taosMemoryCalloc(1, sizeof(SSkipListIterator));
 
   iter->pSkipList = pSkipList;
   iter->order = order;
@@ -662,7 +662,7 @@ static int32_t initForwardBackwardPtr(SSkipList *pSkipList) {
 static SSkipListNode *tSkipListNewNode(uint8_t level) {
   int32_t tsize = sizeof(SSkipListNode) + sizeof(SSkipListNode *) * level * 2;
 
-  SSkipListNode *pNode = (SSkipListNode *)calloc(1, tsize);
+  SSkipListNode *pNode = (SSkipListNode *)taosMemoryCalloc(1, tsize);
   if (pNode == NULL) return NULL;
 
   pNode->level = level;

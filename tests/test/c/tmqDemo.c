@@ -275,7 +275,7 @@ int32_t init_env() {
   taos_free_result(pRes);
 
   // create row value
-  g_pRowValue = (char*)calloc(1, g_stConfInfo.numOfColumn * 16 + 128);
+  g_pRowValue = (char*)taosMemoryCalloc(1, g_stConfInfo.numOfColumn * 16 + 128);
   if (NULL == g_pRowValue) {
     return -1;
   }
@@ -472,7 +472,7 @@ int32_t syncWriteData() {
   taos_free_result(pRes);
 
   char* buffer = NULL;
-  buffer = (char*)malloc(MAX_SQL_STR_LEN);
+  buffer = (char*)taosMemoryMalloc(MAX_SQL_STR_LEN);
   if (NULL == buffer) {
     return -1;
   }
@@ -505,7 +505,7 @@ int32_t syncWriteData() {
       int code = queryDB(pConn, buffer);
 	  if (0 != code){
         fprintf(stderr, "insert data error!\n");
-		tfree(buffer);
+		taosMemoryFreeClear(buffer);
 	    return -1;
 	  }
 
@@ -517,7 +517,7 @@ int32_t syncWriteData() {
       }
     }
   }
-  tfree(buffer);
+  taosMemoryFreeClear(buffer);
   return totalMsgs;
 }
 
@@ -539,7 +539,7 @@ int32_t syncWriteDataByRatio() {
   taos_free_result(pRes);
 
   char* buffer = NULL;
-  buffer = (char*)malloc(MAX_SQL_STR_LEN);
+  buffer = (char*)taosMemoryMalloc(MAX_SQL_STR_LEN);
   if (NULL == buffer) {
     return -1;
   }
@@ -597,7 +597,7 @@ int32_t syncWriteDataByRatio() {
       int code = queryDB(pConn, buffer);
 	  if (0 != code){
         fprintf(stderr, "insert data error!\n");
-		tfree(buffer);
+		taosMemoryFreeClear(buffer);
 	    return -1;
 	  }
 	  
@@ -611,7 +611,7 @@ int32_t syncWriteDataByRatio() {
     }
   }
   pPrint("expect insert rows: T1[%d] T2[%d], actual insert rows: T1[%d] T2[%d]\n", g_stConfInfo.totalRowsOfPerTbl, g_stConfInfo.totalRowsOfT2, insertedOfT1, insertedOfT2);
-  tfree(buffer);
+  taosMemoryFreeClear(buffer);
   return totalMsgs;
 }
 
@@ -719,7 +719,7 @@ int main(int32_t argc, char *argv[]) {
   
   perf_loop(tmq, topic_list, totalMsgs, walLogSize);
 
-  tfree(g_pRowValue);
+  taosMemoryFreeClear(g_pRowValue);
   taosFprintfFile(g_fp, "\n");  
   taosCloseFile(&g_fp);  
   return 0;

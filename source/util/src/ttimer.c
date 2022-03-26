@@ -141,7 +141,7 @@ static void timerAddRef(tmr_obj_t* timer) { atomic_add_fetch_8(&timer->refCount,
 
 static void timerDecRef(tmr_obj_t* timer) {
   if (atomic_sub_fetch_8(&timer->refCount, 1) == 0) {
-    free(timer);
+    taosMemoryFree(timer);
   }
 }
 
@@ -351,7 +351,7 @@ tmr_h taosTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* ha
     return NULL;
   }
 
-  tmr_obj_t* timer = (tmr_obj_t*)calloc(1, sizeof(tmr_obj_t));
+  tmr_obj_t* timer = (tmr_obj_t*)taosMemoryCalloc(1, sizeof(tmr_obj_t));
   if (timer == NULL) {
     tmrError("%s failed to allocated memory for new timer object.", ctrl->label);
     return NULL;
@@ -513,7 +513,7 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* han
 }
 
 static void taosTmrModuleInit(void) {
-  tmrCtrls = malloc(sizeof(tmr_ctrl_t) * tsMaxTmrCtrl);
+  tmrCtrls = taosMemoryMalloc(sizeof(tmr_ctrl_t) * tsMaxTmrCtrl);
   if (tmrCtrls == NULL) {
     tmrError("failed to allocate memory for timer controllers.");
     return;
@@ -539,7 +539,7 @@ static void taosTmrModuleInit(void) {
     }
     wheel->nextScanAt = now + wheel->resolution;
     wheel->index = 0;
-    wheel->slots = (tmr_obj_t**)calloc(wheel->size, sizeof(tmr_obj_t*));
+    wheel->slots = (tmr_obj_t**)taosMemoryCalloc(wheel->size, sizeof(tmr_obj_t*));
     if (wheel->slots == NULL) {
       tmrError("failed to allocate wheel slots");
       return;
@@ -548,7 +548,7 @@ static void taosTmrModuleInit(void) {
   }
 
   timerMap.count = 0;
-  timerMap.slots = (timer_list_t*)calloc(timerMap.size, sizeof(timer_list_t));
+  timerMap.slots = (timer_list_t*)taosMemoryCalloc(timerMap.size, sizeof(timer_list_t));
   if (timerMap.slots == NULL) {
     tmrError("failed to allocate hash map");
     return;
@@ -609,7 +609,7 @@ void taosTmrCleanUp(void* handle) {
     for (int32_t i = 0; i < tListLen(wheels); i++) {
       time_wheel_t* wheel = wheels + i;
       taosThreadMutexDestroy(&wheel->mutex);
-      free(wheel->slots);
+      taosMemoryFree(wheel->slots);
     }
 
     taosThreadMutexDestroy(&tmrCtrlMutex);
@@ -619,12 +619,12 @@ void taosTmrCleanUp(void* handle) {
       tmr_obj_t*    t = list->timers;
       while (t != NULL) {
         tmr_obj_t* next = t->mnext;
-        free(t);
+        taosMemoryFree(t);
         t = next;
       }
     }
-    free(timerMap.slots);
-    free(tmrCtrls);
+    taosMemoryFree(timerMap.slots);
+    taosMemoryFree(tmrCtrls);
 
     tmrCtrls = NULL;
     unusedTmrCtrl = NULL;

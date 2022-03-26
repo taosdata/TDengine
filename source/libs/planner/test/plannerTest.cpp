@@ -112,6 +112,11 @@ private:
     if (QUERY_NODE_CREATE_TOPIC_STMT == nodeType(pQuery->pRoot)) {
       pCxt->pAstRoot = ((SCreateTopicStmt*)pQuery->pRoot)->pQuery;
       pCxt->topicQuery = true;
+    } else if (QUERY_NODE_CREATE_INDEX_STMT == nodeType(pQuery->pRoot)) {
+      SMCreateSmaReq req = {0};
+      tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req);
+      nodesStringToNode(req.ast, &pCxt->pAstRoot);
+      pCxt->streamQuery = true;
     } else {
       pCxt->pAstRoot = pQuery->pRoot;
     }
@@ -133,7 +138,7 @@ private:
       return string();
     }
     string str(pStr);
-    tfree(pStr);
+    taosMemoryFreeClear(pStr);
     return str;
   }
 
@@ -214,4 +219,11 @@ TEST_F(PlannerTest, stream) {
 
   bind("SELECT sum(c1) FROM st1");
   ASSERT_TRUE(run(true));
+}
+
+TEST_F(PlannerTest, createSmaIndex) {
+  setDatabase("root", "test");
+
+  bind("create sma index index1 on t1 function(max(c1), min(c3 + 10), sum(c4)) INTERVAL(10s)");
+  ASSERT_TRUE(run());
 }

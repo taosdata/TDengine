@@ -31,7 +31,7 @@ struct STqOffsetStore {
 };
 
 STqOffsetStore* STqOffsetOpen(STqOffsetCfg* pCfg) {
-  STqOffsetStore* pStore = malloc(sizeof(STqOffsetStore));
+  STqOffsetStore* pStore = taosMemoryMalloc(sizeof(STqOffsetStore));
   if (pStore == NULL) {
     return NULL;
   }

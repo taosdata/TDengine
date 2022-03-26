@@ -23,15 +23,15 @@ SArray* taosArrayInit(size_t size, size_t elemSize) {
     size = TARRAY_MIN_SIZE;
   }
 
-  SArray* pArray = malloc(sizeof(SArray));
+  SArray* pArray = taosMemoryMalloc(sizeof(SArray));
   if (pArray == NULL) {
     return NULL;
   }
 
   pArray->size = 0;
-  pArray->pData = calloc(size, elemSize);
+  pArray->pData = taosMemoryCalloc(size, elemSize);
   if (pArray->pData == NULL) {
-    free(pArray);
+    taosMemoryFree(pArray);
     return NULL;
   }
 
@@ -46,7 +46,7 @@ static int32_t taosArrayResize(SArray* pArray) {
   size_t size = pArray->capacity;
   size = (size << 1u);
 
-  void* tmp = realloc(pArray->pData, size * pArray->elemSize);
+  void* tmp = taosMemoryRealloc(pArray->pData, size * pArray->elemSize);
   if (tmp == NULL) {  // reallocate failed, the original buffer remains
     return -1;
   }
@@ -64,7 +64,7 @@ int32_t taosArrayEnsureCap(SArray* pArray, size_t newCap) {
       tsize = (tsize << 1u);
     }
 
-    pArray->pData = realloc(pArray->pData, tsize * pArray->elemSize);
+    pArray->pData = taosMemoryRealloc(pArray->pData, tsize * pArray->elemSize);
     if (pArray->pData == NULL) {
       return -1;
     }
@@ -305,8 +305,8 @@ void taosArrayClear(SArray* pArray) {
 
 void* taosArrayDestroy(SArray* pArray) {
   if (pArray) {
-    free(pArray->pData);
-    free(pArray);
+    taosMemoryFree(pArray->pData);
+    taosMemoryFree(pArray);
   }
 
   return NULL;
