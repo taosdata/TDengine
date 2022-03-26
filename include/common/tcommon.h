@@ -93,6 +93,7 @@ void*   tDecodeDataBlock(const void* buf, SSDataBlock* pBlock);
 
 int32_t tEncodeDataBlocks(void** buf, const SArray* blocks);
 void*   tDecodeDataBlocks(const void* buf, SArray* blocks);
+void    colDataDestroy(SColumnInfoData* pColData) ;
 
 static FORCE_INLINE void blockDestroyInner(SSDataBlock* pBlock) {
   // WARNING: do not use info.numOfCols,
@@ -100,13 +101,7 @@ static FORCE_INLINE void blockDestroyInner(SSDataBlock* pBlock) {
   int32_t numOfOutput = taosArrayGetSize(pBlock->pDataBlock);
   for (int32_t i = 0; i < numOfOutput; ++i) {
     SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
-    if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-      tfree(pColInfoData->varmeta.offset);
-    } else {
-      tfree(pColInfoData->nullbitmap);
-    }
-
-    tfree(pColInfoData->pData);
+    colDataDestroy(pColInfoData);
   }
 
   taosArrayDestroy(pBlock->pDataBlock);

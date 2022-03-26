@@ -2,15 +2,15 @@
 #include "sclvector.h"
 
 static void assignBasicParaInfo(struct SScalarParam* dst, const struct SScalarParam* src) {
-  dst->type = src->type;
-  dst->bytes = src->bytes;
-  dst->num = src->num;
+//  dst->type = src->type;
+//  dst->bytes = src->bytes;
+//  dst->num = src->num;
 }
 
 static void tceil(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *pLeft) {
   assignBasicParaInfo(pOutput, pLeft);
   assert(numOfInput == 1);
-
+#if 0
   switch (pLeft->bytes) {
     case TSDB_DATA_TYPE_FLOAT: {
       float* p = (float*) pLeft->data;
@@ -31,12 +31,14 @@ static void tceil(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *
     default:
       memcpy(pOutput->data, pLeft->data, pLeft->num* pLeft->bytes);
   }
+#endif
+
 }
 
 static void tfloor(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *pLeft) {
   assignBasicParaInfo(pOutput, pLeft);
   assert(numOfInput == 1);
-
+#if 0
   switch (pLeft->bytes) {
     case TSDB_DATA_TYPE_FLOAT: {
       float* p = (float*) pLeft->data;
@@ -59,12 +61,13 @@ static void tfloor(SScalarParam* pOutput, size_t numOfInput, const SScalarParam 
     default:
       memcpy(pOutput->data, pLeft->data, pLeft->num* pLeft->bytes);
   }
+#endif
 }
 
 static void _tabs(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *pLeft) {
   assignBasicParaInfo(pOutput, pLeft);
   assert(numOfInput == 1);
-
+#if 0
   switch (pLeft->bytes) {
     case TSDB_DATA_TYPE_FLOAT: {
       float* p = (float*) pLeft->data;
@@ -117,12 +120,13 @@ static void _tabs(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *
     default:
       memcpy(pOutput->data, pLeft->data, pLeft->num* pLeft->bytes);
   }
+#endif
 }
 
 static void tround(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *pLeft) {
   assignBasicParaInfo(pOutput, pLeft);
   assert(numOfInput == 1);
-
+#if 0
   switch (pLeft->bytes) {
     case TSDB_DATA_TYPE_FLOAT: {
       float* p = (float*) pLeft->data;
@@ -143,22 +147,24 @@ static void tround(SScalarParam* pOutput, size_t numOfInput, const SScalarParam 
     default:
       memcpy(pOutput->data, pLeft->data, pLeft->num* pLeft->bytes);
   }
+#endif
 }
 
 static void tlength(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *pLeft) {
   assert(numOfInput == 1);
-
+#if 0
   int64_t* out = (int64_t*) pOutput->data;
   char* s = pLeft->data;
 
   for(int32_t i = 0; i < pLeft->num; ++i) {
     out[i] = varDataLen(POINTER_SHIFT(s, i * pLeft->bytes));
   }
+#endif
 }
 
 static void tconcat(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *pLeft) {
   assert(numOfInput > 0);
-
+#if 0
   int32_t rowLen = 0;
   int32_t num = 1;
   for(int32_t i = 0; i < numOfInput; ++i) {
@@ -186,6 +192,7 @@ static void tconcat(SScalarParam* pOutput, size_t numOfInput, const SScalarParam
 
     rstart += rowLen;
   }
+#endif
 }
 
 static void tltrim(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *pLeft) {
@@ -262,12 +269,11 @@ static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOf
 }
 
 static void setScalarFuncParam(SScalarParam* param, int32_t type, int32_t bytes, void* pInput, int32_t numOfRows) {
-  param->bytes = bytes;
-  param->type = type;
-  param->num  = numOfRows;
-  param->data = pInput;
+//  param->bytes = bytes;
+//  param->type = type;
+//  param->num  = numOfRows;
+//  param->data = pInput;
 }
-
 
 #if 0
 int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncParam* pOutput, void* param,

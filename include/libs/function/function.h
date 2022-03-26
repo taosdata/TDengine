@@ -251,16 +251,9 @@ typedef struct SAggFunctionInfo {
 } SAggFunctionInfo;
 
 typedef struct SScalarParam {
-  void            *data;
-  union {
-    SColumnInfoData *columnData;
-    void            *data;
-  } orig;  
-  char            *bitmap;
-  bool             dataInBlock;
-  int32_t          num;
-  int32_t          type;
-  int32_t          bytes;
+  SColumnInfoData   *columnData;
+  SHashObj          *pHashFilter;
+  int32_t            numOfRows;
 } SScalarParam;
 
 typedef struct SScalarFunctionInfo {

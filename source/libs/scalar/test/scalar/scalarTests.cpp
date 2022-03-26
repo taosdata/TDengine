@@ -261,7 +261,7 @@ TEST(constantTest, bigint_add_bigint) {
   ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_DOUBLE);
-  ASSERT_EQ(v->datum.d, (scltLeftV + scltRightV));
+  ASSERT_FLOAT_EQ(v->datum.d, (scltLeftV + scltRightV));
   nodesDestroyNode(res);
 }
 
@@ -277,7 +277,7 @@ TEST(constantTest, double_sub_bigint) {
   ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_DOUBLE);
-  ASSERT_EQ(v->datum.d, (scltLeftVd - scltRightV));
+  ASSERT_FLOAT_EQ(v->datum.d, (scltLeftVd - scltRightV));
   nodesDestroyNode(res);  
 }
 
@@ -958,7 +958,6 @@ TEST(columnTest, bigint_column_multi_binary_column) {
   scltMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), rowNum, leftv);
   scltMakeColumnNode(&pRight, &src, TSDB_DATA_TYPE_BINARY, 5, rowNum, rightv);
   scltMakeOpNode(&opNode, OP_TYPE_MULTI, TSDB_DATA_TYPE_DOUBLE, pLeft, pRight);
-
 
   SArray *blockList = taosArrayInit(1, POINTER_BYTES);
   taosArrayPush(blockList, &src);
