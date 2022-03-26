@@ -156,17 +156,15 @@ TEST_F(TransCtxEnv, mergeTest) {
     STransCtx *src = (STransCtx *)taosMemoryCalloc(1, sizeof(STransCtx));
     transCtxInit(src);
     {
-      STransCtxVal val1 = {.val = NULL, .len = 0, .freeFunc = taosMemoryFree};
+      STransCtxVal val1 = {.val = NULL, .freeFunc = taosMemoryFree};
       val1.val = taosMemoryMalloc(12);
-      val1.len = 12;
 
       taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));
       key++;
     }
     {
-      STransCtxVal val1 = {.val = NULL, .len = 0, .freeFunc = taosMemoryFree};
+      STransCtxVal val1 = {.val = NULL, .freeFunc = taosMemoryFree};
       val1.val = taosMemoryMalloc(12);
-      val1.len = 12;
       taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));
       key++;
     }
@@ -178,17 +176,15 @@ TEST_F(TransCtxEnv, mergeTest) {
     STransCtx *src = (STransCtx *)taosMemoryCalloc(1, sizeof(STransCtx));
     transCtxInit(src);
     {
-      STransCtxVal val1 = {.val = NULL, .len = 0, .freeFunc = taosMemoryFree};
+      STransCtxVal val1 = {.val = NULL, .freeFunc = taosMemoryFree};
       val1.val = taosMemoryMalloc(12);
-      val1.len = 12;
 
       taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));
       key++;
     }
     {
-      STransCtxVal val1 = {.val = NULL, .len = 0, .freeFunc = taosMemoryFree};
+      STransCtxVal val1 = {.val = NULL, .freeFunc = taosMemoryFree};
       val1.val = taosMemoryMalloc(12);
-      val1.len = 12;
       taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));
       key++;
     }
@@ -202,19 +198,17 @@ TEST_F(TransCtxEnv, mergeTest) {
     STransCtx *src = (STransCtx *)taosMemoryCalloc(1, sizeof(STransCtx));
     transCtxInit(src);
     {
-      STransCtxVal val1 = {.val = NULL, .len = 0, .freeFunc = taosMemoryFree};
+      STransCtxVal val1 = {.val = NULL, .freeFunc = taosMemoryFree};
       val1.val = taosMemoryCalloc(1, 11);
       memcpy(val1.val, val.c_str(), val.size());
-      val1.len = 11;
 
       taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));
       key++;
     }
     {
-      STransCtxVal val1 = {.val = NULL, .len = 0, .freeFunc = taosMemoryFree};
+      STransCtxVal val1 = {.val = NULL, .freeFunc = taosMemoryFree};
       val1.val = taosMemoryCalloc(1, 11);
       memcpy(val1.val, val.c_str(), val.size());
-      val1.len = 11;
       taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));
       key++;
     }

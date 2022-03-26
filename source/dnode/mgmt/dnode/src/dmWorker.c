@@ -23,7 +23,7 @@
 
 static void *dmThreadRoutine(void *param) {
   SDnodeMgmt *pMgmt = param;
-  SDnode     *pDnode = pMgmt->pDnode;
+  SDnode *    pDnode = pMgmt->pDnode;
   int64_t     lastStatusTime = taosGetTimestampMs();
   int64_t     lastMonitorTime = lastStatusTime;
 
@@ -55,7 +55,7 @@ static void *dmThreadRoutine(void *param) {
 static void dmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   SDnodeMgmt *pMgmt = pInfo->ahandle;
 
-  SDnode  *pDnode = pMgmt->pDnode;
+  SDnode * pDnode = pMgmt->pDnode;
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   int32_t  code = -1;
   dTrace("msg:%p, will be processed in dnode queue", pMsg);

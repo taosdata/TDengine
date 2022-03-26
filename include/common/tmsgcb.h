@@ -28,6 +28,7 @@ typedef struct SMgmtWrapper SMgmtWrapper;
 typedef enum {
   QUERY_QUEUE,
   FETCH_QUEUE,
+  READ_QUEUE,
   WRITE_QUEUE,
   APPLY_QUEUE,
   SYNC_QUEUE,

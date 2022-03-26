@@ -5489,7 +5489,8 @@ SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SSDataBlock*
 }
 
 static int32_t loadSysTableContentCb(void* param, const SDataBuf* pMsg, int32_t code) {
-  SSysTableScanInfo* pScanResInfo = (SSysTableScanInfo*) param;
+  SOperatorInfo* operator = (SOperatorInfo *)param;
+  SSysTableScanInfo* pScanResInfo = (SSysTableScanInfo *)operator->info;
   if (TSDB_CODE_SUCCESS == code) {
     pScanResInfo->pRsp = pMsg->pData;
 
@@ -5498,6 +5499,8 @@ static int32_t loadSysTableContentCb(void* param, const SDataBuf* pMsg, int32_t 
     pRsp->useconds  = htobe64(pRsp->useconds);
     pRsp->handle    = htobe64(pRsp->handle);
     pRsp->compLen   = htonl(pRsp->compLen);
+  } else {
+    operator->pTaskInfo->code = code;
   }
 
   tsem_post(&pScanResInfo->ready);
@@ -5542,6 +5545,64 @@ static SSDataBlock* doFilterResult(SSysTableScanInfo* pInfo) {
   pInfo->pRes = px;
 
   return pInfo->pRes->info.rows == 0? NULL:pInfo->pRes;
+}
+
+EDealRes getDBNameFromConditionWalker(SNode* pNode, void* pContext) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  ENodeType nType = nodeType(pNode);
+
+  switch (nType) {
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode *node = (SOperatorNode *)pNode;
+
+      if (OP_TYPE_EQUAL == node->opType) {
+        *(int32_t *)pContext = 1;      
+        return DEAL_RES_CONTINUE;
+      }
+
+      *(int32_t *)pContext = 0;      
+
+      return DEAL_RES_IGNORE_CHILD;
+    }
+    case QUERY_NODE_COLUMN: {
+      if (1 != *(int32_t *)pContext) {
+        return DEAL_RES_CONTINUE;
+      }
+      
+      SColumnNode *node = (SColumnNode *)pNode;
+      if (TSDB_INS_USER_STABLES_DBNAME_COLID == node->colId) {
+        *(int32_t *)pContext = 2;      
+        return DEAL_RES_CONTINUE;
+      }
+
+      *(int32_t *)pContext = 0;  
+      return DEAL_RES_CONTINUE;
+    }
+    case QUERY_NODE_VALUE: {
+      if (2 != *(int32_t *)pContext) {
+        return DEAL_RES_CONTINUE;
+      }
+
+      SValueNode *node = (SValueNode *)pNode;
+      char *dbName = nodesGetValueFromNode(node);
+      strncpy(pContext, varDataVal(dbName), varDataLen(dbName)); 
+      *((char *)pContext + varDataLen(dbName)) = 0;
+      return DEAL_RES_ERROR;  // stop walk
+    }
+    default:
+      break;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+
+void getDBNameFromCondition(SNode *pCondition, char *dbName) {
+  if (NULL == pCondition) {
+    return;
+  }
+
+  nodesWalkNode(pCondition, getDBNameFromConditionWalker, dbName);
 }
 
 static SSDataBlock* doSysTableScan(SOperatorInfo *pOperator, bool* newgroup) {
@@ -5600,6 +5661,11 @@ static SSDataBlock* doSysTableScan(SOperatorInfo *pOperator, bool* newgroup) {
 
     pInfo->req.type = pInfo->type;
     strncpy(pInfo->req.tb, tNameGetTableName(&pInfo->name), tListLen(pInfo->req.tb));
+    if (pInfo->showRewrite) {
+      char dbName[TSDB_DB_NAME_LEN] = {0};
+      getDBNameFromCondition(pInfo->pCondition, dbName);
+      sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
+    }
 
     int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &pInfo->req);
     char* buf1 = taosMemoryCalloc(1, contLen);
@@ -5613,7 +5679,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo *pOperator, bool* newgroup) {
       return NULL;
     }
 
-    pMsgSendInfo->param = pInfo;
+    pMsgSendInfo->param = pOperator;
     pMsgSendInfo->msgInfo.pData = buf1;
     pMsgSendInfo->msgInfo.len = contLen;
     pMsgSendInfo->msgType = TDMT_MND_SYSTABLE_RETRIEVE;
@@ -5622,6 +5688,10 @@ static SSDataBlock* doSysTableScan(SOperatorInfo *pOperator, bool* newgroup) {
     int64_t transporterId = 0;
     int32_t code = asyncSendMsgToServer(pInfo->pTransporter, &pInfo->epSet, &transporterId, pMsgSendInfo);
     tsem_wait(&pInfo->ready);
+
+    if (pTaskInfo->code) {
+      return NULL;
+    }
 
     SRetrieveMetaTableRsp* pRsp = pInfo->pRsp;
     pInfo->req.showId = pRsp->handle;
@@ -5644,7 +5714,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo *pOperator, bool* newgroup) {
 }
 
 SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataBlock* pResBlock, const SName* pName,
-                                              SNode* pCondition, SEpSet epset, SArray* colList, SExecTaskInfo* pTaskInfo) {
+                                              SNode* pCondition, SEpSet epset, SArray* colList, SExecTaskInfo* pTaskInfo, bool showRewrite, int32_t accountId) {
   SSysTableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SSysTableScanInfo));
   SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -5654,10 +5724,12 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
     return NULL;
   }
 
-  pInfo->pRes       = pResBlock;
-  pInfo->capacity   = 4096;
-  pInfo->pCondition = pCondition;
-  pInfo->scanCols   = colList;
+  pInfo->accountId   = accountId;
+  pInfo->showRewrite = showRewrite;
+  pInfo->pRes        = pResBlock;
+  pInfo->capacity    = 4096;
+  pInfo->pCondition  = pCondition;
+  pInfo->scanCols    = colList;
 
   // TODO remove it
   int32_t tableType = 0;
@@ -8530,7 +8602,8 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhysiNode* pPhyNode, SExecTaskInfo* pTa
       SArray* colList = extractScanColumnId(pScanNode->pScanCols);
 
       SOperatorInfo* pOperator = createSysTableScanOperatorInfo(pHandle->meta, pResBlock, &pScanNode->tableName,
-                                                                pScanNode->node.pConditions, pSysScanPhyNode->mgmtEpSet, colList, pTaskInfo);
+                                                                pScanNode->node.pConditions, pSysScanPhyNode->mgmtEpSet, 
+                                                                colList, pTaskInfo, pSysScanPhyNode->showRewrite, pSysScanPhyNode->accountId);
       return pOperator;
     } else {
       ASSERT(0);

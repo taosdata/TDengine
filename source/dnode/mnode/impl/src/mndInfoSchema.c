@@ -19,6 +19,7 @@
 #define SYSTABLE_SCH_TABLE_NAME_LEN ((TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 #define SYSTABLE_SCH_DB_NAME_LEN    ((TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 
+//!!!! Note: only APPEND columns in below tables, NO insert !!!!
 static const SInfosTableSchema dnodesSchema[] = {{.name = "id",             .bytes = 2,   .type = TSDB_DATA_TYPE_SMALLINT},
                                                  {.name = "endpoint",       .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
                                                  {.name = "vnodes",         .bytes = 2,   .type = TSDB_DATA_TYPE_SMALLINT},

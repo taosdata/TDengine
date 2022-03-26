@@ -52,8 +52,8 @@ typedef struct {
   char    user[TSDB_USER_LEN];
   SRpcMsg rpcMsg;
   int32_t rspLen;
-  void   *pRsp;
-  void   *pNode;
+  void *  pRsp;
+  void *  pNode;
 } SNodeMsg;
 
 typedef struct SRpcInit {
@@ -81,13 +81,21 @@ typedef struct SRpcInit {
 } SRpcInit;
 
 typedef struct {
-  void *  val;
-  int32_t len;
-  void (*freeFunc)(const void *arg);
+  void     *val;
+  int32_t (*clone)(void *src, void **dst);
+  void    (*freeFunc)(const void *arg);
 } SRpcCtxVal;
 
 typedef struct {
-  SHashObj *args;
+  int32_t   msgType;
+  void     *val;
+  int32_t (*clone)(void *src, void **dst);
+  void    (*freeFunc)(const void *arg);
+} SRpcBrokenlinkVal;
+
+typedef struct {
+  SHashObj *        args;
+  SRpcBrokenlinkVal brokenVal;
 } SRpcCtx;
 
 int32_t rpcInit();
