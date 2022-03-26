@@ -1,9 +1,9 @@
-use crate::{util::IntoCStr, Result, Taos, TaosCode, TaosError, block::column::Column, TaosResult};
+use crate::{block::column::Column, util::IntoCStr, Code, Result, Taos, TaosError, TaosResult};
 use bitvec_simd::BitVec;
 use taos_sys::*;
 
-use std::{ffi::CStr, result};
 use std::os::raw::c_void;
+use std::{ffi::CStr, result};
 
 mod bind;
 pub use bind::{BindParam, IntoBindParam};
@@ -30,19 +30,16 @@ pub struct Stmt<'stmt> {
 impl<'stmt> Stmt<'stmt> {
     fn err_or(&self, res: i32) -> Result<()> {
         if res != 0 {
-            let code: TaosCode = (res & 0x0000ffff).into();
+            let code: Code = (res & 0x0000ffff).into();
             let err = unsafe { taos_stmt_errstr(self.stmt) };
             if !err.is_null() {
                 let err = unsafe { CStr::from_ptr(err as _) }
                     .to_string_lossy()
                     .to_owned();
                 trace!("stmt error: {:?}", err);
-                return Err(TaosError { code, err });
+                return Err(TaosError::new(code, err));
             }
-            return Err(TaosError {
-                code,
-                err: "unknown".into(),
-            });
+            return Err(TaosError::new(code, "unknown"));
         }
         Ok(())
     }
@@ -59,9 +56,7 @@ impl<'stmt> Stmt<'stmt> {
     }
 
     pub fn result<'query>(&'query self) -> Result<TaosResult<'query>> {
-        let result = unsafe {
-            taos_stmt_use_result(self.stmt)
-        };
+        let result = unsafe { taos_stmt_use_result(self.stmt) };
         TaosResult::try_from_ptr(result)
     }
 
@@ -187,15 +182,24 @@ fn test_stmt() {
 #[test]
 fn test_multi_bind() {
     let taos = crate::Taos::new("localhost", "root", "taosdata", "", 0).unwrap();
-    taos.stmt("create database if not exists taos_test_multi_bind keep 3650").unwrap().execute().unwrap();
-    taos.stmt("use taos_test_multi_bind").unwrap().execute().unwrap();
-    taos.stmt("create table if not exists tb (ts timestamp, v int) ").unwrap().execute().unwrap();
+    taos.stmt("create database if not exists taos_test_multi_bind keep 3650")
+        .unwrap()
+        .execute()
+        .unwrap();
+    taos.stmt("use taos_test_multi_bind")
+        .unwrap()
+        .execute()
+        .unwrap();
+    taos.stmt("create table if not exists tb (ts timestamp, v int) ")
+        .unwrap()
+        .execute()
+        .unwrap();
 
     const N: usize = 100;
     let nulls = BitVec::zeros(N);
     let v: Vec<i32> = (0..N).map(|_| rand::random()).collect();
     let ints = Column::Int(nulls.clone(), v);
-    let v: Vec<i64> = (0..N).map(|ts|ts as i64 + 1_500_000_000_000).collect();
+    let v: Vec<i64> = (0..N).map(|ts| ts as i64 + 1_500_000_000_000).collect();
     let ts = Column::Timestamp(nulls, v);
     let binds = dbg!([ts.to_multi_bind(), ints.to_multi_bind()]);
     let mut stmt = taos.stmt("insert into tb values(?, ?)").unwrap();

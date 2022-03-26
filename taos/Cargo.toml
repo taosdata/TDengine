@@ -8,9 +8,9 @@ description = "resered namespace for TDengine"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bitsvec = "0.1.1"
+# bitsvec = "0.1.1"
 bitvec_simd = { version = "0.20.3", features = ["use_serde"] }
-chrono = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
 derive_builder = "0.11.1"
 futures = "0.3.21"
 itertools = "0.10"
@@ -20,13 +20,17 @@ paste = "1"
 r2d2 = { version = "0.8.9", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+taos-error = { path = "../taos-error" }
 taos-sys = { path = "../taos-sys", features = ["serde1"] }
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
 
 [dev-dependencies]
 criterion = "0.3"
+faker_rand = "0.1.1"
 rand = "0.8.5"
+simple_logger = "2.1.0"
+uuid = { version = "0.8.2", features = ["v4"] }
 
 [features]
 default = ["r2d2"]

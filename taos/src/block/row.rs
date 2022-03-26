@@ -1,75 +1,251 @@
 use std::{
+    collections::BTreeMap,
     error::Error,
+    iter::Rev,
     marker::PhantomData,
-    ops::Deref,
+    mem::swap,
+    ops::{Deref, DerefMut},
+    rc::Rc,
+    slice,
     sync::{Arc, Mutex},
     task::Poll,
+    vec,
 };
 
 use bitvec_simd::BitVec;
 use futures::Stream;
-use serde::de::{self, Error as DeError, Visitor};
+use serde::de::{self, value::MapDeserializer, Error as DeError, IntoDeserializer, Visitor};
+use taos_sys::{taos_is_null, TaosDataType, TAOS_FIELD};
 
-use crate::{Result, TaosError, TaosResult};
+use crate::{timestamp::TimestampValue, Result, TaosError, TaosResult};
 
-use super::{Block, BlockStream};
+use super::{value::BorrowedValue, Block, BlockStream};
 
-pub struct Row<'a> {
-    pub(crate) result: &'a TaosResult<'a>,
-    pub(crate) block: Arc<Block<'a>>,
-    pub(crate) row: usize,
+pub struct Row<'block> {
+    block: Rc<Block<'block>>,
+    index: usize,
 }
 
-impl<'a> Deref for Row<'a> {
-    type Target = Block<'a>;
+impl<'block> Deref for Row<'block> {
+    type Target = Block<'block>;
 
     fn deref(&self) -> &Self::Target {
         self.block.deref()
     }
 }
 
-impl<'a> Row<'a> {
-    pub(crate) fn row_reader(&self) -> RowReader {
-        RowReader::new(self)
+impl<'block> Row<'block> {
+    pub(crate) fn new(block: Rc<Block<'block>>, index: usize) -> Self {
+        Self { block, index }
+    }
+    pub(crate) fn deserializer(&self) -> Deserializer {
+        Deserializer::new(self)
+    }
+
+    fn get(&self, col: usize) -> Option<BorrowedValue> {
+        self.block.get_value(self.index, col)
+    }
+
+    fn value_iter(&self) -> ValueIter {
+        ValueIter::new(self)
+    }
+
+    fn entry_iter(&self) -> EntryIter {
+        EntryIter::new(self)
+    }
+
+    // fn into_value_iter(self) -> IntoValueIter {}
+}
+struct EntryIter<'block>(ValueIter<'block>);
+
+impl<'block> EntryIter<'block> {
+    fn new(row: &'block Row<'block>) -> Self {
+        Self(ValueIter::new(row))
     }
 }
 
-pub struct RowReader<'a> {
-    row: &'a Row<'a>,
-    accessed: BitVec,
-    col: usize,
+impl<'block> From<ValueIter<'block>> for EntryIter<'block> {
+    fn from(rhs: ValueIter<'block>) -> Self {
+        Self(rhs)
+    }
 }
 
-impl<'a> RowReader<'a> {
-    fn new(row: &'a Row<'a>) -> Self {
+impl<'block> Iterator for EntryIter<'block> {
+    type Item = (&'block TAOS_FIELD, BorrowedValue<'block>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        log::trace!("next entry");
+        self.0
+            .next()
+            .map(|value| (unsafe { self.0.row.get_field_unchecked(self.0.col) }, value))
+    }
+}
+
+pub(crate) struct ValueIter<'block> {
+    row: &'block Row<'block>,
+    col: usize,
+    hint: usize,
+}
+
+impl<'block> ValueIter<'block> {
+    fn new(row: &'block Row<'block>) -> Self {
         Self {
             row,
-            accessed: BitVec::zeros(row.num_of_fields()),
             col: 0,
+            hint: row.num_of_fields(),
         }
     }
-    fn next(&mut self) {
-        self.col += 1;
-    }
 }
 
-impl<'a> Deref for RowReader<'a> {
-    type Target = Block<'a>;
+impl<'a> Deref for ValueIter<'a> {
+    type Target = Row<'a>;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
-        self.row.deref()
+        &self.row
     }
 }
 
+impl<'block> Iterator for ValueIter<'block> {
+    type Item = BorrowedValue<'block>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        println!("next value");
+        let (row, col) = (self.row.index, self.col);
+        self.col += 1;
+        if self.hint != 0 {
+            self.hint -= 1;
+            dbg!(self.row.get_value(row, col))
+        } else {
+            None
+        }
+    }
+
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        self.col += n;
+        self.next()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.col, Some(self.hint))
+    }
+
+    fn count(self) -> usize {
+        self.row.num_of_fields() - self.col
+    }
+
+    fn last(mut self) -> Option<Self::Item> {
+        self.nth(self.hint - 1)
+    }
+}
+
+impl<'block> ExactSizeIterator for ValueIter<'block> {
+    fn len(&self) -> usize {
+        self.hint - self.col
+    }
+}
+
+impl<'block> DoubleEndedIterator for ValueIter<'block> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.col <= self.hint {
+            None
+        } else {
+            self.hint -= 1;
+            // todo: next_back should be tested.
+            self.nth(self.hint)
+        }
+    }
+
+    fn nth_back(&mut self, n: usize) -> Option<Self::Item> {
+        self.hint -= n;
+        self.next_back()
+    }
+}
+
+pub(crate) struct Deserializer<'a> {
+    iter: ValueIter<'a>,
+}
+
+impl<'a> Deserializer<'a> {
+    fn new(row: &'a Row<'a>) -> Self {
+        Self {
+            iter: row.value_iter(),
+        }
+    }
+}
+
+impl<'a> Deref for Deserializer<'a> {
+    type Target = ValueIter<'a>;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.iter
+    }
+}
+
+impl<'a> DerefMut for Deserializer<'a> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.iter
+    }
+}
 struct MapReader<'a, 'de: 'a> {
-    de: &'a mut RowReader<'de>,
-    acc: std::vec::IntoIter<String>,
+    de: &'a mut Deserializer<'de>,
+    banned: BitVec,
+    fields: BTreeMap<String, usize>,
+    acc: slice::Iter<'a, TAOS_FIELD>,
+    value: Option<BorrowedValue<'a>>,
 }
 
 impl<'a, 'de> MapReader<'a, 'de> {
-    fn new(de: &'a mut RowReader<'de>) -> Self {
-        let acc = de.get_field_names_to_string_vec().into_iter();
-        Self { de, acc }
+    fn new(de: &'a mut Deserializer<'de>) -> Self {
+        
+        let n = de.num_of_fields();
+        let acc = unsafe { de.get_fields_unchecked() }.into_iter();
+        let fields = de.get_field_names_to_string_vec().into_iter();
+        let fields = fields
+            .clone()
+            .enumerate()
+            .map(|(index, field)| (field, index))
+            .collect();
+        Self {
+            de,
+            banned: BitVec::zeros(n),
+            fields,
+            acc,
+            value: None,
+        }
+    }
+
+    fn access_field(&mut self, field: &str) -> Option<BorrowedValue> {
+        self.fields
+            .get(field)
+            .map(|n| *n)
+            .and_then(|n| self.access_nth(n))
+    }
+
+    fn access_nth(&mut self, n: usize) -> Option<BorrowedValue> {
+        self.banned.get(n).and_then(|banned| {
+            if banned {
+                None
+            } else {
+                self.banned.set(n, true);
+                self.de.get(n)
+            }
+        })
+    }
+    fn access_next(&mut self) -> Option<BorrowedValue> {
+        self.banned.get(self.de.col).and_then(|banned| {
+            if banned {
+                None
+            } else {
+                self.banned.set(self.de.col, true);
+                self.de.next()
+            }
+        })
+    }
+    fn next_entry(&mut self) -> Option<(&'a TAOS_FIELD, BorrowedValue<'a>)> {
+        self.acc.next().zip(self.de.next())
     }
 }
 
@@ -102,42 +278,43 @@ impl<'de, 'a> de::MapAccess<'de> for MapReader<'a, 'de> {
     where
         K: de::DeserializeSeed<'de>,
     {
-        match self.acc.next() {
-            Some(name) => seed
-                .deserialize(StringDeserializer { input: name })
-                .map(Some),
-            // None => Err(TaosError::from_str("expect next column but there's none")),
+        match self.next_entry() {
+            Some((name, value)) => {
+                self.value = Some(value);
+                seed.deserialize(name).map(Some)
+            }
             _ => Ok(None),
         }
-        // // Check if there are no more entries.
-        // if self.de.peek_char()? == '}' {
-        //     return Ok(None);
-        // }
-        // // Comma is required before every entry except the first.
-        // if !self.first && self.de.next_char()? != ',' {
-        //     return Err(Error::ExpectedMapComma);
-        // }
-        // self.first = false;
-        // Deserialize a map key.
-        // seed.deserialize(&mut *self.de).map(Some)
     }
 
     fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value>
     where
         V: de::DeserializeSeed<'de>,
     {
-        // It doesn't make a difference whether the colon is parsed at the end
-        // of `next_key_seed` or at the beginning of `next_value_seed`. In this
-        // case the code is a bit simpler having it here.
-        // if self.de.next_char()? != ':' {
-        //     return Err(Error::ExpectedMapColon);
-        // }
-        // Deserialize a map value.
-        seed.deserialize(&mut *self.de)
+        let value = self.value.take().expect("value must be there");
+        seed.deserialize(value)
     }
 }
 
-impl<'a, 'de> de::Deserializer<'de> for &'a mut RowReader<'de> {
+// impl<'de, 'a, E> IntoDeserializer<'de, E> for &'a TAOS_FIELD
+// where
+//     E: de::Error,
+// {
+//     type Deserializer = de::value::StringDeserializer<E>;
+
+//     fn into_deserializer(self) -> de::value::StringDeserializer<E> {
+//         // StringDeserializer {
+//         self.name()
+//             .to_string_lossy()
+//             .to_string()
+//             .into_deserializer()
+//         // }
+//     }
+// }
+
+// impl<
+
+impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     type Error = TaosError;
 
     // Look at the input data to decide what Serde data model type to
@@ -270,11 +447,11 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut RowReader<'de> {
     where
         V: Visitor<'de>,
     {
-        let s = unsafe { self.get_str(self.row.row, self.col) }?;
+        let s = unsafe { self.get_str(self.row.index, self.col) }?;
         if let Some(s) = s {
             visitor.visit_str(s)
         } else {
-            Err(TaosError::from_str(
+            Err(TaosError::from_string(
                 "expect non-null str, but the value is null",
             ))
         }
@@ -389,6 +566,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut RowReader<'de> {
     {
         // let value = visitor.visit_map(self);
         // unimplemented!();
+        log::info!("visit map");
         visitor.visit_map(MapReader::new(self))
     }
 

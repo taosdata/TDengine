@@ -3,7 +3,9 @@ use std::{
     marker::PhantomData,
     ops::Deref,
     os::raw::c_int,
-    ptr, slice,
+    ptr,
+    rc::Rc,
+    slice,
     sync::{Arc, Mutex},
     task::{Poll, Waker},
 };
@@ -146,15 +148,23 @@ impl<'a> Block<'a> {
         }
     }
 
+    pub fn into_iter_rows(self) -> impl Iterator<Item = Row<'a>> {
+        let len = self.num_of_rows();
+        std::iter::repeat(Rc::new(self))
+            .enumerate()
+            .map(|(index, block)| Row::new(block, index))
+    }
+
     fn is_null(&self, row: usize, col: usize) -> bool {
         unsafe { taos_is_null(self.result.as_raw(), row as _, col as _) }
     }
+
     pub unsafe fn get_str(&'a self, row: usize, col: usize) -> Result<Option<&'a str>> {
         let field = self.result.get_field_unchecked(col);
         use TaosDataType::*;
         let ty = field.type_();
         if !matches!(field.type_(), NChar | Binary | Json) {
-            return Err(TaosError::from_str(
+            return Err(TaosError::from_string(
                 "unmatched data type pattern for string",
             ));
         }
@@ -171,27 +181,86 @@ impl<'a> Block<'a> {
                     let len = ptr.cast::<i16>().read();
                     let start = ptr.offset(2);
                     let s = std::str::from_utf8(slice::from_raw_parts(start as _, len as _))
-                        .map_err(|s| TaosError::from_str(s.to_string()))?;
+                        .map_err(|s| TaosError::from_string(s.to_string()))?;
                     Ok(Some(s))
                 }
-                //     TaosDataType::NChar => unsafe {
-                //         let length = dbg!(self.lengths.get_unchecked(col_idx));
-
-                //         let ptr =
-                //             (*slice as *const u8).offset(self.current as isize * *length as isize);
-                //         let len = ptr.cast::<i16>().read();
-                //         let start = ptr.offset(2);
-
-                //         BorrowedValue::NChar(std::str::from_utf8_unchecked(slice::from_raw_parts(
-                //             start as _, len as _,
-                //         )))
-                //     },
                 _ => Ok(None),
             }
-            // Ok(None)
         }
-        // let slice = unsafe { self.partial.get_unchecked(col_idx) };
-        // let field = unsafe { self.fields.get_unchecked(col_idx) };
+    }
+
+    fn inner(&self) -> &[*mut c_void] {
+        self.inner
+    }
+
+    unsafe fn get_length_unchecked(&self, col: usize) -> i32 {
+        *self.lengths.get_unchecked(col)
+    }
+
+    fn get_value<'block>(&self, row: usize, col: usize) -> Option<BorrowedValue<'block>> {
+        if col < self.num_of_fields() {
+            Some(unsafe { self.get_value_unchecked(row, col) })
+        } else {
+            None
+        }
+    }
+
+    unsafe fn get_value_unchecked<'block>(&self, row: usize, col: usize) -> BorrowedValue<'block> {
+        let inner = self.inner.get_unchecked(col);
+        let field = unsafe { self.get_field_unchecked(col) };
+        let is_null = unsafe { taos_is_null(self.as_raw(), row as _, col as _) };
+        if is_null {
+            return BorrowedValue::Null;
+        }
+
+        macro_rules! parse_cell {
+            ($f:ident, $t:ty) => {
+                paste::paste! {
+                    BorrowedValue::$f(unsafe {
+                        (*inner as *const $t).offset(row as _).read()
+                    })
+                }
+            };
+        }
+
+        match field.type_() {
+            TaosDataType::Null => BorrowedValue::Null,
+            TaosDataType::Bool => parse_cell!(Bool, bool),
+            TaosDataType::TinyInt => parse_cell!(TinyInt, i8),
+            TaosDataType::SmallInt => parse_cell!(SmallInt, i16),
+            TaosDataType::Int => parse_cell!(Int, i32),
+            TaosDataType::BigInt => parse_cell!(BigInt, i64),
+            TaosDataType::UTinyInt => parse_cell!(UTinyInt, u8),
+            TaosDataType::USmallInt => parse_cell!(USmallInt, u16),
+            TaosDataType::UInt => parse_cell!(UInt, u32),
+            TaosDataType::UBigInt => parse_cell!(UBigInt, u64),
+            TaosDataType::Float => parse_cell!(Float, f32),
+            TaosDataType::Double => parse_cell!(Double, f64),
+            TaosDataType::Timestamp => unsafe {
+                let raw = (*inner as *const i64).offset(row as _).read();
+                BorrowedValue::Timestamp(TimestampValue::new(raw, self.precision()))
+            },
+            TaosDataType::Binary => unsafe {
+                let length = self.get_length_unchecked(col);
+                let ptr = (*inner as *const u8).offset(row as isize * length as isize);
+                let len = ptr.cast::<i16>().read();
+                let start = ptr.offset(2);
+
+                BorrowedValue::Binary(slice::from_raw_parts(start, len as _))
+            },
+            TaosDataType::NChar => unsafe {
+                let length = self.get_length_unchecked(col);
+
+                let ptr = (*inner as *const u8).offset(row as isize * length as isize);
+                let len = ptr.cast::<i16>().read();
+                let start = ptr.offset(2);
+
+                BorrowedValue::NChar(std::str::from_utf8_unchecked(slice::from_raw_parts(
+                    start as _, len as _,
+                )))
+            },
+            _ => BorrowedValue::Null,
+        }
     }
 }
 
@@ -226,7 +295,6 @@ impl<'block> RowsIter<'block> {
     }
 }
 
-
 impl<'block> ColumnsIter<'block> {
     fn num_of_fields(&self) -> usize {
         self.fields.len()
@@ -247,7 +315,6 @@ impl<'block> Iterator for RowsIter<'block> {
             return None;
         }
         let num_of_fields = self.num_of_fields();
-
 
         {
             let mut row = Vec::with_capacity(num_of_fields);
