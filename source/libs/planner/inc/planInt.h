@@ -22,32 +22,6 @@ extern "C" {
 
 #include "planner.h"
 
-#define CHECK_ALLOC(p, res) \
-  do { \
-    if (NULL == (p)) { \
-      pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY; \
-      return (res); \
-    } \
-  } while (0)
-
-#define CHECK_CODE(exec, res) \
-  do { \
-    int32_t code = (exec); \
-    if (TSDB_CODE_SUCCESS != code) { \
-      pCxt->errCode = code; \
-      return (res); \
-    } \
-  } while (0)
-
-#define CHECK_CODE_EXT(exec) \
-  do { \
-    int32_t code = (exec); \
-    if (TSDB_CODE_SUCCESS != code) { \
-      pCxt->errCode = code; \
-      return code; \
-    } \
-  } while (0)
-
 #define planFatal(param, ...)  qFatal("PLAN: " param, __VA_ARGS__)
 #define planError(param, ...)  qError("PLAN: " param, __VA_ARGS__)
 #define planWarn(param, ...)   qWarn("PLAN: " param, __VA_ARGS__)
