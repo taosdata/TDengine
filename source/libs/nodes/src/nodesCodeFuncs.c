@@ -920,6 +920,37 @@ static int32_t jsonToPhysiExchangeNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkSortPhysiPlanExprs = "Exprs";
+static const char* jkSortPhysiPlanSortKeys = "SortKeys";
+
+static int32_t physiSortNodeToJson(const void* pObj, SJson* pJson) {
+  const SSortPhysiNode* pNode = (const SSortPhysiNode*)pObj;
+
+  int32_t code = physicPlanNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkSortPhysiPlanExprs, pNode->pExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkSortPhysiPlanSortKeys, pNode->pSortKeys);
+  }
+
+  return code;
+}
+
+static int32_t jsonToPhysiSortNode(const SJson* pJson, void* pObj) {
+  SSortPhysiNode* pNode = (SSortPhysiNode*)pObj;
+
+  int32_t code = jsonToPhysicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkSortPhysiPlanExprs, &pNode->pExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkSortPhysiPlanSortKeys, &pNode->pSortKeys);
+  }
+
+  return code;
+}
+
 static const char* jkWindowPhysiPlanExprs = "Exprs";
 static const char* jkWindowPhysiPlanFuncs = "Funcs";
 
@@ -1807,6 +1838,38 @@ static int32_t groupingSetNodeToJson(const void* pObj, SJson* pJson) {
   return code;
 }
 
+static const char* jkOrderByExprExpr = "Expr";
+static const char* jkOrderByExprOrder = "Order";
+static const char* jkOrderByExprNullOrder = "NullOrder";
+
+static int32_t orderByExprNodeToJson(const void* pObj, SJson* pJson) {
+  const SOrderByExprNode* pNode = (const SOrderByExprNode*)pObj;
+
+  int32_t code = tjsonAddObject(pJson, jkOrderByExprExpr, nodeToJson, pNode->pExpr);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkOrderByExprOrder, pNode->order);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkOrderByExprNullOrder, pNode->nullOrder);
+  }
+
+  return code;
+}
+
+static int32_t jsonToOrderByExprNode(const SJson* pJson, void* pObj) {
+  SOrderByExprNode* pNode = (SOrderByExprNode*)pObj;
+
+  int32_t code = jsonToNodeObject(pJson, jkOrderByExprExpr, &pNode->pExpr);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetNumberValue(pJson, jkOrderByExprOrder, pNode->order);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetNumberValue(pJson, jkOrderByExprNullOrder, pNode->nullOrder);
+  }
+
+  return code;
+}
+
 static const char* jkIntervalWindowInterval = "Interval";
 static const char* jkIntervalWindowOffset = "Offset";
 static const char* jkIntervalWindowSliding = "Sliding";
@@ -2155,6 +2218,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_GROUPING_SET:
       return groupingSetNodeToJson(pObj, pJson);
     case QUERY_NODE_ORDER_BY_EXPR:
+      return orderByExprNodeToJson(pObj, pJson);
     case QUERY_NODE_LIMIT:
     case QUERY_NODE_STATE_WINDOW:
     case QUERY_NODE_SESSION_WINDOW:
@@ -2218,7 +2282,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
       return physiExchangeNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
-      break;
+      return physiSortNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
       return physiIntervalNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
@@ -2258,7 +2322,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     //   break;
     // case QUERY_NODE_GROUPING_SET:
     //   return jsonToGroupingSetNode(pJson, pObj);
-    // case QUERY_NODE_ORDER_BY_EXPR:
+    case QUERY_NODE_ORDER_BY_EXPR:
+      return jsonToOrderByExprNode(pJson, pObj);
     // case QUERY_NODE_LIMIT:
     // case QUERY_NODE_STATE_WINDOW:
     // case QUERY_NODE_SESSION_WINDOW:
@@ -2307,6 +2372,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToPhysiAggNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
       return jsonToPhysiExchangeNode(pJson, pObj);
+    case QUERY_NODE_PHYSICAL_PLAN_SORT:
+      return jsonToPhysiSortNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
       return jsonToPhysiIntervalNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:

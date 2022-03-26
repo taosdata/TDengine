@@ -19,6 +19,11 @@
 #include "taos.h"
 #include "taoserror.h"
 
+#define COPY_ALL_SCALAR_FIELDS \
+	do { \
+    memcpy((pDst), (pSrc), sizeof(*pSrc)); \
+	} while (0)
+
 #define COPY_SCALAR_FIELD(fldname) \
 	do { \
     (pDst)->fldname = (pSrc)->fldname; \
@@ -195,6 +200,12 @@ static SNode* groupingSetNodeCopy(const SGroupingSetNode* pSrc, SGroupingSetNode
   return (SNode*)pDst;
 }
 
+static SNode* orderByExprNodeCopy(const SOrderByExprNode* pSrc, SOrderByExprNode* pDst) {
+  COPY_ALL_SCALAR_FIELDS;
+  CLONE_NODE_FIELD(pExpr);
+  return (SNode*)pDst;
+}
+
 static SNode* fillNodeCopy(const SFillNode* pSrc, SFillNode* pDst) {
   COPY_SCALAR_FIELD(mode);
   CLONE_NODE_FIELD(pValues);
@@ -280,6 +291,12 @@ static SNode* logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* pD
   return (SNode*)pDst;
 }
 
+static SNode* logicSortCopy(const SSortLogicNode* pSrc, SSortLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  CLONE_NODE_LIST_FIELD(pSortKeys);
+  return (SNode*)pDst;
+}
+
 static SNode* logicSubplanCopy(const SLogicSubplan* pSrc, SLogicSubplan* pDst) {
   CLONE_NODE_FIELD(pNode);
   COPY_SCALAR_FIELD(subplanType);
@@ -339,6 +356,7 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
     case QUERY_NODE_GROUPING_SET:
       return groupingSetNodeCopy((const SGroupingSetNode*)pNode, (SGroupingSetNode*)pDst);
     case QUERY_NODE_ORDER_BY_EXPR:
+      return orderByExprNodeCopy((const SOrderByExprNode*)pNode, (SOrderByExprNode*)pDst);
     case QUERY_NODE_LIMIT:
       break;
     case QUERY_NODE_FILL:
@@ -361,6 +379,8 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
       return logicExchangeCopy((const SExchangeLogicNode*)pNode, (SExchangeLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return logicWindowCopy((const SWindowLogicNode*)pNode, (SWindowLogicNode*)pDst);
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+      return logicSortCopy((const SSortLogicNode*)pNode, (SSortLogicNode*)pDst);
     case QUERY_NODE_LOGIC_SUBPLAN:
       return logicSubplanCopy((const SLogicSubplan*)pNode, (SLogicSubplan*)pDst);
     default:

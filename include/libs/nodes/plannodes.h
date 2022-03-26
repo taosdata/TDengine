@@ -99,6 +99,11 @@ typedef struct SWindowLogicNode {
   int64_t sessionGap;
 } SWindowLogicNode;
 
+typedef struct SSortLogicNode {
+  SLogicNode node;
+  SNodeList* pSortKeys;
+} SSortLogicNode;
+
 typedef enum ESubplanType {
   SUBPLAN_TYPE_MERGE = 1,
   SUBPLAN_TYPE_PARTIAL,
@@ -198,7 +203,7 @@ typedef struct SJoinPhysiNode {
 typedef struct SAggPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;   // these are expression list of group_by_clause and parameter expression of aggregate function
-  SNodeList* pGroupKeys; // SColumnRefNode list
+  SNodeList* pGroupKeys;
   SNodeList* pAggFuncs;
 } SAggPhysiNode;
 
@@ -235,6 +240,12 @@ typedef struct SSessionWinodwPhysiNode {
   SWinodwPhysiNode window;
   int64_t    gap;
 } SSessionWinodwPhysiNode;
+
+typedef struct SSortPhysiNode {
+  SPhysiNode node;
+  SNodeList* pExprs;   // these are expression list of order_by_clause and parameter expression of aggregate function
+  SNodeList* pSortKeys; // element is SOrderByExprNode, and SOrderByExprNode::pExpr is SColumnNode
+} SSortPhysiNode;
 
 typedef struct SDataSinkNode {
   ENodeType type;

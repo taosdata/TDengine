@@ -45,7 +45,9 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
         }
         if (nodesEqualNode(pExpr, *pNode)) {
           SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
-          CHECK_ALLOC(pCol, DEAL_RES_ERROR);
+          if (NULL == pCol) {
+            return DEAL_RES_ERROR;
+          }
           SExprNode* pToBeRewrittenExpr = (SExprNode*)(*pNode);
           pCol->node.resType = pToBeRewrittenExpr->resType;
           strcpy(pCol->node.aliasName, pToBeRewrittenExpr->aliasName);
@@ -311,20 +313,22 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_COLUMN: {
       SNode* pCol = nodesCloneNode(pNode);
-      CHECK_ALLOC(pCol, DEAL_RES_ERROR);
-      CHECK_CODE(nodesListAppend(pCxt->pList, pCol), DEAL_RES_ERROR);
-      return DEAL_RES_IGNORE_CHILD;
+      if (NULL == pCol) {
+        return DEAL_RES_ERROR;
+      }
+      return (TSDB_CODE_SUCCESS == nodesListAppend(pCxt->pList, pCol) ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
     }
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION:
     case QUERY_NODE_FUNCTION: {
       SExprNode* pExpr = (SExprNode*)pNode;
       SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
-      CHECK_ALLOC(pCol, DEAL_RES_ERROR);
+      if (NULL == pCol) {
+        return DEAL_RES_ERROR;
+      }
       pCol->node.resType = pExpr->resType;
       strcpy(pCol->colName, pExpr->aliasName);
-      CHECK_CODE(nodesListAppend(pCxt->pList, (SNode*)pCol), DEAL_RES_ERROR);
-      return DEAL_RES_IGNORE_CHILD;
+      return (TSDB_CODE_SUCCESS == nodesListAppend(pCxt->pList, pCol) ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
     }
     default:
       break;
@@ -485,6 +489,41 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
   return TSDB_CODE_FAILED;
 }
 
+static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+  if (NULL == pSelect->pOrderByList) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSortLogicNode* pSort = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SORT);
+  if (NULL == pSort) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SNodeList* pCols = NULL;
+  int32_t code = nodesCollectColumns(pSelect, SQL_CLAUSE_ORDER_BY, NULL, &pCols);
+  if (TSDB_CODE_SUCCESS == code && NULL != pCols) {
+    pSort->node.pTargets = nodesCloneList(pCols);
+    if (NULL == pSort->node.pTargets) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    pSort->pSortKeys = nodesCloneList(pSelect->pOrderByList);
+    if (NULL == pSort->pSortKeys) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pLogicNode = (SLogicNode*)pSort;
+  } else {
+    nodesDestroyNode(pSort);
+  }
+
+  return code;
+}
+
 static int32_t createColumnByProjections(SLogicPlanContext* pCxt, const char* pStmtName, SNodeList* pExprs, SNodeList** pCols) {
   SNodeList* pList = nodesMakeList();
   if (NULL == pList) {
@@ -538,6 +577,9 @@ static int32_t createSelectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createChildLogicNode(pCxt, pSelect, createAggLogicNode, &pRoot);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createChildLogicNode(pCxt, pSelect, createSortLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createChildLogicNode(pCxt, pSelect, createProjectLogicNode, &pRoot);

@@ -294,10 +294,10 @@ void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker wa
     case SQL_CLAUSE_GROUP_BY:
       nodesWalkNode(pSelect->pHaving, walker, pContext);
     case SQL_CLAUSE_HAVING:
-      nodesWalkList(pSelect->pProjectionList, walker, pContext);
-    case SQL_CLAUSE_SELECT:
       nodesWalkList(pSelect->pOrderByList, walker, pContext);
     case SQL_CLAUSE_ORDER_BY:
+      nodesWalkList(pSelect->pProjectionList, walker, pContext);
+    case SQL_CLAUSE_SELECT:
     default:
       break;
   }

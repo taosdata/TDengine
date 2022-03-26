@@ -159,6 +159,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SExchangeLogicNode));
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return makeNode(type, sizeof(SWindowLogicNode));
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+      return makeNode(type, sizeof(SSortLogicNode));
     case QUERY_NODE_LOGIC_SUBPLAN:
       return makeNode(type, sizeof(SLogicSubplan));
     case QUERY_NODE_LOGIC_PLAN:
@@ -182,7 +184,7 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
       return makeNode(type, sizeof(SExchangePhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
-      return makeNode(type, sizeof(SNode));
+      return makeNode(type, sizeof(SSortPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
       return makeNode(type, sizeof(SIntervalPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
@@ -555,7 +557,7 @@ static EDealRes collectColumns(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
     int32_t colId = pCol->colId;
-    if (0 == strcmp(pCxt->pTableAlias, pCol->tableAlias)) {
+    if (NULL == pCxt->pTableAlias || 0 == strcmp(pCxt->pTableAlias, pCol->tableAlias)) {
       return doCollect(pCxt, colId, pNode);
     }
   }
