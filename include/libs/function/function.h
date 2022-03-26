@@ -203,7 +203,7 @@ enum {
 };
 
 typedef struct tExprNode {
-  uint8_t nodeType;
+  int32_t nodeType;
   union {
     struct {
       int32_t           optr;   // binary operator

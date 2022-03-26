@@ -1243,12 +1243,12 @@ static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SqlFunction
 
 static void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx *pCtx, int32_t numOfOutput) {
   for (int32_t k = 0; k < numOfOutput; ++k) {
-    if (pExpr[k].base.type == QUERY_NODE_COLUMN) { // it is a project query
+    if (pExpr[k].pExpr->nodeType == QUERY_NODE_COLUMN) { // it is a project query
       SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, k);
       colDataAssign(pColInfoData, pCtx[k].input.pData[0], pCtx[k].input.numOfRows);
 
       pResult->info.rows = pCtx[0].input.numOfRows;
-    } else if (pExpr[k].base.type == QUERY_NODE_OPERATOR) {
+    } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_OPERATOR) {
       SArray* pBlockList = taosArrayInit(4, POINTER_BYTES);
       taosArrayPush(pBlockList, &pSrcBlock);
 
@@ -2035,16 +2035,16 @@ static SqlFunctionCtx* createSqlFunctionCtx_rv(SExprInfo* pExprInfo, int32_t num
     SqlFunctionCtx* pCtx = &pFuncCtx[i];
 
     pCtx->functionId = -1;
-    if (pExpr->base.type == QUERY_NODE_FUNCTION) {
+    if (pExpr->pExpr->nodeType == QUERY_NODE_FUNCTION) {
       SFuncExecEnv env = {0};
       pCtx->functionId = pExpr->pExpr->_function.pFunctNode->funcId;
 
       fmGetFuncExecFuncs(pCtx->functionId, &pCtx->fpSet);
       pCtx->fpSet.getEnv(pExpr->pExpr->_function.pFunctNode, &env);
       pCtx->resDataInfo.interBufSize = env.calcMemSize;
-    } else if (pExpr->base.type == QUERY_NODE_COLUMN) {
+    } else if (pExpr->pExpr->nodeType == QUERY_NODE_COLUMN) {
 
-    } else if (pExpr->base.type == QUERY_NODE_OPERATOR) {
+    } else if (pExpr->pExpr->nodeType == QUERY_NODE_OPERATOR) {
 
     }
 
@@ -8344,7 +8344,7 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
 
     // it is a project query, or group by column
     if (nodeType(pTargetNode->pExpr) == QUERY_NODE_COLUMN) {
-      pExp->base.type = QUERY_NODE_COLUMN;
+      pExp->pExpr->nodeType = QUERY_NODE_COLUMN;
       SColumnNode* pColNode = (SColumnNode*) pTargetNode->pExpr;
 
       SDataType* pType = &pColNode->node.resType;
@@ -8355,7 +8355,7 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
       pCol->scale     = pType->scale;
       pCol->precision = pType->precision;
     } else if (nodeType(pTargetNode->pExpr) == QUERY_NODE_FUNCTION) {
-      pExp->base.type = QUERY_NODE_FUNCTION;
+      pExp->pExpr->nodeType = QUERY_NODE_FUNCTION;
       SFunctionNode* pFuncNode = (SFunctionNode*)pTargetNode->pExpr;
 
       SDataType* pType = &pFuncNode->node.resType;
@@ -8379,7 +8379,7 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
         pCol->dataBlockId = pcn->dataBlockId;
       }
     } else if (nodeType(pTargetNode->pExpr) == QUERY_NODE_OPERATOR) {
-      pExp->base.type = QUERY_NODE_OPERATOR;
+      pExp->pExpr->nodeType = QUERY_NODE_OPERATOR;
       SOperatorNode* pNode = (SOperatorNode*) pTargetNode->pExpr;
 
       SDataType* pType = &pNode->node.resType;
