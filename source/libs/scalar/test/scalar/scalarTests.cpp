@@ -332,7 +332,6 @@ TEST(constantTest, int_or_binary) {
   nodesDestroyNode(res);
 }
 
-
 TEST(constantTest, int_greater_double) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
   scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_INT, &scltLeftV);
@@ -841,7 +840,6 @@ TEST(constantTest, int_add_int_is_true2) {
   nodesDestroyNode(res);
 }
 
-
 TEST(constantTest, int_greater_int_is_true1) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
   int32_t leftv = 1, rightv = 1;
@@ -902,8 +900,6 @@ TEST(constantTest, greater_and_lower) {
   ASSERT_EQ(v->datum.b, true);
   nodesDestroyNode(res);
 }
-
-
 
 TEST(columnTest, smallint_value_add_int_column) {
   scltInitLogFile();
@@ -1259,7 +1255,6 @@ TEST(columnTest, binary_column_like_binary) {
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
   nodesDestroyNode(opNode);
 }
-
 
 TEST(columnTest, binary_column_is_true) {
   SNode *pLeft = NULL, *opNode = NULL;

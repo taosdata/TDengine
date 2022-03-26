@@ -711,8 +711,10 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
       SCL_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
     }
     
-//    sclMoveParamListData(res, 1, 0);
-    *pDst = *res;
+    colDataAssign(pDst->columnData, res->columnData, res->numOfRows);
+    pDst->numOfRows = res->numOfRows;
+
+//    *pDst = *res;
     taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
   }
 

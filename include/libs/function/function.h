@@ -227,6 +227,10 @@ typedef struct tExprNode {
       //  operator and is kept in the attribute of _node.
       struct tExprNode **pChild;
     } _function;
+
+    struct {
+      struct SNode* pRootNode;
+    } _optrRoot;
   };
 } tExprNode;
 

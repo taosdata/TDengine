@@ -215,6 +215,7 @@ typedef struct SResSchame {
 
 // TODO move away to executor.h
 typedef struct SExprBasicInfo {
+  int32_t      type;
   SResSchema   resSchema;
   int16_t      numOfParams;  // argument value of each function
   SFunctParam* pParam;

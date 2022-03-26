@@ -466,7 +466,7 @@ typedef struct SOptrBasicInfo {
   int32_t*           rowCellInfoOffset;  // offset value for each row result cell info
   SqlFunctionCtx*    pCtx;
   SSDataBlock*       pRes;
-  int32_t            capacity;
+  int32_t            capacity;  // TODO remove it
 } SOptrBasicInfo;
 
 //TODO move the resultrowsiz together with SOptrBasicInfo:rowCellInfoOffset
