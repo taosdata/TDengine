@@ -1,7 +1,10 @@
 
-namespace TDExamples
+
+namespace TDengineExample
 {
-     internal class ConnectExample
+    using TDengineDriver;
+
+    internal class ConnectExample
     {
         static void Main(String[] args)
         {  
