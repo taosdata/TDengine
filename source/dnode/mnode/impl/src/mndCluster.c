@@ -116,7 +116,7 @@ static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw) {
 CLUSTER_DECODE_OVER:
   if (terrno != 0) {
     mError("cluster:%" PRId64 ", failed to decode from raw:%p since %s", pCluster->id, pRaw, terrstr());
-    tfree(pRow);
+    taosMemoryFreeClear(pRow);
     return NULL;
   }
 

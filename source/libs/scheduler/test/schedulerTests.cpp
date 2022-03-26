@@ -95,8 +95,8 @@ void schtBuildQueryDag(SQueryPlan *dag) {
   SNodeListNode *scan = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
   SNodeListNode *merge = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
   
-  SSubplan *scanPlan = (SSubplan *)calloc(1, sizeof(SSubplan));
-  SSubplan *mergePlan = (SSubplan *)calloc(1, sizeof(SSubplan));
+  SSubplan *scanPlan = (SSubplan *)taosMemoryCalloc(1, sizeof(SSubplan));
+  SSubplan *mergePlan = (SSubplan *)taosMemoryCalloc(1, sizeof(SSubplan));
 
   scanPlan->id.queryId = qId;
   scanPlan->id.groupId = 0x0000000000000002;
@@ -110,7 +110,7 @@ void schtBuildQueryDag(SQueryPlan *dag) {
   scanPlan->pChildren = NULL;
   scanPlan->level = 1;
   scanPlan->pParents = nodesMakeList();
-  scanPlan->pNode = (SPhysiNode*)calloc(1, sizeof(SPhysiNode));
+  scanPlan->pNode = (SPhysiNode*)taosMemoryCalloc(1, sizeof(SPhysiNode));
   scanPlan->msgType = TDMT_VND_QUERY;
 
   mergePlan->id.queryId = qId;
@@ -122,7 +122,7 @@ void schtBuildQueryDag(SQueryPlan *dag) {
 
   mergePlan->pChildren = nodesMakeList();
   mergePlan->pParents = NULL;
-  mergePlan->pNode = (SPhysiNode*)calloc(1, sizeof(SPhysiNode));
+  mergePlan->pNode = (SPhysiNode*)taosMemoryCalloc(1, sizeof(SPhysiNode));
   mergePlan->msgType = TDMT_VND_QUERY;
 
   merge->pNodeList = nodesMakeList();
@@ -148,8 +148,8 @@ void schtBuildQueryFlowCtrlDag(SQueryPlan *dag) {
   SNodeListNode *scan = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
   SNodeListNode *merge = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
   
-  SSubplan *scanPlan = (SSubplan *)calloc(scanPlanNum, sizeof(SSubplan));
-  SSubplan *mergePlan = (SSubplan *)calloc(1, sizeof(SSubplan));
+  SSubplan *scanPlan = (SSubplan *)taosMemoryCalloc(scanPlanNum, sizeof(SSubplan));
+  SSubplan *mergePlan = (SSubplan *)taosMemoryCalloc(1, sizeof(SSubplan));
 
   merge->pNodeList = nodesMakeList();
   scan->pNodeList = nodesMakeList();
@@ -173,7 +173,7 @@ void schtBuildQueryFlowCtrlDag(SQueryPlan *dag) {
     scanPlan[i].pChildren = NULL;
     scanPlan[i].level = 1;
     scanPlan[i].pParents = nodesMakeList();
-    scanPlan[i].pNode = (SPhysiNode*)calloc(1, sizeof(SPhysiNode));
+    scanPlan[i].pNode = (SPhysiNode*)taosMemoryCalloc(1, sizeof(SPhysiNode));
     scanPlan[i].msgType = TDMT_VND_QUERY;
 
     nodesListAppend(scanPlan[i].pParents, (SNode*)mergePlan);
@@ -190,7 +190,7 @@ void schtBuildQueryFlowCtrlDag(SQueryPlan *dag) {
   mergePlan->execNode.epSet.numOfEps = 0;
 
   mergePlan->pParents = NULL;
-  mergePlan->pNode = (SPhysiNode*)calloc(1, sizeof(SPhysiNode));
+  mergePlan->pNode = (SPhysiNode*)taosMemoryCalloc(1, sizeof(SPhysiNode));
   mergePlan->msgType = TDMT_VND_QUERY;
 
   nodesListAppend(merge->pNodeList, (SNode*)mergePlan);
@@ -213,7 +213,7 @@ void schtBuildInsertDag(SQueryPlan *dag) {
   dag->pSubplans = nodesMakeList();
   SNodeListNode *inserta = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
   
-  SSubplan *insertPlan = (SSubplan *)calloc(2, sizeof(SSubplan));
+  SSubplan *insertPlan = (SSubplan *)taosMemoryCalloc(2, sizeof(SSubplan));
 
   insertPlan[0].id.queryId = qId;
   insertPlan[0].id.groupId = 0x0000000000000003;
@@ -228,7 +228,7 @@ void schtBuildInsertDag(SQueryPlan *dag) {
   insertPlan[0].pChildren = NULL;
   insertPlan[0].pParents = NULL;
   insertPlan[0].pNode = NULL;
-  insertPlan[0].pDataSink = (SDataSinkNode*)calloc(1, sizeof(SDataSinkNode));
+  insertPlan[0].pDataSink = (SDataSinkNode*)taosMemoryCalloc(1, sizeof(SDataSinkNode));
   insertPlan[0].msgType = TDMT_VND_SUBMIT;
 
   insertPlan[1].id.queryId = qId;
@@ -244,7 +244,7 @@ void schtBuildInsertDag(SQueryPlan *dag) {
   insertPlan[1].pChildren = NULL;
   insertPlan[1].pParents = NULL;
   insertPlan[1].pNode = NULL;
-  insertPlan[1].pDataSink = (SDataSinkNode*)calloc(1, sizeof(SDataSinkNode));
+  insertPlan[1].pDataSink = (SDataSinkNode*)taosMemoryCalloc(1, sizeof(SDataSinkNode));
   insertPlan[1].msgType = TDMT_VND_SUBMIT;
 
   inserta->pNodeList = nodesMakeList();
@@ -258,7 +258,7 @@ void schtBuildInsertDag(SQueryPlan *dag) {
 
 
 int32_t schtPlanToString(const SSubplan *subplan, char** str, int32_t* len) {
-  *str = (char *)calloc(1, 20);
+  *str = (char *)taosMemoryCalloc(1, 20);
   *len = 20;
   return 0;
 }
@@ -312,9 +312,9 @@ void schtSetRpcSendRequest() {
 
 int32_t schtAsyncSendMsgToServer(void *pTransporter, SEpSet* epSet, int64_t* pTransporterId, SMsgSendInfo* pInfo) {
   if (pInfo) {
-    tfree(pInfo->param);
-    tfree(pInfo->msgInfo.pData);
-    free(pInfo);
+    taosMemoryFreeClear(pInfo->param);
+    taosMemoryFreeClear(pInfo->msgInfo.pData);
+    taosMemoryFree(pInfo);
   }
   return 0;
 }
@@ -373,7 +373,7 @@ void *schtCreateFetchRspThread(void *param) {
   taosSsleep(1);
 
   int32_t code = 0;
-  SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)calloc(1, sizeof(SRetrieveTableRsp));
+  SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)taosMemoryCalloc(1, sizeof(SRetrieveTableRsp));
   rsp->completed = 1;
   rsp->numOfRows = 10;
  
@@ -396,13 +396,13 @@ void *schtFetchRspThread(void *aa) {
 
     taosUsleep(1);
     
-    param = (SSchCallbackParam *)calloc(1, sizeof(*param));
+    param = (SSchCallbackParam *)taosMemoryCalloc(1, sizeof(*param));
 
     param->queryId = schtQueryId;  
     param->taskId = schtFetchTaskId;
 
     int32_t code = 0;
-    SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)calloc(1, sizeof(SRetrieveTableRsp));
+    SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)taosMemoryCalloc(1, sizeof(SRetrieveTableRsp));
     rsp->completed = 1;
     rsp->numOfRows = 10;
 
@@ -484,7 +484,7 @@ void* schtRunJobThread(void *aa) {
       pIter = taosHashIterate(pJob->execTasks, pIter);
     }    
 
-    param = (SSchCallbackParam *)calloc(1, sizeof(*param));
+    param = (SSchCallbackParam *)taosMemoryCalloc(1, sizeof(*param));
     param->refId = queryJobRefId;
     param->queryId = pJob->queryId;   
 
@@ -504,7 +504,7 @@ void* schtRunJobThread(void *aa) {
     }    
 
 
-    param = (SSchCallbackParam *)calloc(1, sizeof(*param));
+    param = (SSchCallbackParam *)taosMemoryCalloc(1, sizeof(*param));
     param->refId = queryJobRefId;
     param->queryId = pJob->queryId;   
     
@@ -524,7 +524,7 @@ void* schtRunJobThread(void *aa) {
     }  
 
 
-    param = (SSchCallbackParam *)calloc(1, sizeof(*param));
+    param = (SSchCallbackParam *)taosMemoryCalloc(1, sizeof(*param));
     param->refId = queryJobRefId;
     param->queryId = pJob->queryId;   
 
@@ -544,7 +544,7 @@ void* schtRunJobThread(void *aa) {
     }    
 
 
-    param = (SSchCallbackParam *)calloc(1, sizeof(*param));
+    param = (SSchCallbackParam *)taosMemoryCalloc(1, sizeof(*param));
     param->refId = queryJobRefId;
     param->queryId = pJob->queryId;   
 
@@ -697,7 +697,7 @@ TEST(queryTest, normalCase) {
   SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)data;
   ASSERT_EQ(pRsp->completed, 1);
   ASSERT_EQ(pRsp->numOfRows, 10);
-  tfree(data);
+  taosMemoryFreeClear(data);
 
   data = NULL;
   code = schedulerFetchRows(job, &data);
@@ -793,7 +793,7 @@ TEST(queryTest, flowCtrlCase) {
   SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)data;
   ASSERT_EQ(pRsp->completed, 1);
   ASSERT_EQ(pRsp->numOfRows, 10);
-  tfree(data);
+  taosMemoryFreeClear(data);
 
   data = NULL;
   code = schedulerFetchRows(job, &data);

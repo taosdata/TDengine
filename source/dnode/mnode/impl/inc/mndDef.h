@@ -442,7 +442,7 @@ static FORCE_INLINE void* tDecodeSMqConsumerEp(void** buf, SMqConsumerEp* pConsu
 
 static FORCE_INLINE void tDeleteSMqConsumerEp(SMqConsumerEp* pConsumerEp) {
   if (pConsumerEp) {
-    tfree(pConsumerEp->qmsg);
+    taosMemoryFreeClear(pConsumerEp->qmsg);
   }
 }
 
@@ -511,7 +511,7 @@ typedef struct {
 } SMqSubscribeObj;
 
 static FORCE_INLINE SMqSubscribeObj* tNewSubscribeObj() {
-  SMqSubscribeObj* pSub = calloc(1, sizeof(SMqSubscribeObj));
+  SMqSubscribeObj* pSub = taosMemoryCalloc(1, sizeof(SMqSubscribeObj));
   if (pSub == NULL) {
     return NULL;
   }
@@ -538,10 +538,10 @@ static FORCE_INLINE SMqSubscribeObj* tNewSubscribeObj() {
   return pSub;
 
 _err:
-  tfree(pSub->consumers);
-  tfree(pSub->lostConsumers);
-  tfree(pSub->unassignedVg);
-  tfree(pSub);
+  taosMemoryFreeClear(pSub->consumers);
+  taosMemoryFreeClear(pSub->lostConsumers);
+  taosMemoryFreeClear(pSub->unassignedVg);
+  taosMemoryFreeClear(pSub);
   return NULL;
 }
 

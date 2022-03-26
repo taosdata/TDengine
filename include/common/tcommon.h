@@ -104,16 +104,16 @@ static FORCE_INLINE void blockDestroyInner(SSDataBlock* pBlock) {
   for (int32_t i = 0; i < numOfOutput; ++i) {
     SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
     if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-      tfree(pColInfoData->varmeta.offset);
+      taosMemoryFreeClear(pColInfoData->varmeta.offset);
     } else {
-      tfree(pColInfoData->nullbitmap);
+      taosMemoryFreeClear(pColInfoData->nullbitmap);
     }
 
-    tfree(pColInfoData->pData);
+    taosMemoryFreeClear(pColInfoData->pData);
   }
 
   taosArrayDestroy(pBlock->pDataBlock);
-  tfree(pBlock->pBlockAgg);
+  taosMemoryFreeClear(pBlock->pBlockAgg);
 }
 
 static FORCE_INLINE void tDeleteSSDataBlock(SSDataBlock* pBlock) { blockDestroyInner(pBlock); }
@@ -147,7 +147,7 @@ static FORCE_INLINE void* tDecodeSMqPollRsp(void* buf, SMqPollRsp* pRsp) {
   buf = taosDecodeFixedI32(buf, &pRsp->skipLogNum);
   buf = taosDecodeFixedI32(buf, &pRsp->numOfTopics);
   if (pRsp->numOfTopics == 0) return buf;
-  pRsp->schema = (SSchemaWrapper*)calloc(1, sizeof(SSchemaWrapper));
+  pRsp->schema = (SSchemaWrapper*)taosMemoryCalloc(1, sizeof(SSchemaWrapper));
   if (pRsp->schema == NULL) return NULL;
   buf = tDecodeSSchemaWrapper(buf, pRsp->schema);
   buf = taosDecodeFixedI32(buf, &sz);
@@ -163,9 +163,9 @@ static FORCE_INLINE void* tDecodeSMqPollRsp(void* buf, SMqPollRsp* pRsp) {
 static FORCE_INLINE void tDeleteSMqConsumeRsp(SMqPollRsp* pRsp) {
   if (pRsp->schema) {
     if (pRsp->schema->nCols) {
-      tfree(pRsp->schema->pSchema);
+      taosMemoryFreeClear(pRsp->schema->pSchema);
     }
-    free(pRsp->schema);
+    taosMemoryFree(pRsp->schema);
   }
   taosArrayDestroyEx(pRsp->pBlockData, (void (*)(void*))blockDestroyInner);
   pRsp->pBlockData = NULL;

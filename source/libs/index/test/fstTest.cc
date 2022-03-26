@@ -55,7 +55,7 @@ class FstReadMemory {
     memset((void*)&_s, 0, sizeof(_s));
   }
   bool init() {
-    char* buf = (char*)calloc(1, sizeof(char) * _size);
+    char* buf = (char*)taosMemoryCalloc(1, sizeof(char) * _size);
     int   nRead = fstCountingWriterRead(_w, (uint8_t*)buf, _size);
     if (nRead <= 0) {
       return false;
@@ -63,7 +63,7 @@ class FstReadMemory {
     _size = nRead;
     _s = fstSliceCreate((uint8_t*)buf, _size);
     _fst = fstCreate(&_s);
-    free(buf);
+    taosMemoryFree(buf);
     return _fst != NULL;
   }
   bool Get(const std::string& key, uint64_t* val) {
@@ -230,7 +230,7 @@ void checkFstLongTerm() {
   // for (int i = 0; i < result.size(); i++) {
   // assert(result[i] == i);  // check result
   //}
-  // free(ctx);
+  // taosMemoryFree(ctx);
   // delete m;
 }
 void checkFstCheckIterator() {
@@ -266,7 +266,7 @@ void checkFstCheckIterator() {
     // assert(result[i] == i);  // check result
   }
 
-  free(ctx);
+  taosMemoryFree(ctx);
   delete m;
 }
 

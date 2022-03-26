@@ -86,7 +86,7 @@ int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
       assert(len == pEntry->bytes);
       memcpy(pMsg->data, serialized, len);
 
-      free(serialized);
+      taosMemoryFree(serialized);
       syncEntryDestory(pEntry);
 
     } else {

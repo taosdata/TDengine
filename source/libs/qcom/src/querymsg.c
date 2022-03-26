@@ -28,7 +28,7 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
   memcpy(pOut->db, usedbRsp->db, TSDB_DB_FNAME_LEN);
   pOut->dbId = usedbRsp->uid;
 
-  pOut->dbVgroup = calloc(1, sizeof(SDBVgInfo));
+  pOut->dbVgroup = taosMemoryCalloc(1, sizeof(SDBVgInfo));
   if (NULL == pOut->dbVgroup) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -151,7 +151,7 @@ PROCESS_USEDB_OVER:
   if (code != 0) {
     if (pOut) {
       if (pOut->dbVgroup) taosHashCleanup(pOut->dbVgroup->vgHash);
-      tfree(pOut->dbVgroup);
+      taosMemoryFreeClear(pOut->dbVgroup);
     }
     qError("failed to process usedb rsp since %s", terrstr());
   }
@@ -199,7 +199,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isSuperTable, STabl
   int32_t total = msg->numOfColumns + msg->numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
 
-  STableMeta *pTableMeta = calloc(1, metaSize);
+  STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize);
   if (NULL == pTableMeta) {
     qError("calloc size[%d] failed", metaSize);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;

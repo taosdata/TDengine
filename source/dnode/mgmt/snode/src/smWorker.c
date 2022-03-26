@@ -51,7 +51,7 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
   }
 
   for (int32_t i = 0; i < SND_UNIQUE_THREAD_NUM; i++) {
-    SMultiWorker *pUniqueWorker = malloc(sizeof(SMultiWorker));
+    SMultiWorker *pUniqueWorker = taosMemoryMalloc(sizeof(SMultiWorker));
     if (pUniqueWorker == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;

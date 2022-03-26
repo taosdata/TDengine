@@ -173,7 +173,7 @@ void showTables() {
 
 void *threadFunc(void *param) {
   SThreadInfo *pInfo = (SThreadInfo *)param;
-  char        *qstr = malloc(batchNumOfTbl * batchNumOfRow * 128);
+  char        *qstr = taosMemoryMalloc(batchNumOfTbl * batchNumOfRow * 128);
   int32_t      code = 0;
 
   TAOS *con = taos_connect(NULL, "root", "taosdata", NULL, 0);
@@ -284,7 +284,7 @@ void *threadFunc(void *param) {
   }
 
   taos_close(con);
-  free(qstr);
+  taosMemoryFree(qstr);
   return 0;
 }
 
@@ -403,7 +403,7 @@ int32_t main(int32_t argc, char *argv[]) {
   TdThreadAttr thattr;
   taosThreadAttrInit(&thattr);
   taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
-  SThreadInfo *pInfo = (SThreadInfo *)calloc(numOfThreads, sizeof(SThreadInfo));
+  SThreadInfo *pInfo = (SThreadInfo *)taosMemoryCalloc(numOfThreads, sizeof(SThreadInfo));
 
   // int64_t numOfTablesPerThread = numOfTables / numOfThreads;
   // numOfTables = numOfTablesPerThread * numOfThreads;
@@ -466,5 +466,5 @@ int32_t main(int32_t argc, char *argv[]) {
   }
 
   taosThreadAttrDestroy(&thattr);
-  free(pInfo);
+  taosMemoryFree(pInfo);
 }

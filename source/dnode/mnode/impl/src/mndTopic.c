@@ -129,11 +129,11 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pTopic->version, TOPIC_DECODE_OVER);
   SDB_GET_INT32(pRaw, dataPos, &pTopic->sqlLen, TOPIC_DECODE_OVER);
 
-  pTopic->sql = calloc(pTopic->sqlLen + 1, sizeof(char));
+  pTopic->sql = taosMemoryCalloc(pTopic->sqlLen + 1, sizeof(char));
   SDB_GET_BINARY(pRaw, dataPos, pTopic->sql, pTopic->sqlLen, TOPIC_DECODE_OVER);
 
   SDB_GET_INT32(pRaw, dataPos, &len, TOPIC_DECODE_OVER);
-  pTopic->logicalPlan = calloc(len + 1, sizeof(char));
+  pTopic->logicalPlan = taosMemoryCalloc(len + 1, sizeof(char));
   if (pTopic->logicalPlan == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto TOPIC_DECODE_OVER;
@@ -141,9 +141,9 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   SDB_GET_BINARY(pRaw, dataPos, pTopic->logicalPlan, len, TOPIC_DECODE_OVER);
 
   SDB_GET_INT32(pRaw, dataPos, &len, TOPIC_DECODE_OVER);
-  pTopic->physicalPlan = calloc(len + 1, sizeof(char));
+  pTopic->physicalPlan = taosMemoryCalloc(len + 1, sizeof(char));
   if (pTopic->physicalPlan == NULL) {
-    free(pTopic->logicalPlan);
+    taosMemoryFree(pTopic->logicalPlan);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto TOPIC_DECODE_OVER;
   }
@@ -156,7 +156,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
 TOPIC_DECODE_OVER:
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("topic:%s, failed to decode from raw:%p since %s", pTopic->name, pRaw, terrstr());
-    tfree(pRow);
+    taosMemoryFreeClear(pRow);
     return NULL;
   }
 
@@ -214,7 +214,7 @@ static SDbObj *mndAcquireDbByTopic(SMnode *pMnode, char *topicName) {
 static SDDropTopicReq *mndBuildDropTopicMsg(SMnode *pMnode, SVgObj *pVgroup, SMqTopicObj *pTopic) {
   int32_t contLen = sizeof(SDDropTopicReq);
 
-  SDDropTopicReq *pDrop = calloc(1, contLen);
+  SDDropTopicReq *pDrop = taosMemoryCalloc(1, contLen);
   if (pDrop == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -286,7 +286,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_TOPIC, &pReq->rpcMsg);
   if (pTrans == NULL) {
     mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
-    tfree(pPlanStr);
+    taosMemoryFreeClear(pPlanStr);
     return -1;
   }
   mDebug("trans:%d, used to create topic:%s", pTrans->id, pCreate->name);
@@ -294,7 +294,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
   SSdbRaw *pRedoRaw = mndTopicActionEncode(&topicObj);
   if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
     mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
-    tfree(pPlanStr);
+    taosMemoryFreeClear(pPlanStr);
     mndTransDrop(pTrans);
     return -1;
   }
@@ -302,12 +302,12 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    tfree(pPlanStr);
+    taosMemoryFreeClear(pPlanStr);
     mndTransDrop(pTrans);
     return -1;
   }
 
-  tfree(pPlanStr);
+  taosMemoryFreeClear(pPlanStr);
   mndTransDrop(pTrans);
   return 0;
 }

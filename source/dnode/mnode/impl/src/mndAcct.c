@@ -158,7 +158,7 @@ static SSdbRow *mndAcctActionDecode(SSdbRaw *pRaw) {
 ACCT_DECODE_OVER:
   if (terrno != 0) {
     mError("acct:%s, failed to decode from raw:%p since %s", pAcct->acct, pRaw, terrstr());
-    tfree(pRow);
+    taosMemoryFreeClear(pRow);
     return NULL;
   }
 

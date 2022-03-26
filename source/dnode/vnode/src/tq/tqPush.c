@@ -32,7 +32,7 @@ void tqPushMgrCleanUp() {
 }
 
 STqPushMgr* tqPushMgrOpen() {
-  STqPushMgr* mgr = malloc(sizeof(STqPushMgr));
+  STqPushMgr* mgr = taosMemoryMalloc(sizeof(STqPushMgr));
   if (mgr == NULL) {
     return NULL;
   }
@@ -42,11 +42,11 @@ STqPushMgr* tqPushMgrOpen() {
 
 void tqPushMgrClose(STqPushMgr* pushMgr) {
   taosHashCleanup(pushMgr->pHash);
-  free(pushMgr);
+  taosMemoryFree(pushMgr);
 }
 
 STqClientPusher* tqAddClientPusher(STqPushMgr* pushMgr, SRpcMsg* pMsg, int64_t consumerId, int64_t ttl) {
-  STqClientPusher* clientPusher = malloc(sizeof(STqClientPusher));
+  STqClientPusher* clientPusher = taosMemoryMalloc(sizeof(STqClientPusher));
   if (clientPusher == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -57,7 +57,7 @@ STqClientPusher* tqAddClientPusher(STqPushMgr* pushMgr, SRpcMsg* pMsg, int64_t c
   clientPusher->ttl = ttl;
   if (taosHashPut(pushMgr->pHash, &consumerId, sizeof(int64_t), &clientPusher, sizeof(void*)) < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    free(clientPusher);
+    taosMemoryFree(clientPusher);
     // TODO send rsp back
     return NULL;
   }
@@ -65,7 +65,7 @@ STqClientPusher* tqAddClientPusher(STqPushMgr* pushMgr, SRpcMsg* pMsg, int64_t c
 }
 
 STqStreamPusher* tqAddStreamPusher(STqPushMgr* pushMgr, int64_t streamId, SEpSet* pEpSet) {
-  STqStreamPusher* streamPusher = malloc(sizeof(STqStreamPusher));
+  STqStreamPusher* streamPusher = taosMemoryMalloc(sizeof(STqStreamPusher));
   if (streamPusher == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -77,7 +77,7 @@ STqStreamPusher* tqAddStreamPusher(STqPushMgr* pushMgr, int64_t streamId, SEpSet
 
   if (taosHashPut(pushMgr->pHash, &streamId, sizeof(int64_t), &streamPusher, sizeof(void*)) < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    free(streamPusher);
+    taosMemoryFree(streamPusher);
     return NULL;
   }
   return streamPusher;

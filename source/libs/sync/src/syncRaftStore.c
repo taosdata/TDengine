@@ -26,7 +26,7 @@ static bool    raftStoreFileExist(char *path);
 SRaftStore *raftStoreOpen(const char *path) {
   int32_t ret;
 
-  SRaftStore *pRaftStore = malloc(sizeof(SRaftStore));
+  SRaftStore *pRaftStore = taosMemoryMalloc(sizeof(SRaftStore));
   if (pRaftStore == NULL) {
     sError("raftStoreOpen malloc error");
     return NULL;
@@ -75,7 +75,7 @@ int32_t raftStoreClose(SRaftStore *pRaftStore) {
   assert(pRaftStore != NULL);
 
   taosCloseFile(&pRaftStore->pFile);
-  free(pRaftStore);
+  taosMemoryFree(pRaftStore);
   pRaftStore = NULL;
   return 0;
 }
@@ -128,7 +128,7 @@ int32_t raftStoreSerialize(SRaftStore *pRaftStore, char *buf, size_t len) {
   assert(len2 < len);
   memset(buf, 0, len);
   snprintf(buf, len, "%s", serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 
   cJSON_Delete(pRoot);
   return 0;
@@ -226,23 +226,23 @@ void raftStorePrint(SRaftStore *pObj) {
   char *serialized = raftStore2Str(pObj);
   printf("raftStorePrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void raftStorePrint2(char *s, SRaftStore *pObj) {
   char *serialized = raftStore2Str(pObj);
   printf("raftStorePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 void raftStoreLog(SRaftStore *pObj) {
   char *serialized = raftStore2Str(pObj);
   sTrace("raftStoreLog | len:%lu | %s", strlen(serialized), serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void raftStoreLog2(char *s, SRaftStore *pObj) {
   char *serialized = raftStore2Str(pObj);
   sTrace("raftStoreLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }

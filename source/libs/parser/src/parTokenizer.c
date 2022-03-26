@@ -594,7 +594,7 @@ SToken tscReplaceStrToken(char **str, SToken *token, const char* newToken) {
   int32_t bsize = (int32_t)((uint64_t)token->z - (uint64_t)src);
   SToken ntoken;
 
-  *str = calloc(1, size);
+  *str = taosMemoryCalloc(1, size);
 
   strncpy(*str, src, bsize);
   strcat(*str, newToken);
@@ -603,7 +603,7 @@ SToken tscReplaceStrToken(char **str, SToken *token, const char* newToken) {
   ntoken.n = (uint32_t)nsize;
   ntoken.z = *str + bsize;
 
-  tfree(src);
+  taosMemoryFreeClear(src);
 
   return ntoken;
 }

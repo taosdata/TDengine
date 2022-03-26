@@ -152,7 +152,7 @@ static const SInfosTableMeta infosMeta[] = {{TSDB_INS_TABLE_DNODES, dnodesSchema
 
 //connection/application/
 int32_t mndInitInfosTableSchema(const SInfosTableSchema *pSrc, int32_t colNum, SSchema **pDst) {
-  SSchema *schema = calloc(colNum, sizeof(SSchema));
+  SSchema *schema = taosMemoryCalloc(colNum, sizeof(SSchema));
   if (NULL == schema) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -210,7 +210,7 @@ int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *
 
   *pRsp = *meta;
   
-  pRsp->pSchemas = calloc(meta->numOfColumns, sizeof(SSchema));
+  pRsp->pSchemas = taosMemoryCalloc(meta->numOfColumns, sizeof(SSchema));
   if (pRsp->pSchemas == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     pRsp->pSchemas = NULL;
@@ -241,7 +241,7 @@ void mndCleanupInfos(SMnode *pMnode) {
   while (pIter) {
     STableMetaRsp *meta = (STableMetaRsp *)pIter;
 
-    tfree(meta->pSchemas);
+    taosMemoryFreeClear(meta->pSchemas);
     
     pIter = taosHashIterate(pMnode->infosMeta, pIter);
   }

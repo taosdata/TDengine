@@ -41,7 +41,7 @@ void iIntersection(SArray *inters, SArray *final) {
   if (sz <= 0) {
     return;
   }
-  MergeIndex *mi = calloc(sz, sizeof(MergeIndex));
+  MergeIndex *mi = taosMemoryCalloc(sz, sizeof(MergeIndex));
   for (int i = 0; i < sz; i++) {
     SArray *t = taosArrayGetP(inters, i);
     mi[i].len = taosArrayGetSize(t);
@@ -67,7 +67,7 @@ void iIntersection(SArray *inters, SArray *final) {
       taosArrayPush(final, &tgt);
     }
   }
-  tfree(mi);
+  taosMemoryFreeClear(mi);
 }
 void iUnion(SArray *inters, SArray *final) {
   int32_t sz = taosArrayGetSize(inters);
@@ -79,7 +79,7 @@ void iUnion(SArray *inters, SArray *final) {
     return;
   }
 
-  MergeIndex *mi = calloc(sz, sizeof(MergeIndex));
+  MergeIndex *mi = taosMemoryCalloc(sz, sizeof(MergeIndex));
   for (int i = 0; i < sz; i++) {
     SArray *t = taosArrayGetP(inters, i);
     mi[i].len = taosArrayGetSize(t);
@@ -113,7 +113,7 @@ void iUnion(SArray *inters, SArray *final) {
       break;
     }
   }
-  tfree(mi);
+  taosMemoryFreeClear(mi);
 }
 
 void iExcept(SArray *total, SArray *except) {
@@ -156,7 +156,7 @@ int verdataCompare(const void *a, const void *b) {
 }
 
 SIdxTempResult *sIdxTempResultCreate() {
-  SIdxTempResult *tr = calloc(1, sizeof(SIdxTempResult));
+  SIdxTempResult *tr = taosMemoryCalloc(1, sizeof(SIdxTempResult));
 
   tr->total = taosArrayInit(4, sizeof(uint64_t));
   tr->added = taosArrayInit(4, sizeof(uint64_t));

@@ -12,7 +12,7 @@ struct Foo {
 int FooSerializer(const void* pObj, STqSerializedHead** ppHead) {
   Foo* foo = (Foo*)pObj;
   if ((*ppHead) == NULL || (*ppHead)->ssize < sizeof(STqSerializedHead) + sizeof(int32_t)) {
-    *ppHead = (STqSerializedHead*)realloc(*ppHead, sizeof(STqSerializedHead) + sizeof(int32_t));
+    *ppHead = (STqSerializedHead*)taosMemoryRealloc(*ppHead, sizeof(STqSerializedHead) + sizeof(int32_t));
     (*ppHead)->ssize = sizeof(STqSerializedHead) + sizeof(int32_t);
   }
   *(int32_t*)(*ppHead)->content = foo->a;
@@ -21,14 +21,14 @@ int FooSerializer(const void* pObj, STqSerializedHead** ppHead) {
 
 const void* FooDeserializer(const STqSerializedHead* pHead, void** ppObj) {
   if (*ppObj == NULL) {
-    *ppObj = realloc(*ppObj, sizeof(int32_t));
+    *ppObj = taosMemoryRealloc(*ppObj, sizeof(int32_t));
   }
   Foo* pFoo = *(Foo**)ppObj;
   pFoo->a = *(int32_t*)pHead->content;
   return NULL;
 }
 
-void FooDeleter(void* pObj) { free(pObj); }
+void FooDeleter(void* pObj) { taosMemoryFree(pObj); }
 
 class TqMetaUpdateAppendTest : public ::testing::Test {
  protected:
@@ -58,7 +58,7 @@ TEST_F(TqMetaUpdateAppendTest, copyPutTest) {
 }
 
 TEST_F(TqMetaUpdateAppendTest, persistTest) {
-  Foo* pFoo = (Foo*)malloc(sizeof(Foo));
+  Foo* pFoo = (Foo*)taosMemoryMalloc(sizeof(Foo));
   pFoo->a = 2;
   tqHandleMovePut(pMeta, 1, pFoo);
   Foo* pBar = (Foo*)tqHandleGet(pMeta, 1);
@@ -82,7 +82,7 @@ TEST_F(TqMetaUpdateAppendTest, persistTest) {
 }
 
 TEST_F(TqMetaUpdateAppendTest, uncommittedTest) {
-  Foo* pFoo = (Foo*)malloc(sizeof(Foo));
+  Foo* pFoo = (Foo*)taosMemoryMalloc(sizeof(Foo));
   pFoo->a = 3;
   tqHandleMovePut(pMeta, 1, pFoo);
 
@@ -91,7 +91,7 @@ TEST_F(TqMetaUpdateAppendTest, uncommittedTest) {
 }
 
 TEST_F(TqMetaUpdateAppendTest, abortTest) {
-  Foo* pFoo = (Foo*)malloc(sizeof(Foo));
+  Foo* pFoo = (Foo*)taosMemoryMalloc(sizeof(Foo));
   pFoo->a = 3;
   tqHandleMovePut(pMeta, 1, pFoo);
 
@@ -104,7 +104,7 @@ TEST_F(TqMetaUpdateAppendTest, abortTest) {
 }
 
 TEST_F(TqMetaUpdateAppendTest, deleteTest) {
-  Foo* pFoo = (Foo*)malloc(sizeof(Foo));
+  Foo* pFoo = (Foo*)taosMemoryMalloc(sizeof(Foo));
   pFoo->a = 3;
   tqHandleMovePut(pMeta, 1, pFoo);
 
@@ -135,12 +135,12 @@ TEST_F(TqMetaUpdateAppendTest, deleteTest) {
 }
 
 TEST_F(TqMetaUpdateAppendTest, intxnPersist) {
-  Foo* pFoo = (Foo*)malloc(sizeof(Foo));
+  Foo* pFoo = (Foo*)taosMemoryMalloc(sizeof(Foo));
   pFoo->a = 3;
   tqHandleMovePut(pMeta, 1, pFoo);
   tqHandleCommit(pMeta, 1);
 
-  Foo* pBar = (Foo*)malloc(sizeof(Foo));
+  Foo* pBar = (Foo*)taosMemoryMalloc(sizeof(Foo));
   pBar->a = 4;
   tqHandleMovePut(pMeta, 1, pBar);
 

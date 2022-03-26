@@ -83,7 +83,7 @@ typedef struct SRpcInit {
 typedef struct {
   void *  val;
   int32_t len;
-  void (*free)(void *arg);
+  void (*freeFunc)(const void *arg);
 } SRpcCtxVal;
 
 typedef struct {

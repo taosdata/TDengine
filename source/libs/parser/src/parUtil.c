@@ -122,7 +122,7 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);
   size_t size = getTableMetaSize(pTableMeta);
 
-  STableMeta* p = malloc(size);
+  STableMeta* p = taosMemoryMalloc(size);
   memcpy(p, pTableMeta, size);
   return p;
 }

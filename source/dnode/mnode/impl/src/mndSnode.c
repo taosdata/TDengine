@@ -135,7 +135,7 @@ static SSdbRow *mndSnodeActionDecode(SSdbRaw *pRaw) {
 SNODE_DECODE_OVER:
   if (terrno != 0) {
     mError("snode:%d, failed to decode from raw:%p since %s", pObj->id, pRaw, terrstr());
-    tfree(pRow);
+    taosMemoryFreeClear(pRow);
     return NULL;
   }
 
@@ -200,7 +200,7 @@ static int32_t mndSetCreateSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
   createReq.dnodeId = pDnode->id;
 
   int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &createReq);
-  void   *pReq = malloc(contLen);
+  void   *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -215,7 +215,7 @@ static int32_t mndSetCreateSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
   action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-    free(pReq);
+    taosMemoryFree(pReq);
     return -1;
   }
 
@@ -227,7 +227,7 @@ static int32_t mndSetCreateSnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
   dropReq.dnodeId = pDnode->id;
 
   int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &dropReq);
-  void   *pReq = malloc(contLen);
+  void   *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -242,7 +242,7 @@ static int32_t mndSetCreateSnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
   action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
 
   if (mndTransAppendUndoAction(pTrans, &action) != 0) {
-    free(pReq);
+    taosMemoryFree(pReq);
     return -1;
   }
 
@@ -352,7 +352,7 @@ static int32_t mndSetDropSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SSn
   dropReq.dnodeId = pDnode->id;
 
   int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &dropReq);
-  void   *pReq = malloc(contLen);
+  void   *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -367,7 +367,7 @@ static int32_t mndSetDropSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SSn
   action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-    free(pReq);
+    taosMemoryFree(pReq);
     return -1;
   }
 

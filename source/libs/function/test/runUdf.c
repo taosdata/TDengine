@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "uv.h"
+#include "os.h"
 #include "tudf.h"
 
 int main(int argc, char *argv[]) {
@@ -28,8 +29,8 @@ int main(int argc, char *argv[]) {
     int callCount = 2;
     if (argc > 1) dataSize = atoi(argv[1]);
     if (argc > 2) callCount = atoi(argv[2]);
-    char *state = malloc(dataSize);
-    char *input = malloc(dataSize);
+    char *state = taosMemoryMalloc(dataSize);
+    char *input = taosMemoryMalloc(dataSize);
     SUdfDataBlock blockInput = {.data = input, .size = dataSize};
     SUdfDataBlock blockOutput;
     char* newState;
@@ -37,8 +38,8 @@ int main(int argc, char *argv[]) {
     for (int l = 0; l < callCount; ++l) {
         callUdf(handle, 0, state, dataSize, blockInput, &newState, &newStateSize, &blockOutput);
     }
-    free(state);
-    free(input);
+    taosMemoryFree(state);
+    taosMemoryFree(input);
     teardownUdf(handle);
 
     stopUdfService();

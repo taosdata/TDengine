@@ -19,7 +19,7 @@ class WalCleanEnv : public ::testing::Test {
 
   void SetUp() override {
     taosRemoveDir(pathName);
-    SWalCfg* pCfg = (SWalCfg*)malloc(sizeof(SWalCfg));
+    SWalCfg* pCfg = (SWalCfg*)taosMemoryMalloc(sizeof(SWalCfg));
     memset(pCfg, 0, sizeof(SWalCfg));
     pCfg->rollPeriod = -1;
     pCfg->segSize = -1;
@@ -27,7 +27,7 @@ class WalCleanEnv : public ::testing::Test {
     pCfg->retentionSize = 0;
     pCfg->level = TAOS_WAL_FSYNC;
     pWal = walOpen(pathName, pCfg);
-    free(pCfg);
+    taosMemoryFree(pCfg);
     ASSERT(pWal != NULL);
   }
 
@@ -51,13 +51,13 @@ class WalCleanDeleteEnv : public ::testing::Test {
 
   void SetUp() override {
     taosRemoveDir(pathName);
-    SWalCfg* pCfg = (SWalCfg*)malloc(sizeof(SWalCfg));
+    SWalCfg* pCfg = (SWalCfg*)taosMemoryMalloc(sizeof(SWalCfg));
     memset(pCfg, 0, sizeof(SWalCfg));
     pCfg->retentionPeriod = 0;
     pCfg->retentionSize = 0;
     pCfg->level = TAOS_WAL_FSYNC;
     pWal = walOpen(pathName, pCfg);
-    free(pCfg);
+    taosMemoryFree(pCfg);
     ASSERT(pWal != NULL);
   }
 
@@ -86,7 +86,7 @@ class WalKeepEnv : public ::testing::Test {
   }
 
   void SetUp() override {
-    SWalCfg* pCfg = (SWalCfg*)malloc(sizeof(SWalCfg));
+    SWalCfg* pCfg = (SWalCfg*)taosMemoryMalloc(sizeof(SWalCfg));
     memset(pCfg, 0, sizeof(SWalCfg));
     pCfg->rollPeriod = -1;
     pCfg->segSize = -1;
@@ -94,7 +94,7 @@ class WalKeepEnv : public ::testing::Test {
     pCfg->retentionSize = 0;
     pCfg->level = TAOS_WAL_FSYNC;
     pWal = walOpen(pathName, pCfg);
-    free(pCfg);
+    taosMemoryFree(pCfg);
     ASSERT(pWal != NULL);
   }
 
@@ -172,7 +172,7 @@ TEST_F(WalCleanEnv, serialize) {
   ASSERT(code == 0);
   char* ss = walMetaSerialize(pWal);
   printf("%s\n", ss);
-  free(ss);
+  taosMemoryFree(ss);
   code = walSaveMeta(pWal);
   ASSERT(code == 0);
 }
@@ -216,8 +216,8 @@ TEST_F(WalKeepEnv, readOldMeta) {
   for (int i = 0; i < len; i++) {
     EXPECT_EQ(oldss[i], newss[i]);
   }
-  free(oldss);
-  free(newss);
+  taosMemoryFree(oldss);
+  taosMemoryFree(newss);
 }
 
 TEST_F(WalCleanEnv, write) {

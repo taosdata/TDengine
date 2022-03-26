@@ -115,7 +115,7 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
         newSize = newSize * 1.5;
       }
 
-      char* buf = realloc(pColumnInfoData->pData, newSize);
+      char* buf = taosMemoryRealloc(pColumnInfoData->pData, newSize);
       if (buf == NULL) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
@@ -178,7 +178,7 @@ static void doBitmapMerge(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, c
   uint32_t total = numOfRow1 + numOfRow2;
 
   if (BitmapLen(numOfRow1) < BitmapLen(total)) {
-    char*    tmp = realloc(pColumnInfoData->nullbitmap, BitmapLen(total));
+    char*    tmp = taosMemoryRealloc(pColumnInfoData->nullbitmap, BitmapLen(total));
     uint32_t extend = BitmapLen(total) - BitmapLen(numOfRow1);
     memset(tmp + BitmapLen(numOfRow1), 0, extend);
     pColumnInfoData->nullbitmap = tmp;
@@ -218,7 +218,7 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, co
 
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     // Handle the bitmap
-    char* p = realloc(pColumnInfoData->varmeta.offset, sizeof(int32_t) * (numOfRow1 + numOfRow2));
+    char* p = taosMemoryRealloc(pColumnInfoData->varmeta.offset, sizeof(int32_t) * (numOfRow1 + numOfRow2));
     if (p == NULL) {
       // TODO
     }
@@ -232,7 +232,7 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, co
     uint32_t len = pSource->varmeta.length;
     uint32_t oldLen = pColumnInfoData->varmeta.length;
     if (pColumnInfoData->varmeta.allocLen < len + oldLen) {
-      char* tmp = realloc(pColumnInfoData->pData, len + oldLen);
+      char* tmp = taosMemoryRealloc(pColumnInfoData->pData, len + oldLen);
       if (tmp == NULL) {
         return TSDB_CODE_VND_OUT_OF_MEMORY;
       }
@@ -247,7 +247,7 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, co
     doBitmapMerge(pColumnInfoData, numOfRow1, pSource, numOfRow2);
 
     int32_t newSize = (numOfRow1 + numOfRow2) * pColumnInfoData->info.bytes;
-    char*   tmp = realloc(pColumnInfoData->pData, newSize);
+    char*   tmp = taosMemoryRealloc(pColumnInfoData->pData, newSize);
     if (tmp == NULL) {
       return TSDB_CODE_VND_OUT_OF_MEMORY;
     }
@@ -268,7 +268,7 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
 
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     // Handle the bitmap
-    char* p = realloc(pColumnInfoData->varmeta.offset, sizeof(int32_t) * numOfRows);
+    char* p = taosMemoryRealloc(pColumnInfoData->varmeta.offset, sizeof(int32_t) * numOfRows);
     if (p == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -277,7 +277,7 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
     memcpy(pColumnInfoData->varmeta.offset, pSource->varmeta.offset, sizeof(int32_t) * numOfRows);
 
     if (pColumnInfoData->varmeta.allocLen < pSource->varmeta.length) {
-      char* tmp = realloc(pColumnInfoData->pData, pSource->varmeta.length);
+      char* tmp = taosMemoryRealloc(pColumnInfoData->pData, pSource->varmeta.length);
       if (tmp == NULL) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
@@ -289,7 +289,7 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
     memcpy(pColumnInfoData->pData, pSource->pData, pSource->varmeta.length);
     pColumnInfoData->varmeta.length = pSource->varmeta.length;
   } else {
-    char* tmp = realloc(pColumnInfoData->nullbitmap, BitmapLen(numOfRows));
+    char* tmp = taosMemoryRealloc(pColumnInfoData->nullbitmap, BitmapLen(numOfRows));
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -298,7 +298,7 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
     memcpy(pColumnInfoData->nullbitmap, pSource->nullbitmap, BitmapLen(numOfRows));
 
     int32_t newSize = numOfRows * pColumnInfoData->info.bytes;
-    tmp = realloc(pColumnInfoData->pData, newSize);
+    tmp = taosMemoryRealloc(pColumnInfoData->pData, newSize);
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -349,7 +349,7 @@ int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc) {
     uint32_t newLen = colDataGetLength(pCol1, pSrc->info.rows);
 
     int32_t newSize = oldLen + newLen;
-    char*   tmp = realloc(pCol2->pData, newSize);
+    char*   tmp = taosMemoryRealloc(pCol2->pData, newSize);
     if (tmp != NULL) {
       pCol2->pData = tmp;
       colDataMergeCol(pCol2, pDest->info.rows, pCol1, pSrc->info.rows);
@@ -453,7 +453,7 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
     return NULL;
   }
 
-  SSDataBlock* pDst = calloc(1, sizeof(SSDataBlock));
+  SSDataBlock* pDst = taosMemoryCalloc(1, sizeof(SSDataBlock));
   if (pDst == NULL) {
     return NULL;
   }
@@ -470,10 +470,10 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
 
     if (IS_VAR_DATA_TYPE(pSrcCol->info.type)) {
       SVarColAttr* pAttr = &colInfo.varmeta;
-      pAttr->offset = calloc(rowCount, sizeof(int32_t));
+      pAttr->offset = taosMemoryCalloc(rowCount, sizeof(int32_t));
     } else {
-      colInfo.nullbitmap = calloc(1, BitmapLen(rowCount));
-      colInfo.pData = calloc(rowCount, colInfo.info.bytes);
+      colInfo.nullbitmap = taosMemoryCalloc(1, BitmapLen(rowCount));
+      colInfo.pData = taosMemoryCalloc(rowCount, colInfo.info.bytes);
     }
 
     taosArrayPush(pDst->pDataBlock, &colInfo);
@@ -562,7 +562,7 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
 
     if (IS_VAR_DATA_TYPE(pCol->info.type)) {
       if (pCol->varmeta.allocLen < colLength) {
-        char* tmp = realloc(pCol->pData, colLength);
+        char* tmp = taosMemoryRealloc(pCol->pData, colLength);
         if (tmp == NULL) {
           return TSDB_CODE_OUT_OF_MEMORY;
         }
@@ -610,7 +610,7 @@ size_t blockDataGetSerialMetaSize(const SSDataBlock* pBlock) {
 }
 
 SSchema* blockDataExtractSchema(const SSDataBlock* pBlock, int32_t* numOfCols) {
-  SSchema* pSchema = calloc(pBlock->info.numOfCols, sizeof(SSchema));
+  SSchema* pSchema = taosMemoryCalloc(pBlock->info.numOfCols, sizeof(SSchema));
   for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
     pSchema[i].bytes = pColInfoData->info.bytes;
@@ -819,7 +819,7 @@ static SColumnInfoData* createHelpColInfoData(const SSDataBlock* pDataBlock) {
   int32_t rows = pDataBlock->info.rows;
   int32_t numOfCols = pDataBlock->info.numOfCols;
 
-  SColumnInfoData* pCols = calloc(numOfCols, sizeof(SColumnInfoData));
+  SColumnInfoData* pCols = taosMemoryCalloc(numOfCols, sizeof(SColumnInfoData));
   if (pCols == NULL) {
     return NULL;
   }
@@ -829,14 +829,14 @@ static SColumnInfoData* createHelpColInfoData(const SSDataBlock* pDataBlock) {
     pCols[i].info = pColInfoData->info;
 
     if (IS_VAR_DATA_TYPE(pCols[i].info.type)) {
-      pCols[i].varmeta.offset = calloc(rows, sizeof(int32_t));
-      pCols[i].pData = calloc(1, pColInfoData->varmeta.length);
+      pCols[i].varmeta.offset = taosMemoryCalloc(rows, sizeof(int32_t));
+      pCols[i].pData = taosMemoryCalloc(1, pColInfoData->varmeta.length);
 
       pCols[i].varmeta.length = pColInfoData->varmeta.length;
       pCols[i].varmeta.allocLen = pCols[i].varmeta.length;
     } else {
-      pCols[i].nullbitmap = calloc(1, BitmapLen(rows));
-      pCols[i].pData = calloc(rows, pCols[i].info.bytes);
+      pCols[i].nullbitmap = taosMemoryCalloc(1, BitmapLen(rows));
+      pCols[i].pData = taosMemoryCalloc(rows, pCols[i].info.bytes);
     }
   }
 
@@ -851,22 +851,22 @@ static void copyBackToBlock(SSDataBlock* pDataBlock, SColumnInfoData* pCols) {
     pColInfoData->info = pCols[i].info;
 
     if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-      tfree(pColInfoData->varmeta.offset);
+      taosMemoryFreeClear(pColInfoData->varmeta.offset);
       pColInfoData->varmeta = pCols[i].varmeta;
     } else {
-      tfree(pColInfoData->nullbitmap);
+      taosMemoryFreeClear(pColInfoData->nullbitmap);
       pColInfoData->nullbitmap = pCols[i].nullbitmap;
     }
 
-    tfree(pColInfoData->pData);
+    taosMemoryFreeClear(pColInfoData->pData);
     pColInfoData->pData = pCols[i].pData;
   }
 
-  tfree(pCols);
+  taosMemoryFreeClear(pCols);
 }
 
 static int32_t* createTupleIndex(size_t rows) {
-  int32_t* index = calloc(rows, sizeof(int32_t));
+  int32_t* index = taosMemoryCalloc(rows, sizeof(int32_t));
   if (index == NULL) {
     return NULL;
   }
@@ -878,7 +878,7 @@ static int32_t* createTupleIndex(size_t rows) {
   return index;
 }
 
-static void destroyTupleIndex(int32_t* index) { tfree(index); }
+static void destroyTupleIndex(int32_t* index) { taosMemoryFreeClear(index); }
 
 static __compar_fn_t getComparFn(int32_t type, int32_t order) {
   switch (type) {
@@ -1019,8 +1019,8 @@ SHelper* createTupleIndex_rv(int32_t numOfRows, SArray* pOrderInfo, SSDataBlock*
 
   size_t len = sortValLengthPerRow * pBlock->info.rows;
 
-  char*    buf = calloc(1, len);
-  SHelper* phelper = calloc(numOfRows, sizeof(SHelper));
+  char*    buf = taosMemoryCalloc(1, len);
+  SHelper* phelper = taosMemoryCalloc(numOfRows, sizeof(SHelper));
   for (int32_t i = 0; i < numOfRows; ++i) {
     phelper[i].index = i;
     phelper[i].pData = buf + sortValLengthPerRow * i;
@@ -1163,7 +1163,7 @@ int32_t blockDataEnsureColumnCapacity(SColumnInfoData* pColumn, uint32_t numOfRo
   }
 
   if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
-    char* tmp = realloc(pColumn->varmeta.offset, sizeof(int32_t) * numOfRows);
+    char* tmp = taosMemoryRealloc(pColumn->varmeta.offset, sizeof(int32_t) * numOfRows);
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -1173,9 +1173,9 @@ int32_t blockDataEnsureColumnCapacity(SColumnInfoData* pColumn, uint32_t numOfRo
 
     pColumn->varmeta.length = 0;
     pColumn->varmeta.allocLen = 0;
-    tfree(pColumn->pData);
+    taosMemoryFreeClear(pColumn->pData);
   } else {
-    char* tmp = realloc(pColumn->nullbitmap, BitmapLen(numOfRows));
+    char* tmp = taosMemoryRealloc(pColumn->nullbitmap, BitmapLen(numOfRows));
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -1183,7 +1183,7 @@ int32_t blockDataEnsureColumnCapacity(SColumnInfoData* pColumn, uint32_t numOfRo
     pColumn->nullbitmap = tmp;
     memset(pColumn->nullbitmap, 0, BitmapLen(numOfRows));
     assert(pColumn->info.bytes);
-    tmp = realloc(pColumn->pData, numOfRows * pColumn->info.bytes);
+    tmp = taosMemoryRealloc(pColumn->pData, numOfRows * pColumn->info.bytes);
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -1214,14 +1214,14 @@ void* blockDataDestroy(SSDataBlock* pBlock) {
   }
 
   blockDestroyInner(pBlock);
-  tfree(pBlock);
+  taosMemoryFreeClear(pBlock);
   return NULL;
 }
 
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock) {
   int32_t numOfCols = pDataBlock->info.numOfCols;
 
-  SSDataBlock* pBlock = calloc(1, sizeof(SSDataBlock));
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
 
   pBlock->info.numOfCols = numOfCols;

@@ -17,7 +17,7 @@
 #include "sdbInt.h"
 
 SSdbRow *sdbAllocRow(int32_t objSize) {
-  SSdbRow *pRow = calloc(1, objSize + sizeof(SSdbRow));
+  SSdbRow *pRow = taosMemoryCalloc(1, objSize + sizeof(SSdbRow));
   if (pRow == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -46,5 +46,5 @@ void sdbFreeRow(SSdb *pSdb, SSdbRow *pRow) {
   sdbPrintOper(pSdb, pRow, "freeRow");
 
   mTrace("row:%p, is freed", pRow->pObj);
-  tfree(pRow);
+  taosMemoryFreeClear(pRow);
 }

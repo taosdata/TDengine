@@ -25,7 +25,7 @@ void tqCleanUp() { tqPushMgrCleanUp(); }
 
 STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pVnodeMeta, STqCfg* tqConfig,
             SMemAllocatorFactory* allocFac) {
-  STQ* pTq = malloc(sizeof(STQ));
+  STQ* pTq = taosMemoryMalloc(sizeof(STQ));
   if (pTq == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
     return NULL;
@@ -43,9 +43,9 @@ STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pVnodeMeta, STq
   }
 #endif
   pTq->tqMeta =
-      tqStoreOpen(pTq, path, (FTqSerialize)tqSerializeConsumer, (FTqDeserialize)tqDeserializeConsumer, free, 0);
+      tqStoreOpen(pTq, path, (FTqSerialize)tqSerializeConsumer, (FTqDeserialize)tqDeserializeConsumer, (FTqDelete)taosMemoryFree, 0);
   if (pTq->tqMeta == NULL) {
-    free(pTq);
+    taosMemoryFree(pTq);
 #if 0
     allocFac->destroy(allocFac, pTq->tqMemRef.pAllocator);
 #endif
@@ -56,7 +56,7 @@ STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pVnodeMeta, STq
   pTq->tqPushMgr = tqPushMgrOpen();
   if (pTq->tqPushMgr == NULL) {
     // free store
-    free(pTq);
+    taosMemoryFree(pTq);
     return NULL;
   }
 #endif
@@ -68,15 +68,15 @@ STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pVnodeMeta, STq
 
 void tqClose(STQ* pTq) {
   if (pTq) {
-    tfree(pTq->path);
-    free(pTq);
+    taosMemoryFreeClear(pTq->path);
+    taosMemoryFree(pTq);
   }
   // TODO
 }
 
 int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t version) {
   if (msgType != TDMT_VND_SUBMIT) return 0;
-  void* data = malloc(msgLen);
+  void* data = taosMemoryMalloc(msgLen);
   if (data == NULL) {
     return -1;
   }
@@ -95,7 +95,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t versi
     if (pusher->type == TQ_PUSHER_TYPE__STREAM) {
       STqStreamPusher* streamPusher = (STqStreamPusher*)pusher;
       // repack
-      STqStreamToken* token = malloc(sizeof(STqStreamToken));
+      STqStreamToken* token = taosMemoryMalloc(sizeof(STqStreamToken));
       if (token == NULL) {
         taosHashCancelIterate(pTq->tqPushMgr->pHash, pIter);
         terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -199,9 +199,9 @@ int tqSerializeConsumer(const STqConsumer* pConsumer, STqSerializedHead** ppHead
   int32_t sz = tEncodeSTqConsumer(NULL, pConsumer);
 
   if (sz > (*ppHead)->ssize) {
-    void* tmpPtr = realloc(*ppHead, sizeof(STqSerializedHead) + sz);
+    void* tmpPtr = taosMemoryRealloc(*ppHead, sizeof(STqSerializedHead) + sz);
     if (tmpPtr == NULL) {
-      free(*ppHead);
+      taosMemoryFree(*ppHead);
       terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
       return -1;
     }
@@ -218,7 +218,7 @@ int tqSerializeConsumer(const STqConsumer* pConsumer, STqSerializedHead** ppHead
 
 int32_t tqDeserializeConsumer(STQ* pTq, const STqSerializedHead* pHead, STqConsumer** ppConsumer) {
   const void* str = pHead->content;
-  *ppConsumer = calloc(1, sizeof(STqConsumer));
+  *ppConsumer = taosMemoryCalloc(1, sizeof(STqConsumer));
   if (*ppConsumer == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
     return -1;
@@ -392,7 +392,7 @@ int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
   tDecodeSMqSetCVgReq(msg, &req);
 
   /*printf("vg %d set to consumer from %ld to %ld\n", req.vgId, req.oldConsumerId, req.newConsumerId);*/
-  STqConsumer* pConsumer = calloc(1, sizeof(STqConsumer));
+  STqConsumer* pConsumer = taosMemoryCalloc(1, sizeof(STqConsumer));
   if (pConsumer == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
     return -1;
@@ -403,10 +403,10 @@ int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
   pConsumer->consumerId = req.consumerId;
   pConsumer->epoch = 0;
 
-  STqTopic* pTopic = calloc(1, sizeof(STqTopic));
+  STqTopic* pTopic = taosMemoryCalloc(1, sizeof(STqTopic));
   if (pTopic == NULL) {
     taosArrayDestroy(pConsumer->topics);
-    free(pConsumer);
+    taosMemoryFree(pConsumer);
     return -1;
   }
   strcpy(pTopic->topicName, req.topicName);
@@ -444,7 +444,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int32_t parallel) {
   if (pTask->execType == TASK_EXEC__NONE) return 0;
 
   pTask->exec.numOfRunners = parallel;
-  pTask->exec.runners = calloc(parallel, sizeof(SStreamRunner));
+  pTask->exec.runners = taosMemoryCalloc(parallel, sizeof(SStreamRunner));
   if (pTask->exec.runners == NULL) {
     return -1;
   }
@@ -462,7 +462,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int32_t parallel) {
 }
 
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
-  SStreamTask* pTask = malloc(sizeof(SStreamTask));
+  SStreamTask* pTask = taosMemoryMalloc(sizeof(SStreamTask));
   if (pTask == NULL) {
     return -1;
   }
