@@ -115,7 +115,8 @@ void taosMemoryFree(const void *ptr) {
 
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char*)ptr - sizeof(TdMemoryInfo));
   if(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL) {
-    memset(pTdMemoryInfo, 0, sizeof(TdMemoryInfo));
+    pTdMemoryInfo->memorySize = 0;
+    // memset(pTdMemoryInfo, 0, sizeof(TdMemoryInfo));
     free(pTdMemoryInfo);
   } else {
     free((void*)ptr);

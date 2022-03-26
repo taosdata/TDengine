@@ -40,7 +40,7 @@ enum TdTimezone
       TdWestZone3,
       TdWestZone2,
       TdWestZone1,
-      TdZeroZero,
+      TdZeroZone,
       TdEastZone1,
       TdEastZone2,
       TdEastZone3,
