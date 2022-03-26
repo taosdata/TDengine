@@ -30,19 +30,19 @@ macro_rules! _build_opt {
         _build_opt!($option, String);
     };
     ($option:ident, $ty:ty) => {
-        pub fn $option<T: Into<$ty>>(&mut self, $option: T) -> &mut Self {
+        pub fn $option<T: Into<$ty>>(mut self, $option: T) -> Self {
             self.$option = Some($option.into());
             self
         }
     };
     ($option:ident, $setter:block) => {
-        pub fn $option<T: Into<String>>(&mut self, $option: T) -> &mut Self {
+        pub fn $option<T: Into<String>>(mut self, $option: T) -> Self {
             $setter;
             self
         }
     };
     ($option:ident, $ty:ty, $setter:block) => {
-        pub fn $option<T: Into<$ty>>(&mut self, $option: T) -> &mut Self {
+        pub fn $option<T: Into<$ty>>(mut self, $option: T) -> Self {
             let $option = $option.into();
             $setter;
             self.$option = Some($option);
@@ -132,4 +132,21 @@ impl TaosOptions {
 fn test_options_builder() {
     let opts = TaosOptions::new();
     let _taos = opts.build().unwrap();
+}
+
+#[test]
+fn test_options_builder_all() {
+    let opts = TaosOptions::new()
+        .locale("en_US")
+        .charset("UTF-8")
+        .timezone("Asia/Chongqing")
+        .config_dir("/etc/taos")
+        .host("localhost")
+        .port(6030u16)
+        .username("root")
+        .password("taosdata")
+        .database("log")
+        ;
+    let taos = opts.build().unwrap();
+    let res = futures::executor::block_on(taos.query("show databases")).unwrap();
 }

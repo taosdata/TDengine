@@ -1,5 +1,5 @@
 #![allow(non_camel_case_types)]
-use std::{ffi::CStr, os::raw::*};
+use std::{ffi::CStr, os::raw::*, str::Utf8Error};
 
 pub type TAOS = c_void;
 pub type TAOS_STMT = c_void;
@@ -38,7 +38,8 @@ pub struct TAOS_FIELD {
 
 impl TAOS_FIELD {
     pub fn name(&self) -> &CStr {
-        CStr::from_bytes_with_nul(&self.name).expect("field name should always be valid C-str")
+        unsafe { CStr::from_ptr(self.name.as_ptr() as _) }
+        // CStr::from_bytes_with_nul(&self.name).expect("field name should always be valid C-str")
     }
     pub fn type_(&self) -> TaosDataType {
         self.type_.into()
@@ -46,6 +47,35 @@ impl TAOS_FIELD {
 
     pub fn bytes(&self) -> i16 {
         self.bytes
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, 'a> serde::de::Deserializer<'de> for &'a TAOS_FIELD {
+    type Error = taos_error::Error;
+
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        self.name()
+            .to_str()
+            .map_err(|err| taos_error::Error::from_string(format!("{}", err)))
+            .and_then(|s| visitor.visit_str(s))
+    }
+
+    serde::forward_to_deserialize_any! {
+        bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string unit option
+        seq bytes byte_buf map unit_struct newtype_struct
+        tuple_struct struct tuple enum identifier ignored_any
+    }
+}
+#[cfg(feature = "serde")]
+impl<'de, 'a> serde::de::IntoDeserializer<'de, taos_error::Error> for &'a TAOS_FIELD {
+    type Deserializer = &'a TAOS_FIELD;
+
+    fn into_deserializer(self) -> Self::Deserializer {
+        self
     }
 }
 
