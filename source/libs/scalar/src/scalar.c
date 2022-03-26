@@ -713,8 +713,6 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
     
     colDataAssign(pDst->columnData, res->columnData, res->numOfRows);
     pDst->numOfRows = res->numOfRows;
-
-//    *pDst = *res;
     taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
   }
 
