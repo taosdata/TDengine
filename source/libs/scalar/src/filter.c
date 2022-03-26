@@ -1795,6 +1795,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
         SScalarParam out = {.columnData = calloc(1, sizeof(SColumnInfoData))};
         out.columnData->info.type = type;
 
+        // todo refactor the convert
         int32_t code = doConvertDataType(&in, &out, var);
         if (code != TSDB_CODE_SUCCESS) {
           qError("convert value to type[%d] failed", type);

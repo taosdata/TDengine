@@ -41,7 +41,9 @@ SColumnInfoData* createColumnInfoData(SDataType* pType, int32_t numOfRows) {
 int32_t doConvertDataType(SScalarParam* in, SScalarParam* out, SValueNode* pValueNode) {
   in->columnData = createColumnInfoData(&pValueNode->node.resType, 1);
   colDataAppend(in->columnData, 0, nodesGetValueFromNode(pValueNode), false);
+  in->numOfRows = 1;
 
+  blockDataEnsureColumnCapacity(out->columnData, 1);
   return vectorConvertImpl(in, out);
 }
 
@@ -67,6 +69,9 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
     SValueNode *valueNode = (SValueNode *)cell->pNode;
 
     if (valueNode->node.resType.type != type) {
+      out.columnData->info.type = type;
+      out.columnData->info.bytes = tDataTypes[type].bytes;
+
       doConvertDataType(&in, &out, valueNode);
       if (code) {
 //        sclError("convert data from %d to %d failed", in.type, out.type);
@@ -167,8 +172,8 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
 
     case QUERY_NODE_NODE_LIST: {
       SNodeListNode *nodeList = (SNodeListNode *)node;
-      if (nodeList->pNodeList->length <= 0) {
-        sclError("invalid length in nodeList, length:%d", nodeList->pNodeList->length);
+      if (LIST_LENGTH(nodeList->pNodeList) <= 0) {
+        sclError("invalid length in nodeList, length:%d", LIST_LENGTH(nodeList->pNodeList));
         SCL_RET(TSDB_CODE_QRY_INVALID_INPUT);
       }
 
