@@ -74,14 +74,14 @@ void dmSendRedirectRsp(SDnodeMgmt *pMgmt, SRpcMsg *pReq) {
 }
 
 static int32_t dmStart(SMgmtWrapper *pWrapper) {
-  dDebug("dnode mgmt start to run");
+  dDebug("dnode-mgmt start to run");
   return dmStartThread(pWrapper->pMgmt);
 }
 
 int32_t dmInit(SMgmtWrapper *pWrapper) {
   SDnode     *pDnode = pWrapper->pDnode;
-  SDnodeMgmt *pMgmt = calloc(1, sizeof(SDnodeMgmt));
-  dInfo("dnode-mgmt is initialized");
+  SDnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SDnodeMgmt));
+  dInfo("dnode-mgmt start to init");
 
   pDnode->dnodeId = 0;
   pDnode->dropped = 0;
@@ -138,7 +138,7 @@ void dmCleanup(SMgmtWrapper *pWrapper) {
 
   taosWUnLockLatch(&pMgmt->latch);
 
-  free(pMgmt);
+  taosMemoryFree(pMgmt);
   pWrapper->pMgmt = NULL;
   dInfo("dnode-mgmt is cleaned up");
 }

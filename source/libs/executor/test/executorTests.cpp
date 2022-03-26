@@ -62,7 +62,7 @@ SSDataBlock* getDummyBlock(SOperatorInfo* pOperator, bool* newgroup) {
   }
 
   if (pInfo->pBlock == NULL) {
-    pInfo->pBlock = static_cast<SSDataBlock*>(calloc(1, sizeof(SSDataBlock)));
+    pInfo->pBlock = static_cast<SSDataBlock*>(taosMemoryCalloc(1, sizeof(SSDataBlock)));
 
     pInfo->pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
 
@@ -70,8 +70,8 @@ SSDataBlock* getDummyBlock(SOperatorInfo* pOperator, bool* newgroup) {
     colInfo.info.type = TSDB_DATA_TYPE_INT;
     colInfo.info.bytes = sizeof(int32_t);
     colInfo.info.colId = 1;
-    colInfo.pData = static_cast<char*>(calloc(pInfo->numOfRowsPerPage, sizeof(int32_t)));
-    colInfo.nullbitmap = static_cast<char*>(calloc(1, (pInfo->numOfRowsPerPage + 7) / 8));
+    colInfo.pData = static_cast<char*>(taosMemoryCalloc(pInfo->numOfRowsPerPage, sizeof(int32_t)));
+    colInfo.nullbitmap = static_cast<char*>(taosMemoryCalloc(1, (pInfo->numOfRowsPerPage + 7) / 8));
 
     taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo);
 
@@ -82,7 +82,7 @@ SSDataBlock* getDummyBlock(SOperatorInfo* pOperator, bool* newgroup) {
 //
 //    colInfo1.varmeta.allocLen = 0;//numOfRows * sizeof(int32_t);
 //    colInfo1.varmeta.length = 0;
-//    colInfo1.varmeta.offset = static_cast<int32_t*>(calloc(1, numOfRows * sizeof(int32_t)));
+//    colInfo1.varmeta.offset = static_cast<int32_t*>(taosMemoryCalloc(1, numOfRows * sizeof(int32_t)));
 //
 //    taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo1);
   } else {
@@ -128,7 +128,7 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator, bool* newgroup) {
   }
 
   if (pInfo->pBlock == NULL) {
-    pInfo->pBlock = static_cast<SSDataBlock*>(calloc(1, sizeof(SSDataBlock)));
+    pInfo->pBlock = static_cast<SSDataBlock*>(taosMemoryCalloc(1, sizeof(SSDataBlock)));
 
     pInfo->pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
 
@@ -136,8 +136,8 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator, bool* newgroup) {
     colInfo.info.type = TSDB_DATA_TYPE_TIMESTAMP;
     colInfo.info.bytes = sizeof(int64_t);
     colInfo.info.colId = 1;
-    colInfo.pData = static_cast<char*>(calloc(pInfo->numOfRowsPerPage, sizeof(int64_t)));
-//    colInfo.nullbitmap = static_cast<char*>(calloc(1, (pInfo->numOfRowsPerPage + 7) / 8));
+    colInfo.pData = static_cast<char*>(taosMemoryCalloc(pInfo->numOfRowsPerPage, sizeof(int64_t)));
+//    colInfo.nullbitmap = static_cast<char*>(taosMemoryCalloc(1, (pInfo->numOfRowsPerPage + 7) / 8));
 
     taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo);
 
@@ -146,8 +146,8 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator, bool* newgroup) {
     colInfo1.info.bytes = 4;
     colInfo1.info.colId = 2;
 
-    colInfo1.pData = static_cast<char*>(calloc(pInfo->numOfRowsPerPage, sizeof(int32_t)));
-    colInfo1.nullbitmap = static_cast<char*>(calloc(1, (pInfo->numOfRowsPerPage + 7) / 8));
+    colInfo1.pData = static_cast<char*>(taosMemoryCalloc(pInfo->numOfRowsPerPage, sizeof(int32_t)));
+    colInfo1.nullbitmap = static_cast<char*>(taosMemoryCalloc(1, (pInfo->numOfRowsPerPage + 7) / 8));
 
     taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo1);
   } else {
@@ -195,7 +195,7 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator, bool* newgroup) {
 }
 
 SOperatorInfo* createDummyOperator(int32_t startVal, int32_t numOfBlocks, int32_t rowsPerPage, int32_t type, int32_t numOfCols) {
-  SOperatorInfo* pOperator = static_cast<SOperatorInfo*>(calloc(1, sizeof(SOperatorInfo)));
+  SOperatorInfo* pOperator = static_cast<SOperatorInfo*>(taosMemoryCalloc(1, sizeof(SOperatorInfo)));
   pOperator->name = "dummyInputOpertor4Test";
 
   if (numOfCols == 1) {
@@ -204,7 +204,7 @@ SOperatorInfo* createDummyOperator(int32_t startVal, int32_t numOfBlocks, int32_
     pOperator->getNextFn = get2ColsDummyBlock;
   }
 
-  SDummyInputInfo *pInfo = (SDummyInputInfo*) calloc(1, sizeof(SDummyInputInfo));
+  SDummyInputInfo *pInfo = (SDummyInputInfo*) taosMemoryCalloc(1, sizeof(SDummyInputInfo));
   pInfo->totalPages = numOfBlocks;
   pInfo->startVal   = startVal;
   pInfo->numOfRowsPerPage = rowsPerPage;
@@ -958,11 +958,11 @@ TEST(testCase, inMem_sort_Test) {
   taosArrayPush(pOrderVal, &o);
 
   SArray* pExprInfo = taosArrayInit(4, sizeof(SExprInfo));
-  SExprInfo *exp = static_cast<SExprInfo*>(calloc(1, sizeof(SExprInfo)));
+  SExprInfo *exp = static_cast<SExprInfo*>(taosMemoryCalloc(1, sizeof(SExprInfo)));
   exp->base.resSchema = createSchema(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1, "res");
   taosArrayPush(pExprInfo, &exp);
 
-  SExprInfo *exp1 = static_cast<SExprInfo*>(calloc(1, sizeof(SExprInfo)));
+  SExprInfo *exp1 = static_cast<SExprInfo*>(taosMemoryCalloc(1, sizeof(SExprInfo)));
   exp1->base.resSchema = createSchema(TSDB_DATA_TYPE_BINARY, 40, 2, "res1");
   taosArrayPush(pExprInfo, &exp1);
 
@@ -1002,10 +1002,10 @@ int32_t cmp(const void* p1, const void* p2) {
 #if 0
 TEST(testCase, external_sort_Test) {
 #if 0
-  su* v = static_cast<su*>(calloc(1000000, sizeof(su)));
+  su* v = static_cast<su*>(taosMemoryCalloc(1000000, sizeof(su)));
   for(int32_t i = 0; i < 1000000; ++i) {
     v[i].v = taosRand();
-    v[i].c = static_cast<char*>(malloc(4));
+    v[i].c = static_cast<char*>(taosMemoryMalloc(4));
     *(int32_t*) v[i].c = i;
   }
 
@@ -1027,11 +1027,11 @@ TEST(testCase, external_sort_Test) {
   taosArrayPush(pOrderVal, &o);
 
   SArray* pExprInfo = taosArrayInit(4, sizeof(SExprInfo));
-  SExprInfo *exp = static_cast<SExprInfo*>(calloc(1, sizeof(SExprInfo)));
+  SExprInfo *exp = static_cast<SExprInfo*>(taosMemoryCalloc(1, sizeof(SExprInfo)));
   exp->base.resSchema = createSchema(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1, "res");
   taosArrayPush(pExprInfo, &exp);
 
-  SExprInfo *exp1 = static_cast<SExprInfo*>(calloc(1, sizeof(SExprInfo)));
+  SExprInfo *exp1 = static_cast<SExprInfo*>(taosMemoryCalloc(1, sizeof(SExprInfo)));
   exp1->base.resSchema = createSchema(TSDB_DATA_TYPE_BINARY, 40, 2, "res1");
 //  taosArrayPush(pExprInfo, &exp1);
 
@@ -1071,8 +1071,8 @@ TEST(testCase, external_sort_Test) {
   printf("total:%ld\n", s2 - s1);
 
   pOperator->closeFn(pOperator->info, 2);
-  tfree(exp);
-  tfree(exp1);
+  taosMemoryFreeClear(exp);
+  taosMemoryFreeClear(exp1);
   taosArrayDestroy(pExprInfo);
   taosArrayDestroy(pOrderVal);
 }
@@ -1088,21 +1088,21 @@ TEST(testCase, sorted_merge_Test) {
   taosArrayPush(pOrderVal, &o);
 
   SArray* pExprInfo = taosArrayInit(4, sizeof(SExprInfo));
-  SExprInfo *exp = static_cast<SExprInfo*>(calloc(1, sizeof(SExprInfo)));
+  SExprInfo *exp = static_cast<SExprInfo*>(taosMemoryCalloc(1, sizeof(SExprInfo)));
   exp->base.resSchema = createSchema(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 1, "count_result");
-  exp->base.pColumns = static_cast<SColumn*>(calloc(1, sizeof(SColumn)));
+  exp->base.pColumns = static_cast<SColumn*>(taosMemoryCalloc(1, sizeof(SColumn)));
   exp->base.pColumns->flag = TSDB_COL_NORMAL;
   exp->base.pColumns->info = (SColumnInfo) {.colId = 1, .type = TSDB_DATA_TYPE_INT, .bytes = 4};
   exp->base.numOfCols = 1;
 
   taosArrayPush(pExprInfo, &exp);
 
-  SExprInfo *exp1 = static_cast<SExprInfo*>(calloc(1, sizeof(SExprInfo)));
+  SExprInfo *exp1 = static_cast<SExprInfo*>(taosMemoryCalloc(1, sizeof(SExprInfo)));
   exp1->base.resSchema = createSchema(TSDB_DATA_TYPE_BINARY, 40, 2, "res1");
 //  taosArrayPush(pExprInfo, &exp1);
 
   int32_t numOfSources = 10;
-  SOperatorInfo** plist = (SOperatorInfo**) calloc(numOfSources, sizeof(void*));
+  SOperatorInfo** plist = (SOperatorInfo**) taosMemoryCalloc(numOfSources, sizeof(void*));
   for(int32_t i = 0; i < numOfSources; ++i) {
     plist[i] = createDummyOperator(1, 1, 1, data_asc, 1);
   }
@@ -1143,8 +1143,8 @@ TEST(testCase, sorted_merge_Test) {
   printf("total:%ld\n", s2 - s1);
 
   pOperator->closeFn(pOperator->info, 2);
-  tfree(exp);
-  tfree(exp1);
+  taosMemoryFreeClear(exp);
+  taosMemoryFreeClear(exp1);
   taosArrayDestroy(pExprInfo);
   taosArrayDestroy(pOrderVal);
 }
@@ -1160,18 +1160,18 @@ TEST(testCase, time_interval_Operator_Test) {
   taosArrayPush(pOrderVal, &o);
 
   SArray* pExprInfo = taosArrayInit(4, sizeof(SExprInfo));
-  SExprInfo *exp = static_cast<SExprInfo*>(calloc(1, sizeof(SExprInfo)));
+  SExprInfo *exp = static_cast<SExprInfo*>(taosMemoryCalloc(1, sizeof(SExprInfo)));
   exp->base.resSchema = createSchema(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1, "ts");
-  exp->base.pColumns = static_cast<SColumn*>(calloc(1, sizeof(SColumn)));
+  exp->base.pColumns = static_cast<SColumn*>(taosMemoryCalloc(1, sizeof(SColumn)));
   exp->base.pColumns->flag = TSDB_COL_NORMAL;
   exp->base.pColumns->info = (SColumnInfo) {.colId = 1, .type = TSDB_DATA_TYPE_TIMESTAMP, .bytes = 8};
   exp->base.numOfCols = 1;
 
   taosArrayPush(pExprInfo, &exp);
 
-  SExprInfo *exp1 = static_cast<SExprInfo*>(calloc(1, sizeof(SExprInfo)));
+  SExprInfo *exp1 = static_cast<SExprInfo*>(taosMemoryCalloc(1, sizeof(SExprInfo)));
   exp1->base.resSchema = createSchema(TSDB_DATA_TYPE_BIGINT, 8, 2, "res1");
-  exp1->base.pColumns = static_cast<SColumn*>(calloc(1, sizeof(SColumn)));
+  exp1->base.pColumns = static_cast<SColumn*>(taosMemoryCalloc(1, sizeof(SColumn)));
   exp1->base.pColumns->flag = TSDB_COL_NORMAL;
   exp1->base.pColumns->info = (SColumnInfo) {.colId = 1, .type = TSDB_DATA_TYPE_INT, .bytes = 4};
   exp1->base.numOfCols = 1;
@@ -1221,8 +1221,8 @@ TEST(testCase, time_interval_Operator_Test) {
   printf("total:%ld\n", s2 - s1);
 
   pOperator->closeFn(pOperator->info, 2);
-  tfree(exp);
-  tfree(exp1);
+  taosMemoryFreeClear(exp);
+  taosMemoryFreeClear(exp1);
   taosArrayDestroy(pExprInfo);
   taosArrayDestroy(pOrderVal);
 }

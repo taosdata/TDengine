@@ -136,14 +136,14 @@ typedef struct {
 } SMqCommitCbParam;
 
 tmq_conf_t* tmq_conf_new() {
-  tmq_conf_t* conf = calloc(1, sizeof(tmq_conf_t));
+  tmq_conf_t* conf = taosMemoryCalloc(1, sizeof(tmq_conf_t));
   conf->auto_commit = false;
   conf->resetOffset = TMQ_CONF__RESET_OFFSET__EARLIEAST;
   return conf;
 }
 
 void tmq_conf_destroy(tmq_conf_t* conf) {
-  if (conf) free(conf);
+  if (conf) taosMemoryFree(conf);
 }
 
 tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value) {
@@ -184,7 +184,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
 }
 
 tmq_list_t* tmq_list_new() {
-  tmq_list_t* ptr = malloc(sizeof(tmq_list_t) + 8 * sizeof(char*));
+  tmq_list_t* ptr = taosMemoryMalloc(sizeof(tmq_list_t) + 8 * sizeof(char*));
   if (ptr == NULL) {
     return ptr;
   }
@@ -254,7 +254,7 @@ tmq_resp_err_t tmq_unsubscribe(tmq_t* tmq) {
 }
 
 tmq_t* tmq_consumer_new(void* conn, tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
-  tmq_t* pTmq = calloc(sizeof(tmq_t), 1);
+  tmq_t* pTmq = taosMemoryCalloc(sizeof(tmq_t), 1);
   if (pTmq == NULL) {
     return NULL;
   }
@@ -317,7 +317,7 @@ tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, in
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER);
   tEncodeSMqCMCommitOffsetReq(&encoder, &req);
   int32_t tlen = encoder.pos;
-  void*   buf = malloc(tlen);
+  void*   buf = taosMemoryMalloc(tlen);
   if (buf == NULL) {
     tCoderClear(&encoder);
     return -1;
@@ -333,7 +333,7 @@ tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, in
     tscError("failed to malloc request");
   }
 
-  SMqCommitCbParam* pParam = malloc(sizeof(SMqCommitCbParam));
+  SMqCommitCbParam* pParam = taosMemoryMalloc(sizeof(SMqCommitCbParam));
   if (pParam == NULL) {
     return -1;
   }
@@ -361,7 +361,7 @@ tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, in
   }
 
   tsem_destroy(&pParam->rspSem);
-  free(pParam);
+  taosMemoryFree(pParam);
 
   if (pArray) {
     taosArrayDestroy(pArray);
@@ -394,7 +394,7 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
     tNameSetDbName(&name, tmq->pTscObj->acctId, dbName, strlen(dbName));
     tNameFromString(&name, topicName, T_NAME_TABLE);
 
-    char* topicFname = calloc(1, TSDB_TOPIC_FNAME_LEN);
+    char* topicFname = taosMemoryCalloc(1, TSDB_TOPIC_FNAME_LEN);
     if (topicFname == NULL) {
       goto _return;
     }
@@ -405,11 +405,11 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
     topic.vgs = taosArrayInit(0, sizeof(SMqClientVg));
     taosArrayPush(tmq->clientTopics, &topic);
     taosArrayPush(req.topicNames, &topicFname);
-    free(dbName);
+    taosMemoryFree(dbName);
   }
 
   int   tlen = tSerializeSCMSubscribeReq(NULL, &req);
-  void* buf = malloc(tlen);
+  void* buf = taosMemoryMalloc(tlen);
   if (buf == NULL) {
     goto _return;
   }
@@ -505,10 +505,10 @@ TAOS_RES* tmq_create_stream(TAOS* taos, const char* streamName, const char* tbNa
       .sql = (char*)sql,
   };
   tNameExtractFullName(&name, req.name);
-  strcpy(req.outputTbName, tbName);
+  strcpy(req.outputSTbName, tbName);
 
   int   tlen = tSerializeSCMCreateStreamReq(NULL, 0, &req);
-  void* buf = malloc(tlen);
+  void* buf = taosMemoryMalloc(tlen);
   if (buf == NULL) {
     goto _return;
   }
@@ -532,7 +532,7 @@ TAOS_RES* tmq_create_stream(TAOS* taos, const char* streamName, const char* tbNa
   tsem_wait(&pRequest->body.rspSem);
 
 _return:
-  tfree(astStr);
+  taosMemoryFreeClear(astStr);
   qDestroyQuery(pQueryNode);
   /*if (sendInfo != NULL) {*/
   /*destroySendMsgInfo(sendInfo);*/
@@ -594,7 +594,7 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
   tNameExtractFullName(&name, req.name);
 
   int   tlen = tSerializeSCMCreateTopicReq(NULL, 0, &req);
-  void* buf = malloc(tlen);
+  void* buf = taosMemoryMalloc(tlen);
   if (buf == NULL) {
     goto _return;
   }
@@ -618,7 +618,7 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
   tsem_wait(&pRequest->body.rspSem);
 
 _return:
-  tfree(astStr);
+  taosMemoryFreeClear(astStr);
   qDestroyQuery(pQueryNode);
   /*if (sendInfo != NULL) {*/
   /*destroySendMsgInfo(sendInfo);*/
@@ -757,7 +757,7 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
 
 #if 0
   if (pParam->sync == 1) {
-    /**pParam->msg = malloc(sizeof(tmq_message_t));*/
+    /**pParam->msg = taosMemoryMalloc(sizeof(tmq_message_t));*/
     *pParam->msg = taosAllocateQitem(sizeof(tmq_message_t));
     if (*pParam->msg) {
       memcpy(*pParam->msg, pMsg->pData, sizeof(SMqRspHead));
@@ -774,7 +774,7 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   }
 #endif
 
-  /*SMqConsumeRsp* pRsp = calloc(1, sizeof(SMqConsumeRsp));*/
+  /*SMqConsumeRsp* pRsp = taosMemoryCalloc(1, sizeof(SMqConsumeRsp));*/
   tmq_message_t* pRsp = taosAllocateQitem(sizeof(tmq_message_t));
   if (pRsp == NULL) {
     goto WRITE_QUEUE_FAIL;
@@ -884,7 +884,7 @@ END:
 
 int32_t tmqAskEp(tmq_t* tmq, bool sync) {
   int32_t           tlen = sizeof(SMqCMGetSubEpReq);
-  SMqCMGetSubEpReq* req = malloc(tlen);
+  SMqCMGetSubEpReq* req = taosMemoryMalloc(tlen);
   if (req == NULL) {
     tscError("failed to malloc get subscribe ep buf");
     return -1;
@@ -893,21 +893,21 @@ int32_t tmqAskEp(tmq_t* tmq, bool sync) {
   req->epoch = htonl(tmq->epoch);
   strcpy(req->cgroup, tmq->groupId);
 
-  SMqAskEpCbParam* pParam = malloc(sizeof(SMqAskEpCbParam));
+  SMqAskEpCbParam* pParam = taosMemoryMalloc(sizeof(SMqAskEpCbParam));
   if (pParam == NULL) {
     tscError("failed to malloc subscribe param");
-    free(req);
+    taosMemoryFree(req);
     return -1;
   }
   pParam->tmq = tmq;
   pParam->sync = sync;
   tsem_init(&pParam->rspSem, 0, 0);
 
-  SMsgSendInfo* sendInfo = malloc(sizeof(SMsgSendInfo));
+  SMsgSendInfo* sendInfo = taosMemoryMalloc(sizeof(SMsgSendInfo));
   if (sendInfo == NULL) {
     tsem_destroy(&pParam->rspSem);
-    free(pParam);
-    free(req);
+    taosMemoryFree(pParam);
+    taosMemoryFree(req);
     return -1;
   }
 
@@ -967,7 +967,7 @@ SMqPollReq* tmqBuildConsumeReqImpl(tmq_t* tmq, int64_t blockingTime, SMqClientTo
     reqOffset = tmq->resetOffsetCfg;
   }
 
-  SMqPollReq* pReq = malloc(sizeof(SMqPollReq));
+  SMqPollReq* pReq = taosMemoryMalloc(sizeof(SMqPollReq));
   if (pReq == NULL) {
     return NULL;
   }
@@ -1003,7 +1003,7 @@ tmq_message_t* tmqSyncPollImpl(tmq_t* tmq, int64_t blockingTime) {
         return NULL;
       }
 
-      SMqPollCbParam* pParam = malloc(sizeof(SMqPollCbParam));
+      SMqPollCbParam* pParam = taosMemoryMalloc(sizeof(SMqPollCbParam));
       if (pParam == NULL) {
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
         // TODO: out of mem
@@ -1016,7 +1016,7 @@ tmq_message_t* tmqSyncPollImpl(tmq_t* tmq, int64_t blockingTime) {
       pParam->msg = &msg;
       tsem_init(&pParam->rspSem, 0, 0);
 
-      SMsgSendInfo* sendInfo = malloc(sizeof(SMsgSendInfo));
+      SMsgSendInfo* sendInfo = taosMemoryMalloc(sizeof(SMsgSendInfo));
       if (sendInfo == NULL) {
         return NULL;
       }
@@ -1071,9 +1071,9 @@ int32_t tmqPollImpl(tmq_t* tmq, int64_t blockingTime) {
         tsem_post(&tmq->rspSem);
         return -1;
       }
-      SMqPollCbParam* pParam = malloc(sizeof(SMqPollCbParam));
+      SMqPollCbParam* pParam = taosMemoryMalloc(sizeof(SMqPollCbParam));
       if (pParam == NULL) {
-        free(pReq);
+        taosMemoryFree(pReq);
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
         tsem_post(&tmq->rspSem);
         return -1;
@@ -1083,10 +1083,10 @@ int32_t tmqPollImpl(tmq_t* tmq, int64_t blockingTime) {
       pParam->epoch = tmq->epoch;
       pParam->sync = 0;
 
-      SMsgSendInfo* sendInfo = malloc(sizeof(SMsgSendInfo));
+      SMsgSendInfo* sendInfo = taosMemoryMalloc(sizeof(SMsgSendInfo));
       if (sendInfo == NULL) {
-        free(pReq);
-        free(pParam);
+        taosMemoryFree(pReq);
+        taosMemoryFree(pParam);
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
         tsem_post(&tmq->rspSem);
         return -1;
@@ -1258,7 +1258,7 @@ tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
       return NULL;
     }
 
-    SMqPollCbParam* param = malloc(sizeof(SMqPollCbParam));
+    SMqPollCbParam* param = taosMemoryMalloc(sizeof(SMqPollCbParam));
     if (param == NULL) {
       ASSERT(false);
       taosMsleep(blocking_time);
@@ -1289,7 +1289,7 @@ tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
 
     tsem_wait(&param->rspSem);
     tsem_destroy(&param->rspSem);
-    free(param);
+    taosMemoryFree(param);
 
     if (tmq_message == NULL) {
       if (beginVgIdx == pTopic->nextVgIdx) {
@@ -1331,7 +1331,7 @@ tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* tmq_topic_v
 
       SRequestObj* pRequest = createRequest(tmq->pTscObj, NULL, NULL, TDMT_VND_CONSUME);
       pRequest->body.requestMsg = (SDataBuf){.pData = pReq, .len = sizeof(SMqConsumeReq)};
-      SMqCommitCbParam* pParam = malloc(sizeof(SMqCommitCbParam));
+      SMqCommitCbParam* pParam = taosMemoryMalloc(sizeof(SMqCommitCbParam));
       if (pParam == NULL) {
         continue;
       }
@@ -1360,7 +1360,7 @@ void tmq_message_destroy(tmq_message_t* tmq_message) {
   if (tmq_message == NULL) return;
   SMqPollRsp* pRsp = &tmq_message->msg;
   tDeleteSMqConsumeRsp(pRsp);
-  /*free(tmq_message);*/
+  /*taosMemoryFree(tmq_message);*/
   taosFreeQitem(tmq_message);
 }
 
@@ -1403,7 +1403,7 @@ char* tmq_get_topic_name(tmq_message_t* message) { return "not implemented yet";
 
 #if 0
 tmq_t* tmqCreateConsumerImpl(TAOS* conn, tmq_conf_t* conf) {
-  tmq_t* pTmq = malloc(sizeof(tmq_t));
+  tmq_t* pTmq = taosMemoryMalloc(sizeof(tmq_t));
   if (pTmq == NULL) {
     return NULL;
   }
@@ -1417,7 +1417,7 @@ tmq_t* tmqCreateConsumerImpl(TAOS* conn, tmq_conf_t* conf) {
 
 static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   assert(pMsgBody != NULL);
-  tfree(pMsgBody->msgInfo.pData);
-  tfree(pMsgBody);
+  taosMemoryFreeClear(pMsgBody->msgInfo.pData);
+  taosMemoryFreeClear(pMsgBody);
 }
 #endif

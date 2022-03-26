@@ -25,7 +25,7 @@ int32_t init_env() {
     return -1;
   }
 
-  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 1");
+  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 2");
   if (taos_errno(pRes) != 0) {
     printf("error in create db, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -63,7 +63,7 @@ int32_t init_env() {
 }
 
 int32_t create_stream() {
-  printf("create topic\n");
+  printf("create stream\n");
   TAOS_RES* pRes;
   TAOS*     pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   if (pConn == NULL) {
@@ -77,7 +77,9 @@ int32_t create_stream() {
   }
   taos_free_result(pRes);
 
-  const char* sql = "select ts,k from tu1";
+  /*const char* sql = "select min(k), max(k), sum(k) from tu1";*/
+  const char* sql = "select min(k), max(k), sum(k) as sum_of_k from st1";
+  /*const char* sql = "select sum(k) from tu1 interval(10m)";*/
   pRes = tmq_create_stream(pConn, "stream1", "out1", sql);
   if (taos_errno(pRes) != 0) {
     printf("failed to create stream out1, reason:%s\n", taos_errstr(pRes));

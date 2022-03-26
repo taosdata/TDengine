@@ -90,7 +90,7 @@ TEST_F(QueueEnv, testPushAndPop) {
   assert(q->IsEmpty());
 
   for (int i = 0; i < 100; i++) {
-    QueueElem *el = (QueueElem *)malloc(sizeof(QueueElem));
+    QueueElem *el = (QueueElem *)taosMemoryMalloc(sizeof(QueueElem));
     el->val = i;
     q->Push(el);
   }
@@ -98,7 +98,7 @@ TEST_F(QueueEnv, testPushAndPop) {
   while (!q->IsEmpty()) {
     QueueElem *el = q->Pop();
     assert(el->val == i++);
-    free(el);
+    taosMemoryFree(el);
   }
   assert(q->IsEmpty());
 }
@@ -109,7 +109,7 @@ TEST_F(QueueEnv, testRm) {
   assert(q->IsEmpty());
 
   for (int i = 0; i < 100; i++) {
-    QueueElem *el = (QueueElem *)malloc(sizeof(QueueElem));
+    QueueElem *el = (QueueElem *)taosMemoryMalloc(sizeof(QueueElem));
     el->val = i;
     q->Push(el);
     set.push_back(el);
@@ -117,7 +117,7 @@ TEST_F(QueueEnv, testRm) {
   for (int i = set.size() - 1; i >= 0; i--) {
     QueueElem *el = set[i];
     q->RmElem(el);
-    free(el);
+    taosMemoryFree(el);
   }
   assert(q->IsEmpty());
 }
@@ -126,7 +126,7 @@ TEST_F(QueueEnv, testIter) {
   assert(q->IsEmpty());
   std::vector<int> vals;
   for (int i = 0; i < 100; i++) {
-    QueueElem *el = (QueueElem *)malloc(sizeof(QueueElem));
+    QueueElem *el = (QueueElem *)taosMemoryMalloc(sizeof(QueueElem));
     el->val = i;
     q->Push(el);
     vals.push_back(i);
@@ -139,7 +139,7 @@ TEST_F(QueueEnv, testIter) {
 class TransCtxEnv : public ::testing::Test {
  protected:
   virtual void SetUp() {
-    ctx = (STransCtx *)calloc(1, sizeof(STransCtx));
+    ctx = (STransCtx *)taosMemoryCalloc(1, sizeof(STransCtx));
     transCtxInit(ctx);
     // TODO
   }
@@ -153,57 +153,57 @@ class TransCtxEnv : public ::testing::Test {
 TEST_F(TransCtxEnv, mergeTest) {
   int key = 1;
   {
-    STransCtx *src = (STransCtx *)calloc(1, sizeof(STransCtx));
+    STransCtx *src = (STransCtx *)taosMemoryCalloc(1, sizeof(STransCtx));
     transCtxInit(src);
     {
-      STransCtxVal val1 = {.val = NULL, .len = 0, .free = free};
-      val1.val = malloc(12);
+      STransCtxVal val1 = {.val = NULL, .len = 0, .freeFunc = taosMemoryFree};
+      val1.val = taosMemoryMalloc(12);
       val1.len = 12;
 
       taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));
       key++;
     }
     {
-      STransCtxVal val1 = {.val = NULL, .len = 0, .free = free};
-      val1.val = malloc(12);
+      STransCtxVal val1 = {.val = NULL, .len = 0, .freeFunc = taosMemoryFree};
+      val1.val = taosMemoryMalloc(12);
       val1.len = 12;
       taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));
       key++;
     }
     transCtxMerge(ctx, src);
-    free(src);
+    taosMemoryFree(src);
   }
   EXPECT_EQ(2, taosHashGetSize(ctx->args));
   {
-    STransCtx *src = (STransCtx *)calloc(1, sizeof(STransCtx));
+    STransCtx *src = (STransCtx *)taosMemoryCalloc(1, sizeof(STransCtx));
     transCtxInit(src);
     {
-      STransCtxVal val1 = {.val = NULL, .len = 0, .free = free};
-      val1.val = malloc(12);
+      STransCtxVal val1 = {.val = NULL, .len = 0, .freeFunc = taosMemoryFree};
+      val1.val = taosMemoryMalloc(12);
       val1.len = 12;
 
       taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));
       key++;
     }
     {
-      STransCtxVal val1 = {.val = NULL, .len = 0, .free = free};
-      val1.val = malloc(12);
+      STransCtxVal val1 = {.val = NULL, .len = 0, .freeFunc = taosMemoryFree};
+      val1.val = taosMemoryMalloc(12);
       val1.len = 12;
       taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));
       key++;
     }
     transCtxMerge(ctx, src);
-    free(src);
+    taosMemoryFree(src);
   }
   std::string val("Hello");
   EXPECT_EQ(4, taosHashGetSize(ctx->args));
   {
     key = 1;
-    STransCtx *src = (STransCtx *)calloc(1, sizeof(STransCtx));
+    STransCtx *src = (STransCtx *)taosMemoryCalloc(1, sizeof(STransCtx));
     transCtxInit(src);
     {
-      STransCtxVal val1 = {.val = NULL, .len = 0, .free = free};
-      val1.val = calloc(1, 11);
+      STransCtxVal val1 = {.val = NULL, .len = 0, .freeFunc = taosMemoryFree};
+      val1.val = taosMemoryCalloc(1, 11);
       memcpy(val1.val, val.c_str(), val.size());
       val1.len = 11;
 
@@ -211,21 +211,21 @@ TEST_F(TransCtxEnv, mergeTest) {
       key++;
     }
     {
-      STransCtxVal val1 = {.val = NULL, .len = 0, .free = free};
-      val1.val = calloc(1, 11);
+      STransCtxVal val1 = {.val = NULL, .len = 0, .freeFunc = taosMemoryFree};
+      val1.val = taosMemoryCalloc(1, 11);
       memcpy(val1.val, val.c_str(), val.size());
       val1.len = 11;
       taosHashPut(src->args, &key, sizeof(key), &val1, sizeof(val1));
       key++;
     }
     transCtxMerge(ctx, src);
-    free(src);
+    taosMemoryFree(src);
   }
   EXPECT_EQ(4, taosHashGetSize(ctx->args));
 
   char *skey = (char *)transCtxDumpVal(ctx, 1);
   EXPECT_EQ(0, strcmp(skey, val.c_str()));
-  free(skey);
+  taosMemoryFree(skey);
 
   skey = (char *)transCtxDumpVal(ctx, 2);
   EXPECT_EQ(0, strcmp(skey, val.c_str()));

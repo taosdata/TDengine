@@ -28,6 +28,7 @@
 #include "mndProfile.h"
 #include "mndQnode.h"
 #include "mndShow.h"
+#include "mndSma.h"
 #include "mndSnode.h"
 #include "mndStb.h"
 #include "mndStream.h"
@@ -204,6 +205,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-offset", mndInitOffset, mndCleanupOffset) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-vgroup", mndInitVgroup, mndCleanupVgroup) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-stb", mndInitStb, mndCleanupStb) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-stb", mndInitSma, mndCleanupSma) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-infos", mndInitInfos, mndCleanupInfos) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-func", mndInitFunc, mndCleanupFunc) != 0) return -1;
@@ -281,7 +283,7 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
 SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   mDebug("start to open mnode in %s", path);
 
-  SMnode *pMnode = calloc(1, sizeof(SMnode));
+  SMnode *pMnode = taosMemoryCalloc(1, sizeof(SMnode));
   if (pMnode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to open mnode since %s", terrstr());
@@ -293,7 +295,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 
   pMnode->pSteps = taosArrayInit(24, sizeof(SMnodeStep));
   if (pMnode->pSteps == NULL) {
-    free(pMnode);
+    taosMemoryFree(pMnode);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to open mnode since %s", terrstr());
     return NULL;
@@ -344,8 +346,8 @@ void mndClose(SMnode *pMnode) {
   if (pMnode != NULL) {
     mDebug("start to close mnode");
     mndCleanupSteps(pMnode, -1);
-    tfree(pMnode->path);
-    tfree(pMnode);
+    taosMemoryFreeClear(pMnode->path);
+    taosMemoryFreeClear(pMnode);
     mDebug("mnode is closed");
   }
 }
@@ -356,9 +358,7 @@ int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption) {
   return 0;
 }
 
-int32_t mndStart(SMnode *pMnode) {
-  return mndInitTimer(pMnode);
-}
+int32_t mndStart(SMnode *pMnode) { return mndInitTimer(pMnode); }
 
 int32_t mndProcessMsg(SNodeMsg *pMsg) {
   SMnode  *pMnode = pMsg->pNode;
@@ -409,15 +409,15 @@ void mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp) {
 }
 
 // Note: uid 0 is reserved
-uint64_t mndGenerateUid(char *name, int32_t len) {
+int64_t mndGenerateUid(char *name, int32_t len) {
   int32_t hashval = MurmurHash3_32(name, len);
 
   do {
-    int64_t  us = taosGetTimestampUs();
-    uint64_t x = (us & 0x000000FFFFFFFFFF) << 24;
-    uint64_t uuid = x + ((hashval & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+    int64_t us = taosGetTimestampUs();
+    int64_t x = (us & 0x000000FFFFFFFFFF) << 24;
+    int64_t uuid = x + ((hashval & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
     if (uuid) {
-      return uuid;
+      return llabs(uuid);
     }
   } while (true);
 }

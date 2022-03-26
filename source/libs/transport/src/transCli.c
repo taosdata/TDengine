@@ -429,9 +429,9 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
 }
 
 static SCliConn* cliCreateConn(SCliThrdObj* pThrd) {
-  SCliConn* conn = calloc(1, sizeof(SCliConn));
+  SCliConn* conn = taosMemoryCalloc(1, sizeof(SCliConn));
   // read/write stream handle
-  conn->stream = (uv_stream_t*)malloc(sizeof(uv_tcp_t));
+  conn->stream = (uv_stream_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
   uv_tcp_init(pThrd->loop, (uv_tcp_t*)(conn->stream));
   conn->stream->data = conn;
 
@@ -456,12 +456,12 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
 }
 static void cliDestroy(uv_handle_t* handle) {
   SCliConn* conn = handle->data;
-  free(conn->ip);
-  free(conn->stream);
+  taosMemoryFree(conn->ip);
+  taosMemoryFree(conn->stream);
   transCtxCleanup(&conn->ctx);
   transQueueDestroy(&conn->cliMsgs);
   tTrace("%s cli conn %p destroy successfully", CONN_GET_INST_LABEL(conn), conn);
-  free(conn);
+  taosMemoryFree(conn);
 }
 static bool cliHandleNoResp(SCliConn* conn) {
   bool res = false;
@@ -519,7 +519,7 @@ void cliSend(SCliConn* pConn) {
   int            msgLen = transMsgLenFromCont(pMsg->contLen);
 
   if (!pConn->secured) {
-    char* buf = calloc(1, msgLen + sizeof(STransUserMsg));
+    char* buf = taosMemoryCalloc(1, msgLen + sizeof(STransUserMsg));
     memcpy(buf, (char*)pHead, msgLen);
 
     STransUserMsg* uMsg = (STransUserMsg*)(buf + msgLen);
@@ -697,12 +697,12 @@ static void* cliWorkThread(void* arg) {
 }
 
 void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle) {
-  SCliObj* cli = calloc(1, sizeof(SCliObj));
+  SCliObj* cli = taosMemoryCalloc(1, sizeof(SCliObj));
 
   STrans* pTransInst = shandle;
   memcpy(cli->label, label, strlen(label));
   cli->numOfThreads = numOfThreads;
-  cli->pThreadObj = (SCliThrdObj**)calloc(cli->numOfThreads, sizeof(SCliThrdObj*));
+  cli->pThreadObj = (SCliThrdObj**)taosMemoryCalloc(cli->numOfThreads, sizeof(SCliThrdObj*));
 
   for (int i = 0; i < cli->numOfThreads; i++) {
     SCliThrdObj* pThrd = createThrdObj();
@@ -731,16 +731,16 @@ static void destroyCmsg(SCliMsg* pMsg) {
   }
   transDestroyConnCtx(pMsg->ctx);
   destroyUserdata(&pMsg->msg);
-  free(pMsg);
+  taosMemoryFree(pMsg);
 }
 
 static SCliThrdObj* createThrdObj() {
-  SCliThrdObj* pThrd = (SCliThrdObj*)calloc(1, sizeof(SCliThrdObj));
+  SCliThrdObj* pThrd = (SCliThrdObj*)taosMemoryCalloc(1, sizeof(SCliThrdObj));
 
   QUEUE_INIT(&pThrd->msg);
   taosThreadMutexInit(&pThrd->msgMtx, NULL);
 
-  pThrd->loop = (uv_loop_t*)malloc(sizeof(uv_loop_t));
+  pThrd->loop = (uv_loop_t*)taosMemoryMalloc(sizeof(uv_loop_t));
   uv_loop_init(pThrd->loop);
 
   pThrd->asyncPool = transCreateAsyncPool(pThrd->loop, 5, pThrd, cliAsyncCb);
@@ -763,20 +763,20 @@ static void destroyThrdObj(SCliThrdObj* pThrd) {
   transDestroyAsyncPool(pThrd->asyncPool);
 
   uv_timer_stop(&pThrd->timer);
-  free(pThrd->loop);
-  free(pThrd);
+  taosMemoryFree(pThrd->loop);
+  taosMemoryFree(pThrd);
 }
 
 static void transDestroyConnCtx(STransConnCtx* ctx) {
   if (ctx != NULL) {
-    free(ctx->ip);
+    taosMemoryFree(ctx->ip);
   }
-  free(ctx);
+  taosMemoryFree(ctx);
 }
 //
 void cliSendQuit(SCliThrdObj* thrd) {
   // cli can stop gracefully
-  SCliMsg* msg = calloc(1, sizeof(SCliMsg));
+  SCliMsg* msg = taosMemoryCalloc(1, sizeof(SCliMsg));
   msg->type = Quit;
   transSendAsync(thrd->asyncPool, &msg->q);
 }
@@ -795,8 +795,8 @@ void transCloseClient(void* arg) {
     cliSendQuit(cli->pThreadObj[i]);
     destroyThrdObj(cli->pThreadObj[i]);
   }
-  free(cli->pThreadObj);
-  free(cli);
+  taosMemoryFree(cli->pThreadObj);
+  taosMemoryFree(cli);
 }
 void transRefCliHandle(void* handle) {
   if (handle == NULL) {
@@ -822,7 +822,7 @@ void transReleaseCliHandle(void* handle) {
   }
 
   STransMsg tmsg = {.handle = handle};
-  SCliMsg*  cmsg = calloc(1, sizeof(SCliMsg));
+  SCliMsg*  cmsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   cmsg->msg = tmsg;
   cmsg->type = Release;
 
@@ -836,7 +836,7 @@ void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* p
     index = cliRBChoseIdx(pTransInst);
   }
 
-  STransConnCtx* pCtx = calloc(1, sizeof(STransConnCtx));
+  STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
   pCtx->ahandle = pMsg->ahandle;
   pCtx->msgType = pMsg->msgType;
   pCtx->ip = strdup(ip);
@@ -848,7 +848,7 @@ void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* p
   }
   assert(pTransInst->connType == TAOS_CONN_CLIENT);
 
-  SCliMsg* cliMsg = calloc(1, sizeof(SCliMsg));
+  SCliMsg* cliMsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   cliMsg->ctx = pCtx;
   cliMsg->msg = *pMsg;
   cliMsg->st = taosGetTimestampUs();
@@ -867,17 +867,17 @@ void transSendRecv(void* shandle, const char* ip, uint32_t port, STransMsg* pReq
     index = cliRBChoseIdx(pTransInst);
   }
 
-  STransConnCtx* pCtx = calloc(1, sizeof(STransConnCtx));
+  STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
   pCtx->ahandle = pReq->ahandle;
   pCtx->msgType = pReq->msgType;
   pCtx->ip = strdup(ip);
   pCtx->port = port;
   pCtx->hThrdIdx = index;
-  pCtx->pSem = calloc(1, sizeof(tsem_t));
+  pCtx->pSem = taosMemoryCalloc(1, sizeof(tsem_t));
   pCtx->pRsp = pRsp;
   tsem_init(pCtx->pSem, 0, 0);
 
-  SCliMsg* cliMsg = calloc(1, sizeof(SCliMsg));
+  SCliMsg* cliMsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   cliMsg->ctx = pCtx;
   cliMsg->msg = *pReq;
   cliMsg->st = taosGetTimestampUs();
@@ -888,7 +888,7 @@ void transSendRecv(void* shandle, const char* ip, uint32_t port, STransMsg* pReq
   tsem_t* pSem = pCtx->pSem;
   tsem_wait(pSem);
   tsem_destroy(pSem);
-  free(pSem);
+  taosMemoryFree(pSem);
 }
 
 #endif

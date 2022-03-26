@@ -100,7 +100,7 @@ TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, 
   pInst = taosHashGet(appInfo.pInstMap, key, strlen(key));
   SAppInstInfo* p = NULL;
   if (pInst == NULL) {
-    p = calloc(1, sizeof(struct SAppInstInfo));
+    p = taosMemoryCalloc(1, sizeof(struct SAppInstInfo));
     p->mgmtEp = epSet;
     p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores);
     p->pAppHbMgr = appHbMgrInit(p, key);
@@ -111,7 +111,7 @@ TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, 
 
   taosThreadMutexUnlock(&appInfo.mutex);
 
-  tfree(key);
+  taosMemoryFreeClear(key);
   return taosConnectImpl(user, &secretEncrypt[0], localDb, NULL, NULL, *pInst);
 }
 
@@ -122,7 +122,7 @@ int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj*
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  (*pRequest)->sqlstr = malloc(sqlLen + 1);
+  (*pRequest)->sqlstr = taosMemoryMalloc(sqlLen + 1);
   if ((*pRequest)->sqlstr == NULL) {
     tscError("0x%" PRIx64 " failed to prepare sql string buffer", (*pRequest)->self);
     (*pRequest)->msgBuf = strdup("failed to prepare sql string buffer");
@@ -212,7 +212,7 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
   assert(pSchema != NULL && numOfCols > 0);
 
   pResInfo->numOfCols = numOfCols;
-  pResInfo->fields = calloc(numOfCols, sizeof(pSchema[0]));
+  pResInfo->fields = taosMemoryCalloc(numOfCols, sizeof(pSchema[0]));
 
   for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
     pResInfo->fields[i].bytes = pSchema[i].bytes;
@@ -421,7 +421,7 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
 }
 
 static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest) {
-  SMsgSendInfo* pMsgSendInfo = calloc(1, sizeof(SMsgSendInfo));
+  SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (pMsgSendInfo == NULL) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
@@ -441,14 +441,14 @@ static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest) {
   if (db != NULL) {
     tstrncpy(connectReq.db, db, sizeof(connectReq.db));
   }
-  tfree(db);
+  taosMemoryFreeClear(db);
 
   connectReq.pid = htonl(appInfo.pid);
   connectReq.startTime = htobe64(appInfo.startTime);
   tstrncpy(connectReq.app, appInfo.appName, sizeof(connectReq.app));
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
-  void*   pReq = malloc(contLen);
+  void*   pReq = taosMemoryMalloc(contLen);
   tSerializeSConnectReq(pReq, contLen, &connectReq);
 
   pMsgSendInfo->msgInfo.len = contLen;
@@ -458,8 +458,8 @@ static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest) {
 
 static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   assert(pMsgBody != NULL);
-  tfree(pMsgBody->msgInfo.pData);
-  tfree(pMsgBody);
+  taosMemoryFreeClear(pMsgBody->msgInfo.pData);
+  taosMemoryFreeClear(pMsgBody);
 }
 bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType) {
   return msgType == TDMT_VND_QUERY_RSP || msgType == TDMT_VND_FETCH_RSP || msgType == TDMT_VND_RES_READY_RSP || msgType == TDMT_VND_QUERY_HEARTBEAT_RSP;
@@ -500,7 +500,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SDataBuf buf = {.len = pMsg->contLen, .pData = NULL, .handle = pMsg->handle};
 
   if (pMsg->contLen > 0) {
-    buf.pData = calloc(1, pMsg->contLen);
+    buf.pData = taosMemoryCalloc(1, pMsg->contLen);
     if (buf.pData == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
@@ -592,7 +592,7 @@ void* doFetchRow(SRequestObj* pRequest) {
       }
 
       SVgroupInfo*     pVgroupInfo = taosArrayGet(pShowReqInfo->pArray, pShowReqInfo->currentIndex);
-      SVShowTablesReq* pShowReq = calloc(1, sizeof(SVShowTablesReq));
+      SVShowTablesReq* pShowReq = taosMemoryCalloc(1, sizeof(SVShowTablesReq));
       pShowReq->head.vgId = htonl(pVgroupInfo->vgId);
 
       pRequest->body.requestMsg.len = sizeof(SVShowTablesReq);
@@ -634,18 +634,30 @@ _return:
   for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
     SResultColumn* pCol = &pResultInfo->pCol[i];
 
-    if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
+    int32_t type = pResultInfo->fields[i].type;
+    int32_t bytes = pResultInfo->fields[i].bytes;
+
+    if (IS_VAR_DATA_TYPE(type)) {
       if (pCol->offset[pResultInfo->current] != -1) {
         char* pStart = pResultInfo->pCol[i].offset[pResultInfo->current] + pResultInfo->pCol[i].pData;
 
         pResultInfo->length[i] = varDataLen(pStart);
         pResultInfo->row[i] = varDataVal(pStart);
+
+        if (type == TSDB_DATA_TYPE_NCHAR) {
+          int32_t len = taosUcs4ToMbs((TdUcs4*)varDataVal(pStart), varDataLen(pStart), varDataVal(pResultInfo->convertBuf[i]));
+          ASSERT(len <= bytes);
+
+          pResultInfo->row[i] = varDataVal(pResultInfo->convertBuf[i]);
+          varDataSetLen(pResultInfo->convertBuf[i], len);
+          pResultInfo->length[i] = len;
+        }
       } else {
         pResultInfo->row[i] = NULL;
       }
     } else {
       if (!colDataIsNull_f(pCol->nullbitmap, pResultInfo->current)) {
-        pResultInfo->row[i] = pResultInfo->pCol[i].pData + pResultInfo->fields[i].bytes * pResultInfo->current;
+        pResultInfo->row[i] = pResultInfo->pCol[i].pData + bytes * pResultInfo->current;
       } else {
         pResultInfo->row[i] = NULL;
       }
@@ -658,16 +670,23 @@ _return:
 
 static int32_t doPrepareResPtr(SReqResultInfo* pResInfo) {
   if (pResInfo->row == NULL) {
-    pResInfo->row    = calloc(pResInfo->numOfCols, POINTER_BYTES);
-    pResInfo->pCol   = calloc(pResInfo->numOfCols, sizeof(SResultColumn));
-    pResInfo->length = calloc(pResInfo->numOfCols, sizeof(int32_t));
+    pResInfo->row    = taosMemoryCalloc(pResInfo->numOfCols, POINTER_BYTES);
+    pResInfo->pCol   = taosMemoryCalloc(pResInfo->numOfCols, sizeof(SResultColumn));
+    pResInfo->length = taosMemoryCalloc(pResInfo->numOfCols, sizeof(int32_t));
+    pResInfo->convertBuf = taosMemoryCalloc(pResInfo->numOfCols, POINTER_BYTES);
+
+    if (pResInfo->row == NULL || pResInfo->pCol == NULL || pResInfo->length == NULL || pResInfo->convertBuf == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    for(int32_t i = 0; i < pResInfo->numOfCols; ++i) {
+      if(pResInfo->fields[i].type == TSDB_DATA_TYPE_NCHAR) {
+        pResInfo->convertBuf[i] = taosMemoryCalloc(1, NCHAR_WIDTH_TO_BYTES(pResInfo->fields[i].bytes));
+      }
+    }
   }
 
-  if (pResInfo->row == NULL || pResInfo->pCol == NULL || pResInfo->length == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  } else {
-    return TSDB_CODE_SUCCESS;
-  }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows) {

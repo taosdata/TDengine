@@ -30,7 +30,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, int32_t t
       qError("join not supported for stream block scan, %s" PRIx64, id);
       return TSDB_CODE_QRY_APP_ERROR;
     }
-
+    pOperator->status = OP_NOT_OPENED;
     return doSetStreamBlock(pOperator->pDownstream[0], input, type, id);
   } else {
     SStreamBlockScanInfo* pInfo = pOperator->info;

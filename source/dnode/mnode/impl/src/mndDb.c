@@ -100,6 +100,15 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.quorum, DB_ENCODE_OVER)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.update, DB_ENCODE_OVER)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.cacheLastRow, DB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.numOfRetensions, DB_ENCODE_OVER)
+  for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
+    SRetention *pRetension = taosArrayGet(pDb->cfg.pRetensions, i);
+    SDB_SET_INT32(pRaw, dataPos, pRetension->freq, DB_ENCODE_OVER)
+    SDB_SET_INT32(pRaw, dataPos, pRetension->keep, DB_ENCODE_OVER)
+    SDB_SET_INT8(pRaw, dataPos, pRetension->freqUnit, DB_ENCODE_OVER)
+    SDB_SET_INT8(pRaw, dataPos, pRetension->keepUnit, DB_ENCODE_OVER)
+  }
+
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_DB_RESERVE_SIZE, DB_ENCODE_OVER)
   SDB_SET_DATALEN(pRaw, dataPos, DB_ENCODE_OVER)
 
@@ -161,6 +170,22 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.quorum, DB_DECODE_OVER)
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.update, DB_DECODE_OVER)
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.cacheLastRow, DB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.numOfRetensions, DB_DECODE_OVER)
+  if (pDb->cfg.numOfRetensions > 0) {
+    pDb->cfg.pRetensions = taosArrayInit(pDb->cfg.numOfRetensions, sizeof(SRetention));
+    if (pDb->cfg.pRetensions == NULL) goto DB_DECODE_OVER;
+    for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
+      SRetention retension = {0};
+      SDB_GET_INT32(pRaw, dataPos, &retension.freq, DB_DECODE_OVER)
+      SDB_GET_INT32(pRaw, dataPos, &retension.keep, DB_DECODE_OVER)
+      SDB_GET_INT8(pRaw, dataPos, &retension.freqUnit, DB_DECODE_OVER)
+      SDB_GET_INT8(pRaw, dataPos, &retension.keepUnit, DB_DECODE_OVER)
+      if (taosArrayPush(pDb->cfg.pRetensions, &retension) == NULL) {
+        goto DB_DECODE_OVER;
+      }
+    }
+  }
+
   SDB_GET_RESERVE(pRaw, dataPos, TSDB_DB_RESERVE_SIZE, DB_DECODE_OVER)
 
   terrno = 0;
@@ -168,7 +193,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
 DB_DECODE_OVER:
   if (terrno != 0) {
     mError("db:%s, failed to decode from raw:%p since %s", pDb->name, pRaw, terrstr());
-    tfree(pRow);
+    taosMemoryFreeClear(pRow);
     return NULL;
   }
 
@@ -183,6 +208,7 @@ static int32_t mndDbActionInsert(SSdb *pSdb, SDbObj *pDb) {
 
 static int32_t mndDbActionDelete(SSdb *pSdb, SDbObj *pDb) {
   mTrace("db:%s, perform delete action, row:%p", pDb->name, pDb);
+  taosArrayDestroy(pDb->cfg.pRetensions);
   return 0;
 }
 
@@ -344,7 +370,7 @@ static int32_t mndSetCreateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       action.msgType = TDMT_DND_CREATE_VNODE;
       action.acceptableCode = TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED;
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-        free(pReq);
+        taosMemoryFree(pReq);
         return -1;
       }
     }
@@ -375,7 +401,7 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       action.msgType = TDMT_DND_DROP_VNODE;
       action.acceptableCode = TSDB_CODE_DND_VNODE_NOT_DEPLOYED;
       if (mndTransAppendUndoAction(pTrans, &action) != 0) {
-        free(pReq);
+        taosMemoryFree(pReq);
         return -1;
       }
     }
@@ -417,6 +443,10 @@ static int32_t mndCreateDb(SMnode *pMnode, SNodeMsg *pReq, SCreateDbReq *pCreate
       .streamMode = pCreate->streamMode,
   };
 
+  dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
+  dbObj.cfg.pRetensions = pCreate->pRetensions;
+  pCreate = NULL;
+
   mndSetDefaultDbCfg(&dbObj.cfg);
 
   if (mndCheckDbName(dbObj.name, pUser) != 0) {
@@ -453,7 +483,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SNodeMsg *pReq, SCreateDbReq *pCreate
   code = 0;
 
 CREATE_DB_OVER:
-  free(pVgroups);
+  taosMemoryFree(pVgroups);
   mndTransDrop(pTrans);
   return code;
 }
@@ -505,6 +535,7 @@ CREATE_DB_OVER:
 
   mndReleaseDb(pMnode, pDb);
   mndReleaseUser(pMnode, pUser);
+  tFreeSCreateDbReq(&createReq);
 
   return code;
 }
@@ -591,7 +622,7 @@ static int32_t mndBuildUpdateVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj
     action.contLen = contLen;
     action.msgType = TDMT_DND_ALTER_VNODE;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-      free(pReq);
+      taosMemoryFree(pReq);
       return -1;
     }
   }
@@ -771,7 +802,7 @@ static int32_t mndBuildDropVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *
     action.msgType = TDMT_DND_DROP_VNODE;
     action.acceptableCode = TSDB_CODE_DND_VNODE_NOT_DEPLOYED;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-      free(pReq);
+      taosMemoryFree(pReq);
       return -1;
     }
   }
@@ -814,7 +845,7 @@ static int32_t mndBuildDropDbRsp(SDbObj *pDb, int32_t *pRspLen, void **ppRsp, bo
   if (useRpcMalloc) {
     pRsp = rpcMallocCont(rspLen);
   } else {
-    pRsp = malloc(rspLen);
+    pRsp = taosMemoryMalloc(rspLen);
   }
 
   if (pRsp == NULL) {
@@ -1125,7 +1156,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
   }
 
   int32_t rspLen = tSerializeSUseDbBatchRsp(NULL, 0, &batchUseRsp);
-  void   *pRsp = malloc(rspLen);
+  void   *pRsp = taosMemoryMalloc(rspLen);
   if (pRsp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tFreeSUseDbBatchRsp(&batchUseRsp);

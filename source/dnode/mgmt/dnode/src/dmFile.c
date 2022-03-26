@@ -24,7 +24,7 @@ int32_t dmReadFile(SDnodeMgmt *pMgmt) {
   int32_t   code = TSDB_CODE_NODE_PARSE_FILE_ERROR;
   int32_t   len = 0;
   int32_t   maxLen = 256 * 1024;
-  char     *content = calloc(1, maxLen + 1);
+  char     *content = taosMemoryCalloc(1, maxLen + 1);
   cJSON    *root = NULL;
   char      file[PATH_MAX];
   TdFilePtr pFile = NULL;
@@ -134,7 +134,7 @@ int32_t dmReadFile(SDnodeMgmt *pMgmt) {
   dmPrintDnodes(pMgmt);
 
 PRASE_DNODE_OVER:
-  if (content != NULL) free(content);
+  if (content != NULL) taosMemoryFree(content);
   if (root != NULL) cJSON_Delete(root);
   if (pFile != NULL) taosCloseFile(&pFile);
 
@@ -171,7 +171,7 @@ int32_t dmWriteFile(SDnodeMgmt *pMgmt) {
 
   int32_t len = 0;
   int32_t maxLen = 256 * 1024;
-  char   *content = calloc(1, maxLen + 1);
+  char   *content = taosMemoryCalloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"dnodeId\": %d,\n", pDnode->dnodeId);
@@ -197,7 +197,7 @@ int32_t dmWriteFile(SDnodeMgmt *pMgmt) {
   taosWriteFile(pFile, content, len);
   taosFsyncFile(pFile);
   taosCloseFile(&pFile);
-  free(content);
+  taosMemoryFree(content);
 
   char realfile[PATH_MAX];
   snprintf(realfile, sizeof(realfile), "%s%smnode.json", pMgmt->path, TD_DIRSEP);
@@ -209,7 +209,7 @@ int32_t dmWriteFile(SDnodeMgmt *pMgmt) {
   }
 
   pMgmt->updateTime = taosGetTimestampMs();
-  dDebug("successed to write %s", file);
+  dDebug("successed to write %s", realfile);
   return 0;
 }
 

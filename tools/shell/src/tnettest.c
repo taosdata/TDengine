@@ -14,17 +14,19 @@
  */
 
 #define _DEFAULT_SOURCE
+#define ALLOW_FORBID_FUNC
 #include "os.h"
 #include "taosdef.h"
 #include "tmsg.h"
 #include "taoserror.h"
 #include "tlog.h"
 #include "tglobal.h"
-#include "tsocket.h"
 #include "trpc.h"
 #include "rpcHead.h"
 #include "tchecksum.h"
 #include "syncMsg.h"
+
+#include "osSocket.h"
 
 #define MAX_PKG_LEN (64 * 1000)
 #define MAX_SPEED_PKG_LEN (1024 * 1024 * 1024)
@@ -33,7 +35,7 @@
 #define MIN_SPEED_PKG_NUM 1
 #define BUFFER_SIZE (MAX_PKG_LEN + 1024)
 
-extern int32_t tsRpcMaxUdpSize;
+extern int tsRpcMaxUdpSize;
 
 typedef struct {
   char *   hostFqdn;
@@ -71,15 +73,23 @@ static void *taosNetBindUdpPort(void *sarg) {
     return NULL;
   }
 
-  if (taosSetSockOpt(serverSocket, SOL_SOCKET, SO_SNDBUF, (void *)&bufSize, sizeof(bufSize)) != 0) {
+  TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
+  if (pSocket == NULL) {
+    taosCloseSocketNoCheck1(serverSocket);
+    return NULL;
+  }
+  pSocket->fd = serverSocket;
+  pSocket->refId = 0;
+
+  if (taosSetSockOpt(pSocket, SOL_SOCKET, SO_SNDBUF, (void *)&bufSize, sizeof(bufSize)) != 0) {
     uError("failed to set the send buffer size for UDP socket\n");
-    taosCloseSocket(serverSocket);
+    taosCloseSocket(&pSocket);
     return NULL;
   }
 
-  if (taosSetSockOpt(serverSocket, SOL_SOCKET, SO_RCVBUF, (void *)&bufSize, sizeof(bufSize)) != 0) {
+  if (taosSetSockOpt(pSocket, SOL_SOCKET, SO_RCVBUF, (void *)&bufSize, sizeof(bufSize)) != 0) {
     uError("failed to set the receive buffer size for UDP socket\n");
-    taosCloseSocket(serverSocket);
+    taosCloseSocket(&pSocket);
     return NULL;
   }
 
@@ -98,13 +108,13 @@ static void *taosNetBindUdpPort(void *sarg) {
     uInfo("UDP: recv:%d bytes from %s at %d", iDataNum, taosInetNtoa(clientAddr.sin_addr), port);
 
     if (iDataNum > 0) {
-      iDataNum = taosSendto(serverSocket, buffer, iDataNum, 0, (struct sockaddr *)&clientAddr, (int32_t)sin_size);
+      iDataNum = taosSendto(pSocket, buffer, iDataNum, 0, (struct sockaddr *)&clientAddr, (int32_t)sin_size);
     }
 
     uInfo("UDP: send:%d bytes to %s at %d", iDataNum, taosInetNtoa(clientAddr.sin_addr), port);
   }
 
-  taosCloseSocket(serverSocket);
+  taosCloseSocket(&pSocket);
   return NULL;
 }
 
@@ -132,25 +142,35 @@ static void *taosNetBindTcpPort(void *sarg) {
   server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
   int32_t reuse = 1;
-  if (taosSetSockOpt(serverSocket, SOL_SOCKET, SO_REUSEADDR, (void *)&reuse, sizeof(reuse)) < 0) {
+  TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
+  if (pSocket == NULL) {
+    taosCloseSocketNoCheck1(serverSocket);
+    return NULL;
+  }
+  pSocket->fd = serverSocket;
+  pSocket->refId = 0;
+
+  if (taosSetSockOpt(pSocket, SOL_SOCKET, SO_REUSEADDR, (void *)&reuse, sizeof(reuse)) < 0) {
     uError("setsockopt SO_REUSEADDR failed: %d (%s)", errno, strerror(errno));
-    taosCloseSocket(serverSocket);
+    taosCloseSocket(&pSocket);
     return NULL;
   }
 
   if (bind(serverSocket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
     uError("failed to bind TCP port:%d since %s", port, strerror(errno));
+    taosCloseSocket(&pSocket);
     return NULL;
   }
 
-  if (taosKeepTcpAlive(serverSocket) < 0) {
+  if (taosKeepTcpAlive(pSocket) < 0) {
     uError("failed to set tcp server keep-alive option since %s", strerror(errno));
-    taosCloseSocket(serverSocket);
+    taosCloseSocket(&pSocket);
     return NULL;
   }
 
   if (listen(serverSocket, 10) < 0) {
     uError("failed to listen TCP port:%d since %s", port, strerror(errno));
+    taosCloseSocket(&pSocket);
     return NULL;
   }
 
@@ -163,26 +183,26 @@ static void *taosNetBindTcpPort(void *sarg) {
       continue;
     }
 
-    int32_t ret = taosReadMsg(client, buffer, pinfo->pktLen);
+    int32_t ret = taosReadMsg(pSocket, buffer, pinfo->pktLen);
     if (ret < 0 || ret != pinfo->pktLen) {
       uError("TCP: failed to read %d bytes at port:%d since %s", pinfo->pktLen, port, strerror(errno));
-      taosCloseSocket(serverSocket);
+      taosCloseSocket(&pSocket);
       return NULL;
     }
 
     uInfo("TCP: read:%d bytes from %s at %d", pinfo->pktLen, taosInetNtoa(clientAddr.sin_addr), port);
 
-    ret = taosWriteMsg(client, buffer, pinfo->pktLen);
+    ret = taosWriteMsg(pSocket, buffer, pinfo->pktLen);
     if (ret < 0) {
       uError("TCP: failed to write %d bytes at %d since %s", pinfo->pktLen, port, strerror(errno));
-      taosCloseSocket(serverSocket);
+      taosCloseSocket(&pSocket);
       return NULL;
     }
 
     uInfo("TCP: write:%d bytes to %s at %d", pinfo->pktLen, taosInetNtoa(clientAddr.sin_addr), port);
   }
 
-  taosCloseSocket(serverSocket);
+  taosCloseSocket(&pSocket);
   return NULL;
 }
 
@@ -196,9 +216,17 @@ static int32_t taosNetCheckTcpPort(STestInfo *info) {
   }
 
   int32_t reuse = 1;
-  if (taosSetSockOpt(clientSocket, SOL_SOCKET, SO_REUSEADDR, (void *)&reuse, sizeof(reuse)) < 0) {
+  TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
+  if (pSocket == NULL) {
+    taosCloseSocketNoCheck1(clientSocket);
+    return -1;
+  }
+  pSocket->fd = clientSocket;
+  pSocket->refId = 0;
+
+  if (taosSetSockOpt(pSocket, SOL_SOCKET, SO_REUSEADDR, (void *)&reuse, sizeof(reuse)) < 0) {
     uError("setsockopt SO_REUSEADDR failed: %d (%s)", errno, strerror(errno));
-    taosCloseSocket(clientSocket);
+    taosCloseSocket(&pSocket);
     return -1;
   }
 
@@ -210,27 +238,30 @@ static int32_t taosNetCheckTcpPort(STestInfo *info) {
 
   if (connect(clientSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
     uError("TCP: failed to connect port %s:%d since %s", taosIpStr(info->hostIp), info->port, strerror(errno));
+    taosCloseSocket(&pSocket);
     return -1;
   }
 
-  taosKeepTcpAlive(clientSocket);
+  taosKeepTcpAlive(pSocket);
 
   sprintf(buffer, "client send TCP pkg to %s:%d, content: 1122334455", taosIpStr(info->hostIp), info->port);
   sprintf(buffer + info->pktLen - 16, "1122334455667788");
 
-  int32_t ret = taosWriteMsg(clientSocket, buffer, info->pktLen);
+  int32_t ret = taosWriteMsg(pSocket, buffer, info->pktLen);
   if (ret < 0) {
     uError("TCP: failed to write msg to %s:%d since %s", taosIpStr(info->hostIp), info->port, strerror(errno));
+    taosCloseSocket(&pSocket);
     return -1;
   }
 
-  ret = taosReadMsg(clientSocket, buffer, info->pktLen);
+  ret = taosReadMsg(pSocket, buffer, info->pktLen);
   if (ret < 0) {
     uError("TCP: failed to read msg from %s:%d since %s", taosIpStr(info->hostIp), info->port, strerror(errno));
+    taosCloseSocket(&pSocket);
     return -1;
   }
 
-  taosCloseSocket(clientSocket);
+  taosCloseSocket(&pSocket);
   return 0;
 }
 
@@ -247,13 +278,23 @@ static int32_t taosNetCheckUdpPort(STestInfo *info) {
     return -1;
   }
 
-  if (taosSetSockOpt(clientSocket, SOL_SOCKET, SO_SNDBUF, (void *)&bufSize, sizeof(bufSize)) != 0) {
+  TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
+  if (pSocket == NULL) {
+    taosCloseSocketNoCheck1(clientSocket);
+    return -1;
+  }
+  pSocket->fd = clientSocket;
+  pSocket->refId = 0;
+
+  if (taosSetSockOpt(pSocket, SOL_SOCKET, SO_SNDBUF, (void *)&bufSize, sizeof(bufSize)) != 0) {
     uError("failed to set the send buffer size for UDP socket\n");
+    taosCloseSocket(&pSocket);
     return -1;
   }
 
-  if (taosSetSockOpt(clientSocket, SOL_SOCKET, SO_RCVBUF, (void *)&bufSize, sizeof(bufSize)) != 0) {
+  if (taosSetSockOpt(pSocket, SOL_SOCKET, SO_RCVBUF, (void *)&bufSize, sizeof(bufSize)) != 0) {
     uError("failed to set the receive buffer size for UDP socket\n");
+    taosCloseSocket(&pSocket);
     return -1;
   }
 
@@ -268,9 +309,10 @@ static int32_t taosNetCheckUdpPort(STestInfo *info) {
 
   socklen_t sin_size = sizeof(*(struct sockaddr *)&serverAddr);
 
-  iDataNum = taosSendto(clientSocket, buffer, info->pktLen, 0, (struct sockaddr *)&serverAddr, (int32_t)sin_size);
+  iDataNum = taosSendto(pSocket, buffer, info->pktLen, 0, (struct sockaddr *)&serverAddr, (int32_t)sin_size);
   if (iDataNum < 0 || iDataNum != info->pktLen) {
     uError("UDP: failed to perform sendto func since %s", strerror(errno));
+    taosCloseSocket(&pSocket);
     return -1;
   }
 
@@ -280,10 +322,11 @@ static int32_t taosNetCheckUdpPort(STestInfo *info) {
 
   if (iDataNum < 0 || iDataNum != info->pktLen) {
     uError("UDP: received ack:%d bytes(expect:%d) from port:%d since %s", iDataNum, info->pktLen, info->port, strerror(errno));
+    taosCloseSocket(&pSocket);
     return -1;
   }
 
-  taosCloseSocket(clientSocket);
+  taosCloseSocket(&pSocket);
   return 0;
 }
 
@@ -339,7 +382,7 @@ void *taosNetInitRpc(char *secretEncrypt, char spi) {
 }
 
 static int32_t taosNetCheckRpc(const char* serverFqdn, uint16_t port, uint16_t pktLen, char spi, SStartupReq *pStep) {
-  SRpcEpSet epSet;
+  SEpSet epSet;
   SRpcMsg   reqMsg;
   SRpcMsg   rspMsg;
   void *    pRpcConn;
@@ -352,11 +395,10 @@ static int32_t taosNetCheckRpc(const char* serverFqdn, uint16_t port, uint16_t p
     return TSDB_CODE_RPC_NETWORK_UNAVAIL;
   }
 
-  memset(&epSet, 0, sizeof(SRpcEpSet));
-  epSet.inUse = 0;
+  memset(&epSet, 0, sizeof(SEpSet));
+  strcpy(epSet.eps[0].fqdn, serverFqdn);
+  epSet.eps[0].port = port;
   epSet.numOfEps = 1;
-  epSet.port[0] = port;
-  strcpy(epSet.fqdn[0], serverFqdn);
 
   reqMsg.msgType = TDMT_DND_NETWORK_TEST;
   reqMsg.pCont = rpcMallocCont(pktLen);
@@ -364,7 +406,7 @@ static int32_t taosNetCheckRpc(const char* serverFqdn, uint16_t port, uint16_t p
   reqMsg.code = 0;
   reqMsg.handle = NULL;   // rpc handle returned to app
   reqMsg.ahandle = NULL;  // app handle set by client
-  strcpy(reqMsg.pCont, "nettest");
+  strcpy(reqMsg.pCont, "dnode-nettest");
 
   rpcSendRecv(pRpcConn, &epSet, &reqMsg, &rspMsg);
 
@@ -398,9 +440,9 @@ static int32_t taosNetParseStartup(SStartupReq *pCont) {
 static void taosNetTestStartup(char *host, int32_t port) {
   uInfo("check startup, host:%s port:%d\n", host, port);
 
-  SStartupReq *pStep = malloc(sizeof(SStartupReq));
+  SStartupReq *pStep = taosMemoryMalloc(sizeof(SStartupReq));
   while (1) {
-    int32_t code = taosNetCheckRpc(host, port + TSDB_PORT_DNODEDNODE, 20, 0, pStep);
+    int32_t code = taosNetCheckRpc(host, port, 20, 0, pStep);
     if (code > 0) {
       code = taosNetParseStartup(pStep);
     }
@@ -415,7 +457,7 @@ static void taosNetTestStartup(char *host, int32_t port) {
     }
   }
 
-  free(pStep);
+  taosMemoryFree(pStep);
 }
 
 static void taosNetCheckSync(char *host, int32_t port) {
@@ -425,8 +467,8 @@ static void taosNetCheckSync(char *host, int32_t port) {
     return;
   }
 
-  SOCKET connFd = taosOpenTcpClientSocket(ip, (uint16_t)port, 0);
-  if (connFd < 0) {
+  TdSocketPtr pSocket = taosOpenTcpClientSocket(ip, (uint16_t)port, 0);
+  if (pSocket == NULL) {
     uError("failed to create socket while test port:%d since %s", port, strerror(errno));
     return;
   }
@@ -443,63 +485,60 @@ static void taosNetCheckSync(char *host, int32_t port) {
   pHead->len = sizeof(SSyncMsg) - sizeof(SSyncHead);
   taosCalcChecksumAppend(0, (uint8_t *)pHead, sizeof(SSyncHead));
 
-  if (taosWriteMsg(connFd, &msg, sizeof(SSyncMsg)) != sizeof(SSyncMsg)) {
+  if (taosWriteMsg(pSocket, &msg, sizeof(SSyncMsg)) != sizeof(SSyncMsg)) {
     uError("failed to test port:%d while send msg since %s", port, strerror(errno));
     return;
   }
 
-  if (taosReadMsg(connFd, &msg, sizeof(SSyncMsg)) != sizeof(SSyncMsg)) {
+  if (taosReadMsg(pSocket, &msg, sizeof(SSyncMsg)) != sizeof(SSyncMsg)) {
     uError("failed to test port:%d while recv msg since %s", port, strerror(errno));
   }
 
   uInfo("successed to test TCP port:%d", port);
-  taosCloseSocket(connFd);
+  taosCloseSocket(&pSocket);
 }
 
 static void taosNetTestRpc(char *host, int32_t startPort, int32_t pkgLen) {
-  int32_t endPort = startPort + TSDB_PORT_SYNC;
   char    spi = 0;
 
-  uInfo("check rpc, host:%s startPort:%d endPort:%d pkgLen:%d\n", host, startPort, endPort, pkgLen);
+  uInfo("check rpc, host:%s Port:%d pkgLen:%d\n", host, startPort, pkgLen);
 
-  for (uint16_t port = startPort; port < endPort; port++) {
-    int32_t sendpkgLen;
-    if (pkgLen <= tsRpcMaxUdpSize) {
+  uint16_t port = startPort;
+  int32_t sendpkgLen;
+  if (pkgLen <= tsRpcMaxUdpSize) {
       sendpkgLen = tsRpcMaxUdpSize + 1000;
-    } else {
+  } else {
       sendpkgLen = pkgLen;
-    }
-
-    tsRpcForceTcp = 1;
-    int32_t ret = taosNetCheckRpc(host, port, sendpkgLen, spi, NULL);
-    if (ret < 0) {
-      printf("failed to test TCP port:%d\n", port);
-    } else {
-      printf("successed to test TCP port:%d\n", port);
-    }
-
-    if (pkgLen >= tsRpcMaxUdpSize) {
-      sendpkgLen = tsRpcMaxUdpSize - 1000;
-    } else {
-      sendpkgLen = pkgLen;
-    }
-
-    tsRpcForceTcp = 0;
-    ret = taosNetCheckRpc(host, port, pkgLen, spi, NULL);
-    if (ret < 0) {
-      printf("failed to test UDP port:%d\n", port);
-    } else {
-      printf("successed to test UDP port:%d\n", port);
-    }
   }
 
-  taosNetCheckSync(host, startPort + TSDB_PORT_SYNC);
-  taosNetCheckSync(host, startPort + TSDB_PORT_ARBITRATOR);
+  tsRpcForceTcp = 1;
+  int32_t ret = taosNetCheckRpc(host, port, sendpkgLen, spi, NULL);
+  if (ret < 0) {
+      printf("failed to test TCP port:%d\n", port);
+  } else {
+      printf("successed to test TCP port:%d\n", port);
+  }
+
+  if (pkgLen >= tsRpcMaxUdpSize) {
+      sendpkgLen = tsRpcMaxUdpSize - 1000;
+  } else {
+      sendpkgLen = pkgLen;
+  }
+/*
+  tsRpcForceTcp = 0;
+  ret = taosNetCheckRpc(host, port, pkgLen, spi, NULL);
+  if (ret < 0) {
+      printf("failed to test UDP port:%d\n", port);
+  } else {
+      printf("successed to test UDP port:%d\n", port);
+  }
+  */
+
+  taosNetCheckSync(host, startPort);
 }
 
 static void taosNetTestClient(char *host, int32_t startPort, int32_t pkgLen) {
-  int32_t endPort = startPort + 11;
-  uInfo("work as client, host:%s startPort:%d endPort:%d pkgLen:%d\n", host, startPort, endPort, pkgLen);
+  uInfo("work as client, host:%s Port:%d pkgLen:%d\n", host, startPort, pkgLen);
 
   uint32_t serverIp = taosGetIpv4FromFqdn(host);
   if (serverIp == 0xFFFFFFFF) {
@@ -508,20 +547,19 @@ static void taosNetTestClient(char *host, int32_t startPort, int32_t pkgLen) {
   }
 
   uInfo("server ip:%s is resolved from host:%s", taosIpStr(serverIp), host);
-  taosNetCheckPort(serverIp, startPort, endPort, pkgLen);
+  taosNetCheckPort(serverIp, startPort, startPort, pkgLen);
 }
 
 static void taosNetTestServer(char *host, int32_t startPort, int32_t pkgLen) {
-  int32_t endPort = startPort + 11;
-  uInfo("work as server, host:%s startPort:%d endPort:%d pkgLen:%d\n", host, startPort, endPort, pkgLen);
+  uInfo("work as server, host:%s Port:%d pkgLen:%d\n", host, startPort, pkgLen);
 
   int32_t port = startPort;
-  int32_t num = endPort - startPort + 1;
+  int32_t num = 1;
   if (num < 0) num = 1;
 
-  TdThread *pids = malloc(2 * num * sizeof(TdThread));
-  STestInfo *tinfos = malloc(num * sizeof(STestInfo));
-  STestInfo *uinfos = malloc(num * sizeof(STestInfo));
+  TdThread *pids = taosMemoryMalloc(2 * num * sizeof(TdThread));
+  STestInfo *tinfos = taosMemoryMalloc(num * sizeof(STestInfo));
+  STestInfo *uinfos = taosMemoryMalloc(num * sizeof(STestInfo));
 
   for (int32_t i = 0; i < num; i++) {
     STestInfo *tcpInfo = tinfos + i;
@@ -578,7 +616,7 @@ static void taosNetCheckSpeed(char *host, int32_t port, int32_t pkgLen,
   }
   tsCompressMsgSize = -1;
 
-  SRpcEpSet epSet;
+  SEpSet epSet;
   SRpcMsg   reqMsg;
   SRpcMsg   rspMsg;
   void *    pRpcConn;
@@ -596,11 +634,10 @@ static void taosNetCheckSpeed(char *host, int32_t port, int32_t pkgLen,
   for (int32_t i = 1; i <= pkgNum; i++) {
     uint64_t startTime = taosGetTimestampUs();
 
-    memset(&epSet, 0, sizeof(SRpcEpSet));
-    epSet.inUse = 0;
+    memset(&epSet, 0, sizeof(SEpSet));
+    strcpy(epSet.eps[0].fqdn, host);
+    epSet.eps[0].port = port;
     epSet.numOfEps = 1;
-    epSet.port[0] = port;
-    strcpy(epSet.fqdn[0], host);
 
     reqMsg.msgType = TDMT_DND_NETWORK_TEST;
     reqMsg.pCont = rpcMallocCont(pkgLen);
@@ -641,7 +678,7 @@ static void taosNetCheckSpeed(char *host, int32_t port, int32_t pkgLen,
 
 void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen,
                  int32_t pkgNum, char *pkgType) {
-  tscEmbedded = 1;
+  tsLogEmbedded = 1;
   if (host == NULL) host = tsLocalFqdn;
   if (port == 0) port = tsServerPort;
   if (0 == strcmp("speed", role)){
@@ -659,14 +696,14 @@ void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen,
   } else if (0 == strcmp("server", role)) {
     taosNetTestServer(host, port, pkgLen);
   } else if (0 == strcmp("rpc", role)) {
-    tscEmbedded = 0;
+    tsLogEmbedded = 0;
     taosNetTestRpc(host, port, pkgLen);
   } else if (0 == strcmp("sync", role)) {
     taosNetCheckSync(host, port);
   } else if (0 == strcmp("startup", role)) {
     taosNetTestStartup(host, port);
   } else if (0 == strcmp("speed", role)) {
-    tscEmbedded = 0;
+    tsLogEmbedded = 0;
     char type[10] = {0};
     taosNetCheckSpeed(host, port, pkgLen, pkgNum, strtolower(type, pkgType));
   }else if (0 == strcmp("fqdn", role)) {
@@ -675,5 +712,5 @@ void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen,
     taosNetTestStartup(host, port);
   }
 
-  tscEmbedded = 0;
+  tsLogEmbedded = 0;
 }

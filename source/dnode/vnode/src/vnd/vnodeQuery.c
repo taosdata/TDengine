@@ -68,6 +68,8 @@ int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_VND_TASK_EXEC:
       return tqProcessTaskExec(pVnode->pTq, pMsg);
+    case TDMT_VND_STREAM_TRIGGER:
+      return tqProcessStreamTrigger(pVnode->pTq, pMsg->pCont, pMsg->contLen);
     case TDMT_VND_QUERY_HEARTBEAT:
       return qWorkerProcessHbMsg(pVnode, pVnode->pQuery, pMsg);
     default:
@@ -139,7 +141,7 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     pTagSchema = NULL;
   }
 
-  metaRsp.pSchemas = calloc(nCols + nTagCols, sizeof(SSchema));
+  metaRsp.pSchemas = taosMemoryCalloc(nCols + nTagCols, sizeof(SSchema));
   if (metaRsp.pSchemas == NULL) {
     code = TSDB_CODE_VND_OUT_OF_MEMORY;
     goto _exit;
@@ -163,7 +165,6 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     memcpy(POINTER_SHIFT(metaRsp.pSchemas, sizeof(SSchema) * pSW->nCols), pTagSchema, sizeof(SSchema) * nTagCols);
   }
 
-
 _exit:
 
   rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
@@ -179,22 +180,21 @@ _exit:
   }
   tSerializeSTableMetaRsp(pRsp, rspLen, &metaRsp);
 
-
   tFreeSTableMetaRsp(&metaRsp);
   if (pSW != NULL) {
-    tfree(pSW->pSchema);
-    tfree(pSW);
+    taosMemoryFreeClear(pSW->pSchema);
+    taosMemoryFreeClear(pSW);
   }
 
   if (pTbCfg) {
-    tfree(pTbCfg->name);
+    taosMemoryFreeClear(pTbCfg->name);
     if (pTbCfg->type == META_SUPER_TABLE) {
-      free(pTbCfg->stbCfg.pTagSchema);
+      taosMemoryFree(pTbCfg->stbCfg.pTagSchema);
     } else if (pTbCfg->type == META_SUPER_TABLE) {
       kvRowFree(pTbCfg->ctbCfg.pTag);
     }
 
-    tfree(pTbCfg);
+    taosMemoryFreeClear(pTbCfg);
   }
 
   rpcMsg.handle = pMsg->handle;
@@ -210,7 +210,7 @@ _exit:
 
 static void freeItemHelper(void *pItem) {
   char *p = *(char **)pItem;
-  free(p);
+  taosMemoryFree(p);
 }
 
 /**
@@ -230,7 +230,7 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
       taosArrayPush(pArray, &name);
       totalLen += strlen(name);
     } else {
-      tfree(name);
+      taosMemoryFreeClear(name);
     }
 
     numOfTables++;
@@ -260,7 +260,7 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
     STR_TO_VARSTR(p, n);
 
     p += (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE);
-    // free(n);
+    // taosMemoryFree(n);
   }
 
   pFetchRsp->numOfRows = htonl(numOfTables);

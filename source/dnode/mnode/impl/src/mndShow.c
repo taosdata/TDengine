@@ -146,7 +146,7 @@ static int32_t mndProcessShowReq(SNodeMsg *pReq) {
   }
 
   showRsp.showId = pShow->id;
-  showRsp.tableMeta.pSchemas = calloc(TSDB_MAX_COLUMNS, sizeof(SSchema));
+  showRsp.tableMeta.pSchemas = taosMemoryCalloc(TSDB_MAX_COLUMNS, sizeof(SSchema));
   if (showRsp.tableMeta.pSchemas == NULL) {
     mndReleaseShowObj(pShow, true);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -427,6 +427,8 @@ char *mndShowStr(int32_t showType) {
       return "show topics";
     case TSDB_MGMT_TABLE_FUNC:
       return "show functions";
+      case TSDB_MGMT_TABLE_INDEX:
+      return "show indexes";
     default:
       return "undefined";
   }

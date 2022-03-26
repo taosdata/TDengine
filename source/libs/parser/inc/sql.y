@@ -313,10 +313,11 @@ func_name_list(A) ::= func_name_list(B) NK_COMMA col_name(C).                   
 func_name(A) ::= function_name(B).                                                { A = createFunctionNode(pCxt, &B, NULL); }
 
 /************************************************ create index ********************************************************/
-cmd ::= CREATE SMA INDEX index_name(A) ON table_name(B) index_options(C).         { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_SMA, &A, &B, NULL, C); }
-cmd ::= CREATE FULLTEXT INDEX
-  index_name(A) ON table_name(B) NK_LP col_name_list(C) NK_RP.                    { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_FULLTEXT, &A, &B, C, NULL); }
-cmd ::= DROP INDEX index_name(A) ON table_name(B).                                { pCxt->pRootNode = createDropIndexStmt(pCxt, &A, &B); }
+cmd ::= CREATE SMA INDEX not_exists_opt(D) 
+  index_name(A) ON table_name(B) index_options(C).                                { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_SMA, D, &A, &B, NULL, C); }
+cmd ::= CREATE FULLTEXT INDEX not_exists_opt(D)
+  index_name(A) ON table_name(B) NK_LP col_name_list(C) NK_RP.                    { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_FULLTEXT, D, &A, &B, C, NULL); }
+cmd ::= DROP INDEX exists_opt(C) index_name(A) ON table_name(B).                  { pCxt->pRootNode = createDropIndexStmt(pCxt, C, &A, &B); }
 
 index_options(A) ::= .                                                            { A = NULL; }
 index_options(A) ::= FUNCTION NK_LP func_list(B) NK_RP INTERVAL 
@@ -624,7 +625,7 @@ partition_by_clause_opt(A) ::= PARTITION BY expression_list(B).                 
 
 twindow_clause_opt(A) ::= .                                                       { A = NULL; }
 twindow_clause_opt(A) ::=
-  SESSION NK_LP column_reference(B) NK_COMMA NK_INTEGER(C) NK_RP.                 { A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
+  SESSION NK_LP column_reference(B) NK_COMMA duration_literal(C) NK_RP.           { A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
 twindow_clause_opt(A) ::= STATE_WINDOW NK_LP column_reference(B) NK_RP.           { A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B)); }
 twindow_clause_opt(A) ::=
   INTERVAL NK_LP duration_literal(B) NK_RP sliding_opt(C) fill_opt(D).            { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, B), NULL, C, D); }

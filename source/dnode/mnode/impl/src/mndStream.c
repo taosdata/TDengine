@@ -14,6 +14,7 @@
  */
 
 #include "mndStream.h"
+#include "parser.h"
 #include "mndAuth.h"
 #include "mndDb.h"
 #include "mndDnode.h"
@@ -21,6 +22,7 @@
 #include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndStb.h"
+#include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
@@ -33,6 +35,7 @@ static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pStream, SStreamObj *pNewStream);
 static int32_t mndProcessCreateStreamReq(SNodeMsg *pReq);
+static int32_t mndProcessTaskDeployInternalRsp(SNodeMsg *pRsp);
 /*static int32_t mndProcessDropStreamReq(SNodeMsg *pReq);*/
 /*static int32_t mndProcessDropStreamInRsp(SNodeMsg *pRsp);*/
 static int32_t mndProcessStreamMetaReq(SNodeMsg *pReq);
@@ -50,6 +53,8 @@ int32_t mndInitStream(SMnode *pMnode) {
                      .deleteFp = (SdbDeleteFp)mndStreamActionDelete};
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STREAM, mndProcessCreateStreamReq);
+  mndSetMsgHandle(pMnode, TDMT_VND_TASK_DEPLOY_RSP, mndProcessTaskDeployInternalRsp);
+  mndSetMsgHandle(pMnode, TDMT_SND_TASK_DEPLOY_RSP, mndProcessTaskDeployInternalRsp);
   /*mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);*/
   /*mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM_RSP, mndProcessDropStreamInRsp);*/
 
@@ -68,7 +73,7 @@ SSdbRaw *mndStreamActionEncode(SStreamObj *pStream) {
 
   SCoder encoder;
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER);
-  if (tEncodeSStreamObj(NULL, pStream) < 0) {
+  if (tEncodeSStreamObj(&encoder, pStream) < 0) {
     tCoderClear(&encoder);
     goto STREAM_ENCODE_OVER;
   }
@@ -79,11 +84,11 @@ SSdbRaw *mndStreamActionEncode(SStreamObj *pStream) {
   SSdbRaw *pRaw = sdbAllocRaw(SDB_STREAM, MND_STREAM_VER_NUMBER, size);
   if (pRaw == NULL) goto STREAM_ENCODE_OVER;
 
-  buf = malloc(tlen);
+  buf = taosMemoryMalloc(tlen);
   if (buf == NULL) goto STREAM_ENCODE_OVER;
 
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, tlen, TD_ENCODER);
-  if (tEncodeSStreamObj(NULL, pStream) < 0) {
+  if (tEncodeSStreamObj(&encoder, pStream) < 0) {
     tCoderClear(&encoder);
     goto STREAM_ENCODE_OVER;
   }
@@ -97,7 +102,7 @@ SSdbRaw *mndStreamActionEncode(SStreamObj *pStream) {
   terrno = TSDB_CODE_SUCCESS;
 
 STREAM_ENCODE_OVER:
-  tfree(buf);
+  taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("stream:%s, failed to encode to raw:%p since %s", pStream->name, pRaw, terrstr());
     sdbFreeRaw(pRaw);
@@ -130,12 +135,12 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   int32_t tlen;
   int32_t dataPos = 0;
   SDB_GET_INT32(pRaw, dataPos, &tlen, STREAM_DECODE_OVER);
-  buf = malloc(tlen + 1);
+  buf = taosMemoryMalloc(tlen + 1);
   if (buf == NULL) goto STREAM_DECODE_OVER;
   SDB_GET_BINARY(pRaw, dataPos, buf, tlen, STREAM_DECODE_OVER);
 
   SCoder decoder;
-  tCoderInit(&decoder, TD_LITTLE_ENDIAN, NULL, 0, TD_DECODER);
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, tlen + 1, TD_DECODER);
   if (tDecodeSStreamObj(&decoder, pStream) < 0) {
     goto STREAM_DECODE_OVER;
   }
@@ -143,10 +148,10 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_SUCCESS;
 
 STREAM_DECODE_OVER:
-  tfree(buf);
+  taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("stream:%s, failed to decode from raw:%p since %s", pStream->name, pRaw, terrstr());
-    tfree(pRow);
+    taosMemoryFreeClear(pRow);
     return NULL;
   }
 
@@ -191,6 +196,11 @@ void mndReleaseStream(SMnode *pMnode, SStreamObj *pStream) {
   sdbRelease(pSdb, pStream);
 }
 
+static int32_t mndProcessTaskDeployInternalRsp(SNodeMsg *pRsp) {
+  mndTransProcessRsp(pRsp);
+  return 0;
+}
+
 static SDbObj *mndAcquireDbByStream(SMnode *pMnode, char *streamName) {
   SName name = {0};
   tNameFromString(&name, streamName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
@@ -209,40 +219,103 @@ static int32_t mndCheckCreateStreamReq(SCMCreateStreamReq *pCreate) {
   return 0;
 }
 
-static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamReq *pCreate, SDbObj *pDb) {
-  mDebug("stream:%s to create", pCreate->name);
-  SStreamObj streamObj = {0};
-  tstrncpy(streamObj.name, pCreate->name, TSDB_STREAM_FNAME_LEN);
-  tstrncpy(streamObj.db, pDb->name, TSDB_DB_FNAME_LEN);
-  streamObj.createTime = taosGetTimestampMs();
-  streamObj.updateTime = streamObj.createTime;
-  streamObj.uid = mndGenerateUid(pCreate->name, strlen(pCreate->name));
-  streamObj.dbUid = pDb->uid;
-  streamObj.version = 1;
-  streamObj.sql = pCreate->sql;
-  streamObj.physicalPlan = "";
-  streamObj.logicalPlan = "";
-
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_STREAM, &pReq->rpcMsg);
-  if (pTrans == NULL) {
-    mError("stream:%s, failed to create since %s", pCreate->name, terrstr());
-    return -1;
-  }
-  mDebug("trans:%d, used to create stream:%s", pTrans->id, pCreate->name);
-
-  if (mndScheduleStream(pMnode, pTrans, &streamObj) < 0) {
-    mError("stream:%ld, schedule stream since %s", streamObj.uid, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
+static int32_t mndStreamGetPlanString(const char *ast, char **pStr) {
+  if (NULL == ast) {
+    return TSDB_CODE_SUCCESS;
   }
 
-  SSdbRaw *pRedoRaw = mndStreamActionEncode(&streamObj);
+  SNode  *pAst = NULL;
+  int32_t code = nodesStringToNode(ast, &pAst);
+
+  SQueryPlan *pPlan = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    SPlanContext cxt = {
+        .pAstRoot = pAst,
+        .topicQuery = false,
+        .streamQuery = true,
+    };
+    code = qCreateQueryPlan(&cxt, &pPlan, NULL);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesNodeToString(pPlan, false, pStr, NULL);
+  }
+  nodesDestroyNode(pAst);
+  nodesDestroyNode(pPlan);
+  terrno = code;
+  return code;
+}
+
+int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast, STrans *pTrans) {
+  SNode *pAst = NULL;
+#if 1 // TODO: remove debug info later
+  printf("ast = %s\n", ast); 
+#endif
+  if (nodesStringToNode(ast, &pAst) < 0) {
+    return -1;
+  }
+#if 1
+  SSchemaWrapper sw = {0};
+  qExtractResultSchema(pAst, (int32_t*)&sw.nCols, &sw.pSchema);
+
+  printf("|");
+  for (int i = 0; i < sw.nCols; i++) {
+    printf(" %15s |", (char *)sw.pSchema[i].name);
+  }
+  printf("\n=======================================================\n");
+
+  pStream->ColAlias = NULL;
+#endif
+
+  if (TSDB_CODE_SUCCESS != mndStreamGetPlanString(ast, &pStream->physicalPlan)) {
+    mError("topic:%s, failed to get plan since %s", pStream->name, terrstr());
+    return -1;
+  }
+
+  if (mndScheduleStream(pMnode, pTrans, pStream) < 0) {
+    mError("stream:%ld, schedule stream since %s", pStream->uid, terrstr());
+    return -1;
+  }
+  mDebug("trans:%d, used to create stream:%s", pTrans->id, pStream->name);
+
+  SSdbRaw *pRedoRaw = mndStreamActionEncode(pStream);
   if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
     mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     return -1;
   }
   sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
+
+  return 0;
+}
+
+static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamReq *pCreate, SDbObj *pDb) {
+  mDebug("stream:%s to create", pCreate->name);
+  SStreamObj streamObj = {0};
+  tstrncpy(streamObj.name, pCreate->name, TSDB_STREAM_FNAME_LEN);
+  tstrncpy(streamObj.db, pDb->name, TSDB_DB_FNAME_LEN);
+  tstrncpy(streamObj.outputSTbName, pCreate->outputSTbName, TSDB_TABLE_FNAME_LEN);
+  streamObj.createTime = taosGetTimestampMs();
+  streamObj.updateTime = streamObj.createTime;
+  streamObj.uid = mndGenerateUid(pCreate->name, strlen(pCreate->name));
+  streamObj.dbUid = pDb->uid;
+  streamObj.version = 1;
+  streamObj.sql = pCreate->sql;
+  /*streamObj.physicalPlan = "";*/
+  streamObj.logicalPlan = "not implemented";
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_STREAM, &pReq->rpcMsg);
+  if (pTrans == NULL) {
+    mError("stream:%s, failed to create since %s", pCreate->name, terrstr());
+    return -1;
+  }
+  mDebug("trans:%d, used to create stream:%s", pTrans->id, pCreate->name);
+
+  if (mndAddStreamToTrans(pMnode, &streamObj, pCreate->ast, pTrans) != 0) {
+    mError("trans:%d, failed to add stream since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());

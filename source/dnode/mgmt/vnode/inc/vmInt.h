@@ -33,6 +33,7 @@ typedef struct SVnodesMgmt {
   SQWorkerPool  fetchPool;
   SWWorkerPool  syncPool;
   SWWorkerPool  writePool;
+  SWWorkerPool  mergePool;
   const char   *path;
   SDnode       *pDnode;
   SMgmtWrapper *pWrapper;
@@ -63,6 +64,7 @@ typedef struct {
   STaosQueue   *pApplyQ;
   STaosQueue   *pQueryQ;
   STaosQueue   *pFetchQ;
+  STaosQueue   *pMergeQ;
   SMgmtWrapper *pWrapper;
 } SVnodeObj;
 
@@ -110,6 +112,7 @@ int32_t vmProcessWriteMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t vmProcessSyncMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t vmProcessQueryMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t vmProcessFetchMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t vmProcessMergeMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t vmProcessMgmtMsg(SVnodesMgmt *pMgmt, SNodeMsg *pMsg);
 
 #ifdef __cplusplus

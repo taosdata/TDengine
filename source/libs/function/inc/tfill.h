@@ -61,7 +61,7 @@ typedef struct SFillInfo {
 
   SFillColInfo* pFillCol;         // column info for fill operations
   SFillTagColInfo* pTags;         // tags value for filling gap
-  void*     handle;               // for debug purpose
+  const char* id;
 } SFillInfo;
 
 int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, int64_t ekey, int32_t maxNumOfRows);

@@ -46,7 +46,7 @@ void vmReleaseVnode(SVnodesMgmt *pMgmt, SVnodeObj *pVnode) {
 }
 
 int32_t vmOpenVnode(SVnodesMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
-  SVnodeObj *pVnode = calloc(1, sizeof(SVnodeObj));
+  SVnodeObj *pVnode = taosMemoryCalloc(1, sizeof(SVnodeObj));
   if (pVnode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -107,9 +107,9 @@ void vmCloseVnode(SVnodesMgmt *pMgmt, SVnodeObj *pVnode) {
     vnodeDestroy(pVnode->path);
   }
 
-  free(pVnode->path);
-  free(pVnode->db);
-  free(pVnode);
+  taosMemoryFree(pVnode->path);
+  taosMemoryFree(pVnode->db);
+  taosMemoryFree(pVnode);
 }
 
 static void *vmOpenVnodeFunc(void *param) {
@@ -183,11 +183,11 @@ static int32_t vmOpenVnodes(SVnodesMgmt *pMgmt) {
 #endif
   int32_t vnodesPerThread = numOfVnodes / threadNum + 1;
 
-  SVnodeThread *threads = calloc(threadNum, sizeof(SVnodeThread));
+  SVnodeThread *threads = taosMemoryCalloc(threadNum, sizeof(SVnodeThread));
   for (int32_t t = 0; t < threadNum; ++t) {
     threads[t].threadIndex = t;
     threads[t].pMgmt = pMgmt;
-    threads[t].pCfgs = calloc(vnodesPerThread, sizeof(SWrapperCfg));
+    threads[t].pCfgs = taosMemoryCalloc(vnodesPerThread, sizeof(SWrapperCfg));
   }
 
   for (int32_t v = 0; v < numOfVnodes; ++v) {
@@ -217,10 +217,10 @@ static int32_t vmOpenVnodes(SVnodesMgmt *pMgmt) {
     if (pThread->vnodeNum > 0 && taosCheckPthreadValid(pThread->thread)) {
       taosThreadJoin(pThread->thread, NULL);
     }
-    free(pThread->pCfgs);
+    taosMemoryFree(pThread->pCfgs);
   }
-  free(threads);
-  free(pCfgs);
+  taosMemoryFree(threads);
+  taosMemoryFree(pCfgs);
 
   if (pMgmt->state.openVnodes != pMgmt->state.totalVnodes) {
     dError("there are total vnodes:%d, opened:%d", pMgmt->state.totalVnodes, pMgmt->state.openVnodes);
@@ -242,7 +242,7 @@ static void vmCloseVnodes(SVnodesMgmt *pMgmt) {
   }
 
   if (pVnodes != NULL) {
-    free(pVnodes);
+    taosMemoryFree(pVnodes);
   }
 
   if (pMgmt->hash != NULL) {
@@ -257,22 +257,22 @@ static void vmCleanup(SMgmtWrapper *pWrapper) {
   SVnodesMgmt *pMgmt = pWrapper->pMgmt;
   if (pMgmt == NULL) return;
 
-  dInfo("vnodes-mgmt start to cleanup");
+  dInfo("vnode-mgmt start to cleanup");
   vmCloseVnodes(pMgmt);
   vmStopWorker(pMgmt);
   vnodeCleanup();
   // walCleanUp();
-  free(pMgmt);
+  taosMemoryFree(pMgmt);
   pWrapper->pMgmt = NULL;
-  dInfo("vnodes-mgmt is cleaned up");
+  dInfo("vnode-mgmt is cleaned up");
 }
 
 static int32_t vmInit(SMgmtWrapper *pWrapper) {
   SDnode      *pDnode = pWrapper->pDnode;
-  SVnodesMgmt *pMgmt = calloc(1, sizeof(SVnodesMgmt));
+  SVnodesMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SVnodesMgmt));
   int32_t      code = -1;
 
-  dInfo("vnodes-mgmt start to init");
+  dInfo("vnode-mgmt start to init");
   if (pMgmt == NULL) goto _OVER;
 
   pMgmt->path = pWrapper->path;
@@ -312,7 +312,7 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
   }
 
   if (vmOpenVnodes(pMgmt) != 0) {
-    dError("failed to open vnodes since %s", terrstr());
+    dError("failed to open vnode since %s", terrstr());
     return -1;
   }
 

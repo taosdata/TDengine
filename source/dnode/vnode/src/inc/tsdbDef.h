@@ -63,6 +63,7 @@ struct STsdb {
 #define REPO_ID(r)         ((r)->vgId)
 #define REPO_CFG(r)        (&(r)->config)
 #define REPO_FS(r)         (r)->fs
+#define REPO_META(r)       (r)->pMeta
 #define REPO_TFS(r)        (r)->pTfs
 #define IS_REPO_LOCKED(r)  (r)->repoLocked
 #define REPO_SMA_ENV(r, t) ((TSDB_SMA_TYPE_ROLLUP == (t)) ? (r)->pRSmaEnv : (r)->pTSmaEnv)

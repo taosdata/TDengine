@@ -44,6 +44,9 @@ protected:
     query_ = nullptr;
     bool res = runImpl(parseCode, translateCode);
     qDestroyQuery(query_);
+    if (!res) {
+      dump();
+    }
     return res;
   }
 
@@ -53,24 +56,38 @@ private:
   bool runImpl(int32_t parseCode, int32_t translateCode) {
     int32_t code = doParse(&cxt_, &query_);
     if (code != TSDB_CODE_SUCCESS) {
-      cout << "sql:[" << cxt_.pSql << "] parser code:" << tstrerror(code) << ", msg:" << errMagBuf_ << endl;
-      return (TSDB_CODE_SUCCESS != parseCode);
+      parseErrStr_ = string("code:") + tstrerror(code) + string(", msg:") + errMagBuf_;
+      return (terrno == parseCode);
     }
     if (TSDB_CODE_SUCCESS != parseCode) {
       return false;
     }
-    string parserStr = toString(query_->pRoot);
+    parsedAstStr_ = toString(query_->pRoot);
     code = doTranslate(&cxt_, query_);
     if (code != TSDB_CODE_SUCCESS) {
-      cout << "sql:[" << cxt_.pSql << "] translate code:" << code << ", " << translateCode << ", msg:" << errMagBuf_ << endl;
-      return (code == translateCode);
+      translateErrStr_ = string("code:") + tstrerror(code) + string(", msg:") + errMagBuf_;
+      return (terrno == translateCode);
     }
-    cout << "input sql : [" << cxt_.pSql << "]" << endl;
-    cout << "parser output: " << endl;
-    cout << parserStr << endl;
-    cout << "translate output: " << endl;
-    cout << toString(query_->pRoot) << endl;
+    translatedAstStr_ = toString(query_->pRoot);
     return (TSDB_CODE_SUCCESS == translateCode);
+  }
+
+  void dump() {
+    cout << "input sql : [" << cxt_.pSql << "]" << endl;
+    if (!parseErrStr_.empty()) {
+      cout << "parse error: " << parseErrStr_ << endl;
+    }
+    if (!parsedAstStr_.empty()) {
+      cout << "parse output: " << endl;
+      cout << parsedAstStr_ << endl;
+    }
+    if (!translateErrStr_.empty()) {
+      cout << "translate error: " << translateErrStr_ << endl;
+    }
+    if (!translatedAstStr_.empty()) {
+      cout << "translate output: " << endl;
+      cout << translatedAstStr_ << endl;
+    }
   }
 
   string toString(const SNode* pRoot, bool format = false) {
@@ -82,7 +99,7 @@ private:
       throw "nodesNodeToString failed!";
     }
     string str(pStr);
-    tfree(pStr);
+    taosMemoryFreeClear(pStr);
     return str;
   }
 
@@ -91,6 +108,10 @@ private:
     memset(errMagBuf_, 0, max_err_len);
     cxt_.pMsg = errMagBuf_;
     cxt_.msgLen = max_err_len;
+    parseErrStr_.clear();
+    parsedAstStr_.clear();
+    translateErrStr_.clear();
+    translatedAstStr_.clear();
   }
 
   string acctId_;
@@ -99,7 +120,49 @@ private:
   string sqlBuf_;
   SParseContext cxt_;
   SQuery* query_;
+  string parseErrStr_;
+  string parsedAstStr_;
+  string translateErrStr_;
+  string translatedAstStr_;
 };
+
+TEST_F(ParserTest, createAccount) {
+  setDatabase("root", "test");
+
+  bind("create account ac_wxy pass '123456'");
+  ASSERT_TRUE(run(TSDB_CODE_PAR_EXPRIE_STATEMENT));
+}
+
+TEST_F(ParserTest, alterAccount) {
+  setDatabase("root", "test");
+
+  bind("alter account ac_wxy pass '123456'");
+  ASSERT_TRUE(run(TSDB_CODE_PAR_EXPRIE_STATEMENT));
+}
+
+TEST_F(ParserTest, createUser) {
+  setDatabase("root", "test");
+
+  bind("create user wxy pass '123456'");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, alterUser) {
+  setDatabase("root", "test");
+
+  bind("alter user wxy pass '123456'");
+  ASSERT_TRUE(run());
+
+  bind("alter user wxy privilege 'write'");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, dropUser) {
+  setDatabase("root", "test");
+
+  bind("drop user wxy");
+  ASSERT_TRUE(run());
+}
 
 TEST_F(ParserTest, selectSimple) {
   setDatabase("root", "test");
@@ -295,25 +358,11 @@ TEST_F(ParserTest, selectSemanticError) {
   ASSERT_TRUE(run(TSDB_CODE_SUCCESS, TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION));
 }
 
-TEST_F(ParserTest, createUser) {
-  setDatabase("root", "test");
-
-  bind("create user wxy pass '123456'");
-  ASSERT_TRUE(run());
-}
-
 TEST_F(ParserTest, showUsers) {
   setDatabase("root", "test");
 
   bind("show users");
   ASSERT_TRUE(run());
-}
-
-TEST_F(ParserTest, alterAccount) {
-  setDatabase("root", "test");
-
-  bind("alter account ac_wxy pass '123456'");
-  ASSERT_TRUE(run(TSDB_CODE_PAR_EXPRIE_STATEMENT));
 }
 
 TEST_F(ParserTest, createDnode) {

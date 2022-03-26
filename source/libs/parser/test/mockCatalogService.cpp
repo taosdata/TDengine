@@ -65,7 +65,7 @@ private:
   friend class MockCatalogServiceImpl;
 
   static std::unique_ptr<TableBuilder> createTableBuilder(int8_t tableType, int32_t numOfColumns, int32_t numOfTags) {
-    STableMeta* meta = (STableMeta*)std::calloc(1, sizeof(STableMeta) + sizeof(SSchema) * (numOfColumns + numOfTags));
+    STableMeta* meta = (STableMeta*)taosMemoryCalloc(1, sizeof(STableMeta) + sizeof(SSchema) * (numOfColumns + numOfTags));
     if (nullptr == meta) {
       throw std::bad_alloc();
     }
@@ -120,23 +120,15 @@ public:
   }
 
   int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const {
-    // todo
-    vgInfo->vgId = 1;
-    addEpIntoEpSet(&vgInfo->epSet, "node1", 6030);
-    return 0;
+    char db[TSDB_DB_NAME_LEN] = {0};
+    tNameGetDbName(pTableName, db);
+    return copyTableVgroup(db, tNameGetTableName(pTableName), vgInfo);
   }
 
-  int32_t catalogGetTableDistVgInfo(const SName* pTableName, SArray** pVgList) const {
-    SVgroupInfo info = {0};
-    info.vgId = 1;
-    addEpIntoEpSet(&info.epSet, "node1", 6030);
-
-    info.hashBegin = 0;
-    info.hashEnd = 1;
-    *pVgList = taosArrayInit(4, sizeof(SVgroupInfo));
-
-    taosArrayPush(*pVgList, &info);
-    return 0;
+  int32_t catalogGetTableDistVgInfo(const SName* pTableName, SArray** vgList) const {
+    char db[TSDB_DB_NAME_LEN] = {0};
+    tNameGetDbName(pTableName, db);
+    return copyTableVgroup(db, tNameGetTableName(pTableName), vgList);
   }
 
   TableBuilder& createTableBuilder(const std::string& db, const std::string& tbname, int8_t tableType, int32_t numOfColumns, int32_t numOfTags) {
@@ -285,11 +277,32 @@ private:
       return TSDB_CODE_TSC_INVALID_TABLE_NAME;
     }
     int32_t len = sizeof(STableMeta) + sizeof(SSchema) * (src->tableInfo.numOfTags + src->tableInfo.numOfColumns);
-    dst->reset((STableMeta*)std::calloc(1, len));
+    dst->reset((STableMeta*)taosMemoryCalloc(1, len));
     if (!dst) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
     memcpy(dst->get(), src, len);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t copyTableVgroup(const std::string& db, const std::string& tbname, SVgroupInfo* vg) const {
+    std::shared_ptr<MockTableMeta> table = getTableMeta(db, tbname);
+    if (table->vgs.empty()) {
+      return TSDB_CODE_SUCCESS;
+    }
+    memcpy(vg, &(table->vgs[0]), sizeof(SVgroupInfo));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t copyTableVgroup(const std::string& db, const std::string& tbname, SArray** vgList) const {
+    std::shared_ptr<MockTableMeta> table = getTableMeta(db, tbname);
+    if (table->vgs.empty()) {
+      return TSDB_CODE_SUCCESS;
+    }
+    *vgList = taosArrayInit(table->vgs.size(), sizeof(SVgroupInfo));
+    for (const SVgroupInfo& vg : table->vgs) {
+      taosArrayPush(*vgList, &vg);
+    }
     return TSDB_CODE_SUCCESS;
   }
 

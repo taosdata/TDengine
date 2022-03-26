@@ -338,7 +338,7 @@ typedef struct SFilterInfo {
 #define FILTER_PUSH_VAR_HASH(colInfo, ha) do { (colInfo).type = RANGE_TYPE_VAR_HASH; (colInfo).info = ha;} while (0)
 #define FILTER_PUSH_CTX(colInfo, ctx) do { (colInfo).type = RANGE_TYPE_MR_CTX; (colInfo).info = ctx;} while (0)
 
-#define FILTER_COPY_IDX(dst, src, n) do { *(dst) = malloc(sizeof(uint32_t) * n); memcpy(*(dst), src, sizeof(uint32_t) * n);} while (0)
+#define FILTER_COPY_IDX(dst, src, n) do { *(dst) = taosMemoryMalloc(sizeof(uint32_t) * n); memcpy(*(dst), src, sizeof(uint32_t) * n);} while (0)
 
 #define FILTER_ADD_CTX_TO_GRES(gres, idx, ctx) do { if ((gres)->colCtxs == NULL) { (gres)->colCtxs = taosArrayInit(gres->colNum, sizeof(SFilterColCtx)); } SFilterColCtx cCtx = {idx, ctx}; taosArrayPush((gres)->colCtxs, &cCtx); } while (0) 
 

@@ -74,7 +74,7 @@ static inline int64_t walScanLogGetLastVer(SWal* pWal) {
 
   uint64_t magic = WAL_MAGIC;
 
-  char* buf = malloc(readSize + 5);
+  char* buf = taosMemoryMalloc(readSize + 5);
   if (buf == NULL) {
     taosCloseFile(&pFile);
     terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
@@ -83,7 +83,7 @@ static inline int64_t walScanLogGetLastVer(SWal* pWal) {
 
   taosLSeekFile(pFile, -readSize, SEEK_END);
   if (readSize != taosReadFile(pFile, buf, readSize)) {
-    free(buf);
+    taosMemoryFree(buf);
     taosCloseFile(&pFile);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -104,7 +104,7 @@ static inline int64_t walScanLogGetLastVer(SWal* pWal) {
     SWalHead *logContent = (SWalHead*)found;
     if (walValidHeadCksum(logContent) != 0 || walValidBodyCksum(logContent) != 0) {
       // file has to be deleted
-      free(buf);
+      taosMemoryFree(buf);
       taosCloseFile(&pFile);
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
       return -1;
@@ -215,7 +215,7 @@ int walRollFileInfo(SWal* pWal) {
   }
 
   // TODO: change to emplace back
-  SWalFileInfo* pNewInfo = malloc(sizeof(SWalFileInfo));
+  SWalFileInfo* pNewInfo = taosMemoryMalloc(sizeof(SWalFileInfo));
   if (pNewInfo == NULL) {
     terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
     return -1;
@@ -226,7 +226,7 @@ int walRollFileInfo(SWal* pWal) {
   pNewInfo->closeTs = -1;
   pNewInfo->fileSize = 0;
   taosArrayPush(pArray, pNewInfo);
-  free(pNewInfo);
+  taosMemoryFree(pNewInfo);
   return 0;
 }
 
@@ -378,7 +378,7 @@ int walSaveMeta(SWal* pWal) {
     walBuildMetaName(pWal, metaVer, fnameStr);
     taosRemoveFile(fnameStr);
   }
-  free(serialized);
+  taosMemoryFree(serialized);
   return 0;
 }
 
@@ -395,7 +395,7 @@ int walLoadMeta(SWal* pWal) {
   int64_t file_size = 0;
   taosStatFile(fnameStr, &file_size, NULL);
   int   size = (int)file_size;
-  char* buf = malloc(size + 5);
+  char* buf = taosMemoryMalloc(size + 5);
   if (buf == NULL) {
     terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
     return -1;
@@ -409,12 +409,12 @@ int walLoadMeta(SWal* pWal) {
   if (taosReadFile(pFile, buf, size) != size) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     taosCloseFile(&pFile);
-    free(buf);
+    taosMemoryFree(buf);
     return -1;
   }
   // load into fileInfoSet
   int code = walMetaDeserialize(pWal, buf);
   taosCloseFile(&pFile);
-  free(buf);
+  taosMemoryFree(buf);
   return code;
 }

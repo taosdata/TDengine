@@ -63,7 +63,7 @@ void walCleanUp() {
 }
 
 SWal *walOpen(const char *path, SWalCfg *pCfg) {
-  SWal *pWal = malloc(sizeof(SWal));
+  SWal *pWal = taosMemoryMalloc(sizeof(SWal));
   if (pWal == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return NULL;
@@ -88,7 +88,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   pWal->fileInfoSet = taosArrayInit(8, sizeof(SWalFileInfo));
   if (pWal->fileInfoSet == NULL) {
     wError("vgId:%d, path:%s, failed to init taosArray %s", pWal->cfg.vgId, pWal->path, strerror(errno));
-    free(pWal);
+    taosMemoryFree(pWal);
     return NULL;
   }
 
@@ -103,7 +103,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
 
   if (taosThreadMutexInit(&pWal->mutex, NULL) < 0) {
     taosArrayDestroy(pWal->fileInfoSet);
-    free(pWal);
+    taosMemoryFree(pWal);
     return NULL;
   }
 
@@ -111,7 +111,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   if (pWal->refId < 0) {
     taosThreadMutexDestroy(&pWal->mutex);
     taosArrayDestroy(pWal->fileInfoSet);
-    free(pWal);
+    taosMemoryFree(pWal);
     return NULL;
   }
 
@@ -121,7 +121,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
     taosRemoveRef(tsWal.refSetId, pWal->refId);
     taosThreadMutexDestroy(&pWal->mutex);
     taosArrayDestroy(pWal->fileInfoSet);
-    free(pWal);
+    taosMemoryFree(pWal);
     return NULL;
   }
 
@@ -174,7 +174,7 @@ static void walFreeObj(void *wal) {
   wDebug("vgId:%d, wal:%p is freed", pWal->cfg.vgId, pWal);
 
   taosThreadMutexDestroy(&pWal->mutex);
-  tfree(pWal);
+  taosMemoryFreeClear(pWal);
 }
 
 static bool walNeedFsync(SWal *pWal) {

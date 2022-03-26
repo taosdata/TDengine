@@ -40,7 +40,7 @@ static bool indexCacheIteratorNext(Iterate* itera);
 static IterateValue* indexCacheIteratorGetValue(Iterate* iter);
 
 IndexCache* indexCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8_t type) {
-  IndexCache* cache = calloc(1, sizeof(IndexCache));
+  IndexCache* cache = taosMemoryCalloc(1, sizeof(IndexCache));
   if (cache == NULL) {
     indexError("failed to create index cache");
     return NULL;
@@ -113,8 +113,8 @@ void indexCacheDestroySkiplist(SSkipList* slt) {
     SSkipListNode* node = tSkipListIterGet(iter);
     CacheTerm*     ct = (CacheTerm*)SL_GET_NODE_DATA(node);
     if (ct != NULL) {
-      free(ct->colVal);
-      free(ct);
+      taosMemoryFree(ct->colVal);
+      taosMemoryFree(ct);
     }
   }
   tSkipListDestroyIter(iter);
@@ -144,16 +144,16 @@ void indexCacheDestroy(void* cache) {
   }
   indexMemUnRef(pCache->mem);
   indexMemUnRef(pCache->imm);
-  free(pCache->colName);
+  taosMemoryFree(pCache->colName);
 
   taosThreadMutexDestroy(&pCache->mtx);
   taosThreadCondDestroy(&pCache->finished);
 
-  free(pCache);
+  taosMemoryFree(pCache);
 }
 
 Iterate* indexCacheIteratorCreate(IndexCache* cache) {
-  Iterate* iiter = calloc(1, sizeof(Iterate));
+  Iterate* iiter = taosMemoryCalloc(1, sizeof(Iterate));
   if (iiter == NULL) {
     return NULL;
   }
@@ -179,7 +179,7 @@ void indexCacheIteratorDestroy(Iterate* iter) {
   }
   tSkipListDestroyIter(iter->iter);
   iterateValueDestroy(&iter->val, true);
-  free(iter);
+  taosMemoryFree(iter);
 }
 
 int indexCacheSchedToMerge(IndexCache* pCache) {
@@ -221,7 +221,7 @@ int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   IndexCache* pCache = cache;
   indexCacheRef(pCache);
   // encode data
-  CacheTerm* ct = calloc(1, sizeof(CacheTerm));
+  CacheTerm* ct = taosMemoryCalloc(1, sizeof(CacheTerm));
   if (cache == NULL) {
     return -1;
   }
@@ -230,7 +230,7 @@ int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   if (hasJson) {
     ct->colVal = indexPackJsonData(term);
   } else {
-    ct->colVal = (char*)calloc(1, sizeof(char) * (term->nColVal + 1));
+    ct->colVal = (char*)taosMemoryCalloc(1, sizeof(char) * (term->nColVal + 1));
     memcpy(ct->colVal, term->colVal, term->nColVal);
   }
   ct->version = atomic_add_fetch_32(&pCache->version, 1);
@@ -323,7 +323,7 @@ int indexCacheSearch(void* cache, SIndexTermQuery* query, SIdxTempResult* result
   }
 
   if (hasJson) {
-    tfree(p);
+    taosMemoryFreeClear(p);
   }
 
   indexMemUnRef(mem);
@@ -365,7 +365,7 @@ void indexMemUnRef(MemTable* tbl) {
   if (ref == 0) {
     SSkipList* slt = tbl->mem;
     indexCacheDestroySkiplist(slt);
-    free(tbl);
+    taosMemoryFree(tbl);
   }
 }
 
@@ -373,8 +373,8 @@ static void indexCacheTermDestroy(CacheTerm* ct) {
   if (ct == NULL) {
     return;
   }
-  free(ct->colVal);
-  free(ct);
+  taosMemoryFree(ct->colVal);
+  taosMemoryFree(ct);
 }
 static char* indexCacheTermGet(const void* pData) {
   CacheTerm* p = (CacheTerm*)pData;
@@ -394,7 +394,7 @@ static int32_t indexCacheTermCompare(const void* l, const void* r) {
 static MemTable* indexInternalCacheCreate(int8_t type) {
   type = INDEX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? TSDB_DATA_TYPE_BINARY : type;
 
-  MemTable* tbl = calloc(1, sizeof(MemTable));
+  MemTable* tbl = taosMemoryCalloc(1, sizeof(MemTable));
   indexMemRef(tbl);
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
     tbl->mem = tSkipListCreate(MAX_SKIP_LIST_LEVEL, type, MAX_INDEX_KEY_LEN, indexCacheTermCompare, SL_ALLOW_DUP_KEY,

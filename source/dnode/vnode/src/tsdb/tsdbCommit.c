@@ -403,7 +403,7 @@ static int tsdbCreateCommitIters(SCommitH *pCommith) {
   STbData           *pTbData;
 
   pCommith->niters = SL_SIZE(pMem->pSlIdx);
-  pCommith->iters = (SCommitIter *)calloc(pCommith->niters, sizeof(SCommitIter));
+  pCommith->iters = (SCommitIter *)taosMemoryCalloc(pCommith->niters, sizeof(SCommitIter));
   if (pCommith->iters == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
@@ -424,7 +424,7 @@ static int tsdbCreateCommitIters(SCommitH *pCommith) {
     pCommitIter->pIter = tSkipListCreateIter(pTbData->pData);
     tSkipListIterNext(pCommitIter->pIter);
 
-    pCommitIter->pTable = (STable *)malloc(sizeof(STable));
+    pCommitIter->pTable = (STable *)taosMemoryMalloc(sizeof(STable));
     pCommitIter->pTable->uid = pTbData->uid;
     pCommitIter->pTable->tid = pTbData->uid;
     pCommitIter->pTable->pSchema = metaGetTbTSchema(pRepo->pMeta, pTbData->uid, 0);
@@ -439,10 +439,10 @@ static void tsdbDestroyCommitIters(SCommitH *pCommith) {
   for (int i = 1; i < pCommith->niters; i++) {
     tSkipListDestroyIter(pCommith->iters[i].pIter);
     tdFreeSchema(pCommith->iters[i].pTable->pSchema);
-    free(pCommith->iters[i].pTable);
+    taosMemoryFree(pCommith->iters[i].pTable);
   }
 
-  free(pCommith->iters);
+  taosMemoryFree(pCommith->iters);
   pCommith->iters = NULL;
   pCommith->niters = 0;
 }
@@ -985,7 +985,7 @@ int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf) {
 //   SKVRecord *pRecord;
 //   void *pBuf = NULL;
 
-//   pBuf = malloc((size_t)maxBufSize);
+//   pBuf = taosMemoryMalloc((size_t)maxBufSize);
 //   if (pBuf == NULL) {
 //     goto _err;
 //   }
@@ -1006,7 +1006,7 @@ int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf) {
 //     }
 //     if (pRecord->size > maxBufSize) {
 //       maxBufSize = pRecord->size;
-//       void* tmp = realloc(pBuf, (size_t)maxBufSize);
+//       void* tmp = taosMemoryRealloc(pBuf, (size_t)maxBufSize);
 //       if (tmp == NULL) {
 //         goto _err;
 //       }
@@ -1059,7 +1059,7 @@ int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf) {
 //     pfs->metaCacheComp = NULL;
 //   }
 
-//   tfree(pBuf);
+//   taosMemoryFreeClear(pBuf);
 
 //   ASSERT(mf.info.nDels == 0);
 //   ASSERT(mf.info.tombSize == 0);

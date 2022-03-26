@@ -132,6 +132,9 @@ bool tsdbForceKeepFile = false;
 int32_t  tsDiskCfgNum = 0;
 SDiskCfg tsDiskCfg[TFS_MAX_DISKS] = {0};
 
+// stream scheduler
+bool tsStreamSchedV = true;
+
 /*
  * minimum scale for whole system, millisecond by default
  * for TSDB_TIME_PRECISION_MILLI: 86400000L
@@ -177,6 +180,10 @@ static int32_t taosSetTfsCfg(SConfig *pCfg) {
       memcpy(&tsDiskCfg[index], pCfg, sizeof(SDiskCfg));
       if (pCfg->level == 0 && pCfg->primary == 1) {
         tstrncpy(tsDataDir, pCfg->dir, PATH_MAX);
+        if (taosMkDir(tsDataDir) != 0) {
+          uError("failed to create dataDir:%s since %s", tsDataDir, terrstr());
+          return -1;
+        }
       }
       if (taosMkDir(pCfg->dir) != 0) {
         uError("failed to create tfsDir:%s since %s", tsDataDir, terrstr());

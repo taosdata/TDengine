@@ -145,7 +145,7 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   sscanf(line, "%s %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, cpu, &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system,
          &cpuInfo->idle);
 
-  if (line != NULL) tfree(line);
+  if (line != NULL) taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
   return 0;
 }
@@ -174,7 +174,7 @@ static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
     }
   }
 
-  if (line != NULL) tfree(line);
+  if (line != NULL) taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
   return 0;
 }
@@ -268,7 +268,7 @@ int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
     }
   }
 
-  if (line != NULL) free(line);
+  if (line != NULL) taosMemoryFree(line);
   taosCloseFile(&pFile);
   return code;
 #else
@@ -293,7 +293,7 @@ int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
     }
   }
 
-  if (line != NULL) free(line);
+  if (line != NULL) taosMemoryFree(line);
   taosCloseFile(&pFile);
   return code;
 #endif
@@ -324,7 +324,7 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
     }
   }
 
-  if (line != NULL) free(line);
+  if (line != NULL) taosMemoryFree(line);
   taosCloseFile(&pFile);
 
   return code;
@@ -351,7 +351,7 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
     }
   }
 
-  if (line != NULL) free(line);
+  if (line != NULL) taosMemoryFree(line);
   taosCloseFile(&pFile);
 
   return code;
@@ -486,7 +486,7 @@ int32_t taosGetProcMemory(int64_t *usedKB) {
   char tmp[10];
   sscanf(line, "%s %" PRId64, tmp, usedKB);
 
-  if (line != NULL) tfree(line);
+  if (line != NULL) taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
   return 0;
 #endif
@@ -606,7 +606,7 @@ int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int
     if (readIndex >= 4) break;
   }
 
-  if (line != NULL) tfree(line);
+  if (line != NULL) taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
 
   if (readIndex < 4) {
@@ -665,7 +665,7 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
     *transmit_bytes = o_tbytes;
   }
 
-  if (line != NULL) tfree(line);
+  if (line != NULL) taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
 
   return 0;

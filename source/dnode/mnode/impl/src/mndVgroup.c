@@ -146,7 +146,7 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
 VG_DECODE_OVER:
   if (terrno != 0) {
     mError("vgId:%d, failed to decode from raw:%p since %s", pVgroup->vgId, pRaw, terrstr());
-    tfree(pRow);
+    taosMemoryFreeClear(pRow);
     return NULL;
   }
 
@@ -218,6 +218,8 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.hashBegin = pVgroup->hashBegin;
   createReq.hashEnd = pVgroup->hashEnd;
   createReq.hashMethod = pDb->hashMethod;
+  createReq.numOfRetensions = pDb->cfg.numOfRetensions;
+  createReq.pRetensions = pDb->cfg.pRetensions;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SReplica  *pReplica = &createReq.replicas[v];
@@ -248,7 +250,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
     return NULL;
   }
 
-  void *pReq = malloc(contLen);
+  void *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -272,7 +274,7 @@ void *mndBuildDropVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgOb
     return NULL;
   }
 
-  void *pReq = malloc(contLen);
+  void *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -374,7 +376,7 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
   SArray *pArray = NULL;
   SVgObj *pVgroups = NULL;
 
-  pVgroups = calloc(pDb->cfg.numOfVgroups, sizeof(SVgObj));
+  pVgroups = taosMemoryCalloc(pDb->cfg.numOfVgroups, sizeof(SVgObj));
   if (pVgroups == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto ALLOC_VGROUP_OVER;
@@ -428,7 +430,7 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
   mDebug("db:%s, %d vgroups is alloced, replica:%d", pDb->name, pDb->cfg.numOfVgroups, pDb->cfg.replications);
 
 ALLOC_VGROUP_OVER:
-  if (code != 0) free(pVgroups);
+  if (code != 0) taosMemoryFree(pVgroups);
   taosArrayDestroy(pArray);
   return code;
 }

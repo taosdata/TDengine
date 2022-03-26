@@ -507,10 +507,10 @@ static void taosCloseLogByFd(TdFilePtr pFile) {
 static SLogBuff *taosLogBuffNew(int32_t bufSize) {
   SLogBuff *tLogBuff = NULL;
 
-  tLogBuff = calloc(1, sizeof(SLogBuff));
+  tLogBuff = taosMemoryCalloc(1, sizeof(SLogBuff));
   if (tLogBuff == NULL) return NULL;
 
-  LOG_BUF_BUFFER(tLogBuff) = malloc(bufSize);
+  LOG_BUF_BUFFER(tLogBuff) = taosMemoryMalloc(bufSize);
   if (LOG_BUF_BUFFER(tLogBuff) == NULL) goto _err;
 
   LOG_BUF_START(tLogBuff) = LOG_BUF_END(tLogBuff) = 0;
@@ -524,8 +524,8 @@ static SLogBuff *taosLogBuffNew(int32_t bufSize) {
   return tLogBuff;
 
 _err:
-  tfree(LOG_BUF_BUFFER(tLogBuff));
-  tfree(tLogBuff);
+  taosMemoryFreeClear(LOG_BUF_BUFFER(tLogBuff));
+  taosMemoryFreeClear(tLogBuff);
   return NULL;
 }
 
@@ -688,7 +688,7 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
   int32_t compressSize = 163840;
   int32_t ret = 0;
   int32_t len = 0;
-  char   *data = malloc(compressSize);
+  char   *data = taosMemoryMalloc(compressSize);
   //  gzFile  dstFp = NULL;
 
   // srcFp = fopen(srcFileName, "r");
@@ -723,7 +723,7 @@ cmp_end:
   //  if (dstFp) {
   //    gzclose(dstFp);
   //  }
-  free(data);
+  taosMemoryFree(data);
 
   return ret;
 }

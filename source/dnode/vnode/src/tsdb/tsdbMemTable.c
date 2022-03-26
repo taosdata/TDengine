@@ -25,7 +25,7 @@ static char *   tsdbTbDataGetUid(const void *arg);
 static int      tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow *row);
 
 STsdbMemTable *tsdbNewMemTable(STsdb *pTsdb) {
-  STsdbMemTable *pMemTable = (STsdbMemTable *)calloc(1, sizeof(*pMemTable));
+  STsdbMemTable *pMemTable = (STsdbMemTable *)taosMemoryCalloc(1, sizeof(*pMemTable));
   if (pMemTable == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -38,7 +38,7 @@ STsdbMemTable *tsdbNewMemTable(STsdb *pTsdb) {
   pMemTable->nRow = 0;
   pMemTable->pMA = pTsdb->pmaf->create(pTsdb->pmaf);
   if (pMemTable->pMA == NULL) {
-    free(pMemTable);
+    taosMemoryFree(pMemTable);
     return NULL;
   }
 
@@ -47,7 +47,7 @@ STsdbMemTable *tsdbNewMemTable(STsdb *pTsdb) {
       tSkipListCreate(5, TSDB_DATA_TYPE_BIGINT, sizeof(tb_uid_t), tsdbTbDataComp, SL_DISCARD_DUP_KEY, tsdbTbDataGetUid);
   if (pMemTable->pSlIdx == NULL) {
     pTsdb->pmaf->destroy(pTsdb->pmaf, pMemTable->pMA);
-    free(pMemTable);
+    taosMemoryFree(pMemTable);
     return NULL;
   }
 
@@ -55,7 +55,7 @@ STsdbMemTable *tsdbNewMemTable(STsdb *pTsdb) {
   if (pMemTable->pHashIdx == NULL) {
     pTsdb->pmaf->destroy(pTsdb->pmaf, pMemTable->pMA);
     tSkipListDestroy(pMemTable->pSlIdx);
-    free(pMemTable);
+    taosMemoryFree(pMemTable);
     return NULL;
   }
 
@@ -69,7 +69,7 @@ void tsdbFreeMemTable(STsdb *pTsdb, STsdbMemTable *pMemTable) {
     if (pMemTable->pMA) {
       pTsdb->pmaf->destroy(pTsdb->pmaf, pMemTable->pMA);
     }
-    free(pMemTable);
+    taosMemoryFree(pMemTable);
   }
 }
 
@@ -248,7 +248,7 @@ static int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
     if (pBlock == NULL) break;
 
     pBlock->uid = htobe64(pBlock->uid);
-    pBlock->tid = htonl(pBlock->tid);
+    pBlock->suid = htobe64(pBlock->suid);
     pBlock->sversion = htonl(pBlock->sversion);
     pBlock->dataLen = htonl(pBlock->dataLen);
     pBlock->schemaLen = htonl(pBlock->schemaLen);
@@ -376,7 +376,7 @@ static int tsdbMemTableInsertTbData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *p
 }
 
 static STbData *tsdbNewTbData(tb_uid_t uid) {
-  STbData *pTbData = (STbData *)calloc(1, sizeof(*pTbData));
+  STbData *pTbData = (STbData *)taosMemoryCalloc(1, sizeof(*pTbData));
   if (pTbData == NULL) {
     return NULL;
   }
@@ -397,14 +397,14 @@ static STbData *tsdbNewTbData(tb_uid_t uid) {
   //                     tkeyComparFn, skipListCreateFlags, tsdbGetTsTupleKey);
   // if (pTableData->pData == NULL) {
   //   terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-  //   free(pTableData);
+  //   taosMemoryFree(pTableData);
   //   return NULL;
   // }
 
   pTbData->pData = tSkipListCreate(5, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), tkeyComparFn, SL_DISCARD_DUP_KEY,
                                    tsdbGetTsTupleKey);
   if (pTbData->pData == NULL) {
-    free(pTbData);
+    taosMemoryFree(pTbData);
     return NULL;
   }
 
@@ -414,7 +414,7 @@ static STbData *tsdbNewTbData(tb_uid_t uid) {
 static void tsdbFreeTbData(STbData *pTbData) {
   if (pTbData) {
     tSkipListDestroy(pTbData->pData);
-    free(pTbData);
+    taosMemoryFree(pTbData);
   }
 }
 
@@ -582,7 +582,7 @@ int tsdbTakeMemSnapshot(STsdbRepo *pRepo, SMemSnapshot *pSnapshot, SArray *pATab
 
     pSnapshot->mem = &(pSnapshot->mtable);
 
-    pSnapshot->mem->tData = (STableData **)calloc(pSnapshot->omem->maxTables, sizeof(STableData *));
+    pSnapshot->mem->tData = (STableData **)taosMemoryCalloc(pSnapshot->omem->maxTables, sizeof(STableData *));
     if (pSnapshot->mem->tData == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       taosRUnLockLatch(&(pSnapshot->omem->latch));
@@ -629,7 +629,7 @@ void tsdbUnTakeMemSnapShot(STsdbRepo *pRepo, SMemSnapshot *pSnapshot) {
         tsdbFreeTableData(pTableData);
       }
     }
-    tfree(pSnapshot->mem->tData);
+    taosMemoryFreeClear(pSnapshot->mem->tData);
 
     tsdbUnRefMemTable(pRepo, pSnapshot->omem);
   }
@@ -990,10 +990,10 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, STSRow* ro
     TSDB_WLOCK_TABLE(pTable); 
     SDataCol *pDataCol = &(pLatestCols[idx]);
     if (pDataCol->pData == NULL) {
-      pDataCol->pData = malloc(pTCol->bytes);
+      pDataCol->pData = taosMemoryMalloc(pTCol->bytes);
       pDataCol->bytes = pTCol->bytes;
     } else if (pDataCol->bytes < pTCol->bytes) {
-      pDataCol->pData = realloc(pDataCol->pData, pTCol->bytes);
+      pDataCol->pData = taosMemoryRealloc(pDataCol->pData, pTCol->bytes);
       pDataCol->bytes = pTCol->bytes;
     }
     // the actual value size

@@ -79,7 +79,7 @@ void scltInitLogFile() {
 
 void scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *slotId, bool newBlock, int32_t rows, SColumnInfo *colInfo) {
   if (newBlock) {
-    SSDataBlock *res = (SSDataBlock *)calloc(1, sizeof(SSDataBlock));
+    SSDataBlock *res = (SSDataBlock *)taosMemoryCalloc(1, sizeof(SSDataBlock));
     res->info.numOfCols = 1;
     res->info.rows = rows;
     res->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
@@ -114,7 +114,7 @@ void scltMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
   vnode->node.resType.type = dataType;
 
   if (IS_VAR_DATA_TYPE(dataType)) {
-    vnode->datum.p = (char *)malloc(varDataTLen(value));
+    vnode->datum.p = (char *)taosMemoryMalloc(varDataTLen(value));
     varDataCopy(vnode->datum.p, value);
     vnode->node.resType.bytes = varDataTLen(value);
   } else {
@@ -133,7 +133,7 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
   rnode->dataBlockId = 0;
 
   if (NULL == *block) {
-    SSDataBlock *res = (SSDataBlock *)calloc(1, sizeof(SSDataBlock));
+    SSDataBlock *res = (SSDataBlock *)taosMemoryCalloc(1, sizeof(SSDataBlock));
     res->info.numOfCols = 3;
     res->info.rows = rowNum;
     res->pDataBlock = taosArrayInit(3, sizeof(SColumnInfoData));
@@ -144,7 +144,7 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
       idata.info.colId = i + 1;
 
       int32_t size = idata.info.bytes * rowNum;
-      idata.pData = (char *)calloc(1, size);
+      idata.pData = (char *)taosMemoryCalloc(1, size);
       taosArrayPush(res->pDataBlock, &idata);
     }
 
@@ -153,7 +153,7 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     idata.info.bytes = dataBytes;
     idata.info.colId = 3;
     int32_t size = idata.info.bytes * rowNum;
-    idata.pData = (char *)calloc(1, size);
+    idata.pData = (char *)taosMemoryCalloc(1, size);
     taosArrayPush(res->pDataBlock, &idata);
     
     blockDataEnsureCapacity(res, rowNum);
@@ -181,7 +181,7 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     idata.info.bytes = dataBytes;
     idata.info.colId = 1 + idx;
     int32_t size = idata.info.bytes * rowNum;
-    idata.pData = (char *)calloc(1, size);
+    idata.pData = (char *)taosMemoryCalloc(1, size);
     taosArrayPush(res->pDataBlock, &idata);
     res->info.numOfCols++;
     SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);

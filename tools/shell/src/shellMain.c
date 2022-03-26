@@ -17,6 +17,7 @@
 #include "os.h"
 #include "shell.h"
 #include "tglobal.h"
+#include "tconfig.h"
 #include "shellCommand.h"
 #include "tbase64.h"
 #include "tlog.h"
@@ -32,6 +33,8 @@
 int indicator = 1;
 
 void insertChar(Command *cmd, char *c, int size);
+void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen,
+                 int32_t pkgNum, char *pkgType);
 const char *argp_program_version = version;
 const char *argp_program_bug_address = "<support@taosdata.com>";
 static char doc[] = "";
@@ -56,10 +59,11 @@ static struct argp_option options[] = {
   {"check",      'k', "CHECK",      0,                   "Check tables."},
   {"database",   'd', "DATABASE",   0,                   "Database to use when connecting to the server."},
   {"timezone",   'z', "TIMEZONE",   0,                   "Time zone of the shell, default is local."},
-  {"netrole",    'n', "NETROLE",    0,                   "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync|speen|fqdn."},
+  {"netrole",    'n', "NETROLE",    0,                   "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync|speed|fqdn."},
   {"pktlen",     'l', "PKTLEN",     0,                   "Packet length used for net test, default is 1000 bytes."},
   {"pktnum",     'N', "PKTNUM",     0,                   "Packet numbers used for net test, default is 100."},
-  {"pkttype",    'S', "PKTTYPE",    0,                   "Packet type used for net test, default is TCP."},
+// Shuduo: 3.0 does not support UDP any more
+//  {"pkttype",    'S', "PKTTYPE",    0,                   "Packet type used for net test, default is TCP."},
   {0}};
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
@@ -236,8 +240,8 @@ int32_t shellReadCommand(TAOS *con, char *command) {
   char utf8_array[10] = "\0";
   Command cmd;
   memset(&cmd, 0, sizeof(cmd));
-  cmd.buffer = (char *)calloc(1, MAX_COMMAND_SIZE);
-  cmd.command = (char *)calloc(1, MAX_COMMAND_SIZE);
+  cmd.buffer = (char *)taosMemoryCalloc(1, MAX_COMMAND_SIZE);
+  cmd.command = (char *)taosMemoryCalloc(1, MAX_COMMAND_SIZE);
   showOnScreen(&cmd);
 
   // Read input.
@@ -286,8 +290,8 @@ int32_t shellReadCommand(TAOS *con, char *command) {
           printf("\n");
           if (isReadyGo(&cmd)) {
             sprintf(command, "%s%s", cmd.buffer, cmd.command);
-            tfree(cmd.buffer);
-            tfree(cmd.command);
+            taosMemoryFreeClear(cmd.buffer);
+            taosMemoryFreeClear(cmd.command);
             return 0;
           } else {
             updateBuffer(&cmd);
@@ -401,7 +405,7 @@ void *shellLoopQuery(void *arg) {
 
   taosThreadCleanupPush(cleanup_handler, NULL);
 
-  char *command = malloc(MAX_COMMAND_SIZE);
+  char *command = taosMemoryMalloc(MAX_COMMAND_SIZE);
   if (command == NULL){
     uError("failed to malloc command");
     return NULL;
@@ -420,7 +424,7 @@ void *shellLoopQuery(void *arg) {
     resetTerminalMode();
   } while (shellRunCommand(con, command) == 0);
   
-  tfree(command);
+  taosMemoryFreeClear(command);
   exitShell();
 
   taosThreadCleanupPop(1);
@@ -463,7 +467,7 @@ void showOnScreen(Command *cmd) {
   int size = 0;
 
   // Print out the command.
-  char *total_string = malloc(MAX_COMMAND_SIZE);
+  char *total_string = taosMemoryMalloc(MAX_COMMAND_SIZE);
   memset(total_string, '\0', MAX_COMMAND_SIZE);
   if (strcmp(cmd->buffer, "") == 0) {
     sprintf(total_string, "%s%s", PROMPT_HEADER, cmd->command);
@@ -495,7 +499,7 @@ void showOnScreen(Command *cmd) {
     str = total_string + size;
   }
 
-  free(total_string);
+  taosMemoryFree(total_string);
   /* for (int i = 0; i < size; i++){ */
   /*     char c = total_string[i]; */
   /*     if (k % w.ws_col == 0) { */
@@ -616,29 +620,35 @@ int main(int argc, char *argv[]) {
 
   shellParseArgument(argc, argv, &args);
 
-#if 0
   if (args.dump_config) {
-    taosInitGlobalCfg();
-    taosReadGlobalLogCfg();
+    taosInitCfg(configDir, NULL, NULL, NULL, 1);
 
-    if (taosReadGlobalCfg() ! =0) {
-      printf("TDengine read global config failed");
+    SConfig *pCfg = taosGetCfg();
+    if (NULL == pCfg) {
+      printf("TDengine read global config failed!\n");
       exit(EXIT_FAILURE);
     }
-
-    taosDumpGlobalCfg();
+    cfgDumpCfg(pCfg, 0, 1);
     exit(0);
   }
 
   if (args.netTestRole && args.netTestRole[0] != 0) {
-    if (taos_init()) {
+    TAOS *con = NULL;
+    if (args.auth == NULL) {
+      con = taos_connect(args.host, args.user, args.password, args.database, args.port);
+    } else {
+      con = taos_connect_auth(args.host, args.user, args.auth, args.database, args.port);
+    }
+
+/*    if (taos_init()) {
       printf("Failed to init taos");
       exit(EXIT_FAILURE);
     }
+    */
     taosNetTest(args.netTestRole, args.host, args.port, args.pktLen, args.pktNum, args.pktType);
+    taos_close(con);
     exit(0);
   }
-#endif
 
   /* Initialize the shell */
   TAOS *con = shellInit(&args);

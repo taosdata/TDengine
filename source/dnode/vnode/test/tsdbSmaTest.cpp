@@ -51,12 +51,12 @@ TEST(testCase, unionEncodeDecodeTest) {
   sut.type = 1;
 
   sut.nBSmaCols = 2;
-  sut.pBSmaCols = (col_id_t*)malloc(sut.nBSmaCols * sizeof(col_id_t));
+  sut.pBSmaCols = (col_id_t*)taosMemoryMalloc(sut.nBSmaCols * sizeof(col_id_t));
   for (col_id_t i = 0; i < sut.nBSmaCols; ++i) {
     sut.pBSmaCols[i] = i + 100;
   }
 
-  void* buf = malloc(1024);
+  void* buf = taosMemoryMalloc(1024);
   void *  pBuf = buf;
   int32_t tlen = 0;
   tlen += taosEncodeFixedU8(&buf, sut.info);
@@ -69,7 +69,7 @@ TEST(testCase, unionEncodeDecodeTest) {
   pBuf = taosDecodeFixedU8(pBuf, &dut.info);
   pBuf = taosDecodeFixedI16(pBuf, &dut.nBSmaCols);
   if(dut.nBSmaCols > 0) {
-    dut.pBSmaCols = (col_id_t*)malloc(dut.nBSmaCols * sizeof(col_id_t));
+    dut.pBSmaCols = (col_id_t*)taosMemoryMalloc(dut.nBSmaCols * sizeof(col_id_t));
     for(col_id_t i=0; i < dut.nBSmaCols; ++i) {
       pBuf = taosDecodeFixedI16(pBuf, dut.pBSmaCols + i);
     }
@@ -98,14 +98,14 @@ TEST(testCase, tSma_Meta_Encode_Decode_Test) {
   tSma.slidingUnit = TIME_UNIT_HOUR;
   tSma.sliding = 0;
   tstrncpy(tSma.indexName, "sma_index_test", TSDB_INDEX_NAME_LEN);
-  tstrncpy(tSma.timezone, "Asia/Shanghai", TD_TIMEZONE_LEN);
+  tSma.timezoneInt = 8;
   tSma.indexUid = 2345678910;
   tSma.tableUid = 1234567890;
 
   STSmaWrapper tSmaWrapper = {.number = 1, .tSma = &tSma};
   uint32_t     bufLen = tEncodeTSmaWrapper(NULL, &tSmaWrapper);
 
-  void *buf = calloc(1, bufLen);
+  void *buf = taosMemoryCalloc(1, bufLen);
   ASSERT_NE(buf, nullptr);
 
   STSmaWrapper *pSW = (STSmaWrapper *)buf;
@@ -128,7 +128,7 @@ TEST(testCase, tSma_Meta_Encode_Decode_Test) {
     ASSERT_EQ(pSma->intervalUnit, qSma->intervalUnit);
     ASSERT_EQ(pSma->slidingUnit, qSma->slidingUnit);
     ASSERT_STRCASEEQ(pSma->indexName, qSma->indexName);
-    ASSERT_STRCASEEQ(pSma->timezone, qSma->timezone);
+    ASSERT_EQ(pSma->timezoneInt, qSma->timezoneInt);
     ASSERT_EQ(pSma->indexUid, qSma->indexUid);
     ASSERT_EQ(pSma->tableUid, qSma->tableUid);
     ASSERT_EQ(pSma->interval, qSma->interval);
@@ -140,7 +140,7 @@ TEST(testCase, tSma_Meta_Encode_Decode_Test) {
   }
 
   // resource release
-  tfree(pSW);
+  taosMemoryFreeClear(pSW);
   tdDestroyTSma(&tSma);
   tdDestroyTSmaWrapper(&dstTSmaWrapper);
 }
@@ -150,7 +150,7 @@ TEST(testCase, tSma_Meta_Encode_Decode_Test) {
 TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   const char *   smaIndexName1 = "sma_index_test_1";
   const char *   smaIndexName2 = "sma_index_test_2";
-  const char *   timezone = "Asia/Shanghai";
+  int8_t         timezone = 8;
   const char *   expr = "select count(a,b, top 20), from table interval 1d, sliding 1h;";
   const char *   tagsFilter = "I'm tags filter";
   const char *   smaTestDir = "./smaTest";
@@ -167,16 +167,16 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   tSma.sliding = 0;
   tSma.indexUid = indexUid1;
   tstrncpy(tSma.indexName, smaIndexName1, TSDB_INDEX_NAME_LEN);
-  tstrncpy(tSma.timezone, timezone, TD_TIMEZONE_LEN);
+  tSma.timezoneInt = 8;
   tSma.tableUid = tbUid;
 
   tSma.exprLen = strlen(expr);
-  tSma.expr = (char *)calloc(1, tSma.exprLen + 1);
+  tSma.expr = (char *)taosMemoryCalloc(1, tSma.exprLen + 1);
   ASSERT_NE(tSma.expr, nullptr);
   tstrncpy(tSma.expr, expr, tSma.exprLen + 1);
 
   tSma.tagsFilterLen = strlen(tagsFilter);
-  tSma.tagsFilter = (char *)calloc(tSma.tagsFilterLen + 1, 1);
+  tSma.tagsFilter = (char *)taosMemoryCalloc(tSma.tagsFilterLen + 1, 1);
   ASSERT_NE(tSma.tagsFilter, nullptr);
   tstrncpy(tSma.tagsFilter, tagsFilter, tSma.tagsFilterLen + 1);
 
@@ -207,24 +207,24 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   qSmaCfg = metaGetSmaInfoByIndex(pMeta, indexUid1);
   assert(qSmaCfg != NULL);
   printf("name1 = %s\n", qSmaCfg->indexName);
-  printf("timezone1 = %s\n", qSmaCfg->timezone);
+  printf("timezone1 = %" PRIi8 "\n", qSmaCfg->timezoneInt);
   printf("expr1 = %s\n", qSmaCfg->expr != NULL ? qSmaCfg->expr : "");
   printf("tagsFilter1 = %s\n", qSmaCfg->tagsFilter != NULL ? qSmaCfg->tagsFilter : "");
   ASSERT_STRCASEEQ(qSmaCfg->indexName, smaIndexName1);
   ASSERT_EQ(qSmaCfg->tableUid, tSma.tableUid);
   tdDestroyTSma(qSmaCfg);
-  tfree(qSmaCfg);
+  taosMemoryFreeClear(qSmaCfg);
 
   qSmaCfg = metaGetSmaInfoByIndex(pMeta, indexUid2);
   assert(qSmaCfg != NULL);
   printf("name2 = %s\n", qSmaCfg->indexName);
-  printf("timezone2 = %s\n", qSmaCfg->timezone);
+  printf("timezone2 = %" PRIi8 "\n", qSmaCfg->timezoneInt);
   printf("expr2 = %s\n", qSmaCfg->expr != NULL ? qSmaCfg->expr : "");
   printf("tagsFilter2 = %s\n", qSmaCfg->tagsFilter != NULL ? qSmaCfg->tagsFilter : "");
   ASSERT_STRCASEEQ(qSmaCfg->indexName, smaIndexName2);
   ASSERT_EQ(qSmaCfg->interval, tSma.interval);
   tdDestroyTSma(qSmaCfg);
-  tfree(qSmaCfg);
+  taosMemoryFreeClear(qSmaCfg);
 
   // get index name by table uid
   SMSmaCursor *pSmaCur = metaOpenSmaCursor(pMeta, tbUid);
@@ -246,20 +246,20 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   assert(pSW != NULL);
   ASSERT_EQ(pSW->number, nCntTSma);
   ASSERT_STRCASEEQ(pSW->tSma->indexName, smaIndexName1);
-  ASSERT_STRCASEEQ(pSW->tSma->timezone, timezone);
+  ASSERT_EQ(pSW->tSma->timezoneInt, timezone);
   ASSERT_STRCASEEQ(pSW->tSma->expr, expr);
   ASSERT_STRCASEEQ(pSW->tSma->tagsFilter, tagsFilter);
   ASSERT_EQ(pSW->tSma->indexUid, indexUid1);
   ASSERT_EQ(pSW->tSma->tableUid, tbUid);
   ASSERT_STRCASEEQ((pSW->tSma + 1)->indexName, smaIndexName2);
-  ASSERT_STRCASEEQ((pSW->tSma + 1)->timezone, timezone);
+  ASSERT_EQ((pSW->tSma + 1)->timezoneInt, timezone);
   ASSERT_STRCASEEQ((pSW->tSma + 1)->expr, expr);
   ASSERT_STRCASEEQ((pSW->tSma + 1)->tagsFilter, tagsFilter);
   ASSERT_EQ((pSW->tSma + 1)->indexUid, indexUid2);
   ASSERT_EQ((pSW->tSma + 1)->tableUid, tbUid);
 
   tdDestroyTSmaWrapper(pSW);
-  tfree(pSW);
+  taosMemoryFreeClear(pSW);
 
   // get all sma table uids
   SArray *pUids = metaGetSmaTbUids(pMeta, false);
@@ -272,8 +272,8 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   taosArrayDestroy(pUids);
 
   // resource release
-  metaRemoveSmaFromDb(pMeta, smaIndexName1);
-  metaRemoveSmaFromDb(pMeta, smaIndexName2);
+  metaRemoveSmaFromDb(pMeta, indexUid1);
+  metaRemoveSmaFromDb(pMeta, indexUid2);
 
   tdDestroyTSma(&tSma);
   metaClose(pMeta);
@@ -284,7 +284,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
 TEST(testCase, tSma_Data_Insert_Query_Test) {
   // step 1: prepare meta
   const char *   smaIndexName1 = "sma_index_test_1";
-  const char *   timezone = "Asia/Shanghai";
+  const int8_t   timezone = 8;
   const char *   expr = "select count(a,b, top 20), from table interval 1d, sliding 1h;";
   const char *   tagsFilter = "where tags.location='Beijing' and tags.district='ChaoYang'";
   const char *   smaTestDir = "./smaTest";
@@ -305,16 +305,16 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   tSma.sliding = 0;
   tSma.indexUid = indexUid1;
   tstrncpy(tSma.indexName, smaIndexName1, TSDB_INDEX_NAME_LEN);
-  tstrncpy(tSma.timezone, timezone, TD_TIMEZONE_LEN);
+  tSma.timezoneInt = timezone;
   tSma.tableUid = tbUid;
 
   tSma.exprLen = strlen(expr);
-  tSma.expr = (char *)calloc(1, tSma.exprLen + 1);
+  tSma.expr = (char *)taosMemoryCalloc(1, tSma.exprLen + 1);
   ASSERT_NE(tSma.expr, nullptr);
   tstrncpy(tSma.expr, expr, tSma.exprLen + 1);
 
   tSma.tagsFilterLen = strlen(tagsFilter);
-  tSma.tagsFilter = (char *)calloc(1, tSma.tagsFilterLen + 1);
+  tSma.tagsFilter = (char *)taosMemoryCalloc(1, tSma.tagsFilterLen + 1);
   ASSERT_NE(tSma.tagsFilter, nullptr);
   tstrncpy(tSma.tagsFilter, tagsFilter, tSma.tagsFilterLen + 1);
 
@@ -331,7 +331,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
 
   // step 2: insert data
   STSmaDataWrapper *pSmaData = NULL;
-  STsdb *           pTsdb = (STsdb *)calloc(1, sizeof(STsdb));
+  STsdb *           pTsdb = (STsdb *)taosMemoryCalloc(1, sizeof(STsdb));
   STsdbCfg *        pCfg = &pTsdb->config;
 
   pTsdb->pMeta = pMeta;
@@ -367,9 +367,9 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   pTsdb->pTfs = tfsOpen(&pDisks, numOfDisks);
   ASSERT_NE(pTsdb->pTfs, nullptr);
 
-  char *msg = (char *)calloc(1, 100);
+  char *msg = (char *)taosMemoryCalloc(1, 100);
   ASSERT_NE(msg, nullptr);
-  ASSERT_EQ(tsdbUpdateSmaWindow(pTsdb, TSDB_SMA_TYPE_TIME_RANGE, msg), 0);
+  ASSERT_EQ(tsdbUpdateSmaWindow(pTsdb, msg), 0);
 
   // init
   int32_t allocCnt = 0;
@@ -443,7 +443,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   printf("%s:%d The sma data check count for insert and query is %" PRIu32 "\n", __FILE__, __LINE__, checkDataCnt);
 
   // release data
-  tfree(msg);
+  taosMemoryFreeClear(msg);
   taosTZfree(buf);
   // release meta
   tdDestroyTSma(&tSma);

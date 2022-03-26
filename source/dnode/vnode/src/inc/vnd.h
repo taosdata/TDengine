@@ -55,6 +55,21 @@ typedef struct SVnodeMgr {
   TD_DLIST(SVnodeTask) queue;
 } SVnodeMgr;
 
+typedef struct {
+  int8_t  streamType;  // sma or other
+  int8_t  dstType;
+  int16_t padding;
+  int32_t smaId;
+  int64_t tbUid;
+  int64_t lastReceivedVer;
+  int64_t lastCommittedVer;
+} SStreamSinkInfo;
+
+typedef struct {
+  SVnode*   pVnode;
+  SHashObj* pHash;  // streamId -> SStreamSinkInfo
+} SSink;
+
 extern SVnodeMgr vnodeMgr;
 
 // SVState
@@ -72,8 +87,9 @@ struct SVnode {
   SVBufPool* pBufPool;
   SMeta*     pMeta;
   STsdb*     pTsdb;
-  STQ*       pTq;
   SWal*      pWal;
+  STQ*       pTq;
+  SSink*     pSink;
   tsem_t     canCommit;
   SQHandle*  pQuery;
   SMsgCb     msgCb;
@@ -81,12 +97,6 @@ struct SVnode {
 };
 
 int vnodeScheduleTask(SVnodeTask* task);
-
-int32_t vnodePutToVQueryQ(SVnode* pVnode, struct SRpcMsg* pReq);
-int32_t vnodePutToVFetchQ(SVnode* pVnode, struct SRpcMsg* pReq);
-int32_t vnodeSendReq(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pReq);
-int32_t vnodeSendMnodeReq(SVnode* pVnode, struct SRpcMsg* pReq);
-void    vnodeSendRsp(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pRsp);
 
 #define vFatal(...)                                              \
   do {                                                           \
@@ -177,19 +187,20 @@ int  tqInit();
 void tqCleanUp();
 
 // open in each vnode
-STQ* tqOpen(const char* path, SWal* pWal, SMeta* pMeta, STqCfg* tqConfig, SMemAllocatorFactory* allocFac);
+STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pMeta, STqCfg* tqConfig,
+            SMemAllocatorFactory* allocFac);
 void tqClose(STQ*);
 
 // required by vnode
-int tqPushMsg(STQ*, void* msg, tmsg_t msgType, int64_t version);
+int tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t version);
 int tqCommit(STQ*);
 
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
 int32_t tqProcessRebReq(STQ* pTq, char* msg);
 int32_t tqProcessTaskExec(STQ* pTq, SRpcMsg* msg);
-
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
+int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen);
 
 #ifdef __cplusplus
 }

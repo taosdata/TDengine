@@ -39,29 +39,29 @@ static int32_t dndInitMemory(SDnode *pDnode, const SDnodeOpt *pOption) {
 static void dndClearMemory(SDnode *pDnode) {
   for (ENodeType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pMgmt = &pDnode->wrappers[n];
-    tfree(pMgmt->path);
+    taosMemoryFreeClear(pMgmt->path);
   }
   if (pDnode->pLockFile != NULL) {
     taosUnLockFile(pDnode->pLockFile);
     taosCloseFile(&pDnode->pLockFile);
     pDnode->pLockFile = NULL;
   }
-  tfree(pDnode->localEp);
-  tfree(pDnode->localFqdn);
-  tfree(pDnode->firstEp);
-  tfree(pDnode->secondEp);
-  tfree(pDnode->dataDir);
-  free(pDnode);
+  taosMemoryFreeClear(pDnode->localEp);
+  taosMemoryFreeClear(pDnode->localFqdn);
+  taosMemoryFreeClear(pDnode->firstEp);
+  taosMemoryFreeClear(pDnode->secondEp);
+  taosMemoryFreeClear(pDnode->dataDir);
+  taosMemoryFree(pDnode);
   dDebug("dnode object memory is cleared, data:%p", pDnode);
 }
 
 SDnode *dndCreate(const SDnodeOpt *pOption) {
   dInfo("start to create dnode object");
   int32_t code = -1;
-  char    path[PATH_MAX];
+  char    path[PATH_MAX] = {0};
   SDnode *pDnode = NULL;
 
-  pDnode = calloc(1, sizeof(SDnode));
+  pDnode = taosMemoryCalloc(1, sizeof(SDnode));
   if (pDnode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
@@ -117,6 +117,7 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
 _OVER:
   if (code != 0 && pDnode) {
     dndClearMemory(pDnode);
+    pDnode = NULL;
     dError("failed to create dnode object since %s", terrstr());
   } else {
     dInfo("dnode object is created, data:%p", pDnode);

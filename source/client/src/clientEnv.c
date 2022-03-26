@@ -115,11 +115,11 @@ void destroyTscObj(void *pObj) {
   atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
   tscDebug("connObj 0x%" PRIx64 " destroyed, totalConn:%" PRId64, pTscObj->id, pTscObj->pAppInfo->numOfConns);
   taosThreadMutexDestroy(&pTscObj->mutex);
-  tfree(pTscObj);
+  taosMemoryFreeClear(pTscObj);
 }
 
 void *createTscObj(const char *user, const char *auth, const char *db, SAppInstInfo *pAppInfo) {
-  STscObj *pObj = (STscObj *)calloc(1, sizeof(STscObj));
+  STscObj *pObj = (STscObj *)taosMemoryCalloc(1, sizeof(STscObj));
   if (NULL == pObj) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
@@ -143,7 +143,7 @@ void *createTscObj(const char *user, const char *auth, const char *db, SAppInstI
 void *createRequest(STscObj *pObj, __taos_async_fn_t fp, void *param, int32_t type) {
   assert(pObj != NULL);
 
-  SRequestObj *pRequest = (SRequestObj *)calloc(1, sizeof(SRequestObj));
+  SRequestObj *pRequest = (SRequestObj *)taosMemoryCalloc(1, sizeof(SRequestObj));
   if (NULL == pRequest) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
@@ -156,7 +156,7 @@ void *createRequest(STscObj *pObj, __taos_async_fn_t fp, void *param, int32_t ty
   pRequest->type = type;
   pRequest->pTscObj = pObj;
   pRequest->body.fp = fp;  // not used it yet
-  pRequest->msgBuf = calloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
+  pRequest->msgBuf = taosMemoryCalloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
   tsem_init(&pRequest->body.rspSem, 0, 0);
 
   registerRequest(pRequest);
@@ -164,11 +164,18 @@ void *createRequest(STscObj *pObj, __taos_async_fn_t fp, void *param, int32_t ty
 }
 
 static void doFreeReqResultInfo(SReqResultInfo *pResInfo) {
-  tfree(pResInfo->pRspMsg);
-  tfree(pResInfo->length);
-  tfree(pResInfo->row);
-  tfree(pResInfo->pCol);
-  tfree(pResInfo->fields);
+  taosMemoryFreeClear(pResInfo->pRspMsg);
+  taosMemoryFreeClear(pResInfo->length);
+  taosMemoryFreeClear(pResInfo->row);
+  taosMemoryFreeClear(pResInfo->pCol);
+  taosMemoryFreeClear(pResInfo->fields);
+
+  if (pResInfo->convertBuf != NULL) {
+    for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
+      taosMemoryFreeClear(pResInfo->convertBuf[i]);
+    }
+    taosMemoryFreeClear(pResInfo->convertBuf);
+  }
 }
 
 static void doDestroyRequest(void *p) {
@@ -177,10 +184,10 @@ static void doDestroyRequest(void *p) {
 
   assert(RID_VALID(pRequest->self));
 
-  tfree(pRequest->msgBuf);
-  tfree(pRequest->sqlstr);
-  tfree(pRequest->pInfo);
-  tfree(pRequest->pDb);
+  taosMemoryFreeClear(pRequest->msgBuf);
+  taosMemoryFreeClear(pRequest->sqlstr);
+  taosMemoryFreeClear(pRequest->pInfo);
+  taosMemoryFreeClear(pRequest->pDb);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
   qDestroyQueryPlan(pRequest->body.pDag);
@@ -190,7 +197,7 @@ static void doDestroyRequest(void *p) {
   }
 
   deregisterRequest(pRequest);
-  tfree(pRequest);
+  taosMemoryFreeClear(pRequest);
 }
 
 void destroyRequest(SRequestObj *pRequest) {
@@ -349,7 +356,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
             tscInfo("charset:%s is not valid in locale, charset remains:%s", charset, tsCharset);
           }
 
-          free(charset);
+          taosMemoryFree(charset);
         } else {  // it may be windows system
           tscInfo("charset remains:%s", tsCharset);
         }

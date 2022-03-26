@@ -47,8 +47,8 @@ void setBoundColumnInfo(SParsedDataColInfo* pColList, SSchema* pSchema, int32_t 
   pColList->numOfCols = numOfCols;
   pColList->numOfBound = numOfCols;
   pColList->orderStatus = ORDER_STATUS_ORDERED;  // default is ORDERED for non-bound mode
-  pColList->boundedColumns = calloc(pColList->numOfCols, sizeof(int32_t));
-  pColList->cols = calloc(pColList->numOfCols, sizeof(SBoundColumn));
+  pColList->boundedColumns = taosMemoryCalloc(pColList->numOfCols, sizeof(int32_t));
+  pColList->cols = taosMemoryCalloc(pColList->numOfCols, sizeof(SBoundColumn));
   pColList->colIdxInfo = NULL;
   pColList->flen = 0;
   pColList->allNullLen = 0;
@@ -103,14 +103,14 @@ int32_t boundIdxCompar(const void *lhs, const void *rhs) {
 }
 
 void destroyBoundColumnInfo(SParsedDataColInfo* pColList) {
-  tfree(pColList->boundedColumns);
-  tfree(pColList->cols);
-  tfree(pColList->colIdxInfo);
+  taosMemoryFreeClear(pColList->boundedColumns);
+  taosMemoryFreeClear(pColList->cols);
+  taosMemoryFreeClear(pColList->colIdxInfo);
 }
 
 static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t startOffset,
                            const STableMeta* pTableMeta, STableDataBlocks** dataBlocks) {
-  STableDataBlocks* dataBuf = (STableDataBlocks*)calloc(1, sizeof(STableDataBlocks));
+  STableDataBlocks* dataBuf = (STableDataBlocks*)taosMemoryCalloc(1, sizeof(STableDataBlocks));
   if (dataBuf == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -123,9 +123,9 @@ static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t star
     dataBuf->nAllocSize = dataBuf->headerSize * 2;
   }
 
-  dataBuf->pData = malloc(dataBuf->nAllocSize);
+  dataBuf->pData = taosMemoryMalloc(dataBuf->nAllocSize);
   if (dataBuf->pData == NULL) {
-    tfree(dataBuf);
+    taosMemoryFreeClear(dataBuf);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   memset(dataBuf->pData, 0, sizeof(SSubmitBlk));
@@ -141,7 +141,6 @@ static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t star
   dataBuf->prevTS   = INT64_MIN;
   dataBuf->rowSize  = rowSize;
   dataBuf->size     = startOffset;
-  dataBuf->tsSource = -1;
   dataBuf->vgId     = dataBuf->pTableMeta->vgId;
 
   assert(defaultSize > 0 && pTableMeta != NULL && dataBuf->pTableMeta != NULL);
@@ -191,16 +190,16 @@ static void destroyDataBlock(STableDataBlocks* pDataBlock) {
     return;
   }
 
-  tfree(pDataBlock->pData);
+  taosMemoryFreeClear(pDataBlock->pData);
   if (!pDataBlock->cloned) {
     // free the refcount for metermeta
     if (pDataBlock->pTableMeta != NULL) {
-      tfree(pDataBlock->pTableMeta);
+      taosMemoryFreeClear(pDataBlock->pTableMeta);
     }
 
     destroyBoundColumnInfo(&pDataBlock->boundColumnInfo);
   }
-  tfree(pDataBlock);
+  taosMemoryFreeClear(pDataBlock);
 }
 
 void destroyBlockArrayList(SArray* pDataBlockList) {
@@ -284,7 +283,7 @@ int sortRemoveDataBlockDupRows(STableDataBlocks *dataBuf, SBlockKeyInfo *pBlkKey
   // allocate memory
   size_t nAlloc = nRows * sizeof(SBlockKeyTuple);
   if (pBlkKeyInfo->pKeyTuple == NULL || pBlkKeyInfo->maxBytesAlloc < nAlloc) {
-    char *tmp = realloc(pBlkKeyInfo->pKeyTuple, nAlloc);
+    char *tmp = taosMemoryRealloc(pBlkKeyInfo->pKeyTuple, nAlloc);
     if (tmp == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
@@ -434,7 +433,7 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t 
       if (ret != TSDB_CODE_SUCCESS) {
         taosHashCleanup(pVnodeDataBlockHashList);
         destroyBlockArrayList(pVnodeDataBlockList);
-        tfree(blkKeyInfo.pKeyTuple);
+        taosMemoryFreeClear(blkKeyInfo.pKeyTuple);
         return ret;
       }
 
@@ -445,14 +444,14 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t 
 
       if (dataBuf->nAllocSize < destSize) {
         dataBuf->nAllocSize = (uint32_t)(destSize * 1.5);
-        char* tmp = realloc(dataBuf->pData, dataBuf->nAllocSize);
+        char* tmp = taosMemoryRealloc(dataBuf->pData, dataBuf->nAllocSize);
         if (tmp != NULL) {
           dataBuf->pData = tmp;
         } else {  // failed to allocate memory, free already allocated memory and return error code
           taosHashCleanup(pVnodeDataBlockHashList);
           destroyBlockArrayList(pVnodeDataBlockList);
-          tfree(dataBuf->pData);
-          tfree(blkKeyInfo.pKeyTuple);
+          taosMemoryFreeClear(dataBuf->pData);
+          taosMemoryFreeClear(blkKeyInfo.pKeyTuple);
           return TSDB_CODE_TSC_OUT_OF_MEMORY;
         }
       }
@@ -463,8 +462,8 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t 
         if ((code = sortRemoveDataBlockDupRows(pOneTableBlock, &blkKeyInfo)) != 0) {
           taosHashCleanup(pVnodeDataBlockHashList);
           destroyBlockArrayList(pVnodeDataBlockList);
-          tfree(dataBuf->pData);
-          tfree(blkKeyInfo.pKeyTuple);
+          taosMemoryFreeClear(dataBuf->pData);
+          taosMemoryFreeClear(blkKeyInfo.pKeyTuple);
           return code;
         }
         ASSERT(blkKeyInfo.pKeyTuple != NULL && pBlocks->numOfRows > 0);
@@ -493,7 +492,7 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t 
 
   // free the table data blocks;
   taosHashCleanup(pVnodeDataBlockHashList);
-  tfree(blkKeyInfo.pKeyTuple);
+  taosMemoryFreeClear(blkKeyInfo.pKeyTuple);
   *pVgDataBlocks = pVnodeDataBlockList;
   return TSDB_CODE_SUCCESS;
 }
@@ -510,7 +509,7 @@ int32_t allocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t
       remain = pDataBlock->nAllocSize - pDataBlock->size;
     }
 
-    char *tmp = realloc(pDataBlock->pData, (size_t)pDataBlock->nAllocSize);
+    char *tmp = taosMemoryRealloc(pDataBlock->pData, (size_t)pDataBlock->nAllocSize);
     if (tmp != NULL) {
       pDataBlock->pData = tmp;
       memset(pDataBlock->pData + pDataBlock->size, 0, pDataBlock->nAllocSize - pDataBlock->size);

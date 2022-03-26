@@ -58,6 +58,7 @@ typedef struct {
 	int32_t totalRowsOfPerTbl;
 	int64_t startTimestamp;
 	int32_t showMsgFlag;
+	int32_t simCase;
 	
 	int32_t totalRowsOfT2;
 } SConfInfo;
@@ -66,7 +67,7 @@ static SConfInfo g_stConfInfo = {
     "tmqdb",
     "stb",
     "./tmqResult.txt",	// output_file
-    "/data2/dnode/data/vnodes/vnode2/wal",
+    "/data2/dnode/data/vnode/vnode2/wal",
     1, // threads
     1, // tables
     1, // vgroups
@@ -77,6 +78,7 @@ static SConfInfo g_stConfInfo = {
     10000, // total rows for per table
     0,  // 2020-01-01 00:00:00.000
     0,  // show consume msg switch
+    0,  // if run in sim case
     10000,
 };
 
@@ -117,6 +119,8 @@ static void printHelp() {
   printf("%s%s%s%" PRId64 "\n", indent, indent, "startTimestamp, default is ", g_stConfInfo.startTimestamp);
   printf("%s%s\n", indent, "-g");
   printf("%s%s%s%d\n", indent, indent, "showMsgFlag, default is ", g_stConfInfo.showMsgFlag);
+  printf("%s%s\n", indent, "-sim");
+  printf("%s%s%s%d\n", indent, indent, "simCase, default is ", g_stConfInfo.simCase);
 
   exit(EXIT_SUCCESS);
 }
@@ -160,14 +164,17 @@ void parseArgument(int32_t argc, char *argv[]) {
       g_stConfInfo.startTimestamp = atol(argv[++i]);
     } else if (strcmp(argv[i], "-g") == 0) {
       g_stConfInfo.showMsgFlag = atol(argv[++i]);
+    } else if (strcmp(argv[i], "-sim") == 0) {
+      g_stConfInfo.simCase = atol(argv[++i]);
     } else {
-      pPrint("%s unknow para: %s %s", GREEN, argv[++i], NC);
+      printf("%s unknow para: %s %s", GREEN, argv[++i], NC);
 	  exit(-1);
     }
   }
 
   g_stConfInfo.totalRowsOfT2 = g_stConfInfo.totalRowsOfPerTbl * g_stConfInfo.ratio;
 
+#if 0
   pPrint("%s configDir:%s %s", GREEN, configDir, NC);
   pPrint("%s dbName:%s %s", GREEN, g_stConfInfo.dbName, NC);
   pPrint("%s stbName:%s %s", GREEN, g_stConfInfo.stbName, NC);
@@ -184,6 +191,7 @@ void parseArgument(int32_t argc, char *argv[]) {
   pPrint("%s totalRowsOfT2:%d %s", GREEN, g_stConfInfo.totalRowsOfT2, NC);
   pPrint("%s startTimestamp:%" PRId64" %s", GREEN, g_stConfInfo.startTimestamp, NC);
   pPrint("%s showMsgFlag:%d %s", GREEN, g_stConfInfo.showMsgFlag, NC);
+#endif  
 }
 
 static int  running = 1;
@@ -267,7 +275,7 @@ int32_t init_env() {
   taos_free_result(pRes);
 
   // create row value
-  g_pRowValue = (char*)calloc(1, g_stConfInfo.numOfColumn * 16 + 128);
+  g_pRowValue = (char*)taosMemoryCalloc(1, g_stConfInfo.numOfColumn * 16 + 128);
   if (NULL == g_pRowValue) {
     return -1;
   }
@@ -429,15 +437,21 @@ void perf_loop(tmq_t* tmq, tmq_list_t* topics, int32_t totalMsgs, int64_t walLog
   double consumeTime = (double)(endTime - startTime) / 1000000;
 
   if (batchCnt != totalMsgs) {
-	pPrint("%s inserted msgs: %d and consume msgs: %d mismatch %s", GREEN, totalMsgs, batchCnt, NC);
+	printf("%s inserted msgs: %d and consume msgs: %d mismatch %s", GREEN, totalMsgs, batchCnt, NC);
+	exit(-1);
   }
 
-  pPrint("consume result: msgs: %d, skip log cnt: %d, time used:%.3f second\n", batchCnt, skipLogNum, consumeTime);
+  if (0 == g_stConfInfo.simCase) {
+    printf("consume result: msgs: %d, skip log cnt: %d, time used:%.3f second\n", batchCnt, skipLogNum, consumeTime);
+  } else {
+    printf("{consume success: %d}", totalMsgs);
+  }
   taosFprintfFile(g_fp, "|%10d    |   %10.3f    |  %8.2f  |  %10.2f|    %10.2f    |\n", batchCnt, consumeTime, (double)batchCnt / consumeTime, (double)walLogSize / (1024 * 1024.0) / consumeTime, (double)walLogSize / 1024.0 / batchCnt);
 
   err = tmq_consumer_close(tmq);
   if (err) {
     fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(err));
+	exit(-1);
   }
 }
 
@@ -458,7 +472,7 @@ int32_t syncWriteData() {
   taos_free_result(pRes);
 
   char* buffer = NULL;
-  buffer = (char*)malloc(MAX_SQL_STR_LEN);
+  buffer = (char*)taosMemoryMalloc(MAX_SQL_STR_LEN);
   if (NULL == buffer) {
     return -1;
   }
@@ -491,7 +505,7 @@ int32_t syncWriteData() {
       int code = queryDB(pConn, buffer);
 	  if (0 != code){
         fprintf(stderr, "insert data error!\n");
-		tfree(buffer);
+		taosMemoryFreeClear(buffer);
 	    return -1;
 	  }
 
@@ -503,7 +517,7 @@ int32_t syncWriteData() {
       }
     }
   }
-  tfree(buffer);
+  taosMemoryFreeClear(buffer);
   return totalMsgs;
 }
 
@@ -525,7 +539,7 @@ int32_t syncWriteDataByRatio() {
   taos_free_result(pRes);
 
   char* buffer = NULL;
-  buffer = (char*)malloc(MAX_SQL_STR_LEN);
+  buffer = (char*)taosMemoryMalloc(MAX_SQL_STR_LEN);
   if (NULL == buffer) {
     return -1;
   }
@@ -583,7 +597,7 @@ int32_t syncWriteDataByRatio() {
       int code = queryDB(pConn, buffer);
 	  if (0 != code){
         fprintf(stderr, "insert data error!\n");
-		tfree(buffer);
+		taosMemoryFreeClear(buffer);
 	    return -1;
 	  }
 	  
@@ -597,7 +611,7 @@ int32_t syncWriteDataByRatio() {
     }
   }
   pPrint("expect insert rows: T1[%d] T2[%d], actual insert rows: T1[%d] T2[%d]\n", g_stConfInfo.totalRowsOfPerTbl, g_stConfInfo.totalRowsOfT2, insertedOfT1, insertedOfT2);
-  tfree(buffer);
+  taosMemoryFreeClear(buffer);
   return totalMsgs;
 }
 
@@ -679,12 +693,17 @@ int main(int32_t argc, char *argv[]) {
 	
 	walLogSize = getDirectorySize(g_stConfInfo.vnodeWalPath);
 	if (walLogSize <= 0) {
-	  pError("vnode2/wal size incorrect!");
+	  printf("vnode2/wal size incorrect!");
+	  exit(-1);
 	} else {
-	  pPrint(".log file size in vnode2/wal: %.3f MBytes\n", (double)walLogSize/(1024 * 1024.0));
+	  if (0 == g_stConfInfo.simCase) {	
+	    pPrint(".log file size in vnode2/wal: %.3f MBytes\n", (double)walLogSize/(1024 * 1024.0));
+	  }
 	}
-	
-	pPrint("insert result: %d rows, %d msgs, time:%.3f sec, speed:%.1f rows/second, %.1f msgs/second\n", totalRows, totalMsgs, seconds, rowsSpeed, msgsSpeed);
+
+	if (0 == g_stConfInfo.simCase) {
+	  pPrint("insert result: %d rows, %d msgs, time:%.3f sec, speed:%.1f rows/second, %.1f msgs/second\n", totalRows, totalMsgs, seconds, rowsSpeed, msgsSpeed);
+    }
 	taosFprintfFile(g_fp, "|%10d   |   %10.3f   |  %8.2f  |   %10.3f   ", totalMsgs, seconds, msgsSpeed, (double)walLogSize/(1024 * 1024.0));
   }
 
@@ -700,7 +719,7 @@ int main(int32_t argc, char *argv[]) {
   
   perf_loop(tmq, topic_list, totalMsgs, walLogSize);
 
-  tfree(g_pRowValue);
+  taosMemoryFreeClear(g_pRowValue);
   taosFprintfFile(g_fp, "\n");  
   taosCloseFile(&g_fp);  
   return 0;

@@ -481,7 +481,7 @@ SNode* createRawExprNodeExt(SAstCreateContext* pCxt, const SToken* pStart, const
 SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
   CHECK_RAW_EXPR_NODE(pNode);
   SNode* tmp = ((SRawExprNode*)pNode)->pNode;
-  tfree(pNode);
+  taosMemoryFreeClear(pNode);
   return tmp;
 }
 
@@ -679,11 +679,11 @@ SNode* createOrderByExprNode(SAstCreateContext* pCxt, SNode* pExpr, EOrder order
   return (SNode*)orderByExpr;
 }
 
-SNode* createSessionWindowNode(SAstCreateContext* pCxt, SNode* pCol, const SToken* pVal) {
+SNode* createSessionWindowNode(SAstCreateContext* pCxt, SNode* pCol, SNode* pGap) {
   SSessionWindowNode* session = (SSessionWindowNode*)nodesMakeNode(QUERY_NODE_SESSION_WINDOW);
   CHECK_OUT_OF_MEM(session);
   session->pCol = pCol;
-  // session->gap = getInteger(pVal);
+  session->pGap = pGap;
   return (SNode*)session;
 }
 
@@ -1160,13 +1160,14 @@ SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const
   return (SNode*)pStmt;
 }
 
-SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, SToken* pIndexName, SToken* pTableName, SNodeList* pCols, SNode* pOptions) {
+SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool ignoreExists, SToken* pIndexName, SToken* pTableName, SNodeList* pCols, SNode* pOptions) {
   if (!checkIndexName(pCxt, pIndexName) || !checkTableName(pCxt, pTableName)) {
     return NULL;
   }
   SCreateIndexStmt* pStmt = nodesMakeNode(QUERY_NODE_CREATE_INDEX_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->indexType = type;
+  pStmt->ignoreExists = ignoreExists;
   strncpy(pStmt->indexName, pIndexName->z, pIndexName->n);
   strncpy(pStmt->tableName, pTableName->z, pTableName->n);
   pStmt->pCols = pCols;
@@ -1184,12 +1185,13 @@ SNode* createIndexOption(SAstCreateContext* pCxt, SNodeList* pFuncs, SNode* pInt
   return (SNode*)pOptions;
 }
 
-SNode* createDropIndexStmt(SAstCreateContext* pCxt, SToken* pIndexName, SToken* pTableName) {
+SNode* createDropIndexStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pIndexName, SToken* pTableName) {
   if (!checkIndexName(pCxt, pIndexName) || !checkTableName(pCxt, pTableName)) {
     return NULL;
   }
   SDropIndexStmt* pStmt = nodesMakeNode(QUERY_NODE_DROP_INDEX_STMT);
   CHECK_OUT_OF_MEM(pStmt);
+  pStmt->ignoreNotExists = ignoreNotExists;
   strncpy(pStmt->indexName, pIndexName->z, pIndexName->n);
   strncpy(pStmt->tableName, pTableName->z, pTableName->n);
   return (SNode*)pStmt;

@@ -14,6 +14,7 @@ sql insert into tb1 values (now, 1);
 
 sql show stables
 if $rows != 1 then 
+  print $rows
   return -1
 endi
 

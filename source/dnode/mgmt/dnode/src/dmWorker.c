@@ -114,6 +114,7 @@ int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
     return -1;
   }
 
+  dDebug("dnode workers are initialized");
   return 0;
 }
 
@@ -136,6 +137,7 @@ void dmStopWorker(SDnodeMgmt *pMgmt) {
     taosDestoryThread(pMgmt->threadId);
     pMgmt->threadId = NULL;
   }
+  dDebug("dnode workers are closed");
 }
 
 int32_t dmProcessMgmtMsg(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
@@ -144,6 +146,6 @@ int32_t dmProcessMgmtMsg(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
     pWorker = &pMgmt->statusWorker;
   }
 
-  dTrace("msg:%p, will be written to worker %s", pMsg, pWorker->name);
+  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   return taosWriteQitem(pWorker->queue, pMsg);
 }

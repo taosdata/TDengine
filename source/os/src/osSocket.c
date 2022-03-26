@@ -47,9 +47,6 @@
 #endif
 #endif
 
-typedef int32_t SocketFd;
-typedef SocketFd  EpollFd;
-
 typedef struct TdSocketServer {
 #if SOCKET_WITH_LOCK
   TdThreadRwlock rwlock;
@@ -57,14 +54,6 @@ typedef struct TdSocketServer {
   int      refId;
   SocketFd fd;
 } *TdSocketServerPtr, TdSocketServer;
-
-typedef struct TdSocket {
-#if SOCKET_WITH_LOCK
-  TdThreadRwlock rwlock;
-#endif
-  int      refId;
-  SocketFd fd;
-} *TdSocketPtr, TdSocket;
 
 typedef struct TdEpoll {
 #if SOCKET_WITH_LOCK
@@ -128,7 +117,7 @@ int32_t taosCloseSocket(TdSocketPtr *ppSocket) {
   }
   code = taosCloseSocketNoCheck1((*ppSocket)->fd);
   (*ppSocket)->fd = -1;
-  free(*ppSocket);
+  taosMemoryFree(*ppSocket);
   return code;
 }
 int32_t taosCloseSocketServer(TdSocketServerPtr *ppSocketServer) {
@@ -138,7 +127,7 @@ int32_t taosCloseSocketServer(TdSocketServerPtr *ppSocketServer) {
   }
   code = taosCloseSocketNoCheck1((*ppSocketServer)->fd);
   (*ppSocketServer)->fd = -1;
-  free(*ppSocketServer);
+  taosMemoryFree(*ppSocketServer);
   return code;
 }
 
@@ -451,7 +440,7 @@ TdSocketPtr taosOpenUdpSocket(uint32_t ip, uint16_t port) {
     return NULL;
   }
 
-  TdSocketPtr pSocket = (TdSocketPtr)malloc(sizeof(TdSocket));
+  TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
   if (pSocket == NULL) {
     taosCloseSocketNoCheck1(fd);
     return NULL;
@@ -495,7 +484,7 @@ TdSocketPtr taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t
     return NULL;
   }
 
-  TdSocketPtr pSocket = (TdSocketPtr)malloc(sizeof(TdSocket));
+  TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
   if (pSocket == NULL) {
     taosCloseSocketNoCheck1(fd);
     return NULL;
@@ -665,7 +654,7 @@ TdSocketServerPtr taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
     return NULL;
   }
 
-  TdSocketPtr pSocket = (TdSocketPtr)malloc(sizeof(TdSocket));
+  TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
   if (pSocket == NULL) {
     taosCloseSocketNoCheck1(fd);
     return NULL;
@@ -714,7 +703,7 @@ TdSocketPtr taosAcceptTcpConnectSocket(TdSocketServerPtr pServerSocket, struct s
     return NULL;
   }
 
-  TdSocketPtr pSocket = (TdSocketPtr)malloc(sizeof(TdSocket));
+  TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
   if (pSocket == NULL) {
     taosCloseSocketNoCheck1(fd);
     return NULL;
@@ -912,7 +901,7 @@ TdEpollPtr taosCreateEpoll(int32_t size) {
     return NULL;
   }
 
-  TdEpollPtr pEpoll = (TdEpollPtr)malloc(sizeof(TdEpoll));
+  TdEpollPtr pEpoll = (TdEpollPtr)taosMemoryMalloc(sizeof(TdEpoll));
   if (pEpoll == NULL) {
     taosCloseSocketNoCheck1(fd);
     return NULL;
@@ -950,6 +939,6 @@ int32_t taosCloseEpoll(TdEpollPtr *ppEpoll) {
   }
   code = taosCloseSocketNoCheck1((*ppEpoll)->fd);
   (*ppEpoll)->fd = -1;
-  free(*ppEpoll);
+  taosMemoryFree(*ppEpoll);
   return code;
 }

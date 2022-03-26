@@ -58,8 +58,8 @@ int32_t initResultRowInfo(SResultRowInfo *pResultRowInfo, int32_t size) {
   pResultRowInfo->curPos  = -1;
   pResultRowInfo->capacity = size;
 
-  pResultRowInfo->pResult = calloc(pResultRowInfo->capacity, POINTER_BYTES);
-  pResultRowInfo->pPosition = calloc(pResultRowInfo->capacity, sizeof(SResultRowPosition));
+  pResultRowInfo->pResult = taosMemoryCalloc(pResultRowInfo->capacity, POINTER_BYTES);
+  pResultRowInfo->pPosition = taosMemoryCalloc(pResultRowInfo->capacity, sizeof(SResultRowPosition));
   if (pResultRowInfo->pResult == NULL || pResultRowInfo->pPosition == NULL) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
@@ -79,11 +79,11 @@ void cleanupResultRowInfo(SResultRowInfo *pResultRowInfo) {
 
   for(int32_t i = 0; i < pResultRowInfo->size; ++i) {
     if (pResultRowInfo->pResult[i]) {
-      tfree(pResultRowInfo->pResult[i]->key);
+      taosMemoryFreeClear(pResultRowInfo->pResult[i]->key);
     }
   }
   
-  tfree(pResultRowInfo->pResult);
+  taosMemoryFreeClear(pResultRowInfo->pResult);
 }
 
 void resetResultRowInfo(STaskRuntimeEnv *pRuntimeEnv, SResultRowInfo *pResultRowInfo) {
@@ -163,7 +163,7 @@ void clearResultRow(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow) {
   pResultRow->offset = -1;
   pResultRow->closed = false;
 
-  tfree(pResultRow->key);
+  taosMemoryFreeClear(pResultRow->key);
   pResultRow->win = TSWINDOW_INITIALIZER;
 }
 
@@ -190,7 +190,7 @@ SResultRow* getNewResultRow(SResultRowPool* p) {
 
   void* ptr = NULL;
   if (p->position.pos == 0) {
-    ptr = calloc(1, p->blockSize);
+    ptr = taosMemoryCalloc(1, p->blockSize);
     taosArrayPush(p->pData, &ptr);
 
   } else {
@@ -403,8 +403,8 @@ static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(STaskRuntimeEnv *pRuntimeEnv
     pGroupResInfo->pRows = taosArrayInit(100, POINTER_BYTES);
   }
 
-  posList = calloc(size, sizeof(int32_t));
-  pTableQueryInfoList = malloc(POINTER_BYTES * size);
+  posList = taosMemoryCalloc(size, sizeof(int32_t));
+  pTableQueryInfoList = taosMemoryMalloc(POINTER_BYTES * size);
 
   if (pTableQueryInfoList == NULL || posList == NULL || pGroupResInfo->pRows == NULL || pGroupResInfo->pRows == NULL) {
 //    qError("QInfo:%"PRIu64" failed alloc memory", GET_TASKID(pRuntimeEnv));
@@ -483,9 +483,9 @@ static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(STaskRuntimeEnv *pRuntimeEnv
 //         pGroupResInfo->currentGroup, endt - startt);
 
   _end:
-  tfree(pTableQueryInfoList);
-  tfree(posList);
-  tfree(pTree);
+  taosMemoryFreeClear(pTableQueryInfoList);
+  taosMemoryFreeClear(posList);
+  taosMemoryFreeClear(pTree);
 
   return code;
 }
@@ -529,7 +529,7 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, STaskRuntimeEnv* pRun
 //
 //  // compress extra bytes
 //  size_t x = taosArrayGetSize(pDist->dataBlockInfos) * pDist->dataBlockInfos->elemSize;
-//  char* tmp = malloc(x + 2);
+//  char* tmp = taosMemoryMalloc(x + 2);
 //
 //  bool comp = false;
 //  int32_t len = tsCompressString(p, (int32_t)x, 1, tmp, (int32_t)x, ONE_STAGE_COMP, NULL, 0);
@@ -547,7 +547,7 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, STaskRuntimeEnv* pRun
 //  } else {
 //    tbufWriteBinary(bw, p, len);
 //  }
-//  tfree(tmp);
+//  taosMemoryFreeClear(tmp);
 //}
 
 //void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDist) {
@@ -570,7 +570,7 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, STaskRuntimeEnv* pRun
 //
 //  char* outputBuf = NULL;
 //  if (comp) {
-//    outputBuf = malloc(originalLen);
+//    outputBuf = taosMemoryMalloc(originalLen);
 //
 //    size_t actualLen = compLen;
 //    const char* compStr = tbufReadBinary(&br, &actualLen);
@@ -584,7 +584,7 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, STaskRuntimeEnv* pRun
 //
 //  pDist->dataBlockInfos = taosArrayFromList(outputBuf, (uint32_t)numSteps, sizeof(SFileBlockInfo));
 //  if (comp) {
-//    tfree(outputBuf);
+//    taosMemoryFreeClear(outputBuf);
 //  }
 //}
 

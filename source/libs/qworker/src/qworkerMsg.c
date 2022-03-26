@@ -167,7 +167,7 @@ int32_t qwBuildAndSendShowRsp(SRpcMsg *pMsg, int32_t code) {
   SVShowTablesRsp showRsp = {0};
 
   // showRsp.showId = 1;
-  showRsp.tableMeta.pSchemas = calloc(numOfCols, sizeof(SSchema));
+  showRsp.tableMeta.pSchemas = taosMemoryCalloc(numOfCols, sizeof(SSchema));
   if (showRsp.tableMeta.pSchemas == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -298,7 +298,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
 
   char* sql = strndup(msg->msg, msg->sqlLen);
   QW_SCH_TASK_DLOG("processQuery start, node:%p, sql:%s", node, sql);
-  tfree(sql);
+  taosMemoryFreeClear(sql);
 
   QW_ERR_RET(qwProcessQuery(QW_FPARAMS(), &qwMsg, msg->taskType));
 

@@ -57,7 +57,7 @@ typedef struct STaosQall {
 } STaosQall;
 
 STaosQueue *taosOpenQueue() {
-  STaosQueue *queue = calloc(1, sizeof(STaosQueue));
+  STaosQueue *queue = taosMemoryCalloc(1, sizeof(STaosQueue));
   if (queue == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -96,11 +96,11 @@ void taosCloseQueue(STaosQueue *queue) {
   while (pNode) {
     pTemp = pNode;
     pNode = pNode->next;
-    free(pTemp);
+    taosMemoryFree(pTemp);
   }
 
   taosThreadMutexDestroy(&queue->mutex);
-  free(queue);
+  taosMemoryFree(queue);
 
   uDebug("queue:%p is closed", queue);
 }
@@ -126,7 +126,7 @@ int32_t taosQueueSize(STaosQueue *queue) {
 }
 
 void *taosAllocateQitem(int32_t size) {
-  STaosQnode *pNode = calloc(1, sizeof(STaosQnode) + size);
+  STaosQnode *pNode = taosMemoryCalloc(1, sizeof(STaosQnode) + size);
 
   if (pNode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -143,7 +143,7 @@ void taosFreeQitem(void *pItem) {
   char *temp = pItem;
   temp -= sizeof(STaosQnode);
   uTrace("item:%p, node:%p is freed", pItem, temp);
-  free(temp);
+  taosMemoryFree(temp);
 }
 
 int32_t taosWriteQitem(STaosQueue *queue, void *pItem) {
@@ -193,9 +193,9 @@ int32_t taosReadQitem(STaosQueue *queue, void **ppItem) {
   return code;
 }
 
-STaosQall *taosAllocateQall() { return calloc(1, sizeof(STaosQall)); }
+STaosQall *taosAllocateQall() { return taosMemoryCalloc(1, sizeof(STaosQall)); }
 
-void taosFreeQall(STaosQall *qall) { free(qall); }
+void taosFreeQall(STaosQall *qall) { taosMemoryFree(qall); }
 
 int32_t taosReadAllQitems(STaosQueue *queue, STaosQall *qall) {
   int32_t code = 0;
@@ -248,7 +248,7 @@ int32_t taosGetQitem(STaosQall *qall, void **ppItem) {
 void taosResetQitems(STaosQall *qall) { qall->current = qall->start; }
 
 STaosQset *taosOpenQset() {
-  STaosQset *qset = calloc(sizeof(STaosQset), 1);
+  STaosQset *qset = taosMemoryCalloc(sizeof(STaosQset), 1);
   if (qset == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -277,7 +277,7 @@ void taosCloseQset(STaosQset *qset) {
 
   taosThreadMutexDestroy(&qset->mutex);
   tsem_destroy(&qset->sem);
-  free(qset);
+  taosMemoryFree(qset);
   uDebug("qset:%p is closed", qset);
 }
 

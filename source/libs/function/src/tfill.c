@@ -149,7 +149,7 @@ static void initBeforeAfterDataBuf(SFillInfo* pFillInfo, char** next) {
     return;
   }
 
-  *next = calloc(1, pFillInfo->rowSize);
+  *next = taosMemoryCalloc(1, pFillInfo->rowSize);
   for (int i = 1; i < pFillInfo->numOfCols; i++) {
     SFillColInfo* pCol = &pFillInfo->pFillCol[i];
     setNull(*next + pCol->col.offset, pCol->col.type, pCol->col.bytes);
@@ -258,7 +258,7 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, void** data, int32_t outputR
     if (pFillInfo->index >= pFillInfo->numOfRows || pFillInfo->numOfCurrent >= outputRows) {
       /* the raw data block is exhausted, next value does not exists */
       if (pFillInfo->index >= pFillInfo->numOfRows) {
-        tfree(*next);
+        taosMemoryFreeClear(*next);
       }
 
       pFillInfo->numOfTotal += pFillInfo->numOfCurrent;
@@ -314,7 +314,7 @@ static int32_t setTagColumnInfo(SFillInfo* pFillInfo, int32_t numOfCols, int32_t
         pSchema->type  = pColInfo->col.type;
         pSchema->bytes = pColInfo->col.bytes;
 
-        pFillInfo->pTags[k].tagVal = calloc(1, pColInfo->col.bytes);
+        pFillInfo->pTags[k].tagVal = taosMemoryCalloc(1, pColInfo->col.bytes);
         pColInfo->tagIndex = k;
 
         k += 1;
@@ -342,12 +342,12 @@ static int32_t taosNumOfRemainRows(SFillInfo* pFillInfo) {
 
 struct SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
                             int64_t slidingTime, int8_t slidingUnit, int8_t precision, int32_t fillType,
-                            struct SFillColInfo* pCol, void* handle) {
+                            struct SFillColInfo* pCol, const char* id) {
   if (fillType == TSDB_FILL_NONE) {
     return NULL;
   }
 
-  SFillInfo* pFillInfo = calloc(1, sizeof(SFillInfo));
+  SFillInfo* pFillInfo = taosMemoryCalloc(1, sizeof(SFillInfo));
   taosResetFillInfo(pFillInfo, skey);
 
   pFillInfo->order     = order;
@@ -357,17 +357,17 @@ struct SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTag
   pFillInfo->numOfCols = numOfCols;
   pFillInfo->precision = precision;
   pFillInfo->alloc     = capacity;
-  pFillInfo->handle    = handle;
+  pFillInfo->id        = id;
 
   pFillInfo->interval.interval     = slidingTime;
   pFillInfo->interval.intervalUnit = slidingUnit;
   pFillInfo->interval.sliding      = slidingTime;
   pFillInfo->interval.slidingUnit  = slidingUnit;
 
-  pFillInfo->pData = malloc(POINTER_BYTES * numOfCols);
+  pFillInfo->pData = taosMemoryMalloc(POINTER_BYTES * numOfCols);
 
 //  if (numOfTags > 0) {
-    pFillInfo->pTags = calloc(numOfCols, sizeof(SFillTagColInfo));
+    pFillInfo->pTags = taosMemoryCalloc(numOfCols, sizeof(SFillTagColInfo));
     for (int32_t i = 0; i < numOfCols; ++i) {
       pFillInfo->pTags[i].col.colId = -2;  // TODO
     }
@@ -394,19 +394,19 @@ void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
     return NULL;
   }
 
-  tfree(pFillInfo->prevValues);
-  tfree(pFillInfo->nextValues);
+  taosMemoryFreeClear(pFillInfo->prevValues);
+  taosMemoryFreeClear(pFillInfo->nextValues);
 
   for(int32_t i = 0; i < pFillInfo->numOfTags; ++i) {
-    tfree(pFillInfo->pTags[i].tagVal);
+    taosMemoryFreeClear(pFillInfo->pTags[i].tagVal);
   }
 
-  tfree(pFillInfo->pTags);
+  taosMemoryFreeClear(pFillInfo->pTags);
   
-  tfree(pFillInfo->pData);
-  tfree(pFillInfo->pFillCol);
+  taosMemoryFreeClear(pFillInfo->pData);
+  taosMemoryFreeClear(pFillInfo->pFillCol);
   
-  tfree(pFillInfo);
+  taosMemoryFreeClear(pFillInfo);
   return NULL;
 }
 
@@ -530,7 +530,7 @@ int64_t getFillInfoStart(struct SFillInfo *pFillInfo) {
 struct SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, const int64_t* fillVal) {
   int32_t offset = 0;
 
-  struct SFillColInfo* pFillCol = calloc(numOfOutput, sizeof(SFillColInfo));
+  struct SFillColInfo* pFillCol = taosMemoryCalloc(numOfOutput, sizeof(SFillColInfo));
   if (pFillCol == NULL) {
     return NULL;
   }

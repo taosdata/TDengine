@@ -37,7 +37,7 @@ mpool_h taosMemPoolInit(int32_t numOfBlock, int32_t blockSize) {
     return NULL;
   }
 
-  pool_p = (pool_t *)malloc(sizeof(pool_t));
+  pool_p = (pool_t *)taosMemoryMalloc(sizeof(pool_t));
   if (pool_p == NULL) {
     uError("mempool malloc failed\n");
     return NULL;
@@ -47,14 +47,14 @@ mpool_h taosMemPoolInit(int32_t numOfBlock, int32_t blockSize) {
 
   pool_p->blockSize = blockSize;
   pool_p->numOfBlock = numOfBlock;
-  pool_p->pool = (char *)malloc((size_t)(blockSize * numOfBlock));
-  pool_p->freeList = (int32_t *)malloc(sizeof(int32_t) * (size_t)numOfBlock);
+  pool_p->pool = (char *)taosMemoryMalloc((size_t)(blockSize * numOfBlock));
+  pool_p->freeList = (int32_t *)taosMemoryMalloc(sizeof(int32_t) * (size_t)numOfBlock);
 
   if (pool_p->pool == NULL || pool_p->freeList == NULL) {
     uError("failed to allocate memory\n");
-    tfree(pool_p->freeList);
-    tfree(pool_p->pool);
-    tfree(pool_p);
+    taosMemoryFreeClear(pool_p->freeList);
+    taosMemoryFreeClear(pool_p->pool);
+    taosMemoryFreeClear(pool_p);
     return NULL;
   }
 
@@ -120,8 +120,8 @@ void taosMemPoolCleanUp(mpool_h handle) {
   pool_t *pool_p = (pool_t *)handle;
 
   taosThreadMutexDestroy(&pool_p->mutex);
-  if (pool_p->pool) free(pool_p->pool);
-  if (pool_p->freeList) free(pool_p->freeList);
+  if (pool_p->pool) taosMemoryFree(pool_p->pool);
+  if (pool_p->freeList) taosMemoryFree(pool_p->freeList);
   memset(pool_p, 0, sizeof(*pool_p));
-  free(pool_p);
+  taosMemoryFree(pool_p);
 }

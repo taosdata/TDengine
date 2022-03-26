@@ -135,6 +135,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_EXCHANGE,
   QUERY_NODE_PHYSICAL_PLAN_SORT,
   QUERY_NODE_PHYSICAL_PLAN_INTERVAL,
+  QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW,
   QUERY_NODE_PHYSICAL_PLAN_DISPATCH,
   QUERY_NODE_PHYSICAL_PLAN_INSERT,
   QUERY_NODE_PHYSICAL_SUBPLAN,
@@ -169,6 +170,7 @@ void nodesDestroyNode(SNodeptr pNode);
 SNodeList* nodesMakeList();
 int32_t nodesListAppend(SNodeList* pList, SNodeptr pNode);
 int32_t nodesListStrictAppend(SNodeList* pList, SNodeptr pNode);
+int32_t nodesListMakeAppend(SNodeList** pList, SNodeptr pNode);
 int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc);
 int32_t nodesListStrictAppendList(SNodeList* pTarget, SNodeList* pSrc);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);

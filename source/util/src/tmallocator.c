@@ -31,7 +31,7 @@ static size_t haUsage(SMemAllocator *pma);
 SMemAllocator *tdCreateHeapAllocator() {
   SMemAllocator *pma = NULL;
 
-  pma = calloc(1, sizeof(SMemAllocator) + sizeof(SHeapAllocator));
+  pma = taosMemoryCalloc(1, sizeof(SMemAllocator) + sizeof(SHeapAllocator));
   if (pma) {
     pma->impl = POINTER_SHIFT(pma, sizeof(SMemAllocator));
     pma->malloc = haMalloc;
@@ -53,7 +53,7 @@ static void *haMalloc(SMemAllocator *pma, size_t size) {
   size_t          tsize = size + sizeof(size_t);
   SHeapAllocator *pha = (SHeapAllocator *)(pma->impl);
 
-  ptr = malloc(tsize);
+  ptr = taosMemoryMalloc(tsize);
   if (ptr) {
     *(size_t *)ptr = size;
     ptr = POINTER_SHIFT(ptr, sizeof(size_t));
@@ -97,7 +97,7 @@ static void haFree(SMemAllocator *pma, void *ptr) { /* TODO */
   if (ptr) {
     size_t tsize = *(size_t *)POINTER_SHIFT(ptr, -sizeof(size_t)) + sizeof(size_t);
     atomic_fetch_sub_64(&(pha->tusage), tsize);
-    free(POINTER_SHIFT(ptr, -sizeof(size_t)));
+    taosMemoryFree(POINTER_SHIFT(ptr, -sizeof(size_t)));
   }
 }
 
