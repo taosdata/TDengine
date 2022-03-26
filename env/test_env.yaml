@@ -1,0 +1,51 @@
+settings:
+  - name: taosd
+    fqdn: [vm130]
+    labels: [service]
+    spec:
+      version: 2.4.0.0  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: vm130:6030
+      dnodes:
+        - endpoint: vm130:6030
+          config_dir: /data/run/dnode1/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode1/data
+            logDir: /data/run/dnode1/log
+            debugFlag: 135
+        - endpoint: vm130:6130
+          config_dir: /data/run/dnode2/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode2/data
+            logDir: /data/run/dnode2/log
+            debugFlag: 135
+        - endpoint: vm130:6230
+          config_dir: /data/run/dnode3/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode3/data
+            logDir: /data/run/dnode3/log
+            debugFlag: 135
+        - endpoint: vm130:6330
+          config_dir: /data/run/dnode4/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode4/data
+            logDir: /data/run/dnode4/log
+            debugFlag: 135
+        - endpoint: vm130:6430
+          config_dir: /data/run/dnode5/config
+          config: # will write into taos.cfg
+            dataDir: /data/run/dnode5/data
+            logDir: /data/run/dnode5/log
+            debugFlag: 135
+
+  - name: taospy
+    fqdn: [vm130]
+    labels: [client]
+    spec:
+      version: 2.2.0  
+      client_version: 2.4.0.0
+      config:
+        firstEP: vm130:6030
+        logDir: /data/run/dnode1/log
+        debugFlag: 135
+

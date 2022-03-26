@@ -126,3 +126,4 @@ dmypy.json
 # Pyre type checker
 .pyre/
 run
+.idea
