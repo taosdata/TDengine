@@ -234,6 +234,7 @@
 30,,script,./test.sh -f unique/account/account_delete.sim 
 30,,script,./test.sh -f general/import/commit.sim 
 30,,script,./test.sh -f general/compute/diff2.sim 
+30,,develop-test,bash 3-connectors/R/test.sh 
 29,,system-test,python3 ./test.py -f 0-others/create_col_tag.py 
 29,,script,./test.sh -f unique/arbitrator/dn3_mn1_full_createTableFail.sim 
 29,,script,./test.sh -f general/wal/maxtables.sim 
@@ -803,4 +804,3 @@
 1,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/demo.py
 8,,pytest,python3 test.py -f update/update2.py
 4,,pytest,python3 test.py -f insert/line_insert.py
-80,,develop-test,bash 3-connectors/R/test.sh 
