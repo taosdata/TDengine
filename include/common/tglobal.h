@@ -18,6 +18,7 @@
 
 #include "tarray.h"
 #include "tdef.h"
+#include "tconfig.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -108,6 +109,7 @@ void    taosCleanupCfg();
 void    taosCfgDynamicOptions(const char *option, const char *value);
 
 struct SConfig *taosGetCfg();
+int32_t taosAddClientLogCfg(SConfig *pCfg);
 
 #ifdef __cplusplus
 }
