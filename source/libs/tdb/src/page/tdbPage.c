@@ -372,10 +372,10 @@ static int tdbPageDefragment(SPage *pPage) {
   int    idx;
   int    iCell;
 
-  ASSERT(pPage->pFreeEnd - pPage->pFreeStart < nFree);
-
   nFree = TDB_PAGE_NFREE(pPage);
   nCells = TDB_PAGE_NCELLS(pPage);
+
+  ASSERT(pPage->pFreeEnd - pPage->pFreeStart < nFree);
 
   // Loop to compact the page content
   // Here we use an O(n^2) algorithm to do the job since
