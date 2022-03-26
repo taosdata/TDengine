@@ -5612,6 +5612,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo *pOperator, bool* newgroup) {
 
     pInfo->req.type = pInfo->type;
     strncpy(pInfo->req.tb, tNameGetTableName(&pInfo->name), tListLen(pInfo->req.tb));
+    getFullDBNameFromCondition(pInfo->pCondition, pInfo->req.db));
 
     int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &pInfo->req);
     char* buf1 = calloc(1, contLen);

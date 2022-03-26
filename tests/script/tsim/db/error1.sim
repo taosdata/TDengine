@@ -16,16 +16,10 @@ create1:
 		return -1
 	endi
 
-# todo remove
-sql create database useless_db
-
 sql show dnodes
 if $data4_2 != ready then
 	goto create1
 endi
-
-# todo remove
-sql drop database useless_db
 
 print ========== stop dnode2
 system sh/exec.sh -n dnode2 -s stop -x SIGKILL

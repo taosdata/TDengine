@@ -44,6 +44,30 @@ static void mmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
+static void mmProcessQueryQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+  SMnodeMgmt *pMgmt = pInfo->ahandle;
+
+  dTrace("msg:%p, will be processed in mnode queue", pMsg);
+  SRpcMsg *pRpc = &pMsg->rpcMsg;
+  int32_t  code = -1;
+
+  pMsg->pNode = pMgmt->pMnode;
+  code = mndProcessMsg(pMsg);
+
+  if (pRpc->msgType & 1U) {
+    if (pRpc->handle == NULL) return;
+    if (code != 0) {
+      SRpcMsg rsp = {.handle = pRpc->handle, .code = code, .ahandle = pRpc->ahandle};
+      dndSendRsp(pMgmt->pWrapper, &rsp);
+    }
+  }
+
+  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
+  rpcFreeCont(pRpc->pCont);
+  taosFreeQitem(pMsg);
+}
+
+
 static int32_t mmPutMsgToWorker(SMnodeMgmt *pMgmt, SSingleWorker *pWorker, SNodeMsg *pMsg) {
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   return taosWriteQitem(pWorker->queue, pMsg);
@@ -102,8 +126,9 @@ int32_t mmPutMsgToQueryQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
 
 int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
   SSingleWorkerCfg cfg = {.minNum = 0, .maxNum = 1, .name = "mnode-read", .fp = (FItem)mmProcessQueue, .param = pMgmt};
+  SSingleWorkerCfg queryCfg = {.minNum = 0, .maxNum = 1, .name = "mnode-query", .fp = (FItem)mmProcessQueryQueue, .param = pMgmt};
 
-  if (tSingleWorkerInit(&pMgmt->queryWorker, &cfg) != 0) {
+  if (tSingleWorkerInit(&pMgmt->queryWorker, &queryCfg) != 0) {
     dError("failed to start mnode-query worker since %s", terrstr());
     return -1;
   }
