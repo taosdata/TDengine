@@ -119,7 +119,7 @@ Query OK, 5 row(s) in set (0.001521s)
 
 ## 示例代码
 
-### 同步查询
+### 查询数据
 
 <Tabs defaultValue="java" groupId="lang">
   <TabItem label="Java" value="java">
@@ -145,6 +145,13 @@ Query OK, 5 row(s) in set (0.001521s)
   </TabItem>
 </Tabs>
 
+:::note
+
+1. 无论 RESTFful 方式建立连接还是本地驱动方式建立连接，以上示例代码都能正常工作。
+2. 唯一需要注意的是：由于 RESTful 接口无状态， 不能使用 `use db` 语句来切换数据库。
+
+:::
+
 ### 异步查询
 
 <Tabs defaultValue="python" groupId="lang">
@@ -164,3 +171,10 @@ Query OK, 5 row(s) in set (0.001521s)
     <CAsync />
   </TabItem>
 </Tabs>
+
+:::note
+
+只有使用本地驱动方式连接连接，才能使用异步查询功能。
+
+:::
+
