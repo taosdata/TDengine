@@ -97,6 +97,7 @@ typedef struct SWindowLogicNode {
   int8_t  slidingUnit;
   SFillNode* pFill;
   int64_t sessionGap;
+  SNode* pTspk;
 } SWindowLogicNode;
 
 typedef struct SSortLogicNode {
@@ -228,6 +229,7 @@ typedef struct SWinodwPhysiNode {
 
 typedef struct SIntervalPhysiNode {
   SWinodwPhysiNode window;
+  SNode* pTspk; // timestamp primary key
   int64_t    interval;
   int64_t    offset;
   int64_t    sliding;

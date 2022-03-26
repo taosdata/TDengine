@@ -88,7 +88,7 @@ static EDealRes doNameExpr(SNode* pNode, void* pContext) {
 }
 
 static int32_t rewriteExpr(SNodeList* pExprs, SSelectStmt* pSelect, ESqlClause clause) {
-  static int32_t rewriteId = 1;
+  static int32_t rewriteId = 1; // todo modify
   SNameExprCxt nameCxt = { .rewriteId = rewriteId };
   nodesWalkList(pExprs, doNameExpr, &nameCxt);
   SRewriteExprCxt cxt = { .errCode = TSDB_CODE_SUCCESS, .pExprs = pExprs };
@@ -460,6 +460,12 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
   pWindow->offset = (NULL != pInterval->pOffset ? ((SValueNode*)pInterval->pOffset)->datum.i : 0);
   pWindow->sliding = (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->datum.i : pWindow->interval);
   pWindow->slidingUnit = (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
+
+  pWindow->pTspk = nodesCloneNode(pInterval->pCol);
+  if (NULL == pWindow->pTspk) {
+    nodesDestroyNode(pWindow);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   if (NULL != pInterval->pFill) {
     pWindow->pFill = nodesCloneNode(pInterval->pFill);

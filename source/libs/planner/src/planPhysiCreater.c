@@ -17,9 +17,14 @@
 
 #include "functionMgt.h"
 
+typedef struct SSlotIdInfo {
+  int16_t slotId;
+  bool set;
+} SSlotIdInfo;
+
 typedef struct SSlotIndex {
   int16_t dataBlockId;
-  int16_t slotId;
+  SArray* pSlotIdsInfo; // duplicate name slot
 } SSlotIndex;
 
 typedef struct SPhysiPlanContext {
@@ -79,7 +84,19 @@ static int32_t createTarget(SNode* pNode, int16_t dataBlockId, int16_t slotId, S
 }
 
 static int32_t putSlotToHashImpl(int16_t dataBlockId, int16_t slotId, const char* pName, int32_t len, SHashObj* pHash) {
-  SSlotIndex index = { .dataBlockId = dataBlockId, .slotId = slotId };
+  SSlotIndex* pIndex = taosHashGet(pHash, pName, len);
+  if (NULL != pIndex) {
+    SSlotIdInfo info = { .slotId = slotId, .set = false };
+    taosArrayPush(pIndex->pSlotIdsInfo, &info);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSlotIndex index = { .dataBlockId = dataBlockId, .pSlotIdsInfo = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SSlotIdInfo)) };
+  if (NULL == index.pSlotIdsInfo) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  SSlotIdInfo info = { .slotId = slotId, .set = false };
+  taosArrayPush(index.pSlotIdsInfo, &info);
   return taosHashPut(pHash, pName, len, &index, sizeof(SSlotIndex));
 }
 
@@ -90,7 +107,7 @@ static int32_t putSlotToHash(int16_t dataBlockId, int16_t slotId, SNode* pNode, 
 }
 
 static int32_t createDataBlockDescHash(SPhysiPlanContext* pCxt, int32_t capacity, int16_t dataBlockId, SHashObj** pDescHash) {
-  SHashObj* pHash = taosHashInit(capacity, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  SHashObj* pHash = taosHashInit(capacity, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (NULL == pHash) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -149,6 +166,18 @@ static int32_t createDataBlockDesc(SPhysiPlanContext* pCxt, SNodeList* pList, SD
   return code;
 }
 
+static int16_t getUnsetSlotId(const SArray* pSlotIdsInfo) {
+  int32_t size = taosArrayGetSize(pSlotIdsInfo);
+  for (int32_t i = 0; i < size; ++i) {
+    SSlotIdInfo* pInfo = taosArrayGet(pSlotIdsInfo, i);
+    if (!pInfo->set) {
+      pInfo->set = true;
+      return pInfo->slotId;
+    }
+  }
+  return ((SSlotIdInfo*)taosArrayGet(pSlotIdsInfo, 0))->slotId;
+}
+
 static int32_t addDataBlockSlotsImpl(SPhysiPlanContext* pCxt, SNodeList* pList, SDataBlockDescNode* pDataBlockDesc, const char* pStmtName, bool output) {
   int32_t code = TSDB_CODE_SUCCESS;
   SHashObj* pHash = taosArrayGetP(pCxt->pLocationHelper, pDataBlockDesc->dataBlockId);
@@ -167,7 +196,7 @@ static int32_t addDataBlockSlotsImpl(SPhysiPlanContext* pCxt, SNodeList* pList, 
       slotId = nextSlotId;
       ++nextSlotId;
     } else {
-      slotId = pIndex->slotId;
+      slotId = getUnsetSlotId(pIndex->pSlotIdsInfo);
     }
 
     if (TSDB_CODE_SUCCESS == code) {
@@ -217,7 +246,7 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
       return DEAL_RES_ERROR;
     }
     ((SColumnNode*)pNode)->dataBlockId = pIndex->dataBlockId;
-    ((SColumnNode*)pNode)->slotId = pIndex->slotId;
+    ((SColumnNode*)pNode)->slotId = ((SSlotIdInfo*)taosArrayGet(pIndex->pSlotIdsInfo, 0))->slotId;
     return DEAL_RES_IGNORE_CHILD;
   }
   return DEAL_RES_CONTINUE;
@@ -790,6 +819,13 @@ static int32_t createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
   if (NULL != pWindowLogicNode->pFill && NULL == pInterval->pFill) {
     nodesDestroyNode(pInterval);
     return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
+  int32_t code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pWindowLogicNode->pTspk, &pInterval->pTspk);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pInterval);
+    return code;
   }
 
   return createWindowPhysiNodeFinalize(pCxt, pChildren, &pInterval->window, pWindowLogicNode, pPhyNode);

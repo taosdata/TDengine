@@ -702,6 +702,13 @@ SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pCol) {
 SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode* pOffset, SNode* pSliding, SNode* pFill) {
   SIntervalWindowNode* interval = (SIntervalWindowNode*)nodesMakeNode(QUERY_NODE_INTERVAL_WINDOW);
   CHECK_OUT_OF_MEM(interval);
+  interval->pCol = nodesMakeNode(QUERY_NODE_COLUMN);
+  if (NULL == interval->pCol) {
+    nodesDestroyNode(interval);
+    CHECK_OUT_OF_MEM(interval->pCol);
+  }
+  ((SColumnNode*)interval->pCol)->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  strcpy(((SColumnNode*)interval->pCol)->colName, PK_TS_COL_INTERNAL_NAME);
   interval->pInterval = pInterval;
   interval->pOffset = pOffset;
   interval->pSliding = pSliding;

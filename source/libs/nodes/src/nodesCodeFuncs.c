@@ -988,6 +988,7 @@ static const char* jkIntervalPhysiPlanSliding = "Sliding";
 static const char* jkIntervalPhysiPlanIntervalUnit = "intervalUnit";
 static const char* jkIntervalPhysiPlanSlidingUnit  = "slidingUnit";
 static const char* jkIntervalPhysiPlanFill = "Fill";
+static const char* jkIntervalPhysiPlanTsPk = "TsPk";
 
 static int32_t physiIntervalNodeToJson(const void* pObj, SJson* pJson) {
   const SIntervalPhysiNode* pNode = (const SIntervalPhysiNode*)pObj;
@@ -1010,6 +1011,9 @@ static int32_t physiIntervalNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkIntervalPhysiPlanFill, nodeToJson, pNode->pFill);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkIntervalPhysiPlanTsPk, nodeToJson, pNode->pTspk);
   }
 
   return code;
@@ -1036,6 +1040,9 @@ static int32_t jsonToPhysiIntervalNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkIntervalPhysiPlanFill, (SNode**)&pNode->pFill);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkIntervalPhysiPlanTsPk, (SNode**)&pNode->pTspk);
   }
 
   return code;

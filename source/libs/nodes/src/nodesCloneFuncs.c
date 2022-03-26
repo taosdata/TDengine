@@ -278,16 +278,18 @@ static SNode* logicExchangeCopy(const SExchangeLogicNode* pSrc, SExchangeLogicNo
 }
 
 static SNode* logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* pDst) {
+  COPY_ALL_SCALAR_FIELDS;
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
-  COPY_SCALAR_FIELD(winType);
+  // COPY_SCALAR_FIELD(winType);
   CLONE_NODE_LIST_FIELD(pFuncs);
-  COPY_SCALAR_FIELD(interval);
-  COPY_SCALAR_FIELD(offset);
-  COPY_SCALAR_FIELD(sliding);
-  COPY_SCALAR_FIELD(intervalUnit);
-  COPY_SCALAR_FIELD(slidingUnit);
+  // COPY_SCALAR_FIELD(interval);
+  // COPY_SCALAR_FIELD(offset);
+  // COPY_SCALAR_FIELD(sliding);
+  // COPY_SCALAR_FIELD(intervalUnit);
+  // COPY_SCALAR_FIELD(slidingUnit);
   CLONE_NODE_FIELD(pFill);
-  COPY_SCALAR_FIELD(sessionGap);
+  // COPY_SCALAR_FIELD(sessionGap);
+  CLONE_NODE_FIELD(pTspk);
   return (SNode*)pDst;
 }
 

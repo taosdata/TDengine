@@ -256,6 +256,10 @@ static bool findAndSetColumn(SColumnNode* pCol, const STableNode* pTable) {
   bool found = false;
   if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
     const STableMeta* pMeta = ((SRealTableNode*)pTable)->pMeta;
+    if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId && 0 == strcmp(pCol->colName, PK_TS_COL_INTERNAL_NAME)) {
+      setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema, false, pCol);
+      return true;
+    }
     int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
     for (int32_t i = 0; i < nums; ++i) {
       if (0 == strcmp(pCol->colName, pMeta->schema[i].name)) {
