@@ -415,6 +415,7 @@ typedef struct STableScanInfo {
   int32_t*        rowCellInfoOffset;
   SExprInfo*      pExpr;
   SSDataBlock     block;
+  SArray*         pColMatchInfo;
   int32_t         numOfOutput;
   int64_t         elapsedTime;
   int32_t         prevGroupId;  // previous table group id
@@ -646,8 +647,8 @@ typedef struct SDistinctOperatorInfo {
 } SDistinctOperatorInfo;
 
 SOperatorInfo* createExchangeOperatorInfo(const SNodeList* pSources, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput,
-                                           int32_t repeatTime, int32_t reverseTime, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfCols, int32_t repeatTime,
+                                           int32_t reverseTime, SArray* pColMatchInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock,
                                            SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
