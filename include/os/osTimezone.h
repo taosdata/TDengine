@@ -26,8 +26,37 @@ extern "C" {
     #define tzset TZSET_FUNC_TAOS_FORBID
 #endif
 
-void taosGetSystemTimezone(char *outTimezone);
-void taosSetSystemTimezone(const char *inTimezone, char *outTimezone, int8_t *outDaylight);
+enum TdTimezone
+{
+      TdWestZone12=-12,
+      TdWestZone11,
+      TdWestZone10,
+      TdWestZone9,
+      TdWestZone8,
+      TdWestZone7,
+      TdWestZone6,
+      TdWestZone5,
+      TdWestZone4,
+      TdWestZone3,
+      TdWestZone2,
+      TdWestZone1,
+      TdZeroZero,
+      TdEastZone1,
+      TdEastZone2,
+      TdEastZone3,
+      TdEastZone4,
+      TdEastZone5,
+      TdEastZone6,
+      TdEastZone7,
+      TdEastZone8,
+      TdEastZone9,
+      TdEastZone10,
+      TdEastZone11,
+      TdEastZone12
+};
+
+void taosGetSystemTimezone(char *outTimezone, enum TdTimezone *tsTimezone);
+void taosSetSystemTimezone(const char *inTimezone, char *outTimezone, int8_t *outDaylight, enum TdTimezone *tsTimezone);
 
 #ifdef __cplusplus
 }

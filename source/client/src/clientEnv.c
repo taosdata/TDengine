@@ -408,10 +408,10 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
       assert(cfg != NULL);
 
       if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
-        tstrncpy(tsTimezone, str, TD_TIMEZONE_LEN);
+        tstrncpy(tsTimezoneStr, str, TD_TIMEZONE_LEN);
         tsSetTimeZone();
         cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
-        tscDebug("timezone set:%s, input:%s by taos_options", tsTimezone, str);
+        tscDebug("timezone set:%s, input:%s by taos_options", tsTimezoneStr, str);
       } else {
         tscWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, str,
                 tsCfgStatusStr[cfg->cfgStatus], (char *)cfg->ptr);
