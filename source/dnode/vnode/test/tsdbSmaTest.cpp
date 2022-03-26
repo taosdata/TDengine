@@ -14,9 +14,9 @@
  */
 
 #include <gtest/gtest.h>
+#include <tsdbDef.h>
 #include <taoserror.h>
 #include <tglobal.h>
-#include <tsdbDef.h>
 #include <iostream>
 
 #include <metaDef.h>
@@ -374,7 +374,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   uint32_t mockBlkNum = 2;
   uint32_t msgLen = sizeof(SSubmitReq) + mockBlkNum * sizeof(SSubmitBlk) + mockBlkNum * mockRowNum * mockRowLen;
 
-  SSubmitReq *pMsg = (SSubmitReq *)calloc(1, msgLen);
+  SSubmitReq *pMsg = (SSubmitReq *)taosMemoryCalloc(1, msgLen);
   ASSERT_NE(pMsg, nullptr);
   pMsg->version = htobe64(schemaVer);
   pMsg->numOfBlocks = htonl(mockBlkNum);
