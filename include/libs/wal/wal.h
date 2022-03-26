@@ -75,14 +75,18 @@ extern "C" {
 #define WAL_CUR_FAILED 1
 
 #pragma pack(push, 1)
-typedef enum { TAOS_WAL_NOLOG = 0, TAOS_WAL_WRITE = 1, TAOS_WAL_FSYNC = 2 } EWalType;
+typedef enum {
+  TAOS_WAL_NOLOG = 0,
+  TAOS_WAL_WRITE = 1,
+  TAOS_WAL_FSYNC = 2,
+} EWalType;
 
 // used by sync module
 typedef struct {
   int8_t   isWeek;
   uint64_t seqNum;
   uint64_t term;
-} SSyncInfo;
+} SSyncLogMeta;
 
 typedef struct SWalReadHead {
   int8_t  headVer;
@@ -92,8 +96,8 @@ typedef struct SWalReadHead {
   int64_t ingestTs;  // not implemented
   int64_t version;
 
-  // sync info
-  SSyncInfo syncInfo;
+  // sync meta
+  SSyncLogMeta syncMeta;
 
   char body[];
 } SWalReadHead;
@@ -169,7 +173,8 @@ int32_t walAlter(SWal *, SWalCfg *pCfg);
 void    walClose(SWal *);
 
 // write
-int64_t walWriteWithSyncInfo(SWal *, int64_t index, tmsg_t msgType, SSyncInfo info, const void *body, int32_t bodyLen);
+int64_t walWriteWithSyncInfo(SWal *, int64_t index, tmsg_t msgType, SSyncLogMeta syncMeta, const void *body,
+                             int32_t bodyLen);
 int64_t walWrite(SWal *, int64_t index, tmsg_t msgType, const void *body, int32_t bodyLen);
 void    walFsync(SWal *, bool force);
 

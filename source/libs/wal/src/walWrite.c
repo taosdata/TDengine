@@ -253,7 +253,7 @@ static int walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
   return 0;
 }
 
-int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncInfo syncInfo, const void *body,
+int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLogMeta syncMeta, const void *body,
                              int32_t bodyLen) {
   if (pWal == NULL) return -1;
   int code = 0;
@@ -299,7 +299,7 @@ int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncInf
   pWal->writeHead.head.msgType = msgType;
 
   // sync info
-  pWal->writeHead.head.syncInfo = syncInfo;
+  pWal->writeHead.head.syncMeta = syncMeta;
 
   pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
   pWal->writeHead.cksumBody = walCalcBodyCksum(body, bodyLen);
@@ -338,12 +338,12 @@ int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncInf
 }
 
 int64_t walWrite(SWal *pWal, int64_t index, tmsg_t msgType, const void *body, int32_t bodyLen) {
-  SSyncInfo info = {
+  SSyncLogMeta syncMeta = {
       .isWeek = -1,
       .seqNum = UINT64_MAX,
       .term = UINT64_MAX,
   };
-  return walWriteWithSyncInfo(pWal, index, msgType, info, body, bodyLen);
+  return walWriteWithSyncInfo(pWal, index, msgType, syncMeta, body, bodyLen);
 }
 
 void walFsync(SWal *pWal, bool forceFsync) {
