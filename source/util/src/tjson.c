@@ -255,7 +255,7 @@ int32_t tjsonMakeObject(const SJson* pJson, const char* pName, FToObject func, v
   if (NULL == pJsonObj) {
     return TSDB_CODE_FAILED;
   }
-  *pObj = calloc(1, objSize);
+  *pObj = taosMemoryCalloc(1, objSize);
   if (NULL == *pObj) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }

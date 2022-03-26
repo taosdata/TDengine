@@ -50,8 +50,10 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
   // update commit index
   SyncIndex newCommitIndex = pSyncNode->commitIndex;
   for (SyncIndex index = pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore); index > pSyncNode->commitIndex;
-       ++index) {
+       --index) {
     bool agree = syncAgree(pSyncNode, index);
+    sTrace("syncMaybeAdvanceCommitIndex syncAgree:%d, index:%ld, pSyncNode->commitIndex:%ld", agree, index,
+           pSyncNode->commitIndex);
     if (agree) {
       // term
       SSyncRaftEntry* pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, index);
@@ -61,7 +63,14 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
       if (pEntry->term == pSyncNode->pRaftStore->currentTerm) {
         // update commit index
         newCommitIndex = index;
+        sTrace("syncMaybeAdvanceCommitIndex maybe to update, newCommitIndex:%ld commit, pSyncNode->commitIndex:%ld",
+               newCommitIndex, pSyncNode->commitIndex);
         break;
+      } else {
+        sTrace(
+            "syncMaybeAdvanceCommitIndex can not commit due to term not equal, pEntry->term:%lu, "
+            "pSyncNode->pRaftStore->currentTerm:%lu",
+            pEntry->term, pSyncNode->pRaftStore->currentTerm);
       }
     }
   }
@@ -69,6 +78,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
   if (newCommitIndex > pSyncNode->commitIndex) {
     SyncIndex beginIndex = pSyncNode->commitIndex + 1;
     SyncIndex endIndex = newCommitIndex;
+
+    sTrace("syncMaybeAdvanceCommitIndex sync commit %ld", newCommitIndex);
 
     // update commit index
     pSyncNode->commitIndex = newCommitIndex;
@@ -86,8 +97,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
           SRpcMsg rpcMsg;
           syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
-          if (pSyncNode->pFsm->FpCommitCb != NULL) {
-            pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0);
+          if (pSyncNode->pFsm->FpCommitCb != NULL && pEntry->entryType == SYNC_RAFT_ENTRY_DATA) {
+            pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0, pSyncNode->state);
           }
 
           rpcFreeCont(rpcMsg.pCont);

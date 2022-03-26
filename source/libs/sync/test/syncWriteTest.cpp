@@ -28,23 +28,33 @@ SSyncFSM * pFsm;
 SWal *     pWal;
 SSyncNode *gSyncNode;
 
-void CommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pBuf, SyncIndex index, bool isWeak, int32_t code) {
-  printf("==CommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d \n", pFsm, index, isWeak, code);
-  syncRpcMsgPrint2((char *)"==CommitCb==", (SRpcMsg *)pBuf);
+void CommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SyncIndex index, bool isWeak, int32_t code,
+              ESyncState state) {
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf), "==callback== ==CommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n",
+           pFsm, index, isWeak, code, state, syncUtilState2String(state));
+  syncRpcMsgPrint2(logBuf, (SRpcMsg *)pMsg);
 }
 
-void PreCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pBuf, SyncIndex index, bool isWeak, int32_t code) {
-  printf("==PreCommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d \n", pFsm, index, isWeak, code);
-  syncRpcMsgPrint2((char *)"==PreCommitCb==", (SRpcMsg *)pBuf);
+void PreCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SyncIndex index, bool isWeak, int32_t code,
+                 ESyncState state) {
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf),
+           "==callback== ==PreCommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n", pFsm, index, isWeak,
+           code, state, syncUtilState2String(state));
+  syncRpcMsgPrint2(logBuf, (SRpcMsg *)pMsg);
 }
 
-void RollBackCb(struct SSyncFSM *pFsm, const SRpcMsg *pBuf, SyncIndex index, bool isWeak, int32_t code) {
-  printf("==RollBackCb== pFsm:%p, index:%ld, isWeak:%d, code:%d \n", pFsm, index, isWeak, code);
-  syncRpcMsgPrint2((char *)"==RollBackCb==", (SRpcMsg *)pBuf);
+void RollBackCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SyncIndex index, bool isWeak, int32_t code,
+                ESyncState state) {
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf), "==callback== ==RollBackCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n",
+           pFsm, index, isWeak, code, state, syncUtilState2String(state));
+  syncRpcMsgPrint2(logBuf, (SRpcMsg *)pMsg);
 }
 
 void initFsm() {
-  pFsm = (SSyncFSM *)malloc(sizeof(SSyncFSM));
+  pFsm = (SSyncFSM *)taosMemoryMalloc(sizeof(SSyncFSM));
   pFsm->FpCommitCb = CommitCb;
   pFsm->FpPreCommitCb = PreCommitCb;
   pFsm->FpRollBackCb = RollBackCb;
@@ -108,16 +118,16 @@ void initRaftId(SSyncNode *pSyncNode) {
     ids[i] = pSyncNode->replicasId[i];
     char *s = syncUtilRaftId2Str(&ids[i]);
     printf("raftId[%d] : %s\n", i, s);
-    free(s);
+    taosMemoryFree(s);
   }
 }
 
 SRpcMsg *step0() {
-  SRpcMsg *pMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg));
+  SRpcMsg *pMsg = (SRpcMsg *)taosMemoryMalloc(sizeof(SRpcMsg));
   memset(pMsg, 0, sizeof(SRpcMsg));
   pMsg->msgType = 9999;
   pMsg->contLen = 32;
-  pMsg->pCont = malloc(pMsg->contLen);
+  pMsg->pCont = taosMemoryMalloc(pMsg->contLen);
   snprintf((char *)(pMsg->pCont), pMsg->contLen, "hello, world");
   return pMsg;
 }

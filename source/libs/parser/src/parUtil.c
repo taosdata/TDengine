@@ -59,6 +59,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Endpoint should be in the format of 'fqdn:port'";
     case TSDB_CODE_PAR_EXPRIE_STATEMENT:
       return "This statement is no longer supported";
+    case TSDB_CODE_PAR_INTERVAL_VALUE_TOO_SMALL:
+      return "This interval value is too small : %s";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
@@ -71,6 +73,7 @@ int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...) {
   va_start(vArgList, errCode);
   vsnprintf(pBuf->buf, pBuf->len, getSyntaxErrFormat(errCode), vArgList);
   va_end(vArgList);
+  terrno = errCode;
   return errCode;
 }
 
@@ -119,7 +122,7 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);
   size_t size = getTableMetaSize(pTableMeta);
 
-  STableMeta* p = malloc(size);
+  STableMeta* p = taosMemoryMalloc(size);
   memcpy(p, pTableMeta, size);
   return p;
 }

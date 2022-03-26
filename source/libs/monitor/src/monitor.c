@@ -23,7 +23,7 @@
 static SMonitor tsMonitor = {0};
 
 void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
-  pthread_mutex_lock(&tsMonitor.lock);
+  taosThreadMutexLock(&tsMonitor.lock);
   int32_t size = taosArrayGetSize(tsMonitor.logs);
   if (size < tsMonitor.maxLogs) {
     SMonLogItem  item = {.ts = ts, .level = level};
@@ -32,7 +32,7 @@ void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
       tstrncpy(pItem->content, content, MON_LOG_LEN);
     }
   }
-  pthread_mutex_unlock(&tsMonitor.lock);
+  taosThreadMutexUnlock(&tsMonitor.lock);
 }
 
 int32_t monInit(const SMonCfg *pCfg) {
@@ -48,7 +48,7 @@ int32_t monInit(const SMonCfg *pCfg) {
   tsMonitor.comp = pCfg->comp;
   tsLogFp = monRecordLog;
   tsMonitor.state.time = taosGetTimestampMs();
-  pthread_mutex_init(&tsMonitor.lock, NULL);
+  taosThreadMutexInit(&tsMonitor.lock, NULL);
   return 0;
 }
 
@@ -56,20 +56,20 @@ void monCleanup() {
   tsLogFp = NULL;
   taosArrayDestroy(tsMonitor.logs);
   tsMonitor.logs = NULL;
-  pthread_mutex_destroy(&tsMonitor.lock);
+  taosThreadMutexDestroy(&tsMonitor.lock);
 }
 
 SMonInfo *monCreateMonitorInfo() {
-  SMonInfo *pMonitor = calloc(1, sizeof(SMonInfo));
+  SMonInfo *pMonitor = taosMemoryCalloc(1, sizeof(SMonInfo));
   if (pMonitor == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  pthread_mutex_lock(&tsMonitor.lock);
+  taosThreadMutexLock(&tsMonitor.lock);
   pMonitor->logs = taosArrayDup(tsMonitor.logs);
   taosArrayClear(tsMonitor.logs);
-  pthread_mutex_unlock(&tsMonitor.lock);
+  taosThreadMutexUnlock(&tsMonitor.lock);
 
   pMonitor->pJson = tjsonCreateObject();
   if (pMonitor->pJson == NULL || pMonitor->logs == NULL) {
@@ -88,7 +88,7 @@ void monCleanupMonitorInfo(SMonInfo *pMonitor) {
   tsMonitor.state.time = pMonitor->curTime;
   taosArrayDestroy(pMonitor->logs);
   tjsonDelete(pMonitor->pJson);
-  free(pMonitor);
+  taosMemoryFree(pMonitor);
 }
 
 void monSetBasicInfo(SMonInfo *pMonitor, SMonBasicInfo *pInfo) {
@@ -381,6 +381,6 @@ void monSendReport(SMonInfo *pMonitor) {
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.comp ? HTTP_GZIP : HTTP_FLAT;
     taosSendHttpReport(tsMonitor.server, tsMonitor.port, pCont, strlen(pCont), flag);
-    free(pCont);
+    taosMemoryFree(pCont);
   }
 }

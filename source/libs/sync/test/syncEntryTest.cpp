@@ -46,6 +46,20 @@ void test2() {
 }
 
 void test3() {
+  SyncClientRequest* pSyncMsg = syncClientRequestBuild(10);
+  pSyncMsg->originalRpcType = 33;
+  pSyncMsg->seqNum = 11;
+  pSyncMsg->isWeak = 1;
+  strcpy(pSyncMsg->data, "test3");
+
+  SSyncRaftEntry* pEntry = syncEntryBuild3(pSyncMsg, 100, 200, SYNC_RAFT_ENTRY_NOOP);
+  syncEntryPrint(pEntry);
+
+  syncClientRequestDestroy(pSyncMsg);
+  syncEntryDestory(pEntry);
+}
+
+void test4() {
   SSyncRaftEntry* pEntry = syncEntryBuild(10);
   assert(pEntry != NULL);
   pEntry->msgType = 11;
@@ -54,7 +68,8 @@ void test3() {
   pEntry->isWeak = true;
   pEntry->term = 44;
   pEntry->index = 55;
-  strcpy(pEntry->data, "test3");
+  pEntry->entryType = SYNC_RAFT_ENTRY_CONFIG;
+  strcpy(pEntry->data, "test4");
   syncEntryPrint(pEntry);
 
   uint32_t len;
@@ -63,7 +78,7 @@ void test3() {
   SSyncRaftEntry* pEntry2 = syncEntryDeserialize(serialized, len);
   syncEntryPrint(pEntry2);
 
-  free(serialized);
+  taosMemoryFree(serialized);
   syncEntryDestory(pEntry2);
   syncEntryDestory(pEntry);
 }
@@ -76,6 +91,7 @@ int main(int argc, char** argv) {
   test1();
   test2();
   test3();
+  test4();
 
   return 0;
 }

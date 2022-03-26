@@ -51,7 +51,7 @@ int     metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg);
 int     metaDropTable(SMeta *pMeta, tb_uid_t uid);
 int     metaCommit(SMeta *pMeta);
 int32_t metaCreateTSma(SMeta *pMeta, SSmaCfg *pCfg);
-int32_t metaDropTSma(SMeta *pMeta, char *indexName);
+int32_t metaDropTSma(SMeta *pMeta, int64_t indexUid);
 
 // For Query
 STbCfg *        metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid);
@@ -61,6 +61,7 @@ STSchema *      metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver);
 STSma *         metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid);
 STSmaWrapper *  metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid);
 SArray *        metaGetSmaTbUids(SMeta *pMeta, bool isDup);
+int             metaGetTbNum(SMeta *pMeta);
 
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta);
 void        metaCloseTbCursor(SMTbCursor *pTbCur);

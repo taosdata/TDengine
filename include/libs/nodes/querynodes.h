@@ -23,7 +23,8 @@ extern "C" {
 #include "nodes.h"
 #include "tmsg.h"
 
-#define TABLE_META_SIZE(pMeta) (NULL == (pMeta) ? 0 : (sizeof(STableMeta) + ((pMeta)->tableInfo.numOfColumns + (pMeta)->tableInfo.numOfTags) * sizeof(SSchema)))
+#define TABLE_TOTAL_COL_NUM(pMeta) ((pMeta)->tableInfo.numOfColumns + (pMeta)->tableInfo.numOfTags)
+#define TABLE_META_SIZE(pMeta) (NULL == (pMeta) ? 0 : (sizeof(STableMeta) + TABLE_TOTAL_COL_NUM((pMeta)) * sizeof(SSchema)))
 #define VGROUPS_INFO_SIZE(pInfo) (NULL == (pInfo) ? 0 : (sizeof(SVgroupsInfo) + (pInfo)->numOfVgroups * sizeof(SVgroupInfo)))
 
 typedef struct SRawExprNode {
@@ -129,6 +130,7 @@ typedef struct SRealTableNode {
   STableNode table; // QUERY_NODE_REAL_TABLE
   struct STableMeta* pMeta;
   SVgroupsInfo* pVgroupList;
+  char useDbName[TSDB_DB_NAME_LEN];
 } SRealTableNode;
 
 typedef struct STempTableNode {
@@ -189,8 +191,8 @@ typedef struct SStateWindowNode {
 
 typedef struct SSessionWindowNode {
   ENodeType type; // QUERY_NODE_SESSION_WINDOW
-  int64_t gap;             // gap between two session window(in microseconds)
   SNode* pCol;
+  SNode* pGap; // gap between two session window(in microseconds)
 } SSessionWindowNode;
 
 typedef struct SIntervalWindowNode {

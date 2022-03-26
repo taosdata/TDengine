@@ -26,7 +26,7 @@ typedef struct SParseContext {
   uint64_t         requestId;
   int32_t          acctId;
   const char      *db;
-  bool             streamQuery;
+  bool             topicQuery;
   void            *pTransporter;
   SEpSet           mgmtEpSet;
   const char      *pSql;           // sql string
@@ -52,12 +52,16 @@ typedef struct SQuery {
   SSchema* pResSchema;
   SCmdMsgInfo* pCmdMsg;
   int32_t msgType;
-  bool streamQuery;
+  SArray* pDbList;
+  SArray* pTableList;
+  bool showRewrite;
 } SQuery;
 
 int32_t qParseQuerySql(SParseContext* pCxt, SQuery** pQuery);
 
 void qDestroyQuery(SQuery* pQueryNode);
+
+int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema);
 
 #ifdef __cplusplus
 }

@@ -23,7 +23,6 @@
 #include "tlist.h"
 #include "tlockfree.h"
 #include "tmacro.h"
-#include "tq.h"
 #include "wal.h"
 
 #include "vnode.h"
@@ -33,6 +32,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct STQ STQ;
 
 typedef struct SVState   SVState;
 typedef struct SVBufPool SVBufPool;
@@ -46,17 +47,28 @@ typedef struct SVnodeTask {
 typedef struct SVnodeMgr {
   td_mode_flag_t vnodeInitFlag;
   // For commit
-  bool            stop;
-  uint16_t        nthreads;
-  pthread_t*      threads;
-  pthread_mutex_t mutex;
-  pthread_cond_t  hasTask;
+  bool          stop;
+  uint16_t      nthreads;
+  TdThread*     threads;
+  TdThreadMutex mutex;
+  TdThreadCond  hasTask;
   TD_DLIST(SVnodeTask) queue;
-  // For vnode Mgmt
-  SDnode*           pDnode;
-  PutReqToVQueryQFp putReqToVQueryQFp;
-  SendReqToDnodeFp  sendReqToDnodeFp;
 } SVnodeMgr;
+
+typedef struct {
+  int8_t  streamType;  // sma or other
+  int8_t  dstType;
+  int16_t padding;
+  int32_t smaId;
+  int64_t tbUid;
+  int64_t lastReceivedVer;
+  int64_t lastCommittedVer;
+} SStreamSinkInfo;
+
+typedef struct {
+  SVnode*   pVnode;
+  SHashObj* pHash;  // streamId -> SStreamSinkInfo
+} SSink;
 
 extern SVnodeMgr vnodeMgr;
 
@@ -75,18 +87,16 @@ struct SVnode {
   SVBufPool* pBufPool;
   SMeta*     pMeta;
   STsdb*     pTsdb;
-  STQ*       pTq;
   SWal*      pWal;
+  STQ*       pTq;
+  SSink*     pSink;
   tsem_t     canCommit;
   SQHandle*  pQuery;
-  SDnode*    pDnode;
+  SMsgCb     msgCb;
   STfs*      pTfs;
 };
 
 int vnodeScheduleTask(SVnodeTask* task);
-
-int32_t vnodePutReqToVQueryQ(SVnode* pVnode, struct SRpcMsg* pReq);
-void    vnodeSendReqToDnode(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pReq);
 
 #define vFatal(...)                                              \
   do {                                                           \
@@ -171,6 +181,26 @@ void            vmaReset(SVMemAllocator* pVMA);
 void*           vmaMalloc(SVMemAllocator* pVMA, uint64_t size);
 void            vmaFree(SVMemAllocator* pVMA, void* ptr);
 bool            vmaIsFull(SVMemAllocator* pVMA);
+
+// init once
+int  tqInit();
+void tqCleanUp();
+
+// open in each vnode
+STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pMeta, STqCfg* tqConfig,
+            SMemAllocatorFactory* allocFac);
+void tqClose(STQ*);
+
+// required by vnode
+int tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t version);
+int tqCommit(STQ*);
+
+int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
+int32_t tqProcessRebReq(STQ* pTq, char* msg);
+int32_t tqProcessTaskExec(STQ* pTq, SRpcMsg* msg);
+int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
+int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen);
 
 #ifdef __cplusplus
 }

@@ -29,7 +29,7 @@ static int32_t  syncIODestroy(SSyncIO *io);
 static int32_t  syncIOStartInternal(SSyncIO *io);
 static int32_t  syncIOStopInternal(SSyncIO *io);
 
-static void *  syncIOConsumerFunc(void *param);
+static void   *syncIOConsumerFunc(void *param);
 static void    syncIOProcessRequest(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
 static void    syncIOProcessReply(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
 static int32_t syncIOAuth(void *parent, char *meterId, char *spi, char *encrypt, char *secret, char *ckey);
@@ -75,6 +75,7 @@ int32_t syncIOSendMsg(void *clientRpc, const SEpSet *pEpSet, SRpcMsg *pMsg) {
   syncRpcMsgPrint2(logBuf, pMsg);
 
   pMsg->handle = NULL;
+  pMsg->noResp = 1;
   rpcSendRequest(clientRpc, pEpSet, pMsg, NULL);
   return ret;
 }
@@ -120,7 +121,7 @@ int32_t syncIOPingTimerStop() {
 
 // local function ------------
 static SSyncIO *syncIOCreate(char *host, uint16_t port) {
-  SSyncIO *io = (SSyncIO *)malloc(sizeof(SSyncIO));
+  SSyncIO *io = (SSyncIO *)taosMemoryMalloc(sizeof(SSyncIO));
   memset(io, 0, sizeof(*io));
 
   io->pMsgQ = taosOpenQueue();
@@ -211,7 +212,7 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
 
   // start consumer thread
   {
-    if (pthread_create(&io->consumerTid, NULL, syncIOConsumerFunc, io) != 0) {
+    if (taosThreadCreate(&io->consumerTid, NULL, syncIOConsumerFunc, io) != 0) {
       sError("failed to create sync consumer thread since %s", strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
       return -1;
@@ -228,15 +229,15 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
 static int32_t syncIOStopInternal(SSyncIO *io) {
   int32_t ret = 0;
   atomic_store_8(&io->isStart, 0);
-  pthread_join(io->consumerTid, NULL);
+  taosThreadJoin(io->consumerTid, NULL);
   taosTmrCleanUp(io->timerMgr);
   return ret;
 }
 
 static void *syncIOConsumerFunc(void *param) {
-  SSyncIO *  io = param;
+  SSyncIO   *io = param;
   STaosQall *qall;
-  SRpcMsg *  pRpcMsg, rpcMsg;
+  SRpcMsg   *pRpcMsg, rpcMsg;
   qall = taosAllocateQall();
 
   while (1) {
@@ -257,13 +258,6 @@ static void *syncIOConsumerFunc(void *param) {
           assert(pSyncMsg != NULL);
           io->FpOnSyncPing(io->pSyncNode, pSyncMsg);
           syncPingDestroy(pSyncMsg);
-          /*
-          pSyncMsg = syncPingBuild(pRpcMsg->contLen);
-          syncPingFromRpcMsg(pRpcMsg, pSyncMsg);
-          // memcpy(pSyncMsg, tmpRpcMsg.pCont, tmpRpcMsg.contLen);
-          io->FpOnSyncPing(io->pSyncNode, pSyncMsg);
-          syncPingDestroy(pSyncMsg);
-          */
         }
 
       } else if (pRpcMsg->msgType == SYNC_PING_REPLY) {
@@ -331,19 +325,21 @@ static void *syncIOConsumerFunc(void *param) {
       taosGetQitem(qall, (void **)&pRpcMsg);
       rpcFreeCont(pRpcMsg->pCont);
 
-      if (pRpcMsg->handle != NULL) {
-        int msgSize = 32;
-        memset(&rpcMsg, 0, sizeof(rpcMsg));
-        rpcMsg.msgType = SYNC_RESPONSE;
-        rpcMsg.pCont = rpcMallocCont(msgSize);
-        rpcMsg.contLen = msgSize;
-        snprintf(rpcMsg.pCont, rpcMsg.contLen, "%s", "give a reply");
-        rpcMsg.handle = pRpcMsg->handle;
-        rpcMsg.code = 0;
+      /*
+            if (pRpcMsg->handle != NULL) {
+              int msgSize = 32;
+              memset(&rpcMsg, 0, sizeof(rpcMsg));
+              rpcMsg.msgType = SYNC_RESPONSE;
+              rpcMsg.pCont = rpcMallocCont(msgSize);
+              rpcMsg.contLen = msgSize;
+              snprintf(rpcMsg.pCont, rpcMsg.contLen, "%s", "give a reply");
+              rpcMsg.handle = pRpcMsg->handle;
+              rpcMsg.code = 0;
 
-        syncRpcMsgPrint2((char *)"syncIOConsumerFunc rpcSendResponse --> ", &rpcMsg);
-        rpcSendResponse(&rpcMsg);
-      }
+              syncRpcMsgPrint2((char *)"syncIOConsumerFunc rpcSendResponse --> ", &rpcMsg);
+              rpcSendResponse(&rpcMsg);
+            }
+      */
 
       taosFreeQitem(pRpcMsg);
     }

@@ -54,25 +54,21 @@ typedef struct SColumnDataAgg {
 } SColumnDataAgg;
 
 typedef struct SDataBlockInfo {
-  STimeWindow    window;
-  int32_t        rows;
-  int32_t        rowSize;
-  int16_t        numOfCols;
-  int16_t        hasVarCol;
-  union {int64_t uid; int64_t blockId;};
+  STimeWindow window;
+  int32_t     rows;
+  int32_t     rowSize;
+  int16_t     numOfCols;
+  int16_t     hasVarCol;
+  union {
+    int64_t uid;
+    int64_t blockId;
+  };
+  int64_t groupId;  // no need to serialize
 } SDataBlockInfo;
 
-//typedef struct SConstantItem {
-//  SColumnInfo info;
-//  int32_t     startRow;  // run-length-encoding to save the space for multiple rows
-//  int32_t     endRow;
-//  SVariant    value;
-//} SConstantItem;
-
-// info.numOfCols = taosArrayGetSize(pDataBlock) + taosArrayGetSize(pConstantList);
 typedef struct SSDataBlock {
-  SColumnDataAgg *pBlockAgg;
-  SArray         *pDataBlock;    // SArray<SColumnInfoData>
+  SColumnDataAgg* pBlockAgg;
+  SArray*         pDataBlock;  // SArray<SColumnInfoData>
   SDataBlockInfo  info;
 } SSDataBlock;
 
@@ -98,23 +94,40 @@ void*   blockDataDestroy(SSDataBlock* pBlock);
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);
 void*   tDecodeDataBlock(const void* buf, SSDataBlock* pBlock);
 
-static FORCE_INLINE void tDeleteSSDataBlock(SSDataBlock* pBlock) {
-  if (pBlock == NULL) {
-    return;
+int32_t tEncodeDataBlocks(void** buf, const SArray* blocks);
+void*   tDecodeDataBlocks(const void* buf, SArray** blocks);
+
+static FORCE_INLINE void blockDestroyInner(SSDataBlock* pBlock) {
+  // WARNING: do not use info.numOfCols,
+  // sometimes info.numOfCols != array size
+  int32_t numOfOutput = taosArrayGetSize(pBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfOutput; ++i) {
+    SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
+    if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+      taosMemoryFreeClear(pColInfoData->varmeta.offset);
+    } else {
+      taosMemoryFreeClear(pColInfoData->nullbitmap);
+    }
+
+    taosMemoryFreeClear(pColInfoData->pData);
   }
-  blockDataDestroy(pBlock);
+
+  taosArrayDestroy(pBlock->pDataBlock);
+  taosMemoryFreeClear(pBlock->pBlockAgg);
 }
+
+static FORCE_INLINE void tDeleteSSDataBlock(SSDataBlock* pBlock) { blockDestroyInner(pBlock); }
 
 static FORCE_INLINE int32_t tEncodeSMqPollRsp(void** buf, const SMqPollRsp* pRsp) {
   int32_t tlen = 0;
   int32_t sz = 0;
-  tlen += taosEncodeFixedI64(buf, pRsp->consumerId);
+  // tlen += taosEncodeFixedI64(buf, pRsp->consumerId);
   tlen += taosEncodeFixedI64(buf, pRsp->reqOffset);
   tlen += taosEncodeFixedI64(buf, pRsp->rspOffset);
   tlen += taosEncodeFixedI32(buf, pRsp->skipLogNum);
   tlen += taosEncodeFixedI32(buf, pRsp->numOfTopics);
   if (pRsp->numOfTopics == 0) return tlen;
-  tlen += tEncodeSSchemaWrapper(buf, pRsp->schemas);
+  tlen += tEncodeSSchemaWrapper(buf, pRsp->schema);
   if (pRsp->pBlockData) {
     sz = taosArrayGetSize(pRsp->pBlockData);
   }
@@ -128,15 +141,15 @@ static FORCE_INLINE int32_t tEncodeSMqPollRsp(void** buf, const SMqPollRsp* pRsp
 
 static FORCE_INLINE void* tDecodeSMqPollRsp(void* buf, SMqPollRsp* pRsp) {
   int32_t sz;
-  buf = taosDecodeFixedI64(buf, &pRsp->consumerId);
+  // buf = taosDecodeFixedI64(buf, &pRsp->consumerId);
   buf = taosDecodeFixedI64(buf, &pRsp->reqOffset);
   buf = taosDecodeFixedI64(buf, &pRsp->rspOffset);
   buf = taosDecodeFixedI32(buf, &pRsp->skipLogNum);
   buf = taosDecodeFixedI32(buf, &pRsp->numOfTopics);
   if (pRsp->numOfTopics == 0) return buf;
-  pRsp->schemas = (SSchemaWrapper*)calloc(1, sizeof(SSchemaWrapper));
-  if (pRsp->schemas == NULL) return NULL;
-  buf = tDecodeSSchemaWrapper(buf, pRsp->schemas);
+  pRsp->schema = (SSchemaWrapper*)taosMemoryCalloc(1, sizeof(SSchemaWrapper));
+  if (pRsp->schema == NULL) return NULL;
+  buf = tDecodeSSchemaWrapper(buf, pRsp->schema);
   buf = taosDecodeFixedI32(buf, &sz);
   pRsp->pBlockData = taosArrayInit(sz, sizeof(SSDataBlock));
   for (int32_t i = 0; i < sz; i++) {
@@ -148,13 +161,13 @@ static FORCE_INLINE void* tDecodeSMqPollRsp(void* buf, SMqPollRsp* pRsp) {
 }
 
 static FORCE_INLINE void tDeleteSMqConsumeRsp(SMqPollRsp* pRsp) {
-  if (pRsp->schemas) {
-    if (pRsp->schemas->nCols) {
-      tfree(pRsp->schemas->pSchema);
+  if (pRsp->schema) {
+    if (pRsp->schema->nCols) {
+      taosMemoryFreeClear(pRsp->schema->pSchema);
     }
-    free(pRsp->schemas);
+    taosMemoryFree(pRsp->schema);
   }
-  taosArrayDestroyEx(pRsp->pBlockData, (void (*)(void*))tDeleteSSDataBlock);
+  taosArrayDestroyEx(pRsp->pBlockData, (void (*)(void*))blockDestroyInner);
   pRsp->pBlockData = NULL;
 }
 
@@ -166,10 +179,8 @@ typedef struct SColumn {
     int64_t  dataBlockId;
   };
 
-  union {
-    int16_t colId;
-    int16_t slotId;
-  };
+  int16_t colId;
+  int16_t slotId;
 
   char    name[TSDB_COL_NAME_LEN];
   int8_t  flag;  // column type: normal column, tag, or user-input column (integer/float/string)
@@ -196,7 +207,7 @@ typedef struct SGroupbyExpr {
 
 typedef struct SFunctParam {
   int32_t  type;
-  SColumn *pCol;
+  SColumn* pCol;
   SVariant param;
 } SFunctParam;
 
@@ -214,12 +225,12 @@ typedef struct SResSchame {
 typedef struct SExprBasicInfo {
   SResSchema   resSchema;
   int16_t      numOfParams;  // argument value of each function
-  SFunctParam *pParam;
+  SFunctParam* pParam;
 } SExprBasicInfo;
 
 typedef struct SExprInfo {
-  struct SExprBasicInfo  base;
-  struct tExprNode      *pExpr;
+  struct SExprBasicInfo base;
+  struct tExprNode*     pExpr;
 } SExprInfo;
 
 typedef struct SStateWindow {

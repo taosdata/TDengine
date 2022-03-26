@@ -18,8 +18,8 @@
 
 #include "meta.h"
 #include "tlog.h"
-#include "tq.h"
 #include "tqPush.h"
+#include "vnd.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -153,17 +153,24 @@ typedef struct {
   FTqDelete      pDeleter;
 } STqMetaStore;
 
+typedef struct {
+  SMemAllocatorFactory* pAllocatorFactory;
+  SMemAllocator*        pAllocator;
+} STqMemRef;
+
 struct STQ {
   // the collection of groups
   // the handle of meta kvstore
+  bool          writeTrigger;
   char*         path;
   STqCfg*       tqConfig;
   STqMemRef     tqMemRef;
   STqMetaStore* tqMeta;
-  STqPushMgr*   tqPushMgr;
-  SHashObj*     pStreamTasks;
-  SWal*         pWal;
-  SMeta*        pVnodeMeta;
+  // STqPushMgr*   tqPushMgr;
+  SHashObj* pStreamTasks;
+  SVnode*   pVnode;
+  SWal*     pWal;
+  SMeta*    pVnodeMeta;
 };
 
 typedef struct {

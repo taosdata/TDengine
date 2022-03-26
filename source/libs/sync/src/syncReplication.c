@@ -49,6 +49,10 @@
 int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
   assert(pSyncNode->state == TAOS_SYNC_STATE_LEADER);
 
+  syncIndexMgrLog2("==syncNodeAppendEntriesPeers== pNextIndex", pSyncNode->pNextIndex);
+  syncIndexMgrLog2("==syncNodeAppendEntriesPeers== pMatchIndex", pSyncNode->pMatchIndex);
+  logStoreSimpleLog2("==syncNodeAppendEntriesPeers==", pSyncNode->pLogStore);
+
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
     SRaftId* pDestId = &(pSyncNode->peersId[i]);
@@ -82,7 +86,7 @@ int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
       assert(len == pEntry->bytes);
       memcpy(pMsg->data, serialized, len);
 
-      free(serialized);
+      taosMemoryFree(serialized);
       syncEntryDestory(pEntry);
 
     } else {
@@ -98,6 +102,8 @@ int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
     pMsg->prevLogIndex = preLogIndex;
     pMsg->prevLogTerm = preLogTerm;
     pMsg->commitIndex = pSyncNode->commitIndex;
+
+    syncAppendEntriesLog2("==syncNodeAppendEntriesPeers==", pMsg);
 
     // send AppendEntries
     syncNodeAppendEntries(pSyncNode, pDestId, pMsg);

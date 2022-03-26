@@ -1,7 +1,6 @@
 // TAOS standard API example. The same syntax as MySQL, but only a subet 
 // to compile: gcc -o prepare prepare.c -ltaos
 
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,19 +50,19 @@ unsigned long long getCurrentTime(){
 }
 
 static int stmt_bind_case_001(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum, int bingNum, int lenOfBinaryDef, int lenOfBinaryAct, int columnNum) {
-  sampleValue* v = (sampleValue *)calloc(1, sizeof(sampleValue));
+  sampleValue* v = (sampleValue *)taosMemoryCalloc(1, sizeof(sampleValue));
 
   int totalRowsPerTbl = rowsOfPerColum * bingNum;
 
-  v->ts = (int64_t *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
-  v->br = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
-  v->nr = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->ts = (int64_t *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
+  v->br = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->nr = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
   
-  int *lb = (int *)malloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
+  int *lb = (int *)taosMemoryMalloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
-  char* is_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
-  char* no_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
+  char* is_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  char* no_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
 
   int64_t tts = 1591060628000;
 
@@ -222,33 +221,33 @@ static int stmt_bind_case_001(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum,
   unsigned long long totalRows = (uint32_t)(totalRowsPerTbl * tableNum);
   printf("insert total %d records, used %u seconds, avg:%u useconds per record\n", totalRows, (endtime-starttime)/1000000UL, (endtime-starttime)/totalRows);
 
-  free(v->ts);  
-  free(v->br);  
-  free(v->nr);  
-  free(v);
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v->ts);  
+  taosMemoryFree(v->br);  
+  taosMemoryFree(v->nr);  
+  taosMemoryFree(v);
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
 
 
 static int stmt_bind_case_002(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum, int bingNum, int lenOfBinaryDef, int lenOfBinaryAct, int columnNum) {
-  sampleValue* v = (sampleValue *)calloc(1, sizeof(sampleValue));
+  sampleValue* v = (sampleValue *)taosMemoryCalloc(1, sizeof(sampleValue));
 
   int totalRowsPerTbl = rowsOfPerColum * bingNum;
 
-  v->ts = (int64_t *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
-  v->br = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
-  v->nr = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->ts = (int64_t *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
+  v->br = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->nr = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
   
-  int *lb = (int *)malloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
+  int *lb = (int *)taosMemoryMalloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
-  char* is_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
-  char* no_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
+  char* is_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  char* no_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
 
   int64_t tts = 1591060628000;
 
@@ -407,33 +406,33 @@ static int stmt_bind_case_002(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum,
   unsigned long long totalRows = (uint32_t)(totalRowsPerTbl * tableNum);
   printf("insert total %d records, used %u seconds, avg:%u useconds per record\n", totalRows, (endtime-starttime)/1000000UL, (endtime-starttime)/totalRows);
 
-  free(v->ts);  
-  free(v->br);  
-  free(v->nr);  
-  free(v);
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v->ts);  
+  taosMemoryFree(v->br);  
+  taosMemoryFree(v->nr);  
+  taosMemoryFree(v);
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
 
 
 static int stmt_bind_case_003(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum, int bingNum, int lenOfBinaryDef, int lenOfBinaryAct, int columnNum) {
-  sampleValue* v = (sampleValue *)calloc(1, sizeof(sampleValue));
+  sampleValue* v = (sampleValue *)taosMemoryCalloc(1, sizeof(sampleValue));
 
   int totalRowsPerTbl = rowsOfPerColum * bingNum;
 
-  v->ts = (int64_t *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
-  v->br = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
-  v->nr = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->ts = (int64_t *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
+  v->br = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->nr = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
   
-  int *lb = (int *)malloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
+  int *lb = (int *)taosMemoryMalloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
-  char* is_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
-  char* no_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
+  char* is_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  char* no_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
 
   int64_t tts = 1591060628000;
 
@@ -529,32 +528,32 @@ static int stmt_bind_case_003(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum,
   unsigned long long totalRows = (uint32_t)(totalRowsPerTbl * tableNum);
   printf("insert total %d records, used %u seconds, avg:%u useconds per record\n", totalRows, (endtime-starttime)/1000000UL, (endtime-starttime)/totalRows);
 
-  free(v->ts);  
-  free(v->br);  
-  free(v->nr);  
-  free(v);
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v->ts);  
+  taosMemoryFree(v->br);  
+  taosMemoryFree(v->nr);  
+  taosMemoryFree(v);
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
 
 static int stmt_bind_case_004(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum, int bingNum, int lenOfBinaryDef, int lenOfBinaryAct, int columnNum) {
-  sampleValue* v = (sampleValue *)calloc(1, sizeof(sampleValue));
+  sampleValue* v = (sampleValue *)taosMemoryCalloc(1, sizeof(sampleValue));
 
   int totalRowsPerTbl = rowsOfPerColum * bingNum;
 
-  v->ts = (int64_t *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum * 2));
-  v->br = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
-  v->nr = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->ts = (int64_t *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum * 2));
+  v->br = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->nr = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
   
-  int *lb = (int *)malloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
+  int *lb = (int *)taosMemoryMalloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * 2 * (tableNum+1) * rowsOfPerColum));
-  char* is_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
-  char* no_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * 2 * (tableNum+1) * rowsOfPerColum));
+  char* is_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  char* no_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
 
   int64_t tts = 1591060628000;
 
@@ -731,32 +730,32 @@ static int stmt_bind_case_004(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum,
   unsigned long long totalRows = (uint32_t)(totalRowsPerTbl * tableNum);
   printf("insert total %d records, used %u seconds, avg:%u useconds per record\n", totalRows, (endtime-starttime)/1000000UL, (endtime-starttime)/totalRows);
 
-  free(v->ts);  
-  free(v->br);  
-  free(v->nr);  
-  free(v);
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v->ts);  
+  taosMemoryFree(v->br);  
+  taosMemoryFree(v->nr);  
+  taosMemoryFree(v);
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
 
 static int stmt_bind_error_case_001(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum, int bingNum, int lenOfBinaryDef, int lenOfBinaryAct, int columnNum) {
-  sampleValue* v = (sampleValue *)calloc(1, sizeof(sampleValue));
+  sampleValue* v = (sampleValue *)taosMemoryCalloc(1, sizeof(sampleValue));
 
   int totalRowsPerTbl = rowsOfPerColum * bingNum;
 
-  v->ts = (int64_t *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum * 2));
-  v->br = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
-  v->nr = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->ts = (int64_t *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum * 2));
+  v->br = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->nr = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
   
-  int *lb = (int *)malloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
+  int *lb = (int *)taosMemoryMalloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * 2 * (tableNum+1) * rowsOfPerColum));
-  char* is_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
-  char* no_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * 2 * (tableNum+1) * rowsOfPerColum));
+  char* is_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  char* no_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
 
   int64_t tts = 1591060628000;
 
@@ -926,33 +925,33 @@ static int stmt_bind_error_case_001(TAOS_STMT *stmt, int tableNum, int rowsOfPer
   unsigned long long totalRows = (uint32_t)(totalRowsPerTbl * tableNum);
   printf("insert total %d records, used %u seconds, avg:%u useconds per record\n", totalRows, (endtime-starttime)/1000000UL, (endtime-starttime)/totalRows);
 
-  free(v->ts);  
-  free(v->br);  
-  free(v->nr);  
-  free(v);
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v->ts);  
+  taosMemoryFree(v->br);  
+  taosMemoryFree(v->nr);  
+  taosMemoryFree(v);
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
 
 
 static int stmt_bind_error_case_002(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum, int bingNum, int lenOfBinaryDef, int lenOfBinaryAct, int columnNum) {
-  sampleValue* v = (sampleValue *)calloc(1, sizeof(sampleValue));
+  sampleValue* v = (sampleValue *)taosMemoryCalloc(1, sizeof(sampleValue));
 
   int totalRowsPerTbl = rowsOfPerColum * bingNum;
 
-  v->ts = (int64_t *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum * 2));
-  v->br = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
-  v->nr = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->ts = (int64_t *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum * 2));
+  v->br = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->nr = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
   
-  int *lb = (int *)malloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
+  int *lb = (int *)taosMemoryMalloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * 2 * (tableNum+1) * rowsOfPerColum));
-  char* is_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
-  char* no_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * 2 * (tableNum+1) * rowsOfPerColum));
+  char* is_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  char* no_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
 
   int64_t tts = 1591060628000;
 
@@ -1111,32 +1110,32 @@ static int stmt_bind_error_case_002(TAOS_STMT *stmt, int tableNum, int rowsOfPer
   unsigned long long totalRows = (uint32_t)(totalRowsPerTbl * tableNum);
   printf("insert total %d records, used %u seconds, avg:%u useconds per record\n", totalRows, (endtime-starttime)/1000000UL, (endtime-starttime)/totalRows);
 
-  free(v->ts);  
-  free(v->br);  
-  free(v->nr);  
-  free(v);
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v->ts);  
+  taosMemoryFree(v->br);  
+  taosMemoryFree(v->nr);  
+  taosMemoryFree(v);
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
 
 static int stmt_bind_error_case_003(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum, int bingNum, int lenOfBinaryDef, int lenOfBinaryAct, int columnNum) {
-  sampleValue* v = (sampleValue *)calloc(1, sizeof(sampleValue));
+  sampleValue* v = (sampleValue *)taosMemoryCalloc(1, sizeof(sampleValue));
 
   int totalRowsPerTbl = rowsOfPerColum * bingNum;
 
-  v->ts = (int64_t *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum * 2));
-  v->br = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
-  v->nr = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->ts = (int64_t *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum * 2));
+  v->br = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->nr = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
   
-  int *lb = (int *)malloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
+  int *lb = (int *)taosMemoryMalloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * 2 * (tableNum+1) * rowsOfPerColum));
-  char* is_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
-  char* no_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * 2 * (tableNum+1) * rowsOfPerColum));
+  char* is_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  char* no_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
 
   int64_t tts = 1591060628000;
 
@@ -1315,14 +1314,14 @@ static int stmt_bind_error_case_003(TAOS_STMT *stmt, int tableNum, int rowsOfPer
   unsigned long long totalRows = (uint32_t)(totalRowsPerTbl * tableNum);
   printf("insert total %d records, used %u seconds, avg:%u useconds per record\n", totalRows, (endtime-starttime)/1000000UL, (endtime-starttime)/totalRows);
 
-  free(v->ts);  
-  free(v->br);  
-  free(v->nr);  
-  free(v);
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v->ts);  
+  taosMemoryFree(v->br);  
+  taosMemoryFree(v->nr);  
+  taosMemoryFree(v);
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
@@ -2059,19 +2058,19 @@ static void runCase(TAOS *taos) {
 
 
 static int stmt_bind_case_001_long(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum, int bingNum, int lenOfBinaryDef, int lenOfBinaryAct, int columnNum, int64_t* startTs) {
-  sampleValue* v = (sampleValue *)calloc(1, sizeof(sampleValue));
+  sampleValue* v = (sampleValue *)taosMemoryCalloc(1, sizeof(sampleValue));
 
   int totalRowsPerTbl = rowsOfPerColum * bingNum;
 
-  v->ts = (int64_t *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
-  v->br = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
-  v->nr = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->ts = (int64_t *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
+  v->br = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->nr = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
   
-  int *lb = (int *)malloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
+  int *lb = (int *)taosMemoryMalloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
-  char* is_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
-  char* no_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
+  char* is_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  char* no_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
 
   int64_t tts = *startTs;
 
@@ -2232,14 +2231,14 @@ static int stmt_bind_case_001_long(TAOS_STMT *stmt, int tableNum, int rowsOfPerC
   unsigned long long totalRows = (uint32_t)(totalRowsPerTbl * tableNum);
   printf("insert total %d records, used %u seconds, avg:%u useconds per record\n", totalRows, (endtime-starttime)/1000000UL, (endtime-starttime)/totalRows);
 
-  free(v->ts);  
-  free(v->br);  
-  free(v->nr);  
-  free(v);
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v->ts);  
+  taosMemoryFree(v->br);  
+  taosMemoryFree(v->nr);  
+  taosMemoryFree(v);
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
@@ -2326,19 +2325,19 @@ static void runCase_long(TAOS *taos) {
 test scene:   insert into tb1 (ts,f1) values (?,?)
 */
 static int stmt_specifyCol_bind_case_001(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum, int bingNum, int lenOfBinaryDef, int lenOfBinaryAct, int columnNum) {
-  sampleValue* v = (sampleValue *)calloc(1, sizeof(sampleValue));
+  sampleValue* v = (sampleValue *)taosMemoryCalloc(1, sizeof(sampleValue));
 
   int totalRowsPerTbl = rowsOfPerColum * bingNum;
 
-  v->ts = (int64_t *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
-  v->br = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
-  v->nr = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->ts = (int64_t *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
+  v->br = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->nr = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
   
-  int *lb = (int *)malloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
+  int *lb = (int *)taosMemoryMalloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
-  char* is_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
-  char* no_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
+  char* is_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  char* no_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
 
   int64_t tts = 1591060628000;
 
@@ -2456,14 +2455,14 @@ static int stmt_specifyCol_bind_case_001(TAOS_STMT *stmt, int tableNum, int rows
   unsigned long long totalRows = (uint32_t)(totalRowsPerTbl * tableNum);
   printf("insert total %d records, used %u seconds, avg:%u useconds per record\n", totalRows, (endtime-starttime)/1000000UL, (endtime-starttime)/totalRows);
 
-  free(v->ts);  
-  free(v->br);  
-  free(v->nr);  
-  free(v);
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v->ts);  
+  taosMemoryFree(v->br);  
+  taosMemoryFree(v->nr);  
+  taosMemoryFree(v);
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
@@ -2473,19 +2472,19 @@ static int stmt_specifyCol_bind_case_001(TAOS_STMT *stmt, int tableNum, int rows
 test scene:   insert into ? (ts,f1) values (?,?)
 */
 static int stmt_specifyCol_bind_case_002(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum, int bingNum, int lenOfBinaryDef, int lenOfBinaryAct, int columnNum) {
-  sampleValue* v = (sampleValue *)calloc(1, sizeof(sampleValue));
+  sampleValue* v = (sampleValue *)taosMemoryCalloc(1, sizeof(sampleValue));
 
   int totalRowsPerTbl = rowsOfPerColum * bingNum;
 
-  v->ts = (int64_t *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
-  v->br = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
-  v->nr = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->ts = (int64_t *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
+  v->br = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->nr = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
   
-  int *lb = (int *)malloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
+  int *lb = (int *)taosMemoryMalloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
-  char* is_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
-  char* no_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
+  char* is_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  char* no_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
 
   int64_t tts = 1591060628000;
 
@@ -2603,14 +2602,14 @@ static int stmt_specifyCol_bind_case_002(TAOS_STMT *stmt, int tableNum, int rows
   unsigned long long totalRows = (uint32_t)(totalRowsPerTbl * tableNum);
   printf("insert total %d records, used %u seconds, avg:%u useconds per record\n", totalRows, (endtime-starttime)/1000000UL, (endtime-starttime)/totalRows);
 
-  free(v->ts);  
-  free(v->br);  
-  free(v->nr);  
-  free(v);
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v->ts);  
+  taosMemoryFree(v->br);  
+  taosMemoryFree(v->nr);  
+  taosMemoryFree(v);
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
@@ -2620,19 +2619,19 @@ static int stmt_specifyCol_bind_case_002(TAOS_STMT *stmt, int tableNum, int rows
 test scene:   insert into tb1 (ts,f1) values (?,?)
 */
 static int stmt_specifyCol_bind_case_001_maxRows(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum, int bingNum, int lenOfBinaryDef, int lenOfBinaryAct, int columnNum) {
-  sampleValue* v = (sampleValue *)calloc(1, sizeof(sampleValue));
+  sampleValue* v = (sampleValue *)taosMemoryCalloc(1, sizeof(sampleValue));
 
   int totalRowsPerTbl = rowsOfPerColum * bingNum;
 
-  v->ts = (int64_t *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
-  v->br = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
-  v->nr = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->ts = (int64_t *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
+  v->br = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->nr = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
   
-  int *lb = (int *)malloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
+  int *lb = (int *)taosMemoryMalloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
-  char* is_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
-  char* no_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
+  char* is_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  char* no_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
 
   int64_t tts = 1591060628000;
 
@@ -2729,14 +2728,14 @@ static int stmt_specifyCol_bind_case_001_maxRows(TAOS_STMT *stmt, int tableNum, 
   unsigned long long totalRows = (uint32_t)(totalRowsPerTbl * tableNum);
   printf("insert total %d records, used %u seconds, avg:%u useconds per record\n", totalRows, (endtime-starttime)/1000000UL, (endtime-starttime)/totalRows);
 
-  free(v->ts);  
-  free(v->br);  
-  free(v->nr);  
-  free(v);
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v->ts);  
+  taosMemoryFree(v->br);  
+  taosMemoryFree(v->nr);  
+  taosMemoryFree(v);
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
@@ -3206,20 +3205,20 @@ static void SpecifyColumnBatchCase(TAOS *taos) {
 test scene:   insert into tb1 (ts,f1) values (?,?)
 */
 static int stmt_specifyCol_bind_case_001_autoCreateTbl(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum, int bingNum, int lenOfBinaryDef, int lenOfBinaryAct, int columnNum) {
-  sampleValue* v = (sampleValue *)calloc(1, sizeof(sampleValue));
+  sampleValue* v = (sampleValue *)taosMemoryCalloc(1, sizeof(sampleValue));
 
   int totalRowsPerTbl = rowsOfPerColum * bingNum;
 
-  v->ts = (int64_t *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
-  v->br = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
-  v->nr = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->ts = (int64_t *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
+  v->br = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->nr = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
   
-  int *lb = (int *)malloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
+  int *lb = (int *)taosMemoryMalloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
 
-  TAOS_BIND       *tags   = calloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
-  char* is_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
-  char* no_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  TAOS_BIND       *tags   = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
+  char* is_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  char* no_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
   int one_not_null = 0;
 
   int64_t tts = 1591060628000;
@@ -3388,34 +3387,34 @@ static int stmt_specifyCol_bind_case_001_autoCreateTbl(TAOS_STMT *stmt, int tabl
   unsigned long long totalRows = (uint32_t)(totalRowsPerTbl * tableNum);
   printf("insert total %d records, used %u seconds, avg:%u useconds per record\n", totalRows, (endtime-starttime)/1000000UL, (endtime-starttime)/totalRows);
 
-  free(v->ts);  
-  free(v->br);  
-  free(v->nr);  
-  free(v);
-  free(lb);
-  free(params);
-  free(tags);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v->ts);  
+  taosMemoryFree(v->br);  
+  taosMemoryFree(v->nr);  
+  taosMemoryFree(v);
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(tags);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
 
 static int stmt_specifyCol_bind_case_002_autoCreateTbl(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum, int bingNum, int lenOfBinaryDef, int lenOfBinaryAct, int columnNum) {
-  sampleValue* v = (sampleValue *)calloc(1, sizeof(sampleValue));
+  sampleValue* v = (sampleValue *)taosMemoryCalloc(1, sizeof(sampleValue));
 
   int totalRowsPerTbl = rowsOfPerColum * bingNum;
 
-  v->ts = (int64_t *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
-  v->br = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
-  v->nr = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->ts = (int64_t *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
+  v->br = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->nr = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
   
-  int *lb = (int *)malloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
+  int *lb = (int *)taosMemoryMalloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
 
-  TAOS_BIND       *tags   = calloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
-  char* is_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
-  char* no_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  TAOS_BIND       *tags   = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
+  char* is_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  char* no_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
   int one_not_null = 0;
 
   int64_t tts = 1591060628000;
@@ -3584,35 +3583,35 @@ static int stmt_specifyCol_bind_case_002_autoCreateTbl(TAOS_STMT *stmt, int tabl
   unsigned long long totalRows = (uint32_t)(totalRowsPerTbl * tableNum);
   printf("insert total %d records, used %u seconds, avg:%u useconds per record\n", totalRows, (endtime-starttime)/1000000UL, (endtime-starttime)/totalRows);
 
-  free(v->ts);  
-  free(v->br);  
-  free(v->nr);  
-  free(v);
-  free(lb);
-  free(params);
-  free(tags);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v->ts);  
+  taosMemoryFree(v->br);  
+  taosMemoryFree(v->nr);  
+  taosMemoryFree(v);
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(tags);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
 
 //  some tags are null
 static int stmt_specifyCol_bind_case_003_autoCreateTbl(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum, int bingNum, int lenOfBinaryDef, int lenOfBinaryAct, int columnNum) {
-  sampleValue* v = (sampleValue *)calloc(1, sizeof(sampleValue));
+  sampleValue* v = (sampleValue *)taosMemoryCalloc(1, sizeof(sampleValue));
 
   int totalRowsPerTbl = rowsOfPerColum * bingNum;
 
-  v->ts = (int64_t *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
-  v->br = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
-  v->nr = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->ts = (int64_t *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
+  v->br = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->nr = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
   
-  int *lb = (int *)malloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
+  int *lb = (int *)taosMemoryMalloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
 
-  TAOS_BIND       *tags   = calloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
-  char* is_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
-  char* no_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  TAOS_BIND       *tags   = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
+  char* is_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  char* no_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
   int one_not_null = 0;
   int one_is_null = 1;
 
@@ -3782,35 +3781,35 @@ static int stmt_specifyCol_bind_case_003_autoCreateTbl(TAOS_STMT *stmt, int tabl
   unsigned long long totalRows = (uint32_t)(totalRowsPerTbl * tableNum);
   printf("insert total %d records, used %u seconds, avg:%u useconds per record\n", totalRows, (endtime-starttime)/1000000UL, (endtime-starttime)/totalRows);
 
-  free(v->ts);  
-  free(v->br);  
-  free(v->nr);  
-  free(v);
-  free(lb);
-  free(params);
-  free(tags);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v->ts);  
+  taosMemoryFree(v->br);  
+  taosMemoryFree(v->nr);  
+  taosMemoryFree(v);
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(tags);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
 
 // specify tags field, and not support , then is error case
 static int stmt_specifyCol_bind_case_004_autoCreateTbl(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum, int bingNum, int lenOfBinaryDef, int lenOfBinaryAct, int columnNum) {
-  sampleValue* v = (sampleValue *)calloc(1, sizeof(sampleValue));
+  sampleValue* v = (sampleValue *)taosMemoryCalloc(1, sizeof(sampleValue));
 
   int totalRowsPerTbl = rowsOfPerColum * bingNum;
 
-  v->ts = (int64_t *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
-  v->br = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
-  v->nr = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->ts = (int64_t *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
+  v->br = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->nr = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
   
-  int *lb = (int *)malloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
+  int *lb = (int *)taosMemoryMalloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
 
-  TAOS_BIND       *tags   = calloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
-  char* is_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
-  char* no_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  TAOS_BIND       *tags   = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
+  char* is_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  char* no_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
   int one_not_null = 0;
 
   int64_t tts = 1591060628000;
@@ -3979,15 +3978,15 @@ static int stmt_specifyCol_bind_case_004_autoCreateTbl(TAOS_STMT *stmt, int tabl
   unsigned long long totalRows = (uint32_t)(totalRowsPerTbl * tableNum);
   printf("insert total %d records, used %u seconds, avg:%u useconds per record\n", totalRows, (endtime-starttime)/1000000UL, (endtime-starttime)/totalRows);
 
-  free(v->ts);  
-  free(v->br);  
-  free(v->nr);  
-  free(v);
-  free(lb);
-  free(params);
-  free(tags);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v->ts);  
+  taosMemoryFree(v->br);  
+  taosMemoryFree(v->nr);  
+  taosMemoryFree(v);
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(tags);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
@@ -4414,19 +4413,19 @@ char * taos_stmt_errstr(TAOS_STMT *stmt) 用于在其他stmt API 返回错误（
 3. 返回的错误码对于的错误消息；
 */
 static int stmt_specifyCol_bind_error_case_001(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum, int bingNum, int lenOfBinaryDef, int lenOfBinaryAct, int columnNum) {
-  sampleValue* v = (sampleValue *)calloc(1, sizeof(sampleValue));
+  sampleValue* v = (sampleValue *)taosMemoryCalloc(1, sizeof(sampleValue));
 
   int totalRowsPerTbl = rowsOfPerColum * bingNum;
 
-  v->ts = (int64_t *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
-  v->br = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
-  v->nr = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->ts = (int64_t *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
+  v->br = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->nr = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
   
-  int *lb = (int *)malloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
+  int *lb = (int *)taosMemoryMalloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
-  char* is_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
-  char* no_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
+  char* is_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  char* no_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
 
   int64_t tts = 1591060628000;
 
@@ -4571,32 +4570,32 @@ static int stmt_specifyCol_bind_error_case_001(TAOS_STMT *stmt, int tableNum, in
   unsigned long long totalRows = (uint32_t)(totalRowsPerTbl * tableNum);
   printf("insert total %d records, used %u seconds, avg:%u useconds per record\n", totalRows, (endtime-starttime)/1000000UL, (endtime-starttime)/totalRows);
 
-  free(v->ts);  
-  free(v->br);  
-  free(v->nr);  
-  free(v);
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v->ts);  
+  taosMemoryFree(v->br);  
+  taosMemoryFree(v->nr);  
+  taosMemoryFree(v);
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
 
 static int stmt_specifyCol_bind_error_case_002(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum, int bingNum, int lenOfBinaryDef, int lenOfBinaryAct, int columnNum) {
-  sampleValue* v = (sampleValue *)calloc(1, sizeof(sampleValue));
+  sampleValue* v = (sampleValue *)taosMemoryCalloc(1, sizeof(sampleValue));
 
   int totalRowsPerTbl = rowsOfPerColum * bingNum;
 
-  v->ts = (int64_t *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
-  v->br = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
-  v->nr = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->ts = (int64_t *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
+  v->br = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->nr = (char *)taosMemoryMalloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
   
-  int *lb = (int *)malloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
+  int *lb = (int *)taosMemoryMalloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
-  char* is_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
-  char* no_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
+  char* is_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  char* no_null = taosMemoryMalloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
 
   int64_t tts = 1591060628000;
 
@@ -4716,14 +4715,14 @@ static int stmt_specifyCol_bind_error_case_002(TAOS_STMT *stmt, int tableNum, in
   unsigned long long totalRows = (uint32_t)(totalRowsPerTbl * tableNum);
   printf("insert total %d records, used %u seconds, avg:%u useconds per record\n", totalRows, (endtime-starttime)/1000000UL, (endtime-starttime)/totalRows);
 
-  free(v->ts);  
-  free(v->br);  
-  free(v->nr);  
-  free(v);
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v->ts);  
+  taosMemoryFree(v->br);  
+  taosMemoryFree(v->nr);  
+  taosMemoryFree(v);
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
@@ -5080,8 +5079,8 @@ int main(int argc, char *argv[])
 #if 0
   printf("server:%s, threadNum:%d, rows:%d\n\n", serverIp, threadNum, g_rows);
 
-  pthread_t *pThreadList = (pthread_t *) calloc(sizeof(pthread_t), (size_t)threadNum);
-  ThreadInfo* threadInfo = (ThreadInfo *) calloc(sizeof(ThreadInfo), (size_t)threadNum);
+  TdThread *pThreadList = (TdThread *) taosMemoryCalloc(sizeof(TdThread), (size_t)threadNum);
+  ThreadInfo* threadInfo = (ThreadInfo *) taosMemoryCalloc(sizeof(ThreadInfo), (size_t)threadNum);
 
   ThreadInfo*  tInfo = threadInfo;
   for (int i = 0; i < threadNum; i++) {
@@ -5094,20 +5093,20 @@ int main(int argc, char *argv[])
     tInfo->taos = taos;
     tInfo->idx = i;
     if (0 == i) {
-      //pthread_create(&(pThreadList[0]), NULL, runCase, (void *)tInfo);      
-      pthread_create(&(pThreadList[0]), NULL, SpecifyColumnBatchCase, (void *)tInfo);
+      //taosThreadCreate(&(pThreadList[0]), NULL, runCase, (void *)tInfo);      
+      taosThreadCreate(&(pThreadList[0]), NULL, SpecifyColumnBatchCase, (void *)tInfo);
     } else if (1 == i){
-      pthread_create(&(pThreadList[0]), NULL, runCase_long, (void *)tInfo);
+      taosThreadCreate(&(pThreadList[0]), NULL, runCase_long, (void *)tInfo);
     }
     tInfo++;
   }
 
   for (int i = 0; i < threadNum; i++) {
-    pthread_join(pThreadList[i], NULL);
+    taosThreadJoin(pThreadList[i], NULL);
   }
 
-  free(pThreadList);
-  free(threadInfo);
+  taosMemoryFree(pThreadList);
+  taosMemoryFree(threadInfo);
 #endif
 
   taos = taos_connect(serverIp, "root", "taosdata", NULL, 0);

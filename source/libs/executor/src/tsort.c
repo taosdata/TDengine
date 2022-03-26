@@ -65,7 +65,7 @@ typedef struct SSortHandle {
 static int32_t msortComparFn(const void *pLeft, const void *pRight, void *param);
 
 static SSDataBlock* createDataBlock_rv(SSchema* pSchema, int32_t numOfCols) {
-  SSDataBlock* pBlock = calloc(1, sizeof(SSDataBlock));
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
   pBlock->info.numOfCols = numOfCols;
 
@@ -91,7 +91,7 @@ static SSDataBlock* createDataBlock_rv(SSchema* pSchema, int32_t numOfCols) {
  * @return
  */
 SSortHandle* tsortCreateSortHandle(SArray* pOrderInfo, bool nullFirst, int32_t type, int32_t pageSize, int32_t numOfPages, SSchema* pSchema, int32_t numOfCols, const char* idstr) {
-  SSortHandle* pSortHandle = calloc(1, sizeof(SSortHandle));
+  SSortHandle* pSortHandle = taosMemoryCalloc(1, sizeof(SSortHandle));
 
   pSortHandle->type       = type;
   pSortHandle->pageSize   = pageSize;
@@ -118,8 +118,8 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
   }
 
   destroyDiskbasedBuf(pSortHandle->pBuf);
-  tfree(pSortHandle->idStr);
-  tfree(pSortHandle);
+  taosMemoryFreeClear(pSortHandle->idStr);
+  taosMemoryFreeClear(pSortHandle);
 }
 
 int32_t tsortAddSource(SSortHandle* pSortHandle, void* pSource) {
@@ -127,7 +127,7 @@ int32_t tsortAddSource(SSortHandle* pSortHandle, void* pSource) {
 }
 
 static int32_t doAddNewExternalMemSource(SDiskbasedBuf *pBuf, SArray* pAllSources, SSDataBlock* pBlock, int32_t* sourceId) {
-  SExternalMemSource* pSource = calloc(1, sizeof(SExternalMemSource));
+  SExternalMemSource* pSource = taosMemoryCalloc(1, sizeof(SExternalMemSource));
   if (pSource == NULL) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
@@ -182,7 +182,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
     start = stop + 1;
   }
 
-  blockDataClearup(pDataBlock);
+  blockDataCleanup(pDataBlock);
 
   SSDataBlock* pBlock = createOneDataBlock(pDataBlock);
   int32_t code = doAddNewExternalMemSource(pHandle->pBuf, pHandle->pOrderedSource, pBlock, &pHandle->sourceId);
@@ -233,7 +233,7 @@ static int32_t sortComparClearup(SMsortComparParam* cmpParam) {
   for(int32_t i = 0; i < cmpParam->numOfSources; ++i) {
     SExternalMemSource* pSource = cmpParam->pSources[i];
     blockDataDestroy(pSource->src.pBlock);
-    tfree(pSource);
+    taosMemoryFreeClear(pSource);
   }
 
   cmpParam->numOfSources = 0;
@@ -312,7 +312,7 @@ static int32_t adjustMergeTreeForNextTuple(SExternalMemSource *pSource, SMultiwa
 }
 
 static SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SMsortComparParam* cmpParam, int32_t capacity) {
-  blockDataClearup(pHandle->pDataBlock);
+  blockDataCleanup(pHandle->pDataBlock);
 
   while(1) {
     if (cmpParam->numOfSources == pHandle->numOfCompletedSources) {
@@ -478,7 +478,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
         setBufPageDirty(pPage, true);
         releaseBufPage(pHandle->pBuf, pPage);
 
-        blockDataClearup(pDataBlock);
+        blockDataCleanup(pDataBlock);
       }
 
       tMergeTreeDestroy(pHandle->pMergeTree);
@@ -570,7 +570,7 @@ static int32_t createInitialSortedMultiSources(SSortHandle* pHandle) {
       }
     }
 
-    tfree(source);
+    taosMemoryFreeClear(source);
   }
 
   return TSDB_CODE_SUCCESS;

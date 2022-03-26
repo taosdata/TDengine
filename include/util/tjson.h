@@ -22,6 +22,14 @@
 extern "C" {
 #endif
 
+#define tjsonGetNumberValue(pJson, pName, val) \
+  ({ \
+    uint64_t _tmp = 0; \
+    int32_t _code = tjsonGetUBigIntValue(pJson, pName, &_tmp); \
+    val = _tmp; \
+    _code; \
+  })
+
 typedef void SJson;
 
 SJson* tjsonCreateObject();

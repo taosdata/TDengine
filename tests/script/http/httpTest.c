@@ -5,12 +5,11 @@
 #include <unistd.h>
 #include <netinet/in.h>
 #include <stdlib.h>
-#include <pthread.h>
  
 #define MAXLINE 1024
 
 typedef struct {
-  pthread_t pid;
+  TdThread pid;
   int threadId;
   int rows;
   int tables;
@@ -78,8 +77,8 @@ void execute(void *params) {
     char ip[] = "127.0.0.1";
     int port = 6041;
     char page[] = "rest/sql";
-    char *unique = calloc(1, 1024);
-    char *sql = calloc(1, 1024);
+    char *unique = taosMemoryCalloc(1, 1024);
+    char *sql = taosMemoryCalloc(1, 1024);
     ThreadObj *pThread = (ThreadObj *)params;
     printf("Thread %d started\n", pThread->threadId);
     sprintf(unique, "rest/sql/db%d",pThread->threadId);
@@ -95,8 +94,8 @@ void execute(void *params) {
         sprintf(sql, "insert into t%d values (now + %ds, %d)", pThread->threadId, i, pThread->threadId);
         post(ip,port,unique, sql);
     }
-    free(unique);
-    free(sql);
+    taosMemoryFree(unique);
+    taosMemoryFree(sql);
     return;
 }
 
@@ -104,21 +103,21 @@ void multiThread() {
     int numOfThreads = 100;
     int numOfTables = 100;
     int numOfRows = 1;
-    ThreadObj *threads = calloc((size_t)numOfThreads, sizeof(ThreadObj));
+    ThreadObj *threads = taosMemoryCalloc((size_t)numOfThreads, sizeof(ThreadObj));
     for (int i = 0; i < numOfThreads; i++) {
         ThreadObj *pthread = threads + i;
-        pthread_attr_t thattr;
+        TdThreadAttr thattr;
         pthread->threadId = i + 1;
         pthread->rows = numOfRows;
         pthread->tables = numOfTables;
-        pthread_attr_init(&thattr);
-        pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
-        pthread_create(&pthread->pid, &thattr, (void *(*)(void *))execute, pthread);
+        taosThreadAttrInit(&thattr);
+        taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
+        taosThreadCreate(&pthread->pid, &thattr, (void *(*)(void *))execute, pthread);
     }
     for (int i = 0; i < numOfThreads; i++) {
-        pthread_join(threads[i].pid, NULL);
+        taosThreadJoin(threads[i].pid, NULL);
     }
-    free(threads);
+    taosMemoryFree(threads);
 }
  
 int main() {

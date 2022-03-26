@@ -72,7 +72,7 @@ protected:
       SSubmitBlk* blk = (SSubmitBlk*)(submit + 1);
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         cout << "Block:" << i << endl;
-        cout << "\tuid:" << be64toh(blk->uid) << ", tid:" << ntohl(blk->tid) << ", padding:" << ntohl(blk->padding) << ", sversion:" << ntohl(blk->sversion)
+        cout << "\tuid:" << be64toh(blk->uid) << ", tid:" << be64toh(blk->suid) << ", padding:" << ntohl(blk->padding) << ", sversion:" << ntohl(blk->sversion)
             << ", dataLen:" << ntohl(blk->dataLen) << ", schemaLen:" << ntohl(blk->schemaLen) << ", numOfRows:" << ntohs(blk->numOfRows) << endl;
         blk = (SSubmitBlk*)(blk->data + ntohl(blk->dataLen));
       }
@@ -131,7 +131,7 @@ private:
 TEST_F(InsertTest, singleTableSingleRowTest) {
   setDatabase("root", "test");
 
-  bind("insert into t1 values (now, 1, \"beijing\")");
+  bind("insert into t1 values (now, 1, 'beijing', 3, 4, 5)");
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
   dumpReslut();
   checkReslut(1, 1);
@@ -141,7 +141,7 @@ TEST_F(InsertTest, singleTableSingleRowTest) {
 TEST_F(InsertTest, singleTableMultiRowTest) {
   setDatabase("root", "test");
 
-  bind("insert into t1 values (now, 1, \"beijing\")(now+1s, 2, \"shanghai\")(now+2s, 3, \"guangzhou\")");
+  bind("insert into t1 values (now, 1, 'beijing', 3, 4, 5)(now+1s, 2, 'shanghai', 6, 7, 8)(now+2s, 3, 'guangzhou', 9, 10, 11)");
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
   dumpReslut();
   checkReslut(1, 3);

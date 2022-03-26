@@ -35,7 +35,7 @@ typedef struct {
   uint16_t    port;                   // peer port
   uint16_t    localPort;              // local port
   char        label[TSDB_LABEL_LEN];  // copy from udpConnSet;
-  pthread_t   thread;
+  TdThread   thread;
   void       *hash;
   void       *shandle;  // handle passed by upper layer during server initialization
   void       *pSet;
@@ -62,7 +62,7 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
   SUdpConnSet *pSet;
 
   int size = (int)sizeof(SUdpConnSet) + threads * (int)sizeof(SUdpConn);
-  pSet = (SUdpConnSet *)malloc((size_t)size);
+  pSet = (SUdpConnSet *)taosMemoryMalloc((size_t)size);
   if (pSet == NULL) {
     tError("%s failed to allocate UdpConn", label);
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -77,9 +77,9 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
   pSet->threads = threads;
   tstrncpy(pSet->label, label, sizeof(pSet->label));
 
-  pthread_attr_t thAttr;
-  pthread_attr_init(&thAttr);
-  pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
 
   int      i;
   uint16_t ownPort;
@@ -92,7 +92,7 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
       break;
     }
 
-    pConn->buffer = malloc(RPC_MAX_UDP_SIZE);
+    pConn->buffer = taosMemoryMalloc(RPC_MAX_UDP_SIZE);
     if (NULL == pConn->buffer) {
       tError("%s failed to malloc recv buffer", label);
       break;
@@ -111,14 +111,14 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
     pConn->index = i;
     pConn->pSet = pSet;
 
-    int code = pthread_create(&pConn->thread, &thAttr, taosRecvUdpData, pConn);
+    int code = taosThreadCreate(&pConn->thread, &thAttr, taosRecvUdpData, pConn);
     if (code != 0) {
       tError("%s failed to create thread to process UDP data(%s)", label, strerror(errno));
       break;
     }
   }
 
-  pthread_attr_destroy(&thAttr);
+  taosThreadAttrDestroy(&thAttr);
 
   if (i != threads) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -146,9 +146,9 @@ void taosStopUdpConnection(void *handle) {
   for (int i = 0; i < pSet->threads; ++i) {
     pConn = pSet->udpConn + i;
     if (taosCheckPthreadValid(pConn->thread)) {
-      pthread_join(pConn->thread, NULL);
+      taosThreadJoin(pConn->thread, NULL);
     }
-    tfree(pConn->buffer);
+    taosMemoryFreeClear(pConn->buffer);
     // tTrace("%s UDP thread is closed, index:%d", pConn->label, i);
   }
 
@@ -167,7 +167,7 @@ void taosCleanUpUdpConnection(void *handle) {
   }
 
   tDebug("%s UDP is cleaned up", pSet->label);
-  tfree(pSet);
+  taosMemoryFreeClear(pSet);
 }
 
 void *taosOpenUdpConnection(void *shandle, void *thandle, uint32_t ip, uint16_t port) {
@@ -219,7 +219,7 @@ static void *taosRecvUdpData(void *param) {
     }
 
     int32_t size = dataLen + tsRpcOverhead;
-    char *  tmsg = malloc(size);
+    char *  tmsg = taosMemoryMalloc(size);
     if (NULL == tmsg) {
       tError("%s failed to allocate memory, size:%" PRId64, pConn->label, (int64_t)dataLen);
       continue;

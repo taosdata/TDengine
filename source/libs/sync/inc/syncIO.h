@@ -35,7 +35,7 @@ extern "C" {
 typedef struct SSyncIO {
   STaosQueue *pMsgQ;
   STaosQset * pQset;
-  pthread_t   consumerTid;
+  TdThread    consumerTid;
 
   void * serverRpc;
   void * clientRpc;

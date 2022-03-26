@@ -35,6 +35,7 @@ typedef enum {
   TAOS_SYNC_STATE_FOLLOWER = 100,
   TAOS_SYNC_STATE_CANDIDATE = 101,
   TAOS_SYNC_STATE_LEADER = 102,
+  TAOS_SYNC_STATE_ERROR = 103,
 } ESyncState;
 
 typedef struct SSyncBuffer {
@@ -68,17 +69,20 @@ typedef struct SSnapshot {
 typedef struct SSyncFSM {
   void* data;
 
-  // when value in pBuf finish a raft flow, FpCommitCb is called, code indicates the result
+  // when value in pMsg finish a raft flow, FpCommitCb is called, code indicates the result
   // user can do something according to the code and isWeak. for example, write data into tsdb
-  void (*FpCommitCb)(struct SSyncFSM* pFsm, const SRpcMsg* pBuf, SyncIndex index, bool isWeak, int32_t code);
+  void (*FpCommitCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SyncIndex index, bool isWeak, int32_t code,
+                     ESyncState state);
 
-  // when value in pBuf has been written into local log store, FpPreCommitCb is called, code indicates the result
+  // when value in pMsg has been written into local log store, FpPreCommitCb is called, code indicates the result
   // user can do something according to the code and isWeak. for example, write data into tsdb
-  void (*FpPreCommitCb)(struct SSyncFSM* pFsm, const SRpcMsg* pBuf, SyncIndex index, bool isWeak, int32_t code);
+  void (*FpPreCommitCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SyncIndex index, bool isWeak, int32_t code,
+                        ESyncState state);
 
   // when log entry is updated by a new one, FpRollBackCb is called
   // user can do something to roll back. for example, delete data from tsdb, or just ignore it
-  void (*FpRollBackCb)(struct SSyncFSM* pFsm, const SRpcMsg* pBuf, SyncIndex index, bool isWeak, int32_t code);
+  void (*FpRollBackCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SyncIndex index, bool isWeak, int32_t code,
+                       ESyncState state);
 
   // user should implement this function, use "data" to take snapshot into "snapshot"
   int32_t (*FpTakeSnapshot)(SSnapshot* snapshot);
@@ -157,9 +161,14 @@ void    syncCleanUp();
 int64_t    syncStart(const SSyncInfo* pSyncInfo);
 void       syncStop(int64_t rid);
 int32_t    syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg);
-int32_t    syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
+int32_t    syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
 ESyncState syncGetMyRole(int64_t rid);
-void       syncGetNodesRole(int64_t rid, SNodesRole* pNodeRole);
+
+// propose with sequence number, to implement linearizable semantics
+int32_t syncPropose2(int64_t rid, const SRpcMsg* pMsg, bool isWeak, uint64_t seqNum);
+
+// for compatibility, the same as syncPropose
+int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
 
 extern int32_t sDebugFlag;
 

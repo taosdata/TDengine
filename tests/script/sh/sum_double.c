@@ -71,14 +71,14 @@ void sum_double_merge(char* data, int32_t numOfRows, char* dataOutput, int32_t* 
 
 int sum_double_init(SUdfInit* buf) {
    buf->maybe_null=1;
-   buf->ptr = malloc(sizeof(int));
+   buf->ptr = taosMemoryMalloc(sizeof(int));
    printf("sum_double init\n");
    return 0;
 }
 
 
 void sum_double_destroy(SUdfInit* buf) {
-   free(buf->ptr);
+   taosMemoryFree(buf->ptr);
    printf("sum_double destroy\n");
 }
 

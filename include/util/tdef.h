@@ -99,7 +99,7 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_INS_TABLE_MNODES                 "mnodes"
 #define TSDB_INS_TABLE_MODULES                "modules"
 #define TSDB_INS_TABLE_QNODES                 "qnodes"
-#define TSDB_INS_TABLE_USER_DATABASE          "user_database"
+#define TSDB_INS_TABLE_USER_DATABASES         "user_databases"
 #define TSDB_INS_TABLE_USER_FUNCTIONS         "user_functions"
 #define TSDB_INS_TABLE_USER_INDEXES           "user_indexes"
 #define TSDB_INS_TABLE_USER_STABLES           "user_stables"
@@ -108,6 +108,8 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED "user_table_distributed"
 #define TSDB_INS_TABLE_USER_USERS             "user_users"
 #define TSDB_INS_TABLE_VGROUPS                "vgroups"
+
+#define TSDB_INS_USER_STABLES_DBNAME_COLID    2
 
 #define TSDB_TICK_PER_SECOND(precision)                      \
   ((int64_t)((precision) == TSDB_TIME_PRECISION_MILLI ? 1e3L \
@@ -452,6 +454,10 @@ enum {
   SND_WORKER_TYPE__SHARED = 1,
   SND_WORKER_TYPE__UNIQUE,
 };
+
+#define MND_VGID -1
+#define QND_VGID 1
+#define VND_VGID 0
 
 #ifdef __cplusplus
 }

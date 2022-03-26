@@ -74,7 +74,7 @@ BUILD_DIR=$TAOS_DIR/$BIN_DIR
 
 SIM_DIR=$TAOS_DIR/sim
 NODE_DIR=$SIM_DIR/$NODE_NAME
-EXE_DIR=$BUILD_DIR/source/dnode/mgmt/daemon
+EXE_DIR=$BUILD_DIR/source/dnode/mgmt/main
 CFG_DIR=$NODE_DIR/cfg
 LOG_DIR=$NODE_DIR/log
 DATA_DIR=$NODE_DIR/data

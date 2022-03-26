@@ -230,7 +230,7 @@ void updateBuffer(Command *cmd) {
 int isReadyGo(Command *cmd) {
   assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
 
-  char *total = (char *)calloc(1, MAX_COMMAND_SIZE);
+  char *total = (char *)taosMemoryCalloc(1, MAX_COMMAND_SIZE);
   memset(cmd->command + cmd->commandSize, 0, MAX_COMMAND_SIZE - cmd->commandSize);
   sprintf(total, "%s%s", cmd->buffer, cmd->command);
 
@@ -238,20 +238,20 @@ int isReadyGo(Command *cmd) {
     "(^.*;\\s*$)|(^\\s*$)|(^\\s*exit\\s*$)|(^\\s*q\\s*$)|(^\\s*quit\\s*$)|(^"
     "\\s*clear\\s*$)";
   if (regex_match(total, reg_str, REG_EXTENDED | REG_ICASE)) {
-    free(total);
+    taosMemoryFree(total);
     return 1;
   }
 
-  free(total);
+  taosMemoryFree(total);
   return 0;
 }
 
 void getMbSizeInfo(const char *str, int *size, int *width) {
-  TdWchar *wc = (TdWchar *)calloc(sizeof(TdWchar), MAX_COMMAND_SIZE);
+  TdWchar *wc = (TdWchar *)taosMemoryCalloc(sizeof(TdWchar), MAX_COMMAND_SIZE);
   *size = strlen(str);
   taosMbsToWchars(wc, str, MAX_COMMAND_SIZE);
   *width = taosWcharsWidth(wc, MAX_COMMAND_SIZE);
-  free(wc);
+  taosMemoryFree(wc);
 }
 
 void resetCommand(Command *cmd, const char s[]) {

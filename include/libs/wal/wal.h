@@ -61,30 +61,45 @@ extern "C" {
     }                                                             \
   }
 
-#define WAL_HEAD_VER 0
+#define WAL_HEAD_VER     0
 #define WAL_NOSUFFIX_LEN 20
-#define WAL_SUFFIX_AT (WAL_NOSUFFIX_LEN + 1)
-#define WAL_LOG_SUFFIX "log"
+#define WAL_SUFFIX_AT    (WAL_NOSUFFIX_LEN + 1)
+#define WAL_LOG_SUFFIX   "log"
 #define WAL_INDEX_SUFFIX "idx"
-#define WAL_REFRESH_MS 1000
-#define WAL_MAX_SIZE (TSDB_MAX_WAL_SIZE + sizeof(SWalHead))
-#define WAL_PATH_LEN (TSDB_FILENAME_LEN + 12)
-#define WAL_FILE_LEN (WAL_PATH_LEN + 32)
-#define WAL_MAGIC 0xFAFBFCFDULL
+#define WAL_REFRESH_MS   1000
+#define WAL_MAX_SIZE     (TSDB_MAX_WAL_SIZE + sizeof(SWalHead))
+#define WAL_PATH_LEN     (TSDB_FILENAME_LEN + 12)
+#define WAL_FILE_LEN     (WAL_PATH_LEN + 32)
+#define WAL_MAGIC        0xFAFBFCFDULL
 
 #define WAL_CUR_FAILED 1
 
 #pragma pack(push, 1)
-typedef enum { TAOS_WAL_NOLOG = 0, TAOS_WAL_WRITE = 1, TAOS_WAL_FSYNC = 2 } EWalType;
+typedef enum {
+  TAOS_WAL_NOLOG = 0,
+  TAOS_WAL_WRITE = 1,
+  TAOS_WAL_FSYNC = 2,
+} EWalType;
+
+// used by sync module
+typedef struct {
+  int8_t   isWeek;
+  uint64_t seqNum;
+  uint64_t term;
+} SSyncLogMeta;
 
 typedef struct SWalReadHead {
   int8_t  headVer;
-  int16_t msgType;
   int8_t  reserved;
+  int16_t msgType;
   int32_t len;
   int64_t ingestTs;  // not implemented
   int64_t version;
-  char    body[];
+
+  // sync meta
+  SSyncLogMeta syncMeta;
+
+  char body[];
 } SWalReadHead;
 
 typedef struct {
@@ -117,17 +132,17 @@ typedef struct SWal {
   SWalCfg cfg;
   int32_t fsyncSeq;
   // meta
-  SWalVer vers;
+  SWalVer   vers;
   TdFilePtr pWriteLogTFile;
   TdFilePtr pWriteIdxTFile;
-  int32_t writeCur;
-  SArray *fileInfoSet;
+  int32_t   writeCur;
+  SArray   *fileInfoSet;
   // status
   int64_t totSize;
   int64_t lastRollSeq;
   // ctl
-  int64_t         refId;
-  pthread_mutex_t mutex;
+  int64_t       refId;
+  TdThreadMutex mutex;
   // path
   char path[WAL_PATH_LEN];
   // reusable write head
@@ -158,6 +173,8 @@ int32_t walAlter(SWal *, SWalCfg *pCfg);
 void    walClose(SWal *);
 
 // write
+int64_t walWriteWithSyncInfo(SWal *, int64_t index, tmsg_t msgType, SSyncLogMeta syncMeta, const void *body,
+                             int32_t bodyLen);
 int64_t walWrite(SWal *, int64_t index, tmsg_t msgType, const void *body, int32_t bodyLen);
 void    walFsync(SWal *, bool force);
 

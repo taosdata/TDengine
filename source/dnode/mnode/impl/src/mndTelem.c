@@ -79,8 +79,8 @@ static char* mndBuildTelemetryReport(SMnode* pMnode) {
   return pCont;
 }
 
-static int32_t mndProcessTelemTimer(SMnodeMsg* pReq) {
-  SMnode*     pMnode = pReq->pMnode;
+static int32_t mndProcessTelemTimer(SNodeMsg* pReq) {
+  SMnode*     pMnode = pReq->pNode;
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
   if (!pMgmt->enable) return 0;
 
@@ -88,7 +88,7 @@ static int32_t mndProcessTelemTimer(SMnodeMsg* pReq) {
   char* pCont = mndBuildTelemetryReport(pMnode);
   if (pCont != NULL) {
     taosSendHttpReport(TELEMETRY_SERVER, TELEMETRY_PORT, pCont, strlen(pCont), HTTP_FLAT);
-    free(pCont);
+    taosMemoryFree(pCont);
   }
   taosWUnLockLatch(&pMgmt->lock);
   return 0;

@@ -28,7 +28,7 @@ void (*taosUnRefHandle[])(void* handle) = {transUnrefSrvHandle, transUnrefCliHan
 void (*transReleaseHandle[])(void* handle) = {transReleaseSrvHandle, transReleaseCliHandle};
 
 void* rpcOpen(const SRpcInit* pInit) {
-  SRpcInfo* pRpc = calloc(1, sizeof(SRpcInfo));
+  SRpcInfo* pRpc = taosMemoryCalloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) {
     return NULL;
   }
@@ -39,9 +39,6 @@ void* rpcOpen(const SRpcInit* pInit) {
   // register callback handle
   pRpc->cfp = pInit->cfp;
   pRpc->afp = pInit->afp;
-  pRpc->pfp = pInit->pfp;
-  pRpc->mfp = pInit->mfp;
-  pRpc->efp = pInit->efp;
 
   if (pInit->connType == TAOS_CONN_SERVER) {
     pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
@@ -64,13 +61,13 @@ void* rpcOpen(const SRpcInit* pInit) {
 void rpcClose(void* arg) {
   SRpcInfo* pRpc = (SRpcInfo*)arg;
   (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
-  free(pRpc);
+  taosMemoryFree(pRpc);
   return;
 }
 void* rpcMallocCont(int contLen) {
   int size = contLen + TRANS_MSG_OVERHEAD;
 
-  char* start = (char*)calloc(1, (size_t)size);
+  char* start = (char*)taosMemoryCalloc(1, (size_t)size);
   if (start == NULL) {
     tError("failed to malloc msg, size:%d", size);
     return NULL;
@@ -84,7 +81,7 @@ void rpcFreeCont(void* cont) {
   if (cont == NULL) {
     return;
   }
-  free((char*)cont - TRANS_MSG_OVERHEAD);
+  taosMemoryFree((char*)cont - TRANS_MSG_OVERHEAD);
 }
 void* rpcReallocCont(void* ptr, int contLen) {
   if (ptr == NULL) {
@@ -92,7 +89,7 @@ void* rpcReallocCont(void* ptr, int contLen) {
   }
   char* st = (char*)ptr - TRANS_MSG_OVERHEAD;
   int   sz = contLen + TRANS_MSG_OVERHEAD;
-  st = realloc(st, sz);
+  st = taosMemoryRealloc(st, sz);
   if (st == NULL) {
     return NULL;
   }
@@ -121,7 +118,12 @@ void rpcCancelRequest(int64_t rid) { return; }
 void rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
   char*    ip = (char*)(pEpSet->eps[pEpSet->inUse].fqdn);
   uint32_t port = pEpSet->eps[pEpSet->inUse].port;
-  transSendRequest(shandle, ip, port, pMsg);
+  transSendRequest(shandle, ip, port, pMsg, NULL);
+}
+void rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid, SRpcCtx* pCtx) {
+  char*    ip = (char*)(pEpSet->eps[pEpSet->inUse].fqdn);
+  uint32_t port = pEpSet->eps[pEpSet->inUse].port;
+  transSendRequest(shandle, ip, port, pMsg, pCtx);
 }
 void rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
   char*    ip = (char*)(pEpSet->eps[pEpSet->inUse].fqdn);
@@ -142,6 +144,7 @@ void rpcUnrefHandle(void* handle, int8_t type) {
   (*taosUnRefHandle[type])(handle);
 }
 
+void rpcRegisterBrokenLinkArg(SRpcMsg* msg) { transRegisterMsg(msg); }
 void rpcReleaseHandle(void* handle, int8_t type) {
   assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
   (*transReleaseHandle[type])(handle);

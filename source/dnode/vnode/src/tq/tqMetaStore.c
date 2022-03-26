@@ -70,7 +70,7 @@ static inline int tqReadLastPage(TdFilePtr pFile, STqIdxPageBuf* pBuf) {
 
 STqMetaStore* tqStoreOpen(STQ* pTq, const char* path, FTqSerialize serializer, FTqDeserialize deserializer,
                           FTqDelete deleter, int32_t tqConfigFlag) {
-  STqMetaStore* pMeta = calloc(1, sizeof(STqMetaStore));
+  STqMetaStore* pMeta = taosMemoryCalloc(1, sizeof(STqMetaStore));
   if (pMeta == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
     return NULL;
@@ -79,10 +79,10 @@ STqMetaStore* tqStoreOpen(STQ* pTq, const char* path, FTqSerialize serializer, F
 
   // concat data file name and index file name
   size_t pathLen = strlen(path);
-  pMeta->dirPath = malloc(pathLen + 1);
+  pMeta->dirPath = taosMemoryMalloc(pathLen + 1);
   if (pMeta->dirPath == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
-    free(pMeta);
+    taosMemoryFree(pMeta);
     return NULL;
   }
   strcpy(pMeta->dirPath, path);
@@ -104,7 +104,7 @@ STqMetaStore* tqStoreOpen(STQ* pTq, const char* path, FTqSerialize serializer, F
   }
 
   pMeta->pIdxFile = pIdxFile;
-  pMeta->unpersistHead = calloc(1, sizeof(STqMetaList));
+  pMeta->unpersistHead = taosMemoryCalloc(1, sizeof(STqMetaList));
   if (pMeta->unpersistHead == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
     return NULL;
@@ -129,7 +129,7 @@ STqMetaStore* tqStoreOpen(STQ* pTq, const char* path, FTqSerialize serializer, F
 
   // read idx file and load into memory
   STqIdxPageBuf      idxBuf;
-  STqSerializedHead* serializedObj = malloc(TQ_PAGE_SIZE);
+  STqSerializedHead* serializedObj = taosMemoryMalloc(TQ_PAGE_SIZE);
   if (serializedObj == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
   }
@@ -145,7 +145,7 @@ STqMetaStore* tqStoreOpen(STQ* pTq, const char* path, FTqSerialize serializer, F
     ASSERT(idxBuf.head.writeOffset == idxRead);
     // loop read every entry
     for (int i = 0; i < idxBuf.head.writeOffset - TQ_IDX_PAGE_HEAD_SIZE; i += TQ_IDX_SIZE) {
-      STqMetaList* pNode = calloc(1, sizeof(STqMetaList));
+      STqMetaList* pNode = taosMemoryCalloc(1, sizeof(STqMetaList));
       if (pNode == NULL) {
         terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
         // TODO: free memory
@@ -154,7 +154,7 @@ STqMetaStore* tqStoreOpen(STQ* pTq, const char* path, FTqSerialize serializer, F
 
       taosLSeekFile(pFile, pNode->handle.offset, SEEK_SET);
       if (allocated < pNode->handle.serializedSize) {
-        void* ptr = realloc(serializedObj, pNode->handle.serializedSize);
+        void* ptr = taosMemoryRealloc(serializedObj, pNode->handle.serializedSize);
         if (ptr == NULL) {
           terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
           // TODO: free memory
@@ -225,11 +225,11 @@ STqMetaStore* tqStoreOpen(STQ* pTq, const char* path, FTqSerialize serializer, F
         if (pBucketNode->handle.valueInTxn && pBucketNode->handle.valueInTxn != TQ_DELETE_TOKEN) {
           pMeta->pDeleter(pBucketNode->handle.valueInTxn);
         }
-        free(pBucketNode);
+        taosMemoryFree(pBucketNode);
       }
     }
   }
-  free(serializedObj);
+  taosMemoryFree(serializedObj);
   return pMeta;
 }
 
@@ -252,13 +252,13 @@ int32_t tqStoreClose(STqMetaStore* pMeta) {
         pMeta->pDeleter(pNode->handle.valueInUse);
       }
       STqMetaList* next = pNode->next;
-      free(pNode);
+      taosMemoryFree(pNode);
       pNode = next;
     }
   }
-  free(pMeta->dirPath);
-  free(pMeta->unpersistHead);
-  free(pMeta);
+  taosMemoryFree(pMeta->dirPath);
+  taosMemoryFree(pMeta->unpersistHead);
+  taosMemoryFree(pMeta);
   return 0;
 }
 
@@ -277,14 +277,14 @@ int32_t tqStoreDelete(STqMetaStore* pMeta) {
         pMeta->pDeleter(pNode->handle.valueInUse);
       }
       STqMetaList* next = pNode->next;
-      free(pNode);
+      taosMemoryFree(pNode);
       pNode = next;
     }
   }
-  free(pMeta->unpersistHead);
+  taosMemoryFree(pMeta->unpersistHead);
   taosRemoveDir(pMeta->dirPath);
-  free(pMeta->dirPath);
-  free(pMeta);
+  taosMemoryFree(pMeta->dirPath);
+  taosMemoryFree(pMeta);
   return 0;
 }
 
@@ -293,7 +293,7 @@ int32_t tqStorePersist(STqMetaStore* pMeta) {
   int64_t*           bufPtr = (int64_t*)idxBuf.buffer;
   STqMetaList*       pHead = pMeta->unpersistHead;
   STqMetaList*       pNode = pHead->unpersistNext;
-  STqSerializedHead* pSHead = malloc(sizeof(STqSerializedHead));
+  STqSerializedHead* pSHead = taosMemoryMalloc(sizeof(STqSerializedHead));
   if (pSHead == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
     return -1;
@@ -383,12 +383,12 @@ int32_t tqStorePersist(STqMetaStore* pMeta) {
         ASSERT(pBucketNode->next == pNode);
         pBucketNode->next = pNode->next;
       }
-      free(pNode);
+      taosMemoryFree(pNode);
     }
   }
 
   // write left bytes
-  free(pSHead);
+  taosMemoryFree(pSHead);
   // TODO: write new version in tfile
   if ((char*)bufPtr != idxBuf.buffer) {
     int nBytes = taosWriteFile(pMeta->pIdxFile, &idxBuf, idxBuf.head.writeOffset);
@@ -416,7 +416,7 @@ static int32_t tqHandlePutCommitted(STqMetaStore* pMeta, int64_t key, void* valu
       pNode = pNode->next;
     }
   }
-  STqMetaList* pNewNode = calloc(1, sizeof(STqMetaList));
+  STqMetaList* pNewNode = taosMemoryCalloc(1, sizeof(STqMetaList));
   if (pNewNode == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
     return -1;
@@ -488,7 +488,7 @@ static inline int32_t tqHandlePutImpl(STqMetaStore* pMeta, int64_t key, void* va
       pNode = pNode->next;
     }
   }
-  STqMetaList* pNewNode = calloc(1, sizeof(STqMetaList));
+  STqMetaList* pNewNode = taosMemoryCalloc(1, sizeof(STqMetaList));
   if (pNewNode == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
     return -1;
@@ -504,7 +504,7 @@ static inline int32_t tqHandlePutImpl(STqMetaStore* pMeta, int64_t key, void* va
 int32_t tqHandleMovePut(STqMetaStore* pMeta, int64_t key, void* value) { return tqHandlePutImpl(pMeta, key, value); }
 
 int32_t tqHandleCopyPut(STqMetaStore* pMeta, int64_t key, void* value, size_t vsize) {
-  void* vmem = malloc(vsize);
+  void* vmem = taosMemoryMalloc(vsize);
   if (vmem == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
     return -1;

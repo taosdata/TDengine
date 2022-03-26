@@ -63,9 +63,6 @@ typedef struct {
 
   void (*cfp)(void* parent, SRpcMsg*, SEpSet*);
   int (*afp)(void* parent, char* user, char* spi, char* encrypt, char* secret, char* ckey);
-  bool (*pfp)(void* parent, tmsg_t msgType);
-  void* (*mfp)(void* parent, tmsg_t msgType);
-  bool (*efp)(void* parent, tmsg_t msgType);
 
   int32_t         refCount;
   void*           parent;
@@ -73,7 +70,7 @@ typedef struct {
   void*           tmrCtrl;    // handle to timer
   SHashObj*       hash;       // handle returned by hash utility
   void*           tcphandle;  // returned handle from TCP initialization
-  pthread_mutex_t mutex;
+  TdThreadMutex mutex;
 } SRpcInfo;
 
 #endif  // USE_LIBUV

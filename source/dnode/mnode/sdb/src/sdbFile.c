@@ -137,7 +137,7 @@ int32_t sdbReadFile(SSdb *pSdb) {
   int32_t readLen = 0;
   int64_t ret = 0;
 
-  SSdbRaw *pRaw = malloc(SDB_MAX_SIZE);
+  SSdbRaw *pRaw = taosMemoryMalloc(SDB_MAX_SIZE);
   if (pRaw == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed read file since %s", terrstr());
@@ -150,7 +150,7 @@ int32_t sdbReadFile(SSdb *pSdb) {
 
   TdFilePtr pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    free(pRaw);
+    taosMemoryFree(pRaw);
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("failed to read file:%s since %s", file, terrstr());
     return 0;
@@ -159,7 +159,7 @@ int32_t sdbReadFile(SSdb *pSdb) {
   if (sdbReadFileHead(pSdb, pFile) != 0) {
     mError("failed to read file:%s head since %s", file, terrstr());
     pSdb->curVer = -1;
-    free(pRaw);
+    taosMemoryFree(pRaw);
     taosCloseFile(&pFile);
     return -1;
   }

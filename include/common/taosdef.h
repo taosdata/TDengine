@@ -30,12 +30,13 @@ typedef int64_t tb_uid_t;
 #define IS_TSWINDOW_SPECIFIED(win) (((win).skey != INT64_MIN) || ((win).ekey != INT64_MAX))
 
 typedef enum {
-  TSDB_SUPER_TABLE = 1,   // super table
-  TSDB_CHILD_TABLE = 2,   // table created from super table
-  TSDB_NORMAL_TABLE = 3,  // ordinary table
-  TSDB_STREAM_TABLE = 4,  // table created by stream processing
-  TSDB_TEMP_TABLE = 5,    // temp table created by nest query
-  TSDB_TABLE_MAX = 6
+  TSDB_SUPER_TABLE  = 1,    // super table
+  TSDB_CHILD_TABLE  = 2,    // table created from super table
+  TSDB_NORMAL_TABLE = 3,    // ordinary table
+  TSDB_STREAM_TABLE = 4,    // table created from stream computing
+  TSDB_TEMP_TABLE   = 5,    // temp table created by nest query
+  TSDB_SYSTEM_TABLE = 6,
+  TSDB_TABLE_MAX    = 7
 } ETableType;
 
 typedef enum {
@@ -62,9 +63,12 @@ typedef enum {
 } ETsdbStatisStatus;
 
 typedef enum {
-  TSDB_SMA_STAT_OK = 0,       // ready to provide service
-  TSDB_SMA_STAT_EXPIRED = 1,  // not ready or expired
-} ETsdbSmaStat;
+  TSDB_SMA_STAT_UNKNOWN = -1,  // unknown
+  TSDB_SMA_STAT_OK = 0,        // ready to provide service
+  TSDB_SMA_STAT_EXPIRED = 1,   // not ready or expired
+  TSDB_SMA_STAT_DROPPED = 2,   // sma dropped
+} ETsdbSmaStat;                // bit operation
+
 
 typedef enum {
   TSDB_SMA_TYPE_BLOCK = 0,       // Block-wise SMA

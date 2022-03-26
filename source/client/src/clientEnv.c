@@ -33,7 +33,7 @@ SAppInfo appInfo;
 int32_t  clientReqRefPool = -1;
 int32_t  clientConnRefPool = -1;
 
-static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
+static TdThreadOnce tscinit = PTHREAD_ONCE_INIT;
 volatile int32_t      tscInitRes = 0;
 
 static void registerRequest(SRequestObj *pRequest) {
@@ -48,8 +48,8 @@ static void registerRequest(SRequestObj *pRequest) {
   if (pTscObj->pAppInfo) {
     SInstanceSummary *pSummary = &pTscObj->pAppInfo->summary;
 
-    int32_t total = atomic_add_fetch_32(&pSummary->totalRequests, 1);
-    int32_t currentInst = atomic_add_fetch_32(&pSummary->currentRequests, 1);
+    int32_t total = atomic_add_fetch_64(&pSummary->totalRequests, 1);
+    int32_t currentInst = atomic_add_fetch_64(&pSummary->currentRequests, 1);
     tscDebug("0x%" PRIx64 " new Request from connObj:0x%" PRIx64
              ", current:%d, app current:%d, total:%d, reqId:0x%" PRIx64,
              pRequest->self, pRequest->pTscObj->id, num, currentInst, total, pRequest->requestId);
@@ -62,7 +62,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
   STscObj *         pTscObj = pRequest->pTscObj;
   SInstanceSummary *pActivity = &pTscObj->pAppInfo->summary;
 
-  int32_t currentInst = atomic_sub_fetch_32(&pActivity->currentRequests, 1);
+  int32_t currentInst = atomic_sub_fetch_64(&pActivity->currentRequests, 1);
   int32_t num = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
 
   int64_t duration = taosGetTimestampMs() - pRequest->metric.start;
@@ -90,7 +90,6 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.label = "TSC";
   rpcInit.numOfThreads = numOfThread;
   rpcInit.cfp = processMsgFromServer;
-  rpcInit.pfp = persistConnForSpecificMsg;
   rpcInit.sessions = tsMaxConnections;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = (char *)user;
@@ -115,12 +114,12 @@ void destroyTscObj(void *pObj) {
   hbDeregisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey);
   atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
   tscDebug("connObj 0x%" PRIx64 " destroyed, totalConn:%" PRId64, pTscObj->id, pTscObj->pAppInfo->numOfConns);
-  pthread_mutex_destroy(&pTscObj->mutex);
-  tfree(pTscObj);
+  taosThreadMutexDestroy(&pTscObj->mutex);
+  taosMemoryFreeClear(pTscObj);
 }
 
 void *createTscObj(const char *user, const char *auth, const char *db, SAppInstInfo *pAppInfo) {
-  STscObj *pObj = (STscObj *)calloc(1, sizeof(STscObj));
+  STscObj *pObj = (STscObj *)taosMemoryCalloc(1, sizeof(STscObj));
   if (NULL == pObj) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
@@ -134,7 +133,7 @@ void *createTscObj(const char *user, const char *auth, const char *db, SAppInstI
     tstrncpy(pObj->db, db, tListLen(pObj->db));
   }
 
-  pthread_mutex_init(&pObj->mutex, NULL);
+  taosThreadMutexInit(&pObj->mutex, NULL);
   pObj->id = taosAddRef(clientConnRefPool, pObj);
 
   tscDebug("connObj created, 0x%" PRIx64, pObj->id);
@@ -144,7 +143,7 @@ void *createTscObj(const char *user, const char *auth, const char *db, SAppInstI
 void *createRequest(STscObj *pObj, __taos_async_fn_t fp, void *param, int32_t type) {
   assert(pObj != NULL);
 
-  SRequestObj *pRequest = (SRequestObj *)calloc(1, sizeof(SRequestObj));
+  SRequestObj *pRequest = (SRequestObj *)taosMemoryCalloc(1, sizeof(SRequestObj));
   if (NULL == pRequest) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
@@ -157,7 +156,7 @@ void *createRequest(STscObj *pObj, __taos_async_fn_t fp, void *param, int32_t ty
   pRequest->type = type;
   pRequest->pTscObj = pObj;
   pRequest->body.fp = fp;  // not used it yet
-  pRequest->msgBuf = calloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
+  pRequest->msgBuf = taosMemoryCalloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
   tsem_init(&pRequest->body.rspSem, 0, 0);
 
   registerRequest(pRequest);
@@ -165,11 +164,18 @@ void *createRequest(STscObj *pObj, __taos_async_fn_t fp, void *param, int32_t ty
 }
 
 static void doFreeReqResultInfo(SReqResultInfo *pResInfo) {
-  tfree(pResInfo->pRspMsg);
-  tfree(pResInfo->length);
-  tfree(pResInfo->row);
-  tfree(pResInfo->pCol);
-  tfree(pResInfo->fields);
+  taosMemoryFreeClear(pResInfo->pRspMsg);
+  taosMemoryFreeClear(pResInfo->length);
+  taosMemoryFreeClear(pResInfo->row);
+  taosMemoryFreeClear(pResInfo->pCol);
+  taosMemoryFreeClear(pResInfo->fields);
+
+  if (pResInfo->convertBuf != NULL) {
+    for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
+      taosMemoryFreeClear(pResInfo->convertBuf[i]);
+    }
+    taosMemoryFreeClear(pResInfo->convertBuf);
+  }
 }
 
 static void doDestroyRequest(void *p) {
@@ -178,20 +184,24 @@ static void doDestroyRequest(void *p) {
 
   assert(RID_VALID(pRequest->self));
 
-  tfree(pRequest->msgBuf);
-  tfree(pRequest->sqlstr);
-  tfree(pRequest->pInfo);
-  tfree(pRequest->pDb);
+  taosMemoryFreeClear(pRequest->msgBuf);
+  taosMemoryFreeClear(pRequest->sqlstr);
+  taosMemoryFreeClear(pRequest->pInfo);
+  taosMemoryFreeClear(pRequest->pDb);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
   qDestroyQueryPlan(pRequest->body.pDag);
+
+  if (pRequest->body.queryJob != 0) {
+    schedulerFreeJob(pRequest->body.queryJob);
+  }
 
   if (pRequest->body.showInfo.pArray != NULL) {
     taosArrayDestroy(pRequest->body.showInfo.pArray);
   }
 
   deregisterRequest(pRequest);
-  tfree(pRequest);
+  taosMemoryFreeClear(pRequest);
 }
 
 void destroyRequest(SRequestObj *pRequest) {
@@ -243,7 +253,7 @@ void taos_init_imp(void) {
 
   // transDestroyBuffer(&conn->readBuf);
   taosGetAppName(appInfo.appName, NULL);
-  pthread_mutex_init(&appInfo.mutex, NULL);
+  taosThreadMutexInit(&appInfo.mutex, NULL);
 
   appInfo.pid = taosGetPId();
   appInfo.startTime = taosGetTimestampMs();
@@ -252,7 +262,7 @@ void taos_init_imp(void) {
 }
 
 int taos_init() {
-  pthread_once(&tscinit, taos_init_imp);
+  taosThreadOnce(&tscinit, taos_init_imp);
   return tscInitRes;
 }
 
@@ -350,7 +360,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
             tscInfo("charset:%s is not valid in locale, charset remains:%s", charset, tsCharset);
           }
 
-          free(charset);
+          taosMemoryFree(charset);
         } else {  // it may be windows system
           tscInfo("charset remains:%s", tsCharset);
         }
@@ -508,9 +518,9 @@ static setConfRet taos_set_config_imp(const char *config){
 }
 
 setConfRet taos_set_config(const char *config){
-  pthread_mutex_lock(&setConfMutex);
+  taosThreadMutexLock(&setConfMutex);
   setConfRet ret = taos_set_config_imp(config);
-  pthread_mutex_unlock(&setConfMutex);
+  taosThreadMutexUnlock(&setConfMutex);
   return ret;
 }
 #endif

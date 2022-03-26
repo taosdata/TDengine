@@ -31,6 +31,9 @@
 
 #define COPY_CHAR_POINT_FIELD(fldname) \
 	do { \
+    if (NULL == (pSrc)->fldname) { \
+      break; \
+    } \
     (pDst)->fldname = strdup((pSrc)->fldname); \
 	} while (0)
 
@@ -108,6 +111,10 @@ static SNode* valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
   exprNodeCopy((const SExprNode*)pSrc, (SExprNode*)pDst);
   COPY_CHAR_POINT_FIELD(literal);
   COPY_SCALAR_FIELD(isDuration);
+  COPY_SCALAR_FIELD(translate);
+  if (!pSrc->translate) {
+    return (SNode*)pDst;
+  }
   switch (pSrc->node.resType.type) {
     case TSDB_DATA_TYPE_NULL:
       break;
@@ -134,7 +141,12 @@ static SNode* valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
-      COPY_CHAR_POINT_FIELD(datum.p);
+      pDst->datum.p = taosMemoryMalloc(pSrc->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
+      if (NULL == pDst->datum.p) {
+        nodesDestroyNode(pDst);
+        return NULL;
+      }
+      memcpy(pDst->datum.p, pSrc->datum.p, pSrc->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       break;
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_DECIMAL:
@@ -198,7 +210,7 @@ static SNode* logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
 
 static STableMeta* tableMetaClone(const STableMeta* pSrc) {
   int32_t len = TABLE_META_SIZE(pSrc);
-  STableMeta* pDst = malloc(len);
+  STableMeta* pDst = taosMemoryMalloc(len);
   if (NULL == pDst) {
     return NULL;
   }
@@ -208,7 +220,7 @@ static STableMeta* tableMetaClone(const STableMeta* pSrc) {
 
 static SVgroupsInfo* vgroupsInfoClone(const SVgroupsInfo* pSrc) {
   int32_t len = VGROUPS_INFO_SIZE(pSrc);
-  SVgroupsInfo* pDst = malloc(len);
+  SVgroupsInfo* pDst = taosMemoryMalloc(len);
   if (NULL == pDst) {
     return NULL;
   }
@@ -225,6 +237,7 @@ static SNode* logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(scanFlag);
   COPY_SCALAR_FIELD(scanRange);
   COPY_SCALAR_FIELD(tableName);
+  COPY_SCALAR_FIELD(showRewrite);
   return (SNode*)pDst;
 }
 
@@ -260,11 +273,14 @@ static SNode* logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* pD
   COPY_SCALAR_FIELD(interval);
   COPY_SCALAR_FIELD(offset);
   COPY_SCALAR_FIELD(sliding);
+  COPY_SCALAR_FIELD(intervalUnit);
+  COPY_SCALAR_FIELD(slidingUnit);
   CLONE_NODE_FIELD(pFill);
+  COPY_SCALAR_FIELD(sessionGap);
   return (SNode*)pDst;
 }
 
-static SNode* logicSubplanCopy(const SSubLogicPlan* pSrc, SSubLogicPlan* pDst) {
+static SNode* logicSubplanCopy(const SLogicSubplan* pSrc, SLogicSubplan* pDst) {
   CLONE_NODE_FIELD(pNode);
   COPY_SCALAR_FIELD(subplanType);
   return (SNode*)pDst;
@@ -346,7 +362,7 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return logicWindowCopy((const SWindowLogicNode*)pNode, (SWindowLogicNode*)pDst);
     case QUERY_NODE_LOGIC_SUBPLAN:
-      return logicSubplanCopy((const SSubLogicPlan*)pNode, (SSubLogicPlan*)pDst);
+      return logicSubplanCopy((const SLogicSubplan*)pNode, (SLogicSubplan*)pDst);
     default:
       break;
   }

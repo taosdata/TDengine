@@ -38,11 +38,11 @@ extern "C" {
 #define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ", DEBUG_DEBUG, mDebugFlag, __VA_ARGS__); }}
 #define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", DEBUG_TRACE, mDebugFlag, __VA_ARGS__); }}
 
-typedef int32_t (*MndMsgFp)(SMnodeMsg *pMsg);
+typedef int32_t (*MndMsgFp)(SNodeMsg *pMsg);
 typedef int32_t (*MndInitFp)(SMnode *pMnode);
 typedef void (*MndCleanupFp)(SMnode *pMnode);
-typedef int32_t (*ShowMetaFp)(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
-typedef int32_t (*ShowRetrieveFp)(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
+typedef int32_t (*ShowMetaFp)(SNodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
+typedef int32_t (*ShowRetrieveFp)(SNodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
 typedef void (*ShowFreeIterFp)(SMnode *pMnode, void *pIter);
 
 typedef struct SMnodeLoad {
@@ -58,6 +58,8 @@ typedef struct SMnodeLoad {
   int64_t totalStorage;
   int64_t compStorage;
 } SMnodeLoad;
+
+typedef struct SQWorkerMgmt SQHandle;
 
 typedef struct {
   const char  *name;
@@ -110,8 +112,9 @@ typedef struct SMnode {
   char             *path;
   int64_t           checkTime;
   SSdb             *pSdb;
-  SDnode           *pDnode;
+  SMgmtWrapper     *pWrapper;
   SArray           *pSteps;
+  SQHandle         *pQuery;
   SShowMgmt         showMgmt;
   SProfileMgmt      profileMgmt;
   STelemMgmt        telemMgmt;
@@ -119,21 +122,12 @@ typedef struct SMnode {
   SHashObj         *infosMeta;
   SGrantInfo        grant;
   MndMsgFp          msgFp[TDMT_MAX];
-  SendReqToDnodeFp  sendReqToDnodeFp;
-  SendReqToMnodeFp  sendReqToMnodeFp;
-  SendRedirectRspFp sendRedirectRspFp;
-  PutReqToMWriteQFp putReqToMWriteQFp;
-  PutReqToMReadQFp  putReqToMReadQFp;
+  SMsgCb            msgCb;  
 } SMnode;
 
-int32_t mndSendReqToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *rpcMsg);
-int32_t mndSendReqToMnode(SMnode *pMnode, SRpcMsg *pMsg);
-void    mndSendRedirectRsp(SMnode *pMnode, SRpcMsg *pMsg);
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
-
-uint64_t mndGenerateUid(char *name, int32_t len);
-
-void mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
+int64_t mndGenerateUid(char *name, int32_t len);
+void    mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
 
 #ifdef __cplusplus
 }

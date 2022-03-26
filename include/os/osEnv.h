@@ -45,6 +45,7 @@ extern SDiskSpace tsTempSpace;
 
 void osInit();
 void osUpdate();
+void osCleanup();
 bool osLogSpaceAvailable();
 void osSetTimezone(const char *timezone);
 

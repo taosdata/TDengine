@@ -30,13 +30,13 @@ SColumnFilterInfo* tFilterInfoDup(const SColumnFilterInfo* src, int32_t numOfFil
     return NULL;
   }
 
-  SColumnFilterInfo* pFilter = calloc(1, numOfFilters * sizeof(SColumnFilterInfo));
+  SColumnFilterInfo* pFilter = taosMemoryCalloc(1, numOfFilters * sizeof(SColumnFilterInfo));
 
   memcpy(pFilter, src, sizeof(SColumnFilterInfo) * numOfFilters);
   for (int32_t j = 0; j < numOfFilters; ++j) {
     if (pFilter[j].filterstr) {
       size_t len = (size_t) pFilter[j].len + 1 * TSDB_NCHAR_SIZE;
-      pFilter[j].pz = (int64_t) calloc(1, len);
+      pFilter[j].pz = (int64_t) taosMemoryCalloc(1, len);
 
       memcpy((char*)pFilter[j].pz, (char*)src[j].pz, (size_t) pFilter[j].len);
     }
@@ -171,7 +171,7 @@ bool tNameIsValid(const SName* name) {
 SName* tNameDup(const SName* name) {
   assert(name != NULL);
 
-  SName* p = malloc(sizeof(SName));
+  SName* p = taosMemoryMalloc(sizeof(SName));
   memcpy(p, name, sizeof(SName));
   return p;
 }
@@ -221,6 +221,27 @@ int32_t tNameSetAcctId(SName* dst, int32_t acctId) {
   dst->acctId = acctId;
   return 0;
 }
+
+bool tNameDBNameEqual(SName* left, SName* right) {
+  if (NULL == left) {
+    if (NULL == right) {
+      return true;
+    }
+
+    return false;
+  }
+
+  if (NULL == right) {
+    return false;
+  }
+
+  if (left->acctId != right->acctId) {
+    return false;
+  }
+
+  return (0 == strcmp(left->dbname, right->dbname));
+}
+
 
 int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
   assert(dst != NULL && str != NULL && strlen(str) > 0);
@@ -273,13 +294,4 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
   return 0;
 }
 
-SSchema createSchema(uint8_t type, int32_t bytes, int32_t colId, const char* name) {
-  SSchema s = {0};
-  s.type  = type;
-  s.bytes = bytes;
-  s.colId = colId;
-
-  tstrncpy(s.name, name, tListLen(s.name));
-  return s;
-}
 

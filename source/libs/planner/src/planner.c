@@ -17,20 +17,29 @@
 
 #include "planInt.h"
 
-int32_t optimize(SPlanContext* pCxt, SLogicNode* pLogicNode) {
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
   SLogicNode* pLogicNode = NULL;
+  SLogicSubplan* pLogicSubplan = NULL;
+  SQueryLogicPlan* pLogicPlan = NULL;
+
   int32_t code = createLogicPlan(pCxt, &pLogicNode);
   if (TSDB_CODE_SUCCESS == code) {
-    code = optimize(pCxt, pLogicNode);
+    code = optimizeLogicPlan(pCxt, pLogicNode);
+  }  
+  if (TSDB_CODE_SUCCESS == code) {
+    code = splitLogicPlan(pCxt, pLogicNode, &pLogicSubplan);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = createPhysiPlan(pCxt, pLogicNode, pPlan, pExecNodeList);
+    code = scaleOutLogicPlan(pCxt, pLogicSubplan, &pLogicPlan);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createPhysiPlan(pCxt, pLogicPlan, pPlan, pExecNodeList);
+  }
+
   nodesDestroyNode(pLogicNode);
+  nodesDestroyNode(pLogicSubplan);
+  nodesDestroyNode(pLogicPlan);
+  terrno = code;
   return code;
 }
 

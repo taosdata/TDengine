@@ -27,34 +27,35 @@ typedef struct SWWorkerPool SWWorkerPool;
 
 typedef struct SQWorker {
   int32_t       id;      // worker ID
-  pthread_t     thread;  // thread
+  TdThread      thread;  // thread
   SQWorkerPool *pool;
-} SQWorker, SFWorker;
+} SQWorker;
 
 typedef struct SQWorkerPool {
-  int32_t         max;  // max number of workers
-  int32_t         min;  // min number of workers
-  int32_t         num;  // current number of workers
-  STaosQset      *qset;
-  const char     *name;
-  SQWorker       *workers;
-  pthread_mutex_t mutex;
-} SQWorkerPool, SFWorkerPool;
+  int32_t       max;  // max number of workers
+  int32_t       min;  // min number of workers
+  int32_t       num;  // current number of workers
+  STaosQset    *qset;
+  const char   *name;
+  SQWorker     *workers;
+  TdThreadMutex mutex;
+} SQWorkerPool;
 
 typedef struct SWWorker {
   int32_t       id;      // worker id
-  pthread_t     thread;  // thread
+  TdThread      thread;  // thread
   STaosQall    *qall;
   STaosQset    *qset;  // queue set
   SWWorkerPool *pool;
 } SWWorker;
 
 typedef struct SWWorkerPool {
-  int32_t         max;     // max number of workers
-  int32_t         nextId;  // from 0 to max-1, cyclic
-  const char     *name;
-  SWWorker       *workers;
-  pthread_mutex_t mutex;
+  int32_t       max;  // max number of workers
+  int32_t       num;
+  int32_t       nextId;  // from 0 to max-1, cyclic
+  const char   *name;
+  SWWorker     *workers;
+  TdThreadMutex mutex;
 } SWWorkerPool;
 
 int32_t     tQWorkerInit(SQWorkerPool *pool);
@@ -62,15 +63,42 @@ void        tQWorkerCleanup(SQWorkerPool *pool);
 STaosQueue *tQWorkerAllocQueue(SQWorkerPool *pool, void *ahandle, FItem fp);
 void        tQWorkerFreeQueue(SQWorkerPool *pool, STaosQueue *queue);
 
-int32_t     tFWorkerInit(SFWorkerPool *pool);
-void        tFWorkerCleanup(SFWorkerPool *pool);
-STaosQueue *tFWorkerAllocQueue(SFWorkerPool *pool, void *ahandle, FItem fp);
-void        tFWorkerFreeQueue(SFWorkerPool *pool, STaosQueue *queue);
-
 int32_t     tWWorkerInit(SWWorkerPool *pool);
 void        tWWorkerCleanup(SWWorkerPool *pool);
 STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp);
 void        tWWorkerFreeQueue(SWWorkerPool *pool, STaosQueue *queue);
+
+typedef struct {
+  const char *name;
+  int32_t     minNum;
+  int32_t     maxNum;
+  FItem       fp;
+  void       *param;
+} SSingleWorkerCfg;
+
+typedef struct {
+  const char  *name;
+  STaosQueue  *queue;
+  SQWorkerPool pool;
+} SSingleWorker;
+
+typedef struct {
+  const char *name;
+  int32_t     maxNum;
+  FItems      fp;
+  void       *param;
+} SMultiWorkerCfg;
+
+typedef struct {
+  const char  *name;
+  STaosQueue  *queue;
+  SWWorkerPool pool;
+} SMultiWorker;
+
+int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg);
+void    tSingleWorkerCleanup(SSingleWorker *pWorker);
+int32_t tMultiWorkerInit(SMultiWorker *pWorker, const SMultiWorkerCfg *pCfg);
+void    tMultiWorkerCleanup(SMultiWorker *pWorker);
 
 #ifdef __cplusplus
 }

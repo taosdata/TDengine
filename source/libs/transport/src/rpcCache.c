@@ -39,7 +39,7 @@ typedef struct {
   int             total;
   int *           count;
   int64_t         keepTimer;
-  pthread_mutex_t mutex;
+  TdThreadMutex mutex;
   void (*cleanFp)(void *);
   void *   tmrCtrl;
   void *   pTimer;
@@ -60,21 +60,21 @@ void *rpcOpenConnCache(int maxSessions, void (*cleanFp)(void *), void *tmrCtrl, 
   connHashMemPool = taosMemPoolInit(maxSessions, sizeof(SConnHash));
   if (connHashMemPool == 0) return NULL;
 
-  connHashList = calloc(sizeof(SConnHash *), maxSessions);
+  connHashList = taosMemoryCalloc(sizeof(SConnHash *), maxSessions);
   if (connHashList == 0) {
     taosMemPoolCleanUp(connHashMemPool);
     return NULL;
   }
 
-  pCache = malloc(sizeof(SConnCache));
+  pCache = taosMemoryMalloc(sizeof(SConnCache));
   if (pCache == NULL) {
     taosMemPoolCleanUp(connHashMemPool);
-    free(connHashList);
+    taosMemoryFree(connHashList);
     return NULL;
   }
   memset(pCache, 0, sizeof(SConnCache));
 
-  pCache->count = calloc(sizeof(int), maxSessions);
+  pCache->count = taosMemoryCalloc(sizeof(int), maxSessions);
   pCache->total = 0;
   pCache->keepTimer = keepTimer;
   pCache->maxSessions = maxSessions;
@@ -82,10 +82,10 @@ void *rpcOpenConnCache(int maxSessions, void (*cleanFp)(void *), void *tmrCtrl, 
   pCache->connHashList = connHashList;
   pCache->cleanFp = cleanFp;
   pCache->tmrCtrl = tmrCtrl;
-  pCache->lockedBy = calloc(sizeof(int64_t), maxSessions);
+  pCache->lockedBy = taosMemoryCalloc(sizeof(int64_t), maxSessions);
   taosTmrReset(rpcCleanConnCache, (int32_t)(pCache->keepTimer * 2), pCache, pCache->tmrCtrl, &pCache->pTimer);
 
-  pthread_mutex_init(&pCache->mutex, NULL);
+  taosThreadMutexInit(&pCache->mutex, NULL);
 
   return pCache;
 }
@@ -96,22 +96,22 @@ void rpcCloseConnCache(void *handle) {
   pCache = (SConnCache *)handle;
   if (pCache == NULL || pCache->maxSessions == 0) return;
 
-  pthread_mutex_lock(&pCache->mutex);
+  taosThreadMutexLock(&pCache->mutex);
 
   taosTmrStopA(&(pCache->pTimer));
 
   if (pCache->connHashMemPool) taosMemPoolCleanUp(pCache->connHashMemPool);
 
-  tfree(pCache->connHashList);
-  tfree(pCache->count);
-  tfree(pCache->lockedBy);
+  taosMemoryFreeClear(pCache->connHashList);
+  taosMemoryFreeClear(pCache->count);
+  taosMemoryFreeClear(pCache->lockedBy);
 
-  pthread_mutex_unlock(&pCache->mutex);
+  taosThreadMutexUnlock(&pCache->mutex);
 
-  pthread_mutex_destroy(&pCache->mutex);
+  taosThreadMutexDestroy(&pCache->mutex);
 
   memset(pCache, 0, sizeof(SConnCache));
-  free(pCache);
+  taosMemoryFree(pCache);
 }
 
 void rpcAddConnIntoCache(void *handle, void *data, char *fqdn, uint16_t port, int8_t connType) {
@@ -220,7 +220,7 @@ static void rpcCleanConnCache(void *handle, void *tmrId) {
   if (pCache == NULL || pCache->maxSessions == 0) return;
   if (pCache->pTimer != tmrId) return;
 
-  pthread_mutex_lock(&pCache->mutex);
+  taosThreadMutexLock(&pCache->mutex);
   uint64_t time = taosGetTimestampMs();
 
   for (hash = 0; hash < pCache->maxSessions; ++hash) {
@@ -232,7 +232,7 @@ static void rpcCleanConnCache(void *handle, void *tmrId) {
 
   // tTrace("timer, total connections in cache:%d", pCache->total);
   taosTmrReset(rpcCleanConnCache, (int32_t)(pCache->keepTimer * 2), pCache, pCache->tmrCtrl, &pCache->pTimer);
-  pthread_mutex_unlock(&pCache->mutex);
+  taosThreadMutexUnlock(&pCache->mutex);
 }
 
 static void rpcRemoveExpiredNodes(SConnCache *pCache, SConnHash *pNode, int hash, uint64_t time) {

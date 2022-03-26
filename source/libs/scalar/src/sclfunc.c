@@ -4,145 +4,536 @@
 static void assignBasicParaInfo(struct SScalarParam* dst, const struct SScalarParam* src) {
   dst->type = src->type;
   dst->bytes = src->bytes;
-  dst->num = src->num;
+  //dst->num = src->num;
 }
 
-static void tceil(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *pLeft) {
-  assignBasicParaInfo(pOutput, pLeft);
-  assert(numOfInput == 1);
-
-  switch (pLeft->bytes) {
-    case TSDB_DATA_TYPE_FLOAT: {
-      float* p = (float*) pLeft->data;
-      float* out = (float*) pOutput->data;
-      for (int32_t i = 0; i < pLeft->num; ++i) {
-        out[i] = ceilf(p[i]);
-      }
-    }
-
-    case TSDB_DATA_TYPE_DOUBLE: {
-      double* p = (double*) pLeft->data;
-      double* out = (double*)pOutput->data;
-      for (int32_t i = 0; i < pLeft->num; ++i) {
-        out[i] = ceil(p[i]);
-      }
-    }
-
-    default:
-      memcpy(pOutput->data, pLeft->data, pLeft->num* pLeft->bytes);
+/** Math functions **/
+int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  assignBasicParaInfo(pOutput, pInput);
+  if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
+    return TSDB_CODE_FAILED;
   }
+
+  char *input = NULL, *output = NULL;
+  for (int32_t i = 0; i < pOutput->num; ++i) {
+    if (pInput->num == 1) {
+      input = pInput->data;
+    } else {
+      input = pInput->data + i * pInput->bytes;
+    }
+    output = pOutput->data + i * pOutput->bytes;
+
+    if (isNull(input, pInput->type)) {
+      setNull(output, pOutput->type, pOutput->bytes);
+      continue;
+    }
+
+    switch (pInput->type) {
+      case TSDB_DATA_TYPE_FLOAT: {
+        float v;
+        GET_TYPED_DATA(v, float, pInput->type, input);
+        float result;
+        result = (v > 0) ? v : -v;
+        SET_TYPED_DATA(output, pOutput->type, result);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double v;
+        GET_TYPED_DATA(v, double, pInput->type, input);
+        double result;
+        result = (v > 0) ? v : -v;
+        SET_TYPED_DATA(output, pOutput->type, result);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_TINYINT: {
+        int8_t v;
+        GET_TYPED_DATA(v, int8_t, pInput->type, input);
+        int8_t result;
+        result = (v > 0) ? v : -v;
+        SET_TYPED_DATA(output, pOutput->type, result);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_SMALLINT: {
+        int16_t v;
+        GET_TYPED_DATA(v, int16_t, pInput->type, input);
+        int16_t result;
+        result = (v > 0) ? v : -v;
+        SET_TYPED_DATA(output, pOutput->type, result);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_INT: {
+        int32_t v;
+        GET_TYPED_DATA(v, int32_t, pInput->type, input);
+        int32_t result;
+        result = (v > 0) ? v : -v;
+        SET_TYPED_DATA(output, pOutput->type, result);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_BIGINT: {
+        int64_t v;
+        GET_TYPED_DATA(v, int64_t, pInput->type, input);
+        int64_t result;
+        result = (v > 0) ? v : -v;
+        SET_TYPED_DATA(output, pOutput->type, result);
+        break;
+      }
+
+      default: {
+        memcpy(output, input, pInput->bytes);
+        break;
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
-static void tfloor(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *pLeft) {
-  assignBasicParaInfo(pOutput, pLeft);
-  assert(numOfInput == 1);
-
-  switch (pLeft->bytes) {
-    case TSDB_DATA_TYPE_FLOAT: {
-      float* p = (float*) pLeft->data;
-      float* out = (float*) pOutput->data;
-
-      for (int32_t i = 0; i < pLeft->num; ++i) {
-        out[i] = floorf(p[i]);
-      }
-    }
-
-    case TSDB_DATA_TYPE_DOUBLE: {
-      double* p = (double*) pLeft->data;
-      double* out = (double*) pOutput->data;
-
-      for (int32_t i = 0; i < pLeft->num; ++i) {
-        out[i] = floor(p[i]);
-      }
-    }
-
-    default:
-      memcpy(pOutput->data, pLeft->data, pLeft->num* pLeft->bytes);
+int32_t logFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  if (inputNum != 2 || !IS_NUMERIC_TYPE(pInput[0].type) || !IS_NUMERIC_TYPE(pInput[1].type)) {
+    return TSDB_CODE_FAILED;
   }
+
+  pOutput->type = TSDB_DATA_TYPE_DOUBLE;
+  pOutput->bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+
+  char **input = NULL, *output = NULL;
+  bool hasNullInput = false;
+  input = taosMemoryCalloc(inputNum, sizeof(char *));
+  for (int32_t i = 0; i < pOutput->num; ++i) {
+    for (int32_t j = 0; j < inputNum; ++j) {
+      if (pInput[j].num == 1) {
+        input[j] = pInput[j].data;
+      } else {
+        input[j] = pInput[j].data + i * pInput[j].bytes;
+      }
+      if (isNull(input[j], pInput[j].type)) {
+        hasNullInput = true;
+        break;
+      }
+    }
+    output = pOutput->data + i * pOutput->bytes;
+
+    if (hasNullInput) {
+      setNull(output, pOutput->type, pOutput->bytes);
+      continue;
+    }
+
+    double base;
+    GET_TYPED_DATA(base, double, pInput[1].type, input[1]);
+    double v;
+    GET_TYPED_DATA(v, double, pInput[0].type, input[0]);
+    double result = log(v) / log(base);
+    SET_TYPED_DATA(output, pOutput->type, result);
+  }
+
+  taosMemoryFree(input);
+
+  return TSDB_CODE_SUCCESS;
 }
 
-static void _tabs(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *pLeft) {
-  assignBasicParaInfo(pOutput, pLeft);
-  assert(numOfInput == 1);
-
-  switch (pLeft->bytes) {
-    case TSDB_DATA_TYPE_FLOAT: {
-      float* p = (float*) pLeft->data;
-      float* out = (float*) pOutput->data;
-      for (int32_t i = 0; i < pLeft->num; ++i) {
-        out[i] = (p[i] > 0)? p[i]:-p[i];
-      }
-    }
-
-    case TSDB_DATA_TYPE_DOUBLE: {
-      double* p = (double*) pLeft->data;
-      double* out = (double*) pOutput->data;
-      for (int32_t i = 0; i < pLeft->num; ++i) {
-        out[i] = (p[i] > 0)? p[i]:-p[i];
-      }
-    }
-
-    case TSDB_DATA_TYPE_TINYINT: {
-      int8_t* p = (int8_t*) pLeft->data;
-      int8_t* out = (int8_t*) pOutput->data;
-      for (int32_t i = 0; i < pLeft->num; ++i) {
-        out[i] = (p[i] > 0)? p[i]:-p[i];
-      }
-    }
-
-    case TSDB_DATA_TYPE_SMALLINT: {
-      int16_t* p = (int16_t*) pLeft->data;
-      int16_t* out = (int16_t*) pOutput->data;
-      for (int32_t i = 0; i < pLeft->num; ++i) {
-        out[i] = (p[i] > 0)? p[i]:-p[i];
-      }
-    }
-
-    case TSDB_DATA_TYPE_INT: {
-      int32_t* p = (int32_t*) pLeft->data;
-      int32_t* out = (int32_t*) pOutput->data;
-      for (int32_t i = 0; i < pLeft->num; ++i) {
-        out[i] = (p[i] > 0)? p[i]:-p[i];
-      }
-    }
-
-    case TSDB_DATA_TYPE_BIGINT: {
-      int64_t* p = (int64_t*) pLeft->data;
-      int64_t* out = (int64_t*) pOutput->data;
-      for (int32_t i = 0; i < pLeft->num; ++i) {
-        out[i] = (p[i] > 0)? p[i]:-p[i];
-      }
-    }
-
-    default:
-      memcpy(pOutput->data, pLeft->data, pLeft->num* pLeft->bytes);
+int32_t powFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  if (inputNum != 2 || !IS_NUMERIC_TYPE(pInput[0].type) || !IS_NUMERIC_TYPE(pInput[1].type)) {
+    return TSDB_CODE_FAILED;
   }
+
+  pOutput->type = TSDB_DATA_TYPE_DOUBLE;
+  pOutput->bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+
+  char **input = NULL, *output = NULL;
+  bool hasNullInput = false;
+  input = taosMemoryCalloc(inputNum, sizeof(char *));
+  for (int32_t i = 0; i < pOutput->num; ++i) {
+    for (int32_t j = 0; j < inputNum; ++j) {
+      if (pInput[j].num == 1) {
+        input[j] = pInput[j].data;
+      } else {
+        input[j] = pInput[j].data + i * pInput[j].bytes;
+      }
+      if (isNull(input[j], pInput[j].type)) {
+        hasNullInput = true;
+        break;
+      }
+    }
+    output = pOutput->data + i * pOutput->bytes;
+
+    if (hasNullInput) {
+      setNull(output, pOutput->type, pOutput->bytes);
+      continue;
+    }
+
+    double base;
+    GET_TYPED_DATA(base, double, pInput[1].type, input[1]);
+    double v;
+    GET_TYPED_DATA(v, double, pInput[0].type, input[0]);
+    double result = pow(v, base);
+    SET_TYPED_DATA(output, pOutput->type, result);
+  }
+
+  taosMemoryFree(input);
+
+  return TSDB_CODE_SUCCESS;
 }
 
-static void tround(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *pLeft) {
-  assignBasicParaInfo(pOutput, pLeft);
-  assert(numOfInput == 1);
-
-  switch (pLeft->bytes) {
-    case TSDB_DATA_TYPE_FLOAT: {
-      float* p = (float*) pLeft->data;
-      float* out = (float*) pOutput->data;
-      for (int32_t i = 0; i < pLeft->num; ++i) {
-        out[i] = roundf(p[i]);
-      }
-    }
-
-    case TSDB_DATA_TYPE_DOUBLE: {
-      double* p = (double*) pLeft->data;
-      double* out = (double*) pOutput->data;
-      for (int32_t i = 0; i < pLeft->num; ++i) {
-        out[i] = round(p[i]);
-      }
-    }
-
-    default:
-      memcpy(pOutput->data, pLeft->data, pLeft->num* pLeft->bytes);
+int32_t sqrtFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
+    return TSDB_CODE_FAILED;
   }
+
+  pOutput->type = TSDB_DATA_TYPE_DOUBLE;
+  pOutput->bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+
+  char *input = NULL, *output = NULL;
+  for (int32_t i = 0; i < pOutput->num; ++i) {
+    if (pInput->num == 1) {
+      input = pInput->data;
+    } else {
+      input = pInput->data + i * pInput->bytes;
+    }
+    output = pOutput->data + i * pOutput->bytes;
+
+    if (isNull(input, pInput->type)) {
+      setNull(output, pOutput->type, pOutput->bytes);
+      continue;
+    }
+
+    double v;
+    GET_TYPED_DATA(v, double, pInput->type, input);
+    double result = sqrt(v);
+    SET_TYPED_DATA(output, pOutput->type, result);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t sinFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
+    return TSDB_CODE_FAILED;
+  }
+
+  pOutput->type = TSDB_DATA_TYPE_DOUBLE;
+  pOutput->bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+
+  char *input = NULL, *output = NULL;
+  for (int32_t i = 0; i < pOutput->num; ++i) {
+    if (pInput->num == 1) {
+      input = pInput->data;
+    } else {
+      input = pInput->data + i * pInput->bytes;
+    }
+    output = pOutput->data + i * pOutput->bytes;
+
+    if (isNull(input, pInput->type)) {
+      setNull(output, pOutput->type, pOutput->bytes);
+      continue;
+    }
+
+    double v;
+    GET_TYPED_DATA(v, double, pInput->type, input);
+    double result = sin(v);
+    SET_TYPED_DATA(output, pOutput->type, result);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t cosFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
+    return TSDB_CODE_FAILED;
+  }
+
+  pOutput->type = TSDB_DATA_TYPE_DOUBLE;
+  pOutput->bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+
+  char *input = NULL, *output = NULL;
+  for (int32_t i = 0; i < pOutput->num; ++i) {
+    if (pInput->num == 1) {
+      input = pInput->data;
+    } else {
+      input = pInput->data + i * pInput->bytes;
+    }
+    output = pOutput->data + i * pOutput->bytes;
+
+    if (isNull(input, pInput->type)) {
+      setNull(output, pOutput->type, pOutput->bytes);
+      continue;
+    }
+
+    double v;
+    GET_TYPED_DATA(v, double, pInput->type, input);
+    double result = cos(v);
+    SET_TYPED_DATA(output, pOutput->type, result);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tanFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
+    return TSDB_CODE_FAILED;
+  }
+
+  pOutput->type = TSDB_DATA_TYPE_DOUBLE;
+  pOutput->bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+
+  char *input = NULL, *output = NULL;
+  for (int32_t i = 0; i < pOutput->num; ++i) {
+    if (pInput->num == 1) {
+      input = pInput->data;
+    } else {
+      input = pInput->data + i * pInput->bytes;
+    }
+    output = pOutput->data + i * pOutput->bytes;
+
+    if (isNull(input, pInput->type)) {
+      setNull(output, pOutput->type, pOutput->bytes);
+      continue;
+    }
+
+    double v;
+    GET_TYPED_DATA(v, double, pInput->type, input);
+    double result = tan(v);
+    SET_TYPED_DATA(output, pOutput->type, result);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t asinFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
+    return TSDB_CODE_FAILED;
+  }
+
+  pOutput->type = TSDB_DATA_TYPE_DOUBLE;
+  pOutput->bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+
+  char *input = NULL, *output = NULL;
+  for (int32_t i = 0; i < pOutput->num; ++i) {
+    if (pInput->num == 1) {
+      input = pInput->data;
+    } else {
+      input = pInput->data + i * pInput->bytes;
+    }
+    output = pOutput->data + i * pOutput->bytes;
+
+    if (isNull(input, pInput->type)) {
+      setNull(output, pOutput->type, pOutput->bytes);
+      continue;
+    }
+
+    double v;
+    GET_TYPED_DATA(v, double, pInput->type, input);
+    double result = asin(v);
+    SET_TYPED_DATA(output, pOutput->type, result);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t acosFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
+    return TSDB_CODE_FAILED;
+  }
+
+  pOutput->type = TSDB_DATA_TYPE_DOUBLE;
+  pOutput->bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+
+  char *input = NULL, *output = NULL;
+  for (int32_t i = 0; i < pOutput->num; ++i) {
+    if (pInput->num == 1) {
+      input = pInput->data;
+    } else {
+      input = pInput->data + i * pInput->bytes;
+    }
+    output = pOutput->data + i * pOutput->bytes;
+
+    if (isNull(input, pInput->type)) {
+      setNull(output, pOutput->type, pOutput->bytes);
+      continue;
+    }
+
+    double v;
+    GET_TYPED_DATA(v, double, pInput->type, input);
+    double result = acos(v);
+    SET_TYPED_DATA(output, pOutput->type, result);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t atanFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
+    return TSDB_CODE_FAILED;
+  }
+
+  pOutput->type = TSDB_DATA_TYPE_DOUBLE;
+  pOutput->bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+
+  char *input = NULL, *output = NULL;
+  for (int32_t i = 0; i < pOutput->num; ++i) {
+    if (pInput->num == 1) {
+      input = pInput->data;
+    } else {
+      input = pInput->data + i * pInput->bytes;
+    }
+    output = pOutput->data + i * pOutput->bytes;
+
+    if (isNull(input, pInput->type)) {
+      setNull(output, pOutput->type, pOutput->bytes);
+      continue;
+    }
+
+    double v;
+    GET_TYPED_DATA(v, double, pInput->type, input);
+    double result = atan(v);
+    SET_TYPED_DATA(output, pOutput->type, result);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ceilFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
+    return TSDB_CODE_FAILED;
+  }
+
+  char *input = NULL, *output = NULL;
+  for (int32_t i = 0; i < pOutput->num; ++i) {
+    if (pInput->num == 1) {
+      input = pInput->data;
+    } else {
+      input = pInput->data + i * pInput->bytes;
+    }
+    output = pOutput->data + i * pOutput->bytes;
+
+    if (isNull(input, pInput->type)) {
+      setNull(output, pOutput->type, pOutput->bytes);
+      continue;
+    }
+
+    switch (pInput->type) {
+      case TSDB_DATA_TYPE_FLOAT: {
+        float v;
+        GET_TYPED_DATA(v, float, pInput->type, input);
+        float result = ceilf(v);
+        SET_TYPED_DATA(output, pOutput->type, result);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double v;
+        GET_TYPED_DATA(v, double, pInput->type, input);
+        double result = ceil(v);
+        SET_TYPED_DATA(output, pOutput->type, result);
+        break;
+      }
+
+      default: {
+        memcpy(output, input, pInput->bytes);
+        break;
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t floorFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  assignBasicParaInfo(pOutput, pInput);
+  if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
+    return TSDB_CODE_FAILED;
+  }
+
+  char *input = NULL, *output = NULL;
+  for (int32_t i = 0; i < pOutput->num; ++i) {
+    if (pInput->num == 1) {
+      input = pInput->data;
+    } else {
+      input = pInput->data + i * pInput->bytes;
+    }
+    output = pOutput->data + i * pOutput->bytes;
+
+    if (isNull(input, pInput->type)) {
+      setNull(output, pOutput->type, pOutput->bytes);
+      continue;
+    }
+
+    switch (pInput->type) {
+      case TSDB_DATA_TYPE_FLOAT: {
+        float v;
+        GET_TYPED_DATA(v, float, pInput->type, input);
+        float result = floorf(v);
+        SET_TYPED_DATA(output, pOutput->type, result);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double v;
+        GET_TYPED_DATA(v, double, pInput->type, input);
+        double result = floor(v);
+        SET_TYPED_DATA(output, pOutput->type, result);
+        break;
+      }
+
+      default: {
+        memcpy(output, input, pInput->bytes);
+        break;
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t roundFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  assignBasicParaInfo(pOutput, pInput);
+  if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
+    return TSDB_CODE_FAILED;
+  }
+
+  char *input = NULL, *output = NULL;
+  for (int32_t i = 0; i < pOutput->num; ++i) {
+    if (pInput->num == 1) {
+      input = pInput->data;
+    } else {
+      input = pInput->data + i * pInput->bytes;
+    }
+    output = pOutput->data + i * pOutput->bytes;
+
+    if (isNull(input, pInput->type)) {
+      setNull(output, pOutput->type, pOutput->bytes);
+      continue;
+    }
+
+    switch (pInput->type) {
+      case TSDB_DATA_TYPE_FLOAT: {
+        float v;
+        GET_TYPED_DATA(v, float, pInput->type, input);
+        float result = roundf(v);
+        SET_TYPED_DATA(output, pOutput->type, result);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double v;
+        GET_TYPED_DATA(v, double, pInput->type, input);
+        double result = round(v);
+        SET_TYPED_DATA(output, pOutput->type, result);
+        break;
+      }
+
+      default: {
+        memcpy(output, input, pInput->bytes);
+        break;
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static void tlength(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *pLeft) {
@@ -169,7 +560,7 @@ static void tconcat(SScalarParam* pOutput, size_t numOfInput, const SScalarParam
     }
   }
 
-  pOutput->data = realloc(pOutput->data, rowLen * num);
+  pOutput->data = taosMemoryRealloc(pOutput->data, rowLen * num);
   assert(pOutput->data);
 
   char* rstart = pOutput->data;
@@ -284,13 +675,13 @@ int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncPa
   SScalarFuncParam rightOutput = {0};
 
   if (pLeft->nodeType == TEXPR_BINARYEXPR_NODE || pLeft->nodeType == TEXPR_UNARYEXPR_NODE) {
-    leftOutput.data = malloc(sizeof(int64_t) * numOfRows);
+    leftOutput.data = taosMemoryMalloc(sizeof(int64_t) * numOfRows);
     evaluateExprNodeTree(pLeft, numOfRows, &leftOutput, param, getSourceDataBlock);
   }
 
   // the right output has result from the right child syntax tree
   if (pRight->nodeType == TEXPR_BINARYEXPR_NODE || pRight->nodeType == TEXPR_UNARYEXPR_NODE) {
-    rightOutput.data = malloc(sizeof(int64_t) * numOfRows);
+    rightOutput.data = taosMemoryMalloc(sizeof(int64_t) * numOfRows);
     evaluateExprNodeTree(pRight, numOfRows, &rightOutput, param, getSourceDataBlock);
   }
 
@@ -322,7 +713,7 @@ int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncPa
 
     void* outputBuf = pOutput->data;
     if (isStringOp(pExprs->_node.optr)) {
-      outputBuf = realloc(pOutput->data, (left.bytes + right.bytes) * left.num);
+      outputBuf = taosMemoryRealloc(pOutput->data, (left.bytes + right.bytes) * left.num);
     }
 
     OperatorFn(&left, &right, outputBuf, TSDB_ORDER_ASC);
@@ -345,7 +736,7 @@ int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncPa
 
     // reserve enough memory buffer
     if (isBinaryStringOp(pExprs->_node.optr)) {
-      void* outputBuf = realloc(pOutput->data, left.bytes * left.num);
+      void* outputBuf = taosMemoryRealloc(pOutput->data, left.bytes * left.num);
       assert(outputBuf != NULL);
       pOutput->data = outputBuf;
     }
@@ -353,24 +744,24 @@ int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncPa
     OperatorFn(&left, pOutput);
   }
 
-  tfree(leftOutput.data);
-  tfree(rightOutput.data);
+  taosMemoryFreeClear(leftOutput.data);
+  taosMemoryFreeClear(rightOutput.data);
 
   return 0;
 }
 #endif
 
 
-SScalarFunctionInfo scalarFunc[8] = {
-    {"ceil",   FUNCTION_TYPE_SCALAR, FUNCTION_CEIL,   tceil},
-    {"floor",  FUNCTION_TYPE_SCALAR, FUNCTION_FLOOR,  tfloor},
-    {"abs",    FUNCTION_TYPE_SCALAR, FUNCTION_ABS,    _tabs},
-    {"round",  FUNCTION_TYPE_SCALAR, FUNCTION_ROUND,  tround},
-    {"length", FUNCTION_TYPE_SCALAR, FUNCTION_LENGTH, tlength},
-    {"concat", FUNCTION_TYPE_SCALAR, FUNCTION_CONCAT, tconcat},
-    {"ltrim",  FUNCTION_TYPE_SCALAR, FUNCTION_LTRIM, tltrim},
-    {"rtrim",  FUNCTION_TYPE_SCALAR, FUNCTION_RTRIM, trtrim},
-};
+//SScalarFunctionInfo scalarFunc[8] = {
+//    {"ceil",   FUNCTION_TYPE_SCALAR, FUNCTION_CEIL,   tceil},
+//    {"floor",  FUNCTION_TYPE_SCALAR, FUNCTION_FLOOR,  tfloor},
+//    {"abs",    FUNCTION_TYPE_SCALAR, FUNCTION_ABS,    _tabs},
+//    {"round",  FUNCTION_TYPE_SCALAR, FUNCTION_ROUND,  tround},
+//    {"length", FUNCTION_TYPE_SCALAR, FUNCTION_LENGTH, tlength},
+//    {"concat", FUNCTION_TYPE_SCALAR, FUNCTION_CONCAT, tconcat},
+//    {"ltrim",  FUNCTION_TYPE_SCALAR, FUNCTION_LTRIM, tltrim},
+//    {"rtrim",  FUNCTION_TYPE_SCALAR, FUNCTION_RTRIM, trtrim},
+//};
 
 void setScalarFunctionSupp(struct SScalarFunctionSupport* sas, SExprInfo *pExprInfo, SSDataBlock* pSDataBlock) {
   sas->numOfCols = (int32_t) pSDataBlock->info.numOfCols;
@@ -379,13 +770,13 @@ void setScalarFunctionSupp(struct SScalarFunctionSupport* sas, SExprInfo *pExprI
     return;
   }
 
-  sas->colList = calloc(1, pSDataBlock->info.numOfCols*sizeof(SColumnInfo));
+  sas->colList = taosMemoryCalloc(1, pSDataBlock->info.numOfCols*sizeof(SColumnInfo));
   for(int32_t i = 0; i < sas->numOfCols; ++i) {
     SColumnInfoData* pColData = taosArrayGet(pSDataBlock->pDataBlock, i);
     sas->colList[i] = pColData->info;
   }
 
-  sas->data = calloc(sas->numOfCols, POINTER_BYTES);
+  sas->data = taosMemoryCalloc(sas->numOfCols, POINTER_BYTES);
 
   // set the input column data
   for (int32_t f = 0; f < pSDataBlock->info.numOfCols; ++f) {
@@ -395,7 +786,7 @@ void setScalarFunctionSupp(struct SScalarFunctionSupport* sas, SExprInfo *pExprI
 }
 
 SScalarFunctionSupport* createScalarFuncSupport(int32_t num) {
-  SScalarFunctionSupport* pSupp = calloc(num, sizeof(SScalarFunctionSupport));
+  SScalarFunctionSupport* pSupp = taosMemoryCalloc(num, sizeof(SScalarFunctionSupport));
   return pSupp;
 }
 
@@ -406,9 +797,9 @@ void destroyScalarFuncSupport(struct SScalarFunctionSupport* pSupport, int32_t n
 
   for(int32_t i = 0; i < num; ++i) {
     SScalarFunctionSupport* pSupp = &pSupport[i];
-    tfree(pSupp->data);
-    tfree(pSupp->colList);
+    taosMemoryFreeClear(pSupp->data);
+    taosMemoryFreeClear(pSupp->colList);
   }
 
-  tfree(pSupport);
+  taosMemoryFreeClear(pSupport);
 }

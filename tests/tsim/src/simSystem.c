@@ -55,21 +55,21 @@ void simFreeScript(SScript *script) {
       simDebug("script:%s, is background script, set stop flag", bgScript->fileName);
       bgScript->killed = true;
       if (taosCheckPthreadValid(bgScript->bgPid)) {
-        pthread_join(bgScript->bgPid, NULL);
+        taosThreadJoin(bgScript->bgPid, NULL);
       }
 
       simDebug("script:%s, background thread joined", bgScript->fileName);
       taos_close(bgScript->taos);
-      tfree(bgScript->lines);
-      tfree(bgScript->optionBuffer);
-      tfree(bgScript);
+      taosMemoryFreeClear(bgScript->lines);
+      taosMemoryFreeClear(bgScript->optionBuffer);
+      taosMemoryFreeClear(bgScript);
     }
 
     simDebug("script:%s, is cleaned", script->fileName);
     taos_close(script->taos);
-    tfree(script->lines);
-    tfree(script->optionBuffer);
-    tfree(script);
+    taosMemoryFreeClear(script->lines);
+    taosMemoryFreeClear(script->optionBuffer);
+    taosMemoryFreeClear(script);
   }
 }
 

@@ -22,6 +22,7 @@
 #include "tmsg.h"
 #include "tqueue.h"
 #include "trpc.h"
+#include "tstream.h"
 
 #include "snode.h"
 
@@ -44,7 +45,7 @@ typedef struct {
 
 typedef struct SSnode {
   SStreamMeta* pMeta;
-  SSnodeOpt    cfg;
+  SMsgCb       msgCb;
 } SSnode;
 
 SStreamMeta* sndMetaNew();

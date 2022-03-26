@@ -1,7 +1,6 @@
 // TAOS standard API example. The same syntax as MySQL, but only a subet 
 // to compile: gcc -o prepare prepare.c -ltaos
 
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -228,13 +227,13 @@ int stmt_scol_func3(TAOS_STMT *stmt) {
       char bin[60][40];
   } v = {0};
 
-  v.ts = malloc(sizeof(int64_t) * 900000 * 60);
+  v.ts = taosMemoryMalloc(sizeof(int64_t) * 900000 * 60);
   
-  int *lb = malloc(60 * sizeof(int));
+  int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
-  char* is_null = malloc(sizeof(char) * 60);
-  char* no_null = malloc(sizeof(char) * 60);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
+  char* is_null = taosMemoryMalloc(sizeof(char) * 60);
+  char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
   for (int i = 0; i < 60; ++i) {
     lb[i] = 40;
@@ -333,11 +332,11 @@ int stmt_scol_func3(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
-  free(v.ts);  
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v.ts);  
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
@@ -358,13 +357,13 @@ int stmt_scol_func4(TAOS_STMT *stmt) {
       char bin[60][40];
   } v = {0};
 
-  v.ts = malloc(sizeof(int64_t) * 1000 * 60);
+  v.ts = taosMemoryMalloc(sizeof(int64_t) * 1000 * 60);
   
-  int *lb = malloc(60 * sizeof(int));
+  int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 1000*10);
-  char* is_null = malloc(sizeof(char) * 60);
-  char* no_null = malloc(sizeof(char) * 60);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1000*10);
+  char* is_null = taosMemoryMalloc(sizeof(char) * 60);
+  char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
   for (int i = 0; i < 60; ++i) {
     lb[i] = 40;
@@ -456,11 +455,11 @@ int stmt_scol_func4(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
-  free(v.ts);  
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v.ts);  
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
@@ -855,18 +854,18 @@ int stmt_funcb_autoctb1(TAOS_STMT *stmt) {
       char bin[10][40];
   } v = {0};
 
-  v.ts = malloc(sizeof(int64_t) * 1 * 10);
+  v.ts = taosMemoryMalloc(sizeof(int64_t) * 1 * 10);
   
-  int *lb = malloc(10 * sizeof(int));
+  int *lb = taosMemoryMalloc(10 * sizeof(int));
 
-  TAOS_BIND *tags = calloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
+  TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
   
-  char* is_null = malloc(sizeof(char) * 10);
-  char* no_null = malloc(sizeof(char) * 10);
+  char* is_null = taosMemoryMalloc(sizeof(char) * 10);
+  char* no_null = taosMemoryMalloc(sizeof(char) * 10);
 
   for (int i = 0; i < 10; ++i) {
     lb[i] = 40;
@@ -1041,12 +1040,12 @@ int stmt_funcb_autoctb1(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
-  free(v.ts);  
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
-  free(tags);
+  taosMemoryFree(v.ts);  
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
+  taosMemoryFree(tags);
 
   return 0;
 }
@@ -1068,18 +1067,18 @@ int stmt_funcb_autoctb2(TAOS_STMT *stmt) {
       char bin[10][40];
   } v = {0};
 
-  v.ts = malloc(sizeof(int64_t) * 1 * 10);
+  v.ts = taosMemoryMalloc(sizeof(int64_t) * 1 * 10);
   
-  int *lb = malloc(10 * sizeof(int));
+  int *lb = taosMemoryMalloc(10 * sizeof(int));
 
-  TAOS_BIND *tags = calloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
+  TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
   
-  char* is_null = malloc(sizeof(char) * 10);
-  char* no_null = malloc(sizeof(char) * 10);
+  char* is_null = taosMemoryMalloc(sizeof(char) * 10);
+  char* no_null = taosMemoryMalloc(sizeof(char) * 10);
 
   for (int i = 0; i < 10; ++i) {
     lb[i] = 40;
@@ -1254,12 +1253,12 @@ int stmt_funcb_autoctb2(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
-  free(v.ts);  
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
-  free(tags);
+  taosMemoryFree(v.ts);  
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
+  taosMemoryFree(tags);
 
   return 0;
 }
@@ -1282,18 +1281,18 @@ int stmt_funcb_autoctb3(TAOS_STMT *stmt) {
       char bin[10][40];
   } v = {0};
 
-  v.ts = malloc(sizeof(int64_t) * 1 * 10);
+  v.ts = taosMemoryMalloc(sizeof(int64_t) * 1 * 10);
   
-  int *lb = malloc(10 * sizeof(int));
+  int *lb = taosMemoryMalloc(10 * sizeof(int));
 
-  TAOS_BIND *tags = calloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
+  TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
   
-  char* is_null = malloc(sizeof(char) * 10);
-  char* no_null = malloc(sizeof(char) * 10);
+  char* is_null = taosMemoryMalloc(sizeof(char) * 10);
+  char* no_null = taosMemoryMalloc(sizeof(char) * 10);
 
   for (int i = 0; i < 10; ++i) {
     lb[i] = 40;
@@ -1443,12 +1442,12 @@ int stmt_funcb_autoctb3(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
-  free(v.ts);  
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
-  free(tags);
+  taosMemoryFree(v.ts);  
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
+  taosMemoryFree(tags);
 
   return 0;
 }
@@ -1473,18 +1472,18 @@ int stmt_funcb_autoctb4(TAOS_STMT *stmt) {
       char bin[10][40];
   } v = {0};
 
-  v.ts = malloc(sizeof(int64_t) * 1 * 10);
+  v.ts = taosMemoryMalloc(sizeof(int64_t) * 1 * 10);
   
-  int *lb = malloc(10 * sizeof(int));
+  int *lb = taosMemoryMalloc(10 * sizeof(int));
 
-  TAOS_BIND *tags = calloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 1*5);
+  TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*5);
 
 //  int one_null = 1;
   int one_not_null = 0;
   
-  char* is_null = malloc(sizeof(char) * 10);
-  char* no_null = malloc(sizeof(char) * 10);
+  char* is_null = taosMemoryMalloc(sizeof(char) * 10);
+  char* no_null = taosMemoryMalloc(sizeof(char) * 10);
 
   for (int i = 0; i < 10; ++i) {
     lb[i] = 40;
@@ -1598,12 +1597,12 @@ int stmt_funcb_autoctb4(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
-  free(v.ts);  
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
-  free(tags);
+  taosMemoryFree(v.ts);  
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
+  taosMemoryFree(tags);
 
   return 0;
 }
@@ -1626,18 +1625,18 @@ int stmt_funcb_autoctb_e1(TAOS_STMT *stmt) {
       char bin[10][40];
   } v = {0};
 
-  v.ts = malloc(sizeof(int64_t) * 1 * 10);
+  v.ts = taosMemoryMalloc(sizeof(int64_t) * 1 * 10);
   
-  int *lb = malloc(10 * sizeof(int));
+  int *lb = taosMemoryMalloc(10 * sizeof(int));
 
-  TAOS_BIND *tags = calloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
+  TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
   
-  char* is_null = malloc(sizeof(char) * 10);
-  char* no_null = malloc(sizeof(char) * 10);
+  char* is_null = taosMemoryMalloc(sizeof(char) * 10);
+  char* no_null = taosMemoryMalloc(sizeof(char) * 10);
 
   for (int i = 0; i < 10; ++i) {
     lb[i] = 40;
@@ -1787,12 +1786,12 @@ int stmt_funcb_autoctb_e1(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
-  free(v.ts);  
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
-  free(tags);
+  taosMemoryFree(v.ts);  
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
+  taosMemoryFree(tags);
 
   return 0;
 }
@@ -1815,18 +1814,18 @@ int stmt_funcb_autoctb_e2(TAOS_STMT *stmt) {
       char bin[10][40];
   } v = {0};
 
-  v.ts = malloc(sizeof(int64_t) * 1 * 10);
+  v.ts = taosMemoryMalloc(sizeof(int64_t) * 1 * 10);
   
-  int *lb = malloc(10 * sizeof(int));
+  int *lb = taosMemoryMalloc(10 * sizeof(int));
 
-  TAOS_BIND *tags = calloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
+  TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
   
-  char* is_null = malloc(sizeof(char) * 10);
-  char* no_null = malloc(sizeof(char) * 10);
+  char* is_null = taosMemoryMalloc(sizeof(char) * 10);
+  char* no_null = taosMemoryMalloc(sizeof(char) * 10);
 
   for (int i = 0; i < 10; ++i) {
     lb[i] = 40;
@@ -2002,12 +2001,12 @@ int stmt_funcb_autoctb_e2(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
-  free(v.ts);  
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
-  free(tags);
+  taosMemoryFree(v.ts);  
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
+  taosMemoryFree(tags);
 
   return 0;
 }
@@ -2032,18 +2031,18 @@ int stmt_funcb_autoctb_e3(TAOS_STMT *stmt) {
       char bin[10][40];
   } v = {0};
 
-  v.ts = malloc(sizeof(int64_t) * 1 * 10);
+  v.ts = taosMemoryMalloc(sizeof(int64_t) * 1 * 10);
   
-  int *lb = malloc(10 * sizeof(int));
+  int *lb = taosMemoryMalloc(10 * sizeof(int));
 
-  TAOS_BIND *tags = calloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
+  TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
   
-  char* is_null = malloc(sizeof(char) * 10);
-  char* no_null = malloc(sizeof(char) * 10);
+  char* is_null = taosMemoryMalloc(sizeof(char) * 10);
+  char* no_null = taosMemoryMalloc(sizeof(char) * 10);
 
   for (int i = 0; i < 10; ++i) {
     lb[i] = 40;
@@ -2220,12 +2219,12 @@ int stmt_funcb_autoctb_e3(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
-  free(v.ts);  
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
-  free(tags);
+  taosMemoryFree(v.ts);  
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
+  taosMemoryFree(tags);
 
   return 0;
 }
@@ -2247,18 +2246,18 @@ int stmt_funcb_autoctb_e4(TAOS_STMT *stmt) {
       char bin[10][40];
   } v = {0};
 
-  v.ts = malloc(sizeof(int64_t) * 1 * 10);
+  v.ts = taosMemoryMalloc(sizeof(int64_t) * 1 * 10);
   
-  int *lb = malloc(10 * sizeof(int));
+  int *lb = taosMemoryMalloc(10 * sizeof(int));
 
-  TAOS_BIND *tags = calloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
+  TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
   
-  char* is_null = malloc(sizeof(char) * 10);
-  char* no_null = malloc(sizeof(char) * 10);
+  char* is_null = taosMemoryMalloc(sizeof(char) * 10);
+  char* no_null = taosMemoryMalloc(sizeof(char) * 10);
 
   for (int i = 0; i < 10; ++i) {
     lb[i] = 40;
@@ -2445,12 +2444,12 @@ int stmt_funcb_autoctb_e4(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
-  free(v.ts);  
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
-  free(tags);
+  taosMemoryFree(v.ts);  
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
+  taosMemoryFree(tags);
 
   return 0;
 }
@@ -2474,18 +2473,18 @@ int stmt_funcb_autoctb_e5(TAOS_STMT *stmt) {
       char bin[10][40];
   } v = {0};
 
-  v.ts = malloc(sizeof(int64_t) * 1 * 10);
+  v.ts = taosMemoryMalloc(sizeof(int64_t) * 1 * 10);
   
-  int *lb = malloc(10 * sizeof(int));
+  int *lb = taosMemoryMalloc(10 * sizeof(int));
 
-  TAOS_BIND *tags = calloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
+  TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
 
 //  int one_null = 1;
   int one_not_null = 0;
   
-  char* is_null = malloc(sizeof(char) * 10);
-  char* no_null = malloc(sizeof(char) * 10);
+  char* is_null = taosMemoryMalloc(sizeof(char) * 10);
+  char* no_null = taosMemoryMalloc(sizeof(char) * 10);
 
   for (int i = 0; i < 10; ++i) {
     lb[i] = 40;
@@ -2672,12 +2671,12 @@ int stmt_funcb_autoctb_e5(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
-  free(v.ts);  
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
-  free(tags);
+  taosMemoryFree(v.ts);  
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
+  taosMemoryFree(tags);
 
   return 0;
 }
@@ -2698,13 +2697,13 @@ int stmt_funcb1(TAOS_STMT *stmt) {
       char bin[60][40];
   } v = {0};
 
-  v.ts = malloc(sizeof(int64_t) * 900000 * 60);
+  v.ts = taosMemoryMalloc(sizeof(int64_t) * 900000 * 60);
   
-  int *lb = malloc(60 * sizeof(int));
+  int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
-  char* is_null = malloc(sizeof(char) * 60);
-  char* no_null = malloc(sizeof(char) * 60);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
+  char* is_null = taosMemoryMalloc(sizeof(char) * 60);
+  char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
   for (int i = 0; i < 60; ++i) {
     lb[i] = 40;
@@ -2831,11 +2830,11 @@ int stmt_funcb1(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
-  free(v.ts);  
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v.ts);  
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
@@ -2855,13 +2854,13 @@ int stmt_funcb2(TAOS_STMT *stmt) {
       char bin[18000][40];
   } v = {0};
 
-  v.ts = malloc(sizeof(int64_t) * 900000 * 60);
+  v.ts = taosMemoryMalloc(sizeof(int64_t) * 900000 * 60);
   
-  int *lb = malloc(18000 * sizeof(int));
+  int *lb = taosMemoryMalloc(18000 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 3000*10);
-  char* is_null = malloc(sizeof(char) * 18000);
-  char* no_null = malloc(sizeof(char) * 18000);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 3000*10);
+  char* is_null = taosMemoryMalloc(sizeof(char) * 18000);
+  char* no_null = taosMemoryMalloc(sizeof(char) * 18000);
 
   for (int i = 0; i < 18000; ++i) {
     lb[i] = 40;
@@ -2989,11 +2988,11 @@ int stmt_funcb2(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
-  free(v.ts);  
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v.ts);  
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
@@ -3013,13 +3012,13 @@ int stmt_funcb3(TAOS_STMT *stmt) {
       char bin[60][40];
   } v = {0};
 
-  v.ts = malloc(sizeof(int64_t) * 900000 * 60);
+  v.ts = taosMemoryMalloc(sizeof(int64_t) * 900000 * 60);
   
-  int *lb = malloc(60 * sizeof(int));
+  int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
-  char* is_null = malloc(sizeof(char) * 60);
-  char* no_null = malloc(sizeof(char) * 60);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
+  char* is_null = taosMemoryMalloc(sizeof(char) * 60);
+  char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
   for (int i = 0; i < 60; ++i) {
     lb[i] = 40;
@@ -3152,11 +3151,11 @@ int stmt_funcb3(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
-  free(v.ts);  
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v.ts);  
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
@@ -3178,13 +3177,13 @@ int stmt_funcb4(TAOS_STMT *stmt) {
       char bin[60][40];
   } v = {0};
 
-  v.ts = malloc(sizeof(int64_t) * 900000 * 60);
+  v.ts = taosMemoryMalloc(sizeof(int64_t) * 900000 * 60);
   
-  int *lb = malloc(60 * sizeof(int));
+  int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
-  char* is_null = malloc(sizeof(char) * 60);
-  char* no_null = malloc(sizeof(char) * 60);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
+  char* is_null = taosMemoryMalloc(sizeof(char) * 60);
+  char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
   for (int i = 0; i < 60; ++i) {
     lb[i] = 40;
@@ -3311,11 +3310,11 @@ int stmt_funcb4(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
-  free(v.ts);  
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v.ts);  
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
@@ -3337,13 +3336,13 @@ int stmt_funcb5(TAOS_STMT *stmt) {
       char bin[18000][40];
   } v = {0};
 
-  v.ts = malloc(sizeof(int64_t) * 900000 * 60);
+  v.ts = taosMemoryMalloc(sizeof(int64_t) * 900000 * 60);
   
-  int *lb = malloc(18000 * sizeof(int));
+  int *lb = taosMemoryMalloc(18000 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 3000*10);
-  char* is_null = malloc(sizeof(char) * 18000);
-  char* no_null = malloc(sizeof(char) * 18000);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 3000*10);
+  char* is_null = taosMemoryMalloc(sizeof(char) * 18000);
+  char* no_null = taosMemoryMalloc(sizeof(char) * 18000);
 
   for (int i = 0; i < 18000; ++i) {
     lb[i] = 40;
@@ -3464,11 +3463,11 @@ int stmt_funcb5(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
-  free(v.ts);  
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v.ts);  
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
@@ -3481,12 +3480,12 @@ int stmt_funcb_ssz1(TAOS_STMT *stmt) {
       int b[30000];
   } v = {0};
 
-  v.ts = malloc(sizeof(int64_t) * 30000 * 3000);
+  v.ts = taosMemoryMalloc(sizeof(int64_t) * 30000 * 3000);
   
-  int *lb = malloc(30000 * sizeof(int));
+  int *lb = taosMemoryMalloc(30000 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 3000*10);
-  char* no_null = malloc(sizeof(int) * 200000);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 3000*10);
+  char* no_null = taosMemoryMalloc(sizeof(int) * 200000);
 
   for (int i = 0; i < 30000; ++i) {
     lb[i] = 40;
@@ -3549,10 +3548,10 @@ int stmt_funcb_ssz1(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
-  free(v.ts);  
-  free(lb);
-  free(params);
-  free(no_null);
+  taosMemoryFree(v.ts);  
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(no_null);
 
   return 0;
 }
@@ -3572,13 +3571,13 @@ int stmt_funcb_s1(TAOS_STMT *stmt) {
       char bin[60][40];
   } v = {0};
 
-  v.ts = malloc(sizeof(int64_t) * 900000 * 60);
+  v.ts = taosMemoryMalloc(sizeof(int64_t) * 900000 * 60);
   
-  int *lb = malloc(60 * sizeof(int));
+  int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
-  char* is_null = malloc(sizeof(char) * 60);
-  char* no_null = malloc(sizeof(char) * 60);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
+  char* is_null = taosMemoryMalloc(sizeof(char) * 60);
+  char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
   for (int i = 0; i < 60; ++i) {
     lb[i] = 40;
@@ -3706,11 +3705,11 @@ int stmt_funcb_s1(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
-  free(v.ts);  
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v.ts);  
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
@@ -3734,13 +3733,13 @@ int stmt_funcb_sc1(TAOS_STMT *stmt) {
       char bin[60][40];
   } v = {0};
 
-  v.ts = malloc(sizeof(int64_t) * 900000 * 60);
+  v.ts = taosMemoryMalloc(sizeof(int64_t) * 900000 * 60);
   
-  int *lb = malloc(60 * sizeof(int));
+  int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
-  char* is_null = malloc(sizeof(char) * 60);
-  char* no_null = malloc(sizeof(char) * 60);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
+  char* is_null = taosMemoryMalloc(sizeof(char) * 60);
+  char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
   for (int i = 0; i < 60; ++i) {
     lb[i] = 40;
@@ -3868,11 +3867,11 @@ int stmt_funcb_sc1(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
-  free(v.ts);  
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v.ts);  
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
@@ -3892,13 +3891,13 @@ int stmt_funcb_sc2(TAOS_STMT *stmt) {
       char bin[60][40];
   } v = {0};
 
-  v.ts = malloc(sizeof(int64_t) * 900000 * 60);
+  v.ts = taosMemoryMalloc(sizeof(int64_t) * 900000 * 60);
   
-  int *lb = malloc(60 * sizeof(int));
+  int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
-  char* is_null = malloc(sizeof(char) * 60);
-  char* no_null = malloc(sizeof(char) * 60);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
+  char* is_null = taosMemoryMalloc(sizeof(char) * 60);
+  char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
   for (int i = 0; i < 60; ++i) {
     lb[i] = 40;
@@ -4028,11 +4027,11 @@ int stmt_funcb_sc2(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
-  free(v.ts);  
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v.ts);  
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
@@ -4052,13 +4051,13 @@ int stmt_funcb_sc3(TAOS_STMT *stmt) {
       char bin[60][40];
   } v = {0};
 
-  v.ts = malloc(sizeof(int64_t) * 60);
+  v.ts = taosMemoryMalloc(sizeof(int64_t) * 60);
   
-  int *lb = malloc(60 * sizeof(int));
+  int *lb = taosMemoryMalloc(60 * sizeof(int));
   
-  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 60*10);
-  char* is_null = malloc(sizeof(char) * 60);
-  char* no_null = malloc(sizeof(char) * 60);
+  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 60*10);
+  char* is_null = taosMemoryMalloc(sizeof(char) * 60);
+  char* no_null = taosMemoryMalloc(sizeof(char) * 60);
 
   for (int i = 0; i < 60; ++i) {
     lb[i] = 40;
@@ -4185,11 +4184,11 @@ int stmt_funcb_sc3(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
-  free(v.ts);  
-  free(lb);
-  free(params);
-  free(is_null);
-  free(no_null);
+  taosMemoryFree(v.ts);  
+  taosMemoryFree(lb);
+  taosMemoryFree(params);
+  taosMemoryFree(is_null);
+  taosMemoryFree(no_null);
 
   return 0;
 }
@@ -4248,7 +4247,7 @@ int sql_perf1(TAOS     *taos) {
   TAOS_RES *result;
 
   for (int i = 0; i < 3000; i++) {
-    sql[i] = calloc(1, 1048576);
+    sql[i] = taosMemoryCalloc(1, 1048576);
   }
 
   int len = 0;
@@ -4280,7 +4279,7 @@ int sql_perf1(TAOS     *taos) {
   printf("insert total %d records, used %u seconds, avg:%.1f useconds\n", 3000*120*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*120*60));
 
   for (int i = 0; i < 3000; i++) {
-    free(sql[i]);
+    taosMemoryFree(sql[i]);
   }
 
   return 0;
@@ -4292,11 +4291,11 @@ int sql_perf1(TAOS     *taos) {
 
 //one table 60 records one time
 int sql_perf_s1(TAOS     *taos) {
-  char **sql = calloc(1, sizeof(char*) * 360000);
+  char **sql = taosMemoryCalloc(1, sizeof(char*) * 360000);
   TAOS_RES *result;
 
   for (int i = 0; i < 360000; i++) {
-    sql[i] = calloc(1, 9000);
+    sql[i] = taosMemoryCalloc(1, 9000);
   }
 
   int len = 0;
@@ -4333,10 +4332,10 @@ int sql_perf_s1(TAOS     *taos) {
   printf("insert total %d records, used %u seconds, avg:%.1f useconds\n", 3000*120*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*120*60));
 
   for (int i = 0; i < 360000; i++) {
-    free(sql[i]);
+    taosMemoryFree(sql[i]);
   }
 
-  free(sql);
+  taosMemoryFree(sql);
 
   return 0;
 }
@@ -4348,7 +4347,7 @@ int sql_s_perf1(TAOS     *taos) {
   TAOS_RES *result;
 
   for (int i = 0; i < 3000; i++) {
-    sql[i] = calloc(1, 1048576);
+    sql[i] = taosMemoryCalloc(1, 1048576);
   }
 
   int len = 0;
@@ -4380,7 +4379,7 @@ int sql_s_perf1(TAOS     *taos) {
   printf("insert total %d records, used %u seconds, avg:%.1f useconds\n", 3000*120*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*120*60));
 
   for (int i = 0; i < 3000; i++) {
-    free(sql[i]);
+    taosMemoryFree(sql[i]);
   }
 
   return 0;
@@ -5067,11 +5066,11 @@ int main(int argc, char *argv[])
     exit(1);
   }     
 
-  pthread_t *pThreadList = (pthread_t *) calloc(sizeof(pthread_t), 4);
+  TdThread *pThreadList = (TdThread *) taosMemoryCalloc(sizeof(TdThread), 4);
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
-  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
+  taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
   T_par par[4];
 
   par[0].taos = taos[0];
@@ -5083,10 +5082,10 @@ int main(int argc, char *argv[])
   par[3].taos = taos[3];
   par[3].idx = 3;
   
-  pthread_create(&(pThreadList[0]), &thattr, runcase, (void *)&par[0]);
-  //pthread_create(&(pThreadList[1]), &thattr, runcase, (void *)&par[1]);
-  //pthread_create(&(pThreadList[2]), &thattr, runcase, (void *)&par[2]);
-  //pthread_create(&(pThreadList[3]), &thattr, runcase, (void *)&par[3]);
+  taosThreadCreate(&(pThreadList[0]), &thattr, runcase, (void *)&par[0]);
+  //taosThreadCreate(&(pThreadList[1]), &thattr, runcase, (void *)&par[1]);
+  //taosThreadCreate(&(pThreadList[2]), &thattr, runcase, (void *)&par[2]);
+  //taosThreadCreate(&(pThreadList[3]), &thattr, runcase, (void *)&par[3]);
 
   while(1) {
     taosSsleep(1);

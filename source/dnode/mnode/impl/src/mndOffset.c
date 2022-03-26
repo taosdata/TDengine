@@ -32,7 +32,7 @@
 static int32_t mndOffsetActionInsert(SSdb *pSdb, SMqOffsetObj *pOffset);
 static int32_t mndOffsetActionDelete(SSdb *pSdb, SMqOffsetObj *pOffset);
 static int32_t mndOffsetActionUpdate(SSdb *pSdb, SMqOffsetObj *pOffset, SMqOffsetObj *pNewOffset);
-static int32_t mndProcessCommitOffsetReq(SMnodeMsg *pReq);
+static int32_t mndProcessCommitOffsetReq(SNodeMsg *pReq);
 
 int32_t mndInitOffset(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_OFFSET,
@@ -59,7 +59,7 @@ SSdbRaw *mndOffsetActionEncode(SMqOffsetObj *pOffset) {
   SSdbRaw *pRaw = sdbAllocRaw(SDB_OFFSET, MND_OFFSET_VER_NUMBER, size);
   if (pRaw == NULL) goto OFFSET_ENCODE_OVER;
 
-  buf = malloc(tlen);
+  buf = taosMemoryMalloc(tlen);
   if (buf == NULL) goto OFFSET_ENCODE_OVER;
 
   void *abuf = buf;
@@ -74,7 +74,7 @@ SSdbRaw *mndOffsetActionEncode(SMqOffsetObj *pOffset) {
   terrno = TSDB_CODE_SUCCESS;
 
 OFFSET_ENCODE_OVER:
-  tfree(buf);
+  taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("offset:%s, failed to encode to raw:%p since %s", pOffset->key, pRaw, terrstr());
     sdbFreeRaw(pRaw);
@@ -107,7 +107,7 @@ SSdbRow *mndOffsetActionDecode(SSdbRaw *pRaw) {
   int32_t dataPos = 0;
   int32_t tlen;
   SDB_GET_INT32(pRaw, dataPos, &tlen, OFFSET_DECODE_OVER);
-  buf = malloc(tlen + 1);
+  buf = taosMemoryMalloc(tlen + 1);
   if (buf == NULL) goto OFFSET_DECODE_OVER;
   SDB_GET_BINARY(pRaw, dataPos, buf, tlen, OFFSET_DECODE_OVER);
   SDB_GET_RESERVE(pRaw, dataPos, MND_OFFSET_RESERVE_SIZE, OFFSET_DECODE_OVER);
@@ -119,10 +119,10 @@ SSdbRow *mndOffsetActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_SUCCESS;
 
 OFFSET_DECODE_OVER:
-  tfree(buf);
+  taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("offset:%s, failed to decode from raw:%p since %s", pOffset->key, pRaw, terrstr());
-    tfree(pRow);
+    taosMemoryFreeClear(pRow);
     return NULL;
   }
 
@@ -152,10 +152,10 @@ int32_t mndCreateOffset(STrans *pTrans, const char *cgroup, const char *topicNam
   return 0;
 }
 
-static int32_t mndProcessCommitOffsetReq(SMnodeMsg *pMsg) {
+static int32_t mndProcessCommitOffsetReq(SNodeMsg *pMsg) {
   char key[TSDB_PARTITION_KEY_LEN];
 
-  SMnode              *pMnode = pMsg->pMnode;
+  SMnode              *pMnode = pMsg->pNode;
   char                *msgStr = pMsg->rpcMsg.pCont;
   SMqCMCommitOffsetReq commitOffsetReq;
   SCoder               decoder;

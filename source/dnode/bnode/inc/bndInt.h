@@ -30,7 +30,7 @@ extern "C" {
 #endif
 
 typedef struct SBnode {
-  SBnodeOpt opt;
+  SMsgCb msgCb;
 } SBnode;
 
 #ifdef __cplusplus

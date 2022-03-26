@@ -24,8 +24,8 @@ endi
 print ========== stop dnode2
 system sh/exec.sh -n dnode2 -s stop -x SIGKILL
 
-print =============== create database
-sql_error create database d1 vgroups 4
+#print =============== create database
+#sql_error create database d1 vgroups 4
 
 print ========== start dnode2
 system sh/exec.sh -n dnode2 -s start
@@ -42,7 +42,7 @@ re-create1:
 sql create database d1 vgroups 2 -x re-create1
 
 sql show databases
-if $rows != 1 then 
+if $rows != 2 then 
   return -1
 endi
 
@@ -61,11 +61,13 @@ endi
 print ========== stop dnode2
 system sh/exec.sh -n dnode2 -s stop -x SIGKILL
 
+sleep 1000
 print =============== create database
 sql_error drop database d1
 
 print ========== start dnode2
 system sh/exec.sh -n dnode2 -s start
+sleep 1000
 
 print =============== re-create database
 $x = 0
@@ -79,7 +81,7 @@ re-create2:
 sql create database d1 vgroups 5 -x re-create2
 
 sql show databases
-if $rows != 1 then 
+if $rows != 2 then 
   return -1
 endi
 

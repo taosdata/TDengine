@@ -35,7 +35,7 @@ typedef struct SLogicNode {
 typedef enum EScanType {
   SCAN_TYPE_TAG,
   SCAN_TYPE_TABLE,
-  SCAN_TYPE_STABLE,
+  SCAN_TYPE_SYSTEM_TABLE,
   SCAN_TYPE_STREAM
 } EScanType;
 
@@ -48,6 +48,7 @@ typedef struct SScanLogicNode {
   uint8_t scanFlag;         // denotes reversed scan of data or not
   STimeWindow scanRange;
   SName tableName;
+  bool showRewrite;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -95,6 +96,7 @@ typedef struct SWindowLogicNode {
   int8_t  intervalUnit;
   int8_t  slidingUnit;
   SFillNode* pFill;
+  int64_t sessionGap;
 } SWindowLogicNode;
 
 typedef enum ESubplanType {
@@ -110,7 +112,7 @@ typedef struct SSubplanId {
   int32_t subplanId;
 } SSubplanId;
 
-typedef struct SSubLogicPlan {
+typedef struct SLogicSubplan {
   ENodeType type;
   SSubplanId id;
   SNodeList* pChildren;
@@ -120,7 +122,7 @@ typedef struct SSubLogicPlan {
   SVgroupsInfo* pVgroupList;
   int32_t level;
   int32_t splitFlag;
-} SSubLogicPlan;
+} SLogicSubplan;
 
 typedef struct SQueryLogicPlan {
   ENodeType type;
@@ -154,7 +156,7 @@ typedef struct SPhysiNode {
 } SPhysiNode;
 
 typedef struct SScanPhysiNode {
-  SPhysiNode  node;
+  SPhysiNode node;
   SNodeList* pScanCols;
   uint64_t uid;           // unique id of the table
   int8_t tableType;
@@ -164,9 +166,15 @@ typedef struct SScanPhysiNode {
   SName tableName;
 } SScanPhysiNode;
 
-typedef SScanPhysiNode SSystemTableScanPhysiNode;
 typedef SScanPhysiNode STagScanPhysiNode;
 typedef SScanPhysiNode SStreamScanPhysiNode;
+
+typedef struct SSystemTableScanPhysiNode {
+  SScanPhysiNode scan;
+  SEpSet mgmtEpSet;
+  bool showRewrite;
+  int32_t accountId;
+} SSystemTableScanPhysiNode;
 
 typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;
@@ -209,10 +217,14 @@ typedef struct SExchangePhysiNode {
   SNodeList* pSrcEndPoints;  // element is SDownstreamSource, scheduler fill by calling qSetSuplanExecutionNode
 } SExchangePhysiNode;
 
-typedef struct SIntervalPhysiNode {
+typedef struct SWinodwPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;   // these are expression list of parameter expression of function
   SNodeList* pFuncs;
+} SWinodwPhysiNode;
+
+typedef struct SIntervalPhysiNode {
+  SWinodwPhysiNode window;
   int64_t    interval;
   int64_t    offset;
   int64_t    sliding;
@@ -220,6 +232,11 @@ typedef struct SIntervalPhysiNode {
   int8_t     slidingUnit;
   SFillNode* pFill;
 } SIntervalPhysiNode;
+
+typedef struct SSessionWinodwPhysiNode {
+  SWinodwPhysiNode window;
+  int64_t    gap;
+} SSessionWinodwPhysiNode;
 
 typedef struct SDataSinkNode {
   ENodeType type;
@@ -243,6 +260,7 @@ typedef struct SSubplan {
   ESubplanType subplanType;
   int32_t msgType;      // message type for subplan, used to denote the send message type to vnode.
   int32_t level;        // the execution level of current subplan, starting from 0 in a top-down manner.
+  char dbFName[TSDB_DB_FNAME_LEN];
   SQueryNodeAddr execNode;    // for the scan/modify subplan, the optional execution node
   SQueryNodeStat execNodeStat; // only for scan subplan
   SNodeList* pChildren;    // the datasource subplan,from which to fetch the result

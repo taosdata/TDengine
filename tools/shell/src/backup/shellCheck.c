@@ -31,7 +31,7 @@ static int32_t checkedNum = 0;
 static int32_t errorNum = 0;
 
 typedef struct {
-  pthread_t threadID;
+  TdThread threadID;
   int       threadIndex;
   int       totalThreads;
   void *    taos;
@@ -72,7 +72,7 @@ static int32_t shellShowTables(TAOS *con, char *db) {
       int32_t tbIndex = tbNum++;
       if (tbMallocNum < tbNum) {
         tbMallocNum = (tbMallocNum * 2 + 1);
-        char** tbNames1 = realloc(tbNames, tbMallocNum * sizeof(char *));
+        char** tbNames1 = taosMemoryRealloc(tbNames, tbMallocNum * sizeof(char *));
         if (tbNames1 == NULL) {
           fprintf(stdout, "failed to malloc tablenames, num:%d\n", tbMallocNum);
           code = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -81,7 +81,7 @@ static int32_t shellShowTables(TAOS *con, char *db) {
         tbNames = tbNames1;
       }
 
-      tbNames[tbIndex] = malloc(TSDB_TABLE_NAME_LEN);
+      tbNames[tbIndex] = taosMemoryMalloc(TSDB_TABLE_NAME_LEN);
       strncpy(tbNames[tbIndex], (const char *)row[0], TSDB_TABLE_NAME_LEN);
       if (tbIndex % 100000 == 0 && tbIndex != 0) {
         fprintf(stdout, "%d tablenames fetched\n", tbIndex);
@@ -97,9 +97,9 @@ static int32_t shellShowTables(TAOS *con, char *db) {
 
 static void shellFreeTbnames() {
   for (int32_t i = 0; i < tbNum; ++i) {
-    free(tbNames[i]);
+    taosMemoryFree(tbNames[i]);
   }
-  free(tbNames);
+  taosMemoryFree(tbNames);
 }
 
 static void *shellCheckThreadFp(void *arg) {
@@ -152,8 +152,8 @@ static void *shellCheckThreadFp(void *arg) {
 }
 
 static void shellRunCheckThreads(TAOS *con, SShellArguments *_args) {
-  pthread_attr_t  thattr;
-  ShellThreadObj *threadObj = (ShellThreadObj *)calloc(_args->threadNum, sizeof(ShellThreadObj));
+  TdThreadAttr  thattr;
+  ShellThreadObj *threadObj = (ShellThreadObj *)taosMemoryCalloc(_args->threadNum, sizeof(ShellThreadObj));
   for (int t = 0; t < _args->threadNum; ++t) {
     ShellThreadObj *pThread = threadObj + t;
     pThread->threadIndex = t;
@@ -161,23 +161,23 @@ static void shellRunCheckThreads(TAOS *con, SShellArguments *_args) {
     pThread->taos = con;
     pThread->db = _args->database;
 
-    pthread_attr_init(&thattr);
-    pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
+    taosThreadAttrInit(&thattr);
+    taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
 
-    if (pthread_create(&(pThread->threadID), &thattr, shellCheckThreadFp, (void *)pThread) != 0) {
+    if (taosThreadCreate(&(pThread->threadID), &thattr, shellCheckThreadFp, (void *)pThread) != 0) {
       fprintf(stderr, "ERROR: thread:%d failed to start\n", pThread->threadIndex);
       exit(0);
     }
   }
 
   for (int t = 0; t < _args->threadNum; ++t) {
-    pthread_join(threadObj[t].threadID, NULL);
+    taosThreadJoin(threadObj[t].threadID, NULL);
   }
 
   for (int t = 0; t < _args->threadNum; ++t) {
     taos_close(threadObj[t].taos);
   }
-  free(threadObj);
+  taosMemoryFree(threadObj);
 }
 
 void shellCheck(TAOS *con, SShellArguments *_args) {

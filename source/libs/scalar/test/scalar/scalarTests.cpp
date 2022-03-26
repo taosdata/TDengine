@@ -39,6 +39,14 @@
 #include "nodes.h"
 #include "tlog.h"
 
+#define _DEBUG_PRINT_ 0
+
+#if _DEBUG_PRINT_
+#define PRINTF(...) printf(__VA_ARGS__)
+#else
+#define PRINTF(...)
+#endif
+
 namespace {
 
 SColumnInfo createColumnInfo(int32_t colId, int32_t type, int32_t bytes) {
@@ -71,7 +79,7 @@ void scltInitLogFile() {
 
 void scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *slotId, bool newBlock, int32_t rows, SColumnInfo *colInfo) {
   if (newBlock) {
-    SSDataBlock *res = (SSDataBlock *)calloc(1, sizeof(SSDataBlock));
+    SSDataBlock *res = (SSDataBlock *)taosMemoryCalloc(1, sizeof(SSDataBlock));
     res->info.numOfCols = 1;
     res->info.rows = rows;
     res->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
@@ -106,7 +114,7 @@ void scltMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
   vnode->node.resType.type = dataType;
 
   if (IS_VAR_DATA_TYPE(dataType)) {
-    vnode->datum.p = (char *)malloc(varDataTLen(value));
+    vnode->datum.p = (char *)taosMemoryMalloc(varDataTLen(value));
     varDataCopy(vnode->datum.p, value);
     vnode->node.resType.bytes = varDataTLen(value);
   } else {
@@ -125,7 +133,7 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
   rnode->dataBlockId = 0;
 
   if (NULL == *block) {
-    SSDataBlock *res = (SSDataBlock *)calloc(1, sizeof(SSDataBlock));
+    SSDataBlock *res = (SSDataBlock *)taosMemoryCalloc(1, sizeof(SSDataBlock));
     res->info.numOfCols = 3;
     res->info.rows = rowNum;
     res->pDataBlock = taosArrayInit(3, sizeof(SColumnInfoData));
@@ -136,7 +144,7 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
       idata.info.colId = i + 1;
 
       int32_t size = idata.info.bytes * rowNum;
-      idata.pData = (char *)calloc(1, size);
+      idata.pData = (char *)taosMemoryCalloc(1, size);
       taosArrayPush(res->pDataBlock, &idata);
     }
 
@@ -145,7 +153,7 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     idata.info.bytes = dataBytes;
     idata.info.colId = 3;
     int32_t size = idata.info.bytes * rowNum;
-    idata.pData = (char *)calloc(1, size);
+    idata.pData = (char *)taosMemoryCalloc(1, size);
     taosArrayPush(res->pDataBlock, &idata);
     
     blockDataEnsureCapacity(res, rowNum);
@@ -173,7 +181,7 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     idata.info.bytes = dataBytes;
     idata.info.colId = 1 + idx;
     int32_t size = idata.info.bytes * rowNum;
-    idata.pData = (char *)calloc(1, size);
+    idata.pData = (char *)taosMemoryCalloc(1, size);
     taosArrayPush(res->pDataBlock, &idata);
     res->info.numOfCols++;
     SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
@@ -1433,6 +1441,1645 @@ TEST(columnTest, greater_and_lower) {
   nodesDestroyNode(logicNode);
 }
 
+void scltMakeDataBlock(SScalarParam **pInput, int32_t type, void *pVal, int32_t num, bool setVal) {
+  SScalarParam *input = (SScalarParam *)taosMemoryCalloc(1, sizeof(SScalarParam));
+  int32_t bytes;
+  switch (type) {
+    case TSDB_DATA_TYPE_TINYINT: {
+      bytes = sizeof(int8_t);
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      bytes = sizeof(int16_t);
+      break;
+    }
+    case TSDB_DATA_TYPE_INT: {
+      bytes = sizeof(int32_t);
+      break;
+    }
+    case TSDB_DATA_TYPE_BIGINT: {
+      bytes = sizeof(int64_t);
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      bytes = sizeof(float);
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      bytes = sizeof(double);
+      break;
+    }
+  }
+
+  input->type = type;
+  input->num = num;
+  input->data = taosMemoryCalloc(num, bytes);
+  input->bytes = bytes;
+  if (setVal) {
+    for (int32_t i = 0; i < num; ++i) {
+      memcpy(input->data + i * bytes, pVal, bytes);
+    }
+  } else {
+    memset(input->data, 0, num * bytes);
+  }
+
+  *pInput = input;
+}
+
+void scltDestroyDataBlock(SScalarParam *pInput) {
+  taosMemoryFree(pInput->data);
+  taosMemoryFree(pInput);
+}
+
+TEST(ScalarFunctionTest, absFunction_constant) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+
+  //TINYINT
+  int8_t val_tinyint = 10;
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int8_t *)pOutput->data + i), val_tinyint);
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  val_tinyint = -10;
+  scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int8_t *)pOutput->data + i), -val_tinyint);
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //SMALLINT
+  int16_t val_smallint = 10;
+  type = TSDB_DATA_TYPE_SMALLINT;
+  scltMakeDataBlock(&pInput, type, &val_smallint, 1, true);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int16_t *)pOutput->data + i), val_smallint);
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  val_smallint = -10;
+  scltMakeDataBlock(&pInput, type, &val_smallint, 1, true);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int16_t *)pOutput->data + i), -val_smallint);
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //INT
+  int32_t val_int = 10;
+  type = TSDB_DATA_TYPE_INT;
+  scltMakeDataBlock(&pInput, type, &val_int, 1, true);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int32_t *)pOutput->data + i), val_int);
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  val_int = -10;
+  scltMakeDataBlock(&pInput, type, &val_int, 1, true);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int32_t *)pOutput->data + i), -val_int);
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //BIGINT
+  int64_t val_bigint = 10;
+  type = TSDB_DATA_TYPE_BIGINT;
+  scltMakeDataBlock(&pInput, type, &val_bigint, 1, true);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int64_t *)pOutput->data + i), val_bigint);
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  val_bigint = -10;
+  scltMakeDataBlock(&pInput, type, &val_bigint, rowNum, true);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int64_t *)pOutput->data + i), -val_bigint);
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float = 10.15;
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, &val_float, 1, true);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  PRINTF("float before ABS:%f\n", *(float *)pInput->data);
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((float *)pOutput->data + i), val_float);
+    PRINTF("float after ABS:%f\n", *((float *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  val_float = -10.15;
+  scltMakeDataBlock(&pInput, type, &val_float, 1, true);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  PRINTF("float before ABS:%f\n", *(float *)pInput->data);
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((float *)pOutput->data + i), -val_float);
+    PRINTF("float after ABS:%f\n", *((float *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //DOUBLE
+  double val_double = 10.15;
+  type = TSDB_DATA_TYPE_DOUBLE;
+  scltMakeDataBlock(&pInput, type, &val_double, 1, true);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), val_double);
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  val_double = -10.15;
+  scltMakeDataBlock(&pInput, type, &val_double, rowNum, true);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), -val_double);
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+}
+
+TEST(ScalarFunctionTest, absFunction_column) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 5;
+  int32_t type;
+
+  //TINYINT
+  int8_t val_tinyint = 10;
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((int8_t *)pInput->data + i) = val_tinyint + i;
+    PRINTF("tiny_int before ABS:%d\n", *((int8_t *)pInput->data + i));
+  }
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int8_t *)pOutput->data + i), val_tinyint + i);
+    PRINTF("tiny_int after ABS:%d\n", *((int8_t *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  val_tinyint = -10;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((int8_t *)pInput->data + i) = val_tinyint + i;
+    PRINTF("tiny_int before ABS:%d\n", *((int8_t *)pInput->data + i));
+  }
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int8_t *)pOutput->data + i), -(val_tinyint + i));
+    PRINTF("tiny_int after ABS:%d\n", *((int8_t *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //SMALLINT
+  int16_t val_smallint = 10;
+  type = TSDB_DATA_TYPE_SMALLINT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((int16_t *)pInput->data + i) = val_smallint + i;
+    PRINTF("small_int before ABS:%d\n", *((int16_t *)pInput->data + i));
+  }
+
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int16_t *)pOutput->data + i), val_smallint + i);
+    PRINTF("small_int after ABS:%d\n", *((int16_t *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  val_smallint = -10;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((int16_t *)pInput->data + i) = val_smallint + i;
+    PRINTF("small_int before ABS:%d\n", *((int16_t *)pInput->data + i));
+  }
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int16_t *)pOutput->data + i), -(val_smallint + i));
+    PRINTF("small_int after ABS:%d\n", *((int16_t *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //INT
+  int32_t val_int = 10;
+  type = TSDB_DATA_TYPE_INT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((int32_t *)pInput->data + i) = val_int + i;
+    PRINTF("int before ABS:%d\n", *((int32_t *)pInput->data + i));
+  }
+
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int32_t *)pOutput->data + i), val_int + i);
+    PRINTF("int after ABS:%d\n", *((int32_t *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  val_int = -10;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((int32_t *)pInput->data + i) = val_int + i;
+    PRINTF("int before ABS:%d\n", *((int32_t *)pInput->data + i));
+  }
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int32_t *)pOutput->data + i), -(val_int + i));
+    PRINTF("int after ABS:%d\n", *((int32_t *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float = 10.15;
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((float *)pInput->data + i) = val_float + i;
+    PRINTF("float before ABS:%f\n", *((float *)pInput->data + i));
+  }
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((float *)pOutput->data + i), val_float + i);
+    PRINTF("float after ABS:%f\n", *((float *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  val_float = -10.15;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((float *)pInput->data + i) = val_float + i;
+    PRINTF("float before ABS:%f\n", *((float *)pInput->data + i));
+  }
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((float *)pOutput->data + i), -(val_float + i));
+    PRINTF("float after ABS:%f\n", *((float *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //DOUBLE
+  double val_double = 10.15;
+  type = TSDB_DATA_TYPE_DOUBLE;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((double *)pInput->data + i) = val_double + i;
+    PRINTF("double before ABS:%f\n", *((double *)pInput->data + i));
+  }
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), val_double + i);
+    PRINTF("double after ABS:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  val_double = -10.15;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((double *)pInput->data + i) = val_double + i;
+    PRINTF("double before ABS:%f\n", *((double *)pInput->data + i));
+  }
+
+  code = absFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), -(val_double + i));
+    PRINTF("double after ABS:%f\n", *((double *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+}
+
+TEST(ScalarFunctionTest, sinFunction_constant) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  int32_t otype = TSDB_DATA_TYPE_DOUBLE;
+  double  result = 0.42016703682664092;
+
+  //TINYINT
+  int8_t val_tinyint = 13;
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  PRINTF("tiny_int before SIN:%d\n", *((int8_t *)pInput->data));
+
+  code = sinFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result);
+    PRINTF("tiny_int after SIN:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float = 13.00;
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, &val_float, 1, true);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  PRINTF("float before SIN:%f\n", *((float *)pInput->data));
+
+  code = sinFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result);
+    PRINTF("float after SIN:%f\n", *((double *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+}
+
+TEST(ScalarFunctionTest, sinFunction_column) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  int32_t otype = TSDB_DATA_TYPE_DOUBLE;
+  double  result[] = {0.42016703682664092, 0.99060735569487035, 0.65028784015711683};
+
+
+  //TINYINT
+  int8_t val_tinyint[] = {13, 14, 15};
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((int8_t *)pInput->data + i) = val_tinyint[i];
+    PRINTF("tiny_int before SIN:%d\n", *((int8_t *)pInput->data + i));
+  }
+
+  code = sinFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
+    PRINTF("tiny_int after SIN:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float[] = {13.00, 14.00, 15.00};
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((float *)pInput->data + i) = val_float[i];
+    PRINTF("float before SIN:%f\n", *((float *)pInput->data + i));
+  }
+
+  code = sinFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
+    PRINTF("float after SIN:%f\n", *((double *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+}
+
+TEST(ScalarFunctionTest, cosFunction_constant) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  int32_t otype = TSDB_DATA_TYPE_DOUBLE;
+  double  result = 0.90744678145019619;
+
+  //TINYINT
+  int8_t val_tinyint = 13;
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  PRINTF("tiny_int before COS:%d\n", *((int8_t *)pInput->data));
+
+  code = cosFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result);
+    PRINTF("tiny_int after COS:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float = 13.00;
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, &val_float, 1, true);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  PRINTF("float before COS:%f\n", *((float *)pInput->data));
+
+  code = cosFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result);
+    PRINTF("float after COS:%f\n", *((double *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+}
+
+TEST(ScalarFunctionTest, cosFunction_column) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  int32_t otype = TSDB_DATA_TYPE_DOUBLE;
+  double  result[] = {0.90744678145019619, 0.13673721820783361, -0.75968791285882131};
+
+  //TINYINT
+  int8_t val_tinyint[] = {13, 14, 15};
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((int8_t *)pInput->data + i) = val_tinyint[i];
+    PRINTF("tiny_int before COS:%d\n", *((int8_t *)pInput->data + i));
+  }
+
+  code = cosFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
+    PRINTF("tiny_int after COS:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float[] = {13.00, 14.00, 15.00};
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((float *)pInput->data + i) = val_float[i];
+    PRINTF("float before COS:%f\n", *((float *)pInput->data + i));
+  }
+
+  code = cosFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
+    PRINTF("float after COS:%f\n", *((double *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+}
+
+TEST(ScalarFunctionTest, tanFunction_constant) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  int32_t otype = TSDB_DATA_TYPE_DOUBLE;
+  double  result = 0.46302113293648961;
+
+  //TINYINT
+  int8_t val_tinyint = 13;
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  PRINTF("tiny_int before TAN:%d\n", *((int8_t *)pInput->data));
+
+  code = tanFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result);
+    PRINTF("tiny_int after TAN:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float = 13.00;
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, &val_float, 1, true);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  PRINTF("float before TAN:%f\n", *((float *)pInput->data));
+
+  code = tanFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result);
+    PRINTF("float after TAN:%f\n", *((double *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+}
+
+TEST(ScalarFunctionTest, tanFunction_column) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  int32_t otype = TSDB_DATA_TYPE_DOUBLE;
+  double  result[] = {0.46302113293648961, 7.24460661609480550, -0.85599340090851872};
+
+  //TINYINT
+  int8_t val_tinyint[] = {13, 14, 15};
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((int8_t *)pInput->data + i) = val_tinyint[i];
+    PRINTF("tiny_int before TAN:%d\n", *((int8_t *)pInput->data + i));
+  }
+
+  code = tanFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
+    PRINTF("tiny_int after TAN:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float[] = {13.00, 14.00, 15.00};
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((float *)pInput->data + i) = val_float[i];
+    PRINTF("float before TAN:%f\n", *((float *)pInput->data + i));
+  }
+
+  code = tanFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
+    PRINTF("float after TAN:%f\n", *((double *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+}
+
+TEST(ScalarFunctionTest, asinFunction_constant) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  int32_t otype = TSDB_DATA_TYPE_DOUBLE;
+  double  result = 1.57079632679489656;
+
+  //TINYINT
+  int8_t val_tinyint = 1;
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  PRINTF("tiny_int before ASIN:%d\n", *((int8_t *)pInput->data));
+
+  code = asinFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result);
+    PRINTF("tiny_int after ASIN:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float = 1.00;
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, &val_float, 1, true);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  PRINTF("float before ASIN:%f\n", *((float *)pInput->data));
+
+  code = asinFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result);
+    PRINTF("float after ASIN:%f\n", *((double *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+}
+
+TEST(ScalarFunctionTest, asinFunction_column) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  int32_t otype = TSDB_DATA_TYPE_DOUBLE;
+  double  result[] = {-1.57079632679489656, 0.0, 1.57079632679489656};
+
+
+  //TINYINT
+  int8_t val_tinyint[] = {-1, 0, 1};
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((int8_t *)pInput->data + i) = val_tinyint[i];
+    PRINTF("tiny_int before ASIN:%d\n", *((int8_t *)pInput->data + i));
+  }
+
+  code = asinFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
+    PRINTF("tiny_int after ASIN:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float[] = {-1.0, 0.0, 1.0};
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((float *)pInput->data + i) = val_float[i];
+    PRINTF("float before ASIN:%f\n", *((float *)pInput->data + i));
+  }
+
+  code = asinFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
+    PRINTF("float after ASIN:%f\n", *((double *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+}
+
+TEST(ScalarFunctionTest, acosFunction_constant) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  int32_t otype = TSDB_DATA_TYPE_DOUBLE;
+  double  result = 0.0;
+
+  //TINYINT
+  int8_t val_tinyint = 1;
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  PRINTF("tiny_int before ACOS:%d\n", *((int8_t *)pInput->data));
+
+  code = acosFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result);
+    PRINTF("tiny_int after ACOS:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float = 1.00;
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, &val_float, 1, true);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  PRINTF("float before ACOS:%f\n", *((float *)pInput->data));
+
+  code = acosFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result);
+    PRINTF("float after ACOS:%f\n", *((double *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+}
+
+TEST(ScalarFunctionTest, acosFunction_column) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  int32_t otype = TSDB_DATA_TYPE_DOUBLE;
+  double  result[] = {3.14159265358979312, 1.57079632679489656, 0.0};
+
+  //TINYINT
+  int8_t val_tinyint[] = {-1, 0, 1};
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((int8_t *)pInput->data + i) = val_tinyint[i];
+    PRINTF("tiny_int before ACOS:%d\n", *((int8_t *)pInput->data + i));
+  }
+
+  code = acosFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
+    PRINTF("tiny_int after ACOS:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float[] = {-1.0, 0.0, 1.0};
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((float *)pInput->data + i) = val_float[i];
+    PRINTF("float before ACOS:%f\n", *((float *)pInput->data + i));
+  }
+
+  code = acosFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
+    PRINTF("float after ACOS:%f\n", *((double *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+}
+
+TEST(ScalarFunctionTest, atanFunction_constant) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  int32_t otype = TSDB_DATA_TYPE_DOUBLE;
+  double  result = 0.78539816339744828;
+
+  //TINYINT
+  int8_t val_tinyint = 1;
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  PRINTF("tiny_int before ATAN:%d\n", *((int8_t *)pInput->data));
+
+  code = atanFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result);
+    PRINTF("tiny_int after ATAN:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float = 1.00;
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, &val_float, 1, true);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  PRINTF("float before ATAN:%f\n", *((float *)pInput->data));
+
+  code = atanFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result);
+    PRINTF("float after ATAN:%f\n", *((double *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+}
+
+TEST(ScalarFunctionTest, atanFunction_column) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  int32_t otype = TSDB_DATA_TYPE_DOUBLE;
+  double  result[] = {-0.78539816339744828, 0.0, 0.78539816339744828};
+
+  //TINYINT
+  int8_t val_tinyint[] = {-1, 0, 1};
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((int8_t *)pInput->data + i) = val_tinyint[i];
+    PRINTF("tiny_int before ATAN:%d\n", *((int8_t *)pInput->data + i));
+  }
+
+  code = atanFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
+    PRINTF("tiny_int after ATAN:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float[] = {-1.0, 0.0, 1.0};
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((float *)pInput->data + i) = val_float[i];
+    PRINTF("float before ATAN:%f\n", *((float *)pInput->data + i));
+  }
+
+  code = atanFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
+    PRINTF("float after ATAN:%f\n", *((double *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+}
+
+TEST(ScalarFunctionTest, ceilFunction_constant) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  double  result = 10.0;
+
+  //TINYINT
+  int8_t val_tinyint = 10;
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  PRINTF("tiny_int before CEIL:%d\n", *((int8_t *)pInput->data));
+
+  code = ceilFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int8_t *)pOutput->data + i), (int8_t)result);
+    PRINTF("tiny_int after CEIL:%d\n", *((int8_t *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float = 9.5;
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, &val_float, 1, true);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  PRINTF("float before CEIL:%f\n", *((float *)pInput->data));
+
+  code = ceilFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((float *)pOutput->data + i), (float)result);
+    PRINTF("float after CEIL:%f\n", *((float *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+}
+
+TEST(ScalarFunctionTest, ceilFunction_column) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  double  result[] = {-10.0, 0.0, 10.0};
+
+  //TINYINT
+  int8_t val_tinyint[] = {-10, 0, 10};
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((int8_t *)pInput->data + i) = val_tinyint[i];
+    PRINTF("tiny_int before CEIL:%d\n", *((int8_t *)pInput->data + i));
+  }
+
+  code = ceilFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int8_t *)pOutput->data + i), result[i]);
+    PRINTF("tiny_int after CEIL:%d\n", *((int8_t *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float[] = {-10.5, 0.0, 9.5};
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((float *)pInput->data + i) = val_float[i];
+    PRINTF("float before CEIL:%f\n", *((float *)pInput->data + i));
+  }
+
+  code = ceilFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((float *)pOutput->data + i), result[i]);
+    PRINTF("float after CEIL:%f\n", *((float *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+}
+
+TEST(ScalarFunctionTest, floorFunction_constant) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  double  result = 10.0;
+
+  //TINYINT
+  int8_t val_tinyint = 10;
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  PRINTF("tiny_int before FLOOR:%d\n", *((int8_t *)pInput->data));
+
+  code = floorFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int8_t *)pOutput->data + i), (int8_t)result);
+    PRINTF("tiny_int after FLOOR:%d\n", *((int8_t *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float = 10.5;
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, &val_float, 1, true);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  PRINTF("float before FLOOR:%f\n", *((float *)pInput->data));
+
+  code = floorFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((float *)pOutput->data + i), (float)result);
+    PRINTF("float after FLOOR:%f\n", *((float *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+}
+
+TEST(ScalarFunctionTest, floorFunction_column) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  double  result[] = {-10.0, 0.0, 10.0};
+
+  //TINYINT
+  int8_t val_tinyint[] = {-10, 0, 10};
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((int8_t *)pInput->data + i) = val_tinyint[i];
+    PRINTF("tiny_int before FLOOR:%d\n", *((int8_t *)pInput->data + i));
+  }
+
+  code = floorFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int8_t *)pOutput->data + i), result[i]);
+    PRINTF("tiny_int after FLOOR:%d\n", *((int8_t *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float[] = {-9.5, 0.0, 10.5};
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((float *)pInput->data + i) = val_float[i];
+    PRINTF("float before FLOOR:%f\n", *((float *)pInput->data + i));
+  }
+
+  code = floorFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((float *)pOutput->data + i), result[i]);
+    PRINTF("float after FLOOR:%f\n", *((float *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+}
+
+TEST(ScalarFunctionTest, roundFunction_constant) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  double  result = 10.0;
+
+  //TINYINT
+  int8_t val_tinyint = 10;
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  PRINTF("tiny_int before ROUND:%d\n", *((int8_t *)pInput->data));
+
+  code = roundFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int8_t *)pOutput->data + i), (int8_t)result);
+    PRINTF("tiny_int after ROUND:%d\n", *((int8_t *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float = 9.5;
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, &val_float, 1, true);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  PRINTF("float before ROUND:%f\n", *((float *)pInput->data));
+
+  code = roundFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((float *)pOutput->data + i), (float)result);
+    PRINTF("float after ROUND:%f\n", *((float *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+}
+
+TEST(ScalarFunctionTest, roundFunction_column) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  double  result[] = {-10.0, 0.0, 10.0};
+
+  //TINYINT
+  int8_t val_tinyint[] = {-10, 0, 10};
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((int8_t *)pInput->data + i) = val_tinyint[i];
+    PRINTF("tiny_int before ROUND:%d\n", *((int8_t *)pInput->data + i));
+  }
+
+  code = roundFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int8_t *)pOutput->data + i), result[i]);
+    PRINTF("tiny_int after ROUND:%d\n", *((int8_t *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float[] = {-9.5, 0.0, 9.5};
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, type, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((float *)pInput->data + i) = val_float[i];
+    PRINTF("float before ROUND:%f\n", *((float *)pInput->data + i));
+  }
+
+  code = roundFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((float *)pOutput->data + i), result[i]);
+    PRINTF("float after ROUND:%f\n", *((float *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+}
+
+TEST(ScalarFunctionTest, sqrtFunction_constant) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  int32_t otype = TSDB_DATA_TYPE_DOUBLE;
+  double  result = 5.0;
+
+  //TINYINT
+  int8_t val_tinyint = 25;
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, &val_tinyint, 1, true);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  PRINTF("tiny_int before SQRT:%d\n", *((int8_t *)pInput->data));
+
+  code = sqrtFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result);
+    PRINTF("tiny_int after SQRT:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float = 25.0;
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, &val_float, 1, true);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  PRINTF("float before SQRT:%f\n", *((float *)pInput->data));
+
+  code = sqrtFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result);
+    PRINTF("float after SQRT:%f\n", *((double *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+}
+
+TEST(ScalarFunctionTest, sqrtFunction_column) {
+  SScalarParam *pInput, *pOutput;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  int32_t otype = TSDB_DATA_TYPE_DOUBLE;
+  double  result[] = {5.0, 9.0, 10.0};
+
+  //TINYINT
+  int8_t val_tinyint[] = {25, 81, 100};
+  type = TSDB_DATA_TYPE_TINYINT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((int8_t *)pInput->data + i) = val_tinyint[i];
+    PRINTF("tiny_int before SQRT:%d\n", *((int8_t *)pInput->data + i));
+  }
+
+  code = sqrtFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
+    PRINTF("tiny_int after SQRT:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float[] = {25.0, 81.0, 100.0};
+  type = TSDB_DATA_TYPE_FLOAT;
+  scltMakeDataBlock(&pInput, type, 0, rowNum, false);
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((float *)pInput->data + i) = val_float[i];
+    PRINTF("float before SQRT:%f\n", *((float *)pInput->data + i));
+  }
+
+  code = sqrtFunction(pInput, 1, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
+    PRINTF("float after SQRT:%f\n", *((double *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
+}
+
+TEST(ScalarFunctionTest, logFunction_constant) {
+  SScalarParam *pInput, *pOutput;
+  SScalarParam *input[2];
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  int32_t otype = TSDB_DATA_TYPE_DOUBLE;
+  double  result = 3.0;
+  pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+
+  //TINYINT
+  int8_t val_tinyint[] = {27, 3};
+  type = TSDB_DATA_TYPE_TINYINT;
+  for (int32_t i = 0; i < 2; ++i) {
+    scltMakeDataBlock(&input[i], type, &val_tinyint[i], 1, true);
+    pInput[i] = *input[i];
+  }
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  PRINTF("tiny_int before LOG: %d,%d\n", *((int8_t *)pInput[0].data),
+                                         *((int8_t *)pInput[1].data));
+
+  code = logFunction(pInput, 2, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result);
+    PRINTF("tiny_int after LOG:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(input[0]);
+  scltDestroyDataBlock(input[1]);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float[] = {64.0, 4.0};
+  type = TSDB_DATA_TYPE_FLOAT;
+  for (int32_t i = 0; i < 2; ++i) {
+    scltMakeDataBlock(&input[i], type, &val_float[i], 1, true);
+    pInput[i] = *input[i];
+  }
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  PRINTF("float before LOG: %f,%f\n", *((float *)pInput[0].data),
+                                      *((float *)pInput[1].data));
+
+  code = logFunction(pInput, 2, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result);
+    PRINTF("float after LOG:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(input[0]);
+  scltDestroyDataBlock(input[1]);
+  scltDestroyDataBlock(pOutput);
+
+  //TINYINT AND FLOAT
+  int8_t param0 = 64;
+  float  param1 = 4.0;
+  scltMakeDataBlock(&input[0], TSDB_DATA_TYPE_TINYINT, &param0, 1, true);
+  pInput[0] = *input[0];
+  scltMakeDataBlock(&input[1], TSDB_DATA_TYPE_FLOAT, &param1, 1, true);
+  pInput[1] = *input[1];
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+
+  PRINTF("tiny_int,float before LOG: %d,%f\n", *((int8_t *)pInput[0].data), *((float *)pInput[1].data));
+
+  code = logFunction(pInput, 2, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result);
+    PRINTF("tiny_int,float after LOG:%f\n", *((double *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(input[0]);
+  scltDestroyDataBlock(input[1]);
+  scltDestroyDataBlock(pOutput);
+  taosMemoryFree(pInput);
+}
+
+TEST(ScalarFunctionTest, logFunction_column) {
+  SScalarParam *pInput, *pOutput;
+  SScalarParam *input[2];
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  int32_t otype = TSDB_DATA_TYPE_DOUBLE;
+  double  result[] = {2.0, 4.0, 3.0};
+  pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+
+  //TINYINT
+  int8_t val_tinyint[2][3] = {{25, 81, 64}, {5, 3, 4}};
+  type = TSDB_DATA_TYPE_TINYINT;
+  for (int32_t i = 0; i < 2; ++i) {
+    scltMakeDataBlock(&input[i], type, 0, rowNum, false);
+    pInput[i] = *input[i];
+    for (int32_t j = 0; j < rowNum; ++j) {
+      *((int8_t *)pInput[i].data + j) = val_tinyint[i][j];
+    }
+    PRINTF("tiny_int before LOG:%d,%d,%d\n", *((int8_t *)pInput[i].data + 0),
+                                             *((int8_t *)pInput[i].data + 1),
+                                             *((int8_t *)pInput[i].data + 2));
+  }
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+
+  code = logFunction(pInput, 2, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
+    PRINTF("tiny_int after LOG:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(input[0]);
+  scltDestroyDataBlock(input[1]);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float[2][3] = {{25.0, 81.0, 64.0}, {5.0, 3.0, 4.0}};
+  type = TSDB_DATA_TYPE_FLOAT;
+  for (int32_t i = 0; i < 2; ++i) {
+    scltMakeDataBlock(&input[i], type, 0, rowNum, false);
+    pInput[i] = *input[i];
+    for (int32_t j = 0; j < rowNum; ++j) {
+      *((float *)pInput[i].data + j) = val_float[i][j];
+    }
+    PRINTF("float before LOG:%f,%f,%f\n", *((float *)pInput[i].data + 0),
+                                          *((float *)pInput[i].data + 1),
+                                          *((float *)pInput[i].data + 2));
+  }
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+
+  code = logFunction(pInput, 2, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
+    PRINTF("float after LOG:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(input[0]);
+  scltDestroyDataBlock(input[1]);
+  scltDestroyDataBlock(pOutput);
+
+  //TINYINT AND FLOAT
+  int8_t param0[] = {25, 81, 64};
+  float  param1[] = {5.0, 3.0, 4.0};
+  scltMakeDataBlock(&input[0], TSDB_DATA_TYPE_TINYINT, 0, rowNum, false);
+  pInput[0] = *input[0];
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((int8_t *)pInput[0].data + i) = param0[i];
+  }
+  scltMakeDataBlock(&input[1], TSDB_DATA_TYPE_FLOAT, 0, rowNum, false);
+  pInput[1] = *input[1];
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((float *)pInput[1].data + i) = param1[i];
+  }
+  PRINTF("tiny_int, float before LOG:{%d,%f}, {%d,%f}, {%d,%f}\n", *((int8_t *)pInput[0].data + 0), *((float *)pInput[1].data + 0),
+                                                                   *((int8_t *)pInput[0].data + 1), *((float *)pInput[1].data + 1),
+                                                                   *((int8_t *)pInput[0].data + 2), *((float *)pInput[1].data + 2));
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+
+  code = logFunction(pInput, 2, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
+    PRINTF("tiny_int,float after LOG:%f\n", *((double *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(input[0]);
+  scltDestroyDataBlock(input[1]);
+  scltDestroyDataBlock(pOutput);
+  taosMemoryFree(pInput);
+}
+
+TEST(ScalarFunctionTest, powFunction_constant) {
+  SScalarParam *pInput, *pOutput;
+  SScalarParam *input[2];
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  int32_t otype = TSDB_DATA_TYPE_DOUBLE;
+  double  result = 16.0;
+  pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+
+  //TINYINT
+  int8_t val_tinyint[] = {2, 4};
+  type = TSDB_DATA_TYPE_TINYINT;
+  for (int32_t i = 0; i < 2; ++i) {
+    scltMakeDataBlock(&input[i], type, &val_tinyint[i], 1, true);
+    pInput[i] = *input[i];
+  }
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  PRINTF("tiny_int before POW: %d,%d\n", *((int8_t *)pInput[0].data),
+                                         *((int8_t *)pInput[1].data));
+
+  code = powFunction(pInput, 2, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result);
+    PRINTF("tiny_int after POW:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(input[0]);
+  scltDestroyDataBlock(input[1]);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float[] = {2.0, 4.0};
+  type = TSDB_DATA_TYPE_FLOAT;
+  for (int32_t i = 0; i < 2; ++i) {
+    scltMakeDataBlock(&input[i], type, &val_float[i], 1, true);
+    pInput[i] = *input[i];
+  }
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+  PRINTF("float before POW: %f,%f\n", *((float *)pInput[0].data),
+                                      *((float *)pInput[1].data));
+
+  code = powFunction(pInput, 2, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result);
+    PRINTF("float after POW:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(input[0]);
+  scltDestroyDataBlock(input[1]);
+  scltDestroyDataBlock(pOutput);
+
+  //TINYINT AND FLOAT
+  int8_t param0 = 2;
+  float  param1 = 4.0;
+  scltMakeDataBlock(&input[0], TSDB_DATA_TYPE_TINYINT, &param0, 1, true);
+  pInput[0] = *input[0];
+  scltMakeDataBlock(&input[1], TSDB_DATA_TYPE_FLOAT, &param1, 1, true);
+  pInput[1] = *input[1];
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+
+  PRINTF("tiny_int,float before POW: %d,%f\n", *((int8_t *)pInput[0].data), *((float *)pInput[1].data));
+
+  code = powFunction(pInput, 2, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result);
+    PRINTF("tiny_int,float after POW:%f\n", *((double *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(input[0]);
+  scltDestroyDataBlock(input[1]);
+  scltDestroyDataBlock(pOutput);
+  taosMemoryFree(pInput);
+}
+
+TEST(ScalarFunctionTest, powFunction_column) {
+  SScalarParam *pInput, *pOutput;
+  SScalarParam *input[2];
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rowNum = 3;
+  int32_t type;
+  int32_t otype = TSDB_DATA_TYPE_DOUBLE;
+  double  result[] = {32.0, 27.0, 16.0};
+  pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+
+  //TINYINT
+  int8_t val_tinyint[2][3] = {{2, 3, 4}, {5, 3, 2}};
+  type = TSDB_DATA_TYPE_TINYINT;
+  for (int32_t i = 0; i < 2; ++i) {
+    scltMakeDataBlock(&input[i], type, 0, rowNum, false);
+    pInput[i] = *input[i];
+    for (int32_t j = 0; j < rowNum; ++j) {
+      *((int8_t *)pInput[i].data + j) = val_tinyint[i][j];
+    }
+    PRINTF("tiny_int before POW:%d,%d,%d\n", *((int8_t *)pInput[i].data + 0),
+                                             *((int8_t *)pInput[i].data + 1),
+                                             *((int8_t *)pInput[i].data + 2));
+  }
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+
+  code = powFunction(pInput, 2, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
+    PRINTF("tiny_int after POW:%f\n", *((double *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(input[0]);
+  scltDestroyDataBlock(input[1]);
+  scltDestroyDataBlock(pOutput);
+
+  //FLOAT
+  float val_float[2][3] = {{2.0, 3.0, 4.0}, {5.0, 3.0, 2.0}};
+  type = TSDB_DATA_TYPE_FLOAT;
+  for (int32_t i = 0; i < 2; ++i) {
+    scltMakeDataBlock(&input[i], type, 0, rowNum, false);
+    pInput[i] = *input[i];
+    for (int32_t j = 0; j < rowNum; ++j) {
+      *((float *)pInput[i].data + j) = val_float[i][j];
+    }
+    PRINTF("float before POW:%f,%f,%f\n", *((float *)pInput[i].data + 0),
+                                          *((float *)pInput[i].data + 1),
+                                          *((float *)pInput[i].data + 2));
+  }
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+
+  code = powFunction(pInput, 2, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
+    PRINTF("float after POW:%f\n", *((double *)pOutput->data + i));
+  }
+  scltDestroyDataBlock(input[0]);
+  scltDestroyDataBlock(input[1]);
+  scltDestroyDataBlock(pOutput);
+
+  //TINYINT AND FLOAT
+  int8_t param0[] = {2, 3, 4};
+  float  param1[] = {5.0, 3.0, 2.0};
+  scltMakeDataBlock(&input[0], TSDB_DATA_TYPE_TINYINT, 0, rowNum, false);
+  pInput[0] = *input[0];
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((int8_t *)pInput[0].data + i) = param0[i];
+  }
+  scltMakeDataBlock(&input[1], TSDB_DATA_TYPE_FLOAT, 0, rowNum, false);
+  pInput[1] = *input[1];
+  for (int32_t i = 0; i < rowNum; ++i) {
+    *((float *)pInput[1].data + i) = param1[i];
+  }
+  PRINTF("tiny_int, float before POW:{%d,%f}, {%d,%f}, {%d,%f}\n", *((int8_t *)pInput[0].data + 0), *((float *)pInput[1].data + 0),
+                                                                   *((int8_t *)pInput[0].data + 1), *((float *)pInput[1].data + 1),
+                                                                   *((int8_t *)pInput[0].data + 2), *((float *)pInput[1].data + 2));
+  scltMakeDataBlock(&pOutput, otype, 0, rowNum, false);
+
+  code = powFunction(pInput, 2, pOutput);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((double *)pOutput->data + i), result[i]);
+    PRINTF("tiny_int,float after POW:%f\n", *((double *)pOutput->data + i));
+  }
+
+  scltDestroyDataBlock(input[0]);
+  scltDestroyDataBlock(input[1]);
+  scltDestroyDataBlock(pOutput);
+  taosMemoryFree(pInput);
+}
 
 int main(int argc, char** argv) {
   taosSeedRand(taosGetTimestampSec());

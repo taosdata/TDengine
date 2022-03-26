@@ -16,16 +16,14 @@
 #ifndef _TD_QNODE_H_
 #define _TD_QNODE_H_
 
+#include "tmsgcb.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
-typedef struct SDnode SDnode;
 typedef struct SQnode SQnode;
-typedef int32_t (*SendReqToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *pMsg);
-typedef int32_t (*SendReqToMnodeFp)(SDnode *pDnode, struct SRpcMsg *pMsg);
-typedef void (*SendRedirectRspFp)(SDnode *pDnode, struct SRpcMsg *pMsg);
 
 typedef struct {
   int64_t numOfStartTask;
@@ -39,13 +37,7 @@ typedef struct {
 } SQnodeLoad;
 
 typedef struct {
-  int32_t           sver;
-  int32_t           dnodeId;
-  int64_t           clusterId;
-  SDnode           *pDnode;
-  SendReqToDnodeFp  sendReqToDnodeFp;
-  SendReqToMnodeFp  sendReqToMnodeFp;
-  SendRedirectRspFp sendRedirectRspFp;
+  SMsgCb msgCb;
 } SQnodeOpt;
 
 /* ------------------------ SQnode ------------------------ */
@@ -78,10 +70,9 @@ int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad);
  *
  * @param pQnode The qnode object.
  * @param pMsg The request message
- * @param pRsp The response message
- * @return int32_t 0 for success, -1 for failure
  */
-int32_t qndProcessMsg(SQnode *pQnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+int32_t qndProcessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg);
+int32_t qndProcessFetchMsg(SQnode *pQnode, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

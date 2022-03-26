@@ -102,7 +102,7 @@ typedef struct timer_map_t {
 } timer_map_t;
 
 typedef struct time_wheel_t {
-  pthread_mutex_t mutex;
+  TdThreadMutex mutex;
   int64_t         nextScanAt;
   uint32_t        resolution;
   uint16_t        size;
@@ -112,8 +112,8 @@ typedef struct time_wheel_t {
 
 int32_t tsMaxTmrCtrl = 512;
 
-static pthread_once_t  tmrModuleInit = PTHREAD_ONCE_INIT;
-static pthread_mutex_t tmrCtrlMutex;
+static TdThreadOnce  tmrModuleInit = PTHREAD_ONCE_INIT;
+static TdThreadMutex tmrCtrlMutex;
 static tmr_ctrl_t*     tmrCtrls;
 static tmr_ctrl_t*     unusedTmrCtrl = NULL;
 static void*           tmrQhandle;
@@ -132,7 +132,7 @@ static timer_map_t timerMap;
 static uintptr_t getNextTimerId() {
   uintptr_t id;
   do {
-    id = atomic_add_fetch_ptr(&nextTimerId, 1);
+    id = (uintptr_t)atomic_add_fetch_ptr((void **)&nextTimerId, 1);
   } while (id == 0);
   return id;
 }
@@ -141,7 +141,7 @@ static void timerAddRef(tmr_obj_t* timer) { atomic_add_fetch_8(&timer->refCount,
 
 static void timerDecRef(tmr_obj_t* timer) {
   if (atomic_sub_fetch_8(&timer->refCount, 1) == 0) {
-    free(timer);
+    taosMemoryFree(timer);
   }
 }
 
@@ -230,7 +230,7 @@ static void addToWheel(tmr_obj_t* timer, uint32_t delay) {
   timer->prev = NULL;
   timer->expireAt = taosGetMonotonicMs() + delay;
 
-  pthread_mutex_lock(&wheel->mutex);
+  taosThreadMutexLock(&wheel->mutex);
 
   uint32_t idx = 0;
   if (timer->expireAt > wheel->nextScanAt) {
@@ -248,7 +248,7 @@ static void addToWheel(tmr_obj_t* timer, uint32_t delay) {
     p->prev = timer;
   }
 
-  pthread_mutex_unlock(&wheel->mutex);
+  taosThreadMutexUnlock(&wheel->mutex);
 }
 
 static bool removeFromWheel(tmr_obj_t* timer) {
@@ -259,7 +259,7 @@ static bool removeFromWheel(tmr_obj_t* timer) {
   time_wheel_t* wheel = wheels + wheelIdx;
 
   bool removed = false;
-  pthread_mutex_lock(&wheel->mutex);
+  taosThreadMutexLock(&wheel->mutex);
   // other thread may modify timer->wheel, check again.
   if (timer->wheel < tListLen(wheels)) {
     if (timer->prev != NULL) {
@@ -277,7 +277,7 @@ static bool removeFromWheel(tmr_obj_t* timer) {
     timerDecRef(timer);
     removed = true;
   }
-  pthread_mutex_unlock(&wheel->mutex);
+  taosThreadMutexUnlock(&wheel->mutex);
 
   return removed;
 }
@@ -351,7 +351,7 @@ tmr_h taosTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* ha
     return NULL;
   }
 
-  tmr_obj_t* timer = (tmr_obj_t*)calloc(1, sizeof(tmr_obj_t));
+  tmr_obj_t* timer = (tmr_obj_t*)taosMemoryCalloc(1, sizeof(tmr_obj_t));
   if (timer == NULL) {
     tmrError("%s failed to allocated memory for new timer object.", ctrl->label);
     return NULL;
@@ -372,7 +372,7 @@ static void taosTimerLoopFunc(int32_t signo) {
 
     time_wheel_t* wheel = wheels + i;
     while (now >= wheel->nextScanAt) {
-      pthread_mutex_lock(&wheel->mutex);
+      taosThreadMutexLock(&wheel->mutex);
       wheel->index = (wheel->index + 1) % wheel->size;
       tmr_obj_t* timer = wheel->slots[wheel->index];
       while (timer != NULL) {
@@ -407,7 +407,7 @@ static void taosTimerLoopFunc(int32_t signo) {
         timer = next;
       }
       wheel->nextScanAt += wheel->resolution;
-      pthread_mutex_unlock(&wheel->mutex);
+      taosThreadMutexUnlock(&wheel->mutex);
     }
 
     addToExpired(expired);
@@ -513,7 +513,7 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* han
 }
 
 static void taosTmrModuleInit(void) {
-  tmrCtrls = malloc(sizeof(tmr_ctrl_t) * tsMaxTmrCtrl);
+  tmrCtrls = taosMemoryMalloc(sizeof(tmr_ctrl_t) * tsMaxTmrCtrl);
   if (tmrCtrls == NULL) {
     tmrError("failed to allocate memory for timer controllers.");
     return;
@@ -528,18 +528,18 @@ static void taosTmrModuleInit(void) {
   (tmrCtrls + tsMaxTmrCtrl - 1)->next = NULL;
   unusedTmrCtrl = tmrCtrls;
 
-  pthread_mutex_init(&tmrCtrlMutex, NULL);
+  taosThreadMutexInit(&tmrCtrlMutex, NULL);
 
   int64_t now = taosGetMonotonicMs();
   for (int32_t i = 0; i < tListLen(wheels); i++) {
     time_wheel_t* wheel = wheels + i;
-    if (pthread_mutex_init(&wheel->mutex, NULL) != 0) {
+    if (taosThreadMutexInit(&wheel->mutex, NULL) != 0) {
       tmrError("failed to create the mutex for wheel, reason:%s", strerror(errno));
       return;
     }
     wheel->nextScanAt = now + wheel->resolution;
     wheel->index = 0;
-    wheel->slots = (tmr_obj_t**)calloc(wheel->size, sizeof(tmr_obj_t*));
+    wheel->slots = (tmr_obj_t**)taosMemoryCalloc(wheel->size, sizeof(tmr_obj_t*));
     if (wheel->slots == NULL) {
       tmrError("failed to allocate wheel slots");
       return;
@@ -548,7 +548,7 @@ static void taosTmrModuleInit(void) {
   }
 
   timerMap.count = 0;
-  timerMap.slots = (timer_list_t*)calloc(timerMap.size, sizeof(timer_list_t));
+  timerMap.slots = (timer_list_t*)taosMemoryCalloc(timerMap.size, sizeof(timer_list_t));
   if (timerMap.slots == NULL) {
     tmrError("failed to allocate hash map");
     return;
@@ -564,15 +564,15 @@ void* taosTmrInit(int32_t maxNumOfTmrs, int32_t resolution, int32_t longest, con
   const char* ret = taosMonotonicInit();
   tmrDebug("ttimer monotonic clock source:%s", ret);
 
-  pthread_once(&tmrModuleInit, taosTmrModuleInit);
+  taosThreadOnce(&tmrModuleInit, taosTmrModuleInit);
 
-  pthread_mutex_lock(&tmrCtrlMutex);
+  taosThreadMutexLock(&tmrCtrlMutex);
   tmr_ctrl_t* ctrl = unusedTmrCtrl;
   if (ctrl != NULL) {
     unusedTmrCtrl = ctrl->next;
     numOfTmrCtrl++;
   }
-  pthread_mutex_unlock(&tmrCtrlMutex);
+  taosThreadMutexUnlock(&tmrCtrlMutex);
 
   if (ctrl == NULL) {
     tmrError("%s too many timer controllers, failed to create timer controller.", label);
@@ -594,11 +594,11 @@ void taosTmrCleanUp(void* handle) {
   tmrDebug("%s timer controller is cleaned up.", ctrl->label);
   ctrl->label[0] = 0;
 
-  pthread_mutex_lock(&tmrCtrlMutex);
+  taosThreadMutexLock(&tmrCtrlMutex);
   ctrl->next = unusedTmrCtrl;
   numOfTmrCtrl--;
   unusedTmrCtrl = ctrl;
-  pthread_mutex_unlock(&tmrCtrlMutex);
+  taosThreadMutexUnlock(&tmrCtrlMutex);
 
   tmrDebug("time controller's tmr ctrl size:  %d", numOfTmrCtrl);
   if (numOfTmrCtrl <= 0) {
@@ -608,23 +608,23 @@ void taosTmrCleanUp(void* handle) {
 
     for (int32_t i = 0; i < tListLen(wheels); i++) {
       time_wheel_t* wheel = wheels + i;
-      pthread_mutex_destroy(&wheel->mutex);
-      free(wheel->slots);
+      taosThreadMutexDestroy(&wheel->mutex);
+      taosMemoryFree(wheel->slots);
     }
 
-    pthread_mutex_destroy(&tmrCtrlMutex);
+    taosThreadMutexDestroy(&tmrCtrlMutex);
 
     for (size_t i = 0; i < timerMap.size; i++) {
       timer_list_t* list = timerMap.slots + i;
       tmr_obj_t*    t = list->timers;
       while (t != NULL) {
         tmr_obj_t* next = t->mnext;
-        free(t);
+        taosMemoryFree(t);
         t = next;
       }
     }
-    free(timerMap.slots);
-    free(tmrCtrls);
+    taosMemoryFree(timerMap.slots);
+    taosMemoryFree(tmrCtrls);
 
     tmrCtrls = NULL;
     unusedTmrCtrl = NULL;

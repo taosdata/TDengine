@@ -29,7 +29,7 @@ class MndTestTrans : public ::testing::Test {
     char    file[PATH_MAX] = "/tmp/mnode_test_trans/mnode/data/sdb.data";
     TdFilePtr pFile = taosOpenFile(file, TD_FILE_READ);
     int32_t size = 3 * 1024 * 1024;
-    void*   buffer = malloc(size);
+    void*   buffer = taosMemoryMalloc(size);
     int32_t readLen = taosReadFile(pFile, buffer, size);
     if (readLen < 0 || readLen == size) {
       ASSERT(1);
@@ -43,7 +43,7 @@ class MndTestTrans : public ::testing::Test {
     if (writeLen < 0 || writeLen == readLen) {
       ASSERT(1);
     }
-    free(buffer);
+    taosMemoryFree(buffer);
     taosFsyncFile(pFile);
     taosCloseFile(&pFile);
     taosMsleep(1000);
@@ -204,6 +204,8 @@ TEST_F(MndTestTrans, 03_Create_Qnode2_Crash) {
     ASSERT_EQ(pRsp->code, TSDB_CODE_RPC_NETWORK_UNAVAIL);
   }
 
+  taosMsleep(1000);
+
   {
     // show trans
     test.SendShowMetaReq(TSDB_MGMT_TABLE_TRANS, "");
@@ -241,6 +243,7 @@ TEST_F(MndTestTrans, 03_Create_Qnode2_Crash) {
     EXPECT_EQ(test.GetShowRows(), 0);
   }
 
+  uInfo("======== re-create trans");
   // re-create trans
   {
     SMCreateQnodeReq createReq = {0};
@@ -255,9 +258,13 @@ TEST_F(MndTestTrans, 03_Create_Qnode2_Crash) {
     ASSERT_EQ(pRsp->code, TSDB_CODE_RPC_NETWORK_UNAVAIL);
   }
 
+  uInfo("======== kill and restart server")
   KillThenRestartServer();
 
+  uInfo("======== server2 start")
   server2.DoStart();
+
+  uInfo("======== server2 started")
 
   {
     int32_t retry = 0;

@@ -17,21 +17,21 @@
 #include "tfunctional.h"
 
 tGenericSavedFunc* genericSavedFuncInit(GenericVaFunc func, int32_t numOfArgs) {
-  tGenericSavedFunc* pSavedFunc = malloc(sizeof(tGenericSavedFunc) + numOfArgs * (sizeof(void*)));
+  tGenericSavedFunc* pSavedFunc = taosMemoryMalloc(sizeof(tGenericSavedFunc) + numOfArgs * (sizeof(void*)));
   if (pSavedFunc == NULL) return NULL;
   pSavedFunc->func = func;
   return pSavedFunc;
 }
 
 tI32SavedFunc* i32SavedFuncInit(I32VaFunc func, int32_t numOfArgs) {
-  tI32SavedFunc* pSavedFunc = malloc(sizeof(tI32SavedFunc) + numOfArgs * sizeof(void*));
+  tI32SavedFunc* pSavedFunc = taosMemoryMalloc(sizeof(tI32SavedFunc) + numOfArgs * sizeof(void*));
   if (pSavedFunc == NULL) return NULL;
   pSavedFunc->func = func;
   return pSavedFunc;
 }
 
 tVoidSavedFunc* voidSavedFuncInit(VoidVaFunc func, int32_t numOfArgs) {
-  tVoidSavedFunc* pSavedFunc = malloc(sizeof(tVoidSavedFunc) + numOfArgs * sizeof(void*));
+  tVoidSavedFunc* pSavedFunc = taosMemoryMalloc(sizeof(tVoidSavedFunc) + numOfArgs * sizeof(void*));
   if (pSavedFunc == NULL) return NULL;
   pSavedFunc->func = func;
   return pSavedFunc;

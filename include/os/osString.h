@@ -24,6 +24,7 @@ typedef wchar_t TdWchar;
 typedef int32_t TdUcs4;
 
 // If the error is in a third-party library, place this header file under the third-party library header file.
+// When you want to use this feature, you should find or add the same function in the following section.
 #ifndef ALLOW_FORBID_FUNC
     #define iconv_open ICONV_OPEN_FUNC_TAOS_FORBID
     #define iconv_close ICONV_CLOSE_FUNC_TAOS_FORBID
@@ -35,7 +36,7 @@ typedef int32_t TdUcs4;
     #define wctomb WCTOMB_FUNC_TAOS_FORBID
     #define wcstombs WCSTOMBS_FUNC_TAOS_FORBID
     #define wcsncpy WCSNCPY_FUNC_TAOS_FORBID
-    #define wchar_t WCHAR_T_FUNC_TAOS_FORBID
+    #define wchar_t WCHAR_T_TYPE_TAOS_FORBID
 #endif
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)

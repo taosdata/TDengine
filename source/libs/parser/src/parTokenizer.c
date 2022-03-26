@@ -61,12 +61,14 @@ static SKeyword keywordTable[] = {
     {"FROM",          TK_FROM},
     {"FSYNC",         TK_FSYNC},
     {"FUNCTION",      TK_FUNCTION},
+    {"FUNCTIONS",     TK_FUNCTIONS},
     {"GROUP",         TK_GROUP},
     {"HAVING",        TK_HAVING},
     {"IF",            TK_IF},
     {"IMPORT",        TK_IMPORT},
     {"IN",            TK_IN},
     {"INDEX",         TK_INDEX},
+    {"INDEXES",       TK_INDEXES},
     {"INNER",         TK_INNER},
     {"INT",           TK_INT},
     {"INSERT",        TK_INSERT},
@@ -85,6 +87,7 @@ static SKeyword keywordTable[] = {
     {"MINROWS",       TK_MINROWS},
     {"MINUS",         TK_MINUS},
     {"MNODES",        TK_MNODES},
+    {"MODULES",       TK_MODULES},
     {"NCHAR",         TK_NCHAR},
     {"NMATCH",        TK_NMATCH},
     {"NONE",          TK_NONE},
@@ -116,6 +119,7 @@ static SKeyword keywordTable[] = {
     {"STABLE",        TK_STABLE},
     {"STABLES",       TK_STABLES},
     {"STATE_WINDOW",  TK_STATE_WINDOW},
+    {"STREAMS",       TK_STREAMS},
     {"STREAM_MODE",   TK_STREAM_MODE},
     {"TABLE",         TK_TABLE},
     {"TABLES",        TK_TABLES},
@@ -161,10 +165,8 @@ static SKeyword keywordTable[] = {
     // {"UPLUS",        TK_UPLUS},
     // {"BITNOT",       TK_BITNOT},
     // {"ACCOUNTS",     TK_ACCOUNTS},
-    // {"MODULES",      TK_MODULES},
     // {"QUERIES",      TK_QUERIES},
     // {"CONNECTIONS",  TK_CONNECTIONS},
-    // {"STREAMS",      TK_STREAMS},
     // {"VARIABLES",    TK_VARIABLES},
     // {"SCORES",       TK_SCORES},
     // {"GRANTS",       TK_GRANTS},
@@ -234,7 +236,6 @@ static SKeyword keywordTable[] = {
     // {"TOPICS",       TK_TOPICS},
     // {"COMPACT",      TK_COMPACT},
     // {"MODIFY",       TK_MODIFY},
-    // {"FUNCTIONS",    TK_FUNCTIONS},
     // {"OUTPUTTYPE",   TK_OUTPUTTYPE},
     // {"AGGREGATE",    TK_AGGREGATE},
     // {"BUFSIZE",      TK_BUFSIZE},
@@ -266,10 +267,10 @@ static void doInitKeywordsTable(void) {
   }
 }
 
-static pthread_once_t keywordsHashTableInit = PTHREAD_ONCE_INIT;
+static TdThreadOnce keywordsHashTableInit = PTHREAD_ONCE_INIT;
 
 static int32_t tKeywordCode(const char* z, int n) {
-  pthread_once(&keywordsHashTableInit, doInitKeywordsTable);
+  taosThreadOnce(&keywordsHashTableInit, doInitKeywordsTable);
   
   char key[512] = {0};
   if (n > tListLen(key)) { // too long token, can not be any other token type
@@ -320,7 +321,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
         *tokenId = TK_NK_COMMENT;
         return i;
       }
-      *tokenId = TK_MINUS;
+      *tokenId = TK_NK_MINUS;
       return 1;
     }
     case '(': {
@@ -593,7 +594,7 @@ SToken tscReplaceStrToken(char **str, SToken *token, const char* newToken) {
   int32_t bsize = (int32_t)((uint64_t)token->z - (uint64_t)src);
   SToken ntoken;
 
-  *str = calloc(1, size);
+  *str = taosMemoryCalloc(1, size);
 
   strncpy(*str, src, bsize);
   strcat(*str, newToken);
@@ -602,7 +603,7 @@ SToken tscReplaceStrToken(char **str, SToken *token, const char* newToken) {
   ntoken.n = (uint32_t)nsize;
   ntoken.z = *str + bsize;
 
-  tfree(src);
+  taosMemoryFreeClear(src);
 
   return ntoken;
 }
@@ -674,7 +675,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
 
   } else {
     // support parse the -/+number format
-    if ((isPrevOptr) && (t0.type == TK_MINUS || t0.type == TK_NK_PLUS)) {
+    if ((isPrevOptr) && (t0.type == TK_NK_MINUS || t0.type == TK_NK_PLUS)) {
       len = tGetToken(&str[*i + t0.n], &type);
       if (type == TK_NK_INTEGER || type == TK_NK_FLOAT) {
         t0.type = type;

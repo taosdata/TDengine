@@ -13,21 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tq.h"
 #include "vnd.h"
 
-int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
-  SRpcMsg *pMsg;
+void vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
+  SNodeMsg *pMsg;
+  SRpcMsg  *pRpc;
 
   for (int i = 0; i < taosArrayGetSize(pMsgs); i++) {
-    pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
+    pMsg = *(SNodeMsg **)taosArrayGet(pMsgs, i);
+    pRpc = &pMsg->rpcMsg;
 
     // set request version
-    void   *pBuf = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+    void   *pBuf = POINTER_SHIFT(pRpc->pCont, sizeof(SMsgHead));
     int64_t ver = pVnode->state.processed++;
     taosEncodeFixedI64(&pBuf, ver);
 
-    if (walWrite(pVnode->pWal, ver, pMsg->msgType, pMsg->pCont, pMsg->contLen) < 0) {
+    if (walWrite(pVnode->pWal, ver, pRpc->msgType, pRpc->pCont, pRpc->contLen) < 0) {
       // TODO: handle error
       /*ASSERT(false);*/
       vError("vnode:%d  write wal error since %s", pVnode->vgId, terrstr());
@@ -38,7 +39,8 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
 
   // TODO: Integrate RAFT module here
 
-  return 0;
+  // No results are returned because error handling is difficult
+  // return 0;
 }
 
 int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
@@ -57,7 +59,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   // todo: change the interface here
   int64_t ver;
   taosDecodeFixedI64(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &ver);
-  if (tqPushMsg(pVnode->pTq, ptr, pMsg->msgType, ver) < 0) {
+  if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, ver) < 0) {
     // TODO: handle error
   }
 
@@ -70,42 +72,70 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
 
       // TODO: maybe need to clear the request struct
-      free(vCreateTbReq.stbCfg.pSchema);
-      free(vCreateTbReq.stbCfg.pTagSchema);
-      free(vCreateTbReq.name);
+      taosMemoryFree(vCreateTbReq.stbCfg.pSchema);
+      taosMemoryFree(vCreateTbReq.stbCfg.pTagSchema);
+      taosMemoryFree(vCreateTbReq.name);
       break;
     }
     case TDMT_VND_CREATE_TABLE: {
       SVCreateTbBatchReq vCreateTbBatchReq = {0};
+      SVCreateTbBatchRsp vCreateTbBatchRsp = {0};
       tDeserializeSVCreateTbBatchReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbBatchReq);
-      for (int i = 0; i < taosArrayGetSize(vCreateTbBatchReq.pArray); i++) {
+      int reqNum = taosArrayGetSize(vCreateTbBatchReq.pArray);
+      for (int i = 0; i < reqNum; i++) {
         SVCreateTbReq *pCreateTbReq = taosArrayGet(vCreateTbBatchReq.pArray, i);
+
+        char      tableFName[TSDB_TABLE_FNAME_LEN];
+        SMsgHead *pHead = (SMsgHead *)pMsg->pCont;
+        sprintf(tableFName, "%s.%s", pCreateTbReq->dbFName, pCreateTbReq->name);
+
+        int32_t code = vnodeValidateTableHash(&pVnode->config, tableFName);
+        if (code) {
+          SVCreateTbRsp rsp;
+          rsp.code = code;
+
+          taosArrayPush(vCreateTbBatchRsp.rspList, &rsp);
+        }
+
         if (metaCreateTable(pVnode->pMeta, pCreateTbReq) < 0) {
           // TODO: handle error
           vError("vgId:%d, failed to create table: %s", pVnode->vgId, pCreateTbReq->name);
         }
-        free(pCreateTbReq->name);
+        taosMemoryFree(pCreateTbReq->name);
         if (pCreateTbReq->type == TD_SUPER_TABLE) {
-          free(pCreateTbReq->stbCfg.pSchema);
-          free(pCreateTbReq->stbCfg.pTagSchema);
+          taosMemoryFree(pCreateTbReq->stbCfg.pSchema);
+          taosMemoryFree(pCreateTbReq->stbCfg.pTagSchema);
         } else if (pCreateTbReq->type == TD_CHILD_TABLE) {
-          free(pCreateTbReq->ctbCfg.pTag);
+          taosMemoryFree(pCreateTbReq->ctbCfg.pTag);
         } else {
-          free(pCreateTbReq->ntbCfg.pSchema);
+          taosMemoryFree(pCreateTbReq->ntbCfg.pSchema);
         }
       }
 
       vTrace("vgId:%d process create %" PRIzu " tables", pVnode->vgId, taosArrayGetSize(vCreateTbBatchReq.pArray));
       taosArrayDestroy(vCreateTbBatchReq.pArray);
+      if (vCreateTbBatchRsp.rspList) {
+        int32_t contLen = tSerializeSVCreateTbBatchRsp(NULL, 0, &vCreateTbBatchRsp);
+        void   *msg = rpcMallocCont(contLen);
+        tSerializeSVCreateTbBatchRsp(msg, contLen, &vCreateTbBatchRsp);
+        taosArrayDestroy(vCreateTbBatchRsp.rspList);
+
+        *pRsp = taosMemoryCalloc(1, sizeof(SRpcMsg));
+        (*pRsp)->msgType = TDMT_VND_CREATE_TABLE_RSP;
+        (*pRsp)->pCont = msg;
+        (*pRsp)->contLen = contLen;
+        (*pRsp)->handle = pMsg->handle;
+        (*pRsp)->ahandle = pMsg->ahandle;
+      }
       break;
     }
     case TDMT_VND_ALTER_STB: {
       SVCreateTbReq vAlterTbReq = {0};
       vTrace("vgId:%d, process alter stb req", pVnode->vgId);
       tDeserializeSVCreateTbReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vAlterTbReq);
-      free(vAlterTbReq.stbCfg.pSchema);
-      free(vAlterTbReq.stbCfg.pTagSchema);
-      free(vAlterTbReq.name);
+      taosMemoryFree(vAlterTbReq.stbCfg.pSchema);
+      taosMemoryFree(vAlterTbReq.stbCfg.pTagSchema);
+      taosMemoryFree(vAlterTbReq.name);
       break;
     }
     case TDMT_VND_DROP_STB:
@@ -138,6 +168,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
     } break;
     case TDMT_VND_CREATE_SMA: {  // timeRangeSMA
+#if 0
       SSmaCfg vCreateSmaReq = {0};
       if (tDeserializeSVCreateTSmaReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateSmaReq) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -159,26 +190,37 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       // }
       tdDestroyTSma(&vCreateSmaReq.tSma);
       // TODO: return directly or go on follow steps?
+#endif
     } break;
     case TDMT_VND_CANCEL_SMA: {  // timeRangeSMA
     } break;
     case TDMT_VND_DROP_SMA: {  // timeRangeSMA
+#if 0    
       SVDropTSmaReq vDropSmaReq = {0};
       if (tDeserializeSVDropTSmaReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vDropSmaReq) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         return -1;
       }
 
-      if (metaDropTSma(pVnode->pMeta, vDropSmaReq.indexName) < 0) {
-        // TODO: handle error
-        return -1;
-      }
       // TODO: send msg to stream computing to drop tSma
       // if ((send msg to stream computing) < 0) {
       //   tdDestroyTSma(&vCreateSmaReq);
       //   return -1;
       // }
+      // 
+
+      if (metaDropTSma(pVnode->pMeta, vDropSmaReq.indexUid) < 0) {
+        // TODO: handle error
+        return -1;
+      }
+
+      if(tsdbDropTSmaData(pVnode->pTsdb, vDropSmaReq.indexUid) < 0) {
+        // TODO: handle error
+        return -1;
+      }
+
       // TODO: return directly or go on follow steps?
+#endif
     } break;
     default:
       ASSERT(0);

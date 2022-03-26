@@ -140,7 +140,7 @@ int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) 
   return 0;
 }
 
-int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo) {
+int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo, bool persistHandle, void *rpcCtx) {
   char* pMsg = rpcMallocCont(pInfo->msgInfo.len);
   if (NULL == pMsg) {
     qError("0x%" PRIx64 " msg:%s malloc failed", pInfo->requestId, TMSG_INFO(pInfo->msgType));
@@ -154,10 +154,59 @@ int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransp
                     .contLen = pInfo->msgInfo.len,
                     .ahandle = (void*)pInfo,
                     .handle = pInfo->msgInfo.handle,
+                    .persistHandle = persistHandle,
                     .code = 0};
+  if (pInfo->msgType == TDMT_VND_QUERY || pInfo->msgType == TDMT_VND_FETCH ||
+      pInfo->msgType == TDMT_VND_QUERY_CONTINUE) {
+    rpcMsg.persistHandle = 1;
+  }
 
   assert(pInfo->fp != NULL);
 
-  rpcSendRequest(pTransporter, epSet, &rpcMsg, pTransporterId);
+  rpcSendRequestWithCtx(pTransporter, epSet, &rpcMsg, pTransporterId, rpcCtx);
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo) {
+  return asyncSendMsgToServerExt(pTransporter, epSet, pTransporterId, pInfo, false, NULL);
+}
+
+char *jobTaskStatusStr(int32_t status) {
+  switch (status) {
+    case JOB_TASK_STATUS_NULL:
+      return "NULL";
+    case JOB_TASK_STATUS_NOT_START:
+      return "NOT_START";
+    case JOB_TASK_STATUS_EXECUTING:
+      return "EXECUTING";
+    case JOB_TASK_STATUS_PARTIAL_SUCCEED:
+      return "PARTIAL_SUCCEED";
+    case JOB_TASK_STATUS_SUCCEED:
+      return "SUCCEED";
+    case JOB_TASK_STATUS_FAILED:
+      return "FAILED";
+    case JOB_TASK_STATUS_CANCELLING:
+      return "CANCELLING";
+    case JOB_TASK_STATUS_CANCELLED:
+      return "CANCELLED";
+    case JOB_TASK_STATUS_DROPPING:
+      return "DROPPING";
+    default:
+      break;
+  }
+
+  return "UNKNOWN";
+}
+
+SSchema createSchema(uint8_t type, int32_t bytes, int32_t colId, const char* name) {
+  SSchema s = {0};
+  s.type  = type;
+  s.bytes = bytes;
+  s.colId = colId;
+
+  tstrncpy(s.name, name, tListLen(s.name));
+  return s;
+}
+
+
+

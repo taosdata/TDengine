@@ -47,28 +47,17 @@
 #endif
 #endif
 
-typedef int32_t SocketFd;
-typedef SocketFd  EpollFd;
-
 typedef struct TdSocketServer {
 #if SOCKET_WITH_LOCK
-  pthread_rwlock_t rwlock;
+  TdThreadRwlock rwlock;
 #endif
   int      refId;
   SocketFd fd;
 } *TdSocketServerPtr, TdSocketServer;
 
-typedef struct TdSocket {
-#if SOCKET_WITH_LOCK
-  pthread_rwlock_t rwlock;
-#endif
-  int      refId;
-  SocketFd fd;
-} *TdSocketPtr, TdSocket;
-
 typedef struct TdEpoll {
 #if SOCKET_WITH_LOCK
-  pthread_rwlock_t rwlock;
+  TdThreadRwlock rwlock;
 #endif
   int      refId;
   EpollFd  fd;
@@ -128,7 +117,7 @@ int32_t taosCloseSocket(TdSocketPtr *ppSocket) {
   }
   code = taosCloseSocketNoCheck1((*ppSocket)->fd);
   (*ppSocket)->fd = -1;
-  free(*ppSocket);
+  taosMemoryFree(*ppSocket);
   return code;
 }
 int32_t taosCloseSocketServer(TdSocketServerPtr *ppSocketServer) {
@@ -138,7 +127,7 @@ int32_t taosCloseSocketServer(TdSocketServerPtr *ppSocketServer) {
   }
   code = taosCloseSocketNoCheck1((*ppSocketServer)->fd);
   (*ppSocketServer)->fd = -1;
-  free(*ppSocketServer);
+  taosMemoryFree(*ppSocketServer);
   return code;
 }
 
@@ -215,12 +204,6 @@ int32_t taosShutDownSocketServerRDWR(TdSocketServerPtr pSocketServer) {
   return shutdown(pSocketServer->fd, SHUT_RDWR);
 #endif
 }
-
-#if (defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32))
-  #if defined(_TD_GO_DLL_)
-    uint64_t htonll(uint64_t val) { return (((uint64_t)htonl(val)) << 32) + htonl(val >> 32); }
-  #endif
-#endif
 
 void taosWinSocketInit1() {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
@@ -457,7 +440,7 @@ TdSocketPtr taosOpenUdpSocket(uint32_t ip, uint16_t port) {
     return NULL;
   }
 
-  TdSocketPtr pSocket = (TdSocketPtr)malloc(sizeof(TdSocket));
+  TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
   if (pSocket == NULL) {
     taosCloseSocketNoCheck1(fd);
     return NULL;
@@ -501,7 +484,7 @@ TdSocketPtr taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t
     return NULL;
   }
 
-  TdSocketPtr pSocket = (TdSocketPtr)malloc(sizeof(TdSocket));
+  TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
   if (pSocket == NULL) {
     taosCloseSocketNoCheck1(fd);
     return NULL;
@@ -671,7 +654,7 @@ TdSocketServerPtr taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
     return NULL;
   }
 
-  TdSocketPtr pSocket = (TdSocketPtr)malloc(sizeof(TdSocket));
+  TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
   if (pSocket == NULL) {
     taosCloseSocketNoCheck1(fd);
     return NULL;
@@ -720,7 +703,7 @@ TdSocketPtr taosAcceptTcpConnectSocket(TdSocketServerPtr pServerSocket, struct s
     return NULL;
   }
 
-  TdSocketPtr pSocket = (TdSocketPtr)malloc(sizeof(TdSocket));
+  TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
   if (pSocket == NULL) {
     taosCloseSocketNoCheck1(fd);
     return NULL;
@@ -775,7 +758,7 @@ void taosBlockSIGPIPE() {
   sigset_t signal_mask;
   sigemptyset(&signal_mask);
   sigaddset(&signal_mask, SIGPIPE);
-  int32_t rc = pthread_sigmask(SIG_BLOCK, &signal_mask, NULL);
+  int32_t rc = taosThreadSigmask(SIG_BLOCK, &signal_mask, NULL);
   if (rc != 0) {
     // printf("failed to block SIGPIPE");
   }
@@ -893,7 +876,7 @@ void taosSetMaskSIGPIPE() {
   sigset_t signal_mask;
   sigemptyset(&signal_mask);
   sigaddset(&signal_mask, SIGPIPE);
-  int32_t rc = pthread_sigmask(SIG_SETMASK, &signal_mask, NULL);
+  int32_t rc = taosThreadSigmask(SIG_SETMASK, &signal_mask, NULL);
   if (rc != 0) {
     // printf("failed to setmask SIGPIPE");
   }
@@ -918,7 +901,7 @@ TdEpollPtr taosCreateEpoll(int32_t size) {
     return NULL;
   }
 
-  TdEpollPtr pEpoll = (TdEpollPtr)malloc(sizeof(TdEpoll));
+  TdEpollPtr pEpoll = (TdEpollPtr)taosMemoryMalloc(sizeof(TdEpoll));
   if (pEpoll == NULL) {
     taosCloseSocketNoCheck1(fd);
     return NULL;
@@ -956,6 +939,6 @@ int32_t taosCloseEpoll(TdEpollPtr *ppEpoll) {
   }
   code = taosCloseSocketNoCheck1((*ppEpoll)->fd);
   (*ppEpoll)->fd = -1;
-  free(*ppEpoll);
+  taosMemoryFree(*ppEpoll);
   return code;
 }

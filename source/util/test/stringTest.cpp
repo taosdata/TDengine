@@ -33,35 +33,35 @@ TEST(testCase, string_replace_test) {
 
   EXPECT_EQ(strlen(ret), 7);
   EXPECT_STREQ("7017027", ret);
-  free(ret);
+  taosMemoryFree(ret);
 
   char t4[] = "a01a02b03c04d05";
   ret = strreplace(t4, "0", "9999999999");
 
   EXPECT_EQ(strlen(ret), 5 * 10 + 10);
   EXPECT_STREQ("a99999999991a99999999992b99999999993c99999999994d99999999995", ret);
-  free(ret);
+  taosMemoryFree(ret);
 
   char t5[] = "abc";
   ret = strreplace(t5, "abc", "12345678901234567890");
 
   EXPECT_EQ(strlen(ret), 20);
   EXPECT_STREQ("12345678901234567890", ret);
-  free(ret);
+  taosMemoryFree(ret);
 
   char t6[] = "abc";
   ret = strreplace(t6, "def", "abc");
 
   EXPECT_EQ(strlen(ret), 3);
   EXPECT_STREQ("abc", ret);
-  free(ret);
+  taosMemoryFree(ret);
 
   char t7[] = "abcde000000000000001234";
   ret = strreplace(t7, "ab", "0000000");
 
   EXPECT_EQ(strlen(ret), 28);
   EXPECT_STREQ("0000000cde000000000000001234", ret);
-  free(ret);
+  taosMemoryFree(ret);
 
   char t8[] = "abc\ndef";
   char t[] = {10, 0};
@@ -72,21 +72,21 @@ TEST(testCase, string_replace_test) {
 
   EXPECT_EQ(strlen(ret), 8);
   EXPECT_STREQ("abc\\ndef", ret);
-  free(ret);
+  taosMemoryFree(ret);
 
   char t9[] = "abc\\ndef";
   ret = strreplace(t9, "\\n", "\n");
 
   EXPECT_EQ(strlen(ret), 7);
   EXPECT_STREQ("abc\ndef", ret);
-  free(ret);
+  taosMemoryFree(ret);
 
   char t10[] = "abcdef";
   ret = strreplace(t10, "", "0");
 
   EXPECT_EQ(strlen(ret), 6);
   EXPECT_STREQ("abcdef", ret);
-  free(ret);
+  taosMemoryFree(ret);
 }
 #endif
 
