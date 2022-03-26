@@ -510,7 +510,7 @@ EDealRes sclRewriteOperator(SNode** pNode, SScalarCtx *ctx) {
   res->node.resType = node->node.resType;
 
   int32_t type = output.columnData->info.type;
-  if (IS_VAR_DATA_TYPE(type)) {
+  if (IS_VAR_DATA_TYPE(type)) {  // todo refactor
     res->datum.p = output.columnData->pData;
     output.columnData->pData = NULL;
   } else {

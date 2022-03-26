@@ -471,8 +471,6 @@ TEST(constantTest, int_not_equal_smallint2) {
   nodesDestroyNode(res);
 }
 
-
-
 TEST(constantTest, int_in_smallint1) {
   scltInitLogFile();
   
