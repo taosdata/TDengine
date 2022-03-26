@@ -130,13 +130,7 @@ void sclFreeRes(SHashObj *res) {
   taosHashCleanup(res);
 }
 
-void sclFreeParamNoData(SScalarParam *param) {
-//  tfree(param->bitmap);
-}
-
 void sclFreeParam(SScalarParam *param) {
-  sclFreeParamNoData(param);
-
   if (param->columnData != NULL) {
     colDataDestroy(param->columnData);
     tfree(param->columnData);
@@ -333,7 +327,7 @@ int32_t sclExecFuncion(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outpu
 _return:
 
   for (int32_t i = 0; i < node->pParameterList->length; ++i) {
-    sclFreeParamNoData(params + i);
+//    sclFreeParamNoData(params + i);
   }
 
   tfree(params);
@@ -391,7 +385,7 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
 
 _return:
   for (int32_t i = 0; i < node->pParameterList->length; ++i) {
-    sclFreeParamNoData(params + i);
+//    sclFreeParamNoData(params + i);
   }
 
   tfree(params);
@@ -465,7 +459,7 @@ EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
 EDealRes sclRewriteLogic(SNode** pNode, SScalarCtx *ctx) {
   SLogicConditionNode *node = (SLogicConditionNode *)*pNode;
 
-  SScalarParam output = {.columnData = calloc(1, sizeof(SColumnInfoData))};
+  SScalarParam output = {0};
   ctx->code = sclExecLogic(node, ctx, &output);
   if (ctx->code) {
     return DEAL_RES_ERROR;
@@ -493,7 +487,6 @@ EDealRes sclRewriteLogic(SNode** pNode, SScalarCtx *ctx) {
   *pNode = (SNode*)res;
 
   sclFreeParam(&output);
-
   return DEAL_RES_CONTINUE;
 }
 
