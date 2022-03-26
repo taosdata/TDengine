@@ -1380,7 +1380,7 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 
   return buf;
 }
-void blockDebugShowData(SArray* dataBlocks) {
+void blockDebugShowData(const SArray* dataBlocks) {
   char    pBuf[128];
   int32_t sz = taosArrayGetSize(dataBlocks);
   for (int32_t i = 0; i < sz; i++) {
@@ -1398,12 +1398,16 @@ void blockDebugShowData(SArray* dataBlocks) {
             printf(" %25s |", pBuf);
             break;
           case TSDB_DATA_TYPE_INT:
-          case TSDB_DATA_TYPE_UINT:
             printf(" %15d |", *(int32_t*)var);
             break;
+          case TSDB_DATA_TYPE_UINT:
+            printf(" %15u |", *(uint32_t*)var);
+            break;
           case TSDB_DATA_TYPE_BIGINT:
-          case TSDB_DATA_TYPE_UBIGINT:
             printf(" %15ld |", *(int64_t*)var);
+            break;
+          case TSDB_DATA_TYPE_UBIGINT:
+            printf(" %15lu |", *(uint64_t*)var);
             break;
         }
       }

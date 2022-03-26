@@ -66,8 +66,11 @@ int32_t mndPersistTaskDeployReq(STrans* pTrans, SStreamTask* pTask, const SEpSet
 
 int32_t mndAssignTaskToVg(SMnode* pMnode, STrans* pTrans, SStreamTask* pTask, SSubplan* plan, const SVgObj* pVgroup) {
   int32_t msgLen;
+  pTask->nodeId = pVgroup->vgId;
+  pTask->epSet = mndGetVgroupEpset(pMnode, pVgroup);
+
   plan->execNode.nodeId = pVgroup->vgId;
-  plan->execNode.epSet = mndGetVgroupEpset(pMnode, pVgroup);
+  plan->execNode.epSet = pTask->epSet;
 
   if (qSubPlanToString(plan, &pTask->exec.qmsg, &msgLen) < 0) {
     terrno = TSDB_CODE_QRY_INVALID_INPUT;
@@ -86,8 +89,12 @@ SSnodeObj* mndSchedFetchSnode(SMnode* pMnode) {
 int32_t mndAssignTaskToSnode(SMnode* pMnode, STrans* pTrans, SStreamTask* pTask, SSubplan* plan,
                              const SSnodeObj* pSnode) {
   int32_t msgLen;
-  plan->execNode.nodeId = pSnode->id;
-  plan->execNode.epSet = mndAcquireEpFromSnode(pMnode, pSnode);
+
+  pTask->nodeId = 0;
+  pTask->epSet = mndAcquireEpFromSnode(pMnode, pSnode);
+
+  plan->execNode.nodeId = 0;
+  plan->execNode.epSet = pTask->epSet;
 
   if (qSubPlanToString(plan, &pTask->exec.qmsg, &msgLen) < 0) {
     terrno = TSDB_CODE_QRY_INVALID_INPUT;
@@ -97,9 +104,23 @@ int32_t mndAssignTaskToSnode(SMnode* pMnode, STrans* pTrans, SStreamTask* pTask,
   return 0;
 }
 
+SVgObj* mndSchedFetchOneVg(SMnode* pMnode, int64_t dbUid) {
+  void*   pIter = NULL;
+  SVgObj* pVgroup = NULL;
+  while (1) {
+    pIter = sdbFetch(pMnode->pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
+    if (pIter == NULL) break;
+    if (pVgroup->dbUid != dbUid) {
+      sdbRelease(pMnode->pSdb, pVgroup);
+      continue;
+    }
+    return pVgroup;
+  }
+  return pVgroup;
+}
+
 int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
   SSdb*       pSdb = pMnode->pSdb;
-  SVgObj*     pVgroup = NULL;
   SQueryPlan* pPlan = qStringToQueryPlan(pStream->physicalPlan);
   if (pPlan == NULL) {
     terrno = TSDB_CODE_QRY_INVALID_INPUT;
@@ -108,80 +129,144 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
   ASSERT(pStream->vgNum == 0);
 
   int32_t totLevel = LIST_LENGTH(pPlan->pSubplans);
-  pStream->tasks = taosArrayInit(totLevel, sizeof(SArray));
-  int32_t lastUsedVgId = 0;
+  ASSERT(totLevel <= 2);
+  pStream->tasks = taosArrayInit(totLevel, sizeof(void*));
 
-  // gather vnodes
-  // gather snodes
-  // iterate plan, expand source to vnodes and assign ep to each task
-  // iterate tasks, assign sink type and sink ep to each task
-
-  for (int32_t revLevel = totLevel - 1; revLevel >= 0; revLevel--) {
-    int32_t        level = totLevel - 1 - revLevel;
-    SArray*        taskOneLevel = taosArrayInit(0, sizeof(SStreamTask));
-    SNodeListNode* inner = nodesListGetNode(pPlan->pSubplans, revLevel);
-    int32_t        opNum = LIST_LENGTH(inner->pNodeList);
-    ASSERT(opNum == 1);
+  for (int32_t level = 0; level < totLevel; level++) {
+    SArray*        taskOneLevel = taosArrayInit(0, sizeof(void*));
+    SNodeListNode* inner = nodesListGetNode(pPlan->pSubplans, level);
+    ASSERT(LIST_LENGTH(inner->pNodeList) == 1);
 
     SSubplan* plan = nodesListGetNode(inner->pNodeList, 0);
-    if (level == 0) {
+
+    // if (level == totLevel - 1 /* or no snode */) {
+    if (level == totLevel - 1) {
+      // last level, source, must assign to vnode
+      // must be scan type
       ASSERT(plan->subplanType == SUBPLAN_TYPE_SCAN);
+
+      // replicate task to each vnode
       void* pIter = NULL;
       while (1) {
+        SVgObj* pVgroup;
         pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
         if (pIter == NULL) break;
         if (pVgroup->dbUid != pStream->dbUid) {
           sdbRelease(pSdb, pVgroup);
           continue;
         }
-
-        lastUsedVgId = pVgroup->vgId;
-        pStream->vgNum++;
-
         SStreamTask* pTask = tNewSStreamTask(pStream->uid);
-        /*pTask->level = level;*/
-        // TODO
-        /*pTask->sourceType = STREAM_SOURCE__SUPER;*/
-        /*pTask->sinkType = level == totLevel - 1 ? 1 : 0;*/
+        // source part
+        pTask->sourceType = TASK_SOURCE__SCAN;
+
+        // sink part
+        if (level == 0) {
+          // only for inplace
+          pTask->sinkType = TASK_SINK__SHOW;
+          pTask->showSink.reserved = 0;
+        } else {
+          pTask->sinkType = TASK_SINK__NONE;
+        }
+
+        // dispatch part
+        if (level == 0) {
+          pTask->dispatchType = TASK_DISPATCH__NONE;
+          // if inplace sink, no dispatcher
+          // if fixed ep, add fixed ep dispatcher
+          // if shuffle, add shuffle dispatcher
+        } else {
+          // add fixed ep dispatcher
+          int32_t lastLevel = level - 1;
+          ASSERT(lastLevel == 0);
+          SArray* pArray = taosArrayGetP(pStream->tasks, lastLevel);
+          // one merge only
+          ASSERT(taosArrayGetSize(pArray) == 1);
+          SStreamTask* lastLevelTask = taosArrayGetP(pArray, lastLevel);
+          pTask->dispatchMsgType = TDMT_VND_TASK_MERGE_EXEC;
+          pTask->dispatchType = TASK_DISPATCH__FIXED;
+
+          pTask->fixedEpDispatcher.nodeId = lastLevelTask->nodeId;
+          pTask->fixedEpDispatcher.epSet = lastLevelTask->epSet;
+        }
+
+        // exec part
+        pTask->execType = TASK_EXEC__PIPE;
         pTask->exec.parallelizable = 1;
         if (mndAssignTaskToVg(pMnode, pTrans, pTask, plan, pVgroup) < 0) {
           sdbRelease(pSdb, pVgroup);
           qDestroyQueryPlan(pPlan);
           return -1;
         }
-        taosArrayPush(taskOneLevel, pTask);
+        sdbRelease(pSdb, pVgroup);
+        taosArrayPush(taskOneLevel, &pTask);
       }
     } else {
+      // merge plan
+
+      // TODO if has snode, assign to snode
+
+      // else, assign to vnode
+      ASSERT(plan->subplanType == SUBPLAN_TYPE_MERGE);
       SStreamTask* pTask = tNewSStreamTask(pStream->uid);
-      /*pTask->level = level;*/
-      /*pTask->sourceType = STREAM_SOURCE__NONE;*/
-      /*pTask->sinkType = level == totLevel - 1 ? 1 : 0;*/
-      pTask->exec.parallelizable = plan->subplanType == SUBPLAN_TYPE_SCAN;
 
-      SSnodeObj* pSnode = mndSchedFetchSnode(pMnode);
-      if (pSnode == NULL || tsStreamSchedV) {
-        ASSERT(lastUsedVgId != 0);
-        SVgObj* pVg = mndAcquireVgroup(pMnode, lastUsedVgId);
-        if (mndAssignTaskToVg(pMnode, pTrans, pTask, plan, pVg) < 0) {
-          sdbRelease(pSdb, pVg);
-          qDestroyQueryPlan(pPlan);
-          return -1;
-        }
-        sdbRelease(pSdb, pVg);
-      } else {
-        if (mndAssignTaskToSnode(pMnode, pTrans, pTask, plan, pSnode) < 0) {
-          sdbRelease(pSdb, pSnode);
-          qDestroyQueryPlan(pPlan);
-          return -1;
-        }
+      // source part, currently only support multi source
+      pTask->sourceType = TASK_SOURCE__PIPE;
+
+      // sink part
+      pTask->sinkType = TASK_SINK__SHOW;
+      /*pTask->sinkType = TASK_SINK__NONE;*/
+
+      // dispatch part
+      pTask->dispatchType = TASK_DISPATCH__SHUFFLE;
+      pTask->dispatchMsgType = TDMT_VND_TASK_WRITE_EXEC;
+
+      // exec part
+      pTask->execType = TASK_EXEC__MERGE;
+      pTask->exec.parallelizable = 0;
+      SVgObj* pVgroup = mndSchedFetchOneVg(pMnode, pStream->dbUid);
+      ASSERT(pVgroup);
+      if (mndAssignTaskToVg(pMnode, pTrans, pTask, plan, pVgroup) < 0) {
+        sdbRelease(pSdb, pVgroup);
+        qDestroyQueryPlan(pPlan);
+        return -1;
       }
-      sdbRelease(pMnode->pSdb, pSnode);
-
-      taosArrayPush(taskOneLevel, pTask);
+      sdbRelease(pSdb, pVgroup);
+      taosArrayPush(taskOneLevel, &pTask);
     }
-    taosArrayPush(pStream->tasks, taskOneLevel);
+
+    taosArrayPush(pStream->tasks, &taskOneLevel);
   }
+
+  if (totLevel == 2) {
+    void* pIter = NULL;
+    while (1) {
+      SVgObj* pVgroup;
+      pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
+      if (pIter == NULL) break;
+      if (pVgroup->dbUid != pStream->dbUid) {
+        sdbRelease(pSdb, pVgroup);
+        continue;
+      }
+      SStreamTask* pTask = tNewSStreamTask(pStream->uid);
+
+      // source part
+      pTask->sourceType = TASK_SOURCE__MERGE;
+
+      // sink part
+      pTask->sinkType = TASK_SINK__SHOW;
+
+      // dispatch part
+      pTask->dispatchType = TASK_DISPATCH__NONE;
+
+      // exec part
+      pTask->execType = TASK_EXEC__NONE;
+      pTask->exec.parallelizable = 0;
+    }
+  }
+
+  // free memory
   qDestroyQueryPlan(pPlan);
+
   return 0;
 }
 
