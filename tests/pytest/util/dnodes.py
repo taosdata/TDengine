@@ -248,7 +248,6 @@ class TDDnode:
             (self.index, self.cfgPath))
 
     def getPath(self, tool="taosd"):
-        buildPath = ""
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -263,25 +262,21 @@ class TDDnode:
                 if ("packaging" not in rootRealPath):
                     paths.append(os.path.join(root, tool))
                     break
-        return paths[0][:len(paths[0]) - len(tool)]
+        return paths[0]
 
     def start(self):
-        buildPath = self.getPath()
+        binPath = self.getPath()
 
-        if (buildPath == ""):
+        if (binPath == ""):
             tdLog.exit("taosd not found!")
         else:
-            tdLog.info("taosd found in %s" % buildPath)
+            tdLog.info("taosd found: %s" % binPath)
 
-        binPath = buildPath + "taosd"
-
-        taosadapterBuildPath = self.getPath("taosadapter")
-        if (taosadapterBuildPath == ""):
+        taosadapterBinPath = self.getPath("taosadapter")
+        if (taosadapterBinPath == ""):
             tdLog.exit("taosAdapter not found!")
         else:
-            tdLog.info("taosAdapter found in %s" % taosadapterBuildPath)
-
-        taosadapterBinPath = taosadapterBuildPath + "taosadapter"
+            tdLog.info("taosAdapter found: %s" % taosadapterBinPath)
 
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
@@ -344,22 +339,18 @@ class TDDnode:
         # time.sleep(5)
 
     def startWin(self):
-        buildPath = self.getPath("taosd.exe")
+        binPath = self.getPath("taosd.exe")
 
-        if (buildPath == ""):
+        if (binPath == ""):
             tdLog.exit("taosd.exe not found!")
         else:
-            tdLog.info("taosd.exe found in %s" % buildPath)
+            tdLog.info("taosd.exe found: %s" % bnPath)
 
-        binPath = buildPath + "taosd.exe"
-
-        taosadapterBuildPath = self.getPath("taosadapter.exe")
-        if (taosadapterBuildPath == ""):
+        taosadapterBinPath = self.getPath("taosadapter.exe")
+        if (taosadapterBinPath == ""):
             tdLog.exit("taosAdapter.exe not found!")
         else:
             tdLog.info("taosAdapter.exe found in %s" % taosadapterBuildPath)
-
-        taosadapterBinPath = taosadapterBuildPath + "taosadapter.exe"
 
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
@@ -411,22 +402,18 @@ class TDDnode:
             time.sleep(10)
 
     def startWithoutSleep(self):
-        buildPath = self.getPath()
+        binPath = self.getPath()
 
-        if (buildPath == ""):
+        if (binPath == ""):
             tdLog.exit("taosd not found!")
         else:
-            tdLog.info("taosd found in %s" % buildPath)
+            tdLog.info("taosd found: %s" % binPath)
 
-        binPath = buildPath + "taosd"
-
-        taosadapterBuildPath = self.getPath("taosadapter")
-        if (taosadapterBuildPath == ""):
+        taosadapterBinPath = self.getPath("taosadapter")
+        if (taosadapterBinPath == ""):
             tdLog.exit("taosAdapter not found!")
         else:
-            tdLog.info("taosAdapter found in %s" % taosadapterBuildPath)
-
-        taosadapterBinPath = taosadapterBuildPath + "taosadapter"
+            tdLog.info("taosAdapter found: %s" % taosadapterBinPath)
 
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
