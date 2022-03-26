@@ -81,6 +81,7 @@ struct SSmaStat {
 
 // expired window
 static int32_t  tsdbUpdateExpiredWindowImpl(STsdb *pTsdb, const char *msg);
+static int32_t  tsdbSetExpiredWindow(STsdb *pTsdb, SHashObj *pItemsHash, int64_t indexUid, int64_t winSKey);
 static int32_t  tsdbInitSmaStat(SSmaStat **pSmaStat);
 static void    *tsdbFreeSmaStatItem(SSmaStatItem *pSmaStatItem);
 static int32_t  tsdbDestroySmaState(SSmaStat *pSmaStat);
@@ -384,17 +385,12 @@ static int32_t tsdbCheckAndInitSmaEnv(STsdb *pTsdb, int8_t smaType) {
   return TSDB_CODE_SUCCESS;
 };
 
-static STimeWindow getActiveTimeWindowX(int64_t ts, SInterval* pInterval) {
-  STimeWindow tw = {0};
-  tw.skey = 100;
-  tw.ekey = 1000;
-  return tw;
-}
 
 static int32_t tsdbSetExpiredWindow(STsdb *pTsdb, SHashObj *pItemsHash, int64_t indexUid, int64_t winSKey) {
   SSmaStatItem *pItem = taosHashGet(pItemsHash, &indexUid, sizeof(indexUid));
   if (pItem == NULL) {
-    pItem = tsdbNewSmaStatItem(TSDB_SMA_STAT_EXPIRED);  // TODO use the real state
+    // TODO: use TSDB_SMA_STAT_EXPIRED and update by stream computing later
+    pItem = tsdbNewSmaStatItem(TSDB_SMA_STAT_OK);  // TODO use the real state
     if (pItem == NULL) {
       // Response to stream computing: OOM
       // For query, if the indexUid not found, the TSDB should tell query module to query raw TS data.
@@ -419,6 +415,9 @@ static int32_t tsdbSetExpiredWindow(STsdb *pTsdb, SHashObj *pItemsHash, int64_t 
       taosMemoryFree(pItem);
       return TSDB_CODE_FAILED;
     }
+  } else if ((pItem = *(SSmaStatItem **)pItem) == NULL) {
+    terrno = TSDB_CODE_INVALID_PTR;
+    return TSDB_CODE_FAILED;
   }
 
   int8_t state = TSDB_SMA_STAT_EXPIRED;
@@ -491,41 +490,39 @@ int32_t tsdbUpdateExpiredWindowImpl(STsdb *pTsdb, const char *msg) {
   TASSERT(pEnv != NULL && pStat != NULL && pItemsHash != NULL);
 
 
+  // basic procedure
+  // TODO: optimization
+  tsdbRefSmaStat(pTsdb, pStat);
 
   SSubmitMsgIter msgIter = {0};
   SSubmitBlk    *pBlock = NULL;
   SInterval      interval = {0};
 
-
   if (tInitSubmitMsgIter(pMsg, &msgIter) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_FAILED;
   }
-
-  // basic procedure
-  // TODO: optimization
-  tsdbRefSmaStat(pTsdb, pStat);
 
   while (true) {
     tGetSubmitMsgNext(&msgIter, &pBlock);
     if (pBlock == NULL) break;
 
-    int64_t suid = htobe64(pBlock->uid);
     STSmaWrapper *pSW = NULL;
     STSma        *pTSma = NULL;
 
+    SSubmitBlkIter blkIter = {0};
+    if (tInitSubmitBlkIter(pBlock, &blkIter) != TSDB_CODE_SUCCESS) {
+      tdFreeTSmaWrapper(pSW);
+      break;
+    }
+
     while (true) {
-      SSubmitBlkIter blkIter = {0};
-      if (tInitSubmitBlkIter(pBlock, &blkIter) != TSDB_CODE_SUCCESS) {
-        tdFreeTSmaWrapper(pSW);
-        break;
-      }
       STSRow *row = tGetSubmitBlkNext(&blkIter);
       if (row == NULL) {
         tdFreeTSmaWrapper(pSW);
         break;
       }
       if(pSW == NULL) {
-        if((pSW =metaGetSmaInfoByTable(REPO_META(pTsdb), suid)) == NULL) {
+        if((pSW =metaGetSmaInfoByTable(REPO_META(pTsdb), pBlock->suid)) == NULL) {
           break;
         }
         if((pSW->number) <= 0 || (pSW->tSma == NULL)) {
@@ -542,8 +539,9 @@ int32_t tsdbUpdateExpiredWindowImpl(STsdb *pTsdb, const char *msg) {
       interval.sliding = pTSma->sliding;
       interval.slidingUnit = pTSma->slidingUnit;
 
-      STimeWindow tw = getActiveTimeWindowX(TD_ROW_KEY(row), &interval);
-      tsdbSetExpiredWindow(pTsdb, pItemsHash, pTSma->indexUid, TD_ROW_KEY(row));
+      TSKEY winSKey = taosTimeTruncate(TD_ROW_KEY(row), &interval, interval.precision);
+
+      tsdbSetExpiredWindow(pTsdb, pItemsHash, pTSma->indexUid, winSKey);
     }
   }
 
