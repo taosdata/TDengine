@@ -18,30 +18,31 @@
 
 extern void taosWinSocketInit();
 
-char       configDir[PATH_MAX] = {0};
-char       tsDataDir[PATH_MAX] = {0};
-char       tsLogDir[PATH_MAX] = {0};
-char       tsTempDir[PATH_MAX] = {0};
-SDiskSpace tsDataSpace = {0};
-SDiskSpace tsLogSpace = {0};
-SDiskSpace tsTempSpace = {0};
-char       tsOsName[16] = {0};
-char       tsTimezone[TD_TIMEZONE_LEN] = {0};
-char       tsLocale[TD_LOCALE_LEN] = {0};
-char       tsCharset[TD_CHARSET_LEN] = {0};
-int8_t     tsDaylight = 0;
-bool       tsEnableCoreFile = 0;
-int64_t    tsPageSizeKB = 0;
-int64_t    tsOpenMax = 0;
-int64_t    tsStreamMax = 0;
-float      tsNumOfCores = 0;
-int64_t    tsTotalMemoryKB = 0;
+char            configDir[PATH_MAX] = {0};
+char            tsDataDir[PATH_MAX] = {0};
+char            tsLogDir[PATH_MAX] = {0};
+char            tsTempDir[PATH_MAX] = {0};
+SDiskSpace      tsDataSpace = {0};
+SDiskSpace      tsLogSpace = {0};
+SDiskSpace      tsTempSpace = {0};
+char            tsOsName[16] = {0};
+char            tsTimezoneStr[TD_TIMEZONE_LEN] = {0};
+enum TdTimezone tsTimezone = TdZeroZero;
+char            tsLocale[TD_LOCALE_LEN] = {0};
+char            tsCharset[TD_CHARSET_LEN] = {0};
+int8_t          tsDaylight = 0;
+bool            tsEnableCoreFile = 0;
+int64_t         tsPageSizeKB = 0;
+int64_t         tsOpenMax = 0;
+int64_t         tsStreamMax = 0;
+float           tsNumOfCores = 0;
+int64_t         tsTotalMemoryKB = 0;
 
-void osInit() {
+void osDefaultInit() {
   taosSeedRand(taosSafeRand());
   taosGetSystemLocale(tsLocale, tsCharset);
-  taosGetSystemTimezone(tsTimezone);
-  taosSetSystemTimezone(tsTimezone, tsTimezone, &tsDaylight);
+  taosGetSystemTimezone(tsTimezoneStr, &tsTimezone);
+  taosSetSystemTimezone(tsTimezoneStr, tsTimezoneStr, &tsDaylight, &tsTimezone);
   taosGetSystemInfo();
 
   // deadlock in query
@@ -105,4 +106,9 @@ void osCleanup() {}
 
 bool osLogSpaceAvailable() { return tsLogSpace.reserved <= tsLogSpace.size.avail; }
 
-void osSetTimezone(const char *timezone) { taosSetSystemTimezone(tsTimezone, tsTimezone, &tsDaylight); }
+void osSetTimezone(const char *timezone) { taosSetSystemTimezone(timezone, tsTimezoneStr, &tsDaylight, &tsTimezone); }
+
+void osSetSystemLocale(const char *inLocale, const char *inCharSet) {
+  memcpy(tsLocale, inLocale, strlen(inLocale) + 1);
+  memcpy(tsCharset, inCharSet, strlen(inCharSet) + 1);
+}
