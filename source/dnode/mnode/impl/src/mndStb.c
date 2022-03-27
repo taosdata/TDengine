@@ -98,7 +98,7 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
     SSchema *pSchema = &pStb->pColumns[i];
     SDB_SET_INT8(pRaw, dataPos, pSchema->type, STB_ENCODE_OVER)
-    SDB_SET_INT32(pRaw, dataPos, pSchema->colId, STB_ENCODE_OVER)
+    SDB_SET_INT16(pRaw, dataPos, pSchema->colId, STB_ENCODE_OVER)
     SDB_SET_INT32(pRaw, dataPos, pSchema->bytes, STB_ENCODE_OVER)
     SDB_SET_BINARY(pRaw, dataPos, pSchema->name, TSDB_COL_NAME_LEN, STB_ENCODE_OVER)
   }
@@ -106,7 +106,7 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   for (int32_t i = 0; i < pStb->numOfTags; ++i) {
     SSchema *pSchema = &pStb->pTags[i];
     SDB_SET_INT8(pRaw, dataPos, pSchema->type, STB_ENCODE_OVER)
-    SDB_SET_INT32(pRaw, dataPos, pSchema->colId, STB_ENCODE_OVER)
+    SDB_SET_INT16(pRaw, dataPos, pSchema->colId, STB_ENCODE_OVER)
     SDB_SET_INT32(pRaw, dataPos, pSchema->bytes, STB_ENCODE_OVER)
     SDB_SET_BINARY(pRaw, dataPos, pSchema->name, TSDB_COL_NAME_LEN, STB_ENCODE_OVER)
   }
@@ -114,7 +114,7 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   for (int32_t i = 0; i < pStb->numOfSmas; ++i) {
     SSchema *pSchema = &pStb->pSmas[i];
     SDB_SET_INT8(pRaw, dataPos, pSchema->type, STB_ENCODE_OVER)
-    SDB_SET_INT32(pRaw, dataPos, pSchema->colId, STB_ENCODE_OVER)
+    SDB_SET_INT16(pRaw, dataPos, pSchema->colId, STB_ENCODE_OVER)
     SDB_SET_INT32(pRaw, dataPos, pSchema->bytes, STB_ENCODE_OVER)
     SDB_SET_BINARY(pRaw, dataPos, pSchema->name, TSDB_COL_NAME_LEN, STB_ENCODE_OVER)
   }
@@ -185,7 +185,7 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
     SSchema *pSchema = &pStb->pColumns[i];
     SDB_GET_INT8(pRaw, dataPos, &pSchema->type, STB_DECODE_OVER)
-    SDB_GET_INT32(pRaw, dataPos, &pSchema->colId, STB_DECODE_OVER)
+    SDB_GET_INT16(pRaw, dataPos, &pSchema->colId, STB_DECODE_OVER)
     SDB_GET_INT32(pRaw, dataPos, &pSchema->bytes, STB_DECODE_OVER)
     SDB_GET_BINARY(pRaw, dataPos, pSchema->name, TSDB_COL_NAME_LEN, STB_DECODE_OVER)
   }
@@ -193,7 +193,7 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   for (int32_t i = 0; i < pStb->numOfTags; ++i) {
     SSchema *pSchema = &pStb->pTags[i];
     SDB_GET_INT8(pRaw, dataPos, &pSchema->type, STB_DECODE_OVER)
-    SDB_GET_INT32(pRaw, dataPos, &pSchema->colId, STB_DECODE_OVER)
+    SDB_GET_INT16(pRaw, dataPos, &pSchema->colId, STB_DECODE_OVER)
     SDB_GET_INT32(pRaw, dataPos, &pSchema->bytes, STB_DECODE_OVER)
     SDB_GET_BINARY(pRaw, dataPos, pSchema->name, TSDB_COL_NAME_LEN, STB_DECODE_OVER)
   }
@@ -201,7 +201,7 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   for (int32_t i = 0; i < pStb->numOfSmas; ++i) {
     SSchema *pSchema = &pStb->pSmas[i];
     SDB_GET_INT8(pRaw, dataPos, &pSchema->type, STB_DECODE_OVER)
-    SDB_GET_INT32(pRaw, dataPos, &pSchema->colId, STB_DECODE_OVER)
+    SDB_GET_INT16(pRaw, dataPos, &pSchema->colId, STB_DECODE_OVER)
     SDB_GET_INT32(pRaw, dataPos, &pSchema->bytes, STB_DECODE_OVER)
     SDB_GET_BINARY(pRaw, dataPos, pSchema->name, TSDB_COL_NAME_LEN, STB_DECODE_OVER)
   }

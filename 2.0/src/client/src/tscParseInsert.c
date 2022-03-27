@@ -428,7 +428,7 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
   // 1. set the parsed value from sql string
   for (int i = 0; i < spd->numOfBound; ++i) {
     // the start position in data block buffer of current value in sql
-    int32_t colIndex = spd->boundedColumns[i];
+    int32_t colIndex = spd->boundColumns[i];
 
     char *start = row + spd->cols[colIndex].offset;
 
@@ -495,7 +495,7 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
     bool    isPrimaryKey = (colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX);
     int32_t toffset = -1;
     int16_t colId = -1;
-    tscGetMemRowAppendInfo(schema, pBuilder->memRowType, spd, i, &toffset, &colId);
+    tscGetSTSRowAppendInfo(schema, pBuilder->memRowType, spd, i, &toffset, &colId);
 
     int32_t ret =
         tsParseOneColumnKV(pSchema, &sToken, row, pInsertParam->msg, str, isPrimaryKey, timePrec, toffset, colId);
@@ -630,7 +630,7 @@ void tscSetBoundColumnInfo(SParsedDataColInfo *pColInfo, SSchema *pSchema, int32
   pColInfo->numOfCols = numOfCols;
   pColInfo->numOfBound = numOfCols;
   pColInfo->orderStatus = ORDER_STATUS_ORDERED;  // default is ORDERED for non-bound mode
-  pColInfo->boundedColumns = calloc(pColInfo->numOfCols, sizeof(int32_t));
+  pColInfo->boundColumns = calloc(pColInfo->numOfCols, sizeof(int32_t));
   pColInfo->cols = calloc(pColInfo->numOfCols, sizeof(SBoundColumn));
   pColInfo->colIdxInfo = NULL;
   pColInfo->flen = 0;
@@ -656,7 +656,7 @@ void tscSetBoundColumnInfo(SParsedDataColInfo *pColInfo, SSchema *pSchema, int32
       default:
         break;
     }
-    pColInfo->boundedColumns[i] = i;
+    pColInfo->boundColumns[i] = i;
   }
   pColInfo->allNullLen += pColInfo->flen;
   pColInfo->boundNullLen = pColInfo->allNullLen;  // default set allNullLen
@@ -991,7 +991,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     }
 
     for (int i = 0; i < spd.numOfBound; ++i) {
-      SSchema* pSchema = &pTagSchema[spd.boundedColumns[i]];
+      SSchema *pSchema = &pTagSchema[spd.boundColumns[i]];
 
       index = 0;
       sToken = tStrGetToken(sql, &index, true);
@@ -1158,7 +1158,7 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
 
   pColInfo->numOfBound = 0;
   pColInfo->boundNullLen = 0;
-  memset(pColInfo->boundedColumns, 0, sizeof(int32_t) * nCols);
+  memset(pColInfo->boundColumns, 0, sizeof(int32_t) * nCols);
   for (int32_t i = 0; i < nCols; ++i) {
     pColInfo->cols[i].valStat = VAL_STAT_NONE;
   }
@@ -1205,7 +1205,7 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
         }
 
         pColInfo->cols[t].valStat = VAL_STAT_HAS;
-        pColInfo->boundedColumns[pColInfo->numOfBound] = t;
+        pColInfo->boundColumns[pColInfo->numOfBound] = t;
         ++pColInfo->numOfBound;
         switch (pSchema[t].type) {
           case TSDB_DATA_TYPE_BINARY:
@@ -1239,7 +1239,7 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
           }
 
           pColInfo->cols[t].valStat = VAL_STAT_HAS;
-          pColInfo->boundedColumns[pColInfo->numOfBound] = t;
+          pColInfo->boundColumns[pColInfo->numOfBound] = t;
           ++pColInfo->numOfBound;
           switch (pSchema[t].type) {
             case TSDB_DATA_TYPE_BINARY:
@@ -1279,7 +1279,7 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
     }
     SBoundIdxInfo *pColIdx = pColInfo->colIdxInfo;
     for (uint16_t i = 0; i < pColInfo->numOfBound; ++i) {
-      pColIdx[i].schemaColIdx = (uint16_t)pColInfo->boundedColumns[i];
+      pColIdx[i].schemaColIdx = (uint16_t)pColInfo->boundColumns[i];
       pColIdx[i].boundIdx = i;
     }
     qsort(pColIdx, pColInfo->numOfBound, sizeof(SBoundIdxInfo), schemaIdxCompar);
@@ -1289,7 +1289,7 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
     qsort(pColIdx, pColInfo->numOfBound, sizeof(SBoundIdxInfo), boundIdxCompar);
   }
 
-  memset(&pColInfo->boundedColumns[pColInfo->numOfBound], 0,
+  memset(&pColInfo->boundColumns[pColInfo->numOfBound], 0,
          sizeof(int32_t) * (pColInfo->numOfCols - pColInfo->numOfBound));
 
   return TSDB_CODE_SUCCESS;

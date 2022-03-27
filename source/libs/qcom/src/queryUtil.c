@@ -193,7 +193,7 @@ char *jobTaskStatusStr(int32_t status) {
   return "UNKNOWN";
 }
 
-SSchema createSchema(uint8_t type, int32_t bytes, int32_t colId, const char* name) {
+SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name) {
   SSchema s = {0};
   s.type  = type;
   s.bytes = bytes;

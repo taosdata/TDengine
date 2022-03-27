@@ -172,7 +172,7 @@ void ctgDbgShowTableMeta(SCatalog* pCtg, const char *tbName, STableMeta* p) {
   int32_t colNum = c->numOfColumns + c->numOfTags;
   for (int32_t i = 0; i < colNum; ++i) {
     SSchema *s = &p->schema[i];
-    ctgDebug("[%d] name:%s, type:%d, colId:%d, bytes:%d", i, s->name, s->type, s->colId, s->bytes);
+    ctgDebug("[%d] name:%s, type:%d, colId:%" PRIi16 ", bytes:%d", i, s->name, s->type, s->colId, s->bytes);
   }
 }
 

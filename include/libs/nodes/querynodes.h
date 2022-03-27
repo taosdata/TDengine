@@ -56,7 +56,7 @@ typedef enum EColumnType {
 typedef struct SColumnNode {
   SExprNode node; // QUERY_NODE_COLUMN
   uint64_t tableId;
-  int16_t colId;
+  col_id_t colId;
   EColumnType colType; // column or tag
   char dbName[TSDB_DB_NAME_LEN];
   char tableName[TSDB_TABLE_NAME_LEN];

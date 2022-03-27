@@ -43,10 +43,10 @@ typedef enum {
 } ETaskType;
 
 typedef struct STableComInfo {
-  uint8_t numOfTags;     // the number of tags in schema
-  uint8_t precision;     // the number of precision
-  int16_t numOfColumns;  // the number of columns
-  int32_t rowSize;       // row size of the schema
+  uint8_t  numOfTags;     // the number of tags in schema
+  uint8_t  precision;     // the number of precision
+  col_id_t numOfColumns;  // the number of columns
+  int32_t  rowSize;       // row size of the schema
 } STableComInfo;
 
 typedef struct SIndexMeta {
@@ -171,7 +171,7 @@ bool           tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 char *jobTaskStatusStr(int32_t status);
 
-SSchema createSchema(uint8_t type, int32_t bytes, int32_t colId, const char* name);
+SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name);
 
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char** msg, int32_t msgSize, int32_t* msgLen);
 extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t msgSize);
