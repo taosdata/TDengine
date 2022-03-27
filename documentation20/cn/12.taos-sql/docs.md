@@ -1794,6 +1794,8 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
       该函数可以应用在普通表和超级表上。
 
+      版本2.6.0.x后支持
+
 - **ACOS**
     ```mysql
     SELECT ACOS(field_name) FROM { tb_name | stb_name } [WHERE clause]
@@ -1811,6 +1813,8 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
       只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
       该函数可以应用在普通表和超级表上。
+
+      版本2.6.0.x后支持
 
 - **ATAN**
     ```mysql
