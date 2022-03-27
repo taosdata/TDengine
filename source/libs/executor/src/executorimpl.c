@@ -1257,10 +1257,25 @@ static void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSData
       SArray* pBlockList = taosArrayInit(4, POINTER_BYTES);
       taosArrayPush(pBlockList, &pSrcBlock);
 
+      SScalarParam dest = {0};
+      dest.columnData = taosArrayGet(pResult->pDataBlock, k);
+
+      scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &dest);
+      pResult->info.rows = dest.numOfRows;
+
+      taosArrayDestroy(pBlockList);
+    } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_FUNCTION) {
+      ASSERT(!fmIsAggFunc(pCtx->functionId));
+
       SScalarParam p = {.numOfRows = pSrcBlock->info.rows};
-      p.columnData = taosArrayGet(pResult->pDataBlock, k);
-      scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &p);
-      pResult->info.rows = p.numOfRows;
+      int32_t slotId = pExpr[k].base.pParam[0].pCol->slotId;
+      p.columnData = taosArrayGet(pSrcBlock->pDataBlock, slotId);
+
+      SScalarParam dest = {0};
+      dest.columnData = taosArrayGet(pResult->pDataBlock, k);
+      pCtx[k].sfp.process(&p, 1, &dest);
+
+      pResult->info.rows = dest.numOfRows;
     } else {
       ASSERT(0);
     }
@@ -2044,8 +2059,12 @@ static SqlFunctionCtx* createSqlFunctionCtx_rv(SExprInfo* pExprInfo, int32_t num
       SFuncExecEnv env = {0};
       pCtx->functionId = pExpr->pExpr->_function.pFunctNode->funcId;
 
-      fmGetFuncExecFuncs(pCtx->functionId, &pCtx->fpSet);
-      pCtx->fpSet.getEnv(pExpr->pExpr->_function.pFunctNode, &env);
+      if (fmIsAggFunc(pCtx->functionId)) {
+        fmGetFuncExecFuncs(pCtx->functionId, &pCtx->fpSet);
+        pCtx->fpSet.getEnv(pExpr->pExpr->_function.pFunctNode, &env);
+      } else {
+        fmGetScalarFuncExecFuncs(pCtx->functionId, &pCtx->sfp);
+      }
       pCtx->resDataInfo.interBufSize = env.calcMemSize;
     } else if (pExpr->pExpr->nodeType == QUERY_NODE_COLUMN) {
 
@@ -6620,6 +6639,8 @@ static SSDataBlock* doProjectOperation(SOperatorInfo *pOperator, bool* newgroup)
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, TSDB_ORDER_ASC);
+    blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
+
     projectApplyFunctions(pOperator->pExpr, pInfo->pRes, pBlock, pInfo->pCtx, pOperator->numOfOutput);
     if (pRes->info.rows >= pOperator->resultInfo.threshold) {
       break;

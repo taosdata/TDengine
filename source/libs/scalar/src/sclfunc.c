@@ -23,9 +23,9 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     case TSDB_DATA_TYPE_FLOAT: {
       float *in  = (float *)pInputData->pData;
       float *out = (float *)pOutputData->pData;
-      for (int32_t i = 0; i < pOutput->numOfRows; ++i) {
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
         if (colDataIsNull_f(pInputData->nullbitmap, i)) {
-          colDataAppendNULL(pOutputData, i);
+          colDataSetNull_f(pOutputData->nullbitmap, i);
           continue;
         }
         out[i] = (in[i] > 0)? in[i] : -in[i];
@@ -36,9 +36,9 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     case TSDB_DATA_TYPE_DOUBLE: {
       double *in  = (double *)pInputData->pData;
       double *out = (double *)pOutputData->pData;
-      for (int32_t i = 0; i < pOutput->numOfRows; ++i) {
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
         if (colDataIsNull_f(pInputData->nullbitmap, i)) {
-          colDataAppendNULL(pOutputData, i);
+          colDataSetNull_f(pOutputData->nullbitmap, i);
           continue;
         }
         out[i] = (in[i] > 0)? in[i] : -in[i];
@@ -49,9 +49,9 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t *in  = (int8_t *)pInputData->pData;
       int8_t *out = (int8_t *)pOutputData->pData;
-      for (int32_t i = 0; i < pOutput->numOfRows; ++i) {
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
         if (colDataIsNull_f(pInputData->nullbitmap, i)) {
-          colDataAppendNULL(pOutputData, i);
+          colDataSetNull_f(pOutputData->nullbitmap, i);
           continue;
         }
         out[i] = (in[i] > 0)? in[i] : -in[i];
@@ -62,9 +62,9 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t *in  = (int16_t *)pInputData->pData;
       int16_t *out = (int16_t *)pOutputData->pData;
-      for (int32_t i = 0; i < pOutput->numOfRows; ++i) {
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
         if (colDataIsNull_f(pInputData->nullbitmap, i)) {
-          colDataAppendNULL(pOutputData, i);
+          colDataSetNull_f(pOutputData->nullbitmap, i);
           continue;
         }
         out[i] = (in[i] > 0)? in[i] : -in[i];
@@ -75,10 +75,9 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     case TSDB_DATA_TYPE_INT: {
       int32_t *in  = (int32_t *)pInputData->pData;
       int32_t *out = (int32_t *)pOutputData->pData;
-
-      for (int32_t i = 0; i < pOutput->numOfRows; ++i) {
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
         if (colDataIsNull_f(pInputData->nullbitmap, i)) {
-          colDataAppendNULL(pOutputData, i);
+          colDataSetNull_f(pOutputData->nullbitmap, i);
           continue;
         }
         out[i] = (in[i] > 0)? in[i] : -in[i];
@@ -89,9 +88,9 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t *in  = (int64_t *)pInputData->pData;
       int64_t *out = (int64_t *)pOutputData->pData;
-      for (int32_t i = 0; i < pOutput->numOfRows; ++i) {
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
         if (colDataIsNull_f(pInputData->nullbitmap, i)) {
-          colDataAppendNULL(pOutputData, i);
+          colDataSetNull_f(pOutputData->nullbitmap, i);
           continue;
         }
         out[i] = (in[i] > 0)? in[i] : -in[i];
@@ -194,371 +193,119 @@ int32_t powFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t sqrtFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-#if 0
-  if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
+typedef float (*_float_fn)(float);
+typedef double (*_double_fn)(double);
+
+int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SScalarParam* pOutput, _double_fn valFn) {
+  int32_t type = GET_PARAM_TYPE(pInput);
+  if (inputNum != 1 || !IS_NUMERIC_TYPE(type)) {
     return TSDB_CODE_FAILED;
   }
 
-  pOutput->type = TSDB_DATA_TYPE_DOUBLE;
-  pOutput->bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+  SColumnInfoData *pInputData = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
 
-  char *input = NULL, *output = NULL;
-  for (int32_t i = 0; i < pOutput->num; ++i) {
-    if (pInput->num == 1) {
-      input = pInput->data;
-    } else {
-      input = pInput->data + i * pInput->bytes;
-    }
-    output = pOutput->data + i * pOutput->bytes;
+  _getDoubleValue_fn_t getValueFn = getVectorDoubleValueFn(type);
 
-    if (isNull(input, pInput->type)) {
-      setNull(output, pOutput->type, pOutput->bytes);
+  double *out = (double *)pOutputData->pData;
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_f(pInputData->nullbitmap, i)) {
+      colDataSetNull_f(pOutputData->nullbitmap, i);
       continue;
     }
-
-    double v;
-    GET_TYPED_DATA(v, double, pInput->type, input);
-    double result = sqrt(v);
-    SET_TYPED_DATA(output, pOutput->type, result);
+    out[i] = valFn(getValueFn(pInputData->pData, i));
   }
-#endif
+
+  pOutput->numOfRows = pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t sinFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-#if 0
-  if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
+int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam* pOutput, _float_fn f1, _double_fn d1) {
+  int32_t type = GET_PARAM_TYPE(pInput);
+  if (inputNum != 1 || !IS_NUMERIC_TYPE(type)) {
     return TSDB_CODE_FAILED;
   }
 
-  pOutput->type = TSDB_DATA_TYPE_DOUBLE;
-  pOutput->bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
 
-  char *input = NULL, *output = NULL;
-  for (int32_t i = 0; i < pOutput->num; ++i) {
-    if (pInput->num == 1) {
-      input = pInput->data;
-    } else {
-      input = pInput->data + i * pInput->bytes;
-    }
-    output = pOutput->data + i * pOutput->bytes;
+  switch (type) {
+    case TSDB_DATA_TYPE_FLOAT: {
+      float *in  = (float *)pInputData->pData;
+      float *out = (float *)pOutputData->pData;
 
-    if (isNull(input, pInput->type)) {
-      setNull(output, pOutput->type, pOutput->bytes);
-      continue;
-    }
-
-    double v;
-    GET_TYPED_DATA(v, double, pInput->type, input);
-    double result = sin(v);
-    SET_TYPED_DATA(output, pOutput->type, result);
-  }
-#endif
-
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t cosFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-#if 0
-  if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
-    return TSDB_CODE_FAILED;
-  }
-
-  pOutput->type = TSDB_DATA_TYPE_DOUBLE;
-  pOutput->bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
-
-  char *input = NULL, *output = NULL;
-  for (int32_t i = 0; i < pOutput->num; ++i) {
-    if (pInput->num == 1) {
-      input = pInput->data;
-    } else {
-      input = pInput->data + i * pInput->bytes;
-    }
-    output = pOutput->data + i * pOutput->bytes;
-
-    if (isNull(input, pInput->type)) {
-      setNull(output, pOutput->type, pOutput->bytes);
-      continue;
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+        if (colDataIsNull_f(pInputData->nullbitmap, i)) {
+          colDataSetNull_f(pOutputData->nullbitmap, i);
+          continue;
+        }
+        out[i] = f1(in[i]);
+      }
+      break;
     }
 
-    double v;
-    GET_TYPED_DATA(v, double, pInput->type, input);
-    double result = cos(v);
-    SET_TYPED_DATA(output, pOutput->type, result);
-  }
-#endif
-  return TSDB_CODE_SUCCESS;
-}
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double *in  = (double *)pInputData->pData;
+      double *out = (double *)pOutputData->pData;
 
-int32_t tanFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-#if 0
-  if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
-    return TSDB_CODE_FAILED;
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+        if (colDataIsNull_f(pInputData->nullbitmap, i)) {
+          colDataSetNull_f(pOutputData->nullbitmap, i);
+          continue;
+        }
+        out[i] = d1(in[i]);
+      }
+      break;
+    }
+
+    default: {
+      colDataAssign(pOutputData, pInputData, pInput->numOfRows);
+    }
   }
 
-  pOutput->type = TSDB_DATA_TYPE_DOUBLE;
-  pOutput->bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
-
-  char *input = NULL, *output = NULL;
-  for (int32_t i = 0; i < pOutput->num; ++i) {
-    if (pInput->num == 1) {
-      input = pInput->data;
-    } else {
-      input = pInput->data + i * pInput->bytes;
-    }
-    output = pOutput->data + i * pOutput->bytes;
-
-    if (isNull(input, pInput->type)) {
-      setNull(output, pOutput->type, pOutput->bytes);
-      continue;
-    }
-
-    double v;
-    GET_TYPED_DATA(v, double, pInput->type, input);
-    double result = tan(v);
-    SET_TYPED_DATA(output, pOutput->type, result);
-  }
-#endif
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t asinFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-#if 0
-  if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
-    return TSDB_CODE_FAILED;
-  }
-
-  pOutput->type = TSDB_DATA_TYPE_DOUBLE;
-  pOutput->bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
-
-  char *input = NULL, *output = NULL;
-  for (int32_t i = 0; i < pOutput->num; ++i) {
-    if (pInput->num == 1) {
-      input = pInput->data;
-    } else {
-      input = pInput->data + i * pInput->bytes;
-    }
-    output = pOutput->data + i * pOutput->bytes;
-
-    if (isNull(input, pInput->type)) {
-      setNull(output, pOutput->type, pOutput->bytes);
-      continue;
-    }
-
-    double v;
-    GET_TYPED_DATA(v, double, pInput->type, input);
-    double result = asin(v);
-    SET_TYPED_DATA(output, pOutput->type, result);
-  }
-#endif
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t acosFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-#if 0
-  if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
-    return TSDB_CODE_FAILED;
-  }
-
-  pOutput->type = TSDB_DATA_TYPE_DOUBLE;
-  pOutput->bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
-
-  char *input = NULL, *output = NULL;
-  for (int32_t i = 0; i < pOutput->num; ++i) {
-    if (pInput->num == 1) {
-      input = pInput->data;
-    } else {
-      input = pInput->data + i * pInput->bytes;
-    }
-    output = pOutput->data + i * pOutput->bytes;
-
-    if (isNull(input, pInput->type)) {
-      setNull(output, pOutput->type, pOutput->bytes);
-      continue;
-    }
-
-    double v;
-    GET_TYPED_DATA(v, double, pInput->type, input);
-    double result = acos(v);
-    SET_TYPED_DATA(output, pOutput->type, result);
-  }
-#endif
+  pOutput->numOfRows = pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t atanFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-#if 0
-  if (inputNum != 1 || !IS_NUMERIC_TYPE(pInput->type)) {
-    return TSDB_CODE_FAILED;
-  }
-
-  pOutput->type = TSDB_DATA_TYPE_DOUBLE;
-  pOutput->bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
-
-  char *input = NULL, *output = NULL;
-  for (int32_t i = 0; i < pOutput->num; ++i) {
-    if (pInput->num == 1) {
-      input = pInput->data;
-    } else {
-      input = pInput->data + i * pInput->bytes;
-    }
-    output = pOutput->data + i * pOutput->bytes;
-
-    if (isNull(input, pInput->type)) {
-      setNull(output, pOutput->type, pOutput->bytes);
-      continue;
-    }
-
-    double v;
-    GET_TYPED_DATA(v, double, pInput->type, input);
-    double result = atan(v);
-    SET_TYPED_DATA(output, pOutput->type, result);
-  }
-#endif
-  return TSDB_CODE_SUCCESS;
+  return doScalarFunctionUnique(pInput, inputNum, pOutput, atan);
 }
 
-//TODO use callback function [ceilf, ceil]
+int32_t sinFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return doScalarFunctionUnique(pInput, inputNum, pOutput, sin);
+}
+
+int32_t cosFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return doScalarFunctionUnique(pInput, inputNum, pOutput, cos);
+}
+
+int32_t tanFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return doScalarFunctionUnique(pInput, inputNum, pOutput, tan);
+}
+
+int32_t asinFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return doScalarFunctionUnique(pInput, inputNum, pOutput, asin);
+}
+
+int32_t acosFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return doScalarFunctionUnique(pInput, inputNum, pOutput, acos);
+}
+
+int32_t sqrtFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return doScalarFunctionUnique(pInput, inputNum, pOutput, sqrt);
+}
+
 int32_t ceilFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int32_t type = GET_PARAM_TYPE(pInput);
-  if (inputNum != 1 || !IS_NUMERIC_TYPE(type)) {
-    return TSDB_CODE_FAILED;
-  }
-
-  SColumnInfoData *pInputData  = pInput->columnData;
-  SColumnInfoData *pOutputData = pOutput->columnData;
-
-  switch (type) {
-    case TSDB_DATA_TYPE_FLOAT: {
-      float *in  = (float *)pInputData->pData;
-      float *out = (float *)pOutputData->pData;
-
-      for (int32_t i = 0; i < pOutput->numOfRows; ++i) {
-        if (colDataIsNull_f(pInputData->nullbitmap, i)) {
-          colDataAppendNULL(pOutputData, i);
-          continue;
-        }
-        out[i] = ceilf(in[i]);
-      }
-      break;
-    }
-
-    case TSDB_DATA_TYPE_DOUBLE: {
-      double *in  = (double *)pInputData->pData;
-      double *out = (double *)pOutputData->pData;
-
-      for (int32_t i = 0; i < pOutput->numOfRows; ++i) {
-        if (colDataIsNull_f(pInputData->nullbitmap, i)) {
-          colDataAppendNULL(pOutputData, i);
-          continue;
-        }
-        out[i] = ceil(in[i]);
-      }
-      break;
-    }
-
-    default: {
-      colDataAssign(pOutputData, pInputData, pInput->numOfRows);
-    }
-  }
-
-  pOutput->numOfRows = pInput->numOfRows;
-  return TSDB_CODE_SUCCESS;
+  return doScalarFunction(pInput, inputNum, pOutput, ceilf, ceil);
 }
 
 int32_t floorFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int32_t type = GET_PARAM_TYPE(pInput);
-  if (inputNum != 1 || !IS_NUMERIC_TYPE(type)) {
-    return TSDB_CODE_FAILED;
-  }
-
-  SColumnInfoData *pInputData  = pInput->columnData;
-  SColumnInfoData *pOutputData = pOutput->columnData;
-
-  switch (type) {
-    case TSDB_DATA_TYPE_FLOAT: {
-      float *in  = (float *)pInputData->pData;
-      float *out = (float *)pOutputData->pData;
-
-      for (int32_t i = 0; i < pOutput->numOfRows; ++i) {
-        if (colDataIsNull_f(pInputData->nullbitmap, i)) {
-          colDataAppendNULL(pOutputData, i);
-          continue;
-        }
-        out[i] = floorf(in[i]);
-      }
-      break;
-    }
-
-    case TSDB_DATA_TYPE_DOUBLE: {
-      double *in  = (double *)pInputData->pData;
-      double *out = (double *)pOutputData->pData;
-
-      for (int32_t i = 0; i < pOutput->numOfRows; ++i) {
-        if (colDataIsNull_f(pInputData->nullbitmap, i)) {
-          colDataAppendNULL(pOutputData, i);
-          continue;
-        }
-        out[i] = floor(in[i]);
-      }
-      break;
-    }
-
-    default: {
-      colDataAssign(pOutputData, pInputData, pInput->numOfRows);
-    }
-  }
-
-  pOutput->numOfRows = pInput->numOfRows;
-  return TSDB_CODE_SUCCESS;
+  return doScalarFunction(pInput, inputNum, pOutput, floorf, floor);
 }
 
 int32_t roundFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int32_t type = GET_PARAM_TYPE(pInput);
-  if (inputNum != 1 || !IS_NUMERIC_TYPE(type)) {
-    return TSDB_CODE_FAILED;
-  }
-
-  SColumnInfoData *pInputData  = pInput->columnData;
-  SColumnInfoData *pOutputData = pOutput->columnData;
-
-  switch (type) {
-    case TSDB_DATA_TYPE_FLOAT: {
-      float *in  = (float *)pInputData->pData;
-      float *out = (float *)pOutputData->pData;
-
-      for (int32_t i = 0; i < pOutput->numOfRows; ++i) {
-        if (colDataIsNull_f(pInputData->nullbitmap, i)) {
-          colDataAppendNULL(pOutputData, i);
-          continue;
-        }
-        out[i] = roundf(in[i]);
-      }
-      break;
-    }
-
-    case TSDB_DATA_TYPE_DOUBLE: {
-      double *in  = (double *)pInputData->pData;
-      double *out = (double *)pOutputData->pData;
-
-      for (int32_t i = 0; i < pOutput->numOfRows; ++i) {
-        if (colDataIsNull_f(pInputData->nullbitmap, i)) {
-          colDataAppendNULL(pOutputData, i);
-          continue;
-        }
-        out[i] = round(in[i]);
-      }
-      break;
-    }
-
-    default: {
-      colDataAssign(pOutputData, pInputData, pInput->numOfRows);
-    }
-  }
-
-  pOutput->numOfRows = pInput->numOfRows;
-  return TSDB_CODE_SUCCESS;
+  return doScalarFunction(pInput, inputNum, pOutput, roundf, round);
 }
 
 static void tlength(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *pLeft) {

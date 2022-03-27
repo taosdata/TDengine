@@ -27,16 +27,22 @@ extern "C" {
 struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
 
-typedef struct SFunctionNode SFunctionNode;
+struct SFunctionNode;
+typedef struct SScalarParam SScalarParam;
 
 typedef struct SFuncExecEnv {
   int32_t calcMemSize;
 } SFuncExecEnv;
 
-typedef bool (*FExecGetEnv)(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+typedef bool (*FExecGetEnv)(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 typedef bool (*FExecInit)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);
 typedef void (*FExecProcess)(struct SqlFunctionCtx *pCtx);
 typedef void (*FExecFinalize)(struct SqlFunctionCtx *pCtx);
+typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+typedef struct SScalarFuncExecFuncs {
+  FScalarExecProcess process;
+} SScalarFuncExecFuncs;
 
 typedef struct SFuncExecFuncs {
   FExecGetEnv getEnv;
@@ -191,6 +197,7 @@ typedef struct SqlFunctionCtx {
   SPoint1          start;
   SPoint1          end;
   SFuncExecFuncs   fpSet;
+  SScalarFuncExecFuncs sfp;
 } SqlFunctionCtx;
 
 enum {
@@ -219,7 +226,7 @@ typedef struct tExprNode {
       char              functionName[FUNCTIONS_NAME_MAX_LENGTH];  // todo refactor
       int32_t           functionId;
       int32_t           num;
-      SFunctionNode    *pFunctNode;
+      struct SFunctionNode    *pFunctNode;
       // Note that the attribute of pChild is not the parameter of function, it is the columns that involved in the
       // calculation instead.
       // E.g., Cov(col1, col2), the column information, w.r.t. the col1 and col2, is kept in pChild nodes.
@@ -254,18 +261,11 @@ typedef struct SAggFunctionInfo {
   int32_t (*dataReqFunc)(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId);
 } SAggFunctionInfo;
 
-typedef struct SScalarParam {
+struct SScalarParam {
   SColumnInfoData   *columnData;
   SHashObj          *pHashFilter;
   int32_t            numOfRows;
-} SScalarParam;
-
-typedef struct SScalarFunctionInfo {
-  char      name[FUNCTIONS_NAME_MAX_LENGTH];
-  int8_t    type;              // scalar function or aggregation function
-  uint32_t  functionId;        // index of scalar function
-  void     (*process)(struct SScalarParam* pOutput, size_t numOfInput, const struct SScalarParam *pInput);
-} SScalarFunctionInfo;
+};
 
 typedef struct SMultiFunctionsDesc {
   bool stableQuery;

@@ -6,6 +6,7 @@
 #include "sclvector.h"
 #include "tcommon.h"
 #include "tdatablock.h"
+#include "scalar.h"
 
 int32_t scalarGetOperatorParamNum(EOperatorType type) {
   if (OP_TYPE_IS_NULL == type || OP_TYPE_IS_NOT_NULL == type || OP_TYPE_IS_TRUE == type || OP_TYPE_IS_NOT_TRUE == type 
@@ -168,7 +169,6 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       }
       break;
     }
-
     case QUERY_NODE_NODE_LIST: {
       SNodeListNode *nodeList = (SNodeListNode *)node;
       if (LIST_LENGTH(nodeList->pNodeList) <= 0) {
@@ -207,8 +207,9 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       param->columnData = columnData;
       break;
     }
-    case QUERY_NODE_LOGIC_CONDITION:
-    case QUERY_NODE_OPERATOR: {
+    case QUERY_NODE_FUNCTION:
+    case QUERY_NODE_OPERATOR:
+    case QUERY_NODE_LOGIC_CONDITION: {
       SScalarParam *res = (SScalarParam *)taosHashGet(ctx->pRes, &node, POINTER_BYTES);
       if (NULL == res) {
         sclError("no result for node, type:%d, node:%p", nodeType(node), node);
@@ -217,7 +218,6 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       *param = *res;
       break;
     }
-
     default:
       break;
   }
@@ -305,21 +305,18 @@ int32_t sclExecFuncion(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outpu
   int32_t rowNum = 0;
   SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &rowNum));
 
-  output->columnData->info.type = node->node.resType.type;
-  output->columnData->info.bytes = tDataTypes[node->node.resType.type].bytes;
-
-  code = blockDataEnsureColumnCapacity(output->columnData, rowNum);
-  if (code != TSDB_CODE_SUCCESS) {
+  output->columnData = createColumnInfoData(&node->node.resType, rowNum);
+  if (output->columnData == NULL) {
     sclError("calloc %d failed", (int32_t)(rowNum * output->columnData->info.bytes));
     SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  for (int32_t i = 0; i < rowNum; ++i) {
+//  for (int32_t i = 0; i < rowNum; ++i) {
     code = (*ffpSet.process)(params, node->pParameterList->length, output);
     if (code) {
       sclError("scalar function exec failed, funcId:%d, code:%s", node->funcId, tstrerror(code));
       SCL_ERR_JRET(code);    
-    }
+//    }
   }
 
 _return:
