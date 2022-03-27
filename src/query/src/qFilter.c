@@ -3611,7 +3611,7 @@ int32_t filterConverNcharColumns(SFilterInfo* info, int32_t rows, bool *gotNchar
         if(isNull(src, TSDB_DATA_TYPE_NCHAR)){
           varDataCopy(dst, src);
           continue;
-        }gi
+        }
         int32_t len = 0;
         bool ret = taosMbsToUcs4(varDataVal(src), varDataLen(src), varDataVal(dst), bufSize, &len);
         if(!ret) {
