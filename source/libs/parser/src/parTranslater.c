@@ -1800,7 +1800,7 @@ static int32_t translateSubquery(STranslateContext* pCxt, SNode* pNode) {
 }
 
 int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
-  if (QUERY_NODE_SELECT_STMT == nodeType(pRoot)) {
+  if (NULL != pRoot && QUERY_NODE_SELECT_STMT == nodeType(pRoot)) {
     SSelectStmt* pSelect = (SSelectStmt*) pRoot;
     *numOfCols = LIST_LENGTH(pSelect->pProjectionList);
     *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
@@ -2400,13 +2400,14 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
 }
 
 static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
-  int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pQuery->pRoot)) {
     case QUERY_NODE_SELECT_STMT:
       pQuery->haveResultSet = true;
       pQuery->directRpc = false;
       pQuery->msgType = TDMT_VND_QUERY;
-      code = qExtractResultSchema(pQuery->pRoot, &pQuery->numOfResCols, &pQuery->pResSchema);
+      if (TSDB_CODE_SUCCESS != qExtractResultSchema(pQuery->pRoot, &pQuery->numOfResCols, &pQuery->pResSchema)) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       break;
     case QUERY_NODE_VNODE_MODIF_STMT:
       pQuery->haveResultSet = false;
@@ -2446,7 +2447,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     }
   }
 
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery) {
