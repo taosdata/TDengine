@@ -367,9 +367,10 @@ TEST_F(TransEnv, srvReleaseHandle) {
   SRpcMsg resp = {0};
   tr->SetSrvContinueSend(processReleaseHandleCb);
   // tr->Restart(processReleaseHandleCb);
-  void *handle = NULL;
+  void *  handle = NULL;
+  SRpcMsg req = {0};
   for (int i = 0; i < 1; i++) {
-    SRpcMsg req = {0};
+    memset(&req, 0, sizeof(req));
     req.handle = resp.handle;
     req.persistHandle = 1;
     req.msgType = 1;
@@ -383,8 +384,9 @@ TEST_F(TransEnv, srvReleaseHandle) {
 }
 TEST_F(TransEnv, cliReleaseHandleExcept) {
   SRpcMsg resp = {0};
+  SRpcMsg req = {0};
   for (int i = 0; i < 3; i++) {
-    SRpcMsg req = {0};
+    memset(&req, 0, sizeof(req));
     req.handle = resp.handle;
     req.persistHandle = 1;
     req.msgType = 1;
@@ -403,8 +405,10 @@ TEST_F(TransEnv, cliReleaseHandleExcept) {
 }
 TEST_F(TransEnv, srvContinueSend) {
   tr->SetSrvContinueSend(processContinueSend);
+  SRpcMsg req = {0}, resp = {0};
   for (int i = 0; i < 10; i++) {
-    SRpcMsg req = {0}, resp = {0};
+    memset(&req, 0, sizeof(req));
+    memset(&resp, 0, sizeof(resp));
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);
     req.contLen = 10;
@@ -417,8 +421,9 @@ TEST_F(TransEnv, srvPersistHandleExcept) {
   tr->SetSrvContinueSend(processContinueSend);
   // tr->SetCliPersistFp(cliPersistHandle);
   SRpcMsg resp = {0};
+  SRpcMsg req = {0};
   for (int i = 0; i < 5; i++) {
-    SRpcMsg req = {0};
+    memset(&req, 0, sizeof(req));
     req.handle = resp.handle;
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);
@@ -436,8 +441,9 @@ TEST_F(TransEnv, srvPersistHandleExcept) {
 TEST_F(TransEnv, cliPersistHandleExcept) {
   tr->SetSrvContinueSend(processContinueSend);
   SRpcMsg resp = {0};
+  SRpcMsg req = {0};
   for (int i = 0; i < 5; i++) {
-    SRpcMsg req = {0};
+    memset(&req, 0, sizeof(req));
     req.handle = resp.handle;
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);
@@ -459,8 +465,9 @@ TEST_F(TransEnv, multiCliPersistHandleExcept) {
 TEST_F(TransEnv, queryExcept) {
   tr->SetSrvContinueSend(processRegisterFailure);
   SRpcMsg resp = {0};
+  SRpcMsg req = {0};
   for (int i = 0; i < 5; i++) {
-    SRpcMsg req = {0};
+    memset(&req, 0, sizeof(req));
     req.handle = resp.handle;
     req.persistHandle = 1;
     req.msgType = 1;
@@ -477,8 +484,9 @@ TEST_F(TransEnv, queryExcept) {
 }
 TEST_F(TransEnv, noResp) {
   SRpcMsg resp = {0};
+  SRpcMsg req = {0};
   for (int i = 0; i < 5; i++) {
-    SRpcMsg req = {0};
+    memset(&req, 0, sizeof(req));
     req.noResp = 1;
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);

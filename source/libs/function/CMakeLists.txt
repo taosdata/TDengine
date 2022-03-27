@@ -11,8 +11,8 @@ target_include_directories(
 
 target_link_libraries(
     function
+    PRIVATE os util common nodes scalar
     PUBLIC uv_a
-    PRIVATE os util common nodes
 )
 
 add_executable(runUdf test/runUdf.c)
@@ -21,6 +21,7 @@ target_include_directories(
         PUBLIC
             "${CMAKE_SOURCE_DIR}/include/libs/function"
             "${CMAKE_SOURCE_DIR}/contrib/libuv/include"
+            "${CMAKE_SOURCE_DIR}/include/os"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 target_link_libraries(
@@ -34,6 +35,7 @@ target_include_directories(
         udf1
         PUBLIC
             "${CMAKE_SOURCE_DIR}/include/libs/function"
+            "${CMAKE_SOURCE_DIR}/include/os"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 

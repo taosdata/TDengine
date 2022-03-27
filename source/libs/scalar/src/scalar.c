@@ -17,7 +17,7 @@ int32_t scalarGetOperatorParamNum(EOperatorType type) {
 }
 
 SColumnInfoData* createColumnInfoData(SDataType* pType, int32_t numOfRows) {
-  SColumnInfoData* pColumnData = calloc(1, sizeof(SColumnInfoData));
+  SColumnInfoData* pColumnData = taosMemoryCalloc(1, sizeof(SColumnInfoData));
   if (pColumnData == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -31,7 +31,7 @@ SColumnInfoData* createColumnInfoData(SDataType* pType, int32_t numOfRows) {
   int32_t code = blockDataEnsureColumnCapacity(pColumnData, numOfRows);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    tfree(pColumnData);
+    taosMemoryFree(pColumnData);
     return NULL;
   } else {
     return pColumnData;
@@ -63,8 +63,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
   int32_t code = 0;
   SNodeListNode *nodeList = (SNodeListNode *)pNode;
   SListCell *cell = nodeList->pNodeList->pHead;
-
-  SScalarParam out = {.columnData = calloc(1, sizeof(SColumnInfoData))};
+  SScalarParam out = {.columnData = taosMemoryMalloc(sizeof(SColumnInfoData))};
 
   int32_t len = 0;
   void *buf = NULL;
@@ -108,7 +107,6 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
   }
 
   *data = pObj;
-
   return TSDB_CODE_SUCCESS;
 
 _return:
@@ -133,7 +131,7 @@ void sclFreeRes(SHashObj *res) {
 void sclFreeParam(SScalarParam *param) {
   if (param->columnData != NULL) {
     colDataDestroy(param->columnData);
-    tfree(param->columnData);
+    taosMemoryFreeClear(param->columnData);
   }
 
   if (param->pHashFilter != NULL) {
@@ -146,7 +144,7 @@ int32_t sclCopyValueNodeValue(SValueNode *pNode, void **res) {
     return TSDB_CODE_SUCCESS;
   }
   
-  *res = malloc(pNode->node.resType.bytes);
+  *res = taosMemoryMalloc(pNode->node.resType.bytes);
   if (NULL == (*res)) {
     sclError("malloc %d failed", pNode->node.resType.bytes);
     SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -238,7 +236,7 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
 
 int32_t sclInitParamList(SScalarParam **pParams, SNodeList* pParamList, SScalarCtx *ctx, int32_t *rowNum) {
   int32_t code = 0;
-  SScalarParam *paramList = calloc(pParamList->length, sizeof(SScalarParam));
+  SScalarParam *paramList = taosMemoryCalloc(pParamList->length, sizeof(SScalarParam));
   if (NULL == paramList) {
     sclError("calloc %d failed", (int32_t)(pParamList->length * sizeof(SScalarParam)));
     SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -259,7 +257,7 @@ int32_t sclInitParamList(SScalarParam **pParams, SNodeList* pParamList, SScalarC
   return TSDB_CODE_SUCCESS;
 
 _return:
-  tfree(paramList);
+  taosMemoryFreeClear(paramList);
   SCL_RET(code);
 }
 
@@ -271,7 +269,7 @@ int32_t sclInitOperatorParams(SScalarParam **pParams, SOperatorNode *node, SScal
     SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
   
-  SScalarParam *paramList = calloc(paramNum, sizeof(SScalarParam));
+  SScalarParam *paramList = taosMemoryCalloc(paramNum, sizeof(SScalarParam));
   if (NULL == paramList) {
     sclError("calloc %d failed", (int32_t)(paramNum * sizeof(SScalarParam)));
     SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -286,7 +284,7 @@ int32_t sclInitOperatorParams(SScalarParam **pParams, SOperatorNode *node, SScal
   return TSDB_CODE_SUCCESS;
 
 _return:
-  tfree(paramList);
+  taosMemoryFreeClear(paramList);
   SCL_RET(code);
 }
 
@@ -330,7 +328,7 @@ _return:
 //    sclFreeParamNoData(params + i);
   }
 
-  tfree(params);
+  taosMemoryFreeClear(params);
   SCL_RET(code);
 }
 
@@ -388,7 +386,7 @@ _return:
 //    sclFreeParamNoData(params + i);
   }
 
-  tfree(params);
+  taosMemoryFreeClear(params);
   SCL_RET(code);
 }
 
@@ -417,7 +415,7 @@ _return:
 //    sclFreeParam(&params[i]);
   }
 
-  tfree(params);
+  taosMemoryFreeClear(params);
   SCL_RET(code);
 }
 
@@ -493,7 +491,7 @@ EDealRes sclRewriteLogic(SNode** pNode, SScalarCtx *ctx) {
 EDealRes sclRewriteOperator(SNode** pNode, SScalarCtx *ctx) {
   SOperatorNode *node = (SOperatorNode *)*pNode;
 
-  SScalarParam output = {.columnData = calloc(1, sizeof(SColumnInfoData))};
+  SScalarParam output = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
   ctx->code = sclExecOperator(node, ctx, &output);
   if (ctx->code) {
     return DEAL_RES_ERROR;
@@ -520,7 +518,7 @@ EDealRes sclRewriteOperator(SNode** pNode, SScalarCtx *ctx) {
   nodesDestroyNode(*pNode);
   *pNode = (SNode*)res;
 
-  sclFreeParam(&output);    
+  sclFreeParam(&output);
   return DEAL_RES_CONTINUE;
 }
 

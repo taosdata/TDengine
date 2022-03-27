@@ -15,7 +15,6 @@
 
 #define ALLOW_FORBID_FUNC
 #define _DEFAULT_SOURCE
-#include <malloc.h>
 #include "os.h"
 
 #ifndef DISALLOW_NCHAR_WITHOUT_ICONV
@@ -50,8 +49,8 @@ int32_t tasoUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes) {
 
 #if 0
   int32_t ucs4_max_len = bytes + 4;
-  char *f1_mbs = calloc(bytes, 1);
-  char *f2_mbs = calloc(bytes, 1);
+  char *f1_mbs = taosMemoryCalloc(bytes, 1);
+  char *f2_mbs = taosMemoryCalloc(bytes, 1);
   if (taosUcs4ToMbs(f1_ucs4, ucs4_max_len, f1_mbs) < 0) {
     return -1;
   }
@@ -59,15 +58,15 @@ int32_t tasoUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes) {
     return -1;
   }
   int32_t ret = strcmp(f1_mbs, f2_mbs);
-  free(f1_mbs);
-  free(f2_mbs);
+  taosMemoryFree(f1_mbs);
+  taosMemoryFree(f2_mbs);
   return ret;
 #endif
 }
 
 
 TdUcs4* tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4) {
-  assert(malloc_usable_size(target_ucs4)>=len_ucs4*sizeof(TdUcs4));
+  assert(taosMemorySize(target_ucs4)>=len_ucs4*sizeof(TdUcs4));
   return memcpy(target_ucs4, source_ucs4, len_ucs4*sizeof(TdUcs4));
 }
 

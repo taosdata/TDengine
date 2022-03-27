@@ -73,7 +73,7 @@ int32_t smDrop(SMgmtWrapper *pWrapper) {
   smCloseImp(pMgmt);
   taosRemoveDir(pMgmt->path);
   pWrapper->pMgmt = NULL;
-  free(pMgmt);
+  taosMemoryFree(pMgmt);
   dInfo("snode-mgmt is dropped");
   return 0;
 }
@@ -85,13 +85,13 @@ static void smClose(SMgmtWrapper *pWrapper) {
   dInfo("snode-mgmt start to cleanup");
   smCloseImp(pMgmt);
   pWrapper->pMgmt = NULL;
-  free(pMgmt);
+  taosMemoryFree(pMgmt);
   dInfo("snode-mgmt is cleaned up");
 }
 
 int32_t smOpen(SMgmtWrapper *pWrapper) {
   dInfo("snode-mgmt start to init");
-  SSnodeMgmt *pMgmt = calloc(1, sizeof(SSnodeMgmt));
+  SSnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SSnodeMgmt));
   if (pMgmt == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;

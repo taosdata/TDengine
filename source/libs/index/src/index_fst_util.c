@@ -78,10 +78,10 @@ CompiledAddr unpackDelta(char* data, uint64_t len, uint64_t nodeAddr) {
 //
 
 FstSlice fstSliceCreate(uint8_t* data, uint64_t len) {
-  FstString* str = (FstString*)malloc(sizeof(FstString));
+  FstString* str = (FstString*)taosMemoryMalloc(sizeof(FstString));
   str->ref = 1;
   str->len = len;
-  str->data = malloc(len * sizeof(uint8_t));
+  str->data = taosMemoryMalloc(len * sizeof(uint8_t));
   memcpy(str->data, data, len);
 
   FstSlice s = {.str = str, .start = 0, .end = len - 1};
@@ -101,10 +101,10 @@ FstSlice fstSliceDeepCopy(FstSlice* s, int32_t start, int32_t end) {
   uint8_t* data = fstSliceData(s, &slen);
   assert(tlen <= slen);
 
-  uint8_t* buf = malloc(sizeof(uint8_t) * tlen);
+  uint8_t* buf = taosMemoryMalloc(sizeof(uint8_t) * tlen);
   memcpy(buf, data + start, tlen);
 
-  FstString* str = malloc(sizeof(FstString));
+  FstString* str = taosMemoryMalloc(sizeof(FstString));
   str->data = buf;
   str->len = tlen;
   str->ref = 1;
@@ -128,8 +128,8 @@ void fstSliceDestroy(FstSlice* s) {
   FstString* str = s->str;
   str->ref--;
   if (str->ref == 0) {
-    free(str->data);
-    free(str);
+    taosMemoryFree(str->data);
+    taosMemoryFree(str);
     s->str = NULL;
   }
 }
@@ -161,7 +161,7 @@ int fstSliceCompare(FstSlice* a, FstSlice* b) {
 }
 
 // FstStack* fstStackCreate(size_t elemSize, StackFreeElem freeFn) {
-//  FstStack *s = calloc(1, sizeof(FstStack));
+//  FstStack *s = taosMemoryCalloc(1, sizeof(FstStack));
 //  if (s == NULL) { return NULL; }
 //  s->
 //  s->freeFn

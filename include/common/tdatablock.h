@@ -101,8 +101,57 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
   ((IS_VAR_DATA_TYPE((p1_)->info.type)) ? ((p1_)->pData + (p1_)->varmeta.offset[(r_)]) \
                                         : ((p1_)->pData + ((r_) * (p1_)->info.bytes)))
 
+static FORCE_INLINE void colDataAppendNULL(SColumnInfoData* pColumnInfoData, uint32_t currentRow) {
+  // There is a placehold for each NULL value of binary or nchar type.
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    pColumnInfoData->varmeta.offset[currentRow] = -1;  // it is a null value of VAR type.
+  } else {
+    colDataSetNull_f(pColumnInfoData->nullbitmap, currentRow);
+  }
+
+  pColumnInfoData->hasNull = true;
+}
+
+static FORCE_INLINE int32_t colDataAppendInt8(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int8_t* v) {
+  ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_TINYINT ||
+         pColumnInfoData->info.type == TSDB_DATA_TYPE_UTINYINT || pColumnInfoData->info.type == TSDB_DATA_TYPE_BOOL);
+  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
+  *(int8_t*)p = *(int8_t*)v;
+}
+
+static FORCE_INLINE int32_t colDataAppendInt16(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int16_t* v) {
+  ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_SMALLINT || pColumnInfoData->info.type == TSDB_DATA_TYPE_USMALLINT);
+  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
+  *(int16_t*)p = *(int16_t*)v;
+}
+
+static FORCE_INLINE int32_t colDataAppendInt32(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int32_t* v) {
+  ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_INT || pColumnInfoData->info.type == TSDB_DATA_TYPE_UINT);
+  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
+  *(int32_t*)p = *(int32_t*)v;
+}
+
+static FORCE_INLINE int32_t colDataAppendInt64(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int64_t* v) {
+  ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_BIGINT || pColumnInfoData->info.type == TSDB_DATA_TYPE_UBIGINT);
+  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
+  *(int64_t*)p = *(int64_t*)v;
+}
+
+static FORCE_INLINE int32_t colDataAppendFloat(SColumnInfoData* pColumnInfoData, uint32_t currentRow, float* v) {
+  ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_FLOAT);
+  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
+  *(float*)p = *(float*)v;
+}
+
+static FORCE_INLINE int32_t colDataAppendDouble(SColumnInfoData* pColumnInfoData, uint32_t currentRow, double* v) {
+  ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_DOUBLE);
+  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
+  *(double*)p = *(double*)v;
+}
+
 int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, bool isNull);
-int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, const SColumnInfoData* pSource, uint32_t numOfRow2);
+int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, const SColumnInfoData* pSource,
+                        uint32_t numOfRow2);
 int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* pSource, int32_t numOfRows);
 int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock);
 
@@ -113,7 +162,8 @@ size_t blockDataGetNumOfCols(const SSDataBlock* pBlock);
 size_t blockDataGetNumOfRows(const SSDataBlock* pBlock);
 
 int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc);
-int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startIndex, int32_t* stopIndex, int32_t pageSize);
+int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startIndex, int32_t* stopIndex,
+                           int32_t pageSize);
 int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock);
 int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf);
 
@@ -135,6 +185,8 @@ void         blockDataCleanup(SSDataBlock* pDataBlock);
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock);
 size_t       blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
 void*        blockDataDestroy(SSDataBlock* pBlock);
+
+void blockDebugShowData(const SArray* dataBlocks);
 
 #ifdef __cplusplus
 }

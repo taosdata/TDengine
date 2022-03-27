@@ -266,7 +266,7 @@ static SPageInfo* registerPage(SDiskbasedBuf* pBuf, int32_t groupId, int32_t pag
 
   pBuf->numOfPages += 1;
 
-  SPageInfo* ppi = malloc(sizeof(SPageInfo));
+  SPageInfo* ppi = taosMemoryMalloc(sizeof(SPageInfo));
 
   ppi->pageId = pageId;
   ppi->pData  = NULL;
@@ -330,7 +330,7 @@ static char* evacOneDataPage(SDiskbasedBuf* pBuf) {
     assert(d->pn == pn);
 
     d->pn = NULL;
-    tfree(pn);
+    taosMemoryFreeClear(pn);
 
     bufPage = flushPageToDisk(pBuf, d);
   }
@@ -359,7 +359,7 @@ static SPageInfo* getPageInfoFromPayload(void* page) {
 
 int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, const char* id,
                            const char* dir) {
-  *pBuf = calloc(1, sizeof(SDiskbasedBuf));
+  *pBuf = taosMemoryCalloc(1, sizeof(SDiskbasedBuf));
 
   SDiskbasedBuf* pPBuf = *pBuf;
   if (pPBuf == NULL) {
@@ -386,7 +386,7 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
   // init id hash table
   _hash_fn_t fn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT);
   pPBuf->groupSet = taosHashInit(10, fn, true, false);
-  pPBuf->assistBuf = malloc(pPBuf->pageSize + 2);  // EXTRA BYTES
+  pPBuf->assistBuf = taosMemoryMalloc(pPBuf->pageSize + 2);  // EXTRA BYTES
   pPBuf->all = taosHashInit(10, fn, true, false);
 
   char path[PATH_MAX] = {0};
@@ -422,7 +422,7 @@ void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t groupId, int32_t* pageId) {
     pi = *(SPageInfo**)pItem->data;
     pi->used = true;
     *pageId = pi->pageId;
-    tfree(pItem);
+    taosMemoryFreeClear(pItem);
   } else {  // create a new pageinfo
     // register new id in this group
     *pageId = (++pBuf->allocateId);
@@ -441,7 +441,7 @@ void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t groupId, int32_t* pageId) {
 
   // allocate buf
   if (availablePage == NULL) {
-    pi->pData = calloc(1, getAllocPageSize(pBuf->pageSize));  // add extract bytes in case of zipped buffer increased.
+    pi->pData = taosMemoryCalloc(1, getAllocPageSize(pBuf->pageSize));  // add extract bytes in case of zipped buffer increased.
   } else {
     pi->pData = availablePage;
   }
@@ -483,7 +483,7 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
     }
 
     if (availablePage == NULL) {
-      (*pi)->pData = calloc(1, getAllocPageSize(pBuf->pageSize));
+      (*pi)->pData = taosMemoryCalloc(1, getAllocPageSize(pBuf->pageSize));
     } else {
       (*pi)->pData = availablePage;
     }
@@ -564,15 +564,15 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   }
 
   taosRemoveFile(pBuf->path);
-  tfree(pBuf->path);
+  taosMemoryFreeClear(pBuf->path);
 
   SArray** p = taosHashIterate(pBuf->groupSet, NULL);
   while (p) {
     size_t n = taosArrayGetSize(*p);
     for (int32_t i = 0; i < n; ++i) {
       SPageInfo* pi = taosArrayGetP(*p, i);
-      tfree(pi->pData);
-      tfree(pi);
+      taosMemoryFreeClear(pi->pData);
+      taosMemoryFreeClear(pi);
     }
 
     taosArrayDestroy(*p);
@@ -588,9 +588,9 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   taosHashCleanup(pBuf->groupSet);
   taosHashCleanup(pBuf->all);
 
-  tfree(pBuf->id);
-  tfree(pBuf->assistBuf);
-  tfree(pBuf);
+  taosMemoryFreeClear(pBuf->id);
+  taosMemoryFreeClear(pBuf->assistBuf);
+  taosMemoryFreeClear(pBuf);
 }
 
 SPageInfo* getLastPageInfo(SIDList pList) {
@@ -625,8 +625,8 @@ void dBufSetBufPageRecycled(SDiskbasedBuf* pBuf, void* pPage) {
 
   // add this pageinfo into the free page info list
   SListNode* pNode = tdListPopNode(pBuf->lruList, ppi->pn);
-  tfree(ppi->pData);
-  tfree(pNode);
+  taosMemoryFreeClear(ppi->pData);
+  taosMemoryFreeClear(pNode);
 
   tdListAppend(pBuf->freePgList, &ppi);
 }

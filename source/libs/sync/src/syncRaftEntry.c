@@ -18,7 +18,7 @@
 
 SSyncRaftEntry* syncEntryBuild(uint32_t dataLen) {
   uint32_t        bytes = sizeof(SSyncRaftEntry) + dataLen;
-  SSyncRaftEntry* pEntry = malloc(bytes);
+  SSyncRaftEntry* pEntry = taosMemoryMalloc(bytes);
   assert(pEntry != NULL);
   memset(pEntry, 0, bytes);
   pEntry->bytes = bytes;
@@ -63,13 +63,13 @@ SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index) {
 
 void syncEntryDestory(SSyncRaftEntry* pEntry) {
   if (pEntry != NULL) {
-    free(pEntry);
+    taosMemoryFree(pEntry);
   }
 }
 
 // step 5. SSyncRaftEntry => bin, to raft log
 char* syncEntrySerialize(const SSyncRaftEntry* pEntry, uint32_t* len) {
-  char* buf = malloc(pEntry->bytes);
+  char* buf = taosMemoryMalloc(pEntry->bytes);
   assert(buf != NULL);
   memcpy(buf, pEntry, pEntry->bytes);
   if (len != NULL) {
@@ -81,7 +81,7 @@ char* syncEntrySerialize(const SSyncRaftEntry* pEntry, uint32_t* len) {
 // step 6. bin => SSyncRaftEntry, from raft log
 SSyncRaftEntry* syncEntryDeserialize(const char* buf, uint32_t len) {
   uint32_t        bytes = *((uint32_t*)buf);
-  SSyncRaftEntry* pEntry = malloc(bytes);
+  SSyncRaftEntry* pEntry = taosMemoryMalloc(bytes);
   assert(pEntry != NULL);
   memcpy(pEntry, buf, len);
   assert(len == pEntry->bytes);
@@ -109,11 +109,11 @@ cJSON* syncEntry2Json(const SSyncRaftEntry* pEntry) {
     char* s;
     s = syncUtilprintBin((char*)(pEntry->data), pEntry->dataLen);
     cJSON_AddStringToObject(pRoot, "data", s);
-    free(s);
+    taosMemoryFree(s);
 
     s = syncUtilprintBin2((char*)(pEntry->data), pEntry->dataLen);
     cJSON_AddStringToObject(pRoot, "data2", s);
-    free(s);
+    taosMemoryFree(s);
   }
 
   cJSON* pJson = cJSON_CreateObject();
@@ -142,24 +142,24 @@ void syncEntryPrint(const SSyncRaftEntry* pObj) {
   char* serialized = syncEntry2Str(pObj);
   printf("syncEntryPrint | len:%zu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncEntryPrint2(char* s, const SSyncRaftEntry* pObj) {
   char* serialized = syncEntry2Str(pObj);
   printf("syncEntryPrint2 | len:%zu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncEntryLog(const SSyncRaftEntry* pObj) {
   char* serialized = syncEntry2Str(pObj);
   sTrace("syncEntryLog | len:%zu | %s", strlen(serialized), serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncEntryLog2(char* s, const SSyncRaftEntry* pObj) {
   char* serialized = syncEntry2Str(pObj);
   sTrace("syncEntryLog2 | len:%zu | %s | %s", strlen(serialized), s, serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }

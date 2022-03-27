@@ -68,7 +68,7 @@ static STsdb *tsdbNew(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, 
                       SMeta *pMeta, STfs *pTfs) {
   STsdb *pTsdb = NULL;
 
-  pTsdb = (STsdb *)calloc(1, sizeof(STsdb));
+  pTsdb = (STsdb *)taosMemoryCalloc(1, sizeof(STsdb));
   if (pTsdb == NULL) {
     // TODO: handle error
     return NULL;
@@ -93,8 +93,8 @@ static void tsdbFree(STsdb *pTsdb) {
     tsdbFreeSmaEnv(pTsdb->pRSmaEnv);
     tsdbFreeSmaEnv(pTsdb->pTSmaEnv);
     tsdbFreeFS(pTsdb->fs);
-    tfree(pTsdb->path);
-    free(pTsdb);
+    taosMemoryFreeClear(pTsdb->path);
+    taosMemoryFree(pTsdb);
   }
 }
 
@@ -507,7 +507,7 @@ uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t 
         magic = pFile->info.magic;
         char *tfname = strdup(fname);
         sprintf(name, "tsdb/%s/%s", TSDB_DATA_DIR_NAME, basename(tfname));
-        tfree(tfname);
+        taosMemoryFreeClear(tfname);
       } else {
         if ((pFGroup->fileId + 1) * TSDB_FILE_TYPE_MAX - 1 < (int)eindex) {
           SFile *pFile = &pFGroup->files[0];
@@ -516,17 +516,17 @@ uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t 
           magic = pFile->info.magic;
           char *tfname = strdup(fname);
           sprintf(name, "tsdb/%s/%s", TSDB_DATA_DIR_NAME, basename(tfname));
-          tfree(tfname);
+          taosMemoryFreeClear(tfname);
         } else {
           return 0;
         }
       }
     }
   } else {  // get the named file at the specified index. If not there, return 0
-    fname = malloc(256);
+    fname = taosMemoryMalloc(256);
     sprintf(fname, "%s/vnode/vnode%d/%s", tfsGetPrimaryPath(pRepo->pTfs), REPO_ID(pRepo), name);
     if (access(fname, F_OK) != 0) {
-      tfree(fname);
+      taosMemoryFreeClear(fname);
       return 0;
     }
     if (*index == TSDB_META_FILE_INDEX) {  // get meta file
@@ -536,19 +536,19 @@ uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t 
       sprintf(tfname, "vnode/vnode%d/tsdb/%s/%s", REPO_ID(pRepo), TSDB_DATA_DIR_NAME, basename(name));
       tsdbGetFileInfoImpl(tfname, &magic, size);
     }
-    tfree(fname);
+    taosMemoryFreeClear(fname);
     return magic;
   }
 
   if (stat(fname, &fState) < 0) {
-    tfree(fname);
+    taosMemoryFreeClear(fname);
     return 0;
   }
 
   *size = fState.st_size;
   // magic = *size;
 
-  tfree(fname);
+  taosMemoryFreeClear(fname);
   return magic;
 #endif
 }
@@ -674,7 +674,7 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
 }
 
 static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
-  STsdbRepo *pRepo = (STsdbRepo *)calloc(1, sizeof(*pRepo));
+  STsdbRepo *pRepo = (STsdbRepo *)taosMemoryCalloc(1, sizeof(*pRepo));
   if (pRepo == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return NULL;
@@ -748,7 +748,7 @@ static void tsdbFreeRepo(STsdbRepo *pRepo) {
     // tsdbFreeMemTable(pRepo->imem);
     tsem_destroy(&(pRepo->readyToCommit));
     taosThreadMutexDestroy(&pRepo->mutex);
-    free(pRepo);
+    taosMemoryFree(pRepo);
   }
 }
 
@@ -820,7 +820,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
     goto out;
   }
 
-  pBlockStatis = calloc(numColumns, sizeof(SDataStatis));
+  pBlockStatis = taosMemoryCalloc(numColumns, sizeof(SDataStatis));
   if (pBlockStatis == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     err = -1;
@@ -886,7 +886,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
         // save not-null column
         uint16_t bytes = IS_VAR_DATA_TYPE(pCol->type) ? varDataTLen(pColData) : pCol->bytes;
         SDataCol *pLastCol = &(pTable->lastCols[idx]);
-        pLastCol->pData = malloc(bytes);
+        pLastCol->pData = taosMemoryMalloc(bytes);
         pLastCol->bytes = bytes;
         pLastCol->colId = pCol->colId;
         memcpy(pLastCol->pData, value, bytes);
@@ -907,7 +907,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
 
 out:
   taosTZfree(row);
-  tfree(pBlockStatis);
+  taosMemoryFreeClear(pBlockStatis);
 
   if (err == 0 && numColumns <= pTable->restoreColumnNum) {
     pTable->hasRestoreLastColumn = true;

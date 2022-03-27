@@ -44,7 +44,7 @@ void tCoderClear(SCoder* pCoder) {
     pNode = TD_SLIST_HEAD(&(pCoder->stack));
     if (pNode == NULL) break;
     TD_SLIST_POP(&(pCoder->stack));
-    free(pNode);
+    taosMemoryFree(pNode);
   }
 }
 
@@ -55,7 +55,7 @@ int32_t tStartEncode(SCoder* pCoder) {
   if (pCoder->data) {
     if (pCoder->size - pCoder->pos < sizeof(int32_t)) return -1;
 
-    pNode = malloc(sizeof(*pNode));
+    pNode = taosMemoryMalloc(sizeof(*pNode));
     if (pNode == NULL) return -1;
 
     pNode->data = pCoder->data;
@@ -93,7 +93,7 @@ void tEndEncode(SCoder* pCoder) {
 
     TD_CODER_MOVE_POS(pCoder, len);
 
-    free(pNode);
+    taosMemoryFree(pNode);
   }
 }
 
@@ -104,7 +104,7 @@ int32_t tStartDecode(SCoder* pCoder) {
   ASSERT(pCoder->type == TD_DECODER);
   if (tDecodeI32(pCoder, &len) < 0) return -1;
 
-  pNode = malloc(sizeof(*pNode));
+  pNode = taosMemoryMalloc(sizeof(*pNode));
   if (pNode == NULL) return -1;
 
   pNode->data = pCoder->data;
@@ -133,5 +133,5 @@ void tEndDecode(SCoder* pCoder) {
   pCoder->pos = pCoder->size + pNode->pos;
   pCoder->size = pNode->size;
 
-  free(pNode);
+  taosMemoryFree(pNode);
 }

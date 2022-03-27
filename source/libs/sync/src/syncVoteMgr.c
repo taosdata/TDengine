@@ -23,7 +23,7 @@ static void voteGrantedClearVotes(SVotesGranted *pVotesGranted) {
 }
 
 SVotesGranted *voteGrantedCreate(SSyncNode *pSyncNode) {
-  SVotesGranted *pVotesGranted = malloc(sizeof(SVotesGranted));
+  SVotesGranted *pVotesGranted = taosMemoryMalloc(sizeof(SVotesGranted));
   assert(pVotesGranted != NULL);
   memset(pVotesGranted, 0, sizeof(SVotesGranted));
 
@@ -41,7 +41,7 @@ SVotesGranted *voteGrantedCreate(SSyncNode *pSyncNode) {
 
 void voteGrantedDestroy(SVotesGranted *pVotesGranted) {
   if (pVotesGranted != NULL) {
-    free(pVotesGranted);
+    taosMemoryFree(pVotesGranted);
   }
 }
 
@@ -89,12 +89,12 @@ cJSON *voteGranted2Json(SVotesGranted *pVotesGranted) {
     for (int i = 0; i < pVotesGranted->replicaNum; ++i) {
       cJSON_AddItemToArray(pReplicas, syncUtilRaftId2Json(&(*(pVotesGranted->replicas))[i]));
     }
-    int *arr = (int *)malloc(sizeof(int) * pVotesGranted->replicaNum);
+    int *arr = (int *)taosMemoryMalloc(sizeof(int) * pVotesGranted->replicaNum);
     for (int i = 0; i < pVotesGranted->replicaNum; ++i) {
       arr[i] = pVotesGranted->isGranted[i];
     }
     cJSON *pIsGranted = cJSON_CreateIntArray(arr, pVotesGranted->replicaNum);
-    free(arr);
+    taosMemoryFree(arr);
     cJSON_AddItemToObject(pRoot, "isGranted", pIsGranted);
 
     cJSON_AddNumberToObject(pRoot, "votes", pVotesGranted->votes);
@@ -126,31 +126,31 @@ void voteGrantedPrint(SVotesGranted *pObj) {
   char *serialized = voteGranted2Str(pObj);
   printf("voteGrantedPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void voteGrantedPrint2(char *s, SVotesGranted *pObj) {
   char *serialized = voteGranted2Str(pObj);
   printf("voteGrantedPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void voteGrantedLog(SVotesGranted *pObj) {
   char *serialized = voteGranted2Str(pObj);
   sTrace("voteGrantedLog | len:%lu | %s", strlen(serialized), serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void voteGrantedLog2(char *s, SVotesGranted *pObj) {
   char *serialized = voteGranted2Str(pObj);
   sTrace("voteGrantedLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 // SVotesRespond -----------------------------
 SVotesRespond *votesRespondCreate(SSyncNode *pSyncNode) {
-  SVotesRespond *pVotesRespond = malloc(sizeof(SVotesRespond));
+  SVotesRespond *pVotesRespond = taosMemoryMalloc(sizeof(SVotesRespond));
   assert(pVotesRespond != NULL);
   memset(pVotesRespond, 0, sizeof(SVotesRespond));
 
@@ -164,7 +164,7 @@ SVotesRespond *votesRespondCreate(SSyncNode *pSyncNode) {
 
 void votesRespondDestory(SVotesRespond *pVotesRespond) {
   if (pVotesRespond != NULL) {
-    free(pVotesRespond);
+    taosMemoryFree(pVotesRespond);
   }
 }
 
@@ -213,7 +213,7 @@ cJSON *votesRespond2Json(SVotesRespond *pVotesRespond) {
       cJSON_AddItemToArray(pReplicas, syncUtilRaftId2Json(&(*(pVotesRespond->replicas))[i]));
     }
     int  respondNum = 0;
-    int *arr = (int *)malloc(sizeof(int) * pVotesRespond->replicaNum);
+    int *arr = (int *)taosMemoryMalloc(sizeof(int) * pVotesRespond->replicaNum);
     for (int i = 0; i < pVotesRespond->replicaNum; ++i) {
       arr[i] = pVotesRespond->isRespond[i];
       if (pVotesRespond->isRespond[i]) {
@@ -221,7 +221,7 @@ cJSON *votesRespond2Json(SVotesRespond *pVotesRespond) {
       }
     }
     cJSON *pIsRespond = cJSON_CreateIntArray(arr, pVotesRespond->replicaNum);
-    free(arr);
+    taosMemoryFree(arr);
     cJSON_AddItemToObject(pRoot, "isRespond", pIsRespond);
     cJSON_AddNumberToObject(pRoot, "respondNum", respondNum);
 
@@ -248,24 +248,24 @@ void votesRespondPrint(SVotesRespond *pObj) {
   char *serialized = votesRespond2Str(pObj);
   printf("votesRespondPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void votesRespondPrint2(char *s, SVotesRespond *pObj) {
   char *serialized = votesRespond2Str(pObj);
   printf("votesRespondPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void votesRespondLog(SVotesRespond *pObj) {
   char *serialized = votesRespond2Str(pObj);
   sTrace("votesRespondLog | len:%lu | %s", strlen(serialized), serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void votesRespondLog2(char *s, SVotesRespond *pObj) {
   char *serialized = votesRespond2Str(pObj);
   sTrace("votesRespondLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }

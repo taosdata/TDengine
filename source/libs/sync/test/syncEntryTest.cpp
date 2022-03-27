@@ -78,7 +78,7 @@ void test4() {
   SSyncRaftEntry* pEntry2 = syncEntryDeserialize(serialized, len);
   syncEntryPrint(pEntry2);
 
-  free(serialized);
+  taosMemoryFree(serialized);
   syncEntryDestory(pEntry2);
   syncEntryDestory(pEntry);
 }

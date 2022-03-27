@@ -58,11 +58,10 @@ endi
 
 print =============== step3
 sql drop database $db
-# todo release
-#sql show databases
-#if $rows != 1 then 
-#  return -1
-#endi 
+sql show databases
+if $rows != 1 then 
+  return -1
+endi 
 
 print =============== step4
 sql_error drop database $db

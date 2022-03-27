@@ -481,7 +481,7 @@ SNode* createRawExprNodeExt(SAstCreateContext* pCxt, const SToken* pStart, const
 SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
   CHECK_RAW_EXPR_NODE(pNode);
   SNode* tmp = ((SRawExprNode*)pNode)->pNode;
-  tfree(pNode);
+  taosMemoryFreeClear(pNode);
   return tmp;
 }
 
@@ -645,6 +645,11 @@ SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, const STok
   tempTable->pSubquery = pSubquery;
   if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
     strncpy(tempTable->table.tableAlias, pTableAlias->z, pTableAlias->n);
+  } else {
+    sprintf(tempTable->table.tableAlias, "%p", tempTable);
+  }
+  if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
+    strcpy(((SSelectStmt*)pSubquery)->stmtName, tempTable->table.tableAlias);
   }
   return (SNode*)tempTable;
 }
@@ -697,6 +702,13 @@ SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pCol) {
 SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode* pOffset, SNode* pSliding, SNode* pFill) {
   SIntervalWindowNode* interval = (SIntervalWindowNode*)nodesMakeNode(QUERY_NODE_INTERVAL_WINDOW);
   CHECK_OUT_OF_MEM(interval);
+  interval->pCol = nodesMakeNode(QUERY_NODE_COLUMN);
+  if (NULL == interval->pCol) {
+    nodesDestroyNode(interval);
+    CHECK_OUT_OF_MEM(interval->pCol);
+  }
+  ((SColumnNode*)interval->pCol)->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  strcpy(((SColumnNode*)interval->pCol)->colName, PK_TS_COL_INTERNAL_NAME);
   interval->pInterval = pInterval;
   interval->pOffset = pOffset;
   interval->pSliding = pSliding;
@@ -792,6 +804,7 @@ SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pPr
   select->isDistinct = isDistinct;
   select->pProjectionList = pProjectionList;
   select->pFromTable = pTable;
+  sprintf(select->stmtName, "%p", select);
   return (SNode*)select;
 }
 

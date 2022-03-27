@@ -44,7 +44,7 @@ int32_t init_env() {
 
   pRes = taos_query(pConn, "create stable if not exists st1 (ts timestamp, k int) tags(a int)");
   if (taos_errno(pRes) != 0) {
-    printf("failed to create super table 123_$^), reason:%s\n", taos_errstr(pRes));
+    printf("failed to create super table st1, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
   taos_free_result(pRes);

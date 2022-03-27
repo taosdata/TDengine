@@ -27,7 +27,7 @@ int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv) 
   dsize = strlen(rootDir);
   zsize = sizeof(*pEnv) + dsize * 2 + strlen(TDB_JOURNAL_NAME) + 3;
 
-  pPtr = (uint8_t *)calloc(1, zsize);
+  pPtr = (uint8_t *)taosMemoryCalloc(1, zsize);
   if (pPtr == NULL) {
     return -1;
   }

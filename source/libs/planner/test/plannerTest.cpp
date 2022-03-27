@@ -112,6 +112,11 @@ private:
     if (QUERY_NODE_CREATE_TOPIC_STMT == nodeType(pQuery->pRoot)) {
       pCxt->pAstRoot = ((SCreateTopicStmt*)pQuery->pRoot)->pQuery;
       pCxt->topicQuery = true;
+    } else if (QUERY_NODE_CREATE_INDEX_STMT == nodeType(pQuery->pRoot)) {
+      SMCreateSmaReq req = {0};
+      tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req);
+      nodesStringToNode(req.ast, &pCxt->pAstRoot);
+      pCxt->streamQuery = true;
     } else {
       pCxt->pAstRoot = pQuery->pRoot;
     }
@@ -133,7 +138,7 @@ private:
       return string();
     }
     string str(pStr);
-    tfree(pStr);
+    taosMemoryFreeClear(pStr);
     return str;
   }
 
@@ -165,7 +170,7 @@ TEST_F(PlannerTest, groupBy) {
   bind("SELECT count(*) FROM t1");
   ASSERT_TRUE(run());
 
-  bind("SELECT c1, count(*) FROM t1 GROUP BY c1");
+  bind("SELECT c1, max(c3), min(c2), count(*) FROM t1 GROUP BY c1");
   ASSERT_TRUE(run());
 
   bind("SELECT c1 + c3, c1 + count(*) FROM t1 where c2 = 'abc' GROUP BY c1, c3");
@@ -196,10 +201,31 @@ TEST_F(PlannerTest, sessionWindow) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(PlannerTest, orderBy) {
+  setDatabase("root", "test");
+
+  bind("SELECT * FROM t1 order by c1");
+  ASSERT_TRUE(run());
+
+  bind("SELECT c1 FROM t1 order by c2");
+  ASSERT_TRUE(run());
+
+  bind("SELECT * FROM t1 order by c1 + 10, c2");
+  ASSERT_TRUE(run());
+}
+
 TEST_F(PlannerTest, showTables) {
   setDatabase("root", "test");
 
   bind("show tables");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, showStables) {
+  setDatabase("root", "test");
+
+  bind("show stables");
+  ASSERT_TRUE(run());
 }
 
 TEST_F(PlannerTest, createTopic) {
@@ -214,4 +240,11 @@ TEST_F(PlannerTest, stream) {
 
   bind("SELECT sum(c1) FROM st1");
   ASSERT_TRUE(run(true));
+}
+
+TEST_F(PlannerTest, createSmaIndex) {
+  setDatabase("root", "test");
+
+  bind("create sma index index1 on t1 function(max(c1), min(c3 + 10), sum(c4)) INTERVAL(10s)");
+  ASSERT_TRUE(run());
 }

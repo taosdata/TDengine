@@ -27,7 +27,7 @@ char* indexPackJsonData(SIndexTerm* itm) {
   uint8_t ty = INDEX_TYPE_GET_TYPE(itm->colType);
 
   int32_t sz = itm->nColName + itm->nColVal + sizeof(uint8_t) + sizeof(JSON_VALUE_DELIM) * 2 + 1;
-  char*   buf = (char*)calloc(1, sz);
+  char*   buf = (char*)taosMemoryCalloc(1, sz);
   char*   p = buf;
 
   memcpy(p, itm->colName, itm->nColName);

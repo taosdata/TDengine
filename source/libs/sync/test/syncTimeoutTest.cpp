@@ -30,13 +30,13 @@ void test1() {
 void test2() {
   SyncTimeout *pMsg = createMsg();
   uint32_t     len = pMsg->bytes;
-  char *       serialized = (char *)malloc(len);
+  char *       serialized = (char *)taosMemoryMalloc(len);
   syncTimeoutSerialize(pMsg, serialized, len);
   SyncTimeout *pMsg2 = syncTimeoutBuild();
   syncTimeoutDeserialize(serialized, len, pMsg2);
   syncTimeoutPrint2((char *)"test2: syncTimeoutSerialize -> syncTimeoutDeserialize ", pMsg2);
 
-  free(serialized);
+  taosMemoryFree(serialized);
   syncTimeoutDestroy(pMsg);
   syncTimeoutDestroy(pMsg2);
 }
@@ -48,7 +48,7 @@ void test3() {
   SyncTimeout *pMsg2 = syncTimeoutDeserialize2(serialized, len);
   syncTimeoutPrint2((char *)"test3: syncTimeoutSerialize3 -> syncTimeoutDeserialize2 ", pMsg2);
 
-  free(serialized);
+  taosMemoryFree(serialized);
   syncTimeoutDestroy(pMsg);
   syncTimeoutDestroy(pMsg2);
 }
@@ -57,7 +57,7 @@ void test4() {
   SyncTimeout *pMsg = createMsg();
   SRpcMsg      rpcMsg;
   syncTimeout2RpcMsg(pMsg, &rpcMsg);
-  SyncTimeout *pMsg2 = (SyncTimeout *)malloc(rpcMsg.contLen);
+  SyncTimeout *pMsg2 = (SyncTimeout *)taosMemoryMalloc(rpcMsg.contLen);
   syncTimeoutFromRpcMsg(&rpcMsg, pMsg2);
   syncTimeoutPrint2((char *)"test4: syncTimeout2RpcMsg -> syncTimeoutFromRpcMsg ", pMsg2);
 

@@ -1929,7 +1929,7 @@ static void copyTopBotRes(SqlFunctionCtx *pCtx, int32_t type) {
   
   // set the corresponding tag data for each record
   // todo check malloc failure
-//  char **pData = calloc(pCtx->tagInfo.numOfTagCols, POINTER_BYTES);
+//  char **pData = taosMemoryCalloc(pCtx->tagInfo.numOfTagCols, POINTER_BYTES);
 //  for (int32_t i = 0; i < pCtx->tagInfo.numOfTagCols; ++i) {
 //    pData[i] = pCtx->tagInfo.pTagCtxList[i]->pOutput;
 //  }
@@ -1943,7 +1943,7 @@ static void copyTopBotRes(SqlFunctionCtx *pCtx, int32_t type) {
 //    }
 //  }
   
-//  tfree(pData);
+//  taosMemoryFreeClear(pData);
 }
 
 /*
@@ -2422,7 +2422,7 @@ static void apercentile_finalizer(SqlFunctionCtx *pCtx) {
 //      double *res = tHistogramUniform(pOutput->pHisto, ratio, 1);
 //
 //      memcpy(pCtx->pOutput, res, sizeof(double));
-//      free(res);
+//      taosMemoryFree(res);
 //    } else {
 //      setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
 //      return;
@@ -2433,7 +2433,7 @@ static void apercentile_finalizer(SqlFunctionCtx *pCtx) {
       
       double *res = tHistogramUniform(pOutput->pHisto, ratio, 1);
       memcpy(pCtx->pOutput, res, sizeof(double));
-      free(res);
+      taosMemoryFree(res);
     } else {  // no need to free
       setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
       return;
@@ -4004,7 +4004,7 @@ static void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDi
 
   char* outputBuf = NULL;
   if (comp) {
-    outputBuf = malloc(originalLen);
+    outputBuf = taosMemoryMalloc(originalLen);
 
     size_t actualLen = compLen;
     const char* compStr = tbufReadBinary(&br, &actualLen);
@@ -4018,7 +4018,7 @@ static void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDi
 
   pDist->dataBlockInfos = taosArrayFromList(outputBuf, (uint32_t)numSteps, sizeof(SFileBlockInfo));
   if (comp) {
-    tfree(outputBuf);
+    taosMemoryFreeClear(outputBuf);
   }
 }
 

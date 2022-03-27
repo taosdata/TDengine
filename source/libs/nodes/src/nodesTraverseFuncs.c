@@ -99,6 +99,9 @@ static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FNodeWalker walker
       if (DEAL_RES_ERROR != res) {
         res = walkNode(pInterval->pFill, order, walker, pContext);
       }
+      if (DEAL_RES_ERROR != res) {
+        res = walkNode(pInterval->pCol, order, walker, pContext);
+      }
       break;
     }
     case QUERY_NODE_NODE_LIST:
@@ -225,6 +228,9 @@ static EDealRes rewriteNode(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       if (DEAL_RES_ERROR != res) {
         res = rewriteNode(&(pInterval->pFill), order, rewriter, pContext);
       }
+      if (DEAL_RES_ERROR != res) {
+        res = rewriteNode(&(pInterval->pCol), order, rewriter, pContext);
+      }
       break;
     }
     case QUERY_NODE_NODE_LIST:
@@ -294,10 +300,10 @@ void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker wa
     case SQL_CLAUSE_GROUP_BY:
       nodesWalkNode(pSelect->pHaving, walker, pContext);
     case SQL_CLAUSE_HAVING:
-      nodesWalkList(pSelect->pProjectionList, walker, pContext);
-    case SQL_CLAUSE_SELECT:
       nodesWalkList(pSelect->pOrderByList, walker, pContext);
     case SQL_CLAUSE_ORDER_BY:
+      nodesWalkList(pSelect->pProjectionList, walker, pContext);
+    case SQL_CLAUSE_SELECT:
     default:
       break;
   }

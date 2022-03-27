@@ -195,7 +195,7 @@ int32_t encodeRequest(char **pBuf, int32_t *pBufLen, SUdfRequest *request) {
       break;
   }
 
-  char *bufBegin = malloc(len);
+  char *bufBegin = taosMemoryMalloc(len);
   char *buf = bufBegin;
 
   //skip msgLen first
@@ -263,7 +263,7 @@ int32_t decodeRequest(char *bufMsg, int32_t bufLen, SUdfRequest **pRequest) {
     return -1;
   }
   char *buf = bufMsg;
-  SUdfRequest *request = malloc(sizeof(SUdfRequest));
+  SUdfRequest *request = taosMemoryMalloc(sizeof(SUdfRequest));
   request->subReq = NULL;
   request->msgLen = *(int32_t *) (buf);
   buf += sizeof(int32_t);
@@ -274,7 +274,7 @@ int32_t decodeRequest(char *bufMsg, int32_t bufLen, SUdfRequest **pRequest) {
 
   switch (request->type) {
     case UDF_TASK_SETUP: {
-      SUdfSetupRequest *setup = malloc(sizeof(SUdfSetupRequest));
+      SUdfSetupRequest *setup = taosMemoryMalloc(sizeof(SUdfSetupRequest));
 
       memcpy(setup->udfName, buf, 16);
       buf += 16;
@@ -291,7 +291,7 @@ int32_t decodeRequest(char *bufMsg, int32_t bufLen, SUdfRequest **pRequest) {
       break;
     }
     case UDF_TASK_CALL: {
-      SUdfCallRequest *call = malloc(sizeof(SUdfCallRequest));
+      SUdfCallRequest *call = taosMemoryMalloc(sizeof(SUdfCallRequest));
 
       call->udfHandle = *(int64_t *) buf;
       buf += sizeof(int64_t);
@@ -311,7 +311,7 @@ int32_t decodeRequest(char *bufMsg, int32_t bufLen, SUdfRequest **pRequest) {
     }
 
     case UDF_TASK_TEARDOWN: {
-      SUdfTeardownRequest *teardown = malloc(sizeof(SUdfTeardownRequest));
+      SUdfTeardownRequest *teardown = taosMemoryMalloc(sizeof(SUdfTeardownRequest));
 
       teardown->udfHandle = *(int64_t *) buf;
       buf += sizeof(int64_t);
@@ -322,8 +322,8 @@ int32_t decodeRequest(char *bufMsg, int32_t bufLen, SUdfRequest **pRequest) {
   }
   if (buf - bufMsg != bufLen) {
     debugPrint("%s", "decode request error");
-    free(request->subReq);
-    free(request);
+    taosMemoryFree(request->subReq);
+    taosMemoryFree(request);
     return -1;
   }
   *pRequest = request;
@@ -352,7 +352,7 @@ int32_t encodeResponse(char **pBuf, int32_t *pBufLen, SUdfResponse *response) {
     }
   }
 
-  char *bufBegin = malloc(len);
+  char *bufBegin = taosMemoryMalloc(len);
   char *buf = bufBegin;
 
   //skip msgLen
@@ -408,7 +408,7 @@ int32_t decodeResponse(char *bufMsg, int32_t bufLen, SUdfResponse **pResponse) {
     return -1;
   }
   char *buf = bufMsg;
-  SUdfResponse *rsp = malloc(sizeof(SUdfResponse));
+  SUdfResponse *rsp = taosMemoryMalloc(sizeof(SUdfResponse));
   rsp->msgLen = *(int32_t *) buf;
   buf += sizeof(int32_t);
   rsp->seqNum = *(int64_t *) buf;
@@ -420,14 +420,14 @@ int32_t decodeResponse(char *bufMsg, int32_t bufLen, SUdfResponse **pResponse) {
 
   switch (rsp->type) {
     case UDF_TASK_SETUP: {
-      SUdfSetupResponse *setupRsp = (SUdfSetupResponse *) malloc(sizeof(SUdfSetupResponse));
+      SUdfSetupResponse *setupRsp = (SUdfSetupResponse *) taosMemoryMalloc(sizeof(SUdfSetupResponse));
       setupRsp->udfHandle = *(int64_t *) buf;
       buf += sizeof(int64_t);
       rsp->subRsp = (char *) setupRsp;
       break;
     }
     case UDF_TASK_CALL: {
-      SUdfCallResponse *callRsp = (SUdfCallResponse *) malloc(sizeof(SUdfCallResponse));
+      SUdfCallResponse *callRsp = (SUdfCallResponse *) taosMemoryMalloc(sizeof(SUdfCallResponse));
       callRsp->outputBytes = *(int32_t *) buf;
       buf += sizeof(int32_t);
 
@@ -444,7 +444,7 @@ int32_t decodeResponse(char *bufMsg, int32_t bufLen, SUdfResponse **pResponse) {
       break;
     }
     case UDF_TASK_TEARDOWN: {
-      SUdfTeardownResponse *teardownRsp = (SUdfTeardownResponse *) malloc(sizeof(SUdfTeardownResponse));
+      SUdfTeardownResponse *teardownRsp = (SUdfTeardownResponse *) taosMemoryMalloc(sizeof(SUdfTeardownResponse));
       rsp->subRsp = teardownRsp;
       break;
     }
@@ -453,8 +453,8 @@ int32_t decodeResponse(char *bufMsg, int32_t bufLen, SUdfResponse **pResponse) {
   }
   if (buf - bufMsg != bufLen) {
     debugPrint("%s", "can not decode response");
-    free(rsp->subRsp);
-    free(rsp);
+    taosMemoryFree(rsp->subRsp);
+    taosMemoryFree(rsp);
     return -1;
   }
   *pResponse = rsp;
@@ -475,9 +475,9 @@ void onUdfcPipeClose(uv_handle_t *handle) {
     uv_sem_post(&task->taskSem);
   }
 
-  free(conn->readBuf.buf);
-  free(conn);
-  free((uv_pipe_t *) handle);
+  taosMemoryFree(conn->readBuf.buf);
+  taosMemoryFree(conn);
+  taosMemoryFree((uv_pipe_t *) handle);
 
 }
 
@@ -511,9 +511,9 @@ int32_t udfcGetUvTaskResponseResult(SClientUdfTask *task, SClientUvTaskNode *uvT
       }
 
       // TODO: the call buffer is setup and freed by udf invocation
-      free(uvTask->rspBuf.base);
-      free(rsp->subRsp);
-      free(rsp);
+      taosMemoryFree(uvTask->rspBuf.base);
+      taosMemoryFree(rsp->subRsp);
+      taosMemoryFree(rsp);
     } else {
       task->errCode = uvTask->errCode;
     }
@@ -532,7 +532,7 @@ void udfcAllocateBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf
 
   int32_t msgHeadSize = sizeof(int32_t) + sizeof(int64_t);
   if (connBuf->cap == 0) {
-    connBuf->buf = malloc(msgHeadSize);
+    connBuf->buf = taosMemoryMalloc(msgHeadSize);
     if (connBuf->buf) {
       connBuf->len = 0;
       connBuf->cap = msgHeadSize;
@@ -547,7 +547,7 @@ void udfcAllocateBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf
     }
   } else {
     connBuf->cap = connBuf->total > connBuf->cap ? connBuf->total : connBuf->cap;
-    void *resultBuf = realloc(connBuf->buf, connBuf->cap);
+    void *resultBuf = taosMemoryRealloc(connBuf->buf, connBuf->cap);
     if (resultBuf) {
       connBuf->buf = resultBuf;
       buf->base = connBuf->buf + connBuf->len;
@@ -648,8 +648,8 @@ void onUdfClientWrite(uv_write_t *write, int status) {
     //TODO Log error;
   }
   debugPrint("\tlength:%zu", uvTask->reqBuf.len);
-  free(write);
-  free(uvTask->reqBuf.base);
+  taosMemoryFree(write);
+  taosMemoryFree(uvTask->reqBuf.base);
 }
 
 void onUdfClientConnect(uv_connect_t *connect, int status) {
@@ -659,12 +659,12 @@ void onUdfClientConnect(uv_connect_t *connect, int status) {
     //TODO: LOG error
   }
   uv_read_start((uv_stream_t *) uvTask->pipe, udfcAllocateBuffer, onUdfcRead);
-  free(connect);
+  taosMemoryFree(connect);
   uv_sem_post(&uvTask->taskSem);
 }
 
 int32_t createUdfcUvTask(SClientUdfTask *task, int8_t uvTaskType, SClientUvTaskNode **pUvTask) {
-  SClientUvTaskNode *uvTask = calloc(1, sizeof(SClientUvTaskNode));
+  SClientUvTaskNode *uvTask = taosMemoryCalloc(1, sizeof(SClientUvTaskNode));
   uvTask->type = uvTaskType;
 
   if (uvTaskType == UV_TASK_CONNECT) {
@@ -718,11 +718,11 @@ int32_t startUvUdfTask(SClientUvTaskNode *uvTask) {
   debugPrint("%s, type %d", "start uv task ", uvTask->type);
   switch (uvTask->type) {
     case UV_TASK_CONNECT: {
-      uv_pipe_t *pipe = malloc(sizeof(uv_pipe_t));
+      uv_pipe_t *pipe = taosMemoryMalloc(sizeof(uv_pipe_t));
       uv_pipe_init(&gUdfdLoop, pipe, 0);
       uvTask->pipe = pipe;
 
-      SClientUvConn *conn = malloc(sizeof(SClientUvConn));
+      SClientUvConn *conn = taosMemoryMalloc(sizeof(SClientUvConn));
       conn->pipe = pipe;
       conn->readBuf.len = 0;
       conn->readBuf.cap = 0;
@@ -732,7 +732,7 @@ int32_t startUvUdfTask(SClientUvTaskNode *uvTask) {
 
       pipe->data = conn;
 
-      uv_connect_t *connReq = malloc(sizeof(uv_connect_t));
+      uv_connect_t *connReq = taosMemoryMalloc(sizeof(uv_connect_t));
       connReq->data = uvTask;
 
       uv_pipe_connect(connReq, pipe, "udf.sock", onUdfClientConnect);
@@ -740,7 +740,7 @@ int32_t startUvUdfTask(SClientUvTaskNode *uvTask) {
     }
     case UV_TASK_REQ_RSP: {
       uv_pipe_t *pipe = uvTask->pipe;
-      uv_write_t *write = malloc(sizeof(uv_write_t));
+      uv_write_t *write = taosMemoryMalloc(sizeof(uv_write_t));
       write->data = uvTask;
       uv_write(write, (uv_stream_t *) pipe, &uvTask->reqBuf, 1, onUdfClientWrite);
       break;
@@ -833,16 +833,16 @@ int32_t udfcRunUvTask(SClientUdfTask *task, int8_t uvTaskType) {
   if (uvTaskType == UV_TASK_CONNECT) {
     task->session->udfSvcPipe = uvTask->pipe;
   }
-  free(uvTask);
+  taosMemoryFree(uvTask);
   uvTask = NULL;
   return task->errCode;
 }
 
 int32_t setupUdf(SUdfInfo *udfInfo, UdfHandle *handle) {
   debugPrint("%s", "client setup udf");
-  SClientUdfTask *task = malloc(sizeof(SClientUdfTask));
+  SClientUdfTask *task = taosMemoryMalloc(sizeof(SClientUdfTask));
   task->errCode = 0;
-  task->session = malloc(sizeof(SUdfUvSession));
+  task->session = taosMemoryMalloc(sizeof(SUdfUvSession));
   task->type = UDF_TASK_SETUP;
 
   SUdfSetupRequest *req = &task->_setup.req;
@@ -864,7 +864,7 @@ int32_t setupUdf(SUdfInfo *udfInfo, UdfHandle *handle) {
   task->session->severHandle = rsp->udfHandle;
   *handle = task->session;
   int32_t err = task->errCode;
-  free(task);
+  taosMemoryFree(task);
   return err;
 }
 
@@ -872,7 +872,7 @@ int32_t callUdf(UdfHandle handle, int8_t step, char *state, int32_t stateSize, S
                 int32_t *newStateSize, SUdfDataBlock *output) {
   debugPrint("%s", "client call udf");
 
-  SClientUdfTask *task = malloc(sizeof(SClientUdfTask));
+  SClientUdfTask *task = taosMemoryMalloc(sizeof(SClientUdfTask));
   task->errCode = 0;
   task->session = (SUdfUvSession *) handle;
   task->type = UDF_TASK_CALL;
@@ -894,14 +894,14 @@ int32_t callUdf(UdfHandle handle, int8_t step, char *state, int32_t stateSize, S
   output->size = rsp->outputBytes;
   output->data = rsp->output;
   int32_t err = task->errCode;
-  free(task);
+  taosMemoryFree(task);
   return err;
 }
 
 int32_t teardownUdf(UdfHandle handle) {
   debugPrint("%s", "client teardown udf");
 
-  SClientUdfTask *task = malloc(sizeof(SClientUdfTask));
+  SClientUdfTask *task = taosMemoryMalloc(sizeof(SClientUdfTask));
   task->errCode = 0;
   task->session = (SUdfUvSession *) handle;
   task->type = UDF_TASK_TEARDOWN;
@@ -918,8 +918,8 @@ int32_t teardownUdf(UdfHandle handle) {
 
   udfcRunUvTask(task, UV_TASK_DISCONNECT);
 
-  free(task->session);
-  free(task);
+  taosMemoryFree(task->session);
+  taosMemoryFree(task);
 
   return err;
 }

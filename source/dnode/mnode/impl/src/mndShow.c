@@ -146,7 +146,7 @@ static int32_t mndProcessShowReq(SNodeMsg *pReq) {
   }
 
   showRsp.showId = pShow->id;
-  showRsp.tableMeta.pSchemas = calloc(TSDB_MAX_COLUMNS, sizeof(SSchema));
+  showRsp.tableMeta.pSchemas = taosMemoryCalloc(TSDB_MAX_COLUMNS, sizeof(SSchema));
   if (showRsp.tableMeta.pSchemas == NULL) {
     mndReleaseShowObj(pShow, true);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -357,6 +357,13 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
   // if free flag is set, client wants to clean the resources
   if ((retrieveReq.free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
     rowsRead = (*retrieveFp)(pReq, (SShowObj*) pShow, pRsp->data, rowsToRead);
+    if (rowsRead < 0) {
+      terrno = rowsRead;
+      rpcFreeCont(pRsp);
+      mDebug("show:0x%" PRIx64 ", retrieve completed", pShow->id);
+      mndReleaseShowObj((SShowObj*) pShow, true);
+      return -1;
+    }
   }
 
   mDebug("show:0x%" PRIx64 ", stop retrieve data, rowsRead:%d rowsToRead:%d", pShow->id, rowsRead, rowsToRead);

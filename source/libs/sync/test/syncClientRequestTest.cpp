@@ -34,13 +34,13 @@ void test1() {
 void test2() {
   SyncClientRequest *pMsg = createMsg();
   uint32_t           len = pMsg->bytes;
-  char *             serialized = (char *)malloc(len);
+  char *             serialized = (char *)taosMemoryMalloc(len);
   syncClientRequestSerialize(pMsg, serialized, len);
   SyncClientRequest *pMsg2 = syncClientRequestBuild(pMsg->dataLen);
   syncClientRequestDeserialize(serialized, len, pMsg2);
   syncClientRequestPrint2((char *)"test2: syncClientRequestSerialize -> syncClientRequestDeserialize ", pMsg2);
 
-  free(serialized);
+  taosMemoryFree(serialized);
   syncClientRequestDestroy(pMsg);
   syncClientRequestDestroy(pMsg2);
 }
@@ -52,7 +52,7 @@ void test3() {
   SyncClientRequest *pMsg2 = syncClientRequestDeserialize2(serialized, len);
   syncClientRequestPrint2((char *)"test3: syncClientRequestSerialize3 -> syncClientRequestDeserialize2 ", pMsg2);
 
-  free(serialized);
+  taosMemoryFree(serialized);
   syncClientRequestDestroy(pMsg);
   syncClientRequestDestroy(pMsg2);
 }
@@ -61,7 +61,7 @@ void test4() {
   SyncClientRequest *pMsg = createMsg();
   SRpcMsg            rpcMsg;
   syncClientRequest2RpcMsg(pMsg, &rpcMsg);
-  SyncClientRequest *pMsg2 = (SyncClientRequest *)malloc(rpcMsg.contLen);
+  SyncClientRequest *pMsg2 = (SyncClientRequest *)taosMemoryMalloc(rpcMsg.contLen);
   syncClientRequestFromRpcMsg(&rpcMsg, pMsg2);
   syncClientRequestPrint2((char *)"test4: syncClientRequest2RpcMsg -> syncClientRequestFromRpcMsg ", pMsg2);
 

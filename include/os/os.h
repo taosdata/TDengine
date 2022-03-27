@@ -75,7 +75,6 @@ extern "C" {
 #include "osDef.h"
 #include "osDir.h"
 #include "osEndian.h"
-#include "osEnv.h"
 #include "osFile.h"
 #include "osLocale.h"
 #include "osLz4.h"
@@ -93,8 +92,9 @@ extern "C" {
 #include "osTime.h"
 #include "osTimer.h"
 #include "osTimezone.h"
+#include "osEnv.h"
 
-void osInit();
+void osDefaultInit();
 
 #ifdef __cplusplus
 }
