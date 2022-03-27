@@ -279,7 +279,7 @@ static FORCE_INLINE void varToBool(char *buf, SScalarParam* pOut, int32_t rowInd
 
 int32_t vectorConvertFromVarData(SScalarParam* pIn, SScalarParam* pOut, int32_t inType, int32_t outType) {
   int32_t bufSize = pIn->columnData->info.bytes;
-  char *tmp = malloc(bufSize);
+  char *tmp = taosMemoryMalloc(bufSize);
 
   _bufConverteFunc func = NULL;
   if (TSDB_DATA_TYPE_BOOL == outType) {
