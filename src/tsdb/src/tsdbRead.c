@@ -2895,7 +2895,7 @@ static bool doHasDataInBuffer(STsdbQueryHandle* pQueryHandle) {
   return false;
 }
 
-//todo not unref yet, since it is not support multi-group interpolation query
+//todo not unref yet, since it does not support multi-group interpolation query
 static UNUSED_FUNC void changeQueryHandleForInterpQuery(TsdbQueryHandleT pHandle) {
   // filter the queried time stamp in the first place
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*) pHandle;
