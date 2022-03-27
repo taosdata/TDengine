@@ -208,11 +208,11 @@ typedef struct {
 typedef struct SSubmitBlk {
   int64_t uid;        // table unique id
   int64_t suid;       // stable id
-  int32_t padding;    // TODO just for padding here
   int32_t sversion;   // data schema version
   int32_t dataLen;    // data part length, not including the SSubmitBlk head
   int32_t schemaLen;  // schema length, if length is 0, no schema exists
   int16_t numOfRows;  // total number of rows in current submit block
+  int16_t padding;    // TODO just for padding here
   char    data[];
 } SSubmitBlk;
 
