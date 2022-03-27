@@ -97,6 +97,8 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle) {
   pMsg->contentLen = pMsg->contentLen;
 #endif
 
+  qDebugL("stream task string %s", (const char*)msg);
+
   struct SSubplan* plan = NULL;
   int32_t          code = qStringToSubplan(msg, &plan);
   if (code != TSDB_CODE_SUCCESS) {
