@@ -188,7 +188,7 @@ static int32_t queryConvertTableMetaMsg(STableMetaRsp *pMetaMsg) {
   }
 
   if (pMetaMsg->pSchemas[0].colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
-    qError("invalid colId[%d] for the first column in table meta rsp msg", pMetaMsg->pSchemas[0].colId);
+    qError("invalid colId[%" PRIi16 "] for the first column in table meta rsp msg", pMetaMsg->pSchemas[0].colId);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 

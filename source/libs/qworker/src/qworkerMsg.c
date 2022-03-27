@@ -170,7 +170,7 @@ int32_t qwBuildAndSendShowRsp(SRpcMsg *pMsg, int32_t code) {
     return -1;
   }
 
-  int32_t  cols = 0;
+  col_id_t  cols = 0;
   SSchema *pSchema = showRsp.tableMeta.pSchemas;
 
   const SSchema *s = tGetTbnameColumnSchema();

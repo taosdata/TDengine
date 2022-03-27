@@ -1990,7 +1990,7 @@ typedef struct SVgroupTablesBatch {
   char               dbName[TSDB_DB_NAME_LEN];
 } SVgroupTablesBatch;
 
-static void toSchema(const SColumnDefNode* pCol, int32_t colId, SSchema* pSchema) {
+static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSchema) {
   pSchema->colId = colId;
   pSchema->type = pCol->dataType.type;
   pSchema->bytes = pCol->dataType.bytes;

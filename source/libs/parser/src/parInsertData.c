@@ -43,11 +43,11 @@ static int32_t rowDataCompar(const void *lhs, const void *rhs) {
   }
 }
 
-void setBoundColumnInfo(SParsedDataColInfo* pColList, SSchema* pSchema, int32_t numOfCols) {
+void setBoundColumnInfo(SParsedDataColInfo* pColList, SSchema* pSchema, col_id_t numOfCols) {
   pColList->numOfCols = numOfCols;
   pColList->numOfBound = numOfCols;
   pColList->orderStatus = ORDER_STATUS_ORDERED;  // default is ORDERED for non-bound mode
-  pColList->boundedColumns = taosMemoryCalloc(pColList->numOfCols, sizeof(int32_t));
+  pColList->boundColumns = taosMemoryCalloc(pColList->numOfCols, sizeof(col_id_t));
   pColList->cols = taosMemoryCalloc(pColList->numOfCols, sizeof(SBoundColumn));
   pColList->colIdxInfo = NULL;
   pColList->flen = 0;
@@ -73,7 +73,7 @@ void setBoundColumnInfo(SParsedDataColInfo* pColList, SSchema* pSchema, int32_t 
       default:
         break;
     }
-    pColList->boundedColumns[i] = pSchema[i].colId;
+    pColList->boundColumns[i] = pSchema[i].colId;
   }
   pColList->allNullLen += pColList->flen;
   pColList->boundNullLen = pColList->allNullLen;  // default set allNullLen
@@ -103,7 +103,7 @@ int32_t boundIdxCompar(const void *lhs, const void *rhs) {
 }
 
 void destroyBoundColumnInfo(SParsedDataColInfo* pColList) {
-  taosMemoryFreeClear(pColList->boundedColumns);
+  taosMemoryFreeClear(pColList->boundColumns);
   taosMemoryFreeClear(pColList->cols);
   taosMemoryFreeClear(pColList->colIdxInfo);
 }
