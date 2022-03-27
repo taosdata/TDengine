@@ -134,6 +134,7 @@ void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
   dndGetStartup(pDnode, pStartup);
 
   dDebug("startup req is sent, step:%s desc:%s finished:%d", pStartup->name, pStartup->desc, pStartup->finished);
-  SRpcMsg rpcRsp = {.handle = pReq->handle, .pCont = pStartup, .contLen = sizeof(SStartupReq)};
+  SRpcMsg rpcRsp = {
+      .handle = pReq->handle, .pCont = pStartup, .contLen = sizeof(SStartupReq), .ahandle = pReq->ahandle};
   rpcSendResponse(&rpcRsp);
 }

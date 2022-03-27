@@ -30,16 +30,18 @@ enum {
   STREAM_TASK_STATUS__STOP,
 };
 
+#if 0
 // pipe  -> fetch/pipe queue
 // merge -> merge      queue
 // write -> write      queue
 enum {
-  TASK_SINK_MSG__SND_PIPE = 1,
-  TASK_SINK_MSG__SND_MERGE,
-  TASK_SINK_MSG__VND_PIPE,
-  TASK_SINK_MSG__VND_MERGE,
-  TASK_SINK_MSG__VND_WRITE,
+  TASK_DISPATCH_MSG__SND_PIPE = 1,
+  TASK_DISPATCH_MSG__SND_MERGE,
+  TASK_DISPATCH_MSG__VND_PIPE,
+  TASK_DISPATCH_MSG__VND_MERGE,
+  TASK_DISPATCH_MSG__VND_WRITE,
 };
+#endif
 
 typedef struct {
   int32_t nodeId;  // 0 for snode
@@ -93,13 +95,14 @@ typedef struct {
 
 enum {
   TASK_SOURCE__SCAN = 1,
-  TASK_SOURCE__SINGLE,
-  TASK_SOURCE__MULTI,
+  TASK_SOURCE__PIPE,
+  TASK_SOURCE__MERGE,
 };
 
 enum {
   TASK_EXEC__NONE = 1,
-  TASK_EXEC__EXEC,
+  TASK_EXEC__PIPE,
+  TASK_EXEC__MERGE,
 };
 
 enum {
@@ -128,6 +131,9 @@ typedef struct {
   int8_t  dispatchType;
   int16_t dispatchMsgType;
   int32_t downstreamTaskId;
+
+  int32_t nodeId;
+  SEpSet  epSet;
 
   // source preprocess
 

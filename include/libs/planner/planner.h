@@ -29,6 +29,7 @@ typedef struct SPlanContext {
   SNode* pAstRoot;
   bool topicQuery;
   bool streamQuery;
+  bool showRewrite;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.

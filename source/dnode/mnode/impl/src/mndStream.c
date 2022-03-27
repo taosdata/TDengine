@@ -14,7 +14,6 @@
  */
 
 #include "mndStream.h"
-#include "parser.h"
 #include "mndAuth.h"
 #include "mndDb.h"
 #include "mndDnode.h"
@@ -26,6 +25,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
+#include "parser.h"
 #include "tname.h"
 
 #define MND_STREAM_VER_NUMBER   1
@@ -248,23 +248,22 @@ static int32_t mndStreamGetPlanString(const char *ast, char **pStr) {
 
 int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast, STrans *pTrans) {
   SNode *pAst = NULL;
-#if 1 // TODO: remove debug info later
-  printf("ast = %s\n", ast); 
-#endif
+
   if (nodesStringToNode(ast, &pAst) < 0) {
     return -1;
   }
-#if 1
-  SSchemaWrapper sw = {0};
-  qExtractResultSchema(pAst, (int32_t*)&sw.nCols, &sw.pSchema);
 
+  if (qExtractResultSchema(pAst, (int32_t *)&pStream->outputSchema.nCols, &pStream->outputSchema.pSchema) != 0) {
+    return -1;
+  }
+
+#if 1
   printf("|");
-  for (int i = 0; i < sw.nCols; i++) {
-    printf(" %15s |", (char *)sw.pSchema[i].name);
+  for (int i = 0; i < pStream->outputSchema.nCols; i++) {
+    printf(" %15s |", (char *)pStream->outputSchema.pSchema[i].name);
   }
   printf("\n=======================================================\n");
 
-  pStream->ColAlias = NULL;
 #endif
 
   if (TSDB_CODE_SUCCESS != mndStreamGetPlanString(ast, &pStream->physicalPlan)) {

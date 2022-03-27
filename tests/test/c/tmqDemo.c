@@ -694,7 +694,7 @@ int main(int32_t argc, char *argv[]) {
 	walLogSize = getDirectorySize(g_stConfInfo.vnodeWalPath);
 	if (walLogSize <= 0) {
 	  printf("vnode2/wal size incorrect!");
-	  exit(-1);
+		/*exit(-1);*/
 	} else {
 	  if (0 == g_stConfInfo.simCase) {	
 	    pPrint(".log file size in vnode2/wal: %.3f MBytes\n", (double)walLogSize/(1024 * 1024.0));

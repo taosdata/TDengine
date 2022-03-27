@@ -238,12 +238,15 @@ void transCtxCleanup(STransCtx* ctx) {
     iter->freeFunc(iter->val);
     iter = taosHashIterate(ctx->args, iter);
   }
+
   taosHashCleanup(ctx->args);
+  ctx->args = NULL;
 }
 
 void transCtxMerge(STransCtx* dst, STransCtx* src) {
   if (dst->args == NULL) {
     dst->args = src->args;
+    dst->brokenVal = src->brokenVal;
     src->args = NULL;
     return;
   }
@@ -271,9 +274,20 @@ void* transCtxDumpVal(STransCtx* ctx, int32_t key) {
   if (cVal == NULL) {
     return NULL;
   }
-  char* ret = taosMemoryCalloc(1, cVal->len);
-  memcpy(ret, (char*)cVal->val, cVal->len);
-  return (void*)ret;
+  void* ret = NULL;
+  (*cVal->clone)(cVal->val, &ret);
+  return ret;
+}
+void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
+  void* ret = NULL;
+  if (ctx->brokenVal.clone == NULL) {
+    return ret;
+  }
+  (*ctx->brokenVal.clone)(ctx->brokenVal.val, &ret);
+
+  *msgType = ctx->brokenVal.msgType;
+
+  return ret;
 }
 
 void transQueueInit(STransQueue* queue, void (*freeFunc)(const void* arg)) {
@@ -281,6 +295,9 @@ void transQueueInit(STransQueue* queue, void (*freeFunc)(const void* arg)) {
   queue->freeFunc = freeFunc;
 }
 bool transQueuePush(STransQueue* queue, void* arg) {
+  if (queue->q == NULL) {
+    return true;
+  }
   taosArrayPush(queue->q, &arg);
   if (taosArrayGetSize(queue->q) > 1) {
     return false;
@@ -288,23 +305,47 @@ bool transQueuePush(STransQueue* queue, void* arg) {
   return true;
 }
 void* transQueuePop(STransQueue* queue) {
-  if (taosArrayGetSize(queue->q) == 0) {
+  if (queue->q == NULL || taosArrayGetSize(queue->q) == 0) {
     return NULL;
   }
   void* ptr = taosArrayGetP(queue->q, 0);
   taosArrayRemove(queue->q, 0);
   return ptr;
 }
-
-void* transQueueGet(STransQueue* queue) {
-  if (taosArrayGetSize(queue->q) == 0) {
+int32_t transQueueSize(STransQueue* queue) {
+  if (queue->q == NULL) {
+    return 0;
+  }
+  return taosArrayGetSize(queue->q);
+}
+void* transQueueGet(STransQueue* queue, int i) {
+  if (queue->q == NULL || taosArrayGetSize(queue->q) == 0) {
     return NULL;
   }
-  void* ptr = taosArrayGetP(queue->q, 0);
+  if (i >= taosArrayGetSize(queue->q)) {
+    return NULL;
+  }
+
+  void* ptr = taosArrayGetP(queue->q, i);
   return ptr;
 }
+
+void* transQueueRm(STransQueue* queue, int i) {
+  if (queue->q == NULL || taosArrayGetSize(queue->q) == 0) {
+    return NULL;
+  }
+  if (i >= taosArrayGetSize(queue->q)) {
+    return NULL;
+  }
+  void* ptr = taosArrayGetP(queue->q, i);
+  taosArrayRemove(queue->q, i);
+  return ptr;
+}
+
 bool transQueueEmpty(STransQueue* queue) {
-  //
+  if (queue->q == NULL) {
+    return true;
+  }
   return taosArrayGetSize(queue->q) == 0;
 }
 void transQueueClear(STransQueue* queue) {

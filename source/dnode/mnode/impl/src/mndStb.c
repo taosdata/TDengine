@@ -1613,7 +1613,7 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
   SDbObj* pDb = NULL;
   if (strlen(pShow->db) > 0) {
     pDb = mndAcquireDb(pMnode, pShow->db);
-    if (pDb == NULL) return 0;
+    if (pDb == NULL) return terrno;
   }
 
   while (numOfRows < rows) {

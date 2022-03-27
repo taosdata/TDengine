@@ -1125,7 +1125,6 @@ int32_t tDeserializeSSchedulerHbReq(void* buf, int32_t bufLen, SSchedulerHbReq* 
 void    tFreeSSchedulerHbReq(SSchedulerHbReq* pReq);
 
 typedef struct {
-  uint64_t       seqId;
   SQueryNodeEpId epId;
   SArray*        taskStatus;  // SArray<STaskStatus>
 } SSchedulerHbRsp;
@@ -1931,7 +1930,7 @@ static FORCE_INLINE int32_t tDecodeSSchema(SCoder* pDecoder, SSchema* pSchema) {
   return 0;
 }
 
-static FORCE_INLINE int32_t tEncodeSSchemaWrapper(void** buf, const SSchemaWrapper* pSW) {
+static FORCE_INLINE int32_t taosEncodeSSchemaWrapper(void** buf, const SSchemaWrapper* pSW) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedU32(buf, pSW->nCols);
   for (int32_t i = 0; i < pSW->nCols; i++) {
@@ -1940,7 +1939,7 @@ static FORCE_INLINE int32_t tEncodeSSchemaWrapper(void** buf, const SSchemaWrapp
   return tlen;
 }
 
-static FORCE_INLINE void* tDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) {
+static FORCE_INLINE void* taosDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) {
   buf = taosDecodeFixedU32(buf, &pSW->nCols);
   pSW->pSchema = (SSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
   if (pSW->pSchema == NULL) {
@@ -1951,6 +1950,27 @@ static FORCE_INLINE void* tDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) 
     buf = taosDecodeSSchema(buf, &pSW->pSchema[i]);
   }
   return buf;
+}
+
+static FORCE_INLINE int32_t tEncodeSSchemaWrapper(SCoder* pEncoder, const SSchemaWrapper* pSW) {
+  if (tEncodeU32(pEncoder, pSW->nCols) < 0) return -1;
+  for (int32_t i = 0; i < pSW->nCols; i++) {
+    if (tEncodeSSchema(pEncoder, &pSW->pSchema[i]) < 0) return -1;
+  }
+  return pEncoder->pos;
+}
+
+static FORCE_INLINE int32_t tDecodeSSchemaWrapper(SCoder* pDecoder, SSchemaWrapper* pSW) {
+  if (tDecodeU32(pDecoder, &pSW->nCols) < 0) return -1;
+  void* ptr = taosMemoryRealloc(pSW->pSchema, pSW->nCols * sizeof(SSchema));
+  if (ptr == NULL) {
+    return -1;
+  }
+  pSW->pSchema = (SSchema*)ptr;
+  for (int32_t i = 0; i < pSW->nCols; i++) {
+    if (tDecodeSSchema(pDecoder, &pSW->pSchema[i]) < 0) return -1;
+  }
+  return 0;
 }
 
 typedef struct {

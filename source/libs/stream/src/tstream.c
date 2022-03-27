@@ -22,10 +22,13 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
   if (inputType == STREAM_DATA_TYPE_SUBMIT_BLOCK && pTask->sourceType != TASK_SOURCE__SCAN) return 0;
 
   // exec
-  if (pTask->execType == TASK_EXEC__EXEC) {
+  if (pTask->execType != TASK_EXEC__NONE) {
     ASSERT(workId < pTask->exec.numOfRunners);
     void* exec = pTask->exec.runners[workId].executor;
     pRes = taosArrayInit(0, sizeof(SSDataBlock));
+    if (pRes == NULL) {
+      return -1;
+    }
     if (inputType == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
       qSetStreamInput(exec, input, inputType);
       while (1) {
@@ -79,7 +82,7 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
   }
 
   // dispatch
-  if (pTask->dispatchType != TASK_DISPATCH__NONE) {
+  if (pTask->dispatchType == TASK_DISPATCH__INPLACE) {
     SStreamTaskExecReq req = {
         .streamId = pTask->streamId,
         .taskId = pTask->taskId,
@@ -101,28 +104,54 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
         .code = 0,
         .msgType = pTask->dispatchMsgType,
     };
-    if (pTask->dispatchType == TASK_DISPATCH__INPLACE) {
-      int32_t qType;
-      if (pTask->dispatchMsgType == TDMT_VND_TASK_PIPE_EXEC || pTask->dispatchMsgType == TDMT_SND_TASK_PIPE_EXEC) {
-        qType = FETCH_QUEUE;
-      } else if (pTask->dispatchMsgType == TDMT_VND_TASK_MERGE_EXEC ||
-                 pTask->dispatchMsgType == TDMT_SND_TASK_MERGE_EXEC) {
-        qType = MERGE_QUEUE;
-      } else if (pTask->dispatchMsgType == TDMT_VND_TASK_WRITE_EXEC) {
-        qType = WRITE_QUEUE;
-      } else {
-        ASSERT(0);
-      }
-      tmsgPutToQueue(pMsgCb, qType, &dispatchMsg);
-    } else if (pTask->dispatchType == TASK_DISPATCH__FIXED) {
-      ((SMsgHead*)buf)->vgId = pTask->fixedEpDispatcher.nodeId;
-      SEpSet* pEpSet = &pTask->fixedEpDispatcher.epSet;
-      tmsgSendReq(pMsgCb, pEpSet, &dispatchMsg);
-    } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
-      // TODO
+
+    int32_t qType;
+    if (pTask->dispatchMsgType == TDMT_VND_TASK_PIPE_EXEC || pTask->dispatchMsgType == TDMT_SND_TASK_PIPE_EXEC) {
+      qType = FETCH_QUEUE;
+    } else if (pTask->dispatchMsgType == TDMT_VND_TASK_MERGE_EXEC ||
+               pTask->dispatchMsgType == TDMT_SND_TASK_MERGE_EXEC) {
+      qType = MERGE_QUEUE;
+    } else if (pTask->dispatchMsgType == TDMT_VND_TASK_WRITE_EXEC) {
+      qType = WRITE_QUEUE;
     } else {
       ASSERT(0);
     }
+    tmsgPutToQueue(pMsgCb, qType, &dispatchMsg);
+
+  } else if (pTask->dispatchType == TASK_DISPATCH__FIXED) {
+    SStreamTaskExecReq req = {
+        .streamId = pTask->streamId,
+        .taskId = pTask->taskId,
+        .data = pRes,
+    };
+
+    int32_t tlen = sizeof(SMsgHead) + tEncodeSStreamTaskExecReq(NULL, &req);
+    void*   buf = rpcMallocCont(tlen);
+
+    if (buf == NULL) {
+      return -1;
+    }
+
+    ((SMsgHead*)buf)->vgId = htonl(pTask->fixedEpDispatcher.nodeId);
+    void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+    tEncodeSStreamTaskExecReq(&abuf, &req);
+
+    SRpcMsg dispatchMsg = {
+        .pCont = buf,
+        .contLen = tlen,
+        .code = 0,
+        .msgType = pTask->dispatchMsgType,
+    };
+
+    SEpSet* pEpSet = &pTask->fixedEpDispatcher.epSet;
+
+    tmsgSendReq(pMsgCb, pEpSet, &dispatchMsg);
+
+  } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
+    // TODO
+
+  } else {
+    ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
   }
   return 0;
 }
@@ -168,7 +197,10 @@ int32_t tEncodeSStreamTask(SCoder* pEncoder, const SStreamTask* pTask) {
   if (tEncodeI16(pEncoder, pTask->dispatchMsgType) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->downstreamTaskId) < 0) return -1;
 
-  if (pTask->execType == TASK_EXEC__EXEC) {
+  if (tEncodeI32(pEncoder, pTask->nodeId) < 0) return -1;
+  if (tEncodeSEpSet(pEncoder, &pTask->epSet) < 0) return -1;
+
+  if (pTask->execType != TASK_EXEC__NONE) {
     if (tEncodeI8(pEncoder, pTask->exec.parallelizable) < 0) return -1;
     if (tEncodeCStr(pEncoder, pTask->exec.qmsg) < 0) return -1;
   }
@@ -203,7 +235,10 @@ int32_t tDecodeSStreamTask(SCoder* pDecoder, SStreamTask* pTask) {
   if (tDecodeI16(pDecoder, &pTask->dispatchMsgType) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->downstreamTaskId) < 0) return -1;
 
-  if (pTask->execType == TASK_EXEC__EXEC) {
+  if (tDecodeI32(pDecoder, &pTask->nodeId) < 0) return -1;
+  if (tDecodeSEpSet(pDecoder, &pTask->epSet) < 0) return -1;
+
+  if (pTask->execType != TASK_EXEC__NONE) {
     if (tDecodeI8(pDecoder, &pTask->exec.parallelizable) < 0) return -1;
     if (tDecodeCStrAlloc(pDecoder, &pTask->exec.qmsg) < 0) return -1;
   }

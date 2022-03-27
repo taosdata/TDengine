@@ -30,6 +30,8 @@ extern "C" {
 #define parserDebug(param, ...)  qDebug("PARSER: " param, __VA_ARGS__)
 #define parserTrace(param, ...)  qTrace("PARSER: " param, __VA_ARGS__)
 
+#define PK_TS_COL_INTERNAL_NAME "_rowts"
+
 typedef struct SMsgBuf {
   int32_t len;
   char   *buf;

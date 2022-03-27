@@ -191,12 +191,13 @@ typedef struct SStateWindowNode {
 
 typedef struct SSessionWindowNode {
   ENodeType type; // QUERY_NODE_SESSION_WINDOW
-  SNode* pCol;
+  SNode* pCol; // timestamp primary key
   SNode* pGap; // gap between two session window(in microseconds)
 } SSessionWindowNode;
 
 typedef struct SIntervalWindowNode {
   ENodeType type; // QUERY_NODE_INTERVAL_WINDOW
+  SNode* pCol; // timestamp primary key
   SNode* pInterval; // SValueNode
   SNode* pOffset;   // SValueNode
   SNode* pSliding;  // SValueNode
@@ -231,6 +232,7 @@ typedef struct SSelectStmt {
   SNodeList* pOrderByList; // SOrderByExprNode
   SNode* pLimit;
   SNode* pSlimit;
+  char stmtName[TSDB_TABLE_NAME_LEN];
 } SSelectStmt;
 
 typedef enum ESetOperatorType {

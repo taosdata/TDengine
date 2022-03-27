@@ -17,7 +17,7 @@
 
 int32_t tEncodeSStreamObj(SCoder *pEncoder, const SStreamObj *pObj) {
   int32_t sz = 0;
-  int32_t outputNameSz = 0;
+  /*int32_t outputNameSz = 0;*/
   if (tEncodeCStr(pEncoder, pObj->name) < 0) return -1;
   if (tEncodeCStr(pEncoder, pObj->db) < 0) return -1;
   if (tEncodeI64(pEncoder, pObj->createTime) < 0) return -1;
@@ -45,6 +45,9 @@ int32_t tEncodeSStreamObj(SCoder *pEncoder, const SStreamObj *pObj) {
     }
   }
 
+  if (tEncodeSSchemaWrapper(pEncoder, &pObj->outputSchema) < 0) return -1;
+
+#if 0
   if (pObj->ColAlias != NULL) {
     outputNameSz = taosArrayGetSize(pObj->ColAlias);
   }
@@ -53,6 +56,7 @@ int32_t tEncodeSStreamObj(SCoder *pEncoder, const SStreamObj *pObj) {
     char *name = taosArrayGetP(pObj->ColAlias, i);
     if (tEncodeCStr(pEncoder, name) < 0) return -1;
   }
+#endif
   return pEncoder->pos;
 }
 
@@ -85,6 +89,9 @@ int32_t tDecodeSStreamObj(SCoder *pDecoder, SStreamObj *pObj) {
       taosArrayPush(pObj->tasks, pArray);
     }
   }
+
+  if (tDecodeSSchemaWrapper(pDecoder, &pObj->outputSchema) < 0) return -1;
+#if 0
   int32_t outputNameSz;
   if (tDecodeI32(pDecoder, &outputNameSz) < 0) return -1;
   if (outputNameSz != 0) {
@@ -98,5 +105,6 @@ int32_t tDecodeSStreamObj(SCoder *pDecoder, SStreamObj *pObj) {
     if (tDecodeCStrAlloc(pDecoder, &name) < 0) return -1;
     taosArrayPush(pObj->ColAlias, &name);
   }
+#endif
   return 0;
 }

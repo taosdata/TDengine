@@ -11,8 +11,8 @@ target_include_directories(
 
 target_link_libraries(
     function
+    PRIVATE os util common nodes scalar
     PUBLIC uv_a
-    PRIVATE os util common nodes
 )
 
 add_executable(runUdf test/runUdf.c)

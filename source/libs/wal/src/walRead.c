@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "walInt.h"
 #include "taoserror.h"
+#include "walInt.h"
 
 SWalReadHandle *walOpenReadHandle(SWal *pWal) {
   SWalReadHandle *pRead = taosMemoryMalloc(sizeof(SWalReadHandle));
@@ -92,6 +92,7 @@ static int32_t walReadChangeFile(SWalReadHandle *pRead, int64_t fileFirstVer) {
   walBuildIdxName(pRead->pWal, fileFirstVer, fnameStr);
   TdFilePtr pIdxTFile = taosOpenFile(fnameStr, TD_FILE_READ);
   if (pIdxTFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
@@ -152,6 +153,7 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
   }
   code = walValidHeadCksum(pRead->pHead);
   if (code != 0) {
+    wError("unexpected wal log version: % " PRId64 ", since head checksum not passed", ver);
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
@@ -169,7 +171,8 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
   }
 
   if (pRead->pHead->head.version != ver) {
-    wError("unexpected wal log version: %" PRId64 ", read request version:%" PRId64 "", pRead->pHead->head.version, ver);
+    wError("unexpected wal log version: %" PRId64 ", read request version:%" PRId64 "", pRead->pHead->head.version,
+           ver);
     pRead->curVersion = -1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
@@ -177,7 +180,7 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
 
   code = walValidBodyCksum(pRead->pHead);
   if (code != 0) {
-    wError("unexpected wal log version: checksum not passed");
+    wError("unexpected wal log version: % " PRId64 ", since body checksum not passed", ver);
     pRead->curVersion = -1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;

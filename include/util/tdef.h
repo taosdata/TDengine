@@ -109,6 +109,8 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_INS_TABLE_USER_USERS             "user_users"
 #define TSDB_INS_TABLE_VGROUPS                "vgroups"
 
+#define TSDB_INS_USER_STABLES_DBNAME_COLID    2
+
 #define TSDB_TICK_PER_SECOND(precision)                      \
   ((int64_t)((precision) == TSDB_TIME_PRECISION_MILLI ? 1e3L \
                                                       : ((precision) == TSDB_TIME_PRECISION_MICRO ? 1e6L : 1e9L)))
