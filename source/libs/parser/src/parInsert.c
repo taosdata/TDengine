@@ -635,18 +635,18 @@ static FORCE_INLINE int32_t MemRowAppend(const void* value, int32_t len, void* p
 
 // pSql -> tag1_name, ...)
 static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* pColList, SSchema* pSchema) {
-  int16_t nCols = pColList->numOfCols;
+  col_id_t nCols = pColList->numOfCols;
 
   pColList->numOfBound = 0; 
   pColList->boundNullLen = 0;
-  memset(pColList->boundColumns, 0, sizeof(int16_t) * nCols);
+  memset(pColList->boundColumns, 0, sizeof(col_id_t) * nCols);
   for (int32_t i = 0; i < nCols; ++i) {
     pColList->cols[i].valStat = VAL_STAT_NONE;
   }
 
   SToken sToken;
   bool    isOrdered = true;
-  int16_t lastColIdx = -1;  // last column found
+  col_id_t lastColIdx = -1;  // last column found
   while (1) {
     NEXT_TOKEN(pCxt->pSql, sToken);
 
@@ -654,8 +654,8 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
       break;
     }
 
-    int16_t t = lastColIdx + 1;
-    int16_t index = findCol(&sToken, t, nCols, pSchema);
+    col_id_t t = lastColIdx + 1;
+    col_id_t index = findCol(&sToken, t, nCols, pSchema);
     if (index < 0 && t > 0) {
       index = findCol(&sToken, 0, t, pSchema);
       isOrdered = false;
