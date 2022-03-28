@@ -96,12 +96,70 @@ int metaOpenDB(SMeta *pMeta) {
 }
 
 void metaCloseDB(SMeta *pMeta) {
-  // TODO
-  ASSERT(0);
+  if (pMeta->pDB) {
+    tdbDbClose(pMeta->pDB->pCtbIdx);
+    tdbDbClose(pMeta->pDB->pNtbIdx);
+    tdbDbClose(pMeta->pDB->pStbIdx);
+    tdbDbClose(pMeta->pDB->pNameIdx);
+    tdbDbClose(pMeta->pDB->pSchemaDB);
+    tdbDbClose(pMeta->pDB->pTbDB);
+    taosMemoryFree(pMeta->pDB);
+  }
 }
 
 int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
-  // TODO
+  tb_uid_t uid;
+  SMetaDB *pMetaDb;
+  void    *pKey;
+  void    *pVal;
+  int      kLen;
+  int      vLen;
+  int      ret;
+
+  pMetaDb = pMeta->pDB;
+
+  // TODO: make this operation pre-process
+  if (pTbCfg->type == META_SUPER_TABLE) {
+    uid = pTbCfg->stbCfg.suid;
+  } else {
+    uid = metaGenerateUid(pMeta);
+  }
+
+  // save to table.db
+  ret = tdbDbInsert(pMetaDb->pTbDB, pKey, kLen, pVal, vLen);
+  if (ret < 0) {
+    return -1;
+  }
+
+  // save to schema.db
+  ret = tdbDbInsert(pMetaDb->pSchemaDB, pKey, kLen, pVal, vLen);
+  if (ret < 0) {
+    return -1;
+  }
+
+  // update name.idx
+  ret = tdbDbInsert(pMetaDb->pNameIdx, pKey, kLen, NULL, 0);
+  if (ret < 0) {
+    return -1;
+  }
+
+  if (pTbCfg->type == META_SUPER_TABLE) {
+    ret = tdbDbInsert(pMetaDb->pStbIdx, pKey, kLen, NULL, 0);
+    if (ret < 0) {
+      return -1;
+    }
+  } else if (pTbCfg->type == META_CHILD_TABLE) {
+    ret = tdbDbInsert(pMetaDb->pCtbIdx, pKey, kLen, NULL, 0);
+    if (ret < 0) {
+      return -1;
+    }
+  } else if (pTbCfg->type == META_NORMAL_TABLE) {
+    ret = tdbDbInsert(pMetaDb->pNtbIdx, pKey, kLen, NULL, 0);
+    if (ret < 0) {
+      return -1;
+    }
+  }
+
   return 0;
 }
 
