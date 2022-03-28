@@ -1513,6 +1513,14 @@ static void setInformationSchemaDbCfg(SDbObj* pDbObj) {
   pDbObj->cfg.precision    = TSDB_TIME_PRECISION_MILLI;
 }
 
+static bool mndGetTablesOfDbFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
+  SVgObj  *pVgroup = pObj;
+  int32_t *numOfTables = p1;
+
+  *numOfTables += pVgroup->numOfTables;
+  return true;
+}
+
 static int32_t mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rowsCapacity) {
   SMnode *pMnode = pReq->pNode;
   SSdb   *pSdb = pMnode->pSdb;
@@ -1525,7 +1533,10 @@ static int32_t mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
       break;
     }
 
-    dumpDbInfoToPayload(data, pDb, pShow, numOfRows, rowsCapacity, 0);
+    int32_t numOfTables = 0;
+    sdbTraverse(pSdb, SDB_VGROUP, mndGetTablesOfDbFp, &numOfTables, NULL, NULL);
+
+    dumpDbInfoToPayload(data, pDb, pShow, numOfRows, rowsCapacity, numOfTables);
     numOfRows++;
     sdbRelease(pSdb, pDb);
   }
