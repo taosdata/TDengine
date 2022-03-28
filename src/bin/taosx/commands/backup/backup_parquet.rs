@@ -158,136 +158,107 @@ pub async fn backup_data_parquet(
             for col in partial.columns_iter() {
                 let data_writer = row_group_writer.next_column().unwrap();
                 if let Some(mut writer) = data_writer {
+                    use taos::block::BorrowedColumn::*;
                     match writer {
                         parquet::column::writer::ColumnWriter::BoolColumnWriter(ref mut typed) => {
-                            let values;
-                            match col.into_owned() {
-                                taos::block::PartialColumn::Bool(v) => {
-                                    values = v.into_iter().collect::<Option<Vec<bool>>>().unwrap();
+                            match col {
+                                Bool(is_nulls, values) => {
+                                    typed.write_batch(&values, None, None).unwrap();
                                 }
                                 _ => unreachable!(),
                             }
-                            typed.write_batch(&values, None, None).unwrap();
                         }
                         parquet::column::writer::ColumnWriter::Int32ColumnWriter(ref mut typed) => {
-                            let values;
-                            match col.into_owned() {
-                                taos::block::PartialColumn::TinyInt(v) => {
-                                    values = v
-                                        .into_iter()
-                                        .map(|v| match v {
-                                            Some(u) => Some(u as i32),
-                                            None => None,
-                                        })
-                                        .collect::<Option<Vec<i32>>>()
-                                        .unwrap()
+                            // let values;
+                            match col {
+                                TinyInt(is_nulls, values) => {
+                                    let values: Vec<i32> =
+                                        values.into_iter().map(|v| *v as _).collect();
+                                    typed.write_batch(&values, None, None).unwrap();
+                                    // std::mem::transmute::<*const i32>(values.ptr()).
+
+                                    // values = values
+                                    //     .into_iter()
+                                    //     .map(|v| match v {
+                                    //         Some(u) => Some(u as i32),
+                                    //         None => None,
+                                    //     })
+                                    //     .collect::<Option<Vec<i32>>>()
+                                    //     .unwrap()
                                 }
-                                taos::block::PartialColumn::SmallInt(v) => {
-                                    values = v
-                                        .into_iter()
-                                        .map(|v| match v {
-                                            Some(u) => Some(u as i32),
-                                            None => None,
-                                        })
-                                        .collect::<Option<Vec<i32>>>()
-                                        .unwrap()
+                                SmallInt(is_nulls, values) => {
+                                    let values: Vec<i32> =
+                                        values.into_iter().map(|v| *v as _).collect();
+                                    typed.write_batch(&values, None, None).unwrap();
                                 }
-                                taos::block::PartialColumn::Int(v) => {
-                                    values = v.into_iter().collect::<Option<Vec<i32>>>().unwrap()
+                                Int(is_nulls, values) => {
+                                    typed.write_batch(&values, None, None).unwrap();
                                 }
-                                taos::block::PartialColumn::UTinyInt(v) => {
-                                    values = v
-                                        .into_iter()
-                                        .map(|v| match v {
-                                            Some(u) => Some(u as i32),
-                                            None => None,
-                                        })
-                                        .collect::<Option<Vec<i32>>>()
-                                        .unwrap()
+                                UTinyInt(is_nulls, values) => {
+                                    let values: Vec<i32> =
+                                        values.into_iter().map(|v| *v as _).collect();
+                                    typed.write_batch(&values, None, None).unwrap();
                                 }
-                                taos::block::PartialColumn::USmallInt(v) => {
-                                    values = v
-                                        .into_iter()
-                                        .map(|v| match v {
-                                            Some(u) => Some(u as i32),
-                                            None => None,
-                                        })
-                                        .collect::<Option<Vec<i32>>>()
-                                        .unwrap()
+                                USmallInt(is_nulls, values) => {
+                                    let values: Vec<i32> =
+                                        values.into_iter().map(|v| *v as _).collect();
+                                    typed.write_batch(&values, None, None).unwrap();
                                 }
-                                taos::block::PartialColumn::UInt(v) => {
-                                    values = v
-                                        .into_iter()
-                                        .map(|v| match v {
-                                            Some(u) => Some(u as i32),
-                                            None => None,
-                                        })
-                                        .collect::<Option<Vec<i32>>>()
-                                        .unwrap()
+                                UInt(is_nulls, values) => {
+                                    // let values: Vec<i32> = values.into_iter().map(|v| *v as _).collect();
+                                    let len = values.len();
+                                    let ptr: *mut i32 = values.as_ptr() as _;
+                                    let values = unsafe { std::slice::from_raw_parts(ptr, len) };
+                                    typed.write_batch(&values, None, None).unwrap();
                                 }
 
                                 _ => unreachable!(),
                             }
-                            typed.write_batch(&values, None, None).unwrap();
+                            // typed.write_batch(&values, None, None).unwrap();
                         }
                         parquet::column::writer::ColumnWriter::Int64ColumnWriter(ref mut typed) => {
-                            let values;
-                            match col.into_owned() {
-                                taos::block::PartialColumn::BigInt(v) => {
-                                    values = v.into_iter().collect::<Option<Vec<i64>>>().unwrap()
+                            // let values;
+                            match col {
+                                BigInt(is_nulls, values) => {
+                                    typed.write_batch(&values, None, None).unwrap();
                                 }
-                                taos::block::PartialColumn::UBigInt(v) => {
-                                    values = v
-                                        .into_iter()
-                                        .map(|v| match v {
-                                            Some(u) => Some(u as i64),
-                                            None => None,
-                                        })
-                                        .collect::<Option<Vec<i64>>>()
-                                        .unwrap()
+                                UBigInt(is_nulls, values) => {
+                                    // let values: Vec<i32> = values.into_iter().map(|v| *v as _).collect();
+                                    let len = values.len();
+                                    let ptr: *mut i64 = values.as_ptr() as _;
+                                    let values = unsafe { std::slice::from_raw_parts(ptr, len) };
+                                    typed.write_batch(&values, None, None).unwrap();
                                 }
-                                taos::block::PartialColumn::Timestamp(v) => {
-                                    values = v
-                                        .into_iter()
-                                        .map(|v| match v {
-                                            Some(u) => Some(*(u.as_raw_i64())),
-                                            None => None,
-                                        })
-                                        .collect::<Option<Vec<i64>>>()
-                                        .unwrap()
+                                Timestamp(is_nulls, values) => {
+                                    typed.write_batch(&values, None, None).unwrap();
                                 }
                                 _ => unreachable!(),
                             }
-                            typed.write_batch(&values, None, None).unwrap();
+                            // typed.write_batch(&values, None, None).unwrap();
                         }
                         parquet::column::writer::ColumnWriter::FloatColumnWriter(ref mut typed) => {
-                            let values;
-                            match col.into_owned() {
-                                taos::block::PartialColumn::Float(v) => {
-                                    values = v.into_iter().collect::<Option<Vec<f32>>>().unwrap()
+                            // let values;
+                            match col {
+                                Float(is_nulls, values) => {
+                                    typed.write_batch(&values, None, None).unwrap();
                                 }
                                 _ => unreachable!(),
                             }
-                            typed.write_batch(&values, None, None).unwrap();
                         }
                         parquet::column::writer::ColumnWriter::DoubleColumnWriter(
                             ref mut typed,
-                        ) => {
-                            let values;
-                            match col.into_owned() {
-                                taos::block::PartialColumn::Double(v) => {
-                                    values = v.into_iter().collect::<Option<Vec<f64>>>().unwrap()
-                                }
-                                _ => unreachable!(),
+                        ) => match col {
+                            Double(is_nulls, values) => {
+                                typed.write_batch(&values, None, None).unwrap();
                             }
-                            typed.write_batch(&values, None, None).unwrap();
-                        }
+                            _ => unreachable!(),
+                        },
                         parquet::column::writer::ColumnWriter::ByteArrayColumnWriter(
                             ref mut typed,
                         ) => {
                             let mut values = vec![];
-                            match col.into_owned() {
-                                taos::block::PartialColumn::Binary(v) => {
+                            match col {
+                                Binary(v) => {
                                     for f in v.into_iter() {
                                         match f {
                                             Some(u) => values.push(
@@ -299,11 +270,11 @@ pub async fn backup_data_parquet(
                                         }
                                     }
                                 }
-                                taos::block::PartialColumn::NChar(v) => {
+                                NChar(v) => {
                                     for f in v.into_iter() {
                                         match f {
                                             Some(u) => values.push(
-                                                parquet::data_type::ByteArray::from(u.as_str()),
+                                                parquet::data_type::ByteArray::from(u),
                                             ),
                                             None => {
                                                 values.push(parquet::data_type::ByteArray::from(""))

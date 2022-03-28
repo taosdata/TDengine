@@ -6,7 +6,9 @@ use parquet::data_type::{ByteArray, ByteArrayType, DataType};
 use parquet::file::reader::FileReader;
 use parquet::file::serialized_reader::SerializedFileReader;
 use std::path::PathBuf;
-use taos::block::serde::Block;
+// use taos::block::serde::Block;
+// use taos::block::Block;
+use taos::block::Column as Block;
 use taos::r2d2::TaosPool;
 
 pub fn get_parquet_files<'a>(path: PathBuf) -> Vec<String> {
