@@ -593,8 +593,7 @@ typedef struct SSortedMergeOperatorInfo {
   SOptrBasicInfo     binfo;
   bool               hasVarCol;
   
-  SArray            *orderInfo;   // SArray<SBlockOrderInfo>
-  bool               nullFirst;
+  SArray*            pSortInfo;
   int32_t            numOfSources;
 
   SSortHandle       *pSortHandle;
@@ -613,12 +612,10 @@ typedef struct SSortedMergeOperatorInfo {
   SAggSupporter      aggSup;
 } SSortedMergeOperatorInfo;
 
-typedef struct SOrderOperatorInfo {
+typedef struct SSortOperatorInfo {
   uint32_t           sortBufSize;  // max buffer size for in-memory sort
   SSDataBlock       *pDataBlock;
-  bool               hasVarCol;    // has variable length column, such as binary/varchar/nchar
-  SArray            *orderInfo;
-  bool               nullFirst;
+  SArray*            pSortInfo;
   SSortHandle       *pSortHandle;
   int32_t            bufPageSize;
   int32_t            numOfRowsInRes;
@@ -629,7 +626,7 @@ typedef struct SOrderOperatorInfo {
   uint64_t           totalSize;     // total load bytes from remote
   uint64_t           totalRows;     // total number of rows
   uint64_t           totalElapsed;  // total elapsed time
-} SOrderOperatorInfo;
+} SSortOperatorInfo;
 
 typedef struct SDistinctDataInfo {
   int32_t index;
@@ -655,8 +652,8 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo*
                                            SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t num, SSDataBlock* pResBlock, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createOrderOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SArray* pOrderVal, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t numOfDownstream, SExprInfo* pExprInfo, int32_t num, SArray* pOrderVal, SArray* pGroupInfo, SExecTaskInfo* pTaskInfo);
+SOperatorInfo *createSortOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SArray* pSortInfo, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t numOfDownstream, SExprInfo* pExprInfo, int32_t num, SArray* pSortInfo, SArray* pGroupInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataBlock* pResBlock, const SName* pName,
                                               SNode* pCondition, SEpSet epset, SArray* colList, SExecTaskInfo* pTaskInfo, bool showRewrite, int32_t accountId);
 SOperatorInfo* createLimitOperatorInfo(SOperatorInfo* downstream, SLimit* pLimit, SExecTaskInfo* pTaskInfo);
