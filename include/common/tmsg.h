@@ -565,8 +565,10 @@ typedef struct {
   SArray* pVgroupInfos;  // Array of SVgroupInfo
 } SUseDbRsp;
 
-int32_t tSerializeSUseDbRsp(void* buf, int32_t bufLen, SUseDbRsp* pRsp);
+int32_t tSerializeSUseDbRsp(void* buf, int32_t bufLen, const SUseDbRsp* pRsp);
 int32_t tDeserializeSUseDbRsp(void* buf, int32_t bufLen, SUseDbRsp* pRsp);
+int32_t tSerializeSUseDbRspImp(SCoder* pEncoder, const SUseDbRsp* pRsp);
+int32_t tDeserializeSUseDbRspImp(SCoder* pDecoder, SUseDbRsp* pRsp);
 void    tFreeSUsedbRsp(SUseDbRsp* pRsp);
 
 typedef struct {
