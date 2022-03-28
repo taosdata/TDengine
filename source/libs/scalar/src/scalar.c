@@ -64,7 +64,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
   int32_t code = 0;
   SNodeListNode *nodeList = (SNodeListNode *)pNode;
   SListCell *cell = nodeList->pNodeList->pHead;
-  SScalarParam out = {.columnData = taosMemoryMalloc(sizeof(SColumnInfoData))};
+  SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
 
   int32_t len = 0;
   void *buf = NULL;
