@@ -42,6 +42,8 @@ static inline int32_t dndBuildMsg(SNodeMsg *pMsg, SRpcMsg *pRpc) {
   }
 
   memcpy(pMsg->user, connInfo.user, TSDB_USER_LEN);
+  pMsg->clientIp = connInfo.clientIp;
+  pMsg->clientPort = connInfo.clientPort;
   memcpy(&pMsg->rpcMsg, pRpc, sizeof(SRpcMsg));
   return 0;
 }

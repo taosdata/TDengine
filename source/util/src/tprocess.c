@@ -24,7 +24,6 @@
 #include <sys/wait.h>
 
 #define SHM_DEFAULT_SIZE (20 * 1024 * 1024)
-#define CEIL8(n)         (ceil((float)(n) / 8) * 8)
 typedef void *(*ProcThreadFp)(void *param);
 
 typedef struct SProcQueue {
@@ -57,6 +56,11 @@ typedef struct SProcObj {
   bool        isChild;
   bool        stopFlag;
 } SProcObj;
+
+static inline int32_t CEIL8(int32_t v) {
+  const int32_t c = ceil((float)(v) / 8) * 8;
+  return c < 8 ? 8 : c;
+}
 
 static int32_t taosProcInitMutex(TdThreadMutex **ppMutex, int32_t *pShmid) {
   TdThreadMutex    *pMutex = NULL;
