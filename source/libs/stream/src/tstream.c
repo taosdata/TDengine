@@ -72,6 +72,7 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
   if (pTask->sinkType == TASK_SINK__TABLE) {
     //
   } else if (pTask->sinkType == TASK_SINK__SMA) {
+    pTask->smaSink.smaHandle(pTask->ahandle, pTask->smaSink.smaId, pRes);
     //
   } else if (pTask->sinkType == TASK_SINK__FETCH) {
     //
@@ -121,7 +122,7 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
   } else if (pTask->dispatchType == TASK_DISPATCH__FIXED) {
     SStreamTaskExecReq req = {
         .streamId = pTask->streamId,
-        .taskId = pTask->taskId,
+        .taskId = pTask->fixedEpDispatcher.taskId,
         .data = pRes,
     };
 
@@ -205,14 +206,22 @@ int32_t tEncodeSStreamTask(SCoder* pEncoder, const SStreamTask* pTask) {
     if (tEncodeCStr(pEncoder, pTask->exec.qmsg) < 0) return -1;
   }
 
-  if (pTask->sinkType != TASK_SINK__NONE) {
-    // TODO: wrap
+  if (pTask->sinkType == TASK_SINK__TABLE) {
     if (tEncodeI8(pEncoder, pTask->tbSink.reserved) < 0) return -1;
+  } else if (pTask->sinkType == TASK_SINK__SMA) {
+    if (tEncodeI64(pEncoder, pTask->smaSink.smaId) < 0) return -1;
+  } else if (pTask->sinkType == TASK_SINK__FETCH) {
+    if (tEncodeI8(pEncoder, pTask->fetchSink.reserved) < 0) return -1;
+  } else if (pTask->sinkType == TASK_SINK__SHOW) {
+    if (tEncodeI8(pEncoder, pTask->showSink.reserved) < 0) return -1;
+  } else {
+    ASSERT(pTask->sinkType == TASK_SINK__NONE);
   }
 
   if (pTask->dispatchType == TASK_DISPATCH__INPLACE) {
-    if (tEncodeI8(pEncoder, pTask->inplaceDispatcher.reserved) < 0) return -1;
+    if (tEncodeI32(pEncoder, pTask->inplaceDispatcher.taskId) < 0) return -1;
   } else if (pTask->dispatchType == TASK_DISPATCH__FIXED) {
+    if (tEncodeI32(pEncoder, pTask->fixedEpDispatcher.taskId) < 0) return -1;
     if (tEncodeI32(pEncoder, pTask->fixedEpDispatcher.nodeId) < 0) return -1;
     if (tEncodeSEpSet(pEncoder, &pTask->fixedEpDispatcher.epSet) < 0) return -1;
   } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
@@ -243,13 +252,22 @@ int32_t tDecodeSStreamTask(SCoder* pDecoder, SStreamTask* pTask) {
     if (tDecodeCStrAlloc(pDecoder, &pTask->exec.qmsg) < 0) return -1;
   }
 
-  if (pTask->sinkType != TASK_SINK__NONE) {
+  if (pTask->sinkType == TASK_SINK__TABLE) {
     if (tDecodeI8(pDecoder, &pTask->tbSink.reserved) < 0) return -1;
+  } else if (pTask->sinkType == TASK_SINK__SMA) {
+    if (tDecodeI64(pDecoder, &pTask->smaSink.smaId) < 0) return -1;
+  } else if (pTask->sinkType == TASK_SINK__FETCH) {
+    if (tDecodeI8(pDecoder, &pTask->fetchSink.reserved) < 0) return -1;
+  } else if (pTask->sinkType == TASK_SINK__SHOW) {
+    if (tDecodeI8(pDecoder, &pTask->showSink.reserved) < 0) return -1;
+  } else {
+    ASSERT(pTask->sinkType == TASK_SINK__NONE);
   }
 
   if (pTask->dispatchType == TASK_DISPATCH__INPLACE) {
-    if (tDecodeI8(pDecoder, &pTask->inplaceDispatcher.reserved) < 0) return -1;
+    if (tDecodeI32(pDecoder, &pTask->inplaceDispatcher.taskId) < 0) return -1;
   } else if (pTask->dispatchType == TASK_DISPATCH__FIXED) {
+    if (tDecodeI32(pDecoder, &pTask->fixedEpDispatcher.taskId) < 0) return -1;
     if (tDecodeI32(pDecoder, &pTask->fixedEpDispatcher.nodeId) < 0) return -1;
     if (tDecodeSEpSet(pDecoder, &pTask->fixedEpDispatcher.epSet) < 0) return -1;
   } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {

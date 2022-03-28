@@ -246,7 +246,7 @@ static int32_t mndStreamGetPlanString(const char *ast, char **pStr) {
   return code;
 }
 
-int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast, STrans *pTrans) {
+int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast, STrans *pTrans, int64_t smaId) {
   SNode *pAst = NULL;
 
   if (nodesStringToNode(ast, &pAst) < 0) {
@@ -271,7 +271,7 @@ int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast
     return -1;
   }
 
-  if (mndScheduleStream(pMnode, pTrans, pStream) < 0) {
+  if (mndScheduleStream(pMnode, pTrans, pStream, smaId) < 0) {
     mError("stream:%ld, schedule stream since %s", pStream->uid, terrstr());
     return -1;
   }
@@ -310,7 +310,7 @@ static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamRe
   }
   mDebug("trans:%d, used to create stream:%s", pTrans->id, pCreate->name);
 
-  if (mndAddStreamToTrans(pMnode, &streamObj, pCreate->ast, pTrans) != 0) {
+  if (mndAddStreamToTrans(pMnode, &streamObj, pCreate->ast, pTrans, -1) != 0) {
     mError("trans:%d, failed to add stream since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     return -1;

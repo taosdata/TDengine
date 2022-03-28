@@ -62,10 +62,11 @@ typedef struct {
 } STaskExec;
 
 typedef struct {
-  int8_t reserved;
+  int32_t taskId;
 } STaskDispatcherInplace;
 
 typedef struct {
+  int32_t taskId;
   int32_t nodeId;
   SEpSet  epSet;
 } STaskDispatcherFixedEp;
@@ -81,8 +82,12 @@ typedef struct {
   SHashObj* pHash;  // groupId to tbuid
 } STaskSinkTb;
 
+typedef void FSmaHandle(void* vnode, int64_t smaId, const SArray* data);
+
 typedef struct {
-  int8_t reserved;
+  int64_t smaId;
+  // following are not applicable to encoder and decoder
+  FSmaHandle* smaHandle;
 } STaskSinkSma;
 
 typedef struct {
@@ -155,7 +160,8 @@ typedef struct {
     STaskDispatcherShuffle shuffleDispatcher;
   };
 
-  // state storage
+  // application storage
+  void* ahandle;
 
 } SStreamTask;
 
