@@ -242,6 +242,18 @@ void tdbPageCopy(SPage *pFromPage, SPage *pToPage) {
   pToPage->nOverflow = pFromPage->nOverflow;
 }
 
+int tdbPageCapacity(int pageSize, int amHdrSize) {
+  int szPageHdr;
+
+  if (pageSize < 65536) {
+    szPageHdr = pageMethods.szPageHdr;
+  } else {
+    szPageHdr = pageLargeMethods.szPageHdr;
+  }
+
+  return pageSize - szPageHdr - amHdrSize;
+}
+
 static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {
   SCell *pFreeCell;
   u8    *pOffset;
