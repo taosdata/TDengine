@@ -66,6 +66,8 @@ int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     case TDMT_VND_CONSUME:
       return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_VND_TASK_EXEC:
+    case TDMT_VND_TASK_PIPE_EXEC:
+    case TDMT_VND_TASK_MERGE_EXEC:
       return tqProcessTaskExec(pVnode->pTq, pMsg);
     case TDMT_VND_STREAM_TRIGGER:
       return tqProcessStreamTrigger(pVnode->pTq, pMsg->pCont, pMsg->contLen);

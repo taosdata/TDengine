@@ -42,8 +42,8 @@ STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pVnodeMeta, STq
     // TODO: error code of buffer pool
   }
 #endif
-  pTq->tqMeta =
-      tqStoreOpen(pTq, path, (FTqSerialize)tqSerializeConsumer, (FTqDeserialize)tqDeserializeConsumer, (FTqDelete)taosMemoryFree, 0);
+  pTq->tqMeta = tqStoreOpen(pTq, path, (FTqSerialize)tqSerializeConsumer, (FTqDeserialize)tqDeserializeConsumer,
+                            (FTqDelete)taosMemoryFree, 0);
   if (pTq->tqMeta == NULL) {
     taosMemoryFree(pTq);
 #if 0
@@ -498,12 +498,16 @@ int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen) {
 }
 
 int32_t tqProcessTaskExec(STQ* pTq, SRpcMsg* msg) {
-  SStreamTaskExecReq* pReq = msg->pCont;
-  int32_t             taskId = pReq->taskId;
-  SStreamTask*        pTask = taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
+  char* msgstr = POINTER_SHIFT(msg->pCont, sizeof(SMsgHead));
+
+  SStreamTaskExecReq req;
+  tDecodeSStreamTaskExecReq(msgstr, &req);
+
+  int32_t      taskId = req.taskId;
+  SStreamTask* pTask = taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
   ASSERT(pTask);
 
-  if (streamExecTask(pTask, &pTq->pVnode->msgCb, pReq->data, STREAM_DATA_TYPE_SSDATA_BLOCK, 0) < 0) {
+  if (streamExecTask(pTask, &pTq->pVnode->msgCb, req.data, STREAM_DATA_TYPE_SSDATA_BLOCK, 0) < 0) {
     // TODO
   }
   return 0;
