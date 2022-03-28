@@ -96,7 +96,16 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_SERVER_SERSION,
   FUNCTION_TYPE_SERVER_STATUS,
   FUNCTION_TYPE_CURRENT_USER,
-  FUNCTION_TYPE_USER
+  FUNCTION_TYPE_USER,
+
+  // pseudo column function
+  FUNCTION_TYPE_ROWTS = 3500,
+  FUNCTION_TYPE_TBNAME,
+  FUNCTION_TYPE_QSTARTTS,
+  FUNCTION_TYPE_QENDTS,
+  FUNCTION_TYPE_WSTARTTS,
+  FUNCTION_TYPE_WENDTS,
+  FUNCTION_TYPE_WDURATION
 } EFunctionType;
 
 struct SqlFunctionCtx;
@@ -125,6 +134,8 @@ bool fmIsStringFunc(int32_t funcId);
 bool fmIsDatetimeFunc(int32_t funcId);
 bool fmIsTimelineFunc(int32_t funcId);
 bool fmIsTimeorderFunc(int32_t funcId);
+bool fmIsWindowPseudoColumnFunc(int32_t funcId);
+bool fmIsWindowClauseFunc(int32_t funcId);
 
 int32_t fmFuncScanType(int32_t funcId);
 

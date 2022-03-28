@@ -206,6 +206,13 @@ TEST_F(ParserTest, selectExpression) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(ParserTest, selectPseudoColumn) {
+  setDatabase("root", "test");
+
+  bind("SELECT _wstartts, _wendts, count(*) FROM t1 interval(10s)");
+  ASSERT_TRUE(run());
+}
+
 TEST_F(ParserTest, selectClause) {
   setDatabase("root", "test");
 
