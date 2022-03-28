@@ -91,6 +91,7 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   msgCb.sendReqFp = dndSendReqToDnode;
   msgCb.sendMnodeReqFp = dndSendReqToMnode;
   msgCb.sendRspFp = dndSendRsp;
+  msgCb.registerBrokenLinkArgFp = dndRegisterBrokenLinkArg;
 
   vnodeCfg.msgCb = msgCb;
   vnodeCfg.pTfs = pMgmt->pTfs;

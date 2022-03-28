@@ -287,7 +287,7 @@ int32_t qwRegisterBrokenLinkArg(QW_FPARAMS_DEF, SQWConnInfo *pConn) {
     .code    = TSDB_CODE_RPC_NETWORK_UNAVAIL,
   };
   
-  rpcRegisterBrokenLinkArg(&pMsg);
+  tmsgRegisterBrokenLinkArg(&mgmt->msgCb, &pMsg);
 
   return TSDB_CODE_SUCCESS;
 }

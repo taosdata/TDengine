@@ -116,11 +116,12 @@ static void dndClearNodesExecpt(SDnode *pDnode, ENodeType except) {
   }
 }
 
-static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen) {
+static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int16_t msgLen, void *pCont, int32_t contLen,
+                                 ProcFuncType ftype) {
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   pRpc->pCont = pCont;
-  dTrace("msg:%p, get from child process queue, type:%s handle:%p app:%p", pMsg, TMSG_INFO(pRpc->msgType),
-         pRpc->handle, pRpc->ahandle);
+  dTrace("msg:%p, get from child process queue, type:%s handle:%p app:%p", pMsg, TMSG_INFO(pRpc->msgType), pRpc->handle,
+         pRpc->ahandle);
 
   NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pRpc->msgType)];
   int32_t   code = (*msgFp)(pWrapper, pMsg);
@@ -138,13 +139,21 @@ static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t
   }
 }
 
-static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, int32_t msgLen, void *pCont, int32_t contLen) {
-  pRpc->pCont = pCont;
-  dTrace("msg:%p, get from parent process queue, type:%s handle:%p app:%p", pRpc, TMSG_INFO(pRpc->msgType),
-         pRpc->handle, pRpc->ahandle);
+static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, int16_t msgLen, void *pCont, int32_t contLen,
+                                  ProcFuncType ftype) {
+  pMsg->pCont = pCont;
+  dTrace("msg:%p, get from parent process queue, type:%s handle:%p app:%p", pMsg, TMSG_INFO(pMsg->msgType),
+         pMsg->handle, pMsg->ahandle);
 
-  dndSendRsp(pWrapper, pRpc);
-  taosMemoryFree(pRpc);
+  switch (ftype) {
+    case PROC_REGISTER:
+      rpcRegisterBrokenLinkArg(pMsg);
+      break;
+    default:
+      dndSendRpcRsp(pWrapper, pMsg);
+      break;
+  }
+  taosMemoryFree(pMsg);
 }
 
 static int32_t dndRunInMultiProcess(SDnode *pDnode) {

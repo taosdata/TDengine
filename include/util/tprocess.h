@@ -22,11 +22,14 @@
 extern "C" {
 #endif
 
+typedef enum { PROC_REQ, PROC_RSP, PROC_REGISTER } ProcFuncType;
+
 typedef struct SProcQueue SProcQueue;
 typedef struct SProcObj   SProcObj;
 typedef void *(*ProcMallocFp)(int32_t contLen);
 typedef void *(*ProcFreeFp)(void *pCont);
-typedef void *(*ProcConsumeFp)(void *pParent, void *pHead, int32_t headLen, void *pBody, int32_t bodyLen);
+typedef void *(*ProcConsumeFp)(void *pParent, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen,
+                               ProcFuncType ftype);
 
 typedef struct {
   int32_t       childQueueSize;
@@ -52,9 +55,10 @@ int32_t   taosProcRun(SProcObj *pProc);
 void      taosProcStop(SProcObj *pProc);
 bool      taosProcIsChild(SProcObj *pProc);
 int32_t   taosProcChildId(SProcObj *pProc);
-
-int32_t taosProcPutToChildQueue(SProcObj *pProc, void *pHead, int32_t headLen, void *pBody, int32_t bodyLen);
-int32_t taosProcPutToParentQueue(SProcObj *pProc, void *pHead, int32_t headLen, void *pBody, int32_t bodyLen);
+int32_t   taosProcPutToChildQ(SProcObj *pProc, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen,
+                              ProcFuncType ftype);
+int32_t   taosProcPutToParentQ(SProcObj *pProc, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen,
+                               ProcFuncType ftype);
 
 #ifdef __cplusplus
 }
