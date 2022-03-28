@@ -64,18 +64,20 @@ typedef enum {
 #define SBlockVerLatest TSDB_SBLK_VER_0
 
 typedef struct {
+  uint8_t  blkVer : 4;
+  uint8_t  algorithm : 4;
   uint8_t  last : 1;
-  uint8_t  blkVer : 7;
-  uint8_t  numOfSubBlocks;
-  int16_t  numOfCols;    // not including timestamp column
-  uint32_t len;          // data block length
-  uint32_t keyLen : 24;  // key column length, keyOffset = offset+sizeof(SBlockData)+sizeof(SBlockCol)*numOfCols
-  uint32_t reserve : 8;
-  int32_t  algorithm : 8;
-  int32_t  numOfRows : 24;
+  uint8_t  numOfSubBlocks : 7;
+  col_id_t numOfCols;       // not including timestamp column
+  uint32_t len;             // data block length
+  uint64_t keyLen : 24;     // key column length, keyOffset = offset+sizeof(SBlockData)+sizeof(SBlockCol)*numOfCols
+  uint64_t colSpan : 8;     // columns split span(0~255. 0: no split; other: +1(e.g. 63->64, 127->128, 255->256))
+  uint64_t schemaVer : 16;  // 0~65535
+  uint64_t numOfRows : 16;  // 0~65535
   int64_t  offset;
   uint64_t aggrStat : 1;
   uint64_t aggrOffset : 63;
+  uint64_t reserve;  // TODO: use compact mode or reserve for future use?
   TSKEY    keyFirst;
   TSKEY    keyLast;
 } SBlockV0;
