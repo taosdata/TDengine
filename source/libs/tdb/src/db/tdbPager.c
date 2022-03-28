@@ -377,12 +377,12 @@ static int tdbPagerWritePageToJournal(SPager *pPager, SPage *pPage) {
 
   pgno = TDB_PAGE_PGNO(pPage);
 
-  ret = tdbWrite(pPager->jfd, &pgno, sizeof(pgno));
+  ret = tdbOsWrite(pPager->jfd, &pgno, sizeof(pgno));
   if (ret < 0) {
     return -1;
   }
 
-  ret = tdbWrite(pPager->jfd, pPage->pData, pPage->pageSize);
+  ret = tdbOsWrite(pPager->jfd, pPage->pData, pPage->pageSize);
   if (ret < 0) {
     return -1;
   }
@@ -395,12 +395,12 @@ static int tdbPagerWritePageToDB(SPager *pPager, SPage *pPage) {
   int ret;
 
   offset = pPage->pageSize * TDB_PAGE_PGNO(pPage);
-  if (lseek(pPager->fd, offset, SEEK_SET) < 0) {
+  if (tdbOsLSeek(pPager->fd, offset, SEEK_SET) < 0) {
     ASSERT(0);
     return -1;
   }
 
-  ret = tdbWrite(pPager->fd, pPage->pData, pPage->pageSize);
+  ret = tdbOsWrite(pPager->fd, pPage->pData, pPage->pageSize);
   if (ret < 0) {
     ASSERT(0);
     return -1;

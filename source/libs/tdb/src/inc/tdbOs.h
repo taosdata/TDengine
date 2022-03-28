@@ -23,7 +23,7 @@ extern "C" {
 // TODO: use cmake to control the option
 #define TDB_FOR_TDENGINE
 
-// For memory
+// For memory -----------------
 #ifdef TDB_FOR_TDENGINE
 
 #define tdbOsMalloc  taosMemoryMalloc
@@ -40,18 +40,19 @@ extern "C" {
 
 #endif
 
-// For file and directory
+// For file and directory -----------------
 #ifdef TDB_FOR_TDENGINE
 
 /* file */
 typedef TdFilePtr tdb_fd_t;
 
-#define tdbOsOpen  taosOpenFile
-#define tdbOsClose taosCloseFile
-#define tdbOsRead  taosReadFile
-#define tdbOsPRead taosPReadFile
-#define tdbOsWrite taosWriteFile
-#define tdbOsFSync taosFsyncFile
+#define tdbOsOpen      taosOpenFile
+#define tdbOsClose(FD) taosCloseFile(&(FD))
+#define tdbOsRead      taosReadFile
+#define tdbOsPRead     taosPReadFile
+#define tdbOsWrite     taosWriteFile
+#define tdbOsFSync     taosFsyncFile
+#define tdbOsLSeek     taosLSeekFile
 
 /* directory */
 #define tdbOsMkdir taosMkDir
@@ -68,6 +69,7 @@ typedef int tdb_fd_t;
 #define tdbOsPRead pread  // TODO
 #define tdbOsWrite write  // TODO
 #define tdbOsFSync fsync
+#define tdbOsLSeek lseek
 
 /* directory */
 #define tdbOsMkdir mkdir
@@ -75,7 +77,7 @@ typedef int tdb_fd_t;
 
 #endif
 
-// For threads and lock
+// For threads and lock -----------------
 #ifdef TDB_FOR_TDENGINE
 
 /* spin lock */

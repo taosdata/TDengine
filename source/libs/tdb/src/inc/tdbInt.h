@@ -16,10 +16,11 @@
 #ifndef _TD_TDB_INTERNAL_H_
 #define _TD_TDB_INTERNAL_H_
 
+#include "os.h"
 #include "tlist.h"
 #include "tlockfree.h"
 
-// #include "tdb.h"
+#include "tdb.h"
 
 #ifdef __cplusplus
 extern "C" {
