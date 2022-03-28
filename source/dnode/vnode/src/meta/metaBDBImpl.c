@@ -233,7 +233,7 @@ int metaSaveSmaToDB(SMeta *pMeta, STSma *pSmaCfg) {
 
   // save sma info
   int32_t len = tEncodeTSma(NULL, pSmaCfg);
-  pBuf = taosMemoryCalloc(len, 1);
+  pBuf = taosMemoryCalloc(1, len);
   if (pBuf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -285,7 +285,7 @@ static int metaEncodeSchema(void **buf, SSchemaWrapper *pSW) {
   for (int i = 0; i < pSW->nCols; i++) {
     pSchema = pSW->pSchema + i;
     tlen += taosEncodeFixedI8(buf, pSchema->type);
-    tlen += taosEncodeFixedI32(buf, pSchema->colId);
+    tlen += taosEncodeFixedI16(buf, pSchema->colId);
     tlen += taosEncodeFixedI32(buf, pSchema->bytes);
     tlen += taosEncodeString(buf, pSchema->name);
   }
@@ -301,7 +301,7 @@ static void *metaDecodeSchema(void *buf, SSchemaWrapper *pSW) {
   for (int i = 0; i < pSW->nCols; i++) {
     pSchema = pSW->pSchema + i;
     buf = taosDecodeFixedI8(buf, &pSchema->type);
-    buf = taosDecodeFixedI32(buf, &pSchema->colId);
+    buf = taosDecodeFixedI16(buf, &pSchema->colId);
     buf = taosDecodeFixedI32(buf, &pSchema->bytes);
     buf = taosDecodeStringTo(buf, pSchema->name);
   }
@@ -516,6 +516,7 @@ static int metaEncodeTbInfo(void **buf, STbCfg *pTbCfg) {
     tsize += taosEncodeFixedU64(buf, pTbCfg->ctbCfg.suid);
     tsize += tdEncodeKVRow(buf, pTbCfg->ctbCfg.pTag);
   } else if (pTbCfg->type == META_NORMAL_TABLE) {
+    // TODO
   } else {
     ASSERT(0);
   }
@@ -538,6 +539,7 @@ static void *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg) {
     buf = taosDecodeFixedU64(buf, &(pTbCfg->ctbCfg.suid));
     buf = tdDecodeKVRow(buf, &(pTbCfg->ctbCfg.pTag));
   } else if (pTbCfg->type == META_NORMAL_TABLE) {
+    // TODO
   } else {
     ASSERT(0);
   }

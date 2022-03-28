@@ -106,12 +106,12 @@ void *tdDecodeSchema(void *buf, STSchema **pRSchema) {
   if (tdInitTSchemaBuilder(&schemaBuilder, version) < 0) return NULL;
 
   for (int i = 0; i < numOfCols; i++) {
-    int8_t  type = 0;
-    int16_t colId = 0;
-    int16_t bytes = 0;
+    col_type_t  type = 0;
+    col_id_t    colId = 0;
+    col_bytes_t bytes = 0;
     buf = taosDecodeFixedI8(buf, &type);
     buf = taosDecodeFixedI16(buf, &colId);
-    buf = taosDecodeFixedI16(buf, &bytes);
+    buf = taosDecodeFixedI32(buf, &bytes);
     if (tdAddColToSchema(&schemaBuilder, type, colId, bytes) < 0) {
       tdDestroyTSchemaBuilder(&schemaBuilder);
       return NULL;
@@ -148,7 +148,7 @@ void tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version) {
   pBuilder->version = version;
 }
 
-int tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int16_t colId, int16_t bytes) {
+int tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, col_id_t colId, col_bytes_t bytes) {
   if (!isValidDataType(type)) return -1;
 
   if (pBuilder->nCols >= pBuilder->tCols) {

@@ -280,7 +280,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
 }
 #endif
 
-#if 1
+#if 0
 TEST(testCase, tSma_Data_Insert_Query_Test) {
   // step 1: prepare meta
   const char    *smaIndexName1 = "sma_index_test_1";

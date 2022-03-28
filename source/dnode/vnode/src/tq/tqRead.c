@@ -130,8 +130,8 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
   int32_t colNeed = 0;
   while (colMeta < pSchemaWrapper->nCols && colNeed < colNumNeed) {
     SSchema* pColSchema = &pSchemaWrapper->pSchema[colMeta];
-    int16_t  colIdSchema = pColSchema->colId;
-    int16_t  colIdNeed = *(int16_t*)taosArrayGet(pHandle->pColIdList, colNeed);
+    col_id_t colIdSchema = pColSchema->colId;
+    col_id_t colIdNeed = *(col_id_t*)taosArrayGet(pHandle->pColIdList, colNeed);
     if (colIdSchema < colIdNeed) {
       colMeta++;
     } else if (colIdSchema > colIdNeed) {
@@ -159,7 +159,7 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
 
   int j = 0;
   for (int32_t i = 0; i < colNumNeed; i++) {
-    int16_t colId = *(int16_t*)taosArrayGet(pHandle->pColIdList, i);
+    col_id_t colId = *(col_id_t*)taosArrayGet(pHandle->pColIdList, i);
     while (j < pSchemaWrapper->nCols && pSchemaWrapper->pSchema[j].colId < colId) {
       j++;
     }
