@@ -1028,7 +1028,7 @@ static int32_t applyDataPointsWithSqlInsert(TAOS* taos, TAOS_SML_DATA_POINT* poi
   for (int i = 0; i < info->numBatches; ++i) {
     SSmlSqlInsertBatch* insertBatch = &info->batches[i];
     insertBatch->tryTimes = 1;
-    taos_query_a(taos, insertBatch->sql, insertCallback, batch);
+    taos_query_a(taos, insertBatch->sql, insertCallback, insertBatch);
     batchesExecuted[i] = true;
   }
   int32_t triedBatches = info->numBatches;
@@ -1064,7 +1064,7 @@ static int32_t applyDataPointsWithSqlInsert(TAOS* taos, TAOS_SML_DATA_POINT* poi
       SSmlSqlInsertBatch* insertBatch = &info->batches[i];
       if (insertBatch->tryAgain) {
         insertBatch->tryTimes++;
-        taos_query_a(taos, insertBatch->sql, insertCallback, batch);
+        taos_query_a(taos, insertBatch->sql, insertCallback, insertBatch);
         batchesExecuted[i] = true;
         triedBatches++;
       }
