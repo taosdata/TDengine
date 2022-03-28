@@ -162,6 +162,8 @@ typedef struct SPage   SPage;
 
 #include "tdbPage.h"
 
+#include "tdbTxn.h"
+
 #ifdef __cplusplus
 }
 #endif

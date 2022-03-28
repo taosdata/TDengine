@@ -39,6 +39,8 @@ static void closePool(SPoolMem *pPool) {
   free(pPool);
 }
 
+#define clearPool closePool
+
 static void *poolMalloc(void *arg, int size) {
   void     *ptr = NULL;
   SPoolMem *pPool = (SPoolMem *)arg;
@@ -116,7 +118,7 @@ TEST(tdb_test, simple_test) {
   STEnv         *pEnv;
   STDB          *pDb;
   FKeyComparator compFunc;
-  int            nData = 10000000;
+  int            nData = 1000000;
 
   // Open Env
   ret = tdbEnvOpen("tdb", 4096, 256000, &pEnv);
@@ -132,13 +134,34 @@ TEST(tdb_test, simple_test) {
     char val[64];
 
     {  // Insert some data
+      int       i = 1;
+      SPoolMem *pPool;
+      int       memPoolCapacity = 16 * 1024;
 
-      for (int i = 1; i <= nData; i++) {
+      pPool = openPool();
+
+      tdbTxnBegin(pEnv);
+
+      for (;;) {
+        if (i > nData) break;
+
         sprintf(key, "key%d", i);
         sprintf(val, "value%d", i);
         ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val));
         GTEST_ASSERT_EQ(ret, 0);
+
+        if (pPool->size >= memPoolCapacity) {
+          tdbTxnCommit(pEnv);
+
+          clearPool(pPool);
+
+          tdbTxnBegin(pEnv);
+        }
+
+        i++;
       }
+
+      closePool(pPool);
     }
 
     {  // Query the data

@@ -8,6 +8,7 @@ target_sources(tdb
     "src/db/tdbBtree.c"
     "src/db/tdbDb.c"
     "src/db/tdbEnv.c"
+    "src/db/tdbTxn.c"
     "src/page/tdbPage.c"
     "src/page/tdbPageL.c"
 )

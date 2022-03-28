@@ -90,3 +90,8 @@ int tdbPRead(int fd, void *pData, int count, i64 offset) {
 
   return count;
 }
+
+int tdbWrite(int fd, void *pData, int count) {
+  // TODO
+  return write(fd, pData, count);
+}
