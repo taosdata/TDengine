@@ -28,8 +28,70 @@ struct SMetaDB {
 };
 
 int metaOpenDB(SMeta *pMeta) {
-  // TODO
-  ASSERT(0);
+  SMetaDB *pMetaDb;
+  int      ret;
+
+  // allocate DB handle
+  pMetaDb = taosMemoryCalloc(1, sizeof(*pMetaDb));
+  if (pMetaDb == NULL) {
+    // TODO
+    ASSERT(0);
+    return -1;
+  }
+
+  // open the ENV
+  ret = tdbEnvOpen(pMeta->path, 4096, 256, &(pMetaDb->pEnv));
+  if (ret < 0) {
+    // TODO
+    ASSERT(0);
+    return -1;
+  }
+
+  // open table DB
+  ret = tdbDbOpen("table.db", sizeof(tb_uid_t), TDB_VARIANT_LEN, NULL /*TODO*/, pMetaDb->pEnv, &(pMetaDb->pTbDB));
+  if (ret < 0) {
+    // TODO
+    ASSERT(0);
+    return -1;
+  }
+
+  // open schema DB
+  ret = tdbDbOpen("schema.db", sizeof(tb_uid_t) + sizeof(int32_t), TDB_VARIANT_LEN, NULL /*TODO*/, pMetaDb->pEnv,
+                  &(pMetaDb->pSchemaDB));
+  if (ret < 0) {
+    // TODO
+    ASSERT(0);
+    return -1;
+  }
+
+  ret = tdbDbOpen("name.idx", TDB_VARIANT_LEN, 0, NULL /*TODO*/, pMetaDb->pEnv, &(pMetaDb->pNameIdx));
+  if (ret < 0) {
+    // TODO
+    ASSERT(0);
+    return -1;
+  }
+
+  ret = tdbDbOpen("stb.idx", sizeof(tb_uid_t), 0, NULL /*TODO*/, pMetaDb->pEnv, &(pMetaDb->pStbIdx));
+  if (ret < 0) {
+    // TODO
+    ASSERT(0);
+    return -1;
+  }
+
+  ret = tdbDbOpen("ntb.idx", sizeof(tb_uid_t), 0, NULL /*TODO*/, pMetaDb->pEnv, &(pMetaDb->pNtbIdx));
+  if (ret < 0) {
+    // TODO
+    ASSERT(0);
+    return -1;
+  }
+
+  ret = tdbDbOpen("ctb.idx", sizeof(tb_uid_t), 0, NULL /*TODO*/, pMetaDb->pEnv, &(pMetaDb->pCtbIdx));
+  if (ret < 0) {
+    // TODO
+    ASSERT(0);
+    return -1;
+  }
+
   return 0;
 }
 
