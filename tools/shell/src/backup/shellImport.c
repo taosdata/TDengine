@@ -28,7 +28,7 @@ static int32_t shellSQLFileNum = 0;
 static char shellTablesSQLFile[TSDB_FILENAME_LEN] = {0};
 
 typedef struct {
-  pthread_t threadID;
+  TdThread threadID;
   int       threadIndex;
   int       totalThreads;
   void     *taos;
@@ -39,14 +39,14 @@ static int shellGetFilesNum(const char *directoryName, const char *prefix)
   char cmd[1024] = { 0 };
   sprintf(cmd, "ls %s/*.%s | wc -l ", directoryName, prefix);
 
-  FILE *fp = popen(cmd, "r");
-  if (fp == NULL) {
+  char buf[1024] = { 0 };
+  if (taosSystem(cmd, buf, sizeof(buf)) < 0) {
     fprintf(stderr, "ERROR: failed to execute:%s, error:%s\n", cmd, strerror(errno));
     exit(0);
   }
 
   int fileNum = 0;
-  if (fscanf(fp, "%d", &fileNum) != 1) {
+  if (sscanf(buf, "%d", &fileNum) != 1) {
     fprintf(stderr, "ERROR: failed to execute:%s, parse result error\n", cmd);
     exit(0);
   }
@@ -56,7 +56,6 @@ static int shellGetFilesNum(const char *directoryName, const char *prefix)
     exit(0);
   }
 
-  pclose(fp);
   return fileNum;
 }
 
@@ -65,14 +64,14 @@ static void shellParseDirectory(const char *directoryName, const char *prefix, c
   char cmd[1024] = { 0 };
   sprintf(cmd, "ls %s/*.%s | sort", directoryName, prefix);
 
-  FILE *fp = popen(cmd, "r");
-  if (fp == NULL) {
+  char buf[1024] = { 0 };
+  if (taosSystem(cmd, buf, sizeof(buf)) < 0) {
     fprintf(stderr, "ERROR: failed to execute:%s, error:%s\n", cmd, strerror(errno));
     exit(0);
   }
 
   int fileNum = 0;
-  while (fscanf(fp, "%128s", fileArray[fileNum++])) {
+  while (sscanf(buf, "%128s", fileArray[fileNum++])) {
     if (strcmp(fileArray[fileNum-1], shellTablesSQLFile) == 0) {
       fileNum--;
     }
@@ -85,37 +84,33 @@ static void shellParseDirectory(const char *directoryName, const char *prefix, c
     fprintf(stderr, "ERROR: directory:%s changed while read\n", directoryName);
     exit(0);
   }
-
-  pclose(fp);
 }
 
 static void shellCheckTablesSQLFile(const char *directoryName)
 {
   sprintf(shellTablesSQLFile, "%s/tables.sql", directoryName);
 
-  struct stat fstat;
-  if (stat(shellTablesSQLFile, &fstat) < 0) {
+  if (taosFStatFile(shellTablesSQLFile, NULL, NULL) < 0) {
     shellTablesSQLFile[0] = 0;
   }
 }
 
 static void shellMallocSQLFiles()
 {
-  shellSQLFiles = (char**)calloc(shellSQLFileNum, sizeof(char*));
+  shellSQLFiles = (char**)taosMemoryCalloc(shellSQLFileNum, sizeof(char*));
   for (int i = 0; i < shellSQLFileNum; i++) {
-    shellSQLFiles[i] = calloc(1, TSDB_FILENAME_LEN);
+    shellSQLFiles[i] = taosMemoryCalloc(1, TSDB_FILENAME_LEN);
   }
 }
 
 static void shellGetDirectoryFileList(char *inputDir)
 {
-  struct stat fileStat;
-  if (stat(inputDir, &fileStat) < 0) {
+  if (!taosDirExist(inputDir)) {
     fprintf(stderr, "ERROR: %s not exist\n", inputDir);
     exit(0);
   }
 
-  if (fileStat.st_mode & S_IFDIR) {
+  if (taosIsDir(inputDir)) {
     shellCheckTablesSQLFile(inputDir);
     shellSQLFileNum = shellGetFilesNum(inputDir, "sql");
     int totalSQLFileNum = shellSQLFileNum;
@@ -135,21 +130,20 @@ static void shellGetDirectoryFileList(char *inputDir)
 static void shellSourceFile(TAOS *con, char *fptr) {
   wordexp_t full_path;
   int       read_len = 0;
-  char *    cmd = malloc(tsMaxSQLStringLen);
+  char *    cmd = taosMemoryMalloc(tsMaxSQLStringLen);
   size_t    cmd_len = 0;
   char *    line = NULL;
-  size_t    line_len = 0;
 
   if (wordexp(fptr, &full_path, 0) != 0) {
     fprintf(stderr, "ERROR: illegal file name\n");
-    free(cmd);
+    taosMemoryFree(cmd);
     return;
   }
 
   char *fname = full_path.we_wordv[0];
   if (fname == NULL) {
     fprintf(stderr, "ERROR: invalid filename\n");
-    free(cmd);
+    taosMemoryFree(cmd);
     return;
   }
 
@@ -158,7 +152,7 @@ static void shellSourceFile(TAOS *con, char *fptr) {
     fprintf(stderr, "ERROR: file %s is not exist\n", fptr);
     
     wordfree(&full_path);
-    free(cmd);
+    taosMemoryFree(cmd);
     return;
   }
   
@@ -166,23 +160,24 @@ static void shellSourceFile(TAOS *con, char *fptr) {
     fprintf(stderr, "ERROR: file %s is not readable\n", fptr);
     
     wordfree(&full_path);
-    free(cmd);
+    taosMemoryFree(cmd);
     return;
   }
   */
 
-  FILE *f = fopen(fname, "r");
-  if (f == NULL) {
+  // FILE *f = fopen(fname, "r");
+  TdFilePtr pFile = taosOpenFile(fname, TD_FILE_READ | TD_FILE_STREAM);
+  if (pFile == NULL) {
     fprintf(stderr, "ERROR: failed to open file %s\n", fname);
     wordfree(&full_path);
-    free(cmd);
+    taosMemoryFree(cmd);
     return;
   }
 
   fprintf(stdout, "begin import file:%s\n", fname);
 
   int lineNo = 0;
-  while ((read_len = getline(&line, &line_len, f)) != -1) {
+  while ((read_len = taosGetLineFile(pFile, &line)) != -1) {
     ++lineNo;
     if (read_len >= tsMaxSQLStringLen) continue;
     line[--read_len] = '\0';
@@ -214,10 +209,10 @@ static void shellSourceFile(TAOS *con, char *fptr) {
     cmd_len = 0;
   }
 
-  free(cmd);
-  if (line) free(line);
+  taosMemoryFree(cmd);
+  if(line != NULL) taosMemoryFree(line);
   wordfree(&full_path);
-  fclose(f);
+  taosCloseFile(&pFile);
 }
 
 void* shellImportThreadFp(void *arg)
@@ -237,8 +232,8 @@ void* shellImportThreadFp(void *arg)
 
 static void shellRunImportThreads(SShellArguments* _args)
 {
-  pthread_attr_t thattr;
-  ShellThreadObj *threadObj = (ShellThreadObj *)calloc(_args->threadNum, sizeof(ShellThreadObj));
+  TdThreadAttr thattr;
+  ShellThreadObj *threadObj = (ShellThreadObj *)taosMemoryCalloc(_args->threadNum, sizeof(ShellThreadObj));
   for (int t = 0; t < _args->threadNum; ++t) {
     ShellThreadObj *pThread = threadObj + t;
     pThread->threadIndex = t;
@@ -249,23 +244,23 @@ static void shellRunImportThreads(SShellArguments* _args)
       exit(0);
     }
 
-    pthread_attr_init(&thattr);
-    pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
+    taosThreadAttrInit(&thattr);
+    taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
 
-    if (pthread_create(&(pThread->threadID), &thattr, shellImportThreadFp, (void*)pThread) != 0) {
+    if (taosThreadCreate(&(pThread->threadID), &thattr, shellImportThreadFp, (void*)pThread) != 0) {
       fprintf(stderr, "ERROR: thread:%d failed to start\n", pThread->threadIndex);
       exit(0);
     }
   }
 
   for (int t = 0; t < _args->threadNum; ++t) {
-    pthread_join(threadObj[t].threadID, NULL);
+    taosThreadJoin(threadObj[t].threadID, NULL);
   }
 
   for (int t = 0; t < _args->threadNum; ++t) {
     taos_close(threadObj[t].taos);
   }
-  free(threadObj);
+  taosMemoryFree(threadObj);
 }
 
 void source_dir(TAOS* con, SShellArguments* _args) {

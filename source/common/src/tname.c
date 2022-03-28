@@ -1,9 +1,20 @@
-#include <common.h>
-#include "os.h"
-#include "tutil.h"
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
+#define _DEFAULT_SOURCE
 #include "tname.h"
-#include "tmsg.h"
 
 #define VALID_NAME_TYPE(x)  ((x) == TSDB_DB_NAME_T || (x) == TSDB_TABLE_NAME_T)
 
@@ -11,6 +22,7 @@ bool tscValidateTableNameLength(size_t len) {
   return len < TSDB_TABLE_NAME_LEN;
 }
 
+#if 0
 // TODO refactor
 SColumnFilterInfo* tFilterInfoDup(const SColumnFilterInfo* src, int32_t numOfFilters) {
   if (numOfFilters == 0 || src == NULL) {
@@ -18,24 +30,24 @@ SColumnFilterInfo* tFilterInfoDup(const SColumnFilterInfo* src, int32_t numOfFil
     return NULL;
   }
 
-  SColumnFilterInfo* pFilter = calloc(1, numOfFilters * sizeof(SColumnFilterInfo));
+  SColumnFilterInfo* pFilter = taosMemoryCalloc(1, numOfFilters * sizeof(SColumnFilterInfo));
 
   memcpy(pFilter, src, sizeof(SColumnFilterInfo) * numOfFilters);
   for (int32_t j = 0; j < numOfFilters; ++j) {
     if (pFilter[j].filterstr) {
       size_t len = (size_t) pFilter[j].len + 1 * TSDB_NCHAR_SIZE;
-      pFilter[j].pz = (int64_t) calloc(1, len);
+      pFilter[j].pz = (int64_t) taosMemoryCalloc(1, len);
 
       memcpy((char*)pFilter[j].pz, (char*)src[j].pz, (size_t) pFilter[j].len);
     }
   }
 
   assert(src->filterstr == 0 || src->filterstr == 1);
-  assert(!(src->lowerRelOptr == TSDB_RELATION_INVALID && src->upperRelOptr == TSDB_RELATION_INVALID));
+  assert(!(src->lowerRelOptr == 0 && src->upperRelOptr == 0));
 
   return pFilter;
 }
-
+#endif
 #if 0
 int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, int64_t intervalTime, char timeUnit, int16_t precision) {
   if (slidingTime == 0) {
@@ -49,7 +61,7 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
     }
     struct tm tm;
     time_t t = (time_t)start;
-    localtime_r(&t, &tm);
+    taosLocalTime(&t, &tm);
     tm.tm_sec = 0;
     tm.tm_min = 0;
     tm.tm_hour = 0;
@@ -159,7 +171,7 @@ bool tNameIsValid(const SName* name) {
 SName* tNameDup(const SName* name) {
   assert(name != NULL);
 
-  SName* p = malloc(sizeof(SName));
+  SName* p = taosMemoryMalloc(sizeof(SName));
   memcpy(p, name, sizeof(SName));
   return p;
 }
@@ -205,10 +217,31 @@ int32_t tNameSetDbName(SName* dst, int32_t acct, const char* dbName, size_t name
 }
 
 int32_t tNameSetAcctId(SName* dst, int32_t acctId) {
-  assert(dst != NULL && acct != NULL);
+  assert(dst != NULL);
   dst->acctId = acctId;
   return 0;
 }
+
+bool tNameDBNameEqual(SName* left, SName* right) {
+  if (NULL == left) {
+    if (NULL == right) {
+      return true;
+    }
+
+    return false;
+  }
+
+  if (NULL == right) {
+    return false;
+  }
+
+  if (left->acctId != right->acctId) {
+    return false;
+  }
+
+  return (0 == strcmp(left->dbname, right->dbname));
+}
+
 
 int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
   assert(dst != NULL && str != NULL && strlen(str) > 0);
@@ -261,13 +294,4 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
   return 0;
 }
 
-SSchema createSchema(uint8_t type, int32_t bytes, int32_t colId, const char* name) {
-  SSchema s = {0};
-  s.type  = type;
-  s.bytes = bytes;
-  s.colId = colId;
-
-  tstrncpy(s.name, name, tListLen(s.name));
-  return s;
-}
 

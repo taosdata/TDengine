@@ -12,12 +12,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#define _DEFAULT_SOURCE
 #include "tdataformat.h"
-#include "ulog.h"
-#include "talgo.h"
 #include "tcoding.h"
-#include "wchar.h"
-#include "tarray.h"
+#include "tlog.h"
 
 static void dataColSetNEleNull(SDataCol *pCol, int nEle);
 #if 0
@@ -26,7 +25,7 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
 #endif
 int tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
   int spaceNeeded = pCol->bytes * maxPoints;
-  if(IS_VAR_DATA_TYPE(pCol->type)) {
+  if (IS_VAR_DATA_TYPE(pCol->type)) {
     spaceNeeded += sizeof(VarDataOffsetT) * maxPoints;
   }
 #ifdef TD_SUPPORT_BITMAP
@@ -37,11 +36,10 @@ int tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
   spaceNeeded += TYPE_BYTES[pCol->type];
 #endif
 
-  if(pCol->spaceSize < spaceNeeded) {
-    void* ptr = realloc(pCol->pData, spaceNeeded);
-    if(ptr == NULL) {
-      uDebug("malloc failure, size:%" PRId64 " failed, reason:%s", (int64_t)spaceNeeded,
-             strerror(errno));
+  if (pCol->spaceSize < spaceNeeded) {
+    void *ptr = taosMemoryRealloc(pCol->pData, spaceNeeded);
+    if (ptr == NULL) {
+      uDebug("malloc failure, size:%" PRId64 " failed, reason:%s", (int64_t)spaceNeeded, strerror(errno));
       return -1;
     } else {
       pCol->pData = ptr;
@@ -67,9 +65,8 @@ int tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
  * Duplicate the schema and return a new object
  */
 STSchema *tdDupSchema(const STSchema *pSchema) {
-
-  int tlen = sizeof(STSchema) + sizeof(STColumn) * schemaNCols(pSchema);
-  STSchema *tSchema = (STSchema *)malloc(tlen);
+  int       tlen = sizeof(STSchema) + sizeof(STColumn) * schemaNCols(pSchema);
+  STSchema *tSchema = (STSchema *)taosMemoryMalloc(tlen);
   if (tSchema == NULL) return NULL;
 
   memcpy((void *)tSchema, (void *)pSchema, tlen);
@@ -99,8 +96,8 @@ int tdEncodeSchema(void **buf, STSchema *pSchema) {
  * Decode a schema from a binary.
  */
 void *tdDecodeSchema(void *buf, STSchema **pRSchema) {
-  int version = 0;
-  int numOfCols = 0;
+  int             version = 0;
+  int             numOfCols = 0;
   STSchemaBuilder schemaBuilder;
 
   buf = taosDecodeFixedI32(buf, &version);
@@ -109,12 +106,12 @@ void *tdDecodeSchema(void *buf, STSchema **pRSchema) {
   if (tdInitTSchemaBuilder(&schemaBuilder, version) < 0) return NULL;
 
   for (int i = 0; i < numOfCols; i++) {
-    int8_t  type = 0;
-    int16_t colId = 0;
-    int16_t bytes = 0;
+    col_type_t  type = 0;
+    col_id_t    colId = 0;
+    col_bytes_t bytes = 0;
     buf = taosDecodeFixedI8(buf, &type);
     buf = taosDecodeFixedI16(buf, &colId);
-    buf = taosDecodeFixedI16(buf, &bytes);
+    buf = taosDecodeFixedI32(buf, &bytes);
     if (tdAddColToSchema(&schemaBuilder, type, colId, bytes) < 0) {
       tdDestroyTSchemaBuilder(&schemaBuilder);
       return NULL;
@@ -130,7 +127,7 @@ int tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version) {
   if (pBuilder == NULL) return -1;
 
   pBuilder->tCols = 256;
-  pBuilder->columns = (STColumn *)malloc(sizeof(STColumn) * pBuilder->tCols);
+  pBuilder->columns = (STColumn *)taosMemoryMalloc(sizeof(STColumn) * pBuilder->tCols);
   if (pBuilder->columns == NULL) return -1;
 
   tdResetTSchemaBuilder(pBuilder, version);
@@ -139,7 +136,7 @@ int tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version) {
 
 void tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder) {
   if (pBuilder) {
-    tfree(pBuilder->columns);
+    taosMemoryFreeClear(pBuilder->columns);
   }
 }
 
@@ -151,12 +148,12 @@ void tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version) {
   pBuilder->version = version;
 }
 
-int tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int16_t colId, int16_t bytes) {
+int tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, col_id_t colId, col_bytes_t bytes) {
   if (!isValidDataType(type)) return -1;
 
   if (pBuilder->nCols >= pBuilder->tCols) {
     pBuilder->tCols *= 2;
-    STColumn* columns = (STColumn *)realloc(pBuilder->columns, sizeof(STColumn) * pBuilder->tCols);
+    STColumn *columns = (STColumn *)taosMemoryRealloc(pBuilder->columns, sizeof(STColumn) * pBuilder->tCols);
     if (columns == NULL) return -1;
     pBuilder->columns = columns;
   }
@@ -167,7 +164,7 @@ int tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int16_t colId, int1
   if (pBuilder->nCols == 0) {
     colSetOffset(pCol, 0);
   } else {
-    STColumn *pTCol = &(pBuilder->columns[pBuilder->nCols-1]);
+    STColumn *pTCol = &(pBuilder->columns[pBuilder->nCols - 1]);
     colSetOffset(pCol, pTCol->offset + TYPE_BYTES[pTCol->type]);
   }
 
@@ -194,7 +191,7 @@ STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder) {
 
   int tlen = sizeof(STSchema) + sizeof(STColumn) * pBuilder->nCols;
 
-  STSchema *pSchema = (STSchema *)malloc(tlen);
+  STSchema *pSchema = (STSchema *)taosMemoryMalloc(tlen);
   if (pSchema == NULL) return NULL;
 
   schemaVersion(pSchema) = pBuilder->version;
@@ -224,7 +221,7 @@ void tdInitDataRow(SDataRow row, STSchema *pSchema) {
 SDataRow tdNewDataRowFromSchema(STSchema *pSchema) {
   int32_t size = dataRowMaxBytesFromSchema(pSchema);
 
-  SDataRow row = malloc(size);
+  SDataRow row = taosMemoryMalloc(size);
   if (row == NULL) return NULL;
 
   tdInitDataRow(row, pSchema);
@@ -235,11 +232,11 @@ SDataRow tdNewDataRowFromSchema(STSchema *pSchema) {
  * Free the SDataRow object
  */
 void tdFreeDataRow(SDataRow row) {
-  if (row) free(row);
+  if (row) taosMemoryFree(row);
 }
 
 SDataRow tdDataRowDup(SDataRow row) {
-  SDataRow trow = malloc(dataRowLen(row));
+  SDataRow trow = taosMemoryMalloc(dataRowLen(row));
   if (trow == NULL) return NULL;
 
   dataRowCpy(trow, row);
@@ -247,7 +244,7 @@ SDataRow tdDataRowDup(SDataRow row) {
 }
 
 SMemRow tdMemRowDup(SMemRow row) {
-  SMemRow trow = malloc(memRowTLen(row));
+  SMemRow trow = taosMemoryMalloc(memRowTLen(row));
   if (trow == NULL) return NULL;
 
   memRowCpy(trow, row);
@@ -259,7 +256,7 @@ void dataColInit(SDataCol *pDataCol, STColumn *pCol, int maxPoints) {
   pDataCol->type = colType(pCol);
   pDataCol->colId = colColId(pCol);
   pDataCol->bytes = colBytes(pCol);
-  pDataCol->offset = colOffset(pCol) + 0; //TD_DATA_ROW_HEAD_SIZE;
+  pDataCol->offset = colOffset(pCol) + 0;  // TD_DATA_ROW_HEAD_SIZE;
 
   pDataCol->len = 0;
 }
@@ -273,7 +270,7 @@ int dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPo
       return 0;
     }
 
-    if(tdAllocMemForCol(pCol, maxPoints) < 0) return -1;
+    if (tdAllocMemForCol(pCol, maxPoints) < 0) return -1;
     if (numOfRows > 0) {
       // Find the first not null value, fill all previouse values as NULL
       dataColSetNEleNull(pCol, numOfRows);
@@ -304,7 +301,7 @@ static FORCE_INLINE const void *tdGetColDataOfRowUnsafe(SDataCol *pCol, int row)
 }
 
 bool isNEleNull(SDataCol *pCol, int nEle) {
-  if(isAllRowsNull(pCol)) return true;
+  if (isAllRowsNull(pCol)) return true;
   for (int i = 0; i < nEle; i++) {
     if (!isNull(tdGetColDataOfRowUnsafe(pCol, i), pCol->type)) return false;
   }
@@ -351,7 +348,7 @@ void *dataColSetOffset(SDataCol *pCol, int nEle) {
 }
 
 SDataCols *tdNewDataCols(int maxCols, int maxRows) {
-  SDataCols *pCols = (SDataCols *)calloc(1, sizeof(SDataCols));
+  SDataCols *pCols = (SDataCols *)taosMemoryCalloc(1, sizeof(SDataCols));
   if (pCols == NULL) {
     uDebug("malloc failure, size:%" PRId64 " failed, reason:%s", (int64_t)sizeof(SDataCols), strerror(errno));
     return NULL;
@@ -363,7 +360,7 @@ SDataCols *tdNewDataCols(int maxCols, int maxRows) {
   pCols->numOfCols = 0;
 
   if (maxCols > 0) {
-    pCols->cols = (SDataCol *)calloc(maxCols, sizeof(SDataCol));
+    pCols->cols = (SDataCol *)taosMemoryCalloc(maxCols, sizeof(SDataCol));
     if (pCols->cols == NULL) {
       uDebug("malloc failure, size:%" PRId64 " failed, reason:%s", (int64_t)sizeof(SDataCol) * maxCols,
              strerror(errno));
@@ -371,7 +368,7 @@ SDataCols *tdNewDataCols(int maxCols, int maxRows) {
       return NULL;
     }
     int i;
-    for(i = 0; i < maxCols; i++) {
+    for (i = 0; i < maxCols; i++) {
       pCols->cols[i].spaceSize = 0;
       pCols->cols[i].len = 0;
       pCols->cols[i].pData = NULL;
@@ -387,10 +384,10 @@ int tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
   int oldMaxCols = pCols->maxCols;
   if (schemaNCols(pSchema) > oldMaxCols) {
     pCols->maxCols = schemaNCols(pSchema);
-    void* ptr = (SDataCol *)realloc(pCols->cols, sizeof(SDataCol) * pCols->maxCols);
+    void *ptr = (SDataCol *)taosMemoryRealloc(pCols->cols, sizeof(SDataCol) * pCols->maxCols);
     if (ptr == NULL) return -1;
     pCols->cols = ptr;
-    for(i = oldMaxCols; i < pCols->maxCols; i++) {
+    for (i = oldMaxCols; i < pCols->maxCols; i++) {
       pCols->cols[i].pData = NULL;
       pCols->cols[i].dataOff = NULL;
       pCols->cols[i].spaceSize = 0;
@@ -403,27 +400,28 @@ int tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
   for (i = 0; i < schemaNCols(pSchema); i++) {
     dataColInit(pCols->cols + i, schemaColAt(pSchema, i), pCols->maxPoints);
   }
-  
+
   return 0;
 }
 
 SDataCols *tdFreeDataCols(SDataCols *pCols) {
   int i;
   if (pCols) {
-    if(pCols->cols) {
+    if (pCols->cols) {
       int maxCols = pCols->maxCols;
-      for(i = 0; i < maxCols; i++) {
+      for (i = 0; i < maxCols; i++) {
         SDataCol *pCol = &pCols->cols[i];
-        tfree(pCol->pData);
+        taosMemoryFreeClear(pCol->pData);
       }
-      free(pCols->cols);
+      taosMemoryFree(pCols->cols);
       pCols->cols = NULL;
     }
-    free(pCols);
+    taosMemoryFree(pCols);
   }
   return NULL;
 }
 
+#if 0
 SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
   SDataCols *pRet = tdNewDataCols(pDataCols->maxCols, pDataCols->maxPoints);
   if (pRet == NULL) return NULL;
@@ -434,13 +432,14 @@ SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
 
   for (int i = 0; i < pDataCols->numOfCols; i++) {
     pRet->cols[i].type = pDataCols->cols[i].type;
+    pRet->cols[i].bitmap = pDataCols->cols[i].bitmap;
     pRet->cols[i].colId = pDataCols->cols[i].colId;
     pRet->cols[i].bytes = pDataCols->cols[i].bytes;
     pRet->cols[i].offset = pDataCols->cols[i].offset;
 
     if (keepData) {
       if (pDataCols->cols[i].len > 0) {
-        if(tdAllocMemForCol(&pRet->cols[i], pRet->maxPoints) < 0) {
+        if (tdAllocMemForCol(&pRet->cols[i], pRet->maxPoints) < 0) {
           tdFreeDataCols(pRet);
           return NULL;
         }
@@ -456,6 +455,7 @@ SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
 
   return pRet;
 }
+#endif
 
 void tdResetDataCols(SDataCols *pCols) {
   if (pCols != NULL) {
@@ -641,16 +641,16 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
 #endif
 
 SKVRow tdKVRowDup(SKVRow row) {
-  SKVRow trow = malloc(kvRowLen(row));
+  SKVRow trow = taosMemoryMalloc(kvRowLen(row));
   if (trow == NULL) return NULL;
 
   kvRowCpy(trow, row);
   return trow;
 }
 
-static int compareColIdx(const void* a, const void* b) {
-  const SColIdx* x = (const SColIdx*)a;
-  const SColIdx* y = (const SColIdx*)b;
+static int compareColIdx(const void *a, const void *b) {
+  const SColIdx *x = (const SColIdx *)a;
+  const SColIdx *y = (const SColIdx *)b;
   if (x->colId > y->colId) {
     return 1;
   }
@@ -660,15 +660,13 @@ static int compareColIdx(const void* a, const void* b) {
   return 0;
 }
 
-void tdSortKVRowByColIdx(SKVRow row) {
-  qsort(kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), compareColIdx);
-}
+void tdSortKVRowByColIdx(SKVRow row) { qsort(kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), compareColIdx); }
 
 int tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value) {
   SColIdx *pColIdx = NULL;
   SKVRow   row = *orow;
   SKVRow   nrow = NULL;
-  void *   ptr = taosbsearch(&colId, kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), comparTagId, TD_GE);
+  void    *ptr = taosbsearch(&colId, kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), comparTagId, TD_GE);
 
   if (ptr == NULL || ((SColIdx *)ptr)->colId > colId) {  // need to add a column value to the row
     int diff = IS_VAR_DATA_TYPE(type) ? varDataTLen(value) : TYPE_BYTES[type];
@@ -676,7 +674,7 @@ int tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value) {
     int oRowCols = kvRowNCols(row);
 
     ASSERT(diff > 0);
-    nrow = malloc(nRowLen);
+    nrow = taosMemoryMalloc(nRowLen);
     if (nrow == NULL) return -1;
 
     kvRowSetLen(nrow, nRowLen);
@@ -694,18 +692,18 @@ int tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value) {
     tdSortKVRowByColIdx(nrow);
 
     *orow = nrow;
-    free(row);
+    taosMemoryFree(row);
   } else {
     ASSERT(((SColIdx *)ptr)->colId == colId);
     if (IS_VAR_DATA_TYPE(type)) {
       void *pOldVal = kvRowColVal(row, (SColIdx *)ptr);
 
-      if (varDataTLen(value) == varDataTLen(pOldVal)) { // just update the column value in place
+      if (varDataTLen(value) == varDataTLen(pOldVal)) {  // just update the column value in place
         memcpy(pOldVal, value, varDataTLen(value));
       } else {  // need to reallocate the memory
         int16_t nlen = kvRowLen(row) + (varDataTLen(value) - varDataTLen(pOldVal));
         ASSERT(nlen > 0);
-        nrow = malloc(nlen);
+        nrow = taosMemoryMalloc(nlen);
         if (nrow == NULL) return -1;
 
         kvRowSetLen(nrow, nlen);
@@ -730,7 +728,7 @@ int tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value) {
         }
 
         *orow = nrow;
-        free(row);
+        taosMemoryFree(row);
       }
     } else {
       memcpy(kvRowColVal(row, (SColIdx *)ptr), value, TYPE_BYTES[type]);
@@ -759,21 +757,21 @@ void *tdDecodeKVRow(void *buf, SKVRow *row) {
 int tdInitKVRowBuilder(SKVRowBuilder *pBuilder) {
   pBuilder->tCols = 128;
   pBuilder->nCols = 0;
-  pBuilder->pColIdx = (SColIdx *)malloc(sizeof(SColIdx) * pBuilder->tCols);
+  pBuilder->pColIdx = (SColIdx *)taosMemoryMalloc(sizeof(SColIdx) * pBuilder->tCols);
   if (pBuilder->pColIdx == NULL) return -1;
   pBuilder->alloc = 1024;
   pBuilder->size = 0;
-  pBuilder->buf = malloc(pBuilder->alloc);
+  pBuilder->buf = taosMemoryMalloc(pBuilder->alloc);
   if (pBuilder->buf == NULL) {
-    free(pBuilder->pColIdx);
+    taosMemoryFree(pBuilder->pColIdx);
     return -1;
   }
   return 0;
 }
 
 void tdDestroyKVRowBuilder(SKVRowBuilder *pBuilder) {
-  tfree(pBuilder->pColIdx);
-  tfree(pBuilder->buf);
+  taosMemoryFreeClear(pBuilder->pColIdx);
+  taosMemoryFreeClear(pBuilder->buf);
 }
 
 void tdResetKVRowBuilder(SKVRowBuilder *pBuilder) {
@@ -787,7 +785,7 @@ SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder) {
 
   tlen += TD_KV_ROW_HEAD_SIZE;
 
-  SKVRow row = malloc(tlen);
+  SKVRow row = taosMemoryMalloc(tlen);
   if (row == NULL) return NULL;
 
   kvRowSetNCols(row, pBuilder->nCols);

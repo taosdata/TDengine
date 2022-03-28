@@ -13,32 +13,32 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
+// clang-format off
 
-#define TAOS_ERROR_C
- 
-typedef struct {
-    int32_t val;
-    const char* str;
-} STaosError;
-
+#define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
 
+#define TAOS_ERROR_C
+
+typedef struct {
+  int32_t     val;
+  const char* str;
+} STaosError;
+
 static threadlocal int32_t tsErrno;
-int32_t* taosGetErrno() {
-  return &tsErrno;
-}
+
+int32_t* taosGetErrno() { return &tsErrno; }
 
 #ifdef TAOS_ERROR_C
-#define TAOS_DEFINE_ERROR(name, msg) {.val = (name), .str=(msg)},
+#define TAOS_DEFINE_ERROR(name, msg) {.val = (name), .str = (msg)},
 #else
 #define TAOS_DEFINE_ERROR(name, mod, code, msg) static const int32_t name = TAOS_DEF_ERROR_CODE(mod, code);
 #endif
 
-#define TAOS_SYSTEM_ERROR(code)             (0x80ff0000 | (code))
-#define TAOS_SUCCEEDED(err)                 ((err) >= 0)
-#define TAOS_FAILED(err)                    ((err) < 0)
+#define TAOS_SYSTEM_ERROR(code) (0x80ff0000 | (code))
+#define TAOS_SUCCEEDED(err)     ((err) >= 0)
+#define TAOS_FAILED(err)        ((err) < 0)
 
 #ifdef TAOS_ERROR_C
 STaosError errors[] = {
@@ -68,6 +68,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_TIME_STAMP,       "Client and server's t
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_NOT_READY,                "Database not ready")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_FQDN_ERROR,               "Unable to resolve FQDN")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_VERSION,          "Invalid app version")
+TAOS_DEFINE_ERROR(TSDB_CODE_COMPRESS_ERROR,               "Failed to compress msg")
 
 //common & util
 TAOS_DEFINE_ERROR(TSDB_CODE_OPS_NOT_SUPPORT,              "Operation not supported")
@@ -81,6 +82,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_MSG,                  "Invalid message")
 TAOS_DEFINE_ERROR(TSDB_CODE_MSG_NOT_PROCESSED,            "Message not processed")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_PARA,                 "Invalid parameters")
 TAOS_DEFINE_ERROR(TSDB_CODE_REPEAT_INIT,                  "Repeat initialization")
+TAOS_DEFINE_ERROR(TSDB_CODE_CFG_NOT_FOUND,                "Config not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CFG,                  "Invalid config option")
+TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_SHM_MEM,               "Out of Share memory")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_NO_MEMORY,                "Ref out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_FULL,                     "too many Ref Objs")
@@ -243,6 +247,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_COLUMNS,         "Too many columns")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COLUMN_ALREADY_EXIST,     "Column already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COLUMN_NOT_EXIST,         "Column does not exist")
 
+// mnode-infoSchema
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_INFOS_TBL,        "Invalid information schema table name")
+
+
 // mnode-func
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_FUNC_ALREADY_EXIST,       "Func already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_FUNC_NOT_EXIST,           "Func not exists")
@@ -251,48 +259,33 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_NAME,        "Invalid func name")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_COMMENT,     "Invalid func comment")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_CODE,        "Invalid func code")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_BUFSIZE,     "Invalid func bufSize")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_RETRIEVE,     "Invalid func retrieve msg")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_RETRIEVE,    "Invalid func retrieve msg")
 
 // mnode-trans
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_ALREADY_EXIST,       "Transaction already exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_NOT_EXIST,           "Transaction not exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_INVALID_STAGE,       "Invalid stage to kill")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CANT_PARALLEL,       "Invalid stage to kill")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_ALREADY_EXIST,      "Transaction already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_NOT_EXIST,          "Transaction not exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_INVALID_STAGE,      "Invalid stage to kill")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CANT_PARALLEL,      "Invalid stage to kill")
 
 // mnode-topic
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_UNSUPPORTED_TOPIC,         "Topic with STable not supported yet")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_UNSUPPORTED_TOPIC,        "Topic with aggregation is unsupported")
+
+// mnode-sma
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_NOT_EXIST,            "SMA does not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SMA_OPTION,       "Invalid sma option")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_ACTION_IN_PROGRESS,       "Action in progress")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_OFFLINE,                  "Dnode is offline")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_INVALID_MSG_LEN,          "Invalid message length")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_DNODE_READ_FILE_ERROR,    "Read dnode.json error")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_DNODE_WRITE_FILE_ERROR,   "Write dnode.json error")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_MNODE_ALREADY_DEPLOYED,   "Mnode already deployed")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_MNODE_NOT_DEPLOYED,       "Mnode not deployed")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_MNODE_INVALID_OPTION,     "Mnode option invalid")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_MNODE_READ_FILE_ERROR,    "Read mnode.json error")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_MNODE_WRITE_FILE_ERROR,   "Write mnode.json error")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_QNODE_ALREADY_DEPLOYED,   "Qnode already deployed")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_QNODE_NOT_DEPLOYED,       "Qnode not deployed")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_QNODE_INVALID_OPTION,     "Qnode option invalid")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_QNODE_READ_FILE_ERROR,    "Read qnode.json error")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_QNODE_WRITE_FILE_ERROR,   "Write qnode.json error")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_SNODE_ALREADY_DEPLOYED,   "Snode already deployed")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_SNODE_NOT_DEPLOYED,       "Snode not deployed")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_SNODE_INVALID_OPTION,     "Snode option invalid")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_SNODE_READ_FILE_ERROR,    "Read snode.json error")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_SNODE_WRITE_FILE_ERROR,   "Write snode.json error")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_BNODE_ALREADY_DEPLOYED,   "Bnode already deployed")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_BNODE_NOT_DEPLOYED,       "Bnode not deployed")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_BNODE_INVALID_OPTION,     "Bnode option invalid")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_BNODE_READ_FILE_ERROR,    "Read bnode.json error")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_BNODE_WRITE_FILE_ERROR,   "Write bnode.json error")
+TAOS_DEFINE_ERROR(TSDB_CODE_NODE_ALREADY_DEPLOYED,        "Node already deployed")
+TAOS_DEFINE_ERROR(TSDB_CODE_NODE_NOT_DEPLOYED,            "Node not deployed")
+TAOS_DEFINE_ERROR(TSDB_CODE_NODE_PARSE_FILE_ERROR,        "Invalid json format")
+TAOS_DEFINE_ERROR(TSDB_CODE_NODE_INVALID_OPTION,          "Invalid node option")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED,   "Vnode already deployed")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_VNODE_NOT_DEPLOYED,       "Vnode not deployed")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_VNODE_INVALID_OPTION,     "Vnode option invalid")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_VNODE_READ_FILE_ERROR,    "Read vnodes.json error")
-TAOS_DEFINE_ERROR(TSDB_CODE_DND_VNODE_WRITE_FILE_ERROR,   "Write vnodes.json error")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_VNODE_TOO_MANY_VNODES,    "Too many vnodes")
 
 // vnode
@@ -317,6 +310,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_WRITE_AUTH,            "Database write operat
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_IS_SYNCING,               "Database is syncing")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_TSDB_STATE,       "Invalid tsdb state")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_TB_NOT_EXIST,             "Table not exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_SMA_NOT_EXIST,            "SMA not exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_HASH_MISMATCH,            "Hash value mismatch")
 
 // tsdb
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_ID,         "Invalid table ID")
@@ -341,6 +336,12 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVD_CREATE_TABLE_INFO,    "Invalid information t
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_AVAIL_DISK,            "No available disk")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_MESSED_MSG,               "TSDB messed message")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVLD_TAG_VAL,             "TSDB invalid tag value")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_CACHE_LAST_ROW,        "TSDB no cache last row data")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_RECREATED,          "Table re-created")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TDB_ENV_OPEN_ERROR,       "TDB env open error")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_SMA_INDEX_IN_META,     "No sma index in meta")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_SMA_STAT,         "Invalid sma state")
+
 
 // query
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_QHANDLE,          "Invalid handle")
@@ -371,8 +372,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_DUPLICATTED_OPERATION,    "Duplicatted operation
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_MSG_ERROR,           "Task message error")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JOB_FREED,                "Job already freed")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_STATUS_ERROR,        "Task status error")
-
-
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")
@@ -405,9 +404,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_MSGTYPE,          "Invalid msg type")
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_APP_ERROR,                "Unexpected generic error in wal")
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_FILE_CORRUPTED,           "WAL file is corrupted")
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_SIZE_LIMIT,               "WAL size exceeds limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_WAL_INVALID_VER,              "WAL use invalid version")
 
 // tfs
-TAOS_DEFINE_ERROR(TSDB_CODE_FS_APP_ERROR,                "tfs out of memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_FS_APP_ERROR,                 "tfs out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_FS_INVLD_CFG,                 "tfs invalid mount config")
 TAOS_DEFINE_ERROR(TSDB_CODE_FS_TOO_MANY_MOUNT,            "tfs too many mount")
 TAOS_DEFINE_ERROR(TSDB_CODE_FS_DUP_PRIMARY,               "tfs duplicate primary mount")
@@ -425,17 +425,18 @@ TAOS_DEFINE_ERROR(TSDB_CODE_CTG_MEM_ERROR,                "catalog memory error"
 TAOS_DEFINE_ERROR(TSDB_CODE_CTG_SYS_ERROR,                "catalog system error")
 TAOS_DEFINE_ERROR(TSDB_CODE_CTG_DB_DROPPED,               "Database is dropped")
 TAOS_DEFINE_ERROR(TSDB_CODE_CTG_OUT_OF_SERVICE,           "catalog is out of service")
+TAOS_DEFINE_ERROR(TSDB_CODE_CTG_VG_META_MISMATCH,         "table meta and vgroup mismatch")
 
 //scheduler
 TAOS_DEFINE_ERROR(TSDB_CODE_SCH_STATUS_ERROR,             "scheduler status error")
 TAOS_DEFINE_ERROR(TSDB_CODE_SCH_INTERNAL_ERROR,           "scheduler internal error")
-
+TAOS_DEFINE_ERROR(TSDB_CODE_QW_MSG_ERROR,                 "Invalid msg order")
 
 #ifdef TAOS_ERROR_C
 };
 #endif
 
-static int tsCompareTaosError(const void* a, const void* b) {
+static int32_t taosCompareTaosError(const void* a, const void* b) {
   const STaosError* x = (const STaosError*)a;
   const STaosError* y = (const STaosError*)b;
   if (x->val < y->val) {
@@ -447,23 +448,25 @@ static int tsCompareTaosError(const void* a, const void* b) {
   return 0;
 }
 
-static pthread_once_t tsErrorInit = PTHREAD_ONCE_INIT;
+static TdThreadOnce tsErrorInit = PTHREAD_ONCE_INIT;
+
 static void tsSortError(void) {
-  qsort(errors, sizeof(errors)/sizeof(errors[0]), sizeof(errors[0]), tsCompareTaosError);
+  qsort(errors, sizeof(errors) / sizeof(errors[0]), sizeof(errors[0]), taosCompareTaosError);
 }
 
-
 const char* tstrerror(int32_t err) {
-  pthread_once(&tsErrorInit, tsSortError);
+  taosThreadOnce(&tsErrorInit, tsSortError);
 
   // this is a system errno
   if ((err & 0x00ff0000) == 0x00ff0000) {
     return strerror(err & 0x0000ffff);
   }
 
-  size_t s = 0, e = sizeof(errors)/sizeof(errors[0]);
+  int32_t s = 0;
+  int32_t e = sizeof(errors) / sizeof(errors[0]);
+
   while (s < e) {
-    size_t mid = (s + e) / 2;
+    int32_t mid = (s + e) / 2;
     int32_t val = errors[mid].val;
     if (err > val) {
       s = mid + 1;

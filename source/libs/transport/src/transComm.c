@@ -16,20 +16,6 @@
 
 #include "transComm.h"
 
-int rpcAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey) {
-  T_MD5_CTX context;
-  int       ret = -1;
-
-  tMD5Init(&context);
-  tMD5Update(&context, (uint8_t*)pKey, TSDB_PASSWORD_LEN);
-  tMD5Update(&context, (uint8_t*)pMsg, msgLen);
-  tMD5Update(&context, (uint8_t*)pKey, TSDB_PASSWORD_LEN);
-  tMD5Final(&context);
-
-  if (memcmp(context.digest, pAuth, sizeof(context.digest)) == 0) ret = 0;
-
-  return ret;
-}
 int transAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey) {
   T_MD5_CTX context;
   int       ret = -1;
@@ -44,17 +30,7 @@ int transAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey) {
 
   return ret;
 }
-void rpcBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey) {
-  T_MD5_CTX context;
 
-  tMD5Init(&context);
-  tMD5Update(&context, (uint8_t*)pKey, TSDB_PASSWORD_LEN);
-  tMD5Update(&context, (uint8_t*)pMsg, msgLen);
-  tMD5Update(&context, (uint8_t*)pKey, TSDB_PASSWORD_LEN);
-  tMD5Final(&context);
-
-  memcpy(pAuth, context.digest, sizeof(context.digest));
-}
 void transBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey) {
   T_MD5_CTX context;
 
@@ -67,45 +43,6 @@ void transBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey) {
   memcpy(pAuth, context.digest, sizeof(context.digest));
 }
 
-int32_t rpcCompressRpcMsg(char* pCont, int32_t contLen) {
-  SRpcHead* pHead = rpcHeadFromCont(pCont);
-  int32_t   finalLen = 0;
-  int       overhead = sizeof(SRpcComp);
-
-  if (!NEEDTO_COMPRESSS_MSG(contLen)) {
-    return contLen;
-  }
-
-  char* buf = malloc(contLen + overhead + 8);  // 8 extra bytes
-  if (buf == NULL) {
-    tError("failed to allocate memory for rpc msg compression, contLen:%d", contLen);
-    return contLen;
-  }
-
-  int32_t compLen = LZ4_compress_default(pCont, buf, contLen, contLen + overhead);
-  tDebug("compress rpc msg, before:%d, after:%d, overhead:%d", contLen, compLen, overhead);
-
-  /*
-   * only the compressed size is less than the value of contLen - overhead, the compression is applied
-   * The first four bytes is set to 0, the second four bytes are utilized to keep the original length of message
-   */
-  if (compLen > 0 && compLen < contLen - overhead) {
-    SRpcComp* pComp = (SRpcComp*)pCont;
-    pComp->reserved = 0;
-    pComp->contLen = htonl(contLen);
-    memcpy(pCont + overhead, buf, compLen);
-
-    pHead->comp = 1;
-    tDebug("compress rpc msg, before:%d, after:%d", contLen, compLen);
-    finalLen = compLen + overhead;
-  } else {
-    finalLen = contLen;
-  }
-
-  free(buf);
-  return finalLen;
-}
-
 bool transCompressMsg(char* msg, int32_t len, int32_t* flen) {
   return false;
   // SRpcHead* pHead = rpcHeadFromCont(pCont);
@@ -115,7 +52,7 @@ bool transCompressMsg(char* msg, int32_t len, int32_t* flen) {
     return succ;
   }
 
-  char* buf = malloc(len + overhead + 8);  // 8 extra bytes
+  char* buf = taosMemoryMalloc(len + overhead + 8);  // 8 extra bytes
   if (buf == NULL) {
     tError("failed to allocate memory for rpc msg compression, contLen:%d", len);
     *flen = len;
@@ -141,7 +78,7 @@ bool transCompressMsg(char* msg, int32_t len, int32_t* flen) {
     *flen = len;
     succ = false;
   }
-  free(buf);
+  taosMemoryFree(buf);
   return succ;
 }
 bool transDecompressMsg(char* msg, int32_t len, int32_t* flen) {
@@ -154,49 +91,16 @@ bool transDecompressMsg(char* msg, int32_t len, int32_t* flen) {
   return false;
 }
 
-SRpcHead* rpcDecompressRpcMsg(SRpcHead* pHead) {
-  int       overhead = sizeof(SRpcComp);
-  SRpcHead* pNewHead = NULL;
-  uint8_t*  pCont = pHead->content;
-  SRpcComp* pComp = (SRpcComp*)pHead->content;
-
-  if (pHead->comp) {
-    // decompress the content
-    assert(pComp->reserved == 0);
-    int contLen = htonl(pComp->contLen);
-
-    // prepare the temporary buffer to decompress message
-    char* temp = (char*)malloc(contLen + RPC_MSG_OVERHEAD);
-    pNewHead = (SRpcHead*)(temp + sizeof(SRpcReqContext));  // reserve SRpcReqContext
-
-    if (pNewHead) {
-      int compLen = rpcContLenFromMsg(pHead->msgLen) - overhead;
-      int origLen = LZ4_decompress_safe((char*)(pCont + overhead), (char*)pNewHead->content, compLen, contLen);
-      assert(origLen == contLen);
-
-      memcpy(pNewHead, pHead, sizeof(SRpcHead));
-      pNewHead->msgLen = rpcMsgLenFromCont(origLen);
-      /// rpcFreeMsg(pHead);  // free the compressed message buffer
-      pHead = pNewHead;
-      tTrace("decomp malloc mem:%p", temp);
-    } else {
-      tError("failed to allocate memory to decompress msg, contLen:%d", contLen);
-    }
-  }
-
-  return pHead;
-}
-
 void transConnCtxDestroy(STransConnCtx* ctx) {
-  free(ctx->ip);
-  free(ctx);
+  taosMemoryFree(ctx->ip);
+  taosMemoryFree(ctx);
 }
 
 void transFreeMsg(void* msg) {
   if (msg == NULL) {
     return;
   }
-  free((char*)msg - sizeof(STransMsgHead));
+  taosMemoryFree((char*)msg - sizeof(STransMsgHead));
 }
 
 int transInitBuffer(SConnBuffer* buf) {
@@ -219,16 +123,20 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
 
   SConnBuffer* p = connBuf;
   if (p->cap == 0) {
-    p->buf = (char*)calloc(CAPACITY, sizeof(char));
+    p->buf = (char*)taosMemoryCalloc(CAPACITY, sizeof(char));
     p->len = 0;
     p->cap = CAPACITY;
     p->total = -1;
 
     uvBuf->base = p->buf;
     uvBuf->len = CAPACITY;
+  } else if (p->total == -1 && p->len < CAPACITY) {
+    uvBuf->base = p->buf + p->len;
+    uvBuf->len = CAPACITY - p->len;
   } else {
     p->cap = p->total;
-    p->buf = realloc(p->buf, p->cap);
+    p->buf = taosMemoryRealloc(p->buf, p->cap);
+
     uvBuf->base = p->buf + p->len;
     uvBuf->len = p->cap - p->len;
   }
@@ -247,30 +155,38 @@ bool transReadComplete(SConnBuffer* connBuf) {
   }
   return false;
 }
-int transPackMsg(STransMsgHead* msgHead, bool sercured, bool auth) {}
+int transPackMsg(STransMsgHead* msgHead, bool sercured, bool auth) { return 0; }
 
-int transUnpackMsg(STransMsgHead* msgHead) {}
+int transUnpackMsg(STransMsgHead* msgHead) { return 0; }
 int transDestroyBuffer(SConnBuffer* buf) {
   if (buf->cap > 0) {
-    tfree(buf->buf);
+    taosMemoryFreeClear(buf->buf);
   }
   transClearBuffer(buf);
+
+  return 0;
+}
+
+int transSetConnOption(uv_tcp_t* stream) {
+  uv_tcp_nodelay(stream, 1);
+  int ret = uv_tcp_keepalive(stream, 5, 5);
+  return ret;
 }
 
 SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb) {
-  SAsyncPool* pool = calloc(1, sizeof(SAsyncPool));
+  SAsyncPool* pool = taosMemoryCalloc(1, sizeof(SAsyncPool));
   pool->index = 0;
   pool->nAsync = sz;
-  pool->asyncs = calloc(1, sizeof(uv_async_t) * pool->nAsync);
+  pool->asyncs = taosMemoryCalloc(1, sizeof(uv_async_t) * pool->nAsync);
 
   for (int i = 0; i < pool->nAsync; i++) {
     uv_async_t* async = &(pool->asyncs[i]);
     uv_async_init(loop, async, cb);
 
-    SAsyncItem* item = calloc(1, sizeof(SAsyncItem));
+    SAsyncItem* item = taosMemoryCalloc(1, sizeof(SAsyncItem));
     item->pThrd = arg;
     QUEUE_INIT(&item->qmsg);
-    pthread_mutex_init(&item->mtx, NULL);
+    taosThreadMutexInit(&item->mtx, NULL);
 
     async->data = item;
   }
@@ -281,11 +197,11 @@ void transDestroyAsyncPool(SAsyncPool* pool) {
     uv_async_t* async = &(pool->asyncs[i]);
 
     SAsyncItem* item = async->data;
-    pthread_mutex_destroy(&item->mtx);
-    free(item);
+    taosThreadMutexDestroy(&item->mtx);
+    taosMemoryFree(item);
   }
-  free(pool->asyncs);
-  free(pool);
+  taosMemoryFree(pool->asyncs);
+  taosMemoryFree(pool);
 }
 int transSendAsync(SAsyncPool* pool, queue* q) {
   int idx = pool->index;
@@ -298,14 +214,152 @@ int transSendAsync(SAsyncPool* pool, queue* q) {
   SAsyncItem* item = async->data;
 
   int64_t st = taosGetTimestampUs();
-  pthread_mutex_lock(&item->mtx);
+  taosThreadMutexLock(&item->mtx);
   QUEUE_PUSH(&item->qmsg, q);
-  pthread_mutex_unlock(&item->mtx);
+  taosThreadMutexUnlock(&item->mtx);
   int64_t el = taosGetTimestampUs() - st;
   if (el > 50) {
     // tInfo("lock and unlock cost: %d", (int)el);
   }
-
   return uv_async_send(async);
 }
+
+void transCtxInit(STransCtx* ctx) {
+  // init transCtx
+  ctx->args = taosHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UINT), true, HASH_NO_LOCK);
+}
+void transCtxCleanup(STransCtx* ctx) {
+  if (ctx->args == NULL) {
+    return;
+  }
+
+  STransCtxVal* iter = taosHashIterate(ctx->args, NULL);
+  while (iter) {
+    iter->freeFunc(iter->val);
+    iter = taosHashIterate(ctx->args, iter);
+  }
+
+  taosHashCleanup(ctx->args);
+  ctx->args = NULL;
+}
+
+void transCtxMerge(STransCtx* dst, STransCtx* src) {
+  if (dst->args == NULL) {
+    dst->args = src->args;
+    dst->brokenVal = src->brokenVal;
+    src->args = NULL;
+    return;
+  }
+  void*  key = NULL;
+  size_t klen = 0;
+  void*  iter = taosHashIterate(src->args, NULL);
+  while (iter) {
+    STransCtxVal* sVal = (STransCtxVal*)iter;
+    key = taosHashGetKey(sVal, &klen);
+
+    STransCtxVal* dVal = taosHashGet(dst->args, key, klen);
+    if (dVal) {
+      dVal->freeFunc(dVal->val);
+    }
+    taosHashPut(dst->args, key, klen, sVal, sizeof(*sVal));
+    iter = taosHashIterate(src->args, iter);
+  }
+  taosHashCleanup(src->args);
+}
+void* transCtxDumpVal(STransCtx* ctx, int32_t key) {
+  if (ctx->args == NULL) {
+    return NULL;
+  }
+  STransCtxVal* cVal = taosHashGet(ctx->args, (const void*)&key, sizeof(key));
+  if (cVal == NULL) {
+    return NULL;
+  }
+  void* ret = NULL;
+  (*cVal->clone)(cVal->val, &ret);
+  return ret;
+}
+void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
+  void* ret = NULL;
+  if (ctx->brokenVal.clone == NULL) {
+    return ret;
+  }
+  (*ctx->brokenVal.clone)(ctx->brokenVal.val, &ret);
+
+  *msgType = ctx->brokenVal.msgType;
+
+  return ret;
+}
+
+void transQueueInit(STransQueue* queue, void (*freeFunc)(const void* arg)) {
+  queue->q = taosArrayInit(2, sizeof(void*));
+  queue->freeFunc = freeFunc;
+}
+bool transQueuePush(STransQueue* queue, void* arg) {
+  if (queue->q == NULL) {
+    return true;
+  }
+  taosArrayPush(queue->q, &arg);
+  if (taosArrayGetSize(queue->q) > 1) {
+    return false;
+  }
+  return true;
+}
+void* transQueuePop(STransQueue* queue) {
+  if (queue->q == NULL || taosArrayGetSize(queue->q) == 0) {
+    return NULL;
+  }
+  void* ptr = taosArrayGetP(queue->q, 0);
+  taosArrayRemove(queue->q, 0);
+  return ptr;
+}
+int32_t transQueueSize(STransQueue* queue) {
+  if (queue->q == NULL) {
+    return 0;
+  }
+  return taosArrayGetSize(queue->q);
+}
+void* transQueueGet(STransQueue* queue, int i) {
+  if (queue->q == NULL || taosArrayGetSize(queue->q) == 0) {
+    return NULL;
+  }
+  if (i >= taosArrayGetSize(queue->q)) {
+    return NULL;
+  }
+
+  void* ptr = taosArrayGetP(queue->q, i);
+  return ptr;
+}
+
+void* transQueueRm(STransQueue* queue, int i) {
+  if (queue->q == NULL || taosArrayGetSize(queue->q) == 0) {
+    return NULL;
+  }
+  if (i >= taosArrayGetSize(queue->q)) {
+    return NULL;
+  }
+  void* ptr = taosArrayGetP(queue->q, i);
+  taosArrayRemove(queue->q, i);
+  return ptr;
+}
+
+bool transQueueEmpty(STransQueue* queue) {
+  if (queue->q == NULL) {
+    return true;
+  }
+  return taosArrayGetSize(queue->q) == 0;
+}
+void transQueueClear(STransQueue* queue) {
+  if (queue->freeFunc != NULL) {
+    for (int i = 0; i < taosArrayGetSize(queue->q); i++) {
+      void* p = taosArrayGetP(queue->q, i);
+      queue->freeFunc(p);
+    }
+  }
+  taosArrayClear(queue->q);
+}
+void transQueueDestroy(STransQueue* queue) {
+  transQueueClear(queue);
+  taosArrayDestroy(queue->q);
+}
+
 #endif

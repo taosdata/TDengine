@@ -13,8 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_QUEUE_H
-#define _TD_UTIL_QUEUE_H
+#ifndef _TD_UTIL_QUEUE_H_
+#define _TD_UTIL_QUEUE_H_
+
 #include "os.h"
 
 #ifdef __cplusplus
@@ -41,13 +42,19 @@ shall be used to set up the protection.
 typedef struct STaosQueue STaosQueue;
 typedef struct STaosQset  STaosQset;
 typedef struct STaosQall  STaosQall;
-typedef void (*FItem)(void *ahandle, void *pItem);
-typedef void (*FItems)(void *ahandle, STaosQall *qall, int32_t numOfItems);
+typedef struct {
+  void   *ahandle;
+  int32_t workerId;
+  int32_t threadNum;
+} SQueueInfo;
+
+typedef void (*FItem)(SQueueInfo *pInfo, void *pItem);
+typedef void (*FItems)(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfItems);
 
 STaosQueue *taosOpenQueue();
 void        taosCloseQueue(STaosQueue *queue);
 void        taosSetQueueFp(STaosQueue *queue, FItem itemFp, FItems itemsFp);
-void *      taosAllocateQitem(int32_t size);
+void       *taosAllocateQitem(int32_t size);
 void        taosFreeQitem(void *pItem);
 int32_t     taosWriteQitem(STaosQueue *queue, void *pItem);
 int32_t     taosReadQitem(STaosQueue *queue, void **ppItem);
@@ -69,10 +76,7 @@ int32_t    taosGetQueueNumber(STaosQset *qset);
 
 int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, void **ahandle, FItem *itemFp);
 int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, void **ahandle, FItems *itemsFp);
-
-int32_t taosReadQitemFromQsetByThread(STaosQset *qset, void **ppItem, void **ahandle, FItem *itemFp, int32_t threadId);
 void    taosResetQsetThread(STaosQset *qset, void *pItem);
-
 int32_t taosGetQueueItemsNumber(STaosQueue *queue);
 int32_t taosGetQsetItemsNumber(STaosQset *qset);
 
@@ -80,4 +84,4 @@ int32_t taosGetQsetItemsNumber(STaosQset *qset);
 }
 #endif
 
-#endif /*_TD_UTIL_QUEUE_H*/
+#endif /*_TD_UTIL_QUEUE_H_*/

@@ -1,0 +1,103 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+system sh/cfg.sh -n dnode1 -c wallevel -v 2
+system sh/cfg.sh -n dnode2 -c wallevel -v 2
+system sh/cfg.sh -n dnode3 -c wallevel -v 2
+system sh/cfg.sh -n dnode4 -c wallevel -v 2
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode4 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode1 -c debugFlag -v 131
+system sh/cfg.sh -n dnode2 -c debugFlag -v 131
+system sh/cfg.sh -n dnode3 -c debugFlag -v 131
+system sh/cfg.sh -n dnode4 -c debugFlag -v 131
+system sh/cfg.sh -n dnode1 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode2 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode3 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode4 -c arbitrator -v $arbitrator
+
+print ============== step0: start tarbitrator
+system sh/exec_tarbitrator.sh -s start
+
+system sh/exec.sh -n dnode1 -s start
+sleep 2000
+sql connect
+
+sql create dnode $hostname2
+sql create dnode $hostname3
+system sh/exec.sh -n dnode2 -s start -t
+system sh/exec.sh -n dnode3 -s start -t
+sleep 2000
+
+print ========= step1
+sql create database db replica 2 
+#sql create table db.tb1 (ts timestamp, i int)
+#sql create table db.tb2 (ts timestamp, i int)
+#sql create table db.tb3 (ts timestamp, i int)
+#sql create table db.tb4 (ts timestamp, i int)
+#sql insert into db.tb1 values(now, 1)
+#sql select count(*) from db.tb1
+
+sql create database db replica 2 
+sql create table db.tb (ts timestamp, i int)
+sql insert into db.tb values(now, 1)
+sql select count(*) from db.tb
+$lastRows = $rows
+
+print ======== step2
+#run_back unique/vnode/back_insert_many.sim
+run_back unique/vnode/back_insert.sim
+sleep 2000
+
+print ======== step3
+
+$x = 0
+loop:
+
+print ======== step4
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+sleep 10000
+system sh/exec.sh -n dnode2 -s start -t
+sleep 10000
+
+print ======== step5
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
+sleep 10000
+system sh/exec.sh -n dnode3 -s start -t
+sleep 10000
+
+print ======== step6
+#sql select count(*) from db.tb1
+#print select count(*) from db.tb1 ==> $data00 $lastRows 
+sql select count(*) from db.tb
+print select count(*) from db.tb ==> $data00 $lastRows 
+if $data00 <= $lastRows then
+  return -1
+endi
+
+print ======== step7
+$lastRows = $data00
+print ======== loop Times $x
+
+if $x < 10 then
+  $x = $x + 1
+  goto loop
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

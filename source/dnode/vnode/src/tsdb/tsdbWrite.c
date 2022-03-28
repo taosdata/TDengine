@@ -15,6 +15,14 @@
 
 #include "tsdbDef.h"
 
+/**
+ * @brief insert TS data
+ *
+ * @param pTsdb
+ * @param pMsg
+ * @param pRsp
+ * @return int
+ */
 int tsdbInsertData(STsdb *pTsdb, SSubmitReq *pMsg, SSubmitRsp *pRsp) {
   // Check if mem is there. If not, create one.
   if (pTsdb->mem == NULL) {

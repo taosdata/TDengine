@@ -13,15 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define ALLOW_FORBID_FUNC
 #define _DEFAULT_SOURCE
 #include "os.h"
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-
-/*
- * windows implementation
- */
-
 #include <Mmsystem.h>
 #include <Windows.h>
 #include <stdint.h>
@@ -39,23 +35,8 @@ void WINAPI taosWinOnTimer(UINT wTimerID, UINT msg, DWORD_PTR dwUser, DWORD_PTR 
 }
 
 static MMRESULT timerId;
-int             taosInitTimer(win_timer_f callback, int ms) {
-  DWORD_PTR param = *((int64_t *)&callback);
-
-  timerId = timeSetEvent(ms, 1, (LPTIMECALLBACK)taosWinOnTimer, param, TIME_PERIODIC);
-  if (timerId == 0) {
-    return -1;
-  }
-  return 0;
-}
-
-void taosUninitTimer() { timeKillEvent(timerId); }
 
 #elif defined(_TD_DARWIN_64)
-
-/*
- * darwin implementation
- */
 
 #include <sys/event.h>
 #include <sys/syscall.h>
@@ -63,7 +44,7 @@ void taosUninitTimer() { timeKillEvent(timerId); }
 
 static void (*timer_callback)(int);
 static int          timer_ms = 0;
-static pthread_t    timer_thread;
+static TdThread    timer_thread;
 static int          timer_kq = -1;
 static volatile int timer_stop = 0;
 
@@ -79,7 +60,7 @@ static void* timer_routine(void* arg) {
     struct kevent64_s kev[10] = {0};
     r = kevent64(timer_kq, NULL, 0, kev, sizeof(kev) / sizeof(kev[0]), 0, &to);
     if (r != 0) {
-      fprintf(stderr, "==%s[%d]%s()==kevent64 failed\n", basename(__FILE__), __LINE__, __func__);
+      fprintf(stderr, "==%s[%d]%s()==kevent64 failed\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__);
       abort();
     }
     timer_callback(SIGALRM);  // just mock
@@ -88,53 +69,12 @@ static void* timer_routine(void* arg) {
   return NULL;
 }
 
-int taosInitTimer(void (*callback)(int), int ms) {
-  int r = 0;
-  timer_kq = -1;
-  timer_stop = 0;
-  timer_ms = ms;
-  timer_callback = callback;
-
-  timer_kq = kqueue();
-  if (timer_kq == -1) {
-    fprintf(stderr, "==%s[%d]%s()==failed to create timer kq\n", basename(__FILE__), __LINE__, __func__);
-    // since no caller of this func checks the return value for the moment
-    abort();
-  }
-
-  r = pthread_create(&timer_thread, NULL, timer_routine, NULL);
-  if (r) {
-    fprintf(stderr, "==%s[%d]%s()==failed to create timer thread\n", basename(__FILE__), __LINE__, __func__);
-    // since no caller of this func checks the return value for the moment
-    abort();
-  }
-  return 0;
-}
-
-void taosUninitTimer() {
-  int r = 0;
-  timer_stop = 1;
-  r = pthread_join(timer_thread, NULL);
-  if (r) {
-    fprintf(stderr, "==%s[%d]%s()==failed to join timer thread\n", basename(__FILE__), __LINE__, __func__);
-    // since no caller of this func checks the return value for the moment
-    abort();
-  }
-  close(timer_kq);
-  timer_kq = -1;
-}
-
 void taos_block_sigalrm(void) {
   // we don't know if there's any specific API for SIGALRM to deliver to specific thread
   // this implementation relies on kqueue rather than SIGALRM
 }
 
 #else
-
-/*
- * linux implementation
- */
-
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -143,7 +83,7 @@ static void taosDeleteTimer(void *tharg) {
   timer_delete(*pTimer);
 }
 
-static pthread_t     timerThread;
+static TdThread     timerThread;
 static timer_t       timerId;
 static volatile bool stopTimer = false;
 static void *        taosProcessAlarmSignal(void *tharg) {
@@ -172,7 +112,7 @@ static void *        taosProcessAlarmSignal(void *tharg) {
     // printf("Failed to create timer");
   }
 
-  pthread_cleanup_push(taosDeleteTimer, &timerId);
+  taosThreadCleanupPush(taosDeleteTimer, &timerId);
 
   struct itimerspec ts;
   ts.it_value.tv_sec = 0;
@@ -196,17 +136,48 @@ static void *        taosProcessAlarmSignal(void *tharg) {
     callback(0);
   }
 
-  pthread_cleanup_pop(1);
+  taosThreadCleanupPop(1);
 
   return NULL;
 }
+#endif
 
 int taosInitTimer(void (*callback)(int), int ms) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  DWORD_PTR param = *((int64_t *)&callback);
+
+  timerId = timeSetEvent(ms, 1, (LPTIMECALLBACK)taosWinOnTimer, param, TIME_PERIODIC);
+  if (timerId == 0) {
+    return -1;
+  }
+  return 0;
+#elif defined(_TD_DARWIN_64)
+  int r = 0;
+  timer_kq = -1;
+  timer_stop = 0;
+  timer_ms = ms;
+  timer_callback = callback;
+
+  timer_kq = kqueue();
+  if (timer_kq == -1) {
+    fprintf(stderr, "==%s[%d]%s()==failed to create timer kq\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__);
+    // since no caller of this func checks the return value for the moment
+    abort();
+  }
+
+  r = taosThreadCreate(&timer_thread, NULL, timer_routine, NULL);
+  if (r) {
+    fprintf(stderr, "==%s[%d]%s()==failed to create timer thread\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__);
+    // since no caller of this func checks the return value for the moment
+    abort();
+  }
+  return 0;
+#else
   stopTimer = false;
-  pthread_attr_t tattr;
-  pthread_attr_init(&tattr);
-  int code = pthread_create(&timerThread, &tattr, taosProcessAlarmSignal, callback);
-  pthread_attr_destroy(&tattr);
+  TdThreadAttr tattr;
+  taosThreadAttrInit(&tattr);
+  int code = taosThreadCreate(&timerThread, &tattr, taosProcessAlarmSignal, callback);
+  taosThreadAttrDestroy(&tattr);
   if (code != 0) {
     // printf("failed to create timer thread");
     return -1;
@@ -215,13 +186,29 @@ int taosInitTimer(void (*callback)(int), int ms) {
   }
 
   return 0;
+#endif
 }
 
 void taosUninitTimer() {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  timeKillEvent(timerId);
+#elif defined(_TD_DARWIN_64)
+  int r = 0;
+  timer_stop = 1;
+  r = taosThreadJoin(timer_thread, NULL);
+  if (r) {
+    fprintf(stderr, "==%s[%d]%s()==failed to join timer thread\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__);
+    // since no caller of this func checks the return value for the moment
+    abort();
+  }
+  close(timer_kq);
+  timer_kq = -1;
+#else
   stopTimer = true;
 
   // printf("join timer thread:0x%08" PRIx64, taosGetPthreadId(timerThread));
-  pthread_join(timerThread, NULL);
+  taosThreadJoin(timerThread, NULL);
+#endif
 }
 
 int64_t taosGetMonotonicMs() {
@@ -239,5 +226,3 @@ const char *taosMonotonicInit() {
   return NULL;
 #endif
 }
-
-#endif

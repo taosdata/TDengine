@@ -8,7 +8,7 @@ target_include_directories(
 )
 
 target_link_libraries(qworker
-        PRIVATE os util transport planner qcom executor
+        PRIVATE os util transport nodes planner qcom executor
         )
 
 if(${BUILD_TEST})

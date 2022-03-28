@@ -25,7 +25,7 @@ extern "C" {
 #include "tlog.h"
 #include "tmsg.h"
 
-enum {
+typedef enum {
   JOB_TASK_STATUS_NULL = 0,
   JOB_TASK_STATUS_NOT_START = 1,
   JOB_TASK_STATUS_EXECUTING,
@@ -35,20 +35,23 @@ enum {
   JOB_TASK_STATUS_CANCELLING,
   JOB_TASK_STATUS_CANCELLED,
   JOB_TASK_STATUS_DROPPING,
-  JOB_TASK_STATUS_FREEING,
-};
+} EJobTaskType;
 
-enum {
+typedef enum {
   TASK_TYPE_PERSISTENT = 1,
   TASK_TYPE_TEMP,
-};
+} ETaskType;
 
 typedef struct STableComInfo {
-  uint8_t numOfTags;      // the number of tags in schema
-  uint8_t precision;      // the number of precision
-  int16_t numOfColumns;   // the number of columns
-  int32_t rowSize;        // row size of the schema
+  uint8_t  numOfTags;     // the number of tags in schema
+  uint8_t  precision;     // the number of precision
+  col_id_t numOfColumns;  // the number of columns
+  int32_t  rowSize;       // row size of the schema
 } STableComInfo;
+
+typedef struct SIndexMeta {
+
+} SIndexMeta;
 
 /*
  * ASSERT(sizeof(SCTableMeta) == 24)
@@ -56,49 +59,46 @@ typedef struct STableComInfo {
  * The cached child table meta info. For each child table, 24 bytes are required to keep the essential table info.
  */
 typedef struct SCTableMeta {
-  int32_t  vgId:24;
+  int32_t  vgId : 24;
   int8_t   tableType;
   uint64_t uid;
   uint64_t suid;
 } SCTableMeta;
 
 /*
- * Note that the first 24 bytes of STableMeta are identical to SCTableMeta, it is safe to cast a STableMeta to be a SCTableMeta.
+ * Note that the first 24 bytes of STableMeta are identical to SCTableMeta, it is safe to cast a STableMeta to be a
+ * SCTableMeta.
  */
 typedef struct STableMeta {
-  //BEGIN: KEEP THIS PART SAME WITH SCTableMeta
-  int32_t        vgId:24;
-  int8_t         tableType;
-  uint64_t       uid;
-  uint64_t       suid;
-  //END: KEEP THIS PART SAME WITH SCTableMeta
-  
-  // if the table is TSDB_CHILD_TABLE, the following information is acquired from the corresponding super table meta info
-  int16_t        sversion;
-  int16_t        tversion;
-  STableComInfo  tableInfo;
-  SSchema        schema[];
+  // BEGIN: KEEP THIS PART SAME WITH SCTableMeta
+  int32_t  vgId : 24;
+  int8_t   tableType;
+  uint64_t uid;
+  uint64_t suid;
+  // END: KEEP THIS PART SAME WITH SCTableMeta
+
+  // if the table is TSDB_CHILD_TABLE, the following information is acquired from the corresponding super table meta
+  // info
+  int16_t       sversion;
+  int16_t       tversion;
+  STableComInfo tableInfo;
+  SSchema       schema[];
 } STableMeta;
 
 typedef struct SDBVgInfo {
-  int32_t   vgVersion;  
+  int32_t   vgVersion;
   int8_t    hashMethod;
+  int32_t   numOfTable;  // DB's table num, unit is TSDB_TABLE_NUM_UNIT
   SHashObj *vgHash;  //key:vgId, value:SVgroupInfo
 } SDBVgInfo;
 
 typedef struct SUseDbOutput {
-  char           db[TSDB_DB_FNAME_LEN];
-  uint64_t       dbId;
-  SDBVgInfo     *dbVgroup;
+  char       db[TSDB_DB_FNAME_LEN];
+  uint64_t   dbId;
+  SDBVgInfo* dbVgroup;
 } SUseDbOutput;
 
-enum {
-  META_TYPE_NULL_TABLE = 1,
-  META_TYPE_CTABLE,
-  META_TYPE_TABLE,
-  META_TYPE_BOTH_TABLE
-};
-
+enum { META_TYPE_NULL_TABLE = 1, META_TYPE_CTABLE, META_TYPE_TABLE, META_TYPE_BOTH_TABLE };
 
 typedef struct STableMetaOutput {
   int32_t     metaType;
@@ -107,31 +107,36 @@ typedef struct STableMetaOutput {
   char        ctbName[TSDB_TABLE_NAME_LEN];
   char        tbName[TSDB_TABLE_NAME_LEN];
   SCTableMeta ctbMeta;
-  STableMeta *tbMeta;
+  STableMeta* tbMeta;
 } STableMetaOutput;
 
 typedef struct SDataBuf {
-  void     *pData;
-  uint32_t  len;
-  void     *handle;
+  void*    pData;
+  uint32_t len;
+  void*    handle;
 } SDataBuf;
 
 typedef int32_t (*__async_send_cb_fn_t)(void* param, const SDataBuf* pMsg, int32_t code);
 typedef int32_t (*__async_exec_fn_t)(void* param);
 
 typedef struct SMsgSendInfo {
-  __async_send_cb_fn_t fp;        //async callback function
-  void     *param;
-  uint64_t  requestId;
-  uint64_t  requestObjRefId;
-  int32_t   msgType;
-  SDataBuf  msgInfo;
+  __async_send_cb_fn_t fp;  // async callback function
+  void*                param;
+  uint64_t             requestId;
+  uint64_t             requestObjRefId;
+  int32_t              msgType;
+  SDataBuf             msgInfo;
 } SMsgSendInfo;
 
 typedef struct SQueryNodeAddr {
   int32_t nodeId;  // vgId or qnodeId
-  SEpSet  epset;
+  SEpSet  epSet;
 } SQueryNodeAddr;
+
+
+typedef struct SQueryNodeStat {
+  int32_t tableNum; // vg table number, unit is TSDB_TABLE_NUM_UNIT
+} SQueryNodeStat;
 
 int32_t initTaskQueue();
 int32_t cleanupTaskQueue();
@@ -145,6 +150,8 @@ int32_t cleanupTaskQueue();
  */
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
 
+int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo, bool persistHandle, void *ctx);
+
 /**
  * Asynchronously send message to server, after the response received, the callback will be incured.
  *
@@ -154,32 +161,79 @@ int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
  * @param pInfo
  * @return
  */
-int32_t asyncSendMsgToServer(void *pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo);
+int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo);
+
+int32_t queryBuildUseDbOutput(SUseDbOutput* pOut, SUseDbRsp* usedbRsp);
 
 void initQueryModuleMsgHandle();
 
 const SSchema* tGetTbnameColumnSchema();
-bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags);
+bool           tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags);
 
-int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta **pMeta);
+int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
+char *jobTaskStatusStr(int32_t status);
 
-extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen);
-extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char *msg, int32_t msgSize);
+SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name);
 
+extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char** msg, int32_t msgSize, int32_t* msgLen);
+extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t msgSize);
 
-#define SET_META_TYPE_NULL(t) (t) = META_TYPE_NULL_TABLE
-#define SET_META_TYPE_CTABLE(t) (t) = META_TYPE_CTABLE
-#define SET_META_TYPE_TABLE(t) (t) = META_TYPE_TABLE
+#define SET_META_TYPE_NULL(t)       (t) = META_TYPE_NULL_TABLE
+#define SET_META_TYPE_CTABLE(t)     (t) = META_TYPE_CTABLE
+#define SET_META_TYPE_TABLE(t)      (t) = META_TYPE_TABLE
 #define SET_META_TYPE_BOTH_TABLE(t) (t) = META_TYPE_BOTH_TABLE
 
-#define qFatal(...)  do { if (qDebugFlag & DEBUG_FATAL) { taosPrintLog("QRY FATAL ", qDebugFlag, __VA_ARGS__); }} while(0)
-#define qError(...)  do { if (qDebugFlag & DEBUG_ERROR) { taosPrintLog("QRY ERROR ", qDebugFlag, __VA_ARGS__); }} while(0)
-#define qWarn(...)   do { if (qDebugFlag & DEBUG_WARN)  { taosPrintLog("QRY WARN ", qDebugFlag, __VA_ARGS__); }}  while(0)
-#define qInfo(...)   do { if (qDebugFlag & DEBUG_INFO)  { taosPrintLog("QRY ", qDebugFlag, __VA_ARGS__); }} while(0)
-#define qDebug(...)  do { if (qDebugFlag & DEBUG_DEBUG) { taosPrintLog("QRY ", qDebugFlag, __VA_ARGS__); }} while(0)
-#define qTrace(...)  do { if (qDebugFlag & DEBUG_TRACE) { taosPrintLog("QRY ", qDebugFlag, __VA_ARGS__); }} while(0)
-#define qDebugL(...) do { if (qDebugFlag & DEBUG_DEBUG) { taosPrintLongString("QRY ", qDebugFlag, __VA_ARGS__); }} while(0)
+#define NEED_CLIENT_RM_TBLMETA_ERROR(_code) ((_code) == TSDB_CODE_TDB_INVALID_TABLE_ID || (_code) == TSDB_CODE_VND_TB_NOT_EXIST)
+#define NEED_CLIENT_REFRESH_VG_ERROR(_code) ((_code) == TSDB_CODE_VND_HASH_MISMATCH || (_code) == TSDB_CODE_VND_INVALID_VGROUP_ID)
+#define NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code) ((_code) == TSDB_CODE_TDB_TABLE_RECREATED)
+#define NEED_CLIENT_HANDLE_ERROR(_code) (NEED_CLIENT_RM_TBLMETA_ERROR(_code) || NEED_CLIENT_REFRESH_VG_ERROR(_code) || NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code))
 
+#define NEED_SCHEDULER_RETRY_ERROR(_code) ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL)
+
+#define REQUEST_MAX_TRY_TIMES 5
+
+#define qFatal(...)                                                     \
+  do {                                                                  \
+    if (qDebugFlag & DEBUG_FATAL) {                                     \
+      taosPrintLog("QRY FATAL ", DEBUG_FATAL, qDebugFlag, __VA_ARGS__); \
+    }                                                                   \
+  } while (0)
+#define qError(...)                                                     \
+  do {                                                                  \
+    if (qDebugFlag & DEBUG_ERROR) {                                     \
+      taosPrintLog("QRY ERROR ", DEBUG_ERROR, qDebugFlag, __VA_ARGS__); \
+    }                                                                   \
+  } while (0)
+#define qWarn(...)                                                    \
+  do {                                                                \
+    if (qDebugFlag & DEBUG_WARN) {                                    \
+      taosPrintLog("QRY WARN ", DEBUG_WARN, qDebugFlag, __VA_ARGS__); \
+    }                                                                 \
+  } while (0)
+#define qInfo(...)                                               \
+  do {                                                           \
+    if (qDebugFlag & DEBUG_INFO) {                               \
+      taosPrintLog("QRY ", DEBUG_INFO, qDebugFlag, __VA_ARGS__); \
+    }                                                            \
+  } while (0)
+#define qDebug(...)                                               \
+  do {                                                            \
+    if (qDebugFlag & DEBUG_DEBUG) {                               \
+      taosPrintLog("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__); \
+    }                                                             \
+  } while (0)
+#define qTrace(...)                                               \
+  do {                                                            \
+    if (qDebugFlag & DEBUG_TRACE) {                               \
+      taosPrintLog("QRY ", DEBUG_TRACE, qDebugFlag, __VA_ARGS__); \
+    }                                                             \
+  } while (0)
+#define qDebugL(...)                                                     \
+  do {                                                                   \
+    if (qDebugFlag & DEBUG_DEBUG) {                                      \
+      taosPrintLongString("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__); \
+    }                                                                    \
+  } while (0)
 
 #ifdef __cplusplus
 }

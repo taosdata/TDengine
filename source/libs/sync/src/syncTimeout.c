@@ -14,6 +14,34 @@
  */
 
 #include "syncTimeout.h"
-#include "sync.h"
+#include "syncElection.h"
+#include "syncReplication.h"
 
-void onTimeout(SRaft *pRaft, void *pMsg) {}
+int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
+  int32_t ret = 0;
+  syncTimeoutLog2("==syncNodeOnTimeoutCb==", pMsg);
+
+  if (pMsg->timeoutType == SYNC_TIMEOUT_PING) {
+    if (atomic_load_64(&ths->pingTimerLogicClockUser) <= pMsg->logicClock) {
+      ++(ths->pingTimerCounter);
+      // syncNodePingAll(ths);
+      syncNodePingPeers(ths);
+    }
+
+  } else if (pMsg->timeoutType == SYNC_TIMEOUT_ELECTION) {
+    if (atomic_load_64(&ths->electTimerLogicClockUser) <= pMsg->logicClock) {
+      ++(ths->electTimerCounter);
+      syncNodeElect(ths);
+    }
+
+  } else if (pMsg->timeoutType == SYNC_TIMEOUT_HEARTBEAT) {
+    if (atomic_load_64(&ths->heartbeatTimerLogicClockUser) <= pMsg->logicClock) {
+      ++(ths->heartbeatTimerCounter);
+      syncNodeReplicate(ths);
+    }
+  } else {
+    sTrace("unknown timeoutType:%d", pMsg->timeoutType);
+  }
+
+  return ret;
+}

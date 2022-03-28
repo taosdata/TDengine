@@ -34,7 +34,7 @@ int main(int argc, char** argv) {
 }
 
 TEST(testCase, driverInit_Test) {
-  taosInitGlobalCfg();
+  // taosInitGlobalCfg();
 //  taos_init();
 }
 

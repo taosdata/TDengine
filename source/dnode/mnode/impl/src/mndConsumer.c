@@ -34,9 +34,9 @@
 static int32_t mndConsumerActionInsert(SSdb *pSdb, SMqConsumerObj *pConsumer);
 static int32_t mndConsumerActionDelete(SSdb *pSdb, SMqConsumerObj *pConsumer);
 static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pConsumer, SMqConsumerObj *pNewConsumer);
-static int32_t mndProcessConsumerMetaMsg(SMnodeMsg *pMsg);
-static int32_t mndGetConsumerMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t mndRetrieveConsumer(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
+static int32_t mndProcessConsumerMetaMsg(SNodeMsg *pMsg);
+static int32_t mndGetConsumerMeta(SNodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t mndRetrieveConsumer(SNodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextConsumer(SMnode *pMnode, void *pIter);
 
 int32_t mndInitConsumer(SMnode *pMnode) {
@@ -54,7 +54,7 @@ int32_t mndInitConsumer(SMnode *pMnode) {
 void mndCleanupConsumer(SMnode *pMnode) {}
 
 SMqConsumerObj *mndCreateConsumer(int64_t consumerId, const char *cgroup) {
-  SMqConsumerObj *pConsumer = calloc(1, sizeof(SMqConsumerObj));
+  SMqConsumerObj *pConsumer = taosMemoryCalloc(1, sizeof(SMqConsumerObj));
   if (pConsumer == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -79,7 +79,7 @@ SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
   SSdbRaw *pRaw = sdbAllocRaw(SDB_CONSUMER, MND_CONSUMER_VER_NUMBER, size);
   if (pRaw == NULL) goto CM_ENCODE_OVER;
 
-  buf = malloc(tlen);
+  buf = taosMemoryMalloc(tlen);
   if (buf == NULL) goto CM_ENCODE_OVER;
 
   void *abuf = buf;
@@ -94,14 +94,14 @@ SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
   terrno = TSDB_CODE_SUCCESS;
 
 CM_ENCODE_OVER:
-  tfree(buf);
+  taosMemoryFreeClear(buf);
   if (terrno != 0) {
-    mError("consumer:%ld, failed to encode to raw:%p since %s", pConsumer->consumerId, pRaw, terrstr());
+    mError("consumer:%" PRId64 ", failed to encode to raw:%p since %s", pConsumer->consumerId, pRaw, terrstr());
     sdbFreeRaw(pRaw);
     return NULL;
   }
 
-  mTrace("consumer:%ld, encode to raw:%p, row:%p", pConsumer->consumerId, pRaw, pConsumer);
+  mTrace("consumer:%" PRId64 ", encode to raw:%p, row:%p", pConsumer->consumerId, pRaw, pConsumer);
   return pRaw;
 }
 
@@ -126,7 +126,7 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
   int32_t dataPos = 0;
   int32_t len;
   SDB_GET_INT32(pRaw, dataPos, &len, CM_DECODE_OVER);
-  buf = malloc(len);
+  buf = taosMemoryMalloc(len);
   if (buf == NULL) goto CM_DECODE_OVER;
   SDB_GET_BINARY(pRaw, dataPos, buf, len, CM_DECODE_OVER);
   SDB_GET_RESERVE(pRaw, dataPos, MND_CONSUMER_RESERVE_SIZE, CM_DECODE_OVER);
@@ -138,10 +138,10 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_SUCCESS;
 
 CM_DECODE_OVER:
-  tfree(buf);
+  taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
-    mError("consumer:%ld, failed to decode from raw:%p since %s", pConsumer->consumerId, pRaw, terrstr());
-    tfree(pRow);
+    mError("consumer:%" PRId64 ", failed to decode from raw:%p since %s", pConsumer->consumerId, pRaw, terrstr());
+    taosMemoryFreeClear(pRow);
     return NULL;
   }
 
@@ -149,17 +149,17 @@ CM_DECODE_OVER:
 }
 
 static int32_t mndConsumerActionInsert(SSdb *pSdb, SMqConsumerObj *pConsumer) {
-  mTrace("consumer:%ld, perform insert action", pConsumer->consumerId);
+  mTrace("consumer:%" PRId64 ", perform insert action", pConsumer->consumerId);
   return 0;
 }
 
 static int32_t mndConsumerActionDelete(SSdb *pSdb, SMqConsumerObj *pConsumer) {
-  mTrace("consumer:%ld, perform delete action", pConsumer->consumerId);
+  mTrace("consumer:%" PRId64 ", perform delete action", pConsumer->consumerId);
   return 0;
 }
 
 static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer, SMqConsumerObj *pNewConsumer) {
-  mTrace("consumer:%ld, perform update action", pOldConsumer->consumerId);
+  mTrace("consumer:%" PRId64 ", perform update action", pOldConsumer->consumerId);
 
   // TODO handle update
   /*taosWLockLatch(&pOldConsumer->lock);*/

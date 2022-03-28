@@ -20,21 +20,46 @@
 
 #include "sdb.h"
 #include "tcache.h"
-#include "tep.h"
+#include "tdatablock.h"
+#include "tglobal.h"
 #include "tqueue.h"
 #include "ttime.h"
+#include "version.h"
 #include "wal.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef int32_t (*MndMsgFp)(SMnodeMsg *pMsg);
+#define mFatal(...) { if (mDebugFlag & DEBUG_FATAL) { taosPrintLog("MND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}
+#define mError(...) { if (mDebugFlag & DEBUG_ERROR) { taosPrintLog("MND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}
+#define mWarn(...)  { if (mDebugFlag & DEBUG_WARN)  { taosPrintLog("MND WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}
+#define mInfo(...)  { if (mDebugFlag & DEBUG_INFO)  { taosPrintLog("MND ", DEBUG_INFO, 255, __VA_ARGS__); }}
+#define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ", DEBUG_DEBUG, mDebugFlag, __VA_ARGS__); }}
+#define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", DEBUG_TRACE, mDebugFlag, __VA_ARGS__); }}
+
+typedef int32_t (*MndMsgFp)(SNodeMsg *pMsg);
 typedef int32_t (*MndInitFp)(SMnode *pMnode);
 typedef void (*MndCleanupFp)(SMnode *pMnode);
-typedef int32_t (*ShowMetaFp)(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
-typedef int32_t (*ShowRetrieveFp)(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
+typedef int32_t (*ShowMetaFp)(SNodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
+typedef int32_t (*ShowRetrieveFp)(SNodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
 typedef void (*ShowFreeIterFp)(SMnode *pMnode, void *pIter);
+
+typedef struct SMnodeLoad {
+  int64_t numOfDnode;
+  int64_t numOfMnode;
+  int64_t numOfVgroup;
+  int64_t numOfDatabase;
+  int64_t numOfSuperTable;
+  int64_t numOfChildTable;
+  int64_t numOfNormalTable;
+  int64_t numOfColumn;
+  int64_t totalPoints;
+  int64_t totalStorage;
+  int64_t compStorage;
+} SMnodeLoad;
+
+typedef struct SQWorkerMgmt SQHandle;
 
 typedef struct {
   const char  *name;
@@ -56,12 +81,9 @@ typedef struct {
 } SProfileMgmt;
 
 typedef struct {
-  int8_t           enable;
-  pthread_mutex_t  lock;
-  pthread_cond_t   cond;
-  volatile int32_t exit;
-  pthread_t        thread;
-  char             email[TSDB_FQDN_LEN];
+  bool     enable;
+  SRWLatch lock;
+  char     email[TSDB_FQDN_LEN];
 } STelemMgmt;
 
 typedef struct {
@@ -72,6 +94,11 @@ typedef struct {
   ESyncState state;
 } SSyncMgmt;
 
+typedef struct {
+  int64_t expireTimeMS;
+  int64_t timeseriesAllowed;
+} SGrantInfo;
+
 typedef struct SMnode {
   int32_t           dnodeId;
   int64_t           clusterId;
@@ -81,30 +108,26 @@ typedef struct SMnode {
   tmr_h             timer;
   tmr_h             transTimer;
   tmr_h             mqTimer;
+  tmr_h             telemTimer;
   char             *path;
-  SMnodeCfg         cfg;
   int64_t           checkTime;
   SSdb             *pSdb;
-  SDnode           *pDnode;
+  SMgmtWrapper     *pWrapper;
   SArray           *pSteps;
+  SQHandle         *pQuery;
   SShowMgmt         showMgmt;
   SProfileMgmt      profileMgmt;
   STelemMgmt        telemMgmt;
   SSyncMgmt         syncMgmt;
+  SHashObj         *infosMeta;
+  SGrantInfo        grant;
   MndMsgFp          msgFp[TDMT_MAX];
-  SendReqToDnodeFp  sendReqToDnodeFp;
-  SendReqToMnodeFp  sendReqToMnodeFp;
-  SendRedirectRspFp sendRedirectRspFp;
-  PutReqToMWriteQFp putReqToMWriteQFp;
-  PutReqToMReadQFp  putReqToMReadQFp;
+  SMsgCb            msgCb;  
 } SMnode;
 
-int32_t mndSendReqToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *rpcMsg);
-int32_t mndSendReqToMnode(SMnode *pMnode, SRpcMsg *pMsg);
-void    mndSendRedirectRsp(SMnode *pMnode, SRpcMsg *pMsg);
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
-
-uint64_t mndGenerateUid(char *name, int32_t len) ;
+int64_t mndGenerateUid(char *name, int32_t len);
+void    mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
 
 #ifdef __cplusplus
 }

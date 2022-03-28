@@ -12,12 +12,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#define _DEFAULT_SOURCE
 
+#include "tdatablock.h"
 #include "vnode.h"
 
 STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta) {
-  STqReadHandle* pReadHandle = malloc(sizeof(STqReadHandle));
+  STqReadHandle* pReadHandle = taosMemoryMalloc(sizeof(STqReadHandle));
   if (pReadHandle == NULL) {
     return NULL;
   }
@@ -28,6 +28,7 @@ STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta) {
   pReadHandle->sver = -1;
   pReadHandle->pSchema = NULL;
   pReadHandle->pSchemaWrapper = NULL;
+  pReadHandle->tbIdHash = NULL;
   return pReadHandle;
 }
 
@@ -36,13 +37,14 @@ int32_t tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitReq* pMsg, int64_t
   pMsg->length = htonl(pMsg->length);
   pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
 
+  // iterate and convert
   if (tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter) < 0) return -1;
   while (true) {
     if (tGetSubmitMsgNext(&pReadHandle->msgIter, &pReadHandle->pBlock) < 0) return -1;
     if (pReadHandle->pBlock == NULL) break;
 
     pReadHandle->pBlock->uid = htobe64(pReadHandle->pBlock->uid);
-    pReadHandle->pBlock->tid = htonl(pReadHandle->pBlock->tid);
+    pReadHandle->pBlock->suid = htobe64(pReadHandle->pBlock->suid);
     pReadHandle->pBlock->sversion = htonl(pReadHandle->pBlock->sversion);
     pReadHandle->pBlock->dataLen = htonl(pReadHandle->pBlock->dataLen);
     pReadHandle->pBlock->schemaLen = htonl(pReadHandle->pBlock->schemaLen);
@@ -82,8 +84,8 @@ bool tqNextDataBlock(STqReadHandle* pHandle) {
 }
 
 int tqRetrieveDataBlockInfo(STqReadHandle* pHandle, SDataBlockInfo* pBlockInfo) {
-  /*int32_t         sversion = pHandle->pBlock->sversion;*/
-  /*SSchemaWrapper* pSchema = metaGetTableSchema(pHandle->pMeta, pHandle->pBlock->uid, sversion, false);*/
+  // currently only rows are used
+
   pBlockInfo->numOfCols = taosArrayGetSize(pHandle->pColIdList);
   pBlockInfo->rows = pHandle->pBlock->numOfRows;
   pBlockInfo->uid = pHandle->pBlock->uid;
@@ -124,12 +126,45 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
   if (pArray == NULL) {
     return NULL;
   }
+  int32_t colMeta = 0;
+  int32_t colNeed = 0;
+  while (colMeta < pSchemaWrapper->nCols && colNeed < colNumNeed) {
+    SSchema* pColSchema = &pSchemaWrapper->pSchema[colMeta];
+    col_id_t colIdSchema = pColSchema->colId;
+    col_id_t colIdNeed = *(col_id_t*)taosArrayGet(pHandle->pColIdList, colNeed);
+    if (colIdSchema < colIdNeed) {
+      colMeta++;
+    } else if (colIdSchema > colIdNeed) {
+      colNeed++;
+    } else {
+      SColumnInfoData colInfo = {0};
+      int             sz = numOfRows * pColSchema->bytes;
+      colInfo.info.bytes = pColSchema->bytes;
+      colInfo.info.colId = pColSchema->colId;
+      colInfo.info.type = pColSchema->type;
+
+      colInfo.pData = taosMemoryCalloc(1, sz);
+      if (colInfo.pData == NULL) {
+        // TODO free
+        taosArrayDestroy(pArray);
+        return NULL;
+      }
+
+      blockDataEnsureColumnCapacity(&colInfo, numOfRows);
+      taosArrayPush(pArray, &colInfo);
+      colMeta++;
+      colNeed++;
+    }
+  }
 
   int j = 0;
   for (int32_t i = 0; i < colNumNeed; i++) {
-    int32_t colId = *(int32_t*)taosArrayGet(pHandle->pColIdList, i);
+    col_id_t colId = *(col_id_t*)taosArrayGet(pHandle->pColIdList, i);
     while (j < pSchemaWrapper->nCols && pSchemaWrapper->pSchema[j].colId < colId) {
       j++;
+    }
+    if (j >= pSchemaWrapper->nCols) {
+      continue;
     }
     SSchema*        pColSchema = &pSchemaWrapper->pSchema[j];
     SColumnInfoData colInfo = {0};
@@ -138,12 +173,14 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
     colInfo.info.colId = colId;
     colInfo.info.type = pColSchema->type;
 
-    colInfo.pData = calloc(1, sz);
+    colInfo.pData = taosMemoryCalloc(1, sz);
     if (colInfo.pData == NULL) {
       // TODO free
       taosArrayDestroy(pArray);
       return NULL;
     }
+
+    blockDataEnsureColumnCapacity(&colInfo, numOfRows);
     taosArrayPush(pArray, &colInfo);
   }
 
@@ -156,11 +193,23 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
   while ((row = tGetSubmitBlkNext(&pHandle->blkIter)) != NULL) {
     tdSTSRowIterReset(&iter, row);
     // get all wanted col of that block
+    int32_t colTot = taosArrayGetSize(pArray);
+    for (int32_t i = 0; i < colTot; i++) {
+      SColumnInfoData* pColData = taosArrayGet(pArray, i);
+      SCellVal         sVal = {0};
+      if (!tdSTSRowIterNext(&iter, pColData->info.colId, pColData->info.type, &sVal)) {
+        break;
+      }
+      memcpy(POINTER_SHIFT(pColData->pData, curRow * pColData->info.bytes), sVal.val, pColData->info.bytes);
+    }
+#if 0
     for (int32_t i = 0; i < colNumNeed; i++) {
       SColumnInfoData* pColData = taosArrayGet(pArray, i);
       STColumn*        pCol = schemaColAt(pTschema, i);
       // TODO
-      ASSERT(pCol->colId == pColData->info.colId);
+      if(pCol->colId != pColData->info.colId) {
+        continue;
+      }
       // void* val = tdGetMemRowDataOfColEx(row, pCol->colId, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset, &kvIdx);
       SCellVal sVal = {0};
       if (!tdSTSRowIterNext(&iter, pCol->colId, pCol->type, &sVal)) {
@@ -169,6 +218,7 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
       }
       memcpy(POINTER_SHIFT(pColData->pData, curRow * pCol->bytes), sVal.val, pCol->bytes);
     }
+#endif
     curRow++;
   }
   return pArray;

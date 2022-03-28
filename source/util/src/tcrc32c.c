@@ -18,15 +18,13 @@
 	  3. This notice may not be removed or altered from any source distribution.
 	*/
 
-#include "os.h"
-#include "tcrc32c.h"
-#include "tdef.h"
-
+#define _DEFAULT_SOURCE
 #if !defined(_TD_ARM_) && !defined(_TD_MIPS_)
 #include <nmmintrin.h>
 #endif
 
-
+#include "tcrc32c.h"
+#include "tdef.h"
 
 #define POLY 0x82f63b78
 #define LONG_SHIFT 8192
@@ -1097,7 +1095,7 @@ static uint32_t short_shifts[4][256] = {
 static uint32_t append_trivial(uint32_t crc, crc_stream input, size_t length) {
   for (size_t i = 0; i < length; ++i) {
     crc = crc ^ input[i];
-    for (int j = 0; j < 8; j++)
+    for (int32_t j = 0; j < 8; j++)
       crc = (crc >> 1) ^ 0x80000000 ^ ((~crc & 1) * POLY);
   }
   return crc;
@@ -1358,7 +1356,7 @@ void taosResolveCRC() {
 #if defined _TD_ARM_ || defined _TD_MIPS_ || defined WINDOWS
   crc32c = crc32c_sf;
 #else
-  int sse42;
+  int32_t sse42;
   SSE42(sse42);
   crc32c = sse42 ? crc32c_hw : crc32c_sf;
 #endif  
@@ -1371,10 +1369,10 @@ void taosResolveCRC() {
 #include <string.h>
 #include <unistd.h>
 
-int main(int argc, char *argv[]) {
+int32_t main(int32_t argc, char *argv[]) {
   char str[1024] = "\0";
   char *ptr = str;
-  int count = 0;
+  int32_t count = 0;
   while ((count = read(0, ptr, 10)) > 0) {
     ptr += count;
   }

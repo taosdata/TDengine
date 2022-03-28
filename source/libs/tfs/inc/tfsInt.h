@@ -25,15 +25,13 @@
 #include "thash.h"
 #include "tlog.h"
 
-extern int32_t fsDebugFlag;
-
 // For debug purpose
-#define fFatal(...) { if (fsDebugFlag & DEBUG_FATAL) { taosPrintLog("TFS FATAL ", 255, __VA_ARGS__); }}
-#define fError(...) { if (fsDebugFlag & DEBUG_ERROR) { taosPrintLog("TFS ERROR ", 255, __VA_ARGS__); }}
-#define fWarn(...)  { if (fsDebugFlag & DEBUG_WARN)  { taosPrintLog("TFS WARN ", 255, __VA_ARGS__); }}
-#define fInfo(...)  { if (fsDebugFlag & DEBUG_INFO)  { taosPrintLog("TFS ", 255, __VA_ARGS__); }}
-#define fDebug(...) { if (fsDebugFlag & DEBUG_DEBUG) { taosPrintLog("TFS ", fsDebugFlag, __VA_ARGS__); }}
-#define fTrace(...) { if (fsDebugFlag & DEBUG_TRACE) { taosPrintLog("TFS ", fsDebugFlag, __VA_ARGS__); }}
+#define fFatal(...) { if (fsDebugFlag & DEBUG_FATAL) { taosPrintLog("TFS FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}
+#define fError(...) { if (fsDebugFlag & DEBUG_ERROR) { taosPrintLog("TFS ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}
+#define fWarn(...)  { if (fsDebugFlag & DEBUG_WARN)  { taosPrintLog("TFS WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}
+#define fInfo(...)  { if (fsDebugFlag & DEBUG_INFO)  { taosPrintLog("TFS ", DEBUG_INFO, 255, __VA_ARGS__); }}
+#define fDebug(...) { if (fsDebugFlag & DEBUG_DEBUG) { taosPrintLog("TFS ", DEBUG_DEBUG, fsDebugFlag, __VA_ARGS__); }}
+#define fTrace(...) { if (fsDebugFlag & DEBUG_TRACE) { taosPrintLog("TFS ", DEBUG_TRACE, fsDebugFlag, __VA_ARGS__); }}
 
 typedef struct {
   int32_t   level;
@@ -43,7 +41,7 @@ typedef struct {
 } STfsDisk;
 
 typedef struct {
-  pthread_spinlock_t lock;
+  TdThreadSpinlock lock;
   int32_t            level;
   int32_t            nextid;       // next disk id to allocate
   int32_t            ndisk;        // # of disks mounted to this tier
@@ -61,12 +59,12 @@ typedef struct STfsDir {
   SDiskID   did;
   char      dirname[TSDB_FILENAME_LEN];
   STfsFile  tfile;
-  DIR      *dir;
+  TdDirPtr  pDir;
   STfs     *pTfs;
 } STfsDir;
 
 typedef struct STfs {
-  pthread_spinlock_t lock;
+  TdThreadSpinlock lock;
   SDiskSize          size;
   int32_t            nlevel;
   STfsTier           tiers[TFS_MAX_TIERS];
@@ -84,11 +82,11 @@ void      tfsUpdateTierSize(STfsTier *pTier);
 int32_t   tfsAllocDiskOnTier(STfsTier *pTier);
 void      tfsPosNextId(STfsTier *pTier);
 
-#define tfsLockTier(pTier) pthread_spin_lock(&(pTier)->lock)
-#define tfsUnLockTier(pTier) pthread_spin_unlock(&(pTier)->lock)
+#define tfsLockTier(pTier) taosThreadSpinLock(&(pTier)->lock)
+#define tfsUnLockTier(pTier) taosThreadSpinUnlock(&(pTier)->lock)
 
-#define tfsLock(pTfs) pthread_spin_lock(&(pTfs)->lock)
-#define tfsUnLock(pTfs) pthread_spin_unlock(&(pTfs)->lock)
+#define tfsLock(pTfs) taosThreadSpinLock(&(pTfs)->lock)
+#define tfsUnLock(pTfs) taosThreadSpinUnlock(&(pTfs)->lock)
 
 #define TFS_TIER_AT(pTfs, level) (&(pTfs)->tiers[level])
 #define TFS_DISK_AT(pTfs, did) ((pTfs)->tiers[(did).level].disks[(did).id])

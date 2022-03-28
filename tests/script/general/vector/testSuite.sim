@@ -1,0 +1,11 @@
+run general/vector/metrics_field.sim
+run general/vector/metrics_mix.sim
+run general/vector/metrics_query.sim
+run general/vector/metrics_tag.sim
+run general/vector/metrics_time.sim
+run general/vector/multi.sim
+run general/vector/single.sim
+run general/vector/table_field.sim
+run general/vector/table_mix.sim
+run general/vector/table_query.sim
+run general/vector/table_time.sim

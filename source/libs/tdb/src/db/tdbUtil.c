@@ -16,53 +16,53 @@
 #include "tdbInt.h"
 
 int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique) {
-  struct stat statbuf;
+  int64_t stDev = 0, stIno = 0;
 
-  if (stat(fname, &statbuf) < 0) {
+  if (taosDevInoFile(fname, &stDev, &stIno) < 0) {
     return -1;
   }
 
   memset(fileid, 0, TDB_FILE_ID_LEN);
 
-  ((uint64_t *)fileid)[0] = (uint64_t)statbuf.st_ino;
-  ((uint64_t *)fileid)[1] = (uint64_t)statbuf.st_dev;
+  ((uint64_t *)fileid)[0] = stDev;
+  ((uint64_t *)fileid)[1] = stIno;
   if (unique) {
-    ((uint64_t *)fileid)[2] = rand();
+    ((uint64_t *)fileid)[2] = taosRand();
   }
 
   return 0;
 }
 
-int tdbCheckFileAccess(const char *pathname, int mode) {
-  int flags = 0;
+// int tdbCheckFileAccess(const char *pathname, int mode) {
+//   int flags = 0;
 
-  if (mode & TDB_F_OK) {
-    flags |= F_OK;
-  }
+//   if (mode & TDB_F_OK) {
+//     flags |= F_OK;
+//   }
 
-  if (mode & TDB_R_OK) {
-    flags |= R_OK;
-  }
+//   if (mode & TDB_R_OK) {
+//     flags |= R_OK;
+//   }
 
-  if (mode & TDB_W_OK) {
-    flags |= W_OK;
-  }
+//   if (mode & TDB_W_OK) {
+//     flags |= W_OK;
+//   }
 
-  return access(pathname, flags);
-}
+//   return access(pathname, flags);
+// }
 
 int tdbGetFileSize(const char *fname, int pgSize, SPgno *pSize) {
   struct stat st;
   int         ret;
-
-  ret = stat(fname, &st);
+  int64_t file_size = 0;
+  ret = taosStatFile(fname, &file_size, NULL);
   if (ret != 0) {
     return -1;
   }
 
-  ASSERT(st.st_size % pgSize == 0);
+  ASSERT(file_size % pgSize == 0);
 
-  *pSize = st.st_size / pgSize;
+  *pSize = file_size / pgSize;
   return 0;
 }
 

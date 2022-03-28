@@ -12,8 +12,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include <tglobal.h>
-#include "os.h"
+
+#include "tglobal.h"
+#include "tcompare.h"
 
 #include "taosdef.h"
 #include "tcompare.h"
@@ -28,7 +29,7 @@ int32_t getGroupId(int32_t numOfSlots, int32_t slotIndex, int32_t times) {
 }
 
 static SFilePage *loadDataFromFilePage(tMemBucket *pMemBucket, int32_t slotIdx) {
-  SFilePage *buffer = (SFilePage *)calloc(1, pMemBucket->bytes * pMemBucket->pSlots[slotIdx].info.size + sizeof(SFilePage));
+  SFilePage *buffer = (SFilePage *)taosMemoryCalloc(1, pMemBucket->bytes * pMemBucket->pSlots[slotIdx].info.size + sizeof(SFilePage));
 
   int32_t groupId = getGroupId(pMemBucket->numOfSlots, slotIdx, pMemBucket->times);
   SIDList list = getDataBufPagesIdList(pMemBucket->pBuffer, groupId);
@@ -215,13 +216,13 @@ static void resetSlotInfo(tMemBucket* pBucket) {
 }
 
 tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval, double maxval) {
-  tMemBucket *pBucket = (tMemBucket *)calloc(1, sizeof(tMemBucket));
+  tMemBucket *pBucket = (tMemBucket *)taosMemoryCalloc(1, sizeof(tMemBucket));
   if (pBucket == NULL) {
     return NULL;
   }
 
   pBucket->numOfSlots = DEFAULT_NUM_OF_SLOT;
-  pBucket->bufPageSize = DEFAULT_PAGE_SIZE * 4;   // 4k per page
+  pBucket->bufPageSize = 16384 * 4;   // 16k per page
 
   pBucket->type  = dataType;
   pBucket->bytes = nElemSize;
@@ -232,7 +233,7 @@ tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval,
 
   if (setBoundingBox(&pBucket->range, pBucket->type, minval, maxval) != 0) {
 //    qError("MemBucket:%p, invalid value range: %f-%f", pBucket, minval, maxval);
-    free(pBucket);
+    taosMemoryFree(pBucket);
     return NULL;
   }
 
@@ -242,19 +243,19 @@ tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval,
   pBucket->hashFunc = getHashFunc(pBucket->type);
   if (pBucket->hashFunc == NULL) {
 //    qError("MemBucket:%p, not support data type %d, failed", pBucket, pBucket->type);
-    free(pBucket);
+    taosMemoryFree(pBucket);
     return NULL;
   }
 
-  pBucket->pSlots = (tMemBucketSlot *)calloc(pBucket->numOfSlots, sizeof(tMemBucketSlot));
+  pBucket->pSlots = (tMemBucketSlot *)taosMemoryCalloc(pBucket->numOfSlots, sizeof(tMemBucketSlot));
   if (pBucket->pSlots == NULL) {
-    free(pBucket);
+    taosMemoryFree(pBucket);
     return NULL;
   }
 
   resetSlotInfo(pBucket);
 
-  int32_t ret = createDiskbasedBuffer(&pBucket->pBuffer, pBucket->bufPageSize, pBucket->bufPageSize * 512, 1, tsTempDir);
+  int32_t ret = createDiskbasedBuf(&pBucket->pBuffer, pBucket->bufPageSize, pBucket->bufPageSize * 512, "1", "/tmp");
   if (ret != 0) {
     tMemBucketDestroy(pBucket);
     return NULL;
@@ -269,9 +270,9 @@ void tMemBucketDestroy(tMemBucket *pBucket) {
     return;
   }
 
-  destroyResultBuf(pBucket->pBuffer);
-  tfree(pBucket->pSlots);
-  tfree(pBucket);
+  destroyDiskbasedBuf(pBucket->pBuffer);
+  taosMemoryFreeClear(pBucket->pSlots);
+  taosMemoryFreeClear(pBucket);
 }
 
 void tMemBucketUpdateBoundingBox(MinMaxEntry *r, const char *data, int32_t dataType) {
@@ -347,7 +348,7 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
         pSlot->info.data = NULL;
       }
 
-      pSlot->info.data = getNewDataBuf(pBucket->pBuffer, groupId, &pageId);
+      pSlot->info.data = getNewBufPage(pBucket->pBuffer, groupId, &pageId);
       pSlot->info.pageId = pageId;
     }
 
@@ -448,7 +449,7 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
         GET_TYPED_DATA(nd, double, pMemBucket->type, nextVal);
 
         double val = (1 - fraction) * td + fraction * nd;
-        tfree(buffer);
+        taosMemoryFreeClear(buffer);
 
         return val;
       } else {  // incur a second round bucket split

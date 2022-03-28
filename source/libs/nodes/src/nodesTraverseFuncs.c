@@ -79,9 +79,14 @@ static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FNodeWalker walker
     case QUERY_NODE_STATE_WINDOW:
       res = walkNode(((SStateWindowNode*)pNode)->pCol, order, walker, pContext);
       break;
-    case QUERY_NODE_SESSION_WINDOW:
-      res = walkNode(((SSessionWindowNode*)pNode)->pCol, order, walker, pContext);
+    case QUERY_NODE_SESSION_WINDOW: {
+      SSessionWindowNode* pSession = (SSessionWindowNode*)pNode;
+      res = walkNode(pSession->pCol, order, walker, pContext);
+      if (DEAL_RES_ERROR != res) {
+        res = walkNode(pSession->pGap, order, walker, pContext);
+      }
       break;
+    }
     case QUERY_NODE_INTERVAL_WINDOW: {
       SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pNode;
       res = walkNode(pInterval->pInterval, order, walker, pContext);
@@ -94,6 +99,9 @@ static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FNodeWalker walker
       if (DEAL_RES_ERROR != res) {
         res = walkNode(pInterval->pFill, order, walker, pContext);
       }
+      if (DEAL_RES_ERROR != res) {
+        res = walkNode(pInterval->pCol, order, walker, pContext);
+      }
       break;
     }
     case QUERY_NODE_NODE_LIST:
@@ -104,6 +112,9 @@ static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FNodeWalker walker
       break;
     case QUERY_NODE_RAW_EXPR:
       res = walkNode(((SRawExprNode*)pNode)->pNode, order, walker, pContext);
+      break;
+    case QUERY_NODE_TARGET:
+      res = walkNode(((STargetNode*)pNode)->pExpr, order, walker, pContext);
       break;
     default:
       break;
@@ -126,7 +137,7 @@ static EDealRes walkList(SNodeList* pNodeList, ETraversalOrder order, FNodeWalke
   return DEAL_RES_CONTINUE;
 }
 
-void nodesWalkNode(SNode* pNode, FNodeWalker walker, void* pContext) {
+void nodesWalkNode(SNodeptr pNode, FNodeWalker walker, void* pContext) {
   (void)walkNode(pNode, TRAVERSAL_PREORDER, walker, pContext);
 }
 
@@ -134,7 +145,7 @@ void nodesWalkList(SNodeList* pNodeList, FNodeWalker walker, void* pContext) {
   (void)walkList(pNodeList, TRAVERSAL_PREORDER, walker, pContext);
 }
 
-void nodesWalkNodePostOrder(SNode* pNode, FNodeWalker walker, void* pContext) {
+void nodesWalkNodePostOrder(SNodeptr pNode, FNodeWalker walker, void* pContext) {
   (void)walkNode(pNode, TRAVERSAL_POSTORDER, walker, pContext);
 }
 
@@ -217,6 +228,9 @@ static EDealRes rewriteNode(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       if (DEAL_RES_ERROR != res) {
         res = rewriteNode(&(pInterval->pFill), order, rewriter, pContext);
       }
+      if (DEAL_RES_ERROR != res) {
+        res = rewriteNode(&(pInterval->pCol), order, rewriter, pContext);
+      }
       break;
     }
     case QUERY_NODE_NODE_LIST:
@@ -227,6 +241,9 @@ static EDealRes rewriteNode(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       break;
     case QUERY_NODE_RAW_EXPR:
       res = rewriteNode(&(((SRawExprNode*)pNode)->pNode), order, rewriter, pContext);
+      break;
+    case QUERY_NODE_TARGET:
+      res = rewriteNode(&(((STargetNode*)pNode)->pExpr), order, rewriter, pContext);
       break;
     default:
       break;
@@ -283,10 +300,10 @@ void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker wa
     case SQL_CLAUSE_GROUP_BY:
       nodesWalkNode(pSelect->pHaving, walker, pContext);
     case SQL_CLAUSE_HAVING:
-      nodesWalkList(pSelect->pProjectionList, walker, pContext);
-    case SQL_CLAUSE_SELECT:
       nodesWalkList(pSelect->pOrderByList, walker, pContext);
     case SQL_CLAUSE_ORDER_BY:
+      nodesWalkList(pSelect->pProjectionList, walker, pContext);
+    case SQL_CLAUSE_SELECT:
     default:
       break;
   }

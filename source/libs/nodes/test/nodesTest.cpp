@@ -36,15 +36,15 @@ static EDealRes rewriterTest(SNode** pNode, void* pContext) {
 }
 
 TEST(NodesTest, traverseTest) {
-	SNode* pRoot = nodesMakeNode(QUERY_NODE_OPERATOR);
+	SNode* pRoot = (SNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
 	SOperatorNode* pOp = (SOperatorNode*)pRoot;
 	SOperatorNode* pLeft = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
-	pLeft->pLeft = nodesMakeNode(QUERY_NODE_VALUE);
+	pLeft->pLeft = (SNode*)nodesMakeNode(QUERY_NODE_VALUE);
 	((SValueNode*)(pLeft->pLeft))->literal = strdup("10");
-	pLeft->pRight = nodesMakeNode(QUERY_NODE_VALUE);
+	pLeft->pRight = (SNode*)nodesMakeNode(QUERY_NODE_VALUE);
 	((SValueNode*)(pLeft->pRight))->literal = strdup("5");
 	pOp->pLeft = (SNode*)pLeft;
-	pOp->pRight = nodesMakeNode(QUERY_NODE_VALUE);
+	pOp->pRight = (SNode*)nodesMakeNode(QUERY_NODE_VALUE);
 	((SValueNode*)(pOp->pRight))->literal = strdup("3");
 
 	EXPECT_EQ(nodeType(pRoot), QUERY_NODE_OPERATOR);

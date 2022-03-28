@@ -16,7 +16,8 @@
 #ifndef _TD_TSDB_DEF_H_
 #define _TD_TSDB_DEF_H_
 
-#include "mallocator.h"
+#include "tsdbDBDef.h"
+#include "tmallocator.h"
 #include "meta.h"
 #include "tcompression.h"
 #include "tglobal.h"
@@ -35,6 +36,8 @@
 #include "tsdbMemory.h"
 #include "tsdbOptions.h"
 #include "tsdbReadImpl.h"
+#include "tsdbSma.h"
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,6 +45,8 @@ extern "C" {
 
 struct STsdb {
   int32_t               vgId;
+  bool                  repoLocked;
+  TdThreadMutex       mutex;
   char *                path;
   STsdbCfg              config;
   STsdbMemTable *       mem;
@@ -51,11 +56,20 @@ struct STsdb {
   STsdbFS *             fs;
   SMeta *               pMeta;
   STfs *                pTfs;
+  SSmaEnv *             pTSmaEnv;
+  SSmaEnv *             pRSmaEnv;
 };
 
-#define REPO_ID(r) ((r)->vgId)
-#define REPO_CFG(r) (&(r)->config)
-#define REPO_FS(r) (r)->fs
+#define REPO_ID(r)         ((r)->vgId)
+#define REPO_CFG(r)        (&(r)->config)
+#define REPO_FS(r)         (r)->fs
+#define REPO_META(r)       (r)->pMeta
+#define REPO_TFS(r)        (r)->pTfs
+#define IS_REPO_LOCKED(r)  (r)->repoLocked
+#define REPO_SMA_ENV(r, t) ((TSDB_SMA_TYPE_ROLLUP == (t)) ? (r)->pRSmaEnv : (r)->pTSmaEnv)
+
+int tsdbLockRepo(STsdb *pTsdb);
+int tsdbUnlockRepo(STsdb *pTsdb);
 
 static FORCE_INLINE STSchema *tsdbGetTableSchemaImpl(STable *pTable, bool lock, bool copy, int32_t version) {
   return pTable->pSchema;

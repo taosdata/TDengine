@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define ALLOW_FORBID_FUNC
 #include "db.h"
 
 #include "metaDef.h"
@@ -32,16 +33,19 @@ typedef struct {
 
 struct SMetaDB {
 #if IMPL_WITH_LOCK
-  pthread_rwlock_t rwlock;
+  TdThreadRwlock rwlock;
 #endif
   // DB
   DB *pTbDB;
   DB *pSchemaDB;
+  DB *pSmaDB;
+
   // IDX
   DB *pNameIdx;
   DB *pStbIdx;
   DB *pNtbIdx;
   DB *pCtbIdx;
+  DB *pSmaIdx;
   // ENV
   DB_ENV *pEvn;
 };
@@ -60,11 +64,12 @@ static int      metaNameIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT 
 static int      metaStbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey);
 static int      metaNtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey);
 static int      metaCtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey);
+static int      metaSmaIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey);
 static int      metaEncodeTbInfo(void **buf, STbCfg *pTbCfg);
-static void *   metaDecodeTbInfo(void *buf, STbCfg *pTbCfg);
+static void    *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg);
 static void     metaClearTbCfg(STbCfg *pTbCfg);
 static int      metaEncodeSchema(void **buf, SSchemaWrapper *pSW);
-static void *   metaDecodeSchema(void *buf, SSchemaWrapper *pSW);
+static void    *metaDecodeSchema(void *buf, SSchemaWrapper *pSW);
 static void     metaDBWLock(SMetaDB *pDB);
 static void     metaDBRLock(SMetaDB *pDB);
 static void     metaDBULock(SMetaDB *pDB);
@@ -99,6 +104,11 @@ int metaOpenDB(SMeta *pMeta) {
     return -1;
   }
 
+  if (metaOpenBDBDb(&(pDB->pSmaDB), pDB->pEvn, "sma.db", false) < 0) {
+    metaCloseDB(pMeta);
+    return -1;
+  }
+
   // Open Indices
   if (metaOpenBDBIdx(&(pDB->pNameIdx), pDB->pEvn, "name.index", pDB->pTbDB, &metaNameIdxCb, false) < 0) {
     metaCloseDB(pMeta);
@@ -120,15 +130,22 @@ int metaOpenDB(SMeta *pMeta) {
     return -1;
   }
 
+  if (metaOpenBDBIdx(&(pDB->pSmaIdx), pDB->pEvn, "sma.index", pDB->pSmaDB, &metaSmaIdxCb, true) < 0) {
+    metaCloseDB(pMeta);
+    return -1;
+  }
+
   return 0;
 }
 
 void metaCloseDB(SMeta *pMeta) {
   if (pMeta->pDB) {
+    metaCloseBDBIdx(pMeta->pDB->pSmaIdx);
     metaCloseBDBIdx(pMeta->pDB->pCtbIdx);
     metaCloseBDBIdx(pMeta->pDB->pNtbIdx);
     metaCloseBDBIdx(pMeta->pDB->pStbIdx);
     metaCloseBDBIdx(pMeta->pDB->pNameIdx);
+    metaCloseBDBDb(pMeta->pDB->pSmaDB);
     metaCloseBDBDb(pMeta->pDB->pSchemaDB);
     metaCloseBDBDb(pMeta->pDB->pTbDB);
     metaCloseBDBEnv(pMeta->pDB->pEvn);
@@ -141,7 +158,7 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
   tb_uid_t uid;
   char     buf[512];
   char     buf1[512];
-  void *   pBuf;
+  void    *pBuf;
   DBT      key1, value1;
   DBT      key2, value2;
   SSchema *pSchema = NULL;
@@ -209,6 +226,56 @@ int metaRemoveTableFromDb(SMeta *pMeta, tb_uid_t uid) {
   return 0;
 }
 
+int metaSaveSmaToDB(SMeta *pMeta, STSma *pSmaCfg) {
+  // char  buf[512] = {0};  // TODO: may overflow
+  void *pBuf = NULL, *qBuf = NULL;
+  DBT   key1 = {0}, value1 = {0};
+
+  // save sma info
+  int32_t len = tEncodeTSma(NULL, pSmaCfg);
+  pBuf = taosMemoryCalloc(1, len);
+  if (pBuf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  key1.data = (void *)&pSmaCfg->indexUid;
+  key1.size = sizeof(pSmaCfg->indexUid);
+
+  qBuf = pBuf;
+  tEncodeTSma(&qBuf, pSmaCfg);
+
+  value1.data = pBuf;
+  value1.size = POINTER_DISTANCE(qBuf, pBuf);
+  value1.app_data = pSmaCfg;
+
+  metaDBWLock(pMeta->pDB);
+  pMeta->pDB->pSmaDB->put(pMeta->pDB->pSmaDB, NULL, &key1, &value1, 0);
+  metaDBULock(pMeta->pDB);
+
+  // release
+  taosMemoryFreeClear(pBuf);
+
+  return 0;
+}
+
+int metaRemoveSmaFromDb(SMeta *pMeta,  int64_t indexUid) {
+  // TODO
+#if 0
+  DBT key = {0};
+
+  key.data = (void *)indexName;
+  key.size = strlen(indexName);
+
+  metaDBWLock(pMeta->pDB);
+  // TODO: No guarantee of consistence.
+  // Use transaction or DB->sync() for some guarantee.
+  pMeta->pDB->pSmaDB->del(pMeta->pDB->pSmaDB, NULL, &key, 0);
+  metaDBULock(pMeta->pDB);
+#endif
+  return 0;
+}
+
 /* ------------------------ STATIC METHODS ------------------------ */
 static int metaEncodeSchema(void **buf, SSchemaWrapper *pSW) {
   int      tlen = 0;
@@ -218,7 +285,7 @@ static int metaEncodeSchema(void **buf, SSchemaWrapper *pSW) {
   for (int i = 0; i < pSW->nCols; i++) {
     pSchema = pSW->pSchema + i;
     tlen += taosEncodeFixedI8(buf, pSchema->type);
-    tlen += taosEncodeFixedI32(buf, pSchema->colId);
+    tlen += taosEncodeFixedI16(buf, pSchema->colId);
     tlen += taosEncodeFixedI32(buf, pSchema->bytes);
     tlen += taosEncodeString(buf, pSchema->name);
   }
@@ -230,11 +297,11 @@ static void *metaDecodeSchema(void *buf, SSchemaWrapper *pSW) {
   SSchema *pSchema;
 
   buf = taosDecodeFixedU32(buf, &pSW->nCols);
-  pSW->pSchema = (SSchema *)malloc(sizeof(SSchema) * pSW->nCols);
+  pSW->pSchema = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * pSW->nCols);
   for (int i = 0; i < pSW->nCols; i++) {
     pSchema = pSW->pSchema + i;
     buf = taosDecodeFixedI8(buf, &pSchema->type);
-    buf = taosDecodeFixedI32(buf, &pSchema->colId);
+    buf = taosDecodeFixedI16(buf, &pSchema->colId);
     buf = taosDecodeFixedI32(buf, &pSchema->bytes);
     buf = taosDecodeStringTo(buf, pSchema->name);
   }
@@ -244,13 +311,13 @@ static void *metaDecodeSchema(void *buf, SSchemaWrapper *pSW) {
 
 static SMetaDB *metaNewDB() {
   SMetaDB *pDB = NULL;
-  pDB = (SMetaDB *)calloc(1, sizeof(*pDB));
+  pDB = (SMetaDB *)taosMemoryCalloc(1, sizeof(*pDB));
   if (pDB == NULL) {
     return NULL;
   }
 
 #if IMPL_WITH_LOCK
-  pthread_rwlock_init(&pDB->rwlock, NULL);
+  taosThreadRwlockInit(&pDB->rwlock, NULL);
 #endif
 
   return pDB;
@@ -259,9 +326,9 @@ static SMetaDB *metaNewDB() {
 static void metaFreeDB(SMetaDB *pDB) {
   if (pDB) {
 #if IMPL_WITH_LOCK
-    pthread_rwlock_destroy(&pDB->rwlock);
+    taosThreadRwlockDestroy(&pDB->rwlock);
 #endif
-    free(pDB);
+    taosMemoryFree(pDB);
   }
 }
 
@@ -393,10 +460,10 @@ static int metaNtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey
 
 static int metaCtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey) {
   STbCfg *pTbCfg = (STbCfg *)(pValue->app_data);
-  DBT *   pDbt;
+  DBT    *pDbt;
 
   if (pTbCfg->type == META_CHILD_TABLE) {
-    // pDbt = calloc(2, sizeof(DBT));
+    // pDbt = taosMemoryCalloc(2, sizeof(DBT));
 
     // // First key is suid
     // pDbt[0].data = &(pTbCfg->ctbCfg.suid);
@@ -424,13 +491,23 @@ static int metaCtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey
   }
 }
 
+static int metaSmaIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey) {
+  STSma *pSmaCfg = (STSma *)(pValue->app_data);
+
+  memset(pSKey, 0, sizeof(*pSKey));
+  pSKey->data = &(pSmaCfg->tableUid);
+  pSKey->size = sizeof(pSmaCfg->tableUid);
+
+  return 0;
+}
+
 static int metaEncodeTbInfo(void **buf, STbCfg *pTbCfg) {
   int tsize = 0;
 
   tsize += taosEncodeString(buf, pTbCfg->name);
   tsize += taosEncodeFixedU32(buf, pTbCfg->ttl);
   tsize += taosEncodeFixedU32(buf, pTbCfg->keep);
-  tsize += taosEncodeFixedU8(buf, pTbCfg->type);
+  tsize += taosEncodeFixedU8(buf, pTbCfg->info);
 
   if (pTbCfg->type == META_SUPER_TABLE) {
     SSchemaWrapper sw = {.nCols = pTbCfg->stbCfg.nTagCols, .pSchema = pTbCfg->stbCfg.pTagSchema};
@@ -439,6 +516,7 @@ static int metaEncodeTbInfo(void **buf, STbCfg *pTbCfg) {
     tsize += taosEncodeFixedU64(buf, pTbCfg->ctbCfg.suid);
     tsize += tdEncodeKVRow(buf, pTbCfg->ctbCfg.pTag);
   } else if (pTbCfg->type == META_NORMAL_TABLE) {
+    // TODO
   } else {
     ASSERT(0);
   }
@@ -450,7 +528,7 @@ static void *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg) {
   buf = taosDecodeString(buf, &(pTbCfg->name));
   buf = taosDecodeFixedU32(buf, &(pTbCfg->ttl));
   buf = taosDecodeFixedU32(buf, &(pTbCfg->keep));
-  buf = taosDecodeFixedU8(buf, &(pTbCfg->type));
+  buf = taosDecodeFixedU8(buf, &(pTbCfg->info));
 
   if (pTbCfg->type == META_SUPER_TABLE) {
     SSchemaWrapper sw;
@@ -461,6 +539,7 @@ static void *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg) {
     buf = taosDecodeFixedU64(buf, &(pTbCfg->ctbCfg.suid));
     buf = tdDecodeKVRow(buf, &(pTbCfg->ctbCfg.pTag));
   } else if (pTbCfg->type == META_NORMAL_TABLE) {
+    // TODO
   } else {
     ASSERT(0);
   }
@@ -468,17 +547,17 @@ static void *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg) {
 }
 
 static void metaClearTbCfg(STbCfg *pTbCfg) {
-  tfree(pTbCfg->name);
+  taosMemoryFreeClear(pTbCfg->name);
   if (pTbCfg->type == META_SUPER_TABLE) {
     tdFreeSchema(pTbCfg->stbCfg.pTagSchema);
   } else if (pTbCfg->type == META_CHILD_TABLE) {
-    tfree(pTbCfg->ctbCfg.pTag);
+    taosMemoryFreeClear(pTbCfg->ctbCfg.pTag);
   }
 }
 
 /* ------------------------ FOR QUERY ------------------------ */
 STbCfg *metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid) {
-  STbCfg * pTbCfg = NULL;
+  STbCfg  *pTbCfg = NULL;
   SMetaDB *pDB = pMeta->pDB;
   DBT      key = {0};
   DBT      value = {0};
@@ -497,7 +576,7 @@ STbCfg *metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid) {
   }
 
   // Decode
-  pTbCfg = (STbCfg *)malloc(sizeof(*pTbCfg));
+  pTbCfg = (STbCfg *)taosMemoryMalloc(sizeof(*pTbCfg));
   if (pTbCfg == NULL) {
     return NULL;
   }
@@ -508,7 +587,7 @@ STbCfg *metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid) {
 }
 
 STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
-  STbCfg * pTbCfg = NULL;
+  STbCfg  *pTbCfg = NULL;
   SMetaDB *pDB = pMeta->pDB;
   DBT      key = {0};
   DBT      pkey = {0};
@@ -529,7 +608,7 @@ STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
 
   // Decode
   *uid = *(tb_uid_t *)(pkey.data);
-  pTbCfg = (STbCfg *)malloc(sizeof(*pTbCfg));
+  pTbCfg = (STbCfg *)taosMemoryMalloc(sizeof(*pTbCfg));
   if (pTbCfg == NULL) {
     return NULL;
   }
@@ -539,13 +618,46 @@ STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
   return pTbCfg;
 }
 
+STSma *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid) {
+  STSma *  pCfg = NULL;
+  SMetaDB *pDB = pMeta->pDB;
+  DBT      key = {0};
+  DBT      value = {0};
+  int      ret;
+
+  // Set key/value
+  key.data = (void *)&indexUid;
+  key.size = sizeof(indexUid);
+
+  // Query
+  metaDBRLock(pDB);
+  ret = pDB->pTbDB->get(pDB->pSmaDB, NULL, &key, &value, 0);
+  metaDBULock(pDB);
+  if (ret != 0) {
+    return NULL;
+  }
+
+  // Decode
+  pCfg = (STSma *)taosMemoryCalloc(1, sizeof(STSma));
+  if (pCfg == NULL) {
+    return NULL;
+  }
+
+  if (tDecodeTSma(value.data, pCfg) == NULL) {
+    taosMemoryFreeClear(pCfg);
+    return NULL;
+  }
+
+  return pCfg;
+}
+
 SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline) {
   uint32_t        nCols;
   SSchemaWrapper *pSW = NULL;
-  SMetaDB *       pDB = pMeta->pDB;
+  SMetaDB        *pDB = pMeta->pDB;
   int             ret;
-  void *          pBuf;
-  SSchema *       pSchema;
+  void           *pBuf;
+  SSchema        *pSchema;
   SSchemaKey      schemaKey = {uid, sver, 0};
   DBT             key = {0};
   DBT             value = {0};
@@ -565,7 +677,7 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, boo
 
   // Decode the schema
   pBuf = value.data;
-  pSW = malloc(sizeof(*pSW));
+  pSW = taosMemoryMalloc(sizeof(*pSW));
   metaDecodeSchema(pBuf, pSW);
 
   return pSW;
@@ -577,9 +689,9 @@ struct SMTbCursor {
 
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
   SMTbCursor *pTbCur = NULL;
-  SMetaDB *   pDB = pMeta->pDB;
+  SMetaDB    *pDB = pMeta->pDB;
 
-  pTbCur = (SMTbCursor *)calloc(1, sizeof(*pTbCur));
+  pTbCur = (SMTbCursor *)taosMemoryCalloc(1, sizeof(*pTbCur));
   if (pTbCur == NULL) {
     return NULL;
   }
@@ -595,12 +707,24 @@ SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
   return pTbCur;
 }
 
+int metaGetTbNum(SMeta *pMeta) {
+  SMetaDB    *pDB = pMeta->pDB;
+
+  DB_BTREE_STAT *sp1;
+  pDB->pTbDB->stat(pDB->pNtbIdx, NULL, &sp1, 0);
+  
+  DB_BTREE_STAT *sp2;
+  pDB->pTbDB->stat(pDB->pCtbIdx, NULL, &sp2, 0);
+  
+  return sp1->bt_nkeys + sp2->bt_nkeys;
+}
+
 void metaCloseTbCursor(SMTbCursor *pTbCur) {
   if (pTbCur) {
     if (pTbCur->pCur) {
       pTbCur->pCur->close(pTbCur->pCur);
     }
-    free(pTbCur);
+    taosMemoryFree(pTbCur);
   }
 }
 
@@ -608,15 +732,15 @@ char *metaTbCursorNext(SMTbCursor *pTbCur) {
   DBT    key = {0};
   DBT    value = {0};
   STbCfg tbCfg;
-  void * pBuf;
+  void  *pBuf;
 
   for (;;) {
     if (pTbCur->pCur->get(pTbCur->pCur, &key, &value, DB_NEXT) == 0) {
       pBuf = value.data;
       metaDecodeTbInfo(pBuf, &tbCfg);
       if (tbCfg.type == META_SUPER_TABLE) {
-        free(tbCfg.name);
-        free(tbCfg.stbCfg.pTagSchema);
+        taosMemoryFree(tbCfg.name);
+        taosMemoryFree(tbCfg.stbCfg.pTagSchema);
         continue;
       } else if (tbCfg.type == META_CHILD_TABLE) {
         kvRowFree(tbCfg.ctbCfg.pTag);
@@ -630,10 +754,10 @@ char *metaTbCursorNext(SMTbCursor *pTbCur) {
 
 STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
   STSchemaBuilder sb;
-  STSchema *      pTSchema = NULL;
-  SSchema *       pSchema;
+  STSchema       *pTSchema = NULL;
+  SSchema        *pSchema;
   SSchemaWrapper *pSW;
-  STbCfg *        pTbCfg;
+  STbCfg         *pTbCfg;
   tb_uid_t        quid;
 
   pTbCfg = metaGetTbInfoByUid(pMeta, uid);
@@ -661,16 +785,16 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
 }
 
 struct SMCtbCursor {
-  DBC *    pCur;
+  DBC     *pCur;
   tb_uid_t suid;
 };
 
 SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
   SMCtbCursor *pCtbCur = NULL;
-  SMetaDB *    pDB = pMeta->pDB;
+  SMetaDB     *pDB = pMeta->pDB;
   int          ret;
 
-  pCtbCur = (SMCtbCursor *)calloc(1, sizeof(*pCtbCur));
+  pCtbCur = (SMCtbCursor *)taosMemoryCalloc(1, sizeof(*pCtbCur));
   if (pCtbCur == NULL) {
     return NULL;
   }
@@ -678,7 +802,7 @@ SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
   pCtbCur->suid = uid;
   ret = pDB->pCtbIdx->cursor(pDB->pCtbIdx, NULL, &(pCtbCur->pCur), 0);
   if (ret != 0) {
-    free(pCtbCur);
+    taosMemoryFree(pCtbCur);
     return NULL;
   }
 
@@ -691,7 +815,7 @@ void metaCloseCtbCurosr(SMCtbCursor *pCtbCur) {
       pCtbCur->pCur->close(pCtbCur->pCur);
     }
 
-    free(pCtbCur);
+    taosMemoryFree(pCtbCur);
   }
 }
 
@@ -699,7 +823,7 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
   DBT    skey = {0};
   DBT    pkey = {0};
   DBT    pval = {0};
-  void * pBuf;
+  void  *pBuf;
   STbCfg tbCfg;
 
   // Set key
@@ -717,20 +841,156 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
   }
 }
 
+struct SMSmaCursor {
+  DBC     *pCur;
+  tb_uid_t uid;
+};
+
+SMSmaCursor *metaOpenSmaCursor(SMeta *pMeta, tb_uid_t uid) {
+  SMSmaCursor *pCur = NULL;
+  SMetaDB     *pDB = pMeta->pDB;
+  int          ret;
+
+  pCur = (SMSmaCursor *)taosMemoryCalloc(1, sizeof(*pCur));
+  if (pCur == NULL) {
+    return NULL;
+  }
+
+  pCur->uid = uid;
+  // TODO: lock?
+  ret = pDB->pCtbIdx->cursor(pDB->pSmaIdx, NULL, &(pCur->pCur), 0);
+  if (ret != 0) {
+    taosMemoryFree(pCur);
+    return NULL;
+  }
+
+  return pCur;
+}
+
+void metaCloseSmaCurosr(SMSmaCursor *pCur) {
+  if (pCur) {
+    if (pCur->pCur) {
+      pCur->pCur->close(pCur->pCur);
+    }
+
+    taosMemoryFree(pCur);
+  }
+}
+
+const char *metaSmaCursorNext(SMSmaCursor *pCur) {
+  DBT skey = {0};
+  DBT pkey = {0};
+  DBT pval = {0};
+
+  // Set key
+  skey.data = &(pCur->uid);
+  skey.size = sizeof(pCur->uid);
+  // TODO: lock?
+  if (pCur->pCur->pget(pCur->pCur, &skey, &pkey, &pval, DB_NEXT) == 0) {
+    const char *indexName = (const char *)pkey.data;
+    assert(indexName != NULL);
+    return indexName;
+  } else {
+    return NULL;
+  }
+}
+
+STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
+  STSmaWrapper *pSW = NULL;
+
+  pSW = taosMemoryCalloc(1, sizeof(*pSW));
+  if (pSW == NULL) {
+    return NULL;
+  }
+
+  SMSmaCursor *pCur = metaOpenSmaCursor(pMeta, uid);
+  if (pCur == NULL) {
+    taosMemoryFree(pSW);
+    return NULL;
+  }
+
+  DBT   skey = {.data = &(pCur->uid), .size = sizeof(pCur->uid)};
+  DBT   pval = {0};
+  void *pBuf = NULL;
+
+  while (true) {
+    // TODO: lock?
+    if (pCur->pCur->pget(pCur->pCur, &skey, NULL, &pval, DB_NEXT) == 0) {
+      ++pSW->number;
+      STSma *tptr = (STSma *)taosMemoryRealloc(pSW->tSma, pSW->number * sizeof(STSma));
+      if (tptr == NULL) {
+        metaCloseSmaCurosr(pCur);
+        tdDestroyTSmaWrapper(pSW);
+        taosMemoryFreeClear(pSW);
+        return NULL;
+      }
+      pSW->tSma = tptr;
+      pBuf = pval.data;
+      if (tDecodeTSma(pBuf, pSW->tSma + pSW->number - 1) == NULL) {
+        metaCloseSmaCurosr(pCur);
+        tdDestroyTSmaWrapper(pSW);
+        taosMemoryFreeClear(pSW);
+        return NULL;
+      }
+      continue;
+    }
+    break;
+  }
+
+  metaCloseSmaCurosr(pCur);
+  
+  return pSW;
+}
+
+SArray *metaGetSmaTbUids(SMeta *pMeta, bool isDup) {
+  SArray * pUids = NULL;
+  SMetaDB *pDB = pMeta->pDB;
+  DBC *    pCur = NULL;
+  DBT      pkey = {0}, pval = {0};
+  uint32_t mode = isDup ? DB_NEXT_DUP : DB_NEXT_NODUP;
+  int      ret;
+
+  pUids = taosArrayInit(16, sizeof(tb_uid_t));
+
+  if (!pUids) {
+    return NULL;
+  }
+
+  // TODO: lock?
+  ret = pDB->pCtbIdx->cursor(pDB->pSmaIdx, NULL, &pCur, 0);
+  if (ret != 0) {
+    taosArrayDestroy(pUids);
+    return NULL;
+  }
+
+  void *pBuf = NULL;
+
+  // TODO: lock?
+  while ((ret = pCur->get(pCur, &pkey, &pval, mode)) == 0) {
+      taosArrayPush(pUids, pkey.data);
+  }
+
+  if (pCur) {
+    pCur->close(pCur);
+  }
+
+  return pUids;
+}
+
 static void metaDBWLock(SMetaDB *pDB) {
 #if IMPL_WITH_LOCK
-  pthread_rwlock_wrlock(&(pDB->rwlock));
+  taosThreadRwlockWrlock(&(pDB->rwlock));
 #endif
 }
 
 static void metaDBRLock(SMetaDB *pDB) {
 #if IMPL_WITH_LOCK
-  pthread_rwlock_rdlock(&(pDB->rwlock));
+  taosThreadRwlockRdlock(&(pDB->rwlock));
 #endif
 }
 
 static void metaDBULock(SMetaDB *pDB) {
 #if IMPL_WITH_LOCK
-  pthread_rwlock_unlock(&(pDB->rwlock));
+  taosThreadRwlockUnlock(&(pDB->rwlock));
 #endif
 }

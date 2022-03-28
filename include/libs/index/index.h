@@ -29,6 +29,12 @@ typedef struct SIndexOpts           SIndexOpts;
 typedef struct SIndexMultiTermQuery SIndexMultiTermQuery;
 typedef struct SArray               SIndexMultiTerm;
 
+typedef struct SIndex               SIndexJson;
+typedef struct SIndexTerm           SIndexJsonTerm;
+typedef struct SIndexOpts           SIndexJsonOpts;
+typedef struct SIndexMultiTermQuery SIndexJsonMultiTermQuery;
+typedef struct SArray               SIndexJsonMultiTerm;
+
 typedef enum {
   ADD_VALUE,     // add index colume value
   DEL_VALUE,     // delete index column value
@@ -39,24 +45,108 @@ typedef enum {
 } SIndexOperOnColumn;
 
 typedef enum { MUST = 0, SHOULD = 1, NOT = 2 } EIndexOperatorType;
-typedef enum { QUERY_TERM = 0, QUERY_PREFIX = 1, QUERY_SUFFIX = 2, QUERY_REGEX = 3 } EIndexQueryType;
+typedef enum { QUERY_TERM = 0, QUERY_PREFIX = 1, QUERY_SUFFIX = 2, QUERY_REGEX = 3, QUERY_RANGE = 4 } EIndexQueryType;
+
 /*
- * @param: oper
- *
+ * create multi query
+ * @param oper (input, relation between querys)
  */
 SIndexMultiTermQuery* indexMultiTermQueryCreate(EIndexOperatorType oper);
-void                  indexMultiTermQueryDestroy(SIndexMultiTermQuery* pQuery);
-int                   indexMultiTermQueryAdd(SIndexMultiTermQuery* pQuery, SIndexTerm* term, EIndexQueryType type);
+
 /*
- * @param:
- * @param:
+ * destroy multi query
+ * @param pQuery (input, multi-query-object to be destory)
  */
-int  indexOpen(SIndexOpts* opt, const char* path, SIndex** index);
+
+void indexMultiTermQueryDestroy(SIndexMultiTermQuery* pQuery);
+/*
+ * add query to multi query
+ * @param pQuery (input, multi-query-object)
+ * @param term (input, single query term)
+ * @param type (input, single query type)
+ * @return error code
+ */
+int indexMultiTermQueryAdd(SIndexMultiTermQuery* pQuery, SIndexTerm* term, EIndexQueryType type);
+/*
+ * open index
+ * @param opt (input, index opt)
+ * @param path (input, index path)
+ * @param index (output, index object)
+ * @return error code
+ */
+int indexOpen(SIndexOpts* opt, const char* path, SIndex** index);
+/*
+ * close index
+ * @param index (input, index to be closed)
+ * @return error code
+ */
 void indexClose(SIndex* index);
-int  indexPut(SIndex* index, SIndexMultiTerm* terms, uint64_t uid);
-int  indexDelete(SIndex* index, SIndexMultiTermQuery* query);
-int  indexSearch(SIndex* index, SIndexMultiTermQuery* query, SArray* result);
-int  indexRebuild(SIndex* index, SIndexOpts* opt);
+
+/*
+ * insert terms into index
+ * @param index (input, index object)
+ * @param term (input, terms inserted into index)
+ * @param uid  (input, uid of terms)
+ * @return error code
+ */
+int indexPut(SIndex* index, SIndexMultiTerm* terms, uint64_t uid);
+/*
+ * delete terms that meet query condition
+ * @param index (input, index object)
+ * @param query (input, condition query to deleted)
+ * @return error code
+ */
+
+int indexDelete(SIndex* index, SIndexMultiTermQuery* query);
+/*
+ * search index
+ * @param index (input, index object)
+ * @param query (input, multi query condition)
+ * @param result(output, query result)
+ * @return error code
+ */
+int indexSearch(SIndex* index, SIndexMultiTermQuery* query, SArray* result);
+/*
+ * rebuild index
+ * @param index (input, index object)
+ * @parma opt   (input, rebuild index opts)
+ * @return error code
+ */
+int indexRebuild(SIndex* index, SIndexOpts* opt);
+
+/*
+ * open index
+ * @param opt (input,index json opt)
+ * @param path (input, index json path)
+ * @param index (output, index json object)
+ * @return error code
+ */
+int tIndexJsonOpen(SIndexJsonOpts* opts, const char* path, SIndexJson** index);
+/*
+ * close index
+ * @param index (input, index to be closed)
+ * @return void
+ */
+
+void tIndexJsonClose(SIndexJson* index);
+
+/*
+ * insert terms into index
+ * @param index (input, index object)
+ * @param term (input, terms inserted into index)
+ * @param uid  (input, uid of terms)
+ * @return error code
+ */
+int tIndexJsonPut(SIndexJson* index, SIndexJsonMultiTerm* terms, uint64_t uid);
+/*
+ * search index
+ * @param index (input, index object)
+ * @param query (input, multi query condition)
+ * @param result(output, query result)
+ * @return error code
+ */
+
+int tIndexJsonSearch(SIndexJson* index, SIndexJsonMultiTermQuery* query, SArray* result);
 /*
  * @param
  * @param

@@ -68,7 +68,7 @@ static STsdb *tsdbNew(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, 
                       SMeta *pMeta, STfs *pTfs) {
   STsdb *pTsdb = NULL;
 
-  pTsdb = (STsdb *)calloc(1, sizeof(STsdb));
+  pTsdb = (STsdb *)taosMemoryCalloc(1, sizeof(STsdb));
   if (pTsdb == NULL) {
     // TODO: handle error
     return NULL;
@@ -80,6 +80,8 @@ static STsdb *tsdbNew(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, 
   pTsdb->pmaf = pMAF;
   pTsdb->pMeta = pMeta;
   pTsdb->pTfs = pTfs;
+  pTsdb->pTSmaEnv = NULL;
+  pTsdb->pRSmaEnv = NULL;
 
   pTsdb->fs = tsdbNewFS(pTsdbCfg);
 
@@ -88,9 +90,11 @@ static STsdb *tsdbNew(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, 
 
 static void tsdbFree(STsdb *pTsdb) {
   if (pTsdb) {
+    tsdbFreeSmaEnv(pTsdb->pRSmaEnv);
+    tsdbFreeSmaEnv(pTsdb->pTSmaEnv);
     tsdbFreeFS(pTsdb->fs);
-    tfree(pTsdb->path);
-    free(pTsdb);
+    taosMemoryFreeClear(pTsdb->path);
+    taosMemoryFree(pTsdb);
   }
 }
 
@@ -104,6 +108,30 @@ static void tsdbCloseImpl(STsdb *pTsdb) {
   tsdbCloseFS(pTsdb);
   // TODO
 }
+
+int tsdbLockRepo(STsdb *pTsdb) {
+  int code = taosThreadMutexLock(&pTsdb->mutex);
+  if (code != 0) {
+    tsdbError("vgId:%d failed to lock tsdb since %s", REPO_ID(pTsdb), strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  pTsdb->repoLocked = true;
+  return 0;
+}
+
+int tsdbUnlockRepo(STsdb *pTsdb) {
+  ASSERT(IS_REPO_LOCKED(pTsdb));
+  pTsdb->repoLocked = false;
+  int code = taosThreadMutexUnlock(&pTsdb->mutex);
+  if (code != 0) {
+    tsdbError("vgId:%d failed to unlock tsdb since %s", REPO_ID(pTsdb), strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
+}
+
 #if 0
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
@@ -270,7 +298,7 @@ STsdbCfg *tsdbGetCfg(const STsdbRepo *repo) {
 }
 
 int tsdbLockRepo(STsdbRepo *pRepo) {
-  int code = pthread_mutex_lock(&pRepo->mutex);
+  int code = taosThreadMutexLock(&pRepo->mutex);
   if (code != 0) {
     tsdbError("vgId:%d failed to lock tsdb since %s", REPO_ID(pRepo), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -283,7 +311,7 @@ int tsdbLockRepo(STsdbRepo *pRepo) {
 int tsdbUnlockRepo(STsdbRepo *pRepo) {
   ASSERT(IS_REPO_LOCKED(pRepo));
   pRepo->repoLocked = false;
-  int code = pthread_mutex_unlock(&pRepo->mutex);
+  int code = taosThreadMutexUnlock(&pRepo->mutex);
   if (code != 0) {
     tsdbError("vgId:%d failed to unlock tsdb since %s", REPO_ID(pRepo), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -360,7 +388,7 @@ int32_t tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg) {
     tsdbError("vgId:%d no config changed", REPO_ID(repo));
   }
 
-  int code = pthread_mutex_lock(&repo->save_mutex);
+  int code = taosThreadMutexLock(&repo->save_mutex);
   if (code != 0) {
     tsdbError("vgId:%d failed to lock tsdb save config mutex since %s", REPO_ID(repo), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -388,7 +416,7 @@ int32_t tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg) {
 
   repo->config_changed = true;
 
-  pthread_mutex_unlock(&repo->save_mutex);
+  taosThreadMutexUnlock(&repo->save_mutex);
 
   // schedule a commit msg and wait for the new config applied
   tsdbSyncCommitConfig(repo);
@@ -479,7 +507,7 @@ uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t 
         magic = pFile->info.magic;
         char *tfname = strdup(fname);
         sprintf(name, "tsdb/%s/%s", TSDB_DATA_DIR_NAME, basename(tfname));
-        tfree(tfname);
+        taosMemoryFreeClear(tfname);
       } else {
         if ((pFGroup->fileId + 1) * TSDB_FILE_TYPE_MAX - 1 < (int)eindex) {
           SFile *pFile = &pFGroup->files[0];
@@ -488,17 +516,17 @@ uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t 
           magic = pFile->info.magic;
           char *tfname = strdup(fname);
           sprintf(name, "tsdb/%s/%s", TSDB_DATA_DIR_NAME, basename(tfname));
-          tfree(tfname);
+          taosMemoryFreeClear(tfname);
         } else {
           return 0;
         }
       }
     }
   } else {  // get the named file at the specified index. If not there, return 0
-    fname = malloc(256);
+    fname = taosMemoryMalloc(256);
     sprintf(fname, "%s/vnode/vnode%d/%s", tfsGetPrimaryPath(pRepo->pTfs), REPO_ID(pRepo), name);
     if (access(fname, F_OK) != 0) {
-      tfree(fname);
+      taosMemoryFreeClear(fname);
       return 0;
     }
     if (*index == TSDB_META_FILE_INDEX) {  // get meta file
@@ -508,19 +536,19 @@ uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t 
       sprintf(tfname, "vnode/vnode%d/tsdb/%s/%s", REPO_ID(pRepo), TSDB_DATA_DIR_NAME, basename(name));
       tsdbGetFileInfoImpl(tfname, &magic, size);
     }
-    tfree(fname);
+    taosMemoryFreeClear(fname);
     return magic;
   }
 
   if (stat(fname, &fState) < 0) {
-    tfree(fname);
+    taosMemoryFreeClear(fname);
     return 0;
   }
 
   *size = fState.st_size;
   // magic = *size;
 
-  tfree(fname);
+  taosMemoryFreeClear(fname);
   return magic;
 #endif
 }
@@ -646,7 +674,7 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
 }
 
 static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
-  STsdbRepo *pRepo = (STsdbRepo *)calloc(1, sizeof(*pRepo));
+  STsdbRepo *pRepo = (STsdbRepo *)taosMemoryCalloc(1, sizeof(*pRepo));
   if (pRepo == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return NULL;
@@ -662,14 +690,14 @@ static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
   pRepo->repoLocked = false;
   pRepo->pthread = NULL;
 
-  int code = pthread_mutex_init(&(pRepo->mutex), NULL);
+  int code = taosThreadMutexInit(&(pRepo->mutex), NULL);
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
     tsdbFreeRepo(pRepo);
     return NULL;
   }
 
-  code = pthread_mutex_init(&(pRepo->save_mutex), NULL);
+  code = taosThreadMutexInit(&(pRepo->save_mutex), NULL);
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
     tsdbFreeRepo(pRepo);
@@ -719,8 +747,8 @@ static void tsdbFreeRepo(STsdbRepo *pRepo) {
     // tsdbFreeMemTable(pRepo->mem);
     // tsdbFreeMemTable(pRepo->imem);
     tsem_destroy(&(pRepo->readyToCommit));
-    pthread_mutex_destroy(&pRepo->mutex);
-    free(pRepo);
+    taosThreadMutexDestroy(&pRepo->mutex);
+    taosMemoryFree(pRepo);
   }
 }
 
@@ -792,7 +820,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
     goto out;
   }
 
-  pBlockStatis = calloc(numColumns, sizeof(SDataStatis));
+  pBlockStatis = taosMemoryCalloc(numColumns, sizeof(SDataStatis));
   if (pBlockStatis == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     err = -1;
@@ -821,9 +849,10 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
 
     // file block with sub-blocks has no statistics data
     if (pBlock->numOfSubBlocks <= 1) {
-      tsdbLoadBlockStatis(pReadh, pBlock);
-      tsdbGetBlockStatis(pReadh, pBlockStatis, (int)numColumns);
-      loadStatisData = true;
+      if (tsdbLoadBlockStatis(pReadh, pBlock) == TSDB_STATIS_OK) {
+        tsdbGetBlockStatis(pReadh, pBlockStatis, (int)numColumns, pBlock);
+        loadStatisData = true;
+      }
     }
 
     for (int16_t i = 0; i < numColumns && numColumns > pTable->restoreColumnNum; ++i) {
@@ -857,7 +886,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
         // save not-null column
         uint16_t bytes = IS_VAR_DATA_TYPE(pCol->type) ? varDataTLen(pColData) : pCol->bytes;
         SDataCol *pLastCol = &(pTable->lastCols[idx]);
-        pLastCol->pData = malloc(bytes);
+        pLastCol->pData = taosMemoryMalloc(bytes);
         pLastCol->bytes = bytes;
         pLastCol->colId = pCol->colId;
         memcpy(pLastCol->pData, value, bytes);
@@ -878,7 +907,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
 
 out:
   taosTZfree(row);
-  tfree(pBlockStatis);
+  taosMemoryFreeClear(pBlockStatis);
 
   if (err == 0 && numColumns <= pTable->restoreColumnNum) {
     pTable->hasRestoreLastColumn = true;

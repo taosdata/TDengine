@@ -19,6 +19,7 @@
 
 static void tsdbResetReadTable(SReadH *pReadh);
 static void tsdbResetReadFile(SReadH *pReadh);
+static int  tsdbLoadBlockOffset(SReadH *pReadh, SBlock *pBlock);
 static int  tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDataCols);
 static int  tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, void *content, int32_t len, int8_t comp, int numOfRows,
                                          int numOfBitmaps, int lenOfBitmaps, int maxPoints, char *buffer,
@@ -63,10 +64,12 @@ int tsdbInitReadH(SReadH *pReadh, STsdb *pRepo) {
 void tsdbDestroyReadH(SReadH *pReadh) {
   if (pReadh == NULL) return;
 
+  pReadh->pExBuf = taosTZfree(pReadh->pExBuf);
   pReadh->pCBuf = taosTZfree(pReadh->pCBuf);
   pReadh->pBuf = taosTZfree(pReadh->pBuf);
   pReadh->pDCols[0] = tdFreeDataCols(pReadh->pDCols[0]);
   pReadh->pDCols[1] = tdFreeDataCols(pReadh->pDCols[1]);
+  pReadh->pAggrBlkData = taosTZfree(pReadh->pAggrBlkData);
   pReadh->pBlkData = taosTZfree(pReadh->pBlkData);
   pReadh->pBlkInfo = taosTZfree(pReadh->pBlkInfo);
   pReadh->cidx = 0;
@@ -83,7 +86,8 @@ int tsdbSetAndOpenReadFSet(SReadH *pReadh, SDFileSet *pSet) {
 
   pReadh->rSet = *pSet;
   TSDB_FSET_SET_CLOSED(TSDB_READ_FSET(pReadh));
-  if (tsdbOpenDFileSet(TSDB_READ_FSET(pReadh), O_RDONLY) < 0) {
+  // if (tsdbOpenDFileSet(TSDB_READ_FSET(pReadh), O_RDONLY) < 0) {
+  if (tsdbOpenDFileSet(TSDB_READ_FSET(pReadh), TD_FILE_READ) < 0) {
     tsdbError("vgId:%d failed to open file set %d since %s", TSDB_READ_REPO_ID(pReadh), TSDB_FSET_FID(pSet),
               tstrerror(terrno));
     return -1;
@@ -304,15 +308,58 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
 int tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock) {
   ASSERT(pBlock->numOfSubBlocks <= 1);
 
-  SDFile *pDFile = (pBlock->last) ? TSDB_READ_LAST_FILE(pReadh) : TSDB_READ_DATA_FILE(pReadh);
+  if (!pBlock->aggrStat) {
+    return TSDB_STATIS_NONE;
+  }
 
+  SDFile *pDFileAggr = pBlock->last ? TSDB_READ_SMAL_FILE(pReadh) : TSDB_READ_SMAD_FILE(pReadh);
+
+  if (tsdbSeekDFile(pDFileAggr, pBlock->aggrOffset, SEEK_SET) < 0) {
+    tsdbError("vgId:%d failed to load block aggr part while seek file %s to offset %" PRIu64 " since %s",
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), (uint64_t)pBlock->aggrOffset,
+              tstrerror(terrno));
+    return -1;
+  }
+
+  size_t sizeAggr = tsdbBlockAggrSize(pBlock->numOfCols, (uint32_t)pBlock->blkVer);
+  if (tsdbMakeRoom((void **)(&(pReadh->pAggrBlkData)), sizeAggr) < 0) return -1;
+
+  int64_t nreadAggr = tsdbReadDFile(pDFileAggr, (void *)(pReadh->pAggrBlkData), sizeAggr);
+  if (nreadAggr < 0) {
+    tsdbError("vgId:%d failed to load block aggr part while read file %s since %s, offset:%" PRIu64 " len :%" PRIzu,
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), tstrerror(terrno),
+              (uint64_t)pBlock->aggrOffset, sizeAggr);
+    return -1;
+  }
+
+  if (nreadAggr < sizeAggr) {
+    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+    tsdbError("vgId:%d block aggr part in file %s is corrupted, offset:%" PRIu64 " expected bytes:%" PRIzu
+              " read bytes: %" PRId64,
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), (uint64_t)pBlock->aggrOffset, sizeAggr,
+              nreadAggr);
+    return -1;
+  }
+
+  if (!taosCheckChecksumWhole((uint8_t *)(pReadh->pAggrBlkData), (uint32_t)sizeAggr)) {
+    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+    tsdbError("vgId:%d block aggr part in file %s is corrupted since wrong checksum, offset:%" PRIu64 " len :%" PRIzu,
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), (uint64_t)pBlock->aggrOffset, sizeAggr);
+    return -1;
+  }
+  return 0;
+}
+
+static int tsdbLoadBlockOffset(SReadH *pReadh, SBlock *pBlock) {
+  ASSERT(pBlock->numOfSubBlocks <= 1);
+  SDFile *pDFile = (pBlock->last) ? TSDB_READ_LAST_FILE(pReadh) : TSDB_READ_DATA_FILE(pReadh);
   if (tsdbSeekDFile(pDFile, pBlock->offset, SEEK_SET) < 0) {
     tsdbError("vgId:%d failed to load block statis part while seek file %s to offset %" PRId64 " since %s",
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, tstrerror(terrno));
     return -1;
   }
 
-  size_t size = TSDB_BLOCK_STATIS_SIZE(pBlock->numOfCols);
+  size_t size = tsdbBlockStatisSize(pBlock->numOfCols, (uint32_t)pBlock->blkVer);
   if (tsdbMakeRoom((void **)(&(pReadh->pBlkData)), size) < 0) return -1;
 
   int64_t nread = tsdbReadDFile(pDFile, (void *)(pReadh->pBlkData), size);
@@ -336,7 +383,6 @@ int tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock) {
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, size);
     return -1;
   }
-
   return 0;
 }
 
@@ -374,13 +420,14 @@ void *tsdbDecodeSBlockIdx(void *buf, SBlockIdx *pIdx) {
   return buf;
 }
 
-void tsdbGetBlockStatis(SReadH *pReadh, SDataStatis *pStatis, int numOfCols) {
+void tsdbGetBlockStatis(SReadH *pReadh, SDataStatis *pStatis, int numOfCols, SBlock *pBlock) {
+#ifdef TD_REFACTOR_3
   SBlockData *pBlockData = pReadh->pBlkData;
 
   for (int i = 0, j = 0; i < numOfCols;) {
     if (j >= pBlockData->numOfCols) {
       pStatis[i].numOfNull = -1;
-      i++;
+      ++i;
       continue;
     }
 
@@ -391,15 +438,45 @@ void tsdbGetBlockStatis(SReadH *pReadh, SDataStatis *pStatis, int numOfCols) {
       pStatis[i].maxIndex = pBlockData->cols[j].maxIndex;
       pStatis[i].minIndex = pBlockData->cols[j].minIndex;
       pStatis[i].numOfNull = pBlockData->cols[j].numOfNull;
-      i++;
-      j++;
+      ++i;
+      ++j;
     } else if (pStatis[i].colId < pBlockData->cols[j].colId) {
       pStatis[i].numOfNull = -1;
-      i++;
+      ++i;
     } else {
-      j++;
+      ++j;
     }
   }
+#else
+  if (pBlock->aggrStat) {
+    SAggrBlkData *pAggrBlkData = pReadh->pAggrBlkData;
+
+    for (int i = 0, j = 0; i < numOfCols;) {
+      if (j >= pBlock->numOfCols) {
+        pStatis[i].numOfNull = -1;
+        ++i;
+        continue;
+      }
+      SAggrBlkCol *pAggrBlkCol = ((SAggrBlkCol *)(pAggrBlkData)) + j;
+      if (pStatis[i].colId == pAggrBlkCol->colId) {
+        pStatis[i].sum = pAggrBlkCol->sum;
+        pStatis[i].max = pAggrBlkCol->max;
+        pStatis[i].min = pAggrBlkCol->min;
+        pStatis[i].maxIndex = pAggrBlkCol->maxIndex;
+        pStatis[i].minIndex = pAggrBlkCol->minIndex;
+        pStatis[i].numOfNull = pAggrBlkCol->numOfNull;
+        ++i;
+        ++j;
+      } else if (pStatis[i].colId < pAggrBlkCol->colId) {
+        pStatis[i].numOfNull = -1;
+        ++i;
+      } else {
+        ++j;
+      }
+    }
+  }
+
+#endif
 }
 
 static void tsdbResetReadTable(SReadH *pReadh) {
@@ -448,7 +525,7 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
     return -1;
   }
 
-  int32_t tsize = TSDB_BLOCK_STATIS_SIZE(pBlock->numOfCols);
+  int32_t tsize = (int32_t)tsdbBlockStatisSize(pBlock->numOfCols, (uint32_t)pBlock->blkVer);
   if (!taosCheckChecksumWhole((uint8_t *)TSDB_READ_BUF(pReadh), tsize)) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     tsdbError("vgId:%d block statis part in file %s is corrupted since wrong checksum, offset:%" PRId64 " len :%d",
@@ -591,7 +668,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
   tdResetDataCols(pDataCols);
 
   // If only load timestamp column, no need to load SBlockData part
-  if (numOfColIds > 1 && tsdbLoadBlockStatis(pReadh, pBlock) < 0) return -1;
+  if (numOfColIds > 1 && tsdbLoadBlockOffset(pReadh, pBlock) < 0) return -1;
 
   pDataCols->numOfRows = pBlock->numOfRows;
 
@@ -650,9 +727,9 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
       }
 
       ASSERT(pBlockCol->colId == pDataCol->colId);
-      // set the bitmap
-      pDataCol->bitmap = pBlockCol->bitmap;
     }
+    // set the bitmap
+    pDataCol->bitmap = pBlockCol->bitmap;
 
     if (tsdbLoadColData(pReadh, pDFile, pBlock, pBlockCol, pDataCol) < 0) return -1;
   }
@@ -685,7 +762,8 @@ static int tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBloc
   if (tsdbMakeRoom((void **)(&TSDB_READ_BUF(pReadh)), pBlockCol->len) < 0) return -1;
   if (tsdbMakeRoom((void **)(&TSDB_READ_COMP_BUF(pReadh)), tsize) < 0) return -1;
 
-  int64_t offset = pBlock->offset + TSDB_BLOCK_STATIS_SIZE(pBlock->numOfCols) + tsdbGetBlockColOffset(pBlockCol);
+  int64_t offset = pBlock->offset + tsdbBlockStatisSize(pBlock->numOfCols, (uint32_t)pBlock->blkVer) +
+                   tsdbGetBlockColOffset(pBlockCol);
   if (tsdbSeekDFile(pDFile, offset, SEEK_SET) < 0) {
     tsdbError("vgId:%d failed to load block column data while seek file %s to offset %" PRId64 " since %s",
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), offset, tstrerror(terrno));

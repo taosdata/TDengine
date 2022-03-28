@@ -1,0 +1,114 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sleep 2000
+sql connect
+
+print =============== show accounts
+sql show accounts
+if $rows != 1 then 
+  return -1
+endi
+
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06
+if $data00 != root then 
+  return -1
+endi
+if $data02 != 3/128 then 
+  return -1
+endi
+if $data03 != 0/128 then 
+  return -1
+endi
+if $data04 != 0/2147483647 then 
+  return -1
+endi
+if $data05 != 0/1000 then 
+  return -1
+endi
+if $data06 != 0.000/unlimited then 
+  return -1
+endi
+
+print =============== create account
+sql create account hou pass "hou" tseries 80000 storage 10737418240 streams 10 qtime 3600 dbs 3 users 3 conns 10 
+sql show accounts
+if $rows != 2 then 
+  return -1
+endi
+
+print $data10 $data11 $data12 $data13 $data14 $data15 $data16
+if $data10 != hou then 
+  return -1
+endi
+if $data12 != 2/3 then 
+  return -1
+endi
+if $data13 != 0/3 then 
+  return -1
+endi
+if $data14 != 0/80000 then 
+  return -1
+endi
+if $data15 != 0/10 then 
+  return -1
+endi
+if $data16 != 0.000/10.000 then 
+  return -1
+endi
+  
+print =============== alter account
+sql alter account hou pass "hou" tseries 8000 streams 10 dbs 5 users 5  
+sql show accounts
+if $rows != 2 then 
+  return -1
+endi
+
+print $data10 $data11 $data12 $data13 $data14 $data15 $data16
+if $data10 != hou then 
+  return -1
+endi
+if $data12 != 2/5 then 
+  return -1
+endi
+if $data13 != 0/5 then 
+  return -1
+endi
+if $data14 != 0/8000 then 
+  return -1
+endi
+if $data15 != 0/10 then 
+  return -1
+endi
+if $data16 != 0.000/10.000 then 
+  return -1
+endi  
+
+print =============== alter account
+sql create account hou pass "hou" tseries 8000 streams 10 dbs 5 users 6
+sql show accounts
+if $rows != 2 then 
+  return -1
+endi
+
+print $data10 $data11 $data12 $data13 $data14 $data15 $data16
+if $data10 != hou then 
+  return -1
+endi
+if $data12 != 2/6 then 
+  return -1
+endi
+if $data13 != 0/5 then 
+  return -1
+endi
+if $data14 != 0/8000 then 
+  return -1
+endi
+if $data15 != 0/10 then 
+  return -1
+endi
+if $data16 != 0.000/10.000 then 
+  return -1
+endi  
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT

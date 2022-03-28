@@ -1,0 +1,154 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+#system sh/exec.sh -n monitor -s 1
+system sh/exec.sh -n monitorInterval -s 1
+sleep 2000
+sql connect
+
+print =============== show accounts
+
+print =============== create account
+sql alter account root pass "taosdata" tseries 8000 streams 10 dbs 5 users 5  
+sql show accounts
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06
+if $data00 != root then 
+  return -1
+endi
+if $data02 != 3/5 then 
+  return -1
+endi
+if $data03 != 0/5 then 
+  return -1
+endi
+if $data04 != 0/8000 then 
+  return -1
+endi
+if $data05 != 0/10 then 
+  return -1
+endi
+if $data06 != 0.000/unlimited then 
+  return -1
+endi  
+
+print =============== check usage account
+sql create database d1 wal 2
+sql create database d2 wal 2
+sql create database d3 wal 2
+sql create database d4 wal 2
+sql create database d5 wal 2
+
+sql create table d1.t1 (ts timestamp, i int);
+sql create user u1 pass "u1"
+
+sql show accounts
+print $data10 $data11 $data12 $data13 $data14 $data15 $data16
+if $data00 != root then 
+  return -1
+endi
+if $data02 != 4/5 then 
+  return -1
+endi
+if $data03 != 5/5 then 
+  return -1
+endi
+if $data04 != 1/8000 then 
+  return -1
+endi
+if $data05 != 0/10 then 
+  return -1
+endi
+if $data06 != 0.000/unlimited then 
+  return -1
+endi
+
+print =============== step2
+sql alter account root pass "taosdata" tseries 10 storage 1073741824 streams 10 dbs 5 users 5
+sql show accounts
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06
+if $data00 != root then 
+  return -1
+endi
+if $data02 != 4/5 then 
+  return -1
+endi
+if $data03 != 5/5 then 
+  return -1
+endi
+if $data04 != 1/10 then 
+  return -1
+endi
+if $data05 != 0/10 then 
+  return -1
+endi
+if $data06 != 0.000/1.000 then 
+  return -1
+endi
+  
+print =============== step3
+sql alter account root pass "taosdata" tseries 10 storage 16 streams 10 dbs 5 users 5
+sql show accounts
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06
+if $data00 != root then 
+  return -1
+endi
+if $data02 != 4/5 then 
+  return -1
+endi
+if $data03 != 5/5 then 
+  return -1
+endi
+if $data04 != 1/10 then 
+  return -1
+endi
+if $data05 != 0/10 then 
+  return -1
+endi
+if $data06 != 0.000/0.000 then 
+  return -1
+endi
+
+print =============== step4
+sql insert into d1.t1 values(now + 1s, 1)
+sql insert into d1.t1 values(now + 2s, 2)
+
+sleep 10000
+print no write auth
+sql_error insert into d1.t1 values(now + 3s, 2)
+sql_error insert into d1.t1 values(now + 4s, 2)
+
+sql alter account root pass "taosdata" tseries 10 storage 36 streams 10 dbs 5 users 5
+sleep 10000
+print has write auth
+sql insert into d1.t1 values(now + 5s, 1)
+sql insert into d1.t1 values(now + 6s, 2)
+
+# no write auth
+sleep 10000
+print no write auth
+sql_error insert into d1.t1 values(now + 7s, 2)
+sql_error insert into d1.t1 values(now + 8s, 2)
+
+print =============== step5
+sql alter account root pass "taosdata" tseries 10 storage 3600 streams 10 dbs 5 users 5 state all
+sleep 10000
+
+sql insert into d1.t1 values(now + 11s, 1)
+sql insert into d1.t1 values(now + 12s, 2)
+
+sql alter account root pass "taosdata" tseries 10 storage 3600 streams 10 dbs 5 users 5 state no
+sleep 10000
+print no write auth
+sql_error insert into d1.t1 values(now + 13s, 2)
+sql_error insert into d1.t1 values(now + 14s, 2)
+
+sql alter account root pass "taosdata" tseries 10 storage 3600 streams 10 dbs 5 users 5 state all
+sleep 10000
+print has write auth
+sql insert into d1.t1 values(now + 15s, 1)
+sql insert into d1.t1 values(now + 16s, 2)
+
+print =============== check grant
+sql_error create database d6
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT

@@ -22,9 +22,12 @@ extern "C" {
 
 #include "sclfunc.h"
 
-typedef void (*_bin_scalar_fn_t)(SScalarParam* pLeft, SScalarParam* pRight, void *output, int32_t order);
+typedef double (*_mathFunc)(double, double, bool *);
+
+
+typedef void (*_bufConverteFunc)(char *buf, SScalarParam* pOut, int32_t outType);
+typedef void (*_bin_scalar_fn_t)(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *output, int32_t order);
 _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binOperator);
-bool isBinaryStringOp(int32_t op);
 
 #ifdef __cplusplus
 }

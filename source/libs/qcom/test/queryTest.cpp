@@ -32,13 +32,13 @@ typedef struct SParam {
 int32_t testPrint(void* p) {
   SParam* param = (SParam*)p;
   printf("hello world, %d\n", param->v);
-  tfree(p);
+  taosMemoryFreeClear(p);
   return 0;
 }
 
 int32_t testPrintError(void* p) {
   SParam* param = (SParam*) p;
-  tfree(p);
+  taosMemoryFreeClear(p);
 
   return -1;
 }
@@ -61,26 +61,26 @@ int main(int argc, char** argv) {
 }
 
 TEST(testCase, async_task_test) {
-  SParam* p = (SParam*)calloc(1, sizeof(SParam));
+  SParam* p = (SParam*)taosMemoryCalloc(1, sizeof(SParam));
   taosAsyncExec(testPrint, p, NULL);
-  usleep(5000);
+  taosMsleep(5);
 }
 
 TEST(testCase, many_async_task_test) {
   for(int32_t i = 0; i < 50; ++i) {
-    SParam* p = (SParam*) calloc(1, sizeof(SParam));
+    SParam* p = (SParam*) taosMemoryCalloc(1, sizeof(SParam));
     p->v = i;
     taosAsyncExec(testPrint, p, NULL);
   }
 
-  usleep(10000);
+  taosMsleep(10);
 }
 
 TEST(testCase, error_in_async_test) {
   int32_t code = 0;
-  SParam* p = (SParam*) calloc(1, sizeof(SParam));
+  SParam* p = (SParam*) taosMemoryCalloc(1, sizeof(SParam));
   taosAsyncExec(testPrintError, p, &code);
-  usleep(1000);
+  taosMsleep(1);
   printf("Error code:%d after asynchronously exec function\n", code);
 }
 

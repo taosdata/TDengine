@@ -1,0 +1,529 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 0
+system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 4
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 5
+
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ============================ step1
+
+sql create database db
+sql create table db.st (ts timestamp, i int) tags(t int)
+sql create table db.t000 using db.st tags(0)
+sql create table db.t001 using db.st tags(1)
+sql create table db.t002 using db.st tags(2)
+sql create table db.t003 using db.st tags(3)
+sql create table db.t004 using db.st tags(4)
+sql create table db.t005 using db.st tags(5)
+sql create table db.t006 using db.st tags(6)
+sql create table db.t007 using db.st tags(7)
+sql create table db.t008 using db.st tags(8)
+sql create table db.t009 using db.st tags(9)
+sql create table db.t010 using db.st tags(0)
+sql create table db.t011 using db.st tags(1)
+sql create table db.t012 using db.st tags(2)
+sql create table db.t013 using db.st tags(3)
+sql create table db.t014 using db.st tags(4)
+sql create table db.t015 using db.st tags(5)
+sql create table db.t016 using db.st tags(6)
+sql create table db.t017 using db.st tags(7)
+sql create table db.t018 using db.st tags(8)
+sql create table db.t019 using db.st tags(9)
+
+sql show db.tables
+if $rows != 20 then 
+  return -1
+endi
+
+sql insert into db.t000 values(now, 1)
+sql insert into db.t001 values(now, 1)
+sql insert into db.t002 values(now, 1)
+sql insert into db.t003 values(now, 1)
+sql insert into db.t004 values(now, 1)
+sql insert into db.t005 values(now, 1)
+sql insert into db.t006 values(now, 1)
+sql insert into db.t007 values(now, 1)
+sql insert into db.t008 values(now, 1)
+sql insert into db.t009 values(now, 1)
+sql insert into db.t010 values(now, 1)
+sql insert into db.t011 values(now, 1)
+sql insert into db.t012 values(now, 1)
+sql insert into db.t013 values(now, 1)
+sql insert into db.t014 values(now, 1)
+sql insert into db.t015 values(now, 1)
+sql insert into db.t016 values(now, 1)
+sql insert into db.t017 values(now, 1)
+sql insert into db.t018 values(now, 1)
+sql insert into db.t019 values(now, 1)
+
+print ============================ step2
+sql_error create table db.t100 using db.st tags(10)
+sql show db.tables
+if $rows != 20 then 
+  return -1
+endi
+
+print ============================ step3
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 10
+system sh/exec.sh -n dnode1 -s start
+$x = 0
+step3: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show mnodes -x step3
+print mnode1 $data2_1
+print mnode1 $data2_2
+print mnode1 $data2_3
+if $data2_1 != master then
+  goto step3
+endi
+
+sql create table db.t100 using db.st tags(0)
+sql create table db.t101 using db.st tags(1)
+sql create table db.t102 using db.st tags(2)
+sql create table db.t103 using db.st tags(3)
+sql create table db.t104 using db.st tags(4)
+sql create table db.t105 using db.st tags(5)
+sql create table db.t106 using db.st tags(6)
+sql create table db.t107 using db.st tags(7)
+sql create table db.t108 using db.st tags(8)
+sql create table db.t109 using db.st tags(9)
+sql create table db.t110 using db.st tags(0)
+sql create table db.t111 using db.st tags(1)
+sql create table db.t112 using db.st tags(2)
+sql create table db.t113 using db.st tags(3)
+sql create table db.t114 using db.st tags(4)
+sql create table db.t115 using db.st tags(5)
+sql create table db.t116 using db.st tags(6)
+sql create table db.t117 using db.st tags(7)
+sql create table db.t118 using db.st tags(8)
+sql create table db.t119 using db.st tags(9)
+sql show db.tables
+if $rows != 40 then 
+  return -1
+endi
+
+
+sql insert into db.t100 values(now, 1)
+sql insert into db.t101 values(now, 1)
+sql insert into db.t102 values(now, 1)
+sql insert into db.t103 values(now, 1)
+sql insert into db.t104 values(now, 1)
+sql insert into db.t105 values(now, 1)
+sql insert into db.t106 values(now, 1)
+sql insert into db.t107 values(now, 1)
+sql insert into db.t108 values(now, 1)
+sql insert into db.t109 values(now, 1)
+sql insert into db.t110 values(now, 1)
+sql insert into db.t111 values(now, 1)
+sql insert into db.t112 values(now, 1)
+sql insert into db.t113 values(now, 1)
+sql insert into db.t114 values(now, 1)
+sql insert into db.t115 values(now, 1)
+sql insert into db.t116 values(now, 1)
+sql insert into db.t117 values(now, 1)
+sql insert into db.t118 values(now, 1)
+sql insert into db.t119 values(now, 1)
+
+print ============================ step4
+sql_error create table db.t200 using db.st tags(10)
+sql show db.tables
+if $rows != 40 then 
+  return -1
+endi
+
+print ============================ step5
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 15
+system sh/exec.sh -n dnode1 -s start
+$x = 0
+step5: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show mnodes -x step5
+print mnode1 $data2_1
+print mnode1 $data2_2
+print mnode1 $data2_3
+if $data2_1 != master then
+  goto step5
+endi
+
+sql create table db.t200 using db.st tags(0)
+sql create table db.t201 using db.st tags(1)
+sql create table db.t202 using db.st tags(2)
+sql create table db.t203 using db.st tags(3)
+sql create table db.t204 using db.st tags(4)
+sql create table db.t205 using db.st tags(5)
+sql create table db.t206 using db.st tags(6)
+sql create table db.t207 using db.st tags(7)
+sql create table db.t208 using db.st tags(8)
+sql create table db.t209 using db.st tags(9)
+sql create table db.t210 using db.st tags(0)
+sql create table db.t211 using db.st tags(1)
+sql create table db.t212 using db.st tags(2)
+sql create table db.t213 using db.st tags(3)
+sql create table db.t214 using db.st tags(4)
+sql create table db.t215 using db.st tags(5)
+sql create table db.t216 using db.st tags(6)
+sql create table db.t217 using db.st tags(7)
+sql create table db.t218 using db.st tags(8)
+sql create table db.t219 using db.st tags(9)
+sql show db.tables
+if $rows != 60 then 
+  return -1
+endi
+
+sql insert into db.t200 values(now, 1)
+sql insert into db.t201 values(now, 1)
+sql insert into db.t202 values(now, 1)
+sql insert into db.t203 values(now, 1)
+sql insert into db.t204 values(now, 1)
+sql insert into db.t205 values(now, 1)
+sql insert into db.t206 values(now, 1)
+sql insert into db.t207 values(now, 1)
+sql insert into db.t208 values(now, 1)
+sql insert into db.t209 values(now, 1)
+sql insert into db.t210 values(now, 1)
+sql insert into db.t211 values(now, 1)
+sql insert into db.t212 values(now, 1)
+sql insert into db.t213 values(now, 1)
+sql insert into db.t214 values(now, 1)
+sql insert into db.t215 values(now, 1)
+sql insert into db.t216 values(now, 1)
+sql insert into db.t217 values(now, 1)
+sql insert into db.t218 values(now, 1)
+sql insert into db.t219 values(now, 1)
+
+print ============================ step6
+
+sql reset query cache
+sleep 100
+
+sql select * from db.t000
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.t100
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.t200
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.st
+if $rows != 60 then 
+  return -1
+endi
+
+print ============================ step7
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 3000
+system sh/exec.sh -n dnode1 -s start
+sleep 3000
+
+sql reset query cache
+sleep 1000
+
+sql show db.tables
+if $rows != 60 then 
+  return -1
+endi
+
+sql select * from db.t000
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.t100
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.t200
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.st
+if $rows != 60 then 
+  return -1
+endi
+
+print ============================ step8
+sql_error create table db.t300 using db.st tags(10)
+sql show db.tables
+if $rows != 60 then 
+  return -1
+endi
+
+print ============================ step9
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 20
+system sh/exec.sh -n dnode1 -s start
+$x = 0
+step9: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show mnodes -x step9
+print mnode1 $data2_1
+print mnode1 $data2_2
+print mnode1 $data2_3
+if $data2_1 != master then
+  goto step9
+endi
+
+sql create table db.t300 using db.st tags(0)
+sql create table db.t301 using db.st tags(1)
+sql create table db.t302 using db.st tags(2)
+sql create table db.t303 using db.st tags(3)
+sql create table db.t304 using db.st tags(4)
+sql create table db.t305 using db.st tags(5)
+sql create table db.t306 using db.st tags(6)
+sql create table db.t307 using db.st tags(7)
+sql create table db.t308 using db.st tags(8)
+sql create table db.t309 using db.st tags(9)
+sql create table db.t310 using db.st tags(0)
+sql create table db.t311 using db.st tags(1)
+sql create table db.t312 using db.st tags(2)
+sql create table db.t313 using db.st tags(3)
+sql create table db.t314 using db.st tags(4)
+sql create table db.t315 using db.st tags(5)
+sql create table db.t316 using db.st tags(6)
+sql create table db.t317 using db.st tags(7)
+sql create table db.t318 using db.st tags(8)
+sql create table db.t319 using db.st tags(9)
+
+sql insert into db.t300 values(now, 1)
+sql insert into db.t301 values(now, 1)
+sql insert into db.t302 values(now, 1)
+sql insert into db.t303 values(now, 1)
+sql insert into db.t304 values(now, 1)
+sql insert into db.t305 values(now, 1)
+sql insert into db.t306 values(now, 1)
+sql insert into db.t307 values(now, 1)
+sql insert into db.t308 values(now, 1)
+sql insert into db.t309 values(now, 1)
+sql insert into db.t310 values(now, 1)
+sql insert into db.t311 values(now, 1)
+sql insert into db.t312 values(now, 1)
+sql insert into db.t313 values(now, 1)
+sql insert into db.t314 values(now, 1)
+sql insert into db.t315 values(now, 1)
+sql insert into db.t316 values(now, 1)
+sql insert into db.t317 values(now, 1)
+sql insert into db.t318 values(now, 1)
+sql insert into db.t319 values(now, 1)
+
+sql show db.tables
+if $rows != 80 then 
+  return -1
+endi
+
+sql reset query cache
+sleep 1000
+
+sql select * from db.t000
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.t100
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.t200
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.t300
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.st
+if $rows != 80 then 
+  return -1
+endi
+
+print ============================ step10
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+$x = 0
+step10: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show mnodes -x step10
+print mnode1 $data2_1
+print mnode1 $data2_2
+print mnode1 $data2_3
+if $data2_1 != master then
+  goto step10
+endi
+
+sql reset query cache
+sleep 1000
+
+sql show db.tables
+if $rows != 80 then 
+  return -1
+endi
+
+sql select * from db.t000
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.t100
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.t200
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.t300
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.st
+if $rows != 80 then 
+  return -1
+endi
+
+print ============================ step11
+sql_error create table db.t400 using db.st tags(10)
+sql show db.tables
+if $rows != 80 then 
+  return -1
+endi
+
+print ============================ step12
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 25
+system sh/exec.sh -n dnode1 -s start
+$x = 0
+step12: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show mnodes -x step12
+print mnode1 $data2_1
+print mnode1 $data2_2
+print mnode1 $data2_3
+if $data2_1 != master then
+  goto step12
+endi
+
+
+sql create table db.t400 using db.st tags(0)
+sql create table db.t401 using db.st tags(1)
+sql create table db.t402 using db.st tags(2)
+sql create table db.t403 using db.st tags(3)
+sql create table db.t404 using db.st tags(4)
+sql create table db.t405 using db.st tags(5)
+sql create table db.t406 using db.st tags(6)
+sql create table db.t407 using db.st tags(7)
+sql create table db.t408 using db.st tags(8)
+sql create table db.t409 using db.st tags(9)
+sql create table db.t410 using db.st tags(0)
+sql create table db.t411 using db.st tags(1)
+sql create table db.t412 using db.st tags(2)
+sql create table db.t413 using db.st tags(3)
+sql create table db.t414 using db.st tags(4)
+sql create table db.t415 using db.st tags(5)
+sql create table db.t416 using db.st tags(6)
+sql create table db.t417 using db.st tags(7)
+sql create table db.t418 using db.st tags(8)
+sql create table db.t419 using db.st tags(9)
+
+sql insert into db.t400 values(now, 1)
+sql insert into db.t401 values(now, 1)
+sql insert into db.t402 values(now, 1)
+sql insert into db.t403 values(now, 1)
+sql insert into db.t404 values(now, 1)
+sql insert into db.t405 values(now, 1)
+sql insert into db.t406 values(now, 1)
+sql insert into db.t407 values(now, 1)
+sql insert into db.t408 values(now, 1)
+sql insert into db.t409 values(now, 1)
+sql insert into db.t410 values(now, 1)
+sql insert into db.t411 values(now, 1)
+sql insert into db.t412 values(now, 1)
+sql insert into db.t413 values(now, 1)
+sql insert into db.t414 values(now, 1)
+sql insert into db.t415 values(now, 1)
+sql insert into db.t416 values(now, 1)
+sql insert into db.t417 values(now, 1)
+sql insert into db.t418 values(now, 1)
+sql insert into db.t419 values(now, 1)
+
+sql show db.tables
+if $rows != 100 then 
+  return -1
+endi
+
+sql reset query cache
+sleep 1000
+
+sql select * from db.t000
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.t100
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.t200
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.t300
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.t400
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from db.st
+if $rows != 100 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

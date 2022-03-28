@@ -15,36 +15,96 @@
 #ifndef __INDEX_UTIL_H__
 #define __INDEX_UTIL_H__
 
+#include "indexInt.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define SERIALIZE_MEM_TO_BUF(buf, key, mem)                   \
-  do {                                                        \
-    memcpy((void*)buf, (void*)(&key->mem), sizeof(key->mem)); \
-    buf += sizeof(key->mem);                                  \
+#define SERIALIZE_MEM_TO_BUF(buf, key, mem)                     \
+  do {                                                          \
+    memcpy((void *)buf, (void *)(&key->mem), sizeof(key->mem)); \
+    buf += sizeof(key->mem);                                    \
   } while (0)
 
 #define SERIALIZE_STR_MEM_TO_BUF(buf, key, mem, len) \
   do {                                               \
-    memcpy((void*)buf, (void*)key->mem, len);        \
+    memcpy((void *)buf, (void *)key->mem, len);      \
     buf += len;                                      \
   } while (0)
 
-#define SERIALIZE_VAR_TO_BUF(buf, var, type)  \
-  do {                                        \
-    type c = var;                             \
-    assert(sizeof(type) == sizeof(c));        \
-    memcpy((void*)buf, (void*)&c, sizeof(c)); \
-    buf += sizeof(c);                         \
+#define SERIALIZE_VAR_TO_BUF(buf, var, type)    \
+  do {                                          \
+    type c = var;                               \
+    assert(sizeof(type) == sizeof(c));          \
+    memcpy((void *)buf, (void *)&c, sizeof(c)); \
+    buf += sizeof(c);                           \
   } while (0)
 
 #define SERIALIZE_STR_VAR_TO_BUF(buf, var, len) \
   do {                                          \
-    memcpy((void*)buf, (void*)var, len);        \
+    memcpy((void *)buf, (void *)var, len);      \
     buf += len;                                 \
   } while (0)
 
+#define INDEX_MERGE_ADD_DEL(src, dst, tgt)            \
+  {                                                   \
+    bool f = false;                                   \
+    for (int i = 0; i < taosArrayGetSize(src); i++) { \
+      if (*(uint64_t *)taosArrayGet(src, i) == tgt) { \
+        f = true;                                     \
+      }                                               \
+    }                                                 \
+    if (f == false) {                                 \
+      taosArrayPush(dst, &tgt);                       \
+    }                                                 \
+  }
+
+/* multi sorted result intersection
+ * input: [1, 2, 4, 5]
+ *        [2, 3, 4, 5]
+ *        [1, 4, 5]
+ * output:[4, 5]
+ */
+void iIntersection(SArray *interResults, SArray *finalResult);
+
+/* multi sorted result intersection
+ * input: [1, 2, 4, 5]
+ *        [2, 3, 4, 5]
+ *        [1, 4, 5]
+ * output:[1, 2, 3, 4, 5]
+ */
+void iUnion(SArray *interResults, SArray *finalResult);
+
+/*  sorted array
+ * total:   [1, 2, 4, 5, 7, 8]
+ * except:  [4, 5]
+ * return:  [1, 2, 7, 8] saved in total
+ */
+
+void iExcept(SArray *total, SArray *except);
+
+int uidCompare(const void *a, const void *b);
+
+// data with ver
+typedef struct {
+  uint32_t ver;
+  uint64_t data;
+} SIdxVerdata;
+
+typedef struct {
+  SArray *total;
+  SArray *added;
+  SArray *deled;
+} SIdxTempResult;
+
+SIdxTempResult *sIdxTempResultCreate();
+
+void sIdxTempResultClear(SIdxTempResult *tr);
+
+void sIdxTempResultDestroy(SIdxTempResult *tr);
+
+void sIdxTempResultMergeTo(SArray *result, SIdxTempResult *tr);
 #ifdef __cplusplus
 }
 #endif

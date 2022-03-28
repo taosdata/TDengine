@@ -18,50 +18,53 @@
 
 #include "meta.h"
 #include "tlog.h"
-#include "tq.h"
-#include "trpc.h"
+#include "tqPush.h"
+#include "vnd.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-extern int32_t tqDebugFlag;
+#define tqFatal(...)                                             \
+  {                                                              \
+    if (tqDebugFlag & DEBUG_FATAL) {                             \
+      taosPrintLog("TQ  FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); \
+    }                                                            \
+  }
 
-#define tqFatal(...)                                \
-  {                                                 \
-    if (tqDebugFlag & DEBUG_FATAL) {                \
-      taosPrintLog("TQ  FATAL ", 255, __VA_ARGS__); \
-    }                                               \
+#define tqError(...)                                             \
+  {                                                              \
+    if (tqDebugFlag & DEBUG_ERROR) {                             \
+      taosPrintLog("TQ  ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); \
+    }                                                            \
   }
-#define tqError(...)                                \
-  {                                                 \
-    if (tqDebugFlag & DEBUG_ERROR) {                \
-      taosPrintLog("TQ  ERROR ", 255, __VA_ARGS__); \
-    }                                               \
+
+#define tqWarn(...)                                            \
+  {                                                            \
+    if (tqDebugFlag & DEBUG_WARN) {                            \
+      taosPrintLog("TQ  WARN ", DEBUG_WARN, 255, __VA_ARGS__); \
+    }                                                          \
   }
-#define tqWarn(...)                                \
-  {                                                \
-    if (tqDebugFlag & DEBUG_WARN) {                \
-      taosPrintLog("TQ  WARN ", 255, __VA_ARGS__); \
-    }                                              \
+
+#define tqInfo(...)                                       \
+  {                                                       \
+    if (tqDebugFlag & DEBUG_INFO) {                       \
+      taosPrintLog("TQ  ", DEBUG_INFO, 255, __VA_ARGS__); \
+    }                                                     \
   }
-#define tqInfo(...)                           \
-  {                                           \
-    if (tqDebugFlag & DEBUG_INFO) {           \
-      taosPrintLog("TQ  ", 255, __VA_ARGS__); \
-    }                                         \
+
+#define tqDebug(...)                                               \
+  {                                                                \
+    if (tqDebugFlag & DEBUG_DEBUG) {                               \
+      taosPrintLog("TQ  ", DEBUG_DEBUG, tqDebugFlag, __VA_ARGS__); \
+    }                                                              \
   }
-#define tqDebug(...)                                  \
-  {                                                   \
-    if (tqDebugFlag & DEBUG_DEBUG) {                  \
-      taosPrintLog("TQ  ", tqDebugFlag, __VA_ARGS__); \
-    }                                                 \
-  }
-#define tqTrace(...)                                  \
-  {                                                   \
-    if (tqDebugFlag & DEBUG_TRACE) {                  \
-      taosPrintLog("TQ  ", tqDebugFlag, __VA_ARGS__); \
-    }                                                 \
+
+#define tqTrace(...)                                               \
+  {                                                                \
+    if (tqDebugFlag & DEBUG_TRACE) {                               \
+      taosPrintLog("TQ  ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); \
+    }                                                              \
   }
 
 #define TQ_BUFFER_SIZE 8
@@ -79,19 +82,19 @@ extern int32_t tqDebugFlag;
 // 4096 - 4080
 #define TQ_IDX_PAGE_HEAD_SIZE 16
 
-#define TQ_ACTION_CONST 0
-#define TQ_ACTION_INUSE 1
+#define TQ_ACTION_CONST      0
+#define TQ_ACTION_INUSE      1
 #define TQ_ACTION_INUSE_CONT 2
-#define TQ_ACTION_INTXN 3
+#define TQ_ACTION_INTXN      3
 
 #define TQ_SVER 0
 
 // TODO: inplace mode is not implemented
 #define TQ_UPDATE_INPLACE 0
-#define TQ_UPDATE_APPEND 1
+#define TQ_UPDATE_APPEND  1
 
 #define TQ_DUP_INTXN_REWRITE 0
-#define TQ_DUP_INTXN_REJECT 2
+#define TQ_DUP_INTXN_REJECT  2
 
 static inline bool tqUpdateAppend(int32_t tqConfigFlag) { return tqConfigFlag & TQ_UPDATE_APPEND; }
 
@@ -140,10 +143,8 @@ typedef struct {
   // topics that are not connectted
   STqMetaList* unconnectTopic;
 
-  // TODO:temporaral use, to be replaced by unified tfile
-  int fileFd;
-  // TODO:temporaral use, to be replaced by unified tfile
-  int idxFd;
+  TdFilePtr pFile;
+  TdFilePtr pIdxFile;
 
   char*          dirPath;
   int32_t        tqConfigFlag;
@@ -152,15 +153,24 @@ typedef struct {
   FTqDelete      pDeleter;
 } STqMetaStore;
 
+typedef struct {
+  SMemAllocatorFactory* pAllocatorFactory;
+  SMemAllocator*        pAllocator;
+} STqMemRef;
+
 struct STQ {
   // the collection of groups
   // the handle of meta kvstore
+  bool          writeTrigger;
   char*         path;
   STqCfg*       tqConfig;
   STqMemRef     tqMemRef;
   STqMetaStore* tqMeta;
-  SWal*         pWal;
-  SMeta*        pMeta;
+  // STqPushMgr*   tqPushMgr;
+  SHashObj* pStreamTasks;
+  SVnode*   pVnode;
+  SWal*     pWal;
+  SMeta*    pVnodeMeta;
 };
 
 typedef struct {
@@ -190,9 +200,6 @@ typedef struct {
   char*           logicalPlan;
   char*           physicalPlan;
   char*           qmsg;
-  int64_t         persistedOffset;
-  int64_t         committedOffset;
-  int64_t         currentOffset;
   STqBuffer       buffer;
   SWalReadHandle* pReadhandle;
 } STqTopic;
@@ -201,7 +208,7 @@ typedef struct {
   int64_t consumerId;
   int64_t epoch;
   char    cgroup[TSDB_TOPIC_FNAME_LEN];
-  SArray* topics;  // SArray<STqTopicHandle>
+  SArray* topics;  // SArray<STqTopic>
 } STqConsumer;
 
 int32_t tqSerializeConsumer(const STqConsumer*, STqSerializedHead**);

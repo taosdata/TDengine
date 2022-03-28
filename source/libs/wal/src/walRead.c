@@ -13,38 +13,37 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tfile.h"
-#include "walInt.h"
 #include "taoserror.h"
+#include "walInt.h"
 
 SWalReadHandle *walOpenReadHandle(SWal *pWal) {
-  SWalReadHandle *pRead = malloc(sizeof(SWalReadHandle));
+  SWalReadHandle *pRead = taosMemoryMalloc(sizeof(SWalReadHandle));
   if (pRead == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
   pRead->pWal = pWal;
-  pRead->readIdxTfd = -1;
-  pRead->readLogTfd = -1;
+  pRead->pReadIdxTFile = NULL;
+  pRead->pReadLogTFile = NULL;
   pRead->curVersion = -1;
   pRead->curFileFirstVer = -1;
   pRead->capacity = 0;
   pRead->status = 0;
-  pRead->pHead = malloc(sizeof(SWalHead));
+  pRead->pHead = taosMemoryMalloc(sizeof(SWalHead));
   if (pRead->pHead == NULL) {
     terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
-    free(pRead);
+    taosMemoryFree(pRead);
     return NULL;
   }
   return pRead;
 }
 
 void walCloseReadHandle(SWalReadHandle *pRead) {
-  tfClose(pRead->readIdxTfd);
-  tfClose(pRead->readLogTfd);
-  tfree(pRead->pHead);
-  free(pRead);
+  taosCloseFile(&pRead->pReadIdxTFile);
+  taosCloseFile(&pRead->pReadLogTFile);
+  taosMemoryFreeClear(pRead->pHead);
+  taosMemoryFree(pRead);
 }
 
 int32_t walRegisterRead(SWalReadHandle *pRead, int64_t ver) { return 0; }
@@ -52,24 +51,24 @@ int32_t walRegisterRead(SWalReadHandle *pRead, int64_t ver) { return 0; }
 static int32_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, int64_t ver) {
   int code = 0;
 
-  int64_t idxTfd = pRead->readIdxTfd;
-  int64_t logTfd = pRead->readLogTfd;
+  TdFilePtr pIdxTFile = pRead->pReadIdxTFile;
+  TdFilePtr pLogTFile = pRead->pReadLogTFile;
 
   // seek position
   int64_t offset = (ver - fileFirstVer) * sizeof(SWalIdxEntry);
-  code = tfLseek(idxTfd, offset, SEEK_SET);
+  code = taosLSeekFile(pIdxTFile, offset, SEEK_SET);
   if (code < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   SWalIdxEntry entry;
-  if (tfRead(idxTfd, &entry, sizeof(SWalIdxEntry)) != sizeof(SWalIdxEntry)) {
+  if (taosReadFile(pIdxTFile, &entry, sizeof(SWalIdxEntry)) != sizeof(SWalIdxEntry)) {
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
   // TODO:deserialize
   ASSERT(entry.ver == ver);
-  code = tfLseek(logTfd, entry.offset, SEEK_SET);
+  code = taosLSeekFile(pLogTFile, entry.offset, SEEK_SET);
   if (code < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -80,24 +79,25 @@ static int32_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, i
 static int32_t walReadChangeFile(SWalReadHandle *pRead, int64_t fileFirstVer) {
   char fnameStr[WAL_FILE_LEN];
 
-  tfClose(pRead->readIdxTfd);
-  tfClose(pRead->readLogTfd);
+  taosCloseFile(&pRead->pReadIdxTFile);
+  taosCloseFile(&pRead->pReadLogTFile);
 
   walBuildLogName(pRead->pWal, fileFirstVer, fnameStr);
-  int64_t logTfd = tfOpenRead(fnameStr);
-  if (logTfd < 0) {
+  TdFilePtr pLogTFile = taosOpenFile(fnameStr, TD_FILE_READ);
+  if (pLogTFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
   walBuildIdxName(pRead->pWal, fileFirstVer, fnameStr);
-  int64_t idxTfd = tfOpenRead(fnameStr);
-  if (idxTfd < 0) {
+  TdFilePtr pIdxTFile = taosOpenFile(fnameStr, TD_FILE_READ);
+  if (pIdxTFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
-  pRead->readLogTfd = logTfd;
-  pRead->readIdxTfd = idxTfd;
+  pRead->pReadLogTFile = pLogTFile;
+  pRead->pReadIdxTFile = pIdxTFile;
   return 0;
 }
 
@@ -145,19 +145,20 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
     }
   }
 
-  if (!tfValid(pRead->readLogTfd)) return -1;
+  if (!taosValidFile(pRead->pReadLogTFile)) return -1;
 
-  code = tfRead(pRead->readLogTfd, pRead->pHead, sizeof(SWalHead));
+  code = taosReadFile(pRead->pReadLogTFile, pRead->pHead, sizeof(SWalHead));
   if (code != sizeof(SWalHead)) {
     return -1;
   }
   code = walValidHeadCksum(pRead->pHead);
   if (code != 0) {
+    wError("unexpected wal log version: % " PRId64 ", since head checksum not passed", ver);
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
   if (pRead->capacity < pRead->pHead->head.len) {
-    void *ptr = realloc(pRead->pHead, sizeof(SWalHead) + pRead->pHead->head.len);
+    void *ptr = taosMemoryRealloc(pRead->pHead, sizeof(SWalHead) + pRead->pHead->head.len);
     if (ptr == NULL) {
       terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
       return -1;
@@ -165,12 +166,13 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
     pRead->pHead = ptr;
     pRead->capacity = pRead->pHead->head.len;
   }
-  if (pRead->pHead->head.len != tfRead(pRead->readLogTfd, pRead->pHead->head.body, pRead->pHead->head.len)) {
+  if (pRead->pHead->head.len != taosReadFile(pRead->pReadLogTFile, pRead->pHead->head.body, pRead->pHead->head.len)) {
     return -1;
   }
 
   if (pRead->pHead->head.version != ver) {
-    wError("unexpected wal log version: %ld, read request version:%ld", pRead->pHead->head.version, ver);
+    wError("unexpected wal log version: %" PRId64 ", read request version:%" PRId64 "", pRead->pHead->head.version,
+           ver);
     pRead->curVersion = -1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
@@ -178,7 +180,7 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
 
   code = walValidBodyCksum(pRead->pHead);
   if (code != 0) {
-    wError("unexpected wal log version: checksum not passed");
+    wError("unexpected wal log version: % " PRId64 ", since body checksum not passed", ver);
     pRead->curVersion = -1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
@@ -196,26 +198,26 @@ int32_t walRead(SWal *pWal, SWalHead **ppHead, int64_t ver) {
     return code;
   }
   if (*ppHead == NULL) {
-    void *ptr = realloc(*ppHead, sizeof(SWalHead));
+    void *ptr = taosMemoryRealloc(*ppHead, sizeof(SWalHead));
     if (ptr == NULL) {
       return -1;
     }
     *ppHead = ptr;
   }
-  if (tfRead(pWal->writeLogTfd, *ppHead, sizeof(SWalHead)) != sizeof(SWalHead)) {
+  if (tfRead(pWal->pWriteLogTFile, *ppHead, sizeof(SWalHead)) != sizeof(SWalHead)) {
     return -1;
   }
   // TODO: endian compatibility processing after read
   if (walValidHeadCksum(*ppHead) != 0) {
     return -1;
   }
-  void *ptr = realloc(*ppHead, sizeof(SWalHead) + (*ppHead)->head.len);
+  void *ptr = taosMemoryRealloc(*ppHead, sizeof(SWalHead) + (*ppHead)->head.len);
   if (ptr == NULL) {
-    free(*ppHead);
+    taosMemoryFree(*ppHead);
     *ppHead = NULL;
     return -1;
   }
-  if (tfRead(pWal->writeLogTfd, (*ppHead)->head.body, (*ppHead)->head.len) != (*ppHead)->head.len) {
+  if (tfRead(pWal->pWriteLogTFile, (*ppHead)->head.body, (*ppHead)->head.len) != (*ppHead)->head.len) {
     return -1;
   }
   // TODO: endian compatibility processing after read

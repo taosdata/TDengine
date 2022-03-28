@@ -20,7 +20,8 @@
 extern "C" {
 #endif
 
-#include "common.h"
+#include "tcommon.h"
+#include "query.h"
 
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
@@ -30,33 +31,50 @@ struct SSubplan;
 typedef struct SReadHandle {
   void* reader;
   void* meta;
+  void* config;
 } SReadHandle;
- /**
-  * Create the exec task for streaming mode
-  * @param pMsg
-  * @param streamReadHandle
-  * @return
-  */
-qTaskInfo_t qCreateStreamExecTaskInfo(void *msg, void* streamReadHandle);
 
+#define STREAM_DATA_TYPE_SUBMIT_BLOCK 0x1
+#define STREAM_DATA_TYPE_SSDATA_BLOCK 0x2
+  
 /**
- *
- * @param tinfo
- * @param input
+ * Create the exec task for streaming mode
+ * @param pMsg
+ * @param streamReadHandle
  * @return
  */
-int32_t     qSetStreamInput(qTaskInfo_t tinfo, const void* input);
+qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle);
 
- /**
-  * Create the exec task object according to task json
-  * @param readHandle
-  * @param vgId
-  * @param pTaskInfoMsg
-  * @param pTaskInfo
-  * @param qId
-  * @return
-  */
-int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, struct SSubplan* pPlan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle);
+/**
+ * Set the input data block for the stream scan.
+ * @param tinfo
+ * @param input
+ * @param type
+ * @return
+ */
+int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type);
+
+/**
+ * Update the table id list, add or remove.
+ *
+ * @param tinfo
+ * @param id
+ * @param isAdd
+ * @return
+ */
+int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, SArray* tableIdList, bool isAdd);
+
+/**
+ * Create the exec task object according to task json
+ * @param readHandle
+ * @param vgId
+ * @param pTaskInfoMsg
+ * @param pTaskInfo
+ * @param qId
+ * @return
+ */
+int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, struct SSubplan* pPlan,
+                        qTaskInfo_t* pTaskInfo, DataSinkHandle* handle);
 
 /**
  * The main task execution function, including query on both table and multiple tables,
@@ -66,7 +84,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
  * @param handle
  * @return
  */
-int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds);
+int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds);
 
 /**
  * Retrieve the produced results information, if current query is not paused or completed,
@@ -77,25 +95,6 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds);
  * @return
  */
 int32_t qRetrieveQueryResultInfo(qTaskInfo_t tinfo, bool* buildRes, void* pRspContext);
-
-/**
- *
- * Retrieve the actual results to fill the response message payload.
- * Note that this function must be executed after qRetrieveQueryResultInfo is invoked.
- *
- * @param tinfo  tinfo object
- * @param pRsp    response message
- * @param contLen payload length
- * @return
- */
-//int32_t qDumpRetrieveResult(qTaskInfo_t tinfo, SRetrieveTableRsp** pRsp, int32_t* contLen, bool* continueExec);
-
-/**
- * return the transporter context (RPC)
- * @param tinfo
- * @return
- */
-void* qGetResultRetrieveMsg(qTaskInfo_t tinfo);
 
 /**
  * kill the ongoing query and free the query handle and corresponding resources automatically
@@ -148,7 +147,8 @@ int32_t qGetQualifiedTableIdList(void* pTableList, const char* tagCond, int32_t 
  * @param numOfIndex
  * @return
  */
-//int32_t qCreateTableGroupByGroupExpr(SArray* pTableIdList, TSKEY skey, STableGroupInfo groupInfo, SColIndex* groupByIndex, int32_t numOfIndex);
+// int32_t qCreateTableGroupByGroupExpr(SArray* pTableIdList, TSKEY skey, STableGroupInfo groupInfo, SColIndex*
+// groupByIndex, int32_t numOfIndex);
 
 /**
  * Update the table id list of a given query.
@@ -171,19 +171,19 @@ void* qOpenTaskMgmt(int32_t vgId);
  * broadcast the close information and wait for all query stop.
  * @param pExecutor
  */
-void  qTaskMgmtNotifyClosing(void* pExecutor);
+void qTaskMgmtNotifyClosing(void* pExecutor);
 
 /**
  * Re-open the query handle management module when opening the vnode again.
  * @param pExecutor
  */
-void  qQueryMgmtReOpen(void *pExecutor);
+void qQueryMgmtReOpen(void* pExecutor);
 
 /**
  * Close query mgmt and clean up resources.
  * @param pExecutor
  */
-void  qCleanupTaskMgmt(void* pExecutor);
+void qCleanupTaskMgmt(void* pExecutor);
 
 /**
  * Add the query into the query mgmt object
@@ -192,7 +192,7 @@ void  qCleanupTaskMgmt(void* pExecutor);
  * @param qInfo
  * @return
  */
-void** qRegisterTask(void* pMgmt, uint64_t qId, void *qInfo);
+void** qRegisterTask(void* pMgmt, uint64_t qId, void* qInfo);
 
 /**
  * acquire the query handle according to the key from query mgmt object.

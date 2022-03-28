@@ -1,0 +1,81 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 0
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+$i = 0
+$dbPrefix = apdb
+$tbPrefix = aptb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+$userPrefix = apusr
+
+print =============== step1
+$i = 0
+$user = $userPrefix . $i
+
+sql drop user $user -x step11
+  return -1
+step11:
+
+sql create user $user PASS -x step12
+  return -1
+step12:
+
+sql create user $user PASS 'taosdata'
+
+sql show users
+if $rows != 4 then 
+  return -1
+endi
+
+print =============== step2
+$i = 1
+$user = $userPrefix . $i
+sql drop user $user -x step2
+step2:
+sql create user $user PASS '1'
+sql show users
+if $rows != 5 then 
+  return -1
+endi
+
+print =============== step3
+$i = 2
+$user = $userPrefix . $i
+sql drop user $user -x step3
+step3:
+
+sql create user $user PASS 'abc0123456789'
+sql show users
+if $rows != 6 then 
+  return -1
+endi
+
+print =============== step4
+$i = 3
+$user = $userPrefix . $i
+sql create user $user PASS 'abcd012345678901234567891234567890' -x step4
+	return -1
+step4:
+sql show users
+if $rows != 6 then 
+  return -1
+endi
+
+$i = 0
+while $i < 3
+  $user = $userPrefix . $i
+  sql drop user $user 
+  $i = $i + 1
+endw
+
+sql show users
+if $rows != 3 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT

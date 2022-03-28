@@ -43,6 +43,7 @@ target_link_libraries(
     PUBLIC wal
     PUBLIC scheduler
     PUBLIC executor
+    PUBLIC stream
     PUBLIC qworker
     PUBLIC sync
 )
@@ -54,5 +55,5 @@ elseif(${META_DB_IMPL} STREQUAL "TDB")
 endif()
 
 if(${BUILD_TEST})
-    # add_subdirectory(test)
+    add_subdirectory(test)
 endif(${BUILD_TEST})

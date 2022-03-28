@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "trow.h"
-#include "tarray.h"
 
 const uint8_t tdVTypeByte[3] = {
     TD_VTYPE_NORM_BYTE,  // TD_VTYPE_NORM
@@ -78,7 +78,7 @@ static FORCE_INLINE void dataColSetNoneAt(SDataCol *pCol, int index, bool setBit
     setNull(POINTER_SHIFT(pCol->pData, TYPE_BYTES[pCol->type] * index), pCol->type, pCol->bytes);
     pCol->len += TYPE_BYTES[pCol->type];
   }
-  if(setBitmap) {
+  if (setBitmap) {
     tdSetBitmapValType(pCol->pBitmap, index, TD_VTYPE_NONE);
   }
 }
@@ -118,8 +118,8 @@ int trbWriteCol(SRowBuilder *pRB, void *pData, col_id_t cid) {
 
 #endif
 
-STSRow* tdRowDup(STSRow *row) {
-  STSRow* trow = malloc(TD_ROW_LEN(row));
+STSRow *tdRowDup(STSRow *row) {
+  STSRow *trow = taosMemoryMalloc(TD_ROW_LEN(row));
   if (trow == NULL) return NULL;
 
   tdRowCpy(trow, row);
@@ -176,7 +176,7 @@ static int32_t tdAppendTpRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols
 
   SDataCol *pDataCol = &(pCols->cols[0]);
   if (pDataCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-    tdAppendValToDataCol(pDataCol, TD_VTYPE_NORM, &pRow->ts,  pCols->numOfRows, pCols->maxPoints);
+    tdAppendValToDataCol(pDataCol, TD_VTYPE_NORM, &pRow->ts, pCols->numOfRows, pCols->maxPoints);
   }
 
   while (dcol < pCols->numOfCols) {
@@ -353,10 +353,10 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
         for (int i = 0; i < src2->numOfCols; i++) {
           SCellVal sVal = {0};
           ASSERT(target->cols[i].type == src2->cols[i].type);
-          if (src2->cols[i].len > 0 && !isNull(src2->cols[i].pData, src2->cols[i].type)) {
-            if (tdGetColDataOfRow(&sVal, src1->cols + i, *iter1) < 0) {
-              TASSERT(0);
-            }
+          if (tdGetColDataOfRow(&sVal, src2->cols + i, *iter2) < 0) {
+            TASSERT(0);
+          }
+          if (src2->cols[i].len > 0 && !tdValTypeIsNull(sVal.valType)) {
             tdAppendValToDataCol(&(target->cols[i]), sVal.valType, sVal.val, target->numOfRows, target->maxPoints);
           } else if (!forceSetNull && key1 == key2 && src1->cols[i].len > 0) {
             if (tdGetColDataOfRow(&sVal, src1->cols + i, *iter1) < 0) {
@@ -378,9 +378,7 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
   }
 }
 
-
-
-STSRow* mergeTwoRows(void *buffer, STSRow* row1, STSRow *row2, STSchema *pSchema1, STSchema *pSchema2) {
+STSRow *mergeTwoRows(void *buffer, STSRow *row1, STSRow *row2, STSchema *pSchema1, STSchema *pSchema2) {
 #if 0
   ASSERT(TD_ROW_KEY(row1) == TD_ROW_KEY(row2));
   ASSERT(schemaVersion(pSchema1) == TD_ROW_SVER(row1));
@@ -473,6 +471,44 @@ STSRow* mergeTwoRows(void *buffer, STSRow* row1, STSRow *row2, STSchema *pSchema
   }
   taosArrayDestroy(stashRow);
   return buffer;
-  #endif
+#endif
   return NULL;
+}
+
+SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
+  SDataCols *pRet = tdNewDataCols(pDataCols->maxCols, pDataCols->maxPoints);
+  if (pRet == NULL) return NULL;
+
+  pRet->numOfCols = pDataCols->numOfCols;
+  pRet->sversion = pDataCols->sversion;
+  if (keepData) pRet->numOfRows = pDataCols->numOfRows;
+
+  for (int i = 0; i < pDataCols->numOfCols; i++) {
+    pRet->cols[i].type = pDataCols->cols[i].type;
+    pRet->cols[i].bitmap = pDataCols->cols[i].bitmap;
+    pRet->cols[i].colId = pDataCols->cols[i].colId;
+    pRet->cols[i].bytes = pDataCols->cols[i].bytes;
+    pRet->cols[i].offset = pDataCols->cols[i].offset;
+
+    if (keepData) {
+      if (pDataCols->cols[i].len > 0) {
+        if (tdAllocMemForCol(&pRet->cols[i], pRet->maxPoints) < 0) {
+          tdFreeDataCols(pRet);
+          return NULL;
+        }
+        pRet->cols[i].len = pDataCols->cols[i].len;
+        memcpy(pRet->cols[i].pData, pDataCols->cols[i].pData, pDataCols->cols[i].len);
+        if (IS_VAR_DATA_TYPE(pRet->cols[i].type)) {
+          int dataOffSize = sizeof(VarDataOffsetT) * pDataCols->maxPoints;
+          memcpy(pRet->cols[i].dataOff, pDataCols->cols[i].dataOff, dataOffSize);
+        }
+        if (!TD_COL_ROWS_NORM(pRet->cols + i)) {
+          int32_t nBitmapBytes = (int32_t)TD_BITMAP_BYTES(pDataCols->maxPoints);
+          memcpy(pRet->cols[i].pBitmap, pDataCols->cols[i].pBitmap, nBitmapBytes);
+        }
+      }
+    }
+  }
+
+  return pRet;
 }

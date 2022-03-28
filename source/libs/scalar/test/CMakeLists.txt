@@ -1,18 +1,4 @@
+enable_testing()
 
-MESSAGE(STATUS "build scalar unit test")
-
-# GoogleTest requires at least C++11
-SET(CMAKE_CXX_STANDARD 11)
-AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
-
-ADD_EXECUTABLE(scalarTest ${SOURCE_LIST})
-TARGET_LINK_LIBRARIES(
-        scalarTest
-        PUBLIC os util common gtest qcom function nodes
-)
-
-TARGET_INCLUDE_DIRECTORIES(
-        scalarTest
-        PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/scalar/"
-        PRIVATE "${CMAKE_SOURCE_DIR}/source/libs/scalar/inc"
-)
+add_subdirectory(filter)
+add_subdirectory(scalar)

@@ -16,27 +16,49 @@
 #include <tlog.h>
 #include "thash.h"
 //#include "queryLog.h"
-#include "tcompare.h"
-#include "filterInt.h"
 #include "filter.h"
+#include "filterInt.h"
+#include "sclInt.h"
+#include "tcompare.h"
+#include "tdatablock.h"
 
 OptrStr gOptrStr[] = {
-  {TSDB_RELATION_INVALID,                  "invalid"},
-  {TSDB_RELATION_LESS,                     "<"},
-  {TSDB_RELATION_GREATER,                  ">"},
-  {TSDB_RELATION_EQUAL,                    "="},
-  {TSDB_RELATION_LESS_EQUAL,               "<="},
-  {TSDB_RELATION_GREATER_EQUAL,            ">="},
-  {TSDB_RELATION_NOT_EQUAL,                "!="},
-  {TSDB_RELATION_LIKE,                     "like"},
-  {TSDB_RELATION_ISNULL,                   "is null"},
-  {TSDB_RELATION_NOTNULL,                  "not null"},
-  {TSDB_RELATION_IN,                       "in"},
-  {TSDB_RELATION_AND,                      "and"},
-  {TSDB_RELATION_OR,                       "or"},
-  {TSDB_RELATION_NOT,                      "not"},
-  {TSDB_RELATION_MATCH,                    "match"},
-  {TSDB_RELATION_NMATCH,                   "nmatch"}
+  {0,                                      "invalid"},
+  {OP_TYPE_ADD,                            "+"},
+  {OP_TYPE_SUB,                            "-"},
+  {OP_TYPE_MULTI,                          "*"},
+  {OP_TYPE_DIV,                            "/"},
+  {OP_TYPE_MOD,                            "%"},
+
+  // bit operator
+  {OP_TYPE_BIT_AND,                        "&"},
+  {OP_TYPE_BIT_OR,                         "|"},
+
+  // comparison operator
+  {OP_TYPE_GREATER_THAN,                   ">"},
+  {OP_TYPE_GREATER_EQUAL,                  ">="},
+  {OP_TYPE_LOWER_THAN,                     "<"},
+  {OP_TYPE_LOWER_EQUAL,                    "<="},
+  {OP_TYPE_EQUAL,                          "=="},
+  {OP_TYPE_NOT_EQUAL,                      "!="},
+  {OP_TYPE_IN,                             "in"},
+  {OP_TYPE_NOT_IN,                         "not in"},
+  {OP_TYPE_LIKE,                           "like"},
+  {OP_TYPE_NOT_LIKE,                       "not like"},
+  {OP_TYPE_MATCH,                          "match"},
+  {OP_TYPE_NMATCH,                         "nmatch"},
+  {OP_TYPE_IS_NULL,                        "is null"},
+  {OP_TYPE_IS_NOT_NULL,                    "not null"},
+  {OP_TYPE_IS_TRUE,                        "is true"},
+  {OP_TYPE_IS_FALSE,                       "is false"},
+  {OP_TYPE_IS_UNKNOWN,                     "is unknown"},
+  {OP_TYPE_IS_NOT_TRUE,                    "not true"},
+  {OP_TYPE_IS_NOT_FALSE,                   "not false"},
+  {OP_TYPE_IS_NOT_UNKNOWN,                 "not unknown"},
+
+  // json operator
+  {OP_TYPE_JSON_GET_VALUE,                 "json get"},
+  {OP_TYPE_JSON_CONTAINS,                  "json contains"}
 };
 
 bool filterRangeCompGi (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
@@ -110,30 +132,30 @@ rangeCompFunc gRangeCompare[] = {filterRangeCompee, filterRangeCompei, filterRan
 
 int8_t filterGetRangeCompFuncFromOptrs(uint8_t optr, uint8_t optr2) {
   if (optr2) {
-    assert(optr2 == TSDB_RELATION_LESS || optr2 == TSDB_RELATION_LESS_EQUAL);  
+    assert(optr2 == OP_TYPE_LOWER_THAN || optr2 == OP_TYPE_LOWER_EQUAL);  
 
-    if (optr == TSDB_RELATION_GREATER) {
-      if (optr2 == TSDB_RELATION_LESS) {
+    if (optr == OP_TYPE_GREATER_THAN) {
+      if (optr2 == OP_TYPE_LOWER_THAN) {
         return 0;
       }
 
       return 1;
     }
 
-    if (optr2 == TSDB_RELATION_LESS) {
+    if (optr2 == OP_TYPE_LOWER_THAN) {
       return 2;
     }
 
     return 3;
   } else {
     switch (optr) {
-     case TSDB_RELATION_GREATER:
+     case OP_TYPE_GREATER_THAN:
       return 4;
-     case TSDB_RELATION_GREATER_EQUAL:
+     case OP_TYPE_GREATER_EQUAL:
       return 5;
-     case TSDB_RELATION_LESS:
+     case OP_TYPE_LOWER_THAN:
       return 6;
-     case TSDB_RELATION_LESS_EQUAL:
+     case OP_TYPE_LOWER_EQUAL:
       return 7;
      default:
       break;
@@ -154,7 +176,7 @@ __compar_fn_t gDataCompare[] = {compareInt32Val, compareInt8Val, compareInt16Val
 int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
   int8_t comparFn = 0;
 
-  if (optr == TSDB_RELATION_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR)) {
+  if (optr == OP_TYPE_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR)) {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT:  
@@ -177,7 +199,7 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
     }
   }
 
-  if (optr == TSDB_RELATION_NOT_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR)) {
+  if (optr == OP_TYPE_NOT_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR)) {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT:  
@@ -210,17 +232,17 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
     case TSDB_DATA_TYPE_FLOAT:     comparFn = 4;  break;
     case TSDB_DATA_TYPE_DOUBLE:    comparFn = 5; break;
     case TSDB_DATA_TYPE_BINARY: {
-      if (optr == TSDB_RELATION_MATCH) {
+      if (optr == OP_TYPE_MATCH) {
         comparFn = 19;
-      } else if (optr == TSDB_RELATION_NMATCH) {
+      } else if (optr == OP_TYPE_NMATCH) {
         comparFn = 20;
-      } else if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
+      } else if (optr == OP_TYPE_LIKE) { /* wildcard query using like operator */
         comparFn = 7;
-      } else if (optr == TSDB_RELATION_NOT_LIKE) { /* wildcard query using like operator */
+      } else if (optr == OP_TYPE_NOT_LIKE) { /* wildcard query using like operator */
         comparFn = 26;
-      } else if (optr == TSDB_RELATION_IN) {
+      } else if (optr == OP_TYPE_IN) {
         comparFn = 8;
-      } else if (optr == TSDB_RELATION_NOT_IN) {
+      } else if (optr == OP_TYPE_NOT_IN) {
         comparFn = 25;
       } else { /* normal relational comparFn */
         comparFn = 6;
@@ -230,17 +252,17 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
     }
   
     case TSDB_DATA_TYPE_NCHAR: {
-      if (optr == TSDB_RELATION_MATCH) {
+      if (optr == OP_TYPE_MATCH) {
         comparFn = 19;
-      } else if (optr == TSDB_RELATION_NMATCH) {
+      } else if (optr == OP_TYPE_NMATCH) {
         comparFn = 20;
-      } else if (optr == TSDB_RELATION_LIKE) {
+      } else if (optr == OP_TYPE_LIKE) {
         comparFn = 9;
-      } else if (optr == TSDB_RELATION_LIKE) {
+      } else if (optr == OP_TYPE_LIKE) {
         comparFn = 27;
-      } else if (optr == TSDB_RELATION_IN) {
+      } else if (optr == OP_TYPE_IN) {
         comparFn = 8;
-      } else if (optr == TSDB_RELATION_NOT_IN) {
+      } else if (optr == OP_TYPE_NOT_IN) {
         comparFn = 25;
       } else {
         comparFn = 10;
@@ -275,14 +297,14 @@ static FORCE_INLINE int32_t filterCompareGroupCtx(const void *pLeft, const void 
 
 int32_t filterInitUnitsFields(SFilterInfo *info) {
   info->unitSize = FILTER_DEFAULT_UNIT_SIZE;
-  info->units = calloc(info->unitSize, sizeof(SFilterUnit));
+  info->units = taosMemoryCalloc(info->unitSize, sizeof(SFilterUnit));
   
   info->fields[FLD_TYPE_COLUMN].num = 0;
   info->fields[FLD_TYPE_COLUMN].size = FILTER_DEFAULT_FIELD_SIZE;
-  info->fields[FLD_TYPE_COLUMN].fields = calloc(info->fields[FLD_TYPE_COLUMN].size, sizeof(SFilterField));
+  info->fields[FLD_TYPE_COLUMN].fields = taosMemoryCalloc(info->fields[FLD_TYPE_COLUMN].size, sizeof(SFilterField));
   info->fields[FLD_TYPE_VALUE].num = 0;
   info->fields[FLD_TYPE_VALUE].size = FILTER_DEFAULT_FIELD_SIZE;
-  info->fields[FLD_TYPE_VALUE].fields = calloc(info->fields[FLD_TYPE_VALUE].size, sizeof(SFilterField));
+  info->fields[FLD_TYPE_VALUE].fields = taosMemoryCalloc(info->fields[FLD_TYPE_VALUE].size, sizeof(SFilterField));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -296,7 +318,7 @@ static FORCE_INLINE SFilterRangeNode* filterNewRange(SFilterRangeCtx *ctx, SFilt
     r->prev = NULL;
     r->next = NULL;
   } else {
-    r = calloc(1, sizeof(SFilterRangeNode)); 
+    r = taosMemoryCalloc(1, sizeof(SFilterRangeNode)); 
   }
 
   FILTER_COPY_RA(&r->ra, ra);
@@ -310,7 +332,7 @@ void* filterInitRangeCtx(int32_t type, int32_t options) {
     return NULL;
   }
   
-  SFilterRangeCtx *ctx = calloc(1, sizeof(SFilterRangeCtx));
+  SFilterRangeCtx *ctx = taosMemoryCalloc(1, sizeof(SFilterRangeCtx));
 
   ctx->type = type;
   ctx->options = options;
@@ -383,7 +405,7 @@ int32_t filterConvertRange(SFilterRangeCtx *cur, SFilterRange *ra, bool *notNull
 int32_t filterAddRangeOptr(void* h, uint8_t raOptr, int32_t optr, bool *empty, bool *all) {
   SFilterRangeCtx *ctx = (SFilterRangeCtx *)h;
 
-  if (optr == TSDB_RELATION_AND) {
+  if (optr == LOGIC_COND_TYPE_AND) {
     SET_AND_OPTR(ctx, raOptr);
     if (CHK_AND_OPTR(ctx) || (raOptr == FILTER_DUMMY_EMPTY_OPTR)) {
       FILTER_SET_FLAG(ctx->status, MR_ST_EMPTY);
@@ -407,8 +429,8 @@ int32_t filterAddRangeImpl(void* h, SFilterRange* ra, int32_t optr) {
 
   if (ctx->rs == NULL) {
     if ((FILTER_GET_FLAG(ctx->status, MR_ST_START) == 0) 
-      || (FILTER_GET_FLAG(ctx->status, MR_ST_ALL) && (optr == TSDB_RELATION_AND))
-      || ((!FILTER_GET_FLAG(ctx->status, MR_ST_ALL)) && (optr == TSDB_RELATION_OR))) {
+      || (FILTER_GET_FLAG(ctx->status, MR_ST_ALL) && (optr == LOGIC_COND_TYPE_AND))
+      || ((!FILTER_GET_FLAG(ctx->status, MR_ST_ALL)) && (optr == LOGIC_COND_TYPE_OR))) {
       APPEND_RANGE(ctx, ctx->rs, ra);
       FILTER_SET_FLAG(ctx->status, MR_ST_START);
     }
@@ -420,7 +442,7 @@ int32_t filterAddRangeImpl(void* h, SFilterRange* ra, int32_t optr) {
   SFilterRangeNode *rn = NULL;
   int32_t cr = 0;
 
-  if (optr == TSDB_RELATION_AND) {
+  if (optr == LOGIC_COND_TYPE_AND) {
     while (r != NULL) {
       cr = ctx->pCompareFunc(&r->ra.s, &ra->e);
       if (FILTER_GREATER(cr, r->ra.sflag, ra->eflag)) {
@@ -532,7 +554,7 @@ int32_t filterAddRangeImpl(void* h, SFilterRange* ra, int32_t optr) {
     if (notnull) {
       bool all = false;
       FREE_FROM_RANGE(ctx, ctx->rs);
-      filterAddRangeOptr(h, TSDB_RELATION_NOTNULL, optr, NULL, &all);
+      filterAddRangeOptr(h, OP_TYPE_IS_NOT_NULL, optr, NULL, &all);
       if (all) {
         FILTER_SET_FLAG(ctx->status, MR_ST_ALL);
       }
@@ -563,7 +585,7 @@ int32_t filterAddRangeCtx(void *dst, void *src, int32_t optr) {
   SFilterRangeCtx *dctx = (SFilterRangeCtx *)dst;
   SFilterRangeCtx *sctx = (SFilterRangeCtx *)src;
 
-  assert(optr == TSDB_RELATION_OR);
+  assert(optr == LOGIC_COND_TYPE_OR);
 
   if (sctx->rs == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -614,13 +636,13 @@ int32_t filterFinishRange(void* h) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (FILTER_GET_FLAG(ctx->options, FI_OPTION_TIMESTAMP)) {
+  if (FILTER_GET_FLAG(ctx->options, FLT_OPTION_TIMESTAMP)) {
     SFilterRangeNode *r = ctx->rs;
     SFilterRangeNode *rn = NULL;
     
     while (r && r->next) {
       int64_t tmp = 1;
-      operateVal(&tmp, &r->ra.e, &tmp, TSDB_BINARY_OP_ADD, ctx->type);
+      operateVal(&tmp, &r->ra.e, &tmp, OP_TYPE_ADD, ctx->type);
       if (ctx->pCompareFunc(&tmp, &r->next->ra.s) == 0) {
         rn = r->next;
         SIMPLE_COPY_VALUES((char *)&r->next->ra.s, (char *)&r->ra.s);
@@ -685,14 +707,14 @@ int32_t filterSourceRangeFromCtx(SFilterRangeCtx *ctx, void *sctx, int32_t optr,
   SFilterRangeCtx *src = (SFilterRangeCtx *)sctx;
 
   if (src->isnull){
-    filterAddRangeOptr(ctx, TSDB_RELATION_ISNULL, optr, empty, all);
+    filterAddRangeOptr(ctx, OP_TYPE_IS_NULL, optr, empty, all);
     if (FILTER_GET_FLAG(ctx->status, MR_ST_ALL)) {
       *all = true;
     }
   }
 
   if (src->notnull) {
-    filterAddRangeOptr(ctx, TSDB_RELATION_NOTNULL, optr, empty, all);
+    filterAddRangeOptr(ctx, OP_TYPE_IS_NOT_NULL, optr, empty, all);
     if (FILTER_GET_FLAG(ctx->status, MR_ST_ALL)) {
       *all = true;
     }
@@ -701,7 +723,7 @@ int32_t filterSourceRangeFromCtx(SFilterRangeCtx *ctx, void *sctx, int32_t optr,
   if (src->isrange) {
     filterAddRangeOptr(ctx, 0, optr, empty, all);
 
-    if (!(optr == TSDB_RELATION_OR && ctx->notnull)) {
+    if (!(optr == LOGIC_COND_TYPE_OR && ctx->notnull)) {
       filterAddRangeCtx(ctx, src, optr);
     }
     
@@ -726,18 +748,18 @@ int32_t filterFreeRangeCtx(void* h) {
   
   while (r) {
     rn = r->next;
-    free(r);
+    taosMemoryFree(r);
     r = rn;
   }
 
   r = ctx->rf;
   while (r) {
     rn = r->next;
-    free(r);
+    taosMemoryFree(r);
     r = rn;
   }
 
-  free(ctx);
+  taosMemoryFree(ctx);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -747,7 +769,7 @@ int32_t filterDetachCnfGroup(SFilterGroup *gp1, SFilterGroup *gp2, SArray* group
   SFilterGroup gp = {0};
 
   gp.unitNum = gp1->unitNum + gp2->unitNum;
-  gp.unitIdxs = calloc(gp.unitNum, sizeof(*gp.unitIdxs));
+  gp.unitIdxs = taosMemoryCalloc(gp.unitNum, sizeof(*gp.unitIdxs));
   memcpy(gp.unitIdxs, gp1->unitIdxs, gp1->unitNum * sizeof(*gp.unitIdxs));
   memcpy(gp.unitIdxs + gp1->unitNum, gp2->unitIdxs, gp2->unitNum * sizeof(*gp.unitIdxs));    
 
@@ -764,13 +786,26 @@ int32_t filterDetachCnfGroups(SArray* group, SArray* left, SArray* right) {
   int32_t rightSize = (int32_t)taosArrayGetSize(right);
 
   if (taosArrayGetSize(left) <= 0) {
-    fltDebug("empty group");
-    FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+    if (taosArrayGetSize(right) <= 0) {
+      fltError("both groups are empty");
+      FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);      
+    }
+
+    SFilterGroup *gp = NULL;
+    while ((gp = (SFilterGroup *)taosArrayPop(right)) != NULL) {
+      taosArrayPush(group, gp);
+    }
+
+    return TSDB_CODE_SUCCESS;
   }
 
   if (taosArrayGetSize(right) <= 0) { 
-    fltDebug("empty group");
-    FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+    SFilterGroup *gp = NULL;
+    while ((gp = (SFilterGroup *)taosArrayPop(left)) != NULL) {
+      taosArrayPush(group, gp);
+    }
+
+    return TSDB_CODE_SUCCESS;
   }
   
   for (int32_t l = 0; l < leftSize; ++l) {
@@ -814,7 +849,7 @@ int32_t filterGetFiledByData(SFilterInfo *info, int32_t type, void *v, int32_t d
   return -1;
 }
 
-// In the params, we should use void *data instead of void **data, there is no need to use tfree(*data) to set *data = 0
+// In the params, we should use void *data instead of void **data, there is no need to use taosMemoryFreeClear(*data) to set *data = 0
 // Besides, fields data value is a pointer, so dataLen should be POINTER_BYTES for better.
 int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type, SFilterFieldId *fid, int32_t dataLen, bool freeIfExists) {
   int32_t idx = -1;
@@ -825,7 +860,7 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
   if (*num > 0) {
     if (type == FLD_TYPE_COLUMN) {
       idx = filterGetFiledByDesc(&info->fields[type], type, desc);
-    } else if (data && (*data) && dataLen > 0 && FILTER_GET_FLAG(info->options, FI_OPTION_NEED_UNIQE)) {
+    } else if (data && (*data) && dataLen > 0 && FILTER_GET_FLAG(info->options, FLT_OPTION_NEED_UNIQE)) {
       idx = filterGetFiledByData(info, type, *data, dataLen);
     }
   }
@@ -834,7 +869,7 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
     idx = *num;
     if (idx >= info->fields[type].size) {
       info->fields[type].size += FILTER_DEFAULT_FIELD_SIZE;
-      info->fields[type].fields = realloc(info->fields[type].fields, info->fields[type].size * sizeof(SFilterField));
+      info->fields[type].fields = taosMemoryRealloc(info->fields[type].fields, info->fields[type].size * sizeof(SFilterField));
     }
     
     info->fields[type].fields[idx].flag = type;  
@@ -847,7 +882,7 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
 
     ++(*num);
 
-    if (data && (*data) && dataLen > 0 && FILTER_GET_FLAG(info->options, FI_OPTION_NEED_UNIQE)) {
+    if (data && (*data) && dataLen > 0 && FILTER_GET_FLAG(info->options, FLT_OPTION_NEED_UNIQE)) {
       if (info->pctx.valHash == NULL) {
         info->pctx.valHash = taosHashInit(FILTER_DEFAULT_GROUP_SIZE * FILTER_DEFAULT_VALUE_SIZE, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, false);
       }
@@ -855,12 +890,8 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
       taosHashPut(info->pctx.valHash, *data, dataLen, &idx, sizeof(idx));
     }
   } else {
-    if (freeIfExists) {
-      tfree(desc);
-    }
-
     if (data && freeIfExists) {
-      tfree(*data);
+      taosMemoryFreeClear(*data);
     }
   }
 
@@ -873,7 +904,6 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
 static FORCE_INLINE int32_t filterAddColFieldFromField(SFilterInfo *info, SFilterField *field, SFilterFieldId *fid) {
   filterAddField(info, field->desc, &field->data, FILTER_GET_TYPE(field->flag), fid, 0, false);
 
-  FILTER_SET_FLAG(field->flag, FLD_DESC_NO_FREE);
   FILTER_SET_FLAG(field->flag, FLD_DATA_NO_FREE);
 
   return TSDB_CODE_SUCCESS;
@@ -886,14 +916,14 @@ int32_t filterAddFieldFromNode(SFilterInfo *info, SNode *node, SFilterFieldId *f
     FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
   
-  if (nodeType(node) != QUERY_NODE_COLUMN_REF && nodeType(node) != QUERY_NODE_VALUE) {
+  if (nodeType(node) != QUERY_NODE_COLUMN && nodeType(node) != QUERY_NODE_VALUE && nodeType(node) != QUERY_NODE_NODE_LIST) {
     FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
   
   int32_t type;
   void *v;
 
-  if (nodeType(node) == QUERY_NODE_COLUMN_REF) {
+  if (nodeType(node) == QUERY_NODE_COLUMN) {
     type = FLD_TYPE_COLUMN;
     v = node;
   } else {
@@ -907,7 +937,7 @@ int32_t filterAddFieldFromNode(SFilterInfo *info, SNode *node, SFilterFieldId *f
 }
 
 int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFilterFieldId *right, uint32_t *uidx) {
-  if (FILTER_GET_FLAG(info->options, FI_OPTION_NEED_UNIQE)) {
+  if (FILTER_GET_FLAG(info->options, FLT_OPTION_NEED_UNIQE)) {
     if (info->pctx.unitHash == NULL) {
       info->pctx.unitHash = taosHashInit(FILTER_DEFAULT_GROUP_SIZE * FILTER_DEFAULT_UNIT_SIZE, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, false);
     } else {
@@ -924,7 +954,7 @@ int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFi
   if (info->unitNum >= info->unitSize) {
     uint32_t psize = info->unitSize;
     info->unitSize += FILTER_DEFAULT_UNIT_SIZE;
-    info->units = realloc(info->units, info->unitSize * sizeof(SFilterUnit));
+    info->units = taosMemoryRealloc(info->units, info->unitSize * sizeof(SFilterUnit));
     memset(info->units + psize, 0, sizeof(*info->units) * FILTER_DEFAULT_UNIT_SIZE);
   }
 
@@ -940,8 +970,10 @@ int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFi
     SFilterField *val = FILTER_UNIT_RIGHT_FIELD(info, u);  
     assert(FILTER_GET_FLAG(val->flag, FLD_TYPE_VALUE));
   } else {
-    if(optr != TSDB_RELATION_ISNULL && optr != TSDB_RELATION_NOTNULL && optr != FILTER_DUMMY_EMPTY_OPTR){
-      return -1;
+    int32_t paramNum = scalarGetOperatorParamNum(optr);
+    if (1 != paramNum) {
+      fltError("invalid right field in unit, operator:%s, rightType:%d", gOptrStr[optr].str, u->right.type);
+      return TSDB_CODE_QRY_APP_ERROR;
     }
   }
   
@@ -952,7 +984,7 @@ int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFi
 
   *uidx = info->unitNum;
 
-  if (FILTER_GET_FLAG(info->options, FI_OPTION_NEED_UNIQE)) {
+  if (FILTER_GET_FLAG(info->options, FLT_OPTION_NEED_UNIQE)) {
     int64_t v = 0;
     FILTER_PACKAGE_UNIT_HASH_KEY(&v, optr, left->idx, right ? right->idx : -1);  
     taosHashPut(info->pctx.unitHash, &v, sizeof(v), uidx, sizeof(*uidx));
@@ -968,7 +1000,7 @@ int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFi
 int32_t filterAddUnitToGroup(SFilterGroup *group, uint32_t unitIdx) {
   if (group->unitNum >= group->unitSize) {
     group->unitSize += FILTER_DEFAULT_UNIT_SIZE;
-    group->unitIdxs = realloc(group->unitIdxs, group->unitSize * sizeof(*group->unitIdxs));
+    group->unitIdxs = taosMemoryRealloc(group->unitIdxs, group->unitSize * sizeof(*group->unitIdxs));
   }
   
   group->unitIdxs[group->unitNum++] = unitIdx;
@@ -988,7 +1020,6 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode* tree, SArray *group) {
 
   if (node->opType == OP_TYPE_IN && (!IS_VAR_DATA_TYPE(type))) {
     SNodeListNode *listNode = (SNodeListNode *)node->pRight;
-    void *fdata = NULL;
     SListCell *cell = listNode->pNodeList->pHead;
     SScalarParam in = {.num = 1}, out = {.num = 1, .type = type};
     
@@ -997,25 +1028,27 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode* tree, SArray *group) {
       in.type = valueNode->node.resType.type;
       in.bytes = valueNode->node.resType.bytes;
       in.data = nodesGetValueFromNode(valueNode);
-      out.data = malloc(sizeof(int64_t));
+      out.data = taosMemoryMalloc(sizeof(int64_t));
 
       code = vectorConvertImpl(&in, &out);
       if (code) {
         fltError("convert from %d to %d failed", in.type, out.type);
-        tfree(out.data);
+        taosMemoryFreeClear(out.data);
         FLT_ERR_RET(code);
       }
       
       len = tDataTypes[type].bytes;
 
-      filterAddField(info, NULL, &fdata, FLD_TYPE_VALUE, &right, len, true);
+      filterAddField(info, NULL, &out.data, FLD_TYPE_VALUE, &right, len, true);
 
-      filterAddUnit(info, TSDB_RELATION_EQUAL, &left, &right, &uidx);
+      filterAddUnit(info, OP_TYPE_EQUAL, &left, &right, &uidx);
       
       SFilterGroup fgroup = {0};
       filterAddUnitToGroup(&fgroup, uidx);
       
       taosArrayPush(group, &fgroup);
+
+      cell = cell->pNext;
     }
   } else {
     filterAddFieldFromNode(info, node->pRight, &right);
@@ -1035,16 +1068,15 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode* tree, SArray *group) {
 int32_t filterAddUnitFromUnit(SFilterInfo *dst, SFilterInfo *src, SFilterUnit* u, uint32_t *uidx) {
   SFilterFieldId left, right, *pright = &right;
   int32_t type = FILTER_UNIT_DATA_TYPE(u);
-  uint16_t flag = FLD_DESC_NO_FREE;
+  uint16_t flag = 0;
 
   filterAddField(dst, FILTER_UNIT_COL_DESC(src, u), NULL, FLD_TYPE_COLUMN, &left, 0, false);
   SFilterField *t = FILTER_UNIT_LEFT_FIELD(src, u);
-  FILTER_SET_FLAG(t->flag, flag);
   
   if (u->right.type == FLD_TYPE_VALUE) {
     void *data = FILTER_UNIT_VAL_DATA(src, u);
     if (IS_VAR_DATA_TYPE(type)) {
-      if (FILTER_UNIT_OPTR(u) ==  TSDB_RELATION_IN) {
+      if (FILTER_UNIT_OPTR(u) ==  OP_TYPE_IN) {
         filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, POINTER_BYTES, false); // POINTER_BYTES should be sizeof(SHashObj), but POINTER_BYTES is also right.
 
         t = FILTER_GET_FIELD(dst, right);
@@ -1087,17 +1119,17 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
 
   int32_t type = FILTER_GET_COL_FIELD_TYPE(FILTER_GET_FIELD(dst, left));
 
-  if (optr == TSDB_RELATION_AND) {
+  if (optr == LOGIC_COND_TYPE_AND) {
     if (ctx->isnull) {
       assert(ctx->notnull == false && ctx->isrange == false);
-      filterAddUnit(dst, TSDB_RELATION_ISNULL, &left, NULL, &uidx);
+      filterAddUnit(dst, OP_TYPE_IS_NULL, &left, NULL, &uidx);
       filterAddUnitToGroup(g, uidx);
       return TSDB_CODE_SUCCESS;
     }
 
     if (ctx->notnull) {      
       assert(ctx->isnull == false && ctx->isrange == false);
-      filterAddUnit(dst, TSDB_RELATION_NOTNULL, &left, NULL, &uidx);
+      filterAddUnit(dst, OP_TYPE_IS_NOT_NULL, &left, NULL, &uidx);
       filterAddUnitToGroup(g, uidx);
       return TSDB_CODE_SUCCESS;
     }
@@ -1116,40 +1148,40 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
     if ((!FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) && (!FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL))) {
       __compar_fn_t func = getComparFunc(type, 0);
       if (func(&ra->s, &ra->e) == 0) {
-        void *data = malloc(sizeof(int64_t));
+        void *data = taosMemoryMalloc(sizeof(int64_t));
         SIMPLE_COPY_VALUES(data, &ra->s);
         filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true);
-        filterAddUnit(dst, TSDB_RELATION_EQUAL, &left, &right, &uidx);
+        filterAddUnit(dst, OP_TYPE_EQUAL, &left, &right, &uidx);
         filterAddUnitToGroup(g, uidx);
         return TSDB_CODE_SUCCESS;              
       } else {
-        void *data = malloc(sizeof(int64_t));
+        void *data = taosMemoryMalloc(sizeof(int64_t));
         SIMPLE_COPY_VALUES(data, &ra->s);
         filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true);
-        void *data2 = malloc(sizeof(int64_t));
+        void *data2 = taosMemoryMalloc(sizeof(int64_t));
         SIMPLE_COPY_VALUES(data2, &ra->e);
         filterAddField(dst, NULL, &data2, FLD_TYPE_VALUE, &right2, tDataTypes[type].bytes, true);
         
-        filterAddUnit(dst, FILTER_GET_FLAG(ra->sflag, RANGE_FLG_EXCLUDE) ? TSDB_RELATION_GREATER : TSDB_RELATION_GREATER_EQUAL, &left, &right, &uidx);
-        filterAddUnitRight(dst, FILTER_GET_FLAG(ra->eflag, RANGE_FLG_EXCLUDE) ? TSDB_RELATION_LESS : TSDB_RELATION_LESS_EQUAL, &right2, uidx);
+        filterAddUnit(dst, FILTER_GET_FLAG(ra->sflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_GREATER_THAN : OP_TYPE_GREATER_EQUAL, &left, &right, &uidx);
+        filterAddUnitRight(dst, FILTER_GET_FLAG(ra->eflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_LOWER_THAN : OP_TYPE_LOWER_EQUAL, &right2, uidx);
         filterAddUnitToGroup(g, uidx);
         return TSDB_CODE_SUCCESS;              
       }
     }
     
     if (!FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) {
-      void *data = malloc(sizeof(int64_t));
+      void *data = taosMemoryMalloc(sizeof(int64_t));
       SIMPLE_COPY_VALUES(data, &ra->s);
       filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true);
-      filterAddUnit(dst, FILTER_GET_FLAG(ra->sflag, RANGE_FLG_EXCLUDE) ? TSDB_RELATION_GREATER : TSDB_RELATION_GREATER_EQUAL, &left, &right, &uidx);
+      filterAddUnit(dst, FILTER_GET_FLAG(ra->sflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_GREATER_THAN : OP_TYPE_GREATER_EQUAL, &left, &right, &uidx);
       filterAddUnitToGroup(g, uidx);
     }
 
     if (!FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL)) {
-      void *data = malloc(sizeof(int64_t));
+      void *data = taosMemoryMalloc(sizeof(int64_t));
       SIMPLE_COPY_VALUES(data, &ra->e);
       filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true);
-      filterAddUnit(dst, FILTER_GET_FLAG(ra->eflag, RANGE_FLG_EXCLUDE) ? TSDB_RELATION_LESS : TSDB_RELATION_LESS_EQUAL, &left, &right, &uidx);
+      filterAddUnit(dst, FILTER_GET_FLAG(ra->eflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_LOWER_THAN : OP_TYPE_LOWER_EQUAL, &left, &right, &uidx);
       filterAddUnitToGroup(g, uidx);
     }    
 
@@ -1164,7 +1196,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
   assert(ctx->isnull || ctx->notnull || ctx->isrange);
   
   if (ctx->isnull) {
-    filterAddUnit(dst, TSDB_RELATION_ISNULL, &left, NULL, &uidx);
+    filterAddUnit(dst, OP_TYPE_IS_NULL, &left, NULL, &uidx);
     filterAddUnitToGroup(g, uidx);    
     taosArrayPush(res, g);
   }
@@ -1173,7 +1205,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
     assert(!ctx->isrange);
     memset(g, 0, sizeof(*g));
     
-    filterAddUnit(dst, TSDB_RELATION_NOTNULL, &left, NULL, &uidx);
+    filterAddUnit(dst, OP_TYPE_IS_NOT_NULL, &left, NULL, &uidx);
     filterAddUnitToGroup(g, uidx);
     taosArrayPush(res, g);
   }
@@ -1192,21 +1224,21 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
     if ((!FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_NULL)) &&(!FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_NULL))) {
       __compar_fn_t func = getComparFunc(type, 0);
       if (func(&r->ra.s, &r->ra.e) == 0) {
-        void *data = malloc(sizeof(int64_t));
+        void *data = taosMemoryMalloc(sizeof(int64_t));
         SIMPLE_COPY_VALUES(data, &r->ra.s);
         filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true);
-        filterAddUnit(dst, TSDB_RELATION_EQUAL, &left, &right, &uidx);
+        filterAddUnit(dst, OP_TYPE_EQUAL, &left, &right, &uidx);
         filterAddUnitToGroup(g, uidx);
       } else {
-        void *data = malloc(sizeof(int64_t));
+        void *data = taosMemoryMalloc(sizeof(int64_t));
         SIMPLE_COPY_VALUES(data, &r->ra.s);
         filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true);
-        void *data2 = malloc(sizeof(int64_t));
+        void *data2 = taosMemoryMalloc(sizeof(int64_t));
         SIMPLE_COPY_VALUES(data2, &r->ra.e);
         filterAddField(dst, NULL, &data2, FLD_TYPE_VALUE, &right2, tDataTypes[type].bytes, true);
         
-        filterAddUnit(dst, FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? TSDB_RELATION_GREATER : TSDB_RELATION_GREATER_EQUAL, &left, &right, &uidx);
-        filterAddUnitRight(dst, FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? TSDB_RELATION_LESS : TSDB_RELATION_LESS_EQUAL, &right2, uidx);
+        filterAddUnit(dst, FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_GREATER_THAN : OP_TYPE_GREATER_EQUAL, &left, &right, &uidx);
+        filterAddUnitRight(dst, FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_LOWER_THAN : OP_TYPE_LOWER_EQUAL, &right2, uidx);
         filterAddUnitToGroup(g, uidx);
       }
 
@@ -1218,18 +1250,18 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
     }
     
     if (!FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_NULL)) {
-      void *data = malloc(sizeof(int64_t));
+      void *data = taosMemoryMalloc(sizeof(int64_t));
       SIMPLE_COPY_VALUES(data, &r->ra.s);
       filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true);
-      filterAddUnit(dst, FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? TSDB_RELATION_GREATER : TSDB_RELATION_GREATER_EQUAL, &left, &right, &uidx);
+      filterAddUnit(dst, FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_GREATER_THAN : OP_TYPE_GREATER_EQUAL, &left, &right, &uidx);
       filterAddUnitToGroup(g, uidx);
     }
     
     if (!FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_NULL)) {
-      void *data = malloc(sizeof(int64_t));
+      void *data = taosMemoryMalloc(sizeof(int64_t));
       SIMPLE_COPY_VALUES(data, &r->ra.e);    
       filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true);
-      filterAddUnit(dst, FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? TSDB_RELATION_LESS : TSDB_RELATION_LESS_EQUAL, &left, &right, &uidx);
+      filterAddUnit(dst, FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_LOWER_THAN : OP_TYPE_LOWER_EQUAL, &left, &right, &uidx);
       filterAddUnitToGroup(g, uidx);
     }
 
@@ -1252,8 +1284,8 @@ static void filterFreeGroup(void *pItem) {
   }
   
   SFilterGroup* p = (SFilterGroup*) pItem;
-  tfree(p->unitIdxs);
-  tfree(p->unitFlags);
+  taosMemoryFreeClear(p->unitIdxs);
+  taosMemoryFreeClear(p->unitFlags);
 }
 
 
@@ -1262,7 +1294,7 @@ EDealRes fltTreeToGroup(SNode* pNode, void* pContext) {
   SArray* preGroup = NULL;
   SArray* newGroup = NULL;
   SArray* resGroup = NULL;
-  ENodeType nType = nodeType(nType);
+  ENodeType nType = nodeType(pNode);
   SFltBuildGroupCtx *ctx = (SFltBuildGroupCtx *)pContext;
 
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pNode)) {
@@ -1280,16 +1312,18 @@ EDealRes fltTreeToGroup(SNode* pNode, void* pContext) {
         FLT_ERR_JRET(filterDetachCnfGroups(resGroup, preGroup, newGroup));
         
         taosArrayDestroyEx(newGroup, filterFreeGroup);
+        newGroup = NULL;
         taosArrayDestroyEx(preGroup, filterFreeGroup);
         
         preGroup = resGroup;
+        resGroup = NULL;
+
+        cell = cell->pNext;
       }
 
-      taosArrayAddAll(ctx->group, resGroup);
+      taosArrayAddAll(ctx->group, preGroup);
 
-      taosArrayDestroyEx(newGroup, filterFreeGroup);
-      taosArrayDestroyEx(preGroup, filterFreeGroup);
-      taosArrayDestroyEx(resGroup, filterFreeGroup);
+      taosArrayDestroy(preGroup);
       
       return DEAL_RES_IGNORE_CHILD;
     }
@@ -1299,11 +1333,15 @@ EDealRes fltTreeToGroup(SNode* pNode, void* pContext) {
       for (int32_t i = 0; i < node->pParameterList->length; ++i) {
         nodesWalkNode(cell->pNode, fltTreeToGroup, (void *)pContext);
         FLT_ERR_JRET(ctx->code);
+        
+        cell = cell->pNext;
       }
       
       return DEAL_RES_IGNORE_CHILD;
     }
 
+    ctx->code = TSDB_CODE_QRY_APP_ERROR;
+    
     fltError("invalid condition type, type:%d", node->condType);
 
     return DEAL_RES_ERROR;
@@ -1312,7 +1350,7 @@ EDealRes fltTreeToGroup(SNode* pNode, void* pContext) {
   if (QUERY_NODE_OPERATOR == nType) {
     FLT_ERR_JRET(fltAddGroupUnitFromNode(ctx->info, pNode, ctx->group));  
     
-    return DEAL_RES_CONTINUE;
+    return DEAL_RES_IGNORE_CHILD;
   }
 
   fltError("invalid node type for filter, type:%d", nodeType(pNode));
@@ -1418,8 +1456,8 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
       qDebug("COLUMN Field Num:%u", info->fields[FLD_TYPE_COLUMN].num);
       for (uint32_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
         SFilterField *field = &info->fields[FLD_TYPE_COLUMN].fields[i];
-        SColumnRefNode *refNode = (SColumnRefNode *)field->desc;
-        qDebug("COL%d => [%d][%d]", i, refNode->tupleId, refNode->slotId);
+        SColumnNode *refNode = (SColumnNode *)field->desc;
+        qDebug("COL%d => [%d][%d]", i, refNode->dataBlockId, refNode->slotId);
       }
 
       qDebug("VALUE Field Num:%u", info->fields[FLD_TYPE_VALUE].num);
@@ -1447,12 +1485,12 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
         char str[512] = {0};
         
         SFilterField *left = FILTER_UNIT_LEFT_FIELD(info, unit);
-        SColumnRefNode *refNode = (SColumnRefNode *)left->desc;
-        if (unit->compare.optr >= TSDB_RELATION_INVALID && unit->compare.optr <= TSDB_RELATION_NMATCH){
-          len = sprintf(str, "UNIT[%d] => [%d][%d]  %s  [", i, refNode->tupleId, refNode->slotId, gOptrStr[unit->compare.optr].str);
+        SColumnNode *refNode = (SColumnNode *)left->desc;
+        if (unit->compare.optr >= 0 && unit->compare.optr <= OP_TYPE_JSON_CONTAINS){
+          len = sprintf(str, "UNIT[%d] => [%d][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId, gOptrStr[unit->compare.optr].str);
         }
 
-        if (unit->right.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != TSDB_RELATION_IN) {
+        if (unit->right.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != OP_TYPE_IN) {
           SFilterField *right = FILTER_UNIT_RIGHT_FIELD(info, unit);
           char *data = right->data;
           if (IS_VAR_DATA_TYPE(type)) {
@@ -1467,11 +1505,11 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
 
         if (unit->compare.optr2) {
           strcat(str, " && ");
-          if (unit->compare.optr2 >= TSDB_RELATION_INVALID && unit->compare.optr2 <= TSDB_RELATION_NMATCH){
-            sprintf(str + strlen(str), "[%d][%d]  %s  [", refNode->tupleId, refNode->slotId, gOptrStr[unit->compare.optr2].str);
+          if (unit->compare.optr2 >= 0 && unit->compare.optr2 <= OP_TYPE_JSON_CONTAINS){
+            sprintf(str + strlen(str), "[%d][%d]  %s  [", refNode->dataBlockId, refNode->slotId, gOptrStr[unit->compare.optr2].str);
           }
           
-          if (unit->right2.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != TSDB_RELATION_IN) {
+          if (unit->right2.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != OP_TYPE_IN) {
             SFilterField *right = FILTER_UNIT_RIGHT2_FIELD(info, unit);
             char *data = right->data;
             if (IS_VAR_DATA_TYPE(type)) {
@@ -1597,7 +1635,7 @@ void filterFreeGroupCtx(SFilterGroupCtx* gRes) {
     return;
   }
 
-  tfree(gRes->colIdx);
+  taosMemoryFreeClear(gRes->colIdx);
 
   int16_t i = 0, j = 0;
 
@@ -1610,8 +1648,8 @@ void filterFreeGroupCtx(SFilterGroupCtx* gRes) {
     ++j;
   }
 
-  tfree(gRes->colInfo);
-  tfree(gRes);
+  taosMemoryFreeClear(gRes->colInfo);
+  taosMemoryFreeClear(gRes);
 }
 
 void filterFreeField(SFilterField* field, int32_t type) {
@@ -1619,19 +1657,11 @@ void filterFreeField(SFilterField* field, int32_t type) {
     return;
   }
 
-  if (!FILTER_GET_FLAG(field->flag, FLD_DESC_NO_FREE)) {
-    if (type == FLD_TYPE_VALUE) {
-      taosVariantDestroy(field->desc);
-    }
-    
-    tfree(field->desc);
-  }
-
   if (!FILTER_GET_FLAG(field->flag, FLD_DATA_NO_FREE)) {
     if (FILTER_GET_FLAG(field->flag, FLD_DATA_IS_HASH)) {
       taosHashCleanup(field->data);
     } else {
-      tfree(field->data);
+      taosMemoryFreeClear(field->data);
     }
   }
 }
@@ -1646,40 +1676,40 @@ void filterFreeInfo(SFilterInfo *info) {
     return;
   }
 
-  tfree(info->cunits);
-  tfree(info->blkUnitRes);
-  tfree(info->blkUnits);
-  
+  taosMemoryFreeClear(info->cunits);
+  taosMemoryFreeClear(info->blkUnitRes);
+  taosMemoryFreeClear(info->blkUnits);
+
   for (int32_t i = 0; i < FLD_TYPE_MAX; ++i) {
     for (uint32_t f = 0; f < info->fields[i].num; ++f) {
       filterFreeField(&info->fields[i].fields[f], i);
     }
     
-    tfree(info->fields[i].fields);
+    taosMemoryFreeClear(info->fields[i].fields);
   }
 
   for (uint32_t i = 0; i < info->groupNum; ++i) {
     filterFreeGroup(&info->groups[i]);    
   }
   
-  tfree(info->groups);
+  taosMemoryFreeClear(info->groups);
 
-  tfree(info->units);
+  taosMemoryFreeClear(info->units);
 
-  tfree(info->unitRes);
+  taosMemoryFreeClear(info->unitRes);
 
-  tfree(info->unitFlags);
+  taosMemoryFreeClear(info->unitFlags);
 
   for (uint32_t i = 0; i < info->colRangeNum; ++i) {
     filterFreeRangeCtx(info->colRange[i]);
   }
 
-  tfree(info->colRange);
+  taosMemoryFreeClear(info->colRange);
 
   filterFreePCtx(&info->pctx);
 
   if (!FILTER_GET_FLAG(info->status, FI_STATUS_CLONED)) {
-    tfree(info);
+    taosMemoryFreeClear(info);
   }
 }
 
@@ -1688,15 +1718,15 @@ int32_t filterHandleValueExtInfo(SFilterUnit* unit, char extInfo) {
   
   uint8_t optr = FILTER_UNIT_OPTR(unit);
   switch (optr) {
-    case TSDB_RELATION_GREATER:
-    case TSDB_RELATION_GREATER_EQUAL:
-      unit->compare.optr = (extInfo > 0) ? FILTER_DUMMY_EMPTY_OPTR : TSDB_RELATION_NOTNULL;
+    case OP_TYPE_GREATER_THAN:
+    case OP_TYPE_GREATER_EQUAL:
+      unit->compare.optr = (extInfo > 0) ? FILTER_DUMMY_EMPTY_OPTR : OP_TYPE_IS_NOT_NULL;
       break;
-    case TSDB_RELATION_LESS:
-    case TSDB_RELATION_LESS_EQUAL:
-      unit->compare.optr = (extInfo > 0) ? TSDB_RELATION_NOTNULL : FILTER_DUMMY_EMPTY_OPTR;
+    case OP_TYPE_LOWER_THAN:
+    case OP_TYPE_LOWER_EQUAL:
+      unit->compare.optr = (extInfo > 0) ? OP_TYPE_IS_NOT_NULL : FILTER_DUMMY_EMPTY_OPTR;
       break;
-    case TSDB_RELATION_EQUAL:
+    case OP_TYPE_EQUAL:
       unit->compare.optr = FILTER_DUMMY_EMPTY_OPTR;
       break;
     default:
@@ -1706,75 +1736,12 @@ int32_t filterHandleValueExtInfo(SFilterUnit* unit, char extInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t fltGenerateSetFromList(void **data, void *pNode, uint32_t type) {
-  SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(type), true, false);
-  if (NULL == pObj) {
-    fltError("taosHashInit failed, size:%d", 256);
-    FLT_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-  }
-
-  taosHashSetEqualFp(pObj, taosGetDefaultEqualFunction(type)); 
-
-  int32_t code = 0;
-  SNodeListNode *nodeList = (SNodeListNode *)pNode;
-  SListCell *cell = nodeList->pNodeList->pHead;
-  SScalarParam in = {.num = 1}, out = {.num = 1, .type = type};
-  int8_t dummy = 0;
-  int32_t bufLen = 60;
-  out.data = malloc(bufLen);
-  int32_t len = 0;
-  void *buf = NULL;
-  
-  for (int32_t i = 0; i < nodeList->pNodeList->length; ++i) {
-    SValueNode *valueNode = (SValueNode *)cell->pNode;
-
-    if (valueNode->node.resType.type != type) {
-      in.type = valueNode->node.resType.type;
-      in.bytes = valueNode->node.resType.bytes;
-      in.data = nodesGetValueFromNode(valueNode);
-    
-      code = vectorConvertImpl(&in, &out);
-      if (code) {
-        fltError("convert from %d to %d failed", in.type, out.type);
-        FLT_ERR_JRET(code);
-      }
-
-      if (IS_VAR_DATA_TYPE(type)) {
-        len = varDataLen(out.data);
-      } else {
-        len = tDataTypes[type].bytes;
-      }
-
-      buf = out.data;
-    } else {
-      buf = nodesGetValueFromNode(valueNode);
-      len = valueNode->node.resType.bytes;
-    }
-    
-    if (taosHashPut(pObj, buf, (size_t)len, &dummy, sizeof(dummy))) {
-      fltError("taosHashPut failed");
-      FLT_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-    }
-  }
-
-  tfree(out.data);
-  *data = pObj;
-
-  return TSDB_CODE_SUCCESS;
-
-_return:
-
-  tfree(out.data);
-  taosHashCleanup(pObj);
-  
-  FLT_RET(code);
-}
 
 int32_t fltInitValFieldData(SFilterInfo *info) {
   for (uint32_t i = 0; i < info->unitNum; ++i) {
     SFilterUnit* unit = &info->units[i];
     if (unit->right.type != FLD_TYPE_VALUE) {
-      assert(unit->compare.optr == TSDB_RELATION_ISNULL || unit->compare.optr == TSDB_RELATION_NOTNULL || unit->compare.optr == FILTER_DUMMY_EMPTY_OPTR);
+      assert(unit->compare.optr == FILTER_DUMMY_EMPTY_OPTR || scalarGetOperatorParamNum(unit->compare.optr) == 1);
       continue;
     }
     
@@ -1792,8 +1759,8 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       continue;
     }
 
-    if (unit->compare.optr == TSDB_RELATION_IN) {
-      FLT_ERR_RET(fltGenerateSetFromList((void **)&fi->data, fi->desc, type));
+    if (unit->compare.optr == OP_TYPE_IN) {
+      FLT_ERR_RET(scalarGenerateSetFromList((void **)&fi->data, fi->desc, type));
       if (fi->data == NULL) {
         fltError("failed to convert in param");
         FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
@@ -1808,14 +1775,14 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
 
     if (type == TSDB_DATA_TYPE_BINARY) {
       size_t len = (dType->type == TSDB_DATA_TYPE_BINARY || dType->type == TSDB_DATA_TYPE_NCHAR) ? dType->bytes : MAX_NUM_STR_SIZE;
-      fi->data = calloc(1, len + 1 + VARSTR_HEADER_SIZE);
+      fi->data = taosMemoryCalloc(1, len + 1 + VARSTR_HEADER_SIZE);
     } else if (type == TSDB_DATA_TYPE_NCHAR) {
       size_t len = (dType->type == TSDB_DATA_TYPE_BINARY || dType->type == TSDB_DATA_TYPE_NCHAR) ? dType->bytes : MAX_NUM_STR_SIZE;    
-      fi->data = calloc(1, (len + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+      fi->data = taosMemoryCalloc(1, (len + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
     } else if (type != TSDB_DATA_TYPE_JSON){
       if (dType->type == TSDB_DATA_TYPE_VALUE_ARRAY) {  //TIME RANGE
 /*      
-        fi->data = calloc(dType->bytes, tDataTypes[type].bytes);
+        fi->data = taosMemoryCalloc(dType->bytes, tDataTypes[type].bytes);
         for (int32_t a = 0; a < dType->bytes; ++a) {
           int64_t *v = taosArrayGet(var->arr, a);
           assignVal((char *)fi->data + a * tDataTypes[type].bytes, (char *)v, 0, type);
@@ -1823,31 +1790,33 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
 */
         continue;
       } else {
-        fi->data = calloc(1, sizeof(int64_t));
+        fi->data = taosMemoryCalloc(1, sizeof(int64_t));
       }
     } else{     // type == TSDB_DATA_TYPE_JSON
       // fi->data = null;  use fi->desc as data, because json value is variable, so use tVariant (fi->desc)
     }
 
     if(type != TSDB_DATA_TYPE_JSON){
-      bool converted = false;
-      char extInfo = 0;
-      SScalarParam in = {.data = nodesGetValueFromNode(var), .num = 1, .type = dType->type, .bytes = dType->bytes};
-      SScalarParam out = {.data = fi->data, .num = 1, .type = type};
-      if (vectorConvertImpl(&in, &out)) {
-        qError("convert value to type[%d] failed", type);
-        return TSDB_CODE_TSC_INVALID_OPERATION;
+      if (dType->type == type) {
+        assignVal(fi->data, nodesGetValueFromNode(var), dType->bytes, type);
+      } else {
+        SScalarParam in = {.data = nodesGetValueFromNode(var), .num = 1, .type = dType->type, .bytes = dType->bytes};
+        SScalarParam out = {.data = fi->data, .num = 1, .type = type};
+        if (vectorConvertImpl(&in, &out)) {
+          qError("convert value to type[%d] failed", type);
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
       }
     }
 
     // match/nmatch for nchar type need convert from ucs4 to mbs
     if(type == TSDB_DATA_TYPE_NCHAR &&
-        (unit->compare.optr == TSDB_RELATION_MATCH || unit->compare.optr == TSDB_RELATION_NMATCH)){
+        (unit->compare.optr == OP_TYPE_MATCH || unit->compare.optr == OP_TYPE_NMATCH)){
       char newValData[TSDB_REGEX_STRING_DEFAULT_LEN * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE] = {0};
-      int32_t len = taosUcs4ToMbs(varDataVal(fi->data), varDataLen(fi->data), varDataVal(newValData));
+      int32_t len = taosUcs4ToMbs((TdUcs4*)varDataVal(fi->data), varDataLen(fi->data), varDataVal(newValData));
       if (len < 0){
         qError("filterInitValFieldData taosUcs4ToMbs error 1");
-        return TSDB_CODE_FAILED;
+        return TSDB_CODE_QRY_APP_ERROR;
       }
       varDataSetLen(newValData, len);
       varDataCopy(fi->data, newValData);
@@ -1862,34 +1831,40 @@ bool filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right) 
   int32_t ret = func(left, right);
 
   switch (optr) {
-    case TSDB_RELATION_EQUAL: {
+    case OP_TYPE_EQUAL: {
       return ret == 0;
     }
-    case TSDB_RELATION_NOT_EQUAL: {
+    case OP_TYPE_NOT_EQUAL: {
       return ret != 0;
     }
-    case TSDB_RELATION_GREATER_EQUAL: {
+    case OP_TYPE_GREATER_EQUAL: {
       return ret >= 0;
     }
-    case TSDB_RELATION_GREATER: {
+    case OP_TYPE_GREATER_THAN: {
       return ret > 0;
     }
-    case TSDB_RELATION_LESS_EQUAL: {
+    case OP_TYPE_LOWER_EQUAL: {
       return ret <= 0;
     }
-    case TSDB_RELATION_LESS: {
+    case OP_TYPE_LOWER_THAN: {
       return ret < 0;
     }
-    case TSDB_RELATION_LIKE: {
+    case OP_TYPE_LIKE: {
       return ret == 0;
     }
-    case TSDB_RELATION_MATCH: {
+    case OP_TYPE_NOT_LIKE: {
       return ret == 0;
     }
-    case TSDB_RELATION_NMATCH: {
+    case OP_TYPE_MATCH: {
       return ret == 0;
     }
-    case TSDB_RELATION_IN: {
+    case OP_TYPE_NMATCH: {
+      return ret == 0;
+    }
+    case OP_TYPE_IN: {
+      return ret == 1;
+    }
+    case OP_TYPE_NOT_IN: {
       return ret == 1;
     }
 
@@ -1909,25 +1884,25 @@ int32_t filterAddUnitRange(SFilterInfo *info, SFilterUnit* u, SFilterRangeCtx *c
   int64_t tmp = 0;
 
   switch (uoptr) {
-    case TSDB_RELATION_GREATER:
+    case OP_TYPE_GREATER_THAN:
       SIMPLE_COPY_VALUES(&ra.s, val);
       FILTER_SET_FLAG(ra.sflag, RANGE_FLG_EXCLUDE);
       FILTER_SET_FLAG(ra.eflag, RANGE_FLG_NULL);
       break;
-    case TSDB_RELATION_GREATER_EQUAL:
+    case OP_TYPE_GREATER_EQUAL:
       SIMPLE_COPY_VALUES(&ra.s, val);
       FILTER_SET_FLAG(ra.eflag, RANGE_FLG_NULL);
       break;
-    case TSDB_RELATION_LESS:
+    case OP_TYPE_LOWER_THAN:
       SIMPLE_COPY_VALUES(&ra.e, val);
       FILTER_SET_FLAG(ra.eflag, RANGE_FLG_EXCLUDE);
       FILTER_SET_FLAG(ra.sflag, RANGE_FLG_NULL);
       break;
-    case TSDB_RELATION_LESS_EQUAL:
+    case OP_TYPE_LOWER_EQUAL:
       SIMPLE_COPY_VALUES(&ra.e, val);
       FILTER_SET_FLAG(ra.sflag, RANGE_FLG_NULL);
       break;
-    case TSDB_RELATION_NOT_EQUAL:
+    case OP_TYPE_NOT_EQUAL:
       assert(type == TSDB_DATA_TYPE_BOOL);
       if (GET_INT8_VAL(val)) {
         SIMPLE_COPY_VALUES(&ra.s, &tmp);
@@ -1938,7 +1913,7 @@ int32_t filterAddUnitRange(SFilterInfo *info, SFilterUnit* u, SFilterRangeCtx *c
         SIMPLE_COPY_VALUES(&ra.e, &tmp);        
       }
       break;
-    case TSDB_RELATION_EQUAL:
+    case OP_TYPE_EQUAL:
       SIMPLE_COPY_VALUES(&ra.s, val);
       SIMPLE_COPY_VALUES(&ra.e, val);
       break;
@@ -1992,15 +1967,15 @@ int32_t filterMergeUnits(SFilterInfo *info, SFilterGroupCtx* gRes, uint32_t colI
     SFilterUnit* u = taosArrayGetP(colArray, i);
     uint8_t optr = FILTER_UNIT_OPTR(u);
 
-    filterAddRangeOptr(ctx, optr, TSDB_RELATION_AND, empty, NULL);
+    filterAddRangeOptr(ctx, optr, LOGIC_COND_TYPE_AND, empty, NULL);
     FLT_CHK_JMP(*empty);
 
     if (!FILTER_NO_MERGE_OPTR(optr)) {
-      filterAddUnitRange(info, u, ctx, TSDB_RELATION_AND);
+      filterAddUnitRange(info, u, ctx, LOGIC_COND_TYPE_AND);
       FLT_CHK_JMP(MR_EMPTY_RES(ctx));
     }
-    if(FILTER_UNIT_OPTR(u) == TSDB_RELATION_EQUAL && !FILTER_NO_MERGE_DATA_TYPE(FILTER_UNIT_DATA_TYPE(u))){
-      gRes->colInfo[colIdx].optr = TSDB_RELATION_EQUAL;
+    if(FILTER_UNIT_OPTR(u) == OP_TYPE_EQUAL && !FILTER_NO_MERGE_DATA_TYPE(FILTER_UNIT_DATA_TYPE(u))){
+      gRes->colInfo[colIdx].optr = OP_TYPE_EQUAL;
       SIMPLE_COPY_VALUES(&gRes->colInfo[colIdx].value, FILTER_UNIT_VAL_DATA(info, u));
     }
   }
@@ -2023,15 +1998,15 @@ _return:
 
 int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t* gResNum) {
   bool empty = false;
-  uint32_t *colIdx = malloc(info->fields[FLD_TYPE_COLUMN].num * sizeof(uint32_t));
+  uint32_t *colIdx = taosMemoryMalloc(info->fields[FLD_TYPE_COLUMN].num * sizeof(uint32_t));
   uint32_t colIdxi = 0;
   uint32_t gResIdx = 0;
   
   for (uint32_t i = 0; i < info->groupNum; ++i) {
     SFilterGroup* g = info->groups + i;
 
-    gRes[gResIdx] = calloc(1, sizeof(SFilterGroupCtx));
-    gRes[gResIdx]->colInfo = calloc(info->fields[FLD_TYPE_COLUMN].num, sizeof(SFilterColInfo));
+    gRes[gResIdx] = taosMemoryCalloc(1, sizeof(SFilterGroupCtx));
+    gRes[gResIdx]->colInfo = taosMemoryCalloc(info->fields[FLD_TYPE_COLUMN].num, sizeof(SFilterColInfo));
     colIdxi = 0;
     empty = false;
     
@@ -2083,7 +2058,7 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t
     ++gResIdx;
   }
 
-  tfree(colIdx);
+  taosMemoryFreeClear(colIdx);
 
   *gResNum = gResIdx;
   
@@ -2120,7 +2095,7 @@ void filterCheckColConflict(SFilterGroupCtx* gRes1, SFilterGroupCtx* gRes2, bool
       }
 
       // for long in operation
-      if (gRes1->colInfo[idx1].optr == TSDB_RELATION_EQUAL && gRes2->colInfo[idx2].optr == TSDB_RELATION_EQUAL) {
+      if (gRes1->colInfo[idx1].optr == OP_TYPE_EQUAL && gRes2->colInfo[idx2].optr == OP_TYPE_EQUAL) {
         SFilterRangeCtx* ctx = gRes1->colInfo[idx1].info;
         if (ctx->pCompareFunc(&gRes1->colInfo[idx1].value, &gRes2->colInfo[idx2].value)){
           *conflict = true;
@@ -2196,7 +2171,7 @@ int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx** gRes1, SFilter
       
       ++merNum;
       
-      filterMergeTwoGroupsImpl(info, &ctx, TSDB_RELATION_OR, idx1, *gRes1, *gRes2, NULL, all);
+      filterMergeTwoGroupsImpl(info, &ctx, LOGIC_COND_TYPE_OR, idx1, *gRes1, *gRes2, NULL, all);
 
       FLT_CHK_JMP(*all);
 
@@ -2375,12 +2350,12 @@ int32_t filterConvertGroupFromArray(SFilterInfo *info, SArray* group) {
   info->groupNum = (uint32_t)groupSize;
 
   if (info->groupNum > 0) {
-    info->groups = calloc(info->groupNum, sizeof(*info->groups));
+    info->groups = taosMemoryCalloc(info->groupNum, sizeof(*info->groups));
   }
 
   for (size_t i = 0; i < groupSize; ++i) {
     SFilterGroup *pg = taosArrayGet(group, i);
-    pg->unitFlags = calloc(pg->unitNum, sizeof(*pg->unitFlags));
+    pg->unitFlags = taosMemoryCalloc(pg->unitNum, sizeof(*pg->unitFlags));
     info->groups[i] = *pg;
   }
 
@@ -2410,14 +2385,14 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t gResNum
   oinfo.colRangeNum = 0;
   oinfo.colRange = NULL;
 
-  FILTER_SET_FLAG(info->options, FI_OPTION_NEED_UNIQE);
+  FILTER_SET_FLAG(info->options, FLT_OPTION_NEED_UNIQE);
 
   filterInitUnitsFields(info);
 
   for (int32_t i = 0; i < gResNum; ++i) {
     res = gRes[i];
 
-    optr = (res->colNum > 1) ? TSDB_RELATION_AND : TSDB_RELATION_OR;
+    optr = (res->colNum > 1) ? LOGIC_COND_TYPE_AND : LOGIC_COND_TYPE_OR;
 
     SFilterGroup ng = {0};
     
@@ -2460,7 +2435,7 @@ int32_t filterGenerateColRange(SFilterInfo *info, SFilterGroupCtx** gRes, int32_
   uint32_t *idxs = NULL;
   uint32_t colNum = 0;
   SFilterGroupCtx *res = NULL;
-  uint32_t *idxNum = calloc(info->fields[FLD_TYPE_COLUMN].num, sizeof(*idxNum));
+  uint32_t *idxNum = taosMemoryCalloc(info->fields[FLD_TYPE_COLUMN].num, sizeof(*idxNum));
 
   for (int32_t i = 0; i < gResNum; ++i) {
     for (uint32_t m = 0; m < gRes[i]->colNum; ++m) {
@@ -2481,7 +2456,7 @@ int32_t filterGenerateColRange(SFilterInfo *info, SFilterGroupCtx** gRes, int32_
     assert(idxNum[i] == gResNum);
     
     if (idxs == NULL) {
-      idxs = calloc(info->fields[FLD_TYPE_COLUMN].num, sizeof(*idxs));
+      idxs = taosMemoryCalloc(info->fields[FLD_TYPE_COLUMN].num, sizeof(*idxs));
     }
 
     idxs[colNum++] = i;
@@ -2490,7 +2465,7 @@ int32_t filterGenerateColRange(SFilterInfo *info, SFilterGroupCtx** gRes, int32_
   FLT_CHK_JMP(colNum <= 0);
 
   info->colRangeNum = colNum;
-  info->colRange = calloc(colNum, POINTER_BYTES);
+  info->colRange = taosMemoryCalloc(colNum, POINTER_BYTES);
 
   for (int32_t i = 0; i < gResNum; ++i) {
     res = gRes[i];
@@ -2514,7 +2489,7 @@ int32_t filterGenerateColRange(SFilterInfo *info, SFilterGroupCtx** gRes, int32_
         assert(colInfo->type == RANGE_TYPE_MR_CTX);
 
         bool all = false;
-        filterSourceRangeFromCtx(info->colRange[m], colInfo->info, TSDB_RELATION_OR, NULL, &all);
+        filterSourceRangeFromCtx(info->colRange[m], colInfo->info, LOGIC_COND_TYPE_OR, NULL, &all);
         if (all) {
           filterFreeRangeCtx(info->colRange[m]);
           info->colRange[m] = NULL;
@@ -2537,8 +2512,8 @@ int32_t filterGenerateColRange(SFilterInfo *info, SFilterGroupCtx** gRes, int32_
   }
 
 _return:
-  tfree(idxNum);
-  tfree(idxs);
+  taosMemoryFreeClear(idxNum);
+  taosMemoryFreeClear(idxs);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2558,9 +2533,9 @@ int32_t filterPostProcessRange(SFilterInfo *info) {
 
 
 int32_t filterGenerateComInfo(SFilterInfo *info) {
-  info->cunits = malloc(info->unitNum * sizeof(*info->cunits));
-  info->blkUnitRes = malloc(sizeof(*info->blkUnitRes) * info->unitNum);
-  info->blkUnits = malloc(sizeof(*info->blkUnits) * (info->unitNum + 1) * info->groupNum);
+  info->cunits = taosMemoryMalloc(info->unitNum * sizeof(*info->cunits));
+  info->blkUnitRes = taosMemoryMalloc(sizeof(*info->blkUnitRes) * info->unitNum);
+  info->blkUnits = taosMemoryMalloc(sizeof(*info->blkUnits) * (info->unitNum + 1) * info->groupNum);
 
   for (uint32_t i = 0; i < info->unitNum; ++i) {
     SFilterUnit *unit = &info->units[i];
@@ -2597,7 +2572,8 @@ int32_t filterUpdateComUnits(SFilterInfo *info) {
   for (uint32_t i = 0; i < info->unitNum; ++i) {
     SFilterUnit *unit = &info->units[i];
 
-    info->cunits[i].colData = FILTER_UNIT_COL_DATA(info, unit, 0);
+    SFilterField *col = FILTER_UNIT_LEFT_FIELD(info, unit);
+    info->cunits[i].colData = col->data;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2629,20 +2605,20 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SColumnDataAgg *pDataStatis, int3
     }
 
     if (pDataStatis[index].numOfNull <= 0) {
-      if (cunit->optr == TSDB_RELATION_ISNULL) {
+      if (cunit->optr == OP_TYPE_IS_NULL) {
         info->blkUnitRes[k] = -1;
         rmUnit = 1;
         continue;
       }
 
-      if (cunit->optr == TSDB_RELATION_NOTNULL) {
+      if (cunit->optr == OP_TYPE_IS_NOT_NULL) {
         info->blkUnitRes[k] = 1;
         rmUnit = 1;
         continue;
       }
     } else {
       if (pDataStatis[index].numOfNull == numOfRows) {
-        if (cunit->optr == TSDB_RELATION_ISNULL) {
+        if (cunit->optr == OP_TYPE_IS_NULL) {
           info->blkUnitRes[k] = 1;
           rmUnit = 1;
           continue;
@@ -2654,9 +2630,9 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SColumnDataAgg *pDataStatis, int3
       }
     }
 
-    if (cunit->optr == TSDB_RELATION_ISNULL || cunit->optr == TSDB_RELATION_NOTNULL
-     || cunit->optr == TSDB_RELATION_IN || cunit->optr == TSDB_RELATION_LIKE || cunit->optr == TSDB_RELATION_MATCH
-     || cunit->optr == TSDB_RELATION_NOT_EQUAL) {
+    if (cunit->optr == OP_TYPE_IS_NULL || cunit->optr == OP_TYPE_IS_NOT_NULL
+     || cunit->optr == OP_TYPE_IN || cunit->optr == OP_TYPE_LIKE || cunit->optr == OP_TYPE_MATCH
+     || cunit->optr == OP_TYPE_NOT_EQUAL) {
       continue;
     }
 
@@ -2686,8 +2662,8 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SColumnDataAgg *pDataStatis, int3
         info->blkUnitRes[k] = 1;
         rmUnit = 1;
       } else if ((!minRes) && (!maxRes)) {
-        minRes = filterDoCompare(gDataCompare[cunit->func], TSDB_RELATION_LESS_EQUAL, minVal, cunit->valData);
-        maxRes = filterDoCompare(gDataCompare[cunit->func], TSDB_RELATION_GREATER_EQUAL, maxVal, cunit->valData2);
+        minRes = filterDoCompare(gDataCompare[cunit->func], OP_TYPE_LOWER_EQUAL, minVal, cunit->valData);
+        maxRes = filterDoCompare(gDataCompare[cunit->func], OP_TYPE_GREATER_EQUAL, maxVal, cunit->valData2);
 
         if (minRes && maxRes) {
           continue;
@@ -2704,9 +2680,9 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SColumnDataAgg *pDataStatis, int3
         info->blkUnitRes[k] = 1;
         rmUnit = 1;
       } else if ((!minRes) && (!maxRes)) {
-        if (cunit->optr == TSDB_RELATION_EQUAL) {
-          minRes = filterDoCompare(gDataCompare[cunit->func], TSDB_RELATION_GREATER, minVal, cunit->valData);
-          maxRes = filterDoCompare(gDataCompare[cunit->func], TSDB_RELATION_LESS, maxVal, cunit->valData);
+        if (cunit->optr == OP_TYPE_EQUAL) {
+          minRes = filterDoCompare(gDataCompare[cunit->func], OP_TYPE_GREATER_THAN, minVal, cunit->valData);
+          maxRes = filterDoCompare(gDataCompare[cunit->func], OP_TYPE_LOWER_THAN, maxVal, cunit->valData);
           if (minRes || maxRes) {
             info->blkUnitRes[k] = -1;
             rmUnit = 1;
@@ -2790,7 +2766,7 @@ bool filterExecuteBasedOnStatisImpl(void *pinfo, int32_t numOfRows, int8_t** p, 
   uint32_t *unitIdx = NULL;
 
   if (*p == NULL) {
-    *p = calloc(numOfRows, sizeof(int8_t));
+    *p = taosMemoryCalloc(numOfRows, sizeof(int8_t));
   }
   
   for (int32_t i = 0; i < numOfRows; ++i) {
@@ -2802,19 +2778,19 @@ bool filterExecuteBasedOnStatisImpl(void *pinfo, int32_t numOfRows, int8_t** p, 
       uint32_t unitNum = *(unitIdx++);
       for (uint32_t u = 0; u < unitNum; ++u) {
         SFilterComUnit *cunit = &info->cunits[*(unitIdx + u)];
-        void *colData = (char *)cunit->colData + cunit->dataSize * i;
+        void *colData = colDataGetData((SColumnInfoData *)cunit->colData, i);
       
         //if (FILTER_UNIT_GET_F(info, uidx)) {
         //  p[i] = FILTER_UNIT_GET_R(info, uidx);
         //} else {
           uint8_t optr = cunit->optr;
 
-          if (isNull(colData, cunit->dataType)) {
-            (*p)[i] = optr == TSDB_RELATION_ISNULL ? true : false;
+          if (colDataIsNull((SColumnInfoData *)(cunit->colData), 0, i, NULL)) {
+            (*p)[i] = optr == OP_TYPE_IS_NULL ? true : false;
           } else {
-            if (optr == TSDB_RELATION_NOTNULL) {
+            if (optr == OP_TYPE_IS_NOT_NULL) {
               (*p)[i] = 1;
-            } else if (optr == TSDB_RELATION_ISNULL) {
+            } else if (optr == OP_TYPE_IS_NULL) {
               (*p)[i] = 0;
             } else if (cunit->rfunc >= 0) {
               (*p)[i] = (*gRangeCompare[cunit->rfunc])(colData, colData, cunit->valData, cunit->valData2, gDataCompare[cunit->func]);
@@ -2895,23 +2871,23 @@ static FORCE_INLINE bool filterExecuteImplIsNull(void *pinfo, int32_t numOfRows,
   }
 
   if (*p == NULL) {
-    *p = calloc(numOfRows, sizeof(int8_t));
+    *p = taosMemoryCalloc(numOfRows, sizeof(int8_t));
   }
   
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint32_t uidx = info->groups[0].unitIdxs[0];
-    void *colData = (char *)info->cunits[uidx].colData + info->cunits[uidx].dataSize * i;
+    void *colData = colDataGetData((SColumnInfoData *)info->cunits[uidx].colData, i);
     if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_JSON){
       if (!colData){  // for json->'key' is null
         (*p)[i] = 1;
       }else if( *(char*)colData == TSDB_DATA_TYPE_JSON){  // for json is null
         colData = POINTER_SHIFT(colData, CHAR_BYTES);
-        (*p)[i] = isNull(colData, info->cunits[uidx].dataType);
+        (*p)[i] = colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL);
       }else{
         (*p)[i] = 0;
       }
     }else{
-      (*p)[i] = ((colData == NULL) || isNull(colData, info->cunits[uidx].dataType));
+      (*p)[i] = ((colData == NULL) || colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL));
     }
     if ((*p)[i] == 0) {
       all = false;
@@ -2929,24 +2905,24 @@ static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows
   }
 
   if (*p == NULL) {
-    *p = calloc(numOfRows, sizeof(int8_t));
+    *p = taosMemoryCalloc(numOfRows, sizeof(int8_t));
   }
   
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint32_t uidx = info->groups[0].unitIdxs[0];
-    void *colData = (char *)info->cunits[uidx].colData + info->cunits[uidx].dataSize * i;
+    void *colData = colDataGetData((SColumnInfoData *)info->cunits[uidx].colData, i);
 
     if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_JSON){
       if (!colData) {   // for json->'key' is not null
         (*p)[i] = 0;
       }else if( *(char*)colData == TSDB_DATA_TYPE_JSON){   // for json is not null
         colData = POINTER_SHIFT(colData, CHAR_BYTES);
-        (*p)[i] = !isNull(colData, info->cunits[uidx].dataType);
+        (*p)[i] = !colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL);
       }else{    // for json->'key' is not null
         (*p)[i] = 1;
       }
     }else {
-      (*p)[i] = ((colData != NULL) && !isNull(colData, info->cunits[uidx].dataType));
+      (*p)[i] = ((colData != NULL) && !colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL));
     }
 
     if ((*p)[i] == 0) {
@@ -2961,7 +2937,6 @@ bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t** p, SColumnD
   SFilterInfo *info = (SFilterInfo *)pinfo;
   bool all = true;
   uint16_t dataSize = info->cunits[0].dataSize;
-  char *colData = (char *)info->cunits[0].colData;
   rangeCompFunc rfunc = gRangeCompare[info->cunits[0].rfunc];
   void *valData = info->cunits[0].valData;
   void *valData2 = info->cunits[0].valData2;
@@ -2972,13 +2947,14 @@ bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t** p, SColumnD
   }
 
   if (*p == NULL) {
-    *p = calloc(numOfRows, sizeof(int8_t));
+    *p = taosMemoryCalloc(numOfRows, sizeof(int8_t));
   }
   
-  for (int32_t i = 0; i < numOfRows; ++i) {
-    if (colData == NULL || isNull(colData, info->cunits[0].dataType)) {
+  for (int32_t i = 0; i < numOfRows; ++i) {    
+    void *colData = colDataGetData((SColumnInfoData *)info->cunits[0].colData, i);
+
+    if (colData == NULL || colDataIsNull((SColumnInfoData *)info->cunits[0].colData, 0, i, NULL)) {
       all = false;
-      colData += dataSize;
       continue;
     }
 
@@ -2987,8 +2963,6 @@ bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t** p, SColumnD
     if ((*p)[i] == 0) {
       all = false;
     }
-    
-    colData += dataSize;
   }
 
   return all;
@@ -3003,29 +2977,29 @@ bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, int8_t** p, SColumnDa
   }
   
   if (*p == NULL) {
-    *p = calloc(numOfRows, sizeof(int8_t));
+    *p = taosMemoryCalloc(numOfRows, sizeof(int8_t));
   }
   
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint32_t uidx = info->groups[0].unitIdxs[0];
-    void *colData = (char *)info->cunits[uidx].colData + info->cunits[uidx].dataSize * i;
-    if (colData == NULL || isNull(colData, info->cunits[uidx].dataType)) {
+    void *colData = colDataGetData((SColumnInfoData *)info->cunits[uidx].colData, i);
+    if (colData == NULL || colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL)) {
       (*p)[i] = 0;
       all = false;
       continue;
     }
     // match/nmatch for nchar type need convert from ucs4 to mbs
 
-    if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_NCHAR && (info->cunits[uidx].optr == TSDB_RELATION_MATCH || info->cunits[uidx].optr == TSDB_RELATION_NMATCH)){
-      char *newColData = calloc(info->cunits[uidx].dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
-      int32_t len = taosUcs4ToMbs(varDataVal(colData), varDataLen(colData), varDataVal(newColData));
+    if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_NCHAR && (info->cunits[uidx].optr == OP_TYPE_MATCH || info->cunits[uidx].optr == OP_TYPE_NMATCH)){
+      char *newColData = taosMemoryCalloc(info->cunits[uidx].dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
+      int32_t len = taosUcs4ToMbs((TdUcs4*)varDataVal(colData), varDataLen(colData), varDataVal(newColData));
       if (len < 0){
         qError("castConvert1 taosUcs4ToMbs error");
       }else{
         varDataSetLen(newColData, len);
         (*p)[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, newColData, info->cunits[uidx].valData);
       }
-      tfree(newColData);
+      taosMemoryFreeClear(newColData);
     }else{
       (*p)[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, colData, info->cunits[uidx].valData);
     }
@@ -3048,7 +3022,7 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, int8_t** p, SColumnDataAg
   }
 
   if (*p == NULL) {
-    *p = calloc(numOfRows, sizeof(int8_t));
+    *p = taosMemoryCalloc(numOfRows, sizeof(int8_t));
   }
   
   for (int32_t i = 0; i < numOfRows; ++i) {
@@ -3059,33 +3033,33 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, int8_t** p, SColumnDataAg
       for (uint32_t u = 0; u < group->unitNum; ++u) {
         uint32_t uidx = group->unitIdxs[u];
         SFilterComUnit *cunit = &info->cunits[uidx];
-        void *colData = (char *)cunit->colData + cunit->dataSize * i;
+        void *colData = colDataGetData((SColumnInfoData *)(cunit->colData), i);
       
         //if (FILTER_UNIT_GET_F(info, uidx)) {
         //  p[i] = FILTER_UNIT_GET_R(info, uidx);
         //} else {
           uint8_t optr = cunit->optr;
 
-          if (colData == NULL || isNull(colData, cunit->dataType)) {
-            (*p)[i] = optr == TSDB_RELATION_ISNULL ? true : false;
+          if (colData == NULL || colDataIsNull((SColumnInfoData *)(cunit->colData), 0, i, NULL)) {
+            (*p)[i] = optr == OP_TYPE_IS_NULL ? true : false;
           } else {
-            if (optr == TSDB_RELATION_NOTNULL) {
+            if (optr == OP_TYPE_IS_NOT_NULL) {
               (*p)[i] = 1;
-            } else if (optr == TSDB_RELATION_ISNULL) {
+            } else if (optr == OP_TYPE_IS_NULL) {
               (*p)[i] = 0;
             } else if (cunit->rfunc >= 0) {
               (*p)[i] = (*gRangeCompare[cunit->rfunc])(colData, colData, cunit->valData, cunit->valData2, gDataCompare[cunit->func]);
             } else {
-              if(cunit->dataType == TSDB_DATA_TYPE_NCHAR && (cunit->optr == TSDB_RELATION_MATCH || cunit->optr == TSDB_RELATION_NMATCH)){
-                char *newColData = calloc(cunit->dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
-                int32_t len = taosUcs4ToMbs(varDataVal(colData), varDataLen(colData), varDataVal(newColData));
+              if(cunit->dataType == TSDB_DATA_TYPE_NCHAR && (cunit->optr == OP_TYPE_MATCH || cunit->optr == OP_TYPE_NMATCH)){
+                char *newColData = taosMemoryCalloc(cunit->dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
+                int32_t len = taosUcs4ToMbs((TdUcs4*)varDataVal(colData), varDataLen(colData), varDataVal(newColData));
                 if (len < 0){
                   qError("castConvert1 taosUcs4ToMbs error");
                 }else{
                   varDataSetLen(newColData, len);
                   (*p)[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, newColData, cunit->valData);
                 }
-                tfree(newColData);
+                taosMemoryFreeClear(newColData);
               }else{
                 (*p)[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, colData, cunit->valData);
               }
@@ -3129,12 +3103,12 @@ int32_t filterSetExecFunc(SFilterInfo *info) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (info->units[0].compare.optr == TSDB_RELATION_ISNULL) {
+  if (info->units[0].compare.optr == OP_TYPE_IS_NULL) {
     info->func = filterExecuteImplIsNull;
     return TSDB_CODE_SUCCESS;
   }
 
-  if (info->units[0].compare.optr == TSDB_RELATION_NOTNULL) {
+  if (info->units[0].compare.optr == OP_TYPE_IS_NOT_NULL) {
     info->func = filterExecuteImplNotNull;
     return TSDB_CODE_SUCCESS;
   }
@@ -3151,7 +3125,7 @@ int32_t filterSetExecFunc(SFilterInfo *info) {
 
 
 int32_t filterPreprocess(SFilterInfo *info) {
-  SFilterGroupCtx** gRes = calloc(info->groupNum, sizeof(SFilterGroupCtx *));
+  SFilterGroupCtx** gRes = taosMemoryCalloc(info->groupNum, sizeof(SFilterGroupCtx *));
   int32_t gResNum = 0;
   
   filterMergeGroupUnits(info, gRes, &gResNum);
@@ -3187,7 +3161,7 @@ _return:
     filterFreeGroupCtx(gRes[i]);
   }
 
-  tfree(gRes);
+  taosMemoryFreeClear(gRes);
   
   return TSDB_CODE_SUCCESS;
 }
@@ -3230,7 +3204,7 @@ int32_t fltInitFromNode(SNode* tree, SFilterInfo *info, uint32_t options) {
 
   FLT_ERR_JRET(fltInitValFieldData(info));
 
-  if (!FILTER_GET_FLAG(info->options, FI_OPTION_NO_REWRITE)) {
+  if (!FILTER_GET_FLAG(info->options, FLT_OPTION_NO_REWRITE)) {
     filterDumpInfoToString(info, "Before preprocess", 0);
 
     FLT_ERR_JRET(filterPreprocess(info));
@@ -3242,8 +3216,8 @@ int32_t fltInitFromNode(SNode* tree, SFilterInfo *info, uint32_t options) {
     }
   }  
 
-  info->unitRes = malloc(info->unitNum * sizeof(*info->unitRes));
-  info->unitFlags = malloc(info->unitNum * sizeof(*info->unitFlags));
+  info->unitRes = taosMemoryMalloc(info->unitNum * sizeof(*info->unitRes));
+  info->unitFlags = taosMemoryMalloc(info->unitNum * sizeof(*info->unitFlags));
 
   filterDumpInfoToString(info, "Final", 0);
 
@@ -3251,7 +3225,7 @@ int32_t fltInitFromNode(SNode* tree, SFilterInfo *info, uint32_t options) {
 
 _return:
 
-  qInfo("No filter, code:%d", code);
+  qInfo("init from node failed, code:%d", code);
   
   return code;
 }
@@ -3348,8 +3322,8 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t 
 
 int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow       *win) {
   SFilterRange ra = {0};
-  SFilterRangeCtx *prev = filterInitRangeCtx(TSDB_DATA_TYPE_TIMESTAMP, FI_OPTION_TIMESTAMP);
-  SFilterRangeCtx *tmpc = filterInitRangeCtx(TSDB_DATA_TYPE_TIMESTAMP, FI_OPTION_TIMESTAMP);
+  SFilterRangeCtx *prev = filterInitRangeCtx(TSDB_DATA_TYPE_TIMESTAMP, FLT_OPTION_TIMESTAMP);
+  SFilterRangeCtx *tmpc = filterInitRangeCtx(TSDB_DATA_TYPE_TIMESTAMP, FLT_OPTION_TIMESTAMP);
   SFilterRangeCtx *cur = NULL;
   int32_t num = 0;
   int32_t optr = 0;
@@ -3360,10 +3334,10 @@ int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow       *win) {
     SFilterGroup *group = &info->groups[i];
     if (group->unitNum > 1) {
       cur = tmpc;
-      optr = TSDB_RELATION_AND;
+      optr = LOGIC_COND_TYPE_AND;
     } else {
       cur = prev;
-      optr = TSDB_RELATION_OR;
+      optr = LOGIC_COND_TYPE_OR;
     }
 
     for (uint32_t u = 0; u < group->unitNum; ++u) {
@@ -3372,21 +3346,14 @@ int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow       *win) {
 
       uint8_t raOptr = FILTER_UNIT_OPTR(unit);
       
-      filterAddRangeOptr(cur, raOptr, TSDB_RELATION_AND, &empty, NULL);
+      filterAddRangeOptr(cur, raOptr, LOGIC_COND_TYPE_AND, &empty, NULL);
       FLT_CHK_JMP(empty);
       
       if (FILTER_NO_MERGE_OPTR(raOptr)) {
         continue;
       }
-      
-      SFilterField *right = FILTER_UNIT_RIGHT_FIELD(info, unit);
-      void *s = FILTER_GET_VAL_FIELD_DATA(right);
-      void *e = FILTER_GET_VAL_FIELD_DATA(right) + tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
 
-      SIMPLE_COPY_VALUES(&ra.s, s);
-      SIMPLE_COPY_VALUES(&ra.e, e);
-      
-      filterAddRange(cur, &ra, optr);
+      filterAddUnitRange(info, unit, cur, optr);
     }
 
     if (cur->notnull) {
@@ -3395,7 +3362,7 @@ int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow       *win) {
     }
 
     if (group->unitNum > 1) {
-      filterSourceRangeFromCtx(prev, cur, TSDB_RELATION_OR, &empty, &all);
+      filterSourceRangeFromCtx(prev, cur, LOGIC_COND_TYPE_OR, &empty, &all);
       filterResetRangeCtx(cur);
       if (all) {
         break;
@@ -3451,7 +3418,7 @@ int32_t filterConverNcharColumns(SFilterInfo* info, int32_t rows, bool *gotNchar
       SFilterField nfi = {0};
       nfi.desc = fi->desc;
       int32_t bytes = FILTER_GET_COL_FIELD_SIZE(fi);
-      nfi.data = malloc(rows * bytes);
+      nfi.data = taosMemoryMalloc(rows * bytes);
       int32_t bufSize = bytes - VARSTR_HEADER_SIZE;
       for (int32_t j = 0; j < rows; ++j) {
         char *src = FILTER_GET_COL_FIELD_DATA(fi, j);
@@ -3466,7 +3433,7 @@ int32_t filterConverNcharColumns(SFilterInfo* info, int32_t rows, bool *gotNchar
           varDataCopy(dst, src);
           continue;
         }
-        bool ret = taosMbsToUcs4(varDataVal(src), varDataLen(src), varDataVal(dst), bufSize, &len);
+        bool ret = taosMbsToUcs4(varDataVal(src), varDataLen(src), (TdUcs4*)varDataVal(dst), bufSize, &len);
         if(!ret) {
           qError("filterConverNcharColumns taosMbsToUcs4 error");
           return TSDB_CODE_FAILED;
@@ -3492,7 +3459,7 @@ int32_t filterFreeNcharColumns(SFilterInfo* info) {
     SFilterField* fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
     int32_t type = FILTER_GET_COL_FIELD_TYPE(fi);
     if (type == TSDB_DATA_TYPE_NCHAR) {
-      tfree(fi->data);
+      taosMemoryFreeClear(fi->data);
     }
   }
 
@@ -3522,11 +3489,7 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
     return DEAL_RES_CONTINUE;
   }
 
-  if (stat->scalarMode) {
-    return DEAL_RES_CONTINUE;
-  }
-  
-  if (QUERY_NODE_VALUE == nodeType(*pNode)) {
+  if (QUERY_NODE_VALUE == nodeType(*pNode) || QUERY_NODE_NODE_LIST == nodeType(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
     return DEAL_RES_CONTINUE;
   }
 
@@ -3544,22 +3507,28 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
 
     if (NULL == node->pRight) {
       if (scalarGetOperatorParamNum(node->opType) > 1) {
-        fltError("invalid operator, pRight:%p, type:%d", node->pRight, nodeType(node));
+        fltError("invalid operator, pRight:%p, nodeType:%d, opType:%d", node->pRight, nodeType(node), node->opType);
         stat->code = TSDB_CODE_QRY_APP_ERROR;
         return DEAL_RES_ERROR;
       }
       
-      if (QUERY_NODE_COLUMN_REF != nodeType(node->pLeft)) {
-        stat->scalarMode = true;
-        return DEAL_RES_CONTINUE;
-      }
-    } else {
-      if ((QUERY_NODE_COLUMN_REF != nodeType(node->pLeft)) && (QUERY_NODE_VALUE != nodeType(node->pLeft))) {
+      if (QUERY_NODE_COLUMN != nodeType(node->pLeft)) {
         stat->scalarMode = true;
         return DEAL_RES_CONTINUE;
       }
 
-      if ((QUERY_NODE_COLUMN_REF != nodeType(node->pRight)) && (QUERY_NODE_VALUE != nodeType(node->pRight))) {
+      if (OP_TYPE_IS_TRUE == node->opType || OP_TYPE_IS_FALSE == node->opType || OP_TYPE_IS_UNKNOWN == node->opType
+       || OP_TYPE_IS_NOT_TRUE == node->opType || OP_TYPE_IS_NOT_FALSE == node->opType || OP_TYPE_IS_NOT_UNKNOWN == node->opType) {
+        stat->scalarMode = true;
+        return DEAL_RES_CONTINUE;
+      }
+    } else {
+      if ((QUERY_NODE_COLUMN != nodeType(node->pLeft)) && (QUERY_NODE_VALUE != nodeType(node->pLeft))) {
+        stat->scalarMode = true;
+        return DEAL_RES_CONTINUE;
+      }
+
+      if ((QUERY_NODE_COLUMN != nodeType(node->pRight)) && (QUERY_NODE_VALUE != nodeType(node->pRight))) {
         stat->scalarMode = true;
         return DEAL_RES_CONTINUE;
       }      
@@ -3569,7 +3538,7 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
         return DEAL_RES_CONTINUE;
       }
 
-      if (QUERY_NODE_COLUMN_REF != nodeType(node->pLeft)) {
+      if (QUERY_NODE_COLUMN != nodeType(node->pLeft)) {
         SNode *t = node->pLeft;
         node->pLeft = node->pRight;
         node->pRight = t;
@@ -3582,10 +3551,10 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
       }
 
       if (OP_TYPE_IN != node->opType) {
-        SColumnRefNode *refNode = (SColumnRefNode *)node->pLeft;
+        SColumnNode *refNode = (SColumnNode *)node->pLeft;
         SValueNode *valueNode = (SValueNode *)node->pRight;
-        int32_t type = vectorGetConvertType(refNode->dataType.type, valueNode->node.resType.type);
-        if (0 != type && type != refNode->dataType.type) {
+        int32_t type = vectorGetConvertType(refNode->node.resType.type, valueNode->node.resType.type);
+        if (0 != type && type != refNode->node.resType.type) {
           stat->scalarMode = true;
           return DEAL_RES_CONTINUE;
         }
@@ -3609,18 +3578,19 @@ int32_t fltReviseNodes(SFilterInfo *pInfo, SNode** pNode, SFltTreeStat *pStat) {
 }
 
 int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode** pNode, SFltTreeStat *pStat) {
-
+  //TODO
+  return TSDB_CODE_SUCCESS;
 }
 
 
-int32_t filterGetDataFromColId(void *param, int32_t id, void **data) {
+int32_t fltGetDataFromColId(void *param, int32_t id, void **data) {
   int32_t numOfCols = ((SFilterColumnParam *)param)->numOfCols;
   SArray* pDataBlock = ((SFilterColumnParam *)param)->pDataBlock;
   
   for (int32_t j = 0; j < numOfCols; ++j) {
     SColumnInfoData* pColInfo = taosArrayGet(pDataBlock, j);
     if (id == pColInfo->info.colId) {
-      *data = pColInfo->pData;
+      *data = pColInfo;
       break;
     }
   }
@@ -3628,13 +3598,28 @@ int32_t filterGetDataFromColId(void *param, int32_t id, void **data) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t fltGetDataFromSlotId(void *param, int32_t id, void **data) {
+  int32_t numOfCols = ((SFilterColumnParam *)param)->numOfCols;
+  SArray* pDataBlock = ((SFilterColumnParam *)param)->pDataBlock;
+  if (id < 0 || id >= numOfCols || id >= taosArrayGetSize(pDataBlock)) {
+    fltError("invalid slot id, id:%d, numOfCols:%d, arraySize:%d", id, numOfCols, (int32_t)taosArrayGetSize(pDataBlock));
+    return TSDB_CODE_QRY_APP_ERROR;
+  }
+  
+  SColumnInfoData* pColInfo = taosArrayGet(pDataBlock, id);
+  *data = pColInfo;
 
-int32_t filterSetDataFromSlotId(SFilterInfo *info, void *param, filer_get_col_from_id fp) {
-  return fltSetColFieldDataImpl(info, param, fp, false);
+  return TSDB_CODE_SUCCESS;
 }
 
-int32_t filterSetDataFromColId(SFilterInfo *info, void *param, filer_get_col_from_id fp) {
-  return fltSetColFieldDataImpl(info, param, fp, true);
+
+
+int32_t filterSetDataFromSlotId(SFilterInfo *info, void *param) {
+  return fltSetColFieldDataImpl(info, param, fltGetDataFromSlotId, false);
+}
+
+int32_t filterSetDataFromColId(SFilterInfo *info, void *param) {
+  return fltSetColFieldDataImpl(info, param, fltGetDataFromColId, true);
 }
 
 
@@ -3649,7 +3634,7 @@ int32_t filterInitFromNode(SNode* pNode, SFilterInfo **pInfo, uint32_t options) 
   }
 
   if (*pInfo == NULL) {
-    *pInfo = calloc(1, sizeof(SFilterInfo));
+    *pInfo = taosMemoryCalloc(1, sizeof(SFilterInfo));
     if (NULL == *pInfo) {
       fltError("calloc %d failed", (int32_t)sizeof(SFilterInfo));
       FLT_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -3661,6 +3646,8 @@ int32_t filterInitFromNode(SNode* pNode, SFilterInfo **pInfo, uint32_t options) 
 
   SFltTreeStat stat = {0};
   FLT_ERR_JRET(fltReviseNodes(info, &pNode, &stat));
+
+  info->scalarMode = stat.scalarMode;
 
   if (!info->scalarMode) {
     FLT_ERR_JRET(fltInitFromNode(pNode, info, options));
@@ -3680,13 +3667,29 @@ _return:
   FLT_RET(code);
 }
 
-FORCE_INLINE bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnDataAgg *statis, int16_t numOfCols) {
+bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnDataAgg *statis, int16_t numOfCols) {
   if (info->scalarMode) {
     SScalarParam output = {0};
-    FLT_ERR_RET(scalarCalculate(info->sclCtx.node, pSrc, &output));
+    SArray *pList = taosArrayInit(1, POINTER_BYTES);
+    taosArrayPush(pList, &pSrc);
+    
+    FLT_ERR_RET(scalarCalculate(info->sclCtx.node, pList, &output));
 
-    *p = output.data;
-    return TSDB_CODE_SUCCESS;
+    taosArrayDestroy(pList);
+
+    *p = output.orig.data;
+    output.orig.data = NULL;
+
+    sclFreeParam(&output);
+
+    int8_t *r = output.data;
+    for (int32_t i = 0; i < output.num; ++i) {
+      if (0 == *(r+i)) {
+        return false;
+      }
+    }
+    
+    return true;
   }
 
   return (*info->func)(info, pSrc->info.rows, p, statis, numOfCols);

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_OS_H
-#define TDENGINE_OS_H
+#ifndef _TD_OS_H_
+#define _TD_OS_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,7 +22,35 @@ extern "C" {
 
 #include <assert.h>
 #include <ctype.h>
+#include <semaphore.h>
+
+#include <regex.h>
+
+#if !defined(WINDOWS)
+#include <unistd.h>
 #include <dirent.h>
+#include <sched.h>
+#include <wordexp.h>
+#include <libgen.h>
+
+#include <sys/utsname.h>
+#include <sys/param.h>
+#include <sys/mman.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <termios.h>
+#include <sys/statvfs.h>
+
+#if defined(DARWIN)
+#else
+#include <sys/prctl.h>
+#include <argp.h>
+#endif
+
+#endif
+
 #include <errno.h>
 #include <fcntl.h>
 #include <float.h>
@@ -30,8 +58,6 @@ extern "C" {
 #include <limits.h>
 #include <locale.h>
 #include <math.h>
-#include <regex.h>
-#include <sched.h>
 #include <setjmp.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -41,28 +67,21 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/utsname.h>
-#include <unistd.h>
 #include <wchar.h>
 #include <wctype.h>
-#include <wordexp.h>
-#include <libgen.h>
 
-#include <sys/mman.h>
-#include <sys/prctl.h>
 
 #include "osAtomic.h"
 #include "osDef.h"
 #include "osDir.h"
 #include "osEndian.h"
-#include "osEnv.h"
 #include "osFile.h"
+#include "osLocale.h"
 #include "osLz4.h"
 #include "osMath.h"
 #include "osMemory.h"
 #include "osRand.h"
+#include "osThread.h"
 #include "osSemaphore.h"
 #include "osSignal.h"
 #include "osSleep.h"
@@ -70,14 +89,15 @@ extern "C" {
 #include "osString.h"
 #include "osSysinfo.h"
 #include "osSystem.h"
-#include "osThread.h"
 #include "osTime.h"
 #include "osTimer.h"
+#include "osTimezone.h"
+#include "osEnv.h"
 
-void osInit();
+void osDefaultInit();
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /*_TD_OS_H_*/

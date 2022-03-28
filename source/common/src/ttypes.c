@@ -13,9 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "ttypes.h"
-#include "../../../include/client/taos.h"
-#include "os.h"
 #include "tcompression.h"
 
 const int32_t TYPE_BYTES[15] = {
@@ -50,16 +49,16 @@ const int32_t TYPE_BYTES[15] = {
     }                                                                          \
   } while (0)
 
-static void getStatics_bool(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
-                            int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+static void getStatics_bool(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
+                            int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   int8_t *data = (int8_t *)pData;
   *min = INT64_MAX;
   *max = INT64_MIN;
   *minIndex = 0;
   *maxIndex = 0;
-  
+
   assert(numOfRow <= INT16_MAX);
-  
+
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (data[i] == TSDB_DATA_BOOL_NULL) {
       (*numOfNull) += 1;
@@ -77,9 +76,9 @@ static void getStatics_i8(const void *pData, int32_t numOfRow, int64_t *min, int
   *max = INT64_MIN;
   *minIndex = 0;
   *maxIndex = 0;
-  
+
   assert(numOfRow <= INT16_MAX);
-  
+
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (((uint8_t)data[i]) == TSDB_DATA_TINYINT_NULL) {
       (*numOfNull) += 1;
@@ -123,9 +122,9 @@ static void getStatics_i16(const void *pData, int32_t numOfRow, int64_t *min, in
   *max = INT64_MIN;
   *minIndex = 0;
   *maxIndex = 0;
-  
+
   assert(numOfRow <= INT16_MAX);
-  
+
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (((uint16_t)data[i]) == TSDB_DATA_SMALLINT_NULL) {
       (*numOfNull) += 1;
@@ -134,15 +133,14 @@ static void getStatics_i16(const void *pData, int32_t numOfRow, int64_t *min, in
 
     DO_STATICS(*sum, *min, *max, *minIndex, *maxIndex, data, i);
   }
-
 }
 
 static void getStatics_u16(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
                            int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   uint16_t *data = (uint16_t *)pData;
-  uint64_t _min = UINT64_MAX;
-  uint64_t _max = 0;
-  uint64_t _sum = 0;
+  uint64_t  _min = UINT64_MAX;
+  uint64_t  _max = 0;
+  uint64_t  _sum = 0;
 
   *minIndex = 0;
   *maxIndex = 0;
@@ -170,9 +168,9 @@ static void getStatics_i32(const void *pData, int32_t numOfRow, int64_t *min, in
   *max = INT64_MIN;
   *minIndex = 0;
   *maxIndex = 0;
-  
+
   assert(numOfRow <= INT16_MAX);
-  
+
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (((uint32_t)data[i]) == TSDB_DATA_INT_NULL) {
       (*numOfNull) += 1;
@@ -183,12 +181,12 @@ static void getStatics_i32(const void *pData, int32_t numOfRow, int64_t *min, in
   }
 }
 
-static void getStatics_u32(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
-                           int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+static void getStatics_u32(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
+                           int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   uint32_t *data = (uint32_t *)pData;
-  uint64_t _min = UINT64_MAX;
-  uint64_t _max = 0;
-  uint64_t _sum = 0;
+  uint64_t  _min = UINT64_MAX;
+  uint64_t  _max = 0;
+  uint64_t  _sum = 0;
 
   *minIndex = 0;
   *maxIndex = 0;
@@ -209,16 +207,16 @@ static void getStatics_u32(const void *pData, int32_t numOfRow, int64_t *min, in
   *sum = _sum;
 }
 
-static void getStatics_i64(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
-                           int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+static void getStatics_i64(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
+                           int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   int64_t *data = (int64_t *)pData;
   *min = INT64_MAX;
   *max = INT64_MIN;
   *minIndex = 0;
   *maxIndex = 0;
-  
+
   assert(numOfRow <= INT16_MAX);
-  
+
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (((uint64_t)data[i]) == TSDB_DATA_BIGINT_NULL) {
       (*numOfNull) += 1;
@@ -229,12 +227,12 @@ static void getStatics_i64(const void *pData, int32_t numOfRow, int64_t *min, in
   }
 }
 
-static void getStatics_u64(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
-                           int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+static void getStatics_u64(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
+                           int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   uint64_t *data = (uint64_t *)pData;
-  uint64_t _min = UINT64_MAX;
-  uint64_t _max = 0;
-  uint64_t _sum = 0;
+  uint64_t  _min = UINT64_MAX;
+  uint64_t  _max = 0;
+  uint64_t  _sum = 0;
 
   *minIndex = 0;
   *maxIndex = 0;
@@ -255,91 +253,91 @@ static void getStatics_u64(const void *pData, int32_t numOfRow, int64_t *min, in
   *sum = _sum;
 }
 
-static void getStatics_f(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
-                         int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
-  float *data  = (float *)pData;
-  float fmin   = FLT_MAX;
-  float fmax   = -FLT_MAX;
-  double dsum  = 0;
-  *minIndex    = 0;
-  *maxIndex    = 0;
-  
+static void getStatics_f(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
+                         int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+  float *data = (float *)pData;
+  float  fmin = FLT_MAX;
+  float  fmax = -FLT_MAX;
+  double dsum = 0;
+  *minIndex = 0;
+  *maxIndex = 0;
+
   assert(numOfRow <= INT16_MAX);
-  
+
   for (int32_t i = 0; i < numOfRow; ++i) {
-    if ((*(uint32_t*)&(data[i])) == TSDB_DATA_FLOAT_NULL) {
+    if ((*(uint32_t *)&(data[i])) == TSDB_DATA_FLOAT_NULL) {
       (*numOfNull) += 1;
       continue;
     }
 
-    float fv = GET_FLOAT_VAL((const char*)&(data[i]));
+    float fv = GET_FLOAT_VAL((const char *)&(data[i]));
 
     dsum += fv;
     if (fmin > fv) {
       fmin = fv;
       *minIndex = i;
     }
-    
+
     if (fmax < fv) {
       fmax = fv;
       *maxIndex = i;
     }
   }
-  
+
   SET_DOUBLE_VAL(sum, dsum);
   SET_DOUBLE_VAL(max, fmax);
   SET_DOUBLE_VAL(min, fmin);
 }
 
-static void getStatics_d(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
-                         int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+static void getStatics_d(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
+                         int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   double *data = (double *)pData;
-  double dmin  = DBL_MAX;
-  double dmax  = -DBL_MAX;
-  double dsum  = 0;
-  *minIndex    = 0;
-  *maxIndex    = 0;
-  
+  double  dmin = DBL_MAX;
+  double  dmax = -DBL_MAX;
+  double  dsum = 0;
+  *minIndex = 0;
+  *maxIndex = 0;
+
   assert(numOfRow <= INT16_MAX);
-  
+
   for (int32_t i = 0; i < numOfRow; ++i) {
-    if ((*(uint64_t*)&(data[i])) == TSDB_DATA_DOUBLE_NULL) {
+    if ((*(uint64_t *)&(data[i])) == TSDB_DATA_DOUBLE_NULL) {
       (*numOfNull) += 1;
       continue;
     }
-    
+
     double dv = 0;
-    dv = GET_DOUBLE_VAL((const char*)&(data[i]));
+    dv = GET_DOUBLE_VAL((const char *)&(data[i]));
     dsum += dv;
     if (dmin > dv) {
       dmin = dv;
       *minIndex = i;
     }
-    
+
     if (dmax < dv) {
       dmax = dv;
       *maxIndex = i;
     }
   }
-  
+
   SET_DOUBLE_PTR(sum, &dsum);
   SET_DOUBLE_PTR(max, &dmax);
   SET_DOUBLE_PTR(min, &dmin);
 }
 
-static void getStatics_bin(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
-                         int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
-  const char* data = pData;
+static void getStatics_bin(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
+                           int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+  const char *data = pData;
   assert(numOfRow <= INT16_MAX);
-  
+
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (isNull(data, TSDB_DATA_TYPE_BINARY)) {
       (*numOfNull) += 1;
     }
-    
+
     data += varDataTLen(data);
   }
-  
+
   *sum = 0;
   *max = 0;
   *min = 0;
@@ -347,19 +345,19 @@ static void getStatics_bin(const void *pData, int32_t numOfRow, int64_t *min, in
   *maxIndex = 0;
 }
 
-static void getStatics_nchr(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
-                           int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
-  const char* data = pData;
+static void getStatics_nchr(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max, int64_t *sum,
+                            int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+  const char *data = pData;
   assert(numOfRow <= INT16_MAX);
-  
+
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (isNull(data, TSDB_DATA_TYPE_NCHAR)) {
       (*numOfNull) += 1;
     }
-    
+
     data += varDataTLen(data);
   }
-  
+
   *sum = 0;
   *max = 0;
   *min = 0;
@@ -368,21 +366,28 @@ static void getStatics_nchr(const void *pData, int32_t numOfRow, int64_t *min, i
 }
 
 tDataTypeDescriptor tDataTypes[15] = {
-  {TSDB_DATA_TYPE_NULL,      6,  1,            "NOTYPE",             0,          0,              NULL,                NULL,                  NULL},
-  {TSDB_DATA_TYPE_BOOL,      4,  CHAR_BYTES,   "BOOL",               false,      true,           tsCompressBool,      tsDecompressBool,      getStatics_bool},
-  {TSDB_DATA_TYPE_TINYINT,   7,  CHAR_BYTES,   "TINYINT",            INT8_MIN,   INT8_MAX,       tsCompressTinyint,   tsDecompressTinyint,   getStatics_i8},
-  {TSDB_DATA_TYPE_SMALLINT,  8,  SHORT_BYTES,  "SMALLINT",           INT16_MIN,  INT16_MAX,      tsCompressSmallint,  tsDecompressSmallint,  getStatics_i16},
-  {TSDB_DATA_TYPE_INT,       3,  INT_BYTES,    "INT",                INT32_MIN,  INT32_MAX,      tsCompressInt,       tsDecompressInt,       getStatics_i32},
-  {TSDB_DATA_TYPE_BIGINT,    6,  LONG_BYTES,   "BIGINT",             INT64_MIN,  INT64_MAX,      tsCompressBigint,    tsDecompressBigint,    getStatics_i64},
-  {TSDB_DATA_TYPE_FLOAT,     5,  FLOAT_BYTES,  "FLOAT",              0,          0,              tsCompressFloat,     tsDecompressFloat,     getStatics_f},
-  {TSDB_DATA_TYPE_DOUBLE,    6,  DOUBLE_BYTES, "DOUBLE",             0,          0,              tsCompressDouble,    tsDecompressDouble,    getStatics_d},
-  {TSDB_DATA_TYPE_BINARY,    6,  0,            "BINARY",             0,          0,              tsCompressString,    tsDecompressString,    getStatics_bin},
-  {TSDB_DATA_TYPE_TIMESTAMP, 9,  LONG_BYTES,   "TIMESTAMP",          INT64_MIN,  INT64_MAX,      tsCompressTimestamp, tsDecompressTimestamp, getStatics_i64},
-  {TSDB_DATA_TYPE_NCHAR,     5,  8,            "NCHAR",              0,          0,              tsCompressString,    tsDecompressString,    getStatics_nchr},
-  {TSDB_DATA_TYPE_UTINYINT,  16, CHAR_BYTES,   "TINYINT UNSIGNED",   0,          UINT8_MAX,      tsCompressTinyint,   tsDecompressTinyint,   getStatics_u8},
-  {TSDB_DATA_TYPE_USMALLINT, 17, SHORT_BYTES,  "SMALLINT UNSIGNED",  0,          UINT16_MAX,     tsCompressSmallint,  tsDecompressSmallint,  getStatics_u16},
-  {TSDB_DATA_TYPE_UINT,      12, INT_BYTES,    "INT UNSIGNED",       0,          UINT32_MAX,     tsCompressInt,       tsDecompressInt,       getStatics_u32},
-  {TSDB_DATA_TYPE_UBIGINT,   15, LONG_BYTES,   "BIGINT UNSIGNED",    0,          UINT64_MAX,     tsCompressBigint,    tsDecompressBigint,    getStatics_u64},
+    {TSDB_DATA_TYPE_NULL, 6, 1, "NOTYPE", 0, 0, NULL, NULL, NULL},
+    {TSDB_DATA_TYPE_BOOL, 4, CHAR_BYTES, "BOOL", false, true, tsCompressBool, tsDecompressBool, getStatics_bool},
+    {TSDB_DATA_TYPE_TINYINT, 7, CHAR_BYTES, "TINYINT", INT8_MIN, INT8_MAX, tsCompressTinyint, tsDecompressTinyint,
+     getStatics_i8},
+    {TSDB_DATA_TYPE_SMALLINT, 8, SHORT_BYTES, "SMALLINT", INT16_MIN, INT16_MAX, tsCompressSmallint,
+     tsDecompressSmallint, getStatics_i16},
+    {TSDB_DATA_TYPE_INT, 3, INT_BYTES, "INT", INT32_MIN, INT32_MAX, tsCompressInt, tsDecompressInt, getStatics_i32},
+    {TSDB_DATA_TYPE_BIGINT, 6, LONG_BYTES, "BIGINT", INT64_MIN, INT64_MAX, tsCompressBigint, tsDecompressBigint,
+     getStatics_i64},
+    {TSDB_DATA_TYPE_FLOAT, 5, FLOAT_BYTES, "FLOAT", 0, 0, tsCompressFloat, tsDecompressFloat, getStatics_f},
+    {TSDB_DATA_TYPE_DOUBLE, 6, DOUBLE_BYTES, "DOUBLE", 0, 0, tsCompressDouble, tsDecompressDouble, getStatics_d},
+    {TSDB_DATA_TYPE_BINARY, 6, 0, "BINARY", 0, 0, tsCompressString, tsDecompressString, getStatics_bin},
+    {TSDB_DATA_TYPE_TIMESTAMP, 9, LONG_BYTES, "TIMESTAMP", INT64_MIN, INT64_MAX, tsCompressTimestamp,
+     tsDecompressTimestamp, getStatics_i64},
+    {TSDB_DATA_TYPE_NCHAR, 5, 8, "NCHAR", 0, 0, tsCompressString, tsDecompressString, getStatics_nchr},
+    {TSDB_DATA_TYPE_UTINYINT, 16, CHAR_BYTES, "TINYINT UNSIGNED", 0, UINT8_MAX, tsCompressTinyint, tsDecompressTinyint,
+     getStatics_u8},
+    {TSDB_DATA_TYPE_USMALLINT, 17, SHORT_BYTES, "SMALLINT UNSIGNED", 0, UINT16_MAX, tsCompressSmallint,
+     tsDecompressSmallint, getStatics_u16},
+    {TSDB_DATA_TYPE_UINT, 12, INT_BYTES, "INT UNSIGNED", 0, UINT32_MAX, tsCompressInt, tsDecompressInt, getStatics_u32},
+    {TSDB_DATA_TYPE_UBIGINT, 15, LONG_BYTES, "BIGINT UNSIGNED", 0, UINT64_MAX, tsCompressBigint, tsDecompressBigint,
+     getStatics_u64},
 };
 
 char tTokenTypeSwitcher[13] = {
@@ -401,10 +406,10 @@ char tTokenTypeSwitcher[13] = {
     TSDB_DATA_TYPE_NCHAR,   // TK_NCHAR
 };
 
-float floatMin = -FLT_MAX, floatMax = FLT_MAX;
+float  floatMin = -FLT_MAX, floatMax = FLT_MAX;
 double doubleMin = -DBL_MAX, doubleMax = DBL_MAX;
 
-FORCE_INLINE void* getDataMin(int32_t type) {
+FORCE_INLINE void *getDataMin(int32_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_FLOAT:
       return &floatMin;
@@ -415,7 +420,7 @@ FORCE_INLINE void* getDataMin(int32_t type) {
   }
 }
 
-FORCE_INLINE void* getDataMax(int32_t type) {
+FORCE_INLINE void *getDataMax(int32_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_FLOAT:
       return &floatMax;
@@ -426,17 +431,15 @@ FORCE_INLINE void* getDataMax(int32_t type) {
   }
 }
 
-bool isValidDataType(int32_t type) {
-  return type >= TSDB_DATA_TYPE_NULL && type <= TSDB_DATA_TYPE_UBIGINT;
-}
+bool isValidDataType(int32_t type) { return type >= TSDB_DATA_TYPE_NULL && type <= TSDB_DATA_TYPE_UBIGINT; }
 
-void setVardataNull(void* val, int32_t type) {
+void setVardataNull(void *val, int32_t type) {
   if (type == TSDB_DATA_TYPE_BINARY) {
     varDataSetLen(val, sizeof(int8_t));
-    *(uint8_t*) varDataVal(val) = TSDB_DATA_BINARY_NULL;
+    *(uint8_t *)varDataVal(val) = TSDB_DATA_BINARY_NULL;
   } else if (type == TSDB_DATA_TYPE_NCHAR) {
     varDataSetLen(val, sizeof(int32_t));
-    *(uint32_t*) varDataVal(val) = TSDB_DATA_NCHAR_NULL;
+    *(uint32_t *)varDataVal(val) = TSDB_DATA_NCHAR_NULL;
   } else {
     assert(0);
   }
@@ -534,9 +537,8 @@ static SBinaryNullT nullBinary = {1, TSDB_DATA_BINARY_NULL};
 static SNCharNullT  nullNchar = {4, TSDB_DATA_NCHAR_NULL};
 
 static const void *nullValues[] = {
-    &nullBool,     &nullTinyInt,   &nullSmallInt, &nullInt,    &nullBigInt,
-    &nullFloat,    &nullDouble,    &nullBinary,   &nullBigInt, &nullNchar,
-    &nullTinyIntu, &nullSmallIntu, &nullIntu,     &nullBigIntu,
+    &nullBool,   &nullTinyInt, &nullSmallInt, &nullInt,      &nullBigInt,    &nullFloat, &nullDouble,
+    &nullBinary, &nullBigInt,  &nullNchar,    &nullTinyIntu, &nullSmallIntu, &nullIntu,  &nullBigIntu,
 };
 
 const void *getNullValue(int32_t type) {
@@ -585,13 +587,13 @@ void assignVal(char *val, const char *src, int32_t len, int32_t type) {
 }
 
 void operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type) {
-  if (optr == TSDB_BINARY_OP_ADD) {
+  if (optr == OP_TYPE_ADD) {
     switch (type) {
       case TSDB_DATA_TYPE_TINYINT:
         *((int8_t *)dst) = GET_INT8_VAL(s1) + GET_INT8_VAL(s2);
         break;
       case TSDB_DATA_TYPE_UTINYINT:
-        *((uint8_t *)dst) = GET_UINT8_VAL(s1) + GET_UINT8_VAL(s2);        
+        *((uint8_t *)dst) = GET_UINT8_VAL(s1) + GET_UINT8_VAL(s2);
         break;
       case TSDB_DATA_TYPE_SMALLINT:
         *((int16_t *)dst) = GET_INT16_VAL(s1) + GET_INT16_VAL(s2);
@@ -630,14 +632,14 @@ void operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type) {
   }
 }
 
-void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf) {
+void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void *buf) {
   switch (type) {
     case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_UINT: {
       TSWAP(*(int32_t *)(pLeft), *(int32_t *)(pRight), int32_t);
       break;
     }
-    
+
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP: {
@@ -653,19 +655,19 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
       TSWAP(*(int16_t *)(pLeft), *(int16_t *)(pRight), int16_t);
       break;
     }
-    
+
     case TSDB_DATA_TYPE_FLOAT: {
       TSWAP(*(float *)(pLeft), *(float *)(pRight), float);
       break;
     }
-    
+
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_UTINYINT: {
       TSWAP(*(int8_t *)(pLeft), *(int8_t *)(pRight), int8_t);
       break;
     }
-    
+
     default: {
       memcpy(buf, pLeft, size);
       memcpy(pLeft, pRight, size);

@@ -1,0 +1,21 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 0
+system sh/exec.sh -n dnode1 -s start
+sleep 2000
+sql connect
+
+print ============= step1
+sql close
+print close1
+sql connect
+
+print ============= step2
+sql close
+sql connect
+
+print ============= step3
+sql close
+sql connect
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

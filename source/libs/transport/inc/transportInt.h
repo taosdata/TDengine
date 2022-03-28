@@ -24,8 +24,6 @@
 #include "rpcCache.h"
 #include "rpcHead.h"
 #include "rpcLog.h"
-#include "rpcTcp.h"
-#include "rpcUdp.h"
 #include "taoserror.h"
 #include "tglobal.h"
 #include "thash.h"
@@ -56,7 +54,6 @@ typedef struct {
   int8_t   connType;
   int64_t  index;
   char     label[TSDB_LABEL_LEN];
-  bool     noPool;  // pool or not
 
   char user[TSDB_UNI_LEN];         // meter ID
   char spi;                        // security parameter index
@@ -73,7 +70,7 @@ typedef struct {
   void*           tmrCtrl;    // handle to timer
   SHashObj*       hash;       // handle returned by hash utility
   void*           tcphandle;  // returned handle from TCP initialization
-  pthread_mutex_t mutex;
+  TdThreadMutex mutex;
 } SRpcInfo;
 
 #endif  // USE_LIBUV

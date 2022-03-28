@@ -16,39 +16,45 @@
 #include "index_fst_automation.h"
 
 StartWithStateValue* startWithStateValueCreate(StartWithStateKind kind, ValueType ty, void* val) {
-  StartWithStateValue* nsv = calloc(1, sizeof(StartWithStateValue));
-  if (nsv == NULL) { return NULL; }
+  StartWithStateValue* sv = taosMemoryCalloc(1, sizeof(StartWithStateValue));
+  if (sv == NULL) {
+    return NULL;
+  }
 
-  nsv->kind = kind;
-  nsv->type = ty;
+  sv->kind = kind;
+  sv->type = ty;
   if (ty == FST_INT) {
-    nsv->val = *(int*)val;
+    sv->val = *(int*)val;
   } else if (ty == FST_CHAR) {
     size_t len = strlen((char*)val);
-    nsv->ptr = (char*)calloc(1, len + 1);
-    memcpy(nsv->ptr, val, len);
+    sv->ptr = (char*)taosMemoryCalloc(1, len + 1);
+    memcpy(sv->ptr, val, len);
   } else if (ty == FST_ARRAY) {
     // TODO,
     // nsv->arr = taosArrayFromList()
   }
-  return nsv;
+  return sv;
 }
 void startWithStateValueDestroy(void* val) {
   StartWithStateValue* sv = (StartWithStateValue*)val;
-  if (sv == NULL) { return; }
+  if (sv == NULL) {
+    return;
+  }
 
   if (sv->type == FST_INT) {
     //
   } else if (sv->type == FST_CHAR) {
-    free(sv->ptr);
+    taosMemoryFree(sv->ptr);
   } else if (sv->type == FST_ARRAY) {
     taosArrayDestroy(sv->arr);
   }
-  free(sv);
+  taosMemoryFree(sv);
 }
 StartWithStateValue* startWithStateValueDump(StartWithStateValue* sv) {
-  StartWithStateValue* nsv = calloc(1, sizeof(StartWithStateValue));
-  if (nsv == NULL) { return NULL; }
+  StartWithStateValue* nsv = taosMemoryCalloc(1, sizeof(StartWithStateValue));
+  if (nsv == NULL) {
+    return NULL;
+  }
 
   nsv->kind = sv->kind;
   nsv->type = sv->type;
@@ -56,7 +62,7 @@ StartWithStateValue* startWithStateValueDump(StartWithStateValue* sv) {
     nsv->val = sv->val;
   } else if (nsv->type == FST_CHAR) {
     size_t len = strlen(sv->ptr);
-    nsv->ptr = (char*)calloc(1, len + 1);
+    nsv->ptr = (char*)taosMemoryCalloc(1, len + 1);
     memcpy(nsv->ptr, sv->ptr, len);
   } else if (nsv->type == FST_ARRAY) {
     //
@@ -88,10 +94,14 @@ static bool prefixCanMatch(AutomationCtx* ctx, void* sv) {
 static bool  prefixWillAlwaysMatch(AutomationCtx* ctx, void* state) { return true; }
 static void* prefixAccept(AutomationCtx* ctx, void* state, uint8_t byte) {
   StartWithStateValue* ssv = (StartWithStateValue*)state;
-  if (ssv == NULL || ctx == NULL) { return NULL; }
+  if (ssv == NULL || ctx == NULL) {
+    return NULL;
+  }
 
   char* data = ctx->data;
-  if (ssv->kind == Done) { return startWithStateValueCreate(Done, FST_INT, &ssv->val); }
+  if (ssv->kind == Done) {
+    return startWithStateValueCreate(Done, FST_INT, &ssv->val);
+  }
   if ((strlen(data) > ssv->val) && data[ssv->val] == byte) {
     int val = ssv->val + 1;
 
@@ -127,18 +137,18 @@ AutomationFunc automFuncs[] = {
 };
 
 AutomationCtx* automCtxCreate(void* data, AutomationType atype) {
-  AutomationCtx* ctx = calloc(1, sizeof(AutomationCtx));
-  if (ctx == NULL) { return NULL; }
+  AutomationCtx* ctx = taosMemoryCalloc(1, sizeof(AutomationCtx));
+  if (ctx == NULL) {
+    return NULL;
+  }
 
   StartWithStateValue* sv = NULL;
   if (atype == AUTOMATION_ALWAYS) {
     int val = 0;
     sv = startWithStateValueCreate(Running, FST_INT, &val);
-    ctx->stdata = (void*)sv;
   } else if (atype == AUTOMATION_PREFIX) {
     int val = 0;
     sv = startWithStateValueCreate(Running, FST_INT, &val);
-    ctx->stdata = (void*)sv;
   } else if (atype == AUTMMATION_MATCH) {
   } else {
     // add more search type
@@ -148,9 +158,8 @@ AutomationCtx* automCtxCreate(void* data, AutomationType atype) {
   if (data != NULL) {
     char*  src = (char*)data;
     size_t len = strlen(src);
-    dst = (char*)malloc(len * sizeof(char) + 1);
+    dst = (char*)taosMemoryCalloc(1, len * sizeof(char) + 1);
     memcpy(dst, src, len);
-    dst[len] = 0;
   }
 
   ctx->data = dst;
@@ -160,6 +169,6 @@ AutomationCtx* automCtxCreate(void* data, AutomationType atype) {
 }
 void automCtxDestroy(AutomationCtx* ctx) {
   startWithStateValueDestroy(ctx->stdata);
-  free(ctx->data);
-  free(ctx);
+  taosMemoryFree(ctx->data);
+  taosMemoryFree(ctx);
 }

@@ -1,0 +1,399 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 4
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 1000
+
+system sh/deploy.sh -n dnode2 -i 2
+system sh/cfg.sh -n dnode2 -c maxVgroupsPerDb -v 4
+system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 1000
+
+system sh/deploy.sh -n dnode3 -i 3
+system sh/cfg.sh -n dnode3 -c maxVgroupsPerDb -v 4
+system sh/cfg.sh -n dnode3 -c maxTablesPerVnode -v 1000
+
+system sh/deploy.sh -n dnode4 -i 4
+system sh/cfg.sh -n dnode4 -c maxVgroupsPerDb -v 4
+system sh/cfg.sh -n dnode4 -c maxTablesPerVnode -v 1000
+
+system sh/deploy.sh -n dnode5 -i 5
+system sh/cfg.sh -n dnode5 -c maxVgroupsPerDb -v 4
+system sh/cfg.sh -n dnode5 -c maxTablesPerVnode -v 1000
+
+print =============== prepare data
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$i = 0
+$tbNum = 4000
+$rowNum = 1
+$totalNum = 4000 * $rowNum
+
+sql create database db
+sql use db
+sql create table mt (ts timestamp, tbcol int, tbcol2 float) TAGS(tgcol int)
+
+$i = 0
+$tbPrefix = t
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using mt tags( $i ) 
+  $i = $i + 1
+endw 
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql insert into $tb values (now, $i , $i ) 
+  
+  $i = $i + 1
+endw 
+
+print ========== step0
+sql show db.tables
+if $rows != 4000 then
+  return -1
+endi
+
+sql select count(*) from t10
+print select count(*) from t10 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  return -1
+endi
+
+sql select count(*) from t1010
+print select count(*) from t1010 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  return -1
+endi
+
+sql select count(*) from t2010
+print select count(*) from t2010 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  return -1
+endi
+
+sql select count(*) from t3010
+print select count(*) from t3010 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  return -1
+endi
+
+sql select count(*) from mt
+print select count(*) from mt $data00 expect $rowNum 
+if $data00 != $totalNum then
+  return -1
+endi
+
+print ========== step1
+sql create dnode $hostname2
+system sh/exec.sh -n dnode2 -s start
+
+$x = 0
+show1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 30 then 
+		return -1
+	endi
+	
+sql show dnodes
+print dnode1 openvnodes $data2_1
+print dnode2 openvnodes $data2_2
+if $data2_1 != 2 then
+	goto show1
+endi
+if $data2_2 != 2 then
+	goto show1
+endi
+
+sql reset query cache
+sleep 100
+
+sql select count(*) from t10
+print select count(*) from t10 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  goto show1
+endi
+
+sql select count(*) from t1010
+print select count(*) from t1010 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  goto show1
+endi
+
+sql select count(*) from t2010
+print select count(*) from t2010 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  goto show1
+endi
+
+sql select count(*) from t3010
+print select count(*) from t3010 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  goto show1
+endi
+
+sql select count(*) from mt
+print select count(*) from mt $data00 expect $rowNum 
+if $data00 != $totalNum then
+  goto show1
+endi
+
+print ========== step2
+sql create dnode $hostname3
+system sh/exec.sh -n dnode3 -s start
+
+print ========== step3
+sql drop dnode $hostname2
+
+$x = 0
+show3: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 30 then 
+		return -1
+	endi
+	
+sql show dnodes
+print dnode1 freeVnodes $data2_1
+print dnode2 freeVnodes $data2_2
+print dnode3 freeVnodes $data2_3
+if $data2_1 != 2 then
+	goto show3
+endi
+if $data2_2 != null then
+	goto show3
+endi
+if $data2_3 != 2 then
+	goto show3
+endi
+
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+
+sql reset query cache
+sleep 100
+
+sql select count(*) from t10
+print select count(*) from t10 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  return -1
+endi
+
+sql select count(*) from t1010
+print select count(*) from t1010 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  return -1
+endi
+
+sql select count(*) from t2010
+print select count(*) from t2010 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  return -1
+endi
+
+sql select count(*) from t3010
+print select count(*) from t3010 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  return -1
+endi
+
+sql select count(*) from mt
+print select count(*) from mt $data00 expect $rowNum 
+if $data00 != $totalNum then
+  return -1
+endi
+
+print ========== step4
+sql drop dnode $hostname3
+
+$x = 0
+show4: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 30 then 
+		return -1
+	endi
+	
+sql show dnodes
+print dnode1 freeVnodes $data2_1
+print dnode3 freeVnodes $data2_3
+if $data2_1 != 4 then
+	goto show4
+endi
+if $data2_3 != null then
+	goto show4
+endi
+
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
+
+sql reset query cache
+sleep 100
+
+sql select count(*) from t10
+print select count(*) from t10 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  return -1
+endi
+
+sql select count(*) from t1010
+print select count(*) from t1010 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  return -1
+endi
+
+sql select count(*) from t2010
+print select count(*) from t2010 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  return -1
+endi
+
+sql select count(*) from t3010
+print select count(*) from t3010 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  return -1
+endi
+
+sql select count(*) from mt
+print select count(*) from mt $data00 expect $rowNum 
+if $data00 != $totalNum then
+  return -1
+endi
+
+print ========== step5
+system sh/exec.sh -n dnode4 -s start
+sql create dnode $hostname4
+
+$x = 0
+step5: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+print dnode4 $data4_4
+
+if $data4_4 != ready then
+  goto step5
+endi
+
+sql alter database db replica 2
+
+$x = 0
+show5: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 30 then 
+		return -1
+	endi
+	
+sql show dnodes
+print dnode1 freeVnodes $data2_1
+print dnode4 freeVnodes $data2_4
+if $data2_1 != 4 then
+	goto show5
+endi
+if $data2_4 != 4 then
+	goto show5
+endi
+
+sql reset query cache
+sleep 100
+
+sql select count(*) from t10
+print select count(*) from t10 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  goto show5
+endi
+
+sql select count(*) from t1010
+print select count(*) from t1010 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  goto show5
+endi
+
+sql select count(*) from t2010
+print select count(*) from t2010 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  goto show5
+endi
+
+sql select count(*) from t3010
+print select count(*) from t3010 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  goto show5
+endi
+
+sql select count(*) from mt
+print select count(*) from mt $data00 expect $rowNum 
+if $data00 != $totalNum then
+  goto show5
+endi
+
+print ========== step6
+sql alter database db replica 1
+
+$x = 0
+show6: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 30 then 
+		return -1
+	endi
+	
+sql show dnodes
+print dnode1 freeVnodes $data2_1
+print dnode4 freeVnodes $data2_4
+if $data2_1 != 2 then
+	goto show6
+endi
+if $data2_4 != 2 then
+	goto show6
+endi
+
+sql reset query cache
+sleep 100
+
+sql select count(*) from t10
+print select count(*) from t10 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  goto show5
+endi
+
+sql select count(*) from t1010
+print select count(*) from t1010 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  goto show5
+endi
+
+sql select count(*) from t2010
+print select count(*) from t2010 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  goto show5
+endi
+
+sql select count(*) from t3010
+print select count(*) from t3010 $data00 expect $rowNum 
+if $data00 != $rowNum then
+  goto show5
+endi
+
+sql select count(*) from mt
+print select count(*) from mt $data00 expect $rowNum 
+if $data00 != $totalNum then
+  goto show5
+endi
+
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

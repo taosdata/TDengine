@@ -1,6 +1,4 @@
-#include <common.h>
 #include <gtest/gtest.h>
-#include <tep.h>
 #include <iostream>
 
 #pragma GCC diagnostic push
@@ -10,6 +8,9 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #include "os.h"
 
+#include "tcommon.h"
+#include "tdatablock.h"
+#include "tcommon.h"
 #include "taos.h"
 #include "tvariant.h"
 #include "tdef.h"
@@ -98,7 +99,7 @@ TEST(testCase, toInteger_test) {
 }
 
 TEST(testCase, Datablock_test) {
-  SSDataBlock* b = static_cast<SSDataBlock*>(calloc(1, sizeof(SSDataBlock)));
+  SSDataBlock* b = static_cast<SSDataBlock*>(taosMemoryCalloc(1, sizeof(SSDataBlock)));
   b->info.numOfCols = 2;
   b->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
 
@@ -107,8 +108,8 @@ TEST(testCase, Datablock_test) {
   infoData.info.type = TSDB_DATA_TYPE_INT;
   infoData.info.colId = 1;
 
-  infoData.pData = (char*) calloc(40, infoData.info.bytes);
-  infoData.nullbitmap = (char*) calloc(1, sizeof(char) * (40/8));
+  infoData.pData = (char*) taosMemoryCalloc(40, infoData.info.bytes);
+  infoData.nullbitmap = (char*) taosMemoryCalloc(1, sizeof(char) * (40/8));
   taosArrayPush(b->pDataBlock, &infoData);
 
   SColumnInfoData infoData1 = {0};
@@ -116,7 +117,7 @@ TEST(testCase, Datablock_test) {
   infoData1.info.type = TSDB_DATA_TYPE_BINARY;
   infoData1.info.colId = 2;
 
-  infoData1.varmeta.offset = (int32_t*) calloc(40, sizeof(uint32_t));
+  infoData1.varmeta.offset = (int32_t*) taosMemoryCalloc(40, sizeof(uint32_t));
   taosArrayPush(b->pDataBlock, &infoData1);
 
   char* str = "the value of: %d";
@@ -159,10 +160,10 @@ TEST(testCase, Datablock_test) {
 
   printf("binary column length:%d\n", *(int32_t*) p1->pData);
 
-  ASSERT_EQ(colDataGetNumOfCols(b), 2);
-  ASSERT_EQ(colDataGetNumOfRows(b), 40);
+  ASSERT_EQ(blockDataGetNumOfCols(b), 2);
+  ASSERT_EQ(blockDataGetNumOfRows(b), 40);
 
-  char* pData = colDataGet(p1, 3);
+  char* pData = colDataGetData(p1, 3);
   printf("the second row of binary:%s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
 
   SArray* pOrderInfo = taosArrayInit(3, sizeof(SBlockOrderInfo));
@@ -177,7 +178,7 @@ TEST(testCase, Datablock_test) {
 
 #if 0
 TEST(testCase, non_var_dataBlock_split_test) {
-  SSDataBlock* b = static_cast<SSDataBlock*>(calloc(1, sizeof(SSDataBlock)));
+  SSDataBlock* b = static_cast<SSDataBlock*>(taosMemoryCalloc(1, sizeof(SSDataBlock)));
   b->info.numOfCols = 2;
   b->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
 
@@ -188,8 +189,8 @@ TEST(testCase, non_var_dataBlock_split_test) {
 
   int32_t numOfRows = 1000000;
 
-  infoData.pData = (char*) calloc(numOfRows, infoData.info.bytes);
-  infoData.nullbitmap = (char*) calloc(1, sizeof(char) * (numOfRows/8));
+  infoData.pData = (char*) taosMemoryCalloc(numOfRows, infoData.info.bytes);
+  infoData.nullbitmap = (char*) taosMemoryCalloc(1, sizeof(char) * (numOfRows/8));
   taosArrayPush(b->pDataBlock, &infoData);
 
   SColumnInfoData infoData1 = {0};
@@ -197,8 +198,8 @@ TEST(testCase, non_var_dataBlock_split_test) {
   infoData1.info.type = TSDB_DATA_TYPE_TINYINT;
   infoData1.info.colId = 2;
 
-  infoData1.pData = (char*) calloc(numOfRows, infoData.info.bytes);
-  infoData1.nullbitmap = (char*) calloc(1, sizeof(char) * (numOfRows/8));
+  infoData1.pData = (char*) taosMemoryCalloc(numOfRows, infoData.info.bytes);
+  infoData1.nullbitmap = (char*) taosMemoryCalloc(1, sizeof(char) * (numOfRows/8));
   taosArrayPush(b->pDataBlock, &infoData1);
 
   for(int32_t i = 0; i < numOfRows; ++i) {
@@ -232,7 +233,7 @@ TEST(testCase, non_var_dataBlock_split_test) {
 #endif
 
 TEST(testCase, var_dataBlock_split_test) {
-  SSDataBlock* b = static_cast<SSDataBlock*>(calloc(1, sizeof(SSDataBlock)));
+  SSDataBlock* b = static_cast<SSDataBlock*>(taosMemoryCalloc(1, sizeof(SSDataBlock)));
   b->info.numOfCols = 2;
   b->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
 
@@ -243,8 +244,8 @@ TEST(testCase, var_dataBlock_split_test) {
   infoData.info.type = TSDB_DATA_TYPE_INT;
   infoData.info.colId = 1;
 
-  infoData.pData = (char*) calloc(numOfRows, infoData.info.bytes);
-  infoData.nullbitmap = (char*) calloc(1, sizeof(char) * (numOfRows/8));
+  infoData.pData = (char*) taosMemoryCalloc(numOfRows, infoData.info.bytes);
+  infoData.nullbitmap = (char*) taosMemoryCalloc(1, sizeof(char) * (numOfRows/8));
   taosArrayPush(b->pDataBlock, &infoData);
 
   SColumnInfoData infoData1 = {0};
@@ -252,7 +253,7 @@ TEST(testCase, var_dataBlock_split_test) {
   infoData1.info.type = TSDB_DATA_TYPE_BINARY;
   infoData1.info.colId = 2;
 
-  infoData1.varmeta.offset = (int32_t*) calloc(numOfRows, sizeof(uint32_t));
+  infoData1.varmeta.offset = (int32_t*) taosMemoryCalloc(numOfRows, sizeof(uint32_t));
   taosArrayPush(b->pDataBlock, &infoData1);
 
   char buf[41] = {0};

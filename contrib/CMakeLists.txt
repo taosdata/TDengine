@@ -9,6 +9,16 @@ endfunction(cat IN_FILE OUT_FILE)
 set(CONTRIB_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
 configure_file("${CMAKE_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
+# pthread
+if(${BUILD_PTHREAD})
+    cat("${CMAKE_SUPPORT_DIR}/pthread_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif()
+
+# gnu regex
+if(${BUILD_GNUREGEX})
+    cat("${CMAKE_SUPPORT_DIR}/gnuregex_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif()
+
 # googletest
 if(${BUILD_TEST})
     cat("${CMAKE_SUPPORT_DIR}/gtest_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -118,6 +128,11 @@ target_include_directories(
 set(CMAKE_PROJECT_INCLUDE_BEFORE "${CMAKE_SUPPORT_DIR}/EnableCMP0048.txt.in")
 add_subdirectory(zlib)
 target_include_directories(
+    zlibstatic
+    PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/zlib
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/zlib
+)
+target_include_directories(
     zlib
     PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/zlib
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/zlib
@@ -193,6 +208,10 @@ endif(${BUILD_WITH_TRAFT})
 
 # LIBUV
 if(${BUILD_WITH_UV})
+    if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+        MESSAGE("Windows need set no-sign-compare")
+        add_compile_options(-Wno-sign-compare)
+    endif ()
     add_subdirectory(libuv)
 endif(${BUILD_WITH_UV})
 
@@ -223,6 +242,7 @@ if(${BUILD_WITH_SQLITE})
     )
 endif(${BUILD_WITH_SQLITE})
 
+# pthread
 
 
 # ================================================================================================

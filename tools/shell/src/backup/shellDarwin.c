@@ -19,7 +19,7 @@
 
 #include "shell.h"
 #include "shellCommand.h"
-#include "tkey.h"
+#include "tbase64.h"
 
 #include "tscLog.h"
 
@@ -28,7 +28,6 @@
 int indicator = 1;
 struct termios oldtio;
 
-extern int wcwidth(wchar_t c);
 void insertChar(Command *cmd, char *c, int size);
 
 
@@ -207,8 +206,8 @@ int32_t shellReadCommand(TAOS *con, char *command) {
   char utf8_array[10] = "\0";
   Command cmd;
   memset(&cmd, 0, sizeof(cmd));
-  cmd.buffer = (char *)calloc(1, MAX_COMMAND_SIZE);
-  cmd.command = (char *)calloc(1, MAX_COMMAND_SIZE);
+  cmd.buffer = (char *)taosMemoryCalloc(1, MAX_COMMAND_SIZE);
+  cmd.command = (char *)taosMemoryCalloc(1, MAX_COMMAND_SIZE);
   showOnScreen(&cmd);
 
   // Read input.
@@ -253,8 +252,8 @@ int32_t shellReadCommand(TAOS *con, char *command) {
           printf("\n");
           if (isReadyGo(&cmd)) {
             sprintf(command, "%s%s", cmd.buffer, cmd.command);
-            tfree(cmd.buffer);
-            tfree(cmd.command);
+            taosMemoryFreeClear(cmd.buffer);
+            taosMemoryFreeClear(cmd.command);
             return 0;
           } else {
             updateBuffer(&cmd);
@@ -358,7 +357,7 @@ int32_t shellReadCommand(TAOS *con, char *command) {
 
 void *shellLoopQuery(void *arg) {
   if (indicator) {
-    get_old_terminal_mode(&oldtio);
+    getOldTerminalMode();
     indicator = 0;
   }
 
@@ -366,9 +365,9 @@ void *shellLoopQuery(void *arg) {
 
   setThreadName("shellLoopQuery");
 
-  pthread_cleanup_push(cleanup_handler, NULL);
+  taosThreadCleanupPush(cleanup_handler, NULL);
 
-    char *command = malloc(MAX_COMMAND_SIZE);
+    char *command = taosMemoryMalloc(MAX_COMMAND_SIZE);
     if (command == NULL){
       tscError("failed to malloc command");
       return NULL;
@@ -379,70 +378,20 @@ void *shellLoopQuery(void *arg) {
     do {
       // Read command from shell.
       memset(command, 0, MAX_COMMAND_SIZE);
-      set_terminal_mode();
+      setTerminalMode();
       err = shellReadCommand(con, command);
       if (err) {
         break;
       }
-      reset_terminal_mode();
+      resetTerminalMode();
     } while (shellRunCommand(con, command) == 0);
 
-  tfree(command);
+  taosMemoryFreeClear(command);
   exitShell();
 
-  pthread_cleanup_pop(1);
+  taosThreadCleanupPop(1);
 
   return NULL;
-}
-
-int get_old_terminal_mode(struct termios *tio) {
-  /* Make sure stdin is a terminal. */
-  if (!isatty(STDIN_FILENO)) {
-    return -1;
-  }
-
-  // Get the parameter of current terminal
-  if (tcgetattr(0, &oldtio) != 0) {
-    return -1;
-  }
-
-  return 1;
-}
-
-void reset_terminal_mode() {
-  if (tcsetattr(0, TCSANOW, &oldtio) != 0) {
-    fprintf(stderr, "Fail to reset the terminal properties!\n");
-    exit(EXIT_FAILURE);
-  }
-}
-
-void set_terminal_mode() {
-  struct termios newtio;
-
-  /* if (atexit(reset_terminal_mode) != 0) { */
-  /*     fprintf(stderr, "Error register exit function!\n"); */
-  /*     exit(EXIT_FAILURE); */
-  /* } */
-
-  memcpy(&newtio, &oldtio, sizeof(oldtio));
-
-  // Set new terminal attributes.
-  newtio.c_iflag &= ~(IXON | IXOFF | ICRNL | INLCR | IGNCR | IMAXBEL | ISTRIP);
-  newtio.c_iflag |= IGNBRK;
-
-  // newtio.c_oflag &= ~(OPOST|ONLCR|OCRNL|ONLRET);
-  newtio.c_oflag |= OPOST;
-  newtio.c_oflag |= ONLCR;
-  newtio.c_oflag &= ~(OCRNL | ONLRET);
-
-  newtio.c_lflag &= ~(IEXTEN | ICANON | ECHO | ECHOE | ECHONL | ECHOCTL | ECHOPRT | ECHOKE | ISIG);
-  newtio.c_cc[VMIN] = 1;
-  newtio.c_cc[VTIME] = 0;
-
-  if (tcsetattr(0, TCSANOW, &newtio) != 0) {
-    fprintf(stderr, "Fail to set terminal properties!\n");
-    exit(EXIT_FAILURE);
-  }
 }
 
 void get_history_path(char *history) { sprintf(history, "%s/%s", getpwuid(getuid())->pw_dir, HISTORY_FILE); }
@@ -476,11 +425,11 @@ void showOnScreen(Command *cmd) {
     w.ws_row = 30;
   }
 
-  wchar_t wc;
+  TdWchar wc;
   int size = 0;
 
   // Print out the command.
-  char *total_string = malloc(MAX_COMMAND_SIZE);
+  char *total_string = taosMemoryMalloc(MAX_COMMAND_SIZE);
   memset(total_string, '\0', MAX_COMMAND_SIZE);
   if (strcmp(cmd->buffer, "") == 0) {
     sprintf(total_string, "%s%s", PROMPT_HEADER, cmd->command);
@@ -491,11 +440,11 @@ void showOnScreen(Command *cmd) {
   int remain_column = w.ws_col;
   /* size = cmd->commandSize + prompt_size; */
   for (char *str = total_string; size < cmd->commandSize + prompt_size;) {
-    int ret = mbtowc(&wc, str, MB_CUR_MAX);
+    int ret = taosMbToWchar(&wc, str, MB_CUR_MAX);
     if (ret < 0) break;
     size += ret;
     /* assert(size >= 0); */
-    int width = wcwidth(wc);
+    int width = taosWcharWidth(wc);
     if (remain_column > width) {
       printf("%lc", wc);
       remain_column -= width;
@@ -512,7 +461,7 @@ void showOnScreen(Command *cmd) {
     str = total_string + size;
   }
 
-  free(total_string);
+  taosMemoryFree(total_string);
   /* for (int i = 0; i < size; i++){ */
   /*     char c = total_string[i]; */
   /*     if (k % w.ws_col == 0) { */
@@ -541,9 +490,9 @@ void showOnScreen(Command *cmd) {
   fflush(stdout);
 }
 
-void cleanup_handler(void *arg) { tcsetattr(0, TCSANOW, &oldtio); }
+void cleanup_handler(void *arg) { resetTerminalMode(); }
 
 void exitShell() {
-  tcsetattr(0, TCSANOW, &oldtio);
+  resetTerminalMode();
   exit(EXIT_SUCCESS);
 }

@@ -1,0 +1,17 @@
+run general/compute/avg.sim
+run general/compute/bottom.sim
+run general/compute/count.sim
+run general/compute/diff.sim
+run general/compute/diff2.sim
+run general/compute/first.sim
+run general/compute/interval.sim
+run general/compute/last.sim
+run general/compute/leastsquare.sim
+run general/compute/max.sim
+run general/compute/min.sim
+run general/compute/null.sim
+run general/compute/percentile.sim
+run general/compute/stddev.sim
+run general/compute/sum.sim
+run general/compute/top.sim
+run general/compute/block_dist.sim

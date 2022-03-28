@@ -13,8 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_VERSION_H
-#define _TD_UTIL_VERSION_H
+#ifndef _TD_UTIL_VERSION_H_
+#define _TD_UTIL_VERSION_H_
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,4 +30,4 @@ int32_t taosCheckVersionCompatible(int32_t clientVer, int32_t serverVer, int32_t
 }
 #endif
 
-#endif /*_TD_UTIL_VERSION_H*/
+#endif /*_TD_UTIL_VERSION_H_*/

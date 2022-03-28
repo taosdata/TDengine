@@ -12,8 +12,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef _TD_UTIL_LIST_H
-#define _TD_UTIL_LIST_H
+
+#ifndef _TD_UTIL_LIST_H_
+#define _TD_UTIL_LIST_H_
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,12 +31,12 @@ extern "C" {
 #define TD_SLIST(TYPE)      \
   struct {                  \
     struct TYPE *sl_head_;  \
-    int          sl_neles_; \
+    int32_t      sl_neles_; \
   }
 
-#define TD_SLIST_HEAD(sl) ((sl)->sl_head_)
-#define TD_SLIST_NELES(sl) ((sl)->sl_neles_)
-#define TD_SLIST_NODE_NEXT(sln) ((sln)->sl_next_)
+#define TD_SLIST_HEAD(sl)                         ((sl)->sl_head_)
+#define TD_SLIST_NELES(sl)                        ((sl)->sl_neles_)
+#define TD_SLIST_NODE_NEXT(sln)                   ((sln)->sl_next_)
 #define TD_SLIST_NODE_NEXT_WITH_FIELD(sln, field) ((sln)->field.sl_next_)
 
 #define TD_SLIST_INIT(sl)  \
@@ -79,16 +82,16 @@ extern "C" {
   struct {                  \
     struct TYPE *dl_head_;  \
     struct TYPE *dl_tail_;  \
-    int          dl_neles_; \
+    int32_t      dl_neles_; \
   }
 
-#define TD_DLIST_NODE_PREV(dln) ((dln)->dl_prev_)
-#define TD_DLIST_NODE_NEXT(dln) ((dln)->dl_next_)
+#define TD_DLIST_NODE_PREV(dln)                   ((dln)->dl_prev_)
+#define TD_DLIST_NODE_NEXT(dln)                   ((dln)->dl_next_)
 #define TD_DLIST_NODE_PREV_WITH_FIELD(dln, field) ((dln)->field.dl_prev_)
 #define TD_DLIST_NODE_NEXT_WITH_FIELD(dln, field) ((dln)->field.dl_next_)
-#define TD_DLIST_HEAD(dl) ((dl)->dl_head_)
-#define TD_DLIST_TAIL(dl) ((dl)->dl_tail_)
-#define TD_DLIST_NELES(dl) ((dl)->dl_neles_)
+#define TD_DLIST_HEAD(dl)                         ((dl)->dl_head_)
+#define TD_DLIST_TAIL(dl)                         ((dl)->dl_tail_)
+#define TD_DLIST_NELES(dl)                        ((dl)->dl_neles_)
 
 #define TD_DLIST_INIT(dl)                         \
   do {                                            \
@@ -200,29 +203,29 @@ typedef struct SListNode {
 
 typedef struct {
   TD_DLIST(SListNode);
-  int eleSize;
+  int32_t eleSize;
 } SList;
 
 typedef struct {
-  SListNode *         next;
+  SListNode          *next;
   TD_LIST_DIRECTION_T direction;
 } SListIter;
 
-#define listHead(l) TD_DLIST_HEAD(l)
-#define listTail(l) TD_DLIST_TAIL(l)
-#define listNEles(l) TD_DLIST_NELES(l)
-#define listEleSize(l) ((l)->eleSize)
-#define isListEmpty(l) (TD_DLIST_NELES(l) == 0)
-#define listNodeFree(n) free(n)
+#define listHead(l)     TD_DLIST_HEAD(l)
+#define listTail(l)     TD_DLIST_TAIL(l)
+#define listNEles(l)    TD_DLIST_NELES(l)
+#define listEleSize(l)  ((l)->eleSize)
+#define isListEmpty(l)  (TD_DLIST_NELES(l) == 0)
+#define listNodeFree(n) taosMemoryFree(n)
 
-void       tdListInit(SList *list, int eleSize);
+void       tdListInit(SList *list, int32_t eleSize);
 void       tdListEmpty(SList *list);
-SList *    tdListNew(int eleSize);
-void *     tdListFree(SList *list);
+SList     *tdListNew(int32_t eleSize);
+void      *tdListFree(SList *list);
 void       tdListPrependNode(SList *list, SListNode *node);
 void       tdListAppendNode(SList *list, SListNode *node);
-int        tdListPrepend(SList *list, void *data);
-int        tdListAppend(SList *list, void *data);
+int32_t    tdListPrepend(SList *list, void *data);
+int32_t    tdListAppend(SList *list, void *data);
 SListNode *tdListPopHead(SList *list);
 SListNode *tdListPopTail(SList *list);
 SListNode *tdListGetHead(SList *list);
@@ -239,4 +242,4 @@ SListNode *tdListNext(SListIter *pIter);
 }
 #endif
 
-#endif /*_TD_UTIL_LIST_H*/
+#endif /*_TD_UTIL_LIST_H_*/

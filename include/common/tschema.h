@@ -70,7 +70,7 @@ typedef struct {
   { .size = (capacity), .pSchema = (target) }
 void tSchemaBuilderSetSver(STShemaBuilder *pSchemaBuilder, uint16_t sver);
 void tSchemaBuilderSetSMA(bool sma, SArray *smaArray);
-int  tSchemaBuilderPutColumn(char *cname, bool sma, uint8_t type, col_id_t cid, uint32_t bytes, char *comment);
+int32_t  tSchemaBuilderPutColumn(char *cname, bool sma, uint8_t type, col_id_t cid, uint32_t bytes, char *comment);
 
 #endif
 

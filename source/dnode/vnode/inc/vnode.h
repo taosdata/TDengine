@@ -18,6 +18,7 @@
 
 #include "os.h"
 #include "trpc.h"
+#include "tmsgcb.h"
 
 #include "meta.h"
 #include "tarray.h"
@@ -30,11 +31,8 @@ extern "C" {
 #endif
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
-typedef struct SVnode SVnode;
-typedef struct SDnode SDnode;
-typedef int32_t (*PutReqToVQueryQFp)(SDnode *pDnode, struct SRpcMsg *pReq);
-typedef int32_t (*SendReqToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
-
+typedef struct SMgmtWrapper SMgmtWrapper;
+typedef struct SVnode       SVnode;
 typedef struct {
   // TODO
   int32_t reserved;
@@ -43,7 +41,6 @@ typedef struct {
 typedef struct {
   int32_t  vgId;
   uint64_t dbId;
-  SDnode  *pDnode;
   STfs    *pTfs;
   uint64_t wsize;
   uint64_t ssize;
@@ -57,17 +54,11 @@ typedef struct {
   SMetaCfg metaCfg;
   STqCfg   tqCfg;
   SWalCfg  walCfg;
+  SMsgCb   msgCb;
+  uint32_t hashBegin;
+  uint32_t hashEnd;
+  int8_t   hashMethod;
 } SVnodeCfg;
-
-typedef struct {
-  int32_t           sver;
-  const char       *timezone;
-  const char       *locale;
-  const char       *charset;
-  uint16_t          nthreads;  // number of commit threads. 0 for no threads and a schedule queue should be given (TODO)
-  PutReqToVQueryQFp putReqToVQueryQFp;
-  SendReqToDnodeFp  sendReqToDnodeFp;
-} SVnodeOpt;
 
 typedef struct {
   int64_t           ver;
@@ -88,10 +79,9 @@ typedef struct {
 /**
  * @brief Initialize the vnode module
  *
- * @param pOption Option of the vnode mnodule
  * @return int 0 for success and -1 for failure
  */
-int vnodeInit(const SVnodeOpt *pOption);
+int vnodeInit();
 
 /**
  * @brief Cleanup the vnode module
@@ -127,9 +117,8 @@ void vnodeDestroy(const char *path);
  *
  * @param pVnode The vnode object.
  * @param pMsgs The array of SRpcMsg
- * @return int 0 for success, -1 for failure
  */
-int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs);
+void vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs);
 
 /**
  * @brief Apply a write request message.
@@ -194,6 +183,9 @@ void vnodeOptionsInit(SVnodeCfg *pOptions);
  */
 void vnodeOptionsClear(SVnodeCfg *pOptions);
 
+int vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName);
+
+
 /* ------------------------ FOR COMPILE ------------------------ */
 
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg);
@@ -202,6 +194,22 @@ int32_t vnodeSync(SVnode *pVnode);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 
 /* ------------------------- TQ READ --------------------------- */
+
+enum {
+  TQ_STREAM_TOKEN__DATA = 1,
+  TQ_STREAM_TOKEN__WATERMARK,
+  TQ_STREAM_TOKEN__CHECKPOINT,
+};
+
+typedef struct {
+  int8_t type;
+  int8_t reserved[7];
+  union {
+    void   *data;
+    int64_t wmTs;
+    int64_t checkpointId;
+  };
+} STqStreamToken;
 
 STqReadHandle *tqInitSubmitMsgScanner(SMeta *pMeta);
 
@@ -214,15 +222,38 @@ static FORCE_INLINE void tqReadHandleSetColIdList(STqReadHandle *pReadHandle, SA
 //}
 
 static FORCE_INLINE int tqReadHandleSetTbUidList(STqReadHandle *pHandle, const SArray *tbUidList) {
+  if (pHandle->tbIdHash) {
+    taosHashClear(pHandle->tbIdHash);
+  }
+
   pHandle->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (pHandle->tbIdHash == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
   for (int i = 0; i < taosArrayGetSize(tbUidList); i++) {
     int64_t *pKey = (int64_t *)taosArrayGet(tbUidList, i);
     taosHashPut(pHandle->tbIdHash, pKey, sizeof(int64_t), NULL, 0);
-    // pHandle->tbUid = tbUid;
   }
+
+  return 0;
+}
+
+static FORCE_INLINE int tqReadHandleAddTbUidList(STqReadHandle *pHandle, const SArray *tbUidList) {
+  if (pHandle->tbIdHash == NULL) {
+    pHandle->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+    if (pHandle->tbIdHash == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+  }
+
+  for (int i = 0; i < taosArrayGetSize(tbUidList); i++) {
+    int64_t *pKey = (int64_t *)taosArrayGet(tbUidList, i);
+    taosHashPut(pHandle->tbIdHash, pKey, sizeof(int64_t), NULL, 0);
+  }
+
   return 0;
 }
 

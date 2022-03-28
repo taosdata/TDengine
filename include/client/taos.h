@@ -31,26 +31,27 @@ typedef void   TAOS_SUB;
 typedef void **TAOS_ROW;
 
 // Data type definition
-#define TSDB_DATA_TYPE_NULL      0   // 1 bytes
-#define TSDB_DATA_TYPE_BOOL      1   // 1 bytes
-#define TSDB_DATA_TYPE_TINYINT   2   // 1 byte
-#define TSDB_DATA_TYPE_SMALLINT  3   // 2 bytes
-#define TSDB_DATA_TYPE_INT       4   // 4 bytes
-#define TSDB_DATA_TYPE_BIGINT    5   // 8 bytes
-#define TSDB_DATA_TYPE_FLOAT     6   // 4 bytes
-#define TSDB_DATA_TYPE_DOUBLE    7   // 8 bytes
-#define TSDB_DATA_TYPE_BINARY    8   // string, alias for varchar
-#define TSDB_DATA_TYPE_TIMESTAMP 9   // 8 bytes
-#define TSDB_DATA_TYPE_NCHAR     10  // unicode string
-#define TSDB_DATA_TYPE_UTINYINT  11  // 1 byte
-#define TSDB_DATA_TYPE_USMALLINT 12  // 2 bytes
-#define TSDB_DATA_TYPE_UINT      13  // 4 bytes
-#define TSDB_DATA_TYPE_UBIGINT   14  // 8 bytes
-#define TSDB_DATA_TYPE_VARCHAR   15  // string
-#define TSDB_DATA_TYPE_VARBINARY 16  // binary
-#define TSDB_DATA_TYPE_JSON      17  // json
-#define TSDB_DATA_TYPE_DECIMAL   18  // decimal
-#define TSDB_DATA_TYPE_BLOB      19  // binary
+#define TSDB_DATA_TYPE_NULL       0   // 1 bytes
+#define TSDB_DATA_TYPE_BOOL       1   // 1 bytes
+#define TSDB_DATA_TYPE_TINYINT    2   // 1 byte
+#define TSDB_DATA_TYPE_SMALLINT   3   // 2 bytes
+#define TSDB_DATA_TYPE_INT        4   // 4 bytes
+#define TSDB_DATA_TYPE_BIGINT     5   // 8 bytes
+#define TSDB_DATA_TYPE_FLOAT      6   // 4 bytes
+#define TSDB_DATA_TYPE_DOUBLE     7   // 8 bytes
+#define TSDB_DATA_TYPE_VARCHAR    8   // string, alias for varchar
+#define TSDB_DATA_TYPE_TIMESTAMP  9   // 8 bytes
+#define TSDB_DATA_TYPE_NCHAR      10  // unicode string
+#define TSDB_DATA_TYPE_UTINYINT   11  // 1 byte
+#define TSDB_DATA_TYPE_USMALLINT  12  // 2 bytes
+#define TSDB_DATA_TYPE_UINT       13  // 4 bytes
+#define TSDB_DATA_TYPE_UBIGINT    14  // 8 bytes
+#define TSDB_DATA_TYPE_JSON       15  // json string
+#define TSDB_DATA_TYPE_VARBINARY  16  // binary
+#define TSDB_DATA_TYPE_DECIMAL    17  // decimal
+#define TSDB_DATA_TYPE_BLOB       18  // binary
+#define TSDB_DATA_TYPE_MEDIUMBLOB 19
+#define TSDB_DATA_TYPE_BINARY     TSDB_DATA_TYPE_VARCHAR  // string
 
 typedef enum {
   TSDB_OPTION_LOCALE,
@@ -84,11 +85,7 @@ typedef struct taosField {
   int32_t bytes;
 } TAOS_FIELD;
 
-#ifdef _TD_GO_DLL_
-#define DLL_EXPORT __declspec(dllexport)
-#else
 #define DLL_EXPORT
-#endif
 
 typedef void (*__taos_async_fn_t)(void *param, TAOS_RES *, int code);
 
@@ -198,8 +195,8 @@ DLL_EXPORT TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLi
 /* --------------------------TMQ INTERFACE------------------------------- */
 
 enum tmq_resp_err_t {
+  TMQ_RESP_ERR__FAIL = -1,
   TMQ_RESP_ERR__SUCCESS = 0,
-  TMQ_RESP_ERR__FAIL = 1,
 };
 
 typedef enum tmq_resp_err_t tmq_resp_err_t;
@@ -216,18 +213,17 @@ typedef void(tmq_commit_cb(tmq_t *, tmq_resp_err_t, tmq_topic_vgroup_list_t *, v
 
 DLL_EXPORT tmq_list_t *tmq_list_new();
 DLL_EXPORT int32_t     tmq_list_append(tmq_list_t *, const char *);
+DLL_EXPORT void        tmq_list_destroy(tmq_list_t *);
 
-DLL_EXPORT TAOS_RES   *tmq_create_topic(TAOS *taos, const char *name, const char *sql, int sqlLen);
 DLL_EXPORT tmq_t      *tmq_consumer_new(void *conn, tmq_conf_t *conf, char *errstr, int32_t errstrLen);
+DLL_EXPORT tmq_t      *tmq_consumer_new1(tmq_conf_t *conf, char *errstr, int32_t errstrLen);
 DLL_EXPORT void        tmq_message_destroy(tmq_message_t *tmq_message);
 DLL_EXPORT const char *tmq_err2str(tmq_resp_err_t);
 
 /* ------------------------TMQ CONSUMER INTERFACE------------------------ */
 DLL_EXPORT tmq_resp_err_t tmq_subscribe(tmq_t *tmq, tmq_list_t *topic_list);
-#if 0
-DLL_EXPORT tmq_resp_err_t tmq_unsubscribe(tmq_t* tmq);
-DLL_EXPORT tmq_resp_err_t tmq_subscription(tmq_t* tmq, tmq_topic_vgroup_list_t** topics);
-#endif
+DLL_EXPORT tmq_resp_err_t tmq_unsubscribe(tmq_t *tmq);
+DLL_EXPORT tmq_resp_err_t tmq_subscription(tmq_t *tmq, tmq_list_t **topics);
 DLL_EXPORT tmq_message_t *tmq_consumer_poll(tmq_t *tmq, int64_t blocking_time);
 DLL_EXPORT tmq_resp_err_t tmq_consumer_close(tmq_t *tmq);
 #if 0
@@ -238,6 +234,7 @@ DLL_EXPORT tmq_resp_err_t tmq_commit(tmq_t *tmq, const tmq_topic_vgroup_list_t *
 #if 0
 DLL_EXPORT tmq_resp_err_t tmq_commit_message(tmq_t* tmq, const tmq_message_t* tmqmessage, int32_t async);
 #endif
+DLL_EXPORT tmq_resp_err_t tmq_seek(tmq_t *tmq, const tmq_topic_vgroup_t *offset);
 /* ----------------------TMQ CONFIGURATION INTERFACE---------------------- */
 
 enum tmq_conf_res_t {
@@ -249,13 +246,29 @@ enum tmq_conf_res_t {
 typedef enum tmq_conf_res_t tmq_conf_res_t;
 
 DLL_EXPORT tmq_conf_t    *tmq_conf_new();
-DLL_EXPORT void           tmq_conf_destroy(tmq_conf_t *conf);
 DLL_EXPORT tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value);
+DLL_EXPORT void           tmq_conf_destroy(tmq_conf_t *conf);
 DLL_EXPORT void           tmq_conf_set_offset_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb);
 
 // temporary used function for demo only
 void    tmqShowMsg(tmq_message_t *tmq_message);
 int32_t tmqGetSkipLogNum(tmq_message_t *tmq_message);
+
+/* -------------------------TMQ MSG HANDLE INTERFACE---------------------- */
+
+DLL_EXPORT TAOS_ROW tmq_get_row(tmq_message_t *message);
+DLL_EXPORT char    *tmq_get_topic_name(tmq_message_t *message);
+DLL_EXPORT char    *tmq_get_topic_schema(tmq_t *tmq, const char *topic);
+
+/* --------------------TMPORARY INTERFACE FOR TESTING--------------------- */
+DLL_EXPORT TAOS_RES *tmq_create_topic(TAOS *taos, const char *name, const char *sql, int sqlLen);
+
+DLL_EXPORT TAOS_RES *tmq_create_stream(TAOS *taos, const char *streamName, const char *tbName, const char *sql);
+
+/* -------------------------------- OTHER -------------------------------- */
+typedef void (*TAOS_SUBSCRIBE_CALLBACK)(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code);
+
+DLL_EXPORT int taos_stmt_affected_rows(TAOS_STMT *stmt);
 
 #ifdef __cplusplus
 }

@@ -20,15 +20,16 @@
 extern "C" {
 #endif
 
-#include "common.h"
+#include "tcommon.h"
 #include "dataSinkMgt.h"
+#include "plannodes.h"
 
 struct SDataSink;
 struct SDataSinkHandle;
 
 typedef struct SDataSinkManager {
   SDataSinkMgtCfg cfg;
-  pthread_mutex_t mutex;
+  TdThreadMutex mutex;
 } SDataSinkManager;
 
 typedef int32_t (*FPutDataBlock)(struct SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue);
@@ -45,7 +46,7 @@ typedef struct SDataSinkHandle {
   FDestroyDataSinker fDestroy;
 } SDataSinkHandle;
 
-int32_t createDataDispatcher(SDataSinkManager* pManager, const struct SDataSink* pDataSink, DataSinkHandle* pHandle);
+int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle);
 
 #ifdef __cplusplus
 }

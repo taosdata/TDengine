@@ -33,3 +33,25 @@ int vnodeValidateOptions(const SVnodeCfg *pVnodeOptions) {
 void vnodeOptionsCopy(SVnodeCfg *pDest, const SVnodeCfg *pSrc) {
   memcpy((void *)pDest, (void *)pSrc, sizeof(SVnodeCfg));
 }
+
+int vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName) {
+  uint32_t hashValue = 0;
+  
+  switch (pVnodeOptions->hashMethod) {
+    default:
+      hashValue = MurmurHash3_32(tableFName, strlen(tableFName));
+      break;
+  }
+
+  // TODO OPEN THIS !!!!!!!
+#if 0
+  if (hashValue < pVnodeOptions->hashBegin || hashValue > pVnodeOptions->hashEnd) {
+    terrno = TSDB_CODE_VND_HASH_MISMATCH;
+    return TSDB_CODE_VND_HASH_MISMATCH;
+  }
+#endif
+
+  return TSDB_CODE_SUCCESS;
+}
+
+

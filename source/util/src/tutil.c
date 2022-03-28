@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-#include "tdef.h"
+#define _DEFAULT_SOURCE
+#include "tutil.h"
 
 int32_t strdequote(char *z) {
   if (z == NULL) {
@@ -47,38 +47,38 @@ int32_t strdequote(char *z) {
   return j + 1;  // only one quote, do nothing
 }
 
-int32_t strRmquote(char *z, int32_t len){  
-    // delete escape character: \\, \', \"
-    char delim = z[0];
-    if (delim != '\'' && delim != '\"') {
-      return len;
-    }
-  
-    int32_t cnt = 0;
-    int32_t j = 0;
-    for (uint32_t k = 1; k < len - 1; ++k) {
-      if (z[k] == '\\' || (z[k] == delim && z[k + 1] == delim)) {
-        if (z[k] == '\\' && z[k + 1] == '_') {
-          //match '_' self
-        } else {
-          z[j] = z[k + 1];
-          cnt++;
-          j++;
-          k++;
-          continue;
-        }
+int32_t strRmquote(char *z, int32_t len) {
+  // delete escape character: \\, \', \"
+  char delim = z[0];
+  if (delim != '\'' && delim != '\"') {
+    return len;
+  }
+
+  int32_t cnt = 0;
+  int32_t j = 0;
+  for (uint32_t k = 1; k < len - 1; ++k) {
+    if (z[k] == '\\' || (z[k] == delim && z[k + 1] == delim)) {
+      if (z[k] == '\\' && z[k + 1] == '_') {
+        // match '_' self
+      } else {
+        z[j] = z[k + 1];
+        cnt++;
+        j++;
+        k++;
+        continue;
       }
-  
-      z[j] = z[k];
-      j++;
     }
-  
-    z[j] = 0;
-    
-    return len - 2 - cnt;
+
+    z[j] = z[k];
+    j++;
+  }
+
+  z[j] = 0;
+
+  return len - 2 - cnt;
 }
 
-int32_t strndequote(char *dst, const char* z, int32_t len) {
+int32_t strndequote(char *dst, const char *z, int32_t len) {
   assert(dst != NULL);
   if (z == NULL || len == 0) {
     return 0;
@@ -90,7 +90,7 @@ int32_t strndequote(char *dst, const char* z, int32_t len) {
   while (z[i] != 0) {
     if (z[i] == quote) {
       if (z[i + 1] == quote) {
-        dst[j++] = (char) quote;
+        dst[j++] = (char)quote;
         i++;
       } else {
         dst[j++] = 0;
@@ -139,7 +139,7 @@ size_t strtrim(char *z) {
   } else if (j != i) {
     z[i] = 0;
   }
-  
+
   return i;
 }
 
@@ -147,7 +147,7 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
   *num = 0;
   int32_t size = 4;
 
-  char **split = malloc(POINTER_BYTES * size);
+  char **split = taosMemoryMalloc(POINTER_BYTES * size);
 
   for (char *p = strsep(&z, delim); p != NULL; p = strsep(&z, delim)) {
     size_t len = strlen(p);
@@ -158,7 +158,7 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
     split[(*num)++] = p;
     if ((*num) >= size) {
       size = (size << 1);
-      split = realloc(split, POINTER_BYTES * size);
+      split = taosMemoryRealloc(split, POINTER_BYTES * size);
       assert(NULL != split);
     }
   }
@@ -168,11 +168,11 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
 
 char *strnchr(const char *haystack, char needle, int32_t len, bool skipquote) {
   for (int32_t i = 0; i < len; ++i) {
-
     // skip the needle in quote, jump to the end of quoted string
     if (skipquote && (haystack[i] == '\'' || haystack[i] == '"')) {
       char quote = haystack[i++];
-      while(i < len && haystack[i++] != quote);
+      while (i < len && haystack[i++] != quote)
+        ;
       if (i >= len) {
         return NULL;
       }
@@ -186,9 +186,9 @@ char *strnchr(const char *haystack, char needle, int32_t len, bool skipquote) {
   return NULL;
 }
 
-char* strtolower(char *dst, const char *src) {
+char *strtolower(char *dst, const char *src) {
   int32_t esc = 0;
-  char quote = 0, *p = dst, c;
+  char    quote = 0, *p = dst, c;
 
   assert(dst != NULL);
 
@@ -213,9 +213,9 @@ char* strtolower(char *dst, const char *src) {
   return dst;
 }
 
-char* strntolower(char *dst, const char *src, int32_t n) {
+char *strntolower(char *dst, const char *src, int32_t n) {
   int32_t esc = 0;
-  char quote = 0, *p = dst, c;
+  char    quote = 0, *p = dst, c;
 
   assert(dst != NULL);
   if (n == 0) {
@@ -233,7 +233,7 @@ char* strntolower(char *dst, const char *src, int32_t n) {
       }
     } else if (c >= 'A' && c <= 'Z') {
       c -= 'A' - 'a';
-    } else if (c == '\'' || c == '"') {
+    } else if (c == '\'' || c == '"' || c == '`') {
       quote = c;
     }
     *p++ = c;
@@ -243,7 +243,7 @@ char* strntolower(char *dst, const char *src, int32_t n) {
   return dst;
 }
 
-char* strntolower_s(char *dst, const char *src, int32_t n) {
+char *strntolower_s(char *dst, const char *src, int32_t n) {
   char *p = dst, c;
 
   assert(dst != NULL);
@@ -265,7 +265,7 @@ char* strntolower_s(char *dst, const char *src, int32_t n) {
 
 char *paGetToken(char *string, char **token, int32_t *tokenLen) {
   char quote = 0;
-  
+
   while (*string != 0) {
     if (*string == ' ' || *string == '\t') {
       ++string;
@@ -346,10 +346,10 @@ char *strbetween(char *string, char *begin, char *end) {
   char *result = NULL;
   char *_begin = strstr(string, begin);
   if (_begin != NULL) {
-    char *_end = strstr(_begin + strlen(begin), end);
-    int32_t   size = (int32_t)(_end - _begin);
+    char   *_end = strstr(_begin + strlen(begin), end);
+    int32_t size = (int32_t)(_end - _begin);
     if (_end != NULL && size > 0) {
-      result = (char *)calloc(1, size);
+      result = (char *)taosMemoryCalloc(1, size);
       memcpy(result, _begin + strlen(begin), size - +strlen(begin));
     }
   }
@@ -401,11 +401,12 @@ int32_t taosHexStrToByteArray(char hexstr[], char bytes[]) {
 }
 
 char *taosIpStr(uint32_t ipInt) {
-  static char ipStrArray[3][30];
+  static char    ipStrArray[3][30];
   static int32_t ipStrIndex = 0;
 
   char *ipStr = ipStrArray[(ipStrIndex++) % 3];
-  //sprintf(ipStr, "0x%x:%u.%u.%u.%u", ipInt, ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, (uint8_t)(ipInt >> 24));
+  // sprintf(ipStr, "0x%x:%u.%u.%u.%u", ipInt, ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, (uint8_t)(ipInt
+  // >> 24));
   sprintf(ipStr, "%u.%u.%u.%u", ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, (uint8_t)(ipInt >> 24));
   return ipStr;
 }

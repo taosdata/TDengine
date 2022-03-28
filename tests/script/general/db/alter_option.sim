@@ -1,0 +1,263 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 0
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 1000
+
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+print ============= create database
+sql create database db cache 2 blocks 4 days 10 keep 20 minRows 300 maxRows 400 ctime 120 precision 'ms' comp 2 wal 1 replica 1
+sql show databases
+if $data00 != db then 
+  return -1
+endi
+if $data02 != 0 then 
+  return -1
+endi
+if $data03 != 0 then 
+  return -1
+endi
+if $data04 != 1 then 
+  return -1
+endi
+if $data06 != 10 then 
+  return -1
+endi
+if $data07 != 20,20,20 then 
+  return -1
+endi
+if $data08 != 2 then 
+  return -1
+endi
+if $data09 != 4 then 
+  return -1
+endi
+
+print ============== step name
+sql_error alter database db name d1
+sql_error alter database db name d2
+
+print ============== step ntables
+sql_error alter database db ntables -1
+sql_error alter database db ntables 0
+sql_error alter database db ntables 1
+sql_error alter database db ntables 10
+
+print ============== step vgroups
+sql_error alter database db vgroups -1
+sql_error alter database db vgroups 0
+sql_error alter database db vgroups 1
+sql_error alter database db vgroups 10
+
+print ============== step replica
+sql_error alter database db replica 2
+sql_error alter database db replica 3
+sql_error alter database db replica 0
+
+sql alter database db replica 1
+sql show databases
+print replica $data4_db
+if $data4_db != 1 then 
+  return -1
+endi
+
+print ============== step quorum
+sql show databases
+print quorum $data5_db
+if $data5_db != 1 then 
+  return -1
+endi
+
+sql alter database db quorum 1
+sql show databases
+print quorum $data5_db
+if $data5_db != 1 then 
+  return -1
+endi
+
+sql_error alter database db quorum 2
+
+sql_error alter database db quorum 3
+
+sql_error alter database db quorum 0
+sql_error alter database db quorum 4
+sql_error alter database db quorum 5
+sql_error alter database db quorum -1
+
+print ============== step days
+sql_error alter database db days 0
+sql_error alter database db days 1
+sql_error alter database db days 2
+sql_error alter database db days 10
+sql_error alter database db days 50
+sql_error alter database db days 100
+
+print ============== step keep
+sql show databases
+print keep $data7_db
+if $data7_db != 20,20,20 then 
+  return -1
+endi
+
+sql alter database db keep 20
+sql show databases
+print keep $data7_db
+if $data7_db != 20,20,20 then
+  return -1
+endi
+
+sql alter database db keep 30
+sql show databases
+print keep $data7_db
+if $data7_db != 30,30,30 then
+  return -1
+endi
+
+sql alter database db keep 40
+sql show databases
+print keep $data7_db
+if $data7_db != 40,40,40 then
+  return -1
+endi
+
+sql alter database db keep 40,50
+sql alter database db keep 30,31
+sql alter database db keep 20
+sql_error alter database db keep 10.0
+sql_error alter database db keep 9
+sql_error alter database db keep 1
+sql_error alter database db keep 0
+sql_error alter database db keep -1
+sql_error alter database db keep 365001
+
+print ============== step cache
+sql_error alter database db cache 60
+sql_error alter database db cache 50
+sql_error alter database db cache 20
+sql_error alter database db cache 3
+sql_error alter database db cache 129
+sql_error alter database db cache 300
+sql_error alter database db cache 0
+sql_error alter database db cache -1
+
+print ============== step blocks
+sql show databases
+print blocks $data9_db
+if $data9_db != 4 then 
+  return -1
+endi
+
+sql alter database db blocks 10
+sql show databases
+print blocks $data9_db
+if $data9_db != 10 then 
+  return -1
+endi
+
+sql alter database db blocks 20
+sql show databases
+print blocks $data9_db
+if $data9_db != 20 then 
+  return -1
+endi
+
+sql alter database db blocks 30
+sql show databases
+print blocks $data9_db
+if $data9_db != 30 then 
+  return -1
+endi
+
+sql alter database db blocks 40
+sql alter database db blocks 30
+sql alter database db blocks 20
+sql alter database db blocks 10
+sql_error alter database db blocks 2
+sql_error alter database db blocks 1
+sql_error alter database db blocks 0
+sql_error alter database db blocks -1
+sql_error alter database db blocks 10001
+
+print ============== step minrows
+sql_error alter database db minrows 1
+sql_error alter database db minrows 100
+sql_error alter database db minrows 1000
+
+print ============== step maxrows
+sql_error alter database db maxrows 1
+sql_error alter database db maxrows 100
+sql_error alter database db maxrows 1000
+
+print ============== step wallevel
+sql show databases
+print wallevel $data12_db
+if $data12_db != 1 then 
+  return -1
+endi
+
+sql_error alter database db wal 1
+
+
+sql_error alter database db wal 1
+sql_error alter database db wal 2
+sql_error alter database db wal 1
+sql_error alter database db wal 2
+sql_error alter database db wal 0
+sql_error alter database db wal 3
+sql_error alter database db wal 4
+sql_error alter database db wal -1
+sql_error alter database db wal 1000
+
+print ============== step fsync
+sql_error alter database db fsync 0
+sql_error alter database db fsync 1
+sql_error alter database db fsync 3600
+sql_error alter database db fsync 18000
+sql_error alter database db fsync 180000
+sql_error alter database db fsync 180001
+sql_error alter database db fsync -1
+
+print ============== step comp
+sql show databases
+print comp $data14_db
+if $data14_db != 2 then 
+  return -1
+endi
+
+sql alter database db comp 1
+sql show databases
+print comp $data14_db
+if $data14_db != 1 then 
+  return -1
+endi
+
+sql alter database db comp 2
+sql show databases
+print comp $data14_db
+if $data14_db != 2 then 
+  return -1
+endi
+
+sql alter database db comp 0
+sql show databases
+print comp $data14_db
+if $data14_db != 0 then 
+  return -1
+endi
+
+sql_error alter database db comp 3
+sql_error alter database db comp 4
+sql_error alter database db comp 5
+sql_error alter database db comp -1
+
+
+print ============== step precision
+sql_error alter database db prec 'us'
+
+print ============== step status
+sql_error alter database db status 'delete'
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

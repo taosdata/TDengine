@@ -19,7 +19,7 @@ static std::string fileName = "/tmp/tindex.tindex";
 class FstWriter {
  public:
   FstWriter() {
-    remove(fileName.c_str());
+    taosRemoveFile(fileName.c_str());
     _wc = writerCtxCreate(TFile, fileName.c_str(), false, 64 * 1024 * 1024);
     _b = fstBuilderCreate(_wc, 0);
   }
@@ -49,20 +49,21 @@ class FstWriter {
 class FstReadMemory {
  public:
   FstReadMemory(size_t size, const std::string& fileName = "/tmp/tindex.tindex") {
-    tfInit();
     _wc = writerCtxCreate(TFile, fileName.c_str(), true, 64 * 1024);
     _w = fstCountingWriterCreate(_wc);
     _size = size;
     memset((void*)&_s, 0, sizeof(_s));
   }
   bool init() {
-    char* buf = (char*)calloc(1, sizeof(char) * _size);
+    char* buf = (char*)taosMemoryCalloc(1, sizeof(char) * _size);
     int   nRead = fstCountingWriterRead(_w, (uint8_t*)buf, _size);
-    if (nRead <= 0) { return false; }
+    if (nRead <= 0) {
+      return false;
+    }
     _size = nRead;
     _s = fstSliceCreate((uint8_t*)buf, _size);
     _fst = fstCreate(&_s);
-    free(buf);
+    taosMemoryFree(buf);
     return _fst != NULL;
   }
   bool Get(const std::string& key, uint64_t* val) {
@@ -97,7 +98,8 @@ class FstReadMemory {
       printf("key: %s, val: %" PRIu64 "\n", key.c_str(), (uint64_t)(rt->out.out));
       swsResultDestroy(rt);
     }
-    for (size_t i = 0; i < result.size(); i++) {}
+    for (size_t i = 0; i < result.size(); i++) {
+    }
     std::cout << std::endl;
     return true;
   }
@@ -113,7 +115,6 @@ class FstReadMemory {
     fstDestroy(_fst);
     fstSliceDestroy(&_s);
     writerCtxDestroy(_wc, false);
-    tfCleanup();
   }
 
  private:
@@ -167,20 +168,19 @@ void Performance_fstReadRecords(FstReadMemory* m) {
 }
 
 void checkMillonWriteAndReadOfFst() {
-  tfInit();
   FstWriter* fw = new FstWriter;
   Performance_fstWriteRecords(fw);
   delete fw;
   FstReadMemory* fr = new FstReadMemory(1024 * 64 * 1024);
 
-  if (fr->init()) { printf("success to init fst read"); }
+  if (fr->init()) {
+    printf("success to init fst read");
+  }
 
   Performance_fstReadRecords(fr);
-  tfCleanup();
   delete fr;
 }
 void checkFstLongTerm() {
-  tfInit();
   FstWriter* fw = new FstWriter;
   // Performance_fstWriteRecords(fw);
 
@@ -230,12 +230,10 @@ void checkFstLongTerm() {
   // for (int i = 0; i < result.size(); i++) {
   // assert(result[i] == i);  // check result
   //}
-  tfCleanup();
-  // free(ctx);
+  // taosMemoryFree(ctx);
   // delete m;
 }
 void checkFstCheckIterator() {
-  tfInit();
   FstWriter* fw = new FstWriter;
   int64_t    s = taosGetTimestampUs();
   int        count = 2;
@@ -260,7 +258,7 @@ void checkFstCheckIterator() {
   // prefix search
   std::vector<uint64_t> result;
 
-  AutomationCtx* ctx = automCtxCreate((void*)"ab", AUTOMATION_ALWAYS);
+  AutomationCtx* ctx = automCtxCreate((void*)"H", AUTOMATION_PREFIX);
   m->Search(ctx, result);
   std::cout << "size: " << result.size() << std::endl;
   // assert(result.size() == count);
@@ -268,9 +266,8 @@ void checkFstCheckIterator() {
     // assert(result[i] == i);  // check result
   }
 
-  free(ctx);
+  taosMemoryFree(ctx);
   delete m;
-  tfCleanup();
 }
 
 void fst_get(Fst* fst) {
@@ -289,8 +286,6 @@ void fst_get(Fst* fst) {
 
 #define NUM_OF_THREAD 10
 void validateTFile(char* arg) {
-  tfInit();
-
   std::thread threads[NUM_OF_THREAD];
   // std::vector<std::thread> threads;
   TFileReader* reader = tfileReaderOpen(arg, 0, 20000000, "tag1");
@@ -304,18 +299,20 @@ void validateTFile(char* arg) {
     // wait join
     threads[i].join();
   }
-  tfCleanup();
 }
 
-void iterTFileReader(char* path, char* ver) {
-  tfInit();
+void iterTFileReader(char* path, char* uid, char* colName, char* ver) {
+  // tfInit();
 
-  int          version = atoi(ver);
-  TFileReader* reader = tfileReaderOpen(path, 0, version, "tag1");
-  Iterate*     iter = tfileIteratorCreate(reader);
-  bool         tn = iter ? iter->next(iter) : false;
-  int          count = 0;
-  int          termCount = 0;
+  uint64_t suid = atoi(uid);
+  int      version = atoi(ver);
+
+  TFileReader* reader = tfileReaderOpen(path, suid, version, colName);
+
+  Iterate* iter = tfileIteratorCreate(reader);
+  bool     tn = iter ? iter->next(iter) : false;
+  int      count = 0;
+  int      termCount = 0;
   while (tn == true) {
     count++;
     IterateValue* cv = iter->getValue(iter);
@@ -326,17 +323,16 @@ void iterTFileReader(char* path, char* ver) {
   printf("total size: %d\n term count: %d\n", count, termCount);
 
   tfileIteratorDestroy(iter);
-  tfCleanup();
 }
 
 int main(int argc, char* argv[]) {
   // tool to check all kind of fst test
   // if (argc > 1) { validateTFile(argv[1]); }
-  if (argc > 2) {
-    // opt
-    iterTFileReader(argv[1], argv[2]);
-  }
-  // checkFstCheckIterator();
+  // if (argc > 4) {
+  // path suid colName ver
+  // iterTFileReader(argv[1], argv[2], argv[3], argv[4]);
+  //}
+  checkFstCheckIterator();
   // checkFstLongTerm();
   // checkFstPrefixSearch();
 

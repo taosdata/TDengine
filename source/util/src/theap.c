@@ -13,15 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "theap.h"
 
-size_t heapSize(Heap* heap) {
-  return heap->nelts;
-}
+size_t heapSize(Heap* heap) { return heap->nelts; }
 
 Heap* heapCreate(HeapCompareFn fn) {
-  Heap *heap = calloc(1, sizeof(Heap));
-  if (heap == NULL) { return NULL; }
+  Heap* heap = taosMemoryCalloc(1, sizeof(Heap));
+  if (heap == NULL) {
+    return NULL;
+  }
 
   heap->min = NULL;
   heap->nelts = 0;
@@ -29,18 +30,14 @@ Heap* heapCreate(HeapCompareFn fn) {
   return heap;
 }
 
-void heapDestroy(Heap *heap) {
-  free(heap);
-}
+void heapDestroy(Heap* heap) { taosMemoryFree(heap); }
 
-HeapNode* heapMin(const Heap* heap) {
-  return heap->min;
-}
+HeapNode* heapMin(const Heap* heap) { return heap->min; }
 
 /* Swap parent with child. Child moves closer to the root, parent moves away. */
 static void heapNodeSwap(Heap* heap, HeapNode* parent, HeapNode* child) {
   HeapNode* sibling;
-  HeapNode t;
+  HeapNode  t;
 
   t = *parent;
   *parent = *child;
@@ -54,13 +51,10 @@ static void heapNodeSwap(Heap* heap, HeapNode* parent, HeapNode* child) {
     child->right = parent;
     sibling = child->left;
   }
-  if (sibling != NULL)
-    sibling->parent = child;
+  if (sibling != NULL) sibling->parent = child;
 
-  if (parent->left != NULL)
-    parent->left->parent = parent;
-  if (parent->right != NULL)
-    parent->right->parent = parent;
+  if (parent->left != NULL) parent->left->parent = parent;
+  if (parent->right != NULL) parent->right->parent = parent;
 
   if (child->parent == NULL)
     heap->min = child;
@@ -73,9 +67,9 @@ static void heapNodeSwap(Heap* heap, HeapNode* parent, HeapNode* child) {
 void heapInsert(Heap* heap, HeapNode* newnode) {
   HeapNode** parent;
   HeapNode** child;
-  unsigned int path;
-  unsigned int n;
-  unsigned int k;
+  uint32_t   path;
+  uint32_t   n;
+  uint32_t   k;
 
   newnode->left = NULL;
   newnode->right = NULL;
@@ -85,8 +79,7 @@ void heapInsert(Heap* heap, HeapNode* newnode) {
    * heap so we always insert at the left-most free node of the bottom row.
    */
   path = 0;
-  for (k = 0, n = 1 + heap->nelts; n >= 2; k += 1, n /= 2)
-    path = (path << 1) | (n & 1);
+  for (k = 0, n = 1 + heap->nelts; n >= 2; k += 1, n /= 2) path = (path << 1) | (n & 1);
 
   /* Now traverse the heap using the path we calculated in the previous step. */
   parent = child = &heap->min;
@@ -113,22 +106,20 @@ void heapInsert(Heap* heap, HeapNode* newnode) {
 }
 
 void heapRemove(Heap* heap, HeapNode* node) {
-  HeapNode* smallest;
+  HeapNode*  smallest;
   HeapNode** max;
-  HeapNode* child;
-  unsigned int path;
-  unsigned int k;
-  unsigned int n;
+  HeapNode*  child;
+  uint32_t   path;
+  uint32_t   k;
+  uint32_t   n;
 
-  if (heap->nelts == 0)
-    return;
+  if (heap->nelts == 0) return;
 
   /* Calculate the path from the min (the root) to the max, the left-most node
    * of the bottom row.
    */
   path = 0;
-  for (k = 0, n = heap->nelts; n >= 2; k += 1, n /= 2)
-    path = (path << 1) | (n & 1);
+  for (k = 0, n = heap->nelts; n >= 2; k += 1, n /= 2) path = (path << 1) | (n & 1);
 
   /* Now traverse the heap using the path we calculated in the previous step. */
   max = &heap->min;
@@ -182,12 +173,9 @@ void heapRemove(Heap* heap, HeapNode* node) {
    */
   for (;;) {
     smallest = child;
-    if (child->left != NULL && (heap->compFn)(child->left, smallest))
-      smallest = child->left;
-    if (child->right != NULL && (heap->compFn)(child->right, smallest))
-      smallest = child->right;
-    if (smallest == child)
-      break;
+    if (child->left != NULL && (heap->compFn)(child->left, smallest)) smallest = child->left;
+    if (child->right != NULL && (heap->compFn)(child->right, smallest)) smallest = child->right;
+    if (smallest == child) break;
     heapNodeSwap(heap, child, smallest);
   }
 
@@ -195,12 +183,7 @@ void heapRemove(Heap* heap, HeapNode* node) {
    * this is required, because `max` node is not guaranteed to be the
    * actual maximum in tree
    */
-  while (child->parent != NULL && (heap->compFn)(child, child->parent))
-    heapNodeSwap(heap, child->parent, child);
+  while (child->parent != NULL && (heap->compFn)(child, child->parent)) heapNodeSwap(heap, child->parent, child);
 }
 
-void heapDequeue(Heap* heap) {
-  heapRemove(heap, heap->min);
-}
-
-
+void heapDequeue(Heap* heap) { heapRemove(heap, heap->min); }

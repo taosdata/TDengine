@@ -15,10 +15,10 @@
 #ifndef __INDEX_CACHE_H__
 #define __INDEX_CACHE_H__
 
-#include "index.h"
 #include "indexInt.h"
-#include "tlockfree.h"
+#include "index_util.h"
 #include "tskiplist.h"
+
 // ----------------- key structure in skiplist ---------------------
 
 /* A data row, the format is like below
@@ -43,8 +43,8 @@ typedef struct IndexCache {
   int8_t    type;
   uint64_t  suid;
 
-  pthread_mutex_t mtx;
-  pthread_cond_t  finished;
+  TdThreadMutex mtx;
+  TdThreadCond  finished;
 } IndexCache;
 
 #define CACHE_VERSION(cache) atomic_load_32(&cache->version)
@@ -53,8 +53,9 @@ typedef struct CacheTerm {
   char*   colVal;
   int32_t version;
   // value
-  uint64_t           uid;
-  int8_t             colType;
+  uint64_t uid;
+  int8_t   colType;
+
   SIndexOperOnColumn operaType;
 } CacheTerm;
 //
@@ -69,7 +70,7 @@ void     indexCacheIteratorDestroy(Iterate* iiter);
 int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid);
 
 // int indexCacheGet(void *cache, uint64_t *rst);
-int indexCacheSearch(void* cache, SIndexTermQuery* query, SArray* result, STermValueType* s);
+int indexCacheSearch(void* cache, SIndexTermQuery* query, SIdxTempResult* tr, STermValueType* s);
 
 void indexCacheRef(IndexCache* cache);
 void indexCacheUnRef(IndexCache* cache);

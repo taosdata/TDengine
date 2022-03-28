@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
 #include "mndTopic.h"
 #include "mndAuth.h"
 #include "mndDb.h"
@@ -24,6 +23,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
+#include "parser.h"
 #include "tname.h"
 
 #define MND_TOPIC_VER_NUMBER   1
@@ -32,12 +32,12 @@
 static int32_t mndTopicActionInsert(SSdb *pSdb, SMqTopicObj *pTopic);
 static int32_t mndTopicActionDelete(SSdb *pSdb, SMqTopicObj *pTopic);
 static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pTopic, SMqTopicObj *pNewTopic);
-static int32_t mndProcessCreateTopicReq(SMnodeMsg *pReq);
-static int32_t mndProcessDropTopicReq(SMnodeMsg *pReq);
-static int32_t mndProcessDropTopicInRsp(SMnodeMsg *pRsp);
-static int32_t mndProcessTopicMetaReq(SMnodeMsg *pReq);
-static int32_t mndGetTopicMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t mndRetrieveTopic(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t mndProcessCreateTopicReq(SNodeMsg *pReq);
+static int32_t mndProcessDropTopicReq(SNodeMsg *pReq);
+static int32_t mndProcessDropTopicInRsp(SNodeMsg *pRsp);
+static int32_t mndProcessTopicMetaReq(SNodeMsg *pReq);
+static int32_t mndGetTopicMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t mndRetrieveTopic(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextTopic(SMnode *pMnode, void *pIter);
 
 int32_t mndInitTopic(SMnode *pMnode) {
@@ -72,7 +72,7 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   if (pRaw == NULL) goto TOPIC_ENCODE_OVER;
 
   int32_t dataPos = 0;
-  SDB_SET_BINARY(pRaw, dataPos, pTopic->name, TSDB_TABLE_FNAME_LEN, TOPIC_ENCODE_OVER);
+  SDB_SET_BINARY(pRaw, dataPos, pTopic->name, TSDB_TOPIC_FNAME_LEN, TOPIC_ENCODE_OVER);
   SDB_SET_BINARY(pRaw, dataPos, pTopic->db, TSDB_DB_FNAME_LEN, TOPIC_ENCODE_OVER);
   SDB_SET_INT64(pRaw, dataPos, pTopic->createTime, TOPIC_ENCODE_OVER);
   SDB_SET_INT64(pRaw, dataPos, pTopic->updateTime, TOPIC_ENCODE_OVER);
@@ -85,6 +85,16 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   SDB_SET_BINARY(pRaw, dataPos, pTopic->logicalPlan, logicalPlanLen, TOPIC_ENCODE_OVER);
   SDB_SET_INT32(pRaw, dataPos, physicalPlanLen, TOPIC_ENCODE_OVER);
   SDB_SET_BINARY(pRaw, dataPos, pTopic->physicalPlan, physicalPlanLen, TOPIC_ENCODE_OVER);
+
+  int32_t swLen = taosEncodeSSchemaWrapper(NULL, &pTopic->schema);
+  void   *swBuf = taosMemoryMalloc(swLen);
+  if (swBuf == NULL) {
+    goto TOPIC_ENCODE_OVER;
+  }
+  void *aswBuf = swBuf;
+  taosEncodeSSchemaWrapper(&aswBuf, &pTopic->schema);
+  SDB_SET_INT32(pRaw, dataPos, swLen, TOPIC_ENCODE_OVER);
+  SDB_SET_BINARY(pRaw, dataPos, swBuf, swLen, TOPIC_ENCODE_OVER);
 
   SDB_SET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_ENCODE_OVER);
   SDB_SET_DATALEN(pRaw, dataPos, TOPIC_ENCODE_OVER);
@@ -121,7 +131,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
 
   int32_t len;
   int32_t dataPos = 0;
-  SDB_GET_BINARY(pRaw, dataPos, pTopic->name, TSDB_TABLE_FNAME_LEN, TOPIC_DECODE_OVER);
+  SDB_GET_BINARY(pRaw, dataPos, pTopic->name, TSDB_TOPIC_FNAME_LEN, TOPIC_DECODE_OVER);
   SDB_GET_BINARY(pRaw, dataPos, pTopic->db, TSDB_DB_FNAME_LEN, TOPIC_DECODE_OVER);
   SDB_GET_INT64(pRaw, dataPos, &pTopic->createTime, TOPIC_DECODE_OVER);
   SDB_GET_INT64(pRaw, dataPos, &pTopic->updateTime, TOPIC_DECODE_OVER);
@@ -130,11 +140,11 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pTopic->version, TOPIC_DECODE_OVER);
   SDB_GET_INT32(pRaw, dataPos, &pTopic->sqlLen, TOPIC_DECODE_OVER);
 
-  pTopic->sql = calloc(pTopic->sqlLen + 1, sizeof(char));
+  pTopic->sql = taosMemoryCalloc(pTopic->sqlLen + 1, sizeof(char));
   SDB_GET_BINARY(pRaw, dataPos, pTopic->sql, pTopic->sqlLen, TOPIC_DECODE_OVER);
 
   SDB_GET_INT32(pRaw, dataPos, &len, TOPIC_DECODE_OVER);
-  pTopic->logicalPlan = calloc(len + 1, sizeof(char));
+  pTopic->logicalPlan = taosMemoryCalloc(len + 1, sizeof(char));
   if (pTopic->logicalPlan == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto TOPIC_DECODE_OVER;
@@ -142,13 +152,24 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   SDB_GET_BINARY(pRaw, dataPos, pTopic->logicalPlan, len, TOPIC_DECODE_OVER);
 
   SDB_GET_INT32(pRaw, dataPos, &len, TOPIC_DECODE_OVER);
-  pTopic->physicalPlan = calloc(len + 1, sizeof(char));
+  pTopic->physicalPlan = taosMemoryCalloc(len + 1, sizeof(char));
   if (pTopic->physicalPlan == NULL) {
-    free(pTopic->logicalPlan);
+    taosMemoryFree(pTopic->logicalPlan);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto TOPIC_DECODE_OVER;
   }
   SDB_GET_BINARY(pRaw, dataPos, pTopic->physicalPlan, len, TOPIC_DECODE_OVER);
+
+  SDB_GET_INT32(pRaw, dataPos, &len, TOPIC_DECODE_OVER);
+  void *buf = taosMemoryMalloc(len);
+  if (buf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto TOPIC_DECODE_OVER;
+  }
+  SDB_GET_BINARY(pRaw, dataPos, buf, len, TOPIC_DECODE_OVER);
+  if (taosDecodeSSchemaWrapper(buf, &pTopic->schema) == NULL) {
+    goto TOPIC_DECODE_OVER;
+  }
 
   SDB_GET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_DECODE_OVER);
 
@@ -157,7 +178,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
 TOPIC_DECODE_OVER:
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("topic:%s, failed to decode from raw:%p since %s", pTopic->name, pRaw, terrstr());
-    tfree(pRow);
+    taosMemoryFreeClear(pRow);
     return NULL;
   }
 
@@ -177,7 +198,7 @@ static int32_t mndTopicActionDelete(SSdb *pSdb, SMqTopicObj *pTopic) {
 
 static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pOldTopic, SMqTopicObj *pNewTopic) {
   mTrace("topic:%s, perform update action", pOldTopic->name);
-  atomic_exchange_32(&pOldTopic->updateTime, pNewTopic->updateTime);
+  atomic_exchange_64(&pOldTopic->updateTime, pNewTopic->updateTime);
   atomic_exchange_32(&pOldTopic->version, pNewTopic->version);
 
   taosWLockLatch(&pOldTopic->lock);
@@ -206,7 +227,7 @@ static SDbObj *mndAcquireDbByTopic(SMnode *pMnode, char *topicName) {
   SName name = {0};
   tNameFromString(&name, topicName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-  char db[TSDB_TABLE_FNAME_LEN] = {0};
+  char db[TSDB_TOPIC_FNAME_LEN] = {0};
   tNameGetFullDbName(&name, db);
 
   return mndAcquireDb(pMnode, db);
@@ -215,7 +236,7 @@ static SDbObj *mndAcquireDbByTopic(SMnode *pMnode, char *topicName) {
 static SDDropTopicReq *mndBuildDropTopicMsg(SMnode *pMnode, SVgObj *pVgroup, SMqTopicObj *pTopic) {
   int32_t contLen = sizeof(SDDropTopicReq);
 
-  SDDropTopicReq *pDrop = calloc(1, contLen);
+  SDDropTopicReq *pDrop = taosMemoryCalloc(1, contLen);
   if (pDrop == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -223,13 +244,13 @@ static SDDropTopicReq *mndBuildDropTopicMsg(SMnode *pMnode, SVgObj *pVgroup, SMq
 
   pDrop->head.contLen = htonl(contLen);
   pDrop->head.vgId = htonl(pVgroup->vgId);
-  memcpy(pDrop->name, pTopic->name, TSDB_TABLE_FNAME_LEN);
+  memcpy(pDrop->name, pTopic->name, TSDB_TOPIC_FNAME_LEN);
   pDrop->tuid = htobe64(pTopic->uid);
 
   return pDrop;
 }
 
-static int32_t mndCheckCreateTopicReq(SMCreateTopicReq *pCreate) {
+static int32_t mndCheckCreateTopicReq(SCMCreateTopicReq *pCreate) {
   if (pCreate->name[0] == 0 || pCreate->sql == NULL || pCreate->sql[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_TOPIC_OPTION;
     return -1;
@@ -237,7 +258,30 @@ static int32_t mndCheckCreateTopicReq(SMCreateTopicReq *pCreate) {
   return 0;
 }
 
-static int32_t mndCreateTopic(SMnode *pMnode, SMnodeMsg *pReq, SMCreateTopicReq *pCreate, SDbObj *pDb) {
+static int32_t mndGetPlanString(const SCMCreateTopicReq *pCreate, char **pStr) {
+  if (NULL == pCreate->ast) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode  *pAst = NULL;
+  int32_t code = nodesStringToNode(pCreate->ast, &pAst);
+
+  SQueryPlan *pPlan = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    SPlanContext cxt = {.pAstRoot = pAst, .topicQuery = true};
+    code = qCreateQueryPlan(&cxt, &pPlan, NULL);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesNodeToString(pPlan, false, pStr, NULL);
+  }
+  nodesDestroyNode(pAst);
+  nodesDestroyNode(pPlan);
+  terrno = code;
+  return code;
+}
+
+static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq *pCreate, SDbObj *pDb) {
   mDebug("topic:%s to create", pCreate->name);
   SMqTopicObj topicObj = {0};
   tstrncpy(topicObj.name, pCreate->name, TSDB_TOPIC_FNAME_LEN);
@@ -248,13 +292,31 @@ static int32_t mndCreateTopic(SMnode *pMnode, SMnodeMsg *pReq, SMCreateTopicReq 
   topicObj.dbUid = pDb->uid;
   topicObj.version = 1;
   topicObj.sql = pCreate->sql;
-  topicObj.physicalPlan = pCreate->physicalPlan;
-  topicObj.logicalPlan = pCreate->logicalPlan;
+  topicObj.physicalPlan = "";
+  topicObj.logicalPlan = "";
   topicObj.sqlLen = strlen(pCreate->sql);
+
+  char *pPlanStr = NULL;
+  if (TSDB_CODE_SUCCESS != mndGetPlanString(pCreate, &pPlanStr)) {
+    mError("topic:%s, failed to get plan since %s", pCreate->name, terrstr());
+    return -1;
+  }
+  if (NULL != pPlanStr) {
+    topicObj.physicalPlan = pPlanStr;
+  }
+
+  SNode *pAst = NULL;
+  if (nodesStringToNode(pCreate->ast, &pAst) < 0) {
+    return -1;
+  }
+  if (qExtractResultSchema(pAst, &topicObj.schema.nCols, &topicObj.schema.pSchema) != 0) {
+    return -1;
+  }
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_TOPIC, &pReq->rpcMsg);
   if (pTrans == NULL) {
     mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+    taosMemoryFreeClear(pPlanStr);
     return -1;
   }
   mDebug("trans:%d, used to create topic:%s", pTrans->id, pCreate->name);
@@ -262,6 +324,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SMnodeMsg *pReq, SMCreateTopicReq 
   SSdbRaw *pRedoRaw = mndTopicActionEncode(&topicObj);
   if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
     mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
+    taosMemoryFreeClear(pPlanStr);
     mndTransDrop(pTrans);
     return -1;
   }
@@ -269,23 +332,25 @@ static int32_t mndCreateTopic(SMnode *pMnode, SMnodeMsg *pReq, SMCreateTopicReq 
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    taosMemoryFreeClear(pPlanStr);
     mndTransDrop(pTrans);
     return -1;
   }
 
+  taosMemoryFreeClear(pPlanStr);
   mndTransDrop(pTrans);
   return 0;
 }
 
-static int32_t mndProcessCreateTopicReq(SMnodeMsg *pReq) {
-  SMnode          *pMnode = pReq->pMnode;
-  int32_t          code = -1;
-  SMqTopicObj     *pTopic = NULL;
-  SDbObj          *pDb = NULL;
-  SUserObj        *pUser = NULL;
-  SMCreateTopicReq createTopicReq = {0};
+static int32_t mndProcessCreateTopicReq(SNodeMsg *pReq) {
+  SMnode           *pMnode = pReq->pNode;
+  int32_t           code = -1;
+  SMqTopicObj      *pTopic = NULL;
+  SDbObj           *pDb = NULL;
+  SUserObj         *pUser = NULL;
+  SCMCreateTopicReq createTopicReq = {0};
 
-  if (tDeserializeSMCreateTopicReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &createTopicReq) != 0) {
+  if (tDeserializeSCMCreateTopicReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &createTopicReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto CREATE_TOPIC_OVER;
   }
@@ -338,11 +403,12 @@ CREATE_TOPIC_OVER:
   mndReleaseDb(pMnode, pDb);
   mndReleaseUser(pMnode, pUser);
 
-  tFreeSMCreateTopicReq(&createTopicReq);
+  tFreeSCMCreateTopicReq(&createTopicReq);
   return code;
 }
 
-static int32_t mndDropTopic(SMnode *pMnode, SMnodeMsg *pReq, SMqTopicObj *pTopic) {
+static int32_t mndDropTopic(SMnode *pMnode, SNodeMsg *pReq, SMqTopicObj *pTopic) {
+  // TODO: cannot drop when subscribed
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_TOPIC, &pReq->rpcMsg);
   if (pTrans == NULL) {
     mError("topic:%s, failed to drop since %s", pTopic->name, terrstr());
@@ -368,8 +434,8 @@ static int32_t mndDropTopic(SMnode *pMnode, SMnodeMsg *pReq, SMqTopicObj *pTopic
   return 0;
 }
 
-static int32_t mndProcessDropTopicReq(SMnodeMsg *pReq) {
-  SMnode        *pMnode = pReq->pMnode;
+static int32_t mndProcessDropTopicReq(SNodeMsg *pReq) {
+  SMnode        *pMnode = pReq->pNode;
   SMDropTopicReq dropReq = {0};
 
   if (tDeserializeSMDropTopicReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &dropReq) != 0) {
@@ -403,78 +469,8 @@ static int32_t mndProcessDropTopicReq(SMnodeMsg *pReq) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndProcessDropTopicInRsp(SMnodeMsg *pRsp) {
+static int32_t mndProcessDropTopicInRsp(SNodeMsg *pRsp) {
   mndTransProcessRsp(pRsp);
-  return 0;
-}
-
-static int32_t mndProcessTopicMetaReq(SMnodeMsg *pReq) {
-  SMnode       *pMnode = pReq->pMnode;
-  STableInfoReq infoReq = {0};
-
-  if (tSerializeSTableInfoReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &infoReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
-
-  mDebug("topic:%s, start to retrieve meta", infoReq.tbName);
-
-#if 0
-  SDbObj *pDb = mndAcquireDbByTopic(pMnode, pInfo->tableFname);
-  if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
-    mError("topic:%s, failed to retrieve meta since %s", pInfo->tableFname, terrstr());
-    return -1;
-  }
-
-  STopicObj *pTopic = mndAcquireTopic(pMnode, pInfo->tableFname);
-  if (pTopic == NULL) {
-    mndReleaseDb(pMnode, pDb);
-    terrno = TSDB_CODE_MND_INVALID_TOPIC;
-    mError("topic:%s, failed to get meta since %s", pInfo->tableFname, terrstr());
-    return -1;
-  }
-
-  taosRLockLatch(&pTopic->lock);
-  int32_t totalCols = pTopic->numOfColumns + pTopic->numOfTags;
-  int32_t contLen = sizeof(STableMetaRsp) + totalCols * sizeof(SSchema);
-
-  STableMetaRsp *pMeta = rpcMallocCont(contLen);
-  if (pMeta == NULL) {
-    taosRUnLockLatch(&pTopic->lock);
-    mndReleaseDb(pMnode, pDb);
-    mndReleaseTopic(pMnode, pTopic);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("topic:%s, failed to get meta since %s", pInfo->tableFname, terrstr());
-    return -1;
-  }
-
-  memcpy(pMeta->topicFname, pTopic->name, TSDB_TABLE_FNAME_LEN);
-  pMeta->numOfTags = htonl(pTopic->numOfTags);
-  pMeta->numOfColumns = htonl(pTopic->numOfColumns);
-  pMeta->precision = pDb->cfg.precision;
-  pMeta->tableType = TSDB_SUPER_TABLE;
-  pMeta->update = pDb->cfg.update;
-  pMeta->sversion = htonl(pTopic->version);
-  pMeta->tuid = htonl(pTopic->uid);
-
-  for (int32_t i = 0; i < totalCols; ++i) {
-    SSchema *pSchema = &pMeta->pSchemas[i];
-    SSchema *pSrcSchema = &pTopic->pSchema[i];
-    memcpy(pSchema->name, pSrcSchema->name, TSDB_COL_NAME_LEN);
-    pSchema->type = pSrcSchema->type;
-    pSchema->colId = htonl(pSrcSchema->colId);
-    pSchema->bytes = htonl(pSrcSchema->bytes);
-  }
-  taosRUnLockLatch(&pTopic->lock);
-  mndReleaseDb(pMnode, pDb);
-  mndReleaseTopic(pMnode, pTopic);
-
-  pReq->pCont = pMeta;
-  pReq->contLen = contLen;
-
-  mDebug("topic:%s, meta is retrieved, cols:%d tags:%d", pInfo->tableFname, pTopic->numOfColumns, pTopic->numOfTags);
-#endif
   return 0;
 }
 
@@ -505,8 +501,8 @@ static int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTo
   return 0;
 }
 
-static int32_t mndGetTopicMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
-  SMnode *pMnode = pReq->pMnode;
+static int32_t mndGetTopicMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+  SMnode *pMnode = pReq->pNode;
   SSdb   *pSdb = pMnode->pSdb;
 
   if (mndGetNumOfTopics(pMnode, pShow->db, &pShow->numOfRows) != 0) {
@@ -549,8 +545,8 @@ static int32_t mndGetTopicMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
   return 0;
 }
 
-static int32_t mndRetrieveTopic(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode      *pMnode = pReq->pMnode;
+static int32_t mndRetrieveTopic(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+  SMnode      *pMnode = pReq->pNode;
   SSdb        *pSdb = pMnode->pSdb;
   int32_t      numOfRows = 0;
   SMqTopicObj *pTopic = NULL;
@@ -571,7 +567,7 @@ static int32_t mndRetrieveTopic(SMnodeMsg *pReq, SShowObj *pShow, char *data, in
 
     if (pTopic->dbUid != pDb->uid) {
       if (strncmp(pTopic->name, prefix, prefixLen) != 0) {
-        mError("Inconsistent table data, name:%s, db:%s, dbUid:%" PRIu64, pTopic->name, pDb->name, pDb->uid);
+        mError("Inconsistent topic data, name:%s, db:%s, dbUid:%" PRIu64, pTopic->name, pDb->name, pDb->uid);
       }
 
       sdbRelease(pSdb, pTopic);
@@ -580,8 +576,8 @@ static int32_t mndRetrieveTopic(SMnodeMsg *pReq, SShowObj *pShow, char *data, in
 
     cols = 0;
 
-    char topicName[TSDB_TABLE_NAME_LEN] = {0};
-    tstrncpy(topicName, pTopic->name + prefixLen, TSDB_TABLE_NAME_LEN);
+    char topicName[TSDB_TOPIC_NAME_LEN] = {0};
+    tstrncpy(topicName, pTopic->name + prefixLen, TSDB_TOPIC_NAME_LEN);
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     STR_TO_VARSTR(pWrite, topicName);
     cols++;

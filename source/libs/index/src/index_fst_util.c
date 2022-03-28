@@ -29,18 +29,6 @@ const uint64_t VERSION = 3;
 
 const uint64_t TRANS_INDEX_THRESHOLD = 32;
 
-// uint8_t commonInput(uint8_t idx) {
-//  if (idx == 0) { return -1; }
-//  else {
-//    return COMMON_INPUTS_INV[idx - 1];
-//  }
-//}
-//
-// uint8_t commonIdx(uint8_t v, uint8_t max) {
-//  uint8_t v = ((uint16_t)tCOMMON_INPUTS[v] + 1)%256;
-//  return v > max ? 0: v;
-//}
-
 uint8_t packSize(uint64_t n) {
   if (n < (1u << 8)) {
     return 1;
@@ -90,10 +78,10 @@ CompiledAddr unpackDelta(char* data, uint64_t len, uint64_t nodeAddr) {
 //
 
 FstSlice fstSliceCreate(uint8_t* data, uint64_t len) {
-  FstString* str = (FstString*)malloc(sizeof(FstString));
+  FstString* str = (FstString*)taosMemoryMalloc(sizeof(FstString));
   str->ref = 1;
   str->len = len;
-  str->data = malloc(len * sizeof(uint8_t));
+  str->data = taosMemoryMalloc(len * sizeof(uint8_t));
   memcpy(str->data, data, len);
 
   FstSlice s = {.str = str, .start = 0, .end = len - 1};
@@ -103,9 +91,6 @@ FstSlice fstSliceCreate(uint8_t* data, uint64_t len) {
 FstSlice fstSliceCopy(FstSlice* s, int32_t start, int32_t end) {
   FstString* str = s->str;
   str->ref++;
-  // uint8_t *buf = fstSliceData(s, &alen);
-  // start = buf + start - (buf - s->start);
-  // end   = buf + end - (buf - s->start);
 
   FstSlice t = {.str = str, .start = start + s->start, .end = end + s->start};
   return t;
@@ -116,10 +101,10 @@ FstSlice fstSliceDeepCopy(FstSlice* s, int32_t start, int32_t end) {
   uint8_t* data = fstSliceData(s, &slen);
   assert(tlen <= slen);
 
-  uint8_t* buf = malloc(sizeof(uint8_t) * tlen);
+  uint8_t* buf = taosMemoryMalloc(sizeof(uint8_t) * tlen);
   memcpy(buf, data + start, tlen);
 
-  FstString* str = malloc(sizeof(FstString));
+  FstString* str = taosMemoryMalloc(sizeof(FstString));
   str->data = buf;
   str->len = tlen;
   str->ref = 1;
@@ -130,21 +115,21 @@ FstSlice fstSliceDeepCopy(FstSlice* s, int32_t start, int32_t end) {
   ans.end = tlen - 1;
   return ans;
 }
-bool fstSliceIsEmpty(FstSlice* s) {
-  return s->str == NULL || s->str->len == 0 || s->start < 0 || s->end < 0;
-}
+bool fstSliceIsEmpty(FstSlice* s) { return s->str == NULL || s->str->len == 0 || s->start < 0 || s->end < 0; }
 
 uint8_t* fstSliceData(FstSlice* s, int32_t* size) {
   FstString* str = s->str;
-  if (size != NULL) { *size = s->end - s->start + 1; }
+  if (size != NULL) {
+    *size = s->end - s->start + 1;
+  }
   return str->data + s->start;
 }
 void fstSliceDestroy(FstSlice* s) {
   FstString* str = s->str;
   str->ref--;
-  if (str->ref <= 0) {
-    free(str->data);
-    free(str);
+  if (str->ref == 0) {
+    taosMemoryFree(str->data);
+    taosMemoryFree(str);
     s->str = NULL;
   }
 }
@@ -176,7 +161,7 @@ int fstSliceCompare(FstSlice* a, FstSlice* b) {
 }
 
 // FstStack* fstStackCreate(size_t elemSize, StackFreeElem freeFn) {
-//  FstStack *s = calloc(1, sizeof(FstStack));
+//  FstStack *s = taosMemoryCalloc(1, sizeof(FstStack));
 //  if (s == NULL) { return NULL; }
 //  s->
 //  s->freeFn

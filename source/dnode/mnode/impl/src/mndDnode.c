@@ -22,11 +22,11 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 
-#define TSDB_DNODE_VER_NUMBER 1
+#define TSDB_DNODE_VER_NUMBER   1
 #define TSDB_DNODE_RESERVE_SIZE 64
-#define TSDB_CONFIG_OPTION_LEN 16
-#define TSDB_CONIIG_VALUE_LEN 48
-#define TSDB_CONFIG_NUMBER 8
+#define TSDB_CONFIG_OPTION_LEN  16
+#define TSDB_CONIIG_VALUE_LEN   48
+#define TSDB_CONFIG_NUMBER      8
 
 static const char *offlineReason[] = {
     "",
@@ -49,17 +49,17 @@ static int32_t  mndDnodeActionInsert(SSdb *pSdb, SDnodeObj *pDnode);
 static int32_t  mndDnodeActionDelete(SSdb *pSdb, SDnodeObj *pDnode);
 static int32_t  mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pOld, SDnodeObj *pNew);
 
-static int32_t mndProcessCreateDnodeReq(SMnodeMsg *pReq);
-static int32_t mndProcessDropDnodeReq(SMnodeMsg *pReq);
-static int32_t mndProcessConfigDnodeReq(SMnodeMsg *pReq);
-static int32_t mndProcessConfigDnodeRsp(SMnodeMsg *pRsp);
-static int32_t mndProcessStatusReq(SMnodeMsg *pReq);
+static int32_t mndProcessCreateDnodeReq(SNodeMsg *pReq);
+static int32_t mndProcessDropDnodeReq(SNodeMsg *pReq);
+static int32_t mndProcessConfigDnodeReq(SNodeMsg *pReq);
+static int32_t mndProcessConfigDnodeRsp(SNodeMsg *pRsp);
+static int32_t mndProcessStatusReq(SNodeMsg *pReq);
 
-static int32_t mndGetConfigMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t mndRetrieveConfigs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t mndGetConfigMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t mndRetrieveConfigs(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextConfig(SMnode *pMnode, void *pIter);
-static int32_t mndGetDnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t mndRetrieveDnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t mndGetDnodeMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t mndRetrieveDnodes(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextDnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitDnode(SMnode *pMnode) {
@@ -164,7 +164,7 @@ static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw) {
 DNODE_DECODE_OVER:
   if (terrno != 0) {
     mError("dnode:%d, failed to decode from raw:%p since %s", pDnode->id, pRaw, terrstr());
-    tfree(pRow);
+    taosMemoryFreeClear(pRow);
     return NULL;
   }
 
@@ -237,7 +237,7 @@ int32_t mndGetDnodeSize(SMnode *pMnode) {
 
 bool mndIsDnodeOnline(SMnode *pMnode, SDnodeObj *pDnode, int64_t curMs) {
   int64_t interval = TABS(pDnode->lastAccessTime - curMs);
-  if (interval > 3500 * pMnode->cfg.statusInterval) {
+  if (interval > 3500 * tsStatusInterval) {
     if (pDnode->rebootTime > 0) {
       pDnode->offlineReason = DND_REASON_STATUS_MSG_TIMEOUT;
     }
@@ -272,32 +272,32 @@ static void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeEps) {
 }
 
 static int32_t mndCheckClusterCfgPara(SMnode *pMnode, const SClusterCfg *pCfg) {
-  if (pCfg->statusInterval != pMnode->cfg.statusInterval) {
-    mError("statusInterval [%d - %d] cfg inconsistent", pCfg->statusInterval, pMnode->cfg.statusInterval);
+  if (pCfg->statusInterval != tsStatusInterval) {
+    mError("statusInterval [%d - %d] cfg inconsistent", pCfg->statusInterval, tsStatusInterval);
     return DND_REASON_STATUS_INTERVAL_NOT_MATCH;
   }
 
-  if ((0 != strcasecmp(pCfg->timezone, pMnode->cfg.timezone)) && (pMnode->checkTime != pCfg->checkTime)) {
-    mError("timezone [%s - %s] [%" PRId64 " - %" PRId64 "] cfg inconsistent", pCfg->timezone, pMnode->cfg.timezone,
+  if ((0 != strcasecmp(pCfg->timezone, tsTimezoneStr)) && (pMnode->checkTime != pCfg->checkTime)) {
+    mError("timezone [%s - %s] [%" PRId64 " - %" PRId64 "] cfg inconsistent", pCfg->timezone, tsTimezoneStr,
            pCfg->checkTime, pMnode->checkTime);
     return DND_REASON_TIME_ZONE_NOT_MATCH;
   }
 
-  if (0 != strcasecmp(pCfg->locale, pMnode->cfg.locale)) {
-    mError("locale [%s - %s]  cfg inconsistent", pCfg->locale, pMnode->cfg.locale);
+  if (0 != strcasecmp(pCfg->locale, tsLocale)) {
+    mError("locale [%s - %s]  cfg inconsistent", pCfg->locale, tsLocale);
     return DND_REASON_LOCALE_NOT_MATCH;
   }
 
-  if (0 != strcasecmp(pCfg->charset, pMnode->cfg.charset)) {
-    mError("charset [%s - %s] cfg inconsistent.", pCfg->charset, pMnode->cfg.charset);
+  if (0 != strcasecmp(pCfg->charset, tsCharset)) {
+    mError("charset [%s - %s] cfg inconsistent.", pCfg->charset, tsCharset);
     return DND_REASON_CHARSET_NOT_MATCH;
   }
 
   return 0;
 }
 
-static int32_t mndProcessStatusReq(SMnodeMsg *pReq) {
-  SMnode    *pMnode = pReq->pMnode;
+static int32_t mndProcessStatusReq(SNodeMsg *pReq) {
+  SMnode    *pMnode = pReq->pNode;
   SStatusReq statusReq = {0};
   SDnodeObj *pDnode = NULL;
   int32_t    code = -1;
@@ -340,8 +340,15 @@ static int32_t mndProcessStatusReq(SMnodeMsg *pReq) {
         pVgroup->compStorage = pVload->compStorage;
         pVgroup->pointsWritten = pVload->pointsWritten;
       }
+      bool roleChanged = false;
       for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
+        if (pVgroup->vnodeGid[vg].role != pVload->role) {
+          roleChanged = true;
+        }
         pVgroup->vnodeGid[vg].role = pVload->role;
+      }
+      if (roleChanged) {
+        // notify scheduler role has changed
       }
     }
 
@@ -355,12 +362,11 @@ static int32_t mndProcessStatusReq(SMnodeMsg *pReq) {
   bool    needCheck = !online || dnodeChanged || reboot;
 
   if (needCheck) {
-    if (statusReq.sver != pMnode->cfg.sver) {
+    if (statusReq.sver != tsVersion) {
       if (pDnode != NULL) {
         pDnode->offlineReason = DND_REASON_VERSION_NOT_MATCH;
       }
-      mError("dnode:%d, status msg version:%d not match cluster:%d", statusReq.dnodeId, statusReq.sver,
-             pMnode->cfg.sver);
+      mError("dnode:%d, status msg version:%d not match cluster:%d", statusReq.dnodeId, statusReq.sver, tsVersion);
       terrno = TSDB_CODE_MND_INVALID_MSG_VERSION;
       goto PROCESS_STATUS_MSG_OVER;
     }
@@ -418,8 +424,8 @@ static int32_t mndProcessStatusReq(SMnodeMsg *pReq) {
     tSerializeSStatusRsp(pHead, contLen, &statusRsp);
     taosArrayDestroy(statusRsp.pDnodeEps);
 
-    pReq->contLen = contLen;
-    pReq->pCont = pHead;
+    pReq->rspLen = contLen;
+    pReq->pRsp = pHead;
   }
 
   pDnode->lastAccessTime = curMs;
@@ -431,7 +437,7 @@ PROCESS_STATUS_MSG_OVER:
   return code;
 }
 
-static int32_t mndCreateDnode(SMnode *pMnode, SMnodeMsg *pReq, SCreateDnodeReq *pCreate) {
+static int32_t mndCreateDnode(SMnode *pMnode, SNodeMsg *pReq, SCreateDnodeReq *pCreate) {
   SDnodeObj dnodeObj = {0};
   dnodeObj.id = sdbGetMaxId(pMnode->pSdb, SDB_DNODE);
   dnodeObj.createdTime = taosGetTimestampMs();
@@ -465,8 +471,8 @@ static int32_t mndCreateDnode(SMnode *pMnode, SMnodeMsg *pReq, SCreateDnodeReq *
   return 0;
 }
 
-static int32_t mndProcessCreateDnodeReq(SMnodeMsg *pReq) {
-  SMnode         *pMnode = pReq->pMnode;
+static int32_t mndProcessCreateDnodeReq(SNodeMsg *pReq) {
+  SMnode         *pMnode = pReq->pNode;
   int32_t         code = -1;
   SUserObj       *pUser = NULL;
   SDnodeObj      *pDnode = NULL;
@@ -515,7 +521,7 @@ CREATE_DNODE_OVER:
   return code;
 }
 
-static int32_t mndDropDnode(SMnode *pMnode, SMnodeMsg *pReq, SDnodeObj *pDnode) {
+static int32_t mndDropDnode(SMnode *pMnode, SNodeMsg *pReq, SDnodeObj *pDnode) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_DNODE, &pReq->rpcMsg);
   if (pTrans == NULL) {
     mError("dnode:%d, failed to drop since %s", pDnode->id, terrstr());
@@ -541,8 +547,8 @@ static int32_t mndDropDnode(SMnode *pMnode, SMnodeMsg *pReq, SDnodeObj *pDnode) 
   return 0;
 }
 
-static int32_t mndProcessDropDnodeReq(SMnodeMsg *pReq) {
-  SMnode        *pMnode = pReq->pMnode;
+static int32_t mndProcessDropDnodeReq(SNodeMsg *pReq) {
+  SMnode        *pMnode = pReq->pNode;
   int32_t        code = -1;
   SUserObj      *pUser = NULL;
   SDnodeObj     *pDnode = NULL;
@@ -590,8 +596,8 @@ DROP_DNODE_OVER:
   return code;
 }
 
-static int32_t mndProcessConfigDnodeReq(SMnodeMsg *pReq) {
-  SMnode *pMnode = pReq->pMnode;
+static int32_t mndProcessConfigDnodeReq(SNodeMsg *pReq) {
+  SMnode *pMnode = pReq->pNode;
 
   SMCfgDnodeReq cfgReq = {0};
   if (tDeserializeSMCfgDnodeReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &cfgReq) != 0) {
@@ -617,28 +623,28 @@ static int32_t mndProcessConfigDnodeReq(SMnodeMsg *pReq) {
       .msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen, .ahandle = pReq->rpcMsg.ahandle};
 
   mInfo("dnode:%d, app:%p config:%s req send to dnode", cfgReq.dnodeId, rpcMsg.ahandle, cfgReq.config);
-  mndSendReqToDnode(pMnode, &epSet, &rpcMsg);
+  tmsgSendReq(&pMnode->msgCb, &epSet, &rpcMsg);
 
   return 0;
 }
 
-static int32_t mndProcessConfigDnodeRsp(SMnodeMsg *pRsp) {
+static int32_t mndProcessConfigDnodeRsp(SNodeMsg *pRsp) {
   mInfo("app:%p config rsp from dnode", pRsp->rpcMsg.ahandle);
 }
 
-static int32_t mndGetConfigMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+static int32_t mndGetConfigMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
   int32_t  cols = 0;
   SSchema *pSchema = pMeta->pSchemas;
 
   pShow->bytes[cols] = TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  tstrncpy(pSchema[cols].name, "name", sizeof(pSchema[cols].name));
+  strcpy(pSchema[cols].name, "name");
   pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = TSDB_CONIIG_VALUE_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  tstrncpy(pSchema[cols].name, "value", sizeof(pSchema[cols].name));
+  strcpy(pSchema[cols].name, "value");
   pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
@@ -657,31 +663,32 @@ static int32_t mndGetConfigMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp 
   return 0;
 }
 
-static int32_t mndRetrieveConfigs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode *pMnode = pReq->pMnode;
+static int32_t mndRetrieveConfigs(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+  SMnode *pMnode = pReq->pNode;
+  int32_t totalRows = 0;
   int32_t numOfRows = 0;
   char   *cfgOpts[TSDB_CONFIG_NUMBER] = {0};
   char    cfgVals[TSDB_CONFIG_NUMBER][TSDB_CONIIG_VALUE_LEN + 1] = {0};
   char   *pWrite;
   int32_t cols = 0;
 
-  cfgOpts[numOfRows] = "statusInterval";
-  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%d", pMnode->cfg.statusInterval);
-  numOfRows++;
+  cfgOpts[totalRows] = "statusInterval";
+  snprintf(cfgVals[totalRows], TSDB_CONIIG_VALUE_LEN, "%d", tsStatusInterval);
+  totalRows++;
 
-  cfgOpts[numOfRows] = "timezone";
-  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", pMnode->cfg.timezone);
-  numOfRows++;
+  cfgOpts[totalRows] = "timezone";
+  snprintf(cfgVals[totalRows], TSDB_CONIIG_VALUE_LEN, "%s", tsTimezoneStr);
+  totalRows++;
 
-  cfgOpts[numOfRows] = "locale";
-  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", pMnode->cfg.locale);
-  numOfRows++;
+  cfgOpts[totalRows] = "locale";
+  snprintf(cfgVals[totalRows], TSDB_CONIIG_VALUE_LEN, "%s", tsLocale);
+  totalRows++;
 
-  cfgOpts[numOfRows] = "charset";
-  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", pMnode->cfg.charset);
-  numOfRows++;
+  cfgOpts[totalRows] = "charset";
+  snprintf(cfgVals[totalRows], TSDB_CONIIG_VALUE_LEN, "%s", tsCharset);
+  totalRows++;
 
-  for (int32_t i = 0; i < numOfRows; i++) {
+  for (int32_t i = 0; i < totalRows; i++) {
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -691,6 +698,8 @@ static int32_t mndRetrieveConfigs(SMnodeMsg *pReq, SShowObj *pShow, char *data, 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, cfgVals[i], TSDB_CONIIG_VALUE_LEN);
     cols++;
+
+    numOfRows++;
   }
 
   mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
@@ -700,8 +709,8 @@ static int32_t mndRetrieveConfigs(SMnodeMsg *pReq, SShowObj *pShow, char *data, 
 
 static void mndCancelGetNextConfig(SMnode *pMnode, void *pIter) {}
 
-static int32_t mndGetDnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
-  SMnode *pMnode = pReq->pMnode;
+static int32_t mndGetDnodeMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+  SMnode *pMnode = pReq->pNode;
   SSdb   *pSdb = pMnode->pSdb;
 
   int32_t  cols = 0;
@@ -743,7 +752,7 @@ static int32_t mndGetDnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
   pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
-  pShow->bytes[cols] = 24 + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = 256 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "offline_reason");
   pSchema[cols].bytes = pShow->bytes[cols];
@@ -764,8 +773,8 @@ static int32_t mndGetDnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
   return 0;
 }
 
-static int32_t mndRetrieveDnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode    *pMnode = pReq->pMnode;
+static int32_t mndRetrieveDnodes(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+  SMnode    *pMnode = pReq->pNode;
   SSdb      *pSdb = pMnode->pSdb;
   int32_t    numOfRows = 0;
   int32_t    cols = 0;

@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include "tmsgcb.h"
 #include "trpc.h"
 
 
@@ -27,6 +28,7 @@ enum {
   NODE_TYPE_VNODE = 1,
   NODE_TYPE_QNODE,
   NODE_TYPE_SNODE,
+  NODE_TYPE_MNODE,
 };
 
 
@@ -48,11 +50,7 @@ typedef struct {
   uint64_t numOfErrors;
 } SQWorkerStat;
 
-typedef int32_t (*putReqToQueryQFp)(void *, struct SRpcMsg *);
-typedef int32_t (*sendReqToDnodeFp)(void *, struct SEpSet *, struct SRpcMsg *);
-
-int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, void *nodeObj,
-                    putReqToQueryQFp fp1, sendReqToDnodeFp fp2);
+int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, const SMsgCb *pMsgCb);
 
 int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
 
@@ -71,6 +69,8 @@ int32_t qWorkerProcessFetchRsp(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
 int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
 
 int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
+
+int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
 
 int32_t qWorkerProcessShowMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
 

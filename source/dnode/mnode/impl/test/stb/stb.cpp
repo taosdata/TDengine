@@ -339,7 +339,7 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     void*   pReq = rpcMallocCont(contLen);
     tSerializeSTableInfoReq(pReq, contLen, &infoReq);
 
-    SRpcMsg* pMsg = test.SendReq(TDMT_MND_STB_META, pReq, contLen);
+    SRpcMsg* pMsg = test.SendReq(TDMT_MND_TABLE_META, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 

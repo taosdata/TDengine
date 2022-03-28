@@ -13,12 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-#include "ulog.h"
+#define _DEFAULT_SOURCE
 #include "tlosertree.h"
 #include "taoserror.h"
-
-
+#include "tlog.h"
 
 // Set the initial value of the multiway merge tree.
 static void tMergeTreeInit(SMultiwayMergeTreeInfo* pTree) {
@@ -33,10 +31,12 @@ static void tMergeTreeInit(SMultiwayMergeTreeInfo* pTree) {
   }
 }
 
-int32_t tMergeTreeCreate(SMultiwayMergeTreeInfo** pTree, uint32_t numOfSources, void* param, __merge_compare_fn_t compareFn) {
+int32_t tMergeTreeCreate(SMultiwayMergeTreeInfo** pTree, uint32_t numOfSources, void* param,
+                         __merge_compare_fn_t compareFn) {
   int32_t totalEntries = numOfSources << 1u;
 
-  SMultiwayMergeTreeInfo* pTreeInfo = (SMultiwayMergeTreeInfo*)calloc(1, sizeof(SMultiwayMergeTreeInfo) + sizeof(STreeNode) * totalEntries);
+  SMultiwayMergeTreeInfo* pTreeInfo =
+      (SMultiwayMergeTreeInfo*)taosMemoryCalloc(1, sizeof(SMultiwayMergeTreeInfo) + sizeof(STreeNode) * totalEntries);
   if (pTreeInfo == NULL) {
     uError("allocate memory for loser-tree failed. reason:%s", strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);
@@ -76,7 +76,7 @@ void tMergeTreeDestroy(SMultiwayMergeTreeInfo* pTree) {
     return;
   }
 
-  tfree(pTree);
+  taosMemoryFreeClear(pTree);
 }
 
 void tMergeTreeAdjust(SMultiwayMergeTreeInfo* pTree, int32_t idx) {
@@ -88,7 +88,7 @@ void tMergeTreeAdjust(SMultiwayMergeTreeInfo* pTree, int32_t idx) {
     return;
   }
 
-  int32_t        parentId = idx >> 1;
+  int32_t   parentId = idx >> 1;
   STreeNode kLeaf = pTree->pNode[idx];
 
   while (parentId > 0) {

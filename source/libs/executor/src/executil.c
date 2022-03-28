@@ -46,21 +46,21 @@ int32_t getOutputInterResultBufSize(STaskAttr* pQueryAttr) {
   int32_t size = 0;
 
   for (int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
-    size += pQueryAttr->pExpr1[i].base.interBytes;
+//    size += pQueryAttr->pExpr1[i].base.interBytes;
   }
 
   assert(size >= 0);
   return size;
 }
 
-int32_t initResultRowInfo(SResultRowInfo *pResultRowInfo, int32_t size, int16_t type) {
-  pResultRowInfo->type     = type;
+int32_t initResultRowInfo(SResultRowInfo *pResultRowInfo, int32_t size) {
   pResultRowInfo->size     = 0;
   pResultRowInfo->curPos  = -1;
   pResultRowInfo->capacity = size;
 
-  pResultRowInfo->pResult = calloc(pResultRowInfo->capacity, POINTER_BYTES);
-  if (pResultRowInfo->pResult == NULL) {
+  pResultRowInfo->pResult = taosMemoryCalloc(pResultRowInfo->capacity, POINTER_BYTES);
+  pResultRowInfo->pPosition = taosMemoryCalloc(pResultRowInfo->capacity, sizeof(SResultRowPosition));
+  if (pResultRowInfo->pResult == NULL || pResultRowInfo->pPosition == NULL) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
@@ -79,11 +79,11 @@ void cleanupResultRowInfo(SResultRowInfo *pResultRowInfo) {
 
   for(int32_t i = 0; i < pResultRowInfo->size; ++i) {
     if (pResultRowInfo->pResult[i]) {
-      tfree(pResultRowInfo->pResult[i]->key);
+      taosMemoryFreeClear(pResultRowInfo->pResult[i]->key);
     }
   }
   
-  tfree(pResultRowInfo->pResult);
+  taosMemoryFreeClear(pResultRowInfo->pResult);
 }
 
 void resetResultRowInfo(STaskRuntimeEnv *pRuntimeEnv, SResultRowInfo *pResultRowInfo) {
@@ -93,7 +93,7 @@ void resetResultRowInfo(STaskRuntimeEnv *pRuntimeEnv, SResultRowInfo *pResultRow
 
   for (int32_t i = 0; i < pResultRowInfo->size; ++i) {
     SResultRow *pWindowRes = pResultRowInfo->pResult[i];
-    clearResultRow(pRuntimeEnv, pWindowRes, pResultRowInfo->type);
+    clearResultRow(pRuntimeEnv, pWindowRes);
 
     int32_t groupIndex = 0;
     int64_t uid = 0;
@@ -136,7 +136,7 @@ void closeResultRow(SResultRowInfo *pResultRowInfo, int32_t slot) {
   getResultRow(pResultRowInfo, slot)->closed = true;
 }
 
-void clearResultRow(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16_t type) {
+void clearResultRow(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow) {
   if (pResultRow == NULL) {
     return;
   }
@@ -163,7 +163,7 @@ void clearResultRow(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16_
   pResultRow->offset = -1;
   pResultRow->closed = false;
 
-  tfree(pResultRow->key);
+  taosMemoryFreeClear(pResultRow->key);
   pResultRow->win = TSWINDOW_INITIALIZER;
 }
 
@@ -173,25 +173,14 @@ SResultRowEntryInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_
   return (SResultRowEntryInfo*)((char*) pRow->pEntryInfo + offset[index]);
 }
 
-size_t getResultRowSize(SArray* pExprInfo) {
-  size_t numOfOutput = taosArrayGetSize(pExprInfo);
-  return (numOfOutput * sizeof(SResultRowEntryInfo)) + /*pQueryAttr->interBufSize +*/ sizeof(SResultRow);
-}
+size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
+  int32_t rowSize = (numOfOutput * sizeof(SResultRowEntryInfo)) + sizeof(SResultRow);
 
-SResultRowPool* initResultRowPool(size_t size) {
-  SResultRowPool* p = calloc(1, sizeof(SResultRowPool));
-  if (p == NULL) {
-    return NULL;
+  for(int32_t i = 0; i < numOfOutput; ++i) {
+    rowSize += pCtx[i].resDataInfo.interBufSize;
   }
 
-  p->numOfElemPerBlock = 128;
-
-  p->elemSize = (int32_t) size;
-  p->blockSize = p->numOfElemPerBlock * p->elemSize;
-  p->position.pos = 0;
-
-  p->pData = taosArrayInit(8, POINTER_BYTES);
-  return p;
+  return rowSize;
 }
 
 SResultRow* getNewResultRow(SResultRowPool* p) {
@@ -201,7 +190,7 @@ SResultRow* getNewResultRow(SResultRowPool* p) {
 
   void* ptr = NULL;
   if (p->position.pos == 0) {
-    ptr = calloc(1, p->blockSize);
+    ptr = taosMemoryCalloc(1, p->blockSize);
     taosArrayPush(p->pData, &ptr);
 
   } else {
@@ -217,132 +206,6 @@ SResultRow* getNewResultRow(SResultRowPool* p) {
   return ptr;
 }
 
-int64_t getResultRowPoolMemSize(SResultRowPool* p) {
-  if (p == NULL) {
-    return 0;
-  }
-
-  return taosArrayGetSize(p->pData) * p->blockSize;
-}
-
-int32_t getNumOfAllocatedResultRows(SResultRowPool* p) {
-  return (int32_t) taosArrayGetSize(p->pData) * p->numOfElemPerBlock;
-}
-
-int32_t getNumOfUsedResultRows(SResultRowPool* p) {
-  return getNumOfAllocatedResultRows(p) - p->numOfElemPerBlock + p->position.pos;
-}
-
-void* destroyResultRowPool(SResultRowPool* p) {
-  if (p == NULL) {
-    return NULL;
-  }
-
-  size_t size = taosArrayGetSize(p->pData);
-  for(int32_t i = 0; i < size; ++i) {
-    void** ptr = taosArrayGet(p->pData, i);
-    tfree(*ptr);
-  }
-
-  taosArrayDestroy(p->pData);
-
-  tfree(p);
-  return NULL;
-}
-
-void interResToBinary(SBufferWriter* bw, SArray* pRes, int32_t tagLen) {
-  uint32_t numOfGroup = (uint32_t) taosArrayGetSize(pRes);
-  tbufWriteUint32(bw, numOfGroup);
-  tbufWriteUint16(bw, tagLen);
-
-  for(int32_t i = 0; i < numOfGroup; ++i) {
-    SInterResult* pOne = taosArrayGet(pRes, i);
-    if (tagLen > 0) {
-      tbufWriteBinary(bw, pOne->tags, tagLen);
-    }
-
-    uint32_t numOfCols = (uint32_t) taosArrayGetSize(pOne->pResult);
-    tbufWriteUint32(bw, numOfCols);
-    for(int32_t j = 0; j < numOfCols; ++j) {
-      SStddevInterResult* p = taosArrayGet(pOne->pResult, j);
-      uint32_t numOfRows = (uint32_t) taosArrayGetSize(p->pResult);
-
-      tbufWriteUint16(bw, p->colId);
-      tbufWriteUint32(bw, numOfRows);
-
-      for(int32_t k = 0; k < numOfRows; ++k) {
-//        SResPair v = *(SResPair*) taosArrayGet(p->pResult, k);
-//        tbufWriteDouble(bw, v.avg);
-//        tbufWriteInt64(bw, v.key);
-      }
-    }
-  }
-}
-
-SArray* interResFromBinary(const char* data, int32_t len) {
-  SBufferReader br = tbufInitReader(data, len, false);
-  uint32_t numOfGroup = tbufReadUint32(&br);
-  uint16_t tagLen = tbufReadUint16(&br);
-
-  char* tag = NULL;
-  if (tagLen > 0) {
-    tag = calloc(1, tagLen);
-  }
-
-  SArray* pResult = taosArrayInit(4, sizeof(SInterResult));
-
-  for(int32_t i = 0; i < numOfGroup; ++i) {
-    if (tagLen > 0) {
-      memset(tag, 0, tagLen);
-      tbufReadToBinary(&br, tag, tagLen);
-    }
-
-    uint32_t numOfCols = tbufReadUint32(&br);
-
-    SArray* p = taosArrayInit(numOfCols, sizeof(SStddevInterResult));
-    for(int32_t j = 0; j < numOfCols; ++j) {
-//      int16_t colId = tbufReadUint16(&br);
-      int32_t numOfRows = tbufReadUint32(&br);
-
-//      SStddevInterResult interRes = {.colId = colId, .pResult = taosArrayInit(4, sizeof(struct SResPair)),};
-      for(int32_t k = 0; k < numOfRows; ++k) {
-//        SResPair px = {0};
-//        px.avg = tbufReadDouble(&br);
-//        px.key = tbufReadInt64(&br);
-//
-//        taosArrayPush(interRes.pResult, &px);
-      }
-
-//      taosArrayPush(p, &interRes);
-    }
-
-    char* p1 = NULL;
-    if (tagLen > 0) {
-      p1 = malloc(tagLen);
-      memcpy(p1, tag, tagLen);
-    }
-
-    SInterResult d = {.pResult = p, .tags = p1,};
-    taosArrayPush(pResult, &d);
-  }
-
-  tfree(tag);
-  return pResult;
-}
-
-void freeInterResult(void* param) {
-  SInterResult* pResult = (SInterResult*) param;
-  tfree(pResult->tags);
-
-  int32_t numOfCols = (int32_t) taosArrayGetSize(pResult->pResult);
-  for(int32_t i = 0; i < numOfCols; ++i) {
-    SStddevInterResult *p = taosArrayGet(pResult->pResult, i);
-    taosArrayDestroy(p->pResult);
-  }
-
-  taosArrayDestroy(pResult->pResult);
-}
-
 void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
   assert(pGroupResInfo != NULL);
 
@@ -356,7 +219,7 @@ void initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo)
     taosArrayDestroy(pGroupResInfo->pRows);
   }
 
-  pGroupResInfo->pRows = taosArrayFromList(pResultInfo->pResult, pResultInfo->size, POINTER_BYTES);
+  pGroupResInfo->pRows = taosArrayFromList(pResultInfo->pPosition, pResultInfo->size, sizeof(SResultRowPosition));
   pGroupResInfo->index = 0;
   assert(pGroupResInfo->index <= getNumOfTotalRes(pGroupResInfo));
 }
@@ -540,8 +403,8 @@ static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(STaskRuntimeEnv *pRuntimeEnv
     pGroupResInfo->pRows = taosArrayInit(100, POINTER_BYTES);
   }
 
-  posList = calloc(size, sizeof(int32_t));
-  pTableQueryInfoList = malloc(POINTER_BYTES * size);
+  posList = taosMemoryCalloc(size, sizeof(int32_t));
+  pTableQueryInfoList = taosMemoryMalloc(POINTER_BYTES * size);
 
   if (pTableQueryInfoList == NULL || posList == NULL || pGroupResInfo->pRows == NULL || pGroupResInfo->pRows == NULL) {
 //    qError("QInfo:%"PRIu64" failed alloc memory", GET_TASKID(pRuntimeEnv));
@@ -620,9 +483,9 @@ static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(STaskRuntimeEnv *pRuntimeEnv
 //         pGroupResInfo->currentGroup, endt - startt);
 
   _end:
-  tfree(pTableQueryInfoList);
-  tfree(posList);
-  tfree(pTree);
+  taosMemoryFreeClear(pTableQueryInfoList);
+  taosMemoryFreeClear(posList);
+  taosMemoryFreeClear(pTree);
 
   return code;
 }
@@ -666,7 +529,7 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, STaskRuntimeEnv* pRun
 //
 //  // compress extra bytes
 //  size_t x = taosArrayGetSize(pDist->dataBlockInfos) * pDist->dataBlockInfos->elemSize;
-//  char* tmp = malloc(x + 2);
+//  char* tmp = taosMemoryMalloc(x + 2);
 //
 //  bool comp = false;
 //  int32_t len = tsCompressString(p, (int32_t)x, 1, tmp, (int32_t)x, ONE_STAGE_COMP, NULL, 0);
@@ -684,7 +547,7 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, STaskRuntimeEnv* pRun
 //  } else {
 //    tbufWriteBinary(bw, p, len);
 //  }
-//  tfree(tmp);
+//  taosMemoryFreeClear(tmp);
 //}
 
 //void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDist) {
@@ -707,7 +570,7 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, STaskRuntimeEnv* pRun
 //
 //  char* outputBuf = NULL;
 //  if (comp) {
-//    outputBuf = malloc(originalLen);
+//    outputBuf = taosMemoryMalloc(originalLen);
 //
 //    size_t actualLen = compLen;
 //    const char* compStr = tbufReadBinary(&br, &actualLen);
@@ -721,7 +584,7 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, STaskRuntimeEnv* pRun
 //
 //  pDist->dataBlockInfos = taosArrayFromList(outputBuf, (uint32_t)numSteps, sizeof(SFileBlockInfo));
 //  if (comp) {
-//    tfree(outputBuf);
+//    taosMemoryFreeClear(outputBuf);
 //  }
 //}
 

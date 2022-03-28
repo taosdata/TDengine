@@ -10,7 +10,7 @@
 #include <raft.h>
 #include <raft/uv.h>
 #include "raftServer.h"
-#include "common.h"
+#include "tcommon.h"
 
 const char *exe_name;
 
@@ -377,7 +377,7 @@ void printConf(SRaftServerConfig *pConf) {
 
 
 int main(int argc, char **argv) { 
-	srand(time(NULL));
+	taosSeedRand(time(NULL));
 	int32_t ret;
 
 	exe_name = argv[0];

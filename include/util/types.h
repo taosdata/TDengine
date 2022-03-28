@@ -22,14 +22,14 @@
 extern "C" {
 #endif
 
-#define GET_INT8_VAL(x)    (*(int8_t *)(x))
-#define GET_INT16_VAL(x)   (*(int16_t *)(x))
-#define GET_INT32_VAL(x)   (*(int32_t *)(x))
-#define GET_INT64_VAL(x)   (*(int64_t *)(x))
-#define GET_UINT8_VAL(x)   (*(uint8_t*) (x))
-#define GET_UINT16_VAL(x)  (*(uint16_t *)(x))
-#define GET_UINT32_VAL(x)  (*(uint32_t *)(x))
-#define GET_UINT64_VAL(x)  (*(uint64_t *)(x))
+#define GET_INT8_VAL(x)   (*(int8_t *)(x))
+#define GET_INT16_VAL(x)  (*(int16_t *)(x))
+#define GET_INT32_VAL(x)  (*(int32_t *)(x))
+#define GET_INT64_VAL(x)  (*(int64_t *)(x))
+#define GET_UINT8_VAL(x)  (*(uint8_t *)(x))
+#define GET_UINT16_VAL(x) (*(uint16_t *)(x))
+#define GET_UINT32_VAL(x) (*(uint32_t *)(x))
+#define GET_UINT64_VAL(x) (*(uint64_t *)(x))
 
 static FORCE_INLINE float taos_align_get_float(const char *pBuf) {
 #if __STDC_VERSION__ >= 201112L
@@ -64,22 +64,34 @@ static FORCE_INLINE double taos_align_get_double(const char *pBuf) {
 //   #define SET_FLOAT_PTR(x, y)  { (*(int32_t*) x = *(int32_t*)y); }
 //   #define SET_DOUBLE_PTR(x, y) { (*(int64_t*) x = *(int64_t*)y); }
 // #else
-  #define GET_FLOAT_VAL(x)       (*(float *)(x))
-  #define GET_DOUBLE_VAL(x)      (*(double *)(x))
-  #define SET_BIGINT_VAL(x, y)  { (*(int64_t *)(x))  = (int64_t)(y);       }
-  #define SET_FLOAT_VAL(x, y)  { (*(float *)(x))  = (float)(y);       }
-  #define SET_DOUBLE_VAL(x, y) { (*(double *)(x)) = (double)(y);      }
-  #define SET_FLOAT_PTR(x, y)  { (*(float *)(x))  = (*(float *)(y));  }
-  #define SET_DOUBLE_PTR(x, y) { (*(double *)(x)) = (*(double *)(y)); }
+#define GET_FLOAT_VAL(x)  (*(float *)(x))
+#define GET_DOUBLE_VAL(x) (*(double *)(x))
+#define SET_BIGINT_VAL(x, y) \
+  { (*(int64_t *)(x)) = (int64_t)(y); }
+#define SET_FLOAT_VAL(x, y) \
+  { (*(float *)(x)) = (float)(y); }
+#define SET_DOUBLE_VAL(x, y) \
+  { (*(double *)(x)) = (double)(y); }
+#define SET_FLOAT_PTR(x, y) \
+  { (*(float *)(x)) = (*(float *)(y)); }
+#define SET_DOUBLE_PTR(x, y) \
+  { (*(double *)(x)) = (*(double *)(y)); }
 // #endif
 
-typedef uint16_t  VarDataLenT;  // maxVarDataLen: 32767
-#define VARSTR_HEADER_SIZE  sizeof(VarDataLenT)
+typedef uint16_t VarDataLenT;  // maxVarDataLen: 32767
+#define VARSTR_HEADER_SIZE sizeof(VarDataLenT)
 
 #define varDataLen(v) ((VarDataLenT *)(v))[0]
-#define varDataVal(v) ((void *)((char *)v + VARSTR_HEADER_SIZE))
+#define varDataVal(v) ((char *)(v) + VARSTR_HEADER_SIZE)
+
+#define NCHAR_WIDTH_TO_BYTES(n)  ((n) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE)
 
 typedef int32_t VarDataOffsetT;
+
+typedef struct tstr {
+  VarDataLenT len;
+  char        data[];
+} tstr;
 
 #ifdef __cplusplus
 }

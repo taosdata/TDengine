@@ -1,3 +1,4 @@
+
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
@@ -13,85 +14,98 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_CONFIG_H
-#define _TD_UTIL_CONFIG_H
+#ifndef _TD_CONFIG_H_
+#define _TD_CONFIG_H_
+
+#include "tarray.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define TSDB_CFG_MAX_NUM    115
-#define TSDB_CFG_PRINT_LEN  23
-#define TSDB_CFG_OPTION_LEN 24
-#define TSDB_CFG_VALUE_LEN  41
+#define CFG_NAME_MAX_LEN 128
 
-#define TSDB_CFG_CTYPE_B_CONFIG    1U   // can be configured from file
-#define TSDB_CFG_CTYPE_B_SHOW      2U   // can displayed by "show configs" commands
-#define TSDB_CFG_CTYPE_B_LOG       4U   // is a log type configuration
-#define TSDB_CFG_CTYPE_B_CLIENT    8U   // can be displayed in the client log
-#define TSDB_CFG_CTYPE_B_OPTION    16U  // can be configured by taos_options function
-#define TSDB_CFG_CTYPE_B_NOT_PRINT 32U  // such as password
+typedef enum {
+  CFG_STYPE_DEFAULT,
+  CFG_STYPE_CFG_FILE,
+  CFG_STYPE_ENV_FILE,
+  CFG_STYPE_ENV_VAR,
+  CFG_STYPE_APOLLO_URL,
+  CFG_STYPE_ARG_LIST,
+} ECfgSrcType;
 
-#define MAX_FLOAT    100000
-#define MIN_FLOAT    0
+typedef enum {
+  CFG_DTYPE_NONE,
+  CFG_DTYPE_BOOL,
+  CFG_DTYPE_INT32,
+  CFG_DTYPE_INT64,
+  CFG_DTYPE_FLOAT,
+  CFG_DTYPE_STRING,
+  CFG_DTYPE_DIR,
+  CFG_DTYPE_LOCALE,
+  CFG_DTYPE_CHARSET,
+  CFG_DTYPE_TIMEZONE
+} ECfgDataType;
 
-enum {
-  TAOS_CFG_CSTATUS_NONE,     // not configured
-  TAOS_CFG_CSTATUS_DEFAULT,  // use system default value
-  TAOS_CFG_CSTATUS_FILE,     // configured from file
-  TAOS_CFG_CSTATUS_OPTION,   // configured by taos_options function
-  TAOS_CFG_CSTATUS_ARG,      // configured by program argument
-};
-
-enum {
-  TAOS_CFG_VTYPE_INT8,
-  TAOS_CFG_VTYPE_INT16,
-  TAOS_CFG_VTYPE_INT32,
-  TAOS_CFG_VTYPE_UINT16,
-  TAOS_CFG_VTYPE_FLOAT,
-  TAOS_CFG_VTYPE_STRING,
-  TAOS_CFG_VTYPE_IPSTR,
-  TAOS_CFG_VTYPE_DIRECTORY,
-  TAOS_CFG_VTYPE_DATA_DIRCTORY,
-  TAOS_CFG_VTYPE_DOUBLE,
-};
-
-enum {
-  TAOS_CFG_UTYPE_NONE,
-  TAOS_CFG_UTYPE_PERCENT,
-  TAOS_CFG_UTYPE_GB,
-  TAOS_CFG_UTYPE_MB,
-  TAOS_CFG_UTYPE_BYTE,
-  TAOS_CFG_UTYPE_SECOND,
-  TAOS_CFG_UTYPE_MS
-};
+typedef struct SConfigItem {
+  ECfgSrcType  stype;
+  ECfgDataType dtype;
+  bool         tsc;
+  char        *name;
+  union {
+    bool    bval;
+    float   fval;
+    int32_t i32;
+    int64_t i64;
+    char   *str;
+  };
+  union {
+    int64_t imin;
+    double  fmin;
+  };
+  union {
+    int64_t imax;
+    double  fmax;
+  };
+  SArray *array;  // SDiskCfg
+} SConfigItem;
 
 typedef struct {
-  char *   option;
-  void *   ptr;
-  float    minValue;
-  float    maxValue;
-  int8_t   cfgType;
-  int8_t   cfgStatus;
-  int8_t   unitType;
-  int8_t   valType;
-  int32_t  ptrLength;
-} SGlobalCfg;
+  const char *name;
+  const char *value;
+} SConfigPair;
 
-extern SGlobalCfg tsGlobalConfig[];
-extern int32_t    tsGlobalConfigNum;
-extern char *     tsCfgStatusStr[];
+typedef struct SConfig {
+  ECfgSrcType stype;
+  SArray     *array;
+} SConfig;
 
-void    taosReadGlobalLogCfg();
-int32_t taosReadCfgFromFile();
-void    taosPrintCfg();
-void    taosDumpGlobalCfg();
+SConfig *cfgInit();
+int32_t  cfgLoad(SConfig *pCfg, ECfgSrcType cfgType, const char *sourceStr);
+int32_t  cfgLoadFromArray(SConfig *pCfg, SArray *pArgs);  // SConfigPair
+void     cfgCleanup(SConfig *pCfg);
 
-void        taosAddConfigOption(SGlobalCfg cfg);
-SGlobalCfg *taosGetConfigOption(const char *option);
+int32_t      cfgGetSize(SConfig *pCfg);
+SConfigItem *cfgGetItem(SConfig *pCfg, const char *name);
+int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype);
+
+int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, bool tsc);
+int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, bool tsc);
+int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval, bool tsc);
+int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, double minval, double maxval, bool tsc);
+int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, bool tsc);
+int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, bool tsc);
+int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal);
+int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal);
+int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal);
+
+const char *cfgStypeStr(ECfgSrcType type);
+const char *cfgDtypeStr(ECfgDataType type);
+
+void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  /*_TD_UTIL_CONFIG_H*/
+#endif /*_TD_CONFIG_H_*/

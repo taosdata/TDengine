@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include "indexInt.h"
 #include "index_fst_counting_writer.h"
 #include "index_fst_util.h"
 

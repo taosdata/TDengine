@@ -20,11 +20,12 @@
 extern "C" {
 #endif
 
+#include "indexInt.h"
+#include "index_fst_node.h"
 #include "index_fst_automation.h"
 #include "index_fst_counting_writer.h"
 #include "index_fst_registry.h"
 #include "index_fst_util.h"
-#include "tarray.h"
 
 #define OUTPUT_PREFIX(a, b) ((a) > (b) ? (b) : (a)
 
@@ -259,7 +260,7 @@ typedef struct Fst {
   FstMeta*        meta;
   FstSlice*       data;  //
   FstNode*        root;  //
-  pthread_mutex_t mtx;
+  TdThreadMutex mtx;
 } Fst;
 
 // refactor simple function

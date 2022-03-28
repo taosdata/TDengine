@@ -57,18 +57,19 @@ typedef enum EFunctionType {
 
   // math function
   FUNCTION_TYPE_ABS = 1000,
-  FUNCTION_TYPE_ACOS,
-  FUNCTION_TYPE_ASION,
-  FUNCTION_TYPE_ATAN,
-  FUNCTION_TYPE_CEIL,
-  FUNCTION_TYPE_COS,
-  FUNCTION_TYPE_FLOOR,
   FUNCTION_TYPE_LOG,
   FUNCTION_TYPE_POW,
-  FUNCTION_TYPE_ROUND,
-  FUNCTION_TYPE_SIN,
   FUNCTION_TYPE_SQRT,
+  FUNCTION_TYPE_CEIL,
+  FUNCTION_TYPE_FLOOR,
+  FUNCTION_TYPE_ROUND,
+
+  FUNCTION_TYPE_SIN,
+  FUNCTION_TYPE_COS,
   FUNCTION_TYPE_TAN,
+  FUNCTION_TYPE_ASIN,
+  FUNCTION_TYPE_ACOS,
+  FUNCTION_TYPE_ATAN,
 
   // string function
   FUNCTION_TYPE_CHAR_LENGTH = 1500,
@@ -102,22 +103,6 @@ struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
 struct STimeWindow;
 
-typedef struct SFuncExecEnv {
-  int32_t calcMemSize;
-} SFuncExecEnv;
-
-typedef bool (*FExecGetEnv)(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
-typedef bool (*FExecInit)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);
-typedef void (*FExecProcess)(struct SqlFunctionCtx *pCtx);
-typedef void (*FExecFinalize)(struct SqlFunctionCtx *pCtx);
-
-typedef struct SFuncExecFuncs {
-  FExecGetEnv getEnv;
-  FExecInit init;
-  FExecProcess process;
-  FExecFinalize finalize;
-} SFuncExecFuncs;
-
 typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 typedef struct SScalarFuncExecFuncs {
@@ -126,6 +111,8 @@ typedef struct SScalarFuncExecFuncs {
 
 
 int32_t fmFuncMgtInit();
+
+void fmFuncMgtDestroy();
 
 int32_t fmGetFuncInfo(const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType);
 

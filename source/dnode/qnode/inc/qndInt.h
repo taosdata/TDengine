@@ -21,6 +21,7 @@
 #include "tlog.h"
 #include "tmsg.h"
 #include "trpc.h"
+#include "tmsgcb.h"
 
 #include "qnode.h"
 
@@ -28,8 +29,12 @@
 extern "C" {
 #endif
 
+typedef struct SQWorkerMgmt SQHandle;
+
 typedef struct SQnode {
-  SQnodeOpt opt;
+  int32_t   qndId;
+  SMsgCb    msgCb;
+  SQHandle* pQuery;
 } SQnode;
 
 #ifdef __cplusplus

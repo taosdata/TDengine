@@ -1,0 +1,15 @@
+#run unique/stream/table_replica1_dnode2.sim
+#run unique/stream/metrics_replica1_dnode2.sim
+#run unique/stream/table_replica2_dnode2.sim
+#run unique/stream/metrics_replica2_dnode2.sim
+#run unique/stream/table_replica2_dnode2_vnoden.sim
+#run unique/stream/metrics_replica2_dnode2_vnoden.sim
+#run unique/stream/table_replica2_dnode3.sim
+#run unique/stream/metrics_replica2_dnode3.sim
+#run unique/stream/table_replica3_dnode4.sim
+#run unique/stream/metrics_replica3_dnode4.sim
+#run unique/stream/table_vnode_stop.sim
+#run unique/stream/metrics_vnode_stop.sim
+##run unique/stream/table_balance.sim
+##run unique/stream/metrics_balance.sim
+##run unique/stream/table_move.sim
