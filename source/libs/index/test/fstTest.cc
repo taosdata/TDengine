@@ -258,7 +258,7 @@ void checkFstLongTerm() {
   // taosMemoryFree(ctx);
   // delete m;
 }
-void checkFstCheckIterator() {
+void checkFstCheckIterator1() {
   FstWriter* fw = new FstWriter;
   int64_t    s = taosGetTimestampUs();
   int        count = 2;
@@ -270,6 +270,41 @@ void checkFstCheckIterator() {
   fw->Put("Hello world", 1);
   fw->Put("Hello worle", 2);
   fw->Put("hello worlf", 4);
+  delete fw;
+
+  FstReadMemory* m = new FstReadMemory(1024 * 64);
+  if (m->init() == false) {
+    std::cout << "init readMemory failed" << std::endl;
+    delete m;
+    return;
+  }
+
+  // prefix search
+  std::vector<uint64_t> result;
+
+  AutomationCtx* ctx = automCtxCreate((void*)"He", AUTOMATION_ALWAYS);
+  m->Search(ctx, result);
+  std::cout << "size: " << result.size() << std::endl;
+  // assert(result.size() == count);
+  for (int i = 0; i < result.size(); i++) {
+    // assert(result[i] == i);  // check result
+  }
+
+  taosMemoryFree(ctx);
+  delete m;
+}
+void checkFstCheckIterator2() {
+  FstWriter* fw = new FstWriter;
+  int64_t    s = taosGetTimestampUs();
+  int        count = 2;
+  // Performance_fstWriteRecords(fw);
+  int64_t e = taosGetTimestampUs();
+
+  std::cout << "insert data count :  " << count << "elapas time: " << e - s << std::endl;
+
+  fw->Put("a", 1);
+  fw->Put("b", 2);
+  fw->Put("c", 4);
   delete fw;
 
   FstReadMemory* m = new FstReadMemory(1024 * 64);
@@ -346,7 +381,7 @@ void checkFstCheckIteratorPrefix() {
   }
   delete m;
 }
-void checkFstCheckIteratorRange() {
+void checkFstCheckIteratorRange1() {
   FstWriter* fw = new FstWriter;
   int64_t    s = taosGetTimestampUs();
   int        count = 2;
@@ -376,7 +411,42 @@ void checkFstCheckIteratorRange() {
 
     // [b, e)
     m->SearchRange(ctx, "b", "e", result);
-    // assert(result.size() == 1);
+    assert(result.size() == 3);
+    taosMemoryFree(ctx);
+  }
+}
+void checkFstCheckIteratorRange2() {
+  FstWriter* fw = new FstWriter;
+  int64_t    s = taosGetTimestampUs();
+  int        count = 2;
+  // Performance_fstWriteRecords(fw);
+  int64_t e = taosGetTimestampUs();
+
+  std::cout << "insert data count :  " << count << "elapas time: " << e - s << std::endl;
+
+  fw->Put("ab", 1);
+  fw->Put("bd", 2);
+  fw->Put("cdd", 3);
+  fw->Put("cde", 3);
+  fw->Put("ddd", 4);
+  fw->Put("ed", 5);
+  delete fw;
+
+  FstReadMemory* m = new FstReadMemory(1024 * 64);
+  if (m->init() == false) {
+    std::cout << "init readMemory failed" << std::endl;
+    delete m;
+    return;
+  }
+  {
+    // prefix search
+    std::vector<uint64_t> result;
+
+    AutomationCtx* ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+
+    // [b, e)
+    m->SearchRange(ctx, "b", "ed", result);
+    assert(result.size() == 4);
     taosMemoryFree(ctx);
   }
 }
@@ -443,9 +513,11 @@ int main(int argc, char* argv[]) {
   // path suid colName ver
   // iterTFileReader(argv[1], argv[2], argv[3], argv[4]);
   //}
-  // checkFstCheckIterator();
+  // checkFstCheckIterator1();
+  // checkFstCheckIterator2();
   // checkFstCheckIteratorPrefix();
-  checkFstCheckIteratorRange();
+  checkFstCheckIteratorRange1();
+  checkFstCheckIteratorRange2();
   // checkFstLongTerm();
   // checkFstPrefixSearch();
 
