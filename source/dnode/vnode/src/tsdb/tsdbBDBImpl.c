@@ -51,7 +51,7 @@ void tsdbCloseDBF(SDBFile *pDBF) {
     tsdbCloseBDBDb(pDBF->pDB);
     pDBF->pDB = NULL;
   }
-  tfree(pDBF->path);
+  taosMemoryFreeClear(pDBF->path);
 }
 
 int32_t tsdbOpenBDBEnv(DB_ENV **ppEnv, const char *path) {
@@ -159,7 +159,7 @@ void *tsdbGetSmaDataByKey(SDBFile *pDBF, void* key, uint32_t keySize, uint32_t *
     return NULL;
   }
 
-  result = calloc(1, value1.size);
+  result = taosMemoryCalloc(1, value1.size);
 
   if (result == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;

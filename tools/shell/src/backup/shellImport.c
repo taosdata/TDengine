@@ -97,9 +97,9 @@ static void shellCheckTablesSQLFile(const char *directoryName)
 
 static void shellMallocSQLFiles()
 {
-  shellSQLFiles = (char**)calloc(shellSQLFileNum, sizeof(char*));
+  shellSQLFiles = (char**)taosMemoryCalloc(shellSQLFileNum, sizeof(char*));
   for (int i = 0; i < shellSQLFileNum; i++) {
-    shellSQLFiles[i] = calloc(1, TSDB_FILENAME_LEN);
+    shellSQLFiles[i] = taosMemoryCalloc(1, TSDB_FILENAME_LEN);
   }
 }
 
@@ -130,20 +130,20 @@ static void shellGetDirectoryFileList(char *inputDir)
 static void shellSourceFile(TAOS *con, char *fptr) {
   wordexp_t full_path;
   int       read_len = 0;
-  char *    cmd = malloc(tsMaxSQLStringLen);
+  char *    cmd = taosMemoryMalloc(tsMaxSQLStringLen);
   size_t    cmd_len = 0;
   char *    line = NULL;
 
   if (wordexp(fptr, &full_path, 0) != 0) {
     fprintf(stderr, "ERROR: illegal file name\n");
-    free(cmd);
+    taosMemoryFree(cmd);
     return;
   }
 
   char *fname = full_path.we_wordv[0];
   if (fname == NULL) {
     fprintf(stderr, "ERROR: invalid filename\n");
-    free(cmd);
+    taosMemoryFree(cmd);
     return;
   }
 
@@ -152,7 +152,7 @@ static void shellSourceFile(TAOS *con, char *fptr) {
     fprintf(stderr, "ERROR: file %s is not exist\n", fptr);
     
     wordfree(&full_path);
-    free(cmd);
+    taosMemoryFree(cmd);
     return;
   }
   
@@ -160,7 +160,7 @@ static void shellSourceFile(TAOS *con, char *fptr) {
     fprintf(stderr, "ERROR: file %s is not readable\n", fptr);
     
     wordfree(&full_path);
-    free(cmd);
+    taosMemoryFree(cmd);
     return;
   }
   */
@@ -170,7 +170,7 @@ static void shellSourceFile(TAOS *con, char *fptr) {
   if (pFile == NULL) {
     fprintf(stderr, "ERROR: failed to open file %s\n", fname);
     wordfree(&full_path);
-    free(cmd);
+    taosMemoryFree(cmd);
     return;
   }
 
@@ -209,8 +209,8 @@ static void shellSourceFile(TAOS *con, char *fptr) {
     cmd_len = 0;
   }
 
-  free(cmd);
-  if(line != NULL) free(line);
+  taosMemoryFree(cmd);
+  if(line != NULL) taosMemoryFree(line);
   wordfree(&full_path);
   taosCloseFile(&pFile);
 }
@@ -233,7 +233,7 @@ void* shellImportThreadFp(void *arg)
 static void shellRunImportThreads(SShellArguments* _args)
 {
   TdThreadAttr thattr;
-  ShellThreadObj *threadObj = (ShellThreadObj *)calloc(_args->threadNum, sizeof(ShellThreadObj));
+  ShellThreadObj *threadObj = (ShellThreadObj *)taosMemoryCalloc(_args->threadNum, sizeof(ShellThreadObj));
   for (int t = 0; t < _args->threadNum; ++t) {
     ShellThreadObj *pThread = threadObj + t;
     pThread->threadIndex = t;
@@ -260,7 +260,7 @@ static void shellRunImportThreads(SShellArguments* _args)
   for (int t = 0; t < _args->threadNum; ++t) {
     taos_close(threadObj[t].taos);
   }
-  free(threadObj);
+  taosMemoryFree(threadObj);
 }
 
 void source_dir(TAOS* con, SShellArguments* _args) {

@@ -158,7 +158,7 @@ void acquireRleaseTest() {
   const char *str2 = "aaaaaaa";
   const char *str3 = "123456789";
 
-  data.p = (char *)malloc(10);
+  data.p = (char *)taosMemoryMalloc(10);
   strcpy(data.p, str1);
 
   code = taosHashPut(hashTable, &key, sizeof(key), &data, sizeof(data));
@@ -177,7 +177,7 @@ void acquireRleaseTest() {
   
   strcpy(pdata->p, str3);
 
-  data.p = (char *)malloc(10);
+  data.p = (char *)taosMemoryMalloc(10);
   strcpy(data.p, str2);
   code = taosHashPut(hashTable, &key, sizeof(key), &data, sizeof(data));
   ASSERT_EQ(code, 0);
@@ -187,14 +187,14 @@ void acquireRleaseTest() {
   printf("%s,expect:%s", pdata->p, str3);
   ASSERT_TRUE(strcmp(pdata->p, str3) == 0);
 
-  tfree(pdata->p);
+  taosMemoryFreeClear(pdata->p);
 
   taosHashRelease(hashTable, pdata);
   num = taosHashGetSize(hashTable);
   ASSERT_EQ(num, 1);
 
   taosHashCleanup(hashTable);
-  tfree(data.p);
+  taosMemoryFreeClear(data.p);
 }
 
 }

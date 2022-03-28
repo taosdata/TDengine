@@ -164,7 +164,7 @@ static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw) {
 DNODE_DECODE_OVER:
   if (terrno != 0) {
     mError("dnode:%d, failed to decode from raw:%p since %s", pDnode->id, pRaw, terrstr());
-    tfree(pRow);
+    taosMemoryFreeClear(pRow);
     return NULL;
   }
 
@@ -277,8 +277,8 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, const SClusterCfg *pCfg) {
     return DND_REASON_STATUS_INTERVAL_NOT_MATCH;
   }
 
-  if ((0 != strcasecmp(pCfg->timezone, tsTimezone)) && (pMnode->checkTime != pCfg->checkTime)) {
-    mError("timezone [%s - %s] [%" PRId64 " - %" PRId64 "] cfg inconsistent", pCfg->timezone, tsTimezone,
+  if ((0 != strcasecmp(pCfg->timezone, tsTimezoneStr)) && (pMnode->checkTime != pCfg->checkTime)) {
+    mError("timezone [%s - %s] [%" PRId64 " - %" PRId64 "] cfg inconsistent", pCfg->timezone, tsTimezoneStr,
            pCfg->checkTime, pMnode->checkTime);
     return DND_REASON_TIME_ZONE_NOT_MATCH;
   }
@@ -677,7 +677,7 @@ static int32_t mndRetrieveConfigs(SNodeMsg *pReq, SShowObj *pShow, char *data, i
   totalRows++;
 
   cfgOpts[totalRows] = "timezone";
-  snprintf(cfgVals[totalRows], TSDB_CONIIG_VALUE_LEN, "%s", tsTimezone);
+  snprintf(cfgVals[totalRows], TSDB_CONIIG_VALUE_LEN, "%s", tsTimezoneStr);
   totalRows++;
 
   cfgOpts[totalRows] = "locale";

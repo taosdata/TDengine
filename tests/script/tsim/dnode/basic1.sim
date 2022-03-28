@@ -5,9 +5,6 @@ system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 sql connect
 
-# todo remove
-sql create database useless_db
-
 print =============== show dnodes
 sql show dnodes;
 if $rows != 1 then 
@@ -82,9 +79,6 @@ endi
 if $data02 != master then 
   return -1
 endi
-
-# todo remove
-sql drop database useless_db
 
 print =============== create database
 sql create database d1 vgroups 4;

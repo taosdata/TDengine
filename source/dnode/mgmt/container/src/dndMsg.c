@@ -20,8 +20,8 @@ static void dndUpdateMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
   SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, DNODE);
   if (pWrapper != NULL) {
     dmUpdateMnodeEpSet(pWrapper->pMgmt, pEpSet);
+    dndReleaseWrapper(pWrapper);
   }
-  dndReleaseWrapper(pWrapper);
 }
 
 static inline NodeMsgFp dndGetMsgFp(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
@@ -43,36 +43,40 @@ static inline int32_t dndBuildMsg(SNodeMsg *pMsg, SRpcMsg *pRpc) {
 
   memcpy(pMsg->user, connInfo.user, TSDB_USER_LEN);
   memcpy(&pMsg->rpcMsg, pRpc, sizeof(SRpcMsg));
-
   return 0;
 }
 
 void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSet) {
-  if (pEpSet && pEpSet->numOfEps > 0 && pRpc->msgType == TDMT_MND_STATUS_RSP) {
-    dndUpdateMnodeEpSet(pWrapper->pDnode, pEpSet);
-  }
-
   int32_t   code = -1;
   SNodeMsg *pMsg = NULL;
   NodeMsgFp msgFp = NULL;
+
+  if (pEpSet && pEpSet->numOfEps > 0 && pRpc->msgType == TDMT_MND_STATUS_RSP) {
+    dndUpdateMnodeEpSet(pWrapper->pDnode, pEpSet);
+  }
 
   if (dndMarkWrapper(pWrapper) != 0) goto _OVER;
   if ((msgFp = dndGetMsgFp(pWrapper, pRpc)) == NULL) goto _OVER;
   if ((pMsg = taosAllocateQitem(sizeof(SNodeMsg))) == NULL) goto _OVER;
   if (dndBuildMsg(pMsg, pRpc) != 0) goto _OVER;
 
-  dTrace("msg:%p, is created, handle:%p app:%p user:%s", pMsg, pRpc->handle, pRpc->ahandle, pMsg->user);
   if (pWrapper->procType == PROC_SINGLE) {
+    dTrace("msg:%p, is created, handle:%p app:%p user:%s", pMsg, pRpc->handle, pRpc->ahandle, pMsg->user);
     code = (*msgFp)(pWrapper->pMgmt, pMsg);
   } else if (pWrapper->procType == PROC_PARENT) {
+    dTrace("msg:%p, is created and will put into child queue, handle:%p app:%p user:%s", pMsg, pRpc->handle,
+           pRpc->ahandle, pMsg->user);
     code = taosProcPutToChildQueue(pWrapper->pProc, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen);
   } else {
+    dTrace("msg:%p, should not processed in child process, handle:%p app:%p user:%s", pMsg, pRpc->handle, pRpc->ahandle,
+           pMsg->user);
+    ASSERT(1);
   }
 
 _OVER:
   if (code == 0) {
     if (pWrapper->procType == PROC_PARENT) {
-      dTrace("msg:%p, is freed", pMsg);
+      dTrace("msg:%p, is freed in parent process", pMsg);
       taosFreeQitem(pMsg);
       rpcFreeCont(pRpc->pCont);
     }

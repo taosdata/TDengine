@@ -20,12 +20,20 @@
 extern "C" {
 #endif
 
-typedef struct STDb STDb;
+typedef struct STDB  STDB;
+typedef struct STDBC STDBC;
 
-int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, STEnv *pEnv, STDb **ppDb);
-int tdbDbClose(STDb *pDb);
-int tdbDbDrop(STDb *pDb);
-int tdbDbInsert(STDb *pDb, const void *pKey, int keyLen, const void *pVal, int valLen);
+// STDB
+int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, STEnv *pEnv, STDB **ppDb);
+int tdbDbClose(STDB *pDb);
+int tdbDbDrop(STDB *pDb);
+int tdbDbInsert(STDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen);
+int tdbDbGet(STDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen);
+
+// STDBC
+int tdbDbcOpen(STDB *pDb, STDBC **ppDbc);
+int tdbDbNext(STDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen);
+int tdbDbcClose(STDBC *pDbc);
 
 #ifdef __cplusplus
 }

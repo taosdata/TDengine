@@ -59,12 +59,15 @@ extern "C" {
   } while (0);
 
 // ----------------- TSDB COLUMN DEFINITION
+#pragma pack(push, 1)
 typedef struct {
-  int8_t   type;    // Column type
-  col_id_t colId;   // column ID(start from PRIMARYKEY_TIMESTAMP_COL_ID(1))
-  int16_t  bytes;   // column bytes (restore to int16_t in case of misuse)
-  uint16_t offset;  // point offset in STpRow after the header part.
+  col_id_t colId;        // column ID(start from PRIMARYKEY_TIMESTAMP_COL_ID(1))
+  int32_t  type : 8;     // column type
+  int32_t  bytes : 24;   // column bytes (restore to int32_t in case of misuse)
+  int32_t  sma : 8;      // block SMA: 0, no SMA, 1, sum/min/max, 2, ...
+  int32_t  offset : 24;  // point offset in STpRow after the header part.
 } STColumn;
+#pragma pack(pop)
 
 #define colType(col)   ((col)->type)
 #define colColId(col)  ((col)->colId)
@@ -93,7 +96,7 @@ typedef struct {
 #define schemaFLen(s)     ((s)->flen)
 #define schemaVLen(s)     ((s)->vlen)
 #define schemaColAt(s, i) ((s)->columns + i)
-#define tdFreeSchema(s)   tfree((s))
+#define tdFreeSchema(s)   taosMemoryFreeClear((s))
 
 STSchema *tdDupSchema(const STSchema *pSchema);
 int32_t   tdEncodeSchema(void **buf, STSchema *pSchema);
@@ -136,7 +139,7 @@ typedef struct {
 int32_t   tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version);
 void      tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder);
 void      tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version);
-int32_t   tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int16_t colId, int16_t bytes);
+int32_t   tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, col_id_t colId, col_bytes_t bytes);
 STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
 
 // ----------------- Semantic timestamp key definition
@@ -493,7 +496,7 @@ typedef struct {
 #define kvRowCpy(dst, r)       memcpy((dst), (r), kvRowLen(r))
 #define kvRowColVal(r, colIdx) POINTER_SHIFT(kvRowValues(r), (colIdx)->offset)
 #define kvRowColIdxAt(r, i)    (kvRowColIdx(r) + (i))
-#define kvRowFree(r)           tfree(r)
+#define kvRowFree(r)           taosMemoryFreeClear(r)
 #define kvRowEnd(r)            POINTER_SHIFT(r, kvRowLen(r))
 #define kvRowValLen(r)         (kvRowLen(r) - TD_KV_ROW_HEAD_SIZE - sizeof(SColIdx) * kvRowNCols(r))
 #define kvRowTKey(r)           (*(TKEY *)(kvRowValues(r)))
@@ -590,10 +593,10 @@ void    tdDestroyKVRowBuilder(SKVRowBuilder *pBuilder);
 void    tdResetKVRowBuilder(SKVRowBuilder *pBuilder);
 SKVRow  tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder);
 
-static FORCE_INLINE int32_t tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, int8_t type, const void *value) {
+static FORCE_INLINE int32_t tdAddColToKVRow(SKVRowBuilder *pBuilder, col_id_t colId, int8_t type, const void *value) {
   if (pBuilder->nCols >= pBuilder->tCols) {
     pBuilder->tCols *= 2;
-    SColIdx *pColIdx = (SColIdx *)realloc((void *)(pBuilder->pColIdx), sizeof(SColIdx) * pBuilder->tCols);
+    SColIdx *pColIdx = (SColIdx *)taosMemoryRealloc((void *)(pBuilder->pColIdx), sizeof(SColIdx) * pBuilder->tCols);
     if (pColIdx == NULL) return -1;
     pBuilder->pColIdx = pColIdx;
   }
@@ -608,7 +611,7 @@ static FORCE_INLINE int32_t tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t col
     while (tlen > pBuilder->alloc - pBuilder->size) {
       pBuilder->alloc *= 2;
     }
-    void *buf = realloc(pBuilder->buf, pBuilder->alloc);
+    void *buf = taosMemoryRealloc(pBuilder->buf, pBuilder->alloc);
     if (buf == NULL) return -1;
     pBuilder->buf = buf;
   }

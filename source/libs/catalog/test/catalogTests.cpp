@@ -176,7 +176,7 @@ void ctgTestBuildCTableMetaOutput(STableMetaOutput *output) {
   output->ctbMeta.uid = 3;
   output->ctbMeta.suid = 2;
 
-  output->tbMeta = (STableMeta *)calloc(1, sizeof(STableMeta) + sizeof(SSchema) * (ctgTestColNum + ctgTestColNum));
+  output->tbMeta = (STableMeta *)taosMemoryCalloc(1, sizeof(STableMeta) + sizeof(SSchema) * (ctgTestColNum + ctgTestColNum));
   output->tbMeta->vgId = 9;
   output->tbMeta->tableType = TSDB_SUPER_TABLE;
   output->tbMeta->uid = 2;
@@ -212,7 +212,7 @@ void ctgTestBuildDBVgroup(SDBVgInfo **pdbVgroup) {
   static int32_t vgVersion = ctgTestVgVersion + 1;
   int32_t        vgNum = 0;
   SVgroupInfo    vgInfo = {0};
-  SDBVgInfo *dbVgroup = (SDBVgInfo *)calloc(1, sizeof(SDBVgInfo));
+  SDBVgInfo *dbVgroup = (SDBVgInfo *)taosMemoryCalloc(1, sizeof(SDBVgInfo));
 
   dbVgroup->vgVersion = vgVersion++;
 
@@ -257,7 +257,7 @@ void ctgTestBuildSTableMetaRsp(STableMetaRsp *rspMsg) {
   rspMsg->tuid = ctgTestSuid + 1;
   rspMsg->vgId = 1;
   
-  rspMsg->pSchemas = (SSchema *)calloc(rspMsg->numOfTags + rspMsg->numOfColumns, sizeof(SSchema));
+  rspMsg->pSchemas = (SSchema *)taosMemoryCalloc(rspMsg->numOfTags + rspMsg->numOfColumns, sizeof(SSchema));
 
   SSchema *s = NULL;
   s = &rspMsg->pSchemas[0];
@@ -335,7 +335,7 @@ void ctgTestRspTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *
   metaRsp.suid = 0;
   metaRsp.tuid = ctgTestNormalTblUid++;
   metaRsp.vgId = 8;
-  metaRsp.pSchemas = (SSchema *)malloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchema));
+  metaRsp.pSchemas = (SSchema *)taosMemoryMalloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchema));
 
   SSchema *s = NULL;
   s = &metaRsp.pSchemas[0];
@@ -381,7 +381,7 @@ void ctgTestRspCTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg 
   metaRsp.suid = 0x0000000000000002;
   metaRsp.tuid = 0x0000000000000003;
   metaRsp.vgId = 9;
-  metaRsp.pSchemas = (SSchema *)malloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchema));
+  metaRsp.pSchemas = (SSchema *)taosMemoryMalloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchema));
 
   SSchema *s = NULL;
   s = &metaRsp.pSchemas[0];
@@ -428,7 +428,7 @@ void ctgTestRspSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg 
   metaRsp.suid = ctgTestSuid;
   metaRsp.tuid = ctgTestSuid++;
   metaRsp.vgId = 0;
-  metaRsp.pSchemas = (SSchema *)malloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchema));
+  metaRsp.pSchemas = (SSchema *)taosMemoryMalloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchema));
 
   SSchema *s = NULL;
   s = &metaRsp.pSchemas[0];
@@ -477,7 +477,7 @@ void ctgTestRspMultiSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRp
   metaRsp.suid = ctgTestSuid + idx;
   metaRsp.tuid = ctgTestSuid + idx;
   metaRsp.vgId = 0;
-  metaRsp.pSchemas = (SSchema *)malloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchema));
+  metaRsp.pSchemas = (SSchema *)taosMemoryMalloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchema));
 
   SSchema *s = NULL;
   s = &metaRsp.pSchemas[0];
@@ -798,7 +798,7 @@ void *ctgTestGetCtableMetaThread(void *param) {
       assert(0);
     }
 
-    tfree(tbMeta);
+    taosMemoryFreeClear(tbMeta);
 
     if (ctgTestEnableSleep) {
       taosUsleep(taosRand() % 5);
@@ -824,10 +824,10 @@ void *ctgTestSetCtableMetaThread(void *param) {
   action.act = CTG_ACT_UPDATE_TBL;
 
   while (!ctgTestStop) {
-    output = (STableMetaOutput *)malloc(sizeof(STableMetaOutput));
+    output = (STableMetaOutput *)taosMemoryMalloc(sizeof(STableMetaOutput));
     ctgTestBuildCTableMetaOutput(output);
 
-    SCtgUpdateTblMsg *msg = (SCtgUpdateTblMsg *)malloc(sizeof(SCtgUpdateTblMsg));
+    SCtgUpdateTblMsg *msg = (SCtgUpdateTblMsg *)taosMemoryMalloc(sizeof(SCtgUpdateTblMsg));
     msg->pCtg = pCtg;
     msg->output = output;
     action.data = msg;
@@ -933,7 +933,7 @@ TEST(tableMeta, normalTable) {
 
     if (dbNum) {
       printf("got expired db,dbId:%" PRId64 "\n", dbs->dbId);
-      free(dbs);
+      taosMemoryFree(dbs);
       dbs = NULL;
     } else {
       printf("no expired db\n");
@@ -941,7 +941,7 @@ TEST(tableMeta, normalTable) {
 
     if (stbNum) {
       printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);
-      free(stb);
+      taosMemoryFree(stb);
       stb = NULL;
     } else {
       printf("no expired stb\n");
@@ -1015,7 +1015,7 @@ TEST(tableMeta, childTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  tfree(tableMeta);
+  taosMemoryFreeClear(tableMeta);
 
   strcpy(n.tname, ctgTestSTablename);
   code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
@@ -1042,7 +1042,7 @@ TEST(tableMeta, childTableCase) {
 
     if (dbNum) {
       printf("got expired db,dbId:%" PRId64 "\n", dbs->dbId);
-      free(dbs);
+      taosMemoryFree(dbs);
       dbs = NULL;
     } else {
       printf("no expired db\n");
@@ -1050,7 +1050,7 @@ TEST(tableMeta, childTableCase) {
 
     if (stbNum) {
       printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);
-      free(stb);
+      taosMemoryFree(stb);
       stb = NULL;
     } else {
       printf("no expired stb\n");
@@ -1164,7 +1164,7 @@ TEST(tableMeta, superTableCase) {
 
     if (dbNum) {
       printf("got expired db,dbId:%" PRId64 "\n", dbs->dbId);
-      free(dbs);
+      taosMemoryFree(dbs);
       dbs = NULL;
     } else {
       printf("no expired db\n");
@@ -1173,7 +1173,7 @@ TEST(tableMeta, superTableCase) {
     if (stbNum) {
       printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);
 
-      free(stb);
+      taosMemoryFree(stb);
       stb = NULL;
     } else {
       printf("no expired stb\n");
@@ -1307,14 +1307,14 @@ TEST(tableMeta, updateStbMeta) {
   }
 
 
-  tfree(tableMeta);
+  taosMemoryFreeClear(tableMeta);
 
   STableMetaRsp rsp = {0};
   ctgTestBuildSTableMetaRsp(&rsp);
 
   code = catalogUpdateSTableMeta(pCtg, &rsp);
   ASSERT_EQ(code, 0);
-  tfree(rsp.pSchemas);
+  taosMemoryFreeClear(rsp.pSchemas);
 
   while (true) {
     uint64_t n = 0;
@@ -1345,7 +1345,7 @@ TEST(tableMeta, updateStbMeta) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1 + 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  tfree(tableMeta);
+  taosMemoryFreeClear(tableMeta);
 
   catalogDestroy();
   memset(&gCtgMgmt.stat, 0, sizeof(gCtgMgmt.stat));
@@ -1407,7 +1407,7 @@ TEST(refreshGetMeta, normal2normal) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, 0);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  tfree(tableMeta);
+  taosMemoryFreeClear(tableMeta);
 
   while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
     taosMsleep(50);
@@ -1424,7 +1424,7 @@ TEST(refreshGetMeta, normal2normal) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, 0);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  tfree(tableMeta);
+  taosMemoryFreeClear(tableMeta);
 
   catalogDestroy();
   memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
@@ -1486,7 +1486,7 @@ TEST(refreshGetMeta, normal2notexist) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, 0);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  tfree(tableMeta);
+  taosMemoryFreeClear(tableMeta);
 
   while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
     taosMsleep(50);
@@ -1560,7 +1560,7 @@ TEST(refreshGetMeta, normal2child) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, 0);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  tfree(tableMeta);
+  taosMemoryFreeClear(tableMeta);
 
   while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
     taosMsleep(50);
@@ -1576,7 +1576,7 @@ TEST(refreshGetMeta, normal2child) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  tfree(tableMeta);
+  taosMemoryFreeClear(tableMeta);
 
   catalogDestroy();
   memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
@@ -1645,7 +1645,7 @@ TEST(refreshGetMeta, stable2child) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  tfree(tableMeta);
+  taosMemoryFreeClear(tableMeta);
 
   while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
     taosMsleep(50);
@@ -1662,7 +1662,7 @@ TEST(refreshGetMeta, stable2child) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  tfree(tableMeta);
+  taosMemoryFreeClear(tableMeta);
 
   catalogDestroy();
   memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
@@ -1730,7 +1730,7 @@ TEST(refreshGetMeta, stable2stable) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  tfree(tableMeta);
+  taosMemoryFreeClear(tableMeta);
 
   while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
     taosMsleep(50);
@@ -1748,7 +1748,7 @@ TEST(refreshGetMeta, stable2stable) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  tfree(tableMeta);
+  taosMemoryFreeClear(tableMeta);
 
   catalogDestroy();
   memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
@@ -1816,7 +1816,7 @@ TEST(refreshGetMeta, child2stable) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  tfree(tableMeta);
+  taosMemoryFreeClear(tableMeta);
 
   while (2 != ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
     taosMsleep(50);
@@ -1835,7 +1835,7 @@ TEST(refreshGetMeta, child2stable) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-  tfree(tableMeta);
+  taosMemoryFreeClear(tableMeta);
 
   catalogDestroy();
   memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
@@ -2275,7 +2275,7 @@ TEST(rentTest, allRent) {
     printf("%d - expired dbNum:%d\n", i, num);
     if (dbs) {
       printf("%d - expired dbId:%" PRId64 ", vgVersion:%d\n", i, dbs->dbId, dbs->vgVersion);
-      free(dbs);
+      taosMemoryFree(dbs);
       dbs = NULL;
     }
 
@@ -2287,7 +2287,7 @@ TEST(rentTest, allRent) {
         printf("suid:%" PRId64 ", dbFName:%s, stbName:%s, sversion:%d, tversion:%d\n", stable[n].suid,
                stable[n].dbFName, stable[n].stbName, stable[n].sversion, stable[n].tversion);
       }
-      free(stable);
+      taosMemoryFree(stable);
       stable = NULL;
     }
     printf("*************************************************\n");

@@ -51,7 +51,7 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
   }
 
   for (int32_t i = 0; i < SND_UNIQUE_THREAD_NUM; i++) {
-    SMultiWorker *pUniqueWorker = malloc(sizeof(SMultiWorker));
+    SMultiWorker *pUniqueWorker = taosMemoryMalloc(sizeof(SMultiWorker));
     if (pUniqueWorker == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
@@ -80,6 +80,7 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
     return -1;
   }
 
+  dDebug("snode workers are initialized");
   return 0;
 }
 
@@ -90,18 +91,20 @@ void smStopWorker(SSnodeMgmt *pMgmt) {
   }
   taosArrayDestroy(pMgmt->uniqueWorkers);
   tSingleWorkerCleanup(&pMgmt->sharedWorker);
+  dDebug("snode workers are closed");
 }
 
 static FORCE_INLINE int32_t smGetSWIdFromMsg(SRpcMsg *pMsg) {
   SMsgHead *pHead = pMsg->pCont;
-  pHead->streamTaskId = htonl(pHead->streamTaskId);
-  return pHead->streamTaskId % SND_UNIQUE_THREAD_NUM;
+  pHead->vgId = htonl(pHead->vgId);
+  return pHead->vgId % SND_UNIQUE_THREAD_NUM;
 }
 
 static FORCE_INLINE int32_t smGetSWTypeFromMsg(SRpcMsg *pMsg) {
-  SStreamExecMsgHead *pHead = pMsg->pCont;
-  pHead->workerType = htonl(pHead->workerType);
-  return pHead->workerType;
+  /*SMsgHead *pHead = pMsg->pCont;*/
+  /*pHead->workerType = htonl(pHead->workerType);*/
+  /*return pHead->workerType;*/
+  return 0;
 }
 
 int32_t smProcessMgmtMsg(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {

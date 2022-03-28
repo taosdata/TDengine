@@ -146,9 +146,14 @@ static void dndProcessRequest(void *param, SRpcMsg *pReq, SEpSet *pEpSet) {
 
 static void dndSendMsgToMnodeRecv(SDnode *pDnode, SRpcMsg *pRpcMsg, SRpcMsg *pRpcRsp) {
   STransMgmt *pMgmt = &pDnode->trans;
+  SEpSet      epSet = {0};
 
-  SEpSet epSet = {0};
-  dmGetMnodeEpSet(dndAcquireWrapper(pDnode, DNODE)->pMgmt, &epSet);
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, DNODE);
+  if (pWrapper != NULL) {
+    dmGetMnodeEpSet(pWrapper->pMgmt, &epSet);
+    dndReleaseWrapper(pWrapper);
+  }
+
   rpcSendRecv(pMgmt->clientRpc, &epSet, pRpcMsg, pRpcRsp);
 }
 
@@ -182,9 +187,14 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
     return 0;
   }
 
-  if (mmGetUserAuth(dndAcquireWrapper(pDnode, MNODE), user, spi, encrypt, secret, ckey) == 0) {
-    dTrace("user:%s, get auth from mnode, spi:%d encrypt:%d", user, *spi, *encrypt);
-    return 0;
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, MNODE);
+  if (pWrapper != NULL) {
+    if (mmGetUserAuth(pWrapper, user, spi, encrypt, secret, ckey) == 0) {
+      dndReleaseWrapper(pWrapper);
+      dTrace("user:%s, get auth from mnode, spi:%d encrypt:%d", user, *spi, *encrypt);
+      return 0;
+    }
+    dndReleaseWrapper(pWrapper);
   }
 
   if (terrno != TSDB_CODE_APP_NOT_READY) {
@@ -271,7 +281,7 @@ int32_t dndInitMsgHandle(SDnode *pDnode) {
       int32_t   vgId = pWrapper->msgVgIds[msgIndex];
       if (msgFp == NULL) continue;
 
-      dTrace("msg:%s will be processed by %s, vgId:%d", tMsgInfo[msgIndex], pWrapper->name, vgId);
+      // dTrace("msg:%s will be processed by %s, vgId:%d", tMsgInfo[msgIndex], pWrapper->name, vgId);
 
       SMsgHandle *pHandle = &pMgmt->msgHandles[msgIndex];
       if (vgId == QND_VGID) {
@@ -328,15 +338,25 @@ int32_t dndSendReqToMnode(SMgmtWrapper *pWrapper, SRpcMsg *pReq) {
     SDnode     *pDnode = pWrapper->pDnode;
     STransMgmt *pTrans = &pDnode->trans;
     SEpSet      epSet = {0};
-    dmGetMnodeEpSet(dndAcquireWrapper(pDnode, DNODE)->pMgmt, &epSet);
+
+    SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, DNODE);
+    if (pWrapper != NULL) {
+      dmGetMnodeEpSet(pWrapper->pMgmt, &epSet);
+      dndReleaseWrapper(pWrapper);
+    }
     return dndSendRpcReq(pTrans, &epSet, pReq);
   }
 }
 
-void dndSendRpcRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
+static void dndSendRpcRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
   if (pRsp->code == TSDB_CODE_APP_NOT_READY) {
     SMgmtWrapper *pDnodeWrapper = dndAcquireWrapper(pWrapper->pDnode, DNODE);
-    dmSendRedirectRsp(pDnodeWrapper->pMgmt, pRsp);
+    if (pDnodeWrapper != NULL) {
+      dmSendRedirectRsp(pDnodeWrapper->pMgmt, pRsp);
+      dndReleaseWrapper(pDnodeWrapper);
+    } else {
+      rpcSendResponse(pRsp);
+    }
   } else {
     rpcSendResponse(pRsp);
   }

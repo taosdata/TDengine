@@ -122,7 +122,7 @@ bool tsRetrieveBlockingModel = 0;
 // last_row(*), first(*), last_row(ts, col1, col2) query, the result fields will be the original column name
 bool tsKeepOriginalColumnName = 0;
 
-// long query death-lock
+// kill long query
 bool tsDeadLockKillQuery = 0;
 
 // tsdb config
@@ -180,6 +180,10 @@ static int32_t taosSetTfsCfg(SConfig *pCfg) {
       memcpy(&tsDiskCfg[index], pCfg, sizeof(SDiskCfg));
       if (pCfg->level == 0 && pCfg->primary == 1) {
         tstrncpy(tsDataDir, pCfg->dir, PATH_MAX);
+        if (taosMkDir(tsDataDir) != 0) {
+          uError("failed to create dataDir:%s since %s", tsDataDir, terrstr());
+          return -1;
+        }
       }
       if (taosMkDir(pCfg->dir) != 0) {
         uError("failed to create tfsDir:%s since %s", tsDataDir, terrstr());
@@ -299,7 +303,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
 static int32_t taosAddSystemCfg(SConfig *pCfg) {
   SysNameInfo info = taosGetSysNameInfo();
 
-  if (cfgAddTimezone(pCfg, "timezone", tsTimezone) != 0) return -1;
+  if (cfgAddTimezone(pCfg, "timezone", tsTimezoneStr) != 0) return -1;
   if (cfgAddLocale(pCfg, "locale", tsLocale) != 0) return -1;
   if (cfgAddCharset(pCfg, "charset", tsCharset) != 0) return -1;
   if (cfgAddBool(pCfg, "enableCoreFile", 1, 1) != 0) return -1;
@@ -427,12 +431,13 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 static void taosSetSystemCfg(SConfig *pCfg) {
   SConfigItem *pItem = cfgGetItem(pCfg, "timezone");
   osSetTimezone(pItem->str);
-  uDebug("timezone format changed from %s to %s", pItem->str, tsTimezone);
-  cfgSetItem(pCfg, "timezone", tsTimezone, pItem->stype);
+  uDebug("timezone format changed from %s to %s", pItem->str, tsTimezoneStr);
+  cfgSetItem(pCfg, "timezone", tsTimezoneStr, pItem->stype);
 
   const char *locale = cfgGetItem(pCfg, "locale")->str;
   const char *charset = cfgGetItem(pCfg, "charset")->str;
   taosSetSystemLocale(locale, charset);
+  osSetSystemLocale(locale, charset);
 
   bool enableCore = cfgGetItem(pCfg, "enableCoreFile")->bval;
   taosSetConsoleEcho(enableCore);
@@ -479,7 +484,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char *envFile,
                       const char *apolloUrl, SArray *pArgs, bool tsc) {
-  osInit();
+  osDefaultInit();
 
   SConfig *pCfg = cfgInit();
   if (pCfg == NULL) return -1;

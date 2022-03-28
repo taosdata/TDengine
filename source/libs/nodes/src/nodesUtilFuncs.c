@@ -22,7 +22,7 @@
 #include "thash.h"
 
 static SNode* makeNode(ENodeType type, size_t size) {
-  SNode* p = calloc(1, size);
+  SNode* p = taosMemoryCalloc(1, size);
   if (NULL == p) {
     return NULL;
   }
@@ -159,6 +159,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SExchangeLogicNode));
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return makeNode(type, sizeof(SWindowLogicNode));
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+      return makeNode(type, sizeof(SSortLogicNode));
     case QUERY_NODE_LOGIC_SUBPLAN:
       return makeNode(type, sizeof(SLogicSubplan));
     case QUERY_NODE_LOGIC_PLAN:
@@ -182,7 +184,7 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
       return makeNode(type, sizeof(SExchangePhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
-      return makeNode(type, sizeof(SNode));
+      return makeNode(type, sizeof(SSortPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
       return makeNode(type, sizeof(SIntervalPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
@@ -207,9 +209,9 @@ static EDealRes destroyNode(SNode** pNode, void* pContext) {
     case QUERY_NODE_VALUE: {
       SValueNode* pValue = (SValueNode*)*pNode;
       
-      tfree(pValue->literal);
+      taosMemoryFreeClear(pValue->literal);
       if (IS_VAR_DATA_TYPE(pValue->node.resType.type)) {
-        tfree(pValue->datum.p);
+        taosMemoryFreeClear(pValue->datum.p);
       }
       
       break;
@@ -222,8 +224,8 @@ static EDealRes destroyNode(SNode** pNode, void* pContext) {
       break;
     case QUERY_NODE_REAL_TABLE: {
       SRealTableNode* pReal = (SRealTableNode*)*pNode;
-      tfree(pReal->pMeta);
-      tfree(pReal->pVgroupList);
+      taosMemoryFreeClear(pReal->pMeta);
+      taosMemoryFreeClear(pReal->pVgroupList);
       break;
     }
     case QUERY_NODE_TEMP_TABLE:
@@ -262,8 +264,8 @@ static EDealRes destroyNode(SNode** pNode, void* pContext) {
       size_t size = taosArrayGetSize(pStmt->pDataBlocks);
       for (size_t i = 0; i < size; ++i) {
         SVgDataBlocks* pVg = taosArrayGetP(pStmt->pDataBlocks, i);
-        tfree(pVg->pData);
-        tfree(pVg);
+        taosMemoryFreeClear(pVg->pData);
+        taosMemoryFreeClear(pVg);
       }
       taosArrayDestroy(pStmt->pDataBlocks);
       break;
@@ -292,7 +294,7 @@ static EDealRes destroyNode(SNode** pNode, void* pContext) {
     default:
       break;
   }
-  tfree(*pNode);
+  taosMemoryFreeClear(*pNode);
   return DEAL_RES_CONTINUE;
 }
 
@@ -304,7 +306,7 @@ void nodesDestroyNode(SNodeptr pNode) {
 }
 
 SNodeList* nodesMakeList() {
-  SNodeList* p = calloc(1, sizeof(SNodeList));
+  SNodeList* p = taosMemoryCalloc(1, sizeof(SNodeList));
   if (NULL == p) {
     return NULL;
   }
@@ -315,7 +317,7 @@ int32_t nodesListAppend(SNodeList* pList, SNodeptr pNode) {
   if (NULL == pList || NULL == pNode) {
     return TSDB_CODE_SUCCESS;
   }
-  SListCell* p = calloc(1, sizeof(SListCell));
+  SListCell* p = taosMemoryCalloc(1, sizeof(SListCell));
   if (NULL == p) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -370,7 +372,7 @@ int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc) {
   }
   pTarget->pTail = pSrc->pTail;
   pTarget->length += pSrc->length;
-  tfree(pSrc);
+  taosMemoryFreeClear(pSrc);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -395,7 +397,7 @@ SListCell* nodesListErase(SNodeList* pList, SListCell* pCell) {
   }
   SListCell* pNext = pCell->pNext;
   nodesDestroyNode(pCell->pNode);
-  tfree(pCell);
+  taosMemoryFreeClear(pCell);
   --(pList->length);
   return pNext;
 }
@@ -419,7 +421,7 @@ void nodesDestroyList(SNodeList* pList) {
   while (NULL != pNext) {
     pNext = nodesListErase(pList, pNext);
   }
-  tfree(pList);
+  taosMemoryFreeClear(pList);
 }
 
 void nodesClearList(SNodeList* pList) {
@@ -431,9 +433,9 @@ void nodesClearList(SNodeList* pList) {
   while (NULL != pNext) {
     SListCell* tmp = pNext;
     pNext = pNext->pNext;
-    tfree(tmp);
+    taosMemoryFreeClear(tmp);
   }
-  tfree(pList);
+  taosMemoryFreeClear(pList);
 }
 
 void* nodesGetValueFromNode(SValueNode *pNode) {
@@ -555,7 +557,7 @@ static EDealRes collectColumns(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
     int32_t colId = pCol->colId;
-    if (0 == strcmp(pCxt->pTableAlias, pCol->tableAlias)) {
+    if (NULL == pCxt->pTableAlias || 0 == strcmp(pCxt->pTableAlias, pCol->tableAlias)) {
       return doCollect(pCxt, colId, pNode);
     }
   }

@@ -16,14 +16,16 @@
 #define _DEFAULT_SOURCE
 #include "dndInt.h"
 
+#define MAXLEN 1024
+
 int32_t dndReadFile(SMgmtWrapper *pWrapper, bool *pDeployed) {
-  int32_t   code = TSDB_CODE_NODE_PARSE_FILE_ERROR;
-  int32_t   len = 0;
-  int32_t   maxLen = 1024;
-  char     *content = calloc(1, maxLen + 1);
-  cJSON    *root = NULL;
-  char      file[PATH_MAX];
-  TdFilePtr pFile = NULL;
+  int32_t       code = TSDB_CODE_NODE_PARSE_FILE_ERROR;
+  int32_t       len = 0;
+  const int32_t maxLen = MAXLEN;
+  char          content[MAXLEN + 1] = {0};
+  cJSON        *root = NULL;
+  char          file[PATH_MAX];
+  TdFilePtr     pFile = NULL;
 
   snprintf(file, sizeof(file), "%s%s%s.json", pWrapper->path, TD_DIRSEP, pWrapper->name);
   pFile = taosOpenFile(file, TD_FILE_READ);
@@ -57,7 +59,6 @@ int32_t dndReadFile(SMgmtWrapper *pWrapper, bool *pDeployed) {
   dDebug("succcessed to read file %s, deployed:%d", file, *pDeployed);
 
 _OVER:
-  if (content != NULL) free(content);
   if (root != NULL) cJSON_Delete(root);
   if (pFile != NULL) taosCloseFile(&pFile);
 
@@ -66,7 +67,7 @@ _OVER:
 }
 
 int32_t dndWriteFile(SMgmtWrapper *pWrapper, bool deployed) {
-  char file[PATH_MAX];
+  char file[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%s%s%s.json", pWrapper->path, TD_DIRSEP, pWrapper->name);
 
   TdFilePtr pFile = taosOpenFile(file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
@@ -76,9 +77,9 @@ int32_t dndWriteFile(SMgmtWrapper *pWrapper, bool deployed) {
     return -1;
   }
 
-  int32_t len = 0;
-  int32_t maxLen = 1024;
-  char   *content = calloc(1, maxLen + 1);
+  int32_t       len = 0;
+  const int32_t maxLen = MAXLEN;
+  char          content[MAXLEN + 1] = {0};
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"deployed\": %d\n", deployed);
@@ -87,9 +88,8 @@ int32_t dndWriteFile(SMgmtWrapper *pWrapper, bool deployed) {
   taosWriteFile(pFile, content, len);
   taosFsyncFile(pFile);
   taosCloseFile(&pFile);
-  free(content);
 
-  char realfile[PATH_MAX];
+  char realfile[PATH_MAX] = {0};
   snprintf(realfile, sizeof(realfile), "%s%s%s.json", pWrapper->path, TD_DIRSEP, pWrapper->name);
 
   if (taosRenameFile(file, realfile) != 0) {

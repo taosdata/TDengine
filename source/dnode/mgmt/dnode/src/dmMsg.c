@@ -36,13 +36,17 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.checkTime = 0;
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
-  memcpy(req.clusterCfg.timezone, tsTimezone, TD_TIMEZONE_LEN);
+  memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
   memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
   taosRUnLockLatch(&pMgmt->latch);
 
-  req.pVloads = taosArrayInit(TSDB_MAX_VNODES, sizeof(SVnodeLoad));
-  vmMonitorVnodeLoads(dndAcquireWrapper(pDnode, VNODES), req.pVloads);
+  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, VNODES);
+  if (pWrapper != NULL) {
+    req.pVloads = taosArrayInit(TSDB_MAX_VNODES, sizeof(SVnodeLoad));
+    vmMonitorVnodeLoads(pWrapper, req.pVloads);
+    dndReleaseWrapper(pWrapper);
+  }
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   void   *pHead = rpcMallocCont(contLen);

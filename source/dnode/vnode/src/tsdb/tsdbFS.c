@@ -134,7 +134,7 @@ static void *tsdbDecodeFSStatus(STsdb*pRepo, void *buf, SFSStatus *pStatus) {
 }
 
 static SFSStatus *tsdbNewFSStatus(int maxFSet) {
-  SFSStatus *pStatus = (SFSStatus *)calloc(1, sizeof(*pStatus));
+  SFSStatus *pStatus = (SFSStatus *)taosMemoryCalloc(1, sizeof(*pStatus));
   if (pStatus == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return NULL;
@@ -145,7 +145,7 @@ static SFSStatus *tsdbNewFSStatus(int maxFSet) {
   pStatus->df = taosArrayInit(maxFSet, sizeof(SDFileSet));
   if (pStatus->df == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    free(pStatus);
+    taosMemoryFree(pStatus);
     return NULL;
   }
 
@@ -155,7 +155,7 @@ static SFSStatus *tsdbNewFSStatus(int maxFSet) {
 static SFSStatus *tsdbFreeFSStatus(SFSStatus *pStatus) {
   if (pStatus) {
     pStatus->df = taosArrayDestroy(pStatus->df);
-    free(pStatus);
+    taosMemoryFree(pStatus);
   }
 
   return NULL;
@@ -197,7 +197,7 @@ STsdbFS *tsdbNewFS(const STsdbCfg *pCfg) {
   int      maxFSet = TSDB_MAX_FSETS(keep, days);
   STsdbFS *pfs;
 
-  pfs = (STsdbFS *)calloc(1, sizeof(*pfs));
+  pfs = (STsdbFS *)taosMemoryCalloc(1, sizeof(*pfs));
   if (pfs == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return NULL;
@@ -206,7 +206,7 @@ STsdbFS *tsdbNewFS(const STsdbCfg *pCfg) {
   int code = taosThreadRwlockInit(&(pfs->lock), NULL);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
-    free(pfs);
+    taosMemoryFree(pfs);
     return NULL;
   }
 
@@ -242,7 +242,7 @@ void *tsdbFreeFS(STsdbFS *pfs) {
     pfs->metaCache = NULL;
     pfs->cstatus = tsdbFreeFSStatus(pfs->cstatus);
     taosThreadRwlockDestroy(&(pfs->lock));
-    free(pfs);
+    taosMemoryFree(pfs);
   }
 
   return NULL;
@@ -853,7 +853,7 @@ static int tsdbScanAndTryFixFS(STsdb *pRepo) {
 //   }
 
 //   if (recoverMeta) {
-//     pBuf = malloc((size_t)maxBufSize);
+//     pBuf = taosMemoryMalloc((size_t)maxBufSize);
 //     if (pBuf == NULL) {
 //       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
 //       tsdbCloseMFile(pMFile);
@@ -865,7 +865,7 @@ static int tsdbScanAndTryFixFS(STsdb *pRepo) {
 //       if (tsdbSeekMFile(pMFile, pRecord->offset + sizeof(SKVRecord), SEEK_SET) < 0) {
 //         tsdbError("vgId:%d failed to seek file %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile),
 //                   tstrerror(terrno));
-//         tfree(pBuf);
+//         taosMemoryFreeClear(pBuf);
 //         tsdbCloseMFile(pMFile);
 //         return -1;
 //       }
@@ -874,7 +874,7 @@ static int tsdbScanAndTryFixFS(STsdb *pRepo) {
 //       if (nread < 0) {
 //         tsdbError("vgId:%d failed to read file %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile),
 //                   tstrerror(terrno));
-//         tfree(pBuf);
+//         taosMemoryFreeClear(pBuf);
 //         tsdbCloseMFile(pMFile);
 //         return -1;
 //       }
@@ -883,7 +883,7 @@ static int tsdbScanAndTryFixFS(STsdb *pRepo) {
 //         tsdbError("vgId:%d failed to read file %s since file corrupted, expected read:%" PRId64 " actual read:%d",
 //                   REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile), pRecord->size, nread);
 //         terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-//         tfree(pBuf);
+//         taosMemoryFreeClear(pBuf);
 //         tsdbCloseMFile(pMFile);
 //         return -1;
 //       }
@@ -891,7 +891,7 @@ static int tsdbScanAndTryFixFS(STsdb *pRepo) {
 //       if (tsdbRestoreTable(pRepo, pBuf, (int)pRecord->size) < 0) {
 //         tsdbError("vgId:%d failed to restore table, uid %" PRId64 ", since %s" PRIu64, REPO_ID(pRepo), pRecord->uid,
 //                   tstrerror(terrno));
-//         tfree(pBuf);
+//         taosMemoryFreeClear(pBuf);
 //         tsdbCloseMFile(pMFile);
 //         return -1;
 //       }
@@ -903,7 +903,7 @@ static int tsdbScanAndTryFixFS(STsdb *pRepo) {
 //   }
 
 //   tsdbCloseMFile(pMFile);
-//   tfree(pBuf);
+//   taosMemoryFreeClear(pBuf);
 //   return 0;
 // }
 

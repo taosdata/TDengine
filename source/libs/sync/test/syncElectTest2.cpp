@@ -91,7 +91,7 @@ void initRaftId(SSyncNode* pSyncNode) {
     ids[i] = pSyncNode->replicasId[i];
     char* s = syncUtilRaftId2Str(&ids[i]);
     printf("raftId[%d] : %s\n", i, s);
-    free(s);
+    taosMemoryFree(s);
   }
 }
 

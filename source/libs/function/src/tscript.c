@@ -195,7 +195,7 @@ void taosLoadScriptDestroy(void *pInit) {
 }
 
 ScriptCtx* createScriptCtx(char *script, int8_t resType, int16_t resBytes) {
-  ScriptCtx *pCtx = (ScriptCtx *)calloc(1, sizeof(ScriptCtx)); 
+  ScriptCtx *pCtx = (ScriptCtx *)taosMemoryCalloc(1, sizeof(ScriptCtx)); 
   pCtx->state = SCRIPT_STATE_INIT; 
   pCtx->pEnv  = getScriptEnvFromPool();  //  
   pCtx->resType  = resType;
@@ -229,7 +229,7 @@ ScriptCtx* createScriptCtx(char *script, int8_t resType, int16_t resBytes) {
 void destroyScriptCtx(void *pCtx) {
   if (pCtx == NULL) return;
   addScriptEnvToPool(((ScriptCtx *)pCtx)->pEnv);
-  free(pCtx);
+  taosMemoryFree(pCtx);
 }
 
 void luaValueToTaosType(lua_State *lua, char *interBuf, int32_t *numOfOutput, int16_t oType, int16_t oBytes) {
@@ -332,12 +332,12 @@ void destroyLuaEnv(lua_State *lua) {
 
 int32_t scriptEnvPoolInit() {
   const int size = 10; // configure or not 
-  pool = malloc(sizeof(ScriptEnvPool));  
+  pool = taosMemoryMalloc(sizeof(ScriptEnvPool));  
   taosThreadMutexInit(&pool->mutex, NULL);
 
   pool->scriptEnvs = tdListNew(sizeof(ScriptEnv *));
   for (int i = 0; i < size; i++) {
-    ScriptEnv *env = malloc(sizeof(ScriptEnv));
+    ScriptEnv *env = taosMemoryMalloc(sizeof(ScriptEnv));
     env->funcId = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);;  
     env->lua_state = createLuaEnv(); 
     tdListAppend(pool->scriptEnvs, (void *)(&env));  
@@ -360,13 +360,13 @@ void scriptEnvPoolCleanup() {
   }  
   tdListFree(pool->scriptEnvs);
   taosThreadMutexDestroy(&pool->mutex);
-  free(pool);
+  taosMemoryFree(pool);
 }
 
 void destroyScriptEnv(ScriptEnv *pEnv) {
   destroyLuaEnv(pEnv->lua_state);       
   taosHashCleanup(pEnv->funcId); 
-  free(pEnv);
+  taosMemoryFree(pEnv);
 } 
 
 ScriptEnv* getScriptEnvFromPool() {

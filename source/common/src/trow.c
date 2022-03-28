@@ -119,7 +119,7 @@ int trbWriteCol(SRowBuilder *pRB, void *pData, col_id_t cid) {
 #endif
 
 STSRow *tdRowDup(STSRow *row) {
-  STSRow *trow = malloc(TD_ROW_LEN(row));
+  STSRow *trow = taosMemoryMalloc(TD_ROW_LEN(row));
   if (trow == NULL) return NULL;
 
   tdRowCpy(trow, row);

@@ -43,10 +43,10 @@ typedef enum {
 } ETaskType;
 
 typedef struct STableComInfo {
-  uint8_t numOfTags;     // the number of tags in schema
-  uint8_t precision;     // the number of precision
-  int16_t numOfColumns;  // the number of columns
-  int32_t rowSize;       // row size of the schema
+  uint8_t  numOfTags;     // the number of tags in schema
+  uint8_t  precision;     // the number of precision
+  col_id_t numOfColumns;  // the number of columns
+  int32_t  rowSize;       // row size of the schema
 } STableComInfo;
 
 typedef struct SIndexMeta {
@@ -150,6 +150,8 @@ int32_t cleanupTaskQueue();
  */
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
 
+int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo, bool persistHandle, void *ctx);
+
 /**
  * Asynchronously send message to server, after the response received, the callback will be incured.
  *
@@ -171,7 +173,7 @@ bool           tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 char *jobTaskStatusStr(int32_t status);
 
-SSchema createSchema(uint8_t type, int32_t bytes, int32_t colId, const char* name);
+SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name);
 
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char** msg, int32_t msgSize, int32_t* msgLen);
 extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t msgSize);

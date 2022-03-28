@@ -54,11 +54,14 @@ typedef struct SQuery {
   int32_t msgType;
   SArray* pDbList;
   SArray* pTableList;
+  bool showRewrite;
 } SQuery;
 
 int32_t qParseQuerySql(SParseContext* pCxt, SQuery** pQuery);
 
 void qDestroyQuery(SQuery* pQueryNode);
+
+int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema);
 
 #ifdef __cplusplus
 }

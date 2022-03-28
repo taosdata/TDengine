@@ -19,7 +19,7 @@
 // SMatchIndex -----------------------------
 
 SSyncIndexMgr *syncIndexMgrCreate(SSyncNode *pSyncNode) {
-  SSyncIndexMgr *pSyncIndexMgr = malloc(sizeof(SSyncIndexMgr));
+  SSyncIndexMgr *pSyncIndexMgr = taosMemoryMalloc(sizeof(SSyncIndexMgr));
   assert(pSyncIndexMgr != NULL);
   memset(pSyncIndexMgr, 0, sizeof(SSyncIndexMgr));
 
@@ -33,7 +33,7 @@ SSyncIndexMgr *syncIndexMgrCreate(SSyncNode *pSyncNode) {
 
 void syncIndexMgrDestroy(SSyncIndexMgr *pSyncIndexMgr) {
   if (pSyncIndexMgr != NULL) {
-    free(pSyncIndexMgr);
+    taosMemoryFree(pSyncIndexMgr);
   }
 }
 
@@ -78,12 +78,12 @@ cJSON *syncIndexMgr2Json(SSyncIndexMgr *pSyncIndexMgr) {
       cJSON_AddItemToArray(pReplicas, syncUtilRaftId2Json(&(*(pSyncIndexMgr->replicas))[i]));
     }
     int  respondNum = 0;
-    int *arr = (int *)malloc(sizeof(int) * pSyncIndexMgr->replicaNum);
+    int *arr = (int *)taosMemoryMalloc(sizeof(int) * pSyncIndexMgr->replicaNum);
     for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
       arr[i] = pSyncIndexMgr->index[i];
     }
     cJSON *pIndex = cJSON_CreateIntArray(arr, pSyncIndexMgr->replicaNum);
-    free(arr);
+    taosMemoryFree(arr);
     cJSON_AddItemToObject(pRoot, "index", pIndex);
     snprintf(u64buf, sizeof(u64buf), "%p", pSyncIndexMgr->pSyncNode);
     cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
@@ -106,24 +106,24 @@ void syncIndexMgrPrint(SSyncIndexMgr *pObj) {
   char *serialized = syncIndexMgr2Str(pObj);
   printf("syncIndexMgrPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncIndexMgrPrint2(char *s, SSyncIndexMgr *pObj) {
   char *serialized = syncIndexMgr2Str(pObj);
   printf("syncIndexMgrPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncIndexMgrLog(SSyncIndexMgr *pObj) {
   char *serialized = syncIndexMgr2Str(pObj);
   sTrace("syncIndexMgrLog | len:%lu | %s", strlen(serialized), serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void syncIndexMgrLog2(char *s, SSyncIndexMgr *pObj) {
   char *serialized = syncIndexMgr2Str(pObj);
   sTrace("syncIndexMgrLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }

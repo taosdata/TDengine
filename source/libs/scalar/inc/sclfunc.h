@@ -37,7 +37,6 @@ int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarParam*
                           void* param, char* (*getSourceDataBlock)(void*, const char*, int32_t));
 
 
-
 #ifdef __cplusplus
 }
 #endif

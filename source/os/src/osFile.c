@@ -268,7 +268,7 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     autoDelFileListAdd(path);
   }
 
-  TdFilePtr pFile = (TdFilePtr)malloc(sizeof(TdFile));
+  TdFilePtr pFile = (TdFilePtr)taosMemoryMalloc(sizeof(TdFile));
   if (pFile == NULL) {
     if (fd >= 0) close(fd);
     if (fp != NULL) fclose(fp);
@@ -312,7 +312,7 @@ int64_t taosCloseFile(TdFilePtr *ppFile) {
   taosThreadRwlockUnlock(&((*ppFile)->rwlock));
   taosThreadRwlockDestroy(&((*ppFile)->rwlock));
 #endif
-  free(*ppFile);
+  taosMemoryFree(*ppFile);
   *ppFile = NULL;
   return 0;
 #endif

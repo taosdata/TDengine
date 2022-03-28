@@ -73,7 +73,7 @@ int32_t bmDrop(SMgmtWrapper *pWrapper) {
   bmCloseImp(pMgmt);
   taosRemoveDir(pMgmt->path);
   pWrapper->pMgmt = NULL;
-  free(pMgmt);
+  taosMemoryFree(pMgmt);
   dInfo("bnode-mgmt is dropped");
   return 0;
 }
@@ -85,13 +85,13 @@ static void bmClose(SMgmtWrapper *pWrapper) {
   dInfo("bnode-mgmt start to cleanup");
   bmCloseImp(pMgmt);
   pWrapper->pMgmt = NULL;
-  free(pMgmt);
+  taosMemoryFree(pMgmt);
   dInfo("bnode-mgmt is cleaned up");
 }
 
 int32_t bmOpen(SMgmtWrapper *pWrapper) {
   dInfo("bnode-mgmt start to init");
-  SBnodeMgmt *pMgmt = calloc(1, sizeof(SBnodeMgmt));
+  SBnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SBnodeMgmt));
   if (pMgmt == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;

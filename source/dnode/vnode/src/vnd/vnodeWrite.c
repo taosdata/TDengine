@@ -72,9 +72,12 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
 
       // TODO: maybe need to clear the request struct
-      free(vCreateTbReq.stbCfg.pSchema);
-      free(vCreateTbReq.stbCfg.pTagSchema);
-      free(vCreateTbReq.name);
+      taosMemoryFree(vCreateTbReq.stbCfg.pSchema);
+      taosMemoryFree(vCreateTbReq.stbCfg.pTagSchema);
+      taosMemoryFree(vCreateTbReq.stbCfg.pBSmaCols);
+      taosMemoryFree(vCreateTbReq.stbCfg.pRSmaParam);
+      taosMemoryFree(vCreateTbReq.dbFName);
+      taosMemoryFree(vCreateTbReq.name);
       break;
     }
     case TDMT_VND_CREATE_TABLE: {
@@ -101,14 +104,19 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
           // TODO: handle error
           vError("vgId:%d, failed to create table: %s", pVnode->vgId, pCreateTbReq->name);
         }
-        free(pCreateTbReq->name);
+        taosMemoryFree(pCreateTbReq->name);
+        taosMemoryFree(pCreateTbReq->dbFName);
         if (pCreateTbReq->type == TD_SUPER_TABLE) {
-          free(pCreateTbReq->stbCfg.pSchema);
-          free(pCreateTbReq->stbCfg.pTagSchema);
+          taosMemoryFree(pCreateTbReq->stbCfg.pSchema);
+          taosMemoryFree(pCreateTbReq->stbCfg.pTagSchema);
+          taosMemoryFree(pCreateTbReq->stbCfg.pBSmaCols);
+          taosMemoryFree(pCreateTbReq->stbCfg.pRSmaParam);
         } else if (pCreateTbReq->type == TD_CHILD_TABLE) {
-          free(pCreateTbReq->ctbCfg.pTag);
+          taosMemoryFree(pCreateTbReq->ctbCfg.pTag);
         } else {
-          free(pCreateTbReq->ntbCfg.pSchema);
+          taosMemoryFree(pCreateTbReq->ntbCfg.pSchema);
+          taosMemoryFree(pCreateTbReq->ntbCfg.pBSmaCols);
+          taosMemoryFree(pCreateTbReq->ntbCfg.pRSmaParam);
         }
       }
 
@@ -120,7 +128,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
         tSerializeSVCreateTbBatchRsp(msg, contLen, &vCreateTbBatchRsp);
         taosArrayDestroy(vCreateTbBatchRsp.rspList);
 
-        *pRsp = calloc(1, sizeof(SRpcMsg));
+        *pRsp = taosMemoryCalloc(1, sizeof(SRpcMsg));
         (*pRsp)->msgType = TDMT_VND_CREATE_TABLE_RSP;
         (*pRsp)->pCont = msg;
         (*pRsp)->contLen = contLen;
@@ -133,9 +141,12 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       SVCreateTbReq vAlterTbReq = {0};
       vTrace("vgId:%d, process alter stb req", pVnode->vgId);
       tDeserializeSVCreateTbReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vAlterTbReq);
-      free(vAlterTbReq.stbCfg.pSchema);
-      free(vAlterTbReq.stbCfg.pTagSchema);
-      free(vAlterTbReq.name);
+      taosMemoryFree(vAlterTbReq.stbCfg.pSchema);
+      taosMemoryFree(vAlterTbReq.stbCfg.pTagSchema);
+      taosMemoryFree(vAlterTbReq.stbCfg.pBSmaCols);
+      taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam);
+      taosMemoryFree(vAlterTbReq.dbFName);
+      taosMemoryFree(vAlterTbReq.name);
       break;
     }
     case TDMT_VND_DROP_STB:
@@ -176,7 +187,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
 
       // record current timezone of server side
-      tstrncpy(vCreateSmaReq.tSma.timezone, tsTimezone, TD_TIMEZONE_LEN);
+      tstrncpy(vCreateSmaReq.tSma.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
 
       if (metaCreateTSma(pVnode->pMeta, &vCreateSmaReq) < 0) {
         // TODO: handle error

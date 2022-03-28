@@ -15,13 +15,17 @@
 
 #include "tdbInt.h"
 
-struct STDb {
+struct STDB {
   STEnv  *pEnv;
   SBTree *pBt;
 };
 
-int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, STEnv *pEnv, STDb **ppDb) {
-  STDb   *pDb;
+struct STDBC {
+  SBTC btc;
+};
+
+int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, STEnv *pEnv, STDB **ppDb) {
+  STDB   *pDb;
   SPager *pPager;
   int     ret;
   char    fFullName[TDB_FILENAME_LEN];
@@ -30,7 +34,7 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
 
   *ppDb = NULL;
 
-  pDb = (STDb *)calloc(1, sizeof(*pDb));
+  pDb = (STDB *)calloc(1, sizeof(*pDb));
   if (pDb == NULL) {
     return -1;
   }
@@ -59,23 +63,23 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
   return 0;
 }
 
-int tdbDbClose(STDb *pDb) {
+int tdbDbClose(STDB *pDb) {
   // TODO
   return 0;
 }
 
-int tdbDbDrop(STDb *pDb) {
+int tdbDbDrop(STDB *pDb) {
   // TODO
   return 0;
 }
 
-int tdbDbInsert(STDb *pDb, const void *pKey, int keyLen, const void *pVal, int valLen) {
-  SBtCursor  btc;
-  SBtCursor *pCur;
-  int        ret;
+int tdbDbInsert(STDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen) {
+  SBTC  btc;
+  SBTC *pCur;
+  int   ret;
 
   pCur = &btc;
-  ret = tdbBtreeCursor(pCur, pDb->pBt);
+  ret = tdbBtcOpen(pCur, pDb->pBt);
   if (ret < 0) {
     return -1;
   }
@@ -83,6 +87,46 @@ int tdbDbInsert(STDb *pDb, const void *pKey, int keyLen, const void *pVal, int v
   ret = tdbBtCursorInsert(pCur, pKey, keyLen, pVal, valLen);
   if (ret < 0) {
     return -1;
+  }
+
+  return 0;
+}
+
+int tdbDbGet(STDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen) {
+  return tdbBtreeGet(pDb->pBt, pKey, kLen, ppVal, vLen);
+}
+
+int tdbDbcOpen(STDB *pDb, STDBC **ppDbc) {
+  int    ret;
+  STDBC *pDbc = NULL;
+
+  *ppDbc = NULL;
+  pDbc = malloc(sizeof(*pDbc));
+  if (pDbc == NULL) {
+    return -1;
+  }
+
+  tdbBtcOpen(&pDbc->btc, pDb->pBt);
+
+  // TODO: move to first now, we can move to any key-value
+  // and in any direction, design new APIs.
+  ret = tdbBtcMoveToFirst(&pDbc->btc);
+  if (ret < 0) {
+    ASSERT(0);
+    return -1;
+  }
+
+  *ppDbc = pDbc;
+  return 0;
+}
+
+int tdbDbNext(STDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
+  return tdbBtreeNext(&pDbc->btc, ppKey, kLen, ppVal, vLen);
+}
+
+int tdbDbcClose(STDBC *pDbc) {
+  if (pDbc) {
+    free(pDbc);
   }
 
   return 0;

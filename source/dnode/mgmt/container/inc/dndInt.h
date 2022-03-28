@@ -34,7 +34,7 @@ int32_t     dndInit();
 void        dndCleanup();
 const char *dndStatStr(EDndStatus stat);
 void        dndGetStartup(SDnode *pDnode, SStartupReq *pStartup);
-TdFilePtr   dndCheckRunning(char *dataDir);
+TdFilePtr   dndCheckRunning(const char *dataDir);
 void        dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg);
 
 // dndMsg.c
@@ -50,17 +50,12 @@ SDnode *dndCreate(const SDnodeOpt *pOption);
 void    dndClose(SDnode *pDnode);
 void    dndHandleEvent(SDnode *pDnode, EDndEvent event);
 
-SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, ENodeType nodeType);
-int32_t       dndMarkWrapper(SMgmtWrapper *pWrapper);
-void          dndReleaseWrapper(SMgmtWrapper *pWrapper);
-
 // dndTransport.c
 int32_t dndInitServer(SDnode *pDnode);
 void    dndCleanupServer(SDnode *pDnode);
 int32_t dndInitClient(SDnode *pDnode);
 void    dndCleanupClient(SDnode *pDnode);
 int32_t dndInitMsgHandle(SDnode *pDnode);
-void    dndSendRpcRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp);
 
 #ifdef __cplusplus
 }

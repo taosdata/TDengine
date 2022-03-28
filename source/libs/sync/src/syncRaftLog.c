@@ -17,10 +17,10 @@
 #include "wal.h"
 
 SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
-  SSyncLogStore* pLogStore = malloc(sizeof(SSyncLogStore));
+  SSyncLogStore* pLogStore = taosMemoryMalloc(sizeof(SSyncLogStore));
   assert(pLogStore != NULL);
 
-  pLogStore->data = malloc(sizeof(SSyncLogStoreData));
+  pLogStore->data = taosMemoryMalloc(sizeof(SSyncLogStoreData));
   assert(pLogStore->data != NULL);
 
   SSyncLogStoreData* pData = pLogStore->data;
@@ -34,13 +34,13 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   pLogStore->getLastTerm = logStoreLastTerm;
   pLogStore->updateCommitIndex = logStoreUpdateCommitIndex;
   pLogStore->getCommitIndex = logStoreGetCommitIndex;
-  return pLogStore;  // to avoid compiler error
+  return pLogStore;
 }
 
 void logStoreDestory(SSyncLogStore* pLogStore) {
   if (pLogStore != NULL) {
-    free(pLogStore->data);
-    free(pLogStore);
+    taosMemoryFree(pLogStore->data);
+    taosMemoryFree(pLogStore);
   }
 }
 
@@ -48,18 +48,22 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
 
-  assert(pEntry->index == logStoreLastIndex(pLogStore) + 1);
+  SyncIndex lastIndex = logStoreLastIndex(pLogStore);
+  assert(pEntry->index == lastIndex + 1);
   uint32_t len;
   char*    serialized = syncEntrySerialize(pEntry, &len);
   assert(serialized != NULL);
 
-  int code;
-  code = walWrite(pWal, pEntry->index, pEntry->msgType, serialized, len);
-  assert(code == 0);
+  int code = 0;
+  /*
+    code = walWrite(pWal, pEntry->index, pEntry->entryType, serialized, len);
+    assert(code == 0);
+  */
+  assert(walWrite(pWal, pEntry->index, pEntry->entryType, serialized, len) == 0);
 
   walFsync(pWal, true);
-  free(serialized);
-  return code;  // to avoid compiler error
+  taosMemoryFree(serialized);
+  return code;
 }
 
 SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
@@ -69,7 +73,7 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
 
   if (index >= SYNC_INDEX_BEGIN && index <= logStoreLastIndex(pLogStore)) {
     SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
-    walReadWithHandle(pWalHandle, index);
+    assert(walReadWithHandle(pWalHandle, index) == 0);
     pEntry = syncEntryDeserialize(pWalHandle->pHead->head.body, pWalHandle->pHead->head.len);
     assert(pEntry != NULL);
 
@@ -83,7 +87,7 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
 int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  walRollback(pWal, fromIndex);
+  assert(walRollback(pWal, fromIndex) == 0);
   return 0;  // to avoid compiler error
 }
 
@@ -99,7 +103,7 @@ SyncTerm logStoreLastTerm(SSyncLogStore* pLogStore) {
   SSyncRaftEntry* pLastEntry = logStoreGetLastEntry(pLogStore);
   if (pLastEntry != NULL) {
     lastTerm = pLastEntry->term;
-    free(pLastEntry);
+    taosMemoryFree(pLastEntry);
   }
   return lastTerm;
 }
@@ -107,7 +111,7 @@ SyncTerm logStoreLastTerm(SSyncLogStore* pLogStore) {
 int32_t logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  walCommit(pWal, index);
+  assert(walCommit(pWal, index) == 0);
   return 0;  // to avoid compiler error
 }
 
@@ -198,26 +202,26 @@ void logStorePrint(SSyncLogStore* pLogStore) {
   char* serialized = logStore2Str(pLogStore);
   printf("logStorePrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void logStorePrint2(char* s, SSyncLogStore* pLogStore) {
   char* serialized = logStore2Str(pLogStore);
   printf("logStorePrint | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void logStoreLog(SSyncLogStore* pLogStore) {
   char* serialized = logStore2Str(pLogStore);
   sTrace("logStorePrint | len:%lu | %s", strlen(serialized), serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void logStoreLog2(char* s, SSyncLogStore* pLogStore) {
   char* serialized = logStore2Str(pLogStore);
   sTrace("logStorePrint | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 // for debug -----------------
@@ -225,24 +229,24 @@ void logStoreSimplePrint(SSyncLogStore* pLogStore) {
   char* serialized = logStoreSimple2Str(pLogStore);
   printf("logStoreSimplePrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void logStoreSimplePrint2(char* s, SSyncLogStore* pLogStore) {
   char* serialized = logStoreSimple2Str(pLogStore);
   printf("logStoreSimplePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void logStoreSimpleLog(SSyncLogStore* pLogStore) {
   char* serialized = logStoreSimple2Str(pLogStore);
   sTrace("logStoreSimpleLog | len:%lu | %s", strlen(serialized), serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }
 
 void logStoreSimpleLog2(char* s, SSyncLogStore* pLogStore) {
   char* serialized = logStoreSimple2Str(pLogStore);
   sTrace("logStoreSimpleLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  free(serialized);
+  taosMemoryFree(serialized);
 }

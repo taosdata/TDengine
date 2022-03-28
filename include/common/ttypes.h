@@ -29,6 +29,7 @@ typedef uint32_t TDRowLenT;
 typedef uint8_t  TDRowValT;
 typedef int16_t  col_id_t;
 typedef int8_t   col_type_t;
+typedef int32_t  col_bytes_t;
 
 #pragma pack(push, 1)
 typedef struct {
@@ -159,6 +160,7 @@ typedef struct {
   (IS_SIGNED_NUMERIC_TYPE(_t) || (_t) == (TSDB_DATA_TYPE_BOOL) || (_t) == (TSDB_DATA_TYPE_TIMESTAMP))
 #define IS_CONVERT_AS_UNSIGNED(_t) (IS_UNSIGNED_NUMERIC_TYPE(_t) || (_t) == (TSDB_DATA_TYPE_BOOL))
 
+// TODO remove this function
 static FORCE_INLINE bool isNull(const void *val, int32_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:

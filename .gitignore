@@ -89,6 +89,7 @@ tests/examples/JDBC/JDBCDemo/.project
 tests/examples/JDBC/JDBCDemo/.settings/
 source/libs/parser/inc/sql.*
 tests/script/tmqResult.txt
+tests/tmqResult.txt
 
 # Emacs
 # -*- mode: gitignore; -*-
