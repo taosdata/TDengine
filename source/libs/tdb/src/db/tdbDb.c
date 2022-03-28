@@ -34,7 +34,7 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
 
   *ppDb = NULL;
 
-  pDb = (STDB *)calloc(1, sizeof(*pDb));
+  pDb = (STDB *)tdbOsCalloc(1, sizeof(*pDb));
   if (pDb == NULL) {
     return -1;
   }
@@ -101,7 +101,7 @@ int tdbDbcOpen(STDB *pDb, STDBC **ppDbc) {
   STDBC *pDbc = NULL;
 
   *ppDbc = NULL;
-  pDbc = malloc(sizeof(*pDbc));
+  pDbc = (STDBC *)tdbOsMalloc(sizeof(*pDbc));
   if (pDbc == NULL) {
     return -1;
   }
@@ -126,7 +126,7 @@ int tdbDbNext(STDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 
 int tdbDbcClose(STDBC *pDbc) {
   if (pDbc) {
-    free(pDbc);
+    tdbOsFree(pDbc);
   }
 
   return 0;

@@ -16,10 +16,11 @@
 #ifndef _TD_TDB_INTERNAL_H_
 #define _TD_TDB_INTERNAL_H_
 
+#include "os.h"
 #include "tlist.h"
 #include "tlockfree.h"
 
-// #include "tdb.h"
+#include "tdb.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -147,6 +148,8 @@ typedef int (*FKeyComparator)(const void *pKey1, int kLen1, const void *pKey2, i
 typedef struct SPager  SPager;
 typedef struct SPCache SPCache;
 typedef struct SPage   SPage;
+
+#include "tdbOs.h"
 
 #include "tdbUtil.h"
 

@@ -87,7 +87,7 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, S
 
   *ppBt = NULL;
 
-  pBt = (SBTree *)calloc(1, sizeof(*pBt));
+  pBt = (SBTree *)tdbOsCalloc(1, sizeof(*pBt));
   if (pBt == NULL) {
     return -1;
   }
@@ -121,7 +121,7 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, S
   // TODO: pBt->root
   ret = tdbBtreeOpenImpl(pBt);
   if (ret < 0) {
-    free(pBt);
+    tdbOsFree(pBt);
     return -1;
   }
 
@@ -166,7 +166,7 @@ int tdbBtCursorInsert(SBTC *pBtc, const void *pKey, int kLen, const void *pVal, 
   // TODO: refact code here
   pBt = pBtc->pBt;
   if (!pBt->pTmp) {
-    pBt->pTmp = (u8 *)malloc(pBt->pageSize);
+    pBt->pTmp = (u8 *)tdbOsMalloc(pBt->pageSize);
     if (pBt->pTmp == NULL) {
       return -1;
     }
@@ -550,7 +550,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
         if (sIdx + i < TDB_PAGE_TOTAL_CELLS(pParent)) {
           pCell = tdbPageGetCell(pParent, sIdx + i);
           szDivCell[i] = tdbBtreeCellSize(pParent, pCell);
-          pDivCell[i] = malloc(szDivCell[i]);
+          pDivCell[i] = tdbOsMalloc(szDivCell[i]);
           memcpy(pDivCell[i], pCell, szDivCell[i]);
         }
 
@@ -740,13 +740,13 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
               tdbBtreeDecodeCell(pPage, pCell, &cd);
 
               // TODO: pCell here may be inserted as an overflow cell, handle it
-              SCell *pNewCell = malloc(cd.kLen + 9);
+              SCell *pNewCell = tdbOsMalloc(cd.kLen + 9);
               int    szNewCell;
               SPgno  pgno;
               pgno = TDB_PAGE_PGNO(pNews[iNew]);
               tdbBtreeEncodeCell(pParent, cd.pKey, cd.kLen, (void *)&pgno, sizeof(SPgno), pNewCell, &szNewCell);
               tdbPageInsertCell(pParent, sIdx++, pNewCell, szNewCell, 0);
-              free(pNewCell);
+              tdbOsFree(pNewCell);
             }
 
             // move to next new page
@@ -798,7 +798,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
 
   for (int i = 0; i < 3; i++) {
     if (pDivCell[i]) {
-      free(pDivCell[i]);
+      tdbOsFree(pDivCell[i]);
     }
   }
 
