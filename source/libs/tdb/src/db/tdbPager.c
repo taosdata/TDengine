@@ -80,7 +80,7 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
   // pPager->pCache
   pPager->pCache = pCache;
 
-  pPager->fd = tdbOsOpen(pPager->dbFileName, O_RDWR | O_CREAT);
+  pPager->fd = tdbOsOpen(pPager->dbFileName, TDB_O_CREAT | TDB_O_RDWR, 0755);
   if (pPager->fd < 0) {
     return -1;
   }
@@ -168,7 +168,7 @@ int tdbPagerBegin(SPager *pPager) {
   }
 
   // Open the journal
-  pPager->jfd = tdbOsOpen(pPager->jFileName, O_RDWR | O_CREAT);
+  pPager->jfd = tdbOsOpen(pPager->jFileName, TDB_O_CREAT | TDB_O_RDWR, 0755);
   if (pPager->jfd < 0) {
     return -1;
   }

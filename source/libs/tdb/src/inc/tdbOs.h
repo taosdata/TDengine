@@ -23,30 +23,27 @@ extern "C" {
 // TODO: use cmake to control the option
 #define TDB_FOR_TDENGINE
 
-// For memory -----------------
 #ifdef TDB_FOR_TDENGINE
 
+// For memory -----------------
 #define tdbOsMalloc  taosMemoryMalloc
 #define tdbOsCalloc  taosMemoryCalloc
 #define tdbOsRealloc taosMemoryRealloc
 #define tdbOsFree    taosMemoryFree
 
-#else
-
-#define tdbOsMalloc  malloc
-#define tdbOsCalloc  calloc
-#define tdbOsRealloc realloc
-#define tdbOsFree    free
-
-#endif
-
 // For file and directory -----------------
-#ifdef TDB_FOR_TDENGINE
-
 /* file */
 typedef TdFilePtr tdb_fd_t;
 
-#define tdbOsOpen      taosOpenFile
+#define TDB_O_CREAT  TD_FILE_CTEATE
+#define TDB_O_WRITE  TD_FILE_WRITE
+#define TDB_O_READ   TD_FILE_READ
+#define TDB_O_TRUNC  TD_FILE_TRUNC
+#define TDB_O_APPEND TD_FILE_APPEND
+#define TDB_O_RDWR   (TD_FILE_WRITE) | (TD_FILE_READ)
+
+#define tdbOsOpen(PATH, OPTION, MODE) taosOpenFile((PATH), (OPTION))
+
 #define tdbOsClose(FD) taosCloseFile(&(FD))
 #define tdbOsRead      taosReadFile
 #define tdbOsPRead     taosPReadFile
@@ -59,31 +56,7 @@ typedef TdFilePtr tdb_fd_t;
 #define tdbOsMkdir taosMkDir
 #define tdbOsRmdir taosRemoveDir
 
-#else
-
-/* file */
-typedef int tdb_fd_t;
-
-#define tdbOsOpen  open
-#define tdbOsClose close
-
-i64 tdbOsRead(tdb_fd_t fd, void *pData, i64 nBytes);
-i64 tdbOsPRead(tdb_fd_t fd, void *pData, i64 nBytes, i64 offset);
-i64 tdbOsWrite(tdb_fd_t fd, const void *pData, i64 nBytes);
-
-#define tdbOsFSync  fsync
-#define tdbOsLSeek  lseek
-#define tdbOsRemove remove
-
-/* directory */
-#define tdbOsMkdir  mkdir
-#define tdbOsRmdir  rmdir
-
-#endif
-
 // For threads and lock -----------------
-#ifdef TDB_FOR_TDENGINE
-
 /* spin lock */
 typedef TdThreadSpinlock tdb_spinlock_t;
 
@@ -103,6 +76,40 @@ typedef TdThreadMutex tdb_mutex_t;
 
 #else
 
+// For memory -----------------
+#define tdbOsMalloc  malloc
+#define tdbOsCalloc  calloc
+#define tdbOsRealloc realloc
+#define tdbOsFree    free
+
+// For file and directory -----------------
+/* file */
+typedef int tdb_fd_t;
+
+#define TDB_O_CREAT  O_CREAT
+#define TDB_O_WRITE  O_WRONLY
+#define TDB_O_READ   O_RDONLY
+#define TDB_O_TRUNC  O_TRUNC
+#define TDB_O_APPEND O_APPEND
+#define TDB_O_RDWR   O_RDWR
+
+#define tdbOsOpen(PATH, OPTION, MODE) open((PATH), (OPTION), (MODE))
+
+#define tdbOsClose close
+
+i64 tdbOsRead(tdb_fd_t fd, void *pData, i64 nBytes);
+i64 tdbOsPRead(tdb_fd_t fd, void *pData, i64 nBytes, i64 offset);
+i64 tdbOsWrite(tdb_fd_t fd, const void *pData, i64 nBytes);
+
+#define tdbOsFSync  fsync
+#define tdbOsLSeek  lseek
+#define tdbOsRemove remove
+
+/* directory */
+#define tdbOsMkdir  mkdir
+#define tdbOsRmdir  rmdir
+
+// For threads and lock -----------------
 /* spin lock */
 typedef pthread_spinlock_t tdb_spinlock_t;
 

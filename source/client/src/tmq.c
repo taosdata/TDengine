@@ -877,7 +877,7 @@ WRITE_QUEUE_FAIL:
 }
 
 bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqCMGetSubEpRsp* pRsp) {
-  printf("call update ep %d\n", epoch);
+  /*printf("call update ep %d\n", epoch);*/
   bool    set = false;
   int32_t sz = taosArrayGetSize(pRsp->topics);
   SArray* newTopics = taosArrayInit(sz, sizeof(SMqClientTopic));
