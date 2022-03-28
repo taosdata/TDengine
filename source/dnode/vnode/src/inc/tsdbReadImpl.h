@@ -67,12 +67,13 @@ typedef struct {
   uint8_t  last : 1;
   uint8_t  blkVer : 7;
   uint8_t  numOfSubBlocks;
-  int16_t  numOfCols;    // not including timestamp column
+  col_id_t numOfCols;    // not including timestamp column
   uint32_t len;          // data block length
-  uint32_t keyLen : 24;  // key column length, keyOffset = offset+sizeof(SBlockData)+sizeof(SBlockCol)*numOfCols
+  uint32_t keyLen : 20;  // key column length, keyOffset = offset+sizeof(SBlockData)+sizeof(SBlockCol)*numOfCols
+  uint32_t algorithm : 4;
   uint32_t reserve : 8;
-  int32_t  algorithm : 8;
-  int32_t  numOfRows : 24;
+  col_id_t numOfBSma;
+  uint16_t numOfRows;
   int64_t  offset;
   uint64_t aggrStat : 1;
   uint64_t aggrOffset : 63;
@@ -80,7 +81,7 @@ typedef struct {
   TSKEY    keyLast;
 } SBlockV0;
 
-#define SBlock SBlockV0  // latest SBlock definition
+#define SBlock          SBlockV0  // latest SBlock definition
 
 #endif
 

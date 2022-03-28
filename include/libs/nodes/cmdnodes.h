@@ -41,6 +41,7 @@ typedef struct SDatabaseOptions {
   int32_t numOfVgroups;
   int8_t singleStable;
   int8_t streamMode;
+  SNodeList* pRetentions;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {
@@ -73,6 +74,9 @@ typedef struct STableOptions {
   int32_t ttl;
   char comments[TSDB_STB_COMMENT_LEN];
   SNodeList* pSma;
+  SNodeList* pFuncs;
+  float filesFactor;
+  int32_t delay;
 } STableOptions;
 
 typedef struct SColumnDefNode {

@@ -87,12 +87,6 @@ static int32_t mndCreateDefaultUsers(SMnode *pMnode) {
     return -1;
   }
 
-#if 0
-  if (mndCreateDefaultUser(pMnode, TSDB_DEFAULT_USER, "_" TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS) != 0) {
-    return -1;
-  }
-#endif
-
   return 0;
 }
 

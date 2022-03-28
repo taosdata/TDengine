@@ -12,21 +12,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef TDENGINE_TSCALARFUNCTION_H
-#define TDENGINE_TSCALARFUNCTION_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "tdbInt.h"
 
-#include "function.h"
-#include "scalar.h"
-
-
-
-
-#ifdef __cplusplus
+int tdbTxnBegin(TENV *pEnv) {
+  // TODO
+  return 0;
 }
-#endif
 
-#endif  // TDENGINE_TSCALARFUNCTION_H
+int tdbTxnCommit(TENV *pEnv) {
+  // TODO
+  return 0;
+}
+
+int tdbTxnRollback(TENV *pEnv) {
+  // TODO
+  return 0;
+}

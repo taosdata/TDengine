@@ -75,10 +75,12 @@ rm -f /usr/bin/taos
 rm -f /usr/bin/taosd
 rm -f /usr/bin/create_table
 rm -f /usr/bin/tmq_demo
+rm -f /usr/bin/tmq_sim
 
 ln -s $taos_dir/taos /usr/bin/taos
 ln -s $taosd_dir/taosd /usr/bin/taosd
 ln -s $exec_process_dir/create_table /usr/bin/create_table
 ln -s $exec_process_dir/tmq_demo /usr/bin/tmq_demo
+ln -s $exec_process_dir/tmq_sim /usr/bin/tmq_sim
 
 

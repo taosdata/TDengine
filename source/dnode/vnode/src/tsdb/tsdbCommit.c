@@ -43,20 +43,20 @@ typedef struct {
 
 #define TSDB_DEFAULT_BLOCK_ROWS(maxRows) ((maxRows)*4 / 5)
 
-#define TSDB_COMMIT_REPO(ch) TSDB_READ_REPO(&(ch->readh))
-#define TSDB_COMMIT_REPO_ID(ch) REPO_ID(TSDB_READ_REPO(&(ch->readh)))
-#define TSDB_COMMIT_WRITE_FSET(ch) (&((ch)->wSet))
-#define TSDB_COMMIT_TABLE(ch) ((ch)->pTable)
-#define TSDB_COMMIT_HEAD_FILE(ch) TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_HEAD)
-#define TSDB_COMMIT_DATA_FILE(ch) TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_DATA)
-#define TSDB_COMMIT_LAST_FILE(ch) TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_LAST)
-#define TSDB_COMMIT_SMAD_FILE(ch) TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_SMAD)
-#define TSDB_COMMIT_SMAL_FILE(ch) TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_SMAL)
-#define TSDB_COMMIT_BUF(ch) TSDB_READ_BUF(&((ch)->readh))
-#define TSDB_COMMIT_COMP_BUF(ch) TSDB_READ_COMP_BUF(&((ch)->readh))
-#define TSDB_COMMIT_EXBUF(ch) TSDB_READ_EXBUF(&((ch)->readh))
+#define TSDB_COMMIT_REPO(ch)         TSDB_READ_REPO(&(ch->readh))
+#define TSDB_COMMIT_REPO_ID(ch)      REPO_ID(TSDB_READ_REPO(&(ch->readh)))
+#define TSDB_COMMIT_WRITE_FSET(ch)   (&((ch)->wSet))
+#define TSDB_COMMIT_TABLE(ch)        ((ch)->pTable)
+#define TSDB_COMMIT_HEAD_FILE(ch)    TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_HEAD)
+#define TSDB_COMMIT_DATA_FILE(ch)    TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_DATA)
+#define TSDB_COMMIT_LAST_FILE(ch)    TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_LAST)
+#define TSDB_COMMIT_SMAD_FILE(ch)    TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_SMAD)
+#define TSDB_COMMIT_SMAL_FILE(ch)    TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_SMAL)
+#define TSDB_COMMIT_BUF(ch)          TSDB_READ_BUF(&((ch)->readh))
+#define TSDB_COMMIT_COMP_BUF(ch)     TSDB_READ_COMP_BUF(&((ch)->readh))
+#define TSDB_COMMIT_EXBUF(ch)        TSDB_READ_EXBUF(&((ch)->readh))
 #define TSDB_COMMIT_DEFAULT_ROWS(ch) TSDB_DEFAULT_BLOCK_ROWS(TSDB_COMMIT_REPO(ch)->config.maxRowsPerFileBlock)
-#define TSDB_COMMIT_TXN_VERSION(ch) FS_TXN_VERSION(REPO_FS(TSDB_COMMIT_REPO(ch)))
+#define TSDB_COMMIT_TXN_VERSION(ch)  FS_TXN_VERSION(REPO_FS(TSDB_COMMIT_REPO(ch)))
 
 static void tsdbStartCommit(STsdb *pRepo);
 static void tsdbEndCommit(STsdb *pTsdb, int eno);
@@ -1204,9 +1204,10 @@ static int tsdbComparKeyBlock(const void *arg1, const void *arg2) {
 
 int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDFileAggr, SDataCols *pDataCols,
                        SBlock *pBlock, bool isLast, bool isSuper, void **ppBuf, void **ppCBuf, void **ppExBuf) {
-  STsdbCfg *    pCfg = REPO_CFG(pRepo);
-  SBlockData *  pBlockData = NULL;
+  STsdbCfg     *pCfg = REPO_CFG(pRepo);
+  SBlockData   *pBlockData = NULL;
   SAggrBlkData *pAggrBlkData = NULL;
+  STSchema     *pSchema = pTable->pSchema;
   int64_t       offset = 0, offsetAggr = 0;
   int           rowsToWrite = pDataCols->numOfRows;
 
@@ -1225,10 +1226,12 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
   pAggrBlkData = (SAggrBlkData *)(*ppExBuf);
 
   // Get # of cols not all NULL(not including key column)
-  int nColsNotAllNull = 0;
+  col_id_t nColsNotAllNull = 0;
+  col_id_t nColsOfBlockSma = 0;
   for (int ncol = 1; ncol < pDataCols->numOfCols; ++ncol) {  // ncol from 1, we skip the timestamp column
-    SDataCol *   pDataCol = pDataCols->cols + ncol;
-    SBlockCol *  pBlockCol = pBlockData->cols + nColsNotAllNull;
+    STColumn    *pColumn = pSchema->columns + ncol;
+    SDataCol    *pDataCol = pDataCols->cols + ncol;
+    SBlockCol   *pBlockCol = pBlockData->cols + nColsNotAllNull;
     SAggrBlkCol *pAggrBlkCol = (SAggrBlkCol *)pAggrBlkData + nColsNotAllNull;
 
     if (isAllRowsNull(pDataCol)) {  // all data to commit are NULL, just ignore it
@@ -1260,7 +1263,12 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
     } else {
       TD_SET_COL_ROWS_MISC(pBlockCol);
     }
-    nColsNotAllNull++;
+
+    ++nColsNotAllNull;
+
+    if (pColumn->sma) {
+      ++nColsOfBlockSma;
+    }
   }
 
   ASSERT(nColsNotAllNull >= 0 && nColsNotAllNull <= pDataCols->numOfCols);
@@ -1357,9 +1365,8 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
     return -1;
   }
 
-  uint32_t aggrStatus = nColsNotAllNull > 0 ? 1 : 0;
+  uint32_t aggrStatus = nColsOfBlockSma > 0 ? 1 : 0;
   if (aggrStatus > 0) {
-
     taosCalcChecksumAppend(0, (uint8_t *)pAggrBlkData, tsizeAggr);
     tsdbUpdateDFileMagic(pDFileAggr, POINTER_SHIFT(pAggrBlkData, tsizeAggr - sizeof(TSCKSUM)));
 
@@ -1378,6 +1385,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
   pBlock->keyLen = keyLen;
   pBlock->numOfSubBlocks = isSuper ? 1 : 0;
   pBlock->numOfCols = nColsNotAllNull;
+  pBlock->numOfBSma = nColsOfBlockSma;
   pBlock->keyFirst = dataColsKeyFirst(pDataCols);
   pBlock->keyLast = dataColsKeyLast(pDataCols);
   pBlock->aggrStat = aggrStatus;
