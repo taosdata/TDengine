@@ -65,9 +65,11 @@ typedef int tdb_fd_t;
 
 #define tdbOsOpen  open
 #define tdbOsClose close
-#define tdbOsRead  read   // TODO
-#define tdbOsPRead pread  // TODO
-#define tdbOsWrite write  // TODO
+
+i64 tdbOsRead(tdb_fd_t fd, void *pBuf, i64 nBytes);
+i64 tdbOsPRead(tdb_fd_t fd, void *pBuf, i64 nBytes, i64 offset);
+i64 taosWriteFile(tdb_fd_t fd, const void *pBuf, i64 nBytes);
+
 #define tdbOsFSync fsync
 #define tdbOsLSeek lseek
 
