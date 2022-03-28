@@ -369,6 +369,14 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_DB_CACHE_LAST_ROW  3
 #define TSDB_DEFAULT_CACHE_LAST_ROW 0
 
+#define TSDB_MIN_DB_FILE_FACTOR     0
+#define TSDB_MAX_DB_FILE_FACTOR     1
+#define TSDB_DEFAULT_DB_FILE_FACTOR 0.1
+
+#define TSDB_MIN_DB_DELAY     1
+#define TSDB_MAX_DB_DELAY     10
+#define TSDB_DEFAULT_DB_DELAY 2
+
 #define TSDB_MAX_JOIN_TABLE_NUM 10
 #define TSDB_MAX_UNION_CLAUSE   5
 

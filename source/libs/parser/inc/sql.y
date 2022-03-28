@@ -146,7 +146,6 @@ db_options(A) ::= db_options(B) VGROUPS NK_INTEGER(C).                          
 db_options(A) ::= db_options(B) SINGLE_STABLE NK_INTEGER(C).                      { A = setDatabaseOption(pCxt, B, DB_OPTION_SINGLE_STABLE, &C); }
 db_options(A) ::= db_options(B) STREAM_MODE NK_INTEGER(C).                        { A = setDatabaseOption(pCxt, B, DB_OPTION_STREAM_MODE, &C); }
 db_options(A) ::= db_options(B) RETENTIONS NK_STRING(C).                          { A = setDatabaseOption(pCxt, B, DB_OPTION_RETENTIONS, &C); }
-db_options(A) ::= db_options(B) FILE_FACTOR NK_FLOAT(C).                          { A = setDatabaseOption(pCxt, B, DB_OPTION_FILE_FACTOR, &C); }
 
 alter_db_options(A) ::= alter_db_option(B).                                       { A = createDefaultAlterDatabaseOptions(pCxt); A = setDatabaseOption(pCxt, A, B.type, &B.val); }
 alter_db_options(A) ::= alter_db_options(B) alter_db_option(C).                   { A = setDatabaseOption(pCxt, B, C.type, &C.val); }
@@ -263,6 +262,8 @@ table_options(A) ::= table_options(B) KEEP NK_INTEGER(C).                       
 table_options(A) ::= table_options(B) TTL NK_INTEGER(C).                          { A = setTableOption(pCxt, B, TABLE_OPTION_TTL, &C); }
 table_options(A) ::= table_options(B) SMA NK_LP col_name_list(C) NK_RP.           { A = setTableSmaOption(pCxt, B, C); }
 table_options(A) ::= table_options(B) ROLLUP NK_LP func_name_list(C) NK_RP.       { A = setTableRollupOption(pCxt, B, C); }
+table_options(A) ::= table_options(B) FILE_FACTOR NK_FLOAT(C).                    { A = setTableOption(pCxt, B, TABLE_OPTION_FILE_FACTOR, &C); }
+table_options(A) ::= table_options(B) DELAY NK_INTEGER(C).                        { A = setTableOption(pCxt, B, TABLE_OPTION_DELAY, &C); }
 
 alter_table_options(A) ::= alter_table_option(B).                                 { A = createDefaultAlterTableOptions(pCxt); A = setTableOption(pCxt, A, B.type, &B.val); }
 alter_table_options(A) ::= alter_table_options(B) alter_table_option(C).          { A = setTableOption(pCxt, B, C.type, &C.val); }
