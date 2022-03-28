@@ -473,10 +473,16 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
   }
   tCoderClear(&decoder);
 
+  // exec
   if (tqExpandTask(pTq, pTask, 4) < 0) {
     ASSERT(0);
   }
+
+  // sink
   pTask->ahandle = pTq->pVnode;
+  if (pTask->sinkType == TASK_SINK__SMA) {
+    pTask->smaSink.smaHandle = smaHandleRes;
+  }
 
   taosHashPut(pTq->pStreamTasks, &pTask->taskId, sizeof(int32_t), pTask, sizeof(SStreamTask));
 
