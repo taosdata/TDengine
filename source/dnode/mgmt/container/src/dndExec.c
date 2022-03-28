@@ -119,14 +119,14 @@ static void dndClearNodesExecpt(SDnode *pDnode, ENodeType except) {
 static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen) {
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   pRpc->pCont = pCont;
-  dTrace("msg:%p, get from child queue, type:%s handle:%p app:%p", pMsg, TMSG_INFO(pRpc->msgType), pRpc->handle,
-         pRpc->ahandle);
+  dTrace("msg:%p, get from child process queue, type:%s handle:%p app:%p", pMsg, TMSG_INFO(pRpc->msgType),
+         pRpc->handle, pRpc->ahandle);
 
   NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pRpc->msgType)];
   int32_t   code = (*msgFp)(pWrapper, pMsg);
-  dTrace("msg:%p, is processed, code:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
 
   if (code != 0) {
+    dError("msg:%p, failed to process since code:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
     if (pRpc->msgType & 1U) {
       SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
       dndSendRsp(pWrapper, &rsp);
@@ -140,8 +140,8 @@ static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t
 
 static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, int32_t msgLen, void *pCont, int32_t contLen) {
   pRpc->pCont = pCont;
-  dTrace("msg:%p, get from parent queue, type:%s handle:%p app:%p", pRpc, TMSG_INFO(pRpc->msgType), pRpc->handle,
-         pRpc->ahandle);
+  dTrace("msg:%p, get from parent process queue, type:%s handle:%p app:%p", pRpc, TMSG_INFO(pRpc->msgType),
+         pRpc->handle, pRpc->ahandle);
 
   dndSendRsp(pWrapper, pRpc);
   taosMemoryFree(pRpc);
