@@ -15,6 +15,11 @@
 
 #include "vnd.h"
 
+void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
+  // TODO
+  blockDebugShowData(data);
+}
+
 void vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
   SNodeMsg *pMsg;
   SRpcMsg  *pRpc;
