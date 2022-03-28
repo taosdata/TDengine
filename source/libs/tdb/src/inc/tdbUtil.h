@@ -30,15 +30,7 @@ extern "C" {
 
 int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique);
 
-// #define TDB_F_OK 0x1
-// #define TDB_R_OK 0x2
-// #define TDB_W_OK 0x4
-// int tdbCheckFileAccess(const char *pathname, int mode);
-
 int tdbGetFileSize(const char *fname, int pgSize, SPgno *pSize);
-
-int tdbPRead(int fd, void *pData, int count, i64 offset);
-int tdbWrite(int fd, void *pData, int count);
 
 #define TDB_REALLOC(PTR, SIZE)                                                               \
   ({                                                                                         \
@@ -55,11 +47,11 @@ int tdbWrite(int fd, void *pData, int count);
     nPtr;                                                                                    \
   })
 
-#define TDB_FREE(PTR)                    \
-  do {                                   \
-    if (PTR) {                           \
+#define TDB_FREE(PTR)                         \
+  do {                                        \
+    if (PTR) {                                \
       tdbOsFree((char *)(PTR) - sizeof(int)); \
-    }                                    \
+    }                                         \
   } while (0)
 
 static inline void *tdbDefaultMalloc(void *arg, size_t size) {

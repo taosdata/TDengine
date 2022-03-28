@@ -209,7 +209,7 @@ int tdbPagerCommit(SPager *pPager) {
   tdbOsFSync(pPager->fd);
 
   tdbOsClose(pPager->jfd);
-  remove(pPager->jFileName);
+  tdbOsRemove(pPager->jFileName);
   // pPager->jfd = -1;
 
   return 0;

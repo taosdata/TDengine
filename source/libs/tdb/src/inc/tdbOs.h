@@ -53,6 +53,7 @@ typedef TdFilePtr tdb_fd_t;
 #define tdbOsWrite     taosWriteFile
 #define tdbOsFSync     taosFsyncFile
 #define tdbOsLSeek     taosLSeekFile
+#define tdbOsRemove    remove
 
 /* directory */
 #define tdbOsMkdir taosMkDir
@@ -70,12 +71,13 @@ i64 tdbOsRead(tdb_fd_t fd, void *pBuf, i64 nBytes);
 i64 tdbOsPRead(tdb_fd_t fd, void *pBuf, i64 nBytes, i64 offset);
 i64 taosWriteFile(tdb_fd_t fd, const void *pBuf, i64 nBytes);
 
-#define tdbOsFSync fsync
-#define tdbOsLSeek lseek
+#define tdbOsFSync  fsync
+#define tdbOsLSeek  lseek
+#define tdbOsRemove remove
 
 /* directory */
-#define tdbOsMkdir mkdir
-#define tdbOsRmdir rmdir
+#define tdbOsMkdir  mkdir
+#define tdbOsRmdir  rmdir
 
 #endif
 

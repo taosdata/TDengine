@@ -31,7 +31,39 @@ i64 tdbOsPRead(tdb_fd_t fd, void *pBuf, i64 nBytes, i64 offset) {
 
 // tdbOsWrite
 i64 taosWriteFile(tdb_fd_t fd, const void *pBuf, i64 nBytes) {
-    // TODO
-    ASSERT(0);
-    return 0;
+  // TODO
+  ASSERT(0);
+  return 0;
 }
+
+#if 0
+int tdbPRead(int fd, void *pData, int count, i64 offset) {
+  void *pBuf;
+  int   nbytes;
+  i64   ioffset;
+  int   iread;
+
+  pBuf = pData;
+  nbytes = count;
+  ioffset = offset;
+  while (nbytes > 0) {
+    iread = pread(fd, pBuf, nbytes, ioffset);
+    if (iread < 0) {
+      /* TODO */
+    } else if (iread == 0) {
+      return (count - iread);
+    }
+
+    nbytes = nbytes - iread;
+    pBuf = (void *)((u8 *)pBuf + iread);
+    ioffset += iread;
+  }
+
+  return count;
+}
+
+int tdbWrite(int fd, void *pData, int count) {
+  // TODO
+  return write(fd, pData, count);
+}
+#endif

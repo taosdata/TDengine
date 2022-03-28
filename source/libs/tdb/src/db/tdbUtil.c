@@ -33,28 +33,10 @@ int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique) {
   return 0;
 }
 
-// int tdbCheckFileAccess(const char *pathname, int mode) {
-//   int flags = 0;
-
-//   if (mode & TDB_F_OK) {
-//     flags |= F_OK;
-//   }
-
-//   if (mode & TDB_R_OK) {
-//     flags |= R_OK;
-//   }
-
-//   if (mode & TDB_W_OK) {
-//     flags |= W_OK;
-//   }
-
-//   return access(pathname, flags);
-// }
-
 int tdbGetFileSize(const char *fname, int pgSize, SPgno *pSize) {
   struct stat st;
   int         ret;
-  int64_t file_size = 0;
+  int64_t     file_size = 0;
   ret = taosStatFile(fname, &file_size, NULL);
   if (ret != 0) {
     return -1;
@@ -64,34 +46,4 @@ int tdbGetFileSize(const char *fname, int pgSize, SPgno *pSize) {
 
   *pSize = file_size / pgSize;
   return 0;
-}
-
-int tdbPRead(int fd, void *pData, int count, i64 offset) {
-  void *pBuf;
-  int   nbytes;
-  i64   ioffset;
-  int   iread;
-
-  pBuf = pData;
-  nbytes = count;
-  ioffset = offset;
-  while (nbytes > 0) {
-    iread = pread(fd, pBuf, nbytes, ioffset);
-    if (iread < 0) {
-      /* TODO */
-    } else if (iread == 0) {
-      return (count - iread);
-    }
-
-    nbytes = nbytes - iread;
-    pBuf = (void *)((u8 *)pBuf + iread);
-    ioffset += iread;
-  }
-
-  return count;
-}
-
-int tdbWrite(int fd, void *pData, int count) {
-  // TODO
-  return write(fd, pData, count);
 }
