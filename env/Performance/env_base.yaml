@@ -39,28 +39,20 @@ settings:
         debugFlag: 131
     
   - name: taosBenchmark
-    fqdn: [vm84]
+    fqdn: [vm83]
     spec:
       version: 1.0.0
       taos_version: 2.4.0.0
-      config_dir: /data/var/taosbenchmark/config/
+      config_dir: /root/var/taosbenchmark/config/
       taos_config:
         firstEP: vm85:6030
-        logDir: /data/var/taosbenchmark/log
+        logDir: /root/var/taosbenchmark/log
         debugFlag: 131
 
-  - name: taosBenchmark
-    fqdn: [vm84]
-    spec:
-      version: 1.0.0
-      taos_version: 2.4.0.0
-      config_dir: /data/var/taosbenchmark1/config/
-      taos_config:
-        firstEP: vm85:6030
-        logDir: /data/var/taosbenchmark1/log
-        debugFlag: 131
+
+
   - name: prometheus
-    fqdn: [vm85]
+    fqdn: [BCC-2]
     spec:
       server:
         run_dir: /opt/prometheus
@@ -71,15 +63,15 @@ settings:
             scrape_timeout: 3s
           scrape_configs:
             job_name: prometheus
-            targets: [vm85:9090]
+            targets: [BCC-2:9090]
       node_exporter:
-        fqdn: [vm85,vm84]
+        fqdn: [vm85,vm83]
         run_dir: /opt/node_exporter
       process_exporter:
-        fqdn: [vm85,vm84]
+        fqdn: [vm85,vm83]
         run_dir: /opt/process_exporter
         config:
           common_process: [taosd, taosBenchmark]
           custom_process:
             vm85: [taosd]
-            vm84: [taosBenchmark]
+            vm83: [taosBenchmark]
