@@ -17,8 +17,6 @@
 #define _TD_TDB_INTERNAL_H_
 
 #include "os.h"
-#include "tlist.h"
-#include "tlockfree.h"
 
 #include "tdb.h"
 
@@ -52,18 +50,18 @@ typedef u32 SPgno;
 // fileid
 #define TDB_FILE_ID_LEN 24
 
-// pgid_t
+// SPgid
 typedef struct {
   uint8_t fileid[TDB_FILE_ID_LEN];
   SPgno   pgno;
-} pgid_t, SPgid;
+} SPgid;
 
-#define TDB_IVLD_PGID (pgid_t){0, TDB_IVLD_PGNO};
+#define TDB_IVLD_PGID (SPgid){0, TDB_IVLD_PGNO};
 
 static FORCE_INLINE int tdbCmprPgId(const void *p1, const void *p2) {
-  pgid_t *pgid1 = (pgid_t *)p1;
-  pgid_t *pgid2 = (pgid_t *)p2;
-  int     rcode;
+  SPgid *pgid1 = (SPgid *)p1;
+  SPgid *pgid2 = (SPgid *)p2;
+  int    rcode;
 
   rcode = memcmp(pgid1->fileid, pgid2->fileid, TDB_FILE_ID_LEN);
   if (rcode) {
@@ -95,10 +93,6 @@ static FORCE_INLINE int tdbCmprPgId(const void *p1, const void *p2) {
 
 // tdb_log
 #define tdbError(var)
-
-typedef TD_DLIST(STDB) STDbList;
-typedef TD_DLIST(SPgFile) SPgFileList;
-typedef TD_DLIST_NODE(SPgFile) SPgFileListNode;
 
 #define TERR_A(val, op, flag)  \
   do {                         \
