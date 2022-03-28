@@ -11,7 +11,7 @@ typedef struct SPoolMem {
 } SPoolMem;
 
 static SPoolMem *openPool() {
-  SPoolMem *pPool = (SPoolMem *)malloc(sizeof(*pPool));
+  SPoolMem *pPool = (SPoolMem *)tdbOsMalloc(sizeof(*pPool));
 
   pPool->prev = pPool->next = pPool;
   pPool->size = 0;
@@ -31,20 +31,22 @@ static void closePool(SPoolMem *pPool) {
     pMem->prev->next = pMem->next;
     pPool->size -= pMem->size;
 
-    free(pMem);
+    tdbOsFree(pMem);
   } while (1);
 
   assert(pPool->size == 0);
 
-  free(pPool);
+  tdbOsFree(pPool);
 }
+
+#define clearPool closePool
 
 static void *poolMalloc(void *arg, int size) {
   void     *ptr = NULL;
   SPoolMem *pPool = (SPoolMem *)arg;
   SPoolMem *pMem;
 
-  pMem = (SPoolMem *)malloc(sizeof(*pMem) + size);
+  pMem = (SPoolMem *)tdbOsMalloc(sizeof(*pMem) + size);
   if (pMem == NULL) {
     assert(0);
   }
@@ -71,7 +73,7 @@ static void poolFree(void *arg, void *ptr) {
   pMem->prev->next = pMem->next;
   pPool->size -= pMem->size;
 
-  free(pMem);
+  tdbOsFree(pMem);
 }
 
 static int tKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
@@ -113,10 +115,10 @@ static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, in
 
 TEST(tdb_test, simple_test) {
   int            ret;
-  STEnv         *pEnv;
-  STDB          *pDb;
+  TENV          *pEnv;
+  TDB           *pDb;
   FKeyComparator compFunc;
-  int            nData = 10000000;
+  int            nData = 1000000;
 
   // Open Env
   ret = tdbEnvOpen("tdb", 4096, 256000, &pEnv);
@@ -132,13 +134,34 @@ TEST(tdb_test, simple_test) {
     char val[64];
 
     {  // Insert some data
+      int       i = 1;
+      SPoolMem *pPool;
+      int       memPoolCapacity = 16 * 1024;
 
-      for (int i = 1; i <= nData; i++) {
+      pPool = openPool();
+
+      tdbTxnBegin(pEnv);
+
+      for (;;) {
+        if (i > nData) break;
+
         sprintf(key, "key%d", i);
         sprintf(val, "value%d", i);
         ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val));
         GTEST_ASSERT_EQ(ret, 0);
+
+        if (pPool->size >= memPoolCapacity) {
+          tdbTxnCommit(pEnv);
+
+          clearPool(pPool);
+
+          tdbTxnBegin(pEnv);
+        }
+
+        i++;
       }
+
+      closePool(pPool);
     }
 
     {  // Query the data
@@ -160,11 +183,11 @@ TEST(tdb_test, simple_test) {
     }
 
     {  // Iterate to query the DB data
-      STDBC *pDBC;
-      void  *pKey = NULL;
-      void  *pVal = NULL;
-      int    vLen, kLen;
-      int    count = 0;
+      TDBC *pDBC;
+      void *pKey = NULL;
+      void *pVal = NULL;
+      int   vLen, kLen;
+      int   count = 0;
 
       ret = tdbDbcOpen(pDb, &pDBC);
       GTEST_ASSERT_EQ(ret, 0);

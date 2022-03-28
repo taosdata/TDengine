@@ -331,6 +331,14 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
     case FUNCTION_TYPE_CONCAT:
       // todo
       break;
+
+    case FUNCTION_TYPE_ABS: {
+      SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+      int32_t paraType = pParam->node.resType.type;
+      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[paraType].bytes, .type = paraType };
+      break;
+    }
+
     default:
       ASSERT(0); // to found the fault ASAP.
   }

@@ -46,10 +46,10 @@ int32_t smProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 // smWorker.c
 int32_t smStartWorker(SSnodeMgmt *pMgmt);
 void    smStopWorker(SSnodeMgmt *pMgmt);
-int32_t smProcessMgmtMsg(SSnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t smProcessUniqueMsg(SSnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t smProcessSharedMsg(SSnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t smProcessExecMsg(SSnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t smProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t smProcessUniqueMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t smProcessSharedMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t smProcessExecMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

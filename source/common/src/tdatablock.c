@@ -1241,6 +1241,16 @@ size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize) {
   return pageSize / (blockDataGetSerialRowSize(pBlock) + blockDataGetSerialMetaSize(pBlock));
 }
 
+void colDataDestroy(SColumnInfoData* pColData) {
+  if (IS_VAR_DATA_TYPE(pColData->info.type)) {
+    taosMemoryFree(pColData->varmeta.offset);
+  } else {
+    taosMemoryFree(pColData->nullbitmap);
+  }
+
+  taosMemoryFree(pColData->pData);
+}
+
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock) {
   int64_t tbUid = pBlock->info.uid;
   int16_t numOfCols = pBlock->info.numOfCols;

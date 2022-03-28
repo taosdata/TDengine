@@ -222,8 +222,19 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream, i
       /*pTask->sinkType = TASK_SINK__NONE;*/
 
       // dispatch part
+      pTask->dispatchType = TASK_DISPATCH__NONE;
+#if 0
       pTask->dispatchType = TASK_DISPATCH__SHUFFLE;
       pTask->dispatchMsgType = TDMT_VND_TASK_WRITE_EXEC;
+      SDbObj* pDb = mndAcquireDb(pMnode, pStream->db);
+      ASSERT(pDb);
+      if (mndExtractDbInfo(pMnode, pDb, &pTask->shuffleDispatcher.dbInfo, NULL) < 0) {
+        sdbRelease(pSdb, pDb);
+        qDestroyQueryPlan(pPlan);
+        return -1;
+      }
+      sdbRelease(pSdb, pDb);
+#endif
 
       // exec part
       pTask->execType = TASK_EXEC__MERGE;

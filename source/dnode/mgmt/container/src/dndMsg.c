@@ -62,7 +62,7 @@ void dndProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSet) {
 
   if (pWrapper->procType == PROC_SINGLE) {
     dTrace("msg:%p, is created, handle:%p app:%p user:%s", pMsg, pRpc->handle, pRpc->ahandle, pMsg->user);
-    code = (*msgFp)(pWrapper->pMgmt, pMsg);
+    code = (*msgFp)(pWrapper, pMsg);
   } else if (pWrapper->procType == PROC_PARENT) {
     dTrace("msg:%p, is created and will put into child queue, handle:%p app:%p user:%s", pMsg, pRpc->handle,
            pRpc->ahandle, pMsg->user);

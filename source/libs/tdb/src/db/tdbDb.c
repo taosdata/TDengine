@@ -16,7 +16,7 @@
 #include "tdbInt.h"
 
 struct STDB {
-  STEnv  *pEnv;
+  TENV   *pEnv;
   SBTree *pBt;
 };
 
@@ -24,8 +24,8 @@ struct STDBC {
   SBTC btc;
 };
 
-int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, STEnv *pEnv, STDB **ppDb) {
-  STDB   *pDb;
+int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, TENV *pEnv, TDB **ppDb) {
+  TDB    *pDb;
   SPager *pPager;
   int     ret;
   char    fFullName[TDB_FILENAME_LEN];
@@ -34,7 +34,7 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
 
   *ppDb = NULL;
 
-  pDb = (STDB *)calloc(1, sizeof(*pDb));
+  pDb = (TDB *)tdbOsCalloc(1, sizeof(*pDb));
   if (pDb == NULL) {
     return -1;
   }
@@ -63,17 +63,17 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
   return 0;
 }
 
-int tdbDbClose(STDB *pDb) {
+int tdbDbClose(TDB *pDb) {
   // TODO
   return 0;
 }
 
-int tdbDbDrop(STDB *pDb) {
+int tdbDbDrop(TDB *pDb) {
   // TODO
   return 0;
 }
 
-int tdbDbInsert(STDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen) {
+int tdbDbInsert(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen) {
   SBTC  btc;
   SBTC *pCur;
   int   ret;
@@ -92,16 +92,16 @@ int tdbDbInsert(STDB *pDb, const void *pKey, int keyLen, const void *pVal, int v
   return 0;
 }
 
-int tdbDbGet(STDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen) {
+int tdbDbGet(TDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen) {
   return tdbBtreeGet(pDb->pBt, pKey, kLen, ppVal, vLen);
 }
 
-int tdbDbcOpen(STDB *pDb, STDBC **ppDbc) {
-  int    ret;
-  STDBC *pDbc = NULL;
+int tdbDbcOpen(TDB *pDb, TDBC **ppDbc) {
+  int   ret;
+  TDBC *pDbc = NULL;
 
   *ppDbc = NULL;
-  pDbc = malloc(sizeof(*pDbc));
+  pDbc = (TDBC *)tdbOsMalloc(sizeof(*pDbc));
   if (pDbc == NULL) {
     return -1;
   }
@@ -120,13 +120,13 @@ int tdbDbcOpen(STDB *pDb, STDBC **ppDbc) {
   return 0;
 }
 
-int tdbDbNext(STDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
+int tdbDbNext(TDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
   return tdbBtreeNext(&pDbc->btc, ppKey, kLen, ppVal, vLen);
 }
 
-int tdbDbcClose(STDBC *pDbc) {
+int tdbDbcClose(TDBC *pDbc) {
   if (pDbc) {
-    free(pDbc);
+    tdbOsFree(pDbc);
   }
 
   return 0;
