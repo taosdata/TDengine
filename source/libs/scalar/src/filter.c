@@ -318,7 +318,7 @@ static FORCE_INLINE SFilterRangeNode* filterNewRange(SFilterRangeCtx *ctx, SFilt
     r->prev = NULL;
     r->next = NULL;
   } else {
-    r = taosMemoryCalloc(1, sizeof(SFilterRangeNode)); 
+    r = taosMemoryCalloc(1, sizeof(SFilterRangeNode));
   }
 
   FILTER_COPY_RA(&r->ra, ra);
@@ -1021,26 +1021,21 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode* tree, SArray *group) {
   if (node->opType == OP_TYPE_IN && (!IS_VAR_DATA_TYPE(type))) {
     SNodeListNode *listNode = (SNodeListNode *)node->pRight;
     SListCell *cell = listNode->pNodeList->pHead;
-    SScalarParam in = {.num = 1}, out = {.num = 1, .type = type};
+
+    SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
+    out.columnData->info.type = type;
     
     for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
       SValueNode *valueNode = (SValueNode *)cell->pNode;
-      in.type = valueNode->node.resType.type;
-      in.bytes = valueNode->node.resType.bytes;
-      in.data = nodesGetValueFromNode(valueNode);
-      out.data = taosMemoryMalloc(sizeof(int64_t));
-
-      code = vectorConvertImpl(&in, &out);
+      code = doConvertDataType(valueNode, &out);
       if (code) {
-        fltError("convert from %d to %d failed", in.type, out.type);
-        taosMemoryFreeClear(out.data);
+//        fltError("convert from %d to %d failed", in.type, out.type);
         FLT_ERR_RET(code);
       }
       
       len = tDataTypes[type].bytes;
 
-      filterAddField(info, NULL, &out.data, FLD_TYPE_VALUE, &right, len, true);
-
+      filterAddField(info, NULL, (void**) &out.columnData->pData, FLD_TYPE_VALUE, &right, len, true);
       filterAddUnit(info, OP_TYPE_EQUAL, &left, &right, &uidx);
       
       SFilterGroup fgroup = {0};
@@ -1054,7 +1049,6 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode* tree, SArray *group) {
     filterAddFieldFromNode(info, node->pRight, &right);
     
     FLT_ERR_RET(filterAddUnit(info, node->opType, &left, &right, &uidx));
-
     SFilterGroup fgroup = {0};
     filterAddUnitToGroup(&fgroup, uidx);
     
@@ -1080,7 +1074,6 @@ int32_t filterAddUnitFromUnit(SFilterInfo *dst, SFilterInfo *src, SFilterUnit* u
         filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, POINTER_BYTES, false); // POINTER_BYTES should be sizeof(SHashObj), but POINTER_BYTES is also right.
 
         t = FILTER_GET_FIELD(dst, right);
-        
         FILTER_SET_FLAG(t->flag, FLD_DATA_IS_HASH);
       } else {
         filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, varDataTLen(data), false);
@@ -1101,13 +1094,11 @@ int32_t filterAddUnitFromUnit(SFilterInfo *dst, SFilterInfo *src, SFilterUnit* u
 
 int32_t filterAddUnitRight(SFilterInfo *info, uint8_t optr, SFilterFieldId *right, uint32_t uidx) {
   SFilterUnit *u = &info->units[uidx];
-  
   u->compare.optr2 = optr;
   u->right2 = *right;
 
   return TSDB_CODE_SUCCESS;
 }
-
 
 int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRangeCtx *ctx, uint32_t cidx, SFilterGroup *g, int32_t optr, SArray *res) {
   SFilterFieldId left, right, right2;
@@ -1800,9 +1791,12 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       if (dType->type == type) {
         assignVal(fi->data, nodesGetValueFromNode(var), dType->bytes, type);
       } else {
-        SScalarParam in = {.data = nodesGetValueFromNode(var), .num = 1, .type = dType->type, .bytes = dType->bytes};
-        SScalarParam out = {.data = fi->data, .num = 1, .type = type};
-        if (vectorConvertImpl(&in, &out)) {
+        SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
+        out.columnData->info.type = type;
+
+        // todo refactor the convert
+        int32_t code = doConvertDataType(var, &out);
+        if (code != TSDB_CODE_SUCCESS) {
           qError("convert value to type[%d] failed", type);
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
@@ -3636,7 +3630,7 @@ int32_t filterInitFromNode(SNode* pNode, SFilterInfo **pInfo, uint32_t options) 
   if (*pInfo == NULL) {
     *pInfo = taosMemoryCalloc(1, sizeof(SFilterInfo));
     if (NULL == *pInfo) {
-      fltError("calloc %d failed", (int32_t)sizeof(SFilterInfo));
+      fltError("taosMemoryCalloc %d failed", (int32_t)sizeof(SFilterInfo));
       FLT_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
   }
@@ -3676,18 +3670,18 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnData
     FLT_ERR_RET(scalarCalculate(info->sclCtx.node, pList, &output));
 
     taosArrayDestroy(pList);
-
-    *p = output.orig.data;
-    output.orig.data = NULL;
-
-    sclFreeParam(&output);
-
-    int8_t *r = output.data;
-    for (int32_t i = 0; i < output.num; ++i) {
-      if (0 == *(r+i)) {
-        return false;
-      }
-    }
+    // TODO Fix it
+//    *p = output.orig.data;
+//    output.orig.data = NULL;
+//
+//    sclFreeParam(&output);
+//
+//    int8_t *r = output.data;
+//    for (int32_t i = 0; i < output.num; ++i) {
+//      if (0 == *(r+i)) {
+//        return false;
+//      }
+//    }
     
     return true;
   }

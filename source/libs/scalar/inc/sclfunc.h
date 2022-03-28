@@ -22,19 +22,7 @@ extern "C" {
 #include "function.h"
 #include "scalar.h"
 
-typedef struct SScalarFunctionSupport {
-  struct SExprInfo   *pExprInfo;
-  int32_t      numOfCols;
-  SColumnInfo *colList;
-  void        *exprList;   // client side used
-  int32_t      offset;
-  char**       data;
-} SScalarFunctionSupport;
 
-extern struct SScalarFunctionInfo scalarFunc[8];
-
-int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarParam* pOutput,
-                          void* param, char* (*getSourceDataBlock)(void*, const char*, int32_t));
 
 
 #ifdef __cplusplus

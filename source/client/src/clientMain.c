@@ -138,20 +138,20 @@ TAOS_RES *taos_query(TAOS *taos, const char *sql) {
   return taos_query_l(taos, sql, (int32_t) strlen(sql));
 }
 
-TAOS_ROW taos_fetch_row(TAOS_RES *pRes) {
-  if (pRes == NULL) {
+TAOS_ROW taos_fetch_row(TAOS_RES *res) {
+  if (res == NULL) {
     return NULL;
   }
 
-  SRequestObj *pRequest = (SRequestObj *) pRes;
+  SRequestObj *pRequest = (SRequestObj *) res;
   if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
       pRequest->type == TSDB_SQL_INSERT ||
       pRequest->code != TSDB_CODE_SUCCESS ||
-      taos_num_fields(pRes) == 0) {
+      taos_num_fields(res) == 0) {
     return NULL;
   }
 
-  return doFetchRow(pRequest);
+  return doFetchRow(pRequest, true);
 }
 
 int  taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
@@ -246,6 +246,7 @@ int* taos_fetch_lengths(TAOS_RES *res) {
   return ((SRequestObj*) res)->body.resInfo.length;
 }
 
+// todo intergrate with tDataTypes
 const char *taos_data_type(int type) {
   switch (type) {
     case TSDB_DATA_TYPE_NULL:            return "TSDB_DATA_TYPE_NULL";
@@ -256,9 +257,11 @@ const char *taos_data_type(int type) {
     case TSDB_DATA_TYPE_BIGINT:          return "TSDB_DATA_TYPE_BIGINT";
     case TSDB_DATA_TYPE_FLOAT:           return "TSDB_DATA_TYPE_FLOAT";
     case TSDB_DATA_TYPE_DOUBLE:          return "TSDB_DATA_TYPE_DOUBLE";
-    case TSDB_DATA_TYPE_BINARY:          return "TSDB_DATA_TYPE_BINARY";
+    case TSDB_DATA_TYPE_VARCHAR:         return "TSDB_DATA_TYPE_VARCHAR";
+//    case TSDB_DATA_TYPE_BINARY:          return "TSDB_DATA_TYPE_VARCHAR";
     case TSDB_DATA_TYPE_TIMESTAMP:       return "TSDB_DATA_TYPE_TIMESTAMP";
     case TSDB_DATA_TYPE_NCHAR:           return "TSDB_DATA_TYPE_NCHAR";
+    case TSDB_DATA_TYPE_JSON:            return "TSDB_DATA_TYPE_JSON";
     default: return "UNKNOWN";
   }
 }
@@ -316,11 +319,37 @@ void taos_stop_query(TAOS_RES *res) {
 }
 
 bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
-  return false;
+  SRequestObj* pRequestObj = res;
+  SReqResultInfo* pResultInfo = &pRequestObj->body.resInfo;
+  if (col >= pResultInfo->numOfCols || col < 0 || row >= pResultInfo->numOfRows || row < 0) {
+    return true;
+  }
+
+  SResultColumn* pCol = &pRequestObj->body.resInfo.pCol[col];
+  return colDataIsNull_f(pCol->nullbitmap, row);
 }
 
 int  taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
-  return 0;
+  if (res == NULL) {
+    return 0;
+  }
+
+  SRequestObj *pRequest = (SRequestObj *) res;
+  if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
+      pRequest->type == TSDB_SQL_INSERT ||
+      pRequest->code != TSDB_CODE_SUCCESS ||
+      taos_num_fields(res) == 0) {
+    return 0;
+  }
+
+  doFetchRow(pRequest, false);
+
+  // TODO refactor
+  SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
+  pResultInfo->current = pResultInfo->numOfRows;
+  *rows = pResultInfo->row;
+
+  return pResultInfo->numOfRows;
 }
 
 int  taos_validate_sql(TAOS *taos, const char *sql) {

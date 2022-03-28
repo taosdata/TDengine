@@ -21,11 +21,10 @@
 
 #define TD_MEMORY_STACK_TRACE_DEPTH 10
 
-typedef struct TdMemoryInfo
-{
+typedef struct TdMemoryInfo {
   int32_t symbol;
+  int32_t memorySize;
   void *stackTrace[TD_MEMORY_STACK_TRACE_DEPTH];     // gdb: disassemble /m 0xXXX
-  int32_t memorySize; 
 } *TdMemoryInfoPtr , TdMemoryInfo;
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
