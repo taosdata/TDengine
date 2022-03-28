@@ -1,5 +1,5 @@
 set(META_DB_IMPL_LIST "BDB" "TDB")
-set(META_DB_IMPL "BDB" CACHE STRING "Use BDB as the default META implementation")
+set(META_DB_IMPL "TDB" CACHE STRING "Use BDB as the default META implementation")
 set_property(CACHE META_DB_IMPL PROPERTY STRINGS ${META_DB_IMPL_LIST})
 
 if(META_DB_IMPL IN_LIST META_DB_IMPL_LIST)
@@ -46,13 +46,10 @@ target_link_libraries(
     PUBLIC stream
     PUBLIC qworker
     PUBLIC sync
+    # TODO: get rid of BDB
+    PUBLIC bdb
+    PUBLIC tdb
 )
-
-if(${META_DB_IMPL} STREQUAL "BDB")
-    target_link_libraries(vnode PUBLIC bdb)
-elseif(${META_DB_IMPL} STREQUAL "TDB")
-    target_link_libraries(vnode PUBLIC tdb)
-endif()
 
 if(${BUILD_TEST})
     add_subdirectory(test)
