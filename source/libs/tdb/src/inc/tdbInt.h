@@ -116,19 +116,6 @@ typedef TD_DLIST_NODE(SPgFile) SPgFileListNode;
 
 #define TDB_VARIANT_LEN ((int)-1)
 
-// page payload format
-// <keyLen> + <valLen> + [key] + [value]
-#define TDB_DECODE_PAYLOAD(pPayload, keyLen, pKey, valLen, pVal) \
-  do {                                                           \
-    if ((keyLen) == TDB_VARIANT_LEN) {                           \
-      /* TODO: decode the keyLen */                              \
-    }                                                            \
-    if ((valLen) == TDB_VARIANT_LEN) {                           \
-      /* TODO: decode the valLen */                              \
-    }                                                            \
-    /* TODO */                                                   \
-  } while (0)
-
 typedef int (*FKeyComparator)(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
 #define TDB_JOURNAL_NAME "tdb.journal"
