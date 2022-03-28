@@ -38,40 +38,54 @@ impl App {
         let database = self.database.as_deref().unwrap_or("");
         let db = String::from(database);
         let threads = self.thread.unwrap_or(1);
+        log::info!(
+            "start backup database {} to {} with {} threads",
+            db,
+            target,
+            threads
+        );
         let taos = OldTaos::new(host, user, pass, "", port).unwrap();
-
+        log::info!("start backup database sql");
         Builder::new_multi_thread()
             .enable_all()
             .build()
             .unwrap()
             .block_on(backup_database_sql(&taos, db.clone(), &path));
+        log::info!("finish backup database sql");
+        log::info!("start backup stable sql");
         let stable_list = Builder::new_multi_thread()
             .enable_all()
             .build()
             .unwrap()
             .block_on(backup_stable_sql(&taos, db.clone(), &path));
+        log::info!("finish backup stable sql");
         for stb in stable_list {
+            log::info!("start backup table sql from stable {}", stb);
             let table_list = Builder::new_multi_thread()
                 .enable_all()
                 .build()
                 .unwrap()
                 .block_on(backup_table_sql(&taos, db.clone(), &stb, &path));
+            log::info!("finish backup table sql from stable {}", stb);
             let opts = TaosOptions::new();
             let pool = TaosPool::builder()
                 .max_size(table_list.len() as u32)
                 .build(opts)
                 .unwrap();
+            log::info!("start generate parquet schema for stable {}", stb);
             let schema = Builder::new_multi_thread()
                 .enable_all()
                 .build()
                 .unwrap()
                 .block_on(generate_parquet_schema(&taos, db.clone(), &stb));
+            log::info!("finish generate parquet schema for stable {}", stb);
             let runtime = Builder::new_multi_thread()
                 .worker_threads(threads as usize)
                 .enable_all()
                 .build()
                 .unwrap();
             let mut handles = Vec::with_capacity(table_list.len());
+            log::info!("start backup table data to parquet");
             for i in 0..table_list.len() {
                 handles.push(runtime.spawn(backup_data_parquet(
                     pool.clone(),
@@ -84,6 +98,7 @@ impl App {
             for handle in handles {
                 runtime.block_on(handle).unwrap();
             }
+            log::info!("finish backup table data to parquet");
         }
     }
 }

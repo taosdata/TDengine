@@ -1,6 +1,5 @@
-use std::path::PathBuf;
-
 use clap::Args;
+use std::path::PathBuf;
 use taos::r2d2::TaosPool;
 use taos::TaosOptions;
 use taosx::TaosOpts;
@@ -16,7 +15,7 @@ pub(crate) struct App {
     #[clap(short, long)]
     database: Option<String>,
     #[clap(short, long)]
-    source: Option<String>,
+    input: Option<String>,
     #[clap(short, long)]
     thread: Option<u32>,
 }
@@ -32,15 +31,23 @@ impl App {
         let database = self.database.as_deref().unwrap_or("");
         let db = String::from(database);
         let threads = self.thread.unwrap_or(1);
-        let source = self.source.as_deref().unwrap_or("./");
+        let source = self.input.as_deref().unwrap_or("./");
+        log::info!(
+            "start restoring from {} to database {} with {} threads",
+            source,
+            db,
+            threads
+        );
         let path = PathBuf::from(source);
         let opts = TaosOptions::new();
         let pool = TaosPool::builder().build(opts).unwrap();
+        log::info!("start read database create sql");
         Builder::new_multi_thread()
             .enable_all()
             .build()
             .unwrap()
             .block_on(restore_sql(pool.clone(), &path, SqlLevel::Database));
+        log::info!("finish create database");
         Builder::new_multi_thread()
             .enable_all()
             .build()
@@ -52,16 +59,21 @@ impl App {
                     .query(format!("use {}", db.clone()).as_str()),
             )
             .unwrap();
+        log::info!("use database");
+        log::info!("start read stable create sql");
         Builder::new_multi_thread()
             .enable_all()
             .build()
             .unwrap()
             .block_on(restore_sql(pool.clone(), &path, SqlLevel::Stable));
+        log::info!("finish create stable(s)");
+        log::info!("start read table create sql");
         Builder::new_multi_thread()
             .enable_all()
             .build()
             .unwrap()
             .block_on(restore_sql(pool.clone(), &path, SqlLevel::Table));
+        log::info!("finish create table(s)");
         let file_list = get_parquet_files(path.clone());
         let opts = TaosOptions::new();
         let pool = TaosPool::builder()
@@ -74,6 +86,7 @@ impl App {
             .build()
             .unwrap();
         let mut handles = Vec::with_capacity(file_list.len());
+        log::info!("read {} parquet files", file_list.len());
         for i in 0..file_list.len() {
             handles.push(runtime.spawn(restore_parquet(
                 pool.clone(),
@@ -85,5 +98,6 @@ impl App {
         for handle in handles {
             runtime.block_on(handle).unwrap();
         }
+        log::info!("finish restoring database {}", db);
     }
 }

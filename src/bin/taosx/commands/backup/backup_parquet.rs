@@ -1,7 +1,8 @@
 use libtaos::Taos;
 use parquet::{
     basic::{
-        ConvertedType, LogicalType, Repetition, TimeUnit, TimestampType, Type as PhysicalType,
+        Compression, ConvertedType, LogicalType, Repetition, TimeUnit, TimestampType,
+        Type as PhysicalType,
     },
     file::{
         properties::WriterProperties,
@@ -132,7 +133,11 @@ pub async fn backup_data_parquet(
     schema: Arc<Type>,
     target: PathBuf,
 ) {
-    let props = Arc::new(WriterProperties::builder().build());
+    let props = Arc::new(
+        WriterProperties::builder()
+            .set_compression(Compression::SNAPPY)
+            .build(),
+    );
     let mut path = target.clone();
     path.push(format!("{}.parquet", tb));
     let file = fs::File::create(path).unwrap();
@@ -148,6 +153,7 @@ pub async fn backup_data_parquet(
     stream
         .enumerate()
         .for_each(|(_, partial)| {
+            // log::debug!("num of row in block: {}", partial.num_of_rows());
             let mut row_group_writer = writer.next_row_group().unwrap();
             for col in partial.columns_iter() {
                 let data_writer = row_group_writer.next_column().unwrap();

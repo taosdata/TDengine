@@ -2,19 +2,12 @@ use bitvec_simd::BitVec;
 use glob::glob;
 use parquet::basic::ConvertedType;
 use parquet::column::reader::{ColumnReader, ColumnReaderImpl};
-use parquet::data_type::{
-    BoolType, ByteArray, ByteArrayType, DataType, DoubleType, FloatType, Int32Type, Int64Type,
-};
+use parquet::data_type::{ByteArray, ByteArrayType, DataType};
 use parquet::file::reader::FileReader;
 use parquet::file::serialized_reader::SerializedFileReader;
-use std::array;
-use std::ops::DerefMut;
 use std::path::PathBuf;
 use taos::block::serde::Block;
 use taos::r2d2::TaosPool;
-use taos::stmt::MultiBind;
-use taos::Taos;
-use tokio::runtime::Builder;
 
 pub fn get_parquet_files<'a>(path: PathBuf) -> Vec<String> {
     let mut file_list = vec![];
@@ -50,7 +43,7 @@ where
 
 fn read_str(mut column_reader: ColumnReaderImpl<ByteArrayType>, num_rows: usize) -> Vec<ByteArray> {
     let mut data = vec![];
-    const BATCH_SIZE: usize = 100;
+    const BATCH_SIZE: usize = 10;
     for _ in 0..(num_rows + BATCH_SIZE - 1 / BATCH_SIZE) {
         let mut values = vec![];
         for _ in 0..BATCH_SIZE {
@@ -61,12 +54,13 @@ fn read_str(mut column_reader: ColumnReaderImpl<ByteArrayType>, num_rows: usize)
             .unwrap();
         data.extend(values);
     }
-    data.split_off(num_rows)
+    let _ = data.split_off(num_rows);
+    log::debug!("data: {:?}", data);
+    data
 }
 
 pub async fn restore_parquet(pool: TaosPool, path: PathBuf, filename: String, database: String) {
-    // let taos = pool.get().unwrap();
-    let taos = Taos::new("localhost", "root", "taosdata", &database, 0).unwrap();
+    let taos = pool.get().unwrap();
     taos.query(format!("use {}", database)).await.unwrap();
     let tb = filename.split(".").next().unwrap();
     let parquet_reader =
@@ -83,7 +77,6 @@ pub async fn restore_parquet(pool: TaosPool, path: PathBuf, filename: String, da
             sql += "?)";
         }
     }
-    dbg!(&sql);
 
     for row_group in 0..parquet_reader.num_row_groups() {
         let row_group_reader = parquet_reader.get_row_group(row_group).unwrap();
@@ -100,10 +93,14 @@ pub async fn restore_parquet(pool: TaosPool, path: PathBuf, filename: String, da
                     }
                     ColumnReader::ByteArrayColumnReader(v) => {
                         let column = read_str(v, row_num);
-
                         match fields.get(col_num).unwrap().get_basic_info().logical_type() {
                             Some(_) => Block::NChar(
-                                column.into_iter().map(|v| Some(v.to_string())).collect(),
+                                column
+                                    .into_iter()
+                                    .map(|v| {
+                                        Some(std::str::from_utf8(v.data()).unwrap().to_string())
+                                    })
+                                    .collect(),
                             ),
                             None => Block::Binary(
                                 column
@@ -181,7 +178,6 @@ pub async fn restore_parquet(pool: TaosPool, path: PathBuf, filename: String, da
             .collect();
 
         let bind: Vec<_> = blocks.iter().map(|b| b.to_multi_bind()).collect();
-
         let mut stmt = taos.stmt(&sql).unwrap();
         stmt.multi_bind(&bind).unwrap();
         stmt.execute().unwrap();

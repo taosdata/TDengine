@@ -1,6 +1,7 @@
 mod commands;
 use clap::{Parser, Subcommand};
-
+use log::LevelFilter;
+use simple_logger::SimpleLogger;
 use taosx::TaosOpts;
 #[derive(Parser, Debug)]
 #[clap(author, version, about)]
@@ -26,8 +27,11 @@ pub fn cli<'help>() -> clap::Command<'help> {
 }
 
 fn main() {
+    SimpleLogger::new()
+        .with_level(LevelFilter::Debug)
+        .init()
+        .unwrap();
     let cli = Cli::parse();
-    dbg!(&cli);
     let command = cli.command;
 
     // You can check for the existence of subcommands, and if found use their
