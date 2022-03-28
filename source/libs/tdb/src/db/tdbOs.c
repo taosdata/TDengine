@@ -72,7 +72,7 @@ i64 tdbOsPRead(tdb_fd_t fd, void *pData, i64 nBytes, i64 offset) {
 }
 
 // tdbOsWrite
-i64 taosWriteFile(tdb_fd_t fd, const void *pData, i64 nBytes) {
+i64 tdbOsWrite(tdb_fd_t fd, const void *pData, i64 nBytes) {
   i64 nWrite = 0;
   i64 iWrite = 0;
   u8 *pBuf = (u8 *)pData;

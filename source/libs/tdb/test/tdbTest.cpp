@@ -11,7 +11,7 @@ typedef struct SPoolMem {
 } SPoolMem;
 
 static SPoolMem *openPool() {
-  SPoolMem *pPool = (SPoolMem *)malloc(sizeof(*pPool));
+  SPoolMem *pPool = (SPoolMem *)tdbOsMalloc(sizeof(*pPool));
 
   pPool->prev = pPool->next = pPool;
   pPool->size = 0;
@@ -31,12 +31,12 @@ static void closePool(SPoolMem *pPool) {
     pMem->prev->next = pMem->next;
     pPool->size -= pMem->size;
 
-    free(pMem);
+    tdbOsFree(pMem);
   } while (1);
 
   assert(pPool->size == 0);
 
-  free(pPool);
+  tdbOsFree(pPool);
 }
 
 #define clearPool closePool
@@ -46,7 +46,7 @@ static void *poolMalloc(void *arg, int size) {
   SPoolMem *pPool = (SPoolMem *)arg;
   SPoolMem *pMem;
 
-  pMem = (SPoolMem *)malloc(sizeof(*pMem) + size);
+  pMem = (SPoolMem *)tdbOsMalloc(sizeof(*pMem) + size);
   if (pMem == NULL) {
     assert(0);
   }
@@ -73,7 +73,7 @@ static void poolFree(void *arg, void *ptr) {
   pMem->prev->next = pMem->next;
   pPool->size -= pMem->size;
 
-  free(pMem);
+  tdbOsFree(pMem);
 }
 
 static int tKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
