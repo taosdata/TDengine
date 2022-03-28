@@ -108,21 +108,22 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
 }
 
 static void dndClearNodesExecpt(SDnode *pDnode, ENodeType except) {
-  dndCleanupServer(pDnode);
+  // dndCleanupServer(pDnode);
   for (ENodeType n = 0; n < NODE_MAX; ++n) {
     if (except == n) continue;
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
-    dndCloseNode(pWrapper);
+    pWrapper->required = false;
   }
 }
 
 static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen) {
-  dTrace("msg:%p, get from child queue", pMsg);
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   pRpc->pCont = pCont;
+  dTrace("msg:%p, get from child queue, type:%s handle:%p app:%p", pMsg, TMSG_INFO(pRpc->msgType), pRpc->handle,
+         pRpc->ahandle);
 
   NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pRpc->msgType)];
-  int32_t   code = (*msgFp)(pWrapper, pMsg);
+  int32_t   code = (*msgFp)(pWrapper->pMgmt, pMsg);
 
   if (code != 0) {
     if (pRpc->msgType & 1U) {
@@ -136,11 +137,13 @@ static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t
   }
 }
 
-static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRsp, int32_t msgLen, void *pCont, int32_t contLen) {
-  dTrace("msg:%p, get from parent queue", pRsp);
-  pRsp->pCont = pCont;
-  dndSendRsp(pWrapper, pRsp);
-  taosMemoryFree(pRsp);
+static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, int32_t msgLen, void *pCont, int32_t contLen) {
+  pRpc->pCont = pCont;
+  dTrace("msg:%p, get from parent queue, type:%s handle:%p app:%p", pRpc, TMSG_INFO(pRpc->msgType), pRpc->handle,
+         pRpc->ahandle);
+
+  dndSendRsp(pWrapper, pRpc);
+  taosMemoryFree(pRpc);
 }
 
 static int32_t dndRunInMultiProcess(SDnode *pDnode) {

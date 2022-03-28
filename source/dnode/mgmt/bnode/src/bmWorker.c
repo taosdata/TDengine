@@ -71,7 +71,7 @@ int32_t bmProcessWriteMsg(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
 }
 
 int32_t bmStartWorker(SBnodeMgmt *pMgmt) {
-  SMultiWorkerCfg cfg = {.maxNum = 1, .name = "bnode-write", .fp = (FItems)bmProcessQueue, .param = pMgmt};
+  SMultiWorkerCfg cfg = {.max = 1, .name = "bnode-write", .fp = (FItems)bmProcessQueue, .param = pMgmt};
   if (tMultiWorkerInit(&pMgmt->writeWorker, &cfg) != 0) {
     dError("failed to start bnode write worker since %s", terrstr());
     return -1;

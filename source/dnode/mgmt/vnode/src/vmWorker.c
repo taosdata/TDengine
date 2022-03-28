@@ -394,7 +394,7 @@ int32_t vmStartWorker(SVnodesMgmt *pMgmt) {
   if (tWWorkerInit(pWPool) != 0) return -1;
 
   SSingleWorkerCfg cfg = {
-      .minNum = 1, .maxNum = 1, .name = "vnode-mgmt", .fp = (FItem)vmProcessMgmtQueue, .param = pMgmt};
+      .min = 1, .max = 1, .name = "vnode-mgmt", .fp = (FItem)vmProcessMgmtQueue, .param = pMgmt};
   if (tSingleWorkerInit(&pMgmt->mgmtWorker, &cfg) != 0) {
     dError("failed to start vnode-mgmt worker since %s", terrstr());
     return -1;

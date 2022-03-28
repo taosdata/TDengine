@@ -264,7 +264,8 @@ static int32_t taosProcQueuePush(SProcQueue *pQueue, char *pHead, int32_t rawHea
   taosThreadMutexUnlock(pQueue->mutex);
   tsem_post(&pQueue->sem);
 
-  uTrace("proc:%s, push msg:%p:%d cont:%p:%d to queue:%p", pQueue->name, pHead, headLen, pBody, bodyLen, pQueue);
+  uTrace("proc:%s, push msg to queue:%p remains:%d, head:%d:%p body:%d:%p", pQueue->name, pQueue, pQueue->items,
+         headLen, pHead, bodyLen, pBody);
   return 0;
 }
 
@@ -277,7 +278,7 @@ static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int32_t *pHea
     taosThreadMutexUnlock(pQueue->mutex);
     tsem_post(&pQueue->sem);
     terrno = TSDB_CODE_OUT_OF_SHM_MEM;
-    return -1;
+    return 0;
   }
 
   int32_t headLen = 0;
@@ -341,8 +342,9 @@ static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int32_t *pHea
   *pHeadLen = headLen;
   *pBodyLen = bodyLen;
 
-  uTrace("proc:%s, get msg:%p:%d cont:%p:%d from queue:%p", pQueue->name, pHead, headLen, pBody, bodyLen, pQueue);
-  return 0;
+  uTrace("proc:%s, pop msg from queue:%p remains:%d, head:%d:%p body:%d:%p", pQueue->name, pQueue, pQueue->items,
+         headLen, pHead, bodyLen, pBody);
+  return 1;
 }
 
 SProcObj *taosProcInit(const SProcCfg *pCfg) {
@@ -396,15 +398,15 @@ static void taosProcThreadLoop(SProcQueue *pQueue) {
   void         *pHead, *pBody;
   int32_t       headLen, bodyLen;
 
-  uDebug("proc:%s, start to get message from queue:%p", pQueue->name, pQueue);
+  uDebug("proc:%s, start to get msg from queue:%p", pQueue->name, pQueue);
 
   while (1) {
-    int32_t code = taosProcQueuePop(pQueue, &pHead, &headLen, &pBody, &bodyLen);
-    if (code < 0) {
-      uDebug("proc:%s, get no message from queue:%p and exiting", pQueue->name, pQueue);
+    int32_t numOfMsgs = taosProcQueuePop(pQueue, &pHead, &headLen, &pBody, &bodyLen);
+    if (numOfMsgs == 0) {
+      uDebug("proc:%s, get no msg from queue:%p and exit the proc thread", pQueue->name, pQueue);
       break;
-    } else if (code == 0) {
-      uTrace("proc:%s, get no message from queue:%p since %s", pQueue->name, pQueue, terrstr());
+    } else if (numOfMsgs < 0) {
+      uTrace("proc:%s, get no msg from queue:%p since %s", pQueue->name, pQueue, terrstr());
       taosMsleep(1);
       continue;
     } else {

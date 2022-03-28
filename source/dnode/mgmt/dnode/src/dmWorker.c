@@ -101,14 +101,14 @@ static void dmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
 
 int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
   SSingleWorkerCfg mgmtCfg = {
-      .minNum = 1, .maxNum = 1, .name = "dnode-mgmt", .fp = (FItem)dmProcessQueue, .param = pMgmt};
+      .min = 1, .max = 1, .name = "dnode-mgmt", .fp = (FItem)dmProcessQueue, .param = pMgmt};
   if (tSingleWorkerInit(&pMgmt->mgmtWorker, &mgmtCfg) != 0) {
     dError("failed to start dnode mgmt worker since %s", terrstr());
     return -1;
   }
 
   SSingleWorkerCfg statusCfg = {
-      .minNum = 1, .maxNum = 1, .name = "dnode-status", .fp = (FItem)dmProcessQueue, .param = pMgmt};
+      .min = 1, .max = 1, .name = "dnode-status", .fp = (FItem)dmProcessQueue, .param = pMgmt};
   if (tSingleWorkerInit(&pMgmt->statusWorker, &statusCfg) != 0) {
     dError("failed to start dnode status worker since %s", terrstr());
     return -1;

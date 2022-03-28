@@ -57,7 +57,7 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
       return -1;
     }
 
-    SMultiWorkerCfg cfg = {.maxNum = 1, .name = "snode-unique", .fp = smProcessUniqueQueue, .param = pMgmt};
+    SMultiWorkerCfg cfg = {.max = 1, .name = "snode-unique", .fp = smProcessUniqueQueue, .param = pMgmt};
 
     if (tMultiWorkerInit(pUniqueWorker, &cfg) != 0) {
       dError("failed to start snode-unique worker since %s", terrstr());
@@ -69,8 +69,8 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
     }
   }
 
-  SSingleWorkerCfg cfg = {.minNum = SND_SHARED_THREAD_NUM,
-                          .maxNum = SND_SHARED_THREAD_NUM,
+  SSingleWorkerCfg cfg = {.min = SND_SHARED_THREAD_NUM,
+                          .max = SND_SHARED_THREAD_NUM,
                           .name = "snode-shared",
                           .fp = (FItem)smProcessSharedQueue,
                           .param = pMgmt};
