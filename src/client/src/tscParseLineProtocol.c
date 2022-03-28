@@ -91,16 +91,17 @@ static int32_t getFieldBytesFromSmlKv(TAOS_SML_KV* kv, int32_t* bytes, uint64_t 
     *bytes = tDataTypes[kv->type].bytes;
   } else {
     if (kv->type == TSDB_DATA_TYPE_NCHAR) {
-      char* ucs = malloc(kv->length * TSDB_NCHAR_SIZE + 1);
-      int32_t bytesNeeded = 0;
-      bool succ = taosMbsToUcs4(kv->value, kv->length, ucs, kv->length * TSDB_NCHAR_SIZE, &bytesNeeded);
-      if (!succ) {
-        free(ucs);
-        tscError("SML:0x%"PRIx64" convert nchar string to UCS4_LE failed:%s", id, kv->value);
-        return TSDB_CODE_TSC_INVALID_VALUE;
-      }
-      free(ucs);
-      *bytes =  bytesNeeded + VARSTR_HEADER_SIZE;
+//      char* ucs = malloc(kv->length * TSDB_NCHAR_SIZE + 1);
+//      int32_t bytesNeeded = 0;
+//      bool succ = taosMbsToUcs4(kv->value, kv->length, ucs, kv->length * TSDB_NCHAR_SIZE, &bytesNeeded);
+//      if (!succ) {
+//        free(ucs);
+//        tscError("SML:0x%"PRIx64" convert nchar string to UCS4_LE failed:%s", id, kv->value);
+//        return TSDB_CODE_TSC_INVALID_VALUE;
+//      }
+//      free(ucs);
+//      *bytes =  bytesNeeded + VARSTR_HEADER_SIZE;
+      *bytes = kv->length * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
     } else if (kv->type == TSDB_DATA_TYPE_BINARY) {
       *bytes = kv->length + VARSTR_HEADER_SIZE;
     }
