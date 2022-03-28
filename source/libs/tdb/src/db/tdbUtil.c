@@ -32,18 +32,3 @@ int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique) {
 
   return 0;
 }
-
-int tdbGetFileSize(const char *fname, int pgSize, SPgno *pSize) {
-  struct stat st;
-  int         ret;
-  int64_t     file_size = 0;
-  ret = taosStatFile(fname, &file_size, NULL);
-  if (ret != 0) {
-    return -1;
-  }
-
-  ASSERT(file_size % pgSize == 0);
-
-  *pSize = file_size / pgSize;
-  return 0;
-}

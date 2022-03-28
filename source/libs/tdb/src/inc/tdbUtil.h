@@ -30,8 +30,6 @@ extern "C" {
 
 int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique);
 
-int tdbGetFileSize(const char *fname, int pgSize, SPgno *pSize);
-
 #define TDB_REALLOC(PTR, SIZE)                                                               \
   ({                                                                                         \
     void *nPtr;                                                                              \
