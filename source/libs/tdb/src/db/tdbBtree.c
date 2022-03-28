@@ -30,7 +30,6 @@ struct SBTree {
   int            valLen;
   SPager        *pPager;
   FKeyComparator kcmpr;
-  u8             fanout;
   int            pageSize;
   int            maxLocal;
   int            minLocal;
@@ -100,21 +99,14 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, S
   pBt->pPager = pPager;
   // pBt->kcmpr
   pBt->kcmpr = kcmpr ? kcmpr : tdbDefaultKeyCmprFn;
-  // pBt->fanout
-  if (keyLen == TDB_VARIANT_LEN) {
-    pBt->fanout = TDB_DEFAULT_FANOUT;
-  } else {
-    ASSERT(0);
-    // TODO: pBt->fanout = 0;
-  }
   // pBt->pageSize
   pBt->pageSize = tdbPagerGetPageSize(pPager);
   // pBt->maxLocal
-  pBt->maxLocal = (pBt->pageSize - 14) / pBt->fanout;
+  pBt->maxLocal = tdbPageCapacity(pBt->pageSize, sizeof(SIntHdr)) / 4;
   // pBt->minLocal: Should not be allowed smaller than 15, which is [nPayload][nKey][nData]
-  pBt->minLocal = (pBt->pageSize - 14) / pBt->fanout / 2;
+  pBt->minLocal = pBt->maxLocal / 2;
   // pBt->maxLeaf
-  pBt->maxLeaf = pBt->pageSize - 14;
+  pBt->maxLeaf = tdbPageCapacity(pBt->pageSize, sizeof(SLeafHdr));
   // pBt->minLeaf
   pBt->minLeaf = pBt->minLocal;
 
