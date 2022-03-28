@@ -116,7 +116,7 @@ static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, in
 TEST(tdb_test, simple_test) {
   int            ret;
   STEnv         *pEnv;
-  STDB          *pDb;
+  TDB           *pDb;
   FKeyComparator compFunc;
   int            nData = 1000000;
 
@@ -183,11 +183,11 @@ TEST(tdb_test, simple_test) {
     }
 
     {  // Iterate to query the DB data
-      STDBC *pDBC;
-      void  *pKey = NULL;
-      void  *pVal = NULL;
-      int    vLen, kLen;
-      int    count = 0;
+      TDBC *pDBC;
+      void *pKey = NULL;
+      void *pVal = NULL;
+      int   vLen, kLen;
+      int   count = 0;
 
       ret = tdbDbcOpen(pDb, &pDBC);
       GTEST_ASSERT_EQ(ret, 0);
