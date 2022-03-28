@@ -20,6 +20,25 @@
 extern "C" {
 #endif
 
+#define QUERY_EXPLAIN_MAX_RES_LEN 1024
+
+#define EXPLAIN_TAG_SCAN_FORMAT "Tag scan on %s"
+#define EXPLAIN_ORDER_FORMAT "Order: "
+
+typedef struct SQueryExplainRowInfo {
+  int32_t level;
+  int32_t len;
+  char   *buf;
+} SQueryExplainRowInfo;
+
+
+#define QUERY_EXPLAIN_NEWLINE(_format, ...) tlen = snprintf(tbuf + tlen, QUERY_EXPLAIN_MAX_RES_LEN - tlen, _format, __VA_ARGS__)
+#define QUERY_EXPLAIN_APPEND(_format, ...) tlen += snprintf(tbuf + tlen, QUERY_EXPLAIN_MAX_RES_LEN - tlen, _format, __VA_ARGS__)
+
+
+#define QRY_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
+#define QRY_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
+#define QRY_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
 
 
 #ifdef __cplusplus

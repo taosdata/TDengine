@@ -53,6 +53,12 @@ typedef struct SIndexMeta {
 
 } SIndexMeta;
 
+typedef struct SPhysiNodeExplainResNode {
+  SNodeList*  pChildren;
+  SPhysiNode* pNode;
+  void*       pExecInfo;
+} SPhysiNodeExplainResNode;
+
 /*
  * ASSERT(sizeof(SCTableMeta) == 24)
  * ASSERT(tableType == TSDB_CHILD_TABLE)
