@@ -123,7 +123,8 @@ static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t
          pRpc->ahandle);
 
   NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pRpc->msgType)];
-  int32_t   code = (*msgFp)(pWrapper->pMgmt, pMsg);
+  int32_t   code = (*msgFp)(pWrapper, pMsg);
+  dTrace("msg:%p, is processed, code:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
 
   if (code != 0) {
     if (pRpc->msgType & 1U) {

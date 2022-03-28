@@ -140,12 +140,14 @@ void dmStopWorker(SDnodeMgmt *pMgmt) {
   dDebug("dnode workers are closed");
 }
 
-int32_t dmProcessMgmtMsg(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+int32_t dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+  SDnodeMgmt    *pMgmt = pWrapper->pMgmt;
   SSingleWorker *pWorker = &pMgmt->mgmtWorker;
   if (pMsg->rpcMsg.msgType == TDMT_MND_STATUS_RSP) {
     pWorker = &pMgmt->statusWorker;
   }
 
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
-  return taosWriteQitem(pWorker->queue, pMsg);
+  taosWriteQitem(pWorker->queue, pMsg);
+  return 0;
 }

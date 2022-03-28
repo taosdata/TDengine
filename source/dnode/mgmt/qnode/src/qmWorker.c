@@ -49,14 +49,22 @@ static void qmProcessFetchQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
-static int32_t qmPutMsgToWorker(SSingleWorker *pWorker, SNodeMsg *pMsg) {
+static void qmPutMsgToWorker(SSingleWorker *pWorker, SNodeMsg *pMsg) {
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
-  return taosWriteQitem(pWorker->queue, pMsg);
+  taosWriteQitem(pWorker->queue, pMsg);
 }
 
-int32_t qmProcessQueryMsg(SQnodeMgmt *pMgmt, SNodeMsg *pMsg) { return qmPutMsgToWorker(&pMgmt->queryWorker, pMsg); }
+int32_t qmProcessQueryMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+  SQnodeMgmt *pMgmt = pWrapper->pMgmt;
+  qmPutMsgToWorker(&pMgmt->queryWorker, pMsg);
+  return 0;
+}
 
-int32_t qmProcessFetchMsg(SQnodeMgmt *pMgmt, SNodeMsg *pMsg) { return qmPutMsgToWorker(&pMgmt->fetchWorker, pMsg); }
+int32_t qmProcessFetchMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+  SQnodeMgmt *pMgmt = pWrapper->pMgmt;
+  qmPutMsgToWorker(&pMgmt->fetchWorker, pMsg);
+  return 0;
+}
 
 static int32_t qmPutRpcMsgToWorker(SQnodeMgmt *pMgmt, SSingleWorker *pWorker, SRpcMsg *pRpc) {
   SNodeMsg *pMsg = taosAllocateQitem(sizeof(SNodeMsg));
@@ -66,15 +74,8 @@ static int32_t qmPutRpcMsgToWorker(SQnodeMgmt *pMgmt, SSingleWorker *pWorker, SR
 
   dTrace("msg:%p, is created and put into worker:%s, type:%s", pMsg, pWorker->name, TMSG_INFO(pRpc->msgType));
   pMsg->rpcMsg = *pRpc;
-
-  int32_t code = taosWriteQitem(pWorker->queue, pMsg);
-  if (code != 0) {
-    dTrace("msg:%p, is freed", pMsg);
-    taosFreeQitem(pMsg);
-    rpcFreeCont(pRpc->pCont);
-  }
-
-  return code;
+  taosWriteQitem(pWorker->queue, pMsg);
+  return 0;
 }
 
 int32_t qmPutMsgToQueryQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
