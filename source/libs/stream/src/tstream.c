@@ -37,7 +37,8 @@ static int32_t streamBuildDispatchMsg(SStreamTask* pTask, SArray* data, SRpcMsg*
     req.taskId = pTask->fixedEpDispatcher.taskId;
   } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
     int32_t nodeId = 0;
-    char    ctbName[TSDB_TABLE_FNAME_LEN];
+    // TODO fix tbname issue
+    char ctbName[TSDB_TABLE_FNAME_LEN + 22];
     // all groupId must be the same in an array
     SSDataBlock* pBlock = taosArrayGet(data, 0);
     sprintf(ctbName, "%s:%ld", pTask->shuffleDispatcher.stbFullName, pBlock->info.groupId);
