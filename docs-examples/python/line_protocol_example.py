@@ -11,21 +11,25 @@ lines = ["meters,location=Beijing.Chaoyang,groupid=2 current=10.3,voltage=219,ph
          "meters,location=Beijing.Haidian,groupid=3 current=11.3,voltage=221,phase=0.35 1648432611249800",
          ]
 
-# create connection use firstEP in taos.cfg.
-conn = taos.connect()
+
+def get_connection():
+    # create connection use firstEP in taos.cfg.
+    return taos.connect()
 
 
-def create_database():
+def create_database(conn):
     # the default precision is ms (microsecond), but we use us(microsecond) here.
     conn.execute("create database test precision 'us'")
     conn.execute("use test")
 
 
-def insert_lines():
+def insert_lines(conn):
     affected_rows = conn.schemaless_insert(lines, SmlProtocol.LINE_PROTOCOL, SmlPrecision.MICRO_SECONDS)
     print(affected_rows)  # 8
 
 
 if __name__ == '__main__':
-    create_database()
-    insert_lines()
+    connection = get_connection()
+    create_database(connection)
+    insert_lines(connection)
+    connection.close()

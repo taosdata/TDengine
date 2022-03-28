@@ -12,20 +12,24 @@ lines = ["meters.current 1648432611249 10.3 location=Beijing.Chaoyang groupid=2"
          "meters.voltage 1648432611250 217 location=Beijing.Haidian groupid=3",
          ]
 
-# create connection use firstEP in taos.cfg.
-conn = taos.connect()
+
+# create connection use firstEp in taos.cfg.
+def get_connection():
+    return taos.connect()
 
 
-def create_database():
+def create_database(conn):
     conn.execute("create database test")
     conn.execute("use test")
 
 
-def insert_lines():
+def insert_lines(conn):
     affected_rows = conn.schemaless_insert(lines, SmlProtocol.TELNET_PROTOCOL, SmlPrecision.NOT_CONFIGURED)
     print(affected_rows)  # 8
 
 
 if __name__ == '__main__':
-    create_database()
-    insert_lines()
+    connection = get_connection()
+    create_database(connection)
+    insert_lines(connection)
+    connection.close()

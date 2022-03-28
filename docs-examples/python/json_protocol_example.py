@@ -9,16 +9,18 @@ lines = [[{"metric": "meters.current", "timestamp": 1648432611249, "value": 10.3
           {"metric": "meters.voltage", "timestamp": 1648432611250, "value": 221, "tags": {"location": "Beijing.Haidian", "groupid": 1}}]
          ]
 
-# create connection use firstEP in taos.cfg.
-conn = taos.connect()
+
+def get_connection():
+    # create connection use firstEp in taos.cfg.
+    return taos.connect()
 
 
-def create_database():
+def create_database(conn):
     conn.execute("create database test")
     conn.execute("use test")
 
 
-def insert_lines():
+def insert_lines(conn):
     global lines
     lines = [json.dumps(line) for line in lines]
     print(lines)
@@ -27,5 +29,7 @@ def insert_lines():
 
 
 if __name__ == '__main__':
-    create_database()
-    insert_lines()
+    connection = get_connection()
+    create_database(connection)
+    insert_lines(connection)
+    connection.close()
