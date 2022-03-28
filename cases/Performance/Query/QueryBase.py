@@ -14,12 +14,16 @@ class QueryTest(TDCase):
     def tags(self):
         pass
 
+
     def run(self):
         # create json_file
         taosBenchmark_iplist = self.get_fqdn("taosBenchmark")
         taosd_iplist = self.get_fqdn("taosd")
         jfile = QueryFile()
+
         Query_file = Perf_Base_func(self.logger,self.run_log_dir)
+
+
         file_name = []
         json_data = []
 
@@ -37,6 +41,7 @@ class QueryTest(TDCase):
 
 
         # put the file to target
+
         Query_file.put_file(taosBenchmark_iplist, json_data,file_name)
 
         # run taosBenchmark and get result file
@@ -48,7 +53,6 @@ class QueryTest(TDCase):
         # get query result
         Query_file.get_summary_query_result(result_filename)
         Query_file.get_taosBenchmark_query_process_info(result_filename)
-
         # get node_exporter and process_exporter info
         env_setting = self.get_component_by_name("prometheus")
         Query_file.get_process_exporter_info(env_setting, 1,timestamp_start,timestamp_end)
