@@ -297,7 +297,7 @@ static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int16_t *pHea
     bodyLen = *(int32_t *)(pQueue->pBuffer + pQueue->head + 4);
   } else {
     headLen = *(int16_t *)(pQueue->pBuffer);
-    headLen = *(int8_t *)(pQueue->pBuffer + 2);
+    ftype = *(int8_t *)(pQueue->pBuffer + 2);
     bodyLen = *(int32_t *)(pQueue->pBuffer + 4);
   }
 
