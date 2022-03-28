@@ -13,30 +13,27 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TDB_DB_H_
-#define _TD_TDB_DB_H_
+#ifndef _TDB_TXN_H_
+#define _TDB_TXN_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct STDB  TDB;
-typedef struct STDBC TDBC;
+typedef struct STxn STXN;
 
-// TDB
-int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, TENV *pEnv, TDB **ppDb);
-int tdbDbClose(TDB *pDb);
-int tdbDbDrop(TDB *pDb);
-int tdbDbInsert(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen);
-int tdbDbGet(TDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen);
+struct STxn {
+  u64 txnId;
+  void *(*xMalloc)(void *, int);
+  void *xArg;
+};
 
-// TDBC
-int tdbDbcOpen(TDB *pDb, TDBC **ppDbc);
-int tdbDbNext(TDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen);
-int tdbDbcClose(TDBC *pDbc);
+int tdbTxnBegin(TENV *pEnv);
+int tdbTxnCommit(TENV *pEnv);
+int tdbTxnRollback(TENV *pEnv);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TDB_DB_H_*/
+#endif /*_TDB_TXN_H_*/

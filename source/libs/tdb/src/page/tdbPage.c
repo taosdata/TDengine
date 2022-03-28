@@ -48,7 +48,7 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
   *ppPage = NULL;
   size = pageSize + sizeof(*pPage);
   if (xMalloc == NULL) {
-    xMalloc = tdbOsMalloc;
+    xMalloc = tdbDefaultMalloc;
   }
 
   ptr = (u8 *)((*xMalloc)(arg, size));
@@ -76,7 +76,7 @@ int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg)
   u8 *ptr;
 
   if (!xFree) {
-    xFree = tdbOsFree;
+    xFree = tdbDefaultFree;
   }
 
   ptr = pPage->pData;
@@ -144,7 +144,7 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
     }
 
     // TODO: here has memory leak
-    pNewCell = (SCell *)malloc(szCell);
+    pNewCell = (SCell *)tdbOsMalloc(szCell);
     memcpy(pNewCell, pCell, szCell);
 
     pPage->apOvfl[iOvfl] = pNewCell;
@@ -372,10 +372,10 @@ static int tdbPageDefragment(SPage *pPage) {
   int    idx;
   int    iCell;
 
-  ASSERT(pPage->pFreeEnd - pPage->pFreeStart < nFree);
-
   nFree = TDB_PAGE_NFREE(pPage);
   nCells = TDB_PAGE_NCELLS(pPage);
+
+  ASSERT(pPage->pFreeEnd - pPage->pFreeStart < nFree);
 
   // Loop to compact the page content
   // Here we use an O(n^2) algorithm to do the job since
