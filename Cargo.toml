@@ -1,5 +1,6 @@
 [workspace]
 members = [
+  "taos-error",
   "taos-sys",
   "taos",
 ]
@@ -26,7 +27,7 @@ taos = { path = "taos" }
 taos-sys = { path = "taos-sys"}
 futures = "0.3.21"
 libtaos = "*"
-parquet = "9.1.0"
+parquet = "11.0.0"
 glob = "0.3.0"
 bitvec_simd = "0.20.5"
 log = "0.4.16"

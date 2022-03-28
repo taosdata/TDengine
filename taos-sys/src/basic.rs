@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use num_enum::FromPrimitive;
 
 pub const TSDB_DATA_TYPE_NULL: TaosDataType = TaosDataType::Null; // 1 bytes
@@ -68,4 +70,28 @@ pub enum TaosDataType {
     MediumBlob, // 18
     #[num_enum(default)]
     Unknown = 255,
+}
+
+impl FromStr for TaosDataType {
+    type Err = &'static str;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "timestamp" => Ok(TaosDataType::Timestamp),
+            "bool" => Ok(TaosDataType::Bool),
+            "tinyint" => Ok(TaosDataType::TinyInt),
+            "smallint" => Ok(TaosDataType::SmallInt),
+            "int" => Ok(TaosDataType::Int),
+            "bigint" => Ok(TaosDataType::BigInt),
+            "tinyint unsigned" => Ok(TaosDataType::UTinyInt),
+            "smallint unsigned" => Ok(TaosDataType::USmallInt),
+            "int unsigned" => Ok(TaosDataType::UInt),
+            "bigint unsigned" => Ok(TaosDataType::UBigInt),
+            "float" => Ok(TaosDataType::Float),
+            "double" => Ok(TaosDataType::Double),
+            "binary" => Ok(TaosDataType::Binary),
+            "nchar" => Ok(TaosDataType::NChar),
+            "json" => Ok(TaosDataType::Json),
+            _ => Err("not a valid data type string"),
+        }
+    }
 }

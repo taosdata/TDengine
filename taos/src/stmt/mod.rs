@@ -1,4 +1,4 @@
-use crate::{block::serde::Block, util::IntoCStr, Result, Taos, TaosCode, TaosError, TaosResult};
+use crate::{block::column::Column, util::IntoCStr, Code, Result, Taos, TaosError, TaosResult};
 use bitvec_simd::BitVec;
 use taos_sys::*;
 
@@ -30,19 +30,16 @@ pub struct Stmt<'stmt> {
 impl<'stmt> Stmt<'stmt> {
     fn err_or(&self, res: i32) -> Result<()> {
         if res != 0 {
-            let code: TaosCode = (res & 0x0000ffff).into();
+            let code: Code = (res & 0x0000ffff).into();
             let err = unsafe { taos_stmt_errstr(self.stmt) };
             if !err.is_null() {
                 let err = unsafe { CStr::from_ptr(err as _) }
                     .to_string_lossy()
                     .to_owned();
                 trace!("stmt error: {:?}", err);
-                return Err(TaosError { code, err });
+                return Err(TaosError::new(code, err));
             }
-            return Err(TaosError {
-                code,
-                err: "unknown".into(),
-            });
+            return Err(TaosError::new(code, "unknown"));
         }
         Ok(())
     }
@@ -198,15 +195,13 @@ fn test_multi_bind() {
         .unwrap()
         .execute()
         .unwrap();
-    let taos =
-        crate::Taos::new("localhost", "root", "taosdata", "taos_test_multi_bind", 0).unwrap();
-    const N: usize = 5;
+
+    const N: usize = 100;
     let nulls = BitVec::zeros(N);
     let v: Vec<i32> = (0..N).map(|_| rand::random()).collect();
-    let ints = Block::Int(nulls.clone(), v);
-    let v: Vec<i64> = (0..N).map(|ts| ts as i64 + 1500000000000).collect();
-    let ts = Block::Timestamp(nulls, v);
-    dbg!(&ts);
+    let ints = Column::Int(nulls.clone(), v);
+    let v: Vec<i64> = (0..N).map(|ts| ts as i64 + 1_500_000_000_000).collect();
+    let ts = Column::Timestamp(nulls, v);
     let binds = dbg!([ts.to_multi_bind(), ints.to_multi_bind()]);
     let mut stmt = taos.stmt("insert into tb values(?, ?)").unwrap();
     stmt.multi_bind(&binds).unwrap();
@@ -223,21 +218,10 @@ fn test_multi_bind() {
 
 // #[cfg(test)]
 // mod test {
-//     use crate::test::taos;
-//     use crate::*;
-//     use proc_test_catalog::test_catalogue;
-
-//     async fn stmt_test(db: &str, ty: &str, value: Field) -> Result<(), Error> {
-//         let taos = taos()?;
-//         println!("test {} using {}", ty, db);
-//         taos.exec(format!("drop database if exists {}", db)).await?;
 //         taos.exec(format!("create database if not exists {} keep 36500", db))
 //             .await?;
 //         taos.exec(format!("use {}", db)).await?;
 //         taos.exec(format!(
-//             "create table if not exists tb0 (ts timestamp, n {})",
-//             ty
-//         ))
 //         .await?;
 //         let mut stmt = taos.stmt("insert into ? values(?,?)")?;
 //         stmt.set_tbname("tb0")?;
