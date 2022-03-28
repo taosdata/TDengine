@@ -60,7 +60,7 @@ if [ "$pagMode" == "lite" ]; then
   strip ${build_dir}/bin/${serverName}
   strip ${build_dir}/bin/${clientName}
   # lite version doesn't include taosadapter,  which will lead to no restful interface
-  bin_files="${build_dir}/bin/${serverName} ${build_dir}/bin/${clientName} ${script_dir}/remove.sh ${script_dir}/startPre.sh ${build_dir}/bin/taosBenchmark"
+  bin_files="${build_dir}/bin/${serverName} ${build_dir}/bin/${clientName} ${script_dir}/remove.sh ${script_dir}/startPre.sh ${build_dir}/bin/${benchmarkName}"
   taostools_bin_files=""
 else
 
@@ -68,8 +68,8 @@ else
       && echo "TDinsight.sh downloaded!" \
       || echo "failed to download TDinsight.sh"
 
-  taostools_bin_files=" ${build_dir}/bin/taosdump \
-      ${build_dir}/bin/taosBenchmark \
+  taostools_bin_files=" ${build_dir}/bin/${dumpName} \
+      ${build_dir}/bin/${benchmarkName} \
       ${build_dir}/bin/TDinsight.sh "
 
   bin_files="${build_dir}/bin/${serverName} \
