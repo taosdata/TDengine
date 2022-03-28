@@ -20,10 +20,66 @@
 extern "C" {
 #endif
 
-#include "sclfunc.h"
+typedef double (*_getDoubleValue_fn_t)(void *src, int32_t index);
 
-typedef double (*_mathFunc)(double, double, bool *);
+static FORCE_INLINE double getVectorDoubleValue_TINYINT(void *src, int32_t index) {
+  return (double)*((int8_t *)src + index);
+}
+static FORCE_INLINE double getVectorDoubleValue_UTINYINT(void *src, int32_t index) {
+  return (double)*((uint8_t *)src + index);
+}
+static FORCE_INLINE double getVectorDoubleValue_SMALLINT(void *src, int32_t index) {
+  return (double)*((int16_t *)src + index);
+}
+static FORCE_INLINE double getVectorDoubleValue_USMALLINT(void *src, int32_t index) {
+  return (double)*((uint16_t *)src + index);
+}
+static FORCE_INLINE double getVectorDoubleValue_INT(void *src, int32_t index) {
+  return (double)*((int32_t *)src + index);
+}
+static FORCE_INLINE double getVectorDoubleValue_UINT(void *src, int32_t index) {
+  return (double)*((uint32_t *)src + index);
+}
+static FORCE_INLINE double getVectorDoubleValue_BIGINT(void *src, int32_t index) {
+  return (double)*((int64_t *)src + index);
+}
+static FORCE_INLINE double getVectorDoubleValue_UBIGINT(void *src, int32_t index) {
+  return (double)*((uint64_t *)src + index);
+}
+static FORCE_INLINE double getVectorDoubleValue_FLOAT(void *src, int32_t index) {
+  return (double)*((float *)src + index);
+}
+static FORCE_INLINE double getVectorDoubleValue_DOUBLE(void *src, int32_t index) {
+  return (double)*((double *)src + index);
+}
 
+static FORCE_INLINE _getDoubleValue_fn_t getVectorDoubleValueFn(int32_t srcType) {
+  _getDoubleValue_fn_t p = NULL;
+  if (srcType == TSDB_DATA_TYPE_TINYINT) {
+    p = getVectorDoubleValue_TINYINT;
+  } else if (srcType == TSDB_DATA_TYPE_UTINYINT) {
+    p = getVectorDoubleValue_UTINYINT;
+  } else if (srcType == TSDB_DATA_TYPE_SMALLINT) {
+    p = getVectorDoubleValue_SMALLINT;
+  } else if (srcType == TSDB_DATA_TYPE_USMALLINT) {
+    p = getVectorDoubleValue_USMALLINT;
+  } else if (srcType == TSDB_DATA_TYPE_INT) {
+    p = getVectorDoubleValue_INT;
+  } else if (srcType == TSDB_DATA_TYPE_UINT) {
+    p = getVectorDoubleValue_UINT;
+  } else if (srcType == TSDB_DATA_TYPE_BIGINT) {
+    p = getVectorDoubleValue_BIGINT;
+  } else if (srcType == TSDB_DATA_TYPE_UBIGINT) {
+    p = getVectorDoubleValue_UBIGINT;
+  } else if (srcType == TSDB_DATA_TYPE_FLOAT) {
+    p = getVectorDoubleValue_FLOAT;
+  } else if (srcType == TSDB_DATA_TYPE_DOUBLE) {
+    p = getVectorDoubleValue_DOUBLE;
+  } else {
+    assert(0);
+  }
+  return p;
+}
 
 typedef void (*_bufConverteFunc)(char *buf, SScalarParam* pOut, int32_t outType);
 typedef void (*_bin_scalar_fn_t)(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *output, int32_t order);

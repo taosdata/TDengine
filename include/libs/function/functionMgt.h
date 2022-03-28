@@ -103,13 +103,6 @@ struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
 struct STimeWindow;
 
-typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
-
-typedef struct SScalarFuncExecFuncs {
-  FScalarExecProcess process;
-} SScalarFuncExecFuncs;
-
-
 int32_t fmFuncMgtInit();
 
 void fmFuncMgtDestroy();

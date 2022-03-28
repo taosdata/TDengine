@@ -25,23 +25,23 @@ extern "C" {
 bool functionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 void functionFinalize(SqlFunctionCtx *pCtx);
 
-bool getCountFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool getCountFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 void countFunction(SqlFunctionCtx *pCtx);
 
-bool getSumFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool getSumFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 void sumFunction(SqlFunctionCtx *pCtx);
 
 bool minFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 bool maxFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
-bool getMinmaxFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool getMinmaxFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 void minFunction(SqlFunctionCtx* pCtx);
 void maxFunction(SqlFunctionCtx *pCtx);
 
-bool getStddevFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool getStddevFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 void stddevFunction(SqlFunctionCtx* pCtx);
 void stddevFinalize(SqlFunctionCtx* pCtx);
 
-bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool getFirstLastFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 void firstFunction(SqlFunctionCtx *pCtx);
 void lastFunction(SqlFunctionCtx *pCtx);
 
