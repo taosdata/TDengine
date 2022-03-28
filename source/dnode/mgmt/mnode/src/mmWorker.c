@@ -32,8 +32,10 @@ static void mmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
 
   if (pRpc->msgType & 1U) {
     if (pRpc->handle != NULL && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-      if (code != 0) code = terrno;
-      dError("msg:%p, failed to process since %s", pMsg, terrstr());
+      if (code != 0) {
+        code = terrno;
+        dError("msg:%p, failed to process since %s", pMsg, terrstr());
+      }
       SRpcMsg rsp = {.handle = pRpc->handle, .code = code, .contLen = pMsg->rspLen, .pCont = pMsg->pRsp};
       dndSendRsp(pMgmt->pWrapper, &rsp);
     }

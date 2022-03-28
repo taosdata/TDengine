@@ -276,7 +276,7 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->quorum > pCfg->replications) return -1;
   if (pCfg->update < TSDB_MIN_DB_UPDATE || pCfg->update > TSDB_MAX_DB_UPDATE) return -1;
   if (pCfg->cacheLastRow < TSDB_MIN_DB_CACHE_LAST_ROW || pCfg->cacheLastRow > TSDB_MAX_DB_CACHE_LAST_ROW) return -1;
-  if (pCfg->cacheLastRow < TSDB_MIN_DB_STREAM_MODE || pCfg->cacheLastRow > TSDB_MAX_DB_STREAM_MODE) return -1;
+  if (pCfg->streamMode < TSDB_MIN_DB_STREAM_MODE || pCfg->streamMode > TSDB_MAX_DB_STREAM_MODE) return -1;
   return TSDB_CODE_SUCCESS;
 }
 
