@@ -24,7 +24,7 @@ typedef struct STDB  TDB;
 typedef struct STDBC TDBC;
 
 // TDB
-int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, TEnv *pEnv, TDB **ppDb);
+int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, TENV *pEnv, TDB **ppDb);
 int tdbDbClose(TDB *pDb);
 int tdbDbDrop(TDB *pDb);
 int tdbDbInsert(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen);
