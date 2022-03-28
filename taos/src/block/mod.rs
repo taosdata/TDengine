@@ -110,25 +110,6 @@ impl<'a> Block<'a> {
         self.num_of_rows
     }
 
-    // fn as_slice(&self) -> Vec<&[u8]> {
-    //     let num_of_rows = self.num_of_rows();
-    //     let num_of_fields = self.num_of_fields();
-    //     let lengths = self.lengths;
-    //     unsafe {
-    //         self.inner
-    //             .iter()
-    //             .enumerate()
-    //             .map(|(i, col)| {
-    //                 std::slice::from_raw_parts(*col as *mut u8, (lengths[i] * num_of_rows) as usize)
-    //             })
-    //             .collect()
-    //     }
-    // }
-
-    // fn to_owned(&self) -> Vec<Vec<u8>> {
-    //     self.as_slice().into_iter().map(|v| v.to_owned()).collect()
-    // }
-
     pub fn rows_iter<'block>(&'block self) -> RowsIter<'block> {
         RowsIter {
             block: self,
@@ -491,54 +472,6 @@ impl<'block> ExactSizeIterator for ColumnsIter<'block> {
         self.num_of_fields()
     }
 }
-
-// #[derive(Debug, Serialize)]
-// pub enum BorrowedColumn<'block> {
-//     Null(usize),
-//     Bool(BitVec, &'block [bool]),  // 1
-//     TinyInt(BitVec, &'block [i8]), // 2
-//     SmallInt(BitVec, &'block [i16]),
-//     Int(BitVec, &'block [i32]),
-//     BigInt(BitVec, &'block [i64]),
-//     Float(BitVec, &'block [f32]),
-//     Double(BitVec, &'block [f64]),
-//     Binary(Vec<Option<&'block [u8]>>),
-//     Timestamp(BitVec, &'block [i64], TimestampPrecision),
-//     NChar(Vec<Option<&'block str>>),
-//     UTinyInt(BitVec, &'block [u8]),
-//     USmallInt(BitVec, &'block [u16]),
-//     UInt(BitVec, &'block [u32]),
-//     UBigInt(BitVec, &'block [u64]), // 14
-//     Json(BitVec, &'block [u8]),
-//     VarChar(BitVec, Vec<&'block [u8]>),
-//     VarBinary(BitVec, Vec<&'block [u8]>),
-//     Decimal(BitVec, &'block [f64]),
-//     Blob(BitVec, Vec<&'block [u8]>),
-// }
-
-// #[derive(Debug)]
-// pub enum PartialColumn {
-//     Null(usize),
-//     Bool(Vec<Option<bool>>),  // 1
-//     TinyInt(Vec<Option<i8>>), // 2
-//     SmallInt(Vec<Option<i16>>),
-//     Int(Vec<Option<i32>>),
-//     BigInt(Vec<Option<i64>>),
-//     Float(Vec<Option<f32>>),
-//     Double(Vec<Option<f64>>),
-//     Binary(Vec<Option<Vec<u8>>>),
-//     Timestamp(Vec<Option<TimestampValue>>),
-//     NChar(Vec<Option<String>>),
-//     UTinyInt(Vec<Option<u8>>),
-//     USmallInt(Vec<Option<u16>>),
-//     UInt(Vec<Option<u32>>),
-//     UBigInt(Vec<Option<u64>>), // 14
-//     Json(Vec<Option<String>>),
-//     VarChar(Vec<Option<String>>),
-//     VarBinary(Vec<Option<Vec<u8>>>),
-//     Decimal(Vec<Option<f64>>),
-//     Blob(Vec<Option<Vec<u8>>>),
-// }
 
 impl<'a> Stream for BlockStream<'a> {
     // type Item = (*mut TAOS_RES, i32);

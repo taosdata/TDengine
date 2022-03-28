@@ -91,7 +91,8 @@ impl<'a> MultiBind<'a> {
         let num = values.len();
         let mut nulls: Vec<bool> = Vec::with_capacity(values.len());
         let mut length: Vec<i32> = Vec::with_capacity(num);
-        unsafe { nulls.set_len(values.len()) };
+        unsafe { nulls.set_len(num) };
+        unsafe { length.set_len(num) };
         for (i, v) in values.iter().enumerate() {
             if let Some(v) = v {
                 let v = v.as_ref();
@@ -143,14 +144,15 @@ impl<'a> MultiBind<'a> {
 
 impl<'a> Drop for MultiBind<'a> {
     fn drop(&mut self) {
-        let ty = TaosDataType::from(self.0.buffer_type as u8);
-        if ty == TaosDataType::Binary || ty == TaosDataType::NChar {
-            let len = self.0.buffer_length * self.0.num as usize;
-            unsafe { Vec::from_raw_parts(self.0.buffer as *mut u8, len, len as _) };
-            unsafe {
-                Vec::from_raw_parts(self.0.length as *mut i32, self.0.num as _, self.0.num as _)
-            };
-        }
+        // NOTE: seems the binary/nchar data is freed in C, adding this will cause double free.
+        // let ty = TaosDataType::from(self.0.buffer_type as u8);
+        // if ty == TaosDataType::Binary || ty == TaosDataType::NChar {
+        //     let len = self.0.buffer_length * self.0.num as usize;
+        //     unsafe { Vec::from_raw_parts(self.0.buffer as *mut u8, len, len as _) };
+        //     unsafe {
+        //         Vec::from_raw_parts(self.0.length as *mut i32, self.0.num as _, self.0.num as _)
+        //     };
+        // }
         unsafe { Vec::from_raw_parts(self.0.is_null as *mut i8, self.0.num as _, self.0.num as _) };
     }
 }

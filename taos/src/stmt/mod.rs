@@ -215,7 +215,42 @@ fn test_multi_bind() {
         .execute()
         .unwrap();
 }
-
+#[test]
+fn test_multi_bind_str() {
+    let taos = crate::Taos::new("localhost", "root", "taosdata", "", 0).unwrap();
+    taos.stmt("create database if not exists taos_test_multi_bind keep 3650")
+        .unwrap()
+        .execute()
+        .unwrap();
+    taos.stmt("use taos_test_multi_bind")
+        .unwrap()
+        .execute()
+        .unwrap();
+    taos.stmt("create table if not exists tb (ts timestamp, v nchar(100)) ")
+        .unwrap()
+        .execute()
+        .unwrap();
+    let taos =
+        crate::Taos::new("localhost", "root", "taosdata", "taos_test_multi_bind", 0).unwrap();
+    const N: usize = 5;
+    let nulls = BitVec::zeros(N);
+    let v: Vec<Option<String>> = (0..N).map(|_| Some("hello".to_string())).collect();
+    let ints = Column::NChar(v);
+    let v: Vec<i64> = (0..N).map(|ts| ts as i64 + 1500000000000).collect();
+    let ts = Column::Timestamp(nulls, v);
+    dbg!(&ts);
+    let binds = dbg!([ts.to_multi_bind(), ints.to_multi_bind()]);
+    let mut stmt = taos.stmt("insert into tb values(?, ?)").unwrap();
+    stmt.multi_bind(&binds).unwrap();
+    stmt.execute().unwrap();
+    let result = stmt.result().unwrap();
+    let rows = result.affected_rows();
+    assert_eq!(N, rows);
+    taos.stmt("drop database taos_test_multi_bind")
+        .unwrap()
+        .execute()
+        .unwrap();
+}
 // #[cfg(test)]
 // mod test {
 //         taos.exec(format!("create database if not exists {} keep 36500", db))
