@@ -38,7 +38,7 @@
 namespace {
 
 extern "C" int32_t ctgGetTableMetaFromCache(struct SCatalog *pCatalog, const SName *pTableName, STableMeta **pTableMeta,
-                                            int32_t *exist, int32_t flag, uint64_t *dbId);
+                                            bool *inCache, int32_t flag, uint64_t *dbId);
 extern "C" int32_t ctgdGetClusterCacheNum(struct SCatalog* pCatalog, int32_t type);
 extern "C" int32_t ctgActUpdateTbl(SCtgMetaAction *action);
 extern "C" int32_t ctgdEnableDebug(char *option);
@@ -786,15 +786,15 @@ void *ctgTestGetCtableMetaThread(void *param) {
   int32_t          code = 0;
   int32_t          n = 0;
   STableMeta      *tbMeta = NULL;
-  int32_t          exist = 0;
+  bool             inCache = false;
 
   SName cn = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
   strcpy(cn.dbname, "db1");
   strcpy(cn.tname, ctgTestCTablename);
 
   while (!ctgTestStop) {
-    code = ctgGetTableMetaFromCache(pCtg, &cn, &tbMeta, &exist, 0, NULL);
-    if (code || 0 == exist) {
+    code = ctgGetTableMetaFromCache(pCtg, &cn, &tbMeta, &inCache, 0, NULL);
+    if (code || !inCache) {
       assert(0);
     }
 

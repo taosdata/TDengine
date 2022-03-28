@@ -115,6 +115,7 @@ typedef struct SCtgCacheStat {
   uint64_t clusterNum;
   uint64_t dbNum;
   uint64_t tblNum;
+  uint64_t stblNum;
   uint64_t vgHitNum;
   uint64_t vgMissNum;
   uint64_t tblHitNum;
@@ -210,12 +211,13 @@ typedef struct SCtgAction {
 #define CTG_QUEUE_ADD() atomic_add_fetch_64(&gCtgMgmt.queue.qRemainNum, 1)
 #define CTG_QUEUE_SUB() atomic_sub_fetch_64(&gCtgMgmt.queue.qRemainNum, 1)
 
-#define CTG_STAT_ADD(n) atomic_add_fetch_64(&(n), 1)
-#define CTG_STAT_SUB(n) atomic_sub_fetch_64(&(n), 1)
-#define CTG_STAT_GET(n) atomic_load_64(&(n))
+#define CTG_STAT_ADD(_item, _n) atomic_add_fetch_64(&(_item), _n)
+#define CTG_STAT_SUB(_item, _n) atomic_sub_fetch_64(&(_item), _n)
+#define CTG_STAT_GET(_item) atomic_load_64(&(_item))
 
-#define CTG_RUNTIME_STAT_ADD(_item) (CTG_STAT_ADD(gCtgMgmt.stat.runtime._item))
-#define CTG_CACHE_STAT_ADD(_item) (CTG_STAT_ADD(gCtgMgmt.stat.cache._item))
+#define CTG_RUNTIME_STAT_ADD(item, n) (CTG_STAT_ADD(gCtgMgmt.stat.runtime.item, n))
+#define CTG_CACHE_STAT_ADD(item, n) (CTG_STAT_ADD(gCtgMgmt.stat.cache.item, n))
+#define CTG_CACHE_STAT_SUB(item, n) (CTG_STAT_SUB(gCtgMgmt.stat.cache.item, n))
 
 #define CTG_IS_META_NULL(type) ((type) == META_TYPE_NULL_TABLE)
 #define CTG_IS_META_CTABLE(type) ((type) == META_TYPE_CTABLE)
