@@ -194,7 +194,7 @@ fail:
   }
 
   if (pSub != NULL) {
-    taosArrayDestroy(pSub->progress);
+    taosArrayDestroy(&pSub->progress);
     tsem_destroy(&pSub->sem);
     free(pSub);
     pSub = NULL;
@@ -300,7 +300,7 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   }
   taosArraySort(progress, tscCompareSubscriptionProgress);
 
-  taosArrayDestroy(pSub->progress);
+  taosArrayDestroy(&pSub->progress);
   pSub->progress = progress;
 
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
@@ -308,7 +308,7 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
     tscFreeVgroupTableInfo(pTableMetaInfo->pVgroupTables);
     tscBuildVgroupTableInfo(pSql, pTableMetaInfo, tables);
   }
-  taosArrayDestroy(tables);
+  taosArrayDestroy(&tables);
 
   if (pTableMetaInfo->pVgroupTables && taosArrayGetSize(pTableMetaInfo->pVgroupTables) > 0) {
     TSDB_QUERY_SET_TYPE(tscGetQueryInfo(pCmd)->type, TSDB_QUERY_TYPE_MULTITABLE_QUERY);
@@ -468,7 +468,7 @@ SSqlObj* recreateSqlObj(SSub* pSub) {
   }
 
   registerSqlObj(pSql);
-
+  pSql->rootObj = pSql;
   code = tsParseSql(pSql, true);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     tsem_wait(&pSub->sem);
@@ -626,7 +626,7 @@ void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress) {
     }
   }
 
-  taosArrayDestroy(pSub->progress);
+  taosArrayDestroy(&pSub->progress);
   tsem_destroy(&pSub->sem);
   memset(pSub, 0, sizeof(*pSub));
   free(pSub);

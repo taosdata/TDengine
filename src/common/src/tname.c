@@ -4,6 +4,7 @@
 #include "tname.h"
 #include "ttoken.h"
 #include "tvariant.h"
+#include "tglobal.h"
 
 #define VALIDNUMOFCOLS(x)  ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
 #define VALIDNUMOFTAGS(x)  ((x) >= 0 && (x) <= TSDB_MAX_TAGS)
@@ -49,7 +50,7 @@ SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, SStrToken* exprStr, const 
   } else {
     size_t tlen = MIN(sizeof(s.name), exprStr->n + 1);
     tstrncpy(s.name, exprStr->z, tlen);
-    strdequote(s.name);
+    stringProcess(s.name, (int32_t)strlen(s.name));
   }
 
   return s;
@@ -61,7 +62,7 @@ bool tscValidateTableNameLength(size_t len) {
 
 // TODO refactor
 SColumnFilterInfo* tFilterInfoDup(const SColumnFilterInfo* src, int32_t numOfFilters) {
-  if (numOfFilters == 0) {
+  if (numOfFilters == 0 || src == NULL) {
     assert(src == NULL);
     return NULL;
   }
@@ -70,12 +71,11 @@ SColumnFilterInfo* tFilterInfoDup(const SColumnFilterInfo* src, int32_t numOfFil
 
   memcpy(pFilter, src, sizeof(SColumnFilterInfo) * numOfFilters);
   for (int32_t j = 0; j < numOfFilters; ++j) {
-
     if (pFilter[j].filterstr) {
       size_t len = (size_t) pFilter[j].len + 1 * TSDB_NCHAR_SIZE;
       pFilter[j].pz = (int64_t) calloc(1, len);
 
-      memcpy((char*)pFilter[j].pz, (char*)src[j].pz, (size_t)len);
+      memcpy((char*)pFilter[j].pz, (char*)src[j].pz, (size_t) pFilter[j].len);
     }
   }
 
@@ -152,6 +152,63 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
 
 #endif
 
+
+char *tableNameGetPosition(SStrToken* pToken, char target) {
+  bool inEscape = false;
+  bool inQuote = false;
+  char quotaStr = 0;
+  
+  for (uint32_t i = 0; i < pToken->n; ++i) {
+    if (*(pToken->z + i) == target && (!inEscape) && (!inQuote)) {
+      return pToken->z + i;
+    }
+  
+    if (*(pToken->z + i) == TS_BACKQUOTE_CHAR) {
+      if (!inQuote) {
+        inEscape = !inEscape;
+      }
+    }
+  
+    if (*(pToken->z + i) == '\'' || *(pToken->z + i) == '"') {
+      if (!inEscape) {
+        if (!inQuote) {
+          quotaStr = *(pToken->z + i);
+          inQuote = !inQuote;
+        } else if (quotaStr == *(pToken->z + i)) {
+          inQuote = !inQuote;
+        }          
+      }
+    }
+  }
+
+  return NULL;
+}
+
+char *tableNameToStr(char *dst, char *src, char quote) {
+  *dst = 0;
+
+  if (src == NULL) {
+    return NULL;
+  }
+  
+  int32_t len = (int32_t)strlen(src);
+  if (len <= 0) {
+    return NULL;
+  }
+
+  int32_t j = 0;
+  for (int32_t i = 0; i < len; ++i) {
+    if (*(src + i) == quote) {
+      *(dst + j++) = '\\';
+    }
+
+    *(dst + j++) = *(src + i);
+  }
+
+  return dst;
+}
+
+
 /*
  * tablePrefix.columnName
  * extract table name and save it in pTable, with only column name in pToken
@@ -163,12 +220,17 @@ void extractTableNameFromToken(SStrToken* pToken, SStrToken* pTable) {
     return;
   }
 
-  char* r = strnchr(pToken->z, sep, pToken->n, false);
+  char* r = tableNameGetPosition(pToken, sep);  
 
-  if (r != NULL) {  // record the table name token
-    pTable->n = (uint32_t)(r - pToken->z);
-    pTable->z = pToken->z;
-
+  if (r != NULL) {  // record the table name token    
+    if (pToken->z[0] == TS_BACKQUOTE_CHAR && *(r - 1) == TS_BACKQUOTE_CHAR) {
+      pTable->n = (uint32_t)(r - pToken->z - 2);
+      pTable->z = pToken->z + 1;
+    } else {
+      pTable->n = (uint32_t)(r - pToken->z);
+      pTable->z = pToken->z;
+    }
+    
     r += 1;
     pToken->n -= (uint32_t)(r - pToken->z);
     pToken->z = r;
@@ -182,6 +244,41 @@ static struct SSchema _s = {
     .name = TSQL_TBNAME_L,
 };
 
+static struct SSchema _tswin[6] = {
+  {TSDB_DATA_TYPE_TIMESTAMP, TSQL_TSWIN_START,    TSDB_TSWIN_START_COLUMN_INDEX,    LONG_BYTES},
+  {TSDB_DATA_TYPE_TIMESTAMP, TSQL_TSWIN_STOP,     TSDB_TSWIN_STOP_COLUMN_INDEX,     LONG_BYTES},
+  {TSDB_DATA_TYPE_BIGINT,    TSQL_TSWIN_DURATION, TSDB_TSWIN_DURATION_COLUMN_INDEX, LONG_BYTES},
+  {TSDB_DATA_TYPE_TIMESTAMP, TSQL_QUERY_START,    TSDB_QUERY_START_COLUMN_INDEX,    LONG_BYTES},
+  {TSDB_DATA_TYPE_TIMESTAMP, TSQL_QUERY_STOP,     TSDB_QUERY_STOP_COLUMN_INDEX,     LONG_BYTES},
+  {TSDB_DATA_TYPE_BIGINT,    TSQL_QUERY_DURATION, TSDB_QUERY_DURATION_COLUMN_INDEX, LONG_BYTES},
+};
+
+SSchema* tGetTimeWindowColumnSchema(int16_t columnIndex) {
+  switch (columnIndex) {
+    case TSDB_TSWIN_START_COLUMN_INDEX: {
+      return &_tswin[0];
+    }
+    case TSDB_TSWIN_STOP_COLUMN_INDEX: {
+      return &_tswin[1];
+    }
+    case TSDB_TSWIN_DURATION_COLUMN_INDEX: {
+      return &_tswin[2];
+    }
+    case TSDB_QUERY_START_COLUMN_INDEX: {
+      return &_tswin[3];
+    }
+    case TSDB_QUERY_STOP_COLUMN_INDEX: {
+      return &_tswin[4];
+    }
+    case TSDB_QUERY_DURATION_COLUMN_INDEX: {
+      return &_tswin[5];
+    }
+    default: {
+      return NULL;
+    }
+  }
+}
+
 SSchema* tGetTbnameColumnSchema() {
   return &_s;
 }
@@ -190,6 +287,9 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
   int32_t rowLen = 0;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
+    if (pSchema[i].type == TSDB_DATA_TYPE_JSON && numOfCols != 1){
+      return false;
+    }
     // 1. valid types
     if (!isValidDataType(pSchema[i].type)) {
       return false;
@@ -240,8 +340,12 @@ bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTag
   if (!doValidateSchema(pSchema, numOfCols, TSDB_MAX_BYTES_PER_ROW)) {
     return false;
   }
+  int32_t maxTagLen = TSDB_MAX_TAGS_LEN;
+  if (numOfTags == 1 && pSchema[numOfCols].type == TSDB_DATA_TYPE_JSON){
+    maxTagLen = TSDB_MAX_JSON_TAGS_LEN;
+  }
 
-  if (!doValidateSchema(&pSchema[numOfCols], numOfTags, TSDB_MAX_TAGS_LEN)) {
+  if (!doValidateSchema(&pSchema[numOfCols], numOfTags, maxTagLen)) {
     return false;
   }
 

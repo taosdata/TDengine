@@ -56,6 +56,7 @@ typedef struct {
   uint64_t version;   // current version
   uint64_t cversion;  // version while commit start
   uint64_t fversion;  // version on saved data file
+  uint32_t tblMsgVer; // create table msg version
   void *   wqueue;    // write queue
   void *   qqueue;    // read query queue
   void *   fqueue;    // read fetch/cancel queue

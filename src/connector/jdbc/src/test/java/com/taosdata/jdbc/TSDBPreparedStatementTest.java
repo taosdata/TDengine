@@ -1233,6 +1233,7 @@ public class TSDBPreparedStatementTest {
         try {
             Statement statement = conn.createStatement();
             statement.execute("drop database if exists " + dbname);
+            statement.execute("drop database if exists dbtest");
             statement.close();
             if (conn != null)
                 conn.close();

@@ -32,7 +32,8 @@
 #define CONN_KEEP_TIME  (tsShellActivityTimer * 3)
 #define CONN_CHECK_TIME (tsShellActivityTimer * 2)
 #define QUERY_ID_SIZE   20
-#define QUERY_OBJ_ID_SIZE   10
+#define QUERY_OBJ_ID_SIZE   18
+#define SUBQUERY_INFO_SIZE   6
 #define QUERY_STREAM_SAVE_SIZE 20
 
 static SCacheObj *tsMnodeConnCache = NULL;
@@ -165,7 +166,7 @@ static void mnodeCancelGetNextConn(void *pIter) {
 static int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
-  if (strcmp(pUser->user, TSDB_DEFAULT_USER) != 0) return TSDB_CODE_MND_NO_RIGHTS;
+  if (strcmp(pUser->pAcct->user, TSDB_DEFAULT_USER) != 0) return TSDB_CODE_MND_NO_RIGHTS;
   
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
@@ -321,7 +322,7 @@ int32_t mnodeSaveQueryStreamList(SConnObj *pConn, SHeartBeatMsg *pHBMsg) {
 static int32_t mnodeGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
-  if (strcmp(pUser->user, TSDB_DEFAULT_USER) != 0) return TSDB_CODE_MND_NO_RIGHTS;
+  if (strcmp(pUser->pAcct->user, TSDB_DEFAULT_USER) != 0) return TSDB_CODE_MND_NO_RIGHTS;
 
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
@@ -380,9 +381,21 @@ static int32_t mnodeGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
+  pShow->bytes[cols] = 1;
+  pSchema[cols].type = TSDB_DATA_TYPE_BOOL;
+  strcpy(pSchema[cols].name, "stable_query");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "sub_queries");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "sub_query_info");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -459,12 +472,8 @@ static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, v
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int64_t *)pWrite = htobe64(pDesc->useconds);
       cols++;
-      /*
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      *(int64_t *)pWrite = htobe64(pDesc->sqlObjId);
-      cols++;
-      */
-      snprintf(str, tListLen(str), "0x%08" PRIx64, htobe64(pDesc->sqlObjId));
+
+      snprintf(str, tListLen(str), "0x%" PRIx64, htobe64(pDesc->sqlObjId));
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       STR_WITH_MAXSIZE_TO_VARSTR(pWrite, str, pShow->bytes[cols]);
       cols++;
@@ -480,7 +489,15 @@ static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, v
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(bool *)pWrite = pDesc->stableQuery;
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int32_t *)pWrite = htonl(pDesc->numOfSub);
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDesc->subSqlInfo, pShow->bytes[cols]);
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

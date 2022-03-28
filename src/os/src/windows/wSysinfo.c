@@ -94,9 +94,9 @@ static void taosGetSystemTimezone() {
 
 #ifdef _MSC_VER
 #if _MSC_VER >= 1900
-    int64_t timezone = _timezone;
-    int32_t daylight = _daylight;
-    char **tzname = _tzname;
+  int64_t timezone = _timezone;
+  int32_t daylight = _daylight;
+  char **tzname = _tzname;
 #endif
 #endif
 
@@ -120,13 +120,13 @@ static void taosGetSystemLocale() {
 
   SGlobalCfg *cfg_charset = taosGetConfigOption("charset");
   if (cfg_charset && cfg_charset->cfgStatus < TAOS_CFG_CSTATUS_DEFAULT) {
-    strcpy(tsCharset, "cp936");
+    strcpy(tsCharset, "UTF-8");
     cfg_charset->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
     uInfo("charset not configured, set to default:%s", tsCharset);
   }
 }
 
-static int32_t taosGetCpuCores() {
+int32_t taosGetCpuCores() {
   SYSTEM_INFO info;
   GetSystemInfo(&info);
   return (int32_t)info.dwNumberOfProcessors;
@@ -157,45 +157,71 @@ int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
   }
 }
 
+bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
+  if (bytes) *bytes = 0;
+  if (rbytes) *rbytes = 0;
+  if (tbytes) *tbytes = 0;
+  return true;
+}
+
 bool taosGetBandSpeed(float *bandSpeedKb) {
   *bandSpeedKb = 0;
   return true;
 }
 
-bool taosReadProcIO(int64_t *readbyte, int64_t *writebyte) {
+bool taosGetNetworkIO(float *netInKb, float *netOutKb) {
+  *netInKb = 0;
+  *netOutKb = 0;
+  return true;
+}
+
+bool taosReadProcIO(int64_t *rchars, int64_t *wchars, int64_t *rbytes, int64_t *wbytes) {
   IO_COUNTERS io_counter;
   if (GetProcessIoCounters(GetCurrentProcess(), &io_counter)) {
-    if (readbyte) *readbyte = io_counter.ReadTransferCount;
-    if (writebyte) *writebyte = io_counter.WriteTransferCount;
+    if (rchars) *rchars = io_counter.ReadTransferCount;
+    if (wchars) *wchars = io_counter.WriteTransferCount;
     return true;
   }
   return false;
 }
 
-bool taosGetProcIO(float *readKB, float *writeKB) {
-  static int64_t lastReadbyte = -1;
-  static int64_t lastWritebyte = -1;
+bool taosGetProcIO(float *rcharKB, float *wcharKB, float *rbyteKB, float *wbyteKB) {
+  static int64_t lastRchar = -1, lastRbyte = -1;
+  static int64_t lastWchar = -1, lastWbyte = -1;
+  static time_t  lastTime = 0;
+  time_t         curTime = time(NULL);
 
-  int64_t curReadbyte = 0;
-  int64_t curWritebyte = 0;
+  int64_t curRchar = 0, curRbyte = 0;
+  int64_t curWchar = 0, curWbyte = 0;
 
-  if (!taosReadProcIO(&curReadbyte, &curWritebyte)) {
+  if (!taosReadProcIO(&curRchar, &curWchar, &curRbyte, &curWbyte)) {
     return false;
   }
 
-  if (lastReadbyte == -1 || lastWritebyte == -1) {
-    lastReadbyte = curReadbyte;
-    lastWritebyte = curWritebyte;
+  if (lastTime == 0 || lastRchar == -1 || lastWchar == -1 || lastRbyte == -1 || lastWbyte == -1) {
+    lastTime  = curTime;
+    lastRchar = curRchar;
+    lastWchar = curWchar;
+    lastRbyte = curRbyte;
+    lastWbyte = curWbyte;
     return false;
   }
 
-  *readKB = (float)((double)(curReadbyte - lastReadbyte) / 1024);
-  *writeKB = (float)((double)(curWritebyte - lastWritebyte) / 1024);
-  if (*readKB < 0) *readKB = 0;
-  if (*writeKB < 0) *writeKB = 0;
+  *rcharKB = (float)((double)(curRchar - lastRchar) / 1024 / (double)(curTime - lastTime));
+  *wcharKB = (float)((double)(curWchar - lastWchar) / 1024 / (double)(curTime - lastTime));
+  if (*rcharKB < 0) *rcharKB = 0;
+  if (*wcharKB < 0) *wcharKB = 0;
 
-  lastReadbyte = curReadbyte;
-  lastWritebyte = curWritebyte;
+  *rbyteKB = (float)((double)(curRbyte - lastRbyte) / 1024 / (double)(curTime - lastTime));
+  *wbyteKB = (float)((double)(curWbyte - lastWbyte) / 1024 / (double)(curTime - lastTime));
+  if (*rbyteKB < 0) *rbyteKB = 0;
+  if (*wbyteKB < 0) *wbyteKB = 0;
+
+  lastRchar = curRchar;
+  lastWchar = curWchar;
+  lastRbyte = curRbyte;
+  lastWbyte = curWbyte;
+  lastTime  = curTime;
 
   return true;
 }
@@ -204,11 +230,11 @@ void taosGetSystemInfo() {
   tsNumOfCores = taosGetCpuCores();
   tsTotalMemoryMB = taosGetTotalMemory();
 
-  float tmp1, tmp2;
+  float tmp1, tmp2, tmp3, tmp4;
   // taosGetDisk();
   taosGetBandSpeed(&tmp1);
   taosGetCpuUsage(&tmp1, &tmp2);
-  taosGetProcIO(&tmp1, &tmp2);
+  taosGetProcIO(&tmp1, &tmp2, &tmp3, &tmp4);
 
   taosGetSystemTimezone();
   taosGetSystemLocale();
@@ -231,11 +257,6 @@ void taosPrintDiskInfo() {
 void taosKillSystem() {
   uError("function taosKillSystem, exit!");
   exit(0);
-}
-
-int taosSystem(const char *cmd) {
-  uError("taosSystem not support");
-  return -1;
 }
 
 int flock(int fd, int option) { return 0; }

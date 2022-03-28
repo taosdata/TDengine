@@ -85,16 +85,15 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
 
     pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 1);
     dst = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 1) * totalNumOfRows + pField->bytes * i;
-    
     STR_WITH_MAXSIZE_TO_VARSTR(dst, type, pField->bytes);
-    
+
     int32_t bytes = pSchema[i].bytes;
-    if (pSchema[i].type == TSDB_DATA_TYPE_BINARY || pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
+    if (pSchema[i].type == TSDB_DATA_TYPE_BINARY){
       bytes -= VARSTR_HEADER_SIZE;
-      
-      if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
-        bytes = bytes / TSDB_NCHAR_SIZE;
-      }
+    }
+    else if(pSchema[i].type == TSDB_DATA_TYPE_NCHAR || pSchema[i].type == TSDB_DATA_TYPE_JSON) {
+      bytes -= VARSTR_HEADER_SIZE;
+      bytes = bytes / TSDB_NCHAR_SIZE;
     }
 
     pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 2);
@@ -129,12 +128,13 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
     // type length
     int32_t bytes = pSchema[i].bytes;
     pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 2);
-    if (pSchema[i].type == TSDB_DATA_TYPE_BINARY || pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
+
+    if (pSchema[i].type == TSDB_DATA_TYPE_BINARY){
       bytes -= VARSTR_HEADER_SIZE;
-      
-      if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
-        bytes = bytes / TSDB_NCHAR_SIZE;
-      }
+    }
+    else if(pSchema[i].type == TSDB_DATA_TYPE_NCHAR || pSchema[i].type == TSDB_DATA_TYPE_JSON) {
+      bytes -= VARSTR_HEADER_SIZE;
+      bytes = bytes / TSDB_NCHAR_SIZE;
     }
 
     *(int32_t *)(pRes->data + tscFieldInfoGetOffset(pQueryInfo, 2) * totalNumOfRows + pField->bytes * i) = bytes;
@@ -222,7 +222,7 @@ static int32_t tscGetNthFieldResult(TAOS_ROW row, TAOS_FIELD* fields, int *lengt
     return -1;
   } 
   uint8_t type = fields[idx].type;
-  int32_t length = lengths[idx]; 
+  int32_t length = lengths[idx];
 
   switch (type) {
     case TSDB_DATA_TYPE_BOOL: 
@@ -248,6 +248,7 @@ static int32_t tscGetNthFieldResult(TAOS_ROW row, TAOS_FIELD* fields, int *lengt
       break;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_JSON:
       memcpy(result, val, length); 
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
@@ -374,6 +375,8 @@ static int32_t tscGetTableTagValue(SCreateBuilder *builder, char *result) {
         || fields[i].type == TSDB_DATA_TYPE_BINARY 
         || fields[i].type == TSDB_DATA_TYPE_TIMESTAMP) && 0 == ret) {
       snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "\"%s\",", buf);
+    } else if (fields[i].type == TSDB_DATA_TYPE_JSON) {
+      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "'%s,", buf);
     } else {
       snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "%s,", buf);
     }
@@ -381,7 +384,11 @@ static int32_t tscGetTableTagValue(SCreateBuilder *builder, char *result) {
     free(buf);
 
     if (i == num_fields - 1) {
-      sprintf(result + strlen(result) - 1, "%s", ")");
+      if (fields[i].type == TSDB_DATA_TYPE_JSON) {
+        sprintf(result + strlen(result) - 1, "'%s", ")");
+      } else {
+        sprintf(result + strlen(result) - 1, "%s", ")");
+      }
     }
   }
 
@@ -405,7 +412,7 @@ static int32_t tscSCreateBuildResultFields(SSqlObj *pSql, BuildType type, const 
   TAOS_FIELD f; 
   if (type == SCREATE_BUILD_TABLE) {
     f.type  = TSDB_DATA_TYPE_BINARY;
-    f.bytes = (TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
+    f.bytes = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
     tstrncpy(f.name, "Table", sizeof(f.name));
   } else {
     f.type  = TSDB_DATA_TYPE_BINARY;
@@ -440,7 +447,7 @@ static int32_t tscSCreateSetValueToResObj(SSqlObj *pSql, int32_t rowLen, const c
   SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
   int32_t numOfRows = 1;
   if (strlen(ddl) == 0) {
-    
+
   }
   pSql->res.pMerger = tscInitResObjForLocalQuery(numOfRows, rowLen, pSql->self);
   tscInitResForMerge(&pSql->res);
@@ -459,7 +466,7 @@ static int32_t tscSCreateBuildResult(SSqlObj *pSql, BuildType type, const char *
   int32_t rowLen = tscSCreateBuildResultFields(pSql, type, result);
 
   tscFieldInfoUpdateOffset(pQueryInfo);
-  return tscSCreateSetValueToResObj(pSql, rowLen, str, result);  
+  return tscSCreateSetValueToResObj(pSql, rowLen, str, result);
 }
 int32_t tscRebuildCreateTableStatement(void *param,char *result) {
   SCreateBuilder *builder = (SCreateBuilder *)param;
@@ -472,9 +479,9 @@ int32_t tscRebuildCreateTableStatement(void *param,char *result) {
 
   code = tscGetTableTagValue(builder, buf);
   if (code == TSDB_CODE_SUCCESS) {
-    snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "CREATE TABLE %s USING %s TAGS %s", builder->buf, builder->sTableName, buf);
-    code = tscSCreateBuildResult(builder->pParentSql, SCREATE_BUILD_TABLE, builder->buf, result);    
-  }  
+    snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "CREATE TABLE `%s` USING `%s` TAGS %s", builder->buf, builder->sTableName, buf);
+    code = tscSCreateBuildResult(builder->pParentSql, SCREATE_BUILD_TABLE, builder->buf, result);
+  }
   free(buf);
   return code;
 }
@@ -484,33 +491,56 @@ static int32_t tscGetDBInfo(SCreateBuilder *builder, char *result) {
   if (row == NULL) {
    return TSDB_CODE_TSC_DB_NOT_SELECTED;
   }
-  const char *showColumns[] = {"REPLICA", "QUORUM", "DAYS", "KEEP", "BLOCKS", NULL};
+  const char *showColumns[][2] = {
+    {"REPLICA", "REPLICA"},
+    {"QUORUM", "QUORUM"},
+    {"DAYS", "DAYS"},
+#ifdef _STORAGE
+    {"KEEP0,KEEP1,KEEP2", "KEEP"},
+#else
+    {"KEEP", "KEEP"},
+#endif
+    {"CACHE(MB)", "CACHE"},
+    {"BLOCKS", "BLOCKS"},
+    {"MINROWS", "MINROWS"},
+    {"MAXROWS", "MAXROWS"},
+    {"WALLEVEL", "WAL"},
+    {"FSYNC", "FSYNC"},
+    {"COMP", "COMP"},
+    {"CACHELAST", "CACHELAST"},
+    {"PRECISION", "PRECISION"},
+    {"UPDATE", "UPDATE"},
+    {NULL, NULL}};
 
   SSqlObj *pSql = builder->pInterSql;
   TAOS_FIELD *fields = taos_fetch_fields(pSql);
   int num_fields = taos_num_fields(pSql);
 
-  char buf[TSDB_DB_NAME_LEN + 64] = {0}; 
+  char buf[TSDB_DB_NAME_LEN + 64] = {0};
   do {
     memset(buf, 0, sizeof(buf));
-    int32_t* lengths = taos_fetch_lengths(pSql);  
+    int32_t* lengths = taos_fetch_lengths(pSql);
     int32_t ret = tscGetNthFieldResult(row, fields, lengths, 0, buf);
     if (0 == ret && STR_NOCASE_EQUAL(buf, strlen(buf), builder->buf, strlen(builder->buf))) {
-      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "CREATE DATABASE %s", buf);  
+      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "CREATE DATABASE %s", buf);
       for (int i = 1; i < num_fields; i++) {
-        for (int j = 0; showColumns[j] != NULL; j++) {
-          if (STR_NOCASE_EQUAL(fields[i].name, strlen(fields[i].name), showColumns[j], strlen(showColumns[j]))) {
+        for (int j = 0; showColumns[j][0] != NULL; j++) {
+          if (STR_NOCASE_EQUAL(fields[i].name, strlen(fields[i].name), showColumns[j][0], strlen(showColumns[j][0]))) {
             memset(buf, 0, sizeof(buf));
             ret = tscGetNthFieldResult(row, fields, lengths, i, buf);
             if (ret == 0) {
-              snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), " %s %s", showColumns[j], buf); 
+	      if (STR_NOCASE_EQUAL(showColumns[j][0], strlen(showColumns[j][0]), "PRECISION", strlen("PRECISION"))) {
+                snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), " %s '%s'", showColumns[j][1], buf);
+	      } else {
+                snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), " %s %s", showColumns[j][1], buf);
+	      }
             }
           }
         }
       }
       break;
-    } 
-    
+    }
+
     row = tscFetchRow(builder);
   } while (row != NULL);
 
@@ -528,9 +558,9 @@ int32_t tscRebuildCreateDBStatement(void *param,char *result) {
   if (buf == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
-  code = tscGetDBInfo(param, buf);  
+  code = tscGetDBInfo(param, buf);
   if (code == TSDB_CODE_SUCCESS) {
-    code = tscSCreateBuildResult(builder->pParentSql, SCREATE_BUILD_DB, builder->buf, buf);    
+    code = tscSCreateBuildResult(builder->pParentSql, SCREATE_BUILD_DB, builder->buf, buf);
   }
   free(buf);
   return code;
@@ -539,7 +569,7 @@ int32_t tscRebuildCreateDBStatement(void *param,char *result) {
 static int32_t tscGetTableTagColumnName(SSqlObj *pSql, char **result) {
   char *buf = (char *)malloc(TSDB_MAX_BINARY_LEN);
   if (buf == NULL) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY; 
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   buf[0] = 0;
 
@@ -548,45 +578,47 @@ static int32_t tscGetTableTagColumnName(SSqlObj *pSql, char **result) {
       pMeta->tableType == TSDB_STREAM_TABLE) {
     free(buf);
     return TSDB_CODE_TSC_INVALID_VALUE;
-  } 
+  }
 
-  SSchema *pTagsSchema = tscGetTableTagSchema(pMeta);  
+  SSchema *pTagsSchema = tscGetTableTagSchema(pMeta);
   int32_t numOfTags = tscGetNumOfTags(pMeta);
   for (int32_t i = 0; i < numOfTags; i++) {
     if (i != numOfTags - 1) {
-      snprintf(buf + strlen(buf), TSDB_MAX_BINARY_LEN - strlen(buf), "%s,", pTagsSchema[i].name);  
+      snprintf(buf + strlen(buf), TSDB_MAX_BINARY_LEN - strlen(buf), "`%s`,", pTagsSchema[i].name);
     } else {
-      snprintf(buf + strlen(buf), TSDB_MAX_BINARY_LEN - strlen(buf), "%s", pTagsSchema[i].name);
+      snprintf(buf + strlen(buf), TSDB_MAX_BINARY_LEN - strlen(buf), "`%s`", pTagsSchema[i].name);
     }
-  }   
+  }
 
   *result = buf;
   return TSDB_CODE_SUCCESS;
-}  
+}
 static int32_t tscRebuildDDLForSubTable(SSqlObj *pSql, const char *tableName, char *ddl) {
   SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableMeta *    pMeta = pTableMetaInfo->pTableMeta;
 
-  SSqlObj *pInterSql = (SSqlObj *)calloc(1, sizeof(SSqlObj)); 
+  SSqlObj *pInterSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
   if (pInterSql == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  }  
+  }
 
-  SCreateBuilder *param = (SCreateBuilder *)malloc(sizeof(SCreateBuilder));    
+  SCreateBuilder *param = (SCreateBuilder *)malloc(sizeof(SCreateBuilder));
   if (param == NULL) {
     free(pInterSql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
   char fullName[TSDB_TABLE_FNAME_LEN * 2] = {0};
+  char tblName[TSDB_TABLE_NAME_LEN + 1] = {0};
   tNameGetDbName(&pTableMetaInfo->name, fullName);
 
   extractTableName(pMeta->sTableName, param->sTableName);
-  snprintf(fullName + strlen(fullName), TSDB_TABLE_FNAME_LEN - strlen(fullName),  ".%s", param->sTableName);
+  snprintf(fullName + strlen(fullName), TSDB_TABLE_FNAME_LEN - strlen(fullName),  ".`%s`", param->sTableName);
 
   strncpy(param->buf, tNameGetTableName(&pTableMetaInfo->name), TSDB_TABLE_NAME_LEN);
+  tableNameToStr(tblName, param->buf, '\'');
 
   param->pParentSql = pSql;
   param->pInterSql  = pInterSql;
@@ -609,7 +641,7 @@ static int32_t tscRebuildDDLForSubTable(SSqlObj *pSql, const char *tableName, ch
     return code;
   }
 
-  snprintf(query + strlen(query), TSDB_MAX_BINARY_LEN - strlen(query), "SELECT %s FROM %s WHERE TBNAME IN(\'%s\')", columns, fullName, param->buf);
+  snprintf(query + strlen(query), TSDB_MAX_BINARY_LEN - strlen(query), "SELECT %s FROM %s WHERE TBNAME IN(\'%s\')", columns, fullName, tblName);
   doAsyncQuery(pSql->pTscObj, pInterSql, tscSCreateCallBack, param, query, strlen(query));
   free(query);
   free(columns);
@@ -626,7 +658,7 @@ static int32_t tscRebuildDDLForNormalTable(SSqlObj *pSql, const char *tableName,
   SSchema *pSchema = tscGetTableSchema(pMeta);
 
   char *result = ddl;
-  sprintf(result, "create table %s (", tableName);
+  sprintf(result, "CREATE TABLE `%s` (", tableName);
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint8_t type = pSchema[i].type;
     if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
@@ -634,9 +666,9 @@ static int32_t tscRebuildDDLForNormalTable(SSqlObj *pSql, const char *tableName,
       if (type == TSDB_DATA_TYPE_NCHAR) {
         bytes =  bytes/TSDB_NCHAR_SIZE;
       }
-      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "%s %s(%d),", pSchema[i].name, tDataTypes[pSchema[i].type].name, bytes);
+      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "`%s` %s(%d),", pSchema[i].name, tDataTypes[pSchema[i].type].name, bytes);
     } else {
-      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "%s %s,", pSchema[i].name, tDataTypes[pSchema[i].type].name);
+      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "`%s` %s,", pSchema[i].name, tDataTypes[pSchema[i].type].name);
     }
   }
   sprintf(result + strlen(result) - 1, "%s", ")");
@@ -653,7 +685,7 @@ static int32_t tscRebuildDDLForSuperTable(SSqlObj *pSql, const char *tableName, 
   int32_t totalRows = numOfRows + tscGetNumOfTags(pMeta);
   SSchema *pSchema = tscGetTableSchema(pMeta);
 
-  sprintf(result, "create table %s (", tableName);
+  sprintf(result, "CREATE TABLE `%s` (", tableName);
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint8_t type = pSchema[i].type;
     if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
@@ -661,9 +693,9 @@ static int32_t tscRebuildDDLForSuperTable(SSqlObj *pSql, const char *tableName, 
       if (type == TSDB_DATA_TYPE_NCHAR) {
         bytes =  bytes/TSDB_NCHAR_SIZE;
       }
-      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result),"%s %s(%d),", pSchema[i].name,tDataTypes[pSchema[i].type].name, bytes);
+      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result),"`%s` %s(%d),", pSchema[i].name,tDataTypes[pSchema[i].type].name, bytes);
     } else {
-      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "%s %s,", pSchema[i].name, tDataTypes[type].name);
+      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "`%s` %s,", pSchema[i].name, tDataTypes[type].name);
     }
   }
   snprintf(result + strlen(result) - 1, TSDB_MAX_BINARY_LEN - strlen(result), "%s %s", ")", "TAGS (");
@@ -675,9 +707,9 @@ static int32_t tscRebuildDDLForSuperTable(SSqlObj *pSql, const char *tableName, 
       if (type == TSDB_DATA_TYPE_NCHAR) {
         bytes =  bytes/TSDB_NCHAR_SIZE;
       }
-      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "%s %s(%d),", pSchema[i].name,tDataTypes[pSchema[i].type].name, bytes);
+      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "`%s` %s(%d),", pSchema[i].name,tDataTypes[pSchema[i].type].name, bytes);
     } else {
-      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "%s %s,", pSchema[i].name, tDataTypes[type].name);
+      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "`%s` %s,", pSchema[i].name, tDataTypes[type].name);
     }
   }
   sprintf(result + strlen(result) - 1, "%s", ")");
@@ -931,8 +963,8 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
   } else if (pCmd->command == TSDB_SQL_SHOW_CREATE_DATABASE) {
     pRes->code = tscProcessShowCreateDatabase(pSql); 
   } else if (pCmd->command == TSDB_SQL_RESET_CACHE) {
-    taosHashClear(tscTableMetaMap);
-    taosCacheEmpty(tscVgroupListBuf);
+    taosHashClear(UTIL_GET_TABLEMETA(pSql));
+    taosCacheEmpty(UTIL_GET_VGROUPLIST(pSql));
     pRes->code = TSDB_CODE_SUCCESS;
   } else if (pCmd->command == TSDB_SQL_SERV_VERSION) {
     pRes->code = tscProcessServerVer(pSql);

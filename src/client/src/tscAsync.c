@@ -62,7 +62,9 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
   pCmd->resColumnId = TSDB_RES_COL_ID;
 
   taosAcquireRef(tscObjRef, pSql->self);
+
   int32_t code = tsParseSql(pSql, true);
+
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     taosReleaseRef(tscObjRef, pSql->self);
     return;
@@ -77,7 +79,6 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
 
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
   executeQuery(pSql, pQueryInfo);
-
   taosReleaseRef(tscObjRef, pSql->self);
 }
 
@@ -236,7 +237,7 @@ void taos_fetch_rows_a(TAOS_RES *tres, __async_cb_func_t fp, void *param) {
     return;
   }
 
-  if (pRes->qId == 0) {
+  if (pRes->qId == 0 && pSql->cmd.command != TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
     tscError("qhandle is invalid");
     pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;
     tscAsyncResultOnError(pSql);
@@ -312,7 +313,12 @@ static void tscAsyncResultCallback(SSchedMsg *pMsg) {
   }
 
   assert(pSql->res.code != TSDB_CODE_SUCCESS);
-  tscError("0x%"PRIx64" async result callback, code:%s", pSql->self, tstrerror(pSql->res.code));
+  if (tsShortcutFlag) {
+    tscDebug("0x%" PRIx64 " async result callback, code:%s", pSql->self, tstrerror(pSql->res.code));
+    pSql->res.code = TSDB_CODE_SUCCESS;
+  } else {
+    tscError("0x%" PRIx64 " async result callback, code:%s", pSql->self, tstrerror(pSql->res.code));
+  }
 
   SSqlRes *pRes = &pSql->res;
   if (pSql->fp == NULL || pSql->fetchFp == NULL){
@@ -350,6 +356,11 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   const char* msg = (sub->cmd.command == TSDB_SQL_STABLEVGROUP)? "vgroup-list":"multi-tableMeta";
   if (code != TSDB_CODE_SUCCESS) {
     tscError("0x%"PRIx64" get %s failed, code:%s", pSql->self, msg, tstrerror(code));
+    if (code == TSDB_CODE_RPC_FQDN_ERROR) {
+      size_t sz = strlen(tscGetErrorMsgPayload(&sub->cmd));
+      tscAllocPayload(&pSql->cmd, (int)sz + 1); 
+      memcpy(tscGetErrorMsgPayload(&pSql->cmd), tscGetErrorMsgPayload(&sub->cmd), sz);
+    } 
     goto _error;
   }
 
@@ -357,7 +368,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   if (pSql->pStream == NULL) {
     SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
 
-    if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT)) {
+    if (pQueryInfo != NULL && TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT)) {
       tscDebug("0x%" PRIx64 " continue parse sql after get table-meta", pSql->self);
 
       code = tsParseSql(pSql, false);
@@ -378,7 +389,6 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     } else {
       if (pSql->retryReason != TSDB_CODE_SUCCESS) {
         tscDebug("0x%" PRIx64 " update cached table-meta, re-validate sql statement and send query again", pSql->self);
-        tscResetSqlCmd(pCmd, false);
         pSql->retryReason = TSDB_CODE_SUCCESS;
       } else {
         tscDebug("0x%" PRIx64 " cached table-meta, continue validate sql statement and send query", pSql->self);

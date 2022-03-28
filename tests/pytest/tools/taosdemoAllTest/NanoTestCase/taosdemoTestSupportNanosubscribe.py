@@ -56,9 +56,11 @@ class TDTestCase:
         self.subResult = subResult
         self.expectResult = expectResult
         args0 = (filename, subResult, expectResult)
+        print("Queryfile:%s ,result is %s != expect: %s" % args0)
         assert subResult == expectResult , "Queryfile:%s ,result is %s != expect: %s" % args0    
 
     def run(self):
+        tdSql.prepare()
         buildPath = self.getBuildPath()
         if (buildPath == ""):
             tdLog.exit("taosd not found!")
@@ -66,26 +68,30 @@ class TDTestCase:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"      
 
-        # clear env
-        os.system("ps -ef |grep 'taosdemoAllTest/taosdemoTestSupportNanoSubscribe.json' |grep -v 'grep' |awk '{print $2}'|xargs kill -9")
+        # clear envs
+
+        os.system("ps -aux |grep 'taosdemoAllTest/taosdemoTestSupportNanoSubscribe.json'  |awk '{print $2}'|xargs kill -9 >/dev/null 2>&1")
+        os.system("ps -aux |grep 'tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabaseInsertForSub.json'  |awk '{print $2}'|xargs kill -9 >/dev/null 2>&1")
         os.system("rm -rf ./subscribe_res*")  
         os.system("rm -rf ./all_subscribe_res*")  
-        
 
         # insert data
-        os.system("%staosdemo -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabaseInsertForSub.json" % binPath)
-        os.system("nohup %staosdemo -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoSubscribe.json &" % binPath)
-        query_pid = int(subprocess.getstatusoutput('ps aux|grep "taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoSubscribe.json" |grep -v "grep"|awk \'{print $2}\'')[1])
-
-
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabaseInsertForSub.json" % binPath)
+        tdSql.query("select count(*) from subnsdb.stb0")
+        tdSql.checkData(0,0,100)
+        
+        os.system(" nohup %staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoSubscribe.json & >/dev/null 2>&1" % binPath)
+        sleep(3)
+        print('taosBenchmark query done!')
+            
         # merge result files
-        sleep(5)
+        
         os.system("cat subscribe_res0.txt* > all_subscribe_res0.txt")
         os.system("cat subscribe_res1.txt* > all_subscribe_res1.txt")
         os.system("cat subscribe_res2.txt* > all_subscribe_res2.txt")
-
+        sleep(5)
         
-        # correct subscribeTimes testcase
+        # check subscribeTimes testcase
         subTimes0 = self.subTimes("all_subscribe_res0.txt")
         self.assertCheck("all_subscribe_res0.txt",subTimes0 ,200)
 
@@ -99,27 +105,26 @@ class TDTestCase:
         # insert extral data     
         tdSql.execute("use subnsdb")
         tdSql.execute("insert into tb0_0 values(now,100.1000,'subtest1',now-1s)")
-        sleep(15)   
+        sleep(5)   
 
         os.system("cat subscribe_res0.txt* > all_subscribe_res0.txt")
         subTimes0 = self.subTimes("all_subscribe_res0.txt")
-        print("pass")
         self.assertCheck("all_subscribe_res0.txt",subTimes0 ,202)
 
-        
-
-        # correct data testcase
-        os.system("kill -9 %d" % query_pid)
         sleep(3)
         os.system("rm -rf ./subscribe_res*")   
         os.system("rm -rf ./all_subscribe*")
         os.system("rm -rf ./*.py.sql")
-  
+        os.system("rm -rf ./nohup*")
+        os.system("ps -aux |grep 'taosdemoAllTest/taosdemoTestSupportNanoSubscribe.json' |awk '{print $2}'|xargs kill -9 >/dev/null 2>&1")
+        os.system("ps -aux |grep 'tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoSubscribe.json' |awk '{print $2}'|xargs kill -9 >/dev/null 2>&1")
+        os.system("ps -aux |grep 'tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabaseInsertForSub.json' |awk '{print $2}'|xargs kill -9 >/dev/null 2>&1")
+        
 
-         
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())
+

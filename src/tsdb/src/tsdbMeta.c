@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "tsdbint.h"
+#include "tcompare.h"
+#include "tutil.h"
 
 #define TSDB_SUPER_TABLE_SL_LEVEL 5
 #define DEFAULT_TAG_INDEX_COLUMN 0
@@ -43,6 +45,7 @@ static int     tsdbRemoveTableFromStore(STsdbRepo *pRepo, STable *pTable);
 static int     tsdbRmTableFromMeta(STsdbRepo *pRepo, STable *pTable);
 static int     tsdbAdjustMetaTables(STsdbRepo *pRepo, int tid);
 static int     tsdbCheckTableTagVal(SKVRow *pKVRow, STSchema *pSchema);
+static int     tsdbInsertNewTableAction(STsdbRepo *pRepo, STable* pTable);
 static int     tsdbAddSchema(STable *pTable, STSchema *pSchema);
 static void    tsdbFreeTableSchema(STable *pTable);
 
@@ -117,32 +120,29 @@ int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
   tsdbWLockRepoMeta(pRepo);
   if (newSuper) {
     if (tsdbAddTableToMeta(pRepo, super, true, false) < 0) {
+      super = NULL;
       tsdbUnlockRepoMeta(pRepo);
       goto _err;
     }
   }
   if (tsdbAddTableToMeta(pRepo, table, true, false) < 0) {
+    table = NULL;
     tsdbUnlockRepoMeta(pRepo);
     goto _err;
   }
   tsdbUnlockRepoMeta(pRepo);
 
   // Write to memtable action
-  // TODO: refactor duplicate codes
-  int   tlen = 0;
-  void *pBuf = NULL;
   if (newSuper || superChanged) {
-    tlen = tsdbGetTableEncodeSize(TSDB_UPDATE_META, super);
-    pBuf = tsdbAllocBytes(pRepo, tlen);
-    if (pBuf == NULL) goto _err;
-    void *tBuf = tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, pBuf, super);
-    ASSERT(POINTER_DISTANCE(tBuf, pBuf) == tlen);
+    // add insert new super table action
+    if (tsdbInsertNewTableAction(pRepo, super) != 0) {
+      goto _err;
+    }
   }
-  tlen = tsdbGetTableEncodeSize(TSDB_UPDATE_META, table);
-  pBuf = tsdbAllocBytes(pRepo, tlen);
-  if (pBuf == NULL) goto _err;
-  void *tBuf = tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, pBuf, table);
-  ASSERT(POINTER_DISTANCE(tBuf, pBuf) == tlen);
+  // add insert new table action
+  if (tsdbInsertNewTableAction(pRepo, table) != 0) {
+    goto _err;
+  }
 
   if (tsdbCheckCommit(pRepo) < 0) return -1;
 
@@ -204,7 +204,7 @@ _err:
   return -1;
 }
 
-void *tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type, int16_t bytes) {
+void *tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type) {
   // TODO: this function should be changed also
 
   STSchema *pSchema = tsdbGetTableTagSchema((STable*) pTable);
@@ -213,12 +213,13 @@ void *tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type, int16_
     return NULL;  // No matched tag volumn
   }
 
-  char *val = tdGetKVRowValOfCol(((STable*)pTable)->tagVal, colId);
-  assert(type == pCol->type && bytes >= pCol->bytes);
-
-  // if (val != NULL && IS_VAR_DATA_TYPE(type)) {
-  //   assert(varDataLen(val) < pCol->bytes);
-  // }
+  char *val = NULL;
+  if (pCol->type == TSDB_DATA_TYPE_JSON){
+    val = ((STable*)pTable)->tagVal;
+  }else{
+    val = tdGetKVRowValOfCol(((STable*)pTable)->tagVal, colId);
+    assert(type == pCol->type);
+  }
 
   return val;
 }
@@ -383,7 +384,7 @@ int tsdbUpdateTableTagValue(STsdbRepo *repo, SUpdateTableTagValMsg *pMsg) {
     tdDestroyTSchemaBuilder(&schemaBuilder);
   }
 
-  // Chage in memory
+  // Change in memory
   if (pNewSchema != NULL) { // change super table tag schema
     TSDB_WLOCK_TABLE(pTable->pSuper);
     STSchema *pOldSchema = pTable->pSuper->tagSchema;
@@ -392,7 +393,8 @@ int tsdbUpdateTableTagValue(STsdbRepo *repo, SUpdateTableTagValMsg *pMsg) {
     TSDB_WUNLOCK_TABLE(pTable->pSuper);
   }
 
-  bool      isChangeIndexCol = (pMsg->colId == colColId(schemaColAt(pTable->pSuper->tagSchema, 0)));
+  bool      isChangeIndexCol = (pMsg->colId == colColId(schemaColAt(pTable->pSuper->tagSchema, 0)))
+      || pMsg->type == TSDB_DATA_TYPE_JSON;
   // STColumn *pCol = bsearch(&(pMsg->colId), pMsg->data, pMsg->numOfTags, sizeof(STColumn), colIdCompar);
   // ASSERT(pCol != NULL);
 
@@ -401,7 +403,12 @@ int tsdbUpdateTableTagValue(STsdbRepo *repo, SUpdateTableTagValMsg *pMsg) {
     tsdbRemoveTableFromIndex(pMeta, pTable);
   }
   TSDB_WLOCK_TABLE(pTable);
-  tdSetKVRowDataOfCol(&(pTable->tagVal), pMsg->colId, pMsg->type, POINTER_SHIFT(pMsg->data, pMsg->schemaLen));
+  if (pMsg->type == TSDB_DATA_TYPE_JSON){
+    kvRowFree(pTable->tagVal);
+    pTable->tagVal = tdKVRowDup(POINTER_SHIFT(pMsg->data, pMsg->schemaLen));
+  }else{
+    tdSetKVRowDataOfCol(&(pTable->tagVal), pMsg->colId, pMsg->type, POINTER_SHIFT(pMsg->data, pMsg->schemaLen));
+  }
   TSDB_WUNLOCK_TABLE(pTable);
   if (isChangeIndexCol) {
     tsdbAddTableIntoIndex(pMeta, pTable, false);
@@ -426,6 +433,21 @@ int tsdbUpdateTableTagValue(STsdbRepo *repo, SUpdateTableTagValMsg *pMsg) {
 }
 
 // ------------------ INTERNAL FUNCTIONS ------------------
+static int tsdbInsertNewTableAction(STsdbRepo *pRepo, STable* pTable) {
+  int   tlen = 0;
+  void *pBuf = NULL;
+
+  tlen = tsdbGetTableEncodeSize(TSDB_UPDATE_META, pTable);
+  pBuf = tsdbAllocBytes(pRepo, tlen);
+  if (pBuf == NULL) {
+    return -1;
+  }
+  void *tBuf = tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, pBuf, pTable);
+  ASSERT(POINTER_DISTANCE(tBuf, pBuf) == tlen);
+
+  return 0;
+}
+
 STsdbMeta *tsdbNewMeta(STsdbCfg *pCfg) {
   STsdbMeta *pMeta = (STsdbMeta *)calloc(1, sizeof(*pMeta));
   if (pMeta == NULL) {
@@ -617,6 +639,7 @@ int16_t tsdbGetLastColumnsIndexByColId(STable* pTable, int16_t colId) {
   if (pTable->lastCols == NULL) {
     return -1;
   }
+  // TODO: use binary search instead
   for (int16_t i = 0; i < pTable->maxColNum; ++i) {
     if (pTable->lastCols[i].colId == colId) {
       return i;
@@ -737,10 +760,10 @@ void tsdbUpdateTableSchema(STsdbRepo *pRepo, STable *pTable, STSchema *pSchema, 
   TSDB_WUNLOCK_TABLE(pCTable);
 
   if (insertAct) {
-    int   tlen = tsdbGetTableEncodeSize(TSDB_UPDATE_META, pCTable);
-    void *buf = tsdbAllocBytes(pRepo, tlen);
-    ASSERT(buf != NULL);
-    tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, buf, pCTable);
+    if (tsdbInsertNewTableAction(pRepo, pCTable) != 0) {
+      tsdbError("vgId:%d table %s tid %d uid %" PRIu64 " tsdbInsertNewTableAction fail", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
+            TABLE_TID(pTable), TABLE_UID(pTable));
+    }
   }
 }
 
@@ -838,11 +861,22 @@ static STable *tsdbCreateTableFromCfg(STableCfg *pCfg, bool isSuper, STable *pST
     }
     pTable->tagVal = NULL;
     STColumn *pCol = schemaColAt(pTable->tagSchema, DEFAULT_TAG_INDEX_COLUMN);
-    pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), NULL,
-                                     SL_ALLOW_DUP_KEY, getTagIndexKey);
-    if (pTable->pIndex == NULL) {
-      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-      goto _err;
+    if(pCol->type == TSDB_DATA_TYPE_JSON){
+      assert(pTable->tagSchema->numOfCols == 1);
+      pTable->jsonKeyMap = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+      if (pTable->jsonKeyMap == NULL) {
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        tsdbFreeTable(pTable);
+        return NULL;
+      }
+      taosHashSetFreeFp(pTable->jsonKeyMap, taosArrayDestroyForHash);
+    }else{
+      pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), NULL,
+                                       SL_ALLOW_DUP_KEY, getTagIndexKey);
+      if (pTable->pIndex == NULL) {
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        goto _err;
+      }
     }
   } else {
     pTable->type = pCfg->type;
@@ -912,6 +946,7 @@ static void tsdbFreeTable(STable *pTable) {
     kvRowFree(pTable->tagVal);
 
     tSkipListDestroy(pTable->pIndex);
+    taosHashCleanup(pTable->jsonKeyMap);
     taosTZfree(pTable->lastRow);    
     tfree(pTable->sql);
 
@@ -1036,16 +1071,92 @@ static void tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFro
   tsdbUnRefTable(pTable);
 }
 
+void* tsdbGetJsonTagValue(STable* pTable, char* key, int32_t keyLen, int16_t* retColId){
+  assert(TABLE_TYPE(pTable) == TSDB_CHILD_TABLE);
+  STable* superTable= pTable->pSuper;
+  SArray** data = (SArray**)taosHashGet(superTable->jsonKeyMap, key, keyLen);
+  if(data == NULL) return NULL;
+  JsonMapValue jmvalue = {pTable, 0};
+  JsonMapValue* p = taosArraySearch(*data, &jmvalue, tsdbCompareJsonMapValue, TD_EQ);
+  if (p == NULL) return NULL;
+  int16_t colId = p->colId + 1;
+  if(retColId) *retColId = p->colId;
+  return tdGetKVRowValOfCol(pTable->tagVal, colId);
+}
+
+int tsdbCompareJsonMapValue(const void* a, const void* b) {
+  const JsonMapValue* x = (const JsonMapValue*)a;
+  const JsonMapValue* y = (const JsonMapValue*)b;
+  if (x->table > y->table) return 1;
+  if (x->table < y->table) return -1;
+  return 0;
+}
+
 static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper) {
   ASSERT(pTable->type == TSDB_CHILD_TABLE && pTable != NULL);
   STable *pSTable = tsdbGetTableByUid(pMeta, TABLE_SUID(pTable));
   ASSERT(pSTable != NULL);
 
   pTable->pSuper = pSTable;
-
-  tSkipListPut(pSTable->pIndex, (void *)pTable);
-
   if (refSuper) T_REF_INC(pSTable);
+
+  if(pSTable->tagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
+    ASSERT(pSTable->tagSchema->numOfCols == 1);
+    int16_t nCols = kvRowNCols(pTable->tagVal);
+    ASSERT(nCols%2 == 1);
+    // check first
+    for (int j = 0; j < nCols; ++j) {
+      if (j != 0 && j % 2 == 0) continue;  // jump value
+      SColIdx *pColIdx = kvRowColIdxAt(pTable->tagVal, j);
+      void    *val = (kvRowColVal(pTable->tagVal, pColIdx));
+      if (j == 0) {  // json value is the first
+        int8_t jsonPlaceHolder = *(int8_t *)val;
+        ASSERT(jsonPlaceHolder == TSDB_DATA_JSON_PLACEHOLDER);
+        continue;
+      }
+      if (j == 1) {
+        uint32_t jsonNULL = *(uint32_t *)(varDataVal(val));
+        ASSERT(jsonNULL == TSDB_DATA_JSON_NULL);
+      }
+
+      // then insert
+      char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
+      jsonKeyMd5(varDataVal(val), varDataLen(val), keyMd5);
+      SArray  *tablistNew = NULL;
+      SArray **tablist = (SArray **)taosHashGet(pSTable->jsonKeyMap, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
+      if (tablist == NULL) {
+        tablistNew = taosArrayInit(8, sizeof(JsonMapValue));
+        if (tablistNew == NULL) {
+          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+          tsdbError("out of memory when alloc json tag array");
+          return -1;
+        }
+        if (taosHashPut(pSTable->jsonKeyMap, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN, &tablistNew, sizeof(void *)) < 0) {
+          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+          tsdbError("out of memory when put json tag array");
+          return -1;
+        }
+      } else {
+        tablistNew = *tablist;
+      }
+
+      JsonMapValue jmvalue = {pTable, pColIdx->colId};
+      void* p = taosArraySearch(tablistNew, &jmvalue, tsdbCompareJsonMapValue, TD_EQ);
+      if (p == NULL) {
+        p = taosArraySearch(tablistNew, &jmvalue, tsdbCompareJsonMapValue, TD_GE);
+        if(p == NULL){
+          taosArrayPush(tablistNew, &jmvalue);
+        }else{
+          taosArrayInsert(tablistNew, TARRAY_ELEM_IDX(tablistNew, p), &jmvalue);
+        }
+      }else{
+        tsdbError("insert dumplicate");
+      }
+    }
+  }else{
+    tSkipListPut(pSTable->pIndex, (void *)pTable);
+  }
+
   return 0;
 }
 
@@ -1055,22 +1166,58 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
   STable *pSTable = pTable->pSuper;
   ASSERT(pSTable != NULL);
 
-  char* key = getTagIndexKey(pTable);
-  SArray *res = tSkipListGet(pSTable->pIndex, key);
+  if(pSTable->tagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
+    ASSERT(pSTable->tagSchema->numOfCols == 1);
+    int16_t nCols = kvRowNCols(pTable->tagVal);
+    ASSERT(nCols%2 == 1);
+    for (int j = 0; j < nCols; ++j) {
+      if (j != 0 && j%2 == 0) continue; // jump value
+      SColIdx * pColIdx = kvRowColIdxAt(pTable->tagVal, j);
+      void* val = (kvRowColVal(pTable->tagVal, pColIdx));
+      if (j == 0){        // json value is the first
+        int8_t jsonPlaceHolder = *(int8_t*)val;
+        ASSERT(jsonPlaceHolder == TSDB_DATA_JSON_PLACEHOLDER);
+        continue;
+      }
+      if (j == 1){
+        uint32_t jsonNULL = *(uint32_t*)(varDataVal(val));
+        ASSERT(jsonNULL == TSDB_DATA_JSON_NULL);
+      }
 
-  size_t size = taosArrayGetSize(res);
-  ASSERT(size > 0);
+      char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
+      jsonKeyMd5(varDataVal(val), varDataLen(val), keyMd5);
+      SArray** tablist = (SArray **)taosHashGet(pSTable->jsonKeyMap, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
+      if(tablist == NULL) {
+        tsdbError("json tag no key error,%d", j);
+        continue;
+      }
 
-  for (int32_t i = 0; i < size; ++i) {
-    SSkipListNode *pNode = taosArrayGetP(res, i);
-
-    // STableIndexElem* pElem = (STableIndexElem*) SL_GET_NODE_DATA(pNode);
-    if ((STable *)SL_GET_NODE_DATA(pNode) == pTable) {  // this is the exact what we need
-      tSkipListRemoveNode(pSTable->pIndex, pNode);
+      JsonMapValue jmvalue = {pTable, pColIdx->colId};
+      void* p = taosArraySearch(*tablist, &jmvalue, tsdbCompareJsonMapValue, TD_EQ);
+      if (p == NULL) {
+        tsdbError("json tag no tableid error,%d", j);
+        continue;
+      }
+      taosArrayRemove(*tablist, TARRAY_ELEM_IDX(*tablist, p));
     }
-  }
+  }else {
+    char *  key = getTagIndexKey(pTable);
+    SArray *res = tSkipListGet(pSTable->pIndex, key);
 
-  taosArrayDestroy(res);
+    size_t size = taosArrayGetSize(res);
+    ASSERT(size > 0);
+
+    for (int32_t i = 0; i < size; ++i) {
+      SSkipListNode *pNode = taosArrayGetP(res, i);
+
+      // STableIndexElem* pElem = (STableIndexElem*) SL_GET_NODE_DATA(pNode);
+      if ((STable *)SL_GET_NODE_DATA(pNode) == pTable) {  // this is the exact what we need
+        tSkipListRemoveNode(pSTable->pIndex, pNode);
+      }
+    }
+
+    taosArrayDestroy(&res);
+  }
   return 0;
 }
 
@@ -1308,12 +1455,23 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
     if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
       buf = tdDecodeSchema(buf, &(pTable->tagSchema));
       STColumn *pCol = schemaColAt(pTable->tagSchema, DEFAULT_TAG_INDEX_COLUMN);
-      pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), NULL,
+      if(pCol->type == TSDB_DATA_TYPE_JSON){
+        assert(pTable->tagSchema->numOfCols == 1);
+        pTable->jsonKeyMap = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+        if (pTable->jsonKeyMap == NULL) {
+          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+          tsdbFreeTable(pTable);
+          return NULL;
+        }
+	taosHashSetFreeFp(pTable->jsonKeyMap, taosArrayDestroyForHash);
+      }else{
+        pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), NULL,
                                        SL_ALLOW_DUP_KEY, getTagIndexKey);
-      if (pTable->pIndex == NULL) {
-        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-        tsdbFreeTable(pTable);
-        return NULL;
+        if (pTable->pIndex == NULL) {
+          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+          tsdbFreeTable(pTable);
+          return NULL;
+        }
       }
     }
 
@@ -1329,13 +1487,29 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
   return buf;
 }
 
+static SArray* getJsonTagTableList(STable *pTable){
+  uint32_t key = TSDB_DATA_JSON_NULL;
+  char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
+  jsonKeyMd5(&key, INT_BYTES, keyMd5);
+  SArray** tablist = (SArray**)taosHashGet(pTable->jsonKeyMap, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
+
+  return *tablist;
+}
+
 static int tsdbGetTableEncodeSize(int8_t act, STable *pTable) {
   int tlen = 0;
   if (act == TSDB_UPDATE_META) {
     tlen = sizeof(SListNode) + sizeof(SActObj) + sizeof(SActCont) + tsdbEncodeTable(NULL, pTable) + sizeof(TSCKSUM);
   } else {
     if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
-      tlen = (int)((sizeof(SListNode) + sizeof(SActObj)) * (SL_SIZE(pTable->pIndex) + 1));
+      size_t tableSize = 0;
+      if(pTable->tagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
+        SArray* tablist = getJsonTagTableList(pTable);
+        tableSize = taosArrayGetSize(tablist);
+      }else{
+        tableSize = SL_SIZE(pTable->pIndex);
+      }
+      tlen = (int)((sizeof(SListNode) + sizeof(SActObj)) * (tableSize + 1));
     } else {
       tlen = sizeof(SListNode) + sizeof(SActObj);
     }
@@ -1375,19 +1549,28 @@ static int tsdbRemoveTableFromStore(STsdbRepo *pRepo, STable *pTable) {
 
   void *pBuf = buf;
   if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
-    SSkipListIterator *pIter = tSkipListCreateIter(pTable->pIndex);
-    if (pIter == NULL) {
-      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-      return -1;
-    }
+    if(pTable->tagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
+      SArray* tablist = getJsonTagTableList(pTable);
+      for (int i = 0; i < taosArrayGetSize(tablist); ++i) {
+        JsonMapValue* p = taosArrayGet(tablist, i);
+        ASSERT(TABLE_TYPE((STable *)(p->table)) == TSDB_CHILD_TABLE);
+        pBuf = tsdbInsertTableAct(pRepo, TSDB_DROP_META, pBuf, p->table);
+      }
+    }else {
+      SSkipListIterator *pIter = tSkipListCreateIter(pTable->pIndex);
+      if (pIter == NULL) {
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        return -1;
+      }
 
-    while (tSkipListIterNext(pIter)) {
-      STable *tTable = (STable *)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
-      ASSERT(TABLE_TYPE(tTable) == TSDB_CHILD_TABLE);
-      pBuf = tsdbInsertTableAct(pRepo, TSDB_DROP_META, pBuf, tTable);
-    }
+      while (tSkipListIterNext(pIter)) {
+        STable *tTable = (STable *)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
+        ASSERT(TABLE_TYPE(tTable) == TSDB_CHILD_TABLE);
+        pBuf = tsdbInsertTableAct(pRepo, TSDB_DROP_META, pBuf, tTable);
+      }
 
-    tSkipListDestroyIter(pIter);
+      tSkipListDestroyIter(pIter);
+    }
   }
   pBuf = tsdbInsertTableAct(pRepo, TSDB_DROP_META, pBuf, pTable);
 
@@ -1398,25 +1581,27 @@ static int tsdbRemoveTableFromStore(STsdbRepo *pRepo, STable *pTable) {
 
 static int tsdbRmTableFromMeta(STsdbRepo *pRepo, STable *pTable) {
   if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
-    SSkipListIterator *pIter = tSkipListCreateIter(pTable->pIndex);
-    if (pIter == NULL) {
-      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-      return -1;
-    }
-
     tsdbWLockRepoMeta(pRepo);
-
-    while (tSkipListIterNext(pIter)) {
-      STable *tTable = (STable *)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
-      tsdbRemoveTableFromMeta(pRepo, tTable, false, false);
+    if(pTable->tagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
+      SArray* tablist = getJsonTagTableList(pTable);
+      for (int i = 0; i < taosArrayGetSize(tablist); ++i) {
+        JsonMapValue* p = taosArrayGet(tablist, i);
+        tsdbRemoveTableFromMeta(pRepo, p->table, false, false);
+      }
+    }else{
+      SSkipListIterator *pIter = tSkipListCreateIter(pTable->pIndex);
+      if (pIter == NULL) {
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        return -1;
+      }
+      while (tSkipListIterNext(pIter)) {
+        STable *tTable = (STable *)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
+        tsdbRemoveTableFromMeta(pRepo, tTable, false, false);
+      }
+      tSkipListDestroyIter(pIter);
     }
-
     tsdbRemoveTableFromMeta(pRepo, pTable, false, false);
-
     tsdbUnlockRepoMeta(pRepo);
-
-    tSkipListDestroyIter(pIter);
-
   } else {
     if ((TABLE_TYPE(pTable) == TSDB_STREAM_TABLE) && pTable->cqhandle) pRepo->appH.cqDropFunc(pTable->cqhandle);
     tsdbRemoveTableFromMeta(pRepo, pTable, true, true);
@@ -1496,6 +1681,7 @@ static void tsdbFreeTableSchema(STable *pTable) {
       tdFreeSchema(pSchema);
     }
 
-    taosArrayDestroy(pTable->schema);
+    taosArrayDestroy(&pTable->schema);
   }
 }
+

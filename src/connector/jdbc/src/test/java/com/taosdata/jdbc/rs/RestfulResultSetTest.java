@@ -22,6 +22,20 @@ public class RestfulResultSetTest {
     private static Statement stmt;
     private static ResultSet rs;
 
+    @BeforeClass
+    public static void beforeClass() throws SQLException {
+        conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata");
+        stmt = conn.createStatement();
+        stmt.execute("drop database if exists restful_test");
+        stmt.execute("create database if not exists restful_test");
+        stmt.execute("use restful_test");
+        stmt.execute("drop table if exists weather");
+        stmt.execute("create table if not exists weather(f1 timestamp, f2 int, f3 bigint, f4 float, f5 double, f6 binary(64), f7 smallint, f8 tinyint, f9 bool, f10 nchar(64))");
+        stmt.execute("insert into restful_test.weather values('2021-01-01 00:00:00.000', 1, 100, 3.1415, 3.1415926, 'abc', 10, 10, true, '涛思数据')");
+        rs = stmt.executeQuery("select * from restful_test.weather");
+        rs.next();
+    }
+
     @Test
     public void wasNull() throws SQLException {
         Assert.assertFalse(rs.wasNull());
@@ -119,7 +133,7 @@ public class RestfulResultSetTest {
     @Test
     public void getBytes() throws SQLException {
         byte[] f1 = rs.getBytes("f1");
-        Assert.assertEquals("2021-01-01 00:00:00.000", new String(f1));
+        Assert.assertEquals("2021-01-01 00:00:00.0", new String(f1));
 
         byte[] f2 = rs.getBytes("f2");
         Assert.assertEquals(1, Ints.fromByteArray(f2));
@@ -657,37 +671,16 @@ public class RestfulResultSetTest {
         Assert.assertTrue(rs.isWrapperFor(RestfulResultSet.class));
     }
 
-    @BeforeClass
-    public static void beforeClass() {
-        try {
-            Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
-            conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/restful_test?user=root&password=taosdata");
-            stmt = conn.createStatement();
-            stmt.execute("create database if not exists restful_test");
-            stmt.execute("use restful_test");
-            stmt.execute("drop table if exists weather");
-            stmt.execute("create table if not exists weather(f1 timestamp, f2 int, f3 bigint, f4 float, f5 double, f6 binary(64), f7 smallint, f8 tinyint, f9 bool, f10 nchar(64))");
-            stmt.execute("insert into restful_test.weather values('2021-01-01 00:00:00.000', 1, 100, 3.1415, 3.1415926, 'abc', 10, 10, true, '涛思数据')");
-            rs = stmt.executeQuery("select * from restful_test.weather");
-            rs.next();
-        } catch (ClassNotFoundException | SQLException e) {
-            e.printStackTrace();
-        }
-
-    }
-
     @AfterClass
-    public static void afterClass() {
-        try {
-            if (rs != null)
-                rs.close();
-            if (stmt != null)
-                stmt.close();
-            if (conn != null)
-                conn.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
+    public static void afterClass() throws SQLException {
+        if (rs != null)
+            rs.close();
+        if (stmt != null) {
+            stmt.execute("drop database if exists restful_test");
+            stmt.close();
         }
+        if (conn != null)
+            conn.close();
     }
 
 }

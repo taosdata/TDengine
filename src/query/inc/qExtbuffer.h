@@ -53,14 +53,14 @@ typedef struct tFlushoutInfo {
 } tFlushoutInfo;
 
 typedef struct tFlushoutData {
-  uint32_t       nAllocSize;
-  uint32_t       nLength;
-  tFlushoutInfo *pFlushoutInfo;
+  uint32_t       nAllocSize;    // capacity
+  uint32_t       nLength;       // size
+  tFlushoutInfo *pFlushoutInfo; // dynamic allocate
 } tFlushoutData;
 
 typedef struct SExtFileInfo {
-  uint32_t      nFileSize;  // in pages
-  uint32_t      pageSize;
+  uint32_t      nFileSize;  // how many pages in file
+  //uint32_t      pageSize; // useless
   uint32_t      numOfElemsInFile;
   tFlushoutData flushoutData;
 } SExtFileInfo;
@@ -75,8 +75,15 @@ typedef struct tFilePagesItem {
   tFilePage              item;
 } tFilePagesItem;
 
+typedef struct SSchema1 {
+  uint8_t type;
+  char    name[TSDB_COL_NAME_LEN];
+  int16_t colId;
+  int32_t bytes;
+} SSchema1;
+
 typedef struct SSchemaEx {
-  struct SSchema field;
+  SSchema1       field;
   int32_t        offset;
 } SSchemaEx;
 
@@ -178,7 +185,7 @@ bool tExtMemBufferIsAllDataInMem(tExtMemBuffer *pMemBuffer);
  * @param blockCapacity
  * @return
  */
-SColumnModel *createColumnModel(SSchema *fields, int32_t numOfCols, int32_t blockCapacity);
+SColumnModel *createColumnModel(SSchema1 *fields, int32_t numOfCols, int32_t blockCapacity);
 
 /**
  *
@@ -199,7 +206,7 @@ void destroyColumnModel(SColumnModel *pModel);
 void tColModelCompact(SColumnModel *pModel, tFilePage *inputBuffer, int32_t maxElemsCapacity);
 
 void     tColModelErase(SColumnModel *pModel, tFilePage *inputBuffer, int32_t maxCapacity, int32_t s, int32_t e);
-SSchema *getColumnModelSchema(SColumnModel *pColumnModel, int32_t index);
+SSchema1 *getColumnModelSchema(SColumnModel *pColumnModel, int32_t index);
 
 int16_t getColumnModelOffset(SColumnModel *pColumnModel, int32_t index);
 
@@ -229,6 +236,11 @@ typedef int (*__col_compar_fn_t)(tOrderDescriptor *, int32_t numOfRows, int32_t 
 
 void tColDataQSort(tOrderDescriptor *, int32_t numOfRows, int32_t start, int32_t end, char *data, int32_t orderType);
 
+void tColDataMergeSort(tOrderDescriptor *, int32_t numOfRows, int32_t start, int32_t end, char *data, int32_t orderType);
+
+
+void taoscQSort(void** pCols, SSchema* pSchema, int32_t numOfCols, int32_t numOfRows, int32_t index, __compar_fn_t compareFn);
+
 int32_t compare_sa(tOrderDescriptor *, int32_t numOfRows, int32_t idx1, int32_t idx2, char *data);
 
 int32_t compare_sd(tOrderDescriptor *, int32_t numOfRows, int32_t idx1, int32_t idx2, char *data);
@@ -242,7 +254,7 @@ int32_t compare_d(tOrderDescriptor *, int32_t numOfRow1, int32_t s1, char *data1
 struct SSDataBlock;
 int32_t compare_aRv(struct SSDataBlock* pBlock, SArray* colIndex, int32_t numOfCols, int32_t rowIndex, char** buffer, int32_t order);
 
-int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes);
+int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes, bool lenFirst);
 
 #ifdef __cplusplus
 }

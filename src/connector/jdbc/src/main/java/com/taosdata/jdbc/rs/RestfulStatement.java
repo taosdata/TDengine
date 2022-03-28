@@ -20,9 +20,9 @@ public class RestfulStatement extends AbstractStatement {
     private boolean closed;
     private String database;
     private final RestfulConnection conn;
+    private static final String ROW_NAME = "affected_rows";
 
     private volatile RestfulResultSet resultSet;
-    private volatile int affectedRows;
 
     public RestfulStatement(RestfulConnection conn, String database) {
         this.conn = conn;
@@ -33,20 +33,18 @@ public class RestfulStatement extends AbstractStatement {
     public ResultSet executeQuery(String sql) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        if (!SqlSyntaxValidator.isValidForExecuteQuery(sql))
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_QUERY, "not a valid sql for executeQuery: " + sql);
 
-        return executeOneQuery(sql);
+        execute(sql);
+        return resultSet;
     }
 
     @Override
     public int executeUpdate(String sql) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        if (!SqlSyntaxValidator.isValidForExecuteUpdate(sql))
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_UPDATE, "not a valid sql for executeUpdate: " + sql);
 
-        return executeOneUpdate(sql);
+        execute(sql);
+        return affectedRows;
     }
 
     @Override
@@ -65,27 +63,35 @@ public class RestfulStatement extends AbstractStatement {
         //如果执行了use操作应该将当前Statement的catalog设置为新的database
         boolean result = true;
 
-        if (SqlSyntaxValidator.isUseSql(sql)) {
-            HttpClientPoolUtil.execute(getUrl(), sql, this.conn.getToken());
-            this.database = sql.trim().replace("use", "").trim();
-            this.conn.setCatalog(this.database);
-            result = false;
-        } else if (SqlSyntaxValidator.isDatabaseUnspecifiedQuery(sql)) {
-            executeOneQuery(sql);
-        } else if (SqlSyntaxValidator.isDatabaseUnspecifiedUpdate(sql)) {
-            executeOneUpdate(sql);
-            result = false;
-        } else {
-            if (SqlSyntaxValidator.isValidForExecuteQuery(sql)) {
-                executeOneQuery(sql);
-            } else {
-                executeOneUpdate(sql);
-                result = false;
-            }
+        String response = HttpClientPoolUtil.execute(getUrl(), sql, this.conn.getToken());
+        JSONObject jsonObject = JSON.parseObject(response);
+        if (null == jsonObject) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "sql: " + sql);
+        }
+        if (jsonObject.getString("status").equals("error")) {
+            throw TSDBError.createSQLException(jsonObject.getInteger("code"), "sql: " + sql + ", desc: " + jsonObject.getString("desc"));
         }
 
+        if (SqlSyntaxValidator.isUseSql(sql)) {
+            this.database = sql.trim().replace("use", "").trim();
+            this.conn.setCatalog(this.database);
+            this.conn.setClientInfo(TSDBDriver.PROPERTY_KEY_DBNAME, this.database);
+            result = false;
+        } else {
+            JSONArray head = jsonObject.getJSONArray("head");
+            Integer rows = jsonObject.getInteger("rows");
+            if (head.size() == 1 && ROW_NAME.equals(head.getString(0)) && rows == 1) {
+                this.resultSet = null;
+                this.affectedRows = getAffectedRows(jsonObject);
+                return false;
+            } else {
+                this.resultSet = new RestfulResultSet(database, this, jsonObject);
+                this.affectedRows = -1;
+            }
+        }
         return result;
     }
+
 
     private String getUrl() throws SQLException {
         String dbname = conn.getClientInfo(TSDBDriver.PROPERTY_KEY_DBNAME);
@@ -110,40 +116,15 @@ public class RestfulStatement extends AbstractStatement {
         return url;
     }
 
-    private ResultSet executeOneQuery(String sql) throws SQLException {
-        // row data
-        String result = HttpClientPoolUtil.execute(getUrl(), sql, this.conn.getToken());
-        JSONObject resultJson = JSON.parseObject(result);
-        if (resultJson.getString("status").equals("error")) {
-            throw TSDBError.createSQLException(resultJson.getInteger("code"), resultJson.getString("desc"));
-        }
-        this.resultSet = new RestfulResultSet(database, this, resultJson);
-        this.affectedRows = 0;
-        return resultSet;
-    }
-
-    private int executeOneUpdate(String sql) throws SQLException {
-        String result = HttpClientPoolUtil.execute(getUrl(), sql, this.conn.getToken());
-        JSONObject jsonObject = JSON.parseObject(result);
-        if (jsonObject.getString("status").equals("error")) {
-            throw TSDBError.createSQLException(jsonObject.getInteger("code"), jsonObject.getString("desc"));
-        }
-        this.resultSet = null;
-        this.affectedRows = getAffectedRows(jsonObject);
-        return this.affectedRows;
-    }
-
     private int getAffectedRows(JSONObject jsonObject) throws SQLException {
-        // create ... SQLs should return 0 , and Restful result like this:
-        // {"status": "succ", "head": ["affected_rows"], "data": [[0]], "rows": 1}
         JSONArray head = jsonObject.getJSONArray("head");
         if (head.size() != 1 || !"affected_rows".equals(head.getString(0)))
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE, "invalid variable: [" + head.toJSONString() + "]");
         JSONArray data = jsonObject.getJSONArray("data");
-        if (data != null)
+        if (data != null) {
             return data.getJSONArray(0).getInteger(0);
-
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE, "invalid variable: [" + jsonObject.toJSONString() + "]");
     }
 
     @Override

@@ -18,6 +18,8 @@ from util.cases import *
 from util.sql import *
 import numpy as np
 
+# constant define
+WAITS = 5 # wait seconds
 
 class TDTestCase:
     def init(self, conn, logSql):
@@ -67,9 +69,7 @@ class TDTestCase:
                 "%s failed: sql:%s, the order provided for col:%d is not correct" %
                 (callerFilename, tdSql.sql, col))
 
-    def run(self):
-        tdSql.prepare()
-
+    def test_base(self):
         print("======= step 1: create table and insert data =========")
         tdLog.debug(
             ''' create table st(ts timestamp, tbcol1 tinyint, tbcol2 smallint, tbcol3 int, tbcol4 bigint, tbcol5 float, tbcol6 double,
@@ -97,7 +97,7 @@ class TDTestCase:
         self.checkColumnSorted(0, "desc")
 
         print("======= step 2: verify order for special column =========")
-        
+
         tdSql.query("select tbcol1 from st order by ts desc")
 
         tdSql.query("select tbcol6 from st order by ts desc")
@@ -122,10 +122,105 @@ class TDTestCase:
                 (i, i))
             self.checkColumnSorted(1, "desc")
 
+        # order by rules: https://jira.taosdata.com:18090/pages/viewpage.action?pageId=123455481
+        tdSql.error("select tbcol1 from st order by 123")
+        tdSql.error("select tbcol1 from st order by tbname")
+        tdSql.error("select tbcol1 from st order by tagcol1")
+        tdSql.error("select tbcol1 from st order by ''")
+        tdSql.error("select top(tbcol1, 12) from st1 order by tbcol1,ts")
+        tdSql.error("select top(tbcol1, 12) from st order by tbcol1,ts,tbcol2")
+        tdSql.error("select top(tbcol1, 12) from st order by ts, tbcol1")
+        tdSql.error("select top(tbcol1, 2) from st1 group by tbcol1 order by tbcol2")
+
+        fun_list = ['avg','count','twa','sum','stddev','leastsquares','min',
+                    'max','first','last','top','bottom','percentile','apercentile',
+                    'last_row','diff','spread','distinct']
+        key = ['tbol','tagcol']
+        for i in range(1,15):
+            for k in key:
+                for j in fun_list:
+                    if j == 'leastsquares':
+                        pick_func=j+'('+ k + str(i) +',1,1)'
+                    elif j == 'top' or j == 'bottom' : continue
+                    elif j == 'percentile' or j == 'apercentile':
+                        pick_func=j+'('+ k + str(i) +',1)'
+                    else:
+                        pick_func=j+'('+ k + str(i) +')'
+                    sql = 'select %s from st group by %s order by %s' % (pick_func , k+str(i), k+str(i))
+                    tdSql.error(sql)
+                    sql = 'select %s from st6 group by %s order by %s ' % (pick_func , k+str(i), k+str(i))
+                    tdSql.error(sql)
+
+        tdSql.query("select top(tbcol1, 2) from st1 group by tbcol2 order by tbcol2")
+        tdSql.query("select top(tbcol1, 12) from st order by tbcol1, ts")
+
+        tdSql.query("select avg(tbcol1) from st group by tbname order by tbname")
+        tdSql.checkData(1, 0, 5.5)
+        tdSql.checkData(5, 1, "st6")
+
+        tdSql.query("select top(tbcol1, 2) from st group by tbname order by tbname")
+        tdSql.checkData(1, 1, 10)
+        tdSql.checkData(2, 2, "st2")
+
+        tdSql.query("select top(tbcol1, 12) from st order by tbcol1")
+        tdSql.checkData(1, 1, 9)
+
+        tdSql.error("select top(tbcol1, 12) from st1 order by tbcol1,ts")
+        tdSql.error("select top(tbcol1, 12),tbname from st order by tbcol1,tbname")
+
+        tdSql.query("select top(tbcol1, 12) from st group by tbname order by tbname desc")
+        tdSql.checkData(1, 2, "st10")
+        tdSql.checkData(10, 2, "st9")
+
+        tdSql.query("select top(tbcol1, 2) from st group by tbname order by tbname desc,ts")
+        tdSql.checkData(1, 2, "st10")
+        tdSql.checkData(10, 2, "st5")
+        tdSql.checkData(0, 0, "2018-09-17 09:00:00.109")
+        tdSql.checkData(1, 0, "2018-09-17 09:00:00.110")
+        tdSql.checkData(2, 0, "2018-09-17 09:00:00.099")
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
+    def create_insert_data(self):
+        sql = "create table sb(ts timestamp, i1 int) tags(t_b1 binary(32), t_n1 nchar(64));"
+        tdSql.execute(sql)
+        for i in range(20):
+            value = "%s%s%s" % (chr(64+i),chr(64+i),chr(65+i))
+            if i%10 == 5:
+              value +=  "_%s" % (chr(66+i))
+            if i%10 == 0:
+              value +=  "_%s" % (chr(67+i))
+            sql = "insert into b%d using sb tags('A%s', 'B%s') values(now, %d);"%(i, value, value, i+1000)
+            tdSql.execute(sql)
+
+    def test_groupby_order(self):
+        # create and insert data
+        print("======= group order step 1: create table and insert data =========")
+        self.create_insert_data()
+
+        # do query
+        print("======= group order step 2: do query =========")
+        # ASC
+        sql = "select count(*) from sb group by t_b1 order by t_b1 asc;"
+        tdSql.execute(sql)
+        tdSql.waitedQuery(sql, 20, WAITS)
+        tdSql.checkData(0,  1, "A@@A_C")
+        tdSql.checkData(5,  1, "AEEF_G")
+        tdSql.checkData(19, 1, "ASST")
+        #DESC
+        sql = "select count(*) from sb group by t_b1 order by t_b1 desc;"
+        tdSql.execute(sql)
+        tdSql.waitedQuery(sql, 20, WAITS)
+        tdSql.checkData(19,  1, "A@@A_C")
+        tdSql.checkData(4, 1, "AOOP_Q")
+        tdSql.checkData(0, 1, "ASST")
+
+    def run(self):
+        tdSql.prepare()
+        self.test_base()
+        self.test_groupby_order()
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())

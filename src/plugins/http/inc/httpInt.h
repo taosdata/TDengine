@@ -37,11 +37,12 @@
 #define HTTP_BUFFER_SIZE            8388608
 #define HTTP_STEP_SIZE              4096    //http message get process step by step
 #define HTTP_METHOD_SCANNER_SIZE    7       //http method fp size
-#define HTTP_GC_TARGET_SIZE         512
+#define HTTP_GC_TARGET_SIZE         16384
 #define HTTP_WRITE_RETRY_TIMES      500
 #define HTTP_WRITE_WAIT_TIME_MS     5
 #define HTTP_PASSWORD_LEN           TSDB_UNI_LEN
 #define HTTP_SESSION_ID_LEN         (TSDB_USER_LEN + HTTP_PASSWORD_LEN)
+#define HTTP_STATUS_CODE_NUM        63
 
 typedef enum HttpReqType {
   HTTP_REQTYPE_OTHERS = 0,
@@ -147,7 +148,7 @@ typedef struct HttpContext {
   int32_t            state;
   uint8_t            reqType;
   uint8_t            parsed;
-  uint8_t            error;
+  bool               error;
   char               ipstr[22];
   char               user[TSDB_USER_LEN];  // parsed from auth token or login message
   char               pass[HTTP_PASSWORD_LEN];
@@ -187,8 +188,9 @@ typedef struct HttpServer {
   SOCKET            fd;
   int32_t           numOfThreads;
   int32_t           methodScannerLen;
-  int32_t           requestNum;
+  int64_t           requestNum;
   int32_t           status;
+  int32_t           statusCodeErrs[HTTP_STATUS_CODE_NUM];
   pthread_t         thread;
   HttpThread *      pThreads;
   void *            contextCache;

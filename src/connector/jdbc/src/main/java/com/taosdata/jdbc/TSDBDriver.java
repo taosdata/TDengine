@@ -1,23 +1,8 @@
-/***************************************************************************
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
- *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *****************************************************************************/
 package com.taosdata.jdbc;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.sql.*;
-import java.util.*;
+import java.util.Properties;
+import java.util.StringTokenizer;
 import java.util.logging.Logger;
 
 /**
@@ -107,6 +92,16 @@ public class TSDBDriver extends AbstractDriver {
      */
     public static final String PROPERTY_KEY_BATCH_ERROR_IGNORE = "batchErrorIgnore";
 
+    /**
+     * message receive from server timeout. ms
+     */
+    public static final String PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT = "messageWaitTimeout";
+
+    /**
+     * max message number send to server concurrently
+     */
+    public static final String PROPERTY_KEY_MAX_CONCURRENT_REQUEST = "maxConcurrentRequest";
+
     private TSDBDatabaseMetaData dbMetaData = null;
 
     static {
@@ -118,9 +113,6 @@ public class TSDBDriver extends AbstractDriver {
     }
 
     public Connection connect(String url, Properties info) throws SQLException {
-        if (url == null)
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_URL_NOT_SET);
-
         if (!acceptsURL(url))
             return null;
 
@@ -135,16 +127,14 @@ public class TSDBDriver extends AbstractDriver {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PASSWORD_IS_REQUIRED);
 
         try {
-            TSDBJNIConnector.init((String) props.get(PROPERTY_KEY_CONFIG_DIR), (String) props.get(PROPERTY_KEY_LOCALE),
-                    (String) props.get(PROPERTY_KEY_CHARSET), (String) props.get(PROPERTY_KEY_TIME_ZONE));
+            TSDBJNIConnector.init(props);
             return new TSDBConnection(props, this.dbMetaData);
         } catch (SQLWarning sqlWarning) {
-            sqlWarning.printStackTrace();
             return new TSDBConnection(props, this.dbMetaData);
         } catch (SQLException sqlEx) {
             throw sqlEx;
         } catch (Exception ex) {
-            throw new SQLException("SQLException:" + ex.toString(), ex);
+            throw new SQLException("SQLException:" + ex, ex);
         }
     }
 
@@ -157,7 +147,7 @@ public class TSDBDriver extends AbstractDriver {
     public boolean acceptsURL(String url) throws SQLException {
         if (url == null)
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_URL_NOT_SET);
-        return url.length() > 0 && url.trim().length() > 0 && (url.startsWith(URL_PREFIX) || url.startsWith(URL_PREFIX1));
+        return url.trim().length() > 0 && (url.startsWith(URL_PREFIX) || url.startsWith(URL_PREFIX1));
     }
 
     public DriverPropertyInfo[] getPropertyInfo(String url, Properties info) throws SQLException {
@@ -205,6 +195,7 @@ public class TSDBDriver extends AbstractDriver {
         String dbProductName = url.substring(0, beginningOfSlashes);
         dbProductName = dbProductName.substring(dbProductName.indexOf(":") + 1);
         dbProductName = dbProductName.substring(0, dbProductName.indexOf(":"));
+        urlProps.setProperty(TSDBDriver.PROPERTY_KEY_PRODUCT_NAME, dbProductName);
 
         // parse database name
         url = url.substring(beginningOfSlashes + 2);

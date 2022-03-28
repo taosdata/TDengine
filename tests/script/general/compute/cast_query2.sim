@@ -1,0 +1,1265 @@
+sleep 100
+sql connect
+
+sql use db;
+
+
+print "test arithmetic"
+
+sql select cast(c2 + c3 as bigint) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 2 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 8 then 
+  return -1
+endi
+if $data50 != 32894 then 
+  return -1
+endi
+if $data60 != -32894 then 
+  return -1
+endi
+sql select cast((c2 + c3) as bigint) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 2 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 8 then 
+  return -1
+endi
+if $data50 != 32894 then 
+  return -1
+endi
+if $data60 != -32894 then 
+  return -1
+endi
+sql select cast((c2 * c3)+c4-6 as bigint) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != -4 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 14 then 
+  return -1
+endi
+if $data50 != 2151645050 then 
+  return -1
+endi
+if $data60 != -2143322244 then 
+  return -1
+endi
+sql select cast(11 as bigint)+c2 from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 12.000000000 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 13.000000000 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 15.000000000 then 
+  return -1
+endi
+if $data50 != 138.000000000 then 
+  return -1
+endi
+if $data60 != -116.000000000 then 
+  return -1
+endi
+sql select cast(c1 as bigint)+c2 from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 2.000000000 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 3.000000000 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 5.000000000 then 
+  return -1
+endi
+if $data50 != 128.000000000 then 
+  return -1
+endi
+if $data60 != -126.000000000 then 
+  return -1
+endi
+sql select cast(c2 as bigint)+11 from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 12.000000000 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 13.000000000 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 15.000000000 then 
+  return -1
+endi
+if $data50 != 138.000000000 then 
+  return -1
+endi
+if $data60 != -116.000000000 then 
+  return -1
+endi
+sql select cast(c2 as bigint)+11+floor(c2) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 13.000000000 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 15.000000000 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 19.000000000 then 
+  return -1
+endi
+if $data50 != 265.000000000 then 
+  return -1
+endi
+if $data60 != -243.000000000 then 
+  return -1
+endi
+
+print "test function,column/tag/tbname/ts/_C0/_c0/scalar/agg/selectivity/self"
+
+sql select cast(c1 as bigint),c1,c2 from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data01 != 1 then 
+  return -1
+endi
+if $data02 != 1 then 
+  return -1
+endi
+if $data10 != 1 then 
+  return -1
+endi
+if $data11 != 1 then 
+  return -1
+endi
+if $data12 != NULL then 
+  return -1
+endi
+if $data20 != 1 then 
+  return -1
+endi
+if $data21 != 1 then 
+  return -1
+endi
+if $data22 != 2 then 
+  return -1
+endi
+if $data30 != 0 then 
+  return -1
+endi
+if $data31 != 0 then 
+  return -1
+endi
+if $data32 != NULL then 
+  return -1
+endi
+if $data40 != 1 then 
+  return -1
+endi
+if $data41 != 1 then 
+  return -1
+endi
+if $data42 != 4 then 
+  return -1
+endi
+if $data50 != 1 then 
+  return -1
+endi
+if $data51 != 1 then 
+  return -1
+endi
+if $data52 != 127 then 
+  return -1
+endi
+if $data60 != 1 then 
+  return -1
+endi
+if $data61 != 1 then 
+  return -1
+endi
+if $data62 != -127 then 
+  return -1
+endi
+sql select cast(c1 as bigint),t1,ts,tbname,_C0,_c0 from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data01 != 1 then 
+  return -1
+endi
+if $data02 != @21-11-11 09:00:00.000@ then 
+  return -1
+endi
+if $data03 != tb1 then 
+  return -1
+endi
+if $data04 != @21-11-11 09:00:00.000@ then 
+  return -1
+endi
+if $data10 != 1 then 
+  return -1
+endi
+if $data11 != 1 then 
+  return -1
+endi
+if $data12 != @21-11-11 09:00:01.000@ then 
+  return -1
+endi
+if $data13 != tb1 then 
+  return -1
+endi
+if $data14 != @21-11-11 09:00:01.000@ then 
+  return -1
+endi
+if $data20 != 1 then 
+  return -1
+endi
+if $data21 != 1 then 
+  return -1
+endi
+if $data22 != @21-11-11 09:00:02.000@ then 
+  return -1
+endi
+if $data23 != tb1 then 
+  return -1
+endi
+if $data24 != @21-11-11 09:00:02.000@ then 
+  return -1
+endi
+if $data30 != 0 then 
+  return -1
+endi
+if $data31 != 1 then 
+  return -1
+endi
+if $data32 != @21-11-11 09:00:03.000@ then 
+  return -1
+endi
+if $data33 != tb1 then 
+  return -1
+endi
+if $data34 != @21-11-11 09:00:03.000@ then 
+  return -1
+endi
+if $data40 != 1 then 
+  return -1
+endi
+if $data41 != 1 then 
+  return -1
+endi
+if $data42 != @21-11-11 09:00:04.000@ then 
+  return -1
+endi
+if $data43 != tb1 then 
+  return -1
+endi
+if $data44 != @21-11-11 09:00:04.000@ then 
+  return -1
+endi
+if $data50 != 1 then 
+  return -1
+endi
+if $data51 != 1 then 
+  return -1
+endi
+if $data52 != @21-11-11 09:00:05.000@ then 
+  return -1
+endi
+if $data53 != tb1 then 
+  return -1
+endi
+if $data54 != @21-11-11 09:00:05.000@ then 
+  return -1
+endi
+if $data60 != 1 then 
+  return -1
+endi
+if $data61 != 1 then 
+  return -1
+endi
+if $data62 != @21-11-11 09:00:06.000@ then 
+  return -1
+endi
+if $data63 != tb1 then 
+  return -1
+endi
+if $data64 != @21-11-11 09:00:06.000@ then 
+  return -1
+endi
+sql select cast(c1 as bigint),floor(c3) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data01 != 1 then 
+  return -1
+endi
+if $data10 != 1 then 
+  return -1
+endi
+if $data11 != NULL then 
+  return -1
+endi
+if $data20 != 1 then 
+  return -1
+endi
+if $data21 != NULL then 
+  return -1
+endi
+if $data30 != 0 then 
+  return -1
+endi
+if $data31 != 3 then 
+  return -1
+endi
+if $data40 != 1 then 
+  return -1
+endi
+if $data41 != 4 then 
+  return -1
+endi
+if $data50 != 1 then 
+  return -1
+endi
+if $data51 != 32767 then 
+  return -1
+endi
+if $data60 != 1 then 
+  return -1
+endi
+if $data61 != -32767 then 
+  return -1
+endi
+sql select cast(c1 as bigint),cast(c2+c3 as binary(6)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data01 != 2.0000 then 
+  return -1
+endi
+if $data10 != 1 then 
+  return -1
+endi
+if $data11 != NULL then 
+  return -1
+endi
+if $data20 != 1 then 
+  return -1
+endi
+if $data21 != NULL then 
+  return -1
+endi
+if $data30 != 0 then 
+  return -1
+endi
+if $data31 != NULL then 
+  return -1
+endi
+if $data40 != 1 then 
+  return -1
+endi
+if $data41 != 8.0000 then 
+  return -1
+endi
+if $data50 != 1 then 
+  return -1
+endi
+if $data51 != 32894. then 
+  return -1
+endi
+if $data60 != 1 then 
+  return -1
+endi
+if $data61 != -32894 then 
+  return -1
+endi
+
+sql select cast(c2+c3 as binary(6)) from tb1 where c2 is not null and c3 is not null;
+if $rows != 4 then 
+  return -1
+endi
+if $data00 != 2.0000 then 
+  return -1
+endi
+if $data10 != 8.0000 then 
+  return -1
+endi
+if $data20 != 32894. then 
+  return -1
+endi
+if $data30 != -32894 then 
+  return -1
+endi
+sql select cast(c2 as binary(6)) from tb1 order by ts desc;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != -127 then 
+  return -1
+endi
+if $data10 != 127 then 
+  return -1
+endi
+if $data20 != 4 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 2 then 
+  return -1
+endi
+if $data50 != NULL then 
+  return -1
+endi
+if $data60 != 1 then 
+  return -1
+endi
+
+sql  select cast(c2+c3 as binary(6)) from tb1 order by ts desc;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != -32894 then 
+  return -1
+endi
+if $data10 != 32894. then 
+  return -1
+endi
+if $data20 != 8.0000 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != NULL then 
+  return -1
+endi
+if $data50 != NULL then 
+  return -1
+endi
+if $data60 != 2.0000 then 
+  return -1
+endi
+sql select cast(c2+c3 as binary(6)) from tb1 order by ts desc limit 3 offset 2;
+if $rows != 3 then 
+  return -1
+endi
+if $data00 != 8.0000 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+
+sql select cast(c2 as binary(2)) from stb1;
+if $rows != 14 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 12 then 
+  return -1
+endi
+if $data60 != -1 then 
+  return -1
+endi
+if $data70 != 1 then 
+  return -1
+endi
+if $data80 != 2 then 
+  return -1
+endi
+if $data90 != 3 then 
+  return -1
+endi
+sql select cast(c2 as binary(2)) from stb1 order by ts desc;
+if $rows != 14 then 
+  return -1
+endi
+if $data00 != -1 then 
+if $data00 != 7 then 
+return -1
+endi
+endi
+if $data10 != 7 then 
+if $data10 != -1 then 
+  return -1
+endi
+endi
+if $data20 != 6 then 
+if $data20 != 12 then 
+  return -1
+endi
+endi
+if $data30 != 12 then 
+if $data30 != 6 then 
+  return -1
+endi
+endi
+if $data40 != 4 then 
+if $data40 != 5 then 
+  return -1
+endi
+endi
+if $data50 != 5 then 
+if $data50 != 4 then 
+  return -1
+endi
+endi
+if $data60 != 4 then 
+if $data60 != NULL then 
+  return -1
+endi
+endi
+if $data70 != NULL then 
+if $data70 != 4 then 
+  return -1
+endi
+endi
+if $data80 != 2 then 
+if $data80 != 3 then 
+  return -1
+endi
+endi
+if $data90 != 3 then 
+if $data90 != 2 then 
+  return -1
+endi
+endi
+
+sql select cast(c4 as bigint),t1 from stb1 order by ts desc;
+if $rows != 14 then 
+  return -1
+endi
+if $data00 != -2147483647 then 
+if $data00 != 7 then 
+  return -1
+endi
+endi
+if $data01 != 1 then 
+if $data01 != 2 then 
+  return -1
+endi
+endi
+if $data10 != 7 then 
+if $data10 != -2147483647 then 
+  return -1
+endi
+endi
+if $data11 != 1 then 
+if $data11 != 2 then 
+  return -1
+endi
+endi
+if $data20 != 6 then 
+if $data20 != 2147483647 then 
+  return -1
+endi
+endi
+if $data21 != 2 then 
+if $data21 != 1 then 
+  return -1
+endi
+endi
+if $data30 != 2147483647 then 
+if $data30 != 6 then 
+  return -1
+endi
+endi
+if $data31 != 1 then 
+if $data31 != 2 then 
+  return -1
+endi
+endi
+if $data40 != 4 then 
+if $data40 != 5 then 
+  return -1
+endi
+endi
+if $data41 != 1 then 
+if $data41 != 2 then 
+  return -1
+endi
+endi
+if $data50 != 5 then 
+if $data50 != 4 then 
+  return -1
+endi
+endi
+if $data51 != 1 then 
+if $data51 != 2 then 
+  return -1
+endi
+endi
+if $data60 != 4 then 
+if $data60 != NULL then 
+  return -1
+endi
+endi
+if $data61 != 2 then 
+if $data61 != 1 then 
+  return -1
+endi
+endi
+if $data70 != NULL then 
+if $data70 != 4 then 
+  return -1
+endi
+endi
+if $data71 != 1 then 
+if $data71 != 2 then 
+  return -1
+endi
+endi
+if $data80 != 2 then 
+if $data80 != 2 then 
+  return -1
+endi
+endi
+if $data81 != 1 then 
+if $data81 != 2 then 
+  return -1
+endi
+endi
+if $data90 != 2 then 
+  return -1
+endi
+if $data91 != 2 then 
+if $data91 != 1 then 
+  return -1
+endi
+endi
+
+sql select cast(c3 as bigint),tbname from stb1;
+if $rows != 14 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data01 != tb1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data11 != tb1 then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data21 != tb1 then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data31 != tb1 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data41 != tb1 then 
+  return -1
+endi
+if $data50 != 32767 then 
+  return -1
+endi
+if $data51 != tb1 then 
+  return -1
+endi
+if $data60 != -32767 then 
+  return -1
+endi
+if $data61 != tb1 then 
+  return -1
+endi
+if $data70 != 1 then 
+  return -1
+endi
+if $data71 != tb2 then 
+  return -1
+endi
+if $data80 != 2 then 
+  return -1
+endi
+if $data81 != tb2 then 
+  return -1
+endi
+if $data90 != 3 then 
+  return -1
+endi
+if $data91 != tb2 then 
+  return -1
+endi
+
+sql select cast(c3 as bigint),tbname from stb1 where t1 > 1;
+if $rows != 7 then 
+  return -1
+endi
+
+sql select cast(c8 as bigint),cast(c9 as bigint) from tbn;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 111 then 
+  return -1
+endi
+if $data01 != 1111 then 
+  return -1
+endi
+if $data10 != 222 then 
+  return -1
+endi
+if $data11 != 2222 then 
+  return -1
+endi
+if $data20 != 333 then 
+  return -1
+endi
+if $data21 != 3333 then 
+  return -1
+endi
+if $data30 != 444 then 
+  return -1
+endi
+if $data31 != 4444 then 
+  return -1
+endi
+if $data40 != 555 then 
+  return -1
+endi
+if $data41 != 5555 then 
+  return -1
+endi
+if $data50 != 666 then 
+  return -1
+endi
+if $data51 != 6666 then 
+  return -1
+endi
+if $data60 != 777 then 
+  return -1
+endi
+if $data61 != 7777 then 
+  return -1
+endi
+
+sql select cast(c8 as bigint),cast(c9 as bigint) from tbn order by ts desc;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 777 then 
+  return -1
+endi
+if $data01 != 7777 then 
+  return -1
+endi
+if $data10 != 666 then 
+  return -1
+endi
+if $data11 != 6666 then 
+  return -1
+endi
+if $data20 != 555 then 
+  return -1
+endi
+if $data21 != 5555 then 
+  return -1
+endi
+if $data30 != 444 then 
+  return -1
+endi
+if $data31 != 4444 then 
+  return -1
+endi
+if $data40 != 333 then 
+  return -1
+endi
+if $data41 != 3333 then 
+  return -1
+endi
+if $data50 != 222 then 
+  return -1
+endi
+if $data51 != 2222 then 
+  return -1
+endi
+if $data60 != 111 then 
+  return -1
+endi
+if $data61 != 1111 then 
+  return -1
+endi
+
+sql select cast(cast(c8 as binary(2)) as bigint) from tbn;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 11 then 
+  return -1
+endi
+if $data10 != 22 then 
+  return -1
+endi
+if $data20 != 33 then 
+  return -1
+endi
+if $data30 != 44 then 
+  return -1
+endi
+if $data40 != 55 then 
+  return -1
+endi
+if $data50 != 66 then 
+  return -1
+endi
+if $data60 != 77 then 
+  return -1
+endi
+
+sql select cast(cast(cast(cast(ts as bigint) as binary(5)) as bigint)+cast(cast(cast(ts as bigint) as binary(2)) as bigint) as bigint) from tbn;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 16381 then 
+  return -1
+endi
+if $data10 != 16381 then 
+  return -1
+endi
+if $data20 != 16381 then 
+  return -1
+endi
+if $data30 != 16381 then 
+  return -1
+endi
+if $data40 != 16381 then 
+  return -1
+endi
+if $data50 != 16381 then 
+  return -1
+endi
+if $data60 != 16381 then 
+  return -1
+endi
+
+sql select cast(cast(cast(cast(ts as bigint) as binary(5)) as bigint)+cast(cast(cast(ts as bigint) as binary(2)) as bigint) as bigint) from tb3;
+if $rows != 0 then 
+  return -1
+endi
+
+sql select cast(a as bigint) from (select avg(c2) as a from stb1 interval(1s));
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != 2 then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != 4 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 66 then 
+  return -1
+endi
+if $data60 != -60 then 
+  return -1
+endi
+
+sql select cast(c2 as binary(10)) from (select * from stb1);
+if $rows != 14 then 
+  return -1
+endi
+
+sql select cast(a as binary(10)) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null));
+if $rows != 10 then 
+  return -1
+endi
+if $data00 != 1.000000 then 
+  return -1
+endi
+if $data10 != 2.000000 then 
+  return -1
+endi
+if $data20 != 2.500000 then 
+  return -1
+endi
+if $data30 != 4.000000 then 
+  return -1
+endi
+if $data40 != 4.500000 then 
+  return -1
+endi
+if $data50 != 66.500000 then 
+  return -1
+endi
+if $data60 != -60.000000 then 
+  return -1
+endi
+if $data70 != NULL then 
+  return -1
+endi
+if $data80 != NULL then 
+  return -1
+endi
+if $data90 != NULL then 
+  return -1
+endi
+
+sql select cast(a as bigint) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts;
+if $rows != 10 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != 2 then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != 4 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 66 then 
+  return -1
+endi
+if $data60 != -60 then 
+  return -1
+endi
+if $data70 != NULL then 
+  return -1
+endi
+if $data80 != NULL then 
+  return -1
+endi
+if $data90 != NULL then 
+  return -1
+endi
+
+sql select cast(a as bigint) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts desc;
+if $rows != 10 then 
+  return -1
+endi
+if $data00 != NULL then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != -60 then 
+  return -1
+endi
+if $data40 != 66 then 
+  return -1
+endi
+if $data50 != 4 then 
+  return -1
+endi
+if $data60 != 4 then 
+  return -1
+endi
+if $data70 != 2 then 
+  return -1
+endi
+if $data80 != 2 then 
+  return -1
+endi
+if $data90 != 1 then 
+  return -1
+endi
+
+sql select cast(a as bigint) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a desc;
+if $rows != 10 then 
+  return -1
+endi
+if $data00 != NULL then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 66 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 4 then 
+  return -1
+endi
+if $data60 != 2 then 
+  return -1
+endi
+if $data70 != 2 then 
+  return -1
+endi
+if $data80 != 1 then 
+  return -1
+endi
+if $data90 != -60 then 
+  return -1
+endi
+
+sql select cast(a as bigint) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a;
+if $rows != 10 then 
+  return -1
+endi
+if $data00 != -60 then 
+  return -1
+endi
+if $data10 != 1 then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != 2 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 4 then 
+  return -1
+endi
+if $data60 != 66 then 
+  return -1
+endi
+if $data70 != NULL then 
+  return -1
+endi
+if $data80 != NULL then 
+  return -1
+endi
+if $data90 != NULL then 
+  return -1
+endi
+
+sql select cast(a as bigint) from (select cast(c2 as binary(2)) as a from tb1);
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 12 then 
+  return -1
+endi
+if $data60 != -1 then 
+  return -1
+endi
+
+sql select cast(tb1.c3 as binary(10)),cast(tb2.c3 as binary(10)) from tb1,tb2 where tb1.ts=tb2.ts;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data01 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data11 != 2 then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data21 != 3 then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data31 != 4 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data41 != 5 then 
+  return -1
+endi
+if $data50 != 32767 then 
+  return -1
+endi
+if $data51 != 6 then 
+  return -1
+endi
+if $data60 != -32767 then 
+  return -1
+endi
+if $data61 != 7 then 
+  return -1
+endi
+
+sql select cast(c3 as binary(10)) from tb1 union all select cast(c3 as binary(10)) from tb2;
+if $rows != 14 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 32767 then 
+  return -1
+endi
+if $data60 != -32767 then 
+  return -1
+endi
+if $data70 != 1 then 
+  return -1
+endi
+if $data80 != 2 then 
+  return -1
+endi
+if $data90 != 3 then 
+  return -1
+endi
+
+
+                                                                                                                                                                  

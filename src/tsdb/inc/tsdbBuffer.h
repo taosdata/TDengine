@@ -29,6 +29,7 @@ typedef struct {
   int            tBufBlocks;
   int            nBufBlocks;
   int            nRecycleBlocks;
+  int            nElasticBlocks;
   int64_t        index;
   SList*         bufBlockList;  
 } STsdbBufPool;
@@ -41,6 +42,10 @@ int           tsdbOpenBufPool(STsdbRepo* pRepo);
 void          tsdbCloseBufPool(STsdbRepo* pRepo);
 SListNode*    tsdbAllocBufBlockFromPool(STsdbRepo* pRepo);
 int           tsdbExpandPool(STsdbRepo* pRepo, int32_t oldTotalBlocks);
-void          tsdbRecycleBufferBlock(STsdbBufPool* pPool, SListNode *pNode);
+void          tsdbRecycleBufferBlock(STsdbBufPool* pPool, SListNode *pNode, bool bELastic);
+
+// health cite
+STsdbBufBlock *tsdbNewBufBlock(int bufBlockSize);
+void tsdbFreeBufBlock(STsdbBufBlock *pBufBlock);
 
 #endif /* _TD_TSDB_BUFFER_H_ */

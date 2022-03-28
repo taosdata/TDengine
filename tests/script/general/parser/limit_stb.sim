@@ -168,9 +168,9 @@ sql select * from $stb limit 2 offset $offset
 if $rows != 2 then
   return -1
 endi
-if $data00 != @18-09-17 10:30:00.002@ then
-  return -1
-endi
+#if $data00 != @18-09-17 10:30:00.002@ then
+#  return -1
+#endi
 if $data01 != 9 then
   return -1
 endi
@@ -827,6 +827,8 @@ endi
 if $data59 != 4 then
   return -1
 endi
+
+sql_error select sample(c1, 1) from $stb where ts >= $ts0 and ts <= $tsu limit 5 offset 1
 
 sql select top(c1, 1) from $stb where ts >= $ts0 and ts <= $tsu limit 5 offset 1
 if $rows != 0 then

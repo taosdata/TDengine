@@ -1074,6 +1074,7 @@ bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
 }
 
 bool simExecuteLineInsertCmd(SScript *script, char *rest) {
+  bool ret;
   char buf[TSDB_MAX_BINARY_LEN];
 
   simVisuallizeOption(script, rest, buf);
@@ -1083,20 +1084,24 @@ bool simExecuteLineInsertCmd(SScript *script, char *rest) {
 
   simInfo("script:%s, %s", script->fileName, rest);
   simLogSql(buf, true);
-  char *  lines[] = {rest};
-  int32_t ret = taos_insert_lines(script->taos, lines, 1);
-  if (ret == TSDB_CODE_SUCCESS) {
+  char* lines[] = {rest};
+  TAOS_RES *result = taos_schemaless_insert(script->taos, lines, 1, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  int32_t code = taos_errno(result);
+  if (code == TSDB_CODE_SUCCESS) {
     simDebug("script:%s, taos:%p, %s executed. success.", script->fileName, script->taos, rest);
     script->linePos++;
-    return true;
+    ret = true;
   } else {
-    sprintf(script->error, "lineNum: %d. line: %s failed, ret:%d:%s", line->lineNum, rest,
-            ret & 0XFFFF, tstrerror(ret));
-    return false;
+    sprintf(script->error, "lineNum: %d. line: %s failed, code:%d:%s", line->lineNum, rest,
+            code & 0XFFFF, taos_errstr(result));
+    ret = false;
   }
+  taos_free_result(result);
+  return ret;
 }
 
 bool simExecuteLineInsertErrorCmd(SScript *script, char *rest) {
+  bool ret;
   char buf[TSDB_MAX_BINARY_LEN];
 
   simVisuallizeOption(script, rest, buf);
@@ -1107,14 +1112,17 @@ bool simExecuteLineInsertErrorCmd(SScript *script, char *rest) {
   simInfo("script:%s, %s", script->fileName, rest);
   simLogSql(buf, true);
   char *  lines[] = {rest};
-  int32_t ret = taos_insert_lines(script->taos, lines, 1);
-  if (ret == TSDB_CODE_SUCCESS) {
+  TAOS_RES *result = taos_schemaless_insert(script->taos, lines, 1, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  int32_t code = taos_errno(result);
+  if (code == TSDB_CODE_SUCCESS) {
     sprintf(script->error, "script:%s, taos:%p, %s executed. expect failed, but success.", script->fileName, script->taos, rest);
     script->linePos++;
-    return false;
+    ret = false;
   } else {
-    simDebug("lineNum: %d. line: %s failed, ret:%d:%s. Expect failed, so success", line->lineNum, rest,
-            ret & 0XFFFF, tstrerror(ret));
-    return true;
+    simDebug("lineNum: %d. line: %s failed, code:%d:%s. Expect failed, so success", line->lineNum, rest,
+            code & 0XFFFF, taos_errstr(result));
+    ret = true;
   }
+  taos_free_result(result);
+  return ret;
 }

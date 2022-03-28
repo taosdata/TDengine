@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<something-else-entirely>
+    <proxool>
+        <alias>ds</alias>
+        <!--数据源的别名-->
+        <driver-url>jdbc:TAOS-RS://127.0.0.1:6041/log</driver-url>
+        <!--url连接串-->
+        <driver-class>com.taosdata.jdbc.rs.RestfulDriver</driver-class>
+        <!--驱动类-->
+        <driver-properties>
+            <property name="user" value="root"/>
+            <property name="password" value="taosdata"/>
+        </driver-properties>
+        <!--最大连接数(默认5个),超过了这个连接数,再有请求时,就排在队列中等候,最大的等待请求数由maximum-new-connections决定 -->
+        <maximum-connection-count>100</maximum-connection-count>
+        <!-- 定义连接池中的最大连接数 -->
+        <maximum-active-time>100</maximum-active-time>
+        <!--最少保持的空闲连接数(默认2个)-->
+        <prototype-count>1</prototype-count>
+        <!--最小连接数(默认2个)-->
+        <minimum-connection-count>5</minimum-connection-count>
+        <!--proxool自动侦察各个连接状态的时间间隔(毫秒),侦察到空闲的连接就马上回收,超时的销毁 默认30秒-->
+        <house-keeping-sleep-time>30000</house-keeping-sleep-time>
+        <!--用于保持连接的测试语句 -->
+        <house-keeping-test-sql>select server_status()</house-keeping-test-sql>
+    </proxool>
+</something-else-entirely>

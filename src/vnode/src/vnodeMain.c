@@ -560,5 +560,10 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
     return vnodeSaveVersion(pVnode);
   }
 
+  // timer thread callback
+  if(status == TSDB_STATUS_COMMIT_NOBLOCK) {
+    qSolveCommitNoBlock(pVnode->tsdb, pVnode->qMgmt);
+  }
+
   return 0;
 }

@@ -25,8 +25,7 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
-        now = time.time()
-        self.ts = int(round(now * 1000))
+        self.ts = 1633333333000.
         self.num = 10
 
     def run(self):
@@ -208,9 +207,9 @@ class TDTestCase:
         sql = '''select distinct(t_ts) from stable_1;'''
         tdSql.query(sql)
         tdSql.checkRows(3)
-        # sql = '''select distinct(tbname) from stable_1;'''
-        # tdSql.query(sql)
-        # tdSql.checkRows(6)
+        sql = '''select distinct(tbname) from stable_1;'''
+        tdSql.query(sql)
+        tdSql.checkRows(6)
 
         tdLog.info("========== operator=2(OP_DataBlocksOptScan) ==========")
         sql = '''select last(q_int),first(q_int) from stable_1;'''

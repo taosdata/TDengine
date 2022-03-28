@@ -48,6 +48,12 @@
 #define CREATE_CTABLE_RETRY_TIMES 10
 #define CREATE_CTABLE_RETRY_SEC   14
 
+// informal
+#define META_SYNC_TABLE_NAME "_taos_meta_sync_table_name_taos_"
+#define META_SYNC_TABLE_NAME_LEN 32
+static int32_t tsMetaSyncOption = 0;
+// informal
+
 int64_t          tsCTableRid = -1;
 static void *    tsChildTableSdb;
 int64_t          tsSTableRid = -1;
@@ -845,15 +851,15 @@ static int32_t mnodeProcessBatchCreateTableMsg(SMnodeMsg *pMsg) {
       memcpy(pSubMsg->pCont + sizeof(SCMCreateTableMsg), p, htonl(p->len));
       code = mnodeValidateCreateTableMsg(p, pSubMsg);
 
-      if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_MND_TABLE_ALREADY_EXIST) {
-	++pSubMsg->pBatchMasterMsg->successed;
-	mnodeDestroySubMsg(pSubMsg);
-	continue;
+      if (code == TSDB_CODE_SUCCESS || ( p->igExists == 1 && code == TSDB_CODE_MND_TABLE_ALREADY_EXIST )) {
+        ++pSubMsg->pBatchMasterMsg->successed;
+        mnodeDestroySubMsg(pSubMsg);
+        continue;
       }
 
       if (code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-	mnodeDestroySubMsg(pSubMsg);
-	return code;
+        mnodeDestroySubMsg(pSubMsg);
+        return code;
       }
     }
 
@@ -1040,11 +1046,21 @@ static int32_t mnodeCreateSuperTableCb(SMnodeMsg *pMsg, int32_t code) {
 
   if (code == TSDB_CODE_SUCCESS) {
     mLInfo("stable:%s, is created in sdb, uid:%" PRIu64, pTable->info.tableId, pTable->uid);
+    if(pMsg->pBatchMasterMsg)
+      pMsg->pBatchMasterMsg->successed ++;    
   } else {
     mError("msg:%p, app:%p stable:%s, failed to create in sdb, reason:%s", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId,
            tstrerror(code));
     SSdbRow desc = {.type = SDB_OPER_GLOBAL, .pObj = pTable, .pTable = tsSuperTableSdb};
     sdbDeleteRow(&desc);
+    if(pMsg->pBatchMasterMsg)
+      pMsg->pBatchMasterMsg->received ++;
+  }
+
+  // if super table create by batch msg, check done and send finished to client
+  if(pMsg->pBatchMasterMsg) {
+    if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received >= pMsg->pBatchMasterMsg->expected)
+      dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);    
   }
 
   return code;
@@ -1326,10 +1342,9 @@ static int32_t mnodeModifySuperTableTagNameCb(SMnodeMsg *pMsg, int32_t code) {
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
   mLInfo("msg:%p, app:%p stable %s, modify tag result:%s", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
          tstrerror(code));
-   if (code == TSDB_CODE_SUCCESS) {
+  if (code == TSDB_CODE_SUCCESS) {
     code = mnodeGetSuperTableMeta(pMsg);
   }
-
   return code;
 }
 
@@ -1727,6 +1742,9 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
     cols++;
 
     numOfRows++;
+
+    mDebug("stable: %s, uid: %" PRIu64, prefix, pTable->uid);
+
     mnodeDecTableRef(pTable);
   }
 
@@ -2228,9 +2246,19 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
     if (pMsg->pTable == NULL) {
       SVgObj *pVgroup = NULL;
       int32_t tid = 0;
-      code = mnodeGetAvailableVgroup(pMsg, &pVgroup, &tid);
+      int32_t vgId = 0;
+
+      if (tsMetaSyncOption) {
+        char *pTbName = strchr(pCreate->tableName, '.');
+        if (pTbName && (pTbName = strchr(pTbName + 1, '.'))) {
+          if (0 == strncmp(META_SYNC_TABLE_NAME, ++pTbName, META_SYNC_TABLE_NAME_LEN)) {
+            vgId = atoi(pTbName + META_SYNC_TABLE_NAME_LEN);
+          }
+        }
+      }
+      code = mnodeGetAvailableVgroup(pMsg, &pVgroup, &tid, vgId);
       if (code != TSDB_CODE_SUCCESS) {
-        mDebug("msg:%p, app:%p table:%s, failed to get available vgroup, reason:%s", pMsg, pMsg->rpcMsg.ahandle,
+        mInfo("msg:%p, app:%p table:%s, failed to get available vgroup, reason:%s", pMsg, pMsg->rpcMsg.ahandle,
                pCreate->tableName, tstrerror(code));
         return code;
       }
@@ -2976,7 +3004,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   int32_t num      = 0;
   int32_t code     = TSDB_CODE_SUCCESS;
   char*   str      = strndup(pInfo->tableNames, contLen);
-  char**  nameList = strsplit(str, ",", &num);
+  char**  nameList = strsplit(str, "`", &num);
   SArray* pList    = taosArrayInit(4, POINTER_BYTES);
 
   SMultiTableMeta *pMultiMeta = NULL;
@@ -3093,7 +3121,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   // add the user-defined-function information
   for(int32_t i = 0; i < pInfo->numOfUdfs; ++i, ++t) {
     char buf[TSDB_FUNC_NAME_LEN] = {0};
-    strcpy(buf, nameList[t]);
+    tstrncpy(buf, nameList[t], TSDB_FUNC_NAME_LEN);
 
     SFuncObj* pFuncObj = mnodeGetFunc(buf);
     if (pFuncObj == NULL) {
@@ -3156,7 +3184,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   _end:
   tfree(str);
   tfree(nameList);
-  taosArrayDestroy(pList);
+  taosArrayDestroy(&pList);
   pMsg->pTable  = NULL;
   pMsg->pVgroup = NULL;
   tfree(pMultiMeta);

@@ -67,6 +67,7 @@ void    mnodeCleanupDnodes();
 int32_t mnodeGetDnodesNum();
 int32_t mnodeGetOnlinDnodesCpuCoreNum();
 int32_t mnodeGetOnlineDnodesNum();
+int32_t mnodeGetVnodeDnodesNum();
 void    mnodeGetOnlineAndTotalDnodesNum(int32_t *onlineNum, int32_t *totalNum);
 void *  mnodeGetNextDnode(void *pIter, SDnodeObj **pDnode);
 void    mnodeCancelGetNextDnode(void *pIter);

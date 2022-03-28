@@ -86,7 +86,7 @@ def fetch_callback(p_param, p_result, num_of_rows):
 
 def query_callback(p_param, p_result, code):
     # type: (c_void_p, c_void_p, c_int) -> None
-    if p_result == None:
+    if p_result is None:
         return
     result = TaosResult(p_result)
     if code == 0:
@@ -335,7 +335,7 @@ from ctypes import *
 def stream_callback(p_param, p_result, p_row):
     # type: (c_void_p, c_void_p, c_void_p) -> None
 
-    if p_result == None or p_row == None:
+    if p_result is None or p_row is None:
         return
     result = TaosResult(p_result)
     row = TaosRow(result, p_row)
@@ -402,17 +402,17 @@ conn.exec("create database if not exists %s precision 'us'" % dbname)
 conn.select_db(dbname)
 
 lines = [
-    'st,t1=3i64,t2=4f64,t3="t3" c1=3i64,c3=L"passit",c2=false,c4=4f64 1626006833639000000ns',
-    'st,t1=4i64,t3="t4",t2=5f64,t4=5f64 c1=3i64,c3=L"passitagin",c2=true,c4=5f64,c5=5f64,c6=7u64 1626006933640000000ns',
-    'stf,t1=4i64,t3="t4",t2=5f64,t4=5f64 c1=3i64,c3=L"passitagin_stf",c2=false,c5=5f64,c6=7u64 1626006933641000000ns',
+    'st,t1=3i64,t2=4f64,t3="t3" c1=3i64,c3=L"passit",c2=false,c4=4f64 1626006833639000000',
+    'st,t1=4i64,t3="t4",t2=5f64,t4=5f64 c1=3i64,c3=L"passitagin",c2=true,c4=5f64,c5=5f64,c6=7u64 1626006933640000000',
+    'stf,t1=4i64,t3="t4",t2=5f64,t4=5f64 c1=3i64,c3=L"passitagin_stf",c2=false,c5=5f64,c6=7u64 1626006933641000000',
 ]
-conn.insert_lines(lines)
+conn.schemaless_insert(lines, 0, "ns")
 print("inserted")
 
 lines = [
-    'stf,t1=5i64,t3="t4",t2=5f64,t4=5f64 c1=3i64,c3=L"passitagin_stf",c2=false,c5=5f64,c6=7u64 1626006933641000000ns',
+    'stf,t1=5i64,t3="t4",t2=5f64,t4=5f64 c1=3i64,c3=L"passitagin_stf",c2=false,c5=5f64,c6=7u64 1626006933641000000',
 ]
-conn.insert_lines(lines)
+conn.schemaless_insert(lines, 0, "ns")
 
 result = conn.query("show tables")
 for row in result:
@@ -440,19 +440,16 @@ from .cursor import *
 from .result import *
 from .statement import *
 from .subscription import *
+from .schemaless import *
 
-try:
-    import importlib.metadata
-
-    __version__ = importlib.metadata.version("taos")
-except:
-    None
+from taos._version import __version__
 
 # Globals
 threadsafety = 0
 paramstyle = "pyformat"
 
 __all__ = [
+    "__version__",
     # functions
     "connect",
     "new_bind_param",
@@ -468,6 +465,8 @@ __all__ = [
     "TaosRow",
     "TaosStmt",
     "PrecisionEnum",
+    "SmlPrecision",
+    "SmlProtocol"
 ]
 
 def connect(*args, **kwargs):

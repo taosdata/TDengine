@@ -30,6 +30,7 @@ class TDTestCase:
         ret = tdSql.query(sql)
         version = floor(float(tdSql.getData(0, 0)[0:3]))        
         expectedVersion = 2
+        
         if(version == expectedVersion):
             tdLog.info("sql:%s, row:%d col:%d data:%d == expect" % (sql, 0, 0, version))
         else:

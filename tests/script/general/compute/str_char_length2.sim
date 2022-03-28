@@ -1,0 +1,309 @@
+sleep 100
+sql connect
+sql use db
+
+$emptyString = @@
+print execute sql select char_length(stb1.c14),char_length(stba.c15) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;
+sql select char_length(stb1.c14),char_length(stba.c15) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;
+if $data00 != @1@ then
+  return -1 
+endi
+if $data01 != @1@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data11 != @1@ then
+  return -1 
+endi
+if $data20 != @1@ then
+  return -1 
+endi
+if $data21 != @1@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data31 != @1@ then
+  return -1 
+endi
+if $data40 != @1@ then
+  return -1 
+endi
+if $data41 != @1@ then
+  return -1 
+endi
+if $data50 != @2@ then
+  return -1 
+endi
+if $data51 != @1@ then
+  return -1 
+endi
+if $data60 != @0@ then
+  return -1 
+endi
+if $data61 != @1@ then
+  return -1 
+endi
+print execute sql select char_length(c14) as a from stb1 union all select char_length(c15) as a from stba;
+sql select char_length(c14) as a from stb1 union all select char_length(c15) as a from stba;
+if $data00 != @1@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @1@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @1@ then
+  return -1 
+endi
+if $data50 != @2@ then
+  return -1 
+endi
+if $data60 != @0@ then
+  return -1 
+endi
+if $data70 != @1@ then
+  return -1 
+endi
+if $data80 != @1@ then
+  return -1 
+endi
+if $data90 != @1@ then
+  return -1 
+endi
+print execute sql select char_length(c8) from stba;
+sql select char_length(c8) from stba;
+if $data00 != @3@ then
+  return -1 
+endi
+if $data10 != @3@ then
+  return -1 
+endi
+if $data20 != @3@ then
+  return -1 
+endi
+if $data30 != @3@ then
+  return -1 
+endi
+if $data40 != @3@ then
+  return -1 
+endi
+if $data50 != @3@ then
+  return -1 
+endi
+if $data60 != @3@ then
+  return -1 
+endi
+if $data70 != @3@ then
+  return -1 
+endi
+if $data80 != @3@ then
+  return -1 
+endi
+if $data90 != @3@ then
+  return -1 
+endi
+print execute sql select char_length(c9) from stba;
+sql select char_length(c9) from stba;
+if $data00 != @4@ then
+  return -1 
+endi
+if $data10 != @4@ then
+  return -1 
+endi
+if $data20 != @4@ then
+  return -1 
+endi
+if $data30 != @4@ then
+  return -1 
+endi
+if $data40 != @4@ then
+  return -1 
+endi
+if $data50 != @4@ then
+  return -1 
+endi
+if $data60 != @4@ then
+  return -1 
+endi
+if $data70 != @4@ then
+  return -1 
+endi
+if $data80 != @4@ then
+  return -1 
+endi
+if $data90 != @4@ then
+  return -1 
+endi
+print execute sql select char_length(cast(min(c2) as binary(20))) from tba1;
+sql select char_length(cast(min(c2) as binary(20))) from tba1;
+if $data00 != @1@ then
+  return -1 
+endi
+print execute sql select char_length(cast(max(c2) as binary(20))) from tba1;
+sql select char_length(cast(max(c2) as binary(20))) from tba1;
+if $data00 != @1@ then
+  return -1 
+endi
+print execute sql select char_length(cast(count(c2) as binary(20))) from tba1;
+sql select char_length(cast(count(c2) as binary(20))) from tba1;
+if $data00 != @2@ then
+  return -1 
+endi
+print execute sql select char_length(cast(sum(c2) as binary(20))) from tba1;
+sql select char_length(cast(sum(c2) as binary(20))) from tba1;
+if $data00 != @3@ then
+  return -1 
+endi
+print execute sql select char_length(cast(avg(c2) as binary(20))) from tba1;
+sql select char_length(cast(avg(c2) as binary(20))) from tba1;
+if $data00 != @8@ then
+  return -1 
+endi
+print execute sql select char_length(cast(percentile(c2, 10) as binary(20))) from tba1;
+sql select char_length(cast(percentile(c2, 10) as binary(20))) from tba1;
+if $data00 != @8@ then
+  return -1 
+endi
+print execute sql select char_length(cast(apercentile(c2, 10) as binary(20))) from tba1;
+sql select char_length(cast(apercentile(c2, 10) as binary(20))) from tba1;
+if $data00 != @8@ then
+  return -1 
+endi
+print execute sql select char_length(cast(stddev(c2) as binary(20))) from tba1;
+sql select char_length(cast(stddev(c2) as binary(20))) from tba1;
+if $data00 != @8@ then
+  return -1 
+endi
+print execute sql select char_length(cast(spread(c2) as binary(20))) from tba1;
+sql select char_length(cast(spread(c2) as binary(20))) from tba1;
+if $data00 != @8@ then
+  return -1 
+endi
+print execute sql select char_length(cast(twa(c2) as binary(20))) from tba1;
+sql select char_length(cast(twa(c2) as binary(20))) from tba1;
+if $data00 != @8@ then
+  return -1 
+endi
+print execute sql select char_length(cast(leastsquares(c2, 1, 1) as binary(20))) from tba1;
+sql_error select char_length(cast(leastsquares(c2, 1, 1) as binary(20))) from tba1;
+print execute sql select char_length(cast(interp(c2) as binary(20))) from tba1 every(1s)
+sql select char_length(cast(interp(c2) as binary(20))) from tba1 every(1s)
+if $data00 != @21-11-11 09:00:00.000@ then
+  return -1 
+endi
+if $data01 != @1@ then
+  return -1 
+endi
+if $data10 != @21-11-11 09:00:01.000@ then
+  return -1 
+endi
+if $data11 != @1@ then
+  return -1 
+endi
+if $data20 != @21-11-11 09:00:02.000@ then
+  return -1 
+endi
+if $data21 != @1@ then
+  return -1 
+endi
+if $data30 != @21-11-11 09:00:03.000@ then
+  return -1 
+endi
+if $data31 != @1@ then
+  return -1 
+endi
+if $data40 != @21-11-11 09:00:04.000@ then
+  return -1 
+endi
+if $data41 != @1@ then
+  return -1 
+endi
+if $data50 != @21-11-11 09:00:05.000@ then
+  return -1 
+endi
+if $data51 != @1@ then
+  return -1 
+endi
+if $data60 != @21-11-11 09:00:06.000@ then
+  return -1 
+endi
+if $data61 != @1@ then
+  return -1 
+endi
+if $data70 != @21-11-11 09:00:07.000@ then
+  return -1 
+endi
+if $data71 != @1@ then
+  return -1 
+endi
+if $data80 != @21-11-11 09:00:08.000@ then
+  return -1 
+endi
+if $data81 != @1@ then
+  return -1 
+endi
+if $data90 != @21-11-11 09:00:09.000@ then
+  return -1 
+endi
+if $data91 != @1@ then
+  return -1 
+endi
+print execute sql select char_length(cast(interp(c2) as binary(20))) stba every(1s) group by tbname;
+sql_error select char_length(cast(interp(c2) as binary(20))) stba every(1s) group by tbname;
+print execute sql select char_length(cast(elapsed(ts) as binary(20))) from tba1;
+sql select char_length(cast(elapsed(ts) as binary(20))) from tba1;
+if $data00 != @12@ then
+  return -1 
+endi
+print execute sql select char_length(cast(rate(c2) as binary(20))) from tba1;
+sql select char_length(cast(rate(c2) as binary(20))) from tba1;
+if $data00 != @8@ then
+  return -1 
+endi
+print execute sql select char_length(cast(irate(c2) as binary(20))) from tba1;
+sql select char_length(cast(irate(c2) as binary(20))) from tba1;
+if $data00 != @8@ then
+  return -1 
+endi
+print execute sql select char_length(cast(first(c2) as binary(20))) from tba1;
+sql select char_length(cast(first(c2) as binary(20))) from tba1;
+if $data00 != @1@ then
+  return -1 
+endi
+print execute sql select char_length(cast(last(c2) as binary(20))) from tba1;
+sql select char_length(cast(last(c2) as binary(20))) from tba1;
+if $data00 != @1@ then
+  return -1 
+endi
+print execute sql select char_length(cast(last_row(c2) as binary(20))) from tba1;
+sql select char_length(cast(last_row(c2) as binary(20))) from tba1;
+if $data00 != @1@ then
+  return -1 
+endi
+print execute sql select char_length(cast(top(c2, 1) as binary(20))) from tba1;
+sql_error select char_length(cast(top(c2, 1) as binary(20))) from tba1;
+print execute sql select char_length(cast(bottom(c2, 1) as binary(20))) from tba1;
+sql_error select char_length(cast(bottom(c2, 1) as binary(20))) from tba1;
+print execute sql select char_length(cast(leastsquares(c2, 1, 1) as binary(20))) from tba1;
+sql_error select char_length(cast(leastsquares(c2, 1, 1) as binary(20))) from tba1;
+print execute sql select char_length(cast(derivative(c2, 1s, 0) as binary(20))) from tba1;
+sql_error select char_length(cast(derivative(c2, 1s, 0) as binary(20))) from tba1;
+print execute sql select char_length(cast(diff(c2) as binary(20))) from tba1;
+sql_error select char_length(cast(diff(c2) as binary(20))) from tba1;
+print execute sql select char_length(cast(csum(c2) as binary(20))) from tba1;
+sql_error select char_length(cast(csum(c2) as binary(20))) from tba1;
+print execute sql select char_length(cast(mavg(c2,2) as binary(20))) from tba1;
+sql_error select char_length(cast(mavg(c2,2) as binary(20))) from tba1;
+print execute sql select char_length(cast(sample(c2,2) as binary(20))) from tba1;
+sql_error select char_length(cast(sample(c2,2) as binary(20))) from tba1;
+print execute sql select char_length(cast(_block_dist() as binary(20))) from tba1;
+sql_error select char_length(cast(_block_dist() as binary(20))) from tba1;

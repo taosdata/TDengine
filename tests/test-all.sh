@@ -11,15 +11,15 @@ tests_dir=`pwd`
 IN_TDINTERNAL="community"
 
 function stopTaosd {
-	echo "Stop taosd"
-  sudo systemctl stop taosd || echo 'no sudo or systemctl or stop fail '
+  echo "Stop taosd"
+  sudo systemctl stop taosd || echo 'no sudo or systemctl or stop fail'
   PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
-	while [ -n "$PID" ]
-	do
+  while [ -n "$PID" ]
+  do
     pkill -TERM -x taosd
     sleep 1
-  	PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
-	done
+    PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+  done
 }
 
 function dohavecore(){
@@ -139,17 +139,17 @@ function runPyCaseOneByOne {
           case=`echo $line|awk '{print $NF}'`
         fi
         start_time=`date +%s`
-        date +%F\ %T | tee -a pytest-out.log
+        date +%F\ %T | tee -a $tests_dir/pytest-out.log
         echo -n $case
         $line > /dev/null 2>&1 && \
-          echo -e "${GREEN} success${NC}" | tee -a pytest-out.log || \
-          echo -e "${RED} failed${NC}" | tee -a pytest-out.log
+          echo -e "${GREEN} success${NC}" | tee -a $tests_dir/pytest-out.log || \
+          echo -e "${RED} failed${NC}" | tee -a $tests_dir/pytest-out.log
         end_time=`date +%s`
         out_log=`tail -1 pytest-out.log  `
         # if [[ $out_log =~ 'failed' ]];then
         #   exit 8
         # fi
-        echo execution time of $case was `expr $end_time - $start_time`s. | tee -a pytest-out.log
+        echo execution time of $case was `expr $end_time - $start_time`s. | tee -a $tests_dir/pytest-out.log
       else
         $line > /dev/null 2>&1
       fi
@@ -158,7 +158,13 @@ function runPyCaseOneByOne {
 }
 
 function runPyCaseOneByOnefq() {
-  cd $tests_dir/pytest
+  if [[ $3 =~ system ]] ; then
+    cd $tests_dir/system-test
+  elif [[ $3 =~ develop ]] ; then
+    cd $tests_dir/develop-test
+  else
+    cd $tests_dir/pytest
+  fi
   if [[ $1 =~ full ]] ; then
     start=1
     end=`sed -n '$=' fulltest.sh`
@@ -233,6 +239,7 @@ totalPyFailed=0
 totalJDBCFailed=0
 totalUnitFailed=0
 totalExampleFailed=0
+totalApiFailed=0
 
 if [ "${OS}" == "Linux" ]; then
     corepath=`grep -oP '.*(?=core_)' /proc/sys/kernel/core_pattern||grep -oP '.*(?=core-)' /proc/sys/kernel/core_pattern`
@@ -332,16 +339,26 @@ if [ "$2" != "sim" ] && [ "$2" != "jdbc" ] && [ "$2" != "unit" ]  && [ "$2" != "
 
   export LD_LIBRARY_PATH=$TOP_DIR/$LIB_DIR:$LD_LIBRARY_PATH
 
+  [ -f $tests_dir/pytest-out.log ] && rm -f $tests_dir/pytest-out.log
   cd $tests_dir/pytest
-
-  [ -f pytest-out.log ] && rm -f pytest-out.log
 
   if [ "$1" == "cron" ]; then
     echo "### run Python regression test ###"
     runPyCaseOneByOne regressiontest.sh
   elif [ "$1" == "full" ]; then
     echo "### run Python full test ###"
-    runPyCaseOneByOne fulltest.sh
+    cd $tests_dir/develop-test
+    for name in *.sh
+    do
+      runPyCaseOneByOne $name
+    done
+    cd $tests_dir/system-test
+    for name in *.sh
+    do
+      runPyCaseOneByOne $name
+    done
+    cd $tests_dir/pytest
+    runPyCaseOneByOne fulltest.sh    
   elif [ "$1" == "pytest" ]; then
     echo "### run Python full test ###"
     runPyCaseOneByOne fulltest.sh
@@ -360,6 +377,12 @@ if [ "$2" != "sim" ] && [ "$2" != "jdbc" ] && [ "$2" != "unit" ]  && [ "$2" != "
   elif [ "$1" == "p4" ]; then
     echo "### run Python_4 test ###"
     runPyCaseOneByOnefq p4 1
+  elif [ "$1" == "system-test" ]; then
+    echo "### run system-test test ###"
+    runPyCaseOneByOnefq full 1 system
+  elif [ "$1" == "develop-test" ]; then
+    echo "### run develop-test test ###"
+    runPyCaseOneByOnefq full 1 develop
   elif [ "$1" == "b2" ] || [ "$1" == "b3" ]; then
     exit $(($totalFailed + $totalPyFailed))
   elif [ "$1" == "smoke" ] || [ -z "$1" ]; then
@@ -532,7 +555,28 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$2" != 
     echo "demo pass"
     totalExamplePass=`expr $totalExamplePass + 1`
   fi
+  echo "### run setconfig tests ###"
+
+  stopTaosd
+
+  cd $tests_dir
+  echo "current dir: "
   
+  pwd
+  
+  cd script/api
+  echo "building setcfgtest"
+  make > /dev/null
+  ./clientcfgtest
+  if [ $? != "0" ]; then
+    echo "clientcfgtest failed"
+    totalExampleFailed=`expr $totalExampleFailed + 1`    
+  else
+    echo "clientcfgtest pass"
+    totalExamplePass=`expr $totalExamplePass + 1`
+  fi
+
+
   if [ "$totalExamplePass" -gt "0" ]; then
     echo -e "\n${GREEN} ### Total $totalExamplePass examples succeed! ### ${NC}"
   fi
@@ -544,7 +588,13 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$2" != 
   if [ "${OS}" == "Linux" ]; then
     dohavecore 1
   fi
+
+  
+
+
+
 fi
+
 
 
 exit $(($totalFailed + $totalPyFailed + $totalJDBCFailed + $totalUnitFailed + $totalExampleFailed))

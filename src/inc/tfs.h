@@ -41,9 +41,16 @@ typedef struct {
   int64_t avail;
 } SFSMeta;
 
+typedef struct {
+  int64_t size;
+  int64_t used;
+  int64_t free;
+  int16_t nAvailDisks;  // # of Available disks
+} STierMeta;
+
 int  tfsInit(SDiskCfg *pDiskCfg, int ndisk);
 void tfsDestroy();
-void tfsUpdateInfo(SFSMeta *pFSMeta);
+void tfsUpdateInfo(SFSMeta *pFSMeta, STierMeta *tierMetas, int8_t numLevels);
 void tfsGetMeta(SFSMeta *pMeta);
 void tfsAllocDisk(int expLevel, int *level, int *id);
 
@@ -63,7 +70,7 @@ typedef struct {
 #define TFILE_NAME(pf) ((pf)->aname)
 #define TFILE_REL_NAME(pf) ((pf)->rname)
 
-#define tfsopen(pf, flags) open(TFILE_NAME(pf), flags)
+#define tfsopen(pf, flags) open(TFILE_NAME(pf), flags | O_BINARY)
 #define tfsclose(fd) close(fd)
 #define tfsremove(pf) remove(TFILE_NAME(pf))
 #define tfscopy(sf, df) taosCopy(TFILE_NAME(sf), TFILE_NAME(df))

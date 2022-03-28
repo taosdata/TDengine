@@ -139,7 +139,7 @@ typedef uint64_t TKEY;
 #define tdGetTKEY(key) (((TKEY)ABS(key)) | (TKEY_NEGATIVE_FLAG & (TKEY)(key)))
 #define tdGetKey(tkey) (((TSKEY)((tkey)&TKEY_VALUE_FILTER)) * (TKEY_IS_NEGATIVE(tkey) ? -1 : 1))
 
-#define MIN_TS_KEY ((TSKEY)0x8000000000000001)
+#define MIN_TS_KEY ((TSKEY)0xc000000000000001)
 #define MAX_TS_KEY ((TSKEY)0x3fffffffffffffff)
 
 #define TD_TO_TKEY(key) tdGetTKEY(((key) < MIN_TS_KEY) ? MIN_TS_KEY : (((key) > MAX_TS_KEY) ? MAX_TS_KEY : key))
@@ -448,13 +448,14 @@ typedef struct {
 #define kvRowSetNCols(r, n) kvRowNCols(r) = (n)
 #define kvRowColIdx(r) (SColIdx *)POINTER_SHIFT(r, TD_KV_ROW_HEAD_SIZE)
 #define kvRowValues(r) POINTER_SHIFT(r, TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * kvRowNCols(r))
+#define kvRowKeys(r) POINTER_SHIFT(r, *(uint16_t *)POINTER_SHIFT(r, TD_KV_ROW_HEAD_SIZE + sizeof(int16_t)))
 #define kvRowCpy(dst, r) memcpy((dst), (r), kvRowLen(r))
 #define kvRowColVal(r, colIdx) POINTER_SHIFT(kvRowValues(r), (colIdx)->offset)
 #define kvRowColIdxAt(r, i) (kvRowColIdx(r) + (i))
 #define kvRowFree(r) tfree(r)
 #define kvRowEnd(r) POINTER_SHIFT(r, kvRowLen(r))
 #define kvRowValLen(r) (kvRowLen(r) - TD_KV_ROW_HEAD_SIZE - sizeof(SColIdx) * kvRowNCols(r))
-#define kvRowTKey(r) (*(TKEY *)(kvRowValues(r)))
+#define kvRowTKey(r) (*(TKEY *)(kvRowKeys(r)))
 #define kvRowKey(r) tdGetKey(kvRowTKey(r))
 #define kvRowDeleted(r) TKEY_IS_DELETED(kvRowTKey(r))
 
@@ -546,7 +547,7 @@ void   tdDestroyKVRowBuilder(SKVRowBuilder *pBuilder);
 void   tdResetKVRowBuilder(SKVRowBuilder *pBuilder);
 SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder);
 
-static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, int8_t type, void *value) {
+static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, int8_t type, void *value, bool isJumpJsonVType) {
   if (pBuilder->nCols >= pBuilder->tCols) {
     pBuilder->tCols *= 2;
     SColIdx* pColIdx = (SColIdx *)realloc((void *)(pBuilder->pColIdx), sizeof(SColIdx) * pBuilder->tCols);
@@ -559,9 +560,14 @@ static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, 
 
   pBuilder->nCols++;
 
-  int tlen = IS_VAR_DATA_TYPE(type) ? varDataTLen(value) : TYPE_BYTES[type];
+  char* jumpType = (char*)value;
+  if(isJumpJsonVType) jumpType += CHAR_BYTES;
+  int tlen = IS_VAR_DATA_TYPE(type) ? varDataTLen(jumpType) : TYPE_BYTES[type];
+  if(isJumpJsonVType) tlen += CHAR_BYTES;   // add type size
+
   if (tlen > pBuilder->alloc - pBuilder->size) {
     while (tlen > pBuilder->alloc - pBuilder->size) {
+      assert(pBuilder->alloc > 0);
       pBuilder->alloc *= 2;
     }
     void* buf = realloc(pBuilder->buf, pBuilder->alloc);
@@ -608,22 +614,17 @@ typedef void *SMemRow;
 
 #define SMEM_ROW_DATA 0x0U      // SDataRow
 #define SMEM_ROW_KV 0x01U       // SKVRow
-#define SMEM_ROW_CONVERT 0x80U  // SMemRow convert flag
 
-#define KVRatioKV (0.2f)  // all bool
-#define KVRatioPredict (0.4f)
-#define KVRatioData (0.75f)  // all bigint
 #define KVRatioConvert (0.9f)
 
 #define memRowType(r) ((*(uint8_t *)(r)) & 0x01)
 
 #define memRowSetType(r, t) ((*(uint8_t *)(r)) = (t))  // set the total byte in case of dirty memory
-#define memRowSetConvert(r) ((*(uint8_t *)(r)) = (((*(uint8_t *)(r)) & 0x7F) | SMEM_ROW_CONVERT))  // highest bit
 #define isDataRowT(t) (SMEM_ROW_DATA == (((uint8_t)(t)) & 0x01))
 #define isDataRow(r) (SMEM_ROW_DATA == memRowType(r))
 #define isKvRowT(t) (SMEM_ROW_KV == (((uint8_t)(t)) & 0x01))
 #define isKvRow(r) (SMEM_ROW_KV == memRowType(r))
-#define isNeedConvertRow(r) (((*(uint8_t *)(r)) & 0x80) == SMEM_ROW_CONVERT)
+#define isUtilizeKVRow(k, d) ((k) < ((d)*KVRatioConvert))
 
 #define memRowDataBody(r) POINTER_SHIFT(r, TD_MEM_ROW_TYPE_SIZE)  // section after flag
 #define memRowKvBody(r) \
@@ -652,7 +653,7 @@ static FORCE_INLINE char *memRowEnd(SMemRow row) {
 #define memRowKvVersion(r) (*(int16_t *)POINTER_SHIFT(r, TD_MEM_ROW_TYPE_SIZE))
 #define memRowVersion(r) (isDataRow(r) ? memRowDataVersion(r) : memRowKvVersion(r))  // schema version
 #define memRowSetKvVersion(r, v) (memRowKvVersion(r) = (v))
-#define memRowTuple(r) (isDataRow(r) ? dataRowTuple(memRowDataBody(r)) : kvRowValues(memRowKvBody(r)))
+#define memRowKeys(r) (isDataRow(r) ? dataRowTuple(memRowDataBody(r)) : kvRowKeys(memRowKvBody(r)))
 
 #define memRowTKey(r) (isDataRow(r) ? dataRowTKey(memRowDataBody(r)) : kvRowTKey(memRowKvBody(r)))
 #define memRowKey(r) (isDataRow(r) ? dataRowKey(memRowDataBody(r)) : kvRowKey(memRowKvBody(r)))

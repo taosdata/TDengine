@@ -5,7 +5,7 @@
 #include "queryLog.h"
 
 static int32_t getDataStartOffset();
-static void TSBufUpdateGroupInfo(STSBuf* pTSBuf, int32_t index, STSGroupBlockInfo* pBlockInfo);
+static void TSBufUpdateGroupInfo(STSBuf* pTSBuf, int32_t qry_index, STSGroupBlockInfo* pBlockInfo);
 static STSBuf* allocResForTSBuf(STSBuf* pTSBuf);
 static int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader);
 
@@ -267,7 +267,8 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
   metaLen += (int32_t)fwrite(&pBlock->tag.nType, 1, sizeof(pBlock->tag.nType), pTSBuf->f);
 
   int32_t trueLen = pBlock->tag.nLen;
-  if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR) {
+  if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR ||
+      pBlock->tag.nType == TSDB_DATA_TYPE_JSON) {
     metaLen += (int32_t)fwrite(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
     metaLen += (int32_t)fwrite(pBlock->tag.pz, 1, (size_t)pBlock->tag.nLen, pTSBuf->f);
   } else if (pBlock->tag.nType == TSDB_DATA_TYPE_FLOAT) {
@@ -349,7 +350,8 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
 
   // NOTE: mix types tags are not supported
   size_t sz = 0;
-  if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR) {
+  if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR ||
+      pBlock->tag.nType == TSDB_DATA_TYPE_JSON) {
     char* tp = realloc(pBlock->tag.pz, pBlock->tag.nLen + 1);
     assert(tp != NULL);
 
@@ -490,10 +492,10 @@ void tsBufAppend(STSBuf* pTSBuf, int32_t id, tVariant* tag, const char* pData, i
 }
 
 void tsBufFlush(STSBuf* pTSBuf) {
-  if (pTSBuf->tsData.len <= 0) {
+  if (pTSBuf->numOfGroups <= 0) {
     return;
   }
-  
+
   writeDataToDisk(pTSBuf);
   shrinkBuffer(&pTSBuf->tsData);
   
@@ -697,8 +699,8 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
       int32_t groupIndex = pTSBuf->numOfGroups - 1;
       pCur->vgroupIndex = groupIndex;
       
-      int32_t            id = pTSBuf->pData[pCur->vgroupIndex].info.id;
-      STSGroupBlockInfo* pBlockInfo = tsBufGetGroupBlockInfo(pTSBuf, id);
+      // get current vgroupIndex BlockInfo
+      STSGroupBlockInfo* pBlockInfo = &pTSBuf->pData[pCur->vgroupIndex].info;
       int32_t            blockIndex = pBlockInfo->numOfBlocks - 1;
       
       tsBufGetBlock(pTSBuf, groupIndex, blockIndex);
@@ -718,32 +720,43 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
   while (1) {
     assert(pTSBuf->tsData.len == pTSBuf->block.numOfElem * TSDB_KEYSIZE);
     
+    // tsIndex is last
     if ((pCur->order == TSDB_ORDER_ASC && pCur->tsIndex >= pTSBuf->block.numOfElem - 1) ||
         (pCur->order == TSDB_ORDER_DESC && pCur->tsIndex <= 0)) {
-      int32_t id = pTSBuf->pData[pCur->vgroupIndex].info.id;
       
-      STSGroupBlockInfo* pBlockInfo = tsBufGetGroupBlockInfo(pTSBuf, id);
-      if (pBlockInfo == NULL || (pCur->blockIndex >= pBlockInfo->numOfBlocks - 1 && pCur->order == TSDB_ORDER_ASC) ||
+      // get current vgroupIndex BlockInfo
+      STSGroupBlockInfo* pBlockInfo = &pTSBuf->pData[pCur->vgroupIndex].info;      
+      if (pBlockInfo == NULL) {
+        return false;
+      }
+
+      // blockIndex is last
+      if ((pCur->blockIndex >= pBlockInfo->numOfBlocks - 1 && pCur->order == TSDB_ORDER_ASC) ||
           (pCur->blockIndex <= 0 && pCur->order == TSDB_ORDER_DESC)) {
+        
+        // vgroupIndex is last    
         if ((pCur->vgroupIndex >= pTSBuf->numOfGroups - 1 && pCur->order == TSDB_ORDER_ASC) ||
             (pCur->vgroupIndex <= 0 && pCur->order == TSDB_ORDER_DESC)) {
+          // this is end.  both vgroupIndex and blockindex and tsIndex is last    
           pCur->vgroupIndex = -1;
           return false;
         }
         
-        if (pBlockInfo == NULL) {
-          return false;
-        }
-        
+        // blockIndex must match with next group
+        int32_t nextGroupIdx = pCur->vgroupIndex + step;
+        pBlockInfo = &pTSBuf->pData[nextGroupIdx].info;
         int32_t blockIndex = (pCur->order == TSDB_ORDER_ASC) ? 0 : (pBlockInfo->numOfBlocks - 1);
+        // vgroupIndex move next and set value in tsBufGetBlock()
         tsBufGetBlock(pTSBuf, pCur->vgroupIndex + step, blockIndex);
         break;
         
       } else {
+        // blockIndex move next and set value in tsBufGetBlock()
         tsBufGetBlock(pTSBuf, pCur->vgroupIndex, pCur->blockIndex + step);
         break;
       }
     } else {
+      // tsIndex move next
       pCur->tsIndex += step;
       break;
     }
@@ -767,7 +780,7 @@ STSElem tsBufGetElem(STSBuf* pTSBuf) {
   }
   
   STSCursor* pCur = &pTSBuf->cur;
-  if (pCur != NULL && pCur->vgroupIndex < 0) {
+  if (pCur->vgroupIndex < 0) {
     return elem1;
   }
 
@@ -796,7 +809,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf) {
     return -1;
   }
   
-  // src can only have one vnode index
+  // src can only have one vnode qry_index
   assert(pSrcBuf->numOfGroups == 1);
 
   // there are data in buffer, flush to disk first
@@ -819,7 +832,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf) {
       pDestBuf->pData = tmp;
     }
     
-    // directly copy the vnode index information
+    // directly copy the vnode qry_index information
     memcpy(&pDestBuf->pData[oldSize], pSrcBuf->pData, (size_t)pSrcBuf->numOfGroups * sizeof(STSGroupBlockInfoEx));
     
     // set the new offset value
@@ -1012,8 +1025,8 @@ static int32_t getDataStartOffset() {
 }
 
 // update prev vnode length info in file
-static void TSBufUpdateGroupInfo(STSBuf* pTSBuf, int32_t index, STSGroupBlockInfo* pBlockInfo) {
-  int32_t offset = sizeof(STSBufFileHeader) + index * sizeof(STSGroupBlockInfo);
+static void TSBufUpdateGroupInfo(STSBuf* pTSBuf, int32_t qry_index, STSGroupBlockInfo* pBlockInfo) {
+  int32_t offset = sizeof(STSBufFileHeader) + qry_index * sizeof(STSGroupBlockInfo);
   doUpdateGroupInfo(pTSBuf, offset, pBlockInfo);
 }
 

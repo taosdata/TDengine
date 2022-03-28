@@ -4,13 +4,16 @@
 # set -e
 # set -x
 
-taosd=/etc/systemd/system/taosd.service
-line=`grep StartLimitBurst ${taosd}`
+serverName="taosd"
+logDir="/var/log/taos"
+
+taosd=/etc/systemd/system/${serverName}.service
+line=$(grep StartLimitBurst ${taosd})
 num=${line##*=}
 #echo "burst num: ${num}"
 
-startSeqFile=/usr/local/taos/.startSeq
-recordFile=/usr/local/taos/.startRecord
+startSeqFile=${logDir}/.startSeq
+recordFile=${logDir}/.startRecord
 
 startSeq=0
 
@@ -19,32 +22,30 @@ if [[ ! -e ${startSeqFile} ]]; then
 else
   startSeq=$(cat ${startSeqFile})
 fi
-   
-nextSeq=`expr $startSeq + 1`
-echo "${nextSeq}" > ${startSeqFile}
+
+nextSeq=$(expr $startSeq + 1)
+echo "${nextSeq}" >${startSeqFile}
 
 curTime=$(date "+%Y-%m-%d %H:%M:%S")
-echo "startSeq:${startSeq} startPre.sh exec ${curTime}, burstCnt:${num}" >> ${recordFile}
+echo "startSeq:${startSeq} startPre.sh exec ${curTime}, burstCnt:${num}" >>${recordFile}
 
+coreFlag=$(ulimit -c)
+echo "coreFlag: ${coreFlag}" >>${recordFile}
 
-coreFlag=`ulimit -c`
-echo "coreFlag: ${coreFlag}" >> ${recordFile}
-
-if [ ${coreFlag} = "0" ];then
+if [ ${coreFlag} = "0" ]; then
   #echo "core is 0"
-  if [ ${num} != "20" ];then
+  if [ ${num} != "20" ]; then
     sed -i "s/^.*StartLimitBurst.*$/StartLimitBurst=20/" ${taosd}
     systemctl daemon-reload
-    echo "modify burst count from ${num} to 20" >> ${recordFile}
+    echo "modify burst count from ${num} to 20" >>${recordFile}
   fi
 fi
 
-if [ ${coreFlag} = "unlimited" ];then
+if [ ${coreFlag} = "unlimited" ]; then
   #echo "core is unlimited"
-  if [ ${num} != "3" ];then
+  if [ ${num} != "3" ]; then
     sed -i "s/^.*StartLimitBurst.*$/StartLimitBurst=3/" ${taosd}
     systemctl daemon-reload
-    echo "modify burst count from ${num} to 3" >> ${recordFile}
+    echo "modify burst count from ${num} to 3" >>${recordFile}
   fi
 fi
-

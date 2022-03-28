@@ -16,6 +16,8 @@ import taos
 from util.log import *
 from util.cases import *
 from util.sql import *
+from util.dnodes import *
+import random
 
 
 class TDTestCase:
@@ -41,6 +43,32 @@ class TDTestCase:
 
         tdSql.query("select last(*) from st")
         tdSql.checkRows(1)
+
+        # TS-717
+        tdLog.info("case for TS-717")
+        cachelast_values = [0, 1, 2, 3]
+        
+        for value in cachelast_values:
+            tdLog.info("case for cachelast value: %d" % value)
+            tdSql.execute("drop database if exists db")
+            tdLog.sleep(1)
+            tdSql.execute("create database db cachelast %d" % value)
+            tdSql.execute("use db")
+            tdSql.execute("create table stb(ts timestamp, c1 int, c2 binary(20), c3 binary(5)) tags(t1 int)")
+
+            sql = "insert into t1 using stb tags(1) (ts, c1, c2) values"
+            for i in range(self.rowNum):
+                sql += "(%d, %d, 'test')" % (self.ts + i, random.randint(1,100))
+            tdSql.execute(sql)
+
+            tdSql.query("select * from stb")
+            tdSql.checkRows(self.rowNum)
+
+            tdDnodes.stop(1)
+            tdDnodes.start(1)
+
+            tdSql.query("select * from stb")
+            tdSql.checkRows(self.rowNum)
         
     def stop(self):
         tdSql.close()

@@ -1,4 +1,4 @@
-# /bin/bash
+#!/bin/bash
 #
 CSI=$(echo -e "\033[")
 CRED="${CSI}1;31m"

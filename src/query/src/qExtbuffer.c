@@ -12,7 +12,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "qExtbuffer.h"
 #include "os.h"
 #include "qAggMain.h"
 #include "queryLog.h"
@@ -21,6 +20,8 @@
 #include "taosmsg.h"
 #include "tulog.h"
 #include "qExecutor.h"
+#include "qExtbuffer.h"
+#include "tcompare.h"
 
 #define COLMODEL_GET_VAL(data, schema, allrow, rowId, colId) \
   (data + (schema)->pFields[colId].offset * (allrow) + (rowId) * (schema)->pFields[colId].field.bytes)
@@ -45,7 +46,7 @@ tExtMemBuffer* createExtMemBuffer(int32_t inMemSize, int32_t elemSize, int32_t p
   
   SExtFileInfo *pFMeta = &pMemBuffer->fileMeta;
 
-  pFMeta->pageSize = DEFAULT_PAGE_SIZE;
+  //pFMeta->pageSize = DEFAULT_PAGE_SIZE;
 
   pFMeta->flushoutData.nAllocSize = 4;
   pFMeta->flushoutData.nLength = 0;
@@ -365,7 +366,15 @@ static int32_t tsCompareFunc(TSKEY k1, TSKEY k2, int32_t order) {
   }
 }
 
-int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes) {
+int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes, bool lenFirst) {
+  if (type == TSDB_DATA_TYPE_JSON){
+    bool canReturn = true;
+    int32_t result = jsonCompareUnit(f1, f2, &canReturn);
+    if(canReturn) return result;
+    type = *f1;
+    f1 += CHAR_BYTES;
+    f2 += CHAR_BYTES;
+  }
   switch (type) {
     case TSDB_DATA_TYPE_INT:     DEFAULT_COMP(GET_INT32_VAL(f1), GET_INT32_VAL(f2));
     case TSDB_DATA_TYPE_DOUBLE:  DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(f1), GET_DOUBLE_VAL(f2));
@@ -376,33 +385,61 @@ int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t
     case TSDB_DATA_TYPE_TINYINT: DEFAULT_COMP(GET_INT8_VAL(f1), GET_INT8_VAL(f2));
 
     case TSDB_DATA_TYPE_BINARY: {
+      bool leftIsNull = isNull(f1, TSDB_DATA_TYPE_BINARY);
+      bool rightIsNull = isNull(f2, TSDB_DATA_TYPE_BINARY);
+      if(leftIsNull && rightIsNull) return 0;
+      else if(leftIsNull) return -1;
+      else if(rightIsNull) return 1;
       int32_t len1 = varDataLen(f1);
       int32_t len2 = varDataLen(f2);
-      
-      if (len1 != len2) {
-        return len1 > len2? 1:-1;
-      } else {
-        int32_t ret = strncmp(varDataVal(f1), varDataVal(f2), len1);
-        if (ret == 0) {
-          return 0;
-        }
-        return (ret < 0) ? -1 : 1;
-      }
 
+      // length first compare
+      if(lenFirst) {
+        if(len1 > len2)
+         return 1;
+        else if( len1 < len2)
+         return -1;
+      } 
+      // compare context
+      int32_t ret = strncmp(varDataVal(f1), varDataVal(f2), len1>len2 ? len2:len1);
+      if (ret == 0) {
+        if (len1 > len2)
+          return 1;
+        else if(len1 < len2)
+          return -1;
+        else   
+          return 0;
+      }
+      return (ret < 0) ? -1 : 1;
     };
     case TSDB_DATA_TYPE_NCHAR: { // todo handle the var string compare
+      bool leftIsNull = isNull(f1, TSDB_DATA_TYPE_NCHAR);
+      bool rightIsNull = isNull(f2, TSDB_DATA_TYPE_NCHAR);
+      if(leftIsNull && rightIsNull) return 0;
+      else if(leftIsNull) return -1;
+      else if(rightIsNull) return 1;
+
       int32_t len1 = varDataLen(f1);
       int32_t len2 = varDataLen(f2);
 
-      if (len1 != len2) {
-        return len1 > len2 ? 1 : -1;
-      } else {
-        int32_t ret = tasoUcs4Compare(varDataVal(f1), varDataVal(f2), len1);
-        if (ret == 0) {
-          return 0;
-        }
-        return (ret < 0) ? -1 : 1;
+      // length first compare
+      if(lenFirst) {
+        if(len1 > len2)
+         return 1;
+        else if( len1 < len2)
+         return -1;
       }
+      // compare context  
+      int32_t ret = tasoUcs4Compare(varDataVal(f1), varDataVal(f2), len1>len2 ? len2:len1);
+      if (ret == 0) {
+        if (len1 > len2)
+          return 1;
+        else if(len1 < len2)
+          return -1;
+        else   
+          return 0;
+      }
+      return (ret < 0) ? -1 : 1;
     };
     case TSDB_DATA_TYPE_UTINYINT:  DEFAULT_COMP(GET_UINT8_VAL(f1), GET_UINT8_VAL(f2));
     case TSDB_DATA_TYPE_USMALLINT: DEFAULT_COMP(GET_UINT16_VAL(f1), GET_UINT16_VAL(f2));
@@ -433,7 +470,7 @@ int32_t compare_a(tOrderDescriptor *pDescriptor, int32_t numOfRows1, int32_t s1,
       }
     } else {
       SSchemaEx *pSchema = &pDescriptor->pColumnModel->pFields[colIdx];
-      int32_t  ret = columnValueAscendingComparator(f1, f2, pSchema->field.type, pSchema->field.bytes);
+      int32_t  ret = columnValueAscendingComparator(f1, f2, pSchema->field.type, pSchema->field.bytes, strcmp(pSchema->field.name, TSQL_TBNAME_L) == 0);
       if (ret == 0) {
         continue;
       } else {
@@ -462,7 +499,7 @@ int32_t compare_aRv(SSDataBlock* pBlock, SArray* colIndex, int32_t numOfCols, in
         return ret;
       }
     } else {
-      int32_t ret = columnValueAscendingComparator(data, buffer[i], pColInfo->info.type, pColInfo->info.bytes);
+      int32_t ret = columnValueAscendingComparator(data, buffer[i], pColInfo->info.type, pColInfo->info.bytes, false);
       if (ret == 0) {
         continue;
       } else {
@@ -494,7 +531,7 @@ int32_t compare_d(tOrderDescriptor *pDescriptor, int32_t numOfRows1, int32_t s1,
       }
     } else {
       SSchemaEx *pSchema = &pDescriptor->pColumnModel->pFields[colIdx];
-      int32_t  ret = columnValueAscendingComparator(f1, f2, pSchema->field.type, pSchema->field.bytes);
+      int32_t  ret = columnValueAscendingComparator(f1, f2, pSchema->field.type, pSchema->field.bytes, strcmp(pSchema->field.name, TSQL_TBNAME_L) == 0);
       if (ret == 0) {
         continue;
       } else {
@@ -520,7 +557,7 @@ static void swap(SColumnModel *pColumnModel, int32_t count, int32_t s1, char *da
     void *first = COLMODEL_GET_VAL(data1, pColumnModel, count, s1, i);
     void *second = COLMODEL_GET_VAL(data1, pColumnModel, count, s2, i);
 
-    SSchema* pSchema = &pColumnModel->pFields[i].field;
+    SSchema1* pSchema = &pColumnModel->pFields[i].field;
     tsDataSwap(first, second, pSchema->type, pSchema->bytes, buf);
   }
 }
@@ -640,6 +677,89 @@ static UNUSED_FUNC void tRowModelDisplay(tOrderDescriptor *pDescriptor, int32_t 
   printf("\n");
 }
 
+static void mergeSortIndicesByOrderColumns(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t start, int32_t end, char *data,
+                                int32_t orderType, __col_compar_fn_t compareFn, int32_t* indices, int32_t* aux) {
+  if (end <= start) {
+    return;
+  }
+
+
+  int32_t mid = start + (end-start)/2;
+  mergeSortIndicesByOrderColumns(pDescriptor, numOfRows, start, mid, data, orderType, compareFn, indices, aux);
+  mergeSortIndicesByOrderColumns(pDescriptor, numOfRows, mid+1, end, data, orderType, compareFn, indices, aux);
+  int32_t left = start;
+  int32_t right = mid + 1;
+  int32_t k;
+  for (k = start; k <= end; ++k) {
+    if (left == mid+1) {
+      aux[k] = indices[right];
+      ++right;
+    } else if (right == end+1) {
+      aux[k] = indices[left];
+      ++left;
+    } else {
+      int32_t ret = compareFn(pDescriptor, numOfRows, indices[left], indices[right], data);
+      if (ret <= 0) {
+        aux[k] = indices[left];
+        ++left;
+      } else {
+        aux[k] = indices[right];
+        ++right;
+      }
+    }
+  }
+
+  for (k = start; k <= end; ++k) {
+    indices[k] = aux[k];
+  }
+}
+
+static void columnwiseMergeSortImpl(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t start, int32_t end, char* data,
+                                    int32_t orderType, __col_compar_fn_t compareFn) {
+  int32_t* indices = malloc(numOfRows * sizeof(int32_t));
+  int32_t* aux = malloc(numOfRows * sizeof(int32_t));
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    indices[i] = i;
+  }
+
+  mergeSortIndicesByOrderColumns(pDescriptor, numOfRows, 0, numOfRows-1, data, orderType, compareFn, indices, aux);
+
+  int32_t numOfCols = pDescriptor->pColumnModel->numOfCols;
+
+  int32_t prevLength = 0;
+  char* p = NULL;
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    int16_t colOffset = getColumnModelOffset(pDescriptor->pColumnModel, i);
+    int32_t colBytes = pDescriptor->pColumnModel->pFields[i].field.bytes;
+    // make sure memory buffer is enough
+    if (prevLength < colBytes) {
+      char *tmp = realloc(p, colBytes * numOfRows);
+      assert(tmp);
+
+      p = tmp;
+      prevLength = colBytes;
+    }
+
+    char* colData = data + colOffset * numOfRows;
+    memcpy(p, colData, colBytes * numOfRows);
+
+    for(int32_t j = 0; j < numOfRows; ++j){
+      char* dest = colData + colBytes * j;
+
+      int32_t newPos = indices[j];
+      char* src = p + (newPos * colBytes);
+      memcpy(dest, src, colBytes);
+    }
+
+  }
+
+  tfree(p);
+  tfree(aux);
+  tfree(indices);
+}
+
 static void columnwiseQSortImpl(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t start, int32_t end, char *data,
                                 int32_t orderType, __col_compar_fn_t compareFn, void* buf) {
 #ifdef _DEBUG_VIEW
@@ -741,15 +861,15 @@ static void columnwiseQSortImpl(tOrderDescriptor *pDescriptor, int32_t numOfRows
   }
 }
 
-void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t start, int32_t end, char *data, int32_t order) {
+void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t start, int32_t end, char *data, int32_t orderType) {
   // short array sort, incur another sort procedure instead of quick sort process
-  __col_compar_fn_t compareFn = (order == TSDB_ORDER_ASC) ? compare_sa : compare_sd;
+  __col_compar_fn_t compareFn = (orderType == TSDB_ORDER_ASC) ? compare_sa : compare_sd;
 
   SColumnModel* pModel = pDescriptor->pColumnModel;
 
   size_t width = 0;
   for(int32_t i = 0; i < pModel->numOfCols; ++i) {
-    SSchema* pSchema = &pModel->pFields[i].field;
+    SSchema1* pSchema = &pModel->pFields[i].field;
     if (width < pSchema->bytes) {
       width = pSchema->bytes;
     }
@@ -761,16 +881,44 @@ void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
   if (end - start + 1 <= 8) {
     tColDataInsertSort(pDescriptor, numOfRows, start, end, data, compareFn, buf);
   } else {
-    columnwiseQSortImpl(pDescriptor, numOfRows, start, end, data, order, compareFn, buf);
+    columnwiseQSortImpl(pDescriptor, numOfRows, start, end, data, orderType, compareFn, buf);
   }
 
   free(buf);
 }
 
+void tColDataMergeSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t start, int32_t end, char *data, int32_t orderType) {
+  // short array sort, incur another sort procedure instead of quick sort process
+  __col_compar_fn_t compareFn = (orderType == TSDB_ORDER_ASC) ? compare_sa : compare_sd;
+
+  SColumnModel* pModel = pDescriptor->pColumnModel;
+
+  size_t width = 0;
+  for(int32_t i = 0; i < pModel->numOfCols; ++i) {
+    SSchema1* pSchema = &pModel->pFields[i].field;
+    if (width < pSchema->bytes) {
+      width = pSchema->bytes;
+    }
+  }
+
+  char* buf = malloc(width);
+  assert(width > 0 && buf != NULL);
+
+  if (end - start + 1 <= 8) {
+    tColDataInsertSort(pDescriptor, numOfRows, start, end, data, compareFn, buf);
+  } else {
+    columnwiseMergeSortImpl(pDescriptor, numOfRows, start, end, data, orderType, compareFn);
+  }
+
+  free(buf);
+}
+
+
+
 /*
  * deep copy of sschema
  */
-SColumnModel *createColumnModel(SSchema *fields, int32_t numOfCols, int32_t blockCapacity) {
+SColumnModel *createColumnModel(SSchema1 *fields, int32_t numOfCols, int32_t blockCapacity) {
   SColumnModel *pColumnModel = (SColumnModel *)calloc(1, sizeof(SColumnModel) + numOfCols * sizeof(SSchemaEx));
   if (pColumnModel == NULL) {
     return NULL;
@@ -920,7 +1068,10 @@ void tColModelDisplay(SColumnModel *pModel, void *pData, int32_t numOfRows, int3
           break;
         case TSDB_DATA_TYPE_NCHAR: {
           char buf[4096] = {0};
-          taosUcs4ToMbs(val, pModel->pFields[j].field.bytes, buf);
+          int32_t len = taosUcs4ToMbs(val, pModel->pFields[j].field.bytes, buf);
+          if (len < 0){
+            qError("castConvert1 taosUcs4ToMbs error");
+          }
           printf("%s\t", buf);
           break;
         }
@@ -972,7 +1123,10 @@ void tColModelDisplayEx(SColumnModel *pModel, void *pData, int32_t numOfRows, in
           break;
         case TSDB_DATA_TYPE_NCHAR: {
           char buf[128] = {0};
-          taosUcs4ToMbs(val, pModel->pFields[j].field.bytes, buf);
+          int32_t len = taosUcs4ToMbs(val, pModel->pFields[j].field.bytes, buf);
+          if (len < 0){
+            qError("castConvert1 taosUcs4ToMbs error");
+          }
           printf("%s\t", buf);
           break;
         }
@@ -1022,7 +1176,7 @@ void tColModelCompact(SColumnModel *pModel, tFilePage *inputBuffer, int32_t maxE
   }
 }
 
-SSchema* getColumnModelSchema(SColumnModel *pColumnModel, int32_t index) {
+SSchema1* getColumnModelSchema(SColumnModel *pColumnModel, int32_t index) {
   assert(pColumnModel != NULL && index >= 0 && index < pColumnModel->numOfCols);
   return &pColumnModel->pFields[index].field;
 }
@@ -1044,7 +1198,7 @@ void tColModelErase(SColumnModel *pModel, tFilePage *inputBuffer, int32_t blockC
   /* start from the second column */
   for (int32_t i = 0; i < pModel->numOfCols; ++i) {
     int16_t offset = getColumnModelOffset(pModel, i);
-    SSchema* pSchema = getColumnModelSchema(pModel, i);
+    SSchema1* pSchema = getColumnModelSchema(pModel, i);
     
     char *startPos = inputBuffer->data + offset * blockCapacity + s * pSchema->bytes;
     char *endPos = startPos + pSchema->bytes * removed;

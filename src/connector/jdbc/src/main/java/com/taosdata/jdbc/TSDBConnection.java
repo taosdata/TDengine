@@ -1,27 +1,15 @@
-/***************************************************************************
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
- *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *****************************************************************************/
 package com.taosdata.jdbc;
 
 import java.sql.*;
-import java.util.Properties;
+import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class TSDBConnection extends AbstractConnection {
 
     private TSDBJNIConnector connector;
     private final TSDBDatabaseMetaData databaseMetaData;
     private boolean batchFetch;
+    private CopyOnWriteArrayList<Statement> statements = new CopyOnWriteArrayList<>();
 
     public Boolean getBatchFetch() {
         return this.batchFetch;
@@ -66,7 +54,7 @@ public class TSDBConnection extends AbstractConnection {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
         }
 
-        long id = this.connector.subscribe(topic, sql, restart, 0);
+        long id = this.connector.subscribe(topic, sql, restart);
         if (id == 0) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_SUBSCRIBE_FAILED);
         }
@@ -77,17 +65,29 @@ public class TSDBConnection extends AbstractConnection {
         if (isClosed()) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
         }
-        
         return new TSDBPreparedStatement(this, sql);
     }
 
     public void close() throws SQLException {
-        if (isClosed) {
+        if (isClosed)
             return;
+        synchronized (this) {
+            if (isClosed) {
+                return;
+            }
+            for (Statement statement : statements) {
+                statement.close();
+            }
+            this.connector.closeConnection();
+            this.isClosed = true;
         }
-        
-        this.connector.closeConnection();
-        this.isClosed = true;
+    }
+
+    public void unregisterStatement(Statement stmt) {
+        this.statements.remove(stmt);
+    }
+    public void registerStatement(Statement stmt) {
+        this.statements.addIfAbsent(stmt);
     }
 
     public boolean isClosed() throws SQLException {

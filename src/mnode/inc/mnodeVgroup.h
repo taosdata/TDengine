@@ -43,7 +43,7 @@ void    mnodeCheckUnCreatedVgroup(SDnodeObj *pDnode, SVnodeLoad *pVloads, int32_
 int32_t mnodeCreateVgroup(struct SMnodeMsg *pMsg);
 void    mnodeDropVgroup(SVgObj *pVgroup, void *ahandle);
 void    mnodeAlterVgroup(SVgObj *pVgroup, void *ahandle);
-int32_t mnodeGetAvailableVgroup(struct SMnodeMsg *pMsg, SVgObj **pVgroup, int32_t *sid);
+int32_t mnodeGetAvailableVgroup(struct SMnodeMsg *pMsg, SVgObj **pVgroup, int32_t *sid, int32_t vgId);
 
 int32_t mnodeAddTableIntoVgroup(SVgObj *pVgroup, SCTableObj *pTable, bool needCheck);
 void    mnodeRemoveTableFromVgroup(SVgObj *pVgroup, SCTableObj *pTable);

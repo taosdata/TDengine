@@ -1,7 +1,10 @@
 package com.taosdata.jdbc;
 
+import com.taosdata.jdbc.utils.StringUtils;
+
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public abstract class AbstractDatabaseMetaData extends WrapperImpl implements DatabaseMetaData {
@@ -550,9 +553,7 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
     }
 
     protected ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types, Connection connection) throws SQLException {
-        if (catalog == null || catalog.isEmpty())
-            return null;
-        if (!isAvailableCatalog(connection, catalog))
+        if (!StringUtils.isEmpty(catalog) && !isAvailableCatalog(connection, catalog))
             return new EmptyResultSet();
 
         DatabaseMetaDataResultSet resultSet = new DatabaseMetaDataResultSet();
@@ -561,26 +562,45 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
         // set row data
         List<TSDBResultSetRowData> rowDataList = new ArrayList<>();
         try (Statement stmt = connection.createStatement()) {
-            stmt.execute("use " + catalog);
-            ResultSet tables = stmt.executeQuery("show tables");
-            while (tables.next()) {
-                TSDBResultSetRowData rowData = new TSDBResultSetRowData(10);
-                rowData.setStringValue(1, catalog);                                     //TABLE_CAT
-                rowData.setStringValue(2, null);                                 //TABLE_SCHEM
-                rowData.setStringValue(3, tables.getString("table_name"));  //TABLE_NAME
-                rowData.setStringValue(4, "TABLE");                              //TABLE_TYPE
-                rowData.setStringValue(5, "");                                   //REMARKS
-                rowDataList.add(rowData);
+            List<String> dbs = new ArrayList<>();
+            if (!StringUtils.isEmpty(catalog)) {
+                dbs.add(catalog);
+            } else {
+                ResultSet dbRs = stmt.executeQuery("show databases");
+                while (dbRs.next()) {
+                    dbs.add(dbRs.getString("name"));
+                }
             }
-            ResultSet stables = stmt.executeQuery("show stables");
-            while (stables.next()) {
-                TSDBResultSetRowData rowData = new TSDBResultSetRowData(10);
-                rowData.setStringValue(1, catalog);                                  //TABLE_CAT
-                rowData.setStringValue(2, null);                              //TABLE_SCHEM
-                rowData.setStringValue(3, stables.getString("name"));    //TABLE_NAME
-                rowData.setStringValue(4, "TABLE");                           //TABLE_TYPE
-                rowData.setStringValue(5, "STABLE");                          //REMARKS
-                rowDataList.add(rowData);
+            if (dbs.isEmpty()) {
+                return new EmptyResultSet();
+            }
+            for (String db : dbs) {
+                StringBuilder sql = new StringBuilder().append("show ").append(db).append(".tables ");
+                StringBuilder Ssql = new StringBuilder().append("show ").append(db).append(".stables ");
+                if (!StringUtils.isEmpty(tableNamePattern)) {
+                    sql.append("like '").append(tableNamePattern).append("'");
+                    Ssql.append("like '").append(tableNamePattern).append("'");
+                }
+                ResultSet tables = stmt.executeQuery(sql.toString());
+                while (tables.next()) {
+                    TSDBResultSetRowData rowData = new TSDBResultSetRowData(10);
+                    rowData.setStringValue(1, catalog);                                     //TABLE_CAT
+                    rowData.setStringValue(2, null);                                 //TABLE_SCHEM
+                    rowData.setStringValue(3, tables.getString("table_name"));  //TABLE_NAME
+                    rowData.setStringValue(4, "TABLE");                              //TABLE_TYPE
+                    rowData.setStringValue(5, "");                                   //REMARKS
+                    rowDataList.add(rowData);
+                }
+                ResultSet stables = stmt.executeQuery(Ssql.toString());
+                while (stables.next()) {
+                    TSDBResultSetRowData rowData = new TSDBResultSetRowData(10);
+                    rowData.setStringValue(1, catalog);                                  //TABLE_CAT
+                    rowData.setStringValue(2, null);                              //TABLE_SCHEM
+                    rowData.setStringValue(3, stables.getString("name"));    //TABLE_NAME
+                    rowData.setStringValue(4, "TABLE");                           //TABLE_TYPE
+                    rowData.setStringValue(5, "STABLE");                          //REMARKS
+                    rowDataList.add(rowData);
+                }
             }
             resultSet.setRowDataList(rowDataList);
         }
@@ -595,7 +615,7 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
         return col4;
     }
 
-    public ResultSet getSchemas() throws SQLException {
+    public ResultSet getSchemas() {
         return getEmptyResultSet();
     }
 
@@ -627,7 +647,7 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
 
     public abstract ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException;
 
-    protected ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern, Connection conn) {
+    protected ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern, Connection conn) throws SQLException {
         if (catalog == null || catalog.isEmpty())
             return null;
         if (!isAvailableCatalog(conn, catalog))
@@ -638,8 +658,9 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
         resultSet.setColumnMetaDataList(buildGetColumnsColumnMetaDataList());
         // set up rowDataList
         List<TSDBResultSetRowData> rowDataList = new ArrayList<>();
-        try (Statement stmt = conn.createStatement()) {
-            ResultSet rs = stmt.executeQuery("describe " + catalog + "." + tableNamePattern);
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("describe " + catalog + "." + tableNamePattern)) {
+
             int rowIndex = 0;
             while (rs.next()) {
                 TSDBResultSetRowData rowData = new TSDBResultSetRowData(24);
@@ -679,8 +700,6 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
                 rowIndex++;
             }
             resultSet.setRowDataList(rowDataList);
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
         return resultSet;
     }
@@ -1147,9 +1166,9 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
         columnMetaDataList.add(buildTableCatalogMeta(1));       // 1. TABLE_CAT
         resultSet.setColumnMetaDataList(columnMetaDataList);
 
-        try (Statement stmt = conn.createStatement()) {
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("show databases")) {
             List<TSDBResultSetRowData> rowDataList = new ArrayList<>();
-            ResultSet rs = stmt.executeQuery("show databases");
             while (rs.next()) {
                 TSDBResultSetRowData rowData = new TSDBResultSetRowData(1);
                 rowData.setStringValue(1, rs.getString("name"));
@@ -1168,12 +1187,13 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
             return new EmptyResultSet();
 
         DatabaseMetaDataResultSet resultSet = new DatabaseMetaDataResultSet();
-        try (Statement stmt = conn.createStatement()) {
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("describe " + catalog + "." + table)) {
             // set up ColumnMetaDataList
             resultSet.setColumnMetaDataList(buildGetPrimaryKeysMetadataList());
             // set rowData
             List<TSDBResultSetRowData> rowDataList = new ArrayList<>();
-            ResultSet rs = stmt.executeQuery("describe " + catalog + "." + table);
+
             rs.next();
             TSDBResultSetRowData rowData = new TSDBResultSetRowData(6);
             rowData.setStringValue(1, catalog);
@@ -1216,18 +1236,15 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
         return col6;
     }
 
-    private boolean isAvailableCatalog(Connection connection, String catalog) {
-        try (Statement stmt = connection.createStatement()) {
-            ResultSet databases = stmt.executeQuery("show databases");
+    private boolean isAvailableCatalog(Connection connection, String catalog) throws SQLException {
+        try (Statement stmt = connection.createStatement();
+             ResultSet databases = stmt.executeQuery("show databases")) {
             while (databases.next()) {
                 String dbname = databases.getString("name");
                 this.precision = databases.getString("precision");
                 if (dbname.equalsIgnoreCase(catalog))
                     return true;
             }
-            databases.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
         return false;
     }
@@ -1246,17 +1263,18 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
             resultSet.setColumnMetaDataList(buildGetSuperTablesColumnMetaDataList());
             // set result set row data
             stmt.execute("use " + catalog);
-            ResultSet rs = stmt.executeQuery("show tables like '" + tableNamePattern + "'");
-            List<TSDBResultSetRowData> rowDataList = new ArrayList<>();
-            while (rs.next()) {
-                TSDBResultSetRowData rowData = new TSDBResultSetRowData(4);
-                rowData.setStringValue(1, catalog);
-                rowData.setStringValue(2, null);
-                rowData.setStringValue(3, rs.getString("table_name"));
-                rowData.setStringValue(4, rs.getString("stable_name"));
-                rowDataList.add(rowData);
+            try (ResultSet rs = stmt.executeQuery("show tables like '" + tableNamePattern + "'")) {
+                List<TSDBResultSetRowData> rowDataList = new ArrayList<>();
+                while (rs.next()) {
+                    TSDBResultSetRowData rowData = new TSDBResultSetRowData(4);
+                    rowData.setStringValue(1, catalog);
+                    rowData.setStringValue(2, null);
+                    rowData.setStringValue(3, rs.getString("table_name"));
+                    rowData.setStringValue(4, rs.getString("stable_name"));
+                    rowDataList.add(rowData);
+                }
+                resultSet.setRowDataList(rowDataList);
             }
-            resultSet.setRowDataList(rowDataList);
         }
         return resultSet;
     }

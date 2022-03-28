@@ -21,68 +21,91 @@
 #include "tulog.h"
 #include "taoserror.h"
 
-int32_t strdequote(char *z) {
+bool isInteger(double x){
+  int truncated = (int)x;
+  return (x == truncated);
+}
+
+int32_t strDealWithEscape(char *z, int32_t len){
   if (z == NULL) {
     return 0;
   }
 
+  int32_t j = 0;
+  for (int32_t i = 0; i < len; i++) {
+    if (z[i] == '\\') {   // deal with escape character
+      if(z[i+1] == 'n'){
+        z[j++] = '\n';
+      }else if(z[i+1] == 'r'){
+        z[j++] = '\r';
+      }else if(z[i+1] == 't'){
+        z[j++] = '\t';
+      }else if(z[i+1] == '\\'){
+        z[j++] = '\\';
+      }else if(z[i+1] == '\''){
+        z[j++] = '\'';
+      }else if(z[i+1] == '"'){
+        z[j++] = '"';
+      }else if(z[i+1] == '%'){
+        z[j++] = z[i];
+        z[j++] = z[i+1];
+      }else if(z[i+1] == '_'){
+        z[j++] = z[i];
+        z[j++] = z[i+1];
+      }else{
+        z[j++] = z[i+1];
+      }
+
+      i++;
+      continue;
+    }
+
+    z[j++] = z[i];
+  }
+  z[j] = 0;
+  return j;
+}
+
+/*
+ * remove the quotation marks at both ends
+ * "fsd" => fsd
+ * "f""sd" =>f"sd
+ *  'fsd' => fsd
+ * 'f''sd' =>f'sd
+ *  `fsd => fsd
+ * `f``sd` =>f`sd
+ */
+static int32_t strdequote(char *z, int32_t n){
+  if(z == NULL || n < 2) return n;
   int32_t quote = z[0];
-  if (quote != '\'' && quote != '"') {
-    return (int32_t)strlen(z);
-  }
-
+  z[0] = 0;
+  z[n - 1] = 0;
   int32_t i = 1, j = 0;
-
-  while (z[i] != 0) {
-    if (z[i] == quote) {
-      if (z[i + 1] == quote) {
-        z[j++] = (char)quote;
-        i++;
-      } else {
-        z[j++] = 0;
-        return (j - 1);
-      }
+  while (i < n) {
+    if (i < n - 1 && z[i] == quote && z[i + 1] == quote) { // two consecutive quotation marks keep one
+      z[j++] = (char)quote;
+      i += 2;
     } else {
-      z[j++] = z[i];
+      z[j++] = z[i++];
     }
+  }
+  z[j - 1] = 0;
+  return j - 1;
+}
 
-    i++;
+int32_t stringProcess(char *z, int32_t len) {
+  if (z == NULL || len < 2) return len;
+
+  if ((z[0] == '\'' && z[len - 1] == '\'')|| (z[0] == '"' && z[len - 1] == '"')) {
+    int32_t n = strdequote(z, len);
+    return strDealWithEscape(z, n);
+  } else if (z[0] == TS_BACKQUOTE_CHAR && z[len - 1] == TS_BACKQUOTE_CHAR) {
+    return strdequote(z, len);
   }
 
-  return j + 1;  // only one quote, do nothing
+  return len;
 }
 
-
-int32_t strRmquote(char *z, int32_t len){  
-    // delete escape character: \\, \', \"
-    char delim = z[0];
-    if (delim != '\'' && delim != '\"') {
-      return len;
-    }
-  
-    int32_t cnt = 0;
-    int32_t j = 0;
-    for (uint32_t k = 1; k < len - 1; ++k) {
-      if (z[k] == '\\' || (z[k] == delim && z[k + 1] == delim)) {
-        if (z[k] == '\\' && z[k + 1] == '_') {
-          //match '_' self
-        } else {
-          z[j] = z[k + 1];
-          cnt++;
-          j++;
-          k++;
-          continue;
-        }
-      }
-  
-      z[j] = z[k];
-      j++;
-    }
-  
-    z[j] = 0;
-    
-    return len - 2 - cnt;
-}
 
 
 size_t strtrim(char *z) {
@@ -90,7 +113,7 @@ size_t strtrim(char *z) {
   int32_t j = 0;
 
   int32_t delta = 0;
-  while (z[j] == ' ') {
+  while (isspace(z[j])) {
     ++j;
   }
 
@@ -103,9 +126,9 @@ size_t strtrim(char *z) {
 
   int32_t stop = 0;
   while (z[j] != 0) {
-    if (z[j] == ' ' && stop == 0) {
+    if (isspace(z[j]) && stop == 0) {
       stop = j;
-    } else if (z[j] != ' ' && stop != 0) {
+    } else if (!isspace(z[j]) && stop != 0) {
       stop = 0;
     }
 
@@ -118,7 +141,6 @@ size_t strtrim(char *z) {
   } else if (j != i) {
     z[i] = 0;
   }
-  
   return i;
 }
 
@@ -165,6 +187,43 @@ char *strnchr(char *haystack, char needle, int32_t len, bool skipquote) {
   return NULL;
 }
 
+char *tstrstr(char *src, char *dst, bool ignoreInEsc) {
+  if (!ignoreInEsc) {
+    return strstr(src, dst);
+  }
+
+  int32_t len = (int32_t)strlen(src);
+  bool inEsc = false;
+  char escChar = 0;
+  char *str = src, *res = NULL;
+
+  for (int32_t i = 0; i < len; ++i) {
+    if (src[i] == TS_BACKQUOTE_CHAR || src[i] == '\'' || src[i] == '\"') {
+      if (!inEsc) {
+        escChar = src[i];
+        src[i] = 0;
+        res = strstr(str, dst);
+        src[i] = escChar;
+        if (res) {
+          return res;
+        }
+        str = NULL;
+      } else {
+        if (src[i] != escChar) {
+          continue;
+        }
+
+        str = src + i + 1;
+      }
+
+      inEsc = !inEsc;
+      continue;
+    }
+  }
+
+  return str ? strstr(str, dst) : NULL;
+}
+
 char* strtolower(char *dst, const char *src) {
   int esc = 0;
   char quote = 0, *p = dst, c;
@@ -193,7 +252,7 @@ char* strtolower(char *dst, const char *src) {
 }
 
 char* strntolower(char *dst, const char *src, int32_t n) {
-  int esc = 0;
+  int esc = 0, inEsc = 0;
   char quote = 0, *p = dst, c;
 
   assert(dst != NULL);
@@ -210,10 +269,16 @@ char* strntolower(char *dst, const char *src, int32_t n) {
       } else if (c == quote) {
         quote = 0;
       }
+    } else if (inEsc) {
+      if (c == '`') {
+        inEsc = 0;
+      }
     } else if (c >= 'A' && c <= 'Z') {
       c -= 'A' - 'a';
-    } else if (c == '\'' || c == '"') {
+    } else if (inEsc == 0 && (c == '\'' || c == '"')) {
       quote = c;
+    } else if (c == '`' && quote == 0) {
+      inEsc = 1;
     }
     *p++ = c;
   }
@@ -379,66 +444,6 @@ int32_t taosHexStrToByteArray(char hexstr[], char bytes[]) {
   return 0;
 }
 
-// TODO move to comm module
-bool taosGetVersionNumber(char *versionStr, int *versionNubmer) {
-  if (versionStr == NULL || versionNubmer == NULL) {
-    return false;
-  }
-
-  int versionNumberPos[5] = {0};
-  int len = (int)strlen(versionStr);
-  int dot = 0;
-  for (int pos = 0; pos < len && dot < 4; ++pos) {
-    if (versionStr[pos] == '.') {
-      versionStr[pos] = 0;
-      versionNumberPos[++dot] = pos + 1;
-    }
-  }
-
-  if (dot != 3) {
-    return false;
-  }
-
-  for (int pos = 0; pos < 4; ++pos) {
-    versionNubmer[pos] = atoi(versionStr + versionNumberPos[pos]);
-  }
-  versionStr[versionNumberPos[1] - 1] = '.';
-  versionStr[versionNumberPos[2] - 1] = '.';
-  versionStr[versionNumberPos[3] - 1] = '.';
-
-  return true;
-}
-
-int taosCheckVersion(char *input_client_version, char *input_server_version, int comparedSegments) {
-  char client_version[TSDB_VERSION_LEN] = {0};
-  char server_version[TSDB_VERSION_LEN] = {0};
-  int clientVersionNumber[4] = {0};
-  int serverVersionNumber[4] = {0};
-
-  tstrncpy(client_version, input_client_version, sizeof(client_version));
-  tstrncpy(server_version, input_server_version, sizeof(server_version));
-
-  if (!taosGetVersionNumber(client_version, clientVersionNumber)) {
-    uError("invalid client version:%s", client_version);
-    return TSDB_CODE_TSC_INVALID_VERSION;
-  }
-
-  if (!taosGetVersionNumber(server_version, serverVersionNumber)) {
-    uError("invalid server version:%s", server_version);
-    return TSDB_CODE_TSC_INVALID_VERSION;
-  }
-
-  for(int32_t i = 0; i < comparedSegments; ++i) {
-    if (clientVersionNumber[i] != serverVersionNumber[i]) {
-      uError("the %d-th number of server version:%s not matched with client version:%s", i, server_version,
-             client_version);
-      return TSDB_CODE_TSC_INVALID_VERSION;
-    }
-  }
-
-  return 0;
-}
-
 char *taosIpStr(uint32_t ipInt) {
   static char ipStrArray[3][30];
   static int ipStrIndex = 0;
@@ -447,6 +452,24 @@ char *taosIpStr(uint32_t ipInt) {
   //sprintf(ipStr, "0x%x:%u.%u.%u.%u", ipInt, ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, (uint8_t)(ipInt >> 24));
   sprintf(ipStr, "%u.%u.%u.%u", ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, (uint8_t)(ipInt >> 24));
   return ipStr;
+}
+
+void jsonKeyMd5(void *pMsg, int msgLen, void *pKey) {
+  MD5_CTX context;
+
+  MD5Init(&context);
+  MD5Update(&context, (uint8_t *)pMsg, msgLen);
+  MD5Final(&context);
+
+  memcpy(pKey, context.digest, sizeof(context.digest));
+}
+
+bool isValidateTag(char *input) {
+  if (!input) return false;
+  for (size_t i = 0; i < strlen(input); ++i) {
+    if (isprint(input[i]) == 0) return false;
+  }
+  return true;
 }
 
 FORCE_INLINE float taos_align_get_float(const char* pBuf) {
@@ -469,4 +492,17 @@ FORCE_INLINE double taos_align_get_double(const char* pBuf) {
   double dv = 0;
   memcpy(&dv, pBuf, sizeof(dv)); // in ARM, return *((const double*)(pBuf)) may cause problem
   return dv; 
+}
+
+//
+// TSKEY util
+//
+
+// if time area(s1,e1) intersect with time area(s2,e2) then return true else return false
+bool timeIntersect(TSKEY s1, TSKEY e1, TSKEY s2, TSKEY e2) {
+  // s1,e1 and s2,e2 have 7 scenarios, 5 is intersection, 2 is no intersection, so we pick up 2.
+  if(e2 < s1 || s2 > e1)
+    return false;
+  else
+    return true;
 }

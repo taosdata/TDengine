@@ -19,6 +19,7 @@
 #include "tconfig.h"
 #include "dnodeMain.h"
 
+bool          dnodeExit = false;
 static tsem_t exitSem;
 static void   siguser1Handler(int32_t signum, void *sigInfo, void *context);
 static void   siguser2Handler(int32_t signum, void *sigInfo, void *context);
@@ -42,6 +43,8 @@ int32_t main(int32_t argc, char *argv[]) {
       }
     } else if (strcmp(argv[i], "-C") == 0) {
       dump_config = 1;
+    } else if (strcmp(argv[i], "--force-compact-file") == 0) {
+      tsdbForceCompactFile = true;
     } else if (strcmp(argv[i], "--force-keep-file") == 0) {
       tsdbForceKeepFile = true;
     } else if (strcmp(argv[i], "--compact-mnode-wal") == 0) {
@@ -179,6 +182,8 @@ static void sigintHandler(int32_t signum, void *sigInfo, void *context) {
 
   syslog(LOG_INFO, "Shut down signal is %d", signum);
   syslog(LOG_INFO, "Shutting down TDengine service...");
+
+  dnodeExit = true;
 
   // inform main thread to exit
   tsem_post(&exitSem);

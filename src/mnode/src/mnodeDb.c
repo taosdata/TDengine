@@ -339,8 +339,8 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
-  if (pCfg->replications > mnodeGetDnodesNum()) {
-    mError("no enough dnode to config replica: %d, #dnodes: %d", pCfg->replications, mnodeGetDnodesNum());
+  if (pCfg->replications > mnodeGetVnodeDnodesNum()) {
+    mError("no enough dnode to config replica: %d, #dnodes: %d", pCfg->replications, mnodeGetVnodeDnodesNum());
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
@@ -927,9 +927,12 @@ static int32_t mnodeProcessCreateDbMsg(SMnodeMsg *pMsg) {
   pCreate->maxRowsPerFileBlock = htonl(pCreate->maxRowsPerFileBlock);
   
   int32_t code;
+#ifdef GRANT_CHECK_WRITE
   if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_GRANT_EXPIRED;
-  } else if (!pMsg->pUser->writeAuth) {
+  } // else
+#endif
+  if (!pMsg->pUser->writeAuth) {
     code = TSDB_CODE_MND_NO_RIGHTS;
   } else {
     code = mnodeCreateDb(pMsg->pUser->pAcct, pCreate, pMsg);
@@ -1054,7 +1057,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
       terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
     }
 
-    if (replications > mnodeGetDnodesNum()) {
+    if (replications > mnodeGetVnodeDnodesNum()) {
       mError("db:%s, no enough dnode to change replica:%d", pDb->name, replications);
       terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
     }

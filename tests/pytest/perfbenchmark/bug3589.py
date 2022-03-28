@@ -89,7 +89,7 @@ class TDTestCase:
             tdLog.info(f"taosd found in {buildPath}")
         binPath = buildPath + "/debug/build/bin/"
 
-        query_table_cmd = f"yes | {binPath}taosdemo -f {filepath}"
+        query_table_cmd = f"yes | {binPath}taosBenchmark -f {filepath}"
         _ = subprocess.check_output(query_table_cmd, shell=True).decode("utf-8")
 
     def checkqueryresult(self, expectrows):

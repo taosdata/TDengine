@@ -130,14 +130,34 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
     // for group by
     if (groupFields != -1) {
       char    target[HTTP_GC_TARGET_SIZE] = {0};
-      int32_t len;
-      len = snprintf(target, HTTP_GC_TARGET_SIZE, "%s{", aliasBuffer);
+      int32_t len = 0, cur = 0;
+      cur = snprintf(target, HTTP_GC_TARGET_SIZE, "%s{", aliasBuffer);
+      if (cur < 0 || cur >= HTTP_GC_TARGET_SIZE) {
+        httpError("context:%p, fd:%d, too long alias: %s", pContext, pContext->fd, aliasBuffer);
+        return false;
+      }
+
+      len += cur;
       for (int32_t i = dataFields + 1; i < num_fields; i++) {
+      // -2 means the last '}' and '\0'
+#define  HTTP_GC_CHECK_SIZE(name)  if (cur < 0 || cur >= HTTP_GC_TARGET_SIZE - len - 2) {                                         \
+                                     if (cur < 0) {                                                                               \
+                                       httpError("context:%p, fd:%d, failed to snprintf for: %s", pContext, pContext->fd, name);  \
+                                     } else {                                                                                     \
+                                       httpError("context:%p, fd:%d, snprintf overflow for: %s", pContext, pContext->fd, name);   \
+                                       target[len] = '\0';                                                                        \
+                                     }                                                                                            \
+                                     break;                                                                                       \
+                                   } else {                                                                                       \
+                                     len += cur;                                                                                  \
+                                   }
         if (row[i] == NULL) {
-          len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:nil", fields[i].name);
+          cur = snprintf(target + len, HTTP_GC_TARGET_SIZE - len - 2, "%s:nil", fields[i].name);
+          HTTP_GC_CHECK_SIZE(fields[i].name)
 
           if (i < num_fields - 1) {
-            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, ", ");
+            cur = snprintf(target + len, HTTP_GC_TARGET_SIZE - len - 2, ", ");
+            HTTP_GC_CHECK_SIZE(fields[i].name)
           }
 
           continue;
@@ -146,40 +166,49 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
         switch (fields[i].type) {
           case TSDB_DATA_TYPE_BOOL:
           case TSDB_DATA_TYPE_TINYINT:
-            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%d", fields[i].name, *((int8_t *)row[i]));
+            cur = snprintf(target + len, HTTP_GC_TARGET_SIZE - len - 2, "%s:%d", fields[i].name, *((int8_t *)row[i]));
+            HTTP_GC_CHECK_SIZE(fields[i].name)
             break;
           case TSDB_DATA_TYPE_SMALLINT:
-            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%d", fields[i].name, *((int16_t *)row[i]));
+            cur = snprintf(target + len, HTTP_GC_TARGET_SIZE - len - 2, "%s:%d", fields[i].name, *((int16_t *)row[i]));
+            HTTP_GC_CHECK_SIZE(fields[i].name)
             break;
           case TSDB_DATA_TYPE_INT:
-            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%d,", fields[i].name, *((int32_t *)row[i]));
+            cur = snprintf(target + len, HTTP_GC_TARGET_SIZE - len - 2, "%s:%d,", fields[i].name, *((int32_t *)row[i]));
+            HTTP_GC_CHECK_SIZE(fields[i].name)
             break;
           case TSDB_DATA_TYPE_BIGINT:
-            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%" PRId64, fields[i].name, *((int64_t *)row[i]));
+            cur = snprintf(target + len, HTTP_GC_TARGET_SIZE - len - 2, "%s:%" PRId64, fields[i].name, *((int64_t *)row[i]));
+            HTTP_GC_CHECK_SIZE(fields[i].name)
             break;
           case TSDB_DATA_TYPE_FLOAT:
-            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%.5f", fields[i].name, GET_FLOAT_VAL(row[i]));
+            cur = snprintf(target + len, HTTP_GC_TARGET_SIZE - len - 2, "%s:%.5f", fields[i].name, GET_FLOAT_VAL(row[i]));
+            HTTP_GC_CHECK_SIZE(fields[i].name)
             break;
           case TSDB_DATA_TYPE_DOUBLE:
-            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%.9f", fields[i].name, GET_DOUBLE_VAL(row[i]));
+            cur = snprintf(target + len, HTTP_GC_TARGET_SIZE - len - 2, "%s:%.9f", fields[i].name, GET_DOUBLE_VAL(row[i]));
+            HTTP_GC_CHECK_SIZE(fields[i].name)
             break;
           case TSDB_DATA_TYPE_BINARY:
           case TSDB_DATA_TYPE_NCHAR:
             if (row[i] != NULL) {
-              len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:", fields[i].name);
-              memcpy(target + len, (char *)row[i], length[i]);
+              cur = snprintf(target + len, HTTP_GC_TARGET_SIZE - len - 2, "%s:", fields[i].name);
+              HTTP_GC_CHECK_SIZE(fields[i].name)
+              memcpy(target + len, (char *)row[i], MIN(length[i], HTTP_GC_TARGET_SIZE - len - 3));
               len = (int32_t)strlen(target);
             }
             break;
           default:
-            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%s", fields[i].name, "-");
+            cur = snprintf(target + len, HTTP_GC_TARGET_SIZE - len - 2, "%s:%s", fields[i].name, "-");
+            HTTP_GC_CHECK_SIZE(fields[i].name)
             break;
         }
         if (i < num_fields - 1) {
-          len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, ", ");
+          cur = snprintf(target + len, HTTP_GC_TARGET_SIZE - len - 2, ", ");
+          HTTP_GC_CHECK_SIZE(fields[i].name)
         }
       }
-      len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "}");
+      cur = snprintf(target + len, HTTP_GC_TARGET_SIZE - len - 1, "}");
 
       if (strcmp(target, targetBuffer) != 0) {
         // first target not write this section

@@ -1,0 +1,27 @@
+{
+  "filetype":"query",
+  "cfgdir": "/etc/taos",
+  "confirm_parameter_prompt": "no",
+  "databases": "db",
+  "query_mode": "rest",
+  "connection_pool_size": 10,
+  "response_buffer": 10000,
+  "specified_table_query":
+  {
+    "query_times": 1,
+    "sqls":
+    [{
+      "sql": "select count(*) from db.stb",
+      "result": "rest_query_specified"
+    }]
+  },
+  "super_table_query": {
+    "stblname": "stb",
+    "sqls": [
+      {
+        "sql": "select count(*) from xxxx",
+        "result": "rest_query_super"
+      }
+    ]
+  }
+}

@@ -2,27 +2,49 @@
 
 ## <a class="anchor" id="grafana"></a> Grafana
 
-TDengine can quickly integrate with [Grafana](https://www.grafana.com/), an open source data visualization system, to build a data monitoring and alarming system. The whole process does not require any code to write. The contents of the data table in TDengine can be visually showed on DashBoard.
+TDengine can be quickly integrated with [Grafana](https://www.grafana.com/), an open source data visualization system, to build a data monitoring and alarming system. The whole process does not require any code to write. The contents of the data table in TDengine can be visually showed on DashBoard.
 
 ### Install Grafana
 
-TDengine currently supports Grafana 5.2.4 and above. You can download and install the package from Grafana website according to the current operating system. The download address is as follows:
-
-https://grafana.com/grafana/download.
+TDengine currently supports Grafana 7.0 and above. You can download and install the package from Grafana website according to the current operating system. The download address is as follows: <https://grafana.com/grafana/download>.
 
 ### Configure Grafana
 
-Download grafana plugin from <https://github.com/taosdata/grafanaplugin/releases/latest> .
+TDengine data source plugin for Grafana is hosted on GitHub, refer to GitHub latest release page <https://github.com/taosdata/grafanaplugin/releases/latest> to download the latest plugin package. Currently it's version 3.1.3 .
+
+It is recommended to use [`grafana-cli` command line tool](https://grafana.com/docs/grafana/latest/administration/cli/) to install the plugin.
 
 ```bash
-GF_VERSION=3.1.1
+sudo -u grafana grafana-cli \
+  --pluginUrl https://github.com/taosdata/grafanaplugin/releases/download/v3.1.3/tdengine-datasource-3.1.3.zip \
+  plugins install tdengine-datasource
+```
+
+Users could manually download the plugin package and install it to Grafana plugins directory.
+
+```bash
+GF_VERSION=3.1.3
 wget https://github.com/taosdata/grafanaplugin/releases/download/v$GF_VERSION/tdengine-datasource-$GF_VERSION.zip
 ```
 
-Taking Centos 7.2 as an example, just copy grafanaplugin directory to /var/lib/grafana/plugins directory and restart Grafana.
+Taking CentOS 7.2 as an example, just unpack the package to /var/lib/grafana/plugins directory and restart Grafana.
 
 ```bash
 sudo unzip tdengine-datasource-$GF_VERSION.zip /var/lib/grafana/plugins/
+```
+
+Grafana will check the signature after 7.3 and 8.x for security. Users need additional configurations in `grafana.ini` file to allow unsigned plugins like TDengine data source.
+
+```ini
+[plugins]
+allow_loading_unsigned_plugins = tdengine-datasource
+```
+
+In docker/compose/k8s, simply setting the two environment variables will take it all for you.
+
+```bash
+GF_INSTALL_PLUGINS=https://github.com/taosdata/grafanaplugin/releases/download/v3.1.3/tdengine-datasource-3.1.3.zip;tdengine-datasource
+GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tdengine-datasource
 ```
 
 ### Use Grafana
@@ -31,29 +53,29 @@ sudo unzip tdengine-datasource-$GF_VERSION.zip /var/lib/grafana/plugins/
 
 You can log in the Grafana server (username/password:admin/admin) through localhost:3000, and add data sources through `Configuration -> Data Sources` on the left panel, as shown in the following figure:
 
-![img](page://images/connections/add_datasource1.jpg)
+![img](../images/connections/add_datasource1.jpg)
 
 Click `Add data source` to enter the Add Data Source page, and enter TDengine in the query box to select Add, as shown in the following figure:
 
-![img](page://images/connections/add_datasource2.jpg)
+![img](../images/connections/add_datasource2.jpg)
 
 Enter the data source configuration page and modify the corresponding configuration according to the default prompt:
 
-![img](page://images/connections/add_datasource3.jpg)
+![img](../images/connections/add_datasource3.jpg)
 
-- Host: IP address of any server in TDengine cluster and port number of TDengine RESTful interface (6041), default  [http://localhost:6041](http://localhost:6041/)
+- Host: IP address of any server in TDengine cluster and port number of TDengine RESTful interface (6041), use `http://localhost:6041` to access the interface by default. Note the 2.4 and later version of TDengine use a stand-alone software, taosAdapter to provide RESTful interface. Please refer to its document for configuration and deployment.
 - User: TDengine username.
 - Password: TDengine user password.
 
 Click `Save & Test` to test. Success will be prompted as follows:
 
-![img](page://images/connections/add_datasource4.jpg)
+![img](../images/connections/add_datasource4.jpg)
 
 #### Create Dashboard
 
 Go back to the home  to create Dashboard, and click `Add Query` to enter the panel query page:
 
-![img](page://images/connections/create_dashboard1.jpg)
+![img](../images/connections/create_dashboard1.jpg)
 
 As shown in the figure above, select the TDengine data source in Query, and enter the corresponding sql in the query box below to query. Details are as follows:
 
@@ -63,21 +85,13 @@ As shown in the figure above, select the TDengine data source in Query, and ente
 
 According to the default prompt, query the average system memory usage at the specified interval of the server where the current TDengine deployed in as follows:
 
-![img](page://images/connections/create_dashboard2.jpg)
+![img](../images/connections/create_dashboard2.jpg)
 
 > Please refer to Grafana [documents](https://grafana.com/docs/) for how to use Grafana to create the corresponding monitoring interface and for more about Grafana usage.
 
 #### Import Dashboard
 
-We provide an example dashboard [Grafana Dashboard 15146](https://grafana.com/grafana/dashboards/15146)。
-
-Click the `Import` button on the left panel and load the grafana id:
-
-![img](page://images/connections/import_dashboard1.jpg)
-
-You can see as follows after Dashboard imported.
-
-![img](../images/connections/dashboard-15146.png)
+We provide a TDinsight dashboard (via Grafana dashboard id: [15167](https://grafana.com/grafana/dashboards/15167)) for TDengine cluster monitoring since TDengine 2.3.3.x . Please refer to [TDinsight User Manual](https://www.taosdata.com/en/documentation/tools/insight) for the details.
 
 ## <a class="anchor" id="matlab"></a> MATLAB
 
@@ -87,9 +101,10 @@ MATLAB can access data to the local workspace by connecting directly to the TDen
 
 Several steps are required to adapt MATLAB to TDengine. Taking adapting MATLAB2017a on Windows10 as an example:
 
-- Copy the file JDBCDriver-1.0.0-dist.ja*r* in TDengine package to the directory ${matlab_root}\MATLAB\R2017a\java\jar\toolbox
+- Copy the file JDBCDriver-1.0.0-dist.jar in TDengine package to the directory ${matlab_root}\MATLAB\R2017a\java\jar\toolbox
 - Copy the file taos.lib in TDengine package to ${matlab root dir}\MATLAB\R2017a\lib\win64
 - Add the .jar package just copied to the MATLAB classpath. Append the line below as the end of the file of ${matlab root dir}\MATLAB\R2017a\toolbox\local\classpath.txt
+
 - ```
   $matlabroot/java/jar/toolbox/JDBCDriver-1.0.0-dist.jar
   ```
@@ -123,9 +138,9 @@ sql1 = [‘insert into tb values (now, 1)’]
 exec(conn, sql1)
 ```
 
-For more detailed examples, please refer to the examples\Matlab\TDEngineDemo.m file in the package.
+For more detailed examples, please refer to the examples\matlab\TDengineDemo.m file in the package.
 
-## <a class="anchor" id="r"></a> R 
+## <a class="anchor" id="r"></a> R
 
 R language supports connection to the TDengine database through the JDBC interface. First, you need to install the JDBC package of R language. Launch the R language environment, and then execute the following command to install the JDBC support library for R language:
 

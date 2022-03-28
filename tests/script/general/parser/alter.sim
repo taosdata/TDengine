@@ -86,12 +86,13 @@ endi
 if $data07 != 11,12,13 then 
  return -1
 endi
-sql alter database $db keep 365000,365000,365000
+sql_error alter database $db keep 365000,365000,365000
+sql alter database $db keep 36500,36500,36500
 sql show databases
 if $rows != 1 then
   return -1
 endi
-if $data07 != 365000,365000,365000 then 
+if $data07 != 36500,36500,36500 then 
  return -1
 endi
 

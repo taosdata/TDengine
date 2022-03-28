@@ -509,6 +509,7 @@ sql_error select ts,sum_double(f1),f1 from tb1;
 sql_error select add_one(f1),count(f1) from tb1;
 sql_error select sum_double(f1),count(f1) from tb1;
 sql_error select add_one(f1),top(f1,3) from tb1;
+sql_error select add_one(f1),sample(f1,3) from tb1;
 sql_error select add_one(f1) from tb1 interval(10a);
 
 
@@ -1224,6 +1225,7 @@ sql insert into taaa values (now, 100);
 
 sql select add_one_64232(f1) from taaa;
 if $rows != 4 then
+  print $rows
   return -1
 endi
 

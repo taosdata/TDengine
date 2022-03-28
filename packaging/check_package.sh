@@ -50,7 +50,7 @@ NC='\033[0m'
 
 csudo=""
 if command -v sudo > /dev/null; then
-    csudo="sudo"
+    csudo="sudo "
 fi
 
 # =============================  get input parameters =================================================
@@ -85,7 +85,7 @@ done
 function kill_process() {
   pid=$(ps -ef | grep "$1" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
-    ${csudo} kill -9 $pid   || :
+    ${csudo}kill -9 $pid   || :
   fi
 }
 
@@ -95,7 +95,7 @@ function check_file() {
         echo -e "$1/$2 \033[31mnot exists\033[0m!quit"
         fin_result=$fin_result"\033[31m$temp_version\033[0m test failed!\n"
         echo -e $fin_result
-        exit 8 
+        exit 8
     fi
 }
 
@@ -107,6 +107,7 @@ function get_package_name() {
 		echo ${var::-17}
 	fi
 }
+
 function check_link() {
     #check Link whether exists or broken
     if [ -L $1 ] ; then
@@ -114,25 +115,25 @@ function check_link() {
             echo -e "$1 \033[31Broken link\033[0m"
             fin_result=$fin_result"\033[31m$temp_version\033[0m test failed!\n"
             echo -e $fin_result
-            exit 8 
+            exit 8
         fi
     else
         echo -e "$1 \033[31mnot exists\033[0m!quit"
         fin_result=$fin_result"\033[31m$temp_version\033[0m test failed!\n"
         echo -e $fin_result
-        exit 8 
+        exit 8
     fi
 }
 
 function check_main_path() {
     #check install main dir and all sub dir
     main_dir=("" "cfg" "bin" "connector" "driver" "examples" "include" "init.d")
-    for i in ${main_dir[@]};do
+    for i in "${main_dir[@]}";do
         check_file ${install_main_dir} $i
     done
     if [ "$verMode" == "cluster" ]; then
         nginx_main_dir=("admin" "conf" "html" "sbin" "logs")
-        for i in ${nginx_main_dir[@]};do
+        for i in "${nginx_main_dir[@]}";do
             check_file ${nginx_dir}  $i
         done
     fi
@@ -141,12 +142,12 @@ function check_main_path() {
 
 function check_bin_path() {
     # check install bin dir and all sub dir
-    bin_dir=("taos" "taosd" "taosdemo" "taosdump" "remove.sh" "tarbitrator" "set_core.sh")
-    for i in ${bin_dir[@]};do
+    bin_dir=("taos" "taosd" "taosadapter" "taosdemo" "remove.sh" "tarbitrator" "set_core.sh")
+    for i in "${bin_dir[@]}";do
         check_file ${sbin_dir} $i
     done
-    lbin_dir=("taos" "taosd" "taosdemo" "taosdump" "rmtaos" "tarbitrator" "set_core")
-    for i in ${lbin_dir[@]};do
+    lbin_dir=("taos" "taosd" "taosadapter" "taosdemo" "rmtaos" "tarbitrator" "set_core")
+    for i in "${lbin_dir[@]}";do
         check_link ${bin_link_dir}/$i
     done
     if [ "$verMode" == "cluster" ]; then
@@ -154,7 +155,6 @@ function check_bin_path() {
     fi
     echo -e "Check bin  path:\033[32mOK\033[0m!"
 }
-
 
 function check_lib_path() {
     # check all links
@@ -168,16 +168,22 @@ function check_lib_path() {
     echo -e "Check lib  path:\033[32mOK\033[0m!"
 }
 
-
 function check_header_path() {
-	# check all header 
-	header_dir=("taos.h" "taoserror.h")
-    for i in ${header_dir[@]};do
+	# check all header
+	header_dir=("taos.h" "taosdef.h" "taoserror.h")
+    for i in "${header_dir[@]}";do
         check_link ${inc_link_dir}/$i
     done
     echo -e "Check bin  path:\033[32mOK\033[0m!"
 }
 
+function check_taosadapter_config_dir() {
+	# check all config
+	check_file ${cfg_install_dir} taosadapter.toml
+	check_file ${cfg_install_dir} taosadapter.service
+	check_file ${install_main_dir}/cfg taosadapter.toml.org
+	echo -e "Check conf path:\033[32mOK\033[0m!"
+}
 
 function check_config_dir() {
 	# check all config
@@ -194,7 +200,7 @@ function check_log_path() {
 
 function check_data_path() {
 	# check data path
-	check_file ${data_dir} 
+	check_file ${data_dir}
 	echo -e "Check data path:\033[32mOK\033[0m!"
 }
 
@@ -204,7 +210,7 @@ function install_TDengine() {
   temp_version=$(get_package_name $1)
 	cd $(get_package_name $1)
   echo -e "\033[32muninstall TDengine && install TDengine...\033[0m"
-	rmtaos >/dev/null 2>&1 || echo 'taosd not installed' && echo -e '\n\n' |./install.sh >/dev/null 2>&1 
+	rmtaos >/dev/null 2>&1 || echo 'taosd not installed' && echo -e '\n\n' |./install.sh >/dev/null 2>&1
   echo -e "\033[32mTDengine has been installed!\033[0m"
   echo -e "\033[32mTDengine is starting...\033[0m"
   kill_process taos && systemctl start taosd && sleep 10
@@ -216,18 +222,19 @@ function test_TDengine() {
     check_lib_path
     check_header_path
     check_config_dir
+    check_taosadapter_config_dir
     check_log_path
     check_data_path
     result=`taos -s 'create database test ;create table test.tt(ts timestamp ,i int);insert into test.tt values(now,11);select * from test.tt' 2>&1 ||:`
     if [[ $result =~ "Unable to establish" ]];then
-        echo -e "\033[31mTDengine connect failed\033[0m" 
+        echo -e "\033[31mTDengine connect failed\033[0m"
         fin_result=$fin_result"\033[31m$temp_version\033[0m test failed!\n"
         echo -e $fin_result
-        exit 8 
-    fi  
+        exit 8
+    fi
     echo -e "Check TDengine connect:\033[32mOK\033[0m!"
     fin_result=$fin_result"\033[32m$temp_version\033[0m test OK!\n"
-} 
+}
 # ## ==============================Main program starts from here============================
 TD_package_name=`ls ${script_dir}/*server*gz |awk -F '/' '{print $NF}' `
 temp=`pwd`

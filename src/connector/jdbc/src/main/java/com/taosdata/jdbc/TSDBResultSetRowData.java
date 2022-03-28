@@ -14,8 +14,7 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
-import com.taosdata.jdbc.utils.NullType;
-
+import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -49,7 +48,7 @@ public class TSDBResultSetRowData {
     }
 
     /**
-     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use an index start from 1 in JDBC api
      */
     public void setBooleanValue(int col, boolean value) {
         setBoolean(col - 1, value);
@@ -77,6 +76,7 @@ public class TSDBResultSetRowData {
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
                 return ((Long) obj) == 1L ? Boolean.TRUE : Boolean.FALSE;
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
+            case TSDBConstants.TSDB_DATA_TYPE_JSON:
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR: {
                 return obj.toString().contains("1");
             }
@@ -86,7 +86,7 @@ public class TSDBResultSetRowData {
     }
 
     /**
-     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use an index start from 1 in JDBC api
      */
     public void setByteValue(int colIndex, byte value) {
         setByte(colIndex - 1, value);
@@ -100,7 +100,7 @@ public class TSDBResultSetRowData {
     }
 
     /**
-     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use an index start from 1 in JDBC api
      */
     public void setShortValue(int colIndex, short value) {
         setShort(colIndex - 1, value);
@@ -114,7 +114,7 @@ public class TSDBResultSetRowData {
     }
 
     /**
-     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use an index start from 1 in JDBC api
      */
     public void setIntValue(int colIndex, int value) {
         setInt(colIndex - 1, value);
@@ -130,7 +130,7 @@ public class TSDBResultSetRowData {
     public int getInt(int col, int nativeType) throws SQLException {
         Object obj = data.get(col - 1);
         if (obj == null)
-            return NullType.getIntNull();
+            return 0;
 
         switch (nativeType) {
             case TSDBConstants.TSDB_DATA_TYPE_BOOL:
@@ -146,6 +146,7 @@ public class TSDBResultSetRowData {
                 return ((Long) obj).intValue();
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
+            case TSDBConstants.TSDB_DATA_TYPE_JSON:
                 return Integer.parseInt((String) obj);
             case TSDBConstants.TSDB_DATA_TYPE_UTINYINT:
                 return parseUnsignedTinyIntToInt(obj);
@@ -189,12 +190,12 @@ public class TSDBResultSetRowData {
         long value = (long) obj;
         if (value < 0)
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
-        return Long.valueOf(value).intValue();
+        return (int) value;
     }
 
 
     /**
-     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use an index start from 1 in JDBC api
      */
     public void setLongValue(int colIndex, long value) {
         setLong(colIndex - 1, value);
@@ -210,7 +211,7 @@ public class TSDBResultSetRowData {
     public long getLong(int col, int nativeType) throws SQLException {
         Object obj = data.get(col - 1);
         if (obj == null) {
-            return NullType.getBigIntNull();
+            return 0;
         }
 
         switch (nativeType) {
@@ -227,6 +228,7 @@ public class TSDBResultSetRowData {
                 return (Long) obj;
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
+            case TSDBConstants.TSDB_DATA_TYPE_JSON:
                 return Long.parseLong((String) obj);
             case TSDBConstants.TSDB_DATA_TYPE_UTINYINT: {
                 byte value = (byte) obj;
@@ -262,7 +264,7 @@ public class TSDBResultSetRowData {
     }
 
     /**
-     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use an index start from 1 in JDBC api
      */
     public void setFloatValue(int colIndex, float value) {
         setFloat(colIndex - 1, value);
@@ -278,7 +280,7 @@ public class TSDBResultSetRowData {
     public float getFloat(int col, int nativeType) {
         Object obj = data.get(col - 1);
         if (obj == null)
-            return NullType.getFloatNull();
+            return 0;
 
         switch (nativeType) {
             case TSDBConstants.TSDB_DATA_TYPE_BOOL:
@@ -297,12 +299,12 @@ public class TSDBResultSetRowData {
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
                 return (Long) obj;
             default:
-                return NullType.getFloatNull();
+                return 0;
         }
     }
 
     /**
-     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use an index start from 1 in JDBC api
      */
     public void setDoubleValue(int colIndex, double value) {
         setDouble(colIndex - 1, value);
@@ -318,7 +320,7 @@ public class TSDBResultSetRowData {
     public double getDouble(int col, int nativeType) {
         Object obj = data.get(col - 1);
         if (obj == null)
-            return NullType.getDoubleNull();
+            return 0;
 
         switch (nativeType) {
             case TSDBConstants.TSDB_DATA_TYPE_BOOL:
@@ -337,12 +339,12 @@ public class TSDBResultSetRowData {
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
                 return (Long) obj;
             default:
-                return NullType.getDoubleNull();
+                return 0;
         }
     }
 
     /**
-     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use an index start from 1 in JDBC api
      */
     public void setStringValue(int colIndex, String value) {
         data.set(colIndex - 1, value);
@@ -361,7 +363,7 @@ public class TSDBResultSetRowData {
     }
 
     /**
-     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use an index start from 1 in JDBC api
      */
     public void setByteArrayValue(int colIndex, byte[] value) {
         setByteArray(colIndex - 1, value);
@@ -378,8 +380,8 @@ public class TSDBResultSetRowData {
         //  this setByteArr(int, byte[]) to handle NCHAR value, we need to build a String with charsetEncoding by TaosGlobalConfig
         try {
             data.set(col, new String(value, TaosGlobalConfig.getCharset()));
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e.getMessage());
         }
     }
 
@@ -417,6 +419,7 @@ public class TSDBResultSetRowData {
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
                 return new String((byte[]) obj);
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
+            case TSDBConstants.TSDB_DATA_TYPE_JSON:
                 return (String) obj;
             default:
                 return String.valueOf(obj);
@@ -424,7 +427,7 @@ public class TSDBResultSetRowData {
     }
 
     /**
-     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use an index start from 1 in JDBC api
      */
     public void setTimestampValue(int colIndex, long value) {
         setTimestamp(colIndex - 1, value, 0);
@@ -442,16 +445,29 @@ public class TSDBResultSetRowData {
             case 0: {
                 milliseconds = ts;
                 fracNanoseconds = (int) (ts * 1_000_000 % 1_000_000_000);
+                fracNanoseconds = fracNanoseconds < 0 ? 1_000_000_000 + fracNanoseconds : fracNanoseconds;
                 break;
             }
             case 1: {
                 milliseconds = ts / 1_000;
                 fracNanoseconds = (int) (ts * 1_000 % 1_000_000_000);
+                if (fracNanoseconds < 0) {
+                    if (milliseconds == 0) {
+                        milliseconds = -1;
+                    }
+                    fracNanoseconds += 1_000_000_000;
+                }
                 break;
             }
             case 2: {
                 milliseconds = ts / 1_000_000;
                 fracNanoseconds = (int) (ts % 1_000_000_000);
+                if (fracNanoseconds < 0) {
+                    if (milliseconds == 0) {
+                        milliseconds = -1;
+                    }
+                    fracNanoseconds += 1_000_000_000;
+                }
                 break;
             }
             default: {

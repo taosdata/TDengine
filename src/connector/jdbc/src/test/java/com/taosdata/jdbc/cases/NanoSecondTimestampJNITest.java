@@ -1,9 +1,6 @@
 package com.taosdata.jdbc.cases;
 
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
 
 import java.sql.*;
 import java.time.Instant;
@@ -17,7 +14,7 @@ public class NanoSecondTimestampJNITest {
     private static Connection conn;
 
     @Test
-    public void insertUsingLongValue() {
+    public void insertUsingLongValue() throws SQLException {
         // given
         long ms = System.currentTimeMillis();
         long ns = ms * 1000_000 + random.nextInt(1000_000);
@@ -26,8 +23,6 @@ public class NanoSecondTimestampJNITest {
         int ret = 0;
         try (Statement stmt = conn.createStatement()) {
             ret = stmt.executeUpdate("insert into weather(ts, temperature, humidity) values(" + ns + ", 12.3, 4)");
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
 
         // then
@@ -35,15 +30,13 @@ public class NanoSecondTimestampJNITest {
     }
 
     @Test
-    public void insertUsingStringValue() {
+    public void insertUsingStringValue() throws SQLException {
         // given
 
         // when
         int ret = 0;
         try (Statement stmt = conn.createStatement()) {
             ret = stmt.executeUpdate("insert into weather(ts, temperature, humidity) values('2021-01-01 12:00:00.123456789', 12.3, 4)");
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
 
         // then
@@ -51,7 +44,7 @@ public class NanoSecondTimestampJNITest {
     }
 
     @Test
-    public void insertUsingTimestampValue() {
+    public void insertUsingTimestampValue() throws SQLException {
         // given
         long epochSec = System.currentTimeMillis() / 1000;
         long nanoAdjustment = random.nextInt(1000_000_000);
@@ -65,8 +58,6 @@ public class NanoSecondTimestampJNITest {
             pstmt.setFloat(2, 12.34f);
             pstmt.setInt(3, 55);
             ret = pstmt.executeUpdate();
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
 
         // then
@@ -80,20 +71,16 @@ public class NanoSecondTimestampJNITest {
         long ns = ms * 1000_000L + random.nextInt(1000_000);
 
         // when
-        ResultSet rs = null;
         try (Statement stmt = conn.createStatement()) {
             stmt.executeUpdate("insert into weather(ts, temperature, humidity) values(" + ns + ", 12.3, 4)");
-            rs = stmt.executeQuery("select * from weather");
+            ResultSet rs = stmt.executeQuery("select * from weather");
             rs.next();
-        } catch (SQLException e) {
-            e.printStackTrace();
+            // then
+            long actual = rs.getLong(1);
+            Assert.assertEquals(ns, actual);
+            actual = rs.getLong("ts");
+            Assert.assertEquals(ns, actual);
         }
-
-        // then
-        long actual = rs.getLong(1);
-        Assert.assertEquals(ms, actual);
-        actual = rs.getLong("ts");
-        Assert.assertEquals(ms, actual);
     }
 
     @Test
@@ -102,20 +89,16 @@ public class NanoSecondTimestampJNITest {
         String timestampStr = "2021-01-01 12:00:00.123456789";
 
         // when
-        ResultSet rs = null;
         try (Statement stmt = conn.createStatement()) {
             stmt.executeUpdate("insert into weather(ts, temperature, humidity) values('" + timestampStr + "', 12.3, 4)");
-            rs = stmt.executeQuery("select * from weather");
+            ResultSet rs = stmt.executeQuery("select * from weather");
             rs.next();
-        } catch (SQLException e) {
-            e.printStackTrace();
+            // then
+            String actual = rs.getString(1);
+            Assert.assertEquals(timestampStr, actual);
+            actual = rs.getString("ts");
+            Assert.assertEquals(timestampStr, actual);
         }
-
-        // then
-        String actual = rs.getString(1);
-        Assert.assertEquals(timestampStr, actual);
-        actual = rs.getString("ts");
-        Assert.assertEquals(timestampStr, actual);
     }
 
     @Test
@@ -133,48 +116,51 @@ public class NanoSecondTimestampJNITest {
             pstmt.setFloat(2, 12.34f);
             pstmt.setInt(3, 55);
             pstmt.executeUpdate();
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
 
         // when
-        ResultSet rs = null;
         try (Statement stmt = conn.createStatement()) {
-            rs = stmt.executeQuery("select * from weather");
+            ResultSet rs = stmt.executeQuery("select * from weather");
             rs.next();
-        } catch (SQLException e) {
-            e.printStackTrace();
+            // then
+            Timestamp actual = rs.getTimestamp(1);
+            Assert.assertEquals(ts, actual);
+            actual = rs.getTimestamp("ts");
+            Assert.assertEquals(ts, actual);
+            Assert.assertEquals(timeMillis, actual.getTime());
+            Assert.assertEquals(nanoAdjustment, actual.getNanos());
         }
-
-        // then
-        Timestamp actual = rs.getTimestamp(1);
-        Assert.assertEquals(ts, actual);
-        actual = rs.getTimestamp("ts");
-        Assert.assertEquals(ts, actual);
-        Assert.assertEquals(timeMillis, actual.getTime());
-        Assert.assertEquals(nanoAdjustment, actual.getNanos());
     }
 
     @Before
-    public void before() {
+    public void before() throws SQLException {
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("drop table if exists weather");
             stmt.execute("create table weather(ts timestamp, temperature float, humidity int)");
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 
     @BeforeClass
-    public static void beforeClass() {
+    public static void beforeClass() throws SQLException {
         final String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
-        try {
-            conn = DriverManager.getConnection(url);
-            Statement stmt = conn.createStatement();
+        conn = DriverManager.getConnection(url);
+        try (Statement stmt = conn.createStatement()) {
             stmt.execute("drop database if exists " + dbname);
             stmt.execute("create database if not exists " + dbname + " precision 'ns'");
             stmt.execute("use " + dbname);
-        } catch (SQLException e) {
+        }
+    }
+
+    @AfterClass
+    public static void afterClass(){
+        try {
+            if (null != conn){
+                Statement statement = conn.createStatement();
+                statement.execute("drop database if exists " + dbname);
+                statement.close();
+                conn.close();
+            }
+        }catch (SQLException e){
             e.printStackTrace();
         }
     }

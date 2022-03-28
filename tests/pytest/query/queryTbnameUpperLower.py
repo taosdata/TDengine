@@ -26,6 +26,8 @@ class TDTestCase:
         '''
         tdCom.cleanTb()
         table_name = tdCom.getLongName(8, "letters_mixed")
+        while table_name.islower():
+            table_name = tdCom.getLongName(8, "letters_mixed")
         table_name_sub = f'{table_name}_sub'
         tb_name_lower = table_name_sub.lower()
         tb_name_upper = table_name_sub.upper()
@@ -46,17 +48,17 @@ class TDTestCase:
 
         ## query where tbname in single
         tdSql.query(f'select * from {table_name} where tbname in ("{table_name_sub}1")')
-        tdSql.checkRows(1)
+        tdSql.checkRows(0)
         tdSql.query(f'select * from {table_name} where tbname in ("{table_name_sub.upper()}1")')
-        tdSql.checkRows(1)
+        tdSql.checkRows(0)
         tdSql.query(f'select * from {table_name} where tbname in ("{table_name_sub.lower()}1")')
         tdSql.checkRows(1)
         tdSql.query(f'select * from {table_name} where tbname in ("{tb_name_lower}2")')
         tdSql.checkRows(2)
         tdSql.query(f'select * from {table_name} where tbname in ("{tb_name_lower.upper()}2")')
-        tdSql.checkRows(2)
+        tdSql.checkRows(0)
         tdSql.query(f'select * from {table_name} where tbname in ("{tb_name_upper}3")')
-        tdSql.checkRows(3)
+        tdSql.checkRows(0)
         tdSql.query(f'select * from {table_name} where tbname in ("{tb_name_upper.lower()}3")')
         tdSql.checkRows(3)
         
@@ -64,7 +66,7 @@ class TDTestCase:
         tdSql.query(f'select * from {table_name} where id=5 and tbname in ("{table_name_sub}1", "{tb_name_lower.upper()}2", "{tb_name_upper.lower()}3")')
         tdSql.checkRows(1)
         tdSql.query(f'select * from {table_name} where tbname in ("{table_name_sub}1", "{tb_name_lower.upper()}2", "{tb_name_upper.lower()}3")')
-        tdSql.checkRows(6)
+        tdSql.checkRows(3)
 
     def run(self):
         tdSql.prepare()

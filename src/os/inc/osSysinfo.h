@@ -28,16 +28,19 @@ typedef struct {
 
 int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize);
 
+int32_t taosGetCpuCores();
 void taosGetSystemInfo();
-bool taosGetProcIO(float *readKB, float *writeKB);
+bool taosReadProcIO(int64_t* rchars, int64_t* wchars, int64_t* rbytes, int64_t* wbytes);
+bool taosGetProcIO(float *rcharKB, float *wcharKB, float *rbyteKB, float* wbyteKB);
+bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes);
 bool taosGetBandSpeed(float *bandSpeedKb);
+bool taosGetNetworkIO(float *netInKb, float *netOutKb);
 void taosGetDisk();
 bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) ;
 bool taosGetProcMemory(float *memoryUsedMB) ;
 bool taosGetSysMemory(float *memoryUsedMB);
 void taosPrintOsInfo();
 void taosPrintDiskInfo();
-int  taosSystem(const char * cmd) ;
 void taosKillSystem();
 bool taosGetSystemUid(char *uid);
 char *taosGetCmdlineByPID(int pid);

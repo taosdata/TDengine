@@ -121,7 +121,7 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
   }
 
   if (!tsMnodeShowMetaFp[pShowMsg->type] || !tsMnodeShowRetrieveFp[pShowMsg->type]) {
-    mError("show type:%s is not support", mnodeGetShowType(pShowMsg->type));
+    mWarn("show type:%s is not support", mnodeGetShowType(pShowMsg->type));
     return TSDB_CODE_COM_OPS_NOT_SUPPORT;
   }
 
@@ -243,10 +243,6 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
   }
 
   SHeartBeatMsg *pHBMsg = pMsg->rpcMsg.pCont;
-  if (taosCheckVersion(pHBMsg->clientVer, version, 3) != TSDB_CODE_SUCCESS) {
-    rpcFreeCont(pRsp);
-    return TSDB_CODE_TSC_INVALID_VERSION;  // todo change the error code
-  }
 
   SRpcConnInfo connInfo = {0};
   rpcGetConnInfo(pMsg->rpcMsg.handle, &connInfo);
@@ -304,11 +300,6 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
   if (rpcGetConnInfo(pMsg->rpcMsg.handle, &connInfo) != 0) {
     mError("thandle:%p is already released while process connect msg", pMsg->rpcMsg.handle);
     code = TSDB_CODE_MND_INVALID_CONNECTION;
-    goto connect_over;
-  }
-
-  code = taosCheckVersion(pConnectMsg->clientVersion, version, 3);
-  if (code != TSDB_CODE_SUCCESS) {
     goto connect_over;
   }
 
@@ -422,8 +413,13 @@ static void* mnodePutShowObj(SShowObj *pShow) {
 
 static void mnodeFreeShowObj(void *data) {
   SShowObj *pShow = *(SShowObj **)data;
-  if (tsMnodeShowFreeIterFp[pShow->type] != NULL && pShow->pIter != NULL) {
-    (*tsMnodeShowFreeIterFp[pShow->type])(pShow->pIter);
+  if (tsMnodeShowFreeIterFp[pShow->type] != NULL) {
+    if (pShow->pVgIter != NULL) {
+      // only used in 'show vnodes "ep"'
+      (*tsMnodeShowFreeIterFp[pShow->type])(pShow->pVgIter);
+    } else {
+      if (pShow->pIter != NULL) (*tsMnodeShowFreeIterFp[pShow->type])(pShow->pIter);
+    }
   }
 
   mDebug("%p, show is destroyed, data:%p index:%d", pShow, data, pShow->index);

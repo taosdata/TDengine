@@ -20,7 +20,7 @@ public class PreparedStatementBatchInsertRestfulTest {
     private Connection conn;
 
     @Test
-    public void test() {
+    public void test() throws SQLException {
         // given
         long ts = System.currentTimeMillis();
         List<Object[]> rows = IntStream.range(0, 10).mapToObj(i -> {
@@ -52,7 +52,6 @@ public class PreparedStatementBatchInsertRestfulTest {
             }
             pstmt.executeBatch();
         } catch (SQLException e) {
-            e.printStackTrace();
             Assert.fail();
         }
 
@@ -64,35 +63,25 @@ public class PreparedStatementBatchInsertRestfulTest {
                 count++;
             }
             Assert.assertEquals(10, count);
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 
     @Before
-    public void before() {
-        try {
-            conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata");
-            Statement stmt = conn.createStatement();
-            stmt.execute("drop database if exists " + dbname);
-            stmt.execute("create database if not exists " + dbname);
-            stmt.execute("use " + dbname);
-            stmt.execute("create table meters(ts timestamp, current float, voltage int, phase int) tags(groupId int)");
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+    public void before() throws SQLException {
+        conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata");
+        Statement stmt = conn.createStatement();
+        stmt.execute("drop database if exists " + dbname);
+        stmt.execute("create database if not exists " + dbname);
+        stmt.execute("use " + dbname);
+        stmt.execute("create table meters(ts timestamp, current float, voltage int, phase int) tags(groupId int)");
     }
 
     @After
-    public void after() {
-        try {
-            Statement stmt = conn.createStatement();
-            stmt.execute("drop database if exists " + dbname);
-            stmt.close();
-            conn.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+    public void after() throws SQLException {
+        Statement stmt = conn.createStatement();
+        stmt.execute("drop database if exists " + dbname);
+        stmt.close();
+        conn.close();
     }
 
 }

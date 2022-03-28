@@ -28,6 +28,7 @@ void taosClose(FileFd fd) {
 void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   const char *tdengineTmpFileNamePrefix = "tdengine-";
   char        tmpPath[PATH_MAX];
+  static uint64_t seqId = 0;
 
   int32_t len = (int32_t)strlen(tsTempDir);
   memcpy(tmpPath, tsTempDir, len);
@@ -43,8 +44,10 @@ void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath) {
     strcat(tmpPath, "-%d-%s");
   }
 
-  char rand[8] = {0};
-  taosRandStr(rand, tListLen(rand) - 1);
+  char rand[32] = {0};
+
+  sprintf(rand, "%" PRIu64, atomic_add_fetch_64(&seqId, 1));
+
   snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
 }
 
@@ -367,8 +370,11 @@ int32_t taosFsync(FileFd fd) {
   }
 
   HANDLE h = (HANDLE)_get_osfhandle(fd);
-
-  return FlushFileBuffers(h);
+  
+  //If the function succeeds, the return value is nonzero.
+  //If the function fails, the return value is zero. To get extended error information, call GetLastError.
+  //The function fails if hFile is a handle to the console output. That is because the console output is not buffered. The function returns FALSE, and GetLastError returns ERROR_INVALID_HANDLE.
+  return FlushFileBuffers(h)-1;
 }
 
 int32_t taosRename(char *oldName, char *newName) {

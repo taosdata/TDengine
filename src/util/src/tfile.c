@@ -133,3 +133,14 @@ int32_t tfFtruncate(int64_t tfd, int64_t length) {
   taosReleaseRef(tsFileRsetId, tfd);
   return code;
 }
+
+int32_t tfStat(int64_t tfd, struct stat *pFstat) {
+  void *p = taosAcquireRef(tsFileRsetId, tfd);
+  if (p == NULL) return -1;
+
+  int32_t fd = (int32_t)(uintptr_t)p;
+  int32_t code = fstat(fd, pFstat);
+
+  taosReleaseRef(tsFileRsetId, tfd);
+  return code;
+}

@@ -36,29 +36,31 @@ import java.util.regex.Pattern;
  * compatibility needs.
  */
 public class TSDBPreparedStatement extends TSDBStatement implements PreparedStatement {
+    // for jdbc preparedStatement interface
     private String rawSql;
     private Object[] parameters;
-
-    private ArrayList<ColumnInfo> colData;
+    // for parameter binding
+    private long nativeStmtHandle;
+    private String tableName;
     private ArrayList<TableTagInfo> tableTags;
     private int tagValueLength;
+    private ArrayList<ColumnInfo> colData;
 
-    private String tableName;
-    private long nativeStmtHandle = 0;
-
-    TSDBPreparedStatement(TSDBConnection connection, String sql) {
+    TSDBPreparedStatement(TSDBConnection connection, String sql) throws SQLException {
         super(connection);
         init(sql);
-
         int parameterCnt = 0;
-        if (sql.contains("?")) {
-            for (int i = 0; i < sql.length(); i++) {
-                if ('?' == sql.charAt(i)) {
-                    parameterCnt++;
-                }
+        if (!sql.contains("?"))
+            return;
+        for (int i = 0; i < sql.length(); i++) {
+            if ('?' == sql.charAt(i)) {
+                parameterCnt++;
             }
         }
         parameters = new Object[parameterCnt];
+        // for parameter-binding
+//        TSDBJNIConnector connector = ((TSDBConnection) this.getConnection()).getConnector();
+//        this.nativeStmtHandle = connector.prepareStmt(rawSql);
 
         if (parameterCnt > 1) {
             // the table name is also a parameter, so ignore it.
@@ -71,10 +73,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         this.rawSql = sql;
         preprocessSql();
     }
-
-    /*
-     *
-     */
 
     /**
      * Some of the SQLs sent by other popular frameworks or tools like Spark, contains syntax that cannot be parsed by
@@ -250,13 +248,10 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     @Override
     public void setObject(int parameterIndex, Object x) throws SQLException {
-        if (isClosed()) {
+        if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        }
-
-        if (parameterIndex < 1 && parameterIndex >= parameters.length) {
+        if (parameterIndex < 1 && parameterIndex >= parameters.length)
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE);
-        }
         parameters[parameterIndex - 1] = x;
     }
 
@@ -335,7 +330,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        // TODO：
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -419,7 +413,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void setObject(int parameterIndex, Object x, int targetSqlType, int scaleOrLength) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        //TODO:
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -477,7 +470,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-
     }
 
     @Override
@@ -496,7 +488,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     ///////////////////////////////////////////////////////////////////////
     // NOTE: the following APIs are not JDBC compatible
-    // set the bind table name
+    // parameter binding
     private static class ColumnInfo {
         @SuppressWarnings("rawtypes")
         private ArrayList data;
@@ -539,7 +531,17 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         }
     }
 
-    public void setTableName(String name) {
+    public void setTableName(String name) throws SQLException {
+
+        if (this.nativeStmtHandle == 0) {
+            TSDBJNIConnector connector = ((TSDBConnection) this.getConnection()).getConnector();
+            this.nativeStmtHandle = connector.prepareStmt(rawSql);
+        }
+
+        if (this.tableName != null) {
+            this.columnDataAddBatch();
+            this.columnDataClearBatchInternal();
+        }
         this.tableName = name;
     }
 
@@ -617,7 +619,19 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         try {
             this.tagValueLength += value.getBytes(charset).length;
         } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
+            throw new RuntimeException(e.getMessage());
+        }
+    }
+
+    public void setTagJson(int index, String value) {
+        ensureTagCapacity(index);
+        this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_JSON));
+
+        String charset = TaosGlobalConfig.getCharset();
+        try {
+            this.tagValueLength += value.getBytes(charset).length;
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e.getMessage());
         }
     }
 
@@ -687,7 +701,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         if (rawSql == null) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "sql statement not set yet");
         }
-
         // table name is not set yet, abort
         if (this.tableName == null) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "table name not set yet");
@@ -697,24 +710,25 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         if (numOfCols == 0) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "column data not bind");
         }
+        if (nativeStmtHandle == 0) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "stmt is null");
+        }
 
         TSDBJNIConnector connector = ((TSDBConnection) this.getConnection()).getConnector();
-        this.nativeStmtHandle = connector.prepareStmt(rawSql);
-
         if (this.tableTags == null) {
             connector.setBindTableName(this.nativeStmtHandle, this.tableName);
         } else {
-            int num = this.tableTags.size();
+            int tagSize = this.tableTags.size();
             ByteBuffer tagDataList = ByteBuffer.allocate(this.tagValueLength);
             tagDataList.order(ByteOrder.LITTLE_ENDIAN);
 
-            ByteBuffer typeList = ByteBuffer.allocate(num);
+            ByteBuffer typeList = ByteBuffer.allocate(tagSize);
             typeList.order(ByteOrder.LITTLE_ENDIAN);
 
-            ByteBuffer lengthList = ByteBuffer.allocate(num * Long.BYTES);
+            ByteBuffer lengthList = ByteBuffer.allocate(tagSize * Long.BYTES);
             lengthList.order(ByteOrder.LITTLE_ENDIAN);
 
-            ByteBuffer isNullList = ByteBuffer.allocate(num * Integer.BYTES);
+            ByteBuffer isNullList = ByteBuffer.allocate(tagSize * Integer.BYTES);
             isNullList.order(ByteOrder.LITTLE_ENDIAN);
 
             for (TableTagInfo tag : this.tableTags) {
@@ -738,53 +752,43 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                         lengthList.putLong(Byte.BYTES);
                         break;
                     }
-
                     case TSDBConstants.TSDB_DATA_TYPE_BOOL: {
                         Boolean val = (Boolean) tag.value;
                         tagDataList.put((byte) (val ? 1 : 0));
                         lengthList.putLong(Byte.BYTES);
                         break;
                     }
-
                     case TSDBConstants.TSDB_DATA_TYPE_SMALLINT: {
                         Short val = (Short) tag.value;
                         tagDataList.putShort(val);
                         lengthList.putLong(Short.BYTES);
-
                         break;
                     }
-
                     case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
                     case TSDBConstants.TSDB_DATA_TYPE_BIGINT: {
                         Long val = (Long) tag.value;
                         tagDataList.putLong(val == null ? 0 : val);
                         lengthList.putLong(Long.BYTES);
-
                         break;
                     }
-
                     case TSDBConstants.TSDB_DATA_TYPE_FLOAT: {
                         Float val = (Float) tag.value;
                         tagDataList.putFloat(val == null ? 0 : val);
                         lengthList.putLong(Float.BYTES);
-
                         break;
                     }
-
                     case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
                         Double val = (Double) tag.value;
                         tagDataList.putDouble(val == null ? 0 : val);
                         lengthList.putLong(Double.BYTES);
-
                         break;
                     }
-
                     case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
+                    case TSDBConstants.TSDB_DATA_TYPE_JSON:
                     case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
                         String charset = TaosGlobalConfig.getCharset();
                         String val = (String) tag.value;
-
-                        byte[] b = null;
+                        byte[] b;
                         try {
                             if (tag.type == TSDBConstants.TSDB_DATA_TYPE_BINARY) {
                                 b = val.getBytes();
@@ -792,14 +796,12 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                                 b = val.getBytes(charset);
                             }
                         } catch (UnsupportedEncodingException e) {
-                            e.printStackTrace();
+                            throw new RuntimeException(e.getMessage());
                         }
-
                         tagDataList.put(b);
                         lengthList.putLong(b.length);
                         break;
                     }
-
                     case TSDBConstants.TSDB_DATA_TYPE_UTINYINT:
                     case TSDBConstants.TSDB_DATA_TYPE_USMALLINT:
                     case TSDBConstants.TSDB_DATA_TYPE_UINT:
@@ -807,13 +809,12 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "not support data types");
                     }
                 }
-
                 typeList.put((byte) tag.type);
                 isNullList.putInt(tag.isNull ? 1 : 0);
             }
 
-            connector.setBindTableNameAndTags(this.nativeStmtHandle, this.tableName, this.tableTags.size(), tagDataList,
-                    typeList, lengthList, isNullList);
+            connector.setBindTableNameAndTags(this.nativeStmtHandle, this.tableName, this.tableTags.size(),
+                    tagDataList, typeList, lengthList, isNullList);
         }
 
         ColumnInfo colInfo = this.colData.get(0);
@@ -827,7 +828,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
             if (col1 == null || !col1.isTypeSet()) {
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "column data not bind");
             }
-
             if (rows != col1.data.size()) {
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "the rows in column data not identical");
             }
@@ -927,7 +927,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                                     b = val.getBytes(charset);
                                 }
                             } catch (UnsupportedEncodingException e) {
-                                e.printStackTrace();
+                                throw new RuntimeException(e.getMessage());
                             }
 
                             if (val.length() > col1.bytes) {
@@ -944,7 +944,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                     }
                     break;
                 }
-
                 case TSDBConstants.TSDB_DATA_TYPE_UTINYINT:
                 case TSDBConstants.TSDB_DATA_TYPE_USMALLINT:
                 case TSDBConstants.TSDB_DATA_TYPE_UINT:
@@ -955,20 +954,28 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
             connector.bindColumnDataArray(this.nativeStmtHandle, colDataList, lengthList, isNullList, col1.type, col1.bytes, rows, i);
         }
+        connector.addBatch(this.nativeStmtHandle);
+        this.columnDataClearBatchInternal();
     }
 
     public void columnDataExecuteBatch() throws SQLException {
         TSDBJNIConnector connector = ((TSDBConnection) this.getConnection()).getConnector();
         connector.executeBatch(this.nativeStmtHandle);
-        this.columnDataClearBatch();
+        this.columnDataClearBatchInternal();
     }
 
+    @Deprecated
     public void columnDataClearBatch() {
-        int size = this.colData.size();
-        this.colData.clear();
+        columnDataClearBatchInternal();
+    }
 
-        this.colData.addAll(Collections.nCopies(size, null));
-        this.tableName = null;   // clear the table name
+    private void columnDataClearBatchInternal() {
+        this.tableName = null;
+        if (this.tableTags != null)
+            this.tableTags.clear();
+        tagValueLength = 0;
+        if (this.colData != null)
+            this.colData.clear();
     }
 
     public void columnDataCloseBatch() throws SQLException {
@@ -977,5 +984,14 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
         this.nativeStmtHandle = 0L;
         this.tableName = null;
+    }
+
+    @Override
+    public void close() throws SQLException {
+        if (this.nativeStmtHandle != 0L) {
+            this.columnDataClearBatchInternal();
+            this.columnDataCloseBatch();
+        }
+        super.close();
     }
 }

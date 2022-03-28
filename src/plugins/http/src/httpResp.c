@@ -21,10 +21,11 @@
 #include "httpResp.h"
 #include "httpJson.h"
 #include "httpContext.h"
+#include "monitor.h"
 
 const char *httpKeepAliveStr[] = {"", "Connection: Keep-Alive\r\n", "Connection: Close\r\n"};
 
-const char *httpVersionStr[] = {"HTTP/1.0", "HTTP/1.1", "HTTP/1.2"};
+const char *httpVersionStr[] = {"HTTP/1.0", "HTTP/1.1", "HTTP/2.0"}; /* There is no version 1.2 */
 
 const char *httpRespTemplate[] = {
     // HTTP_RESPONSE_JSON_OK
@@ -52,8 +53,14 @@ static void httpSendErrorRespImp(HttpContext *pContext, int32_t httpCode, char *
 
   int8_t httpVersion = 0;
   int8_t keepAlive = 0;
+
   if (pContext->parser != NULL) {
     httpVersion = pContext->parser->httpVersion;
+  }
+
+  if (pContext->error == true) {
+    keepAlive = HTTP_KEEPALIVE_DISABLE;
+  } else if (pContext->parser != NULL) {
     keepAlive = pContext->parser->keepAlive;
   }
 
@@ -145,6 +152,13 @@ void httpSendErrorResp(HttpContext *pContext, int32_t errNo) {
 
   if (pContext->parser && pContext->parser->httpCode != 0) {
     httpCode = pContext->parser->httpCode;
+  }
+
+  HttpServer *pServer = &tsHttpServer;
+  SMonHttpStatus *httpStatus = monGetHttpStatusHashTableEntry(httpCode);
+  // FIXME(@huolinhe): I don't known why the errors index is overflowed, but fix it by index check
+  if (httpStatus->index < HTTP_STATUS_CODE_NUM) {
+    pServer->statusCodeErrs[httpStatus->index] += 1;
   }
 
   pContext->error = true;

@@ -276,10 +276,10 @@ int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass, void *pMsg) {
 
   code = sdbInsertRow(&row);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-    mError("user:%s, failed to create by %s, reason:%s", pUser->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
+    mError("user:%s, failed to create, reason:%s", pUser->user, tstrerror(code));
     tfree(pUser);
   } else {
-    mLInfo("user:%s, is created by %s", pUser->user, mnodeGetUserFromMsg(pMsg));
+    mLInfo("user:%s, is created successfully", pUser->user);
   }
 
   return code;
@@ -355,13 +355,41 @@ static int32_t mnodeGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
 static int32_t mnodeRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t  numOfRows = 0;
   SUserObj *pUser    = NULL;
+  SUserObj *userObj  = NULL;
+  char     *user     = NULL;
   int32_t  cols      = 0;
+  size_t   len1      = 0;
+  size_t   len2;
+  int32_t  acctId     = -1;
   char     *pWrite;
+
+  if (pConn) {
+    userObj = mnodeGetUserFromConn(pConn);
+    if (userObj && userObj->pAcct) {
+      user = userObj->pAcct->user;
+      if (user) {
+        len1 = strlen(user);
+        if (len1 == 0) {
+          user = NULL;
+        }
+      }
+
+      acctId = userObj->pAcct->acctId;
+    }
+  }
 
   while (numOfRows < rows) {
     pShow->pIter = mnodeGetNextUser(pShow->pIter, &pUser);
     if (pUser == NULL) break;
-    
+
+    if (user && pUser->pAcct) {
+      len2 = strlen(pUser->pAcct->user);
+
+      if ((len1 != len2 || strncmp(user, pUser->pAcct->user, len1)) && acctId != pUser->pAcct->acctId) {
+        continue;
+      }
+    }
+
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -597,11 +625,18 @@ int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, cha
     mError("user:%s, failed to auth user, reason:%s", user, tstrerror(TSDB_CODE_MND_INVALID_USER));
     return TSDB_CODE_MND_INVALID_USER;
   } else {
+    if (pUser->superAuth) {
+      SAcctObj *pAcct = mnodeGetAcct(user);
+      memcpy(secret, pAcct->pass, TSDB_KEY_LEN);
+      mnodeDecAcctRef(pAcct);
+    } else {
+      memcpy(secret, pUser->pass, TSDB_KEY_LEN);
+    }
+
     *spi = 1;
     *encrypt = 0;
     *ckey = 0;
 
-    memcpy(secret, pUser->pass, TSDB_KEY_LEN);
     mnodeDecUserRef(pUser);
     mDebug("user:%s, auth info is returned", user);
     return TSDB_CODE_SUCCESS;

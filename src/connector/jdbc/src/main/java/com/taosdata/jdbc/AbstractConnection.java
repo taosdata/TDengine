@@ -107,16 +107,6 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
     public void setCatalog(String catalog) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
-        /*
-        try (Statement stmt = createStatement()) {
-            boolean execute = stmt.execute("use " + catalog);
-            if (execute)
-                this.catalog = catalog;
-        } catch (SQLException e) {
-            // do nothing
-        }
-        */
-
         this.catalog = catalog;
     }
 
@@ -392,7 +382,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
         //true if the connection is valid, false otherwise
         if (isClosed())
             return false;
-        if (timeout < 0)    //SQLException - if the value supplied for timeout is less then 0
+        if (timeout < 0)    //SQLException - if the value supplied for timeout is less than 0
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
 
         ExecutorService executor = Executors.newCachedThreadPool();
@@ -413,11 +403,9 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
                 status = future.get();
             else
                 status = future.get(timeout, TimeUnit.SECONDS);
-        } catch (InterruptedException | ExecutionException e) {
-            e.printStackTrace();
+        } catch (InterruptedException | ExecutionException ignored) {
         } catch (TimeoutException e) {
             future.cancel(true);
-            status = false;
         } finally {
             executor.shutdownNow();
         }

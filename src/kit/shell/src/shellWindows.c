@@ -17,6 +17,8 @@
 #include "taos.h"
 #include "shellCommand.h"
 
+#define SHELL_INPUT_MAX_COMMAND_SIZE 10000
+
 extern char configDir[];
 
 char      WINCLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
@@ -91,7 +93,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
                   || (strncmp(argv[i], "--password", 10) == 0)) {
             printf("Enter password: ");
             taosSetConsoleEcho(false);
-            if (scanf("%s", g_password) > 1) {
+            if (scanf("%128s", g_password) > 1) {
                 fprintf(stderr, "password read error!\n");
             }
             taosSetConsoleEcho(true);
@@ -194,6 +196,22 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
+    else if (strcmp(argv[i], "-N") == 0) {
+      if (i < argc - 1) {
+        arguments->pktNum = atoi(argv[++i]);
+      } else {
+        fprintf(stderr, "option -N requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
+    }
+    else if (strcmp(argv[i], "-S") == 0) {
+      if (i < argc - 1) {
+        arguments->pktType = argv[++i];
+      } else {
+        fprintf(stderr, "option -S requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
+    }
     else if (strcmp(argv[i], "-V") == 0) {
       printVersion();
       exit(EXIT_SUCCESS);
@@ -258,32 +276,35 @@ int32_t shellReadCommand(TAOS *con, char command[]) {
   // Read input.
   void *console = GetStdHandle(STD_INPUT_HANDLE);
   unsigned long read;
-  wchar_t c;
+  wchar_t *c= (wchar_t *)calloc(SHELL_INPUT_MAX_COMMAND_SIZE, sizeof(wchar_t));
   char mbStr[16];
   while (1) {
-    int ret = ReadConsole(console, &c, 1, &read, NULL);
-    int size = WideCharToMultiByte(CP_UTF8, 0, &c, read, mbStr, sizeof(mbStr), NULL, NULL);
-    mbStr[size] = 0;
-    switch (c) {
-      case '\n':
-        if (isReadyGo(&cmd)) {
-          sprintf(command, "%s%s", cmd.buffer, cmd.command);
-          free(cmd.buffer);
-          cmd.buffer = NULL;
-          free(cmd.command);
-          cmd.command = NULL;
-          return 0;
-        } else {
-          shellPrintContinuePrompt();
-          updateBuffer(&cmd);
-        }
-        break;
-      case '\r':
-        break;
-      default:
-        for (int i = 0; i < size; ++i) {
-          insertChar(&cmd, mbStr[i]);
-        }
+    int ret = ReadConsole(console, c, SHELL_INPUT_MAX_COMMAND_SIZE, &read, NULL);
+    for (int input_index = 0; input_index < read; input_index++) {
+      int size = WideCharToMultiByte(CP_UTF8, 0, &c[input_index], 1, mbStr, sizeof(mbStr), NULL, NULL);
+      mbStr[size] = 0;
+      switch (c[input_index]) {
+        case '\n':
+          if (isReadyGo(&cmd)) {
+            sprintf(command, "%s%s", cmd.buffer, cmd.command);
+            free(cmd.buffer);
+            cmd.buffer = NULL;
+            free(cmd.command);
+            cmd.command = NULL;
+            free(c);
+            return 0;
+          } else {
+            shellPrintContinuePrompt();
+            updateBuffer(&cmd);
+          }
+          break;
+        case '\r':
+          break;
+        default:
+          for (int i = 0; i < size; ++i) {
+            insertChar(&cmd, mbStr[i]);
+          }
+      }
     }
   }
 
@@ -311,6 +332,8 @@ void *shellLoopQuery(void *arg) {
   return NULL;
 }
 
-void get_history_path(char *history) { sprintf(history, "C:/TDengine/%s", HISTORY_FILE); }
+void get_history_path(char *history) {
+  sprintf(history, "C:/TDengine/%s", HISTORY_FILE);
+}
 
 void exitShell() { exit(EXIT_SUCCESS); }

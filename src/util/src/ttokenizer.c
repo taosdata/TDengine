@@ -44,22 +44,18 @@ static SKeyword keywordTable[] = {
     {"TIMESTAMP",    TK_TIMESTAMP},
     {"BINARY",       TK_BINARY},
     {"NCHAR",        TK_NCHAR},
+    {"JSON",         TK_JSON},
     {"OR",           TK_OR},
     {"AND",          TK_AND},
     {"NOT",          TK_NOT},
-    {"EQ",           TK_EQ},
-    {"NE",           TK_NE},
     {"ISNULL",       TK_ISNULL},
     {"NOTNULL",      TK_NOTNULL},
     {"IS",           TK_IS},
     {"LIKE",         TK_LIKE},
+    {"MATCH",        TK_MATCH},
     {"GLOB",         TK_GLOB},
     {"BETWEEN",      TK_BETWEEN},
     {"IN",           TK_IN},
-    {"GT",           TK_GT},
-    {"GE",           TK_GE},
-    {"LT",           TK_LT},
-    {"LE",           TK_LE},
     {"BITAND",       TK_BITAND},
     {"BITOR",        TK_BITOR},
     {"LSHIFT",       TK_LSHIFT},
@@ -71,7 +67,6 @@ static SKeyword keywordTable[] = {
     {"STAR",         TK_STAR},
     {"SLASH",        TK_SLASH},
     {"REM ",         TK_REM},
-    {"CONCAT",       TK_CONCAT},
     {"UMINUS",       TK_UMINUS},
     {"UPLUS",        TK_UPLUS},
     {"BITNOT",       TK_BITNOT},
@@ -137,6 +132,7 @@ static SKeyword keywordTable[] = {
     {"COMMA",        TK_COMMA},
     {"NULL",         TK_NULL},
     {"SELECT",       TK_SELECT},
+    {"EVERY",        TK_EVERY},
     {"FROM",         TK_FROM},
     {"VARIABLE",     TK_VARIABLE},
     {"INTERVAL",     TK_INTERVAL},
@@ -157,6 +153,7 @@ static SKeyword keywordTable[] = {
     {"SOFFSET",      TK_SOFFSET},
     {"WHERE",        TK_WHERE},
     {"NOW",          TK_NOW},
+    {"TODAY",        TK_TODAY},
     {"INSERT",       TK_INSERT},
     {"INTO",         TK_INTO},
     {"VALUES",       TK_VALUES},
@@ -194,6 +191,7 @@ static SKeyword keywordTable[] = {
     {"INITIALLY",    TK_INITIALLY},
     {"INSTEAD",      TK_INSTEAD},
     {"MATCH",        TK_MATCH},
+    {"NMATCH",       TK_NMATCH},
     {"KEY",          TK_KEY},
     {"OF",           TK_OF},
     {"RAISE",        TK_RAISE},
@@ -227,6 +225,10 @@ static SKeyword keywordTable[] = {
     {"OUTPUTTYPE",   TK_OUTPUTTYPE},
     {"AGGREGATE",    TK_AGGREGATE},
     {"BUFSIZE",      TK_BUFSIZE},
+    {"RANGE",        TK_RANGE},
+    {"CONTAINS",     TK_CONTAINS},
+    {"TO",           TK_TO},
+    {"SPLIT",        TK_SPLIT}   
 };
 
 static const char isIdChar[] = {
@@ -307,6 +309,10 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
         }
         *tokenId = TK_COMMENT;
         return i;
+      }
+      if (z[1] == '>') {
+        *tokenId = TK_ARROW;
+        return 2;
       }
       *tokenId = TK_MINUS;
       return 1;
@@ -390,9 +396,6 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       if (z[1] != '|') {
         *tokenId = TK_BITOR;
         return 1;
-      } else {
-        *tokenId = TK_CONCAT;
-        return 2;
       }
     }
     case ',': {
@@ -436,6 +439,24 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       if (strEnd) {
         *tokenId = TK_STRING;
         return i;
+      }
+
+      break;
+    }
+    case '`': {
+      for (i = 1; z[i]; i++) {
+//        if(isprint(z[i]) == 0){
+//          break;
+//        }
+//        if (z[i] == '`' && z[i+1] == '`') {
+//          i++;
+//          continue;
+//        }
+        if (z[i] == '`') {
+          i++;
+          *tokenId = TK_ID;
+          return i;
+        }
       }
 
       break;
@@ -504,6 +525,8 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       for (i = 1; isdigit(z[i]); i++) {
       }
 
+      uint32_t j = i;
+
       /* here is the 1u/1a/2s/3m/9y */
       if ((z[i] == 'b' || z[i] == 'u' || z[i] == 'a' || z[i] == 's' || z[i] == 'm' || z[i] == 'h' || z[i] == 'd' || z[i] == 'n' ||
            z[i] == 'y' || z[i] == 'w' ||
@@ -538,6 +561,14 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
         }
         *tokenId = TK_FLOAT;
       }
+
+      if (*tokenId == TK_INTEGER && z[j] != '\0') {
+        char c = z[j] | 0x20;
+        if (c >= 'a' && c <= 'z') {
+          *tokenId = TK_ID;
+        }
+      }
+
       return i;
     }
     case '[': {
@@ -565,6 +596,7 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[(uint8_t) z[i]]; i++) {
       }
       *tokenId = tKeywordCode(z, i);
+
       return i;
     }
   }
@@ -578,7 +610,7 @@ SStrToken tscReplaceStrToken(char **str, SStrToken *token, const char* newToken)
   size_t nsize = strlen(newToken);
   int32_t size = (int32_t)strlen(*str) - token->n + (int32_t)nsize + 1;
   int32_t bsize = (int32_t)((uint64_t)token->z - (uint64_t)src);
-  SStrToken ntoken;
+  SStrToken ntoken = {0};
 
   *str = calloc(1, size);
 
@@ -612,12 +644,16 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
     while (isspace(t) || t == ',') {
       if (t == ',' && (++numOfComma > 1)) {  // comma only allowed once
         t0.n = 0;
+        t0.type = TK_ILLEGAL;
         return t0;
       }
-    
+
       t = str[++(*i)];
     }
-
+    if (str[*i] == 0) {
+      t0.n = 0;
+      break;
+    }
     t0.n = tGetToken(&str[*i], &t0.type);
     break;
 
@@ -635,6 +671,12 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
       break;
     }
 #endif
+  }
+
+  //for now(),today() function used in insert clause
+  if ((t0.type == TK_NOW || t0.type == TK_TODAY) &&
+      str[*i + t0.n] == '(' && str[*i + t0.n + 1] == ')') {
+    t0.n += 2;
   }
 
   if (t0.type == TK_SEMI) {
@@ -674,6 +716,18 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
   *i += t0.n;
 
   return t0;
+}
+
+/**
+ * strcpy implement source from SStrToken
+ *
+ * @param dst  copy to 
+ * @param srcToken copy from
+ * @return size of copy successful bytes
+ */
+int32_t tStrNCpy(char *dst, SStrToken* srcToken) {
+  strncpy(dst, srcToken->z, srcToken->n);
+  return srcToken->n;
 }
 
 bool taosIsKeyWordToken(const char* z, int32_t len) {

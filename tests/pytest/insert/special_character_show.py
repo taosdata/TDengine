@@ -31,9 +31,8 @@ class TDTestCase:
         tdLog.info('create table stb1 (ts timestamp, value double) tags (bin binary(128))') 
         tdSql.execute('create table stb1 (ts timestamp, value double) tags (bin binary(128))')
 
-        tdLog.info('=============== step2,create table增加了转义字符')
+        tdLog.info('=============== step2,create table with escape character')
         tdLog.info('create table tb1 using stb1 tags("abc\\"def")')
-        #增加了转义字符\
         tdSql.execute('create table tb1 using stb1 tags("abc\\"def")')
 
         tdLog.info('=============== step3,insert data') 

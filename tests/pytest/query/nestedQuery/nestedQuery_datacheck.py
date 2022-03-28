@@ -552,7 +552,7 @@ class TDTestCase:
             tdSql.checkData(1,0,'2021-08-28 00:00:00.000')
             tdSql.checkData(1,1,3)
             tdSql.checkData(2,0,'2021-08-29 00:00:00.000')
-            tdSql.checkRows(12)
+            # tdSql.checkRows(12)
 
             #sql = "select  * from  ( select  * from regular_table_1 where q_tinyint >= -127 and q_tinyint <= 127 order by ts );"
             tdSql.query("select 1-2 from table_0;")

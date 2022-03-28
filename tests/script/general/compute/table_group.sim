@@ -1,0 +1,2485 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode1 -c minRows -v 10
+system sh/exec.sh -n dnode1 -s start
+sleep 200
+sql connect
+
+$db = m_db_tbg_limit
+$tb = ct
+$mt = st
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt ( ts timestamp, f1 int, f2 int ) tags(t int)
+
+$tb1 = ct1
+$tb2 = ct2
+$tb3 = ct3
+$tbnum = 3
+$rownum = 10
+
+$x = 0
+while $x < $rownum
+  $i = 1
+  while $i <= $tbnum
+    $tbi = $tb . $i
+    $inc = $x * 60
+    $inc1 = $inc + $i
+    $ms = 1601481600000 + $inc1
+    $v1 = $x * 10
+    $v = $v1 + $i
+    sql insert into $tbi using $mt tags( $i ) values ( $ms , $v , $v )
+		$i = $i + 1
+  endw
+  $x = $x + 1
+endw
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 500
+system sh/exec.sh -n dnode1 -s start
+sleep 200
+sql connect
+sql use $db
+
+$x = 0
+while $x < $rownum
+  $i = 1
+  while $i <= $tbnum
+    $tbi = $tb . $i
+    $inc = $x * 60
+    $inc1 = $inc + $i
+    $ms = 1601481700000 + $inc1
+    $v1 = $x * 10
+    $temp = $rownum * 10
+    $v1 = $v1 + $temp
+    $v = $v1 + $i
+    sql insert into $tbi using $mt tags( $i ) values ( $ms , $v , $v )
+		$i = $i + 1
+  endw
+  $x = $x + 1
+endw
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 500
+system sh/exec.sh -n dnode1 -s start
+sql connect
+sql use $db
+
+print execute sql select csum(f1) from st group by tbname
+
+sql select csum(f1) from st group by tbname
+
+if $rows != 60 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:00:00.001@ then
+ return -1
+endi
+if $data01 != @1@ then
+ return -1
+endi
+if $data02 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:00:00.061@ then
+ return -1
+endi
+if $data11 != @12@ then
+ return -1
+endi
+if $data12 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:00:00.121@ then
+ return -1
+endi
+if $data21 != @33@ then
+ return -1
+endi
+if $data22 != @ct1@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:00:00.181@ then
+ return -1
+endi
+if $data31 != @64@ then
+ return -1
+endi
+if $data32 != @ct1@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:00:00.241@ then
+ return -1
+endi
+if $data41 != @105@ then
+ return -1
+endi
+if $data42 != @ct1@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:00:00.301@ then
+ return -1
+endi
+if $data51 != @156@ then
+ return -1
+endi
+if $data52 != @ct1@ then
+ return -1
+endi
+if $data60 != @20-10-01 00:00:00.361@ then
+ return -1
+endi
+if $data61 != @217@ then
+ return -1
+endi
+if $data62 != @ct1@ then
+ return -1
+endi
+if $data70 != @20-10-01 00:00:00.421@ then
+ return -1
+endi
+if $data71 != @288@ then
+ return -1
+endi
+if $data72 != @ct1@ then
+ return -1
+endi
+if $data80 != @20-10-01 00:00:00.481@ then
+ return -1
+endi
+if $data81 != @369@ then
+ return -1
+endi
+if $data82 != @ct1@ then
+ return -1
+endi
+if $data90 != @20-10-01 00:00:00.541@ then
+ return -1
+endi
+if $data91 != @460@ then
+ return -1
+endi
+if $data92 != @ct1@ then
+ return -1
+endi
+print execute sql select diff(f1) from st group by tbname
+
+sql select diff(f1) from st group by tbname
+
+if $rows != 57 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:00:00.061@ then
+ return -1
+endi
+if $data01 != @10@ then
+ return -1
+endi
+if $data02 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:00:00.121@ then
+ return -1
+endi
+if $data11 != @10@ then
+ return -1
+endi
+if $data12 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:00:00.181@ then
+ return -1
+endi
+if $data21 != @10@ then
+ return -1
+endi
+if $data22 != @ct1@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:00:00.241@ then
+ return -1
+endi
+if $data31 != @10@ then
+ return -1
+endi
+if $data32 != @ct1@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:00:00.301@ then
+ return -1
+endi
+if $data41 != @10@ then
+ return -1
+endi
+if $data42 != @ct1@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:00:00.361@ then
+ return -1
+endi
+if $data51 != @10@ then
+ return -1
+endi
+if $data52 != @ct1@ then
+ return -1
+endi
+if $data60 != @20-10-01 00:00:00.421@ then
+ return -1
+endi
+if $data61 != @10@ then
+ return -1
+endi
+if $data62 != @ct1@ then
+ return -1
+endi
+if $data70 != @20-10-01 00:00:00.481@ then
+ return -1
+endi
+if $data71 != @10@ then
+ return -1
+endi
+if $data72 != @ct1@ then
+ return -1
+endi
+if $data80 != @20-10-01 00:00:00.541@ then
+ return -1
+endi
+if $data81 != @10@ then
+ return -1
+endi
+if $data82 != @ct1@ then
+ return -1
+endi
+if $data90 != @20-10-01 00:01:40.001@ then
+ return -1
+endi
+if $data91 != @10@ then
+ return -1
+endi
+if $data92 != @ct1@ then
+ return -1
+endi
+print execute sql select derivative(f1, 1s, 0) from st group by tbname
+
+sql select derivative(f1, 1s, 0) from st group by tbname
+
+if $rows != 57 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:00:00.061@ then
+ return -1
+endi
+if $data01 != @166.666666667@ then
+ return -1
+endi
+if $data02 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:00:00.121@ then
+ return -1
+endi
+if $data11 != @166.666666667@ then
+ return -1
+endi
+if $data12 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:00:00.181@ then
+ return -1
+endi
+if $data21 != @166.666666667@ then
+ return -1
+endi
+if $data22 != @ct1@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:00:00.241@ then
+ return -1
+endi
+if $data31 != @166.666666667@ then
+ return -1
+endi
+if $data32 != @ct1@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:00:00.301@ then
+ return -1
+endi
+if $data41 != @166.666666667@ then
+ return -1
+endi
+if $data42 != @ct1@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:00:00.361@ then
+ return -1
+endi
+if $data51 != @166.666666667@ then
+ return -1
+endi
+if $data52 != @ct1@ then
+ return -1
+endi
+if $data60 != @20-10-01 00:00:00.421@ then
+ return -1
+endi
+if $data61 != @166.666666667@ then
+ return -1
+endi
+if $data62 != @ct1@ then
+ return -1
+endi
+if $data70 != @20-10-01 00:00:00.481@ then
+ return -1
+endi
+if $data71 != @166.666666667@ then
+ return -1
+endi
+if $data72 != @ct1@ then
+ return -1
+endi
+if $data80 != @20-10-01 00:00:00.541@ then
+ return -1
+endi
+if $data81 != @166.666666667@ then
+ return -1
+endi
+if $data82 != @ct1@ then
+ return -1
+endi
+if $data90 != @20-10-01 00:01:40.001@ then
+ return -1
+endi
+if $data91 != @0.100542932@ then
+ return -1
+endi
+if $data92 != @ct1@ then
+ return -1
+endi
+print execute sql select mavg(f1,2) from st group by tbname
+
+sql select mavg(f1,2) from st group by tbname
+
+if $rows != 57 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:00:00.061@ then
+ return -1
+endi
+if $data01 != @6.000000000@ then
+ return -1
+endi
+if $data02 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:00:00.121@ then
+ return -1
+endi
+if $data11 != @16.000000000@ then
+ return -1
+endi
+if $data12 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:00:00.181@ then
+ return -1
+endi
+if $data21 != @26.000000000@ then
+ return -1
+endi
+if $data22 != @ct1@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:00:00.241@ then
+ return -1
+endi
+if $data31 != @36.000000000@ then
+ return -1
+endi
+if $data32 != @ct1@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:00:00.301@ then
+ return -1
+endi
+if $data41 != @46.000000000@ then
+ return -1
+endi
+if $data42 != @ct1@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:00:00.361@ then
+ return -1
+endi
+if $data51 != @56.000000000@ then
+ return -1
+endi
+if $data52 != @ct1@ then
+ return -1
+endi
+if $data60 != @20-10-01 00:00:00.421@ then
+ return -1
+endi
+if $data61 != @66.000000000@ then
+ return -1
+endi
+if $data62 != @ct1@ then
+ return -1
+endi
+if $data70 != @20-10-01 00:00:00.481@ then
+ return -1
+endi
+if $data71 != @76.000000000@ then
+ return -1
+endi
+if $data72 != @ct1@ then
+ return -1
+endi
+if $data80 != @20-10-01 00:00:00.541@ then
+ return -1
+endi
+if $data81 != @86.000000000@ then
+ return -1
+endi
+if $data82 != @ct1@ then
+ return -1
+endi
+if $data90 != @20-10-01 00:01:40.001@ then
+ return -1
+endi
+if $data91 != @96.000000000@ then
+ return -1
+endi
+if $data92 != @ct1@ then
+ return -1
+endi
+print execute sql select csum(f1),t from st group by tbname
+
+sql select csum(f1),t from st group by tbname
+
+if $rows != 60 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:00:00.001@ then
+ return -1
+endi
+if $data01 != @1@ then
+ return -1
+endi
+if $data02 != @1@ then
+ return -1
+endi
+if $data03 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:00:00.061@ then
+ return -1
+endi
+if $data11 != @12@ then
+ return -1
+endi
+if $data12 != @1@ then
+ return -1
+endi
+if $data13 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:00:00.121@ then
+ return -1
+endi
+if $data21 != @33@ then
+ return -1
+endi
+if $data22 != @1@ then
+ return -1
+endi
+if $data23 != @ct1@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:00:00.181@ then
+ return -1
+endi
+if $data31 != @64@ then
+ return -1
+endi
+if $data32 != @1@ then
+ return -1
+endi
+if $data33 != @ct1@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:00:00.241@ then
+ return -1
+endi
+if $data41 != @105@ then
+ return -1
+endi
+if $data42 != @1@ then
+ return -1
+endi
+if $data43 != @ct1@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:00:00.301@ then
+ return -1
+endi
+if $data51 != @156@ then
+ return -1
+endi
+if $data52 != @1@ then
+ return -1
+endi
+if $data53 != @ct1@ then
+ return -1
+endi
+if $data60 != @20-10-01 00:00:00.361@ then
+ return -1
+endi
+if $data61 != @217@ then
+ return -1
+endi
+if $data62 != @1@ then
+ return -1
+endi
+if $data63 != @ct1@ then
+ return -1
+endi
+if $data70 != @20-10-01 00:00:00.421@ then
+ return -1
+endi
+if $data71 != @288@ then
+ return -1
+endi
+if $data72 != @1@ then
+ return -1
+endi
+if $data73 != @ct1@ then
+ return -1
+endi
+if $data80 != @20-10-01 00:00:00.481@ then
+ return -1
+endi
+if $data81 != @369@ then
+ return -1
+endi
+if $data82 != @1@ then
+ return -1
+endi
+if $data83 != @ct1@ then
+ return -1
+endi
+if $data90 != @20-10-01 00:00:00.541@ then
+ return -1
+endi
+if $data91 != @460@ then
+ return -1
+endi
+if $data92 != @1@ then
+ return -1
+endi
+if $data93 != @ct1@ then
+ return -1
+endi
+print execute sql select diff(f1),t from st group by tbname
+
+sql select diff(f1),t from st group by tbname
+
+if $rows != 57 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:00:00.061@ then
+ return -1
+endi
+if $data01 != @10@ then
+ return -1
+endi
+if $data02 != @1@ then
+ return -1
+endi
+if $data03 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:00:00.121@ then
+ return -1
+endi
+if $data11 != @10@ then
+ return -1
+endi
+if $data12 != @1@ then
+ return -1
+endi
+if $data13 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:00:00.181@ then
+ return -1
+endi
+if $data21 != @10@ then
+ return -1
+endi
+if $data22 != @1@ then
+ return -1
+endi
+if $data23 != @ct1@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:00:00.241@ then
+ return -1
+endi
+if $data31 != @10@ then
+ return -1
+endi
+if $data32 != @1@ then
+ return -1
+endi
+if $data33 != @ct1@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:00:00.301@ then
+ return -1
+endi
+if $data41 != @10@ then
+ return -1
+endi
+if $data42 != @1@ then
+ return -1
+endi
+if $data43 != @ct1@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:00:00.361@ then
+ return -1
+endi
+if $data51 != @10@ then
+ return -1
+endi
+if $data52 != @1@ then
+ return -1
+endi
+if $data53 != @ct1@ then
+ return -1
+endi
+if $data60 != @20-10-01 00:00:00.421@ then
+ return -1
+endi
+if $data61 != @10@ then
+ return -1
+endi
+if $data62 != @1@ then
+ return -1
+endi
+if $data63 != @ct1@ then
+ return -1
+endi
+if $data70 != @20-10-01 00:00:00.481@ then
+ return -1
+endi
+if $data71 != @10@ then
+ return -1
+endi
+if $data72 != @1@ then
+ return -1
+endi
+if $data73 != @ct1@ then
+ return -1
+endi
+if $data80 != @20-10-01 00:00:00.541@ then
+ return -1
+endi
+if $data81 != @10@ then
+ return -1
+endi
+if $data82 != @1@ then
+ return -1
+endi
+if $data83 != @ct1@ then
+ return -1
+endi
+if $data90 != @20-10-01 00:01:40.001@ then
+ return -1
+endi
+if $data91 != @10@ then
+ return -1
+endi
+if $data92 != @1@ then
+ return -1
+endi
+if $data93 != @ct1@ then
+ return -1
+endi
+print execute sql select derivative(f1, 1s, 0),t from st group by tbname
+
+sql select derivative(f1, 1s, 0),t from st group by tbname
+
+if $rows != 57 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:00:00.061@ then
+ return -1
+endi
+if $data01 != @166.666666667@ then
+ return -1
+endi
+if $data02 != @1@ then
+ return -1
+endi
+if $data03 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:00:00.121@ then
+ return -1
+endi
+if $data11 != @166.666666667@ then
+ return -1
+endi
+if $data12 != @1@ then
+ return -1
+endi
+if $data13 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:00:00.181@ then
+ return -1
+endi
+if $data21 != @166.666666667@ then
+ return -1
+endi
+if $data22 != @1@ then
+ return -1
+endi
+if $data23 != @ct1@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:00:00.241@ then
+ return -1
+endi
+if $data31 != @166.666666667@ then
+ return -1
+endi
+if $data32 != @1@ then
+ return -1
+endi
+if $data33 != @ct1@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:00:00.301@ then
+ return -1
+endi
+if $data41 != @166.666666667@ then
+ return -1
+endi
+if $data42 != @1@ then
+ return -1
+endi
+if $data43 != @ct1@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:00:00.361@ then
+ return -1
+endi
+if $data51 != @166.666666667@ then
+ return -1
+endi
+if $data52 != @1@ then
+ return -1
+endi
+if $data53 != @ct1@ then
+ return -1
+endi
+if $data60 != @20-10-01 00:00:00.421@ then
+ return -1
+endi
+if $data61 != @166.666666667@ then
+ return -1
+endi
+if $data62 != @1@ then
+ return -1
+endi
+if $data63 != @ct1@ then
+ return -1
+endi
+if $data70 != @20-10-01 00:00:00.481@ then
+ return -1
+endi
+if $data71 != @166.666666667@ then
+ return -1
+endi
+if $data72 != @1@ then
+ return -1
+endi
+if $data73 != @ct1@ then
+ return -1
+endi
+if $data80 != @20-10-01 00:00:00.541@ then
+ return -1
+endi
+if $data81 != @166.666666667@ then
+ return -1
+endi
+if $data82 != @1@ then
+ return -1
+endi
+if $data83 != @ct1@ then
+ return -1
+endi
+if $data90 != @20-10-01 00:01:40.001@ then
+ return -1
+endi
+if $data91 != @0.100542932@ then
+ return -1
+endi
+if $data92 != @1@ then
+ return -1
+endi
+if $data93 != @ct1@ then
+ return -1
+endi
+print execute sql select mavg(f1,2),t from st group by tbname
+
+sql select mavg(f1,2),t from st group by tbname
+
+if $rows != 57 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:00:00.061@ then
+ return -1
+endi
+if $data01 != @6.000000000@ then
+ return -1
+endi
+if $data02 != @1@ then
+ return -1
+endi
+if $data03 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:00:00.121@ then
+ return -1
+endi
+if $data11 != @16.000000000@ then
+ return -1
+endi
+if $data12 != @1@ then
+ return -1
+endi
+if $data13 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:00:00.181@ then
+ return -1
+endi
+if $data21 != @26.000000000@ then
+ return -1
+endi
+if $data22 != @1@ then
+ return -1
+endi
+if $data23 != @ct1@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:00:00.241@ then
+ return -1
+endi
+if $data31 != @36.000000000@ then
+ return -1
+endi
+if $data32 != @1@ then
+ return -1
+endi
+if $data33 != @ct1@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:00:00.301@ then
+ return -1
+endi
+if $data41 != @46.000000000@ then
+ return -1
+endi
+if $data42 != @1@ then
+ return -1
+endi
+if $data43 != @ct1@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:00:00.361@ then
+ return -1
+endi
+if $data51 != @56.000000000@ then
+ return -1
+endi
+if $data52 != @1@ then
+ return -1
+endi
+if $data53 != @ct1@ then
+ return -1
+endi
+if $data60 != @20-10-01 00:00:00.421@ then
+ return -1
+endi
+if $data61 != @66.000000000@ then
+ return -1
+endi
+if $data62 != @1@ then
+ return -1
+endi
+if $data63 != @ct1@ then
+ return -1
+endi
+if $data70 != @20-10-01 00:00:00.481@ then
+ return -1
+endi
+if $data71 != @76.000000000@ then
+ return -1
+endi
+if $data72 != @1@ then
+ return -1
+endi
+if $data73 != @ct1@ then
+ return -1
+endi
+if $data80 != @20-10-01 00:00:00.541@ then
+ return -1
+endi
+if $data81 != @86.000000000@ then
+ return -1
+endi
+if $data82 != @1@ then
+ return -1
+endi
+if $data83 != @ct1@ then
+ return -1
+endi
+if $data90 != @20-10-01 00:01:40.001@ then
+ return -1
+endi
+if $data91 != @96.000000000@ then
+ return -1
+endi
+if $data92 != @1@ then
+ return -1
+endi
+if $data93 != @ct1@ then
+ return -1
+endi
+print execute sql select csum(f1) from st group by tbname limit 2
+
+sql select csum(f1) from st group by tbname limit 2
+
+if $rows != 6 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:00:00.001@ then
+ return -1
+endi
+if $data01 != @1@ then
+ return -1
+endi
+if $data02 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:00:00.061@ then
+ return -1
+endi
+if $data11 != @12@ then
+ return -1
+endi
+if $data12 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:00:00.002@ then
+ return -1
+endi
+if $data21 != @2@ then
+ return -1
+endi
+if $data22 != @ct2@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:00:00.062@ then
+ return -1
+endi
+if $data31 != @14@ then
+ return -1
+endi
+if $data32 != @ct2@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:00:00.003@ then
+ return -1
+endi
+if $data41 != @3@ then
+ return -1
+endi
+if $data42 != @ct3@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:00:00.063@ then
+ return -1
+endi
+if $data51 != @16@ then
+ return -1
+endi
+if $data52 != @ct3@ then
+ return -1
+endi
+print execute sql select diff(f1) from st group by tbname limit 2
+
+sql select diff(f1) from st group by tbname limit 2
+
+if $rows != 6 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:00:00.061@ then
+ return -1
+endi
+if $data01 != @10@ then
+ return -1
+endi
+if $data02 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:00:00.121@ then
+ return -1
+endi
+if $data11 != @10@ then
+ return -1
+endi
+if $data12 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:00:00.062@ then
+ return -1
+endi
+if $data21 != @10@ then
+ return -1
+endi
+if $data22 != @ct2@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:00:00.122@ then
+ return -1
+endi
+if $data31 != @10@ then
+ return -1
+endi
+if $data32 != @ct2@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:00:00.063@ then
+ return -1
+endi
+if $data41 != @10@ then
+ return -1
+endi
+if $data42 != @ct3@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:00:00.123@ then
+ return -1
+endi
+if $data51 != @10@ then
+ return -1
+endi
+if $data52 != @ct3@ then
+ return -1
+endi
+print execute sql select derivative(f1, 1s, 0) from st group by tbname limit 2
+
+sql select derivative(f1, 1s, 0) from st group by tbname limit 2
+
+if $rows != 6 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:00:00.061@ then
+ return -1
+endi
+if $data01 != @166.666666667@ then
+ return -1
+endi
+if $data02 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:00:00.121@ then
+ return -1
+endi
+if $data11 != @166.666666667@ then
+ return -1
+endi
+if $data12 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:00:00.062@ then
+ return -1
+endi
+if $data21 != @166.666666667@ then
+ return -1
+endi
+if $data22 != @ct2@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:00:00.122@ then
+ return -1
+endi
+if $data31 != @166.666666667@ then
+ return -1
+endi
+if $data32 != @ct2@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:00:00.063@ then
+ return -1
+endi
+if $data41 != @166.666666667@ then
+ return -1
+endi
+if $data42 != @ct3@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:00:00.123@ then
+ return -1
+endi
+if $data51 != @166.666666667@ then
+ return -1
+endi
+if $data52 != @ct3@ then
+ return -1
+endi
+print execute sql select mavg(f1,2) from st group by tbname limit 2
+
+sql select mavg(f1,2) from st group by tbname limit 2
+
+if $rows != 6 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:00:00.061@ then
+ return -1
+endi
+if $data01 != @6.000000000@ then
+ return -1
+endi
+if $data02 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:00:00.121@ then
+ return -1
+endi
+if $data11 != @16.000000000@ then
+ return -1
+endi
+if $data12 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:00:00.062@ then
+ return -1
+endi
+if $data21 != @7.000000000@ then
+ return -1
+endi
+if $data22 != @ct2@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:00:00.122@ then
+ return -1
+endi
+if $data31 != @17.000000000@ then
+ return -1
+endi
+if $data32 != @ct2@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:00:00.063@ then
+ return -1
+endi
+if $data41 != @8.000000000@ then
+ return -1
+endi
+if $data42 != @ct3@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:00:00.123@ then
+ return -1
+endi
+if $data51 != @18.000000000@ then
+ return -1
+endi
+if $data52 != @ct3@ then
+ return -1
+endi
+print execute sql select csum(f1),t from st group by tbname limit 2
+
+sql select csum(f1),t from st group by tbname limit 2
+
+if $rows != 6 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:00:00.001@ then
+ return -1
+endi
+if $data01 != @1@ then
+ return -1
+endi
+if $data02 != @1@ then
+ return -1
+endi
+if $data03 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:00:00.061@ then
+ return -1
+endi
+if $data11 != @12@ then
+ return -1
+endi
+if $data12 != @1@ then
+ return -1
+endi
+if $data13 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:00:00.002@ then
+ return -1
+endi
+if $data21 != @2@ then
+ return -1
+endi
+if $data22 != @2@ then
+ return -1
+endi
+if $data23 != @ct2@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:00:00.062@ then
+ return -1
+endi
+if $data31 != @14@ then
+ return -1
+endi
+if $data32 != @2@ then
+ return -1
+endi
+if $data33 != @ct2@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:00:00.003@ then
+ return -1
+endi
+if $data41 != @3@ then
+ return -1
+endi
+if $data42 != @3@ then
+ return -1
+endi
+if $data43 != @ct3@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:00:00.063@ then
+ return -1
+endi
+if $data51 != @16@ then
+ return -1
+endi
+if $data52 != @3@ then
+ return -1
+endi
+if $data53 != @ct3@ then
+ return -1
+endi
+print execute sql select diff(f1),t from st group by tbname limit 2
+
+sql select diff(f1),t from st group by tbname limit 2
+
+if $rows != 6 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:00:00.061@ then
+ return -1
+endi
+if $data01 != @10@ then
+ return -1
+endi
+if $data02 != @1@ then
+ return -1
+endi
+if $data03 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:00:00.121@ then
+ return -1
+endi
+if $data11 != @10@ then
+ return -1
+endi
+if $data12 != @1@ then
+ return -1
+endi
+if $data13 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:00:00.062@ then
+ return -1
+endi
+if $data21 != @10@ then
+ return -1
+endi
+if $data22 != @2@ then
+ return -1
+endi
+if $data23 != @ct2@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:00:00.122@ then
+ return -1
+endi
+if $data31 != @10@ then
+ return -1
+endi
+if $data32 != @2@ then
+ return -1
+endi
+if $data33 != @ct2@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:00:00.063@ then
+ return -1
+endi
+if $data41 != @10@ then
+ return -1
+endi
+if $data42 != @3@ then
+ return -1
+endi
+if $data43 != @ct3@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:00:00.123@ then
+ return -1
+endi
+if $data51 != @10@ then
+ return -1
+endi
+if $data52 != @3@ then
+ return -1
+endi
+if $data53 != @ct3@ then
+ return -1
+endi
+print execute sql select derivative(f1, 1s, 0),t from st group by tbname limit 2
+
+sql select derivative(f1, 1s, 0),t from st group by tbname limit 2
+
+if $rows != 6 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:00:00.061@ then
+ return -1
+endi
+if $data01 != @166.666666667@ then
+ return -1
+endi
+if $data02 != @1@ then
+ return -1
+endi
+if $data03 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:00:00.121@ then
+ return -1
+endi
+if $data11 != @166.666666667@ then
+ return -1
+endi
+if $data12 != @1@ then
+ return -1
+endi
+if $data13 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:00:00.062@ then
+ return -1
+endi
+if $data21 != @166.666666667@ then
+ return -1
+endi
+if $data22 != @2@ then
+ return -1
+endi
+if $data23 != @ct2@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:00:00.122@ then
+ return -1
+endi
+if $data31 != @166.666666667@ then
+ return -1
+endi
+if $data32 != @2@ then
+ return -1
+endi
+if $data33 != @ct2@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:00:00.063@ then
+ return -1
+endi
+if $data41 != @166.666666667@ then
+ return -1
+endi
+if $data42 != @3@ then
+ return -1
+endi
+if $data43 != @ct3@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:00:00.123@ then
+ return -1
+endi
+if $data51 != @166.666666667@ then
+ return -1
+endi
+if $data52 != @3@ then
+ return -1
+endi
+if $data53 != @ct3@ then
+ return -1
+endi
+print execute sql select mavg(f1,2),t from st group by tbname limit 2
+
+sql select mavg(f1,2),t from st group by tbname limit 2
+
+if $rows != 6 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:00:00.061@ then
+ return -1
+endi
+if $data01 != @6.000000000@ then
+ return -1
+endi
+if $data02 != @1@ then
+ return -1
+endi
+if $data03 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:00:00.121@ then
+ return -1
+endi
+if $data11 != @16.000000000@ then
+ return -1
+endi
+if $data12 != @1@ then
+ return -1
+endi
+if $data13 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:00:00.062@ then
+ return -1
+endi
+if $data21 != @7.000000000@ then
+ return -1
+endi
+if $data22 != @2@ then
+ return -1
+endi
+if $data23 != @ct2@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:00:00.122@ then
+ return -1
+endi
+if $data31 != @17.000000000@ then
+ return -1
+endi
+if $data32 != @2@ then
+ return -1
+endi
+if $data33 != @ct2@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:00:00.063@ then
+ return -1
+endi
+if $data41 != @8.000000000@ then
+ return -1
+endi
+if $data42 != @3@ then
+ return -1
+endi
+if $data43 != @ct3@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:00:00.123@ then
+ return -1
+endi
+if $data51 != @18.000000000@ then
+ return -1
+endi
+if $data52 != @3@ then
+ return -1
+endi
+if $data53 != @ct3@ then
+ return -1
+endi
+print execute sql select csum(f1) from st group by tbname limit 2 offset 9
+
+sql select csum(f1) from st group by tbname limit 2 offset 9
+
+if $rows != 6 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:00:00.541@ then
+ return -1
+endi
+if $data01 != @460@ then
+ return -1
+endi
+if $data02 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:01:40.001@ then
+ return -1
+endi
+if $data11 != @561@ then
+ return -1
+endi
+if $data12 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:00:00.542@ then
+ return -1
+endi
+if $data21 != @470@ then
+ return -1
+endi
+if $data22 != @ct2@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:01:40.002@ then
+ return -1
+endi
+if $data31 != @572@ then
+ return -1
+endi
+if $data32 != @ct2@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:00:00.543@ then
+ return -1
+endi
+if $data41 != @480@ then
+ return -1
+endi
+if $data42 != @ct3@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:01:40.003@ then
+ return -1
+endi
+if $data51 != @583@ then
+ return -1
+endi
+if $data52 != @ct3@ then
+ return -1
+endi
+print execute sql select diff(f1) from st group by tbname limit 2 offset 9
+
+sql select diff(f1) from st group by tbname limit 2 offset 9
+
+if $rows != 6 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:01:40.001@ then
+ return -1
+endi
+if $data01 != @10@ then
+ return -1
+endi
+if $data02 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:01:40.061@ then
+ return -1
+endi
+if $data11 != @10@ then
+ return -1
+endi
+if $data12 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:01:40.002@ then
+ return -1
+endi
+if $data21 != @10@ then
+ return -1
+endi
+if $data22 != @ct2@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:01:40.062@ then
+ return -1
+endi
+if $data31 != @10@ then
+ return -1
+endi
+if $data32 != @ct2@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:01:40.003@ then
+ return -1
+endi
+if $data41 != @10@ then
+ return -1
+endi
+if $data42 != @ct3@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:01:40.063@ then
+ return -1
+endi
+if $data51 != @10@ then
+ return -1
+endi
+if $data52 != @ct3@ then
+ return -1
+endi
+print execute sql select derivative(f1, 1s, 0) from st group by tbname limit 2 offset 9
+
+sql select derivative(f1, 1s, 0) from st group by tbname limit 2 offset 9
+
+if $rows != 6 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:01:40.001@ then
+ return -1
+endi
+if $data01 != @0.100542932@ then
+ return -1
+endi
+if $data02 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:01:40.061@ then
+ return -1
+endi
+if $data11 != @166.666666667@ then
+ return -1
+endi
+if $data12 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:01:40.002@ then
+ return -1
+endi
+if $data21 != @0.100542932@ then
+ return -1
+endi
+if $data22 != @ct2@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:01:40.062@ then
+ return -1
+endi
+if $data31 != @166.666666667@ then
+ return -1
+endi
+if $data32 != @ct2@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:01:40.003@ then
+ return -1
+endi
+if $data41 != @0.100542932@ then
+ return -1
+endi
+if $data42 != @ct3@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:01:40.063@ then
+ return -1
+endi
+if $data51 != @166.666666667@ then
+ return -1
+endi
+if $data52 != @ct3@ then
+ return -1
+endi
+print execute sql select mavg(f1,2) from st group by tbname limit 2 offset 9
+
+sql select mavg(f1,2) from st group by tbname limit 2 offset 9
+
+if $rows != 6 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:01:40.001@ then
+ return -1
+endi
+if $data01 != @96.000000000@ then
+ return -1
+endi
+if $data02 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:01:40.061@ then
+ return -1
+endi
+if $data11 != @106.000000000@ then
+ return -1
+endi
+if $data12 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:01:40.002@ then
+ return -1
+endi
+if $data21 != @97.000000000@ then
+ return -1
+endi
+if $data22 != @ct2@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:01:40.062@ then
+ return -1
+endi
+if $data31 != @107.000000000@ then
+ return -1
+endi
+if $data32 != @ct2@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:01:40.003@ then
+ return -1
+endi
+if $data41 != @98.000000000@ then
+ return -1
+endi
+if $data42 != @ct3@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:01:40.063@ then
+ return -1
+endi
+if $data51 != @108.000000000@ then
+ return -1
+endi
+if $data52 != @ct3@ then
+ return -1
+endi
+print execute sql select csum(f1),t from st group by tbname limit 2 offset 9
+
+sql select csum(f1),t from st group by tbname limit 2 offset 9
+
+if $rows != 6 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:00:00.541@ then
+ return -1
+endi
+if $data01 != @460@ then
+ return -1
+endi
+if $data02 != @1@ then
+ return -1
+endi
+if $data03 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:01:40.001@ then
+ return -1
+endi
+if $data11 != @561@ then
+ return -1
+endi
+if $data12 != @1@ then
+ return -1
+endi
+if $data13 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:00:00.542@ then
+ return -1
+endi
+if $data21 != @470@ then
+ return -1
+endi
+if $data22 != @2@ then
+ return -1
+endi
+if $data23 != @ct2@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:01:40.002@ then
+ return -1
+endi
+if $data31 != @572@ then
+ return -1
+endi
+if $data32 != @2@ then
+ return -1
+endi
+if $data33 != @ct2@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:00:00.543@ then
+ return -1
+endi
+if $data41 != @480@ then
+ return -1
+endi
+if $data42 != @3@ then
+ return -1
+endi
+if $data43 != @ct3@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:01:40.003@ then
+ return -1
+endi
+if $data51 != @583@ then
+ return -1
+endi
+if $data52 != @3@ then
+ return -1
+endi
+if $data53 != @ct3@ then
+ return -1
+endi
+print execute sql select diff(f1),t from st group by tbname limit 2 offset 9
+
+sql select diff(f1),t from st group by tbname limit 2 offset 9
+
+if $rows != 6 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:01:40.001@ then
+ return -1
+endi
+if $data01 != @10@ then
+ return -1
+endi
+if $data02 != @1@ then
+ return -1
+endi
+if $data03 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:01:40.061@ then
+ return -1
+endi
+if $data11 != @10@ then
+ return -1
+endi
+if $data12 != @1@ then
+ return -1
+endi
+if $data13 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:01:40.002@ then
+ return -1
+endi
+if $data21 != @10@ then
+ return -1
+endi
+if $data22 != @2@ then
+ return -1
+endi
+if $data23 != @ct2@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:01:40.062@ then
+ return -1
+endi
+if $data31 != @10@ then
+ return -1
+endi
+if $data32 != @2@ then
+ return -1
+endi
+if $data33 != @ct2@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:01:40.003@ then
+ return -1
+endi
+if $data41 != @10@ then
+ return -1
+endi
+if $data42 != @3@ then
+ return -1
+endi
+if $data43 != @ct3@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:01:40.063@ then
+ return -1
+endi
+if $data51 != @10@ then
+ return -1
+endi
+if $data52 != @3@ then
+ return -1
+endi
+if $data53 != @ct3@ then
+ return -1
+endi
+print execute sql select derivative(f1, 1s, 0),t from st group by tbname limit 2 offset 9
+
+sql select derivative(f1, 1s, 0),t from st group by tbname limit 2 offset 9
+
+if $rows != 6 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:01:40.001@ then
+ return -1
+endi
+if $data01 != @0.100542932@ then
+ return -1
+endi
+if $data02 != @1@ then
+ return -1
+endi
+if $data03 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:01:40.061@ then
+ return -1
+endi
+if $data11 != @166.666666667@ then
+ return -1
+endi
+if $data12 != @1@ then
+ return -1
+endi
+if $data13 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:01:40.002@ then
+ return -1
+endi
+if $data21 != @0.100542932@ then
+ return -1
+endi
+if $data22 != @2@ then
+ return -1
+endi
+if $data23 != @ct2@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:01:40.062@ then
+ return -1
+endi
+if $data31 != @166.666666667@ then
+ return -1
+endi
+if $data32 != @2@ then
+ return -1
+endi
+if $data33 != @ct2@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:01:40.003@ then
+ return -1
+endi
+if $data41 != @0.100542932@ then
+ return -1
+endi
+if $data42 != @3@ then
+ return -1
+endi
+if $data43 != @ct3@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:01:40.063@ then
+ return -1
+endi
+if $data51 != @166.666666667@ then
+ return -1
+endi
+if $data52 != @3@ then
+ return -1
+endi
+if $data53 != @ct3@ then
+ return -1
+endi
+print execute sql select mavg(f1,2),t from st group by tbname limit 2 offset 9
+
+sql select mavg(f1,2),t from st group by tbname limit 2 offset 9
+
+if $rows != 6 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:01:40.001@ then
+ return -1
+endi
+if $data01 != @96.000000000@ then
+ return -1
+endi
+if $data02 != @1@ then
+ return -1
+endi
+if $data03 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:01:40.061@ then
+ return -1
+endi
+if $data11 != @106.000000000@ then
+ return -1
+endi
+if $data12 != @1@ then
+ return -1
+endi
+if $data13 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:01:40.002@ then
+ return -1
+endi
+if $data21 != @97.000000000@ then
+ return -1
+endi
+if $data22 != @2@ then
+ return -1
+endi
+if $data23 != @ct2@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:01:40.062@ then
+ return -1
+endi
+if $data31 != @107.000000000@ then
+ return -1
+endi
+if $data32 != @2@ then
+ return -1
+endi
+if $data33 != @ct2@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:01:40.003@ then
+ return -1
+endi
+if $data41 != @98.000000000@ then
+ return -1
+endi
+if $data42 != @3@ then
+ return -1
+endi
+if $data43 != @ct3@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:01:40.063@ then
+ return -1
+endi
+if $data51 != @108.000000000@ then
+ return -1
+endi
+if $data52 != @3@ then
+ return -1
+endi
+if $data53 != @ct3@ then
+ return -1
+endi
+print execute sql select csum(f1),t,tbname from st group by tbname limit 2 offset 9
+
+sql select csum(f1),t,tbname from st group by tbname limit 2 offset 9
+
+if $rows != 6 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:00:00.541@ then
+ return -1
+endi
+if $data01 != @460@ then
+ return -1
+endi
+if $data02 != @1@ then
+ return -1
+endi
+if $data03 != @ct1@ then
+ return -1
+endi
+if $data04 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:01:40.001@ then
+ return -1
+endi
+if $data11 != @561@ then
+ return -1
+endi
+if $data12 != @1@ then
+ return -1
+endi
+if $data13 != @ct1@ then
+ return -1
+endi
+if $data14 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:00:00.542@ then
+ return -1
+endi
+if $data21 != @470@ then
+ return -1
+endi
+if $data22 != @2@ then
+ return -1
+endi
+if $data23 != @ct2@ then
+ return -1
+endi
+if $data24 != @ct2@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:01:40.002@ then
+ return -1
+endi
+if $data31 != @572@ then
+ return -1
+endi
+if $data32 != @2@ then
+ return -1
+endi
+if $data33 != @ct2@ then
+ return -1
+endi
+if $data34 != @ct2@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:00:00.543@ then
+ return -1
+endi
+if $data41 != @480@ then
+ return -1
+endi
+if $data42 != @3@ then
+ return -1
+endi
+if $data43 != @ct3@ then
+ return -1
+endi
+if $data44 != @ct3@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:01:40.003@ then
+ return -1
+endi
+if $data51 != @583@ then
+ return -1
+endi
+if $data52 != @3@ then
+ return -1
+endi
+if $data53 != @ct3@ then
+ return -1
+endi
+if $data54 != @ct3@ then
+ return -1
+endi
+print execute sql select diff(f1),t,tbname from st group by tbname limit 2 offset 9
+
+sql select diff(f1),t,tbname from st group by tbname limit 2 offset 9
+
+if $rows != 6 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:01:40.001@ then
+ return -1
+endi
+if $data01 != @10@ then
+ return -1
+endi
+if $data02 != @1@ then
+ return -1
+endi
+if $data03 != @ct1@ then
+ return -1
+endi
+if $data04 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:01:40.061@ then
+ return -1
+endi
+if $data11 != @10@ then
+ return -1
+endi
+if $data12 != @1@ then
+ return -1
+endi
+if $data13 != @ct1@ then
+ return -1
+endi
+if $data14 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:01:40.002@ then
+ return -1
+endi
+if $data21 != @10@ then
+ return -1
+endi
+if $data22 != @2@ then
+ return -1
+endi
+if $data23 != @ct2@ then
+ return -1
+endi
+if $data24 != @ct2@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:01:40.062@ then
+ return -1
+endi
+if $data31 != @10@ then
+ return -1
+endi
+if $data32 != @2@ then
+ return -1
+endi
+if $data33 != @ct2@ then
+ return -1
+endi
+if $data34 != @ct2@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:01:40.003@ then
+ return -1
+endi
+if $data41 != @10@ then
+ return -1
+endi
+if $data42 != @3@ then
+ return -1
+endi
+if $data43 != @ct3@ then
+ return -1
+endi
+if $data44 != @ct3@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:01:40.063@ then
+ return -1
+endi
+if $data51 != @10@ then
+ return -1
+endi
+if $data52 != @3@ then
+ return -1
+endi
+if $data53 != @ct3@ then
+ return -1
+endi
+if $data54 != @ct3@ then
+ return -1
+endi
+print execute sql select derivative(f1, 1s, 0),t,tbname from st group by tbname limit 2 offset 9
+
+sql select derivative(f1, 1s, 0),t,tbname from st group by tbname limit 2 offset 9
+
+if $rows != 6 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:01:40.001@ then
+ return -1
+endi
+if $data01 != @0.100542932@ then
+ return -1
+endi
+if $data02 != @1@ then
+ return -1
+endi
+if $data03 != @ct1@ then
+ return -1
+endi
+if $data04 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:01:40.061@ then
+ return -1
+endi
+if $data11 != @166.666666667@ then
+ return -1
+endi
+if $data12 != @1@ then
+ return -1
+endi
+if $data13 != @ct1@ then
+ return -1
+endi
+if $data14 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:01:40.002@ then
+ return -1
+endi
+if $data21 != @0.100542932@ then
+ return -1
+endi
+if $data22 != @2@ then
+ return -1
+endi
+if $data23 != @ct2@ then
+ return -1
+endi
+if $data24 != @ct2@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:01:40.062@ then
+ return -1
+endi
+if $data31 != @166.666666667@ then
+ return -1
+endi
+if $data32 != @2@ then
+ return -1
+endi
+if $data33 != @ct2@ then
+ return -1
+endi
+if $data34 != @ct2@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:01:40.003@ then
+ return -1
+endi
+if $data41 != @0.100542932@ then
+ return -1
+endi
+if $data42 != @3@ then
+ return -1
+endi
+if $data43 != @ct3@ then
+ return -1
+endi
+if $data44 != @ct3@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:01:40.063@ then
+ return -1
+endi
+if $data51 != @166.666666667@ then
+ return -1
+endi
+if $data52 != @3@ then
+ return -1
+endi
+if $data53 != @ct3@ then
+ return -1
+endi
+if $data54 != @ct3@ then
+ return -1
+endi
+print execute sql select mavg(f1,2),t,tbname from st group by tbname limit 2 offset 9
+
+sql select mavg(f1,2),t,tbname from st group by tbname limit 2 offset 9
+
+if $rows != 6 then 
+  return -1
+endi
+if $data00 != @20-10-01 00:01:40.001@ then
+ return -1
+endi
+if $data01 != @96.000000000@ then
+ return -1
+endi
+if $data02 != @1@ then
+ return -1
+endi
+if $data03 != @ct1@ then
+ return -1
+endi
+if $data04 != @ct1@ then
+ return -1
+endi
+if $data10 != @20-10-01 00:01:40.061@ then
+ return -1
+endi
+if $data11 != @106.000000000@ then
+ return -1
+endi
+if $data12 != @1@ then
+ return -1
+endi
+if $data13 != @ct1@ then
+ return -1
+endi
+if $data14 != @ct1@ then
+ return -1
+endi
+if $data20 != @20-10-01 00:01:40.002@ then
+ return -1
+endi
+if $data21 != @97.000000000@ then
+ return -1
+endi
+if $data22 != @2@ then
+ return -1
+endi
+if $data23 != @ct2@ then
+ return -1
+endi
+if $data24 != @ct2@ then
+ return -1
+endi
+if $data30 != @20-10-01 00:01:40.062@ then
+ return -1
+endi
+if $data31 != @107.000000000@ then
+ return -1
+endi
+if $data32 != @2@ then
+ return -1
+endi
+if $data33 != @ct2@ then
+ return -1
+endi
+if $data34 != @ct2@ then
+ return -1
+endi
+if $data40 != @20-10-01 00:01:40.003@ then
+ return -1
+endi
+if $data41 != @98.000000000@ then
+ return -1
+endi
+if $data42 != @3@ then
+ return -1
+endi
+if $data43 != @ct3@ then
+ return -1
+endi
+if $data44 != @ct3@ then
+ return -1
+endi
+if $data50 != @20-10-01 00:01:40.063@ then
+ return -1
+endi
+if $data51 != @108.000000000@ then
+ return -1
+endi
+if $data52 != @3@ then
+ return -1
+endi
+if $data53 != @ct3@ then
+ return -1
+endi
+if $data54 != @ct3@ then
+ return -1
+endi
+print ================================ clear
+#sql drop database $db
+#sql show databases
+#if $rows != 0 then
+#  return -1
+#endi
+
+#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+

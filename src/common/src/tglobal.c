@@ -27,9 +27,6 @@
 #include "tulog.h"
 #include "tutil.h"
 
-// TSDB
-bool tsdbForceKeepFile = false;
-
 // cluster
 char     tsFirst[TSDB_EP_LEN] = {0};
 char     tsSecond[TSDB_EP_LEN] = {0};
@@ -49,6 +46,8 @@ int8_t   tsArbOnline = 0;
 int64_t  tsArbOnlineTimestamp = TSDB_ARB_DUMMY_TIME;
 char     tsEmail[TSDB_FQDN_LEN] = {0};
 int32_t  tsDnodeId = 0;
+int64_t  tsDnodeStartTime = 0;
+int8_t   tsDnodeNopLoop = 0;
 
 // common
 int32_t tsRpcTimer = 300;
@@ -66,6 +65,7 @@ char    tsLocale[TSDB_LOCALE_LEN] = {0};
 char    tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
 int8_t  tsEnableCoreFile = 0;
 int32_t tsMaxBinaryDisplayWidth = 30;
+int32_t tsShortcutFlag = 0;  // shortcut flag to facilitate debugging
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -75,12 +75,21 @@ int32_t tsMaxBinaryDisplayWidth = 30;
  * -1: all data are not compressed
  * other values: if the message payload size is greater than the tsCompressMsgSize, the message will be compressed.
  */
-int32_t tsCompressMsgSize = -1;
+int32_t tsCompressMsgSize = 512 * 1024;
+
+/* denote if server needs to compress the retrieved column data before adding to the rpc response message body.
+ * 0: all data are compressed
+ * -1: all data are not compressed
+ * other values: if any retrieved column size is greater than the tsCompressColData, all data will be compressed.
+ */
+int32_t tsCompressColData = -1;
 
 // client
 int32_t tsMaxSQLStringLen = TSDB_MAX_ALLOWED_SQL_LEN;
 int32_t tsMaxWildCardsLen = TSDB_PATTERN_STRING_DEFAULT_LEN;
-int8_t  tsTscEnableRecordSql = 0;
+int32_t tsMaxRegexStringLen = TSDB_REGEX_STRING_DEFAULT_LEN;
+
+int8_t tsTscEnableRecordSql = 0;
 
 // the maximum number of results for projection query on super table that are returned from
 // one virtual node, to order according to timestamp
@@ -98,11 +107,11 @@ int32_t tsMinIntervalTime = 1;
 // 20sec, the maximum value of stream computing delay, changed accordingly
 int32_t tsMaxStreamComputDelay = 20000;
 
-// 10sec, the first stream computing delay time after system launched successfully, changed accordingly
-int32_t tsStreamCompStartDelay = 10000;
+// 10sec, the stream first launched to execute delay time after system launched successfully, changed accordingly
+int32_t tsFirstLaunchDelay = 10000;
 
 // the stream computing delay time after executing failed, change accordingly
-int32_t tsRetryStreamCompDelay = 10 * 1000;
+int32_t tsRetryStreamCompDelay = 30 * 60 * 1000;
 
 // The delayed computing ration. 10% of the whole computing time window by default.
 float tsStreamComputDelayRatio = 0.1f;
@@ -144,11 +153,19 @@ int32_t tsMaxVgroupsPerDb = 0;
 int32_t tsMinTablePerVnode = TSDB_TABLES_STEP;
 int32_t tsMaxTablePerVnode = TSDB_DEFAULT_TABLES;
 int32_t tsTableIncStepPerVnode = TSDB_TABLES_STEP;
+int32_t tsTsdbMetaCompactRatio = TSDB_META_COMPACT_RATIO;
+
+// tsdb config
+// For backward compatibility
+bool    tsdbForceKeepFile = false;
+bool    tsdbForceCompactFile = false;                    // compact TSDB fileset forcibly
+int32_t tsdbWalFlushSize = TSDB_DEFAULT_WAL_FLUSH_SIZE;  // MB
 
 // balance
 int8_t  tsEnableBalance = 1;
 int8_t  tsAlternativeRole = 0;
 int32_t tsBalanceInterval = 300;          // seconds
+int32_t tsOfflineInterval = 3;            // seconds
 int32_t tsOfflineThreshold = 86400 * 10;  // seconds of 10 days
 int32_t tsMnodeEqualVnodeNum = 4;
 int8_t  tsEnableFlowCtrl = 1;
@@ -179,6 +196,7 @@ char   tsMqttTopic[TSDB_MQTT_TOPIC_LEN] = "/test";  // #
 
 // monitor
 int8_t  tsEnableMonitorModule = 1;
+int8_t  tsMonitorReplica = 1;
 char    tsMonitorDbName[TSDB_DB_NAME_LEN] = "log";
 char    tsInternalPass[] = "secretkey";
 int32_t tsMonitorInterval = 30;  // seconds
@@ -270,6 +288,17 @@ uint32_t maxRange = 500;                      // max range
 uint32_t curRange = 100;                      // range
 char     Compressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
 #endif
+
+// long query death-lock
+int8_t tsDeadLockKillQuery = 1;
+
+// default JSON string type
+char tsDefaultJSONStrType[7] = "nchar";
+char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = ""; //user defined child table name can be specified in tag value.
+                                                    //If set to empty system will generate table name using MD5 hash.
+char tsSmlTagNullName[TSDB_COL_NAME_LEN] = "_tag_null"; //for line protocol if tag is omitted, add a tag with NULL value
+                                                        //to make sure inserted records belongs to the same measurement
+                                                        //default name is _tag_null and can be user configurable
 
 int32_t (*monStartSystemFp)() = NULL;
 void (*monStopSystemFp)() = NULL;
@@ -596,6 +625,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "dnodeNopLoop";
+  cfg.ptr = &tsDnodeNopLoop;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "balance";
   cfg.ptr = &tsEnableBalance;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
@@ -612,6 +651,16 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 1;
   cfg.maxValue = 30000;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "offlineInterval";
+  cfg.ptr = &tsOfflineInterval;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 1;
+  cfg.maxValue = 600;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
@@ -646,6 +695,16 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 600;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_SECOND;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "monitorReplica";
+  cfg.ptr = &tsMonitorReplica;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 1;
+  cfg.maxValue = 3;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
   cfg.option = "offlineThreshold";
@@ -739,7 +798,7 @@ static void doInitGlobalConfig(void) {
   taosInitConfigOption(cfg);
 
   cfg.option = "maxFirstStreamCompDelay";
-  cfg.ptr = &tsStreamCompStartDelay;
+  cfg.ptr = &tsFirstLaunchDelay;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 1000;
@@ -999,6 +1058,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "compressColData";
+  cfg.ptr = &tsCompressColData;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = -1;
+  cfg.maxValue = 100000000.0f;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "maxSQLLength";
   cfg.ptr = &tsMaxSQLStringLen;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -1011,6 +1080,16 @@ static void doInitGlobalConfig(void) {
 
   cfg.option = "maxWildCardsLength";
   cfg.ptr = &tsMaxWildCardsLen;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = TSDB_MAX_FIELD_LEN;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_BYTE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "maxRegexStringLen";
+  cfg.ptr = &tsMaxRegexStringLen;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0;
@@ -1276,7 +1355,7 @@ static void doInitGlobalConfig(void) {
   cfg.option = "httpDbNameMandatory";
   cfg.ptr = &tsHttpDbNameMandatory;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0;
   cfg.maxValue = 1;
   cfg.ptrLength = 0;
@@ -1596,6 +1675,27 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "tsdbMetaCompactRatio";
+  cfg.ptr = &tsTsdbMetaCompactRatio;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 0;
+  cfg.maxValue = 100;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  // enable kill long query
+  cfg.option = "deadLockKillQuery";
+  cfg.ptr = &tsDeadLockKillQuery;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "clientMerge";
   cfg.ptr = &tsClientMerge;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
@@ -1603,6 +1703,61 @@ static void doInitGlobalConfig(void) {
   cfg.minValue = 0;
   cfg.maxValue = 1;
   cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  // default JSON string type option "binary"/"nchar"
+  cfg.option = "defaultJSONStrType";
+  cfg.ptr = tsDefaultJSONStrType;
+  cfg.valType = TAOS_CFG_VTYPE_STRING;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 0;
+  cfg.ptrLength = tListLen(tsDefaultJSONStrType);
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  // child talbe name specified in schemaless tag value
+  cfg.option = "smlChildTableName";
+  cfg.ptr = tsSmlChildTableName;
+  cfg.valType = TAOS_CFG_VTYPE_STRING;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 0;
+  cfg.ptrLength = tListLen(tsSmlChildTableName);
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  // name for a NULL value tag added for Line Protocol when tag fields are omitted
+  cfg.option = "smlTagNullName";
+  cfg.ptr = tsSmlTagNullName;
+  cfg.valType = TAOS_CFG_VTYPE_STRING;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 0;
+  cfg.ptrLength = tListLen(tsSmlTagNullName);
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  // flush vnode wal file if walSize > walFlushSize and walSize > cache*0.5*blocks
+  cfg.option = "walFlushSize";
+  cfg.ptr = &tsdbWalFlushSize;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = TSDB_MIN_WAL_FLUSH_SIZE;
+  cfg.maxValue = TSDB_MAX_WAL_FLUSH_SIZE;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_MB;
+  taosInitConfigOption(cfg);
+
+  // shortcut flag to facilitate debugging
+  cfg.option = "shortcutFlag";
+  cfg.ptr = &tsShortcutFlag;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = (1 << 24);
+  cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
@@ -1659,7 +1814,8 @@ static void doInitGlobalConfig(void) {
   taosInitConfigOption(cfg);
   assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM);
 #else
-  assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM - 5);
+  // if TD_TSZ macro define, have 5 count configs, so must add 5
+  assert(tsGlobalConfigNum + 5 == TSDB_CFG_MAX_NUM);
 #endif
 }
 

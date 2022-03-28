@@ -54,7 +54,7 @@ class TDTestCase:
 
         tdSql.error("select * from meters group by loc sliding(5s)")   
 
-        # Fix defect: https://jira.taosdata.com:18080/browse/TD-2700
+        # TD-2700
         tdSql.execute("create database test")
         tdSql.execute("use test")
         tdSql.execute("create table t1(ts timestamp, k int)")

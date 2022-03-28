@@ -41,6 +41,8 @@ extern char     tsArbitrator[];
 extern int8_t   tsArbOnline;
 extern int64_t  tsArbOnlineTimestamp;
 extern int32_t  tsDnodeId;
+extern int64_t  tsDnodeStartTime;
+extern int8_t   tsDnodeNopLoop;
 
 // common
 extern int      tsRpcTimer;
@@ -59,8 +61,10 @@ extern char     tsLocale[];
 extern char     tsCharset[];  // default encode string
 extern int8_t   tsEnableCoreFile;
 extern int32_t  tsCompressMsgSize;
+extern int32_t  tsCompressColData;
 extern int32_t  tsMaxNumOfDistinctResults;
 extern char     tsTempDir[];
+extern int32_t  tsShortcutFlag;
 
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
@@ -73,12 +77,13 @@ extern int8_t tsKeepOriginalColumnName;
 // client
 extern int32_t tsMaxSQLStringLen;
 extern int32_t tsMaxWildCardsLen;
+extern int32_t tsMaxRegexStringLen;
 extern int8_t  tsTscEnableRecordSql;
 extern int32_t tsMaxNumOfOrderedResults;
 extern int32_t tsMinSlidingTime;
 extern int32_t tsMinIntervalTime;
 extern int32_t tsMaxStreamComputDelay;
-extern int32_t tsStreamCompStartDelay;
+extern int32_t tsFirstLaunchDelay;
 extern int32_t tsRetryStreamCompDelay;
 extern float   tsStreamComputDelayRatio;  // the delayed computing ration of the whole time window
 extern int32_t tsProjectExecInterval;
@@ -106,10 +111,16 @@ extern int32_t tsQuorum;
 extern int8_t  tsUpdate;
 extern int8_t  tsCacheLastRow;
 
+// tsdb
+extern bool    tsdbForceKeepFile;
+extern bool    tsdbForceCompactFile;
+extern int32_t tsdbWalFlushSize;
+
 // balance
 extern int8_t  tsEnableBalance;
 extern int8_t  tsAlternativeRole;
 extern int32_t tsBalanceInterval;
+extern int32_t tsOfflineInterval;
 extern int32_t tsOfflineThreshold;
 extern int32_t tsMnodeEqualVnodeNum;
 extern int8_t  tsEnableFlowCtrl;
@@ -140,6 +151,7 @@ extern char   tsMqttTopic[];
 
 // monitor
 extern int8_t  tsEnableMonitorModule;
+extern int8_t  tsMonitorReplica;
 extern char    tsMonitorDbName[];
 extern char    tsInternalPass[];
 extern int32_t tsMonitorInterval;
@@ -214,14 +226,21 @@ extern int32_t  debugFlag;
 extern int8_t tsClientMerge;
 
 #ifdef TD_TSZ
-// lossy 
-extern char lossyColumns[];
-extern double fPrecision;
-extern double dPrecision;
+// lossy
+extern char     lossyColumns[];
+extern double   fPrecision;
+extern double   dPrecision;
 extern uint32_t maxRange;
 extern uint32_t curRange;
 extern char     Compressor[];
 #endif
+// long query
+extern int8_t tsDeadLockKillQuery;
+
+// schemaless
+extern char tsDefaultJSONStrType[];
+extern char tsSmlChildTableName[];
+extern char tsSmlTagNullName[];
 
 
 typedef struct {

@@ -29,19 +29,19 @@ function TaosResult(data, fields) {
 TaosResult.prototype.pretty = function pretty() {
   let fieldsStr = "";
   let sizing = [];
-  this.fields.forEach((field,i) => {
-    if (field._field.type == 8 || field._field.type == 10){
+  this.fields.forEach((field, i) => {
+    if (field._field.type == 8 || field._field.type == 10 ) {
       sizing.push(Math.max(field.name.length, field._field.bytes));
     }
     else {
       sizing.push(Math.max(field.name.length, suggestedMinWidths[field._field.type]));
     }
-    fieldsStr += fillEmpty(Math.floor(sizing[i]/2 - field.name.length / 2)) + field.name + fillEmpty(Math.ceil(sizing[i]/2 - field.name.length / 2)) + " | ";
+    fieldsStr += fillEmpty(Math.floor(sizing[i] / 2 - field.name.length / 2)) + field.name + fillEmpty(Math.ceil(sizing[i] / 2 - field.name.length / 2)) + " | ";
   });
-  var sumLengths = sizing.reduce((a,b)=> a+=b,(0)) + sizing.length * 3;
+  var sumLengths = sizing.reduce((a, b) => a += b, (0)) + sizing.length * 3;
 
   console.log("\n" + fieldsStr);
-  console.log(printN("=",sumLengths));
+  console.log(printN("=", sumLengths));
   this.data.forEach(row => {
     let rowStr = "";
     row.data.forEach((entry, i) => {
@@ -62,16 +62,21 @@ const suggestedMinWidths = {
   2: 4,
   3: 6,
   4: 11,
-  5: 12,
+  5: 20,
   6: 24,
   7: 24,
   8: 10,
   9: 25,
   10: 10,
+  11: 4,
+  12: 6,
+  13: 11,
+  14: 20,
+  15: 20,
 }
 function printN(s, n) {
   let f = "";
-  for (let i = 0; i < n; i ++) {
+  for (let i = 0; i < n; i++) {
     f += s;
   }
   return f;

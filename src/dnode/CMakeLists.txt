@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8...3.20)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.0...3.20)
 PROJECT(TDengine)
 
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/query/inc)
@@ -18,7 +18,16 @@ ELSE ()
 ENDIF ()
 
 ADD_EXECUTABLE(taosd ${SRC})
-TARGET_LINK_LIBRARIES(taosd mnode monitor http tsdb twal vnode cJson lua lz4 balance sync ${LINK_JEMALLOC})
+
+IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
+    ADD_DEPENDENCIES(taosd jemalloc)
+ENDIF ()
+
+IF (TD_BUILD_HTTP)
+    TARGET_LINK_LIBRARIES(taosd mnode monitor http tsdb twal vnode cJson ${LINK_LUA} lz4 balance sync ${LINK_JEMALLOC})
+ELSE ()
+    TARGET_LINK_LIBRARIES(taosd mnode monitor tsdb twal vnode cJson ${LINK_LUA} lz4 balance sync ${LINK_JEMALLOC})
+ENDIF ()
 
 IF (TD_SOMODE_STATIC)
   TARGET_LINK_LIBRARIES(taosd taos_static)
@@ -32,6 +41,10 @@ ENDIF ()
 
 IF (TD_GRANT)
   TARGET_LINK_LIBRARIES(taosd grant)
+ENDIF ()
+
+IF (TD_USB_DONGLE)
+  TARGET_LINK_LIBRARIES(taosd usb_dongle)
 ENDIF ()
 
 IF (TD_MQTT)

@@ -1,8 +1,8 @@
 # TAOS SQL
 
-TDengine provides a SQL-style language, TAOS SQL, to insert or query data, and support other common tips. To finish this document, you should have some understanding about SQL.
+TDengine provides a SQL-style language, TAOS SQL, to insert or query data. This document introduces TAOS SQL and supports other common tips. To read through this document, readers should have basic understanding about SQL.
 
-TAOS SQL is the main tool for users to write and query data to TDengine. TAOS SQL provides a style and mode similar to standard SQL to facilitate users to get started quickly. Strictly speaking, TAOS SQL is not and does not attempt to provide SQL standard syntax. In addition, since TDengine does not provide deletion function for temporal structured data, the relevant function of data deletion is non-existent in TAO SQL.
+TAOS SQL is the main tool for users to write and query data into/from TDengine. TAOS SQL provides a syntax style similar to standard SQL to facilitate users to get started quickly. Strictly speaking, TAOS SQL is not and does not attempt to provide SQL standard syntax. In addition, since TDengine does not provide deletion functionality for time-series data, the relevant functions of data deletion is unsupported in TAO SQL.
 
 Let’s take a look at the conventions used for syntax descriptions.
 
@@ -34,32 +34,33 @@ With TDengine, the most important thing is timestamp. When creating and insertin
 - Time Format: 'YYYY-MM-DD HH:mm:ss.MS', default in milliseconds. For example,'2017-08-12 18:52:58.128'
 - Internal Function **now** : this is the current time of the server
 - When inserting a record, if timestamp is NOW, then use the server current time.
-- Epch Time: a timestamp value can also be a long integer representing milliseconds since 1970-01-01 08:00:00.000.
+- Epoch Time: a timestamp value can also be a long integer representing milliseconds since 1970-01-01 08:00:00.000.
 - Arithmetic operations can be applied to timestamp. For example: now-2h represents a timestamp which is 2 hours ago from the current server time. Units include u( microsecond), a (milliseconds), s (seconds), m (minutes), h (hours), d (days), w (weeks). In `select * from t1 where ts > now-2w and ts <= now-1w`, which queries data of the whole week before two weeks. To specify the interval of down sampling, you can also use n(calendar month) and y(calendar year) as time units.
 
-Default time precision of TDengine is millisecond, you can change it to microseocnd by setting parameter enableMicrosecond. 
+TDengine's timestamp is set to millisecond accuracy by default. Microsecond/nanosecond accuracy can be set using CREATE DATABASE with PRECISION parameter. (Nanosecond resolution is supported from version 2.1.5.0 onwards.)
 
 In TDengine, the following 10 data types can be used in data model of an ordinary table.
 
 |      | **Data Type** | **Bytes** | **Note**                                                     |
 | ---- | ------------- | --------- | ------------------------------------------------------------ |
 | 1    | TIMESTAMP     | 8         | Time stamp. Default in milliseconds, and support microseconds. Starting from 1970-01-01 00:00:00. 000 (UTC/GMT), the timing cannot be earlier than this time. |
-| 2    | INT           | 4         | A nullable integer type with a range of [-2^31+1, 2^31-1 ]   |
-| 3    | BIGINT        | 8         | A nullable integer type with a range of [-2^59, 2^59 ]       |
-| 4    | FLOAT         | 4         | A standard nullable float type with 6 -7 significant digits and a range of [-3.4E38, 3.4E38] |
-| 5    | DOUBLE        | 8         | A standard nullable double float type with 15-16 significant digits and a range of [-1.7E308, 1.7E308] |
+| 2    | INT           | 4         | A null-able integer type with a range of [-2^31+1, 2^31-1 ]   |
+| 3    | BIGINT        | 8         | A null-able integer type with a range of [-2^59, 2^59 ]       |
+| 4    | FLOAT         | 4         | A standard null-able float type with 6 -7 significant digits and a range of [-3.4E38, 3.4E38] |
+| 5    | DOUBLE        | 8         | A standard null-able double float type with 15-16 significant digits and a range of [-1.7E308, 1.7E308] |
 | 6    | BINARY        | Custom    | Used to record ASCII strings. Theoretically, the maximum length can be 16,374 bytes, but since each row of data can be up to 16K bytes, the actual limit is generally smaller than the theoretical value. Binary only supports string input, and single quotation marks are used at both ends of the string, otherwise all English will be automatically converted to lowercase. When using, the size must be specified. For example, binary (20) defines a string with a maximum length of 20 characters, and each character occupies 1 byte of storage space. In this case, if the user string exceeds 20 bytes, an error will be reported. For single quotation marks in strings, they can be represented by escape character backslash plus single quotation marks, that is\ '. |
-| 7    | SMALLINT      | 2         | A nullable integer type with a range of [-32767, 32767]      |
-| 8    | TINYINT       | 1         | A nullable integer type with a range of [-127, 127]          |
+| 7    | SMALLINT      | 2         | A null-able integer type with a range of [-32767, 32767]      |
+| 8    | TINYINT       | 1         | A null-able integer type with a range of [-127, 127]          |
 | 9    | BOOL          | 1         | Boolean type，{true, false}                                  |
 | 10   | NCHAR         | Custom    | Used to record non-ASCII strings, such as Chinese characters. Each nchar character takes up 4 bytes of storage space. Single quotation marks are used at both ends of the string, and escape characters are required for single quotation marks in the string, that is \’. When nchar is used, the string size must be specified. A column of type nchar (10) indicates that the string of this column stores up to 10 nchar characters, which will take up 40 bytes of space. If the length of the user string exceeds the declared length, an error will be reported. |
-
+| 11   | JSON          |           | Json type，only support for tag                                  |
 
 
 **Tips**:
 
 1. TDengine is case-insensitive to English characters in SQL statements and automatically converts them to lowercase for execution. Therefore, the user's case-sensitive strings and passwords need to be enclosed in single quotation marks.
 2. Avoid using BINARY type to save non-ASCII type strings, which will easily lead to errors such as garbled data. The correct way is to use NCHAR type to save Chinese characters.
+3. The numerical values in SQL statements are treated as floating or integer numbers, depends on if the value contains decimal point or is in scientific notation format. Therefore, caution is needed since overflow might happen for corresponding data types. E.g., 9999999999999999999 is overflowed as the number is greater than the largest integer number. However, 9999999999999999999.0 is treated as a valid floating number. 
 
 ## <a class="anchor" id="management"></a>Database Management
 
@@ -75,7 +76,7 @@ Note:
 2. UPDATE marks the database support updating the same timestamp data;
 3. Maximum length of the database name is 33;
 4. Maximum length of a SQL statement is 65480 characters;
-5.  Database has more storage-related configuration parameters, see System Management.
+5. Database has more storage-related configuration parameters, see [Server-side Configuration](https://www.taosdata.com/en/documentation/administrator#config) .
 
 - **Show current system parameters**
 
@@ -88,7 +89,7 @@ Note:
     ```mysql
     USE db_name;
     ```
-    Use/switch database
+    Use/switch database (Invalid when accessing through RESTful connection)
 
 - **Drop a database**
     ```mysql
@@ -127,7 +128,7 @@ Note:
     ALTER DATABASE db_name CACHELAST 0;
     ```
     CACHELAST parameter controls whether last_row of the data subtable is cached in memory. The default value is 0, and the value range is [0, 1]. Where 0 means not enabled and 1 means enabled. (supported from version 2.0. 11)
-    
+   
     **Tips**: After all the above parameters are modified, show databases can be used to confirm whether the modification is successful.
 
 - **Show all databases in system**
@@ -138,14 +139,17 @@ Note:
 
 ## <a class="anchor" id="table"></a> Table Management
 
-- Create a table
-Note:
+- **Create a table**
 
-1. The first field must be a timestamp, and system will set it as the primary key;
-2. The max length of table name is 192;
-3. The length of each row of the table cannot exceed 16k characters;
-4. Sub-table names can only consist of letters, numbers, and underscores, and cannot begin with numbers
-5. If the data type binary or nchar is used, the maximum number of bytes should be specified, such as binary (20), which means 20 bytes;
+    ```mysql
+    CREATE TABLE [IF NOT EXISTS] tb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]);
+    ```
+  Note:
+   1. The first field must be a timestamp, and system will set it as the primary key;
+   2. The max length of table name is 192;
+   3. The length of each row of the table cannot exceed 48K (it's 16K prior to 2.1.7.0) characters;
+   4. Sub-table names can only consist of letters, numbers, and underscores, and cannot begin with numbers
+   5. If the data type binary or nchar is used, the maximum number of bytes should be specified, such as binary (20), which means 20 bytes;
 
 - **Create a table via STable**
 
@@ -165,16 +169,16 @@ Note:
 - **Create tables in batches**
 
    ```mysql
-   CREATE TABLE [IF NOT EXISTS] tb_name1 USING stb_name TAGS (tag_value1, ...) tb_name2 USING stb_name TAGS (tag_value2, ...) ...;
+   CREATE TABLE [IF NOT EXISTS] tb_name1 USING stb_name TAGS (tag_value1, ...) [IF NOT EXISTS] tb_name2 USING stb_name TAGS (tag_value2, ...) ...;
    ```
    Create a large number of data tables in batches faster. (Server side 2.0. 14 and above)
    
    Note:
    1. The method of batch creating tables requires that the data table must use STable as a template.
-   2. On the premise of not exceeding the length limit of SQL statements, it is suggested that the number of tables in a single statement should be controlled between 1000 and 3000, which will obtain an ideal speed of table building.
+   2. On the premise of not exceeding the length limit of SQL statements, it is suggested that the number of tables in a single statement should be controlled between 1000 and 3000, which will obtain an ideal speed of table creating.
 
 - **Drop a table**
-    
+  
     ```mysql
     DROP TABLE [IF EXISTS] tb_name;
     ```
@@ -182,7 +186,7 @@ Note:
 - **Show all data table information under the current database**
 
     ```mysql
-    SHOW TABLES [LIKE tb_name_wildcar];
+    SHOW TABLES [LIKE tb_name_wildcard];
     ```
     Show all data table information under the current database.
     Note: Wildcard characters can be used to match names in like. The maximum length of this wildcard character string cannot exceed 24 bytes.
@@ -218,21 +222,21 @@ Note:
 
 ## <a class="anchor" id="super-table"></a> STable Management
 
-Note: In 2.0. 15.0 and later versions, STABLE reserved words are supported. That is, in the instruction description later in this section, the three instructions of CREATE, DROP and ALTER need to write TABLE instead of STABLE in the old version as the reserved word.
+Note: In 2.0.15.0 and later versions, STABLE reserved words are supported. That is, in the instruction description later in this section, the three instructions of CREATE, DROP and ALTER need to write TABLE instead of STABLE in the old version as the reserved word.
 
 - **Create a STable**
 
     ```mysql
     CREATE STABLE [IF NOT EXISTS] stb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]) TAGS (tag1_name tag_type1, tag2_name tag_type2 [, tag3_name tag_type3]);
     ```
-    Similiar to a standard table creation SQL, but you need to specify name and type of TAGS field.
+    Similar to a standard table creation SQL, but you need to specify name and type of TAGS field.
     
     Note:
     
     1. Data types of TAGS column cannot be timestamp;
     2. No duplicated TAGS column names;
     3. Reversed word cannot be used as a TAGS column name;
-    4. The maximum number of TAGS is 128, and at least 1 TAG allowed, with a total length of no more than 16k characters.
+    4. The maximum number of TAGS is 128, and at least 1 TAG allowed, with a total length of no more than 16K characters.
 
 - **Drop a STable**
 
@@ -290,7 +294,7 @@ Note: In 2.0. 15.0 and later versions, STABLE reserved words are supported. That
     Modify a tag name of STable. After modifying, all sub-tables under the STable will automatically update the new tag name.
 
 - **Modify a tag value of sub-table**
-    
+  
     ```mysql
     ALTER TABLE tb_name SET TAG tag_name=new_tag_value;
     ```
@@ -306,7 +310,7 @@ Note: In 2.0. 15.0 and later versions, STABLE reserved words are supported. That
   Insert a record into table tb_name.
 
 - **Insert a record with data corresponding to a given column**
-   
+  
     ```mysql
     INSERT INTO tb_name (field1_name, ...) VALUES (field1_value1, ...);
     ```
@@ -320,14 +324,14 @@ Note: In 2.0. 15.0 and later versions, STABLE reserved words are supported. That
     Insert multiple records into table tb_name.
 
 - **Insert multiple records into a given column**
-    
+  
     ```mysql
     INSERT INTO tb_name (field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...) ...;
     ```
     Insert multiple records into a given column of table tb_name.
 
 - **Insert multiple records into multiple tables**
-    
+  
     ```mysql
     INSERT INTO tb1_name VALUES (field1_value1, ...) (field1_value2, ...) ...
                 tb2_name VALUES (field1_value1, ...) (field1_value2, ...) ...;
@@ -405,7 +409,7 @@ SELECT select_expr [, select_expr ...]
 
 #### SELECT Clause
 
-A select clause can be a subquery of UNION and another query.
+A select clause can be a sub-query of UNION and another query.
 
 #### Wildcard character
 
@@ -421,7 +425,7 @@ taos> SELECT * FROM d1001;
 Query OK, 3 row(s) in set (0.001165s)
 ```
 
-For Stables, wildcards contain *tag columns*.
+For STables, wildcards contain *tag columns*.
 
 ```mysql
 taos> SELECT * FROM meters;
@@ -528,7 +532,7 @@ However, renaming for one single column is not supported for `first(*)`,`last(*)
 
 #### List of STable
 
-The `FROM` keyword can be followed by a list of several tables (STables) or result of a subquery. 
+The `FROM` keyword can be followed by a list of several tables (STables) or result of a sub-query. 
 
 If you do not specify user's current database, you can use the database name before the table name to specify the database to which the table belongs. For example: `power.d1001` to use tables across databases.
 
@@ -598,6 +602,8 @@ Query OK, 1 row(s) in set (0.000081s)
 >  `TBNAME`: It can be regarded as a special tag in a STable query, representing the name of sub-table involved in the query
 >
 > _c0: Represents the first column of a table (STable)
+> _qstart,_qstop,_qduration: Represents starting time/stopping time/duration of query time window filter in where condition (supported since 2.6.0.0）
+> _wstart,_wstop,_wduration: Used in time-dimension aggregation query(e.g. interval/session window/state window）to represent starting time/stopping time/duration of each generated time window (supported since 2.6.0.0)
 
 #### Tips
 
@@ -670,7 +676,7 @@ Query OK, 1 row(s) in set (0.001091s)
     SELECT * FROM tb1 WHERE ts >= NOW - 1h;
     ```
 
-- Look up table tb1 from 2018-06-01 08:00:00. 000 to 2018-06-02 08:00:00. 000, and col3 string is a record ending in'nny ', and the result is in descending order of timestamp:
+- Look up table tb1 from 2018-06-01 08:00:00. 000 to 2018-06-02 08:00:00. 000, and col3 string is a record ending in 'nny ', and the result is in descending order of timestamp:
 
     ```mysql
     SELECT * FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND ts <= '2018-06-02 08:00:00.000' AND col3 LIKE '%nny' ORDER BY ts DESC;
@@ -682,10 +688,10 @@ Query OK, 1 row(s) in set (0.001091s)
     SELECT (col1 + col2) AS 'complex' FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND col2 > 1.2 LIMIT 10 OFFSET 5;
     ```
 
-- Query the records of past 10 minutes, the value of col2 is greater than 3.14, and output the result to the file /home/testoutpu.csv.
+- Query the records of past 10 minutes, the value of col2 is greater than 3.14, and output the result to the file /home/testoutput.csv.
 
     ```mysql
-    SELECT COUNT(*) FROM tb1 WHERE ts >= NOW - 10m AND col2 > 3.14 >> /home/testoutpu.csv;
+    SELECT COUNT(*) FROM tb1 WHERE ts >= NOW - 10m AND col2 > 3.14 >> /home/testoutput.csv;
     ```
 
 <a class="anchor" id="functions"></a>
@@ -720,7 +726,7 @@ TDengine supports aggregations over data, they are listed below:
     ================================================
                         9 |                     9 |
     Query OK, 1 row(s) in set (0.004475s)
-  
+    
     taos> SELECT COUNT(*), COUNT(voltage) FROM d1001;
         count(*)        |    count(voltage)     |
     ================================================
@@ -758,7 +764,7 @@ TDengine supports aggregations over data, they are listed below:
   ```
 
 - **TWA**
-   
+  
   ```mysql
   SELECT TWA(field_name) FROM tb_name WHERE clause;
   ```
@@ -779,7 +785,7 @@ TDengine supports aggregations over data, they are listed below:
   
   Function: return the sum of a statistics/STable.
   
-  Return Data Type: long integer INMT64 and Double.
+  Return Data Type: INT64 and Double.
   
   Applicable Fields: All types except timestamp, binary, nchar, bool.
   
@@ -799,7 +805,7 @@ TDengine supports aggregations over data, they are listed below:
   ================================================================================
               35.200000763 |                   658 |               0.950000018 |
   Query OK, 1 row(s) in set (0.000980s)
-   ```
+  ```
 
 - **STDDEV**
   
@@ -848,6 +854,73 @@ TDengine supports aggregations over data, they are listed below:
     Query OK, 1 row(s) in set (0.000921s)
     ```
 
+- **MODE**
+    ```mysql
+    SELECT MODE(field_name) FROM tb_name [WHERE clause];
+    ```
+    Function: Returns the value with the highest frequency. If there are multiple highest values with the same frequency, the output is NULL.
+
+    Return Data Type: Same as applicable fields.
+
+    Applicable Fields: All types except timestamp.
+
+    Supported version: Version after 2.6.0 .
+    
+    Note: Since the amount of returned data is unknown, considering the memory factor, in order to return the result normally, it is recommended that the amount of non repeated data is 100000, otherwise an error will be reported.
+    
+    Example:
+    ```mysql
+    taos> select voltage from d002;
+        voltage        |
+    ========================
+           1           |
+           1           |
+           2           |
+           19          |
+    Query OK, 4 row(s) in set (0.003545s)
+  
+    taos> select mode(voltage) from d002;
+      mode(voltage)    |
+    ========================
+           1           |
+   Query OK, 1 row(s) in set (0.019393s)
+    ```  
+
+- **HYPERLOGLOG**
+    ```mysql
+    SELECT HYPERLOGLOG(field_name) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: 
+    - The hyperloglog algorithm is used to return the cardinality of a column. In the case of large amount of data, the algorithm can significantly reduce the occupation of memory, but the cardinality is an estimated value, and the standard error(the standard error is the standard deviation of the average of multiple experiments, not the error with the real result) is 0.81%.
+    - When the amount of data is small, the algorithm is not very accurate. You can use the method like this: select count(data) from (select unique(col) as data from table).
+
+    Return Data Type:Integer.
+
+    Applicable Fields: All types.
+
+    Supported version: Version after 2.6.0 .
+
+    Example:
+    ```mysql
+    taos> select dbig from shll;
+         dbig          |
+    ========================
+           1           |
+           1           |
+           1           |
+           NULL        |
+           2           |
+           19          |
+           NULL        |
+           9           |
+    Query OK, 8 row(s) in set (0.003755s)
+  
+    taos> select hyperloglog(dbig) from shll;
+      hyperloglog(dbig)|
+    ========================
+           4           |
+    Query OK, 1 row(s) in set (0.008388s)
+  
 ### Selector Functions
 
 - **MIN**
@@ -896,7 +969,7 @@ TDengine supports aggregations over data, they are listed below:
    ======================================
                13.40000 |          223 |
    Query OK, 1 row(s) in set (0.001123s)
-  
+    
    taos> SELECT MAX(current), MAX(voltage) FROM d1001;
        max(current)     | max(voltage) |
    ======================================
@@ -937,8 +1010,6 @@ TDengine supports aggregations over data, they are listed below:
    Query OK, 1 row(s) in set (0.001023s)
    ```
 
-- 
-
 - **LAST**
 
    ```mysql
@@ -972,7 +1043,7 @@ TDengine supports aggregations over data, they are listed below:
    ```
 
 - **TOP**
-   
+  
     ```mysql
     SELECT TOP(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
     ```
@@ -1029,7 +1100,7 @@ TDengine supports aggregations over data, they are listed below:
     2018-10-03 14:38:15.000 |                218 |
     2018-10-03 14:38:16.650 |                218 |
     Query OK, 2 row(s) in set (0.001332s)
-  
+    
     taos> SELECT BOTTOM(current, 2) FROM d1001;
             ts            |  bottom(current, 2)  |
     =================================================
@@ -1092,13 +1163,92 @@ TDengine supports aggregations over data, they are listed below:
     =======================
                 12.30000 |
     Query OK, 1 row(s) in set (0.001238s)
-  
+    
     taos> SELECT LAST_ROW(current) FROM d1002;
     last_row(current)   |
     =======================
                 10.30000 |
       Query OK, 1 row(s) in set (0.001042s)
     ```
+
+- **TAIL**
+    ```mysql
+    SELECT TAIL(field_name, k, offset_val) FROM {tb_name | stb_name} [WHERE clause];
+    ```
+    Function: Skip the last num of offset_value, return the k consecutive records without ignoring NULL value. offset_val can be empty, then the last K records are returned.The function is equivalent to:order by ts desc LIMIT k OFFSET offset_val.
+
+    Range：k: [1,100]  offset_val: [0,100]。
+
+    Return Data Type: Same as applicable fields.
+
+    Applicable Fields: All types except timestamp.
+
+    Applied to: **table stable**.
+
+    Supported version: Version after 2.6.0 .
+
+    Example:
+    ```mysql
+    taos> select ts,dbig from tail2;
+           ts            |         dbig          |
+    ==================================================
+    2021-10-15 00:31:33.000 |                     1 |
+    2021-10-17 00:31:31.000 |                  NULL |
+    2021-12-24 00:31:34.000 |                     2 |
+    2022-01-01 08:00:05.000 |                    19 |
+    2022-01-01 08:00:06.000 |                  NULL |
+    2022-01-01 08:00:07.000 |                     9 |
+    Query OK, 6 row(s) in set (0.001952s)
+  
+    taos> select tail(dbig,2,2) from tail2;
+    ts                      |    tail(dbig,2,2)     |
+    ==================================================
+    2021-12-24 00:31:34.000 |                     2 |
+    2022-01-01 08:00:05.000 |                    19 |
+    Query OK, 2 row(s) in set (0.002307s)
+
+- **UNIQUE**
+    ```mysql
+    SELECT UNIQUE(field_name) FROM {tb_name | stb_name} [WHERE clause];
+    ```
+    Function: Returns the first occurrence of a value in this column.
+
+    Return Data Type: Same as applicable fields.
+
+    Applicable Fields: All types except timestamp.
+
+    Applied to: **table stable**.
+
+    Supported version: Version after 2.6.0 .
+
+    Note: 
+    - This function can be applied to ordinary tables and super tables. Cannot be used with window operations，such as interval/state_window/session_window.
+    - Since the amount of returned data is unknown, considering the memory factor, in order to return the result normally, it is recommended that the amount of non repeated data is 100000, otherwise an error will be reported.
+    
+    Example:
+    ```mysql
+    taos> select ts,voltage from unique1;
+           ts            |        voltage        |
+    ==================================================
+    2021-10-17 00:31:31.000 |                     1 |
+    2022-01-24 00:31:31.000 |                     1 |
+    2021-10-17 00:31:31.000 |                     1 |
+    2021-12-24 00:31:31.000 |                     2 |
+    2022-01-01 08:00:01.000 |                    19 |
+    2021-10-17 00:31:31.000 |                  NULL |
+    2022-01-01 08:00:02.000 |                  NULL |
+    2022-01-01 08:00:03.000 |                     9 |
+    Query OK, 8 row(s) in set (0.003018s)
+  
+    taos> select unique(voltage) from unique1;
+    ts                      |    unique(voltage)    |
+    ==================================================
+    2021-10-17 00:31:31.000 |                     1 |
+    2021-10-17 00:31:31.000 |                  NULL |
+    2021-12-24 00:31:31.000 |                     2 |
+    2022-01-01 08:00:01.000 |                    19 |
+    2022-01-01 08:00:03.000 |                     9 |
+    Query OK, 5 row(s) in set (0.108458s)
 
 ### Computing Functions
 
@@ -1146,13 +1296,419 @@ TDengine supports aggregations over data, they are listed below:
     ============================
                 5.000000000 |
     Query OK, 1 row(s) in set (0.001792s)
-  
+    
     taos> SELECT SPREAD(voltage) FROM d1001;
         spread(voltage)      |
     ============================
                 3.000000000 |
     Query OK, 1 row(s) in set (0.000836s)
     ```
+
+- **ASIN**
+    ```mysql
+    SELECT ASIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the arc-sine of the input value.
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+      
+      Supported after version 2.6.0.x
+
+
+- **ACOS**
+    ```mysql
+    SELECT ACOS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the arc-cosine of the input value.
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+
+- **ATAN**
+    ```mysql
+    SELECT ATAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the arc-tangent of the input value.
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+
+- **SIN**
+    ```mysql
+    SELECT SIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the sine of the input value.
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+
+- **COS**
+    ```mysql
+    SELECT COS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the cosine of the input value.
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+- **TAN**
+    ```mysql
+    SELECT TAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the tangent of the input value.
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+
+
+- **POW**
+    ```mysql
+    SELECT POW(field_name, power) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+
+    Function: Returns the input value raised to the specified power of the second argument
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+- **LOG**
+    ```mysql
+    SELECT LOG(field_name, base) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the logarithm of the input value with base
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+- **ABS**
+    ```mysql
+    SELECT ABS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the absolute value of the input value
+
+    Output Data Type: If the input data is an integer numeric value, the output data type is ubigint. If the input data is a float or double value, the output data type is double
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+
+- **SQRT**
+    ```mysql
+    SELECT SQRT(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the square root value of the input value
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+- **CAST**
+    ```mysql
+    SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Converts a value into as a specific data type of type_name.
+
+    Output Data Type: type_name specified. Supported types include BIGINT, BINARY(N), TIMESTAMP and NCHAR(N) and BIGINT UNSIGNED
+
+    Input: Normal column, constant, scalar function and the arithmetic computation(+,-,*,/,%) among them. Input data type includes BOOL, TINYINT, SMALLINT, INT, BIGINT, FLOAT, DOUBLE, BINARY(M), TIMESTAMP, NCHAR(M), TINYINT UNSIGNED, SMALLINT UNSIGNED, INT UNSIGNED, and BIGINT UNSIGNED
+
+    Notes:
+
+      Reports error for unsupported cast
+
+      It is a scalar function and its output is NULL for input NULL
+
+      Supported after version 2.6.0.x
+
+
+- **CONCAT**
+    ```mysql
+    SELECT CONCAT(str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the string from concatenating the arguments
+
+    Output Data Type: With binary inputs, the output data type is binary. With nchar inputs, the output data type is nchar.
+
+    Input: all inputs shall be of data type binary or nchar. Can not apply to tag columns.
+
+    Notes:
+    
+      If one of the string inputs is NULL, the resulting output is NULL.
+      The function takes 2 to 8 string values as input. all inputs must be of the same data type.
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+      
+- **CONCAT_WS**
+    ```
+    SELECT CONCAT_WS(separator, str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the string from concatenating the arguments with separator.
+
+    Output Data Type: With binary inputs, the output data type is binary. With nchar inputs, the output data type is nchar.
+
+    Input: all inputs shall be of data type binary or nchar. Can not apply to tag columns.
+
+    Notes:
+    
+      Returns NULL when the separator is NULL. If the separator is not NULL and all the other string values are NULL, the result is an empty string. 
+      The function takes 3 to 9 string values as input. all inputs must be of the same data type.
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+      
+
+- **LENGTH**
+    ```
+    SELECT LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the length of the string measure in bytes
+
+    Output Data Type: INT。
+
+    Input: BINARY or NCHAR values. Can not apply to tag columns
+
+    Notes:
+    
+      Returns NULL when input is NULL. 
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+
+- **CHAR_LENGTH**
+    ```
+    SELECT CHAR_LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the length of the string measure in characters
+
+    Output Data Type: INT。
+
+    Input: BINARY or NCHAR values. Can not apply to tag columns
+
+    Notes:
+    
+      Returns NULL when input is NULL. 
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+
+- **LOWER**
+    ```
+    SELECT LOWER(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the lower case of input value
+
+    Output Data Type: BINARY or NCHAR. Same data type as Input.
+
+    Input: BINARY or NCHAR values. Can not apply to tag columns
+
+    Notes:
+    
+      Returns NULL when input is NULL. 
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+
+- **UPPER**
+    ```
+    SELECT UPPER(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the upper case of input value
+
+    Output Data Type: BINARY or NCHAR. Same data type as Input.
+
+    Input: BINARY or NCHAR values. Can not apply to tag columns
+
+    Notes:
+    
+      Returns NULL when input is NULL. 
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+
+- **LTRIM**
+    ```
+    SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: removes leading spaces from a string
+
+    Output Data Type: BINARY or NCHAR. Same data type as Input.
+
+    Input: BINARY or NCHAR values. Can not apply to tag columns
+
+    Notes:
+    
+      Returns NULL when input is NULL. 
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+
+- **RTRIM**
+    ```
+    SELECT RTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: removes trailing spaces from a string
+
+    Output Data Type: BINARY or NCHAR. Same data type as Input.
+
+    Input: BINARY or NCHAR values. Can not apply to tag columns
+
+    Notes:
+    
+      Returns NULL when input is NULL. 
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+
+- **SUBSTR**
+    ```
+    SELECT SUBSTR(str,pos[,len]) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: extracts substring from a string str, starting from pos and extracting len characters.
+
+    Output Data Type: BINARY or NCHAR. Same data type as Input.
+
+    Input: BINARY or NCHAR values. Can not apply to tag columns
+
+    Notes:
+    
+      Returns NULL when input is NULL. 
+      Input pos can be negative or positive. If it is a positive number, this function extracts from the beginning of the string. If it is a negative number, this function extracts from the end of the string
+      If input len is omitted, the output is whole substring starting from pos.
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x    
+
 
 - **Four Operations**
 
@@ -1170,9 +1726,414 @@ TDengine supports aggregations over data, they are listed below:
     1. Calculation between two or more columns is supported, and the calculation priorities can be controlled by parentheses();
     2. The NULL field does not participate in the calculation. If a row involved in calculation contains NULL, the calculation result of the row is NULL.
 
+- **STATECOUNT**
+    ```mysql
+    SELECT STATECOUNT(field_name, oper, val) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Returns the number of consecutive records that meet a certain condition, and the result is appended to each row as a new column. The condition is calculated according to the parameters. If the condition is true, it will be increased by 1. If the condition is false, it will be reset to -1. If the data is NULL, the data will be skipped.
+
+    Range:
+    - oper : LT(<),GT(>),LE(<=),GE(>=),NE(!=),EQ(=),case insensitive.
+    - val  : Number.
+
+    Returned Data Type: Integer。
+
+    Applicable Fields: All types except timestamp, binary, nchar, bool.
+
+    Supported version: Version after 2.6.0 .
+
+    Note:
+    - This function can be applied to ordinary tables. When a separate timeline is divided by group by, it is used for super tables (i.e. group by TBNAME).
+    - Cannot be used with window operations，such as interval/state_window/session_window.
+
+    Example:
+    ```mysql
+    taos> select ts,dbig from statef2;
+              ts               |         dbig          |
+    ========================================================
+    2021-10-15 00:31:33.000000000 |                     1 |
+    2021-10-17 00:31:31.000000000 |                  NULL |
+    2021-12-24 00:31:34.000000000 |                     2 |
+    2022-01-01 08:00:05.000000000 |                    19 |
+    2022-01-01 08:00:06.000000000 |                  NULL |
+    2022-01-01 08:00:07.000000000 |                     9 |
+    Query OK, 6 row(s) in set (0.002977s)
+  
+    taos> select stateCount(dbig,GT,2) from statef2;
+    ts               |         dbig          | statecount(dbig,gt,2) |
+    ================================================================================
+    2021-10-15 00:31:33.000000000 |                     1 |                    -1 |
+    2021-10-17 00:31:31.000000000 |                  NULL |                  NULL |
+    2021-12-24 00:31:34.000000000 |                     2 |                    -1 |
+    2022-01-01 08:00:05.000000000 |                    19 |                     1 |
+    2022-01-01 08:00:06.000000000 |                  NULL |                  NULL |
+    2022-01-01 08:00:07.000000000 |                     9 |                     2 |
+    Query OK, 6 row(s) in set (0.002791s)
+   ```
+
+- **STATEDURATION**
+    ```mysql
+    SELECT stateDuration(field_name, oper, val, unit) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Returns the length of time of continuous records that meet a certain condition, and the result is appended to each row as a new column. The condition is calculated according to the parameters. If the condition is true, the length of time between two records will be added (the length of time of the first record that meets the condition is recorded as 0). If the condition is false, it will be reset to -1. If the data is NULL, the data will be skipped.
+
+    Range：
+    - oper : LT(<),GT(>),LE(<=),GE(>=),NE(!=),EQ(=),case insensitive.
+    - val  : Number.
+    - unit : Unit of time length, range [1s, 1M, 1H], less than one unit is rounded off. The default is 1s.
+
+    Returned Data Type: Integer。
+
+    Applicable Fields: All types except timestamp, binary, nchar, bool.
+
+    Supported version: Version after 2.6.0 .
+    
+    Note:
+    - This function can be applied to ordinary tables. When a separate timeline is divided by group by, it is used for super tables (i.e. group by TBNAME).
+    - Cannot be used with window operations，such as interval/state_window/session_window.
+
+    Example:
+    ```mysql
+    taos> select ts,dbig from statef2;
+              ts               |         dbig          |
+    ========================================================
+    2021-10-15 00:31:33.000000000 |                     1 |
+    2021-10-17 00:31:31.000000000 |                  NULL |
+    2021-12-24 00:31:34.000000000 |                     2 |
+    2022-01-01 08:00:05.000000000 |                    19 |
+    2022-01-01 08:00:06.000000000 |                  NULL |
+    2022-01-01 08:00:07.000000000 |                     9 |
+    Query OK, 6 row(s) in set (0.002407s)
+  
+    taos> select stateDuration(dbig,GT,2) from statef2;
+    ts               |         dbig          | stateduration(dbig,gt,2) |
+    ===================================================================================
+    2021-10-15 00:31:33.000000000 |                     1 |                       -1 |
+    2021-10-17 00:31:31.000000000 |                  NULL |                     NULL |
+    2021-12-24 00:31:34.000000000 |                     2 |                       -1 |
+    2022-01-01 08:00:05.000000000 |                    19 |                        0 |
+    2022-01-01 08:00:06.000000000 |                  NULL |                     NULL |
+    2022-01-01 08:00:07.000000000 |                     9 |                        2 |
+    Query OK, 6 row(s) in set (0.002613s)
+     ```
+- **HISTOGRAM**
+    ```mysql
+    SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_name [WHERE clause];
+    ```
+    Function: Returns count of data points in user-specified ranges.
+
+    Return Data Type: Double or INT64, depends on normalized parameter settings.
+
+    Applicable Fields: Numerical types.
+
+    Applied to: **table stable**.
+
+    Note:
+    1. This function is supported since 2.6.0.0.
+    2. bin_type: parameter to indicate the bucket type, valid inputs are: "user_input", "linear_bin", "log_bin"。
+    3）bin_description: parameter to describe how to generate buckets，can be in the following JSON formats for each bin_type respectively:
+       - "user_input": "[1, 3, 5, 7]"
+       User defined specified bin values.
+
+       - "linear_bin": "{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
+       "start" - bin starting point.
+       "width" - bin offset.
+       "count" - number of bins generated.
+       "infinity" - whether to add（-inf, inf）as start/end point in generated set of bins.
+       The above "linear_bin" descriptor generates a set of bins: [-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf].
+
+       - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
+       "start" - bin starting point.
+       "factor" - exponential factor of bin offset.
+       "count" - number of bins generated.
+       "infinity" - whether to add（-inf, inf）as start/end point in generated range of bins.
+       The above "log_bin" descriptor generates a set of bins:[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf].
+    4）normalized: setting to 1/0 to turn on/off result normalization.
+
+    Example:
+    ```mysql
+     taos> SELECT HISTOGRAM(voltage, "user_input", "[1,3,5,7]", 1) FROM meters;
+         histogram(voltage, "user_input", "[1,3,5,7]", 1) |
+     =======================================================
+     {"lower_bin":1, "upper_bin":3, "count":0.333333}     |
+     {"lower_bin":3, "upper_bin":5, "count":0.333333}     |
+     {"lower_bin":5, "upper_bin":7, "count":0.333333}     |
+     Query OK, 3 row(s) in set (0.004273s)
+     
+     taos> SELECT HISTOGRAM(voltage, 'linear_bin', '{"start": 1, "width": 3, "count": 3, "infinity": false}', 0) FROM meters;
+         histogram(voltage, 'linear_bin', '{"start": 1, "width": 3, " |
+     ===================================================================
+     {"lower_bin":1, "upper_bin":4, "count":3}                        |
+     {"lower_bin":4, "upper_bin":7, "count":3}                        |
+     {"lower_bin":7, "upper_bin":10, "count":3}                       |
+     Query OK, 3 row(s) in set (0.004887s)
+    
+     taos> SELECT HISTOGRAM(voltage, 'log_bin', '{"start": 1, "factor": 3, "count": 3, "infinity": true}', 0) FROM meters;
+     histogram(voltage, 'log_bin', '{"start": 1, "factor": 3, "count" |
+     ===================================================================
+     {"lower_bin":-inf, "upper_bin":1, "count":3}                     |
+     {"lower_bin":1, "upper_bin":3, "count":2}                        |
+     {"lower_bin":3, "upper_bin":9, "count":6}                        |
+     {"lower_bin":9, "upper_bin":27, "count":3}                       |
+     {"lower_bin":27, "upper_bin":inf, "count":1}                     |
+    ```
+### Time Functions
+
+Starting from version 2.6.0.0, TDengine supports following time related functions:
+
+- **NOW**
+    ```mysql
+    SELECT NOW() FROM { tb_name | stb_name } [WHERE clause];
+    SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operator NOW();
+    INSERT INTO tb_name VALUES (NOW(), ...);
+    ```
+    Function: Returns current time of client.
+
+    Returned Data Type: TIMESTAMP type.
+
+    Applicable Fields: Can only be applied to TIMESTAMP field when used in WHERE or INSERT clause.
+
+    Applied to: **table stable**.
+
+    Note:
+      1）Support arithmetic operations，e.g. NOW() + 1s. Valid time unit:
+         b(nanosecond)、u(microsecond)、a(millisecond)、s(second)、m(minute)、h(hour)、d(day)、w(week).
+      2）Returned timestamp precision is consist with current DATABASE precision settings.
+
+    Example:
+    ```mysql
+    taos> SELECT NOW() FROM meters;
+              now()          |
+    ==========================
+      2022-02-02 02:02:02.456 |
+    Query OK, 1 row(s) in set (0.002093s)
+      
+    taos> SELECT NOW() + 1h FROM meters;
+           now() + 1h         |
+    ==========================
+      2022-02-02 03:02:02.456 |
+    Query OK, 1 row(s) in set (0.002093s)
+    
+    taos> SELECT COUNT(voltage) FROM d1001 WHERE ts < NOW();
+            count(voltage)       |
+    =============================
+                               5 |
+    Query OK, 5 row(s) in set (0.004475s)
+    
+    taos> INSERT INTO d1001 VALUES (NOW(), 10.2, 219, 0.32);
+    Query OK, 1 of 1 row(s) in database (0.002210s)
+    ```
+
+- **TODAY**
+    ```mysql
+    SELECT TODAY() FROM { tb_name | stb_name } [WHERE clause];
+    SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operator TODAY()];
+    INSERT INTO tb_name VALUES (TODAY(), ...);
+    ```
+    Function: Returns current date of client.
+
+    Returned Data Type: TIMESTAMP type。
+
+    Applicable Fields: Can only be applied to TIMESTAMP field when used in WHERE or INSERT clause.
+
+    Applied to: **table stable**.
+
+    Note:
+      1）Support arithmetic operations, e.g. TODAY() + 1s. Valid time unit:
+         b(nanosecond)、u(microsecond)、a(millisecond)、s(second)、m(minute)、h(hour)、d(day)、w(week).
+      2）Returned timestamp precision is consist with current DATABASE precision settings.
+
+    Example:
+    ```mysql
+    taos> SELECT TODAY() FROM meters;
+             today()          |
+    ==========================
+      2022-02-02 00:00:00.000 |
+    Query OK, 1 row(s) in set (0.002093s)
+      
+    taos> SELECT TODAY() + 1h FROM meters;
+          today() + 1h        |
+    ==========================
+      2022-02-02 01:00:00.000 |
+    Query OK, 1 row(s) in set (0.002093s)
+    
+    taos> SELECT COUNT(voltage) FROM d1001 WHERE ts < TODAY();
+            count(voltage)       |
+    =============================
+                               5 |
+    Query OK, 5 row(s) in set (0.004475s)
+    
+    taos> INSERT INTO d1001 VALUES (TODAY(), 10.2, 219, 0.32);
+    Query OK, 1 of 1 row(s) in database (0.002210s)
+    ```
+
+- **TIMEZONE**
+    ```mysql
+    SELECT TIMEZONE() FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Returns current time zone information of client.
+
+    Returned Data Type: BINARY type.
+
+    Applicable Fields: N/A.
+
+    Applied to: **table stable**.
+
+    Example:
+    ```mysql
+    taos> SELECT TIMEZONE() FROM meters;
+               timezone()           |
+    =================================
+     UTC (UTC, +0000)               |
+    Query OK, 1 row(s) in set (0.002093s)
+    ```
+
+- **TO_ISO8601**
+    ```mysql
+    SELECT TO_ISO8601(ts_val | ts_col) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Convert UNIX timestamp to ISO8601 standard date-time format string, with client time zone information attached.
+
+    Returned Data Type: BINARY type.
+
+    Applicable Fields: UNIX timestamp constant and TIMESTAMP type columns.
+
+    Applied to: **table stable**.
+    
+    Note: If input is UNIX timestamp constant，returned ISO8601 format precision is determined by input timestamp digits. If input is TIMESTAMP type column, returned ISO8601 format precision is consist with current DATABASE precision settings.
+
+    Example:
+    ```mysql
+    taos> SELECT TO_ISO8601(1643738400) FROM meters;
+       to_iso8601(1643738400)    |
+    ==============================
+     2022-02-02T02:00:00+0800    |
+     
+    taos> SELECT TO_ISO8601(ts) FROM meters;
+           to_iso8601(ts)        |
+    ==============================
+     2022-02-02T02:00:00+0800    |
+     2022-02-02T02:00:00+0800    |
+     2022-02-02T02:00:00+0800    |
+    ```
+
+ - **TO_UNIXTIMESTAMP**
+    ```mysql
+    SELECT TO_UNIXTIMESTAMP(datetime_string | ts_col) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Convert date-time format string to UNIX timestamp.
+
+    Returned Data Type: INT64.
+
+    Applicable Fields: String literal or BINARY/NCHAR type columns.
+
+    Applied to: **table stable**.
+    
+    Note:
+    1）Input date-time string format should conform ISO8601/RFC3339 standard，otherwise conversion will fail and 0 is returned.
+    2）Returned timestamp precision is consist with current DATABASE precision settings.
+
+    Example:
+    ```mysql
+    taos> SELECT TO_UNIXTIMESTAMP("2022-02-02T02:00:00.000Z") FROM meters;
+    to_unixtimestamp("2022-02-02T02:00:00.000Z") |
+    ==============================================
+                                   1643767200000 |
+     
+    taos> SELECT TO_UNIXTIMESTAMP(col_binary) FROM meters;
+          to_unixtimestamp(col_binary)     |
+    ========================================
+                             1643767200000 |
+                             1643767200000 |
+                             1643767200000 |
+    ```
+
+ - **TIMETRUNCATE**
+    ```mysql
+    SELECT TIMETRUNCATE(ts_val | datetime_string | ts_col, time_unit) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Truncate timestamp by time_unit.
+
+    Returned Data Type: TIMESTAMP type.
+
+    Applicable Fields: UNIX timestamp, date-time format string, and TIMESTAMP type columns.
+
+    Applied to: **table stable**.
+    
+    Note:
+    1）Supported time_unit:
+         1u(microsecond)，1a(millisecond)，1s(second)，1m(minute)，1h(hour)，1d(day)。
+    2）Returned timestamp precision is consist with current DATABASE precision settings.
+
+    Example:
+    ```mysql
+    taos> SELECT TIMETRUNCATE(1643738522000, 1h) FROM meters;
+      timetruncate(1643738522000, 1h) |
+    ===================================
+          2022-02-02 02:00:00.000     |
+    Query OK, 1 row(s) in set (0.001499s)
+    
+    taos> SELECT TIMETRUNCATE("2022-02-02 02:02:02", 1h) FROM meters;
+      timetruncate("2022-02-02 02:02:02", 1h) |
+    ===========================================
+          2022-02-02 02:00:00.000             |
+    Query OK, 1 row(s) in set (0.003903s)
+    
+    taos> SELECT TIMETRUNCATE(ts, 1h) FROM meters;
+      timetruncate(ts, 1h)   |
+    ==========================
+     2022-02-02 02:00:00.000 |
+     2022-02-02 02:00:00.000 |
+     2022-02-02 02:00:00.000 |
+    Query OK, 3 row(s) in set (0.003903s)
+    ```
+
+ - **TIMEDIFF**
+    ```mysql
+    SELECT TIMEDIFF(ts_val1 | datetime_string1 | ts_col1, ts_val2 | datetime_string2 | ts_col2 [, time_unit]) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Calculate duration between two timestamps with time_unit precision。
+
+    Returned Data Type: INT64.
+
+    Applicable Fields: UNIX timestamp, date-time format string, and TIMESTAMP type columns.
+
+    Applied to: **table stable**.
+    
+    Note:
+    1）Supported time_unit:
+         1u(microsecond)，1a(millisecond)，1s(second)，1m(minute)，1h(hour)，1d(day)。
+    2）If time_unit is unspecified, returned time duration unit is consist with current DATABASE precision settings.
+
+    Example:
+    ```mysql
+    taos> SELECT TIMEDIFF(1643738400000, 1643742000000) FROM meters;
+     timediff(1643738400000, 1643742000000) |
+    =========================================
+                                    3600000 |
+    Query OK, 1 row(s) in set (0.002553s)
+    taos> SELECT TIMEDIFF(1643738400000, 1643742000000, 1h) FROM meters;
+     timediff(1643738400000, 1643742000000, 1h) |
+    =============================================
+                                              1 |
+    Query OK, 1 row(s) in set (0.003726s)
+    
+    taos> SELECT TIMEDIFF("2022-02-02 03:00:00", "2022-02-02 02:00:00", 1h) FROM meters;
+     timediff("2022-02-02 03:00:00", "2022-02-02 02:00:00", 1h) |
+    =============================================================
+                                                              1 |
+    Query OK, 1 row(s) in set (0.001937s)
+    
+    taos> SELECT TIMEDIFF(ts_col1, ts_col2, 1h) FROM meters;
+       timediff(ts_col1, ts_col2, 1h) |
+    ===================================
+                                    1 |
+    Query OK, 1 row(s) in set (0.001937s)
+    ```
+
 ## <a class="anchor" id="aggregation"></a> Time-dimension Aggregation
 
-TDengine supports aggregating by intervals. Data in a table can partitioned by intervals and aggregated to generate results. For example, a temperature sensor collects data once per second, but the average temperature needs to be queried every 10 minutes. This aggregation is suitable for down sample operation, and the syntax is as follows:
+TDengine supports aggregating by intervals (time range). Data in a table can partitioned by intervals and aggregated to generate results. For example, a temperature sensor collects data once per second, but the average temperature needs to be queried every 10 minutes. This aggregation is suitable for down sample operation, and the syntax is as follows:
 
 ```mysql
 SELECT function_list FROM tb_name
@@ -1195,7 +2156,7 @@ SELECT function_list FROM stb_name
 
 - FILL statement specifies a filling mode when data missed in a certain interval. Applicable filling modes include the following:
   
-  1. Do not fill: NONE (default filingl mode).
+  1. Do not fill: NONE (default filing mode).
   2. VALUE filling: Fixed value filling, where the filled value needs to be specified. For example: fill (VALUE, 1.23).
   3. NULL filling: Fill the data with NULL. For example: fill (NULL).
   4. PREV filling: Filling data with the previous non-NULL value. For example: fill (PREV).
@@ -1225,9 +2186,9 @@ SELECT AVG(current), MAX(current), LEASTSQUARES(current, start_val, step_val), P
 ## <a class="anchor" id="limitation"></a> TAOS SQL Boundary Restrictions
 
 - Max database name length is 32
-- Max length of table name is 192, and max length of each data row is 16k characters
+- Max length of table name is 192, and max length of each data row is 48K (it's 16K prior to 2.1.7.0) characters
 - Max length of column name is 64, max number of columns allowed is 1024, and min number of columns allowed is 2. The first column must be a timestamp
-- Max number of tags allowed is 128, down to 1, and total length of tags does not exceed 16k characters
+- Max number of tags allowed is 128, down to 1, and total length of tags does not exceed 16K characters
 - Max length of SQL statement is 65480 characters, but it can be modified by system configuration parameter maxSQLLength, and max length can be configured to 1M
 - Number of databases, STables and tables are not limited by system, but only limited by system resources
 
@@ -1235,12 +2196,122 @@ SELECT AVG(current), MAX(current), LEASTSQUARES(current, start_val, step_val), P
 
 **Restrictions on group by**
 
-TAOS SQL supports group by operation on tags, tbnames and ordinary columns, required that only one column and whichhas less than 100,000 unique values.
+TAOS SQL supports group by operation on tags, tbnames and ordinary columns, required that only one column and which has less than 100,000 unique values.
 
 **Restrictions on join operation**
 
-TAOS SQL supports join columns of two tables by Primary Key timestamp between them, and does not support four operations after tables aggregated for the time being.
+TAOS SQL supports join columns of two tables by Primary Key timestamp between them, and does not support four arithmetic operations after tables aggregated for the time being.
 
 **Availability of is no null**
 
 Is not null supports all types of columns. Non-null expression is < > "" and only applies to columns of non-numeric types.
+
+**Restrictions on order by**
+
+- A non super table can only have one order by.
+- The super table can have at most two order by expression, and the second must be ts.
+- Order by tag must be the same tag as group by tag. TBNAME is as logical as tag.
+- Order by ordinary column must be the same ordinary column as group by or top/bottom. If both group by and top / bottom exist, order by must be in the same column as group by.
+- There are both order by and group by. The internal of the group is sorted by ts
+- Order by ts.
+
+## JSON type instructions
+- Syntax description
+
+  1. Create JSON type tag
+
+     ```mysql
+     create stable s1 (ts timestamp, v1 int) tags (info json)
+
+     create table s1_1 using s1 tags ('{"k1": "v1"}')
+     ```
+  3. JSON value operator(->)
+
+     ```mysql   
+     select * from s1 where info->'k1' = 'v1'
+
+     select info->'k1' from s1 
+     ```
+  4. JSON key existence operator(contains)
+
+     ```mysql
+     select * from s1 where info contains 'k2'
+    
+     select * from s1 where info contains 'k1'
+     ```
+
+- Supported operations
+
+  1. In where condition，support match/nmatch/between and/like/and/or/is null/is no null，in operator is not support.
+
+     ```mysql 
+     select * from s1 where info→'k1' match 'v*'; 
+
+     select * from s1 where info→'k1' like 'v%' and info contains 'k2';
+
+     select * from s1 where info is null; 
+  
+     select * from s1 where info->'k1' is not null
+     ```
+
+  2. JSON tag is supported in group by、order by、join clause、union all and subquery，like group by json->'key'
+
+  3. Support distinct operator.
+
+     ```mysql 
+     select distinct info→'k1' from s1
+     ```
+
+  5. Tag
+
+     Support change JSON tag（full coverage）
+
+     Support change the name of JSON tag
+
+     Not support add JSON tag, delete JSON tag
+
+- Other constraints
+
+  1. Only tag columns can use JSON type. If JSON tag is used, there can only be one tag column.
+
+  2. Length limit:The length of the key in JSON cannot exceed 256, and the key must be printable ASCII characters; The total length of JSON string does not exceed 4096 bytes.
+
+  3. JSON format restrictions:
+
+    1. JSON input string can be empty (""," ","\t" or null) or object, and cannot be nonempty string, boolean or array.
+    2. Object can be {}, if the object is {}, the whole JSON string is marked as empty. The key can be "", if the key is "", the K-V pair will be ignored in the JSON string.
+    3. Value can be a number (int/double) or string, bool or null, not an array. Nesting is not allowed.
+    4. If two identical keys appear in the JSON string, the first one will take effect.
+    5. Escape is not supported in JSON string.
+
+  4. Null is returned when querying the key that does not exist in JSON.
+
+  5. When JSON tag is used as the sub query result, parsing and querying the JSON string in the sub query is no longer supported in the upper level query.
+
+     The following query is not supported:
+     ```mysql 
+     select jtag→'key' from (select jtag from stable)
+      
+     select jtag->'key' from (select jtag from stable) where jtag->'key'>0
+     ```
+## Escape character description
+- Special Character Escape Sequences (since version 2.4.0.4)
+
+  | Escape Sequence    | **Character Represented by Sequence**  |
+      | :--------:     |   -------------------   |
+  | `\'`             |  A single quote (') character    | 
+  | `\"`             |  A double quote (") character      |
+  | \n             |  A newline (linefeed) character       |
+  | \r             |  A carriage return character       |
+  | \t             |  A tab character       |
+  | `\\`             |  A backslash (\) character        |
+  | `\%`            |  A % character; see note following the table    |
+  | `\_`             |  A _ character; see note following the table    |
+
+- Escape character usage rules
+  - The escape characters that in a identifier (database name, table name, column name)
+    1. Normal identifier：    The wrong identifier is prompted directly, because the identifier must be numbers, letters and underscores, and cannot start with a number.
+    2. Backquote`` identifier： Keep it as it is.
+  - The escape characters that in a data
+    3. The escape character defined above will be escaped (% and _ see the description below). If there is no matching escape character, the escape character will be ignored.
+    4. The `\%` and `\_` sequences are used to search for literal instances of % and _ in pattern-matching contexts where they would otherwise be interpreted as wildcard characters.If you use `\%` or `\_` outside of pattern-matching contexts, they evaluate to the strings `\%` and `\_`, not to % and _.

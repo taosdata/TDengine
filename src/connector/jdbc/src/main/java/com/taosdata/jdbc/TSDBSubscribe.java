@@ -14,6 +14,8 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
+import com.taosdata.jdbc.enums.TimestampPrecision;
+
 import java.sql.SQLException;
 
 public class TSDBSubscribe {
@@ -41,7 +43,7 @@ public class TSDBSubscribe {
         } else if (resultSetPointer == TSDBConstants.JNI_NULL_POINTER) {
             return null;
         } else {
-            return new TSDBResultSet(null, this.connecter, resultSetPointer);
+            return new TSDBResultSet(null, this.connecter, resultSetPointer, TimestampPrecision.UNKNOWN);
         }
     }
 

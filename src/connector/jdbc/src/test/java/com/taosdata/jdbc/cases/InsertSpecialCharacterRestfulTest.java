@@ -391,8 +391,12 @@ public class InsertSpecialCharacterRestfulTest {
 
     @AfterClass
     public static void afterClass() throws SQLException {
-        if (conn != null)
+        if (conn != null) {
+            Statement statement = conn.createStatement();
+            statement.execute("drop database if exists "+ dbName);
+            statement.close();
             conn.close();
+        }
     }
 
 }

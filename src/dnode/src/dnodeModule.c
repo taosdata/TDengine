@@ -49,6 +49,7 @@ static void dnodeAllocModules() {
   tsModule[TSDB_MOD_MNODE].startFp      = mnodeStartSystem;
   tsModule[TSDB_MOD_MNODE].stopFp       = mnodeStopSystem;
 
+#ifdef HTTP_EMBEDDED
   tsModule[TSDB_MOD_HTTP].enable       = (tsEnableHttpModule == 1);
   tsModule[TSDB_MOD_HTTP].name         = "http";
   tsModule[TSDB_MOD_HTTP].initFp       = httpInitSystem;
@@ -58,6 +59,7 @@ static void dnodeAllocModules() {
   if (tsEnableHttpModule) {
     dnodeSetModuleStatus(TSDB_MOD_HTTP);
   }
+#endif
 
 #ifdef _MQTT
   tsModule[TSDB_MOD_MQTT].enable = (tsEnableMqttModule == 1);

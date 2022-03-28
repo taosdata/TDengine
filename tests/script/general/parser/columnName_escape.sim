@@ -1,0 +1,470 @@
+system sh/stop_dnodes.sh
+
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+
+sleep 100
+sql connect
+print ======================== dnode1 start
+
+sql create database colesc;
+
+sql use colesc;
+
+print ======================= test create table/stable
+
+
+sql create table tb0 (ts timestamp, `123` int, `123 456` int, `123.abc` int)
+sql create table tb1 (ts timestamp, `!%^&*()` int)
+sql create table tb2 (ts timestamp, `int` int, `bool` int, `double` int, `INTO` int, `COLUMN` int)
+
+sql create table stb0 (ts timestamp, `123` int, `123 456` int, `123.abc` int) tags (t1 int)
+sql create table stb1 (ts timestamp, `!%^&*()` int) tags (t2 int)
+sql create table stb2 (ts timestamp, `int` int, `bool` int, `double` int, `INTO` int, `COLUMN` int) tags (t3 int)
+
+sql create table ctb0 using stb0 tags (1)
+sql create table ctb1 using stb1 tags (1)
+sql create table ctb2 using stb2 tags (1)
+
+##check table
+sql describe tb0;
+if $rows != 4 then
+  return -1
+endi
+if $data10 != @123@ then
+  return -1
+endi
+if $data20 != @123 456@ then
+  return -1
+endi
+if $data30 != @123.abc@ then
+  return -1
+endi
+
+sql describe tb1;
+if $rows != 2 then
+  return -1
+endi
+if $data10 != @!%^&*()@ then
+  return -1
+endi
+
+sql describe tb2;
+if $rows != 6 then
+  return -1
+endi
+if $data10 != @int@ then
+  return -1
+endi
+if $data20 != @bool@ then
+  return -1
+endi
+if $data30 != @double@ then
+  return -1
+endi
+if $data40 != @INTO@ then
+  return -1
+endi
+if $data50 != @COLUMN@ then
+  return -1
+endi
+##check stable
+sql describe stb0;
+if $rows != 5 then
+  return -1
+endi
+if $data10 != @123@ then
+  return -1
+endi
+if $data20 != @123 456@ then
+  return -1
+endi
+if $data30 != @123.abc@ then
+  return -1
+endi
+
+sql describe stb1;
+if $rows != 3 then
+  return -1
+endi
+if $data10 != @!%^&*()@ then
+  return -1
+endi
+
+sql describe stb2;
+if $rows != 7 then
+  return -1
+endi
+if $data10 != @int@ then
+  return -1
+endi
+if $data20 != @bool@ then
+  return -1
+endi
+if $data30 != @double@ then
+  return -1
+endi
+if $data40 != @INTO@ then
+  return -1
+endi
+if $data50 != @COLUMN@ then
+  return -1
+endi
+
+
+print ======================= test Alter columns for table/stable
+
+##Add column
+sql_error alter table tb0 add column `123` int
+sql_error alter table tb0 add column `123 456` int
+sql_error alter table tb0 add column `123.abc` int
+
+sql_error alter table ctb0 add column `1234`
+
+sql alter table tb0 add column `!%^&*()` int
+sql alter table tb0 add column `int` int
+sql alter table tb0 add column `bool` int
+sql alter table tb0 add column `double` int
+sql alter table tb0 add column `INTO` nchar(10)
+sql alter table tb0 add column `COLUMN` binary(10)
+
+sql alter table stb0 add column `!%^&*()` int
+sql alter table stb0 add column `int` int
+sql alter table stb0 add column `bool` int
+sql alter table stb0 add column `double` int
+sql alter table stb0 add column `INTO` nchar(10)
+sql alter table stb0 add column `COLUMN` binary(10)
+
+
+##check table
+sql describe tb0;
+if $rows != 10 then
+  return -1
+endi
+if $data40 != @!%^&*()@ then
+  return -1
+endi
+if $data50 != @int@ then
+  return -1
+endi
+if $data60 != @bool@ then
+  return -1
+endi
+if $data70 != @double@ then
+  return -1
+endi
+if $data80 != @INTO@ then
+  return -1
+endi
+if $data90 != @COLUMN@ then
+  return -1
+endi
+
+#check stable
+sql describe stb0;
+if $rows != 11 then
+  return -1
+endi
+if $data40 != @!%^&*()@ then
+  return -1
+endi
+if $data50 != @int@ then
+  return -1
+endi
+if $data60 != @bool@ then
+  return -1
+endi
+if $data70 != @double@ then
+  return -1
+endi
+if $data80 != @INTO@ then
+  return -1
+endi
+if $data90 != @COLUMN@ then
+  return -1
+endi
+
+##Drop column
+
+sql_error alter table ctb0 drop column `123`
+sql_error alter table ctb0 drop column `123 456`
+sql_error alter table ctb0 drop column `123.abc`
+
+sql alter table tb0 drop column `!%^&*()`
+sql alter table tb0 drop column `int`
+sql alter table tb0 drop column `bool`
+sql alter table tb0 drop column `double`
+sql alter table tb0 drop column `INTO`
+sql alter table tb0 drop column `COLUMN`
+
+sql alter table stb0 drop column `!%^&*()`
+sql alter table stb0 drop column `int`
+sql alter table stb0 drop column `bool`
+sql alter table stb0 drop column `double`
+sql alter table stb0 drop column `INTO`
+sql alter table stb0 drop column `COLUMN`
+
+##check table
+sql describe tb0;
+if $rows != 4 then
+  return -1
+endi
+if $data10 != @123@ then
+  return -1
+endi
+if $data20 != @123 456@ then
+  return -1
+endi
+if $data30 != @123.abc@ then
+  return -1
+endi
+
+##check stable
+sql describe stb0;
+if $rows != 5 then
+  return -1
+endi
+if $data10 != @123@ then
+  return -1
+endi
+if $data20 != @123 456@ then
+  return -1
+endi
+if $data30 != @123.abc@ then
+  return -1
+endi
+
+##Modify column for binary/nchar length
+
+sql alter table tb0 add column `INTO` nchar(10)
+sql alter table tb0 add column `COLUMN` binary(10)
+
+sql alter table stb0 add column `INTO` nchar(10)
+sql alter table stb0 add column `COLUMN` binary(10)
+
+sql alter table tb0 modify column `INTO` nchar(15)
+sql alter table tb0 modify column `COLUMN` binary(15)
+
+sql alter table stb0 modify column `INTO` nchar(15)
+sql alter table stb0 modify column `COLUMN` binary(15)
+
+sql describe tb0;
+if $rows != 6 then
+  return -1
+endi
+if $data42 != @15@ then
+  return -1
+endi
+if $data52 != @15@ then
+  return -1
+endi
+
+sql describe stb0;
+if $rows != 7 then
+  return -1
+endi
+if $data42 != @15@ then
+  return -1
+endi
+if $data52 != @15@ then
+  return -1
+endi
+
+print ======================= test insert columns for table/stable
+
+sql insert into tb0 (ts, `123`, `123 456`, `123.abc`) values (now, 1, 1, 1)
+sql insert into tb1 (ts, `!%^&*()`) values (now, 1)
+sql insert into tb2 (ts, `int`, `bool`, `double`, `INTO`, `COLUMN`) values (now, 1, 1, 1, 1, 1)
+
+sql insert into ctb0 (ts, `123`, `123 456`, `123.abc`) values (now, 1, 1, 1)
+sql insert into ctb1 (ts, `!%^&*()`) values (now, 1)
+sql insert into ctb2 (ts, `int`, `bool`, `double`, `INTO`, `COLUMN`) values (now, 1, 1, 1, 1, 1)
+
+sql select * from tb0;
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from tb1;
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from tb2;
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from ctb0;
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from ctb1;
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from ctb2;
+if $rows != 1 then
+  return -1
+endi
+
+print ======================= test select columns for table/stable
+
+sql select `123`,`123 456`,`123.abc` from tb0;
+
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+if $data02 != 1 then
+  return -1
+endi
+
+sql select `!%^&*()` from tb1;
+
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi
+
+sql select `int`,`bool`,`double`,`INTO`,`COLUMN` from tb2;
+
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+if $data02 != 1 then
+  return -1
+endi
+
+if $data03 != 1 then
+  return -1
+endi
+
+if $data04 != 1 then
+  return -1
+endi
+
+
+sql select `123`,`123 456`,`123.abc` from stb0;
+
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+if $data02 != 1 then
+  return -1
+endi
+
+sql select `!%^&*()` from stb1;
+
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi
+
+sql select `int`,`bool`,`double`,`INTO`,`COLUMN` from stb2;
+
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+if $data02 != 1 then
+  return -1
+endi
+
+if $data03 != 1 then
+  return -1
+endi
+
+if $data04 != 1 then
+  return -1
+endi
+
+print ======================= test show create table/stable
+sql create table tb3 (ts timestamp, `123` int, `123 456` int, `123.abc` int)
+sql create table stb3 (ts timestamp, `123` int, `123 456` int, `123.abc` int) tags (t1 int)
+sql create table ctb3 using stb3 tags (1)
+
+sql show create table tb3;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != @tb3@ then
+  return -1
+endi
+
+if $data01 != @create table `tb3` (`ts` TIMESTAMP,`123` INT,`123 456` INT,`123.abc` INT)@ then
+  return -1
+endi
+
+sql show create stable stb3;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != @stb3@ then
+  return -1
+endi
+
+if $data01 != @create table `stb3` (`ts` TIMESTAMP,`123` INT,`123 456` INT,`123.abc` INT) TAGS (`t1` INT)@ then
+  return -1
+endi
+
+sql show create table ctb3;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != @ctb3@ then
+  return -1
+endi
+
+if $data01 != @CREATE TABLE `ctb3` USING `stb3` TAGS (1)@ then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

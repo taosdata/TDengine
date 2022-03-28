@@ -18,6 +18,14 @@
 
 #define TSDB_MAX_TABLE_SCHEMAS 16
 
+#pragma  pack (push,1)
+typedef struct jsonMapValue{
+  void* table;      // STable *
+  int16_t  colId;   // the json col ID.
+}JsonMapValue;
+
+#pragma  pack (pop)
+
 typedef struct STable {
   STableId       tableId;
   ETableType     type;
@@ -28,6 +36,7 @@ typedef struct STable {
   STSchema*      tagSchema;
   SKVRow         tagVal;
   SSkipList*     pIndex;         // For TSDB_SUPER_TABLE, it is the skiplist index
+  SHashObj*      jsonKeyMap;     // For json tag key  {"key":[t1, t2, t3]}
   void*          eventHandler;   // TODO
   void*          streamHandler;  // TODO
   TSKEY          lastKey;
@@ -89,6 +98,8 @@ int16_t    tsdbGetLastColumnsIndexByColId(STable* pTable, int16_t colId);
 int        tsdbUpdateLastColSchema(STable *pTable, STSchema *pNewSchema);
 STSchema*  tsdbGetTableLatestSchema(STable *pTable);
 void       tsdbFreeLastColumns(STable* pTable);
+int        tsdbCompareJsonMapValue(const void* a, const void* b);
+void*      tsdbGetJsonTagValue(STable* pTable, char* key, int32_t keyLen, int16_t* colId);
 
 static FORCE_INLINE int tsdbCompareSchemaVersion(const void *key1, const void *key2) {
   if (*(int16_t *)key1 < schemaVersion(*(STSchema **)key2)) {
@@ -100,9 +111,7 @@ static FORCE_INLINE int tsdbCompareSchemaVersion(const void *key1, const void *k
   }
 }
 
-// set rowType to -1 at default if have no relationship with row
-static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, bool copy, int16_t _version,
-                                                     int8_t rowType) {
+static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, bool copy, int16_t _version, int8_t rowType) {
   STable*   pDTable = (pTable->pSuper != NULL) ? pTable->pSuper : pTable;  // for performance purpose
   STSchema* pSchema = NULL;
   STSchema* pTSchema = NULL;

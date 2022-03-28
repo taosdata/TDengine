@@ -1,4 +1,5 @@
 build/
+.ycm_extra_conf.py
 .vscode/
 .idea/
 cmake-build-debug/
@@ -85,7 +86,6 @@ tests/script/api/batchprepare
 tests/script/api/stmt
 tests/script/api/stmtBatchTest
 tests/script/api/stmtTest
-
 # Emacs
 # -*- mode: gitignore; -*-
 *~

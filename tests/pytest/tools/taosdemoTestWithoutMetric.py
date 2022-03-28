@@ -50,7 +50,7 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath + "/build/bin/"
-        os.system("%staosdemo -N -y -t %d -n %d" %
+        os.system("%staosBenchmark -N -y -t %d -n %d" %
                   (binPath, self.numberOfTables, self.numberOfRecords))
 
         tdSql.query("show databases")

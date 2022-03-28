@@ -1,0 +1,199 @@
+---
+sidebar_position: 5
+---
+
+# Node.js Connector
+
+Node.js 连接器支持的系统有：
+
+| **CPU 类型** | x64（64bit） |          |          | aarch64  | aarch32  |
+| ------------ | ------------ | -------- | -------- | -------- | -------- |
+| **OS 类型**  | Linux        | Win64    | Win32    | Linux    | Linux    |
+| **支持与否** | **支持**     | **支持** | **支持** | **支持** | **支持** |
+
+Node.js 连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1957.html)。
+
+### 安装准备
+
+- 应用驱动安装请参考[安装连接器驱动步骤](https://www.taosdata.com/cn/documentation/connector#driver)。
+
+### 安装 Node.js 连接器
+
+用户可以通过[npm](https://www.npmjs.com/)来进行安装，也可以通过源代码*src/connector/nodejs/* 来进行安装。具体安装步骤如下：
+
+首先，通过[npm](https://www.npmjs.com/)安装 node.js 连接器。
+
+```bash
+npm install td2.0-connector
+```
+
+我们建议用户使用 npm 安装 node.js 连接器。如果您没有安装 npm，可以将*src/connector/nodejs/*拷贝到您的 nodejs 项目目录下。
+
+我们使用[node-gyp](https://github.com/nodejs/node-gyp)和 TDengine 服务端进行交互。安装 node.js 连接器之前，还需要根据具体操作系统来安装下文提到的一些依赖工具。
+
+### Linux
+
+- `python` (建议`v2.7` , `v3.x.x` 目前还不支持)
+- `node` 2.0.6 支持 v12.x 和 v10.x，2.0.5 及更早版本支持 v10.x 版本，其他版本可能存在包兼容性的问题。
+- `make`
+- c 语言编译器比如[GCC](https://gcc.gnu.org)
+
+### Windows
+
+#### 安装方法 1
+
+使用微软的[windows-build-tools](https://github.com/felixrieseberg/windows-build-tools)在`cmd` 命令行界面执行`npm install --global --production windows-build-tools` 即可安装所有的必备工具。
+
+#### 安装方法 2
+
+手动安装以下工具：
+
+- 安装 Visual Studio 相关：[Visual Studio Build 工具](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools) 或者 [Visual Studio 2017 Community](https://visualstudio.microsoft.com/pl/thank-you-downloading-visual-studio/?sku=Community)
+- 安装 [Python](https://www.python.org/downloads/) 2.7(`v3.x.x` 暂不支持) 并执行 `npm config set python python2.7`
+- 进入`cmd`命令行界面，`npm config set msvs_version 2017`
+
+如果以上步骤不能成功执行，可以参考微软的 node.js 用户手册[Microsoft's Node.js Guidelines for Windows](https://github.com/Microsoft/nodejs-guidelines/blob/master/windows-environment.md#compiling-native-addon-modules)。
+
+如果在 Windows 10 ARM 上使用 ARM64 Node.js，还需添加 "Visual C++ compilers and libraries for ARM64" 和 "Visual C++ ATL for ARM64"。
+
+### 示例程序
+
+示例程序源码位于 install_directory/examples/nodejs，有：
+
+Node-example.js node.js 示例源程序
+Node-example-raw.js
+
+### 安装验证
+
+在安装好 TDengine 客户端后，使用 nodejsChecker.js 程序能够验证当前环境是否支持 nodejs 方式访问 Tdengine。
+
+验证方法：
+
+1. 新建安装验证目录，例如：`~/tdengine-test`，拷贝 github 上 nodejsChecker.js 源程序。下载地址：（https://github.com/taosdata/TDengine/tree/develop/examples/nodejs/nodejsChecker.js）。
+
+2. 在命令行中执行以下命令：
+
+```bash
+npm init -y
+npm install td2.0-connector
+node nodejsChecker.js host=localhost
+```
+
+3. 执行以上步骤后，在命令行会输出 nodejs 连接 Tdengine 实例，并执行简答插入和查询的结果。
+
+### Node.js 连接器的使用
+
+以下是 Node.js 连接器的一些基本使用方法，详细的使用方法可参考[TDengine Node.js connector](https://github.com/taosdata/TDengine/tree/develop/src/connector/nodejs)。
+
+#### 建立连接
+
+使用 node.js 连接器时，必须先`require td2.0-connector`，然后使用 `taos.connect` 函数建立到服务端的连接。例如如下代码：
+
+```javascript
+const taos = require("td2.0-connector");
+var conn = taos.connect({
+  host: "taosdemo.com",
+  user: "root",
+  password: "taosdata",
+  config: "/etc/taos",
+  port: 6030,
+});
+var cursor = conn.cursor(); // Initializing a new cursor
+```
+
+建立了一个到 hostname 为 taosdemo.com，端口为 6030（Tdengine 的默认端口号）的连接。连接指定了用户名（root）和密码（taosdata）。taos.connect 函数必须提供的参数是`host`，其它参数在没有提供的情况下会使用如下的默认值。taos.connect 返回了`cursor` 对象，使用 cursor 来执行 sql 语句。
+
+#### 执行 SQL 和插入数据
+
+对于 DDL 语句（例如 create database、create table、use 等），可以使用 cursor 的 execute 方法。代码如下：
+
+```js
+cursor.execute("create database if not exists test;");
+```
+
+以上代码创建了一个名称为 test 的数据库。对于 DDL 语句，一般没有返回值，cursor 的 execute 返回值为 0。
+
+对于 Insert 语句，代码如下：
+
+```js
+var affectRows = cursor.execute(
+  "insert into test.weather values(now, 22.3, 34);"
+);
+```
+
+execute 方法的返回值为该语句影响的行数，上面的 sql 向 test 库的 weather 表中，插入了一条数据，则返回值 affectRows 为 1。
+
+TDengine 目前还不支持 delete 语句。但从 2.0.8.0 版本开始，可以通过 `CREATE DATABASE` 时指定的 UPDATE 参数来启用对数据行的 update。
+
+#### 查询
+
+可通过 `cursor.query` 函数来查询数据库。
+
+```javascript
+var query = cursor.query("show databases;");
+```
+
+查询的结果可以通过 `query.execute()` 函数获取并打印出来。
+
+```javascript
+var promise = query.execute();
+promise.then(function (result) {
+  result.pretty();
+});
+```
+
+格式化查询语句还可以使用`query`的`bind`方法。如下面的示例：`query`会自动将提供的数值填入查询语句的`?`里。
+
+```javascript
+var query = cursor
+  .query("select * from meterinfo.meters where ts <= ? and areaid = ?;")
+  .bind(new Date(), 5);
+query.execute().then(function (result) {
+  result.pretty();
+});
+```
+
+如果在`query`语句里提供第二个参数并设为`true`也可以立即获取查询结果。如下：
+
+```javascript
+var promise = cursor.query(
+  "select * from meterinfo.meters where v1 = 30;",
+  true
+);
+promise.then(function (result) {
+  result.pretty();
+});
+```
+
+#### 关闭连接
+
+在完成插入、查询等操作后，要关闭连接。代码如下：
+
+```js
+conn.close();
+```
+
+#### 异步函数
+
+异步查询数据库的操作和上面类似，只需要在`cursor.execute`, `TaosQuery.execute`等函数后面加上`_a`。
+
+```javascript
+var promise1 = cursor
+  .query("select count(*), avg(v1), avg(v2) from meter1;")
+  .execute_a();
+var promise2 = cursor
+  .query("select count(*), avg(v1), avg(v2) from meter2;")
+  .execute_a();
+promise1.then(function (result) {
+  result.pretty();
+});
+promise2.then(function (result) {
+  result.pretty();
+});
+```
+
+### 示例
+
+[node-example.js](https://github.com/taosdata/tests/tree/master/examples/nodejs/node-example.js)提供了一个使用 NodeJS 连接器建表，插入天气数据并查询插入的数据的代码示例。
+
+[node-example-raw.js](https://github.com/taosdata/tests/tree/master/examples/nodejs/node-example-raw.js)同样是一个使用 NodeJS 连接器建表，插入天气数据并查询插入的数据的代码示例，但和上面不同的是，该示例只使用`cursor`。

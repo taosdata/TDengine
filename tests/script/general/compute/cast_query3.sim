@@ -1,0 +1,63 @@
+sleep 100
+sql connect
+
+sql use db;
+
+sql select cast(stb1.c4 as binary(10)),cast(stba.c5 as binary(10)) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data01 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data11 != 2 then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data21 != 3 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data31 != 4 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data41 != 5 then 
+  return -1
+endi
+if $data50 != 2147483647 then 
+  return -1
+endi
+if $data51 != 6 then 
+  return -1
+endi
+if $data60 != -214748364 then 
+  return -1
+endi
+if $data61 != 7 then 
+  return -1
+endi
+
+sql select cast(c4 as binary(10)) as a from stb1 union all select cast(c5 as binary(10)) as a from stba;
+if $rows != 44 then 
+  return -1
+endi
+
+sql select cast(c2 as bigint) from stba; 
+if $rows != 30 then 
+  return -1
+endi
+
+                                                                                                                                                                  

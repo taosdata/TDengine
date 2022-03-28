@@ -19,16 +19,14 @@ public class BatchErrorIgnoreTest {
             IntStream.range(1, 6).mapToObj(i -> "insert into test.t" + i + " values(now, " + i + ")").forEach(sql -> {
                 try {
                     stmt.addBatch(sql);
-                } catch (SQLException e) {
-                    e.printStackTrace();
+                } catch (SQLException ignored) {
                 }
             });
             stmt.addBatch("insert into t11 values(now, 11)");
             IntStream.range(6, 11).mapToObj(i -> "insert into test.t" + i + " values(now, " + i + "),(now + 1s, " + (10 * i) + ")").forEach(sql -> {
                 try {
                     stmt.addBatch(sql);
-                } catch (SQLException e) {
-                    e.printStackTrace();
+                } catch (SQLException ignored) {
                 }
             });
             stmt.addBatch("select count(*) from test.weather");
@@ -57,23 +55,19 @@ public class BatchErrorIgnoreTest {
             IntStream.range(1, 6).mapToObj(i -> "insert into test.t" + i + " values(now, " + i + ")").forEach(sql -> {
                 try {
                     stmt.addBatch(sql);
-                } catch (SQLException e) {
-                    e.printStackTrace();
+                } catch (SQLException ignored) {
                 }
             });
             stmt.addBatch("insert into t11 values(now, 11)");
             IntStream.range(6, 11).mapToObj(i -> "insert into test.t" + i + " values(now, " + i + "),(now + 1s, " + (10 * i) + ")").forEach(sql -> {
                 try {
                     stmt.addBatch(sql);
-                } catch (SQLException e) {
-                    e.printStackTrace();
+                } catch (SQLException ignored) {
                 }
             });
             stmt.addBatch("select count(*) from test.weather");
 
             results = stmt.executeBatch();
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
 
         // then
@@ -94,10 +88,10 @@ public class BatchErrorIgnoreTest {
     }
 
     @Before
-    public void before() {
-        try {
-            Connection conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata");
-            Statement stmt = conn.createStatement();
+    public void before() throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata");
+             Statement stmt = conn.createStatement();) {
+
             stmt.execute("use test");
             stmt.execute("drop table if exists weather");
             stmt.execute("create table weather (ts timestamp, f1 float) tags(t1 int)");
@@ -108,37 +102,25 @@ public class BatchErrorIgnoreTest {
                     e.printStackTrace();
                 }
             });
-            stmt.close();
-            conn.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 
     @BeforeClass
-    public static void beforeClass() {
-        try {
-            Connection conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata");
-            Statement stmt = conn.createStatement();
+    public static void beforeClass() throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata");
+             Statement stmt = conn.createStatement()) {
+
             stmt.execute("drop database if exists test");
             stmt.execute("create database if not exists test");
-            stmt.close();
-            conn.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 
     @AfterClass
-    public static void afterClass() {
-        try {
-            Connection conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata");
-            Statement stmt = conn.createStatement();
+    public static void afterClass() throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata");
+             Statement stmt = conn.createStatement()) {
+
             stmt.execute("drop database if exists test");
-            stmt.close();
-            conn.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 }

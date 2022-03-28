@@ -25,18 +25,21 @@ extern "C" {
 #include "tstrbuild.h"
 #include "ttoken.h"
 #include "tvariant.h"
+#include "tname.h"
 
 #define ParseTOKENTYPE SStrToken
 
-#define NON_ARITHMEIC_EXPR 0
-#define NORMAL_ARITHMETIC  1
-#define AGG_ARIGHTMEIC     2
+#define SQLEXPR_TYPE_UNASSIGNED 0
+#define SQLEXPR_TYPE_SCALAR 1
+#define SQLEXPR_TYPE_AGG 2
+#define SQLEXPR_TYPE_VALUE 3
 
 enum SQL_NODE_TYPE {
   SQL_NODE_TABLE_COLUMN= 1,
   SQL_NODE_SQLFUNCTION = 2,
   SQL_NODE_VALUE       = 3,
   SQL_NODE_EXPR        = 4,
+  SQL_NODE_DATA_TYPE   = 5,
 };
 
 enum SQL_NODE_FROM_TYPE {
@@ -79,11 +82,25 @@ typedef struct tVariantListItem {
   uint8_t            sortOrder;
 } tVariantListItem;
 
+typedef struct CommonItem {
+  union {
+    tVariant           pVar;
+    struct tSqlExpr    *jsonExp;
+  };
+  bool               isJsonExp;
+  uint8_t            sortOrder;
+} CommonItem;
+
 typedef struct SIntervalVal {
   int32_t            token;
   SStrToken          interval;
   SStrToken          offset;
 } SIntervalVal;
+
+typedef struct SRangeVal {
+  void          *start;
+  void          *end;
+} SRangeVal;
 
 typedef struct SSessionWindowVal {
   SStrToken          col;
@@ -111,6 +128,7 @@ typedef struct SSqlNode {
   SLimitVal          slimit;       // group limit offset [optional]
   SStrToken          sqlstr;       // sql string in select clause
   struct tSqlExpr   *pHaving;      // having clause [optional]
+  SRangeVal          pRange;       // range clause [optional]
 } SSqlNode;
 
 typedef struct SRelElementPair {
@@ -139,8 +157,11 @@ typedef struct SCreatedTableInfo {
 
 typedef struct SCreateTableSql {
   SStrToken          name;  // table name, create table [name] xxx
+  SStrToken          to;    // create stream to anohter table  
+  SStrToken          split; // split columns  
   int8_t             type;  // create normal table/from super table/ stream
   bool               existCheck;
+  SName              toSName;
 
   struct {
     SArray          *pTagColumns; // SArray<TAOS_FIELD>
@@ -155,7 +176,6 @@ typedef struct SAlterTableInfo {
   SStrToken          name;
   int16_t            tableType;
   int16_t            type;
-  STagData           tagData;
   SArray            *pAddColumns; // SArray<TAOS_FIELD>
   SArray            *varList;     // set t=val or: change src dst, SArray<tVariantListItem>
 } SAlterTableInfo;
@@ -257,6 +277,7 @@ typedef struct tSqlExpr {
 
   int32_t            functionId;  // function id, todo remove it
   SStrToken          columnName;  // table column info
+  TAOS_FIELD         dataType;  // data type
   tVariant           value;       // the use input value
   SStrToken          exprToken;   // original sql expr string
   uint32_t           flags;       // todo remove it
@@ -272,17 +293,21 @@ typedef struct tSqlExprItem {
   bool               distinct;
 } tSqlExprItem;
 
+SArray *commonItemAppend(SArray *pList, tVariant *pVar, tSqlExpr *jsonExp, bool isJsonExp, uint8_t sortOrder);
+
 SArray *tVariantListAppend(SArray *pList, tVariant *pVar, uint8_t sortOrder);
 SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int32_t index);
-SArray *tVariantListAppendToken(SArray *pList, SStrToken *pAliasToken, uint8_t sortOrder);
+SArray *tVariantListAppendToken(SArray *pList, SStrToken *pAliasToken, uint8_t sortOrder, bool needRmquoteEscape);
 
 SRelationInfo *setTableNameList(SRelationInfo* pFromInfo, SStrToken *pName, SStrToken* pAlias);
 void          *destroyRelationInfo(SRelationInfo* pFromInfo);
 SRelationInfo *addSubqueryElem(SRelationInfo* pRelationInfo, SArray* pSub, SStrToken* pAlias);
 
 // sql expr leaf node
-tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType);
+tSqlExpr *tSqlExprCreateTimestamp(SStrToken *pToken, int32_t optrType);
+tSqlExpr *tSqlExprCreateIdValue(SSqlInfo* pInfo, SStrToken *pToken, int32_t optrType);
 tSqlExpr *tSqlExprCreateFunction(SArray *pParam, SStrToken *pFuncToken, SStrToken *endToken, int32_t optType);
+tSqlExpr *tSqlExprCreateFuncWithParams(SSqlInfo *pInfo, tSqlExpr* col, TAOS_FIELD *colType, SStrToken *pFuncToken, SStrToken *endToken, int32_t optType);
 SArray *tStrTokenAppend(SArray *pList, SStrToken *pToken);
 
 tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType);
@@ -296,7 +321,7 @@ void      tSqlExprListDestroy(SArray *pList);
 
 SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelationInfo *pFrom, tSqlExpr *pWhere,
                                 SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *ps, SWindowStateVal *pw,
-                                SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pgLimit, tSqlExpr *pHaving);
+                                SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pgLimit, tSqlExpr *pHaving, SRangeVal *pRange);
 int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right);
 
 SCreateTableSql *tSetCreateTableInfo(SArray *pCols, SArray *pTags, SSqlNode *pSelect, int32_t type);
@@ -313,6 +338,7 @@ SArray   *setSubclause(SArray *pList, void *pSqlNode);
 SArray   *appendSelectClause(SArray *pList, void *pSubclause);
 
 void setCreatedTableName(SSqlInfo *pInfo, SStrToken *pTableNameToken, SStrToken *pIfNotExists);
+void setCreatedStreamOpt(SSqlInfo *pInfo, SStrToken *pTo, SStrToken *pSplit);
 
 void SqlInfoDestroy(SSqlInfo *pInfo);
 

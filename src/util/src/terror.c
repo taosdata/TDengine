@@ -16,7 +16,7 @@
 #include "os.h"
 
 #define TAOS_ERROR_C
- 
+
 typedef struct {
     int32_t val;
     const char* str;
@@ -112,9 +112,17 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_EXCEED_SQL_LIMIT,         "SQL statement too lon
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_FILE_EMPTY,               "File is empty")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_LINE_SYNTAX_ERROR,        "Syntax error in Line")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_NO_META_CACHED,           "No table meta cached")
-TAOS_DEFINE_ERROR(TSDB_CODE_TSC_DUP_COL_NAMES,             "duplicated column names")
-TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TAG_LENGTH,        "Invalid tag length")
-TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_COLUMN_LENGTH,     "Invalid column length")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_DUP_COL_NAMES,            "duplicated column names")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TAG_LENGTH,       "Invalid tag length")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_COLUMN_LENGTH,    "Invalid column length")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_DUP_TAG_NAMES,            "duplicated tag names")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_JSON,             "Invalid JSON format")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_JSON_TYPE,        "Invalid JSON data type")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_JSON_CONFIG,      "Invalid JSON configuration")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_VALUE_OUT_OF_RANGE,       "Value out of range")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_PROTOCOL_TYPE,    "Invalid line protocol type")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_PRECISION_TYPE,   "Invalid timestamp precision type")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_RES_TOO_MANY,             "Result set too large to be output")
 
 // mnode
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MSG_NOT_PROCESSED,        "Message not processed")
@@ -225,6 +233,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_DND_INVALID_MSG_LEN,          "Invalid message lengt
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_ACTION_IN_PROGRESS,       "Action in progress")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_TOO_MANY_VNODES,          "Too many vnode directories")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_EXITING,                  "Dnode is exiting")
+TAOS_DEFINE_ERROR(TSDB_CODE_DND_VNODE_OPEN_FAILED,        "Vnode open failed")
 
 // vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ACTION_IN_PROGRESS,       "Action in progress")
@@ -271,6 +280,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVD_CREATE_TABLE_INFO,    "Invalid information t
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_AVAIL_DISK,            "No available disk")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_MESSED_MSG,               "TSDB messed message")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVLD_TAG_VAL,             "TSDB invalid tag value")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_CACHE_LAST_ROW,        "TSDB no cache last row data")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INCOMPLETE_DFILESET,      "Incomplete DFileSet")
 
 // query
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_QHANDLE,          "Invalid handle")
@@ -286,8 +297,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_IN_EXEC,                  "Multiple retrieval of
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TOO_MANY_TIMEWINDOW,      "Too many time window in query")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER,        "Query buffer limit has reached")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INCONSISTAN,              "File inconsistance in replica")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_TIME_CONDITION,   "One valid time range condition expected")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SYS_ERROR,                "System error")
-
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_RESULT_TOO_LARGE,         "result num is too large")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")

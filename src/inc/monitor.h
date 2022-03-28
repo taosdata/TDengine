@@ -22,6 +22,17 @@ extern "C" {
 
 #include <stdint.h>
 
+#define monSaveLogs(level, ...) {      \
+  monSaveLog(level, __VA_ARGS__);      \
+  monSaveDnodeLog(level, __VA_ARGS__); \
+}
+
+typedef struct {
+  const char * name;
+  int32_t code;
+  int32_t index;
+} SMonHttpStatus;
+
 typedef struct {
   char *  acctId;
   int64_t currentPointsPerSecond;
@@ -53,9 +64,16 @@ void    monStopSystem();
 void    monCleanupSystem();
 void    monSaveAcctLog(SAcctMonitorObj *pMonObj);
 void    monSaveLog(int32_t level, const char *const format, ...);
+void    monSaveDnodeLog(int32_t level, const char *const format, ...);
 void    monExecuteSQL(char *sql);
 typedef void (*MonExecuteSQLCbFP)(void *param, TAOS_RES *, int code);
 void monExecuteSQLWithResultCallback(char *sql, MonExecuteSQLCbFP callback, void* param);
+void    monIncQueryReqCnt();
+void    monIncSubmitReqCnt();
+int32_t monFetchQueryReqCnt();
+int32_t monFetchSubmitReqCnt();
+SMonHttpStatus *monGetHttpStatusHashTableEntry(int32_t code);
+
 #ifdef __cplusplus
 }
 #endif

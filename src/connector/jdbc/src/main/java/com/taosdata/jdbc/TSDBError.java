@@ -35,6 +35,7 @@ public class TSDBError {
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_UNKNOWN_TIMESTAMP_PRECISION, "unknown timestamp precision");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_USER_IS_REQUIRED, "user is required");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_PASSWORD_IS_REQUIRED, "password is required");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_INVALID_JSON_FORMAT, "invalid json format");
 
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_UNKNOWN, "unknown error");
 

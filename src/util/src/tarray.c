@@ -24,11 +24,12 @@ void* taosArrayInit(size_t size, size_t elemSize) {
     size = TARRAY_MIN_SIZE;
   }
 
-  SArray* pArray = calloc(1, sizeof(SArray));
+  SArray* pArray = malloc(sizeof(SArray));
   if (pArray == NULL) {
     return NULL;
   }
 
+  pArray->size = 0;
   pArray->pData = calloc(size, elemSize);
   if (pArray->pData == NULL) {
     free(pArray);
@@ -278,17 +279,29 @@ void taosArrayClear(SArray* pArray) {
   pArray->size = 0;
 }
 
-void* taosArrayDestroy(SArray* pArray) {
-  if (pArray) {
-    free(pArray->pData);
-    free(pArray);
+void* taosArrayDestroy(SArray** pArray) {
+  if (*pArray) {
+    tfree((*pArray)->pData);
+    tfree(*pArray);
   }
 
   return NULL;
 }
 
-void taosArrayDestroyEx(SArray* pArray, void (*fp)(void*)) {
-  if (pArray == NULL) {
+void taosArrayDestroyForHash(void* para) {
+  SArray** ppArray = (SArray**)para;
+  if(ppArray == NULL) return;
+
+  if (*ppArray) {
+    tfree((*ppArray)->pData);
+    tfree(*ppArray);
+  }
+
+  return;
+}
+
+void taosArrayDestroyEx(SArray** pArray, void (*fp)(void*)) {
+  if (*pArray == NULL) {
     return;
   }
 
@@ -297,8 +310,8 @@ void taosArrayDestroyEx(SArray* pArray, void (*fp)(void*)) {
     return;
   }
 
-  for(int32_t i = 0; i < pArray->size; ++i) {
-    fp(TARRAY_GET_ELEM(pArray, i));
+  for(int32_t i = 0; i < (*pArray)->size; ++i) {
+    fp(TARRAY_GET_ELEM(*pArray, i));
   }
 
   taosArrayDestroy(pArray);

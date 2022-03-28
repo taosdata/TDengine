@@ -153,10 +153,14 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.checkData(0, 2, 's1')
         tdSql.checkData(1, 2, 's0')
+        tdSql.execute('kill stream %s ;' % tdSql.queryResult[0][0])
+        time.sleep(5)
+        tdSql.query("show streams")
+        tdSql.checkRows(1)
         
 
     def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
 

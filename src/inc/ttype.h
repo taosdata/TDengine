@@ -47,7 +47,49 @@ typedef struct {
 
 
 // this data type is internally used only in 'in' query to hold the values
-#define TSDB_DATA_TYPE_ARRAY      (1000)
+#define TSDB_DATA_TYPE_POINTER_ARRAY      (1000)
+#define TSDB_DATA_TYPE_VALUE_ARRAY      (1001)
+
+#define COPY_DATA(dst, src) *((int64_t *)(dst)) = *((int64_t *)(src))
+
+#define COPY_TYPED_DATA(_v, _type, _data) \
+  do {                                               \
+    switch (_type) {                                 \
+      case TSDB_DATA_TYPE_BOOL:                      \
+      case TSDB_DATA_TYPE_TINYINT:                   \
+        (*(int8_t *)_v) = GET_INT8_VAL(_data);       \
+        break;                                       \
+      case TSDB_DATA_TYPE_UTINYINT:                  \
+        (*(uint8_t *)_v) = GET_UINT8_VAL(_data);     \
+        break;                                       \
+      case TSDB_DATA_TYPE_SMALLINT:                  \
+        (*(int16_t *)_v) = GET_INT16_VAL(_data);     \
+        break;                                       \
+      case TSDB_DATA_TYPE_USMALLINT:                 \
+        (*(uint16_t *)_v) = GET_UINT16_VAL(_data);   \
+        break;                                       \
+      case TSDB_DATA_TYPE_TIMESTAMP:                 \
+      case TSDB_DATA_TYPE_BIGINT:                    \
+        (*(int64_t *)_v) = (GET_INT64_VAL(_data));   \
+        break;                                       \
+      case TSDB_DATA_TYPE_UBIGINT:                   \
+        (*(uint64_t *)_v) = (GET_UINT64_VAL(_data)); \
+        break;                                       \
+      case TSDB_DATA_TYPE_FLOAT:                     \
+        (*(float *)_v) = GET_FLOAT_VAL(_data);       \
+        break;                                       \
+      case TSDB_DATA_TYPE_DOUBLE:                    \
+        (*(double *)_v) = GET_DOUBLE_VAL(_data);     \
+        break;                                       \
+      case TSDB_DATA_TYPE_UINT:                      \
+        (*(uint32_t *)_v) = GET_UINT32_VAL(_data);   \
+        break;                                       \
+      default:                                       \
+        (*(int32_t *)_v) = GET_INT32_VAL(_data);     \
+        break;                                       \
+    }                                                \
+  } while (0)
+
 
 #define GET_TYPED_DATA(_v, _finalType, _type, _data) \
   do {                                               \
@@ -65,7 +107,7 @@ typedef struct {
       case TSDB_DATA_TYPE_USMALLINT:                 \
         (_v) = (_finalType)GET_UINT16_VAL(_data);    \
         break;                                       \
-      case TSDB_DATA_TYPE_TIMESTAMP:\
+      case TSDB_DATA_TYPE_TIMESTAMP:                 \
       case TSDB_DATA_TYPE_BIGINT:                    \
         (_v) = (_finalType)(GET_INT64_VAL(_data));   \
         break;                                       \
@@ -103,6 +145,7 @@ typedef struct {
       case TSDB_DATA_TYPE_USMALLINT:           \
         *(uint16_t *)(_v) = (uint16_t)(_data); \
         break;                                 \
+      case TSDB_DATA_TYPE_TIMESTAMP:           \
       case TSDB_DATA_TYPE_BIGINT:              \
         *(int64_t *)(_v) = (int64_t)(_data);   \
         break;                                 \
@@ -124,9 +167,47 @@ typedef struct {
     }                                          \
   } while (0)
 
+#define NUM_TO_STRING(_inputType, _input, _outputBytes, _output)     \
+  do {                                         \
+    switch (_inputType) {                           \
+      case TSDB_DATA_TYPE_TINYINT:             \
+        snprintf(_output, (int32_t)(_outputBytes), "%d", *(int8_t *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_UTINYINT:            \
+        snprintf(_output, (int32_t)(_outputBytes), "%d", *(uint8_t *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_SMALLINT:            \
+        snprintf(_output, (int32_t)(_outputBytes), "%d", *(int16_t *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_USMALLINT:           \
+        snprintf(_output, (int32_t)(_outputBytes), "%d", *(uint16_t *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_TIMESTAMP:           \
+      case TSDB_DATA_TYPE_BIGINT:              \
+        snprintf(_output, (int32_t)(_outputBytes), "%" PRId64, *(int64_t *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_UBIGINT:             \
+        snprintf(_output, (int32_t)(_outputBytes), "%" PRIu64, *(uint64_t *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_FLOAT:               \
+        snprintf(_output, (int32_t)(_outputBytes), "%f", *(float *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_DOUBLE:              \
+        snprintf(_output, (int32_t)(_outputBytes), "%f", *(double *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_UINT:                \
+        snprintf(_output, (int32_t)(_outputBytes), "%u", *(uint32_t *)(_input));     \
+        break;                                 \
+      default:                                 \
+        snprintf(_output, (int32_t)(_outputBytes), "%d", *(int32_t *)(_input));     \
+        break;                                 \
+    }                                          \
+  } while (0)
+
 #define IS_SIGNED_NUMERIC_TYPE(_t)   ((_t) >= TSDB_DATA_TYPE_TINYINT && (_t) <= TSDB_DATA_TYPE_BIGINT)
 #define IS_UNSIGNED_NUMERIC_TYPE(_t) ((_t) >= TSDB_DATA_TYPE_UTINYINT && (_t) <= TSDB_DATA_TYPE_UBIGINT)
 #define IS_FLOAT_TYPE(_t)            ((_t) == TSDB_DATA_TYPE_FLOAT || (_t) == TSDB_DATA_TYPE_DOUBLE)
+#define IS_TIMESTAMP_TYPE(_t)        ((_t) == TSDB_DATA_TYPE_TIMESTAMP)
 
 #define IS_NUMERIC_TYPE(_t) ((IS_SIGNED_NUMERIC_TYPE(_t)) || (IS_UNSIGNED_NUMERIC_TYPE(_t)) || (IS_FLOAT_TYPE(_t)))
 
@@ -158,6 +239,8 @@ static FORCE_INLINE bool isNull(const void *val, int32_t type) {
       return *(uint32_t *)val == TSDB_DATA_FLOAT_NULL;
     case TSDB_DATA_TYPE_DOUBLE:
       return *(uint64_t *)val == TSDB_DATA_DOUBLE_NULL;
+    case TSDB_DATA_TYPE_JSON:
+      return varDataLen(val) == sizeof(int32_t) && *(uint32_t *) varDataVal(val) == TSDB_DATA_JSON_NULL;
     case TSDB_DATA_TYPE_NCHAR:
       return varDataLen(val) == sizeof(int32_t) && *(uint32_t*) varDataVal(val) == TSDB_DATA_NCHAR_NULL;
     case TSDB_DATA_TYPE_BINARY:
@@ -181,15 +264,17 @@ typedef struct tDataTypeDescriptor {
   int16_t nameLen;
   int32_t bytes;
   char *  name;
+  int64_t minValue;
+  int64_t maxValue;
   int (*compFunc)(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
                   char algorithm, char *const buffer, int bufferSize);
   int (*decompFunc)(const char *const input, int compressedSize, const int nelements, char *const output,
                     int outputSize, char algorithm, char *const buffer, int bufferSize);
   void (*statisFunc)(const void *pData, int32_t numofrow, int64_t *min, int64_t *max, int64_t *sum,
-                        int16_t *minindex, int16_t *maxindex, int16_t *numofnull);
+                     int16_t *minindex, int16_t *maxindex, int16_t *numofnull);
 } tDataTypeDescriptor;
 
-extern tDataTypeDescriptor tDataTypes[15];
+extern tDataTypeDescriptor tDataTypes[16];
 
 bool isValidDataType(int32_t type);
 
@@ -200,10 +285,14 @@ const void *getNullValue(int32_t type);
 
 void assignVal(char *val, const char *src, int32_t len, int32_t type);
 void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf);
+void operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type);
+void* getDataMin(int32_t type);
+void* getDataMax(int32_t type);
 
 int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bool issigned);
 
 #define SET_DOUBLE_NULL(v) (*(uint64_t *)(v) = TSDB_DATA_DOUBLE_NULL)
+#define SET_TIMESTAMP_NULL(v) (*(uint64_t *)(v) = TSDB_DATA_TIMESTAMP_NULL)
 
 #ifdef __cplusplus
 }

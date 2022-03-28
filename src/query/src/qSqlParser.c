@@ -18,10 +18,12 @@
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tcmdtype.h"
+#include "tcompare.h"
 #include "tstrbuild.h"
 #include "ttoken.h"
 #include "ttokendef.h"
 #include "tutil.h"
+#include "tscUtil.h"
 
 SSqlInfo qSqlParse(const char *pStr) {
   void *pParser = ParseAlloc(malloc);
@@ -31,6 +33,7 @@ SSqlInfo qSqlParse(const char *pStr) {
   sqlInfo.funcs = taosArrayInit(4, sizeof(SStrToken));
 
   int32_t i = 0;
+  bool inWhere = false;
   while (1) {
     SStrToken t0 = {0};
 
@@ -52,14 +55,13 @@ SSqlInfo qSqlParse(const char *pStr) {
         Parse(pParser, 0, t0, &sqlInfo);
         goto abort_parse;
       }
-      
       case TK_QUESTION:
       case TK_ILLEGAL: {
         snprintf(sqlInfo.msg, tListLen(sqlInfo.msg), "unrecognized token: \"%s\"", t0.z);
         sqlInfo.valid = false;
         goto abort_parse;
       }
-      
+
       case TK_HEX:
       case TK_OCT:
       case TK_BIN:{
@@ -67,7 +69,25 @@ SSqlInfo qSqlParse(const char *pStr) {
         sqlInfo.valid = false;
         goto abort_parse;
       }
-        
+      case TK_WHERE:{
+        inWhere = true;
+        Parse(pParser, t0.type, t0, &sqlInfo);
+        if (sqlInfo.valid == false) {
+          goto abort_parse;
+        }
+        break;
+      }
+      case TK_NOW:
+      case TK_TODAY: {
+        //for now(),today() function used in select/where clause
+        if (pStr[i] == '(' && pStr[i + 1] == ')') {
+          if (!inWhere) {
+            t0.type = TK_ID;
+          } else {
+            i += 2;
+          }
+        }
+      }
       default:
         Parse(pParser, t0.type, t0, &sqlInfo);
         if (sqlInfo.valid == false) {
@@ -97,7 +117,7 @@ SArray *tSqlExprListAppend(SArray *pList, tSqlExpr *pNode, SStrToken *pDistinct,
       strncpy(item.aliasName, pToken->z, pToken->n);
       item.aliasName[pToken->n] = 0;
 
-      strdequote(item.aliasName);
+      stringProcess(item.aliasName, (int32_t)strlen(item.aliasName));
     }
 
     taosArrayPush(pList, &item);
@@ -118,7 +138,7 @@ void tSqlExprListDestroy(SArray *pList) {
     return;
   }
 
-  taosArrayDestroyEx(pList, freeExprElem);
+  taosArrayDestroyEx(&pList, freeExprElem);
 }
 
 
@@ -134,7 +154,7 @@ SArray *tStrTokenAppend(SArray *pList, SStrToken *pToken) {
   return pList;
 }
 
-tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
+tSqlExpr *tSqlExprCreateIdValue(SSqlInfo* pInfo, SStrToken *pToken, int32_t optrType) {
   tSqlExpr *pSqlExpr = calloc(1, sizeof(tSqlExpr));
 
   if (pToken != NULL) {
@@ -155,9 +175,13 @@ tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
     }
     pSqlExpr->tokenId = optrType;
     pSqlExpr->type    = SQL_NODE_VALUE;
-  } else if (optrType == TK_NOW) {
+  } else if (optrType == TK_NOW || optrType == TK_TODAY) {
     // use nanosecond by default TODO set value after getting database precision
-    pSqlExpr->value.i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+    if (optrType == TK_NOW) {
+      pSqlExpr->value.i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+    } else {
+      pSqlExpr->value.i64 = taosGetTimestampToday() * 1000000000;
+    }
     pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
     pSqlExpr->tokenId = TK_TIMESTAMP;  // TK_TIMESTAMP used to denote the time value is in microsecond
     pSqlExpr->type    = SQL_NODE_VALUE;
@@ -169,12 +193,78 @@ tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
       char unit = 0;
       int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->value.i64, &unit, TSDB_TIME_PRECISION_NANO);
       if (ret != TSDB_CODE_SUCCESS) {
+        snprintf(pInfo->msg, tListLen(pInfo->msg), "%s", pToken->z);
         terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
       }
     }
 
     pSqlExpr->flags  |= 1 << EXPR_FLAG_NS_TIMESTAMP;
     pSqlExpr->flags  |= 1 << EXPR_FLAG_TIMESTAMP_VAR;
+    pSqlExpr->value.nType = TSDB_DATA_TYPE_TIMESTAMP;
+    pSqlExpr->tokenId = TK_TIMESTAMP;
+    pSqlExpr->type    = SQL_NODE_VALUE;
+  } else if (optrType == TK_AS) {
+    // Here it must be column type
+    if (pToken != NULL) {
+      pSqlExpr->dataType = *(TAOS_FIELD *)pToken;
+    }
+
+    pSqlExpr->tokenId = optrType;
+    pSqlExpr->type    = SQL_NODE_DATA_TYPE;
+  } else {
+    // Here it must be the column name (tk_id) if it is not a number or string.
+    assert(optrType == TK_ID || optrType == TK_ALL);
+    if (pToken != NULL) {
+      pSqlExpr->columnName = *pToken;
+    }
+
+    pSqlExpr->tokenId = optrType;
+    pSqlExpr->type    = SQL_NODE_TABLE_COLUMN;
+  }
+
+  return pSqlExpr;
+}
+
+
+tSqlExpr *tSqlExprCreateTimestamp(SStrToken *pToken, int32_t optrType) {
+  tSqlExpr *pSqlExpr = calloc(1, sizeof(tSqlExpr));
+
+  if (pToken != NULL) {
+    pSqlExpr->exprToken = *pToken;
+  }
+
+  if (optrType == TK_INTEGER || optrType == TK_STRING) {
+    if (pToken) {
+      toTSDBType(pToken->type);
+      tVariantCreate(&pSqlExpr->value, pToken);
+    }
+    pSqlExpr->tokenId = optrType;
+    pSqlExpr->type    = SQL_NODE_VALUE;
+  } else if (optrType == TK_NOW) {
+    // use nanosecond by default TODO set value after getting database precision
+    pSqlExpr->value.i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+    pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+    pSqlExpr->tokenId = TK_TIMESTAMP;  // TK_TIMESTAMP used to denote the time value is in microsecond
+    pSqlExpr->type    = SQL_NODE_VALUE;
+    pSqlExpr->flags  |= 1 << EXPR_FLAG_NS_TIMESTAMP;
+  } else if (optrType == TK_PLUS || optrType == TK_MINUS) {
+    // use nanosecond by default
+    // TODO set value after getting database precision
+    if (pToken) {
+      char unit = 0;
+      int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->value.i64, &unit, TSDB_TIME_PRECISION_NANO);
+      if (ret != TSDB_CODE_SUCCESS) {
+        terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+      }
+    }
+  
+    if (optrType == TK_PLUS) {
+      pSqlExpr->value.i64 += taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+    } else {
+      pSqlExpr->value.i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO) - pSqlExpr->value.i64;
+    }
+    
+    pSqlExpr->flags  |= 1 << EXPR_FLAG_NS_TIMESTAMP;
     pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
     pSqlExpr->tokenId = TK_TIMESTAMP;
     pSqlExpr->type    = SQL_NODE_VALUE;
@@ -191,6 +281,8 @@ tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
 
   return pSqlExpr;
 }
+
+
 
 /*
  * pList is the parameters for function with id(optType)
@@ -216,6 +308,25 @@ tSqlExpr *tSqlExprCreateFunction(SArray *pParam, SStrToken *pFuncToken, SStrToke
   return pExpr;
 }
 
+tSqlExpr *tSqlExprCreateFuncWithParams(SSqlInfo *pInfo, tSqlExpr* col, TAOS_FIELD *colType, SStrToken *pFuncToken, SStrToken *endToken, int32_t optType) {
+  if (colType == NULL || col == NULL) {
+    return NULL;
+  }
+  
+  if (NULL == col) {
+    return NULL;
+  }
+  
+  tSqlExpr* ctype = tSqlExprCreateIdValue(pInfo, (SStrToken *)colType, TK_AS);
+
+  SArray *exprList = tSqlExprListAppend(0,col,0, 0);
+
+  tSqlExprListAppend(exprList,ctype,0, 0);
+  
+  return tSqlExprCreateFunction(exprList, pFuncToken, endToken, optType); 
+}
+
+
 /*
  * create binary expression in this procedure
  * if the expr is arithmetic, calculate the result and set it to tSqlExpr Object
@@ -232,12 +343,17 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
   }
 
   if ((pLeft != NULL && pRight != NULL) &&
-      (optrType == TK_PLUS || optrType == TK_MINUS || optrType == TK_STAR || optrType == TK_DIVIDE || optrType == TK_REM)) {
+      (optrType == TK_PLUS || optrType == TK_MINUS || optrType == TK_STAR || optrType == TK_DIVIDE || optrType == TK_REM ||
+       optrType == TK_EQ || optrType == TK_NE || optrType == TK_LT || optrType == TK_GT || optrType == TK_LE || optrType == TK_GE ||
+       optrType == TK_AND || optrType == TK_OR)) {
     /*
      * if a exprToken is noted as the TK_TIMESTAMP, the time precision is microsecond
      * Otherwise, the time precision is adaptive, determined by the time precision from databases.
      */
     if ((pLeft->tokenId == TK_INTEGER && pRight->tokenId == TK_INTEGER) ||
+        (pLeft->tokenId == TK_BOOL && pRight->tokenId == TK_BOOL) ||
+        (pLeft->tokenId == TK_INTEGER && pRight->tokenId == TK_BOOL) ||
+        (pLeft->tokenId == TK_BOOL && pRight->tokenId == TK_INTEGER) ||
         (pLeft->tokenId == TK_TIMESTAMP && pRight->tokenId == TK_TIMESTAMP)) {
       pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
       pExpr->tokenId = pLeft->tokenId;
@@ -274,12 +390,46 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
           pExpr->value.i64 = pLeft->value.i64 % pRight->value.i64;
           break;
         }
+        case TK_EQ: {
+          pExpr->value.i64 = (pLeft->value.i64 == pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_NE: {
+          pExpr->value.i64 = (pLeft->value.i64 != pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_LT: {
+          pExpr->value.i64 = (pLeft->value.i64 < pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_GT: {
+          pExpr->value.i64 = (pLeft->value.i64 > pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_LE: {
+          pExpr->value.i64 = (pLeft->value.i64 <= pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_GE: {
+          pExpr->value.i64 = (pLeft->value.i64 >= pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_AND: {
+          pExpr->value.i64 = (pLeft->value.i64 && pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_OR: {
+          pExpr->value.i64 = (pLeft->value.i64 || pRight->value.i64) ? 1 : 0;
+          break;
+        }
       }
 
       tSqlExprDestroy(pLeft);
       tSqlExprDestroy(pRight);
     } else if ((pLeft->tokenId == TK_FLOAT && pRight->tokenId == TK_INTEGER) ||
                (pLeft->tokenId == TK_INTEGER && pRight->tokenId == TK_FLOAT) ||
+               (pLeft->tokenId == TK_BOOL && pRight->tokenId == TK_FLOAT) ||
+               (pLeft->tokenId == TK_FLOAT && pRight->tokenId == TK_BOOL) ||
                (pLeft->tokenId == TK_FLOAT && pRight->tokenId == TK_FLOAT)) {
       pExpr->value.nType = TSDB_DATA_TYPE_DOUBLE;
       pExpr->tokenId  = TK_FLOAT;
@@ -309,6 +459,80 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
           pExpr->value.dKey = left - ((int64_t)(left / right)) * right;
           break;
         }
+        case TK_EQ: {
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          if (compareDoubleVal(&left, &right) == 0) {
+            pExpr->value.i64 = 1;
+          } else {
+            pExpr->value.i64 = 0;
+          }
+          break;
+        }
+        case TK_NE: {
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          if (compareDoubleVal(&left, &right) != 0) {
+            pExpr->value.i64 = 1;
+          } else {
+            pExpr->value.i64 = 0;
+          }
+          break;
+        }
+        case TK_LT: {
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          if (compareDoubleVal(&left, &right) == -1) {
+            pExpr->value.i64 = 1;
+          } else {
+            pExpr->value.i64 = 0;
+          }
+          break;
+        }
+        case TK_GT: {
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          if (compareDoubleVal(&left, &right) == 1) {
+            pExpr->value.i64 = 1;
+          } else {
+            pExpr->value.i64 = 0;
+          }
+          break;
+        }
+        case TK_LE: {
+          int32_t res = compareDoubleVal(&left, &right);
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          if (res == 0 || res == -1) {
+            pExpr->value.i64 = 1;
+          } else {
+            pExpr->value.i64 = 0;
+          }
+          break;
+        }
+        case TK_GE: {
+          int32_t res = compareDoubleVal(&left, &right);
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          if (res == 0 || res == 1) {
+            pExpr->value.i64 = 1;
+          } else {
+            pExpr->value.i64 = 0;
+          }
+          break;
+        }
+        case TK_AND: {
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          pExpr->value.i64 = (left && right) ? 1 : 0;
+          break;
+        }
+        case TK_OR: {
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          pExpr->value.i64 = (left || right) ? 1 : 0;
+          break;
+        }
       }
 
       tSqlExprDestroy(pLeft);
@@ -328,6 +552,11 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
     pRSub->Expr.paramList = (SArray *)pRight;
 
     pExpr->pRight = pRSub;
+  } else if (optrType == TK_ARROW || optrType == TK_CONTAINS) {
+    pExpr->tokenId = optrType;
+    pExpr->pLeft = pLeft;
+    pExpr->pRight = pRight;
+    pExpr->type = SQL_NODE_EXPR;
   } else {
     pExpr->tokenId = optrType;
     pExpr->pLeft = pLeft;
@@ -414,7 +643,7 @@ tSqlExpr *tSqlExprClone(tSqlExpr *pSrc) {
   tSqlExpr *pExpr = calloc(1, sizeof(tSqlExpr));
 
   memcpy(pExpr, pSrc, sizeof(*pSrc));
-  
+
   if (pSrc->pLeft) {
     pExpr->pLeft = tSqlExprClone(pSrc->pLeft);
   }
@@ -423,8 +652,11 @@ tSqlExpr *tSqlExprClone(tSqlExpr *pSrc) {
     pExpr->pRight = tSqlExprClone(pSrc->pRight);
   }
 
+  memset(&pExpr->value, 0, sizeof(pExpr->value));
+  tVariantAssign(&pExpr->value, &pSrc->value);
+
   //we don't clone paramList now because clone is only used for between/and
-  assert(pSrc->Expr.paramList == NULL);
+  pExpr->Expr.paramList = NULL;
   return pExpr;
 }
 
@@ -460,12 +692,13 @@ void tSqlExprCompact(tSqlExpr** pExpr) {
 }
 
 bool tSqlExprIsLeaf(tSqlExpr* pExpr) {
-  return (pExpr->pRight == NULL && pExpr->pLeft == NULL) &&
+  return ((pExpr->pRight == NULL && pExpr->pLeft == NULL) &&
          (pExpr->tokenId == 0 ||
          (pExpr->tokenId == TK_ID) ||
          (pExpr->tokenId >= TK_BOOL && pExpr->tokenId <= TK_NCHAR) ||
          (pExpr->tokenId == TK_NULL) ||
-         (pExpr->tokenId == TK_SET));
+         (pExpr->tokenId == TK_SET))) ||
+         (pExpr->tokenId == TK_ARROW);
 }
 
 bool tSqlExprIsParentOfLeaf(tSqlExpr* pExpr) {
@@ -478,9 +711,7 @@ static void doDestroySqlExprNode(tSqlExpr *pExpr) {
     return;
   }
 
-  if (pExpr->tokenId == TK_STRING) {
-    tVariantDestroy(&pExpr->value);
-  }
+  tVariantDestroy(&pExpr->value);
 
   tSqlExprListDestroy(pExpr->Expr.paramList);
   free(pExpr);
@@ -499,19 +730,37 @@ void tSqlExprDestroy(tSqlExpr *pExpr) {
   doDestroySqlExprNode(pExpr);
 }
 
-SArray *tVariantListAppendToken(SArray *pList, SStrToken *pToken, uint8_t order) {
+SArray *tVariantListAppendToken(SArray *pList, SStrToken *pToken, uint8_t order, bool needRmquoteEscape) {
   if (pList == NULL) {
     pList = taosArrayInit(4, sizeof(tVariantListItem));
   }
 
   if (pToken) {
     tVariantListItem item;
-    tVariantCreate(&item.pVar, pToken);
+    tVariantCreateExt(&item.pVar, pToken, TK_ID, needRmquoteEscape);
     item.sortOrder = order;
 
     taosArrayPush(pList, &item);
   }
 
+  return pList;
+}
+
+SArray *commonItemAppend(SArray *pList, tVariant *pVar, tSqlExpr *jsonExp, bool isJsonExp, uint8_t sortOrder){
+  if (pList == NULL) {
+    pList = taosArrayInit(4, sizeof(CommonItem));
+  }
+
+  CommonItem item;
+  item.sortOrder = sortOrder;
+  item.isJsonExp = isJsonExp;
+  if(isJsonExp){
+    item.jsonExp = jsonExp;
+  }else{
+    item.pVar = *pVar;
+  }
+
+  taosArrayPush(pList, &item);
   return pList;
 }
 
@@ -576,14 +825,14 @@ void* destroyRelationInfo(SRelationInfo* pRelationInfo) {
   }
 
   if (pRelationInfo->type == SQL_NODE_FROM_TABLELIST) {
-    taosArrayDestroy(pRelationInfo->list);
+    taosArrayDestroy(&pRelationInfo->list);
   } else {
     size_t size = taosArrayGetSize(pRelationInfo->list);
     for(int32_t i = 0; i < size; ++i) {
       SArray* pa = taosArrayGetP(pRelationInfo->list, i);
       destroyAllSqlNode(pa);
     }
-    taosArrayDestroy(pRelationInfo->list);
+    taosArrayDestroy(&pRelationInfo->list);
   }
 
   tfree(pRelationInfo);
@@ -620,7 +869,7 @@ void tSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType) {
 
   // column name is too long, set the it to be invalid.
   if ((int32_t) pName->n >= maxLen) {
-    pName->n = -1;
+    pField->name[0] = 0;
   } else {
     strncpy(pField->name, pName->z, pName->n);
     pField->name[pName->n] = 0;
@@ -741,6 +990,10 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
 
       pField->bytes = (int16_t)bytes;
     }
+  } else {
+    if (type->type > 0) {
+      pField->type = -1;
+    }
   }
 }
 
@@ -750,7 +1003,7 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
 SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelationInfo *pFrom, tSqlExpr *pWhere,
                                 SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
                                 SSessionWindowVal *pSession, SWindowStateVal *pWindowStateVal, SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit,
-                                SLimitVal *psLimit, tSqlExpr *pHaving) {
+                                SLimitVal *psLimit, tSqlExpr *pHaving, SRangeVal *pRange) {
   assert(pSelNodeList != NULL);
 
   SSqlNode *pSqlNode = calloc(1, sizeof(SSqlNode));
@@ -765,8 +1018,11 @@ SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelat
   pSqlNode->pSortOrder  = pSortOrder;
   pSqlNode->pWhere      = pWhere;
   pSqlNode->fillType    = pFill;
-  pSqlNode->pHaving = pHaving;
-
+  pSqlNode->pHaving     = pHaving;
+  if (pRange) {
+    pSqlNode->pRange      = *pRange;
+  }
+  
   if (pLimit != NULL) {
     pSqlNode->limit = *pLimit;
   } else {
@@ -815,10 +1071,19 @@ static void freeVariant(void *pItem) {
   tVariantDestroy(&p->pVar);
 }
 
+static void freeCommonItem(void *pItem) {
+  CommonItem* p = (CommonItem *) pItem;
+  if (p->isJsonExp){
+    tSqlExprDestroy(p->jsonExp);
+  }else{
+    tVariantDestroy(&p->pVar);
+  }
+}
+
 void freeCreateTableInfo(void* p) {
   SCreatedTableInfo* pInfo = (SCreatedTableInfo*) p;  
-  taosArrayDestroy(pInfo->pTagNames);
-  taosArrayDestroyEx(pInfo->pTagVals, freeVariant);
+  taosArrayDestroy(&pInfo->pTagNames);
+  taosArrayDestroyEx(&pInfo->pTagVals, freeVariant);
   tfree(pInfo->fullname);
   tfree(pInfo->tagdata.data);
 }
@@ -834,15 +1099,15 @@ void destroySqlNode(SSqlNode *pSqlNode) {
   tSqlExprDestroy(pSqlNode->pWhere);
   pSqlNode->pWhere = NULL;
   
-  taosArrayDestroyEx(pSqlNode->pSortOrder, freeVariant);
+  taosArrayDestroyEx(&pSqlNode->pSortOrder, freeCommonItem);
   pSqlNode->pSortOrder = NULL;
 
-  taosArrayDestroyEx(pSqlNode->pGroupby, freeVariant);
+  taosArrayDestroyEx(&pSqlNode->pGroupby, freeCommonItem);
   pSqlNode->pGroupby = NULL;
 
   pSqlNode->from = destroyRelationInfo(pSqlNode->from);
 
-  taosArrayDestroyEx(pSqlNode->fillType, freeVariant);
+  taosArrayDestroyEx(&pSqlNode->fillType, freeVariant);
   pSqlNode->fillType = NULL;
 
   tSqlExprDestroy(pSqlNode->pHaving);
@@ -860,7 +1125,7 @@ void destroyAllSqlNode(SArray *pList) {
     destroySqlNode(pNode);
   }
 
-  taosArrayDestroy(pList);
+  taosArrayDestroy(&pList);
 }
 
 SCreateTableSql *tSetCreateTableInfo(SArray *pCols, SArray *pTags, SSqlNode *pSelect, int32_t type) {
@@ -933,10 +1198,10 @@ SAlterTableInfo *tSetAlterTableInfo(SStrToken *pTableName, SArray *pCols, SArray
 void* destroyCreateTableSql(SCreateTableSql* pCreate) {
   destroySqlNode(pCreate->pSelect);
 
-  taosArrayDestroy(pCreate->colInfo.pColumns);
-  taosArrayDestroy(pCreate->colInfo.pTagColumns);
+  taosArrayDestroy(&pCreate->colInfo.pColumns);
+  taosArrayDestroy(&pCreate->colInfo.pTagColumns);
 
-  taosArrayDestroyEx(pCreate->childTableInfo, freeCreateTableInfo);
+  taosArrayDestroyEx(&pCreate->childTableInfo, freeCreateTableInfo);
   tfree(pCreate);
 
   return NULL;
@@ -944,23 +1209,24 @@ void* destroyCreateTableSql(SCreateTableSql* pCreate) {
 
 void SqlInfoDestroy(SSqlInfo *pInfo) {
   if (pInfo == NULL) return;;
-  taosArrayDestroy(pInfo->funcs); 
+  taosArrayDestroy(&pInfo->funcs);
   if (pInfo->type == TSDB_SQL_SELECT) {
     destroyAllSqlNode(pInfo->list);
   } else if (pInfo->type == TSDB_SQL_CREATE_TABLE) {
     pInfo->pCreateTableInfo = destroyCreateTableSql(pInfo->pCreateTableInfo);
   } else if (pInfo->type == TSDB_SQL_ALTER_TABLE) {
-    taosArrayDestroyEx(pInfo->pAlterInfo->varList, freeVariant);
-    taosArrayDestroy(pInfo->pAlterInfo->pAddColumns);
-    tfree(pInfo->pAlterInfo->tagData.data);
+    taosArrayDestroyEx(&pInfo->pAlterInfo->varList, freeVariant);
+    taosArrayDestroy(&pInfo->pAlterInfo->pAddColumns);
     tfree(pInfo->pAlterInfo);
+  } else if (pInfo->type == TSDB_SQL_COMPACT_VNODE) {
+    tSqlExprListDestroy(pInfo->list); 
   } else {
     if (pInfo->pMiscInfo != NULL) {
-      taosArrayDestroy(pInfo->pMiscInfo->a);
+      taosArrayDestroy(&pInfo->pMiscInfo->a);
     }
 
     if (pInfo->pMiscInfo != NULL && (pInfo->type == TSDB_SQL_CREATE_DB || pInfo->type == TSDB_SQL_ALTER_DB)) {
-      taosArrayDestroyEx(pInfo->pMiscInfo->dbOpt.keep, freeVariant);
+      taosArrayDestroyEx(&pInfo->pMiscInfo->dbOpt.keep, freeVariant);
     }
 
     tfree(pInfo->pMiscInfo);
@@ -1000,6 +1266,11 @@ SArray* appendSelectClause(SArray *pList, void *pSubclause) {
 void setCreatedTableName(SSqlInfo *pInfo, SStrToken *pTableNameToken, SStrToken *pIfNotExists) {
   pInfo->pCreateTableInfo->name = *pTableNameToken;
   pInfo->pCreateTableInfo->existCheck = (pIfNotExists->n != 0);
+}
+
+void setCreatedStreamOpt(SSqlInfo *pInfo, SStrToken *pTo, SStrToken *pSplit) {
+  pInfo->pCreateTableInfo->to = *pTo;
+  pInfo->pCreateTableInfo->split = *pSplit;
 }
 
 void setDCLSqlElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {

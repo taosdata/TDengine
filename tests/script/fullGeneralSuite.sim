@@ -21,6 +21,10 @@ run general/compute/bottom.sim
 run general/compute/count.sim
 run general/compute/diff.sim
 run general/compute/diff2.sim
+run general/compute/mavg.sim
+run general/compute/mavg2.sim
+run general/compute/csum.sim
+run general/compute/csum2.sim
 run general/compute/first.sim
 run general/compute/interval.sim
 run general/compute/last.sim
@@ -34,6 +38,12 @@ run general/compute/stddev.sim
 run general/compute/sum.sim
 run general/compute/top.sim
 run general/compute/block_dist.sim
+run general/compute/math_funcs.sim
+run general/compute/string_funcs.sim
+run general/compute/scalar_pow.sim
+run general/compute/scalar_triangle.sim
+run general/compute/scalar_str_concat_len.sim
+run general/compute/table_group.sim
 run general/db/alter_option.sim
 run general/db/alter_tables_d2.sim
 run general/db/alter_tables_v1.sim
@@ -126,7 +136,7 @@ run general/parser/limit2.sim
 run general/parser/slimit.sim
 run general/parser/fill.sim
 run general/parser/fill_stb.sim
-run general/parser/interp.sim
+run general/parser/interp_full.sim
 run general/parser/where.sim
 run general/parser/join.sim
 run general/parser/join_multivnode.sim
@@ -135,6 +145,7 @@ run general/parser/groupby.sim
 run general/parser/top_groupby.sim
 run general/parser/tags_dynamically_specifiy.sim
 run general/parser/set_tag_vals.sim
+run general/parser/scalar_expression.sim
 #unsupport run general/parser/repeatAlter.sim
 #unsupport run general/parser/slimit_alter_tags.sim
 run general/parser/precision_ns.sim
@@ -222,4 +233,9 @@ run general/stream/metrics_replica1_vnoden.sim
 run general/db/show_create_db.sim
 run general/db/show_create_table.sim
 run general/parser/like.sim
+run general/parser/regex.sim
+run general/parser/tbname_escape.sim
+run general/parser/columnName_escape.sim
+run general/parser/tagName_escape.sim
 run general/parser/interp_blocks.sim
+run general/parser/create_tb_with_timestamp_tag.sim

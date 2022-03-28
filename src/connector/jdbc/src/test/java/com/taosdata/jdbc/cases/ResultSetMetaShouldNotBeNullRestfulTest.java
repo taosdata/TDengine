@@ -15,19 +15,15 @@ public class ResultSetMetaShouldNotBeNullRestfulTest {
     private Connection connection;
 
     @Test
-    public void testExecuteQuery() {
+    public void testExecuteQuery() throws SQLException {
         // given
-        ResultSetMetaData metaData = null;
-        int columnCount = -1;
+        ResultSetMetaData metaData;
+        int columnCount;
 
         // when
-        try {
-            Statement statement = connection.createStatement();
-            metaData = statement.executeQuery("select * from weather").getMetaData();
-            columnCount = metaData.getColumnCount();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+        Statement statement = connection.createStatement();
+        metaData = statement.executeQuery("select * from weather").getMetaData();
+        columnCount = metaData.getColumnCount();
 
         // then
         Assert.assertNotNull(metaData);
@@ -35,20 +31,17 @@ public class ResultSetMetaShouldNotBeNullRestfulTest {
     }
 
     @Test
-    public void testExecute() {
+    public void testExecute() throws SQLException {
         // given
-        ResultSetMetaData metaData = null;
-        int columnCount = -1;
-        boolean execute = false;
+        ResultSetMetaData metaData;
+        int columnCount;
+        boolean execute;
+
         // when
-        try {
-            Statement statement = connection.createStatement();
-            execute = statement.execute("select * from weather");
-            metaData = statement.getResultSet().getMetaData();
-            columnCount = metaData.getColumnCount();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+        Statement statement = connection.createStatement();
+        execute = statement.execute("select * from weather");
+        metaData = statement.getResultSet().getMetaData();
+        columnCount = metaData.getColumnCount();
 
         // then
         Assert.assertEquals(true, execute);
@@ -57,30 +50,22 @@ public class ResultSetMetaShouldNotBeNullRestfulTest {
     }
 
     @Before
-    public void before() {
-        try {
-            connection = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata");
-            Statement stmt = connection.createStatement();
-            stmt.execute("drop database if exists " + dbname);
-            stmt.execute("create database if not exists " + dbname);
-            stmt.execute("use " + dbname);
-            stmt.execute("create table weather (ts timestamp, temperature float)");
-            stmt.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+    public void before() throws SQLException {
+        connection = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata");
+        Statement stmt = connection.createStatement();
+        stmt.execute("drop database if exists " + dbname);
+        stmt.execute("create database if not exists " + dbname);
+        stmt.execute("use " + dbname);
+        stmt.execute("create table weather (ts timestamp, temperature float)");
+        stmt.close();
     }
 
     @After
-    public void after() {
-        try {
-            Statement stmt = connection.createStatement();
-            stmt.execute("drop database if exists " + dbname);
-            stmt.close();
-            connection.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+    public void after() throws SQLException {
+        Statement stmt = connection.createStatement();
+        stmt.execute("drop database if exists " + dbname);
+        stmt.close();
+        connection.close();
     }
 
 }

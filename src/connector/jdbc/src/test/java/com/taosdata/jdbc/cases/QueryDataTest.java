@@ -19,26 +19,22 @@ public class QueryDataTest {
     static String host = "127.0.0.1";
 
     @Before
-    public void createDatabase() {
-        try {
-            Properties properties = new Properties();
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_USER, "root");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, "taosdata");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-            connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
+    public void createDatabase() throws SQLException {
+        Properties properties = new Properties();
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_USER, "root");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, "taosdata");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+        connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
 
-            statement = connection.createStatement();
-            statement.executeUpdate("drop database if exists " + dbName);
-            statement.executeUpdate("create database if not exists " + dbName);
-            statement.executeUpdate("use " + dbName);
+        statement = connection.createStatement();
+        statement.executeUpdate("drop database if exists " + dbName);
+        statement.executeUpdate("create database if not exists " + dbName);
+        statement.executeUpdate("use " + dbName);
 
-            String createTableSql = "create table " + stbName + "(ts timestamp, name binary(64))";
-            statement.executeUpdate(createTableSql);
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+        String createTableSql = "create table " + stbName + "(ts timestamp, name binary(64))";
+        statement.executeUpdate(createTableSql);
     }
 
     @Test
@@ -57,15 +53,11 @@ public class QueryDataTest {
     }
 
     @After
-    public void close() {
-        try {
-            if (statement != null)
-                statement.close();
-            if (connection != null)
-                connection.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+    public void close() throws SQLException {
+        if (statement != null)
+            statement.close();
+        if (connection != null)
+            connection.close();
     }
 
 }

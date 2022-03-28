@@ -99,25 +99,40 @@ class TDTestCase:
         else:
             shutil.rmtree("./dumpdata")
             os.mkdir("./dumpdata")
+        
+        # write data into sqls file
+        tables = ["CREATE DATABASE IF NOT EXISTS opendbtest REPLICA 1 QUORUM 1 DAYS\
+             10 KEEP 3650 CACHE 16 BLOCKS 16 MINROWS 100 MAXROWS 4096 FSYNC 3000 CACHELAST 0 COMP 2 PRECISION 'ms' UPDATE 0;",
 
-        os.system(build_path + "/" + "taosdump -D test -o ./dumpdata")
-        sleep(2)
-        os.system("cd ./dumpdata && mv dbs.sql tables.sql")
-        os.system('sed -i "s/test/dumptest/g" `grep test -rl ./dumpdata`')
-        os.system(build_path + "/" + "taos -D ./dumpdata")
-        tdSql.query("select count(*) from dumptest.st")
-        tdSql.checkData(0, 0, 50)
+             "CREATE TABLE IF NOT EXISTS opendbtest.cpus (ts TIMESTAMP, value DOUBLE) TAGS (author NCHAR(2), \
+             department NCHAR(7), env NCHAR(4), hostname NCHAR(5), os NCHAR(6), production NCHAR(8), \
+                 team NCHAR(7), type NCHAR(10), useage NCHAR(7), workflow NCHAR(4));"]
+        with open("./dumpdata/tables.sql" ,"a") as f :
+            for item in tables:
+                f.write(item)
+                f.write("\n")
+            f.close()
+        
+        records = [ "CREATE TABLE IF NOT EXISTS opendbtest.tb USING opendbtest.cpus TAGS ('dd', 'Beijing', 'test', 'vm_7', 'ubuntu', 'taosdata', 'develop', 'usage_user', 'monitor', 'TIMI');",
+            "INSERT INTO opendbtest.tb VALUES (1420070400000, 59.078475);",
+            "INSERT INTO opendbtest.tb VALUES (1420070410000, 44.844490);",
+            "INSERT INTO opendbtest.tb VALUES (1420070420000, 34.796703);",
+            "INSERT INTO opendbtest.tb VALUES (1420070430000, 35.758099);",
+            "INSERT INTO opendbtest.tb VALUES (1420070440000, 51.502387);"]
 
-        tdLog.info("========test other file name about tables.sql========")
-        os.system("rm -rf ./dumpdata/*")
-        os.system(build_path + "/" + "taosdump -D test -o ./dumpdata")
-        sleep(2)
-        os.system("cd ./dumpdata && mv dbs.sql table.sql")
-        os.system('sed -i "s/test/tt/g" `grep test -rl ./dumpdata`')
+        with open("./dumpdata/opendbtest.0.sql" ,"a") as f :
+            for item in records:
+                f.write(item)
+                f.write("\n")
+            f.close()
+        
         cmd = build_path + "/" + "taos -D ./dumpdata"
         out = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,stderr=subprocess.PIPE).stderr.read().decode("utf-8")
         if out.find("error:") >=0:
             print("===========expected error occured======")
+        
+        tdSql.query("select value from opendbtest.tb")
+        tdSql.checkRows(5)
         
             
         tdLog.info("====== check taos shell params  ========")
@@ -162,6 +177,7 @@ class TDTestCase:
                 continue
             else:
                 cmd = build_path + "/" + "taos -s \" insert into dbst.tb2 values(now ,2,2.0,'"+code+"','汉字"+code+"\')\""
+            print(cmd)
                 
             self.execute_cmd(cmd)
             
@@ -192,6 +208,7 @@ class TDTestCase:
         for query in querys:
             cmd = build_path + "/" + "taos -s \""+query+"\""
             self.execute_cmd(cmd)
+            print(cmd)
 
     def stop(self):
         tdSql.close()

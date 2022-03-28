@@ -181,11 +181,13 @@ endi
 
 sql_error select stddev(c1) from (select c1 from nest_tb0);
 sql_error select percentile(c1, 20) from (select * from nest_tb0);
-sql_error select interp(c1) from (select * from nest_tb0);
+#sql_error select interp(c1) from (select * from nest_tb0);
 sql_error select derivative(val, 1s, 0) from (select c1 val from nest_tb0);
 sql_error select twa(c1) from (select c1 from nest_tb0);
 sql_error select irate(c1) from (select c1 from nest_tb0);
 sql_error select diff(c1), twa(c1) from (select * from nest_tb0);
+sql_error select mavg(c1,2), twa(c1) from (select * from nest_tb0);
+sql_error select csum(c1), twa(c1) from (select * from nest_tb0);
 sql_error select irate(c1), interp(c1), twa(c1) from (select * from nest_tb0);
 
 sql select apercentile(c1, 50) from (select * from nest_tb0) interval(1d)
@@ -273,6 +275,14 @@ sql select diff(c1) from (select * from nest_tb0);
 if $rows != 9999 then
   return -1
 endi
+sql select mavg(c1,2) from (select * from nest_tb0);
+if $rows != 9999 then
+  return -1
+endi
+sql select csum(c1) from (select * from nest_tb0);
+if $rows != 10000 then
+  return -1
+endi
 
 sql select avg(c1),sum(c2), max(c3), min(c4), count(*), first(c7), last(c7),spread(c6) from (select * from nest_tb0) interval(1d);
 if $rows != 7 then
@@ -329,6 +339,8 @@ endi
 if $data12 != 71680.000000000 then
   return -1
 endi
+
+sql select sample(x, 20) from (select c1 x from nest_tb0);
 
 sql select top(x, 20) from (select c1 x from nest_tb0);
 
@@ -407,7 +419,22 @@ if $data03 != @20-09-15 00:00:00.000@ then
   return -1
 endi
 
-sql select diff(val) from (select c1 val from nest_tb0);
+sql_error select diff(val) from (select c1 val from nest_tb0);
+
+sql select diff(val) from (select ts,c1 val from nest_tb0);
+if $rows != 9999 then
+  return -1
+endi
+
+if $data00 != @20-09-15 00:01:00.000@ then
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+sql select mavg(val, 2) from (select c1 val from nest_tb0);
 if $rows != 9999 then
   return -1
 endi
@@ -415,8 +442,24 @@ endi
 if $data00 != @70-01-01 08:00:00.000@ then
   return -1
 endi
+if $data01 != 0.500000000 then
+  return -1
+endi
 
-if $data01 != 1 then
+sql select csum(val) from (select c1 val from nest_tb0);
+if $rows != 10000 then
+  return -1
+endi
+
+if $data00 != @70-01-01 08:00:00.000@ then
+  return -1
+endi
+
+if $data01 != 0 then
+  return -1
+endi
+
+if $data41 != 10 then
   return -1
 endi
 
@@ -884,5 +927,233 @@ if $data00 != 24 then
   return -1
 endi
 
+sql select sum(a)/sum(b) from meters where ts >= '2021-09-30 15:00:00.000' and ts <= '2021-09-30 15:00:05.000' interval(1s) fill(null) group by area order by area;
+if $rows != 12 then
+  return -1
+endi
+if $data00 != @21-09-30 15:00:00.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+if $data02 != 0 then
+  return -1
+endi
+
+print ==============> TD-11969
+sql create database test11969;
+sql use test11969;
+sql create stable st (ts timestamp , id int ) tags (ind int );
+sql insert into sub1 using st tags(1) values(now ,1);
+sql insert into sub1 using st tags(1) values(now ,2);
+sql insert into sub2 using st tags(2) values(now ,3);
+sql insert into sub2 using st tags(2) values(now ,4);
+sql_error select max(ts_inter) ,tbname from (select elapsed(ts) ts_inter ,tbname from st interval (1s) group by tbname) order by ts
+sql drop database test11969
+
+print ==========================================> TD-11097
+sql create database td11097
+sql use td11097
+sql create table meters2 (ts timestamp, voltage bigint,num int) tags (location binary(30), groupid int);
+sql create table D001 using meters2 tags ("Beijing.Chaoyang", 1);
+sql create table D002 using meters2 tags ("Beijing.haidian", 2);
+sql create table D003 using meters2 tags ('"Beijing.Tongzhou"', 3);
+$ts = 1639556426000
+sql insert into d001 values ( $ts ,1,2);
+sql insert into d001 values ( $ts +1m,2,3);
+sql insert into d001 values ( $ts +2m,4,3);
+sql insert into d001 values ( $ts +4m,8,3);
+sql insert into d002 values ( $ts ,4,3);
+sql insert into d002 values ( $ts +3m,40,3);
+sql insert into d002 values ( $ts +1m,46,3);
+sql insert into d001 values ( $ts +20m,1,2);
+sql insert into d002 values ( $ts +21m,4,3);
+sql select diff(voltage) value from meters2 group by tbname;
+sql select sum(value) from (select diff(voltage) value from meters2 group by tbname) interval(1m) ;
+sql select sum(value) from (select diff(voltage) value from meters2 group by tbname) interval(1m) order by ts;
+sql select sum(value) from (select diff(voltage) value from meters2 group by tbname) interval(1m) order by ts desc;
+
+$emptyString = @@
+print execute sql select diff(voltage) value from meters2 group by tbname;
+sql select diff(voltage) value from meters2 group by tbname;
+if $data00 != @21-12-15 16:21:26.000@ then
+  return -1 
+endi
+if $data01 != @1@ then
+  return -1 
+endi
+if $data02 != @d001@ then
+  return -1 
+endi
+if $data10 != @21-12-15 16:22:26.000@ then
+  return -1 
+endi
+if $data11 != @2@ then
+  return -1 
+endi
+if $data12 != @d001@ then
+  return -1 
+endi
+if $data20 != @21-12-15 16:24:26.000@ then
+  return -1 
+endi
+if $data21 != @4@ then
+  return -1 
+endi
+if $data22 != @d001@ then
+  return -1 
+endi
+if $data30 != @21-12-15 16:40:26.000@ then
+  return -1 
+endi
+if $data31 != @-7@ then
+  return -1 
+endi
+if $data32 != @d001@ then
+  return -1 
+endi
+if $data40 != @21-12-15 16:21:26.000@ then
+  return -1 
+endi
+if $data41 != @42@ then
+  return -1 
+endi
+if $data42 != @d002@ then
+  return -1 
+endi
+if $data50 != @21-12-15 16:23:26.000@ then
+  return -1 
+endi
+if $data51 != @-6@ then
+  return -1 
+endi
+if $data52 != @d002@ then
+  return -1 
+endi
+if $data60 != @21-12-15 16:41:26.000@ then
+  return -1 
+endi
+if $data61 != @-36@ then
+  return -1 
+endi
+if $data62 != @d002@ then
+  return -1 
+endi
+print execute sql select sum(value) from (select diff(voltage) value from meters2 group by tbname) interval(1m) ;
+sql select sum(value) from (select diff(voltage) value from meters2 group by tbname) interval(1m) ;
+if $data00 != @21-12-15 16:21:00.000@ then
+  return -1 
+endi
+if $data01 != @43@ then
+  return -1 
+endi
+if $data10 != @21-12-15 16:22:00.000@ then
+  return -1 
+endi
+if $data11 != @2@ then
+  return -1 
+endi
+if $data20 != @21-12-15 16:23:00.000@ then
+  return -1 
+endi
+if $data21 != @-6@ then
+  return -1 
+endi
+if $data30 != @21-12-15 16:24:00.000@ then
+  return -1 
+endi
+if $data31 != @4@ then
+  return -1 
+endi
+if $data40 != @21-12-15 16:40:00.000@ then
+  return -1 
+endi
+if $data41 != @-7@ then
+  return -1 
+endi
+if $data50 != @21-12-15 16:41:00.000@ then
+  return -1 
+endi
+if $data51 != @-36@ then
+  return -1 
+endi
+print execute sql select sum(value) from (select diff(voltage) value from meters2 group by tbname) interval(1m) order by ts;
+sql select sum(value) from (select diff(voltage) value from meters2 group by tbname) interval(1m) order by ts;
+if $data00 != @21-12-15 16:21:00.000@ then
+  return -1 
+endi
+if $data01 != @43@ then
+  return -1 
+endi
+if $data10 != @21-12-15 16:22:00.000@ then
+  return -1 
+endi
+if $data11 != @2@ then
+  return -1 
+endi
+if $data20 != @21-12-15 16:23:00.000@ then
+  return -1 
+endi
+if $data21 != @-6@ then
+  return -1 
+endi
+if $data30 != @21-12-15 16:24:00.000@ then
+  return -1 
+endi
+if $data31 != @4@ then
+  return -1 
+endi
+if $data40 != @21-12-15 16:40:00.000@ then
+  return -1 
+endi
+if $data41 != @-7@ then
+  return -1 
+endi
+if $data50 != @21-12-15 16:41:00.000@ then
+  return -1 
+endi
+if $data51 != @-36@ then
+  return -1 
+endi
+print execute sql select sum(value) from (select diff(voltage) value from meters2 group by tbname) interval(1m) order by ts desc;
+sql select sum(value) from (select diff(voltage) value from meters2 group by tbname) interval(1m) order by ts desc;
+if $data00 != @21-12-15 16:41:00.000@ then
+  return -1 
+endi
+if $data01 != @-36@ then
+  return -1 
+endi
+if $data10 != @21-12-15 16:40:00.000@ then
+  return -1 
+endi
+if $data11 != @-7@ then
+  return -1 
+endi
+if $data20 != @21-12-15 16:24:00.000@ then
+  return -1 
+endi
+if $data21 != @4@ then
+  return -1 
+endi
+if $data30 != @21-12-15 16:23:00.000@ then
+  return -1 
+endi
+if $data31 != @-6@ then
+  return -1 
+endi
+if $data40 != @21-12-15 16:22:00.000@ then
+  return -1 
+endi
+if $data41 != @2@ then
+  return -1 
+endi
+if $data50 != @21-12-15 16:21:00.000@ then
+  return -1 
+endi
+if $data51 != @43@ then
+  return -1 
+endi
+sql drop database td11097
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -22,42 +22,13 @@ extern void taosWinSocketInit();
 
 void osInit() {
   taosSetCoreDump();
-#ifdef _TD_POWER_
-  if (configDir[0] == 0) {
-    strcpy(configDir, "C:/PowerDB/cfg");
-  }
-
-  strcpy(tsVnodeDir, "C:/PowerDB/data");
-  strcpy(tsDataDir, "C:/PowerDB/data");
-  strcpy(tsLogDir, "C:/PowerDB/log");
-  strcpy(tsScriptDir, "C:/PowerDB/script");
-#elif (_TD_TQ_ == true)
-  if (configDir[0] == 0) {
-    strcpy(configDir, "C:/TQ/cfg");
-  }
-  strcpy(tsVnodeDir, "C:/TQ/data");
-  strcpy(tsDataDir, "C:/TQ/data");
-  strcpy(tsLogDir, "C:/TQ/log");
-  strcpy(tsScriptDir, "C:/TQ/script");
-#elif (_TD_PRO_ == true)
-  if (configDir[0] == 0) {
-    strcpy(configDir, "C:/ProDB/cfg");
-  }
-  strcpy(tsVnodeDir, "C:/ProDB/data");
-  strcpy(tsDataDir, "C:/ProDB/data");
-  strcpy(tsLogDir, "C:/ProDB/log");
-  strcpy(tsScriptDir, "C:/ProDB/script");
-#else
   if (configDir[0] == 0) {
     strcpy(configDir, "C:/TDengine/cfg");
   }
-
   strcpy(tsVnodeDir, "C:/TDengine/data");
   strcpy(tsDataDir, "C:/TDengine/data");
   strcpy(tsLogDir, "C:/TDengine/log");
   strcpy(tsScriptDir, "C:/TDengine/script");
-#endif
-
   strcpy(tsDnodeDir, "");
   strcpy(tsMnodeDir, "");  
   strcpy(tsOsName, "Windows");

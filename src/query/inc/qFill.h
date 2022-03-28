@@ -86,7 +86,7 @@ bool taosFillHasMoreResults(SFillInfo* pFillInfo);
 
 int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, int64_t ekey, int32_t maxNumOfRows);
 
-int32_t taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint* point1, SPoint* point2, int32_t inputType);
+int32_t taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint* point1, SPoint* point2, int32_t inputType, bool *exceedMax, bool *exceedMin);
 
 int64_t taosFillResultDataBlock(SFillInfo* pFillInfo, void** output, int32_t capacity);
 

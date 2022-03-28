@@ -233,5 +233,5 @@ void shellParseArgument(int argc, char *argv[]) {
   pPrint("%s numOfColumns:%d %s", GREEN, numOfColumns, NC);
   pPrint("%s replica:%d %s", GREEN, replica, NC);
   
-  pPrint("%s start create table performace test %s", GREEN, NC);
+  pPrint("%s start create table performance test %s", GREEN, NC);
 }

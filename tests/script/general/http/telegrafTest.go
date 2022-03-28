@@ -1,3 +1,18 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package main
 
 import (
@@ -68,7 +83,7 @@ func readConf(filename string) {
 	fmt.Println("LoopNum:", config.LoopNum)
 	fmt.Println("dbName:", config.DbName)
 	fmt.Println("dataBegin:", config.DataBegin)
-	
+
 	fmt.Println("================http token=============================")
 	token, err = getToken()
 	url = fmt.Sprintf("http://%s:%d/telegraf/%s", config.HostIp, 6020, config.DbName)
@@ -90,9 +105,9 @@ func readReq(filename string) {
 	defer file.Close()
 
 	data, _ := ioutil.ReadAll(file)
-	
+
 	template = string(data[:])
- 
+
 	//fmt.Println(template)
 }
 
@@ -154,13 +169,13 @@ func exec(client *http.Client, sql string) {
 		var jsonResult JsonResult
 		err = json.Unmarshal(data, &jsonResult)
 		if err != nil {
-			fmt.Println("parse json error: ", string(data[:]))	
+			fmt.Println("parse json error: ", string(data[:]))
 			resp.Body.Close()
 			continue
 		}
 
-		
-		atomic.AddInt64(&request, 1)		
+
+		atomic.AddInt64(&request, 1)
 		atomic.AddInt64(&period, spend)
 
 		if request%1000 == 0 && request != 0 {
@@ -179,16 +194,16 @@ func exec(client *http.Client, sql string) {
 func writeData(wg *sync.WaitGroup, tbIndex int) {
 	defer wg.Done()
 	client := &http.Client{}
-	
+
 	tbName := fmt.Sprintf("t%d", tbIndex)
-	
+
 	for j := 0; j < config.LoopNum; j++ {
 		tmVal := fmt.Sprintf("%d", int64(j)*int64(10000) + config.DataBegin)
 		//fmt.Println(tmVal)
 
 		req1 := strings.Replace(template, "panshi-gsl", tbName, -1)
 		req2 := strings.Replace(req1, "1536750390000", tmVal, -1)
-		
+
 		//fmt.Println(req2)
 		exec(client, req2)
 	}
@@ -196,17 +211,17 @@ func writeData(wg *sync.WaitGroup, tbIndex int) {
 
 func main() {
 	filename := flag.String("config", "telegraf.json", "config file name")
-	
+
 	flag.Parse()
-	
+
 	readReq("telegraf.req")
-	
+
 	readConf(*filename)
-	
+
 	fmt.Println("\n================telegraf test start======================")
 
 	var wg sync.WaitGroup
-	
+
 	for i := 0; i < config.MachineNum; i++ {
 		wg.Add(1)
 		go writeData(&wg, i)

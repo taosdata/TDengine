@@ -80,6 +80,7 @@ typedef struct SMnodeObj {
   int8_t     updateEnd[4];
   int32_t    refCount;
   int8_t     role;
+  int64_t    roleTime;
   int8_t     reserved2[3];
 } SMnodeObj;
 
@@ -273,6 +274,7 @@ typedef struct {
   int32_t  rowSize;
   int32_t  numOfRows;
   void *   pIter;
+  void *   pVgIter;
   void **  ppShow;
   int16_t  offset[TSDB_MAX_COLUMNS];
   int32_t  bytes[TSDB_MAX_COLUMNS];

@@ -23,6 +23,7 @@
 #include "twal.h"
 #include "tfs.h"
 #include "tsync.h"
+#include "tgrant.h"
 #include "dnodeStep.h"
 #include "dnodePeer.h"
 #include "dnodeModule.h"
@@ -53,6 +54,7 @@ void    moduleStop() {}
 
 void *tsDnodeTmr = NULL;
 static SRunStatus tsRunStatus = TSDB_RUN_STATUS_STOPPED;
+static int64_t tsDnodeErrors = 0;
 
 static int32_t dnodeInitStorage();
 static void    dnodeCleanupStorage();
@@ -76,18 +78,21 @@ static SStep tsDnodeSteps[] = {
   {"dnode-vmgmt",     dnodeInitVMgmt,      dnodeCleanupVMgmt},
   {"dnode-mread",     dnodeInitMRead,      NULL},
   {"dnode-mwrite",    dnodeInitMWrite,     NULL},
-  {"dnode-mpeer",     dnodeInitMPeer,      NULL},  
+  {"dnode-mpeer",     dnodeInitMPeer,      NULL},
   {"dnode-client",    dnodeInitClient,     dnodeCleanupClient},
   {"dnode-server",    dnodeInitServer,     dnodeCleanupServer},
   {"dnode-vnodes",    dnodeInitVnodes,     dnodeCleanupVnodes},
   {"dnode-modules",   dnodeInitModules,    dnodeCleanupModules},
   {"dnode-mread",     NULL,                dnodeCleanupMRead},
   {"dnode-mwrite",    NULL,                dnodeCleanupMWrite},
-  {"dnode-mpeer",     NULL,                dnodeCleanupMPeer},  
+  {"dnode-mpeer",     NULL,                dnodeCleanupMPeer},
   {"dnode-shell",     dnodeInitShell,      dnodeCleanupShell},
   {"dnode-statustmr", dnodeInitStatusTimer,dnodeCleanupStatusTimer},
   {"dnode-telemetry", dnodeInitTelemetry,  dnodeCleanupTelemetry},
+#ifdef LUA_EMBEDDED
   {"dnode-script",    scriptEnvPoolInit,   scriptEnvPoolCleanup},
+#endif
+  {"dnode-grant",     grantInit,           grantCleanUp},
 };
 
 static SStep tsDnodeCompactSteps[] = {
@@ -116,7 +121,7 @@ static int dnodeCreateDir(const char *dir) {
   if (mkdir(dir, 0755) != 0 && errno != EEXIST) {
     return -1;
   }
-  
+
   return 0;
 }
 
@@ -165,11 +170,10 @@ int32_t dnodeInitSystem() {
   taosResolveCRC();
   taosInitGlobalCfg();
   taosReadGlobalLogCfg();
-  taosSetCoreDump();
   dnodeInitTmr();
 
   if (dnodeCreateDir(tsLogDir) < 0) {
-   printf("failed to create dir: %s, reason: %s\n", tsLogDir, strerror(errno));
+   printf("failed to initialize dir: %s, reason: %s\n", tsLogDir, strerror(errno));
    return -1;
   }
 
@@ -185,6 +189,7 @@ int32_t dnodeInitSystem() {
     return -1;
   }
 
+  taosSetCoreDump();
   dInfo("start to initialize TDengine");
 
   taosInitNotes();
@@ -196,6 +201,7 @@ int32_t dnodeInitSystem() {
   dnodeSetRunStatus(TSDB_RUN_STATUS_RUNING);
   moduleStart();
 
+  tsDnodeStartTime = taosGetTimestampMs();
   dnodeReportStep("TDengine", "initialized successfully", 1);
   dInfo("TDengine is initialized successfully");
 
@@ -222,11 +228,19 @@ static void dnodeSetRunStatus(SRunStatus status) {
   tsRunStatus = status;
 }
 
+int64_t dnodeGetDnodeError() {
+  return tsDnodeErrors;
+}
+
+void dnodeIncDnodeError() {
+  atomic_add_fetch_64(&tsDnodeErrors, 1);
+}
+
 static void dnodeCheckDataDirOpenned(char *dir) {
   char filepath[256] = {0};
   sprintf(filepath, "%s/.running", dir);
 
-  int fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+  int fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, S_IRWXU | S_IRWXG | S_IRWXO);
   if (fd < 0) {
     dError("failed to open lock file:%s, reason: %s, quit", filepath, strerror(errno));
     exit(0);
@@ -247,10 +261,10 @@ static int32_t dnodeInitStorage() {
 
   // storage module init
   if (tsDiskCfgNum == 1 && dnodeCreateDir(tsDataDir) < 0) {
-    dError("failed to create dir: %s, reason: %s", tsDataDir, strerror(errno));
+    dError("failed to initialize dir: %s, reason: %s", tsDataDir, strerror(errno));
     return -1;
-  } 
-  
+  }
+
   if (tfsInit(tsDiskCfg, tsDiskCfgNum) < 0) {
     dError("failed to init TFS since %s", tstrerror(terrno));
     return -1;
@@ -282,7 +296,7 @@ static int32_t dnodeInitStorage() {
   if (dnodeCreateDir(tsMnodeDir) < 0) {
    dError("failed to create dir: %s, reason: %s", tsMnodeDir, strerror(errno));
    return -1;
-  } 
+  }
 
   if (dnodeCreateDir(tsDnodeDir) < 0) {
    dError("failed to create dir: %s, reason: %s", tsDnodeDir, strerror(errno));

@@ -55,7 +55,7 @@ class TDTestCase:
         tdSql.execute('''drop database if exists test_updata_0 ;''')  
         # update 0 不更新 ; update 1 覆盖更新 ;update 2 合并更新
         tdLog.info("========== test database updata = 0 ==========") 
-        tdSql.execute('''create database test_updata_0 update 0 minrows 10 maxrows 200 keep 36500;;''')   
+        tdSql.execute('''create database test_updata_0 update 0 minrows 10 maxrows 200 keep 36500;''')   
         tdSql.execute('''use test_updata_0;''')   
         tdSql.execute('''create stable stable_1
                     (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint, 
@@ -414,7 +414,7 @@ class TDTestCase:
             tdSql.execute('''insert into regular_table_1 values(%d, %d, %d, %d, %d, false, 'binary%s', 'nchar%s', %f, %f, %d)''' 
                         % (self.ts + i, random.randint(-2147483647, 2147483647), 
                         random.randint(-9223372036854775807, 9223372036854775807), random.randint(-32767, 32767),
-                        random.randint(-127, 127), random.randint(-100, 100), random.randint(-10000, 10000), 
+                        random.randint(-127, 127), random.randint(-99, 99), random.randint(-9999, 9999), 
                         random.uniform(-100000,100000), random.uniform(-1000000000,1000000000), self.ts + i))
 
             tdSql.execute('''insert into table_1 values(%d, %d, %d, %d, %d, 0, 'binary.%s', 'nchar.%s', %f, %f, %d)''' 
@@ -422,7 +422,7 @@ class TDTestCase:
             tdSql.execute('''insert into table_1 values(%d, %d, %d, %d, %d, false, 'binary%s', 'nchar%s', %f, %f, %d)''' 
                         % (self.ts + i, random.randint(-2147483647, 2147483647), 
                         random.randint(-9223372036854775807, 9223372036854775807), random.randint(-32767, 32767),
-                        random.randint(-127, 127), random.randint(-100, 100), random.randint(-10000, 10000), 
+                        random.randint(-127, 127), random.randint(-99, 99), random.randint(-9999, 9999), 
                         random.uniform(-100000,100000), random.uniform(-1000000000,1000000000), self.ts + i))
 
         tdLog.info("========== regular_table ==========") 
@@ -1055,7 +1055,7 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"
-        os.system("%staosdemo -N -d taosdemo -t 100 -n 100 -l 1000 -y" % binPath)
+        os.system("%staosBenchmark -N -d taosdemo -t 100 -n 100 -l 1000 -y" % binPath)
 
         tdSql.execute('''insert into table_2 values( %d , NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);''' %(self.ts - 200))
         sql = '''select * from table_2 where ts = %d ;''' %(self.ts - 200)

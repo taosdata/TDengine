@@ -72,34 +72,57 @@ int64_t user_mktime64(const unsigned int year0, const unsigned int mon0,
 
 // ==== mktime() kernel code =================//
 static int64_t m_deltaUtc = 0;
-void deltaToUtcInitOnce() {  
+void deltaToUtcInitOnce() {
   struct tm tm = {0};
-  
+
   (void)strptime("1970-01-01 00:00:00", (const char *)("%Y-%m-%d %H:%M:%S"), &tm);
   m_deltaUtc = (int64_t)mktime(&tm);
-  //printf("====delta:%lld\n\n", seconds);	
+  //printf("====delta:%lld\n\n", seconds);
   return;
 }
 
 static int64_t parseFraction(char* str, char** end, int32_t timePrec);
-static int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec);
-static int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec);
-static int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec);
-
-static int32_t (*parseLocaltimeFp[]) (char* timestr, int64_t* time, int32_t timePrec) = {
-  parseLocaltime,
-  parseLocaltimeWithDst
-}; 
+static int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char delim);
+static int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec, char delim, bool withDST);
+static char* forwardToTimeStringEnd(char* str);
+static bool checkTzPresent(char *str, int32_t len);
 
 int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
 
 int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light) {
   /* parse datatime string in with tz */
   if (strnchr(timestr, 'T', len, false) != NULL) {
-    return parseTimeWithTz(timestr, time, timePrec);
+    if (checkTzPresent(timestr, len)) {
+      return parseTimeWithTz(timestr, time, timePrec, 'T');
+    } else {
+      return parseLocaltime(timestr, time, timePrec, 'T', day_light);
+    }
   } else {
-    return (*parseLocaltimeFp[day_light])(timestr, time, timePrec);
+    if (checkTzPresent(timestr, len)) {
+      return parseTimeWithTz(timestr, time, timePrec, 0);
+    } else {
+      return parseLocaltime(timestr, time, timePrec, 0, day_light);
+    }
   }
+}
+
+bool checkTzPresent(char *str, int32_t len) {
+  char *seg = forwardToTimeStringEnd(str);
+  int32_t seg_len = len - (int32_t)(seg - str);
+
+  char *c = &seg[seg_len - 1];
+  for (int i = 0; i < seg_len; ++i) {
+    if (*c == 'Z' || *c  == 'z' || *c == '+' || *c == '-') {
+      return true;
+    }
+    c--;
+  }
+  return false;
+
+}
+
+FORCE_INLINE int32_t taos_parse_time(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light) {
+    return taosParseTime(timestr, time, len, timePrec, day_light);
 }
 
 char* forwardToTimeStringEnd(char* str) {
@@ -187,6 +210,13 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
     i += 2;
   }
 
+  //return error if there're illegal charaters after min(2 Digits)
+  char *minStr = &str[i];
+  if (minStr[1] != '\0' && minStr[2] != '\0') {
+      return -1;
+  }
+
+
   int64_t minute = strnatoi(&str[i], 2);
   if (minute > 59) {
     return -1;
@@ -213,14 +243,23 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
  * 2013-04-12T15:52:01+0800
  * 2013-04-12T15:52:01.123+0800
  */
-int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec) {
+int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char delim) {
 
   int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
                              (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
   int64_t tzOffset = 0;
 
   struct tm tm = {0};
-  char*     str = strptime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
+
+  char* str;
+  if (delim == 'T') {
+    str = strptime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
+  } else if (delim == 0) {
+    str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
+  } else {
+    str = NULL;
+  }
+
   if (str == NULL) {
     return -1;
   }
@@ -236,7 +275,7 @@ int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec) {
   int64_t fraction = 0;
   str = forwardToTimeStringEnd(timestr);
 
-  if (str[0] == 'Z' || str[0] == 'z') {
+  if ((str[0] == 'Z' || str[0] == 'z') && str[1] == '\0') {
     /* utc time, no millisecond, return directly*/
     *time = seconds * factor;
   } else if (str[0] == '.') {
@@ -249,6 +288,8 @@ int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec) {
 
     char seg = str[0];
     if (seg != 'Z' && seg != 'z' && seg != '+' && seg != '-') {
+      return -1;
+    } else if ((seg == 'Z' || seg == 'z') && str[1] != '\0') {
       return -1;
     } else if (seg == '+' || seg == '-') {
       // parse the timezone
@@ -275,13 +316,28 @@ int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec) {
   return 0;
 }
 
-int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
+int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec, char delim, bool withDST) {
   *time = 0;
   struct tm tm = {0};
+  if (withDST) {
+    tm.tm_isdst = -1;
+  }
 
-  char* str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
+  char* str;
+  if (delim == 'T') {
+    str = strptime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
+  } else if (delim == 0) {
+    str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
+  } else {
+    str = NULL;
+  }
+
   if (str == NULL) {
-    return -1;
+    //if parse failed, try "%Y-%m-%d" format
+    str = strptime(timestr, "%Y-%m-%d", &tm);
+    if (str == NULL) {
+      return -1;
+    }
   }
 
 #ifdef _MSC_VER
@@ -290,8 +346,14 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
 #endif
 #endif
 
-  int64_t seconds = user_mktime64(tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, timezone);
-  
+  int64_t seconds;
+  if (!withDST) {
+    seconds = user_mktime64(tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, timezone);
+  } else {
+    /* mktime will be affected by TZ, set by using taos_options */
+    seconds = mktime(&tm);
+  }
+
   int64_t fraction = 0;
 
   if (*str == '.') {
@@ -305,34 +367,6 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
                    (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
   *time = factor * seconds + fraction;
 
-  return 0;
-}
-
-int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec) {
-  *time = 0;
-  struct tm tm = {0};
-  tm.tm_isdst = -1;
-
-  char* str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
-  if (str == NULL) {
-    return -1;
-  }
-
-  /* mktime will be affected by TZ, set by using taos_options */
-  int64_t seconds = mktime(&tm);
-  
-  int64_t fraction = 0;
-
-  if (*str == '.') {
-    /* parse the second fraction part */
-    if ((fraction = parseFraction(str + 1, &str, timePrec)) < 0) {
-      return -1;
-    }
-  }
-
-  int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
-                   (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
-  *time = factor * seconds + fraction;
   return 0;
 }
 
@@ -343,15 +377,20 @@ int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrec
   assert(toPrecision == TSDB_TIME_PRECISION_MILLI ||
          toPrecision == TSDB_TIME_PRECISION_MICRO ||
          toPrecision == TSDB_TIME_PRECISION_NANO);
+  double tempResult = (double)time;
   switch(fromPrecision) {
     case TSDB_TIME_PRECISION_MILLI: {
       switch (toPrecision) {
         case TSDB_TIME_PRECISION_MILLI:
           return time;
         case TSDB_TIME_PRECISION_MICRO:
-          return time * 1000;
+          tempResult *= 1000;
+          time *= 1000;
+          goto end_;
         case TSDB_TIME_PRECISION_NANO:
-          return time * 1000000;
+          tempResult *= 1000000;
+          time *= 1000000;
+          goto end_;
       }
     } // end from milli
     case TSDB_TIME_PRECISION_MICRO: {
@@ -361,7 +400,9 @@ int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrec
         case TSDB_TIME_PRECISION_MICRO:
           return time;
         case TSDB_TIME_PRECISION_NANO:
-          return time * 1000;
+          tempResult *= 1000;
+          time *= 1000;
+          goto end_;
       }
     } //end from micro
     case TSDB_TIME_PRECISION_NANO: {
@@ -379,26 +420,45 @@ int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrec
       return time;  // only to pass windows compilation
     }
   } //end switch fromPrecision
+end_:
+  if (tempResult >= (double)INT64_MAX) return INT64_MAX;
+  if (tempResult <= (double)INT64_MIN) return INT64_MIN + 1;  // INT64_MIN means NULL
+  return time;
 }
 
 static int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecision) {
 
   switch (unit) {
-    case 's':
+    case 's':{
+      double temp = ((double)val) * MILLISECOND_PER_SECOND;
+      if (temp >= (double)INT64_MAX || temp <= (double)INT64_MIN) return -1;
       (*result) = convertTimePrecision(val * MILLISECOND_PER_SECOND, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
-    case 'm':
+    }
+    case 'm':{
+      double temp = ((double)val) * MILLISECOND_PER_MINUTE;
+      if (temp >= (double)INT64_MAX || temp <= (double)INT64_MIN) return -1;
       (*result) = convertTimePrecision(val * MILLISECOND_PER_MINUTE, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
-    case 'h':
+    }
+    case 'h':{
+      double temp = ((double)val) * MILLISECOND_PER_HOUR;
+      if (temp >= (double)INT64_MAX || temp <= (double)INT64_MIN) return -1;
       (*result) = convertTimePrecision(val * MILLISECOND_PER_HOUR, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
-    case 'd':
+    }
+    case 'd': {
+      double temp = ((double)val) * MILLISECOND_PER_DAY;
+      if (temp >= (double)INT64_MAX || temp <= (double)INT64_MIN) return -1;
       (*result) = convertTimePrecision(val * MILLISECOND_PER_DAY, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
-    case 'w':
+    }
+    case 'w': {
+      double temp = ((double)val) * MILLISECOND_PER_WEEK;
+      if (temp >= (double)INT64_MAX || temp <= (double)INT64_MIN) return -1;
       (*result) = convertTimePrecision(val * MILLISECOND_PER_WEEK, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
+    }
     case 'a':
       (*result) = convertTimePrecision(val, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
@@ -484,6 +544,27 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
 
   return (int64_t)(mktime(&tm) * TSDB_TICK_PER_SECOND(precision));
 }
+
+int64_t taosTimeSub(int64_t t, int64_t duration, char unit, int32_t precision) {
+  if (duration == 0) {
+    return t;
+  }
+  if (unit == 'y') {
+    duration *= 12;
+  } else if (unit != 'n') {
+    return t - duration;
+  }
+
+  struct tm tm;
+  time_t tt = (time_t)(t / TSDB_TICK_PER_SECOND(precision));
+  localtime_r(&tt, &tm);
+  int mon = tm.tm_year * 12 + tm.tm_mon - (int)duration;
+  tm.tm_year = mon / 12;
+  tm.tm_mon = mon % 12;
+
+  return (int64_t)(mktime(&tm) * TSDB_TICK_PER_SECOND(precision));
+}
+
 
 int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision) {
   if (ekey < skey) {

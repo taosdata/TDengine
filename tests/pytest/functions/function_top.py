@@ -132,7 +132,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, "2018-09-17 09:00:00.008")
         tdSql.checkData(1, 0, "2018-09-17 09:00:00.009")
         tdSql.checkData(1, 3, "2018-09-17 09:00:00.009")
-        
+
         #TD-2563 top + super_table + interval 
         tdSql.execute("create table meters(ts timestamp, c int) tags (d int)") 
         tdSql.execute("create table t1 using meters tags (1)") 

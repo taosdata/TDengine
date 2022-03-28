@@ -1,3 +1,18 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package main
 
 import (
@@ -184,7 +199,7 @@ func exec(client *http.Client, sql string) {
 		if (request < 103) {
 			return
 		}
-		
+
 		atomic.AddInt64(&period, spend)
 		if request%5000 == 0 && request != 0 {
 			requestAvg := float64(period) / float64(1000000) / float64(request)
@@ -204,7 +219,7 @@ func insertTable(conn int) {
 	tbStart := conn*config.TablePerConn + config.TableStart
 	tmStart := config.DataBegin
 
-	
+
 	for j := 0; j < config.DataNum; j++ {
 		for i := 0; i < config.TablePerConn; i++ {
 			tmVal := int64(j)*int64(config.DataInterval) + tmStart + 1
@@ -214,7 +229,7 @@ func insertTable(conn int) {
 			if config.DataRandom {
 				dataVal = rand.Intn(1000)
 			}
-			
+
 			sql := fmt.Sprintf("import into %s.%s%d values(%d, %d)", config.DbName, config.TablePrefix, tbIndex, tmVal, dataVal)
 			exec(client, sql)
 			time.Sleep(time.Millisecond * time.Duration(10))
@@ -282,7 +297,7 @@ func selectData(wg *sync.WaitGroup, conn int) {
 
 	client := &http.Client{}
 
-	
+
 	tbStart := conn*config.TablePerConn + config.TableStart
 	for j := 0; j < config.DataNum; j++ {
 		tbIndex := 0 + tbStart
@@ -292,10 +307,10 @@ func selectData(wg *sync.WaitGroup, conn int) {
 			sql += fmt.Sprintf(",'%s%d'", config.TablePrefix, tbIndex)
 		}
 		sql += ") group by orgno"
-		
+
 		//sql := fmt.Sprintf("select count(*) from db.mt")
 		//sql := fmt.Sprintf("select max(i),min(i) from db.mt", config.TablePrefix, tbIndex)
-		
+
 		exec(client, sql)
 		time.Sleep(time.Millisecond * time.Duration(10))
 	}
@@ -303,17 +318,17 @@ func selectData(wg *sync.WaitGroup, conn int) {
 
 func main() {
 	filename := flag.String("config", "taos_cloud.json", "config file name")
-	
+
 	flag.Parse()
-	
+
 	readFile(*filename)
-	
+
 	fmt.Println("\n================http test start======================")
 
 	var wg sync.WaitGroup
 
 	fmt.Println("\n================select data  ========================")
-	
+
 
 	for i := 0; i < config.ConnNum; i++ {
 		wg.Add(1)

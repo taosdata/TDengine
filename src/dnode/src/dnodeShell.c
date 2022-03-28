@@ -28,8 +28,8 @@ static void  (*dnodeProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
 static void    dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcEpSet *);
 static int     dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 static void  * tsShellRpc = NULL;
-static int32_t tsQueryReqNum  = 0;
-static int32_t tsSubmitReqNum = 0;
+static int64_t tsQueryReqNum  = 0;
+static int64_t tsSubmitReqNum = 0;
 
 int32_t dnodeInitShell() {
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_SUBMIT]         = dnodeDispatchToVWriteQueue;
@@ -120,6 +120,14 @@ static void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
 
   if (pMsg->pCont == NULL) return;
 
+  if (pMsg->msgType >= TSDB_MSG_TYPE_MAX) {
+    dError("RPC %p, shell msg type:%d is not processed", pMsg->handle, pMsg->msgType);
+    rpcMsg.code = TSDB_CODE_DND_MSG_NOT_PROCESSED;
+    rpcSendResponse(&rpcMsg);
+    rpcFreeCont(pMsg->pCont);
+    return;
+  }
+
   SRunStatus dnodeStatus = dnodeGetRunStatus();
   if (dnodeStatus == TSDB_RUN_STATUS_STOPPED) {
     dError("RPC %p, shell msg:%s is ignored since dnode exiting", pMsg->handle, taosMsg[pMsg->msgType]);
@@ -136,9 +144,9 @@ static void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   }
 
   if (pMsg->msgType == TSDB_MSG_TYPE_QUERY) {
-    atomic_fetch_add_32(&tsQueryReqNum, 1);
+    atomic_fetch_add_64(&tsQueryReqNum, 1);
   } else if (pMsg->msgType == TSDB_MSG_TYPE_SUBMIT) {
-    atomic_fetch_add_32(&tsSubmitReqNum, 1);
+    atomic_fetch_add_64(&tsSubmitReqNum, 1);
   } else {}
 
   if ( dnodeProcessShellMsgFp[pMsg->msgType] ) {
@@ -237,13 +245,31 @@ void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t tid) {
   }
 }
 
-SStatisInfo dnodeGetStatisInfo() {
-  SStatisInfo info = {0};
+SDnodeStatisInfo dnodeGetStatisInfo() {
+  SDnodeStatisInfo info = {0};
   if (dnodeGetRunStatus() == TSDB_RUN_STATUS_RUNING) {
+#ifdef HTTP_EMBEDDED
     info.httpReqNum   = httpGetReqCount();
-    info.queryReqNum  = atomic_exchange_32(&tsQueryReqNum, 0);
-    info.submitReqNum = atomic_exchange_32(&tsSubmitReqNum, 0);
+#endif
+    info.queryReqNum  = atomic_exchange_64(&tsQueryReqNum, 0);
+    info.submitReqNum = atomic_exchange_64(&tsSubmitReqNum, 0);
   }
 
   return info;
+}
+
+int32_t dnodeGetHttpStatusInfo(int32_t index) {
+  int32_t httpStatus = 0;
+#ifdef HTTP_EMBEDDED
+    httpStatus = httpGetStatusCodeCount(index);
+#endif
+  return httpStatus;
+}
+
+void dnodeClearHttpStatusInfo() {
+#ifdef HTTP_EMBEDDED
+  for (int i = 0; i < MAX_HTTP_STATUS_CODE_NUM; ++i) {
+    httpClearStatusCodeCount(i);
+  }
+#endif
 }

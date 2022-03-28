@@ -52,7 +52,7 @@ class TDTestCase:
 
         #write 5M rows into db, then restart to force the data move into disk.
         #create 500 tables
-        os.system("%staosdemo -f tools/taosdemoAllTest/insert_5M_rows.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/insert_5M_rows.json -y " % binPath)
         tdDnodes.stop(1)
         tdDnodes.start(1)
         tdSql.execute('use db')

@@ -211,7 +211,7 @@ class TDTestCase:
             tdLog.info(f"taosd found in {buildPath}")
         binPath = buildPath + "/build/bin/"
 
-        create_table_cmd = f"{binPath}taosdemo -f {filepath} > /dev/null 2>&1"
+        create_table_cmd = f"{binPath}taosBenchmark -f {filepath} > /dev/null 2>&1"
         _ = subprocess.check_output(create_table_cmd, shell=True).decode("utf-8")
 
     def droptmpfile(self):

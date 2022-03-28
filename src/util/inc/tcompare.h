@@ -22,10 +22,11 @@ extern "C" {
 
 #include "os.h"
 
-#define TSDB_PATTERN_MATCH               0
-#define TSDB_PATTERN_NOMATCH             1
-#define TSDB_PATTERN_NOWILDCARDMATCH     2
-#define TSDB_PATTERN_STRING_DEFAULT_LEN  100
+#define TSDB_PATTERN_MATCH 0
+#define TSDB_PATTERN_NOMATCH 1
+#define TSDB_PATTERN_NOWILDCARDMATCH 2
+#define TSDB_PATTERN_STRING_DEFAULT_LEN 100
+#define TSDB_REGEX_STRING_DEFAULT_LEN 128
 
 #define FLT_COMPAR_TOL_FACTOR    4
 #define FLT_EQUAL(_x, _y)        (fabs((_x) - (_y)) <= (FLT_COMPAR_TOL_FACTOR * FLT_EPSILON))
@@ -43,7 +44,7 @@ typedef struct SPatternCompareInfo {
 
 int patternMatch(const char *pattern, const char *str, size_t size, const SPatternCompareInfo *pInfo);
 
-int WCSPatternMatch(const wchar_t *pattern, const wchar_t *str, size_t size, const SPatternCompareInfo *pInfo);
+int WCSPatternMatch(const uint32_t *pattern, const uint32_t *str, size_t size, const SPatternCompareInfo *pInfo);
 
 int32_t doCompare(const char* a, const char* b, int32_t type, size_t size);
 
@@ -52,6 +53,44 @@ __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order);
 __compar_fn_t getComparFunc(int32_t type, int32_t optr);
 
 int32_t taosArrayCompareString(const void* a, const void* b);
+
+int32_t setCompareBytes1(const void *pLeft, const void *pRight);
+
+int32_t setCompareBytes2(const void *pLeft, const void *pRight);
+
+int32_t setCompareBytes4(const void *pLeft, const void *pRight);
+int32_t setCompareBytes8(const void *pLeft, const void *pRight);
+
+int32_t compareInt32Val(const void *pLeft, const void *pRight);
+int32_t compareInt64Val(const void *pLeft, const void *pRight);
+
+int32_t compareInt16Val(const void *pLeft, const void *pRight);
+
+int32_t compareInt8Val(const void *pLeft, const void *pRight);
+
+int32_t compareUint32Val(const void *pLeft, const void *pRight);
+int32_t compareUint64Val(const void *pLeft, const void *pRight);
+
+int32_t compareUint16Val(const void *pLeft, const void *pRight);
+
+int32_t compareUint8Val(const void* pLeft, const void* pRight);
+
+int32_t compareFloatVal(const void *pLeft, const void *pRight);
+
+int32_t compareDoubleVal(const void *pLeft, const void *pRight);
+
+int32_t compareLenPrefixedStr(const void *pLeft, const void *pRight);
+
+int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight);
+int32_t compareStrPatternComp(const void* pLeft, const void* pRight);
+int32_t compareStrRegexComp(const void* pLeft, const void* pRight);
+int32_t compareStrRegexCompMatch(const void* pLeft, const void* pRight);
+int32_t compareStrRegexCompNMatch(const void* pLeft, const void* pRight);
+int32_t compareFindItemInSet(const void *pLeft, const void* pRight);
+int32_t compareWStrPatternComp(const void* pLeft, const void* pRight);
+int32_t compareStrContainJson(const void* pLeft, const void* pRight);
+int32_t compareJsonVal(const void* pLeft, const void* pRight);
+int32_t jsonCompareUnit(const char* f1, const char* f2, bool* canReturn);
 
 #ifdef __cplusplus
 }

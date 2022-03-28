@@ -65,12 +65,7 @@ SDisk *tfsFreeDisk(SDisk *pDisk);
 int    tfsUpdateDiskInfo(SDisk *pDisk);
 
 // ttier.c ======================================================
-typedef struct {
-  int64_t size;
-  int64_t used;
-  int64_t free;
-  int16_t nAvailDisks;  // # of Available disks
-} STierMeta;
+
 typedef struct STier {
   pthread_spinlock_t lock;
   int                level;

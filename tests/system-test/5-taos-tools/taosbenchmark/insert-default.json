@@ -1,0 +1,16 @@
+{
+    "filetype": "insert",
+    "databases": [{
+        "dbinfo": {
+            "name": "db"
+        },
+        "super_tables": [{
+            "name": "stb0",
+            "childtable_count": 100,
+            "childtable_prefix": "stb00_",
+            "insert_rows": 123,
+            "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":1}, {"type": "BINARY", "len": 16, "count":1}, {"type": "BINARY", "len": 32, "count":1}],
+            "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":1}]            
+        }]
+    }]
+}

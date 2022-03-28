@@ -23,7 +23,7 @@ public class MicroSecondPrecisionRestfulTest {
     private static Connection conn3;
 
     @Test
-    public void testCase1() {
+    public void testCase1() throws SQLException {
         try (Statement stmt = conn1.createStatement()) {
             ResultSet rs = stmt.executeQuery("select last_row(ts) from " + ms_timestamp_db + ".weather");
             rs.next();
@@ -31,13 +31,11 @@ public class MicroSecondPrecisionRestfulTest {
             Assert.assertEquals(timestamp1, ts);
             ts = rs.getLong(1);
             Assert.assertEquals(timestamp1, ts);
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 
     @Test
-    public void testCase2() {
+    public void testCase2() throws SQLException {
         try (Statement stmt = conn1.createStatement()) {
             ResultSet rs = stmt.executeQuery("select last_row(ts) from " + us_timestamp_db + ".weather");
             rs.next();
@@ -49,14 +47,12 @@ public class MicroSecondPrecisionRestfulTest {
             Assert.assertEquals(timestamp2 % 1000_000l * 1000, nanos);
 
             ts = rs.getLong(1);
-            Assert.assertEquals(timestamp1, ts);
-        } catch (SQLException e) {
-            e.printStackTrace();
+            Assert.assertEquals(timestamp2, ts);
         }
     }
 
     @Test
-    public void testCase3() {
+    public void testCase3() throws SQLException {
         try (Statement stmt = conn2.createStatement()) {
             ResultSet rs = stmt.executeQuery("select last_row(ts) from " + ms_timestamp_db + ".weather");
             rs.next();
@@ -65,13 +61,11 @@ public class MicroSecondPrecisionRestfulTest {
             Assert.assertEquals(timestamp1, ts);
             ts = rs.getLong(1);
             Assert.assertEquals(timestamp1, ts);
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 
     @Test
-    public void testCase4() {
+    public void testCase4() throws SQLException {
         try (Statement stmt = conn2.createStatement()) {
             ResultSet rs = stmt.executeQuery("select last_row(ts) from " + us_timestamp_db + ".weather");
             rs.next();
@@ -83,14 +77,12 @@ public class MicroSecondPrecisionRestfulTest {
             Assert.assertEquals(timestamp2 % 1000_000l * 1000, nanos);
 
             ts = rs.getLong(1);
-            Assert.assertEquals(timestamp1, ts);
-        } catch (SQLException e) {
-            e.printStackTrace();
+            Assert.assertEquals(timestamp2, ts);
         }
     }
 
     @Test
-    public void testCase5() {
+    public void testCase5() throws SQLException {
         try (Statement stmt = conn3.createStatement()) {
             ResultSet rs = stmt.executeQuery("select last_row(ts) from " + ms_timestamp_db + ".weather");
             rs.next();
@@ -99,13 +91,11 @@ public class MicroSecondPrecisionRestfulTest {
             Assert.assertEquals(timestamp1, ts);
             ts = rs.getLong(1);
             Assert.assertEquals(timestamp1, ts);
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 
     @Test
-    public void testCase6() {
+    public void testCase6() throws SQLException {
         try (Statement stmt = conn3.createStatement()) {
             ResultSet rs = stmt.executeQuery("select last_row(ts) from " + us_timestamp_db + ".weather");
             rs.next();
@@ -117,9 +107,7 @@ public class MicroSecondPrecisionRestfulTest {
             Assert.assertEquals(timestamp2 % 1000_000l * 1000, nanos);
 
             ts = rs.getLong(1);
-            Assert.assertEquals(timestamp1, ts);
-        } catch (SQLException e) {
-            e.printStackTrace();
+            Assert.assertEquals(timestamp2, ts);
         }
     }
 
@@ -156,13 +144,18 @@ public class MicroSecondPrecisionRestfulTest {
     @AfterClass
     public static void afterClass() {
         try {
-            if (conn1 != null)
+            if (conn1 != null) {
+                Statement statement = conn1.createStatement();
+                statement.execute("drop database if exists " + ms_timestamp_db);
+                statement.execute("drop database if exists " + us_timestamp_db);
+                statement.close();
                 conn1.close();
+            }
             if (conn2 != null)
                 conn2.close();
             if (conn3 != null)
                 conn3.close();
-        } catch (SQLException e) {
+        }catch (SQLException e){
             e.printStackTrace();
         }
     }

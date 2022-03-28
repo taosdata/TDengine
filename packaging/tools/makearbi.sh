@@ -18,6 +18,8 @@ pagMode=$8
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/../..)"
 
+productName="TDengine"
+
 # create compressed install file.
 build_dir="${compile_dir}/build"
 code_dir="${top_dir}/src"
@@ -25,16 +27,16 @@ release_dir="${top_dir}/release"
 
 #package_name='linux'
 if [ "$verMode" == "cluster" ]; then
-    install_dir="${release_dir}/TDengine-enterprise-arbitrator-${version}"
+  install_dir="${release_dir}/${productName}-enterprise-arbitrator-${version}"
 else
-    install_dir="${release_dir}/TDengine-arbitrator-${version}"
+  install_dir="${release_dir}/${productName}-arbitrator-${version}"
 fi
 
 # Directories and files.
 bin_files="${build_dir}/bin/tarbitrator ${script_dir}/remove_arbi.sh"
 install_files="${script_dir}/install_arbi.sh"
 
-#header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
+#header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
 init_file_tarbitrator_deb=${script_dir}/../deb/tarbitratord
 init_file_tarbitrator_rpm=${script_dir}/../rpm/tarbitratord
 
@@ -45,22 +47,13 @@ mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x $
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_deb} ${install_dir}/init.d/tarbitratord.deb || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_rpm} ${install_dir}/init.d/tarbitratord.rpm || :
 
-cd ${release_dir} 
+cd ${release_dir}
 
 #  install_dir has been distinguishes  cluster from  edege, so comments this code
 pkg_name=${install_dir}-${osType}-${cpuType}
 
-# if [ "$verMode" == "cluster" ]; then
-#   pkg_name=${install_dir}-${osType}-${cpuType}
-# elif [ "$verMode" == "edge" ]; then
-#   pkg_name=${install_dir}-${osType}-${cpuType}
-# else
-#   echo "unknow verMode, nor cluster or edge"
-#   exit 1
-# fi
-
 if [[ "$verType" == "beta" ]] || [[ "$verType" == "preRelease" ]]; then
-  pkg_name=${install_dir}-${verType}-${osType}-${cpuType} 
+  pkg_name=${install_dir}-${verType}-${osType}-${cpuType}
 elif [ "$verType" == "stable" ]; then
   pkg_name=${pkg_name}
 else
@@ -68,12 +61,11 @@ else
   exit 1
 fi
 
-
 tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) --remove-files || :
 exitcode=$?
 if [ "$exitcode" != "0" ]; then
-    echo "tar ${pkg_name}.tar.gz error !!!"
-    exit $exitcode
+  echo "tar ${pkg_name}.tar.gz error !!!"
+  exit $exitcode
 fi
 
 cd ${curr_dir}

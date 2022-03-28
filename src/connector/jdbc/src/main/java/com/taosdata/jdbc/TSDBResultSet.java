@@ -52,7 +52,7 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         return rowData;
     }
 
-    public TSDBResultSet(TSDBStatement statement, TSDBJNIConnector connector, long resultSetPointer) throws SQLException {
+    public TSDBResultSet(TSDBStatement statement, TSDBJNIConnector connector, long resultSetPointer, int timestampPrecision) throws SQLException {
         this.statement = statement;
         this.jniConnector = connector;
         this.resultSetPointer = resultSetPointer;
@@ -68,14 +68,14 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_NUM_OF_FIELDS_0);
         }
         this.rowData = new TSDBResultSetRowData(this.columnMetaDataList.size());
-        this.blockData = new TSDBResultSetBlockData(this.columnMetaDataList, this.columnMetaDataList.size());
+        this.blockData = new TSDBResultSetBlockData(this.columnMetaDataList, this.columnMetaDataList.size(), timestampPrecision);
+        this.timestampPrecision = timestampPrecision;
     }
 
     public boolean next() throws SQLException {
         if (this.getBatchFetch()) {
-            if (this.blockData.forward()) {
+            if (this.blockData.forward())
                 return true;
-            }
 
             int code = this.jniConnector.fetchBlock(this.resultSetPointer, this.blockData);
             this.blockData.reset();
@@ -213,7 +213,18 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         if (!lastWasNull) {
             Object value = this.rowData.getObject(columnIndex);
             if (value instanceof Timestamp) {
-                res = ((Timestamp) value).getTime();
+                Timestamp ts = (Timestamp) value;
+                long epochSec = ts.getTime() / 1000;
+                long nanoAdjustment = ts.getNanos();
+                switch (this.timestampPrecision) {
+                    case 0:
+                    default:                        // ms
+                        return ts.getTime();
+                    case 1:                         // us
+                        return epochSec * 1000_000L + nanoAdjustment / 1000L;
+                    case 2:                         // ns
+                        return epochSec * 1000_000_000L + nanoAdjustment;
+                }
             } else {
                 int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
                 res = this.rowData.getLong(columnIndex, nativeType);
@@ -256,7 +267,11 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     public byte[] getBytes(int columnIndex) throws SQLException {
         checkAvailability(columnIndex, this.columnMetaDataList.size());
 
+        if (this.getBatchFetch())
+            return this.blockData.getBytes(columnIndex -1);
+
         Object value = this.rowData.getObject(columnIndex);
+        this.lastWasNull = value == null;
         if (value == null)
             return null;
 
@@ -328,28 +343,29 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     @Override
     public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
         if (this.getBatchFetch())
-            return new BigDecimal(this.blockData.getLong(columnIndex - 1));
+            return BigDecimal.valueOf(this.blockData.getDouble(columnIndex - 1));
 
         this.lastWasNull = this.rowData.wasNull(columnIndex);
-        BigDecimal res = null;
-        if (!lastWasNull) {
-            int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
-            switch (nativeType) {
-                case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
-                case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
-                case TSDBConstants.TSDB_DATA_TYPE_INT:
-                case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
-                    res = new BigDecimal(Long.parseLong(this.rowData.getObject(columnIndex).toString()));
-                    break;
-                case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
-                case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
-                    res = BigDecimal.valueOf(Double.parseDouble(this.rowData.getObject(columnIndex).toString()));
-                    break;
-                case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
-                    return new BigDecimal(((Timestamp) this.rowData.getObject(columnIndex)).getTime());
-                default:
-                    res = new BigDecimal(this.rowData.getObject(columnIndex).toString());
-            }
+        if (lastWasNull)
+            return null;
+
+        BigDecimal res;
+        int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
+        switch (nativeType) {
+            case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
+            case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
+            case TSDBConstants.TSDB_DATA_TYPE_INT:
+            case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
+                res = new BigDecimal(Long.parseLong(this.rowData.getObject(columnIndex).toString()));
+                break;
+            case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
+            case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
+                res = BigDecimal.valueOf(Double.parseDouble(this.rowData.getObject(columnIndex).toString()));
+                break;
+            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
+                return new BigDecimal(((Timestamp) this.rowData.getObject(columnIndex)).getTime());
+            default:
+                res = new BigDecimal(this.rowData.getObject(columnIndex).toString());
         }
         return res;
     }
@@ -465,12 +481,6 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
 
     public boolean isClosed() throws SQLException {
         return isClosed;
-//        if (isClosed)
-//            return true;
-//        if (jniConnector != null) {
-//            isClosed = jniConnector.isResultsetClosed();
-//        }
-//        return isClosed;
     }
 
     public String getNString(int columnIndex) throws SQLException {

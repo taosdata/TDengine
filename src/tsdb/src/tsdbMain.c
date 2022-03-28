@@ -16,6 +16,8 @@
 // no test file errors here
 #include "taosdef.h"
 #include "tsdbint.h"
+#include "ttimer.h"
+#include "tthread.h"
 
 #define IS_VALID_PRECISION(precision) \
   (((precision) >= TSDB_TIME_PRECISION_MILLI) && ((precision) <= TSDB_TIME_PRECISION_NANO))
@@ -126,6 +128,10 @@ int tsdbCloseRepo(STsdbRepo *repo, int toCommit) {
   terrno = TSDB_CODE_SUCCESS;
 
   tsdbStopStream(pRepo);
+  if(pRepo->pthread){
+    taosDestoryThread(pRepo->pthread);
+    pRepo->pthread = NULL;
+  }
 
   if (toCommit) {
     tsdbSyncCommit(repo);
@@ -179,6 +185,14 @@ int tsdbUnlockRepo(STsdbRepo *pRepo) {
   return 0;
 }
 
+int tsdbCheckWal(STsdbRepo *pRepo, uint32_t walSize) {  // MB
+  STsdbCfg *pCfg = &(pRepo->config);
+  if ((walSize > tsdbWalFlushSize) && (walSize > (pCfg->totalBlocks / 2 * pCfg->cacheBlockSize))) {
+    if (tsdbAsyncCommit(pRepo) < 0) return -1;
+  }
+  return 0;
+}
+
 int tsdbCheckCommit(STsdbRepo *pRepo) {
   ASSERT(pRepo->mem != NULL);
   STsdbCfg *pCfg = &(pRepo->config);
@@ -190,7 +204,6 @@ int tsdbCheckCommit(STsdbRepo *pRepo) {
     // trigger commit
     if (tsdbAsyncCommit(pRepo) < 0) return -1;
   }
-
   return 0;
 }
 
@@ -499,6 +512,7 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   }
 
   // Check keep
+#if 0  // already checked and set in mnodeSetDefaultDbCfg
   if (pCfg->keep == -1) {
     pCfg->keep = TSDB_DEFAULT_KEEP;
   } else {
@@ -519,7 +533,25 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   if (pCfg->keep2 == 0) {
     pCfg->keep2 = pCfg->keep;
   }
+#endif
 
+  int32_t keepMin = pCfg->keep1;
+  int32_t keepMid = pCfg->keep2;
+  int32_t keepMax = pCfg->keep;
+
+  if (keepMin > keepMid) {
+    SWAP(keepMin, keepMid, int32_t);
+  }
+  if (keepMin > keepMax) {
+    SWAP(keepMin, keepMax, int32_t);
+  }
+  if (keepMid > keepMax) {
+    SWAP(keepMid, keepMax, int32_t);
+  }
+
+  pCfg->keep = keepMax;
+  pCfg->keep1 = keepMin;
+  pCfg->keep2 = keepMid;
   // update check
   if (pCfg->update < TD_ROW_DISCARD_UPDATE || pCfg->update > TD_ROW_PARTIAL_UPDATE)
     pCfg->update = TD_ROW_DISCARD_UPDATE;
@@ -547,6 +579,7 @@ static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
     pRepo->appH = *pAppH;
   }
   pRepo->repoLocked = false;
+  pRepo->pthread = NULL;
 
   int code = pthread_mutex_init(&(pRepo->mutex), NULL);
   if (code != 0) {
@@ -646,9 +679,9 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
   int numColumns;
   int32_t blockIdx;
   SDataStatis* pBlockStatis = NULL;
-  SMemRow      row = NULL;
+  // SMemRow      row = NULL;
   // restore last column data with last schema
-  
+
   int err = 0;
 
   numColumns = schemaNCols(pSchema);
@@ -662,18 +695,18 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
     }
   }
 
-  row = taosTMalloc(memRowMaxBytesFromSchema(pSchema));
-  if (row == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    err = -1;
-    goto out;
-  }
+  // row = taosTMalloc(memRowMaxBytesFromSchema(pSchema));
+  // if (row == NULL) {
+  //   terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+  //   err = -1;
+  //   goto out;
+  // }
 
-  memRowSetType(row, SMEM_ROW_DATA);
-  tdInitDataRow(memRowDataBody(row), pSchema);
+  // memRowSetType(row, SMEM_ROW_DATA);
+  // tdInitDataRow(memRowDataBody(row), pSchema);
 
   // first load block index info
-  if (tsdbLoadBlockInfo(pReadh, NULL) < 0) {
+  if (tsdbLoadBlockInfo(pReadh, NULL, NULL) < 0) {
     err = -1;
     goto out;
   }
@@ -707,9 +740,10 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
 
     // file block with sub-blocks has no statistics data
     if (pBlock->numOfSubBlocks <= 1) {
-      tsdbLoadBlockStatis(pReadh, pBlock);
-      tsdbGetBlockStatis(pReadh, pBlockStatis, (int)numColumns);
-      loadStatisData = true;
+      if (tsdbLoadBlockStatis(pReadh, pBlock) == TSDB_STATIS_OK) {
+        tsdbGetBlockStatis(pReadh, pBlockStatis, (int)numColumns, pBlock);
+        loadStatisData = true;
+      }
     }
     TSDB_WLOCK_TABLE(pTable);  // lock when update pTable->lastCols[]
     for (int16_t i = 0; i < numColumns && numColumns > pTable->restoreColumnNum; ++i) {
@@ -728,10 +762,12 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
       for (int32_t rowId = pBlock->numOfRows - 1; rowId >= 0; rowId--) {
         SDataCol *pDataCol = pReadh->pDCols[0]->cols + i;
         const void* pColData = tdGetColDataOfRow(pDataCol, rowId);
-        tdAppendColVal(memRowDataBody(row), pColData, pCol->type, pCol->offset);
-        //SDataCol *pDataCol = readh.pDCols[0]->cols + j;
-        void *value = tdGetRowDataOfCol(memRowDataBody(row), (int8_t)pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
-        if (isNull(value, pCol->type)) {
+        // tdAppendColVal(memRowDataBody(row), pColData, pCol->type, pCol->offset);
+        //  SDataCol *pDataCol = readh.pDCols[0]->cols + j;
+        // void *value = tdGetRowDataOfCol(memRowDataBody(row), (int8_t)pCol->type, TD_DATA_ROW_HEAD_SIZE +
+        //
+        // pCol->offset);
+        if (isNull(pColData, pCol->type)) {
           continue;
         }
 
@@ -746,13 +782,14 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
         pLastCol->pData = malloc(bytes);
         pLastCol->bytes = bytes;
         pLastCol->colId = pCol->colId;
-        memcpy(pLastCol->pData, value, bytes);
+        memcpy(pLastCol->pData, pColData, bytes);
 
         // save row ts(in column 0)
         pDataCol = pReadh->pDCols[0]->cols + 0;
-        pCol = schemaColAt(pSchema, 0);
-        tdAppendColVal(memRowDataBody(row), tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->offset);
-        pLastCol->ts = memRowKey(row);
+        // pCol = schemaColAt(pSchema, 0);
+        // tdAppendColVal(memRowDataBody(row), tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->offset);
+        // pLastCol->ts = memRowKey(row);
+        pLastCol->ts = tdGetKey(*(TKEY *)(tdGetColDataOfRow(pDataCol, rowId)));
 
         pTable->restoreColumnNum += 1;
 
@@ -764,7 +801,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
   }
 
 out:
-  taosTZfree(row);
+  // taosTZfree(row);
   tfree(pBlockStatis);
 
   if (err == 0 && numColumns <= pTable->restoreColumnNum) {
@@ -775,7 +812,8 @@ out:
 }
 
 static int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, SBlockIdx *pIdx) {
-  if (tsdbLoadBlockInfo(pReadh, NULL) < 0) {
+  ASSERT(pTable->lastRow == NULL);
+  if (tsdbLoadBlockInfo(pReadh, NULL, NULL) < 0) {
     return -1;
   }
 

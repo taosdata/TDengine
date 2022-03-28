@@ -143,59 +143,41 @@ class TDTestCase:
             '%staosdump --databases timedb1 -S 1625068810000000000  -o ./taosdumptest/dumptmp3  ' %
             binPath)
 
-        # replace strings to dump in databases
-        os.system(
-            "sed -i \"s/timedb1/dumptmp1/g\" `grep timedb1 -rl ./taosdumptest/dumptmp1`")
-        os.system(
-            "sed -i \"s/timedb1/dumptmp2/g\" `grep timedb1 -rl ./taosdumptest/dumptmp2`")
-        os.system(
-            "sed -i \"s/timedb1/dumptmp3/g\" `grep timedb1 -rl ./taosdumptest/dumptmp3`")
-
-        os.system("%staosdump -i ./taosdumptest/dumptmp1" % binPath)
+        tdSql.execute("drop database timedb1")
         os.system("%staosdump -i ./taosdumptest/dumptmp2" % binPath)
-        os.system("%staosdump -i ./taosdumptest/dumptmp3" % binPath)
-
-        # dump data and check for taosdump
-        tdSql.query("select count(*) from dumptmp1.st")
-        tdSql.checkData(0, 0, 1000)
-
-        tdSql.query("select count(*) from dumptmp2.st")
+         # dump data and check for taosdump
+        tdSql.query("select count(*) from timedb1.st")
         tdSql.checkData(0, 0, 510)
 
-        tdSql.query("select count(*) from dumptmp3.st")
+        tdSql.execute("drop database timedb1")
+        os.system("%staosdump -i ./taosdumptest/dumptmp3" % binPath)
+         # dump data and check for taosdump
+        tdSql.query("select count(*) from timedb1.st")
         tdSql.checkData(0, 0, 900)
+
+        tdSql.execute("drop database timedb1")
+        os.system("%staosdump -i ./taosdumptest/dumptmp1" % binPath)
+         # dump data and check for taosdump
+        tdSql.query("select count(*) from timedb1.st")
+        tdSql.checkData(0, 0, 1000)
 
         # check data
         origin_res = tdSql.getResult("select * from timedb1.st")
-        dump_res = tdSql.getResult("select * from dumptmp1.st")
+        tdSql.execute("drop database timedb1")
+        os.system("%staosdump -i ./taosdumptest/dumptmp1" % binPath)
+         # dump data and check for taosdump
+        dump_res = tdSql.getResult("select * from timedb1.st")
         if origin_res == dump_res:
             tdLog.info("test nano second : dump check data pass for all data!")
         else:
             tdLog.info(
                 "test nano second : dump check data failed for all data!")
 
-        origin_res = tdSql.getResult(
-            "select * from timedb1.st where ts >=1625068810000000000 and ts <= 1625068860000000000")
-        dump_res = tdSql.getResult("select * from dumptmp2.st")
-        if origin_res == dump_res:
-            tdLog.info(" test nano second : dump check data pass for data! ")
-        else:
-            tdLog.info(" test nano second : dump check data failed for data !")
-
-        origin_res = tdSql.getResult(
-            "select * from timedb1.st where ts >=1625068810000000000 ")
-        dump_res = tdSql.getResult("select * from dumptmp3.st")
-        if origin_res == dump_res:
-            tdLog.info(" test nano second : dump check data pass for data! ")
-        else:
-            tdLog.info(" test nano second : dump check data failed for data !")
-
         # us second support test case
 
         os.system("rm -rf ./taosdumptest/")
-        tdSql.execute("drop database if exists dumptmp1")
-        tdSql.execute("drop database if exists dumptmp2")
-        tdSql.execute("drop database if exists dumptmp3")
+        tdSql.execute("drop database if exists timedb1")
+        
 
         if not os.path.exists("./taosdumptest/tmp1"):
             os.makedirs("./taosdumptest/dumptmp1")
@@ -228,55 +210,44 @@ class TDTestCase:
             '%staosdump --databases timedb1 -S 1625068810000000  -o ./taosdumptest/dumptmp3  ' %
             binPath)
 
-        os.system(
-            "sed -i \"s/timedb1/dumptmp1/g\" `grep timedb1 -rl ./taosdumptest/dumptmp1`")
-        os.system(
-            "sed -i \"s/timedb1/dumptmp2/g\" `grep timedb1 -rl ./taosdumptest/dumptmp2`")
-        os.system(
-            "sed -i \"s/timedb1/dumptmp3/g\" `grep timedb1 -rl ./taosdumptest/dumptmp3`")
-
         os.system("%staosdump -i ./taosdumptest/dumptmp1" % binPath)
         os.system("%staosdump -i ./taosdumptest/dumptmp2" % binPath)
         os.system("%staosdump -i ./taosdumptest/dumptmp3" % binPath)
 
-        tdSql.query("select count(*) from dumptmp1.st")
-        tdSql.checkData(0, 0, 1000)
-
-        tdSql.query("select count(*) from dumptmp2.st")
+        tdSql.execute("drop database timedb1")
+        os.system("%staosdump -i ./taosdumptest/dumptmp2" % binPath)
+         # dump data and check for taosdump
+        tdSql.query("select count(*) from timedb1.st")
         tdSql.checkData(0, 0, 510)
 
-        tdSql.query("select count(*) from dumptmp3.st")
+        tdSql.execute("drop database timedb1")
+        os.system("%staosdump -i ./taosdumptest/dumptmp3" % binPath)
+         # dump data and check for taosdump
+        tdSql.query("select count(*) from timedb1.st")
         tdSql.checkData(0, 0, 900)
 
+        tdSql.execute("drop database timedb1")
+        os.system("%staosdump -i ./taosdumptest/dumptmp1" % binPath)
+         # dump data and check for taosdump
+        tdSql.query("select count(*) from timedb1.st")
+        tdSql.checkData(0, 0, 1000)
+
+        # check data
         origin_res = tdSql.getResult("select * from timedb1.st")
-        dump_res = tdSql.getResult("select * from dumptmp1.st")
+        tdSql.execute("drop database timedb1")
+        os.system("%staosdump -i ./taosdumptest/dumptmp1" % binPath)
+         # dump data and check for taosdump
+        dump_res = tdSql.getResult("select * from timedb1.st")
         if origin_res == dump_res:
-            tdLog.info("test us second : dump check data pass for all data!")
+            tdLog.info("test micro second : dump check data pass for all data!")
         else:
-            tdLog.info("test us second : dump check data failed for all data!")
-
-        origin_res = tdSql.getResult(
-            "select * from timedb1.st where ts >=1625068810000000 and ts <= 1625068860000000")
-        dump_res = tdSql.getResult("select * from dumptmp2.st")
-        if origin_res == dump_res:
-            tdLog.info(" test us second : dump check data pass for data! ")
-        else:
-            tdLog.info(" test us second : dump check data failed for data!")
-
-        origin_res = tdSql.getResult(
-            "select * from timedb1.st where ts >=1625068810000000 ")
-        dump_res = tdSql.getResult("select * from dumptmp3.st")
-        if origin_res == dump_res:
-            tdLog.info(" test us second : dump check data pass for data! ")
-        else:
-            tdLog.info(" test us second : dump check data failed for data! ")
+            tdLog.info(
+                "test micro second : dump check data failed for all data!")
 
         # ms second support test case
 
         os.system("rm -rf ./taosdumptest/")
-        tdSql.execute("drop database if exists dumptmp1")
-        tdSql.execute("drop database if exists dumptmp2")
-        tdSql.execute("drop database if exists dumptmp3")
+        tdSql.execute("drop database if exists timedb1")
 
         if not os.path.exists("./taosdumptest/tmp1"):
             os.makedirs("./taosdumptest/dumptmp1")
@@ -309,48 +280,39 @@ class TDTestCase:
             '%staosdump --databases timedb1 -S 1625068810000  -o ./taosdumptest/dumptmp3  ' %
             binPath)
 
-        os.system(
-            "sed -i \"s/timedb1/dumptmp1/g\" `grep timedb1 -rl ./taosdumptest/dumptmp1`")
-        os.system(
-            "sed -i \"s/timedb1/dumptmp2/g\" `grep timedb1 -rl ./taosdumptest/dumptmp2`")
-        os.system(
-            "sed -i \"s/timedb1/dumptmp3/g\" `grep timedb1 -rl ./taosdumptest/dumptmp3`")
-
         os.system("%staosdump -i ./taosdumptest/dumptmp1" % binPath)
         os.system("%staosdump -i ./taosdumptest/dumptmp2" % binPath)
         os.system("%staosdump -i ./taosdumptest/dumptmp3" % binPath)
 
-        tdSql.query("select count(*) from dumptmp1.st")
-        tdSql.checkData(0, 0, 1000)
-
-        tdSql.query("select count(*) from dumptmp2.st")
+        tdSql.execute("drop database timedb1")
+        os.system("%staosdump -i ./taosdumptest/dumptmp2" % binPath)
+         # dump data and check for taosdump
+        tdSql.query("select count(*) from timedb1.st")
         tdSql.checkData(0, 0, 510)
 
-        tdSql.query("select count(*) from dumptmp3.st")
+        tdSql.execute("drop database timedb1")
+        os.system("%staosdump -i ./taosdumptest/dumptmp3" % binPath)
+         # dump data and check for taosdump
+        tdSql.query("select count(*) from timedb1.st")
         tdSql.checkData(0, 0, 900)
 
+        tdSql.execute("drop database timedb1")
+        os.system("%staosdump -i ./taosdumptest/dumptmp1" % binPath)
+         # dump data and check for taosdump
+        tdSql.query("select count(*) from timedb1.st")
+        tdSql.checkData(0, 0, 1000)
+
+        # check data
         origin_res = tdSql.getResult("select * from timedb1.st")
-        dump_res = tdSql.getResult("select * from dumptmp1.st")
+        tdSql.execute("drop database timedb1")
+        os.system("%staosdump -i ./taosdumptest/dumptmp1" % binPath)
+         # dump data and check for taosdump
+        dump_res = tdSql.getResult("select * from timedb1.st")
         if origin_res == dump_res:
-            tdLog.info("test ms second : dump check data pass for all data!")
+            tdLog.info("test million second : dump check data pass for all data!")
         else:
-            tdLog.info("test ms second : dump check data failed for all data!")
-
-        origin_res = tdSql.getResult(
-            "select * from timedb1.st where ts >=1625068810000 and ts <= 1625068860000")
-        dump_res = tdSql.getResult("select * from dumptmp2.st")
-        if origin_res == dump_res:
-            tdLog.info(" test ms second : dump check data pass for data! ")
-        else:
-            tdLog.info(" test ms second : dump check data failed for data!")
-
-        origin_res = tdSql.getResult(
-            "select * from timedb1.st where ts >=1625068810000 ")
-        dump_res = tdSql.getResult("select * from dumptmp3.st")
-        if origin_res == dump_res:
-            tdLog.info(" test ms second : dump check data pass for data! ")
-        else:
-            tdLog.info(" test ms second : dump check data failed for data! ")
+            tdLog.info(
+                "test million second : dump check data failed for all data!")
 
         os.system("rm -rf ./taosdumptest/")
         os.system("rm -rf ./dump_result.txt")

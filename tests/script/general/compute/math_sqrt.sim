@@ -1,0 +1,1076 @@
+
+sleep 100
+sql connect
+
+sql use db;
+
+print execute sql select sqrt(*) from tb1;
+sql_error select sqrt(*) from tb1;
+print execute sql select sqrt(*) from tb1;
+sql_error select sqrt(*) from tb1;
+print execute sql select sqrt(*) from tb1;
+sql_error select sqrt(*) from tb1;
+print execute sql select sqrt(*) from tb1;
+sql_error select sqrt(*) from tb1;
+print execute sql select sqrt(*) as a from tb1;
+sql_error select sqrt(*) as a from tb1;
+print execute sql select sqrt(*) + 1 as a from tb1;
+sql_error select sqrt(*) + 1 as a from tb1;
+print execute sql select sqrt(tb1.*) + 1 as a from tb1;
+sql_error select sqrt(tb1.*) + 1 as a from tb1;
+print execute sql select sqrt(*) from tb1;
+sql_error select sqrt(*) from tb1;
+print execute sql select sqrt(c1) from tb1;
+sql_error select sqrt(c1) from tb1;
+print execute sql select sqrt(c1) from tb1;
+sql_error select sqrt(c1) from tb1;
+print execute sql select sqrt(c1 + c2) from tb1;
+sql_error select sqrt(c1 + c2) from tb1;
+print execute sql select sqrt(13) from tb1;
+sql select sqrt(13) from tb1;
+print $data00
+if $data00 != @3.605551275@ then
+  return -1 
+endi
+if $data10 != @3.605551275@ then
+  return -1 
+endi
+if $data20 != @3.605551275@ then
+  return -1 
+endi
+if $data30 != @3.605551275@ then
+  return -1 
+endi
+if $data40 != @3.605551275@ then
+  return -1 
+endi
+if $data50 != @3.605551275@ then
+  return -1 
+endi
+if $data60 != @3.605551275@ then
+  return -1 
+endi
+print execute sql select sqrt(c1) from tb1;
+sql_error select sqrt(c1) from tb1;
+print execute sql select sqrt(c2) from tb1;
+sql select sqrt(c2) from tb1;
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != @1.414213562@ then
+  return -1 
+endi
+if $data30 != NULL then
+  return -1 
+endi
+if $data40 != @2.000000000@ then
+  return -1 
+endi
+if $data50 != @11.269427670@ then
+  return -1 
+endi
+if $data60 != @-nan@ then
+  return -1 
+endi
+print execute sql select sqrt(c3) from tb1;
+sql select sqrt(c3) from tb1;
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != NULL then
+  return -1 
+endi
+if $data30 != @1.732050808@ then
+  return -1 
+endi
+if $data40 != @2.000000000@ then
+  return -1 
+endi
+if $data50 != @181.016573827@ then
+  return -1 
+endi
+if $data60 != @-nan@ then
+  return -1 
+endi
+print execute sql select sqrt(c4) from tb1;
+sql select sqrt(c4) from tb1;
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != @1.414213562@ then
+  return -1 
+endi
+if $data30 != NULL then
+  return -1 
+endi
+if $data40 != @2.000000000@ then
+  return -1 
+endi
+if $data50 != @46340.950001052@ then
+  return -1 
+endi
+if $data60 != @-nan@ then
+  return -1 
+endi
+print execute sql select sqrt(c5) from tb1;
+sql select sqrt(c5) from tb1;
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != NULL then
+  return -1 
+endi
+if $data30 != @1.732050808@ then
+  return -1 
+endi
+if $data40 != @2.000000000@ then
+  return -1 
+endi
+if $data50 != @3037000499.976049900@ then
+  return -1 
+endi
+if $data60 != @-nan@ then
+  return -1 
+endi
+print execute sql select sqrt(c6) from tb1;
+sql select sqrt(c6) from tb1;
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != @1.414213562@ then
+  return -1 
+endi
+if $data30 != NULL then
+  return -1 
+endi
+if $data40 != @2.000000000@ then
+  return -1 
+endi
+if $data50 != @18446743523953729536.000000000@ then
+  return -1 
+endi
+if $data60 != @-nan@ then
+  return -1 
+endi
+print execute sql select sqrt(c7) from tb1;
+sql select sqrt(c7) from tb1;
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != NULL then
+  return -1 
+endi
+if $data30 != @1.732050808@ then
+  return -1 
+endi
+if $data40 != @2.000000000@ then
+  return -1 
+endi
+if $data50 != @13407796239501851766774967791213869355880985313973964850809468725636027220114995122003349472475914321949847847995869038367123793747113409741287235182919680.000000000@ then
+  return -1 
+endi
+if $data60 != @-nan@ then
+  return -1 
+endi
+print execute sql select sqrt(c8) from tb1;
+sql_error select sqrt(c8) from tb1;
+print execute sql select sqrt(c9) from tb1;
+sql_error select sqrt(c9) from tb1;
+print execute sql select sqrt(c10) from tb1;
+sql select sqrt(c10) from tb1;
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != @1.414213562@ then
+  return -1 
+endi
+if $data30 != NULL then
+  return -1 
+endi
+if $data40 != @2.000000000@ then
+  return -1 
+endi
+if $data50 != @15.937377451@ then
+  return -1 
+endi
+if $data60 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select sqrt(c11) from tb1;
+sql select sqrt(c11) from tb1;
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != NULL then
+  return -1 
+endi
+if $data30 != @1.732050808@ then
+  return -1 
+endi
+if $data40 != @2.000000000@ then
+  return -1 
+endi
+if $data50 != @255.996093720@ then
+  return -1 
+endi
+if $data60 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select sqrt(c12) from tb1;
+sql select sqrt(c12) from tb1;
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != @1.414213562@ then
+  return -1 
+endi
+if $data30 != NULL then
+  return -1 
+endi
+if $data40 != @2.000000000@ then
+  return -1 
+endi
+if $data50 != @65535.999984741@ then
+  return -1 
+endi
+if $data60 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select sqrt(c13) from tb1;
+sql select sqrt(c13) from tb1;
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != NULL then
+  return -1 
+endi
+if $data30 != @1.732050808@ then
+  return -1 
+endi
+if $data40 != @2.000000000@ then
+  return -1 
+endi
+if $data50 != @3037000499.976049900@ then
+  return -1 
+endi
+if $data60 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select sqrt(12345678900000000000000000) from tb1;
+sql_error select sqrt(12345678900000000000000000) from tb1;
+print execute sql select distinct sqrt(123) from tb1;
+sql_error select distinct sqrt(123) from tb1;
+print execute sql select sqrt(t1) from stb1;
+sql_error select sqrt(t1) from stb1;
+print execute sql select sqrt(c1),avg(c3) from tb1;
+sql_error select sqrt(c1),avg(c3) from tb1;
+print execute sql select sqrt(c1),top(c3,1) from tb1;
+sql_error select sqrt(c1),top(c3,1) from tb1;
+print execute sql select sqrt(c2+c3) from tb1 session(ts, 1s);
+sql_error select sqrt(c2+c3) from tb1 session(ts, 1s);
+print execute sql select sqrt(c2+c3) from tb1 STATE_WINDOW(c1);
+sql_error select sqrt(c2+c3) from tb1 STATE_WINDOW(c1);
+print execute sql select sqrt(c2+c3) from tb1 interval(1s) sliding(1s) fill(NULL);
+sql_error select sqrt(c2+c3) from tb1 interval(1s) sliding(1s) fill(NULL);
+print execute sql select sqrt(c2+c3) from stb1 group by t1;
+sql_error select sqrt(c2+c3) from stb1 group by t1;
+print execute sql select sqrt(c2+c3) from stb1 group by ts;
+sql_error select sqrt(c2+c3) from stb1 group by ts;
+print execute sql select sqrt(c2+c3) from stb1 group by c1;
+sql_error select sqrt(c2+c3) from stb1 group by c1;
+print execute sql select sqrt(c2+c3) from stb1 group by tbname;
+sql_error select sqrt(c2+c3) from stb1 group by tbname;
+print execute sql select sqrt(c2+c3) from tb1 order by c2;
+sql_error select sqrt(c2+c3) from tb1 order by c2;
+print execute sql select sqrt(c8),sqrt(c9) from tbn;
+sql_error select sqrt(c8),sqrt(c9) from tbn;
+print execute sql select sqrt(ts) from (select avg(c2) as a from stb1 interval(1s));
+sql_error select sqrt(ts) from (select avg(c2) as a from stb1 interval(1s));
+print execute sql select sqrt(a) from (select sqrt(c2) as a from tb1);
+sql select sqrt(a) from (select sqrt(c2) as a from tb1);
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != @1.189207115@ then
+  return -1 
+endi
+if $data30 != NULL then
+  return -1 
+endi
+if $data40 != @1.414213562@ then
+  return -1 
+endi
+if $data50 != @3.356996823@ then
+  return -1 
+endi
+if $data60 != @-nan@ then
+  return -1 
+endi
+print execute sql select sqrt("abc") from tb1;
+sql_error select sqrt("abc") from tb1;
+print execute sql select sqrt(c2 + c3) from tb1;
+sql select sqrt(c2 + c3) from tb1;
+if $data00 != @1.414213562@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != NULL then
+  return -1 
+endi
+if $data30 != NULL then
+  return -1 
+endi
+if $data40 != @2.828427125@ then
+  return -1 
+endi
+if $data50 != @181.367031183@ then
+  return -1 
+endi
+if $data60 != @-nan@ then
+  return -1 
+endi
+print execute sql select sqrt((c2 + c3)) from tb1;
+sql select sqrt((c2 + c3)) from tb1;
+if $data00 != @1.414213562@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != NULL then
+  return -1 
+endi
+if $data30 != NULL then
+  return -1 
+endi
+if $data40 != @2.828427125@ then
+  return -1 
+endi
+if $data50 != @181.367031183@ then
+  return -1 
+endi
+if $data60 != @-nan@ then
+  return -1 
+endi
+print execute sql select sqrt((c2 * c3)+c4-6) from tb1;
+sql select sqrt((c2 * c3)+c4-6) from tb1;
+if $data00 != @-nan@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != NULL then
+  return -1 
+endi
+if $data30 != NULL then
+  return -1 
+endi
+if $data40 != @3.741657387@ then
+  return -1 
+endi
+if $data50 != @46385.828115924@ then
+  return -1 
+endi
+if $data60 != @-nan@ then
+  return -1 
+endi
+print execute sql select sqrt(11)+c2 from tb1;
+sql select sqrt(11)+c2 from tb1;
+if $data00 != @4.316624790@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != @5.316624790@ then
+  return -1 
+endi
+if $data30 != NULL then
+  return -1 
+endi
+if $data40 != @7.316624790@ then
+  return -1 
+endi
+if $data50 != @130.316624790@ then
+  return -1 
+endi
+if $data60 != @-123.683375210@ then
+  return -1 
+endi
+print execute sql select sqrt(c1)+c2 from tb1;
+sql_error select sqrt(c1)+c2 from tb1;
+print execute sql select sqrt(c2)+11 from tb1;
+sql select sqrt(c2)+11 from tb1;
+if $data00 != @12.000000000@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != @12.414213562@ then
+  return -1 
+endi
+if $data30 != NULL then
+  return -1 
+endi
+if $data40 != @13.000000000@ then
+  return -1 
+endi
+if $data50 != @22.269427670@ then
+  return -1 
+endi
+if $data60 != @-nan@ then
+  return -1 
+endi
+print execute sql select sqrt(c1),c1,c2 from tb1;
+sql_error select sqrt(c1),c1,c2 from tb1;
+print execute sql select sqrt(c1),t1,ts,tbname,_C0,_c0 from tb1;
+sql_error select sqrt(c1),t1,ts,tbname,_C0,_c0 from tb1;
+print execute sql select sqrt(c1),floor(c3) from tb1;
+sql_error select sqrt(c1),floor(c3) from tb1;
+print execute sql select sqrt(c1),sqrt(c2+c3) from tb1;
+sql_error select sqrt(c1),sqrt(c2+c3) from tb1;
+print execute sql select sqrt(c2+c3) from tb1 where c2 is not null and c3 is not null;
+sql select sqrt(c2+c3) from tb1 where c2 is not null and c3 is not null;
+if $data00 != @1.414213562@ then
+  return -1 
+endi
+if $data10 != @2.828427125@ then
+  return -1 
+endi
+if $data20 != @181.367031183@ then
+  return -1 
+endi
+if $data30 != @-nan@ then
+  return -1 
+endi
+print execute sql select sqrt(c2) from tb1 order by ts desc;
+sql select sqrt(c2) from tb1 order by ts desc;
+if $data00 != @-nan@ then
+  return -1 
+endi
+if $data10 != @11.269427670@ then
+  return -1 
+endi
+if $data20 != @2.000000000@ then
+  return -1 
+endi
+if $data30 != NULL then
+  return -1 
+endi
+if $data40 != @1.414213562@ then
+  return -1 
+endi
+if $data50 != NULL then
+  return -1 
+endi
+if $data60 != @1.000000000@ then
+  return -1 
+endi
+print execute sql select sqrt(c2+c3) from tb1 order by ts desc;
+sql select sqrt(c2+c3) from tb1 order by ts desc;
+if $data00 != @-nan@ then
+  return -1 
+endi
+if $data10 != @181.367031183@ then
+  return -1 
+endi
+if $data20 != @2.828427125@ then
+  return -1 
+endi
+if $data30 != NULL then
+  return -1 
+endi
+if $data40 != NULL then
+  return -1 
+endi
+if $data50 != NULL then
+  return -1 
+endi
+if $data60 != @1.414213562@ then
+  return -1 
+endi
+print execute sql select sqrt(c2+c3) from tb1 order by ts desc limit 3 offset 2;
+sql select sqrt(c2+c3) from tb1 order by ts desc limit 3 offset 2;
+if $data00 != @2.828427125@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != NULL then
+  return -1 
+endi
+print execute sql select sqrt(c2) from stb1;
+sql select sqrt(c2) from stb1;
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != @1.414213562@ then
+  return -1 
+endi
+if $data30 != NULL then
+  return -1 
+endi
+if $data40 != @2.000000000@ then
+  return -1 
+endi
+if $data50 != @11.269427670@ then
+  return -1 
+endi
+if $data60 != @-nan@ then
+  return -1 
+endi
+if $data70 != @1.000000000@ then
+  return -1 
+endi
+if $data80 != @1.414213562@ then
+  return -1 
+endi
+if $data90 != @1.732050808@ then
+  return -1 
+endi
+print execute sql select sqrt(c2) from stb1 order by ts desc;
+sql select sqrt(c2) from stb1 order by ts desc;
+if $data00 != @2.645751311@ then
+if $data00 != @-nan@ then
+  return -1 
+endi
+endi
+if $data20 != @2.449489743@ then
+if $data20 != @11.269427670@ then
+  return -1 
+endi
+endi
+if $data40 != @2.236067977@ then
+if $data40 != @2.000000000@ then
+  return -1 
+endi
+endi
+if $data60 != @2.000000000@ then
+if $data60 != NULL then
+  return -1 
+endi
+endi
+if $data80 != @1.732050808@ then
+if $data80 != @1.414213562@ then
+  return -1 
+endi
+endi
+print execute sql select sqrt(c4),t1,c4 from stb1 order by ts desc;
+sql select sqrt(c4),t1,c4 from stb1 order by ts desc;
+if $data00 != @2.645751311@ then
+if $data00 != @-nan@ then
+  return -1 
+endi
+endi
+if $data01 != @2@ then
+if $data01 != @1@ then
+  return -1 
+endi
+endi
+if $data20 != @2.449489743@ then
+if $data20 != @46340.950001052@ then
+  return -1 
+endi
+endi
+if $data21 != @2@ then
+if $data21 != @1@ then
+  return -1 
+endi
+endi
+if $data40 != @2.236067977@ then
+if $data40 != @2.000000000@ then
+  return -1 
+endi
+endi
+if $data41 != @2@ then
+if $data41 != @1@ then
+  return -1 
+endi
+endi
+if $data60 != @2.000000000@ then
+if $data60 != NULL then
+  return -1 
+endi
+endi
+if $data61 != @2@ then
+if $data61 != @1@ then
+  return -1 
+endi
+endi
+if $data80 != @1.414213562@ then
+if $data80 != @1.414213562@ then
+  return -1 
+endi
+endi
+if $data81 != @2@ then
+if $data81 != @1@ then
+  return -1 
+endi
+endi
+print execute sql select sqrt(c3),tbname from stb1;
+sql select sqrt(c3),tbname from stb1;
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data01 != @tb1@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data11 != @tb1@ then
+  return -1 
+endi
+if $data20 != NULL then
+  return -1 
+endi
+if $data21 != @tb1@ then
+  return -1 
+endi
+if $data30 != @1.732050808@ then
+  return -1 
+endi
+if $data31 != @tb1@ then
+  return -1 
+endi
+if $data40 != @2.000000000@ then
+  return -1 
+endi
+if $data41 != @tb1@ then
+  return -1 
+endi
+if $data50 != @181.016573827@ then
+  return -1 
+endi
+if $data51 != @tb1@ then
+  return -1 
+endi
+if $data60 != @-nan@ then
+  return -1 
+endi
+if $data61 != @tb1@ then
+  return -1 
+endi
+if $data70 != @1.000000000@ then
+  return -1 
+endi
+if $data71 != @tb2@ then
+  return -1 
+endi
+if $data80 != @1.414213562@ then
+  return -1 
+endi
+if $data81 != @tb2@ then
+  return -1 
+endi
+if $data90 != @1.732050808@ then
+  return -1 
+endi
+if $data91 != @tb2@ then
+  return -1 
+endi
+print execute sql select sqrt(c3),tbname from stb1 where t1 > 1;
+sql select sqrt(c3),tbname from stb1 where t1 > 1;
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data01 != @tb2@ then
+  return -1 
+endi
+if $data10 != @1.414213562@ then
+  return -1 
+endi
+if $data11 != @tb2@ then
+  return -1 
+endi
+if $data20 != @1.732050808@ then
+  return -1 
+endi
+if $data21 != @tb2@ then
+  return -1 
+endi
+if $data30 != @2.000000000@ then
+  return -1 
+endi
+if $data31 != @tb2@ then
+  return -1 
+endi
+if $data40 != @2.236067977@ then
+  return -1 
+endi
+if $data41 != @tb2@ then
+  return -1 
+endi
+if $data50 != @2.449489743@ then
+  return -1 
+endi
+if $data51 != @tb2@ then
+  return -1 
+endi
+if $data60 != @2.645751311@ then
+  return -1 
+endi
+if $data61 != @tb2@ then
+  return -1 
+endi
+print execute sql select sqrt(c8),sqrt(c9) from tbn;
+sql_error select sqrt(c8),sqrt(c9) from tbn;
+print execute sql select sqrt(c8),sqrt(c9) from tbn order by ts desc;
+sql_error select sqrt(c8),sqrt(c9) from tbn order by ts desc;
+print execute sql select sqrt(sqrt(c8)) from tbn;
+sql_error select sqrt(sqrt(c8)) from tbn;
+print execute sql select sqrt(a) from (select avg(c2) as a from stb1 interval(1s));
+sql select sqrt(a) from (select avg(c2) as a from stb1 interval(1s));
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != @1.414213562@ then
+  return -1 
+endi
+if $data20 != @1.581138830@ then
+  return -1 
+endi
+if $data30 != @2.000000000@ then
+  return -1 
+endi
+if $data40 != @2.121320344@ then
+  return -1 
+endi
+if $data50 != @8.154753215@ then
+  return -1 
+endi
+if $data60 != @-nan@ then
+  return -1 
+endi
+print execute sql select sqrt(c2) from (select * from stb1);
+sql select sqrt(c2) from (select * from stb1);
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != @1.414213562@ then
+  return -1 
+endi
+if $data30 != NULL then
+  return -1 
+endi
+if $data40 != @2.000000000@ then
+  return -1 
+endi
+if $data50 != @11.269427670@ then
+  return -1 
+endi
+if $data60 != @-nan@ then
+  return -1 
+endi
+if $data70 != @1.000000000@ then
+  return -1 
+endi
+if $data80 != @1.414213562@ then
+  return -1 
+endi
+if $data90 != @1.732050808@ then
+  return -1 
+endi
+print execute sql select sqrt(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null));
+sql select sqrt(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null));
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != @1.414213562@ then
+  return -1 
+endi
+if $data20 != @1.581138830@ then
+  return -1 
+endi
+if $data30 != @2.000000000@ then
+  return -1 
+endi
+if $data40 != @2.121320344@ then
+  return -1 
+endi
+if $data50 != @8.154753215@ then
+  return -1 
+endi
+if $data60 != @-nan@ then
+  return -1 
+endi
+if $data70 != NULL then
+  return -1 
+endi
+if $data80 != NULL then
+  return -1 
+endi
+if $data90 != NULL then
+  return -1 
+endi
+print execute sql select sqrt(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts;
+sql select sqrt(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts;
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != @1.414213562@ then
+  return -1 
+endi
+if $data20 != @1.581138830@ then
+  return -1 
+endi
+if $data30 != @2.000000000@ then
+  return -1 
+endi
+if $data40 != @2.121320344@ then
+  return -1 
+endi
+if $data50 != @8.154753215@ then
+  return -1 
+endi
+if $data60 != @-nan@ then
+  return -1 
+endi
+if $data70 != NULL then
+  return -1 
+endi
+if $data80 != NULL then
+  return -1 
+endi
+if $data90 != NULL then
+  return -1 
+endi
+print execute sql select sqrt(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts desc;
+sql select sqrt(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts desc;
+if $data00 != NULL then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != NULL then
+  return -1 
+endi
+if $data30 != @-nan@ then
+  return -1 
+endi
+if $data40 != @8.154753215@ then
+  return -1 
+endi
+if $data50 != @2.121320344@ then
+  return -1 
+endi
+if $data60 != @2.000000000@ then
+  return -1 
+endi
+if $data70 != @1.581138830@ then
+  return -1 
+endi
+if $data80 != @1.414213562@ then
+  return -1 
+endi
+if $data90 != @1.000000000@ then
+  return -1 
+endi
+print execute sql select sqrt(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a desc;
+sql select sqrt(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a desc;
+if $data00 != NULL then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != NULL then
+  return -1 
+endi
+if $data30 != @8.154753215@ then
+  return -1 
+endi
+if $data40 != @2.121320344@ then
+  return -1 
+endi
+if $data50 != @2.000000000@ then
+  return -1 
+endi
+if $data60 != @1.581138830@ then
+  return -1 
+endi
+if $data70 != @1.414213562@ then
+  return -1 
+endi
+if $data80 != @1.000000000@ then
+  return -1 
+endi
+if $data90 != @-nan@ then
+  return -1 
+endi
+print execute sql select sqrt(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a;
+sql select sqrt(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a;
+if $data00 != @-nan@ then
+  return -1 
+endi
+if $data10 != @1.000000000@ then
+  return -1 
+endi
+if $data20 != @1.414213562@ then
+  return -1 
+endi
+if $data30 != @1.581138830@ then
+  return -1 
+endi
+if $data40 != @2.000000000@ then
+  return -1 
+endi
+if $data50 != @2.121320344@ then
+  return -1 
+endi
+if $data60 != @8.154753215@ then
+  return -1 
+endi
+if $data70 != NULL then
+  return -1 
+endi
+if $data80 != NULL then
+  return -1 
+endi
+if $data90 != NULL then
+  return -1 
+endi
+print execute sql select sqrt(a) from (select sqrt(c2) as a from tb1);
+sql select sqrt(a) from (select sqrt(c2) as a from tb1);
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != @1.189207115@ then
+  return -1 
+endi
+if $data30 != NULL then
+  return -1 
+endi
+if $data40 != @1.414213562@ then
+  return -1 
+endi
+if $data50 != @3.356996823@ then
+  return -1 
+endi
+if $data60 != @-nan@ then
+  return -1 
+endi
+print execute sql select sqrt(tb1.c3),sqrt(tb2.c3) from tb1,tb2 where tb1.ts=tb2.ts;
+sql select sqrt(tb1.c3),sqrt(tb2.c3) from tb1,tb2 where tb1.ts=tb2.ts;
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data01 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data11 != @1.414213562@ then
+  return -1 
+endi
+if $data20 != NULL then
+  return -1 
+endi
+if $data21 != @1.732050808@ then
+  return -1 
+endi
+if $data30 != @1.732050808@ then
+  return -1 
+endi
+if $data31 != @2.000000000@ then
+  return -1 
+endi
+if $data40 != @2.000000000@ then
+  return -1 
+endi
+if $data41 != @2.236067977@ then
+  return -1 
+endi
+if $data50 != @181.016573827@ then
+  return -1 
+endi
+if $data51 != @2.449489743@ then
+  return -1 
+endi
+if $data60 != @-nan@ then
+  return -1 
+endi
+if $data61 != @2.645751311@ then
+  return -1 
+endi
+print execute sql select sqrt(c3) from tb1 union all select sqrt(c3) from tb2;
+sql select sqrt(c3) from tb1 union all select sqrt(c3) from tb2;
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != NULL then
+  return -1 
+endi
+if $data30 != @1.732050808@ then
+  return -1 
+endi
+if $data40 != @2.000000000@ then
+  return -1 
+endi
+if $data50 != @181.016573827@ then
+  return -1 
+endi
+if $data60 != @-nan@ then
+  return -1 
+endi
+if $data70 != @1.000000000@ then
+  return -1 
+endi
+if $data80 != @1.414213562@ then
+  return -1 
+endi
+if $data90 != @1.732050808@ then
+  return -1 
+endi

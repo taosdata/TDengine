@@ -170,8 +170,8 @@ if $system_content != 0 then
 endi
 
 system_content ls ../../../sim/dnode3/data/vnode/vnode2/tsdb/data/ -l | grep "^-" | wc -l | tr -d '\n'
-print ---->dnode3 data files: $system_content   expect: 3
-if $system_content != 3 then 
+print ---->dnode3 data files: $system_content   expect: 5
+if $system_content != 5 then 
   return -1
 endi
 
@@ -409,26 +409,3 @@ print data00 $data00
 if $data00 != $totalRows then
 	return -1
 endi
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

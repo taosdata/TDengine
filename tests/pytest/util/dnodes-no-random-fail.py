@@ -58,7 +58,7 @@ class TDSimClient:
         self.cfgDict.update({option: value})
 
     def cfg(self, option, value):
-        cmd = "echo '%s %s' >> %s" % (option, value, self.cfgPath)
+        cmd = "echo %s %s >> %s" % (option, value, self.cfgPath)
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
@@ -71,17 +71,13 @@ class TDSimClient:
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
     
-        cmd = "mkdir -p " + self.logDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        os.makedirs(self.logDir, exist_ok=True) # like "mkdir -p"
 
         cmd = "rm -rf " + self.cfgDir
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-        cmd = "mkdir -p " + self.cfgDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        os.makedirs(self.cfgDir, exist_ok=True) # like "mkdir -p"
 
         cmd = "touch " + self.cfgPath
         if os.system(cmd) != 0:
@@ -147,17 +143,11 @@ class TDDnode:
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-        cmd = "mkdir -p " + self.dataDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        os.makedirs(self.dataDir, exist_ok=True) # like "mkdir -p"
 
-        cmd = "mkdir -p " + self.logDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        os.makedirs(self.logDir, exist_ok=True) # like "mkdir -p"
 
-        cmd = "mkdir -p " + self.cfgDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        os.makedirs(self.cfgDir, exist_ok=True) # like "mkdir -p"
 
         cmd = "touch " + self.cfgPath
         if os.system(cmd) != 0:
@@ -318,7 +308,7 @@ class TDDnode:
             tdLog.exit(cmd)
 
     def cfg(self, option, value):
-        cmd = "echo '%s %s' >> %s" % (option, value, self.cfgPath)
+        cmd = "echo %s %s >> %s" % (option, value, self.cfgPath)
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
