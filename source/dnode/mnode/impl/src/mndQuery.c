@@ -14,15 +14,15 @@
  */
 
 #include "mndQuery.h"
-#include "mndMnode.h"
 #include "executor.h"
+#include "mndMnode.h"
 #include "qworker.h"
 
 int32_t mndProcessQueryMsg(SNodeMsg *pReq) {
-  mTrace("message in query queue is processing");
-  SMnode *pMnode = pReq->pNode;
+  SMnode     *pMnode = pReq->pNode;
   SReadHandle handle = {0};
 
+  mTrace("msg:%p, in query queue is processing", pReq);
   switch (pReq->rpcMsg.msgType) {
     case TDMT_VND_QUERY:
       return qWorkerProcessQueryMsg(&handle, pMnode->pQuery, &pReq->rpcMsg);
@@ -35,9 +35,9 @@ int32_t mndProcessQueryMsg(SNodeMsg *pReq) {
 }
 
 int32_t mndProcessFetchMsg(SNodeMsg *pReq) {
-  mTrace("message in fetch queue is processing");
   SMnode *pMnode = pReq->pNode;
-  
+  mTrace("msg:%p, in fetch queue is processing", pReq);
+
   switch (pReq->rpcMsg.msgType) {
     case TDMT_VND_FETCH:
       return qWorkerProcessFetchMsg(pMnode, pMnode->pQuery, &pReq->rpcMsg);
@@ -52,9 +52,9 @@ int32_t mndProcessFetchMsg(SNodeMsg *pReq) {
 }
 
 int32_t mndInitQuery(SMnode *pMnode) {
-  int32_t code = qWorkerInit(NODE_TYPE_MNODE, MND_VGID, NULL, (void **)&pMnode->pQuery, &pMnode->msgCb);
-  if (code) {
-    return code;
+  if (qWorkerInit(NODE_TYPE_MNODE, MND_VGID, NULL, (void **)&pMnode->pQuery, &pMnode->msgCb) != 0) {
+    mError("failed to init qworker in mnode since %s", terrstr());
+    return -1;
   }
 
   mndSetMsgHandle(pMnode, TDMT_VND_QUERY, mndProcessQueryMsg);
@@ -67,4 +67,3 @@ int32_t mndInitQuery(SMnode *pMnode) {
 }
 
 void mndCleanupQuery(SMnode *pMnode) { qWorkerDestroy((void **)&pMnode->pQuery); }
-
