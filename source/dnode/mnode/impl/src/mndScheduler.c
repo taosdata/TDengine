@@ -185,6 +185,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
           pTask->dispatchMsgType = TDMT_VND_TASK_MERGE_EXEC;
           pTask->dispatchType = TASK_DISPATCH__FIXED;
 
+          pTask->fixedEpDispatcher.taskId = lastLevelTask->taskId;
           pTask->fixedEpDispatcher.nodeId = lastLevelTask->nodeId;
           pTask->fixedEpDispatcher.epSet = lastLevelTask->epSet;
         }

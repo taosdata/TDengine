@@ -217,7 +217,6 @@ DLL_EXPORT void        tmq_list_destroy(tmq_list_t *);
 
 DLL_EXPORT tmq_t      *tmq_consumer_new(void *conn, tmq_conf_t *conf, char *errstr, int32_t errstrLen);
 DLL_EXPORT tmq_t      *tmq_consumer_new1(tmq_conf_t *conf, char *errstr, int32_t errstrLen);
-DLL_EXPORT void        tmq_message_destroy(tmq_message_t *tmq_message);
 DLL_EXPORT const char *tmq_err2str(tmq_resp_err_t);
 
 /* ------------------------TMQ CONSUMER INTERFACE------------------------ */
@@ -258,7 +257,8 @@ int32_t tmqGetSkipLogNum(tmq_message_t *tmq_message);
 
 DLL_EXPORT TAOS_ROW tmq_get_row(tmq_message_t *message);
 DLL_EXPORT char    *tmq_get_topic_name(tmq_message_t *message);
-DLL_EXPORT char    *tmq_get_topic_schema(tmq_t *tmq, const char *topic);
+DLL_EXPORT void    *tmq_get_topic_schema(tmq_t *tmq, const char *topic);
+DLL_EXPORT void     tmq_message_destroy(tmq_message_t *tmq_message);
 
 /* --------------------TMPORARY INTERFACE FOR TESTING--------------------- */
 DLL_EXPORT TAOS_RES *tmq_create_topic(TAOS *taos, const char *name, const char *sql, int sqlLen);

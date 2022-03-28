@@ -62,10 +62,11 @@ typedef struct {
 } STaskExec;
 
 typedef struct {
-  int8_t reserved;
+  int32_t taskId;
 } STaskDispatcherInplace;
 
 typedef struct {
+  int32_t taskId;
   int32_t nodeId;
   SEpSet  epSet;
 } STaskDispatcherFixedEp;
