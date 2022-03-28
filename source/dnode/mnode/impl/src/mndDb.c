@@ -955,7 +955,6 @@ void mndGetDBTableNum(SDbObj *pDb, SMnode *pMnode, int32_t *num) {
   sdbCancelFetch(pSdb, pIter);
 }
 
-
 static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
   int32_t vindex = 0;
   SSdb   *pSdb = pMnode->pSdb;
@@ -991,13 +990,35 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
     }
 
     sdbRelease(pSdb, pVgroup);
-    
+
     if (pDb && (vindex >= pDb->cfg.numOfVgroups)) {
       break;
     }
   }
 
   sdbCancelFetch(pSdb, pIter);
+}
+
+int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUseDbReq *pReq) {
+  pRsp->pVgroupInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
+  if (pRsp->pVgroupInfos == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  int32_t numOfTable = 0;
+  mndGetDBTableNum(pDb, pMnode, &numOfTable);
+
+  if (pReq == NULL || pReq->vgVersion < pDb->vgVersion || pReq->dbId != pDb->uid || numOfTable != pReq->numOfTable) {
+    mndBuildDBVgroupInfo(pDb, pMnode, pRsp->pVgroupInfos);
+  }
+
+  memcpy(pRsp->db, pDb->name, TSDB_DB_FNAME_LEN);
+  pRsp->uid = pDb->uid;
+  pRsp->vgVersion = pDb->vgVersion;
+  pRsp->vgNum = taosArrayGetSize(pRsp->pVgroupInfos);
+  pRsp->hashMethod = pDb->hashMethod;
+  return 0;
 }
 
 static int32_t mndProcessUseDbReq(SNodeMsg *pReq) {
@@ -1023,10 +1044,10 @@ static int32_t mndProcessUseDbReq(SNodeMsg *pReq) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         goto USE_DB_OVER;
       }
-    
+
       mndBuildDBVgroupInfo(NULL, pMnode, usedbRsp.pVgroupInfos);
       usedbRsp.vgVersion = vgVersion++;
-      
+
       if (taosArrayGetSize(usedbRsp.pVgroupInfos) <= 0) {
         terrno = TSDB_CODE_MND_DB_NOT_EXIST;
       }
@@ -1034,7 +1055,7 @@ static int32_t mndProcessUseDbReq(SNodeMsg *pReq) {
       usedbRsp.vgVersion = usedbReq.vgVersion;
       code = 0;
     }
-    usedbRsp.vgNum = taosArrayGetSize(usedbRsp.pVgroupInfos);  
+    usedbRsp.vgNum = taosArrayGetSize(usedbRsp.pVgroupInfos);
 
     // no jump, need to construct rsp
   } else {
@@ -1057,24 +1078,10 @@ static int32_t mndProcessUseDbReq(SNodeMsg *pReq) {
         goto USE_DB_OVER;
       }
 
-      usedbRsp.pVgroupInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
-      if (usedbRsp.pVgroupInfos == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
+      if (mndExtractDbInfo(pMnode, pDb, &usedbRsp, &usedbReq) < 0) {
         goto USE_DB_OVER;
       }
 
-      int32_t numOfTable = 0;
-      mndGetDBTableNum(pDb, pMnode, &numOfTable);
-
-      if (usedbReq.vgVersion < pDb->vgVersion || usedbReq.dbId != pDb->uid || numOfTable != usedbReq.numOfTable) {
-        mndBuildDBVgroupInfo(pDb, pMnode, usedbRsp.pVgroupInfos);
-      }
-
-      memcpy(usedbRsp.db, pDb->name, TSDB_DB_FNAME_LEN);
-      usedbRsp.uid = pDb->uid;
-      usedbRsp.vgVersion = pDb->vgVersion;
-      usedbRsp.vgNum = taosArrayGetSize(usedbRsp.pVgroupInfos);
-      usedbRsp.hashMethod = pDb->hashMethod;
       code = 0;
     }
   }
@@ -1138,7 +1145,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
       mndReleaseDb(pMnode, pDb);
       continue;
     }
-    
+
     usedbRsp.pVgroupInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
     if (usedbRsp.pVgroupInfos == NULL) {
       mndReleaseDb(pMnode, pDb);
@@ -1364,11 +1371,11 @@ static int32_t mndGetDbMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMet
   pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
-//  pShow->bytes[cols] = 1;
-//  pSchema[cols].type = TSDB_DATA_TYPE_TINYINT;
-//  strcpy(pSchema[cols].name, "update");
-//  pSchema[cols].bytes = pShow->bytes[cols];
-//  cols++;
+  //  pShow->bytes[cols] = 1;
+  //  pSchema[cols].type = TSDB_DATA_TYPE_TINYINT;
+  //  strcpy(pSchema[cols].name, "update");
+  //  pSchema[cols].bytes = pShow->bytes[cols];
+  //  cols++;
 
   pMeta->numOfColumns = cols;
   pShow->numOfColumns = cols;
@@ -1396,14 +1403,15 @@ char *mnGetDbStr(char *src) {
   return pos;
 }
 
-static char* getDataPosition(char* pData, SShowObj* pShow, int32_t cols, int32_t rows, int32_t capacityOfRow) {
+static char *getDataPosition(char *pData, SShowObj *pShow, int32_t cols, int32_t rows, int32_t capacityOfRow) {
   return pData + pShow->offset[cols] * capacityOfRow + pShow->bytes[cols] * rows;
 }
 
-static void dumpDbInfoToPayload(char* data, SDbObj* pDb, SShowObj* pShow, int32_t rows, int32_t rowCapacity, int64_t numOfTables) {
+static void dumpDbInfoToPayload(char *data, SDbObj *pDb, SShowObj *pShow, int32_t rows, int32_t rowCapacity,
+                                int64_t numOfTables) {
   int32_t cols = 0;
 
-  char* pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  char *pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
   char *name = mnGetDbStr(pDb->name);
   if (name != NULL) {
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, name, pShow->bytes[cols]);
@@ -1497,20 +1505,20 @@ static void dumpDbInfoToPayload(char* data, SDbObj* pDb, SShowObj* pShow, int32_
   STR_WITH_SIZE_TO_VARSTR(pWrite, prec, 2);
   cols++;
 
-//  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
-//  *(int8_t *)pWrite = pDb->cfg.update;
+  //  pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
+  //  *(int8_t *)pWrite = pDb->cfg.update;
 }
 
-static void setInformationSchemaDbCfg(SDbObj* pDbObj) {
+static void setInformationSchemaDbCfg(SDbObj *pDbObj) {
   ASSERT(pDbObj != NULL);
   strncpy(pDbObj->name, TSDB_INFORMATION_SCHEMA_DB, tListLen(pDbObj->name));
 
-  pDbObj->createdTime      = 0;
+  pDbObj->createdTime = 0;
   pDbObj->cfg.numOfVgroups = 0;
-  pDbObj->cfg.quorum       = 1;
+  pDbObj->cfg.quorum = 1;
   pDbObj->cfg.replications = 1;
-  pDbObj->cfg.update       = 1;
-  pDbObj->cfg.precision    = TSDB_TIME_PRECISION_MILLI;
+  pDbObj->cfg.update = 1;
+  pDbObj->cfg.precision = TSDB_TIME_PRECISION_MILLI;
 }
 
 static int32_t mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rowsCapacity) {
