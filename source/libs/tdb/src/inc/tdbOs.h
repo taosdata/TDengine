@@ -20,10 +20,10 @@
 extern "C" {
 #endif
 
-// TODO: kmake
+// TODO: use cmake to control the option
 #define TDB_FOR_TDENGINE
 
-// For memor
+// For memory
 #ifdef TDB_FOR_TDENGINE
 #define tdbOsMalloc  taosMemoryMalloc
 #define tdbOsCalloc  taosMemoryCalloc
@@ -36,8 +36,10 @@ extern "C" {
 #define tdbOsFree    free
 #endif
 
-// For file
+// For file and directory
 #ifdef TDB_FOR_TDENGINE
+
+// file
 typedef TdFilePtr tdb_fd_t;
 
 #define tdbOsOpen  taosOpenFile
@@ -46,28 +48,42 @@ typedef TdFilePtr tdb_fd_t;
 #define tdbOsPRead taosPReadFile
 #define tdbOsWrite taosWriteFile
 #define tdbOsFSync taosFsyncFile
+
+// directory
+#define tdbOsMkdir taosMkDir
+#define tdbOsRmdir taosRemoveDir
+
 #else
+
+// file
+typedef int tdb_fd_t;
+
 #define tdbOsOpen  open
 #define tdbOsClose close
 #define tdbOsRead  read   // TODO
 #define tdbOsPRead pread  // TODO
 #define tdbOsWrite write  // TODO
 #define tdbOsFSync fsync
+
+// directory
+#define tdbOsMkdir mkdir
+#define tdbOsRmdir rmdir
+
 #endif
 
 // For threads and lock
 #ifdef TDB_FOR_TDENGINE
 
-// spin lock
+/* spin lock */
 typedef TdThreadSpinlock tdb_spinlock_t;
 
 #define tdbSpinlockInit    taosThreadSpinInit
 #define tdbSpinlockDestroy taosThreadSpinDestroy
 #define tdbSpinlockLock    taosThreadSpinLock
 #define tdbSpinlockUnlock  taosThreadSpinUnlock
-#define tdbSpinlockTrylock pthread_spin_trylock  // TODO
+#define tdbSpinlockTrylock pthread_spin_trylock
 
-// mutex lock
+/* mutex lock */
 typedef TdThreadMutex tdb_mutex_t;
 
 #define tdbMutexInit    taosThreadMutexInit
@@ -77,7 +93,7 @@ typedef TdThreadMutex tdb_mutex_t;
 
 #else
 
-// spin lock
+/* spin lock */
 typedef pthread_spinlock_t tdb_spinlock_t;
 
 #define tdbSpinlockInit    pthread_spin_init
@@ -86,7 +102,7 @@ typedef pthread_spinlock_t tdb_spinlock_t;
 #define tdbSpinlockUnlock  pthread_spin_unlock
 #define tdbSpinlockTrylock pthread_spin_trylock
 
-// mutex lock
+/* mutex lock */
 typedef pthread_mutex_t tdb_mutex_t;
 
 #define tdbMutexInit    pthread_mutex_init

@@ -80,7 +80,7 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
   // pPager->pCache
   pPager->pCache = pCache;
 
-  pPager->fd = tdbOsOpen(pPager->dbFileName, O_RDWR | O_CREAT, 0755);
+  pPager->fd = tdbOsOpen(pPager->dbFileName, O_RDWR | O_CREAT);
   if (pPager->fd < 0) {
     return -1;
   }
@@ -90,7 +90,7 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
     return -1;
   }
 
-  pPager->jfd = -1;
+  // pPager->jfd = -1;
   pPager->pageSize = tdbPCacheGetPageSize(pCache);
 
   *ppPager = pPager;
@@ -168,7 +168,7 @@ int tdbPagerBegin(SPager *pPager) {
   }
 
   // Open the journal
-  pPager->jfd = tdbOsOpen(pPager->jFileName, O_RDWR | O_CREAT, 0755);
+  pPager->jfd = tdbOsOpen(pPager->jFileName, O_RDWR | O_CREAT);
   if (pPager->jfd < 0) {
     return -1;
   }
@@ -210,7 +210,7 @@ int tdbPagerCommit(SPager *pPager) {
 
   tdbOsClose(pPager->jfd);
   remove(pPager->jFileName);
-  pPager->jfd = -1;
+  // pPager->jfd = -1;
 
   return 0;
 }
