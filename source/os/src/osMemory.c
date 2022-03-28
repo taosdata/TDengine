@@ -14,6 +14,7 @@
  */
 
 #define ALLOW_FORBID_FUNC
+#include <malloc.h>
 #include "os.h"
 
 #define TD_MEMORY_SYMBOL ('T'<<24|'A'<<16|'O'<<8|'S')
@@ -32,6 +33,7 @@ typedef struct TdMemoryInfo
 #else
 
 #include<execinfo.h>
+
 #define STACKCALL __attribute__((regparm(1), noinline))
 void **STACKCALL taosGetEbp(void) {
   void **ebp = NULL;
@@ -41,6 +43,7 @@ void **STACKCALL taosGetEbp(void) {
                        : "memory"); /* not affect register */
   return (void **)(*ebp);
 }
+
 int32_t taosBackTrace(void **buffer, int32_t size) {
   int32_t frame = 0;
   void **ebp;
@@ -59,6 +62,7 @@ int32_t taosBackTrace(void **buffer, int32_t size) {
   }
   return frame;
 }
+
 #endif
 
 // char **taosBackTraceSymbols(int32_t *size) {
@@ -68,6 +72,7 @@ int32_t taosBackTrace(void **buffer, int32_t size) {
 // }
 
 void *taosMemoryMalloc(int32_t size) {
+#ifdef USE_TD_MEMORY
   void *tmp = malloc(size + sizeof(TdMemoryInfo));
   if (tmp == NULL) return NULL;
 
@@ -77,9 +82,13 @@ void *taosMemoryMalloc(int32_t size) {
   taosBackTrace(pTdMemoryInfo->stackTrace,TD_MEMORY_STACK_TRACE_DEPTH);
 
   return (char*)tmp  + sizeof(TdMemoryInfo);
+#else
+  return malloc(size);
+#endif
 }
 
 void *taosMemoryCalloc(int32_t num, int32_t size) {
+#ifdef USE_TD_MEMORY
   int32_t memorySize = num * size;
   char *tmp = calloc(memorySize + sizeof(TdMemoryInfo), 1);
   if (tmp == NULL) return NULL;
@@ -90,9 +99,13 @@ void *taosMemoryCalloc(int32_t num, int32_t size) {
   taosBackTrace(pTdMemoryInfo->stackTrace,TD_MEMORY_STACK_TRACE_DEPTH);
 
   return (char*)tmp  + sizeof(TdMemoryInfo);
+#else
+  return calloc(num, size);
+#endif
 }
 
 void *taosMemoryRealloc(void *ptr, int32_t size) {
+#ifdef USE_TD_MEMORY
   if (ptr == NULL) return taosMemoryMalloc(size);
   
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char*)ptr - sizeof(TdMemoryInfo));
@@ -108,9 +121,13 @@ void *taosMemoryRealloc(void *ptr, int32_t size) {
   ((TdMemoryInfoPtr)tmp)->memorySize = size;
 
   return (char*)tmp  + sizeof(TdMemoryInfo);
+#else
+  return realloc(ptr, size);
+#endif
 }
 
 void taosMemoryFree(const void *ptr) {
+#ifdef USE_TD_MEMORY
   if (ptr == NULL) return;
 
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char*)ptr - sizeof(TdMemoryInfo));
@@ -121,13 +138,20 @@ void taosMemoryFree(const void *ptr) {
   } else {
     free((void*)ptr);
   }
+#else
+  return free((void*)ptr);
+#endif
 }
 
 int32_t taosMemorySize(void *ptr) {
+#ifdef USE_TD_MEMORY
   if (ptr == NULL) return 0;
   
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char*)ptr - sizeof(TdMemoryInfo));
   assert(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
 
   return pTdMemoryInfo->memorySize;
+#else
+  return malloc_usable_size(ptr);
+#endif
 }
