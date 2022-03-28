@@ -279,7 +279,6 @@ void vmInitMsgHandles(SMgmtWrapper *pWrapper) {
   dndSetMsgHandle(pWrapper, TDMT_VND_CONSUME, vmProcessFetchMsg, VND_VGID);
   dndSetMsgHandle(pWrapper, TDMT_VND_TASK_DEPLOY, vmProcessWriteMsg, VND_VGID);
   dndSetMsgHandle(pWrapper, TDMT_VND_QUERY_HEARTBEAT, vmProcessFetchMsg, VND_VGID);
-  dndSetMsgHandle(pWrapper, TDMT_VND_TASK_EXEC, vmProcessFetchMsg, VND_VGID);
   dndSetMsgHandle(pWrapper, TDMT_VND_TASK_PIPE_EXEC, vmProcessFetchMsg, VND_VGID);
   dndSetMsgHandle(pWrapper, TDMT_VND_TASK_MERGE_EXEC, vmProcessMergeMsg, VND_VGID);
   dndSetMsgHandle(pWrapper, TDMT_VND_STREAM_TRIGGER, vmProcessFetchMsg, VND_VGID);

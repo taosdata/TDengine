@@ -13,6 +13,9 @@ find_path(IconvApiIncludes iconv.h PATHS)
 if(NOT IconvApiIncludes)
     add_definitions(-DDISALLOW_NCHAR_WITHOUT_ICONV) 
 endif ()
+if(USE_TD_MEMORY)
+    add_definitions(-DUSE_TD_MEMORY) 
+endif ()
 target_link_libraries(
     os pthread dl rt m
 )

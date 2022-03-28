@@ -473,8 +473,15 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
   }
   tCoderClear(&decoder);
 
+  // exec
   if (tqExpandTask(pTq, pTask, 4) < 0) {
     ASSERT(0);
+  }
+
+  // sink
+  pTask->ahandle = pTq->pVnode;
+  if (pTask->sinkType == TASK_SINK__SMA) {
+    pTask->smaSink.smaHandle = smaHandleRes;
   }
 
   taosHashPut(pTq->pStreamTasks, &pTask->taskId, sizeof(int32_t), pTask, sizeof(SStreamTask));
@@ -497,11 +504,9 @@ int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen) {
   return 0;
 }
 
-int32_t tqProcessTaskExec(STQ* pTq, SRpcMsg* msg) {
-  char* msgstr = POINTER_SHIFT(msg->pCont, sizeof(SMsgHead));
-
+int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen) {
   SStreamTaskExecReq req;
-  tDecodeSStreamTaskExecReq(msgstr, &req);
+  tDecodeSStreamTaskExecReq(msg, &req);
 
   int32_t      taskId = req.taskId;
   SStreamTask* pTask = taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));

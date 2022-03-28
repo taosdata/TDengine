@@ -15,6 +15,11 @@
 
 #include "vnd.h"
 
+void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
+  // TODO
+  blockDebugShowData(data);
+}
+
 void vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
   SNodeMsg *pMsg;
   SRpcMsg  *pRpc;
@@ -176,6 +181,11 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     case TDMT_VND_TASK_DEPLOY: {
       if (tqProcessTaskDeploy(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
                               pMsg->contLen - sizeof(SMsgHead)) < 0) {
+      }
+    } break;
+    case TDMT_VND_TASK_WRITE_EXEC: {
+      if (tqProcessTaskExec(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
+                            pMsg->contLen - sizeof(SMsgHead)) < 0) {
       }
     } break;
     case TDMT_VND_CREATE_SMA: {  // timeRangeSMA

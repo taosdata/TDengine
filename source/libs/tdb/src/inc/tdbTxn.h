@@ -13,24 +13,27 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_SCHEDULER_H_
-#define _TD_MND_SCHEDULER_H_
-
-#include "mndInt.h"
+#ifndef _TDB_TXN_H_
+#define _TDB_TXN_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t mndInitScheduler(SMnode* pMnode);
-void    mndCleanupScheduler(SMnode* pMnode);
+typedef struct STxn STXN;
 
-int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscribeObj* pSub);
+struct STxn {
+  u64 txnId;
+  void *(*xMalloc)(void *, int);
+  void *xArg;
+};
 
-int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream, int64_t smaId);
+int tdbTxnBegin(TENV *pEnv);
+int tdbTxnCommit(TENV *pEnv);
+int tdbTxnRollback(TENV *pEnv);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MND_SCHEDULER_H_ */
+#endif /*_TDB_TXN_H_*/

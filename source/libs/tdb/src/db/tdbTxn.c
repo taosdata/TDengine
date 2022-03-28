@@ -13,24 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_SCHEDULER_H_
-#define _TD_MND_SCHEDULER_H_
+#include "tdbInt.h"
 
-#include "mndInt.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-int32_t mndInitScheduler(SMnode* pMnode);
-void    mndCleanupScheduler(SMnode* pMnode);
-
-int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscribeObj* pSub);
-
-int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream, int64_t smaId);
-
-#ifdef __cplusplus
+int tdbTxnBegin(TENV *pEnv) {
+  // TODO
+  return 0;
 }
-#endif
 
-#endif /*_TD_MND_SCHEDULER_H_ */
+int tdbTxnCommit(TENV *pEnv) {
+  // TODO
+  return 0;
+}
+
+int tdbTxnRollback(TENV *pEnv) {
+  // TODO
+  return 0;
+}

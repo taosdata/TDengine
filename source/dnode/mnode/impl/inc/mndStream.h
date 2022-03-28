@@ -31,7 +31,7 @@ void        mndReleaseStream(SMnode *pMnode, SStreamObj *pStream);
 SSdbRaw *mndStreamActionEncode(SStreamObj *pStream);
 SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw);
 
-int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast, STrans *pTrans);
+int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast, STrans *pTrans, int64_t smaId);
 
 #ifdef __cplusplus
 }
