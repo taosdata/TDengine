@@ -72,6 +72,7 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
   if (pTask->sinkType == TASK_SINK__TABLE) {
     //
   } else if (pTask->sinkType == TASK_SINK__SMA) {
+    pTask->smaSink.smaHandle(pTask->ahandle, pTask->smaSink.smaId, pRes);
     //
   } else if (pTask->sinkType == TASK_SINK__FETCH) {
     //
@@ -208,7 +209,7 @@ int32_t tEncodeSStreamTask(SCoder* pEncoder, const SStreamTask* pTask) {
   if (pTask->sinkType == TASK_SINK__TABLE) {
     if (tEncodeI8(pEncoder, pTask->tbSink.reserved) < 0) return -1;
   } else if (pTask->sinkType == TASK_SINK__SMA) {
-    if (tEncodeI8(pEncoder, pTask->smaSink.reserved) < 0) return -1;
+    if (tEncodeI64(pEncoder, pTask->smaSink.smaId) < 0) return -1;
   } else if (pTask->sinkType == TASK_SINK__FETCH) {
     if (tEncodeI8(pEncoder, pTask->fetchSink.reserved) < 0) return -1;
   } else if (pTask->sinkType == TASK_SINK__SHOW) {
@@ -254,7 +255,7 @@ int32_t tDecodeSStreamTask(SCoder* pDecoder, SStreamTask* pTask) {
   if (pTask->sinkType == TASK_SINK__TABLE) {
     if (tDecodeI8(pDecoder, &pTask->tbSink.reserved) < 0) return -1;
   } else if (pTask->sinkType == TASK_SINK__SMA) {
-    if (tDecodeI8(pDecoder, &pTask->smaSink.reserved) < 0) return -1;
+    if (tDecodeI64(pDecoder, &pTask->smaSink.smaId) < 0) return -1;
   } else if (pTask->sinkType == TASK_SINK__FETCH) {
     if (tDecodeI8(pDecoder, &pTask->fetchSink.reserved) < 0) return -1;
   } else if (pTask->sinkType == TASK_SINK__SHOW) {

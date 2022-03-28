@@ -202,6 +202,9 @@ int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen);
 
+// sma
+void smaHandleRes(SVnode* pVnode, int64_t smaId, const SArray* data);
+
 #ifdef __cplusplus
 }
 #endif

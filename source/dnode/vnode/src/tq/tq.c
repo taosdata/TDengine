@@ -476,6 +476,7 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
   if (tqExpandTask(pTq, pTask, 4) < 0) {
     ASSERT(0);
   }
+  pTask->ahandle = pTq->pVnode;
 
   taosHashPut(pTq->pStreamTasks, &pTask->taskId, sizeof(int32_t), pTask, sizeof(SStreamTask));
 
