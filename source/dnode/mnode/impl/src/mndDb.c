@@ -276,6 +276,7 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->quorum > pCfg->replications) return -1;
   if (pCfg->update < TSDB_MIN_DB_UPDATE || pCfg->update > TSDB_MAX_DB_UPDATE) return -1;
   if (pCfg->cacheLastRow < TSDB_MIN_DB_CACHE_LAST_ROW || pCfg->cacheLastRow > TSDB_MAX_DB_CACHE_LAST_ROW) return -1;
+  if (pCfg->cacheLastRow < TSDB_MIN_DB_STREAM_MODE || pCfg->cacheLastRow > TSDB_MAX_DB_STREAM_MODE) return -1;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -285,8 +286,8 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->totalBlocks < 0) pCfg->totalBlocks = TSDB_DEFAULT_TOTAL_BLOCKS;
   if (pCfg->daysPerFile < 0) pCfg->daysPerFile = TSDB_DEFAULT_DAYS_PER_FILE;
   if (pCfg->daysToKeep0 < 0) pCfg->daysToKeep0 = TSDB_DEFAULT_KEEP;
-  if (pCfg->daysToKeep1 < 0) pCfg->daysToKeep1 = TSDB_DEFAULT_KEEP;
-  if (pCfg->daysToKeep2 < 0) pCfg->daysToKeep2 = TSDB_DEFAULT_KEEP;
+  if (pCfg->daysToKeep1 < 0) pCfg->daysToKeep1 = pCfg->daysToKeep0;
+  if (pCfg->daysToKeep2 < 0) pCfg->daysToKeep2 = pCfg->daysToKeep1;
   if (pCfg->minRows < 0) pCfg->minRows = TSDB_DEFAULT_MIN_ROW_FBLOCK;
   if (pCfg->maxRows < 0) pCfg->maxRows = TSDB_DEFAULT_MAX_ROW_FBLOCK;
   if (pCfg->commitTime < 0) pCfg->commitTime = TSDB_DEFAULT_COMMIT_TIME;
@@ -298,6 +299,8 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->quorum < 0) pCfg->quorum = TSDB_DEFAULT_DB_QUORUM_OPTION;
   if (pCfg->update < 0) pCfg->update = TSDB_DEFAULT_DB_UPDATE_OPTION;
   if (pCfg->cacheLastRow < 0) pCfg->cacheLastRow = TSDB_DEFAULT_CACHE_LAST_ROW;
+  if (pCfg->streamMode < 0) pCfg->streamMode = TSDB_DEFAULT_DB_STREAM_MODE;
+  if (pCfg->numOfRetensions < 0) pCfg->numOfRetensions = 0;
 }
 
 static int32_t mndSetCreateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
@@ -431,11 +434,11 @@ static int32_t mndCreateDb(SMnode *pMnode, SNodeMsg *pReq, SCreateDbReq *pCreate
       .daysToKeep2 = pCreate->daysToKeep2,
       .minRows = pCreate->minRows,
       .maxRows = pCreate->maxRows,
-      .fsyncPeriod = pCreate->fsyncPeriod,
       .commitTime = pCreate->commitTime,
+      .fsyncPeriod = pCreate->fsyncPeriod,
+      .walLevel = pCreate->walLevel,
       .precision = pCreate->precision,
       .compression = pCreate->compression,
-      .walLevel = pCreate->walLevel,
       .replications = pCreate->replications,
       .quorum = pCreate->quorum,
       .update = pCreate->update,
@@ -445,7 +448,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SNodeMsg *pReq, SCreateDbReq *pCreate
 
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
   dbObj.cfg.pRetensions = pCreate->pRetensions;
-  pCreate = NULL;
+  pCreate->pRetensions = NULL;
 
   mndSetDefaultDbCfg(&dbObj.cfg);
 
