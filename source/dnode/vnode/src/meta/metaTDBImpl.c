@@ -171,7 +171,7 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
 
 int metaGetTbNum(SMeta *pMeta) {
   // TODO
-  ASSERT(0);
+  // ASSERT(0);
   return 0;
 }
 
