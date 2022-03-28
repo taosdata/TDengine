@@ -119,7 +119,7 @@ SVgObj* mndSchedFetchOneVg(SMnode* pMnode, int64_t dbUid) {
   return pVgroup;
 }
 
-int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
+int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream, int64_t smaId) {
   SSdb*       pSdb = pMnode->pSdb;
   SQueryPlan* pPlan = qStringToQueryPlan(pStream->physicalPlan);
   if (pPlan == NULL) {
@@ -164,6 +164,10 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
           // only for inplace
           pTask->sinkType = TASK_SINK__SHOW;
           pTask->showSink.reserved = 0;
+          if (smaId != -1) {
+            pTask->sinkType = TASK_SINK__SMA;
+            pTask->smaSink.smaId = smaId;
+          }
         } else {
           pTask->sinkType = TASK_SINK__NONE;
         }
@@ -185,6 +189,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
           pTask->dispatchMsgType = TDMT_VND_TASK_MERGE_EXEC;
           pTask->dispatchType = TASK_DISPATCH__FIXED;
 
+          pTask->fixedEpDispatcher.taskId = lastLevelTask->taskId;
           pTask->fixedEpDispatcher.nodeId = lastLevelTask->nodeId;
           pTask->fixedEpDispatcher.epSet = lastLevelTask->epSet;
         }

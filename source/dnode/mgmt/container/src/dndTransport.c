@@ -348,7 +348,7 @@ int32_t dndSendReqToMnode(SMgmtWrapper *pWrapper, SRpcMsg *pReq) {
   }
 }
 
-void dndSendRpcRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
+static void dndSendRpcRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
   if (pRsp->code == TSDB_CODE_APP_NOT_READY) {
     SMgmtWrapper *pDnodeWrapper = dndAcquireWrapper(pWrapper->pDnode, DNODE);
     if (pDnodeWrapper != NULL) {
