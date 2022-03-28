@@ -116,7 +116,7 @@ typedef struct SParsedDataColInfo {
   uint16_t       allNullLen;  // TODO: get from STSchema(base on SDataRow)
   uint16_t       extendedVarLen;
   uint16_t       boundNullLen;    // bound column len with all NULL value(without VarDataOffsetT/SColIdx part)
-  int32_t *      boundedColumns;  // bound column idx according to schema
+  int32_t       *boundColumns;    // bound column idx according to schema
   SBoundColumn * cols;
   SBoundIdxInfo *colIdxInfo;
   int8_t         orderStatus;  // bound columns
@@ -125,7 +125,7 @@ typedef struct SParsedDataColInfo {
 #define IS_DATA_COL_ORDERED(spd) ((spd->orderStatus) == (int8_t)ORDER_STATUS_ORDERED)
 
 typedef struct {
-  uint8_t memRowType;  // default is 0, that is SDataRow
+  uint8_t rowType;  // default is 0, that is SDataRow
   int32_t rowSize;
 } SMemRowBuilder;
 
@@ -137,17 +137,17 @@ void destroyMemRowBuilder(SMemRowBuilder *pBuilder);
 /**
  * @brief
  *
- * @param memRowType
+ * @param rowType
  * @param spd
  * @param idx   the absolute bound index of columns
  * @return FORCE_INLINE
  */
-static FORCE_INLINE void tscGetMemRowAppendInfo(SSchema *pSchema, uint8_t memRowType, SParsedDataColInfo *spd,
-                                                int32_t idx, int32_t *toffset, int16_t *colId) {
+static FORCE_INLINE void tscGetSTSRowAppendInfo(SSchema *pSchema, uint8_t rowType, SParsedDataColInfo *spd, int32_t idx,
+                                                int32_t *toffset, int16_t *colId) {
   int32_t schemaIdx = 0;
   if (IS_DATA_COL_ORDERED(spd)) {
-    schemaIdx = spd->boundedColumns[idx];
-    if (isDataRowT(memRowType)) {
+    schemaIdx = spd->boundColumns[idx];
+    if (isDataRowT(rowType)) {
       *toffset = (spd->cols + schemaIdx)->toffset;  // the offset of firstPart
     } else {
       *toffset = idx * sizeof(SColIdx);  // the offset of SColIdx
@@ -155,7 +155,7 @@ static FORCE_INLINE void tscGetMemRowAppendInfo(SSchema *pSchema, uint8_t memRow
   } else {
     ASSERT(idx == (spd->colIdxInfo + idx)->boundIdx);
     schemaIdx = (spd->colIdxInfo + idx)->schemaColIdx;
-    if (isDataRowT(memRowType)) {
+    if (isDataRowT(rowType)) {
       *toffset = (spd->cols + schemaIdx)->toffset;
     } else {
       *toffset = ((spd->colIdxInfo + idx)->finalIdx) * sizeof(SColIdx);

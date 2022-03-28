@@ -60,7 +60,7 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
   zsize = sizeof(*pPager)  /* SPager */
           + fsize + 1      /* dbFileName */
           + fsize + 8 + 1; /* jFileName */
-  pPtr = (uint8_t *)taosMemoryCalloc(1, zsize);
+  pPtr = (uint8_t *)calloc(1, zsize);
   if (pPtr == NULL) {
     return -1;
   }
@@ -253,6 +253,10 @@ int tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage
 
   *ppPage = pPage;
   return 0;
+}
+
+void tdbPagerReturnPage(SPager *pPager, SPage *pPage) {
+  tdbPCacheRelease(pPager->pCache, pPage);
 }
 
 static int tdbPagerAllocFreePage(SPager *pPager, SPgno *ppgno) {

@@ -87,7 +87,7 @@ private:
     return meta_;
   }
 
-  int32_t colId_;
+  col_id_t                       colId_;
   int32_t rowsize_;
   std::shared_ptr<MockTableMeta> meta_;
 };

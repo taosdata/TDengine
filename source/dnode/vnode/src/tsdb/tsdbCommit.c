@@ -1369,7 +1369,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
     }
   }
 
-  // Update pBlock membership vairables
+  // Update pBlock membership variables
   pBlock->last = isLast;
   pBlock->offset = offset;
   pBlock->algorithm = pCfg->compression;

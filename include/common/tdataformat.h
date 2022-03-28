@@ -59,12 +59,15 @@ extern "C" {
   } while (0);
 
 // ----------------- TSDB COLUMN DEFINITION
+#pragma pack(push, 1)
 typedef struct {
-  int8_t   type;    // Column type
-  col_id_t colId;   // column ID(start from PRIMARYKEY_TIMESTAMP_COL_ID(1))
-  int16_t  bytes;   // column bytes (restore to int16_t in case of misuse)
-  uint16_t offset;  // point offset in STpRow after the header part.
+  col_id_t colId;        // column ID(start from PRIMARYKEY_TIMESTAMP_COL_ID(1))
+  int32_t  type : 8;     // column type
+  int32_t  bytes : 24;   // column bytes (restore to int32_t in case of misuse)
+  int32_t  sma : 8;      // block SMA: 0, no SMA, 1, sum/min/max, 2, ...
+  int32_t  offset : 24;  // point offset in STpRow after the header part.
 } STColumn;
+#pragma pack(pop)
 
 #define colType(col)   ((col)->type)
 #define colColId(col)  ((col)->colId)
@@ -136,7 +139,7 @@ typedef struct {
 int32_t   tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version);
 void      tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder);
 void      tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version);
-int32_t   tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int16_t colId, int16_t bytes);
+int32_t   tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, col_id_t colId, col_bytes_t bytes);
 STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
 
 // ----------------- Semantic timestamp key definition
@@ -590,7 +593,7 @@ void    tdDestroyKVRowBuilder(SKVRowBuilder *pBuilder);
 void    tdResetKVRowBuilder(SKVRowBuilder *pBuilder);
 SKVRow  tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder);
 
-static FORCE_INLINE int32_t tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, int8_t type, const void *value) {
+static FORCE_INLINE int32_t tdAddColToKVRow(SKVRowBuilder *pBuilder, col_id_t colId, int8_t type, const void *value) {
   if (pBuilder->nCols >= pBuilder->tCols) {
     pBuilder->tCols *= 2;
     SColIdx *pColIdx = (SColIdx *)taosMemoryRealloc((void *)(pBuilder->pColIdx), sizeof(SColIdx) * pBuilder->tCols);
