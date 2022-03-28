@@ -497,11 +497,9 @@ int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen) {
   return 0;
 }
 
-int32_t tqProcessTaskExec(STQ* pTq, SRpcMsg* msg) {
-  char* msgstr = POINTER_SHIFT(msg->pCont, sizeof(SMsgHead));
-
+int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen) {
   SStreamTaskExecReq req;
-  tDecodeSStreamTaskExecReq(msgstr, &req);
+  tDecodeSStreamTaskExecReq(msg, &req);
 
   int32_t      taskId = req.taskId;
   SStreamTask* pTask = taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));

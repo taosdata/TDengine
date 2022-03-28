@@ -167,6 +167,11 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
                               pMsg->contLen - sizeof(SMsgHead)) < 0) {
       }
     } break;
+    case TDMT_VND_TASK_WRITE_EXEC: {
+      if (tqProcessTaskExec(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
+                            pMsg->contLen - sizeof(SMsgHead)) < 0) {
+      }
+    } break;
     case TDMT_VND_CREATE_SMA: {  // timeRangeSMA
 #if 0
       SSmaCfg vCreateSmaReq = {0};
