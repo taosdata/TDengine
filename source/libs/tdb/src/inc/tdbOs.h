@@ -49,9 +49,9 @@ typedef TdFilePtr tdb_fd_t;
 #else
 #define tdbOsOpen  open
 #define tdbOsClose close
-#define tdbOsRead  read
-#define tdbOsPRead pread
-#define tdbOsWrite write
+#define tdbOsRead  read   // TODO
+#define tdbOsPRead pread  // TODO
+#define tdbOsWrite write  // TODO
 #define tdbOsFSync fsync
 #endif
 
@@ -65,7 +65,7 @@ typedef TdThreadSpinlock tdb_spinlock_t;
 #define tdbSpinlockDestroy taosThreadSpinDestroy
 #define tdbSpinlockLock    taosThreadSpinLock
 #define tdbSpinlockUnlock  taosThreadSpinUnlock
-#define tdbSpinlockTrylock
+#define tdbSpinlockTrylock pthread_spin_trylock  // TODO
 
 // mutex lock
 typedef TdThreadMutex tdb_mutex_t;

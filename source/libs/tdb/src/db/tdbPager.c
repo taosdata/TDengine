@@ -222,7 +222,7 @@ static int tdbPagerReadPage(SPager *pPager, SPage *pPage) {
   ASSERT(memcmp(pPager->fid, pPage->pgid.fileid, TDB_FILE_ID_LEN) == 0);
 
   offset = (pPage->pgid.pgno - 1) * (i64)(pPager->pageSize);
-  ret = tdbPRead(pPager->fd, pPage->pData, pPager->pageSize, offset);
+  ret = tdbOsPRead(pPager->fd, pPage->pData, pPager->pageSize, offset);
   if (ret < 0) {
     // TODO: handle error
     return -1;

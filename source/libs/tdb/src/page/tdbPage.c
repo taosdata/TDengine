@@ -144,7 +144,7 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
     }
 
     // TODO: here has memory leak
-    pNewCell = (SCell *)malloc(szCell);
+    pNewCell = (SCell *)tdbOsMalloc(szCell);
     memcpy(pNewCell, pCell, szCell);
 
     pPage->apOvfl[iOvfl] = pNewCell;

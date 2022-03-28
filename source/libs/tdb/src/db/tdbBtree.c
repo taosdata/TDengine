@@ -166,7 +166,7 @@ int tdbBtCursorInsert(SBTC *pBtc, const void *pKey, int kLen, const void *pVal, 
   // TODO: refact code here
   pBt = pBtc->pBt;
   if (!pBt->pTmp) {
-    pBt->pTmp = (u8 *)malloc(pBt->pageSize);
+    pBt->pTmp = (u8 *)tdbOsMalloc(pBt->pageSize);
     if (pBt->pTmp == NULL) {
       return -1;
     }

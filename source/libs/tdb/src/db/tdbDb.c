@@ -101,7 +101,7 @@ int tdbDbcOpen(STDB *pDb, STDBC **ppDbc) {
   STDBC *pDbc = NULL;
 
   *ppDbc = NULL;
-  pDbc = malloc(sizeof(*pDbc));
+  pDbc = (STDBC *)tdbOsMalloc(sizeof(*pDbc));
   if (pDbc == NULL) {
     return -1;
   }
