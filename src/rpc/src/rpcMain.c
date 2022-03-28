@@ -1556,13 +1556,13 @@ static int rpcAuthenticateMsg(void *pMsg, int msgLen, void *pAuth, void *pKey) {
 }
 
 static void rpcBuildAuthHead(void *pMsg, int msgLen, void *pAuth, void *pKey) {
-  MD5_CTX context;
+  TAOS_MD5_CTX context;
 
-  MD5Init(&context);
-  MD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
-  MD5Update(&context, (uint8_t *)pMsg, msgLen);
-  MD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
-  MD5Final(&context);
+  taos_MD5Init(&context);
+  taos_MD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
+  taos_MD5Update(&context, (uint8_t *)pMsg, msgLen);
+  taos_MD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
+  taos_MD5Final(&context);
 
   memcpy(pAuth, context.digest, sizeof(context.digest));
 }

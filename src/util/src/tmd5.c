@@ -2,9 +2,9 @@
  ***********************************************************************
  **  Message-digest routines:                                         **
  **  To form the message digest for a message M                       **
- **    (1) Initialize a context buffer mdContext using MD5Init        **
- **    (2) Call MD5Update on mdContext and M                          **
- **    (3) Call MD5Final on mdContext                                 **
+ **    (1) Initialize a context buffer mdContext using taos_MD5Init        **
+ **    (2) Call taos_MD5Update on mdContext and M                          **
+ **    (3) Call taos_MD5Final on mdContext                                 **
  **  The message digest is now in mdContext->digest[0...15]           **
  ***********************************************************************
  */
@@ -82,7 +82,7 @@ static uint8_t PADDING[64] = {0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x
     (a) += (b);                                     \
   }
 
-/* The routine MD5Init initializes the message-digest context
+/* The routine taos_MD5Init initializes the message-digest context
    mdContext. All fields are set to zero.
  */
 void taos_MD5Init(TAOS_MD5_CTX *mdContext) {
@@ -95,7 +95,7 @@ void taos_MD5Init(TAOS_MD5_CTX *mdContext) {
   mdContext->buf[3] = (uint32_t)0x10325476;
 }
 
-/* The routine MD5Update updates the message-digest context to
+/* The routine taos_MD5Update updates the message-digest context to
 account for the presence of each of the characters inBuf[0..inLen-1]
 in the message whose digest is being computed.
 */
@@ -127,7 +127,7 @@ void taos_MD5Update(TAOS_MD5_CTX *mdContext, uint8_t *inBuf, unsigned int inLen)
   }
 }
 
-/* The routine MD5Final terminates the message-digest computation and
+/* The routine taos_MD5Final terminates the message-digest computation and
 ends with the desired message digest in mdContext->digest[0...15].
 */
 void taos_MD5Final(TAOS_MD5_CTX *mdContext) {
