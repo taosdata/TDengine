@@ -25,21 +25,25 @@ extern "C" {
 
 // For memory
 #ifdef TDB_FOR_TDENGINE
+
 #define tdbOsMalloc  taosMemoryMalloc
 #define tdbOsCalloc  taosMemoryCalloc
 #define tdbOsRealloc taosMemoryRealloc
 #define tdbOsFree    taosMemoryFree
+
 #else
+
 #define tdbOsMalloc  malloc
 #define tdbOsCalloc  calloc
 #define tdbOsRealloc realloc
 #define tdbOsFree    free
+
 #endif
 
 // For file and directory
 #ifdef TDB_FOR_TDENGINE
 
-// file
+/* file */
 typedef TdFilePtr tdb_fd_t;
 
 #define tdbOsOpen  taosOpenFile
@@ -49,13 +53,13 @@ typedef TdFilePtr tdb_fd_t;
 #define tdbOsWrite taosWriteFile
 #define tdbOsFSync taosFsyncFile
 
-// directory
+/* directory */
 #define tdbOsMkdir taosMkDir
 #define tdbOsRmdir taosRemoveDir
 
 #else
 
-// file
+/* file */
 typedef int tdb_fd_t;
 
 #define tdbOsOpen  open
@@ -65,7 +69,7 @@ typedef int tdb_fd_t;
 #define tdbOsWrite write  // TODO
 #define tdbOsFSync fsync
 
-// directory
+/* directory */
 #define tdbOsMkdir mkdir
 #define tdbOsRmdir rmdir
 
