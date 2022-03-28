@@ -84,6 +84,8 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, S
   SBTree *pBt;
   int     ret;
 
+  ASSERT(keyLen != 0);
+
   *ppBt = NULL;
 
   pBt = (SBTree *)tdbOsCalloc(1, sizeof(*pBt));
@@ -921,7 +923,7 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
   }
 
   // 2. Encode payload part
-  if (leaf) {
+  if (leaf && vLen > 0) {
     ret = tdbBtreeEncodePayload(pPage, pCell + nHeader, pKey, kLen, pVal, vLen, &nPayload);
   } else {
     ret = tdbBtreeEncodePayload(pPage, pCell + nHeader, pKey, kLen, NULL, 0, &nPayload);
@@ -960,6 +962,7 @@ static int tdbBtreeDecodePayload(SPage *pPage, const u8 *pPayload, SCellDecoder 
   return 0;
 }
 
+// TODO: here has problem
 static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pDecoder) {
   u8  flags;
   u8  leaf;
