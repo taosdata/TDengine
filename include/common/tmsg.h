@@ -801,7 +801,10 @@ typedef struct SVgroupInfo {
   uint32_t hashBegin;
   uint32_t hashEnd;
   SEpSet   epSet;
-  int32_t  numOfTable;  // unit is TSDB_TABLE_NUM_UNIT
+  union {
+    int32_t numOfTable;  // unit is TSDB_TABLE_NUM_UNIT
+    int32_t taskId;      // used in stream
+  };
 } SVgroupInfo;
 
 typedef struct {

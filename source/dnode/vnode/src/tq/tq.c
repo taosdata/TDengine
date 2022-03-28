@@ -508,7 +508,9 @@ int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen) {
   SStreamTaskExecReq req;
   tDecodeSStreamTaskExecReq(msg, &req);
 
-  int32_t      taskId = req.taskId;
+  int32_t taskId = req.taskId;
+  ASSERT(taskId);
+
   SStreamTask* pTask = taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
   ASSERT(pTask);
 
