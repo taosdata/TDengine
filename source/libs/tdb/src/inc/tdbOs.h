@@ -46,7 +46,15 @@ extern "C" {
 /* file */
 typedef TdFilePtr tdb_fd_t;
 
-#define tdbOsOpen      taosOpenFile
+#define TDB_O_CREAT TD_FILE_CTEATE
+#define TDB_O_WRITE  TD_FILE_WRITE
+#define TDB_O_READ   TD_FILE_READ
+#define TDB_O_TRUNC  TD_FILE_TRUNC
+#define TDB_O_APPEND TD_FILE_APPEND
+#define TDB_O_RDWR   (TD_FILE_WRITE) | (TD_FILE_READ)
+
+#define tdbOsOpen(PATH, OPTION, MODE) taosOpenFile((PATH), (OPTION))
+
 #define tdbOsClose(FD) taosCloseFile(&(FD))
 #define tdbOsRead      taosReadFile
 #define tdbOsPRead     taosPReadFile
@@ -64,7 +72,15 @@ typedef TdFilePtr tdb_fd_t;
 /* file */
 typedef int tdb_fd_t;
 
-#define tdbOsOpen  open
+#define TDB_O_CREAT O_CREAT
+#define TDB_O_WRITE  O_WRONLY
+#define TDB_O_READ   O_RDONLY
+#define TDB_O_TRUNC  O_TRUNC
+#define TDB_O_APPEND O_APPEND
+#define TDB_O_RDWR   O_RDWR
+
+#define tdbOsOpen(PATH, OPTION, MODE) open((PATH), (OPTION), (MODE))
+
 #define tdbOsClose close
 
 i64 tdbOsRead(tdb_fd_t fd, void *pData, i64 nBytes);
