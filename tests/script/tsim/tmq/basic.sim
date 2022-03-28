@@ -45,7 +45,7 @@ print cmd===> system_content ../../debug/tests/test/c/tmq_demo -sim 1 -b 100 -c 
 system_content ../../debug/tests/test/c/tmq_demo -sim 1 -b 100 -c ../../sim/tsim/cfg -w ../../sim/dnode1/data/vnode/vnode4/wal
 print cmd result----> $system_content
 if $system_content != @{consume success: 100}@ then
-  print not match in pos000
+  return -1
 endi
 
 sql show databases
