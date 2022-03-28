@@ -455,11 +455,11 @@ char *taosIpStr(uint32_t ipInt) {
 }
 
 void jsonKeyMd5(void *pMsg, int msgLen, void *pKey) {
-  MD5_CTX context;
+  TAOS_MD5_CTX context;
 
-  MD5Init(&context);
-  MD5Update(&context, (uint8_t *)pMsg, msgLen);
-  MD5Final(&context);
+  taos_MD5Init(&context);
+  taos_MD5Update(&context, (uint8_t *)pMsg, msgLen);
+  taos_MD5Final(&context);
 
   memcpy(pKey, context.digest, sizeof(context.digest));
 }
