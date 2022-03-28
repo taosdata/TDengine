@@ -148,6 +148,8 @@ typedef struct SPager  SPager;
 typedef struct SPCache SPCache;
 typedef struct SPage   SPage;
 
+#include "tdbOs.h"
+
 #include "tdbUtil.h"
 
 #include "tdbPCache.h"

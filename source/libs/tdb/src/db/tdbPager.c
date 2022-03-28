@@ -20,8 +20,8 @@ struct SPager {
   char    *jFileName;
   int      pageSize;
   uint8_t  fid[TDB_FILE_ID_LEN];
-  int      fd;
-  int      jfd;
+  tdb_fd_t fd;
+  tdb_fd_t jfd;
   SPCache *pCache;
   SPgno    dbFileSize;
   SPgno    dbOrigSize;
@@ -60,7 +60,7 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
   zsize = sizeof(*pPager)  /* SPager */
           + fsize + 1      /* dbFileName */
           + fsize + 8 + 1; /* jFileName */
-  pPtr = (uint8_t *)calloc(1, zsize);
+  pPtr = (uint8_t *)tdbOsCalloc(1, zsize);
   if (pPtr == NULL) {
     return -1;
   }
@@ -80,7 +80,7 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
   // pPager->pCache
   pPager->pCache = pCache;
 
-  pPager->fd = open(pPager->dbFileName, O_RDWR | O_CREAT, 0755);
+  pPager->fd = tdbOsOpen(pPager->dbFileName, O_RDWR | O_CREAT, 0755);
   if (pPager->fd < 0) {
     return -1;
   }
@@ -168,7 +168,7 @@ int tdbPagerBegin(SPager *pPager) {
   }
 
   // Open the journal
-  pPager->jfd = open(pPager->jFileName, O_RDWR | O_CREAT, 0755);
+  pPager->jfd = tdbOsOpen(pPager->jFileName, O_RDWR | O_CREAT, 0755);
   if (pPager->jfd < 0) {
     return -1;
   }
@@ -208,7 +208,7 @@ int tdbPagerCommit(SPager *pPager) {
 
   fsync(pPager->fd);
 
-  close(pPager->jfd);
+  tdbOsClose(pPager->jfd);
   remove(pPager->jFileName);
   pPager->jfd = -1;
 

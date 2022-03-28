@@ -40,37 +40,37 @@ int tdbGetFileSize(const char *fname, int pgSize, SPgno *pSize);
 int tdbPRead(int fd, void *pData, int count, i64 offset);
 int tdbWrite(int fd, void *pData, int count);
 
-#define TDB_REALLOC(PTR, SIZE)                                                          \
-  ({                                                                                    \
-    void *nPtr;                                                                         \
-    if ((PTR) == NULL || ((int *)(PTR))[-1] < (SIZE)) {                                 \
-      nPtr = realloc((PTR) ? (char *)(PTR) - sizeof(int) : NULL, (SIZE) + sizeof(int)); \
-      if (nPtr) {                                                                       \
-        ((int *)nPtr)[0] = (SIZE);                                                      \
-        nPtr = (char *)nPtr + sizeof(int);                                              \
-      }                                                                                 \
-    } else {                                                                            \
-      nPtr = (PTR);                                                                     \
-    }                                                                                   \
-    nPtr;                                                                               \
+#define TDB_REALLOC(PTR, SIZE)                                                               \
+  ({                                                                                         \
+    void *nPtr;                                                                              \
+    if ((PTR) == NULL || ((int *)(PTR))[-1] < (SIZE)) {                                      \
+      nPtr = tdbOsRealloc((PTR) ? (char *)(PTR) - sizeof(int) : NULL, (SIZE) + sizeof(int)); \
+      if (nPtr) {                                                                            \
+        ((int *)nPtr)[0] = (SIZE);                                                           \
+        nPtr = (char *)nPtr + sizeof(int);                                                   \
+      }                                                                                      \
+    } else {                                                                                 \
+      nPtr = (PTR);                                                                          \
+    }                                                                                        \
+    nPtr;                                                                                    \
   })
 
 #define TDB_FREE(PTR)                    \
   do {                                   \
     if (PTR) {                           \
-      free((char *)(PTR) - sizeof(int)); \
+      tdbOsFree((char *)(PTR) - sizeof(int)); \
     }                                    \
   } while (0)
 
-static inline void *tdbOsMalloc(void *arg, size_t size) {
+static inline void *tdbDefaultMalloc(void *arg, size_t size) {
   void *ptr;
 
-  ptr = malloc(size);
+  ptr = tdbOsMalloc(size);
 
   return ptr;
 }
 
-static inline void tdbOsFree(void *arg, void *ptr) { free(ptr); }
+static inline void tdbDefaultFree(void *arg, void *ptr) { tdbOsFree(ptr); }
 
 static inline int tdbPutVarInt(u8 *p, int v) {
   int n = 0;
