@@ -173,7 +173,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
-    .name = "power",
+    .name = "pow",
     .type = FUNCTION_TYPE_POW,
     .classification = FUNC_MGT_SCALAR_FUNC,
     .checkFunc    = stubCheckAndGetResultType,
@@ -332,10 +332,26 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       // todo
       break;
 
-    case FUNCTION_TYPE_ABS: {
+    case FUNCTION_TYPE_ABS:
+    case FUNCTION_TYPE_CEIL:
+    case FUNCTION_TYPE_FLOOR:
+    case FUNCTION_TYPE_ROUND: {
       SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
       int32_t paraType = pParam->node.resType.type;
       pFunc->node.resType = (SDataType) { .bytes = tDataTypes[paraType].bytes, .type = paraType };
+      break;
+    }
+
+    case FUNCTION_TYPE_SIN:
+    case FUNCTION_TYPE_COS:
+    case FUNCTION_TYPE_TAN:
+    case FUNCTION_TYPE_ASIN:
+    case FUNCTION_TYPE_ACOS:
+    case FUNCTION_TYPE_ATAN:
+    case FUNCTION_TYPE_SQRT:
+    case FUNCTION_TYPE_LOG:
+    case FUNCTION_TYPE_POW: {
+      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE };
       break;
     }
 

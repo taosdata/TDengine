@@ -107,8 +107,8 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t logFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
 #if 0
+int32_t logFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   if (inputNum != 2 || !IS_NUMERIC_TYPE(pInput[0].type) || !IS_NUMERIC_TYPE(pInput[1].type)) {
     return TSDB_CODE_FAILED;
   }
@@ -144,13 +144,13 @@ int32_t logFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   }
 
   taosMemoryFree(input);
-#endif
 
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
-int32_t powFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
 #if 0
+int32_t powFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   if (inputNum != 2 || !IS_NUMERIC_TYPE(pInput[0].type) || !IS_NUMERIC_TYPE(pInput[1].type)) {
     return TSDB_CODE_FAILED;
   }
@@ -189,12 +189,13 @@ int32_t powFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   }
 
   taosMemoryFree(input);
-#endif
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 typedef float (*_float_fn)(float);
 typedef double (*_double_fn)(double);
+typedef double (*_double_fn_2)(double, double);
 
 int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SScalarParam* pOutput, _double_fn valFn) {
   int32_t type = GET_PARAM_TYPE(pInput);
@@ -215,6 +216,39 @@ int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SScalarPa
       continue;
     }
     out[i] = valFn(getValueFn(pInputData->pData, i));
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+  return TSDB_CODE_SUCCESS;
+}
+
+double tlog(double v, double base) {
+  return log(v) / log(base);
+}
+
+int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, SScalarParam* pOutput, _double_fn_2 valFn) {
+  if (inputNum != 2 || !IS_NUMERIC_TYPE(GET_PARAM_TYPE(&pInput[0])) || !IS_NUMERIC_TYPE(GET_PARAM_TYPE(&pInput[1]))) {
+    return TSDB_CODE_FAILED;
+  }
+
+  SColumnInfoData *pInputData[2];
+  SColumnInfoData *pOutputData = pOutput->columnData;
+  _getDoubleValue_fn_t getValueFn[2];
+
+  for (int32_t i = 0; i < inputNum; ++i) {
+    pInputData[i] = pInput[i].columnData;
+    getValueFn[i]= getVectorDoubleValueFn(GET_PARAM_TYPE(&pInput[i]));
+  }
+
+  double *out = (double *)pOutputData->pData;
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_f(pInputData[0]->nullbitmap, i) ||
+        colDataIsNull_f(pInputData[1]->nullbitmap, 0)) {
+      colDataSetNull_f(pOutputData->nullbitmap, i);
+      continue;
+    }
+    out[i] = valFn(getValueFn[0](pInputData[0]->pData, i), getValueFn[1](pInputData[1]->pData, 0));
   }
 
   pOutput->numOfRows = pInput->numOfRows;
@@ -290,6 +324,14 @@ int32_t asinFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 
 int32_t acosFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return doScalarFunctionUnique(pInput, inputNum, pOutput, acos);
+}
+
+int32_t powFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return doScalarFunctionUnique2(pInput, inputNum, pOutput, pow);
+}
+
+int32_t logFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return doScalarFunctionUnique2(pInput, inputNum, pOutput, tlog);
 }
 
 int32_t sqrtFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
