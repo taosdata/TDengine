@@ -240,7 +240,8 @@ int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf) {
     pBlkIdx = (SBlockIdx *)taosArrayGet(pIdxA, i);
 
     size = tsdbEncodeSBlockIdx(NULL, pBlkIdx);
-    if (tsdbMakeRoom(ppBuf, tlen + size) < 0) return -1;
+    if (tsdbMakeRoom(ppBuf, tlen + size) < 0)
+      return -1;
 
     void *ptr = POINTER_SHIFT(*ppBuf, tlen);
     tsdbEncodeSBlockIdx(&ptr, pBlkIdx);
@@ -249,7 +250,8 @@ int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf) {
   }
 
   tlen += sizeof(TSCKSUM);
-  if (tsdbMakeRoom(ppBuf, tlen) < 0) return -1;
+  if (tsdbMakeRoom(ppBuf, tlen) < 0) 
+    return -1;
   taosCalcChecksumAppend(0, (uint8_t *)(*ppBuf), tlen);
 
   if (tsdbAppendDFile(pHeadf, *ppBuf, tlen, &offset) < tlen) {

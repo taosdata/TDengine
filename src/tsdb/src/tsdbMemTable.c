@@ -1122,7 +1122,6 @@ static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SMemRow r
 // Control Data
 int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmitRspMsg *pRsp, tsem_t** ppSem) {
   int32_t ret = TSDB_CODE_SUCCESS;
-  assert(pBlock->dataLen == sizeof(SControlData));
   SControlData* pCtlData = (SControlData* )pBlock->data;
   
   // INIT SEM FOR ASYNC WAIT COMMIT RESULT
@@ -1136,15 +1135,18 @@ int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmit
 
   // anti-serialize
   pCtlData->command  = htonl(pCtlData->command);
+  pCtlData->tnum     = htonl(pCtlData->tnum);
   pCtlData->win.skey = htobe64(pCtlData->win.skey);
   pCtlData->win.ekey = htobe64(pCtlData->win.ekey);
-
+  for (int32_t i=0; i < pCtlData->tnum; i++) {
+    pCtlData->tids[i] = htonl(pCtlData->tids[i]);
+  }
+  
   // server data set 
-  SControlDataInfo* pNew = (SControlDataInfo* )tmalloc(sizeof(SControlDataInfo));
-  memset(pNew, 0, sizeof(SControlDataInfo));
-  pNew->ctlData = *pCtlData;
-  pNew->uid     = pBlock->uid;
-  pNew->tid     = pBlock->tid;
+  size_t nsize = sizeof(SControlDataInfo) + pCtlData->tnum * sizeof(int32_t);
+  SControlDataInfo* pNew = (SControlDataInfo* )tmalloc(nsize);
+  memset(pNew, 0, nsize);
+  memcpy(&pNew->ctlData, pCtlData, GET_CTLDATA_SIZE(pCtlData));
   pNew->pRsp    = pRsp;
   if (ppSem)
      pNew->pSem = *ppSem;
@@ -1155,9 +1157,12 @@ int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmit
   }
 
   // if async post failed , must set wait event ppSem NULL
-  if(ret != TSDB_CODE_SUCCESS && ppSem) {
-    tsem_destroy(*ppSem);
-    *ppSem = NULL;
+  if(ret != TSDB_CODE_SUCCESS) {
+    if(*ppSem) {
+      tsem_destroy(*ppSem);
+      *ppSem = NULL;
+    }
+    tfree(pNew);
   }
 
   return ret;

@@ -3331,7 +3331,7 @@ int buildTableDelDataMsg(SSqlObj* pSql, SSqlCmd* pCmd, SQueryInfo* pQueryInfo, S
   tscDebug("0x%"PRIx64" table deldata submit msg built, numberOfEP:%d", pSql->self, pSql->epSet.numOfEps);
   
   // set payload
-  size_t payloadLen = sizeof(SMsgDesc) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + sizeof(SControlData);
+  size_t payloadLen = sizeof(SMsgDesc) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + sizeof(SControlData) + sizeof(int32_t);
   int32_t ret = tscAllocPayload(pCmd, payloadLen);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
@@ -3351,22 +3351,24 @@ int buildTableDelDataMsg(SSqlObj* pSql, SSqlCmd* pCmd, SQueryInfo* pQueryInfo, S
   pMsgDesc->numOfVnodes = htonl(1);
   // SSubmitMsg
   int32_t size = pCmd->payloadLen - sizeof(SMsgDesc);
-  pSubmitMsg->header.vgId = htonl(pTableMeta->vgId);
+  pSubmitMsg->header.vgId    = htonl(pTableMeta->vgId);
   pSubmitMsg->header.contLen = htonl(size);
-  pSubmitMsg->length = pSubmitMsg->header.contLen;
-  pSubmitMsg->numOfBlocks = htonl(1);
+  pSubmitMsg->length         = pSubmitMsg->header.contLen;
+  pSubmitMsg->numOfBlocks    = htonl(1);
   // SSubmitBlk
-  pSubmitBlk->flag = FLAG_BLK_CONTROL; // this is control block
-  pSubmitBlk->tid = htonl(pTableMeta->id.tid);
-  pSubmitBlk->uid = htobe64(pTableMeta->id.uid);
+  pSubmitBlk->flag      = FLAG_BLK_CONTROL; // this is control block
+  pSubmitBlk->tid       = htonl(pTableMeta->id.tid);
+  pSubmitBlk->uid       = htobe64(pTableMeta->id.uid);
   pSubmitBlk->numOfRows = htons(1);
   pSubmitBlk->schemaLen = 0; // only server return TSDB_CODE_TDB_TABLE_RECONFIGURE need schema attached
-  pSubmitBlk->sversion = htonl(pTableMeta->sversion);
-  pSubmitBlk->dataLen  = htonl(sizeof(SControlData));
+  pSubmitBlk->sversion  = htonl(pTableMeta->sversion);
+  pSubmitBlk->dataLen   = htonl(sizeof(SControlData) + sizeof(int32_t));
   // SControlData
   pControlData->command  = htonl(CMD_DELETE_DATA);
   pControlData->win.skey = htobe64(pQueryInfo->window.skey);
   pControlData->win.ekey = htobe64(pQueryInfo->window.ekey);
+  pControlData->tnum     = htonl(1);
+  pControlData->tids[0]  = htonl(pTableMeta->id.tid);   
 
   return TSDB_CODE_SUCCESS;
 }

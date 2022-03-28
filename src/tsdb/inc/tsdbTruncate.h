@@ -20,16 +20,13 @@ extern "C" {
 #endif
 
 // SControlData addition information
+#define GET_CTLINFO_SIZE(p) (sizeof(SControlDataInfo) + p.ctlData.tnum * sizeof(int32_t))
 typedef struct {
-  SControlData ctlData;
   // addition info
-  uint64_t     uid;        // table unique id
-  int32_t      tid;        // table id
   tsem_t*      pSem;
   bool         memNull; // pRepo->mem is NULL, this is true
-  uint64_t*    uids;  // delete table
-  int32_t      uidCount;
   SShellSubmitRspMsg *pRsp;
+  SControlData ctlData;
 } SControlDataInfo;
 
 // -------- interface ---------
