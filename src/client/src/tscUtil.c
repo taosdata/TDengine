@@ -4235,6 +4235,10 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     }
 
     return;
+  } else if (hasMoreClauseToTry(pSql)) {
+    if (pthread_mutex_init(&pSql->subState.mutex, NULL) != 0) {
+      goto _error;
+    }
   }
 
   pSql->cmd.active = pQueryInfo;
