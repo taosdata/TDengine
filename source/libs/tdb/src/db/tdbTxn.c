@@ -15,17 +15,17 @@
 
 #include "tdbInt.h"
 
-int tdbTxnBegin(STEnv *pEnv) {
+int tdbTxnBegin(TEnv *pEnv) {
   // TODO
   return 0;
 }
 
-int tdbTxnCommit(STEnv *pEnv) {
+int tdbTxnCommit(TEnv *pEnv) {
   // TODO
   return 0;
 }
 
-int tdbTxnRollback(STEnv *pEnv) {
+int tdbTxnRollback(TEnv *pEnv) {
   // TODO
   return 0;
 }

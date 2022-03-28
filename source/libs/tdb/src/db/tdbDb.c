@@ -16,7 +16,7 @@
 #include "tdbInt.h"
 
 struct STDB {
-  STEnv  *pEnv;
+  TEnv   *pEnv;
   SBTree *pBt;
 };
 
@@ -24,7 +24,7 @@ struct STDBC {
   SBTC btc;
 };
 
-int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, STEnv *pEnv, TDB **ppDb) {
+int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, TEnv *pEnv, TDB **ppDb) {
   TDB    *pDb;
   SPager *pPager;
   int     ret;
