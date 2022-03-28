@@ -23,6 +23,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
+#include "parser.h"
 #include "tname.h"
 
 #define MND_TOPIC_VER_NUMBER   1
@@ -84,6 +85,16 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   SDB_SET_BINARY(pRaw, dataPos, pTopic->logicalPlan, logicalPlanLen, TOPIC_ENCODE_OVER);
   SDB_SET_INT32(pRaw, dataPos, physicalPlanLen, TOPIC_ENCODE_OVER);
   SDB_SET_BINARY(pRaw, dataPos, pTopic->physicalPlan, physicalPlanLen, TOPIC_ENCODE_OVER);
+
+  int32_t swLen = taosEncodeSSchemaWrapper(NULL, &pTopic->schema);
+  void   *swBuf = taosMemoryMalloc(swLen);
+  if (swBuf == NULL) {
+    goto TOPIC_ENCODE_OVER;
+  }
+  void *aswBuf = swBuf;
+  taosEncodeSSchemaWrapper(&aswBuf, &pTopic->schema);
+  SDB_SET_INT32(pRaw, dataPos, swLen, TOPIC_ENCODE_OVER);
+  SDB_SET_BINARY(pRaw, dataPos, swBuf, swLen, TOPIC_ENCODE_OVER);
 
   SDB_SET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_ENCODE_OVER);
   SDB_SET_DATALEN(pRaw, dataPos, TOPIC_ENCODE_OVER);
@@ -148,6 +159,17 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
     goto TOPIC_DECODE_OVER;
   }
   SDB_GET_BINARY(pRaw, dataPos, pTopic->physicalPlan, len, TOPIC_DECODE_OVER);
+
+  SDB_GET_INT32(pRaw, dataPos, &len, TOPIC_DECODE_OVER);
+  void *buf = taosMemoryMalloc(len);
+  if (buf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto TOPIC_DECODE_OVER;
+  }
+  SDB_GET_BINARY(pRaw, dataPos, buf, len, TOPIC_DECODE_OVER);
+  if (taosDecodeSSchemaWrapper(buf, &pTopic->schema) == NULL) {
+    goto TOPIC_DECODE_OVER;
+  }
 
   SDB_GET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_DECODE_OVER);
 
@@ -281,6 +303,14 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
   }
   if (NULL != pPlanStr) {
     topicObj.physicalPlan = pPlanStr;
+  }
+
+  SNode *pAst = NULL;
+  if (nodesStringToNode(pCreate->ast, &pAst) < 0) {
+    return -1;
+  }
+  if (qExtractResultSchema(pAst, &topicObj.schema.nCols, &topicObj.schema.pSchema) != 0) {
+    return -1;
   }
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_TOPIC, &pReq->rpcMsg);

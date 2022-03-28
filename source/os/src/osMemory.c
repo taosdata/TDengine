@@ -16,8 +16,6 @@
 #define ALLOW_FORBID_FUNC
 #include "os.h"
 
-#define USE_TD_MEMORY
-
 #define TD_MEMORY_SYMBOL ('T'<<24|'A'<<16|'O'<<8|'S')
 
 #define TD_MEMORY_STACK_TRACE_DEPTH 10
@@ -47,16 +45,16 @@ int32_t taosBackTrace(void **buffer, int32_t size) {
   int32_t frame = 0;
   void **ebp;
   void **ret = NULL;
-  unsigned long long func_frame_distance = 0;
+  size_t func_frame_distance = 0;
   if (buffer != NULL && size > 0) {
     ebp = taosGetEbp();
-    func_frame_distance = (unsigned long long)(*ebp) - (unsigned long long)ebp;
+    func_frame_distance = (size_t)*ebp - (size_t)ebp;
     while (ebp && frame < size && (func_frame_distance < (1ULL << 24))  // assume function ebp more than 16M
            && (func_frame_distance > 0)) {
       ret = ebp + 1;
       buffer[frame++] = *ret;
       ebp = (void **)(*ebp);
-      func_frame_distance = (unsigned long long)(*ebp) - (unsigned long long)ebp;
+      func_frame_distance = (size_t)*ebp - (size_t)ebp;
     }
   }
   return frame;
@@ -117,7 +115,8 @@ void taosMemoryFree(const void *ptr) {
 
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char*)ptr - sizeof(TdMemoryInfo));
   if(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL) {
-    memset(pTdMemoryInfo, 0, sizeof(TdMemoryInfo));
+    pTdMemoryInfo->memorySize = 0;
+    // memset(pTdMemoryInfo, 0, sizeof(TdMemoryInfo));
     free(pTdMemoryInfo);
   } else {
     free((void*)ptr);

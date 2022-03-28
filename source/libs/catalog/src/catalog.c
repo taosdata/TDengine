@@ -53,7 +53,6 @@ SCtgAction gCtgAction[CTG_ACT_MAX] = {{
                           }
 };
 
-
 void ctgFreeMetaRent(SCtgRentMgmt *mgmt) {
   if (NULL == mgmt->slots) {
     return;

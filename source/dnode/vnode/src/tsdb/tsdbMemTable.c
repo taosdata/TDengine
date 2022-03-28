@@ -255,7 +255,7 @@ int32_t tdScanAndConvertSubmitMsg(SSubmitReq *pMsg) {
   return 0;
 }
 
-int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
+static int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
   ASSERT(pMsg != NULL);
   // STsdbMeta *    pMeta = pTsdb->tsdbMeta;
   SSubmitMsgIter msgIter = {0};

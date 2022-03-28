@@ -208,11 +208,11 @@ typedef struct {
 typedef struct SSubmitBlk {
   int64_t uid;        // table unique id
   int64_t suid;       // stable id
-  int32_t padding;    // TODO just for padding here
   int32_t sversion;   // data schema version
   int32_t dataLen;    // data part length, not including the SSubmitBlk head
   int32_t schemaLen;  // schema length, if length is 0, no schema exists
   int16_t numOfRows;  // total number of rows in current submit block
+  int16_t padding;    // TODO just for padding here
   char    data[];
 } SSubmitBlk;
 
@@ -259,10 +259,10 @@ typedef struct {
 } SSubmitRsp;
 
 typedef struct SSchema {
-  int8_t  type;
-  int32_t colId;
-  int32_t bytes;
-  char    name[TSDB_COL_NAME_LEN];
+  int8_t   type;
+  col_id_t colId;
+  int32_t  bytes;
+  char     name[TSDB_COL_NAME_LEN];
 } SSchema;
 
 typedef struct {
@@ -438,8 +438,8 @@ typedef struct {
  */
 typedef struct {
   union {
-    int16_t colId;
-    int16_t slotId;
+    col_id_t colId;
+    int16_t  slotId;
   };
 
   int16_t type;
@@ -1901,7 +1901,7 @@ static FORCE_INLINE int32_t taosEncodeSSchema(void** buf, const SSchema* pSchema
   int32_t tlen = 0;
   tlen += taosEncodeFixedI8(buf, pSchema->type);
   tlen += taosEncodeFixedI32(buf, pSchema->bytes);
-  tlen += taosEncodeFixedI32(buf, pSchema->colId);
+  tlen += taosEncodeFixedI16(buf, pSchema->colId);
   tlen += taosEncodeString(buf, pSchema->name);
   return tlen;
 }
@@ -1909,7 +1909,7 @@ static FORCE_INLINE int32_t taosEncodeSSchema(void** buf, const SSchema* pSchema
 static FORCE_INLINE void* taosDecodeSSchema(void* buf, SSchema* pSchema) {
   buf = taosDecodeFixedI8(buf, &pSchema->type);
   buf = taosDecodeFixedI32(buf, &pSchema->bytes);
-  buf = taosDecodeFixedI32(buf, &pSchema->colId);
+  buf = taosDecodeFixedI16(buf, &pSchema->colId);
   buf = taosDecodeStringTo(buf, pSchema->name);
   return buf;
 }
@@ -1917,7 +1917,7 @@ static FORCE_INLINE void* taosDecodeSSchema(void* buf, SSchema* pSchema) {
 static FORCE_INLINE int32_t tEncodeSSchema(SCoder* pEncoder, const SSchema* pSchema) {
   if (tEncodeI8(pEncoder, pSchema->type) < 0) return -1;
   if (tEncodeI32(pEncoder, pSchema->bytes) < 0) return -1;
-  if (tEncodeI32(pEncoder, pSchema->colId) < 0) return -1;
+  if (tEncodeI16(pEncoder, pSchema->colId) < 0) return -1;
   if (tEncodeCStr(pEncoder, pSchema->name) < 0) return -1;
   return 0;
 }
@@ -1925,12 +1925,12 @@ static FORCE_INLINE int32_t tEncodeSSchema(SCoder* pEncoder, const SSchema* pSch
 static FORCE_INLINE int32_t tDecodeSSchema(SCoder* pDecoder, SSchema* pSchema) {
   if (tDecodeI8(pDecoder, &pSchema->type) < 0) return -1;
   if (tDecodeI32(pDecoder, &pSchema->bytes) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pSchema->colId) < 0) return -1;
+  if (tDecodeI16(pDecoder, &pSchema->colId) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pSchema->name) < 0) return -1;
   return 0;
 }
 
-static FORCE_INLINE int32_t tEncodeSSchemaWrapper(void** buf, const SSchemaWrapper* pSW) {
+static FORCE_INLINE int32_t taosEncodeSSchemaWrapper(void** buf, const SSchemaWrapper* pSW) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedU32(buf, pSW->nCols);
   for (int32_t i = 0; i < pSW->nCols; i++) {
@@ -1939,7 +1939,7 @@ static FORCE_INLINE int32_t tEncodeSSchemaWrapper(void** buf, const SSchemaWrapp
   return tlen;
 }
 
-static FORCE_INLINE void* tDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) {
+static FORCE_INLINE void* taosDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) {
   buf = taosDecodeFixedU32(buf, &pSW->nCols);
   pSW->pSchema = (SSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
   if (pSW->pSchema == NULL) {
@@ -1950,6 +1950,27 @@ static FORCE_INLINE void* tDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) 
     buf = taosDecodeSSchema(buf, &pSW->pSchema[i]);
   }
   return buf;
+}
+
+static FORCE_INLINE int32_t tEncodeSSchemaWrapper(SCoder* pEncoder, const SSchemaWrapper* pSW) {
+  if (tEncodeU32(pEncoder, pSW->nCols) < 0) return -1;
+  for (int32_t i = 0; i < pSW->nCols; i++) {
+    if (tEncodeSSchema(pEncoder, &pSW->pSchema[i]) < 0) return -1;
+  }
+  return pEncoder->pos;
+}
+
+static FORCE_INLINE int32_t tDecodeSSchemaWrapper(SCoder* pDecoder, SSchemaWrapper* pSW) {
+  if (tDecodeU32(pDecoder, &pSW->nCols) < 0) return -1;
+  void* ptr = taosMemoryRealloc(pSW->pSchema, pSW->nCols * sizeof(SSchema));
+  if (ptr == NULL) {
+    return -1;
+  }
+  pSW->pSchema = (SSchema*)ptr;
+  for (int32_t i = 0; i < pSW->nCols; i++) {
+    if (tDecodeSSchema(pDecoder, &pSW->pSchema[i]) < 0) return -1;
+  }
+  return 0;
 }
 
 typedef struct {

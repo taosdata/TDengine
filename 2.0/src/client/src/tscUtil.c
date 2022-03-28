@@ -1554,7 +1554,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
 }
 
 void tscDestroyBoundColumnInfo(SParsedDataColInfo* pColInfo) {
-  tfree(pColInfo->boundedColumns);
+  tfree(pColInfo->boundColumns);
   tfree(pColInfo->cols);
   tfree(pColInfo->colIdxInfo);
 }

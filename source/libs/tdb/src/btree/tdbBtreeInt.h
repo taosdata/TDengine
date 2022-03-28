@@ -13,30 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TDB_DB_H_
-#define _TD_TDB_DB_H_
+#ifndef _TDB_BTREE_INT_H_
+#define _TDB_BTREE_INT_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct STDB  STDB;
-typedef struct STDBC STDBC;
-
-// STDB
-int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, STEnv *pEnv, STDB **ppDb);
-int tdbDbClose(STDB *pDb);
-int tdbDbDrop(STDB *pDb);
-int tdbDbInsert(STDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen);
-int tdbDbGet(STDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen);
-
-// STDBC
-int tdbDbcOpen(STDB *pDb, STDBC **ppDbc);
-int tdbDbNext(STDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen);
-int tdbDbcClose(STDBC *pDbc);
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TDB_DB_H_*/
+#endif /*_TDB_BTREE_INT_H_*/

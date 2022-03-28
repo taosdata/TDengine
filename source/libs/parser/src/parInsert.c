@@ -600,9 +600,9 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
 
 typedef struct SMemParam {
   SRowBuilder* rb;
-  SSchema* schema;
-  int32_t toffset;
-  int32_t      colIdx;
+  SSchema*     schema;
+  int32_t      toffset;
+  col_id_t     colIdx;
 } SMemParam;
 
 static FORCE_INLINE int32_t MemRowAppend(const void* value, int32_t len, void* param) {
@@ -623,9 +623,11 @@ static FORCE_INLINE int32_t MemRowAppend(const void* value, int32_t len, void* p
     tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, rowEnd, false, pa->toffset, pa->colIdx);
   } else {
     if (value == NULL) {  // it is a null data
-      tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NULL, value, false, pa->toffset, pa->colIdx);
+      tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NULL, value, false, pa->toffset,
+                          pa->colIdx);
     } else {
-      tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, value, false, pa->toffset, pa->colIdx);
+      tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, value, false, pa->toffset,
+                          pa->colIdx);
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -633,18 +635,18 @@ static FORCE_INLINE int32_t MemRowAppend(const void* value, int32_t len, void* p
 
 // pSql -> tag1_name, ...)
 static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* pColList, SSchema* pSchema) {
-  int32_t nCols = pColList->numOfCols;
+  col_id_t nCols = pColList->numOfCols;
 
   pColList->numOfBound = 0; 
   pColList->boundNullLen = 0;
-  memset(pColList->boundedColumns, 0, sizeof(int32_t) * nCols);
-  for (int32_t i = 0; i < nCols; ++i) {
+  memset(pColList->boundColumns, 0, sizeof(col_id_t) * nCols);
+  for (col_id_t i = 0; i < nCols; ++i) {
     pColList->cols[i].valStat = VAL_STAT_NONE;
   }
 
   SToken sToken;
   bool    isOrdered = true;
-  int32_t lastColIdx = -1;  // last column found
+  col_id_t lastColIdx = -1;  // last column found
   while (1) {
     NEXT_TOKEN(pCxt->pSql, sToken);
 
@@ -652,8 +654,8 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
       break;
     }
 
-    int32_t t = lastColIdx + 1;
-    int32_t index = findCol(&sToken, t, nCols, pSchema);
+    col_id_t t = lastColIdx + 1;
+    col_id_t index = findCol(&sToken, t, nCols, pSchema);
     if (index < 0 && t > 0) {
       index = findCol(&sToken, 0, t, pSchema);
       isOrdered = false;
@@ -666,7 +668,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
     }
     lastColIdx = index;
     pColList->cols[index].valStat = VAL_STAT_HAS;
-    pColList->boundedColumns[pColList->numOfBound] = index + PRIMARYKEY_TIMESTAMP_COL_ID;
+    pColList->boundColumns[pColList->numOfBound] = index + PRIMARYKEY_TIMESTAMP_COL_ID;
     ++pColList->numOfBound;
     switch (pSchema[t].type) {
       case TSDB_DATA_TYPE_BINARY:
@@ -689,18 +691,19 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
     SBoundIdxInfo* pColIdx = pColList->colIdxInfo;
-    for (uint16_t i = 0; i < pColList->numOfBound; ++i) {
-      pColIdx[i].schemaColIdx = (uint16_t)pColList->boundedColumns[i];
+    for (col_id_t i = 0; i < pColList->numOfBound; ++i) {
+      pColIdx[i].schemaColIdx = pColList->boundColumns[i];
       pColIdx[i].boundIdx = i;
     }
     qsort(pColIdx, pColList->numOfBound, sizeof(SBoundIdxInfo), schemaIdxCompar);
-    for (uint16_t i = 0; i < pColList->numOfBound; ++i) {
+    for (col_id_t i = 0; i < pColList->numOfBound; ++i) {
       pColIdx[i].finalIdx = i;
     }
     qsort(pColIdx, pColList->numOfBound, sizeof(SBoundIdxInfo), boundIdxCompar);
   }
 
-  memset(&pColList->boundedColumns[pColList->numOfBound], 0, sizeof(int32_t) * (pColList->numOfCols - pColList->numOfBound));
+  memset(&pColList->boundColumns[pColList->numOfBound], 0,
+         sizeof(col_id_t) * (pColList->numOfCols - pColList->numOfBound));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -714,8 +717,8 @@ typedef struct SKvParam {
 static int32_t KvRowAppend(const void *value, int32_t len, void *param) {
   SKvParam* pa = (SKvParam*) param;
 
-  int32_t type  = pa->schema->type;
-  int32_t colId = pa->schema->colId;
+  int8_t  type = pa->schema->type;
+  int16_t colId = pa->schema->colId;
 
   if (TSDB_DATA_TYPE_BINARY == type) {
     STR_WITH_SIZE_TO_VARSTR(pa->buf, value, len);
@@ -747,7 +750,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pTagsSchema, 
   char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0};  // used for deleting Escape character: \\, \', \"
   for (int i = 0; i < pCxt->tags.numOfBound; ++i) {
     NEXT_TOKEN_WITH_PREV(pCxt->pSql, sToken);
-    SSchema* pSchema = &pTagsSchema[pCxt->tags.boundedColumns[i]];
+    SSchema* pSchema = &pTagsSchema[pCxt->tags.boundColumns[i]];
     param.schema = pSchema;
     CHECK_CODE(parseValueToken(&pCxt->pSql, &sToken, pSchema, precision, tmpTokenBuf, KvRowAppend, &param, &pCxt->msg));
   }
@@ -813,9 +816,9 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
   // 1. set the parsed value from sql string
   for (int i = 0; i < spd->numOfBound; ++i) {
     NEXT_TOKEN_WITH_PREV(pCxt->pSql, sToken);
-    SSchema *pSchema = &schema[spd->boundedColumns[i] - 1];
+    SSchema* pSchema = &schema[spd->boundColumns[i] - 1];
     param.schema = pSchema;
-    getMemRowAppendInfo(schema, pBuilder->rowType, spd, i, &param.toffset, &param.colIdx);
+    getSTSRowAppendInfo(schema, pBuilder->rowType, spd, i, &param.toffset, &param.colIdx);
     CHECK_CODE(parseValueToken(&pCxt->pSql, &sToken, pSchema, timePrec, tmpTokenBuf, MemRowAppend, &param, &pCxt->msg));
 
     if (PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {

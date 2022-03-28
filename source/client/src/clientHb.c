@@ -91,7 +91,7 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
     } else {
       tscDebug("hb update stb, db:%s, stb:%s", rsp->dbFName, rsp->stbName);
       if (rsp->pSchemas[0].colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
-        tscError("invalid colId[%d] for the first column in table meta rsp msg", rsp->pSchemas[0].colId);
+        tscError("invalid colId[%" PRIi16 "] for the first column in table meta rsp msg", rsp->pSchemas[0].colId);
         tFreeSTableMetaBatchRsp(&batchMetaRsp);
         return TSDB_CODE_TSC_INVALID_VALUE;
       }

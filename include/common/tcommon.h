@@ -127,7 +127,7 @@ static FORCE_INLINE int32_t tEncodeSMqPollRsp(void** buf, const SMqPollRsp* pRsp
   tlen += taosEncodeFixedI32(buf, pRsp->skipLogNum);
   tlen += taosEncodeFixedI32(buf, pRsp->numOfTopics);
   if (pRsp->numOfTopics == 0) return tlen;
-  tlen += tEncodeSSchemaWrapper(buf, pRsp->schema);
+  tlen += taosEncodeSSchemaWrapper(buf, pRsp->schema);
   if (pRsp->pBlockData) {
     sz = taosArrayGetSize(pRsp->pBlockData);
   }
@@ -149,7 +149,7 @@ static FORCE_INLINE void* tDecodeSMqPollRsp(void* buf, SMqPollRsp* pRsp) {
   if (pRsp->numOfTopics == 0) return buf;
   pRsp->schema = (SSchemaWrapper*)taosMemoryCalloc(1, sizeof(SSchemaWrapper));
   if (pRsp->schema == NULL) return NULL;
-  buf = tDecodeSSchemaWrapper(buf, pRsp->schema);
+  buf = taosDecodeSSchemaWrapper(buf, pRsp->schema);
   buf = taosDecodeFixedI32(buf, &sz);
   pRsp->pBlockData = taosArrayInit(sz, sizeof(SSDataBlock));
   for (int32_t i = 0; i < sz; i++) {

@@ -271,6 +271,10 @@ static bool findAndSetColumn(SColumnNode* pCol, const STableNode* pTable) {
   bool found = false;
   if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
     const STableMeta* pMeta = ((SRealTableNode*)pTable)->pMeta;
+    if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId && 0 == strcmp(pCol->colName, PK_TS_COL_INTERNAL_NAME)) {
+      setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema, false, pCol);
+      return true;
+    }
     int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
     for (int32_t i = 0; i < nums; ++i) {
       if (0 == strcmp(pCol->colName, pMeta->schema[i].name)) {
@@ -1448,6 +1452,7 @@ static int32_t getSmaIndexBuildAst(STranslateContext* pCxt, SCreateIndexStmt* pS
   if (NULL == pSelect) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  sprintf(pSelect->stmtName, "%p", pSelect);
 
   SRealTableNode* pTable = nodesMakeNode(QUERY_NODE_REAL_TABLE);
   if (NULL == pTable) {
@@ -1463,6 +1468,10 @@ static int32_t getSmaIndexBuildAst(STranslateContext* pCxt, SCreateIndexStmt* pS
     nodesDestroyNode(pSelect);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  SNode* pProject = NULL;
+  FOREACH(pProject, pSelect->pProjectionList) {
+    sprintf(((SExprNode*)pProject)->aliasName, "#sma_%p", pProject);
+  }
 
   SIntervalWindowNode* pInterval = nodesMakeNode(QUERY_NODE_INTERVAL_WINDOW);
   if (NULL == pInterval) {
@@ -1470,14 +1479,18 @@ static int32_t getSmaIndexBuildAst(STranslateContext* pCxt, SCreateIndexStmt* pS
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pSelect->pWindow = (SNode*)pInterval;
+  pInterval->pCol = nodesMakeNode(QUERY_NODE_COLUMN);
   pInterval->pInterval = nodesCloneNode(pStmt->pOptions->pInterval);
   pInterval->pOffset = nodesCloneNode(pStmt->pOptions->pOffset);
   pInterval->pSliding = nodesCloneNode(pStmt->pOptions->pSliding);
-  if (NULL == pInterval->pInterval || (NULL != pStmt->pOptions->pOffset && NULL == pInterval->pOffset) ||
+  if (NULL == pInterval->pCol || NULL == pInterval->pInterval || 
+      (NULL != pStmt->pOptions->pOffset && NULL == pInterval->pOffset) ||
       (NULL != pStmt->pOptions->pSliding && NULL == pInterval->pSliding)) {
     nodesDestroyNode(pSelect);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  ((SColumnNode*)pInterval->pCol)->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  strcpy(((SColumnNode*)pInterval->pCol)->colName, PK_TS_COL_INTERNAL_NAME);
 
   int32_t code = translateQuery(pCxt, (SNode*)pSelect);
   if (TSDB_CODE_SUCCESS == code) {
@@ -1787,7 +1800,7 @@ static int32_t translateSubquery(STranslateContext* pCxt, SNode* pNode) {
 }
 
 int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
-  if (QUERY_NODE_SELECT_STMT == nodeType(pRoot)) {
+  if (NULL != pRoot && QUERY_NODE_SELECT_STMT == nodeType(pRoot)) {
     SSelectStmt* pSelect = (SSelectStmt*) pRoot;
     *numOfCols = LIST_LENGTH(pSelect->pProjectionList);
     *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
@@ -1865,6 +1878,7 @@ static int32_t createSelectStmtForShow(ENodeType showType, SSelectStmt** pStmt) 
   if (NULL == pSelect) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  sprintf(pSelect->stmtName, "%p", pSelect);
 
   SRealTableNode* pTable = nodesMakeNode(QUERY_NODE_REAL_TABLE);
   if (NULL == pTable) {
@@ -1873,6 +1887,7 @@ static int32_t createSelectStmtForShow(ENodeType showType, SSelectStmt** pStmt) 
   }
   strcpy(pTable->table.dbName, TSDB_INFORMATION_SCHEMA_DB);
   strcpy(pTable->table.tableName, getSysTableName(showType));
+  strcpy(pTable->table.tableAlias, pTable->table.tableName);
   pSelect->pFromTable = (SNode*)pTable;
 
   *pStmt = pSelect;
@@ -1975,7 +1990,7 @@ typedef struct SVgroupTablesBatch {
   char               dbName[TSDB_DB_NAME_LEN];
 } SVgroupTablesBatch;
 
-static void toSchema(const SColumnDefNode* pCol, int32_t colId, SSchema* pSchema) {
+static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSchema) {
   pSchema->colId = colId;
   pSchema->type = pCol->dataType.type;
   pSchema->bytes = pCol->dataType.bytes;
@@ -2385,13 +2400,14 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
 }
 
 static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
-  int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pQuery->pRoot)) {
     case QUERY_NODE_SELECT_STMT:
       pQuery->haveResultSet = true;
       pQuery->directRpc = false;
       pQuery->msgType = TDMT_VND_QUERY;
-      code = qExtractResultSchema(pQuery->pRoot, &pQuery->numOfResCols, &pQuery->pResSchema);
+      if (TSDB_CODE_SUCCESS != qExtractResultSchema(pQuery->pRoot, &pQuery->numOfResCols, &pQuery->pResSchema)) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       break;
     case QUERY_NODE_VNODE_MODIF_STMT:
       pQuery->haveResultSet = false;
@@ -2431,7 +2447,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     }
   }
 
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery) {

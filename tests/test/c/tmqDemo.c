@@ -314,7 +314,7 @@ int32_t init_env() {
   }
 
   //const char* sql = "select * from tu1";
-  sprintf(sqlStr, "create topic test_stb_topic_1 as select * from %s0", g_stConfInfo.stbName);
+  sprintf(sqlStr, "create topic test_stb_topic_1 as select ts,c0 from %s", g_stConfInfo.stbName);
   /*pRes = tmq_create_topic(pConn, "test_stb_topic_1", sqlStr, strlen(sqlStr));*/
   pRes = taos_query(pConn, sqlStr);
   if (taos_errno(pRes) != 0) {
@@ -349,36 +349,6 @@ tmq_list_t* build_topic_list() {
   tmq_list_t* topic_list = tmq_list_new();
   tmq_list_append(topic_list, "test_stb_topic_1");
   return topic_list;
-}
-
-void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
-  tmq_resp_err_t err;
-
-  if ((err = tmq_subscribe(tmq, topics))) {
-    fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(err));
-    printf("subscribe err\n");
-    return;
-  }
-  int32_t cnt = 0;
-  /*clock_t startTime = clock();*/
-  while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 1);
-    if (tmqmessage) {
-      cnt++;
-      msg_process(tmqmessage);
-      tmq_message_destroy(tmqmessage);
-      /*} else {*/
-      /*break;*/
-    }
-  }
-  /*clock_t endTime = clock();*/
-  /*printf("log cnt: %d %f s\n", cnt, (double)(endTime - startTime) / CLOCKS_PER_SEC);*/
-
-  err = tmq_consumer_close(tmq);
-  if (err)
-    fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(err));
-  else
-    fprintf(stderr, "%% Consumer closed\n");
 }
 
 void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
@@ -438,7 +408,7 @@ void perf_loop(tmq_t* tmq, tmq_list_t* topics, int32_t totalMsgs, int64_t walLog
 
   if (batchCnt != totalMsgs) {
 	printf("%s inserted msgs: %d and consume msgs: %d mismatch %s", GREEN, totalMsgs, batchCnt, NC);
-	exit(-1);
+	/*exit(-1);*/
   }
 
   if (0 == g_stConfInfo.simCase) {
@@ -691,12 +661,13 @@ int main(int32_t argc, char *argv[]) {
 	float	rowsSpeed   = totalRows / seconds;	
 	float	msgsSpeed   = totalMsgs / seconds;
 	
-	walLogSize = getDirectorySize(g_stConfInfo.vnodeWalPath);
-	if (walLogSize <= 0) {
-	  printf("vnode2/wal size incorrect!");
-	  exit(-1);
-	} else {
-	  if (0 == g_stConfInfo.simCase) {	
+
+	if (0 == g_stConfInfo.simCase) {
+	  walLogSize = getDirectorySize(g_stConfInfo.vnodeWalPath);
+	  if (walLogSize <= 0) {
+	    printf("%s size incorrect!", g_stConfInfo.vnodeWalPath);
+	    exit(-1);
+	  } else {
 	    pPrint(".log file size in vnode2/wal: %.3f MBytes\n", (double)walLogSize/(1024 * 1024.0));
 	  }
 	}

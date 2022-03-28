@@ -19,6 +19,11 @@
 #include "taos.h"
 #include "taoserror.h"
 
+#define COPY_ALL_SCALAR_FIELDS \
+	do { \
+    memcpy((pDst), (pSrc), sizeof(*pSrc)); \
+	} while (0)
+
 #define COPY_SCALAR_FIELD(fldname) \
 	do { \
     (pDst)->fldname = (pSrc)->fldname; \
@@ -195,6 +200,12 @@ static SNode* groupingSetNodeCopy(const SGroupingSetNode* pSrc, SGroupingSetNode
   return (SNode*)pDst;
 }
 
+static SNode* orderByExprNodeCopy(const SOrderByExprNode* pSrc, SOrderByExprNode* pDst) {
+  COPY_ALL_SCALAR_FIELDS;
+  CLONE_NODE_FIELD(pExpr);
+  return (SNode*)pDst;
+}
+
 static SNode* fillNodeCopy(const SFillNode* pSrc, SFillNode* pDst) {
   COPY_SCALAR_FIELD(mode);
   CLONE_NODE_FIELD(pValues);
@@ -251,6 +262,7 @@ static SNode* logicAggCopy(const SAggLogicNode* pSrc, SAggLogicNode* pDst) {
 static SNode* logicProjectCopy(const SProjectLogicNode* pSrc, SProjectLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pProjections);
+  COPY_CHAR_ARRAY_FIELD(stmtName);
   return (SNode*)pDst;
 }
 
@@ -267,16 +279,24 @@ static SNode* logicExchangeCopy(const SExchangeLogicNode* pSrc, SExchangeLogicNo
 }
 
 static SNode* logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* pDst) {
+  COPY_ALL_SCALAR_FIELDS;
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
-  COPY_SCALAR_FIELD(winType);
+  // COPY_SCALAR_FIELD(winType);
   CLONE_NODE_LIST_FIELD(pFuncs);
-  COPY_SCALAR_FIELD(interval);
-  COPY_SCALAR_FIELD(offset);
-  COPY_SCALAR_FIELD(sliding);
-  COPY_SCALAR_FIELD(intervalUnit);
-  COPY_SCALAR_FIELD(slidingUnit);
+  // COPY_SCALAR_FIELD(interval);
+  // COPY_SCALAR_FIELD(offset);
+  // COPY_SCALAR_FIELD(sliding);
+  // COPY_SCALAR_FIELD(intervalUnit);
+  // COPY_SCALAR_FIELD(slidingUnit);
   CLONE_NODE_FIELD(pFill);
-  COPY_SCALAR_FIELD(sessionGap);
+  // COPY_SCALAR_FIELD(sessionGap);
+  CLONE_NODE_FIELD(pTspk);
+  return (SNode*)pDst;
+}
+
+static SNode* logicSortCopy(const SSortLogicNode* pSrc, SSortLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  CLONE_NODE_LIST_FIELD(pSortKeys);
   return (SNode*)pDst;
 }
 
@@ -339,6 +359,7 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
     case QUERY_NODE_GROUPING_SET:
       return groupingSetNodeCopy((const SGroupingSetNode*)pNode, (SGroupingSetNode*)pDst);
     case QUERY_NODE_ORDER_BY_EXPR:
+      return orderByExprNodeCopy((const SOrderByExprNode*)pNode, (SOrderByExprNode*)pDst);
     case QUERY_NODE_LIMIT:
       break;
     case QUERY_NODE_FILL:
@@ -361,6 +382,8 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
       return logicExchangeCopy((const SExchangeLogicNode*)pNode, (SExchangeLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return logicWindowCopy((const SWindowLogicNode*)pNode, (SWindowLogicNode*)pDst);
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+      return logicSortCopy((const SSortLogicNode*)pNode, (SSortLogicNode*)pDst);
     case QUERY_NODE_LOGIC_SUBPLAN:
       return logicSubplanCopy((const SLogicSubplan*)pNode, (SLogicSubplan*)pDst);
     default:
