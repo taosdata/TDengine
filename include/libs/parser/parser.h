@@ -54,6 +54,7 @@ typedef struct SQuery {
   int32_t msgType;
   SArray* pDbList;
   SArray* pTableList;
+  bool showRewrite;
 } SQuery;
 
 int32_t qParseQuerySql(SParseContext* pCxt, SQuery** pQuery);

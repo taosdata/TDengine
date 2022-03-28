@@ -81,7 +81,7 @@ class FstReadMemory {
     memset((void*)&_s, 0, sizeof(_s));
   }
   bool init() {
-    char* buf = (char*)calloc(1, sizeof(char) * _size);
+    char* buf = (char*)taosMemoryCalloc(1, sizeof(char) * _size);
     int   nRead = fstCountingWriterRead(_w, (uint8_t*)buf, _size);
     if (nRead <= 0) {
       return false;
@@ -89,7 +89,7 @@ class FstReadMemory {
     _size = nRead;
     _s = fstSliceCreate((uint8_t*)buf, _size);
     _fst = fstCreate(&_s);
-    free(buf);
+    taosMemoryFree(buf);
     return _fst != NULL;
   }
   bool Get(const std::string& key, uint64_t* val) {
@@ -227,7 +227,7 @@ void checkFstPrefixSearch() {
     assert(result[i] == i);  // check result
   }
 
-  free(ctx);
+  taosMemoryFree(ctx);
   delete m;
 }
 void validateFst() {
@@ -446,9 +446,9 @@ class IndexTFileEnv : public ::testing::Test {
 };
 
 static TFileValue* genTFileValue(const char* val) {
-  TFileValue* tv = (TFileValue*)calloc(1, sizeof(TFileValue));
+  TFileValue* tv = (TFileValue*)taosMemoryCalloc(1, sizeof(TFileValue));
   int32_t     vlen = strlen(val) + 1;
-  tv->colVal = (char*)calloc(1, vlen);
+  tv->colVal = (char*)taosMemoryCalloc(1, vlen);
   memcpy(tv->colVal, val, vlen);
 
   tv->tableId = (SArray*)taosArrayInit(1, sizeof(uint64_t));
@@ -460,9 +460,9 @@ static TFileValue* genTFileValue(const char* val) {
 }
 static void destroyTFileValue(void* val) {
   TFileValue* tv = (TFileValue*)val;
-  free(tv->colVal);
+  taosMemoryFree(tv->colVal);
   taosArrayDestroy(tv->tableId);
-  free(tv);
+  taosMemoryFree(tv);
 }
 TEST_F(IndexTFileEnv, test_tfile_write) {
   TFileValue* v1 = genTFileValue("ab");

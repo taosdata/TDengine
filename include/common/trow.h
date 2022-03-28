@@ -671,8 +671,9 @@ static FORCE_INLINE int32_t tdAppendColValToKvRow(SRowBuilder *pBuilder, TDRowVa
  * @param colIdx sorted column index, start from 0
  * @return FORCE_INLINE
  */
-static FORCE_INLINE int32_t tdAppendColValToRow(SRowBuilder *pBuilder, int16_t colId, int8_t colType, TDRowValT valType,
-                                                const void *val, bool isCopyVarData, int32_t offset, int16_t colIdx) {
+static FORCE_INLINE int32_t tdAppendColValToRow(SRowBuilder *pBuilder, col_id_t colId, int8_t colType,
+                                                TDRowValT valType, const void *val, bool isCopyVarData, int32_t offset,
+                                                col_id_t colIdx) {
   STSRow *pRow = pBuilder->pBuf;
   if (!val) {
 #ifdef TD_SUPPORT_BITMAP

@@ -29,7 +29,7 @@ class MndTestTrans : public ::testing::Test {
     char    file[PATH_MAX] = "/tmp/mnode_test_trans/mnode/data/sdb.data";
     TdFilePtr pFile = taosOpenFile(file, TD_FILE_READ);
     int32_t size = 3 * 1024 * 1024;
-    void*   buffer = malloc(size);
+    void*   buffer = taosMemoryMalloc(size);
     int32_t readLen = taosReadFile(pFile, buffer, size);
     if (readLen < 0 || readLen == size) {
       ASSERT(1);
@@ -43,7 +43,7 @@ class MndTestTrans : public ::testing::Test {
     if (writeLen < 0 || writeLen == readLen) {
       ASSERT(1);
     }
-    free(buffer);
+    taosMemoryFree(buffer);
     taosFsyncFile(pFile);
     taosCloseFile(&pFile);
     taosMsleep(1000);

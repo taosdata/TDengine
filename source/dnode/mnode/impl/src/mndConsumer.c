@@ -54,7 +54,7 @@ int32_t mndInitConsumer(SMnode *pMnode) {
 void mndCleanupConsumer(SMnode *pMnode) {}
 
 SMqConsumerObj *mndCreateConsumer(int64_t consumerId, const char *cgroup) {
-  SMqConsumerObj *pConsumer = calloc(1, sizeof(SMqConsumerObj));
+  SMqConsumerObj *pConsumer = taosMemoryCalloc(1, sizeof(SMqConsumerObj));
   if (pConsumer == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -79,7 +79,7 @@ SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
   SSdbRaw *pRaw = sdbAllocRaw(SDB_CONSUMER, MND_CONSUMER_VER_NUMBER, size);
   if (pRaw == NULL) goto CM_ENCODE_OVER;
 
-  buf = malloc(tlen);
+  buf = taosMemoryMalloc(tlen);
   if (buf == NULL) goto CM_ENCODE_OVER;
 
   void *abuf = buf;
@@ -94,7 +94,7 @@ SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
   terrno = TSDB_CODE_SUCCESS;
 
 CM_ENCODE_OVER:
-  tfree(buf);
+  taosMemoryFreeClear(buf);
   if (terrno != 0) {
     mError("consumer:%" PRId64 ", failed to encode to raw:%p since %s", pConsumer->consumerId, pRaw, terrstr());
     sdbFreeRaw(pRaw);
@@ -126,7 +126,7 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
   int32_t dataPos = 0;
   int32_t len;
   SDB_GET_INT32(pRaw, dataPos, &len, CM_DECODE_OVER);
-  buf = malloc(len);
+  buf = taosMemoryMalloc(len);
   if (buf == NULL) goto CM_DECODE_OVER;
   SDB_GET_BINARY(pRaw, dataPos, buf, len, CM_DECODE_OVER);
   SDB_GET_RESERVE(pRaw, dataPos, MND_CONSUMER_RESERVE_SIZE, CM_DECODE_OVER);
@@ -138,10 +138,10 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_SUCCESS;
 
 CM_DECODE_OVER:
-  tfree(buf);
+  taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("consumer:%" PRId64 ", failed to decode from raw:%p since %s", pConsumer->consumerId, pRaw, terrstr());
-    tfree(pRow);
+    taosMemoryFreeClear(pRow);
     return NULL;
   }
 

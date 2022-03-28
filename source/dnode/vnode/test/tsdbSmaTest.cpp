@@ -43,7 +43,7 @@ TEST(testCase, unionEncodeDecodeTest) {
       };
     };
     col_id_t  nBSmaCols;
-    col_id_t* pBSmaCols;
+    col_id_t *pBSmaCols;
   } SUnionTest;
 
   SUnionTest sut = {0};
@@ -51,13 +51,13 @@ TEST(testCase, unionEncodeDecodeTest) {
   sut.type = 1;
 
   sut.nBSmaCols = 2;
-  sut.pBSmaCols = (col_id_t*)malloc(sut.nBSmaCols * sizeof(col_id_t));
+  sut.pBSmaCols = (col_id_t *)taosMemoryMalloc(sut.nBSmaCols * sizeof(col_id_t));
   for (col_id_t i = 0; i < sut.nBSmaCols; ++i) {
     sut.pBSmaCols[i] = i + 100;
   }
 
-  void* buf = malloc(1024);
-  void *  pBuf = buf;
+  void   *buf = taosMemoryMalloc(1024);
+  void   *pBuf = buf;
   int32_t tlen = 0;
   tlen += taosEncodeFixedU8(&buf, sut.info);
   tlen += taosEncodeFixedI16(&buf, sut.nBSmaCols);
@@ -68,9 +68,9 @@ TEST(testCase, unionEncodeDecodeTest) {
   SUnionTest dut = {0};
   pBuf = taosDecodeFixedU8(pBuf, &dut.info);
   pBuf = taosDecodeFixedI16(pBuf, &dut.nBSmaCols);
-  if(dut.nBSmaCols > 0) {
-    dut.pBSmaCols = (col_id_t*)malloc(dut.nBSmaCols * sizeof(col_id_t));
-    for(col_id_t i=0; i < dut.nBSmaCols; ++i) {
+  if (dut.nBSmaCols > 0) {
+    dut.pBSmaCols = (col_id_t *)taosMemoryMalloc(dut.nBSmaCols * sizeof(col_id_t));
+    for (col_id_t i = 0; i < dut.nBSmaCols; ++i) {
       pBuf = taosDecodeFixedI16(pBuf, dut.pBSmaCols + i);
     }
   } else {
@@ -83,9 +83,9 @@ TEST(testCase, unionEncodeDecodeTest) {
   ASSERT_EQ(sut.rollup, dut.rollup);
   ASSERT_EQ(sut.type, dut.type);
   ASSERT_EQ(sut.nBSmaCols, dut.nBSmaCols);
-  for (col_id_t i = 0; i< sut.nBSmaCols; ++i) {
-    ASSERT_EQ(*(col_id_t*)(sut.pBSmaCols + i), sut.pBSmaCols[i]);
-    ASSERT_EQ(*(col_id_t*)(sut.pBSmaCols + i), dut.pBSmaCols[i]);
+  for (col_id_t i = 0; i < sut.nBSmaCols; ++i) {
+    ASSERT_EQ(*(col_id_t *)(sut.pBSmaCols + i), sut.pBSmaCols[i]);
+    ASSERT_EQ(*(col_id_t *)(sut.pBSmaCols + i), dut.pBSmaCols[i]);
   }
 }
 #if 1
@@ -105,7 +105,7 @@ TEST(testCase, tSma_Meta_Encode_Decode_Test) {
   STSmaWrapper tSmaWrapper = {.number = 1, .tSma = &tSma};
   uint32_t     bufLen = tEncodeTSmaWrapper(NULL, &tSmaWrapper);
 
-  void *buf = calloc(1, bufLen);
+  void *buf = taosMemoryCalloc(1, bufLen);
   ASSERT_NE(buf, nullptr);
 
   STSmaWrapper *pSW = (STSmaWrapper *)buf;
@@ -115,7 +115,7 @@ TEST(testCase, tSma_Meta_Encode_Decode_Test) {
 
   // decode
   STSmaWrapper dstTSmaWrapper = {0};
-  void *       result = tDecodeTSmaWrapper(pSW, &dstTSmaWrapper);
+  void        *result = tDecodeTSmaWrapper(pSW, &dstTSmaWrapper);
   ASSERT_NE(result, nullptr);
 
   ASSERT_EQ(tSmaWrapper.number, dstTSmaWrapper.number);
@@ -140,7 +140,7 @@ TEST(testCase, tSma_Meta_Encode_Decode_Test) {
   }
 
   // resource release
-  tfree(pSW);
+  taosMemoryFreeClear(pSW);
   tdDestroyTSma(&tSma);
   tdDestroyTSmaWrapper(&dstTSmaWrapper);
 }
@@ -148,12 +148,12 @@ TEST(testCase, tSma_Meta_Encode_Decode_Test) {
 
 #if 1
 TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
-  const char *   smaIndexName1 = "sma_index_test_1";
-  const char *   smaIndexName2 = "sma_index_test_2";
+  const char    *smaIndexName1 = "sma_index_test_1";
+  const char    *smaIndexName2 = "sma_index_test_2";
   int8_t         timezone = 8;
-  const char *   expr = "select count(a,b, top 20), from table interval 1d, sliding 1h;";
-  const char *   tagsFilter = "I'm tags filter";
-  const char *   smaTestDir = "./smaTest";
+  const char    *expr = "select count(a,b, top 20), from table interval 1d, sliding 1h;";
+  const char    *tagsFilter = "I'm tags filter";
+  const char    *smaTestDir = "./smaTest";
   const tb_uid_t tbUid = 1234567890;
   const int64_t  indexUid1 = 2000000001;
   const int64_t  indexUid2 = 2000000002;
@@ -171,17 +171,17 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   tSma.tableUid = tbUid;
 
   tSma.exprLen = strlen(expr);
-  tSma.expr = (char *)calloc(1, tSma.exprLen + 1);
+  tSma.expr = (char *)taosMemoryCalloc(1, tSma.exprLen + 1);
   ASSERT_NE(tSma.expr, nullptr);
   tstrncpy(tSma.expr, expr, tSma.exprLen + 1);
 
   tSma.tagsFilterLen = strlen(tagsFilter);
-  tSma.tagsFilter = (char *)calloc(tSma.tagsFilterLen + 1, 1);
+  tSma.tagsFilter = (char *)taosMemoryCalloc(tSma.tagsFilterLen + 1, 1);
   ASSERT_NE(tSma.tagsFilter, nullptr);
   tstrncpy(tSma.tagsFilter, tagsFilter, tSma.tagsFilterLen + 1);
 
-  SMeta *         pMeta = NULL;
-  STSma *         pSmaCfg = &tSma;
+  SMeta          *pMeta = NULL;
+  STSma          *pSmaCfg = &tSma;
   const SMetaCfg *pMetaCfg = &defaultMetaOptions;
 
   taosRemoveDir(smaTestDir);
@@ -213,7 +213,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   ASSERT_STRCASEEQ(qSmaCfg->indexName, smaIndexName1);
   ASSERT_EQ(qSmaCfg->tableUid, tSma.tableUid);
   tdDestroyTSma(qSmaCfg);
-  tfree(qSmaCfg);
+  taosMemoryFreeClear(qSmaCfg);
 
   qSmaCfg = metaGetSmaInfoByIndex(pMeta, indexUid2);
   assert(qSmaCfg != NULL);
@@ -224,7 +224,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   ASSERT_STRCASEEQ(qSmaCfg->indexName, smaIndexName2);
   ASSERT_EQ(qSmaCfg->interval, tSma.interval);
   tdDestroyTSma(qSmaCfg);
-  tfree(qSmaCfg);
+  taosMemoryFreeClear(qSmaCfg);
 
   // get index name by table uid
   SMSmaCursor *pSmaCur = metaOpenSmaCursor(pMeta, tbUid);
@@ -259,7 +259,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   ASSERT_EQ((pSW->tSma + 1)->tableUid, tbUid);
 
   tdDestroyTSmaWrapper(pSW);
-  tfree(pSW);
+  taosMemoryFreeClear(pSW);
 
   // get all sma table uids
   SArray *pUids = metaGetSmaTbUids(pMeta, false);
@@ -280,14 +280,14 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
 }
 #endif
 
-#if 1
+#if 0
 TEST(testCase, tSma_Data_Insert_Query_Test) {
   // step 1: prepare meta
-  const char *   smaIndexName1 = "sma_index_test_1";
+  const char    *smaIndexName1 = "sma_index_test_1";
   const int8_t   timezone = 8;
-  const char *   expr = "select count(a,b, top 20), from table interval 1d, sliding 1h;";
-  const char *   tagsFilter = "where tags.location='Beijing' and tags.district='ChaoYang'";
-  const char *   smaTestDir = "./smaTest";
+  const char    *expr = "select count(a,b, top 20), from table interval 1d, sliding 1h;";
+  const char    *tagsFilter = "where tags.location='Beijing' and tags.district='ChaoYang'";
+  const char    *smaTestDir = "./smaTest";
   const tb_uid_t tbUid = 1234567890;
   const int64_t  indexUid1 = 2000000001;
   const int64_t  interval1 = 1;
@@ -302,24 +302,24 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   tSma.intervalUnit = TIME_UNIT_DAY;
   tSma.interval = 1;
   tSma.slidingUnit = TIME_UNIT_HOUR;
-  tSma.sliding = 0;
+  tSma.sliding = 1;  // sliding = interval when it's convert window
   tSma.indexUid = indexUid1;
   tstrncpy(tSma.indexName, smaIndexName1, TSDB_INDEX_NAME_LEN);
   tSma.timezoneInt = timezone;
   tSma.tableUid = tbUid;
 
   tSma.exprLen = strlen(expr);
-  tSma.expr = (char *)calloc(1, tSma.exprLen + 1);
+  tSma.expr = (char *)taosMemoryCalloc(1, tSma.exprLen + 1);
   ASSERT_NE(tSma.expr, nullptr);
   tstrncpy(tSma.expr, expr, tSma.exprLen + 1);
 
   tSma.tagsFilterLen = strlen(tagsFilter);
-  tSma.tagsFilter = (char *)calloc(1, tSma.tagsFilterLen + 1);
+  tSma.tagsFilter = (char *)taosMemoryCalloc(1, tSma.tagsFilterLen + 1);
   ASSERT_NE(tSma.tagsFilter, nullptr);
   tstrncpy(tSma.tagsFilter, tagsFilter, tSma.tagsFilterLen + 1);
 
-  SMeta *         pMeta = NULL;
-  STSma *         pSmaCfg = &tSma;
+  SMeta          *pMeta = NULL;
+  STSma          *pSmaCfg = &tSma;
   const SMetaCfg *pMetaCfg = &defaultMetaOptions;
 
   taosRemoveDir(smaTestDir);
@@ -331,8 +331,8 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
 
   // step 2: insert data
   STSmaDataWrapper *pSmaData = NULL;
-  STsdb *           pTsdb = (STsdb *)calloc(1, sizeof(STsdb));
-  STsdbCfg *        pCfg = &pTsdb->config;
+  STsdb            *pTsdb = (STsdb *)taosMemoryCalloc(1, sizeof(STsdb));
+  STsdbCfg         *pCfg = &pTsdb->config;
 
   pTsdb->pMeta = pMeta;
   pTsdb->vgId = 2;
@@ -367,15 +367,49 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   pTsdb->pTfs = tfsOpen(&pDisks, numOfDisks);
   ASSERT_NE(pTsdb->pTfs, nullptr);
 
-  char *msg = (char *)calloc(1, 100);
-  ASSERT_NE(msg, nullptr);
-  ASSERT_EQ(tsdbUpdateSmaWindow(pTsdb, msg), 0);
+  // generate SSubmitReq msg and update expired window
+  int16_t  schemaVer = 0;
+  uint32_t mockRowLen = sizeof(STSRow);
+  uint32_t mockRowNum = 2;
+  uint32_t mockBlkNum = 2;
+  uint32_t msgLen = sizeof(SSubmitReq) + mockBlkNum * sizeof(SSubmitBlk) + mockBlkNum * mockRowNum * mockRowLen;
+
+  SSubmitReq *pMsg = (SSubmitReq *)taosMemoryCalloc(1, msgLen);
+  ASSERT_NE(pMsg, nullptr);
+  pMsg->version = htobe64(schemaVer);
+  pMsg->numOfBlocks = htonl(mockBlkNum);
+  pMsg->length = htonl(msgLen);
+
+  SSubmitBlk *pBlk = NULL;
+  STSRow     *pRow = NULL;
+  TSKEY       now = taosGetTimestamp(pTsdb->config.precision);
+
+  for (uint32_t b = 0; b < mockBlkNum; ++b) {
+    pBlk = (SSubmitBlk *)POINTER_SHIFT(pMsg, sizeof(SSubmitReq) + b * (sizeof(SSubmitBlk) + mockRowNum * mockRowLen));
+    pBlk->uid = htobe64(tbUid);
+    pBlk->suid = htobe64(tbUid);
+    pBlk->sversion = htonl(schemaVer);
+    pBlk->padding = htonl(0);
+    pBlk->schemaLen = htonl(0);
+    pBlk->numOfRows = htons(mockRowNum);
+    pBlk->dataLen = htonl(mockRowNum * mockRowLen);
+    for (uint32_t r = 0; r < mockRowNum; ++r) {
+      pRow = (STSRow *)POINTER_SHIFT(pBlk, sizeof(SSubmitBlk) + r * mockRowLen);
+      pRow->len = mockRowLen;
+      pRow->ts = now + b * 1000 + r * 1000;
+      pRow->sver = schemaVer;
+    }
+  }
+
+  ASSERT_EQ(tdScanAndConvertSubmitMsg(pMsg), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(tsdbUpdateSmaWindow(pTsdb, (const char *)pMsg), 0);
 
   // init
   int32_t allocCnt = 0;
   int32_t allocStep = 16384;
   int32_t buffer = 1024;
-  void *  buf = NULL;
+  void   *buf = NULL;
   ASSERT_EQ(tsdbMakeRoom(&buf, allocStep), 0);
   int32_t  bufSize = taosTSizeof(buf);
   int32_t  numOfTables = 10;
@@ -443,7 +477,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   printf("%s:%d The sma data check count for insert and query is %" PRIu32 "\n", __FILE__, __LINE__, checkDataCnt);
 
   // release data
-  tfree(msg);
+  taosMemoryFreeClear(pMsg);
   taosTZfree(buf);
   // release meta
   tdDestroyTSma(&tSma);
@@ -451,6 +485,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   tsdbClose(pTsdb);
   metaClose(pMeta);
 }
+
 #endif
 
 #pragma GCC diagnostic pop

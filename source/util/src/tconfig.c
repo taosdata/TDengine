@@ -29,7 +29,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url);
 int32_t cfgSetItem(SConfig *pConfig, const char *name, const char *value, ECfgSrcType stype);
 
 SConfig *cfgInit() {
-  SConfig *pCfg = calloc(1, sizeof(SConfig));
+  SConfig *pCfg = taosMemoryCalloc(1, sizeof(SConfig));
   if (pCfg == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -37,7 +37,7 @@ SConfig *cfgInit() {
 
   pCfg->array = taosArrayInit(32, sizeof(SConfigItem));
   if (pCfg->array == NULL) {
-    free(pCfg);
+    taosMemoryFree(pCfg);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
@@ -75,7 +75,7 @@ int32_t cfgLoadFromArray(SConfig *pCfg, SArray *pArgs) {
 static void cfgFreeItem(SConfigItem *pItem) {
   if (pItem->dtype == CFG_DTYPE_STRING || pItem->dtype == CFG_DTYPE_DIR || pItem->dtype == CFG_DTYPE_LOCALE ||
       pItem->dtype == CFG_DTYPE_CHARSET || pItem->dtype == CFG_DTYPE_TIMEZONE) {
-    tfree(pItem->str);
+    taosMemoryFreeClear(pItem->str);
   }
   if (pItem->array) {
     taosArrayDestroy(pItem->array);
@@ -89,10 +89,10 @@ void cfgCleanup(SConfig *pCfg) {
     for (int32_t i = 0; i < size; ++i) {
       SConfigItem *pItem = taosArrayGet(pCfg->array, i);
       cfgFreeItem(pItem);
-      tfree(pItem->name);
+      taosMemoryFreeClear(pItem->name);
     }
     taosArrayDestroy(pCfg->array);
-    free(pCfg);
+    taosMemoryFree(pCfg);
   }
 }
 
@@ -145,7 +145,7 @@ static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
     return -1;
   }
 
-  tfree(pItem->str);
+  taosMemoryFreeClear(pItem->str);
   pItem->str = strdup(fullDir);
   if (pItem->str == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -224,7 +224,7 @@ static int32_t cfgSetString(SConfigItem *pItem, const char *value, ECfgSrcType s
     return -1;
   }
 
-  free(pItem->str);
+  taosMemoryFree(pItem->str);
   pItem->str = tmp;
   pItem->stype = stype;
   return 0;
@@ -366,9 +366,9 @@ static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
 
   if (taosArrayPush(pCfg->array, pItem) == NULL) {
     if (pItem->dtype == CFG_DTYPE_STRING) {
-      free(pItem->str);
+      taosMemoryFree(pItem->str);
     }
-    free(pItem->name);
+    taosMemoryFree(pItem->name);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -647,7 +647,7 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
   }
 
   taosCloseFile(&pFile);
-  if (line != NULL) tfree(line);
+  if (line != NULL) taosMemoryFreeClear(line);
 
   uInfo("load from cfg file %s success", filepath);
   return 0;

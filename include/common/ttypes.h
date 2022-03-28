@@ -29,6 +29,7 @@ typedef uint32_t TDRowLenT;
 typedef uint8_t  TDRowValT;
 typedef int16_t  col_id_t;
 typedef int8_t   col_type_t;
+typedef int32_t  col_bytes_t;
 
 #pragma pack(push, 1)
 typedef struct {

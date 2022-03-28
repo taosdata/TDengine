@@ -213,7 +213,7 @@ double tbufReadDouble(SBufferReader* buf) {
 // writer functions
 
 void tbufCloseWriter(SBufferWriter* buf) {
-  tfree(buf->data);
+  taosMemoryFreeClear(buf->data);
   //  (*buf->allocator)( buf->data, 0 );  // potential memory leak.
   buf->data = NULL;
   buf->pos = 0;

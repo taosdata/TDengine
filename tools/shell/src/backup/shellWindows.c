@@ -239,7 +239,7 @@ void updateBuffer(Command *cmd) {
 }
 
 int isReadyGo(Command *cmd) {
-  char *total = malloc(MAX_COMMAND_SIZE);
+  char *total = taosMemoryMalloc(MAX_COMMAND_SIZE);
   memset(total, 0, MAX_COMMAND_SIZE);
   sprintf(total, "%s%s", cmd->buffer, cmd->command);
 
@@ -247,11 +247,11 @@ int isReadyGo(Command *cmd) {
       "(^.*;\\s*$)|(^\\s*$)|(^\\s*exit\\s*$)|(^\\s*q\\s*$)|(^\\s*quit\\s*$)|(^"
       "\\s*clear\\s*$)";
   if (regex_match(total, reg_str, REG_EXTENDED | REG_ICASE)) {
-    free(total);
+    taosMemoryFree(total);
     return 1;
   }
 
-  free(total);
+  taosMemoryFree(total);
   return 0;
 }
 
@@ -268,8 +268,8 @@ void insertChar(Command *cmd, char c) {
 int32_t shellReadCommand(TAOS *con, char command[]) {
   Command cmd;
   memset(&cmd, 0, sizeof(cmd));
-  cmd.buffer = (char *)calloc(1, MAX_COMMAND_SIZE);
-  cmd.command = (char *)calloc(1, MAX_COMMAND_SIZE);
+  cmd.buffer = (char *)taosMemoryCalloc(1, MAX_COMMAND_SIZE);
+  cmd.command = (char *)taosMemoryCalloc(1, MAX_COMMAND_SIZE);
 
   // Read input.
   char c;
@@ -281,9 +281,9 @@ int32_t shellReadCommand(TAOS *con, char command[]) {
       case '\r':
         if (isReadyGo(&cmd)) {
           sprintf(command, "%s%s", cmd.buffer, cmd.command);
-          free(cmd.buffer);
+          taosMemoryFree(cmd.buffer);
           cmd.buffer = NULL;
-          free(cmd.command);
+          taosMemoryFree(cmd.command);
           cmd.command = NULL;
           return 0;
         } else {
@@ -301,7 +301,7 @@ int32_t shellReadCommand(TAOS *con, char command[]) {
 
 void *shellLoopQuery(void *arg) {
   TAOS *con = (TAOS *)arg;
-  char *command = malloc(MAX_COMMAND_SIZE);
+  char *command = taosMemoryMalloc(MAX_COMMAND_SIZE);
   if (command == NULL) return NULL;
 
   int32_t err = 0;

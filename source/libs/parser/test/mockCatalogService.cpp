@@ -65,7 +65,7 @@ private:
   friend class MockCatalogServiceImpl;
 
   static std::unique_ptr<TableBuilder> createTableBuilder(int8_t tableType, int32_t numOfColumns, int32_t numOfTags) {
-    STableMeta* meta = (STableMeta*)std::calloc(1, sizeof(STableMeta) + sizeof(SSchema) * (numOfColumns + numOfTags));
+    STableMeta* meta = (STableMeta*)taosMemoryCalloc(1, sizeof(STableMeta) + sizeof(SSchema) * (numOfColumns + numOfTags));
     if (nullptr == meta) {
       throw std::bad_alloc();
     }
@@ -87,7 +87,7 @@ private:
     return meta_;
   }
 
-  int32_t colId_;
+  col_id_t                       colId_;
   int32_t rowsize_;
   std::shared_ptr<MockTableMeta> meta_;
 };
@@ -277,7 +277,7 @@ private:
       return TSDB_CODE_TSC_INVALID_TABLE_NAME;
     }
     int32_t len = sizeof(STableMeta) + sizeof(SSchema) * (src->tableInfo.numOfTags + src->tableInfo.numOfColumns);
-    dst->reset((STableMeta*)std::calloc(1, len));
+    dst->reset((STableMeta*)taosMemoryCalloc(1, len));
     if (!dst) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }

@@ -69,18 +69,24 @@ enum {
 typedef struct SQWDebug {
   bool lockEnable;
   bool statusEnable;
+  bool dumpEnable;
 } SQWDebug;
 
+typedef struct SQWConnInfo {
+  void *handle;
+  void *ahandle;
+} SQWConnInfo;
+
 typedef struct SQWMsg {
-  void   *node;
-  char   *msg;
-  int32_t msgLen;
-  void   *connection;
+  void        *node;
+  char        *msg;
+  int32_t      msgLen;
+  SQWConnInfo  connInfo;
 } SQWMsg;
 
 typedef struct SQWHbInfo {
   SSchedulerHbRsp  rsp;
-  void            *connection;
+  SQWConnInfo      connInfo;
 } SQWHbInfo;
 
 typedef struct SQWPhaseInput {
@@ -101,10 +107,6 @@ typedef struct SQWTaskCtx {
   SRWLatch        lock;
   int8_t          phase;
   int8_t          taskType;
-
-  void           *readyConnection;
-  void           *dropConnection;
-  void           *cancelConnection;
   
   bool            emptyRes;
   bool            queryFetched;
@@ -113,6 +115,7 @@ typedef struct SQWTaskCtx {
   bool            queryInQueue;
   int32_t         rspCode; 
 
+  SQWConnInfo     connInfo;
   int8_t          events[QW_EVENT_MAX];
   
   qTaskInfo_t     taskHandle;
@@ -120,11 +123,12 @@ typedef struct SQWTaskCtx {
 } SQWTaskCtx;
 
 typedef struct SQWSchStatus {
-  int32_t   lastAccessTs; // timestamp in second
-  uint64_t  hbSeqId;
-  void     *hbConnection;
-  SRWLatch  tasksLock;
-  SHashObj *tasksHash;   // key:queryId+taskId, value: SQWTaskStatus
+  int32_t        lastAccessTs; // timestamp in second
+  SRWLatch       hbConnLock;
+  SQWConnInfo    hbConnInfo;
+  SQueryNodeEpId hbEpId;  
+  SRWLatch       tasksLock;
+  SHashObj      *tasksHash;   // key:queryId+taskId, value: SQWTaskStatus
 } SQWSchStatus;
 
 // Qnode/Vnode level task management
@@ -172,12 +176,16 @@ typedef struct SQWorkerMgmt {
 #define QW_ELOG(param, ...) qError("QW:%p " param, mgmt, __VA_ARGS__)
 #define QW_DLOG(param, ...) qDebug("QW:%p " param, mgmt, __VA_ARGS__)
 
+#define QW_DUMP(param, ...) do { if (gQWDebug.dumpEnable) { qDebug("QW:%p " param, mgmt, __VA_ARGS__); } } while (0)
+
+
 #define QW_SCH_ELOG(param, ...) qError("QW:%p SID:%"PRIx64" " param, mgmt, sId, __VA_ARGS__)
 #define QW_SCH_DLOG(param, ...) qDebug("QW:%p SID:%"PRIx64" " param, mgmt, sId, __VA_ARGS__)
 
 #define QW_TASK_ELOG(param, ...) qError("QW:%p QID:0x%"PRIx64",TID:0x%"PRIx64" " param, mgmt, qId, tId, __VA_ARGS__)
 #define QW_TASK_WLOG(param, ...) qWarn("QW:%p QID:0x%"PRIx64",TID:0x%"PRIx64" " param, mgmt, qId, tId, __VA_ARGS__)
 #define QW_TASK_DLOG(param, ...) qDebug("QW:%p QID:0x%"PRIx64",TID:0x%"PRIx64" " param, mgmt, qId, tId, __VA_ARGS__)
+#define QW_TASK_DLOGL(param, ...) qDebugL("QW:%p QID:0x%"PRIx64",TID:0x%"PRIx64" " param, mgmt, qId, tId, __VA_ARGS__)
 
 #define QW_TASK_ELOG_E(param) qError("QW:%p QID:0x%"PRIx64",TID:0x%"PRIx64" " param, mgmt, qId, tId)
 #define QW_TASK_WLOG_E(param) qWarn("QW:%p QID:0x%"PRIx64",TID:0x%"PRIx64" " param, mgmt, qId, tId)
@@ -222,8 +230,6 @@ typedef struct SQWorkerMgmt {
     assert(atomic_load_32((_lock)) >= 0);  \
   }                                                       \
 } while (0)
-
-int32_t qwBuildAndSendCancelRsp(SRpcMsg *pMsg, int32_t code);
 
 #ifdef __cplusplus
 }

@@ -22,6 +22,7 @@
 #include "tmsg.h"
 #include "tqueue.h"
 #include "trpc.h"
+#include "tstream.h"
 
 #include "snode.h"
 

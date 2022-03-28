@@ -139,8 +139,8 @@ static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t
 static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRsp, int32_t msgLen, void *pCont, int32_t contLen) {
   dTrace("msg:%p, get from parent queue", pRsp);
   pRsp->pCont = pCont;
-  dndSendRsp(pWrapper, pRsp);
-  free(pRsp);
+  dndSendRpcRsp(pWrapper, pRsp);
+  taosMemoryFree(pRsp);
 }
 
 static int32_t dndRunInMultiProcess(SDnode *pDnode) {
@@ -175,8 +175,8 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
                      .childFreeBodyFp = (ProcFreeFp)rpcFreeCont,
                      .parentQueueSize = 1024 * 1024 * 2,  // size will be a configuration item
                      .parentConsumeFp = (ProcConsumeFp)dndConsumeParentQueue,
-                     .parentdMallocHeadFp = (ProcMallocFp)malloc,
-                     .parentFreeHeadFp = (ProcFreeFp)free,
+                     .parentdMallocHeadFp = (ProcMallocFp)taosMemoryMalloc,
+                     .parentFreeHeadFp = (ProcFreeFp)taosMemoryFree,
                      .parentMallocBodyFp = (ProcMallocFp)rpcMallocCont,
                      .parentFreeBodyFp = (ProcFreeFp)rpcFreeCont,
                      .pParent = pWrapper,

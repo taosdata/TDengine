@@ -346,7 +346,7 @@ static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int32_t *pHea
 }
 
 SProcObj *taosProcInit(const SProcCfg *pCfg) {
-  SProcObj *pProc = calloc(1, sizeof(SProcObj));
+  SProcObj *pProc = taosMemoryCalloc(1, sizeof(SProcObj));
   if (pProc == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -356,8 +356,8 @@ SProcObj *taosProcInit(const SProcCfg *pCfg) {
   pProc->pChildQueue = taosProcQueueInit(pCfg->childQueueSize);
   pProc->pParentQueue = taosProcQueueInit(pCfg->parentQueueSize);
   if (pProc->pChildQueue == NULL || pProc->pParentQueue == NULL) {
-    taosProcCleanupQueue(pProc->pChildQueue);
-    free(pProc);
+    taosProcQueueCleanup(pProc->pChildQueue);
+    taosMemoryFree(pProc);
     return NULL;
   }
 
@@ -450,9 +450,9 @@ void taosProcCleanup(SProcObj *pProc) {
   if (pProc != NULL) {
     uDebug("proc:%s, clean up", pProc->name);
     taosProcStop(pProc);
-    taosProcCleanupQueue(pProc->pChildQueue);
-    taosProcCleanupQueue(pProc->pParentQueue);
-    free(pProc);
+    taosProcQueueCleanup(pProc->pChildQueue);
+    taosProcQueueCleanup(pProc->pParentQueue);
+    taosMemoryFree(pProc);
   }
 }
 

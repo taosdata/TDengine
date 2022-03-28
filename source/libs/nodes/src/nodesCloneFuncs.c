@@ -19,6 +19,11 @@
 #include "taos.h"
 #include "taoserror.h"
 
+#define COPY_ALL_SCALAR_FIELDS \
+	do { \
+    memcpy((pDst), (pSrc), sizeof(*pSrc)); \
+	} while (0)
+
 #define COPY_SCALAR_FIELD(fldname) \
 	do { \
     (pDst)->fldname = (pSrc)->fldname; \
@@ -141,12 +146,12 @@ static SNode* valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
-      pDst->datum.p = malloc(pSrc->node.resType.bytes + VARSTR_HEADER_SIZE);
+      pDst->datum.p = taosMemoryMalloc(pSrc->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       if (NULL == pDst->datum.p) {
         nodesDestroyNode(pDst);
         return NULL;
       }
-      memcpy(pDst->datum.p, pSrc->datum.p, pSrc->node.resType.bytes + VARSTR_HEADER_SIZE);
+      memcpy(pDst->datum.p, pSrc->datum.p, pSrc->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       break;
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_DECIMAL:
@@ -195,6 +200,12 @@ static SNode* groupingSetNodeCopy(const SGroupingSetNode* pSrc, SGroupingSetNode
   return (SNode*)pDst;
 }
 
+static SNode* orderByExprNodeCopy(const SOrderByExprNode* pSrc, SOrderByExprNode* pDst) {
+  COPY_ALL_SCALAR_FIELDS;
+  CLONE_NODE_FIELD(pExpr);
+  return (SNode*)pDst;
+}
+
 static SNode* fillNodeCopy(const SFillNode* pSrc, SFillNode* pDst) {
   COPY_SCALAR_FIELD(mode);
   CLONE_NODE_FIELD(pValues);
@@ -210,7 +221,7 @@ static SNode* logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
 
 static STableMeta* tableMetaClone(const STableMeta* pSrc) {
   int32_t len = TABLE_META_SIZE(pSrc);
-  STableMeta* pDst = malloc(len);
+  STableMeta* pDst = taosMemoryMalloc(len);
   if (NULL == pDst) {
     return NULL;
   }
@@ -220,7 +231,7 @@ static STableMeta* tableMetaClone(const STableMeta* pSrc) {
 
 static SVgroupsInfo* vgroupsInfoClone(const SVgroupsInfo* pSrc) {
   int32_t len = VGROUPS_INFO_SIZE(pSrc);
-  SVgroupsInfo* pDst = malloc(len);
+  SVgroupsInfo* pDst = taosMemoryMalloc(len);
   if (NULL == pDst) {
     return NULL;
   }
@@ -237,6 +248,7 @@ static SNode* logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(scanFlag);
   COPY_SCALAR_FIELD(scanRange);
   COPY_SCALAR_FIELD(tableName);
+  COPY_SCALAR_FIELD(showRewrite);
   return (SNode*)pDst;
 }
 
@@ -250,6 +262,7 @@ static SNode* logicAggCopy(const SAggLogicNode* pSrc, SAggLogicNode* pDst) {
 static SNode* logicProjectCopy(const SProjectLogicNode* pSrc, SProjectLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pProjections);
+  COPY_CHAR_ARRAY_FIELD(stmtName);
   return (SNode*)pDst;
 }
 
@@ -266,16 +279,24 @@ static SNode* logicExchangeCopy(const SExchangeLogicNode* pSrc, SExchangeLogicNo
 }
 
 static SNode* logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* pDst) {
+  COPY_ALL_SCALAR_FIELDS;
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
-  COPY_SCALAR_FIELD(winType);
+  // COPY_SCALAR_FIELD(winType);
   CLONE_NODE_LIST_FIELD(pFuncs);
-  COPY_SCALAR_FIELD(interval);
-  COPY_SCALAR_FIELD(offset);
-  COPY_SCALAR_FIELD(sliding);
-  COPY_SCALAR_FIELD(intervalUnit);
-  COPY_SCALAR_FIELD(slidingUnit);
+  // COPY_SCALAR_FIELD(interval);
+  // COPY_SCALAR_FIELD(offset);
+  // COPY_SCALAR_FIELD(sliding);
+  // COPY_SCALAR_FIELD(intervalUnit);
+  // COPY_SCALAR_FIELD(slidingUnit);
   CLONE_NODE_FIELD(pFill);
-  COPY_SCALAR_FIELD(sessionGap);
+  // COPY_SCALAR_FIELD(sessionGap);
+  CLONE_NODE_FIELD(pTspk);
+  return (SNode*)pDst;
+}
+
+static SNode* logicSortCopy(const SSortLogicNode* pSrc, SSortLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  CLONE_NODE_LIST_FIELD(pSortKeys);
   return (SNode*)pDst;
 }
 
@@ -338,6 +359,7 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
     case QUERY_NODE_GROUPING_SET:
       return groupingSetNodeCopy((const SGroupingSetNode*)pNode, (SGroupingSetNode*)pDst);
     case QUERY_NODE_ORDER_BY_EXPR:
+      return orderByExprNodeCopy((const SOrderByExprNode*)pNode, (SOrderByExprNode*)pDst);
     case QUERY_NODE_LIMIT:
       break;
     case QUERY_NODE_FILL:
@@ -360,6 +382,8 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
       return logicExchangeCopy((const SExchangeLogicNode*)pNode, (SExchangeLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return logicWindowCopy((const SWindowLogicNode*)pNode, (SWindowLogicNode*)pDst);
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+      return logicSortCopy((const SSortLogicNode*)pNode, (SSortLogicNode*)pDst);
     case QUERY_NODE_LOGIC_SUBPLAN:
       return logicSubplanCopy((const SLogicSubplan*)pNode, (SLogicSubplan*)pDst);
     default:

@@ -47,15 +47,15 @@ SSDataBlock* getSingleColDummyBlock(void* param) {
     return NULL;
   }
 
-  SSDataBlock* pBlock = static_cast<SSDataBlock*>(calloc(1, sizeof(SSDataBlock)));
+  SSDataBlock* pBlock = static_cast<SSDataBlock*>(taosMemoryCalloc(1, sizeof(SSDataBlock)));
   pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
 
   SColumnInfoData colInfo = {0};
   colInfo.info.type = TSDB_DATA_TYPE_INT;
   colInfo.info.bytes = sizeof(int32_t);
   colInfo.info.colId = 1;
-  colInfo.pData = static_cast<char*>(calloc(pInfo->pageRows, sizeof(int32_t)));
-  colInfo.nullbitmap = static_cast<char*>(calloc(1, (pInfo->pageRows + 7) / 8));
+  colInfo.pData = static_cast<char*>(taosMemoryCalloc(pInfo->pageRows, sizeof(int32_t)));
+  colInfo.nullbitmap = static_cast<char*>(taosMemoryCalloc(1, (pInfo->pageRows + 7) / 8));
 
   taosArrayPush(pBlock->pDataBlock, &colInfo);
 
@@ -203,12 +203,12 @@ TEST(testCase, external_mem_sort_Test) {
   SSortHandle* phandle = tsortCreateSortHandle(orderInfo, false, SORT_SINGLESOURCE_SORT, 1024, 5, &s, 1, "test_abc");
   tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
 
-  _info* pInfo = (_info*) calloc(1, sizeof(_info));
+  _info* pInfo = (_info*) taosMemoryCalloc(1, sizeof(_info));
   pInfo->startVal = 100000;
   pInfo->pageRows = 1000;
   pInfo->count = 50;
 
-  SGenericSource* ps = static_cast<SGenericSource*>(calloc(1, sizeof(SGenericSource)));
+  SGenericSource* ps = static_cast<SGenericSource*>(taosMemoryCalloc(1, sizeof(SGenericSource)));
   ps->param = pInfo;
 
   tsortAddSource(phandle, ps);
@@ -249,8 +249,8 @@ TEST(testCase, ordered_merge_sort_Test) {
   tsortSetComparFp(phandle, docomp);
 
   for(int32_t i = 0; i < 10; ++i) {
-    SGenericSource* p = static_cast<SGenericSource*>(calloc(1, sizeof(SGenericSource)));
-    _info* c = static_cast<_info*>(calloc(1, sizeof(_info)));
+    SGenericSource* p = static_cast<SGenericSource*>(taosMemoryCalloc(1, sizeof(SGenericSource)));
+    _info* c = static_cast<_info*>(taosMemoryCalloc(1, sizeof(_info)));
     c->count    = 1;
     c->pageRows = 1000;
     c->startVal = 0;

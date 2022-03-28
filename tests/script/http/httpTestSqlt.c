@@ -77,8 +77,8 @@ void execute(void *params) {
     char ip[] = "127.0.0.1";
     int port = 6041;
     char page[] = "rest/sqlt";
-    char *unique = calloc(1, 1024);
-    char *sql = calloc(1, 1024);
+    char *unique = taosMemoryCalloc(1, 1024);
+    char *sql = taosMemoryCalloc(1, 1024);
     ThreadObj *pThread = (ThreadObj *)params;
     printf("Thread %d started\n", pThread->threadId);
     sprintf(unique, "rest/sqlt/db%d",pThread->threadId);
@@ -94,8 +94,8 @@ void execute(void *params) {
         sprintf(sql, "insert into t%d values (now + %ds, %d)", pThread->threadId, i, pThread->threadId);
         post(ip,port,unique, sql);
     }
-    free(unique);
-    free(sql);
+    taosMemoryFree(unique);
+    taosMemoryFree(sql);
     return;
 }
 
@@ -103,7 +103,7 @@ void multiThread() {
     int numOfThreads = 100;
     int numOfTables = 100;
     int numOfRows = 1;
-    ThreadObj *threads = calloc((size_t)numOfThreads, sizeof(ThreadObj));
+    ThreadObj *threads = taosMemoryCalloc((size_t)numOfThreads, sizeof(ThreadObj));
     for (int i = 0; i < numOfThreads; i++) {
         ThreadObj *pthread = threads + i;
         TdThreadAttr thattr;
@@ -117,7 +117,7 @@ void multiThread() {
     for (int i = 0; i < numOfThreads; i++) {
         taosThreadJoin(threads[i].pid, NULL);
     }
-    free(threads);
+    taosMemoryFree(threads);
 }
  
 int main() {

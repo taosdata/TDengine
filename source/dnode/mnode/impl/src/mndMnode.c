@@ -180,7 +180,7 @@ static SSdbRow *mndMnodeActionDecode(SSdbRaw *pRaw) {
 MNODE_DECODE_OVER:
   if (terrno != 0) {
     mError("mnode:%d, failed to decode from raw:%p since %s", pObj->id, pRaw, terrstr());
-    tfree(pRow);
+    taosMemoryFreeClear(pRow);
     return NULL;
   }
 
@@ -313,7 +313,7 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
 
     createReq.dnodeId = pMObj->id;
     int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, &createReq);
-    void   *pReq = malloc(contLen);
+    void   *pReq = taosMemoryMalloc(contLen);
     tSerializeSDCreateMnodeReq(pReq, contLen, &createReq);
 
     action.epSet = mndGetDnodeEpset(pMObj->pDnode);
@@ -323,7 +323,7 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
     action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
 
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-      free(pReq);
+      taosMemoryFree(pReq);
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pMObj);
       return -1;
@@ -338,7 +338,7 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
 
     createReq.dnodeId = pObj->id;
     int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, &createReq);
-    void   *pReq = malloc(contLen);
+    void   *pReq = taosMemoryMalloc(contLen);
     tSerializeSDCreateMnodeReq(pReq, contLen, &createReq);
 
     action.epSet = mndGetDnodeEpset(pDnode);
@@ -347,7 +347,7 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
     action.msgType = TDMT_DND_CREATE_MNODE;
     action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-      free(pReq);
+      taosMemoryFree(pReq);
       return -1;
     }
   }
@@ -483,7 +483,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
 
       alterReq.dnodeId = pMObj->id;
       int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, &alterReq);
-      void   *pReq = malloc(contLen);
+      void   *pReq = taosMemoryMalloc(contLen);
       tSerializeSDCreateMnodeReq(pReq, contLen, &alterReq);
 
       action.epSet = mndGetDnodeEpset(pMObj->pDnode);
@@ -493,7 +493,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
       action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
 
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-        free(pReq);
+        taosMemoryFree(pReq);
         sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pMObj);
         return -1;
@@ -510,7 +510,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
     SDDropMnodeReq dropReq = {0};
     dropReq.dnodeId = pObj->id;
     int32_t contLen = tSerializeSMCreateDropMnodeReq(NULL, 0, &dropReq);
-    void   *pReq = malloc(contLen);
+    void   *pReq = taosMemoryMalloc(contLen);
     tSerializeSMCreateDropMnodeReq(pReq, contLen, &dropReq);
 
     action.epSet = mndGetDnodeEpset(pDnode);
@@ -519,7 +519,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
     action.msgType = TDMT_DND_DROP_MNODE;
     action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-      free(pReq);
+      taosMemoryFree(pReq);
       return -1;
     }
   }

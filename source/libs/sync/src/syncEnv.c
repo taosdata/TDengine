@@ -74,7 +74,7 @@ static void syncEnvTick(void *param, void *tmrId) {
 }
 
 static SSyncEnv *doSyncEnvStart() {
-  SSyncEnv *pSyncEnv = (SSyncEnv *)malloc(sizeof(SSyncEnv));
+  SSyncEnv *pSyncEnv = (SSyncEnv *)taosMemoryMalloc(sizeof(SSyncEnv));
   assert(pSyncEnv != NULL);
   memset(pSyncEnv, 0, sizeof(SSyncEnv));
 

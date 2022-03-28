@@ -22,17 +22,18 @@
 extern "C" {
 #endif
 
-extern char    tsOsName[];
-extern char    tsTimezone[];
-extern char    tsCharset[];
-extern char    tsLocale[];
-extern int8_t  tsDaylight;
-extern bool    tsEnableCoreFile;
-extern int64_t tsPageSizeKB;
-extern int64_t tsOpenMax;
-extern int64_t tsStreamMax;
-extern float   tsNumOfCores;
-extern int64_t tsTotalMemoryKB;
+extern char            tsOsName[];
+extern char            tsTimezoneStr[];
+extern enum TdTimezone tsTimezone;
+extern char            tsCharset[];
+extern char            tsLocale[];
+extern int8_t          tsDaylight;
+extern bool            tsEnableCoreFile;
+extern int64_t         tsPageSizeKB;
+extern int64_t         tsOpenMax;
+extern int64_t         tsStreamMax;
+extern float           tsNumOfCores;
+extern int64_t         tsTotalMemoryKB;
 
 extern char configDir[];
 extern char tsDataDir[];
@@ -43,11 +44,12 @@ extern SDiskSpace tsDataSpace;
 extern SDiskSpace tsLogSpace;
 extern SDiskSpace tsTempSpace;
 
-void osInit();
+void osDefaultInit();
 void osUpdate();
 void osCleanup();
 bool osLogSpaceAvailable();
 void osSetTimezone(const char *timezone);
+void osSetSystemLocale(const char *inLocale, const char *inCharSet);
 
 #ifdef __cplusplus
 }
