@@ -416,6 +416,7 @@ TEST_F(ParserTest, createDatabase) {
        "VGROUPS 100 "
        "SINGLE_STABLE 0 "
        "STREAM_MODE 1 "
+       "RETENTIONS '15s:7d,1m:21d,15m:5y'"
       );
   ASSERT_TRUE(run());
 }
@@ -469,7 +470,7 @@ TEST_F(ParserTest, createTable) {
        "c9 SMALLINT UNSIGNED COMMENT 'test column comment', c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, c13 NCHAR(30), c14 JSON, c15 VARCHAR(50)) "
        "TAGS (tsa TIMESTAMP, a1 INT, a2 INT UNSIGNED, a3 BIGINT, a4 BIGINT UNSIGNED, a5 FLOAT, a6 DOUBLE, a7 BINARY(20), a8 SMALLINT, "
        "a9 SMALLINT UNSIGNED COMMENT 'test column comment', a10 TINYINT, a11 TINYINT UNSIGNED, a12 BOOL, a13 NCHAR(30), a14 JSON, a15 VARCHAR(50)) "
-       "KEEP 100 TTL 100 COMMENT 'test create table' SMA(c1, c2, c3)"
+       "KEEP 100 TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (min) FILE_FACTOR 0.1 DELAY 2"
       );
   ASSERT_TRUE(run());
   
@@ -491,7 +492,7 @@ TEST_F(ParserTest, createTable) {
        "c9 SMALLINT UNSIGNED COMMENT 'test column comment', c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, c13 NCHAR(30), c14 JSON, c15 VARCHAR(50)) "
        "TAGS (tsa TIMESTAMP, a1 INT, a2 INT UNSIGNED, a3 BIGINT, a4 BIGINT UNSIGNED, a5 FLOAT, a6 DOUBLE, a7 BINARY(20), a8 SMALLINT, "
        "a9 SMALLINT UNSIGNED COMMENT 'test column comment', a10 TINYINT, a11 TINYINT UNSIGNED, a12 BOOL, a13 NCHAR(30), a14 JSON, a15 VARCHAR(50)) "
-       "KEEP 100 TTL 100 COMMENT 'test create table' SMA(c1, c2, c3)"
+       "KEEP 100 TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (min) FILE_FACTOR 0.1 DELAY 2"
       );
   ASSERT_TRUE(run());
 }
