@@ -45,12 +45,14 @@ typedef TdFilePtr tdb_fd_t;
 #define tdbOsRead  taosReadFile
 #define tdbOsPRead taosPReadFile
 #define tdbOsWrite taosWriteFile
+#define tdbOsFSync taosFsyncFile
 #else
 #define tdbOsOpen  open
 #define tdbOsClose close
 #define tdbOsRead  read
 #define tdbOsPRead pread
 #define tdbOsWrite write
+#define tdbOsFSync fsync
 #endif
 
 // For threads and lock
@@ -65,6 +67,14 @@ typedef TdThreadSpinlock tdb_spinlock_t;
 #define tdbSpinlockUnlock  taosThreadSpinUnlock
 #define tdbSpinlockTrylock
 
+// mutex lock
+typedef TdThreadMutex tdb_mutex_t;
+
+#define tdbMutexInit    taosThreadMutexInit
+#define tdbMutexDestroy taosThreadMutexDestroy
+#define tdbMutexLock    taosThreadMutexLock
+#define tdbMutexUnlock  taosThreadMutexUnlock
+
 #else
 
 // spin lock
@@ -75,6 +85,14 @@ typedef pthread_spinlock_t tdb_spinlock_t;
 #define tdbSpinlockLock    pthread_spin_lock
 #define tdbSpinlockUnlock  pthread_spin_unlock
 #define tdbSpinlockTrylock pthread_spin_trylock
+
+// mutex lock
+typedef pthread_mutex_t tdb_mutex_t;
+
+#define tdbMutexInit    pthread_mutex_init
+#define tdbMutexDestroy pthread_mutex_destroy
+#define tdbMutexLock    pthread_mutex_lock
+#define tdbMutexUnlock  pthread_mutex_unlock
 
 #endif
 

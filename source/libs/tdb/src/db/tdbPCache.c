@@ -15,16 +15,16 @@
 #include "tdbInt.h"
 
 struct SPCache {
-  int             pageSize;
-  int             cacheSize;
-  pthread_mutex_t mutex;
-  int             nFree;
-  SPage          *pFree;
-  int             nPage;
-  int             nHash;
-  SPage         **pgHash;
-  int             nRecyclable;
-  SPage           lru;
+  int         pageSize;
+  int         cacheSize;
+  tdb_mutex_t mutex;
+  int         nFree;
+  SPage      *pFree;
+  int         nPage;
+  int         nHash;
+  SPage     **pgHash;
+  int         nRecyclable;
+  SPage       lru;
 };
 
 #define PCACHE_PAGE_HASH(pPgid)                              \
@@ -116,13 +116,13 @@ void tdbPCacheRelease(SPCache *pCache, SPage *pPage) {
   }
 }
 
-static void tdbPCacheInitLock(SPCache *pCache) { pthread_mutex_init(&(pCache->mutex), NULL); }
+static void tdbPCacheInitLock(SPCache *pCache) { tdbMutexInit(&(pCache->mutex), NULL); }
 
-static void tdbPCacheClearLock(SPCache *pCache) { pthread_mutex_destroy(&(pCache->mutex)); }
+static void tdbPCacheClearLock(SPCache *pCache) { tdbMutexDestroy(&(pCache->mutex)); }
 
-static void tdbPCacheLock(SPCache *pCache) { pthread_mutex_lock(&(pCache->mutex)); }
+static void tdbPCacheLock(SPCache *pCache) { tdbMutexLock(&(pCache->mutex)); }
 
-static void tdbPCacheUnlock(SPCache *pCache) { pthread_mutex_unlock(&(pCache->mutex)); }
+static void tdbPCacheUnlock(SPCache *pCache) { tdbMutexDestroy(&(pCache->mutex)); }
 
 static bool tdbPCacheLocked(SPCache *pCache) {
   assert(0);

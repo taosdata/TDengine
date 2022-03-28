@@ -206,7 +206,7 @@ int tdbPagerCommit(SPager *pPager) {
     // TODO: release the page
   }
 
-  fsync(pPager->fd);
+  tdbOsFSync(pPager->fd);
 
   tdbOsClose(pPager->jfd);
   remove(pPager->jFileName);
