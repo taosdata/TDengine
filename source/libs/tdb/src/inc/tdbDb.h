@@ -34,6 +34,7 @@ int tdbDbGet(TDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen);
 int tdbDbcOpen(TDB *pDb, TDBC **ppDbc);
 int tdbDbNext(TDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen);
 int tdbDbcClose(TDBC *pDbc);
+int tdbDbcInsert(TDBC *pDbc, const void *pKey, int keyLen, const void *pVal, int valLen);
 
 #ifdef __cplusplus
 }
