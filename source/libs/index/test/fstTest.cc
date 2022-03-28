@@ -96,12 +96,36 @@ class FstReadMemory {
       char*       ch = (char*)fstSliceData(s, &sz);
       std::string key(ch, sz);
       printf("key: %s, val: %" PRIu64 "\n", key.c_str(), (uint64_t)(rt->out.out));
-      swsResultDestroy(rt);
       result.push_back(rt->out.out);
+      swsResultDestroy(rt);
     }
-    for (size_t i = 0; i < result.size(); i++) {
+    return true;
+  }
+  bool SearchRange(AutomationCtx* ctx, const std::string& low, const std::string& high, std::vector<uint64_t>& result) {
+    FstStreamBuilder* sb = fstSearch(_fst, ctx);
+
+    FstSlice l = fstSliceCreate((uint8_t*)low.c_str(), low.size());
+    FstSlice h = fstSliceCreate((uint8_t*)high.c_str(), high.size());
+
+    // range [low, high);
+    fstStreamBuilderSetRange(sb, &l, GE);
+    fstStreamBuilderSetRange(sb, &h, LT);
+
+    fstSliceDestroy(&l);
+    fstSliceDestroy(&h);
+
+    StreamWithState*       st = streamBuilderIntoStream(sb);
+    StreamWithStateResult* rt = NULL;
+    while ((rt = streamWithStateNextWith(st, NULL)) != NULL) {
+      // result.push_back((uint64_t)(rt->out.out));
+      FstSlice*   s = &rt->data;
+      int32_t     sz = 0;
+      char*       ch = (char*)fstSliceData(s, &sz);
+      std::string key(ch, sz);
+      printf("key: %s, val: %" PRIu64 "\n", key.c_str(), (uint64_t)(rt->out.out));
+      result.push_back(rt->out.out);
+      swsResultDestroy(rt);
     }
-    std::cout << std::endl;
     return true;
   }
   bool SearchWithTimeCostUs(AutomationCtx* ctx, std::vector<uint64_t>& result) {
@@ -322,6 +346,40 @@ void checkFstCheckIteratorPrefix() {
   }
   delete m;
 }
+void checkFstCheckIteratorRange() {
+  FstWriter* fw = new FstWriter;
+  int64_t    s = taosGetTimestampUs();
+  int        count = 2;
+  // Performance_fstWriteRecords(fw);
+  int64_t e = taosGetTimestampUs();
+
+  std::cout << "insert data count :  " << count << "elapas time: " << e - s << std::endl;
+
+  fw->Put("a", 1);
+  fw->Put("b", 2);
+  fw->Put("c", 3);
+  fw->Put("d", 4);
+  fw->Put("e", 5);
+  delete fw;
+
+  FstReadMemory* m = new FstReadMemory(1024 * 64);
+  if (m->init() == false) {
+    std::cout << "init readMemory failed" << std::endl;
+    delete m;
+    return;
+  }
+  {
+    // prefix search
+    std::vector<uint64_t> result;
+
+    AutomationCtx* ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+
+    // [b, e)
+    m->SearchRange(ctx, "b", "e", result);
+    // assert(result.size() == 1);
+    taosMemoryFree(ctx);
+  }
+}
 
 void fst_get(Fst* fst) {
   for (int i = 0; i < 10000; i++) {
@@ -386,7 +444,8 @@ int main(int argc, char* argv[]) {
   // iterTFileReader(argv[1], argv[2], argv[3], argv[4]);
   //}
   // checkFstCheckIterator();
-  checkFstCheckIteratorPrefix();
+  // checkFstCheckIteratorPrefix();
+  checkFstCheckIteratorRange();
   // checkFstLongTerm();
   // checkFstPrefixSearch();
 

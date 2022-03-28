@@ -1425,9 +1425,9 @@ void fstStreamBuilderDestroy(FstStreamBuilder* b) {
   taosMemoryFreeClear(b->max);
   taosMemoryFree(b);
 }
-FstStreamBuilder* fstStreamBuilderRange(FstStreamBuilder* b, FstSlice* val, RangeType type) {
+void fstStreamBuilderSetRange(FstStreamBuilder* b, FstSlice* val, RangeType type) {
   if (b == NULL) {
-    return NULL;
+    return;
   }
   if (type == GE) {
     b->min->type = Included;
@@ -1446,5 +1446,4 @@ FstStreamBuilder* fstStreamBuilderRange(FstStreamBuilder* b, FstSlice* val, Rang
     fstSliceDestroy(&(b->max->data));
     b->max->data = fstSliceDeepCopy(val, 0, FST_SLICE_LEN(val) - 1);
   }
-  return b;
 }
