@@ -280,7 +280,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
 }
 #endif
 
-#if 1
+#if 0
 TEST(testCase, tSma_Data_Insert_Query_Test) {
   // step 1: prepare meta
   const char    *smaIndexName1 = "sma_index_test_1";
@@ -330,7 +330,6 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   ASSERT_EQ(metaSaveSmaToDB(pMeta, pSmaCfg), 0);
 
   // step 2: insert data
-  STSmaDataWrapper *pSmaData = NULL;
   STsdb            *pTsdb = (STsdb *)taosMemoryCalloc(1, sizeof(STsdb));
   STsdbCfg         *pCfg = &pTsdb->config;
 
@@ -416,6 +415,8 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   col_id_t numOfCols = 4096;
   ASSERT_GT(numOfCols, 0);
 
+#if 0
+  STSmaDataWrapper *pSmaData = NULL;
   pSmaData = (STSmaDataWrapper *)buf;
   printf(">> allocate [%d] time to %d and addr is %p\n", ++allocCnt, bufSize, pSmaData);
   pSmaData->skey = skey1;
@@ -459,9 +460,13 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   pSmaData->dataLen = (len - sizeof(STSmaDataWrapper));
 
   ASSERT_GE(bufSize, pSmaData->dataLen);
-
   // execute
   ASSERT_EQ(tsdbInsertTSmaData(pTsdb, (char *)pSmaData), TSDB_CODE_SUCCESS);
+#endif
+
+  SSDataBlock *pSmaData = (SSDataBlock *)taosMemoryCalloc(1, sizeof(SSDataBlock));
+  
+
 
   // step 3: query
   uint32_t checkDataCnt = 0;

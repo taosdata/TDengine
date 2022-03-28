@@ -36,11 +36,11 @@ int32_t tEncodeSStreamObj(SCoder *pEncoder, const SStreamObj *pObj) {
   if (tEncodeI32(pEncoder, sz) < 0) return -1;
 
   for (int32_t i = 0; i < sz; i++) {
-    SArray *pArray = taosArrayGet(pObj->tasks, i);
+    SArray *pArray = taosArrayGetP(pObj->tasks, i);
     int32_t innerSz = taosArrayGetSize(pArray);
     if (tEncodeI32(pEncoder, innerSz) < 0) return -1;
     for (int32_t j = 0; j < innerSz; j++) {
-      SStreamTask *pTask = taosArrayGet(pArray, j);
+      SStreamTask *pTask = taosArrayGetP(pArray, j);
       if (tEncodeSStreamTask(pEncoder, pTask) < 0) return -1;
     }
   }
@@ -76,17 +76,18 @@ int32_t tDecodeSStreamObj(SCoder *pDecoder, SStreamObj *pObj) {
   int32_t sz;
   if (tDecodeI32(pDecoder, &sz) < 0) return -1;
   if (sz != 0) {
-    pObj->tasks = taosArrayInit(sz, sizeof(SArray));
+    pObj->tasks = taosArrayInit(sz, sizeof(void *));
     for (int32_t i = 0; i < sz; i++) {
       int32_t innerSz;
       if (tDecodeI32(pDecoder, &innerSz) < 0) return -1;
-      SArray *pArray = taosArrayInit(innerSz, sizeof(SStreamTask));
+      SArray *pArray = taosArrayInit(innerSz, sizeof(void *));
       for (int32_t j = 0; j < innerSz; j++) {
-        SStreamTask task;
-        if (tDecodeSStreamTask(pDecoder, &task) < 0) return -1;
-        taosArrayPush(pArray, &task);
+        SStreamTask *pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
+        if (pTask == NULL) return -1;
+        if (tDecodeSStreamTask(pDecoder, pTask) < 0) return -1;
+        taosArrayPush(pArray, &pTask);
       }
-      taosArrayPush(pObj->tasks, pArray);
+      taosArrayPush(pObj->tasks, &pArray);
     }
   }
 

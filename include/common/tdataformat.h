@@ -63,7 +63,7 @@ extern "C" {
 typedef struct {
   col_id_t colId;        // column ID(start from PRIMARYKEY_TIMESTAMP_COL_ID(1))
   int32_t  type : 8;     // column type
-  int32_t  bytes : 24;   // column bytes (restore to int32_t in case of misuse)
+  int32_t  bytes : 24;   // column bytes (0~16M)
   int32_t  sma : 8;      // block SMA: 0, no SMA, 1, sum/min/max, 2, ...
   int32_t  offset : 24;  // point offset in STpRow after the header part.
 } STColumn;
@@ -81,12 +81,12 @@ typedef struct {
 
 // ----------------- TSDB SCHEMA DEFINITION
 typedef struct {
-  int32_t version;    // version
-  int32_t numOfCols;  // Number of columns appended
-  int32_t tlen;   // maximum length of a STpRow without the header part (sizeof(VarDataOffsetT) + sizeof(VarDataLenT) +
-                  // (bytes))
-  uint16_t flen;  // First part length in a STpRow after the header part
-  uint16_t vlen;  // pure value part length, excluded the overhead (bytes only)
+  int32_t      numOfCols;  // Number of columns appended
+  schema_ver_t version;    // schema version
+  uint16_t     flen;       // First part length in a STpRow after the header part
+  int32_t      vlen;       // pure value part length, excluded the overhead (bytes only)
+  int32_t      tlen;       // maximum length of a STpRow without the header part
+                           // (sizeof(VarDataOffsetT) + sizeof(VarDataLenT) + (bytes))
   STColumn columns[];
 } STSchema;
 
@@ -120,13 +120,13 @@ static FORCE_INLINE STColumn *tdGetColOfID(STSchema *pSchema, int16_t colId) {
 
 // ----------------- SCHEMA BUILDER DEFINITION
 typedef struct {
-  int32_t   tCols;
-  int32_t   nCols;
-  int32_t   tlen;
-  uint16_t  flen;
-  uint16_t  vlen;
-  int32_t   version;
-  STColumn *columns;
+  int32_t      tCols;
+  int32_t      nCols;
+  schema_ver_t version;
+  uint16_t     flen;
+  int32_t      vlen;
+  int32_t      tlen;
+  STColumn    *columns;
 } STSchemaBuilder;
 
 #define TD_VTYPE_BITS  2  // val type
@@ -136,9 +136,9 @@ typedef struct {
 #define TD_BITMAP_BYTES(cnt) (ceil((double)cnt / TD_VTYPE_PARTS))
 #define TD_BIT_TO_BYTES(cnt) (ceil((double)cnt / 8))
 
-int32_t   tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version);
+int32_t   tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version);
 void      tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder);
-void      tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version);
+void      tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version);
 int32_t   tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, col_id_t colId, col_bytes_t bytes);
 STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
 

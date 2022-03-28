@@ -101,14 +101,14 @@ static void dmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
 
 int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
   SSingleWorkerCfg mgmtCfg = {
-      .minNum = 1, .maxNum = 1, .name = "dnode-mgmt", .fp = (FItem)dmProcessQueue, .param = pMgmt};
+      .min = 1, .max = 1, .name = "dnode-mgmt", .fp = (FItem)dmProcessQueue, .param = pMgmt};
   if (tSingleWorkerInit(&pMgmt->mgmtWorker, &mgmtCfg) != 0) {
     dError("failed to start dnode mgmt worker since %s", terrstr());
     return -1;
   }
 
   SSingleWorkerCfg statusCfg = {
-      .minNum = 1, .maxNum = 1, .name = "dnode-status", .fp = (FItem)dmProcessQueue, .param = pMgmt};
+      .min = 1, .max = 1, .name = "dnode-status", .fp = (FItem)dmProcessQueue, .param = pMgmt};
   if (tSingleWorkerInit(&pMgmt->statusWorker, &statusCfg) != 0) {
     dError("failed to start dnode status worker since %s", terrstr());
     return -1;
@@ -140,12 +140,14 @@ void dmStopWorker(SDnodeMgmt *pMgmt) {
   dDebug("dnode workers are closed");
 }
 
-int32_t dmProcessMgmtMsg(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+int32_t dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+  SDnodeMgmt    *pMgmt = pWrapper->pMgmt;
   SSingleWorker *pWorker = &pMgmt->mgmtWorker;
   if (pMsg->rpcMsg.msgType == TDMT_MND_STATUS_RSP) {
     pWorker = &pMgmt->statusWorker;
   }
 
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
-  return taosWriteQitem(pWorker->queue, pMsg);
+  taosWriteQitem(pWorker->queue, pMsg);
+  return 0;
 }
