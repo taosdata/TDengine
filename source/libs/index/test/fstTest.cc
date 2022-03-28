@@ -101,15 +101,16 @@ class FstReadMemory {
     }
     return true;
   }
-  bool SearchRange(AutomationCtx* ctx, const std::string& low, const std::string& high, std::vector<uint64_t>& result) {
+  bool SearchRange(AutomationCtx* ctx, const std::string& low, RangeType lowType, const std::string& high,
+                   RangeType highType, std::vector<uint64_t>& result) {
     FstStreamBuilder* sb = fstSearch(_fst, ctx);
 
     FstSlice l = fstSliceCreate((uint8_t*)low.c_str(), low.size());
     FstSlice h = fstSliceCreate((uint8_t*)high.c_str(), high.size());
 
     // range [low, high);
-    fstStreamBuilderSetRange(sb, &l, GE);
-    fstStreamBuilderSetRange(sb, &h, LT);
+    fstStreamBuilderSetRange(sb, &l, lowType);
+    fstStreamBuilderSetRange(sb, &h, highType);
 
     fstSliceDestroy(&l);
     fstSliceDestroy(&h);
@@ -406,11 +407,9 @@ void checkFstCheckIteratorRange1() {
   {
     // prefix search
     std::vector<uint64_t> result;
-
-    AutomationCtx* ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
-
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
-    m->SearchRange(ctx, "b", "e", result);
+    m->SearchRange(ctx, "b", GE, "e", LT, result);
     assert(result.size() == 3);
     taosMemoryFree(ctx);
   }
@@ -445,7 +444,7 @@ void checkFstCheckIteratorRange2() {
     AutomationCtx* ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
 
     // [b, e)
-    m->SearchRange(ctx, "b", "ed", result);
+    m->SearchRange(ctx, "b", GE, "ed", LT, result);
     assert(result.size() == 4);
     taosMemoryFree(ctx);
   }
