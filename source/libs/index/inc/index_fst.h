@@ -21,9 +21,9 @@ extern "C" {
 #endif
 
 #include "indexInt.h"
-#include "index_fst_node.h"
 #include "index_fst_automation.h"
 #include "index_fst_counting_writer.h"
+#include "index_fst_node.h"
 #include "index_fst_registry.h"
 #include "index_fst_util.h"
 
@@ -257,9 +257,9 @@ typedef struct FstMeta {
 } FstMeta;
 
 typedef struct Fst {
-  FstMeta*        meta;
-  FstSlice*       data;  //
-  FstNode*        root;  //
+  FstMeta*      meta;
+  FstSlice*     data;  //
+  FstNode*      root;  //
   TdThreadMutex mtx;
 } Fst;
 
@@ -325,10 +325,10 @@ StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallb
 FstStreamBuilder* fstStreamBuilderCreate(Fst* fst, AutomationCtx* aut);
 
 void fstStreamBuilderDestroy(FstStreamBuilder* b);
-// set up bound range
-// refator, simple code by marco
 
-FstStreamBuilder* fstStreamBuilderRange(FstStreamBuilder* b, FstSlice* val, RangeType type);
+// set up bound range
+// refator later:  to simple code by marco
+void fstStreamBuilderSetRange(FstStreamBuilder* b, FstSlice* val, RangeType type);
 
 #ifdef __cplusplus
 }
