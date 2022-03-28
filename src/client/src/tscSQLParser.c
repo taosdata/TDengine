@@ -10113,7 +10113,7 @@ static STableMeta* extractTempTableMetaFromSubquery(SQueryInfo* pUpstream) {
 static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pSql, SQueryInfo* pQueryInfo, char* msgBuf) {
   SRelElementPair* subInfo = taosArrayGet(pSqlNode->from->list, index);
 
-  // union all is not support currently
+  // union all is not supported currently
   SSqlNode* p = taosArrayGetP(subInfo->pSubquery, 0);
   if (taosArrayGetSize(subInfo->pSubquery) >= 2) {
     return invalidOperationMsg(msgBuf, "not support union in subquery");
