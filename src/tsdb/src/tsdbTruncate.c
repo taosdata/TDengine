@@ -22,7 +22,7 @@ enum {
 };
 
 enum BlockSolve {
-  BLOCK_RETAIN = 0,
+  BLOCK_READ = 0,
   BLOCK_MODIFY,
   BLOCK_DELETE
 };
@@ -592,7 +592,7 @@ static int tsdbBlockSolve(STruncateH *ptru, SBlock *pBlock) {
 
   // do nothing for no delete
   if(pBlock->keyFirst > pdel->ekey || pBlock->keyLast < pdel->skey)
-    return BLOCK_RETAIN;
+    return BLOCK_READ;
 
   // border block
   if(pBlock->keyFirst <= pdel->skey || pBlock->keyLast >= pdel->ekey)
@@ -612,33 +612,36 @@ int tsdbRemoveDelBlocks(STruncateH *ptru, STableTruncateH * pItem) {
   for (int i = numOfBlocks - 1; i >= 0; --i) {
     SBlock *pBlock = pItem->pInfo->blocks + i;
     int32_t solve = tsdbBlockSolve(ptru, pBlock);
-    bool doDel = false;
     if (solve == BLOCK_DELETE) {
       if (from == -1)
          from = i;
-      if (i == 0)
-         doDel = true;
     } else {
-      if(from != -1)
-        doDel = true;
-    }
-
-    // do del
-    if (doDel) {
-      int delCnt = from - i + 1;
-      memmove(pBlock, pItem->pInfo->blocks + i + delCnt, sizeof(SBlock) * delCnt);
-      delAll += delCnt;
+      if(from != -1) {
+        // do del
+        int delCnt = from - i;
+        memmove(pItem->pInfo->blocks + i + 1, pItem->pInfo->blocks + i + 1 + delCnt, (numOfBlocks - (i+1) - delCnt) * sizeof(SBlock));
+        delAll += delCnt;
+        numOfBlocks  -= delCnt;
+        from = -1;
+      }
     }
   }
 
+  if(from != -1) {
+    int delCnt = from;
+    memmove(pItem->pInfo->blocks, pItem->pInfo->blocks + delCnt, (numOfBlocks - delCnt) * sizeof(SBlock));
+    delAll += delCnt;
+    numOfBlocks  -= delCnt;
+  }
+
   // set value
-  pItem->pBlkIdx->numOfBlocks -= delAll;
+  pItem->pBlkIdx->numOfBlocks = numOfBlocks;
 
   return delAll;
 }
 
 static void tsdbAddBlock(STruncateH *ptru, STableTruncateH *pItem, SBlock *pBlock) {
-  taosArrayPush(ptru->aSubBlk, (const void *)pBlock);
+  taosArrayPush(ptru->aSupBlk, (const void *)pBlock);
   // have sub block
   if (pBlock->numOfSubBlocks > 1) {
     SBlock *jBlock = POINTER_SHIFT(pItem->pInfo, pBlock->offset);;
@@ -684,7 +687,7 @@ static int tsdbModifyBlocks(STruncateH *ptru, STableTruncateH *pItem) {
   for (int i = 0; i < pItem->pBlkIdx->numOfBlocks; ++i) {
     SBlock *pBlock = pItem->pInfo->blocks + i;
     int32_t solve = tsdbBlockSolve(ptru, pBlock);
-    if (solve == BLOCK_RETAIN) {
+    if (solve == BLOCK_READ) {
       tsdbAddBlock(ptru, pItem, pBlock);
       continue;
     } 
