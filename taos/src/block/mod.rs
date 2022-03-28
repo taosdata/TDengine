@@ -22,7 +22,7 @@ use taos_sys::*;
 use crate::{timestamp::TimestampValue, Result, TaosError, TaosResult};
 
 pub mod column;
-use column::*;
+pub use column::*;
 
 pub mod row;
 pub use row::*;
@@ -49,6 +49,8 @@ impl<'a> BlockStream<'a> {
         Self { result, state }
     }
 }
+
+unsafe impl<'a> Send for BlockStream<'a> {}
 
 #[derive(Debug)]
 pub struct Block<'a> {
@@ -547,40 +549,30 @@ impl<'a> Stream for BlockStream<'a> {
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         let mut s = self.state.lock().unwrap();
-        println!("poll next");
         unsafe extern "C" fn async_fetch_callback(
             param: *mut c_void,
             res: *mut TAOS_RES,
             num_of_rows: c_int,
         ) {
-            dbg!("callback");
             let param = param as *const Arc<Mutex<BlockState>>;
             let state = param.read();
-            println!("get lock");
             let mut s = state.lock().unwrap();
-            println!("state");
 
             (*s).completed = true;
             (*s).result = res;
-            (*s).num_of_rows = dbg!(num_of_rows);
+            (*s).num_of_rows = num_of_rows;
             if let Some(waker) = s.waker.take() {
-                println!("wake context");
                 waker.wake()
             }
         }
 
         if s.completed && s.num_of_rows != 0 {
             let num_of_rows = s.num_of_rows;
-            if s.num_of_rows < 1000 {
-                s.num_of_rows = 0;
-            } else {
-                s.completed = false;
-            }
-            println!("poll ready");
+            s.completed = false;
+            s.num_of_rows = 0;
             Poll::Ready(Some(Self::Item::from_async_query(self.result, num_of_rows)))
         } else if s.completed && s.num_of_rows == 0 {
-            s.completed = false;
-            println!("poll done");
+            // s.completed = false;
             Poll::Ready(None)
         } else {
             let res = if s.result.is_null() {
@@ -597,7 +589,6 @@ impl<'a> Stream for BlockStream<'a> {
                     Box::into_raw(Box::new(self.state.clone())) as *mut _,
                 );
             }
-            println!("poll pending");
             Poll::Pending
         }
     }

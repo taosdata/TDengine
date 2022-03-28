@@ -35,6 +35,9 @@ struct SharedState {
     waker: Option<Waker>,
 }
 
+unsafe impl Send for SharedState {}
+unsafe impl Sync for SharedState {}
+
 impl Unpin for SharedState {}
 impl<'query> Unpin for QueryFuture<'query> {}
 impl<'query> Future for QueryFuture<'query> {

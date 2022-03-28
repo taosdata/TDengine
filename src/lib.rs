@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 
-use clap::Args;
 use chrono_tz::Tz;
+use clap::Args;
 use url::Url;
 
 #[derive(Debug, Args)]
 pub struct TaosUri {
-    pub uri: Url
+    pub uri: Url,
 }
 #[derive(Debug, Args)]
 pub struct TaosOpts {

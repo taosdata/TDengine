@@ -1,9 +1,13 @@
+use std::marker::PhantomData;
+
 use bitvec_simd::BitVec;
 use taos_sys::{TaosDataType, TAOS_MULTI_BIND};
 
 #[derive(Debug)]
-pub struct MultiBind(TAOS_MULTI_BIND);
+pub struct MultiBind<'a>(TAOS_MULTI_BIND, PhantomData<&'a i32>);
 
+unsafe impl<'a> Send for MultiBind<'a> {}
+unsafe impl<'a> Sync for MultiBind<'a> {}
 pub(crate) trait TaosTypeOf {
     fn taos_type_of() -> TaosDataType;
 }
@@ -31,46 +35,55 @@ impl_taos_type_of!(u64, UBigInt);
 impl_taos_type_of!(f32, Float);
 impl_taos_type_of!(f64, Double);
 
-impl MultiBind {
+impl<'a> MultiBind<'a> {
     pub fn nulls(n: usize) -> Self {
-        Self(TAOS_MULTI_BIND {
-            buffer_type: TaosDataType::Null as _,
-            buffer: std::ptr::null_mut(),
-            buffer_length: 0,
-            length: n as _,
-            is_null: std::ptr::null_mut(),
-            num: n as _,
-        })
+        Self(
+            TAOS_MULTI_BIND {
+                buffer_type: TaosDataType::Null as _,
+                buffer: std::ptr::null_mut(),
+                buffer_length: 0,
+                length: n as _,
+                is_null: std::ptr::null_mut(),
+                num: n as _,
+            },
+            PhantomData,
+        )
     }
     pub(crate) fn from_primitives<T: TaosTypeOf>(nulls: &BitVec, values: &[T]) -> Self {
-        Self(TAOS_MULTI_BIND {
-            buffer_type: dbg!(T::taos_type_of()) as _,
-            buffer: values.as_ptr() as _,
-            buffer_length: std::mem::size_of::<bool>(),
-            length: values.len() as _,
-            is_null: {
-                let bools = nulls.clone().into_bools();
-                let ptr = bools.as_ptr();
-                std::mem::forget(bools);
-                ptr as _
+        Self(
+            TAOS_MULTI_BIND {
+                buffer_type: dbg!(T::taos_type_of()) as _,
+                buffer: values.as_ptr() as _,
+                buffer_length: std::mem::size_of::<T>(),
+                length: values.len() as _,
+                is_null: {
+                    let bools = nulls.clone().into_bools();
+                    let ptr = bools.as_ptr();
+                    std::mem::forget(bools);
+                    ptr as _
+                },
+                num: values.len() as _,
             },
-            num: values.len() as _,
-        })
+            PhantomData,
+        )
     }
     pub fn from_raw_timestamps(nulls: &BitVec, values: &[i64]) -> Self {
-        Self(TAOS_MULTI_BIND {
-            buffer_type: TaosDataType::Timestamp as _,
-            buffer: values.as_ptr() as _,
-            buffer_length: std::mem::size_of::<i64>(),
-            length: values.len() as _,
-            is_null: {
-                let bools = nulls.clone().into_bools();
-                let ptr = bools.as_ptr();
-                std::mem::forget(bools);
-                ptr as _
+        Self(
+            TAOS_MULTI_BIND {
+                buffer_type: TaosDataType::Timestamp as _,
+                buffer: values.as_ptr() as _,
+                buffer_length: std::mem::size_of::<i64>(),
+                length: values.len() as _,
+                is_null: {
+                    let bools = nulls.clone().into_bools();
+                    let ptr = bools.as_ptr();
+                    std::mem::forget(bools);
+                    ptr as _
+                },
+                num: values.len() as _,
             },
-            num: values.len() as _,
-        })
+            PhantomData,
+        )
     }
 
     pub fn from_binary_vec(values: &[Option<impl AsRef<[u8]>>]) -> Self {
@@ -105,14 +118,17 @@ impl MultiBind {
         // let nulls = values.iter().map(Option::is_some).collect_vec();
         let is_null = nulls.as_ptr() as _;
         std::mem::forget(nulls);
-        Self(TAOS_MULTI_BIND {
-            buffer_type: TaosDataType::Binary as _,
-            buffer: buffer.as_ptr() as _,
-            buffer_length,
-            length: length.as_ptr() as _,
-            is_null,
-            num: values.len() as _,
-        })
+        Self(
+            TAOS_MULTI_BIND {
+                buffer_type: TaosDataType::Binary as _,
+                buffer: buffer.as_ptr() as _,
+                buffer_length,
+                length: length.as_ptr() as _,
+                is_null,
+                num: values.len() as _,
+            },
+            PhantomData,
+        )
     }
     pub fn from_string_vec(values: &[Option<impl AsRef<str>>]) -> Self {
         let values: Vec<_> = values
@@ -125,7 +141,7 @@ impl MultiBind {
     }
 }
 
-impl Drop for MultiBind {
+impl<'a> Drop for MultiBind<'a> {
     fn drop(&mut self) {
         let ty = TaosDataType::from(self.0.buffer_type as u8);
         if ty == TaosDataType::Binary || ty == TaosDataType::NChar {

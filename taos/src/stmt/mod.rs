@@ -76,6 +76,7 @@ impl<'stmt> Stmt<'stmt> {
     pub fn multi_bind(&mut self, params: &[MultiBind]) -> Result<()> {
         let params = params.as_ptr();
         unsafe {
+            assert!(!params.is_null());
             let res = taos_stmt_bind_param_batch(self.stmt, params as _);
             self.err_or(res)?;
             let res = taos_stmt_add_batch(self.stmt);
@@ -209,26 +210,18 @@ fn test_multi_bind() {
     let result = stmt.result().unwrap();
     let rows = result.affected_rows();
     assert_eq!(N, rows);
-    // taos.stmt("drop database taos_test_multi_bind").unwrap().execute().unwrap();
+    taos.stmt("drop database taos_test_multi_bind")
+        .unwrap()
+        .execute()
+        .unwrap();
 }
 
 // #[cfg(test)]
 // mod test {
-//     use crate::test::taos;
-//     use crate::*;
-//     use proc_test_catalog::test_catalogue;
-
-//     async fn stmt_test(db: &str, ty: &str, value: Field) -> Result<(), Error> {
-//         let taos = taos()?;
-//         println!("test {} using {}", ty, db);
-//         taos.exec(format!("drop database if exists {}", db)).await?;
 //         taos.exec(format!("create database if not exists {} keep 36500", db))
 //             .await?;
 //         taos.exec(format!("use {}", db)).await?;
 //         taos.exec(format!(
-//             "create table if not exists tb0 (ts timestamp, n {})",
-//             ty
-//         ))
 //         .await?;
 //         let mut stmt = taos.stmt("insert into ? values(?,?)")?;
 //         stmt.set_tbname("tb0")?;

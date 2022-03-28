@@ -1,7 +1,7 @@
 mod commands;
-
 use clap::{Parser, Subcommand};
-
+use log::LevelFilter;
+use simple_logger::SimpleLogger;
 use taosx::TaosOpts;
 #[derive(Parser, Debug)]
 #[clap(author, version, about)]
@@ -27,12 +27,16 @@ pub fn cli<'help>() -> clap::Command<'help> {
 }
 
 fn main() {
+    SimpleLogger::new()
+        .with_level(LevelFilter::Debug)
+        .init()
+        .unwrap();
     let cli = Cli::parse();
-    dbg!(&cli);
+    let command = cli.command;
 
     // You can check for the existence of subcommands, and if found use their
     // matches just as you would the top level cmd
-    match &cli.command {
+    match command {
         Commands::Export(app) => {
             app.run_with_taos_opts(&cli.options);
         }
@@ -50,7 +54,10 @@ fn main() {
             let (name, args) = args.split_first().unwrap();
             println!("Call external plugin taosx-{name}: {args:?}");
             let cmd = format!("taosx-{name}");
-            std::process::Command::new(&cmd).args(args).spawn().expect(&format!("unable to run command {cmd}"));
+            std::process::Command::new(&cmd)
+                .args(args)
+                .spawn()
+                .expect(&format!("unable to run command {cmd}"));
         }
     }
 }

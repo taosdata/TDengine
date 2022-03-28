@@ -41,6 +41,7 @@ type Result<T> = std::result::Result<T, Error>;
 pub struct Taos(*mut TAOS);
 
 unsafe impl Send for Taos {}
+unsafe impl Sync for Taos {}
 
 impl Drop for Taos {
     fn drop(&mut self) {
@@ -51,7 +52,7 @@ impl Drop for Taos {
 }
 
 impl Taos {
-    pub(crate) fn new<'a>(
+    pub fn new<'a>(
         ip: impl Into<NullableCStr<'a>>,
         user: impl Into<NullableCStr<'a>>,
         pass: impl Into<NullableCStr<'a>>,
@@ -188,6 +189,9 @@ pub enum TaosResult<'a> {
     WithFields(*mut TAOS_RES, &'a [TAOS_FIELD]),
     WithoutFields(*mut TAOS_RES),
 }
+
+unsafe impl<'a> Send for TaosResult<'a> {}
+unsafe impl<'a> Sync for TaosResult<'a> {}
 
 impl<'a> Drop for TaosResult<'a> {
     fn drop(&mut self) {
