@@ -15,12 +15,12 @@
 
 #include "tdbInt.h"
 
-int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv) {
-  STEnv *pEnv;
-  int    dsize;
-  int    zsize;
-  u8    *pPtr;
-  int    ret;
+int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, TEnv **ppEnv) {
+  TEnv *pEnv;
+  int   dsize;
+  int   zsize;
+  u8   *pPtr;
+  int   ret;
 
   *ppEnv = NULL;
 
@@ -32,7 +32,7 @@ int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv) 
     return -1;
   }
 
-  pEnv = (STEnv *)pPtr;
+  pEnv = (TEnv *)pPtr;
   pPtr += sizeof(*pEnv);
   // pEnv->rootDir
   pEnv->rootDir = pPtr;
@@ -59,12 +59,12 @@ int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv) 
   return 0;
 }
 
-int tdbEnvClose(STEnv *pEnv) {
+int tdbEnvClose(TEnv *pEnv) {
   // TODO
   return 0;
 }
 
-SPager *tdbEnvGetPager(STEnv *pEnv, const char *fname) {
+SPager *tdbEnvGetPager(TEnv *pEnv, const char *fname) {
   // TODO
   return NULL;
 }

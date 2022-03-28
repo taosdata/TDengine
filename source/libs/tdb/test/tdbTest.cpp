@@ -115,7 +115,7 @@ static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, in
 
 TEST(tdb_test, simple_test) {
   int            ret;
-  STEnv         *pEnv;
+  TEnv          *pEnv;
   TDB           *pDb;
   FKeyComparator compFunc;
   int            nData = 1000000;

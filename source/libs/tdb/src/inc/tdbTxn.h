@@ -28,9 +28,9 @@ struct STxn {
   void *xArg;
 };
 
-int tdbTxnBegin(STEnv *pEnv);
-int tdbTxnCommit(STEnv *pEnv);
-int tdbTxnRollback(STEnv *pEnv);
+int tdbTxnBegin(TEnv *pEnv);
+int tdbTxnCommit(TEnv *pEnv);
+int tdbTxnRollback(TEnv *pEnv);
 
 #ifdef __cplusplus
 }
