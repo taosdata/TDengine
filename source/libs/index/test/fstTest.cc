@@ -243,8 +243,7 @@ void checkFstCheckIterator() {
   std::cout << "insert data count :  " << count << "elapas time: " << e - s << std::endl;
 
   fw->Put("Hello world", 1);
-  fw->Put("hello world", 2);
-  fw->Put("hello worle", 3);
+  fw->Put("Hello worle", 2);
   fw->Put("hello worlf", 4);
   delete fw;
 
@@ -258,7 +257,42 @@ void checkFstCheckIterator() {
   // prefix search
   std::vector<uint64_t> result;
 
-  AutomationCtx* ctx = automCtxCreate((void*)"H", AUTOMATION_PREFIX);
+  AutomationCtx* ctx = automCtxCreate((void*)"He", AUTOMATION_ALWAYS);
+  m->Search(ctx, result);
+  std::cout << "size: " << result.size() << std::endl;
+  // assert(result.size() == count);
+  for (int i = 0; i < result.size(); i++) {
+    // assert(result[i] == i);  // check result
+  }
+
+  taosMemoryFree(ctx);
+  delete m;
+}
+void checkFstCheckIteratorPrefix() {
+  FstWriter* fw = new FstWriter;
+  int64_t    s = taosGetTimestampUs();
+  int        count = 2;
+  // Performance_fstWriteRecords(fw);
+  int64_t e = taosGetTimestampUs();
+
+  std::cout << "insert data count :  " << count << "elapas time: " << e - s << std::endl;
+
+  fw->Put("Hello world", 1);
+  fw->Put("Hello worle", 2);
+  fw->Put("hello worlf", 4);
+  delete fw;
+
+  FstReadMemory* m = new FstReadMemory(1024 * 64);
+  if (m->init() == false) {
+    std::cout << "init readMemory failed" << std::endl;
+    delete m;
+    return;
+  }
+
+  // prefix search
+  std::vector<uint64_t> result;
+
+  AutomationCtx* ctx = automCtxCreate((void*)"he", AUTOMATION_PREFIX);
   m->Search(ctx, result);
   std::cout << "size: " << result.size() << std::endl;
   // assert(result.size() == count);
@@ -332,7 +366,8 @@ int main(int argc, char* argv[]) {
   // path suid colName ver
   // iterTFileReader(argv[1], argv[2], argv[3], argv[4]);
   //}
-  checkFstCheckIterator();
+  // checkFstCheckIterator();
+  checkFstCheckIteratorPrefix();
   // checkFstLongTerm();
   // checkFstPrefixSearch();
 

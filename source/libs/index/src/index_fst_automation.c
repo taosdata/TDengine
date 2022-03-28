@@ -85,10 +85,20 @@ static void* prefixStart(AutomationCtx* ctx) {
 };
 static bool prefixIsMatch(AutomationCtx* ctx, void* sv) {
   StartWithStateValue* ssv = (StartWithStateValue*)sv;
-  return ssv->val == strlen(ctx->data);
+  if (ssv == NULL) {
+    return false;
+  }
+  if (ssv->type == FST_INT) {
+    return ssv->val == strlen(ctx->data);
+  } else {
+    return false;
+  }
 }
 static bool prefixCanMatch(AutomationCtx* ctx, void* sv) {
   StartWithStateValue* ssv = (StartWithStateValue*)sv;
+  if (ssv == NULL) {
+    return false;
+  }
   return ssv->val >= 0;
 }
 static bool  prefixWillAlwaysMatch(AutomationCtx* ctx, void* state) { return true; }
