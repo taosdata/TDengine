@@ -15,55 +15,84 @@
 
 #include "tdbInt.h"
 
+#ifndef TDB_FOR_TDENGINE
+
 // tdbOsRead
-i64 tdbOsRead(tdb_fd_t fd, void *pBuf, i64 nBytes) {
-  // TODO
-  ASSERT(0);
-  return 0;
+i64 tdbOsRead(tdb_fd_t fd, void *pData, i64 nBytes) {
+  i64 nRead = 0;
+  i64 iRead = 0;
+  u8 *pBuf = (u8 *)pData;
+
+  while (nBytes > 0) {
+    iRead = read(fd, pBuf, nBytes);
+    if (iRead < 0) {
+      if (errno == EINTR) {
+        continue;
+      } else {
+        return -1;
+      }
+    } else if (iRead == 0) {
+      break;
+    }
+
+    nRead += iRead;
+    pBuf += iRead;
+    nBytes -= iRead;
+  }
+
+  return nRead;
 }
 
 // tdbOsPRead
-i64 tdbOsPRead(tdb_fd_t fd, void *pBuf, i64 nBytes, i64 offset) {
-  // TODO
-  ASSERT(0);
-  return 0;
+i64 tdbOsPRead(tdb_fd_t fd, void *pData, i64 nBytes, i64 offset) {
+  i64 nRead = 0;
+  i64 iRead = 0;
+  i64 iOffset = offset;
+  u8 *pBuf = (u8 *)pData;
+
+  while (nBytes > 0) {
+    iRead = pread(fd, pBuf, nBytes, iOffset);
+    if (iRead < 0) {
+      if (errno == EINTR) {
+        continue;
+      } else {
+        return -1;
+      }
+    } else if (iRead == 0) {
+      break;
+    }
+
+    nRead += iRead;
+    pBuf += iRead;
+    iOffset += iRead;
+    nBytes -= iRead;
+  }
+
+  return nRead;
 }
 
 // tdbOsWrite
-i64 taosWriteFile(tdb_fd_t fd, const void *pBuf, i64 nBytes) {
-  // TODO
-  ASSERT(0);
-  return 0;
-}
+i64 taosWriteFile(tdb_fd_t fd, const void *pData, i64 nBytes) {
+  i64 nWrite = 0;
+  i64 iWrite = 0;
+  u8 *pBuf = (u8 *)pData;
 
-#if 0
-int tdbPRead(int fd, void *pData, int count, i64 offset) {
-  void *pBuf;
-  int   nbytes;
-  i64   ioffset;
-  int   iread;
+  while (nBytes > 0) {
+    iWrite = write(fd, pBuf, nBytes);
+    if (iWrite < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
 
-  pBuf = pData;
-  nbytes = count;
-  ioffset = offset;
-  while (nbytes > 0) {
-    iread = pread(fd, pBuf, nbytes, ioffset);
-    if (iread < 0) {
-      /* TODO */
-    } else if (iread == 0) {
-      return (count - iread);
+      return -1;
     }
 
-    nbytes = nbytes - iread;
-    pBuf = (void *)((u8 *)pBuf + iread);
-    ioffset += iread;
+    nWrite += iWrite;
+    pBuf += iWrite;
+    nBytes -= iWrite;
   }
 
-  return count;
+  return nWrite;
 }
 
-int tdbWrite(int fd, void *pData, int count) {
-  // TODO
-  return write(fd, pData, count);
-}
 #endif

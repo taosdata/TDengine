@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 // TODO: use cmake to control the option
-#define TDB_FOR_TDENGINE
+// #define TDB_FOR_TDENGINE
 
 // For memory -----------------
 #ifdef TDB_FOR_TDENGINE
@@ -67,9 +67,9 @@ typedef int tdb_fd_t;
 #define tdbOsOpen  open
 #define tdbOsClose close
 
-i64 tdbOsRead(tdb_fd_t fd, void *pBuf, i64 nBytes);
-i64 tdbOsPRead(tdb_fd_t fd, void *pBuf, i64 nBytes, i64 offset);
-i64 taosWriteFile(tdb_fd_t fd, const void *pBuf, i64 nBytes);
+i64 tdbOsRead(tdb_fd_t fd, void *pData, i64 nBytes);
+i64 tdbOsPRead(tdb_fd_t fd, void *pData, i64 nBytes, i64 offset);
+i64 taosWriteFile(tdb_fd_t fd, const void *pData, i64 nBytes);
 
 #define tdbOsFSync  fsync
 #define tdbOsLSeek  lseek
