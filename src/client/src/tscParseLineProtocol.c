@@ -997,7 +997,7 @@ static int32_t applyDataPointsWithSqlInsert(TAOS* taos, TAOS_SML_DATA_POINT* poi
              info->id, point->childTableName, point->stableName);
     int32_t cTableSqlLen = 0;
     code = addChildTableDataPointsToInsertSql(point->childTableName, point->stableName, sTableSchema, cTablePoints, batch->sql+usedBytes, freeBytes, &cTableSqlLen, info);
-    int32_t safeBound = 2048 * 10;
+    int32_t safeBound = 1024 * 24;
     if (cTableSqlLen < freeBytes - safeBound) {
       usedBytes += cTableSqlLen;
       freeBytes -= cTableSqlLen;
