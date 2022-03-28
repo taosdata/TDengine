@@ -15,6 +15,7 @@
 #include <assert.h>
 #include <stdbool.h>
 
+#include "functionMgt.h"
 #include "nodes.h"
 #include "parToken.h"
 #include "ttokendef.h"
@@ -417,7 +418,7 @@ topic_name(A) ::= NK_ID(B).                                                     
 /************************************************ expression **********************************************************/
 expression(A) ::= literal(B).                                                     { A = B; }
 //expression(A) ::= NK_QUESTION(B).                                                 { A = B; }
-//expression(A) ::= pseudo_column(B).                                               { A = B; }
+expression(A) ::= pseudo_column(B).                                               { A = B; }
 expression(A) ::= column_reference(B).                                            { A = B; }
 expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).             { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 expression(A) ::= function_name(B) NK_LP NK_STAR(C) NK_RP(D).                     { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, createNodeList(pCxt, createColumnNode(pCxt, NULL, &C)))); }
@@ -467,7 +468,38 @@ expression_list(A) ::= expression_list(B) NK_COMMA expression(C).               
 column_reference(A) ::= column_name(B).                                           { A = createRawExprNode(pCxt, &B, createColumnNode(pCxt, NULL, &B)); }
 column_reference(A) ::= table_name(B) NK_DOT column_name(C).                      { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 
-//pseudo_column(A) ::= NK_NOW.                                                      { A = createFunctionNode(pCxt, NULL, NULL); }
+//pseudo_column(A) ::= NK_NOW.                                                    { A = createFunctionNode(pCxt, NULL, NULL); }
+pseudo_column(A) ::=  NK_UNDERLINE(B) ROWTS(C).                                   {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawExprNode(pCxt, &t, createFunctionNode(pCxt, &t, NULL));
+                                                                                  }
+pseudo_column(A) ::=  TBNAME(B).                                                  { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::=  NK_UNDERLINE(B) QSTARTTS(C).                                {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawExprNode(pCxt, &t, createFunctionNode(pCxt, &t, NULL));
+                                                                                  }
+pseudo_column(A) ::=  NK_UNDERLINE(B) QENDTS(C).                                  {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawExprNode(pCxt, &t, createFunctionNode(pCxt, &t, NULL));
+                                                                                  }
+pseudo_column(A) ::=  NK_UNDERLINE(B) WSTARTTS(C).                                {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawExprNode(pCxt, &t, createFunctionNode(pCxt, &t, NULL));
+                                                                                  }
+pseudo_column(A) ::=  NK_UNDERLINE(B) WENDTS(C).                                  {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawExprNode(pCxt, &t, createFunctionNode(pCxt, &t, NULL));
+                                                                                  }
+pseudo_column(A) ::=  NK_UNDERLINE(B) WDURATION(C).                               {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawExprNode(pCxt, &t, createFunctionNode(pCxt, &t, NULL));
+                                                                                  }
 
 /************************************************ predicate ***********************************************************/
 predicate(A) ::= expression(B) compare_op(C) expression(D).                       {
