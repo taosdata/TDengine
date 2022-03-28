@@ -33,6 +33,7 @@ typedef struct TdMemoryInfo
 #else
 
 #include<execinfo.h>
+
 #define STACKCALL __attribute__((regparm(1), noinline))
 void **STACKCALL taosGetEbp(void) {
   void **ebp = NULL;
@@ -42,6 +43,7 @@ void **STACKCALL taosGetEbp(void) {
                        : "memory"); /* not affect register */
   return (void **)(*ebp);
 }
+
 int32_t taosBackTrace(void **buffer, int32_t size) {
   int32_t frame = 0;
   void **ebp;
@@ -60,6 +62,7 @@ int32_t taosBackTrace(void **buffer, int32_t size) {
   }
   return frame;
 }
+
 #endif
 
 // char **taosBackTraceSymbols(int32_t *size) {
