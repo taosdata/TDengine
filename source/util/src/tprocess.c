@@ -152,7 +152,7 @@ static void taosProcDestroyBuffer(void *pBuffer, int32_t shmid) {
   }
 }
 
-static SProcQueue *taosProcQueueInit(int32_t size) {
+static SProcQueue *taosProcInitQueue(int32_t size) {
   if (size <= 0) size = SHM_DEFAULT_SIZE;
 
   int32_t bufSize = CEIL8(size);
@@ -353,10 +353,10 @@ SProcObj *taosProcInit(const SProcCfg *pCfg) {
   }
 
   pProc->name = pCfg->name;
-  pProc->pChildQueue = taosProcQueueInit(pCfg->childQueueSize);
-  pProc->pParentQueue = taosProcQueueInit(pCfg->parentQueueSize);
+  pProc->pChildQueue = taosProcInitQueue(pCfg->childQueueSize);
+  pProc->pParentQueue = taosProcInitQueue(pCfg->parentQueueSize);
   if (pProc->pChildQueue == NULL || pProc->pParentQueue == NULL) {
-    taosProcQueueCleanup(pProc->pChildQueue);
+    taosProcCleanupQueue(pProc->pChildQueue);
     taosMemoryFree(pProc);
     return NULL;
   }
@@ -450,8 +450,8 @@ void taosProcCleanup(SProcObj *pProc) {
   if (pProc != NULL) {
     uDebug("proc:%s, clean up", pProc->name);
     taosProcStop(pProc);
-    taosProcQueueCleanup(pProc->pChildQueue);
-    taosProcQueueCleanup(pProc->pParentQueue);
+    taosProcCleanupQueue(pProc->pChildQueue);
+    taosProcCleanupQueue(pProc->pParentQueue);
     taosMemoryFree(pProc);
   }
 }
