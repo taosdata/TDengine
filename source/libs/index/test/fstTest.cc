@@ -97,6 +97,7 @@ class FstReadMemory {
       std::string key(ch, sz);
       printf("key: %s, val: %" PRIu64 "\n", key.c_str(), (uint64_t)(rt->out.out));
       swsResultDestroy(rt);
+      result.push_back(rt->out.out);
     }
     for (size_t i = 0; i < result.size(); i++) {
     }
@@ -280,6 +281,11 @@ void checkFstCheckIteratorPrefix() {
   fw->Put("Hello world", 1);
   fw->Put("Hello worle", 2);
   fw->Put("hello worlf", 4);
+  fw->Put("ja", 4);
+  fw->Put("jb", 4);
+  fw->Put("jc", 4);
+  fw->Put("jddddddddd", 4);
+  fw->Put("jefffffff", 4);
   delete fw;
 
   FstReadMemory* m = new FstReadMemory(1024 * 64);
@@ -288,19 +294,32 @@ void checkFstCheckIteratorPrefix() {
     delete m;
     return;
   }
+  {
+    // prefix search
+    std::vector<uint64_t> result;
 
-  // prefix search
-  std::vector<uint64_t> result;
-
-  AutomationCtx* ctx = automCtxCreate((void*)"he", AUTOMATION_PREFIX);
-  m->Search(ctx, result);
-  std::cout << "size: " << result.size() << std::endl;
-  // assert(result.size() == count);
-  for (int i = 0; i < result.size(); i++) {
-    // assert(result[i] == i);  // check result
+    AutomationCtx* ctx = automCtxCreate((void*)"he", AUTOMATION_PREFIX);
+    m->Search(ctx, result);
+    assert(result.size() == 1);
+    taosMemoryFree(ctx);
   }
+  {
+    // prefix search
+    std::vector<uint64_t> result;
 
-  taosMemoryFree(ctx);
+    AutomationCtx* ctx = automCtxCreate((void*)"Hello", AUTOMATION_PREFIX);
+    m->Search(ctx, result);
+    assert(result.size() == 2);
+    taosMemoryFree(ctx);
+  }
+  {
+    std::vector<uint64_t> result;
+
+    AutomationCtx* ctx = automCtxCreate((void*)"jddd", AUTOMATION_PREFIX);
+    m->Search(ctx, result);
+    assert(result.size() == 1);
+    taosMemoryFree(ctx);
+  }
   delete m;
 }
 
