@@ -6363,6 +6363,16 @@ static int32_t doOpenAggregateOptr(SOperatorInfo *pOperator) {
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order);
     doAggregateImpl(pOperator, 0, pInfo->pCtx);
+
+    char *result = NULL;
+    int32_t length = 0;
+    pOperator->encodeResultRow(pOperator, &result, &length);
+    SAggSupporter   *pSup = &pAggInfo->aggSup;
+    taosHashClear(pSup->pResultRowHashTable);
+    pOperator->decodeResultRow(pOperator, result, length);
+    if(result){
+      free(result);
+    }
   }
 
   finalizeQueryResult(pInfo->pCtx, pOperator->numOfOutput);
@@ -6486,7 +6496,7 @@ static bool aggDecodeResultRow(SOperatorInfo* pOperator, char *result, int32_t l
 
     initResultRow(resultRow);
 
-    pInfo->resultRowInfo.pPosition[pInfo->resultRowInfo.size++] = (SResultRowPosition) {.pageId = resultRow->pageId, .offset = resultRow->offset};
+    //pInfo->resultRowInfo.pPosition[pInfo->resultRowInfo.size++] = (SResultRowPosition) {.pageId = resultRow->pageId, .offset = resultRow->offset};
   }
 
   if (offset != length){
