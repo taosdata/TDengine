@@ -577,11 +577,13 @@ SNode* createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pC
 SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral) {
   SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   CHECK_OUT_OF_MEM(val);
-  val->literal = strndup(pLiteral->z, pLiteral->n);
-  if (TK_NK_ID != pLiteral->type && (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
-    trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);
+  if (NULL != pLiteral) {
+    val->literal = strndup(pLiteral->z, pLiteral->n);
+    if (TK_NK_ID != pLiteral->type && (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
+      trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);
+    }
+    CHECK_OUT_OF_MEM(val->literal);
   }
-  CHECK_OUT_OF_MEM(val->literal);
   val->node.resType.type = dataType;
   val->node.resType.bytes = IS_VAR_DATA_TYPE(dataType) ? strlen(val->literal) : tDataTypes[dataType].bytes;
   if (TSDB_DATA_TYPE_TIMESTAMP == dataType) {

@@ -487,7 +487,10 @@ TEST_F(ParserTest, createTable) {
   bind("create table "
        "if not exists test.t1 using test.st1 (tag1, tag2) tags(1, 'abc') "
        "if not exists test.t2 using test.st1 (tag1, tag2) tags(2, 'abc') "
-       "if not exists test.t3 using test.st1 (tag1, tag2) tags(3, 'abc')"
+       "if not exists test.t3 using test.st1 (tag1, tag2) tags(3, 'abc') "
+       "if not exists test.t4 using test.st1 (tag1, tag2) tags(3, null) "
+       "if not exists test.t5 using test.st1 (tag1, tag2) tags(null, 'abc') "
+       "if not exists test.t6 using test.st1 (tag1, tag2) tags(null, null)"
       );
   ASSERT_TRUE(run());
 
