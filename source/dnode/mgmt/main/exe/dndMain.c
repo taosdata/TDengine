@@ -22,6 +22,7 @@ static struct {
   bool    generateGrant;
   bool    printAuth;
   bool    printVersion;
+  int8_t  node;
   char    envFile[PATH_MAX];
   char    apolloUrl[PATH_MAX];
   SDnode *pDnode;
@@ -62,6 +63,8 @@ static int32_t dndParseArgs(int32_t argc, char const *argv[]) {
       tstrncpy(global.envFile, argv[++i], PATH_MAX);
     } else if (strcmp(argv[i], "-k") == 0) {
       global.generateGrant = true;
+    } else if (strcmp(argv[i], "-n") == 0) {
+      global.node = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-C") == 0) {
       global.dumpConfig = true;
     } else if (strcmp(argv[i], "-V") == 0) {
@@ -75,6 +78,7 @@ static int32_t dndParseArgs(int32_t argc, char const *argv[]) {
 
 static void dndGenerateGrant() {
   // grantParseParameter();
+  printf("this feature is not implemented yet\n");
 }
 
 static void dndPrintVersion() {
@@ -116,8 +120,7 @@ static int32_t dndRunDnode() {
   }
 
   SDnodeOpt option = dndGetOpt();
-
-  SDnode *pDnode = dndCreate(&option);
+  SDnode   *pDnode = dndCreate(&option);
   if (pDnode == NULL) {
     dError("failed to to create dnode object since %s", terrstr());
     return -1;
@@ -126,9 +129,9 @@ static int32_t dndRunDnode() {
     dndSetSignalHandle();
   }
 
-  dInfo("start the TDengine service");
+  dInfo("start the service");
   int32_t code = dndRun(pDnode);
-  dInfo("start shutting down the TDengine service");
+  dInfo("start shutting down the service");
 
   global.pDnode = NULL;
   dndClose(pDnode);
