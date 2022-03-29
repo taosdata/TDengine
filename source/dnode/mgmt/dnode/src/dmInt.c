@@ -54,7 +54,7 @@ void dmGetDnodeEp(SMgmtWrapper *pWrapper, int32_t dnodeId, char *pEp, char *pFqd
   taosRUnLockLatch(&pMgmt->latch);
 }
 
-void dmSendRedirectRsp(SDnodeMgmt *pMgmt, SRpcMsg *pReq) {
+void dmSendRedirectRsp(SDnodeMgmt *pMgmt, const SRpcMsg *pReq) {
   SDnode *pDnode = pMgmt->pDnode;
 
   SEpSet epSet = {0};
