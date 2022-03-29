@@ -2,15 +2,15 @@ use std::env;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
-use std::{
-    error::Error,
-    io::BufReader,
-};
+use std::{error::Error, io::BufReader};
 
 use heck::*;
 use regex::Regex;
 
-fn code_from_header(header: impl AsRef<Path>, mut output: impl Write) -> Result<(), Box<dyn Error>> {
+fn code_from_header(
+    header: impl AsRef<Path>,
+    mut output: impl Write,
+) -> Result<(), Box<dyn Error>> {
     let regex = Regex::new(
         r"#define TSDB_CODE_(?P<name>\S+)\s+TAOS_DEF_ERROR_CODE\(0, (?P<code>\S+)\)\s+//.(?P<reason>.*).\)",
     )?;
@@ -18,7 +18,8 @@ fn code_from_header(header: impl AsRef<Path>, mut output: impl Write) -> Result<
     let file = File::open(header)?;
     let buf = BufReader::new(file);
     const NAME: &str = "Code";
-    writeln!(output, 
+    writeln!(
+        output,
         r#"
 use std::fmt;
 
@@ -64,7 +65,8 @@ pub enum {NAME} {{
         writeln!(output, "    /// {}: {}", name, reason)?;
         writeln!(output, "    {} = {},", name.to_upper_camel_case(), code)?;
     }
-    writeln!(output, 
+    writeln!(
+        output,
         r#"
     #[num_enum(default)]
     Failed = 0xffff,
@@ -78,7 +80,8 @@ impl {NAME} {{
 
     for (name, _, reason) in &codes {
         writeln!(output, "    /// {}: {}", name, reason)?;
-        writeln!(output, 
+        writeln!(
+            output,
             "    pub fn {}(&self) -> bool {{\n        matches!(self, {NAME}::{})\n    }}",
             name.to_snake_case(),
             name.to_upper_camel_case()
@@ -86,23 +89,34 @@ impl {NAME} {{
     }
     writeln!(output, r#"}}"#)?;
 
-    writeln!(output,
-    r#"
+    writeln!(
+        output,
+        r#"
 impl {NAME} {{
     pub fn to_str(&self) -> &'static str {{
         use {NAME}::*;
         match self {{
             Success => "Success",
-"#)?;
+"#
+    )?;
     for (name, _, reason) in &codes {
-        writeln!(output, r#"            {} => "{reason}","#, name.to_upper_camel_case())?;
+        writeln!(
+            output,
+            r#"            {} => "{reason}","#,
+            name.to_upper_camel_case()
+        )?;
     }
-        writeln!(output, r#"            Failed => "Unknown or needn't tell detail error","#)?;
-    writeln!(output,
-    r#"        }}
+    writeln!(
+        output,
+        r#"            Failed => "Unknown or needn't tell detail error","#
+    )?;
+    writeln!(
+        output,
+        r#"        }}
     }}
 }}
-"#)?;
+"#
+    )?;
     Ok(())
 }
 

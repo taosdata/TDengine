@@ -8,7 +8,7 @@ use std::{
 use bitvec_simd::BitVec;
 
 use serde::de::{self, Visitor};
-use taos_sys::{TAOS_FIELD};
+use taos_sys::TAOS_FIELD;
 
 use crate::{Result, TaosError};
 

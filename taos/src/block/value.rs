@@ -2,7 +2,6 @@ use serde::de;
 
 use crate::timestamp::TimestampValue;
 
-
 #[derive(Debug)]
 pub enum BorrowedValue<'block> {
     Null,        // 0
@@ -127,9 +126,7 @@ impl<'de> serde::de::Deserializer<'de> for BorrowedValue<'de> {
     }
 }
 
-impl<'de> serde::de::IntoDeserializer<'de, taos_error::Error>
-    for BorrowedValue<'de>
-{
+impl<'de> serde::de::IntoDeserializer<'de, taos_error::Error> for BorrowedValue<'de> {
     type Deserializer = Self;
 
     fn into_deserializer(self) -> Self::Deserializer {

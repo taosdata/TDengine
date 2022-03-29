@@ -1,4 +1,8 @@
-use std::{borrow::Cow, ffi::{CStr, CString}, os::raw::c_char};
+use std::{
+    borrow::Cow,
+    ffi::{CStr, CString},
+    os::raw::c_char,
+};
 
 use taos_sys::{tmq_topic_vgroup_list_t, tmq_topic_vgroup_t};
 
@@ -7,4 +11,3 @@ use crate::util::ToCString;
 pub struct Offsets(pub(crate) *const tmq_topic_vgroup_list_t);
 
 pub struct Offset(pub(crate) *const tmq_topic_vgroup_t);
-

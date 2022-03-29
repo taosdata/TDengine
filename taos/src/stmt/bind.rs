@@ -1,5 +1,5 @@
-use taos_sys::*;
 use crate::*;
+use taos_sys::*;
 
 use chrono::{DateTime, NaiveDateTime};
 use paste::paste;
@@ -47,7 +47,7 @@ impl BindParam {
         null.0.is_null = Box::into_raw(v) as _;
         null
     }
-    
+
     unsafe fn free(&mut self) {
         if !self.0.buffer.is_null() {
             Vec::from_raw_parts(self.0.buffer as _, *self.0.length, *self.0.length);

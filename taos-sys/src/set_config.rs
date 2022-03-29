@@ -8,7 +8,6 @@ pub const SET_CONF_RET_ERR_JSON_PARSE: SET_CONF_RET_CODE = SET_CONF_RET_CODE::Er
 pub const SET_CONF_RET_ERR_ONLY_ONCE: SET_CONF_RET_CODE = SET_CONF_RET_CODE::ErrOnlyOnce;
 pub const SET_CONF_RET_ERR_TOO_LONG: SET_CONF_RET_CODE = SET_CONF_RET_CODE::ErrTooLong;
 
-
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct SetConfRet {
@@ -29,5 +28,5 @@ pub enum SET_CONF_RET_CODE {
 }
 
 extern "C" {
-  pub fn taos_set_config(config: *const c_char) -> SetConfRet;
+    pub fn taos_set_config(config: *const c_char) -> SetConfRet;
 }

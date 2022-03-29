@@ -74,7 +74,7 @@ extern "C" {
     pub fn tmq_subscribe(tmq: *mut tmq_t, topic_list: *mut tmq_list_t) -> tmq_resp_err_t;
 
     pub fn tmq_unsubscribe(tmq: *mut tmq_t) -> tmq_resp_err_t;
-    
+
     pub fn tmq_subscription(tmq: *mut tmq_t, topic_list: *mut *mut tmq_list_t) -> tmq_resp_err_t;
 
     pub fn tmq_consumer_poll(tmq: *mut tmq_t, blocking_time: i64) -> *mut tmq_message_t;
