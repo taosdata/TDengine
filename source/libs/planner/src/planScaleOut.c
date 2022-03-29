@@ -167,6 +167,8 @@ static int32_t doScaleOut(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32
 
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyList(pCurrentGroup);
+  } else {
+    nodesClearList(pCurrentGroup);
   }
 
   return code;

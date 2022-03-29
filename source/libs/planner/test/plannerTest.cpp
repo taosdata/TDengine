@@ -248,6 +248,11 @@ TEST_F(PlannerTest, showTables) {
 
   bind("show tables");
   ASSERT_TRUE(run());
+
+  setDatabase("root", "information_schema");
+
+  bind("show tables");
+  ASSERT_TRUE(run());
 }
 
 TEST_F(PlannerTest, showStables) {

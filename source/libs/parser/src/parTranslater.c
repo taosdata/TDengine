@@ -228,6 +228,9 @@ static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* p
   pCol->colType = isTag ? COLUMN_TYPE_TAG : COLUMN_TYPE_COLUMN;
   pCol->node.resType.type = pColSchema->type;
   pCol->node.resType.bytes = pColSchema->bytes;
+  if (TSDB_DATA_TYPE_TIMESTAMP == pCol->node.resType.type) {
+    pCol->node.resType.precision = pTable->pMeta->tableInfo.precision;
+  }
 }
 
 static void setColumnInfoByExpr(const STableNode* pTable, SExprNode* pExpr, SColumnNode* pCol) {
