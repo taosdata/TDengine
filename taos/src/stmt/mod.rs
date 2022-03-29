@@ -1,5 +1,6 @@
 use crate::{block::column::Column, util::IntoCStr, Code, Result, Taos, TaosError, TaosResult};
 use bitvec_simd::BitVec;
+use futures::StreamExt;
 use taos_sys::*;
 
 use std::os::raw::c_void;
@@ -183,6 +184,10 @@ fn test_stmt() {
 #[test]
 fn test_multi_bind() {
     let taos = crate::Taos::new("localhost", "root", "taosdata", "", 0).unwrap();
+    taos.stmt("drop database if exists taos_test_multi_bind")
+        .unwrap()
+        .execute()
+        .unwrap();
     taos.stmt("create database if not exists taos_test_multi_bind keep 3650")
         .unwrap()
         .execute()
@@ -215,27 +220,35 @@ fn test_multi_bind() {
         .execute()
         .unwrap();
 }
-#[test]
-fn test_multi_bind_str() {
+#[tokio::test]
+async fn test_multi_bind_str() {
     let taos = crate::Taos::new("localhost", "root", "taosdata", "", 0).unwrap();
-    taos.stmt("create database if not exists taos_test_multi_bind keep 3650")
+    taos.stmt("drop database if exists taos_test_multi_bind2")
         .unwrap()
         .execute()
         .unwrap();
-    taos.stmt("use taos_test_multi_bind")
+    taos.stmt("create database if not exists taos_test_multi_bind2 keep 3650")
         .unwrap()
         .execute()
         .unwrap();
-    taos.stmt("create table if not exists tb (ts timestamp, v nchar(100)) ")
+    taos.stmt("use taos_test_multi_bind2")
+        .unwrap()
+        .execute()
+        .unwrap();
+    taos.stmt("create table if not exists tb (ts timestamp, v binary(100)) ")
         .unwrap()
         .execute()
         .unwrap();
     let taos =
-        crate::Taos::new("localhost", "root", "taosdata", "taos_test_multi_bind", 0).unwrap();
+        crate::Taos::new("localhost", "root", "taosdata", "taos_test_multi_bind2", 0).unwrap();
     const N: usize = 5;
     let nulls = BitVec::zeros(N);
     let v: Vec<Option<String>> = (0..N).map(|_| Some("hello".to_string())).collect();
     let ints = Column::NChar(v);
+    let v: Vec<Option<Vec<u8>>> = (0..N)
+        .map(|_| Some("hello".to_string().into_bytes()))
+        .collect();
+    let ints = Column::Binary(v);
     let v: Vec<i64> = (0..N).map(|ts| ts as i64 + 1500000000000).collect();
     let ts = Column::Timestamp(nulls, v);
     dbg!(&ts);
@@ -246,7 +259,18 @@ fn test_multi_bind_str() {
     let result = stmt.result().unwrap();
     let rows = result.affected_rows();
     assert_eq!(N, rows);
-    taos.stmt("drop database taos_test_multi_bind")
+
+    let res = taos.query_sync("select * from tb").unwrap();
+    let data: (i64, Option<String>) = res
+        .rows_de_stream()
+        .next()
+        .await
+        .expect("there's no database")
+        .expect("");
+    println!("ts: {}, v: {:?}", data.0, data.1);
+    assert_eq!(data.1, Some("hello".to_string()));
+
+    taos.stmt("drop database taos_test_multi_bind2")
         .unwrap()
         .execute()
         .unwrap();

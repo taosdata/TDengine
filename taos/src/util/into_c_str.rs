@@ -38,17 +38,6 @@ impl<'a> IntoCStr<'a> for &&'a CStr {
     }
 }
 
-/// conflicting implementations of trait `util::into_c_str::IntoCStr<'_>` for type `&std::ffi::CString`
-/// upstream crates may add a new impl of trait `std::convert::AsRef<std::ffi::CString>` for type `std::ffi::CString` in future versions
-// impl<'a, T> IntoCStr<'a> for &'a T
-// where
-//     T: AsRef<CString>,
-// {
-//     fn into_c_str(self) -> Cow<'a, CStr> {
-//         self.as_ref().into_c_str()
-//     }
-// }
-
 impl<'a> IntoCStr<'a> for String {
     fn into_c_str(self) -> Cow<'a, CStr> {
         let v = self.into_bytes();
@@ -69,22 +58,6 @@ macro_rules! _impl_for_str {
 _impl_for_str!(String);
 _impl_for_str!(str);
 _impl_for_str!(&str);
-
-macro_rules! _impl_for_ptr {
-    ($t:ty) => {
-        impl<'a> IntoCStr<'a> for $t {
-            fn into_c_str(self) -> Cow<'a, CStr> {
-                Cow::from(unsafe { CStr::from_ptr(self as _) })
-            }
-        }
-    };
-}
-
-_impl_for_ptr!(*const i8);
-_impl_for_ptr!(*mut i8);
-_impl_for_ptr!(*const u8);
-_impl_for_ptr!(*mut u8);
-_impl_for_ptr!(*mut c_void);
 
 pub struct NullableCStr<'a>(Option<Cow<'a, CStr>>);
 
@@ -136,6 +109,26 @@ where
         rhs.into_nullable_c_str()
     }
 }
+
+macro_rules! _impl_for_ptr {
+    ($t:ty) => {
+        impl<'a> IntoNullableCStr<'a> for $t {
+            fn into_nullable_c_str(self) -> NullableCStr<'a> {
+                NullableCStr(if self.is_null() {
+                    None
+                } else {
+                    Some(Cow::from(unsafe { CStr::from_ptr(self as _) }))
+                })
+            }
+        }
+    };
+}
+
+_impl_for_ptr!(*const i8);
+_impl_for_ptr!(*mut i8);
+_impl_for_ptr!(*const u8);
+_impl_for_ptr!(*mut u8);
+_impl_for_ptr!(*mut c_void);
 
 #[cfg(test)]
 mod test_into_c_str {

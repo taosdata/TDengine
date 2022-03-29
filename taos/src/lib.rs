@@ -1,15 +1,7 @@
-use block::{Block, Row};
+use block::Row;
 use futures::Stream;
-use serde::de::{self, DeserializeOwned};
-use std::{
-    borrow::Cow,
-    ffi::CStr,
-    fmt::{self, Display},
-    future::Future,
-    rc::Rc,
-    str::FromStr,
-    sync::Arc,
-};
+use serde::de::DeserializeOwned;
+use std::{ffi::CStr, future::Future};
 pub use taos_error::{Code, Error};
 use taos_sys::*;
 
@@ -32,6 +24,8 @@ pub mod helpers;
 use helpers::*;
 
 pub mod stream;
+
+mod result;
 
 #[cfg(feature = "tmq")]
 pub mod tmq;
@@ -128,9 +122,6 @@ impl Taos {
 
     pub async fn describe(&self, table: &str) -> Result<Vec<ColumnMeta>> {
         todo!()
-        // self.query(&format!("describe {}", table))
-        //     .await
-        //     .map(TaosDescribe::from)
     }
 }
 
@@ -286,18 +277,8 @@ impl<'a> TaosResult<'a> {
 
     pub fn rows_stream(&self) -> impl Stream<Item = Row> {
         use futures::StreamExt;
-        block::BlockStream::new(self).flat_map(|block| {
-            futures::stream::iter(block.into_iter_rows())
-            // let size = block.num_of_rows();
-
-            // let block = Rc::new(block);
-            // futures::stream::iter(
-            //     std::iter::repeat(block)
-            //         .take(size as _)
-            //         .enumerate()
-            //         .map(|(row_i, block)| Row::new(block)),
-            // )
-        })
+        block::BlockStream::new(self)
+            .flat_map(|block| futures::stream::iter(block.into_iter_rows()))
     }
     pub fn rows_de_stream<T>(&self) -> impl Stream<Item = Result<T>> + '_
     where
@@ -325,23 +306,20 @@ fn test_client_info() {
 }
 
 #[test]
-#[should_panic]
 fn test_err() {
     fn err_with_res() -> Result<()> {
         let taos = Taos::new(
             "localhost",
             std::ptr::null() as *const i8,
             "taosdata",
-            "",
+            std::ptr::null() as *const i8,
             0,
         )?;
-        taos.query_sync("select * from log.logs where")?;
+        taos.query_sync("select * from log.logs")?;
         Ok(())
     }
     err_with_res().unwrap();
 }
-
-// pub mod schemaless;
 
 pub mod stmt;
 

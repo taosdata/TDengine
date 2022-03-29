@@ -24,6 +24,12 @@ pub enum BorrowedValue<'block> {
     Blob(&'block [u8]),
 }
 
+impl<'block> BorrowedValue<'block> {
+    pub fn is_null(&self) -> bool {
+        matches!(self, BorrowedValue::Null)
+    }
+}
+
 impl<'de, 'a, 'block> serde::de::Deserializer<'de> for BorrowedValue<'block> {
     type Error = taos_error::Error;
 
@@ -54,14 +60,17 @@ impl<'de, 'a, 'block> serde::de::Deserializer<'de> for BorrowedValue<'block> {
         }
     }
 
-    fn deserialize_string<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_str<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: serde::de::Visitor<'de>,
     {
         log::debug!("call deserialize_string");
         use BorrowedValue::*;
         match self {
-            Null => visitor.visit_none(),
+            Null => visitor.visit_str(""), // todo: empty string or error?
+            // Null => Err(Self::Error::from_string(
+                // "expect non-optional String, but value is null",
+            // )),
             Bool(v) => visitor.visit_bool(v),
             TinyInt(v) => visitor.visit_i8(v),
             SmallInt(v) => visitor.visit_i16(v),
@@ -73,26 +82,43 @@ impl<'de, 'a, 'block> serde::de::Deserializer<'de> for BorrowedValue<'block> {
             UBigInt(v) => visitor.visit_u64(v),
             Float(v) => visitor.visit_f32(v),
             Double(v) => visitor.visit_f64(v),
-            Binary(v) => visitor.visit_bytes(v),
+            Binary(v) | Json(v) => std::str::from_utf8(v)
+                .map_err(|s| <Self::Error as serde::de::Error>::custom(s))
+                .and_then(|s| visitor.visit_str(s)),
             NChar(v) => visitor.visit_str(v),
-            Json(v) => visitor.visit_bytes(v),
-            Timestamp(v) => visitor.visit_string(dbg!(v
-                .to_naive_datetime()
-                .format("%Y-%m-%dT%H:%M:%S%.f")
-                .to_string())),
+            Timestamp(v) => visitor.visit_string(
+                v.to_naive_datetime()
+                    .format("%Y-%m-%dT%H:%M:%S%.f")
+                    .to_string(),
+            ),
             _ => Err(Self::Error::from_string("un supported type to deserialize")),
         }
     }
-    fn deserialize_str<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+
+    fn deserialize_string<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: serde::de::Visitor<'de>,
     {
         log::debug!("call deserialize_str");
-        self.deserialize_string(visitor)
+        self.deserialize_str(visitor)
     }
 
+    fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        log::debug!("call deserialize_option");
+        if self.is_null() {
+            visitor.visit_none()
+        } else {
+            visitor.visit_some(self)
+        }
+    }
+
+    
+
     serde::forward_to_deserialize_any! {
-        bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char unit option
+        bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char unit
         seq bytes byte_buf map unit_struct newtype_struct
         tuple_struct struct tuple enum identifier ignored_any
     }

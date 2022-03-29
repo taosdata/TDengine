@@ -1,10 +1,7 @@
-use std::{borrow::Borrow, ops::Mul};
-
 use bitvec_simd::BitVec;
 use itertools::Itertools;
-use taos_sys::{TaosDataType, TAOS_MULTI_BIND};
 
-use crate::{stmt::MultiBind, timestamp::TimestampValue};
+use crate::stmt::MultiBind;
 
 use super::value::BorrowedValue;
 
@@ -101,11 +98,11 @@ impl<'block> BorrowedColumn<'block> {
         }
     }
 
-    fn get(&self, index: usize) -> BorrowedValue<'block> {
+    pub fn get(&self, index: usize) -> BorrowedValue<'block> {
         macro_rules! get_primitive {
             ($target:ident, $nulls:expr, $values:expr) => {
                 paste::paste! {
-                        if unsafe { $nulls.get_unchecked(index) } {
+                    if unsafe { $nulls.get_unchecked(index) } {
                         BorrowedValue::Null
                     } else {
                         BorrowedValue::$target(*unsafe { $values.get_unchecked(index) })
@@ -114,7 +111,7 @@ impl<'block> BorrowedColumn<'block> {
             };
         }
         match self {
-            Self::Null(n) => BorrowedValue::Null,
+            Self::Null(_n) => BorrowedValue::Null,
             Self::Bool(nulls, values) => get_primitive!(Bool, nulls, values),
             Self::TinyInt(nulls, values) => get_primitive!(TinyInt, nulls, values),
             Self::SmallInt(nulls, values) => get_primitive!(SmallInt, nulls, values),
@@ -133,11 +130,11 @@ impl<'block> BorrowedColumn<'block> {
                     // BorrowedValue::Timestamp(TimestampValue::new(*unsafe { values.get_unchecked(index) }, self.precision()))
                     todo!()
                 }
-            },
+            }
             Self::Binary(values) => match unsafe { values.get_unchecked(index) } {
                 Some(bytes) => BorrowedValue::Binary(bytes),
                 None => BorrowedValue::Null,
-            }
+            },
             Self::NChar(values) => BorrowedValue::Null,
             _ => unreachable!(),
         }
