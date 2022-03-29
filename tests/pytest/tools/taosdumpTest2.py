@@ -22,7 +22,7 @@ import string
 import random
 
 
-class TDTestCase:    
+class TDTestCase:
 
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
@@ -32,7 +32,7 @@ class TDTestCase:
         self.numberOfTables = 1
         self.numberOfRecords = 15000
 
-    def getBuildPath(self):
+    def getPath(self, tool="taosdump"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -40,13 +40,14 @@ class TDTestCase:
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
+        paths = []
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ((tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
+                    paths.append(os.path.join(root, tool))
                     break
-        return buildPath
+        return paths[0]
 
     def generateString(self, length):
         chars = string.ascii_uppercase + string.ascii_lowercase
@@ -71,24 +72,23 @@ class TDTestCase:
                     break
             tdSql.execute(sql)
 
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
+        binPath = self.getPath()
+        if (binPath == ""):
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found in %s" % buildPath)
-        binPath = buildPath + "/build/bin/"
+            tdLog.info("taosdump found in %s" % binPath)
 
         os.system("rm /tmp/*.sql")
         os.system("rm /tmp/*.avro*")
         os.system(
-            "%staosdump --databases db -o /tmp " %
+            "%s --databases db -o /tmp " %
             binPath)
 
         tdSql.execute("drop database db")
         tdSql.query("show databases")
         tdSql.checkRows(0)
 
-        os.system("%staosdump -i /tmp -y" % binPath)
+        os.system("%s -i /tmp -y" % binPath)
 
         tdSql.query("show databases")
         tdSql.checkRows(1)
@@ -100,23 +100,28 @@ class TDTestCase:
         tdSql.checkData(0, 0, 'st')
 
         tdSql.query("select count(*) from t1")
-        tdSql.checkData(0, 0, self.numberOfRecords)        
+        tdSql.checkData(0, 0, self.numberOfRecords)
 
         # test case for TS-1225
         tdSql.execute("create database test")
         tdSql.execute("use test")
-        tdSql.execute("create table stb(ts timestamp, c1 binary(16374), c2 binary(16374), c3 binary(16374)) tags(t1 nchar(256))")
-        tdSql.execute("insert into t1 using stb tags('t1') values(now, '%s', '%s', '%s')" % (self.generateString(16374), self.generateString(16374), self.generateString(16374)))
-        
+        tdSql.execute(
+            "create table stb(ts timestamp, c1 binary(16374), c2 binary(16374), c3 binary(16374)) tags(t1 nchar(256))")
+        tdSql.execute(
+            "insert into t1 using stb tags('t1') values(now, '%s', '%s', '%s')" %
+            (self.generateString(16374),
+             self.generateString(16374),
+             self.generateString(16374)))
+
         os.system("rm /tmp/*.sql")
         os.system("rm /tmp/*.avro*")
-        os.system("%staosdump -D test -o /tmp -y" % binPath)
+        os.system("%s -D test -o /tmp -y" % binPath)
 
         tdSql.execute("drop database test")
         tdSql.query("show databases")
         tdSql.checkRows(1)
 
-        os.system("%staosdump -i /tmp -y" % binPath)
+        os.system("%s -i /tmp -y" % binPath)
 
         tdSql.execute("use test")
         tdSql.error("show vnodes '' ")

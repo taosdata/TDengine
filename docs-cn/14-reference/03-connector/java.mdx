@@ -357,7 +357,7 @@ JDBC 连接器可能报错的错误码包括 3 种：JDBC driver 本身的报错
 - https://github.com/taosdata/TDengine/blob/develop/src/connector/jdbc/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java
 - https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h
 
-### <a class="anchor" id="stmt-java"></a>通过参数绑定写入数据
+### 通过参数绑定写入数据
 
 从 2.1.2.0 版本开始，TDengine 的 JDBC-JNI 实现大幅改进了参数绑定方式对数据写入（INSERT）场景的支持。采用这种方式写入数据时，能避免 SQL 语法解析的资源消耗，从而在很多情况下显著提升写入性能。
 注意：
@@ -626,7 +626,47 @@ public void setString(int columnIndex, ArrayList<String> list, int size) throws 
 public void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 ```
 
-### <a class="anchor" id="set-client-configuration"></a>设置客户端参数
+### 无模式写入
+
+从 2.2.0.0 版本开始，TDengine 增加了对无模式写入功能。无模式写入兼容 InfluxDB 的 行协议（Line Protocol）、OpenTSDB 的 telnet 行协议和 OpenTSDB 的 JSON 格式协议。详情请参见[无模式写入](https://www.taosdata.com/docs/cn/v2.0/insert#schemaless)。
+
+注意：
+
+- JDBC-RESTful 实现并不提供无模式写入这种使用方式
+- 以下示例代码基于 taos-jdbcdriver-2.0.36
+
+示例代码：
+
+```java
+public class SchemalessInsertTest {
+    private static final String host = "127.0.0.1";
+    private static final String lineDemo = "st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000";
+    private static final String telnetDemo = "stb0_0 1626006833 4 host=host0 interface=eth0";
+    private static final String jsonDemo = "{\"metric\": \"meter_current\",\"timestamp\": 1346846400,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"Beijing\", \"id\": \"d1001\"}}";
+
+    public static void main(String[] args) throws SQLException {
+        final String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
+        try (Connection connection = DriverManager.getConnection(url)) {
+            init(connection);
+
+            SchemalessWriter writer = new SchemalessWriter(connection);
+            writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS);
+            writer.write(telnetDemo, SchemalessProtocolType.TELNET, SchemalessTimestampType.MILLI_SECONDS);
+            writer.write(jsonDemo, SchemalessProtocolType.JSON, SchemalessTimestampType.NOT_CONFIGURED);
+        }
+    }
+
+    private static void init(Connection connection) throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate("drop database if exists test_schemaless");
+            stmt.executeUpdate("create database if not exists test_schemaless");
+            stmt.executeUpdate("use test_schemaless");
+        }
+    }
+}
+```
+
+### 设置客户端参数
 
 从 TDengine-2.3.5.0 版本开始，jdbc driver 支持在应用的第一次连接中，设置 TDengine 的客户端参数。Driver 支持 JDBC-JNI 方式中，通过 jdbcUrl 和 properties 两种方式设置 client parameter。
 注意：
@@ -687,7 +727,7 @@ public class ClientParameterSetting {
 }
 ```
 
-## <a class="anchor" id="subscribe"></a>订阅
+## 订阅
 
 ### 创建
 
