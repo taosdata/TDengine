@@ -9,9 +9,8 @@ target_sources(tdb
     "src/db/tdbDb.c"
     "src/db/tdbEnv.c"
     "src/db/tdbTxn.c"
+    "src/db/tdbPage.c"
     "src/db/tdbOs.c"
-    "src/page/tdbPage.c"
-    "src/page/tdbPageL.c"
 )
 
 target_include_directories(

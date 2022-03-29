@@ -131,3 +131,9 @@ int tdbDbcClose(TDBC *pDbc) {
 
   return 0;
 }
+
+int tdbDbcInsert(TDBC *pDbc, const void *pKey, int keyLen, const void *pVal, int valLen) {
+  // TODO
+  ASSERT(0);
+  return 0;
+}
