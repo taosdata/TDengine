@@ -363,29 +363,44 @@ void dndSendRpcRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp) {
 }
 
 void dndSendRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp) {
-  if (pWrapper->procType == PROC_CHILD) {
-    int32_t code = -1;
-    do {
-      code = taosProcPutToParentQ(pWrapper->pProc, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, PROC_RSP);
-      if (code != 0) {
-        taosMsleep(10);
-      }
-    } while (code != 0);
-  } else {
+  if (pWrapper->procType != PROC_CHILD) {
     dndSendRpcRsp(pWrapper, pRsp);
+  } else {
+    while (taosProcPutToParentQ(pWrapper->pProc, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, PROC_RSP) != 0) {
+      taosMsleep(1);
+    }
   }
 }
 
 void dndRegisterBrokenLinkArg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
-  if (pWrapper->procType == PROC_CHILD) {
-    int32_t code = -1;
-    do {
-      code = taosProcPutToParentQ(pWrapper->pProc, pMsg, sizeof(SRpcMsg), pMsg->pCont, pMsg->contLen, PROC_REGISTER);
-      if (code != 0) {
-        taosMsleep(10);
-      }
-    } while (code != 0);
-  } else {
+  if (pWrapper->procType != PROC_CHILD) {
     rpcRegisterBrokenLinkArg(pMsg);
+  } else {
+    while (taosProcPutToParentQ(pWrapper->pProc, pMsg, sizeof(SRpcMsg), pMsg->pCont, pMsg->contLen, PROC_REG) != 0) {
+      taosMsleep(1);
+    }
   }
+}
+
+void dndReleaseHandle(SMgmtWrapper *pWrapper, void *handle, int8_t type) {
+  if (pWrapper->procType != PROC_CHILD) {
+    rpcReleaseHandle(handle, type);
+  } else {
+    SRpcMsg msg = {.handle = handle, .code = type};
+    while (taosProcPutToParentQ(pWrapper->pProc, &msg, sizeof(SRpcMsg), NULL, 0, PROC_RELEASE) != 0) {
+      taosMsleep(1);
+    }
+  }
+}
+
+SMsgCb dndCreateMsgcb(SMgmtWrapper *pWrapper) {
+  SMsgCb msgCb = {
+      .pWrapper = pWrapper,
+      .registerBrokenLinkArgFp = dndRegisterBrokenLinkArg,
+      .releaseHandleFp = dndReleaseHandle,
+      .sendMnodeReqFp = dndSendReqToMnode,
+      .sendReqFp = dndSendReqToDnode,
+      .sendRspFp = dndSendRsp,
+  };
+  return msgCb;
 }

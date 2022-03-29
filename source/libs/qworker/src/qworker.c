@@ -432,7 +432,7 @@ int32_t qwKillTaskHandle(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 
 
 void qwFreeTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
-  rpcReleaseHandle(ctx->connInfo.handle, TAOS_CONN_SERVER);
+  tmsgReleaseHandle(ctx->connInfo.handle, TAOS_CONN_SERVER);
   ctx->connInfo.handle = NULL;
 
   qwFreeTaskHandle(QW_FPARAMS(), &ctx->taskHandle);
@@ -1282,7 +1282,7 @@ int32_t qwProcessHb(SQWorkerMgmt *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
   QW_LOCK(QW_WRITE, &sch->hbConnLock);
 
   if (sch->hbConnInfo.handle) {
-    rpcReleaseHandle(sch->hbConnInfo.handle, TAOS_CONN_SERVER);
+    tmsgReleaseHandle(sch->hbConnInfo.handle, TAOS_CONN_SERVER);
   }
   
   memcpy(&sch->hbConnInfo, &qwMsg->connInfo, sizeof(qwMsg->connInfo));

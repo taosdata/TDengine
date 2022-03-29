@@ -77,6 +77,8 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     pWrapper->required = dndRequireNode(pWrapper);
     if (!pWrapper->required) continue;
+    SMsgCb msgCb = dndCreateMsgcb(pWrapper);
+    tmsgSetDefaultMsgCb(&msgCb);
 
     if (taosMkDir(pWrapper->path) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -146,8 +148,12 @@ static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, int16_t
          pMsg->ahandle);
 
   switch (ftype) {
-    case PROC_REGISTER:
+    case PROC_REG:
       rpcRegisterBrokenLinkArg(pMsg);
+      break;
+    case PROC_RELEASE:
+      rpcReleaseHandle(pMsg->handle, (int8_t)pMsg->code);
+      rpcFreeCont(pCont);
       break;
     default:
       dndSendRpcRsp(pWrapper, pMsg);
@@ -163,6 +169,9 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     pWrapper->required = dndRequireNode(pWrapper);
     if (!pWrapper->required) continue;
+
+    SMsgCb msgCb = dndCreateMsgcb(pWrapper);
+    tmsgSetDefaultMsgCb(&msgCb);
 
     if (taosMkDir(pWrapper->path) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);

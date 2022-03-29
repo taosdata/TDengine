@@ -33,6 +33,7 @@
 #include "tthread.h"
 #include "ttime.h"
 #include "tworker.h"
+#include "tmsgcb.h"
 
 #include "dnode.h"
 #include "monitor.h"
@@ -140,6 +141,8 @@ int32_t dndSendReqToMnode(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 int32_t dndSendReqToDnode(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pMsg);
 void    dndSendRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp);
 void    dndRegisterBrokenLinkArg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
+void    dndReleaseHandle(SMgmtWrapper *pWrapper, void *handle, int8_t type);
+SMsgCb  dndCreateMsgcb(SMgmtWrapper *pWrapper);
 
 int32_t dndProcessNodeMsg(SDnode *pDnode, SNodeMsg *pMsg);
 int32_t dndReadFile(SMgmtWrapper *pWrapper, bool *pDeployed);

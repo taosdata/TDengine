@@ -16,6 +16,10 @@
 #define _DEFAULT_SOURCE
 #include "tmsgcb.h"
 
+static SMsgCb tsDefaultMsgCb;
+
+void tmsgSetDefaultMsgCb(const SMsgCb* pMsgCb) { tsDefaultMsgCb = *pMsgCb; }
+
 int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq) {
   return (*pMsgCb->queueFps[qtype])(pMsgCb->pWrapper, pReq);
 }
@@ -38,6 +42,6 @@ void tmsgRegisterBrokenLinkArg(const SMsgCb* pMsgCb, SRpcMsg* pMsg) {
   (*pMsgCb->registerBrokenLinkArgFp)(pMsgCb->pWrapper, pMsg);
 }
 
-void tmsgReleaseHandle(const SMsgCb* pMsgCb, void* handle, int8_t type) {
-  (*pMsgCb->releaseHandleFp)(pMsgCb->pWrapper, handle, type);
+void tmsgReleaseHandle(void* handle, int8_t type) {
+  (*tsDefaultMsgCb.releaseHandleFp)(tsDefaultMsgCb.pWrapper, handle, type);
 }
