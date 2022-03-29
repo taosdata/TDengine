@@ -294,8 +294,8 @@ void checkFstCheckIterator1() {
   for (int i = 0; i < result.size(); i++) {
     // assert(result[i] == i);  // check result
   }
+  automCtxDestroy(ctx);
 
-  taosMemoryFree(ctx);
   delete m;
 }
 void checkFstCheckIterator2() {
@@ -508,6 +508,7 @@ void checkFstCheckIteratorRange2() {
     assert(result.size() == 3);
     automCtxDestroy(ctx);
   }
+  delete m;
 }
 
 void fst_get(Fst* fst) {
