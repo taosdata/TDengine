@@ -27,6 +27,72 @@ struct SMetaDB {
   TDB  *pCtbIdx;
 };
 
+typedef struct __attribute__((__packed__)) {
+  tb_uid_t uid;
+  int32_t  sver;
+} SSchemaDbKey;
+
+typedef struct {
+  char    *name;
+  tb_uid_t uid;
+} SNameIdxKey;
+
+typedef struct {
+  tb_uid_t suid;
+  tb_uid_t uid;
+} SCtbIdxKey;
+
+static inline int metaUidCmpr(const void *arg1, int len1, const void *arg2, int len2) {
+  tb_uid_t uid1, uid2;
+
+  ASSERT(len1 == sizeof(tb_uid_t));
+  ASSERT(len2 == sizeof(tb_uid_t));
+
+  uid1 = ((tb_uid_t *)arg1)[0];
+  uid2 = ((tb_uid_t *)arg2)[1];
+
+  if (uid1 < uid2) {
+    return -1;
+  }
+  if (uid1 == uid2) {
+    return 0;
+  } else {
+    return 1;
+  }
+}
+
+static inline int metaSchemaKeyCmpr(const void *arg1, int len1, const void *arg2, int len2) {
+  int           c;
+  SSchemaDbKey *pKey1 = (SSchemaDbKey *)arg1;
+  SSchemaDbKey *pKey2 = (SSchemaDbKey *)arg2;
+
+  c = metaUidCmpr(arg1, sizeof(tb_uid_t), arg2, sizeof(tb_uid_t));
+  if (c) return c;
+
+  if (pKey1->sver > pKey2->sver) {
+    return 1;
+  } else if (pKey1->sver == pKey2->sver) {
+    return 0;
+  } else {
+    return -1;
+  }
+}
+
+static inline int metaNameIdxCmpr(const void *arg1, int len1, const void *arg2, int len2) {
+  return strcmp((char *)arg1, (char *)arg2);
+}
+
+static inline int metaCtbIdxCmpr(const void *arg1, int len1, const void *arg2, int len2) {
+  int         c;
+  SCtbIdxKey *pKey1 = (SCtbIdxKey *)arg1;
+  SCtbIdxKey *pKey2 = (SCtbIdxKey *)arg2;
+
+  c = metaUidCmpr(arg1, sizeof(tb_uid_t), arg2, sizeof(tb_uid_t));
+  if (c) return c;
+
+  return metaUidCmpr(&pKey1->uid, sizeof(tb_uid_t), &pKey2->uid, sizeof(tb_uid_t));
+}
+
 int metaOpenDB(SMeta *pMeta) {
   SMetaDB *pMetaDb;
   int      ret;
@@ -48,7 +114,7 @@ int metaOpenDB(SMeta *pMeta) {
   }
 
   // open table DB
-  ret = tdbDbOpen("table.db", sizeof(tb_uid_t), TDB_VARIANT_LEN, NULL /*TODO*/, pMetaDb->pEnv, &(pMetaDb->pTbDB));
+  ret = tdbDbOpen("table.db", sizeof(tb_uid_t), TDB_VARIANT_LEN, metaUidCmpr, pMetaDb->pEnv, &(pMetaDb->pTbDB));
   if (ret < 0) {
     // TODO
     ASSERT(0);
@@ -56,7 +122,7 @@ int metaOpenDB(SMeta *pMeta) {
   }
 
   // open schema DB
-  ret = tdbDbOpen("schema.db", sizeof(tb_uid_t) + sizeof(int32_t), TDB_VARIANT_LEN, NULL /*TODO*/, pMetaDb->pEnv,
+  ret = tdbDbOpen("schema.db", sizeof(tb_uid_t) + sizeof(int32_t), TDB_VARIANT_LEN, metaSchemaKeyCmpr, pMetaDb->pEnv,
                   &(pMetaDb->pSchemaDB));
   if (ret < 0) {
     // TODO
@@ -64,28 +130,28 @@ int metaOpenDB(SMeta *pMeta) {
     return -1;
   }
 
-  ret = tdbDbOpen("name.idx", TDB_VARIANT_LEN, 0, NULL /*TODO*/, pMetaDb->pEnv, &(pMetaDb->pNameIdx));
+  ret = tdbDbOpen("name.idx", TDB_VARIANT_LEN, 0, metaNameIdxCmpr, pMetaDb->pEnv, &(pMetaDb->pNameIdx));
   if (ret < 0) {
     // TODO
     ASSERT(0);
     return -1;
   }
 
-  ret = tdbDbOpen("stb.idx", sizeof(tb_uid_t), 0, NULL /*TODO*/, pMetaDb->pEnv, &(pMetaDb->pStbIdx));
+  ret = tdbDbOpen("stb.idx", sizeof(tb_uid_t), 0, metaUidCmpr, pMetaDb->pEnv, &(pMetaDb->pStbIdx));
   if (ret < 0) {
     // TODO
     ASSERT(0);
     return -1;
   }
 
-  ret = tdbDbOpen("ntb.idx", sizeof(tb_uid_t), 0, NULL /*TODO*/, pMetaDb->pEnv, &(pMetaDb->pNtbIdx));
+  ret = tdbDbOpen("ntb.idx", sizeof(tb_uid_t), 0, metaUidCmpr, pMetaDb->pEnv, &(pMetaDb->pNtbIdx));
   if (ret < 0) {
     // TODO
     ASSERT(0);
     return -1;
   }
 
-  ret = tdbDbOpen("ctb.idx", sizeof(tb_uid_t), 0, NULL /*TODO*/, pMetaDb->pEnv, &(pMetaDb->pCtbIdx));
+  ret = tdbDbOpen("ctb.idx", sizeof(tb_uid_t), 0, metaCtbIdxCmpr, pMetaDb->pEnv, &(pMetaDb->pCtbIdx));
   if (ret < 0) {
     // TODO
     ASSERT(0);
