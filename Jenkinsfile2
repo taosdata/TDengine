@@ -36,6 +36,7 @@ def sync_source() {
         } else {
             sh '''
                 cd ${WKC}
+                git clean -fxd
                 git checkout develop
             '''
         }
