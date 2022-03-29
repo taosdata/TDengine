@@ -407,6 +407,11 @@ void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress) {
     // TODO
 }
 
+int taos_load_table_info(TAOS *taos, const char *tableNameList) {
+  // TODO
+  return -1;
+}
+
 TAOS_STMT *taos_stmt_init(TAOS *taos) {
   // TODO
   return NULL;
