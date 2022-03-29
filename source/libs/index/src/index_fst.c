@@ -720,6 +720,7 @@ bool fstNodeFindInput(FstNode* node, uint8_t b, uint64_t* res) {
     uint64_t out = fstStateFindInput(st, node, b, &null);
     if (null == false) {
       *res = out;
+    } else {
       s = false;
     }
   }
@@ -1238,8 +1239,8 @@ bool streamWithStateSeekMin(StreamWithState* sws, FstBoundWithData* min) {
   for (uint32_t i = 0; i < len; i++) {
     uint8_t  b = data[i];
     uint64_t res = 0;
-    bool     null = fstNodeFindInput(node, b, &res);
-    if (null == false) {
+    bool     find = fstNodeFindInput(node, b, &res);
+    if (find == true) {
       FstTransition trn;
       fstNodeGetTransitionAt(node, res, &trn);
       void* preState = autState;

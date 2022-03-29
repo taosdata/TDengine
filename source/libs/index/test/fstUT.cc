@@ -13,9 +13,9 @@
 #include "index_fst_util.h"
 #include "index_tfile.h"
 #include "tglobal.h"
+#include "tlog.h"
 #include "tskiplist.h"
 #include "tutil.h"
-#include "tlog.h"
 
 static std::string dir = "/tmp/index";
 
