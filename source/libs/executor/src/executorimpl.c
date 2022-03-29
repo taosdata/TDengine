@@ -4723,6 +4723,17 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo *pOperator, bool* newgroup) {
 #endif
 }
 
+static void doClearBufferedBlocks(SStreamBlockScanInfo* pInfo) {
+  size_t total = taosArrayGetSize(pInfo->pBlockLists);
+
+  pInfo->validBlockIndex = 0;
+  for(int32_t i = 0; i < total; ++i) {
+    SSDataBlock* p = taosArrayGet(pInfo->pBlockLists, i);
+    blockDataDestroy(p);
+  }
+  taosArrayClear(pInfo->pBlockLists);
+}
+
 static SSDataBlock* doStreamBlockScan(SOperatorInfo *pOperator, bool* newgroup) {
   // NOTE: this operator does never check if current status is done or not
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
@@ -4735,43 +4746,45 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo *pOperator, bool* newgroup) 
   }
 
   if (pInfo->blockType == STREAM_DATA_TYPE_SSDATA_BLOCK) {
-    if (pInfo->blockValid) {
-      pInfo->blockValid = false;  // this block can only be used once.
-      return pInfo->pRes;
-    } else {
+    size_t total = taosArrayGetSize(pInfo->pBlockLists);
+    if (pInfo->validBlockIndex >= total) {
+      doClearBufferedBlocks(pInfo);
       return NULL;
     }
+
+    int32_t current = pInfo->validBlockIndex++;
+    return taosArrayGet(pInfo->pBlockLists, current);
+  } else {
+    SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
+    blockDataCleanup(pInfo->pRes);
+
+    while (tqNextDataBlock(pInfo->readerHandle)) {
+      pTaskInfo->code = tqRetrieveDataBlockInfo(pInfo->readerHandle, pBlockInfo);
+      if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
+        terrno = pTaskInfo->code;
+        return NULL;
+      }
+
+      if (pBlockInfo->rows == 0) {
+        return NULL;
+      }
+
+      pInfo->pRes->pDataBlock = tqRetrieveDataBlock(pInfo->readerHandle);
+      if (pInfo->pRes->pDataBlock == NULL) {
+        // TODO add log
+        pTaskInfo->code = terrno;
+        return NULL;
+      }
+
+      break;
+    }
+
+    // record the scan action.
+    pInfo->numOfExec++;
+    pInfo->numOfRows += pBlockInfo->rows;
+
+    return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
   }
-
-  SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
-  blockDataCleanup(pInfo->pRes);
-
-  while (tqNextDataBlock(pInfo->readerHandle)) {
-    pTaskInfo->code = tqRetrieveDataBlockInfo(pInfo->readerHandle, pBlockInfo);
-    if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
-      terrno = pTaskInfo->code;
-      return NULL;
-    }
-
-    if (pBlockInfo->rows == 0) {
-      return NULL;
-    }
-
-    pInfo->pRes->pDataBlock = tqRetrieveDataBlock(pInfo->readerHandle);
-    if (pInfo->pRes->pDataBlock == NULL) {
-      // TODO add log
-      pTaskInfo->code = terrno;
-      return NULL;
-    }
-
-    break;
-  }
-
-  // record the scan action.
-  pInfo->numOfExec++;
-  pInfo->numOfRows += pBlockInfo->rows;
-
-  return (pBlockInfo->rows == 0)? NULL:pInfo->pRes;
 }
 
 int32_t loadRemoteDataCallback(void* param, const SDataBuf* pMsg, int32_t code) {
@@ -5403,6 +5416,13 @@ SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SSDataBlock*
   tqReadHandleSetColIdList((STqReadHandle* )streamReadHandle, pColList);
   int32_t code = tqReadHandleSetTbUidList(streamReadHandle, pTableIdList);
   if (code != 0) {
+    taosMemoryFreeClear(pInfo);
+    taosMemoryFreeClear(pOperator);
+    return NULL;
+  }
+
+  pInfo->pBlockLists       = taosArrayInit(4, POINTER_BYTES);
+  if (pInfo->pBlockLists == NULL) {
     taosMemoryFreeClear(pInfo);
     taosMemoryFreeClear(pOperator);
     return NULL;
