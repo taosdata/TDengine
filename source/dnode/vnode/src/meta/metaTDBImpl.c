@@ -320,6 +320,8 @@ STbCfg *metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid) {
 STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
   void *pKey;
   void *pVal;
+  void *ppKey;
+  int   pkLen;
   int   kLen;
   int   vLen;
   int   ret;
@@ -327,12 +329,16 @@ STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
   pKey = tbname;
   kLen = strlen(tbname) + 1;
   pVal = NULL;
-  ret = tdbDbGet(pMeta->pDB->pNameIdx, pKey, kLen, &pVal, &vLen);
+  ppKey = NULL;
+  ret = tdbDbPGet(pMeta->pDB->pNameIdx, pKey, kLen, &ppKey, &pkLen, &pVal, &vLen);
   if (ret < 0) {
     return NULL;
   }
 
-  *uid = *(tb_uid_t *)POINTER_SHIFT(pVal, kLen);
+  ASSERT(pkLen == kLen + sizeof(uid));
+
+  *uid = *(tb_uid_t *)POINTER_SHIFT(ppKey, kLen);
+  TDB_FREE(ppKey);
   TDB_FREE(pVal);
 
   return metaGetTbInfoByUid(pMeta, *uid);
