@@ -25,6 +25,7 @@ extern "C" {
 typedef struct SRpcMsg      SRpcMsg;
 typedef struct SEpSet       SEpSet;
 typedef struct SMgmtWrapper SMgmtWrapper;
+
 typedef enum {
   QUERY_QUEUE,
   FETCH_QUEUE,
@@ -38,10 +39,11 @@ typedef enum {
 
 typedef int32_t (*PutToQueueFp)(SMgmtWrapper* pWrapper, SRpcMsg* pReq);
 typedef int32_t (*GetQueueSizeFp)(SMgmtWrapper* pWrapper, int32_t vgId, EQueueType qtype);
-typedef int32_t (*SendReqFp)(SMgmtWrapper* pWrapper, SEpSet* epSet, SRpcMsg* pReq);
+typedef int32_t (*SendReqFp)(SMgmtWrapper* pWrapper, const SEpSet* epSet, SRpcMsg* pReq);
 typedef int32_t (*SendMnodeReqFp)(SMgmtWrapper* pWrapper, SRpcMsg* pReq);
-typedef void (*SendRspFp)(SMgmtWrapper* pWrapper, SRpcMsg* pRsp);
-typedef void (*RegisterBrokenLinkArgFp)(SMgmtWrapper* pWrapper, SRpcMsg *pMsg);
+typedef void (*SendRspFp)(SMgmtWrapper* pWrapper, const SRpcMsg* pRsp);
+typedef void (*RegisterBrokenLinkArgFp)(SMgmtWrapper* pWrapper, SRpcMsg* pMsg);
+typedef void (*ReleaseHandleFp)(SMgmtWrapper* pWrapper, void* handle, int8_t type);
 
 typedef struct {
   SMgmtWrapper*           pWrapper;
@@ -51,14 +53,16 @@ typedef struct {
   SendMnodeReqFp          sendMnodeReqFp;
   SendRspFp               sendRspFp;
   RegisterBrokenLinkArgFp registerBrokenLinkArgFp;
+  ReleaseHandleFp         releaseHandleFp;
 } SMsgCb;
 
 int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq);
 int32_t tmsgGetQueueSize(const SMsgCb* pMsgCb, int32_t vgId, EQueueType qtype);
-int32_t tmsgSendReq(const SMsgCb* pMsgCb, SEpSet* epSet, SRpcMsg* pReq);
+int32_t tmsgSendReq(const SMsgCb* pMsgCb, const SEpSet* epSet, SRpcMsg* pReq);
 int32_t tmsgSendMnodeReq(const SMsgCb* pMsgCb, SRpcMsg* pReq);
-void    tmsgSendRsp(const SMsgCb* pMsgCb, SRpcMsg* pRsp);
+void    tmsgSendRsp(const SMsgCb* pMsgCb, const SRpcMsg* pRsp);
 void    tmsgRegisterBrokenLinkArg(const SMsgCb* pMsgCb, SRpcMsg* pMsg);
+void    tmsgReleaseHandle(const SMsgCb* pMsgCb, void* handle, int8_t type);
 
 #ifdef __cplusplus
 }
