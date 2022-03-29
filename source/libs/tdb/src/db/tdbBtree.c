@@ -251,6 +251,9 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
   *pkLen = cd.kLen;
   *vLen = cd.vLen;
 
+  memcpy(*ppKey, cd.pKey, cd.kLen);
+  memcpy(*ppVal, cd.pVal, cd.vLen);
+
   return 0;
 }
 
