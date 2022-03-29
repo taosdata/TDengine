@@ -640,7 +640,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
   pColList->numOfBound = 0; 
   pColList->boundNullLen = 0;
   memset(pColList->boundColumns, 0, sizeof(col_id_t) * nCols);
-  for (int32_t i = 0; i < nCols; ++i) {
+  for (col_id_t i = 0; i < nCols; ++i) {
     pColList->cols[i].valStat = VAL_STAT_NONE;
   }
 
@@ -691,19 +691,19 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
     SBoundIdxInfo* pColIdx = pColList->colIdxInfo;
-    for (int16_t i = 0; i < pColList->numOfBound; ++i) {
+    for (col_id_t i = 0; i < pColList->numOfBound; ++i) {
       pColIdx[i].schemaColIdx = pColList->boundColumns[i];
       pColIdx[i].boundIdx = i;
     }
     qsort(pColIdx, pColList->numOfBound, sizeof(SBoundIdxInfo), schemaIdxCompar);
-    for (int16_t i = 0; i < pColList->numOfBound; ++i) {
+    for (col_id_t i = 0; i < pColList->numOfBound; ++i) {
       pColIdx[i].finalIdx = i;
     }
     qsort(pColIdx, pColList->numOfBound, sizeof(SBoundIdxInfo), boundIdxCompar);
   }
 
   memset(&pColList->boundColumns[pColList->numOfBound], 0,
-         sizeof(int16_t) * (pColList->numOfCols - pColList->numOfBound));
+         sizeof(col_id_t) * (pColList->numOfCols - pColList->numOfBound));
 
   return TSDB_CODE_SUCCESS;
 }

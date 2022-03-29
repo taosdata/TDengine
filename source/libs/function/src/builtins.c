@@ -291,6 +291,76 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = NULL,
     .sprocessFunc = NULL,
     .finalizeFunc = NULL
+  },
+  {
+    .name = "_rowts",
+    .type = FUNCTION_TYPE_ROWTS,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "tbname",
+    .type = FUNCTION_TYPE_TBNAME,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "_qstartts",
+    .type = FUNCTION_TYPE_QSTARTTS,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "_qendts",
+    .type = FUNCTION_TYPE_QENDTS,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "_wstartts",
+    .type = FUNCTION_TYPE_QSTARTTS,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "_wendts",
+    .type = FUNCTION_TYPE_QENDTS,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "_wduration",
+    .type = FUNCTION_TYPE_WDURATION,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
   }
 };
 
@@ -329,6 +399,13 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       break;
     }
     case FUNCTION_TYPE_CONCAT:
+    case FUNCTION_TYPE_ROWTS:
+    case FUNCTION_TYPE_TBNAME:
+    case FUNCTION_TYPE_QSTARTTS:
+    case FUNCTION_TYPE_QENDTS:
+    case FUNCTION_TYPE_WSTARTTS:
+    case FUNCTION_TYPE_WENDTS:
+    case FUNCTION_TYPE_WDURATION:
       // todo
       break;
 

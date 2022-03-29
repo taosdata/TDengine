@@ -43,7 +43,7 @@ int32_t bmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 // bmWorker.c
 int32_t bmStartWorker(SBnodeMgmt *pMgmt);
 void    bmStopWorker(SBnodeMgmt *pMgmt);
-int32_t bmProcessWriteMsg(SBnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t bmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

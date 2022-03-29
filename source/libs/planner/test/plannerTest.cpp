@@ -192,6 +192,9 @@ TEST_F(PlannerTest, interval) {
 
   bind("SELECT count(*) FROM t1 interval(10s)");
   ASSERT_TRUE(run());
+
+  bind("SELECT _wstartts, _wduration, _wendts, count(*) FROM t1 interval(10s)");
+  ASSERT_TRUE(run());
 }
 
 TEST_F(PlannerTest, sessionWindow) {

@@ -20,7 +20,7 @@ static void dndResetLog(SMgmtWrapper *pMgmt) {
   char logname[24] = {0};
   snprintf(logname, sizeof(logname), "%slog", pMgmt->name);
 
-  dInfo("node:%s, reset log to %s", pMgmt->name, logname);
+  dInfo("node:%s, reset log to %s in child process", pMgmt->name, logname);
   taosCloseLog();
   taosInitLog(logname, 1);
 }
@@ -51,6 +51,7 @@ int32_t dndOpenNode(SMgmtWrapper *pWrapper) {
 
 void dndCloseNode(SMgmtWrapper *pWrapper) {
   dDebug("node:%s, start to close", pWrapper->name);
+  pWrapper->required = false;
   taosWLockLatch(&pWrapper->latch);
   if (pWrapper->deployed) {
     (*pWrapper->fp.closeFp)(pWrapper);
@@ -107,23 +108,25 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
 }
 
 static void dndClearNodesExecpt(SDnode *pDnode, ENodeType except) {
-  dndCleanupServer(pDnode);
+  // dndCleanupServer(pDnode);
   for (ENodeType n = 0; n < NODE_MAX; ++n) {
     if (except == n) continue;
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
-    dndCloseNode(pWrapper);
+    pWrapper->required = false;
   }
 }
 
 static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen) {
-  dTrace("msg:%p, get from child queue", pMsg);
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   pRpc->pCont = pCont;
+  dTrace("msg:%p, get from child process queue, type:%s handle:%p app:%p", pMsg, TMSG_INFO(pRpc->msgType),
+         pRpc->handle, pRpc->ahandle);
 
   NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pRpc->msgType)];
   int32_t   code = (*msgFp)(pWrapper, pMsg);
 
   if (code != 0) {
+    dError("msg:%p, failed to process since code:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
     if (pRpc->msgType & 1U) {
       SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
       dndSendRsp(pWrapper, &rsp);
@@ -135,11 +138,13 @@ static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t
   }
 }
 
-static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRsp, int32_t msgLen, void *pCont, int32_t contLen) {
-  dTrace("msg:%p, get from parent queue", pRsp);
-  pRsp->pCont = pCont;
-  dndSendRpcRsp(pWrapper, pRsp);
-  taosMemoryFree(pRsp);
+static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, int32_t msgLen, void *pCont, int32_t contLen) {
+  pRpc->pCont = pCont;
+  dTrace("msg:%p, get from parent process queue, type:%s handle:%p app:%p", pRpc, TMSG_INFO(pRpc->msgType),
+         pRpc->handle, pRpc->ahandle);
+
+  dndSendRsp(pWrapper, pRpc);
+  taosMemoryFree(pRpc);
 }
 
 static int32_t dndRunInMultiProcess(SDnode *pDnode) {
@@ -178,7 +183,6 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
                      .parentFreeHeadFp = (ProcFreeFp)taosMemoryFree,
                      .parentMallocBodyFp = (ProcMallocFp)rpcMallocCont,
                      .parentFreeBodyFp = (ProcFreeFp)rpcFreeCont,
-                     .testFlag = 0,
                      .pParent = pWrapper,
                      .name = pWrapper->name};
     SProcObj *pProc = taosProcInit(&cfg);
@@ -200,7 +204,7 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
       dInfo("node:%s, will be initialized in child process", pWrapper->name);
       dndOpenNode(pWrapper);
     } else {
-      dInfo("node:%s, will not start in parent process", pWrapper->name);
+      dInfo("node:%s, will not start in parent process, child pid:%d", pWrapper->name, taosProcChildId(pProc));
       pWrapper->procType = PROC_PARENT;
     }
 
@@ -210,16 +214,20 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
     }
   }
 
-#if 0
-  SMgmtWrapper *pWrapper = dndAcquireWrapper(pDnode, DNODE);
-  if (pWrapper->procType == PROC_PARENT && dmStart(pWrapper->pMgmt) != 0) {
-    dndReleaseWrapper(pWrapper);
-    dError("failed to start dnode worker since %s", terrstr());
-    return -1;
+  dndSetStatus(pDnode, DND_STAT_RUNNING);
+
+  for (ENodeType n = 0; n < NODE_MAX; ++n) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+    if (!pWrapper->required) continue;
+    if (pWrapper->fp.startFp == NULL) continue;
+    if (pWrapper->procType == PROC_PARENT && n != DNODE) continue;
+    if (pWrapper->procType == PROC_CHILD && n == DNODE) continue;
+    if ((*pWrapper->fp.startFp)(pWrapper) != 0) {
+      dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
+      return -1;
+    }
   }
 
-  dndReleaseWrapper(pWrapper);
-#endif
   return 0;
 }
 

@@ -15,24 +15,24 @@
 
 #include "tdbInt.h"
 
-int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv) {
-  STEnv *pEnv;
-  int    dsize;
-  int    zsize;
-  u8    *pPtr;
-  int    ret;
+int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, TENV **ppEnv) {
+  TENV *pEnv;
+  int   dsize;
+  int   zsize;
+  u8   *pPtr;
+  int   ret;
 
   *ppEnv = NULL;
 
   dsize = strlen(rootDir);
   zsize = sizeof(*pEnv) + dsize * 2 + strlen(TDB_JOURNAL_NAME) + 3;
 
-  pPtr = (uint8_t *)taosMemoryCalloc(1, zsize);
+  pPtr = (uint8_t *)tdbOsCalloc(1, zsize);
   if (pPtr == NULL) {
     return -1;
   }
 
-  pEnv = (STEnv *)pPtr;
+  pEnv = (TENV *)pPtr;
   pPtr += sizeof(*pEnv);
   // pEnv->rootDir
   pEnv->rootDir = pPtr;
@@ -59,12 +59,12 @@ int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv) 
   return 0;
 }
 
-int tdbEnvClose(STEnv *pEnv) {
+int tdbEnvClose(TENV *pEnv) {
   // TODO
   return 0;
 }
 
-SPager *tdbEnvGetPager(STEnv *pEnv, const char *fname) {
+SPager *tdbEnvGetPager(TENV *pEnv, const char *fname) {
   // TODO
   return NULL;
 }

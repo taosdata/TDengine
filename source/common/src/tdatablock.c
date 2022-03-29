@@ -647,7 +647,6 @@ double blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
 typedef struct SSDataBlockSortHelper {
   SArray*      orderInfo;  // SArray<SBlockOrderInfo>
   SSDataBlock* pDataBlock;
-  bool         nullFirst;
 } SSDataBlockSortHelper;
 
 int32_t dataBlockCompar(const void* p1, const void* p2, const void* param) {
@@ -672,11 +671,11 @@ int32_t dataBlockCompar(const void* p1, const void* p2, const void* param) {
       }
 
       if (rightNull) {
-        return pHelper->nullFirst ? 1 : -1;
+        return pOrder->nullFirst ? 1 : -1;
       }
 
       if (leftNull) {
-        return pHelper->nullFirst ? -1 : 1;
+        return pOrder->nullFirst ? -1 : 1;
       }
     }
 
@@ -907,7 +906,7 @@ static __compar_fn_t getComparFn(int32_t type, int32_t order) {
   }
 }
 
-int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst) {
+int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
   ASSERT(pDataBlock != NULL && pOrderInfo != NULL);
   if (pDataBlock->info.rows <= 1) {
     return TSDB_CODE_SUCCESS;
@@ -922,7 +921,7 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirs
   for (int32_t i = 0; i < taosArrayGetSize(pOrderInfo); ++i) {
     SBlockOrderInfo* pInfo = taosArrayGet(pOrderInfo, i);
 
-    SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, pInfo->colIndex);
+    SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, pInfo->slotId);
     if (pColInfoData->hasNull) {
       sortColumnHasNull = true;
     }
@@ -961,10 +960,10 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirs
 
   int64_t p0 = taosGetTimestampUs();
 
-  SSDataBlockSortHelper helper = {.nullFirst = nullFirst, .pDataBlock = pDataBlock, .orderInfo = pOrderInfo};
+  SSDataBlockSortHelper helper = {.pDataBlock = pDataBlock, .orderInfo = pOrderInfo};
   for (int32_t i = 0; i < taosArrayGetSize(helper.orderInfo); ++i) {
     struct SBlockOrderInfo* pInfo = taosArrayGet(helper.orderInfo, i);
-    pInfo->pColData = taosArrayGet(pDataBlock->pDataBlock, pInfo->colIndex);
+    pInfo->pColData = taosArrayGet(pDataBlock->pDataBlock, pInfo->slotId);
   }
 
   taosqsort(index, rows, sizeof(int32_t), &helper, dataBlockCompar);
@@ -1012,7 +1011,7 @@ SHelper* createTupleIndex_rv(int32_t numOfRows, SArray* pOrderInfo, SSDataBlock*
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SBlockOrderInfo* pInfo = taosArrayGet(pOrderInfo, i);
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, pInfo->colIndex);
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, pInfo->slotId);
     pInfo->pColData = pColInfo;
     sortValLengthPerRow += pColInfo->info.bytes;
   }
@@ -1106,7 +1105,7 @@ int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullF
   // Allocate the additional buffer.
   int64_t p0 = taosGetTimestampUs();
 
-  SSDataBlockSortHelper helper = {.nullFirst = nullFirst, .pDataBlock = pDataBlock, .orderInfo = pOrderInfo};
+  SSDataBlockSortHelper helper = {.pDataBlock = pDataBlock, .orderInfo = pOrderInfo};
 
   uint32_t rows = pDataBlock->info.rows;
   SHelper* index = createTupleIndex_rv(rows, helper.orderInfo, pDataBlock);
