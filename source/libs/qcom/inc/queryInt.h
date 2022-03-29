@@ -32,7 +32,7 @@ typedef struct SQueryExplainRowInfo {
 } SQueryExplainRowInfo;
 
 
-#define QUERY_EXPLAIN_NEWLINE(_format, ...) tlen = snprintf(tbuf + tlen, QUERY_EXPLAIN_MAX_RES_LEN - tlen, _format, __VA_ARGS__)
+#define QUERY_EXPLAIN_NEWLINE(_format, ...) tlen = snprintf(tbuf, QUERY_EXPLAIN_MAX_RES_LEN, _format, __VA_ARGS__)
 #define QUERY_EXPLAIN_APPEND(_format, ...) tlen += snprintf(tbuf + tlen, QUERY_EXPLAIN_MAX_RES_LEN - tlen, _format, __VA_ARGS__)
 
 
