@@ -205,8 +205,7 @@ _exit:
   rpcMsg.contLen = rspLen;
   rpcMsg.code = code;
 
-  rpcSendResponse(&rpcMsg);
-
+  tmsgSendRsp(&rpcMsg);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -276,8 +275,7 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
       .code = 0,
   };
 
-  rpcSendResponse(&rpcMsg);
-
+  tmsgSendRsp(&rpcMsg);
   taosArrayDestroyEx(pArray, freeItemHelper);
   return 0;
 }

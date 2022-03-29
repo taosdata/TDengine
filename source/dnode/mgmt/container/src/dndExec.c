@@ -77,6 +77,8 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     pWrapper->required = dndRequireNode(pWrapper);
     if (!pWrapper->required) continue;
+    SMsgCb msgCb = dndCreateMsgcb(pWrapper);
+    tmsgSetDefaultMsgCb(&msgCb);
 
     if (taosMkDir(pWrapper->path) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -120,8 +122,7 @@ static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int16_t
                                  ProcFuncType ftype) {
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   pRpc->pCont = pCont;
-  dTrace("msg:%p, get from child queue, type:%s handle:%p app:%p", pMsg, TMSG_INFO(pRpc->msgType), pRpc->handle,
-         pRpc->ahandle);
+  dTrace("msg:%p, get from child queue, handle:%p app:%p", pMsg, pRpc->handle, pRpc->ahandle);
 
   NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pRpc->msgType)];
   int32_t   code = (*msgFp)(pWrapper, pMsg);
@@ -142,13 +143,19 @@ static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int16_t
 static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, int16_t msgLen, void *pCont, int32_t contLen,
                                   ProcFuncType ftype) {
   pMsg->pCont = pCont;
-  dTrace("msg:%p, get from parent queue, type:%s handle:%p app:%p", pMsg, TMSG_INFO(pMsg->msgType), pMsg->handle,
-         pMsg->ahandle);
+  dTrace("msg:%p, get from parent queue, handle:%p app:%p", pMsg, pMsg->handle, pMsg->ahandle);
 
   switch (ftype) {
-    case PROC_REGISTER:
+    case PROC_REG:
       rpcRegisterBrokenLinkArg(pMsg);
       break;
+    case PROC_RELEASE:
+      rpcReleaseHandle(pMsg->handle, (int8_t)pMsg->code);
+      rpcFreeCont(pCont);
+      break;
+    case PROC_REQ:
+      // todo send to dnode
+      dndSendReqToMnode(pWrapper, pMsg);
     default:
       dndSendRpcRsp(pWrapper, pMsg);
       break;
@@ -163,6 +170,9 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     pWrapper->required = dndRequireNode(pWrapper);
     if (!pWrapper->required) continue;
+
+    SMsgCb msgCb = dndCreateMsgcb(pWrapper);
+    tmsgSetDefaultMsgCb(&msgCb);
 
     if (taosMkDir(pWrapper->path) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -211,15 +221,23 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
       dndClearNodesExecpt(pDnode, n);
 
       dInfo("node:%s, will be initialized in child process", pWrapper->name);
-      dndOpenNode(pWrapper);
+      if (dndOpenNode(pWrapper) != 0) {
+        dInfo("node:%s, failed to init in child process since %s", pWrapper->name, terrstr());
+        return -1;
+      }
+
+      if (taosProcRun(pProc) != 0) {
+        dError("node:%s, failed to run proc since %s", pWrapper->name, terrstr());
+        return -1;
+      }
+      break;
     } else {
       dInfo("node:%s, will not start in parent process, child pid:%d", pWrapper->name, taosProcChildId(pProc));
       pWrapper->procType = PROC_PARENT;
-    }
-
-    if (taosProcRun(pProc) != 0) {
-      dError("node:%s, failed to run proc since %s", pWrapper->name, terrstr());
-      return -1;
+      if (taosProcRun(pProc) != 0) {
+        dError("node:%s, failed to run proc since %s", pWrapper->name, terrstr());
+        return -1;
+      }
     }
   }
 

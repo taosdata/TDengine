@@ -107,80 +107,54 @@ print rows: $rows
 print $data00 $data01 $data02 $data03
 print $data10 $data11 $data12 $data13
 print $data20 $data21 $data22 $data23
-if $row != 20 then
- return -1
+print $data80 $data81 $data82 $data83
+print $data90 $data91 $data92 $data93
+if $rows != 10 then
+  return -1
 endi
-
-if $data00 != 100 then
- return -1
-endi
-
+#if $data00 != 10 then
+# return -1
+#endi
 if $data01 != 0 then
   return -1
 endi
-
-if $data10 != 100 then
-  return -1
-endi
-
+#if $data10 != 10 then
+#  return -1
+#endi
 if $data11 != 1 then
   return -1
 endi
-
-sql select first(ts),c1 from group_tb0 where c1<20 group by c1;
-if $row != 20 then
-  return -1
-endi
-
-if $data00 != @70-01-01 08:01:40.000@ then
-  return -1
-endi
-
-if $data01 != 0 then
-  return -1
-endi
-
-if $data90 != @70-01-01 08:01:40.009@ then
-  return -1
-endi
-
+#if $data90 != 10 then
+#  return -1
+#endi
 if $data91 != 9 then
   return -1
 endi
 
-sql select first(ts), ts, c1 from group_tb0 where c1 < 20 group by c1;
-print $row
-if $row != 20 then
+sql select first(ts),c1 from group_tb0 group by c1;
+print rows: $rows
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+print $data20 $data21 $data22 $data23
+print $data80 $data81 $data82 $data83
+print $data90 $data91 $data92 $data93
+if $row != 10 then
   return -1
 endi
 
-if $data00 != $data01 then
+if $data00 != @2022-01-01 00:00:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data90 != @2022-01-01 00:00:00.009@ then
+  return -1
+endi
+if $data91 != 9 then
   return -1
 endi
 
-if $data10 != $data11 then
-   return -1
-endi
-
-if $data20 != $data21 then
-   return -1
-endi
-
-if $data90 != $data91 then
-   return -1
-endi
-
-if $data02 != 0 then
-   return -1
-endi
-
-if $data12 != 1 then
-   return -1
-endi
-
-if $data92 != 9 then
-   return -1
-endi
 
 sql select sum(c1), c1, avg(c1), min(c1), max(c2) from group_tb0 where c1 < 20 group by c1;
 if $row != 20 then
