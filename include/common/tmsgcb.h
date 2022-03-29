@@ -61,7 +61,7 @@ int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq);
 int32_t tmsgGetQueueSize(const SMsgCb* pMsgCb, int32_t vgId, EQueueType qtype);
 int32_t tmsgSendReq(const SMsgCb* pMsgCb, const SEpSet* epSet, SRpcMsg* pReq);
 int32_t tmsgSendMnodeReq(const SMsgCb* pMsgCb, SRpcMsg* pReq);
-void    tmsgSendRsp(const SMsgCb* pMsgCb, const SRpcMsg* pRsp);
+void    tmsgSendRsp(const SRpcMsg* pRsp);
 void    tmsgRegisterBrokenLinkArg(const SMsgCb* pMsgCb, SRpcMsg* pMsg);
 void    tmsgReleaseHandle(void* handle, int8_t type);
 
