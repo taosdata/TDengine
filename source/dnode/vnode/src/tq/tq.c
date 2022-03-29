@@ -275,6 +275,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     pMsg->pCont = NULL;
     pMsg->contLen = 0;
     pMsg->code = -1;
+    ASSERT(0);
     rpcSendResponse(pMsg);
     return 0;
   }
@@ -356,6 +357,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   void*   buf = rpcMallocCont(tlen);
   if (buf == NULL) {
     pMsg->code = -1;
+    ASSERT(0);
     return -1;
   }
   ((SMqRspHead*)buf)->mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
