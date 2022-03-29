@@ -84,14 +84,13 @@ static int   tsdbTruncateImplCommon(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo
 
 // delete
 int tsdbControlDelete(STsdbRepo* pRepo, SControlDataInfo* pCtlInfo) {
-  int ret = TSDB_CODE_SUCCESS;
-
+  int32_t ret = tsdbTruncateImplCommon(pRepo, pCtlInfo);
   if(pCtlInfo->pRsp) {
-    pCtlInfo->pRsp->affectedRows = htonl(23);
+    pCtlInfo->pRsp->affectedRows = htonl(pCtlInfo->pRsp->affectedRows);
     pCtlInfo->pRsp->code = ret;
   }
 
-  return tsdbTruncateImplCommon(pRepo, pCtlInfo);
+  return ret;
 }
 
 static int tsdbTruncateImplCommon(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
@@ -518,6 +517,7 @@ static void tsdbTruncateFSetEnd(STruncateH *ptru) { tsdbCloseAndUnsetFSet(&(ptru
 static int32_t tsdbFilterDataCols(STruncateH *ptru, SDataCols *pSrcDCols) {
   SDataCols * pDstDCols = ptru->pDCols;
   SControlData* pCtlData = &ptru->pCtlInfo->ctlData;
+  int32_t delRows = 0;
 
   tdResetDataCols(pDstDCols);
   pDstDCols->maxCols = pSrcDCols->maxCols;
@@ -528,7 +528,8 @@ static int32_t tsdbFilterDataCols(STruncateH *ptru, SDataCols *pSrcDCols) {
   for (int i = 0; i < pSrcDCols->numOfRows; ++i) {
     int64_t tsKey = *(int64_t *)tdGetColDataOfRow(pSrcDCols->cols, i);
     if ((tsKey >= pCtlData->win.skey) && (tsKey <= pCtlData->win.ekey)) {
-      printf("tsKey %" PRId64 " is filtered\n", tsKey);
+      // delete row
+      delRows ++;
       continue;
     }
     for (int j = 0; j < pSrcDCols->numOfCols; ++j) {
@@ -538,6 +539,11 @@ static int32_t tsdbFilterDataCols(STruncateH *ptru, SDataCols *pSrcDCols) {
       }
     }
     ++ pDstDCols->numOfRows;
+  }
+
+  // affectedRows
+  if (ptru->pCtlInfo->pRsp) {
+    ptru->pCtlInfo->pRsp->affectedRows += delRows;
   }
 
   return 0;
@@ -619,21 +625,21 @@ int tsdbRemoveDelBlocks(STruncateH *ptru, STableTruncateH * pItem) {
   // loop
   int numOfBlocks = pItem->pBlkIdx->numOfBlocks;
   int from = -1;
-  int delAll = 0;
-
+  int delRows = 0;
+  
   for (int i = numOfBlocks - 1; i >= 0; --i) {
     SBlock *pBlock = pItem->pInfo->blocks + i;
     int32_t solve = tsdbBlockSolve(ptru, pBlock);
     if (solve == BLOCK_DELETE) {
       if (from == -1)
          from = i;
+      delRows += pBlock->numOfRows;   
     } else {
       if(from != -1) {
         // do del
         int delCnt = from - i;
         memmove(pItem->pInfo->blocks + i + 1, pItem->pInfo->blocks + i + 1 + delCnt, (numOfBlocks - (i+1) - delCnt) * sizeof(SBlock));
-        delAll += delCnt;
-        numOfBlocks  -= delCnt;
+        numOfBlocks -= delCnt;
         from = -1;
       }
     }
@@ -642,14 +648,16 @@ int tsdbRemoveDelBlocks(STruncateH *ptru, STableTruncateH * pItem) {
   if(from != -1) {
     int delCnt = from + 1;
     memmove(pItem->pInfo->blocks, pItem->pInfo->blocks + delCnt, (numOfBlocks - delCnt) * sizeof(SBlock));
-    delAll += delCnt;
-    numOfBlocks  -= delCnt;
+    numOfBlocks -= delCnt;
   }
 
   // set value
   pItem->pBlkIdx->numOfBlocks = numOfBlocks;
+  if(ptru->pCtlInfo->pRsp) {
+    ptru->pCtlInfo->pRsp->affectedRows += delRows;
+  }
 
-  return delAll;
+  return TSDB_CODE_SUCCESS;
 }
 
 static void tsdbAddBlock(STruncateH *ptru, STableTruncateH *pItem, SBlock *pBlock) {
