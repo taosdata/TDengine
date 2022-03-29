@@ -363,7 +363,7 @@ typedef struct {
   int8_t createType;
   int8_t superUser;  // denote if it is a super user or not
   char   user[TSDB_USER_LEN];
-  char   pass[TSDB_PASSWORD_LEN];
+  char   pass[TSDB_USET_PASSWORD_LEN];
 } SCreateUserReq;
 
 int32_t tSerializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
@@ -373,7 +373,7 @@ typedef struct {
   int8_t alterType;
   int8_t superUser;
   char   user[TSDB_USER_LEN];
-  char   pass[TSDB_PASSWORD_LEN];
+  char   pass[TSDB_USET_PASSWORD_LEN];
   char   dbname[TSDB_DB_FNAME_LEN];
 } SAlterUserReq;
 
@@ -565,8 +565,10 @@ typedef struct {
   SArray* pVgroupInfos;  // Array of SVgroupInfo
 } SUseDbRsp;
 
-int32_t tSerializeSUseDbRsp(void* buf, int32_t bufLen, SUseDbRsp* pRsp);
+int32_t tSerializeSUseDbRsp(void* buf, int32_t bufLen, const SUseDbRsp* pRsp);
 int32_t tDeserializeSUseDbRsp(void* buf, int32_t bufLen, SUseDbRsp* pRsp);
+int32_t tSerializeSUseDbRspImp(SCoder* pEncoder, const SUseDbRsp* pRsp);
+int32_t tDeserializeSUseDbRspImp(SCoder* pDecoder, SUseDbRsp* pRsp);
 void    tFreeSUsedbRsp(SUseDbRsp* pRsp);
 
 typedef struct {
@@ -799,7 +801,10 @@ typedef struct SVgroupInfo {
   uint32_t hashBegin;
   uint32_t hashEnd;
   SEpSet   epSet;
-  int32_t  numOfTable;  // unit is TSDB_TABLE_NUM_UNIT
+  union {
+    int32_t numOfTable;  // unit is TSDB_TABLE_NUM_UNIT
+    int32_t taskId;      // used in stream
+  };
 } SVgroupInfo;
 
 typedef struct {

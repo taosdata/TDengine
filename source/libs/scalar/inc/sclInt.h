@@ -43,10 +43,12 @@ typedef struct SScalarCtx {
 #define SCL_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
 #define SCL_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
 
+int32_t doConvertDataType(SValueNode* pValueNode, SScalarParam* out);
+SColumnInfoData* createColumnInfoData(SDataType* pType, int32_t numOfRows);
 
-int32_t sclMoveParamListData(SScalarParam *params, int32_t listNum, int32_t idx);
-bool sclIsNull(SScalarParam* param, int32_t idx);
-void sclSetNull(SScalarParam* param, int32_t idx);
+#define GET_PARAM_TYPE(_c)   ((_c)->columnData->info.type)
+#define GET_PARAM_BYTES(_c)  ((_c)->pColumnInfoData->info.bytes)
+
 void sclFreeParam(SScalarParam *param);
 
 #ifdef __cplusplus

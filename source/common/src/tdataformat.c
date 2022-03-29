@@ -123,7 +123,7 @@ void *tdDecodeSchema(void *buf, STSchema **pRSchema) {
   return buf;
 }
 
-int tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version) {
+int tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version) {
   if (pBuilder == NULL) return -1;
 
   pBuilder->tCols = 256;
@@ -140,7 +140,7 @@ void tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder) {
   }
 }
 
-void tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version) {
+void tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version) {
   pBuilder->nCols = 0;
   pBuilder->tlen = 0;
   pBuilder->flen = 0;
@@ -167,6 +167,9 @@ int tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, col_id_t colId, col
     STColumn *pTCol = &(pBuilder->columns[pBuilder->nCols - 1]);
     colSetOffset(pCol, pTCol->offset + TYPE_BYTES[pTCol->type]);
   }
+
+  // TODO: set sma value by user input
+  pCol->sma = 1;
 
   if (IS_VAR_DATA_TYPE(type)) {
     colSetBytes(pCol, bytes);

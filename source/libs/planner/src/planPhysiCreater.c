@@ -36,10 +36,6 @@ typedef struct SPhysiPlanContext {
 } SPhysiPlanContext;
 
 static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char* pKey) {
-  if (QUERY_NODE_ORDER_BY_EXPR == nodeType(pNode)) {
-    return getSlotKey(((SOrderByExprNode*)pNode)->pExpr, pStmtName, pKey);
-  }
-
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
     if (NULL != pStmtName) {
@@ -184,15 +180,16 @@ static int32_t addDataBlockSlotsImpl(SPhysiPlanContext* pCxt, SNodeList* pList, 
   int16_t nextSlotId = taosHashGetSize(pHash), slotId = 0;
   SNode* pNode = NULL;
   FOREACH(pNode, pList) {
+    SNode* pExpr = QUERY_NODE_ORDER_BY_EXPR == nodeType(pNode) ? ((SOrderByExprNode*)pNode)->pExpr : pNode;
     char name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN] = {0};
-    int32_t len = getSlotKey(pNode, pStmtName, name);
+    int32_t len = getSlotKey(pExpr, pStmtName, name);
     SSlotIndex* pIndex = taosHashGet(pHash, name, len);
     if (NULL == pIndex) {
-      code = nodesListStrictAppend(pDataBlockDesc->pSlots, createSlotDesc(pCxt, pNode, nextSlotId, output));
+      code = nodesListStrictAppend(pDataBlockDesc->pSlots, createSlotDesc(pCxt, pExpr, nextSlotId, output));
       if (TSDB_CODE_SUCCESS == code) {
         code = putSlotToHashImpl(pDataBlockDesc->dataBlockId, nextSlotId, name, len, pHash);
       }
-      pDataBlockDesc->resultRowSize += ((SExprNode*)pNode)->resType.bytes;
+      pDataBlockDesc->resultRowSize += ((SExprNode*)pExpr)->resType.bytes;
       slotId = nextSlotId;
       ++nextSlotId;
     } else {
@@ -600,7 +597,7 @@ static EDealRes doRewritePrecalcExprs(SNode** pNode, void* pContext) {
       return collectAndRewrite(pContext, pNode);
     }
     case QUERY_NODE_FUNCTION: {
-      if (!fmIsAggFunc(((SFunctionNode*)(*pNode))->funcId)) {
+      if (fmIsScalarFunc(((SFunctionNode*)(*pNode))->funcId)) {
         return collectAndRewrite(pContext, pNode);
       }
     }

@@ -545,7 +545,33 @@ TAOS* taos_connect_l(const char* ip, int ipLen, const char* user, int userLen, c
   return taos_connect(ipStr, userStr, passStr, dbStr, port);
 }
 
-void* doFetchRow(SRequestObj* pRequest) {
+static void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
+  for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
+    SResultColumn* pCol = &pResultInfo->pCol[i];
+
+    int32_t type = pResultInfo->fields[i].type;
+    int32_t bytes = pResultInfo->fields[i].bytes;
+
+    if (IS_VAR_DATA_TYPE(type)) {
+      if (pCol->offset[pResultInfo->current] != -1) {
+        char* pStart = pResultInfo->pCol[i].offset[pResultInfo->current] + pResultInfo->pCol[i].pData;
+
+        pResultInfo->length[i] = varDataLen(pStart);
+        pResultInfo->row[i] = varDataVal(pStart);
+      } else {
+        pResultInfo->row[i] = NULL;
+      }
+    } else {
+      if (!colDataIsNull_f(pCol->nullbitmap, pResultInfo->current)) {
+        pResultInfo->row[i] = pResultInfo->pCol[i].pData + bytes * pResultInfo->current;
+      } else {
+        pResultInfo->row[i] = NULL;
+      }
+    }
+  }
+}
+
+void* doFetchRow(SRequestObj* pRequest, bool setupOneRowPtr) {
   assert(pRequest != NULL);
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
 
@@ -555,17 +581,20 @@ void* doFetchRow(SRequestObj* pRequest) {
     if (pRequest->type == TDMT_VND_QUERY) {
       // All data has returned to App already, no need to try again
       if (pResultInfo->completed) {
+        pResultInfo->numOfRows = 0;
         return NULL;
       }
 
       SReqResultInfo* pResInfo = &pRequest->body.resInfo;
       pRequest->code = schedulerFetchRows(pRequest->body.queryJob, (void**)&pResInfo->pData);
       if (pRequest->code != TSDB_CODE_SUCCESS) {
+        pResultInfo->numOfRows = 0;
         return NULL;
       }
 
       pRequest->code = setQueryResultFromRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pResInfo->pData);
       if (pRequest->code != TSDB_CODE_SUCCESS) {
+        pResultInfo->numOfRows = 0;
         return NULL;
       }
 
@@ -633,41 +662,11 @@ void* doFetchRow(SRequestObj* pRequest) {
   }
 
 _return:
-
-  for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
-    SResultColumn* pCol = &pResultInfo->pCol[i];
-
-    int32_t type = pResultInfo->fields[i].type;
-    int32_t bytes = pResultInfo->fields[i].bytes;
-
-    if (IS_VAR_DATA_TYPE(type)) {
-      if (pCol->offset[pResultInfo->current] != -1) {
-        char* pStart = pResultInfo->pCol[i].offset[pResultInfo->current] + pResultInfo->pCol[i].pData;
-
-        pResultInfo->length[i] = varDataLen(pStart);
-        pResultInfo->row[i] = varDataVal(pStart);
-
-        if (type == TSDB_DATA_TYPE_NCHAR) {
-          int32_t len = taosUcs4ToMbs((TdUcs4*)varDataVal(pStart), varDataLen(pStart), varDataVal(pResultInfo->convertBuf[i]));
-          ASSERT(len <= bytes);
-
-          pResultInfo->row[i] = varDataVal(pResultInfo->convertBuf[i]);
-          varDataSetLen(pResultInfo->convertBuf[i], len);
-          pResultInfo->length[i] = len;
-        }
-      } else {
-        pResultInfo->row[i] = NULL;
-      }
-    } else {
-      if (!colDataIsNull_f(pCol->nullbitmap, pResultInfo->current)) {
-        pResultInfo->row[i] = pResultInfo->pCol[i].pData + bytes * pResultInfo->current;
-      } else {
-        pResultInfo->row[i] = NULL;
-      }
-    }
+  if (setupOneRowPtr) {
+    doSetOneRowPtr(pResultInfo);
+    pResultInfo->current += 1;
   }
 
-  pResultInfo->current += 1;
   return pResultInfo->row;
 }
 
@@ -680,12 +679,6 @@ static int32_t doPrepareResPtr(SReqResultInfo* pResInfo) {
 
     if (pResInfo->row == NULL || pResInfo->pCol == NULL || pResInfo->length == NULL || pResInfo->convertBuf == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
-    }
-
-    for(int32_t i = 0; i < pResInfo->numOfCols; ++i) {
-      if(pResInfo->fields[i].type == TSDB_DATA_TYPE_NCHAR) {
-        pResInfo->convertBuf[i] = taosMemoryCalloc(1, NCHAR_WIDTH_TO_BYTES(pResInfo->fields[i].bytes));
-      }
     }
   }
 
@@ -721,6 +714,35 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
     pResultInfo->row[i] = pResultInfo->pCol[i].pData;
 
     pStart += colLength[i];
+  }
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    int32_t type = pResultInfo->fields[i].type;
+    int32_t bytes = pResultInfo->fields[i].bytes;
+
+    if (type == TSDB_DATA_TYPE_NCHAR) {
+      char* p = taosMemoryRealloc(pResultInfo->convertBuf[i], colLength[i]);
+      if (p == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      pResultInfo->convertBuf[i] = p;
+
+      SResultColumn* pCol = &pResultInfo->pCol[i];
+      for (int32_t j = 0; j < numOfRows; ++j) {
+        if (pCol->offset[j] != -1) {
+          pStart = pCol->offset[j] + pCol->pData;
+
+          int32_t len = taosUcs4ToMbs((TdUcs4*)varDataVal(pStart), varDataLen(pStart), varDataVal(p));
+          ASSERT(len <= bytes);
+
+          varDataSetLen(p, len);
+          pCol->offset[j] = (p - pResultInfo->convertBuf[i]);
+          p += (len + VARSTR_HEADER_SIZE);
+        }
+      }
+
+      pResultInfo->pCol[i].pData = pResultInfo->convertBuf[i];
+    }
   }
 
   return TSDB_CODE_SUCCESS;
