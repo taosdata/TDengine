@@ -26,6 +26,7 @@ static int32_t dndInitMemory(SDnode *pDnode, const SDnodeOpt *pOption) {
   pDnode->secondEp = strdup(pOption->secondEp);
   pDnode->pDisks = pOption->pDisks;
   pDnode->numOfDisks = pOption->numOfDisks;
+  pDnode->ntype = pOption->ntype;
   pDnode->rebootTime = taosGetTimestampMs();
 
   if (pDnode->dataDir == NULL || pDnode->localEp == NULL || pDnode->localFqdn == NULL || pDnode->firstEp == NULL ||

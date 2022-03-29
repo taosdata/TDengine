@@ -48,9 +48,10 @@ typedef struct {
   char      secondEp[TSDB_EP_LEN];
   SDiskCfg *pDisks;
   int32_t   numOfDisks;
+  int8_t    ntype;
 } SDnodeOpt;
 
-typedef enum { DND_EVENT_START, DND_EVENT_STOP = 1, DND_EVENT_RELOAD } EDndEvent;
+typedef enum { DND_EVENT_START, DND_EVENT_STOP = 1, DND_EVENT_CHILD } EDndEvent;
 
 /**
  * @brief Initialize and start the dnode.
