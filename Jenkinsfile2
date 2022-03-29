@@ -21,16 +21,19 @@ def sync_source() {
         if (env.CHANGE_TARGET == 'master') {
             sh '''
                 cd ${WKC}
+                git clean -fxd
                 git checkout master
             '''
         } else if (env.CHANGE_TARGET == '2.0') {
             sh '''
                 cd ${WKC}
+                git clean -fxd
                 git checkout 2.0
             '''
         } else if (env.CHANGE_TARGET == '2.4') {
             sh '''
                 cd ${WKC}
+                git clean -fxd
                 git checkout 2.4
             '''
         } else {
