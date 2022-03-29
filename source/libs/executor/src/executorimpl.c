@@ -69,6 +69,7 @@ typedef enum SResultTsInterpType {
 typedef struct SColMatchInfo {
   int32_t colId;
   int32_t targetSlotId;
+  bool    output;
 } SColMatchInfo;
 
 #if 0
@@ -330,15 +331,16 @@ SSDataBlock* createOutputBuf_rv1(SDataBlockDescNode* pNode) {
   pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
 
   pBlock->info.blockId = pNode->dataBlockId;
-  pBlock->info.rowSize = pNode->resultRowSize;
+  pBlock->info.rowSize = pNode->resultRowSize;  // todo ??
 
   for(int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData idata = {{0}};
     SSlotDescNode* pDescNode = nodesListGetNode(pNode->pSlots, i);
-    idata.info.type   = pDescNode->dataType.type;
-    if (pDescNode->dataType.bytes > 1000) {
-      pDescNode->dataType.bytes = 4;
+    if (!pDescNode->output) {
+      continue;
     }
+
+    idata.info.type   = pDescNode->dataType.type;
     idata.info.bytes  = pDescNode->dataType.bytes;
     idata.info.scale  = pDescNode->dataType.scale;
     idata.info.slotId = pDescNode->slotId;
@@ -2863,16 +2865,19 @@ int32_t loadDataBlock(SExecTaskInfo *pTaskInfo, STableScanInfo* pTableScanInfo, 
     return terrno;
   }
 
-    int32_t numOfCols = pBlock->info.numOfCols;
-    for(int32_t i = 0; i < numOfCols; ++i) {
-      SColumnInfoData* p = taosArrayGet(pCols, i);
-      SColMatchInfo* pColMatchInfo = taosArrayGet(pTableScanInfo->pColMatchInfo, i);
-      ASSERT(pColMatchInfo->colId == p->info.colId);
-
-      taosArraySet(pBlock->pDataBlock, pColMatchInfo->targetSlotId, p);
+  int32_t numOfCols = pBlock->info.numOfCols;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* p = taosArrayGet(pCols, i);
+    SColMatchInfo* pColMatchInfo = taosArrayGet(pTableScanInfo->pColMatchInfo, i);
+    if (!pColMatchInfo->output) {
+      continue;
     }
 
-    return TSDB_CODE_SUCCESS;
+    ASSERT(pColMatchInfo->colId == p->info.colId);
+    taosArraySet(pBlock->pDataBlock, pColMatchInfo->targetSlotId, p);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t loadDataBlockOnDemand(SExecTaskInfo *pTaskInfo, STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, uint32_t* status) {
@@ -6249,7 +6254,7 @@ static SSDataBlock* doSort(SOperatorInfo *pOperator, bool* newgroup) {
   return getSortedBlockData(pInfo->pSortHandle, pInfo->pDataBlock, hasVarCol, pInfo->numOfRowsInRes);
 }
 
-SOperatorInfo *createSortOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SArray* pSortInfo, SExecTaskInfo* pTaskInfo) {
+SOperatorInfo *createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pResBlock, SArray* pSortInfo, SExecTaskInfo* pTaskInfo) {
   SSortOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SSortOperatorInfo));
   SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -8474,17 +8479,17 @@ static int32_t doCreateTableGroup(void* metaHandle, int32_t tableType, uint64_t 
 static SArray* extractTableIdList(const STableGroupInfo* pTableGroupInfo);
 static SArray* extractScanColumnId(SNodeList* pNodeList);
 static SArray* extractColumnInfo(SNodeList* pNodeList);
-static SArray* extractColMatchInfo(SNodeList* pNodeList);
+static SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols);
 static SArray* createSortInfo(SNodeList* pNodeList);
 
-  SOperatorInfo* doCreateOperatorTreeNode(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, uint64_t queryId, uint64_t taskId, STableGroupInfo* pTableGroupInfo) {
+SOperatorInfo* doCreateOperatorTreeNode(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, uint64_t queryId, uint64_t taskId, STableGroupInfo* pTableGroupInfo) {
   if (pPhyNode->pChildren == NULL || LIST_LENGTH(pPhyNode->pChildren) == 0) {
     if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pPhyNode)) {
       SScanPhysiNode* pScanPhyNode = (SScanPhysiNode*)pPhyNode;
 
-      size_t      numOfCols = LIST_LENGTH(pScanPhyNode->pScanCols);
+      int32_t     numOfCols = 0;
       tsdbReaderT pDataReader = doCreateDataReader((STableScanPhysiNode*)pPhyNode, pHandle, pTableGroupInfo, (uint64_t)queryId, taskId);
-      SArray* pColList = extractColMatchInfo(pScanPhyNode->pScanCols);
+      SArray* pColList = extractColMatchInfo(pScanPhyNode->pScanCols, pScanPhyNode->node.pOutputDataBlockDesc, &numOfCols);
 
       return createTableScanOperatorInfo(pDataReader, pScanPhyNode->order, numOfCols, pScanPhyNode->count, pScanPhyNode->reverse, pColList, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == nodeType(pPhyNode)) {
@@ -8523,15 +8528,13 @@ static SArray* createSortInfo(SNodeList* pNodeList);
     size_t size = LIST_LENGTH(pPhyNode->pChildren);
     assert(size == 1);
 
-    for (int32_t i = 0; i < size; ++i) {
-      SPhysiNode*    pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, i);
-      SOperatorInfo* op = doCreateOperatorTreeNode(pChildNode, pTaskInfo, pHandle, queryId, taskId, pTableGroupInfo);
+    SPhysiNode*    pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, 0);
+    SOperatorInfo* op = doCreateOperatorTreeNode(pChildNode, pTaskInfo, pHandle, queryId, taskId, pTableGroupInfo);
 
-      int32_t    num = 0;
-      SExprInfo* pExprInfo = createExprInfo(((SProjectPhysiNode*)pPhyNode)->pProjections, NULL, &num);
-      SSDataBlock* pResBlock = createOutputBuf_rv1(pPhyNode->pOutputDataBlockDesc);
-      return createProjectOperatorInfo(op, pExprInfo, num, pResBlock, pTaskInfo);
-    }
+    int32_t    num = 0;
+    SExprInfo* pExprInfo = createExprInfo(((SProjectPhysiNode*)pPhyNode)->pProjections, NULL, &num);
+    SSDataBlock* pResBlock = createOutputBuf_rv1(pPhyNode->pOutputDataBlockDesc);
+    return createProjectOperatorInfo(op, pExprInfo, num, pResBlock, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_AGG == nodeType(pPhyNode)) {
     size_t size = LIST_LENGTH(pPhyNode->pChildren);
     assert(size == 1);
@@ -8584,12 +8587,9 @@ static SArray* createSortInfo(SNodeList* pNodeList);
 
     SSortPhysiNode* pSortPhyNode = (SSortPhysiNode*)pPhyNode;
 
-    int32_t      num = 0;
-    SExprInfo*   pExprInfo = createExprInfo(pSortPhyNode->pExprs, NULL, &num);
     SSDataBlock* pResBlock = createOutputBuf_rv1(pPhyNode->pOutputDataBlockDesc);
     SArray*      info = createSortInfo(pSortPhyNode->pSortKeys);
-
-    return createSortOperatorInfo(op, pExprInfo, num, pResBlock, info, pTaskInfo);
+    return createSortOperatorInfo(op, pResBlock, info, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW == nodeType(pPhyNode)) {
     size_t size = LIST_LENGTH(pPhyNode->pChildren);
     assert(size == 1);
@@ -8730,7 +8730,7 @@ SArray* createSortInfo(SNodeList* pNodeList) {
   return pList;
 }
 
-SArray* extractColMatchInfo(SNodeList* pNodeList) {
+SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols) {
   size_t numOfCols = LIST_LENGTH(pNodeList);
   SArray* pList = taosArrayInit(numOfCols, sizeof(SColMatchInfo));
   if (pList == NULL) {
@@ -8743,10 +8743,23 @@ SArray* extractColMatchInfo(SNodeList* pNodeList) {
     SColumnNode* pColNode = (SColumnNode*) pNode->pExpr;
 
     SColMatchInfo c = {0};
-    c.colId = pColNode->colId;
+    c.colId        = pColNode->colId;
     c.targetSlotId = pNode->slotId;
-
+    c.output       = true;
     taosArrayPush(pList, &c);
+  }
+
+  *numOfOutputCols = 0;
+
+  int32_t num = LIST_LENGTH(pOutputNodeList->pSlots);
+  for(int32_t i = 0; i < num; ++i) {
+    SSlotDescNode* pNode = (SSlotDescNode*) nodesListGetNode(pOutputNodeList->pSlots, i);
+    SColMatchInfo* info = taosArrayGet(pList, pNode->slotId);
+    if (!pNode->output) {
+      info->output = false;
+    } else {
+      (*numOfOutputCols) += 1;
+    }
   }
 
   return pList;

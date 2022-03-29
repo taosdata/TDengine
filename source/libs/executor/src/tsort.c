@@ -414,6 +414,9 @@ int32_t msortComparFn(const void *pLeft, const void *pRight, void *param) {
 
 static int32_t doInternalMergeSort(SSortHandle* pHandle) {
   size_t numOfSources = taosArrayGetSize(pHandle->pOrderedSource);
+  if (numOfSources == 0) {
+    return 0;
+  }
 
   // Calculate the I/O counts to complete the data sort.
   double sortPass = floorl(log2(numOfSources) / log2(pHandle->numOfPages));
@@ -600,6 +603,10 @@ int32_t tsortOpen(SSortHandle* pHandle) {
   int32_t numOfSources = taosArrayGetSize(pHandle->pOrderedSource);
   if (pHandle->pBuf != NULL) {
     ASSERT(numOfSources <= getNumOfInMemBufPages(pHandle->pBuf));
+  }
+
+  if (numOfSources == 0) {
+    return 0;
   }
 
   code = sortComparInit(&pHandle->cmpParam, pHandle->pOrderedSource, 0, numOfSources - 1, pHandle);
