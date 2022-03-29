@@ -53,11 +53,11 @@ typedef struct SIndexMeta {
 
 } SIndexMeta;
 
-typedef struct SPhysiNodeExplainResNode {
+typedef struct SExplainResNode {
   SNodeList*  pChildren;
   SPhysiNode* pNode;
   void*       pExecInfo;
-} SPhysiNodeExplainResNode;
+} SExplainResNode;
 
 /*
  * ASSERT(sizeof(SCTableMeta) == 24)

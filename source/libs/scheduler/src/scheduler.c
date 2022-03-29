@@ -2126,18 +2126,23 @@ static int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryPlan *pD
 
   tsem_init(&pJob->rspSem, 0, 0);
 
-  pJob->refId = taosAddRef(schMgmt.jobRef, pJob);
-  if (pJob->refId < 0) {
-    SCH_JOB_ELOG("taosHashPut job failed, error:%s", tstrerror(terrno));
+  int64_t refId = taosAddRef(schMgmt.jobRef, pJob);
+  if (refId < 0) {
+    SCH_JOB_ELOG("taosAddRef job failed, error:%s", tstrerror(terrno));
     SCH_ERR_JRET(terrno);
   }
+
+  if (NULL == schAcquireJob(refId)) {
+    SCH_JOB_ELOG("schAcquireJob job failed, refId:%" PRIx64, refId);
+    SCH_RET(TSDB_CODE_SCH_STATUS_ERROR);
+  }
+
+  pJob->refId = refId;
 
   SCH_JOB_DLOG("job refId:%" PRIx64, pJob->refId);
 
   pJob->status = JOB_TASK_STATUS_NOT_START;
   SCH_ERR_JRET(schLaunchJob(pJob));
-
-  schAcquireJob(pJob->refId);
 
   *job = pJob->refId;
 
