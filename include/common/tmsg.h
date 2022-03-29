@@ -2216,23 +2216,6 @@ static FORCE_INLINE void* tDecodeTSmaWrapper(void* buf, STSmaWrapper* pSW) {
 }
 
 typedef struct {
-  int64_t uid;
-  int32_t numOfRows;
-  char*   colData;
-} SMqTbData;
-
-typedef struct {
-  char       topicName[TSDB_TOPIC_FNAME_LEN];
-  int64_t    committedOffset;
-  int64_t    reqOffset;
-  int64_t    rspOffset;
-  int32_t    skipLogNum;
-  int32_t    bodyLen;
-  int32_t    numOfTb;
-  SMqTbData* tbData;
-} SMqTopicData;
-
-typedef struct {
   int8_t  mqMsgType;
   int32_t code;
   int32_t epoch;
@@ -2259,8 +2242,11 @@ typedef struct {
 } SMqSubVgEp;
 
 typedef struct {
-  char    topic[TSDB_TOPIC_FNAME_LEN];
-  SArray* vgs;  // SArray<SMqSubVgEp>
+  char        topic[TSDB_TOPIC_FNAME_LEN];
+  int8_t      isSchemaAdaptive;
+  SArray*     vgs;  // SArray<SMqSubVgEp>
+  int32_t     numOfFields;
+  TAOS_FIELD* fields;
 } SMqSubTopicEp;
 
 typedef struct {
@@ -2280,32 +2266,6 @@ typedef struct {
   char       cgroup[TSDB_CGROUP_LEN];
   SArray*    topics;  // SArray<SMqSubTopicEp>
 } SMqCMGetSubEpRsp;
-
-typedef struct {
-  int32_t curBlock;
-  int32_t curRow;
-  void**  uData;
-} SMqRowIter;
-
-struct tmq_message_t {
-  SMqPollRsp msg;
-  void*      vg;
-  SMqRowIter iter;
-};
-
-#if 0
-struct tmq_message_t {
-  SMqRspHead head;
-  union {
-    SMqPollRsp       consumeRsp;
-    SMqCMGetSubEpRsp getEpRsp;
-  };
-  void*   extra;
-  int32_t curBlock;
-  int32_t curRow;
-  void**  uData;
-};
-#endif
 
 static FORCE_INLINE void tDeleteSMqSubTopicEp(SMqSubTopicEp* pSubTopicEp) { taosArrayDestroy(pSubTopicEp->vgs); }
 
@@ -2331,17 +2291,21 @@ static FORCE_INLINE void tDeleteSMqCMGetSubEpRsp(SMqCMGetSubEpRsp* pRsp) {
 static FORCE_INLINE int32_t tEncodeSMqSubTopicEp(void** buf, const SMqSubTopicEp* pTopicEp) {
   int32_t tlen = 0;
   tlen += taosEncodeString(buf, pTopicEp->topic);
+  tlen += taosEncodeFixedI8(buf, pTopicEp->isSchemaAdaptive);
   int32_t sz = taosArrayGetSize(pTopicEp->vgs);
   tlen += taosEncodeFixedI32(buf, sz);
   for (int32_t i = 0; i < sz; i++) {
     SMqSubVgEp* pVgEp = (SMqSubVgEp*)taosArrayGet(pTopicEp->vgs, i);
     tlen += tEncodeSMqSubVgEp(buf, pVgEp);
   }
+  tlen += taosEncodeFixedI32(buf, pTopicEp->numOfFields);
+  tlen += taosEncodeBinary(buf, pTopicEp->fields, pTopicEp->numOfFields * sizeof(TAOS_FIELD));
   return tlen;
 }
 
 static FORCE_INLINE void* tDecodeSMqSubTopicEp(void* buf, SMqSubTopicEp* pTopicEp) {
   buf = taosDecodeStringTo(buf, pTopicEp->topic);
+  buf = taosDecodeFixedI8(buf, &pTopicEp->isSchemaAdaptive);
   int32_t sz;
   buf = taosDecodeFixedI32(buf, &sz);
   pTopicEp->vgs = taosArrayInit(sz, sizeof(SMqSubVgEp));
@@ -2353,6 +2317,8 @@ static FORCE_INLINE void* tDecodeSMqSubTopicEp(void* buf, SMqSubTopicEp* pTopicE
     buf = tDecodeSMqSubVgEp(buf, &vgEp);
     taosArrayPush(pTopicEp->vgs, &vgEp);
   }
+  buf = taosDecodeFixedI32(buf, &pTopicEp->numOfFields);
+  buf = taosDecodeBinary(buf, (void**)&pTopicEp->fields, pTopicEp->numOfFields * sizeof(TAOS_FIELD));
   return buf;
 }
 
