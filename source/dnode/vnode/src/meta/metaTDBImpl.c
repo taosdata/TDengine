@@ -44,6 +44,8 @@ typedef struct {
 
 static int   metaEncodeTbInfo(void **buf, STbCfg *pTbCfg);
 static void *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg);
+static int   metaEncodeSchema(void **buf, SSchemaWrapper *pSW);
+static void *metaDecodeSchema(void *buf, SSchemaWrapper *pSW);
 
 static inline int metaUidCmpr(const void *arg1, int len1, const void *arg2, int len2) {
   tb_uid_t uid1, uid2;
@@ -177,15 +179,18 @@ void metaCloseDB(SMeta *pMeta) {
 }
 
 int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
-  tb_uid_t uid;
-  SMetaDB *pMetaDb;
-  void    *pKey;
-  void    *pVal;
-  int      kLen;
-  int      vLen;
-  int      ret;
-  char     buf[512];
-  void    *pBuf;
+  tb_uid_t       uid;
+  SMetaDB       *pMetaDb;
+  void          *pKey;
+  void          *pVal;
+  int            kLen;
+  int            vLen;
+  int            ret;
+  char           buf[512];
+  void          *pBuf;
+  SCtbIdxKey     ctbIdxKey;
+  SSchemaDbKey   schemaDbKey;
+  SSchemaWrapper schemaWrapper;
 
   pMetaDb = pMeta->pDB;
 
@@ -207,30 +212,69 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
     return -1;
   }
 
-  // save to schema.db
-  ret = tdbDbInsert(pMetaDb->pSchemaDB, pKey, kLen, pVal, vLen);
-  if (ret < 0) {
-    return -1;
+  // save to schema.db for META_SUPER_TABLE and META_NORMAL_TABLE
+  if (pTbCfg->type != META_CHILD_TABLE) {
+    schemaDbKey.uid = uid;
+    schemaDbKey.sver = 0;  // TODO
+    pKey = &schemaDbKey;
+    kLen = sizeof(schemaDbKey);
+
+    if (pTbCfg->type == META_SUPER_TABLE) {
+      schemaWrapper.nCols = pTbCfg->stbCfg.nCols;
+      schemaWrapper.pSchema = pTbCfg->stbCfg.pSchema;
+    } else {
+      schemaWrapper.nCols = pTbCfg->ntbCfg.nCols;
+      schemaWrapper.pSchema = pTbCfg->ntbCfg.pSchema;
+    }
+    pVal = pBuf = buf;
+    metaEncodeSchema(&pBuf, &schemaWrapper);
+    vLen = POINTER_DISTANCE(pBuf, buf);
+    ret = tdbDbInsert(pMetaDb->pSchemaDB, pKey, kLen, pVal, vLen);
+    if (ret < 0) {
+      return -1;
+    }
   }
 
   // update name.idx
-  ret = tdbDbInsert(pMetaDb->pNameIdx, pKey, kLen, NULL, 0);
+  int nameLen;
+  memcpy(buf, pTbCfg->name, nameLen + 1);
+  ((tb_uid_t *)(buf + nameLen + 1))[0] = uid;
+  pKey = buf;
+  kLen = nameLen + 1 + sizeof(uid);
+  pVal = NULL;
+  vLen = 0;
+  ret = tdbDbInsert(pMetaDb->pNameIdx, pKey, kLen, pVal, vLen);
   if (ret < 0) {
     return -1;
   }
 
+  // update other index
   if (pTbCfg->type == META_SUPER_TABLE) {
-    ret = tdbDbInsert(pMetaDb->pStbIdx, pKey, kLen, NULL, 0);
+    pKey = &uid;
+    kLen = sizeof(uid);
+    pVal = NULL;
+    vLen = 0;
+    ret = tdbDbInsert(pMetaDb->pStbIdx, pKey, kLen, pVal, vLen);
     if (ret < 0) {
       return -1;
     }
   } else if (pTbCfg->type == META_CHILD_TABLE) {
-    ret = tdbDbInsert(pMetaDb->pCtbIdx, pKey, kLen, NULL, 0);
+    ctbIdxKey.suid = pTbCfg->ctbCfg.suid;
+    ctbIdxKey.uid = uid;
+    pKey = &ctbIdxKey;
+    kLen = sizeof(ctbIdxKey);
+    pVal = NULL;
+    vLen = 0;
+    ret = tdbDbInsert(pMetaDb->pCtbIdx, pKey, kLen, pVal, vLen);
     if (ret < 0) {
       return -1;
     }
   } else if (pTbCfg->type == META_NORMAL_TABLE) {
-    ret = tdbDbInsert(pMetaDb->pNtbIdx, pKey, kLen, NULL, 0);
+    pKey = &uid;
+    kLen = sizeof(uid);
+    pVal = NULL;
+    vLen = 0;
+    ret = tdbDbInsert(pMetaDb->pNtbIdx, pKey, kLen, pVal, vLen);
     if (ret < 0) {
       return -1;
     }
