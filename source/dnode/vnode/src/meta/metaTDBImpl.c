@@ -458,23 +458,59 @@ char *metaTbCursorNext(SMTbCursor *pTbCur) {
 struct SMCtbCursor {
   TDBC    *pCur;
   tb_uid_t suid;
+  void    *pKey;
+  void    *pVal;
+  int      kLen;
+  int      vLen;
 };
 
 SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
-  // TODO
-  ASSERT(0);
-  return NULL;
+  SMCtbCursor *pCtbCur = NULL;
+  SMetaDB     *pDB = pMeta->pDB;
+  int          ret;
+
+  pCtbCur = (SMCtbCursor *)taosMemoryCalloc(1, sizeof(*pCtbCur));
+  if (pCtbCur == NULL) {
+    return NULL;
+  }
+
+  pCtbCur->suid = uid;
+  ret = tdbDbcOpen(pDB->pCtbIdx, &pCtbCur->pCur);
+  if (ret < 0) {
+    taosMemoryFree(pCtbCur);
+    return NULL;
+  }
+
+  // TODO: move the cursor to the suid there
+
+  return pCtbCur;
 }
 
 void metaCloseCtbCurosr(SMCtbCursor *pCtbCur) {
-  // TODO
-  ASSERT(0);
+  if (pCtbCur) {
+    if (pCtbCur->pCur) {
+      tdbDbcClose(pCtbCur->pCur);
+
+      TDB_FREE(pCtbCur->pKey);
+      TDB_FREE(pCtbCur->pVal);
+    }
+
+    taosMemoryFree(pCtbCur);
+  }
 }
 
 tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
-  // TODO
-  ASSERT(0);
-  return 0;
+  int         ret;
+  SCtbIdxKey *pCtbIdxKey;
+
+  ret = tdbDbNext(pCtbCur->pCur, &pCtbCur->pKey, &pCtbCur->kLen, &pCtbCur->pVal, &pCtbCur->vLen);
+  if (ret < 0) {
+    return 0;
+  }
+
+  pCtbIdxKey = pCtbCur->pVal;
+
+  return pCtbIdxKey->uid;
 }
 
 int metaGetTbNum(SMeta *pMeta) {
