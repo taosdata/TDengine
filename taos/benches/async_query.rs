@@ -18,7 +18,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     group.sampling_mode(SamplingMode::Flat);
     use tokio::runtime;
 
-    let rt = runtime::Runtime::new().unwrap();
+    let _rt = runtime::Runtime::new().unwrap();
 
     group.bench_function("sync", |b| b.iter(|| bench_query_sync(&taos)));
     group.bench_function("sync with futures block_on", |b| {

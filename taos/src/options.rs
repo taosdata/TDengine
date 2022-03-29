@@ -148,5 +148,5 @@ fn test_options_builder_all() {
         .database("log")
         ;
     let taos = opts.build().unwrap();
-    let res = futures::executor::block_on(taos.query("show databases")).unwrap();
+    let _res = futures::executor::block_on(taos.query("show databases")).unwrap();
 }

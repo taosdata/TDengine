@@ -233,6 +233,14 @@ impl<'a> Block<'a> {
                     start as _, len as _,
                 )))
             }
+            TaosDataType::Json => {
+                let length = self.get_length_unchecked(col);
+                let ptr = (*inner as *const u8).add(row * length as usize);
+                let len = ptr.cast::<i16>().read();
+                let start = ptr.offset(2);
+
+                BorrowedValue::Json(slice::from_raw_parts(start, len as _))
+            }
             _ => BorrowedValue::Null,
         }
     }

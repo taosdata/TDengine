@@ -127,6 +127,17 @@ impl Taos {
             .try_collect()
             .await
     }
+    pub async fn databases(&self) -> Result<Vec<ColumnMeta>> {
+        self.query(format!("show databases"))
+            .await?
+            .rows_de_stream()
+            .try_collect()
+            .await
+    }
+
+    pub async fn show_create(&self) -> Result<()> {
+        todo!()
+    }
 }
 
 #[cfg(test)]

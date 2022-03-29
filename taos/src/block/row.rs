@@ -6,13 +6,13 @@ use std::{
 };
 
 use bitvec_simd::BitVec;
-use futures::Stream;
+
 use serde::de::{self, Visitor};
-use taos_sys::{taos_is_null, TaosDataType, TAOS_FIELD};
+use taos_sys::{TAOS_FIELD};
 
-use crate::{timestamp::TimestampValue, Result, TaosError, TaosResult};
+use crate::{Result, TaosError};
 
-use super::{value::BorrowedValue, Block, BlockStream};
+use super::{value::BorrowedValue, Block};
 
 pub struct Row<'block> {
     // todo: Rc or Arc?
@@ -191,7 +191,7 @@ struct MapReader<'a, 'de: 'a> {
     banned: BitVec,
     fields: BTreeMap<String, usize>,
     acc: slice::Iter<'a, TAOS_FIELD>,
-    value: Option<BorrowedValue<'a>>,
+    value: Option<BorrowedValue<'de>>,
 }
 
 impl<'a, 'de> MapReader<'a, 'de> {
@@ -239,7 +239,7 @@ impl<'a, 'de> MapReader<'a, 'de> {
             }
         })
     }
-    fn next_entry(&mut self) -> Option<(&'a TAOS_FIELD, BorrowedValue<'a>)> {
+    fn next_entry(&mut self) -> Option<(&'a TAOS_FIELD, BorrowedValue<'de>)> {
         self.acc.next().zip(self.de.next())
     }
 }
@@ -266,7 +266,7 @@ impl<'de> de::Deserializer<'de> for StringDeserializer {
     }
 }
 
-impl<'de, 'a> de::MapAccess<'de> for MapReader<'a, 'de> {
+impl<'a, 'de> de::MapAccess<'de> for MapReader<'a, 'de> {
     type Error = TaosError;
 
     fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>>
@@ -286,7 +286,7 @@ impl<'de, 'a> de::MapAccess<'de> for MapReader<'a, 'de> {
     where
         V: de::DeserializeSeed<'de>,
     {
-        let value = self.value.take().expect("value must be there");
+        let value = self.value.take().unwrap();
         seed.deserialize(value)
     }
 }
@@ -382,7 +382,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         match self.next() {
-            Some(v) => visitor.visit_unit(),
+            Some(_v) => visitor.visit_unit(),
             _ => Err(TaosError::from_string("there's no enough value")),
         }
     }

@@ -123,7 +123,7 @@ impl<'block> BorrowedColumn<'block> {
             Self::UBigInt(nulls, values) => get_primitive!(UBigInt, nulls, values),
             Self::Float(nulls, values) => get_primitive!(Float, nulls, values),
             Self::Double(nulls, values) => get_primitive!(Double, nulls, values),
-            Self::Timestamp(nulls, values) => {
+            Self::Timestamp(nulls, _values) => {
                 if nulls.get_unchecked(index) {
                     BorrowedValue::Null
                 } else {
@@ -135,7 +135,7 @@ impl<'block> BorrowedColumn<'block> {
                 Some(bytes) => BorrowedValue::Binary(bytes),
                 None => BorrowedValue::Null,
             },
-            Self::NChar(values) => BorrowedValue::Null,
+            Self::NChar(_values) => BorrowedValue::Null,
             _ => unreachable!(),
         }
     }

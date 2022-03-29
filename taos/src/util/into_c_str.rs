@@ -1,4 +1,4 @@
-use std::borrow::{Borrow, Cow};
+use std::borrow::{Cow};
 use std::ffi::{c_void, CStr, CString};
 use std::os::raw::c_char;
 

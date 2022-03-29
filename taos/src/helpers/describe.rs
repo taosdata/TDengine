@@ -1,7 +1,7 @@
 #[derive(Debug, Deserialize)]
 pub struct Described {
     field: String,
-    r#type: String,
+    r#type: TaosDataType,
     length: usize,
 }
 #[derive(Debug)]
@@ -72,7 +72,8 @@ impl<'de> Deserialize<'de> for ColumnMeta {
                     .ok_or_else(|| de::Error::invalid_length(0, &self))?);
                 let r#type = seq
                     .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))
+                    .and_then(|s| TaosDataType::from_str(s).map_err(de::Error::custom))?;
                 let length = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(2, &self))?;
@@ -111,7 +112,9 @@ impl<'de> Deserialize<'de> for ColumnMeta {
                             if r#type.is_some() {
                                 return Err(de::Error::duplicate_field("type"));
                             }
-                            r#type = Some(map.next_value()?);
+                            let s: String = map.next_value()?;
+                            let t = TaosDataType::from_str(&s).map_err(de::Error::custom)?;
+                            r#type = Some(t);
                         }
                         Meta::Length => {
                             if length.is_some() {
@@ -155,9 +158,9 @@ impl ColumnMeta {
             ColumnMeta::Column(desc) | ColumnMeta::Tag(desc) => desc.field.as_str(),
         }
     }
-    pub fn r#type(&self) -> &str {
+    pub fn r#type(&self) -> TaosDataType {
         match self {
-            ColumnMeta::Column(desc) | ColumnMeta::Tag(desc) => desc.r#type.as_str(),
+            ColumnMeta::Column(desc) | ColumnMeta::Tag(desc) => desc.r#type,
         }
     }
     pub fn length(&self) -> usize {
@@ -172,7 +175,7 @@ impl ColumnMeta {
         }
     }
     pub fn is_tag(&self) -> bool {
-        matches!(self,ColumnMeta::Tag(_))
+        matches!(self, ColumnMeta::Tag(_))
     }
 }
 //erive(Debug, Clone, Deserialize)]
@@ -505,9 +508,10 @@ impl ColumnMeta {
 //     }
 // }
 
-use std::fmt;
+use std::{fmt, str::FromStr};
 
 use serde::{
     de::{self, MapAccess, SeqAccess, Visitor},
-    Deserialize, Deserializer, Serialize,
+    Deserialize, Deserializer,
 };
+use taos_sys::TaosDataType;

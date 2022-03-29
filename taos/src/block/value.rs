@@ -1,4 +1,7 @@
+use serde::de;
+
 use crate::timestamp::TimestampValue;
+
 
 #[derive(Debug)]
 pub enum BorrowedValue<'block> {
@@ -30,7 +33,7 @@ impl<'block> BorrowedValue<'block> {
     }
 }
 
-impl<'de, 'a, 'block> serde::de::Deserializer<'de> for BorrowedValue<'block> {
+impl<'de> serde::de::Deserializer<'de> for BorrowedValue<'de> {
     type Error = taos_error::Error;
 
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -54,7 +57,9 @@ impl<'de, 'a, 'block> serde::de::Deserializer<'de> for BorrowedValue<'block> {
             Double(v) => visitor.visit_f64(v),
             Binary(v) => visitor.visit_bytes(v),
             NChar(v) => visitor.visit_str(v),
-            Json(v) => visitor.visit_bytes(v),
+            Json(v) => serde_json::Deserializer::from_slice(v)
+                .deserialize_any(visitor)
+                .map_err(<Self::Error as de::Error>::custom),
             Timestamp(v) => visitor.visit_i64(*v.as_raw_i64()),
             _ => Err(Self::Error::from_string("un supported type to deserialize")),
         }
@@ -69,7 +74,7 @@ impl<'de, 'a, 'block> serde::de::Deserializer<'de> for BorrowedValue<'block> {
         match self {
             Null => visitor.visit_str(""), // todo: empty string or error?
             // Null => Err(Self::Error::from_string(
-                // "expect non-optional String, but value is null",
+            // "expect non-optional String, but value is null",
             // )),
             Bool(v) => visitor.visit_bool(v),
             TinyInt(v) => visitor.visit_i8(v),
@@ -115,8 +120,6 @@ impl<'de, 'a, 'block> serde::de::Deserializer<'de> for BorrowedValue<'block> {
         }
     }
 
-    
-
     serde::forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char unit
         seq bytes byte_buf map unit_struct newtype_struct
@@ -124,8 +127,8 @@ impl<'de, 'a, 'block> serde::de::Deserializer<'de> for BorrowedValue<'block> {
     }
 }
 
-impl<'de, 'a, 'block> serde::de::IntoDeserializer<'de, taos_error::Error>
-    for BorrowedValue<'block>
+impl<'de> serde::de::IntoDeserializer<'de, taos_error::Error>
+    for BorrowedValue<'de>
 {
     type Deserializer = Self;
 

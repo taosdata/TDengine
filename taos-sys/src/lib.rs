@@ -1,5 +1,5 @@
 #![allow(non_camel_case_types)]
-use std::{ffi::CStr, os::raw::*, str::Utf8Error};
+use std::{ffi::CStr, os::raw::*};
 
 pub type TAOS = c_void;
 pub type TAOS_STMT = c_void;
