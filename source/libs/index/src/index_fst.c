@@ -645,10 +645,6 @@ void fstNodeDestroy(FstNode* node) {
   fstSliceDestroy(&node->data);
   taosMemoryFree(node);
 }
-void fstNodeDestroyP(void* node) {
-  FstNode* n = (FstNode*)(*(FstNode**)node);
-  fstNodeDestroy(n);
-};
 FstTransitions* fstNodeTransitions(FstNode* node) {
   FstTransitions* t = taosMemoryMalloc(sizeof(FstTransitions));
   if (NULL == t) {
@@ -1359,7 +1355,7 @@ StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallb
       sws->stack = (SArray*)taosArrayInit(256, sizeof(StreamState));
       taosMemoryFreeClear(buf);
       fstSliceDestroy(&slice);
-      taosArrayDestroyEx(nodes, NULL);
+      taosArrayDestroy(nodes);
       return NULL;
     }
     if (FST_NODE_IS_FINAL(nextNode) && isMatch) {
@@ -1367,20 +1363,14 @@ StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallb
       StreamWithStateResult* result = swsResultCreate(&slice, fOutput, tState);
       taosMemoryFreeClear(buf);
       fstSliceDestroy(&slice);
-      taosArrayDestroyEx(nodes, NULL);
+      taosArrayDestroy(nodes);
       nodes = NULL;
       return result;
     }
     taosMemoryFreeClear(buf);
     fstSliceDestroy(&slice);
   };
-  taosArrayDestroyEx(nodes, NULL);
-  // taosArrayDestroyEx(nodes, );
-  // for (size_t i = 0; i < taosArrayGetSize(nodes); i++) {
-  //  FstNode** node = (FstNode**)taosArrayGet(nodes, i);
-  //  fstNodeDestroy(*node);
-  //}
-  // taosArrayDestroy(nodes);
+  taosArrayDestroy(nodes);
   return NULL;
 }
 
