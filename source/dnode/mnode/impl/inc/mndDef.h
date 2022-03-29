@@ -731,10 +731,10 @@ typedef struct {
   int32_t  vgNum;
   SRWLatch lock;
   int8_t   status;
-  int8_t   sourceType;
-  int8_t   sinkType;
   // int32_t  sqlLen;
-  int32_t        sinkVgId;  // 0 for automatic
+  int8_t         createdBy;      // STREAM_CREATED_BY__USER or SMA
+  int32_t        fixedSinkVgId;  // 0 for shuffle
+  int64_t        smaId;          // 0 for unused
   char*          sql;
   char*          logicalPlan;
   char*          physicalPlan;
