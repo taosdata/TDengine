@@ -275,8 +275,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     pMsg->pCont = NULL;
     pMsg->contLen = 0;
     pMsg->code = -1;
-    ASSERT(0);
-    rpcSendResponse(pMsg);
+    tmsgSendRsp(pMsg);
     return 0;
   }
 
@@ -341,7 +340,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         pMsg->pCont = buf;
         pMsg->contLen = tlen;
         pMsg->code = 0;
-        rpcSendResponse(pMsg);
+        tmsgSendRsp(pMsg);
         return 0;
       }
     } else {
@@ -369,7 +368,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   pMsg->pCont = buf;
   pMsg->contLen = tlen;
   pMsg->code = 0;
-  rpcSendResponse(pMsg);
+  tmsgSendRsp(pMsg);
   /*}*/
 
   return 0;

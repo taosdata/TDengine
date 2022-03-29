@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-typedef enum { PROC_REQ, PROC_RSP, PROC_REGISTER } ProcFuncType;
+typedef enum { PROC_REQ, PROC_RSP, PROC_REG, PROC_RELEASE } ProcFuncType;
 
 typedef struct SProcQueue SProcQueue;
 typedef struct SProcObj   SProcObj;
