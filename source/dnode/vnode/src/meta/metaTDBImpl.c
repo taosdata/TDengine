@@ -54,7 +54,7 @@ static inline int metaUidCmpr(const void *arg1, int len1, const void *arg2, int 
   ASSERT(len2 == sizeof(tb_uid_t));
 
   uid1 = ((tb_uid_t *)arg1)[0];
-  uid2 = ((tb_uid_t *)arg2)[1];
+  uid2 = ((tb_uid_t *)arg2)[0];
 
   if (uid1 < uid2) {
     return -1;
