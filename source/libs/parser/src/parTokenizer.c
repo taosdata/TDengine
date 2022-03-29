@@ -99,6 +99,7 @@ static SKeyword keywordTable[] = {
     {"ON",            TK_ON},
     {"OR",            TK_OR},
     {"ORDER",         TK_ORDER},
+    {"PARTITION",     TK_PARTITION},
     {"PASS",          TK_PASS},
     {"PORT",          TK_PORT},
     {"PRECISION",     TK_PRECISION},
