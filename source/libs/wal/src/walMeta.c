@@ -19,13 +19,13 @@
 #include "tref.h"
 #include "walInt.h"
 
-int64_t inline walGetFirstVer(SWal* pWal) { return pWal->vers.firstVer; }
+int64_t FORCE_INLINE walGetFirstVer(SWal* pWal) { return pWal->vers.firstVer; }
 
-int64_t inline walGetSnaphostVer(SWal* pWal) { return pWal->vers.snapshotVer; }
+int64_t FORCE_INLINE walGetSnaphostVer(SWal* pWal) { return pWal->vers.snapshotVer; }
 
-int64_t inline walGetLastVer(SWal* pWal) { return pWal->vers.lastVer; }
+int64_t FORCE_INLINE walGetLastVer(SWal* pWal) { return pWal->vers.lastVer; }
 
-static inline int walBuildMetaName(SWal* pWal, int metaVer, char* buf) {
+static FORCE_INLINE int walBuildMetaName(SWal* pWal, int metaVer, char* buf) {
   return sprintf(buf, "%s/meta-ver%d", pWal->path, metaVer);
 }
 
@@ -46,7 +46,7 @@ void* tmemmem(char* haystack, int hlen, char* needle, int nlen) {
   return NULL;
 }
 
-static inline int64_t walScanLogGetLastVer(SWal* pWal) {
+static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal) {
   ASSERT(pWal->fileInfoSet != NULL);
   int sz = taosArrayGetSize(pWal->fileInfoSet);
   ASSERT(sz > 0);

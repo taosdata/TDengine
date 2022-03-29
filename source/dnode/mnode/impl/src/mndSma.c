@@ -69,7 +69,8 @@ void mndCleanupSma(SMnode *pMnode) {}
 static SSdbRaw *mndSmaActionEncode(SSmaObj *pSma) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  int32_t  size = sizeof(SSmaObj) + pSma->exprLen + pSma->tagsFilterLen + pSma->sqlLen + pSma->astLen + TSDB_SMA_RESERVE_SIZE;
+  int32_t size =
+      sizeof(SSmaObj) + pSma->exprLen + pSma->tagsFilterLen + pSma->sqlLen + pSma->astLen + TSDB_SMA_RESERVE_SIZE;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_SMA, TSDB_SMA_VER_NUMBER, size);
   if (pRaw == NULL) goto _OVER;
 
@@ -414,6 +415,10 @@ static int32_t mndCreateSma(SMnode *pMnode, SNodeMsg *pReq, SMCreateSmaReq *pCre
   streamObj.dbUid = pDb->uid;
   streamObj.version = 1;
   streamObj.sql = pCreate->sql;
+  streamObj.createdBy = STREAM_CREATED_BY__SMA;
+  // TODO
+  streamObj.fixedSinkVgId = 0;
+  streamObj.smaId = smaObj.uid;
   /*streamObj.physicalPlan = "";*/
   streamObj.logicalPlan = "not implemented";
 
@@ -491,7 +496,7 @@ static int32_t mndProcessMCreateSmaReq(SNodeMsg *pReq) {
     mError("sma:%s, failed to create since stb:%s not exist", createReq.name, createReq.stb);
     goto _OVER;
   }
-  
+
   pStream = mndAcquireStream(pMnode, createReq.name);
   if (pStream != NULL) {
     mError("sma:%s, failed to create since stream:%s already exist", createReq.name, createReq.name);

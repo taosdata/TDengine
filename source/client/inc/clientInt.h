@@ -235,7 +235,7 @@ void initMsgHandleFp();
 TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
                             uint16_t port);
 
-void* doFetchRow(SRequestObj* pRequest);
+void* doFetchRow(SRequestObj* pRequest, bool setupOneRowPtr);
 
 int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows);
 

@@ -108,23 +108,26 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
 }
 
 static void dndClearNodesExecpt(SDnode *pDnode, ENodeType except) {
-  dndCleanupServer(pDnode);
+  // dndCleanupServer(pDnode);
   for (ENodeType n = 0; n < NODE_MAX; ++n) {
     if (except == n) continue;
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
-    dndCloseNode(pWrapper);
+    pWrapper->required = false;
   }
 }
 
-static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t msgLen, void *pCont, int32_t contLen) {
-  dTrace("msg:%p, get from child queue", pMsg);
+static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int16_t msgLen, void *pCont, int32_t contLen,
+                                 ProcFuncType ftype) {
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   pRpc->pCont = pCont;
+  dTrace("msg:%p, get from child queue, type:%s handle:%p app:%p", pMsg, TMSG_INFO(pRpc->msgType), pRpc->handle,
+         pRpc->ahandle);
 
   NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pRpc->msgType)];
   int32_t   code = (*msgFp)(pWrapper, pMsg);
 
   if (code != 0) {
+    dError("msg:%p, failed to process since code:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
     if (pRpc->msgType & 1U) {
       SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno};
       dndSendRsp(pWrapper, &rsp);
@@ -136,11 +139,21 @@ static void dndConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int32_t
   }
 }
 
-static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRsp, int32_t msgLen, void *pCont, int32_t contLen) {
-  dTrace("msg:%p, get from parent queue", pRsp);
-  pRsp->pCont = pCont;
-  dndSendRsp(pWrapper, pRsp);
-  taosMemoryFree(pRsp);
+static void dndConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, int16_t msgLen, void *pCont, int32_t contLen,
+                                  ProcFuncType ftype) {
+  pMsg->pCont = pCont;
+  dTrace("msg:%p, get from parent queue, type:%s handle:%p app:%p", pMsg, TMSG_INFO(pMsg->msgType), pMsg->handle,
+         pMsg->ahandle);
+
+  switch (ftype) {
+    case PROC_REGISTER:
+      rpcRegisterBrokenLinkArg(pMsg);
+      break;
+    default:
+      dndSendRpcRsp(pWrapper, pMsg);
+      break;
+  }
+  taosMemoryFree(pMsg);
 }
 
 static int32_t dndRunInMultiProcess(SDnode *pDnode) {

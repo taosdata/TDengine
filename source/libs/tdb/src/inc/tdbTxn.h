@@ -13,15 +13,27 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_STREAM_H_
-#define _TD_STREAM_H_
+#ifndef _TDB_TXN_H_
+#define _TDB_TXN_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+typedef struct STxn STXN;
+
+struct STxn {
+  u64 txnId;
+  void *(*xMalloc)(void *, int);
+  void *xArg;
+};
+
+int tdbTxnBegin(TENV *pEnv);
+int tdbTxnCommit(TENV *pEnv);
+int tdbTxnRollback(TENV *pEnv);
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_STREAM_H_*/
+#endif /*_TDB_TXN_H_*/

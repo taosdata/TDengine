@@ -48,9 +48,11 @@ static void mmInitOption(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
   msgCb.queueFps[QUERY_QUEUE] = mmPutMsgToQueryQueue;
   msgCb.queueFps[READ_QUEUE] = mmPutMsgToReadQueue;
   msgCb.queueFps[WRITE_QUEUE] = mmPutMsgToWriteQueue;
+  msgCb.queueFps[SYNC_QUEUE] = mmPutMsgToWriteQueue;
   msgCb.sendReqFp = dndSendReqToDnode;
   msgCb.sendMnodeReqFp = dndSendReqToMnode;
   msgCb.sendRspFp = dndSendRsp;
+  msgCb.registerBrokenLinkArgFp = dndRegisterBrokenLinkArg;
   pOption->msgCb = msgCb;
 }
 

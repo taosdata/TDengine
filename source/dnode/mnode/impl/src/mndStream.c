@@ -300,6 +300,10 @@ static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamRe
   streamObj.dbUid = pDb->uid;
   streamObj.version = 1;
   streamObj.sql = pCreate->sql;
+  streamObj.createdBy = STREAM_CREATED_BY__USER;
+  // TODO
+  streamObj.fixedSinkVgId = 0;
+  streamObj.smaId = 0;
   /*streamObj.physicalPlan = "";*/
   streamObj.logicalPlan = "not implemented";
 

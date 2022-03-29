@@ -74,9 +74,9 @@ int walSetWrite(SWal* pWal) {
 }
 
 int walChangeWrite(SWal* pWal, int64_t ver) {
-  int     code = 0;
+  int       code;
   TdFilePtr pIdxTFile, pLogTFile;
-  char    fnameStr[WAL_FILE_LEN];
+  char      fnameStr[WAL_FILE_LEN];
   if (pWal->pWriteLogTFile != NULL) {
     code = taosCloseFile(&pWal->pWriteLogTFile);
     if (code != 0) {
@@ -133,7 +133,6 @@ int walSeekWriteVer(SWal* pWal, int64_t ver) {
     return -1;
   }
   if (ver < pWal->vers.snapshotVer) {
-    
   }
   if (ver < walGetCurFileFirstVer(pWal) || (ver > walGetCurFileLastVer(pWal))) {
     code = walChangeWrite(pWal, ver);

@@ -30,6 +30,11 @@ enum {
   STREAM_TASK_STATUS__STOP,
 };
 
+enum {
+  STREAM_CREATED_BY__USER = 1,
+  STREAM_CREATED_BY__SMA,
+};
+
 #if 0
 // pipe  -> fetch/pipe queue
 // merge -> merge      queue
@@ -62,17 +67,19 @@ typedef struct {
 } STaskExec;
 
 typedef struct {
-  int8_t reserved;
+  int32_t taskId;
 } STaskDispatcherInplace;
 
 typedef struct {
+  int32_t taskId;
   int32_t nodeId;
   SEpSet  epSet;
 } STaskDispatcherFixedEp;
 
 typedef struct {
-  int8_t  hashMethod;
-  SArray* info;
+  // int8_t  hashMethod;
+  char      stbFullName[TSDB_TABLE_FNAME_LEN];
+  SUseDbRsp dbInfo;
 } STaskDispatcherShuffle;
 
 typedef struct {
@@ -81,8 +88,12 @@ typedef struct {
   SHashObj* pHash;  // groupId to tbuid
 } STaskSinkTb;
 
+typedef void FSmaHandle(void* vnode, int64_t smaId, const SArray* data);
+
 typedef struct {
-  int8_t reserved;
+  int64_t smaId;
+  // following are not applicable to encoder and decoder
+  FSmaHandle* smaHandle;
 } STaskSinkSma;
 
 typedef struct {
@@ -130,7 +141,6 @@ typedef struct {
   int8_t  sinkType;
   int8_t  dispatchType;
   int16_t dispatchMsgType;
-  int32_t downstreamTaskId;
 
   int32_t nodeId;
   SEpSet  epSet;
@@ -155,7 +165,8 @@ typedef struct {
     STaskDispatcherShuffle shuffleDispatcher;
   };
 
-  // state storage
+  // application storage
+  void* ahandle;
 
 } SStreamTask;
 

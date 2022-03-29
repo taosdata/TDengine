@@ -27,6 +27,7 @@ static void qmInitOption(SQnodeMgmt *pMgmt, SQnodeOpt *pOption) {
   msgCb.sendReqFp = dndSendReqToDnode;
   msgCb.sendMnodeReqFp = dndSendReqToMnode;
   msgCb.sendRspFp = dndSendRsp;
+  msgCb.registerBrokenLinkArgFp = dndRegisterBrokenLinkArg;
   pOption->msgCb = msgCb;
 }
 

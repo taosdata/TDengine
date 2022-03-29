@@ -48,8 +48,8 @@ int32_t qmGetQueueSize(SMgmtWrapper *pWrapper, int32_t vgId, EQueueType qtype);
 
 int32_t qmStartWorker(SQnodeMgmt *pMgmt);
 void    qmStopWorker(SQnodeMgmt *pMgmt);
-int32_t qmProcessQueryMsg(SQnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t qmProcessFetchMsg(SQnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t qmProcessQueryMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t qmProcessFetchMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

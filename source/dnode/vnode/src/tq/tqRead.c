@@ -157,6 +157,7 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
     }
   }
 
+#if 0
   int j = 0;
   for (int32_t i = 0; i < colNumNeed; i++) {
     col_id_t colId = *(col_id_t*)taosArrayGet(pHandle->pColIdList, i);
@@ -183,6 +184,7 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
     blockDataEnsureColumnCapacity(&colInfo, numOfRows);
     taosArrayPush(pArray, &colInfo);
   }
+#endif
 
   STSRowIter iter = {0};
   tdSTSRowIterInit(&iter, pTschema);

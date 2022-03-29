@@ -137,6 +137,7 @@ static void *vmOpenVnodeFunc(void *param) {
     msgCb.sendReqFp = dndSendReqToDnode;
     msgCb.sendMnodeReqFp = dndSendReqToMnode;
     msgCb.sendRspFp = dndSendRsp;
+    msgCb.registerBrokenLinkArgFp = dndRegisterBrokenLinkArg;
     SVnodeCfg cfg = {.msgCb = msgCb, .pTfs = pMgmt->pTfs, .vgId = pCfg->vgId, .dbId = pCfg->dbUid};
     SVnode   *pImpl = vnodeOpen(pCfg->path, &cfg);
     if (pImpl == NULL) {

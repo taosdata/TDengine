@@ -24,7 +24,7 @@ int32_t tmsgGetQueueSize(const SMsgCb* pMsgCb, int32_t vgId, EQueueType qtype) {
   return (*pMsgCb->qsizeFp)(pMsgCb->pWrapper, vgId, qtype);
 }
 
-int32_t tmsgSendReq(const SMsgCb* pMsgCb, SEpSet* epSet, SRpcMsg* pReq) {
+int32_t tmsgSendReq(const SMsgCb* pMsgCb, const SEpSet* epSet, SRpcMsg* pReq) {
   return (*pMsgCb->sendReqFp)(pMsgCb->pWrapper, epSet, pReq);
 }
 
@@ -32,4 +32,12 @@ int32_t tmsgSendMnodeReq(const SMsgCb* pMsgCb, SRpcMsg* pReq) {
   return (*pMsgCb->sendMnodeReqFp)(pMsgCb->pWrapper, pReq);
 }
 
-void tmsgSendRsp(const SMsgCb* pMsgCb, SRpcMsg* pRsp) { return (*pMsgCb->sendRspFp)(pMsgCb->pWrapper, pRsp); }
+void tmsgSendRsp(const SMsgCb* pMsgCb, const SRpcMsg* pRsp) { return (*pMsgCb->sendRspFp)(pMsgCb->pWrapper, pRsp); }
+
+void tmsgRegisterBrokenLinkArg(const SMsgCb* pMsgCb, SRpcMsg* pMsg) {
+  (*pMsgCb->registerBrokenLinkArgFp)(pMsgCb->pWrapper, pMsg);
+}
+
+void tmsgReleaseHandle(const SMsgCb* pMsgCb, void* handle, int8_t type) {
+  (*pMsgCb->releaseHandleFp)(pMsgCb->pWrapper, handle, type);
+}

@@ -20,12 +20,12 @@
 #include "taos.h"
 
 int32_t init_env() {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 7010);
   if (pConn == NULL) {
     return -1;
   }
 
-  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 1");
+  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 2");
   if (taos_errno(pRes) != 0) {
     printf("error in create db, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -65,7 +65,7 @@ int32_t init_env() {
 int32_t create_stream() {
   printf("create stream\n");
   TAOS_RES* pRes;
-  TAOS*     pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  TAOS*     pConn = taos_connect("localhost", "root", "taosdata", NULL, 7010);
   if (pConn == NULL) {
     return -1;
   }

@@ -19,15 +19,14 @@
 #include "tmallocator.h"
 // #include "sync.h"
 #include "tcoding.h"
+#include "tdatablock.h"
 #include "tfs.h"
 #include "tlist.h"
 #include "tlockfree.h"
 #include "tmacro.h"
-#include "wal.h"
-
 #include "vnode.h"
-
 #include "vnodeQuery.h"
+#include "wal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -198,9 +197,12 @@ int tqCommit(STQ*);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
 int32_t tqProcessRebReq(STQ* pTq, char* msg);
-int32_t tqProcessTaskExec(STQ* pTq, SRpcMsg* msg);
+int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen);
+
+// sma
+void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
 
 #ifdef __cplusplus
 }

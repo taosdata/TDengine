@@ -146,7 +146,7 @@ void taosFreeQitem(void *pItem) {
   taosMemoryFree(temp);
 }
 
-int32_t taosWriteQitem(STaosQueue *queue, void *pItem) {
+void taosWriteQitem(STaosQueue *queue, void *pItem) {
   STaosQnode *pNode = (STaosQnode *)(((char *)pItem) - sizeof(STaosQnode));
   pNode->next = NULL;
 
@@ -167,8 +167,6 @@ int32_t taosWriteQitem(STaosQueue *queue, void *pItem) {
   taosThreadMutexUnlock(&queue->mutex);
 
   if (queue->qset) tsem_post(&queue->qset->sem);
-
-  return 0;
 }
 
 int32_t taosReadQitem(STaosQueue *queue, void **ppItem) {

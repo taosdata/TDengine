@@ -248,12 +248,37 @@ static SDatabaseOptions* setDbStreamMode(SAstCreateContext* pCxt, SDatabaseOptio
 }
 
 static SDatabaseOptions* setDbRetentions(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
-  // todo
-  return pOptions;
-}
+  pOptions->pRetentions = nodesMakeList();
+  if (NULL == pOptions->pRetentions) {
+    pCxt->valid = false;
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory");
+    return pOptions;
+  }
 
-static SDatabaseOptions* setDbFileFactor(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
-  // todo
+  char val[20] = {0};
+  int32_t len = trimString(pVal->z, pVal->n, val, sizeof(val));
+  char* pStart = val;
+  char* pEnd = val + len;
+  int32_t sepOrder = 1;
+  while (1) {
+    char* pPos = strchr(pStart, (0 == sepOrder % 2) ? ',' : ':');
+    SToken t = { .type = TK_NK_VARIABLE, .z = pStart, .n = (NULL == pPos ? pEnd - pStart : pPos - pStart)};
+    if (TSDB_CODE_SUCCESS != nodesListStrictAppend(pOptions->pRetentions, createDurationValueNode(pCxt, &t))) {
+      pCxt->valid = false;
+      snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory");
+      return pOptions;
+    }
+    if (NULL == pPos) {
+      break;
+    }
+    pStart = pPos + 1;
+  }
+
+  if (LIST_LENGTH(pOptions->pRetentions) % 2 != 0) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid db option retentions: %s", val);
+    pCxt->valid = false;
+  }
+
   return pOptions;
 }
 
@@ -276,7 +301,6 @@ static void initSetDatabaseOptionFp() {
   setDbOptionFuncs[DB_OPTION_SINGLE_STABLE] = setDbSingleStable;
   setDbOptionFuncs[DB_OPTION_STREAM_MODE] = setDbStreamMode;
   setDbOptionFuncs[DB_OPTION_RETENTIONS] = setDbRetentions;
-  setDbOptionFuncs[DB_OPTION_FILE_FACTOR] = setDbFileFactor;
 }
 
 static STableOptions* setTableKeep(SAstCreateContext* pCxt, STableOptions* pOptions, const SToken* pVal) {
@@ -314,10 +338,36 @@ static STableOptions* setTableComment(SAstCreateContext* pCxt, STableOptions* pO
   return pOptions;
 }
 
+static STableOptions* setTableFileFactor(SAstCreateContext* pCxt, STableOptions* pOptions, const SToken* pVal) {
+  double val = strtod(pVal->z, NULL);
+  if (val < TSDB_MIN_DB_FILE_FACTOR || val > TSDB_MAX_DB_FILE_FACTOR) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
+        "invalid table option file_factor: %f valid range: [%d, %d]", val, TSDB_MIN_DB_FILE_FACTOR, TSDB_MAX_DB_FILE_FACTOR);
+    pCxt->valid = false;
+    return pOptions;
+  }
+  pOptions->filesFactor = val;
+  return pOptions;
+}
+
+static STableOptions* setTableDelay(SAstCreateContext* pCxt, STableOptions* pOptions, const SToken* pVal) {
+  int64_t val = strtol(pVal->z, NULL, 10);
+  if (val < TSDB_MIN_DB_DELAY || val > TSDB_MAX_DB_DELAY) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
+        "invalid table option delay: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_DB_DELAY, TSDB_MAX_DB_DELAY);
+    pCxt->valid = false;
+    return pOptions;
+  }
+  pOptions->delay = val;
+  return pOptions;
+}
+
 static void initSetTableOptionFp() {
   setTableOptionFuncs[TABLE_OPTION_KEEP] = setTableKeep;
   setTableOptionFuncs[TABLE_OPTION_TTL] = setTableTtl;
   setTableOptionFuncs[TABLE_OPTION_COMMENT] = setTableComment;
+  setTableOptionFuncs[TABLE_OPTION_FILE_FACTOR] = setTableFileFactor;
+  setTableOptionFuncs[TABLE_OPTION_DELAY] = setTableDelay;
 }
 
 void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
@@ -667,8 +717,10 @@ SNode* createJoinTableNode(SAstCreateContext* pCxt, EJoinType type, SNode* pLeft
 SNode* createLimitNode(SAstCreateContext* pCxt, const SToken* pLimit, const SToken* pOffset) {
   SLimitNode* limitNode = (SLimitNode*)nodesMakeNode(QUERY_NODE_LIMIT);
   CHECK_OUT_OF_MEM(limitNode);
-  // limitNode->limit = limit;
-  // limitNode->offset = offset;
+  limitNode->limit = strtol(pLimit->z, NULL, 10);
+  if (NULL != pOffset) {
+    limitNode->offset = strtol(pOffset->z, NULL, 10);
+  }
   return (SNode*)limitNode;
 }
 
@@ -906,6 +958,8 @@ SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
   CHECK_OUT_OF_MEM(pOptions);
   pOptions->keep = TSDB_DEFAULT_KEEP;
   pOptions->ttl = TSDB_DEFAULT_DB_TTL_OPTION;
+  pOptions->filesFactor = TSDB_DEFAULT_DB_FILE_FACTOR;
+  pOptions->delay = TSDB_DEFAULT_DB_DELAY;
   return (SNode*)pOptions;
 }
 
@@ -914,6 +968,8 @@ SNode* createDefaultAlterTableOptions(SAstCreateContext* pCxt) {
   CHECK_OUT_OF_MEM(pOptions);
   pOptions->keep = -1;
   pOptions->ttl = -1;
+  pOptions->filesFactor = -1;
+  pOptions->delay = -1;
   return (SNode*)pOptions;
 }
 
@@ -927,7 +983,12 @@ SNode* setTableSmaOption(SAstCreateContext* pCxt, SNode* pOptions, SNodeList* pS
 }
 
 SNode* setTableRollupOption(SAstCreateContext* pCxt, SNode* pOptions, SNodeList* pFuncs) {
-  // todo
+  if (1 != LIST_LENGTH(pFuncs)) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid table option rollup: only one function is allowed");
+    pCxt->valid = false;
+    return pOptions;
+  }
+  ((STableOptions*)pOptions)->pFuncs = pFuncs;
   return pOptions;
 }
 
