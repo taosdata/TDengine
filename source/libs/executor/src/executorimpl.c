@@ -234,7 +234,6 @@ static void doSetOperatorCompleted(SOperatorInfo* pOperator) {
     setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
   }
 }
-
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
 #define OPTR_SET_OPENED(_optr) ((_optr)->status |= OP_OPENED)
 
@@ -1186,8 +1185,19 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, 
     pCtx[i].size  = pBlock->info.rows;
     pCtx[i].currentStage = MAIN_SCAN;
 
+    SExprInfo expr = pOperator->pExpr[i];
+    for (int32_t j = 0; j < expr.base.numOfParams; ++j) {
+      SFunctParam *pFuncParam = &expr.base.pParam[j];
+      if (pFuncParam->type == FUNC_PARAM_TYPE_COLUMN) {
+        int32_t slotId = pFuncParam->pCol->slotId;
+        pCtx[i].input.pData[j]  = taosArrayGet(pBlock->pDataBlock, slotId);
+        pCtx[i].input.totalRows = pBlock->info.rows;
+        pCtx[i].input.numOfRows = pBlock->info.rows;
+        pCtx[i].input.startRowIndex = 0;
+        ASSERT(pCtx[i].input.pData[j] != NULL);
+      }
+    }
     //    setBlockStatisInfo(&pCtx[i], pBlock, pOperator->pExpr[i].base.pColumns);
-    int32_t slotId = pOperator->pExpr[i].base.pParam[0].pCol->slotId;
 
     //      uint32_t flag = pOperator->pExpr[i].base.pParam[0].pCol->flag;
     //      if (TSDB_COL_IS_NORMAL_COL(flag) /*|| (pCtx[i].functionId == FUNCTION_BLKINFO) ||
@@ -1205,12 +1215,11 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, 
     //        }
 
     // in case of the block distribution query, the inputBytes is not a constant value.
-    pCtx[i].input.pData[0]  = taosArrayGet(pBlock->pDataBlock, slotId);
-    pCtx[i].input.totalRows = pBlock->info.rows;
-    pCtx[i].input.numOfRows = pBlock->info.rows;
-    pCtx[i].input.startRowIndex = 0;
+    //pCtx[i].input.pData[0]  = taosArrayGet(pBlock->pDataBlock, slotId);
+    //pCtx[i].input.totalRows = pBlock->info.rows;
+    //pCtx[i].input.numOfRows = pBlock->info.rows;
+    //pCtx[i].input.startRowIndex = 0;
 
-    ASSERT(pCtx[i].input.pData[0] != NULL);
 
     //        uint32_t status = aAggs[pCtx[i].functionId].status;
     //        if ((status & (FUNCSTATE_SELECTIVITY | FUNCSTATE_NEED_TS)) != 0) {
@@ -1267,15 +1276,17 @@ static void projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSData
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_FUNCTION) {
       ASSERT(!fmIsAggFunc(pCtx->functionId));
 
-      SScalarParam p = {.numOfRows = pSrcBlock->info.rows};
-      int32_t slotId = pExpr[k].base.pParam[0].pCol->slotId;
-      p.columnData = taosArrayGet(pSrcBlock->pDataBlock, slotId);
+      SArray* pBlockList = taosArrayInit(4, POINTER_BYTES);
+      taosArrayPush(pBlockList, &pSrcBlock);
 
       SScalarParam dest = {0};
       dest.columnData = taosArrayGet(pResult->pDataBlock, k);
-      pCtx[k].sfp.process(&p, 1, &dest);
 
+      scalarCalculate((SNode *)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest);
       pResult->info.rows = dest.numOfRows;
+
+      taosArrayDestroy(pBlockList);
+
     } else {
       ASSERT(0);
     }
@@ -8451,19 +8462,20 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
     pExp->pExpr->_function.num = 1;
     pExp->pExpr->_function.functionId = -1;
 
-    pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
-    pExp->base.numOfParams = 1;
-
-    pExp->base.pParam[0].pCol = taosMemoryCalloc(1, sizeof(SColumn));
-    SColumn* pCol = pExp->base.pParam[0].pCol;
-
     // it is a project query, or group by column
     if (nodeType(pTargetNode->pExpr) == QUERY_NODE_COLUMN) {
       pExp->pExpr->nodeType = QUERY_NODE_COLUMN;
       SColumnNode* pColNode = (SColumnNode*) pTargetNode->pExpr;
 
+      pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
+      pExp->base.numOfParams = 1;
+      pExp->base.pParam[0].pCol = taosMemoryCalloc(1, sizeof(SColumn));
+      pExp->base.pParam[0].type = FUNC_PARAM_TYPE_COLUMN;
+
       SDataType* pType = &pColNode->node.resType;
       pExp->base.resSchema = createResSchema(pType->type, pType->bytes, pTargetNode->slotId, pType->scale, pType->precision, pColNode->colName);
+
+      SColumn* pCol = pExp->base.pParam[0].pCol;
       pCol->slotId    = pColNode->slotId;   // TODO refactor
       pCol->bytes     = pType->bytes;
       pCol->type      = pType->type;
@@ -8482,26 +8494,46 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
 
       // TODO: value parameter needs to be handled
       int32_t numOfParam = LIST_LENGTH(pFuncNode->pParameterList);
+
+      pExp->base.pParam = taosMemoryCalloc(numOfParam, sizeof(SFunctParam));
+      pExp->base.numOfParams = numOfParam;
+
       for (int32_t j = 0; j < numOfParam; ++j) {
         SNode*       p1 = nodesListGetNode(pFuncNode->pParameterList, j);
-        SColumnNode* pcn = (SColumnNode*)p1;  // TODO refactor
+        if (p1->type == QUERY_NODE_COLUMN) {
+          SColumnNode* pcn = (SColumnNode*)p1;  // TODO refactor
 
-        pCol->slotId      = pcn->slotId;
-        pCol->bytes       = pcn->node.resType.bytes;
-        pCol->type        = pcn->node.resType.type;
-        pCol->scale       = pcn->node.resType.scale;
-        pCol->precision   = pcn->node.resType.precision;
-        pCol->dataBlockId = pcn->dataBlockId;
+          pExp->base.pParam[j].type = FUNC_PARAM_TYPE_COLUMN;
+          pExp->base.pParam[j].pCol = taosMemoryCalloc(1, sizeof(SColumn));
+          SColumn* pCol = pExp->base.pParam[j].pCol;
+
+          pCol->slotId      = pcn->slotId;
+          pCol->bytes       = pcn->node.resType.bytes;
+          pCol->type        = pcn->node.resType.type;
+          pCol->scale       = pcn->node.resType.scale;
+          pCol->precision   = pcn->node.resType.precision;
+          pCol->dataBlockId = pcn->dataBlockId;
+        } else if (p1->type == QUERY_NODE_VALUE) {
+          SValueNode* pvn = (SValueNode*)p1;
+
+          pExp->base.pParam[j].type = FUNC_PARAM_TYPE_VALUE;
+        }
       }
     } else if (nodeType(pTargetNode->pExpr) == QUERY_NODE_OPERATOR) {
       pExp->pExpr->nodeType = QUERY_NODE_OPERATOR;
       SOperatorNode* pNode = (SOperatorNode*) pTargetNode->pExpr;
+
+      pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
+      pExp->base.numOfParams = 1;
+      pExp->base.pParam[0].pCol = taosMemoryCalloc(1, sizeof(SColumn));
+      pExp->base.pParam[0].type = FUNC_PARAM_TYPE_COLUMN;
 
       SDataType* pType = &pNode->node.resType;
       pExp->base.resSchema = createResSchema(pType->type, pType->bytes, pTargetNode->slotId, pType->scale, pType->precision, pNode->node.aliasName);
 
       pExp->pExpr->_optrRoot.pRootNode = pTargetNode->pExpr;
 
+      SColumn* pCol   = pExp->base.pParam[0].pCol;
       pCol->slotId    = pTargetNode->slotId;   // TODO refactor
       pCol->bytes     = pType->bytes;
       pCol->type      = pType->type;

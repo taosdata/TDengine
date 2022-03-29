@@ -107,95 +107,13 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   return TSDB_CODE_SUCCESS;
 }
 
-#if 0
-int32_t logFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  if (inputNum != 2 || !IS_NUMERIC_TYPE(pInput[0].type) || !IS_NUMERIC_TYPE(pInput[1].type)) {
-    return TSDB_CODE_FAILED;
-  }
-
-  char **input = NULL, *output = NULL;
-  bool hasNullInput = false;
-  input = taosMemoryCalloc(inputNum, sizeof(char *));
-  for (int32_t i = 0; i < pOutput->num; ++i) {
-    for (int32_t j = 0; j < inputNum; ++j) {
-      if (pInput[j].num == 1) {
-        input[j] = pInput[j].data;
-      } else {
-        input[j] = pInput[j].data + i * pInput[j].bytes;
-      }
-      if (isNull(input[j], pInput[j].type)) {
-        hasNullInput = true;
-        break;
-      }
-    }
-    output = pOutput->data + i * pOutput->bytes;
-
-    if (hasNullInput) {
-      setNull(output, pOutput->type, pOutput->bytes);
-      continue;
-    }
-
-    double base;
-    GET_TYPED_DATA(base, double, pInput[1].type, input[1]);
-    double v;
-    GET_TYPED_DATA(v, double, pInput[0].type, input[0]);
-    double result = log(v) / log(base);
-    SET_TYPED_DATA(output, pOutput->type, result);
-  }
-
-  taosMemoryFree(input);
-
-  return TSDB_CODE_SUCCESS;
-}
-#endif
-
-#if 0
-int32_t powFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  if (inputNum != 2 || !IS_NUMERIC_TYPE(pInput[0].type) || !IS_NUMERIC_TYPE(pInput[1].type)) {
-    return TSDB_CODE_FAILED;
-  }
-
-  pOutput->type = TSDB_DATA_TYPE_DOUBLE;
-  pOutput->bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
-
-  char **input = NULL, *output = NULL;
-  bool hasNullInput = false;
-  input = taosMemoryCalloc(inputNum, sizeof(char *));
-  for (int32_t i = 0; i < pOutput->num; ++i) {
-    for (int32_t j = 0; j < inputNum; ++j) {
-      if (pInput[j].num == 1) {
-        input[j] = pInput[j].data;
-      } else {
-        input[j] = pInput[j].data + i * pInput[j].bytes;
-      }
-      if (isNull(input[j], pInput[j].type)) {
-        hasNullInput = true;
-        break;
-      }
-    }
-    output = pOutput->data + i * pOutput->bytes;
-
-    if (hasNullInput) {
-      setNull(output, pOutput->type, pOutput->bytes);
-      continue;
-    }
-
-    double base;
-    GET_TYPED_DATA(base, double, pInput[1].type, input[1]);
-    double v;
-    GET_TYPED_DATA(v, double, pInput[0].type, input[0]);
-    double result = pow(v, base);
-    SET_TYPED_DATA(output, pOutput->type, result);
-  }
-
-  taosMemoryFree(input);
-  return TSDB_CODE_SUCCESS;
-}
-#endif
-
 typedef float (*_float_fn)(float);
 typedef double (*_double_fn)(double);
 typedef double (*_double_fn_2)(double, double);
+
+double tlog(double v, double base) {
+  return log(v) / log(base);
+}
 
 int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SScalarParam* pOutput, _double_fn valFn) {
   int32_t type = GET_PARAM_TYPE(pInput);
@@ -220,10 +138,6 @@ int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SScalarPa
 
   pOutput->numOfRows = pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
-}
-
-double tlog(double v, double base) {
-  return log(v) / log(base);
 }
 
 int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, SScalarParam* pOutput, _double_fn_2 valFn) {
