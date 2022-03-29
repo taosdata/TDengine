@@ -98,7 +98,7 @@ void parseArgument(int32_t argc, char *argv[]) {
     }
   }
 
-#if 1
+#if 0
   pPrint("%s configDir:%s %s", GREEN, configDir, NC);
   pPrint("%s dbName:%s %s", GREEN, g_stConfInfo.dbName, NC);
   pPrint("%s topicString:%s %s", GREEN, g_stConfInfo.topicString, NC);
@@ -198,6 +198,8 @@ tmq_t* build_consumer() {
   TAOS_RES* pRes = taos_query(pConn, sqlStr);
   if (taos_errno(pRes) != 0) {
     printf("error in use db, reason:%s\n", taos_errstr(pRes));
+	taos_free_result(pRes);
+	exit(-1);
   }
   taos_free_result(pRes);
 
@@ -217,34 +219,6 @@ tmq_list_t* build_topic_list() {
     tmq_list_append(topic_list, g_stConfInfo.topics[i]);
   }
   return topic_list;
-}
-
-void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
-  static const int MIN_COMMIT_COUNT = 1000;
-
-  int            msg_count = 0;
-  tmq_resp_err_t err;
-
-  if ((err = tmq_subscribe(tmq, topics))) {
-    fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(err));
-    return;
-  }
-
-  while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 1);
-    if (tmqmessage) {
-      msg_process(tmqmessage);
-      tmq_message_destroy(tmqmessage);
-
-      if ((++msg_count % MIN_COMMIT_COUNT) == 0) tmq_commit(tmq, NULL, 0);
-    }
-  }
-
-  err = tmq_consumer_close(tmq);
-  if (err)
-    fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(err));
-  else
-    fprintf(stderr, "%% Consumer closed\n");
 }
 
 void perf_loop(tmq_t* tmq, tmq_list_t* topics) {
