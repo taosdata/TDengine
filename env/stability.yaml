@@ -1,0 +1,104 @@
+settings:
+  - name: taosd
+    fqdn: [ceph01]
+    spec:
+      version: 2.4.0.0  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: ceph01:6030
+      dnodes:
+        - endpoint: ceph01:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135
+  - name: taospy
+    fqdn: [ceph01]
+    spec:
+      version: 2.2.0
+      client_version: 2.4.0.0
+      config:
+        firstEP: ceph01:6030
+        logDir: /var/log/taos
+        debugFlag: 135
+
+  - name: taosAdapter
+    fqdn: [ceph01]
+    spec:
+      version: 2.4.0.0
+      config_file: /etc/taos/taosadaper.toml
+      adapter_config:
+        logLevel: info
+        port: 6041
+        taosConfigDir: /etc/taos
+        log:
+          path: /var/log/taos
+        opentsdb:
+          enable: true
+        influxdb:
+          enable: true
+        statsd:
+          enable: true
+          port: 6044
+          db: statsd
+          user: root
+          password: taosdata
+          worker: 10
+          gatherInterval: 5s
+          protocol: udp
+          maxTCPConnections: 250
+          tcpKeepAlive: false
+          allowPendingMessages: 50000
+          deleteCounters: true
+          deleteGauges: true
+          deleteSets: true
+          deleteTimings: true
+        opentsdb_telnet:
+          enable: true
+          maxTCPConnections: 250
+          tcpKeepAlive: false
+          dbs: ["telnet_tcp", "collectd", "icinga2", "tcollector"]
+          ports: [6046, 6047, 6048, 6049]
+          user: root
+          password: taosdata
+          worker: 1000
+        node_exporter:
+          enable: false
+          db: node_exporter
+          user: root
+          password: taosdata
+          urls: [http://localhost:9100]
+          responseTimeout: 5s
+          httpUsername: ""
+          httpPassword: ""
+          httpBearerTokenString: ""
+          caCertFile: ""
+          certFile: ""
+          keyFile: ""
+          insecureSkipVerify: true
+          gatherDuration: 5s
+
+      taos_config:
+        firstEP: ceph01:6030
+        logDir: /var/log/taos
+        debugFlag: 135
+
+  - name: agent
+    fqdn: [k8smaster]
+    taosadapter_fqdn: [k8smaster]
+    spec:
+      collectd:
+        count: 2
+        interval: 1
+      node_exporter:
+        port_range: [10000, 10005]
+      statsd:
+        count: 2
+      telegraf:
+        count: 2
+        interval: 1
+      icinga2:
+        count: 2
+        interval: 1
+      tcollector:
+        count: 2
