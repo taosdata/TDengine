@@ -80,19 +80,6 @@ void dndSetStatus(SDnode *pDnode, EDndStatus status) {
   }
 }
 
-const char *dndStatStr(EDndStatus status) {
-  switch (status) {
-    case DND_STAT_INIT:
-      return "init";
-    case DND_STAT_RUNNING:
-      return "running";
-    case DND_STAT_STOPPED:
-      return "stopped";
-    default:
-      return "unknown";
-  }
-}
-
 void dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc) {
   SStartupReq *pStartup = &pDnode->startup;
   tstrncpy(pStartup->name, pName, TSDB_STEP_NAME_LEN);
