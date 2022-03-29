@@ -1184,7 +1184,7 @@ StreamWithState* streamWithStateCreate(Fst* fst, AutomationCtx* automation, FstB
   sws->aut = automation;
   sws->inp = (SArray*)taosArrayInit(256, sizeof(uint8_t));
 
-  sws->emptyOutput.null = false;
+  sws->emptyOutput.null = true;
   sws->emptyOutput.out = 0;
 
   sws->stack = (SArray*)taosArrayInit(256, sizeof(StreamState));
@@ -1239,8 +1239,8 @@ bool streamWithStateSeekMin(StreamWithState* sws, FstBoundWithData* min) {
   for (uint32_t i = 0; i < len; i++) {
     uint8_t  b = data[i];
     uint64_t res = 0;
-    bool     null = fstNodeFindInput(node, b, &res);
-    if (null == false) {
+    bool     find = fstNodeFindInput(node, b, &res);
+    if (find == true) {
       FstTransition trn;
       fstNodeGetTransitionAt(node, res, &trn);
       void* preState = autState;
@@ -1293,7 +1293,6 @@ bool streamWithStateSeekMin(StreamWithState* sws, FstBoundWithData* min) {
 
   return false;
 }
-
 StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallback callback) {
   AutomationCtx* aut = sws->aut;
   FstOutput      output = sws->emptyOutput;
@@ -1356,6 +1355,7 @@ StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallb
       sws->stack = (SArray*)taosArrayInit(256, sizeof(StreamState));
       taosMemoryFreeClear(buf);
       fstSliceDestroy(&slice);
+      taosArrayDestroy(nodes);
       return NULL;
     }
     if (FST_NODE_IS_FINAL(nextNode) && isMatch) {
@@ -1364,15 +1364,12 @@ StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallb
       taosMemoryFreeClear(buf);
       fstSliceDestroy(&slice);
       taosArrayDestroy(nodes);
+      nodes = NULL;
       return result;
     }
     taosMemoryFreeClear(buf);
     fstSliceDestroy(&slice);
-  }
-  for (size_t i = 0; i < taosArrayGetSize(nodes); i++) {
-    FstNode** node = (FstNode**)taosArrayGet(nodes, i);
-    fstNodeDestroy(*node);
-  }
+  };
   taosArrayDestroy(nodes);
   return NULL;
 }
@@ -1425,9 +1422,9 @@ void fstStreamBuilderDestroy(FstStreamBuilder* b) {
   taosMemoryFreeClear(b->max);
   taosMemoryFree(b);
 }
-FstStreamBuilder* fstStreamBuilderRange(FstStreamBuilder* b, FstSlice* val, RangeType type) {
+void fstStreamBuilderSetRange(FstStreamBuilder* b, FstSlice* val, RangeType type) {
   if (b == NULL) {
-    return NULL;
+    return;
   }
   if (type == GE) {
     b->min->type = Included;
@@ -1446,5 +1443,4 @@ FstStreamBuilder* fstStreamBuilderRange(FstStreamBuilder* b, FstSlice* val, Rang
     fstSliceDestroy(&(b->max->data));
     b->max->data = fstSliceDeepCopy(val, 0, FST_SLICE_LEN(val) - 1);
   }
-  return b;
 }

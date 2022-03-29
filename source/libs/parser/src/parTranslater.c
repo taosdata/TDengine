@@ -235,6 +235,8 @@ static void setColumnInfoByExpr(const STableNode* pTable, SExprNode* pExpr, SCol
   nodesListAppend(pExpr->pAssociationList, (SNode*)pCol);
   if (NULL != pTable) {
     strcpy(pCol->tableAlias, pTable->tableAlias);
+  } else if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+    strcpy(pCol->tableAlias, ((SColumnNode*)pExpr)->tableAlias);
   }
   strcpy(pCol->colName, pExpr->aliasName);
   pCol->node.resType = pExpr->resType;
@@ -617,7 +619,6 @@ static int32_t toVgroupsInfo(SArray* pVgs, SVgroupsInfo** pVgsInfo) {
 }
 
 static int32_t setSysTableVgroupList(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
-  // todo release
   if (0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLES)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -631,11 +632,6 @@ static int32_t setSysTableVgroupList(STranslateContext* pCxt, SName* pName, SRea
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    // todo remove
-    //if (NULL != vgroupList && taosArrayGetSize(vgroupList) > 0 && 0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLES)) {
-    //  taosArrayPopTailBatch(vgroupList, taosArrayGetSize(vgroupList) - 1);
-    //}
-
     code = toVgroupsInfo(vgroupList, &pRealTable->pVgroupList);
   }
   taosArrayDestroy(vgroupList);
@@ -1488,12 +1484,6 @@ static int32_t nodeTypeToShowType(ENodeType nt) {
 
 static int32_t translateShow(STranslateContext* pCxt, SShowStmt* pStmt) {
   SShowReq showReq = { .type = nodeTypeToShowType(nodeType(pStmt)) };
-  // if ('\0' != pStmt->dbName[0]) {
-  //   SName name = {0};
-  //   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
-  //   char dbFname[TSDB_DB_FNAME_LEN] = {0};
-  //   tNameGetFullDbName(&name, showReq.db);
-  // }
 
   pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
   if (NULL == pCxt->pCmdMsg) {

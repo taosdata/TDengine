@@ -180,8 +180,8 @@ typedef struct SOrderByExprNode {
 
 typedef struct SLimitNode {
   ENodeType type; // QUERY_NODE_LIMIT
-  uint64_t limit;
-  uint64_t offset;
+  int64_t limit;
+  int64_t offset;
 } SLimitNode;
 
 typedef struct SStateWindowNode {

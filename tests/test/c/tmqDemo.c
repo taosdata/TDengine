@@ -67,7 +67,7 @@ static SConfInfo g_stConfInfo = {
     "tmqdb",
     "stb",
     "./tmqResult.txt",	// output_file
-    "/data2/dnode/data/vnode/vnode2/wal",
+    "",                 // /data2/dnode/data/vnode/vnode2/wal",
     1, // threads
     1, // tables
     1, // vgroups
@@ -662,7 +662,7 @@ int main(int32_t argc, char *argv[]) {
 	float	msgsSpeed   = totalMsgs / seconds;
 	
 
-	if (0 == g_stConfInfo.simCase) {
+	if ((0 == g_stConfInfo.simCase) && (strlen(g_stConfInfo.vnodeWalPath))) {
 	  walLogSize = getDirectorySize(g_stConfInfo.vnodeWalPath);
 	  if (walLogSize <= 0) {
 	    printf("%s size incorrect!", g_stConfInfo.vnodeWalPath);

@@ -26,6 +26,18 @@
 #include "tqueue.h"
 #include "tref.h"
 
+typedef struct {
+  int32_t curBlock;
+  int32_t curRow;
+  void**  uData;
+} SMqRowIter;
+
+struct tmq_message_t {
+  SMqPollRsp msg;
+  void*      vg;
+  SMqRowIter iter;
+};
+
 struct tmq_list_t {
   SArray container;
 };
@@ -99,13 +111,14 @@ typedef struct {
 
 typedef struct {
   // subscribe info
-  int32_t        sqlLen;
-  char*          sql;
-  char*          topicName;
-  int64_t        topicId;
-  int32_t        nextVgIdx;
-  SArray*        vgs;  // SArray<SMqClientVg>
-  SSchemaWrapper schema;
+  int32_t     sqlLen;
+  char*       sql;
+  char*       topicName;
+  int64_t     topicId;
+  SArray*     vgs;  // SArray<SMqClientVg>
+  int8_t      isSchemaAdaptive;
+  int32_t     numOfFields;
+  TAOS_FIELD* fields;
 } SMqClientTopic;
 
 typedef struct {
@@ -130,11 +143,11 @@ typedef struct {
 } SMqPollCbParam;
 
 typedef struct {
-  tmq_t* tmq;
-  /*SMqClientVg* pVg;*/
+  tmq_t*         tmq;
   int32_t        async;
   tsem_t         rspSem;
   tmq_resp_err_t rspErr;
+  /*SMqClientVg* pVg;*/
 } SMqCommitCbParam;
 
 tmq_conf_t* tmq_conf_new() {
@@ -471,7 +484,12 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
     tNameExtractFullName(&name, topicFname);
     tscDebug("subscribe topic: %s", topicFname);
     SMqClientTopic topic = {
-        .nextVgIdx = 0, .sql = NULL, .sqlLen = 0, .topicId = 0, .topicName = topicFname, .vgs = NULL};
+        .sql = NULL,
+        .sqlLen = 0,
+        .topicId = 0,
+        .topicName = topicFname,
+        .vgs = NULL,
+    };
     topic.vgs = taosArrayInit(0, sizeof(SMqClientVg));
     taosArrayPush(tmq->clientTopics, &topic);
     taosArrayPush(req.topicNames, &topicFname);
@@ -615,6 +633,7 @@ _return:
   return pRequest;
 }
 
+#if 0
 TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, int sqlLen) {
   STscObj*     pTscObj = (STscObj*)taos;
   SRequestObj* pRequest = NULL;
@@ -700,6 +719,7 @@ _return:
 
   return pRequest;
 }
+#endif
 
 static char* formatTimestamp(char* buf, int64_t val, int precision) {
   time_t  tt;

@@ -31,12 +31,13 @@ static int32_t streamBuildDispatchMsg(SStreamTask* pTask, SArray* data, SRpcMsg*
   if (pTask->dispatchType == TASK_DISPATCH__INPLACE) {
     ((SMsgHead*)buf)->vgId = 0;
     req.taskId = pTask->inplaceDispatcher.taskId;
+
   } else if (pTask->dispatchType == TASK_DISPATCH__FIXED) {
     ((SMsgHead*)buf)->vgId = htonl(pTask->fixedEpDispatcher.nodeId);
     *ppEpSet = &pTask->fixedEpDispatcher.epSet;
     req.taskId = pTask->fixedEpDispatcher.taskId;
+
   } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
-    int32_t nodeId = 0;
     // TODO fix tbname issue
     char ctbName[TSDB_TABLE_FNAME_LEN + 22];
     // all groupId must be the same in an array
@@ -52,10 +53,12 @@ static int32_t streamBuildDispatchMsg(SStreamTask* pTask, SArray* data, SRpcMsg*
     // TODO: optimize search process
     SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
     int32_t sz = taosArrayGetSize(vgInfo);
+    int32_t nodeId = 0;
     for (int32_t i = 0; i < sz; i++) {
       SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
       if (hashValue >= pVgInfo->hashBegin && hashValue <= pVgInfo->hashEnd) {
         nodeId = pVgInfo->vgId;
+        req.taskId = pVgInfo->taskId;
         *ppEpSet = &pVgInfo->epSet;
         break;
       }
@@ -71,6 +74,7 @@ static int32_t streamBuildDispatchMsg(SStreamTask* pTask, SArray* data, SRpcMsg*
   pMsg->contLen = tlen;
   pMsg->code = 0;
   pMsg->msgType = pTask->dispatchMsgType;
+  pMsg->noResp = 1;
 
   return 0;
 }
@@ -80,7 +84,7 @@ static int32_t streamShuffleDispatch(SStreamTask* pTask, SMsgCb* pMsgCb, SHashOb
   while (1) {
     pIter = taosHashIterate(data, pIter);
     if (pIter == NULL) return 0;
-    SArray* pData = (SArray*)pIter;
+    SArray* pData = *(SArray**)pIter;
     SRpcMsg dispatchMsg = {0};
     SEpSet* pEpSet;
     if (streamBuildDispatchMsg(pTask, pData, &dispatchMsg, &pEpSet) < 0) {
@@ -98,7 +102,6 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
   if (inputType == STREAM_DATA_TYPE_SUBMIT_BLOCK && pTask->sourceType != TASK_SOURCE__SCAN) return 0;
 
   // exec
-  // TODO: for shuffle dispatcher, merge data by groupId
   if (pTask->execType != TASK_EXEC__NONE) {
     ASSERT(workId < pTask->exec.numOfRunners);
     void* exec = pTask->exec.runners[workId].executor;
@@ -121,22 +124,23 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
       }
     } else if (inputType == STREAM_DATA_TYPE_SSDATA_BLOCK) {
       const SArray* blocks = (const SArray*)input;
-      int32_t       sz = taosArrayGetSize(blocks);
-      for (int32_t i = 0; i < sz; i++) {
-        SSDataBlock* pBlock = taosArrayGet(blocks, i);
-        qSetStreamInput(exec, pBlock, inputType);
-        while (1) {
-          SSDataBlock* output;
-          uint64_t     ts;
-          if (qExecTask(exec, &output, &ts) < 0) {
-            ASSERT(false);
-          }
-          if (output == NULL) {
-            break;
-          }
-          taosArrayPush(pRes, output);
+      /*int32_t       sz = taosArrayGetSize(blocks);*/
+      /*for (int32_t i = 0; i < sz; i++) {*/
+      /*SSDataBlock* pBlock = taosArrayGet(blocks, i);*/
+      /*qSetStreamInput(exec, pBlock, inputType);*/
+      qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_DATA_TYPE_SSDATA_BLOCK);
+      while (1) {
+        SSDataBlock* output;
+        uint64_t     ts;
+        if (qExecTask(exec, &output, &ts) < 0) {
+          ASSERT(false);
         }
+        if (output == NULL) {
+          break;
+        }
+        taosArrayPush(pRes, output);
       }
+      /*}*/
     } else {
       ASSERT(0);
     }
