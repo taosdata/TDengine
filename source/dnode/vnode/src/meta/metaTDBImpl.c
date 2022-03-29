@@ -290,15 +290,49 @@ int metaRemoveTableFromDb(SMeta *pMeta, tb_uid_t uid) {
 }
 
 STbCfg *metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid) {
-  // TODO
-  ASSERT(0);
-  return NULL;
+  int      ret;
+  SMetaDB *pMetaDb = pMeta->pDB;
+  void    *pKey;
+  void    *pVal;
+  int      kLen;
+  int      vLen;
+  STbCfg  *pTbCfg;
+
+  // Fetch
+  pKey = &uid;
+  kLen = sizeof(uid);
+  ret = tdbDbGet(pMetaDb->pTbDB, pKey, kLen, &pVal, &vLen);
+  if (ret < 0) {
+    return NULL;
+  }
+
+  // Decode
+  pTbCfg = taosMemoryMalloc(sizeof(*pTbCfg));
+  metaDecodeTbInfo(pVal, pTbCfg);
+
+  TDB_FREE(pVal);
+
+  return pTbCfg;
 }
 
 STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
-  // TODO
-  ASSERT(0);
-  return NULL;
+  void *pKey;
+  void *pVal;
+  int   kLen;
+  int   vLen;
+  int   ret;
+
+  pKey = tbname;
+  kLen = strlen(tbname) + 1;
+  ret = tdbDbGet(pMeta->pDB->pNameIdx, pKey, kLen, &pVal, &vLen);
+  if (ret < 0) {
+    return NULL;
+  }
+
+  *uid = *(tb_uid_t *)POINTER_SHIFT(pVal, kLen);
+  TDB_FREE(pVal);
+
+  return metaGetTbInfoByUid(pMeta, *uid);
 }
 
 SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline) {
