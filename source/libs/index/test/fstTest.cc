@@ -396,6 +396,8 @@ void checkFstCheckIteratorRange1() {
   fw->Put("c", 3);
   fw->Put("d", 4);
   fw->Put("e", 5);
+  fw->Put("f", 5);
+  fw->Put("G", 5);
   delete fw;
 
   FstReadMemory* m = new FstReadMemory(1024 * 64);
@@ -413,6 +415,33 @@ void checkFstCheckIteratorRange1() {
     assert(result.size() == 3);
     taosMemoryFree(ctx);
   }
+  {
+    // prefix search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "b", GT, "e", LT, result);
+    assert(result.size() == 2);
+    taosMemoryFree(ctx);
+  }
+  {
+    // prefix search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "b", GT, "e", LE, result);
+    assert(result.size() == 3);
+    taosMemoryFree(ctx);
+  }
+  {
+    // prefix search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "b", GE, "e", LE, result);
+    assert(result.size() == 4);
+    taosMemoryFree(ctx);
+  }
 }
 void checkFstCheckIteratorRange2() {
   FstWriter* fw = new FstWriter;
@@ -424,7 +453,7 @@ void checkFstCheckIteratorRange2() {
   std::cout << "insert data count :  " << count << "elapas time: " << e - s << std::endl;
 
   fw->Put("ab", 1);
-  fw->Put("bd", 2);
+  fw->Put("b", 2);
   fw->Put("cdd", 3);
   fw->Put("cde", 3);
   fw->Put("ddd", 4);
@@ -438,14 +467,39 @@ void checkFstCheckIteratorRange2() {
     return;
   }
   {
-    // prefix search
+    // range  search
     std::vector<uint64_t> result;
-
-    AutomationCtx* ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
-
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "b", GE, "ed", LT, result);
     assert(result.size() == 4);
+    taosMemoryFree(ctx);
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "b", GE, "ed", LE, result);
+    assert(result.size() == 5);
+    taosMemoryFree(ctx);
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "b", GT, "ed", LE, result);
+    assert(result.size() == 4);
+    taosMemoryFree(ctx);
+  }
+  {
+    // range  search
+    std::vector<uint64_t> result;
+    AutomationCtx*        ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
+    // [b, e)
+    m->SearchRange(ctx, "b", GT, "ed", LT, result);
+    assert(result.size() == 3);
     taosMemoryFree(ctx);
   }
 }
