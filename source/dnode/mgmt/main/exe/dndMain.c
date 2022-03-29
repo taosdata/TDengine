@@ -18,13 +18,15 @@
 #include "tconfig.h"
 
 static struct {
-  bool    dumpConfig;
-  bool    generateGrant;
-  bool    printAuth;
-  bool    printVersion;
-  char    envFile[PATH_MAX];
-  char    apolloUrl[PATH_MAX];
-  SDnode *pDnode;
+  bool      dumpConfig;
+  bool      generateGrant;
+  bool      printAuth;
+  bool      printVersion;
+  char      envFile[PATH_MAX];
+  char      apolloUrl[PATH_MAX];
+  SArray   *pArgs;  // SConfigPair
+  SDnode   *pDnode;
+  ENodeType ntype;
 } global = {0};
 
 static void dndSigintHandle(int signum, void *info, void *ctx) {
@@ -62,6 +64,8 @@ static int32_t dndParseArgs(int32_t argc, char const *argv[]) {
       tstrncpy(global.envFile, argv[++i], PATH_MAX);
     } else if (strcmp(argv[i], "-k") == 0) {
       global.generateGrant = true;
+    } else if (strcmp(argv[i], "-n") == 0) {
+      global.ntype = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-C") == 0) {
       global.dumpConfig = true;
     } else if (strcmp(argv[i], "-V") == 0) {
@@ -75,6 +79,7 @@ static int32_t dndParseArgs(int32_t argc, char const *argv[]) {
 
 static void dndGenerateGrant() {
   // grantParseParameter();
+  printf("this feature is not implemented yet\n");
 }
 
 static void dndPrintVersion() {
@@ -93,7 +98,7 @@ static void dndDumpCfg() {
   cfgDumpCfg(pCfg, 0, 1);
 }
 
-SDnodeOpt dndGetOpt() {
+static SDnodeOpt dndGetOpt() {
   SConfig  *pCfg = taosGetCfg();
   SDnodeOpt option = {0};
 
@@ -109,6 +114,20 @@ SDnodeOpt dndGetOpt() {
   return option;
 }
 
+static int32_t dndInitLog() {
+  char logName[12] = {0};
+  snprintf(logName, sizeof(logName), "%slog", dndNodeLogStr(global.ntype));
+  return taosCreateLog(logName, 1, configDir, global.envFile, global.apolloUrl, global.pArgs, 0);
+}
+
+static void dndSetProcName(char **argv) {
+  if (global.ntype != 0) {
+    const char *name = dndNodeProcStr(global.ntype);
+    prctl(PR_SET_NAME, name);
+    strcpy(argv[0], name);
+  }
+}
+
 static int32_t dndRunDnode() {
   if (dndInit() != 0) {
     dError("failed to initialize environment since %s", terrstr());
@@ -116,8 +135,7 @@ static int32_t dndRunDnode() {
   }
 
   SDnodeOpt option = dndGetOpt();
-
-  SDnode *pDnode = dndCreate(&option);
+  SDnode   *pDnode = dndCreate(&option);
   if (pDnode == NULL) {
     dError("failed to to create dnode object since %s", terrstr());
     return -1;
@@ -126,9 +144,9 @@ static int32_t dndRunDnode() {
     dndSetSignalHandle();
   }
 
-  dInfo("start the TDengine service");
+  dInfo("start the service");
   int32_t code = dndRun(pDnode);
-  dInfo("start shutting down the TDengine service");
+  dInfo("start shutting down the service");
 
   global.pDnode = NULL;
   dndClose(pDnode);
@@ -159,12 +177,12 @@ int main(int argc, char const *argv[]) {
     return 0;
   }
 
-  if (taosCreateLog("taosdlog", 1, configDir, global.envFile, global.apolloUrl, NULL, 0) != 0) {
-    printf("failed to start since read log config error\n");
+  if (dndInitLog() != 0) {
+    printf("failed to start since init log error\n");
     return -1;
   }
 
-  if (taosInitCfg(configDir, global.envFile, global.apolloUrl, NULL, 0) != 0) {
+  if (taosInitCfg(configDir, global.envFile, global.apolloUrl, global.pArgs, 0) != 0) {
     dError("failed to start since read config error");
     return -1;
   }
@@ -176,5 +194,6 @@ int main(int argc, char const *argv[]) {
     return 0;
   }
 
+  dndSetProcName((char **)argv);
   return dndRunDnode();
 }

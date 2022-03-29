@@ -131,11 +131,13 @@ typedef struct SDnode {
   SMgmtWrapper wrappers[NODE_MAX];
 } SDnode;
 
-EDndStatus dndGetStatus(SDnode *pDnode);
-void       dndSetStatus(SDnode *pDnode, EDndStatus stat);
-void       dndSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp, int32_t vgId);
-void       dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
-void       dndSendMonitorReport(SDnode *pDnode);
+const char *dndNodeLogStr(ENodeType ntype);
+const char *dndNodeProcStr(ENodeType ntype);
+EDndStatus  dndGetStatus(SDnode *pDnode);
+void        dndSetStatus(SDnode *pDnode, EDndStatus stat);
+void        dndSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp, int32_t vgId);
+void        dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
+void        dndSendMonitorReport(SDnode *pDnode);
 
 int32_t dndSendReqToMnode(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 int32_t dndSendReqToDnode(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pMsg);
