@@ -42,6 +42,9 @@ typedef struct {
   tb_uid_t uid;
 } SCtbIdxKey;
 
+static int   metaEncodeTbInfo(void **buf, STbCfg *pTbCfg);
+static void *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg);
+
 static inline int metaUidCmpr(const void *arg1, int len1, const void *arg2, int len2) {
   tb_uid_t uid1, uid2;
 
@@ -122,7 +125,7 @@ int metaOpenDB(SMeta *pMeta) {
   }
 
   // open schema DB
-  ret = tdbDbOpen("schema.db", sizeof(tb_uid_t) + sizeof(int32_t), TDB_VARIANT_LEN, metaSchemaKeyCmpr, pMetaDb->pEnv,
+  ret = tdbDbOpen("schema.db", sizeof(SSchemaDbKey), TDB_VARIANT_LEN, metaSchemaKeyCmpr, pMetaDb->pEnv,
                   &(pMetaDb->pSchemaDB));
   if (ret < 0) {
     // TODO
@@ -151,7 +154,7 @@ int metaOpenDB(SMeta *pMeta) {
     return -1;
   }
 
-  ret = tdbDbOpen("ctb.idx", sizeof(tb_uid_t), 0, metaCtbIdxCmpr, pMetaDb->pEnv, &(pMetaDb->pCtbIdx));
+  ret = tdbDbOpen("ctb.idx", sizeof(SCtbIdxKey), 0, metaCtbIdxCmpr, pMetaDb->pEnv, &(pMetaDb->pCtbIdx));
   if (ret < 0) {
     // TODO
     ASSERT(0);
@@ -181,6 +184,8 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
   int      kLen;
   int      vLen;
   int      ret;
+  char     buf[512];
+  void    *pBuf;
 
   pMetaDb = pMeta->pDB;
 
@@ -192,6 +197,11 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
   }
 
   // save to table.db
+  pKey = &uid;
+  kLen = sizeof(uid);
+  pVal = pBuf = buf;
+  metaEncodeTbInfo(&pBuf, pTbCfg);
+  vLen = POINTER_DISTANCE(pBuf, buf);
   ret = tdbDbInsert(pMetaDb->pTbDB, pKey, kLen, pVal, vLen);
   if (ret < 0) {
     return -1;
@@ -344,4 +354,81 @@ SMSmaCursor *metaOpenSmaCursor(SMeta *pMeta, tb_uid_t uid) {
   // TODO
   ASSERT(0);
   return NULL;
+}
+
+static int metaEncodeSchema(void **buf, SSchemaWrapper *pSW) {
+  int      tlen = 0;
+  SSchema *pSchema;
+
+  tlen += taosEncodeFixedU32(buf, pSW->nCols);
+  for (int i = 0; i < pSW->nCols; i++) {
+    pSchema = pSW->pSchema + i;
+    tlen += taosEncodeFixedI8(buf, pSchema->type);
+    tlen += taosEncodeFixedI16(buf, pSchema->colId);
+    tlen += taosEncodeFixedI32(buf, pSchema->bytes);
+    tlen += taosEncodeString(buf, pSchema->name);
+  }
+
+  return tlen;
+}
+
+static void *metaDecodeSchema(void *buf, SSchemaWrapper *pSW) {
+  SSchema *pSchema;
+
+  buf = taosDecodeFixedU32(buf, &pSW->nCols);
+  pSW->pSchema = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * pSW->nCols);
+  for (int i = 0; i < pSW->nCols; i++) {
+    pSchema = pSW->pSchema + i;
+    buf = taosDecodeFixedI8(buf, &pSchema->type);
+    buf = taosDecodeFixedI16(buf, &pSchema->colId);
+    buf = taosDecodeFixedI32(buf, &pSchema->bytes);
+    buf = taosDecodeStringTo(buf, pSchema->name);
+  }
+
+  return buf;
+}
+
+static int metaEncodeTbInfo(void **buf, STbCfg *pTbCfg) {
+  int tsize = 0;
+
+  tsize += taosEncodeString(buf, pTbCfg->name);
+  tsize += taosEncodeFixedU32(buf, pTbCfg->ttl);
+  tsize += taosEncodeFixedU32(buf, pTbCfg->keep);
+  tsize += taosEncodeFixedU8(buf, pTbCfg->info);
+
+  if (pTbCfg->type == META_SUPER_TABLE) {
+    SSchemaWrapper sw = {.nCols = pTbCfg->stbCfg.nTagCols, .pSchema = pTbCfg->stbCfg.pTagSchema};
+    tsize += metaEncodeSchema(buf, &sw);
+  } else if (pTbCfg->type == META_CHILD_TABLE) {
+    tsize += taosEncodeFixedU64(buf, pTbCfg->ctbCfg.suid);
+    tsize += tdEncodeKVRow(buf, pTbCfg->ctbCfg.pTag);
+  } else if (pTbCfg->type == META_NORMAL_TABLE) {
+    // TODO
+  } else {
+    ASSERT(0);
+  }
+
+  return tsize;
+}
+
+static void *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg) {
+  buf = taosDecodeString(buf, &(pTbCfg->name));
+  buf = taosDecodeFixedU32(buf, &(pTbCfg->ttl));
+  buf = taosDecodeFixedU32(buf, &(pTbCfg->keep));
+  buf = taosDecodeFixedU8(buf, &(pTbCfg->info));
+
+  if (pTbCfg->type == META_SUPER_TABLE) {
+    SSchemaWrapper sw;
+    buf = metaDecodeSchema(buf, &sw);
+    pTbCfg->stbCfg.nTagCols = sw.nCols;
+    pTbCfg->stbCfg.pTagSchema = sw.pSchema;
+  } else if (pTbCfg->type == META_CHILD_TABLE) {
+    buf = taosDecodeFixedU64(buf, &(pTbCfg->ctbCfg.suid));
+    buf = tdDecodeKVRow(buf, &(pTbCfg->ctbCfg.pTag));
+  } else if (pTbCfg->type == META_NORMAL_TABLE) {
+    // TODO
+  } else {
+    ASSERT(0);
+  }
+  return buf;
 }
