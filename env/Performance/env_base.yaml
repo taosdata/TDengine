@@ -50,7 +50,6 @@ settings:
         debugFlag: 131
 
 
-
   - name: prometheus
     fqdn: [BCC-2]
     spec:
