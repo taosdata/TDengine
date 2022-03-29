@@ -85,16 +85,32 @@ int32_t exprTreeValidateFunctionNode(char* msgbuf, tExprNode *pExpr) {
 }
 
 int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
+  int16_t leftType = pExpr->_node.pLeft->resultType;
+  int16_t rightType = pExpr->_node.pRight->resultType;
+
   if (pExpr->_node.optr == TSDB_BINARY_OP_ADD || pExpr->_node.optr == TSDB_BINARY_OP_SUBTRACT ||
       pExpr->_node.optr == TSDB_BINARY_OP_MULTIPLY || pExpr->_node.optr == TSDB_BINARY_OP_DIVIDE ||
       pExpr->_node.optr == TSDB_BINARY_OP_REMAINDER) {
-    int16_t leftType = pExpr->_node.pLeft->resultType;
-    int16_t rightType = pExpr->_node.pRight->resultType;
     if (!IS_NUMERIC_TYPE(leftType) || !IS_NUMERIC_TYPE(rightType)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
     pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
     pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+    return TSDB_CODE_SUCCESS;
+  } else if (pExpr->_node.optr == TSDB_BINARY_OP_BITAND) {
+    if ((leftType != rightType) || (leftType != TSDB_DATA_TYPE_BOOL && !IS_SIGNED_NUMERIC_TYPE(leftType) && !IS_UNSIGNED_NUMERIC_TYPE(leftType)) ||
+        (rightType != TSDB_DATA_TYPE_BOOL && !IS_SIGNED_NUMERIC_TYPE(rightType) && !IS_UNSIGNED_NUMERIC_TYPE(rightType)))
+    {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+
+    if (leftType == TSDB_DATA_TYPE_BOOL) {
+      pExpr->resultType = TSDB_DATA_TYPE_BOOL;
+      pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+    } else {
+      pExpr->resultType = leftType;
+      pExpr->resultBytes = tDataTypes[leftType].bytes;
+    }
     return TSDB_CODE_SUCCESS;
   } else {
     return TSDB_CODE_SUCCESS;
@@ -490,7 +506,15 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
   OperatorFn(leftIn, leftNum, leftType, rightIn, rightNum, rightType, output->data, fnOrder);
   
   output->numOfRows = MAX(leftNum, rightNum);
-  output->type = TSDB_DATA_TYPE_DOUBLE;
+  if(leftType == TSDB_DATA_TYPE_TIMESTAMP || rightType == TSDB_DATA_TYPE_TIMESTAMP) {
+    output->type = TSDB_DATA_TYPE_BIGINT;
+  } else {
+    if (pExpr->_node.optr == TSDB_BINARY_OP_BITAND) {
+      output->type = leftType; // rightType must be the same as leftType
+    } else {
+      output->type = TSDB_DATA_TYPE_DOUBLE;
+    }    
+  }
   output->bytes = tDataTypes[output->type].bytes;
 
   tfree(ltmp);

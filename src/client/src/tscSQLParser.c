@@ -282,6 +282,8 @@ static uint8_t convertRelationalOperator(SStrToken *pToken) {
       return TSDB_BINARY_OP_DIVIDE;
     case TK_REM:
       return TSDB_BINARY_OP_REMAINDER;
+    case TK_BITAND:
+      return TSDB_BINARY_OP_BITAND;
     case TK_LIKE:
       return TSDB_RELATION_LIKE;
     case TK_MATCH:
@@ -10122,8 +10124,8 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
       *pExpr = calloc(1, sizeof(tExprNode));
       (*pExpr)->nodeType = TSQL_NODE_VALUE;
       (*pExpr)->pVal = calloc(1, sizeof(tVariant));
-      tVariantAssign((*pExpr)->pVal, &pSqlExpr->value);
 
+      tVariant value = pSqlExpr->value;
       STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, pQueryInfo->curTableIdx)->pTableMeta;
       if (pCols != NULL) {
         size_t colSize = taosArrayGetSize(pCols);
@@ -10132,12 +10134,14 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
           SColIndex* idx = taosArrayGet(pCols, colSize - 1);
 
           SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, idx->colIndex);
+          value.nType = pSchema->type;
           // convert time by precision
           if (pSchema != NULL && TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && TSDB_DATA_TYPE_BINARY == (*pExpr)->pVal->nType) {
             ret = setColumnFilterInfoForTimestamp(pCmd, pQueryInfo, (*pExpr)->pVal);
           }
         }
       }
+      tVariantAssign((*pExpr)->pVal, &value);
       return ret;
     } else if (pSqlExpr->type == SQL_NODE_TABLE_COLUMN) {  // column name, normal column arithmetic expression
       SColumnIndex index = COLUMN_INDEX_INITIALIZER;
@@ -10238,6 +10242,23 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
       }
     }
 
+    if (pSqlExpr->tokenId == TK_BITAND && pSqlExpr->pLeft != NULL && pSqlExpr->pRight != NULL) {
+      // for example: col type is "bool" but expr "col & 1" received
+      uint8_t colType = pLeft->pSchema->type;
+      SStrToken *exprToken = &pSqlExpr->pRight->exprToken;
+      if (pSqlExpr->pLeft->type == SQL_NODE_TABLE_COLUMN && pSqlExpr->pRight->type == SQL_NODE_VALUE) {
+        if (colType == TSDB_DATA_TYPE_BOOL) {
+          if ((exprToken->n != 4 || strncasecmp(exprToken->z, "true", 4)) && (exprToken->n != 5 || strncasecmp(exprToken->z, "false", 5))) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+        } else if (IS_SIGNED_NUMERIC_TYPE(colType) || IS_UNSIGNED_NUMERIC_TYPE(colType)) {
+          if ((exprToken->n == 4 && strncasecmp(exprToken->z, "true", 4) == 0) || (exprToken->n == 5 || strncasecmp(exprToken->z, "false", 5) == 0)) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+        }
+      }
+    }
+
     if (pSqlExpr->pRight != NULL) {
       int32_t ret = exprTreeFromSqlExpr(pCmd, &pRight, pSqlExpr->pRight, pQueryInfo, pCols, uid);
       if (ret != TSDB_CODE_SUCCESS) {
@@ -10275,9 +10296,11 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
         if (pLeft->_node.optr == TSDB_RELATION_ARROW){
           pLeft = pLeft->_node.pLeft;
         }
-        if (pRight->pVal->nType == TSDB_DATA_TYPE_BOOL && pLeft->nodeType == TSQL_NODE_COL &&
-           (pLeft->pSchema->type == TSDB_DATA_TYPE_BOOL || pLeft->pSchema->type == TSDB_DATA_TYPE_JSON)) {
-          return TSDB_CODE_TSC_INVALID_OPERATION;
+        if (pRight->pVal->nType == TSDB_DATA_TYPE_BOOL && pLeft->nodeType == TSQL_NODE_COL) {
+          if (((*pExpr)->_node.optr != TSDB_BINARY_OP_BITAND && pLeft->pSchema->type == TSDB_DATA_TYPE_BOOL) ||
+              pLeft->pSchema->type == TSDB_DATA_TYPE_JSON) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
         }
       }
     }
