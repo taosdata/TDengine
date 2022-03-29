@@ -1293,7 +1293,6 @@ bool streamWithStateSeekMin(StreamWithState* sws, FstBoundWithData* min) {
 
   return false;
 }
-
 StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallback callback) {
   AutomationCtx* aut = sws->aut;
   FstOutput      output = sws->emptyOutput;
@@ -1317,7 +1316,7 @@ StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallb
       if (FST_NODE_ADDR(p->node) != fstGetRootAddr(sws->fst)) {
         taosArrayPop(sws->inp);
       }
-      // streamStateDestroy(p);
+      streamStateDestroy(p);
       continue;
     }
     FstTransition trn;
@@ -1356,6 +1355,7 @@ StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallb
       sws->stack = (SArray*)taosArrayInit(256, sizeof(StreamState));
       taosMemoryFreeClear(buf);
       fstSliceDestroy(&slice);
+      taosArrayDestroy(nodes);
       return NULL;
     }
     if (FST_NODE_IS_FINAL(nextNode) && isMatch) {
@@ -1364,15 +1364,12 @@ StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallb
       taosMemoryFreeClear(buf);
       fstSliceDestroy(&slice);
       taosArrayDestroy(nodes);
+      nodes = NULL;
       return result;
     }
     taosMemoryFreeClear(buf);
     fstSliceDestroy(&slice);
-  }
-  for (size_t i = 0; i < taosArrayGetSize(nodes); i++) {
-    FstNode** node = (FstNode**)taosArrayGet(nodes, i);
-    fstNodeDestroy(*node);
-  }
+  };
   taosArrayDestroy(nodes);
   return NULL;
 }

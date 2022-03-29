@@ -99,6 +99,8 @@ class FstReadMemory {
       result.push_back(rt->out.out);
       swsResultDestroy(rt);
     }
+    streamWithStateDestroy(st);
+    fstStreamBuilderDestroy(sb);
     return true;
   }
   bool SearchRange(AutomationCtx* ctx, const std::string& low, RangeType lowType, const std::string& high,
@@ -127,6 +129,8 @@ class FstReadMemory {
       result.push_back(rt->out.out);
       swsResultDestroy(rt);
     }
+    streamWithStateDestroy(st);
+    fstStreamBuilderDestroy(sb);
     return true;
   }
   bool SearchWithTimeCostUs(AutomationCtx* ctx, std::vector<uint64_t>& result) {
@@ -290,8 +294,8 @@ void checkFstCheckIterator1() {
   for (int i = 0; i < result.size(); i++) {
     // assert(result[i] == i);  // check result
   }
+  automCtxDestroy(ctx);
 
-  taosMemoryFree(ctx);
   delete m;
 }
 void checkFstCheckIterator2() {
@@ -325,8 +329,8 @@ void checkFstCheckIterator2() {
   for (int i = 0; i < result.size(); i++) {
     // assert(result[i] == i);  // check result
   }
+  automCtxDestroy(ctx);
 
-  taosMemoryFree(ctx);
   delete m;
 }
 void checkFstCheckIteratorPrefix() {
@@ -361,7 +365,7 @@ void checkFstCheckIteratorPrefix() {
     AutomationCtx* ctx = automCtxCreate((void*)"he", AUTOMATION_PREFIX);
     m->Search(ctx, result);
     assert(result.size() == 1);
-    taosMemoryFree(ctx);
+    automCtxDestroy(ctx);
   }
   {
     // prefix search
@@ -370,7 +374,7 @@ void checkFstCheckIteratorPrefix() {
     AutomationCtx* ctx = automCtxCreate((void*)"Hello", AUTOMATION_PREFIX);
     m->Search(ctx, result);
     assert(result.size() == 2);
-    taosMemoryFree(ctx);
+    automCtxDestroy(ctx);
   }
   {
     std::vector<uint64_t> result;
@@ -378,7 +382,7 @@ void checkFstCheckIteratorPrefix() {
     AutomationCtx* ctx = automCtxCreate((void*)"jddd", AUTOMATION_PREFIX);
     m->Search(ctx, result);
     assert(result.size() == 1);
-    taosMemoryFree(ctx);
+    automCtxDestroy(ctx);
   }
   delete m;
 }
@@ -413,7 +417,7 @@ void checkFstCheckIteratorRange1() {
     // [b, e)
     m->SearchRange(ctx, "b", GE, "e", LT, result);
     assert(result.size() == 3);
-    taosMemoryFree(ctx);
+    automCtxDestroy(ctx);
   }
   {
     // prefix search
@@ -422,7 +426,7 @@ void checkFstCheckIteratorRange1() {
     // [b, e)
     m->SearchRange(ctx, "b", GT, "e", LT, result);
     assert(result.size() == 2);
-    taosMemoryFree(ctx);
+    automCtxDestroy(ctx);
   }
   {
     // prefix search
@@ -431,7 +435,7 @@ void checkFstCheckIteratorRange1() {
     // [b, e)
     m->SearchRange(ctx, "b", GT, "e", LE, result);
     assert(result.size() == 3);
-    taosMemoryFree(ctx);
+    automCtxDestroy(ctx);
   }
   {
     // prefix search
@@ -440,8 +444,9 @@ void checkFstCheckIteratorRange1() {
     // [b, e)
     m->SearchRange(ctx, "b", GE, "e", LE, result);
     assert(result.size() == 4);
-    taosMemoryFree(ctx);
+    automCtxDestroy(ctx);
   }
+  delete m;
 }
 void checkFstCheckIteratorRange2() {
   FstWriter* fw = new FstWriter;
@@ -473,7 +478,7 @@ void checkFstCheckIteratorRange2() {
     // [b, e)
     m->SearchRange(ctx, "b", GE, "ed", LT, result);
     assert(result.size() == 4);
-    taosMemoryFree(ctx);
+    automCtxDestroy(ctx);
   }
   {
     // range  search
@@ -482,7 +487,8 @@ void checkFstCheckIteratorRange2() {
     // [b, e)
     m->SearchRange(ctx, "b", GE, "ed", LE, result);
     assert(result.size() == 5);
-    taosMemoryFree(ctx);
+    automCtxDestroy(ctx);
+    // taosMemoryFree(ctx);
   }
   {
     // range  search
@@ -491,7 +497,7 @@ void checkFstCheckIteratorRange2() {
     // [b, e)
     m->SearchRange(ctx, "b", GT, "ed", LE, result);
     assert(result.size() == 4);
-    taosMemoryFree(ctx);
+    automCtxDestroy(ctx);
   }
   {
     // range  search
@@ -500,8 +506,9 @@ void checkFstCheckIteratorRange2() {
     // [b, e)
     m->SearchRange(ctx, "b", GT, "ed", LT, result);
     assert(result.size() == 3);
-    taosMemoryFree(ctx);
+    automCtxDestroy(ctx);
   }
+  delete m;
 }
 
 void fst_get(Fst* fst) {
@@ -566,9 +573,9 @@ int main(int argc, char* argv[]) {
   // path suid colName ver
   // iterTFileReader(argv[1], argv[2], argv[3], argv[4]);
   //}
-  // checkFstCheckIterator1();
-  // checkFstCheckIterator2();
-  // checkFstCheckIteratorPrefix();
+  checkFstCheckIterator1();
+  checkFstCheckIterator2();
+  checkFstCheckIteratorPrefix();
   checkFstCheckIteratorRange1();
   checkFstCheckIteratorRange2();
   // checkFstLongTerm();
