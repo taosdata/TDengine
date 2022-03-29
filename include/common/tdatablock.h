@@ -29,8 +29,9 @@ typedef struct SCorEpSet {
 } SCorEpSet;
 
 typedef struct SBlockOrderInfo {
+  bool             nullFirst;
   int32_t          order;
-  int32_t          colIndex;
+  int32_t          slotId;
   SColumnInfoData* pColData;
 } SBlockOrderInfo;
 
@@ -176,7 +177,7 @@ size_t blockDataGetSerialMetaSize(const SSDataBlock* pBlock);
 
 SSchema* blockDataExtractSchema(const SSDataBlock* pBlock, int32_t* numOfCols);
 
-int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst);
+int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo);
 int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst);
 
 int32_t      blockDataEnsureColumnCapacity(SColumnInfoData* pColumn, uint32_t numOfRows);

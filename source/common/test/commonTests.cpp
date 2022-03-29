@@ -167,10 +167,10 @@ TEST(testCase, Datablock_test) {
   printf("the second row of binary:%s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
 
   SArray* pOrderInfo = taosArrayInit(3, sizeof(SBlockOrderInfo));
-  SBlockOrderInfo order = {.order = TSDB_ORDER_ASC, .colIndex = 0};
+  SBlockOrderInfo order = {.nullFirst = true, .order = TSDB_ORDER_ASC, .slotId = 0};
   taosArrayPush(pOrderInfo, &order);
 
-  blockDataSort(b, pOrderInfo, true);
+  blockDataSort(b, pOrderInfo);
   blockDataDestroy(b);
 
   taosArrayDestroy(pOrderInfo);

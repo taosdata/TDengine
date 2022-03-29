@@ -207,8 +207,8 @@ static void taosProcCleanupQueue(SProcQueue *pQueue) {
   }
 }
 
-static int32_t taosProcQueuePush(SProcQueue *pQueue, char *pHead, int16_t rawHeadLen, char *pBody, int32_t rawBodyLen,
-                                 ProcFuncType funcType) {
+static int32_t taosProcQueuePush(SProcQueue *pQueue, const char *pHead, int16_t rawHeadLen, const char *pBody,
+                                 int32_t rawBodyLen, ProcFuncType funcType) {
   const int32_t headLen = CEIL8(rawHeadLen);
   const int32_t bodyLen = CEIL8(rawBodyLen);
   const int32_t fullLen = headLen + bodyLen + 8;
@@ -471,12 +471,12 @@ void taosProcCleanup(SProcObj *pProc) {
   }
 }
 
-int32_t taosProcPutToChildQ(SProcObj *pProc, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen,
-                                ProcFuncType funcType) {
+int32_t taosProcPutToChildQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
+                            ProcFuncType funcType) {
   return taosProcQueuePush(pProc->pChildQueue, pHead, headLen, pBody, bodyLen, funcType);
 }
 
-int32_t taosProcPutToParentQ(SProcObj *pProc, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen,
-                                 ProcFuncType funcType) {
+int32_t taosProcPutToParentQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
+                             ProcFuncType funcType) {
   return taosProcQueuePush(pProc->pParentQueue, pHead, headLen, pBody, bodyLen, funcType);
 }

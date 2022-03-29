@@ -309,7 +309,7 @@ int32_t dndInitMsgHandle(SDnode *pDnode) {
   return 0;
 }
 
-static int32_t dndSendRpcReq(STransMgmt *pMgmt, SEpSet *pEpSet, SRpcMsg *pReq) {
+static int32_t dndSendRpcReq(STransMgmt *pMgmt, const SEpSet *pEpSet, SRpcMsg *pReq) {
   if (pMgmt->clientRpc == NULL) {
     terrno = TSDB_CODE_DND_OFFLINE;
     return -1;
@@ -319,7 +319,7 @@ static int32_t dndSendRpcReq(STransMgmt *pMgmt, SEpSet *pEpSet, SRpcMsg *pReq) {
   return 0;
 }
 
-int32_t dndSendReqToDnode(SMgmtWrapper *pWrapper, SEpSet *pEpSet, SRpcMsg *pReq) {
+int32_t dndSendReqToDnode(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pReq) {
   if (pWrapper->procType == PROC_CHILD) {
   } else {
     SDnode *pDnode = pWrapper->pDnode;
@@ -348,7 +348,7 @@ int32_t dndSendReqToMnode(SMgmtWrapper *pWrapper, SRpcMsg *pReq) {
   }
 }
 
-void dndSendRpcRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
+void dndSendRpcRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp) {
   if (pRsp->code == TSDB_CODE_APP_NOT_READY) {
     SMgmtWrapper *pDnodeWrapper = dndAcquireWrapper(pWrapper->pDnode, DNODE);
     if (pDnodeWrapper != NULL) {
@@ -362,7 +362,7 @@ void dndSendRpcRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
   }
 }
 
-void dndSendRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
+void dndSendRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp) {
   if (pWrapper->procType == PROC_CHILD) {
     int32_t code = -1;
     do {

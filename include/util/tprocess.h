@@ -55,9 +55,9 @@ int32_t   taosProcRun(SProcObj *pProc);
 void      taosProcStop(SProcObj *pProc);
 bool      taosProcIsChild(SProcObj *pProc);
 int32_t   taosProcChildId(SProcObj *pProc);
-int32_t   taosProcPutToChildQ(SProcObj *pProc, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen,
+int32_t   taosProcPutToChildQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
                               ProcFuncType ftype);
-int32_t   taosProcPutToParentQ(SProcObj *pProc, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen,
+int32_t   taosProcPutToParentQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
                                ProcFuncType ftype);
 
 #ifdef __cplusplus
