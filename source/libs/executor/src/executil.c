@@ -19,8 +19,6 @@
 
 #include "executil.h"
 #include "executorimpl.h"
-//#include "queryLog.h"
-#include "tbuffer.h"
 #include "tcompression.h"
 #include "tlosertree.h"
 
