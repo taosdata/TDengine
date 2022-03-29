@@ -63,15 +63,17 @@ static void bmProcessQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs
   taosArrayDestroy(pArray);
 }
 
-int32_t bmProcessWriteMsg(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+int32_t bmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+  SBnodeMgmt   *pMgmt = pWrapper->pMgmt;
   SMultiWorker *pWorker = &pMgmt->writeWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
-  return taosWriteQitem(pWorker->queue, pMsg);
+  taosWriteQitem(pWorker->queue, pMsg);
+  return 0;
 }
 
 int32_t bmStartWorker(SBnodeMgmt *pMgmt) {
-  SMultiWorkerCfg cfg = {.maxNum = 1, .name = "bnode-write", .fp = (FItems)bmProcessQueue, .param = pMgmt};
+  SMultiWorkerCfg cfg = {.max = 1, .name = "bnode-write", .fp = (FItems)bmProcessQueue, .param = pMgmt};
   if (tMultiWorkerInit(&pMgmt->writeWorker, &cfg) != 0) {
     dError("failed to start bnode write worker since %s", terrstr());
     return -1;
