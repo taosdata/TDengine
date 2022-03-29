@@ -41,6 +41,38 @@ sql insert into ct1 values ( '2022-01-01 01:01:26.000', 6 )
 sql insert into ct1 values ( '2022-01-01 01:01:30.000', 7 )
 sql insert into ct1 values ( '2022-01-01 01:01:36.000', 8 )
 
+print =============== insert data into child table ct2 (d)
+sql insert into ct2 values ( '2022-01-01 01:00:01.000', 1 )
+sql insert into ct2 values ( '2022-01-01 10:00:01.000', 2 )
+sql insert into ct2 values ( '2022-01-01 20:00:01.000', 3 )
+sql insert into ct2 values ( '2022-01-02 10:00:01.000', 4 )
+sql insert into ct2 values ( '2022-01-02 20:00:01.000', 5 )
+sql insert into ct2 values ( '2022-01-03 10:00:01.000', 6 )
+sql insert into ct2 values ( '2022-01-03 20:00:01.000', 7 )
+
+print =============== insert data into child table ct3 (n)
+sql insert into ct3 values ( '2021-12-21 01:01:01.000', NULL )
+sql insert into ct3 values ( '2021-12-31 01:01:01.000', 1 )
+sql insert into ct3 values ( '2022-01-01 01:01:06.000', 2 )
+sql insert into ct3 values ( '2022-01-07 01:01:10.000', 3 )
+sql insert into ct3 values ( '2022-01-31 01:01:16.000', 4 )
+sql insert into ct3 values ( '2022-02-01 01:01:20.000', 5 )
+sql insert into ct3 values ( '2022-02-28 01:01:26.000', 6 )
+sql insert into ct3 values ( '2022-03-01 01:01:30.000', 7 )
+sql insert into ct3 values ( '2022-03-08 01:01:36.000', 8 )
+
+print =============== insert data into child table ct4 (y)
+sql insert into ct4 values ( '2020-10-21 01:01:01.000', 1 )
+sql insert into ct4 values ( '2020-12-31 01:01:01.000', 2 )
+sql insert into ct4 values ( '2021-01-01 01:01:06.000', 3 )
+sql insert into ct4 values ( '2021-05-07 01:01:10.000', 4 )
+sql insert into ct4 values ( '2021-09-30 01:01:16.000', 5 )
+sql insert into ct4 values ( '2022-02-01 01:01:20.000', 6 )
+sql insert into ct4 values ( '2022-10-28 01:01:26.000', 7 )
+sql insert into ct4 values ( '2022-12-01 01:01:30.000', 8 )
+sql insert into ct4 values ( '2022-12-31 01:01:36.000', 9 )
+
+print ================ start query ======================
 sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct1 interval(10s, 2s)
 print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct1 interval(10s, 2s)
 print ===> rows: $rows
@@ -102,15 +134,6 @@ if $data80 != 1 then
   return -1
 endi 
 
-print =============== insert data into child table ct2 (d)
-sql insert into ct2 values ( '2022-01-01 01:00:01.000', 1 )
-sql insert into ct2 values ( '2022-01-01 10:00:01.000', 2 )
-sql insert into ct2 values ( '2022-01-01 20:00:01.000', 3 )
-sql insert into ct2 values ( '2022-01-02 10:00:01.000', 4 )
-sql insert into ct2 values ( '2022-01-02 20:00:01.000', 5 )
-sql insert into ct2 values ( '2022-01-03 10:00:01.000', 6 )
-sql insert into ct2 values ( '2022-01-03 20:00:01.000', 7 )
-
 sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct2 interval(1d, 2h)
 print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct2 interval(1d, 2h)
 print ===> rows: $rows
@@ -140,45 +163,19 @@ print ===> rows4: $data40 $data41 $data42 $data43 $data44 $data45
 print ===> rows5: $data50 $data51 $data52 $data53 $data54 $data55 
 print ===> rows6: $data60 $data61 $data62 $data63 $data64 $data65 
 print ===> rows7: $data70 $data71 $data72 $data73 $data74 $data75 
-#if $rows != 8 then
-#  return -1
-#endi 
-#if $data00 != 1 then
-#  return -1
-#endi  
-#if $data10 != 2 then
-#  return -1
-#endi   
-#if $data20 != 2 then
-#  return -1
-#endi   
-#if $data30 != 2 then
-#  return -1
-#endi   
-#if $data40 != 2 then
-#  return -1
-#endi   
-#if $data50 != 2 then
-#  return -1
-#endi   
-#if $data60 != 2 then
-#  return -1
-#endi 
-#if $data70 != 1 then
-#  return -1
-#endi
-
-print =============== insert data into child table ct3 (n)
-sql insert into ct3 values ( '2021-12-21 01:01:01.000', NULL );
-sql insert into ct3 values ( '2021-12-31 01:01:01.000', 1 );
-sql insert into ct3 values ( '2022-01-01 01:01:06.000', 2 );
-sql insert into ct3 values ( '2022-01-07 01:01:10.000', 3 );
-sql insert into ct3 values ( '2022-01-31 01:01:16.000', 4 );
-sql insert into ct3 values ( '2022-02-01 01:01:20.000', 5 );
-sql insert into ct3 values ( '2022-02-28 01:01:26.000', 6 );
-sql insert into ct3 values ( '2022-03-01 01:01:30.000', 7 );
-sql insert into ct3 values ( '2022-03-08 01:01:36.000', 8 );
-
+if $rows != 8 then
+  return -1
+endi 
+if $data00 != 1 then
+  return -1
+endi  
+if $data10 != 2 then
+  return -1
+endi   
+if $data70 != 1 then
+  return -1
+endi
+ 
 sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct3 interval(1n, 1w)
 print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct3 interval(1n, 1w)
 print ===> rows: $rows
@@ -235,18 +232,6 @@ print ===> rows7: $data70 $data71 $data72 $data73 $data74
 #if $data70 != 1 then
 #  return -1
 #endi 
-
-
-print =============== insert data into child table ct4 (y)
-sql insert into ct4 values ( '2020-10-21 01:01:01.000', 1 )
-sql insert into ct4 values ( '2020-12-31 01:01:01.000', 2 )
-sql insert into ct4 values ( '2021-01-01 01:01:06.000', 3 )
-sql insert into ct4 values ( '2021-05-07 01:01:10.000', 4 )
-sql insert into ct4 values ( '2021-09-30 01:01:16.000', 5 )
-sql insert into ct4 values ( '2022-02-01 01:01:20.000', 6 )
-sql insert into ct4 values ( '2022-10-28 01:01:26.000', 7 )
-sql insert into ct4 values ( '2022-12-01 01:01:30.000', 8 )
-sql insert into ct4 values ( '2022-12-31 01:01:36.000', 9 )
 
 sql select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct4 interval(1y, 6n)
 print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct4 interval(1y, 6n)
@@ -305,6 +290,27 @@ print ===> rows7: $data70 $data71 $data72 $data73 $data74
 #  return -1
 #endi 
 
+#=================================================
+print =============== stop and restart taosd
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+
+$loop_cnt = 0
+check_dnode_ready:
+	$loop_cnt = $loop_cnt + 1
+	sleep 200
+	if $loop_cnt == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql show dnodes
+print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
+if $data00 != 1 then
+  return -1
+endi
+if $data04 != ready then
+  goto check_dnode_ready
+endi
 
 
 

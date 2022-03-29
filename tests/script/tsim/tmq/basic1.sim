@@ -1,3 +1,9 @@
+#### test scenario
+# vgroups=1, one topic for one consumer, include: columns from stb/ctb/ntb, * from stb/ctb/ntb, Scalar function from stb/ctb/ntb
+# vgroups=1, multi topics for one consumer, include: columns from stb/ctb/ntb, * from stb/ctb/ntb, Scalar function from stb/ctb/ntb
+# vgroups=4, one topic for one consumer, include: columns from stb/ctb/ntb, * from stb/ctb/ntb, Scalar function from stb/ctb/ntb
+# vgroups=4, multi topics for one consumer, include: columns from stb/ctb/ntb, * from stb/ctb/ntb, Scalar function from stb/ctb/ntb
+
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
@@ -24,7 +30,7 @@ endi
 sql connect
 
 $dbNamme = d0
-print =============== create database
+print =============== create database , vgroup 1
 sql create database $dbNamme vgroups 1
 sql show databases
 print $data00 $data01 $data02
@@ -47,10 +53,27 @@ sql create table ct0 using stb tags(1000)
 sql create table ct1 using stb tags(2000)
 #sql create table ct3 using stb tags(3000)
 
-sql create topic topic1 as select ts, c1 from stb
+print =============== create normal table
+sql create table ntb (ts timestamp, c1 int, c2 float, c3 binary(10))
+
+print =============== create multi topics. notes: now only support:
+print =============== 1. columns from stb; 2. * from ctb; 3. columns from ctb
+print =============== will support: * from stb; function from stb/ctb
+
+sql create topic topic_stb_column as select ts, c1, c3 from stb
+#sql create topic topic_stb_all as select * from stb
+#sql create topic topic_stb_function as select ts, abs(c1), sina(c2) from stb
+
+sql create topic topic_ctb_column as select ts, c1, c3 from ct0
+sql create topic topic_ctb_all as select * from ct0
+#sql create topic topic_ctb_function as select ts, abs(c1), sina(c2) from ct0
+
+sql create topic topic_ntb_column as select ts, c1, c3 from ntb
+sql create topic topic_ntb_all as select * from ntb
+#sql create topic topic_ntb_function as select ts, abs(c1), sina(c2) from ntb
 
 sql show tables
-if $rows != 2 then 
+if $rows != 3 then 
   return -1
 endi
 
@@ -76,6 +99,7 @@ while $i < $tbNum
     $binary = $binary . '
 
     sql insert into $tb values ($tstart , $c , $x , $binary )
+    sql insert into ntb values ($tstart , $c , $x , $binary )
     $tstart = $tstart + 1
     $x = $x + 1
   endw
@@ -94,11 +118,52 @@ endw
 
 $totalMsgCnt = $rowNum * $tbNum
 print inserted totalMsgCnt: $totalMsgCnt
-print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic1" -k "group.id:tg2"
-system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic1" -k "group.id:tg2"
+
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column" -k "group.id:tg2"
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_column" -k "group.id:tg2"
 print cmd result----> $system_content
 if $system_content != @{consume success: 20}@ then
   return -1
 endi
+
+#print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_all" -k "group.id:tg2"
+#system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_all" -k "group.id:tg2"
+#print cmd result----> $system_content
+#if $system_content != @{consume success: 20}@ then
+#  return -1
+#endi
+
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column" -k "group.id:tg2"
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column" -k "group.id:tg2"
+print cmd result----> $system_content
+if $system_content != @{consume success: 20}@ then
+  return -1
+endi
+
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_all" -k "group.id:tg2"
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_all" -k "group.id:tg2"
+print cmd result----> $system_content
+if $system_content != @{consume success: 20}@ then
+  return -1
+endi
+
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column" -k "group.id:tg2"
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column" -k "group.id:tg2"
+print cmd result----> $system_content
+if $system_content != @{consume success: 20}@ then
+  return -1
+endi
+
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_all" -k "group.id:tg2"
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_all" -k "group.id:tg2"
+print cmd result----> $system_content
+if $system_content != @{consume success: 20}@ then
+  return -1
+endi
+
+print =============== create database , vgroup 4
+$dbNamme = d1
+sql create database $dbNamme vgroups 4
+
 
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT
