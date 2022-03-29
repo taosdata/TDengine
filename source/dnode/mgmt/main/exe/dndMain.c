@@ -99,7 +99,7 @@ static int32_t dndRunDnode() {
 
 int main(int argc, char const *argv[]) {
   if (!taosCheckSystemIsSmallEnd()) {
-    dError("failed to start TDengine since on non-small-end machines");
+    dError("failed to start since its on non-small-end machines");
     return -1;
   }
 
