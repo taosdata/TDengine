@@ -106,15 +106,15 @@ impl<'a> Block<'a> {
         self.num_of_rows
     }
 
-    pub fn rows_iter<'block>(&'block self) -> RowsIter<'block> {
+    pub fn rows_iter(&self) -> RowsIter {
         RowsIter {
             block: self,
-            columns: self.columns_iter().collect(),
+            // columns: self.columns_iter().collect(),
             index: 0,
         }
     }
 
-    pub fn columns_iter<'block>(&'block self) -> ColumnsIter {
+    pub fn columns_iter(&self) -> ColumnsIter {
         ColumnsIter {
             block: self,
             current: 0,
@@ -122,8 +122,10 @@ impl<'a> Block<'a> {
     }
 
     pub fn into_iter_rows(self) -> impl Iterator<Item = Row<'a>> {
+        let num_of_rows = self.num_of_rows as _;
         std::iter::repeat(Rc::new(self))
             .enumerate()
+            .take(num_of_rows)
             .map(|(index, block)| Row::new(block, index))
     }
 
@@ -189,7 +191,7 @@ impl<'a> Block<'a> {
             ($f:ident, $t:ty) => {
                 paste::paste! {
                     BorrowedValue::$f({
-                        (*inner as *const $t).offset(row as _).read()
+                        (*inner as *const $t).add(row).read()
                     })
                 }
             };
@@ -209,12 +211,12 @@ impl<'a> Block<'a> {
             TaosDataType::Float => parse_cell!(Float, f32),
             TaosDataType::Double => parse_cell!(Double, f64),
             TaosDataType::Timestamp => {
-                let raw = (*inner as *const i64).offset(row as _).read();
+                let raw = (*inner as *const i64).add(row).read();
                 BorrowedValue::Timestamp(TimestampValue::new(raw, self.precision()))
             }
             TaosDataType::Binary => {
                 let length = self.get_length_unchecked(col);
-                let ptr = (*inner as *const u8).offset(row as isize * length as isize);
+                let ptr = (*inner as *const u8).add(row * length as usize);
                 let len = ptr.cast::<i16>().read();
                 let start = ptr.offset(2);
 
@@ -223,7 +225,7 @@ impl<'a> Block<'a> {
             TaosDataType::NChar => {
                 let length = self.get_length_unchecked(col);
 
-                let ptr = (*inner as *const u8).offset(row as isize * length as isize);
+                let ptr = (*inner as *const u8).add(row * length as usize);
                 let len = ptr.cast::<i16>().read();
                 let start = ptr.offset(2);
 
@@ -311,7 +313,7 @@ impl<'a> Block<'a> {
 
 pub struct RowsIter<'block> {
     block: &'block Block<'block>,
-    columns: Vec<BorrowedColumn<'block>>,
+    // columns: Vec<BorrowedColumn<'block>>,
     index: usize,
 }
 

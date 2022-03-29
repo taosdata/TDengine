@@ -1,7 +1,7 @@
 use block::Row;
-use futures::Stream;
+use futures::{Stream, TryStreamExt};
 use serde::de::DeserializeOwned;
-use std::{ffi::CStr, future::Future};
+use std::{ffi::CStr, future::Future, sync::Once};
 pub use taos_error::{Code, Error};
 use taos_sys::*;
 
@@ -64,7 +64,7 @@ impl Taos {
             .as_mut()
         }
         .map(|p| Taos(p as _))
-        .ok_or(TaosError::from_string("invalid connection"))
+        .ok_or_else(|| TaosError::from_string("invalid connection"))
     }
 
     pub fn query_sync<'query>(
@@ -83,7 +83,7 @@ impl Taos {
 
     pub fn query_with_callback<'a, F>(&'a mut self, _callback: F)
     where
-        F: FnOnce(TaosResult<'a>, i32) -> (),
+        F: FnOnce(TaosResult<'a>, i32),
     {
         unimplemented!()
         // let callback = Box::new(callback);
@@ -92,9 +92,9 @@ impl Taos {
     }
 
     /// b"select * from log.logs\0" as *const u8 as _
-    fn query_c_str<'query>(
+    fn query_c_str<'a, 'query>(
         &'query self,
-        sql: *const i8,
+        sql: impl IntoCStr<'a>,
     ) -> impl Future<Output = Result<TaosResult<'query>>> {
         async_query::QueryFuture::new(self, sql)
     }
@@ -104,7 +104,7 @@ impl Taos {
         &'query self,
         sql: impl IntoCStr<'a>,
     ) -> impl Future<Output = Result<TaosResult<'query>>> {
-        self.query_c_str(sql.into_c_str().as_ptr() as _)
+        self.query_c_str(sql)
     }
 
     pub async fn exec<'a, 'query>(&'query self, sql: impl IntoCStr<'a>) -> Result<usize> {
@@ -121,7 +121,24 @@ impl Taos {
     }
 
     pub async fn describe(&self, table: &str) -> Result<Vec<ColumnMeta>> {
-        todo!()
+        self.query(format!("describe {table}"))
+            .await?
+            .rows_de_stream()
+            .try_collect()
+            .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::*;
+
+    #[tokio::test]
+    async fn test_describe() -> Result<()> {
+        let taos = TaosOptions::new().database("log").build()?;
+        let desc = taos.describe("log.logs").await?;
+        dbg!(desc);
+        Ok(())
     }
 }
 
@@ -207,7 +224,6 @@ impl<'a> TaosResult<'a> {
     }
 
     fn new(result: *mut TAOS_RES, code: i32) -> Result<Self> {
-        log::debug!("result code: {code}");
         let code: Code = (code & 0xffff).into();
         if code.success() {
             let num_fields = unsafe { taos_num_fields(result) };
@@ -228,6 +244,7 @@ impl<'a> TaosResult<'a> {
             Err(TaosError::new(code, err_str))
         }
     }
+
     unsafe fn get_fields_unchecked(&self) -> &'a [TAOS_FIELD] {
         match self {
             TaosResult::WithFields(_, fields) => fields,
@@ -236,14 +253,14 @@ impl<'a> TaosResult<'a> {
     }
     fn get_field_names(&self) -> Vec<&'a CStr> {
         match self {
-            TaosResult::WithFields(_, fields) => fields.into_iter().map(|f| f.name()).collect(),
+            TaosResult::WithFields(_, fields) => fields.iter().map(|f| f.name()).collect(),
             _ => unreachable!("do not fetch fields in a result without fields"),
         }
     }
     fn get_field_names_to_string_vec(&self) -> Vec<String> {
         match self {
             TaosResult::WithFields(_, fields) => fields
-                .into_iter()
+                .iter()
                 .map(|f| f.name().to_string_lossy().into_owned())
                 .collect(),
             _ => unreachable!("do not fetch fields in a result without fields"),
@@ -293,10 +310,15 @@ impl<'a> TaosResult<'a> {
 
 pub mod block;
 
-pub fn client_info() -> String {
-    unsafe { CStr::from_ptr(taos_get_client_info()) }
-        .to_string_lossy()
-        .to_string()
+pub fn client_info() -> &'static str {
+    static ONCE: Once = Once::new();
+    static mut VERSION: &str = "";
+    ONCE.call_once(|| unsafe {
+        VERSION = CStr::from_ptr(taos_get_client_info())
+            .to_str()
+            .expect("get client info should always be ok");
+    });
+    unsafe { VERSION }
 }
 
 #[test]

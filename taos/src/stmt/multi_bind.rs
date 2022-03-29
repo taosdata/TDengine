@@ -89,7 +89,6 @@ impl<'a> MultiBind<'a> {
         for (i, v) in values.iter().enumerate() {
             if let Some(v) = v {
                 let v = v.as_ref();
-                dbg!(v);
                 length[i] = v.len() as _;
                 if v.len() > buffer_length {
                     buffer_length = v.len();
@@ -106,7 +105,7 @@ impl<'a> MultiBind<'a> {
             if let Some(v) = v {
                 let v = v.as_ref();
                 unsafe {
-                    let dst = buffer.as_mut_ptr().offset((buffer_length * i) as isize);
+                    let dst = buffer.as_mut_ptr().add(buffer_length * i);
                     std::intrinsics::copy_nonoverlapping(v.as_ptr(), dst, v.len());
                 }
             }
@@ -125,7 +124,7 @@ impl<'a> MultiBind<'a> {
     }
     pub(crate) fn from_string_vec(values: &[Option<impl AsRef<str>>]) -> Self {
         let values: Vec<_> = values
-            .into_iter()
+            .iter()
             .map(|f| {
                 f.as_ref()
                     .map(|s| dbg!(s.as_ref().to_string()).into_bytes())

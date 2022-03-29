@@ -102,7 +102,7 @@ impl<'block> BorrowedColumn<'block> {
         macro_rules! get_primitive {
             ($target:ident, $nulls:expr, $values:expr) => {
                 paste::paste! {
-                    if unsafe { $nulls.get_unchecked(index) } {
+                    if $nulls.get_unchecked(index) {
                         BorrowedValue::Null
                     } else {
                         BorrowedValue::$target(*unsafe { $values.get_unchecked(index) })
@@ -124,7 +124,7 @@ impl<'block> BorrowedColumn<'block> {
             Self::Float(nulls, values) => get_primitive!(Float, nulls, values),
             Self::Double(nulls, values) => get_primitive!(Double, nulls, values),
             Self::Timestamp(nulls, values) => {
-                if unsafe { nulls.get_unchecked(index) } {
+                if nulls.get_unchecked(index) {
                     BorrowedValue::Null
                 } else {
                     // BorrowedValue::Timestamp(TimestampValue::new(*unsafe { values.get_unchecked(index) }, self.precision()))

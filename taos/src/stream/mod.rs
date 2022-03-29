@@ -86,6 +86,9 @@ mod test {
         log::info!("select");
         let res = taos.query("select * from stb1").await?;
         use futures::StreamExt;
+
+        let block = res.fetch_block_stream().next().await.unwrap();
+        // block.rows_iter()
         let record: Record = res.rows_de_stream().next().await.unwrap()?;
         log::debug!("fetched record {:?}", record);
         taos.clean()?;

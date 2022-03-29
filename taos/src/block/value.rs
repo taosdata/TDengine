@@ -83,7 +83,7 @@ impl<'de, 'a, 'block> serde::de::Deserializer<'de> for BorrowedValue<'block> {
             Float(v) => visitor.visit_f32(v),
             Double(v) => visitor.visit_f64(v),
             Binary(v) | Json(v) => std::str::from_utf8(v)
-                .map_err(|s| <Self::Error as serde::de::Error>::custom(s))
+                .map_err(<Self::Error as serde::de::Error>::custom)
                 .and_then(|s| visitor.visit_str(s)),
             NChar(v) => visitor.visit_str(v),
             Timestamp(v) => visitor.visit_string(

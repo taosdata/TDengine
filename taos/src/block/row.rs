@@ -1,20 +1,13 @@
 use std::{
     collections::BTreeMap,
-    error::Error,
-    iter::Rev,
-    marker::PhantomData,
-    mem::swap,
     ops::{Deref, DerefMut},
     rc::Rc,
     slice,
-    sync::{Arc, Mutex},
-    task::Poll,
-    vec,
 };
 
 use bitvec_simd::BitVec;
 use futures::Stream;
-use serde::de::{self, value::MapDeserializer, Error as DeError, IntoDeserializer, Visitor};
+use serde::de::{self, Visitor};
 use taos_sys::{taos_is_null, TaosDataType, TAOS_FIELD};
 
 use crate::{timestamp::TimestampValue, Result, TaosError, TaosResult};
@@ -37,7 +30,10 @@ impl<'block> Deref for Row<'block> {
 
 impl<'block> Row<'block> {
     pub(crate) fn new(block: Rc<Block<'block>>, index: usize) -> Self {
-        Self { block, index }
+        Self {
+            block,
+            index: dbg!(index),
+        }
     }
     pub(crate) fn deserializer(&self) -> Deserializer {
         Deserializer::new(self)
@@ -103,7 +99,7 @@ impl<'a> Deref for ValueIter<'a> {
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &self.row
+        self.row
     }
 }
 
@@ -112,8 +108,9 @@ impl<'block> Iterator for ValueIter<'block> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let (row, col) = (self.row.index, self.col);
-        self.col += 1;
-        if self.hint != 0 {
+        println!("get: ({row}, {col})");
+        if self.col < self.num_of_fields() {
+            self.col += 1;
             self.hint -= 1;
             self.row.get_value(row, col)
         } else {
@@ -200,10 +197,9 @@ struct MapReader<'a, 'de: 'a> {
 impl<'a, 'de> MapReader<'a, 'de> {
     fn new(de: &'a mut Deserializer<'de>) -> Self {
         let n = de.num_of_fields();
-        let acc = unsafe { de.get_fields_unchecked() }.into_iter();
+        let acc = unsafe { de.get_fields_unchecked() }.iter();
         let fields = de.get_field_names_to_string_vec().into_iter();
         let fields = fields
-            .clone()
             .enumerate()
             .map(|(index, field)| (field, index))
             .collect();
@@ -219,7 +215,7 @@ impl<'a, 'de> MapReader<'a, 'de> {
     fn access_field(&mut self, field: &str) -> Option<BorrowedValue> {
         self.fields
             .get(field)
-            .map(|n| *n)
+            .copied()
             .and_then(|n| self.access_nth(n))
     }
 
@@ -312,7 +308,7 @@ impl<'de, 'a> de::SeqAccess<'de> for SeqReader<'a, 'de> {
         T: de::DeserializeSeed<'de>,
     {
         match self.de.next() {
-            Some(v) => seed.deserialize(v).map(Some),
+            Some(v) => seed.deserialize(dbg!(v)).map(Some),
             None => Ok(None),
         }
     }
@@ -327,6 +323,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: de::Visitor<'de>,
     {
+        println!("call deserialize any");
         match self.iter.next() {
             Some(v) => v.deserialize_any(visitor),
             None => Err(TaosError::from_string("expect value, not none")),

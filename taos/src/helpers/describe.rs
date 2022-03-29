@@ -1,13 +1,154 @@
+#[derive(Debug, Deserialize)]
 pub struct Described {
     field: String,
     r#type: String,
     length: usize,
 }
+#[derive(Debug)]
 pub enum ColumnMeta {
     Column(Described),
     Tag(Described),
 }
 
+impl<'de> Deserialize<'de> for ColumnMeta {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        enum Meta {
+            Field,
+            Type,
+            Length,
+            Note,
+        }
+
+        impl<'de> Deserialize<'de> for Meta {
+            fn deserialize<D>(deserializer: D) -> Result<Meta, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                struct FieldVisitor;
+
+                impl<'de> Visitor<'de> for FieldVisitor {
+                    type Value = Meta;
+
+                    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                        formatter.write_str("`field`, `type`, `length` or `note`")
+                    }
+
+                    fn visit_str<E>(self, value: &str) -> Result<Meta, E>
+                    where
+                        E: de::Error,
+                    {
+                        match value.to_lowercase().as_str() {
+                            "field" => Ok(Meta::Field),
+                            "type" => Ok(Meta::Type),
+                            "length" => Ok(Meta::Length),
+                            "note" => Ok(Meta::Note),
+                            _ => Err(de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+
+                deserializer.deserialize_identifier(FieldVisitor)
+            }
+        }
+
+        struct MetaVisitor;
+
+        impl<'de> Visitor<'de> for MetaVisitor {
+            type Value = ColumnMeta;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("struct ColumnMeta")
+            }
+
+            fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
+            where
+                V: SeqAccess<'de>,
+            {
+                let field = dbg!(seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?);
+                let r#type = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                let length = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(2, &self))?;
+                let note: String = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(3, &self))?;
+                let desc = Described {
+                    field,
+                    r#type,
+                    length,
+                };
+                if note.is_empty() {
+                    Ok(ColumnMeta::Column(desc))
+                } else {
+                    Ok(ColumnMeta::Tag(desc))
+                }
+            }
+
+            fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut field = None;
+                let mut r#type = None;
+                let mut length = None;
+                let mut note = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Meta::Field => {
+                            if field.is_some() {
+                                return Err(de::Error::duplicate_field("field"));
+                            }
+                            field = Some(map.next_value()?);
+                        }
+                        Meta::Type => {
+                            if r#type.is_some() {
+                                return Err(de::Error::duplicate_field("type"));
+                            }
+                            r#type = Some(map.next_value()?);
+                        }
+                        Meta::Length => {
+                            if length.is_some() {
+                                return Err(de::Error::duplicate_field("length"));
+                            }
+                            length = Some(map.next_value()?);
+                        }
+                        Meta::Note => {
+                            if note.is_some() {
+                                return Err(de::Error::duplicate_field("note"));
+                            }
+                            let t: String = map.next_value()?;
+                            note = Some(t.is_empty())
+                        }
+                    }
+                }
+                let field = field.ok_or_else(|| de::Error::missing_field("field"))?;
+                let r#type = r#type.ok_or_else(|| de::Error::missing_field("type"))?;
+                let length = length.ok_or_else(|| de::Error::missing_field("length"))?;
+                let desc = Described {
+                    field,
+                    r#type,
+                    length,
+                };
+                let note = note.ok_or_else(|| de::Error::missing_field("note"))?;
+                if note {
+                    Ok(ColumnMeta::Column(desc))
+                } else {
+                    Ok(ColumnMeta::Tag(desc))
+                }
+            }
+        }
+
+        const FIELDS: &[&str] = &["field", "type", "length", "note"];
+        deserializer.deserialize_struct("ColumnMeta", FIELDS, MetaVisitor)
+    }
+}
 impl ColumnMeta {
     pub fn field(&self) -> &str {
         match self {
@@ -31,22 +172,10 @@ impl ColumnMeta {
         }
     }
     pub fn is_tag(&self) -> bool {
-        match self {
-            ColumnMeta::Tag(_) => true,
-            _ => false,
-        }
+        matches!(self,ColumnMeta::Tag(_))
     }
 }
-// use itertools::Itertools;
-// use num_enum::FromPrimitive;
-// use paste::paste;
-// use serde::Deserialize;
-// use taos_sys::TaosDataType;
-
-// use std::fmt;
-// use std::str::FromStr;
-
-// #[derive(Debug, Clone, Deserialize)]
+//erive(Debug, Clone, Deserialize)]
 // pub struct ColumnMeta {
 //     pub name: String,
 //     pub type_: TaosDataType,
@@ -375,3 +504,10 @@ impl ColumnMeta {
 //         Ok(())
 //     }
 // }
+
+use std::fmt;
+
+use serde::{
+    de::{self, MapAccess, SeqAccess, Visitor},
+    Deserialize, Deserializer, Serialize,
+};

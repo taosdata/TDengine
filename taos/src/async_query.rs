@@ -1,11 +1,9 @@
 use std::{
-    cell::RefCell,
-    ffi::{c_void, CStr},
+    ffi::c_void,
     future::Future,
     marker::PhantomData,
     os::raw::c_int,
     pin::Pin,
-    rc::Rc,
     sync::Arc,
     task::{Context, Poll, Waker},
 };
@@ -13,14 +11,7 @@ use std::{
 use std::sync::Mutex;
 use taos_sys::{taos_query_a, TAOS_RES};
 
-use crate::{Taos, TaosResult};
-#[derive(Debug, PartialEq)]
-pub enum ExecState {
-    RunOnce,
-    Waiting,
-}
-
-use crate::Result;
+use crate::{util::IntoCStr, Result, Taos, TaosResult};
 
 pub struct QueryFuture<'query> {
     shared_state: Arc<Mutex<SharedState>>,
@@ -68,13 +59,14 @@ impl<'query> Future for QueryFuture<'query> {
 impl<'query> QueryFuture<'query> {
     /// Create a new `TimerFuture` which will complete after the provided
     /// timeout.
-    pub fn new(taos: &Taos, sql: *const i8) -> Self {
+    pub fn new<'a>(taos: &Taos, sql: impl IntoCStr<'a>) -> Self {
         let shared_state = Arc::new(Mutex::new(SharedState {
             completed: false,
             result: std::ptr::null_mut(),
             code: 0,
             waker: None,
         }));
+
         unsafe extern "C" fn async_query_callback(
             param: *mut c_void,
             res: *mut TAOS_RES,
@@ -91,14 +83,13 @@ impl<'query> QueryFuture<'query> {
                 waker.wake()
             }
         }
-        let thread_shared_state = Box::new(shared_state.clone());
 
         unsafe {
             taos_query_a(
                 taos.0,
-                sql,
+                sql.into_c_str().as_ptr(),
                 async_query_callback as _,
-                Box::into_raw(thread_shared_state) as *mut _,
+                Box::into_raw(Box::new(shared_state.clone())) as *mut _,
             );
         }
 

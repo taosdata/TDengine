@@ -1,10 +1,8 @@
-use crate::{block::column::Column, util::IntoCStr, Code, Result, Taos, TaosError, TaosResult};
-use bitvec_simd::BitVec;
-use futures::StreamExt;
+use crate::{util::IntoCStr, Code, Result, Taos, TaosError, TaosResult};
 use taos_sys::*;
 
+use std::ffi::CStr;
 use std::os::raw::c_void;
-use std::{ffi::CStr, result};
 
 mod bind;
 pub use bind::{BindParam, IntoBindParam};
@@ -56,7 +54,7 @@ impl<'stmt> Stmt<'stmt> {
         }
     }
 
-    pub fn result<'query>(&'query self) -> Result<TaosResult<'query>> {
+    pub fn result(&self) -> Result<TaosResult> {
         let result = unsafe { taos_stmt_use_result(self.stmt) };
         TaosResult::try_from_ptr(result)
     }
@@ -251,7 +249,6 @@ async fn test_multi_bind_str() {
     let ints = Column::Binary(v);
     let v: Vec<i64> = (0..N).map(|ts| ts as i64 + 1500000000000).collect();
     let ts = Column::Timestamp(nulls, v);
-    dbg!(&ts);
     let binds = dbg!([ts.to_multi_bind(), ints.to_multi_bind()]);
     let mut stmt = taos.stmt("insert into tb values(?, ?)").unwrap();
     stmt.multi_bind(&binds).unwrap();
