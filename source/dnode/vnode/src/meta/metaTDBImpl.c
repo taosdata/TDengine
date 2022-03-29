@@ -163,6 +163,7 @@ int metaOpenDB(SMeta *pMeta) {
     return -1;
   }
 
+  pMeta->pDB = pMetaDb;
   return 0;
 }
 
@@ -236,7 +237,7 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
   }
 
   // update name.idx
-  int nameLen;
+  int nameLen = strlen(pTbCfg->name);
   memcpy(buf, pTbCfg->name, nameLen + 1);
   ((tb_uid_t *)(buf + nameLen + 1))[0] = uid;
   pKey = buf;
