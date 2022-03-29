@@ -350,7 +350,7 @@ SSDataBlock* createOutputBuf_rv1(SDataBlockDescNode* pNode) {
   pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
 
   pBlock->info.blockId = pNode->dataBlockId;
-  pBlock->info.rowSize = pNode->resultRowSize;
+  pBlock->info.rowSize = pNode->totalRowSize;
 
   for(int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData idata = {{0}};

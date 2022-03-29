@@ -260,9 +260,9 @@ static SNode* logicAggCopy(const SAggLogicNode* pSrc, SAggLogicNode* pDst) {
 }
 
 static SNode* logicProjectCopy(const SProjectLogicNode* pSrc, SProjectLogicNode* pDst) {
+  COPY_ALL_SCALAR_FIELDS;
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pProjections);
-  COPY_CHAR_ARRAY_FIELD(stmtName);
   return (SNode*)pDst;
 }
 
@@ -307,10 +307,8 @@ static SNode* logicSubplanCopy(const SLogicSubplan* pSrc, SLogicSubplan* pDst) {
 }
 
 static SNode* dataBlockDescCopy(const SDataBlockDescNode* pSrc, SDataBlockDescNode* pDst) {
-  COPY_SCALAR_FIELD(dataBlockId);
+  COPY_ALL_SCALAR_FIELDS;
   CLONE_NODE_LIST_FIELD(pSlots);
-  COPY_SCALAR_FIELD(resultRowSize);
-  COPY_SCALAR_FIELD(precision);
   return (SNode*)pDst;
 }
 

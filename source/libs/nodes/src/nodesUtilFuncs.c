@@ -582,11 +582,11 @@ int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char*
   nodesWalkSelectStmt(pSelect, clause, collectColumns, &cxt);
   taosHashCleanup(cxt.pColIdHash);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
-    nodesDestroyList(cxt.pCols);
+    nodesClearList(cxt.pCols);
     return cxt.errCode;
   }
   if (0 == LIST_LENGTH(cxt.pCols)) {
-    nodesDestroyList(cxt.pCols);
+    nodesClearList(cxt.pCols);
     cxt.pCols = NULL;
   }
   *pCols = cxt.pCols;

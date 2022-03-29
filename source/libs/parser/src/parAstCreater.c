@@ -717,8 +717,10 @@ SNode* createJoinTableNode(SAstCreateContext* pCxt, EJoinType type, SNode* pLeft
 SNode* createLimitNode(SAstCreateContext* pCxt, const SToken* pLimit, const SToken* pOffset) {
   SLimitNode* limitNode = (SLimitNode*)nodesMakeNode(QUERY_NODE_LIMIT);
   CHECK_OUT_OF_MEM(limitNode);
-  // limitNode->limit = limit;
-  // limitNode->offset = offset;
+  limitNode->limit = strtol(pLimit->z, NULL, 10);
+  if (NULL != pOffset) {
+    limitNode->offset = strtol(pOffset->z, NULL, 10);
+  }
   return (SNode*)limitNode;
 }
 
