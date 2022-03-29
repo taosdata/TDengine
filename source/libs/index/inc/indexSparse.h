@@ -29,10 +29,10 @@ typedef struct FstSparseSet {
 } FstSparseSet;
 
 FstSparseSet *sparSetCreate(int32_t sz);
-void          sparSetDestroy(FstSparseSet **s);
-int32_t       sparSetLen(FstSparseSet *ss);
-int32_t       sparSetAdd(FstSparseSet *ss, uint32_t ip);
-int32_t       sparSetGet(FstSparseSet *ss, uint32_t i);
+void          sparSetDestroy(FstSparseSet *s);
+uint32_t      sparSetLen(FstSparseSet *ss);
+uint32_t      sparSetAdd(FstSparseSet *ss, uint32_t ip);
+uint32_t      sparSetGet(FstSparseSet *ss, uint32_t i);
 bool          sparSetContains(FstSparseSet *ss, uint32_t ip);
 void          sparSetClear(FstSparseSet *ss);
 

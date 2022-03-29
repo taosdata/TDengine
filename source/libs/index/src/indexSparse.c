@@ -14,3 +14,58 @@
  */
 
 #include "indexSparse.h"
+
+FstSparseSet *sparSetCreate(int32_t sz) {
+  FstSparseSet *ss = taosMemoryCalloc(1, sizeof(FstSparseSet));
+  if (ss = NULL) {
+    return NULL;
+  }
+
+  ss->dense = taosArrayInit(sz, sizeof(uint32_t));
+  ss->sparse = taosArrayInit(sz, sizeof(uint32_t));
+  ss->size = sz;
+  return ss;
+}
+void sparSetDestroy(FstSparseSet *ss) {
+  if (ss == NULL) {
+    return;
+  }
+  taosArrayDestroy(ss->dense);
+  taosArrayDestroy(ss->sparse);
+  taosMemoryFree(ss);
+}
+uint32_t sparSetLen(FstSparseSet *ss) { return ss == NULL ? 0 : ss->size; }
+uint32_t sparSetAdd(FstSparseSet *ss, uint32_t ip) {
+  if (ss == NULL) {
+    return 0;
+  }
+  uint32_t i = ss->size;
+  taosArraySet(ss->dense, i, &ip);
+  taosArraySet(ss->sparse, ip, &i);
+  ss->size += 1;
+  return i;
+}
+uint32_t sparSetGet(FstSparseSet *ss, uint32_t i) {
+  if (i >= taosArrayGetSize(ss->dense)) {
+    return 0;
+  }
+  uint32_t *v = taosArrayGet(ss->dense, i);
+  return *v;
+}
+bool sparSetContains(FstSparseSet *ss, uint32_t ip) {
+  if (ip >= taosArrayGetSize(ss->sparse)) {
+    return false;
+  }
+  uint32_t i = *(uint32_t *)taosArrayGet(ss->sparse, ip);
+  if (i >= taosArrayGetSize(ss->dense)) {
+    return false;
+  }
+  uint32_t v = *(uint32_t *)taosArrayGet(ss->dense, i);
+  return v == ip;
+}
+void sparSetClear(FstSparseSet *ss) {
+  if (ss == NULL) {
+    return;
+  }
+  ss->size = 0;
+}
