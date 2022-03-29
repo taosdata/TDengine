@@ -437,9 +437,24 @@ int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
     return -1;
 }
 
+int taos_stmt_is_insert(TAOS_STMT *stmt, int *insert) {
+    // TODO
+    return -1;
+}
+
+int taos_stmt_num_params(TAOS_STMT *stmt, int *nums) {
+    // TODO
+    return -1;
+}
+
 int taos_stmt_add_batch(TAOS_STMT* stmt) {
     // TODO
     return -1;
+}
+
+TAOS_RES *taos_stmt_use_result(TAOS_STMT *stmt) {
+    // TODO
+    return NULL;
 }
 
 int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind) {
