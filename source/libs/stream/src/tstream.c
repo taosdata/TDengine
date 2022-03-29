@@ -74,7 +74,7 @@ static int32_t streamBuildDispatchMsg(SStreamTask* pTask, SArray* data, SRpcMsg*
   pMsg->contLen = tlen;
   pMsg->code = 0;
   pMsg->msgType = pTask->dispatchMsgType;
-  /*pMsg->noResp = 1;*/
+  pMsg->noResp = 1;
 
   return 0;
 }
