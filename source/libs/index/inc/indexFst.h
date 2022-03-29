@@ -20,12 +20,12 @@
 extern "C" {
 #endif
 
+#include "indexFstAutomation.h"
+#include "indexFstCountingWriter.h"
+#include "indexFstNode.h"
+#include "indexFstRegistry.h"
+#include "indexFstUtil.h"
 #include "indexInt.h"
-#include "index_fst_automation.h"
-#include "index_fst_counting_writer.h"
-#include "index_fst_node.h"
-#include "index_fst_registry.h"
-#include "index_fst_util.h"
 
 #define OUTPUT_PREFIX(a, b) ((a) > (b) ? (b) : (a)
 

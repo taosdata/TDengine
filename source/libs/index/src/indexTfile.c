@@ -13,12 +13,12 @@ p *
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "index_tfile.h"
+#include "indexTfile.h"
 #include "index.h"
-#include "index_comm.h"
-#include "index_fst.h"
-#include "index_fst_counting_writer.h"
-#include "index_util.h"
+#include "indexComm.h"
+#include "indexFst.h"
+#include "indexFstCountingWriter.h"
+#include "indexUtil.h"
 #include "taosdef.h"
 #include "tcoding.h"
 #include "tcompare.h"
