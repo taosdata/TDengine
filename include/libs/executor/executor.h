@@ -20,8 +20,8 @@
 extern "C" {
 #endif
 
-#include "tcommon.h"
 #include "query.h"
+#include "tcommon.h"
 
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
@@ -36,7 +36,7 @@ typedef struct SReadHandle {
 
 #define STREAM_DATA_TYPE_SUBMIT_BLOCK 0x1
 #define STREAM_DATA_TYPE_SSDATA_BLOCK 0x2
-  
+
 /**
  * Create the exec task for streaming mode
  * @param pMsg
@@ -62,7 +62,7 @@ int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type);
  * @param type
  * @return
  */
-int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, void** pBlocks, size_t numOfBlocks, int32_t type);
+int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type);
 
 /**
  * Update the table id list, add or remove.
@@ -166,7 +166,6 @@ int32_t qUpdateQueriedTableIdList(qTaskInfo_t tinfo, int64_t uid, int32_t type);
  * @return
  */
 void** qReleaseTask(void* pMgmt, void* pQInfo, bool freeHandle);
-
 
 void qProcessFetchRsp(void* parent, struct SRpcMsg* pMsg, struct SEpSet* pEpSet);
 

@@ -54,7 +54,7 @@ static bool    mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans);
 
 static void    mndTransExecute(SMnode *pMnode, STrans *pTrans);
-static void    mndTransSendRpcRsp(STrans *pTrans);
+static void    mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans);
 static int32_t mndProcessTransReq(SNodeMsg *pReq);
 static int32_t mndProcessKillTransReq(SNodeMsg *pReq);
 
@@ -737,7 +737,7 @@ static int32_t mndTransRollback(SMnode *pMnode, STrans *pTrans) {
   return 0;
 }
 
-static void mndTransSendRpcRsp(STrans *pTrans) {
+static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
   bool sendRsp = false;
 
   if (pTrans->stage == TRN_STAGE_FINISHED) {
@@ -771,7 +771,7 @@ static void mndTransSendRpcRsp(STrans *pTrans) {
                       .ahandle = pTrans->rpcAHandle,
                       .pCont = rpcCont,
                       .contLen = pTrans->rpcRspLen};
-    rpcSendResponse(&rspMsg);
+    tmsgSendRsp(&pMnode->msgCb, &rspMsg);
     pTrans->rpcHandle = NULL;
     pTrans->rpcRsp = NULL;
     pTrans->rpcRspLen = 0;
@@ -1158,7 +1158,7 @@ static void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
     }
   }
 
-  mndTransSendRpcRsp(pTrans);
+  mndTransSendRpcRsp(pMnode, pTrans);
 }
 
 static int32_t mndProcessTransReq(SNodeMsg *pReq) {

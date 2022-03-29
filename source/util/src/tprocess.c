@@ -24,7 +24,6 @@
 #include <sys/wait.h>
 
 #define SHM_DEFAULT_SIZE (20 * 1024 * 1024)
-#define CEIL8(n)         (ceil((float)(n) / 8) * 8)
 typedef void *(*ProcThreadFp)(void *param);
 
 typedef struct SProcQueue {
@@ -57,6 +56,11 @@ typedef struct SProcObj {
   bool        isChild;
   bool        stopFlag;
 } SProcObj;
+
+static inline int32_t CEIL8(int32_t v) {
+  const int32_t c = ceil((float)(v) / 8) * 8;
+  return c < 8 ? 8 : c;
+}
 
 static int32_t taosProcInitMutex(TdThreadMutex **ppMutex, int32_t *pShmid) {
   TdThreadMutex    *pMutex = NULL;
@@ -203,7 +207,8 @@ static void taosProcCleanupQueue(SProcQueue *pQueue) {
   }
 }
 
-static int32_t taosProcQueuePush(SProcQueue *pQueue, char *pHead, int32_t rawHeadLen, char *pBody, int32_t rawBodyLen) {
+static int32_t taosProcQueuePush(SProcQueue *pQueue, const char *pHead, int16_t rawHeadLen, const char *pBody,
+                                 int32_t rawBodyLen, ProcFuncType funcType) {
   const int32_t headLen = CEIL8(rawHeadLen);
   const int32_t bodyLen = CEIL8(rawBodyLen);
   const int32_t fullLen = headLen + bodyLen + 8;
@@ -221,10 +226,12 @@ static int32_t taosProcQueuePush(SProcQueue *pQueue, char *pHead, int32_t rawHea
   }
 
   if (pQueue->tail < pQueue->total) {
-    *(int32_t *)(pQueue->pBuffer + pQueue->head) = headLen;
+    *(int16_t *)(pQueue->pBuffer + pQueue->head) = headLen;
+    *(int8_t *)(pQueue->pBuffer + pQueue->head + 2) = (int8_t)funcType;
     *(int32_t *)(pQueue->pBuffer + pQueue->head + 4) = bodyLen;
   } else {
-    *(int32_t *)(pQueue->pBuffer) = headLen;
+    *(int16_t *)(pQueue->pBuffer) = headLen;
+    *(int8_t *)(pQueue->pBuffer + pQueue->head + 2) = (int8_t)funcType;
     *(int32_t *)(pQueue->pBuffer + 4) = bodyLen;
   }
 
@@ -264,13 +271,13 @@ static int32_t taosProcQueuePush(SProcQueue *pQueue, char *pHead, int32_t rawHea
   taosThreadMutexUnlock(pQueue->mutex);
   tsem_post(&pQueue->sem);
 
-  uTrace("proc:%s, push msg to queue:%p remains:%d, head:%d:%p body:%d:%p", pQueue->name, pQueue, pQueue->items,
-         headLen, pHead, bodyLen, pBody);
+  uTrace("proc:%s, push msg to queue:%p remains:%d, head:%d:%p body:%d:%p ftype:%d", pQueue->name, pQueue, pQueue->items,
+         headLen, pHead, bodyLen, pBody, funcType);
   return 0;
 }
 
-static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int32_t *pHeadLen, void **ppBody,
-                                int32_t *pBodyLen) {
+static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int16_t *pHeadLen, void **ppBody,
+                                int32_t *pBodyLen, ProcFuncType *pFuncType) {
   tsem_wait(&pQueue->sem);
 
   taosThreadMutexLock(pQueue->mutex);
@@ -281,13 +288,16 @@ static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int32_t *pHea
     return 0;
   }
 
-  int32_t headLen = 0;
+  int16_t headLen = 0;
+  int8_t  ftype = 0;
   int32_t bodyLen = 0;
   if (pQueue->head < pQueue->total) {
-    headLen = *(int32_t *)(pQueue->pBuffer + pQueue->head);
+    headLen = *(int16_t *)(pQueue->pBuffer + pQueue->head);
+    ftype = *(int8_t *)(pQueue->pBuffer + pQueue->head + 2);
     bodyLen = *(int32_t *)(pQueue->pBuffer + pQueue->head + 4);
   } else {
-    headLen = *(int32_t *)(pQueue->pBuffer);
+    headLen = *(int16_t *)(pQueue->pBuffer);
+    ftype = *(int8_t *)(pQueue->pBuffer + 2);
     bodyLen = *(int32_t *)(pQueue->pBuffer + 4);
   }
 
@@ -341,9 +351,10 @@ static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int32_t *pHea
   *ppBody = pBody;
   *pHeadLen = headLen;
   *pBodyLen = bodyLen;
+  *pFuncType = (ProcFuncType)ftype;
 
-  uTrace("proc:%s, pop msg from queue:%p remains:%d, head:%d:%p body:%d:%p", pQueue->name, pQueue, pQueue->items,
-         headLen, pHead, bodyLen, pBody);
+  uTrace("proc:%s, pop msg from queue:%p remains:%d, head:%d:%p body:%d:%p ftype:%d", pQueue->name, pQueue, pQueue->items,
+         headLen, pHead, bodyLen, pBody, ftype);
   return 1;
 }
 
@@ -396,12 +407,14 @@ static void taosProcThreadLoop(SProcQueue *pQueue) {
   ProcConsumeFp consumeFp = pQueue->consumeFp;
   void         *pParent = pQueue->pParent;
   void         *pHead, *pBody;
-  int32_t       headLen, bodyLen;
+  int16_t       headLen;
+  ProcFuncType  ftype;
+  int32_t       bodyLen;
 
   uDebug("proc:%s, start to get msg from queue:%p", pQueue->name, pQueue);
 
   while (1) {
-    int32_t numOfMsgs = taosProcQueuePop(pQueue, &pHead, &headLen, &pBody, &bodyLen);
+    int32_t numOfMsgs = taosProcQueuePop(pQueue, &pHead, &headLen, &pBody, &bodyLen, &ftype);
     if (numOfMsgs == 0) {
       uDebug("proc:%s, get no msg from queue:%p and exit the proc thread", pQueue->name, pQueue);
       break;
@@ -410,7 +423,7 @@ static void taosProcThreadLoop(SProcQueue *pQueue) {
       taosMsleep(1);
       continue;
     } else {
-      (*consumeFp)(pParent, pHead, headLen, pBody, bodyLen);
+      (*consumeFp)(pParent, pHead, headLen, pBody, bodyLen, ftype);
     }
   }
 }
@@ -458,10 +471,12 @@ void taosProcCleanup(SProcObj *pProc) {
   }
 }
 
-int32_t taosProcPutToChildQueue(SProcObj *pProc, void *pHead, int32_t headLen, void *pBody, int32_t bodyLen) {
-  return taosProcQueuePush(pProc->pChildQueue, pHead, headLen, pBody, bodyLen);
+int32_t taosProcPutToChildQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
+                            ProcFuncType funcType) {
+  return taosProcQueuePush(pProc->pChildQueue, pHead, headLen, pBody, bodyLen, funcType);
 }
 
-int32_t taosProcPutToParentQueue(SProcObj *pProc, void *pHead, int32_t headLen, void *pBody, int32_t bodyLen) {
-  return taosProcQueuePush(pProc->pParentQueue, pHead, headLen, pBody, bodyLen);
+int32_t taosProcPutToParentQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
+                             ProcFuncType funcType) {
+  return taosProcQueuePush(pProc->pParentQueue, pHead, headLen, pBody, bodyLen, funcType);
 }

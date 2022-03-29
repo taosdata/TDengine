@@ -74,7 +74,7 @@ static int32_t streamBuildDispatchMsg(SStreamTask* pTask, SArray* data, SRpcMsg*
   pMsg->contLen = tlen;
   pMsg->code = 0;
   pMsg->msgType = pTask->dispatchMsgType;
-  /*pMsg->noResp = 1;*/
+  pMsg->noResp = 1;
 
   return 0;
 }
@@ -124,22 +124,23 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
       }
     } else if (inputType == STREAM_DATA_TYPE_SSDATA_BLOCK) {
       const SArray* blocks = (const SArray*)input;
-      int32_t       sz = taosArrayGetSize(blocks);
-      for (int32_t i = 0; i < sz; i++) {
-        SSDataBlock* pBlock = taosArrayGet(blocks, i);
-        qSetStreamInput(exec, pBlock, inputType);
-        while (1) {
-          SSDataBlock* output;
-          uint64_t     ts;
-          if (qExecTask(exec, &output, &ts) < 0) {
-            ASSERT(false);
-          }
-          if (output == NULL) {
-            break;
-          }
-          taosArrayPush(pRes, output);
+      /*int32_t       sz = taosArrayGetSize(blocks);*/
+      /*for (int32_t i = 0; i < sz; i++) {*/
+      /*SSDataBlock* pBlock = taosArrayGet(blocks, i);*/
+      /*qSetStreamInput(exec, pBlock, inputType);*/
+      qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_DATA_TYPE_SSDATA_BLOCK);
+      while (1) {
+        SSDataBlock* output;
+        uint64_t     ts;
+        if (qExecTask(exec, &output, &ts) < 0) {
+          ASSERT(false);
         }
+        if (output == NULL) {
+          break;
+        }
+        taosArrayPush(pRes, output);
       }
+      /*}*/
     } else {
       ASSERT(0);
     }
