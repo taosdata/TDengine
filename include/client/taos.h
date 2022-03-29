@@ -29,8 +29,8 @@ typedef void   TAOS_RES;
 typedef void **TAOS_ROW;
 #if 0
 typedef void   TAOS_STREAM;
-typedef void   TAOS_SUB;
 #endif
+typedef void   TAOS_SUB;
 
 // Data type definition
 #define TSDB_DATA_TYPE_NULL       0   // 1 bytes
@@ -182,13 +182,16 @@ DLL_EXPORT int         taos_errno(TAOS_RES *tres);
 DLL_EXPORT void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param);
 DLL_EXPORT void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param);
 
-#if 0
+// Shuduo: temporary enable for app build
+#if 1
 typedef void (*__taos_sub_fn_t)(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code);
 DLL_EXPORT TAOS_SUB *taos_subscribe(TAOS *taos, int restart, const char *topic, const char *sql, __taos_sub_fn_t fp,
                                     void *param, int interval);
 DLL_EXPORT TAOS_RES *taos_consume(TAOS_SUB *tsub);
 DLL_EXPORT void      taos_unsubscribe(TAOS_SUB *tsub, int keepProgress);
+#endif
 
+#if 0
 DLL_EXPORT TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
                                          int64_t stime, void *param, void (*callback)(void *));
 DLL_EXPORT void         taos_close_stream(TAOS_STREAM *tstr);
@@ -281,7 +284,7 @@ DLL_EXPORT TAOS_RES *tmq_create_topic(TAOS *taos, const char *name, const char *
 DLL_EXPORT TAOS_RES *tmq_create_stream(TAOS *taos, const char *streamName, const char *tbName, const char *sql);
 
 /* ------------------------------ TMQ END -------------------------------- */
-#if 0
+#if 1 // Shuduo: temporary enable for app build
 typedef void (*TAOS_SUBSCRIBE_CALLBACK)(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code);
 #endif
 
