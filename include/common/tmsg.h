@@ -2299,7 +2299,7 @@ static FORCE_INLINE int32_t tEncodeSMqSubTopicEp(void** buf, const SMqSubTopicEp
     tlen += tEncodeSMqSubVgEp(buf, pVgEp);
   }
   tlen += taosEncodeFixedI32(buf, pTopicEp->numOfFields);
-  tlen += taosEncodeBinary(buf, pTopicEp->fields, pTopicEp->numOfFields * sizeof(TAOS_FIELD));
+  // tlen += taosEncodeBinary(buf, pTopicEp->fields, pTopicEp->numOfFields * sizeof(TAOS_FIELD));
   return tlen;
 }
 
@@ -2318,7 +2318,7 @@ static FORCE_INLINE void* tDecodeSMqSubTopicEp(void* buf, SMqSubTopicEp* pTopicE
     taosArrayPush(pTopicEp->vgs, &vgEp);
   }
   buf = taosDecodeFixedI32(buf, &pTopicEp->numOfFields);
-  buf = taosDecodeBinary(buf, (void**)&pTopicEp->fields, pTopicEp->numOfFields * sizeof(TAOS_FIELD));
+  // buf = taosDecodeBinary(buf, (void**)&pTopicEp->fields, pTopicEp->numOfFields * sizeof(TAOS_FIELD));
   return buf;
 }
 
