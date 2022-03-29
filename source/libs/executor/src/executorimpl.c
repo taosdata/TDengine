@@ -8775,10 +8775,10 @@ SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
   for(int32_t i = 0; i < num; ++i) {
     SSlotDescNode* pNode = (SSlotDescNode*) nodesListGetNode(pOutputNodeList->pSlots, i);
     SColMatchInfo* info = taosArrayGet(pList, pNode->slotId);
-    if (!pNode->output) {
-      info->output = false;
-    } else {
+    if (pNode->output) {
       (*numOfOutputCols) += 1;
+    } else {
+      info->output = false;
     }
   }
 
