@@ -84,7 +84,7 @@ def sync_source() {
                 git fetch origin +refs/pull/${CHANGE_ID}/merge
                 git checkout -qf FETCH_HEAD
 
-                if [ -d src/connector/python/.git ]; then
+                if [ ! -d src/connector/python/.github ]; then
                     rm -rf src/connector/python/* || :
                     rm -rf src/connector/python/.* || :
                     git clone --depth 1 https://github.com/taosdata/taos-connector-python src/connector/python || echo "failed to clone python connector"
@@ -100,6 +100,16 @@ def sync_source() {
                 cd ${WK}
                 git fetch origin +refs/pull/${CHANGE_ID}/merge
                 git checkout -qf FETCH_HEAD
+
+                if [ ! -d community/src/connector/python/.github ]; then
+                    rm -rf community/src/connector/python/* || :
+                    rm -rf community/src/connector/python/.* || :
+                    git clone --depth 1 https://github.com/taosdata/taos-connector-python community/src/connector/python || echo "failed to clone python connector"
+                else
+                    cd community/src/connector/python || echo "community/src/connector/python not exist"
+                    git pull || :
+                    cd ${WK}
+                fi
             '''
         } else {
             sh '''
