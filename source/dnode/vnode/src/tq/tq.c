@@ -356,6 +356,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   void*   buf = rpcMallocCont(tlen);
   if (buf == NULL) {
     pMsg->code = -1;
+    ASSERT(0);
     return -1;
   }
   ((SMqRspHead*)buf)->mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
@@ -508,7 +509,9 @@ int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen) {
   SStreamTaskExecReq req;
   tDecodeSStreamTaskExecReq(msg, &req);
 
-  int32_t      taskId = req.taskId;
+  int32_t taskId = req.taskId;
+  ASSERT(taskId);
+
   SStreamTask* pTask = taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
   ASSERT(pTask);
 

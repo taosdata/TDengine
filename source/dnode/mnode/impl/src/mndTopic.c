@@ -65,9 +65,11 @@ void mndCleanupTopic(SMnode *pMnode) {}
 SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  int32_t  logicalPlanLen = strlen(pTopic->logicalPlan) + 1;
-  int32_t  physicalPlanLen = strlen(pTopic->physicalPlan) + 1;
-  int32_t  size = sizeof(SMqTopicObj) + logicalPlanLen + physicalPlanLen + pTopic->sqlLen + MND_TOPIC_RESERVE_SIZE;
+  int32_t logicalPlanLen = strlen(pTopic->logicalPlan) + 1;
+  int32_t physicalPlanLen = strlen(pTopic->physicalPlan) + 1;
+  int32_t swLen = taosEncodeSSchemaWrapper(NULL, &pTopic->schema);
+  int32_t size =
+      sizeof(SMqTopicObj) + logicalPlanLen + physicalPlanLen + pTopic->sqlLen + swLen + MND_TOPIC_RESERVE_SIZE;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_TOPIC, MND_TOPIC_VER_NUMBER, size);
   if (pRaw == NULL) goto TOPIC_ENCODE_OVER;
 
@@ -86,8 +88,7 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   SDB_SET_INT32(pRaw, dataPos, physicalPlanLen, TOPIC_ENCODE_OVER);
   SDB_SET_BINARY(pRaw, dataPos, pTopic->physicalPlan, physicalPlanLen, TOPIC_ENCODE_OVER);
 
-  int32_t swLen = taosEncodeSSchemaWrapper(NULL, &pTopic->schema);
-  void   *swBuf = taosMemoryMalloc(swLen);
+  void *swBuf = taosMemoryMalloc(swLen);
   if (swBuf == NULL) {
     goto TOPIC_ENCODE_OVER;
   }

@@ -2301,7 +2301,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       }
 
       case OP_Order: {
-        pRuntimeEnv->proot = createOrderOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput, &pQueryAttr->order);
+        pRuntimeEnv->proot = createSortOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput, &pQueryAttr->order);
         break;
       }
 
@@ -5516,7 +5516,7 @@ static SSDataBlock* doSort(void* param, bool* newgroup) {
     return NULL;
   }
 
-  SOrderOperatorInfo* pInfo = pOperator->info;
+  SSortOperatorInfo* pInfo = pOperator->info;
 
   SSDataBlock* pBlock = NULL;
   while(1) {
@@ -5556,8 +5556,8 @@ static SSDataBlock* doSort(void* param, bool* newgroup) {
   return (pInfo->pDataBlock->info.rows > 0)? pInfo->pDataBlock:NULL;
 }
 
-SOperatorInfo *createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, SOrderVal* pOrderVal) {
-  SOrderOperatorInfo* pInfo = calloc(1, sizeof(SOrderOperatorInfo));
+SOperatorInfo *createSortOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, SOrderVal* pOrderVal) {
+  SSortOperatorInfo* pInfo = calloc(1, sizeof(SSortOperatorInfo));
 
   {
       SSDataBlock* pDataBlock = calloc(1, sizeof(SSDataBlock));
@@ -6611,7 +6611,7 @@ static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
 }
 
 static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput) {
-  SOrderOperatorInfo* pInfo = (SOrderOperatorInfo*) param;
+  SSortOperatorInfo* pInfo = (SSortOperatorInfo*) param;
   pInfo->pDataBlock = blockDataDestroy(pInfo->pDataBlock);
 }
 
