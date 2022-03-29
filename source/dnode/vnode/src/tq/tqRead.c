@@ -114,10 +114,9 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
   SSchemaWrapper* pSchemaWrapper = pHandle->pSchemaWrapper;
 
   int32_t numOfRows = pHandle->pBlock->numOfRows;
-  int32_t numOfCols = pHandle->pSchema->numOfCols;
+  /*int32_t numOfCols = pHandle->pSchema->numOfCols;*/
   int32_t colNumNeed = taosArrayGetSize(pHandle->pColIdList);
 
-  // TODO: stable case
   if (colNumNeed > pSchemaWrapper->nCols) {
     colNumNeed = pSchemaWrapper->nCols;
   }
@@ -138,19 +137,24 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
       colNeed++;
     } else {
       SColumnInfoData colInfo = {0};
-      int             sz = numOfRows * pColSchema->bytes;
+      /*int             sz = numOfRows * pColSchema->bytes;*/
       colInfo.info.bytes = pColSchema->bytes;
       colInfo.info.colId = pColSchema->colId;
       colInfo.info.type = pColSchema->type;
 
+#if 0
       colInfo.pData = taosMemoryCalloc(1, sz);
       if (colInfo.pData == NULL) {
         // TODO free
         taosArrayDestroy(pArray);
         return NULL;
       }
+#endif
 
-      blockDataEnsureColumnCapacity(&colInfo, numOfRows);
+      if (blockDataEnsureColumnCapacity(&colInfo, numOfRows) < 0) {
+        taosArrayDestroyEx(pArray, (void (*)(void*))tDeleteSSDataBlock);
+        return NULL;
+      }
       taosArrayPush(pArray, &colInfo);
       colMeta++;
       colNeed++;
