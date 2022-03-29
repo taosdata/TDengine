@@ -11,6 +11,9 @@ lines = ["d1001,2018-10-03 14:38:05.000,10.30000,219,0.31000,Beijing.Chaoyang,2"
 
 
 def get_connection() -> taos.TaosConnection:
+    """
+    create connection use firstEp in taos.cfg and use default user and password.
+    """
     return taos.connect()
 
 
@@ -50,6 +53,8 @@ def insert_data(conn: taos.TaosConnection):
 
 if __name__ == '__main__':
     connection = get_connection()
-    create_stable(connection)
-    insert_data(connection)
-    connection.close()
+    try:
+        create_stable(connection)
+        insert_data(connection)
+    finally:
+        connection.close()

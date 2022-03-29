@@ -30,6 +30,8 @@ def insert_lines(conn):
 
 if __name__ == '__main__':
     connection = get_connection()
-    create_database(connection)
-    insert_lines(connection)
-    connection.close()
+    try:
+        create_database(connection)
+        insert_lines(connection)
+    finally:
+        connection.close()
