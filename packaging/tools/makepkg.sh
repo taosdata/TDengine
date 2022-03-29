@@ -75,11 +75,11 @@ else
   bin_files="${build_dir}/bin/${serverName} \
       ${build_dir}/bin/${clientName} \
       ${taostools_bin_files} \
-      ${build_dir}/bin/taosadapter \
+      ${build_dir}/bin/${adapterName} \
       ${build_dir}/bin/tarbitrator\
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
-      ${script_dir}/run_taosd_and_taosadapter.sh \
+      ${script_dir}/run_taosd_and_${adapterName}.sh \
       ${script_dir}/startPre.sh \
       ${script_dir}/taosd-dump-cfg.gdb"
 fi
@@ -106,12 +106,12 @@ mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configFile} ${install_dir}/cfg/${configFile}
 
-if [ -f "${compile_dir}/test/cfg/taosadapter.toml" ]; then
-  cp ${compile_dir}/test/cfg/taosadapter.toml ${install_dir}/cfg || :
+if [ -f "${compile_dir}/test/cfg/${adapterName}.toml" ]; then
+  cp ${compile_dir}/test/cfg/${adapterName}.toml ${install_dir}/cfg || :
 fi
 
-if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
-  cp ${compile_dir}/test/cfg/taosadapter.service ${install_dir}/cfg || :
+if [ -f "${compile_dir}/test/cfg/${adapterName}.service" ]; then
+  cp ${compile_dir}/test/cfg/${adapterName}.service ${install_dir}/cfg || :
 fi
 
 if [ -f "${cfg_dir}/${serverName}.service" ]; then
@@ -132,12 +132,12 @@ mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/${se
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_deb} ${install_dir}/init.d/tarbitratord.deb || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_rpm} ${install_dir}/init.d/tarbitratord.rpm || :
 
-if [ $adapterName != "taosadapter" ]; then
-  mv ${install_dir}/cfg/taosadapter.toml ${install_dir}/cfg/$adapterName.toml
+if [ $adapterName != "${adapterName}" ]; then
+  mv ${install_dir}/cfg/${adapterName}.toml ${install_dir}/cfg/$adapterName.toml
   sed -i "s/path = \"\/var\/log\/taos\"/path = \"\/var\/log\/${productName}\"/g" ${install_dir}/cfg/$adapterName.toml
   sed -i "s/password = \"taosdata\"/password = \"${defaultPasswd}\"/g" ${install_dir}/cfg/$adapterName.toml
 
-  mv ${install_dir}/cfg/taosadapter.service ${install_dir}/cfg/$adapterName.service
+  mv ${install_dir}/cfg/${adapterName}.service ${install_dir}/cfg/$adapterName.service
   sed -i "s/TDengine/${productName}/g" ${install_dir}/cfg/$adapterName.service
   sed -i "s/taosAdapter/${adapterName}/g" ${install_dir}/cfg/$adapterName.service
   sed -i "s/taosadapter/${adapterName}/g" ${install_dir}/cfg/$adapterName.service
