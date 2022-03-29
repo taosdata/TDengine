@@ -55,6 +55,16 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle);
 int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type);
 
 /**
+ * Set multiple input data blocks for the stream scan.
+ * @param tinfo
+ * @param pBlocks
+ * @param numOfInputBlock
+ * @param type
+ * @return
+ */
+int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, void** pBlocks, size_t numOfBlocks, int32_t type);
+
+/**
  * Update the table id list, add or remove.
  *
  * @param tinfo
@@ -85,16 +95,6 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
  * @return
  */
 int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds);
-
-/**
- * Retrieve the produced results information, if current query is not paused or completed,
- * this function will be blocked to wait for the query execution completed or paused,
- * in which case enough results have been produced already.
- *
- * @param tinfo
- * @return
- */
-int32_t qRetrieveQueryResultInfo(qTaskInfo_t tinfo, bool* buildRes, void* pRspContext);
 
 /**
  * kill the ongoing query and free the query handle and corresponding resources automatically
@@ -158,50 +158,6 @@ int32_t qGetQualifiedTableIdList(void* pTableList, const char* tagCond, int32_t 
  */
 int32_t qUpdateQueriedTableIdList(qTaskInfo_t tinfo, int64_t uid, int32_t type);
 
-//================================================================================================
-// query handle management
-/**
- * Query handle mgmt object
- * @param vgId
- * @return
- */
-void* qOpenTaskMgmt(int32_t vgId);
-
-/**
- * broadcast the close information and wait for all query stop.
- * @param pExecutor
- */
-void qTaskMgmtNotifyClosing(void* pExecutor);
-
-/**
- * Re-open the query handle management module when opening the vnode again.
- * @param pExecutor
- */
-void qQueryMgmtReOpen(void* pExecutor);
-
-/**
- * Close query mgmt and clean up resources.
- * @param pExecutor
- */
-void qCleanupTaskMgmt(void* pExecutor);
-
-/**
- * Add the query into the query mgmt object
- * @param pMgmt
- * @param qId
- * @param qInfo
- * @return
- */
-void** qRegisterTask(void* pMgmt, uint64_t qId, void* qInfo);
-
-/**
- * acquire the query handle according to the key from query mgmt object.
- * @param pMgmt
- * @param key
- * @return
- */
-void** qAcquireTask(void* pMgmt, uint64_t key);
-
 /**
  * release the query handle and decrease the reference count in cache
  * @param pMgmt
@@ -211,13 +167,6 @@ void** qAcquireTask(void* pMgmt, uint64_t key);
  */
 void** qReleaseTask(void* pMgmt, void* pQInfo, bool freeHandle);
 
-/**
- * De-register the query handle from the management module and free it immediately.
- * @param pMgmt
- * @param pQInfo
- * @return
- */
-void** qDeregisterQInfo(void* pMgmt, void* pQInfo);
 
 void qProcessFetchRsp(void* parent, struct SRpcMsg* pMsg, struct SEpSet* pEpSet);
 
