@@ -1,0 +1,104 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1
+system sh/exec.sh -n dnode1 -s start
+
+$loop_cnt = 0
+check_dnode_ready:
+	$loop_cnt = $loop_cnt + 1
+	sleep 200
+	if $loop_cnt == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql show dnodes
+print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
+if $data00 != 1 then
+  return -1
+endi
+if $data04 != ready then
+  goto check_dnode_ready
+endi
+
+sql connect
+
+$dbNamme = d0
+print =============== create database
+sql create database $dbNamme vgroups 1
+sql show databases
+print $data00 $data01 $data02
+if $rows != 2 then 
+  return -1
+endi
+
+sql use $dbNamme
+
+print =============== create super table
+sql create table if not exists stb (ts timestamp, c1 int, c2 float, c3 binary(10)) tags (t1 int)
+
+sql show stables
+if $rows != 1 then 
+  return -1
+endi
+
+print =============== create child table
+sql create table ct0 using stb tags(1000)
+sql create table ct1 using stb tags(2000)
+#sql create table ct3 using stb tags(3000)
+
+sql create topic topic1 as select ts, c1 from stb
+
+sql show tables
+if $rows != 2 then 
+  return -1
+endi
+
+print =============== insert data
+
+$tbPrefix = ct
+$tbNum = 2
+$rowNum = 10
+$tstart = 1640966400000  # 2022-01-01 00:00:00.000
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+
+  $x = 0
+  while $x < $rowNum
+    $c = $x / 10
+    $c = $c * 10
+    $c = $x - $c
+
+    $binary = ' . binary
+    $binary = $binary . $c
+    $binary = $binary . '
+
+    sql insert into $tb values ($tstart , $c , $x , $binary )
+    $tstart = $tstart + 1
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+  $tstart = 1640966400000
+endw
+
+#root@trd02 /home $ tmq_sim --help                                                                          
+# -c      Configuration directory, default is 
+# -d      The name of the database for cosumer, no default 
+# -t      The topic string for cosumer, no default 
+# -k      The key-value string for cosumer, no default 
+# -g      showMsgFlag, default is 0
+#        
+
+$totalMsgCnt = $rowNum * $tbNum
+print inserted totalMsgCnt: $totalMsgCnt
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic1" -k "group.id:tg2"
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic1" -k "group.id:tg2"
+print cmd result----> $system_content
+if $system_content != @{consume success: 200}@ then
+  return -1
+endi
+
+#system sh/exec.sh -n dnode1 -s stop -x SIGINT

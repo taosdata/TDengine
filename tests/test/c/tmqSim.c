@@ -151,8 +151,6 @@ void parseInputString() {
     token = strtok(NULL, delim);
   }
 
-  printf("\n\n");
-
   token = strtok(g_stConfInfo.keyString, delim);
   while(token != NULL) {
     //printf("%s\n", token );
@@ -226,7 +224,7 @@ void perf_loop(tmq_t* tmq, tmq_list_t* topics) {
 
   if ((err = tmq_subscribe(tmq, topics))) {
     printf("tmq_subscribe() fail, reason: %s\n", tmq_err2str(err));
-    return;
+    exit(-1);
   }
   
   int32_t totalMsgs = 0;
