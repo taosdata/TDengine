@@ -49,11 +49,13 @@ typedef struct SRpcMsg {
 } SRpcMsg;
 
 typedef struct {
-  char    user[TSDB_USER_LEN];
-  SRpcMsg rpcMsg;
-  int32_t rspLen;
-  void *  pRsp;
-  void *  pNode;
+  char     user[TSDB_USER_LEN];
+  uint32_t clientIp;
+  uint16_t clientPort;
+  SRpcMsg  rpcMsg;
+  int32_t  rspLen;
+  void    *pRsp;
+  void    *pNode;
 } SNodeMsg;
 
 typedef struct SRpcInit {

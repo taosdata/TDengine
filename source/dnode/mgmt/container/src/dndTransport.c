@@ -348,7 +348,7 @@ int32_t dndSendReqToMnode(SMgmtWrapper *pWrapper, SRpcMsg *pReq) {
   }
 }
 
-static void dndSendRpcRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
+void dndSendRpcRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
   if (pRsp->code == TSDB_CODE_APP_NOT_READY) {
     SMgmtWrapper *pDnodeWrapper = dndAcquireWrapper(pWrapper->pDnode, DNODE);
     if (pDnodeWrapper != NULL) {
@@ -366,12 +366,26 @@ void dndSendRsp(SMgmtWrapper *pWrapper, SRpcMsg *pRsp) {
   if (pWrapper->procType == PROC_CHILD) {
     int32_t code = -1;
     do {
-      code = taosProcPutToParentQueue(pWrapper->pProc, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen);
+      code = taosProcPutToParentQ(pWrapper->pProc, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, PROC_RSP);
       if (code != 0) {
         taosMsleep(10);
       }
     } while (code != 0);
   } else {
     dndSendRpcRsp(pWrapper, pRsp);
+  }
+}
+
+void dndRegisterBrokenLinkArg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
+  if (pWrapper->procType == PROC_CHILD) {
+    int32_t code = -1;
+    do {
+      code = taosProcPutToParentQ(pWrapper->pProc, pMsg, sizeof(SRpcMsg), pMsg->pCont, pMsg->contLen, PROC_REGISTER);
+      if (code != 0) {
+        taosMsleep(10);
+      }
+    } while (code != 0);
+  } else {
+    rpcRegisterBrokenLinkArg(pMsg);
   }
 }

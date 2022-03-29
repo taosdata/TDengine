@@ -763,8 +763,8 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
         dropConnection = &ctx->connInfo;
         QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
         dropConnection = NULL;
-        
-        qwBuildAndSendDropRsp(&ctx->connInfo, code);    
+
+        qwBuildAndSendDropRsp(&mgmt->msgCb, &ctx->connInfo, code);
         QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", ctx->connInfo.handle, code, tstrerror(code));
 
         QW_ERR_JRET(TSDB_CODE_QRY_TASK_DROPPED);
@@ -802,9 +802,9 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
         QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
         dropConnection = NULL;
 
-        qwBuildAndSendDropRsp(&ctx->connInfo, code);
+        qwBuildAndSendDropRsp(&mgmt->msgCb, &ctx->connInfo, code);
         QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", ctx->connInfo.handle, code, tstrerror(code));
-        
+
         QW_ERR_JRET(TSDB_CODE_QRY_TASK_DROPPED);
       }
 
@@ -830,12 +830,12 @@ _return:
   }
 
   if (dropConnection) {
-    qwBuildAndSendDropRsp(dropConnection, code);    
+    qwBuildAndSendDropRsp(&mgmt->msgCb, dropConnection, code);
     QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", dropConnection->handle, code, tstrerror(code));
   }
 
   if (cancelConnection) {
-    qwBuildAndSendCancelRsp(cancelConnection, code);    
+    qwBuildAndSendCancelRsp(&mgmt->msgCb, cancelConnection, code);
     QW_TASK_DLOG("cancel rsp send, handle:%p, code:%x - %s", cancelConnection->handle, code, tstrerror(code));
   }
 
@@ -886,9 +886,9 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
       QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
     }
 
-    qwBuildAndSendDropRsp(&ctx->connInfo, code);    
+    qwBuildAndSendDropRsp(&mgmt->msgCb, &ctx->connInfo, code);
     QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", ctx->connInfo.handle, code, tstrerror(code));
-    
+
     QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
     QW_ERR_JRET(TSDB_CODE_QRY_TASK_DROPPED);
   }
@@ -918,7 +918,7 @@ _return:
   }
 
   if (readyConnection) {
-    qwBuildAndSendReadyRsp(readyConnection, code);    
+    qwBuildAndSendReadyRsp(&mgmt->msgCb, readyConnection, code);    
     QW_TASK_DLOG("ready msg rsped, handle:%p, code:%x - %s", readyConnection->handle, code, tstrerror(code));
   }
 
@@ -970,7 +970,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType) {
     QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
   }
 
-  QW_ERR_JRET(qwBuildAndSendQueryRsp(&qwMsg->connInfo, code));
+  QW_ERR_JRET(qwBuildAndSendQueryRsp(&mgmt->msgCb, &qwMsg->connInfo, code));
   QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
 
   queryRsped = true;
@@ -986,9 +986,9 @@ _return:
 
   input.code = code;
   code = qwHandlePostPhaseEvents(QW_FPARAMS(), QW_PHASE_POST_QUERY, &input, NULL);
-  
+
   if (!queryRsped) {
-    qwBuildAndSendQueryRsp(&qwMsg->connInfo, code);
+    qwBuildAndSendQueryRsp(&mgmt->msgCb, &qwMsg->connInfo, code);
     QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
   }
 
@@ -1051,7 +1051,7 @@ _return:
   }
 
   if (needRsp) {
-    qwBuildAndSendReadyRsp(&qwMsg->connInfo, code);
+    qwBuildAndSendReadyRsp(&mgmt->msgCb, &qwMsg->connInfo, code);
     QW_TASK_DLOG("ready msg rsped, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
   }
 
@@ -1095,7 +1095,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
         qwMsg->connInfo = ctx->connInfo;
         QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_FETCH);            
         
-        qwBuildAndSendFetchRsp(&qwMsg->connInfo, rsp, dataLen, code);                
+        qwBuildAndSendFetchRsp(&mgmt->msgCb, &qwMsg->connInfo, rsp, dataLen, code);                
         QW_TASK_DLOG("fetch rsp send, handle:%p, code:%x - %s, dataLen:%d", qwMsg->connInfo.handle, code, tstrerror(code), dataLen);
       } else {
         atomic_store_8((int8_t*)&ctx->queryContinue, 1);
@@ -1114,7 +1114,7 @@ _return:
       rsp = NULL;
       
       qwMsg->connInfo = ctx->connInfo;
-      qwBuildAndSendFetchRsp(&qwMsg->connInfo, rsp, 0, code);
+      qwBuildAndSendFetchRsp(&mgmt->msgCb, &qwMsg->connInfo, rsp, 0, code);
       QW_TASK_DLOG("fetch rsp send, handle:%p, code:%x - %s, dataLen:%d", qwMsg->connInfo.handle, code, tstrerror(code), 0);
     }
 
@@ -1195,7 +1195,7 @@ _return:
   }
 
   if (code || rsp) {
-    qwBuildAndSendFetchRsp(&qwMsg->connInfo, rsp, dataLen, code);
+    qwBuildAndSendFetchRsp(&mgmt->msgCb, &qwMsg->connInfo, rsp, dataLen, code);
     QW_TASK_DLOG("fetch rsp send, handle:%p, code:%x - %s, dataLen:%d", qwMsg->connInfo.handle, code, tstrerror(code), dataLen);
   }
 
@@ -1226,9 +1226,9 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     QW_ERR_JRET(qwKillTaskHandle(QW_FPARAMS(), ctx));
     qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_DROPPING);
   } else if (ctx->phase > 0) {
-    qwBuildAndSendDropRsp(&qwMsg->connInfo, code);
+    qwBuildAndSendDropRsp(&mgmt->msgCb, &qwMsg->connInfo, code);
     QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
-  
+
     QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
     rsped = true;
   } else {
@@ -1241,7 +1241,7 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);
   }
-  
+
 _return:
 
   if (code) {
@@ -1261,7 +1261,7 @@ _return:
   }
 
   if (TSDB_CODE_SUCCESS != code) {
-    qwBuildAndSendDropRsp(&qwMsg->connInfo, code);
+    qwBuildAndSendDropRsp(&mgmt->msgCb, &qwMsg->connInfo, code);
     QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
   }
 
@@ -1297,7 +1297,7 @@ int32_t qwProcessHb(SQWorkerMgmt *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
 
 _return:
 
-  qwBuildAndSendHbRsp(&qwMsg->connInfo, &rsp, code);
+  qwBuildAndSendHbRsp(&mgmt->msgCb, &qwMsg->connInfo, &rsp, code);
   QW_DLOG("hb rsp send, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
   
   QW_RET(TSDB_CODE_SUCCESS);
@@ -1351,8 +1351,9 @@ _return:
   QW_UNLOCK(QW_READ, &mgmt->schLock);
 
   for (int32_t j = 0; j < i; ++j) {
-    qwBuildAndSendHbRsp(&rspList[j].connInfo, &rspList[j].rsp, code);
-    QW_DLOG("hb rsp send, handle:%p, code:%x - %s, taskNum:%d", rspList[j].connInfo.handle, code, tstrerror(code), (rspList[j].rsp.taskStatus ? (int32_t)taosArrayGetSize(rspList[j].rsp.taskStatus) : 0));    
+    qwBuildAndSendHbRsp(&mgmt->msgCb, &rspList[j].connInfo, &rspList[j].rsp, code);
+    QW_DLOG("hb rsp send, handle:%p, code:%x - %s, taskNum:%d", rspList[j].connInfo.handle, code, tstrerror(code),
+            (rspList[j].rsp.taskStatus ? (int32_t)taosArrayGetSize(rspList[j].rsp.taskStatus) : 0));
     tFreeSSchedulerHbRsp(&rspList[j].rsp);
   }
 

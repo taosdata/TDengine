@@ -46,7 +46,7 @@ void qwFreeFetchRsp(void *msg) {
   }
 }
 
-int32_t qwBuildAndSendQueryRsp(SQWConnInfo *pConn, int32_t code) {
+int32_t qwBuildAndSendQueryRsp(const SMsgCb *pMsgCb, SQWConnInfo *pConn, int32_t code) {
   SQueryTableRsp rsp = {.code = code};
   
   int32_t contLen = tSerializeSQueryTableRsp(NULL, 0, &rsp);
@@ -62,12 +62,12 @@ int32_t qwBuildAndSendQueryRsp(SQWConnInfo *pConn, int32_t code) {
     .code    = code,
   };
 
-  rpcSendResponse(&rpcRsp);
+  tmsgSendRsp(pMsgCb, &rpcRsp);
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendReadyRsp(SQWConnInfo *pConn, int32_t code) {
+int32_t qwBuildAndSendReadyRsp(const SMsgCb *pMsgCb, SQWConnInfo *pConn, int32_t code) {
   SResReadyRsp *pRsp = (SResReadyRsp *)rpcMallocCont(sizeof(SResReadyRsp));
   pRsp->code = code;
 
@@ -80,12 +80,12 @@ int32_t qwBuildAndSendReadyRsp(SQWConnInfo *pConn, int32_t code) {
     .code    = code,
   };
 
-  rpcSendResponse(&rpcRsp);
+  tmsgSendRsp(pMsgCb, &rpcRsp);
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendHbRsp(SQWConnInfo *pConn, SSchedulerHbRsp *pStatus, int32_t code) {
+int32_t qwBuildAndSendHbRsp(const SMsgCb *pMsgCb, SQWConnInfo *pConn, SSchedulerHbRsp *pStatus, int32_t code) {
   int32_t contLen = tSerializeSSchedulerHbRsp(NULL, 0, pStatus);
   void *pRsp = rpcMallocCont(contLen);
   tSerializeSSchedulerHbRsp(pRsp, contLen, pStatus);
@@ -99,12 +99,12 @@ int32_t qwBuildAndSendHbRsp(SQWConnInfo *pConn, SSchedulerHbRsp *pStatus, int32_
     .code    = code,
   };
 
-  rpcSendResponse(&rpcRsp);
+  tmsgSendRsp(pMsgCb, &rpcRsp);
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendFetchRsp(SQWConnInfo *pConn, SRetrieveTableRsp *pRsp, int32_t dataLength, int32_t code) {
+int32_t qwBuildAndSendFetchRsp(const SMsgCb *pMsgCb, SQWConnInfo *pConn, SRetrieveTableRsp *pRsp, int32_t dataLength, int32_t code) {
   if (NULL == pRsp) {
     pRsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
     memset(pRsp, 0, sizeof(SRetrieveTableRsp));
@@ -120,12 +120,12 @@ int32_t qwBuildAndSendFetchRsp(SQWConnInfo *pConn, SRetrieveTableRsp *pRsp, int3
     .code    = code,
   };
 
-  rpcSendResponse(&rpcRsp);
+  tmsgSendRsp(pMsgCb, &rpcRsp);
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendCancelRsp(SQWConnInfo *pConn, int32_t code) {
+int32_t qwBuildAndSendCancelRsp(const SMsgCb *pMsgCb, SQWConnInfo *pConn, int32_t code) {
   STaskCancelRsp *pRsp = (STaskCancelRsp *)rpcMallocCont(sizeof(STaskCancelRsp));
   pRsp->code = code;
 
@@ -138,11 +138,11 @@ int32_t qwBuildAndSendCancelRsp(SQWConnInfo *pConn, int32_t code) {
     .code    = code,
   };
 
-  rpcSendResponse(&rpcRsp);
+  tmsgSendRsp(pMsgCb, &rpcRsp);
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendDropRsp(SQWConnInfo *pConn, int32_t code) {
+int32_t qwBuildAndSendDropRsp(const SMsgCb *pMsgCb, SQWConnInfo *pConn, int32_t code) {
   STaskDropRsp *pRsp = (STaskDropRsp *)rpcMallocCont(sizeof(STaskDropRsp));
   pRsp->code = code;
 
@@ -155,11 +155,11 @@ int32_t qwBuildAndSendDropRsp(SQWConnInfo *pConn, int32_t code) {
     .code    = code,
   };
 
-  rpcSendResponse(&rpcRsp);
+  tmsgSendRsp(pMsgCb, &rpcRsp);
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendShowRsp(SRpcMsg *pMsg, int32_t code) {
+int32_t qwBuildAndSendShowRsp(const SMsgCb *pMsgCb, SRpcMsg *pMsg, int32_t code) {
   int32_t         numOfCols = 6;
   SVShowTablesRsp showRsp = {0};
 
@@ -210,11 +210,11 @@ int32_t qwBuildAndSendShowRsp(SRpcMsg *pMsg, int32_t code) {
       .code = code,
   };
 
-  rpcSendResponse(&rpcMsg);
+  tmsgSendRsp(pMsgCb, &rpcMsg);
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendShowFetchRsp(SRpcMsg *pMsg, SVShowTablesFetchReq* pFetchReq) {
+int32_t qwBuildAndSendShowFetchRsp(const SMsgCb *pMsgCb, SRpcMsg *pMsg, SVShowTablesFetchReq* pFetchReq) {
   SVShowTablesFetchRsp *pRsp = (SVShowTablesFetchRsp *)rpcMallocCont(sizeof(SVShowTablesFetchRsp));
   int32_t handle = htonl(pFetchReq->id);
 
@@ -227,7 +227,7 @@ int32_t qwBuildAndSendShowFetchRsp(SRpcMsg *pMsg, SVShowTablesFetchReq* pFetchRe
       .code    = 0,
   };
 
-  rpcSendResponse(&rpcMsg);
+  tmsgSendRsp(pMsgCb, &rpcMsg);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -287,7 +287,7 @@ int32_t qwRegisterBrokenLinkArg(QW_FPARAMS_DEF, SQWConnInfo *pConn) {
     .code    = TSDB_CODE_RPC_NETWORK_UNAVAIL,
   };
   
-  rpcRegisterBrokenLinkArg(&pMsg);
+  tmsgRegisterBrokenLinkArg(&mgmt->msgCb, &pMsg);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -498,7 +498,7 @@ int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
 
 _return:
 
-  QW_ERR_RET(qwBuildAndSendCancelRsp(&qwMsg.connInfo, code));
+  QW_ERR_RET(qwBuildAndSendCancelRsp(&mgmt->msgCb, &qwMsg.connInfo, code));
   QW_SCH_TASK_DLOG("cancel rsp send, handle:%p, code:%x - %s", qwMsg.connInfo.handle, code, tstrerror(code));
 
   return TSDB_CODE_SUCCESS;
@@ -579,15 +579,16 @@ int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-
 int32_t qWorkerProcessShowMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
+  SQWorkerMgmt *pMgmt = qWorkerMgmt;
+
   int32_t code = 0;
   SVShowTablesReq *pReq = pMsg->pCont;
-  QW_RET(qwBuildAndSendShowRsp(pMsg, code));
+  QW_RET(qwBuildAndSendShowRsp(&pMgmt->msgCb, pMsg, code));
 }
 
 int32_t qWorkerProcessShowFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
@@ -595,8 +596,8 @@ int32_t qWorkerProcessShowFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg)
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
+  SQWorkerMgmt *pMgmt = qWorkerMgmt;
+
   SVShowTablesFetchReq *pFetchReq = pMsg->pCont;
-  QW_RET(qwBuildAndSendShowFetchRsp(pMsg, pFetchReq));
+  QW_RET(qwBuildAndSendShowFetchRsp(&pMgmt->msgCb, pMsg, pFetchReq));
 }
-
-
