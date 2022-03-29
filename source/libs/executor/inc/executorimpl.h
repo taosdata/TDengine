@@ -573,6 +573,7 @@ typedef struct SGroupbyOperatorInfo {
 typedef struct SSessionAggOperatorInfo {
   SOptrBasicInfo binfo;
   SAggSupporter  aggSup;
+  SGroupResInfo  groupResInfo;
   STimeWindow    curWindow;  // current time window
   TSKEY          prevTs;     // previous timestamp
   int32_t        numOfRows;  // number of rows
