@@ -14,7 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndMain.h"
+#include "dnd.h"
+#include "tconfig.h"
 
 static struct {
   bool    dumpConfig;
@@ -42,7 +43,7 @@ static void dndSetSignalHandle() {
   taosSetSignal(SIGBREAK, dndSigintHandle);
 }
 
-static int32_t dndParseOption(int32_t argc, char const *argv[]) {
+static int32_t dndParseArgs(int32_t argc, char const *argv[]) {
   for (int32_t i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {
@@ -55,10 +56,14 @@ static int32_t dndParseOption(int32_t argc, char const *argv[]) {
         printf("'-c' requires a parameter, default is %s\n", configDir);
         return -1;
       }
-    } else if (strcmp(argv[i], "-C") == 0) {
-      global.dumpConfig = true;
+    } else if (strcmp(argv[i], "-a") == 0) {
+      tstrncpy(global.apolloUrl, argv[++i], PATH_MAX);
+    } else if (strcmp(argv[i], "-e") == 0) {
+      tstrncpy(global.envFile, argv[++i], PATH_MAX);
     } else if (strcmp(argv[i], "-k") == 0) {
       global.generateGrant = true;
+    } else if (strcmp(argv[i], "-C") == 0) {
+      global.dumpConfig = true;
     } else if (strcmp(argv[i], "-V") == 0) {
       global.printVersion = true;
     } else {
@@ -68,9 +73,45 @@ static int32_t dndParseOption(int32_t argc, char const *argv[]) {
   return 0;
 }
 
+static void dndGenerateGrant() {
+  // grantParseParameter();
+}
+
+static void dndPrintVersion() {
+#ifdef TD_ENTERPRISE
+  char *releaseName = "enterprise";
+#else
+  char *releaseName = "community";
+#endif
+  printf("%s version: %s compatible_version: %s\n", releaseName, version, compatible_version);
+  printf("gitinfo: %s\n", gitinfo);
+  printf("buildInfo: %s\n", buildinfo);
+}
+
+static void dndDumpCfg() {
+  SConfig *pCfg = taosGetCfg();
+  cfgDumpCfg(pCfg, 0, 1);
+}
+
+SDnodeOpt dndGetOpt() {
+  SConfig  *pCfg = taosGetCfg();
+  SDnodeOpt option = {0};
+
+  option.numOfSupportVnodes = cfgGetItem(pCfg, "supportVnodes")->i32;
+  tstrncpy(option.dataDir, tsDataDir, sizeof(option.dataDir));
+  tstrncpy(option.firstEp, tsFirst, sizeof(option.firstEp));
+  tstrncpy(option.secondEp, tsSecond, sizeof(option.firstEp));
+  option.serverPort = tsServerPort;
+  tstrncpy(option.localFqdn, tsLocalFqdn, sizeof(option.localFqdn));
+  snprintf(option.localEp, sizeof(option.localEp), "%s:%u", option.localFqdn, option.serverPort);
+  option.pDisks = tsDiskCfg;
+  option.numOfDisks = tsDiskCfgNum;
+  return option;
+}
+
 static int32_t dndRunDnode() {
   if (dndInit() != 0) {
-    dInfo("failed to initialize dnode environment since %s", terrstr());
+    dError("failed to initialize environment since %s", terrstr());
     return -1;
   }
 
@@ -99,11 +140,12 @@ static int32_t dndRunDnode() {
 
 int main(int argc, char const *argv[]) {
   if (!taosCheckSystemIsSmallEnd()) {
-    dError("failed to start TDengine since on non-small-end machines");
+    printf("failed to start since on non-small-end machines\n");
     return -1;
   }
 
-  if (dndParseOption(argc, argv) != 0) {
+  if (dndParseArgs(argc, argv) != 0) {
+    printf("failed to start since parse args error\n");
     return -1;
   }
 
@@ -118,12 +160,12 @@ int main(int argc, char const *argv[]) {
   }
 
   if (taosCreateLog("taosdlog", 1, configDir, global.envFile, global.apolloUrl, NULL, 0) != 0) {
-    dError("failed to start TDengine since read log config error");
+    printf("failed to start since read log config error\n");
     return -1;
   }
 
   if (taosInitCfg(configDir, global.envFile, global.apolloUrl, NULL, 0) != 0) {
-    dError("failed to start TDengine since read config error");
+    dError("failed to start since read config error");
     return -1;
   }
 
