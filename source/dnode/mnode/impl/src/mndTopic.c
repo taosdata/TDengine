@@ -293,7 +293,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
   topicObj.dbUid = pDb->uid;
   topicObj.version = 1;
   topicObj.sql = pCreate->sql;
-  topicObj.physicalPlan = NULL;
+  topicObj.physicalPlan = "";
   topicObj.logicalPlan = "";
   topicObj.sqlLen = strlen(pCreate->sql);
 
@@ -302,7 +302,9 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
     mError("topic:%s, failed to get plan since %s", pCreate->name, terrstr());
     return -1;
   }
-  topicObj.physicalPlan = pPlanStr;
+  if (NULL != pPlanStr) {
+    topicObj.physicalPlan = pPlanStr;
+  }
 
   SNode *pAst = NULL;
   if (nodesStringToNode(pCreate->ast, &pAst) < 0) {
