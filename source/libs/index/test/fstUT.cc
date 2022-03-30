@@ -6,16 +6,16 @@
 #include <thread>
 #include <vector>
 #include "index.h"
+#include "indexCache.h"
+#include "indexFst.h"
+#include "indexFstCountingWriter.h"
+#include "indexFstUtil.h"
 #include "indexInt.h"
-#include "index_cache.h"
-#include "index_fst.h"
-#include "index_fst_counting_writer.h"
-#include "index_fst_util.h"
-#include "index_tfile.h"
+#include "indexTfile.h"
 #include "tglobal.h"
+#include "tlog.h"
 #include "tskiplist.h"
 #include "tutil.h"
-#include "tlog.h"
 
 static std::string dir = "/tmp/index";
 

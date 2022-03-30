@@ -42,6 +42,9 @@ extern "C" {
 #include <sys/types.h>
 #include <termios.h>
 #include <sys/statvfs.h>
+#include <sys/prctl.h>
+#include <sys/shm.h>
+#include <sys/wait.h>
 
 #if defined(DARWIN)
 #else

@@ -275,7 +275,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     pMsg->pCont = NULL;
     pMsg->contLen = 0;
     pMsg->code = -1;
-    rpcSendResponse(pMsg);
+    tmsgSendRsp(pMsg);
     return 0;
   }
 
@@ -340,7 +340,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         pMsg->pCont = buf;
         pMsg->contLen = tlen;
         pMsg->code = 0;
-        rpcSendResponse(pMsg);
+        tmsgSendRsp(pMsg);
         return 0;
       }
     } else {
@@ -356,6 +356,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   void*   buf = rpcMallocCont(tlen);
   if (buf == NULL) {
     pMsg->code = -1;
+    ASSERT(0);
     return -1;
   }
   ((SMqRspHead*)buf)->mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
@@ -367,7 +368,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   pMsg->pCont = buf;
   pMsg->contLen = tlen;
   pMsg->code = 0;
-  rpcSendResponse(pMsg);
+  tmsgSendRsp(pMsg);
   /*}*/
 
   return 0;
@@ -473,10 +474,16 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
   }
   tCoderClear(&decoder);
 
+  // exec
   if (tqExpandTask(pTq, pTask, 4) < 0) {
     ASSERT(0);
   }
+
+  // sink
   pTask->ahandle = pTq->pVnode;
+  if (pTask->sinkType == TASK_SINK__SMA) {
+    pTask->smaSink.smaHandle = smaHandleRes;
+  }
 
   taosHashPut(pTq->pStreamTasks, &pTask->taskId, sizeof(int32_t), pTask, sizeof(SStreamTask));
 
@@ -502,7 +509,9 @@ int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen) {
   SStreamTaskExecReq req;
   tDecodeSStreamTaskExecReq(msg, &req);
 
-  int32_t      taskId = req.taskId;
+  int32_t taskId = req.taskId;
+  ASSERT(taskId);
+
   SStreamTask* pTask = taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
   ASSERT(pTask);
 

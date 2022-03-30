@@ -16,6 +16,86 @@
 #include "tstream.h"
 #include "executor.h"
 
+static int32_t streamBuildDispatchMsg(SStreamTask* pTask, SArray* data, SRpcMsg* pMsg, SEpSet** ppEpSet) {
+  SStreamTaskExecReq req = {
+      .streamId = pTask->streamId,
+      .data = data,
+  };
+
+  int32_t tlen = sizeof(SMsgHead) + tEncodeSStreamTaskExecReq(NULL, &req);
+  void*   buf = rpcMallocCont(tlen);
+
+  if (buf == NULL) {
+    return -1;
+  }
+  if (pTask->dispatchType == TASK_DISPATCH__INPLACE) {
+    ((SMsgHead*)buf)->vgId = 0;
+    req.taskId = pTask->inplaceDispatcher.taskId;
+
+  } else if (pTask->dispatchType == TASK_DISPATCH__FIXED) {
+    ((SMsgHead*)buf)->vgId = htonl(pTask->fixedEpDispatcher.nodeId);
+    *ppEpSet = &pTask->fixedEpDispatcher.epSet;
+    req.taskId = pTask->fixedEpDispatcher.taskId;
+
+  } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
+    // TODO fix tbname issue
+    char ctbName[TSDB_TABLE_FNAME_LEN + 22];
+    // all groupId must be the same in an array
+    SSDataBlock* pBlock = taosArrayGet(data, 0);
+    sprintf(ctbName, "%s:%ld", pTask->shuffleDispatcher.stbFullName, pBlock->info.groupId);
+
+    // TODO: get hash function by hashMethod
+
+    // get groupId, compute hash value
+    uint32_t hashValue = MurmurHash3_32(ctbName, strlen(ctbName));
+    //
+    // get node
+    // TODO: optimize search process
+    SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
+    int32_t sz = taosArrayGetSize(vgInfo);
+    int32_t nodeId = 0;
+    for (int32_t i = 0; i < sz; i++) {
+      SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
+      if (hashValue >= pVgInfo->hashBegin && hashValue <= pVgInfo->hashEnd) {
+        nodeId = pVgInfo->vgId;
+        req.taskId = pVgInfo->taskId;
+        *ppEpSet = &pVgInfo->epSet;
+        break;
+      }
+    }
+    ASSERT(nodeId != 0);
+    ((SMsgHead*)buf)->vgId = htonl(nodeId);
+  }
+
+  void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+  tEncodeSStreamTaskExecReq(&abuf, &req);
+
+  pMsg->pCont = buf;
+  pMsg->contLen = tlen;
+  pMsg->code = 0;
+  pMsg->msgType = pTask->dispatchMsgType;
+  pMsg->noResp = 1;
+
+  return 0;
+}
+
+static int32_t streamShuffleDispatch(SStreamTask* pTask, SMsgCb* pMsgCb, SHashObj* data) {
+  void* pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(data, pIter);
+    if (pIter == NULL) return 0;
+    SArray* pData = *(SArray**)pIter;
+    SRpcMsg dispatchMsg = {0};
+    SEpSet* pEpSet;
+    if (streamBuildDispatchMsg(pTask, pData, &dispatchMsg, &pEpSet) < 0) {
+      ASSERT(0);
+      return -1;
+    }
+    tmsgSendReq(pMsgCb, pEpSet, &dispatchMsg);
+  }
+  return 0;
+}
+
 int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, int32_t inputType, int32_t workId) {
   SArray* pRes = NULL;
   // source
@@ -44,22 +124,23 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
       }
     } else if (inputType == STREAM_DATA_TYPE_SSDATA_BLOCK) {
       const SArray* blocks = (const SArray*)input;
-      int32_t       sz = taosArrayGetSize(blocks);
-      for (int32_t i = 0; i < sz; i++) {
-        SSDataBlock* pBlock = taosArrayGet(blocks, i);
-        qSetStreamInput(exec, pBlock, inputType);
-        while (1) {
-          SSDataBlock* output;
-          uint64_t     ts;
-          if (qExecTask(exec, &output, &ts) < 0) {
-            ASSERT(false);
-          }
-          if (output == NULL) {
-            break;
-          }
-          taosArrayPush(pRes, output);
+      /*int32_t       sz = taosArrayGetSize(blocks);*/
+      /*for (int32_t i = 0; i < sz; i++) {*/
+      /*SSDataBlock* pBlock = taosArrayGet(blocks, i);*/
+      /*qSetStreamInput(exec, pBlock, inputType);*/
+      qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_DATA_TYPE_SSDATA_BLOCK);
+      while (1) {
+        SSDataBlock* output;
+        uint64_t     ts;
+        if (qExecTask(exec, &output, &ts) < 0) {
+          ASSERT(false);
         }
+        if (output == NULL) {
+          break;
+        }
+        taosArrayPush(pRes, output);
       }
+      /*}*/
     } else {
       ASSERT(0);
     }
@@ -83,28 +164,13 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
   }
 
   // dispatch
+
   if (pTask->dispatchType == TASK_DISPATCH__INPLACE) {
-    SStreamTaskExecReq req = {
-        .streamId = pTask->streamId,
-        .taskId = pTask->taskId,
-        .data = pRes,
-    };
-
-    int32_t tlen = sizeof(SMsgHead) + tEncodeSStreamTaskExecReq(NULL, &req);
-    void*   buf = rpcMallocCont(tlen);
-
-    if (buf == NULL) {
+    SRpcMsg dispatchMsg = {0};
+    if (streamBuildDispatchMsg(pTask, pRes, &dispatchMsg, NULL) < 0) {
+      ASSERT(0);
       return -1;
     }
-    void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-    tEncodeSStreamTaskExecReq(&abuf, &req);
-
-    SRpcMsg dispatchMsg = {
-        .pCont = buf,
-        .contLen = tlen,
-        .code = 0,
-        .msgType = pTask->dispatchMsgType,
-    };
 
     int32_t qType;
     if (pTask->dispatchMsgType == TDMT_VND_TASK_PIPE_EXEC || pTask->dispatchMsgType == TDMT_SND_TASK_PIPE_EXEC) {
@@ -120,36 +186,38 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
     tmsgPutToQueue(pMsgCb, qType, &dispatchMsg);
 
   } else if (pTask->dispatchType == TASK_DISPATCH__FIXED) {
-    SStreamTaskExecReq req = {
-        .streamId = pTask->streamId,
-        .taskId = pTask->fixedEpDispatcher.taskId,
-        .data = pRes,
-    };
-
-    int32_t tlen = sizeof(SMsgHead) + tEncodeSStreamTaskExecReq(NULL, &req);
-    void*   buf = rpcMallocCont(tlen);
-
-    if (buf == NULL) {
+    SRpcMsg dispatchMsg = {0};
+    SEpSet* pEpSet = NULL;
+    if (streamBuildDispatchMsg(pTask, pRes, &dispatchMsg, &pEpSet) < 0) {
+      ASSERT(0);
       return -1;
     }
-
-    ((SMsgHead*)buf)->vgId = htonl(pTask->fixedEpDispatcher.nodeId);
-    void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-    tEncodeSStreamTaskExecReq(&abuf, &req);
-
-    SRpcMsg dispatchMsg = {
-        .pCont = buf,
-        .contLen = tlen,
-        .code = 0,
-        .msgType = pTask->dispatchMsgType,
-    };
-
-    SEpSet* pEpSet = &pTask->fixedEpDispatcher.epSet;
 
     tmsgSendReq(pMsgCb, pEpSet, &dispatchMsg);
 
   } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
-    // TODO
+    SHashObj* pShuffleRes = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+    if (pShuffleRes == NULL) {
+      return -1;
+    }
+
+    int32_t sz = taosArrayGetSize(pRes);
+    for (int32_t i = 0; i < sz; i++) {
+      SSDataBlock* pDataBlock = taosArrayGet(pRes, i);
+      SArray*      pArray = taosHashGet(pShuffleRes, &pDataBlock->info.groupId, sizeof(int64_t));
+      if (pArray == NULL) {
+        pArray = taosArrayInit(0, sizeof(SSDataBlock));
+        if (pArray == NULL) {
+          return -1;
+        }
+        taosHashPut(pShuffleRes, &pDataBlock->info.groupId, sizeof(int64_t), &pArray, sizeof(void*));
+      }
+      taosArrayPush(pArray, pDataBlock);
+    }
+
+    if (streamShuffleDispatch(pTask, pMsgCb, pShuffleRes) < 0) {
+      return -1;
+    }
 
   } else {
     ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
@@ -196,7 +264,6 @@ int32_t tEncodeSStreamTask(SCoder* pEncoder, const SStreamTask* pTask) {
   if (tEncodeI8(pEncoder, pTask->sinkType) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->dispatchType) < 0) return -1;
   if (tEncodeI16(pEncoder, pTask->dispatchMsgType) < 0) return -1;
-  if (tEncodeI32(pEncoder, pTask->downstreamTaskId) < 0) return -1;
 
   if (tEncodeI32(pEncoder, pTask->nodeId) < 0) return -1;
   if (tEncodeSEpSet(pEncoder, &pTask->epSet) < 0) return -1;
@@ -225,7 +292,8 @@ int32_t tEncodeSStreamTask(SCoder* pEncoder, const SStreamTask* pTask) {
     if (tEncodeI32(pEncoder, pTask->fixedEpDispatcher.nodeId) < 0) return -1;
     if (tEncodeSEpSet(pEncoder, &pTask->fixedEpDispatcher.epSet) < 0) return -1;
   } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
-    if (tEncodeI8(pEncoder, pTask->shuffleDispatcher.hashMethod) < 0) return -1;
+    if (tSerializeSUseDbRspImp(pEncoder, &pTask->shuffleDispatcher.dbInfo) < 0) return -1;
+    /*if (tEncodeI8(pEncoder, pTask->shuffleDispatcher.hashMethod) < 0) return -1;*/
   }
 
   /*tEndEncode(pEncoder);*/
@@ -242,7 +310,6 @@ int32_t tDecodeSStreamTask(SCoder* pDecoder, SStreamTask* pTask) {
   if (tDecodeI8(pDecoder, &pTask->sinkType) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->dispatchType) < 0) return -1;
   if (tDecodeI16(pDecoder, &pTask->dispatchMsgType) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pTask->downstreamTaskId) < 0) return -1;
 
   if (tDecodeI32(pDecoder, &pTask->nodeId) < 0) return -1;
   if (tDecodeSEpSet(pDecoder, &pTask->epSet) < 0) return -1;
@@ -271,7 +338,8 @@ int32_t tDecodeSStreamTask(SCoder* pDecoder, SStreamTask* pTask) {
     if (tDecodeI32(pDecoder, &pTask->fixedEpDispatcher.nodeId) < 0) return -1;
     if (tDecodeSEpSet(pDecoder, &pTask->fixedEpDispatcher.epSet) < 0) return -1;
   } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
-    if (tDecodeI8(pDecoder, &pTask->shuffleDispatcher.hashMethod) < 0) return -1;
+    /*if (tDecodeI8(pDecoder, &pTask->shuffleDispatcher.hashMethod) < 0) return -1;*/
+    if (tDeserializeSUseDbRspImp(pDecoder, &pTask->shuffleDispatcher.dbInfo) < 0) return -1;
   }
 
   /*tEndDecode(pDecoder);*/

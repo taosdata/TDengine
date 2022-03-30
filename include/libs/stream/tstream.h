@@ -30,6 +30,11 @@ enum {
   STREAM_TASK_STATUS__STOP,
 };
 
+enum {
+  STREAM_CREATED_BY__USER = 1,
+  STREAM_CREATED_BY__SMA,
+};
+
 #if 0
 // pipe  -> fetch/pipe queue
 // merge -> merge      queue
@@ -72,8 +77,9 @@ typedef struct {
 } STaskDispatcherFixedEp;
 
 typedef struct {
-  int8_t  hashMethod;
-  SArray* info;
+  // int8_t  hashMethod;
+  char      stbFullName[TSDB_TABLE_FNAME_LEN];
+  SUseDbRsp dbInfo;
 } STaskDispatcherShuffle;
 
 typedef struct {
@@ -135,7 +141,6 @@ typedef struct {
   int8_t  sinkType;
   int8_t  dispatchType;
   int16_t dispatchMsgType;
-  int32_t downstreamTaskId;
 
   int32_t nodeId;
   SEpSet  epSet;

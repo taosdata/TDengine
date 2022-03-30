@@ -54,16 +54,13 @@ typedef struct SColumnDataAgg {
 } SColumnDataAgg;
 
 typedef struct SDataBlockInfo {
-  STimeWindow window;
-  int32_t     rows;
-  int32_t     rowSize;
-  int16_t     numOfCols;
-  int16_t     hasVarCol;
-  union {
-    int64_t uid;
-    int64_t blockId;
-  };
-  int64_t groupId;  // no need to serialize
+  STimeWindow    window;
+  int32_t        rows;
+  int32_t        rowSize;
+  int16_t        numOfCols;
+  int16_t        hasVarCol;
+  union {int64_t uid; int64_t blockId;};
+  int64_t        groupId;     // no need to serialize
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
@@ -96,6 +93,7 @@ void*   tDecodeDataBlock(const void* buf, SSDataBlock* pBlock);
 
 int32_t tEncodeDataBlocks(void** buf, const SArray* blocks);
 void*   tDecodeDataBlocks(const void* buf, SArray** blocks);
+void    colDataDestroy(SColumnInfoData* pColData) ;
 
 static FORCE_INLINE void blockDestroyInner(SSDataBlock* pBlock) {
   // WARNING: do not use info.numOfCols,
@@ -103,13 +101,7 @@ static FORCE_INLINE void blockDestroyInner(SSDataBlock* pBlock) {
   int32_t numOfOutput = taosArrayGetSize(pBlock->pDataBlock);
   for (int32_t i = 0; i < numOfOutput; ++i) {
     SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
-    if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-      taosMemoryFreeClear(pColInfoData->varmeta.offset);
-    } else {
-      taosMemoryFreeClear(pColInfoData->nullbitmap);
-    }
-
-    taosMemoryFreeClear(pColInfoData->pData);
+    colDataDestroy(pColInfoData);
   }
 
   taosArrayDestroy(pBlock->pDataBlock);
@@ -204,6 +196,11 @@ typedef struct SGroupbyExpr {
   SArray* columnInfo;  // SArray<SColIndex>, group by columns information
   bool    groupbyTag;  // group by tag or column
 } SGroupbyExpr;
+
+enum {
+  FUNC_PARAM_TYPE_VALUE = 0,
+  FUNC_PARAM_TYPE_COLUMN,
+};
 
 typedef struct SFunctParam {
   int32_t  type;

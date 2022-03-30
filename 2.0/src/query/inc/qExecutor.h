@@ -574,11 +574,11 @@ typedef struct SMultiwayMergeInfo {
 } SMultiwayMergeInfo;
 
 // todo support the disk-based sort
-typedef struct SOrderOperatorInfo {
+typedef struct SSortOperatorInfo {
   int32_t      colIndex;
   int32_t      order;
   SSDataBlock *pDataBlock;
-} SOrderOperatorInfo;
+} SSortOperatorInfo;
 
 void appendUpstream(SOperatorInfo* p, SOperatorInfo* pUpstream);
 
@@ -609,7 +609,7 @@ SOperatorInfo* createFilterOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperator
                                         int32_t numOfOutput, SColumnInfo* pCols, int32_t numOfFilter);
 
 SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pUpstream, int32_t numOfUpstream, SSchema* pSchema, int32_t numOfOutput);
-SOperatorInfo* createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, SOrderVal* pOrderVal);
+SOperatorInfo* createSortOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, SOrderVal* pOrderVal);
 
 SSDataBlock* doGlobalAggregate(void* param, bool* newgroup);
 SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup);

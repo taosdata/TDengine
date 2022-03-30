@@ -80,8 +80,9 @@ int32_t create_topic() {
   }
   taos_free_result(pRes);
 
-  const char* sql = "select * from tu1";
-  pRes = tmq_create_topic(pConn, "test_stb_topic_1", sql, strlen(sql));
+  /*const char* sql = "select * from tu1";*/
+  /*pRes = tmq_create_topic(pConn, "test_stb_topic_1", sql, strlen(sql));*/
+  pRes = taos_query(pConn, "create topic test_stb_topic_1 as select * from tu1");
   if (taos_errno(pRes) != 0) {
     printf("failed to create topic test_stb_topic_1, reason:%s\n", taos_errstr(pRes));
     return -1;
