@@ -95,7 +95,11 @@ typedef int tdb_fd_t;
 
 #define tdbOsOpen(PATH, OPTION, MODE) open((PATH), (OPTION), (MODE))
 
-#define tdbOsClose close
+#define tdbOsClose(FD) \
+  do {                 \
+    close(FD);         \
+    (FD) = -1;         \
+  } while (0)
 
 i64 tdbOsRead(tdb_fd_t fd, void *pData, i64 nBytes);
 i64 tdbOsPRead(tdb_fd_t fd, void *pData, i64 nBytes, i64 offset);

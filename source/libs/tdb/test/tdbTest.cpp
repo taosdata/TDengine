@@ -134,13 +134,7 @@ TEST(tdb_test, simple_test) {
     char val[64];
 
     {  // Insert some data
-      int       i = 1;
-      SPoolMem *pPool;
-      int       memPoolCapacity = 16 * 1024;
-
-      pPool = openPool();
-
-      tdbTxnBegin(pEnv);
+      int i = 1;
 
       for (;;) {
         if (i > nData) break;
@@ -150,18 +144,10 @@ TEST(tdb_test, simple_test) {
         ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val));
         GTEST_ASSERT_EQ(ret, 0);
 
-        if (pPool->size >= memPoolCapacity) {
-          tdbTxnCommit(pEnv);
-
-          clearPool(pPool);
-
-          tdbTxnBegin(pEnv);
-        }
-
         i++;
       }
 
-      closePool(pPool);
+      // tdbPagerCommit()
     }
 
     {  // Query the data
