@@ -310,6 +310,8 @@ int32_t doLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   pOutput->numOfRows = pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }
+void allocateOutputBuf() {
+}
 
 int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   if (inputNum < 2 || inputNum > 8) { // concat accpet 2-8 input strings
@@ -318,17 +320,35 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 
   SColumnInfoData **pInputData = taosMemoryCalloc(inputNum, sizeof(SColumnInfoData *));
   SColumnInfoData *pOutputData = pOutput->columnData;
+  char **input = taosMemoryCalloc(inputNum, POINTER_BYTES);
+  char *output = NULL;
 
+  int32_t inputLen = 0;
+  int32_t numOfRows = pInput->numOfRows;
   for (int32_t i = 0; i < inputNum; ++i) {
     if (!IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[i])) ||
         GET_PARAM_TYPE(&pInput[i]) != GET_PARAM_TYPE(&pInput[0])) {
       return TSDB_CODE_FAILED;
     }
     pInputData[i] = pInput[i].columnData;
+    inputLen += pInputData[i]->varmeta.length - numOfRows * VARSTR_HEADER_SIZE;
+    input[i] = pInputData[i]->pData;
   }
 
+  //allocate output buf
+  if (pOutputData->pData == NULL) {
+    int32_t outputLen = inputLen + numOfRows * VARSTR_HEADER_SIZE;
+    pOutputData->pData = taosMemoryCalloc(outputLen, sizeof(char));
+    pOutputData->info.type = GET_PARAM_TYPE(pInput);
+    pOutputData->info.bytes = outputLen;
+    pOutputData->varmeta.length = outputLen;
+    pOutputData->varmeta.allocLen = outputLen;
+  }
+  output = pOutputData->pData;
+
   bool hasNull = false;
-  for (int32_t k = 0; k < pInput->numOfRows; ++k) {
+  int32_t offset = 0;
+  for (int32_t k = 0; k < numOfRows; ++k) {
     for (int32_t i = 0; i < inputNum; ++i) {
       if (colDataIsNull_f(pInputData[i]->nullbitmap, k)) {
         colDataSetNull_f(pOutputData->nullbitmap, k);
@@ -341,20 +361,21 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
       continue;
     }
 
-    char *in  = NULL;
-    char *out = pOutputData->pData + k * GET_PARAM_BYTES(pOutput);
-
     int16_t dataLen = 0;
     for (int32_t i = 0; i < inputNum; ++i) {
-      in = pInputData[i]->pData + k * GET_PARAM_BYTES(&pInput[i]);
-
-      memcpy(varDataVal(out) + dataLen, varDataVal(in), varDataLen(in));
-      dataLen += varDataLen(in);
+      memcpy(varDataVal(output) + dataLen, varDataVal(input[i]), varDataLen(input[i]));
+      dataLen += varDataLen(input[i]);
+      input[i] += varDataTLen(input[i]);
     }
-    varDataSetLen(out, dataLen);
+    varDataSetLen(output, dataLen);
+    int32_t dataTLen = varDataTLen(output);
+    output += dataTLen;
+    pOutputData->varmeta.offset[k] = offset;
+    offset += dataTLen;
   }
 
   pOutput->numOfRows = pInput->numOfRows;
+  taosMemoryFree(input);
   taosMemoryFree(pInputData);
 
   return TSDB_CODE_SUCCESS;
