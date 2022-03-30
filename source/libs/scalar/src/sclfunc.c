@@ -8,12 +8,13 @@ typedef double (*_double_fn)(double);
 typedef double (*_double_fn_2)(double, double);
 typedef int (*_conv_fn)(int);
 typedef void (*_trim_fn)(char *, char*, int32_t, int32_t);
+typedef int16_t (*_len_fn)(char *, int32_t);
 
+/** Math functions **/
 double tlog(double v, double base) {
   return log(v) / log(base);
 }
 
-/** Math functions **/
 int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   SColumnInfoData *pInputData  = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
@@ -213,32 +214,78 @@ int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam* p
 }
 
 /** String functions **/
-int32_t lengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int32_t type = GET_PARAM_TYPE(pInput);
-  if (inputNum != 1 || !IS_VAR_DATA_TYPE(type)) {
-    return TSDB_CODE_FAILED;
-  }
-
-  SColumnInfoData *pInputData  = pInput->columnData;
-  SColumnInfoData *pOutputData = pOutput->columnData;
-
-  char **in = (char **)pInputData->pData;
-  int16_t *out = (int16_t *)pOutputData->pData;
-
-  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
-    if (colDataIsNull_f(pInputData->nullbitmap, i)) {
-      colDataSetNull_f(pOutputData->nullbitmap, i);
-      continue;
-    }
-
-    out[i] = varDataLen(in[i]);
-  }
-
-  pOutput->numOfRows = pInput->numOfRows;
-  return TSDB_CODE_SUCCESS;
+int16_t tlength(char *input, int32_t type) {
+  return varDataLen(input);
 }
 
-int32_t charLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+int16_t tcharlength(char *input, int32_t type) {
+  if (type == TSDB_DATA_TYPE_VARCHAR) {
+    return varDataLen(input);
+  } else { //NCHAR
+    return varDataLen(input) / TSDB_NCHAR_SIZE;
+  }
+}
+
+void tltrim(char *input, char *output, int32_t type, int32_t charLen) {
+  int32_t numOfSpaces = 0;
+  if (type == TSDB_DATA_TYPE_VARCHAR) {
+    for (int32_t i = 0; i < charLen; ++i) {
+      if (!isspace(*(varDataVal(input) + i))) {
+        break;
+      }
+      numOfSpaces++;
+    }
+  } else { //NCHAR
+    for (int32_t i = 0; i < charLen; ++i) {
+      if (!iswspace(*((uint32_t *)varDataVal(input) + i))) {
+        break;
+      }
+      numOfSpaces++;
+    }
+  }
+
+  int32_t resLen;
+  if (type == TSDB_DATA_TYPE_VARCHAR) {
+    resLen = charLen - numOfSpaces;
+    memcpy(varDataVal(output), varDataVal(input) + numOfSpaces, resLen);
+  } else {
+    resLen = (charLen - numOfSpaces) * TSDB_NCHAR_SIZE;
+    memcpy(varDataVal(output), varDataVal(input) + numOfSpaces * TSDB_NCHAR_SIZE, resLen);
+  }
+
+  varDataSetLen(output, resLen);
+}
+
+void trtrim(char *input, char *output, int32_t type, int32_t charLen) {
+  int32_t numOfSpaces = 0;
+  if (type == TSDB_DATA_TYPE_VARCHAR) {
+    for (int32_t i = charLen - 1; i >= 0; --i) {
+      if (!isspace(*(varDataVal(input) + i))) {
+        break;
+      }
+      numOfSpaces++;
+    }
+  } else { //NCHAR
+    for (int32_t i = charLen - 1; i < charLen; ++i) {
+      if (!iswspace(*((uint32_t *)varDataVal(input) + i))) {
+        break;
+      }
+      numOfSpaces++;
+    }
+  }
+
+  int32_t resLen;
+  if (type == TSDB_DATA_TYPE_VARCHAR) {
+    resLen = charLen - numOfSpaces;
+  } else {
+    resLen = (charLen - numOfSpaces) * TSDB_NCHAR_SIZE;
+  }
+  memcpy(varDataVal(output), varDataVal(input), resLen);
+
+  varDataSetLen(output, resLen);
+}
+
+int32_t doLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput, _len_fn lenFn) {
   int32_t type = GET_PARAM_TYPE(pInput);
   if (inputNum != 1 || !IS_VAR_DATA_TYPE(type)) {
     return TSDB_CODE_FAILED;
@@ -256,11 +303,7 @@ int32_t charLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
       continue;
     }
 
-    if (type == TSDB_DATA_TYPE_VARCHAR) {
-      out[i] = varDataLen(in[i]);
-    } else { //NCHAR
-      out[i] = varDataLen(in[i]) / TSDB_NCHAR_SIZE;
-    }
+    out[i] = lenFn(in[i], type);
   }
 
   pOutput->numOfRows = pInput->numOfRows;
@@ -403,64 +446,6 @@ int32_t doCaseConvFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
   return TSDB_CODE_SUCCESS;
 }
 
-void tltrim(char *input, char *output, int32_t type, int32_t charLen) {
-  int32_t numOfSpaces = 0;
-  if (type == TSDB_DATA_TYPE_VARCHAR) {
-    for (int32_t i = 0; i < charLen; ++i) {
-      if (!isspace(*(varDataVal(input) + i))) {
-        break;
-      }
-      numOfSpaces++;
-    }
-  } else { //NCHAR
-    for (int32_t i = 0; i < charLen; ++i) {
-      if (!iswspace(*((uint32_t *)varDataVal(input) + i))) {
-        break;
-      }
-      numOfSpaces++;
-    }
-  }
-
-  int32_t resLen;
-  if (type == TSDB_DATA_TYPE_VARCHAR) {
-    resLen = charLen - numOfSpaces;
-    memcpy(varDataVal(output), varDataVal(input) + numOfSpaces, resLen);
-  } else {
-    resLen = (charLen - numOfSpaces) * TSDB_NCHAR_SIZE;
-    memcpy(varDataVal(output), varDataVal(input) + numOfSpaces * TSDB_NCHAR_SIZE, resLen);
-  }
-
-  varDataSetLen(output, resLen);
-}
-
-void trtrim(char *input, char *output, int32_t type, int32_t charLen) {
-  int32_t numOfSpaces = 0;
-  if (type == TSDB_DATA_TYPE_VARCHAR) {
-    for (int32_t i = charLen - 1; i >= 0; --i) {
-      if (!isspace(*(varDataVal(input) + i))) {
-        break;
-      }
-      numOfSpaces++;
-    }
-  } else { //NCHAR
-    for (int32_t i = charLen - 1; i < charLen; ++i) {
-      if (!iswspace(*((uint32_t *)varDataVal(input) + i))) {
-        break;
-      }
-      numOfSpaces++;
-    }
-  }
-
-  int32_t resLen;
-  if (type == TSDB_DATA_TYPE_VARCHAR) {
-    resLen = charLen - numOfSpaces;
-  } else {
-    resLen = (charLen - numOfSpaces) * TSDB_NCHAR_SIZE;
-  }
-  memcpy(varDataVal(output), varDataVal(input), resLen);
-
-  varDataSetLen(output, resLen);
-}
 
 int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput, _trim_fn trimFn) {
   int32_t type = GET_PARAM_TYPE(pInput);
@@ -609,6 +594,14 @@ int32_t ltrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 
 int32_t rtrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return doTrimFunction(pInput, inputNum, pOutput, trtrim);
+}
+
+int32_t lengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return doLengthFunction(pInput, inputNum, pOutput, tlength);
+}
+
+int32_t charLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return doLengthFunction(pInput, inputNum, pOutput, tcharlength);
 }
 
 static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOfRows) {
