@@ -146,7 +146,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_describe() -> Result<()> {
-        let taos = TaosOptions::new().database("log").build()?;
+        let taos = TaosOptions::new().build()?;
         let desc = taos.describe("log.logs").await?;
         dbg!(desc);
         Ok(())

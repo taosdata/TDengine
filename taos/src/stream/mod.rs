@@ -146,7 +146,10 @@ mod test {
             r#"insert into tb1 using stb1 tags('{"name":"abc"}') "#,
             r#"values (now,1,2,3,4,5,6,7,8, now, "abc", "世界")"#
         ))?;
-
+        taos.exec_sync(concat!(
+            r#"insert into tb2 using stb1 tags('{"name":"涛思数据"}') "#,
+            r#"values (now,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)"#
+        ))?;
         log::info!("select");
         let res = taos.query("select * from stb1").await?;
         // block.rows_iter()
@@ -170,7 +173,10 @@ mod test {
             r#"insert into tb1 using stb1 tags('{"name":"abc"}') "#,
             r#"values (now,1,2,3,4,5,6,7,8, now, "abc", "世界")"#
         ))?;
-
+        taos.exec_sync(concat!(
+            r#"insert into tb2 using stb1 tags('{"name":"涛思数据"}') "#,
+            r#"values (now,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)"#
+        ))?;
         log::info!("select");
         let res = taos.query("select * from stb1").await?;
         // block.rows_iter()

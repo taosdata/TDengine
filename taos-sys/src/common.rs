@@ -18,8 +18,6 @@ pub const TSDB_OPTION_SHELL_ACTIVITY_TIMER: TSDB_OPTION = TSDB_OPTION::ShellActi
 pub const TSDB_MAX_OPTIONS: TSDB_OPTION = TSDB_OPTION::MaxOptions;
 
 extern "C" {
-    pub fn taos_init() -> c_int;
-
     pub fn taos_cleanup();
 
     pub fn taos_options(option: TSDB_OPTION, arg: *const c_void, ...) -> c_int;

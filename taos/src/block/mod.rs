@@ -163,10 +163,6 @@ impl<'a> Block<'a> {
         }
     }
 
-    fn inner(&self) -> &[*mut c_void] {
-        self.inner
-    }
-
     unsafe fn get_length_unchecked(&self, col: usize) -> i32 {
         *self.lengths.get_unchecked(col)
     }
