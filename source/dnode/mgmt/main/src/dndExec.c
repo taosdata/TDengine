@@ -166,14 +166,16 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
                     .childMallocBodyFp = (ProcMallocFp)rpcMallocCont,
                     .childFreeBodyFp = (ProcFreeFp)rpcFreeCont,
                     .parentConsumeFp = (ProcConsumeFp)dndConsumeParentQueue,
-                    .parentdMallocHeadFp = (ProcMallocFp)taosMemoryMalloc,
+                    .parentMallocHeadFp = (ProcMallocFp)taosMemoryMalloc,
                     .parentFreeHeadFp = (ProcFreeFp)taosMemoryFree,
                     .parentMallocBodyFp = (ProcMallocFp)rpcMallocCont,
                     .parentFreeBodyFp = (ProcFreeFp)rpcFreeCont,
                     .shm = pWrapper->shm,
                     .pParent = pWrapper,
+                    .isChild = false,
                     .name = pWrapper->name};
 
+    pWrapper->procType = PROC_PARENT;
     pWrapper->pProc = taosProcInit(&cfg);
     if (pWrapper->pProc == NULL) {
       dError("node:%s, failed to create proc since %s", pWrapper->name, terrstr());
@@ -193,7 +195,6 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
     dInfo("node:%s, will not start in parent process", pWrapper->name);
     // exec new node
 
-    pWrapper->procType = PROC_PARENT;
     if (taosProcRun(pWrapper->pProc) != 0) {
       dError("node:%s, failed to run proc since %s", pWrapper->name, terrstr());
       return -1;
@@ -226,21 +227,22 @@ static int32_t dndRunInChildProcess(SDnode *pDnode) {
                   .childMallocBodyFp = (ProcMallocFp)rpcMallocCont,
                   .childFreeBodyFp = (ProcFreeFp)rpcFreeCont,
                   .parentConsumeFp = (ProcConsumeFp)dndConsumeParentQueue,
-                  .parentdMallocHeadFp = (ProcMallocFp)taosMemoryMalloc,
+                  .parentMallocHeadFp = (ProcMallocFp)taosMemoryMalloc,
                   .parentFreeHeadFp = (ProcFreeFp)taosMemoryFree,
                   .parentMallocBodyFp = (ProcMallocFp)rpcMallocCont,
                   .parentFreeBodyFp = (ProcFreeFp)rpcFreeCont,
                   .shm = pWrapper->shm,
                   .pParent = pWrapper,
+                  .isChild = true,
                   .name = pWrapper->name};
 
+  pWrapper->procType = PROC_CHILD;
   pWrapper->pProc = taosProcInit(&cfg);
   if (pWrapper->pProc == NULL) {
     dError("node:%s, failed to create proc since %s", pWrapper->name, terrstr());
     return -1;
   }
 
-  pWrapper->procType = PROC_CHILD;
   if (taosProcRun(pWrapper->pProc) != 0) {
     dError("node:%s, failed to run proc since %s", pWrapper->name, terrstr());
     return -1;

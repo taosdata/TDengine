@@ -167,23 +167,23 @@ int32_t dndReadShmFile(SDnode *pDnode) {
     for (ENodeType ntype = DNODE + 1; ntype < NODE_MAX; ++ntype) {
       snprintf(itemName, sizeof(itemName), "%s_shmid", dndNodeProcStr(ntype));
       cJSON *shmid = cJSON_GetObjectItem(root, itemName);
-      if (shmid && shmid->type == cJSON_String) {
-        pDnode->wrappers[ntype].shm.id = atoi(shmid->valuestring);
+      if (shmid && shmid->type == cJSON_Number) {
+        pDnode->wrappers[ntype].shm.id = shmid->valueint;
       }
 
       snprintf(itemName, sizeof(itemName), "%s_shmsize", dndNodeProcStr(ntype));
       cJSON *shmsize = cJSON_GetObjectItem(root, itemName);
-      if (shmsize && shmsize->type == cJSON_String) {
-        pDnode->wrappers[ntype].shm.size = atoll(shmsize->valuestring);
+      if (shmsize && shmsize->type == cJSON_Number) {
+        pDnode->wrappers[ntype].shm.size = shmsize->valueint;
       }
     }
   }
 
-  if (tsMultiProcess || pDnode->ntype == DNODE) {
+  if (!tsMultiProcess || pDnode->ntype == DNODE) {
     for (ENodeType ntype = DNODE; ntype < NODE_MAX; ++ntype) {
-      SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->ntype];
-      if (pWrapper->shm.id > 0) {
-        dDebug("shmid:%d, is closed, size:%" PRId64, pWrapper->shm.id, pWrapper->shm.size);
+      SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
+      if (pWrapper->shm.id >= 0) {
+        dDebug("shmid:%d, is closed, size:%d", pWrapper->shm.id, pWrapper->shm.size);
         taosDropShm(&pWrapper->shm);
       }
     }
@@ -194,7 +194,7 @@ int32_t dndReadShmFile(SDnode *pDnode) {
       dError("shmid:%d, failed to attach since %s", pWrapper->shm.id, terrstr());
       goto _OVER;
     }
-    dDebug("shmid:%d, is attached, size:%" PRId64, pWrapper->shm.id, pWrapper->shm.size);
+    dDebug("shmid:%d, is attached, size:%d", pWrapper->shm.id, pWrapper->shm.size);
   }
 
   dDebug("successed to open %s", file);
@@ -227,14 +227,12 @@ int32_t dndWriteShmFile(SDnode *pDnode) {
 
   len += snprintf(content + len, MAXLEN - len, "{\n");
   for (ENodeType ntype = DNODE + 1; ntype < NODE_MAX; ++ntype) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->ntype];
-    len += snprintf(content + len, MAXLEN - len, "  \"%s_shmid\": \"%d\",\n", dndNodeProcStr(ntype), pWrapper->shm.id);
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
+    len += snprintf(content + len, MAXLEN - len, "  \"%s_shmid\":%d,\n", dndNodeProcStr(ntype), pWrapper->shm.id);
     if (ntype == NODE_MAX - 1) {
-      len += snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\": \"%" PRId64 "\"\n", dndNodeProcStr(ntype),
-                      pWrapper->shm.size);
+      len += snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\":%d\n", dndNodeProcStr(ntype), pWrapper->shm.size);
     } else {
-      len += snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\": \"%" PRId64 "\",\n", dndNodeProcStr(ntype),
-                      pWrapper->shm.size);
+      len += snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\":%d,\n", dndNodeProcStr(ntype), pWrapper->shm.size);
     }
   }
   len += snprintf(content + len, MAXLEN - len, "}\n");
@@ -259,7 +257,7 @@ int32_t dndWriteShmFile(SDnode *pDnode) {
     return -1;
   }
 
-  dDebug("successed to write %s", realfile);
+  dInfo("successed to write %s", realfile);
   code = 0;
 
 _OVER:

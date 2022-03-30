@@ -91,6 +91,7 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     snprintf(path, sizeof(path), "%s%s%s", pDnode->dataDir, TD_DIRSEP, pWrapper->name);
     pWrapper->path = strdup(path);
+    pWrapper->shm.id = -1;
     pWrapper->pDnode = pDnode;
     if (pWrapper->path == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;

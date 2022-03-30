@@ -22,14 +22,13 @@ extern "C" {
 
 typedef struct {
   int32_t id;
-  int64_t size;
+  int32_t size;
   void*   ptr;
 } SShm;
 
-int32_t taosCreateShm(SShm *pShm, int64_t shmsize) ;
+int32_t taosCreateShm(SShm *pShm, int32_t shmsize) ;
 void    taosDropShm(SShm *pShm);
 int32_t taosAttachShm(SShm *pShm);
-void    taosDetachShm(SShm *pShm);
 
 #ifdef __cplusplus
 }
