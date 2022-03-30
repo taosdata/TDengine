@@ -108,7 +108,7 @@ taos>
 
 在 TDengine 客户端中，用户可以通过 SQL 命令来创建/删除数据库、表等，并进行插入查询操作。在终端中运行的 SQL 语句需要以分号结束来运行。示例：
 
-```mysql
+```sql
 create database demo;
 use demo;
 create table t (ts timestamp, speed int);
@@ -145,7 +145,7 @@ taos -h h1.taos.com -s "use db; show tables;"
 
 TDengine 终端可以通过 `source` 命令来运行 SQL 命令脚本。
 
-```mysql
+```sql
 taos> source <filename>;
 ```
 
@@ -182,30 +182,30 @@ taosBenchmark 详细使用方法请参照 [如何使用 taosBenchmark 对 TDengi
 
 查询超级表下记录总条数：
 
-```mysql
+```sql
 taos> select count(*) from test.meters;
 ```
 
 查询 1 亿条记录的平均值、最大值、最小值等：
 
-```mysql
+```sql
 taos> select avg(current), max(voltage), min(phase) from test.meters;
 ```
 
 查询 location="beijing" 的记录总条数：
 
-```mysql
+```sql
 taos> select count(*) from test.meters where location="beijing";
 ```
 
 查询 groupId=10 的所有记录的平均值、最大值、最小值等：
 
-```mysql
+```sql
 taos> select avg(current), max(voltage), min(phase) from test.meters where groupId=10;
 ```
 
 对表 d10 按 10s 进行平均值、最大值和最小值聚合统计：
 
-```mysql
+```sql
 taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 ```

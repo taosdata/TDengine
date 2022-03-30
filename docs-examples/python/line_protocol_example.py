@@ -1,11 +1,7 @@
 import taos
 from taos import SmlProtocol, SmlPrecision
 
-lines = ["meters,location=Beijing.Chaoyang,groupid=2 current=10.3,voltage=219,phase=0.31 1648432611249300",
-         "meters,location=Beijing.Chaoyang,groupid=2 current=12.6,voltage=218,phase=0.33 1648432611249800",
-         "meters,location=Beijing.Chaoyang,groupid=2 current=12.3,voltage=221,phase=0.31 1648432611250300",
-         "meters,location=Beijing.Chaoyang,groupid=3 current=10.3,voltage=218,phase=0.25 1648432611249200",
-         "meters,location=Beijing.Haidian,groupid=2 current=11.8,voltage=221,phase=0.28 1648432611249000",
+lines = ["meters,location=Beijing.Haidian,groupid=2 current=11.8,voltage=221,phase=0.28 1648432611249000",
          "meters,location=Beijing.Haidian,groupid=2 current=13.4,voltage=223,phase=0.29 1648432611249500",
          "meters,location=Beijing.Haidian,groupid=3 current=10.8,voltage=223,phase=0.29 1648432611249300",
          "meters,location=Beijing.Haidian,groupid=3 current=11.3,voltage=221,phase=0.35 1648432611249800",

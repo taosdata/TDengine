@@ -815,7 +815,7 @@ Query OK, 1 row(s) in set (0.001091s)
 
    **正则表达式规范**
 
-   确保使用的正则表达式符合POSIX的规范，具体规范内容可参见[Regular Expressions](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html)
+   确保使用的正则表达式符合POSIX的规范，具体规范内容可参见 [Regular Expressions](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html)，目前 TDengine 使用的是 glibc 里面的 regex 实现，使用正则表达式进行 match 时是区分大小写的
 
    **正则表达使用示例**
 

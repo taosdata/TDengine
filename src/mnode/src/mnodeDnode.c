@@ -1252,7 +1252,10 @@ static int32_t mnodeRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, vo
   char *     pWrite;
   int32_t    cols = 0;
 
-  if (0 == rows) return 0;
+  if (0 == rows) {
+    pShow->pIter = NULL;
+    return 0;
+  }
 
   pDnode = (SDnodeObj *)(pShow->pIter);
   if (pDnode != NULL) {

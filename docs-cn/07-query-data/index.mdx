@@ -32,7 +32,7 @@ TDengine 采用 SQL 作为查询语言。应用程序可以通过 C/C++, Java, G
 
 例如：在 TAOS Shell 中，从表 d1001 中查询出 voltage > 215 的记录，按时间降序排列，仅仅输出 2 条。
 
-```mysql
+```sql
 taos> select * from d1001 where voltage > 215 order by ts desc limit 2;
            ts            |       current        |   voltage   |        phase         |
 ======================================================================================
@@ -120,6 +120,8 @@ Query OK, 5 row(s) in set (0.001521s)
 ## 示例代码
 
 ### 查询数据
+
+在 [SQL 写入](/insert-data/sql-writing) 一章，我们创建了 power 数据库，并向 meters 表写入了一些数据，以下示例代码展示如何查询这个表的数据。
 
 <Tabs defaultValue="java" groupId="lang">
   <TabItem label="Java" value="java">
