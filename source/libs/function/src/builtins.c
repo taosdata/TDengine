@@ -283,13 +283,93 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
+    .name = "length",
+    .type = FUNCTION_TYPE_LENGTH,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = lengthFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "char_length",
+    .type = FUNCTION_TYPE_CHAR_LENGTH,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = charLengthFunction,
+    .finalizeFunc = NULL
+  },
+  {
     .name = "concat",
     .type = FUNCTION_TYPE_CONCAT,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
     .checkFunc    = stubCheckAndGetResultType,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
-    .sprocessFunc = NULL,
+    .sprocessFunc = concatFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "concat_ws",
+    .type = FUNCTION_TYPE_CONCAT_WS,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = concatWsFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "lower",
+    .type = FUNCTION_TYPE_LOWER,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = lowerFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "upper",
+    .type = FUNCTION_TYPE_UPPER,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = upperFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "ltrim",
+    .type = FUNCTION_TYPE_LTRIM,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = ltrimFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "rtrim",
+    .type = FUNCTION_TYPE_RTRIM,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = rtrimFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "substr",
+    .type = FUNCTION_TYPE_SUBSTR,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .checkFunc    = stubCheckAndGetResultType,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = substrFunction,
     .finalizeFunc = NULL
   },
   {
