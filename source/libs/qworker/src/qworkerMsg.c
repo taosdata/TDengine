@@ -62,7 +62,7 @@ int32_t qwBuildAndSendQueryRsp(SQWConnInfo *pConn, int32_t code) {
     .code    = code,
   };
 
-  rpcSendResponse(&rpcRsp);
+  tmsgSendRsp(&rpcRsp);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -80,7 +80,7 @@ int32_t qwBuildAndSendReadyRsp(SQWConnInfo *pConn, int32_t code) {
     .code    = code,
   };
 
-  rpcSendResponse(&rpcRsp);
+  tmsgSendRsp(&rpcRsp);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -99,7 +99,7 @@ int32_t qwBuildAndSendHbRsp(SQWConnInfo *pConn, SSchedulerHbRsp *pStatus, int32_
     .code    = code,
   };
 
-  rpcSendResponse(&rpcRsp);
+  tmsgSendRsp(&rpcRsp);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -120,7 +120,7 @@ int32_t qwBuildAndSendFetchRsp(SQWConnInfo *pConn, SRetrieveTableRsp *pRsp, int3
     .code    = code,
   };
 
-  rpcSendResponse(&rpcRsp);
+  tmsgSendRsp(&rpcRsp);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -138,7 +138,7 @@ int32_t qwBuildAndSendCancelRsp(SQWConnInfo *pConn, int32_t code) {
     .code    = code,
   };
 
-  rpcSendResponse(&rpcRsp);
+  tmsgSendRsp(&rpcRsp);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -155,7 +155,7 @@ int32_t qwBuildAndSendDropRsp(SQWConnInfo *pConn, int32_t code) {
     .code    = code,
   };
 
-  rpcSendResponse(&rpcRsp);
+  tmsgSendRsp(&rpcRsp);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -210,7 +210,7 @@ int32_t qwBuildAndSendShowRsp(SRpcMsg *pMsg, int32_t code) {
       .code = code,
   };
 
-  rpcSendResponse(&rpcMsg);
+  tmsgSendRsp(&rpcMsg);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -227,7 +227,7 @@ int32_t qwBuildAndSendShowFetchRsp(SRpcMsg *pMsg, SVShowTablesFetchReq* pFetchRe
       .code    = 0,
   };
 
-  rpcSendResponse(&rpcMsg);
+  tmsgSendRsp(&rpcMsg);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -287,7 +287,7 @@ int32_t qwRegisterBrokenLinkArg(QW_FPARAMS_DEF, SQWConnInfo *pConn) {
     .code    = TSDB_CODE_RPC_NETWORK_UNAVAIL,
   };
   
-  rpcRegisterBrokenLinkArg(&pMsg);
+  tmsgRegisterBrokenLinkArg(&mgmt->msgCb, &pMsg);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -579,7 +579,6 @@ int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-
 int32_t qWorkerProcessShowMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
     return TSDB_CODE_QRY_INVALID_INPUT;
@@ -598,5 +597,3 @@ int32_t qWorkerProcessShowFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg)
   SVShowTablesFetchReq *pFetchReq = pMsg->pCont;
   QW_RET(qwBuildAndSendShowFetchRsp(pMsg, pFetchReq));
 }
-
-

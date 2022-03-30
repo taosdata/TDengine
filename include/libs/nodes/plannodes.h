@@ -49,6 +49,7 @@ typedef struct SScanLogicNode {
   STimeWindow scanRange;
   SName tableName;
   bool showRewrite;
+  double ratio;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -66,7 +67,11 @@ typedef struct SAggLogicNode {
 typedef struct SProjectLogicNode {
   SLogicNode node;
   SNodeList* pProjections;
-  char stmtName[TSDB_TABLE_NAME_LEN]; 
+  char stmtName[TSDB_TABLE_NAME_LEN];
+  int64_t limit;
+  int64_t offset;
+  int64_t slimit;
+  int64_t soffset;
 } SProjectLogicNode;
 
 typedef struct SVnodeModifLogicNode {
@@ -105,6 +110,11 @@ typedef struct SSortLogicNode {
   SLogicNode node;
   SNodeList* pSortKeys;
 } SSortLogicNode;
+
+typedef struct SPartitionLogicNode {
+  SLogicNode node;
+  SNodeList* pPartitionKeys;
+} SPartitionLogicNode;
 
 typedef enum ESubplanType {
   SUBPLAN_TYPE_MERGE = 1,
@@ -150,7 +160,8 @@ typedef struct SDataBlockDescNode {
   ENodeType type;
   int16_t dataBlockId;
   SNodeList* pSlots;
-  int32_t resultRowSize;
+  int32_t totalRowSize;
+  int32_t outputRowSize;
   int16_t precision;
 } SDataBlockDescNode;
 
@@ -187,7 +198,7 @@ typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;
   uint8_t scanFlag;         // denotes reversed scan of data or not
   STimeWindow scanRange;
-  SNode* pScanConditions;
+  double ratio;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -195,6 +206,10 @@ typedef STableScanPhysiNode STableSeqScanPhysiNode;
 typedef struct SProjectPhysiNode {
   SPhysiNode node;
   SNodeList* pProjections;
+  int64_t limit;
+  int64_t offset;
+  int64_t slimit;
+  int64_t soffset;
 } SProjectPhysiNode;
 
 typedef struct SJoinPhysiNode {
@@ -238,6 +253,7 @@ typedef struct SIntervalPhysiNode {
   int64_t    sliding;
   int8_t     intervalUnit;
   int8_t     slidingUnit;
+  uint8_t precision;
   SFillNode* pFill;
 } SIntervalPhysiNode;
 
@@ -283,11 +299,23 @@ typedef struct SSubplan {
   SDataSinkNode* pDataSink;    // data of the subplan flow into the datasink
 } SSubplan;
 
+typedef enum EExplainMode {
+  EXPLAIN_MODE_DISABLE = 1,
+  EXPLAIN_MODE_STATIC,
+  EXPLAIN_MODE_ANALYZE
+} EExplainMode;
+
+typedef struct SExplainInfo {
+  EExplainMode mode;
+  bool verbose;
+} SExplainInfo;
+
 typedef struct SQueryPlan {
   ENodeType type;
   uint64_t queryId;
   int32_t numOfSubplans;
   SNodeList* pSubplans; // Element is SNodeListNode. The execution level of subplan, starting from 0.
+  SExplainInfo explainInfo;
 } SQueryPlan;
 
 #ifdef __cplusplus

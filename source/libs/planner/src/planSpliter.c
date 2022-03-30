@@ -140,6 +140,7 @@ static int32_t stsSplit(SSplitContext* pCxt) {
     code = stsCreateExchangeNode(pCxt, pInfo->pSubplan, pInfo->pScan);
   }
   ++(pCxt->groupId);
+  taosMemoryFreeClear(pCxt->pInfo);
   return code;
 }
 

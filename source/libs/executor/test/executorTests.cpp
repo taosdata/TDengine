@@ -944,7 +944,7 @@ TEST(testCase, build_executor_tree_Test) {
   int32_t code = qStringToSubplan(msg, &plan);
   ASSERT_EQ(code, 0);
 
-  code = qCreateExecTask(&handle, 2, 1, plan, (void**) &pTaskInfo, &sinkHandle);
+  code = qCreateExecTask(&handle, 2, 1, plan, (void**) &pTaskInfo, &sinkHandle, OPTR_EXEC_MODEL_BATCH);
   ASSERT_EQ(code, 0);
 }
 
@@ -966,7 +966,7 @@ TEST(testCase, inMem_sort_Test) {
   exp1->base.resSchema = createSchema(TSDB_DATA_TYPE_BINARY, 40, 2, "res1");
   taosArrayPush(pExprInfo, &exp1);
 
-  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(10000, 5, 1000, data_asc, 1), pExprInfo, pOrderVal, NULL);
+  SOperatorInfo* pOperator = createSortOperatorInfo(createDummyOperator(10000, 5, 1000, data_asc, 1), pExprInfo, pOrderVal, NULL);
 
   bool newgroup = false;
   SSDataBlock* pRes = pOperator->getNextFn(pOperator, &newgroup);
@@ -1035,7 +1035,7 @@ TEST(testCase, external_sort_Test) {
   exp1->base.resSchema = createSchema(TSDB_DATA_TYPE_BINARY, 40, 2, "res1");
 //  taosArrayPush(pExprInfo, &exp1);
 
-  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(10000, 1500, 1000, data_desc, 1), pExprInfo, pOrderVal, NULL);
+  SOperatorInfo* pOperator = createSortOperatorInfo(createDummyOperator(10000, 1500, 1000, data_desc, 1), pExprInfo, pOrderVal, NULL);
 
   bool newgroup = false;
   SSDataBlock* pRes = NULL;

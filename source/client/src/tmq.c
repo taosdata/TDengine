@@ -26,6 +26,18 @@
 #include "tqueue.h"
 #include "tref.h"
 
+typedef struct {
+  int32_t curBlock;
+  int32_t curRow;
+  void**  uData;
+} SMqRowIter;
+
+struct tmq_message_t {
+  SMqPollRsp msg;
+  void*      vg;
+  SMqRowIter iter;
+};
+
 struct tmq_list_t {
   SArray container;
 };
@@ -99,13 +111,14 @@ typedef struct {
 
 typedef struct {
   // subscribe info
-  int32_t        sqlLen;
-  char*          sql;
-  char*          topicName;
-  int64_t        topicId;
-  int32_t        nextVgIdx;
-  SArray*        vgs;  // SArray<SMqClientVg>
-  SSchemaWrapper schema;
+  int32_t     sqlLen;
+  char*       sql;
+  char*       topicName;
+  int64_t     topicId;
+  SArray*     vgs;  // SArray<SMqClientVg>
+  int8_t      isSchemaAdaptive;
+  int32_t     numOfFields;
+  TAOS_FIELD* fields;
 } SMqClientTopic;
 
 typedef struct {
@@ -130,11 +143,11 @@ typedef struct {
 } SMqPollCbParam;
 
 typedef struct {
-  tmq_t* tmq;
-  /*SMqClientVg* pVg;*/
+  tmq_t*         tmq;
   int32_t        async;
   tsem_t         rspSem;
   tmq_resp_err_t rspErr;
+  /*SMqClientVg* pVg;*/
 } SMqCommitCbParam;
 
 tmq_conf_t* tmq_conf_new() {
@@ -226,6 +239,10 @@ void tmq_list_destroy(tmq_list_t* list) {
   SArray* container = &list->container;
   /*taosArrayDestroy(container);*/
   taosArrayDestroyEx(container, (void (*)(void*))taosMemoryFree);
+}
+
+static int32_t tmqMakeTopicVgKey(char* dst, const char* topicName, int32_t vg) {
+  return sprintf(dst, "%s:%d", topicName, vg);
 }
 
 void tmqClearUnhandleMsg(tmq_t* tmq) {
@@ -471,7 +488,12 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
     tNameExtractFullName(&name, topicFname);
     tscDebug("subscribe topic: %s", topicFname);
     SMqClientTopic topic = {
-        .nextVgIdx = 0, .sql = NULL, .sqlLen = 0, .topicId = 0, .topicName = topicFname, .vgs = NULL};
+        .sql = NULL,
+        .sqlLen = 0,
+        .topicId = 0,
+        .topicName = topicFname,
+        .vgs = NULL,
+    };
     topic.vgs = taosArrayInit(0, sizeof(SMqClientVg));
     taosArrayPush(tmq->clientTopics, &topic);
     taosArrayPush(req.topicNames, &topicFname);
@@ -615,6 +637,7 @@ _return:
   return pRequest;
 }
 
+#if 0
 TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, int sqlLen) {
   STscObj*     pTscObj = (STscObj*)taos;
   SRequestObj* pRequest = NULL;
@@ -700,6 +723,7 @@ _return:
 
   return pRequest;
 }
+#endif
 
 static char* formatTimestamp(char* buf, int64_t val, int precision) {
   time_t  tt;
@@ -807,7 +831,7 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   SMqClientVg*    pVg = pParam->pVg;
   tmq_t*          tmq = pParam->tmq;
   if (code != 0) {
-    printf("msg discard, code:%x\n", code);
+    tscWarn("msg discard, code:%x", code);
     goto WRITE_QUEUE_FAIL;
   }
 
@@ -815,12 +839,12 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   int32_t tmqEpoch = atomic_load_32(&tmq->epoch);
   if (msgEpoch < tmqEpoch) {
     tsem_post(&tmq->rspSem);
-    printf("discard rsp epoch %d, current epoch %d\n", msgEpoch, tmqEpoch);
+    tscWarn("discard rsp epoch %d, current epoch %d", msgEpoch, tmqEpoch);
     return 0;
   }
 
   if (msgEpoch != tmqEpoch) {
-    printf("mismatch rsp epoch %d, current epoch %d\n", msgEpoch, tmqEpoch);
+    tscWarn("mismatch rsp epoch %d, current epoch %d", msgEpoch, tmqEpoch);
   } else {
     atomic_sub_fetch_32(&tmq->waitingRequest, 1);
   }
@@ -879,19 +903,54 @@ WRITE_QUEUE_FAIL:
 bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqCMGetSubEpRsp* pRsp) {
   /*printf("call update ep %d\n", epoch);*/
   bool    set = false;
-  int32_t sz = taosArrayGetSize(pRsp->topics);
-  SArray* newTopics = taosArrayInit(sz, sizeof(SMqClientTopic));
-  for (int32_t i = 0; i < sz; i++) {
+  int32_t topicNumGet = taosArrayGetSize(pRsp->topics);
+  char    vgKey[TSDB_TOPIC_FNAME_LEN + 22];
+  SArray* newTopics = taosArrayInit(topicNumGet, sizeof(SMqClientTopic));
+  if (newTopics == NULL) {
+    return false;
+  }
+  SHashObj* pHash = taosHashInit(64, MurmurHash3_32, false, HASH_NO_LOCK);
+  if (pHash == NULL) {
+    taosArrayDestroy(newTopics);
+    return false;
+  }
+
+  // find topic, build hash
+  for (int32_t i = 0; i < topicNumGet; i++) {
     SMqClientTopic topic = {0};
     SMqSubTopicEp* pTopicEp = taosArrayGet(pRsp->topics, i);
+    taosHashClear(pHash);
     topic.topicName = strdup(pTopicEp->topic);
-    int32_t vgSz = taosArrayGetSize(pTopicEp->vgs);
-    topic.vgs = taosArrayInit(vgSz, sizeof(SMqClientVg));
-    for (int32_t j = 0; j < vgSz; j++) {
+
+    int32_t topicNumCur = taosArrayGetSize(tmq->clientTopics);
+    for (int32_t j = 0; j < topicNumCur; j++) {
+      // find old topic
+      SMqClientTopic* pTopicCur = taosArrayGet(tmq->clientTopics, j);
+      if (pTopicCur->vgs && strcmp(pTopicCur->topicName, pTopicEp->topic) == 0) {
+        int32_t vgNumCur = taosArrayGetSize(pTopicCur->vgs);
+        if (vgNumCur == 0) break;
+        for (int32_t k = 0; k < vgNumCur; k++) {
+          SMqClientVg* pVgCur = taosArrayGet(pTopicCur->vgs, k);
+          sprintf(vgKey, "%s:%d", topic.topicName, pVgCur->vgId);
+          taosHashPut(pHash, vgKey, strlen(vgKey), &pVgCur->currentOffset, sizeof(int64_t));
+        }
+        break;
+      }
+    }
+
+    int32_t vgNumGet = taosArrayGetSize(pTopicEp->vgs);
+    topic.vgs = taosArrayInit(vgNumGet, sizeof(SMqClientVg));
+    for (int32_t j = 0; j < vgNumGet; j++) {
       SMqSubVgEp* pVgEp = taosArrayGet(pTopicEp->vgs, j);
+      sprintf(vgKey, "%s:%d", topic.topicName, pVgEp->vgId);
+      int64_t* pOffset = taosHashGet(pHash, vgKey, strlen(vgKey));
+      int64_t  offset = pVgEp->offset;
+      if (pOffset != NULL) {
+        offset = *pOffset;
+      }
       SMqClientVg clientVg = {
           .pollCnt = 0,
-          .currentOffset = pVgEp->offset,
+          .currentOffset = offset,
           .vgId = pVgEp->vgId,
           .epSet = pVgEp->epSet,
           .vgStatus = TMQ_VG_STATUS__IDLE,
@@ -902,6 +961,7 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqCMGetSubEpRsp* pRsp) {
     taosArrayPush(newTopics, &topic);
   }
   if (tmq->clientTopics) taosArrayDestroy(tmq->clientTopics);
+  taosHashCleanup(pHash);
   tmq->clientTopics = newTopics;
   atomic_store_32(&tmq->epoch, epoch);
   return set;
@@ -911,7 +971,7 @@ int32_t tmqAskEpCb(void* param, const SDataBuf* pMsg, int32_t code) {
   SMqAskEpCbParam* pParam = (SMqAskEpCbParam*)param;
   tmq_t*           tmq = pParam->tmq;
   if (code != 0) {
-    printf("get topic endpoint error, not ready, wait:%d\n", pParam->sync);
+    tscError("get topic endpoint error, not ready, wait:%d\n", pParam->sync);
     goto END;
   }
 
@@ -1282,6 +1342,7 @@ tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
 
   while (1) {
     /*printf("cycle\n");*/
+    tmqAskEp(tmq, false);
     tmqPollImpl(tmq, blocking_time);
 
     tsem_wait(&tmq->rspSem);

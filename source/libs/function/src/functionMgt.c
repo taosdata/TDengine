@@ -44,6 +44,13 @@ static void doInitFunctionHashTable() {
   }
 }
 
+static bool isSpecificClassifyFunc(int32_t funcId, uint64_t classification) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNC_MGT_TEST_MASK(funcMgtBuiltins[funcId].classification, classification);
+}
+
 int32_t fmFuncMgtInit() {
   taosThreadOnce(&functionHashTableInit, doInitFunctionHashTable);
   return initFunctionCode;
@@ -85,14 +92,24 @@ int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet) {
     return TSDB_CODE_FAILED;
   }
   pFpSet->process = funcMgtBuiltins[funcId].sprocessFunc;
+  pFpSet->getEnv  = funcMgtBuiltins[funcId].getEnvFunc;
   return TSDB_CODE_SUCCESS;
 }
 
 bool fmIsAggFunc(int32_t funcId) {
-  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
-    return false;
-  }
-  return FUNC_MGT_TEST_MASK(funcMgtBuiltins[funcId].classification, FUNC_MGT_AGG_FUNC);
+  return isSpecificClassifyFunc(funcId, FUNC_MGT_AGG_FUNC);
+}
+
+bool fmIsScalarFunc(int32_t funcId) {
+  return isSpecificClassifyFunc(funcId, FUNC_MGT_SCALAR_FUNC);
+}
+
+bool fmIsWindowPseudoColumnFunc(int32_t funcId) {
+  return isSpecificClassifyFunc(funcId, FUNC_MGT_WINDOW_PC_FUNC);
+}
+
+bool fmIsWindowClauseFunc(int32_t funcId) {
+  return fmIsAggFunc(funcId) || fmIsWindowPseudoColumnFunc(funcId);
 }
 
 void fmFuncMgtDestroy() {

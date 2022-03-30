@@ -275,7 +275,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     pMsg->pCont = NULL;
     pMsg->contLen = 0;
     pMsg->code = -1;
-    rpcSendResponse(pMsg);
+    tmsgSendRsp(pMsg);
     return 0;
   }
 
@@ -340,7 +340,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         pMsg->pCont = buf;
         pMsg->contLen = tlen;
         pMsg->code = 0;
-        rpcSendResponse(pMsg);
+        tmsgSendRsp(pMsg);
         return 0;
       }
     } else {
@@ -367,7 +367,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   pMsg->pCont = buf;
   pMsg->contLen = tlen;
   pMsg->code = 0;
-  rpcSendResponse(pMsg);
+  tmsgSendRsp(pMsg);
   /*}*/
 
   return 0;
@@ -489,7 +489,7 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
   return 0;
 }
 
-int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen) {
+int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t workerId) {
   void* pIter = NULL;
 
   while (1) {
@@ -497,22 +497,24 @@ int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen) {
     if (pIter == NULL) break;
     SStreamTask* pTask = (SStreamTask*)pIter;
 
-    if (streamExecTask(pTask, &pTq->pVnode->msgCb, data, STREAM_DATA_TYPE_SUBMIT_BLOCK, 0) < 0) {
+    if (streamExecTask(pTask, &pTq->pVnode->msgCb, data, STREAM_DATA_TYPE_SUBMIT_BLOCK, workerId) < 0) {
       // TODO
     }
   }
   return 0;
 }
 
-int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen) {
+int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId) {
   SStreamTaskExecReq req;
   tDecodeSStreamTaskExecReq(msg, &req);
 
-  int32_t      taskId = req.taskId;
+  int32_t taskId = req.taskId;
+  ASSERT(taskId);
+
   SStreamTask* pTask = taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
   ASSERT(pTask);
 
-  if (streamExecTask(pTask, &pTq->pVnode->msgCb, req.data, STREAM_DATA_TYPE_SSDATA_BLOCK, 0) < 0) {
+  if (streamExecTask(pTask, &pTq->pVnode->msgCb, req.data, STREAM_DATA_TYPE_SSDATA_BLOCK, workerId) < 0) {
     // TODO
   }
   return 0;

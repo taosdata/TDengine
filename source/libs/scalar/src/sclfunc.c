@@ -1,13 +1,8 @@
-#include "sclfunc.h"
-#include <common/tdatablock.h>
+#include "function.h"
+#include "scalar.h"
+#include "tdatablock.h"
 #include "sclInt.h"
 #include "sclvector.h"
-
-static void assignBasicParaInfo(struct SScalarParam* dst, const struct SScalarParam* src) {
-//  dst->type = src->type;
-//  dst->bytes = src->bytes;
-//  dst->num = src->num;
-}
 
 /** Math functions **/
 int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
@@ -107,94 +102,13 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t logFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-#if 0
-  if (inputNum != 2 || !IS_NUMERIC_TYPE(pInput[0].type) || !IS_NUMERIC_TYPE(pInput[1].type)) {
-    return TSDB_CODE_FAILED;
-  }
-
-  char **input = NULL, *output = NULL;
-  bool hasNullInput = false;
-  input = taosMemoryCalloc(inputNum, sizeof(char *));
-  for (int32_t i = 0; i < pOutput->num; ++i) {
-    for (int32_t j = 0; j < inputNum; ++j) {
-      if (pInput[j].num == 1) {
-        input[j] = pInput[j].data;
-      } else {
-        input[j] = pInput[j].data + i * pInput[j].bytes;
-      }
-      if (isNull(input[j], pInput[j].type)) {
-        hasNullInput = true;
-        break;
-      }
-    }
-    output = pOutput->data + i * pOutput->bytes;
-
-    if (hasNullInput) {
-      setNull(output, pOutput->type, pOutput->bytes);
-      continue;
-    }
-
-    double base;
-    GET_TYPED_DATA(base, double, pInput[1].type, input[1]);
-    double v;
-    GET_TYPED_DATA(v, double, pInput[0].type, input[0]);
-    double result = log(v) / log(base);
-    SET_TYPED_DATA(output, pOutput->type, result);
-  }
-
-  taosMemoryFree(input);
-#endif
-
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t powFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-#if 0
-  if (inputNum != 2 || !IS_NUMERIC_TYPE(pInput[0].type) || !IS_NUMERIC_TYPE(pInput[1].type)) {
-    return TSDB_CODE_FAILED;
-  }
-
-  pOutput->type = TSDB_DATA_TYPE_DOUBLE;
-  pOutput->bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
-
-  char **input = NULL, *output = NULL;
-  bool hasNullInput = false;
-  input = taosMemoryCalloc(inputNum, sizeof(char *));
-  for (int32_t i = 0; i < pOutput->num; ++i) {
-    for (int32_t j = 0; j < inputNum; ++j) {
-      if (pInput[j].num == 1) {
-        input[j] = pInput[j].data;
-      } else {
-        input[j] = pInput[j].data + i * pInput[j].bytes;
-      }
-      if (isNull(input[j], pInput[j].type)) {
-        hasNullInput = true;
-        break;
-      }
-    }
-    output = pOutput->data + i * pOutput->bytes;
-
-    if (hasNullInput) {
-      setNull(output, pOutput->type, pOutput->bytes);
-      continue;
-    }
-
-    double base;
-    GET_TYPED_DATA(base, double, pInput[1].type, input[1]);
-    double v;
-    GET_TYPED_DATA(v, double, pInput[0].type, input[0]);
-    double result = pow(v, base);
-    SET_TYPED_DATA(output, pOutput->type, result);
-  }
-
-  taosMemoryFree(input);
-#endif
-  return TSDB_CODE_SUCCESS;
-}
-
 typedef float (*_float_fn)(float);
 typedef double (*_double_fn)(double);
+typedef double (*_double_fn_2)(double, double);
+
+double tlog(double v, double base) {
+  return log(v) / log(base);
+}
 
 int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SScalarParam* pOutput, _double_fn valFn) {
   int32_t type = GET_PARAM_TYPE(pInput);
@@ -215,6 +129,35 @@ int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SScalarPa
       continue;
     }
     out[i] = valFn(getValueFn(pInputData->pData, i));
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, SScalarParam* pOutput, _double_fn_2 valFn) {
+  if (inputNum != 2 || !IS_NUMERIC_TYPE(GET_PARAM_TYPE(&pInput[0])) || !IS_NUMERIC_TYPE(GET_PARAM_TYPE(&pInput[1]))) {
+    return TSDB_CODE_FAILED;
+  }
+
+  SColumnInfoData *pInputData[2];
+  SColumnInfoData *pOutputData = pOutput->columnData;
+  _getDoubleValue_fn_t getValueFn[2];
+
+  for (int32_t i = 0; i < inputNum; ++i) {
+    pInputData[i] = pInput[i].columnData;
+    getValueFn[i]= getVectorDoubleValueFn(GET_PARAM_TYPE(&pInput[i]));
+  }
+
+  double *out = (double *)pOutputData->pData;
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_f(pInputData[0]->nullbitmap, i) ||
+        colDataIsNull_f(pInputData[1]->nullbitmap, 0)) {
+      colDataSetNull_f(pOutputData->nullbitmap, i);
+      continue;
+    }
+    out[i] = valFn(getValueFn[0](pInputData[0]->pData, i), getValueFn[1](pInputData[1]->pData, 0));
   }
 
   pOutput->numOfRows = pInput->numOfRows;
@@ -290,6 +233,14 @@ int32_t asinFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 
 int32_t acosFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return doScalarFunctionUnique(pInput, inputNum, pOutput, acos);
+}
+
+int32_t powFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return doScalarFunctionUnique2(pInput, inputNum, pOutput, pow);
+}
+
+int32_t logFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return doScalarFunctionUnique2(pInput, inputNum, pOutput, tlog);
 }
 
 int32_t sqrtFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
@@ -426,3 +377,34 @@ static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOf
   }
 }
 
+bool getTimePseudoFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(int64_t);
+  return true;
+}
+
+int32_t qStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  ASSERT(inputNum == 1);
+  colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 0));
+}
+
+int32_t qEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  ASSERT(inputNum == 1);
+  colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 1));
+}
+
+int32_t winDurFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  ASSERT(inputNum == 1);
+  colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 2));
+}
+
+int32_t winStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  ASSERT(inputNum == 1);
+  colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t*) colDataGetData(pInput->columnData, 3));
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t winEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  ASSERT(inputNum == 1);
+  colDataAppendInt64(pOutput->columnData, pOutput->numOfRows, (int64_t*) colDataGetData(pInput->columnData, 4));
+  return TSDB_CODE_SUCCESS;
+}

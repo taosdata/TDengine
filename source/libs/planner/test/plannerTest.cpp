@@ -192,6 +192,9 @@ TEST_F(PlannerTest, interval) {
 
   bind("SELECT count(*) FROM t1 interval(10s)");
   ASSERT_TRUE(run());
+
+  bind("SELECT _wstartts, _wduration, _wendts, count(*) FROM t1 interval(10s)");
+  ASSERT_TRUE(run());
 }
 
 TEST_F(PlannerTest, sessionWindow) {
@@ -204,7 +207,7 @@ TEST_F(PlannerTest, sessionWindow) {
 TEST_F(PlannerTest, orderBy) {
   setDatabase("root", "test");
 
-  bind("SELECT * FROM t1 order by c1");
+  bind("SELECT c1 FROM t1 order by c1");
   ASSERT_TRUE(run());
 
   bind("SELECT c1 FROM t1 order by c2");
@@ -214,8 +217,39 @@ TEST_F(PlannerTest, orderBy) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(PlannerTest, limit) {
+  setDatabase("root", "test");
+
+  bind("SELECT * FROM t1 limit 2");
+  ASSERT_TRUE(run());
+
+  bind("SELECT * FROM t1 limit 5 offset 2");
+  ASSERT_TRUE(run());
+
+  bind("SELECT * FROM t1 limit 2, 5");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, slimit) {
+  setDatabase("root", "test");
+
+  bind("SELECT * FROM t1 partition by c1 slimit 2");
+  ASSERT_TRUE(run());
+
+  bind("SELECT * FROM t1 partition by c1 slimit 5 soffset 2");
+  ASSERT_TRUE(run());
+
+  bind("SELECT * FROM t1 partition by c1 slimit 2, 5");
+  ASSERT_TRUE(run());
+}
+
 TEST_F(PlannerTest, showTables) {
   setDatabase("root", "test");
+
+  bind("show tables");
+  ASSERT_TRUE(run());
+
+  setDatabase("root", "information_schema");
 
   bind("show tables");
   ASSERT_TRUE(run());
@@ -246,5 +280,18 @@ TEST_F(PlannerTest, createSmaIndex) {
   setDatabase("root", "test");
 
   bind("create sma index index1 on t1 function(max(c1), min(c3 + 10), sum(c4)) INTERVAL(10s)");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, explain) {
+  setDatabase("root", "test");
+
+  bind("explain SELECT * FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("explain analyze SELECT * FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("explain analyze verbose true ratio 0.01 SELECT * FROM t1");
   ASSERT_TRUE(run());
 }

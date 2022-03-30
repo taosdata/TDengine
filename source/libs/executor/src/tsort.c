@@ -23,20 +23,19 @@
 #include "tsort.h"
 #include "tutil.h"
 
-typedef struct STupleHandle {
+struct STupleHandle {
   SSDataBlock* pBlock;
   int32_t      rowIndex;
-} STupleHandle;
+};
 
-typedef struct SSortHandle {
+struct SSortHandle {
   int32_t           type;
 
   int32_t           pageSize;
   int32_t           numOfPages;
   SDiskbasedBuf    *pBuf;
 
-  SArray           *pOrderInfo;
-  bool              nullFirst;
+  SArray           *pSortInfo;
   SArray           *pOrderedSource;
 
   _sort_fetch_block_fn_t  fetchfp;
@@ -60,7 +59,7 @@ typedef struct SSortHandle {
   bool              inMemSort;
   bool              needAdjust;
   STupleHandle      tupleHandle;
-} SSortHandle;
+};
 
 static int32_t msortComparFn(const void *pLeft, const void *pRight, void *param);
 
@@ -90,18 +89,18 @@ static SSDataBlock* createDataBlock_rv(SSchema* pSchema, int32_t numOfCols) {
  * @param type
  * @return
  */
-SSortHandle* tsortCreateSortHandle(SArray* pOrderInfo, bool nullFirst, int32_t type, int32_t pageSize, int32_t numOfPages, SSchema* pSchema, int32_t numOfCols, const char* idstr) {
+SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t pageSize, int32_t numOfPages, SSDataBlock* pBlock, const char* idstr) {
   SSortHandle* pSortHandle = taosMemoryCalloc(1, sizeof(SSortHandle));
 
   pSortHandle->type       = type;
   pSortHandle->pageSize   = pageSize;
   pSortHandle->numOfPages = numOfPages;
-  pSortHandle->pOrderedSource = taosArrayInit(4, POINTER_BYTES);
-  pSortHandle->pOrderInfo = pOrderInfo;
-  pSortHandle->nullFirst  = nullFirst;
-  pSortHandle->cmpParam.orderInfo = pOrderInfo;
+  pSortHandle->pSortInfo  = pSortInfo;
+  pSortHandle->pDataBlock = createOneDataBlock(pBlock);
 
-  pSortHandle->pDataBlock = createDataBlock_rv(pSchema, numOfCols);
+  pSortHandle->pOrderedSource     = taosArrayInit(4, POINTER_BYTES);
+  pSortHandle->cmpParam.orderInfo = pSortInfo;
+
   tsortSetComparFp(pSortHandle, msortComparFn);
 
   if (idstr != NULL) {
@@ -364,14 +363,14 @@ int32_t msortComparFn(const void *pLeft, const void *pRight, void *param) {
   for(int32_t i = 0; i < pInfo->size; ++i) {
     SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, i);
 
-    SColumnInfoData* pLeftColInfoData = TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pOrder->colIndex);
+    SColumnInfoData* pLeftColInfoData = TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pOrder->slotId);
 
     bool leftNull  = false;
     if (pLeftColInfoData->hasNull) {
       leftNull = colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, pLeftSource->src.rowIndex, pLeftBlock->pBlockAgg);
     }
 
-    SColumnInfoData* pRightColInfoData = TARRAY_GET_ELEM(pRightBlock->pDataBlock, pOrder->colIndex);
+    SColumnInfoData* pRightColInfoData = TARRAY_GET_ELEM(pRightBlock->pDataBlock, pOrder->slotId);
     bool rightNull = false;
     if (pRightColInfoData->hasNull) {
       rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pRightSource->src.rowIndex, pRightBlock->pBlockAgg);
@@ -415,6 +414,9 @@ int32_t msortComparFn(const void *pLeft, const void *pRight, void *param) {
 
 static int32_t doInternalMergeSort(SSortHandle* pHandle) {
   size_t numOfSources = taosArrayGetSize(pHandle->pOrderedSource);
+  if (numOfSources == 0) {
+    return 0;
+  }
 
   // Calculate the I/O counts to complete the data sort.
   double sortPass = floorl(log2(numOfSources) / log2(pHandle->numOfPages));
@@ -542,7 +544,7 @@ static int32_t createInitialSortedMultiSources(SSortHandle* pHandle) {
       if (size > sortBufSize) {
         // Perform the in-memory sort and then flush data in the buffer into disk.
         int64_t p = taosGetTimestampUs();
-        blockDataSort(pHandle->pDataBlock, pHandle->pOrderInfo, pHandle->nullFirst);
+        blockDataSort(pHandle->pDataBlock, pHandle->pSortInfo);
 
         int64_t el = taosGetTimestampUs() - p;
         pHandle->sortElapsed += el;
@@ -555,7 +557,7 @@ static int32_t createInitialSortedMultiSources(SSortHandle* pHandle) {
       size_t size = blockDataGetSize(pHandle->pDataBlock);
 
       // Perform the in-memory sort and then flush data in the buffer into disk.
-      blockDataSort(pHandle->pDataBlock, pHandle->pOrderInfo, pHandle->nullFirst);
+      blockDataSort(pHandle->pDataBlock, pHandle->pSortInfo);
 
       // All sorted data can fit in memory, external memory sort is not needed. Return to directly
       if (size <= sortBufSize) {
@@ -601,6 +603,10 @@ int32_t tsortOpen(SSortHandle* pHandle) {
   int32_t numOfSources = taosArrayGetSize(pHandle->pOrderedSource);
   if (pHandle->pBuf != NULL) {
     ASSERT(numOfSources <= getNumOfInMemBufPages(pHandle->pBuf));
+  }
+
+  if (numOfSources == 0) {
+    return 0;
   }
 
   code = sortComparInit(&pHandle->cmpParam, pHandle->pOrderedSource, 0, numOfSources - 1, pHandle);

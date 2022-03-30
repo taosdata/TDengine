@@ -206,6 +206,13 @@ TEST_F(ParserTest, selectExpression) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(ParserTest, selectPseudoColumn) {
+  setDatabase("root", "test");
+
+  bind("SELECT _wstartts, _wendts, count(*) FROM t1 interval(10s)");
+  ASSERT_TRUE(run());
+}
+
 TEST_F(ParserTest, selectClause) {
   setDatabase("root", "test");
 
@@ -480,7 +487,10 @@ TEST_F(ParserTest, createTable) {
   bind("create table "
        "if not exists test.t1 using test.st1 (tag1, tag2) tags(1, 'abc') "
        "if not exists test.t2 using test.st1 (tag1, tag2) tags(2, 'abc') "
-       "if not exists test.t3 using test.st1 (tag1, tag2) tags(3, 'abc')"
+       "if not exists test.t3 using test.st1 (tag1, tag2) tags(3, 'abc') "
+       "if not exists test.t4 using test.st1 (tag1, tag2) tags(3, null) "
+       "if not exists test.t5 using test.st1 (tag1, tag2) tags(null, 'abc') "
+       "if not exists test.t6 using test.st1 (tag1, tag2) tags(null, null)"
       );
   ASSERT_TRUE(run());
 
@@ -635,5 +645,18 @@ TEST_F(ParserTest, dropTopic) {
   ASSERT_TRUE(run());
 
   bind("drop topic if exists tp1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, explain) {
+  setDatabase("root", "test");
+
+  bind("explain SELECT * FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("explain analyze SELECT * FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("explain analyze verbose true ratio 0.01 SELECT * FROM t1");
   ASSERT_TRUE(run());
 }

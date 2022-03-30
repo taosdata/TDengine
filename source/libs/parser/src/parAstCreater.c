@@ -577,11 +577,13 @@ SNode* createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pC
 SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral) {
   SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   CHECK_OUT_OF_MEM(val);
-  val->literal = strndup(pLiteral->z, pLiteral->n);
-  if (TK_NK_ID != pLiteral->type && (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
-    trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);
+  if (NULL != pLiteral) {
+    val->literal = strndup(pLiteral->z, pLiteral->n);
+    if (TK_NK_ID != pLiteral->type && (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
+      trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);
+    }
+    CHECK_OUT_OF_MEM(val->literal);
   }
-  CHECK_OUT_OF_MEM(val->literal);
   val->node.resType.type = dataType;
   val->node.resType.bytes = IS_VAR_DATA_TYPE(dataType) ? strlen(val->literal) : tDataTypes[dataType].bytes;
   if (TSDB_DATA_TYPE_TIMESTAMP == dataType) {
@@ -717,8 +719,10 @@ SNode* createJoinTableNode(SAstCreateContext* pCxt, EJoinType type, SNode* pLeft
 SNode* createLimitNode(SAstCreateContext* pCxt, const SToken* pLimit, const SToken* pOffset) {
   SLimitNode* limitNode = (SLimitNode*)nodesMakeNode(QUERY_NODE_LIMIT);
   CHECK_OUT_OF_MEM(limitNode);
-  // limitNode->limit = limit;
-  // limitNode->offset = offset;
+  limitNode->limit = strtol(pLimit->z, NULL, 10);
+  if (NULL != pOffset) {
+    limitNode->offset = strtol(pOffset->z, NULL, 10);
+  }
   return (SNode*)limitNode;
 }
 
@@ -1310,5 +1314,32 @@ SNode* createAlterLocalStmt(SAstCreateContext* pCxt, const SToken* pConfig, cons
   if (NULL != pValue) {
     trimString(pValue->z, pValue->n, pStmt->value, sizeof(pStmt->value));
   }
+  return (SNode*)pStmt;
+}
+
+SNode* createDefaultExplainOptions(SAstCreateContext* pCxt) {
+  SExplainOptions* pOptions = nodesMakeNode(QUERY_NODE_EXPLAIN_OPTIONS);
+  CHECK_OUT_OF_MEM(pOptions);
+  pOptions->verbose = TSDB_DEFAULT_EXPLAIN_VERBOSE;
+  pOptions->ratio = TSDB_DEFAULT_EXPLAIN_RATIO;
+  return (SNode*)pOptions;
+}
+
+SNode* setExplainVerbose(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal) {
+  ((SExplainOptions*)pOptions)->verbose = (0 == strncasecmp(pVal->z, "true", pVal->n));
+  return pOptions;
+}
+
+SNode* setExplainRatio(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal) {
+  ((SExplainOptions*)pOptions)->ratio = strtod(pVal->z, NULL);
+  return pOptions;
+}
+
+SNode* createExplainStmt(SAstCreateContext* pCxt, bool analyze, SNode* pOptions, SNode* pQuery) {
+  SExplainStmt* pStmt = nodesMakeNode(QUERY_NODE_EXPLAIN_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->analyze = analyze;
+  pStmt->pOptions = (SExplainOptions*)pOptions;
+  pStmt->pQuery = pQuery;
   return (SNode*)pStmt;
 }

@@ -214,9 +214,11 @@ static void uvHandleReq(SSrvConn* pConn) {
     // no ref here
   }
 
-  if (pHead->noResp == 0) {
-    transMsg.handle = pConn;
-  }
+  // if pHead->noResp = 1,
+  // 1. server application should not send resp on handle
+  // 2. once send out data, cli conn released to conn pool immediately
+  // 3. not mixed with persist
+  transMsg.handle = pConn;
 
   STrans* pTransInst = pConn->pTransInst;
   (*pTransInst->cfp)(pTransInst->parent, &transMsg, NULL);

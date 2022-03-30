@@ -432,7 +432,7 @@ int32_t qwKillTaskHandle(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 
 
 void qwFreeTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
-  rpcReleaseHandle(ctx->connInfo.handle, TAOS_CONN_SERVER);
+  tmsgReleaseHandle(ctx->connInfo.handle, TAOS_CONN_SERVER);
   ctx->connInfo.handle = NULL;
 
   qwFreeTaskHandle(QW_FPARAMS(), &ctx->taskHandle);
@@ -763,8 +763,8 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
         dropConnection = &ctx->connInfo;
         QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
         dropConnection = NULL;
-        
-        qwBuildAndSendDropRsp(&ctx->connInfo, code);    
+
+        qwBuildAndSendDropRsp(&ctx->connInfo, code);
         QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", ctx->connInfo.handle, code, tstrerror(code));
 
         QW_ERR_JRET(TSDB_CODE_QRY_TASK_DROPPED);
@@ -804,7 +804,7 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
 
         qwBuildAndSendDropRsp(&ctx->connInfo, code);
         QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", ctx->connInfo.handle, code, tstrerror(code));
-        
+
         QW_ERR_JRET(TSDB_CODE_QRY_TASK_DROPPED);
       }
 
@@ -830,12 +830,12 @@ _return:
   }
 
   if (dropConnection) {
-    qwBuildAndSendDropRsp(dropConnection, code);    
+    qwBuildAndSendDropRsp(dropConnection, code);
     QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", dropConnection->handle, code, tstrerror(code));
   }
 
   if (cancelConnection) {
-    qwBuildAndSendCancelRsp(cancelConnection, code);    
+    qwBuildAndSendCancelRsp(cancelConnection, code);
     QW_TASK_DLOG("cancel rsp send, handle:%p, code:%x - %s", cancelConnection->handle, code, tstrerror(code));
   }
 
@@ -886,9 +886,9 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
       QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
     }
 
-    qwBuildAndSendDropRsp(&ctx->connInfo, code);    
+    qwBuildAndSendDropRsp(&ctx->connInfo, code);
     QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", ctx->connInfo.handle, code, tstrerror(code));
-    
+
     QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
     QW_ERR_JRET(TSDB_CODE_QRY_TASK_DROPPED);
   }
@@ -959,7 +959,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType) {
     QW_ERR_JRET(code);
   }
   
-  code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle);
+  code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, OPTR_EXEC_MODEL_BATCH);
   if (code) {
     QW_TASK_ELOG("qCreateExecTask failed, code:%x - %s", code, tstrerror(code));
     QW_ERR_JRET(code);
@@ -986,7 +986,7 @@ _return:
 
   input.code = code;
   code = qwHandlePostPhaseEvents(QW_FPARAMS(), QW_PHASE_POST_QUERY, &input, NULL);
-  
+
   if (!queryRsped) {
     qwBuildAndSendQueryRsp(&qwMsg->connInfo, code);
     QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
@@ -1228,7 +1228,7 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   } else if (ctx->phase > 0) {
     qwBuildAndSendDropRsp(&qwMsg->connInfo, code);
     QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
-  
+
     QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
     rsped = true;
   } else {
@@ -1241,7 +1241,7 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);
   }
-  
+
 _return:
 
   if (code) {
@@ -1282,7 +1282,7 @@ int32_t qwProcessHb(SQWorkerMgmt *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
   QW_LOCK(QW_WRITE, &sch->hbConnLock);
 
   if (sch->hbConnInfo.handle) {
-    rpcReleaseHandle(sch->hbConnInfo.handle, TAOS_CONN_SERVER);
+    tmsgReleaseHandle(sch->hbConnInfo.handle, TAOS_CONN_SERVER);
   }
   
   memcpy(&sch->hbConnInfo, &qwMsg->connInfo, sizeof(qwMsg->connInfo));
@@ -1352,7 +1352,8 @@ _return:
 
   for (int32_t j = 0; j < i; ++j) {
     qwBuildAndSendHbRsp(&rspList[j].connInfo, &rspList[j].rsp, code);
-    QW_DLOG("hb rsp send, handle:%p, code:%x - %s, taskNum:%d", rspList[j].connInfo.handle, code, tstrerror(code), (rspList[j].rsp.taskStatus ? (int32_t)taosArrayGetSize(rspList[j].rsp.taskStatus) : 0));    
+    QW_DLOG("hb rsp send, handle:%p, code:%x - %s, taskNum:%d", rspList[j].connInfo.handle, code, tstrerror(code),
+            (rspList[j].rsp.taskStatus ? (int32_t)taosArrayGetSize(rspList[j].rsp.taskStatus) : 0));
     tFreeSSchedulerHbRsp(&rspList[j].rsp);
   }
 

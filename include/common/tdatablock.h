@@ -29,8 +29,9 @@ typedef struct SCorEpSet {
 } SCorEpSet;
 
 typedef struct SBlockOrderInfo {
+  bool             nullFirst;
   int32_t          order;
-  int32_t          colIndex;
+  int32_t          slotId;
   SColumnInfoData* pColData;
 } SBlockOrderInfo;
 
@@ -132,7 +133,8 @@ static FORCE_INLINE int32_t colDataAppendInt32(SColumnInfoData* pColumnInfoData,
 }
 
 static FORCE_INLINE int32_t colDataAppendInt64(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int64_t* v) {
-  ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_BIGINT || pColumnInfoData->info.type == TSDB_DATA_TYPE_UBIGINT);
+  int32_t type = pColumnInfoData->info.type;
+  ASSERT(type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_UBIGINT || type == TSDB_DATA_TYPE_TIMESTAMP);
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
   *(int64_t*)p = *(int64_t*)v;
 }
@@ -174,17 +176,16 @@ size_t blockDataGetRowSize(SSDataBlock* pBlock);
 double blockDataGetSerialRowSize(const SSDataBlock* pBlock);
 size_t blockDataGetSerialMetaSize(const SSDataBlock* pBlock);
 
-SSchema* blockDataExtractSchema(const SSDataBlock* pBlock, int32_t* numOfCols);
-
-int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst);
+int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo);
 int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst);
 
-int32_t      blockDataEnsureColumnCapacity(SColumnInfoData* pColumn, uint32_t numOfRows);
-int32_t      blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
-void         blockDataCleanup(SSDataBlock* pDataBlock);
+int32_t blockDataEnsureColumnCapacity(SColumnInfoData* pColumn, uint32_t numOfRows);
+int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
+void    blockDataCleanup(SSDataBlock* pDataBlock);
+size_t  blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
+void*   blockDataDestroy(SSDataBlock* pBlock);
+
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock);
-size_t       blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
-void*        blockDataDestroy(SSDataBlock* pBlock);
 
 void blockDebugShowData(const SArray* dataBlocks);
 
