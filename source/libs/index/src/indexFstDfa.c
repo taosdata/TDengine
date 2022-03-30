@@ -16,6 +16,8 @@
 #include "indexFstDfa.h"
 #include "thash.h"
 
+const static uint32_t STATE_LIMIT = 1000;
+
 static int dfaInstsEqual(const void *a, const void *b, size_t size) {
   SArray *ar = (SArray *)a;
   SArray *br = (SArray *)b;
@@ -48,6 +50,18 @@ FstDfaBuilder *dfaBuilderCreate(SArray *insts) {
   taosHashSetEqualFp(builder->cache, dfaInstsEqual);
   return builder;
 }
+void dfaBuilderDestroy(FstDfaBuilder *builder) {
+  if (builder == NULL) {
+    return;
+  }
+  void *pIter = builder->cache != NULL ? taosHashIterate(builder->cache, NULL) : NULL;
+  while (pIter) {
+    SArray **key = pIter;
+    taosArrayDestroy(*key);
+    pIter = taosHashIterate(builder->cache, pIter);
+  }
+  taosHashCleanup(builder->cache);
+}
 
 FstDfa *dfaBuilderBuild(FstDfaBuilder *builder) {
   uint32_t      sz = taosArrayGetSize(builder->dfa->insts);
@@ -55,12 +69,53 @@ FstDfa *dfaBuilderBuild(FstDfaBuilder *builder) {
   FstSparseSet *nxt = sparSetCreate(sz);
 
   dfaAdd(builder->dfa, cur, 0);
+
+  SArray * states = taosArrayInit(0, sizeof(uint32_t));
+  uint32_t result;
+  if (dfaBuilderCachedState(builder, cur, &result)) {
+    taosArrayPush(states, &result);
+  }
+  SHashObj *seen = taosHashInit(12, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  while (taosArrayGetSize(states) != 0) {
+    result = *(uint32_t *)taosArrayPop(states);
+    for (int i = 0; i < 256; i++) {
+      uint32_t ns, dummpy = 0;
+      if (dfaBuilderRunState(builder, cur, nxt, result, i, &ns)) {
+        if (taosHashGet(seen, &ns, sizeof(ns)) == NULL) {
+          taosHashPut(seen, &ns, sizeof(ns), &dummpy, sizeof(dummpy));
+          taosArrayPush(states, &ns);
+        }
+      }
+      if (taosArrayGetSize(builder->dfa->states) > STATE_LIMIT) {
+        // Too many state;
+        //
+      }
+    }
+  }
+  taosArrayDestroy(states);
+  taosHashCleanup(seen);
+  return builder->dfa;
 }
 
-bool dfaBuilderRunState(FstDfaBuilder *builder, FstSparseSet *cur, FstSparseSet *next, uint32_t state, uint8_t bytes,
+bool dfaBuilderRunState(FstDfaBuilder *builder, FstSparseSet *cur, FstSparseSet *next, uint32_t state, uint8_t byte,
                         uint32_t *result) {
-  // impl run state
-  return true;
+  sparSetClear(cur);
+  State *t = taosArrayGet(builder->dfa->states, state);
+  for (int i = 0; i < taosArrayGetSize(t->insts); i++) {
+    uint32_t ip = *(int32_t *)taosArrayGet(t->insts, i);
+    sparSetAdd(cur, ip);
+  }
+  dfaRun(builder->dfa, cur, next, byte);
+
+  t = taosArrayGet(builder->dfa->states, state);
+
+  uint32_t nxtState;
+  if (dfaBuilderCachedState(builder, next, &nxtState)) {
+    t->next[byte] = nxtState;
+    *result = nxtState;
+    return true;
+  }
+  return false;
 }
 
 bool dfaBuilderCachedState(FstDfaBuilder *builder, FstSparseSet *set, uint32_t *result) {

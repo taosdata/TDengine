@@ -44,6 +44,8 @@ typedef struct FstDfaBuilder {
 
 FstDfaBuilder *dfaBuilderCreate(SArray *insts);
 
+void dfaBuilderDestroy(FstDfaBuilder *builder);
+
 FstDfa *dfaBuilderBuild(FstDfaBuilder *builder);
 
 bool dfaBuilderRunState(FstDfaBuilder *builder, FstSparseSet *cur, FstSparseSet *next, uint32_t state, uint8_t bytes,
