@@ -1056,17 +1056,24 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell) {
     kLen = pPage->kLen;
   }
 
-  if (leaf) {
-    if (pPage->vLen == TDB_VARIANT_LEN) {
-      szCell += tdbGetVarInt(pCell + szCell, &vLen);
-    } else {
-      vLen = pPage->vLen;
-    }
+  if (pPage->vLen == TDB_VARIANT_LEN) {
+    ASSERT(leaf);
+    szCell += tdbGetVarInt(pCell + szCell, &vLen);
+  } else if (leaf) {
+    vLen = pPage->vLen;
   }
 
   szCell = szCell + kLen + vLen;
 
-  return szCell;
+  if (szCell <= pPage->maxLocal) {
+    return szCell;
+  }
+
+  {
+    // TODO
+    ASSERT(0);
+    return 0;
+  }
 }
 // TDB_BTREE_CELL
 
