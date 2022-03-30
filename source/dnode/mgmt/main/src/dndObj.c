@@ -34,6 +34,12 @@ static int32_t dndInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
+  pDnode->lockfile = dndCheckRunning(pDnode->dataDir);
+  if (pDnode->lockfile == NULL) {
+    return -1;
+  }
+
   return 0;
 }
 
@@ -42,7 +48,11 @@ static void dndClearVars(SDnode *pDnode) {
     SMgmtWrapper *pMgmt = &pDnode->wrappers[n];
     taosMemoryFreeClear(pMgmt->path);
   }
-  dndCloseRuntimeFile(pDnode);
+  if (pDnode->lockfile != NULL) {
+    taosUnLockFile(pDnode->lockfile);
+    taosCloseFile(&pDnode->lockfile);
+    pDnode->lockfile = NULL;
+  }
   taosMemoryFreeClear(pDnode->localEp);
   taosMemoryFreeClear(pDnode->localFqdn);
   taosMemoryFreeClear(pDnode->firstEp);
@@ -96,8 +106,8 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
     goto _OVER;
   }
 
-  if (dndOpenRuntimeFile(pDnode) != 0) {
-    dError("failed to open runtime file since %s", terrstr());
+  if (dndReadShmFile(pDnode) != 0) {
+    dError("failed to read shm file since %s", terrstr());
     goto _OVER;
   }
 

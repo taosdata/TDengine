@@ -128,7 +128,7 @@ typedef struct SDnode {
   EDndStatus   status;
   EDndEvent    event;
   SStartupReq  startup;
-  TdFilePtr    runtimeFile;
+  TdFilePtr    lockfile;
   STransMgmt   trans;
   SMgmtWrapper wrappers[NODE_MAX];
 } SDnode;

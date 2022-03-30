@@ -160,7 +160,12 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
       return -1;
     }
 
-    SProcCfg cfg = {.parentConsumeFp = (ProcConsumeFp)dndConsumeParentQueue,
+    SProcCfg cfg = {.childConsumeFp = (ProcConsumeFp)dndConsumeChildQueue,
+                    .childMallocHeadFp = (ProcMallocFp)taosAllocateQitem,
+                    .childFreeHeadFp = (ProcFreeFp)taosFreeQitem,
+                    .childMallocBodyFp = (ProcMallocFp)rpcMallocCont,
+                    .childFreeBodyFp = (ProcFreeFp)rpcFreeCont,
+                    .parentConsumeFp = (ProcConsumeFp)dndConsumeParentQueue,
                     .parentdMallocHeadFp = (ProcMallocFp)taosMemoryMalloc,
                     .parentFreeHeadFp = (ProcFreeFp)taosMemoryFree,
                     .parentMallocBodyFp = (ProcMallocFp)rpcMallocCont,
@@ -176,7 +181,7 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
     }
   }
 
-  if (dndWriteRuntimeFile(pDnode) != 0) {
+  if (dndWriteShmFile(pDnode) != 0) {
     dError("failed to write runtime file since %s", terrstr());
     return -1;
   }
@@ -220,6 +225,11 @@ static int32_t dndRunInChildProcess(SDnode *pDnode) {
                   .childFreeHeadFp = (ProcFreeFp)taosFreeQitem,
                   .childMallocBodyFp = (ProcMallocFp)rpcMallocCont,
                   .childFreeBodyFp = (ProcFreeFp)rpcFreeCont,
+                  .parentConsumeFp = (ProcConsumeFp)dndConsumeParentQueue,
+                  .parentdMallocHeadFp = (ProcMallocFp)taosMemoryMalloc,
+                  .parentFreeHeadFp = (ProcFreeFp)taosMemoryFree,
+                  .parentMallocBodyFp = (ProcMallocFp)rpcMallocCont,
+                  .parentFreeBodyFp = (ProcFreeFp)rpcFreeCont,
                   .shm = pWrapper->shm,
                   .pParent = pWrapper,
                   .name = pWrapper->name};

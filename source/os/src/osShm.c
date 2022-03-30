@@ -17,8 +17,8 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-int32_t taosCreateShm(SShm* pShm, int32_t shmsize) {
-  int32_t shmid = shmget(IPC_PRIVATE, shmsize, IPC_CREAT | 0600);
+int32_t taosCreateShm(SShm* pShm, int64_t shmsize) {
+  int32_t shmid = shmget(IPC_PRIVATE, (size_t)shmsize, IPC_CREAT | 0600);
   if (shmid < 0) {
     return -1;
   }

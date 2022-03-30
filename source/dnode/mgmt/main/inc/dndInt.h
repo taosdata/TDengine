@@ -54,9 +54,9 @@ int32_t dndInitMsgHandle(SDnode *pDnode);
 void    dndSendRpcRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp);
 
 // dndFile.c
-int32_t dndOpenRuntimeFile(SDnode *pDnode);
-int32_t dndWriteRuntimeFile(SDnode *pDnode);
-void    dndCloseRuntimeFile(SDnode *pDnode);
+TdFilePtr dndCheckRunning(const char *dataDir);
+int32_t   dndReadShmFile(SDnode *pDnode);
+int32_t   dndWriteShmFile(SDnode *pDnode);
 
 #ifdef __cplusplus
 }
