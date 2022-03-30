@@ -91,23 +91,6 @@ static FORCE_INLINE int tdbCmprPgId(const void *p1, const void *p2) {
 // dbname
 #define TDB_MAX_DBNAME_LEN 24
 
-// tdb_log
-#define tdbError(var)
-
-#define TERR_A(val, op, flag)  \
-  do {                         \
-    if (((val) = (op)) != 0) { \
-      goto flag;               \
-    }                          \
-  } while (0)
-
-#define TERR_B(val, op, flag)     \
-  do {                            \
-    if (((val) = (op)) == NULL) { \
-      goto flag;                  \
-    }                             \
-  } while (0)
-
 #define TDB_VARIANT_LEN ((int)-1)
 
 typedef int (*FKeyComparator)(const void *pKey1, int kLen1, const void *pKey2, int kLen2);

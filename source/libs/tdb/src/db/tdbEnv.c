@@ -64,6 +64,21 @@ int tdbEnvClose(TENV *pEnv) {
   return 0;
 }
 
+int tdbBegin(TENV *pEnv) {
+  // TODO
+  return 0;
+}
+
+int tdbCommit(TENV *pEnv) {
+  // TODO
+  return 0;
+}
+
+int tdbRollback(TENV *pEnv) {
+  // TODO
+  return 0;
+}
+
 SPager *tdbEnvGetPager(TENV *pEnv, const char *fname) {
   // TODO
   return NULL;
