@@ -350,7 +350,7 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     }
   }
 
-  //allocate output buf
+  allocate output buf
   if (pOutputData->pData == NULL) {
     int32_t outputLen = inputLen + numOfRows * VARSTR_HEADER_SIZE;
     setVarTypeOutputBuf(pOutputData, outputLen, GET_PARAM_TYPE(pInput));
@@ -567,7 +567,7 @@ int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 }
 
 int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  if (inputNum != 2 || inputNum!= 3) {
+  if (inputNum != 2 && inputNum!= 3) {
     return TSDB_CODE_FAILED;
   }
 
@@ -589,16 +589,23 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   SColumnInfoData *pInputData  = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  for (int32_t i = 0; i < pOutput->numOfRows; ++i) {
+  //allocate output buf
+  if (pOutputData->pData == NULL) {
+    int32_t outputLen = pInputData->varmeta.length;
+    setVarTypeOutputBuf(pOutputData, outputLen, GET_PARAM_TYPE(pInput));
+  }
+
+  char *input  = pInputData->pData;
+  char *output = pOutputData->pData;
+
+  int32_t offset = 0;
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_f(pInputData->nullbitmap, i)) {
       colDataSetNull_f(pOutputData->nullbitmap, i);
       continue;
     }
 
-    char *in  = pInputData->pData + i * GET_PARAM_BYTES(pInput);
-    char *out = pOutputData->pData + i * GET_PARAM_BYTES(pInput);
-
-    int32_t len = varDataLen(in);
+    int32_t len = varDataLen(input);
     int32_t startPosBytes;
 
     if (subPos > 0) {
@@ -611,10 +618,15 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 
     subLen = MIN(subLen, len - startPosBytes);
     if (subLen > 0) {
-      memcpy(varDataVal(out), varDataVal(in) + startPosBytes, subLen);
+      memcpy(varDataVal(output), varDataVal(input) + startPosBytes, subLen);
     }
 
-    varDataSetLen(out, subLen);
+    varDataSetLen(output, subLen);
+    input += varDataTLen(input);
+    output += varDataTLen(output);
+
+    pOutputData->varmeta.offset[i] = offset;
+    offset += subLen + VARSTR_HEADER_SIZE;
   }
 
   pOutput->numOfRows = pInput->numOfRows;
