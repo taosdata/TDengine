@@ -1012,7 +1012,7 @@ int tdbBtcMoveToFirst(SBTC *pBtc) {
     if (TDB_PAGE_TOTAL_CELLS(pBtc->pPage) > 0) {
       pBtc->idx = 0;
     } else {
-      // no any data, point is invalid
+      // no any data, point to an invalid position
       ASSERT(TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage));
       pBtc->idx = -1;
       return 0;
