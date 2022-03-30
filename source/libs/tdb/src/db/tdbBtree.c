@@ -29,7 +29,7 @@ struct SBTree {
   int            minLocal;
   int            maxLeaf;
   int            minLeaf;
-  u8            *pTmp;
+  void          *pBuf;
 };
 
 #define TDB_BTREE_PAGE_COMMON_HDR u8 flags;
@@ -127,65 +127,79 @@ int tdbBtreeClose(SBTree *pBt) {
   return 0;
 }
 
-int tdbBtCursorInsert(SBTC *pBtc, const void *pKey, int kLen, const void *pVal, int vLen) {
-  int     ret;
-  int     idx;
-  SPager *pPager;
-  SCell  *pCell;
-  int     szCell;
-  int     cret;
-  SBTree *pBt;
+int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, int vLen) {
+  SBTC   btc;
+  SCell *pCell;
+  void  *pBuf;
+  int    szCell;
+  int    szBuf;
+  int    ret;
+  int    idx;
+  int    c;
 
-  ret = tdbBtcMoveTo(pBtc, pKey, kLen, &cret);
+  tdbBtcOpen(&btc, pBt);
+
+  // move to the position to insert
+  ret = tdbBtcMoveTo(&btc, pKey, kLen, &c);
   if (ret < 0) {
-    // TODO: handle error
+    tdbBtcClose(&btc);
+    ASSERT(0);
     return -1;
   }
 
-  if (pBtc->idx == -1) {
-    ASSERT(TDB_PAGE_TOTAL_CELLS(pBtc->pPage) == 0);
+  if (btc.idx == -1) {
     idx = 0;
   } else {
-    if (cret > 0) {
-      idx = pBtc->idx + 1;
-    } else if (cret < 0) {
-      idx = pBtc->idx;
+    if (c > 0) {
+      idx = btc.idx + 1;
+    } else if (c < 0) {
+      idx = btc.idx;
     } else {
-      /* TODO */
+      // TDB does NOT allow same key
+      tdbBtcClose(&btc);
       ASSERT(0);
-    }
-  }
-
-  // TODO: refact code here
-  pBt = pBtc->pBt;
-  if (!pBt->pTmp) {
-    pBt->pTmp = (u8 *)tdbOsMalloc(pBt->pageSize);
-    if (pBt->pTmp == NULL) {
       return -1;
     }
   }
 
-  pCell = pBt->pTmp;
+  // make sure enough space to hold the space
+  szBuf = kLen + vLen + 14;
+  pBuf = TDB_REALLOC(pBt->pBuf, pBt->pageSize > szBuf ? szBuf : pBt->pageSize);
+  if (pBuf == NULL) {
+    tdbBtcClose(&btc);
+    ASSERT(0);
+    return -1;
+  }
+  pBt->pBuf = pBuf;
+  pCell = (SCell *)pBt->pBuf;
 
-  // Encode the cell
-  ret = tdbBtreeEncodeCell(pBtc->pPage, pKey, kLen, pVal, vLen, pCell, &szCell);
+  // encode cell
+  ret = tdbBtreeEncodeCell(btc.pPage, pKey, kLen, pVal, vLen, pCell, &szCell);
   if (ret < 0) {
+    tdbBtcClose(&btc);
+    ASSERT(0);
     return -1;
   }
 
-  // Insert the cell to the index
-  ret = tdbPageInsertCell(pBtc->pPage, idx, pCell, szCell, 0);
+  // insert the cell
+  ret = tdbPageInsertCell(btc.pPage, idx, pCell, szCell, 0);
   if (ret < 0) {
+    tdbBtcClose(&btc);
+    ASSERT(0);
     return -1;
   }
 
-  // If page is overflow, balance the tree
-  if (pBtc->pPage->nOverflow > 0) {
-    ret = tdbBtreeBalance(pBtc);
+  // check if need balance
+  if (btc.pPage->nOverflow > 0) {
+    ret = tdbBtreeBalance(&btc);
     if (ret < 0) {
+      tdbBtcClose(&btc);
+      ASSERT(0);
       return -1;
     }
   }
+
+  tdbBtcClose(&btc);
 
   return 0;
 }

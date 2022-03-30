@@ -74,22 +74,7 @@ int tdbDbDrop(TDB *pDb) {
 }
 
 int tdbDbInsert(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen) {
-  SBTC  btc;
-  SBTC *pCur;
-  int   ret;
-
-  pCur = &btc;
-  ret = tdbBtcOpen(pCur, pDb->pBt);
-  if (ret < 0) {
-    return -1;
-  }
-
-  ret = tdbBtCursorInsert(pCur, pKey, keyLen, pVal, valLen);
-  if (ret < 0) {
-    return -1;
-  }
-
-  return 0;
+  return tdbBtreeInsert(pDb->pBt, pKey, keyLen, pVal, valLen);
 }
 
 int tdbDbGet(TDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen) {
