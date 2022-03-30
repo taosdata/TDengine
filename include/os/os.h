@@ -73,7 +73,6 @@ extern "C" {
 #include <wchar.h>
 #include <wctype.h>
 
-
 #include "osAtomic.h"
 #include "osDef.h"
 #include "osDir.h"
@@ -87,6 +86,7 @@ extern "C" {
 #include "osThread.h"
 #include "osSemaphore.h"
 #include "osSignal.h"
+#include "osShm.h"
 #include "osSleep.h"
 #include "osSocket.h"
 #include "osString.h"

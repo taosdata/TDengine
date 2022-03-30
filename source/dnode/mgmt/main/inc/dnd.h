@@ -96,6 +96,7 @@ typedef struct SMgmtWrapper {
   bool        required;
   EProcType   procType;
   SProcObj   *pProc;
+  SShm        shm;
   void       *pMgmt;
   SDnode     *pDnode;
   NodeMsgFp   msgFps[TDMT_MAX];
@@ -127,7 +128,7 @@ typedef struct SDnode {
   EDndStatus   status;
   EDndEvent    event;
   SStartupReq  startup;
-  TdFilePtr    lockfile;
+  TdFilePtr    runtimeFile;
   STransMgmt   trans;
   SMgmtWrapper wrappers[NODE_MAX];
 } SDnode;

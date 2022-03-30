@@ -84,29 +84,6 @@ void dndGetStartup(SDnode *pDnode, SStartupReq *pStartup) {
   pStartup->finished = (dndGetStatus(pDnode) == DND_STAT_RUNNING);
 }
 
-TdFilePtr dndCheckRunning(const char *dataDir) {
-  char filepath[PATH_MAX] = {0};
-  snprintf(filepath, sizeof(filepath), "%s/.running", dataDir);
-
-  TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
-  if (pFile == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to lock file:%s since %s", filepath, terrstr());
-    return NULL;
-  }
-
-  int32_t ret = taosLockFile(pFile);
-  if (ret != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to lock file:%s since %s", filepath, terrstr());
-    taosCloseFile(&pFile);
-    return NULL;
-  }
-
-  dDebug("file:%s is locked", filepath);
-  return pFile;
-}
-
 void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
   dDebug("startup req is received");
   SStartupReq *pStartup = rpcMallocCont(sizeof(SStartupReq));
