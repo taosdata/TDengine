@@ -29,11 +29,13 @@ int tdbDbClose(TDB *pDb);
 int tdbDbDrop(TDB *pDb);
 int tdbDbInsert(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen);
 int tdbDbGet(TDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen);
+int tdbDbPGet(TDB *pDb, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
 
 // TDBC
 int tdbDbcOpen(TDB *pDb, TDBC **ppDbc);
 int tdbDbNext(TDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen);
 int tdbDbcClose(TDBC *pDbc);
+int tdbDbcInsert(TDBC *pDbc, const void *pKey, int keyLen, const void *pVal, int valLen);
 
 #ifdef __cplusplus
 }

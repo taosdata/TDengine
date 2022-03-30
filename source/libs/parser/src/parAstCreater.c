@@ -1316,3 +1316,30 @@ SNode* createAlterLocalStmt(SAstCreateContext* pCxt, const SToken* pConfig, cons
   }
   return (SNode*)pStmt;
 }
+
+SNode* createDefaultExplainOptions(SAstCreateContext* pCxt) {
+  SExplainOptions* pOptions = nodesMakeNode(QUERY_NODE_EXPLAIN_OPTIONS);
+  CHECK_OUT_OF_MEM(pOptions);
+  pOptions->verbose = TSDB_DEFAULT_EXPLAIN_VERBOSE;
+  pOptions->ratio = TSDB_DEFAULT_EXPLAIN_RATIO;
+  return (SNode*)pOptions;
+}
+
+SNode* setExplainVerbose(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal) {
+  ((SExplainOptions*)pOptions)->verbose = (0 == strncasecmp(pVal->z, "true", pVal->n));
+  return pOptions;
+}
+
+SNode* setExplainRatio(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal) {
+  ((SExplainOptions*)pOptions)->ratio = strtod(pVal->z, NULL);
+  return pOptions;
+}
+
+SNode* createExplainStmt(SAstCreateContext* pCxt, bool analyze, SNode* pOptions, SNode* pQuery) {
+  SExplainStmt* pStmt = nodesMakeNode(QUERY_NODE_EXPLAIN_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->analyze = analyze;
+  pStmt->pOptions = (SExplainOptions*)pOptions;
+  pStmt->pQuery = pQuery;
+  return (SNode*)pStmt;
+}

@@ -58,5 +58,7 @@ void qDestroyQuery(SQuery* pQueryNode) {
     taosMemoryFreeClear(pQueryNode->pCmdMsg->pMsg);
     taosMemoryFreeClear(pQueryNode->pCmdMsg);
   }
+  taosArrayDestroy(pQueryNode->pDbList);
+  taosArrayDestroy(pQueryNode->pTableList);
   taosMemoryFreeClear(pQueryNode);
 }

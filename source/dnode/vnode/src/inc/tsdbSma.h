@@ -44,11 +44,10 @@ int32_t tsdbRemoveTSmaData(STsdb *pTsdb, STSma *param, STimeWindow *pWin);
 #endif
 
 // internal func
-static FORCE_INLINE int32_t tsdbEncodeTSmaKey(tb_uid_t tableUid, col_id_t colId, TSKEY tsKey, void **pData) {
+static FORCE_INLINE int32_t tsdbEncodeTSmaKey(int64_t groupId, TSKEY tsKey, void **pData) {
   int32_t len = 0;
-  len += taosEncodeFixedI64(pData, tableUid);
-  len += taosEncodeFixedU16(pData, colId);
   len += taosEncodeFixedI64(pData, tsKey);
+  len += taosEncodeFixedI64(pData, groupId);
   return len;
 }
 
