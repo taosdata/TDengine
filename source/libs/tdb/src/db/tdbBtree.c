@@ -30,7 +30,6 @@ struct SBTree {
   int            valLen;
   SPager        *pPager;
   FKeyComparator kcmpr;
-  u8             fanout;
   int            pageSize;
   int            maxLocal;
   int            minLocal;
@@ -85,6 +84,8 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, S
   SBTree *pBt;
   int     ret;
 
+  ASSERT(keyLen != 0);
+
   *ppBt = NULL;
 
   pBt = (SBTree *)tdbOsCalloc(1, sizeof(*pBt));
@@ -100,21 +101,14 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, S
   pBt->pPager = pPager;
   // pBt->kcmpr
   pBt->kcmpr = kcmpr ? kcmpr : tdbDefaultKeyCmprFn;
-  // pBt->fanout
-  if (keyLen == TDB_VARIANT_LEN) {
-    pBt->fanout = TDB_DEFAULT_FANOUT;
-  } else {
-    ASSERT(0);
-    // TODO: pBt->fanout = 0;
-  }
   // pBt->pageSize
   pBt->pageSize = tdbPagerGetPageSize(pPager);
   // pBt->maxLocal
-  pBt->maxLocal = (pBt->pageSize - 14) / pBt->fanout;
+  pBt->maxLocal = tdbPageCapacity(pBt->pageSize, sizeof(SIntHdr)) / 4;
   // pBt->minLocal: Should not be allowed smaller than 15, which is [nPayload][nKey][nData]
-  pBt->minLocal = (pBt->pageSize - 14) / pBt->fanout / 2;
+  pBt->minLocal = pBt->maxLocal / 2;
   // pBt->maxLeaf
-  pBt->maxLeaf = pBt->pageSize - 14;
+  pBt->maxLeaf = tdbPageCapacity(pBt->pageSize, sizeof(SLeafHdr));
   // pBt->minLeaf
   pBt->minLeaf = pBt->minLocal;
 
@@ -223,6 +217,43 @@ int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen
 
   *ppVal = pVal;
   memcpy(*ppVal, cd.pVal, cd.vLen);
+  return 0;
+}
+
+int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen) {
+  SBTC         btc;
+  SCell       *pCell;
+  int          cret;
+  void        *pTKey;
+  void        *pTVal;
+  SCellDecoder cd;
+
+  tdbBtcOpen(&btc, pBt);
+
+  tdbBtCursorMoveTo(&btc, pKey, kLen, &cret);
+  if (cret) {
+    return cret;
+  }
+
+  pCell = tdbPageGetCell(btc.pPage, btc.idx);
+  tdbBtreeDecodeCell(btc.pPage, pCell, &cd);
+
+  pTKey = TDB_REALLOC(*ppKey, cd.kLen);
+  pTVal = TDB_REALLOC(*ppVal, cd.vLen);
+
+  if (pTKey == NULL || pTVal == NULL) {
+    TDB_FREE(pTKey);
+    TDB_FREE(pTVal);
+  }
+
+  *ppKey = pTKey;
+  *ppVal = pTVal;
+  *pkLen = cd.kLen;
+  *vLen = cd.vLen;
+
+  memcpy(*ppKey, cd.pKey, cd.kLen);
+  memcpy(*ppVal, cd.pVal, cd.vLen);
+
   return 0;
 }
 
@@ -929,7 +960,7 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
   }
 
   // 2. Encode payload part
-  if (leaf) {
+  if (leaf && vLen > 0) {
     ret = tdbBtreeEncodePayload(pPage, pCell + nHeader, pKey, kLen, pVal, vLen, &nPayload);
   } else {
     ret = tdbBtreeEncodePayload(pPage, pCell + nHeader, pKey, kLen, NULL, 0, &nPayload);
@@ -968,6 +999,7 @@ static int tdbBtreeDecodePayload(SPage *pPage, const u8 *pPayload, SCellDecoder 
   return 0;
 }
 
+// TODO: here has problem
 static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pDecoder) {
   u8  flags;
   u8  leaf;

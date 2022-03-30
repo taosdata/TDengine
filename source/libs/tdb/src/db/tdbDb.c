@@ -96,6 +96,10 @@ int tdbDbGet(TDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen) {
   return tdbBtreeGet(pDb->pBt, pKey, kLen, ppVal, vLen);
 }
 
+int tdbDbPGet(TDB *pDb, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen) {
+  return tdbBtreePGet(pDb->pBt, pKey, kLen, ppKey, pkLen, ppVal, vLen);
+}
+
 int tdbDbcOpen(TDB *pDb, TDBC **ppDbc) {
   int   ret;
   TDBC *pDbc = NULL;
@@ -129,5 +133,11 @@ int tdbDbcClose(TDBC *pDbc) {
     tdbOsFree(pDbc);
   }
 
+  return 0;
+}
+
+int tdbDbcInsert(TDBC *pDbc, const void *pKey, int keyLen, const void *pVal, int valLen) {
+  // TODO
+  ASSERT(0);
   return 0;
 }
