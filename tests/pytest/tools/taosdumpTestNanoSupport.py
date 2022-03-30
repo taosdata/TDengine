@@ -132,15 +132,15 @@ class TDTestCase:
         # dump all data
 
         os.system(
-            "%s --databases timedb1 -o ./taosdumptest/dumptmp1" %
+            "%s -y -g --databases timedb1 -o ./taosdumptest/dumptmp1" %
             binPath)
 
         # dump part data with -S  -E
         os.system(
-            '%s --databases timedb1 -S 1625068810000000000 -E 1625068860000000000  -o ./taosdumptest/dumptmp2 ' %
+            '%s -y -g --databases timedb1 -S 1625068810000000000 -E 1625068860000000000  -o ./taosdumptest/dumptmp2 ' %
             binPath)
         os.system(
-            '%s --databases timedb1 -S 1625068810000000000  -o ./taosdumptest/dumptmp3  ' %
+            '%s -y -g --databases timedb1 -S 1625068810000000000  -o ./taosdumptest/dumptmp3  ' %
             binPath)
 
         tdSql.execute("drop database timedb1")
@@ -198,14 +198,14 @@ class TDTestCase:
         self.createdb(precision="us")
 
         os.system(
-            "%s --databases timedb1 -o ./taosdumptest/dumptmp1" %
+            "%s -y -g --databases timedb1 -o ./taosdumptest/dumptmp1" %
             binPath)
 
         os.system(
-            '%s --databases timedb1 -S 1625068810000000 -E 1625068860000000  -o ./taosdumptest/dumptmp2 ' %
+            '%s -y -g --databases timedb1 -S 1625068810000000 -E 1625068860000000  -o ./taosdumptest/dumptmp2 ' %
             binPath)
         os.system(
-            '%s --databases timedb1 -S 1625068810000000  -o ./taosdumptest/dumptmp3  ' %
+            '%s -y -g --databases timedb1 -S 1625068810000000  -o ./taosdumptest/dumptmp3  ' %
             binPath)
 
         os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
@@ -267,14 +267,14 @@ class TDTestCase:
         self.createdb(precision="ms")
 
         os.system(
-            "%s --databases timedb1 -o ./taosdumptest/dumptmp1" %
+            "%s -y -g --databases timedb1 -o ./taosdumptest/dumptmp1" %
             binPath)
 
         os.system(
-            '%s --databases timedb1 -S 1625068810000 -E 1625068860000  -o ./taosdumptest/dumptmp2 ' %
+            '%s -y -g --databases timedb1 -S 1625068810000 -E 1625068860000  -o ./taosdumptest/dumptmp2 ' %
             binPath)
         os.system(
-            '%s --databases timedb1 -S 1625068810000  -o ./taosdumptest/dumptmp3  ' %
+            '%s -y -g --databases timedb1 -S 1625068810000  -o ./taosdumptest/dumptmp3  ' %
             binPath)
 
         os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
