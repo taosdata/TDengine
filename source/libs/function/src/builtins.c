@@ -526,6 +526,7 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
         if (paraType != paraTypeFirst) {
           return TSDB_CODE_FAILED;
         }
+        //TODO: for constants also needs numOfRows
         totalBytes += pParam->node.resType.bytes;
       }
       //TODO: need to get numOfRows to decide how much space separator needed. Currently set to 100.
