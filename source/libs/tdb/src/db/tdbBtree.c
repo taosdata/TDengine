@@ -62,7 +62,7 @@ typedef struct {
   int   vLen;
   u8   *pVal;
   SPgno pgno;
-  u8   *pTmpSpace;
+  u8   *pBuf;
 } SCellDecoder;
 
 static int tdbBtCursorMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst);
@@ -965,24 +965,26 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
   return 0;
 }
 
-static int tdbBtreeDecodePayload(SPage *pPage, const u8 *pPayload, SCellDecoder *pDecoder) {
+static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, SCellDecoder *pDecoder) {
   int nPayload;
 
-  ASSERT(pDecoder->pKey == NULL);
-
   if (pDecoder->pVal) {
-    nPayload = pDecoder->kLen + pDecoder->vLen;
-  } else {
+    ASSERT(!TDB_BTREE_PAGE_IS_LEAF(pPage));
     nPayload = pDecoder->kLen;
+  } else {
+    nPayload = pDecoder->kLen + pDecoder->vLen;
   }
 
-  if (nPayload <= pPage->maxLocal) {
-    // General case without overflow
-    pDecoder->pKey = (void *)pPayload;
-    if (!pDecoder->pVal) {
-      pDecoder->pVal = (void *)(pPayload + pDecoder->kLen);
+  if (nHeader + nPayload <= pPage->maxLocal) {
+    // no over flow case
+    pDecoder->pKey = pCell + nHeader;
+    if (pDecoder->pVal == NULL && pDecoder->vLen > 0) {
+      pDecoder->pVal = pCell + nHeader + pDecoder->kLen;
     }
-  } else {
+    return 0;
+  }
+
+  {
     // TODO: handle overflow case
     ASSERT(0);
   }
@@ -990,7 +992,6 @@ static int tdbBtreeDecodePayload(SPage *pPage, const u8 *pPayload, SCellDecoder 
   return 0;
 }
 
-// TODO: here has problem
 static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pDecoder) {
   u8  leaf;
   int nHeader;
@@ -1022,13 +1023,14 @@ static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pD
   }
 
   if (pPage->vLen == TDB_VARIANT_LEN) {
+    ASSERT(leaf);
     nHeader += tdbGetVarInt(pCell + nHeader, &(pDecoder->vLen));
   } else {
     pDecoder->vLen = pPage->vLen;
   }
 
   // 2. Decode payload part
-  ret = tdbBtreeDecodePayload(pPage, pCell + nHeader, pDecoder);
+  ret = tdbBtreeDecodePayload(pPage, pCell, nHeader, pDecoder);
   if (ret < 0) {
     return -1;
   }
