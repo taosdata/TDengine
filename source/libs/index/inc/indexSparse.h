@@ -12,21 +12,32 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef TDENGINE_TSCALARFUNCTION_H
-#define TDENGINE_TSCALARFUNCTION_H
+
+#ifndef _TD_INDEX_SPARSE_H_
+#define _TD_INDEX_SPARSE_H_
+
+#include "tarray.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "function.h"
-#include "scalar.h"
+typedef struct FstSparseSet {
+  SArray *dense;
+  SArray *sparse;
+  int32_t size;
+} FstSparseSet;
 
-
-
+FstSparseSet *sparSetCreate(int32_t sz);
+void          sparSetDestroy(FstSparseSet *s);
+uint32_t      sparSetLen(FstSparseSet *ss);
+uint32_t      sparSetAdd(FstSparseSet *ss, uint32_t ip);
+uint32_t      sparSetGet(FstSparseSet *ss, uint32_t i);
+bool          sparSetContains(FstSparseSet *ss, uint32_t ip);
+void          sparSetClear(FstSparseSet *ss);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_TSCALARFUNCTION_H
+#endif

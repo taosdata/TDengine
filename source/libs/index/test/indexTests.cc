@@ -18,13 +18,13 @@
 #include <string>
 #include <thread>
 #include "index.h"
+#include "indexCache.h"
+#include "indexFst.h"
+#include "indexFstCountingWriter.h"
+#include "indexFstUtil.h"
 #include "indexInt.h"
-#include "index_cache.h"
-#include "index_fst.h"
-#include "index_fst_counting_writer.h"
-#include "index_fst_util.h"
-#include "index_tfile.h"
-#include "index_util.h"
+#include "indexTfile.h"
+#include "indexUtil.h"
 #include "tskiplist.h"
 #include "tutil.h"
 using namespace std;

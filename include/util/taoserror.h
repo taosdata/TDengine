@@ -16,7 +16,7 @@
 #ifndef _TD_UTIL_TAOS_ERROR_H_
 #define _TD_UTIL_TAOS_ERROR_H_
 
-#include "os.h"
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {

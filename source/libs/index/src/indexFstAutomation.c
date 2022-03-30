@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "index_fst_automation.h"
+#include "indexFstAutomation.h"
 
 StartWithStateValue* startWithStateValueCreate(StartWithStateKind kind, ValueType ty, void* val) {
   StartWithStateValue* sv = taosMemoryCalloc(1, sizeof(StartWithStateValue));
