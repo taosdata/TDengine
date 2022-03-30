@@ -49,6 +49,7 @@ typedef struct SScanLogicNode {
   STimeWindow scanRange;
   SName tableName;
   bool showRewrite;
+  double ratio;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -197,6 +198,7 @@ typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;
   uint8_t scanFlag;         // denotes reversed scan of data or not
   STimeWindow scanRange;
+  double ratio;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -297,18 +299,23 @@ typedef struct SSubplan {
   SDataSinkNode* pDataSink;    // data of the subplan flow into the datasink
 } SSubplan;
 
-typedef enum EQueryMode {
-  QUERY_MODE_NORMAL = 1,
-  QUERY_MODE_EXPLAIN,
-  QUERY_MODE_EXPLAIN_AN
-} EQueryMode;
+typedef enum EExplainMode {
+  EXPLAIN_MODE_DISABLE = 1,
+  EXPLAIN_MODE_STATIC,
+  EXPLAIN_MODE_ANALYZE
+} EExplainMode;
+
+typedef struct SExplainInfo {
+  EExplainMode mode;
+  bool verbose;
+} SExplainInfo;
 
 typedef struct SQueryPlan {
   ENodeType type;
   uint64_t queryId;
   int32_t numOfSubplans;
-
   SNodeList* pSubplans; // Element is SNodeListNode. The execution level of subplan, starting from 0.
+  SExplainInfo explainInfo;
 } SQueryPlan;
 
 #ifdef __cplusplus
