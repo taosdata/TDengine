@@ -1222,7 +1222,7 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
 
     taosArrayPush(resList, &ctxlist[i].res);
 
-    tscDebug("0x%"PRIx64" tags match complete, result num: %"PRId64, pParentSql->self, num);
+    tscDebug("0x%"PRIx64 tags match complete, result num: %d, pParentSql->self, num);
   }
 
   return TSDB_CODE_SUCCESS;
