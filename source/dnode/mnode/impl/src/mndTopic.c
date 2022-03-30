@@ -26,7 +26,7 @@
 #include "parser.h"
 #include "tname.h"
 
-#define MND_TOPIC_VER_NUMBER   1
+#define MND_TOPIC_VER_NUMBER 1
 #define MND_TOPIC_RESERVE_SIZE 64
 
 static int32_t mndTopicActionInsert(SSdb *pSdb, SMqTopicObj *pTopic);
@@ -293,7 +293,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
   topicObj.dbUid = pDb->uid;
   topicObj.version = 1;
   topicObj.sql = pCreate->sql;
-  topicObj.physicalPlan = "";
+  topicObj.physicalPlan = NULL;
   topicObj.logicalPlan = "";
   topicObj.sqlLen = strlen(pCreate->sql);
 
@@ -302,9 +302,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
     mError("topic:%s, failed to get plan since %s", pCreate->name, terrstr());
     return -1;
   }
-  if (NULL != pPlanStr) {
-    topicObj.physicalPlan = pPlanStr;
-  }
+  topicObj.physicalPlan = pPlanStr;
 
   SNode *pAst = NULL;
   if (nodesStringToNode(pCreate->ast, &pAst) < 0) {
