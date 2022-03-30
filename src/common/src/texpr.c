@@ -2237,7 +2237,7 @@ void convertStringToTimestamp(int16_t type, char *inputData, int64_t timePrec, i
     taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec, 0);
     tfree(newColData);
   } else if (type == TSDB_DATA_TYPE_NCHAR) {
-    newColData = calloc(1,  charLen / TSDB_NCHAR_SIZE + 1);
+    newColData = calloc(1,  charLen * TSDB_NCHAR_SIZE + 1);
     int len = taosUcs4ToMbs(varDataVal(inputData), charLen, newColData);
     if (len < 0){
       uError("convertStringToTimestamp taosUcs4ToMbs error");
