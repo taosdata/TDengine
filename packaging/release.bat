@@ -22,23 +22,33 @@ GOTO USAGE
 goto RELEASE
 
 :POWER
+cd %internal_dir%\enterprise\packaging\oem
 call sed_power.bat %community_dir%
+cd %community_dir%\packaging
 goto RELEASE
 
 :TQ
+cd %internal_dir%\enterprise\packaging\oem
 call sed_tq.bat %community_dir%
+cd %community_dir%\packaging
 goto RELEASE
 
 :PRO
+cd %internal_dir%\enterprise\packaging\oem
 call sed_pro.bat %community_dir%
+cd %community_dir%\packaging
 goto RELEASE
 
 :KH
+cd %internal_dir%\enterprise\packaging\oem
 call sed_kh.bat %community_dir%
+cd %community_dir%\packaging
 goto RELEASE
 
 :JH
+cd %internal_dir%\enterprise\packaging\oem
 call sed_jh.bat %community_dir%
+cd %community_dir%\packaging
 goto RELEASE
 
 :RELEASE

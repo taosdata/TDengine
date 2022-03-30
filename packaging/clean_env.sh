@@ -38,6 +38,12 @@ fi
 if [[ -e packaging/tools/uninstall-prodbtools.sh ]]; then
   rm -f packaging/tools/uninstall-prodbtools.sh
 fi
+if [[ -e packaging/tools/install-powertools.sh ]]; then
+  rm -f packaging/tools/install-powertools.sh
+fi
+if [[ -e packaging/tools/uninstall-powertools.sh ]]; then
+  rm -f packaging/tools/uninstall-powertools.sh
+fi
 
 rm -rf $COMMUNITY_DIR/debug/*
 rm -rf $COMMUNITY_DIR/release/*
