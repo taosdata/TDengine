@@ -95,7 +95,7 @@ void tMD5Init(T_MD5_CTX *mdContext) {
   mdContext->buf[3] = (uint32_t)0x10325476;
 }
 void MD5Init(MD5_CTX *mdContext) {
-  return tMD5Init(mdContext);
+  tMD5Init(mdContext);
 }
 
 /* The routine tMD5Update updates the message-digest context to
@@ -130,7 +130,7 @@ void tMD5Update(T_MD5_CTX *mdContext, uint8_t *inBuf, unsigned int inLen) {
   }
 }
 void MD5Update(MD5_CTX *mdContext, uint8_t *inBuf, unsigned int inLen) {
-  return tMD5Update(mdContext, inBuf, inLen);
+  tMD5Update(mdContext, inBuf, inLen);
 }
 
 /* The routine tMD5Final terminates the message-digest computation and
@@ -168,7 +168,7 @@ void tMD5Final(T_MD5_CTX *mdContext) {
   }
 }
 void MD5Final(MD5_CTX *mdContext) {
-  return tMD5Final(mdContext);
+  tMD5Final(mdContext);
 }
 
 /* Basic MD5 step. Transforms buf based on in.
