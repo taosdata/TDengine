@@ -25,7 +25,7 @@ Please refer to the [video tutorial](https://www.taosdata.com/blog/2020/11/11/19
 **Step 4:** Check the network settings of all data nodes and the physical nodes where the application is located:
 
 1. Execute command `hostname -f` on each physical node, and check and confirm that the hostnames of all nodes are different (the node where the application driver is located does not need to do this check).
-2. Execute `ping host` on each physical node, wherein host is that hostname of other physical node, and see if other physical nodes can be communicated to; if not, you need to check the network settings, or the /etc/hosts file (the default path for Windows systems is C:\ Windows\ system32\ drivers\ etc\ hosts), or the configuration of DNS. If it fails to ping, then we cann't build the cluster. 
+2. Execute `ping host` on each physical node, wherein host is that hostname of other physical node, and see if other physical nodes can be communicated to; if not, you need to check the network settings, or the /etc/hosts file (the default path for Windows systems is C:\ Windows\ system32\ drivers\ etc\ hosts), or the configuration of DNS. If it fails to ping, then we cannot build the cluster.
 3. From the physical node where the application runs, ping the data node where taosd runs. If the ping fails, the application cannot connect to taosd. Please check the DNS settings or hosts file of the physical node where the application is located;
 4. The End Point of each data node is the output hostname plus the port number, for example, `h1.taosdata.com:6030`
 
@@ -35,7 +35,7 @@ Please refer to the [video tutorial](https://www.taosdata.com/blog/2020/11/11/19
 // firstEp is the first data node connected after each data node’s first launch
 firstEp        h1.taosdata.com:6030
 // Must configure it as the FQDN of this data node. If this machine has only one hostname, you can comment out this configuration
-fqdn         h1.taosdata.com  
+fqdn         h1.taosdata.com
 // Configure the port number of this data node, the default is 6030
 serverPort      6030
 // For application scenarios, please refer to the section “Use of Arbitrator”
@@ -90,7 +90,7 @@ To add subsequent data nodes to the existing cluster, there are the following st
 2. On the first data node, use CLI program taos to log in to TDengine system and execute the command:
 
     ```
-      CREATE DNODE "h2.taos.com:6030"; 
+      CREATE DNODE "h2.taos.com:6030";
     ```
 
 Add the End Point of the new data node (learned in Step 4 of the preparation) to the cluster's EP list. **"fqdn: port" needs to be enclosed in double quotation marks**, otherwise an error will occur. Notice that the example "[h2.taos.com](http://h2.taos.com/): 6030" is replaced with the End Point for this new data node.
@@ -123,7 +123,7 @@ The above has already introduced how to build clusters from scratch. After the c
 Execute CLI program taos, log in to the system using root account, and execute:
 
 ```
-CREATE DNODE "fqdn:port"; 
+CREATE DNODE "fqdn:port";
 ```
 
 Add the End Point for the new data node to the cluster's EP list. **"fqdn: port" needs to be enclosed in double quotation marks**, otherwise an error will occur. The fqdn and port of a data node's external service can be configured through the configuration file taos.cfg, which is automatically obtained by default. [It is strongly not recommended to configure FQDN with automatic acquisition, which may cause the End Point of the generated data node to be not expected]
@@ -175,7 +175,7 @@ The number of replicas of vnode is associated with DB. There can be multiple DBs
 CREATE DATABASE demo replica 3;
 ```
 
-The data in a DB will be partitioned and splitted into multiple vnode groups. The number of vnodes in a vnode group is the number of replicas of the DB, and the data of each vnode in the same vnode group is completely consistent. In order to ensure high-availability, the vnodes in a vnode group must be distributed in different dnode data nodes (in actual deployment, they need to be on different physical machines). As long as more than half of the vnodes in a vgroup are working, the vgroup can be normally serving.
+The data in a DB will be partitioned and split into multiple vnode groups. The number of vnodes in a vnode group is the number of replicas of the DB, and the data of each vnode in the same vnode group is completely consistent. In order to ensure high-availability, the vnodes in a vnode group must be distributed in different dnode data nodes (in actual deployment, they need to be on different physical machines). As long as more than half of the vnodes in a vgroup are working, the vgroup can be normally serving.
 
 There may be data from multiple DBs of data in a data node dnode, so when a dnode is offline, it may affect multiple DBs. If half or more of the vnodes in a vnode group do not work, then the vnode group cannot serve externally and cannot insert or read data, which will affect the reading and writing operations of some tables in the DB to which it belongs.
 

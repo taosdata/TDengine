@@ -180,6 +180,12 @@ int32_t compareDoubleValDesc(const void* pLeft, const void* pRight) {
 }
 
 int32_t compareLenPrefixedStr(const void *pLeft, const void *pRight) {
+  bool leftIsNull = isNull(pLeft, TSDB_DATA_TYPE_BINARY);
+  bool rightIsNull = isNull(pRight, TSDB_DATA_TYPE_BINARY);
+  if(leftIsNull && rightIsNull) return 0;
+  else if(leftIsNull) return -1;
+  else if(rightIsNull) return 1;
+
   int32_t len1 = varDataLen(pLeft);
   int32_t len2 = varDataLen(pRight);
 
@@ -200,6 +206,12 @@ int32_t compareLenPrefixedStrDesc(const void* pLeft, const void* pRight) {
 }
 
 int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight) {
+  bool leftIsNull = isNull(pLeft, TSDB_DATA_TYPE_NCHAR);
+  bool rightIsNull = isNull(pRight, TSDB_DATA_TYPE_NCHAR);
+  if(leftIsNull && rightIsNull) return 0;
+  else if(leftIsNull) return -1;
+  else if(rightIsNull) return 1;
+
   int32_t len1 = varDataLen(pLeft);
   int32_t len2 = varDataLen(pRight);
 

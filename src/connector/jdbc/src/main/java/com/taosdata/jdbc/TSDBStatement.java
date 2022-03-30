@@ -28,72 +28,86 @@ public class TSDBStatement extends AbstractStatement {
 
     TSDBStatement(TSDBConnection connection) {
         this.connection = connection;
+        connection.registerStatement(this);
     }
 
     public ResultSet executeQuery(String sql) throws SQLException {
-        if (isClosed()) {
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        synchronized (this) {
+            if (isClosed()) {
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+            }
+            if (this.resultSet != null && !this.resultSet.isClosed())
+                this.resultSet.close();
+            //TODO:
+            // this is an unreasonable implementation, if the paratemer is a insert statement,
+            // the JNI connector will execute the sql at first and return a pointer: pSql,
+            // we use this pSql and invoke the isUpdateQuery(long pSql) method to decide .
+            // but the insert sql is already executed in database.
+            //execute query
+            long pSql = this.connection.getConnector().executeQuery(sql);
+            // if pSql is create/insert/update/delete/alter SQL
+            if (this.connection.getConnector().isUpdateQuery(pSql)) {
+                this.connection.getConnector().freeResultSet(pSql);
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_WITH_EXECUTEQUERY);
+            }
+            int timestampPrecision = this.connection.getConnector().getResultTimePrecision(pSql);
+            resultSet = new TSDBResultSet(this, this.connection.getConnector(), pSql, timestampPrecision);
+            resultSet.setBatchFetch(this.connection.getBatchFetch());
+            return resultSet;
         }
-        //TODO:
-        // this is an unreasonable implementation, if the paratemer is a insert statement,
-        // the JNI connector will execute the sql at first and return a pointer: pSql,
-        // we use this pSql and invoke the isUpdateQuery(long pSql) method to decide .
-        // but the insert sql is already executed in database.
-        //execute query
-        long pSql = this.connection.getConnector().executeQuery(sql);
-        // if pSql is create/insert/update/delete/alter SQL
-        if (this.connection.getConnector().isUpdateQuery(pSql)) {
-            this.connection.getConnector().freeResultSet(pSql);
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_WITH_EXECUTEQUERY);
-        }
-        int timestampPrecision = this.connection.getConnector().getResultTimePrecision(pSql);
-        TSDBResultSet res = new TSDBResultSet(this, this.connection.getConnector(), pSql, timestampPrecision);
-        res.setBatchFetch(this.connection.getBatchFetch());
-        return res;
     }
 
     public int executeUpdate(String sql) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        synchronized (this) {
+            if (isClosed())
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+            if (this.resultSet != null && !this.resultSet.isClosed())
+                this.resultSet.close();
 
-        long pSql = this.connection.getConnector().executeQuery(sql);
-        // if pSql is create/insert/update/delete/alter SQL
-        if (!this.connection.getConnector().isUpdateQuery(pSql)) {
+            long pSql = this.connection.getConnector().executeQuery(sql);
+            // if pSql is create/insert/update/delete/alter SQL
+            if (!this.connection.getConnector().isUpdateQuery(pSql)) {
+                this.connection.getConnector().freeResultSet(pSql);
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_WITH_EXECUTEUPDATE);
+            }
+            int affectedRows = this.connection.getConnector().getAffectedRows(pSql);
             this.connection.getConnector().freeResultSet(pSql);
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_WITH_EXECUTEUPDATE);
+            return affectedRows;
         }
-        int affectedRows = this.connection.getConnector().getAffectedRows(pSql);
-        this.connection.getConnector().freeResultSet(pSql);
-        return affectedRows;
     }
 
     public void close() throws SQLException {
         if (isClosed)
             return;
+        connection.unregisterStatement(this);
         if (this.resultSet != null && !this.resultSet.isClosed())
             this.resultSet.close();
         isClosed = true;
     }
 
     public boolean execute(String sql) throws SQLException {
-        // check if closed
-        if (isClosed()) {
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        }
+        synchronized (this) {
+            // check if closed
+            if (isClosed()) {
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+            }
+            if (this.resultSet != null && !this.resultSet.isClosed())
+                this.resultSet.close();
 
-        // execute query
-        long pSql = this.connection.getConnector().executeQuery(sql);
-        // if pSql is create/insert/update/delete/alter SQL
-        if (this.connection.getConnector().isUpdateQuery(pSql)) {
-            this.affectedRows = this.connection.getConnector().getAffectedRows(pSql);
-            this.connection.getConnector().freeResultSet(pSql);
-            return false;
-        }
+            // execute query
+            long pSql = this.connection.getConnector().executeQuery(sql);
+            // if pSql is create/insert/update/delete/alter SQL
+            if (this.connection.getConnector().isUpdateQuery(pSql)) {
+                this.affectedRows = this.connection.getConnector().getAffectedRows(pSql);
+                this.connection.getConnector().freeResultSet(pSql);
+                return false;
+            }
 
-        int timestampPrecision = this.connection.getConnector().getResultTimePrecision(pSql);
-        this.resultSet = new TSDBResultSet(this, this.connection.getConnector(), pSql, timestampPrecision);
-        this.resultSet.setBatchFetch(this.connection.getBatchFetch());
-        return true;
+            int timestampPrecision = this.connection.getConnector().getResultTimePrecision(pSql);
+            this.resultSet = new TSDBResultSet(this, this.connection.getConnector(), pSql, timestampPrecision);
+            this.resultSet.setBatchFetch(this.connection.getBatchFetch());
+            return true;
+        }
     }
 
     public ResultSet getResultSet() throws SQLException {

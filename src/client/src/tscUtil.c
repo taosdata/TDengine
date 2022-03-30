@@ -1491,7 +1491,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
           pex->base.param[2].nType = TSDB_DATA_TYPE_INT;
           pex->base.param[2].i64 = pInputQI->order.order;
         }
-      }      
+      }
     }
 
     tscDebug("0x%"PRIx64" create QInfo 0x%"PRIx64" to execute the main query while all nest queries are ready", pSql->self, pSql->self);
@@ -4244,6 +4244,10 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     }
 
     return;
+  } else if (hasMoreClauseToTry(pSql)) {
+    if (pthread_mutex_init(&pSql->subState.mutex, NULL) != 0) {
+      goto _error;
+    }
   }
 
   pSql->cmd.active = pQueryInfo;
@@ -5393,7 +5397,7 @@ char* cloneCurrentDBName(SSqlObj* pSql) {
   return p;
 }
 
-int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId){
+int parseJsontoTagData(char* json, uint32_t jsonLength, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId){
   // set json NULL data
   uint8_t nullTypeVal[CHAR_BYTES + VARSTR_HEADER_SIZE + INT_BYTES] = {0};
   uint32_t jsonNULL = TSDB_DATA_JSON_NULL;
@@ -5404,7 +5408,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
   varDataSetLen(nullTypeVal + CHAR_BYTES, INT_BYTES);
   *(uint32_t*)(varDataVal(nullTypeKey)) = jsonNULL;
   tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, nullTypeKey, false);   // add json null type
-  if (!json || strtrim(json) == 0 || strncasecmp(json, "null", 4) == 0){
+  if (!json || strtrim(json) == 0 || (jsonLength == strlen("null") && strncasecmp(json, "null", 4) == 0)){
     *(uint32_t*)(varDataVal(nullTypeVal + CHAR_BYTES)) = jsonNULL;
     tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, nullTypeVal, true);   // add json null value
     return TSDB_CODE_SUCCESS;

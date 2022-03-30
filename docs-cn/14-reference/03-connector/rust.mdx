@@ -1,0 +1,110 @@
+# Rust Connector
+
+![Crates.io](https://img.shields.io/crates/v/libtaos) ![Crates.io](https://img.shields.io/crates/d/libtaos)
+
+> Rust 连接器仍然在快速开发中，版本 API 变动在所难免，在 1.0 之前无法保证其向后兼容，请使用时注意版本及对应的文档。
+
+感谢 [@songtianyi](https://github.com/songtianyi) 对 [libtdengine](https://github.com/songtianyi/tdengine-rust-bindings) 的贡献，使 Rust 社区能够使用 Rust 连接[TDengine]. [libtaos-rs] 项目旨在为 Rust 开发者提供官方支持，使用 taosc 接口及 HTTP 接口构建兼容 API 以便于用户切换接口方式。
+
+## 依赖
+
+- [Rust](https://www.rust-lang.org/learn/get-started)
+
+默认情况下，[libtaos-rs] 使用 C 接口连接数据库，所以您需要：
+
+- [TDengine 客户端](https://www.taosdata.com/cn/getting-started/#%E9%80%9A%E8%BF%87%E5%AE%89%E8%A3%85%E5%8C%85%E5%AE%89%E8%A3%85)
+- `clang`: `bindgen` 使用 `libclangAST` 来生成对应的 Rust 绑定。
+
+## 特性列表
+
+- [x] C 接口的 Rust 绑定
+- [x] 使用 `rest` feature 来启用 RESTful API.
+- [x] [r2d2] 连接池支持（feature `r2d2`）
+- [ ] 迭代器接口
+- [ ] 流式计算接口
+- [ ] 订阅支持
+
+## 构建和测试
+
+```sh
+cargo build
+cargo test
+```
+
+测试使用默认用户名密码和本地连接。您可以根据具体情况设置环境变量：
+
+- `TEST_TAOS_IP`
+- `TEST_TAOS_PORT`
+- `TEST_TAOS_USER`
+- `TEST_TAOS_PASS`
+- `TEST_TAOS_DB`
+
+## 使用
+
+使用默认的 taosc 连接方式，可以在 `Cargo.toml` 中直接添加 `libtaos` 依赖：
+
+```toml
+[dependencies]
+libtaos = "v0.3.8"
+```
+
+添加 feature `r2d2` 来启动连接池：
+
+```toml
+[dependencies]
+libtaos = { version = "*", features = ["r2d2"] }
+```
+
+对于 RESTful 接口，可使用 `rest` 特性来替代 taosc，免去安装 TDengine 客户端。
+
+```toml
+[dependencies]
+libtaos = { version = "*", features = ["rest"] }
+```
+
+本项目中提供一个 [示例程序](https://github.com/taosdata/libtaos-rs/blob/main/examples/demo.rs) 如下：
+
+```rust
+// ...
+#[tokio::main]
+async fn main() -> Result<(), Error> {
+    init();
+    let taos = taos_connect()?;
+
+    assert_eq!(
+        taos.query("drop database if exists demo").await.is_ok(),
+        true
+    );
+    assert_eq!(taos.query("create database demo").await.is_ok(), true);
+    assert_eq!(taos.query("use demo").await.is_ok(), true);
+    assert_eq!(
+        taos.query("create table m1 (ts timestamp, speed int)")
+            .await
+            .is_ok(),
+        true
+    );
+
+    for i in 0..10i32 {
+        assert_eq!(
+            taos.query(format!("insert into m1 values (now+{}s, {})", i, i).as_str())
+                .await
+                .is_ok(),
+            true
+        );
+    }
+    let rows = taos.query("select * from m1").await?;
+
+    println!("{}", rows.column_meta.into_iter().map(|col| col.name).join(","));
+    for row in rows.rows {
+        println!("{}", row.into_iter().join(","));
+    }
+    Ok(())
+}
+```
+
+您可以在 [bailongma-rs] - 一个 Rust 编写的 Prometheus 远程存储 API 适配器 - 看到如何在具体应用中使用 Rust 连接器。
+
+[libtaos-rs]: https://github.com/taosdata/libtaos-rs
+[tdengine]: https://github.com/taosdata/TDengine
+[bailongma-rs]: https://github.com/taosdata/bailongma-rs
+[r2d2]: https://crates.io/crates/r2d2

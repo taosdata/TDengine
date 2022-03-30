@@ -438,43 +438,7 @@ TDengineCursor.prototype.consumeData = async function consumeData(subscription, 
 TDengineCursor.prototype.unsubscribe = function unsubscribe(subscription) {
   this._chandle.unsubscribe(subscription);
 }
-/**
- * Open a stream with TDengine to run the sql query periodically in the background
- * @param {string} sql - The query to run
- * @param {function} callback - The callback function to run after each query, accepting inputs as param, result handle, data, fields meta data
- * @param {number} stime - The time of the stream starts in the form of epoch milliseconds. If 0 is given, the start time is set as the current time.
- * @param {function} stoppingCallback - The callback function to run when the continuous query stops. It takes no inputs
- * @param {object} param - A parameter that is passed to the main callback function
- * @return {Buffer} A buffer pointing to the stream handle
- * @since 1.3.0
- */
-TDengineCursor.prototype.openStream = function openStream(sql, callback, stime = 0, stoppingCallback, param = {}) {
-  let buf = ref.alloc('Object');
-  ref.writeObject(buf, 0, param);
 
-  let asyncCallbackWrapper = function (param2, result2, blocks, fields) {
-    let data = [];
-    let num_of_rows = blocks[0].length;
-    for (let j = 0; j < num_of_rows; j++) {
-      data.push([]);
-      let rowBlock = new Array(fields.length);
-      for (let k = 0; k < fields.length; k++) {
-        rowBlock[k] = blocks[k][j];
-      }
-      data[data.length - 1] = rowBlock;
-    }
-    callback(param2, result2, blocks, fields);
-  }
-  return this._chandle.openStream(this._connection._conn, sql, asyncCallbackWrapper, stime, stoppingCallback, buf);
-}
-/**
- * Close a stream
- * @param {Buffer} - A buffer pointing to the handle of the stream to be closed
- * @since 1.3.0
- */
-TDengineCursor.prototype.closeStream = function closeStream(stream) {
-  this._chandle.closeStream(stream);
-}
 /**
  * schemaless insert 
  * @param {*} connection a valid database connection

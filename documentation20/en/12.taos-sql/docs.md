@@ -602,6 +602,8 @@ Query OK, 1 row(s) in set (0.000081s)
 >  `TBNAME`: It can be regarded as a special tag in a STable query, representing the name of sub-table involved in the query
 >
 > _c0: Represents the first column of a table (STable)
+> _qstart,_qstop,_qduration: Represents starting time/stopping time/duration of query time window filter in where condition (supported since 2.6.0.0）
+> _wstart,_wstop,_wduration: Used in time-dimension aggregation query(e.g. interval/session window/state window）to represent starting time/stopping time/duration of each generated time window (supported since 2.6.0.0)
 
 #### Tips
 
@@ -863,7 +865,9 @@ TDengine supports aggregations over data, they are listed below:
     Applicable Fields: All types except timestamp.
 
     Supported version: Version after 2.6.0 .
-
+    
+    Note: Since the amount of returned data is unknown, considering the memory factor, in order to return the result normally, it is recommended that the amount of non repeated data is 100000, otherwise an error will be reported.
+    
     Example:
     ```mysql
     taos> select voltage from d002;
@@ -886,7 +890,9 @@ TDengine supports aggregations over data, they are listed below:
     ```mysql
     SELECT HYPERLOGLOG(field_name) FROM { tb_name | stb_name } [WHERE clause];
     ```
-    Function: The hyperloglog algorithm is used to return the cardinality of a column. In the case of large amount of data, the algorithm can significantly reduce the occupation of memory, but the cardinality is an estimated value, and the standard error is 0.81%.
+    Function: 
+    - The hyperloglog algorithm is used to return the cardinality of a column. In the case of large amount of data, the algorithm can significantly reduce the occupation of memory, but the cardinality is an estimated value, and the standard error(the standard error is the standard deviation of the average of multiple experiments, not the error with the real result) is 0.81%.
+    - When the amount of data is small, the algorithm is not very accurate. You can use the method like this: select count(data) from (select unique(col) as data from table).
 
     Return Data Type:Integer.
 
@@ -1215,8 +1221,10 @@ TDengine supports aggregations over data, they are listed below:
 
     Supported version: Version after 2.6.0 .
 
-    Note: This function can be applied to ordinary tables and super tables. Cannot be used with window operations，such as interval/state_window/session_window.
-
+    Note: 
+    - This function can be applied to ordinary tables and super tables. Cannot be used with window operations，such as interval/state_window/session_window.
+    - Since the amount of returned data is unknown, considering the memory factor, in order to return the result normally, it is recommended that the amount of non repeated data is 100000, otherwise an error will be reported.
+    
     Example:
     ```mysql
     taos> select ts,voltage from unique1;
@@ -1295,6 +1303,412 @@ TDengine supports aggregations over data, they are listed below:
                 3.000000000 |
     Query OK, 1 row(s) in set (0.000836s)
     ```
+
+- **ASIN**
+    ```mysql
+    SELECT ASIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the arc-sine of the input value.
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+      
+      Supported after version 2.6.0.x
+
+
+- **ACOS**
+    ```mysql
+    SELECT ACOS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the arc-cosine of the input value.
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+
+- **ATAN**
+    ```mysql
+    SELECT ATAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the arc-tangent of the input value.
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+
+- **SIN**
+    ```mysql
+    SELECT SIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the sine of the input value.
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+
+- **COS**
+    ```mysql
+    SELECT COS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the cosine of the input value.
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+- **TAN**
+    ```mysql
+    SELECT TAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the tangent of the input value.
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+
+
+- **POW**
+    ```mysql
+    SELECT POW(field_name, power) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+
+    Function: Returns the input value raised to the specified power of the second argument
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+- **LOG**
+    ```mysql
+    SELECT LOG(field_name, base) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the logarithm of the input value with base
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+- **ABS**
+    ```mysql
+    SELECT ABS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the absolute value of the input value
+
+    Output Data Type: If the input data is an integer numeric value, the output data type is ubigint. If the input data is a float or double value, the output data type is double
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+
+- **SQRT**
+    ```mysql
+    SELECT SQRT(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the square root value of the input value
+
+    Output Data Type: DOUBLE.
+
+    Input: applies to value of all types except timestamp, binary, nchar, and bool. Can not apply to tag column of super table.
+
+    Embedded Query Support: Both Outer Query and Inner Query 
+
+    Notes：
+
+      If input value is NULL, the output value is NULL.
+
+      It is a scalar function and can not be used together with aggregate function
+
+      Applies to columns of normal table, child table and super table
+
+      Supported after version 2.6.0.x
+
+- **CAST**
+    ```mysql
+    SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Converts a value into as a specific data type of type_name.
+
+    Output Data Type: type_name specified. Supported types include BIGINT, BINARY(N), TIMESTAMP and NCHAR(N) and BIGINT UNSIGNED
+
+    Input: Normal column, constant, scalar function and the arithmetic computation(+,-,*,/,%) among them. Input data type includes BOOL, TINYINT, SMALLINT, INT, BIGINT, FLOAT, DOUBLE, BINARY(M), TIMESTAMP, NCHAR(M), TINYINT UNSIGNED, SMALLINT UNSIGNED, INT UNSIGNED, and BIGINT UNSIGNED
+
+    Notes:
+
+      Reports error for unsupported cast
+
+      It is a scalar function and its output is NULL for input NULL
+
+      Supported after version 2.6.0.x
+
+
+- **CONCAT**
+    ```mysql
+    SELECT CONCAT(str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the string from concatenating the arguments
+
+    Output Data Type: With binary inputs, the output data type is binary. With nchar inputs, the output data type is nchar.
+
+    Input: all inputs shall be of data type binary or nchar. Can not apply to tag columns.
+
+    Notes:
+    
+      If one of the string inputs is NULL, the resulting output is NULL.
+      The function takes 2 to 8 string values as input. all inputs must be of the same data type.
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+      
+- **CONCAT_WS**
+    ```
+    SELECT CONCAT_WS(separator, str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the string from concatenating the arguments with separator.
+
+    Output Data Type: With binary inputs, the output data type is binary. With nchar inputs, the output data type is nchar.
+
+    Input: all inputs shall be of data type binary or nchar. Can not apply to tag columns.
+
+    Notes:
+    
+      Returns NULL when the separator is NULL. If the separator is not NULL and all the other string values are NULL, the result is an empty string. 
+      The function takes 3 to 9 string values as input. all inputs must be of the same data type.
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+      
+
+- **LENGTH**
+    ```
+    SELECT LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the length of the string measure in bytes
+
+    Output Data Type: INT。
+
+    Input: BINARY or NCHAR values. Can not apply to tag columns
+
+    Notes:
+    
+      Returns NULL when input is NULL. 
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+
+- **CHAR_LENGTH**
+    ```
+    SELECT CHAR_LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the length of the string measure in characters
+
+    Output Data Type: INT。
+
+    Input: BINARY or NCHAR values. Can not apply to tag columns
+
+    Notes:
+    
+      Returns NULL when input is NULL. 
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+
+- **LOWER**
+    ```
+    SELECT LOWER(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the lower case of input value
+
+    Output Data Type: BINARY or NCHAR. Same data type as Input.
+
+    Input: BINARY or NCHAR values. Can not apply to tag columns
+
+    Notes:
+    
+      Returns NULL when input is NULL. 
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+
+- **UPPER**
+    ```
+    SELECT UPPER(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: Returns the upper case of input value
+
+    Output Data Type: BINARY or NCHAR. Same data type as Input.
+
+    Input: BINARY or NCHAR values. Can not apply to tag columns
+
+    Notes:
+    
+      Returns NULL when input is NULL. 
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+
+- **LTRIM**
+    ```
+    SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: removes leading spaces from a string
+
+    Output Data Type: BINARY or NCHAR. Same data type as Input.
+
+    Input: BINARY or NCHAR values. Can not apply to tag columns
+
+    Notes:
+    
+      Returns NULL when input is NULL. 
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+
+- **RTRIM**
+    ```
+    SELECT RTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: removes trailing spaces from a string
+
+    Output Data Type: BINARY or NCHAR. Same data type as Input.
+
+    Input: BINARY or NCHAR values. Can not apply to tag columns
+
+    Notes:
+    
+      Returns NULL when input is NULL. 
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x
+
+- **SUBSTR**
+    ```
+    SELECT SUBSTR(str,pos[,len]) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: extracts substring from a string str, starting from pos and extracting len characters.
+
+    Output Data Type: BINARY or NCHAR. Same data type as Input.
+
+    Input: BINARY or NCHAR values. Can not apply to tag columns
+
+    Notes:
+    
+      Returns NULL when input is NULL. 
+      Input pos can be negative or positive. If it is a positive number, this function extracts from the beginning of the string. If it is a negative number, this function extracts from the end of the string
+      If input len is omitted, the output is whole substring starting from pos.
+      This function applies to normal table, child table and super table
+      This function applies to bother out query and inner query
+      Supported after version 2.6.0.x    
+
 
 - **Four Operations**
 
@@ -1402,6 +1816,320 @@ TDengine supports aggregations over data, they are listed below:
     2022-01-01 08:00:07.000000000 |                     9 |                        2 |
     Query OK, 6 row(s) in set (0.002613s)
      ```
+- **HISTOGRAM**
+    ```mysql
+    SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_name [WHERE clause];
+    ```
+    Function: Returns count of data points in user-specified ranges.
+
+    Return Data Type: Double or INT64, depends on normalized parameter settings.
+
+    Applicable Fields: Numerical types.
+
+    Applied to: **table stable**.
+
+    Note:
+    1. This function is supported since 2.6.0.0.
+    2. bin_type: parameter to indicate the bucket type, valid inputs are: "user_input", "linear_bin", "log_bin"。
+    3）bin_description: parameter to describe how to generate buckets，can be in the following JSON formats for each bin_type respectively:
+       - "user_input": "[1, 3, 5, 7]"
+       User defined specified bin values.
+
+       - "linear_bin": "{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
+       "start" - bin starting point.
+       "width" - bin offset.
+       "count" - number of bins generated.
+       "infinity" - whether to add（-inf, inf）as start/end point in generated set of bins.
+       The above "linear_bin" descriptor generates a set of bins: [-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf].
+
+       - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
+       "start" - bin starting point.
+       "factor" - exponential factor of bin offset.
+       "count" - number of bins generated.
+       "infinity" - whether to add（-inf, inf）as start/end point in generated range of bins.
+       The above "log_bin" descriptor generates a set of bins:[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf].
+    4）normalized: setting to 1/0 to turn on/off result normalization.
+
+    Example:
+    ```mysql
+     taos> SELECT HISTOGRAM(voltage, "user_input", "[1,3,5,7]", 1) FROM meters;
+         histogram(voltage, "user_input", "[1,3,5,7]", 1) |
+     =======================================================
+     {"lower_bin":1, "upper_bin":3, "count":0.333333}     |
+     {"lower_bin":3, "upper_bin":5, "count":0.333333}     |
+     {"lower_bin":5, "upper_bin":7, "count":0.333333}     |
+     Query OK, 3 row(s) in set (0.004273s)
+     
+     taos> SELECT HISTOGRAM(voltage, 'linear_bin', '{"start": 1, "width": 3, "count": 3, "infinity": false}', 0) FROM meters;
+         histogram(voltage, 'linear_bin', '{"start": 1, "width": 3, " |
+     ===================================================================
+     {"lower_bin":1, "upper_bin":4, "count":3}                        |
+     {"lower_bin":4, "upper_bin":7, "count":3}                        |
+     {"lower_bin":7, "upper_bin":10, "count":3}                       |
+     Query OK, 3 row(s) in set (0.004887s)
+    
+     taos> SELECT HISTOGRAM(voltage, 'log_bin', '{"start": 1, "factor": 3, "count": 3, "infinity": true}', 0) FROM meters;
+     histogram(voltage, 'log_bin', '{"start": 1, "factor": 3, "count" |
+     ===================================================================
+     {"lower_bin":-inf, "upper_bin":1, "count":3}                     |
+     {"lower_bin":1, "upper_bin":3, "count":2}                        |
+     {"lower_bin":3, "upper_bin":9, "count":6}                        |
+     {"lower_bin":9, "upper_bin":27, "count":3}                       |
+     {"lower_bin":27, "upper_bin":inf, "count":1}                     |
+    ```
+### Time Functions
+
+Starting from version 2.6.0.0, TDengine supports following time related functions:
+
+- **NOW**
+    ```mysql
+    SELECT NOW() FROM { tb_name | stb_name } [WHERE clause];
+    SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operator NOW();
+    INSERT INTO tb_name VALUES (NOW(), ...);
+    ```
+    Function: Returns current time of client.
+
+    Returned Data Type: TIMESTAMP type.
+
+    Applicable Fields: Can only be applied to TIMESTAMP field when used in WHERE or INSERT clause.
+
+    Applied to: **table stable**.
+
+    Note:
+      1）Support arithmetic operations，e.g. NOW() + 1s. Valid time unit:
+         b(nanosecond)、u(microsecond)、a(millisecond)、s(second)、m(minute)、h(hour)、d(day)、w(week).
+      2）Returned timestamp precision is consist with current DATABASE precision settings.
+
+    Example:
+    ```mysql
+    taos> SELECT NOW() FROM meters;
+              now()          |
+    ==========================
+      2022-02-02 02:02:02.456 |
+    Query OK, 1 row(s) in set (0.002093s)
+      
+    taos> SELECT NOW() + 1h FROM meters;
+           now() + 1h         |
+    ==========================
+      2022-02-02 03:02:02.456 |
+    Query OK, 1 row(s) in set (0.002093s)
+    
+    taos> SELECT COUNT(voltage) FROM d1001 WHERE ts < NOW();
+            count(voltage)       |
+    =============================
+                               5 |
+    Query OK, 5 row(s) in set (0.004475s)
+    
+    taos> INSERT INTO d1001 VALUES (NOW(), 10.2, 219, 0.32);
+    Query OK, 1 of 1 row(s) in database (0.002210s)
+    ```
+
+- **TODAY**
+    ```mysql
+    SELECT TODAY() FROM { tb_name | stb_name } [WHERE clause];
+    SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operator TODAY()];
+    INSERT INTO tb_name VALUES (TODAY(), ...);
+    ```
+    Function: Returns current date of client.
+
+    Returned Data Type: TIMESTAMP type。
+
+    Applicable Fields: Can only be applied to TIMESTAMP field when used in WHERE or INSERT clause.
+
+    Applied to: **table stable**.
+
+    Note:
+      1）Support arithmetic operations, e.g. TODAY() + 1s. Valid time unit:
+         b(nanosecond)、u(microsecond)、a(millisecond)、s(second)、m(minute)、h(hour)、d(day)、w(week).
+      2）Returned timestamp precision is consist with current DATABASE precision settings.
+
+    Example:
+    ```mysql
+    taos> SELECT TODAY() FROM meters;
+             today()          |
+    ==========================
+      2022-02-02 00:00:00.000 |
+    Query OK, 1 row(s) in set (0.002093s)
+      
+    taos> SELECT TODAY() + 1h FROM meters;
+          today() + 1h        |
+    ==========================
+      2022-02-02 01:00:00.000 |
+    Query OK, 1 row(s) in set (0.002093s)
+    
+    taos> SELECT COUNT(voltage) FROM d1001 WHERE ts < TODAY();
+            count(voltage)       |
+    =============================
+                               5 |
+    Query OK, 5 row(s) in set (0.004475s)
+    
+    taos> INSERT INTO d1001 VALUES (TODAY(), 10.2, 219, 0.32);
+    Query OK, 1 of 1 row(s) in database (0.002210s)
+    ```
+
+- **TIMEZONE**
+    ```mysql
+    SELECT TIMEZONE() FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Returns current time zone information of client.
+
+    Returned Data Type: BINARY type.
+
+    Applicable Fields: N/A.
+
+    Applied to: **table stable**.
+
+    Example:
+    ```mysql
+    taos> SELECT TIMEZONE() FROM meters;
+               timezone()           |
+    =================================
+     UTC (UTC, +0000)               |
+    Query OK, 1 row(s) in set (0.002093s)
+    ```
+
+- **TO_ISO8601**
+    ```mysql
+    SELECT TO_ISO8601(ts_val | ts_col) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Convert UNIX timestamp to ISO8601 standard date-time format string, with client time zone information attached.
+
+    Returned Data Type: BINARY type.
+
+    Applicable Fields: UNIX timestamp constant and TIMESTAMP type columns.
+
+    Applied to: **table stable**.
+    
+    Note: If input is UNIX timestamp constant，returned ISO8601 format precision is determined by input timestamp digits. If input is TIMESTAMP type column, returned ISO8601 format precision is consist with current DATABASE precision settings.
+
+    Example:
+    ```mysql
+    taos> SELECT TO_ISO8601(1643738400) FROM meters;
+       to_iso8601(1643738400)    |
+    ==============================
+     2022-02-02T02:00:00+0800    |
+     
+    taos> SELECT TO_ISO8601(ts) FROM meters;
+           to_iso8601(ts)        |
+    ==============================
+     2022-02-02T02:00:00+0800    |
+     2022-02-02T02:00:00+0800    |
+     2022-02-02T02:00:00+0800    |
+    ```
+
+ - **TO_UNIXTIMESTAMP**
+    ```mysql
+    SELECT TO_UNIXTIMESTAMP(datetime_string | ts_col) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Convert date-time format string to UNIX timestamp.
+
+    Returned Data Type: INT64.
+
+    Applicable Fields: String literal or BINARY/NCHAR type columns.
+
+    Applied to: **table stable**.
+    
+    Note:
+    1）Input date-time string format should conform ISO8601/RFC3339 standard，otherwise conversion will fail and 0 is returned.
+    2）Returned timestamp precision is consist with current DATABASE precision settings.
+
+    Example:
+    ```mysql
+    taos> SELECT TO_UNIXTIMESTAMP("2022-02-02T02:00:00.000Z") FROM meters;
+    to_unixtimestamp("2022-02-02T02:00:00.000Z") |
+    ==============================================
+                                   1643767200000 |
+     
+    taos> SELECT TO_UNIXTIMESTAMP(col_binary) FROM meters;
+          to_unixtimestamp(col_binary)     |
+    ========================================
+                             1643767200000 |
+                             1643767200000 |
+                             1643767200000 |
+    ```
+
+ - **TIMETRUNCATE**
+    ```mysql
+    SELECT TIMETRUNCATE(ts_val | datetime_string | ts_col, time_unit) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Truncate timestamp by time_unit.
+
+    Returned Data Type: TIMESTAMP type.
+
+    Applicable Fields: UNIX timestamp, date-time format string, and TIMESTAMP type columns.
+
+    Applied to: **table stable**.
+    
+    Note:
+    1）Supported time_unit:
+         1u(microsecond)，1a(millisecond)，1s(second)，1m(minute)，1h(hour)，1d(day)。
+    2）Returned timestamp precision is consist with current DATABASE precision settings.
+
+    Example:
+    ```mysql
+    taos> SELECT TIMETRUNCATE(1643738522000, 1h) FROM meters;
+      timetruncate(1643738522000, 1h) |
+    ===================================
+          2022-02-02 02:00:00.000     |
+    Query OK, 1 row(s) in set (0.001499s)
+    
+    taos> SELECT TIMETRUNCATE("2022-02-02 02:02:02", 1h) FROM meters;
+      timetruncate("2022-02-02 02:02:02", 1h) |
+    ===========================================
+          2022-02-02 02:00:00.000             |
+    Query OK, 1 row(s) in set (0.003903s)
+    
+    taos> SELECT TIMETRUNCATE(ts, 1h) FROM meters;
+      timetruncate(ts, 1h)   |
+    ==========================
+     2022-02-02 02:00:00.000 |
+     2022-02-02 02:00:00.000 |
+     2022-02-02 02:00:00.000 |
+    Query OK, 3 row(s) in set (0.003903s)
+    ```
+
+ - **TIMEDIFF**
+    ```mysql
+    SELECT TIMEDIFF(ts_val1 | datetime_string1 | ts_col1, ts_val2 | datetime_string2 | ts_col2 [, time_unit]) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Calculate duration between two timestamps with time_unit precision。
+
+    Returned Data Type: INT64.
+
+    Applicable Fields: UNIX timestamp, date-time format string, and TIMESTAMP type columns.
+
+    Applied to: **table stable**.
+    
+    Note:
+    1）Supported time_unit:
+         1u(microsecond)，1a(millisecond)，1s(second)，1m(minute)，1h(hour)，1d(day)。
+    2）If time_unit is unspecified, returned time duration unit is consist with current DATABASE precision settings.
+
+    Example:
+    ```mysql
+    taos> SELECT TIMEDIFF(1643738400000, 1643742000000) FROM meters;
+     timediff(1643738400000, 1643742000000) |
+    =========================================
+                                    3600000 |
+    Query OK, 1 row(s) in set (0.002553s)
+    taos> SELECT TIMEDIFF(1643738400000, 1643742000000, 1h) FROM meters;
+     timediff(1643738400000, 1643742000000, 1h) |
+    =============================================
+                                              1 |
+    Query OK, 1 row(s) in set (0.003726s)
+    
+    taos> SELECT TIMEDIFF("2022-02-02 03:00:00", "2022-02-02 02:00:00", 1h) FROM meters;
+     timediff("2022-02-02 03:00:00", "2022-02-02 02:00:00", 1h) |
+    =============================================================
+                                                              1 |
+    Query OK, 1 row(s) in set (0.001937s)
+    
+    taos> SELECT TIMEDIFF(ts_col1, ts_col2, 1h) FROM meters;
+       timediff(ts_col1, ts_col2, 1h) |
+    ===================================
+                                    1 |
+    Query OK, 1 row(s) in set (0.001937s)
+    ```
 
 ## <a class="anchor" id="aggregation"></a> Time-dimension Aggregation
 

@@ -179,8 +179,6 @@ namespace TDengineDriver
     /// <param name="param"> Additional parameters supplied by the client when taos_subscribe is called.</param>
     /// <param name="code"> Error code.</param>
     public delegate void SubscribeCallback(IntPtr subscribe, IntPtr tasRes, IntPtr param, int code);
-    public delegate void StreamOpenCallback(IntPtr param, IntPtr taosRes, IntPtr taosRow);
-    public delegate void StreamOpenCallback2(IntPtr ptr);
 
     public class TDengine
     {
@@ -561,33 +559,5 @@ namespace TDengineDriver
             }
 
         }
-        // Stream
-
-        /// <summary>
-        /// Used to open an stream, which can do continuous query.
-        /// </summary>
-        /// <param name="taos"> taos connection return by <see cref = "Connect"></param>
-        /// <param name="sql"> Query statement( query only)</param>
-        /// <param name="fp"> User defined callback.</param>
-        /// <param name="stime"> The time when stream computing starts. If it is 0, it means starting from now.
-        /// If it is not zero, it means starting from the specified time (the number of
-        /// milliseconds from 1970/1/1 UTC time).
-        /// </param>
-        /// <param name="param">First parameter provide by application for callback usage.
-        /// While callback,this parameter is provided to the application.</param>
-        /// <param name="callback2">The second callback function which will be called when the continuous query 
-        /// stop automatically.</param>
-        /// <returns> Return null indicate creation failed, not null for success.</returns>
-        [DllImport("taos", EntryPoint = "taos_open_stream", CallingConvention = CallingConvention.Cdecl)]
-        static extern public IntPtr OpenStream(IntPtr taos, string sql, StreamOpenCallback fp, Int64 stime, IntPtr param, StreamOpenCallback2 callback2);
-
-        /// <summary>
-        /// Used too stop data flow.
-        /// Remember to stop data flow when you stopped steam computing.
-        /// </summary>
-        /// <param name="stream"> Value returned by <see cref = "OpenStream"></param>
-        [DllImport("taos", EntryPoint = "taos_close_stream", CallingConvention = CallingConvention.Cdecl)]
-        static extern public void CloseStream(IntPtr stream);
-
     }
 }

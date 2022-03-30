@@ -3083,7 +3083,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
     case TSDB_FUNC_LAST:
     case TSDB_FUNC_SPREAD:
     case TSDB_FUNC_LAST_ROW:
-    case TSDB_FUNC_INTERP: {
+    case TSDB_FUNC_INTERP: {  // link to TD-14196, if add FUNC in this place, please search TD-14196, because there are connection in exprTreeFromSqlExpr
       bool requireAllFields = (pItem->pNode->Expr.paramList == NULL);
 
       // NOTE: has time range condition or normal column filter condition, the last_row query will be transferred to last query
@@ -3359,11 +3359,6 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       } else {
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT, true);
 
-        int64_t numRowsSelected = GET_INT64_VAL(val);
-        if (functionId != TSDB_FUNC_UNIQUE && (numRowsSelected <= 0 || numRowsSelected > 100)) {  // todo use macro
-          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg12);
-        }
-
         if(functionId == TSDB_FUNC_UNIQUE){   // consider of memory size
           if(pSchema->bytes < 10){
             GET_INT64_VAL(val) = MAX_UNIQUE_RESULT_ROWS * 100;
@@ -3372,6 +3367,11 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           }else{
             GET_INT64_VAL(val) = MAX_UNIQUE_RESULT_ROWS;
           }
+        }
+
+        int64_t numRowsSelected = GET_INT64_VAL(val);
+        if (functionId != TSDB_FUNC_UNIQUE && (numRowsSelected <= 0 || numRowsSelected > 100)) {  // todo use macro
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg12);
         }
         // todo REFACTOR
         // set the first column ts for top/bottom query
@@ -3385,9 +3385,10 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
                           aAggs[TSDB_FUNC_TS].name, pExpr);
 
         colIndex += 1;  // the first column is ts
-
+        getResultDataInfo(pSchema->type, pSchema->bytes, functionId, (int32_t)numRowsSelected, &resultType,
+                          &resultSize, &interResult, 0, false, pUdfInfo);
         pExpr = tscExprAppend(pQueryInfo, functionId, &index, resultType, resultSize, getNewResColId(pCmd),
-                              resultSize, false);
+                              interResult, false);
         if (functionId == TSDB_FUNC_TAIL){
           int64_t offset = 0;
           if (taosArrayGetSize(pItem->pNode->Expr.paramList) == 3){
@@ -7054,7 +7055,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       return invalidOperationMsg(pMsgBuf, msg1);
     }
 
-    if (index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX && !isTopBottomUniqueQuery(pQueryInfo)) {
+    if (index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX && !isTopBottomUniqueQuery(pQueryInfo)){
       bool validOrder = false;
       SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
       if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
@@ -7065,15 +7066,8 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       if (!validOrder) {
         return invalidOperationMsg(pMsgBuf, msg7);
       }
-
-      if (udf) {
-        return invalidOperationMsg(pMsgBuf, msg11);
-      }
-
       pQueryInfo->groupbyExpr.orderType = pItem->sortOrder;
-    }
-
-    if (isTopBottomUniqueQuery(pQueryInfo)) {
+    }else if (isTopBottomUniqueQuery(pQueryInfo)) {
       SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
       if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
         SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
@@ -7093,14 +7087,16 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
           return invalidOperationMsg(pMsgBuf, msg5);
         }
       }
+      pQueryInfo->order.order = pItem->sortOrder;
+      pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
+    }else{
+      pQueryInfo->order.order = pItem->sortOrder;
+      pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
     }
 
     if (udf) {
       return invalidOperationMsg(pMsgBuf, msg11);
     }
-
-    pQueryInfo->order.order = pItem->sortOrder;
-    pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
   } else {
     // handle the temp table order by clause. You can order by any single column in case of the temp table, created by
     // inner subquery.
@@ -7368,7 +7364,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       int8_t tagVal = TSDB_DATA_JSON_PLACEHOLDER;
       tdAddColToKVRow(&kvRowBuilder, pTagsSchema->colId, pTagsSchema->type, &tagVal, false);
 
-      code = parseJsontoTagData(pItem->pVar.pz, &kvRowBuilder, pMsg, pTagsSchema->colId);
+      code = parseJsontoTagData(pItem->pVar.pz, pItem->pVar.nLen, &kvRowBuilder, pMsg, pTagsSchema->colId);
       if (code != TSDB_CODE_SUCCESS) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
         return code;
@@ -9174,7 +9170,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
 
-      ret = parseJsontoTagData(pItem->pVar.pz, &kvRowBuilder, tscGetErrorMsgPayload(pCmd), pTagSchema[0].colId);
+      ret = parseJsontoTagData(pItem->pVar.pz, pItem->pVar.nLen, &kvRowBuilder, tscGetErrorMsgPayload(pCmd), pTagSchema[0].colId);
       if (ret != TSDB_CODE_SUCCESS) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
         return ret;
@@ -10117,7 +10113,7 @@ static STableMeta* extractTempTableMetaFromSubquery(SQueryInfo* pUpstream) {
 static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pSql, SQueryInfo* pQueryInfo, char* msgBuf) {
   SRelElementPair* subInfo = taosArrayGet(pSqlNode->from->list, index);
 
-  // union all is not support currently
+  // union all is not supported currently
   SSqlNode* p = taosArrayGetP(subInfo->pSubquery, 0);
   if (taosArrayGetSize(subInfo->pSubquery) >= 2) {
     return invalidOperationMsg(msgBuf, "not support union in subquery");
@@ -10704,7 +10700,8 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
         if (pLeft->_node.optr == TSDB_RELATION_ARROW){
           pLeft = pLeft->_node.pLeft;
         }
-        if (pRight->pVal->nType == TSDB_DATA_TYPE_BOOL && (pLeft->pSchema->type == TSDB_DATA_TYPE_BOOL || pLeft->pSchema->type == TSDB_DATA_TYPE_JSON)) {
+        if (pRight->pVal->nType == TSDB_DATA_TYPE_BOOL && pLeft->nodeType == TSQL_NODE_COL &&
+           (pLeft->pSchema->type == TSDB_DATA_TYPE_BOOL || pLeft->pSchema->type == TSDB_DATA_TYPE_JSON)) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
       }
@@ -10739,14 +10736,23 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
       *pExpr = calloc(1, sizeof(tExprNode));
       (*pExpr)->nodeType = TSQL_NODE_COL;
       (*pExpr)->pSchema = calloc(1, sizeof(SSchema));
-      strncpy((*pExpr)->pSchema->name, pSqlExpr->exprToken.z, pSqlExpr->exprToken.n);
+      if (tsKeepOriginalColumnName &&   // TD-14196, tsKeepOriginalColumnName params makes logic special
+          (pSqlExpr->functionId == TSDB_FUNC_FIRST ||
+           pSqlExpr->functionId == TSDB_FUNC_LAST ||
+           pSqlExpr->functionId == TSDB_FUNC_SPREAD ||
+           pSqlExpr->functionId == TSDB_FUNC_LAST_ROW ||
+           pSqlExpr->functionId == TSDB_FUNC_INTERP)) {
+        tSqlExprItem* pParamElem = taosArrayGet(pSqlExpr->Expr.paramList, 0);
+        strncpy((*pExpr)->pSchema->name, pParamElem->pNode->columnName.z, pParamElem->pNode->columnName.n);
+      }else{
+        strncpy((*pExpr)->pSchema->name, pSqlExpr->exprToken.z, pSqlExpr->exprToken.n);
+      }
 
       // set the input column data byte and type.
       size_t size = taosArrayGetSize(pQueryInfo->exprList);
 
       for (int32_t i = 0; i < size; ++i) {
         SExprInfo* p1 = taosArrayGetP(pQueryInfo->exprList, i);
-
         if (strcmp((*pExpr)->pSchema->name, p1->base.aliasName) == 0) {
           (*pExpr)->pSchema->type = (uint8_t)p1->base.resType;
           (*pExpr)->pSchema->bytes = p1->base.resBytes;
