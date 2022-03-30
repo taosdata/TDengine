@@ -162,7 +162,7 @@ int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, in
     }
   }
 
-  // make sure enough space to hold the space
+  // make sure enough space to hold the cell
   szBuf = kLen + vLen + 14;
   pBuf = TDB_REALLOC(pBt->pBuf, pBt->pageSize > szBuf ? szBuf : pBt->pageSize);
   if (pBuf == NULL) {
@@ -175,6 +175,14 @@ int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, in
 
   // encode cell
   ret = tdbBtreeEncodeCell(btc.pPage, pKey, kLen, pVal, vLen, pCell, &szCell);
+  if (ret < 0) {
+    tdbBtcClose(&btc);
+    ASSERT(0);
+    return -1;
+  }
+
+  // mark the page dirty
+  ret = tdbPagerWrite(pBt->pPager, btc.pPage);
   if (ret < 0) {
     tdbBtcClose(&btc);
     ASSERT(0);
