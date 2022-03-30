@@ -483,6 +483,7 @@ typedef struct STableIntervalOperatorInfo {
   int32_t            order;                // current SSDataBlock scan order
   OPTR_EXEC_MODEL    execModel;            // operator execution model [batch model|stream model]
   SArray            *pUpdatedWindow;       // updated time window due to the input data block from the downstream operator.
+  SColumnInfoData    timeWindowData;      // query time window info for scalar function execution.
 } STableIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {

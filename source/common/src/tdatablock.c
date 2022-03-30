@@ -331,7 +331,6 @@ int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock) {
     return 0;
   }
 
-  ASSERT(pColInfoData->nullbitmap == NULL);
   pDataBlock->info.window.skey = *(TSKEY*)colDataGetData(pColInfoData, 0);
   pDataBlock->info.window.ekey = *(TSKEY*)colDataGetData(pColInfoData, (pDataBlock->info.rows - 1));
   return 0;
@@ -607,22 +606,6 @@ size_t blockDataGetRowSize(SSDataBlock* pBlock) {
  */
 size_t blockDataGetSerialMetaSize(const SSDataBlock* pBlock) {
   return sizeof(int32_t) + pBlock->info.numOfCols * sizeof(int32_t);
-}
-
-SSchema* blockDataExtractSchema(const SSDataBlock* pBlock, int32_t* numOfCols) {
-  SSchema* pSchema = taosMemoryCalloc(pBlock->info.numOfCols, sizeof(SSchema));
-  for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
-    pSchema[i].bytes = pColInfoData->info.bytes;
-    pSchema[i].type = pColInfoData->info.type;
-    pSchema[i].colId = pColInfoData->info.colId;
-  }
-
-  if (numOfCols != NULL) {
-    *numOfCols = pBlock->info.numOfCols;
-  }
-
-  return pSchema;
 }
 
 double blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
