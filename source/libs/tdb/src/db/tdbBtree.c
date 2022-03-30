@@ -65,7 +65,7 @@ typedef struct {
   u8       *pBuf;
 } SCellDecoder;
 
-static int tdbBtCursorMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst);
+static int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst);
 static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2);
 static int tdbBtreeOpenImpl(SBTree *pBt);
 static int tdbBtreeZeroPage(SPage *pPage, void *arg);
@@ -136,7 +136,7 @@ int tdbBtCursorInsert(SBTC *pBtc, const void *pKey, int kLen, const void *pVal, 
   int     cret;
   SBTree *pBt;
 
-  ret = tdbBtCursorMoveTo(pBtc, pKey, kLen, &cret);
+  ret = tdbBtcMoveTo(pBtc, pKey, kLen, &cret);
   if (ret < 0) {
     // TODO: handle error
     return -1;
@@ -199,7 +199,7 @@ int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen
 
   tdbBtcOpen(&btc, pBt);
 
-  tdbBtCursorMoveTo(&btc, pKey, kLen, &cret);
+  tdbBtcMoveTo(&btc, pKey, kLen, &cret);
 
   if (cret) {
     return cret;
@@ -229,7 +229,7 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
 
   tdbBtcOpen(&btc, pBt);
 
-  tdbBtCursorMoveTo(&btc, pKey, kLen, &cret);
+  tdbBtcMoveTo(&btc, pKey, kLen, &cret);
   if (cret) {
     return cret;
   }
@@ -988,7 +988,7 @@ int tdbBtcOpen(SBTC *pBtc, SBTree *pBt) {
   return 0;
 }
 
-static int tdbBtCursorMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
+static int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
   int     ret;
   SBTree *pBt;
   SPager *pPager;
@@ -1173,11 +1173,6 @@ int tdbBtcMoveToLast(SBTC *pBtc) {
     }
   }
 
-  return 0;
-}
-
-int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen) {
-  // TODO
   return 0;
 }
 
