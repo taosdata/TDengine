@@ -35,7 +35,6 @@ struct SBTC {
   int     idx;
   int     idxStack[BTREE_MAX_DEPTH + 1];
   SPage  *pgStack[BTREE_MAX_DEPTH + 1];
-  void   *pBuf;
 };
 
 // SBTree
