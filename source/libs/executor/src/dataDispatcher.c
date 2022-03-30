@@ -125,7 +125,6 @@ static void toDataCacheEntry(const SDataDispatchHandle* pHandle, const SInputDat
   pBuf->useSize = sizeof(SRetrieveTableRsp);
   copyData(pInput, pHandle->pSchema, pEntry->data, pEntry->compressed, &pEntry->dataLen);
 
-  pEntry->dataLen = pEntry->dataLen;
   pBuf->useSize  += pEntry->dataLen;
 }
 
