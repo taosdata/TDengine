@@ -40,7 +40,7 @@ struct SBTree {
 
 #define TDB_BTREE_PAGE_COMMON_HDR u8 flags;
 
-#define TDB_BTREE_PAGE_GET_FLAGS(PAGE)        (PAGE)->pData[0]
+#define TDB_BTREE_PAGE_GET_FLAGS(PAGE) (PAGE)->pData[0]
 #define TDB_BTREE_PAGE_SET_FLAGS(PAGE, flags) ((PAGE)->pData[0] = (flags))
 
 typedef struct __attribute__((__packed__)) {
@@ -892,7 +892,7 @@ static int tdbBtreeBalance(SBTC *pBtc) {
 }
 #endif
 
-#ifndef TDB_BTREE_CELL  // =========================================================
+// TDB_BTREE_CELL =====================
 static int tdbBtreeEncodePayload(SPage *pPage, u8 *pPayload, const void *pKey, int kLen, const void *pVal, int vLen,
                                  int *szPayload) {
   int nPayload;
@@ -923,7 +923,6 @@ static int tdbBtreeEncodePayload(SPage *pPage, u8 *pPayload, const void *pKey, i
   return 0;
 }
 
-// TODO: allow vLen = 0
 static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const void *pVal, int vLen, SCell *pCell,
                               int *szCell) {
   u8  flags;
@@ -1079,8 +1078,7 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell) {
 
   return szCell;
 }
-
-#endif
+// TDB_BTREE_CELL
 
 int tdbBtcOpen(SBTC *pBtc, SBTree *pBt) {
   pBtc->pBt = pBt;
