@@ -508,7 +508,22 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       break;
     }
 
-    case FUNCTION_TYPE_CONCAT:
+    case FUNCTION_TYPE_CONCAT: {
+      int32_t paraTypeFirst, totalBytes = 0;
+      for (int32_t i = 0; i < pFunc->pParameterList->length; ++i) {
+        SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, i);
+        int32_t paraType = pParam->node.resType.type;
+        if (i == 0) {
+          paraTypeFirst = paraType;
+        }
+        if (paraType != paraTypeFirst) {
+          return TSDB_CODE_FAILED;
+        }
+        totalBytes += pParam->node.resType.bytes;
+      }
+      pFunc->node.resType = (SDataType) { .bytes = totalBytes, .type = paraTypeFirst };
+      break;
+    }
     case FUNCTION_TYPE_CONCAT_WS:
     case FUNCTION_TYPE_LOWER:
     case FUNCTION_TYPE_UPPER:
@@ -517,7 +532,8 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
     case FUNCTION_TYPE_SUBSTR: {
       SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
       int32_t paraType = pParam->node.resType.type;
-      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[paraType].bytes, .type = paraType };
+      //pFunc->node.resType = (SDataType) { .bytes = tDataTypes[paraType].bytes, .type = paraType };
+      pFunc->node.resType = (SDataType) { .bytes = 23, .type = paraType };
       break;
     }
 
