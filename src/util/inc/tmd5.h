@@ -31,11 +31,17 @@ typedef struct {
   uint32_t i[2];       /* number of _bits_ handled mod 2^64 */
   uint32_t buf[4];     /* scratch buffer */
   uint8_t  in[64];     /* input buffer */
-  uint8_t  digest[16]; /* actual digest after taos_MD5Final call */
-} TAOS_MD5_CTX;
+  uint8_t  digest[16]; /* actual digest after tMD5Final call */
+} MD5_CTX;
 
-void taos_MD5Init(TAOS_MD5_CTX *mdContext);
-void taos_MD5Update(TAOS_MD5_CTX *mdContext, uint8_t *inBuf, unsigned int inLen);
-void taos_MD5Final(TAOS_MD5_CTX *mdContext);
+typedef MD5_CTX T_MD5_CTX;
+
+void MD5Init(T_MD5_CTX *mdContext);
+void MD5Update(T_MD5_CTX *mdContext, uint8_t *inBuf, unsigned int inLen);
+void MD5Final(T_MD5_CTX *mdContext);
+
+void tMD5Init(T_MD5_CTX *mdContext);
+void tMD5Update(T_MD5_CTX *mdContext, uint8_t *inBuf, unsigned int inLen);
+void tMD5Final(T_MD5_CTX *mdContext);
 
 #endif

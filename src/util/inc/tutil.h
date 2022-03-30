@@ -47,10 +47,10 @@ void jsonKeyMd5(void *pMsg, int msgLen, void *pKey);
 bool isValidateTag(char *input);
 
 static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *target) {
-  TAOS_MD5_CTX context;
-  taos_MD5Init(&context);
-  taos_MD5Update(&context, inBuf, (unsigned int)inLen);
-  taos_MD5Final(&context);
+  T_MD5_CTX context;
+  tMD5Init(&context);
+  tMD5Update(&context, inBuf, (unsigned int)inLen);
+  tMD5Final(&context);
   memcpy(target, context.digest, TSDB_KEY_LEN);
 }
 
