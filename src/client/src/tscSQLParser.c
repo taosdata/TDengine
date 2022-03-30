@@ -1849,8 +1849,6 @@ static int32_t handleScalarTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32
     }
   }
 
-  // expr string is set as the parameter of function
-  SColumnIndex index = {.tableIndex = tableIndex};
 
   tExprNode* pNode = NULL;
   SArray* colList = taosArrayInit(10, sizeof(SColIndex));
@@ -1889,9 +1887,20 @@ static int32_t handleScalarTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
+  //set the columnIndex to first column Index so that column Id
+  SColumnIndex index = {.tableIndex = tableIndex};
+  size_t numOfCols = taosArrayGetSize(colList);
+  if (numOfCols > 0) {
+    SColIndex* pIndex = taosArrayGet(colList, 0);
+    index.columnIndex = pIndex->colIndex;
+  }
 
   SExprInfo* pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_SCALAR_EXPR, &index, pNode->resultType, pNode->resultBytes,
                                    getNewResColId(pCmd), 0, false);
+  // if there are no columns, set the colId to the result column id
+  if (numOfCols == 0) {
+    pExpr->base.colInfo.colId = pExpr->base.resColId;
+  }
 
   char* name = (pItem->aliasName != NULL)? pItem->aliasName:pItem->pNode->exprToken.z;
   size_t len = MIN(sizeof(pExpr->base.aliasName), pItem->pNode->exprToken.n + 1);
