@@ -16,6 +16,14 @@ from taostest.util.common import TDCom
 from taostest.util.rest import TDRest
 from taostest.util.remote import Remote
 import socket
+import os
+import random
+from apscheduler.schedulers.background import BackgroundScheduler
+from taostest.util.file import dict2yaml
+import datetime
+import re
+import time
+
 class TestStability(TDCase):
     def __init__(self):
         self._remote: Remote = None
@@ -25,19 +33,71 @@ class TestStability(TDCase):
         self.agent_settings = None
         self.taosadapter_settings = None
         self.error_msg = None
+        self.env_dir = None
+        self.tmp_yaml = None
 
     def init(self):
         self._remote: Remote = Remote(self.logger)
         self.tdCom = TDCom(self.tdSql)
         self.tdRest = TDRest()
-        # for env_setting in self.env_setting["settings"]:
-        #     if env_setting["name"].lower() == "agent":
-        self.agent_settings = self.get_component_by_name("agent")[0]
-            # elif env_setting["name"].lower() == "taosadapter":
-        self.taosadapter_settings = self.get_component_by_name("taosadapter")[0]
+
+        for env_setting in self.env_setting["settings"]:
+            if env_setting["name"].lower() == "agent":
+                self.agent_settings = env_setting
+            elif env_setting["name"].lower() == "taosadapter":
+                self.taosadapter_settings = env_setting
+            elif env_setting["name"].lower() == "taospy":
+                self.taospy_settings = env_setting
+            elif env_setting["name"].lower() == "taosd":
+                self.taosd_settings = env_setting
+        # self.agent_settings = self.get_component_by_name("agent")[0]
+
+        # self.taosadapter_settings = self.get_component_by_name("taosadapter")[0]
+
+    def re_write_stability_yaml(self):
+        self.env_dir = os.path.join(os.environ["TEST_ROOT"], "env")
+        rand_fqdn = random.choice(self.taospy_settings["fqdn"])
+        for env_setting in self.env_setting["settings"]:
+            if env_setting["name"].lower() == "taospy":
+                env_setting["spec"]["config"]["firstEP"] = rand_fqdn + ":6030"
+        self.tmp_yaml = os.path.join(os.environ["TEST_ROOT"], "env/stability_tmp.yaml")
+        dict2yaml(self.env_setting, self.env_dir, "stability_tmp.yaml")
+
+    def time2s(self, runtime):
+        if "d" in str(runtime).lower():
+            d_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            s_num = float(d_num) * 24 * 60 * 60
+        elif "h" in str(runtime).lower():
+            h_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            s_num = float(h_num) * 60 * 60
+        elif "m" in str(runtime).lower():
+            m_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            s_num = float(m_num) * 60
+        elif "s" in str(runtime).lower():
+            s_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+        else:
+            s_num = 60
+        return int(s_num)
+
+    def del_and_add_dnode(self):
+        self.tdSql.execute(f'drop dnode "{self.taosd_settings["fqdn"][-1]}:6030"')
+        time.sleep(10)
+        self.tdSql.execute(f'create dnode "{self.taosd_settings["fqdn"][-1]}:6030"')
 
     def stability_test(self):
-        pass
+        scheduler = BackgroundScheduler()
+        # scheduler.add_job(self.run_taosc_insert_cases, 'interval', seconds=60)
+        # scheduler.add_job(self.run_restful_insert_cases, 'interval', seconds=60)
+        # scheduler.add_job(self.run_schemaless_insert_cases, 'interval', seconds=60)
+        # scheduler.add_job(self.run_query_cases, 'interval', seconds=60)
+        scheduler.add_job(self.del_and_add_dnode, 'interval', seconds=60)
+        scheduler.start()
+
+        start_datetime = datetime.datetime.now()
+        start_time = start_datetime.strftime('%Y-%m-%d %H:%M:%S.%f')
+        end_time = (start_datetime + datetime.timedelta(seconds=120)).strftime('%Y-%m-%d %H:%M:%S.%f')
+        while start_time < end_time:
+            start_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
 
     def get_taosadapter_ip_port_dict(self):
         if "opentsdb_telnet" in self.taosadapter_settings["spec"]["adapter_config"]:
@@ -46,13 +106,16 @@ class TestStability(TDCase):
             self.taosadapter_ip_port_dict = dict(zip(dbs_list, ports))
 
     def run_taosc_insert_cases(self):
-        pass
+        self.re_write_stability_yaml()
+        os.system(f' ~/.local/bin/taostest --use={self.tmp_yaml} --group-dir=taosc_insert --keep')
 
     def run_restful_insert_cases(self):
-        pass
+        self.re_write_stability_yaml()
+        os.system(f' ~/.local/bin/taostest --use={self.tmp_yaml} --group-dir=restful_insert --keep')
 
     def run_schemaless_insert_cases(self):
-        pass
+        self.re_write_stability_yaml()
+        os.system(f' ~/.local/bin/taostest --use={self.tmp_yaml} --group-dir=schemaless_insert --keep')
 
     def run_query_cases(self):
         pass
@@ -87,7 +150,7 @@ class TestStability(TDCase):
                                     self._remote.cmd(agent_fqdn, [f'cd /opt/agent_dockerfile/{agent_type}', f'./run_{agent_type}.sh {self.agent_settings["spec"][agent_type]["count"]} {taosadapter_fqdn}_{agent_type}_agent* {taosadapter_ip} {taosadapter_port}'])
 
     def run(self) -> bool:
-        self.run_all_agent()
+        # self.run_all_agent()
         self.stability_test()
 
     def cleanup(self):

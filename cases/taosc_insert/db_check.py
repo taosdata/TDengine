@@ -86,6 +86,7 @@ class TestDB(TDCase):
                 d_list_new.insert(i, insert_str)
                 dbname_new = ''.join(d_list_new)
                 self.tdSql.error(f'create database if not exists `{dbname_new}`')
+        self.tdSql.execute(f'drop database if exists {dbname}')
 
     def run(self) -> bool:
         self.dbname_length_check()

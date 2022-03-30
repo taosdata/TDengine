@@ -1,29 +1,60 @@
 settings:
   - name: taosd
-    fqdn: [ceph01]
+    fqdn: [cs219, node221, node222, node223, k8smaster, k8sslave]
     spec:
       version: 2.4.0.0  # 默认最新版
       config: # common config for all dnodes
-        firstEP: ceph01:6030
+        firstEP: cs219:6030
       dnodes:
-        - endpoint: ceph01:6030
+        - endpoint: cs219:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /data/lib/taos
+            logDir: /data/log/taos
+            debugFlag: 135
+        - endpoint: node221:6030
           config_dir: /etc/taos
           config: # will write into taos.cfg
             dataDir: /var/lib/taos
             logDir: /var/log/taos
             debugFlag: 135
+        - endpoint: node222:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135
+        - endpoint: node223:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135
+        - endpoint: k8smaster:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135
+        - endpoint: k8sslave:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135
+
   - name: taospy
-    fqdn: [ceph01]
+    fqdn: [cs219, node221, node222, node223]
     spec:
       version: 2.2.0
       client_version: 2.4.0.0
       config:
-        firstEP: ceph01:6030
+        firstEP: node221:6030
         logDir: /var/log/taos
         debugFlag: 135
 
   - name: taosAdapter
-    fqdn: [ceph01]
+    fqdn: [cs219, node221, node222, node223, k8smaster, k8sslave]
     spec:
       version: 2.4.0.0
       config_file: /etc/taos/taosadaper.toml
@@ -79,9 +110,31 @@ settings:
           gatherDuration: 5s
 
       taos_config:
-        firstEP: ceph01:6030
+        firstEP: cs219:6030
         logDir: /var/log/taos
         debugFlag: 135
+
+  - name: prometheus
+    fqdn: [ceph02]
+    spec:
+      server:
+        run_dir: /opt/prometheus # 默认path, 选配
+        config: # 所有key都选配
+          global:
+            evaluation_interval: 1s
+            scrape_interval: 3s
+            scrape_timeout: 3s
+          scrape_configs:
+            job_name: prometheus
+            targets: [localhost:9090]
+      node_exporter:
+        fqdn: [cs219, node221, node222, node223, k8smaster, k8sslave]
+        run_dir: /opt/node_exporter # 默认path, 选配
+      process_exporter:
+        fqdn: [cs219, node221, node222, node223, k8smaster, k8sslave] # 元素个数要大于等于custom_process中的key个数
+        run_dir: /opt/process_exporter # 默认path, 选配
+        config: # common_process和custom_process都选配, 但全配置的话custom_process会覆盖common_process的配置
+          common_process: [taosd, taosadapter]
 
   - name: agent
     fqdn: [k8smaster]
