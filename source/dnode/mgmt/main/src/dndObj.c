@@ -24,7 +24,7 @@ static int32_t dndInitMemory(SDnode *pDnode, const SDnodeOpt *pOption) {
   pDnode->localFqdn = strdup(pOption->localFqdn);
   pDnode->firstEp = strdup(pOption->firstEp);
   pDnode->secondEp = strdup(pOption->secondEp);
-  pDnode->pDisks = pOption->pDisks;
+  pDnode->disks = pOption->disks;
   pDnode->numOfDisks = pOption->numOfDisks;
   pDnode->ntype = pOption->ntype;
   pDnode->rebootTime = taosGetTimestampMs();
@@ -42,10 +42,10 @@ static void dndClearMemory(SDnode *pDnode) {
     SMgmtWrapper *pMgmt = &pDnode->wrappers[n];
     taosMemoryFreeClear(pMgmt->path);
   }
-  if (pDnode->pLockFile != NULL) {
-    taosUnLockFile(pDnode->pLockFile);
-    taosCloseFile(&pDnode->pLockFile);
-    pDnode->pLockFile = NULL;
+  if (pDnode->lockfile != NULL) {
+    taosUnLockFile(pDnode->lockfile);
+    taosCloseFile(&pDnode->lockfile);
+    pDnode->lockfile = NULL;
   }
   taosMemoryFreeClear(pDnode->localEp);
   taosMemoryFreeClear(pDnode->localFqdn);
@@ -73,8 +73,8 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
   }
 
   dndSetStatus(pDnode, DND_STAT_INIT);
-  pDnode->pLockFile = dndCheckRunning(pDnode->dataDir);
-  if (pDnode->pLockFile == NULL) {
+  pDnode->lockfile = dndCheckRunning(pDnode->dataDir);
+  if (pDnode->lockfile == NULL) {
     goto _OVER;
   }
 

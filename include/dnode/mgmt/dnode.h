@@ -46,7 +46,7 @@ typedef struct {
   char      localFqdn[TSDB_FQDN_LEN];
   char      firstEp[TSDB_EP_LEN];
   char      secondEp[TSDB_EP_LEN];
-  SDiskCfg *pDisks;
+  SDiskCfg *disks;
   int32_t   numOfDisks;
   int8_t    ntype;
 } SDnodeOpt;

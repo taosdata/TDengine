@@ -126,7 +126,7 @@ static SDnodeOpt dndGetOpt() {
   option.serverPort = tsServerPort;
   tstrncpy(option.localFqdn, tsLocalFqdn, sizeof(option.localFqdn));
   snprintf(option.localEp, sizeof(option.localEp), "%s:%u", option.localFqdn, option.serverPort);
-  option.pDisks = tsDiskCfg;
+  option.disks = tsDiskCfg;
   option.numOfDisks = tsDiskCfgNum;
   option.ntype = global.ntype;
   return option;
