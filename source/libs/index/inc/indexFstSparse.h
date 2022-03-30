@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_INDEX_SPARSE_H_
-#define _TD_INDEX_SPARSE_H_
+#ifndef _TD_INDEX_FST_SPARSE_H_
+#define _TD_INDEX_FST_SPARSE_H_
 
 #include "tarray.h"
 
