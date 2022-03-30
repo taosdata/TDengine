@@ -944,7 +944,7 @@ TEST(testCase, build_executor_tree_Test) {
   int32_t code = qStringToSubplan(msg, &plan);
   ASSERT_EQ(code, 0);
 
-  code = qCreateExecTask(&handle, 2, 1, plan, (void**) &pTaskInfo, &sinkHandle);
+  code = qCreateExecTask(&handle, 2, 1, plan, (void**) &pTaskInfo, &sinkHandle, OPTR_EXEC_MODEL_BATCH);
   ASSERT_EQ(code, 0);
 }
 
