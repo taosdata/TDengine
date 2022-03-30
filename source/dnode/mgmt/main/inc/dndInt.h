@@ -50,10 +50,6 @@ void    dndClose(SDnode *pDnode);
 void    dndHandleEvent(SDnode *pDnode, EDndEvent event);
 
 // dndTransport.c
-int32_t dndInitServer(SDnode *pDnode);
-void    dndCleanupServer(SDnode *pDnode);
-int32_t dndInitClient(SDnode *pDnode);
-void    dndCleanupClient(SDnode *pDnode);
 int32_t dndInitMsgHandle(SDnode *pDnode);
 void    dndSendRpcRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp);
 

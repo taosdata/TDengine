@@ -16,15 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "dndInt.h"
 
-static void dndResetLog(SMgmtWrapper *pMgmt) {
-  char logname[24] = {0};
-  snprintf(logname, sizeof(logname), "%slog", pMgmt->name);
-
-  dInfo("node:%s, reset log to %s in child process", pMgmt->name, logname);
-  taosCloseLog();
-  taosInitLog(logname, 1);
-}
-
 static bool dndRequireNode(SMgmtWrapper *pWrapper) {
   bool required = false;
   int32_t code =(*pWrapper->fp.requiredFp)(pWrapper, &required);
@@ -71,22 +62,21 @@ void dndCloseNode(SMgmtWrapper *pWrapper) {
 }
 
 static int32_t dndRunInSingleProcess(SDnode *pDnode) {
-  dInfo("dnode run in single process mode");
+  dDebug("dnode run in single process mode");
+  SMsgCb msgCb = dndCreateMsgcb(&pDnode->wrappers[0]);
+  tmsgSetDefaultMsgCb(&msgCb);
 
-  for (ENodeType n = 0; n < NODE_MAX; ++n) {
+  for (ENodeType n = DNODE; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     pWrapper->required = dndRequireNode(pWrapper);
     if (!pWrapper->required) continue;
-    SMsgCb msgCb = dndCreateMsgcb(pWrapper);
-    tmsgSetDefaultMsgCb(&msgCb);
 
     if (taosMkDir(pWrapper->path) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
-      dError("failed to create dir:%s since %s", pWrapper->path, terrstr());
+      dError("node:%s, failed to create dir:%s since %s", pWrapper->name, pWrapper->path, terrstr());
       return -1;
     }
 
-    dInfo("node:%s, will start in single process", pWrapper->name);
     pWrapper->procType = PROC_SINGLE;
     if (dndOpenNode(pWrapper) != 0) {
       dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
@@ -215,7 +205,7 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
     if (taosProcIsChild(pProc)) {
       dInfo("node:%s, will start in child process", pWrapper->name);
       pWrapper->procType = PROC_CHILD;
-      dndResetLog(pWrapper);
+      // dndResetLog(pWrapper);
 
       dInfo("node:%s, clean up resources inherited from parent", pWrapper->name);
       dndClearNodesExecpt(pDnode, n);

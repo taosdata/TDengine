@@ -53,7 +53,7 @@ static void dndClearVars(SDnode *pDnode) {
 }
 
 SDnode *dndCreate(const SDnodeOpt *pOption) {
-  dInfo("start to create dnode object");
+  dDebug("start to create dnode object");
   int32_t code = -1;
   char    path[PATH_MAX] = {0};
   SDnode *pDnode = NULL;
@@ -77,25 +77,6 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
   smGetMgmtFp(&pDnode->wrappers[SNODE]);
   bmGetMgmtFp(&pDnode->wrappers[BNODE]);
 
-  if (dndOpenRuntimeFile(pDnode) != 0) {
-    dError("failed to open runtime file since %s", terrstr());
-    goto _OVER;
-  }
-
-  if (dndInitServer(pDnode) != 0) {
-    dError("failed to init trans server since %s", terrstr());
-    goto _OVER;
-  }
-
-  if (dndInitClient(pDnode) != 0) {
-    dError("failed to init trans client since %s", terrstr());
-    goto _OVER;
-  }
-
-  if (dndInitMsgHandle(pDnode) != 0) {
-    goto _OVER;
-  }
-
   for (ENodeType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     snprintf(path, sizeof(path), "%s%s%s", pDnode->dataDir, TD_DIRSEP, pWrapper->name);
@@ -110,6 +91,17 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
     taosInitRWLatch(&pWrapper->latch);
   }
 
+  if (dndInitMsgHandle(pDnode) != 0) {
+    dError("failed to msg handles since %s", terrstr());
+    goto _OVER;
+  }
+
+  if (dndOpenRuntimeFile(pDnode) != 0) {
+    dError("failed to open runtime file since %s", terrstr());
+    goto _OVER;
+  }
+
+  dInfo("dnode object is created, data:%p", pDnode);
   code = 0;
 
 _OVER:
@@ -117,8 +109,6 @@ _OVER:
     dndClearVars(pDnode);
     pDnode = NULL;
     dError("failed to create dnode object since %s", terrstr());
-  } else {
-    dInfo("dnode object is created, data:%p", pDnode);
   }
 
   return pDnode;
@@ -134,9 +124,6 @@ void dndClose(SDnode *pDnode) {
 
   dInfo("start to close dnode, data:%p", pDnode);
   dndSetStatus(pDnode, DND_STAT_STOPPED);
-
-  dndCleanupServer(pDnode);
-  dndCleanupClient(pDnode);
 
   for (ENodeType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];

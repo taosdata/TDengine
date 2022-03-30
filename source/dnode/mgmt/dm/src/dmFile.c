@@ -130,7 +130,7 @@ int32_t dmReadFile(SDnodeMgmt *pMgmt) {
   }
 
   code = 0;
-  dInfo("succcessed to read file %s", file);
+  dDebug("succcessed to read file %s", file);
   dmPrintDnodes(pMgmt);
 
 PRASE_DNODE_OVER:
