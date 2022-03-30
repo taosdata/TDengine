@@ -294,7 +294,7 @@ int32_t doLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   SColumnInfoData *pInputData  = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  char **in = (char **)pInputData->pData;
+  char *in = pInputData->pData;
   int16_t *out = (int16_t *)pOutputData->pData;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
@@ -303,7 +303,8 @@ int32_t doLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
       continue;
     }
 
-    out[i] = lenFn(in[i], type);
+    out[i] = lenFn(in, type);
+    in += varDataTLen(in);
   }
 
   pOutput->numOfRows = pInput->numOfRows;

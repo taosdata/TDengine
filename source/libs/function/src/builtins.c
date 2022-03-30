@@ -478,16 +478,6 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       pFunc->node.resType = (SDataType) { .bytes = tDataTypes[paraType].bytes, .type = paraType };
       break;
     }
-    case FUNCTION_TYPE_CONCAT:
-    case FUNCTION_TYPE_ROWTS:
-    case FUNCTION_TYPE_TBNAME:
-    case FUNCTION_TYPE_QSTARTTS:
-    case FUNCTION_TYPE_QENDTS:
-    case FUNCTION_TYPE_WSTARTTS:
-    case FUNCTION_TYPE_WENDTS:
-    case FUNCTION_TYPE_WDURATION:
-      // todo
-      break;
 
     case FUNCTION_TYPE_ABS:
     case FUNCTION_TYPE_CEIL:
@@ -511,6 +501,35 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
       pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE };
       break;
     }
+
+    case FUNCTION_TYPE_LENGTH:
+    case FUNCTION_TYPE_CHAR_LENGTH: {
+      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_SMALLINT].bytes, .type = TSDB_DATA_TYPE_SMALLINT };
+      break;
+    }
+
+    case FUNCTION_TYPE_CONCAT:
+    case FUNCTION_TYPE_CONCAT_WS:
+    case FUNCTION_TYPE_LOWER:
+    case FUNCTION_TYPE_UPPER:
+    case FUNCTION_TYPE_LTRIM:
+    case FUNCTION_TYPE_RTRIM:
+    case FUNCTION_TYPE_SUBSTR: {
+      SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+      int32_t paraType = pParam->node.resType.type;
+      pFunc->node.resType = (SDataType) { .bytes = tDataTypes[paraType].bytes, .type = paraType };
+      break;
+    }
+
+    case FUNCTION_TYPE_ROWTS:
+    case FUNCTION_TYPE_TBNAME:
+    case FUNCTION_TYPE_QSTARTTS:
+    case FUNCTION_TYPE_QENDTS:
+    case FUNCTION_TYPE_WSTARTTS:
+    case FUNCTION_TYPE_WENDTS:
+    case FUNCTION_TYPE_WDURATION:
+      // todo
+      break;
 
     default:
       ASSERT(0); // to found the fault ASAP.
