@@ -99,9 +99,9 @@ typedef struct SMgmtWrapper {
   SShm        shm;
   void       *pMgmt;
   SDnode     *pDnode;
-  NodeMsgFp   msgFps[TDMT_MAX];
-  int8_t      msgVgIds[TDMT_MAX];  // Handle the case where the same message type is distributed to qnode or vnode
   SMgmtFp     fp;
+  int8_t      msgVgIds[TDMT_MAX];  // Handle the case where the same message type is distributed to qnode or vnode
+  NodeMsgFp   msgFps[TDMT_MAX];
 } SMgmtWrapper;
 
 typedef struct {

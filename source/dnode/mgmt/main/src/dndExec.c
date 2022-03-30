@@ -214,8 +214,12 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
 
 static int32_t dndRunInChildProcess(SDnode *pDnode) {
   dInfo("dnode start to run in child process");
-
   SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->ntype];
+
+  SMsgCb msgCb = dndCreateMsgcb(pWrapper);
+  tmsgSetDefaultMsgCb(&msgCb);
+  pWrapper->procType = PROC_CHILD;
+
   if (dndOpenNode(pWrapper) != 0) {
     dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
     return -1;
@@ -236,11 +240,17 @@ static int32_t dndRunInChildProcess(SDnode *pDnode) {
                   .isChild = true,
                   .name = pWrapper->name};
 
-  pWrapper->procType = PROC_CHILD;
   pWrapper->pProc = taosProcInit(&cfg);
   if (pWrapper->pProc == NULL) {
     dError("node:%s, failed to create proc since %s", pWrapper->name, terrstr());
     return -1;
+  }
+
+  if (pWrapper->fp.startFp != NULL) {
+    if ((*pWrapper->fp.startFp)(pWrapper) != 0) {
+      dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
+      return -1;
+    }
   }
 
   if (taosProcRun(pWrapper->pProc) != 0) {
