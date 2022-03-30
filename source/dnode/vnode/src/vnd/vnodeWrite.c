@@ -17,7 +17,9 @@
 
 void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   // TODO
+
   blockDebugShowData(data);
+  tsdbInsertTSmaData(((SVnode *)pVnode)->pTsdb, smaId, (const char *)data);
 }
 
 void vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
@@ -201,7 +203,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
             vCreateSmaReq.tSma.indexUid);
 
       // record current timezone of server side
-      tstrncpy(vCreateSmaReq.tSma.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
+      vCreateSmaReq.tSma.timezoneInt = tsTimezone;
 
       if (metaCreateTSma(pVnode->pMeta, &vCreateSmaReq) < 0) {
         // TODO: handle error
