@@ -165,15 +165,34 @@ FstDfa *dfaCreate(SArray *insts, SArray *states) {
   return dfa;
 }
 bool dfaIsMatch(FstDfa *dfa, uint32_t si) {
-  // impl match
-  return true;
+  if (dfa->states == NULL || si < taosArrayGetSize(dfa->states)) {
+    return false;
+  }
+  State *st = taosArrayGet(dfa->states, si);
+  return st != NULL ? st->isMatch : false;
 }
 bool dfaAccept(FstDfa *dfa, uint32_t si, uint8_t byte, uint32_t *result) {
-  // impl accept
+  if (dfa->states == NULL || si < taosArrayGetSize(dfa->states)) {
+    return false;
+  }
+  State *st = taosArrayGet(dfa->states, si);
+  *result = st->next[byte];
   return true;
 }
 void dfaAdd(FstDfa *dfa, FstSparseSet *set, uint32_t ip) {
-  // impl add
+  if (sparSetContains(set, ip)) {
+    return;
+  }
+  sparSetAdd(set, ip);
+  Inst *inst = taosArrayGet(dfa->insts, ip);
+  if (inst->ty == MATCH || inst->ty == RANGE) {
+    // do nothing
+  } else if (inst->ty == JUMP) {
+    dfaAdd(dfa, set, inst->jv.step);
+  } else if (inst->ty == SPLIT) {
+    dfaAdd(dfa, set, inst->sv.len1);
+    dfaAdd(dfa, set, inst->sv.len2);
+  }
   return;
 }
 bool dfaRun(FstDfa *dfa, FstSparseSet *from, FstSparseSet *to, uint8_t byte) {
