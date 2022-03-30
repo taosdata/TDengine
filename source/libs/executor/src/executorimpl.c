@@ -6930,6 +6930,10 @@ static SSDataBlock* doBuildIntervalResult(SOperatorInfo* pOperator, bool* newgro
     return NULL;
   }
 
+  if (pInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
+    return pOperator->getStreamResFn(pOperator, newgroup);
+  }
+
   pTaskInfo->code = pOperator->_openFn(pOperator);
   if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
     return NULL;
@@ -6946,7 +6950,7 @@ static SSDataBlock* doBuildIntervalResult(SOperatorInfo* pOperator, bool* newgro
   return pInfo->binfo.pRes->info.rows == 0 ? NULL : pInfo->binfo.pRes;
 }
 
-static SSDataBlock* doStreamIntervalAgg(SOperatorInfo *pOperator) {
+static SSDataBlock* doStreamIntervalAgg(SOperatorInfo *pOperator, bool* newgroup) {
   STableIntervalOperatorInfo* pInfo = pOperator->info;
   int32_t order = TSDB_ORDER_ASC;
 
@@ -6964,14 +6968,14 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo *pOperator) {
   }
 
   //  STimeWindow win = {0};
-  bool newgroup = false;
+  *newgroup = false;
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   SArray* pUpdated = NULL;
 
   while (1) {
     publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    SSDataBlock* pBlock = downstream->getNextFn(downstream, &newgroup);
+    SSDataBlock* pBlock = downstream->getNextFn(downstream, newgroup);
     publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (pBlock == NULL) {
@@ -7882,9 +7886,10 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
   }
 
   pInfo->order     = TSDB_ORDER_ASC;
-  pInfo->win       = pTaskInfo->window;
   pInfo->interval  = *pInterval;
-  pInfo->execModel = OPTR_EXEC_MODEL_BATCH;
+  pInfo->execModel = pTaskInfo->execModel;
+
+  pInfo->win       = pTaskInfo->window;
   pInfo->win.skey  = 0;
   pInfo->win.ekey  = INT64_MAX;
 
@@ -7909,6 +7914,7 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
   pOperator->info         = pInfo;
   pOperator->_openFn      = doOpenIntervalAgg;
   pOperator->getNextFn    = doBuildIntervalResult;
+  pOperator->getStreamResFn= doStreamIntervalAgg;
   pOperator->closeFn      = destroyIntervalOperatorInfo;
 
   code = appendDownstream(pOperator, &downstream, 1);
@@ -8736,12 +8742,13 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
   return pExprs;
 }
 
-static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId) {
+static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPTR_EXEC_MODEL model) {
   SExecTaskInfo* pTaskInfo = taosMemoryCalloc(1, sizeof(SExecTaskInfo));
   setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
 
   pTaskInfo->cost.created = taosGetTimestampMs();
   pTaskInfo->id.queryId = queryId;
+  pTaskInfo->execModel  = model;
 
   char* p = taosMemoryCalloc(1, 128);
   snprintf(p, 128, "TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, queryId);
@@ -9102,11 +9109,11 @@ _error:
   return NULL;
 }
 
-int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId) {
+int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId, EOPTR_EXEC_MODEL model) {
   uint64_t queryId = pPlan->id.queryId;
 
   int32_t code = TSDB_CODE_SUCCESS;
-  *pTaskInfo = createExecTaskInfo(queryId, taskId);
+  *pTaskInfo = createExecTaskInfo(queryId, taskId, model);
   if (*pTaskInfo == NULL) {
     code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _complete;
