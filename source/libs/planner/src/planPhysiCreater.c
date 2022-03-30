@@ -1083,7 +1083,11 @@ static int32_t doCreatePhysiPlan(SPhysiPlanContext* pCxt, SQueryLogicPlan* pLogi
 
 static void destoryLocationHash(void* p) {
   SHashObj* pHash = *(SHashObj**)p;
-  // todo
+  SSlotIndex* pIndex = taosHashIterate(pHash, NULL);
+  while (NULL != pIndex) {
+    taosArrayDestroy(pIndex->pSlotIdsInfo);
+    pIndex = taosHashIterate(pHash, pIndex);
+  }
   taosHashCleanup(pHash);
 }
 

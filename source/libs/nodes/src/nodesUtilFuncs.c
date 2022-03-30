@@ -481,8 +481,7 @@ void nodesDestroyNode(SNodeptr pNode) {
       SVnodeModifLogicNode* pLogicNode = (SVnodeModifLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
       destroyVgDataBlockArray(pLogicNode->pDataBlocks);
-      taosMemoryFreeClear(pLogicNode->pVgDataBlocks->pData);
-      taosMemoryFreeClear(pLogicNode->pVgDataBlocks);
+      // pVgDataBlocks is weak reference
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
@@ -512,6 +511,7 @@ void nodesDestroyNode(SNodeptr pNode) {
       SLogicSubplan* pSubplan = (SLogicSubplan*)pNode;
       nodesDestroyList(pSubplan->pChildren);
       nodesDestroyNode(pSubplan->pNode);
+      nodesClearList(pSubplan->pParents);
       taosMemoryFreeClear(pSubplan->pVgroupList);
       break;
     }
@@ -591,11 +591,28 @@ void nodesDestroyNode(SNodeptr pNode) {
       nodesDestroyList(pSubplan->pChildren);
       nodesDestroyNode(pSubplan->pNode);
       nodesDestroyNode(pSubplan->pDataSink);
+      nodesClearList(pSubplan->pParents);
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN:
-      nodesDestroyList(((SQueryPlan*)pNode)->pSubplans);
+    case QUERY_NODE_PHYSICAL_PLAN: {
+      SQueryPlan* pPlan = (SQueryPlan*)pNode;
+      if (NULL != pPlan->pSubplans) {
+        // only need to destroy the top-level subplans, because they will recurse to all the subplans below
+        bool first = true;
+        SNode* pElement = NULL;
+        FOREACH(pElement, pPlan->pSubplans) {
+          if (first) {
+            first = false;
+            nodesDestroyNode(pElement);
+          } else {
+            nodesClearList(((SNodeListNode*)pElement)->pNodeList);
+            taosMemoryFreeClear(pElement);
+          }
+        }
+        nodesClearList(pPlan->pSubplans);
+      }
       break;
+    }
     default:
       break;
   }
