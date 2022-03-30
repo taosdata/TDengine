@@ -14,6 +14,7 @@
  */
 
 #define ALLOW_FORBID_FUNC
+#include <pthread.h>
 #include "os.h"
 
 // int32_t taosThreadSetnameNp(TdThread thread, const char *name) {
@@ -38,6 +39,10 @@ int32_t taosThreadMutexDestroy(TdThreadMutex * mutex) {
 
 int32_t taosThreadSpinLock(TdThreadSpinlock *lock) {
     return pthread_spin_lock(lock);
+}
+
+int32_t taosThreadSpinTryLock(TdThreadSpinlock *lock) {
+    return pthread_spin_trylock(lock);
 }
 
 int32_t taosThreadMutexLock(TdThreadMutex *mutex) {
@@ -142,4 +147,8 @@ int32_t taosThreadCancel(TdThread thread) {
 
 int32_t taosThreadKill(TdThread thread, int sig) {
     return pthread_kill(thread, sig);
+}
+
+int32_t taosThreadDetach(TdThread thread) {
+    return pthread_detach(thread);
 }

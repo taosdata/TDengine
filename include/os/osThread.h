@@ -32,6 +32,9 @@ typedef pthread_once_t TdThreadOnce;
 typedef pthread_rwlockattr_t TdThreadRwlockAttr;
 typedef pthread_cond_t TdThreadCond;
 typedef pthread_condattr_t TdThreadCondAttr;
+typedef pthread_key_t TdThreadKey;
+typedef pthread_barrier_t TdThreadBarrier;
+typedef pthread_barrierattr_t TdThreadBarrierAttr;
 
 #define taosThreadCleanupPush pthread_cleanup_push
 #define taosThreadCleanupPop pthread_cleanup_pop
@@ -79,6 +82,7 @@ typedef pthread_condattr_t TdThreadCondAttr;
     #define pthread_sigmask PTHREAD_SIGMASK_FUNC_TAOS_FORBID
     #define pthread_cancel PTHREAD_CANCEL_FUNC_TAOS_FORBID
     #define pthread_kill PTHREAD_KILL_FUNC_TAOS_FORBID
+    #define pthread_setname_np PTHREAD_SETNAME_FUNC_TAOS_FORBID
 #endif
 
 int32_t taosThreadSpinInit(TdThreadSpinlock *lock, int pshared);
@@ -86,6 +90,7 @@ int32_t taosThreadMutexInit(TdThreadMutex *mutex, const TdThreadMutexAttr *attr)
 int32_t taosThreadSpinDestroy(TdThreadSpinlock *lock);
 int32_t taosThreadMutexDestroy(TdThreadMutex * mutex);
 int32_t taosThreadSpinLock(TdThreadSpinlock *lock);
+int32_t taosThreadSpinTryLock(TdThreadSpinlock *lock);
 int32_t taosThreadMutexLock(TdThreadMutex *mutex);
 int32_t taosThreadRwlockRdlock(TdThreadRwlock *rwlock);
 int32_t taosThreadSpinUnlock(TdThreadSpinlock *lock);
@@ -111,6 +116,8 @@ int32_t taosThreadEqual(TdThread t1, TdThread t2);
 int32_t taosThreadSigmask(int how, sigset_t const *set, sigset_t *oset);
 int32_t taosThreadCancel(TdThread thread);
 int32_t taosThreadKill(TdThread thread, int sig);
+int32_t taosThreadDetach(TdThread thread);
+
 #ifdef __cplusplus
 }
 #endif
