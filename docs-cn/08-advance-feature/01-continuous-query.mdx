@@ -45,7 +45,7 @@ create table avg_vol as select avg(voltage) from meters interval(1m) sliding(30s
 
 会自动创建一个名为 `avg_vol` 的新表，然后每隔 30 秒，TDengine 会增量执行 `as` 后面的 SQL 语句，并将查询结果写入这个表中，用户程序后续只要从 `avg_vol` 中查询数据即可。例如：
 
-```mysql
+```sql
 taos> select * from avg_vol;
             ts           |        avg_voltage_    |
 ===================================================
@@ -59,7 +59,7 @@ taos> select * from avg_vol;
 
 此外，TDengine 还支持用户指定连续查询的起止时间。如果不输入开始时间，连续查询将从第一条原始数据所在的时间窗口开始；如果没有输入结束时间，连续查询将永久运行；如果用户指定了结束时间，连续查询在系统时间达到指定的时间以后停止运行。比如使用下面的 SQL 创建的连续查询将运行一小时，之后会自动停止。
 
-```mysql
+```sql
 create table avg_vol as select avg(voltage) from meters where ts > now and ts <= now + 1h interval(1m) sliding(30s);
 ```
 
@@ -68,4 +68,3 @@ create table avg_vol as select avg(voltage) from meters where ts > now and ts <=
 ## 管理连续查询
 
 用户可在控制台中通过 `show streams` 命令来查看系统中全部运行的连续查询，并可以通过 `kill stream` 命令杀掉对应的连续查询。后续版本会提供更细粒度和便捷的连续查询管理命令。
-

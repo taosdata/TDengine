@@ -28,7 +28,7 @@ ALTER USER <user_name> PRIVILEGE <write|read>;
 
 说明：系统内共有 super/write/read 三种权限级别，但目前不允许通过 alter 指令把 super 权限赋予用户。
 
-```mysql
+```sql
 SHOW USERS;
 ```
 
