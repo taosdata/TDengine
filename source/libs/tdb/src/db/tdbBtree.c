@@ -57,12 +57,12 @@ typedef struct {
 } SBtreeInitPageArg;
 
 typedef struct {
-  int   kLen;
-  u8   *pKey;
-  int   vLen;
-  u8   *pVal;
-  SPgno pgno;
-  u8   *pBuf;
+  int       kLen;
+  const u8 *pKey;
+  int       vLen;
+  const u8 *pVal;
+  SPgno     pgno;
+  u8       *pBuf;
 } SCellDecoder;
 
 static int tdbBtCursorMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst);
