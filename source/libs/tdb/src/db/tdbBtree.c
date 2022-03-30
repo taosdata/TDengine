@@ -1277,11 +1277,6 @@ static int tdbBtcMoveToNext(SBTC *pBtc) {
   return 0;
 }
 
-int tdbBtcClose(SBTC *pBtc) {
-  // TODO
-  return 0;
-}
-
 static int tdbBtcMoveDownward(SBTC *pBtc, SPgno pgno) {
   int ret;
 
@@ -1310,8 +1305,27 @@ static int tdbBtcMoveUpward(SBTC *pBtc) {
 
   return 0;
 }
+
+int tdbBtcClose(SBTC *pBtc) {
+  if (pBtc->iPage < 0) return 0;
+
+  for (;;) {
+    ASSERT(pBtc->pPage);
+
+    tdbPagerReturnPage(pBtc->pBt->pPager, pBtc->pPage);
+
+    pBtc->iPage--;
+    if (pBtc->iPage < 0) break;
+
+    pBtc->pPage = pBtc->pgStack[pBtc->iPage];
+    pBtc->idx = pBtc->idxStack[pBtc->iPage];
+  }
+
+  return 0;
+}
 // TDB_BTREE_CURSOR
 
+// TDB_BTREE_DEBUG =====================
 #ifndef NODEBUG
 typedef struct {
   SPgno pgno;
@@ -1343,3 +1357,4 @@ void tdbBtPageInfo(SPage *pPage, int idx) {
   pBtPageInfo->nOvfl = pPage->nOverflow;
 }
 #endif
+// TDB_BTREE_DEBUG
