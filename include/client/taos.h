@@ -124,8 +124,25 @@ typedef struct TAOS_MULTI_BIND {
   int       num;
 } TAOS_MULTI_BIND;
 
+typedef enum {
+  SET_CONF_RET_SUCC = 0,
+  SET_CONF_RET_ERR_PART = -1,
+  SET_CONF_RET_ERR_INNER = -2,
+  SET_CONF_RET_ERR_JSON_INVALID = -3,
+  SET_CONF_RET_ERR_JSON_PARSE = -4,
+  SET_CONF_RET_ERR_ONLY_ONCE = -5,
+  SET_CONF_RET_ERR_TOO_LONG = -6
+} SET_CONF_RET_CODE;
+
+#define RET_MSG_LENGTH 1024
+typedef struct setConfRet {
+  SET_CONF_RET_CODE retCode;
+  char   retMsg[RET_MSG_LENGTH];
+} setConfRet;
+
 DLL_EXPORT void  taos_cleanup(void);
 DLL_EXPORT int   taos_options(TSDB_OPTION option, const void *arg, ...);
+DLL_EXPORT setConfRet   taos_set_config(const char *config);
 DLL_EXPORT TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
 DLL_EXPORT TAOS *taos_connect_l(const char *ip, int ipLen, const char *user, int userLen, const char *pass, int passLen,
                                 const char *db, int dbLen, uint16_t port);

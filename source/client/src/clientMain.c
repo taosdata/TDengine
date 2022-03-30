@@ -71,6 +71,12 @@ void taos_cleanup(void) {
   tscInfo("all local resources released");
 }
 
+setConfRet   taos_set_config(const char *config) {
+  // TODO
+  setConfRet ret = {SET_CONF_RET_SUCC, {0}};
+  return ret;
+}
+
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
   tscDebug("try to connect to %s:%u, user:%s db:%s", ip, port, user, db);
   if (user == NULL) {
