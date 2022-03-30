@@ -64,13 +64,13 @@ static int32_t taosProcInitMutex(TdThreadMutex **ppMutex, int32_t *pShmid) {
   int32_t           shmid = -1;
   int32_t           code = -1;
 
-  if (pthread_mutexattr_init(&mattr) != 0) {
+  if (taosThreadMutexAttrInit(&mattr) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to init mutex while init attr since %s", terrstr());
     goto _OVER;
   }
 
-  if (pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED) != 0) {
+  if (taosThreadMutexAttrSetPshared(&mattr, PTHREAD_PROCESS_SHARED) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to init mutex while set shared since %s", terrstr());
     goto _OVER;
@@ -112,7 +112,7 @@ _OVER:
     *pShmid = shmid;
   }
 
-  pthread_mutexattr_destroy(&mattr);
+  taosThreadMutexAttrDestroy(&mattr);
   return code;
 }
 
