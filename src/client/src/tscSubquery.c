@@ -1215,7 +1215,7 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
     // sort according to the tag value
     size_t num = taosArrayGetSize(ctxlist[i].res);
 
-    int32_t ret = tidTagsMergeSort(ctxlist[i].res, 0, num - 1, size);
+    int32_t ret = tidTagsMergeSort(ctxlist[i].res, 0, ((int32_t)num) - 1, size);
     if (ret != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
