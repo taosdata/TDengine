@@ -132,15 +132,15 @@ class TDTestCase:
         # dump all data
 
         os.system(
-            "%s --databases timedb1 -o ./taosdumptest/dumptmp1" %
+            "%s -y --databases timedb1 -o ./taosdumptest/dumptmp1" %
             binPath)
 
         # dump part data with -S  -E
         os.system(
-            '%s --databases timedb1 -S 1625068810000000000 -E 1625068860000000000  -o ./taosdumptest/dumptmp2 ' %
+            '%s -y --databases timedb1 -S 1625068810000000000 -E 1625068860000000000  -o ./taosdumptest/dumptmp2 ' %
             binPath)
         os.system(
-            '%s --databases timedb1 -S 1625068810000000000  -o ./taosdumptest/dumptmp3  ' %
+            '%s -y --databases timedb1 -S 1625068810000000000  -o ./taosdumptest/dumptmp3  ' %
             binPath)
 
         tdSql.execute("drop database timedb1")
