@@ -222,6 +222,16 @@ void initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo)
   assert(pGroupResInfo->index <= getNumOfTotalRes(pGroupResInfo));
 }
 
+void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList) {
+  if (pGroupResInfo->pRows != NULL) {
+    taosArrayDestroy(pGroupResInfo->pRows);
+  }
+
+  pGroupResInfo->pRows = pArrayList->pData;
+  pGroupResInfo->index = 0;
+  ASSERT(pGroupResInfo->index <= getNumOfTotalRes(pGroupResInfo));
+}
+
 bool hasRemainDataInCurrentGroup(SGroupResInfo* pGroupResInfo) {
   if (pGroupResInfo->pRows == NULL) {
     return false;

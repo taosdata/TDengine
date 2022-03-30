@@ -5665,9 +5665,9 @@ static int32_t loadSysTableContentCb(void* param, const SDataBuf* pMsg, int32_t 
 
     SRetrieveMetaTableRsp* pRsp = pScanResInfo->pRsp;
     pRsp->numOfRows = htonl(pRsp->numOfRows);
-    pRsp->useconds = htobe64(pRsp->useconds);
-    pRsp->handle = htobe64(pRsp->handle);
-    pRsp->compLen = htonl(pRsp->compLen);
+    pRsp->useconds  = htobe64(pRsp->useconds);
+    pRsp->handle    = htobe64(pRsp->handle);
+    pRsp->compLen   = htonl(pRsp->compLen);
   } else {
     operator->pTaskInfo->code = code;
   }
@@ -5824,6 +5824,10 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator, bool* newgroup) {
     //    pInfo->totalBytes;
     return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
   } else {  // load the meta from mnode of the given epset
+    if (pOperator->status == OP_EXEC_DONE) {
+      return NULL;
+    }
+
     int64_t startTs = taosGetTimestampUs();
 
     pInfo->req.type = pInfo->type;
@@ -5862,6 +5866,10 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator, bool* newgroup) {
 
     SRetrieveMetaTableRsp* pRsp = pInfo->pRsp;
     pInfo->req.showId = pRsp->handle;
+
+    if (pRsp->numOfRows == 0 || pRsp->completed) {
+      pOperator->status = OP_EXEC_DONE;
+    }
 
     if (pRsp->numOfRows == 0) {
       //      qDebug("%s vgId:%d, taskID:0x%"PRIx64" %d of total completed, rowsOfSource:%"PRIu64", totalRows:%"PRIu64"
@@ -6993,6 +7001,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo *pOperator, bool* newgroup
 
   finalizeUpdatedResult(pInfo->binfo.pCtx, pOperator->numOfOutput, pInfo->aggSup.pResultBuf, pUpdated, pInfo->binfo.rowCellInfoOffset);
 
+  initMultiResInfoFromArrayList(&pInfo->groupResInfo, pUpdated);
   blockDataEnsureCapacity(pInfo->binfo.pRes, pInfo->binfo.capacity);
   toSDatablock(&pInfo->groupResInfo, pInfo->aggSup.pResultBuf, pInfo->binfo.pRes, pInfo->binfo.capacity,
                pInfo->binfo.rowCellInfoOffset);
@@ -8793,9 +8802,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
       SSDataBlock* pResBlock = createOutputBuf_rv1(pScanPhyNode->node.pOutputDataBlockDesc);
       SArray*      colList = extractScanColumnId(pScanPhyNode->pScanCols);
-
-      SOperatorInfo* pOperator =
-          createStreamScanOperatorInfo(pHandle->reader, pResBlock, colList, tableIdList, pTaskInfo);
+      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle->reader, pResBlock, colList, tableIdList, pTaskInfo);
       taosArrayDestroy(tableIdList);
       return pOperator;
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == nodeType(pPhyNode)) {
