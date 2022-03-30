@@ -66,8 +66,8 @@ extern "C" {
 #include "tsdbCommit.h"
 // Compact
 #include "tsdbCompact.h"
-// Truncate
-#include "tsdbTruncate.h"
+// Delete
+#include "tsdbDelete.h"
 // Commit Queue
 #include "tsdbCommitQueue.h"
 

@@ -54,7 +54,7 @@ void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs);
 
 void tscFreeRetrieveSup(void **param);
 
-
+SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsupport, SSqlObj *prevSqlObj, int32_t cmd, __async_cb_func_t fp);
 
 #ifdef __cplusplus
 }

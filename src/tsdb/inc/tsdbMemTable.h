@@ -16,7 +16,7 @@
 #ifndef _TD_TSDB_MEMTABLE_H_
 #define _TD_TSDB_MEMTABLE_H_
 
-#include "tsdbTruncate.h"
+#include "tsdbDelete.h"
 typedef struct {
   int   rowsInserted;
   int   rowsUpdated;

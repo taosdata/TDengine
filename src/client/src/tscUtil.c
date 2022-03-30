@@ -30,6 +30,7 @@
 #include "ttimer.h"
 #include "ttokendef.h"
 #include "cJSON.h"
+#include "tscDelete.h"
 
 #ifdef HTTP_EMBEDDED
 #include "httpInt.h"
@@ -4168,7 +4169,13 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
   if (pSql->cmd.command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
     (*pSql->fp)(pSql->param, pSql, 0);
     return;
-  }
+  } else if (pSql->cmd.command == TSDB_SQL_DELETE_DATA) {
+    code = executeDelete(pSql, pQueryInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      (*pSql->fp)(pSql->param, pSql, 0);
+    }
+    return ;
+  } 
 
   if (pSql->cmd.command == TSDB_SQL_SELECT) {
     tscAddIntoSqlList(pSql);

@@ -3380,7 +3380,7 @@ int tscBuildDelDataMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   if(UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-    return buildSTableDelDataMsg(pSql, pCmd, pQueryInfo, pTableMetaInfo, pInfo);
+    return buildTableDelDataMsg(pSql, pCmd, pQueryInfo, pTableMetaInfo, pInfo);
   } else {
     return buildTableDelDataMsg(pSql, pCmd, pQueryInfo, pTableMetaInfo, pInfo);
   }
@@ -3390,6 +3390,7 @@ void tscInitMsgsFp() {
   tscBuildMsg[TSDB_SQL_SELECT] = tscBuildQueryMsg;
   tscBuildMsg[TSDB_SQL_INSERT] = tscBuildSubmitMsg;
   tscBuildMsg[TSDB_SQL_FETCH] = tscBuildFetchMsg;
+  tscBuildMsg[TSDB_SQL_DELETE_DATA] = tscBuildDelDataMsg;
 
   tscBuildMsg[TSDB_SQL_CREATE_DB] = tscBuildCreateDbMsg;
   tscBuildMsg[TSDB_SQL_CREATE_USER] = tscBuildUserMsg;
@@ -3425,7 +3426,6 @@ void tscInitMsgsFp() {
   tscBuildMsg[TSDB_SQL_KILL_QUERY] = tscBuildKillMsg;
   tscBuildMsg[TSDB_SQL_KILL_STREAM] = tscBuildKillMsg;
   tscBuildMsg[TSDB_SQL_KILL_CONNECTION] = tscBuildKillMsg;
-  tscBuildMsg[TSDB_SQL_DELETE_DATA] = tscBuildDelDataMsg;
 
   tscProcessMsgRsp[TSDB_SQL_SELECT] = tscProcessQueryRsp;
   tscProcessMsgRsp[TSDB_SQL_FETCH] = tscProcessRetrieveRspFromNode;

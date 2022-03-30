@@ -2716,7 +2716,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     trs->subqueryIndex = i;
     trs->pParentSql    = pSql;
 
-    SSqlObj *pNew = tscCreateSTableSubquery(pSql, trs, NULL);
+    SSqlObj *pNew = tscCreateSTableSubquery(pSql, trs, NULL, tscRetrieveDataRes, CMD_SQL_SELECT);
     if (pNew == NULL) {
       tscError("0x%"PRIx64" failed to malloc buffer for subObj, orderOfSub:%d, reason:%s", pSql->self, i, strerror(errno));
       tfree(trs->localBuffer);
@@ -3165,12 +3165,12 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
   }
 }
 
-static SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsupport, SSqlObj *prevSqlObj) {
+static SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsupport, SSqlObj *prevSqlObj, int32_t cmd, __async_cb_func_t fp) {
   const int32_t table_index = 0;
   SSqlCmd *   pCmd = &pSql->cmd;
   SQueryInfo *pPQueryInfo = tscGetQueryInfo(pCmd); // Parent SQueryInfo
   
-  SSqlObj *pNew = createSubqueryObj(pSql, table_index, tscRetrieveDataRes, trsupport, TSDB_SQL_SELECT, prevSqlObj);
+  SSqlObj *pNew = createSubqueryObj(pSql, table_index, fp, trsupport, cmd, prevSqlObj);
   if (pNew != NULL) {  // the sub query of two-stage super table query
     SQueryInfo *pQueryInfo = tscGetQueryInfo(&pNew->cmd);
 
