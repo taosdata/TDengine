@@ -66,7 +66,11 @@ typedef struct SAggLogicNode {
 typedef struct SProjectLogicNode {
   SLogicNode node;
   SNodeList* pProjections;
-  char stmtName[TSDB_TABLE_NAME_LEN]; 
+  char stmtName[TSDB_TABLE_NAME_LEN];
+  int64_t limit;
+  int64_t offset;
+  int64_t slimit;
+  int64_t soffset;
 } SProjectLogicNode;
 
 typedef struct SVnodeModifLogicNode {
@@ -105,6 +109,11 @@ typedef struct SSortLogicNode {
   SLogicNode node;
   SNodeList* pSortKeys;
 } SSortLogicNode;
+
+typedef struct SPartitionLogicNode {
+  SLogicNode node;
+  SNodeList* pPartitionKeys;
+} SPartitionLogicNode;
 
 typedef enum ESubplanType {
   SUBPLAN_TYPE_MERGE = 1,
@@ -150,7 +159,8 @@ typedef struct SDataBlockDescNode {
   ENodeType type;
   int16_t dataBlockId;
   SNodeList* pSlots;
-  int32_t resultRowSize;
+  int32_t totalRowSize;
+  int32_t outputRowSize;
   int16_t precision;
 } SDataBlockDescNode;
 
@@ -195,6 +205,10 @@ typedef STableScanPhysiNode STableSeqScanPhysiNode;
 typedef struct SProjectPhysiNode {
   SPhysiNode node;
   SNodeList* pProjections;
+  int64_t limit;
+  int64_t offset;
+  int64_t slimit;
+  int64_t soffset;
 } SProjectPhysiNode;
 
 typedef struct SJoinPhysiNode {
@@ -283,10 +297,17 @@ typedef struct SSubplan {
   SDataSinkNode* pDataSink;    // data of the subplan flow into the datasink
 } SSubplan;
 
+typedef enum EQueryMode {
+  QUERY_MODE_NORMAL = 1,
+  QUERY_MODE_EXPLAIN,
+  QUERY_MODE_EXPLAIN_AN
+} EQueryMode;
+
 typedef struct SQueryPlan {
   ENodeType type;
   uint64_t queryId;
   int32_t numOfSubplans;
+
   SNodeList* pSubplans; // Element is SNodeListNode. The execution level of subplan, starting from 0.
 } SQueryPlan;
 

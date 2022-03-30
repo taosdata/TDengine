@@ -26,8 +26,11 @@ int32_t tEncodeSStreamObj(SCoder *pEncoder, const SStreamObj *pObj) {
   if (tEncodeI64(pEncoder, pObj->dbUid) < 0) return -1;
   if (tEncodeI32(pEncoder, pObj->version) < 0) return -1;
   if (tEncodeI8(pEncoder, pObj->status) < 0) return -1;
+  if (tEncodeI8(pEncoder, pObj->createdBy) < 0) return -1;
+  if (tEncodeI32(pEncoder, pObj->fixedSinkVgId) < 0) return -1;
+  if (tEncodeI64(pEncoder, pObj->smaId) < 0) return -1;
   if (tEncodeCStr(pEncoder, pObj->sql) < 0) return -1;
-  if (tEncodeCStr(pEncoder, pObj->logicalPlan) < 0) return -1;
+  /*if (tEncodeCStr(pEncoder, pObj->logicalPlan) < 0) return -1;*/
   if (tEncodeCStr(pEncoder, pObj->physicalPlan) < 0) return -1;
   // TODO encode tasks
   if (pObj->tasks) {
@@ -69,8 +72,11 @@ int32_t tDecodeSStreamObj(SCoder *pDecoder, SStreamObj *pObj) {
   if (tDecodeI64(pDecoder, &pObj->dbUid) < 0) return -1;
   if (tDecodeI32(pDecoder, &pObj->version) < 0) return -1;
   if (tDecodeI8(pDecoder, &pObj->status) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pObj->createdBy) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pObj->fixedSinkVgId) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pObj->smaId) < 0) return -1;
   if (tDecodeCStrAlloc(pDecoder, &pObj->sql) < 0) return -1;
-  if (tDecodeCStrAlloc(pDecoder, &pObj->logicalPlan) < 0) return -1;
+  /*if (tDecodeCStrAlloc(pDecoder, &pObj->logicalPlan) < 0) return -1;*/
   if (tDecodeCStrAlloc(pDecoder, &pObj->physicalPlan) < 0) return -1;
   pObj->tasks = NULL;
   int32_t sz;

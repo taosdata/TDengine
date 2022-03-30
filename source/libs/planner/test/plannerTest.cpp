@@ -207,13 +207,39 @@ TEST_F(PlannerTest, sessionWindow) {
 TEST_F(PlannerTest, orderBy) {
   setDatabase("root", "test");
 
-  bind("SELECT * FROM t1 order by c1");
+  bind("SELECT c1 FROM t1 order by c1");
   ASSERT_TRUE(run());
 
   bind("SELECT c1 FROM t1 order by c2");
   ASSERT_TRUE(run());
 
   bind("SELECT * FROM t1 order by c1 + 10, c2");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, limit) {
+  setDatabase("root", "test");
+
+  bind("SELECT * FROM t1 limit 2");
+  ASSERT_TRUE(run());
+
+  bind("SELECT * FROM t1 limit 5 offset 2");
+  ASSERT_TRUE(run());
+
+  bind("SELECT * FROM t1 limit 2, 5");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(PlannerTest, slimit) {
+  setDatabase("root", "test");
+
+  bind("SELECT * FROM t1 partition by c1 slimit 2");
+  ASSERT_TRUE(run());
+
+  bind("SELECT * FROM t1 partition by c1 slimit 5 soffset 2");
+  ASSERT_TRUE(run());
+
+  bind("SELECT * FROM t1 partition by c1 slimit 2, 5");
   ASSERT_TRUE(run());
 }
 

@@ -21,6 +21,10 @@
 ./test.sh -f tsim/insert/backquote.sim
 ./test.sh -f tsim/insert/null.sim
 
+# ---- parser
+#./test.sh -f tsim/parser/groupby-basic.sim
+#./test.sh -f tsim/parser/fourArithmetic-basic.sim
+
 # ---- query
 ./test.sh -f tsim/query/interval.sim
 ./test.sh -f tsim/query/interval-offset.sim
@@ -33,5 +37,6 @@
 
 # ---- tmq
 ./test.sh -f tsim/tmq/basic.sim
+./test.sh -f tsim/tmq/basic1.sim
 
 #======================b1-end===============

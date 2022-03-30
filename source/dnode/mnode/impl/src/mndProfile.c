@@ -44,7 +44,8 @@ typedef struct {
   SQueryDesc *pQueries;
 } SConnObj;
 
-static SConnObj *mndCreateConn(SMnode *pMnode, SRpcConnInfo *pInfo, int32_t pid, const char *app, int64_t startTime);
+static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, uint32_t ip, uint16_t port, int32_t pid,
+                               const char *app, int64_t startTime);
 static void      mndFreeConn(SConnObj *pConn);
 static SConnObj *mndAcquireConn(SMnode *pMnode, int32_t connId);
 static void      mndReleaseConn(SMnode *pMnode, SConnObj *pConn);
@@ -94,7 +95,8 @@ void mndCleanupProfile(SMnode *pMnode) {
   }
 }
 
-static SConnObj *mndCreateConn(SMnode *pMnode, SRpcConnInfo *pInfo, int32_t pid, const char *app, int64_t startTime) {
+static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, uint32_t ip, uint16_t port, int32_t pid,
+                               const char *app, int64_t startTime) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   int32_t connId = atomic_add_fetch_32(&pMgmt->connId, 1);
@@ -104,8 +106,8 @@ static SConnObj *mndCreateConn(SMnode *pMnode, SRpcConnInfo *pInfo, int32_t pid,
   SConnObj connObj = {.id = connId,
                       .appStartTimeMs = startTime,
                       .pid = pid,
-                      .ip = pInfo->clientIp,
-                      .port = pInfo->clientPort,
+                      .ip = ip,
+                      .port = port,
                       .killed = 0,
                       .loginTimeMs = taosGetTimestampMs(),
                       .lastAccessTimeMs = 0,
@@ -114,17 +116,17 @@ static SConnObj *mndCreateConn(SMnode *pMnode, SRpcConnInfo *pInfo, int32_t pid,
                       .pQueries = NULL};
 
   connObj.lastAccessTimeMs = connObj.loginTimeMs;
-  tstrncpy(connObj.user, pInfo->user, TSDB_USER_LEN);
+  tstrncpy(connObj.user, user, TSDB_USER_LEN);
   tstrncpy(connObj.app, app, TSDB_APP_NAME_LEN);
 
   int32_t   keepTime = tsShellActivityTimer * 3;
   SConnObj *pConn = taosCachePut(pMgmt->cache, &connId, sizeof(int32_t), &connObj, sizeof(connObj), keepTime * 1000);
   if (pConn == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("conn:%d, failed to put into cache since %s, user:%s", connId, pInfo->user, terrstr());
+    mError("conn:%d, failed to put into cache since %s, user:%s", connId, user, terrstr());
     return NULL;
   } else {
-    mTrace("conn:%d, is created, data:%p user:%s", pConn->id, pConn, pInfo->user);
+    mTrace("conn:%d, is created, data:%p user:%s", pConn->id, pConn, user);
     return pConn;
   }
 }
@@ -184,20 +186,14 @@ static int32_t mndProcessConnectReq(SNodeMsg *pReq) {
   SConnObj   *pConn = NULL;
   int32_t     code = -1;
   SConnectReq connReq = {0};
+  char        ip[30] = {0};
 
   if (tDeserializeSConnectReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &connReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto CONN_OVER;
   }
 
-  SRpcConnInfo info = {0};
-  if (rpcGetConnInfo(pReq->rpcMsg.handle, &info) != 0) {
-    mError("user:%s, failed to login while get connection info since %s", pReq->user, terrstr());
-    goto CONN_OVER;
-  }
-
-  char ip[30];
-  taosIp2String(info.clientIp, ip);
+  taosIp2String(pReq->clientIp, ip);
 
   pUser = mndAcquireUser(pMnode, pReq->user);
   if (pUser == NULL) {
@@ -216,7 +212,8 @@ static int32_t mndProcessConnectReq(SNodeMsg *pReq) {
     }
   }
 
-  pConn = mndCreateConn(pMnode, &info, connReq.pid, connReq.app, connReq.startTime);
+  pConn =
+      mndCreateConn(pMnode, pReq->user, pReq->clientIp, pReq->clientPort, connReq.pid, connReq.app, connReq.startTime);
   if (pConn == NULL) {
     mError("user:%s, failed to login from %s while create connection since %s", pReq->user, ip, terrstr());
     goto CONN_OVER;
@@ -241,7 +238,7 @@ static int32_t mndProcessConnectReq(SNodeMsg *pReq) {
   pReq->rspLen = contLen;
   pReq->pRsp = pRsp;
 
-  mDebug("user:%s, login from %s, conn:%d, app:%s", info.user, ip, pConn->id, connReq.app);
+  mDebug("user:%s, login from %s, conn:%d, app:%s", pReq->user, ip, pConn->id, connReq.app);
 
   code = 0;
 
