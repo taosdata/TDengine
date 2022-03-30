@@ -476,6 +476,90 @@ _return:
   SCH_RET(code);
 }
 
+int32_t schValidateAndBuildJobExplain(SQueryPlan *pDag, SSchJob *pJob) {
+  int32_t code = 0;
+  pJob->queryId = pDag->queryId;
+
+  if (pDag->numOfSubplans <= 0) {
+    SCH_JOB_ELOG("invalid subplan num:%d", pDag->numOfSubplans);
+    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  int32_t levelNum = (int32_t)LIST_LENGTH(pDag->pSubplans);
+  if (levelNum <= 0) {
+    SCH_JOB_ELOG("invalid level num:%d", levelNum);
+    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  SHashObj *groupHash = taosHashInit(SCHEDULE_DEFAULT_MAX_TASK_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  if (NULL == groupHash) {
+    SCH_JOB_ELOG("groupHash %d failed", SCHEDULE_DEFAULT_MAX_TASK_NUM);
+    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
+  pJob->subPlans = pDag->pSubplans;
+
+  SNodeListNode *plans = NULL;
+  int32_t        taskNum = 0;
+  SSchExplainGroup *pGroup = NULL;
+  void *rowCtx = NULL;
+
+  for (int32_t i = 0; i < levelNum; ++i) {
+    plans = (SNodeListNode *)nodesListGetNode(pDag->pSubplans, i);
+    if (NULL == plans) {
+      SCH_JOB_ELOG("empty level plan, level:%d", i);
+      SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
+    }
+
+    taskNum = (int32_t)LIST_LENGTH(plans->pNodeList);
+    if (taskNum <= 0) {
+      SCH_JOB_ELOG("invalid level plan number:%d, level:%d", taskNum, i);
+      SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
+    }
+
+    for (int32_t n = 0; n < taskNum; ++n) {
+      SSubplan *plan = (SSubplan *)nodesListGetNode(plans->pNodeList, n);
+      pGroup = taosHashGet(groupHash, &plan->id.groupId, sizeof(plan->id.groupId));
+      if (pGroup) {
+        ++pGroup->nodeNum;
+        continue;
+      }
+
+      SSchExplainGroup group = {.nodeNum = 1, .plan = plan};
+      if (0 != taosHashPut(groupHash, &plan->id.groupId, sizeof(plan->id.groupId), &group, sizeof(group))) {
+        SCH_TASK_ELOG("taosHashPut to explainGroupHash failed, taskIdx:%d", n);
+        SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      }
+    }
+
+    void *pIter = taosHashIterate(groupHash, NULL);
+    while (pIter) {
+      pGroup = (SSchExplainGroup *)pIter;
+
+      SCH_ERR_JRET(qAppendTaskExplainResRows(&rowCtx, pGroup->plan, NULL, i));
+      
+      pIter = taosHashIterate(groupHash, pIter);
+    }
+
+    taosHashClear(groupHash);
+
+    SCH_JOB_DLOG("level initialized, taskNum:%d", taskNum);
+  }
+
+  SRetrieveTableRsp *pRsp = NULL;
+  SCH_ERR_JRET(qGetExplainRspFromRowCtx(rowCtx, &pRsp));
+
+  pJob->resData = pRsp;
+  
+_return:
+
+  taosHashCleanup(groupHash);
+  qFreeExplainRowCtx(rowCtx);
+
+  SCH_RET(code);
+}
+
+
 int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
   if (NULL != pTask->candidateAddrs) {
     return TSDB_CODE_SUCCESS;
@@ -2093,6 +2177,7 @@ static int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryPlan *pD
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
+  pJob->attr.analyzeExplain = (EXPLAIN_MODE_ANALYZE == pDag->explainInfo.mode);
   pJob->attr.syncSchedule = syncSchedule;
   pJob->transport = transport;
   pJob->sql = sql;
@@ -2163,6 +2248,51 @@ _return:
   SCH_RET(code);
 }
 
+int32_t schStaticExplain(void *transport, SArray *pNodeList, SQueryPlan *pDag, int64_t *job, const char *sql,
+                              bool syncSchedule) {
+  qDebug("QID:0x%" PRIx64 " job started", pDag->queryId);
+
+  int32_t  code = 0;
+  SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
+  if (NULL == pJob) {
+    qError("QID:%" PRIx64 " calloc %d failed", pDag->queryId, (int32_t)sizeof(SSchJob));
+    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
+  pJob->sql = sql;
+  pJob->attr.queryJob = true;
+
+  SCH_ERR_JRET(schValidateAndBuildJobExplain(pDag, pJob));
+
+  int64_t refId = taosAddRef(schMgmt.jobRef, pJob);
+  if (refId < 0) {
+    SCH_JOB_ELOG("taosAddRef job failed, error:%s", tstrerror(terrno));
+    SCH_ERR_JRET(terrno);
+  }
+
+  if (NULL == schAcquireJob(refId)) {
+    SCH_JOB_ELOG("schAcquireJob job failed, refId:%" PRIx64, refId);
+    SCH_RET(TSDB_CODE_SCH_STATUS_ERROR);
+  }
+
+  pJob->refId = refId;
+
+  SCH_JOB_DLOG("job refId:%" PRIx64, pJob->refId);
+
+  pJob->status = JOB_TASK_STATUS_PARTIAL_SUCCEED;
+  *job = pJob->refId;
+  SCH_JOB_DLOG("job exec done, job status:%s", SCH_GET_JOB_STATUS_STR(pJob));
+
+  schReleaseJob(pJob->refId);
+
+  return TSDB_CODE_SUCCESS;
+
+_return:
+
+  schFreeJobImpl(pJob);
+  SCH_RET(code);
+}
+
 int32_t schedulerInit(SSchedulerCfg *cfg) {
   if (schMgmt.jobRef) {
     qError("scheduler already initialized");
@@ -2211,7 +2341,11 @@ int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryPlan *pDag, in
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  SCH_ERR_RET(schExecJobImpl(transport, nodeList, pDag, pJob, sql, true));
+  if (EXPLAIN_MODE_STATIC == pDag->explainInfo.mode) {
+    SCH_ERR_RET(schStaticExplain(transport, nodeList, pDag, pJob, sql, true));
+  } else {
+    SCH_ERR_RET(schExecJobImpl(transport, nodeList, pDag, pJob, sql, true));
+  }
 
   SSchJob *job = schAcquireJob(*pJob);
 

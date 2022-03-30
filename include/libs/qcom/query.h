@@ -53,11 +53,6 @@ typedef struct SIndexMeta {
 
 } SIndexMeta;
 
-typedef struct SExplainResNode {
-  SNodeList*  pChildren;
-  SPhysiNode* pNode;
-  void*       pExecInfo;
-} SExplainResNode;
 
 /*
  * ASSERT(sizeof(SCTableMeta) == 24)
@@ -178,6 +173,10 @@ bool           tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_
 
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 char *jobTaskStatusStr(int32_t status);
+
+int32_t qAppendTaskExplainResRows(void **pRowCtx, struct SSubplan *plan, void *pExecTree, int32_t level);
+int32_t qGetExplainRspFromRowCtx(void *ctx, SRetrieveTableRsp **pRsp);
+void qFreeExplainRowCtx(void *ctx);
 
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name);
 

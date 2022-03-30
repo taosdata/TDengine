@@ -210,6 +210,8 @@ int32_t nodesStringToNode(const char* pStr, SNode** pNode);
 int32_t nodesListToString(const SNodeList* pList, bool format, char** pStr, int32_t* pLen);
 int32_t nodesStringToList(const char* pStr, SNodeList** pList);
 
+int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len);
+
 #ifdef __cplusplus
 }
 #endif

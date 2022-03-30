@@ -283,11 +283,23 @@ typedef struct SSubplan {
   SDataSinkNode* pDataSink;    // data of the subplan flow into the datasink
 } SSubplan;
 
+typedef enum EExplainMode {
+  EXPLAIN_MODE_DISABLE = 1,
+  EXPLAIN_MODE_STATIC,
+  EXPLAIN_MODE_ANALYZE
+} EExplainMode;
+
+typedef struct SExplainInfo {
+  EExplainMode mode;
+  bool verbose;
+} SExplainInfo;
+
 typedef struct SQueryPlan {
   ENodeType type;
   uint64_t queryId;
   int32_t numOfSubplans;
   SNodeList* pSubplans; // Element is SNodeListNode. The execution level of subplan, starting from 0.
+  SExplainInfo explainInfo;
 } SQueryPlan;
 
 #ifdef __cplusplus

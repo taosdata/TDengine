@@ -224,6 +224,7 @@ typedef enum ELogicConditionType {
 
 #define TSDB_APP_NAME_LEN    TSDB_UNI_LEN
 #define TSDB_STB_COMMENT_LEN 1024
+
 /**
  *  In some scenarios uint16_t (0~65535) is used to store the row len.
  *  - Firstly, we use 65531(65535 - 4), as the SDataRow/SKVRow contains 4 bits header.
@@ -470,6 +471,9 @@ enum {
 #define MND_VGID -1
 #define QND_VGID 1
 #define VND_VGID 0
+
+#define MAX_NUM_STR_SIZE 40
+
 
 #ifdef __cplusplus
 }

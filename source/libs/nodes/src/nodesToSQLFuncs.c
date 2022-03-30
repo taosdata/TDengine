@@ -50,7 +50,7 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
       char *t = nodesGetStrValueFromNode(colNode);
       if (NULL == t) {
         nodesError("fail to get str value from valueNode");
-        return TSDB_CODE_QRY_APP_ERROR;
+        NODES_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
       }
       
       *len += snprintf(buf, bufSize - *len, "%s", t);
@@ -62,18 +62,18 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
       SOperatorNode* pOpNode = (SOperatorNode*)pNode;
       *len += snprintf(buf, bufSize - *len, "(");
       if (pOpNode->pLeft) {
-        QRY_ERR_RET(nodesNodeToSQL(pOpNode->pLeft, buf, bufSize, len));
+        NODES_ERR_RET(nodesNodeToSQL(pOpNode->pLeft, buf, bufSize, len));
       }
 
       if (pOpNode->opType >= (sizeof(gOperatorStr) / sizeof(gOperatorStr[0]))) {
         nodesError("unknown operation type:%d", pOpNode->opType);
-        return TSDB_CODE_QRY_APP_ERROR;
+        NODES_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
       }
       
       *len += snprintf(buf, bufSize - *len, " %s ", gOperatorStr[pOpNode->opType]);
 
       if (pOpNode->pRight) {
-        QRY_ERR_RET(nodesNodeToSQL(pOpNode->pRight, buf, bufSize, len));
+        NODES_ERR_RET(nodesNodeToSQL(pOpNode->pRight, buf, bufSize, len));
       }    
 
       *len += snprintf(buf, bufSize - *len, ")");
@@ -91,7 +91,7 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
         if (!first) {
           *len += snprintf(buf, bufSize - *len, " %s ", gLogicConditionStr[pLogicNode->condType]);
         }
-        QRY_ERR_RET(nodesNodeToSQL(node, buf, bufSize, len));
+        NODES_ERR_RET(nodesNodeToSQL(node, buf, bufSize, len));
         first = false;
       }
 
@@ -110,7 +110,7 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
         if (!first) {
           *len += snprintf(buf, bufSize - *len, ", ");
         }
-        QRY_ERR_RET(nodesNodeToSQL(node, buf, bufSize, len));
+        NODES_ERR_RET(nodesNodeToSQL(node, buf, bufSize, len));
         first = false;
       }
 
@@ -120,8 +120,20 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
     }
     case QUERY_NODE_NODE_LIST:{
       SNodeListNode* pListNode = (SNodeListNode *)pNode;
-
-      //TODO
+      SNode* node = NULL;
+      bool first = true;
+      
+      *len += snprintf(buf, bufSize - *len, "(");
+      
+      FOREACH(node, pListNode->pNodeList) {
+        if (!first) {
+          *len += snprintf(buf, bufSize - *len, ", ");
+        }
+        NODES_ERR_RET(nodesNodeToSQL(node, buf, bufSize, len));
+        first = false;
+      }
+      
+      *len += snprintf(buf, bufSize - *len, ")");
 
       return TSDB_CODE_SUCCESS;
     }
@@ -130,5 +142,5 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
   }
   
   nodesError("nodesNodeToSQL unknown node = %s", nodesNodeName(pNode->type));
-  return TSDB_CODE_QRY_APP_ERROR;
+  NODES_RET(TSDB_CODE_QRY_APP_ERROR);
 }

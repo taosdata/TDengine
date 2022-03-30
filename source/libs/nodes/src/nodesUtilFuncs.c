@@ -469,7 +469,7 @@ void* nodesGetValueFromNode(SValueNode *pNode) {
 
 char* nodesGetStrValueFromNode(SValueNode *pNode) {
   switch (pNode->node.resType.type) {
-    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_BOOL: {
       void *buf = taosMemoryMalloc(MAX_NUM_STR_SIZE);
       if (NULL == buf) {
         return NULL;
@@ -477,6 +477,7 @@ char* nodesGetStrValueFromNode(SValueNode *pNode) {
       
       sprintf(buf, "%s", pNode->datum.b ? "true" : "false");
       return buf;
+    }
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_SMALLINT:
     case TSDB_DATA_TYPE_INT:

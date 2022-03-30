@@ -300,6 +300,7 @@ bool nodesIsTimeorderQuery(const SNode* pQuery);
 bool nodesIsTimelineQuery(const SNode* pQuery);
 
 void* nodesGetValueFromNode(SValueNode *pNode);
+char* nodesGetStrValueFromNode(SValueNode *pNode);
 
 #ifdef __cplusplus
 }

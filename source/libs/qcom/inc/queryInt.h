@@ -19,9 +19,12 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "nodes.h"
+#include "plannodes.h"
 
 #define QUERY_EXPLAIN_MAX_RES_LEN 1024
 
+//newline area
 #define EXPLAIN_TAG_SCAN_FORMAT "Tag scan on %s columns=%d"
 #define EXPLAIN_TBL_SCAN_FORMAT "Table scan on %s columns=%d"
 #define EXPLAIN_SYSTBL_SCAN_FORMAT "System table scan on %s columns=%d"
@@ -30,16 +33,24 @@ extern "C" {
 #define EXPLAIN_AGG_FORMAT "Aggragate functions=%d groups=%d width=%d"
 #define EXPLAIN_EXCHANGE_FORMAT "Exchange %d:1 width=%d"
 #define EXPLAIN_SORT_FORMAT "Sort on %d columns width=%d"
-#define EXPLAIN_INTERVAL_FORMAT "Interval on column %s functions=%d interval=%d%c offset=%d%c sliding=%d%c width=%d"
+#define EXPLAIN_INTERVAL_FORMAT "Interval on column %s functions=%d interval=%" PRId64 "%c offset=%" PRId64 "%c sliding=%" PRId64 "%c width=%d"
 #define EXPLAIN_SESSION_FORMAT "Session gap=%" PRId64 " functions=%d width=%d"
-
 #define EXPLAIN_ORDER_FORMAT "Order: %s"
 #define EXPLAIN_FILTER_FORMAT "Filter: "
 #define EXPLAIN_FILL_FORMAT "Fill: %s"
-#define EXPLAIN_ON_CONDITIONS_FORMAT "ON Conditions: "
+#define EXPLAIN_ON_CONDITIONS_FORMAT "Join Cond: "
 #define EXPLAIN_TIMERANGE_FORMAT "Time range: [%" PRId64 ", %" PRId64 "]"
+
+//append area
 #define EXPLAIN_LOOPS_FORMAT "loops %d"
 #define EXPLAIN_REVERSE_FORMAT "reverse %d"
+
+
+typedef struct SExplainResNode {
+  SNodeList*  pChildren;
+  SPhysiNode* pNode;
+  void*       pExecInfo;
+} SExplainResNode;
 
 typedef struct SQueryExplainRowInfo {
   int32_t level;
@@ -47,12 +58,22 @@ typedef struct SQueryExplainRowInfo {
   char   *buf;
 } SQueryExplainRowInfo;
 
+typedef struct SExplainRowCtx {
+  int32_t totalSize;
+  SArray *rows;
+} SExplainRowCtx;
+
 #define EXPLAIN_ORDER_STRING(_order) ((TSDB_ORDER_ASC == _order) ? "Ascending" : "Descending")
 #define EXPLAIN_JOIN_STRING(_type) ((JOIN_TYPE_INNER == _type) ? "Inner join" : "Join")
 
-#define QUERY_EXPLAIN_NEWLINE(...) tlen = snprintf(tbuf, QUERY_EXPLAIN_MAX_RES_LEN, __VA_ARGS__)
-#define QUERY_EXPLAIN_APPEND(...) tlen += snprintf(tbuf + tlen, QUERY_EXPLAIN_MAX_RES_LEN - tlen, __VA_ARGS__)
-
+#define EXPLAIN_ROW_NEW(level, ...)                                                                     \
+  do {                                                                                                  \
+    tlen = snprintf(tbuf + VARSTR_HEADER_SIZE, QUERY_EXPLAIN_MAX_RES_LEN, "%*s", level, "");            \
+    tlen += snprintf(tbuf + VARSTR_HEADER_SIZE + tlen, QUERY_EXPLAIN_MAX_RES_LEN - tlen, __VA_ARGS__);  \
+  } while (0)
+  
+#define EXPLAIN_ROW_APPEND(...) tlen += snprintf(tbuf + VARSTR_HEADER_SIZE + tlen, QUERY_EXPLAIN_MAX_RES_LEN - tlen, __VA_ARGS__)
+#define EXPLAIN_ROW_END() do { varDataSetLen(tbuf, tlen); tlen += VARSTR_HEADER_SIZE; } while (0)
 
 #define QRY_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
 #define QRY_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)

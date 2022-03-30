@@ -38,6 +38,11 @@ enum {
   SCH_WRITE,
 };
 
+typedef struct SSchExplainGroup {
+  int32_t   nodeNum;
+  SSubplan *plan;
+} SSchExplainGroup;
+
 typedef struct SSchTrans {
   void *transInst;
   void *transHandle;
@@ -142,7 +147,7 @@ typedef struct SSchTask {
 } SSchTask;
 
 typedef struct SSchJobAttr {
-  bool needFetch;
+  bool analyzeExplain;
   bool syncSchedule;
   bool queryJob;
   bool needFlowCtrl;
