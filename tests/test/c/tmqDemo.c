@@ -67,7 +67,7 @@ static SConfInfo g_stConfInfo = {
     "tmqdb",
     "stb",
     "./tmqResult.txt",	// output_file
-    "/data2/dnode/data/vnode/vnode2/wal",
+    "",                 // /data2/dnode/data/vnode/vnode2/wal",
     1, // threads
     1, // tables
     1, // vgroups
@@ -387,11 +387,12 @@ void perf_loop(tmq_t* tmq, tmq_list_t* topics, int32_t totalMsgs, int64_t walLog
     printf("subscribe err\n");
     return;
   }
+  /*taosSsleep(3);*/
   int32_t batchCnt = 0;
   int32_t skipLogNum = 0;
   int64_t startTime = taosGetTimestampUs();
   while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 1);
+    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 3000);
     if (tmqmessage) {
       batchCnt++;
       skipLogNum += tmqGetSkipLogNum(tmqmessage);
@@ -662,7 +663,7 @@ int main(int32_t argc, char *argv[]) {
 	float	msgsSpeed   = totalMsgs / seconds;
 	
 
-	if (0 == g_stConfInfo.simCase) {
+	if ((0 == g_stConfInfo.simCase) && (strlen(g_stConfInfo.vnodeWalPath))) {
 	  walLogSize = getDirectorySize(g_stConfInfo.vnodeWalPath);
 	  if (walLogSize <= 0) {
 	    printf("%s size incorrect!", g_stConfInfo.vnodeWalPath);

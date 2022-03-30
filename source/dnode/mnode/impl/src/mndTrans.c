@@ -54,7 +54,7 @@ static bool    mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans);
 
 static void    mndTransExecute(SMnode *pMnode, STrans *pTrans);
-static void    mndTransSendRpcRsp(STrans *pTrans);
+static void    mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans);
 static int32_t mndProcessTransReq(SNodeMsg *pReq);
 static int32_t mndProcessKillTransReq(SNodeMsg *pReq);
 
@@ -737,7 +737,7 @@ static int32_t mndTransRollback(SMnode *pMnode, STrans *pTrans) {
   return 0;
 }
 
-static void mndTransSendRpcRsp(STrans *pTrans) {
+static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
   bool sendRsp = false;
 
   if (pTrans->stage == TRN_STAGE_FINISHED) {
@@ -771,7 +771,7 @@ static void mndTransSendRpcRsp(STrans *pTrans) {
                       .ahandle = pTrans->rpcAHandle,
                       .pCont = rpcCont,
                       .contLen = pTrans->rpcRspLen};
-    rpcSendResponse(&rspMsg);
+    tmsgSendRsp(&rspMsg);
     pTrans->rpcHandle = NULL;
     pTrans->rpcRsp = NULL;
     pTrans->rpcRspLen = 0;
@@ -898,7 +898,7 @@ static int32_t mndTransSendActionMsg(SMnode *pMnode, STrans *pTrans, SArray *pAr
       pAction->msgReceived = 0;
       pAction->errCode = 0;
     } else {
-      mDebug("trans:%d, action:%d not send since %s", pTrans->id, action, terrstr());
+      mError("trans:%d, action:%d not send since %s", pTrans->id, action, terrstr());
       return -1;
     }
   }
@@ -938,7 +938,7 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
       return errCode;
     }
   } else {
-    mDebug("trans:%d, %d of %d actions executed, code:0x%04x", pTrans->id, numOfReceived, numOfActions, errCode & 0XFFFF);
+    mDebug("trans:%d, %d of %d actions executing", pTrans->id, numOfReceived, numOfActions);
     return TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 }
@@ -1158,7 +1158,7 @@ static void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
     }
   }
 
-  mndTransSendRpcRsp(pTrans);
+  mndTransSendRpcRsp(pMnode, pTrans);
 }
 
 static int32_t mndProcessTransReq(SNodeMsg *pReq) {

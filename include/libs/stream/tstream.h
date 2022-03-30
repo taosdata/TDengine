@@ -30,6 +30,11 @@ enum {
   STREAM_TASK_STATUS__STOP,
 };
 
+enum {
+  STREAM_CREATED_BY__USER = 1,
+  STREAM_CREATED_BY__SMA,
+};
+
 #if 0
 // pipe  -> fetch/pipe queue
 // merge -> merge      queue
