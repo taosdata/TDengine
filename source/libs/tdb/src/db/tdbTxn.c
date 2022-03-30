@@ -21,6 +21,18 @@ int tdbTxnBegin(TENV *pEnv) {
 }
 
 int tdbTxnCommit(TENV *pEnv) {
+  SPager *pPager = NULL;
+  int     ret;
+
+  for (;;) {
+    break;
+    ret = tdbPagerCommit(pPager);
+    if (ret < 0) {
+      ASSERT(0);
+      return -1;
+    }
+  }
+
   // TODO
   return 0;
 }

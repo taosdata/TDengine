@@ -147,7 +147,7 @@ TEST(tdb_test, simple_test) {
         i++;
       }
 
-      // tdbPagerCommit()
+      tdbTxnCommit(pEnv);
     }
 
     {  // Query the data
