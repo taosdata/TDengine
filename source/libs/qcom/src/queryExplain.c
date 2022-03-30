@@ -478,11 +478,13 @@ _return:
   QRY_RET(code);
 }
 
-int32_t qAppendTaskExplainResRows(void **pRowCtx, struct SSubplan *plan, void *pExecTree, int32_t level) {
+int32_t qAppendTaskExplainResRows(void **pRowCtx, void *plan, void *pExecTree, int32_t level) {
   SExplainResNode *node = NULL;
   int32_t code = 0;
+  struct SSubplan *pPlan = (struct SSubplan *)plan;
+  SExplainRowCtx *ctx = (SExplainRowCtx *)*pRowCtx;
   
-  QRY_ERR_RET(qGenerateExplainResNodeTree(plan, pExecTree, &node));
+  QRY_ERR_RET(qGenerateExplainResNodeTree(pPlan, pExecTree, &node));
 
   if (NULL == *pRowCtx) {
     *pRowCtx = taosMemoryCalloc(1, sizeof(SExplainRowCtx));
@@ -491,24 +493,25 @@ int32_t qAppendTaskExplainResRows(void **pRowCtx, struct SSubplan *plan, void *p
       QRY_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
 
+    ctx = (SExplainRowCtx *)*pRowCtx;
+
     SArray *rows = taosArrayInit(10, sizeof(SQueryExplainRowInfo));
     if (NULL == rows) {
       qError("taosArrayInit SQueryExplainRowInfo failed");
       QRY_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
     
-    (*pRowCtx)->rows = rows;
+    ctx->rows = rows;
   }
- 
-  QRY_ERR_JRET(qGenerateExplainResRowsFromNode(node, *pRowCtx, level));
+
+  QRY_ERR_JRET(qGenerateExplainResRowsFromNode(node, ctx, level));
 
 _return:
 
   qFreeExplainResTree(node);
 
   if (code) {
-    taosArrayDestroy((*pRowCtx)->rows);
-    taosMemoryFree(*pRowCtx);
+    qFreeExplainRowCtx(*pRowCtx);
     *pRowCtx = NULL;
   }
   

@@ -174,7 +174,7 @@ bool           tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 char *jobTaskStatusStr(int32_t status);
 
-int32_t qAppendTaskExplainResRows(void **pRowCtx, struct SSubplan *plan, void *pExecTree, int32_t level);
+int32_t qAppendTaskExplainResRows(void **pRowCtx, void *plan, void *pExecTree, int32_t level);
 int32_t qGetExplainRspFromRowCtx(void *ctx, SRetrieveTableRsp **pRsp);
 void qFreeExplainRowCtx(void *ctx);
 

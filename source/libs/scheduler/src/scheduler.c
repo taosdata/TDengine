@@ -527,7 +527,7 @@ int32_t schValidateAndBuildJobExplain(SQueryPlan *pDag, SSchJob *pJob) {
 
       SSchExplainGroup group = {.nodeNum = 1, .plan = plan};
       if (0 != taosHashPut(groupHash, &plan->id.groupId, sizeof(plan->id.groupId), &group, sizeof(group))) {
-        SCH_TASK_ELOG("taosHashPut to explainGroupHash failed, taskIdx:%d", n);
+        SCH_JOB_ELOG("taosHashPut to explainGroupHash failed, taskIdx:%d", n);
         SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
     }
