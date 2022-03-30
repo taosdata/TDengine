@@ -2261,6 +2261,7 @@ int32_t schStaticExplain(void *transport, SArray *pNodeList, SQueryPlan *pDag, i
 
   pJob->sql = sql;
   pJob->attr.queryJob = true;
+  pJob->attr.explainMode = pDag->explainInfo.mode;
 
   SCH_ERR_JRET(schValidateAndBuildJobExplain(pDag, pJob));
 
@@ -2528,7 +2529,7 @@ int32_t schedulerFetchRows(int64_t job, void **pData) {
     SCH_JOB_DLOG("job already succeed, status:%s", jobTaskStatusStr(status));
     goto _return;
   } else if (status == JOB_TASK_STATUS_PARTIAL_SUCCEED) {
-    if (!pJob->attr.explainMode == EXPLAIN_MODE_STATIC) {
+    if (!(pJob->attr.explainMode == EXPLAIN_MODE_STATIC)) {
       SCH_ERR_JRET(schFetchFromRemote(pJob));
       tsem_wait(&pJob->rspSem);
     } 

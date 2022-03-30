@@ -22,8 +22,6 @@ extern "C" {
 #include "nodes.h"
 #include "plannodes.h"
 
-#define QUERY_EXPLAIN_MAX_RES_LEN 1024
-
 //newline area
 #define EXPLAIN_TAG_SCAN_FORMAT "Tag scan on %s columns=%d"
 #define EXPLAIN_TBL_SCAN_FORMAT "Table scan on %s columns=%d"
@@ -42,8 +40,8 @@ extern "C" {
 #define EXPLAIN_TIMERANGE_FORMAT "Time range: [%" PRId64 ", %" PRId64 "]"
 
 //append area
-#define EXPLAIN_LOOPS_FORMAT "loops %d"
-#define EXPLAIN_REVERSE_FORMAT "reverse %d"
+#define EXPLAIN_LOOPS_FORMAT "loops=%d"
+#define EXPLAIN_REVERSE_FORMAT "reverse=%d"
 
 
 typedef struct SExplainResNode {
@@ -68,11 +66,11 @@ typedef struct SExplainRowCtx {
 
 #define EXPLAIN_ROW_NEW(level, ...)                                                                     \
   do {                                                                                                  \
-    tlen = snprintf(tbuf + VARSTR_HEADER_SIZE, QUERY_EXPLAIN_MAX_RES_LEN, "%*s", level, "");            \
-    tlen += snprintf(tbuf + VARSTR_HEADER_SIZE + tlen, QUERY_EXPLAIN_MAX_RES_LEN - tlen, __VA_ARGS__);  \
+    tlen = snprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, "%*s", (level) * 2, "");            \
+    tlen += snprintf(tbuf + VARSTR_HEADER_SIZE + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - tlen, __VA_ARGS__);  \
   } while (0)
   
-#define EXPLAIN_ROW_APPEND(...) tlen += snprintf(tbuf + VARSTR_HEADER_SIZE + tlen, QUERY_EXPLAIN_MAX_RES_LEN - tlen, __VA_ARGS__)
+#define EXPLAIN_ROW_APPEND(...) tlen += snprintf(tbuf + VARSTR_HEADER_SIZE + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - tlen, __VA_ARGS__)
 #define EXPLAIN_ROW_END() do { varDataSetLen(tbuf, tlen); tlen += VARSTR_HEADER_SIZE; } while (0)
 
 #define QRY_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)

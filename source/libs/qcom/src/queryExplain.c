@@ -204,12 +204,13 @@ int32_t qExplainBufAppendExecInfo(void *pExecInfo, char *tbuf, int32_t *len) {
 
 int32_t qExplainResAppendRow(SExplainRowCtx *ctx, char *tbuf, int32_t len, int32_t level) {
   SQueryExplainRowInfo row = {0};
-  row.buf = strdup(tbuf);
+  row.buf = taosMemoryMalloc(len);
   if (NULL == row.buf) {
-    qError("strdup %s failed", tbuf);
+    qError("taosMemoryMalloc %d failed", len);
     QRY_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
+  memcpy(row.buf, tbuf, len);
   row.level = level;
   row.len = len;
   ctx->totalSize += len;
@@ -275,7 +276,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainRowCtx *ctx
 
       if (pTblScanNode->scan.node.pConditions) {
         EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);
-        QRY_ERR_RET(nodesNodeToSQL(pTblScanNode->scan.node.pConditions, tbuf, QUERY_EXPLAIN_MAX_RES_LEN, &tlen));        
+        QRY_ERR_RET(nodesNodeToSQL(pTblScanNode->scan.node.pConditions, tbuf, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));        
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
       }
@@ -310,7 +311,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainRowCtx *ctx
 
       if (pPrjNode->node.pConditions) {
         EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);      
-        QRY_ERR_RET(nodesNodeToSQL(pPrjNode->node.pConditions, tbuf, QUERY_EXPLAIN_MAX_RES_LEN, &tlen));        
+        QRY_ERR_RET(nodesNodeToSQL(pPrjNode->node.pConditions, tbuf, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));        
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
       }
@@ -327,13 +328,13 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainRowCtx *ctx
 
       if (pJoinNode->node.pConditions) {
         EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);      
-        QRY_ERR_RET(nodesNodeToSQL(pJoinNode->node.pConditions, tbuf, QUERY_EXPLAIN_MAX_RES_LEN, &tlen));                
+        QRY_ERR_RET(nodesNodeToSQL(pJoinNode->node.pConditions, tbuf, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));                
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
       }
       
       EXPLAIN_ROW_NEW(level + 1, EXPLAIN_ON_CONDITIONS_FORMAT);      
-      QRY_ERR_RET(nodesNodeToSQL(pJoinNode->pOnConditions, tbuf, QUERY_EXPLAIN_MAX_RES_LEN, &tlen));              
+      QRY_ERR_RET(nodesNodeToSQL(pJoinNode->pOnConditions, tbuf, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));              
       EXPLAIN_ROW_END();
       QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
       break;
@@ -349,7 +350,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainRowCtx *ctx
 
       if (pAggNode->node.pConditions) {
         EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);      
-        QRY_ERR_RET(nodesNodeToSQL(pAggNode->node.pConditions, tbuf, QUERY_EXPLAIN_MAX_RES_LEN, &tlen));                
+        QRY_ERR_RET(nodesNodeToSQL(pAggNode->node.pConditions, tbuf, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));                
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
       }
@@ -366,7 +367,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainRowCtx *ctx
 
       if (pExchNode->node.pConditions) {
         EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);      
-        QRY_ERR_RET(nodesNodeToSQL(pExchNode->node.pConditions, tbuf, QUERY_EXPLAIN_MAX_RES_LEN, &tlen));                
+        QRY_ERR_RET(nodesNodeToSQL(pExchNode->node.pConditions, tbuf, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));                
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
       }
@@ -383,7 +384,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainRowCtx *ctx
 
       if (pSortNode->node.pConditions) {
         EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);      
-        QRY_ERR_RET(nodesNodeToSQL(pSortNode->node.pConditions, tbuf, QUERY_EXPLAIN_MAX_RES_LEN, &tlen));                
+        QRY_ERR_RET(nodesNodeToSQL(pSortNode->node.pConditions, tbuf, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));                
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
       }
@@ -407,7 +408,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainRowCtx *ctx
 
       if (pIntNode->window.node.pConditions) {
         EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);      
-        QRY_ERR_RET(nodesNodeToSQL(pIntNode->window.node.pConditions, tbuf, QUERY_EXPLAIN_MAX_RES_LEN, &tlen));                
+        QRY_ERR_RET(nodesNodeToSQL(pIntNode->window.node.pConditions, tbuf, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));                
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
       }
@@ -424,7 +425,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainRowCtx *ctx
 
       if (pIntNode->window.node.pConditions) {
         EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);      
-        QRY_ERR_RET(nodesNodeToSQL(pIntNode->window.node.pConditions, tbuf, QUERY_EXPLAIN_MAX_RES_LEN, &tlen));                
+        QRY_ERR_RET(nodesNodeToSQL(pIntNode->window.node.pConditions, tbuf, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));                
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
       }
@@ -463,9 +464,9 @@ int32_t qGenerateExplainResRowsFromNode(SExplainResNode *pResNode, SExplainRowCt
   }
 
   int32_t code = 0;
-  char *tbuf = taosMemoryMalloc(QUERY_EXPLAIN_MAX_RES_LEN);
+  char *tbuf = taosMemoryMalloc(TSDB_EXPLAIN_RESULT_ROW_SIZE);
   if (NULL == tbuf) {
-    qError("malloc size %d failed", QUERY_EXPLAIN_MAX_RES_LEN);
+    qError("malloc size %d failed", TSDB_EXPLAIN_RESULT_ROW_SIZE);
     QRY_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
   
@@ -536,9 +537,9 @@ int32_t qGetExplainRspFromRowCtx(void *ctx, SRetrieveTableRsp **pRsp) {
   }
 
   rsp->completed = 1;
-  rsp->numOfRows = rowNum;
+  rsp->numOfRows = htonl(rowNum);
 
-  *(int32_t *)rsp->data = pCtx->totalSize;
+  *(int32_t *)rsp->data = htonl(pCtx->totalSize);
 
   int32_t *offset = (int32_t *)((char *)rsp->data + sizeof(int32_t));
   char *data = (char *)(offset + rowNum);
@@ -554,6 +555,8 @@ int32_t qGetExplainRspFromRowCtx(void *ctx, SRetrieveTableRsp **pRsp) {
     ++offset;
     data += row->len;
   }
+
+  *pRsp = rsp;
 
   return TSDB_CODE_SUCCESS;
 }
