@@ -359,8 +359,8 @@ SProcObj *taosProcInit(const SProcCfg *pCfg) {
   }
 
   pProc->name = pCfg->name;
-  pProc->pChildQueue = taosProcInitQueue(pCfg->childQueueSize);
-  pProc->pParentQueue = taosProcInitQueue(pCfg->parentQueueSize);
+  pProc->pChildQueue = taosProcInitQueue(pCfg->shm.size / 2);
+  pProc->pParentQueue = taosProcInitQueue(pCfg->shm.size / 2);
   if (pProc->pChildQueue == NULL || pProc->pParentQueue == NULL) {
     taosProcCleanupQueue(pProc->pChildQueue);
     taosMemoryFree(pProc);

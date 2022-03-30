@@ -101,6 +101,9 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
     goto _OVER;
   }
 
+  SMsgCb msgCb = dndCreateMsgcb(&pDnode->wrappers[0]);
+  tmsgSetDefaultMsgCb(&msgCb);
+
   dInfo("dnode object is created, data:%p", pDnode);
   code = 0;
 

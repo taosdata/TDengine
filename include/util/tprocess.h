@@ -32,19 +32,17 @@ typedef void *(*ProcConsumeFp)(void *pParent, void *pHead, int16_t headLen, void
                                ProcFuncType ftype);
 
 typedef struct {
-  int32_t       childQueueSize;
   ProcConsumeFp childConsumeFp;
   ProcMallocFp  childMallocHeadFp;
   ProcFreeFp    childFreeHeadFp;
   ProcMallocFp  childMallocBodyFp;
   ProcFreeFp    childFreeBodyFp;
-  int32_t       parentQueueSize;
   ProcConsumeFp parentConsumeFp;
   ProcMallocFp  parentdMallocHeadFp;
   ProcFreeFp    parentFreeHeadFp;
   ProcMallocFp  parentMallocBodyFp;
   ProcFreeFp    parentFreeBodyFp;
-  bool          testFlag;
+  SShm          shm;
   void         *pParent;
   const char   *name;
 } SProcCfg;
