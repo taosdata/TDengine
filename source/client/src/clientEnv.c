@@ -200,6 +200,9 @@ static void doDestroyRequest(void *p) {
     taosArrayDestroy(pRequest->body.showInfo.pArray);
   }
 
+  taosArrayDestroy(pRequest->tableList);
+  taosArrayDestroy(pRequest->dbList);
+
   deregisterRequest(pRequest);
   taosMemoryFreeClear(pRequest);
 }
