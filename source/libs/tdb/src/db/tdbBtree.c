@@ -216,15 +216,22 @@ int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen
   SBTC         btc;
   SCell       *pCell;
   int          cret;
+  int          ret;
   void        *pVal;
   SCellDecoder cd;
 
   tdbBtcOpen(&btc, pBt);
 
-  tdbBtcMoveTo(&btc, pKey, kLen, &cret);
+  ret = tdbBtcMoveTo(&btc, pKey, kLen, &cret);
+  if (ret < 0) {
+    tdbBtcClose(&btc);
+    ASSERT(0);
+    return -1;
+  }
 
   if (cret) {
-    return cret;
+    tdbBtcClose(&btc);
+    return -1;
   }
 
   pCell = tdbPageGetCell(btc.pPage, btc.idx);
@@ -233,11 +240,15 @@ int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen
   *vLen = cd.vLen;
   pVal = TDB_REALLOC(*ppVal, *vLen);
   if (pVal == NULL) {
+    tdbBtcClose(&btc);
     return -1;
   }
 
   *ppVal = pVal;
   memcpy(*ppVal, cd.pVal, cd.vLen);
+
+  tdbBtcClose(&btc);
+
   return 0;
 }
 
