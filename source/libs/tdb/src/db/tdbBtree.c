@@ -213,11 +213,16 @@ int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, in
 }
 
 int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen) {
+  return tdbBtreePGet(pBt, pKey, kLen, NULL, NULL, ppVal, vLen);
+}
+
+int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen) {
   SBTC         btc;
   SCell       *pCell;
   int          cret;
   int          ret;
-  void        *pVal;
+  void        *pTKey = NULL;
+  void        *pTVal = NULL;
   SCellDecoder cd;
 
   tdbBtcOpen(&btc, pBt);
@@ -226,7 +231,6 @@ int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen
   if (ret < 0) {
     tdbBtcClose(&btc);
     ASSERT(0);
-    return -1;
   }
 
   if (cret) {
@@ -237,54 +241,29 @@ int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen
   pCell = tdbPageGetCell(btc.pPage, btc.idx);
   tdbBtreeDecodeCell(btc.pPage, pCell, &cd);
 
-  *vLen = cd.vLen;
-  pVal = TDB_REALLOC(*ppVal, *vLen);
-  if (pVal == NULL) {
-    tdbBtcClose(&btc);
-    return -1;
+  if (ppKey) {
+    pTKey = TDB_REALLOC(*ppKey, cd.kLen);
+    if (pTKey == NULL) {
+      tdbBtcClose(&btc);
+      ASSERT(0);
+      return -1;
+    }
+    *ppKey = pTKey;
+    *pkLen = cd.kLen;
+    memcpy(*ppKey, cd.pKey, cd.kLen);
   }
 
-  *ppVal = pVal;
+  pTVal = TDB_REALLOC(*ppVal, cd.vLen);
+  if (pTVal == NULL) {
+    tdbBtcClose(&btc);
+    ASSERT(0);
+    return -1;
+  }
+  *ppVal = pTVal;
+  *vLen = cd.vLen;
   memcpy(*ppVal, cd.pVal, cd.vLen);
 
   tdbBtcClose(&btc);
-
-  return 0;
-}
-
-int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen) {
-  SBTC         btc;
-  SCell       *pCell;
-  int          cret;
-  void        *pTKey;
-  void        *pTVal;
-  SCellDecoder cd;
-
-  tdbBtcOpen(&btc, pBt);
-
-  tdbBtcMoveTo(&btc, pKey, kLen, &cret);
-  if (cret) {
-    return cret;
-  }
-
-  pCell = tdbPageGetCell(btc.pPage, btc.idx);
-  tdbBtreeDecodeCell(btc.pPage, pCell, &cd);
-
-  pTKey = TDB_REALLOC(*ppKey, cd.kLen);
-  pTVal = TDB_REALLOC(*ppVal, cd.vLen);
-
-  if (pTKey == NULL || pTVal == NULL) {
-    TDB_FREE(pTKey);
-    TDB_FREE(pTVal);
-  }
-
-  *ppKey = pTKey;
-  *ppVal = pTVal;
-  *pkLen = cd.kLen;
-  *vLen = cd.vLen;
-
-  memcpy(*ppKey, cd.pKey, cd.kLen);
-  memcpy(*ppVal, cd.pVal, cd.vLen);
 
   return 0;
 }
