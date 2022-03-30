@@ -191,7 +191,7 @@ int32_t dndReadShmFile(SDnode *pDnode) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->ntype];
     if (taosAttachShm(&pWrapper->shm) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
-      dError("shmid:%d, failed to attach since %s", pWrapper->shm.id, terrstr());
+      dError("shmid:%d, failed to attach shm since %s", pWrapper->shm.id, terrstr());
       goto _OVER;
     }
     dDebug("shmid:%d, is attached, size:%d", pWrapper->shm.id, pWrapper->shm.size);

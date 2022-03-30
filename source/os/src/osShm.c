@@ -49,12 +49,11 @@ void taosDropShm(SShm* pShm) {
 }
 
 int32_t taosAttachShm(SShm* pShm) {
-  if (pShm->id >= 0) {
-    pShm->ptr = shmat(pShm->id, NULL, 0);
-    if (pShm->ptr != NULL) {
-      return 0;
-    }
-  }
+  errno = 0;
 
-  return -1;
+  void* ptr = shmat(pShm->id, NULL, 0);
+  if (errno == 0) {
+    pShm->ptr = ptr;
+  }
+  return errno;
 }

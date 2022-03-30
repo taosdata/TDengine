@@ -35,9 +35,11 @@ static int32_t dndInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
     return -1;
   }
 
-  pDnode->lockfile = dndCheckRunning(pDnode->dataDir);
-  if (pDnode->lockfile == NULL) {
-    return -1;
+  if (!tsMultiProcess || pDnode->ntype == DNODE) {
+    pDnode->lockfile = dndCheckRunning(pDnode->dataDir);
+    if (pDnode->lockfile == NULL) {
+      return -1;
+    }
   }
 
   return 0;
