@@ -533,18 +533,32 @@ int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   SColumnInfoData *pInputData  = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
+  //allocate output buf
+  if (pOutputData->pData == NULL) {
+    int32_t outputLen = pInputData->varmeta.length;
+    setVarTypeOutputBuf(pOutputData, outputLen, GET_PARAM_TYPE(pInput));
+  }
+
+  char *input  = pInputData->pData;
+  char *output = pOutputData->pData;
+
+  int32_t offset = 0;
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_f(pInputData->nullbitmap, i)) {
       colDataSetNull_f(pOutputData->nullbitmap, i);
       continue;
     }
 
-    char *in  = pInputData->pData + i * GET_PARAM_BYTES(pInput);
-    char *out = pOutputData->pData + i * GET_PARAM_BYTES(pInput);
-
-    int32_t len = varDataLen(in);
+    int32_t len = varDataLen(input);
     int32_t charLen = (type == TSDB_DATA_TYPE_VARCHAR) ? len : len / TSDB_NCHAR_SIZE;
-    trimFn(in, out, type, charLen);
+    trimFn(input, output, type, charLen);
+
+    varDataSetLen(output, len);
+    input += varDataTLen(input);
+    output += varDataTLen(output);
+
+    pOutputData->varmeta.offset[i] = offset;
+    offset += len + VARSTR_HEADER_SIZE;
   }
 
   pOutput->numOfRows = pInput->numOfRows;
