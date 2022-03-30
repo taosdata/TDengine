@@ -15,11 +15,11 @@
 #ifndef __INDEX_TFILE_H__
 #define __INDEX_TFILE_H__
 
+#include "indexFst.h"
+#include "indexFstCountingWriter.h"
 #include "indexInt.h"
-#include "index_fst.h"
-#include "index_fst_counting_writer.h"
-#include "index_tfile.h"
-#include "index_util.h"
+#include "indexTfile.h"
+#include "indexUtil.h"
 #include "tlockfree.h"
 
 #ifdef __cplusplus

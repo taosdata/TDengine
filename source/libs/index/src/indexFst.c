@@ -13,9 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "index_fst.h"
+#include "indexFst.h"
+#include "indexFstAutomation.h"
 #include "indexInt.h"
-#include "index_fst_automation.h"
 #include "tchecksum.h"
 #include "tcoding.h"
 

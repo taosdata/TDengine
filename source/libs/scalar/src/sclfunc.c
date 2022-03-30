@@ -1,13 +1,8 @@
-#include "sclfunc.h"
-#include <common/tdatablock.h>
+#include "function.h"
+#include "scalar.h"
+#include "tdatablock.h"
 #include "sclInt.h"
 #include "sclvector.h"
-
-static void assignBasicParaInfo(struct SScalarParam* dst, const struct SScalarParam* src) {
-//  dst->type = src->type;
-//  dst->bytes = src->bytes;
-//  dst->num = src->num;
-}
 
 /** Math functions **/
 int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {

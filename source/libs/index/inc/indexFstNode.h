@@ -20,9 +20,9 @@
 extern "C" {
 #endif
 
+#include "indexFstCountingWriter.h"
+#include "indexFstUtil.h"
 #include "indexInt.h"
-#include "index_fst_counting_writer.h"
-#include "index_fst_util.h"
 
 #define FST_BUILDER_NODE_IS_FINAL(bn) (bn->isFinal)
 #define FST_BUILDER_NODE_TRANS_ISEMPTY(bn) (taosArrayGetSize(bn->trans) == 0)

@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
- *
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com> *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -16,7 +15,7 @@
 #define __INDEX_CACHE_H__
 
 #include "indexInt.h"
-#include "index_util.h"
+#include "indexUtil.h"
 #include "tskiplist.h"
 
 // ----------------- key structure in skiplist ---------------------

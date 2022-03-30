@@ -13,9 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "index_cache.h"
-#include "index_comm.h"
-#include "index_util.h"
+#include "indexCache.h"
+#include "indexComm.h"
+#include "indexUtil.h"
 #include "tcompare.h"
 #include "tsched.h"
 
