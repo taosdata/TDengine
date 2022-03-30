@@ -36,12 +36,12 @@ TEST_F(UtilTestQueue, 01_fork) {
 
   int                 err;
   pthread_mutexattr_t mattr;
-  if ((err = pthread_mutexattr_init(&mattr)) < 0) {
+  if ((err = taosThreadMutexAttrInit(&mattr)) < 0) {
     printf("mutex addr init error:%s\n", strerror(err));
     exit(1);
   }
 
-  if ((err = pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED)) < 0) {
+  if ((err = taosThreadMutexAttrSetPshared(&mattr, PTHREAD_PROCESS_SHARED)) < 0) {
     printf("mutex addr get shared error:%s\n", strerror(err));
     exit(1);
   }
@@ -50,7 +50,7 @@ TEST_F(UtilTestQueue, 01_fork) {
   int              mid = shmget(IPC_PRIVATE, sizeof(pthread_mutex_t), 0600);
   m = (pthread_mutex_t*)shmat(mid, NULL, 0);
 
-  if ((err = pthread_mutex_init(m, &mattr)) < 0) {
+  if ((err = taosThreadMutexInit(m, &mattr)) < 0) {
     printf("mutex mutex init error:%s\n", strerror(err));
     exit(1);
   }
@@ -125,7 +125,7 @@ TEST_F(UtilTestQueue, 01_fork) {
 
   taosThreadAttrDestroy(&mattr);
   //销毁mutex
-  pthread_mutex_destroy(m);
+  taosThreadMutexDestroy(m);
 
   exit(0);
 }

@@ -758,7 +758,7 @@ void taosBlockSIGPIPE() {
   sigset_t signal_mask;
   sigemptyset(&signal_mask);
   sigaddset(&signal_mask, SIGPIPE);
-  int32_t rc = taosThreadSigmask(SIG_BLOCK, &signal_mask, NULL);
+  int32_t rc = taosThreadSigMask(SIG_BLOCK, &signal_mask, NULL);
   if (rc != 0) {
     // printf("failed to block SIGPIPE");
   }
@@ -876,7 +876,7 @@ void taosSetMaskSIGPIPE() {
   sigset_t signal_mask;
   sigemptyset(&signal_mask);
   sigaddset(&signal_mask, SIGPIPE);
-  int32_t rc = taosThreadSigmask(SIG_SETMASK, &signal_mask, NULL);
+  int32_t rc = taosThreadSigMask(SIG_SETMASK, &signal_mask, NULL);
   if (rc != 0) {
     // printf("failed to setmask SIGPIPE");
   }
