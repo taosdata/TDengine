@@ -241,7 +241,8 @@ static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOf
       return;
     }
     case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_UBIGINT: {
+    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP: {
       int64_t* p = (int64_t*) dest;
       int64_t* pSrc = (int64_t*) src;
 
