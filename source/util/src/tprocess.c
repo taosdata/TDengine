@@ -63,27 +63,27 @@ static inline int32_t CEIL8(int32_t v) {
 static int32_t taosProcInitMutex(SProcQueue *pQueue) {
   TdThreadMutexAttr mattr = {0};
 
-  if (pthread_mutexattr_init(&mattr) != 0) {
+  if (taosThreadMutexAttrInit(&mattr) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to init mutex while init attr since %s", terrstr());
     return -1;
   }
 
-  if (pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED) != 0) {
-    pthread_mutexattr_destroy(&mattr);
+  if (taosThreadMutexAttrSetPshared(&mattr, PTHREAD_PROCESS_SHARED) != 0) {
+    taosThreadMutexAttrDestroy(&mattr);
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to init mutex while set shared since %s", terrstr());
     return -1;
   }
 
   if (taosThreadMutexInit(&pQueue->mutex, &mattr) != 0) {
-    pthread_mutexattr_destroy(&mattr);
+    taosThreadMutexDestroy(&pQueue->mutex);
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to init mutex since %s", terrstr());
     return -1;
   }
 
-  pthread_mutexattr_destroy(&mattr);
+  taosThreadMutexAttrDestroy(&mattr);
   return 0;
 }
 
@@ -139,7 +139,6 @@ static void taosProcDestroySem(SProcQueue *pQueue) {
     tsem_destroy(pQueue->sem);
     pQueue->sem = NULL;
   }
-
 }
 
 static void taosProcCleanupQueue(SProcQueue *pQueue) {
@@ -318,7 +317,7 @@ SProcObj *taosProcInit(const SProcCfg *pCfg) {
   pProc->pChildQueue = taosProcInitQueue(pCfg->name, pCfg->isChild, (char *)pCfg->shm.ptr + cstart, csize);
   pProc->pParentQueue = taosProcInitQueue(pCfg->name, pCfg->isChild, (char *)pCfg->shm.ptr + pstart, psize);
   if (pProc->pChildQueue == NULL || pProc->pParentQueue == NULL) {
-    taosProcCleanupQueue(pProc->pChildQueue);
+    // taosProcCleanupQueue(pProc->pChildQueue);
     taosMemoryFree(pProc);
     return NULL;
   }
@@ -422,8 +421,8 @@ void taosProcCleanup(SProcObj *pProc) {
   if (pProc != NULL) {
     uDebug("proc:%s, clean up", pProc->name);
     taosProcStop(pProc);
-    taosProcCleanupQueue(pProc->pChildQueue);
-    taosProcCleanupQueue(pProc->pParentQueue);
+    // taosProcCleanupQueue(pProc->pChildQueue);
+    // taosProcCleanupQueue(pProc->pParentQueue);
     taosMemoryFree(pProc);
   }
 }

@@ -64,7 +64,7 @@ typedef TdThreadSpinlock tdb_spinlock_t;
 #define tdbSpinlockDestroy taosThreadSpinDestroy
 #define tdbSpinlockLock    taosThreadSpinLock
 #define tdbSpinlockUnlock  taosThreadSpinUnlock
-#define tdbSpinlockTrylock pthread_spin_trylock
+#define tdbSpinlockTrylock taosThreadSpinTrylock
 
 /* mutex lock */
 typedef TdThreadMutex tdb_mutex_t;

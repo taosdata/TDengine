@@ -26,7 +26,7 @@
 #include "parser.h"
 #include "tname.h"
 
-#define MND_TOPIC_VER_NUMBER   1
+#define MND_TOPIC_VER_NUMBER 1
 #define MND_TOPIC_RESERVE_SIZE 64
 
 static int32_t mndTopicActionInsert(SSdb *pSdb, SMqTopicObj *pTopic);

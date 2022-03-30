@@ -356,7 +356,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   void*   buf = rpcMallocCont(tlen);
   if (buf == NULL) {
     pMsg->code = -1;
-    ASSERT(0);
     return -1;
   }
   ((SMqRspHead*)buf)->mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
@@ -490,7 +489,7 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
   return 0;
 }
 
-int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen) {
+int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t workerId) {
   void* pIter = NULL;
 
   while (1) {
@@ -498,14 +497,14 @@ int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen) {
     if (pIter == NULL) break;
     SStreamTask* pTask = (SStreamTask*)pIter;
 
-    if (streamExecTask(pTask, &pTq->pVnode->msgCb, data, STREAM_DATA_TYPE_SUBMIT_BLOCK, 0) < 0) {
+    if (streamExecTask(pTask, &pTq->pVnode->msgCb, data, STREAM_DATA_TYPE_SUBMIT_BLOCK, workerId) < 0) {
       // TODO
     }
   }
   return 0;
 }
 
-int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen) {
+int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId) {
   SStreamTaskExecReq req;
   tDecodeSStreamTaskExecReq(msg, &req);
 
@@ -515,7 +514,7 @@ int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen) {
   SStreamTask* pTask = taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
   ASSERT(pTask);
 
-  if (streamExecTask(pTask, &pTq->pVnode->msgCb, req.data, STREAM_DATA_TYPE_SSDATA_BLOCK, 0) < 0) {
+  if (streamExecTask(pTask, &pTq->pVnode->msgCb, req.data, STREAM_DATA_TYPE_SSDATA_BLOCK, workerId) < 0) {
     // TODO
   }
   return 0;

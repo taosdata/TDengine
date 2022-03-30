@@ -82,6 +82,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(STableOptions));
     case QUERY_NODE_INDEX_OPTIONS:
       return makeNode(type, sizeof(SIndexOptions));
+    case QUERY_NODE_EXPLAIN_OPTIONS:
+      return makeNode(type, sizeof(SExplainOptions));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
@@ -132,6 +134,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateTopicStmt));
     case QUERY_NODE_DROP_TOPIC_STMT:
       return makeNode(type, sizeof(SDropTopicStmt));
+    case QUERY_NODE_EXPLAIN_STMT:
+      return makeNode(type, sizeof(SExplainStmt));
     case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_TABLES_STMT:
     case QUERY_NODE_SHOW_STABLES_STMT:

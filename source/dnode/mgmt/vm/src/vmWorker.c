@@ -76,7 +76,7 @@ static void vmProcessFetchQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   SVnodeObj *pVnode = pInfo->ahandle;
 
   dTrace("msg:%p, will be processed in vnode-fetch queue", pMsg);
-  int32_t code = vnodeProcessFetchMsg(pVnode->pImpl, &pMsg->rpcMsg);
+  int32_t code = vnodeProcessFetchMsg(pVnode->pImpl, &pMsg->rpcMsg, pInfo);
   if (code != 0) {
     vmSendRsp(pVnode->pWrapper, pMsg, code);
     dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
@@ -168,7 +168,7 @@ static void vmProcessMergeQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     taosGetQitem(qall, (void **)&pMsg);
 
     dTrace("msg:%p, will be processed in vnode-merge queue", pMsg);
-    int32_t code = vnodeProcessFetchMsg(pVnode->pImpl, &pMsg->rpcMsg);
+    int32_t code = vnodeProcessFetchMsg(pVnode->pImpl, &pMsg->rpcMsg, pInfo);
     if (code != 0) {
       vmSendRsp(pVnode->pWrapper, pMsg, code);
       dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
@@ -414,8 +414,7 @@ int32_t vmStartWorker(SVnodesMgmt *pMgmt) {
   pWPool->max = maxMergeThreads;
   if (tWWorkerInit(pWPool) != 0) return -1;
 
-  SSingleWorkerCfg cfg = {
-      .min = 1, .max = 1, .name = "vnode-mgmt", .fp = (FItem)vmProcessMgmtQueue, .param = pMgmt};
+  SSingleWorkerCfg cfg = {.min = 1, .max = 1, .name = "vnode-mgmt", .fp = (FItem)vmProcessMgmtQueue, .param = pMgmt};
   if (tSingleWorkerInit(&pMgmt->mgmtWorker, &cfg) != 0) {
     dError("failed to start vnode-mgmt worker since %s", terrstr());
     return -1;
