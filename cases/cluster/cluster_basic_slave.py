@@ -52,7 +52,7 @@ class TestCluster(TDCase):
         self._dbs = ["db_%d"%db_num for db_num in range(self._db_nums)]
         self._tags = ["tags_%d"%tag_num for tag_num in range(self._tags_nums)]
         self._stablenames = ["table_%d"%table_num for table_num in range(self._stables_nums)]
-        print(self._dbs)
+
 
     def get_db_name(self):
         pass
@@ -76,7 +76,7 @@ class TestCluster(TDCase):
         pass
 
     def run(self):
-        pass
+        print(self._dbs)
 
     def cleanup(self):
         pass
