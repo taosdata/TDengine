@@ -32,6 +32,7 @@ typedef struct STranslateContext {
   SCmdMsgInfo* pCmdMsg;
   SHashObj* pDbs;
   SHashObj* pTables;
+  SExplainOptions* pExplainOpt;
 } STranslateContext;
 
 typedef struct SFullDatabaseName {
@@ -673,6 +674,7 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
   switch (nodeType(pTable)) {
     case QUERY_NODE_REAL_TABLE: {
       SRealTableNode* pRealTable = (SRealTableNode*)pTable;
+      pRealTable->ratio = (NULL != pCxt->pExplainOpt ? pCxt->pExplainOpt->ratio : 1.0);
       SName name;
       code = getTableMetaImpl(pCxt,
           toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, &name), &(pRealTable->pMeta));
@@ -680,10 +682,9 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, pRealTable->table.tableName);
       }
       code = setTableVgroupList(pCxt, &name, pRealTable);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
+      if (TSDB_CODE_SUCCESS == code) {
+        code = addNamespace(pCxt, pRealTable);
       }
-      code = addNamespace(pCxt, pRealTable);
       break;
     }
     case QUERY_NODE_TEMP_TABLE: {
@@ -1804,6 +1805,13 @@ static int32_t translateAlterLocal(STranslateContext* pCxt, SAlterLocalStmt* pSt
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateExplain(STranslateContext* pCxt, SExplainStmt* pStmt) {
+  if (pStmt->analyze) {
+    pCxt->pExplainOpt = pStmt->pOptions;
+  }
+  return translateQuery(pCxt, pStmt->pQuery);
+}
+
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
@@ -1885,6 +1893,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_ALTER_LOCAL_STMT:
       code = translateAlterLocal(pCxt, (SAlterLocalStmt*)pNode);
       break;
+    case QUERY_NODE_EXPLAIN_STMT:
+      code = translateExplain(pCxt, (SExplainStmt*)pNode);
+      break;
     default:
       break;
   }
@@ -1903,7 +1914,11 @@ static int32_t translateSubquery(STranslateContext* pCxt, SNode* pNode) {
 }
 
 int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
-  if (NULL != pRoot && QUERY_NODE_SELECT_STMT == nodeType(pRoot)) {
+  if (NULL == pRoot) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (QUERY_NODE_SELECT_STMT == nodeType(pRoot)) {
     SSelectStmt* pSelect = (SSelectStmt*) pRoot;
     *numOfCols = LIST_LENGTH(pSelect->pProjectionList);
     *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
@@ -1921,6 +1936,14 @@ int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** p
       strcpy((*pSchema)[index].name, pExpr->aliasName);
       index +=1;
     }
+  } else if (QUERY_NODE_EXPLAIN_STMT == nodeType(pRoot)) {
+    *numOfCols = 1;
+    *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
+    if (NULL == (*pSchema)) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
+    (*pSchema)[0].bytes = TSDB_EXPLAIN_RESULT_ROW_SIZE;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2505,6 +2528,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
 static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
   switch (nodeType(pQuery->pRoot)) {
     case QUERY_NODE_SELECT_STMT:
+    case QUERY_NODE_EXPLAIN_STMT:
       pQuery->haveResultSet = true;
       pQuery->directRpc = false;
       pQuery->msgType = TDMT_VND_QUERY;
