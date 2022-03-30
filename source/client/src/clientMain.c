@@ -71,6 +71,12 @@ void taos_cleanup(void) {
   tscInfo("all local resources released");
 }
 
+setConfRet   taos_set_config(const char *config) {
+  // TODO
+  setConfRet ret = {SET_CONF_RET_SUCC, {0}};
+  return ret;
+}
+
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
   tscDebug("try to connect to %s:%u, user:%s db:%s", ip, port, user, db);
   if (user == NULL) {
@@ -257,6 +263,11 @@ int *taos_fetch_lengths(TAOS_RES *res) {
   return ((SRequestObj *)res)->body.resInfo.length;
 }
 
+TAOS_ROW *taos_result_block(TAOS_RES *res) {
+  // TODO
+  return NULL;
+}
+
 // todo intergrate with tDataTypes
 const char *taos_data_type(int type) {
   switch (type) {
@@ -353,6 +364,11 @@ bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
   return colDataIsNull_f(pCol->nullbitmap, row);
 }
 
+bool taos_is_update_query(TAOS_RES *res) {
+  // TODO
+  return true;
+}
+
 int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
   if (res == NULL) {
     return 0;
@@ -375,6 +391,11 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
 }
 
 int taos_validate_sql(TAOS *taos, const char *sql) { return true; }
+
+void taos_reset_current_db(TAOS *taos) {
+  // TODO
+  return;
+}
 
 const char *taos_get_server_info(TAOS *taos) {
   if (taos == NULL) {
