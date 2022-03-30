@@ -96,10 +96,11 @@ typedef struct SMgmtWrapper {
   bool        required;
   EProcType   procType;
   SProcObj   *pProc;
+  SShm        shm;
   void       *pMgmt;
   SDnode     *pDnode;
   NodeMsgFp   msgFps[TDMT_MAX];
-  int32_t     msgVgIds[TDMT_MAX];  // Handle the case where the same message type is distributed to qnode or vnode
+  int8_t      msgVgIds[TDMT_MAX];  // Handle the case where the same message type is distributed to qnode or vnode
   SMgmtFp     fp;
 } SMgmtWrapper;
 
@@ -119,14 +120,15 @@ typedef struct SDnode {
   char        *firstEp;
   char        *secondEp;
   char        *dataDir;
-  SDiskCfg    *pDisks;
+  SDiskCfg    *disks;
   int32_t      numOfDisks;
   uint16_t     serverPort;
   bool         dropped;
+  ENodeType    ntype;
   EDndStatus   status;
   EDndEvent    event;
   SStartupReq  startup;
-  TdFilePtr    pLockFile;
+  TdFilePtr    runtimeFile;
   STransMgmt   trans;
   SMgmtWrapper wrappers[NODE_MAX];
 } SDnode;
@@ -135,7 +137,7 @@ const char *dndNodeLogStr(ENodeType ntype);
 const char *dndNodeProcStr(ENodeType ntype);
 EDndStatus  dndGetStatus(SDnode *pDnode);
 void        dndSetStatus(SDnode *pDnode, EDndStatus stat);
-void        dndSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp, int32_t vgId);
+void        dndSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, int8_t vgId);
 void        dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
 void        dndSendMonitorReport(SDnode *pDnode);
 

@@ -41,6 +41,7 @@ typedef void (*FExecFinalize)(struct SqlFunctionCtx *pCtx);
 typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 typedef struct SScalarFuncExecFuncs {
+  FExecGetEnv getEnv;
   FScalarExecProcess process;
 } SScalarFuncExecFuncs;
 
@@ -241,7 +242,6 @@ typedef struct tExprNode {
   };
 } tExprNode;
 
-void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);
 void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *));
 
 typedef struct SAggFunctionInfo {
@@ -267,36 +267,12 @@ struct SScalarParam {
   int32_t            numOfRows;
 };
 
-typedef struct SMultiFunctionsDesc {
-  bool stableQuery;
-  bool groupbyColumn;
-  bool agg;
-  bool arithmeticOnAgg;
-  bool projectionQuery;
-  bool hasFilter;
-  bool onlyTagQuery;
-  bool orderProjectQuery;
-  bool globalMerge;
-  bool multigroupResult;
-  bool blockDistribution;
-  bool stateWindow;
-  bool timewindow;
-  bool sessionWindow;
-  bool topbotQuery;
-  bool interpQuery;
-  bool distinct;
-  bool join;
-  bool continueQuery;
-} SMultiFunctionsDesc;
-
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, SResultDataInfo* pInfo, int16_t extLength,
                           bool isSuperTable);
 
 bool qIsValidUdf(SArray* pUdfInfo, const char* name, int32_t len, int32_t* functionId);
 
 tExprNode* exprTreeFromBinary(const void* data, size_t size);
-
-void extractFunctionDesc(SArray* pFunctionIdList, SMultiFunctionsDesc* pDesc);
 
 tExprNode* exprdup(tExprNode* pTree);
 

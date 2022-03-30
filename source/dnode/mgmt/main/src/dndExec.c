@@ -259,7 +259,7 @@ static int32_t dndRunInMultiProcess(SDnode *pDnode) {
 }
 
 int32_t dndRun(SDnode *pDnode) {
-  if (tsMultiProcess == 0) {
+  if (!tsMultiProcess) {
     if (dndRunInSingleProcess(pDnode) != 0) {
       dError("failed to run dnode in single process mode since %s", terrstr());
       return -1;

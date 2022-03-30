@@ -340,6 +340,18 @@ cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) AS db_name(C).             
 cmd ::= DROP TOPIC exists_opt(A) topic_name(B).                                   { pCxt->pRootNode = createDropTopicStmt(pCxt, A, &B); }
 
 /************************************************ select **************************************************************/
+cmd ::= EXPLAIN analyze_opt(A) explain_options(B) query_expression(C).            { pCxt->pRootNode = createExplainStmt(pCxt, A, B, C); }
+
+%type analyze_opt                                                                 { bool }
+%destructor analyze_opt                                                           { }
+analyze_opt(A) ::= .                                                              { A = false; }
+analyze_opt(A) ::= ANALYZE.                                                       { A = true; }
+
+explain_options(A) ::= .                                                          { A = createDefaultExplainOptions(pCxt); }
+explain_options(A) ::= explain_options(B) VERBOSE NK_BOOL(C).                     { A = setExplainVerbose(pCxt, B, &C); }
+explain_options(A) ::= explain_options(B) RATIO NK_FLOAT(C).                      { A = setExplainRatio(pCxt, B, &C); }
+
+/************************************************ select **************************************************************/
 cmd ::= query_expression(A).                                                      { pCxt->pRootNode = A; }
 
 /************************************************ literal *************************************************************/

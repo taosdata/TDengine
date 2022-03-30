@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dndInt.h"
 
-static int32_t dndInitMemory(SDnode *pDnode, const SDnodeOpt *pOption) {
+static int32_t dndInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
   pDnode->numOfSupportVnodes = pOption->numOfSupportVnodes;
   pDnode->serverPort = pOption->serverPort;
   pDnode->dataDir = strdup(pOption->dataDir);
@@ -24,8 +24,9 @@ static int32_t dndInitMemory(SDnode *pDnode, const SDnodeOpt *pOption) {
   pDnode->localFqdn = strdup(pOption->localFqdn);
   pDnode->firstEp = strdup(pOption->firstEp);
   pDnode->secondEp = strdup(pOption->secondEp);
-  pDnode->pDisks = pOption->pDisks;
+  pDnode->disks = pOption->disks;
   pDnode->numOfDisks = pOption->numOfDisks;
+  pDnode->ntype = pOption->ntype;
   pDnode->rebootTime = taosGetTimestampMs();
 
   if (pDnode->dataDir == NULL || pDnode->localEp == NULL || pDnode->localFqdn == NULL || pDnode->firstEp == NULL ||
@@ -36,16 +37,12 @@ static int32_t dndInitMemory(SDnode *pDnode, const SDnodeOpt *pOption) {
   return 0;
 }
 
-static void dndClearMemory(SDnode *pDnode) {
+static void dndClearVars(SDnode *pDnode) {
   for (ENodeType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pMgmt = &pDnode->wrappers[n];
     taosMemoryFreeClear(pMgmt->path);
   }
-  if (pDnode->pLockFile != NULL) {
-    taosUnLockFile(pDnode->pLockFile);
-    taosCloseFile(&pDnode->pLockFile);
-    pDnode->pLockFile = NULL;
-  }
+  dndCloseRuntimeFile(pDnode);
   taosMemoryFreeClear(pDnode->localEp);
   taosMemoryFreeClear(pDnode->localFqdn);
   taosMemoryFreeClear(pDnode->firstEp);
@@ -67,13 +64,21 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
     goto _OVER;
   }
 
-  if (dndInitMemory(pDnode, pOption) != 0) {
+  if (dndInitVars(pDnode, pOption) != 0) {
+    dError("failed to init variables since %s", terrstr());
     goto _OVER;
   }
 
   dndSetStatus(pDnode, DND_STAT_INIT);
-  pDnode->pLockFile = dndCheckRunning(pDnode->dataDir);
-  if (pDnode->pLockFile == NULL) {
+  dmGetMgmtFp(&pDnode->wrappers[DNODE]);
+  mmGetMgmtFp(&pDnode->wrappers[MNODE]);
+  vmGetMgmtFp(&pDnode->wrappers[VNODES]);
+  qmGetMgmtFp(&pDnode->wrappers[QNODE]);
+  smGetMgmtFp(&pDnode->wrappers[SNODE]);
+  bmGetMgmtFp(&pDnode->wrappers[BNODE]);
+
+  if (dndOpenRuntimeFile(pDnode) != 0) {
+    dError("failed to open runtime file since %s", terrstr());
     goto _OVER;
   }
 
@@ -86,13 +91,6 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
     dError("failed to init trans client since %s", terrstr());
     goto _OVER;
   }
-
-  dmGetMgmtFp(&pDnode->wrappers[DNODE]);
-  mmGetMgmtFp(&pDnode->wrappers[MNODE]);
-  vmGetMgmtFp(&pDnode->wrappers[VNODES]);
-  qmGetMgmtFp(&pDnode->wrappers[QNODE]);
-  smGetMgmtFp(&pDnode->wrappers[SNODE]);
-  bmGetMgmtFp(&pDnode->wrappers[BNODE]);
 
   if (dndInitMsgHandle(pDnode) != 0) {
     goto _OVER;
@@ -116,7 +114,7 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
 
 _OVER:
   if (code != 0 && pDnode) {
-    dndClearMemory(pDnode);
+    dndClearVars(pDnode);
     pDnode = NULL;
     dError("failed to create dnode object since %s", terrstr());
   } else {
@@ -145,7 +143,7 @@ void dndClose(SDnode *pDnode) {
     dndCloseNode(pWrapper);
   }
 
-  dndClearMemory(pDnode);
+  dndClearVars(pDnode);
   dInfo("dnode object is closed, data:%p", pDnode);
 }
 
