@@ -233,8 +233,8 @@ struct SOperatorInfo;
 typedef void (*__optr_encode_fn_t)(struct SOperatorInfo* pOperator, char **result, int32_t *length);
 typedef bool (*__optr_decode_fn_t)(struct SOperatorInfo* pOperator, char *result, int32_t length);
 
-typedef int32_t (*__optr_open_fn_t)(struct SOperatorInfo* param);
-typedef SSDataBlock* (*__optr_fn_t)(struct SOperatorInfo* param, bool* newgroup);
+typedef int32_t (*__optr_open_fn_t)(struct SOperatorInfo* pOptr);
+typedef SSDataBlock* (*__optr_fn_t)(struct SOperatorInfo* pOptr, bool* newgroup);
 typedef void (*__optr_close_fn_t)(void* param, int32_t num);
 
 typedef struct STaskIdInfo {
@@ -255,7 +255,8 @@ typedef struct SExecTaskInfo {
   uint64_t        totalRows;            // total number of rows
   STableGroupInfo tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   char*           sql;                  // query sql string
-  jmp_buf         env;                  //
+  jmp_buf         env;                  // jump to this position when error happens.
+  EOPTR_EXEC_MODEL execModel;            // operator execution model [batch model|stream model]
   struct SOperatorInfo* pRoot;
 } SExecTaskInfo;
 
@@ -466,11 +467,6 @@ typedef struct SAggSupporter {
   int32_t            resultRowSize;        // the result buffer size for each result row, with the meta data size for each row
 } SAggSupporter;
 
-typedef enum {
-  OPTR_EXEC_MODEL_BATCH  = 0x1,
-  OPTR_EXEC_MODEL_STREAM = 0x2,
-} OPTR_EXEC_MODEL;
-
 typedef struct STableIntervalOperatorInfo {
   SOptrBasicInfo     binfo;                // basic info
   SGroupResInfo      groupResInfo;         // multiple results build supporter
@@ -481,9 +477,9 @@ typedef struct STableIntervalOperatorInfo {
   SAggSupporter      aggSup;               // aggregate supporter
   STableQueryInfo   *pCurrent;             // current tableQueryInfo struct
   int32_t            order;                // current SSDataBlock scan order
-  OPTR_EXEC_MODEL    execModel;            // operator execution model [batch model|stream model]
+  EOPTR_EXEC_MODEL    execModel;            // operator execution model [batch model|stream model]
   SArray            *pUpdatedWindow;       // updated time window due to the input data block from the downstream operator.
-  SColumnInfoData    timeWindowData;      // query time window info for scalar function execution.
+  SColumnInfoData    timeWindowData;       // query time window info for scalar function execution.
 } STableIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
@@ -718,7 +714,7 @@ int32_t getMaximumIdleDurationSec();
 
 void    doInvokeUdf(struct SUdfInfo* pUdfInfo, SqlFunctionCtx* pCtx, int32_t idx, int32_t type);
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
-int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId);
+int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId, EOPTR_EXEC_MODEL model);
 
 #ifdef __cplusplus
 }
