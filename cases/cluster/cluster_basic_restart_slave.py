@@ -12,6 +12,7 @@
 # -*- coding: utf-8 -*-
 import random
 import threading
+import time
 
 import taos
 from queryutil.createdata import *
@@ -26,6 +27,8 @@ class ClusterTestBasic(TDCase):
         self.db_name = "testdb"
         self.table_name = "stb"
         self.table_num = 10
+        self.row_num = 500000
+        self.replicas = 3
         self.conf = self.get_component_by_name(
             "taosd")[0]
 
@@ -36,7 +39,7 @@ class ClusterTestBasic(TDCase):
         self.logger.info(sql)
         client_0.execute(sql)
         # create database
-        sql = "create database %s replica 2" % (self.db_name)
+        sql = "create database %s replica %d" % (self.db_name, self.replicas)
         self.logger.info(sql)
         client_0.execute(sql)
         # use database
@@ -55,14 +58,42 @@ class ClusterTestBasic(TDCase):
             self.logger.info(sql)
             client_0.execute(sql)
             i = i + 1
+            j = 0
+            while j < self.row_num:
+                ts = self.ts + j
+                k = 0
+                value_statement = ""
+                while k < 60:
+                    value_statement = f"{value_statement} ({ts}+{k}a, {j})"
+                    k = k + 1
+                j = j + 60
+                sql = f"insert into {tb} values {value_statement}"
+                # self.logger.info(sql)
+                client_0.execute(sql)
         client_0.close()
         self.logger.info("write thread exit")
 
     def restart_dnode_thread(self):
-        pass
+        time.sleep(5)
+        self.logger.info("stop dnode dnode_3:6030")
+        self.envMgr.stopDnode("dnode_3:6030")
+        time.sleep(5)
+        self.logger.info("start dnode dnode_3:6030")
+        self.envMgr.startDnode("dnode_3:6030")
+        self.logger.info("restart dnode thread exit")
 
     def check_result(self):
-        pass
+        client_0 = self.tdSql.get_connection(self.conf)
+        # use database
+        sql = "use %s" % (self.db_name)
+        self.logger.info(sql)
+        client_0.execute(sql)
+        # query
+        sql = "select count(*) from %s"  % (self.table_name)
+        self.logger.info(sql)
+        result = client_0.query(sql)
+        data = result.fetch_all()
+        self.logger.info("result: %s", str(data[0][0]))
 
     def cleanup(self):
         pass
