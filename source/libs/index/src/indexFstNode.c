@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "index_fst_node.h"
+#include "indexFstNode.h"
 
 FstBuilderNode* fstBuilderNodeDefault() {
   FstBuilderNode* bn = taosMemoryMalloc(sizeof(FstBuilderNode));
@@ -22,31 +22,45 @@ FstBuilderNode* fstBuilderNodeDefault() {
   return bn;
 }
 void fstBuilderNodeDestroy(FstBuilderNode* node) {
-  if (node == NULL) { return; }
+  if (node == NULL) {
+    return;
+  }
 
   taosArrayDestroy(node->trans);
   taosMemoryFree(node);
 }
 
 bool fstBuilderNodeEqual(FstBuilderNode* n1, FstBuilderNode* n2) {
-  if (n1 == n2) { return true; }
-  if (n1 == NULL || n2 == NULL) { return false; }
+  if (n1 == n2) {
+    return true;
+  }
+  if (n1 == NULL || n2 == NULL) {
+    return false;
+  }
 
-  if (n1->isFinal != n2->isFinal || n1->finalOutput != n2->finalOutput) { return false; }
+  if (n1->isFinal != n2->isFinal || n1->finalOutput != n2->finalOutput) {
+    return false;
+  }
   size_t s1 = n1->trans ? taosArrayGetSize(n1->trans) : 0;
   size_t s2 = n2->trans ? taosArrayGetSize(n2->trans) : 0;
-  if (s1 != s2) { return false; }
+  if (s1 != s2) {
+    return false;
+  }
   for (size_t i = 0; i < s1; i++) {
     FstTransition* t1 = taosArrayGet(n1->trans, i);
     FstTransition* t2 = taosArrayGet(n2->trans, i);
-    if (t1->inp != t2->inp || t1->out != t2->out || t1->addr != t2->addr) { return false; }
+    if (t1->inp != t2->inp || t1->out != t2->out || t1->addr != t2->addr) {
+      return false;
+    }
   }
 
   return true;
 }
 FstBuilderNode* fstBuilderNodeClone(FstBuilderNode* src) {
   FstBuilderNode* node = taosMemoryMalloc(sizeof(FstBuilderNode));
-  if (node == NULL) { return NULL; }
+  if (node == NULL) {
+    return NULL;
+  }
 
   //
   size_t  sz = taosArrayGetSize(src->trans);
@@ -64,7 +78,9 @@ FstBuilderNode* fstBuilderNodeClone(FstBuilderNode* src) {
 }
 // not destroy src, User's bussiness
 void fstBuilderNodeCloneFrom(FstBuilderNode* dst, FstBuilderNode* src) {
-  if (dst == NULL || src == NULL) { return; }
+  if (dst == NULL || src == NULL) {
+    return;
+  }
 
   dst->isFinal = src->isFinal;
   dst->finalOutput = src->finalOutput;

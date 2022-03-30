@@ -12,8 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "index_fst_util.h"
-#include "index_fst_common.h"
+#include "indexFstUtil.h"
+#include "indexFstCommon.h"
 
 // A sentinel value used to indicate an empty final state
 const CompiledAddr EMPTY_ADDRESS = 0;

@@ -20,8 +20,8 @@
 extern "C" {
 #endif
 
+#include "indexFstCommon.h"
 #include "indexInt.h"
-#include "index_fst_common.h"
 
 typedef uint64_t FstType;
 typedef uint64_t CompiledAddr;
