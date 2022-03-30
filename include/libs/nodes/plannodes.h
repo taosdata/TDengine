@@ -197,7 +197,6 @@ typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;
   uint8_t scanFlag;         // denotes reversed scan of data or not
   STimeWindow scanRange;
-  SNode* pScanConditions;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -252,6 +251,7 @@ typedef struct SIntervalPhysiNode {
   int64_t    sliding;
   int8_t     intervalUnit;
   int8_t     slidingUnit;
+  uint8_t precision;
   SFillNode* pFill;
 } SIntervalPhysiNode;
 
