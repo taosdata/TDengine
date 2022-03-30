@@ -193,6 +193,7 @@ extern float    tsReservedTmpDirectorySpace;
 extern float    tsMinimalDataDirGB;
 extern int32_t  tsTotalMemoryMB;
 extern uint32_t tsVersion;
+extern int32_t  tsKeepTimeOffset;
 
 // build info
 extern char version[];
