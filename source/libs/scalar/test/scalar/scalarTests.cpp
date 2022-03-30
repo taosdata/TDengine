@@ -2833,11 +2833,11 @@ TEST(ScalarFunctionTest, logFunction_column) {
   int32_t rowNum = 3;
   int32_t type;
   int32_t otype = TSDB_DATA_TYPE_DOUBLE;
-  double  result[] = {2.0, 4.0, 3.0};
+  double  result[] = {2.0, 3.0, 4.0};
   pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
 
   //TINYINT
-  int8_t val_tinyint[2][3] = {{25, 81, 64}, {5, 3, 4}};
+  int8_t val_tinyint[2][3] = {{9, 27, 81}, {3, 3, 3}};
   type = TSDB_DATA_TYPE_TINYINT;
   for (int32_t i = 0; i < 2; ++i) {
     scltMakeDataBlock(&input[i], type, 0, rowNum, false);
@@ -2863,7 +2863,7 @@ TEST(ScalarFunctionTest, logFunction_column) {
   scltDestroyDataBlock(pOutput);
 
   //FLOAT
-  float val_float[2][3] = {{25.0, 81.0, 64.0}, {5.0, 3.0, 4.0}};
+  float val_float[2][3] = {{9.0, 27.0, 81.0}, {3.0, 3.0, 3.0}};
   type = TSDB_DATA_TYPE_FLOAT;
   for (int32_t i = 0; i < 2; ++i) {
     scltMakeDataBlock(&input[i], type, 0, rowNum, false);
@@ -2888,8 +2888,8 @@ TEST(ScalarFunctionTest, logFunction_column) {
   scltDestroyDataBlock(pOutput);
 
   //TINYINT AND FLOAT
-  int8_t param0[] = {25, 81, 64};
-  float  param1[] = {5.0, 3.0, 4.0};
+  int8_t param0[] = {9, 27, 81};
+  float  param1[] = {3.0, 3.0, 3.0};
   scltMakeDataBlock(&input[0], TSDB_DATA_TYPE_TINYINT, 0, rowNum, false);
   pInput[0] = *input[0];
   for (int32_t i = 0; i < rowNum; ++i) {
@@ -3003,17 +3003,17 @@ TEST(ScalarFunctionTest, powFunction_column) {
   int32_t rowNum = 3;
   int32_t type;
   int32_t otype = TSDB_DATA_TYPE_DOUBLE;
-  double  result[] = {32.0, 27.0, 16.0};
+  double  result[] = {8.0, 27.0, 64.0};
   pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
 
   //TINYINT
-  int8_t val_tinyint[2][3] = {{2, 3, 4}, {5, 3, 2}};
+  int8_t val_tinyint[2][3] = {{2, 3, 4}, {3, 3, 3}};
   type = TSDB_DATA_TYPE_TINYINT;
   for (int32_t i = 0; i < 2; ++i) {
     scltMakeDataBlock(&input[i], type, 0, rowNum, false);
     pInput[i] = *input[i];
     for (int32_t j = 0; j < rowNum; ++j) {
-      colDataAppend(pInput[i].columnData, i, (const char*) &val_tinyint[i][j], false);
+      colDataAppend(pInput[i].columnData, j, (const char*) &val_tinyint[i][j], false);
 
     }
     PRINTF("tiny_int before POW:%d,%d,%d\n", *((int8_t *)pInput[i].data + 0),
@@ -3034,7 +3034,7 @@ TEST(ScalarFunctionTest, powFunction_column) {
   scltDestroyDataBlock(pOutput);
 
   //FLOAT
-  float val_float[2][3] = {{2.0, 3.0, 4.0}, {5.0, 3.0, 2.0}};
+  float val_float[2][3] = {{2.0, 3.0, 4.0}, {3.0, 3.0, 3.0}};
   type = TSDB_DATA_TYPE_FLOAT;
   for (int32_t i = 0; i < 2; ++i) {
     scltMakeDataBlock(&input[i], type, 0, rowNum, false);
@@ -3060,7 +3060,7 @@ TEST(ScalarFunctionTest, powFunction_column) {
 
   //TINYINT AND FLOAT
   int8_t param0[] = {2, 3, 4};
-  float  param1[] = {5.0, 3.0, 2.0};
+  float  param1[] = {3.0, 3.0, 2.0};
   scltMakeDataBlock(&input[0], TSDB_DATA_TYPE_TINYINT, 0, rowNum, false);
   pInput[0] = *input[0];
   for (int32_t i = 0; i < rowNum; ++i) {

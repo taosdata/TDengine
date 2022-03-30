@@ -219,33 +219,33 @@ tmq_list_t* build_topic_list() {
   return topic_list;
 }
 
-void perf_loop(tmq_t* tmq, tmq_list_t* topics) {
+void loop_consume(tmq_t* tmq) {
   tmq_resp_err_t err;
 
-  if ((err = tmq_subscribe(tmq, topics))) {
-    printf("tmq_subscribe() fail, reason: %s\n", tmq_err2str(err));
-    exit(-1);
-  }
-  
   int32_t totalMsgs = 0;
+  int32_t totalRows = 0;
   int32_t skipLogNum = 0;
-  //int64_t startTime = taosGetTimestampUs();
   while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 1);
-    if (tmqmessage) {
-      totalMsgs++;
-      skipLogNum += tmqGetSkipLogNum(tmqmessage);
-	  if (0 != g_stConfInfo.showMsgFlag) {
-        msg_process(tmqmessage);
+    tmq_message_t* tmqMsg = tmq_consumer_poll(tmq, 1);
+    if (tmqMsg) {
+	  totalMsgs++;
+
+	  #if 0
+	  TAOS_ROW row;
+	  while (NULL != (row = tmq_get_row(tmqMsg))) {
+        totalRows++;
 	  }
-      tmq_message_destroy(tmqmessage);
+	  #endif
+	  
+      skipLogNum += tmqGetSkipLogNum(tmqMsg);
+	  if (0 != g_stConfInfo.showMsgFlag) {
+        msg_process(tmqMsg);
+	  }
+      tmq_message_destroy(tmqMsg);
     } else {
       break;
     }
   }
-  //int64_t endTime = taosGetTimestampUs();
-  //double consumeTime = (double)(endTime - startTime) / 1000000;
-
 
   err = tmq_consumer_close(tmq);
   if (err) {
@@ -253,7 +253,7 @@ void perf_loop(tmq_t* tmq, tmq_list_t* topics) {
 	exit(-1);
   }
   
-  printf("{consume success: %d}", totalMsgs);
+  printf("{consume success: %d, %d}", totalMsgs, totalRows);
 }
 
 int main(int32_t argc, char *argv[]) {
@@ -266,7 +266,21 @@ int main(int32_t argc, char *argv[]) {
     return -1;
   }
   
-  perf_loop(tmq, topic_list);
+  tmq_resp_err_t err = tmq_subscribe(tmq, topic_list);
+  if (err) {
+    printf("tmq_subscribe() fail, reason: %s\n", tmq_err2str(err));
+    exit(-1);
+  }
+  
+  loop_consume(tmq);
+
+  #if 0
+  err = tmq_unsubscribe(tmq);
+  if (err) {
+    printf("tmq_unsubscribe() fail, reason: %s\n", tmq_err2str(err));
+    exit(-1);
+  }
+  #endif
 
   return 0;
 }

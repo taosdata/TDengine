@@ -197,6 +197,11 @@ typedef struct SGroupbyExpr {
   bool    groupbyTag;  // group by tag or column
 } SGroupbyExpr;
 
+enum {
+  FUNC_PARAM_TYPE_VALUE = 0,
+  FUNC_PARAM_TYPE_COLUMN,
+};
+
 typedef struct SFunctParam {
   int32_t  type;
   SColumn* pCol;
