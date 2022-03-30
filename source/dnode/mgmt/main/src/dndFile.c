@@ -117,7 +117,30 @@ _OVER:
   return code;
 }
 
-int32_t dndOpenRuntimeFile(SDnode *pDnode) {
+TdFilePtr dndCheckRunning(const char *dataDir) {
+  char filepath[PATH_MAX] = {0};
+  snprintf(filepath, sizeof(filepath), "%s%s.running", dataDir, TD_DIRSEP);
+
+  TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to lock file:%s since %s", filepath, terrstr());
+    return NULL;
+  }
+
+  int32_t ret = taosLockFile(pFile);
+  if (ret != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to lock file:%s since %s", filepath, terrstr());
+    taosCloseFile(&pFile);
+    return NULL;
+  }
+
+  dDebug("file:%s is locked", filepath);
+  return pFile;
+}
+
+int32_t dndReadShmFile(SDnode *pDnode) {
   int32_t   code = -1;
   char      itemName[24] = {0};
   char      content[MAXLEN + 1] = {0};
@@ -125,17 +148,11 @@ int32_t dndOpenRuntimeFile(SDnode *pDnode) {
   cJSON    *root = NULL;
   TdFilePtr pFile = NULL;
 
-  snprintf(file, sizeof(file), "%s%s.running", pDnode->dataDir, TD_DIRSEP);
-  pFile = taosOpenFile(file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  snprintf(file, sizeof(file), "%s%s.shmfile", pDnode->dataDir, TD_DIRSEP);
+  pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to open file:%s since %s", file, terrstr());
-    goto _OVER;
-  }
-
-  if (taosLockFile(pFile) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to lock file:%s since %s", file, terrstr());
+    dDebug("file %s not exist", file);
+    code = 0;
     goto _OVER;
   }
 
@@ -162,10 +179,10 @@ int32_t dndOpenRuntimeFile(SDnode *pDnode) {
     }
   }
 
-  if (tsMultiProcess || pDnode->ntype == DNODE) {
+  if (!tsMultiProcess || pDnode->ntype == DNODE) {
     for (ENodeType ntype = DNODE; ntype < NODE_MAX; ++ntype) {
-      SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->ntype];
-      if (pWrapper->shm.id > 0) {
+      SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
+      if (pWrapper->shm.id >= 0) {
         dDebug("shmid:%d, is closed, size:%d", pWrapper->shm.id, pWrapper->shm.size);
         taosDropShm(&pWrapper->shm);
       }
@@ -185,16 +202,12 @@ int32_t dndOpenRuntimeFile(SDnode *pDnode) {
 
 _OVER:
   if (root != NULL) cJSON_Delete(root);
-  if (code != 0) {
-    if (pFile != NULL) taosCloseFile(&pFile);
-  } else {
-    pDnode->runtimeFile = pFile;
-  }
+  if (pFile != NULL) taosCloseFile(&pFile);
 
   return code;
 }
 
-int32_t dndWriteRuntimeFile(SDnode *pDnode) {
+int32_t dndWriteShmFile(SDnode *pDnode) {
   int32_t   code = -1;
   int32_t   len = 0;
   char      content[MAXLEN + 1] = {0};
@@ -202,8 +215,8 @@ int32_t dndWriteRuntimeFile(SDnode *pDnode) {
   char      realfile[PATH_MAX] = {0};
   TdFilePtr pFile = NULL;
 
-  snprintf(file, sizeof(file), "%s%s.running.bak", pDnode->dataDir, TD_DIRSEP);
-  snprintf(realfile, sizeof(realfile), "%s%s.running", pDnode->dataDir, TD_DIRSEP);
+  snprintf(file, sizeof(file), "%s%s.shmfile.bak", pDnode->dataDir, TD_DIRSEP);
+  snprintf(realfile, sizeof(realfile), "%s%s.shmfile", pDnode->dataDir, TD_DIRSEP);
 
   pFile = taosOpenFile(file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
@@ -214,12 +227,12 @@ int32_t dndWriteRuntimeFile(SDnode *pDnode) {
 
   len += snprintf(content + len, MAXLEN - len, "{\n");
   for (ENodeType ntype = DNODE + 1; ntype < NODE_MAX; ++ntype) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->ntype];
-    len += snprintf(content + len, MAXLEN - len, "  \"%s_shmid\": %d,\n", dndNodeProcStr(ntype), pWrapper->shm.id);
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
+    len += snprintf(content + len, MAXLEN - len, "  \"%s_shmid\":%d,\n", dndNodeProcStr(ntype), pWrapper->shm.id);
     if (ntype == NODE_MAX - 1) {
-      len += snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\": %d\n", dndNodeProcStr(ntype), pWrapper->shm.size);
+      len += snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\":%d\n", dndNodeProcStr(ntype), pWrapper->shm.size);
     } else {
-      len += snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\": %d,\n", dndNodeProcStr(ntype), pWrapper->shm.size);
+      len += snprintf(content + len, MAXLEN - len, "  \"%s_shmsize\":%d,\n", dndNodeProcStr(ntype), pWrapper->shm.size);
     }
   }
   len += snprintf(content + len, MAXLEN - len, "}\n");
@@ -244,7 +257,7 @@ int32_t dndWriteRuntimeFile(SDnode *pDnode) {
     return -1;
   }
 
-  dDebug("successed to write %s", realfile);
+  dInfo("successed to write %s", realfile);
   code = 0;
 
 _OVER:
@@ -253,12 +266,4 @@ _OVER:
   }
 
   return code;
-}
-
-void dndCloseRuntimeFile(SDnode *pDnode) {
-  if (pDnode->runtimeFile) {
-    taosUnLockFile(pDnode->runtimeFile);
-    taosCloseFile(&pDnode->runtimeFile);
-    pDnode->runtimeFile = NULL;
-  }
 }

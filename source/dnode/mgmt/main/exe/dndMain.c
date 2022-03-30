@@ -83,6 +83,10 @@ static int32_t dndParseArgs(int32_t argc, char const *argv[]) {
       global.generateGrant = true;
     } else if (strcmp(argv[i], "-n") == 0) {
       global.ntype = atoi(argv[++i]);
+      if (global.ntype <= DNODE || global.ntype > NODE_MAX) {
+        printf("'-n' range is [1-5], default is 0\n");
+        return -1;
+      }
     } else if (strcmp(argv[i], "-C") == 0) {
       global.dumpConfig = true;
     } else if (strcmp(argv[i], "-V") == 0) {
