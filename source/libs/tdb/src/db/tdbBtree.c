@@ -101,7 +101,7 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, S
   // pBt->kcmpr
   pBt->kcmpr = kcmpr ? kcmpr : tdbDefaultKeyCmprFn;
   // pBt->pageSize
-  pBt->pageSize = tdbPagerGetPageSize(pPager);
+  pBt->pageSize = pPager->pageSize;
   // pBt->maxLocal
   pBt->maxLocal = tdbPageCapacity(pBt->pageSize, sizeof(SIntHdr)) / 4;
   // pBt->minLocal: Should not be allowed smaller than 15, which is [nPayload][nKey][nData]

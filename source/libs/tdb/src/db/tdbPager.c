@@ -15,20 +15,6 @@
 
 #include "tdbInt.h"
 
-struct SPager {
-  char    *dbFileName;
-  char    *jFileName;
-  int      pageSize;
-  uint8_t  fid[TDB_FILE_ID_LEN];
-  tdb_fd_t fd;
-  tdb_fd_t jfd;
-  SPCache *pCache;
-  SPgno    dbFileSize;
-  SPgno    dbOrigSize;
-  SPage   *pDirty;
-  u8       inTran;
-};
-
 typedef struct __attribute__((__packed__)) {
   u8    hdrString[16];
   u16   pageSize;
@@ -228,8 +214,6 @@ static int tdbPagerReadPage(SPager *pPager, SPage *pPage) {
   }
   return 0;
 }
-
-int tdbPagerGetPageSize(SPager *pPager) { return pPager->pageSize; }
 
 int tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage, int (*initPage)(SPage *, void *), void *arg) {
   SPage *pPage;

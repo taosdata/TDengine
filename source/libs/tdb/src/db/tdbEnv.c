@@ -19,6 +19,7 @@ int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, TENV **ppEnv) {
   TENV *pEnv;
   int   dsize;
   int   zsize;
+  int   tsize;
   u8   *pPtr;
   int   ret;
 
@@ -53,6 +54,14 @@ int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, TENV **ppEnv) {
     return -1;
   }
 
+  pEnv->nHash = 8;
+  tsize = sizeof(SPager *) * pEnv->nHash;
+  pEnv->pagerHash = TDB_REALLOC(pEnv->pagerHash, tsize);
+  if (pEnv->pagerHash == NULL) {
+    return -1;
+  }
+  memset(pEnv->pagerHash, 0, tsize);
+
   mkdir(rootDir, 0755);
 
   *ppEnv = pEnv;
@@ -65,21 +74,31 @@ int tdbEnvClose(TENV *pEnv) {
 }
 
 int tdbBegin(TENV *pEnv) {
-  // TODO
+  ASSERT(0);
   return 0;
 }
 
 int tdbCommit(TENV *pEnv) {
-  // TODO
+  SPager *pPager;
+
+  pPager = pEnv->pagerList;
+  while (pPager) {
+    tdbPagerCommit(pPager);
+  }
+
   return 0;
 }
 
 int tdbRollback(TENV *pEnv) {
-  // TODO
+  ASSERT(0);
   return 0;
 }
 
 SPager *tdbEnvGetPager(TENV *pEnv, const char *fname) {
   // TODO
   return NULL;
+}
+
+static void tdbEnvAddPager(TENV *pEnv, SPager *pPager) {
+
 }

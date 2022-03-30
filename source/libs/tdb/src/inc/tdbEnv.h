@@ -20,11 +20,16 @@
 extern "C" {
 #endif
 
+#define TDB_PAGER_ENV_FIELDS \
+  SPager *pNext;             \
+  SPager *pHashNext;
+
 typedef struct STEnv {
   char    *rootDir;
   char    *jfname;
   int      jfd;
   SPCache *pCache;
+  SPager  *pagerList;
   int      nHash;
   SPager **pagerHash;
 } TENV;
