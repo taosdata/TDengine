@@ -52,11 +52,9 @@ static void dndSetSignalHandle() {
   if (!tsMultiProcess) {
     // Set the single process signal
   } else if (global.ntype == DNODE) {
-    // Set the parent process signal
     // When the child process exits, the parent process receives a signal
     taosSetSignal(SIGCHLD, dndHandleChild);
   } else {
-    // Set child process signal
     // When the parent process exits, the child process will receive the SIGKILL signal
     prctl(PR_SET_PDEATHSIG, SIGKILL);
   }

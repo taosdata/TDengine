@@ -192,8 +192,11 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     if (!pWrapper->required) continue;
 
-    dInfo("node:%s, will not start in parent process", pWrapper->name);
-    // exec new node
+    if (pDnode->ntype == NODE_MAX) {
+      dInfo("node:%s, will be started manually", pWrapper->name);
+    } else {
+      dInfo("node:%s, will pull up the child process through exec", pWrapper->name);
+    }
 
     if (taosProcRun(pWrapper->pProc) != 0) {
       dError("node:%s, failed to run proc since %s", pWrapper->name, terrstr());
@@ -268,7 +271,7 @@ int32_t dndRun(SDnode * pDnode) {
       dError("failed to run dnode since %s", terrstr());
       return -1;
     }
-  } else if (pDnode->ntype == DNODE) {
+  } else if (pDnode->ntype == DNODE || pDnode->ntype == NODE_MAX) {
     if (dndRunInParentProcess(pDnode) != 0) {
       dError("failed to run dnode in parent process since %s", terrstr());
       return -1;

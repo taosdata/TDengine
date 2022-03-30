@@ -35,7 +35,7 @@ static int32_t dndInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
     return -1;
   }
 
-  if (!tsMultiProcess || pDnode->ntype == DNODE) {
+  if (!tsMultiProcess || pDnode->ntype == DNODE || pDnode->ntype == NODE_MAX) {
     pDnode->lockfile = dndCheckRunning(pDnode->dataDir);
     if (pDnode->lockfile == NULL) {
       return -1;

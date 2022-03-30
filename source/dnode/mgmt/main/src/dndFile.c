@@ -179,7 +179,7 @@ int32_t dndReadShmFile(SDnode *pDnode) {
     }
   }
 
-  if (!tsMultiProcess || pDnode->ntype == DNODE) {
+  if (!tsMultiProcess || pDnode->ntype == DNODE || pDnode->ntype == DNODE) {
     for (ENodeType ntype = DNODE; ntype < NODE_MAX; ++ntype) {
       SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
       if (pWrapper->shm.id >= 0) {
