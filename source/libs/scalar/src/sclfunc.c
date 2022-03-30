@@ -484,26 +484,38 @@ int32_t doCaseConvFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
   SColumnInfoData *pInputData  = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
+  //allocate output buf
+  if (pOutputData->pData == NULL) {
+    int32_t outputLen = pInputData->varmeta.length;
+    setVarTypeOutputBuf(pOutputData, outputLen, GET_PARAM_TYPE(pInput));
+  }
+
+  char *input  = pInputData->pData;
+  char *output = pOutputData->pData;
+
+  int32_t offset = 0;
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_f(pInputData->nullbitmap, i)) {
       colDataSetNull_f(pOutputData->nullbitmap, i);
       continue;
     }
 
-    char *in  = pInputData->pData + i * GET_PARAM_BYTES(pInput);
-    char *out = pOutputData->pData + i * GET_PARAM_BYTES(pInput);
-
-    int32_t len = varDataLen(in);
+    int32_t len = varDataLen(input);
     if (type == TSDB_DATA_TYPE_VARCHAR) {
       for (int32_t j = 0; j < len; ++j) {
-        *(varDataVal(out) + j) = convFn(*(varDataVal(in) + j));
+        *(varDataVal(output) + j) = convFn(*(varDataVal(input) + j));
       }
     } else { //NCHAR
       for (int32_t j = 0; j < len / TSDB_NCHAR_SIZE; ++j) {
-        *((uint32_t *)varDataVal(out) + j) = convFn(*((uint32_t *)varDataVal(in) + j));
+        *((uint32_t *)varDataVal(output) + j) = convFn(*((uint32_t *)varDataVal(input) + j));
       }
     }
-    varDataSetLen(out, len);
+    varDataSetLen(output, len);
+    input += varDataTLen(input);
+    output += varDataTLen(output);
+
+    pOutputData->varmeta.offset[i] = offset;
+    offset += len + VARSTR_HEADER_SIZE;
   }
 
   pOutput->numOfRows = pInput->numOfRows;

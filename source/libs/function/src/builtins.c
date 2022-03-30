@@ -540,9 +540,9 @@ int32_t stubCheckAndGetResultType(SFunctionNode* pFunc) {
     case FUNCTION_TYPE_RTRIM:
     case FUNCTION_TYPE_SUBSTR: {
       SColumnNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
-      int32_t paraType = pParam->node.resType.type;
-      //pFunc->node.resType = (SDataType) { .bytes = tDataTypes[paraType].bytes, .type = paraType };
-      pFunc->node.resType = (SDataType) { .bytes = 23, .type = paraType };
+      int32_t paraType  = pParam->node.resType.type;
+      int32_t paraBytes = pParam->node.resType.bytes;
+      pFunc->node.resType = (SDataType) { .bytes = paraBytes, .type = paraType };
       break;
     }
 
