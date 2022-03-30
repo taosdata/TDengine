@@ -82,6 +82,7 @@ extern "C" {
 #include "osLz4.h"
 #include "osMath.h"
 #include "osMemory.h"
+#include "osProc.h"
 #include "osRand.h"
 #include "osThread.h"
 #include "osSemaphore.h"

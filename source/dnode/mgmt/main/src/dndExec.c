@@ -192,8 +192,19 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     if (!pWrapper->required) continue;
 
-    dInfo("node:%s, will not start in parent process", pWrapper->name);
-    // exec new node
+    if (pDnode->ntype == NODE_MAX) {
+      dInfo("node:%s, should be started manually", pWrapper->name);
+    } else {
+      char    args[PATH_MAX];
+      int32_t pid = taosNewProc(args);
+      if (pid <= 0) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        dError("node:%s, failed to exec in new process since %s", pWrapper->name, terrstr());
+        return -1;
+      }
+      pWrapper->procId = pid;
+      dInfo("node:%s, run in new process, pid:%d", pWrapper->name, pid);
+    }
 
     if (taosProcRun(pWrapper->pProc) != 0) {
       dError("node:%s, failed to run proc since %s", pWrapper->name, terrstr());
@@ -214,8 +225,12 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
 
 static int32_t dndRunInChildProcess(SDnode *pDnode) {
   dInfo("dnode start to run in child process");
-
   SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->ntype];
+
+  SMsgCb msgCb = dndCreateMsgcb(pWrapper);
+  tmsgSetDefaultMsgCb(&msgCb);
+  pWrapper->procType = PROC_CHILD;
+
   if (dndOpenNode(pWrapper) != 0) {
     dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
     return -1;
@@ -236,11 +251,17 @@ static int32_t dndRunInChildProcess(SDnode *pDnode) {
                   .isChild = true,
                   .name = pWrapper->name};
 
-  pWrapper->procType = PROC_CHILD;
   pWrapper->pProc = taosProcInit(&cfg);
   if (pWrapper->pProc == NULL) {
     dError("node:%s, failed to create proc since %s", pWrapper->name, terrstr());
     return -1;
+  }
+
+  if (pWrapper->fp.startFp != NULL) {
+    if ((*pWrapper->fp.startFp)(pWrapper) != 0) {
+      dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
+      return -1;
+    }
   }
 
   if (taosProcRun(pWrapper->pProc) != 0) {
@@ -258,7 +279,7 @@ int32_t dndRun(SDnode * pDnode) {
       dError("failed to run dnode since %s", terrstr());
       return -1;
     }
-  } else if (pDnode->ntype == DNODE) {
+  } else if (pDnode->ntype == DNODE || pDnode->ntype == NODE_MAX) {
     if (dndRunInParentProcess(pDnode) != 0) {
       dError("failed to run dnode in parent process since %s", terrstr());
       return -1;
