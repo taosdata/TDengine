@@ -1213,7 +1213,7 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
   for (int32_t i = 0; i < joinNum; ++i) {
     // reorganize the tid-tag value according to both the vgroup id and tag values
     // sort according to the tag value
-    size_t num = taosArrayGetSize(ctxlist[i].res);
+    int32_t num = (int32_t) taosArrayGetSize(ctxlist[i].res);
 
     int32_t ret = tidTagsMergeSort(ctxlist[i].res, 0, ((int32_t)num) - 1, size);
     if (ret != TSDB_CODE_SUCCESS) {
@@ -1222,7 +1222,7 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
 
     taosArrayPush(resList, &ctxlist[i].res);
 
-    tscDebug("0x%"PRIx64" tags match complete, result num: %"PRIzu, pParentSql->self, num);
+    tscDebug("0x%"PRIx64" tags match complete, result num: %d", pParentSql->self, num);
   }
 
   return TSDB_CODE_SUCCESS;
