@@ -1703,7 +1703,7 @@ TDengine supports aggregations over data, they are listed below:
     Notes:
     
       Returns NULL when input is NULL. 
-      Input pos can be negative or positive. If it is a positive number, this function extracts from the beginning of the string. If it is a negative number, this function extracts from the end of the string
+      Input pos can be negative or positive. If it is a positive number, the beginning of the substring is pos characters from the beginning of the string. If it is a negative number, the beginning of the substring is pos characters from the end of the string
       If input len is omitted, the output is whole substring starting from pos.
       This function applies to normal table, child table and super table
       This function applies to bother out query and inner query
