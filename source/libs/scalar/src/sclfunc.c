@@ -374,7 +374,7 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     offset += dataTLen;
   }
 
-  pOutput->numOfRows = pInput->numOfRows;
+  pOutput->numOfRows = numOfRows;
   taosMemoryFree(input);
   taosMemoryFree(pInputData);
 
@@ -388,24 +388,44 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 
   SColumnInfoData **pInputData = taosMemoryCalloc(inputNum, sizeof(SColumnInfoData *));
   SColumnInfoData *pOutputData = pOutput->columnData;
+  char **input = taosMemoryCalloc(inputNum, POINTER_BYTES);
+  char *output = NULL;
 
+  int32_t inputLen = 0;
+  int32_t numOfRows = pInput[1].numOfRows;
   for (int32_t i = 0; i < inputNum; ++i) {
     if (!IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[i])) ||
         GET_PARAM_TYPE(&pInput[i]) != GET_PARAM_TYPE(&pInput[0])) {
       return TSDB_CODE_FAILED;
     }
     pInputData[i] = pInput[i].columnData;
+    if (i == 0) {
+      // calculate required separator space
+      inputLen += (pInputData[0]->varmeta.length - VARSTR_HEADER_SIZE) * (inputNum - 2);
+    } else {
+      inputLen += pInputData[i]->varmeta.length - numOfRows * VARSTR_HEADER_SIZE;
+    }
+    input[i] = pInputData[i]->pData;
   }
 
-  for (int32_t k = 0; k < pInput->numOfRows; ++k) {
+  //allocate output buf
+  if (pOutputData->pData == NULL) {
+    int32_t outputLen = inputLen + numOfRows * VARSTR_HEADER_SIZE;
+    pOutputData->pData = taosMemoryCalloc(outputLen, sizeof(char));
+    pOutputData->info.type = GET_PARAM_TYPE(pInput);
+    pOutputData->info.bytes = outputLen;
+    pOutputData->varmeta.length = outputLen;
+    pOutputData->varmeta.allocLen = outputLen;
+  }
+  output = pOutputData->pData;
+
+  int32_t offset = 0;
+  for (int32_t k = 0; k < numOfRows; ++k) {
     char *sep = pInputData[0]->pData;
     if (colDataIsNull_f(pInputData[0]->nullbitmap, k)) {
       colDataSetNull_f(pOutputData->nullbitmap, k);
       continue;
     }
-
-    char *in  = NULL;
-    char *out = pOutputData->pData + k * GET_PARAM_BYTES(pOutput);
 
     int16_t dataLen = 0;
     for (int32_t i = 1; i < inputNum; ++i) {
@@ -413,20 +433,25 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
         continue;
       }
 
-      in  = pInputData[i]->pData + k * GET_PARAM_BYTES(&pInput[i]);
-      memcpy(varDataVal(out) + dataLen, varDataVal(in), varDataLen(in));
-      dataLen += varDataLen(in);
+      memcpy(varDataVal(output) + dataLen, varDataVal(input[i]), varDataLen(input[i]));
+      dataLen += varDataLen(input[i]);
+      input[i] += varDataTLen(input[i]);
 
       if (i < inputNum - 1) {
         //insert the separator
-        memcpy(varDataVal(out) + dataLen, varDataVal(sep), varDataLen(sep));
+        memcpy(varDataVal(output) + dataLen, varDataVal(sep), varDataLen(sep));
         dataLen += varDataLen(sep);
       }
     }
-    varDataSetLen(out, dataLen);
+    varDataSetLen(output, dataLen);
+    int32_t dataTLen = varDataTLen(output);
+    output += dataTLen;
+    pOutputData->varmeta.offset[k] = offset;
+    offset += dataTLen;
   }
 
-  pOutput->numOfRows = pInput->numOfRows;
+  pOutput->numOfRows = numOfRows;
+  taosMemoryFree(input);
   taosMemoryFree(pInputData);
 
   return TSDB_CODE_SUCCESS;
