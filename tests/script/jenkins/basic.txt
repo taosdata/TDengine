@@ -40,12 +40,12 @@
 ./test.sh -f tsim/tmq/basic1.sim
 
 # --- stable
-./test.sh -f general/stable/disk.sim
-./test.sh -f general/stable/dnode3.sim
-./test.sh -f general/stable/metrics.sim
-./test.sh -f general/stable/refcount.sim
-# ./test.sh -f general/stable/show.sim
-./test.sh -f general/stable/values.sim
-./test.sh -f general/stable/vnode3.sim
+./test.sh -f tsim/stable/disk.sim
+./test.sh -f tsim/stable/dnode3.sim
+./test.sh -f tsim/stable/metrics.sim
+./test.sh -f tsim/stable/refcount.sim
+# ./test.sh -f tsim/stable/show.sim
+./test.sh -f tsim/stable/values.sim
+./test.sh -f tsim/stable/vnode3.sim
 
 #======================b1-end===============
