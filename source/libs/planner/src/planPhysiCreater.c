@@ -780,6 +780,7 @@ static int32_t createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
   pInterval->sliding = pWindowLogicNode->sliding;
   pInterval->intervalUnit = pWindowLogicNode->intervalUnit;
   pInterval->slidingUnit = pWindowLogicNode->slidingUnit;
+  pInterval->precision = ((SColumnNode*)pWindowLogicNode->pTspk)->node.resType.precision;
 
   pInterval->pFill = nodesCloneNode(pWindowLogicNode->pFill);
   if (NULL != pWindowLogicNode->pFill && NULL == pInterval->pFill) {
@@ -1080,6 +1081,20 @@ static int32_t doCreatePhysiPlan(SPhysiPlanContext* pCxt, SQueryLogicPlan* pLogi
   return code;
 }
 
+static void destoryLocationHash(void* p) {
+  SHashObj* pHash = *(SHashObj**)p;
+  SSlotIndex* pIndex = taosHashIterate(pHash, NULL);
+  while (NULL != pIndex) {
+    taosArrayDestroy(pIndex->pSlotIdsInfo);
+    pIndex = taosHashIterate(pHash, pIndex);
+  }
+  taosHashCleanup(pHash);
+}
+
+static void destoryPhysiPlanContext(SPhysiPlanContext* pCxt) {
+  taosArrayDestroyEx(pCxt->pLocationHelper, destoryLocationHash);
+}
+
 int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan, SArray* pExecNodeList) {
   SPhysiPlanContext cxt = {
     .pPlanCxt = pCxt,
@@ -1091,5 +1106,7 @@ int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryP
   if (NULL == cxt.pLocationHelper) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  return doCreatePhysiPlan(&cxt, pLogicPlan, pPlan);
+  int32_t code = doCreatePhysiPlan(&cxt, pLogicPlan, pPlan);
+  destoryPhysiPlanContext(&cxt);
+  return code;
 }

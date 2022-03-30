@@ -692,7 +692,7 @@ static int32_t createVnodeModifLogicNode(SLogicPlanContext* pCxt, SVnodeModifOpS
   if (NULL == pModif) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  pModif->pDataBlocks = pStmt->pDataBlocks;
+  TSWAP(pModif->pDataBlocks, pStmt->pDataBlocks, SArray*);
   pModif->msgType = getMsgType(pStmt->sqlNodeType);
   *pLogicNode = (SLogicNode*)pModif;
   return TSDB_CODE_SUCCESS;
