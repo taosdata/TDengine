@@ -227,7 +227,7 @@ void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayL
     taosArrayDestroy(pGroupResInfo->pRows);
   }
 
-  pGroupResInfo->pRows = pArrayList->pData;
+  pGroupResInfo->pRows = pArrayList;
   pGroupResInfo->index = 0;
   ASSERT(pGroupResInfo->index <= getNumOfTotalRes(pGroupResInfo));
 }

@@ -352,7 +352,7 @@ SSDataBlock* createOutputBuf_rv1(SDataBlockDescNode* pNode) {
       continue;
     }
 
-    idata.info.type = pDescNode->dataType.type;
+    idata.info.type  = pDescNode->dataType.type;
     idata.info.bytes = pDescNode->dataType.bytes;
     idata.info.scale = pDescNode->dataType.scale;
     idata.info.slotId = pDescNode->slotId;
@@ -1551,8 +1551,8 @@ static SArray* hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pRe
   if (pSDataBlock->pDataBlock != NULL) {
     SColumnInfoData* pColDataInfo = taosArrayGet(pSDataBlock->pDataBlock, 0);
     tsCols = (int64_t*)pColDataInfo->pData;
-    assert(tsCols[0] == pSDataBlock->info.window.skey &&
-           tsCols[pSDataBlock->info.rows - 1] == pSDataBlock->info.window.ekey);
+//    assert(tsCols[0] == pSDataBlock->info.window.skey &&
+//           tsCols[pSDataBlock->info.rows - 1] == pSDataBlock->info.window.ekey);
   }
 
   int32_t startPos = ascScan? 0 : (pSDataBlock->info.rows - 1);
@@ -3660,6 +3660,7 @@ void finalizeUpdatedResult(SqlFunctionCtx* pCtx, int32_t numOfOutput, SDiskbased
 
       if (pCtx[j].fpSet.process) {  // TODO set the dummy function.
         pCtx[j].fpSet.finalize(&pCtx[j]);
+        pResInfo->initialized = true;
       }
 
       if (pRow->numOfRows < pResInfo->numOfRes) {
@@ -3778,10 +3779,6 @@ void setResultRowOutputBufInitCtx_rv(SDiskbasedBuf* pBuf, SResultRow* pResult, S
       continue;
     }
 
-    //    int32_t functionId = pCtx[i].functionId;
-    //    if (functionId < 0) {
-    //      continue;
-    //    }
     //    if (functionId == FUNCTION_TOP || functionId == FUNCTION_BOTTOM || functionId == FUNCTION_DIFF) {
     //      if (i > 0) pCtx[i].ptsOutputBuf = pCtx[i - 1].pOutput;
     //    }
@@ -4971,7 +4968,20 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
         return NULL;
       }
 
-      pInfo->pRes->pDataBlock = tqRetrieveDataBlock(pInfo->readerHandle);
+      SArray* pCols = tqRetrieveDataBlock(pInfo->readerHandle);
+
+      int32_t numOfCols = pInfo->pRes->info.numOfCols;
+      for (int32_t i = 0; i < numOfCols; ++i) {
+        SColumnInfoData* p = taosArrayGet(pCols, i);
+        SColMatchInfo*   pColMatchInfo = taosArrayGet(pInfo->pColMatchInfo, i);
+        if (!pColMatchInfo->output) {
+          continue;
+        }
+
+        ASSERT(pColMatchInfo->colId == p->info.colId);
+        taosArraySet(pInfo->pRes->pDataBlock, pColMatchInfo->targetSlotId, p);
+      }
+
       if (pInfo->pRes->pDataBlock == NULL) {
         // TODO add log
         pTaskInfo->code = terrno;
@@ -5625,8 +5635,18 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, SSDataBlock*
     return NULL;
   }
 
+  int32_t numOfOutput = taosArrayGetSize(pColList);
+
+  SArray* pColIds = taosArrayInit(4, sizeof(int16_t));
+  for(int32_t i = 0; i < numOfOutput; ++i) {
+    int16_t* id = taosArrayGet(pColList, i);
+    taosArrayPush(pColIds, id);
+  }
+
+  pInfo->pColMatchInfo = pColList;
+
   // set the extract column id to streamHandle
-  tqReadHandleSetColIdList((STqReadHandle*)streamReadHandle, pColList);
+  tqReadHandleSetColIdList((STqReadHandle*)streamReadHandle, pColIds);
   int32_t code = tqReadHandleSetTbUidList(streamReadHandle, pTableIdList);
   if (code != 0) {
     taosMemoryFreeClear(pInfo);
@@ -6972,7 +6992,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo *pOperator, bool* newgroup
     if (pInfo->binfo.pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
       pOperator->status = OP_EXEC_DONE;
     }
-    return pInfo->binfo.pRes;
+    return pInfo->binfo.pRes->info.rows == 0 ? NULL : pInfo->binfo.pRes;
   }
 
   //  STimeWindow win = {0};
@@ -8801,8 +8821,10 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SArray* tableIdList = extractTableIdList(pTableGroupInfo);
 
       SSDataBlock* pResBlock = createOutputBuf_rv1(pScanPhyNode->node.pOutputDataBlockDesc);
-      SArray*      colList = extractScanColumnId(pScanPhyNode->pScanCols);
-      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle->reader, pResBlock, colList, tableIdList, pTaskInfo);
+
+      int32_t numOfCols = 0;
+      SArray* pColList = extractColMatchInfo(pScanPhyNode->pScanCols, pScanPhyNode->node.pOutputDataBlockDesc, &numOfCols);
+      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle->reader, pResBlock, pColList, tableIdList, pTaskInfo);
       taosArrayDestroy(tableIdList);
       return pOperator;
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == nodeType(pPhyNode)) {
