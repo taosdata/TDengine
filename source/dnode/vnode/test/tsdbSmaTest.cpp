@@ -15,6 +15,7 @@
 
 #include <gtest/gtest.h>
 #include <tsdbDef.h>
+
 #include <taoserror.h>
 #include <tglobal.h>
 #include <iostream>
@@ -280,7 +281,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
 }
 #endif
 
-#if 0
+#if 1
 TEST(testCase, tSma_Data_Insert_Query_Test) {
   // step 1: prepare meta
   const char    *smaIndexName1 = "sma_index_test_1";
@@ -299,9 +300,9 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   // encode
   STSma tSma = {0};
   tSma.version = 0;
-  tSma.intervalUnit = TIME_UNIT_DAY;
+  tSma.intervalUnit = TIME_UNIT_MINUTE;
   tSma.interval = 1;
-  tSma.slidingUnit = TIME_UNIT_HOUR;
+  tSma.slidingUnit = TIME_UNIT_MINUTE;
   tSma.sliding = 1;  // sliding = interval when it's convert window
   tSma.indexUid = indexUid1;
   tstrncpy(tSma.indexName, smaIndexName1, TSDB_INDEX_NAME_LEN);
@@ -330,8 +331,8 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   ASSERT_EQ(metaSaveSmaToDB(pMeta, pSmaCfg), 0);
 
   // step 2: insert data
-  STsdb            *pTsdb = (STsdb *)taosMemoryCalloc(1, sizeof(STsdb));
-  STsdbCfg         *pCfg = &pTsdb->config;
+  STsdb    *pTsdb = (STsdb *)taosMemoryCalloc(1, sizeof(STsdb));
+  STsdbCfg *pCfg = &pTsdb->config;
 
   pTsdb->pMeta = pMeta;
   pTsdb->vgId = 2;
@@ -405,15 +406,94 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   ASSERT_EQ(tsdbUpdateSmaWindow(pTsdb, (const char *)pMsg), 0);
 
   // init
-  int32_t allocCnt = 0;
-  int32_t allocStep = 16384;
-  int32_t buffer = 1024;
-  void   *buf = NULL;
-  ASSERT_EQ(tsdbMakeRoom(&buf, allocStep), 0);
-  int32_t  bufSize = taosTSizeof(buf);
-  int32_t  numOfTables = 10;
-  col_id_t numOfCols = 4096;
-  ASSERT_GT(numOfCols, 0);
+  const int32_t  tSmaGroupSize = 4;
+  const int32_t  tSmaNumOfTags = 2;
+  const int64_t  tSmaGroupId = 12345670;
+  const col_id_t tSmaNumOfCols = 9;  // binary/nchar/varbinary/varchar are only used for tags for group by conditions.
+  const int32_t  tSmaNumOfRows = 2;
+
+  SArray *pDataBlocks = taosArrayInit(tSmaGroupSize, sizeof(SSDataBlock *));
+  ASSERT_NE(pDataBlocks, nullptr);
+  int32_t tSmaTypeArray[tSmaNumOfCols] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL,     TSDB_DATA_TYPE_INT,
+                                          TSDB_DATA_TYPE_UBIGINT,   TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_FLOAT,
+                                          TSDB_DATA_TYPE_DOUBLE,    TSDB_DATA_TYPE_VARCHAR,  TSDB_DATA_TYPE_NCHAR};
+  // last 2 columns for group by tags
+  // int32_t tSmaTypeArray[tSmaNumOfCols] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL};
+  const char *tSmaGroupbyTags[tSmaGroupSize * tSmaNumOfTags] = {"BeiJing",  "HaiDian", "BeiJing",   "ChaoYang",
+                                                                "ShangHai", "PuDong",  "ShangHai", "MinHang"};
+  TSKEY       tSmaSKeyMs = (int64_t)1648535332 * 1000;
+  int64_t     tSmaIntervalMs = tSma.interval * 60 * 1000;
+  int64_t     tSmaInitVal = 0;
+
+  for (int32_t g = 0; g < tSmaGroupSize; ++g) {
+    SSDataBlock *pDataBlock = (SSDataBlock *)taosMemoryCalloc(1, sizeof(SSDataBlock));
+    ASSERT_NE(pDataBlock, nullptr);
+    pDataBlock->pBlockAgg = NULL;
+    pDataBlock->info.numOfCols = tSmaNumOfCols;
+    pDataBlock->info.rows = tSmaNumOfRows;
+    pDataBlock->info.groupId = tSmaGroupId + g;
+
+    pDataBlock->pDataBlock = taosArrayInit(tSmaNumOfCols, sizeof(SColumnInfoData *));
+    ASSERT_NE(pDataBlock->pDataBlock, nullptr);
+    for (int32_t c = 0; c < tSmaNumOfCols; ++c) {
+      
+      SColumnInfoData *pColInfoData = (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
+      ASSERT_NE(pColInfoData, nullptr);
+
+      pColInfoData->info.type = tSmaTypeArray[c];
+      if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+        pColInfoData->info.bytes = 100;  // update accordingly
+      } else {
+        pColInfoData->info.bytes = TYPE_BYTES[pColInfoData->info.type];
+      }
+      pColInfoData->pData = (char *)taosMemoryCalloc(1, tSmaNumOfRows * pColInfoData->info.bytes);
+
+      for (int32_t r = 0; r < tSmaNumOfRows; ++r) {
+        void *pCellData = pColInfoData->pData + r * pColInfoData->info.bytes;
+        switch (pColInfoData->info.type) {
+          case TSDB_DATA_TYPE_TIMESTAMP:
+            *(TSKEY *)pCellData = tSmaSKeyMs + tSmaIntervalMs * r;
+            break;
+          case TSDB_DATA_TYPE_BOOL:
+            *(bool *)pCellData = (bool)tSmaInitVal++;
+            break;
+          case TSDB_DATA_TYPE_INT:
+            *(int *)pCellData = (int)tSmaInitVal++;
+            break;
+          case TSDB_DATA_TYPE_UBIGINT:
+            *(uint64_t *)pCellData = (uint64_t)tSmaInitVal++;
+            break;
+          case TSDB_DATA_TYPE_SMALLINT:
+            *(int16_t *)pCellData = (int16_t)tSmaInitVal++;
+            break;
+          case TSDB_DATA_TYPE_FLOAT:
+            *(float *)pCellData = (float)tSmaInitVal++;
+            break;
+          case TSDB_DATA_TYPE_DOUBLE:
+            *(double *)pCellData = (double)tSmaInitVal++;
+            break;
+          case TSDB_DATA_TYPE_VARCHAR:  // city
+            varDataSetLen(pCellData, strlen(tSmaGroupbyTags[g * 2]));
+            memcpy(varDataVal(pCellData), tSmaGroupbyTags[g * 2], varDataLen(pCellData));
+            break;
+          case TSDB_DATA_TYPE_NCHAR:  // district
+            varDataSetLen(pCellData, strlen(tSmaGroupbyTags[g * 2 + 1]));
+            memcpy(varDataVal(pCellData), tSmaGroupbyTags[g * 2 + 1], varDataLen(pCellData));
+            break;
+          default:
+            ASSERT_EQ(0, 1);  // add definition
+            break;
+        }
+      }
+      // push SColumnInfoData
+      taosArrayPush(pDataBlock->pDataBlock, &pColInfoData);
+    }
+    // push SSDataBlock
+    taosArrayPush(pDataBlocks, &pDataBlock);
+  }
+
+  // execute
+  ASSERT_EQ(tsdbInsertTSmaData(pTsdb, tSma.indexUid, (const char *)pDataBlocks), TSDB_CODE_SUCCESS);
 
 #if 0
   STSmaDataWrapper *pSmaData = NULL;
@@ -464,26 +544,30 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   ASSERT_EQ(tsdbInsertTSmaData(pTsdb, (char *)pSmaData), TSDB_CODE_SUCCESS);
 #endif
 
-  SSDataBlock *pSmaData = (SSDataBlock *)taosMemoryCalloc(1, sizeof(SSDataBlock));
-  
-
-
   // step 3: query
   uint32_t checkDataCnt = 0;
-  for (int32_t t = 0; t < numOfTables; ++t) {
-    for (col_id_t c = 0; c < numOfCols; ++c) {
-      ASSERT_EQ(tsdbGetTSmaData(pTsdb, NULL, indexUid1, interval1, intervalUnit1, tbUid + t,
-                                c + PRIMARYKEY_TIMESTAMP_COL_ID, skey1, 1),
-                TSDB_CODE_SUCCESS);
-      ++checkDataCnt;
-    }
-  }
+  ASSERT_EQ(tsdbGetTSmaData(pTsdb, NULL, indexUid1, skey1, 1), TSDB_CODE_SUCCESS);
+  ++checkDataCnt;
 
   printf("%s:%d The sma data check count for insert and query is %" PRIu32 "\n", __FILE__, __LINE__, checkDataCnt);
 
   // release data
   taosMemoryFreeClear(pMsg);
-  taosTZfree(buf);
+
+  for (int32_t i = 0; i < taosArrayGetSize(pDataBlocks); ++i) {
+    SSDataBlock *pDataBlock = (SSDataBlock *)taosArrayGet(pDataBlocks, i);
+    int32_t      numOfOutput = taosArrayGetSize(pDataBlock->pDataBlock);
+    for (int32_t j = 0; j < numOfOutput; ++j) {
+      SColumnInfoData *pColInfoData = (SColumnInfoData *)taosArrayGet(pDataBlock->pDataBlock, j);
+      colDataDestroy(pColInfoData);
+    }
+
+    taosArrayDestroy(pDataBlock->pDataBlock);
+    taosMemoryFreeClear(pDataBlock->pBlockAgg);
+    taosMemoryFreeClear(pDataBlock);
+  }
+  taosArrayDestroy(pDataBlocks);
+
   // release meta
   tdDestroyTSma(&tSma);
   tfsClose(pTsdb->pTfs);
