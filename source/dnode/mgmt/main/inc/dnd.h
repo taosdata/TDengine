@@ -95,6 +95,7 @@ typedef struct SMgmtWrapper {
   bool        deployed;
   bool        required;
   EProcType   procType;
+  int32_t     procId;
   SProcObj   *pProc;
   SShm        shm;
   void       *pMgmt;

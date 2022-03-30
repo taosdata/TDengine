@@ -56,7 +56,7 @@ static void dndSetSignalHandle() {
     taosSetSignal(SIGCHLD, dndHandleChild);
   } else {
     // When the parent process exits, the child process will receive the SIGKILL signal
-    prctl(PR_SET_PDEATHSIG, SIGKILL);
+    taosKillChildOnSelfStopped();
   }
 }
 
@@ -143,8 +143,7 @@ static int32_t dndInitLog() {
 static void dndSetProcName(char **argv) {
   if (global.ntype != DNODE) {
     const char *name = dndNodeProcStr(global.ntype);
-    prctl(PR_SET_NAME, name);
-    strcpy(argv[0], name);
+    taosSetProcName(argv, name);
   }
 }
 

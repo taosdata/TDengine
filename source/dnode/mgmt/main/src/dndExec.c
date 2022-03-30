@@ -193,9 +193,17 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
     if (!pWrapper->required) continue;
 
     if (pDnode->ntype == NODE_MAX) {
-      dInfo("node:%s, will be started manually", pWrapper->name);
+      dInfo("node:%s, should be started manually", pWrapper->name);
     } else {
-      dInfo("node:%s, will pull up the child process through exec", pWrapper->name);
+      char    args[PATH_MAX];
+      int32_t pid = taosNewProc(args);
+      if (pid <= 0) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        dError("node:%s, failed to exec in new process since %s", pWrapper->name, terrstr());
+        return -1;
+      }
+      pWrapper->procId = pid;
+      dInfo("node:%s, run in new process, pid:%d", pWrapper->name, pid);
     }
 
     if (taosProcRun(pWrapper->pProc) != 0) {

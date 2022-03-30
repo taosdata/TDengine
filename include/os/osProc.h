@@ -13,46 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_OS_SIGNAL_H_
-#define _TD_OS_SIGNAL_H_
+#ifndef _TD_OS_PROC_H_
+#define _TD_OS_PROC_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#ifndef SIGALRM
-  #define SIGALRM 1234
-#endif
+// start a copy of itself
+int32_t taosNewProc(const char *args);
 
-#ifndef SIGHUP
-  #define SIGHUP 1230
-#endif
-
-#ifndef SIGCHLD
-  #define SIGCHLD 1234
-#endif
-
-#ifndef SIGUSR1
-  #define SIGUSR1 1234
-#endif
-
-#ifndef SIGUSR2
-  #define SIGUSR2 1234
-#endif
-
-#ifndef SIGBREAK
-  #define SIGBREAK 1234
-#endif
-
-typedef void (*FSignalHandler)(int32_t signum, void *sigInfo, void *context);
-void taosSetSignal(int32_t signum, FSignalHandler sigfp);
-void taosIgnSignal(int32_t signum);
-void taosDflSignal(int32_t signum);
-
-void taosKillChildOnSelfStopped();
+// the length of the new name must be less than the original name to take effect
+void taosSetProcName(char **argv, const char *name);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  /*_TD_OS_SIGNAL_H_*/
+#endif /*_TD_OS_PROC_H_*/
