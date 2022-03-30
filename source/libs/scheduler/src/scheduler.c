@@ -2177,7 +2177,7 @@ static int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryPlan *pD
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  pJob->attr.analyzeExplain = (EXPLAIN_MODE_ANALYZE == pDag->explainInfo.mode);
+  pJob->attr.explainMode = pDag->explainInfo.mode;
   pJob->attr.syncSchedule = syncSchedule;
   pJob->transport = transport;
   pJob->sql = sql;
@@ -2528,10 +2528,14 @@ int32_t schedulerFetchRows(int64_t job, void **pData) {
     SCH_JOB_DLOG("job already succeed, status:%s", jobTaskStatusStr(status));
     goto _return;
   } else if (status == JOB_TASK_STATUS_PARTIAL_SUCCEED) {
-    SCH_ERR_JRET(schFetchFromRemote(pJob));
+    if (!pJob->attr.explainMode == EXPLAIN_MODE_STATIC) {
+      SCH_ERR_JRET(schFetchFromRemote(pJob));
+      tsem_wait(&pJob->rspSem);
+    } 
+  } else {
+    SCH_JOB_ELOG("job status error for fetch, status:%s", jobTaskStatusStr(status));
+    SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
   }
-
-  tsem_wait(&pJob->rspSem);
 
   status = SCH_GET_JOB_STATUS(pJob);
 
