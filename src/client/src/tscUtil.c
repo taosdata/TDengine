@@ -991,7 +991,8 @@ static void doSetupSDataBlock(SSqlRes* pRes, SSDataBlock* pBlock, void* pFilterI
           continue;
         }
         int32_t len = 0;
-        taosMbsToUcs4(varDataVal(srcRow), varDataLen(srcRow), varDataVal(dstRow), bytes, &len);
+        taosMbsToUcs4(varDataVal(srcRow), varDataLen(srcRow), varDataVal(dstRow),
+                      bytes-VARSTR_HEADER_SIZE, &len);
         varDataLen(dstRow) = len;
       }
       memcpy(srcData, dstData, bytes*rows);
