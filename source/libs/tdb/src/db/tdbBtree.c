@@ -93,9 +93,9 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, S
   }
 
   // pBt->keyLen
-  pBt->keyLen = keyLen;
+  pBt->keyLen = keyLen < 0 ? TDB_VARIANT_LEN : keyLen;
   // pBt->valLen
-  pBt->valLen = valLen;
+  pBt->valLen = valLen < 0 ? TDB_VARIANT_LEN : valLen;
   // pBt->pPager
   pBt->pPager = pPager;
   // pBt->kcmpr
@@ -890,22 +890,16 @@ static int tdbBtreeBalance(SBTC *pBtc) {
 #endif
 
 // TDB_BTREE_CELL =====================
-static int tdbBtreeEncodePayload(SPage *pPage, u8 *pPayload, const void *pKey, int kLen, const void *pVal, int vLen,
-                                 int *szPayload) {
+static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const void *pKey, int kLen, const void *pVal,
+                                 int vLen, int *szPayload) {
   int nPayload;
 
-  ASSERT(pKey != NULL);
-
-  if (pVal == NULL) {
-    vLen = 0;
-  }
-
   nPayload = kLen + vLen;
-  if (nPayload <= pPage->maxLocal) {
-    // General case without overflow
-    memcpy(pPayload, pKey, kLen);
+  if (nPayload + nHeader <= pPage->maxLocal) {
+    // no overflow page is needed
+    memcpy(pCell + nHeader, pKey, kLen);
     if (pVal) {
-      memcpy(pPayload + kLen, pVal, vLen);
+      memcpy(pCell + nHeader + kLen, pVal, vLen);
     }
 
     *szPayload = nPayload;
@@ -929,6 +923,7 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
 
   ASSERT(pPage->kLen == TDB_VARIANT_LEN || pPage->kLen == kLen);
   ASSERT(pPage->vLen == TDB_VARIANT_LEN || pPage->vLen == vLen);
+  ASSERT(pKey != NULL && kLen > 0);
 
   nPayload = 0;
   nHeader = 0;
@@ -954,14 +949,16 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
   }
 
   // 2. Encode payload part
-  if (leaf && vLen > 0) {
-    ret = tdbBtreeEncodePayload(pPage, pCell + nHeader, pKey, kLen, pVal, vLen, &nPayload);
-  } else {
-    ret = tdbBtreeEncodePayload(pPage, pCell + nHeader, pKey, kLen, NULL, 0, &nPayload);
+  if ((!leaf) || pPage->vLen == 0) {
+    pVal = NULL;
+    vLen = 0;
   }
+
+  ret = tdbBtreeEncodePayload(pPage, pCell, nHeader, pKey, kLen, pVal, vLen, &nPayload);
   if (ret < 0) {
-    // TODO: handle error
-    return -1;
+    // TODO
+    ASSERT(0);
+    return 0;
   }
 
   *szCell = nHeader + nPayload;
