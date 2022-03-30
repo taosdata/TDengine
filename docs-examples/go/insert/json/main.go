@@ -24,14 +24,13 @@ func main() {
 	}
 	defer conn.Close()
 	prepareDatabase(conn)
-	var lines = []string{
-		"meters.current 1648432611249 10.8 location=Beijing.Haidian groupid=3",
-		"meters.current 1648432611250 11.3 location=Beijing.Haidian groupid=3",
-		"meters.voltage 1648432611249 219 location=Beijing.Chaoyang groupid=2",
-		"meters.voltage 1648432611250 218 location=Beijing.Chaoyang groupid=2",
-	}
 
-	err = conn.OpenTSDBInsertTelnetLines(lines)
+	payload := `[{"metric": "meters.current", "timestamp": 1648432611249, "value": 10.3, "tags": {"location": "Beijing.Chaoyang", "groupid": 2}},
+				{"metric": "meters.voltage", "timestamp": 1648432611249, "value": 219, "tags": {"location": "Beijing.Haidian", "groupid": 1}},
+				{"metric": "meters.current", "timestamp": 1648432611250, "value": 12.6, "tags": {"location": "Beijing.Chaoyang", "groupid": 2}},
+				{"metric": "meters.voltage", "timestamp": 1648432611250, "value": 221, "tags": {"location": "Beijing.Haidian", "groupid": 1}}]`
+
+	err = conn.OpenTSDBInsertJsonPayload(payload)
 	if err != nil {
 		fmt.Println("insert error:", err)
 	}
