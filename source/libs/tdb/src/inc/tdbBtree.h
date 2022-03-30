@@ -48,7 +48,6 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
 int tdbBtcOpen(SBTC *pCur, SBTree *pBt);
 int tdbBtcMoveToFirst(SBTC *pBtc);
 int tdbBtcMoveToLast(SBTC *pBtc);
-int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen);
 int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen);
 int tdbBtcClose(SBTC *pBtc);
 
