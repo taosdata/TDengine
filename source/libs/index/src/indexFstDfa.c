@@ -119,7 +119,38 @@ bool dfaBuilderRunState(FstDfaBuilder *builder, FstSparseSet *cur, FstSparseSet 
 }
 
 bool dfaBuilderCachedState(FstDfaBuilder *builder, FstSparseSet *set, uint32_t *result) {
-  // impl cache state
+  SArray *tinsts = taosArrayInit(4, sizeof(uint32_t));
+  bool    isMatch = false;
+
+  for (int i = 0; i < sparSetLen(set); i++) {
+    uint32_t ip = sparSetGet(set, i);
+
+    Inst *inst = taosArrayGet(builder->dfa->insts, ip);
+    if (inst->ty == JUMP || inst->ty == SPLIT) {
+      continue;
+    } else if (inst->ty == RANGE) {
+      taosArrayPush(tinsts, &ip);
+    } else if (inst->ty == MATCH) {
+      isMatch = true;
+      taosArrayPush(tinsts, &ip);
+    }
+  }
+  if (taosArrayGetSize(tinsts) == 0) {
+    return false;
+  }
+  uint32_t *v = taosHashGet(builder->cache, &tinsts, sizeof(POINTER_BYTES));
+  if (v != NULL) {
+    *result = *v;
+    taosArrayDestroy(tinsts);
+  } else {
+    State st;
+    st.insts = tinsts;
+    st.isMatch = isMatch;
+    taosArrayPush(builder->dfa->states, &st);
+    int32_t sz = taosArrayGetSize(builder->dfa->states) - 1;
+    taosHashPut(builder->cache, &tinsts, sizeof(POINTER_BYTES), &sz, sizeof(sz));
+    *result = sz;
+  }
   return true;
 }
 
