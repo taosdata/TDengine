@@ -1040,12 +1040,11 @@ int tdbBtcMoveToFirst(SBTC *pBtc) {
 
     // move upward
     for (;;) {
-      if (pBtc->iPage == 0) {
+      if (pBtc->iPage == iPage) {
         pBtc->idx = 0;
         break;
       }
 
-      if (pBtc->iPage < iPage) break;
       tdbBtcMoveUpward(pBtc);
     }
   }
@@ -1106,15 +1105,15 @@ int tdbBtcMoveToLast(SBTC *pBtc) {
 
     // move upward
     for (;;) {
-      if (pBtc->iPage == 0) {
+      if (pBtc->iPage == iPage) {
         if (TDB_BTREE_PAGE_IS_LEAF(pBtc->pPage)) {
           pBtc->idx = TDB_PAGE_TOTAL_CELLS(pBtc->pPage) - 1;
         } else {
           pBtc->idx = TDB_PAGE_TOTAL_CELLS(pBtc->pPage);
         }
+        break;
       }
 
-      if (pBtc->iPage < iPage) break;
       tdbBtcMoveUpward(pBtc);
     }
   }
@@ -1275,6 +1274,8 @@ static int tdbBtcMoveUpward(SBTC *pBtc) {
 
 static int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
   int          ret;
+  int          nCells;
+  int          c;
   SBTree      *pBt;
   SCell       *pCell;
   SPager      *pPager;
@@ -1297,13 +1298,45 @@ static int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
     // for empty tree, just return with an invalid position
     if (TDB_PAGE_TOTAL_CELLS(pBtc->pPage) == 0) return 0;
   } else {
-    // move upward to a page that the search key is in the range
-    ASSERT(0);
+    SPage *pPage;
+    int    idx;
+    int    iPage = 0;
+
+    // downward search
+    for (; iPage < pBtc->iPage; iPage++) {
+      pPage = pBtc->pgStack[iPage];
+      idx = pBtc->idxStack[iPage];
+      nCells = TDB_PAGE_TOTAL_CELLS(pPage);
+
+      ASSERT(!TDB_BTREE_PAGE_IS_LEAF(pPage));
+
+      // check if key <= current position
+      if (idx < nCells) {
+        pCell = tdbPageGetCell(pPage, idx);
+        tdbBtreeDecodeCell(pPage, pCell, &cd);
+        c = pBt->kcmpr(pKey, kLen, cd.pKey, cd.kLen);
+        if (c > 0) break;
+      }
+
+      // check if key > current - 1 position
+      if (idx > 0) {
+        pCell = tdbPageGetCell(pPage, idx - 1);
+        tdbBtreeDecodeCell(pPage, pCell, &cd);
+        c = pBt->kcmpr(pKey, kLen, cd.pKey, cd.kLen);
+        if (c <= 0) break;
+      }
+    }
+
+    // move upward
+    for (;;) {
+      if (pBtc->iPage == iPage) break;
+      tdbBtcMoveUpward(pBtc);
+    }
   }
 
   // search downward to the leaf
   for (;;) {
-    int    lidx, ridx, midx, c, nCells;
+    int    lidx, ridx, midx;
     SPage *pPage;
 
     pPage = pBtc->pPage;
