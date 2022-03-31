@@ -66,15 +66,15 @@ print =============== will support: * from stb; function from stb/ctb
 
 sql create topic topic_stb_column as select ts, c1, c3 from stb
 #sql create topic topic_stb_all as select * from stb
-#sql create topic topic_stb_function as select ts, abs(c1), sina(c2) from stb
+sql create topic topic_stb_function as select ts, abs(c1), sin(c2) from stb
 
 sql create topic topic_ctb_column as select ts, c1, c3 from ct0
 sql create topic topic_ctb_all as select * from ct0
-#sql create topic topic_ctb_function as select ts, abs(c1), sina(c2) from ct0
+sql create topic topic_ctb_function as select ts, abs(c1), sin(c2) from ct0
 
 sql create topic topic_ntb_column as select ts, c1, c3 from ntb
 sql create topic topic_ntb_all as select * from ntb
-#sql create topic topic_ntb_function as select ts, abs(c1), sina(c2) from ntb
+sql create topic topic_ntb_function as select ts, abs(c1), sin(c2) from ntb
 
 sql show tables
 if $rows != 3 then 
@@ -147,6 +147,13 @@ endi
 #  return -1
 #endi
 
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_function" -k "group.id:tg2"
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_stb_function" -k "group.id:tg2"
+print cmd result----> $system_content
+if $system_content != @{consume success: 20, 0}@ then
+  return -1
+endi
+
 print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column" -k "group.id:tg2"
 system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_column" -k "group.id:tg2"
 print cmd result----> $system_content
@@ -161,6 +168,13 @@ if $system_content != @{consume success: 10, 0}@ then
   return -1
 endi
 
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_function" -k "group.id:tg2"
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ctb_function" -k "group.id:tg2"
+print cmd result----> $system_content
+if $system_content != @{consume success: 10, 0}@ then
+  return -1
+endi
+
 print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column" -k "group.id:tg2"
 system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_column" -k "group.id:tg2"
 print cmd result----> $system_content
@@ -170,6 +184,13 @@ endi
 
 print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_all" -k "group.id:tg2"
 system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_all" -k "group.id:tg2"
+print cmd result----> $system_content
+if $system_content != @{consume success: 20, 0}@ then
+  return -1
+endi
+
+print cmd===> system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_function" -k "group.id:tg2"
+system_content ../../debug/tests/test/c/tmq_sim -c ../../sim/tsim/cfg -d $dbNamme -t "topic_ntb_function" -k "group.id:tg2"
 print cmd result----> $system_content
 if $system_content != @{consume success: 20, 0}@ then
   return -1

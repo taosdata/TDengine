@@ -310,6 +310,8 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
       mError("failed to process show-retrieve req:%p since %s", pShow, terrstr());
       return -1;
     }
+
+    pShow->numOfReads = 0;
   }
 
   ShowRetrieveFp retrieveFp = pMgmt->retrieveFps[pShow->type];
@@ -374,7 +376,7 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
   pReq->pRsp = pRsp;
   pReq->rspLen = size;
 
-  if (rowsRead == 0 || rowsToRead == 0 || (rowsRead == rowsToRead && pShow->numOfRows == pShow->numOfReads)) {
+  if (rowsRead == 0 || rowsToRead == 0 || (rowsRead < rowsToRead)) {
     pRsp->completed = 1;
     mDebug("show:0x%" PRIx64 ", retrieve completed", pShow->id);
     mndReleaseShowObj((SShowObj*) pShow, true);

@@ -71,4 +71,6 @@ void taosIgnSignal(int32_t signum) { signal(signum, SIG_IGN); }
 
 void taosDflSignal(int32_t signum) { signal(signum, SIG_DFL); }
 
+void taosKillChildOnParentStopped() { prctl(PR_SET_PDEATHSIG, SIGKILL); }
+
 #endif

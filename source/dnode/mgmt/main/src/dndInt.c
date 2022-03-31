@@ -41,7 +41,7 @@ int32_t dndInit() {
     return -1;
   }
 
-  dDebug("dnode env is initialized");
+  dInfo("dnode env is initialized");
   return 0;
 }
 
@@ -55,7 +55,7 @@ void dndCleanup() {
   monCleanup();
   walCleanUp();
   taosStopCacheRefreshWorker();
-  dDebug("dnode env is cleaned up");
+  dInfo("dnode env is cleaned up");
 }
 
 void dndSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, int8_t vgId) {

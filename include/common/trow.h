@@ -937,7 +937,7 @@ static FORCE_INLINE bool tdSTSRowIterNext(STSRowIter *pIter, col_id_t colId, col
     STColumn *pCol = NULL;
     STSchema *pSchema = pIter->pSchema;
     while (pIter->colIdx <= pSchema->numOfCols) {
-      pCol = &pSchema->columns[pIter->colIdx];
+      pCol = &pSchema->columns[pIter->colIdx];  // 1st column of schema is primary TS key
       if (colId == pCol->colId) {
         break;
       } else if (colId < pCol->colId) {
