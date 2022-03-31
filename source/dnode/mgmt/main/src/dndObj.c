@@ -152,7 +152,9 @@ void dndClose(SDnode *pDnode) {
 
 void dndHandleEvent(SDnode *pDnode, EDndEvent event) {
   dInfo("dnode object receive event %d, data:%p", event, pDnode);
-  pDnode->event = event;
+  if (event == DND_EVENT_STOP) {
+    pDnode->event = event;
+  }
 }
 
 SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, ENodeType ntype) {
