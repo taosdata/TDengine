@@ -30,7 +30,7 @@ static struct {
 } global = {0};
 
 static void dndStopDnode(int signum, void *info, void *ctx) {
-  dInfo("signal:%d is received", signum);
+  dInfo("system signal:%d received", signum);
   SDnode *pDnode = atomic_val_compare_exchange_ptr(&global.pDnode, 0, global.pDnode);
   if (pDnode != NULL) {
     dndHandleEvent(pDnode, DND_EVENT_STOP);
@@ -38,8 +38,10 @@ static void dndStopDnode(int signum, void *info, void *ctx) {
 }
 
 static void dndHandleChild(int signum, void *info, void *ctx) {
-  dInfo("signal:%d is received", signum);
-  dndHandleEvent(global.pDnode, DND_EVENT_CHILD);
+  dInfo("sigchild received");
+  if (global.pDnode != NULL) {
+    dndHandleEvent(global.pDnode, DND_EVENT_CHILD);
+  }
 }
 
 static void dndSetSignalHandle() {
@@ -50,7 +52,7 @@ static void dndSetSignalHandle() {
   taosSetSignal(SIGBREAK, dndStopDnode);
 
   if (!tsMultiProcess) {
-  } else if (global.ntype == DNODE) {
+  } else if (global.ntype == DNODE || global.ntype == NODE_MAX) {
     taosSetSignal(SIGCHLD, dndHandleChild);
   } else {
     taosKillChildOnParentStopped();
@@ -74,14 +76,14 @@ static int32_t dndParseArgs(int32_t argc, char const *argv[]) {
       tstrncpy(global.apolloUrl, argv[++i], PATH_MAX);
     } else if (strcmp(argv[i], "-e") == 0) {
       tstrncpy(global.envFile, argv[++i], PATH_MAX);
-    } else if (strcmp(argv[i], "-k") == 0) {
-      global.generateGrant = true;
     } else if (strcmp(argv[i], "-n") == 0) {
       global.ntype = atoi(argv[++i]);
       if (global.ntype <= DNODE || global.ntype > NODE_MAX) {
         printf("'-n' range is [1-5], default is 0\n");
         return -1;
       }
+    } else if (strcmp(argv[i], "-k") == 0) {
+      global.generateGrant = true;
     } else if (strcmp(argv[i], "-C") == 0) {
       global.dumpConfig = true;
     } else if (strcmp(argv[i], "-V") == 0) {
@@ -139,7 +141,7 @@ static int32_t dndInitLog() {
 
 static void dndSetProcInfo(int32_t argc, char **argv) {
   taosSetProcPath(argc, argv);
-  if (global.ntype != DNODE) {
+  if (global.ntype != DNODE && global.ntype != NODE_MAX) {
     const char *name = dndNodeProcStr(global.ntype);
     taosSetProcName(argc, argv, name);
   }
@@ -147,14 +149,14 @@ static void dndSetProcInfo(int32_t argc, char **argv) {
 
 static int32_t dndRunDnode() {
   if (dndInit() != 0) {
-    dError("failed to initialize environment since %s", terrstr());
+    dError("failed to init environment since %s", terrstr());
     return -1;
   }
 
   SDnodeOpt option = dndGetOpt();
   SDnode   *pDnode = dndCreate(&option);
   if (pDnode == NULL) {
-    dError("failed to to create dnode object since %s", terrstr());
+    dError("failed to to create dnode since %s", terrstr());
     return -1;
   } else {
     global.pDnode = pDnode;
@@ -184,7 +186,6 @@ int main(int argc, char const *argv[]) {
     return -1;
   }
 
-  dndSetProcInfo(argc, (char **)argv);
   if (global.generateGrant) {
     dndGenerateGrant();
     return 0;
@@ -212,5 +213,6 @@ int main(int argc, char const *argv[]) {
     return 0;
   }
 
+  dndSetProcInfo(argc, (char **)argv);
   return dndRunDnode();
 }

@@ -136,6 +136,7 @@ typedef struct SDnode {
 
 const char *dndNodeLogStr(ENodeType ntype);
 const char *dndNodeProcStr(ENodeType ntype);
+const char *dndEventStr(EDndEvent ev);
 EDndStatus  dndGetStatus(SDnode *pDnode);
 void        dndSetStatus(SDnode *pDnode, EDndStatus stat);
 void        dndSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, int8_t vgId);

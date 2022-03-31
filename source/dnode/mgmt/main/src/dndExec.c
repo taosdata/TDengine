@@ -150,7 +150,7 @@ static SProcCfg dndGenProcCfg(SMgmtWrapper *pWrapper) {
 }
 
 static int32_t dndRunInSingleProcess(SDnode *pDnode) {
-  dInfo("dnode start to run in single process");
+  dInfo("dnode run in single process");
 
   for (ENodeType n = DNODE; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
@@ -189,7 +189,7 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
 }
 
 static int32_t dndRunInParentProcess(SDnode *pDnode) {
-  dInfo("dnode start to run in parent process");
+  dInfo("dnode run in parent process");
   SMgmtWrapper *pDWrapper = &pDnode->wrappers[DNODE];
   if (dndOpenNode(pDWrapper) != 0) {
     dError("node:%s, failed to start since %s", pDWrapper->name, terrstr());
@@ -201,12 +201,13 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
     pWrapper->required = dndRequireNode(pWrapper);
     if (!pWrapper->required) continue;
 
-    int64_t shmsize = 1024 * 1024 * 2;  // size will be a configuration item
+    int32_t shmsize = 1024 * 1024 * 2;  // size will be a configuration item
     if (taosCreateShm(&pWrapper->shm, shmsize) != 0) {
       terrno = TAOS_SYSTEM_ERROR(terrno);
-      dError("node:%s, failed to create shm size:%" PRId64 " since %s", pWrapper->name, shmsize, terrstr());
+      dError("node:%s, failed to create shm size:%d since %s", pWrapper->name, shmsize, terrstr());
       return -1;
     }
+    dInfo("node:%s, shm:%d is created, size:%d", pWrapper->name, pWrapper->shm.id, shmsize);
 
     SProcCfg cfg = dndGenProcCfg(pWrapper);
     cfg.isChild = false;
@@ -275,7 +276,7 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
 }
 
 static int32_t dndRunInChildProcess(SDnode *pDnode) {
-  dInfo("dnode start to run in child process");
+  dInfo("dnode run in child process");
   SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->ntype];
 
   SMsgCb msgCb = dndCreateMsgcb(pWrapper);

@@ -39,7 +39,7 @@ void taosSetProcName(int32_t argc, char **argv, const char *name) {
       argv[i][j] = 0;
     }
     if (i == 0) {
-      tstrncpy(argv[0], name, len);
+      tstrncpy(argv[0], name, len + 1);
     }
   }
 }
@@ -48,5 +48,5 @@ void taosSetProcPath(int32_t argc, char **argv) { tsProcPath = argv[0]; }
 
 bool taosProcExists(int32_t pid) {
   int32_t p = getpgid(pid);
-  return p == 0;
+  return p >= 0;
 }
