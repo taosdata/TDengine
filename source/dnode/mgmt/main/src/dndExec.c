@@ -276,8 +276,8 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
 }
 
 static int32_t dndRunInChildProcess(SDnode *pDnode) {
-  dInfo("dnode run in child process");
   SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->ntype];
+  dInfo("%s run in child process", pWrapper->name);
 
   SMsgCb msgCb = dndCreateMsgcb(pWrapper);
   tmsgSetDefaultMsgCb(&msgCb);
