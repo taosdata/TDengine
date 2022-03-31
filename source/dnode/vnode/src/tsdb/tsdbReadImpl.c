@@ -99,7 +99,7 @@ int tsdbSetAndOpenReadFSet(SReadH *pReadh, SDFileSet *pSet) {
 void tsdbCloseAndUnsetFSet(SReadH *pReadh) { tsdbResetReadFile(pReadh); }
 
 int tsdbLoadBlockIdx(SReadH *pReadh) {
-  SDFile   *pHeadf = TSDB_READ_HEAD_FILE(pReadh);
+  SDFile *  pHeadf = TSDB_READ_HEAD_FILE(pReadh);
   SBlockIdx blkIdx;
 
   ASSERT(taosArrayGetSize(pReadh->aBlkIdx) == 0);
@@ -181,13 +181,20 @@ int tsdbSetReadTable(SReadH *pReadh, STable *pTable) {
       }
 
       SBlockIdx *pBlkIdx = taosArrayGet(pReadh->aBlkIdx, pReadh->cidx);
-      if (pBlkIdx->uid == TABLE_UID(pTable)) {
-        pReadh->pBlkIdx = pBlkIdx;
+      if (pBlkIdx->tid == TABLE_TID(pTable)) {
+        if (pBlkIdx->uid == TABLE_UID(pTable)) {
+          pReadh->pBlkIdx = pBlkIdx;
+        } else {
+          pReadh->pBlkIdx = NULL;
+        }
+        pReadh->cidx++;
+        break;
+      } else if (pBlkIdx->tid > TABLE_TID(pTable)) {
+        pReadh->pBlkIdx = NULL;
         break;
       } else {
-        pReadh->pBlkIdx = NULL;
+        pReadh->cidx++;
       }
-      pReadh->cidx++;
     }
   } else {
     pReadh->pBlkIdx = NULL;
@@ -199,7 +206,7 @@ int tsdbSetReadTable(SReadH *pReadh, STable *pTable) {
 int tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget) {
   ASSERT(pReadh->pBlkIdx != NULL);
 
-  SDFile    *pHeadf = TSDB_READ_HEAD_FILE(pReadh);
+  SDFile *   pHeadf = TSDB_READ_HEAD_FILE(pReadh);
   SBlockIdx *pBlkIdx = pReadh->pBlkIdx;
 
   if (tsdbSeekDFile(pHeadf, pBlkIdx->offset, SEEK_SET) < 0) {
@@ -269,8 +276,7 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
   return 0;
 }
 
-int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, const int16_t *colIds,
-                          int numOfColsIds) {
+int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, const int16_t *colIds, int numOfColsIds) {
   ASSERT(pBlock->numOfSubBlocks > 0);
   int8_t update = pReadh->pRepo->config.update;
 
@@ -533,9 +539,9 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
   pDataCols->numOfRows = pBlock->numOfRows;
 
   // Recover the data
-  int        ccol = 0;  // loop iter for SBlockCol object
-  int        dcol = 0;  // loop iter for SDataCols object
-  int        nBitmaps = (int)TD_BITMAP_BYTES(pBlock->numOfRows);
+  int ccol = 0;  // loop iter for SBlockCol object
+  int dcol = 0;  // loop iter for SDataCols object
+  int nBitmaps = (int)TD_BITMAP_BYTES(pBlock->numOfRows);
   SBlockCol *pBlockCol = NULL;
   while (dcol < pDataCols->numOfCols) {
     SDataCol *pDataCol = &(pDataCols->cols[dcol]);
@@ -580,8 +586,8 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
       }
 
       if (tsdbCheckAndDecodeColumnData(pDataCol, POINTER_SHIFT(pBlockData, tsize + toffset), tlen, pBlock->algorithm,
-                                       pBlock->numOfRows, tBitmaps, tLenBitmap, pDataCols->maxPoints,
-                                       TSDB_READ_COMP_BUF(pReadh), (int)taosTSizeof(TSDB_READ_COMP_BUF(pReadh))) < 0) {
+                                       pBlock->numOfRows, tBitmaps, tLenBitmap, pDataCols->maxPoints, TSDB_READ_COMP_BUF(pReadh),
+                                       (int)taosTSizeof(TSDB_READ_COMP_BUF(pReadh))) < 0) {
         tsdbError("vgId:%d file %s is broken at column %d block offset %" PRId64 " column offset %u",
                   TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), tcolId, (int64_t)pBlock->offset, toffset);
         return -1;
@@ -656,7 +662,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
   ASSERT(pBlock->numOfSubBlocks == 0 || pBlock->numOfSubBlocks == 1);
   ASSERT(colIds[0] == PRIMARYKEY_TIMESTAMP_COL_ID);
 
-  SDFile   *pDFile = (pBlock->last) ? TSDB_READ_LAST_FILE(pReadh) : TSDB_READ_DATA_FILE(pReadh);
+  SDFile *  pDFile = (pBlock->last) ? TSDB_READ_LAST_FILE(pReadh) : TSDB_READ_DATA_FILE(pReadh);
   SBlockCol blockCol = {0};
 
   tdResetDataCols(pDataCols);
@@ -670,7 +676,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
   int ccol = 0;
   for (int i = 0; i < numOfColIds; i++) {
     int16_t    colId = colIds[i];
-    SDataCol  *pDataCol = NULL;
+    SDataCol * pDataCol = NULL;
     SBlockCol *pBlockCol = NULL;
 
     while (true) {
@@ -734,7 +740,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
 static int tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBlockCol *pBlockCol, SDataCol *pDataCol) {
   ASSERT(pDataCol->colId == pBlockCol->colId);
 
-  STsdb    *pRepo = TSDB_READ_REPO(pReadh);
+  STsdb *   pRepo = TSDB_READ_REPO(pReadh);
   STsdbCfg *pCfg = REPO_CFG(pRepo);
 
   int     nBitmaps = (int)TD_BITMAP_BYTES(pBlock->numOfRows);
@@ -751,7 +757,7 @@ static int tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBloc
     }
   }
 
-  int tsize = pDataCol->bytes * pBlock->numOfRows + tLenBitmap + COMP_OVERFLOW_BYTES;
+  int       tsize = pDataCol->bytes * pBlock->numOfRows + tLenBitmap + COMP_OVERFLOW_BYTES;
 
   if (tsdbMakeRoom((void **)(&TSDB_READ_BUF(pReadh)), pBlockCol->len) < 0) return -1;
   if (tsdbMakeRoom((void **)(&TSDB_READ_COMP_BUF(pReadh)), tsize) < 0) return -1;
