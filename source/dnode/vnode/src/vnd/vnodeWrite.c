@@ -165,6 +165,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       // }
       break;
     case TDMT_VND_SUBMIT:
+      /*printf("vnode %d write data %ld\n", pVnode->vgId, ver);*/
       if (pVnode->config.streamMode == 0) {
         if (tsdbInsertData(pVnode->pTsdb, (SSubmitReq *)ptr, NULL) < 0) {
           // TODO: handle error
