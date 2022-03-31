@@ -29,7 +29,7 @@ TDB_STATIC_ASSERT(sizeof(SFileHdr) == 128, "Size of file header is not correct")
 
 static int tdbPagerReadPage(SPager *pPager, SPage *pPage);
 static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
-static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage *, void *), void *arg);
+static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage *, void *), void *arg, u8 loadPage);
 static int tdbPagerWritePageToJournal(SPager *pPager, SPage *pPage);
 static int tdbPagerWritePageToDB(SPager *pPager, SPage *pPage);
 
@@ -249,7 +249,7 @@ int tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage, int (*initPage
 
   // Initialize the page if need
   if (!TDB_PAGE_INITIALIZED(pPage)) {
-    ret = tdbPagerInitPage(pPager, pPage, initPage, arg);
+    ret = tdbPagerInitPage(pPager, pPage, initPage, arg, 1);
     if (ret < 0) {
       return -1;
     }
@@ -286,7 +286,7 @@ int tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage
   ASSERT(!TDB_PAGE_INITIALIZED(pPage));
 
   // Initialize the page if need
-  ret = tdbPagerInitPage(pPager, pPage, initPage, arg);
+  ret = tdbPagerInitPage(pPager, pPage, initPage, arg, 0);
   if (ret < 0) {
     return -1;
   }
@@ -334,16 +334,30 @@ static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno) {
   return 0;
 }
 
-static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage *, void *), void *arg) {
+static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage *, void *), void *arg, u8 loadPage) {
   int ret;
   int lcode;
   int nLoops;
+  i64 nRead;
 
   lcode = TDB_TRY_LOCK_PAGE(pPage);
   if (lcode == P_LOCK_SUCC) {
     if (TDB_PAGE_INITIALIZED(pPage)) {
       TDB_UNLOCK_PAGE(pPage);
       return 0;
+    }
+
+    if (loadPage) {
+      nRead = tdbOsPRead(pPager->fd, pPage->pData, pPage->pageSize, ((i64)pPage->pageSize) * TDB_PAGE_PGNO(pPage));
+      if (nRead < 0) {
+        // TODO
+        ASSERT(0);
+        return -1;
+      } else if (nRead < pPage->pageSize) {
+        // TODO
+        ASSERT(0);
+        return -1;
+      }
     }
 
     ret = (*initPage)(pPage, arg);
