@@ -23,12 +23,9 @@ public class JSONProtocolExample {
     }
 
     private static String getJSONData() {
-        return "[{\"metric\": \"meters.current\", \"timestamp\": 1648432611249, \"value\": 10.3, \"tags\": {\"location\": \"Beijing.Chaoyang\", \"groupid\": 2}},"
-                +
-                " {\"metric\": \"meters.voltage\", \"timestamp\": 1648432611249, \"value\": 219, \"tags\": {\"location\": \"Beijing.Haidian\", \"groupid\": 1}}, "
-                +
-                "{\"metric\": \"meters.current\", \"timestamp\": 1648432611250, \"value\": 12.6, \"tags\": {\"location\": \"Beijing.Chaoyang\", \"groupid\": 2}},"
-                +
+        return "[{\"metric\": \"meters.current\", \"timestamp\": 1648432611249, \"value\": 10.3, \"tags\": {\"location\": \"Beijing.Chaoyang\", \"groupid\": 2}}," +
+                " {\"metric\": \"meters.voltage\", \"timestamp\": 1648432611249, \"value\": 219, \"tags\": {\"location\": \"Beijing.Haidian\", \"groupid\": 1}}, " +
+                "{\"metric\": \"meters.current\", \"timestamp\": 1648432611250, \"value\": 12.6, \"tags\": {\"location\": \"Beijing.Chaoyang\", \"groupid\": 2}}," +
                 " {\"metric\": \"meters.voltage\", \"timestamp\": 1648432611250, \"value\": 221, \"tags\": {\"location\": \"Beijing.Haidian\", \"groupid\": 1}}]";
     }
 
