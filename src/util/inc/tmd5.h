@@ -38,10 +38,4 @@ void tMD5Init(T_MD5_CTX *mdContext);
 void tMD5Update(T_MD5_CTX *mdContext, uint8_t *inBuf, unsigned int inLen);
 void tMD5Final(T_MD5_CTX *mdContext);
 
-typedef T_MD5_CTX MD5_CTX;
-
-void MD5Init(MD5_CTX *mdContext);
-void MD5Update(MD5_CTX *mdContext, uint8_t *inBuf, unsigned int inLen);
-void MD5Final(MD5_CTX *mdContext);
-
 #endif
