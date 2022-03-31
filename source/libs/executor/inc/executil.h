@@ -156,6 +156,8 @@ SArray* interResFromBinary(const char* data, int32_t len);
 void freeInterResult(void* param);
 
 void    initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo);
+void    initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
+
 void    cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
 bool    hasRemainDataInCurrentGroup(SGroupResInfo* pGroupResInfo);
 bool    hasRemainData(SGroupResInfo* pGroupResInfo);

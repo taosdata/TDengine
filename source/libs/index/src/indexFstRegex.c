@@ -13,22 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_PARSER_INT_H_
-#define _TD_PARSER_INT_H_
+#include "indexFstRegex.h"
+#include "indexFstSparse.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+FstRegex *regexCreate(const char *str) {
+  FstRegex *regex = taosMemoryCalloc(1, sizeof(FstRegex));
+  if (regex == NULL) {
+    return NULL;
+  }
+  int32_t sz = (int32_t)strlen(str);
+  char *  orig = taosMemoryCalloc(1, sz);
+  memcpy(orig, str, sz);
 
-#include "parser.h"
-
-int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery);
-int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery);
-int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery);
-int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema);
-
-#ifdef __cplusplus
+  regex->orig = orig;
 }
-#endif
 
-#endif /*_TD_PARSER_INT_H_*/
+void regexSetup(FstRegex *regex, uint32_t size, const char *str) {
+  // return
+  // return;
+}

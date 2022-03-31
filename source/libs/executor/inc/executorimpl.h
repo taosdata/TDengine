@@ -422,6 +422,7 @@ typedef struct SStreamBlockScanInfo {
   uint64_t     numOfRows;     // total scanned rows
   uint64_t     numOfExec;     // execution times
   void*        readerHandle;  // stream block reader handle
+  SArray*      pColMatchInfo; //
 } SStreamBlockScanInfo;
 
 typedef struct SSysTableScanInfo {

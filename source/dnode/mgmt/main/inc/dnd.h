@@ -95,13 +95,14 @@ typedef struct SMgmtWrapper {
   bool        deployed;
   bool        required;
   EProcType   procType;
+  int32_t     procId;
   SProcObj   *pProc;
   SShm        shm;
   void       *pMgmt;
   SDnode     *pDnode;
-  NodeMsgFp   msgFps[TDMT_MAX];
-  int8_t      msgVgIds[TDMT_MAX];  // Handle the case where the same message type is distributed to qnode or vnode
   SMgmtFp     fp;
+  int8_t      msgVgIds[TDMT_MAX];  // Handle the case where the same message type is distributed to qnode or vnode
+  NodeMsgFp   msgFps[TDMT_MAX];
 } SMgmtWrapper;
 
 typedef struct {
@@ -128,7 +129,7 @@ typedef struct SDnode {
   EDndStatus   status;
   EDndEvent    event;
   SStartupReq  startup;
-  TdFilePtr    runtimeFile;
+  TdFilePtr    lockfile;
   STransMgmt   trans;
   SMgmtWrapper wrappers[NODE_MAX];
 } SDnode;
@@ -141,13 +142,17 @@ void        dndSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp no
 void        dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
 void        dndSendMonitorReport(SDnode *pDnode);
 
+int32_t dndInitServer(SDnode *pDnode);
+void    dndCleanupServer(SDnode *pDnode);
+int32_t dndInitClient(SDnode *pDnode);
+void    dndCleanupClient(SDnode *pDnode);
+int32_t dndProcessNodeMsg(SDnode *pDnode, SNodeMsg *pMsg);
 int32_t dndSendReqToMnode(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 int32_t dndSendReqToDnode(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pMsg);
 void    dndSendRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp);
 void    dndRegisterBrokenLinkArg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 SMsgCb  dndCreateMsgcb(SMgmtWrapper *pWrapper);
 
-int32_t dndProcessNodeMsg(SDnode *pDnode, SNodeMsg *pMsg);
 int32_t dndReadFile(SMgmtWrapper *pWrapper, bool *pDeployed);
 int32_t dndWriteFile(SMgmtWrapper *pWrapper, bool deployed);
 

@@ -1608,7 +1608,6 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, char *data, int32
   SStbObj *pStb = NULL;
   int32_t  cols = 0;
   char    *pWrite;
-  char     prefix[TSDB_DB_FNAME_LEN] = {0};
 
   SDbObj* pDb = NULL;
   if (strlen(pShow->db) > 0) {

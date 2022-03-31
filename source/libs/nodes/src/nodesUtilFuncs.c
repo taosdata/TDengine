@@ -136,6 +136,10 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SDropTopicStmt));
     case QUERY_NODE_EXPLAIN_STMT:
       return makeNode(type, sizeof(SExplainStmt));
+    case QUERY_NODE_DESCRIBE_STMT:
+      return makeNode(type, sizeof(SDescribeStmt));
+    case QUERY_NODE_RESET_QUERY_CACHE_STMT:
+      return makeNode(type, sizeof(SNode));
     case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_TABLES_STMT:
     case QUERY_NODE_SHOW_STABLES_STMT:

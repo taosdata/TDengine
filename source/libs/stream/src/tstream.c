@@ -152,6 +152,7 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
   // sink
   if (pTask->sinkType == TASK_SINK__TABLE) {
     //
+    blockDebugShowData(pRes);
   } else if (pTask->sinkType == TASK_SINK__SMA) {
     pTask->smaSink.smaHandle(pTask->ahandle, pTask->smaSink.smaId, pRes);
     //

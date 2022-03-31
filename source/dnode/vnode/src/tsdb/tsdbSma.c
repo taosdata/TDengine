@@ -651,9 +651,8 @@ static int32_t tsdbGetSmaStorageLevel(int64_t interval, int8_t intervalUnit) {
  */
 static int32_t tsdbInsertTSmaBlocks(STSmaWriteH *pSmaH, void *smaKey, uint32_t keyLen, void *pData, uint32_t dataLen) {
   SDBFile *pDBFile = &pSmaH->dFile;
-  tsdbDebug("vgId:%d insert sma data blocks into %s: smaKey %" PRIx64 "-%" PRIu16 "-%" PRIx64 ", dataLen %d",
-            REPO_ID(pSmaH->pTsdb), pDBFile->path, *(tb_uid_t *)smaKey, *(uint16_t *)POINTER_SHIFT(smaKey, 8),
-            *(int64_t *)POINTER_SHIFT(smaKey, 10), dataLen);
+  printf("\nvgId:%d insert sma data blocks into %s: smaKey %" PRIx64 "-%" PRIx64 ", dataLen %" PRIu32 "\n",
+         REPO_ID(pSmaH->pTsdb), pDBFile->path, *(int64_t *)smaKey, *(int64_t *)POINTER_SHIFT(smaKey, 8), dataLen);
 
   // TODO: insert sma data blocks into B+Tree(TDB)
   if (tsdbSaveSmaToDB(pDBFile, smaKey, keyLen, pData, dataLen) != 0) {
@@ -874,7 +873,6 @@ static int32_t tsdbInsertTSmaDataImpl(STsdb *pTsdb, int64_t indexUid, const char
 
   // key: skey + groupId
   char    smaKey[SMA_KEY_LEN] = {0};
-  void   *pSmaKey = &smaKey;
   char    dataBuf[512] = {0};
   void   *pDataBuf = &dataBuf;
   int32_t sz = taosArrayGetSize(pDataBlocks);
@@ -887,6 +885,7 @@ static int32_t tsdbInsertTSmaDataImpl(STsdb *pTsdb, int64_t indexUid, const char
     for (int32_t j = 0; j < rows; ++j) {
       printf("|");
       TSKEY   skey = TSKEY_INITIAL_VAL;  // the start key of TS window by interval
+      void   *pSmaKey = &smaKey;
       int32_t tlen = 0;
       for (int32_t k = 0; k < colNum; ++k) {
         SColumnInfoData *pColInfoData = *(SColumnInfoData **)taosArrayGet(pDataBlock->pDataBlock, k);
@@ -894,7 +893,7 @@ static int32_t tsdbInsertTSmaDataImpl(STsdb *pTsdb, int64_t indexUid, const char
         switch (pColInfoData->info.type) {
           case TSDB_DATA_TYPE_TIMESTAMP:
             skey = *(TSKEY *)var;
-            printf(" skey = %" PRIi64 " groupId = %" PRId64 "|", skey, groupId);
+            printf("==> skey = %" PRIi64 " groupId = %" PRId64 "|", skey, groupId);
             tsdbEncodeTSmaKey(groupId, skey, &pSmaKey);
             break;
           case TSDB_DATA_TYPE_BOOL:
@@ -976,7 +975,7 @@ static int32_t tsdbInsertTSmaDataImpl(STsdb *pTsdb, int64_t indexUid, const char
           }
         }
 
-        if (tsdbInsertTSmaBlocks(&tSmaH, pSmaKey, SMA_KEY_LEN, pDataBuf, tlen) != 0) {
+        if (tsdbInsertTSmaBlocks(&tSmaH, &smaKey, SMA_KEY_LEN, pDataBuf, tlen) != 0) {
           tsdbWarn("vgId:%d insert tSma data blocks failed for index %" PRIi64 ", skey %" PRIi64 ", groupId %" PRIi64
                    " since %s",
                    REPO_ID(pTsdb), indexUid, skey, groupId, tstrerror(terrno));
@@ -1308,22 +1307,19 @@ static int32_t tsdbGetTSmaDataImpl(STsdb *pTsdb, char *pData, int64_t indexUid, 
     return TSDB_CODE_FAILED;
   }
 
-  char  smaKey[SMA_KEY_LEN] = {0};
-  void *pSmaKey = &smaKey;
+  char    smaKey[SMA_KEY_LEN] = {0};
+  void   *pSmaKey = &smaKey;
   int64_t queryGroupId = 1;
   tsdbEncodeTSmaKey(queryGroupId, querySKey, (void **)&pSmaKey);
 
-  tsdbDebug("vgId:%d get sma data from %s: smaKey %" PRIx64 "-%" PRIu16 "-%" PRIx64 ", keyLen %d", REPO_ID(pTsdb),
-            tReadH.dFile.path, *(tb_uid_t *)smaKey, *(uint16_t *)POINTER_SHIFT(smaKey, 8),
-            *(int64_t *)POINTER_SHIFT(smaKey, 10), SMA_KEY_LEN);
+  tsdbDebug("vgId:%d get sma data from %s: smaKey %" PRIx64 "-%" PRIx64 ", keyLen %d", REPO_ID(pTsdb),
+            tReadH.dFile.path, *(int64_t *)smaKey, *(int64_t *)POINTER_SHIFT(smaKey, 8), SMA_KEY_LEN);
 
   void    *result = NULL;
   uint32_t valueSize = 0;
   if ((result = tsdbGetSmaDataByKey(&tReadH.dFile, smaKey, SMA_KEY_LEN, &valueSize)) == NULL) {
-    tsdbWarn("vgId:%d get sma data failed from smaIndex %" PRIi64 ", smaKey %" PRIx64 "-%" PRIu16 "-%" PRIx64
-             " since %s",
-             REPO_ID(pTsdb), indexUid, *(tb_uid_t *)smaKey, *(uint16_t *)POINTER_SHIFT(smaKey, 8),
-             *(int64_t *)POINTER_SHIFT(smaKey, 10), tstrerror(terrno));
+    tsdbWarn("vgId:%d get sma data failed from smaIndex %" PRIi64 ", smaKey %" PRIx64 "-%" PRIx64 " since %s",
+             REPO_ID(pTsdb), indexUid, *(int64_t *)smaKey, *(int64_t *)POINTER_SHIFT(smaKey, 8), tstrerror(terrno));
     tsdbCloseDBF(&tReadH.dFile);
     return TSDB_CODE_FAILED;
   }

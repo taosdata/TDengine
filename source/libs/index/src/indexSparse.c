@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "indexSparse.h"
+#include "indexFstSparse.h"
 
 FstSparseSet *sparSetCreate(int32_t sz) {
   FstSparseSet *ss = taosMemoryCalloc(1, sizeof(FstSparseSet));
