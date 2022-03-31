@@ -19,12 +19,13 @@ def get_connection():
 
 
 def create_database(conn):
-    conn.execute("create database test")
-    conn.execute("use test")
+    conn.execute("CREATE DATABASE test")
+    conn.execute("USE test")
 
 
 def insert_lines(conn):
-    affected_rows = conn.schemaless_insert(lines, SmlProtocol.TELNET_PROTOCOL, SmlPrecision.NOT_CONFIGURED)
+    affected_rows = conn.schemaless_insert(
+        lines, SmlProtocol.TELNET_PROTOCOL, SmlPrecision.NOT_CONFIGURED)
     print(affected_rows)  # 8
 
 

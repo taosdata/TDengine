@@ -682,7 +682,7 @@ SELECT INTERP(field_name) FROM { tb_name | stb_name } WHERE ts='timestamp' [FILL
 SELECT TAIL(field_name, k, offset_val) FROM {tb_name | stb_name} [WHERE clause];
 ```
 
-**功能说明**：返回跳过最后 offset_value 个，然后取连续 k 个记录，不忽略 NULL 值。offset_val 可以不输入。此时返回最后的 k 个记录。当有 offset_val 输入的情况下，该函数功能等效于 order by ts desc LIMIT k OFFSET offset_val。
+**功能说明**：返回跳过最后 offset_value 个，然后取连续 k 个记录，不忽略 NULL 值。offset_val 可以不输入。此时返回最后的 k 个记录。当有 offset_val 输入的情况下，该函数功能等效于 `order by ts desc LIMIT k OFFSET offset_val`。
 
 **参数范围**：k: [1,100] offset_val: [0,100]。
 

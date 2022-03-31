@@ -14,6 +14,6 @@ fn taos_connect() -> Result<Taos, Error> {
 
 fn main() {
     #[allow(unused_variables)]
-    let taos = taos_connect().unwrap();
+    let taos = taos_connect().expect("connect error");
     println!("Connected")
 }

@@ -30,7 +30,7 @@
 
 检查所有数据节点，以及应用程序所在物理节点的网络设置：
 
-每个物理节点上执行命令 hostname -f，查看和确认所有节点的 hostname 是不相同的(应用驱动所在节点无需做此项检查)；
+每个物理节点上执行命令 `hostname -f`，查看和确认所有节点的 hostname 是不相同的(应用驱动所在节点无需做此项检查)；
 
 每个物理节点上执行 ping host，其中 host 是其他物理节点的 hostname，看能否 ping 通其它物理节点；如果不能 ping 通，需要检查网络设置，或/etc/hosts 文件(Windows 系统默认路径为 C:\Windows\system32\drivers\etc\hosts)，或 DNS 的配置。如果无法 ping 通，是无法组成集群的；
 
@@ -42,7 +42,7 @@
 
 修改 TDengine 的配置文件（所有节点的文件/etc/taos/taos.cfg 都需要修改）。假设准备启动的第一个数据节点 End Point 为 h1.taosdata.com:6030，其与集群配置相关参数如下：
 
-```
+```c
 // firstEp 是每个数据节点首次启动后连接的第一个数据节点
 firstEp               h1.taosdata.com:6030
 
@@ -74,16 +74,16 @@ arbitrator            ha.taosdata.com:6042
 
 :::note
 在 2.0.19.0 及更早的版本中，除以上 9 项参数外，dnode 加入集群时，还会要求 locale 和 charset 参数的取值也一致。
+
 :::
 
 ## 启动集群
 
 ### 启动第一个数据节点
 
-按照《立即开始》里的指示，启动第一个数据节点，例如 h1.taosdata.com，然后执行 taos, 启动 taos shell，从 shell 里执行命令"show dnodes;"，如下所示：
+按照《立即开始》里的步骤，启动第一个数据节点，例如 h1.taosdata.com，然后执行 taos, 启动 taos shell，从 shell 里执行命令"SHOW dnodes;"，如下所示：
 
 ```
-
 Welcome to the TDengine shell from Linux, Client Version:2.0.0.0
 
 

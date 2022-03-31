@@ -16,7 +16,7 @@ func main() {
 		return
 	}
 	defer taos.Close()
-	rows, err := taos.Query("select ts, current from meters limit 2")
+	rows, err := taos.Query("SELECT ts, current FROM meters LIMIT 2")
 	if err != nil {
 		fmt.Println("failed to select from table, err:", err)
 		return
