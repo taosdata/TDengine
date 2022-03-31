@@ -242,6 +242,18 @@ void tdbPageCopy(SPage *pFromPage, SPage *pToPage) {
   pToPage->nOverflow = pFromPage->nOverflow;
 }
 
+int tdbPageCapacity(int pageSize, int amHdrSize) {
+  int szPageHdr;
+
+  if (pageSize < 65536) {
+    szPageHdr = pageMethods.szPageHdr;
+  } else {
+    szPageHdr = pageLargeMethods.szPageHdr;
+  }
+
+  return pageSize - szPageHdr - amHdrSize;
+}
+
 static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {
   SCell *pFreeCell;
   u8    *pOffset;
@@ -503,4 +515,81 @@ SPageMethods pageMethods = {
     setPageCellOffset,    // setCellOffset
     getPageFreeCellInfo,  // getFreeCellInfo
     setPageFreeCellInfo   // setFreeCellInfo
+};
+
+typedef struct __attribute__((__packed__)) {
+  u8 cellNum[3];
+  u8 cellBody[3];
+  u8 cellFree[3];
+  u8 nFree[3];
+} SPageHdrL;
+
+typedef struct __attribute__((__packed__)) {
+  u8 szCell[3];
+  u8 nxOffset[3];
+} SFreeCellL;
+
+// cellNum
+static inline int  getLPageCellNum(SPage *pPage) { return TDB_GET_U24(((SPageHdrL *)(pPage->pPageHdr))[0].cellNum); }
+static inline void setLPageCellNum(SPage *pPage, int cellNum) {
+  TDB_PUT_U24(((SPageHdrL *)(pPage->pPageHdr))[0].cellNum, cellNum);
+}
+
+// cellBody
+static inline int  getLPageCellBody(SPage *pPage) { return TDB_GET_U24(((SPageHdrL *)(pPage->pPageHdr))[0].cellBody); }
+static inline void setLPageCellBody(SPage *pPage, int cellBody) {
+  TDB_PUT_U24(((SPageHdrL *)(pPage->pPageHdr))[0].cellBody, cellBody);
+}
+
+// cellFree
+static inline int  getLPageCellFree(SPage *pPage) { return TDB_GET_U24(((SPageHdrL *)(pPage->pPageHdr))[0].cellFree); }
+static inline void setLPageCellFree(SPage *pPage, int cellFree) {
+  TDB_PUT_U24(((SPageHdrL *)(pPage->pPageHdr))[0].cellFree, cellFree);
+}
+
+// nFree
+static inline int  getLPageNFree(SPage *pPage) { return TDB_GET_U24(((SPageHdrL *)(pPage->pPageHdr))[0].nFree); }
+static inline void setLPageNFree(SPage *pPage, int nFree) {
+  TDB_PUT_U24(((SPageHdrL *)(pPage->pPageHdr))[0].nFree, nFree);
+}
+
+// cell offset
+static inline int getLPageCellOffset(SPage *pPage, int idx) {
+  ASSERT(idx >= 0 && idx < getPageCellNum(pPage));
+  return TDB_GET_U24(pPage->pCellIdx + 3 * idx);
+}
+
+static inline void setLPageCellOffset(SPage *pPage, int idx, int offset) {
+  TDB_PUT_U24(pPage->pCellIdx + 3 * idx, offset);
+}
+
+// free cell info
+static inline void getLPageFreeCellInfo(SCell *pCell, int *szCell, int *nxOffset) {
+  SFreeCellL *pFreeCell = (SFreeCellL *)pCell;
+  *szCell = TDB_GET_U24(pFreeCell->szCell);
+  *nxOffset = TDB_GET_U24(pFreeCell->nxOffset);
+}
+
+static inline void setLPageFreeCellInfo(SCell *pCell, int szCell, int nxOffset) {
+  SFreeCellL *pFreeCell = (SFreeCellL *)pCell;
+  TDB_PUT_U24(pFreeCell->szCell, szCell);
+  TDB_PUT_U24(pFreeCell->nxOffset, nxOffset);
+}
+
+SPageMethods pageLargeMethods = {
+    3,                     // szOffset
+    sizeof(SPageHdrL),     // szPageHdr
+    sizeof(SFreeCellL),    // szFreeCell
+    getLPageCellNum,       // getCellNum
+    setLPageCellNum,       // setCellNum
+    getLPageCellBody,      // getCellBody
+    setLPageCellBody,      // setCellBody
+    getLPageCellFree,      // getCellFree
+    setLPageCellFree,      // setCellFree
+    getLPageNFree,         // getFreeBytes
+    setLPageNFree,         // setFreeBytes
+    getLPageCellOffset,    // getCellOffset
+    setLPageCellOffset,    // setCellOffset
+    getLPageFreeCellInfo,  // getFreeCellInfo
+    setLPageFreeCellInfo   // setFreeCellInfo
 };

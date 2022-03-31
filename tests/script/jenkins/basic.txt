@@ -2,7 +2,7 @@
 #======================b1-start===============
 
 # ---- user
-./test.sh -f tsim/user/basic1.sim 
+./test.sh -f tsim/user/basic1.sim
 
 # ---- db
 ./test.sh -f tsim/db/basic1.sim
@@ -30,13 +30,22 @@
 ./test.sh -f tsim/query/interval-offset.sim
 
 # ---- show
-./test.sh -f tsim/show/basic.sim 
+./test.sh -f tsim/show/basic.sim
 
 # ---- table
-./test.sh -f tsim/table/basic1.sim 
+./test.sh -f tsim/table/basic1.sim
 
 # ---- tmq
 ./test.sh -f tsim/tmq/basic.sim
 ./test.sh -f tsim/tmq/basic1.sim
+
+# --- stable
+./test.sh -f tsim/stable/disk.sim
+./test.sh -f tsim/stable/dnode3.sim
+./test.sh -f tsim/stable/metrics.sim
+./test.sh -f tsim/stable/refcount.sim
+# ./test.sh -f tsim/stable/show.sim
+./test.sh -f tsim/stable/values.sim
+./test.sh -f tsim/stable/vnode3.sim
 
 #======================b1-end===============

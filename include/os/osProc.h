@@ -13,27 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TDB_TXN_H_
-#define _TDB_TXN_H_
+#ifndef _TD_OS_PROC_H_
+#define _TD_OS_PROC_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct STxn TXN;
+// start a copy of itself
+int32_t taosNewProc(const char *args);
 
-struct STxn {
-  u64 txnId;
-  void *(*xMalloc)(void *, int);
-  void *xArg;
-};
-
-int tdbTxnBegin(TENV *pEnv);
-int tdbTxnCommit(TENV *pEnv);
-int tdbTxnRollback(TENV *pEnv);
+// the length of the new name must be less than the original name to take effect
+void taosSetProcName(char **argv, const char *name);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TDB_TXN_H_*/
+#endif /*_TD_OS_PROC_H_*/

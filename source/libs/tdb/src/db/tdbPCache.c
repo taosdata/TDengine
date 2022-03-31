@@ -122,7 +122,7 @@ static void tdbPCacheClearLock(SPCache *pCache) { tdbMutexDestroy(&(pCache->mute
 
 static void tdbPCacheLock(SPCache *pCache) { tdbMutexLock(&(pCache->mutex)); }
 
-static void tdbPCacheUnlock(SPCache *pCache) { tdbMutexDestroy(&(pCache->mutex)); }
+static void tdbPCacheUnlock(SPCache *pCache) { tdbMutexUnlock(&(pCache->mutex)); }
 
 static bool tdbPCacheLocked(SPCache *pCache) {
   assert(0);

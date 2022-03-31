@@ -29,7 +29,7 @@ static struct {
   ENodeType ntype;
 } global = {0};
 
-static void dndSigintHandle(int signum, void *info, void *ctx) {
+static void dndStopDnode(int signum, void *info, void *ctx) {
   dInfo("signal:%d is received", signum);
   SDnode *pDnode = atomic_val_compare_exchange_ptr(&global.pDnode, 0, global.pDnode);
   if (pDnode != NULL) {
@@ -37,12 +37,27 @@ static void dndSigintHandle(int signum, void *info, void *ctx) {
   }
 }
 
+static void dndHandleChild(int signum, void *info, void *ctx) {
+  dInfo("signal:%d is received", signum);
+  dndHandleEvent(global.pDnode, DND_EVENT_CHILD);
+}
+
 static void dndSetSignalHandle() {
-  taosSetSignal(SIGTERM, dndSigintHandle);
-  taosSetSignal(SIGHUP, dndSigintHandle);
-  taosSetSignal(SIGINT, dndSigintHandle);
-  taosSetSignal(SIGABRT, dndSigintHandle);
-  taosSetSignal(SIGBREAK, dndSigintHandle);
+  taosSetSignal(SIGTERM, dndStopDnode);
+  taosSetSignal(SIGHUP, dndStopDnode);
+  taosSetSignal(SIGINT, dndStopDnode);
+  taosSetSignal(SIGABRT, dndStopDnode);
+  taosSetSignal(SIGBREAK, dndStopDnode);
+
+  if (!tsMultiProcess) {
+    // Set the single process signal
+  } else if (global.ntype == DNODE) {
+    // When the child process exits, the parent process receives a signal
+    taosSetSignal(SIGCHLD, dndHandleChild);
+  } else {
+    // When the parent process exits, the child process will receive the SIGKILL signal
+    taosKillChildOnSelfStopped();
+  }
 }
 
 static int32_t dndParseArgs(int32_t argc, char const *argv[]) {
@@ -66,6 +81,10 @@ static int32_t dndParseArgs(int32_t argc, char const *argv[]) {
       global.generateGrant = true;
     } else if (strcmp(argv[i], "-n") == 0) {
       global.ntype = atoi(argv[++i]);
+      if (global.ntype <= DNODE || global.ntype > NODE_MAX) {
+        printf("'-n' range is [1-5], default is 0\n");
+        return -1;
+      }
     } else if (strcmp(argv[i], "-C") == 0) {
       global.dumpConfig = true;
     } else if (strcmp(argv[i], "-V") == 0) {
@@ -109,8 +128,9 @@ static SDnodeOpt dndGetOpt() {
   option.serverPort = tsServerPort;
   tstrncpy(option.localFqdn, tsLocalFqdn, sizeof(option.localFqdn));
   snprintf(option.localEp, sizeof(option.localEp), "%s:%u", option.localFqdn, option.serverPort);
-  option.pDisks = tsDiskCfg;
+  option.disks = tsDiskCfg;
   option.numOfDisks = tsDiskCfgNum;
+  option.ntype = global.ntype;
   return option;
 }
 
@@ -121,10 +141,9 @@ static int32_t dndInitLog() {
 }
 
 static void dndSetProcName(char **argv) {
-  if (global.ntype != 0) {
+  if (global.ntype != DNODE) {
     const char *name = dndNodeProcStr(global.ntype);
-    prctl(PR_SET_NAME, name);
-    strcpy(argv[0], name);
+    taosSetProcName(argv, name);
   }
 }
 

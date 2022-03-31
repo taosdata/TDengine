@@ -285,7 +285,7 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
   tstrncpy(dCfg.dir, pDnode->dataDir, TSDB_FILENAME_LEN);
   dCfg.level = 0;
   dCfg.primary = 1;
-  SDiskCfg *pDisks = pDnode->pDisks;
+  SDiskCfg *pDisks = pDnode->disks;
   int32_t   numOfDisks = pDnode->numOfDisks;
   if (numOfDisks <= 0 || pDisks == NULL) {
     pDisks = &dCfg;

@@ -13,4 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "consumer.h"
+#define ALLOW_FORBID_FUNC
+#define _DEFAULT_SOURCE
+#include "os.h"
+
+int32_t taosNewProc(const char *args) {
+  return 0;
+}
+
+void taosSetProcName(char **argv, const char *name) {
+  prctl(PR_SET_NAME, name);
+  strcpy(argv[0], name);
+}

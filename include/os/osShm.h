@@ -13,27 +13,25 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TDB_TXN_H_
-#define _TDB_TXN_H_
+#ifndef _TD_OS_SHM_H_
+#define _TD_OS_SHM_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct STxn TXN;
+typedef struct {
+  int32_t id;
+  int32_t size;
+  void*   ptr;
+} SShm;
 
-struct STxn {
-  u64 txnId;
-  void *(*xMalloc)(void *, int);
-  void *xArg;
-};
-
-int tdbTxnBegin(TENV *pEnv);
-int tdbTxnCommit(TENV *pEnv);
-int tdbTxnRollback(TENV *pEnv);
+int32_t taosCreateShm(SShm *pShm, int32_t shmsize) ;
+void    taosDropShm(SShm *pShm);
+int32_t taosAttachShm(SShm *pShm);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TDB_TXN_H_*/
+#endif /*_TD_OS_SHM_H_*/
