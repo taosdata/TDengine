@@ -312,7 +312,8 @@ static int tdbBtreeOpenImpl(SBTree *pBt) {
     return -1;
   }
 
-  // TODO: Unref the page
+  // TODO: here still has problem
+  tdbPagerReturnPage(pBt->pPager, pPage);
 
   ASSERT(pgno != 0);
   pBt->root = pgno;
@@ -763,6 +764,15 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
     }
   }
 
+  // TODO: here is not corrent for drop case
+  for (int i = 0; i < nNews; i++) {
+    if (i < nOlds) {
+      tdbPagerReturnPage(pBt->pPager, pOlds[i]);
+    } else {
+      tdbPagerReturnPage(pBt->pPager, pNews[i]);
+    }
+  }
+
   return 0;
 }
 
@@ -813,6 +823,8 @@ static int tdbBtreeBalance(SBTC *pBtc) {
       if (ret < 0) {
         return -1;
       }
+
+      tdbPagerReturnPage(pBtc->pBt->pPager, pBtc->pPage);
 
       pBtc->iPage--;
       pBtc->pPage = pBtc->pgStack[pBtc->iPage];
