@@ -30,6 +30,8 @@ int32_t executeDelete(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     pSql->cmd.active = pQueryInfo;
     return tscBuildAndSendRequest(pSql, pQueryInfo);
   }
+  return ret;
+  /*
 
   //
   // super table
@@ -131,6 +133,7 @@ int32_t executeDelete(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
   }
 
   doConcurrentlySendSubQueries(pSql);
-
+  
   return TSDB_CODE_SUCCESS;
+  */
 }
