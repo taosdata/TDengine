@@ -23,15 +23,22 @@
 
 #define TD_MEMORY_STACK_TRACE_DEPTH 10
 
+typedef struct TdMemoryInfo *TdMemoryInfoPtr;
+
 typedef struct TdMemoryInfo {
   int32_t symbol;
   int32_t memorySize;
   void *stackTrace[TD_MEMORY_STACK_TRACE_DEPTH];     // gdb: disassemble /m 0xXXX
-} *TdMemoryInfoPtr , TdMemoryInfo;
+  // TdMemoryInfoPtr pNext;
+  // TdMemoryInfoPtr pPrev;
+} TdMemoryInfo;
+
+// static TdMemoryInfoPtr GlobalMemoryPtr = NULL;
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-
+  #define tstrdup(str) _strdup(str)
 #else
+  #define tstrdup(str) strdup(str)
 
 #include<execinfo.h>
 
@@ -128,6 +135,26 @@ void *taosMemoryRealloc(void *ptr, int32_t size) {
   return realloc(ptr, size);
 #endif
 }
+
+void *taosMemoryStrDup(void *ptr) {
+#ifdef USE_TD_MEMORY
+  if (ptr == NULL) return NULL;
+  
+  TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char*)ptr - sizeof(TdMemoryInfo));
+  assert(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
+
+  void *tmp = tstrdup((const char *)pTdMemoryInfo);
+  if (tmp == NULL) return NULL;
+  
+  memcpy(tmp, pTdMemoryInfo, sizeof(TdMemoryInfo));
+  taosBackTrace(((TdMemoryInfoPtr)tmp)->stackTrace,TD_MEMORY_STACK_TRACE_DEPTH);
+
+  return (char*)tmp  + sizeof(TdMemoryInfo);
+#else
+  return tstrdup((const char *)ptr);
+#endif
+}
+
 
 void taosMemoryFree(const void *ptr) {
   if (ptr == NULL) return;
