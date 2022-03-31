@@ -216,6 +216,7 @@ char   tsMnodeBakDir[PATH_MAX] = {0};
 char   tsDataDir[PATH_MAX] = {0};
 char   tsScriptDir[PATH_MAX] = {0};
 char   tsTempDir[PATH_MAX] = "/tmp/";
+int32_t tsKeepTimeOffset = 0;
 
 int32_t tsDiskCfgNum = 0;
 int32_t tsTopicBianryLen = 16000;
@@ -660,6 +661,16 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 1;
   cfg.maxValue = 600;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "keepTimeOffset";
+  cfg.ptr = &tsKeepTimeOffset;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = -23;
+  cfg.maxValue = 23;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
