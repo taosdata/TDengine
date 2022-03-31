@@ -473,6 +473,9 @@ static bool checkPort(SAstCreateContext* pCxt, const SToken* pPortToken, int32_t
 static bool checkDbName(SAstCreateContext* pCxt, SToken* pDbName, bool query) {
   if (NULL == pDbName) {
     pCxt->valid = (query ? NULL != pCxt->pQueryCxt->db : true);
+    if (!pCxt->valid) {
+      snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "db not specified");
+    }
   } else {
     pCxt->valid = pDbName->n < TSDB_DB_NAME_LEN ? true : false;
   }
@@ -1017,6 +1020,9 @@ SDataType createVarLenDataType(uint8_t type, const SToken* pLen) {
 
 SNode* createCreateTableStmt(SAstCreateContext* pCxt,
     bool ignoreExists, SNode* pRealTable, SNodeList* pCols, SNodeList* pTags, SNode* pOptions) {
+  if (NULL == pRealTable) {
+    return NULL;
+  }
   SCreateTableStmt* pStmt = (SCreateTableStmt*)nodesMakeNode(QUERY_NODE_CREATE_TABLE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
@@ -1031,6 +1037,9 @@ SNode* createCreateTableStmt(SAstCreateContext* pCxt,
 
 SNode* createCreateSubTableClause(SAstCreateContext* pCxt,
     bool ignoreExists, SNode* pRealTable, SNode* pUseRealTable, SNodeList* pSpecificTags, SNodeList* pValsOfTags) {
+  if (NULL == pRealTable) {
+    return NULL;
+  }
   SCreateSubTableClause* pStmt = nodesMakeNode(QUERY_NODE_CREATE_SUBTABLE_CLAUSE);
   CHECK_OUT_OF_MEM(pStmt);
   strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
@@ -1053,6 +1062,9 @@ SNode* createCreateMultiTableStmt(SAstCreateContext* pCxt, SNodeList* pSubTables
 }
 
 SNode* createDropTableClause(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable) {
+  if (NULL == pRealTable) {
+    return NULL;
+  }
   SDropTableClause* pStmt = nodesMakeNode(QUERY_NODE_DROP_TABLE_CLAUSE);
   CHECK_OUT_OF_MEM(pStmt);
   strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
@@ -1080,6 +1092,9 @@ SNode* createDropSuperTableStmt(SAstCreateContext* pCxt, bool ignoreNotExists, S
 }
 
 SNode* createAlterTableOption(SAstCreateContext* pCxt, SNode* pRealTable, SNode* pOptions) {
+  if (NULL == pRealTable) {
+    return NULL;
+  }
   SAlterTableStmt* pStmt = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_OPTIONS;
@@ -1088,6 +1103,9 @@ SNode* createAlterTableOption(SAstCreateContext* pCxt, SNode* pRealTable, SNode*
 }
 
 SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, const SToken* pColName, SDataType dataType) {
+  if (NULL == pRealTable) {
+    return NULL;
+  }
   SAlterTableStmt* pStmt = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->alterType = alterType;
@@ -1097,6 +1115,9 @@ SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, 
 }
 
 SNode* createAlterTableDropCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, const SToken* pColName) {
+  if (NULL == pRealTable) {
+    return NULL;
+  }
   SAlterTableStmt* pStmt = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->alterType = alterType;
@@ -1105,6 +1126,9 @@ SNode* createAlterTableDropCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_
 }
 
 SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, const SToken* pOldColName, const SToken* pNewColName) {
+  if (NULL == pRealTable) {
+    return NULL;
+  }
   SAlterTableStmt* pStmt = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->alterType = alterType;
@@ -1114,6 +1138,9 @@ SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int
 }
 
 SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, const SToken* pTagName, SNode* pVal) {
+  if (NULL == pRealTable) {
+    return NULL;
+  }
   SAlterTableStmt* pStmt = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_TAG_VAL;
@@ -1342,4 +1369,22 @@ SNode* createExplainStmt(SAstCreateContext* pCxt, bool analyze, SNode* pOptions,
   pStmt->pOptions = (SExplainOptions*)pOptions;
   pStmt->pQuery = pQuery;
   return (SNode*)pStmt;
+}
+
+SNode* createDescribeStmt(SAstCreateContext* pCxt, SNode* pRealTable) {
+  if (NULL == pRealTable) {
+    return NULL;
+  }
+  SDescribeStmt* pStmt = nodesMakeNode(QUERY_NODE_DESCRIBE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
+  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  nodesDestroyNode(pRealTable);
+  return (SNode*)pStmt;
+}
+
+SNode* createResetQueryCacheStmt(SAstCreateContext* pCxt) {
+  SNode* pStmt = nodesMakeNode(QUERY_NODE_RESET_QUERY_CACHE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  return pStmt;
 }

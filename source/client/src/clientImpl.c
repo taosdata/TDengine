@@ -1,6 +1,7 @@
 
 #include "clientInt.h"
 #include "clientLog.h"
+#include "command.h"
 #include "scheduler.h"
 #include "tdatablock.h"
 #include "tdef.h"
@@ -170,6 +171,15 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery) {
   return code;
 }
 
+int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
+  SRetrieveTableRsp* pRsp = NULL;
+  int32_t code = qExecCommand(pQuery->pRoot, &pRsp);
+  if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
+    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp);
+  }
+  return code;
+}
+
 int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   SCmdMsgInfo* pMsgInfo = pQuery->pCmdMsg;
   pRequest->type = pMsgInfo->msgType;
@@ -259,7 +269,9 @@ SRequestObj* execQueryImpl(STscObj* pTscObj, const char* sql, int sqlLen) {
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
   CHECK_CODE_GOTO(parseSql(pRequest, false, &pQuery), _return);
 
-  if (pQuery->directRpc) {
+  if (pQuery->localCmd) {
+    CHECK_CODE_GOTO(execLocalCmd(pRequest, pQuery), _return);
+  } else if (pQuery->directRpc) {
     CHECK_CODE_GOTO(execDdlQuery(pRequest, pQuery), _return);
   } else {
     CHECK_CODE_GOTO(getPlan(pRequest, pQuery, &pRequest->body.pDag, pNodeList), _return);
@@ -464,9 +476,11 @@ static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   taosMemoryFreeClear(pMsgBody->msgInfo.pData);
   taosMemoryFreeClear(pMsgBody);
 }
+
 bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType) {
   return msgType == TDMT_VND_QUERY_RSP || msgType == TDMT_VND_FETCH_RSP || msgType == TDMT_VND_RES_READY_RSP || msgType == TDMT_VND_QUERY_HEARTBEAT_RSP;
 }
+
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->ahandle;
   assert(pMsg->ahandle != NULL);
@@ -645,6 +659,11 @@ void* doFetchRow(SRequestObj* pRequest, bool setupOneRowPtr) {
       if (pResultInfo->completed) {
         return NULL;
       }
+    }
+
+    if (pResultInfo->completed) {
+      pResultInfo->numOfRows = 0;
+      return NULL;
     }
 
     SMsgSendInfo* body = buildMsgInfoImpl(pRequest);

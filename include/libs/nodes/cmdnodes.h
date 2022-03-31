@@ -20,7 +20,13 @@
 extern "C" {
 #endif
 
+#include "query.h"
 #include "querynodes.h"
+
+#define DESCRIBE_RESULT_COLS 4
+#define DESCRIBE_RESULT_FIELD_LEN (TSDB_COL_NAME_LEN - 1 + VARSTR_HEADER_SIZE)
+#define DESCRIBE_RESULT_TYPE_LEN (20 + VARSTR_HEADER_SIZE)
+#define DESCRIBE_RESULT_NOTE_LEN (8 + VARSTR_HEADER_SIZE)
 
 typedef struct SDatabaseOptions {
   ENodeType type;
@@ -246,6 +252,13 @@ typedef struct SAlterLocalStmt {
   char config[TSDB_DNODE_CONFIG_LEN];
   char value[TSDB_DNODE_VALUE_LEN];
 } SAlterLocalStmt;
+
+typedef struct SDescribeStmt {
+  ENodeType type;
+  char dbName[TSDB_DB_NAME_LEN];
+  char tableName[TSDB_TABLE_NAME_LEN];
+  STableMeta* pMeta;
+} SDescribeStmt;
 
 #ifdef __cplusplus
 }

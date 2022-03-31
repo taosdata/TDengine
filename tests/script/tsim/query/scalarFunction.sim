@@ -37,11 +37,11 @@ print $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $d
 sql use $dbNamme
 
 print =============== create super table
-sql create table if not exists stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int)
+sql create table stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int)
 
 print =============== create child table
 $tbPrefix = ct
-$tbNum = 2
+$tbNum = 100
 
 $i = 0
 while $i < $tbNum
@@ -54,7 +54,7 @@ print =============== create normal table
 sql create table ntb (ts timestamp, c1 int, c2 float, c3 double)
 
 sql show tables
-if $rows != 3 then 
+if $rows != 101 then 
   return -1
 endi
 
@@ -83,6 +83,12 @@ while $i < $tbNum
   $tstart = 1640966400000
 endw
 
+$totalRows = $rowNum * $tbNum
+print ====> totalRows of stb: $totalRows
+
+$loop_test = 0
+loop_test_pos:
+
 print ====> abs
 sql select c1, abs(c1), c2, abs(c2), c3, abs(c3) from ct1
 print ====> select c1, abs(c1), c2, abs(c2), c3, abs(c3) from ct1
@@ -97,11 +103,106 @@ print ====> $data60 $data61 $data62 $data63 $data64 $data65
 print ====> $data70 $data71 $data72 $data73 $data74 $data75
 print ====> $data80 $data81 $data82 $data83 $data84 $data85
 print ====> $data90 $data91 $data92 $data93 $data94 $data95
-if $rows != 10 then
+if $rows != $rowNum then
+  return -1
+endi
+print ====> select c1, abs(c1), c2, abs(c2), c3, abs(c3) from stb
+sql select c1, abs(c1), c2, abs(c2), c3, abs(c3) from stb
+if $rows != $totalRows then
+  return -1
+endi
+print ====> select c1, abs(c1), c2, abs(c2), c3, abs(c3) from ntb
+sql select c1, abs(c1), c2, abs(c2), c3, abs(c3) from ntb
+if $rows != $rowNum then
+  return -1
+endi
+
+print ====> log
+sql select c1, log(c1, 10), c2, log(c2, 10), c3, log(c3, 10) from ct1
+print ====> select c1, log(c1, 10), c2, log(c2, 10), c3, log(c3, 10) from ct1
+print ====> rows: $rows
+print ====> $data00 $data01 $data02 $data03 $data04 $data05
+print ====> $data10 $data11 $data12 $data13 $data14 $data15
+print ====> $data20 $data21 $data22 $data23 $data24 $data25
+print ====> $data30 $data31 $data32 $data33 $data34 $data35
+print ====> $data40 $data41 $data42 $data43 $data44 $data45
+print ====> $data50 $data51 $data52 $data53 $data54 $data55
+print ====> $data60 $data61 $data62 $data63 $data64 $data65
+print ====> $data70 $data71 $data72 $data73 $data74 $data75
+print ====> $data80 $data81 $data82 $data83 $data84 $data85
+print ====> $data90 $data91 $data92 $data93 $data94 $data95
+if $rows != $rowNum then
+  return -1
+endi
+print ====> select c1, log(c1, 10), c2, log(c2, 10), c3, log(c3, 10) from stb
+sql select c1, log(c1, 10), c2, log(c2, 10), c3, log(c3, 10) from stb
+if $rows != $totalRows then
+  return -1
+endi
+print ====> select c1, log(c1, 10), c2, log(c2, 10), c3, log(c3, 10) from ntb
+sql select c1, log(c1, 10), c2, log(c2, 10), c3, log(c3, 10) from ntb
+if $rows != $rowNum then
+  return -1
+endi
+
+print ====> pow
+sql select c1, pow(c1, 2), c2, pow(c2, 2), c3, pow(c3, 2) from ct1
+print ====> select c1, pow(c1, 2), c2, pow(c2, 2), c3, pow(c3, 2) from ct1
+print ====> rows: $rows
+print ====> $data00 $data01 $data02 $data03 $data04 $data05
+print ====> $data10 $data11 $data12 $data13 $data14 $data15
+print ====> $data20 $data21 $data22 $data23 $data24 $data25
+print ====> $data30 $data31 $data32 $data33 $data34 $data35
+print ====> $data40 $data41 $data42 $data43 $data44 $data45
+print ====> $data50 $data51 $data52 $data53 $data54 $data55
+print ====> $data60 $data61 $data62 $data63 $data64 $data65
+print ====> $data70 $data71 $data72 $data73 $data74 $data75
+print ====> $data80 $data81 $data82 $data83 $data84 $data85
+print ====> $data90 $data91 $data92 $data93 $data94 $data95
+if $rows != $rowNum then
+  return -1
+endi
+print ====> select c1, pow(c1, 2), c2, pow(c2, 2), c3, pow(c3, 2) from stb
+sql select c1, pow(c1, 2), c2, pow(c2, 2), c3, pow(c3, 2) from stb
+if $rows != $totalRows then
+  return -1
+endi
+print ====> select c1, pow(c1, 2), c2, pow(c2, 2), c3, pow(c3, 2) from ntb
+sql select c1, pow(c1, 2), c2, pow(c2, 2), c3, pow(c3, 2) from ntb
+if $rows != $rowNum then
+  return -1
+endi
+
+print ====> sqrt
+sql select c1, sqrt(c1), c2, sqrt(c2), c3, sqrt(c3) from ct1
+print ====> select c1, sqrt(c1), c2, sqrt(c2), c3, sqrt(c3) from ct1
+print ====> rows: $rows
+print ====> $data00 $data01 $data02 $data03 $data04 $data05
+print ====> $data10 $data11 $data12 $data13 $data14 $data15
+print ====> $data20 $data21 $data22 $data23 $data24 $data25
+print ====> $data30 $data31 $data32 $data33 $data34 $data35
+print ====> $data40 $data41 $data42 $data43 $data44 $data45
+print ====> $data50 $data51 $data52 $data53 $data54 $data55
+print ====> $data60 $data61 $data62 $data63 $data64 $data65
+print ====> $data70 $data71 $data72 $data73 $data74 $data75
+print ====> $data80 $data81 $data82 $data83 $data84 $data85
+print ====> $data90 $data91 $data92 $data93 $data94 $data95
+if $rows != $rowNum then
+  return -1
+endi
+print ====> select c1, sqrt(c1), c2, sqrt(c2), c3, sqrt(c3) from stb
+sql select c1, sqrt(c1), c2, sqrt(c2), c3, sqrt(c3) from stb
+if $rows != $totalRows then
+  return -1
+endi
+print ====> select c1, sqrt(c1), c2, sqrt(c2), c3, sqrt(c3) from ntb
+sql select c1, sqrt(c1), c2, sqrt(c2), c3, sqrt(c3) from ntb
+if $rows != $rowNum then
   return -1
 endi
 
 print ====> sin
+#sql select c1, sin(c1), sin(c1) * 3.14159265 / 180 from ct1  # TD-14426
 sql select c1, sin(c1), c2, sin(c2), c3, sin(c3) from ct1
 print ====> select c1, sin(c1), c2, sin(c2), c3, sin(c3) from ct1
 print ====> rows: $rows
@@ -115,7 +216,17 @@ print ====> $data60 $data61 $data62 $data63 $data64 $data65
 print ====> $data70 $data71 $data72 $data73 $data74 $data75
 print ====> $data80 $data81 $data82 $data83 $data84 $data85
 print ====> $data90 $data91 $data92 $data93 $data94 $data95
-if $rows != 10 then
+if $rows != $rowNum then
+  return -1
+endi
+print ====> select c1, sin(c1), c2, sin(c2), c3, sin(c3) from stb
+sql select c1, sin(c1), c2, sin(c2), c3, sin(c3) from stb
+if $rows != $totalRows then
+  return -1
+endi
+print ====> select c1, sin(c1), c2, sin(c2), c3, sin(c3) from ntb
+sql select c1, sin(c1), c2, sin(c2), c3, sin(c3) from ntb
+if $rows != $rowNum then
   return -1
 endi
 
@@ -133,8 +244,241 @@ print ====> $data60 $data61 $data62 $data63 $data64 $data65
 print ====> $data70 $data71 $data72 $data73 $data74 $data75
 print ====> $data80 $data81 $data82 $data83 $data84 $data85
 print ====> $data90 $data91 $data92 $data93 $data94 $data95
-if $rows != 10 then
+if $rows != $rowNum then
   return -1
+endi
+print ====> select c1, cos(c1), c2, cos(c2), c3, cos(c3) from stb
+sql select c1, cos(c1), c2, cos(c2), c3, cos(c3) from stb
+if $rows != $totalRows then
+  return -1
+endi
+print ====> select c1, cos(c1), c2, cos(c2), c3, cos(c3) from ntb
+sql select c1, cos(c1), c2, cos(c2), c3, cos(c3) from ntb
+if $rows != $rowNum then
+  return -1
+endi
+
+print ====> tan
+sql select c1, tan(c1), c2, tan(c2), c3, tan(c3) from ct1
+print ====> select c1, tan(c1), c2, tan(c2), c3, tan(c3) from ct1
+print ====> rows: $rows
+print ====> $data00 $data01 $data02 $data03 $data04 $data05
+print ====> $data10 $data11 $data12 $data13 $data14 $data15
+print ====> $data20 $data21 $data22 $data23 $data24 $data25
+print ====> $data30 $data31 $data32 $data33 $data34 $data35
+print ====> $data40 $data41 $data42 $data43 $data44 $data45
+print ====> $data50 $data51 $data52 $data53 $data54 $data55
+print ====> $data60 $data61 $data62 $data63 $data64 $data65
+print ====> $data70 $data71 $data72 $data73 $data74 $data75
+print ====> $data80 $data81 $data82 $data83 $data84 $data85
+print ====> $data90 $data91 $data92 $data93 $data94 $data95
+if $rows != $rowNum then
+  return -1
+endi
+print ====> select c1, tan(c1), c2, tan(c2), c3, tan(c3) from stb
+sql select c1, tan(c1), c2, tan(c2), c3, tan(c3) from stb
+if $rows != $totalRows then
+  return -1
+endi
+print ====> select c1, tan(c1), c2, tan(c2), c3, tan(c3) from ntb
+sql select c1, tan(c1), c2, tan(c2), c3, tan(c3) from ntb
+if $rows != $rowNum then
+  return -1
+endi
+
+print ====> asin
+sql select c1, asin(c1), c2, asin(c2), c3, asin(c3) from ct1
+print ====> select c1, asin(c1), c2, asin(c2), c3, asin(c3) from ct1
+print ====> rows: $rows
+print ====> $data00 $data01 $data02 $data03 $data04 $data05
+print ====> $data10 $data11 $data12 $data13 $data14 $data15
+print ====> $data20 $data21 $data22 $data23 $data24 $data25
+print ====> $data30 $data31 $data32 $data33 $data34 $data35
+print ====> $data40 $data41 $data42 $data43 $data44 $data45
+print ====> $data50 $data51 $data52 $data53 $data54 $data55
+print ====> $data60 $data61 $data62 $data63 $data64 $data65
+print ====> $data70 $data71 $data72 $data73 $data74 $data75
+print ====> $data80 $data81 $data82 $data83 $data84 $data85
+print ====> $data90 $data91 $data92 $data93 $data94 $data95
+if $rows != $rowNum then
+  return -1
+endi
+print ====> select c1, asin(c1), c2, asin(c2), c3, asin(c3) from stb
+sql select c1, asin(c1), c2, asin(c2), c3, asin(c3) from stb
+if $rows != $totalRows then
+  return -1
+endi
+print ====> select c1, asin(c1), c2, asin(c2), c3, asin(c3) from ntb
+sql select c1, asin(c1), c2, asin(c2), c3, asin(c3) from ntb
+if $rows != $rowNum then
+  return -1
+endi
+
+print ====> acos
+sql select c1, acos(c1), c2, acos(c2), c3, acos(c3) from ct1
+print ====> select c1, acos(c1), c2, acos(c2), c3, acos(c3) from ct1
+print ====> rows: $rows
+print ====> $data00 $data01 $data02 $data03 $data04 $data05
+print ====> $data10 $data11 $data12 $data13 $data14 $data15
+print ====> $data20 $data21 $data22 $data23 $data24 $data25
+print ====> $data30 $data31 $data32 $data33 $data34 $data35
+print ====> $data40 $data41 $data42 $data43 $data44 $data45
+print ====> $data50 $data51 $data52 $data53 $data54 $data55
+print ====> $data60 $data61 $data62 $data63 $data64 $data65
+print ====> $data70 $data71 $data72 $data73 $data74 $data75
+print ====> $data80 $data81 $data82 $data83 $data84 $data85
+print ====> $data90 $data91 $data92 $data93 $data94 $data95
+if $rows != $rowNum then
+  return -1
+endi
+print ====> select c1, acos(c1), c2, acos(c2), c3, acos(c3) from stb
+sql select c1, acos(c1), c2, acos(c2), c3, acos(c3) from stb
+if $rows != $totalRows then
+  return -1
+endi
+print ====> select c1, acos(c1), c2, acos(c2), c3, acos(c3) from ntb
+sql select c1, acos(c1), c2, acos(c2), c3, acos(c3) from ntb
+if $rows != $rowNum then
+  return -1
+endi
+
+print ====> atan
+sql select c1, atan(c1), c2, atan(c2), c3, atan(c3) from ct1
+print ====> select c1, atan(c1), c2, atan(c2), c3, atan(c3) from ct1
+print ====> rows: $rows
+print ====> $data00 $data01 $data02 $data03 $data04 $data05
+print ====> $data10 $data11 $data12 $data13 $data14 $data15
+print ====> $data20 $data21 $data22 $data23 $data24 $data25
+print ====> $data30 $data31 $data32 $data33 $data34 $data35
+print ====> $data40 $data41 $data42 $data43 $data44 $data45
+print ====> $data50 $data51 $data52 $data53 $data54 $data55
+print ====> $data60 $data61 $data62 $data63 $data64 $data65
+print ====> $data70 $data71 $data72 $data73 $data74 $data75
+print ====> $data80 $data81 $data82 $data83 $data84 $data85
+print ====> $data90 $data91 $data92 $data93 $data94 $data95
+if $rows != $rowNum then
+  return -1
+endi
+print ====> select c1, atan(c1), c2, atan(c2), c3, atan(c3) from stb
+sql select c1, atan(c1), c2, atan(c2), c3, atan(c3) from stb
+if $rows != $totalRows then
+  return -1
+endi
+print ====> select c1, atan(c1), c2, atan(c2), c3, atan(c3) from ntb
+sql select c1, atan(c1), c2, atan(c2), c3, atan(c3) from ntb
+if $rows != $rowNum then
+  return -1
+endi
+
+print ====> ceil
+sql select c1, ceil(c1), c2, ceil(c2), c3, ceil(c3) from ct1
+print ====> select c1, ceil(c1), c2, ceil(c2), c3, ceil(c3) from ct1
+print ====> rows: $rows
+print ====> $data00 $data01 $data02 $data03 $data04 $data05
+print ====> $data10 $data11 $data12 $data13 $data14 $data15
+print ====> $data20 $data21 $data22 $data23 $data24 $data25
+print ====> $data30 $data31 $data32 $data33 $data34 $data35
+print ====> $data40 $data41 $data42 $data43 $data44 $data45
+print ====> $data50 $data51 $data52 $data53 $data54 $data55
+print ====> $data60 $data61 $data62 $data63 $data64 $data65
+print ====> $data70 $data71 $data72 $data73 $data74 $data75
+print ====> $data80 $data81 $data82 $data83 $data84 $data85
+print ====> $data90 $data91 $data92 $data93 $data94 $data95
+if $rows != $rowNum then
+  return -1
+endi
+print ====> select c1, ceil(c1), c2, ceil(c2), c3, ceil(c3) from stb
+sql select c1, ceil(c1), c2, ceil(c2), c3, ceil(c3) from stb
+if $rows != $totalRows then
+  return -1
+endi
+print ====> select c1, ceil(c1), c2, ceil(c2), c3, ceil(c3) from ntb
+sql select c1, ceil(c1), c2, ceil(c2), c3, ceil(c3) from ntb
+if $rows != $rowNum then
+  return -1
+endi
+
+print ====> floor
+sql select c1, floor(c1), c2, floor(c2), c3, floor(c3) from ct1
+print ====> select c1, floor(c1), c2, floor(c2), c3, floor(c3) from ct1
+print ====> rows: $rows
+print ====> $data00 $data01 $data02 $data03 $data04 $data05
+print ====> $data10 $data11 $data12 $data13 $data14 $data15
+print ====> $data20 $data21 $data22 $data23 $data24 $data25
+print ====> $data30 $data31 $data32 $data33 $data34 $data35
+print ====> $data40 $data41 $data42 $data43 $data44 $data45
+print ====> $data50 $data51 $data52 $data53 $data54 $data55
+print ====> $data60 $data61 $data62 $data63 $data64 $data65
+print ====> $data70 $data71 $data72 $data73 $data74 $data75
+print ====> $data80 $data81 $data82 $data83 $data84 $data85
+print ====> $data90 $data91 $data92 $data93 $data94 $data95
+if $rows != $rowNum then
+  return -1
+endi
+print ====> select c1, floor(c1), c2, floor(c2), c3, floor(c3) from stb
+sql select c1, floor(c1), c2, floor(c2), c3, floor(c3) from stb
+if $rows != $totalRows then
+  return -1
+endi
+print ====> select c1, floor(c1), c2, floor(c2), c3, floor(c3) from ntb
+sql select c1, floor(c1), c2, floor(c2), c3, floor(c3) from ntb
+if $rows != $rowNum then
+  return -1
+endi
+
+
+print ====> round
+sql select c1, round(c1), c2, round(c2), c3, round(c3) from ct1
+print ====> select c1, round(c1), c2, round(c2), c3, round(c3) from ct1
+print ====> rows: $rows
+print ====> $data00 $data01 $data02 $data03 $data04 $data05
+print ====> $data10 $data11 $data12 $data13 $data14 $data15
+print ====> $data20 $data21 $data22 $data23 $data24 $data25
+print ====> $data30 $data31 $data32 $data33 $data34 $data35
+print ====> $data40 $data41 $data42 $data43 $data44 $data45
+print ====> $data50 $data51 $data52 $data53 $data54 $data55
+print ====> $data60 $data61 $data62 $data63 $data64 $data65
+print ====> $data70 $data71 $data72 $data73 $data74 $data75
+print ====> $data80 $data81 $data82 $data83 $data84 $data85
+print ====> $data90 $data91 $data92 $data93 $data94 $data95
+if $rows != $rowNum then
+  return -1
+endi
+print ====> select c1, round(c1), c2, round(c2), c3, round(c3) from stb
+sql select c1, round(c1), c2, round(c2), c3, round(c3) from stb
+if $rows != $totalRows then
+  return -1
+endi
+print ====> select c1, round(c1), c2, round(c2), c3, round(c3) from ntb
+sql select c1, round(c1), c2, round(c2), c3, round(c3) from ntb
+if $rows != $rowNum then
+  return -1
+endi
+
+if $loop_test == 0 then
+  print =============== stop and restart taosd
+  system sh/exec.sh -n dnode1 -s stop -x SIGINT
+  system sh/exec.sh -n dnode1 -s start
+  
+  $loop_cnt = 0
+  check_dnode_ready_0:
+  	$loop_cnt = $loop_cnt + 1
+  	sleep 200
+  	if $loop_cnt == 10 then
+  	  print ====> dnode not ready!
+  		return -1
+  	endi
+  sql show dnodes
+  print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
+  if $data00 != 1 then
+    return -1
+  endi
+  if $data04 != ready then
+    goto check_dnode_ready_0
+  endi
+
+  $loop_test = 1  
+  goto loop_test_pos
 endi
 
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT
