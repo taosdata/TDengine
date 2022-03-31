@@ -339,7 +339,14 @@ cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) AS query_expression(C).    
 cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) AS db_name(C).               { pCxt->pRootNode = createCreateTopicStmt(pCxt, A, &B, NULL, &C); }
 cmd ::= DROP TOPIC exists_opt(A) topic_name(B).                                   { pCxt->pRootNode = createDropTopicStmt(pCxt, A, &B); }
 
-/************************************************ select **************************************************************/
+/************************************************ desc/describe *******************************************************/
+cmd ::= DESC full_table_name(A).                                                  { pCxt->pRootNode = createDescribeStmt(pCxt, A); }
+cmd ::= DESCRIBE full_table_name(A).                                              { pCxt->pRootNode = createDescribeStmt(pCxt, A); }
+
+/************************************************ reset query cache ***************************************************/
+cmd ::= RESET QUERY CACHE.                                                        { pCxt->pRootNode = createResetQueryCacheStmt(pCxt); }
+
+/************************************************ explain *************************************************************/
 cmd ::= EXPLAIN analyze_opt(A) explain_options(B) query_expression(C).            { pCxt->pRootNode = createExplainStmt(pCxt, A, B, C); }
 
 %type analyze_opt                                                                 { bool }

@@ -8,7 +8,7 @@ target_include_directories(
 target_link_libraries(
     taos
     INTERFACE api
-    PRIVATE os util common transport nodes parser planner catalog scheduler function qcom
+    PRIVATE os util common transport nodes parser command planner catalog scheduler function qcom
 )
 
 if(${BUILD_TEST})
