@@ -266,6 +266,7 @@ static int32_t adjustMergeTreeForNextTuple(SExternalMemSource *pSource, SMultiwa
     pSource->src.rowIndex = 0;
 
     if (pHandle->type == SORT_SINGLESOURCE_SORT) {
+      pSource->pageIndex ++;
       if (pSource->pageIndex >= taosArrayGetSize(pSource->pageIdList)) {
         (*numOfCompleted) += 1;
         pSource->src.rowIndex = -1;

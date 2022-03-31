@@ -150,7 +150,7 @@ int32_t docomp(const void* p1, const void* p2, void* param) {
 }
 }  // namespace
 
-#if 0
+#if 1
 TEST(testCase, inMem_sort_Test) {
   SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
   SOrder o = {.order = TSDB_ORDER_ASC};
@@ -187,20 +187,13 @@ TEST(testCase, inMem_sort_Test) {
 }
 
 TEST(testCase, external_mem_sort_Test) {
-  SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
-  SOrder o = {.order = TSDB_ORDER_ASC};
-  o.col.info.colId = 1;
-  o.col.info.type = TSDB_DATA_TYPE_INT;
-  taosArrayPush(pOrderVal, &o);
-
   SBlockOrderInfo oi = {0};
   oi.order = TSDB_ORDER_ASC;
-  oi.colIndex = 0;
+  oi.slotId = 0;
   SArray* orderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
   taosArrayPush(orderInfo, &oi);
 
-  SSchema s = {.type = TSDB_DATA_TYPE_INT, .colId = 1, .bytes = 4, };
-  SSortHandle* phandle = tsortCreateSortHandle(orderInfo, false, SORT_SINGLESOURCE_SORT, 1024, 5, &s, 1, "test_abc");
+  SSortHandle* phandle = tsortCreateSortHandle(orderInfo, SORT_SINGLESOURCE_SORT, 1024, 5, &s, "test_abc");
   tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
 
   _info* pInfo = (_info*) taosMemoryCalloc(1, sizeof(_info));
