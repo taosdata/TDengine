@@ -132,6 +132,9 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
 
   if (pPage->isDirty) return 0;
 
+  // ref page one more time so the page will not be release
+  TDB_REF_PAGE(pPage);
+
   // Set page as dirty
   pPage->isDirty = 1;
 
@@ -187,6 +190,7 @@ int tdbPagerCommit(SPager *pPager) {
 
   // loop to write the dirty pages to file
   for (pPage = pPager->pDirty; pPage; pPage = pPage->pDirtyNext) {
+    // TODO: update the page footer
     ret = tdbPagerWritePageToDB(pPager, pPage);
     if (ret < 0) {
       ASSERT(0);
@@ -194,7 +198,15 @@ int tdbPagerCommit(SPager *pPager) {
     }
   }
 
-  // TODO: loop to release the dirty pages
+  // release the page
+  for (pPage = pPager->pDirty; pPage; pPage = pPage->pDirtyNext) {
+    pPager->pDirty = pPage->pDirtyNext;
+    pPage->pDirtyNext = NULL;
+
+    pPage->isDirty = 0;
+
+    tdbPCacheRelease(pPager->pCache, pPage);
+  }
 
   // sync the db file
   tdbOsFSync(pPager->fd);
@@ -202,6 +214,7 @@ int tdbPagerCommit(SPager *pPager) {
   // remote the journal file
   tdbOsClose(pPager->jfd);
   tdbOsRemove(pPager->jFileName);
+  pPager->dbOrigSize = pPager->dbFileSize;
 
   return 0;
 }
