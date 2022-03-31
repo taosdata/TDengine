@@ -34,10 +34,10 @@ struct SBTree {
 
 #define TDB_BTREE_PAGE_COMMON_HDR u8 flags;
 
-#define TDB_BTREE_PAGE_GET_FLAGS(PAGE) (PAGE)->pData[0]
+#define TDB_BTREE_PAGE_GET_FLAGS(PAGE)        (PAGE)->pData[0]
 #define TDB_BTREE_PAGE_SET_FLAGS(PAGE, flags) ((PAGE)->pData[0] = (flags))
-#define TDB_BTREE_PAGE_IS_ROOT(PAGE) (TDB_BTREE_PAGE_GET_FLAGS(PAGE) & TDB_BTREE_ROOT)
-#define TDB_BTREE_PAGE_IS_LEAF(PAGE) (TDB_BTREE_PAGE_GET_FLAGS(PAGE) & TDB_BTREE_LEAF)
+#define TDB_BTREE_PAGE_IS_ROOT(PAGE)          (TDB_BTREE_PAGE_GET_FLAGS(PAGE) & TDB_BTREE_ROOT)
+#define TDB_BTREE_PAGE_IS_LEAF(PAGE)          (TDB_BTREE_PAGE_GET_FLAGS(PAGE) & TDB_BTREE_LEAF)
 #define TDB_BTREE_ASSERT_FLAG(flags)                                                 \
   ASSERT(TDB_FLAG_IS(flags, TDB_BTREE_ROOT) || TDB_FLAG_IS(flags, TDB_BTREE_LEAF) || \
          TDB_FLAG_IS(flags, TDB_BTREE_ROOT | TDB_BTREE_LEAF) || TDB_FLAG_IS(flags, 0))
@@ -1274,91 +1274,87 @@ static int tdbBtcMoveUpward(SBTC *pBtc) {
 }
 
 static int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
-  int     ret;
-  SBTree *pBt;
-  SPager *pPager;
+  int          ret;
+  SBTree      *pBt;
+  SCell       *pCell;
+  SPager      *pPager;
+  SCellDecoder cd = {0};
 
   pBt = pBtc->pBt;
   pPager = pBt->pPager;
 
   if (pBtc->iPage < 0) {
-    ASSERT(pBtc->iPage == -1);
-    ASSERT(pBtc->idx == -1);
-
-    // Move from the root
+    // move from a clear cursor
     ret = tdbPagerFetchPage(pPager, pBt->root, &(pBtc->pPage), tdbBtreeInitPage, pBt);
     if (ret < 0) {
+      // TODO
       ASSERT(0);
-      return -1;
-    }
-
-    pBtc->iPage = 0;
-
-    if (TDB_PAGE_TOTAL_CELLS(pBtc->pPage) == 0) {
-      // Current page is empty
-      // ASSERT(TDB_FLAG_IS(TDB_PAGE_FLAGS(pBtc->pPage), TDB_BTREE_ROOT | TDB_BTREE_LEAF));
       return 0;
     }
 
+    pBtc->iPage = 0;
+    pBtc->idx = -1;
+    // for empty tree, just return with an invalid position
+    if (TDB_PAGE_TOTAL_CELLS(pBtc->pPage) == 0) return 0;
+  } else {
+    // move upward to a page that the search key is in the range
+    ASSERT(0);
+  }
+
+  // search downward to the leaf
+  for (;;) {
+    int    lidx, ridx, midx, c, nCells;
+    SPage *pPage;
+
+    pPage = pBtc->pPage;
+    nCells = TDB_PAGE_TOTAL_CELLS(pPage);
+    lidx = 0;
+    ridx = nCells - 1;
+
+    ASSERT(nCells > 0);
+    ASSERT(pBtc->idx == -1);
+
+    // binary search
     for (;;) {
-      int          lidx, ridx, midx, c, nCells;
-      SCell       *pCell;
-      SPage       *pPage;
-      SCellDecoder cd = {0};
+      if (lidx > ridx) break;
 
-      pPage = pBtc->pPage;
-      nCells = TDB_PAGE_TOTAL_CELLS(pPage);
-      lidx = 0;
-      ridx = nCells - 1;
+      midx = (lidx + ridx) >> 1;
 
-      ASSERT(nCells > 0);
-
-      for (;;) {
-        if (lidx > ridx) break;
-
-        midx = (lidx + ridx) >> 1;
-
-        pCell = tdbPageGetCell(pPage, midx);
-        ret = tdbBtreeDecodeCell(pPage, pCell, &cd);
-        if (ret < 0) {
-          // TODO: handle error
-          ASSERT(0);
-          return -1;
-        }
-
-        // Compare the key values
-        c = pBt->kcmpr(pKey, kLen, cd.pKey, cd.kLen);
-        if (c < 0) {
-          /* input-key < cell-key */
-          ridx = midx - 1;
-        } else if (c > 0) {
-          /* input-key > cell-key */
-          lidx = midx + 1;
-        } else {
-          /* input-key == cell-key */
-          break;
-        }
+      pCell = tdbPageGetCell(pPage, midx);
+      ret = tdbBtreeDecodeCell(pPage, pCell, &cd);
+      if (ret < 0) {
+        // TODO: handle error
+        ASSERT(0);
+        return -1;
       }
 
-      // Move downward or break
-      u8 leaf = TDB_BTREE_PAGE_IS_LEAF(pPage);
-      if (leaf) {
-        pBtc->idx = midx;
-        *pCRst = c;
-        break;
+      // Compare the key values
+      c = pBt->kcmpr(pKey, kLen, cd.pKey, cd.kLen);
+      if (c < 0) {
+        // pKey < cd.pKey
+        ridx = midx - 1;
+      } else if (c > 0) {
+        // pKey > cd.pKey
+        lidx = midx + 1;
       } else {
-        if (c <= 0) {
-          pBtc->idx = midx;
-        } else {
-          pBtc->idx = midx + 1;
-        }
-        tdbBtcMoveDownward(pBtc);
+        // pKey == cd.pKey
+        break;
       }
     }
 
-  } else {
-    // TODO: Move the cursor from a some position instead of a clear state
-    ASSERT(0);
+    // keep search downward or break
+    if (TDB_BTREE_PAGE_IS_LEAF(pPage)) {
+      pBtc->idx = midx;
+      *pCRst = c;
+      break;
+    } else {
+      if (c <= 0) {
+        pBtc->idx = midx;
+      } else {
+        pBtc->idx = midx + 1;
+      }
+      tdbBtcMoveDownward(pBtc);
+    }
   }
 
   return 0;
