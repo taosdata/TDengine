@@ -13,10 +13,6 @@ const insertSql = `insert into ${db}.${table} values('2022-03-30 18:30:51.567',1
 const querySql = `select * from ${db}.${table}`;
 const errorSql = 'show database';
 
-
-
-
-
 let conn = connect(options);
 let cursor = conn.cursor();
 
