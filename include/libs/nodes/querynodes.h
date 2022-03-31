@@ -131,6 +131,7 @@ typedef struct SRealTableNode {
   struct STableMeta* pMeta;
   SVgroupsInfo* pVgroupList;
   char useDbName[TSDB_DB_NAME_LEN];
+  double ratio;
 } SRealTableNode;
 
 typedef struct STempTableNode {
@@ -180,8 +181,8 @@ typedef struct SOrderByExprNode {
 
 typedef struct SLimitNode {
   ENodeType type; // QUERY_NODE_LIMIT
-  uint64_t limit;
-  uint64_t offset;
+  int64_t limit;
+  int64_t offset;
 } SLimitNode;
 
 typedef struct SStateWindowNode {
@@ -281,6 +282,19 @@ typedef struct SVnodeModifOpStmt {
   uint32_t    insertType;          // insert data from [file|sql statement| bound statement]
   const char* sql;                 // current sql statement position
 } SVnodeModifOpStmt;
+
+typedef struct SExplainOptions {
+  ENodeType type;
+  bool verbose;
+  double ratio;
+} SExplainOptions;
+
+typedef struct SExplainStmt {
+  ENodeType type;
+  bool analyze;
+  SExplainOptions* pOptions;
+  SNode* pQuery;
+} SExplainStmt;
 
 void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
 void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewriter rewriter, void* pContext);

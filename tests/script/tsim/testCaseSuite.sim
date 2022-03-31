@@ -26,4 +26,4 @@ run tsim/show/basic.sim
 run tsim/table/basic1.sim
 
 run tsim/tmq/basic.sim
-#run tsim/tmq/basic1.sim
+run tsim/tmq/basic1.sim

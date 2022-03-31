@@ -49,6 +49,8 @@ void taosSetSignal(int32_t signum, FSignalHandler sigfp);
 void taosIgnSignal(int32_t signum);
 void taosDflSignal(int32_t signum);
 
+void taosKillChildOnSelfStopped();
+
 #ifdef __cplusplus
 }
 #endif
