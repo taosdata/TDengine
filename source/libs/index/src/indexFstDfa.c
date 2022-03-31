@@ -193,9 +193,26 @@ void dfaAdd(FstDfa *dfa, FstSparseSet *set, uint32_t ip) {
     dfaAdd(dfa, set, inst->sv.len1);
     dfaAdd(dfa, set, inst->sv.len2);
   }
+
   return;
 }
 bool dfaRun(FstDfa *dfa, FstSparseSet *from, FstSparseSet *to, uint8_t byte) {
-  // impl run
-  return true;
+  bool isMatch = false;
+  sparSetClear(to);
+  for (int i = 0; i < sparSetLen(from); i++) {
+    uint32_t ip = sparSetGet(from, i);
+
+    Inst *inst = taosArrayGet(dfa->insts, ip);
+    if (inst->ty == JUMP || inst->ty == SPLIT) {
+      continue;
+    } else if (inst->ty == MATCH) {
+      isMatch = true;
+    } else if (inst->ty == RANGE) {
+      if (inst->rv.start <= byte && byte <= inst->rv.end) {
+        dfaAdd(dfa, to, ip + 1);
+      }
+    }
+  }
+
+  return isMatch;
 }
