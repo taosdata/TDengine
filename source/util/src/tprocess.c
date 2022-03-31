@@ -224,7 +224,6 @@ static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int16_t *pHea
   taosThreadMutexLock(&pQueue->mutex);
   if (pQueue->total - pQueue->avail <= 0) {
     taosThreadMutexUnlock(&pQueue->mutex);
-    tsem_post(&pQueue->sem);
     terrno = TSDB_CODE_OUT_OF_SHM_MEM;
     return 0;
   }
@@ -378,7 +377,7 @@ static void taosProcThreadLoop(SProcObj *pProc) {
     int32_t numOfMsgs = taosProcQueuePop(pQueue, &pHead, &headLen, &pBody, &bodyLen, &ftype, mallocHeadFp, freeHeadFp,
                                          mallocBodyFp, freeBodyFp);
     if (numOfMsgs == 0) {
-      uInfo("proc:%s, get no msg from queue:%p and exit the proc thread", pProc->name, pQueue);
+      uDebug("proc:%s, get no msg from queue:%p and exit the proc thread", pProc->name, pQueue);
       break;
     } else if (numOfMsgs < 0) {
       uTrace("proc:%s, get no msg from queue:%p since %s", pProc->name, pQueue, terrstr());
