@@ -262,6 +262,8 @@ class TDDnode:
                 if ("packaging" not in rootRealPath):
                     paths.append(os.path.join(root, tool))
                     break
+        if (len(paths) == 0):
+                return ""
         return paths[0]
 
     def start(self):
@@ -274,7 +276,7 @@ class TDDnode:
 
         taosadapterBinPath = self.getPath("taosadapter")
         if (taosadapterBinPath == ""):
-            tdLog.exit("taosAdapter not found!")
+            tdLog.info("taosAdapter not found!")
         else:
             tdLog.info("taosAdapter found: %s" % taosadapterBinPath)
 
@@ -344,11 +346,11 @@ class TDDnode:
         if (binPath == ""):
             tdLog.exit("taosd.exe not found!")
         else:
-            tdLog.info("taosd.exe found: %s" % bnPath)
+            tdLog.info("taosd.exe found: %s" % binPath)
 
         taosadapterBinPath = self.getPath("taosadapter.exe")
         if (taosadapterBinPath == ""):
-            tdLog.exit("taosAdapter.exe not found!")
+            tdLog.info("taosAdapter.exe not found!")
         else:
             tdLog.info("taosAdapter.exe found in %s" % taosadapterBuildPath)
 
