@@ -66,7 +66,7 @@ int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     case TDMT_VND_TABLE_META:
       return vnodeGetTableMeta(pVnode, pMsg);
     case TDMT_VND_CONSUME:
-      return tqProcessPollReq(pVnode->pTq, pMsg);
+      return tqProcessPollReq(pVnode->pTq, pMsg, pInfo->workerId);
     case TDMT_VND_TASK_PIPE_EXEC:
     case TDMT_VND_TASK_MERGE_EXEC:
       return tqProcessTaskExec(pVnode->pTq, msgstr, msgLen, pInfo->workerId);

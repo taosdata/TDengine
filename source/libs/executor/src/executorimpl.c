@@ -1551,8 +1551,8 @@ static SArray* hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pRe
   if (pSDataBlock->pDataBlock != NULL) {
     SColumnInfoData* pColDataInfo = taosArrayGet(pSDataBlock->pDataBlock, 0);
     tsCols = (int64_t*)pColDataInfo->pData;
-    assert(tsCols[0] == pSDataBlock->info.window.skey &&
-           tsCols[pSDataBlock->info.rows - 1] == pSDataBlock->info.window.ekey);
+    /*assert(tsCols[0] == pSDataBlock->info.window.skey &&*/
+           /*tsCols[pSDataBlock->info.rows - 1] == pSDataBlock->info.window.ekey);*/
   }
 
   int32_t startPos = ascScan? 0 : (pSDataBlock->info.rows - 1);
@@ -6994,6 +6994,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo *pOperator, bool* newgroup
   finalizeUpdatedResult(pInfo->binfo.pCtx, pOperator->numOfOutput, pInfo->aggSup.pResultBuf, pUpdated, pInfo->binfo.rowCellInfoOffset);
 
   blockDataEnsureCapacity(pInfo->binfo.pRes, pInfo->binfo.capacity);
+  initGroupResInfo(&pInfo->groupResInfo, &pInfo->binfo.resultRowInfo);
   toSDatablock(&pInfo->groupResInfo, pInfo->aggSup.pResultBuf, pInfo->binfo.pRes, pInfo->binfo.capacity,
                pInfo->binfo.rowCellInfoOffset);
 

@@ -27,5 +27,5 @@ void metaCloseUidGnrt(SMeta *pMeta) { /* TODO */
 
 tb_uid_t metaGenerateUid(SMeta *pMeta) {
   // Generate a new table UID
-  return ++(pMeta->uidGnrt.nextUid);
+  return tGenIdPI64();
 }
