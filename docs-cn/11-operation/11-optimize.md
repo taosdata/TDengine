@@ -47,7 +47,7 @@ COMPACT 命令对指定的一个或多个 VGroup 启动碎片重整，系统会�
 | create time |              |                                            |                                        |
 | ntables     |              |                                            |                                        |
 | vgroups     |              |                                            |                                        |
-| replica     | **YES**      | 在线 dnode 数目为 1：1-1；2：1-2；>=3：1-3 | ALTER DATABASE <dbname\> REPLICA _n_   |
+| replica     | **YES**      | 在线 dnode 数目为:<br>1：1-1；<br>2：1-2；<br>>=3：1-3                         | ALTER DATABASE <dbname> REPLICA *n*   |
 | quorum      | **YES**      | 1-2                                        | ALTER DATABASE <dbname\> QUORUM _n_    |
 | days        |              |                                            |                                        |
 | keep        | **YES**      | days-365000                                | ALTER DATABASE <dbname\> KEEP _n_      |
