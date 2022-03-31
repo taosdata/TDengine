@@ -66,7 +66,7 @@ print ============= create database
 #  | REPLICA value      [1 | 3]
 #  | WAL value          [1 | 2]
 
-sql create database db BLOCKS 7 CACHE 3 CACHELAST 3 COMP 0 DAYS 240 FSYNC 1000 MAXROWS 8000 MINROWS 10 KEEP 1000 PRECISION 'ns' QUORUM 1 REPLICA 3 TTL 7 WAL 2 VGROUPS 6 SINGLE_STABLE 1 STREAM_MODE 1
+sql create database db BLOCKS 7 CACHE 3 CACHELAST 3 COMP 0 DAYS 345600 FSYNC 1000 MAXROWS 8000 MINROWS 10 KEEP 1440000 PRECISION 'ns' QUORUM 1 REPLICA 3 TTL 7 WAL 2 VGROUPS 6 SINGLE_STABLE 1 STREAM_MODE 1
 sql show databases
 print rows: $rows
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
@@ -92,10 +92,10 @@ endi
 if $data5_db != 1 then  # quorum
   return -1
 endi
-if $data6_db != 240 then  # days
+if $data6_db != 345600 then  # days
   return -1
 endi
-if $data7_db != 1000,1000,1000 then # keep
+if $data7_db != 1440000,1440000,1440000 then # keep
   return -1
 endi
 if $data8_db != 3 then  # cache
@@ -186,7 +186,7 @@ print ============== modify keep
 sql alter database db keep 2000
 sql show databases
 print keep $data7_db
-if $data7_db != 1000,1000,2000 then
+if $data7_db != 2000,2000,2000 then
   return -1
 endi
 

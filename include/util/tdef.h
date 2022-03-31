@@ -307,9 +307,9 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_DAYS_PER_FILE     (3650 * 1440)
 #define TSDB_DEFAULT_DAYS_PER_FILE (10 * 1440)
 
-#define TSDB_MIN_KEEP     1       // data in db to be reserved.
-#define TSDB_MAX_KEEP     365000  // data in db to be reserved.
-#define TSDB_DEFAULT_KEEP 3650    // ten years
+#define TSDB_MIN_KEEP     (1 * 1440)       // data in db to be reserved. unit minute
+#define TSDB_MAX_KEEP     (365000 * 1440) // data in db to be reserved.
+#define TSDB_DEFAULT_KEEP (3650 * 1440)    // ten years
 
 #define TSDB_MIN_MIN_ROW_FBLOCK     10
 #define TSDB_MAX_MIN_ROW_FBLOCK     1000

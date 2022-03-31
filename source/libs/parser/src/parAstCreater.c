@@ -138,18 +138,6 @@ static SDatabaseOptions* setDbMinRows(SAstCreateContext* pCxt, SDatabaseOptions*
   return pOptions;
 }
 
-static SDatabaseOptions* setDbKeep(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
-  int64_t val = strtol(pVal->z, NULL, 10);
-  if (val < TSDB_MIN_KEEP || val > TSDB_MAX_KEEP) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option keep: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_KEEP, TSDB_MAX_KEEP);
-    pCxt->valid = false;
-    return pOptions;
-  }
-  pOptions->keep = val;
-  return pOptions;
-}
-
 static SDatabaseOptions* setDbPrecision(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
   char val[10] = {0};
   trimString(pVal->z, pVal->n, val, sizeof(val));
@@ -291,7 +279,6 @@ static void initSetDatabaseOptionFp() {
   setDbOptionFuncs[DB_OPTION_FSYNC] = setDbFsync;
   setDbOptionFuncs[DB_OPTION_MAXROWS] = setDbMaxRows;
   setDbOptionFuncs[DB_OPTION_MINROWS] = setDbMinRows;
-  setDbOptionFuncs[DB_OPTION_KEEP] = setDbKeep;
   setDbOptionFuncs[DB_OPTION_PRECISION] = setDbPrecision;
   setDbOptionFuncs[DB_OPTION_QUORUM] = setDbQuorum;
   setDbOptionFuncs[DB_OPTION_REPLICA] = setDbReplica;
@@ -301,18 +288,6 @@ static void initSetDatabaseOptionFp() {
   setDbOptionFuncs[DB_OPTION_SINGLE_STABLE] = setDbSingleStable;
   setDbOptionFuncs[DB_OPTION_STREAM_MODE] = setDbStreamMode;
   setDbOptionFuncs[DB_OPTION_RETENTIONS] = setDbRetentions;
-}
-
-static STableOptions* setTableKeep(SAstCreateContext* pCxt, STableOptions* pOptions, const SToken* pVal) {
-  int64_t val = strtol(pVal->z, NULL, 10);
-  if (val < TSDB_MIN_KEEP || val > TSDB_MAX_KEEP) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid table option keep: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_KEEP, TSDB_MAX_KEEP);
-    pCxt->valid = false;
-    return pOptions;
-  }
-  pOptions->keep = val;
-  return pOptions;
 }
 
 static STableOptions* setTableTtl(SAstCreateContext* pCxt, STableOptions* pOptions, const SToken* pVal) {
@@ -363,7 +338,6 @@ static STableOptions* setTableDelay(SAstCreateContext* pCxt, STableOptions* pOpt
 }
 
 static void initSetTableOptionFp() {
-  setTableOptionFuncs[TABLE_OPTION_KEEP] = setTableKeep;
   setTableOptionFuncs[TABLE_OPTION_TTL] = setTableTtl;
   setTableOptionFuncs[TABLE_OPTION_COMMENT] = setTableComment;
   setTableOptionFuncs[TABLE_OPTION_FILE_FACTOR] = setTableFileFactor;
@@ -892,7 +866,9 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->fsyncPeriod = TSDB_DEFAULT_FSYNC_PERIOD;
   pOptions->maxRowsPerBlock = TSDB_DEFAULT_MAX_ROW_FBLOCK;
   pOptions->minRowsPerBlock = TSDB_DEFAULT_MIN_ROW_FBLOCK;
-  pOptions->keep = TSDB_DEFAULT_KEEP;
+  pOptions->keep0 = TSDB_DEFAULT_KEEP;
+  pOptions->keep1 = TSDB_DEFAULT_KEEP;
+  pOptions->keep2 = TSDB_DEFAULT_KEEP;
   pOptions->precision = TSDB_TIME_PRECISION_MILLI;
   pOptions->quorum = TSDB_DEFAULT_DB_QUORUM_OPTION;
   pOptions->replica = TSDB_DEFAULT_DB_REPLICA_OPTION;
@@ -915,7 +891,9 @@ SNode* createDefaultAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->fsyncPeriod = -1;
   pOptions->maxRowsPerBlock = -1;
   pOptions->minRowsPerBlock = -1;
-  pOptions->keep = -1;
+  pOptions->keep0 = -1;
+  pOptions->keep1 = -1;
+  pOptions->keep2= -1;
   pOptions->precision = -1;
   pOptions->quorum = -1;
   pOptions->replica = -1;
@@ -929,6 +907,48 @@ SNode* createDefaultAlterDatabaseOptions(SAstCreateContext* pCxt) {
 
 SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOptionType type, const SToken* pVal) {
   return (SNode*)setDbOptionFuncs[type](pCxt, (SDatabaseOptions*)pOptions, pVal);
+}
+
+static bool checkAndSetKeepOption(SAstCreateContext* pCxt, SNodeList* pKeep, int32_t* pKeep0, int32_t* pKeep1, int32_t* pKeep2) {
+  int32_t numOfKeep = LIST_LENGTH(pKeep);
+  if (numOfKeep > 3 || numOfKeep < 1) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid number of keep options");
+    return false;
+  }
+
+  int32_t daysToKeep0 = strtol(((SValueNode*)nodesListGetNode(pKeep, 0))->literal, NULL, 10);
+  int32_t daysToKeep1 = numOfKeep > 1 ? strtol(((SValueNode*)nodesListGetNode(pKeep, 1))->literal, NULL, 10) : daysToKeep0;
+  int32_t daysToKeep2 = numOfKeep > 2 ? strtol(((SValueNode*)nodesListGetNode(pKeep, 2))->literal, NULL, 10) : daysToKeep1;
+  if (daysToKeep0 < TSDB_MIN_KEEP || daysToKeep1 < TSDB_MIN_KEEP || daysToKeep2 < TSDB_MIN_KEEP ||
+      daysToKeep0 > TSDB_MAX_KEEP || daysToKeep1 > TSDB_MAX_KEEP || daysToKeep2 > TSDB_MAX_KEEP) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
+        "invalid option keep: %"PRId64", %"PRId64", %"PRId64" valid range: [%d, %d]", daysToKeep0, daysToKeep1, daysToKeep2, TSDB_MIN_KEEP, TSDB_MAX_KEEP);
+    return false;
+  }
+
+  if (!((daysToKeep0 <= daysToKeep1) && (daysToKeep1 <= daysToKeep2))) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid keep value, should be keep0 <= keep1 <= keep2");
+    return false;
+  }
+
+  *pKeep0 = daysToKeep0;
+  *pKeep1 = daysToKeep1;
+  *pKeep2 = daysToKeep2;
+  return true;
+}
+
+SNode* setDatabaseKeepOption(SAstCreateContext* pCxt, SNode* pOptions, SNodeList* pKeep) {
+  SDatabaseOptions* pOp = (SDatabaseOptions*)pOptions;
+  pCxt->valid = checkAndSetKeepOption(pCxt, pKeep, &pOp->keep0, &pOp->keep1, &pOp->keep2);
+  return pOptions;
+}
+
+SNode* setDatabaseAlterOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOption* pAlterOption) {
+  if (DB_OPTION_KEEP == pAlterOption->type) {
+    return setDatabaseKeepOption(pCxt, pOptions, pAlterOption->pKeep);
+  } else {
+    return setDatabaseOption(pCxt, pOptions, pAlterOption->type, &pAlterOption->val);
+  }
 }
 
 SNode* createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pDbName, SNode* pOptions) {
@@ -968,7 +988,9 @@ SNode* createAlterDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* 
 SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
   STableOptions* pOptions = nodesMakeNode(QUERY_NODE_TABLE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
-  pOptions->keep = TSDB_DEFAULT_KEEP;
+  pOptions->keep0 = TSDB_DEFAULT_KEEP;
+  pOptions->keep1 = TSDB_DEFAULT_KEEP;
+  pOptions->keep2 = TSDB_DEFAULT_KEEP;
   pOptions->ttl = TSDB_DEFAULT_DB_TTL_OPTION;
   pOptions->filesFactor = TSDB_DEFAULT_DB_FILE_FACTOR;
   pOptions->delay = TSDB_DEFAULT_DB_DELAY;
@@ -978,7 +1000,9 @@ SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
 SNode* createDefaultAlterTableOptions(SAstCreateContext* pCxt) {
   STableOptions* pOptions = nodesMakeNode(QUERY_NODE_TABLE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
-  pOptions->keep = -1;
+  pOptions->keep0 = -1;
+  pOptions->keep1 = -1;
+  pOptions->keep2 = -1;
   pOptions->ttl = -1;
   pOptions->filesFactor = -1;
   pOptions->delay = -1;
@@ -1002,6 +1026,20 @@ SNode* setTableRollupOption(SAstCreateContext* pCxt, SNode* pOptions, SNodeList*
   }
   ((STableOptions*)pOptions)->pFuncs = pFuncs;
   return pOptions;
+}
+
+SNode* setTableKeepOption(SAstCreateContext* pCxt, SNode* pOptions, SNodeList* pKeep) {
+  STableOptions* pOp = (STableOptions*)pOptions;
+  pCxt->valid = checkAndSetKeepOption(pCxt, pKeep, &pOp->keep0, &pOp->keep1, &pOp->keep2);
+  return pOptions;
+}
+
+SNode* setTableAlterOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOption* pAlterOption) {
+  if (TABLE_OPTION_KEEP == pAlterOption->type) {
+    return setTableKeepOption(pCxt, pOptions, pAlterOption->pKeep);
+  } else {
+    return setTableOption(pCxt, pOptions, pAlterOption->type, &pAlterOption->val);
+  }
 }
 
 SNode* createColumnDefNode(SAstCreateContext* pCxt, const SToken* pColName, SDataType dataType, const SToken* pComment) {

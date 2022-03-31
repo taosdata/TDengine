@@ -1309,7 +1309,7 @@ static int32_t mndGetDbMeta(SNodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMet
   cols++;
 
   pShow->bytes[cols] = 2;
-  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "days");
   pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
@@ -1444,7 +1444,7 @@ static void dumpDbInfoToPayload(char *data, SDbObj *pDb, SShowObj *pShow, int32_
   cols++;
 
   pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);
-  *(int16_t *)pWrite = pDb->cfg.daysPerFile;
+  *(int32_t *)pWrite = pDb->cfg.daysPerFile;
   cols++;
 
   pWrite = getDataPosition(data, pShow, cols, rows, rowCapacity);

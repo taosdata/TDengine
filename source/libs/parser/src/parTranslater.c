@@ -956,9 +956,9 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->cacheBlockSize = pStmt->pOptions->cacheBlockSize;
   pReq->totalBlocks = pStmt->pOptions->numOfBlocks;
   pReq->daysPerFile = pStmt->pOptions->daysPerFile;
-  pReq->daysToKeep0 = pStmt->pOptions->keep;
-  pReq->daysToKeep1 = -1;
-  pReq->daysToKeep2 = -1;
+  pReq->daysToKeep0 = pStmt->pOptions->keep0;
+  pReq->daysToKeep1 = pStmt->pOptions->keep1;
+  pReq->daysToKeep2 = pStmt->pOptions->keep2;
   pReq->minRows = pStmt->pOptions->minRowsPerBlock;
   pReq->maxRows = pStmt->pOptions->maxRowsPerBlock;
   pReq->commitTime = -1;
@@ -1041,9 +1041,9 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   tNameGetFullDbName(&name, pReq->db);
   pReq->totalBlocks = pStmt->pOptions->numOfBlocks;
-  pReq->daysToKeep0 = pStmt->pOptions->keep;
-  pReq->daysToKeep1 = -1;
-  pReq->daysToKeep2 = -1;
+  pReq->daysToKeep0 = pStmt->pOptions->keep0;
+  pReq->daysToKeep1 = pStmt->pOptions->keep1;
+  pReq->daysToKeep2 = pStmt->pOptions->keep2;
   pReq->fsyncPeriod = pStmt->pOptions->fsyncPeriod;
   pReq->walLevel = pStmt->pOptions->walLevel;
   pReq->quorum = pStmt->pOptions->quorum;
