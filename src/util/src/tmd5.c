@@ -94,9 +94,6 @@ void tMD5Init(T_MD5_CTX *mdContext) {
   mdContext->buf[2] = (uint32_t)0x98badcfe;
   mdContext->buf[3] = (uint32_t)0x10325476;
 }
-void MD5Init(MD5_CTX *mdContext) {
-  tMD5Init(mdContext);
-}
 
 /* The routine tMD5Update updates the message-digest context to
 account for the presence of each of the characters inBuf[0..inLen-1]
@@ -128,9 +125,6 @@ void tMD5Update(T_MD5_CTX *mdContext, uint8_t *inBuf, unsigned int inLen) {
       mdi = 0;
     }
   }
-}
-void MD5Update(MD5_CTX *mdContext, uint8_t *inBuf, unsigned int inLen) {
-  tMD5Update(mdContext, inBuf, inLen);
 }
 
 /* The routine tMD5Final terminates the message-digest computation and
@@ -166,9 +160,6 @@ void tMD5Final(T_MD5_CTX *mdContext) {
     mdContext->digest[ii + 2] = (uint8_t)((mdContext->buf[i] >> 16) & 0xFF);
     mdContext->digest[ii + 3] = (uint8_t)((mdContext->buf[i] >> 24) & 0xFF);
   }
-}
-void MD5Final(MD5_CTX *mdContext) {
-  tMD5Final(mdContext);
 }
 
 /* Basic MD5 step. Transforms buf based on in.
