@@ -478,7 +478,14 @@ _return:
 
 int32_t schValidateAndBuildJobExplain(SQueryPlan *pDag, SSchJob *pJob) {
   int32_t code = 0;
+  SNodeListNode *plans = NULL;
+  int32_t        taskNum = 0;
+  SExplainGroup *pGroup = NULL;
+  void *pCtx = NULL;
+  int32_t rootGroupId = 0;
+  
   pJob->queryId = pDag->queryId;
+  pJob->subPlans = pDag->pSubplans;
 
   if (pDag->numOfSubplans <= 0) {
     SCH_JOB_ELOG("invalid subplan num:%d", pDag->numOfSubplans);
@@ -497,12 +504,7 @@ int32_t schValidateAndBuildJobExplain(SQueryPlan *pDag, SSchJob *pJob) {
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  pJob->subPlans = pDag->pSubplans;
-
-  SNodeListNode *plans = NULL;
-  int32_t        taskNum = 0;
-  SSchExplainGroup *pGroup = NULL;
-  void *rowCtx = NULL;
+  SCH_ERR_JRET(qInitExplainCtx(&pCtx, groupHash, pDag->explainInfo.verbose));
 
   for (int32_t i = 0; i < levelNum; ++i) {
     plans = (SNodeListNode *)nodesListGetNode(pDag->pSubplans, i);
@@ -517,44 +519,44 @@ int32_t schValidateAndBuildJobExplain(SQueryPlan *pDag, SSchJob *pJob) {
       SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
     }
 
+    SSubplan *plan = NULL;
     for (int32_t n = 0; n < taskNum; ++n) {
-      SSubplan *plan = (SSubplan *)nodesListGetNode(plans->pNodeList, n);
+      plan = (SSubplan *)nodesListGetNode(plans->pNodeList, n);
       pGroup = taosHashGet(groupHash, &plan->id.groupId, sizeof(plan->id.groupId));
       if (pGroup) {
         ++pGroup->nodeNum;
         continue;
       }
 
-      SSchExplainGroup group = {.nodeNum = 1, .plan = plan};
+      SExplainGroup group = {.nodeNum = 1, .plan = plan, .execInfo = NULL};
       if (0 != taosHashPut(groupHash, &plan->id.groupId, sizeof(plan->id.groupId), &group, sizeof(group))) {
         SCH_JOB_ELOG("taosHashPut to explainGroupHash failed, taskIdx:%d", n);
         SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
     }
 
-    void *pIter = taosHashIterate(groupHash, NULL);
-    while (pIter) {
-      pGroup = (SSchExplainGroup *)pIter;
+    if (0 == i) {
+      if (taskNum > 1) {
+        SCH_JOB_ELOG("invalid taskNum %d for level 0", taskNum);
+        SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
+      }
 
-      SCH_ERR_JRET(qAppendTaskExplainResRows(&rowCtx, pGroup->plan, NULL, i));
-      
-      pIter = taosHashIterate(groupHash, pIter);
+      rootGroupId = plan->id.groupId;
     }
 
-    taosHashClear(groupHash);
-
-    SCH_JOB_DLOG("level initialized, taskNum:%d", taskNum);
+    SCH_JOB_DLOG("level %d group handled, taskNum:%d", i, taskNum);
   }
 
+  SCH_ERR_JRET(qAppendTaskExplainResRows(pCtx, rootGroupId, 0));
+  
   SRetrieveTableRsp *pRsp = NULL;
-  SCH_ERR_JRET(qGetExplainRspFromRowCtx(rowCtx, &pRsp));
+  SCH_ERR_JRET(qGetExplainRspFromCtx(pCtx, &pRsp));
 
   pJob->resData = pRsp;
   
 _return:
 
-  taosHashCleanup(groupHash);
-  qFreeExplainRowCtx(rowCtx);
+  qFreeExplainCtx(pCtx);
 
   SCH_RET(code);
 }

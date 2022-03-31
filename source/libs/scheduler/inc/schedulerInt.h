@@ -38,10 +38,12 @@ enum {
   SCH_WRITE,
 };
 
-typedef struct SSchExplainGroup {
+//TODO MOVE TO LIB
+typedef struct SExplainGroup {
   int32_t   nodeNum;
   SSubplan *plan;
-} SSchExplainGroup;
+  void     *execInfo;  //TODO
+} SExplainGroup;
 
 typedef struct SSchTrans {
   void *transInst;

@@ -62,6 +62,7 @@ int32_t taosParseTime(const char* timestr, int64_t* time, int32_t len, int32_t t
 void    deltaToUtcInitOnce();
 
 int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrecision);
+int64_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char toUnit);
 
 void taosFormatUtcTime(char *buf, int32_t bufLen, int64_t time, int32_t precision);
 
