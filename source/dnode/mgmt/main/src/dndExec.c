@@ -150,7 +150,7 @@ static SProcCfg dndGenProcCfg(SMgmtWrapper *pWrapper) {
 }
 
 static int32_t dndRunInSingleProcess(SDnode *pDnode) {
-  dInfo("dnode start to run in single process");
+  dInfo("dnode run in single process");
 
   for (ENodeType n = DNODE; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
@@ -189,7 +189,7 @@ static int32_t dndRunInSingleProcess(SDnode *pDnode) {
 }
 
 static int32_t dndRunInParentProcess(SDnode *pDnode) {
-  dInfo("dnode start to run in parent process");
+  dInfo("dnode run in parent process");
   SMgmtWrapper *pDWrapper = &pDnode->wrappers[DNODE];
   if (dndOpenNode(pDWrapper) != 0) {
     dError("node:%s, failed to start since %s", pDWrapper->name, terrstr());
@@ -275,7 +275,7 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
 }
 
 static int32_t dndRunInChildProcess(SDnode *pDnode) {
-  dInfo("dnode start to run in child process");
+  dInfo("dnode run in child process");
   SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->ntype];
 
   SMsgCb msgCb = dndCreateMsgcb(pWrapper);

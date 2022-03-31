@@ -61,7 +61,7 @@ static void dndClearVars(SDnode *pDnode) {
   taosMemoryFreeClear(pDnode->secondEp);
   taosMemoryFreeClear(pDnode->dataDir);
   taosMemoryFree(pDnode);
-  dDebug("dnode object memory is cleared, data:%p", pDnode);
+  dDebug("dnode memory is cleared, data:%p", pDnode);
 }
 
 SDnode *dndCreate(const SDnodeOpt *pOption) {
@@ -117,14 +117,14 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
   SMsgCb msgCb = dndCreateMsgcb(&pDnode->wrappers[0]);
   tmsgSetDefaultMsgCb(&msgCb);
 
-  dInfo("dnode object is created, data:%p", pDnode);
+  dInfo("dnode is created, data:%p", pDnode);
   code = 0;
 
 _OVER:
   if (code != 0 && pDnode) {
     dndClearVars(pDnode);
     pDnode = NULL;
-    dError("failed to create dnode object since %s", terrstr());
+    dError("failed to create dnode since %s", terrstr());
   }
 
   return pDnode;
@@ -147,11 +147,11 @@ void dndClose(SDnode *pDnode) {
   }
 
   dndClearVars(pDnode);
-  dInfo("dnode object is closed, data:%p", pDnode);
+  dInfo("dnode is closed, data:%p", pDnode);
 }
 
 void dndHandleEvent(SDnode *pDnode, EDndEvent event) {
-  dInfo("dnode object receive event %d, data:%p", event, pDnode);
+  dInfo("dnode receive %s event, data:%p", dndEventStr(event), pDnode);
   if (event == DND_EVENT_STOP) {
     pDnode->event = event;
   }

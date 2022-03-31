@@ -179,7 +179,7 @@ int32_t dndReadShmFile(SDnode *pDnode) {
     }
   }
 
-  if (!tsMultiProcess || pDnode->ntype == DNODE || pDnode->ntype == DNODE) {
+  if (!tsMultiProcess || pDnode->ntype == DNODE || pDnode->ntype == NODE_MAX) {
     for (ENodeType ntype = DNODE; ntype < NODE_MAX; ++ntype) {
       SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
       if (pWrapper->shm.id >= 0) {
@@ -197,7 +197,7 @@ int32_t dndReadShmFile(SDnode *pDnode) {
     dDebug("shmid:%d, is attached, size:%d", pWrapper->shm.id, pWrapper->shm.size);
   }
 
-  dDebug("successed to open %s", file);
+  dDebug("successed to load %s", file);
   code = 0;
 
 _OVER:

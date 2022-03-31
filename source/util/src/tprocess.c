@@ -336,7 +336,7 @@ SProcObj *taosProcInit(const SProcCfg *pCfg) {
   pProc->parentConsumeFp = pCfg->parentConsumeFp;
   pProc->isChild = pCfg->isChild;
 
-  uDebug("proc:%s, is initialized, child:%d child queue:%p parent queue:%p", pProc->name, pProc->isChild,
+  uDebug("proc:%s, is initialized, isChild:%d child queue:%p parent queue:%p", pProc->name, pProc->isChild,
          pProc->pChildQueue, pProc->pParentQueue);
 
   return pProc;
@@ -370,7 +370,7 @@ static void taosProcThreadLoop(SProcObj *pProc) {
     freeBodyFp = pProc->parentFreeBodyFp;
   }
 
-  uDebug("proc:%s, start to get msg from queue:%p", pProc->name, pQueue);
+  uDebug("proc:%s, start to get msg from queue:%p, isChild:%d", pProc->name, pQueue, pProc->isChild);
 
   while (1) {
     int32_t numOfMsgs = taosProcQueuePop(pQueue, &pHead, &headLen, &pBody, &bodyLen, &ftype, mallocHeadFp, freeHeadFp,
@@ -399,19 +399,19 @@ int32_t taosProcRun(SProcObj *pProc) {
     return -1;
   }
 
-  uDebug("proc:%s, start to consume queue:%p", pProc->name, pProc->pChildQueue);
+  uDebug("proc:%s, start to consume queue:%p, thread:%" PRId64, pProc->name, pProc->pChildQueue, pProc->thread);
   return 0;
 }
 
 static void taosProcStop(SProcObj *pProc) {
   if (!taosCheckPthreadValid(pProc->thread)) return;
 
-  uDebug("proc:%s, start to join thread", pProc->name);
+  uDebug("proc:%s, start to join thread:%" PRId64 ", isChild:%d", pProc->name, pProc->thread, pProc->isChild);
   SProcQueue *pQueue;
   if (pProc->isChild) {
-    pQueue = pProc->pParentQueue;
-  } else {
     pQueue = pProc->pChildQueue;
+  } else {
+    pQueue = pProc->pParentQueue;
   }
   tsem_post(&pQueue->sem);
   taosThreadJoin(pProc->thread, NULL);
@@ -419,8 +419,9 @@ static void taosProcStop(SProcObj *pProc) {
 
 void taosProcCleanup(SProcObj *pProc) {
   if (pProc != NULL) {
-    uDebug("proc:%s, clean up", pProc->name);
+    uDebug("proc:%s, start to clean up", pProc->name);
     taosProcStop(pProc);
+    uDebug("proc:%s, is cleaned up", pProc->name);
     // taosProcCleanupQueue(pProc->pChildQueue);
     // taosProcCleanupQueue(pProc->pParentQueue);
     taosMemoryFree(pProc);
