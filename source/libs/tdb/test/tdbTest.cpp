@@ -121,7 +121,7 @@ TEST(tdb_test, simple_test) {
   int            nData = 1000000;
 
   // Open Env
-  ret = tdbEnvOpen("tdb", 4096, 256000, &pEnv);
+  ret = tdbEnvOpen("tdb", 4096, 100, &pEnv);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
@@ -134,21 +134,19 @@ TEST(tdb_test, simple_test) {
     char val[64];
 
     {  // Insert some data
-      tdbBegin(pEnv);
+      for (int i = 1; i <= nData;) {
+        tdbBegin(pEnv);
 
-      int i = 1;
-      for (;;) {
-        if (i > nData) break;
+        for (int k = 0; k < 10; k++) {
+          sprintf(key, "key%d", i);
+          sprintf(val, "value%d", i);
+          ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val));
+          GTEST_ASSERT_EQ(ret, 0);
+          i++;
+        }
 
-        sprintf(key, "key%d", i);
-        sprintf(val, "value%d", i);
-        ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val));
-        GTEST_ASSERT_EQ(ret, 0);
-
-        i++;
+        tdbCommit(pEnv);
       }
-
-      tdbCommit(pEnv);
     }
 
     {  // Query the data
