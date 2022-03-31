@@ -46,7 +46,7 @@ static SDatabaseOptions* setDbBlocks(SAstCreateContext* pCxt, SDatabaseOptions* 
   int64_t val = strtol(pVal->z, NULL, 10);
   if (val < TSDB_MIN_TOTAL_BLOCKS || val > TSDB_MAX_TOTAL_BLOCKS) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option totalBlocks: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_TOTAL_BLOCKS, TSDB_MAX_TOTAL_BLOCKS);
+        "invalid db option totalBlocks: %"PRId64" valid range: [%"PRId64", %"PRId64"]", val, TSDB_MIN_TOTAL_BLOCKS, TSDB_MAX_TOTAL_BLOCKS);
     pCxt->valid = false;
     return pOptions;
   }
@@ -58,7 +58,7 @@ static SDatabaseOptions* setDbCache(SAstCreateContext* pCxt, SDatabaseOptions* p
   int64_t val = strtol(pVal->z, NULL, 10);
   if (val < TSDB_MIN_CACHE_BLOCK_SIZE || val > TSDB_MAX_CACHE_BLOCK_SIZE) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option cacheBlockSize: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_CACHE_BLOCK_SIZE, TSDB_MAX_CACHE_BLOCK_SIZE);
+        "invalid db option cacheBlockSize: %"PRId64" valid range: [%"PRId64", %"PRId64"]", val, TSDB_MIN_CACHE_BLOCK_SIZE, TSDB_MAX_CACHE_BLOCK_SIZE);
     pCxt->valid = false;
     return pOptions;
   }
@@ -70,7 +70,7 @@ static SDatabaseOptions* setDbCacheLast(SAstCreateContext* pCxt, SDatabaseOption
   int64_t val = strtol(pVal->z, NULL, 10);
   if (val < TSDB_MIN_DB_CACHE_LAST_ROW || val > TSDB_MAX_DB_CACHE_LAST_ROW) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option cacheLast: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_DB_CACHE_LAST_ROW, TSDB_MAX_DB_CACHE_LAST_ROW);
+        "invalid db option cacheLast: %"PRId64" valid range: [%"PRId64", %"PRId64"]", val, TSDB_MIN_DB_CACHE_LAST_ROW, TSDB_MAX_DB_CACHE_LAST_ROW);
     pCxt->valid = false;
     return pOptions;
   }
@@ -82,7 +82,7 @@ static SDatabaseOptions* setDbComp(SAstCreateContext* pCxt, SDatabaseOptions* pO
   int64_t val = strtol(pVal->z, NULL, 10);
   if (val < TSDB_MIN_COMP_LEVEL || val > TSDB_MAX_COMP_LEVEL) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option compression: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_COMP_LEVEL, TSDB_MAX_COMP_LEVEL);
+        "invalid db option compression: %"PRId64" valid range: [%"PRId64", %"PRId64"]", val, TSDB_MIN_COMP_LEVEL, TSDB_MAX_COMP_LEVEL);
     pCxt->valid = false;
     return pOptions;
   }
@@ -94,7 +94,7 @@ static SDatabaseOptions* setDbDays(SAstCreateContext* pCxt, SDatabaseOptions* pO
   int64_t val = strtol(pVal->z, NULL, 10);
   if (val < TSDB_MIN_DAYS_PER_FILE || val > TSDB_MAX_DAYS_PER_FILE) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option daysPerFile: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_DAYS_PER_FILE, TSDB_MAX_DAYS_PER_FILE);
+        "invalid db option daysPerFile: %"PRId64" valid range: [%"PRId64", %"PRId64"]", val, TSDB_MIN_DAYS_PER_FILE, TSDB_MAX_DAYS_PER_FILE);
     pCxt->valid = false;
     return pOptions;
   }
@@ -106,7 +106,7 @@ static SDatabaseOptions* setDbFsync(SAstCreateContext* pCxt, SDatabaseOptions* p
   int64_t val = strtol(pVal->z, NULL, 10);
   if (val < TSDB_MIN_FSYNC_PERIOD || val > TSDB_MAX_FSYNC_PERIOD) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option fsyncPeriod: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_FSYNC_PERIOD, TSDB_MAX_FSYNC_PERIOD);
+        "invalid db option fsyncPeriod: %"PRId64" valid range: [%"PRId64", %"PRId64"]", val, TSDB_MIN_FSYNC_PERIOD, TSDB_MAX_FSYNC_PERIOD);
     pCxt->valid = false;
     return pOptions;
   }
@@ -118,7 +118,7 @@ static SDatabaseOptions* setDbMaxRows(SAstCreateContext* pCxt, SDatabaseOptions*
   int64_t val = strtol(pVal->z, NULL, 10);
   if (val < TSDB_MIN_MAX_ROW_FBLOCK || val > TSDB_MAX_MAX_ROW_FBLOCK) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option maxRowsPerBlock: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_MAX_ROW_FBLOCK, TSDB_MAX_MAX_ROW_FBLOCK);
+        "invalid db option maxRowsPerBlock: %"PRId64" valid range: [%"PRId64", %"PRId64"]", val, TSDB_MIN_MAX_ROW_FBLOCK, TSDB_MAX_MAX_ROW_FBLOCK);
     pCxt->valid = false;
     return pOptions;
   }
@@ -130,7 +130,7 @@ static SDatabaseOptions* setDbMinRows(SAstCreateContext* pCxt, SDatabaseOptions*
   int64_t val = strtol(pVal->z, NULL, 10);
   if (val < TSDB_MIN_MIN_ROW_FBLOCK || val > TSDB_MAX_MIN_ROW_FBLOCK) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option minRowsPerBlock: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_MIN_ROW_FBLOCK, TSDB_MAX_MIN_ROW_FBLOCK);
+        "invalid db option minRowsPerBlock: %"PRId64" valid range: [%"PRId64", %"PRId64"]", val, TSDB_MIN_MIN_ROW_FBLOCK, TSDB_MAX_MIN_ROW_FBLOCK);
     pCxt->valid = false;
     return pOptions;
   }
@@ -158,7 +158,7 @@ static SDatabaseOptions* setDbQuorum(SAstCreateContext* pCxt, SDatabaseOptions* 
   int64_t val = strtol(pVal->z, NULL, 10);
   if (val < TSDB_MIN_DB_QUORUM_OPTION || val > TSDB_MAX_DB_QUORUM_OPTION) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option quorum: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_DB_QUORUM_OPTION, TSDB_MAX_DB_QUORUM_OPTION);
+        "invalid db option quorum: %"PRId64" valid range: [%"PRId64", %"PRId64"]", val, TSDB_MIN_DB_QUORUM_OPTION, TSDB_MAX_DB_QUORUM_OPTION);
     pCxt->valid = false;
     return pOptions;
   }
@@ -182,7 +182,7 @@ static SDatabaseOptions* setDbTtl(SAstCreateContext* pCxt, SDatabaseOptions* pOp
   int64_t val = strtol(pVal->z, NULL, 10);
   if (val < TSDB_MIN_DB_TTL_OPTION) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option ttl: %"PRId64", should be greater than or equal to %d", val, TSDB_MIN_DB_TTL_OPTION);
+        "invalid db option ttl: %"PRId64", should be greater than or equal to %"PRId64"", val, TSDB_MIN_DB_TTL_OPTION);
     pCxt->valid = false;
     return pOptions;
   }
@@ -205,7 +205,7 @@ static SDatabaseOptions* setDbVgroups(SAstCreateContext* pCxt, SDatabaseOptions*
   int64_t val = strtol(pVal->z, NULL, 10);
   if (val < TSDB_MIN_VNODES_PER_DB || val > TSDB_MAX_VNODES_PER_DB) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option vgroups: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_VNODES_PER_DB, TSDB_MAX_VNODES_PER_DB);
+        "invalid db option vgroups: %"PRId64" valid range: [%"PRId64", %"PRId64"]", val, TSDB_MIN_VNODES_PER_DB, TSDB_MAX_VNODES_PER_DB);
     pCxt->valid = false;
     return pOptions;
   }
@@ -294,7 +294,7 @@ static STableOptions* setTableTtl(SAstCreateContext* pCxt, STableOptions* pOptio
   int64_t val = strtol(pVal->z, NULL, 10);
   if (val < TSDB_MIN_DB_TTL_OPTION) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid table option ttl: %"PRId64", should be greater than or equal to %d", val, TSDB_MIN_DB_TTL_OPTION);
+        "invalid table option ttl: %"PRId64", should be greater than or equal to %"PRId64"", val, TSDB_MIN_DB_TTL_OPTION);
     pCxt->valid = false;
     return pOptions;
   }
@@ -305,7 +305,7 @@ static STableOptions* setTableTtl(SAstCreateContext* pCxt, STableOptions* pOptio
 static STableOptions* setTableComment(SAstCreateContext* pCxt, STableOptions* pOptions, const SToken* pVal) {
   if (pVal->n >= sizeof(pOptions->comments)) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid table option comment, length cannot exceed %d", (int32_t)(sizeof(pOptions->comments) - 1));
+        "invalid table option comment, length cannot exceed %"PRId64"", (int32_t)(sizeof(pOptions->comments) - 1));
     pCxt->valid = false;
     return pOptions;
   }
@@ -317,7 +317,7 @@ static STableOptions* setTableFileFactor(SAstCreateContext* pCxt, STableOptions*
   double val = strtod(pVal->z, NULL);
   if (val < TSDB_MIN_DB_FILE_FACTOR || val > TSDB_MAX_DB_FILE_FACTOR) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid table option file_factor: %f valid range: [%d, %d]", val, TSDB_MIN_DB_FILE_FACTOR, TSDB_MAX_DB_FILE_FACTOR);
+        "invalid table option file_factor: %f valid range: [%"PRId64", %"PRId64"]", val, TSDB_MIN_DB_FILE_FACTOR, TSDB_MAX_DB_FILE_FACTOR);
     pCxt->valid = false;
     return pOptions;
   }
@@ -329,7 +329,7 @@ static STableOptions* setTableDelay(SAstCreateContext* pCxt, STableOptions* pOpt
   int64_t val = strtol(pVal->z, NULL, 10);
   if (val < TSDB_MIN_DB_DELAY || val > TSDB_MAX_DB_DELAY) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid table option delay: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_DB_DELAY, TSDB_MAX_DB_DELAY);
+        "invalid table option delay: %"PRId64" valid range: [%"PRId64", %"PRId64"]", val, TSDB_MIN_DB_DELAY, TSDB_MAX_DB_DELAY);
     pCxt->valid = false;
     return pOptions;
   }
@@ -922,7 +922,7 @@ static bool checkAndSetKeepOption(SAstCreateContext* pCxt, SNodeList* pKeep, int
   if (daysToKeep0 < TSDB_MIN_KEEP || daysToKeep1 < TSDB_MIN_KEEP || daysToKeep2 < TSDB_MIN_KEEP ||
       daysToKeep0 > TSDB_MAX_KEEP || daysToKeep1 > TSDB_MAX_KEEP || daysToKeep2 > TSDB_MAX_KEEP) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid option keep: %"PRId64", %"PRId64", %"PRId64" valid range: [%d, %d]", daysToKeep0, daysToKeep1, daysToKeep2, TSDB_MIN_KEEP, TSDB_MAX_KEEP);
+        "invalid option keep: %"PRId64", %"PRId64", %"PRId64" valid range: [%"PRId64", %"PRId64"]", daysToKeep0, daysToKeep1, daysToKeep2, TSDB_MIN_KEEP, TSDB_MAX_KEEP);
     return false;
   }
 
