@@ -1324,7 +1324,7 @@ taosd -C
 | create time |              |                                                              |                                       |
 | ntables     |              |                                                              |                                       |
 | vgroups     |              |                                                              |                                       |
-| replica     | **YES**      | 在线 dnode 数目为 1：1-1；2：1-2；>=3：1-3                         | ALTER DATABASE <dbname> REPLICA *n*   |
+| replica     | **YES**      | 在线 dnode 数目为:<br>1：1-1；<br>2：1-2；<br>>=3：1-3                         | ALTER DATABASE <dbname> REPLICA *n*   |
 | quorum      | **YES**      | 1-2                                                          | ALTER DATABASE <dbname> QUORUM *n*    |
 | days        |              |                                                              |                                       |
 | keep        | **YES**      | days-365000                                                  | ALTER DATABASE <dbname> KEEP *n*      |
