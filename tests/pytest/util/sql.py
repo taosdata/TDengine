@@ -50,7 +50,10 @@ class TDSql:
     def prepare(self):
         tdLog.info("prepare database:db")
         s = 'reset query cache'
-        self.cursor.execute(s)
+        try:
+            self.cursor.execute(s)
+        except:
+            tdLog.notice("'reset query cache' is not supported")
         s = 'drop database if exists db'
         self.cursor.execute(s)
         s = 'create database db'

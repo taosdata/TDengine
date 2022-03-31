@@ -17,6 +17,8 @@
 #include <malloc.h>
 #include "os.h"
 
+#ifdef USE_TD_MEMORY
+
 #define TD_MEMORY_SYMBOL ('T'<<24|'A'<<16|'O'<<8|'S')
 
 #define TD_MEMORY_STACK_TRACE_DEPTH 10
@@ -69,6 +71,8 @@ int32_t taosBackTrace(void **buffer, int32_t size) {
 //   *size = taosBackTrace(buffer, 20);
 //   return backtrace_symbols(buffer, *size);
 // }
+
+#endif
 
 void *taosMemoryMalloc(int32_t size) {
 #ifdef USE_TD_MEMORY
@@ -126,9 +130,9 @@ void *taosMemoryRealloc(void *ptr, int32_t size) {
 }
 
 void taosMemoryFree(const void *ptr) {
-#ifdef USE_TD_MEMORY
   if (ptr == NULL) return;
 
+#ifdef USE_TD_MEMORY
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char*)ptr - sizeof(TdMemoryInfo));
   if(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL) {
     pTdMemoryInfo->memorySize = 0;
@@ -143,9 +147,9 @@ void taosMemoryFree(const void *ptr) {
 }
 
 int32_t taosMemorySize(void *ptr) {
-#ifdef USE_TD_MEMORY
   if (ptr == NULL) return 0;
-  
+
+#ifdef USE_TD_MEMORY
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char*)ptr - sizeof(TdMemoryInfo));
   assert(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
 
