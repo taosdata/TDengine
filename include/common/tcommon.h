@@ -198,8 +198,8 @@ typedef struct SGroupbyExpr {
 } SGroupbyExpr;
 
 enum {
-  FUNC_PARAM_TYPE_VALUE = 0,
-  FUNC_PARAM_TYPE_COLUMN,
+  FUNC_PARAM_TYPE_VALUE = 0x1,
+  FUNC_PARAM_TYPE_COLUMN= 0x2,
 };
 
 typedef struct SFunctParam {

@@ -1258,8 +1258,8 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, 
         ASSERT(pCtx[i].input.pData[j] != NULL);
       }
     }
-    //    setBlockStatisInfo(&pCtx[i], pBlock, pOperator->pExpr[i].base.pColumns);
 
+    //    setBlockStatisInfo(&pCtx[i], pBlock, pOperator->pExpr[i].base.pColumns);
     //      uint32_t flag = pOperator->pExpr[i].base.pParam[0].pCol->flag;
     //      if (TSDB_COL_IS_NORMAL_COL(flag) /*|| (pCtx[i].functionId == FUNCTION_BLKINFO) ||
     //          (TSDB_COL_IS_TAG(flag) && pOperator->pRuntimeEnv->scanFlag == MERGE_STAGE)*/) {
@@ -8771,8 +8771,8 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
 
       pExp->pExpr->_optrRoot.pRootNode = pTargetNode->pExpr;
 
-      pExp->base.pParam[0].type = FUNC_PARAM_TYPE_COLUMN;
-      pExp->base.pParam[0].pCol = createColumn(pTargetNode->dataBlockId, pTargetNode->slotId, pType);
+//      pExp->base.pParam[0].type = FUNC_PARAM_TYPE_COLUMN;
+//      pExp->base.pParam[0].pCol = createColumn(pTargetNode->dataBlockId, pTargetNode->slotId, pType);
     } else {
       ASSERT(0);
     }
