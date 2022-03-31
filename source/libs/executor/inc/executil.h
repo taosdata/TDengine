@@ -106,13 +106,13 @@ static FORCE_INLINE SResultRow *getResultRow(SDiskbasedBuf* pBuf, SResultRowInfo
   ASSERT(pResultRowInfo != NULL && slot >= 0 && slot < pResultRowInfo->size);
   SResultRowPosition* pos = &pResultRowInfo->pPosition[slot];
 
-  SFilePage*  bufPage = getBufPage(pBuf, pos->pageId);
+  SFilePage*  bufPage = (SFilePage*) getBufPage(pBuf, pos->pageId);
   SResultRow* pRow = (SResultRow*)((char*)bufPage + pos->offset);
   return pRow;
 }
 
 static FORCE_INLINE SResultRow *getResultRowByPos(SDiskbasedBuf* pBuf, SResultRowPosition* pos) {
-  SFilePage*  bufPage = getBufPage(pBuf, pos->pageId);
+  SFilePage*  bufPage = (SFilePage*) getBufPage(pBuf, pos->pageId);
   SResultRow* pRow = (SResultRow*)((char*)bufPage + pos->offset);
   return pRow;
 }
