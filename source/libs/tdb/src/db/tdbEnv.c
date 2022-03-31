@@ -81,10 +81,10 @@ int tdbBegin(TENV *pEnv) {
 int tdbCommit(TENV *pEnv) {
   SPager *pPager;
 
-  pPager = pEnv->pgrList;
-  while (pPager) {
-    tdbPagerCommit(pPager);
-  }
+  // pPager = pEnv->pgrList;
+  // while (pPager) {
+  //   tdbPagerCommit(pPager);
+  // }
 
   return 0;
 }
