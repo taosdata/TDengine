@@ -264,7 +264,7 @@ static int32_t dndRunInParentProcess(SDnode *pDnode) {
       if (pDnode->ntype == NODE_MAX) continue;
 
       if (pWrapper->procId <= 0 || !taosProcExists(pWrapper->procId)) {
-        dInfo("node:%s, process:%d does not exist or is killed and needs to be restarted", pWrapper->name, pWrapper->procId);
+        dInfo("node:%s, process:%d is killed and needs to be restarted", pWrapper->name, pWrapper->procId);
         dndNewProc(pWrapper, n);
       }
     }
