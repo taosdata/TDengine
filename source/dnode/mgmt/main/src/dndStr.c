@@ -62,3 +62,16 @@ const char *dndNodeProcStr(ENodeType ntype) {
       return "taosd";
   }
 }
+
+const char *dndEventStr(EDndEvent ev) {
+  switch (ev) {
+    case DND_EVENT_START:
+      return "start";
+    case DND_EVENT_STOP:
+      return "stop";
+    case DND_EVENT_CHILD:
+      return "child";
+    default:
+      return "UNKNOWN";
+  }
+}

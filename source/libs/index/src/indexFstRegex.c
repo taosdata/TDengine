@@ -13,25 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_OS_SHM_H_
-#define _TD_OS_SHM_H_
+#include "indexFstRegex.h"
+#include "indexFstSparse.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+FstRegex *regexCreate(const char *str) {
+  FstRegex *regex = taosMemoryCalloc(1, sizeof(FstRegex));
+  if (regex == NULL) {
+    return NULL;
+  }
+  int32_t sz = (int32_t)strlen(str);
+  char *  orig = taosMemoryCalloc(1, sz);
+  memcpy(orig, str, sz);
 
-typedef struct {
-  int32_t id;
-  int32_t size;
-  void*   ptr;
-} SShm;
-
-int32_t taosCreateShm(SShm *pShm, int32_t shmsize) ;
-void    taosDropShm(SShm *pShm);
-int32_t taosAttachShm(SShm *pShm);
-
-#ifdef __cplusplus
+  regex->orig = orig;
 }
-#endif
 
-#endif /*_TD_OS_SHM_H_*/
+void regexSetup(FstRegex *regex, uint32_t size, const char *str) {
+  // return
+  // return;
+}

@@ -590,12 +590,12 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
 }
 
 int32_t cfgLoadFromEnvVar(SConfig *pConfig) {
-  uInfo("load from global env variables");
+  uInfo("load from global env variables success");
   return 0;
 }
 
 int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *filepath) {
-  uInfo("load from env file %s", filepath);
+  uInfo("load from env file [%s] success", filepath);
   return 0;
 }
 
@@ -649,11 +649,11 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
   taosCloseFile(&pFile);
   if (line != NULL) taosMemoryFreeClear(line);
 
-  uInfo("load from cfg file %s success", filepath);
+  uInfo("load from cfg file [%s] success", filepath);
   return 0;
 }
 
 int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
-  uInfo("load from apoll url %s", url);
+  uInfo("load from apoll url [%s] success", url);
   return 0;
 }

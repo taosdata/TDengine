@@ -13,25 +13,31 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_OS_SHM_H_
-#define _TD_OS_SHM_H_
+#ifndef _TD_INDEX_FST_SPARSE_H_
+#define _TD_INDEX_FST_SPARSE_H_
+
+#include "tarray.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct {
-  int32_t id;
+typedef struct FstSparseSet {
+  SArray *dense;
+  SArray *sparse;
   int32_t size;
-  void*   ptr;
-} SShm;
+} FstSparseSet;
 
-int32_t taosCreateShm(SShm *pShm, int32_t shmsize) ;
-void    taosDropShm(SShm *pShm);
-int32_t taosAttachShm(SShm *pShm);
+FstSparseSet *sparSetCreate(int32_t sz);
+void          sparSetDestroy(FstSparseSet *s);
+uint32_t      sparSetLen(FstSparseSet *ss);
+uint32_t      sparSetAdd(FstSparseSet *ss, uint32_t ip);
+uint32_t      sparSetGet(FstSparseSet *ss, uint32_t i);
+bool          sparSetContains(FstSparseSet *ss, uint32_t ip);
+void          sparSetClear(FstSparseSet *ss);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_OS_SHM_H_*/
+#endif

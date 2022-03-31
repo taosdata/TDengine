@@ -78,6 +78,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_CFG_NOT_FOUND                 TAOS_DEF_ERROR_CODE(0, 0x010C)
 #define TSDB_CODE_INVALID_CFG                   TAOS_DEF_ERROR_CODE(0, 0x010D)
 #define TSDB_CODE_OUT_OF_SHM_MEM                TAOS_DEF_ERROR_CODE(0, 0x010E)
+#define TSDB_CODE_INVALID_SHM_ID                TAOS_DEF_ERROR_CODE(0, 0x010F)
 #define TSDB_CODE_REF_NO_MEMORY                 TAOS_DEF_ERROR_CODE(0, 0x0110)
 #define TSDB_CODE_REF_FULL                      TAOS_DEF_ERROR_CODE(0, 0x0111)
 #define TSDB_CODE_REF_ID_REMOVED                TAOS_DEF_ERROR_CODE(0, 0x0112)
