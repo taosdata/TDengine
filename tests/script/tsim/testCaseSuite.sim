@@ -1,6 +1,7 @@
 
 run tsim/user/basic1.sim
 
+run tsim/db/alter_option.sim
 run tsim/db/basic1.sim
 run tsim/db/basic2.sim
 run tsim/db/basic3.sim

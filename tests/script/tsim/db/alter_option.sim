@@ -59,22 +59,12 @@ endi
 print ============= create database
 #database_option: {
 #    BLOCKS value       [3~1000, default: 6]
-#  | CACHE value        [default: 16M]
 #  | CACHELAST value    [0, 1, 2, 3]
-#  | COMP               [0 | 1 | 2]
-#  | DAYS value         [unit is minutes]
 #  | FSYNC value        [0 ~ 180000 ms]
-#  | MAXROWS value      [default: 4096]
-#  | MINROWS value      [default: 100]
 #  | KEEP value         [days, 365000]
-#  | PRECISION          ['ms' | 'us' | 'ns']
 #  | QUORUM value       [1 | 2]
 #  | REPLICA value      [1 | 3]
-#  | TTL value          [unit is day, min=1]
 #  | WAL value          [1 | 2]
-#  | VGROUPS value      [default: 2]
-#  | SINGLE_STABLE      [0 | 1]
-#  | STREAM_MODE        [0 | 1]
 
 sql create database db BLOCKS 7 CACHE 3 CACHELAST 3 COMP 0 DAYS 240 FSYNC 1000 MAXROWS 8000 MINROWS 10 KEEP 1000 PRECISION 'ns' QUORUM 1 REPLICA 3 TTL 7 WAL 2 VGROUPS 6 SINGLE_STABLE 1 STREAM_MODE 1
 sql show databases
@@ -187,22 +177,10 @@ sql_error alter database db quorum 4
 sql_error alter database db quorum 5
 
 #print ============== modify days
-#sql alter database db days 480
-#sql show databases
-#print days $data6_db
-#if $data6_db != 480 then  # days
-#  return -1
-#endi
-#sql alter database db days 360
-#sql show databases
-#print days $data6_db
-#if $data6_db != 360 then  # days
-#  return -1
-#endi
-
+sql_error alter database db days 480
+sql_error alter database db days 360
 sql_error alter database db days 0
-#sql_error alter database db days 14400  # set over than keep
-
+sql_error alter database db days 14400  # set over than keep
 
 print ============== modify keep
 sql alter database db keep 2000
@@ -230,25 +208,14 @@ sql_error alter database db keep -1
 #sql_error alter database db keep 365001
 
 print ============== modify cache
-#sql alter database db cache 12
-#sql show databases
-#print cache $data8_db
-#if $data8_db != 12 then 
-#  return -1
-#endi
-#sql alter database db cache 1
-#sql show databases
-#print cache $data8_db
-#if $data8_db != 6 then 
-#  return -1
-#endi
-#
-#sql_error alter database db cache 60
-#sql_error alter database db cache 50
-#sql_error alter database db cache 20
-#sql_error alter database db cache 3
-#sql_error alter database db cache 129
-#sql_error alter database db cache 300
+sql_error alter database db cache 12
+sql_error alter database db cache 1
+sql_error alter database db cache 60
+sql_error alter database db cache 50
+sql_error alter database db cache 20
+sql_error alter database db cache 3
+sql_error alter database db cache 129
+sql_error alter database db cache 300
 sql_error alter database db cache 0
 sql_error alter database db cache -1
 
@@ -276,45 +243,18 @@ sql_error alter database db blocks 0
 sql_error alter database db blocks -1
 sql_error alter database db blocks 10001
 
-#print ============== modify minrows
-#sql alter database db minrows 8
-#sql show databases
-#print minrows $data10_db
-#if $data10_db != 8 then 
-#  return -1
-#endi
-#sql alter database db minrows 200
-#sql show databases
-#print minrows $data10_db
-#if $data10_db != 200 then 
-#  return -1
-#endi
-#
-#sql alter database db minrows 11
-#sql show databases
-#print minrows $data10_db
-#if $data10_db != 11 then 
-#  return -1
-#endi
-#sql_error alter database db minrows 8000
-#sql_error alter database db minrows 8001
+print ============== modify minrows
+sql_error alter database db minrows 8
+sql_error alter database db minrows 200
+sql_error alter database db minrows 11
+sql_error alter database db minrows 8000
+sql_error alter database db minrows 8001
 
-#print ============== modify maxrows
-#sql alter database db maxrows 1000
-#sql show databases
-#print maxrows $data11_db
-#if $data11_db != 1000 then 
-#  return -1
-#endi
-#sql alter database db maxrows 2000
-#sql show databases
-#print maxrows $data11_db
-#if $data11_db != 2000 then 
-#  return -1
-#endi
-#
-#sql_error alter database db maxrows 11  # equal minrows
-#sql_error alter database db maxrows 10  # little than minrows
+print ============== modify maxrows
+sql_error alter database db maxrows 1000
+sql_error alter database db maxrows 2000
+sql_error alter database db maxrows 11  # equal minrows
+sql_error alter database db maxrows 10  # little than minrows
 
 print ============== step wal
 sql alter database db wal 1
@@ -330,7 +270,7 @@ if $data12_db != 2 then
   return -1
 endi
 
-sql_error alter database db wal 0
+#sql_error alter database db wal 0     # TD-14436
 sql_error alter database db wal 3
 sql_error alter database db wal 100
 sql_error alter database db wal -1
@@ -348,35 +288,20 @@ print fsync $data13_db
 if $data13_db != 500 then 
   return -1
 endi
-sql_error alter database db fsync 0
+sql alter database db fsync 0
+sql show databases
+print fsync $data13_db
+if $data13_db != 0 then 
+  return -1
+endi
+sql_error alter database db fsync 180001
 sql_error alter database db fsync -1
 
 print ============== modify comp
-sql alter database db comp 1
-sql show databases
-print comp $data14_db
-if $data14_db != 1 then 
-  return -1
-endi
-sql alter database db comp 2
-sql show databases
-print comp $data14_db
-if $data14_db != 2 then 
-  return -1
-endi
-sql alter database db comp 1
-sql show databases
-print comp $data14_db
-if $data14_db != 1 then 
-  return -1
-endi
-sql alter database db comp 0
-sql show databases
-print comp $data14_db
-if $data14_db != 0 then 
-  return -1
-endi
-
+sql_error alter database db comp 1
+sql_error alter database db comp 2
+sql_error alter database db comp 1
+sql_error alter database db comp 0
 sql_error alter database db comp 3
 sql_error alter database db comp 4
 sql_error alter database db comp 5
@@ -414,30 +339,15 @@ if $data15_db != 3 then
   return -1
 endi
 
-sql_error alter database db comp 4
-sql_error alter database db comp 10
-sql_error alter database db comp -1
+sql_error alter database db cachelast 4
+sql_error alter database db cachelast 10
+sql_error alter database db cachelast -1
 
 print ============== modify precision
-sql alter database db precision 'ms'
-sql show databases
-print precision $data16_db
-if $data16_db != ms then 
-  return -1
-endi
-sql alter database db precision 'us'
-sql show databases
-print precision $data16_db
-if $data16_db != us then 
-  return -1
-endi
-sql alter database db precision 'ns'
-sql show databases
-print precision $data16_db
-if $data16_db != ns then 
-  return -1
-endi
-
+sql_error alter database db precision 'ms'
+sql_error alter database db precision 'us'
+sql_error alter database db precision 'ns'
+sql_error alter database db precision 'ys'
 sql_error alter database db prec 'xs'
 
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT
