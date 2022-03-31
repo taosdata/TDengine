@@ -23,6 +23,8 @@ from taostest.util.file import dict2yaml
 import datetime
 import re
 import time
+from taostest.performance.perfor_basic import InsertFile
+from taostest.performance.result_reduction import Perf_Base_func
 
 class TestStability(TDCase):
     def __init__(self):
@@ -53,6 +55,46 @@ class TestStability(TDCase):
         # self.agent_settings = self.get_component_by_name("agent")[0]
 
         # self.taosadapter_settings = self.get_component_by_name("taosadapter")[0]
+
+    def insert_data_with_taosBenchmark(self):
+        taosBenchmark_fqdn_list = self.get_fqdn("taosBenchmark")
+        taosd_fqdn = self.get_fqdn("taosd")[0]
+        json_data = []
+        file_name = []
+
+        jfile = InsertFile()
+        Insert_file = Perf_Base_func(self.logger, self.run_log_dir)
+        col = jfile.schemacfg(intcount=4, doublecount=4, tscount=1)
+
+        tag = jfile.schemacfg(intcount=1)
+
+        dbname = "query_db"
+        for i in range(len(taosBenchmark_fqdn_list)):
+            db = jfile.setDBinfo(name=dbname, drop="yes")
+            stb = jfile.setStbinfo(name="stb", childtable_prefix="stb_" + str(i), childtable_count=100,
+                                   insert_rows=10000, columns=col, tags=tag)
+
+            database1 = jfile.setDatabases(dbinfo=db, super_tables=[stb])
+            json_info = jfile.setJsoninfo(host=taosd_fqdn, databases=[database1])
+            json_info.update({"test_log": "/root/testlog/"})
+            json_data.append({})
+            json_data[i] = json_info
+            file_name.append("insert" + str(i) + ".json")
+            jfile.genBenchmarkJson(
+                self.run_log_dir, file_name[i], json_info)
+
+        # put the file to target
+        Insert_file.put_file(taosBenchmark_fqdn_list, json_data,file_name)
+        # run taosBenchmark
+        result_filename = Insert_file.threads_run_taosBenchmark(taosBenchmark_fqdn_list, json_data, file_name)
+
+    def make_query(self):
+        sql_list = ["select * from query_db.stb limit 10000",
+                    "select first(*) from query_db.stb",
+                    "select last(*) from query_db.stb",
+                    ]
+        for sql in sql_list:
+            self.tdSql.execute(sql_list)
 
     def re_write_stability_yaml(self):
         self.env_dir = os.path.join(os.environ["TEST_ROOT"], "env")
@@ -85,11 +127,14 @@ class TestStability(TDCase):
         self.tdSql.execute(f'create dnode "{self.taosd_settings["fqdn"][-1]}:6030"')
 
     def stability_test(self):
+        self.insert_data_with_taosBenchmark()
         scheduler = BackgroundScheduler()
-        # scheduler.add_job(self.run_taosc_insert_cases, 'interval', seconds=60)
-        # scheduler.add_job(self.run_restful_insert_cases, 'interval', seconds=60)
-        # scheduler.add_job(self.run_schemaless_insert_cases, 'interval', seconds=60)
-        # scheduler.add_job(self.run_query_cases, 'interval', seconds=60)
+
+        scheduler.add_job(self.make_query, 'interval', seconds=10)
+        scheduler.add_job(self.run_taosc_insert_cases, 'interval', seconds=60)
+        scheduler.add_job(self.run_restful_insert_cases, 'interval', seconds=60)
+        scheduler.add_job(self.run_schemaless_insert_cases, 'interval', seconds=60)
+        scheduler.add_job(self.run_query_cases, 'interval', seconds=60)
         scheduler.add_job(self.del_and_add_dnode, 'interval', seconds=60)
         scheduler.start()
 

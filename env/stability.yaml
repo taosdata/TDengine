@@ -136,22 +136,33 @@ settings:
         config: # common_process和custom_process都选配, 但全配置的话custom_process会覆盖common_process的配置
           common_process: [taosd, taosadapter]
 
-  - name: agent
-    fqdn: [k8smaster]
-    taosadapter_fqdn: [k8smaster]
+  - name: taosBenchmark
+    fqdn: [k8sslave]
     spec:
-      collectd:
-        count: 2
-        interval: 1
-      node_exporter:
-        port_range: [10000, 10005]
-      statsd:
-        count: 2
-      telegraf:
-        count: 2
-        interval: 1
-      icinga2:
-        count: 2
-        interval: 1
-      tcollector:
-        count: 2
+      version: 1.0.0
+      taos_version: 2.4.0.0
+      config_dir: /root/var/taosbenchmark/config/
+      taos_config:
+        firstEP: cs219:6030
+        logDir: /root/var/taosbenchmark/log
+        debugFlag: 131
+
+  # - name: agent
+  #   fqdn: [k8smaster]
+  #   taosadapter_fqdn: [k8smaster]
+  #   spec:
+  #     collectd:
+  #       count: 2
+  #       interval: 1
+  #     node_exporter:
+  #       port_range: [10000, 10005]
+  #     statsd:
+  #       count: 2
+  #     telegraf:
+  #       count: 2
+  #       interval: 1
+  #     icinga2:
+  #       count: 2
+  #       interval: 1
+  #     tcollector:
+  #       count: 2
