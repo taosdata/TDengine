@@ -101,6 +101,11 @@ static inline int tdbGetVarInt(const u8 *p, int *v) {
   return n;
 }
 
+static inline int tdbCstringHash(const char *s) {
+  // TODO
+  return 0;
+}
+
 #ifdef __cplusplus
 }
 #endif

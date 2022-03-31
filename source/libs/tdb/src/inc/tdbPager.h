@@ -32,6 +32,8 @@ struct SPager {
   SPgno    dbOrigSize;
   SPage   *pDirty;
   u8       inTran;
+  SPager  *pNext;      // used by TENV
+  SPager  *pHashNext;  // used by TENV
 };
 
 int  tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager);

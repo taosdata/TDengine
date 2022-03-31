@@ -20,18 +20,15 @@
 extern "C" {
 #endif
 
-#define TDB_PAGER_ENV_FIELDS \
-  SPager *pNext;             \
-  SPager *pHashNext;
-
 typedef struct STEnv {
   char    *rootDir;
   char    *jfname;
   int      jfd;
   SPCache *pCache;
-  SPager  *pagerList;
-  int      nHash;
-  SPager **pagerHash;
+  SPager  *pgrList;
+  int      nPager;
+  int      nPgrHash;
+  SPager **pgrHash;
 } TENV;
 
 int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, TENV **ppEnv);
@@ -40,6 +37,8 @@ int tdbBegin(TENV *pEnv);
 int tdbCommit(TENV *pEnv);
 int tdbRollback(TENV *pEnv);
 
+void    tdbEnvAddPager(TENV *pEnv, SPager *pPager);
+void    tdbEnvRemovePager(TENV *pEnv, SPager *pPager);
 SPager *tdbEnvGetPager(TENV *pEnv, const char *fname);
 
 #ifdef __cplusplus
