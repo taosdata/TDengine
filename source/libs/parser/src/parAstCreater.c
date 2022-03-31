@@ -180,9 +180,9 @@ static SDatabaseOptions* setDbQuorum(SAstCreateContext* pCxt, SDatabaseOptions* 
 
 static SDatabaseOptions* setDbReplica(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
   int64_t val = strtol(pVal->z, NULL, 10);
-  if (val < TSDB_MIN_DB_REPLICA_OPTION || val > TSDB_MAX_DB_REPLICA_OPTION) {
+  if (!(val == TSDB_MIN_DB_REPLICA_OPTION || val == TSDB_MAX_DB_REPLICA_OPTION)) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
-        "invalid db option replications: %"PRId64" valid range: [%d, %d]", val, TSDB_MIN_DB_REPLICA_OPTION, TSDB_MAX_DB_REPLICA_OPTION);
+        "invalid db option replications: %"PRId64", only 1, 3 allowed", val);
     pCxt->valid = false;
     return pOptions;
   }
@@ -397,7 +397,9 @@ static bool checkUserName(SAstCreateContext* pCxt, SToken* pUserName) {
       pCxt->valid = false;
     }
   }
-  trimEscape(pUserName);
+  if (pCxt->valid) {
+    trimEscape(pUserName);
+  }
   return pCxt->valid;
 }
 
@@ -472,45 +474,50 @@ static bool checkPort(SAstCreateContext* pCxt, const SToken* pPortToken, int32_t
 
 static bool checkDbName(SAstCreateContext* pCxt, SToken* pDbName, bool query) {
   if (NULL == pDbName) {
-    pCxt->valid = (query ? NULL != pCxt->pQueryCxt->db : true);
-    if (!pCxt->valid) {
-      snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "db not specified");
+    if (query && NULL == pCxt->pQueryCxt->db) {
+      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DB_NOT_SPECIFIED);
+      pCxt->valid = false;
     }
   } else {
-    pCxt->valid = pDbName->n < TSDB_DB_NAME_LEN ? true : false;
+    if (pDbName->n >= TSDB_DB_NAME_LEN) {
+      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pDbName->z);
+      pCxt->valid = false;
+    }
   }
-  trimEscape(pDbName);
+  if (pCxt->valid) {
+    trimEscape(pDbName);
+  }
   return pCxt->valid;
 }
 
 static bool checkTableName(SAstCreateContext* pCxt, SToken* pTableName) {
-  if (NULL == pTableName) {
-    pCxt->valid = true;
-  } else {
-    pCxt->valid = pTableName->n < TSDB_TABLE_NAME_LEN ? true : false;
+  if (NULL != pTableName && pTableName->n >= TSDB_TABLE_NAME_LEN) {
+    generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pTableName->z);
+    pCxt->valid = false;
+    return false;
   }
   trimEscape(pTableName);
-  return pCxt->valid;
+  return true;
 }
 
 static bool checkColumnName(SAstCreateContext* pCxt, SToken* pColumnName) {
-  if (NULL == pColumnName) {
-    pCxt->valid = true;
-  } else {
-    pCxt->valid = pColumnName->n < TSDB_COL_NAME_LEN ? true : false;
+  if (NULL != pColumnName && pColumnName->n >= TSDB_COL_NAME_LEN) {
+    generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pColumnName->z);
+    pCxt->valid = false;
+    return false;
   }
   trimEscape(pColumnName);
-  return pCxt->valid;
+  return true;
 }
 
 static bool checkIndexName(SAstCreateContext* pCxt, SToken* pIndexName) {
-  if (NULL == pIndexName) {
+  if (NULL != pIndexName && pIndexName->n >= TSDB_INDEX_NAME_LEN) {
+    generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pIndexName->z);
     pCxt->valid = false;
-  } else {
-    pCxt->valid = pIndexName->n < TSDB_INDEX_NAME_LEN ? true : false;
+    return false;
   }
   trimEscape(pIndexName);
-  return pCxt->valid;
+  return true;
 }
 
 SNode* createRawExprNode(SAstCreateContext* pCxt, const SToken* pToken, SNode* pNode) {

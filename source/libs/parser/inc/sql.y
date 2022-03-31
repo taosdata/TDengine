@@ -159,6 +159,7 @@ alter_db_option(A) ::= KEEP NK_INTEGER(B).                                      
 alter_db_option(A) ::= WAL NK_INTEGER(B).                                         { A.type = DB_OPTION_WAL; A.val = B; }
 alter_db_option(A) ::= QUORUM NK_INTEGER(B).                                      { A.type = DB_OPTION_QUORUM; A.val = B; }
 alter_db_option(A) ::= CACHELAST NK_INTEGER(B).                                   { A.type = DB_OPTION_CACHELAST; A.val = B; }
+alter_db_option(A) ::= REPLICA NK_INTEGER(B).                                     { A.type = DB_OPTION_REPLICA; A.val = B; }
 
 /************************************************ create/drop table/stable ********************************************/
 cmd ::= CREATE TABLE not_exists_opt(A) full_table_name(B)

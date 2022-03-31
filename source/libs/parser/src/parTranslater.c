@@ -1048,6 +1048,7 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
   pReq->walLevel = pStmt->pOptions->walLevel;
   pReq->quorum = pStmt->pOptions->quorum;
   pReq->cacheLastRow = pStmt->pOptions->cachelast;
+  pReq->replications = pStmt->pOptions->replica;
   return;
 }
 

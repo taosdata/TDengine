@@ -327,7 +327,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_FSYNC_PERIOD     180000  // millisecond
 #define TSDB_DEFAULT_FSYNC_PERIOD 3000    // three second
 
-#define TSDB_MIN_WAL_LEVEL     0
+#define TSDB_MIN_WAL_LEVEL     1
 #define TSDB_MAX_WAL_LEVEL     2
 #define TSDB_DEFAULT_WAL_LEVEL 1
 

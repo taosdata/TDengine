@@ -524,6 +524,7 @@ typedef struct {
   int8_t  walLevel;
   int8_t  quorum;
   int8_t  cacheLastRow;
+  int8_t  replications;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
