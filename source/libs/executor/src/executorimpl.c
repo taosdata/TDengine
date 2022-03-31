@@ -3455,7 +3455,9 @@ void setFunctionResultOutput(SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t
   SqlFunctionCtx* pCtx = pInfo->pCtx;
   SSDataBlock*    pDataBlock = pInfo->pRes;
   int32_t*        rowCellInfoOffset = pInfo->rowCellInfoOffset;
+
   SResultRowInfo* pResultRowInfo = &pInfo->resultRowInfo;
+  initResultRowInfo(pResultRowInfo, 16);
 
   int64_t     tid = 0;
   int64_t     groupId = 0;
@@ -7595,10 +7597,10 @@ static void destroyOperatorInfo(SOperatorInfo* pOperator) {
 int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t numOfOutput, const char* pKey) {
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
 
-  pAggSup->resultRowSize = getResultRowSize(pCtx, numOfOutput);
-  pAggSup->keyBuf = taosMemoryCalloc(1, sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES);
+  pAggSup->resultRowSize       = getResultRowSize(pCtx, numOfOutput);
+  pAggSup->keyBuf              = taosMemoryCalloc(1, sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES);
   pAggSup->pResultRowHashTable = taosHashInit(10, hashFn, true, HASH_NO_LOCK);
-  pAggSup->pResultRowListSet = taosHashInit(100, hashFn, false, HASH_NO_LOCK);
+  pAggSup->pResultRowListSet   = taosHashInit(100, hashFn, false, HASH_NO_LOCK);
   pAggSup->pResultRowArrayList = taosArrayInit(10, sizeof(SResultRowCell));
 
   if (pAggSup->keyBuf == NULL || pAggSup->pResultRowArrayList == NULL || pAggSup->pResultRowListSet == NULL ||
