@@ -95,7 +95,7 @@ int tdbRollback(TENV *pEnv) {
 }
 
 SPager *tdbEnvGetPager(TENV *pEnv, const char *fname) {
-  int      hash;
+  u32      hash;
   SPager **ppPager;
 
   hash = tdbCstringHash(fname);
@@ -107,7 +107,7 @@ SPager *tdbEnvGetPager(TENV *pEnv, const char *fname) {
 }
 
 void tdbEnvAddPager(TENV *pEnv, SPager *pPager) {
-  int      hash;
+  u32      hash;
   SPager **ppPager;
 
   // rehash if neccessary
@@ -130,7 +130,7 @@ void tdbEnvAddPager(TENV *pEnv, SPager *pPager) {
 }
 
 void tdbEnvRemovePager(TENV *pEnv, SPager *pPager) {
-  int      hash;
+  u32      hash;
   SPager **ppPager;
 
   // remove from the list

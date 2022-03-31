@@ -16,8 +16,6 @@
 #ifndef _TD_TDB_INTERNAL_H_
 #define _TD_TDB_INTERNAL_H_
 
-#include "os.h"
-
 #include "tdb.h"
 
 #ifdef __cplusplus

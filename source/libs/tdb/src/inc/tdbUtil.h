@@ -101,10 +101,7 @@ static inline int tdbGetVarInt(const u8 *p, int *v) {
   return n;
 }
 
-static inline int tdbCstringHash(const char *s) {
-  // TODO
-  return 0;
-}
+static inline u32 tdbCstringHash(const char *s) { return MurmurHash3_32(s, strlen(s)); }
 
 #ifdef __cplusplus
 }

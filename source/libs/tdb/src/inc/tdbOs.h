@@ -24,6 +24,8 @@ extern "C" {
 #define TDB_FOR_TDENGINE
 
 #ifdef TDB_FOR_TDENGINE
+#include "os.h"
+#include "thash.h"
 
 // For memory -----------------
 #define tdbOsMalloc  taosMemoryMalloc
