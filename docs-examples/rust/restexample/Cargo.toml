@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-libtaos = { version = "*", features = ["rest"] }
+libtaos = { version = "0.4.3", features = ["rest"] }
 tokio = { version = "*", features = ["rt", "macros", "rt-multi-thread"] }

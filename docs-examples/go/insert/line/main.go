@@ -11,7 +11,7 @@ func prepareDatabase(conn *af.Connector) {
 	if err != nil {
 		panic(err)
 	}
-	_, err = conn.Exec("use test")
+	_, err = conn.Exec("USE test")
 	if err != nil {
 		panic(err)
 	}

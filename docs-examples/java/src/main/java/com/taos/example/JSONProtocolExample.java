@@ -17,15 +17,18 @@ public class JSONProtocolExample {
 
     private static void createDatabase(Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement()) {
-            stmt.execute("create database test");
-            stmt.execute("use test");
+            stmt.execute("CREATE DATABASE test");
+            stmt.execute("USE test");
         }
     }
 
     private static String getJSONData() {
-        return "[{\"metric\": \"meters.current\", \"timestamp\": 1648432611249, \"value\": 10.3, \"tags\": {\"location\": \"Beijing.Chaoyang\", \"groupid\": 2}}," +
-                " {\"metric\": \"meters.voltage\", \"timestamp\": 1648432611249, \"value\": 219, \"tags\": {\"location\": \"Beijing.Haidian\", \"groupid\": 1}}, " +
-                "{\"metric\": \"meters.current\", \"timestamp\": 1648432611250, \"value\": 12.6, \"tags\": {\"location\": \"Beijing.Chaoyang\", \"groupid\": 2}}," +
+        return "[{\"metric\": \"meters.current\", \"timestamp\": 1648432611249, \"value\": 10.3, \"tags\": {\"location\": \"Beijing.Chaoyang\", \"groupid\": 2}},"
+                +
+                " {\"metric\": \"meters.voltage\", \"timestamp\": 1648432611249, \"value\": 219, \"tags\": {\"location\": \"Beijing.Haidian\", \"groupid\": 1}}, "
+                +
+                "{\"metric\": \"meters.current\", \"timestamp\": 1648432611250, \"value\": 12.6, \"tags\": {\"location\": \"Beijing.Chaoyang\", \"groupid\": 2}},"
+                +
                 " {\"metric\": \"meters.voltage\", \"timestamp\": 1648432611250, \"value\": 221, \"tags\": {\"location\": \"Beijing.Haidian\", \"groupid\": 1}}]";
     }
 
