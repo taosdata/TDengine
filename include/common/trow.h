@@ -937,9 +937,8 @@ static FORCE_INLINE bool tdSTSRowIterNext(STSRowIter *pIter, col_id_t colId, col
     STColumn *pCol = NULL;
     STSchema *pSchema = pIter->pSchema;
     while (pIter->colIdx <= pSchema->numOfCols) {
-      pCol = &pSchema->columns[pIter->colIdx];
+      pCol = &pSchema->columns[pIter->colIdx];  // 1st column of schema is primary TS key
       if (colId == pCol->colId) {
-        ++pIter->colIdx;
         break;
       } else if (colId < pCol->colId) {
         ++pIter->colIdx;
@@ -948,7 +947,8 @@ static FORCE_INLINE bool tdSTSRowIterNext(STSRowIter *pIter, col_id_t colId, col
         return false;
       }
     }
-    return tdGetTpRowDataOfCol(pIter, pCol->type, pCol->offset - sizeof(TSKEY), pVal);
+    tdGetTpRowDataOfCol(pIter, pCol->type, pCol->offset - sizeof(TSKEY), pVal);
+    ++pIter->colIdx;
   } else if (TD_IS_KV_ROW(pIter->pRow)) {
     return tdGetKvRowValOfColEx(pIter, colId, colType, &pIter->kvIdx, pVal);
   } else {

@@ -23,34 +23,36 @@
 typedef void *(*ProcThreadFp)(void *param);
 
 typedef struct SProcQueue {
-  int32_t          head;
-  int32_t          tail;
-  int32_t          total;
-  int32_t          avail;
-  int32_t          items;
-  char            *pBuffer;
-  ProcMallocFp     mallocHeadFp;
-  ProcFreeFp       freeHeadFp;
-  ProcMallocFp     mallocBodyFp;
-  ProcFreeFp       freeBodyFp;
-  ProcConsumeFp    consumeFp;
-  void            *pParent;
-  tsem_t           sem;
-  TdThreadMutex   *mutex;
-  int32_t          mutexShmid;
-  int32_t          bufferShmid;
-  const char      *name;
+  int32_t       head;
+  int32_t       tail;
+  int32_t       total;
+  int32_t       avail;
+  int32_t       items;
+  char          name[8];
+  TdThreadMutex mutex;
+  tsem_t        sem;
+  char          pBuffer[];
 } SProcQueue;
 
 typedef struct SProcObj {
-  TdThread    childThread;
-  SProcQueue *pChildQueue;
-  TdThread    parentThread;
-  SProcQueue *pParentQueue;
-  const char *name;
-  int32_t     pid;
-  bool        isChild;
-  bool        stopFlag;
+  TdThread      thread;
+  SProcQueue   *pChildQueue;
+  SProcQueue   *pParentQueue;
+  ProcConsumeFp childConsumeFp;
+  ProcMallocFp  childMallocHeadFp;
+  ProcFreeFp    childFreeHeadFp;
+  ProcMallocFp  childMallocBodyFp;
+  ProcFreeFp    childFreeBodyFp;
+  ProcConsumeFp parentConsumeFp;
+  ProcMallocFp  parentMallocHeadFp;
+  ProcFreeFp    parentFreeHeadFp;
+  ProcMallocFp  parentMallocBodyFp;
+  ProcFreeFp    parentFreeBodyFp;
+  void         *pParent;
+  const char   *name;
+  int32_t       pid;
+  bool          isChild;
+  bool          stopFlag;
 } SProcObj;
 
 static inline int32_t CEIL8(int32_t v) {
@@ -58,150 +60,94 @@ static inline int32_t CEIL8(int32_t v) {
   return c < 8 ? 8 : c;
 }
 
-static int32_t taosProcInitMutex(TdThreadMutex **ppMutex, int32_t *pShmid) {
-  TdThreadMutex    *pMutex = NULL;
+static int32_t taosProcInitMutex(SProcQueue *pQueue) {
   TdThreadMutexAttr mattr = {0};
-  int32_t           shmid = -1;
-  int32_t           code = -1;
 
   if (taosThreadMutexAttrInit(&mattr) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to init mutex while init attr since %s", terrstr());
-    goto _OVER;
+    return -1;
   }
 
   if (taosThreadMutexAttrSetPshared(&mattr, PTHREAD_PROCESS_SHARED) != 0) {
+    taosThreadMutexAttrDestroy(&mattr);
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to init mutex while set shared since %s", terrstr());
-    goto _OVER;
+    return -1;
   }
 
-  shmid = shmget(IPC_PRIVATE, sizeof(TdThreadMutex), IPC_CREAT | 0600);
-  if (shmid <= 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    uError("failed to init mutex while shmget since %s", terrstr());
-    goto _OVER;
-  }
-
-  pMutex = (TdThreadMutex *)shmat(shmid, NULL, 0);
-  if (pMutex == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    uError("failed to init mutex while shmat since %s", terrstr());
-    goto _OVER;
-  }
-
-  if (taosThreadMutexInit(pMutex, &mattr) != 0) {
+  if (taosThreadMutexInit(&pQueue->mutex, &mattr) != 0) {
+    taosThreadMutexDestroy(&pQueue->mutex);
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to init mutex since %s", terrstr());
-    goto _OVER;
-  }
-
-  code = 0;
-
-_OVER:
-  if (code != 0) {
-    if (pMutex != NULL) {
-      taosThreadMutexDestroy(pMutex);
-      shmdt(pMutex);
-    }
-    if (shmid >= 0) {
-      shmctl(shmid, IPC_RMID, NULL);
-    }
-  } else {
-    *ppMutex = pMutex;
-    *pShmid = shmid;
+    return -1;
   }
 
   taosThreadMutexAttrDestroy(&mattr);
-  return code;
+  return 0;
 }
 
-static void taosProcDestroyMutex(TdThreadMutex *pMutex, int32_t shmid) {
-  if (pMutex != NULL) {
-    taosThreadMutexDestroy(pMutex);
-  }
-  if (shmid >= 0) {
-    shmctl(shmid, IPC_RMID, NULL);
-  }
-}
-
-static int32_t taosProcInitBuffer(void **ppBuffer, int32_t size) {
-  int32_t shmid = shmget(IPC_PRIVATE, size, IPC_CREAT | 0600);
-  if (shmid <= 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    uError("failed to init buffer while shmget since %s", terrstr());
-    return -1;
-  }
-
-  void *shmptr = shmat(shmid, NULL, 0);
-  if (shmptr == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    uError("failed to init buffer while shmat since %s", terrstr());
-    shmctl(shmid, IPC_RMID, NULL);
-    return -1;
-  }
-
-  *ppBuffer = shmptr;
-  return shmid;
-}
-
-static void taosProcDestroyBuffer(void *pBuffer, int32_t shmid) {
-  if (shmid > 0) {
-    shmdt(pBuffer);
-    shmctl(shmid, IPC_RMID, NULL);
-  }
-}
-
-static SProcQueue *taosProcInitQueue(int32_t size) {
-  if (size <= 0) size = SHM_DEFAULT_SIZE;
-
-  int32_t bufSize = CEIL8(size);
-  int32_t headSize = CEIL8(sizeof(SProcQueue));
-
-  SProcQueue *pQueue = NULL;
-  int32_t     shmId = taosProcInitBuffer((void **)&pQueue, bufSize + headSize);
-  if (shmId < 0) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-  pQueue->bufferShmid = shmId;
-
-  if (taosProcInitMutex(&pQueue->mutex, &pQueue->mutexShmid) != 0) {
-    taosProcDestroyBuffer(pQueue, pQueue->bufferShmid);
-    return NULL;
-  }
-
+static int32_t taosProcInitSem(SProcQueue *pQueue) {
   if (tsem_init(&pQueue->sem, 1, 0) != 0) {
-    taosProcDestroyMutex(pQueue->mutex, pQueue->mutexShmid);
-    taosProcDestroyBuffer(pQueue, pQueue->bufferShmid);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    uError("failed to init sem");
+    return -1;
+  }
+
+  return 0;
+}
+
+static SProcQueue *taosProcInitQueue(const char *name, bool isChild, char *ptr, int32_t size) {
+  int32_t bufSize = size - CEIL8(sizeof(SProcQueue));
+  if (bufSize <= 1024) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  if (taosProcInitMutex(&pQueue->mutex, &pQueue->mutexShmid) != 0) {
-    tsem_destroy(&pQueue->sem);
-    taosProcDestroyMutex(pQueue->mutex, pQueue->mutexShmid);
-    taosProcDestroyBuffer(pQueue, pQueue->bufferShmid);
-    return NULL;
+  SProcQueue *pQueue = (SProcQueue *)(ptr);
+
+  if (!isChild) {
+    if (taosProcInitMutex(pQueue) != 0) {
+      return NULL;
+    }
+
+    if (taosProcInitSem(pQueue) != 0) {
+      return NULL;
+    }
+
+    tstrncpy(pQueue->name, name, sizeof(pQueue->name));
+    pQueue->head = 0;
+    pQueue->tail = 0;
+    pQueue->total = bufSize;
+    pQueue->avail = bufSize;
+    pQueue->items = 0;
   }
 
-  pQueue->head = 0;
-  pQueue->tail = 0;
-  pQueue->total = bufSize;
-  pQueue->avail = bufSize;
-  pQueue->items = 0;
-  pQueue->pBuffer = (char *)pQueue + headSize;
   return pQueue;
+}
+
+#if 0
+static void taosProcDestroyMutex(SProcQueue *pQueue) {
+  if (pQueue->mutex != NULL) {
+    taosThreadMutexDestroy(pQueue->mutex);
+    pQueue->mutex = NULL;
+  }
+}
+
+static void taosProcDestroySem(SProcQueue *pQueue) {
+  if (pQueue->sem != NULL) {
+    tsem_destroy(pQueue->sem);
+    pQueue->sem = NULL;
+  }
 }
 
 static void taosProcCleanupQueue(SProcQueue *pQueue) {
   if (pQueue != NULL) {
-    uDebug("proc:%s, queue:%p clean up", pQueue->name, pQueue);
-    tsem_destroy(&pQueue->sem);
-    taosProcDestroyMutex(pQueue->mutex, pQueue->mutexShmid);
-    taosProcDestroyBuffer(pQueue, pQueue->bufferShmid);
+    taosProcDestroyMutex(pQueue);
+    taosProcDestroySem(pQueue);
   }
 }
+#endif
 
 static int32_t taosProcQueuePush(SProcQueue *pQueue, const char *pHead, int16_t rawHeadLen, const char *pBody,
                                  int32_t rawBodyLen, ProcFuncType ftype) {
@@ -209,9 +155,9 @@ static int32_t taosProcQueuePush(SProcQueue *pQueue, const char *pHead, int16_t 
   const int32_t bodyLen = CEIL8(rawBodyLen);
   const int32_t fullLen = headLen + bodyLen + 8;
 
-  taosThreadMutexLock(pQueue->mutex);
+  taosThreadMutexLock(&pQueue->mutex);
   if (fullLen > pQueue->avail) {
-    taosThreadMutexUnlock(pQueue->mutex);
+    taosThreadMutexUnlock(&pQueue->mutex);
     terrno = TSDB_CODE_OUT_OF_SHM_MEM;
     return -1;
   }
@@ -260,7 +206,7 @@ static int32_t taosProcQueuePush(SProcQueue *pQueue, const char *pHead, int16_t 
 
   pQueue->avail -= fullLen;
   pQueue->items++;
-  taosThreadMutexUnlock(pQueue->mutex);
+  taosThreadMutexUnlock(&pQueue->mutex);
   tsem_post(&pQueue->sem);
 
   uTrace("proc:%s, push msg at pos:%d ftype:%d remain:%d, head:%d %p body:%d %p", pQueue->name, pos, ftype,
@@ -268,13 +214,14 @@ static int32_t taosProcQueuePush(SProcQueue *pQueue, const char *pHead, int16_t 
   return 0;
 }
 
-static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int16_t *pHeadLen, void **ppBody,
-                                int32_t *pBodyLen, ProcFuncType *pFuncType) {
+static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int16_t *pHeadLen, void **ppBody, int32_t *pBodyLen,
+                                ProcFuncType *pFuncType, ProcMallocFp mallocHeadFp, ProcFreeFp freeHeadFp,
+                                ProcMallocFp mallocBodyFp, ProcFreeFp freeBodyFp) {
   tsem_wait(&pQueue->sem);
 
-  taosThreadMutexLock(pQueue->mutex);
+  taosThreadMutexLock(&pQueue->mutex);
   if (pQueue->total - pQueue->avail <= 0) {
-    taosThreadMutexUnlock(pQueue->mutex);
+    taosThreadMutexUnlock(&pQueue->mutex);
     tsem_post(&pQueue->sem);
     terrno = TSDB_CODE_OUT_OF_SHM_MEM;
     return 0;
@@ -293,13 +240,13 @@ static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int16_t *pHea
     bodyLen = *(int32_t *)(pQueue->pBuffer + 4);
   }
 
-  void *pHead = (*pQueue->mallocHeadFp)(headLen);
-  void *pBody = (*pQueue->mallocBodyFp)(bodyLen);
+  void *pHead = (*mallocHeadFp)(headLen);
+  void *pBody = (*mallocBodyFp)(bodyLen);
   if (pHead == NULL || pBody == NULL) {
-    taosThreadMutexUnlock(pQueue->mutex);
+    taosThreadMutexUnlock(&pQueue->mutex);
     tsem_post(&pQueue->sem);
-    (*pQueue->freeHeadFp)(pHead);
-    (*pQueue->freeBodyFp)(pBody);
+    (*freeHeadFp)(pHead);
+    (*freeBodyFp)(pBody);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -338,7 +285,7 @@ static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int16_t *pHea
 
   pQueue->avail = pQueue->avail + headLen + bodyLen + 8;
   pQueue->items--;
-  taosThreadMutexUnlock(pQueue->mutex);
+  taosThreadMutexUnlock(&pQueue->mutex);
 
   *ppHead = pHead;
   *ppBody = pBody;
@@ -358,65 +305,85 @@ SProcObj *taosProcInit(const SProcCfg *pCfg) {
     return NULL;
   }
 
+  int32_t cstart = 0;
+  int32_t csize = CEIL8(pCfg->shm.size / 2);
+  int32_t pstart = csize;
+  int32_t psize = CEIL8(pCfg->shm.size - pstart);
+  if (pstart + psize > pCfg->shm.size) {
+    psize -= 8;
+  }
+
   pProc->name = pCfg->name;
-  pProc->pChildQueue = taosProcInitQueue(pCfg->childQueueSize);
-  pProc->pParentQueue = taosProcInitQueue(pCfg->parentQueueSize);
+  pProc->pChildQueue = taosProcInitQueue(pCfg->name, pCfg->isChild, (char *)pCfg->shm.ptr + cstart, csize);
+  pProc->pParentQueue = taosProcInitQueue(pCfg->name, pCfg->isChild, (char *)pCfg->shm.ptr + pstart, psize);
   if (pProc->pChildQueue == NULL || pProc->pParentQueue == NULL) {
-    taosProcCleanupQueue(pProc->pChildQueue);
+    // taosProcCleanupQueue(pProc->pChildQueue);
     taosMemoryFree(pProc);
     return NULL;
   }
 
-  pProc->pChildQueue->name = pCfg->name;
-  pProc->pChildQueue->pParent = pCfg->pParent;
-  pProc->pChildQueue->mallocHeadFp = pCfg->childMallocHeadFp;
-  pProc->pChildQueue->freeHeadFp = pCfg->childFreeHeadFp;
-  pProc->pChildQueue->mallocBodyFp = pCfg->childMallocBodyFp;
-  pProc->pChildQueue->freeBodyFp = pCfg->childFreeBodyFp;
-  pProc->pChildQueue->consumeFp = pCfg->childConsumeFp;
-  pProc->pParentQueue->name = pCfg->name;
-  pProc->pParentQueue->pParent = pCfg->pParent;
-  pProc->pParentQueue->mallocHeadFp = pCfg->parentdMallocHeadFp;
-  pProc->pParentQueue->freeHeadFp = pCfg->parentFreeHeadFp;
-  pProc->pParentQueue->mallocBodyFp = pCfg->parentMallocBodyFp;
-  pProc->pParentQueue->freeBodyFp = pCfg->parentFreeBodyFp;
-  pProc->pParentQueue->consumeFp = pCfg->parentConsumeFp;
+  pProc->name = pCfg->name;
+  pProc->pParent = pCfg->pParent;
+  pProc->childMallocHeadFp = pCfg->childMallocHeadFp;
+  pProc->childFreeHeadFp = pCfg->childFreeHeadFp;
+  pProc->childMallocBodyFp = pCfg->childMallocBodyFp;
+  pProc->childFreeBodyFp = pCfg->childFreeBodyFp;
+  pProc->childConsumeFp = pCfg->childConsumeFp;
+  pProc->parentMallocHeadFp = pCfg->parentMallocHeadFp;
+  pProc->parentFreeHeadFp = pCfg->parentFreeHeadFp;
+  pProc->parentMallocBodyFp = pCfg->parentMallocBodyFp;
+  pProc->parentFreeBodyFp = pCfg->parentFreeBodyFp;
+  pProc->parentConsumeFp = pCfg->parentConsumeFp;
+  pProc->isChild = pCfg->isChild;
 
-  uDebug("proc:%s, is initialized, child queue:%p parent queue:%p", pProc->name, pProc->pChildQueue, pProc->pParentQueue);
-
-  pProc->pid = fork();
-  if (pProc->pid == 0) {
-    pProc->isChild = 1;
-    prctl(PR_SET_NAME, pProc->name, NULL, NULL, NULL); 
-  } else {
-    pProc->isChild = 0;
-    uInfo("this is parent process, child pid:%d", pProc->pid);
-  }
+  uDebug("proc:%s, is initialized, isChild:%d child queue:%p parent queue:%p", pProc->name, pProc->isChild,
+         pProc->pChildQueue, pProc->pParentQueue);
 
   return pProc;
 }
 
-static void taosProcThreadLoop(SProcQueue *pQueue) {
-  ProcConsumeFp consumeFp = pQueue->consumeFp;
-  void         *pParent = pQueue->pParent;
+static void taosProcThreadLoop(SProcObj *pProc) {
   void         *pHead, *pBody;
   int16_t       headLen;
   ProcFuncType  ftype;
   int32_t       bodyLen;
+  SProcQueue   *pQueue;
+  ProcConsumeFp consumeFp;
+  ProcMallocFp  mallocHeadFp;
+  ProcFreeFp    freeHeadFp;
+  ProcMallocFp  mallocBodyFp;
+  ProcFreeFp    freeBodyFp;
 
-  uDebug("proc:%s, start to get msg from queue:%p", pQueue->name, pQueue);
+  if (pProc->isChild) {
+    pQueue = pProc->pChildQueue;
+    consumeFp = pProc->childConsumeFp;
+    mallocHeadFp = pProc->childMallocHeadFp;
+    freeHeadFp = pProc->childFreeHeadFp;
+    mallocBodyFp = pProc->childMallocBodyFp;
+    freeBodyFp = pProc->childFreeBodyFp;
+  } else {
+    pQueue = pProc->pParentQueue;
+    consumeFp = pProc->parentConsumeFp;
+    mallocHeadFp = pProc->parentMallocHeadFp;
+    freeHeadFp = pProc->parentFreeHeadFp;
+    mallocBodyFp = pProc->parentMallocBodyFp;
+    freeBodyFp = pProc->parentFreeBodyFp;
+  }
+
+  uDebug("proc:%s, start to get msg from queue:%p, isChild:%d", pProc->name, pQueue, pProc->isChild);
 
   while (1) {
-    int32_t numOfMsgs = taosProcQueuePop(pQueue, &pHead, &headLen, &pBody, &bodyLen, &ftype);
+    int32_t numOfMsgs = taosProcQueuePop(pQueue, &pHead, &headLen, &pBody, &bodyLen, &ftype, mallocHeadFp, freeHeadFp,
+                                         mallocBodyFp, freeBodyFp);
     if (numOfMsgs == 0) {
-      uDebug("proc:%s, get no msg from queue:%p and exit the proc thread", pQueue->name, pQueue);
+      uInfo("proc:%s, get no msg from queue:%p and exit the proc thread", pProc->name, pQueue);
       break;
     } else if (numOfMsgs < 0) {
-      uTrace("proc:%s, get no msg from queue:%p since %s", pQueue->name, pQueue, terrstr());
+      uTrace("proc:%s, get no msg from queue:%p since %s", pProc->name, pQueue, terrstr());
       taosMsleep(1);
       continue;
     } else {
-      (*consumeFp)(pParent, pHead, headLen, pBody, bodyLen, ftype);
+      (*consumeFp)(pProc->pParent, pHead, headLen, pBody, bodyLen, ftype);
     }
   }
 }
@@ -426,40 +393,37 @@ int32_t taosProcRun(SProcObj *pProc) {
   taosThreadAttrInit(&thAttr);
   taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
 
-  if (pProc->isChild) {
-    if (taosThreadCreate(&pProc->childThread, &thAttr, (ProcThreadFp)taosProcThreadLoop, pProc->pChildQueue) != 0) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      uError("failed to create thread since %s", terrstr());
-      return -1;
-    }
-    uDebug("proc:%s, child start to consume queue:%p", pProc->name, pProc->pChildQueue);
-  } else {
-    if (taosThreadCreate(&pProc->parentThread, &thAttr, (ProcThreadFp)taosProcThreadLoop, pProc->pParentQueue) != 0) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      uError("failed to create thread since %s", terrstr());
-      return -1;
-    }
-    uDebug("proc:%s, parent start to consume queue:%p", pProc->name, pProc->pParentQueue);
+  if (taosThreadCreate(&pProc->thread, &thAttr, (ProcThreadFp)taosProcThreadLoop, pProc) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    uError("failed to create thread since %s", terrstr());
+    return -1;
   }
 
+  uDebug("proc:%s, start to consume queue:%p, thread:%" PRId64, pProc->name, pProc->pChildQueue, pProc->thread);
   return 0;
 }
 
-void taosProcStop(SProcObj *pProc) {
-  pProc->stopFlag = true;
-  // todo join
+static void taosProcStop(SProcObj *pProc) {
+  if (!taosCheckPthreadValid(pProc->thread)) return;
+
+  uDebug("proc:%s, start to join thread:%" PRId64 ", isChild:%d", pProc->name, pProc->thread, pProc->isChild);
+  SProcQueue *pQueue;
+  if (pProc->isChild) {
+    pQueue = pProc->pChildQueue;
+  } else {
+    pQueue = pProc->pParentQueue;
+  }
+  tsem_post(&pQueue->sem);
+  taosThreadJoin(pProc->thread, NULL);
 }
-
-bool taosProcIsChild(SProcObj *pProc) { return pProc->isChild; }
-
-int32_t taosProcChildId(SProcObj *pProc) { return pProc->pid; }
 
 void taosProcCleanup(SProcObj *pProc) {
   if (pProc != NULL) {
-    uDebug("proc:%s, clean up", pProc->name);
+    uDebug("proc:%s, start to clean up", pProc->name);
     taosProcStop(pProc);
-    taosProcCleanupQueue(pProc->pChildQueue);
-    taosProcCleanupQueue(pProc->pParentQueue);
+    uDebug("proc:%s, is cleaned up", pProc->name);
+    // taosProcCleanupQueue(pProc->pChildQueue);
+    // taosProcCleanupQueue(pProc->pParentQueue);
     taosMemoryFree(pProc);
   }
 }

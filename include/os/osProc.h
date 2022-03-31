@@ -13,31 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_INDEX_SPARSE_H_
-#define _TD_INDEX_SPARSE_H_
-
-#include "tarray.h"
+#ifndef _TD_OS_PROC_H_
+#define _TD_OS_PROC_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct FstSparseSet {
-  SArray *dense;
-  SArray *sparse;
-  int32_t size;
-} FstSparseSet;
-
-FstSparseSet *sparSetCreate(int32_t sz);
-void          sparSetDestroy(FstSparseSet *s);
-uint32_t      sparSetLen(FstSparseSet *ss);
-uint32_t      sparSetAdd(FstSparseSet *ss, uint32_t ip);
-uint32_t      sparSetGet(FstSparseSet *ss, uint32_t i);
-bool          sparSetContains(FstSparseSet *ss, uint32_t ip);
-void          sparSetClear(FstSparseSet *ss);
+int32_t taosNewProc(char **args);
+void    taosSetProcName(int32_t argc, char **argv, const char *name);
+void    taosSetProcPath(int32_t argc, char **argv);
+bool    taosProcExists(int32_t pid);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /*_TD_OS_PROC_H_*/
