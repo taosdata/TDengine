@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	var taosDSN = "root:taosdata@http(localhost:6041)"
+	var taosDSN = "root:taosdata@http(localhost:6041)/"
 	taos, err := sql.Open("taosRestful", taosDSN)
 	if err != nil {
 		fmt.Println("failed to connect TDengine, err:", err)

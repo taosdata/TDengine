@@ -6,7 +6,7 @@
 
 如果用户需要导出一个表或一个 STable 中的数据，可在 taos shell 中运行：
 
-```mysql
+```sql
 select * from <tb_name> >> data.csv;
 ```
 

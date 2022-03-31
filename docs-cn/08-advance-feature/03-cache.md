@@ -14,7 +14,7 @@ TDengine 将内存池按块划分进行管理，数据在内存块里是以行�
 
 你可以通过函数 last_row() 快速获取一张表或一张超级表的最后一条记录，这样很便于在大屏显示各设备的实时状态或采集值。例如：
 
-```mysql
+```sql
 select last_row(voltage) from meters where location='Beijing.Chaoyang';
 ```
 

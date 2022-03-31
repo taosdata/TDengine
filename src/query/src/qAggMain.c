@@ -345,7 +345,7 @@ static uint64_t hllCountCnt(uint8_t *buckets) {
     z *= 0.5;
   }
   z += m * hllSigma(buckethisto[0]/(double)m);
-  double E = llroundl(HLL_ALPHA_INF*m*m/z);
+  double E = (double)llroundl(HLL_ALPHA_INF*m*m/z);
 
   return (uint64_t) E;
 }

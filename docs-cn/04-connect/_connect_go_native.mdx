@@ -11,6 +11,12 @@ go 1.17
 require github.com/taosdata/driver-go/v2 develop
 ```
 
-```go
+```go title="使用 database/sql 包建立连接"
 {{#include docs-examples/go/connect/cgoexample/main.go}}
+```
+
+也可以使用 driver-go 的 af 包建立连接。这个模块封装了 TDengine 的高级功能, 如：动态绑定、订阅等。
+
+```go title="使用 af 包建立连接"
+{{#include docs-examples/go/connect/afconn/main.go}}
 ```
