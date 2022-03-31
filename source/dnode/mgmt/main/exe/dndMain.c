@@ -50,13 +50,10 @@ static void dndSetSignalHandle() {
   taosSetSignal(SIGBREAK, dndStopDnode);
 
   if (!tsMultiProcess) {
-    // Set the single process signal
   } else if (global.ntype == DNODE) {
-    // When the child process exits, the parent process receives a signal
     taosSetSignal(SIGCHLD, dndHandleChild);
   } else {
-    // When the parent process exits, the child process will receive the SIGKILL signal
-    taosKillChildOnSelfStopped();
+    taosKillChildOnParentStopped();
   }
 }
 
@@ -140,10 +137,11 @@ static int32_t dndInitLog() {
   return taosCreateLog(logName, 1, configDir, global.envFile, global.apolloUrl, global.pArgs, 0);
 }
 
-static void dndSetProcName(char **argv) {
+static void dndSetProcInfo(int32_t argc, char **argv) {
+  taosSetProcPath(argc, argv);
   if (global.ntype != DNODE) {
     const char *name = dndNodeProcStr(global.ntype);
-    taosSetProcName(argv, name);
+    taosSetProcName(argc, argv, name);
   }
 }
 
@@ -186,6 +184,7 @@ int main(int argc, char const *argv[]) {
     return -1;
   }
 
+  dndSetProcInfo(argc, (char **)argv);
   if (global.generateGrant) {
     dndGenerateGrant();
     return 0;
@@ -213,6 +212,5 @@ int main(int argc, char const *argv[]) {
     return 0;
   }
 
-  dndSetProcName((char **)argv);
   return dndRunDnode();
 }
