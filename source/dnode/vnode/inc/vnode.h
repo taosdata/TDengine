@@ -17,8 +17,9 @@
 #define _TD_VNODE_H_
 
 #include "os.h"
-#include "trpc.h"
 #include "tmsgcb.h"
+#include "tqueue.h"
+#include "trpc.h"
 
 #include "meta.h"
 #include "tarray.h"
@@ -166,7 +167,7 @@ int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
  * @param pMsg The request message
  * @return int 0 for success, -1 for failure
  */
-int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg);
+int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 
 /* ------------------------ SVnodeCfg ------------------------ */
 /**
@@ -184,7 +185,6 @@ void vnodeOptionsInit(SVnodeCfg *pOptions);
 void vnodeOptionsClear(SVnodeCfg *pOptions);
 
 int vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName);
-
 
 /* ------------------------ FOR COMPILE ------------------------ */
 

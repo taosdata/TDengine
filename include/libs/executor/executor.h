@@ -37,6 +37,11 @@ typedef struct SReadHandle {
 #define STREAM_DATA_TYPE_SUBMIT_BLOCK 0x1
 #define STREAM_DATA_TYPE_SSDATA_BLOCK 0x2
 
+typedef enum {
+  OPTR_EXEC_MODEL_BATCH  = 0x1,
+  OPTR_EXEC_MODEL_STREAM = 0x2,
+} EOPTR_EXEC_MODEL;
+
 /**
  * Create the exec task for streaming mode
  * @param pMsg
@@ -84,7 +89,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, SArray* tableIdList, bool isA
  * @return
  */
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, struct SSubplan* pPlan,
-                        qTaskInfo_t* pTaskInfo, DataSinkHandle* handle);
+                        qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, EOPTR_EXEC_MODEL model);
 
 /**
  * The main task execution function, including query on both table and multiple tables,

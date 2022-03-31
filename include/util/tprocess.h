@@ -32,29 +32,25 @@ typedef void *(*ProcConsumeFp)(void *pParent, void *pHead, int16_t headLen, void
                                ProcFuncType ftype);
 
 typedef struct {
-  int32_t       childQueueSize;
   ProcConsumeFp childConsumeFp;
   ProcMallocFp  childMallocHeadFp;
   ProcFreeFp    childFreeHeadFp;
   ProcMallocFp  childMallocBodyFp;
   ProcFreeFp    childFreeBodyFp;
-  int32_t       parentQueueSize;
   ProcConsumeFp parentConsumeFp;
-  ProcMallocFp  parentdMallocHeadFp;
+  ProcMallocFp  parentMallocHeadFp;
   ProcFreeFp    parentFreeHeadFp;
   ProcMallocFp  parentMallocBodyFp;
   ProcFreeFp    parentFreeBodyFp;
-  bool          testFlag;
+  SShm          shm;
   void         *pParent;
   const char   *name;
+  bool          isChild;
 } SProcCfg;
 
 SProcObj *taosProcInit(const SProcCfg *pCfg);
 void      taosProcCleanup(SProcObj *pProc);
 int32_t   taosProcRun(SProcObj *pProc);
-void      taosProcStop(SProcObj *pProc);
-bool      taosProcIsChild(SProcObj *pProc);
-int32_t   taosProcChildId(SProcObj *pProc);
 int32_t   taosProcPutToChildQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
                               ProcFuncType ftype);
 int32_t   taosProcPutToParentQ(SProcObj *pProc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,

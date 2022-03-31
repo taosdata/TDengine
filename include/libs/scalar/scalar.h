@@ -58,6 +58,14 @@ int32_t ceilFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 int32_t floorFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t roundFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
+bool getTimePseudoFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+
+int32_t winStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t winEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t winDurFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t qStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t qEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
 #ifdef __cplusplus
 }
 #endif

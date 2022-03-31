@@ -20,7 +20,7 @@
 static int8_t once = DND_ENV_INIT;
 
 int32_t dndInit() {
-  dInfo("start to init dnode env");
+  dDebug("start to init dnode env");
   if (atomic_val_compare_exchange_8(&once, DND_ENV_INIT, DND_ENV_READY) != DND_ENV_INIT) {
     terrno = TSDB_CODE_REPEAT_INIT;
     dError("failed to init dnode env since %s", terrstr());
@@ -31,12 +31,6 @@ int32_t dndInit() {
   taosBlockSIGPIPE();
   taosResolveCRC();
 
-  if (rpcInit() != 0) {
-    dError("failed to init rpc since %s", terrstr());
-    dndCleanup();
-    return -1;
-  }
-
   SMonCfg monCfg = {0};
   monCfg.maxLogs = tsMonitorMaxLogs;
   monCfg.port = tsMonitorPort;
@@ -44,7 +38,6 @@ int32_t dndInit() {
   monCfg.comp = tsMonitorComp;
   if (monInit(&monCfg) != 0) {
     dError("failed to init monitor since %s", terrstr());
-    dndCleanup();
     return -1;
   }
 
@@ -53,20 +46,19 @@ int32_t dndInit() {
 }
 
 void dndCleanup() {
-  dInfo("start to cleanup dnode env");
+  dDebug("start to cleanup dnode env");
   if (atomic_val_compare_exchange_8(&once, DND_ENV_READY, DND_ENV_CLEANUP) != DND_ENV_READY) {
     dError("dnode env is already cleaned up");
     return;
   }
 
   monCleanup();
-  rpcCleanup();
   walCleanUp();
   taosStopCacheRefreshWorker();
   dInfo("dnode env is cleaned up");
 }
 
-void dndSetMsgHandle(SMgmtWrapper *pWrapper, int32_t msgType, NodeMsgFp nodeMsgFp, int32_t vgId) {
+void dndSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, int8_t vgId) {
   pWrapper->msgFps[TMSG_INDEX(msgType)] = nodeMsgFp;
   pWrapper->msgVgIds[TMSG_INDEX(msgType)] = vgId;
 }
@@ -90,29 +82,6 @@ void dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc) {
 void dndGetStartup(SDnode *pDnode, SStartupReq *pStartup) {
   memcpy(pStartup, &pDnode->startup, sizeof(SStartupReq));
   pStartup->finished = (dndGetStatus(pDnode) == DND_STAT_RUNNING);
-}
-
-TdFilePtr dndCheckRunning(const char *dataDir) {
-  char filepath[PATH_MAX] = {0};
-  snprintf(filepath, sizeof(filepath), "%s/.running", dataDir);
-
-  TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
-  if (pFile == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to lock file:%s since %s", filepath, terrstr());
-    return NULL;
-  }
-
-  int32_t ret = taosLockFile(pFile);
-  if (ret != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to lock file:%s since %s", filepath, terrstr());
-    taosCloseFile(&pFile);
-    return NULL;
-  }
-
-  dDebug("file:%s is locked", filepath);
-  return pFile;
 }
 
 void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {

@@ -167,8 +167,10 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
       if (!tdSTSRowIterNext(&iter, pColData->info.colId, pColData->info.type, &sVal)) {
         break;
       }
-      // TODO handle null
-      colDataAppend(pColData, curRow, sVal.val, sVal.valType == TD_VTYPE_NULL);
+      if (colDataAppend(pColData, curRow, sVal.val, sVal.valType == TD_VTYPE_NULL) < 0) {
+        taosArrayDestroyEx(pArray, (void (*)(void*))tDeleteSSDataBlock);
+        return NULL;
+      }
     }
     curRow++;
   }

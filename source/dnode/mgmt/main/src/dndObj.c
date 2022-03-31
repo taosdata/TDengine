@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dndInt.h"
 
-static int32_t dndInitMemory(SDnode *pDnode, const SDnodeOpt *pOption) {
+static int32_t dndInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
   pDnode->numOfSupportVnodes = pOption->numOfSupportVnodes;
   pDnode->serverPort = pOption->serverPort;
   pDnode->dataDir = strdup(pOption->dataDir);
@@ -24,8 +24,9 @@ static int32_t dndInitMemory(SDnode *pDnode, const SDnodeOpt *pOption) {
   pDnode->localFqdn = strdup(pOption->localFqdn);
   pDnode->firstEp = strdup(pOption->firstEp);
   pDnode->secondEp = strdup(pOption->secondEp);
-  pDnode->pDisks = pOption->pDisks;
+  pDnode->disks = pOption->disks;
   pDnode->numOfDisks = pOption->numOfDisks;
+  pDnode->ntype = pOption->ntype;
   pDnode->rebootTime = taosGetTimestampMs();
 
   if (pDnode->dataDir == NULL || pDnode->localEp == NULL || pDnode->localFqdn == NULL || pDnode->firstEp == NULL ||
@@ -33,18 +34,26 @@ static int32_t dndInitMemory(SDnode *pDnode, const SDnodeOpt *pOption) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
+  if (!tsMultiProcess || pDnode->ntype == DNODE || pDnode->ntype == NODE_MAX) {
+    pDnode->lockfile = dndCheckRunning(pDnode->dataDir);
+    if (pDnode->lockfile == NULL) {
+      return -1;
+    }
+  }
+
   return 0;
 }
 
-static void dndClearMemory(SDnode *pDnode) {
+static void dndClearVars(SDnode *pDnode) {
   for (ENodeType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pMgmt = &pDnode->wrappers[n];
     taosMemoryFreeClear(pMgmt->path);
   }
-  if (pDnode->pLockFile != NULL) {
-    taosUnLockFile(pDnode->pLockFile);
-    taosCloseFile(&pDnode->pLockFile);
-    pDnode->pLockFile = NULL;
+  if (pDnode->lockfile != NULL) {
+    taosUnLockFile(pDnode->lockfile);
+    taosCloseFile(&pDnode->lockfile);
+    pDnode->lockfile = NULL;
   }
   taosMemoryFreeClear(pDnode->localEp);
   taosMemoryFreeClear(pDnode->localFqdn);
@@ -56,7 +65,7 @@ static void dndClearMemory(SDnode *pDnode) {
 }
 
 SDnode *dndCreate(const SDnodeOpt *pOption) {
-  dInfo("start to create dnode object");
+  dDebug("start to create dnode object");
   int32_t code = -1;
   char    path[PATH_MAX] = {0};
   SDnode *pDnode = NULL;
@@ -67,26 +76,12 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
     goto _OVER;
   }
 
-  if (dndInitMemory(pDnode, pOption) != 0) {
+  if (dndInitVars(pDnode, pOption) != 0) {
+    dError("failed to init variables since %s", terrstr());
     goto _OVER;
   }
 
   dndSetStatus(pDnode, DND_STAT_INIT);
-  pDnode->pLockFile = dndCheckRunning(pDnode->dataDir);
-  if (pDnode->pLockFile == NULL) {
-    goto _OVER;
-  }
-
-  if (dndInitServer(pDnode) != 0) {
-    dError("failed to init trans server since %s", terrstr());
-    goto _OVER;
-  }
-
-  if (dndInitClient(pDnode) != 0) {
-    dError("failed to init trans client since %s", terrstr());
-    goto _OVER;
-  }
-
   dmGetMgmtFp(&pDnode->wrappers[DNODE]);
   mmGetMgmtFp(&pDnode->wrappers[MNODE]);
   vmGetMgmtFp(&pDnode->wrappers[VNODES]);
@@ -94,14 +89,11 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
   smGetMgmtFp(&pDnode->wrappers[SNODE]);
   bmGetMgmtFp(&pDnode->wrappers[BNODE]);
 
-  if (dndInitMsgHandle(pDnode) != 0) {
-    goto _OVER;
-  }
-
   for (ENodeType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     snprintf(path, sizeof(path), "%s%s%s", pDnode->dataDir, TD_DIRSEP, pWrapper->name);
     pWrapper->path = strdup(path);
+    pWrapper->shm.id = -1;
     pWrapper->pDnode = pDnode;
     if (pWrapper->path == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -112,15 +104,27 @@ SDnode *dndCreate(const SDnodeOpt *pOption) {
     taosInitRWLatch(&pWrapper->latch);
   }
 
+  if (dndInitMsgHandle(pDnode) != 0) {
+    dError("failed to msg handles since %s", terrstr());
+    goto _OVER;
+  }
+
+  if (dndReadShmFile(pDnode) != 0) {
+    dError("failed to read shm file since %s", terrstr());
+    goto _OVER;
+  }
+
+  SMsgCb msgCb = dndCreateMsgcb(&pDnode->wrappers[0]);
+  tmsgSetDefaultMsgCb(&msgCb);
+
+  dInfo("dnode object is created, data:%p", pDnode);
   code = 0;
 
 _OVER:
   if (code != 0 && pDnode) {
-    dndClearMemory(pDnode);
+    dndClearVars(pDnode);
     pDnode = NULL;
     dError("failed to create dnode object since %s", terrstr());
-  } else {
-    dInfo("dnode object is created, data:%p", pDnode);
   }
 
   return pDnode;
@@ -137,15 +141,12 @@ void dndClose(SDnode *pDnode) {
   dInfo("start to close dnode, data:%p", pDnode);
   dndSetStatus(pDnode, DND_STAT_STOPPED);
 
-  dndCleanupServer(pDnode);
-  dndCleanupClient(pDnode);
-
   for (ENodeType n = 0; n < NODE_MAX; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
     dndCloseNode(pWrapper);
   }
 
-  dndClearMemory(pDnode);
+  dndClearVars(pDnode);
   dInfo("dnode object is closed, data:%p", pDnode);
 }
 

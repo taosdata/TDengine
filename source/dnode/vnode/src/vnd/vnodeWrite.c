@@ -17,7 +17,9 @@
 
 void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   // TODO
+
   blockDebugShowData(data);
+  tsdbInsertTSmaData(((SVnode *)pVnode)->pTsdb, smaId, (const char *)data);
 }
 
 void vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
@@ -184,24 +186,25 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
     } break;
     case TDMT_VND_TASK_WRITE_EXEC: {
-      if (tqProcessTaskExec(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
-                            pMsg->contLen - sizeof(SMsgHead)) < 0) {
+      if (tqProcessTaskExec(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead),
+                            0) < 0) {
       }
     } break;
     case TDMT_VND_CREATE_SMA: {  // timeRangeSMA
 #if 1
-      
+
       SSmaCfg vCreateSmaReq = {0};
       if (tDeserializeSVCreateTSmaReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateSmaReq) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
-        vWarn("vgId%d: TDMT_VND_CREATE_SMA received but deserialize failed since %s", pVnode->config.vgId, terrstr(terrno));
+        vWarn("vgId%d: TDMT_VND_CREATE_SMA received but deserialize failed since %s", pVnode->config.vgId,
+              terrstr(terrno));
         return -1;
       }
       vWarn("vgId%d: TDMT_VND_CREATE_SMA received for %s:%" PRIi64, pVnode->config.vgId, vCreateSmaReq.tSma.indexName,
             vCreateSmaReq.tSma.indexUid);
 
       // record current timezone of server side
-      tstrncpy(vCreateSmaReq.tSma.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
+      vCreateSmaReq.tSma.timezoneInt = tsTimezone;
 
       if (metaCreateTSma(pVnode->pMeta, &vCreateSmaReq) < 0) {
         // TODO: handle error

@@ -647,3 +647,16 @@ TEST_F(ParserTest, dropTopic) {
   bind("drop topic if exists tp1");
   ASSERT_TRUE(run());
 }
+
+TEST_F(ParserTest, explain) {
+  setDatabase("root", "test");
+
+  bind("explain SELECT * FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("explain analyze SELECT * FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("explain analyze verbose true ratio 0.01 SELECT * FROM t1");
+  ASSERT_TRUE(run());
+}

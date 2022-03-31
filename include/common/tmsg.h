@@ -469,8 +469,7 @@ typedef struct {
   int32_t tz;  // query client timezone
   char    intervalUnit;
   char    slidingUnit;
-  char
-      offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
+  char    offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
   int8_t  precision;
   int64_t interval;
   int64_t sliding;
@@ -2017,7 +2016,6 @@ typedef struct {
   int8_t   slidingUnit;   // MACRO: TIME_UNIT_XXX
   int8_t   timezoneInt;   // sma data expired if timezone changes.
   char     indexName[TSDB_INDEX_NAME_LEN];
-  char     timezone[TD_TIMEZONE_LEN];
   int32_t  exprLen;
   int32_t  tagsFilterLen;
   int64_t  indexUid;
@@ -2054,32 +2052,6 @@ int32_t tSerializeSVCreateTSmaReq(void** buf, SVCreateTSmaReq* pReq);
 void*   tDeserializeSVCreateTSmaReq(void* buf, SVCreateTSmaReq* pReq);
 int32_t tSerializeSVDropTSmaReq(void** buf, SVDropTSmaReq* pReq);
 void*   tDeserializeSVDropTSmaReq(void* buf, SVDropTSmaReq* pReq);
-
-typedef struct {
-  col_id_t colId;
-  uint16_t blockSize;  // sma data block size
-  char     data[];
-} STSmaColData;
-
-typedef struct {
-  tb_uid_t tableUid;  // super/child/normal table uid
-  int32_t  dataLen;   // not including head
-  char     data[];
-} STSmaTbData;
-
-typedef struct {
-  int64_t indexUid;
-  TSKEY   skey;  // startKey of one interval/sliding window
-  int64_t interval;
-  int32_t dataLen;  // not including head
-  int8_t  intervalUnit;
-  char    data[];
-} STSmaDataWrapper;  // sma data for a interval/sliding window
-
-// interval/sliding => window
-
-// => window->table->colId
-// => 当一个window下所有的表均计算完成时，流计算告知tsdb清除window的过期标记
 
 // RSma: Rollup SMA
 typedef struct {

@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-typedef struct STxn STXN;
+typedef struct STxn TXN;
 
 struct STxn {
   u64 txnId;
