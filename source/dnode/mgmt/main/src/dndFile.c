@@ -194,7 +194,7 @@ int32_t dndReadShmFile(SDnode *pDnode) {
       dError("shmid:%d, failed to attach shm since %s", pWrapper->shm.id, terrstr());
       goto _OVER;
     }
-    dDebug("shmid:%d, is attached, size:%d", pWrapper->shm.id, pWrapper->shm.size);
+    dInfo("node:%s, shmid:%d is attached, size:%d", pWrapper->name, pWrapper->shm.id, pWrapper->shm.size);
   }
 
   dDebug("successed to load %s", file);

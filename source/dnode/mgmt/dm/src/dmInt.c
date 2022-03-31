@@ -74,7 +74,7 @@ void dmSendRedirectRsp(SDnodeMgmt *pMgmt, const SRpcMsg *pReq) {
 }
 
 static int32_t dmStart(SMgmtWrapper *pWrapper) {
-  dDebug("dnode-mgmt starts running");
+  dDebug("dnode-mgmt start to run");
   return dmStartThread(pWrapper->pMgmt);
 }
 
