@@ -174,11 +174,6 @@ bool           tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 char *jobTaskStatusStr(int32_t status);
 
-int32_t qInitExplainCtx(void **pCtx, SHashObj *groupHash, bool verbose);
-int32_t qAppendTaskExplainResRows(void *pCtx, int32_t groupId, int32_t level);
-int32_t qGetExplainRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp);
-void qFreeExplainCtx(void *ctx);
-
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name);
 
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char** msg, int32_t msgSize, int32_t* msgLen);
@@ -240,6 +235,11 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
       taosPrintLongString("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__); \
     }                                                                    \
   } while (0)
+
+#define QRY_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
+#define QRY_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
+#define QRY_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
+
 
 #ifdef __cplusplus
 }

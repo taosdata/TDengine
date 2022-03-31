@@ -361,6 +361,18 @@ int32_t parseLocaltimeDst(char* timestr, int64_t* time, int32_t timePrec) {
   return 0;
 }
 
+char getPrecisionUnit(int32_t precision) {
+  static char units[3] = {TIME_UNIT_MILLISECOND, TIME_UNIT_MICROSECOND, TIME_UNIT_NANOSECOND};
+  switch (precision) {
+    case TSDB_TIME_PRECISION_MILLI:
+    case TSDB_TIME_PRECISION_MICRO:
+    case TSDB_TIME_PRECISION_NANO:
+      return units[precision];
+    default:
+      return 0;
+  }
+}
+
 int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrecision) {
   assert(fromPrecision == TSDB_TIME_PRECISION_MILLI || fromPrecision == TSDB_TIME_PRECISION_MICRO ||
          fromPrecision == TSDB_TIME_PRECISION_NANO);

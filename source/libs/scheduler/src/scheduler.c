@@ -19,6 +19,7 @@
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
+#include "command.h"
 
 SSchedulerMgmt schMgmt = {0};
 
@@ -475,92 +476,6 @@ _return:
 
   SCH_RET(code);
 }
-
-int32_t schValidateAndBuildJobExplain(SQueryPlan *pDag, SSchJob *pJob) {
-  int32_t code = 0;
-  SNodeListNode *plans = NULL;
-  int32_t        taskNum = 0;
-  SExplainGroup *pGroup = NULL;
-  void *pCtx = NULL;
-  int32_t rootGroupId = 0;
-  
-  pJob->queryId = pDag->queryId;
-  pJob->subPlans = pDag->pSubplans;
-
-  if (pDag->numOfSubplans <= 0) {
-    SCH_JOB_ELOG("invalid subplan num:%d", pDag->numOfSubplans);
-    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
-  }
-
-  int32_t levelNum = (int32_t)LIST_LENGTH(pDag->pSubplans);
-  if (levelNum <= 0) {
-    SCH_JOB_ELOG("invalid level num:%d", levelNum);
-    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
-  }
-
-  SHashObj *groupHash = taosHashInit(SCHEDULE_DEFAULT_MAX_TASK_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
-  if (NULL == groupHash) {
-    SCH_JOB_ELOG("groupHash %d failed", SCHEDULE_DEFAULT_MAX_TASK_NUM);
-    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-  }
-
-  SCH_ERR_JRET(qInitExplainCtx(&pCtx, groupHash, pDag->explainInfo.verbose));
-
-  for (int32_t i = 0; i < levelNum; ++i) {
-    plans = (SNodeListNode *)nodesListGetNode(pDag->pSubplans, i);
-    if (NULL == plans) {
-      SCH_JOB_ELOG("empty level plan, level:%d", i);
-      SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
-    }
-
-    taskNum = (int32_t)LIST_LENGTH(plans->pNodeList);
-    if (taskNum <= 0) {
-      SCH_JOB_ELOG("invalid level plan number:%d, level:%d", taskNum, i);
-      SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
-    }
-
-    SSubplan *plan = NULL;
-    for (int32_t n = 0; n < taskNum; ++n) {
-      plan = (SSubplan *)nodesListGetNode(plans->pNodeList, n);
-      pGroup = taosHashGet(groupHash, &plan->id.groupId, sizeof(plan->id.groupId));
-      if (pGroup) {
-        ++pGroup->nodeNum;
-        continue;
-      }
-
-      SExplainGroup group = {.nodeNum = 1, .plan = plan, .execInfo = NULL};
-      if (0 != taosHashPut(groupHash, &plan->id.groupId, sizeof(plan->id.groupId), &group, sizeof(group))) {
-        SCH_JOB_ELOG("taosHashPut to explainGroupHash failed, taskIdx:%d", n);
-        SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-      }
-    }
-
-    if (0 == i) {
-      if (taskNum > 1) {
-        SCH_JOB_ELOG("invalid taskNum %d for level 0", taskNum);
-        SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
-      }
-
-      rootGroupId = plan->id.groupId;
-    }
-
-    SCH_JOB_DLOG("level %d group handled, taskNum:%d", i, taskNum);
-  }
-
-  SCH_ERR_JRET(qAppendTaskExplainResRows(pCtx, rootGroupId, 0));
-  
-  SRetrieveTableRsp *pRsp = NULL;
-  SCH_ERR_JRET(qGetExplainRspFromCtx(pCtx, &pRsp));
-
-  pJob->resData = pRsp;
-  
-_return:
-
-  qFreeExplainCtx(pCtx);
-
-  SCH_RET(code);
-}
-
 
 int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
   if (NULL != pTask->candidateAddrs) {
@@ -2250,7 +2165,7 @@ _return:
   SCH_RET(code);
 }
 
-int32_t schStaticExplain(void *transport, SArray *pNodeList, SQueryPlan *pDag, int64_t *job, const char *sql,
+int32_t schExecStaticExplain(void *transport, SArray *pNodeList, SQueryPlan *pDag, int64_t *job, const char *sql,
                               bool syncSchedule) {
   qDebug("QID:0x%" PRIx64 " job started", pDag->queryId);
 
@@ -2264,8 +2179,10 @@ int32_t schStaticExplain(void *transport, SArray *pNodeList, SQueryPlan *pDag, i
   pJob->sql = sql;
   pJob->attr.queryJob = true;
   pJob->attr.explainMode = pDag->explainInfo.mode;
+  pJob->queryId = pDag->queryId;
+  pJob->subPlans = pDag->pSubplans;
 
-  SCH_ERR_JRET(schValidateAndBuildJobExplain(pDag, pJob));
+  SCH_ERR_JRET(qExecStaticExplain(pDag, (SRetrieveTableRsp **)&pJob->resData));
 
   int64_t refId = taosAddRef(schMgmt.jobRef, pJob);
   if (refId < 0) {
@@ -2345,7 +2262,7 @@ int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryPlan *pDag, in
   }
 
   if (EXPLAIN_MODE_STATIC == pDag->explainInfo.mode) {
-    SCH_ERR_RET(schStaticExplain(transport, nodeList, pDag, pJob, sql, true));
+    SCH_ERR_RET(schExecStaticExplain(transport, nodeList, pDag, pJob, sql, true));
   } else {
     SCH_ERR_RET(schExecJobImpl(transport, nodeList, pDag, pJob, sql, true));
   }

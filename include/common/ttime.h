@@ -60,6 +60,7 @@ int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* durati
 
 int32_t taosParseTime(const char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t dayligth);
 void    deltaToUtcInitOnce();
+char getPrecisionUnit(int32_t precision);
 
 int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrecision);
 int64_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char toUnit);
