@@ -117,14 +117,18 @@ int tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate) {
 }
 
 int tdbPagerWrite(SPager *pPager, SPage *pPage) {
-  int ret;
+  int     ret;
+  SPage **ppPage;
 
+  ASSERT(pPager->inTran);
+#if 0
   if (pPager->inTran == 0) {
     ret = tdbPagerBegin(pPager);
     if (ret < 0) {
       return -1;
     }
   }
+#endif
 
   if (pPage->isDirty) return 0;
 
@@ -132,11 +136,14 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   pPage->isDirty = 1;
 
   // Add page to dirty list
-  // TODO: sort the list according to the page number
-  pPage->pDirtyNext = pPager->pDirty;
-  pPager->pDirty = pPage;
+  for (ppPage = &pPager->pDirty; (*ppPage) && TDB_PAGE_PGNO(*ppPage) < TDB_PAGE_PGNO(pPage);
+       ppPage = &((*ppPage)->pDirtyNext)) {
+  }
+  ASSERT(*ppPage == NULL || TDB_PAGE_PGNO(*ppPage) > TDB_PAGE_PGNO(pPage));
+  pPage->pDirtyNext = *ppPage;
+  *ppPage = pPage;
 
-  // Write page to journal
+  // Write page to journal if neccessary
   if (TDB_PAGE_PGNO(pPage) <= pPager->dbOrigSize) {
     ret = tdbPagerWritePageToJournal(pPager, pPage);
     if (ret < 0) {
@@ -170,30 +177,29 @@ int tdbPagerCommit(SPager *pPager) {
   SPage *pPage;
   int    ret;
 
-  // Begin commit
-  {
-    // TODO: Sync the journal file (Here or when write ?)
+  // sync the journal file
+  ret = tdbOsFSync(pPager->jfd);
+  if (ret < 0) {
+    // TODO
+    ASSERT(0);
+    return 0;
   }
 
-  for (;;) {
-    pPage = pPager->pDirty;
-
-    if (pPage == NULL) break;
-
+  // loop to write the dirty pages to file
+  for (pPage = pPager->pDirty; pPage; pPage = pPage->pDirtyNext) {
     ret = tdbPagerWritePageToDB(pPager, pPage);
     if (ret < 0) {
       ASSERT(0);
       return -1;
     }
-
-    pPager->pDirty = pPage->pDirtyNext;
-    pPage->pDirtyNext = NULL;
-
-    // TODO: release the page
   }
 
+  // TODO: loop to release the dirty pages
+
+  // sync the db file
   tdbOsFSync(pPager->fd);
 
+  // remote the journal file
   tdbOsClose(pPager->jfd);
   tdbOsRemove(pPager->jFileName);
 

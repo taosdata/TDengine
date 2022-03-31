@@ -383,17 +383,7 @@ static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
   return 0;
 }
 
-#ifndef TDB_BTREE_BALANCE
-typedef struct {
-  SBTree *pBt;
-  SPage  *pParent;
-  int     idx;
-  i8      nOld;
-  SPage  *pOldPages[3];
-  i8      nNewPages;
-  SPage  *pNewPages[5];
-} SBtreeBalanceHelper;
-
+// TDB_BTREE_BALANCE =====================
 static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
   SPager           *pPager;
   SPage            *pChild;
@@ -418,6 +408,13 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
 
   if (!leaf) {
     ((SIntHdr *)pChild->pData)->pgno = ((SIntHdr *)(pRoot->pData))->pgno;
+  }
+
+  ret = tdbPagerWrite(pPager, pChild);
+  if (ret < 0) {
+    // TODO
+    ASSERT(0);
+    return 0;
   }
 
   // Copy the root page content to the child page
@@ -497,6 +494,13 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
         }
 
         if (i < nOlds - 1) {
+          ret = tdbPagerWrite(pBt->pPager, pOlds[i]);
+          if (ret < 0) {
+            // TODO
+            ASSERT(0);
+            return -1;
+          }
+
           ((SPgno *)pDivCell[i])[0] = ((SIntHdr *)pOlds[i]->pData)->pgno;
           ((SIntHdr *)pOlds[i]->pData)->pgno = 0;
           tdbPageInsertCell(pOlds[i], TDB_PAGE_TOTAL_CELLS(pOlds[i]), pDivCell[i], szDivCell[i], 1);
@@ -504,6 +508,14 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
       }
       rPgno = ((SIntHdr *)pOlds[nOlds - 1]->pData)->pgno;
     }
+
+    ret = tdbPagerWrite(pBt->pPager, pParent);
+    if (ret < 0) {
+      // TODO
+      ASSERT(0);
+      return -1;
+    }
+
     // drop the cells on parent page
     for (int i = 0; i < nOlds; i++) {
       nCells = TDB_PAGE_TOTAL_CELLS(pParent);
@@ -631,6 +643,13 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
         if (ret < 0) {
           ASSERT(0);
         }
+
+        ret = tdbPagerWrite(pBt->pPager, pNews[iNew]);
+        if (ret < 0) {
+          // TODO
+          ASSERT(0);
+          return -1;
+        }
       }
     }
 
@@ -749,9 +768,10 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx) {
 
 static int tdbBtreeBalance(SBTC *pBtc) {
   int    iPage;
+  int    ret;
+  int    nFree;
   SPage *pParent;
   SPage *pPage;
-  int    ret;
   u8     flags;
   u8     leaf;
   u8     root;
@@ -762,10 +782,11 @@ static int tdbBtreeBalance(SBTC *pBtc) {
     pPage = pBtc->pPage;
     leaf = TDB_BTREE_PAGE_IS_LEAF(pPage);
     root = TDB_BTREE_PAGE_IS_ROOT(pPage);
+    nFree = TDB_PAGE_FREE_SIZE(pPage);
 
     // when the page is not overflow and not too empty, the balance work
     // is finished. Just break out the balance loop.
-    if (pPage->nOverflow == 0 /* TODO: && pPage->nFree <= */) {
+    if (pPage->nOverflow == 0 && nFree < TDB_PAGE_USABLE_SIZE(pPage) * 2 / 3) {
       break;
     }
 
@@ -800,7 +821,7 @@ static int tdbBtreeBalance(SBTC *pBtc) {
 
   return 0;
 }
-#endif
+// TDB_BTREE_BALANCE
 
 // TDB_BTREE_CELL =====================
 static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const void *pKey, int kLen, const void *pVal,

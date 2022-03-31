@@ -134,8 +134,9 @@ TEST(tdb_test, simple_test) {
     char val[64];
 
     {  // Insert some data
-      int i = 1;
+      tdbBegin(pEnv);
 
+      int i = 1;
       for (;;) {
         if (i > nData) break;
 
