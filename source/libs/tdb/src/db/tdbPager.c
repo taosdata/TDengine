@@ -27,7 +27,6 @@ TDB_STATIC_ASSERT(sizeof(SFileHdr) == 128, "Size of file header is not correct")
 
 #define TDB_PAGE_INITIALIZED(pPage) ((pPage)->pPager != NULL)
 
-static int tdbPagerReadPage(SPager *pPager, SPage *pPage);
 static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
 static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage *, void *), void *arg, u8 loadPage);
 static int tdbPagerWritePageToJournal(SPager *pPager, SPage *pPage);
@@ -216,21 +215,6 @@ int tdbPagerCommit(SPager *pPager) {
   tdbOsRemove(pPager->jFileName);
   pPager->dbOrigSize = pPager->dbFileSize;
 
-  return 0;
-}
-
-static int tdbPagerReadPage(SPager *pPager, SPage *pPage) {
-  i64 offset;
-  int ret;
-
-  ASSERT(memcmp(pPager->fid, pPage->pgid.fileid, TDB_FILE_ID_LEN) == 0);
-
-  offset = (pPage->pgid.pgno - 1) * (i64)(pPager->pageSize);
-  ret = tdbOsPRead(pPager->fd, pPage->pData, pPager->pageSize, offset);
-  if (ret < 0) {
-    // TODO: handle error
-    return -1;
-  }
   return 0;
 }
 
