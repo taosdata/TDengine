@@ -1343,3 +1343,18 @@ SNode* createExplainStmt(SAstCreateContext* pCxt, bool analyze, SNode* pOptions,
   pStmt->pQuery = pQuery;
   return (SNode*)pStmt;
 }
+
+SNode* createDescribeStmt(SAstCreateContext* pCxt, SNode* pRealTable) {
+  SDescribeStmt* pStmt = nodesMakeNode(QUERY_NODE_DESCRIBE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
+  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  nodesDestroyNode(pRealTable);
+  return (SNode*)pStmt;
+}
+
+SNode* createResetQueryCacheStmt(SAstCreateContext* pCxt) {
+  SNode* pStmt = nodesMakeNode(QUERY_NODE_RESET_QUERY_CACHE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  return pStmt;
+}

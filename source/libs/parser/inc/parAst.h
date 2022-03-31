@@ -163,6 +163,8 @@ SNode* createDefaultExplainOptions(SAstCreateContext* pCxt);
 SNode* setExplainVerbose(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal);
 SNode* setExplainRatio(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal);
 SNode* createExplainStmt(SAstCreateContext* pCxt, bool analyze, SNode* pOptions, SNode* pQuery);
+SNode* createDescribeStmt(SAstCreateContext* pCxt, SNode* pRealTable);
+SNode* createResetQueryCacheStmt(SAstCreateContext* pCxt);
 
 #ifdef __cplusplus
 }

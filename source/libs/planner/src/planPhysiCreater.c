@@ -720,6 +720,9 @@ static int32_t createStreamScanPhysiNodeByExchange(SPhysiPlanContext* pCxt, SExc
     code = TSDB_CODE_OUT_OF_MEMORY;
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = sortScanCols(pScan->pScanCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = addDataBlockSlots(pCxt, pScan->pScanCols, pScan->node.pOutputDataBlockDesc);
   }
 
