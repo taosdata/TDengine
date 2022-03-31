@@ -63,6 +63,10 @@ typedef struct {
 
 FstRegex *regexCreate(const char *str);
 
+uint32_t regexAutomStart(FstRegex *regex);
+bool     regexAutomIsMatch(FstRegex *regex, uint32_t state);
+bool     regexAutomCanMatch(FstRegex *regex, uint32_t state, bool null);
+bool     regexAutomAccept(FstRegex *regex, uint32_t state, uint8_t byte, uint32_t *result);
 // void regexSetup(FstRegex *regex, uint32_t size, const char *str);
 
 // uint32_t regexStart()
