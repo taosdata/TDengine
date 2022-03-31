@@ -49,6 +49,8 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
     if (ret < 0) {
       return -1;
     }
+
+    tdbEnvAddPager(pEnv, pPager);
   }
 
   ASSERT(pPager != NULL);

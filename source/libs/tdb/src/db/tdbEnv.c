@@ -74,17 +74,31 @@ int tdbEnvClose(TENV *pEnv) {
 }
 
 int tdbBegin(TENV *pEnv) {
-  ASSERT(0);
+  SPager *pPager;
+  int     ret;
+
+  for (pPager = pEnv->pgrList; pPager; pPager = pPager->pNext) {
+    ret = tdbPagerBegin(pPager);
+    if (ret < 0) {
+      ASSERT(0);
+      return -1;
+    }
+  }
+
   return 0;
 }
 
 int tdbCommit(TENV *pEnv) {
   SPager *pPager;
+  int     ret;
 
-  // pPager = pEnv->pgrList;
-  // while (pPager) {
-  //   tdbPagerCommit(pPager);
-  // }
+  for (pPager = pEnv->pgrList; pPager; pPager = pPager->pNext) {
+    ret = tdbPagerCommit(pPager);
+    if (ret < 0) {
+      ASSERT(0);
+      return -1;
+    }
+  }
 
   return 0;
 }
