@@ -2167,7 +2167,7 @@ typedef struct SVgroupTablesBatch {
 static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSchema) {
   pSchema->colId = colId;
   pSchema->type = pCol->dataType.type;
-  pSchema->bytes = pCol->dataType.bytes;
+  pSchema->bytes = calcTypeBytes(pCol->dataType);
   strcpy(pSchema->name, pCol->colName);
 }
 
