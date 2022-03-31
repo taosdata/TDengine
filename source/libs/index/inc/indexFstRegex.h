@@ -63,7 +63,7 @@ typedef struct {
 
 FstRegex *regexCreate(const char *str);
 
-void regexSetup(FstRegex *regex, uint32_t size, const char *str);
+// void regexSetup(FstRegex *regex, uint32_t size, const char *str);
 
 // uint32_t regexStart()
 
