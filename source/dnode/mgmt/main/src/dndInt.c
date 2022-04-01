@@ -15,82 +15,186 @@
 
 #define _DEFAULT_SOURCE
 #include "dndInt.h"
-#include "wal.h"
 
-static int8_t once = DND_ENV_INIT;
+static int32_t dndInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
+  pDnode->numOfSupportVnodes = pOption->numOfSupportVnodes;
+  pDnode->serverPort = pOption->serverPort;
+  pDnode->dataDir = strdup(pOption->dataDir);
+  pDnode->localEp = strdup(pOption->localEp);
+  pDnode->localFqdn = strdup(pOption->localFqdn);
+  pDnode->firstEp = strdup(pOption->firstEp);
+  pDnode->secondEp = strdup(pOption->secondEp);
+  pDnode->disks = pOption->disks;
+  pDnode->numOfDisks = pOption->numOfDisks;
+  pDnode->ntype = pOption->ntype;
+  pDnode->rebootTime = taosGetTimestampMs();
 
-int32_t dndInit() {
-  dDebug("start to init dnode env");
-  if (atomic_val_compare_exchange_8(&once, DND_ENV_INIT, DND_ENV_READY) != DND_ENV_INIT) {
-    terrno = TSDB_CODE_REPEAT_INIT;
-    dError("failed to init dnode env since %s", terrstr());
+  if (pDnode->dataDir == NULL || pDnode->localEp == NULL || pDnode->localFqdn == NULL || pDnode->firstEp == NULL ||
+      pDnode->secondEp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
-  taosIgnSIGPIPE();
-  taosBlockSIGPIPE();
-  taosResolveCRC();
-
-  SMonCfg monCfg = {0};
-  monCfg.maxLogs = tsMonitorMaxLogs;
-  monCfg.port = tsMonitorPort;
-  monCfg.server = tsMonitorFqdn;
-  monCfg.comp = tsMonitorComp;
-  if (monInit(&monCfg) != 0) {
-    dError("failed to init monitor since %s", terrstr());
-    return -1;
+  if (!tsMultiProcess || pDnode->ntype == DNODE || pDnode->ntype == NODE_MAX) {
+    pDnode->lockfile = dndCheckRunning(pDnode->dataDir);
+    if (pDnode->lockfile == NULL) {
+      return -1;
+    }
   }
 
-  dDebug("dnode env is initialized");
   return 0;
 }
 
-void dndCleanup() {
-  dDebug("start to cleanup dnode env");
-  if (atomic_val_compare_exchange_8(&once, DND_ENV_READY, DND_ENV_CLEANUP) != DND_ENV_READY) {
-    dError("dnode env is already cleaned up");
+static void dndClearVars(SDnode *pDnode) {
+  for (ENodeType n = 0; n < NODE_MAX; ++n) {
+    SMgmtWrapper *pMgmt = &pDnode->wrappers[n];
+    taosMemoryFreeClear(pMgmt->path);
+  }
+  if (pDnode->lockfile != NULL) {
+    taosUnLockFile(pDnode->lockfile);
+    taosCloseFile(&pDnode->lockfile);
+    pDnode->lockfile = NULL;
+  }
+  taosMemoryFreeClear(pDnode->localEp);
+  taosMemoryFreeClear(pDnode->localFqdn);
+  taosMemoryFreeClear(pDnode->firstEp);
+  taosMemoryFreeClear(pDnode->secondEp);
+  taosMemoryFreeClear(pDnode->dataDir);
+  taosMemoryFree(pDnode);
+  dDebug("dnode memory is cleared, data:%p", pDnode);
+}
+
+SDnode *dndCreate(const SDnodeOpt *pOption) {
+  dDebug("start to create dnode object");
+  int32_t code = -1;
+  char    path[PATH_MAX] = {0};
+  SDnode *pDnode = NULL;
+
+  pDnode = taosMemoryCalloc(1, sizeof(SDnode));
+  if (pDnode == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  if (dndInitVars(pDnode, pOption) != 0) {
+    dError("failed to init variables since %s", terrstr());
+    goto _OVER;
+  }
+
+  dndSetStatus(pDnode, DND_STAT_INIT);
+  dmGetMgmtFp(&pDnode->wrappers[DNODE]);
+  mmGetMgmtFp(&pDnode->wrappers[MNODE]);
+  vmGetMgmtFp(&pDnode->wrappers[VNODES]);
+  qmGetMgmtFp(&pDnode->wrappers[QNODE]);
+  smGetMgmtFp(&pDnode->wrappers[SNODE]);
+  bmGetMgmtFp(&pDnode->wrappers[BNODE]);
+
+  for (ENodeType n = 0; n < NODE_MAX; ++n) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+    snprintf(path, sizeof(path), "%s%s%s", pDnode->dataDir, TD_DIRSEP, pWrapper->name);
+    pWrapper->path = strdup(path);
+    pWrapper->shm.id = -1;
+    pWrapper->pDnode = pDnode;
+    if (pWrapper->path == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _OVER;
+    }
+
+    pWrapper->procType = PROC_SINGLE;
+    taosInitRWLatch(&pWrapper->latch);
+  }
+
+  if (dndInitMsgHandle(pDnode) != 0) {
+    dError("failed to msg handles since %s", terrstr());
+    goto _OVER;
+  }
+
+  if (dndReadShmFile(pDnode) != 0) {
+    dError("failed to read shm file since %s", terrstr());
+    goto _OVER;
+  }
+
+  SMsgCb msgCb = dndCreateMsgcb(&pDnode->wrappers[0]);
+  tmsgSetDefaultMsgCb(&msgCb);
+
+  dInfo("dnode is created, data:%p", pDnode);
+  code = 0;
+
+_OVER:
+  if (code != 0 && pDnode) {
+    dndClearVars(pDnode);
+    pDnode = NULL;
+    dError("failed to create dnode since %s", terrstr());
+  }
+
+  return pDnode;
+}
+
+void dndClose(SDnode *pDnode) {
+  if (pDnode == NULL) return;
+
+  if (dndGetStatus(pDnode) == DND_STAT_STOPPED) {
+    dError("dnode is shutting down, data:%p", pDnode);
     return;
   }
 
-  monCleanup();
-  walCleanUp();
-  taosStopCacheRefreshWorker();
-  dDebug("dnode env is cleaned up");
+  dInfo("start to close dnode, data:%p", pDnode);
+  dndSetStatus(pDnode, DND_STAT_STOPPED);
+
+  for (ENodeType n = 0; n < NODE_MAX; ++n) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+    dndCloseNode(pWrapper);
+  }
+
+  dndClearVars(pDnode);
+  dInfo("dnode is closed, data:%p", pDnode);
 }
 
-void dndSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, int8_t vgId) {
-  pWrapper->msgFps[TMSG_INDEX(msgType)] = nodeMsgFp;
-  pWrapper->msgVgIds[TMSG_INDEX(msgType)] = vgId;
-}
-
-EDndStatus dndGetStatus(SDnode *pDnode) { return pDnode->status; }
-
-void dndSetStatus(SDnode *pDnode, EDndStatus status) {
-  if (pDnode->status != status) {
-    dDebug("dnode status set from %s to %s", dndStatStr(pDnode->status), dndStatStr(status));
-    pDnode->status = status;
+void dndHandleEvent(SDnode *pDnode, EDndEvent event) {
+  dInfo("dnode receive %s event, data:%p", dndEventStr(event), pDnode);
+  if (event == DND_EVENT_STOP) {
+    pDnode->event = event;
   }
 }
 
-void dndReportStartup(SDnode *pDnode, const char *pName, const char *pDesc) {
-  SStartupReq *pStartup = &pDnode->startup;
-  tstrncpy(pStartup->name, pName, TSDB_STEP_NAME_LEN);
-  tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
-  pStartup->finished = 0;
+SMgmtWrapper *dndAcquireWrapper(SDnode *pDnode, ENodeType ntype) {
+  SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
+  SMgmtWrapper *pRetWrapper = pWrapper;
+
+  taosRLockLatch(&pWrapper->latch);
+  if (pWrapper->deployed) {
+    int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
+    dTrace("node:%s, is acquired, refCount:%d", pWrapper->name, refCount);
+  } else {
+    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
+    pRetWrapper = NULL;
+  }
+  taosRUnLockLatch(&pWrapper->latch);
+
+  return pRetWrapper;
 }
 
-void dndGetStartup(SDnode *pDnode, SStartupReq *pStartup) {
-  memcpy(pStartup, &pDnode->startup, sizeof(SStartupReq));
-  pStartup->finished = (dndGetStatus(pDnode) == DND_STAT_RUNNING);
+int32_t dndMarkWrapper(SMgmtWrapper *pWrapper) {
+  int32_t code = 0;
+
+  taosRLockLatch(&pWrapper->latch);
+  if (pWrapper->deployed || (pWrapper->procType == PROC_PARENT && pWrapper->required)) {
+    int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
+    dTrace("node:%s, is marked, refCount:%d", pWrapper->name, refCount);
+  } else {
+    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
+    code = -1;
+  }
+  taosRUnLockLatch(&pWrapper->latch);
+
+  return code;
 }
 
-void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
-  dDebug("startup req is received");
-  SStartupReq *pStartup = rpcMallocCont(sizeof(SStartupReq));
-  dndGetStartup(pDnode, pStartup);
+void dndReleaseWrapper(SMgmtWrapper *pWrapper) {
+  if (pWrapper == NULL) return;
 
-  dDebug("startup req is sent, step:%s desc:%s finished:%d", pStartup->name, pStartup->desc, pStartup->finished);
-  SRpcMsg rpcRsp = {
-      .handle = pReq->handle, .pCont = pStartup, .contLen = sizeof(SStartupReq), .ahandle = pReq->ahandle};
-  rpcSendResponse(&rpcRsp);
+  taosRLockLatch(&pWrapper->latch);
+  int32_t refCount = atomic_sub_fetch_32(&pWrapper->refCount, 1);
+  taosRUnLockLatch(&pWrapper->latch);
+  dTrace("node:%s, is released, refCount:%d", pWrapper->name, refCount);
 }

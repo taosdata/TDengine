@@ -71,6 +71,7 @@ typedef enum ETableOptionType {
 typedef struct SAlterOption {
   int32_t type;
   SToken val;
+  SNodeList* pKeep;
 } SAlterOption;
 
 extern SToken nil_token;
@@ -121,6 +122,8 @@ SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* 
 SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt);
 SNode* createDefaultAlterDatabaseOptions(SAstCreateContext* pCxt);
 SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOptionType type, const SToken* pVal);
+SNode* setDatabaseKeepOption(SAstCreateContext* pCxt, SNode* pOptions, SNodeList* pKeep);
+SNode* setDatabaseAlterOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOption* pAlterOption);
 SNode* createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pDbName, SNode* pOptions);
 SNode* createDropDatabaseStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pDbName);
 SNode* createAlterDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pOptions);
@@ -129,6 +132,8 @@ SNode* createDefaultAlterTableOptions(SAstCreateContext* pCxt);
 SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType type, const SToken* pVal);
 SNode* setTableSmaOption(SAstCreateContext* pCxt, SNode* pOptions, SNodeList* pSma);
 SNode* setTableRollupOption(SAstCreateContext* pCxt, SNode* pOptions, SNodeList* pFuncs);
+SNode* setTableKeepOption(SAstCreateContext* pCxt, SNode* pOptions, SNodeList* pKeep);
+SNode* setTableAlterOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOption* pAlterOption);
 SNode* createColumnDefNode(SAstCreateContext* pCxt, const SToken* pColName, SDataType dataType, const SToken* pComment);
 SDataType createDataType(uint8_t type);
 SDataType createVarLenDataType(uint8_t type, const SToken* pLen);
@@ -163,6 +168,8 @@ SNode* createDefaultExplainOptions(SAstCreateContext* pCxt);
 SNode* setExplainVerbose(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal);
 SNode* setExplainRatio(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal);
 SNode* createExplainStmt(SAstCreateContext* pCxt, bool analyze, SNode* pOptions, SNode* pQuery);
+SNode* createDescribeStmt(SAstCreateContext* pCxt, SNode* pRealTable);
+SNode* createResetQueryCacheStmt(SAstCreateContext* pCxt);
 
 #ifdef __cplusplus
 }

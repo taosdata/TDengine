@@ -59,20 +59,21 @@ TEST(testCase, unionEncodeDecodeTest) {
 
   void   *buf = taosMemoryMalloc(1024);
   void   *pBuf = buf;
+  void   *qBuf = buf;
   int32_t tlen = 0;
-  tlen += taosEncodeFixedU8(&buf, sut.info);
-  tlen += taosEncodeFixedI16(&buf, sut.nBSmaCols);
+  tlen += taosEncodeFixedU8(&pBuf, sut.info);
+  tlen += taosEncodeFixedI16(&pBuf, sut.nBSmaCols);
   for (col_id_t i = 0; i < sut.nBSmaCols; ++i) {
-    tlen += taosEncodeFixedI16(&buf, sut.pBSmaCols[i]);
+    tlen += taosEncodeFixedI16(&pBuf, sut.pBSmaCols[i]);
   }
 
   SUnionTest dut = {0};
-  pBuf = taosDecodeFixedU8(pBuf, &dut.info);
-  pBuf = taosDecodeFixedI16(pBuf, &dut.nBSmaCols);
+  qBuf = taosDecodeFixedU8(qBuf, &dut.info);
+  qBuf = taosDecodeFixedI16(qBuf, &dut.nBSmaCols);
   if (dut.nBSmaCols > 0) {
     dut.pBSmaCols = (col_id_t *)taosMemoryMalloc(dut.nBSmaCols * sizeof(col_id_t));
     for (col_id_t i = 0; i < dut.nBSmaCols; ++i) {
-      pBuf = taosDecodeFixedI16(pBuf, dut.pBSmaCols + i);
+      qBuf = taosDecodeFixedI16(qBuf, dut.pBSmaCols + i);
     }
   } else {
     dut.pBSmaCols = NULL;
@@ -81,13 +82,17 @@ TEST(testCase, unionEncodeDecodeTest) {
   printf("sut.rollup=%" PRIu8 ", type=%" PRIu8 ", info=%" PRIu8 "\n", sut.rollup, sut.type, sut.info);
   printf("dut.rollup=%" PRIu8 ", type=%" PRIu8 ", info=%" PRIu8 "\n", dut.rollup, dut.type, dut.info);
 
-  ASSERT_EQ(sut.rollup, dut.rollup);
-  ASSERT_EQ(sut.type, dut.type);
-  ASSERT_EQ(sut.nBSmaCols, dut.nBSmaCols);
+  EXPECT_EQ(sut.rollup, dut.rollup);
+  EXPECT_EQ(sut.type, dut.type);
+  EXPECT_EQ(sut.nBSmaCols, dut.nBSmaCols);
   for (col_id_t i = 0; i < sut.nBSmaCols; ++i) {
-    ASSERT_EQ(*(col_id_t *)(sut.pBSmaCols + i), sut.pBSmaCols[i]);
-    ASSERT_EQ(*(col_id_t *)(sut.pBSmaCols + i), dut.pBSmaCols[i]);
+    EXPECT_EQ(*(col_id_t *)(sut.pBSmaCols + i), sut.pBSmaCols[i]);
+    EXPECT_EQ(*(col_id_t *)(sut.pBSmaCols + i), dut.pBSmaCols[i]);
   }
+
+  taosMemoryFreeClear(buf);
+  taosMemoryFreeClear(dut.pBSmaCols);
+  taosMemoryFreeClear(sut.pBSmaCols);
 }
 #if 1
 TEST(testCase, tSma_Meta_Encode_Decode_Test) {
@@ -107,37 +112,37 @@ TEST(testCase, tSma_Meta_Encode_Decode_Test) {
   uint32_t     bufLen = tEncodeTSmaWrapper(NULL, &tSmaWrapper);
 
   void *buf = taosMemoryCalloc(1, bufLen);
-  ASSERT_NE(buf, nullptr);
+  EXPECT_NE(buf, nullptr);
 
   STSmaWrapper *pSW = (STSmaWrapper *)buf;
   uint32_t      len = tEncodeTSmaWrapper(&buf, &tSmaWrapper);
 
-  ASSERT_EQ(len, bufLen);
+  EXPECT_EQ(len, bufLen);
 
   // decode
   STSmaWrapper dstTSmaWrapper = {0};
   void        *result = tDecodeTSmaWrapper(pSW, &dstTSmaWrapper);
-  ASSERT_NE(result, nullptr);
+  EXPECT_NE(result, nullptr);
 
-  ASSERT_EQ(tSmaWrapper.number, dstTSmaWrapper.number);
+  EXPECT_EQ(tSmaWrapper.number, dstTSmaWrapper.number);
 
   for (int i = 0; i < tSmaWrapper.number; ++i) {
     STSma *pSma = tSmaWrapper.tSma + i;
     STSma *qSma = dstTSmaWrapper.tSma + i;
 
-    ASSERT_EQ(pSma->version, qSma->version);
-    ASSERT_EQ(pSma->intervalUnit, qSma->intervalUnit);
-    ASSERT_EQ(pSma->slidingUnit, qSma->slidingUnit);
-    ASSERT_STRCASEEQ(pSma->indexName, qSma->indexName);
-    ASSERT_EQ(pSma->timezoneInt, qSma->timezoneInt);
-    ASSERT_EQ(pSma->indexUid, qSma->indexUid);
-    ASSERT_EQ(pSma->tableUid, qSma->tableUid);
-    ASSERT_EQ(pSma->interval, qSma->interval);
-    ASSERT_EQ(pSma->sliding, qSma->sliding);
-    ASSERT_EQ(pSma->exprLen, qSma->exprLen);
-    ASSERT_STRCASEEQ(pSma->expr, qSma->expr);
-    ASSERT_EQ(pSma->tagsFilterLen, qSma->tagsFilterLen);
-    ASSERT_STRCASEEQ(pSma->tagsFilter, qSma->tagsFilter);
+    EXPECT_EQ(pSma->version, qSma->version);
+    EXPECT_EQ(pSma->intervalUnit, qSma->intervalUnit);
+    EXPECT_EQ(pSma->slidingUnit, qSma->slidingUnit);
+    EXPECT_STRCASEEQ(pSma->indexName, qSma->indexName);
+    EXPECT_EQ(pSma->timezoneInt, qSma->timezoneInt);
+    EXPECT_EQ(pSma->indexUid, qSma->indexUid);
+    EXPECT_EQ(pSma->tableUid, qSma->tableUid);
+    EXPECT_EQ(pSma->interval, qSma->interval);
+    EXPECT_EQ(pSma->sliding, qSma->sliding);
+    EXPECT_EQ(pSma->exprLen, qSma->exprLen);
+    EXPECT_STRCASEEQ(pSma->expr, qSma->expr);
+    EXPECT_EQ(pSma->tagsFilterLen, qSma->tagsFilterLen);
+    EXPECT_STRCASEEQ(pSma->tagsFilter, qSma->tagsFilter);
   }
 
   // resource release
@@ -173,12 +178,12 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
 
   tSma.exprLen = strlen(expr);
   tSma.expr = (char *)taosMemoryCalloc(1, tSma.exprLen + 1);
-  ASSERT_NE(tSma.expr, nullptr);
+  EXPECT_NE(tSma.expr, nullptr);
   tstrncpy(tSma.expr, expr, tSma.exprLen + 1);
 
   tSma.tagsFilterLen = strlen(tagsFilter);
   tSma.tagsFilter = (char *)taosMemoryCalloc(tSma.tagsFilterLen + 1, 1);
-  ASSERT_NE(tSma.tagsFilter, nullptr);
+  EXPECT_NE(tSma.tagsFilter, nullptr);
   tstrncpy(tSma.tagsFilter, tagsFilter, tSma.tagsFilterLen + 1);
 
   SMeta          *pMeta = NULL;
@@ -190,7 +195,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   pMeta = metaOpen(smaTestDir, pMetaCfg, NULL);
   assert(pMeta != NULL);
   // save index 1
-  ASSERT_EQ(metaSaveSmaToDB(pMeta, pSmaCfg), 0);
+  EXPECT_EQ(metaSaveSmaToDB(pMeta, pSmaCfg), 0);
 
   pSmaCfg->indexUid = indexUid2;
   tstrncpy(pSmaCfg->indexName, smaIndexName2, TSDB_INDEX_NAME_LEN);
@@ -201,7 +206,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   pSmaCfg->sliding = 5;
 
   // save index 2
-  ASSERT_EQ(metaSaveSmaToDB(pMeta, pSmaCfg), 0);
+  EXPECT_EQ(metaSaveSmaToDB(pMeta, pSmaCfg), 0);
 
   // get value by indexName
   STSma *qSmaCfg = NULL;
@@ -211,8 +216,8 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   printf("timezone1 = %" PRIi8 "\n", qSmaCfg->timezoneInt);
   printf("expr1 = %s\n", qSmaCfg->expr != NULL ? qSmaCfg->expr : "");
   printf("tagsFilter1 = %s\n", qSmaCfg->tagsFilter != NULL ? qSmaCfg->tagsFilter : "");
-  ASSERT_STRCASEEQ(qSmaCfg->indexName, smaIndexName1);
-  ASSERT_EQ(qSmaCfg->tableUid, tSma.tableUid);
+  EXPECT_STRCASEEQ(qSmaCfg->indexName, smaIndexName1);
+  EXPECT_EQ(qSmaCfg->tableUid, tSma.tableUid);
   tdDestroyTSma(qSmaCfg);
   taosMemoryFreeClear(qSmaCfg);
 
@@ -222,8 +227,8 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   printf("timezone2 = %" PRIi8 "\n", qSmaCfg->timezoneInt);
   printf("expr2 = %s\n", qSmaCfg->expr != NULL ? qSmaCfg->expr : "");
   printf("tagsFilter2 = %s\n", qSmaCfg->tagsFilter != NULL ? qSmaCfg->tagsFilter : "");
-  ASSERT_STRCASEEQ(qSmaCfg->indexName, smaIndexName2);
-  ASSERT_EQ(qSmaCfg->interval, tSma.interval);
+  EXPECT_STRCASEEQ(qSmaCfg->indexName, smaIndexName2);
+  EXPECT_EQ(qSmaCfg->interval, tSma.interval);
   tdDestroyTSma(qSmaCfg);
   taosMemoryFreeClear(qSmaCfg);
 
@@ -239,25 +244,25 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
     printf("indexName = %s\n", indexName);
     ++indexCnt;
   }
-  ASSERT_EQ(indexCnt, nCntTSma);
+  EXPECT_EQ(indexCnt, nCntTSma);
   metaCloseSmaCurosr(pSmaCur);
 
   // get wrapper by table uid
   STSmaWrapper *pSW = metaGetSmaInfoByTable(pMeta, tbUid);
   assert(pSW != NULL);
-  ASSERT_EQ(pSW->number, nCntTSma);
-  ASSERT_STRCASEEQ(pSW->tSma->indexName, smaIndexName1);
-  ASSERT_EQ(pSW->tSma->timezoneInt, timezone);
-  ASSERT_STRCASEEQ(pSW->tSma->expr, expr);
-  ASSERT_STRCASEEQ(pSW->tSma->tagsFilter, tagsFilter);
-  ASSERT_EQ(pSW->tSma->indexUid, indexUid1);
-  ASSERT_EQ(pSW->tSma->tableUid, tbUid);
-  ASSERT_STRCASEEQ((pSW->tSma + 1)->indexName, smaIndexName2);
-  ASSERT_EQ((pSW->tSma + 1)->timezoneInt, timezone);
-  ASSERT_STRCASEEQ((pSW->tSma + 1)->expr, expr);
-  ASSERT_STRCASEEQ((pSW->tSma + 1)->tagsFilter, tagsFilter);
-  ASSERT_EQ((pSW->tSma + 1)->indexUid, indexUid2);
-  ASSERT_EQ((pSW->tSma + 1)->tableUid, tbUid);
+  EXPECT_EQ(pSW->number, nCntTSma);
+  EXPECT_STRCASEEQ(pSW->tSma->indexName, smaIndexName1);
+  EXPECT_EQ(pSW->tSma->timezoneInt, timezone);
+  EXPECT_STRCASEEQ(pSW->tSma->expr, expr);
+  EXPECT_STRCASEEQ(pSW->tSma->tagsFilter, tagsFilter);
+  EXPECT_EQ(pSW->tSma->indexUid, indexUid1);
+  EXPECT_EQ(pSW->tSma->tableUid, tbUid);
+  EXPECT_STRCASEEQ((pSW->tSma + 1)->indexName, smaIndexName2);
+  EXPECT_EQ((pSW->tSma + 1)->timezoneInt, timezone);
+  EXPECT_STRCASEEQ((pSW->tSma + 1)->expr, expr);
+  EXPECT_STRCASEEQ((pSW->tSma + 1)->tagsFilter, tagsFilter);
+  EXPECT_EQ((pSW->tSma + 1)->indexUid, indexUid2);
+  EXPECT_EQ((pSW->tSma + 1)->tableUid, tbUid);
 
   tdDestroyTSmaWrapper(pSW);
   taosMemoryFreeClear(pSW);
@@ -269,7 +274,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
     printf("metaGetSmaTbUids: uid[%" PRIu32 "] = %" PRIi64 "\n", i, *(tb_uid_t *)taosArrayGet(pUids, i));
     // printf("metaGetSmaTbUids: index[%" PRIu32 "] = %s", i, (char *)taosArrayGet(pUids, i));
   }
-  ASSERT_EQ(taosArrayGetSize(pUids), 1);
+  EXPECT_EQ(taosArrayGetSize(pUids), 1);
   taosArrayDestroy(pUids);
 
   // resource release
@@ -311,12 +316,12 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
 
   tSma.exprLen = strlen(expr);
   tSma.expr = (char *)taosMemoryCalloc(1, tSma.exprLen + 1);
-  ASSERT_NE(tSma.expr, nullptr);
+  EXPECT_NE(tSma.expr, nullptr);
   tstrncpy(tSma.expr, expr, tSma.exprLen + 1);
 
   tSma.tagsFilterLen = strlen(tagsFilter);
   tSma.tagsFilter = (char *)taosMemoryCalloc(1, tSma.tagsFilterLen + 1);
-  ASSERT_NE(tSma.tagsFilter, nullptr);
+  EXPECT_NE(tSma.tagsFilter, nullptr);
   tstrncpy(tSma.tagsFilter, tagsFilter, tSma.tagsFilterLen + 1);
 
   SMeta          *pMeta = NULL;
@@ -328,7 +333,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   pMeta = metaOpen(smaTestDir, pMetaCfg, NULL);
   assert(pMeta != NULL);
   // save index 1
-  ASSERT_EQ(metaSaveSmaToDB(pMeta, pSmaCfg), 0);
+  EXPECT_EQ(metaSaveSmaToDB(pMeta, pSmaCfg), 0);
 
   // step 2: insert data
   STsdb    *pTsdb = (STsdb *)taosMemoryCalloc(1, sizeof(STsdb));
@@ -365,7 +370,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   strncpy(pDisks.dir, "/var/lib/taos", TSDB_FILENAME_LEN);
   int32_t numOfDisks = 1;
   pTsdb->pTfs = tfsOpen(&pDisks, numOfDisks);
-  ASSERT_NE(pTsdb->pTfs, nullptr);
+  EXPECT_NE(pTsdb->pTfs, nullptr);
 
   // generate SSubmitReq msg and update expired window
   int16_t  schemaVer = 0;
@@ -375,7 +380,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   uint32_t msgLen = sizeof(SSubmitReq) + mockBlkNum * sizeof(SSubmitBlk) + mockBlkNum * mockRowNum * mockRowLen;
 
   SSubmitReq *pMsg = (SSubmitReq *)taosMemoryCalloc(1, msgLen);
-  ASSERT_NE(pMsg, nullptr);
+  EXPECT_NE(pMsg, nullptr);
   pMsg->version = htobe64(schemaVer);
   pMsg->numOfBlocks = htonl(mockBlkNum);
   pMsg->length = htonl(msgLen);
@@ -401,9 +406,9 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
     }
   }
 
-  ASSERT_EQ(tdScanAndConvertSubmitMsg(pMsg), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(tdScanAndConvertSubmitMsg(pMsg), TSDB_CODE_SUCCESS);
 
-  ASSERT_EQ(tsdbUpdateSmaWindow(pTsdb, (const char *)pMsg), 0);
+  EXPECT_EQ(tsdbUpdateSmaWindow(pTsdb, (const char *)pMsg), 0);
 
   // init
   const int32_t  tSmaGroupSize = 4;
@@ -413,7 +418,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   const int32_t  tSmaNumOfRows = 2;
 
   SArray *pDataBlocks = taosArrayInit(tSmaGroupSize, sizeof(SSDataBlock *));
-  ASSERT_NE(pDataBlocks, nullptr);
+  EXPECT_NE(pDataBlocks, nullptr);
   int32_t tSmaTypeArray[tSmaNumOfCols] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL,     TSDB_DATA_TYPE_INT,
                                           TSDB_DATA_TYPE_UBIGINT,   TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_FLOAT,
                                           TSDB_DATA_TYPE_DOUBLE,    TSDB_DATA_TYPE_VARCHAR,  TSDB_DATA_TYPE_NCHAR};
@@ -427,18 +432,18 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
 
   for (int32_t g = 0; g < tSmaGroupSize; ++g) {
     SSDataBlock *pDataBlock = (SSDataBlock *)taosMemoryCalloc(1, sizeof(SSDataBlock));
-    ASSERT_NE(pDataBlock, nullptr);
+    EXPECT_NE(pDataBlock, nullptr);
     pDataBlock->pBlockAgg = NULL;
     pDataBlock->info.numOfCols = tSmaNumOfCols;
     pDataBlock->info.rows = tSmaNumOfRows;
     pDataBlock->info.groupId = tSmaGroupId + g;
 
     pDataBlock->pDataBlock = taosArrayInit(tSmaNumOfCols, sizeof(SColumnInfoData *));
-    ASSERT_NE(pDataBlock->pDataBlock, nullptr);
+    EXPECT_NE(pDataBlock->pDataBlock, nullptr);
     for (int32_t c = 0; c < tSmaNumOfCols; ++c) {
       
       SColumnInfoData *pColInfoData = (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
-      ASSERT_NE(pColInfoData, nullptr);
+      EXPECT_NE(pColInfoData, nullptr);
 
       pColInfoData->info.type = tSmaTypeArray[c];
       if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
@@ -481,7 +486,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
             memcpy(varDataVal(pCellData), tSmaGroupbyTags[g * 2 + 1], varDataLen(pCellData));
             break;
           default:
-            ASSERT_EQ(0, 1);  // add definition
+            EXPECT_EQ(0, 1);  // add definition
             break;
         }
       }
@@ -493,7 +498,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   }
 
   // execute
-  ASSERT_EQ(tsdbInsertTSmaData(pTsdb, tSma.indexUid, (const char *)pDataBlocks), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(tsdbInsertTSmaData(pTsdb, tSma.indexUid, (const char *)pDataBlocks), TSDB_CODE_SUCCESS);
 
 #if 0
   STSmaDataWrapper *pSmaData = NULL;
@@ -512,7 +517,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
     int32_t tableDataLen = sizeof(STSmaTbData);
     for (col_id_t c = 0; c < numOfCols; ++c) {
       if (bufSize - len - tableDataLen < buffer) {
-        ASSERT_EQ(tsdbMakeRoom(&buf, bufSize + allocStep), 0);
+        EXPECT_EQ(tsdbMakeRoom(&buf, bufSize + allocStep), 0);
         pSmaData = (STSmaDataWrapper *)buf;
         pTbData = (STSmaTbData *)POINTER_SHIFT(pSmaData, len);
         bufSize = taosTSizeof(buf);
@@ -539,14 +544,14 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   }
   pSmaData->dataLen = (len - sizeof(STSmaDataWrapper));
 
-  ASSERT_GE(bufSize, pSmaData->dataLen);
+  EXPECT_GE(bufSize, pSmaData->dataLen);
   // execute
-  ASSERT_EQ(tsdbInsertTSmaData(pTsdb, (char *)pSmaData), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(tsdbInsertTSmaData(pTsdb, (char *)pSmaData), TSDB_CODE_SUCCESS);
 #endif
 
   // step 3: query
   uint32_t checkDataCnt = 0;
-  ASSERT_EQ(tsdbGetTSmaData(pTsdb, NULL, indexUid1, skey1, 1), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(tsdbGetTSmaData(pTsdb, NULL, indexUid1, skey1, 1), TSDB_CODE_SUCCESS);
   ++checkDataCnt;
 
   printf("%s:%d The sma data check count for insert and query is %" PRIu32 "\n", __FILE__, __LINE__, checkDataCnt);
@@ -555,11 +560,12 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   taosMemoryFreeClear(pMsg);
 
   for (int32_t i = 0; i < taosArrayGetSize(pDataBlocks); ++i) {
-    SSDataBlock *pDataBlock = (SSDataBlock *)taosArrayGet(pDataBlocks, i);
+    SSDataBlock *pDataBlock = *(SSDataBlock **)taosArrayGet(pDataBlocks, i);
     int32_t      numOfOutput = taosArrayGetSize(pDataBlock->pDataBlock);
     for (int32_t j = 0; j < numOfOutput; ++j) {
-      SColumnInfoData *pColInfoData = (SColumnInfoData *)taosArrayGet(pDataBlock->pDataBlock, j);
+      SColumnInfoData *pColInfoData = *(SColumnInfoData **)taosArrayGet(pDataBlock->pDataBlock, j);
       colDataDestroy(pColInfoData);
+      taosMemoryFreeClear(pColInfoData);
     }
 
     taosArrayDestroy(pDataBlock->pDataBlock);

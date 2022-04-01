@@ -720,7 +720,7 @@ void vectorMathRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam
 
       double lx = getVectorDoubleValueFnLeft(pLeftCol->pData, i);
       double rx = getVectorDoubleValueFnRight(pRightCol->pData, i);
-      if (compareDoubleVal(&zero, &rx)) {
+      if (isnan(lx) || isinf(lx) || isnan(rx) || isinf(rx)) {
         colDataAppend(pOutputCol, i, NULL, true);
         continue;
       }
@@ -729,7 +729,7 @@ void vectorMathRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam
     }
   } else if (pLeft->numOfRows == 1) {
     double lx = getVectorDoubleValueFnLeft(pLeftCol->pData, 0);
-    if (colDataIsNull_f(pLeftCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
+    if (colDataIsNull_f(pLeftCol->nullbitmap, 0) || isnan(lx) || isinf(lx)) {  // Set pLeft->numOfRows NULL value
       // TODO set numOfRows NULL value
     } else {
       for (; i >= 0 && i < pRight->numOfRows; i += step, output += 1) {
@@ -739,7 +739,7 @@ void vectorMathRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam
         }
 
         double rx = getVectorDoubleValueFnRight(pRightCol->pData, i);
-        if (compareDoubleVal(&zero, &rx)) {
+        if (isnan(rx) || isinf(rx) || FLT_EQUAL(rx, 0)) {
           colDataAppend(pOutputCol, i, NULL, true);
           continue;
         }
@@ -749,17 +749,17 @@ void vectorMathRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam
     }
   } else if (pRight->numOfRows == 1) {
     double rx = getVectorDoubleValueFnRight(pRightCol->pData, 0);
-    if (colDataIsNull_f(pRightCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
+    if (colDataIsNull_f(pRightCol->nullbitmap, 0) || FLT_EQUAL(rx, 0)) {  // Set pLeft->numOfRows NULL value
       // TODO set numOfRows NULL value
     } else {
       for (; i >= 0 && i < pLeft->numOfRows; i += step, output += 1) {
-        if (colDataIsNull_f(pRightCol->nullbitmap, i)) {
+        if (colDataIsNull_f(pLeftCol->nullbitmap, i)) {
           colDataAppend(pOutputCol, i, NULL, true);
           continue;
         }
 
-        double lx = getVectorDoubleValueFnLeft(pRightCol->pData, i);
-        if (compareDoubleVal(&zero, &lx)) {
+        double lx = getVectorDoubleValueFnLeft(pLeftCol->pData, i);
+        if (isnan(lx) || isinf(lx)) {
           colDataAppend(pOutputCol, i, NULL, true);
           continue;
         }

@@ -73,26 +73,11 @@ typedef struct SResultRowPosition {
 } SResultRowPosition;
 
 typedef struct SResultRowInfo {
-  SList       *pRows;
   SResultRowPosition *pPosition;
-  SResultRow **pResult;    // result list
   int32_t      size;       // number of result set
   int32_t      capacity;   // max capacity
   int32_t      curPos;     // current active result row index of pResult list
 } SResultRowInfo;
-
-typedef struct SResultRowPool {
-  int32_t elemSize;
-  int32_t blockSize;
-  int32_t numOfElemPerBlock;
-
-  struct {
-    int32_t blockIndex;
-    int32_t pos;
-  } position;
-
-  SArray* pData;    // SArray<void*>
-} SResultRowPool;
 
 struct STaskAttr;
 struct STaskRuntimeEnv;
@@ -109,25 +94,33 @@ void    resetResultRowInfo(struct STaskRuntimeEnv* pRuntimeEnv, SResultRowInfo* 
 int32_t numOfClosedResultRows(SResultRowInfo* pResultRowInfo);
 void    closeAllResultRows(SResultRowInfo* pResultRowInfo);
 
-int32_t initResultRow(SResultRow *pResultRow);
-void    closeResultRow(SResultRowInfo* pResultRowInfo, int32_t slot);
-bool    isResultRowClosed(SResultRowInfo *pResultRowInfo, int32_t slot);
-void    clearResultRow(struct STaskRuntimeEnv* pRuntimeEnv, SResultRow* pResultRow);
+void    initResultRow(SResultRow *pResultRow);
+void    closeResultRow(SResultRow* pResultRow);
+bool    isResultRowClosed(SResultRow* pResultRow);
 
 struct SResultRowEntryInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_t* offset);
 
-void* destroyQueryFuncExpr(SExprInfo* pExprInfo, int32_t numOfExpr);
 int32_t getRowNumForMultioutput(struct STaskAttr* pQueryAttr, bool topBottomQuery, bool stable);
 
-static FORCE_INLINE SResultRow *getResultRow(SResultRowInfo *pResultRowInfo, int32_t slot) {
-  assert(pResultRowInfo != NULL && slot >= 0 && slot < pResultRowInfo->size);
-  return pResultRowInfo->pResult[slot];
+static FORCE_INLINE SResultRow *getResultRow(SDiskbasedBuf* pBuf, SResultRowInfo *pResultRowInfo, int32_t slot) {
+  ASSERT(pResultRowInfo != NULL && slot >= 0 && slot < pResultRowInfo->size);
+  SResultRowPosition* pos = &pResultRowInfo->pPosition[slot];
+
+  SFilePage*  bufPage = (SFilePage*) getBufPage(pBuf, pos->pageId);
+  SResultRow* pRow = (SResultRow*)((char*)bufPage + pos->offset);
+  return pRow;
+}
+
+static FORCE_INLINE SResultRow *getResultRowByPos(SDiskbasedBuf* pBuf, SResultRowPosition* pos) {
+  SFilePage*  bufPage = (SFilePage*) getBufPage(pBuf, pos->pageId);
+  SResultRow* pRow = (SResultRow*)((char*)bufPage + pos->offset);
+  return pRow;
 }
 
 static FORCE_INLINE char* getPosInResultPage(struct STaskAttr* pQueryAttr, SFilePage* page, int32_t rowOffset,
                                              int32_t offset) {
   assert(rowOffset >= 0 && pQueryAttr != NULL);
-
+  ASSERT(0);
 //  int32_t numOfRows = (int32_t)getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery);
 //  return ((char *)page->data) + rowOffset + offset * numOfRows;
 }
@@ -139,23 +132,14 @@ static FORCE_INLINE char* getPosInResultPage_rv(SFilePage* page, int32_t rowOffs
   return (char*) page + rowOffset + offset * numOfRows;
 }
 
-//bool isNullOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type);
-//bool notNullOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type);
-
-__filter_func_t getFilterOperator(int32_t lowerOptr, int32_t upperOptr);
-
-SResultRow* getNewResultRow(SResultRowPool* p);
-
 typedef struct {
   SArray* pResult;     // SArray<SResPair>
   int32_t colId;
 } SStddevInterResult;
 
-void interResToBinary(SBufferWriter* bw, SArray* pRes, int32_t tagLen);
-SArray* interResFromBinary(const char* data, int32_t len);
-void freeInterResult(void* param);
-
 void    initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo);
+void    initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
+
 void    cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
 bool    hasRemainDataInCurrentGroup(SGroupResInfo* pGroupResInfo);
 bool    hasRemainData(SGroupResInfo* pGroupResInfo);

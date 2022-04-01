@@ -20,7 +20,7 @@
 #include "taos.h"
 
 int32_t init_env() {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 7010);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   if (pConn == NULL) {
     return -1;
   }
@@ -65,7 +65,7 @@ int32_t init_env() {
 int32_t create_stream() {
   printf("create stream\n");
   TAOS_RES* pRes;
-  TAOS*     pConn = taos_connect("localhost", "root", "taosdata", NULL, 7010);
+  TAOS*     pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   if (pConn == NULL) {
     return -1;
   }

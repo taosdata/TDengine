@@ -142,10 +142,10 @@ typedef struct SSchTask {
 } SSchTask;
 
 typedef struct SSchJobAttr {
-  bool needFetch;
-  bool syncSchedule;
-  bool queryJob;
-  bool needFlowCtrl;
+  EExplainMode explainMode;
+  bool         syncSchedule;
+  bool         queryJob;
+  bool         needFlowCtrl;
 } SSchJobAttr;
 
 typedef struct SSchJob {

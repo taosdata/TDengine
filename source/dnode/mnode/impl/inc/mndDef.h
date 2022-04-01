@@ -735,6 +735,9 @@ typedef struct {
   int8_t         createdBy;      // STREAM_CREATED_BY__USER or SMA
   int32_t        fixedSinkVgId;  // 0 for shuffle
   int64_t        smaId;          // 0 for unused
+  int8_t         trigger;
+  int32_t        triggerParam;
+  int64_t        waterMark;
   char*          sql;
   char*          logicalPlan;
   char*          physicalPlan;

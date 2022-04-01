@@ -62,3 +62,7 @@ void qDestroyQuery(SQuery* pQueryNode) {
   taosArrayDestroy(pQueryNode->pTableList);
   taosMemoryFreeClear(pQueryNode);
 }
+
+int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
+  return extractResultSchema(pRoot, numOfCols, pSchema);
+}

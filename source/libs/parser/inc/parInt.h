@@ -25,6 +25,7 @@ extern "C" {
 int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery);
 int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery);
 int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery);
+int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema);
 
 #ifdef __cplusplus
 }

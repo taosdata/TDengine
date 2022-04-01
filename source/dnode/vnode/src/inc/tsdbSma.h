@@ -51,7 +51,7 @@ static FORCE_INLINE int32_t tsdbEncodeTSmaKey(int64_t groupId, TSKEY tsKey, void
   return len;
 }
 
-static FORCE_INLINE int tsdbRLockSma(SSmaEnv *pEnv) {
+static FORCE_INLINE int32_t tsdbRLockSma(SSmaEnv *pEnv) {
   int code = taosThreadRwlockRdlock(&(pEnv->lock));
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -60,7 +60,7 @@ static FORCE_INLINE int tsdbRLockSma(SSmaEnv *pEnv) {
   return 0;
 }
 
-static FORCE_INLINE int tsdbWLockSma(SSmaEnv *pEnv) {
+static FORCE_INLINE int32_t tsdbWLockSma(SSmaEnv *pEnv) {
   int code = taosThreadRwlockWrlock(&(pEnv->lock));
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -69,7 +69,7 @@ static FORCE_INLINE int tsdbWLockSma(SSmaEnv *pEnv) {
   return 0;
 }
 
-static FORCE_INLINE int tsdbUnLockSma(SSmaEnv *pEnv) {
+static FORCE_INLINE int32_t tsdbUnLockSma(SSmaEnv *pEnv) {
   int code = taosThreadRwlockUnlock(&(pEnv->lock));
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);

@@ -101,6 +101,8 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_TOPIC_STMT,
   QUERY_NODE_ALTER_LOCAL_STMT,
   QUERY_NODE_EXPLAIN_STMT,
+  QUERY_NODE_DESCRIBE_STMT,
+  QUERY_NODE_RESET_QUERY_CACHE_STMT,
   QUERY_NODE_SHOW_DATABASES_STMT,
   QUERY_NODE_SHOW_TABLES_STMT,
   QUERY_NODE_SHOW_STABLES_STMT,
@@ -212,6 +214,8 @@ int32_t nodesStringToNode(const char* pStr, SNode** pNode);
 
 int32_t nodesListToString(const SNodeList* pList, bool format, char** pStr, int32_t* pLen);
 int32_t nodesStringToList(const char* pStr, SNodeList** pList);
+
+int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len);
 
 #ifdef __cplusplus
 }

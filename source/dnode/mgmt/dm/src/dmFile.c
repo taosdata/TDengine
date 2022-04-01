@@ -130,7 +130,7 @@ int32_t dmReadFile(SDnodeMgmt *pMgmt) {
   }
 
   code = 0;
-  dInfo("succcessed to read file %s", file);
+  dDebug("succcessed to read file %s", file);
   dmPrintDnodes(pMgmt);
 
 PRASE_DNODE_OVER:
@@ -200,7 +200,7 @@ int32_t dmWriteFile(SDnodeMgmt *pMgmt) {
   taosMemoryFree(content);
 
   char realfile[PATH_MAX];
-  snprintf(realfile, sizeof(realfile), "%s%smnode.json", pMgmt->path, TD_DIRSEP);
+  snprintf(realfile, sizeof(realfile), "%s%sdnode.json", pMgmt->path, TD_DIRSEP);
 
   if (taosRenameFile(file, realfile) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);

@@ -30,6 +30,9 @@ SWalReadHandle *walOpenReadHandle(SWal *pWal) {
   pRead->curFileFirstVer = -1;
   pRead->capacity = 0;
   pRead->status = 0;
+
+  taosThreadMutexInit(&pRead->mutex, NULL);
+
   pRead->pHead = taosMemoryMalloc(sizeof(SWalHead));
   if (pRead->pHead == NULL) {
     terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
@@ -135,6 +138,22 @@ static int32_t walReadSeekVer(SWalReadHandle *pRead, int64_t ver) {
   return 0;
 }
 
+int32_t walReadWithHandle_s(SWalReadHandle *pRead, int64_t ver, SWalReadHead **ppHead) {
+  taosThreadMutexLock(&pRead->mutex);
+  if (walReadWithHandle(pRead, ver) < 0) {
+    taosThreadMutexUnlock(&pRead->mutex);
+    return -1;
+  }
+  *ppHead = taosMemoryMalloc(sizeof(SWalReadHead) + pRead->pHead->head.len);
+  if (*ppHead == NULL) {
+    taosThreadMutexUnlock(&pRead->mutex);
+    return -1;
+  }
+  memcpy(*ppHead, &pRead->pHead->head, sizeof(SWalReadHead) + pRead->pHead->head.len);
+  taosThreadMutexUnlock(&pRead->mutex);
+  return 0;
+}
+
 int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
   int code;
   // TODO: check wal life
@@ -145,7 +164,9 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
     }
   }
 
-  if (!taosValidFile(pRead->pReadLogTFile)) return -1;
+  if (!taosValidFile(pRead->pReadLogTFile)) {
+    return -1;
+  }
 
   code = taosReadFile(pRead->pReadLogTFile, pRead->pHead, sizeof(SWalHead));
   if (code != sizeof(SWalHead)) {

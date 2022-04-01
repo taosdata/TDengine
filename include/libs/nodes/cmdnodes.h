@@ -20,7 +20,13 @@
 extern "C" {
 #endif
 
+#include "query.h"
 #include "querynodes.h"
+
+#define DESCRIBE_RESULT_COLS 4
+#define DESCRIBE_RESULT_FIELD_LEN (TSDB_COL_NAME_LEN - 1 + VARSTR_HEADER_SIZE)
+#define DESCRIBE_RESULT_TYPE_LEN (20 + VARSTR_HEADER_SIZE)
+#define DESCRIBE_RESULT_NOTE_LEN (8 + VARSTR_HEADER_SIZE)
 
 typedef struct SDatabaseOptions {
   ENodeType type;
@@ -32,7 +38,9 @@ typedef struct SDatabaseOptions {
   int32_t fsyncPeriod;
   int32_t maxRowsPerBlock;
   int32_t minRowsPerBlock;
-  int32_t keep;
+  int32_t keep0;
+  int32_t keep1;
+  int32_t keep2;
   int32_t precision;
   int32_t quorum;
   int32_t replica;
@@ -70,7 +78,9 @@ typedef struct SAlterDatabaseStmt {
 
 typedef struct STableOptions {
   ENodeType type;
-  int32_t keep;
+  int32_t keep0;
+  int32_t keep1;
+  int32_t keep2;
   int32_t ttl;
   char comments[TSDB_STB_COMMENT_LEN];
   SNodeList* pSma;
@@ -246,6 +256,13 @@ typedef struct SAlterLocalStmt {
   char config[TSDB_DNODE_CONFIG_LEN];
   char value[TSDB_DNODE_VALUE_LEN];
 } SAlterLocalStmt;
+
+typedef struct SDescribeStmt {
+  ENodeType type;
+  char dbName[TSDB_DB_NAME_LEN];
+  char tableName[TSDB_TABLE_NAME_LEN];
+  STableMeta* pMeta;
+} SDescribeStmt;
 
 #ifdef __cplusplus
 }

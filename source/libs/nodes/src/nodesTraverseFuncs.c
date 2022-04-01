@@ -17,7 +17,8 @@
 
 typedef enum ETraversalOrder {
   TRAVERSAL_PREORDER = 1,
-  TRAVERSAL_POSTORDER
+  TRAVERSAL_INORDER,
+  TRAVERSAL_POSTORDER,
 } ETraversalOrder;
 
 static EDealRes walkList(SNodeList* pNodeList, ETraversalOrder order, FNodeWalker walker, void* pContext);
