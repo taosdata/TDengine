@@ -228,12 +228,24 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
   assert(pSchema != NULL && numOfCols > 0);
 
   pResInfo->numOfCols = numOfCols;
-  pResInfo->fields = taosMemoryCalloc(numOfCols, sizeof(pSchema[0]));
+  pResInfo->fields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
+  pResInfo->userFields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
 
   for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
     pResInfo->fields[i].bytes = pSchema[i].bytes;
-    pResInfo->fields[i].type = pSchema[i].type;
+    pResInfo->fields[i].type  = pSchema[i].type;
+
+    pResInfo->userFields[i].bytes = pSchema[i].bytes;
+    pResInfo->userFields[i].type  = pSchema[i].type;
+
+    if (pSchema[i].type == TSDB_DATA_TYPE_VARCHAR) {
+      pResInfo->userFields[i].bytes -= VARSTR_HEADER_SIZE;
+    } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
+      pResInfo->userFields[i].bytes = (pResInfo->userFields[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+    }
+
     tstrncpy(pResInfo->fields[i].name, pSchema[i].name, tListLen(pResInfo->fields[i].name));
+    tstrncpy(pResInfo->userFields[i].name, pSchema[i].name, tListLen(pResInfo->userFields[i].name));
   }
 }
 

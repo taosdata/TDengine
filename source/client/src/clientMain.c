@@ -146,7 +146,7 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
   }
 
   SReqResultInfo *pResInfo = &(((SRequestObj *)res)->body.resInfo);
-  return pResInfo->fields;
+  return pResInfo->userFields;
 }
 
 TAOS_RES *taos_query(TAOS *taos, const char *sql) {

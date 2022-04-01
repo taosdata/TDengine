@@ -153,6 +153,7 @@ typedef struct SReqResultInfo {
   const char*    pRspMsg;
   const char*    pData;
   TAOS_FIELD*    fields;
+  TAOS_FIELD*    userFields; // the fields info that return to user
   uint32_t       numOfCols;
   int32_t*       length;
   char**         convertBuf;
