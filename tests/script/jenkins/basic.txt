@@ -23,7 +23,7 @@
 ./test.sh -f tsim/insert/null.sim
 
 # ---- parser
-#./test.sh -f tsim/parser/groupby-basic.sim
+./test.sh -f tsim/parser/groupby-basic.sim
 #./test.sh -f tsim/parser/fourArithmetic-basic.sim
 
 # ---- query
