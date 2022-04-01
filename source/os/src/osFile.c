@@ -294,7 +294,7 @@ int64_t taosCloseFile(TdFilePtr *ppFile) {
 #if FILE_WITH_LOCK
   taosThreadRwlockWrlock(&((*ppFile)->rwlock));
 #endif
-  if (ppFile == NULL || *ppFile == NULL || (*ppFile)->fd == -1) {
+  if (ppFile == NULL || *ppFile == NULL) {
     return 0;
   }
   if ((*ppFile)->fp != NULL) {

@@ -844,8 +844,7 @@ static int32_t setResultOutputBufByKey(STaskRuntimeEnv* pRuntimeEnv, SResultRowI
   return TSDB_CODE_SUCCESS;
 }
 
-static void setResultRowOutputBufInitCtx_rv(SDiskbasedBuf* pBuf, SResultRow* pResult, SqlFunctionCtx* pCtx,
-                                            int32_t numOfOutput, int32_t* rowCellInfoOffset);
+static void setResultRowOutputBufInitCtx_rv(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowCellInfoOffset);
 
 static int32_t setResultOutputBufByKey_rv(SResultRowInfo* pResultRowInfo, int64_t id, STimeWindow* win, bool masterscan,
                                           SResultRow** pResult, int64_t tableGroupId, SqlFunctionCtx* pCtx,
@@ -863,7 +862,7 @@ static int32_t setResultOutputBufByKey_rv(SResultRowInfo* pResultRowInfo, int64_
   // set time window for current result
   pResultRow->win = (*win);
   *pResult = pResultRow;
-  setResultRowOutputBufInitCtx_rv(pAggSup->pResultBuf, pResultRow, pCtx, numOfOutput, rowCellInfoOffset);
+  setResultRowOutputBufInitCtx_rv(pResultRow, pCtx, numOfOutput, rowCellInfoOffset);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1046,7 +1045,9 @@ static void updateTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pWin) {
 static void doApplyFunctions(SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* pTimeWindowData, int32_t offset, int32_t forwardStep, TSKEY* tsCol,
                              int32_t numOfTotal, int32_t numOfOutput, int32_t order) {
   SScalarParam intervalParam = {.numOfRows = 5, .columnData = pTimeWindowData};  //TODO move out of this function
-  updateTimeWindowInfo(pTimeWindowData, pWin);
+  if (pTimeWindowData != NULL) {
+    updateTimeWindowInfo(pTimeWindowData, pWin);
+  }
 
   for (int32_t k = 0; k < numOfOutput; ++k) {
     pCtx[k].startTs = pWin->skey;
@@ -1894,9 +1895,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     }
 
     /*int32_t ret = */ generatedHashKey(pInfo->keyBuf, &len, pInfo->pGroupColVals);
-    int32_t ret =
-        setGroupResultOutputBuf_rv(&(pInfo->binfo), pOperator->numOfOutput, pInfo->keyBuf, TSDB_DATA_TYPE_VARCHAR, len,
-                                   0, pInfo->aggSup.pResultBuf, pTaskInfo, &pInfo->aggSup);
+    int32_t ret = setGroupResultOutputBuf_rv(&(pInfo->binfo), pOperator->numOfOutput, pInfo->keyBuf, TSDB_DATA_TYPE_VARCHAR, len, 0, pInfo->aggSup.pResultBuf, pTaskInfo, &pInfo->aggSup);
     if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
       longjmp(pTaskInfo->env, TSDB_CODE_QRY_APP_ERROR);
     }
@@ -2018,12 +2017,11 @@ static int32_t setGroupResultOutputBuf_rv(SOptrBasicInfo* binfo, int32_t numOfCo
   SqlFunctionCtx* pCtx = binfo->pCtx;
 
   SResultRow* pResultRow = doSetResultOutBufByKey_rv(pBuf, pResultRowInfo, groupId, (char*)pData, bytes, true, groupId,
-                                                     pTaskInfo, true, pAggSup);
+                                                     pTaskInfo, false, pAggSup);
   assert(pResultRow != NULL);
 
   setResultRowKey(pResultRow, pData, type);
-
-  setResultRowOutputBufInitCtx_rv(pBuf, pResultRow, pCtx, numOfCols, binfo->rowCellInfoOffset);
+  setResultRowOutputBufInitCtx_rv(pResultRow, pCtx, numOfCols, binfo->rowCellInfoOffset);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2178,8 +2176,8 @@ static SqlFunctionCtx* createSqlFunctionCtx_rv(SExprInfo* pExprInfo, int32_t num
         }
       }
       pCtx->resDataInfo.interBufSize = env.calcMemSize;
-    } else if (pExpr->pExpr->nodeType == QUERY_NODE_COLUMN) {
-    } else if (pExpr->pExpr->nodeType == QUERY_NODE_OPERATOR) {
+    } else if (pExpr->pExpr->nodeType == QUERY_NODE_COLUMN || pExpr->pExpr->nodeType == QUERY_NODE_OPERATOR) {
+      pCtx->resDataInfo.interBufSize = pFunct->resSchema.bytes; // for simple column, the intermediate buffer needs to hold one element.
     }
 
     pCtx->input.numOfInputCols = pFunct->numOfParams;
@@ -3775,8 +3773,7 @@ void setResultRowOutputBufInitCtx(STaskRuntimeEnv* pRuntimeEnv, SResultRow* pRes
   }
 }
 
-void setResultRowOutputBufInitCtx_rv(SDiskbasedBuf* pBuf, SResultRow* pResult, SqlFunctionCtx* pCtx,
-                                     int32_t numOfOutput, int32_t* rowCellInfoOffset) {
+void setResultRowOutputBufInitCtx_rv(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowCellInfoOffset) {
   for (int32_t i = 0; i < numOfOutput; ++i) {
     pCtx[i].resultInfo = getResultCell(pResult, i, rowCellInfoOffset);
 
@@ -3789,18 +3786,13 @@ void setResultRowOutputBufInitCtx_rv(SDiskbasedBuf* pBuf, SResultRow* pResult, S
       continue;
     }
 
-    //    if (functionId == FUNCTION_TOP || functionId == FUNCTION_BOTTOM || functionId == FUNCTION_DIFF) {
-    //      if (i > 0) pCtx[i].ptsOutputBuf = pCtx[i - 1].pOutput;
-    //    }
-
     if (!pResInfo->initialized && pCtx[i].functionId != -1) {
       pCtx[i].fpSet.init(&pCtx[i], pResInfo);
     }
   }
 }
 
-void doSetTableGroupOutputBuf(SAggOperatorInfo* pAggInfo, int32_t numOfOutput, int32_t tableGroupId,
-                              SExecTaskInfo* pTaskInfo) {
+void doSetTableGroupOutputBuf(SAggOperatorInfo* pAggInfo, int32_t numOfOutput, int32_t tableGroupId, SExecTaskInfo* pTaskInfo) {
   // for simple group by query without interval, all the tables belong to one group result.
   int64_t uid = 0;
   int64_t tid = 0;
@@ -3819,14 +3811,13 @@ void doSetTableGroupOutputBuf(SAggOperatorInfo* pAggInfo, int32_t numOfOutput, i
    * all group belong to one result set, and each group result has different group id so set the id to be one
    */
   if (pResultRow->pageId == -1) {
-    int32_t ret =
-        addNewWindowResultBuf(pResultRow, pAggInfo->pResultBuf, tableGroupId, pAggInfo->binfo.pRes->info.rowSize);
+    int32_t ret = addNewWindowResultBuf(pResultRow, pAggInfo->pResultBuf, tableGroupId, pAggInfo->binfo.pRes->info.rowSize);
     if (ret != TSDB_CODE_SUCCESS) {
       return;
     }
   }
 
-  setResultRowOutputBufInitCtx_rv(pAggInfo->pResultBuf, pResultRow, pCtx, numOfOutput, rowCellInfoOffset);
+  setResultRowOutputBufInitCtx_rv(pResultRow, pCtx, numOfOutput, rowCellInfoOffset);
 }
 
 void setExecutionContext(int32_t numOfOutput, int32_t tableGroupId, TSKEY nextKey, SExecTaskInfo* pTaskInfo,
@@ -5013,12 +5004,16 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) 
 
 int32_t loadRemoteDataCallback(void* param, const SDataBuf* pMsg, int32_t code) {
   SSourceDataInfo* pSourceDataInfo = (SSourceDataInfo*)param;
-  pSourceDataInfo->pRsp = pMsg->pData;
+  if (code == TSDB_CODE_SUCCESS) {
+    pSourceDataInfo->pRsp = pMsg->pData;
 
-  SRetrieveTableRsp* pRsp = pSourceDataInfo->pRsp;
-  pRsp->numOfRows = htonl(pRsp->numOfRows);
-  pRsp->useconds = htobe64(pRsp->useconds);
-  pRsp->compLen = htonl(pRsp->compLen);
+    SRetrieveTableRsp* pRsp = pSourceDataInfo->pRsp;
+    pRsp->numOfRows = htonl(pRsp->numOfRows);
+    pRsp->compLen   = htonl(pRsp->compLen);
+    pRsp->useconds  = htobe64(pRsp->useconds);
+  } else {
+    pSourceDataInfo->code = code;
+  }
 
   pSourceDataInfo->status = EX_SOURCE_DATA_READY;
   tsem_post(&pSourceDataInfo->pEx->ready);
@@ -5274,7 +5269,6 @@ static SSDataBlock* concurrentlyLoadRemoteData(SOperatorInfo* pOperator) {
          totalSources, endTs - startTs);
 
   tsem_wait(&pExchangeInfo->ready);
-
   pOperator->status = OP_RES_TO_RETURN;
   return concurrentlyLoadRemoteDataImpl(pOperator, pExchangeInfo, pTaskInfo);
 }
@@ -5318,18 +5312,22 @@ static SSDataBlock* seqLoadRemoteData(SOperatorInfo* pOperator) {
     }
 
     doSendFetchDataRequest(pExchangeInfo, pTaskInfo, pExchangeInfo->current);
-
     tsem_wait(&pExchangeInfo->ready);
 
-    SSourceDataInfo*       pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, pExchangeInfo->current);
+    SSourceDataInfo* pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, pExchangeInfo->current);
     SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, pExchangeInfo->current);
+
+    if (pDataInfo->code != TSDB_CODE_SUCCESS) {
+      qError("%s vgId:%d, taskID:0x%" PRIx64 " error happens, code:%s",
+             GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, tstrerror(pDataInfo->code));
+      pOperator->pTaskInfo->code = pDataInfo->code;
+      return NULL;
+    }
 
     SRetrieveTableRsp*   pRsp = pDataInfo->pRsp;
     SLoadRemoteDataInfo* pLoadInfo = &pExchangeInfo->loadInfo;
-
     if (pRsp->numOfRows == 0) {
-      qDebug("%s vgId:%d, taskID:0x%" PRIx64 " %d of total completed, rowsOfSource:%" PRIu64 ", totalRows:%" PRIu64
-             " try next",
+      qDebug("%s vgId:%d, taskID:0x%" PRIx64 " %d of total completed, rowsOfSource:%" PRIu64 ", totalRows:%" PRIu64 " try next",
              GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pExchangeInfo->current + 1,
              pDataInfo->totalRows, pLoadInfo->totalRows);
 

@@ -32,6 +32,7 @@ extern "C" {
 void *taosMemoryMalloc(int32_t size);
 void *taosMemoryCalloc(int32_t num, int32_t size);
 void *taosMemoryRealloc(void *ptr, int32_t size);
+void *taosMemoryStrDup(void *ptr);
 void taosMemoryFree(const void *ptr);
 int32_t taosMemorySize(void *ptr);
 
