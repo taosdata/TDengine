@@ -7,7 +7,6 @@
 ##################################################
 
 set +e
-#set -x
 
 FILE_NAME=
 RELEASE=0
@@ -16,7 +15,8 @@ VALGRIND=0
 UNIQUE=0
 UNAME_BIN=`which uname`
 OS_TYPE=`$UNAME_BIN`
-while getopts "f:avu" arg
+MULTIPROCESS=1
+while getopts "f:avum" arg
 do
   case $arg in
     f)
@@ -27,6 +27,9 @@ do
       ;;
     u)
       UNIQUE=1
+      ;;
+    m)
+      MULTIPROCESS=1
       ;;
     ?)
       echo "unknow argument"
@@ -125,8 +128,13 @@ if [ -n "$FILE_NAME" ]; then
     echo valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes  --log-file=${CODE_DIR}/../script/valgrind.log $PROGRAM -c $CFG_DIR -f $FILE_NAME
     valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes  --log-file=${CODE_DIR}/../script/valgrind.log $PROGRAM -c $CFG_DIR -f $FILE_NAME
   else
-    echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f $FILE_NAME
-    $PROGRAM -c $CFG_DIR -f $FILE_NAME
+    if [[ $MULTIPROCESS -eq 1 ]];then
+      echo "ExcuteCmd(multiprocess):" $PROGRAM -m -c $CFG_DIR -f $FILE_NAME  
+      $PROGRAM -m -c $CFG_DIR -f $FILE_NAME
+    else
+      echo "ExcuteCmd(singleprocess):" $PROGRAM -c $CFG_DIR -f $FILE_NAME  
+      $PROGRAM -c $CFG_DIR -f $FILE_NAME
+    fi
   fi
 else
   echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f basicSuite.sim
